@@ -23,6 +23,16 @@ export class ExamService {
     { id: 'm8', examId: 'e2', studentId: 's9', studentName: 'Mason Davis', subjectName: 'Mathematics', marksObtained: 65, maxMarks: 100, grade: 'B', classId: 'c9', tenantId: 't1' },
     { id: 'm9', examId: 'e2', studentId: 's12', studentName: 'Emma Chen', subjectName: 'Mathematics', marksObtained: 92, maxMarks: 100, grade: 'A+', classId: 'c8', tenantId: 't1' },
     { id: 'm10', examId: 'e2', studentId: 's12', studentName: 'Emma Chen', subjectName: 'Science', marksObtained: 85, maxMarks: 100, grade: 'A', classId: 'c8', tenantId: 't1' },
+    { id: 'm11', examId: 'e1', studentId: 's1', studentName: 'Arjun Patel', subjectName: 'Mathematics', marksObtained: 78, maxMarks: 100, grade: 'B+', classId: 'c5', tenantId: 't1' },
+    { id: 'm12', examId: 'e1', studentId: 's1', studentName: 'Arjun Patel', subjectName: 'English', marksObtained: 65, maxMarks: 100, grade: 'B', classId: 'c5', tenantId: 't1' },
+    { id: 'm13', examId: 'e1', studentId: 's1', studentName: 'Arjun Patel', subjectName: 'Science', marksObtained: 82, maxMarks: 100, grade: 'A', classId: 'c5', tenantId: 't1' },
+    { id: 'm14', examId: 'e1', studentId: 's4', studentName: 'Sofia Martinez', subjectName: 'Mathematics', marksObtained: 82, maxMarks: 100, grade: 'A', classId: 'c8', tenantId: 't1' },
+    { id: 'm15', examId: 'e1', studentId: 's4', studentName: 'Sofia Martinez', subjectName: 'Science', marksObtained: 90, maxMarks: 100, grade: 'A+', classId: 'c8', tenantId: 't1' },
+    { id: 'm16', examId: 'e1', studentId: 's12', studentName: 'Emma Chen', subjectName: 'Mathematics', marksObtained: 88, maxMarks: 100, grade: 'A', classId: 'c8', tenantId: 't1' },
+    { id: 'm17', examId: 'e1', studentId: 's12', studentName: 'Emma Chen', subjectName: 'Science', marksObtained: 80, maxMarks: 100, grade: 'A', classId: 'c8', tenantId: 't1' },
+    { id: 'm18', examId: 'e3', studentId: 's4', studentName: 'Sofia Martinez', subjectName: 'Mathematics', marksObtained: 91, maxMarks: 100, grade: 'A+', classId: 'c8', tenantId: 't1' },
+    { id: 'm19', examId: 'e3', studentId: 's4', studentName: 'Sofia Martinez', subjectName: 'Science', marksObtained: 96, maxMarks: 100, grade: 'A+', classId: 'c8', tenantId: 't1' },
+    { id: 'm20', examId: 'e3', studentId: 's12', studentName: 'Emma Chen', subjectName: 'Mathematics', marksObtained: 94, maxMarks: 100, grade: 'A+', classId: 'c8', tenantId: 't1' },
   ];
 
   getExams(): Observable<Exam[]> { return of([...this.exams]).pipe(delay(400)); }
