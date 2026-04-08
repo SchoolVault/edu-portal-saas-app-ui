@@ -86,7 +86,11 @@ export class ExamsComponent implements OnInit {
   marks: MarkRecord[] = [];
   selectedExam: Exam | null = null;
   showCreateModal = false;
+  showMarksEntry = false;
   newExam = { name: '', startDate: '', endDate: '' };
+  marksEntryStudents: any[] = [];
+  marksSubject = '';
+  marksSaving = false;
 
   constructor(private examService: ExamService) {}
 
@@ -94,7 +98,39 @@ export class ExamsComponent implements OnInit {
 
   selectExam(exam: Exam): void {
     this.selectedExam = exam;
+    this.showMarksEntry = false;
     this.examService.getMarksByExam(exam.id).subscribe(m => this.marks = m);
+  }
+
+  openMarksEntry(): void {
+    this.showMarksEntry = true;
+    this.marksSubject = 'Mathematics';
+    this.marksEntryStudents = [
+      { id: 's4', name: 'Sofia Martinez', marks: '', maxMarks: 100 },
+      { id: 's12', name: 'Emma Chen', marks: '', maxMarks: 100 },
+      { id: 's13', name: 'Aiden Murphy', marks: '', maxMarks: 100 },
+      { id: 's14', name: 'Mia Rodriguez', marks: '', maxMarks: 100 },
+      { id: 's15', name: 'Lucas Kim', marks: '', maxMarks: 100 },
+      { id: 's16', name: 'Harper Lewis', marks: '', maxMarks: 100 },
+      { id: 's8', name: 'Isabella Garcia', marks: '', maxMarks: 100 },
+    ];
+  }
+
+  saveMarks(): void {
+    if (!this.selectedExam) return;
+    this.marksSaving = true;
+    setTimeout(() => {
+      this.marksEntryStudents.forEach(s => {
+        if (s.marks !== '' && s.marks !== null) {
+          const pct = (s.marks / 100) * 100;
+          const grade = pct >= 90 ? 'A+' : pct >= 80 ? 'A' : pct >= 70 ? 'B+' : pct >= 60 ? 'B' : pct >= 50 ? 'C' : 'D';
+          const mark: MarkRecord = { id: 'mnew' + Date.now() + s.id, examId: this.selectedExam!.id, studentId: s.id, studentName: s.name, subjectName: this.marksSubject, marksObtained: s.marks, maxMarks: 100, grade, classId: 'c8', tenantId: 't1' };
+          this.marks.push(mark);
+        }
+      });
+      this.marksSaving = false;
+      this.showMarksEntry = false;
+    }, 1000);
   }
 
   createExam(): void {
@@ -121,5 +157,14 @@ export class ExamsComponent implements OnInit {
     if (grade.startsWith('B')) return 'badge-info';
     if (grade.startsWith('C')) return 'badge-warning';
     return 'badge-danger';
+  }
+
+  getAutoGrade(marks: number): string {
+    if (marks >= 90) return 'A+';
+    if (marks >= 80) return 'A';
+    if (marks >= 70) return 'B+';
+    if (marks >= 60) return 'B';
+    if (marks >= 50) return 'C';
+    return 'D';
   }
 }

@@ -87,7 +87,13 @@ export class TimetableComponent implements OnInit {
   constructor(private timetableService: TimetableService, private academicService: AcademicService) {}
 
   ngOnInit(): void {
-    this.academicService.getClasses().subscribe(c => this.classes = c);
+    this.academicService.getClasses().subscribe(c => {
+      this.classes = c;
+      this.selectedClassId = 'c8';
+      this.onClassChange();
+      this.selectedSectionId = 'sec8a';
+      this.loadTimetable();
+    });
   }
 
   onClassChange(): void {

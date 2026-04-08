@@ -2,7 +2,9 @@ import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { StudentService } from '../../core/services/student.service';
-import { Student } from '../../core/models/models';
+import { ExamService } from '../../core/services/exam.service';
+import { FeeService } from '../../core/services/fee.service';
+import { Student, MarkRecord, FeePayment } from '../../core/models/models';
 
 @Component({
   selector: 'app-student-profile',
@@ -36,6 +38,7 @@ import { Student } from '../../core/models/models';
               <div class="mb-3"><span style="font-size: 12px; color: var(--clr-text-muted); display: block;">Phone</span><strong>{{ student.phone }}</strong></div>
               <div class="mb-3"><span style="font-size: 12px; color: var(--clr-text-muted); display: block;">Date of Birth</span><strong>{{ student.dateOfBirth }}</strong></div>
               <div class="mb-3"><span style="font-size: 12px; color: var(--clr-text-muted); display: block;">Blood Group</span><strong>{{ student.bloodGroup }}</strong></div>
+              <div class="mb-3"><span style="font-size: 12px; color: var(--clr-text-muted); display: block;">Gender</span><strong style="text-transform: capitalize;">{{ student.gender }}</strong></div>
               <div><span style="font-size: 12px; color: var(--clr-text-muted); display: block;">Address</span><strong>{{ student.address }}</strong></div>
             </div>
           </div>
@@ -49,29 +52,79 @@ import { Student } from '../../core/models/models';
               <div class="col-md-4"><span style="font-size: 12px; color: var(--clr-text-muted); display: block;">Roll Number</span><strong>{{ student.rollNumber }}</strong></div>
               <div class="col-md-4"><span style="font-size: 12px; color: var(--clr-text-muted); display: block;">Admission Date</span><strong>{{ student.admissionDate }}</strong></div>
               <div class="col-md-4"><span style="font-size: 12px; color: var(--clr-text-muted); display: block;">Parent/Guardian</span><strong>{{ student.parentName }}</strong></div>
-              <div class="col-md-4"><span style="font-size: 12px; color: var(--clr-text-muted); display: block;">Gender</span><strong style="text-transform: capitalize;">{{ student.gender }}</strong></div>
             </div>
           </div>
           <div class="erp-card">
             <div class="erp-tabs">
-              <button class="erp-tab" [class.active]="activeTab === 'attendance'" (click)="activeTab = 'attendance'">Attendance</button>
-              <button class="erp-tab" [class.active]="activeTab === 'marks'" (click)="activeTab = 'marks'">Exam Results</button>
-              <button class="erp-tab" [class.active]="activeTab === 'fees'" (click)="activeTab = 'fees'">Fee History</button>
+              <button class="erp-tab" [class.active]="activeTab === 'marks'" (click)="activeTab = 'marks'" data-testid="tab-marks">Exam Results</button>
+              <button class="erp-tab" [class.active]="activeTab === 'fees'" (click)="activeTab = 'fees'" data-testid="tab-fees">Fee History</button>
+              <button class="erp-tab" [class.active]="activeTab === 'attendance'" (click)="activeTab = 'attendance'" data-testid="tab-attendance">Attendance</button>
             </div>
-            <div *ngIf="activeTab === 'attendance'" class="empty-state">
-              <i class="bi bi-calendar-check"></i>
-              <h3>Attendance Records</h3>
-              <p>Attendance data will appear here once integrated with backend.</p>
+
+            <div *ngIf="activeTab === 'marks'">
+              <div *ngIf="marks.length > 0">
+                <table class="erp-table" data-testid="student-marks-table">
+                  <thead><tr><th>Exam</th><th>Subject</th><th>Marks</th><th>Max</th><th>Percentage</th><th>Grade</th></tr></thead>
+                  <tbody>
+                    <tr *ngFor="let m of marks">
+                      <td>{{ getExamName(m.examId) }}</td>
+                      <td><strong>{{ m.subjectName }}</strong></td>
+                      <td>{{ m.marksObtained }}</td>
+                      <td>{{ m.maxMarks }}</td>
+                      <td>{{ ((m.marksObtained / m.maxMarks) * 100).toFixed(1) }}%</td>
+                      <td><span class="badge-erp" [ngClass]="m.grade.startsWith('A') ? 'badge-success' : m.grade.startsWith('B') ? 'badge-info' : 'badge-warning'">{{ m.grade }}</span></td>
+                    </tr>
+                  </tbody>
+                </table>
+                <div style="padding: 16px; background: var(--clr-bg); border-radius: var(--radius-lg); margin-top: 12px;">
+                  <div class="row">
+                    <div class="col-md-3"><span style="font-size: 12px; color: var(--clr-text-muted);">Total Marks</span><br><strong>{{ totalMarks }}/{{ totalMax }}</strong></div>
+                    <div class="col-md-3"><span style="font-size: 12px; color: var(--clr-text-muted);">Overall %</span><br><strong>{{ overallPercentage }}%</strong></div>
+                    <div class="col-md-3"><span style="font-size: 12px; color: var(--clr-text-muted);">Subjects</span><br><strong>{{ marks.length }}</strong></div>
+                    <div class="col-md-3"><span style="font-size: 12px; color: var(--clr-text-muted);">Overall Grade</span><br><strong style="color: var(--clr-success);">{{ overallGrade }}</strong></div>
+                  </div>
+                </div>
+              </div>
+              <div *ngIf="marks.length === 0" class="empty-state"><i class="bi bi-journal-text"></i><h3>No Results</h3><p>No exam results found for this student</p></div>
             </div>
-            <div *ngIf="activeTab === 'marks'" class="empty-state">
-              <i class="bi bi-journal-text"></i>
-              <h3>Exam Results</h3>
-              <p>Exam results will appear here once integrated with backend.</p>
+
+            <div *ngIf="activeTab === 'fees'">
+              <div *ngIf="fees.length > 0">
+                <table class="erp-table" data-testid="student-fees-table">
+                  <thead><tr><th>Description</th><th>Amount</th><th>Paid</th><th>Pending</th><th>Due Date</th><th>Status</th><th>Receipt</th></tr></thead>
+                  <tbody>
+                    <tr *ngFor="let f of fees">
+                      <td><strong>Fee Payment</strong></td>
+                      <td>&#36;{{ f.amount | number }}</td>
+                      <td style="color: var(--clr-success);">&#36;{{ f.paidAmount | number }}</td>
+                      <td [style.color]="f.dueAmount > 0 ? 'var(--clr-danger)' : 'var(--clr-success)'">&#36;{{ f.dueAmount | number }}</td>
+                      <td>{{ f.dueDate }}</td>
+                      <td><span class="badge-erp" [ngClass]="{'badge-success': f.status === 'paid', 'badge-warning': f.status === 'partial', 'badge-danger': f.status === 'overdue', 'badge-neutral': f.status === 'unpaid'}">{{ f.status }}</span></td>
+                      <td>{{ f.receiptNumber || '-' }}</td>
+                    </tr>
+                  </tbody>
+                </table>
+                <div style="padding: 16px; background: var(--clr-bg); border-radius: var(--radius-lg); margin-top: 12px;">
+                  <div class="row">
+                    <div class="col-md-4"><span style="font-size: 12px; color: var(--clr-text-muted);">Total Fee</span><br><strong>&#36;{{ totalFee | number }}</strong></div>
+                    <div class="col-md-4"><span style="font-size: 12px; color: var(--clr-text-muted);">Total Paid</span><br><strong style="color: var(--clr-success);">&#36;{{ totalPaid | number }}</strong></div>
+                    <div class="col-md-4"><span style="font-size: 12px; color: var(--clr-text-muted);">Total Pending</span><br><strong style="color: var(--clr-danger);">&#36;{{ totalPending | number }}</strong></div>
+                  </div>
+                </div>
+              </div>
+              <div *ngIf="fees.length === 0" class="empty-state"><i class="bi bi-credit-card"></i><h3>No Fee Records</h3><p>No fee payment records found</p></div>
             </div>
-            <div *ngIf="activeTab === 'fees'" class="empty-state">
-              <i class="bi bi-credit-card"></i>
-              <h3>Fee History</h3>
-              <p>Fee payment history will appear here once integrated with backend.</p>
+
+            <div *ngIf="activeTab === 'attendance'">
+              <div style="padding: 16px; background: var(--clr-bg); border-radius: var(--radius-lg); margin-bottom: 16px;">
+                <div class="row text-center">
+                  <div class="col-md-3"><div style="font-size: 28px; font-weight: 800; color: var(--clr-success);">{{ attendanceStats.present }}</div><div style="font-size: 12px; color: var(--clr-text-muted);">Days Present</div></div>
+                  <div class="col-md-3"><div style="font-size: 28px; font-weight: 800; color: var(--clr-danger);">{{ attendanceStats.absent }}</div><div style="font-size: 12px; color: var(--clr-text-muted);">Days Absent</div></div>
+                  <div class="col-md-3"><div style="font-size: 28px; font-weight: 800; color: var(--clr-warning);">{{ attendanceStats.late }}</div><div style="font-size: 12px; color: var(--clr-text-muted);">Days Late</div></div>
+                  <div class="col-md-3"><div style="font-size: 28px; font-weight: 800; color: var(--clr-primary);">{{ attendanceStats.percentage }}%</div><div style="font-size: 12px; color: var(--clr-text-muted);">Attendance Rate</div></div>
+                </div>
+              </div>
+              <p style="font-size: 13px; color: var(--clr-text-muted);">Monthly attendance breakdown will be available once integrated with backend attendance APIs.</p>
             </div>
           </div>
         </div>
@@ -81,10 +134,22 @@ import { Student } from '../../core/models/models';
 })
 export class StudentProfileComponent implements OnInit {
   student: Student | null = null;
-  activeTab = 'attendance';
+  activeTab = 'marks';
+  marks: MarkRecord[] = [];
+  fees: FeePayment[] = [];
+  totalMarks = 0;
+  totalMax = 0;
+  overallPercentage = '0';
+  overallGrade = '-';
+  totalFee = 0;
+  totalPaid = 0;
+  totalPending = 0;
+  attendanceStats = { present: 22, absent: 2, late: 1, percentage: 88 };
 
   constructor(
     private studentService: StudentService,
+    private examService: ExamService,
+    private feeService: FeeService,
     private route: ActivatedRoute,
     public router: Router
   ) {}
@@ -92,7 +157,38 @@ export class StudentProfileComponent implements OnInit {
   ngOnInit(): void {
     const id = this.route.snapshot.paramMap.get('id');
     if (id) {
-      this.studentService.getStudentById(id).subscribe(s => { if (s) this.student = s; });
+      this.studentService.getStudentById(id).subscribe(s => {
+        if (s) {
+          this.student = s;
+          this.loadMarks(id);
+          this.loadFees(id);
+        }
+      });
     }
+  }
+
+  private loadMarks(studentId: string): void {
+    this.examService.getMarksByStudent(studentId).subscribe(marks => {
+      this.marks = marks;
+      this.totalMarks = marks.reduce((sum, m) => sum + m.marksObtained, 0);
+      this.totalMax = marks.reduce((sum, m) => sum + m.maxMarks, 0);
+      this.overallPercentage = this.totalMax > 0 ? ((this.totalMarks / this.totalMax) * 100).toFixed(1) : '0';
+      const pct = parseFloat(this.overallPercentage);
+      this.overallGrade = pct >= 90 ? 'A+' : pct >= 80 ? 'A' : pct >= 70 ? 'B+' : pct >= 60 ? 'B' : pct >= 50 ? 'C' : 'D';
+    });
+  }
+
+  private loadFees(studentId: string): void {
+    this.feeService.getPayments().subscribe(payments => {
+      this.fees = payments.filter(p => p.studentId === studentId);
+      this.totalFee = this.fees.reduce((sum, f) => sum + f.amount, 0);
+      this.totalPaid = this.fees.reduce((sum, f) => sum + f.paidAmount, 0);
+      this.totalPending = this.fees.reduce((sum, f) => sum + f.dueAmount, 0);
+    });
+  }
+
+  getExamName(examId: string): string {
+    const map: Record<string, string> = { e1: 'Unit Test 1', e2: 'Midterm', e3: 'Unit Test 2', e4: 'Final Exam' };
+    return map[examId] || examId;
   }
 }

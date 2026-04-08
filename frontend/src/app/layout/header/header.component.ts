@@ -1,4 +1,4 @@
-import { Component, Input, Output, EventEmitter, OnInit } from '@angular/core';
+import { Component, Input, Output, EventEmitter, OnInit, HostListener } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router, NavigationEnd } from '@angular/router';
 import { filter } from 'rxjs/operators';
@@ -75,7 +75,6 @@ import { AppNotification } from '../../core/models/models';
         </div>
       </div>
     </header>
-    <div class="dropdown-overlay" *ngIf="showNotifications || showProfile" (click)="closeDropdowns()"></div>
   `
 })
 export class HeaderComponent implements OnInit {
@@ -139,9 +138,15 @@ export class HeaderComponent implements OnInit {
     this.showNotifications = false;
   }
 
-  closeDropdowns(): void {
-    this.showNotifications = false;
-    this.showProfile = false;
+  @HostListener('document:click', ['$event'])
+  onDocumentClick(event: MouseEvent): void {
+    const target = event.target as HTMLElement;
+    if (this.showNotifications && !target.closest('.notification-btn') && !target.closest('.notification-dropdown')) {
+      this.showNotifications = false;
+    }
+    if (this.showProfile && !target.closest('.profile-btn') && !target.closest('.profile-dropdown')) {
+      this.showProfile = false;
+    }
   }
 
   markAllRead(): void {
