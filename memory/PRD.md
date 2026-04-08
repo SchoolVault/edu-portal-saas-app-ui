@@ -1,89 +1,43 @@
-# SchoolVault ERP - Product Requirements Document
+# SchoolVault ERP - Product Requirements Document (Updated)
 
-## Original Problem Statement
-Build an Enterprise Multi-Tenant SaaS School ERP system (Angular-based) with mock API services, fully functional modules with sample data for all features.
+## What's Been Delivered
 
-## Architecture
-- **Frontend**: Angular 18 (standalone components, lazy-loaded routes)
-- **UI Framework**: Bootstrap 5 + Custom CSS (earthy theme)
-- **State Management**: BehaviorSubject-based services
-- **Mock API**: In-memory data with Observable+delay pattern (ready for Spring Boot replacement)
-- **Auth**: JWT token flow (mock) with role-based routing
+### Frontend (Angular 18)
+- 18 fully functional modules with mock API services
+- All modules have comprehensive mock data with proper payload/response structures
+- Ready for Spring Boot integration - just replace `of(data).pipe(delay())` with HTTP calls
 
-## What's Been Implemented (Feb 2026, Iteration 2)
-### Core System
-- [x] Auth (login/logout with 3 roles, JWT mock)
-- [x] Role-based dashboards (Admin with Chart.js, Teacher, Parent)
-- [x] Responsive sidebar navigation with role filtering
-- [x] Notification system with bell icon dropdown
-- [x] Profile dropdown with logout
+### Backend (Spring Boot 3.2 - NEW)
+- **94 Java files** across 18 modules
+- **106 REST API endpoints** with full Swagger annotations
+- **25+ database tables** with Flyway migrations
+- Multi-tenant architecture (tenant_id on every table)
+- JWT authentication with role-based access control
+- Redis caching + RabbitMQ event system
+- Docker + docker-compose for deployment
+- Production-grade: pagination, soft-delete, audit columns, indexing
 
-### Student Management
-- [x] Student CRUD (list, add, edit, delete)
-- [x] Student profile with tabs (Exam Results, Fee History, Attendance)
-- [x] Search, filter by class/status, sorting, pagination
-- [x] 22 mock students across classes 5-10
+## Backend API Mapping (Frontend Mock → Backend Endpoint)
+| Frontend Service | Backend Endpoint | Method |
+|---|---|---|
+| AuthService.login() | POST /api/v1/auth/login | POST |
+| StudentService.getStudents() | GET /api/v1/students | GET |
+| StudentService.addStudent() | POST /api/v1/students | POST |
+| StudentService.updateStudent() | PUT /api/v1/students/{id} | PUT |
+| TeacherService.getTeachers() | GET /api/v1/teachers | GET |
+| AcademicService.getClasses() | GET /api/v1/academic/classes | GET |
+| AttendanceService.getAttendance() | GET /api/v1/attendance | GET |
+| AttendanceService.saveAttendance() | POST /api/v1/attendance | POST |
+| TimetableService.getByClass() | GET /api/v1/timetable | GET |
+| ExamService.getExams() | GET /api/v1/exams | GET |
+| ExamService.saveMarks() | POST /api/v1/exams/marks | POST |
+| FeeService.getStructures() | GET /api/v1/fees/structures | GET |
+| FeeService.getPayments() | GET /api/v1/fees/payments | GET |
+| CommunicationService.getAnnouncements() | GET /api/v1/communication/announcements | GET |
+| Reports | GET /api/v1/reports/{type} | GET |
 
-### Teacher Management
-- [x] Teacher CRUD (list, add, edit, delete)
-- [x] 8 mock teachers with specializations
-
-### Academic
-- [x] Academic year management
-- [x] 12 classes (1-12) with sections
-- [x] **Class Promotion** workflow (bulk promote with eligibility status)
-
-### Attendance
-- [x] Class/section/date selection
-- [x] Interactive marking (Present/Absent/Late)
-- [x] Real-time status counters
-
-### Timetable
-- [x] Auto-loads Class 8-A timetable
-- [x] Timetable data for Class 5, 8, and 9
-- [x] Grid view: Day x Period with teacher/room
-
-### Exams
-- [x] 4 exams (Unit Tests, Midterm, Final)
-- [x] Marks data for 3 exams
-- [x] **Marks Entry Form** (select subject, enter marks, auto-grade)
-- [x] Create new exam modal
-
-### Fees
-- [x] 3 fee structures with component breakdown
-- [x] 8 payment records with varied statuses
-- [x] Status filtering
-
-### Reports (Comprehensive)
-- [x] **Student Performance** - Class rank, grades, subject marks, pass rate
-- [x] **Attendance Report** - Student-wise attendance %, at-risk alerts
-- [x] **Fee Collection** - Collected/pending, overdue, class filters
-- [x] **Class Summary** - All classes overview with attendance, performance, fee %
-- [x] **Teacher Workload** - Periods/week, subjects, workload status
-
-### Other Modules
-- [x] Communication (announcements with create modal)
-- [x] Transport (3 routes with stops)
-- [x] Library (book catalog + issued books)
-- [x] Hostel (room allocation with stats)
-- [x] Payroll (salary structures)
-- [x] Documents (file management)
-- [x] Audit Log (action tracking with filters)
-- [x] Settings (general, branding, roles, feature toggles)
-
-## Backend Integration Guide
-Each mock service in `src/app/core/services/` follows this pattern:
-```typescript
-// Replace mock: change of(data).pipe(delay()) → this.http.get<T>(apiUrl)
-getStudents(): Observable<Student[]> {
-  return of([...this.students]).pipe(delay(400));
-  // → return this.http.get<Student[]>('/api/students');
-}
-```
-
-## Next Tasks (P0)
-1. Replace mock services with HTTP calls to Spring Boot
-2. Add CSV/Excel bulk student import
-3. Report card PDF generation
-4. Teacher-Parent chat functionality
-5. SMS/Email notification integration
+## Next Steps
+1. Run `docker-compose up` to start the backend
+2. Access Swagger UI at http://localhost:8080/swagger-ui.html
+3. Update Angular services to use HTTP calls instead of mock data
+4. Configure MySQL (Aiven) and Redis (Upstash) for production
