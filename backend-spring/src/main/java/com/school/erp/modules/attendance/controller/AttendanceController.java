@@ -1,45 +1,61 @@
 package com.school.erp.modules.attendance.controller;
-import com.school.erp.common.dto.ApiResponse; import com.school.erp.modules.attendance.entity.AttendanceRecord;
-import com.school.erp.modules.attendance.repository.AttendanceRepository; import com.school.erp.tenant.TenantContext;
-import io.swagger.v3.oas.annotations.Operation; import io.swagger.v3.oas.annotations.tags.Tag;
-import lombok.*; import org.springframework.http.ResponseEntity; import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.web.bind.annotation.*; import java.time.LocalDate; import java.util.List;
 
-@RestController @RequestMapping("/api/v1/attendance") @RequiredArgsConstructor
-@Tag(name = "Attendance", description = "Attendance Marking & Reporting APIs")
+import com.school.erp.common.dto.ApiResponse;
+import com.school.erp.modules.attendance.dto.AttendanceDTOs;
+import com.school.erp.modules.attendance.service.AttendanceService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.*;
+
+import java.time.LocalDate;
+import java.util.List;
+
+@RestController
+@RequestMapping("/api/v1/attendance")
+@RequiredArgsConstructor
+@Tag(name = "Attendance", description = "Attendance Marking, Statistics & Reports")
 public class AttendanceController {
-    private final AttendanceRepository repo;
 
-    @GetMapping @Operation(summary = "Get attendance by class, section, date")
-    public ResponseEntity<ApiResponse<List<AttendanceRecord>>> get(
+    private final AttendanceService service;
+
+    @GetMapping
+    @Operation(summary = "Get attendance by class, section, date")
+    public ResponseEntity<ApiResponse<List<AttendanceDTOs.AttendanceResponse>>> get(
             @RequestParam Long classId, @RequestParam Long sectionId, @RequestParam String date) {
-        return ResponseEntity.ok(ApiResponse.ok(repo.findByTenantIdAndClassIdAndSectionIdAndDate(
-                TenantContext.getTenantId(), classId, sectionId, LocalDate.parse(date))));
+        return ResponseEntity.ok(ApiResponse.ok(service.getByClassSectionDate(classId, sectionId, LocalDate.parse(date))));
     }
 
-    @PostMapping @PreAuthorize("hasAnyRole('ADMIN','TEACHER')") @Operation(summary = "Save/update attendance records")
-    public ResponseEntity<ApiResponse<List<AttendanceRecord>>> save(@RequestBody List<AttendanceRecord> records) {
-        String tenantId = TenantContext.getTenantId();
-        records.forEach(r -> { r.setTenantId(tenantId); r.setMarkedBy(TenantContext.getUserId()); });
-        return ResponseEntity.ok(ApiResponse.ok(repo.saveAll(records), "Attendance saved"));
+    @PostMapping
+    @PreAuthorize("hasAnyRole('ADMIN','TEACHER')")
+    @Operation(summary = "Mark attendance (bulk)", description = "Mark attendance for multiple students at once")
+    public ResponseEntity<ApiResponse<List<AttendanceDTOs.AttendanceResponse>>> mark(@Valid @RequestBody AttendanceDTOs.BulkMarkRequest request) {
+        return ResponseEntity.ok(ApiResponse.ok(service.markAttendance(request), "Attendance saved"));
     }
 
-    @GetMapping("/student/{studentId}") @Operation(summary = "Get student attendance for date range")
-    public ResponseEntity<ApiResponse<List<AttendanceRecord>>> getStudentAttendance(
+    @GetMapping("/student/{studentId}/stats")
+    @Operation(summary = "Get student attendance statistics for date range")
+    public ResponseEntity<ApiResponse<AttendanceDTOs.AttendanceStatsResponse>> studentStats(
             @PathVariable Long studentId, @RequestParam String from, @RequestParam String to) {
-        return ResponseEntity.ok(ApiResponse.ok(repo.findByTenantIdAndStudentIdAndDateBetween(
-                TenantContext.getTenantId(), studentId, LocalDate.parse(from), LocalDate.parse(to))));
+        return ResponseEntity.ok(ApiResponse.ok(service.getStudentStats(studentId, LocalDate.parse(from), LocalDate.parse(to))));
     }
 
-    @GetMapping("/stats/class/{classId}") @Operation(summary = "Get class attendance statistics")
-    public ResponseEntity<ApiResponse<List<Object[]>>> classStats(@PathVariable Long classId, @RequestParam String date) {
-        return ResponseEntity.ok(ApiResponse.ok(repo.getClassAttendanceStats(TenantContext.getTenantId(), classId, LocalDate.parse(date))));
+    @GetMapping("/class-stats")
+    @Operation(summary = "Get class attendance statistics for a date")
+    public ResponseEntity<ApiResponse<AttendanceDTOs.ClassAttendanceStatsResponse>> classStats(
+            @RequestParam Long classId, @RequestParam Long sectionId, @RequestParam String date) {
+        return ResponseEntity.ok(ApiResponse.ok(service.getClassStats(classId, sectionId, LocalDate.parse(date))));
     }
 
-    @GetMapping("/stats/student/{studentId}") @Operation(summary = "Get student attendance statistics")
-    public ResponseEntity<ApiResponse<List<Object[]>>> studentStats(
-            @PathVariable Long studentId, @RequestParam String from, @RequestParam String to) {
-        return ResponseEntity.ok(ApiResponse.ok(repo.getStudentAttendanceStats(
-                TenantContext.getTenantId(), studentId, LocalDate.parse(from), LocalDate.parse(to))));
+    @GetMapping("/monthly-report")
+    @PreAuthorize("hasAnyRole('ADMIN','TEACHER')")
+    @Operation(summary = "Monthly attendance report", description = "Student-wise monthly attendance with percentages")
+    public ResponseEntity<ApiResponse<List<AttendanceDTOs.MonthlyAttendanceRow>>> monthlyReport(
+            @RequestParam Long classId, @RequestParam Long sectionId,
+            @RequestParam int year, @RequestParam int month) {
+        return ResponseEntity.ok(ApiResponse.ok(service.getMonthlyReport(classId, sectionId, year, month)));
     }
 }
