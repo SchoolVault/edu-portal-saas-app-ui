@@ -1,0 +1,124 @@
+{
+  "project_type": "dashboard",
+  "domain": "Education / SaaS ERP",
+  "theme": "light",
+  "archetype": "Organic & Earthy",
+  "rationale": "Education management needs to foster trust, growth, and calm. Dark fintech UI feels too aggressive, and stark 'SaaS blue' feels generic and sterile. By blending structural rigor with warm, tactile, earthy tones (Bone White, Sage, Terracotta), we create an environment that feels authoritative yet distinctly human and nurturing.",
+  "typography": {
+    "headings": {
+      "family": "Cabinet Grotesk",
+      "weight_strategy": "font-bold tracking-tight",
+      "hierarchy": {
+        "h1": "text-3xl sm:text-4xl lg:text-5xl",
+        "h2": "text-xl sm:text-2xl lg:text-3xl",
+        "h3": "text-lg sm:text-xl",
+        "h4": "text-base sm:text-lg uppercase tracking-[0.2em] font-medium"
+      }
+    },
+    "body": {
+      "family": "IBM Plex Sans",
+      "weight_strategy": "font-normal leading-relaxed text-stone-700",
+      "hierarchy": {
+        "base": "text-sm sm:text-base",
+        "small": "text-xs sm:text-sm",
+        "overline": "text-[10px] uppercase tracking-wider font-semibold text-stone-500"
+      }
+    }
+  },
+  "colors": {
+    "background": {
+      "base": "bg-[#F9F8F6]",
+      "surface": "bg-white",
+      "glass": "bg-white/80 backdrop-blur-xl backdrop-saturate-150"
+    },
+    "borders": {
+      "default": "border-stone-200",
+      "focus": "border-emerald-600 ring-4 ring-emerald-600/20"
+    },
+    "text": {
+      "primary": "text-stone-900",
+      "secondary": "text-stone-600",
+      "muted": "text-stone-400"
+    },
+    "brand": {
+      "primary": "bg-[#1B3A30]",
+      "primary_hover": "hover:bg-[#122A22]",
+      "primary_text": "text-white",
+      "accent": "bg-[#C05C3D]",
+      "accent_hover": "hover:bg-[#A84A2C]",
+      "accent_text": "text-white",
+      "success": "bg-emerald-600 text-white",
+      "warning": "bg-amber-500 text-stone-900",
+      "danger": "bg-rose-600 text-white",
+      "info": "bg-sky-600 text-white"
+    }
+  },
+  "layout_spacing": {
+    "grid_system": "Mode B: The Control Room Grid",
+    "dashboard_grid": "grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6",
+    "paddings": {
+      "card": "p-6 sm:p-8",
+      "section": "py-12 sm:py-16",
+      "input": "px-4 py-3"
+    },
+    "radii": {
+      "card": "rounded-2xl",
+      "button": "rounded-xl",
+      "input": "rounded-xl",
+      "badge": "rounded-full"
+    },
+    "shadows": {
+      "ambient": "shadow-[0_4px_24px_rgba(0,0,0,0.02)]",
+      "elevated": "shadow-[0_12px_32px_rgba(0,0,0,0.06)]"
+    }
+  },
+  "components_instructions": {
+    "card": "Use pure white bg on stone-50 background. 1px solid stone-200 border. No massive shadows—rely on subtle ambient shadow and the crisp border for definition.",
+    "buttons": "Primary actions use the #C05C3D (Terracotta) accent to draw the eye, while structural/navigation actions use #1B3A30 (Deep Forest Green). Hover states must lighten the hue and explicitly define text color.",
+    "forms": "Inputs must have a stone-200 border, floating labels (text-stone-500), and rounded-xl. Focus state: border-emerald-600 with ring. Never use native datepickers; use Shadcn Calendar.",
+    "tables": "Row hover: bg-stone-50. Clean, no vertical borders inside tables. Horizontal borders: border-stone-100. Table headers: uppercase overlines with tracking.",
+    "sidebar": "Slim, left-aligned, sticky. Background pure white, 1px right border (stone-200). Active nav links use bg-stone-100 and text-stone-900 with a bold left border in Terracotta.",
+    "header": "Sticky top, glassmorphism. Border bottom: border-stone-200/50. Contains breadcrumbs, notifications, and profile.",
+    "charts": "Avoid aggressive neon colors. Use muted earthy palettes: Terracotta, Sage, Slate Blue, Ochre for data visualization.",
+    "icons": "Use 'lucide-react' standard. Stroke width 1.5. Clean, simple."
+  },
+  "interactions_motion": {
+    "hover_states": "All interactables scale slightly (-translate-y-0.5) or shift background hue. Transition duration: 200ms ease-out.",
+    "focus_states": "Accessibility focus ring on ALL inputs and buttons: ring-2 ring-emerald-600 ring-offset-2 ring-offset-[#F9F8F6].",
+    "entrance_animations": "Staggered fade-up (opacity 0 -> 1, translate-y-4 -> 0) for dashboard widgets."
+  },
+  "media_assets": {
+    "auth_background": {
+      "url": "https://static.prod-images.emergentagent.com/jobs/9a0eef39-d991-4ee9-b692-a0f34292613c/images/39ade40298c502bd4785354a93143be5e368f4457b5f0aee6cbf5d84e82fe503.png",
+      "description": "Serene modern architecture with warm stone and green ivy. Used as the right-side split screen background on the Auth page."
+    },
+    "school_logo": {
+      "url": "https://static.prod-images.emergentagent.com/jobs/9a0eef39-d991-4ee9-b692-a0f34292613c/images/327dafae8a43bdee0145f51e32a05747aa82374ad2bb3b35ccfdb8cc1130bd22.png",
+      "description": "Minimalist elite school crest logo. Used in sidebar top and Auth page header."
+    },
+    "portraits": [
+      {
+        "url": "https://images.unsplash.com/photo-1584554376766-ac0f2c65e949?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1MDV8MHwxfHNlYXJjaHwzfHxwcm9mZXNzaW9uYWwlMjB0ZWFjaGVyJTIwcG9ydHJhaXR8ZW58MHx8fHwxNzc1NjM2OTM5fDA&ixlib=rb-4.1.0&q=85",
+        "description": "Admin/Teacher profile image."
+      },
+      {
+        "url": "https://images.unsplash.com/photo-1758685845906-6f705cde4fb7?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1MDV8MHwxfHNlYXJjaHw0fHxwcm9mZXNzaW9uYWwlMjB0ZWFjaGVyJTIwcG9ydHJhaXR8ZW58MHx8fHwxNzc1NjM2OTM5fDA&ixlib=rb-4.1.0&q=85",
+        "description": "Teacher profile image."
+      },
+      {
+        "url": "https://images.pexels.com/photos/5905753/pexels-photo-5905753.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+        "description": "Teacher profile image."
+      }
+    ],
+    "dashboard_illustrations": [
+      {
+        "url": "https://images.unsplash.com/photo-1711702276288-52ed29bc308e?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzMzJ8MHwxfHNlYXJjaHwxfHxjYWxtJTIwbGlicmFyeSUyMGFlc3RoZXRpY3xlbnwwfHx8fDE3NzU2MzY4OTd8MA&ixlib=rb-4.1.0&q=85",
+        "description": "Library background used for 'Library' module hero card or empty state."
+      }
+    ]
+  },
+  "testing_attributes": {
+    "instruction": "All interactive and key informational elements MUST include a 'data-testid' attribute.",
+    "convention": "kebab-case, role-based. Example: data-testid='login-submit-button', data-testid='student-table-row', data-testid='sidebar-nav-dashboard'."
+  }
+}
