@@ -21,7 +21,7 @@ import { NAV_ITEMS, NavItem } from '../../core/config/app-constants';
              [routerLink]="item.route"
              routerLinkActive="active"
              class="nav-item"
-             [attr.data-testid]="'sidebar-nav-' + item.label.toLowerCase().replace(' ', '-')">
+             [attr.data-testid]="'sidebar-nav-' + item.route.split('/').pop()">
             <i class="bi" [ngClass]="item.icon"></i>
             <span class="nav-label">{{ item.label }}</span>
           </a>

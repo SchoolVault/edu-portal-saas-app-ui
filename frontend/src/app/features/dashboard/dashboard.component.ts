@@ -271,7 +271,7 @@ export class DashboardComponent implements OnInit, AfterViewInit {
 
   ngAfterViewInit(): void {
     if (this.role === 'admin') {
-      setTimeout(() => this.initCharts(), 100);
+      setTimeout(() => this.initCharts(), 500);
     }
   }
 
