@@ -1,7 +1,9 @@
 import { Injectable } from '@angular/core';
 import { Observable, of } from 'rxjs';
-import { delay } from 'rxjs/operators';
+import { delay, map } from 'rxjs/operators';
 import { Exam, MarkRecord } from '../models/models';
+import { ApiService } from './api.service';
+import { environment } from '../../../environments/environment';
 
 @Injectable({ providedIn: 'root' })
 export class ExamService {
@@ -35,16 +37,29 @@ export class ExamService {
     { id: 'm20', examId: 'e3', studentId: 's12', studentName: 'Emma Chen', subjectName: 'Mathematics', marksObtained: 94, maxMarks: 100, grade: 'A+', classId: 'c8', tenantId: 't1' },
   ];
 
-  getExams(): Observable<Exam[]> { return of([...this.exams]).pipe(delay(400)); }
-  getMarksByExam(examId: string): Observable<MarkRecord[]> { return of(this.marks.filter(m => m.examId === examId)).pipe(delay(400)); }
-  getMarksByStudent(studentId: string): Observable<MarkRecord[]> { return of(this.marks.filter(m => m.studentId === studentId)).pipe(delay(300)); }
+  getExams(): Observable<Exam[]> {
+    if (!environment.useMocks) { return this.api.get<Exam[]>('/exams'); }
+    return of([...this.exams]).pipe(delay(400));
+  }
+  getMarksByExam(examId: string): Observable<MarkRecord[]> {
+    if (!environment.useMocks) { return this.api.get<MarkRecord[]>(`/exams/${examId}/marks`); }
+    return of(this.marks.filter(m => m.examId === examId)).pipe(delay(400));
+  }
+  getMarksByStudent(studentId: string): Observable<MarkRecord[]> {
+    if (!environment.useMocks) { return this.api.get<MarkRecord[]>(`/exams/marks/student/${studentId}`); }
+    return of(this.marks.filter(m => m.studentId === studentId)).pipe(delay(300));
+  }
+
+  constructor(private api: ApiService) {}
 
   addExam(exam: Exam): Observable<Exam> {
+    if (!environment.useMocks) { return this.api.post<Exam>('/exams', exam); }
     this.exams.push(exam);
     return of(exam).pipe(delay(400));
   }
 
   saveMark(mark: MarkRecord): Observable<MarkRecord> {
+    if (!environment.useMocks) { return this.api.post<MarkRecord>('/exams/marks', [mark]).pipe(map((res: any) => Array.isArray(res) ? res[0] : res)); }
     const idx = this.marks.findIndex(m => m.id === mark.id);
     if (idx !== -1) { this.marks[idx] = mark; }
     else { this.marks.push(mark); }

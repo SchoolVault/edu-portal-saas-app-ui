@@ -1,7 +1,9 @@
 import { Injectable } from '@angular/core';
 import { BehaviorSubject, Observable, of, throwError } from 'rxjs';
-import { delay, tap } from 'rxjs/operators';
+import { delay, tap, map } from 'rxjs/operators';
 import { User, LoginRequest, LoginResponse } from '../models/models';
+import { ApiService } from './api.service';
+import { environment } from '../../../environments/environment';
 
 @Injectable({ providedIn: 'root' })
 export class AuthService {
@@ -26,7 +28,7 @@ export class AuthService {
     },
   ];
 
-  constructor() {
+  constructor(private api: ApiService) {
     this.loadFromStorage();
   }
 
@@ -45,6 +47,16 @@ export class AuthService {
   }
 
   login(request: LoginRequest): Observable<LoginResponse> {
+    if (!environment.useMocks) {
+      return this.api.post<LoginResponse>('/auth/login', request).pipe(
+        tap(res => {
+          localStorage.setItem('erp_token', res.token);
+          localStorage.setItem('erp_user', JSON.stringify(res.user));
+          this.tokenSubject.next(res.token);
+          this.currentUserSubject.next(res.user);
+        })
+      );
+    }
     const found = this.mockUsers.find(
       u => u.email === request.email && u.password === request.password && u.schoolCode === request.schoolCode
     );

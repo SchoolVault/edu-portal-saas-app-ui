@@ -2,6 +2,8 @@ import { Injectable } from '@angular/core';
 import { Observable, of } from 'rxjs';
 import { delay } from 'rxjs/operators';
 import { Announcement } from '../models/models';
+import { ApiService } from './api.service';
+import { environment } from '../../../environments/environment';
 
 @Injectable({ providedIn: 'root' })
 export class CommunicationService {
@@ -14,10 +16,14 @@ export class CommunicationService {
   ];
 
   getAnnouncements(): Observable<Announcement[]> {
+    if (!environment.useMocks) { return this.api.get<Announcement[]>('/communication/announcements'); }
     return of([...this.announcements]).pipe(delay(400));
   }
 
+  constructor(private api: ApiService) {}
+
   addAnnouncement(announcement: Announcement): Observable<Announcement> {
+    if (!environment.useMocks) { return this.api.post<Announcement>('/communication/announcements', announcement); }
     this.announcements = [announcement, ...this.announcements];
     return of(announcement).pipe(delay(500));
   }

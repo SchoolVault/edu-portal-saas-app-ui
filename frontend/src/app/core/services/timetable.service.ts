@@ -1,7 +1,9 @@
 import { Injectable } from '@angular/core';
 import { Observable, of } from 'rxjs';
-import { delay } from 'rxjs/operators';
+import { delay, map } from 'rxjs/operators';
 import { TimetableEntry } from '../models/models';
+import { ApiService } from './api.service';
+import { environment } from '../../../environments/environment';
 
 @Injectable({ providedIn: 'root' })
 export class TimetableService {
@@ -57,19 +59,33 @@ export class TimetableService {
   ];
 
   getByClassAndSection(classId: string, sectionId: string): Observable<TimetableEntry[]> {
+    if (!environment.useMocks) {
+      return this.api.get<TimetableEntry[]>(`/timetable?classId=${classId}&sectionId=${sectionId}`);
+    }
     return of(this.entries.filter(e => e.classId === classId && e.sectionId === sectionId)).pipe(delay(400));
   }
 
   getByTeacher(teacherId: string): Observable<TimetableEntry[]> {
+    if (!environment.useMocks) {
+      return this.api.get<TimetableEntry[]>(`/timetable/teacher/${teacherId}`);
+    }
     return of(this.entries.filter(e => e.teacherId === teacherId)).pipe(delay(300));
   }
 
   getAll(): Observable<TimetableEntry[]> {
+    if (!environment.useMocks) {
+      return this.api.get<TimetableEntry[]>('/timetable?classId=0&sectionId=0');
+    }
     return of([...this.entries]).pipe(delay(400));
   }
 
   addEntry(entry: TimetableEntry): Observable<TimetableEntry> {
+    if (!environment.useMocks) {
+      return this.api.post<TimetableEntry>('/timetable', entry);
+    }
     this.entries.push(entry);
     return of(entry).pipe(delay(400));
   }
+
+  constructor(private api: ApiService) {}
 }

@@ -1,7 +1,9 @@
 import { Injectable } from '@angular/core';
 import { BehaviorSubject, Observable, of } from 'rxjs';
-import { delay } from 'rxjs/operators';
+import { delay, map } from 'rxjs/operators';
 import { Student } from '../models/models';
+import { ApiService, PageResp } from './api.service';
+import { environment } from '../../../environments/environment';
 
 @Injectable({ providedIn: 'root' })
 export class StudentService {
@@ -32,15 +34,26 @@ export class StudentService {
 
   private studentsSubject = new BehaviorSubject<Student[]>(this.students);
 
+  constructor(private api: ApiService) {}
+
   getStudents(): Observable<Student[]> {
+    if (!environment.useMocks) {
+      return this.api.getPage<Student>('/students').pipe(map(p => p.content));
+    }
     return of([...this.students]).pipe(delay(400));
   }
 
   getStudentById(id: string): Observable<Student | undefined> {
+    if (!environment.useMocks) {
+      return this.api.get<Student>('/students/' + id);
+    }
     return of(this.students.find(s => s.id === id)).pipe(delay(300));
   }
 
   addStudent(student: Omit<Student, 'id'>): Observable<Student> {
+    if (!environment.useMocks) {
+      return this.api.post<Student>('/students', student);
+    }
     const newStudent: Student = { ...student, id: 'su' + Date.now() } as Student;
     this.students = [newStudent, ...this.students];
     this.studentsSubject.next(this.students);
@@ -58,12 +71,18 @@ export class StudentService {
   }
 
   deleteStudent(id: string): Observable<boolean> {
+    if (!environment.useMocks) {
+      return this.api.delete<any>('/students/' + id).pipe(map(() => true));
+    }
     this.students = this.students.filter(s => s.id !== id);
     this.studentsSubject.next(this.students);
     return of(true).pipe(delay(300));
   }
 
   getStudentsByClass(classId: string): Observable<Student[]> {
+    if (!environment.useMocks) {
+      return this.api.get<Student[]>('/students/class/' + classId);
+    }
     return of(this.students.filter(s => s.classId === classId)).pipe(delay(300));
   }
 }

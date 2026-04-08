@@ -1,7 +1,9 @@
 import { Injectable } from '@angular/core';
 import { Observable, of } from 'rxjs';
-import { delay } from 'rxjs/operators';
+import { delay, map } from 'rxjs/operators';
 import { AcademicYear, SchoolClass } from '../models/models';
+import { ApiService } from './api.service';
+import { environment } from '../../../environments/environment';
 
 @Injectable({ providedIn: 'root' })
 export class AcademicService {
@@ -25,9 +27,20 @@ export class AcademicService {
     { id: 'c12', name: 'Class 12', grade: 12, sections: [{ id: 'sec12a', name: 'A', classId: 'c12', capacity: 35, studentCount: 28 }], academicYearId: 'ay1', tenantId: 't1' },
   ];
 
-  getAcademicYears(): Observable<AcademicYear[]> { return of([...this.academicYears]).pipe(delay(300)); }
-  getClasses(): Observable<SchoolClass[]> { return of([...this.classes]).pipe(delay(400)); }
-  getClassById(id: string): Observable<SchoolClass | undefined> { return of(this.classes.find(c => c.id === id)).pipe(delay(200)); }
+  getAcademicYears(): Observable<AcademicYear[]> {
+    if (!environment.useMocks) { return this.api.get<AcademicYear[]>('/academic/years'); }
+    return of([...this.academicYears]).pipe(delay(300));
+  }
+  getClasses(): Observable<SchoolClass[]> {
+    if (!environment.useMocks) { return this.api.get<any[]>('/academic/classes').pipe(map(list => list.map((c: any) => ({ ...c.schoolClass, sections: c.sections })))); }
+    return of([...this.classes]).pipe(delay(400));
+  }
+  getClassById(id: string): Observable<SchoolClass | undefined> {
+    if (!environment.useMocks) { return this.api.get<any>('/academic/classes/' + id).pipe(map((c: any) => ({ ...c.schoolClass, sections: c.sections }))); }
+    return of(this.classes.find(c => c.id === id)).pipe(delay(200));
+  }
+
+  constructor(private api: ApiService) {}
 
   addClass(cls: SchoolClass): Observable<SchoolClass> {
     this.classes.push(cls);
@@ -35,6 +48,7 @@ export class AcademicService {
   }
 
   addAcademicYear(ay: AcademicYear): Observable<AcademicYear> {
+    if (!environment.useMocks) { return this.api.post<AcademicYear>('/academic/years', ay); }
     this.academicYears.push(ay);
     return of(ay).pipe(delay(400));
   }

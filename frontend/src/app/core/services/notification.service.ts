@@ -2,6 +2,8 @@ import { Injectable } from '@angular/core';
 import { BehaviorSubject, Observable, of } from 'rxjs';
 import { delay } from 'rxjs/operators';
 import { AppNotification } from '../models/models';
+import { ApiService } from './api.service';
+import { environment } from '../../../environments/environment';
 
 @Injectable({ providedIn: 'root' })
 export class NotificationService {
@@ -17,7 +19,10 @@ export class NotificationService {
   private notificationsSubject = new BehaviorSubject<AppNotification[]>(this.notifications);
   notifications$ = this.notificationsSubject.asObservable();
 
+  constructor(private api: ApiService) {}
+
   getNotifications(): Observable<AppNotification[]> {
+    if (!environment.useMocks) { return this.api.get<AppNotification[]>('/notifications'); }
     return of(this.notifications).pipe(delay(300));
   }
 

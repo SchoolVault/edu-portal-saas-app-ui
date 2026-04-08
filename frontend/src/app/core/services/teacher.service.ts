@@ -1,7 +1,9 @@
 import { Injectable } from '@angular/core';
 import { BehaviorSubject, Observable, of } from 'rxjs';
-import { delay } from 'rxjs/operators';
+import { delay, map } from 'rxjs/operators';
 import { Teacher } from '../models/models';
+import { ApiService, PageResp } from './api.service';
+import { environment } from '../../../environments/environment';
 
 @Injectable({ providedIn: 'root' })
 export class TeacherService {
@@ -18,15 +20,26 @@ export class TeacherService {
 
   private teachersSubject = new BehaviorSubject<Teacher[]>(this.teachers);
 
+  constructor(private api: ApiService) {}
+
   getTeachers(): Observable<Teacher[]> {
+    if (!environment.useMocks) {
+      return this.api.getPage<Teacher>('/teachers').pipe(map(p => p.content));
+    }
     return of([...this.teachers]).pipe(delay(400));
   }
 
   getTeacherById(id: string): Observable<Teacher | undefined> {
+    if (!environment.useMocks) {
+      return this.api.get<Teacher>('/teachers/' + id);
+    }
     return of(this.teachers.find(t => t.id === id)).pipe(delay(300));
   }
 
   addTeacher(teacher: Omit<Teacher, 'id'>): Observable<Teacher> {
+    if (!environment.useMocks) {
+      return this.api.post<Teacher>('/teachers', teacher);
+    }
     const newTeacher: Teacher = { ...teacher, id: 'tu' + Date.now() } as Teacher;
     this.teachers = [newTeacher, ...this.teachers];
     this.teachersSubject.next(this.teachers);
@@ -34,6 +47,7 @@ export class TeacherService {
   }
 
   updateTeacher(id: string, data: Partial<Teacher>): Observable<Teacher> {
+    if (!environment.useMocks) { return this.api.put<Teacher>('/teachers/' + id, data); }
     const idx = this.teachers.findIndex(t => t.id === id);
     if (idx !== -1) {
       this.teachers[idx] = { ...this.teachers[idx], ...data };
@@ -44,6 +58,7 @@ export class TeacherService {
   }
 
   deleteTeacher(id: string): Observable<boolean> {
+    if (!environment.useMocks) { return this.api.delete<any>('/teachers/' + id).pipe(map(() => true)); }
     this.teachers = this.teachers.filter(t => t.id !== id);
     this.teachersSubject.next(this.teachers);
     return of(true).pipe(delay(300));

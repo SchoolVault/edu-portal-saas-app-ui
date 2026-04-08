@@ -1,21 +1,26 @@
-# SchoolVault ERP - Complete Project
+# SchoolVault ERP - Complete System
 
-## Two Repositories
-1. **Backend** (Spring Boot) - `/app/backend-spring/` → Push to GitHub backend repo
-2. **Frontend** (Angular 18) - `/app/frontend/` → Push to GitHub frontend repo
+## Two GitHub Repositories
 
-## Backend Stats
-- 111 Java files, 2 SQL migrations, 3 config profiles
-- 18 modules: Auth, Student, Teacher, Academic, Attendance, Timetable, Exams, Fees, Communication, Notification, Reports, Transport, Library, Hostel, Payroll, Documents, Audit, Settings
-- 85+ REST API endpoints with Swagger annotations
-- 25+ database tables with proper indexes
+### 1. Backend Repo: `/app/backend-spring/`
+- 127+ Java files, 18 modules, 105 API endpoints
+- Spring Boot 3.2 + MySQL + Redis + RabbitMQ
+- JWT auth, multi-tenant, rate limiting, Flyway migrations
+- `docker-compose up --build` to run
 
-## Architecture
-- Multi-tenant (tenant_id + TenantContext ThreadLocal)
-- JWT + BCrypt + RBAC (@PreAuthorize)
-- Redis rate limiting (120 req/min per tenant)
-- RabbitMQ events (notifications, audit)
-- Flyway migrations
-- Docker + docker-compose
+### 2. Frontend Repo: `/app/frontend/`
+- Angular 18, 18 feature modules, Bootstrap 5
+- All 10 services integrated with dual-mode (mock + HTTP)
+- Toggle: `src/environments/environment.ts` → `useMocks: true/false`
+- `yarn start` to run
 
-## Next: Push backend to GitHub, then integrate frontend
+## Integration Flow
+1. Push backend to GitHub repo → `docker-compose up`
+2. In frontend `environment.ts`, set `useMocks: false` and `apiUrl: 'http://localhost:8080/api/v1'`
+3. Push frontend to GitHub repo → `yarn start`
+4. Login at http://localhost:3000 → calls http://localhost:8080/api/v1/auth/login
+
+## All Done
+- Frontend: 18 modules with mock data + HTTP integration
+- Backend: 18 modules with full service layers + Swagger
+- Both ready for separate GitHub pushes

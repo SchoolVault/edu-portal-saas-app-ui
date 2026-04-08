@@ -1,7 +1,9 @@
 import { Injectable } from '@angular/core';
 import { Observable, of } from 'rxjs';
-import { delay } from 'rxjs/operators';
+import { delay, map } from 'rxjs/operators';
 import { FeeStructure, FeePayment } from '../models/models';
+import { ApiService } from './api.service';
+import { environment } from '../../../environments/environment';
 
 @Injectable({ providedIn: 'root' })
 export class FeeService {
@@ -22,10 +24,19 @@ export class FeeService {
     { id: 'fp8', studentId: 's12', studentName: 'Emma Chen', feeStructureId: 'fs2', amount: 5000, paidAmount: 3800, dueAmount: 1200, status: 'partial', paymentDate: '2025-08-01', dueDate: '2025-07-31', discount: 0, lateFee: 0, receiptNumber: 'REC-2025-004', tenantId: 't1' },
   ];
 
-  getFeeStructures(): Observable<FeeStructure[]> { return of([...this.structures]).pipe(delay(400)); }
-  getPayments(): Observable<FeePayment[]> { return of([...this.payments]).pipe(delay(400)); }
+  getFeeStructures(): Observable<FeeStructure[]> {
+    if (!environment.useMocks) { return this.api.get<FeeStructure[]>('/fees/structures'); }
+    return of([...this.structures]).pipe(delay(400));
+  }
+  getPayments(): Observable<FeePayment[]> {
+    if (!environment.useMocks) { return this.api.get<FeePayment[]>('/fees/payments'); }
+    return of([...this.payments]).pipe(delay(400));
+  }
+
+  constructor(private api: ApiService) {}
 
   recordPayment(payment: FeePayment): Observable<FeePayment> {
+    if (!environment.useMocks) { return this.api.post<FeePayment>('/fees/payments', payment); }
     const idx = this.payments.findIndex(p => p.id === payment.id);
     if (idx !== -1) { this.payments[idx] = payment; }
     else { this.payments.push(payment); }
@@ -33,6 +44,7 @@ export class FeeService {
   }
 
   addFeeStructure(fs: FeeStructure): Observable<FeeStructure> {
+    if (!environment.useMocks) { return this.api.post<FeeStructure>('/fees/structures', fs); }
     this.structures.push(fs);
     return of(fs).pipe(delay(400));
   }
