@@ -38,31 +38,71 @@ export class ExamService {
   ];
 
   getExams(): Observable<Exam[]> {
-    if (!environment.useMocks) { return this.api.get<Exam[]>('/exams'); }
+    if (!environment.useMocks) { return this.api.get<any[]>('/exams').pipe(map(exams => exams.map(exam => this.normalizeExam(exam)))); }
     return of([...this.exams]).pipe(delay(400));
   }
   getMarksByExam(examId: string): Observable<MarkRecord[]> {
-    if (!environment.useMocks) { return this.api.get<MarkRecord[]>(`/exams/${examId}/marks`); }
+    if (!environment.useMocks) { return this.api.get<any[]>(`/exams/${examId}/marks`).pipe(map(marks => marks.map(mark => this.normalizeMark(mark)))); }
     return of(this.marks.filter(m => m.examId === examId)).pipe(delay(400));
   }
   getMarksByStudent(studentId: string): Observable<MarkRecord[]> {
-    if (!environment.useMocks) { return this.api.get<MarkRecord[]>(`/exams/marks/student/${studentId}`); }
+    if (!environment.useMocks) { return this.api.get<any[]>(`/exams/marks/student/${studentId}`).pipe(map(marks => marks.map(mark => this.normalizeMark(mark)))); }
     return of(this.marks.filter(m => m.studentId === studentId)).pipe(delay(300));
   }
 
   constructor(private api: ApiService) {}
 
   addExam(exam: Exam): Observable<Exam> {
-    if (!environment.useMocks) { return this.api.post<Exam>('/exams', exam); }
+    if (!environment.useMocks) {
+      return this.api.post<any>('/exams', {
+        name: exam.name,
+        academicYearId: exam.academicYearId ? Number(exam.academicYearId) : null,
+        startDate: exam.startDate || null,
+        endDate: exam.endDate || null,
+        classIds: (exam.classIds ?? []).map(id => Number(id))
+      }).pipe(map(created => this.normalizeExam(created)));
+    }
     this.exams.push(exam);
     return of(exam).pipe(delay(400));
   }
 
-  saveMark(mark: MarkRecord): Observable<MarkRecord> {
-    if (!environment.useMocks) { return this.api.post<MarkRecord>('/exams/marks', [mark]).pipe(map((res: any) => Array.isArray(res) ? res[0] : res)); }
-    const idx = this.marks.findIndex(m => m.id === mark.id);
-    if (idx !== -1) { this.marks[idx] = mark; }
-    else { this.marks.push(mark); }
-    return of(mark).pipe(delay(300));
+  saveMarks(examId: string, marks: MarkRecord[]): Observable<MarkRecord[]> {
+    if (!environment.useMocks) {
+      return this.api.post<any[]>('/exams/marks', {
+        examId: Number(examId),
+        marks: marks.map(mark => ({
+          studentId: Number(mark.studentId),
+          studentName: mark.studentName,
+          subjectName: mark.subjectName,
+          marksObtained: Number(mark.marksObtained),
+          maxMarks: Number(mark.maxMarks),
+          classId: mark.classId ? Number(mark.classId) : null
+        }))
+      }).pipe(map(savedMarks => savedMarks.map(mark => this.normalizeMark(mark))));
+    }
+    this.marks = [...this.marks, ...marks];
+    return of(marks).pipe(delay(300));
+  }
+
+  private normalizeExam(exam: any): Exam {
+    return {
+      ...exam,
+      id: String(exam.id),
+      academicYearId: exam.academicYearId != null ? String(exam.academicYearId) : '',
+      classIds: (exam.classIds ?? []).map((id: any) => String(id)),
+      status: (exam.status ?? 'upcoming') as Exam['status'],
+      tenantId: exam.tenantId ?? ''
+    };
+  }
+
+  private normalizeMark(mark: any): MarkRecord {
+    return {
+      ...mark,
+      id: String(mark.id),
+      examId: String(mark.examId),
+      studentId: String(mark.studentId),
+      classId: mark.classId != null ? String(mark.classId) : '',
+      tenantId: mark.tenantId ?? ''
+    };
   }
 }

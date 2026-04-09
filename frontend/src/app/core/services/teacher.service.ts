@@ -2,7 +2,7 @@ import { Injectable } from '@angular/core';
 import { BehaviorSubject, Observable, of } from 'rxjs';
 import { delay, map } from 'rxjs/operators';
 import { Teacher } from '../models/models';
-import { ApiService, PageResp } from './api.service';
+import { ApiService } from './api.service';
 import { environment } from '../../../environments/environment';
 
 @Injectable({ providedIn: 'root' })
@@ -24,21 +24,31 @@ export class TeacherService {
 
   getTeachers(): Observable<Teacher[]> {
     if (!environment.useMocks) {
-      return this.api.getPage<Teacher>('/teachers').pipe(map(p => p.content));
+      return this.api.getPage<any>('/teachers').pipe(map(p => p.content.map((teacher: any) => this.normalizeTeacher(teacher))));
     }
     return of([...this.teachers]).pipe(delay(400));
   }
 
   getTeacherById(id: string): Observable<Teacher | undefined> {
     if (!environment.useMocks) {
-      return this.api.get<Teacher>('/teachers/' + id);
+      return this.api.get<any>('/teachers/' + id).pipe(map(teacher => this.normalizeTeacher(teacher)));
     }
     return of(this.teachers.find(t => t.id === id)).pipe(delay(300));
   }
 
   addTeacher(teacher: Omit<Teacher, 'id'>): Observable<Teacher> {
     if (!environment.useMocks) {
-      return this.api.post<Teacher>('/teachers', teacher);
+      return this.api.post<Teacher>('/teachers', {
+        firstName: teacher.firstName,
+        lastName: teacher.lastName,
+        email: teacher.email,
+        phone: teacher.phone,
+        qualification: teacher.qualification,
+        specialization: teacher.specialization,
+        joinDate: teacher.joinDate,
+        salary: teacher.salary,
+        subjects: teacher.subjects
+      }).pipe(map(created => this.normalizeTeacher(created)));
     }
     const newTeacher: Teacher = { ...teacher, id: 'tu' + Date.now() } as Teacher;
     this.teachers = [newTeacher, ...this.teachers];
@@ -47,7 +57,19 @@ export class TeacherService {
   }
 
   updateTeacher(id: string, data: Partial<Teacher>): Observable<Teacher> {
-    if (!environment.useMocks) { return this.api.put<Teacher>('/teachers/' + id, data); }
+    if (!environment.useMocks) {
+      return this.api.put<Teacher>('/teachers/' + id, {
+        firstName: data.firstName,
+        lastName: data.lastName,
+        email: data.email,
+        phone: data.phone,
+        qualification: data.qualification,
+        specialization: data.specialization,
+        joinDate: data.joinDate,
+        salary: data.salary,
+        subjects: data.subjects
+      }).pipe(map(updated => this.normalizeTeacher(updated)));
+    }
     const idx = this.teachers.findIndex(t => t.id === id);
     if (idx !== -1) {
       this.teachers[idx] = { ...this.teachers[idx], ...data };
@@ -62,5 +84,32 @@ export class TeacherService {
     this.teachers = this.teachers.filter(t => t.id !== id);
     this.teachersSubject.next(this.teachers);
     return of(true).pipe(delay(300));
+  }
+
+  importTeachersZip(file: File): Observable<Teacher[]> {
+    if (!environment.useMocks) {
+      const formData = new FormData();
+      formData.append('file', file);
+      return this.api.postFormData<any[]>('/teachers/import', formData).pipe(
+        map(teachers => teachers.map(teacher => this.normalizeTeacher(teacher)))
+      );
+    }
+    return of([]).pipe(delay(300));
+  }
+
+  private normalizeTeacher(teacher: any): Teacher {
+    return {
+      ...teacher,
+      id: String(teacher.id),
+      tenantId: teacher.tenantId ?? '',
+      phone: teacher.phone ?? '',
+      qualification: teacher.qualification ?? '',
+      specialization: teacher.specialization ?? '',
+      joinDate: teacher.joinDate ?? '',
+      subjects: teacher.subjects ?? [],
+      classIds: teacher.classIds ?? [],
+      salary: Number(teacher.salary ?? 0),
+      status: (teacher.status ?? 'active') as Teacher['status']
+    };
   }
 }

@@ -17,6 +17,10 @@ import { Student } from '../../core/models/models';
           <p class="text-muted mb-0" style="font-size: 13px;">Manage all student records</p>
         </div>
         <div class="d-flex gap-3">
+          <label class="btn-outline-erp btn-sm" style="cursor: pointer; margin-bottom: 0;">
+            <i class="bi bi-upload"></i> Import ZIP
+            <input type="file" accept=".zip" style="display: none;" (change)="onImport($event)">
+          </label>
           <button class="btn-outline-erp btn-sm" data-testid="export-students-btn">
             <i class="bi bi-download"></i> Export
           </button>
@@ -131,6 +135,7 @@ export class StudentListComponent implements OnInit {
   pages: number[] = [];
   classOptions: string[] = [];
   Math = Math;
+  importError = '';
 
   constructor(private studentService: StudentService) {}
 
@@ -184,5 +189,19 @@ export class StudentListComponent implements OnInit {
         this.filterStudents();
       });
     }
+  }
+
+  onImport(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    if (!file) {
+      return;
+    }
+    this.studentService.importStudentsZip(file).subscribe(imported => {
+      this.students = [...imported, ...this.students];
+      this.classOptions = [...new Set(this.students.map(s => s.className))].sort();
+      this.filterStudents();
+      input.value = '';
+    });
   }
 }

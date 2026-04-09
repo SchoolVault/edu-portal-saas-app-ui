@@ -1,8 +1,10 @@
+export type AppRole = 'super_admin' | 'admin' | 'teacher' | 'parent';
+
 export interface User {
   id: string;
   email: string;
   name: string;
-  role: 'admin' | 'teacher' | 'parent';
+  role: AppRole;
   tenantId: string;
   avatar?: string;
   phone?: string;
@@ -16,7 +18,43 @@ export interface LoginRequest {
 
 export interface LoginResponse {
   token: string;
+  refreshToken: string;
   user: User;
+}
+
+export interface OnboardSchoolRequest {
+  schoolName: string;
+  schoolCode: string;
+  adminName: string;
+  adminEmail: string;
+  adminPassword: string;
+  phone?: string;
+  address?: string;
+}
+
+export interface ProfileSummary {
+  id: string;
+  name: string;
+  email: string;
+  phone?: string;
+  role: AppRole;
+  tenantId: string;
+  avatar?: string;
+  schoolName?: string;
+  schoolCode?: string;
+  schoolEmail?: string;
+  schoolPhone?: string;
+  schoolAddress?: string;
+  primaryColor?: string;
+  secondaryColor?: string;
+  userTitle?: string;
+  qualification?: string;
+  specialization?: string;
+  childCount?: number;
+  assignedClassCount?: number;
+  subjectCount?: number;
+  managedStudentCount?: number;
+  managedTeacherCount?: number;
 }
 
 export interface Student {
@@ -41,6 +79,16 @@ export interface Student {
   avatar?: string;
   status: 'active' | 'inactive' | 'graduated';
   tenantId: string;
+}
+
+export interface AttendanceStats {
+  studentId?: string;
+  totalDays: number;
+  present: number;
+  absent: number;
+  late: number;
+  excused?: number;
+  attendancePercentage: number;
 }
 
 export interface Teacher {
@@ -115,6 +163,22 @@ export interface TimetableEntry {
   tenantId: string;
 }
 
+export interface TimetableGridSlot {
+  subject: string;
+  teacher: string;
+  room: string;
+  startTime: string;
+  endTime: string;
+}
+
+export interface TimetableGrid {
+  classId: string;
+  sectionId: string;
+  days: string[];
+  periods: number[];
+  grid: Record<string, Record<number, TimetableGridSlot>>;
+}
+
 export interface Exam {
   id: string;
   name: string;
@@ -124,6 +188,213 @@ export interface Exam {
   classIds: string[];
   status: 'upcoming' | 'ongoing' | 'completed';
   tenantId: string;
+}
+
+export interface PromotionStudentPreview {
+  studentId: string;
+  firstName: string;
+  lastName: string;
+  rollNumber: string;
+  currentClassName: string;
+  averageScore: number;
+  eligible: boolean;
+  selected?: boolean;
+}
+
+export interface PromotionPreview {
+  sourceClassId: string;
+  sourceClassName: string;
+  targetClassId: string;
+  targetClassName: string;
+  defaultSectionId?: string;
+  defaultSectionName?: string;
+  students: PromotionStudentPreview[];
+}
+
+export interface PromotionResult {
+  promotedCount: number;
+  targetClassName: string;
+  targetSectionName: string;
+}
+
+export interface DashboardMetricPoint {
+  label: string;
+  value: number;
+}
+
+export interface DashboardActivityItem {
+  title: string;
+  description: string;
+  type: string;
+  timestamp: string;
+}
+
+export interface DashboardUpcomingEvent {
+  id?: string;
+  title: string;
+  date: string;
+  description: string;
+}
+
+export interface DashboardAttendanceOverview {
+  total: number;
+  present: number;
+  absent: number;
+  late: number;
+  excused: number;
+}
+
+export interface AdminDashboardData {
+  totalStudents: number;
+  totalTeachers: number;
+  feesCollected: number;
+  feesPending: number;
+  collectionRate: number;
+  monthlyAdmissions: DashboardMetricPoint[];
+  monthlyCollections: DashboardMetricPoint[];
+  attendanceOverview: DashboardAttendanceOverview;
+  recentActivities: DashboardActivityItem[];
+  upcomingEvents: DashboardUpcomingEvent[];
+}
+
+export interface PlatformMetricPoint {
+  label: string;
+  value: number;
+}
+
+export interface PlatformActivity {
+  title: string;
+  description: string;
+  tone: string;
+  timestamp: string;
+}
+
+export interface PlatformSchoolSummary {
+  tenantId: string;
+  schoolName: string;
+  schoolCode: string;
+  email?: string;
+  phone?: string;
+  address?: string;
+  active: boolean;
+  studentCount: number;
+  teacherCount: number;
+  adminCount: number;
+  primaryColor?: string;
+  secondaryColor?: string;
+}
+
+export interface PlatformSchoolAdmin {
+  id: string;
+  name: string;
+  email: string;
+  phone?: string;
+  schoolCode: string;
+  active: boolean;
+  createdAt?: string;
+}
+
+export interface PlatformDashboardData {
+  totalSchools: number;
+  activeSchools: number;
+  totalStudents: number;
+  totalTeachers: number;
+  totalAdmins: number;
+  schoolGrowth: PlatformMetricPoint[];
+  revenueTrend: PlatformMetricPoint[];
+  recentActivities: PlatformActivity[];
+  topSchools: PlatformSchoolSummary[];
+}
+
+export interface TeacherScheduleItem {
+  classId: string;
+  sectionId: string;
+  period: number;
+  subject: string;
+  className: string;
+  sectionName: string;
+  room: string;
+  startTime: string;
+  endTime: string;
+}
+
+export interface TeacherDashboardData {
+  assignedClasses: number;
+  studentsAssigned: number;
+  upcomingExams: number;
+  unreadNotifications: number;
+  todaySchedule: TeacherScheduleItem[];
+  pendingTasks: DashboardActivityItem[];
+  classTeacherOf?: { classId: string; className: string; sectionName?: string; totalStudents: number }[];
+  messageQueue?: { conversationId: string; fromName: string; studentName?: string; preview: string; timestamp: string; priority: 'low' | 'normal' | 'high' }[];
+  quickActions?: { label: string; route: string; icon: string }[];
+}
+
+export interface ParentDashboardData {
+  childCount: number;
+  children?: Student[];
+  selectedChild?: Student;
+  selectedChildId?: string;
+  attendancePercentage: number;
+  overallGrade: string;
+  feeDue: number;
+  childPerformance: MarkRecord[];
+  feeStatus: FeePayment[];
+  alerts?: { type: 'info' | 'warning' | 'success' | 'error'; title: string; message: string; ctaLabel?: string; ctaRoute?: string }[];
+  upcoming?: { id: string; title: string; date: string; description?: string }[];
+  attendanceSnapshot?: { present: number; absent: number; late: number; excused: number; totalDays: number };
+}
+
+export interface StudentPerformanceRow {
+  studentId: string;
+  studentName: string;
+  subjects: Record<string, number>;
+  totalMarks: number;
+  totalMax: number;
+  percentage: number;
+  grade: string;
+  rank: number;
+}
+
+export interface AttendanceSummaryRow {
+  studentId: string;
+  studentName: string;
+  present: number;
+  absent: number;
+  late: number;
+  excused: number;
+  totalDays: number;
+  attendancePercentage: number;
+}
+
+export interface ClassSummaryRow {
+  classId: string;
+  className: string;
+  grade: number;
+  sections: number;
+  totalStudents: number;
+  attendancePercentage: number;
+  performancePercentage: number;
+  feeCollectionPercentage: number;
+  classTeacherName: string;
+}
+
+export interface TeacherWorkloadRow {
+  teacherId: string;
+  teacherName: string;
+  specialization: string;
+  subjects: string[];
+  status: string;
+}
+
+export interface ReportCard {
+  studentId: string;
+  studentName: string;
+  subjects: MarkRecord[];
+  totalMarks: number;
+  totalMaxMarks: number;
+  overallPercentage: number;
+  overallGrade: string;
 }
 
 export interface MarkRecord {
@@ -171,6 +442,147 @@ export interface FeePayment {
   lateFee: number;
   receiptNumber?: string;
   tenantId: string;
+}
+
+export interface ParentFeeLineItem {
+  name: string;
+  amount: number;
+  type: string;
+}
+
+export interface ParentFeeObligation {
+  paymentId: string;
+  studentId: string;
+  studentName: string;
+  feeStructureId: string;
+  feeStructureName: string;
+  className?: string;
+  dueDate?: string;
+  status: 'paid' | 'partial' | 'unpaid' | 'overdue';
+  currency: string;
+  totalAmount: number;
+  paidAmount: number;
+  dueAmount: number;
+  discount: number;
+  lateFee: number;
+  payableNow: number;
+  lineItems: ParentFeeLineItem[];
+}
+
+export interface CheckoutSessionRequest {
+  paymentId: string;
+  studentId: string;
+  amount: number;
+  provider: string;
+  returnUrl?: string;
+}
+
+export interface CheckoutSession {
+  attemptId: string;
+  provider: string;
+  providerOrderId: string;
+  checkoutToken: string;
+  currency: string;
+  amount: number;
+  checkoutUrl: string;
+  status: string;
+}
+
+export interface PaymentReceipt {
+  receiptNumber: string;
+  paymentId: string;
+  studentId: string;
+  studentName: string;
+  feeStructureName: string;
+  className?: string;
+  provider?: string;
+  providerPaymentId?: string;
+  paymentMethod?: string;
+  paymentDate?: string;
+  dueDate?: string;
+  currency: string;
+  amountPaid: number;
+  totalAmount: number;
+  paidAmount: number;
+  dueAmount: number;
+  discount: number;
+  lateFee: number;
+  lineItems: ParentFeeLineItem[];
+}
+
+export interface ChatParticipantSummary {
+  userId: string;
+  userRole: string;
+  displayName?: string;
+}
+
+export interface ChatInboxConversation {
+  conversationId: string;
+  type: 'direct' | 'group' | 'system';
+  subject?: string;
+  contextType?: string;
+  contextId?: string;
+  lastMessageAt?: string;
+  lastMessagePreview?: string;
+  participants: ChatParticipantSummary[];
+  unreadCount: number;
+}
+
+export interface ChatCreateConversationRequest {
+  type: 'direct' | 'group';
+  subject?: string;
+  contextType?: string;
+  contextId?: string;
+  participants: ChatParticipantSummary[];
+}
+
+export interface ChatMessage {
+  id: string;
+  conversationId: string;
+  senderUserId: string;
+  senderRole: string;
+  senderName?: string;
+  body: string;
+  bodyType: string;
+  clientMessageId?: string;
+  createdAt?: string;
+}
+
+export interface ChatDirectoryUserCard {
+  userId: string;
+  name: string;
+  role: string;
+}
+
+export interface ChatDirectoryStudentCard {
+  studentId: string;
+  studentName: string;
+  parent?: ChatDirectoryUserCard;
+}
+
+export interface ChatDirectoryClassRoster {
+  classId: string;
+  className?: string;
+  sectionId?: string;
+  sectionName?: string;
+  students: ChatDirectoryStudentCard[];
+}
+
+export interface ChatDirectoryParentChildRoster {
+  studentId: string;
+  studentName: string;
+  classId?: string;
+  className?: string;
+  sectionId?: string;
+  sectionName?: string;
+  classTeacher?: ChatDirectoryUserCard;
+}
+
+export interface ChatDirectoryResponse {
+  myClassRosters?: ChatDirectoryClassRoster[];
+  myChildren?: ChatDirectoryParentChildRoster[];
+  teachers?: ChatDirectoryUserCard[];
+  parents?: ChatDirectoryUserCard[];
 }
 
 export interface Announcement {

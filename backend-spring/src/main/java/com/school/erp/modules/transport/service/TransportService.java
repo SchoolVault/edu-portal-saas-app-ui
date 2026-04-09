@@ -5,16 +5,14 @@ import com.school.erp.modules.transport.dto.TransportDTOs;
 import com.school.erp.modules.transport.entity.*;
 import com.school.erp.modules.transport.repository.*;
 import com.school.erp.tenant.TenantContext;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
 import java.util.List;
 import java.util.stream.Collectors;
 
-@Slf4j @Service @RequiredArgsConstructor
+@Service
 public class TransportService {
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(TransportService.class);
     private final TransportRouteRepository routeRepo;
     private final RouteStopRepository stopRepo;
     private final StudentTransportMappingRepository mappingRepo;
@@ -25,18 +23,7 @@ public class TransportService {
         return routeRepo.findByTenantIdAndIsDeletedFalse(t).stream().map(r -> {
             List<RouteStop> stops = stopRepo.findByTenantIdAndRouteIdOrderByStopOrder(t, r.getId());
             List<StudentTransportMapping> students = mappingRepo.findByTenantIdAndRouteIdAndIsDeletedFalse(t, r.getId());
-            return TransportDTOs.RouteResponse.builder()
-                    .id(r.getId()).name(r.getName()).vehicleNumber(r.getVehicleNumber())
-                    .driverName(r.getDriverName()).driverPhone(r.getDriverPhone())
-                    .assignedStudents(students.size())
-                    .stops(stops.stream().map(s -> TransportDTOs.StopDTO.builder()
-                            .id(s.getId()).name(s.getName())
-                            .time(s.getStopTime() != null ? s.getStopTime().toString() : null)
-                            .order(s.getStopOrder()).build()).collect(Collectors.toList()))
-                    .students(students.stream().map(m -> TransportDTOs.StudentMappingDTO.builder()
-                            .id(m.getId()).studentId(m.getStudentId()).studentName(m.getStudentName())
-                            .pickupStop(m.getPickupStop()).dropStop(m.getDropStop()).build()).collect(Collectors.toList()))
-                    .build();
+            return TransportDTOs.RouteResponse.builder().id(r.getId()).name(r.getName()).vehicleNumber(r.getVehicleNumber()).driverName(r.getDriverName()).driverPhone(r.getDriverPhone()).assignedStudents(students.size()).stops(stops.stream().map(s -> TransportDTOs.StopDTO.builder().id(s.getId()).name(s.getName()).time(s.getStopTime() != null ? s.getStopTime().toString() : null).order(s.getStopOrder()).build()).collect(Collectors.toList())).students(students.stream().map(m -> TransportDTOs.StudentMappingDTO.builder().id(m.getId()).studentId(m.getStudentId()).studentName(m.getStudentName()).pickupStop(m.getPickupStop()).dropStop(m.getDropStop()).build()).collect(Collectors.toList())).build();
         }).collect(Collectors.toList());
     }
 
@@ -59,7 +46,8 @@ public class TransportService {
     @Transactional
     public void deleteRoute(Long id) {
         TransportRoute r = routeRepo.findById(id).orElseThrow(() -> new ResourceNotFoundException("Route", id));
-        r.setIsDeleted(true); routeRepo.save(r);
+        r.setIsDeleted(true);
+        routeRepo.save(r);
     }
 
     @Transactional
@@ -76,9 +64,7 @@ public class TransportService {
     @Transactional
     public StudentTransportMapping assignStudent(TransportDTOs.AssignStudentRequest req) {
         String t = TenantContext.getTenantId();
-        StudentTransportMapping m = StudentTransportMapping.builder()
-                .routeId(req.getRouteId()).studentId(req.getStudentId()).studentName(req.getStudentName())
-                .pickupStop(req.getPickupStop()).dropStop(req.getDropStop()).build();
+        StudentTransportMapping m = StudentTransportMapping.builder().routeId(req.getRouteId()).studentId(req.getStudentId()).studentName(req.getStudentName()).pickupStop(req.getPickupStop()).dropStop(req.getDropStop()).build();
         m.setTenantId(t);
         mappingRepo.save(m);
         // Update assigned count
@@ -93,6 +79,13 @@ public class TransportService {
     @Transactional
     public void removeStudentFromRoute(Long mappingId) {
         StudentTransportMapping m = mappingRepo.findById(mappingId).orElseThrow(() -> new ResourceNotFoundException("Mapping", mappingId));
-        m.setIsDeleted(true); mappingRepo.save(m);
+        m.setIsDeleted(true);
+        mappingRepo.save(m);
+    }
+
+    public TransportService(final TransportRouteRepository routeRepo, final RouteStopRepository stopRepo, final StudentTransportMappingRepository mappingRepo) {
+        this.routeRepo = routeRepo;
+        this.stopRepo = stopRepo;
+        this.mappingRepo = mappingRepo;
     }
 }

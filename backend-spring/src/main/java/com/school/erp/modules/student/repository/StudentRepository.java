@@ -22,6 +22,11 @@ public interface StudentRepository extends JpaRepository<Student, Long> {
 
     List<Student> findByTenantIdAndClassIdAndSectionIdAndIsDeletedFalse(String tenantId, Long classId, Long sectionId);
 
+    List<Student> findByTenantIdAndParentIdAndIsDeletedFalse(String tenantId, Long parentId);
+    long countByTenantIdAndParentIdAndIsDeletedFalse(String tenantId, Long parentId);
+
+    List<Student> findByTenantIdAndIdInAndIsDeletedFalse(String tenantId, List<Long> ids);
+
     @Query("SELECT s FROM Student s WHERE s.tenantId = :tenantId AND s.isDeleted = false " +
            "AND (:classId IS NULL OR s.classId = :classId) " +
            "AND (:status IS NULL OR s.status = :status) " +
@@ -34,6 +39,7 @@ public interface StudentRepository extends JpaRepository<Student, Long> {
                                 Pageable pageable);
 
     long countByTenantIdAndIsDeletedFalse(String tenantId);
+    long countByIsDeletedFalse();
 
     boolean existsByTenantIdAndAdmissionNumber(String tenantId, String admissionNumber);
 }

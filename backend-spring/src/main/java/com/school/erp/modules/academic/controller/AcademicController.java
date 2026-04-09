@@ -2,25 +2,22 @@ package com.school.erp.modules.academic.controller;
 
 import com.school.erp.common.dto.ApiResponse;
 import com.school.erp.modules.academic.dto.AcademicDTOs;
+import com.school.erp.modules.academic.dto.AcademicWorkflowDTOs;
 import com.school.erp.modules.academic.entity.*;
 import com.school.erp.modules.academic.service.AcademicService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
-import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
-
 import java.util.List;
 
 @RestController
 @RequestMapping("/api/v1/academic")
-@RequiredArgsConstructor
 @Tag(name = "Academic", description = "Academic Year, Class & Section Management")
 public class AcademicController {
-
     private final AcademicService service;
 
     @GetMapping("/years")
@@ -30,14 +27,14 @@ public class AcademicController {
     }
 
     @PostMapping("/years")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole(\'ADMIN\')")
     @Operation(summary = "Create academic year")
     public ResponseEntity<ApiResponse<AcademicYear>> createYear(@RequestBody AcademicYear year) {
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.created(service.createYear(year)));
     }
 
     @PutMapping("/years/{id}/set-current")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole(\'ADMIN\')")
     @Operation(summary = "Set academic year as current")
     public ResponseEntity<ApiResponse<AcademicYear>> setCurrent(@PathVariable Long id) {
         return ResponseEntity.ok(ApiResponse.ok(service.setCurrentYear(id), "Current year updated"));
@@ -50,18 +47,17 @@ public class AcademicController {
     }
 
     @PostMapping("/classes")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole(\'ADMIN\')")
     @Operation(summary = "Create class with sections")
     public ResponseEntity<ApiResponse<SchoolClass>> createClass(@Valid @RequestBody AcademicDTOs.CreateClassRequest req) {
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.created(service.createClass(req)));
     }
 
     @PostMapping("/sections")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole(\'ADMIN\')")
     @Operation(summary = "Add section to class")
     public ResponseEntity<ApiResponse<Section>> addSection(@Valid @RequestBody AcademicDTOs.AddSectionRequest req) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.created(
-                service.addSection(req.getClassId(), req.getName(), req.getCapacity())));
+        return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.created(service.addSection(req.getClassId(), req.getName(), req.getCapacity())));
     }
 
     @GetMapping("/sections/class/{classId}")
@@ -71,10 +67,27 @@ public class AcademicController {
     }
 
     @PutMapping("/classes/{classId}/teacher")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole(\'ADMIN\')")
     @Operation(summary = "Assign class teacher")
-    public ResponseEntity<ApiResponse<SchoolClass>> assignTeacher(
-            @PathVariable Long classId, @Valid @RequestBody AcademicDTOs.AssignTeacherRequest req) {
+    public ResponseEntity<ApiResponse<SchoolClass>> assignTeacher(@PathVariable Long classId, @Valid @RequestBody AcademicDTOs.AssignTeacherRequest req) {
         return ResponseEntity.ok(ApiResponse.ok(service.assignClassTeacher(classId, req.getTeacherId(), req.getTeacherName())));
+    }
+
+    @GetMapping("/promotion/preview")
+    @PreAuthorize("hasRole(\'ADMIN\')")
+    @Operation(summary = "Preview class promotion", description = "Returns target class and eligible students for promotion")
+    public ResponseEntity<ApiResponse<AcademicWorkflowDTOs.PromotionPreviewResponse>> previewPromotion(@RequestParam Long fromClassId) {
+        return ResponseEntity.ok(ApiResponse.ok(service.previewPromotion(fromClassId)));
+    }
+
+    @PostMapping("/promotion/execute")
+    @PreAuthorize("hasRole(\'ADMIN\')")
+    @Operation(summary = "Promote students", description = "Promotes selected students into the target class and section")
+    public ResponseEntity<ApiResponse<AcademicWorkflowDTOs.PromotionResultResponse>> promoteStudents(@Valid @RequestBody AcademicWorkflowDTOs.PromoteStudentsRequest req) {
+        return ResponseEntity.ok(ApiResponse.ok(service.promoteStudents(req), "Students promoted"));
+    }
+
+    public AcademicController(final AcademicService service) {
+        this.service = service;
     }
 }

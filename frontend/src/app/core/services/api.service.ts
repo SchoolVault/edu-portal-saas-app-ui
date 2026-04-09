@@ -56,6 +56,15 @@ export class ApiService {
     );
   }
 
+  postFormData<T>(path: string, body: FormData): Observable<T> {
+    return this.http.post<ApiResp<T>>(`${this.baseUrl}${path}`, body).pipe(
+      map(res => {
+        if (!res.success) throw new Error(res.message);
+        return res.data;
+      })
+    );
+  }
+
   put<T>(path: string, body: any): Observable<T> {
     return this.http.put<ApiResp<T>>(`${this.baseUrl}${path}`, body).pipe(
       map(res => {

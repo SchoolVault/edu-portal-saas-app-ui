@@ -5,18 +5,14 @@ import com.school.erp.modules.notification.entity.Notification;
 import com.school.erp.modules.notification.service.NotificationService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-
 import java.util.List;
 
 @RestController
 @RequestMapping("/api/v1/notifications")
-@RequiredArgsConstructor
 @Tag(name = "Notifications", description = "User Notification Management")
 public class NotificationController {
-
     private final NotificationService service;
 
     @GetMapping
@@ -43,5 +39,9 @@ public class NotificationController {
     public ResponseEntity<ApiResponse<Void>> markAllRead() {
         service.markAllAsRead();
         return ResponseEntity.ok(ApiResponse.ok(null, "All marked as read"));
+    }
+
+    public NotificationController(final NotificationService service) {
+        this.service = service;
     }
 }

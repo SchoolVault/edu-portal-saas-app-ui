@@ -119,8 +119,7 @@ export class AttendanceComponent implements OnInit {
 
   loadAttendance(): void {
     if (!this.selectedClassId || !this.selectedSectionId) return;
-    this.studentService.getStudentsByClass(this.selectedClassId).subscribe(students => {
-      const sectionStudents = students.filter(s => s.sectionId === this.selectedSectionId);
+    this.studentService.getStudentsByClassAndSection(this.selectedClassId, this.selectedSectionId).subscribe(sectionStudents => {
       this.attendanceService.getAttendanceByClassAndDate(this.selectedClassId, this.selectedSectionId, this.selectedDate).subscribe(existing => {
         this.records = sectionStudents.map(s => {
           const ex = existing.find(e => e.studentId === s.id);

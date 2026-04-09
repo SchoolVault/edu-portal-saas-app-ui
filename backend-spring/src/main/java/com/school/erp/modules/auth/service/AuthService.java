@@ -5,75 +5,175 @@ import com.school.erp.common.exception.DuplicateResourceException;
 import com.school.erp.common.exception.ResourceNotFoundException;
 import com.school.erp.common.exception.UnauthorizedException;
 import com.school.erp.modules.auth.dto.AuthDTOs;
+import com.school.erp.modules.auth.dto.AuthManagementDTOs;
+import com.school.erp.modules.auth.dto.AuthProfileDTOs;
+import com.school.erp.modules.auth.entity.RefreshToken;
 import com.school.erp.modules.auth.entity.User;
+import com.school.erp.modules.auth.repository.RefreshTokenRepository;
 import com.school.erp.modules.auth.repository.UserRepository;
 import com.school.erp.modules.audit.service.AuditService;
+import com.school.erp.modules.settings.entity.TenantConfig;
+import com.school.erp.modules.settings.repository.TenantConfigRepository;
+import com.school.erp.modules.student.repository.StudentRepository;
+import com.school.erp.modules.teacher.repository.TeacherRepository;
 import com.school.erp.security.JwtUtil;
 import com.school.erp.tenant.TenantContext;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-@Slf4j
-@Service
-@RequiredArgsConstructor
-public class AuthService {
+import java.time.LocalDateTime;
+import java.util.Locale;
+import java.util.UUID;
 
+@Service
+public class AuthService {
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(AuthService.class);
     private final UserRepository userRepository;
+    private final RefreshTokenRepository refreshTokenRepository;
+    private final TenantConfigRepository tenantConfigRepository;
+    private final StudentRepository studentRepository;
+    private final TeacherRepository teacherRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
     private final AuditService auditService;
 
     @Transactional(readOnly = true)
     public AuthDTOs.LoginResponse login(AuthDTOs.LoginRequest request) {
-        User user = userRepository.findByEmailAndSchoolCodeAndIsDeletedFalse(request.getEmail(), request.getSchoolCode())
-                .orElseThrow(() -> new UnauthorizedException("Invalid credentials or school code"));
-        if (!passwordEncoder.matches(request.getPassword(), user.getPassword()))
-            throw new UnauthorizedException("Invalid credentials or school code");
+        User user = userRepository.findByEmailAndSchoolCodeAndIsDeletedFalse(request.getEmail(), request.getSchoolCode()).orElseThrow(() -> new UnauthorizedException("Invalid credentials or school code"));
+        if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) throw new UnauthorizedException("Invalid credentials or school code");
         if (!user.getIsActive()) throw new BusinessException("Account is deactivated. Contact admin.");
-
         String token = jwtUtil.generateToken(user.getId(), user.getTenantId(), user.getEmail(), user.getRole().name(), user.getName());
-        String refreshToken = "refresh-" + token.substring(token.length() - 20);
-
+        String refreshToken = issueRefreshToken(user);
         // Log login
         try {
             TenantContext.setTenantId(user.getTenantId());
             TenantContext.setUserId(user.getId());
             auditService.logLogin(user.getEmail());
-        } catch (Exception e) { log.debug("Audit log skipped: {}", e.getMessage()); }
-
+        } catch (Exception e) {
+            log.debug("Audit log skipped: {}", e.getMessage());
+        }
         return AuthDTOs.LoginResponse.builder().token(token).refreshToken(refreshToken).user(toProfile(user)).build();
     }
 
     @Transactional
     public AuthDTOs.UserProfile register(AuthDTOs.RegisterRequest request) {
-        if (userRepository.existsByEmailAndTenantId(request.getEmail(), request.getTenantId()))
-            throw new DuplicateResourceException("Email already registered in this school");
-        User user = User.builder()
-                .name(request.getName()).email(request.getEmail())
-                .password(passwordEncoder.encode(request.getPassword()))
-                .phone(request.getPhone())
-                .role(request.getRole() != null ? request.getRole() : com.school.erp.common.enums.Enums.Role.PARENT)
-                .schoolCode(request.getSchoolCode()).build();
-        user.setTenantId(request.getTenantId()); user.setIsActive(true); user.setIsDeleted(false);
+        String tenantId = TenantContext.getTenantId();
+        if (tenantId == null) throw new UnauthorizedException("Tenant context not found");
+        if (userRepository.existsByEmailAndTenantId(request.getEmail(), tenantId)) throw new DuplicateResourceException("Email already registered in this school");
+        TenantConfig tenantConfig = tenantConfigRepository.findByTenantId(tenantId).orElseThrow(() -> new ResourceNotFoundException("Tenant settings not configured"));
+        User user = User.builder().name(request.getName()).email(request.getEmail()).password(passwordEncoder.encode(request.getPassword())).phone(request.getPhone()).role(request.getRole() != null ? request.getRole() : com.school.erp.common.enums.Enums.Role.PARENT).schoolCode(tenantConfig.getSchoolCode()).build();
+        user.setTenantId(tenantId);
+        user.setIsActive(true);
+        user.setIsDeleted(false);
         userRepository.save(user);
         log.info("User registered: {} role={} tenant={}", user.getEmail(), user.getRole(), user.getTenantId());
         return toProfile(user);
     }
 
+    @Transactional
+    public AuthDTOs.LoginResponse onboardTenant(AuthManagementDTOs.OnboardTenantRequest request) {
+        String normalizedSchoolCode = request.getSchoolCode().trim().toUpperCase(Locale.ROOT);
+        if (tenantConfigRepository.existsBySchoolCode(normalizedSchoolCode)) {
+            throw new DuplicateResourceException("School code already in use");
+        }
+        String tenantId = buildTenantId(normalizedSchoolCode);
+
+        TenantConfig config = new TenantConfig();
+        config.setTenantId(tenantId);
+        config.setSchoolName(request.getSchoolName().trim());
+        config.setSchoolCode(normalizedSchoolCode);
+        config.setAddress(request.getAddress());
+        config.setPhone(request.getPhone());
+        config.setEmail(request.getAdminEmail());
+        config.setPrimaryColor("#1B3A30");
+        config.setSecondaryColor("#C05C3D");
+        config.setFeaturesJson("{\"student\":true,\"teacher\":true,\"attendance\":true,\"fees\":true}");
+        tenantConfigRepository.save(config);
+
+        User admin = User.builder()
+                .name(request.getAdminName().trim())
+                .email(request.getAdminEmail().trim().toLowerCase(Locale.ROOT))
+                .password(passwordEncoder.encode(request.getAdminPassword()))
+                .phone(request.getPhone())
+                .role(com.school.erp.common.enums.Enums.Role.ADMIN)
+                .schoolCode(normalizedSchoolCode)
+                .build();
+        admin.setTenantId(tenantId);
+        admin.setIsActive(true);
+        admin.setIsDeleted(false);
+        userRepository.save(admin);
+
+        String token = jwtUtil.generateToken(admin.getId(), admin.getTenantId(), admin.getEmail(), admin.getRole().name(), admin.getName());
+        String refreshToken = issueRefreshToken(admin);
+        return AuthDTOs.LoginResponse.builder().token(token).refreshToken(refreshToken).user(toProfile(admin)).build();
+    }
+
     @Transactional(readOnly = true)
     public AuthDTOs.UserProfile getProfile() {
-        User user = userRepository.findByIdAndTenantIdAndIsDeletedFalse(TenantContext.getUserId(), TenantContext.getTenantId())
-                .orElseThrow(() -> new ResourceNotFoundException("User", TenantContext.getUserId()));
+        User user = userRepository.findByIdAndTenantIdAndIsDeletedFalse(TenantContext.getUserId(), TenantContext.getTenantId()).orElseThrow(() -> new ResourceNotFoundException("User", TenantContext.getUserId()));
         return toProfile(user);
+    }
+
+    @Transactional(readOnly = true)
+    public AuthProfileDTOs.ProfileSummaryResponse getProfileSummary() {
+        String tenantId = TenantContext.getTenantId();
+        Long userId = TenantContext.getUserId();
+        User user = userRepository.findByIdAndTenantIdAndIsDeletedFalse(userId, tenantId).orElseThrow(() -> new ResourceNotFoundException("User", userId));
+        TenantConfig config = tenantConfigRepository.findByTenantId(tenantId).orElse(null);
+
+        AuthProfileDTOs.ProfileSummaryResponse response = new AuthProfileDTOs.ProfileSummaryResponse();
+        response.setId(user.getId());
+        response.setName(user.getName());
+        response.setEmail(user.getEmail());
+        response.setPhone(user.getPhone());
+        response.setRole(user.getRole() != null ? user.getRole().name().toLowerCase() : "");
+        response.setTenantId(user.getTenantId());
+        response.setAvatar(user.getAvatar());
+        if (config != null) {
+            response.setSchoolName(config.getSchoolName());
+            response.setSchoolCode(config.getSchoolCode());
+            response.setSchoolEmail(config.getEmail());
+            response.setSchoolPhone(config.getPhone());
+            response.setSchoolAddress(config.getAddress());
+            response.setPrimaryColor(config.getPrimaryColor());
+            response.setSecondaryColor(config.getSecondaryColor());
+        }
+
+        switch (user.getRole()) {
+            case SUPER_ADMIN -> {
+                response.setUserTitle("Platform Administrator");
+                response.setSchoolName("SchoolVault Platform");
+                response.setSchoolCode("PLATFORM");
+                response.setSchoolEmail("platform@schoolvault.edu");
+                response.setPrimaryColor("#0F172A");
+                response.setSecondaryColor("#0EA5E9");
+                response.setManagedStudentCount(studentRepository.countByIsDeletedFalse());
+                response.setManagedTeacherCount(teacherRepository.countByIsDeletedFalse());
+            }
+            case ADMIN -> {
+                response.setUserTitle("School Administrator");
+                response.setManagedStudentCount(studentRepository.countByTenantIdAndIsDeletedFalse(tenantId));
+                response.setManagedTeacherCount(teacherRepository.countByTenantIdAndIsDeletedFalse(tenantId));
+            }
+            case TEACHER -> teacherRepository.findByTenantIdAndUserIdAndIsDeletedFalse(tenantId, userId).ifPresent(teacher -> {
+                response.setUserTitle("Faculty Member");
+                response.setQualification(teacher.getQualification());
+                response.setSpecialization(teacher.getSpecialization());
+                response.setSubjectCount(teacher.getSubjects() != null ? teacher.getSubjects().size() : 0);
+            });
+            case PARENT -> {
+                response.setUserTitle("Parent Account");
+                response.setChildCount(studentRepository.countByTenantIdAndParentIdAndIsDeletedFalse(tenantId, userId));
+            }
+            default -> response.setUserTitle("School User");
+        }
+        return response;
     }
 
     @Transactional
     public AuthDTOs.UserProfile updateProfile(AuthDTOs.UpdateProfileRequest request) {
-        User user = userRepository.findByIdAndTenantIdAndIsDeletedFalse(TenantContext.getUserId(), TenantContext.getTenantId())
-                .orElseThrow(() -> new ResourceNotFoundException("User", TenantContext.getUserId()));
+        User user = userRepository.findByIdAndTenantIdAndIsDeletedFalse(TenantContext.getUserId(), TenantContext.getTenantId()).orElseThrow(() -> new ResourceNotFoundException("User", TenantContext.getUserId()));
         if (request.getName() != null) user.setName(request.getName());
         if (request.getPhone() != null) user.setPhone(request.getPhone());
         if (request.getAvatar() != null) user.setAvatar(request.getAvatar());
@@ -83,10 +183,8 @@ public class AuthService {
 
     @Transactional
     public void changePassword(AuthDTOs.ChangePasswordRequest request) {
-        User user = userRepository.findByIdAndTenantIdAndIsDeletedFalse(TenantContext.getUserId(), TenantContext.getTenantId())
-                .orElseThrow(() -> new ResourceNotFoundException("User", TenantContext.getUserId()));
-        if (!passwordEncoder.matches(request.getCurrentPassword(), user.getPassword()))
-            throw new BusinessException("Current password is incorrect");
+        User user = userRepository.findByIdAndTenantIdAndIsDeletedFalse(TenantContext.getUserId(), TenantContext.getTenantId()).orElseThrow(() -> new ResourceNotFoundException("User", TenantContext.getUserId()));
+        if (!passwordEncoder.matches(request.getCurrentPassword(), user.getPassword())) throw new BusinessException("Current password is incorrect");
         user.setPassword(passwordEncoder.encode(request.getNewPassword()));
         userRepository.save(user);
         log.info("Password changed for user: {}", user.getEmail());
@@ -94,21 +192,56 @@ public class AuthService {
 
     @Transactional
     public AuthDTOs.TokenResponse refreshToken(AuthDTOs.RefreshTokenRequest request) {
-        // In production: validate refresh token from DB/Redis
-        // For now: extract user from the refresh token pattern
-        String email = TenantContext.getTenantId() != null ? 
-            userRepository.findByIdAndTenantIdAndIsDeletedFalse(TenantContext.getUserId(), TenantContext.getTenantId())
-                .map(User::getEmail).orElse(null) : null;
-        if (email == null) throw new UnauthorizedException("Invalid refresh token");
-        User user = userRepository.findByEmailAndTenantIdAndIsDeletedFalse(email, TenantContext.getTenantId())
-                .orElseThrow(() -> new UnauthorizedException("Invalid refresh token"));
+        RefreshToken refreshToken = refreshTokenRepository.findByTokenAndIsDeletedFalse(request.getRefreshToken()).orElseThrow(() -> new UnauthorizedException("Invalid refresh token"));
+        if (!refreshToken.isActive()) throw new UnauthorizedException("Refresh token expired or revoked");
+        User user = userRepository.findByIdAndTenantIdAndIsDeletedFalse(refreshToken.getUserId(), refreshToken.getTenantId()).orElseThrow(() -> new UnauthorizedException("Invalid refresh token"));
+        revokeToken(refreshToken);
         String newToken = jwtUtil.generateToken(user.getId(), user.getTenantId(), user.getEmail(), user.getRole().name(), user.getName());
-        return AuthDTOs.TokenResponse.builder().token(newToken).refreshToken(request.getRefreshToken()).build();
+        String newRefreshToken = issueRefreshToken(user);
+        return AuthDTOs.TokenResponse.builder().token(newToken).refreshToken(newRefreshToken).build();
+    }
+
+    @Transactional
+    public void logout(String token) {
+        refreshTokenRepository.findByTokenAndIsDeletedFalse(token).ifPresent(this::revokeToken);
     }
 
     private AuthDTOs.UserProfile toProfile(User user) {
-        return AuthDTOs.UserProfile.builder()
-                .id(user.getId()).name(user.getName()).email(user.getEmail()).phone(user.getPhone())
-                .role(user.getRole().name().toLowerCase()).tenantId(user.getTenantId()).avatar(user.getAvatar()).build();
+        return AuthDTOs.UserProfile.builder().id(user.getId()).name(user.getName()).email(user.getEmail()).phone(user.getPhone()).role(user.getRole().name().toLowerCase()).tenantId(user.getTenantId()).avatar(user.getAvatar()).build();
+    }
+
+    private String issueRefreshToken(User user) {
+        refreshTokenRepository.findByTenantIdAndUserIdAndIsDeletedFalse(user.getTenantId(), user.getId()).forEach(this::revokeToken);
+        RefreshToken refreshToken = new RefreshToken();
+        refreshToken.setTenantId(user.getTenantId());
+        refreshToken.setUserId(user.getId());
+        refreshToken.setToken(UUID.randomUUID().toString() + UUID.randomUUID());
+        refreshToken.setExpiresAt(LocalDateTime.now().plusDays(7));
+        refreshToken.setIsActive(true);
+        refreshToken.setIsDeleted(false);
+        refreshTokenRepository.save(refreshToken);
+        return refreshToken.getToken();
+    }
+
+    private void revokeToken(RefreshToken token) {
+        token.setRevokedAt(LocalDateTime.now());
+        token.setIsActive(false);
+        token.setIsDeleted(true);
+        refreshTokenRepository.save(token);
+    }
+
+    private String buildTenantId(String schoolCode) {
+        return "tenant_" + schoolCode.toLowerCase(Locale.ROOT) + "_" + UUID.randomUUID().toString().substring(0, 8);
+    }
+
+    public AuthService(final UserRepository userRepository, final RefreshTokenRepository refreshTokenRepository, final TenantConfigRepository tenantConfigRepository, final StudentRepository studentRepository, final TeacherRepository teacherRepository, final PasswordEncoder passwordEncoder, final JwtUtil jwtUtil, final AuditService auditService) {
+        this.userRepository = userRepository;
+        this.refreshTokenRepository = refreshTokenRepository;
+        this.tenantConfigRepository = tenantConfigRepository;
+        this.studentRepository = studentRepository;
+        this.teacherRepository = teacherRepository;
+        this.passwordEncoder = passwordEncoder;
+        this.jwtUtil = jwtUtil;
+        this.auditService = auditService;
     }
 }

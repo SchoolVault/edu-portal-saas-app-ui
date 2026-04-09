@@ -1,81 +1,87 @@
-import { Component, OnInit, AfterViewInit, ElementRef, ViewChild } from '@angular/core';
+import { AfterViewInit, Component, ElementRef, OnDestroy, OnInit, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
-import { AuthService } from '../../core/services/auth.service';
+import { FormsModule } from '@angular/forms';
 import { Chart, registerables } from 'chart.js';
+import { AuthService } from '../../core/services/auth.service';
+import { DashboardService } from '../../core/services/dashboard.service';
+import { AdminDashboardData, ParentDashboardData, TeacherDashboardData } from '../../core/models/models';
+
 Chart.register(...registerables);
 
 @Component({
   selector: 'app-dashboard',
   standalone: true,
-  imports: [CommonModule, RouterModule],
+  imports: [CommonModule, RouterModule, FormsModule],
   template: `
     <div data-testid="dashboard-page">
-      <!-- Admin Dashboard -->
-      <ng-container *ngIf="role === 'admin'">
+      <div *ngIf="loading" class="empty-state">
+        <i class="bi bi-hourglass-split"></i><h3>Loading Dashboard</h3><p>Fetching live ERP insights</p>
+      </div>
+
+      <ng-container *ngIf="!loading && role === 'admin'">
         <div class="row g-4 mb-4">
-          <div class="col-sm-6 col-lg-3 animate-in animate-in-delay-1" *ngFor="let kpi of adminKPIs; let i = index">
-            <div class="stat-card" [attr.data-testid]="'kpi-card-' + i">
-              <div class="stat-icon" [style.background]="kpi.bgColor" [style.color]="kpi.color">
-                <i class="bi" [ngClass]="kpi.icon"></i>
-              </div>
+          <div class="col-sm-6 col-lg-3" *ngFor="let kpi of adminKPIs">
+            <div class="stat-card">
+              <div class="stat-icon" [style.background]="kpi.bgColor" [style.color]="kpi.color"><i class="bi" [ngClass]="kpi.icon"></i></div>
               <div class="stat-value">{{ kpi.value }}</div>
               <div class="stat-label">{{ kpi.label }}</div>
-              <div class="stat-change" [ngClass]="kpi.change >= 0 ? 'positive' : 'negative'">
-                <i class="bi" [ngClass]="kpi.change >= 0 ? 'bi-arrow-up-short' : 'bi-arrow-down-short'"></i>
-                {{ kpi.change > 0 ? '+' : '' }}{{ kpi.change }}% this month
-              </div>
+              <div class="stat-change positive">{{ kpi.subtext }}</div>
             </div>
           </div>
         </div>
         <div class="row g-4 mb-4">
-          <div class="col-lg-8 animate-in animate-in-delay-3">
+          <div class="col-lg-8">
             <div class="erp-card">
-              <div class="erp-card-header">
-                <h3 class="erp-card-title">Monthly Admissions & Fee Collection</h3>
-              </div>
-              <div class="chart-container">
-                <canvas #admissionChart></canvas>
+              <div class="erp-card-header"><h3 class="erp-card-title">Monthly Admissions & Fee Collection</h3></div>
+              <div class="chart-container"><canvas #admissionChart></canvas></div>
+            </div>
+          </div>
+          <div class="col-lg-4">
+            <div class="erp-card" style="height: 100%;">
+              <div class="erp-card-header"><h3 class="erp-card-title">Attendance Overview</h3></div>
+              <div class="chart-container" style="height: 220px;"><canvas #attendanceChart></canvas></div>
+            </div>
+          </div>
+        </div>
+        <div class="row g-4 mb-4">
+          <div class="col-lg-5">
+            <div class="erp-card" style="height: 100%;">
+              <div class="erp-card-header"><h3 class="erp-card-title">Admissions Snapshot</h3></div>
+              <div class="insight-list">
+                <div *ngFor="let insight of admissionInsights" class="insight-card">
+                  <div class="insight-label">{{ insight.label }}</div>
+                  <div class="insight-value" [style.color]="insight.tone">{{ insight.value }}</div>
+                  <div class="insight-subtext">{{ insight.subtext }}</div>
+                </div>
               </div>
             </div>
           </div>
-          <div class="col-lg-4 animate-in animate-in-delay-4">
+          <div class="col-lg-7">
             <div class="erp-card" style="height: 100%;">
-              <div class="erp-card-header">
-                <h3 class="erp-card-title">Attendance Overview</h3>
-              </div>
-              <div class="chart-container" style="height: 220px;">
-                <canvas #attendanceChart></canvas>
-              </div>
+              <div class="erp-card-header"><h3 class="erp-card-title">Admissions Trend</h3></div>
+              <div class="chart-container" style="height: 280px;"><canvas #admissionsTrendChart></canvas></div>
             </div>
           </div>
         </div>
         <div class="row g-4">
-          <div class="col-lg-6 animate-in animate-in-delay-5">
+          <div class="col-lg-6">
             <div class="erp-card">
-              <div class="erp-card-header">
-                <h3 class="erp-card-title">Recent Activity</h3>
-              </div>
-              <div *ngFor="let activity of recentActivities" class="activity-item">
-                <div class="activity-icon" [style.background]="activity.bgColor" [style.color]="activity.color">
-                  <i class="bi" [ngClass]="activity.icon"></i>
-                </div>
+              <div class="erp-card-header"><h3 class="erp-card-title">Recent Activity</h3></div>
+              <div *ngFor="let activity of adminDashboard?.recentActivities" class="activity-item">
+                <div class="activity-icon" style="background: rgba(27,58,48,0.1); color: var(--clr-primary);"><i class="bi bi-bell"></i></div>
                 <div class="activity-content">
                   <h5>{{ activity.title }}</h5>
-                  <p>{{ activity.time }}</p>
+                  <p>{{ activity.description || activity.timestamp }}</p>
                 </div>
               </div>
             </div>
           </div>
-          <div class="col-lg-6 animate-in animate-in-delay-5">
+          <div class="col-lg-6">
             <div class="erp-card">
-              <div class="erp-card-header">
-                <h3 class="erp-card-title">Upcoming Events</h3>
-              </div>
-              <div *ngFor="let event of upcomingEvents" class="activity-item">
-                <div class="activity-icon" style="background: rgba(2,132,199,0.1); color: var(--clr-info);">
-                  <i class="bi bi-calendar-event"></i>
-                </div>
+              <div class="erp-card-header"><h3 class="erp-card-title">Upcoming Events</h3></div>
+              <div *ngFor="let event of adminDashboard?.upcomingEvents" class="activity-item">
+                <div class="activity-icon" style="background: rgba(2,132,199,0.1); color: var(--clr-info);"><i class="bi bi-calendar-event"></i></div>
                 <div class="activity-content">
                   <h5>{{ event.title }}</h5>
                   <p>{{ event.date }} &middot; {{ event.description }}</p>
@@ -86,51 +92,99 @@ Chart.register(...registerables);
         </div>
       </ng-container>
 
-      <!-- Teacher Dashboard -->
-      <ng-container *ngIf="role === 'teacher'">
+      <ng-container *ngIf="!loading && role === 'teacher'">
         <div class="row g-4 mb-4">
-          <div class="col-sm-6 col-lg-3 animate-in" *ngFor="let kpi of teacherKPIs; let i = index">
+          <div class="col-sm-6 col-lg-3" *ngFor="let kpi of teacherKPIs">
             <div class="stat-card">
-              <div class="stat-icon" [style.background]="kpi.bgColor" [style.color]="kpi.color">
-                <i class="bi" [ngClass]="kpi.icon"></i>
-              </div>
+              <div class="stat-icon" [style.background]="kpi.bgColor" [style.color]="kpi.color"><i class="bi" [ngClass]="kpi.icon"></i></div>
               <div class="stat-value">{{ kpi.value }}</div>
               <div class="stat-label">{{ kpi.label }}</div>
             </div>
           </div>
         </div>
         <div class="row g-4 mb-4">
-          <div class="col-lg-8 animate-in animate-in-delay-2">
-            <div class="erp-card">
-              <div class="erp-card-header">
-                <h3 class="erp-card-title">Today's Timetable</h3>
+          <div class="col-lg-5">
+            <div class="erp-card" style="height: 100%;">
+              <div class="erp-card-header"><h3 class="erp-card-title">Parent Message Queue</h3></div>
+              <div *ngIf="(teacherDashboard?.messageQueue || []).length; else noMsgQueue">
+                <div *ngFor="let item of teacherDashboard?.messageQueue" class="activity-item" [routerLink]="['/app/chat']" style="cursor: pointer;">
+                  <div class="activity-icon" style="background: rgba(2,132,199,0.1); color: var(--clr-info);">
+                    <i class="bi bi-chat-left-dots"></i>
+                  </div>
+                  <div class="activity-content">
+                    <h5>
+                      {{ item.fromName }}
+                      <span *ngIf="item.studentName" class="text-muted" style="font-weight: 600;">· {{ item.studentName }}</span>
+                    </h5>
+                    <p>{{ item.preview }} · {{ item.timestamp }}</p>
+                  </div>
+                  <span class="badge-erp" [ngClass]="item.priority === 'high' ? 'badge-danger' : 'badge-neutral'">{{ item.priority }}</span>
+                </div>
               </div>
+              <ng-template #noMsgQueue>
+                <div class="empty-state" style="padding: 20px 12px;">
+                  <i class="bi bi-inbox"></i>
+                  <h3>No pending parent messages</h3>
+                  <p>New requests will appear here for quick follow-up.</p>
+                </div>
+              </ng-template>
+            </div>
+          </div>
+          <div class="col-lg-7">
+            <div class="erp-card" style="height: 100%;">
+              <div class="erp-card-header"><h3 class="erp-card-title">Class Teacher Overview</h3></div>
+              <div *ngIf="(teacherDashboard?.classTeacherOf || []).length; else noClassTeacher">
+                <div *ngFor="let cls of teacherDashboard?.classTeacherOf" class="insight-card" style="margin-bottom: 10px;">
+                  <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                      <div class="insight-label">Class Teacher</div>
+                      <div class="insight-value">{{ cls.className }}{{ cls.sectionName ? ' - ' + cls.sectionName : '' }}</div>
+                      <div class="insight-subtext">{{ cls.totalStudents }} students · Attendance + announcements + parent communication</div>
+                    </div>
+                    <div class="d-flex gap-2">
+                      <a class="btn-outline-erp btn-sm" [routerLink]="['/app/attendance']">Attendance</a>
+                      <a class="btn-outline-erp btn-sm" [routerLink]="['/app/chat']">Inbox</a>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <ng-template #noClassTeacher>
+                <div class="empty-state" style="padding: 20px 12px;">
+                  <i class="bi bi-person-badge"></i>
+                  <h3>No class teacher assignment</h3>
+                  <p>Once assigned, you’ll see your class teacher duties here.</p>
+                </div>
+              </ng-template>
+            </div>
+          </div>
+        </div>
+
+        <div class="row g-4">
+          <div class="col-lg-8">
+            <div class="erp-card">
+              <div class="erp-card-header"><h3 class="erp-card-title">Today's Timetable</h3></div>
               <table class="erp-table">
                 <thead><tr><th>Period</th><th>Time</th><th>Subject</th><th>Class</th><th>Room</th></tr></thead>
                 <tbody>
-                  <tr *ngFor="let slot of todaySchedule">
+                  <tr *ngFor="let slot of teacherDashboard?.todaySchedule">
                     <td>{{ slot.period }}</td>
-                    <td>{{ slot.time }}</td>
+                    <td>{{ slot.startTime }} - {{ slot.endTime }}</td>
                     <td><strong>{{ slot.subject }}</strong></td>
-                    <td>{{ slot.class }}</td>
-                    <td>{{ slot.room }}</td>
+                    <td>{{ slot.className }}{{ slot.sectionName ? ' - ' + slot.sectionName : '' }}</td>
+                    <td>{{ slot.room || '-' }}</td>
                   </tr>
                 </tbody>
               </table>
             </div>
           </div>
-          <div class="col-lg-4 animate-in animate-in-delay-3">
+          <div class="col-lg-4">
             <div class="erp-card">
-              <div class="erp-card-header">
-                <h3 class="erp-card-title">Pending Tasks</h3>
-              </div>
-              <div *ngFor="let task of pendingTasks" class="activity-item">
-                <div class="activity-icon" [style.background]="task.bgColor" [style.color]="task.color">
-                  <i class="bi" [ngClass]="task.icon"></i>
-                </div>
+              <div class="erp-card-header"><h3 class="erp-card-title">Pending Tasks</h3></div>
+              <div *ngFor="let task of teacherDashboard?.pendingTasks" class="activity-item">
+                <div class="activity-icon" style="background: rgba(217,119,6,0.1); color: var(--clr-warning);"><i class="bi bi-list-task"></i></div>
                 <div class="activity-content">
                   <h5>{{ task.title }}</h5>
-                  <p>{{ task.description }}</p>
+                  <p>{{ task.description || task.timestamp }}</p>
                 </div>
               </div>
             </div>
@@ -138,50 +192,90 @@ Chart.register(...registerables);
         </div>
       </ng-container>
 
-      <!-- Parent Dashboard -->
-      <ng-container *ngIf="role === 'parent'">
+      <ng-container *ngIf="!loading && role === 'parent'">
+        <div class="erp-card mb-4" *ngIf="(parentDashboard?.children || []).length">
+          <div class="row g-3 align-items-end">
+            <div class="col-md-6">
+              <label class="erp-label">Child</label>
+              <select class="erp-select" [(ngModel)]="selectedParentChildId" (change)="onParentChildChange()">
+                <option *ngFor="let c of parentDashboard?.children" [value]="c.id">
+                  {{ c.firstName }} {{ c.lastName }} · {{ c.className || ('Class ' + c.classId) }}{{ c.sectionName ? ' - ' + c.sectionName : '' }}
+                </option>
+              </select>
+            </div>
+            <div class="col-md-6 d-flex justify-content-end gap-2">
+              <a class="btn-outline-erp btn-sm" [routerLink]="['/app/chat']"><i class="bi bi-inbox-fill me-1"></i> Inbox</a>
+              <a class="btn-primary-erp btn-sm" [routerLink]="['/app/parent']"><i class="bi bi-credit-card-fill me-1"></i> Fees</a>
+            </div>
+          </div>
+        </div>
+
         <div class="row g-4 mb-4">
-          <div class="col-sm-6 col-lg-3 animate-in" *ngFor="let kpi of parentKPIs; let i = index">
+          <div class="col-sm-6 col-lg-3" *ngFor="let kpi of parentKPIs">
             <div class="stat-card">
-              <div class="stat-icon" [style.background]="kpi.bgColor" [style.color]="kpi.color">
-                <i class="bi" [ngClass]="kpi.icon"></i>
-              </div>
+              <div class="stat-icon" [style.background]="kpi.bgColor" [style.color]="kpi.color"><i class="bi" [ngClass]="kpi.icon"></i></div>
               <div class="stat-value">{{ kpi.value }}</div>
               <div class="stat-label">{{ kpi.label }}</div>
             </div>
           </div>
         </div>
+        <div class="row g-4 mb-4" *ngIf="(parentDashboard?.alerts || []).length">
+          <div class="col-lg-12">
+            <div class="erp-card">
+              <div class="erp-card-header"><h3 class="erp-card-title">Alerts & Reminders</h3></div>
+              <div *ngFor="let a of parentDashboard?.alerts" class="activity-item">
+                <div class="activity-icon" [style.background]="a.type === 'warning' ? 'rgba(217,119,6,0.12)' : 'rgba(2,132,199,0.12)'" [style.color]="a.type === 'warning' ? 'var(--clr-warning)' : 'var(--clr-info)'">
+                  <i class="bi" [ngClass]="a.type === 'warning' ? 'bi-exclamation-triangle-fill' : 'bi-info-circle-fill'"></i>
+                </div>
+                <div class="activity-content">
+                  <h5>{{ a.title }}</h5>
+                  <p>{{ a.message }}</p>
+                </div>
+                <a *ngIf="a.ctaRoute" class="btn-outline-erp btn-sm" [routerLink]="[a.ctaRoute]">{{ a.ctaLabel || 'Open' }}</a>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <div class="row g-4">
-          <div class="col-lg-6 animate-in animate-in-delay-2">
+          <div class="col-lg-6">
             <div class="erp-card">
               <div class="erp-card-header"><h3 class="erp-card-title">Child Performance</h3></div>
               <table class="erp-table">
-                <thead><tr><th>Subject</th><th>Marks</th><th>Grade</th><th>Status</th></tr></thead>
+                <thead><tr><th>Subject</th><th>Marks</th><th>Grade</th></tr></thead>
                 <tbody>
-                  <tr *ngFor="let subj of childPerformance">
-                    <td><strong>{{ subj.subject }}</strong></td>
-                    <td>{{ subj.marks }}/{{ subj.total }}</td>
-                    <td>{{ subj.grade }}</td>
-                    <td><span class="badge-erp" [ngClass]="subj.marks >= 70 ? 'badge-success' : subj.marks >= 50 ? 'badge-warning' : 'badge-danger'">
-                      {{ subj.marks >= 70 ? 'Good' : subj.marks >= 50 ? 'Average' : 'Needs Improvement' }}
-                    </span></td>
+                  <tr *ngFor="let mark of parentDashboard?.childPerformance">
+                    <td><strong>{{ mark.subjectName }}</strong></td>
+                    <td>{{ mark.marksObtained }}/{{ mark.maxMarks }}</td>
+                    <td>{{ mark.grade }}</td>
                   </tr>
                 </tbody>
               </table>
             </div>
           </div>
-          <div class="col-lg-6 animate-in animate-in-delay-3">
+          <div class="col-lg-6">
             <div class="erp-card">
               <div class="erp-card-header"><h3 class="erp-card-title">Fee Status</h3></div>
-              <div *ngFor="let fee of feeStatus" class="activity-item">
-                <div class="activity-icon" [style.background]="fee.bgColor" [style.color]="fee.color">
-                  <i class="bi bi-credit-card"></i>
-                </div>
+              <div *ngFor="let fee of parentDashboard?.feeStatus" class="activity-item">
+                <div class="activity-icon" style="background: rgba(220,38,38,0.1); color: var(--clr-danger);"><i class="bi bi-credit-card"></i></div>
                 <div class="activity-content">
-                  <h5>{{ fee.name }} - {{ fee.amount }}</h5>
-                  <p>Due: {{ fee.dueDate }} &middot;
-                    <span [style.color]="fee.statusColor" style="font-weight: 600;">{{ fee.status }}</span>
-                  </p>
+                  <h5>{{ fee.studentName }} - {{ fee.dueAmount | currency:'INR':'symbol':'1.0-0' }}</h5>
+                  <p>Due: {{ fee.dueDate }} &middot; <span style="font-weight: 600;">{{ fee.status }}</span></p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="row g-4 mt-1" *ngIf="(parentDashboard?.upcoming || []).length">
+          <div class="col-lg-12">
+            <div class="erp-card">
+              <div class="erp-card-header"><h3 class="erp-card-title">Upcoming</h3></div>
+              <div *ngFor="let u of parentDashboard?.upcoming" class="activity-item">
+                <div class="activity-icon" style="background: rgba(5,150,105,0.1); color: var(--clr-success);"><i class="bi bi-calendar-event"></i></div>
+                <div class="activity-content">
+                  <h5>{{ u.title }}</h5>
+                  <p>{{ u.date }} &middot; {{ u.description || '' }}</p>
                 </div>
               </div>
             </div>
@@ -191,120 +285,216 @@ Chart.register(...registerables);
     </div>
   `
 })
-export class DashboardComponent implements OnInit, AfterViewInit {
-  @ViewChild('admissionChart') admissionChartRef!: ElementRef;
-  @ViewChild('attendanceChart') attendanceChartRef!: ElementRef;
+export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
+  @ViewChild('admissionChart') admissionChartRef?: ElementRef<HTMLCanvasElement>;
+  @ViewChild('attendanceChart') attendanceChartRef?: ElementRef<HTMLCanvasElement>;
+  @ViewChild('admissionsTrendChart') admissionsTrendChartRef?: ElementRef<HTMLCanvasElement>;
 
   role = 'admin';
+  loading = true;
+  adminDashboard: AdminDashboardData | null = null;
+  teacherDashboard: TeacherDashboardData | null = null;
+  parentDashboard: ParentDashboardData | null = null;
+  adminKPIs: Array<{ label: string; value: string; icon: string; bgColor: string; color: string; subtext: string }> = [];
+  admissionInsights: Array<{ label: string; value: string; subtext: string; tone: string }> = [];
+  teacherKPIs: Array<{ label: string; value: string; icon: string; bgColor: string; color: string }> = [];
+  parentKPIs: Array<{ label: string; value: string; icon: string; bgColor: string; color: string }> = [];
+  selectedParentChildId = '';
+  private admissionChart?: Chart;
+  private attendanceChart?: Chart;
+  private admissionsTrendChart?: Chart;
 
-  adminKPIs = [
-    { label: 'Total Students', value: '2,847', icon: 'bi-people-fill', bgColor: 'rgba(27,58,48,0.1)', color: '#1B3A30', change: 5.2 },
-    { label: 'Total Teachers', value: '124', icon: 'bi-person-badge-fill', bgColor: 'rgba(192,92,61,0.1)', color: '#C05C3D', change: 2.1 },
-    { label: 'Fees Collected', value: '$284K', icon: 'bi-credit-card-fill', bgColor: 'rgba(5,150,105,0.1)', color: '#059669', change: 12.4 },
-    { label: 'Avg Attendance', value: '94.2%', icon: 'bi-calendar-check-fill', bgColor: 'rgba(2,132,199,0.1)', color: '#0284C7', change: -1.3 },
-  ];
-
-  teacherKPIs = [
-    { label: 'My Classes', value: '6', icon: 'bi-journal-bookmark-fill', bgColor: 'rgba(27,58,48,0.1)', color: '#1B3A30' },
-    { label: 'Students Assigned', value: '186', icon: 'bi-people-fill', bgColor: 'rgba(192,92,61,0.1)', color: '#C05C3D' },
-    { label: 'Pending Evaluations', value: '12', icon: 'bi-pencil-square', bgColor: 'rgba(217,119,6,0.1)', color: '#D97706' },
-    { label: 'Avg Class Score', value: '78%', icon: 'bi-graph-up-arrow', bgColor: 'rgba(5,150,105,0.1)', color: '#059669' },
-  ];
-
-  parentKPIs = [
-    { label: 'Child: Emma Chen', value: 'Class 8-A', icon: 'bi-person-heart', bgColor: 'rgba(27,58,48,0.1)', color: '#1B3A30' },
-    { label: 'Attendance', value: '96%', icon: 'bi-calendar-check-fill', bgColor: 'rgba(5,150,105,0.1)', color: '#059669' },
-    { label: 'Overall Grade', value: 'A', icon: 'bi-trophy-fill', bgColor: 'rgba(217,119,6,0.1)', color: '#D97706' },
-    { label: 'Fee Due', value: '$1,200', icon: 'bi-credit-card-fill', bgColor: 'rgba(220,38,38,0.1)', color: '#DC2626' },
-  ];
-
-  recentActivities = [
-    { title: 'New student Arjun Patel admitted to Class 5-A', time: '2 hours ago', icon: 'bi-person-plus-fill', bgColor: 'rgba(5,150,105,0.1)', color: 'var(--clr-success)' },
-    { title: 'Fee payment of $2,500 from Emily Watson', time: '4 hours ago', icon: 'bi-credit-card-2-front-fill', bgColor: 'rgba(2,132,199,0.1)', color: 'var(--clr-info)' },
-    { title: 'Teacher Sarah Mitchell updated Class 8 marks', time: '5 hours ago', icon: 'bi-pencil-fill', bgColor: 'rgba(192,92,61,0.1)', color: 'var(--clr-accent)' },
-    { title: 'Midterm exam schedule published', time: '1 day ago', icon: 'bi-megaphone-fill', bgColor: 'rgba(217,119,6,0.1)', color: 'var(--clr-warning)' },
-    { title: 'Library books returned by Class 7 students', time: '1 day ago', icon: 'bi-book-fill', bgColor: 'rgba(27,58,48,0.1)', color: 'var(--clr-primary)' },
-  ];
-
-  upcomingEvents = [
-    { title: 'Parent-Teacher Meeting', date: 'Feb 15, 2026', description: 'All parents invited' },
-    { title: 'Annual Sports Day', date: 'Feb 22, 2026', description: 'Inter-house competitions' },
-    { title: 'Science Exhibition', date: 'Mar 5, 2026', description: 'Classes 6-12' },
-    { title: 'Midterm Exams Begin', date: 'Mar 10, 2026', description: 'All classes' },
-  ];
-
-  todaySchedule = [
-    { period: 1, time: '08:00 - 08:45', subject: 'Mathematics', class: 'Class 8-A', room: 'Room 201' },
-    { period: 2, time: '08:45 - 09:30', subject: 'Mathematics', class: 'Class 9-B', room: 'Room 301' },
-    { period: 3, time: '09:45 - 10:30', subject: 'Physics', class: 'Class 10-A', room: 'Lab 1' },
-    { period: 4, time: '10:30 - 11:15', subject: 'Mathematics', class: 'Class 7-C', room: 'Room 105' },
-    { period: 5, time: '11:30 - 12:15', subject: 'Free Period', class: '-', room: '-' },
-    { period: 6, time: '12:15 - 13:00', subject: 'Physics', class: 'Class 11-A', room: 'Lab 2' },
-  ];
-
-  pendingTasks = [
-    { title: 'Grade Class 8-A Assignments', description: '24 submissions pending', icon: 'bi-file-earmark-text', bgColor: 'rgba(220,38,38,0.1)', color: 'var(--clr-danger)' },
-    { title: 'Submit Class 9-B Attendance', description: 'Today\'s attendance not marked', icon: 'bi-calendar-x', bgColor: 'rgba(217,119,6,0.1)', color: 'var(--clr-warning)' },
-    { title: 'Review Exam Papers', description: 'Class 10 midterm papers', icon: 'bi-journal-check', bgColor: 'rgba(2,132,199,0.1)', color: 'var(--clr-info)' },
-  ];
-
-  childPerformance = [
-    { subject: 'Mathematics', marks: 92, total: 100, grade: 'A+' },
-    { subject: 'Science', marks: 85, total: 100, grade: 'A' },
-    { subject: 'English', marks: 78, total: 100, grade: 'B+' },
-    { subject: 'History', marks: 88, total: 100, grade: 'A' },
-    { subject: 'Computer Science', marks: 95, total: 100, grade: 'A+' },
-  ];
-
-  feeStatus = [
-    { name: 'Tuition Fee (Q3)', amount: '$800', dueDate: 'Mar 15, 2026', status: 'Unpaid', statusColor: 'var(--clr-danger)', bgColor: 'rgba(220,38,38,0.1)', color: 'var(--clr-danger)' },
-    { name: 'Transport Fee (Feb)', amount: '$200', dueDate: 'Feb 28, 2026', status: 'Unpaid', statusColor: 'var(--clr-warning)', bgColor: 'rgba(217,119,6,0.1)', color: 'var(--clr-warning)' },
-    { name: 'Tuition Fee (Q2)', amount: '$800', dueDate: 'Dec 15, 2025', status: 'Paid', statusColor: 'var(--clr-success)', bgColor: 'rgba(5,150,105,0.1)', color: 'var(--clr-success)' },
-    { name: 'Lab Fee', amount: '$150', dueDate: 'Jan 10, 2026', status: 'Paid', statusColor: 'var(--clr-success)', bgColor: 'rgba(5,150,105,0.1)', color: 'var(--clr-success)' },
-  ];
-
-  constructor(private authService: AuthService) {}
+  constructor(private authService: AuthService, private dashboardService: DashboardService) {}
 
   ngOnInit(): void {
     this.role = this.authService.getRole() || 'admin';
+    if (this.role === 'admin') {
+      this.dashboardService.getAdminDashboard().subscribe({
+        next: dashboard => {
+          this.adminDashboard = dashboard;
+          this.adminKPIs = [
+            { label: 'Total Students', value: String(dashboard.totalStudents), icon: 'bi-people-fill', bgColor: 'rgba(27,58,48,0.1)', color: '#1B3A30', subtext: 'Live enrolment' },
+            { label: 'Total Teachers', value: String(dashboard.totalTeachers), icon: 'bi-person-badge-fill', bgColor: 'rgba(192,92,61,0.1)', color: '#C05C3D', subtext: 'Current staff strength' },
+            { label: 'Fees Collected', value: this.asCurrency(dashboard.feesCollected), icon: 'bi-credit-card-fill', bgColor: 'rgba(5,150,105,0.1)', color: '#059669', subtext: `${dashboard.collectionRate}% collection rate` },
+            { label: 'Attendance Logged', value: String(dashboard.attendanceOverview?.total ?? 0), icon: 'bi-calendar-check-fill', bgColor: 'rgba(2,132,199,0.1)', color: '#0284C7', subtext: 'Today' }
+          ];
+          this.admissionInsights = this.buildAdmissionInsights(dashboard);
+          this.loading = false;
+          setTimeout(() => this.initAdminCharts(), 0);
+        },
+        error: () => {
+          this.loading = false;
+        }
+      });
+      return;
+    }
+    if (this.role === 'teacher') {
+      this.dashboardService.getTeacherDashboard().subscribe({
+        next: dashboard => {
+          this.teacherDashboard = dashboard;
+          this.teacherKPIs = [
+            { label: 'My Classes', value: String(dashboard.assignedClasses), icon: 'bi-journal-bookmark-fill', bgColor: 'rgba(27,58,48,0.1)', color: '#1B3A30' },
+            { label: 'Students Assigned', value: String(dashboard.studentsAssigned), icon: 'bi-people-fill', bgColor: 'rgba(192,92,61,0.1)', color: '#C05C3D' },
+            { label: 'Upcoming Exams', value: String(dashboard.upcomingExams), icon: 'bi-file-earmark-text', bgColor: 'rgba(217,119,6,0.1)', color: '#D97706' },
+            { label: 'Unread Alerts', value: String(dashboard.unreadNotifications), icon: 'bi-bell-fill', bgColor: 'rgba(5,150,105,0.1)', color: '#059669' }
+          ];
+          this.loading = false;
+        },
+        error: () => {
+          this.loading = false;
+        }
+      });
+      return;
+    }
+    const today = new Date();
+    const from = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().slice(0, 10);
+    const to = today.toISOString().slice(0, 10);
+    this.dashboardService.getParentDashboard(from, to).subscribe({
+      next: dashboard => {
+        this.parentDashboard = dashboard;
+        this.selectedParentChildId = dashboard.selectedChildId || dashboard.selectedChild?.id || '';
+        this.parentKPIs = [
+          { label: 'Children Linked', value: String(dashboard.childCount), icon: 'bi-person-heart', bgColor: 'rgba(27,58,48,0.1)', color: '#1B3A30' },
+          { label: 'Attendance', value: `${dashboard.attendancePercentage.toFixed(1)}%`, icon: 'bi-calendar-check-fill', bgColor: 'rgba(5,150,105,0.1)', color: '#059669' },
+          { label: 'Overall Grade', value: dashboard.overallGrade, icon: 'bi-trophy-fill', bgColor: 'rgba(217,119,6,0.1)', color: '#D97706' },
+          { label: 'Fee Due', value: this.asCurrency(dashboard.feeDue), icon: 'bi-credit-card-fill', bgColor: 'rgba(220,38,38,0.1)', color: '#DC2626' }
+        ];
+        this.loading = false;
+      },
+      error: () => {
+        this.loading = false;
+      }
+    });
+  }
+
+  onParentChildChange(): void {
+    if (!this.parentDashboard?.children?.length) return;
+    const selected = this.parentDashboard.children.find(c => c.id === this.selectedParentChildId);
+    if (!selected) return;
+    // MVP: swap selectedChild locally; backend-backed version will re-fetch per-child
+    this.parentDashboard = { ...this.parentDashboard, selectedChild: selected, selectedChildId: selected.id };
   }
 
   ngAfterViewInit(): void {
-    if (this.role === 'admin') {
-      setTimeout(() => this.initCharts(), 500);
+    if (!this.loading && this.role === 'admin') {
+      this.initAdminCharts();
     }
   }
 
-  private initCharts(): void {
-    if (this.admissionChartRef) {
-      new Chart(this.admissionChartRef.nativeElement, {
-        type: 'bar',
-        data: {
-          labels: ['Sep', 'Oct', 'Nov', 'Dec', 'Jan', 'Feb'],
-          datasets: [
-            { label: 'Admissions', data: [42, 35, 28, 15, 48, 32], backgroundColor: 'rgba(27,58,48,0.8)', borderRadius: 6, barPercentage: 0.5 },
-            { label: 'Fee Collection ($K)', data: [45, 52, 48, 38, 55, 47], backgroundColor: 'rgba(192,92,61,0.8)', borderRadius: 6, barPercentage: 0.5 }
-          ]
-        },
-        options: {
-          responsive: true, maintainAspectRatio: false,
-          plugins: { legend: { position: 'top', labels: { usePointStyle: true, padding: 20, font: { family: 'IBM Plex Sans' } } } },
-          scales: { x: { grid: { display: false } }, y: { grid: { color: 'rgba(0,0,0,0.04)' }, border: { display: false } } }
-        }
-      });
+  ngOnDestroy(): void {
+    this.admissionChart?.destroy();
+    this.attendanceChart?.destroy();
+    this.admissionsTrendChart?.destroy();
+  }
+
+  private initAdminCharts(): void {
+    if (!this.adminDashboard || !this.admissionChartRef || !this.attendanceChartRef || !this.admissionsTrendChartRef) {
+      return;
     }
-    if (this.attendanceChartRef) {
-      new Chart(this.attendanceChartRef.nativeElement, {
-        type: 'doughnut',
-        data: {
-          labels: ['Present', 'Absent', 'Late'],
-          datasets: [{ data: [94.2, 3.8, 2], backgroundColor: ['#1B3A30', '#C05C3D', '#D97706'], borderWidth: 0, spacing: 2 }]
-        },
-        options: {
-          responsive: true, maintainAspectRatio: false, cutout: '70%',
-          plugins: { legend: { position: 'bottom', labels: { usePointStyle: true, padding: 16, font: { family: 'IBM Plex Sans' } } } }
+    this.admissionChart?.destroy();
+    this.attendanceChart?.destroy();
+    this.admissionsTrendChart?.destroy();
+
+    this.admissionChart = new Chart(this.admissionChartRef.nativeElement, {
+      type: 'bar',
+      data: {
+        labels: this.adminDashboard.monthlyAdmissions.map(point => point.label),
+        datasets: [
+          { label: 'Admissions', data: this.adminDashboard.monthlyAdmissions.map(point => point.value), backgroundColor: 'rgba(27,58,48,0.8)', borderRadius: 6, barPercentage: 0.5 },
+          { label: 'Fee Collection', data: this.adminDashboard.monthlyCollections.map(point => point.value), backgroundColor: 'rgba(192,92,61,0.8)', borderRadius: 6, barPercentage: 0.5 }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { position: 'top' } },
+        scales: { x: { grid: { display: false } }, y: { beginAtZero: true } }
+      }
+    });
+
+    this.attendanceChart = new Chart(this.attendanceChartRef.nativeElement, {
+      type: 'doughnut',
+      data: {
+        labels: ['Present', 'Absent', 'Late', 'Excused'],
+        datasets: [{
+          data: [
+            this.adminDashboard.attendanceOverview.present,
+            this.adminDashboard.attendanceOverview.absent,
+            this.adminDashboard.attendanceOverview.late,
+            this.adminDashboard.attendanceOverview.excused
+          ],
+          backgroundColor: ['#1B3A30', '#C05C3D', '#D97706', '#0284C7'],
+          borderWidth: 0
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        cutout: '70%'
+      }
+    });
+
+    this.admissionsTrendChart = new Chart(this.admissionsTrendChartRef.nativeElement, {
+      type: 'line',
+      data: {
+        labels: this.adminDashboard.monthlyAdmissions.map(point => point.label),
+        datasets: [{
+          label: 'Admissions',
+          data: this.adminDashboard.monthlyAdmissions.map(point => point.value),
+          borderColor: '#1B3A30',
+          backgroundColor: 'rgba(27,58,48,0.12)',
+          fill: true,
+          tension: 0.35,
+          pointRadius: 4,
+          pointHoverRadius: 6,
+          pointBackgroundColor: '#1B3A30'
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { grid: { display: false } },
+          y: { beginAtZero: true, ticks: { precision: 0 } }
         }
-      });
-    }
+      }
+    });
+  }
+
+  private buildAdmissionInsights(dashboard: AdminDashboardData): Array<{ label: string; value: string; subtext: string; tone: string }> {
+    const admissions = dashboard.monthlyAdmissions.map(point => point.value);
+    const total = admissions.reduce((sum, value) => sum + value, 0);
+    const average = admissions.length ? total / admissions.length : 0;
+    const peakValue = admissions.length ? Math.max(...admissions) : 0;
+    const peakMonth = dashboard.monthlyAdmissions.find(point => point.value === peakValue)?.label || '-';
+    const latest = admissions[admissions.length - 1] ?? 0;
+    const previous = admissions[admissions.length - 2] ?? 0;
+    const trend = previous > 0 ? ((latest - previous) / previous) * 100 : 0;
+
+    return [
+      {
+        label: 'Six-Month Intake',
+        value: String(total),
+        subtext: 'Confirmed admissions across the current rolling window',
+        tone: 'var(--clr-primary)'
+      },
+      {
+        label: 'Peak Month',
+        value: `${peakMonth} · ${peakValue}`,
+        subtext: 'Strongest enrolment month in the current trend line',
+        tone: 'var(--clr-accent)'
+      },
+      {
+        label: 'Monthly Average',
+        value: average.toFixed(1),
+        subtext: `${trend >= 0 ? '+' : ''}${trend.toFixed(1)}% versus previous month`,
+        tone: trend >= 0 ? 'var(--clr-success)' : 'var(--clr-danger)'
+      }
+    ];
+  }
+
+  private asCurrency(value: number): string {
+    return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(value || 0);
   }
 }

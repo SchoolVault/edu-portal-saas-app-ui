@@ -4,7 +4,8 @@ import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { StudentService } from '../../core/services/student.service';
 import { ExamService } from '../../core/services/exam.service';
 import { FeeService } from '../../core/services/fee.service';
-import { Student, MarkRecord, FeePayment } from '../../core/models/models';
+import { AttendanceService } from '../../core/services/attendance.service';
+import { Student, MarkRecord, FeePayment, AttendanceStats } from '../../core/models/models';
 
 @Component({
   selector: 'app-student-profile',
@@ -121,10 +122,10 @@ import { Student, MarkRecord, FeePayment } from '../../core/models/models';
                   <div class="col-md-3"><div style="font-size: 28px; font-weight: 800; color: var(--clr-success);">{{ attendanceStats.present }}</div><div style="font-size: 12px; color: var(--clr-text-muted);">Days Present</div></div>
                   <div class="col-md-3"><div style="font-size: 28px; font-weight: 800; color: var(--clr-danger);">{{ attendanceStats.absent }}</div><div style="font-size: 12px; color: var(--clr-text-muted);">Days Absent</div></div>
                   <div class="col-md-3"><div style="font-size: 28px; font-weight: 800; color: var(--clr-warning);">{{ attendanceStats.late }}</div><div style="font-size: 12px; color: var(--clr-text-muted);">Days Late</div></div>
-                  <div class="col-md-3"><div style="font-size: 28px; font-weight: 800; color: var(--clr-primary);">{{ attendanceStats.percentage }}%</div><div style="font-size: 12px; color: var(--clr-text-muted);">Attendance Rate</div></div>
+                  <div class="col-md-3"><div style="font-size: 28px; font-weight: 800; color: var(--clr-primary);">{{ attendanceStats.attendancePercentage }}%</div><div style="font-size: 12px; color: var(--clr-text-muted);">Attendance Rate</div></div>
                 </div>
               </div>
-              <p style="font-size: 13px; color: var(--clr-text-muted);">Monthly attendance breakdown will be available once integrated with backend attendance APIs.</p>
+              <p style="font-size: 13px; color: var(--clr-text-muted);">Attendance summary shown for the current month.</p>
             </div>
           </div>
         </div>
@@ -144,12 +145,13 @@ export class StudentProfileComponent implements OnInit {
   totalFee = 0;
   totalPaid = 0;
   totalPending = 0;
-  attendanceStats = { present: 22, absent: 2, late: 1, percentage: 88 };
+  attendanceStats = { totalDays: 0, present: 0, absent: 0, late: 0, excused: 0, attendancePercentage: 0 } as AttendanceStats;
 
   constructor(
     private studentService: StudentService,
     private examService: ExamService,
     private feeService: FeeService,
+    private attendanceService: AttendanceService,
     private route: ActivatedRoute,
     public router: Router
   ) {}
@@ -162,6 +164,7 @@ export class StudentProfileComponent implements OnInit {
           this.student = s;
           this.loadMarks(id);
           this.loadFees(id);
+          this.loadAttendance(id);
         }
       });
     }
@@ -179,11 +182,20 @@ export class StudentProfileComponent implements OnInit {
   }
 
   private loadFees(studentId: string): void {
-    this.feeService.getPayments().subscribe(payments => {
-      this.fees = payments.filter(p => p.studentId === studentId);
+    this.feeService.getStudentPayments(studentId).subscribe(payments => {
+      this.fees = payments;
       this.totalFee = this.fees.reduce((sum, f) => sum + f.amount, 0);
       this.totalPaid = this.fees.reduce((sum, f) => sum + f.paidAmount, 0);
       this.totalPending = this.fees.reduce((sum, f) => sum + f.dueAmount, 0);
+    });
+  }
+
+  private loadAttendance(studentId: string): void {
+    const today = new Date();
+    const from = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T')[0];
+    const to = today.toISOString().split('T')[0];
+    this.attendanceService.getStudentAttendanceStats(studentId, from, to).subscribe(stats => {
+      this.attendanceStats = stats;
     });
   }
 

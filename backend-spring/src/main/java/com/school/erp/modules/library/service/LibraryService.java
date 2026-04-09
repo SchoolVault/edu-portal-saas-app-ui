@@ -7,8 +7,8 @@ import com.school.erp.modules.library.dto.LibraryDTOs;
 import com.school.erp.modules.library.entity.*;
 import com.school.erp.modules.library.repository.*;
 import com.school.erp.tenant.TenantContext;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -17,15 +17,19 @@ import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 
-@Slf4j
 @Service
-@RequiredArgsConstructor
 public class LibraryService {
+    private static final Logger log = LoggerFactory.getLogger(LibraryService.class);
 
     private final BookRepository bookRepo;
     private final BookIssueRepository issueRepo;
 
     private static final BigDecimal FINE_PER_DAY = BigDecimal.valueOf(2); // $2 per day overdue
+
+    public LibraryService(BookRepository bookRepo, BookIssueRepository issueRepo) {
+        this.bookRepo = bookRepo;
+        this.issueRepo = issueRepo;
+    }
 
     @Transactional(readOnly = true)
     public List<Book> getBooks(String search) {
@@ -57,12 +61,15 @@ public class LibraryService {
         book.setAvailableCopies(book.getAvailableCopies() - 1);
         bookRepo.save(book);
 
-        BookIssue issue = BookIssue.builder()
-                .bookId(req.getBookId()).bookTitle(book.getTitle())
-                .studentId(req.getStudentId()).studentName(req.getStudentName())
-                .issueDate(LocalDate.now())
-                .dueDate(req.getDueDays() != null ? LocalDate.now().plusDays(req.getDueDays()) : LocalDate.now().plusDays(14))
-                .fine(BigDecimal.ZERO).status(Enums.BookIssueStatus.ISSUED).build();
+        BookIssue issue = new BookIssue();
+        issue.setBookId(req.getBookId());
+        issue.setBookTitle(book.getTitle());
+        issue.setStudentId(req.getStudentId());
+        issue.setStudentName(req.getStudentName());
+        issue.setIssueDate(LocalDate.now());
+        issue.setDueDate(req.getDueDays() != null ? LocalDate.now().plusDays(req.getDueDays()) : LocalDate.now().plusDays(14));
+        issue.setFine(BigDecimal.ZERO);
+        issue.setStatus(Enums.BookIssueStatus.ISSUED);
         issue.setTenantId(t);
         issueRepo.save(issue);
 

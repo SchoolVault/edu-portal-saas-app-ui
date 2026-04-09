@@ -2,6 +2,7 @@ import { Component } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
 import { SidebarComponent } from './sidebar/sidebar.component';
 import { HeaderComponent } from './header/header.component';
+import { ThemeService } from '../core/services/theme.service';
 
 @Component({
   selector: 'app-layout',
@@ -30,4 +31,6 @@ import { HeaderComponent } from './header/header.component';
 })
 export class LayoutComponent {
   sidebarCollapsed = false;
+
+  constructor(private themeService: ThemeService) {}
 }

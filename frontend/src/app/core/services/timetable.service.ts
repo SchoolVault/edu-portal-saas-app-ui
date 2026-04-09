@@ -1,7 +1,7 @@
 import { Injectable } from '@angular/core';
 import { Observable, of } from 'rxjs';
 import { delay, map } from 'rxjs/operators';
-import { TimetableEntry } from '../models/models';
+import { TimetableEntry, TimetableGrid } from '../models/models';
 import { ApiService } from './api.service';
 import { environment } from '../../../environments/environment';
 
@@ -60,14 +60,33 @@ export class TimetableService {
 
   getByClassAndSection(classId: string, sectionId: string): Observable<TimetableEntry[]> {
     if (!environment.useMocks) {
-      return this.api.get<TimetableEntry[]>(`/timetable?classId=${classId}&sectionId=${sectionId}`);
+      return this.api.get<any[]>(`/timetable?classId=${classId}&sectionId=${sectionId}`).pipe(
+        map(entries => entries.map(entry => this.normalizeEntry(entry)))
+      );
     }
     return of(this.entries.filter(e => e.classId === classId && e.sectionId === sectionId)).pipe(delay(400));
   }
 
+  getGrid(classId: string, sectionId: string): Observable<TimetableGrid> {
+    if (!environment.useMocks) {
+      return this.api.get<any>(`/timetable/grid?classId=${classId}&sectionId=${sectionId}`).pipe(
+        map(grid => ({
+          classId: String(grid.classId),
+          sectionId: String(grid.sectionId),
+          days: (grid.days ?? []).map((day: string) => day.charAt(0) + day.slice(1).toLowerCase()),
+          periods: grid.periods ?? [],
+          grid: grid.grid ?? {}
+        }))
+      );
+    }
+    return of({ classId, sectionId, days: [], periods: [], grid: {} }).pipe(delay(300));
+  }
+
   getByTeacher(teacherId: string): Observable<TimetableEntry[]> {
     if (!environment.useMocks) {
-      return this.api.get<TimetableEntry[]>(`/timetable/teacher/${teacherId}`);
+      return this.api.get<any[]>(`/timetable/teacher/${teacherId}`).pipe(
+        map(entries => entries.map(entry => this.normalizeEntry(entry)))
+      );
     }
     return of(this.entries.filter(e => e.teacherId === teacherId)).pipe(delay(300));
   }
@@ -81,11 +100,54 @@ export class TimetableService {
 
   addEntry(entry: TimetableEntry): Observable<TimetableEntry> {
     if (!environment.useMocks) {
-      return this.api.post<TimetableEntry>('/timetable', entry);
+      return this.api.post<any>('/timetable', this.toPayload(entry)).pipe(map(created => this.normalizeEntry(created)));
     }
     this.entries.push(entry);
     return of(entry).pipe(delay(400));
   }
 
+  updateEntry(id: string, entry: Partial<TimetableEntry>): Observable<TimetableEntry> {
+    if (!environment.useMocks) {
+      return this.api.put<any>(`/timetable/${id}`, this.toPayload(entry)).pipe(map(updated => this.normalizeEntry(updated)));
+    }
+    return of(this.entries[0]).pipe(delay(300));
+  }
+
+  deleteEntry(id: string): Observable<void> {
+    if (!environment.useMocks) {
+      return this.api.delete<void>(`/timetable/${id}`);
+    }
+    this.entries = this.entries.filter(entry => entry.id !== id);
+    return of(void 0).pipe(delay(200));
+  }
+
   constructor(private api: ApiService) {}
+
+  private normalizeEntry(entry: any): TimetableEntry {
+    return {
+      ...entry,
+      id: String(entry.id),
+      classId: String(entry.classId),
+      sectionId: String(entry.sectionId),
+      teacherId: entry.teacherId != null ? String(entry.teacherId) : '',
+      day: entry.day ? entry.day.charAt(0) + entry.day.slice(1).toLowerCase() : '',
+      period: Number(entry.period ?? 0),
+      tenantId: entry.tenantId ?? ''
+    };
+  }
+
+  private toPayload(entry: Partial<TimetableEntry>): any {
+    return {
+      classId: entry.classId ? Number(entry.classId) : null,
+      sectionId: entry.sectionId ? Number(entry.sectionId) : null,
+      day: entry.day ? entry.day.toUpperCase() : null,
+      period: entry.period ?? null,
+      startTime: entry.startTime || null,
+      endTime: entry.endTime || null,
+      subjectName: entry.subjectName || null,
+      teacherId: entry.teacherId ? Number(entry.teacherId) : null,
+      teacherName: entry.teacherName || null,
+      room: entry.room || null
+    };
+  }
 }

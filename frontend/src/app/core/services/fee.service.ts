@@ -25,18 +25,38 @@ export class FeeService {
   ];
 
   getFeeStructures(): Observable<FeeStructure[]> {
-    if (!environment.useMocks) { return this.api.get<FeeStructure[]>('/fees/structures'); }
+    if (!environment.useMocks) { return this.api.get<any[]>('/fees/structures').pipe(map(structures => structures.map(item => this.normalizeStructure(item)))); }
     return of([...this.structures]).pipe(delay(400));
   }
+
   getPayments(): Observable<FeePayment[]> {
-    if (!environment.useMocks) { return this.api.get<FeePayment[]>('/fees/payments'); }
+    if (!environment.useMocks) { return this.api.get<any[]>('/fees/payments').pipe(map(payments => payments.map(item => this.normalizePayment(item)))); }
     return of([...this.payments]).pipe(delay(400));
+  }
+
+  getStudentPayments(studentId: string): Observable<FeePayment[]> {
+    if (!environment.useMocks) {
+      return this.api.get<any[]>('/fees/payments/student/' + studentId).pipe(map(payments => payments.map(item => this.normalizePayment(item))));
+    }
+    return of(this.payments.filter(p => p.studentId === studentId)).pipe(delay(300));
   }
 
   constructor(private api: ApiService) {}
 
   recordPayment(payment: FeePayment): Observable<FeePayment> {
-    if (!environment.useMocks) { return this.api.post<FeePayment>('/fees/payments', payment); }
+    if (!environment.useMocks) {
+      return this.api.post<FeePayment>('/fees/payments', {
+        paymentId: payment.id,
+        studentId: Number(payment.studentId),
+        studentName: payment.studentName,
+        feeStructureId: Number(payment.feeStructureId),
+        totalAmount: payment.amount,
+        paymentAmount: payment.paidAmount,
+        dueDate: payment.dueDate,
+        discount: payment.discount,
+        paymentMethod: 'CASH'
+      }).pipe(map(item => this.normalizePayment(item)));
+    }
     const idx = this.payments.findIndex(p => p.id === payment.id);
     if (idx !== -1) { this.payments[idx] = payment; }
     else { this.payments.push(payment); }
@@ -44,8 +64,52 @@ export class FeeService {
   }
 
   addFeeStructure(fs: FeeStructure): Observable<FeeStructure> {
-    if (!environment.useMocks) { return this.api.post<FeeStructure>('/fees/structures', fs); }
+    if (!environment.useMocks) {
+      return this.api.post<FeeStructure>('/fees/structures', {
+        name: fs.name,
+        classId: Number(fs.classId),
+        className: fs.className,
+        academicYearId: Number(fs.academicYearId),
+        components: fs.components.map(component => ({
+          name: component.name,
+          amount: component.amount,
+          type: component.type?.toUpperCase()
+        }))
+      }).pipe(map(item => this.normalizeStructure(item)));
+    }
     this.structures.push(fs);
     return of(fs).pipe(delay(400));
+  }
+
+  private normalizeStructure(structure: any): FeeStructure {
+    return {
+      ...structure,
+      id: String(structure.id),
+      classId: structure.classId != null ? String(structure.classId) : '',
+      academicYearId: structure.academicYearId != null ? String(structure.academicYearId) : '',
+      tenantId: structure.tenantId ?? '',
+      components: (structure.components ?? []).map((component: any) => ({
+        name: component.name,
+        amount: Number(component.amount ?? 0),
+        type: (component.type ?? '').toLowerCase()
+      })),
+      totalAmount: Number(structure.totalAmount ?? 0)
+    };
+  }
+
+  private normalizePayment(payment: any): FeePayment {
+    return {
+      ...payment,
+      id: String(payment.id),
+      studentId: String(payment.studentId),
+      feeStructureId: payment.feeStructureId != null ? String(payment.feeStructureId) : '',
+      amount: Number(payment.amount ?? 0),
+      paidAmount: Number(payment.paidAmount ?? 0),
+      dueAmount: Number(payment.dueAmount ?? 0),
+      discount: Number(payment.discount ?? 0),
+      lateFee: Number(payment.lateFee ?? 0),
+      tenantId: payment.tenantId ?? '',
+      status: payment.status
+    };
   }
 }

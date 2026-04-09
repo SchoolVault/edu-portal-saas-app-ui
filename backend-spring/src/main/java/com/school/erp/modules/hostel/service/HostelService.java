@@ -7,17 +7,15 @@ import com.school.erp.modules.hostel.dto.HostelDTOs;
 import com.school.erp.modules.hostel.entity.*;
 import com.school.erp.modules.hostel.repository.*;
 import com.school.erp.tenant.TenantContext;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
 import java.time.LocalDate;
 import java.util.List;
 import java.util.stream.Collectors;
 
-@Slf4j @Service @RequiredArgsConstructor
+@Service
 public class HostelService {
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(HostelService.class);
     private final HostelRoomRepository roomRepo;
     private final HostelAllocationRepository allocRepo;
 
@@ -25,18 +23,8 @@ public class HostelService {
     public List<HostelDTOs.RoomResponse> getRooms() {
         String t = TenantContext.getTenantId();
         return roomRepo.findByTenantIdAndIsDeletedFalse(t).stream().map(r -> {
-            List<HostelAllocation> allocs = allocRepo.findByTenantIdAndRoomIdAndIsDeletedFalse(t, r.getId())
-                    .stream().filter(a -> a.getStatus() == Enums.HostelAllocationStatus.ACTIVE).toList();
-            return HostelDTOs.RoomResponse.builder()
-                    .id(r.getId()).roomNumber(r.getRoomNumber()).block(r.getBlock()).floor(r.getFloor())
-                    .capacity(r.getCapacity()).occupancy(allocs.size()).roomType(r.getRoomType())
-                    .residents(allocs.stream().map(a -> HostelDTOs.AllocationDTO.builder()
-                            .id(a.getId()).studentId(a.getStudentId()).studentName(a.getStudentName())
-                            .fromDate(a.getFromDate() != null ? a.getFromDate().toString() : null)
-                            .toDate(a.getToDate() != null ? a.getToDate().toString() : null)
-                            .status(a.getStatus().name().toLowerCase()).build()
-                    ).collect(Collectors.toList()))
-                    .build();
+            List<HostelAllocation> allocs = allocRepo.findByTenantIdAndRoomIdAndIsDeletedFalse(t, r.getId()).stream().filter(a -> a.getStatus() == Enums.HostelAllocationStatus.ACTIVE).toList();
+            return HostelDTOs.RoomResponse.builder().id(r.getId()).roomNumber(r.getRoomNumber()).block(r.getBlock()).floor(r.getFloor()).capacity(r.getCapacity()).occupancy(allocs.size()).roomType(r.getRoomType()).residents(allocs.stream().map(a -> HostelDTOs.AllocationDTO.builder().id(a.getId()).studentId(a.getStudentId()).studentName(a.getStudentName()).fromDate(a.getFromDate() != null ? a.getFromDate().toString() : null).toDate(a.getToDate() != null ? a.getToDate().toString() : null).status(a.getStatus().name().toLowerCase()).build()).collect(Collectors.toList())).build();
         }).collect(Collectors.toList());
     }
 
@@ -52,26 +40,15 @@ public class HostelService {
         String t = TenantContext.getTenantId();
         HostelRoom room = roomRepo.findById(req.getRoomId()).orElseThrow(() -> new ResourceNotFoundException("Room", req.getRoomId()));
         if (!room.getTenantId().equals(t)) throw new BusinessException("Room not found");
-
-        long currentOccupancy = allocRepo.findByTenantIdAndRoomIdAndIsDeletedFalse(t, req.getRoomId())
-                .stream().filter(a -> a.getStatus() == Enums.HostelAllocationStatus.ACTIVE).count();
+        long currentOccupancy = allocRepo.findByTenantIdAndRoomIdAndIsDeletedFalse(t, req.getRoomId()).stream().filter(a -> a.getStatus() == Enums.HostelAllocationStatus.ACTIVE).count();
         if (currentOccupancy >= room.getCapacity()) throw new BusinessException("Room is full (capacity: " + room.getCapacity() + ")");
-
-        HostelAllocation alloc = HostelAllocation.builder()
-                .roomId(req.getRoomId()).roomNumber(room.getRoomNumber())
-                .studentId(req.getStudentId()).studentName(req.getStudentName())
-                .fromDate(req.getFromDate() != null ? req.getFromDate() : LocalDate.now())
-                .toDate(req.getToDate()).status(Enums.HostelAllocationStatus.ACTIVE).build();
+        HostelAllocation alloc = HostelAllocation.builder().roomId(req.getRoomId()).roomNumber(room.getRoomNumber()).studentId(req.getStudentId()).studentName(req.getStudentName()).fromDate(req.getFromDate() != null ? req.getFromDate() : LocalDate.now()).toDate(req.getToDate()).status(Enums.HostelAllocationStatus.ACTIVE).build();
         alloc.setTenantId(t);
         allocRepo.save(alloc);
-
         room.setOccupancy((int) currentOccupancy + 1);
         roomRepo.save(room);
-
         log.info("Student {} allocated to room {}", req.getStudentId(), room.getRoomNumber());
-        return HostelDTOs.AllocationDTO.builder().id(alloc.getId()).studentId(alloc.getStudentId())
-                .studentName(alloc.getStudentName()).fromDate(alloc.getFromDate().toString())
-                .status("active").build();
+        return HostelDTOs.AllocationDTO.builder().id(alloc.getId()).studentId(alloc.getStudentId()).studentName(alloc.getStudentName()).fromDate(alloc.getFromDate().toString()).status("active").build();
     }
 
     @Transactional
@@ -82,7 +59,6 @@ public class HostelService {
         alloc.setStatus(Enums.HostelAllocationStatus.VACATED);
         alloc.setToDate(LocalDate.now());
         allocRepo.save(alloc);
-
         HostelRoom room = roomRepo.findById(alloc.getRoomId()).orElse(null);
         if (room != null && room.getOccupancy() > 0) {
             room.setOccupancy(room.getOccupancy() - 1);
@@ -98,8 +74,11 @@ public class HostelService {
         int totalCapacity = rooms.stream().mapToInt(r -> r.getCapacity() != null ? r.getCapacity() : 0).sum();
         int totalOccupancy = rooms.stream().mapToInt(r -> r.getOccupancy() != null ? r.getOccupancy() : 0).sum();
         long blocks = rooms.stream().map(HostelRoom::getBlock).distinct().count();
-        return HostelDTOs.HostelStats.builder()
-                .totalRooms(totalRooms).totalCapacity(totalCapacity).totalOccupancy(totalOccupancy)
-                .availableBeds(totalCapacity - totalOccupancy).blocks((int) blocks).build();
+        return HostelDTOs.HostelStats.builder().totalRooms(totalRooms).totalCapacity(totalCapacity).totalOccupancy(totalOccupancy).availableBeds(totalCapacity - totalOccupancy).blocks((int) blocks).build();
+    }
+
+    public HostelService(final HostelRoomRepository roomRepo, final HostelAllocationRepository allocRepo) {
+        this.roomRepo = roomRepo;
+        this.allocRepo = allocRepo;
     }
 }

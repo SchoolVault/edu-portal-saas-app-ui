@@ -1,7 +1,7 @@
 import { Injectable } from '@angular/core';
 import { Observable, of } from 'rxjs';
 import { delay, map } from 'rxjs/operators';
-import { AcademicYear, SchoolClass } from '../models/models';
+import { AcademicYear, PromotionPreview, PromotionResult, SchoolClass } from '../models/models';
 import { ApiService } from './api.service';
 import { environment } from '../../../environments/environment';
 
@@ -32,11 +32,13 @@ export class AcademicService {
     return of([...this.academicYears]).pipe(delay(300));
   }
   getClasses(): Observable<SchoolClass[]> {
-    if (!environment.useMocks) { return this.api.get<any[]>('/academic/classes').pipe(map(list => list.map((c: any) => ({ ...c.schoolClass, sections: c.sections })))); }
+    if (!environment.useMocks) {
+      return this.api.get<any[]>('/academic/classes').pipe(map(list => list.map((c: any) => this.normalizeClass(c))));
+    }
     return of([...this.classes]).pipe(delay(400));
   }
   getClassById(id: string): Observable<SchoolClass | undefined> {
-    if (!environment.useMocks) { return this.api.get<any>('/academic/classes/' + id).pipe(map((c: any) => ({ ...c.schoolClass, sections: c.sections }))); }
+    if (!environment.useMocks) { return this.api.get<any>('/academic/classes/' + id).pipe(map((c: any) => this.normalizeClass(c))); }
     return of(this.classes.find(c => c.id === id)).pipe(delay(200));
   }
 
@@ -51,5 +53,85 @@ export class AcademicService {
     if (!environment.useMocks) { return this.api.post<AcademicYear>('/academic/years', ay); }
     this.academicYears.push(ay);
     return of(ay).pipe(delay(400));
+  }
+
+  previewPromotion(fromClassId: string): Observable<PromotionPreview> {
+    if (!environment.useMocks) {
+      return this.api.get<any>(`/academic/promotion/preview?fromClassId=${fromClassId}`).pipe(
+        map(preview => ({
+          sourceClassId: String(preview.sourceClassId),
+          sourceClassName: preview.sourceClassName,
+          targetClassId: String(preview.targetClassId),
+          targetClassName: preview.targetClassName,
+          defaultSectionId: preview.defaultSectionId != null ? String(preview.defaultSectionId) : undefined,
+          defaultSectionName: preview.defaultSectionName,
+          students: (preview.students ?? []).map((student: any) => ({
+            studentId: String(student.studentId),
+            firstName: student.firstName,
+            lastName: student.lastName,
+            rollNumber: student.rollNumber ?? '',
+            currentClassName: student.currentClassName ?? '',
+            averageScore: Number(student.averageScore ?? 0),
+            eligible: !!student.eligible,
+            selected: !!student.eligible
+          }))
+        }))
+      );
+    }
+    return of({
+      sourceClassId: fromClassId,
+      sourceClassName: '',
+      targetClassId: '',
+      targetClassName: '',
+      students: []
+    }).pipe(delay(300));
+  }
+
+  executePromotion(sourceClassId: string, targetClassId: string, studentIds: string[], targetSectionId?: string): Observable<PromotionResult> {
+    if (!environment.useMocks) {
+      return this.api.post<PromotionResult>('/academic/promotion/execute', {
+        sourceClassId: Number(sourceClassId),
+        targetClassId: Number(targetClassId),
+        targetSectionId: targetSectionId ? Number(targetSectionId) : null,
+        studentIds: studentIds.map(id => Number(id))
+      });
+    }
+    return of({ promotedCount: studentIds.length, targetClassName: '', targetSectionName: '' }).pipe(delay(500));
+  }
+
+  assignClassTeacher(classId: string, teacherId: string | null, teacherName?: string): Observable<SchoolClass> {
+    if (!environment.useMocks) {
+      return this.api.put<any>(`/academic/classes/${classId}/teacher`, {
+        teacherId: teacherId ? Number(teacherId) : null,
+        teacherName: teacherName ?? null
+      }).pipe(map((cls: any) => this.normalizeClass(cls)));
+    }
+    const idx = this.classes.findIndex(c => c.id === classId);
+    if (idx === -1) return of(this.classes[0]).pipe(delay(200));
+    this.classes[idx] = {
+      ...this.classes[idx],
+      classTeacherId: teacherId || undefined,
+      classTeacherName: teacherName || undefined
+    };
+    return of(this.classes[idx]).pipe(delay(300));
+  }
+
+  private normalizeClass(raw: any): SchoolClass {
+    return {
+      id: String(raw.id),
+      name: raw.name,
+      grade: raw.grade,
+      classTeacherId: raw.classTeacherId != null ? String(raw.classTeacherId) : undefined,
+      classTeacherName: raw.classTeacherName,
+      academicYearId: String(raw.academicYearId),
+      tenantId: raw.tenantId ?? '',
+      sections: (raw.sections ?? []).map((section: any) => ({
+        id: String(section.id),
+        name: section.name,
+        classId: String(section.classId ?? raw.id),
+        capacity: section.capacity,
+        studentCount: section.studentCount ?? 0
+      }))
+    };
   }
 }

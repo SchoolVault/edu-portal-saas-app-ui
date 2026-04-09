@@ -6,22 +6,19 @@ import com.school.erp.modules.settings.repository.TenantConfigRepository;
 import com.school.erp.tenant.TenantContext;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
 import java.util.Map;
 
-@Slf4j @Service @RequiredArgsConstructor
+@Service
 public class SettingsService {
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(SettingsService.class);
     private final TenantConfigRepository repo;
     private final ObjectMapper objectMapper;
 
     @Transactional(readOnly = true)
     public TenantConfig getSettings() {
-        return repo.findByTenantId(TenantContext.getTenantId())
-                .orElseThrow(() -> new ResourceNotFoundException("Tenant settings not configured"));
+        return repo.findByTenantId(TenantContext.getTenantId()).orElseThrow(() -> new ResourceNotFoundException("Tenant settings not configured"));
     }
 
     @Transactional
@@ -45,9 +42,12 @@ public class SettingsService {
         TenantConfig config = getSettings();
         try {
             if (config.getFeaturesJson() != null) {
-                return objectMapper.readValue(config.getFeaturesJson(), new TypeReference<>() {});
+                return objectMapper.readValue(config.getFeaturesJson(), new TypeReference<>() {
+                });
             }
-        } catch (Exception e) { log.warn("Failed to parse features JSON: {}", e.getMessage()); }
+        } catch (Exception e) {
+            log.warn("Failed to parse features JSON: {}", e.getMessage());
+        }
         return Map.of();
     }
 
@@ -57,7 +57,14 @@ public class SettingsService {
         try {
             config.setFeaturesJson(objectMapper.writeValueAsString(flags));
             repo.save(config);
-        } catch (Exception e) { log.error("Failed to save features JSON", e); }
+        } catch (Exception e) {
+            log.error("Failed to save features JSON", e);
+        }
         return flags;
+    }
+
+    public SettingsService(final TenantConfigRepository repo, final ObjectMapper objectMapper) {
+        this.repo = repo;
+        this.objectMapper = objectMapper;
     }
 }

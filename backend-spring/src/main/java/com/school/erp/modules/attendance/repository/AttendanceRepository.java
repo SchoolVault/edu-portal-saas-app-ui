@@ -6,6 +6,8 @@ import java.time.LocalDate; import java.util.List;
 public interface AttendanceRepository extends JpaRepository<AttendanceRecord, Long> {
     List<AttendanceRecord> findByTenantIdAndClassIdAndSectionIdAndDate(String tenantId, Long classId, Long sectionId, LocalDate date);
     List<AttendanceRecord> findByTenantIdAndStudentIdAndDateBetween(String tenantId, Long studentId, LocalDate from, LocalDate to);
+    long countByTenantIdAndDate(String tenantId, LocalDate date);
+    long countByTenantIdAndDateAndStatus(String tenantId, LocalDate date, com.school.erp.common.enums.Enums.AttendanceStatus status);
 
     @Query("SELECT a.status, COUNT(a) FROM AttendanceRecord a WHERE a.tenantId = :tenantId AND a.classId = :classId AND a.date = :date GROUP BY a.status")
     List<Object[]> getClassAttendanceStats(String tenantId, Long classId, LocalDate date);

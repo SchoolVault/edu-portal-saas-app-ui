@@ -7,6 +7,8 @@ import java.util.List; import java.util.Optional;
 public interface TeacherRepository extends JpaRepository<Teacher, Long> {
     Page<Teacher> findByTenantIdAndIsDeletedFalse(String tenantId, Pageable pageable);
     Optional<Teacher> findByIdAndTenantIdAndIsDeletedFalse(Long id, String tenantId);
+    Optional<Teacher> findByTenantIdAndUserIdAndIsDeletedFalse(String tenantId, Long userId);
     List<Teacher> findByTenantIdAndIsDeletedFalse(String tenantId);
     long countByTenantIdAndIsDeletedFalse(String tenantId);
+    long countByIsDeletedFalse();
 }

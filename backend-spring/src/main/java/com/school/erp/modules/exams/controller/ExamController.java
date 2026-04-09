@@ -6,20 +6,16 @@ import com.school.erp.modules.exams.service.ExamService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
-import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
-
 import java.util.List;
 
 @RestController
 @RequestMapping("/api/v1/exams")
-@RequiredArgsConstructor
 @Tag(name = "Exams", description = "Exam Management, Marks Entry, Report Cards")
 public class ExamController {
-
     private final ExamService service;
 
     @GetMapping
@@ -29,14 +25,14 @@ public class ExamController {
     }
 
     @PostMapping
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole(\'ADMIN\')")
     @Operation(summary = "Create exam")
     public ResponseEntity<ApiResponse<ExamDTOs.ExamResponse>> create(@Valid @RequestBody ExamDTOs.CreateExamRequest req) {
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.created(service.createExam(req)));
     }
 
     @PutMapping("/{id}/status")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole(\'ADMIN\')")
     @Operation(summary = "Update exam status", description = "Change status: UPCOMING, ONGOING, COMPLETED, CANCELLED")
     public ResponseEntity<ApiResponse<ExamDTOs.ExamResponse>> updateStatus(@PathVariable Long id, @RequestParam String status) {
         return ResponseEntity.ok(ApiResponse.ok(service.updateExamStatus(id, status)));
@@ -55,7 +51,7 @@ public class ExamController {
     }
 
     @PostMapping("/marks")
-    @PreAuthorize("hasAnyRole('ADMIN','TEACHER')")
+    @PreAuthorize("hasAnyRole(\'ADMIN\',\'TEACHER\')")
     @Operation(summary = "Save marks (batch)", description = "Enter marks for multiple students in one subject")
     public ResponseEntity<ApiResponse<List<ExamDTOs.MarkResponse>>> saveMarks(@Valid @RequestBody ExamDTOs.BulkMarksRequest req) {
         return ResponseEntity.ok(ApiResponse.ok(service.saveMarks(req), "Marks saved"));
@@ -63,8 +59,11 @@ public class ExamController {
 
     @GetMapping("/report-card/{studentId}")
     @Operation(summary = "Get student report card", description = "Complete report card with all subjects, totals, and grade")
-    public ResponseEntity<ApiResponse<ExamDTOs.ReportCardResponse>> reportCard(
-            @PathVariable Long studentId, @RequestParam(required = false) Long examId) {
+    public ResponseEntity<ApiResponse<ExamDTOs.ReportCardResponse>> reportCard(@PathVariable Long studentId, @RequestParam(required = false) Long examId) {
         return ResponseEntity.ok(ApiResponse.ok(service.getReportCard(studentId, examId)));
+    }
+
+    public ExamController(final ExamService service) {
+        this.service = service;
     }
 }

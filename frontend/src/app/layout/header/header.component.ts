@@ -4,7 +4,8 @@ import { Router, NavigationEnd } from '@angular/router';
 import { filter } from 'rxjs/operators';
 import { AuthService } from '../../core/services/auth.service';
 import { NotificationService } from '../../core/services/notification.service';
-import { AppNotification } from '../../core/models/models';
+import { AppNotification, ProfileSummary } from '../../core/models/models';
+import { ThemeService } from '../../core/services/theme.service';
 
 @Component({
   selector: 'app-header',
@@ -19,6 +20,11 @@ import { AppNotification } from '../../core/models/models';
         <h1 class="page-title">{{ pageTitle }}</h1>
       </div>
       <div class="header-right">
+        <div style="position: relative;">
+          <button class="notification-btn" (click)="toggleTheme()" [attr.aria-label]="'Switch to ' + (currentTheme === 'light' ? 'dark' : 'light') + ' mode'">
+            <i class="bi" [ngClass]="currentTheme === 'light' ? 'bi-moon-stars' : 'bi-sun' " style="font-size: 20px;"></i>
+          </button>
+        </div>
         <div style="position: relative;">
           <button class="notification-btn" (click)="toggleNotifications()" data-testid="notifications-btn">
             <i class="bi bi-bell" style="font-size: 20px;"></i>
@@ -61,10 +67,21 @@ import { AppNotification } from '../../core/models/models';
             <i class="bi bi-chevron-down" style="font-size: 12px; color: var(--clr-text-muted);"></i>
           </button>
           <div class="profile-dropdown" *ngIf="showProfile" data-testid="profile-dropdown">
-            <button class="profile-dropdown-item" data-testid="profile-view-btn">
+            <div class="profile-summary-card" *ngIf="profileSummary">
+              <div class="profile-summary-school">{{ profileSummary.schoolName }}</div>
+              <div class="profile-summary-title">{{ profileSummary.userTitle || userRole }}</div>
+              <div class="profile-summary-meta">{{ profileSummary.schoolCode }} · {{ profileSummary.email }}</div>
+              <div class="profile-summary-stats">
+                <span *ngIf="profileSummary.managedStudentCount">Students {{ profileSummary.managedStudentCount }}</span>
+                <span *ngIf="profileSummary.managedTeacherCount">Teachers {{ profileSummary.managedTeacherCount }}</span>
+                <span *ngIf="profileSummary.childCount">Children {{ profileSummary.childCount }}</span>
+                <span *ngIf="profileSummary.subjectCount">Subjects {{ profileSummary.subjectCount }}</span>
+              </div>
+            </div>
+            <button class="profile-dropdown-item" data-testid="profile-view-btn" (click)="goToSettings()">
               <i class="bi bi-person"></i> My Profile
             </button>
-            <button class="profile-dropdown-item">
+            <button class="profile-dropdown-item" (click)="goToSettings()">
               <i class="bi bi-gear"></i> Settings
             </button>
             <div class="profile-dropdown-divider"></div>
@@ -89,11 +106,14 @@ export class HeaderComponent implements OnInit {
   initials = '';
   unreadCount = 0;
   notifications: AppNotification[] = [];
+  profileSummary: ProfileSummary | null = null;
+  currentTheme: 'light' | 'dark' = 'light';
 
   constructor(
     private authService: AuthService,
     public notificationService: NotificationService,
-    private router: Router
+    private router: Router,
+    private themeService: ThemeService
   ) {}
 
   ngOnInit(): void {
@@ -106,6 +126,12 @@ export class HeaderComponent implements OnInit {
       this.notifications = notifs;
       this.unreadCount = notifs.filter(n => !n.read).length;
     });
+    this.authService.fetchProfileSummary().subscribe(summary => {
+      this.profileSummary = summary;
+      this.userName = summary.name || this.userName;
+      this.userRole = summary.role || this.userRole;
+    });
+    this.themeService.theme$.subscribe(theme => this.currentTheme = theme);
 
     this.router.events.pipe(filter(e => e instanceof NavigationEnd)).subscribe((e) => {
       const url = (e as NavigationEnd).urlAfterRedirects;
@@ -119,7 +145,7 @@ export class HeaderComponent implements OnInit {
     const map: Record<string, string> = {
       'dashboard': 'Dashboard', 'students': 'Students', 'teachers': 'Teachers',
       'academic': 'Academic', 'attendance': 'Attendance', 'timetable': 'Timetable',
-      'exams': 'Exams', 'fees': 'Fees', 'communication': 'Communication',
+      'exams': 'Exams', 'fees': 'Fees', 'chat': 'Inbox', 'communication': 'Communication',
       'reports': 'Reports', 'transport': 'Transport', 'library': 'Library',
       'hostel': 'Hostel', 'payroll': 'Payroll', 'documents': 'Documents',
       'audit': 'Audit Log', 'settings': 'Settings',
@@ -156,6 +182,15 @@ export class HeaderComponent implements OnInit {
   logout(): void {
     this.authService.logout();
     this.router.navigate(['/login']);
+  }
+
+  toggleTheme(): void {
+    this.themeService.toggleTheme();
+  }
+
+  goToSettings(): void {
+    this.showProfile = false;
+    this.router.navigate(['/app/settings']);
   }
 
   getNotifIcon(type: string): string {

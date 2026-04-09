@@ -3,7 +3,7 @@ package com.school.erp.common.enums;
 public class Enums {
 
     public enum Role {
-        ADMIN, TEACHER, PARENT, STUDENT
+        SUPER_ADMIN, ADMIN, TEACHER, PARENT, STUDENT
     }
 
     public enum Gender {

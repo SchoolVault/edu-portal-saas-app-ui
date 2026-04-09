@@ -1,7 +1,7 @@
 import { Injectable } from '@angular/core';
 import { BehaviorSubject, Observable, of, throwError } from 'rxjs';
-import { delay, tap, map } from 'rxjs/operators';
-import { User, LoginRequest, LoginResponse } from '../models/models';
+import { delay, tap } from 'rxjs/operators';
+import { User, LoginRequest, LoginResponse, OnboardSchoolRequest, ProfileSummary } from '../models/models';
 import { ApiService } from './api.service';
 import { environment } from '../../../environments/environment';
 
@@ -9,9 +9,12 @@ import { environment } from '../../../environments/environment';
 export class AuthService {
   private currentUserSubject = new BehaviorSubject<User | null>(null);
   private tokenSubject = new BehaviorSubject<string | null>(null);
+  private refreshTokenSubject = new BehaviorSubject<string | null>(null);
+  private profileSummarySubject = new BehaviorSubject<ProfileSummary | null>(null);
 
   currentUser$ = this.currentUserSubject.asObservable();
   token$ = this.tokenSubject.asObservable();
+  profileSummary$ = this.profileSummarySubject.asObservable();
 
   private mockUsers = [
     {
@@ -26,6 +29,10 @@ export class AuthService {
       email: 'parent@school.com', password: 'parent123', schoolCode: 'SCH001',
       user: { id: 'u3', email: 'parent@school.com', name: 'Michael Chen', role: 'parent' as const, tenantId: 't1', phone: '+1-555-0103' }
     },
+    {
+      email: 'superadmin@schoolvault.com', password: 'super123', schoolCode: 'PLATFORM',
+      user: { id: 'sa1', email: 'superadmin@schoolvault.com', name: 'Priya Narang', role: 'super_admin' as const, tenantId: 'platform', phone: '+1-555-0199' }
+    },
   ];
 
   constructor(private api: ApiService) {
@@ -34,11 +41,13 @@ export class AuthService {
 
   private loadFromStorage(): void {
     const token = localStorage.getItem('erp_token');
+    const refreshToken = localStorage.getItem('erp_refresh_token');
     const userStr = localStorage.getItem('erp_user');
-    if (token && userStr) {
+    if (token && refreshToken && userStr) {
       try {
         const user = JSON.parse(userStr);
         this.tokenSubject.next(token);
+        this.refreshTokenSubject.next(refreshToken);
         this.currentUserSubject.next(user);
       } catch {
         this.logout();
@@ -51,8 +60,10 @@ export class AuthService {
       return this.api.post<LoginResponse>('/auth/login', request).pipe(
         tap(res => {
           localStorage.setItem('erp_token', res.token);
+          localStorage.setItem('erp_refresh_token', res.refreshToken);
           localStorage.setItem('erp_user', JSON.stringify(res.user));
           this.tokenSubject.next(res.token);
+          this.refreshTokenSubject.next(res.refreshToken);
           this.currentUserSubject.next(res.user);
         })
       );
@@ -63,14 +74,17 @@ export class AuthService {
     if (found) {
       const response: LoginResponse = {
         token: 'eyJhbGciOiJIUzI1NiJ9.mock-jwt-' + found.user.role + '-' + Date.now(),
+        refreshToken: 'mock-refresh-' + Date.now(),
         user: found.user,
       };
       return of(response).pipe(
         delay(800),
         tap(res => {
           localStorage.setItem('erp_token', res.token);
+          localStorage.setItem('erp_refresh_token', res.refreshToken);
           localStorage.setItem('erp_user', JSON.stringify(res.user));
           this.tokenSubject.next(res.token);
+          this.refreshTokenSubject.next(res.refreshToken);
           this.currentUserSubject.next(res.user);
         })
       );
@@ -79,10 +93,55 @@ export class AuthService {
   }
 
   logout(): void {
+    const refreshToken = this.refreshTokenSubject.value;
+    if (!environment.useMocks && refreshToken) {
+      this.api.post<void>('/auth/logout', { refreshToken }).subscribe({ error: () => void 0 });
+    }
     localStorage.removeItem('erp_token');
+    localStorage.removeItem('erp_refresh_token');
     localStorage.removeItem('erp_user');
     this.tokenSubject.next(null);
+    this.refreshTokenSubject.next(null);
     this.currentUserSubject.next(null);
+    this.profileSummarySubject.next(null);
+  }
+
+  onboardSchool(request: OnboardSchoolRequest): Observable<LoginResponse> {
+    if (environment.useMocks) {
+      const response: LoginResponse = {
+        token: 'mock-onboard-token-' + Date.now(),
+        refreshToken: 'mock-onboard-refresh-' + Date.now(),
+        user: {
+          id: 'u_new',
+          email: request.adminEmail,
+          name: request.adminName,
+          role: 'admin',
+          tenantId: 'tenant_' + request.schoolCode.toLowerCase(),
+          phone: request.phone
+        }
+      };
+      return of(response).pipe(
+        delay(800),
+        tap(res => {
+          localStorage.setItem('erp_token', res.token);
+          localStorage.setItem('erp_refresh_token', res.refreshToken);
+          localStorage.setItem('erp_user', JSON.stringify(res.user));
+          this.tokenSubject.next(res.token);
+          this.refreshTokenSubject.next(res.refreshToken);
+          this.currentUserSubject.next(res.user);
+        })
+      );
+    }
+    return this.api.post<LoginResponse>('/auth/onboard-tenant', request).pipe(
+      tap(res => {
+        localStorage.setItem('erp_token', res.token);
+        localStorage.setItem('erp_refresh_token', res.refreshToken);
+        localStorage.setItem('erp_user', JSON.stringify(res.user));
+        this.tokenSubject.next(res.token);
+        this.refreshTokenSubject.next(res.refreshToken);
+        this.currentUserSubject.next(res.user);
+      })
+    );
   }
 
   isAuthenticated(): boolean {
@@ -110,5 +169,99 @@ export class AuthService {
     if (!user) return '';
     const parts = user.name.split(' ');
     return parts.map(p => p[0]).join('').toUpperCase().substring(0, 2);
+  }
+
+  fetchProfileSummary(): Observable<ProfileSummary> {
+    if (environment.useMocks) {
+      const user = this.getCurrentUser();
+      const summary: ProfileSummary = user?.role === 'teacher'
+        ? {
+            id: user.id,
+            name: user.name,
+            email: user.email,
+            phone: user.phone,
+            role: 'teacher',
+            tenantId: user.tenantId,
+            schoolName: 'Crescent Heights Academy',
+            schoolCode: 'SCH001',
+            schoolEmail: 'info@crescentheights.edu',
+            schoolPhone: '+1-555-1000',
+            schoolAddress: '245 Learning Avenue, Austin, TX',
+            primaryColor: '#1B3A30',
+            secondaryColor: '#C05C3D',
+            userTitle: 'Senior Mathematics Teacher',
+            qualification: 'M.Sc Mathematics',
+            specialization: 'Mathematics',
+            subjectCount: 3
+          }
+        : user?.role === 'super_admin'
+          ? {
+              id: user.id,
+              name: user.name,
+              email: user.email,
+              phone: user.phone,
+              role: 'super_admin',
+              tenantId: user.tenantId,
+              schoolName: 'SchoolVault Platform',
+              schoolCode: 'PLATFORM',
+              schoolEmail: 'platform@schoolvault.com',
+              schoolPhone: '+1-555-9000',
+              schoolAddress: '12 Platform Square, Austin, TX',
+              primaryColor: '#0F172A',
+              secondaryColor: '#0EA5E9',
+              userTitle: 'Platform Administrator',
+              managedStudentCount: 18420,
+              managedTeacherCount: 1260
+            }
+        : user?.role === 'parent'
+          ? {
+              id: user.id,
+              name: user.name,
+              email: user.email,
+              phone: user.phone,
+              role: 'parent',
+              tenantId: user.tenantId,
+              schoolName: 'Crescent Heights Academy',
+              schoolCode: 'SCH001',
+              schoolEmail: 'info@crescentheights.edu',
+              schoolPhone: '+1-555-1000',
+              schoolAddress: '245 Learning Avenue, Austin, TX',
+              primaryColor: '#1B3A30',
+              secondaryColor: '#C05C3D',
+              userTitle: 'Parent Account',
+              childCount: 2
+            }
+          : {
+              id: user?.id ?? 'u1',
+              name: user?.name ?? 'John Anderson',
+              email: user?.email ?? 'admin@school.com',
+              phone: user?.phone ?? '+1-555-0101',
+              role: 'admin',
+              tenantId: user?.tenantId ?? 't1',
+              schoolName: 'Crescent Heights Academy',
+              schoolCode: 'SCH001',
+              schoolEmail: 'info@crescentheights.edu',
+              schoolPhone: '+1-555-1000',
+              schoolAddress: '245 Learning Avenue, Austin, TX',
+              primaryColor: '#1B3A30',
+              secondaryColor: '#C05C3D',
+              userTitle: 'School Administrator',
+              managedStudentCount: 2847,
+              managedTeacherCount: 124
+            };
+      this.profileSummarySubject.next(summary);
+      return of(summary).pipe(delay(200));
+    }
+    return this.api.get<any>('/auth/profile-summary').pipe(
+      tap(summary => this.profileSummarySubject.next({
+        ...summary,
+        id: String(summary.id),
+        role: summary.role
+      }))
+    );
+  }
+
+  getProfileSummarySnapshot(): ProfileSummary | null {
+    return this.profileSummarySubject.value;
   }
 }

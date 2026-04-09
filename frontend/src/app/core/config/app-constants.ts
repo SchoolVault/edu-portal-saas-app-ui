@@ -8,14 +8,18 @@ export interface NavItem {
 
 export const NAV_ITEMS: NavItem[] = [
   { label: 'Dashboard', icon: 'bi-grid-1x2-fill', route: '/app/dashboard', roles: ['admin', 'teacher', 'parent'], section: 'Main' },
+  { label: 'Platform', icon: 'bi-buildings-fill', route: '/app/super-admin', roles: ['super_admin'], section: 'Main' },
+  { label: 'Schools', icon: 'bi-bank2', route: '/app/super-admin', roles: ['super_admin'], section: 'Platform' },
+  { label: 'My Children', icon: 'bi-person-vcard-fill', route: '/app/parent', roles: ['parent'], section: 'Main' },
   { label: 'Academic', icon: 'bi-mortarboard-fill', route: '/app/academic', roles: ['admin'], section: 'Main' },
   { label: 'Students', icon: 'bi-people-fill', route: '/app/students', roles: ['admin', 'teacher'], section: 'People' },
   { label: 'Teachers', icon: 'bi-person-badge-fill', route: '/app/teachers', roles: ['admin'], section: 'People' },
   { label: 'Attendance', icon: 'bi-calendar-check-fill', route: '/app/attendance', roles: ['admin', 'teacher'], section: 'Academics' },
   { label: 'Timetable', icon: 'bi-clock-fill', route: '/app/timetable', roles: ['admin', 'teacher', 'parent'], section: 'Academics' },
   { label: 'Exams', icon: 'bi-journal-text', route: '/app/exams', roles: ['admin', 'teacher', 'parent'], section: 'Academics' },
-  { label: 'Fees', icon: 'bi-credit-card-fill', route: '/app/fees', roles: ['admin', 'parent'], section: 'Finance' },
+  { label: 'Fees', icon: 'bi-credit-card-fill', route: '/app/fees', roles: ['admin'], section: 'Finance' },
   { label: 'Payroll', icon: 'bi-wallet-fill', route: '/app/payroll', roles: ['admin'], section: 'Finance' },
+  { label: 'Inbox', icon: 'bi-inbox-fill', route: '/app/chat', roles: ['admin', 'teacher', 'parent', 'student'], section: 'Connect' },
   { label: 'Communication', icon: 'bi-chat-dots-fill', route: '/app/communication', roles: ['admin', 'teacher', 'parent'], section: 'Connect' },
   { label: 'Reports', icon: 'bi-graph-up', route: '/app/reports', roles: ['admin'], section: 'Analytics' },
   { label: 'Transport', icon: 'bi-bus-front-fill', route: '/app/transport', roles: ['admin'], section: 'Operations' },
@@ -26,7 +30,7 @@ export const NAV_ITEMS: NavItem[] = [
   { label: 'Settings', icon: 'bi-gear-fill', route: '/app/settings', roles: ['admin'], section: 'System' },
 ];
 
-export const ROLES = { ADMIN: 'admin', TEACHER: 'teacher', PARENT: 'parent' } as const;
+export const ROLES = { SUPER_ADMIN: 'super_admin', ADMIN: 'admin', TEACHER: 'teacher', PARENT: 'parent', STUDENT: 'student' } as const;
 
 export const STUDENT_STATUS = ['active', 'inactive', 'graduated'] as const;
 export const ATTENDANCE_STATUS = ['present', 'absent', 'late', 'excused'] as const;

@@ -4,15 +4,13 @@ import com.school.erp.common.exception.ResourceNotFoundException;
 import com.school.erp.modules.documents.entity.Document;
 import com.school.erp.modules.documents.repository.DocumentRepository;
 import com.school.erp.tenant.TenantContext;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
 import java.util.List;
 
-@Slf4j @Service @RequiredArgsConstructor
+@Service
 public class DocumentService {
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(DocumentService.class);
     private final DocumentRepository repo;
 
     @Transactional(readOnly = true)
@@ -42,6 +40,11 @@ public class DocumentService {
     @Transactional
     public void delete(Long id) {
         Document doc = repo.findById(id).orElseThrow(() -> new ResourceNotFoundException("Document", id));
-        doc.setIsDeleted(true); repo.save(doc);
+        doc.setIsDeleted(true);
+        repo.save(doc);
+    }
+
+    public DocumentService(final DocumentRepository repo) {
+        this.repo = repo;
     }
 }

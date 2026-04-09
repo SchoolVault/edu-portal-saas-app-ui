@@ -1,13 +1,14 @@
 import { Component } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Router } from '@angular/router';
+import { Router, RouterModule } from '@angular/router';
 import { AuthService } from '../../../core/services/auth.service';
+import { ThemeService } from '../../../core/services/theme.service';
 
 @Component({
   selector: 'app-login',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, RouterModule],
   template: `
     <div class="login-container" data-testid="login-page">
       <div class="login-left">
@@ -59,9 +60,14 @@ import { AuthService } from '../../../core/services/auth.service';
               <strong>School Code:</strong> SCH001<br>
               <strong>Admin:</strong> admin&#64;school.com / admin123<br>
               <strong>Teacher:</strong> teacher&#64;school.com / teacher123<br>
-              <strong>Parent:</strong> parent&#64;school.com / parent123
+              <strong>Parent:</strong> parent&#64;school.com / parent123<br>
+              <strong>Super Admin:</strong> superadmin&#64;schoolvault.com / super123 / PLATFORM
             </p>
           </div>
+          <p style="margin-top: 16px; font-size: 13px;">
+            New school?
+            <a routerLink="/signup">Create a workspace</a>
+          </p>
         </div>
       </div>
       <div class="login-right">
@@ -84,9 +90,10 @@ export class LoginComponent {
   loading = false;
   showPassword = false;
 
-  constructor(private authService: AuthService, private router: Router) {
+  constructor(private authService: AuthService, private router: Router, private themeService: ThemeService) {
     if (this.authService.isAuthenticated()) {
-      this.router.navigate(['/app/dashboard']);
+      const role = this.authService.getRole();
+      this.router.navigate([role === 'parent' ? '/app/parent' : role === 'super_admin' ? '/app/super-admin' : '/app/dashboard']);
     }
   }
 
@@ -98,9 +105,15 @@ export class LoginComponent {
     this.error = '';
     this.loading = true;
     this.authService.login({ email: this.email, password: this.password, schoolCode: this.schoolCode }).subscribe({
-      next: () => {
+      next: (response) => {
         this.loading = false;
-        this.router.navigate(['/app/dashboard']);
+        this.router.navigate([
+          response.user.role === 'parent'
+            ? '/app/parent'
+            : response.user.role === 'super_admin'
+              ? '/app/super-admin'
+              : '/app/dashboard'
+        ]);
       },
       error: (err) => {
         this.loading = false;

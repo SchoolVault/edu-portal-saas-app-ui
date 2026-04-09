@@ -16,9 +16,15 @@ import { Teacher } from '../../core/models/models';
           <h2 style="font-size: 24px; font-weight: 800;">Teachers</h2>
           <p class="text-muted mb-0" style="font-size: 13px;">Manage teaching staff</p>
         </div>
-        <a routerLink="/app/teachers/new" class="btn-primary-erp btn-sm" data-testid="add-teacher-btn">
-          <i class="bi bi-plus-lg"></i> Add Teacher
-        </a>
+        <div class="d-flex gap-3">
+          <label class="btn-outline-erp btn-sm" style="cursor: pointer; margin-bottom: 0;">
+            <i class="bi bi-upload"></i> Import ZIP
+            <input type="file" accept=".zip" style="display: none;" (change)="onImport($event)">
+          </label>
+          <a routerLink="/app/teachers/new" class="btn-primary-erp btn-sm" data-testid="add-teacher-btn">
+            <i class="bi bi-plus-lg"></i> Add Teacher
+          </a>
+        </div>
       </div>
       <div class="erp-card animate-in animate-in-delay-1">
         <div class="d-flex justify-content-between align-items-center mb-3">
@@ -45,7 +51,7 @@ import { Teacher } from '../../core/models/models';
                 </td>
                 <td>{{ t.specialization }}</td>
                 <td><span class="badge-erp badge-neutral me-1" *ngFor="let s of t.subjects.slice(0, 2)">{{ s }}</span></td>
-                <td>{{ t.classIds.length }} classes</td>
+                <td>{{ t.classIds.length || 0 }} classes</td>
                 <td>{{ t.joinDate }}</td>
                 <td><span class="badge-erp badge-success">{{ t.status }}</span></td>
                 <td>
@@ -76,7 +82,7 @@ export class TeacherListComponent implements OnInit {
   filter(): void {
     const term = this.searchTerm.toLowerCase();
     this.filtered = this.teachers.filter(t =>
-      (t.firstName + ' ' + t.lastName).toLowerCase().includes(term) || t.specialization.toLowerCase().includes(term)
+      (t.firstName + ' ' + t.lastName).toLowerCase().includes(term) || (t.specialization || '').toLowerCase().includes(term)
     );
   }
 
@@ -87,5 +93,18 @@ export class TeacherListComponent implements OnInit {
         this.filter();
       });
     }
+  }
+
+  onImport(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    if (!file) {
+      return;
+    }
+    this.teacherService.importTeachersZip(file).subscribe(imported => {
+      this.teachers = [...imported, ...this.teachers];
+      this.filter();
+      input.value = '';
+    });
   }
 }

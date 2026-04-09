@@ -5,8 +5,6 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -14,20 +12,16 @@ import org.springframework.security.web.authentication.WebAuthenticationDetailsS
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
-
 import java.io.IOException;
 import java.util.List;
 
-@Slf4j
 @Component
-@RequiredArgsConstructor
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
-
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(JwtAuthenticationFilter.class);
     private final JwtUtil jwtUtil;
 
     @Override
-    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response,
-                                    FilterChain filterChain) throws ServletException, IOException {
+    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain) throws ServletException, IOException {
         try {
             String token = extractToken(request);
             if (token != null && jwtUtil.validateToken(token)) {
@@ -35,12 +29,10 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 String tenantId = jwtUtil.getTenantId(token);
                 Long userId = jwtUtil.getUserId(token);
                 String role = jwtUtil.getRole(token);
-
                 // Set tenant context
                 TenantContext.setTenantId(tenantId);
                 TenantContext.setUserId(userId);
                 TenantContext.setUserRole(role);
-
                 // Set Spring Security context
                 var authorities = List.of(new SimpleGrantedAuthority("ROLE_" + role));
                 var auth = new UsernamePasswordAuthenticationToken(email, null, authorities);
@@ -50,7 +42,6 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         } catch (Exception e) {
             log.error("JWT authentication error: {}", e.getMessage());
         }
-
         try {
             filterChain.doFilter(request, response);
         } finally {
@@ -64,5 +55,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             return header.substring(7);
         }
         return null;
+    }
+
+    public JwtAuthenticationFilter(final JwtUtil jwtUtil) {
+        this.jwtUtil = jwtUtil;
     }
 }
