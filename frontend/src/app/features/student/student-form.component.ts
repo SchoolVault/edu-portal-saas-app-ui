@@ -2,10 +2,13 @@ import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, ActivatedRoute } from '@angular/router';
+import { firstValueFrom } from 'rxjs';
 import { StudentService } from '../../core/services/student.service';
 import { AcademicService } from '../../core/services/academic.service';
+import { GuardianService } from '../../core/services/guardian.service';
 import { Student, SchoolClass } from '../../core/models/models';
 import { BLOOD_GROUPS, GENDERS } from '../../core/config/app-constants';
+import { environment } from '../../../environments/environment';
 
 @Component({
   selector: 'app-student-form',
@@ -106,9 +109,44 @@ import { BLOOD_GROUPS, GENDERS } from '../../core/config/app-constants';
               </div>
             </div>
             <div class="col-md-4">
-              <div class="erp-form-group"><label class="erp-label">Parent Name</label>
-                <input type="text" class="erp-input" [(ngModel)]="student.parentName" name="parentName" data-testid="student-parent-name">
+              <div class="erp-form-group"><label class="erp-label">Primary parent / guardian (legacy display)</label>
+                <input type="text" class="erp-input" [(ngModel)]="student.parentName" name="parentName" data-testid="student-parent-name" placeholder="Optional if detailed below">
               </div>
+            </div>
+          </div>
+
+          <h4 *ngIf="!isEdit" style="font-size: 15px; font-weight: 700; margin-bottom: 20px; color: var(--clr-primary);">Parents / guardians (API)</h4>
+          <div *ngIf="!isEdit" class="row g-3 mb-4">
+            <div class="col-12"><p class="text-muted small mb-0">Add up to two contacts (name + phone recommended). Saved as guardian records and linked to the student when not in mock mode.</p></div>
+            <div class="col-md-6 erp-card p-3">
+              <div class="erp-form-group"><label class="erp-label">Guardian 1 — name</label>
+                <input type="text" class="erp-input" [(ngModel)]="g1.fullName" name="g1name"></div>
+              <div class="erp-form-group"><label class="erp-label">Phone</label>
+                <input type="text" class="erp-input" [(ngModel)]="g1.primaryPhone" name="g1phone"></div>
+              <div class="erp-form-group"><label class="erp-label">Occupation</label>
+                <input type="text" class="erp-input" [(ngModel)]="g1.occupation" name="g1job"></div>
+              <div class="erp-form-group"><label class="erp-label">Relation</label>
+                <select class="erp-select" [(ngModel)]="g1.relationType" name="g1rel">
+                  <option value="FATHER">Father</option>
+                  <option value="MOTHER">Mother</option>
+                  <option value="GUARDIAN">Guardian</option>
+                  <option value="OTHER">Other</option>
+                </select></div>
+            </div>
+            <div class="col-md-6 erp-card p-3">
+              <div class="erp-form-group"><label class="erp-label">Guardian 2 — name (optional)</label>
+                <input type="text" class="erp-input" [(ngModel)]="g2.fullName" name="g2name"></div>
+              <div class="erp-form-group"><label class="erp-label">Phone</label>
+                <input type="text" class="erp-input" [(ngModel)]="g2.primaryPhone" name="g2phone"></div>
+              <div class="erp-form-group"><label class="erp-label">Occupation</label>
+                <input type="text" class="erp-input" [(ngModel)]="g2.occupation" name="g2job"></div>
+              <div class="erp-form-group"><label class="erp-label">Relation</label>
+                <select class="erp-select" [(ngModel)]="g2.relationType" name="g2rel">
+                  <option value="FATHER">Father</option>
+                  <option value="MOTHER">Mother</option>
+                  <option value="GUARDIAN">Guardian</option>
+                  <option value="OTHER">Other</option>
+                </select></div>
             </div>
           </div>
 
@@ -132,10 +170,13 @@ export class StudentFormComponent implements OnInit {
   bloodGroups = BLOOD_GROUPS;
   isEdit = false;
   saving = false;
+  g1 = { fullName: '', primaryPhone: '', occupation: '', relationType: 'FATHER' as const };
+  g2 = { fullName: '', primaryPhone: '', occupation: '', relationType: 'MOTHER' as const };
 
   constructor(
     private studentService: StudentService,
     private academicService: AcademicService,
+    private guardianService: GuardianService,
     private router: Router,
     private route: ActivatedRoute
   ) {}
@@ -168,16 +209,47 @@ export class StudentFormComponent implements OnInit {
     const sec = this.availableSections.find(s => s.id === this.student.sectionId);
     if (sec) this.student.sectionName = sec.name;
 
+    const fillLegacyParentName = (): void => {
+      if (this.student.parentName?.trim()) return;
+      if (this.g1.fullName.trim()) this.student.parentName = this.g1.fullName.trim();
+      else if (this.g2.fullName.trim()) this.student.parentName = this.g2.fullName.trim();
+    };
+
     if (this.isEdit && this.student.id) {
       this.studentService.updateStudent(this.student.id, this.student).subscribe(() => {
         this.saving = false;
         this.router.navigate(['/app/students']);
       });
     } else {
+      fillLegacyParentName();
       this.student.admissionNumber = this.student.admissionNumber || ('ADM' + Date.now().toString().slice(-6));
-      this.studentService.addStudent(this.student as Omit<Student, 'id'>).subscribe(() => {
-        this.saving = false;
-        this.router.navigate(['/app/students']);
+      this.studentService.addStudent(this.student as Omit<Student, 'id'>).subscribe({
+        next: async created => {
+          const extras = [this.g1, this.g2].filter(g => g.fullName.trim().length > 0);
+          if (!environment.useMocks && extras.length > 0) {
+            try {
+              for (let i = 0; i < extras.length; i++) {
+                const g = extras[i];
+                const gr = await firstValueFrom(this.guardianService.createGuardian({
+                  fullName: g.fullName.trim(),
+                  primaryPhone: g.primaryPhone?.trim() || undefined,
+                  occupation: g.occupation?.trim() || undefined
+                }));
+                await firstValueFrom(this.guardianService.addStudentMapping(created.id, {
+                  guardianId: gr.id,
+                  relationType: g.relationType,
+                  isPrimary: i === 0,
+                  isEmergencyContact: i === 0
+                }));
+              }
+            } catch {
+              /* student created; guardians failed — still land on list */
+            }
+          }
+          this.saving = false;
+          this.router.navigate(['/app/students']);
+        },
+        error: () => { this.saving = false; }
       });
     }
   }

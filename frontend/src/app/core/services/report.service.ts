@@ -5,6 +5,7 @@ import {
   AttendanceSummaryRow,
   ClassSummaryRow,
   ReportCard,
+  SectionSummaryRow,
   StudentPerformanceRow,
   TeacherWorkloadRow
 } from '../models/models';
@@ -78,6 +79,25 @@ export class ReportService {
         performancePercentage: Number(row.performancePercentage ?? 0),
         feeCollectionPercentage: Number(row.feeCollectionPercentage ?? 0),
         classTeacherName: row.classTeacherName ?? ''
+      })))
+    );
+  }
+
+  getSectionSummary(): Observable<SectionSummaryRow[]> {
+    if (environment.useMocks) {
+      return of([
+        { sectionId: 'sec5a', sectionName: 'A', classId: 'c5', className: 'Class 5', studentCount: 38 },
+        { sectionId: 'sec5b', sectionName: 'B', classId: 'c5', className: 'Class 5', studentCount: 36 },
+        { sectionId: 'sec8a', sectionName: 'A', classId: 'c8', className: 'Class 8', studentCount: 40 }
+      ]).pipe();
+    }
+    return this.api.get<any[]>('/reports/section-summary').pipe(
+      map(rows => rows.map(row => ({
+        sectionId: String(row.sectionId),
+        sectionName: row.sectionName ?? '',
+        classId: String(row.classId),
+        className: row.className ?? '',
+        studentCount: Number(row.studentCount ?? 0)
       })))
     );
   }

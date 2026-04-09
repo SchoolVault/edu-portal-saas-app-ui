@@ -7,6 +7,8 @@
   --clr-accent-dark: #A84A2C;
   --clr-bg: #F9F8F6;
   --clr-surface: #FFFFFF;
+  --clr-surface-alt: #FAFAF9;
+  --clr-surface-muted: #F0EFED;
   --clr-text: #1C1917;
   --clr-text-secondary: #57534E;
   --clr-text-muted: #A8A29E;
@@ -41,6 +43,8 @@
   --clr-accent-dark: #d8784d;
   --clr-bg: #111827;
   --clr-surface: #18212f;
+  --clr-surface-alt: #1e293b;
+  --clr-surface-muted: #243048;
   --clr-text: #f3f4f6;
   --clr-text-secondary: #d1d5db;
   --clr-text-muted: #94a3b8;
@@ -160,9 +164,14 @@ a:hover { color: var(--clr-accent-dark); }
 .nav-item:hover { background: var(--clr-hover); color: var(--clr-text); }
 
 .nav-item.active {
-  background: #F0EFED;
+  background: var(--clr-surface-muted);
   color: var(--clr-text);
   font-weight: 600;
+}
+
+[data-theme='dark'] .nav-item.active {
+  background: rgba(125, 211, 167, 0.14);
+  color: var(--clr-text);
 }
 
 .nav-item.active::before {
@@ -209,8 +218,52 @@ a:hover { color: var(--clr-accent-dark); }
   z-index: 100;
 }
 
-.header-left { display: flex; align-items: center; gap: 16px; }
-.header-right { display: flex; align-items: center; gap: 12px; }
+.header-left { display: flex; align-items: center; gap: 16px; flex-shrink: 0; }
+.header-right { display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
+
+.header-announcement-strip {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 14px;
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--clr-primary) 9%, transparent);
+  border: 1px solid color-mix(in srgb, var(--clr-primary) 22%, transparent);
+  max-width: min(480px, 38vw);
+}
+.header-announcement-strip .ann-strip-icon { flex-shrink: 0; color: var(--clr-primary); font-size: 17px; }
+.header-announcement-strip .ann-strip-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.header-announcement-strip .ann-strip-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--clr-text);
+  text-decoration: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.header-announcement-strip .ann-strip-title:hover { text-decoration: underline; color: var(--clr-primary); }
+.header-announcement-strip .ann-strip-preview {
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.header-announcement-strip .ann-strip-link {
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  flex-shrink: 0;
+  color: var(--clr-primary);
+  text-decoration: none;
+}
+.header-announcement-strip .ann-strip-link:hover { text-decoration: underline; }
+
+@media (max-width: 960px) {
+  .header-announcement-strip { display: none; }
+}
 
 .toggle-btn {
   background: none;
@@ -808,6 +861,42 @@ a:hover { color: var(--clr-accent-dark); }
 .notification-item p { font-size: 12px; color: var(--clr-text-muted); margin: 0; }
 .notification-item .time { font-size: 11px; color: var(--clr-text-muted); margin-top: 4px; }
 
+.notification-section-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 700;
+  color: var(--clr-text-muted);
+  padding: 10px 16px 4px;
+  background: var(--clr-bg);
+}
+
+.notification-item-announcement {
+  border-left: 3px solid var(--clr-primary);
+}
+
+.notification-see-all {
+  display: block;
+  padding: 10px 16px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  text-align: center;
+  color: var(--clr-accent);
+  border-top: 1px solid var(--clr-border-light);
+}
+
+.notification-see-all:hover {
+  background: var(--clr-hover);
+}
+
+.profile-avatar-img {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1px solid var(--clr-border);
+}
+
 /* === MODAL === */
 .modal-overlay {
   position: fixed;
@@ -818,7 +907,18 @@ a:hover { color: var(--clr-accent-dark); }
   display: flex;
   align-items: center;
   justify-content: center;
+  padding: 24px 16px;
+  overflow-y: auto;
   animation: fadeIn 0.2s ease;
+}
+
+/**
+ * Use on overlays that must cover the full viewport. Parents with CSS transform
+ * (e.g. .animate-in / fadeInUp) create a new containing block and trap plain fixed modals.
+ * Prefer rendering the overlay outside any transformed ancestor; this class raises z-index.
+ */
+.modal-overlay-viewport {
+  z-index: 4000;
 }
 
 .modal-content-erp {
@@ -827,9 +927,11 @@ a:hover { color: var(--clr-accent-dark); }
   box-shadow: var(--shadow-lg);
   width: 90%;
   max-width: 600px;
-  max-height: 90vh;
+  max-height: min(90vh, calc(100vh - 48px));
   overflow-y: auto;
   animation: slideUp 0.3s ease;
+  margin-block: auto;
+  flex-shrink: 0;
 }
 
 .modal-content-erp.lg { max-width: 800px; }

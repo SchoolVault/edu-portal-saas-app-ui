@@ -1,9 +1,17 @@
 import { Injectable } from '@angular/core';
-import { Observable, of } from 'rxjs';
+import { Observable, of, throwError } from 'rxjs';
 import { delay, map } from 'rxjs/operators';
 import { environment } from '../../../environments/environment';
 import { ApiService } from './api.service';
-import { PlatformDashboardData, PlatformSchoolAdmin, PlatformSchoolSummary } from '../models/models';
+import {
+  PlatformBroadcastResult,
+  PlatformDashboardData,
+  PlatformPurgeJob,
+  PlatformSchoolAdmin,
+  PlatformSchoolDetail,
+  PlatformSchoolSummary,
+  PlatformSubscriptionPlan,
+} from '../models/models';
 
 @Injectable({ providedIn: 'root' })
 export class PlatformService {
@@ -30,6 +38,51 @@ export class PlatformService {
       { id: '106', name: 'Emily Grant', email: 'head@sunriseprep.edu', phone: '+1-555-0401', schoolCode: 'SUN555', active: false, createdAt: '2025-11-10T08:00:00Z' }
     ]
   };
+
+  private mockPurgeJobs: Record<string, PlatformPurgeJob[]> = {};
+  private purgeJobSeq = 1;
+
+  private readonly mockPlans: PlatformSubscriptionPlan[] = [
+    {
+      code: 'STARTER',
+      name: 'Starter',
+      description: 'Ideal for a single campus validating digital attendance, fees, and parent engagement.',
+      monthlyPriceMinorUnits: 4900,
+      currency: 'USD',
+      highlights: ['Guided onboarding checklist', 'Standard uptime targets', 'Community knowledge base'],
+      maxStudentsLabel: 'Up to 300 active students',
+      supportTier: 'Email & chat (business hours)',
+      billingCadence: 'Billed monthly per active workspace',
+      modules: ['Students & classes', 'Attendance', 'Timetable (read)', 'Fees (core)', 'Parent portal (read)', 'Announcements', 'Basic reports'],
+      recommended: false
+    },
+    {
+      code: 'STANDARD',
+      name: 'Standard',
+      description: 'The default production tier for schools running academics, finance, and operations in one place.',
+      monthlyPriceMinorUnits: 12900,
+      currency: 'USD',
+      highlights: ['Quarterly success review', 'Data export APIs', 'Optional SSO add-on'],
+      maxStudentsLabel: 'Up to 2,000 active students',
+      supportTier: 'Priority support (12×5)',
+      billingCadence: 'Billed monthly per active workspace',
+      modules: ['Everything in Starter', 'Exams & gradebook', 'Library', 'Transport & routes', 'Hostel', 'Payroll (standard)', 'Documents', 'Audit trail (90 days)', 'Chat'],
+      recommended: true
+    },
+    {
+      code: 'ENTERPRISE',
+      name: 'Enterprise',
+      description: 'Regional groups, compliance-heavy boards, and multi-branch governance with custom limits.',
+      monthlyPriceMinorUnits: 0,
+      currency: 'USD',
+      highlights: ['Custom MSA & DPA', 'Dedicated technical account lead', 'Optional on-prem / VPC'],
+      maxStudentsLabel: 'Custom (unlimited branches)',
+      supportTier: 'Named CSM + 24×7 hotline',
+      billingCadence: 'Billed monthly per active workspace',
+      modules: ['Everything in Standard', 'Multi-branch roll-up', 'Advanced audit (retention policies)', 'Custom integrations', 'Sandbox tenant', 'DR runbooks'],
+      recommended: false
+    }
+  ];
 
   constructor(private api: ApiService) {}
 
@@ -73,6 +126,123 @@ export class PlatformService {
       return of(this.mockSchools.map(school => ({ ...school }))).pipe(delay(200));
     }
     return this.api.get<PlatformSchoolSummary[]>('/platform/schools');
+  }
+
+  getSchoolDetail(tenantId: string): Observable<PlatformSchoolDetail> {
+    if (environment.useMocks) {
+      const school = this.mockSchools.find(s => s.tenantId === tenantId);
+      if (!school) {
+        return throwError(() => new Error('School not found'));
+      }
+      const admins = (this.mockAdmins[tenantId] ?? []).map(a => ({ ...a }));
+      const parentUserCount = Math.round(school.studentCount * 0.85);
+      return of({
+        school: { ...school },
+        admins,
+        parentUserCount,
+        subscriptionPlanCode: 'STANDARD',
+        subscriptionStatus: school.active ? 'ACTIVE' : 'SUSPENDED'
+      }).pipe(delay(180));
+    }
+    return this.api.get<PlatformSchoolDetail>(`/platform/schools/${tenantId}/detail`);
+  }
+
+  suspendSchoolWorkspace(tenantId: string): Observable<void> {
+    if (environment.useMocks) {
+      const school = this.mockSchools.find(s => s.tenantId === tenantId);
+      if (school) {
+        school.active = false;
+      }
+      (this.mockAdmins[tenantId] ?? []).forEach(a => { a.active = false; });
+      return of(undefined).pipe(delay(200));
+    }
+    return this.api.post<void>(`/platform/schools/${tenantId}/suspend`, {});
+  }
+
+  activateSchoolWorkspace(tenantId: string): Observable<void> {
+    if (environment.useMocks) {
+      const school = this.mockSchools.find(s => s.tenantId === tenantId);
+      if (school) {
+        school.active = true;
+      }
+      return of(undefined).pipe(delay(200));
+    }
+    return this.api.post<void>(`/platform/schools/${tenantId}/activate`, {});
+  }
+
+  requestTenantDataPurge(tenantId: string, confirmSchoolCode: string): Observable<PlatformPurgeJob> {
+    if (environment.useMocks) {
+      const school = this.mockSchools.find(s => s.tenantId === tenantId);
+      if (!school) {
+        return throwError(() => new Error('School not found'));
+      }
+      if (school.active) {
+        return throwError(() => new Error('Suspend the school workspace before purge.'));
+      }
+      if (school.schoolCode.toUpperCase() !== confirmSchoolCode.trim().toUpperCase()) {
+        return throwError(() => new Error('School code confirmation does not match.'));
+      }
+      const job: PlatformPurgeJob = {
+        id: String(this.purgeJobSeq++),
+        tenantId,
+        schoolCode: school.schoolCode,
+        status: 'QUEUED',
+        createdAt: new Date().toISOString()
+      };
+      if (!this.mockPurgeJobs[tenantId]) {
+        this.mockPurgeJobs[tenantId] = [];
+      }
+      this.mockPurgeJobs[tenantId].unshift(job);
+      setTimeout(() => {
+        job.status = 'RUNNING';
+        job.startedAt = new Date().toISOString();
+      }, 400);
+      setTimeout(() => {
+        job.status = 'COMPLETED';
+        job.completedAt = new Date().toISOString();
+        job.rowsDeletedEstimate = 12400 + Math.floor(Math.random() * 2000);
+      }, 1600);
+      return of({ ...job }).pipe(delay(250));
+    }
+    return this.api.post<PlatformPurgeJob>(`/platform/schools/${tenantId}/purge-data`, { confirmSchoolCode });
+  }
+
+  listPurgeJobs(tenantId: string): Observable<PlatformPurgeJob[]> {
+    if (environment.useMocks) {
+      const list = (this.mockPurgeJobs[tenantId] ?? []).map(j => ({ ...j }));
+      return of(list).pipe(delay(120));
+    }
+    return this.api.get<PlatformPurgeJob[]>(`/platform/schools/${tenantId}/purge-jobs`).pipe(
+      map(jobs => jobs.map(j => ({
+        ...j,
+        id: String(j.id)
+      })))
+    );
+  }
+
+  listSubscriptionPlans(): Observable<PlatformSubscriptionPlan[]> {
+    if (environment.useMocks) {
+      return of(this.mockPlans.map(p => ({
+        ...p,
+        highlights: [...p.highlights],
+        modules: [...(p.modules || [])]
+      }))).pipe(delay(150));
+    }
+    return this.api.get<PlatformSubscriptionPlan[]>('/platform/subscription-plans');
+  }
+
+  broadcastToAdmins(payload: { targetTenantId?: string | null; title: string; message: string; notificationType?: string }): Observable<PlatformBroadcastResult> {
+    if (environment.useMocks) {
+      const tenants = payload.targetTenantId
+        ? [payload.targetTenantId]
+        : this.mockSchools.map(s => s.tenantId);
+      let rows = 0;
+      for (const tid of tenants) {
+        rows += (this.mockAdmins[tid] ?? []).length;
+      }
+      return of({ notificationRowsCreated: rows, tenantWorkspacesReached: tenants.length }).pipe(delay(220));
+    }
+    return this.api.post<PlatformBroadcastResult>('/platform/broadcasts', payload);
   }
 
   getSchoolAdmins(tenantId: string): Observable<PlatformSchoolAdmin[]> {

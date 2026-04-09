@@ -15,6 +15,11 @@ Chart.register(...registerables);
   imports: [CommonModule, RouterModule, FormsModule],
   template: `
     <div data-testid="dashboard-page">
+      <div class="d-flex justify-content-end mb-2">
+        <button type="button" class="btn-outline-erp btn-sm" (click)="refreshDashboard()" [disabled]="loading || refreshing" data-testid="dashboard-refresh">
+          <i class="bi bi-arrow-clockwise"></i> {{ refreshing ? 'Refreshing…' : 'Refresh' }}
+        </button>
+      </div>
       <div *ngIf="loading" class="empty-state">
         <i class="bi bi-hourglass-split"></i><h3>Loading Dashboard</h3><p>Fetching live ERP insights</p>
       </div>
@@ -292,6 +297,7 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
 
   role = 'admin';
   loading = true;
+  refreshing = false;
   adminDashboard: AdminDashboardData | null = null;
   teacherDashboard: TeacherDashboardData | null = null;
   parentDashboard: ParentDashboardData | null = null;
@@ -308,6 +314,74 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
 
   ngOnInit(): void {
     this.role = this.authService.getRole() || 'admin';
+    this.loadDashboard();
+  }
+
+  refreshDashboard(): void {
+    if (this.loading || this.refreshing) {
+      return;
+    }
+    this.refreshing = true;
+    const finish = () => {
+      this.refreshing = false;
+    };
+    if (this.role === 'admin') {
+      this.dashboardService.getAdminDashboard().subscribe({
+        next: dashboard => {
+          this.adminDashboard = dashboard;
+          this.adminKPIs = [
+            { label: 'Total Students', value: String(dashboard.totalStudents), icon: 'bi-people-fill', bgColor: 'rgba(27,58,48,0.1)', color: '#1B3A30', subtext: 'Live enrolment' },
+            { label: 'Total Teachers', value: String(dashboard.totalTeachers), icon: 'bi-person-badge-fill', bgColor: 'rgba(192,92,61,0.1)', color: '#C05C3D', subtext: 'Current staff strength' },
+            { label: 'Fees Collected', value: this.asCurrency(dashboard.feesCollected), icon: 'bi-credit-card-fill', bgColor: 'rgba(5,150,105,0.1)', color: '#059669', subtext: `${dashboard.collectionRate}% collection rate` },
+            { label: 'Attendance Logged', value: String(dashboard.attendanceOverview?.total ?? 0), icon: 'bi-calendar-check-fill', bgColor: 'rgba(2,132,199,0.1)', color: '#0284C7', subtext: 'Today' }
+          ];
+          this.admissionInsights = this.buildAdmissionInsights(dashboard);
+          setTimeout(() => {
+            this.initAdminCharts();
+            finish();
+          }, 0);
+        },
+        error: () => finish()
+      });
+      return;
+    }
+    if (this.role === 'teacher') {
+      this.dashboardService.getTeacherDashboard().subscribe({
+        next: dashboard => {
+          this.teacherDashboard = dashboard;
+          this.teacherKPIs = [
+            { label: 'My Classes', value: String(dashboard.assignedClasses), icon: 'bi-journal-bookmark-fill', bgColor: 'rgba(27,58,48,0.1)', color: '#1B3A30' },
+            { label: 'Students Assigned', value: String(dashboard.studentsAssigned), icon: 'bi-people-fill', bgColor: 'rgba(192,92,61,0.1)', color: '#C05C3D' },
+            { label: 'Upcoming Exams', value: String(dashboard.upcomingExams), icon: 'bi-file-earmark-text', bgColor: 'rgba(217,119,6,0.1)', color: '#D97706' },
+            { label: 'Unread Alerts', value: String(dashboard.unreadNotifications), icon: 'bi-bell-fill', bgColor: 'rgba(5,150,105,0.1)', color: '#059669' }
+          ];
+          finish();
+        },
+        error: () => finish()
+      });
+      return;
+    }
+    const today = new Date();
+    const from = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().slice(0, 10);
+    const to = today.toISOString().slice(0, 10);
+    this.dashboardService.getParentDashboard(from, to).subscribe({
+      next: dashboard => {
+        this.parentDashboard = dashboard;
+        this.selectedParentChildId = dashboard.selectedChildId || dashboard.selectedChild?.id || '';
+        this.parentKPIs = [
+          { label: 'Children Linked', value: String(dashboard.childCount), icon: 'bi-person-heart', bgColor: 'rgba(27,58,48,0.1)', color: '#1B3A30' },
+          { label: 'Attendance', value: `${dashboard.attendancePercentage.toFixed(1)}%`, icon: 'bi-calendar-check-fill', bgColor: 'rgba(5,150,105,0.1)', color: '#059669' },
+          { label: 'Overall Grade', value: dashboard.overallGrade, icon: 'bi-trophy-fill', bgColor: 'rgba(217,119,6,0.1)', color: '#D97706' },
+          { label: 'Fee Due', value: this.asCurrency(dashboard.feeDue), icon: 'bi-credit-card-fill', bgColor: 'rgba(220,38,38,0.1)', color: '#DC2626' }
+        ];
+        finish();
+      },
+      error: () => finish()
+    });
+  }
+
+  private loadDashboard(): void {
+    this.loading = true;
     if (this.role === 'admin') {
       this.dashboardService.getAdminDashboard().subscribe({
         next: dashboard => {

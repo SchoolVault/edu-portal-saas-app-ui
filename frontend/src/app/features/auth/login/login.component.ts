@@ -64,6 +64,27 @@ import { ThemeService } from '../../../core/services/theme.service';
               <strong>Super Admin:</strong> superadmin&#64;schoolvault.com / super123 / PLATFORM
             </p>
           </div>
+
+          <div class="auth-marketing-band login-marketing-band">
+            <div class="auth-testimonials login-testimonials">
+              <h4>Trusted by modern schools</h4>
+              <div class="auth-quote">
+                <p>“Rollout was calm and predictable — finance, academics, and parents are finally aligned on one timeline.”</p>
+                <div class="auth-quote-meta">Meera Shah · CFO, Lakeside Academy Trust</div>
+              </div>
+              <div class="auth-quote auth-quote-compact">
+                <p>“We evaluated SchoolMint-level suites; SchoolVault gave us the same depth with APIs we actually own.”</p>
+                <div class="auth-quote-meta">Oliver Grant · Head of Technology, Harborview Schools</div>
+              </div>
+            </div>
+            <div class="auth-contact-card">
+              <h4>Platform &amp; demos</h4>
+              <p class="small text-muted mb-2">Guided walkthrough, RFP pack, or enterprise terms — we respond within one business day.</p>
+              <div class="auth-contact-row"><i class="bi bi-envelope"></i> <a href="mailto:hello&#64;schoolvault.com">hello&#64;schoolvault.com</a></div>
+              <div class="auth-contact-row"><i class="bi bi-telephone"></i> +1 (512) 555-0140</div>
+            </div>
+          </div>
+
           <p style="margin-top: 16px; font-size: 13px;">
             New school?
             <a routerLink="/signup">Create a workspace</a>
@@ -80,7 +101,32 @@ import { ThemeService } from '../../../core/services/theme.service';
         </div>
       </div>
     </div>
-  `
+  `,
+  styles: [
+    `
+      .login-marketing-band {
+        margin-top: 20px;
+        padding-top: 16px;
+        border-top: 1px solid var(--clr-border);
+        display: grid;
+        gap: 14px;
+        align-items: start;
+      }
+      @media (min-width: 560px) {
+        .login-marketing-band { grid-template-columns: 1fr 1fr; }
+      }
+      .login-testimonials { margin-top: 0; padding-top: 0; border-top: none; }
+      .auth-testimonials h4 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--clr-text-muted); margin-bottom: 10px; }
+      .auth-quote { margin-bottom: 10px; padding: 10px 12px; border-radius: var(--radius-lg); background: var(--clr-surface-muted); border: 1px solid var(--clr-border-light); }
+      .auth-quote-compact { margin-bottom: 0; }
+      .auth-quote p { margin: 0; font-size: 12px; line-height: 1.45; color: var(--clr-text-secondary); }
+      .auth-quote-meta { margin-top: 6px; font-size: 10px; font-weight: 600; color: var(--clr-text-muted); }
+      .auth-contact-card { margin-top: 0; padding: 12px 14px; border-radius: var(--radius-xl); border: 1px solid var(--clr-border); background: var(--clr-surface-alt); }
+      .auth-contact-card h4 { margin: 0 0 4px; font-size: 13px; }
+      .auth-contact-row { display: flex; align-items: center; gap: 8px; font-size: 13px; margin-top: 6px; color: var(--clr-text-secondary); }
+      .auth-contact-row a { color: var(--clr-accent); font-weight: 600; }
+    `
+  ]
 })
 export class LoginComponent {
   email = '';

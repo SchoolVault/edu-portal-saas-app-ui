@@ -15,6 +15,10 @@ export class ChatService implements OnDestroy {
   private inboundMessageSubject = new Subject<ChatMessage>();
   inboundMessage$ = this.inboundMessageSubject.asObservable();
 
+  /** WebSocket/STOMP connected (false when mocks or offline). */
+  private rtConnected = new BehaviorSubject<boolean>(false);
+  readonly realtimeConnected$ = this.rtConnected.asObservable();
+
   private ws: Client | null = null;
   private wsSubscriptions: StompSubscription[] = [];
 
@@ -26,6 +30,7 @@ export class ChatService implements OnDestroy {
     if (environment.useMocks) {
       this.seedMocks();
       this.inboxSubject.next(this.mockConversations);
+      this.rtConnected.next(false);
     }
   }
 
@@ -224,7 +229,12 @@ export class ChatService implements OnDestroy {
       heartbeatOutgoing: 10000
     });
 
+    client.onDisconnect = () => this.rtConnected.next(false);
+    client.onStompError = () => this.rtConnected.next(false);
+    client.onWebSocketError = () => this.rtConnected.next(false);
+
     client.onConnect = () => {
+      this.rtConnected.next(true);
       this.clearWsSubscriptions();
       // inbox updates
       this.wsSubscriptions.push(
@@ -277,6 +287,7 @@ export class ChatService implements OnDestroy {
     this.clearWsSubscriptions();
     this.ws?.deactivate();
     this.ws = null;
+    this.rtConnected.next(false);
   }
 
   ngOnDestroy(): void {

@@ -1,7 +1,18 @@
-import { Component } from '@angular/core';
+import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { AuditLog } from '../../core/models/models';
+
+const AUDIT_LOG_SEED: AuditLog[] = [
+  { id: 'al1', action: 'create', module: 'Students', description: 'New student Arjun Patel added', userId: 'u1', userName: 'John Anderson', timestamp: '2026-02-05T10:30:00Z', ipAddress: '192.168.1.100', tenantId: 't1' },
+  { id: 'al2', action: 'update', module: 'Fees', description: 'Fee payment recorded for Emily Watson', userId: 'u1', userName: 'John Anderson', timestamp: '2026-02-05T09:15:00Z', ipAddress: '192.168.1.100', tenantId: 't1' },
+  { id: 'al3', action: 'login', module: 'System', description: 'Admin login successful', userId: 'u1', userName: 'John Anderson', timestamp: '2026-02-05T08:00:00Z', ipAddress: '192.168.1.100', tenantId: 't1' },
+  { id: 'al4', action: 'update', module: 'Attendance', description: 'Attendance marked for Class 5-A', userId: 'u2', userName: 'Sarah Mitchell', timestamp: '2026-02-04T14:30:00Z', ipAddress: '192.168.1.105', tenantId: 't1' },
+  { id: 'al5', action: 'create', module: 'Exams', description: 'New exam schedule created: Midterm', userId: 'u1', userName: 'John Anderson', timestamp: '2026-02-04T11:00:00Z', ipAddress: '192.168.1.100', tenantId: 't1' },
+  { id: 'al6', action: 'delete', module: 'Students', description: 'Student record archived', userId: 'u1', userName: 'John Anderson', timestamp: '2026-02-03T16:45:00Z', ipAddress: '192.168.1.100', tenantId: 't1' },
+  { id: 'al7', action: 'update', module: 'Teachers', description: 'Teacher profile updated: Maria Torres', userId: 'u1', userName: 'John Anderson', timestamp: '2026-02-03T10:20:00Z', ipAddress: '192.168.1.100', tenantId: 't1' },
+  { id: 'al8', action: 'login', module: 'System', description: 'Teacher login successful', userId: 'u2', userName: 'Sarah Mitchell', timestamp: '2026-02-03T08:05:00Z', ipAddress: '192.168.1.105', tenantId: 't1' }
+];
 
 @Component({
   selector: 'app-audit',
@@ -11,7 +22,10 @@ import { AuditLog } from '../../core/models/models';
     <div data-testid="audit-page">
       <div class="d-flex justify-content-between align-items-center mb-4 animate-in">
         <div><h2 style="font-size: 24px; font-weight: 800;">Audit Log</h2><p class="text-muted mb-0" style="font-size: 13px;">Track all system actions</p></div>
-        <button class="btn-outline-erp btn-sm" data-testid="export-audit-btn"><i class="bi bi-download"></i> Export</button>
+        <div class="d-flex gap-2 flex-wrap">
+          <button type="button" class="btn-outline-erp btn-sm" (click)="reloadFromServer()"><i class="bi bi-arrow-clockwise"></i> Refresh</button>
+          <button type="button" class="btn-outline-erp btn-sm" data-testid="export-audit-btn"><i class="bi bi-download"></i> Export</button>
+        </div>
       </div>
       <div class="erp-card animate-in animate-in-delay-1">
         <div class="d-flex gap-3 mb-3">
@@ -44,22 +58,23 @@ import { AuditLog } from '../../core/models/models';
     </div>
   `
 })
-export class AuditComponent {
+export class AuditComponent implements OnInit {
   actionFilter = '';
   moduleFilter = '';
   modules = ['Students', 'Teachers', 'Fees', 'Attendance', 'Exams', 'System'];
 
-  logs: AuditLog[] = [
-    { id: 'al1', action: 'create', module: 'Students', description: 'New student Arjun Patel added', userId: 'u1', userName: 'John Anderson', timestamp: '2026-02-05T10:30:00Z', ipAddress: '192.168.1.100', tenantId: 't1' },
-    { id: 'al2', action: 'update', module: 'Fees', description: 'Fee payment recorded for Emily Watson', userId: 'u1', userName: 'John Anderson', timestamp: '2026-02-05T09:15:00Z', ipAddress: '192.168.1.100', tenantId: 't1' },
-    { id: 'al3', action: 'login', module: 'System', description: 'Admin login successful', userId: 'u1', userName: 'John Anderson', timestamp: '2026-02-05T08:00:00Z', ipAddress: '192.168.1.100', tenantId: 't1' },
-    { id: 'al4', action: 'update', module: 'Attendance', description: 'Attendance marked for Class 5-A', userId: 'u2', userName: 'Sarah Mitchell', timestamp: '2026-02-04T14:30:00Z', ipAddress: '192.168.1.105', tenantId: 't1' },
-    { id: 'al5', action: 'create', module: 'Exams', description: 'New exam schedule created: Midterm', userId: 'u1', userName: 'John Anderson', timestamp: '2026-02-04T11:00:00Z', ipAddress: '192.168.1.100', tenantId: 't1' },
-    { id: 'al6', action: 'delete', module: 'Students', description: 'Student record archived', userId: 'u1', userName: 'John Anderson', timestamp: '2026-02-03T16:45:00Z', ipAddress: '192.168.1.100', tenantId: 't1' },
-    { id: 'al7', action: 'update', module: 'Teachers', description: 'Teacher profile updated: Maria Torres', userId: 'u1', userName: 'John Anderson', timestamp: '2026-02-03T10:20:00Z', ipAddress: '192.168.1.100', tenantId: 't1' },
-    { id: 'al8', action: 'login', module: 'System', description: 'Teacher login successful', userId: 'u2', userName: 'Sarah Mitchell', timestamp: '2026-02-03T08:05:00Z', ipAddress: '192.168.1.105', tenantId: 't1' },
-  ];
-  filteredLogs: AuditLog[] = [...this.logs];
+  logs: AuditLog[] = [];
+  filteredLogs: AuditLog[] = [];
+
+  ngOnInit(): void {
+    this.reloadFromServer();
+  }
+
+  /** Mock: resets catalog; API-backed version will call the same method without the seed. */
+  reloadFromServer(): void {
+    this.logs = AUDIT_LOG_SEED.map(row => ({ ...row }));
+    this.filter();
+  }
 
   filter(): void {
     this.filteredLogs = this.logs.filter(l =>

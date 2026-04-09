@@ -1,23 +1,31 @@
 import { AfterViewInit, Component, ElementRef, OnDestroy, OnInit, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { RouterLink } from '@angular/router';
 import { Chart, registerables } from 'chart.js';
 import { PlatformDashboardData, PlatformSchoolAdmin, PlatformSchoolSummary } from '../../core/models/models';
 import { PlatformService } from '../../core/services/platform.service';
+import { forkJoin } from 'rxjs';
 
 Chart.register(...registerables);
 
 @Component({
   selector: 'app-super-admin',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, RouterLink],
   template: `
     <div data-testid="super-admin-page">
-      <div class="d-flex justify-content-between align-items-end mb-4 animate-in">
+      <div class="d-flex justify-content-between align-items-end mb-4 animate-in flex-wrap gap-2">
         <div>
           <div class="badge-erp badge-info mb-2">Platform Control Plane</div>
           <h2 style="font-size: 28px; font-weight: 800;">Super Admin Console</h2>
           <p class="text-muted mb-0" style="font-size: 13px;">Portfolio-wide visibility across schools, admins, and platform health.</p>
+        </div>
+        <div class="d-flex gap-2 align-self-center flex-wrap">
+          <a routerLink="/app/platform-schools" class="btn-outline-erp btn-sm">School directory</a>
+          <button type="button" class="btn-outline-erp btn-sm" (click)="refreshPlatform()" [disabled]="refreshing">
+            <i class="bi bi-arrow-clockwise"></i> {{ refreshing ? 'Refreshing…' : 'Refresh' }}
+          </button>
         </div>
       </div>
 
@@ -140,28 +148,53 @@ export class SuperAdminComponent implements OnInit, AfterViewInit, OnDestroy {
   schoolAdmins: PlatformSchoolAdmin[] = [];
   selectedSchool: PlatformSchoolSummary | null = null;
   summaryCards: Array<{ label: string; value: string; subtext: string; icon: string; bg: string; color: string }> = [];
+  refreshing = false;
   private growthChart?: Chart;
   private revenueChart?: Chart;
 
   constructor(private platformService: PlatformService) {}
 
   ngOnInit(): void {
-    this.platformService.getDashboard().subscribe(dashboard => {
-      this.dashboard = dashboard;
-      this.summaryCards = [
-        { label: 'Total Schools', value: String(dashboard.totalSchools), subtext: `${dashboard.activeSchools} active workspaces`, icon: 'bi-buildings-fill', bg: 'rgba(15,23,42,0.08)', color: '#0F172A' },
-        { label: 'Students Managed', value: String(dashboard.totalStudents), subtext: 'Cross-tenant enrolment footprint', icon: 'bi-people-fill', bg: 'rgba(14,165,233,0.10)', color: '#0284C7' },
-        { label: 'Teachers Managed', value: String(dashboard.totalTeachers), subtext: 'Faculty accounts under platform governance', icon: 'bi-person-badge-fill', bg: 'rgba(192,92,61,0.10)', color: '#C05C3D' },
-        { label: 'Campus Admins', value: String(dashboard.totalAdmins), subtext: 'Operational admins across tenants', icon: 'bi-shield-lock-fill', bg: 'rgba(5,150,105,0.10)', color: '#059669' }
-      ];
-      setTimeout(() => this.initCharts(), 0);
-    });
-    this.platformService.getSchools().subscribe(schools => {
-      this.schools = schools;
-      if (schools.length) {
-        this.selectSchool(schools[0]);
+    this.refreshPlatform();
+  }
+
+  refreshPlatform(): void {
+    if (this.refreshing) {
+      return;
+    }
+    this.refreshing = true;
+    const prevTenant = this.selectedSchool?.tenantId;
+    forkJoin({
+      dashboard: this.platformService.getDashboard(),
+      schools: this.platformService.getSchools()
+    }).subscribe({
+      next: ({ dashboard, schools }) => {
+        this.applyDashboard(dashboard);
+        this.schools = schools;
+        if (schools.length) {
+          const keep = prevTenant && schools.some(s => s.tenantId === prevTenant);
+          this.selectSchool((keep ? schools.find(s => s.tenantId === prevTenant) : null) ?? schools[0]);
+        } else {
+          this.selectedSchool = null;
+          this.schoolAdmins = [];
+        }
+        this.refreshing = false;
+        setTimeout(() => this.initCharts(), 0);
+      },
+      error: () => {
+        this.refreshing = false;
       }
     });
+  }
+
+  private applyDashboard(dashboard: PlatformDashboardData): void {
+    this.dashboard = dashboard;
+    this.summaryCards = [
+      { label: 'Total Schools', value: String(dashboard.totalSchools), subtext: `${dashboard.activeSchools} active workspaces`, icon: 'bi-buildings-fill', bg: 'rgba(15,23,42,0.08)', color: '#0F172A' },
+      { label: 'Students Managed', value: String(dashboard.totalStudents), subtext: 'Cross-tenant enrolment footprint', icon: 'bi-people-fill', bg: 'rgba(14,165,233,0.10)', color: '#0284C7' },
+      { label: 'Teachers Managed', value: String(dashboard.totalTeachers), subtext: 'Faculty accounts under platform governance', icon: 'bi-person-badge-fill', bg: 'rgba(192,92,61,0.10)', color: '#C05C3D' },
+      { label: 'Campus Admins', value: String(dashboard.totalAdmins), subtext: 'Operational admins across tenants', icon: 'bi-shield-lock-fill', bg: 'rgba(5,150,105,0.10)', color: '#059669' }
+    ];
   }
 
   ngAfterViewInit(): void {

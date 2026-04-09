@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterModule } from '@angular/router';
 import { StudentService } from '../../core/services/student.service';
+import { AuthService } from '../../core/services/auth.service';
 import { Student } from '../../core/models/models';
 
 @Component({
@@ -14,19 +15,24 @@ import { Student } from '../../core/models/models';
       <div class="d-flex justify-content-between align-items-center mb-4 animate-in">
         <div>
           <h2 style="font-size: 24px; font-weight: 800;">Students</h2>
-          <p class="text-muted mb-0" style="font-size: 13px;">Manage all student records</p>
+          <p class="text-muted mb-0" style="font-size: 13px;">
+            {{ isAdmin ? 'Manage enrolment and student master records.' : 'Directory view for your classes (read-only). Admins handle new admissions and edits.' }}
+          </p>
         </div>
-        <div class="d-flex gap-3">
-          <label class="btn-outline-erp btn-sm" style="cursor: pointer; margin-bottom: 0;">
-            <i class="bi bi-upload"></i> Import ZIP
-            <input type="file" accept=".zip" style="display: none;" (change)="onImport($event)">
-          </label>
-          <button class="btn-outline-erp btn-sm" data-testid="export-students-btn">
-            <i class="bi bi-download"></i> Export
-          </button>
-          <a routerLink="/app/students/new" class="btn-primary-erp btn-sm" data-testid="add-student-btn">
-            <i class="bi bi-plus-lg"></i> Add Student
-          </a>
+        <div class="d-flex gap-3 flex-wrap">
+          <button type="button" class="btn-outline-erp btn-sm" (click)="reloadStudents()"><i class="bi bi-arrow-clockwise"></i> Refresh</button>
+          <ng-container *ngIf="isAdmin">
+            <label class="btn-outline-erp btn-sm" style="cursor: pointer; margin-bottom: 0;">
+              <i class="bi bi-upload"></i> Import ZIP
+              <input type="file" accept=".zip" style="display: none;" (change)="onImport($event)">
+            </label>
+            <button class="btn-outline-erp btn-sm" data-testid="export-students-btn">
+              <i class="bi bi-download"></i> Export
+            </button>
+            <a routerLink="/app/students/new" class="btn-primary-erp btn-sm" data-testid="add-student-btn">
+              <i class="bi bi-plus-lg"></i> Add Student
+            </a>
+          </ng-container>
         </div>
       </div>
 
@@ -91,10 +97,10 @@ import { Student } from '../../core/models/models';
                     <a [routerLink]="['/app/students', student.id]" class="btn-icon" title="View" [attr.data-testid]="'view-student-' + student.id">
                       <i class="bi bi-eye"></i>
                     </a>
-                    <a [routerLink]="['/app/students', student.id, 'edit']" class="btn-icon" title="Edit" [attr.data-testid]="'edit-student-' + student.id">
+                    <a *ngIf="isAdmin" [routerLink]="['/app/students', student.id, 'edit']" class="btn-icon" title="Edit" [attr.data-testid]="'edit-student-' + student.id">
                       <i class="bi bi-pencil"></i>
                     </a>
-                    <button class="btn-icon" title="Delete" (click)="deleteStudent(student.id)" [attr.data-testid]="'delete-student-' + student.id">
+                    <button *ngIf="isAdmin" type="button" class="btn-icon" title="Delete" (click)="deleteStudent(student.id)" [attr.data-testid]="'delete-student-' + student.id">
                       <i class="bi bi-trash" style="color: var(--clr-danger);"></i>
                     </button>
                   </div>
@@ -137,9 +143,18 @@ export class StudentListComponent implements OnInit {
   Math = Math;
   importError = '';
 
-  constructor(private studentService: StudentService) {}
+  constructor(private studentService: StudentService, private auth: AuthService) {}
+
+  get isAdmin(): boolean {
+    const r = (this.auth.getRole() || '').toLowerCase();
+    return r === 'admin' || r === 'super_admin';
+  }
 
   ngOnInit(): void {
+    this.reloadStudents();
+  }
+
+  reloadStudents(): void {
     this.studentService.getStudents().subscribe(students => {
       this.students = students;
       this.classOptions = [...new Set(students.map(s => s.className))].sort();

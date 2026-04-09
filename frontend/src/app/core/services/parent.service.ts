@@ -4,6 +4,7 @@ import { delay, map } from 'rxjs/operators';
 import { ApiService } from './api.service';
 import { AttendanceRecord, AttendanceStats, CheckoutSession, CheckoutSessionRequest, FeePayment, MarkRecord, ParentFeeObligation, PaymentReceipt, Student } from '../models/models';
 import { environment } from '../../../environments/environment';
+import { coerceApiLongId } from '../utils/coerce-api-long-id';
 
 @Injectable({ providedIn: 'root' })
 export class ParentService {
@@ -59,7 +60,8 @@ export class ParentService {
         { id: 'm3', examId: 'e2', studentId, studentName: 'Emma Chen', subjectName: 'English', marksObtained: 88, maxMarks: 100, grade: 'A', classId: 'c8', tenantId: 't1' }
       ]).pipe(delay(150));
     }
-    return this.api.get<any[]>(`/parent/children/${studentId}/marks`).pipe(
+    const sid = coerceApiLongId(studentId, 'student');
+    return this.api.get<any[]>(`/parent/children/${sid}/marks`).pipe(
       map(marks => marks.map(mark => ({
         ...mark,
         id: String(mark.id),
@@ -75,7 +77,8 @@ export class ParentService {
     if (environment.useMocks) {
       return of(this.mockFeePayments().filter(payment => payment.studentId === studentId)).pipe(delay(150));
     }
-    return this.api.get<any[]>(`/parent/children/${studentId}/fees`).pipe(
+    const sid = coerceApiLongId(studentId, 'student');
+    return this.api.get<any[]>(`/parent/children/${sid}/fees`).pipe(
       map(payments => payments.map(payment => ({
         ...payment,
         id: String(payment.id),
@@ -104,7 +107,8 @@ export class ParentService {
         attendancePercentage: 95.5
       }).pipe(delay(150));
     }
-    return this.api.get<any>(`/parent/children/${studentId}/attendance?from=${from}&to=${to}`).pipe(
+    const sid = coerceApiLongId(studentId, 'student');
+    return this.api.get<any>(`/parent/children/${sid}/attendance?from=${from}&to=${to}`).pipe(
       map(stats => ({
         studentId: stats.studentId != null ? String(stats.studentId) : undefined,
         totalDays: stats.totalDays,
@@ -124,7 +128,8 @@ export class ParentService {
         { id: 'ar2', studentId, studentName: 'Emma Chen', classId: 'c8', sectionId: 'sec8a', date: to, status: 'late' as const, markedBy: 'u2', tenantId: 't1' }
       ]).pipe(delay(150));
     }
-    return this.api.get<any[]>(`/parent/children/${studentId}/attendance-records?from=${from}&to=${to}`).pipe(
+    const sid = coerceApiLongId(studentId, 'student');
+    return this.api.get<any[]>(`/parent/children/${sid}/attendance-records?from=${from}&to=${to}`).pipe(
       map(records => records.map(record => ({
         ...record,
         id: String(record.id),
@@ -151,7 +156,8 @@ export class ParentService {
     if (environment.useMocks) {
       return of(this.mockFeeObligations().filter(item => item.studentId === studentId)).pipe(delay(150));
     }
-    return this.api.get<any[]>(`/parent/children/${studentId}/fee-obligations`).pipe(
+    const sid = coerceApiLongId(studentId, 'student');
+    return this.api.get<any[]>(`/parent/children/${sid}/fee-obligations`).pipe(
       map(items => items.map(item => this.normalizeObligation(item)))
     );
   }
@@ -170,8 +176,8 @@ export class ParentService {
       }).pipe(delay(300));
     }
     return this.api.post<any>('/parent/payments/checkout-session', {
-      paymentId: Number(request.paymentId),
-      studentId: Number(request.studentId),
+      paymentId: coerceApiLongId(request.paymentId, 'payment'),
+      studentId: coerceApiLongId(request.studentId, 'student'),
       amount: request.amount,
       provider: request.provider,
       returnUrl: request.returnUrl
@@ -190,7 +196,8 @@ export class ParentService {
       this.mockReceipts = [receipt, ...this.mockReceipts.filter(item => item.receiptNumber !== receipt.receiptNumber)];
       return of(receipt).pipe(delay(500));
     }
-    return this.api.post<any>(`/parent/payments/checkout-session/${attemptId}/confirm`, {
+    const aid = coerceApiLongId(attemptId, 'checkout attempt');
+    return this.api.post<any>(`/parent/payments/checkout-session/${aid}/confirm`, {
       checkoutToken,
       providerPaymentId
     }).pipe(map(item => this.normalizeReceipt(item)));
@@ -221,10 +228,10 @@ export class ParentService {
       discount: Number(item.discount ?? 0),
       lateFee: Number(item.lateFee ?? 0),
       payableNow: Number(item.payableNow ?? 0),
-      lineItems: (item.lineItems ?? []).map((line: any) => ({
+      lineItems: (item.lineItems ?? item.line_items ?? []).map((line: any) => ({
         name: line.name,
         amount: Number(line.amount ?? 0),
-        type: line.type
+        type: (line.type ?? 'misc').toString().toLowerCase()
       }))
     };
   }
@@ -249,17 +256,17 @@ export class ParentService {
       dueAmount: Number(item.dueAmount ?? 0),
       discount: Number(item.discount ?? 0),
       lateFee: Number(item.lateFee ?? 0),
-      lineItems: (item.lineItems ?? []).map((line: any) => ({
+      lineItems: (item.lineItems ?? item.line_items ?? []).map((line: any) => ({
         name: line.name,
         amount: Number(line.amount ?? 0),
-        type: line.type
+        type: (line.type ?? 'misc').toString().toLowerCase()
       }))
     };
   }
 
   private mockFeePayments(): FeePayment[] {
     return [
-      { id: 'fp8', studentId: 's12', studentName: 'Emma Chen', feeStructureId: 'fs2', amount: 5000, paidAmount: 3800, dueAmount: 1200, status: 'partial', paymentDate: '2026-03-10', dueDate: '2026-03-31', discount: 0, lateFee: 50, receiptNumber: 'REC-2026-101', tenantId: 't1' },
+      { id: 'fp8', studentId: 's12', studentName: 'Emma Chen', feeStructureId: 'fs2', amount: 6200, paidAmount: 4800, dueAmount: 1400, status: 'partial', paymentDate: '2026-03-10', dueDate: '2026-03-31', discount: 0, lateFee: 50, receiptNumber: 'REC-2026-101', tenantId: 't1' },
       { id: 'fp9', studentId: 's18', studentName: 'Lily Chen', feeStructureId: 'fs1', amount: 3500, paidAmount: 3500, dueAmount: 0, status: 'paid', paymentDate: '2026-03-02', dueDate: '2026-03-31', discount: 0, lateFee: 0, receiptNumber: 'REC-2026-102', tenantId: 't1' }
     ];
   }
@@ -276,15 +283,17 @@ export class ParentService {
         dueDate: '2026-03-31',
         status: 'partial',
         currency: 'INR',
-        totalAmount: 5000,
-        paidAmount: 3800,
-        dueAmount: 1200,
+        totalAmount: 6200,
+        paidAmount: 4800,
+        dueAmount: 1400,
         discount: 0,
         lateFee: 50,
-        payableNow: 1250,
+        payableNow: 1450,
         lineItems: [
           { name: 'Tuition', amount: 3200, type: 'tuition' },
           { name: 'Transport', amount: 600, type: 'transport' },
+          { name: 'Hostel', amount: 800, type: 'hostel' },
+          { name: 'Uniform', amount: 400, type: 'uniform' },
           { name: 'Library', amount: 300, type: 'library' },
           { name: 'Lab Fee', amount: 500, type: 'lab' },
           { name: 'Computer Fee', amount: 400, type: 'misc' }
@@ -307,15 +316,17 @@ export class ParentService {
       paymentDate: new Date().toISOString().slice(0, 10),
       dueDate: '2026-03-31',
       currency: 'INR',
-      amountPaid: 1250,
-      totalAmount: 5000,
-      paidAmount: 5050,
+      amountPaid: 1450,
+      totalAmount: 6200,
+      paidAmount: 6250,
       dueAmount: 0,
       discount: 0,
       lateFee: 0,
       lineItems: [
         { name: 'Tuition', amount: 3200, type: 'tuition' },
         { name: 'Transport', amount: 600, type: 'transport' },
+        { name: 'Hostel', amount: 800, type: 'hostel' },
+        { name: 'Uniform', amount: 400, type: 'uniform' },
         { name: 'Library', amount: 300, type: 'library' },
         { name: 'Lab Fee', amount: 500, type: 'lab' },
         { name: 'Computer Fee', amount: 400, type: 'misc' }

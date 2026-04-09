@@ -4,6 +4,8 @@ import { FormsModule } from '@angular/forms';
 import { AttendanceService } from '../../core/services/attendance.service';
 import { StudentService } from '../../core/services/student.service';
 import { AcademicService } from '../../core/services/academic.service';
+import { TeacherService } from '../../core/services/teacher.service';
+import { AuthService } from '../../core/services/auth.service';
 import { SchoolClass, Student, AttendanceRecord } from '../../core/models/models';
 
 @Component({
@@ -12,11 +14,12 @@ import { SchoolClass, Student, AttendanceRecord } from '../../core/models/models
   imports: [CommonModule, FormsModule],
   template: `
     <div data-testid="attendance-page">
-      <div class="d-flex justify-content-between align-items-center mb-4 animate-in">
+      <div class="d-flex justify-content-between align-items-center mb-4 animate-in flex-wrap gap-2">
         <div>
           <h2 style="font-size: 24px; font-weight: 800;">Attendance</h2>
           <p class="text-muted mb-0" style="font-size: 13px;">Mark and manage daily attendance</p>
         </div>
+        <button type="button" class="btn-outline-erp btn-sm" (click)="refreshAttendance()"><i class="bi bi-arrow-clockwise"></i> Refresh</button>
       </div>
 
       <div class="erp-card mb-4 animate-in animate-in-delay-1">
@@ -40,12 +43,17 @@ import { SchoolClass, Student, AttendanceRecord } from '../../core/models/models
             <input type="date" class="erp-input" [(ngModel)]="selectedDate" (change)="loadAttendance()" data-testid="attendance-date">
           </div>
           <div class="col-md-3">
-            <button class="btn-primary-erp" style="width: 100%;" (click)="saveAttendance()" [disabled]="!records.length || saving" data-testid="save-attendance-btn">
+            <button class="btn-primary-erp" style="width: 100%;" (click)="saveAttendance()" [disabled]="!records.length || saving || attendanceLocked" data-testid="save-attendance-btn">
               <span class="spinner" *ngIf="saving"></span>
-              {{ saving ? 'Saving...' : 'Save Attendance' }}
+              {{ saving ? 'Saving...' : (attendanceLocked ? 'View only' : 'Save attendance') }}
             </button>
           </div>
         </div>
+        <div *ngIf="attendanceLocked" class="alert alert-info py-2 px-3 small mb-0 mt-3" style="border-radius: var(--radius-md);">
+          <i class="bi bi-info-circle me-1"></i>
+          This date is in the past. You can review records; only administrators can change past attendance.
+        </div>
+        <div *ngIf="saveError" class="alert alert-danger py-2 small mb-0 mt-2">{{ saveError }}</div>
       </div>
 
       <div class="erp-card animate-in animate-in-delay-2" *ngIf="records.length > 0">
@@ -64,7 +72,7 @@ import { SchoolClass, Student, AttendanceRecord } from '../../core/models/models
               <td>{{ i + 1 }}</td>
               <td><strong>{{ rec.studentName }}</strong></td>
               <td>
-                <div class="d-flex gap-2">
+                <div class="d-flex gap-2" [class.opacity-50]="attendanceLocked" [style.pointer-events]="attendanceLocked ? 'none' : 'auto'">
                   <div class="attendance-cell" [class.present]="rec.status === 'present'" (click)="rec.status = 'present'" title="Present">
                     <i class="bi bi-check-lg"></i>
                   </div>
@@ -99,15 +107,49 @@ export class AttendanceComponent implements OnInit {
   selectedDate = new Date().toISOString().split('T')[0];
   records: AttendanceRecord[] = [];
   saving = false;
+  saveError = '';
+  isAdmin = false;
 
   constructor(
     private attendanceService: AttendanceService,
     private studentService: StudentService,
-    private academicService: AcademicService
+    private academicService: AcademicService,
+    private teacherService: TeacherService,
+    private auth: AuthService
   ) {}
 
+  /** Teacher record id linked to the signed-in user (for class-teacher checks). */
+  private linkedTeacherId: string | null = null;
+
   ngOnInit(): void {
-    this.academicService.getClasses().subscribe(c => this.classes = c);
+    const r = (this.auth.getRole() ?? '').toLowerCase();
+    this.isAdmin = r === 'admin' || r === 'super_admin';
+    this.academicService.getClasses().subscribe(c => (this.classes = c));
+    if (r === 'teacher') {
+      const me = this.auth.getCurrentUser();
+      this.teacherService.getTeachers().subscribe(list => {
+        const row = (list || []).find(t => t.userId === me?.id);
+        this.linkedTeacherId = row?.id ?? null;
+      });
+    }
+  }
+
+  refreshAttendance(): void {
+    this.academicService.getClasses().subscribe(c => (this.classes = c));
+    this.loadAttendance();
+  }
+
+  get attendanceLocked(): boolean {
+    if (this.isAdmin) return false;
+    return this.isPastDate(this.selectedDate);
+  }
+
+  private isPastDate(isoDate: string): boolean {
+    const d = new Date(isoDate + 'T12:00:00');
+    const t = new Date();
+    t.setHours(0, 0, 0, 0);
+    d.setHours(0, 0, 0, 0);
+    return d.getTime() < t.getTime();
   }
 
   onClassChange(): void {
@@ -139,9 +181,38 @@ export class AttendanceComponent implements OnInit {
     });
   }
 
+  private isClassTeacherForCurrentClass(): boolean {
+    const cls = this.classes.find(c => c.id === this.selectedClassId);
+    if (!cls?.classTeacherId || !this.linkedTeacherId) {
+      return false;
+    }
+    return cls.classTeacherId === this.linkedTeacherId;
+  }
+
   saveAttendance(): void {
+    if (this.attendanceLocked) return;
+    const role = (this.auth.getRole() ?? '').toLowerCase();
+    if (
+      role === 'teacher' &&
+      this.linkedTeacherId &&
+      !this.isClassTeacherForCurrentClass()
+    ) {
+      const ok = window.confirm(
+        'You are not the class teacher for this class. Attendance is usually recorded by the class teacher. If they are absent or unavailable, you may continue. Proceed?'
+      );
+      if (!ok) {
+        return;
+      }
+    }
+    this.saveError = '';
     this.saving = true;
-    this.attendanceService.saveAttendance(this.records).subscribe(() => { this.saving = false; });
+    this.attendanceService.saveAttendance(this.records).subscribe({
+      next: () => { this.saving = false; },
+      error: (e: Error) => {
+        this.saving = false;
+        this.saveError = e?.message || 'Could not save attendance.';
+      }
+    });
   }
 
   countByStatus(status: string): number {

@@ -2,6 +2,7 @@ import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { StudentService } from '../../core/services/student.service';
+import { AuthService } from '../../core/services/auth.service';
 import { ExamService } from '../../core/services/exam.service';
 import { FeeService } from '../../core/services/fee.service';
 import { AttendanceService } from '../../core/services/attendance.service';
@@ -18,9 +19,14 @@ import { Student, MarkRecord, FeePayment, AttendanceStats } from '../../core/mod
         <div class="flex-grow-1">
           <h2 style="font-size: 24px; font-weight: 800;">Student Profile</h2>
         </div>
-        <a [routerLink]="['/app/students', student.id, 'edit']" class="btn-primary-erp btn-sm" data-testid="edit-profile-btn">
-          <i class="bi bi-pencil"></i> Edit
-        </a>
+        <div class="d-flex gap-2 flex-wrap">
+          <button type="button" class="btn-outline-erp btn-sm" (click)="reloadAll()" data-testid="profile-refresh-btn">
+            <i class="bi bi-arrow-clockwise"></i> Refresh
+          </button>
+          <a *ngIf="isAdmin" [routerLink]="['/app/students', student.id, 'edit']" class="btn-primary-erp btn-sm" data-testid="edit-profile-btn">
+            <i class="bi bi-pencil"></i> Edit
+          </a>
+        </div>
       </div>
 
       <div class="row g-4">
@@ -152,9 +158,15 @@ export class StudentProfileComponent implements OnInit {
     private examService: ExamService,
     private feeService: FeeService,
     private attendanceService: AttendanceService,
+    private auth: AuthService,
     private route: ActivatedRoute,
     public router: Router
   ) {}
+
+  get isAdmin(): boolean {
+    const r = (this.auth.getRole() || '').toLowerCase();
+    return r === 'admin' || r === 'super_admin';
+  }
 
   ngOnInit(): void {
     const id = this.route.snapshot.paramMap.get('id');
@@ -168,6 +180,21 @@ export class StudentProfileComponent implements OnInit {
         }
       });
     }
+  }
+
+  reloadAll(): void {
+    const id = this.student?.id ?? this.route.snapshot.paramMap.get('id');
+    if (!id) {
+      return;
+    }
+    this.studentService.getStudentById(id).subscribe(s => {
+      if (s) {
+        this.student = s;
+        this.loadMarks(id);
+        this.loadFees(id);
+        this.loadAttendance(id);
+      }
+    });
   }
 
   private loadMarks(studentId: string): void {

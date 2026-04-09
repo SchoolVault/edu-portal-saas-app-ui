@@ -17,6 +17,7 @@ import { Teacher } from '../../core/models/models';
           <p class="text-muted mb-0" style="font-size: 13px;">Manage teaching staff</p>
         </div>
         <div class="d-flex gap-3">
+          <button type="button" class="btn-outline-erp btn-sm" (click)="reloadTeachers()"><i class="bi bi-arrow-clockwise"></i> Refresh</button>
           <label class="btn-outline-erp btn-sm" style="cursor: pointer; margin-bottom: 0;">
             <i class="bi bi-upload"></i> Import ZIP
             <input type="file" accept=".zip" style="display: none;" (change)="onImport($event)">
@@ -76,7 +77,14 @@ export class TeacherListComponent implements OnInit {
   constructor(private teacherService: TeacherService) {}
 
   ngOnInit(): void {
-    this.teacherService.getTeachers().subscribe(t => { this.teachers = t; this.filtered = t; });
+    this.reloadTeachers();
+  }
+
+  reloadTeachers(): void {
+    this.teacherService.getTeachers().subscribe(t => {
+      this.teachers = t;
+      this.filtered = t;
+    });
   }
 
   filter(): void {

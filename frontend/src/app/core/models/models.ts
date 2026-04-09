@@ -55,6 +55,8 @@ export interface ProfileSummary {
   subjectCount?: number;
   managedStudentCount?: number;
   managedTeacherCount?: number;
+  /** SUPER_ADMIN: count of active school workspaces (non-deleted tenants). */
+  platformWorkspaceCount?: number;
 }
 
 export interface Student {
@@ -91,6 +93,9 @@ export interface AttendanceStats {
   attendancePercentage: number;
 }
 
+/** Library desk privileges (mirrors backend Enums.LibraryStaffRole). */
+export type LibraryStaffRole = 'assistant' | 'librarian' | 'head';
+
 export interface Teacher {
   id: string;
   firstName: string;
@@ -105,6 +110,10 @@ export interface Teacher {
   salary: number;
   status: 'active' | 'inactive';
   avatar?: string;
+  /** Links to User.id when staff logs in with a teacher account. */
+  userId?: string;
+  /** When set, login JWT includes LIBRARY_MANAGE / LIBRARY_CIRCULATION (backend). */
+  libraryStaffRole?: LibraryStaffRole;
   tenantId: string;
 }
 
@@ -179,6 +188,31 @@ export interface TimetableGrid {
   grid: Record<string, Record<number, TimetableGridSlot>>;
 }
 
+/** Per-class/section audience for an exam (aligns with backend ExamScopeDtos.ClassScopeOut). */
+export interface ExamClassScope {
+  classId: string;
+  sectionId?: string | null;
+  className?: string;
+  sectionName?: string;
+}
+
+/** Scheduled paper slot (aligns with backend ExamScopeDtos.ScheduleSlotOut). */
+export interface ExamScheduleSlot {
+  id?: string;
+  /** Present when slot is nested under a known exam in UI mocks. */
+  examId?: string;
+  classId: string;
+  sectionId?: string | null;
+  className?: string;
+  sectionName?: string;
+  subjectName: string;
+  examDate: string;
+  startTime: string;
+  endTime: string;
+  room?: string;
+  notes?: string;
+}
+
 export interface Exam {
   id: string;
   name: string;
@@ -186,6 +220,9 @@ export interface Exam {
   startDate: string;
   endDate: string;
   classIds: string[];
+  /** When set, preferred over classIds for scoped exams (API + UI). */
+  classScopes?: ExamClassScope[];
+  scheduleSlots?: ExamScheduleSlot[];
   status: 'upcoming' | 'ongoing' | 'completed';
   tenantId: string;
 }
@@ -306,6 +343,45 @@ export interface PlatformDashboardData {
   topSchools: PlatformSchoolSummary[];
 }
 
+export interface PlatformSchoolDetail {
+  school: PlatformSchoolSummary;
+  admins: PlatformSchoolAdmin[];
+  parentUserCount: number;
+  subscriptionPlanCode: string;
+  subscriptionStatus: string;
+}
+
+export interface PlatformPurgeJob {
+  id: string;
+  tenantId: string;
+  schoolCode: string;
+  status: string;
+  errorMessage?: string | null;
+  rowsDeletedEstimate?: number | null;
+  createdAt?: string | null;
+  startedAt?: string | null;
+  completedAt?: string | null;
+}
+
+export interface PlatformBroadcastResult {
+  notificationRowsCreated: number;
+  tenantWorkspacesReached: number;
+}
+
+export interface PlatformSubscriptionPlan {
+  code: string;
+  name: string;
+  description: string;
+  monthlyPriceMinorUnits: number;
+  currency: string;
+  highlights: string[];
+  maxStudentsLabel?: string;
+  supportTier?: string;
+  billingCadence?: string;
+  modules?: string[];
+  recommended?: boolean;
+}
+
 export interface TeacherScheduleItem {
   classId: string;
   sectionId: string;
@@ -377,6 +453,14 @@ export interface ClassSummaryRow {
   performancePercentage: number;
   feeCollectionPercentage: number;
   classTeacherName: string;
+}
+
+export interface SectionSummaryRow {
+  sectionId: string;
+  sectionName: string;
+  classId: string;
+  className: string;
+  studentCount: number;
 }
 
 export interface TeacherWorkloadRow {
@@ -596,6 +680,13 @@ export interface Announcement {
   tenantId: string;
 }
 
+export interface AnnouncementPreview {
+  id: string;
+  title: string;
+  preview: string;
+  createdAt: string;
+}
+
 export interface AppNotification {
   id: string;
   title: string;
@@ -607,14 +698,38 @@ export interface AppNotification {
   link?: string;
 }
 
+export interface TransportVehicle {
+  id: string;
+  registrationNumber: string;
+  vehicleType: string;
+  capacity: number;
+  model?: string;
+  tenantId?: string;
+}
+
+export interface TransportDriver {
+  id: string;
+  fullName: string;
+  phone: string;
+  licenseNumber?: string;
+  tenantId?: string;
+}
+
 export interface TransportRoute {
   id: string;
   name: string;
   vehicleNumber: string;
   driverName: string;
   driverPhone: string;
-  stops: { name: string; time: string; order: number }[];
+  vehicleId?: string;
+  driverId?: string;
+  vehicleType?: string;
+  liveLatitude?: number;
+  liveLongitude?: number;
+  liveRecordedAt?: string;
+  stops: { id?: string; name: string; time: string; order: number }[];
   assignedStudents: number;
+  students?: { id: string; studentId: string; studentName: string; pickupStop?: string; dropStop?: string }[];
   tenantId: string;
 }
 
@@ -627,6 +742,8 @@ export interface Book {
   totalCopies: number;
   availableCopies: number;
   shelfLocation: string;
+  /** false = soft-removed from catalog (tenant library fine / catalog toggle). */
+  catalogActive?: boolean;
   tenantId: string;
 }
 
@@ -644,6 +761,24 @@ export interface BookIssue {
   tenantId: string;
 }
 
+export interface HostelBuilding {
+  id: string;
+  name: string;
+  code: string;
+  genderScope?: string;
+  roomCount: number;
+  availableBeds: number;
+  tenantId?: string;
+}
+
+export interface HostelResident {
+  allocationId: string;
+  studentId: string;
+  studentName: string;
+  fromDate?: string;
+  toDate?: string;
+}
+
 export interface HostelRoom {
   id: string;
   roomNumber: string;
@@ -652,6 +787,9 @@ export interface HostelRoom {
   capacity: number;
   occupancy: number;
   type: string;
+  hostelId?: string;
+  hostelName?: string;
+  residents?: HostelResident[];
   tenantId: string;
 }
 
@@ -677,7 +815,20 @@ export interface Payslip {
   totalDeductions: number;
   netSalary: number;
   status: 'generated' | 'paid';
+  /** When salary was marked paid / disbursed (UI + PDF). */
+  paymentDate?: string;
   tenantId: string;
+}
+
+export interface TeacherPaymentDetails {
+  teacherId: string;
+  teacherName: string;
+  monthlyNetSalary: number;
+  bankAccountHolder?: string;
+  bankName?: string;
+  bankAccountMasked?: string;
+  bankIfsc?: string;
+  bankDetailsComplete?: boolean;
 }
 
 export interface DocumentRecord {
@@ -688,6 +839,8 @@ export interface DocumentRecord {
   uploadedBy: string;
   uploadDate: string;
   size: string;
+  /** Download / preview URL when backend provides signed or static path. */
+  fileUrl?: string;
   tenantId: string;
 }
 
@@ -703,6 +856,14 @@ export interface AuditLog {
   tenantId: string;
 }
 
+/** Super-admin platform health API (/api/v1/platform/health). */
+export interface PlatformHealthSnapshot {
+  checkedAt: string;
+  jvm: { heapUsedBytes: number; heapMaxBytes: number; heapUsagePercent: number };
+  disk: { path: string; totalBytes: number; usableBytes: number; usagePercent: number };
+  components: { name: string; status: string; detail?: string }[];
+}
+
 export interface TenantConfig {
   id: string;
   schoolName: string;
@@ -715,4 +876,15 @@ export interface TenantConfig {
   secondaryColor: string;
   features: Record<string, boolean>;
   tenantId: string;
+}
+
+/** Multi-campus branch row (aligns with backend SchoolBranchDTO). */
+export interface SchoolBranch {
+  tenantId: string;
+  schoolName: string;
+  schoolCode: string;
+  address?: string;
+  phone?: string;
+  email?: string;
+  currentTenant: boolean;
 }

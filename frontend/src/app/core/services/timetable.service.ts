@@ -1,7 +1,7 @@
 import { Injectable } from '@angular/core';
 import { Observable, of } from 'rxjs';
 import { delay, map } from 'rxjs/operators';
-import { TimetableEntry, TimetableGrid } from '../models/models';
+import { TimetableEntry, TimetableGrid, TimetableGridSlot } from '../models/models';
 import { ApiService } from './api.service';
 import { environment } from '../../../environments/environment';
 
@@ -60,26 +60,63 @@ export class TimetableService {
 
   getByClassAndSection(classId: string, sectionId: string): Observable<TimetableEntry[]> {
     if (!environment.useMocks) {
-      return this.api.get<any[]>(`/timetable?classId=${classId}&sectionId=${sectionId}`).pipe(
+      let q = `classId=${encodeURIComponent(classId)}`;
+      if (sectionId) {
+        q += `&sectionId=${encodeURIComponent(sectionId)}`;
+      }
+      return this.api.get<any[]>(`/timetable?${q}`).pipe(
         map(entries => entries.map(entry => this.normalizeEntry(entry)))
       );
     }
-    return of(this.entries.filter(e => e.classId === classId && e.sectionId === sectionId)).pipe(delay(400));
+    return of(this.entries.filter(e => e.classId === classId && (!sectionId || e.sectionId === sectionId))).pipe(delay(400));
   }
 
   getGrid(classId: string, sectionId: string): Observable<TimetableGrid> {
     if (!environment.useMocks) {
-      return this.api.get<any>(`/timetable/grid?classId=${classId}&sectionId=${sectionId}`).pipe(
+      let q = `classId=${encodeURIComponent(classId)}`;
+      if (sectionId) {
+        q += `&sectionId=${encodeURIComponent(sectionId)}`;
+      }
+      return this.api.get<any>(`/timetable/grid?${q}`).pipe(
         map(grid => ({
           classId: String(grid.classId),
-          sectionId: String(grid.sectionId),
+          sectionId: grid.sectionId != null ? String(grid.sectionId) : '',
           days: (grid.days ?? []).map((day: string) => day.charAt(0) + day.slice(1).toLowerCase()),
           periods: grid.periods ?? [],
           grid: grid.grid ?? {}
         }))
       );
     }
-    return of({ classId, sectionId, days: [], periods: [], grid: {} }).pipe(delay(300));
+    return this.getByClassAndSection(classId, sectionId).pipe(
+      map(entries => this.buildGridFromEntries(classId, sectionId, entries)),
+      delay(300)
+    );
+  }
+
+  private buildGridFromEntries(classId: string, sectionId: string, entries: TimetableEntry[]): TimetableGrid {
+    const dayOrder = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const defaultPeriods = [1, 2, 3, 4, 5, 6, 7, 8];
+    const days = [...new Set(entries.map(e => e.day))].sort((a, b) => dayOrder.indexOf(a) - dayOrder.indexOf(b));
+    const periods = [...new Set(entries.map(e => e.period))].sort((a, b) => a - b);
+    const useDays = days.length ? days : dayOrder;
+    const usePeriods = periods.length ? periods : defaultPeriods;
+    const grid: Record<string, Record<number, TimetableGridSlot>> = {};
+    for (const d of useDays) {
+      grid[d] = {};
+      for (const p of usePeriods) {
+        const en = entries.find(x => x.day === d && x.period === p);
+        if (en) {
+          grid[d][p] = {
+            subject: en.subjectName,
+            teacher: en.teacherName,
+            room: en.room,
+            startTime: en.startTime,
+            endTime: en.endTime
+          };
+        }
+      }
+    }
+    return { classId, sectionId, days: useDays, periods: usePeriods, grid };
   }
 
   getByTeacher(teacherId: string): Observable<TimetableEntry[]> {
@@ -89,6 +126,13 @@ export class TimetableService {
       );
     }
     return of(this.entries.filter(e => e.teacherId === teacherId)).pipe(delay(300));
+  }
+
+  /** Build a day×period grid from an arbitrary entry list (e.g. teacher schedule). */
+  toGridFromEntries(entries: TimetableEntry[]): TimetableGrid {
+    const classId = entries[0]?.classId ?? '0';
+    const sectionId = entries[0]?.sectionId ?? '';
+    return this.buildGridFromEntries(classId, sectionId, entries);
   }
 
   getAll(): Observable<TimetableEntry[]> {
@@ -102,15 +146,23 @@ export class TimetableService {
     if (!environment.useMocks) {
       return this.api.post<any>('/timetable', this.toPayload(entry)).pipe(map(created => this.normalizeEntry(created)));
     }
-    this.entries.push(entry);
-    return of(entry).pipe(delay(400));
+    const id = entry.id && entry.id.length ? entry.id : 'tt' + Date.now();
+    const row: TimetableEntry = { ...entry, id, tenantId: entry.tenantId || 't1' };
+    this.entries = [...this.entries, row];
+    return of(row).pipe(delay(400));
   }
 
   updateEntry(id: string, entry: Partial<TimetableEntry>): Observable<TimetableEntry> {
     if (!environment.useMocks) {
       return this.api.put<any>(`/timetable/${id}`, this.toPayload(entry)).pipe(map(updated => this.normalizeEntry(updated)));
     }
-    return of(this.entries[0]).pipe(delay(300));
+    const idx = this.entries.findIndex(e => e.id === id);
+    if (idx === -1) {
+      return of({} as TimetableEntry).pipe(delay(200));
+    }
+    const merged = { ...this.entries[idx], ...entry, id };
+    this.entries = [...this.entries.slice(0, idx), merged, ...this.entries.slice(idx + 1)];
+    return of(merged).pipe(delay(300));
   }
 
   deleteEntry(id: string): Observable<void> {
@@ -139,7 +191,7 @@ export class TimetableService {
   private toPayload(entry: Partial<TimetableEntry>): any {
     return {
       classId: entry.classId ? Number(entry.classId) : null,
-      sectionId: entry.sectionId ? Number(entry.sectionId) : null,
+      sectionId: entry.sectionId ? Number(entry.sectionId) : undefined,
       day: entry.day ? entry.day.toUpperCase() : null,
       period: entry.period ?? null,
       startTime: entry.startTime || null,

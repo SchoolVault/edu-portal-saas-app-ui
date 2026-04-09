@@ -10,11 +10,12 @@ import { AttendanceRecord, AttendanceStats, CheckoutSession, FeePayment, MarkRec
   imports: [CommonModule, FormsModule],
   template: `
     <div data-testid="parent-portal-page">
-      <div class="d-flex justify-content-between align-items-center mb-4 animate-in">
+      <div class="d-flex justify-content-between align-items-center mb-4 animate-in flex-wrap gap-2">
         <div>
           <h2 style="font-size: 24px; font-weight: 800;">Parent Portal</h2>
           <p class="text-muted mb-0" style="font-size: 13px;">Track your child’s attendance, fees, and performance</p>
         </div>
+        <button type="button" class="btn-outline-erp btn-sm" (click)="refreshPortal()"><i class="bi bi-arrow-clockwise"></i> Refresh</button>
       </div>
 
       <div class="erp-card mb-4 animate-in animate-in-delay-1">
@@ -274,10 +275,16 @@ export class ParentPortalComponent implements OnInit {
   constructor(private parentService: ParentService) {}
 
   ngOnInit(): void {
+    this.refreshPortal();
+  }
+
+  refreshPortal(): void {
     this.parentService.getChildren().subscribe(children => {
       this.children = children;
-      if (children.length) {
+      if (!this.selectedStudentId && children.length) {
         this.selectedStudentId = children[0].id;
+      }
+      if (this.selectedStudentId) {
         this.onStudentChange();
       }
     });

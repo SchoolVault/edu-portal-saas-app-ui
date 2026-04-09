@@ -7,6 +7,8 @@ import { environment } from '../../../environments/environment';
 
 @Injectable({ providedIn: 'root' })
 export class AuthService {
+  private static readonly TENANT_DISPLAY_KEY = 'erp_tenant_display_overrides';
+
   private currentUserSubject = new BehaviorSubject<User | null>(null);
   private tokenSubject = new BehaviorSubject<string | null>(null);
   private refreshTokenSubject = new BehaviorSubject<string | null>(null);
@@ -171,6 +173,46 @@ export class AuthService {
     return parts.map(p => p[0]).join('').toUpperCase().substring(0, 2);
   }
 
+  /** Local profile image (mock / until media API). */
+  getStoredAvatarDataUrl(): string | null {
+    const u = this.getCurrentUser();
+    if (!u) return null;
+    return localStorage.getItem(`erp_avatar_${u.id}`);
+  }
+
+  setMyProfileAvatarDataUrl(dataUrl: string): void {
+    const u = this.getCurrentUser();
+    if (!u) return;
+    localStorage.setItem(`erp_avatar_${u.id}`, dataUrl);
+  }
+
+  setChildAvatarDataUrl(studentId: string, dataUrl: string): void {
+    localStorage.setItem(`erp_child_avatar_${studentId}`, dataUrl);
+  }
+
+  readTenantDisplayOverrides(): {
+    schoolName?: string;
+    schoolEmail?: string;
+    schoolPhone?: string;
+    schoolAddress?: string;
+  } {
+    try {
+      const raw = localStorage.getItem(AuthService.TENANT_DISPLAY_KEY);
+      return raw ? JSON.parse(raw) : {};
+    } catch {
+      return {};
+    }
+  }
+
+  saveTenantDisplay(overrides: {
+    schoolName?: string;
+    schoolEmail?: string;
+    schoolPhone?: string;
+    schoolAddress?: string;
+  }): void {
+    localStorage.setItem(AuthService.TENANT_DISPLAY_KEY, JSON.stringify(overrides ?? {}));
+  }
+
   fetchProfileSummary(): Observable<ProfileSummary> {
     if (environment.useMocks) {
       const user = this.getCurrentUser();
@@ -202,16 +244,15 @@ export class AuthService {
               phone: user.phone,
               role: 'super_admin',
               tenantId: user.tenantId,
-              schoolName: 'SchoolVault Platform',
+              schoolName: 'SchoolVault platform operations',
               schoolCode: 'PLATFORM',
               schoolEmail: 'platform@schoolvault.com',
               schoolPhone: '+1-555-9000',
-              schoolAddress: '12 Platform Square, Austin, TX',
+              schoolAddress: 'Operating console — not a single campus tenant',
               primaryColor: '#0F172A',
               secondaryColor: '#0EA5E9',
-              userTitle: 'Platform Administrator',
-              managedStudentCount: 18420,
-              managedTeacherCount: 1260
+              userTitle: 'Platform super administrator',
+              platformWorkspaceCount: 4
             }
         : user?.role === 'parent'
           ? {
@@ -256,7 +297,8 @@ export class AuthService {
       tap(summary => this.profileSummarySubject.next({
         ...summary,
         id: String(summary.id),
-        role: summary.role
+        role: summary.role,
+        platformWorkspaceCount: summary.platformWorkspaceCount ?? undefined
       }))
     );
   }
