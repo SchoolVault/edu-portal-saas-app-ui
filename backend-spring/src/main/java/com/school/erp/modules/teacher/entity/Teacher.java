@@ -4,6 +4,8 @@ import com.school.erp.common.entity.BaseEntity;
 import com.school.erp.common.enums.Enums;
 import jakarta.persistence.*;
 import java.math.BigDecimal;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 import java.time.LocalDate;
 import java.util.List;
 
@@ -27,12 +29,25 @@ public class Teacher extends BaseEntity {
     @Column(precision = 12, scale = 2)
     private BigDecimal salary;
     @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.VARCHAR)
     @Column(length = 20)
     private Enums.TeacherStatus status;
     @Column(length = 500)
     private String avatar;
     @Column(name = "user_id")
     private Long userId;
+    @Column(name = "bank_account_holder", length = 200)
+    private String bankAccountHolder;
+    @Column(name = "bank_name", length = 120)
+    private String bankName;
+    @Column(name = "bank_account_number", length = 64)
+    private String bankAccountNumber;
+    @Column(name = "bank_ifsc", length = 32)
+    private String bankIfsc;
+    @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.VARCHAR)
+    @Column(name = "library_staff_role", length = 32)
+    private Enums.LibraryStaffRole libraryStaffRole;
     @ElementCollection(fetch = FetchType.EAGER)
     @CollectionTable(name = "teacher_subjects", joinColumns = @JoinColumn(name = "teacher_id"))
     @Column(name = "subject")
@@ -210,6 +225,38 @@ public class Teacher extends BaseEntity {
         return this.userId;
     }
 
+    public String getBankAccountHolder() {
+        return bankAccountHolder;
+    }
+
+    public void setBankAccountHolder(String bankAccountHolder) {
+        this.bankAccountHolder = bankAccountHolder;
+    }
+
+    public String getBankName() {
+        return bankName;
+    }
+
+    public void setBankName(String bankName) {
+        this.bankName = bankName;
+    }
+
+    public String getBankAccountNumber() {
+        return bankAccountNumber;
+    }
+
+    public void setBankAccountNumber(String bankAccountNumber) {
+        this.bankAccountNumber = bankAccountNumber;
+    }
+
+    public String getBankIfsc() {
+        return bankIfsc;
+    }
+
+    public void setBankIfsc(String bankIfsc) {
+        this.bankIfsc = bankIfsc;
+    }
+
     public List<String> getSubjects() {
         return this.subjects;
     }
@@ -260,6 +307,14 @@ public class Teacher extends BaseEntity {
 
     public void setSubjects(final List<String> subjects) {
         this.subjects = subjects;
+    }
+
+    public Enums.LibraryStaffRole getLibraryStaffRole() {
+        return libraryStaffRole;
+    }
+
+    public void setLibraryStaffRole(final Enums.LibraryStaffRole libraryStaffRole) {
+        this.libraryStaffRole = libraryStaffRole;
     }
 
     public Teacher() {

@@ -3,6 +3,8 @@ package com.school.erp.modules.settings.entity;
 import com.school.erp.common.entity.BaseEntity;
 import jakarta.persistence.*;
 
+import java.math.BigDecimal;
+
 @Entity
 @Table(name = "tenant_configs", uniqueConstraints = @UniqueConstraint(columnNames = "tenant_id"))
 public class TenantConfig extends BaseEntity {
@@ -24,6 +26,8 @@ public class TenantConfig extends BaseEntity {
     private String secondaryColor;
     @Column(name = "features_json", columnDefinition = "TEXT")
     private String featuresJson;
+    @Column(name = "library_fine_per_day", precision = 10, scale = 2)
+    private BigDecimal libraryFinePerDay = new BigDecimal("10.00");
 
 
     public static class TenantConfigBuilder {
@@ -160,6 +164,14 @@ public class TenantConfig extends BaseEntity {
 
     public String getFeaturesJson() {
         return this.featuresJson;
+    }
+
+    public BigDecimal getLibraryFinePerDay() {
+        return libraryFinePerDay;
+    }
+
+    public void setLibraryFinePerDay(BigDecimal libraryFinePerDay) {
+        this.libraryFinePerDay = libraryFinePerDay;
     }
 
     public void setSchoolName(final String schoolName) {

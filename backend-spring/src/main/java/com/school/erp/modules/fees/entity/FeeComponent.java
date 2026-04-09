@@ -4,6 +4,8 @@ import com.school.erp.common.entity.BaseEntity;
 import com.school.erp.common.enums.Enums;
 import jakarta.persistence.*;
 import java.math.BigDecimal;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 @Entity
 @Table(name = "fee_components")
@@ -15,6 +17,7 @@ public class FeeComponent extends BaseEntity {
     @Column(nullable = false, precision = 10, scale = 2)
     private BigDecimal amount;
     @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.VARCHAR)
     @Column(length = 20)
     private Enums.FeeComponentType type;
 

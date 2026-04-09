@@ -1,11 +1,16 @@
 package com.school.erp.modules.hostel.entity;
 
 import com.school.erp.common.entity.BaseEntity;
+import com.school.erp.common.enums.Enums;
 import jakarta.persistence.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 @Entity
 @Table(name = "hostel_rooms")
 public class HostelRoom extends BaseEntity {
+    @Column(name = "hostel_id")
+    private Long hostelId;
     @Column(name = "room_number", length = 20)
     private String roomNumber;
     @Column(length = 50)
@@ -15,6 +20,10 @@ public class HostelRoom extends BaseEntity {
     private Integer occupancy = 0;
     @Column(name = "room_type", length = 20)
     private String roomType;
+    @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.VARCHAR)
+    @Column(name = "occupancy_status", length = 30)
+    private Enums.HostelOccupancyStatus occupancyStatus = Enums.HostelOccupancyStatus.AVAILABLE;
 
 
     public static class HostelRoomBuilder {
@@ -90,6 +99,14 @@ public class HostelRoom extends BaseEntity {
         return new HostelRoom.HostelRoomBuilder();
     }
 
+    public Long getHostelId() {
+        return hostelId;
+    }
+
+    public void setHostelId(Long hostelId) {
+        this.hostelId = hostelId;
+    }
+
     public String getRoomNumber() {
         return this.roomNumber;
     }
@@ -112,6 +129,14 @@ public class HostelRoom extends BaseEntity {
 
     public String getRoomType() {
         return this.roomType;
+    }
+
+    public Enums.HostelOccupancyStatus getOccupancyStatus() {
+        return occupancyStatus;
+    }
+
+    public void setOccupancyStatus(Enums.HostelOccupancyStatus occupancyStatus) {
+        this.occupancyStatus = occupancyStatus;
     }
 
     public void setRoomNumber(final String roomNumber) {

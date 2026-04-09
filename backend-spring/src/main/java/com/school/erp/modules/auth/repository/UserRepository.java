@@ -3,6 +3,9 @@ package com.school.erp.modules.auth.repository;
 import com.school.erp.modules.auth.entity.User;
 import com.school.erp.common.enums.Enums;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -17,4 +20,8 @@ public interface UserRepository extends JpaRepository<User, Long> {
     List<User> findByTenantIdAndRoleAndIsDeletedFalse(String tenantId, Enums.Role role);
     long countByRoleAndIsDeletedFalse(Enums.Role role);
     long countByTenantIdAndRoleAndIsDeletedFalse(String tenantId, Enums.Role role);
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("UPDATE User u SET u.isActive = false WHERE u.tenantId = :tenantId AND u.isDeleted = false")
+    int deactivateAllByTenantId(@Param("tenantId") String tenantId);
 }

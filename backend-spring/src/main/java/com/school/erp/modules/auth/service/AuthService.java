@@ -1,5 +1,6 @@
 package com.school.erp.modules.auth.service;
 
+import com.school.erp.common.enums.Enums;
 import com.school.erp.common.exception.BusinessException;
 import com.school.erp.common.exception.DuplicateResourceException;
 import com.school.erp.common.exception.ResourceNotFoundException;
@@ -43,7 +44,14 @@ public class AuthService {
         User user = userRepository.findByEmailAndSchoolCodeAndIsDeletedFalse(request.getEmail(), request.getSchoolCode()).orElseThrow(() -> new UnauthorizedException("Invalid credentials or school code"));
         if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) throw new UnauthorizedException("Invalid credentials or school code");
         if (!user.getIsActive()) throw new BusinessException("Account is deactivated. Contact admin.");
-        String token = jwtUtil.generateToken(user.getId(), user.getTenantId(), user.getEmail(), user.getRole().name(), user.getName());
+        if (user.getRole() != Enums.Role.SUPER_ADMIN) {
+            TenantConfig workspace = tenantConfigRepository.findByTenantId(user.getTenantId())
+                    .orElseThrow(() -> new BusinessException("School workspace is not available."));
+            if (Boolean.TRUE.equals(workspace.getIsDeleted()) || !Boolean.TRUE.equals(workspace.getIsActive())) {
+                throw new BusinessException("This school workspace is suspended or closed. Contact support.");
+            }
+        }
+        String token = jwtUtil.generateToken(user.getId(), user.getTenantId(), user.getEmail(), user.getRole().name(), user.getName(), resolveJwtPermissions(user));
         String refreshToken = issueRefreshToken(user);
         // Log login
         try {
@@ -104,7 +112,7 @@ public class AuthService {
         admin.setIsDeleted(false);
         userRepository.save(admin);
 
-        String token = jwtUtil.generateToken(admin.getId(), admin.getTenantId(), admin.getEmail(), admin.getRole().name(), admin.getName());
+        String token = jwtUtil.generateToken(admin.getId(), admin.getTenantId(), admin.getEmail(), admin.getRole().name(), admin.getName(), jwtPermissionsCsv(admin.getRole()));
         String refreshToken = issueRefreshToken(admin);
         return AuthDTOs.LoginResponse.builder().token(token).refreshToken(refreshToken).user(toProfile(admin)).build();
     }
@@ -142,14 +150,17 @@ public class AuthService {
 
         switch (user.getRole()) {
             case SUPER_ADMIN -> {
-                response.setUserTitle("Platform Administrator");
-                response.setSchoolName("SchoolVault Platform");
+                response.setUserTitle("Platform super administrator");
+                response.setSchoolName("SchoolVault platform operations");
                 response.setSchoolCode("PLATFORM");
                 response.setSchoolEmail("platform@schoolvault.edu");
                 response.setPrimaryColor("#0F172A");
                 response.setSecondaryColor("#0EA5E9");
-                response.setManagedStudentCount(studentRepository.countByIsDeletedFalse());
-                response.setManagedTeacherCount(teacherRepository.countByIsDeletedFalse());
+                response.setManagedStudentCount(0);
+                response.setManagedTeacherCount(0);
+                response.setPlatformWorkspaceCount((int) tenantConfigRepository.findAll().stream()
+                        .filter(c -> !Boolean.TRUE.equals(c.getIsDeleted()))
+                        .count());
             }
             case ADMIN -> {
                 response.setUserTitle("School Administrator");
@@ -166,6 +177,7 @@ public class AuthService {
                 response.setUserTitle("Parent Account");
                 response.setChildCount(studentRepository.countByTenantIdAndParentIdAndIsDeletedFalse(tenantId, userId));
             }
+            case LIBRARY_STAFF -> response.setUserTitle("Library Staff");
             default -> response.setUserTitle("School User");
         }
         return response;
@@ -196,7 +208,7 @@ public class AuthService {
         if (!refreshToken.isActive()) throw new UnauthorizedException("Refresh token expired or revoked");
         User user = userRepository.findByIdAndTenantIdAndIsDeletedFalse(refreshToken.getUserId(), refreshToken.getTenantId()).orElseThrow(() -> new UnauthorizedException("Invalid refresh token"));
         revokeToken(refreshToken);
-        String newToken = jwtUtil.generateToken(user.getId(), user.getTenantId(), user.getEmail(), user.getRole().name(), user.getName());
+        String newToken = jwtUtil.generateToken(user.getId(), user.getTenantId(), user.getEmail(), user.getRole().name(), user.getName(), resolveJwtPermissions(user));
         String newRefreshToken = issueRefreshToken(user);
         return AuthDTOs.TokenResponse.builder().token(newToken).refreshToken(newRefreshToken).build();
     }
@@ -228,6 +240,39 @@ public class AuthService {
         token.setIsActive(false);
         token.setIsDeleted(true);
         refreshTokenRepository.save(token);
+    }
+
+    private String resolveJwtPermissions(User user) {
+        String csv = jwtPermissionsCsv(user.getRole());
+        if (user.getRole() != Enums.Role.TEACHER || user.getTenantId() == null || user.getTenantId().isBlank()) {
+            return csv;
+        }
+        return teacherRepository.findByTenantIdAndUserIdAndIsDeletedFalse(user.getTenantId(), user.getId())
+                .filter(t -> t.getLibraryStaffRole() != null)
+                .map(t -> appendPermissionCsv(csv, "LIBRARY_MANAGE,LIBRARY_CIRCULATION"))
+                .orElse(csv);
+    }
+
+    private static String appendPermissionCsv(String existing, String add) {
+        if (add == null || add.isBlank()) {
+            return existing != null ? existing : "";
+        }
+        if (existing == null || existing.isBlank()) {
+            return add;
+        }
+        return existing + "," + add;
+    }
+
+    private static String jwtPermissionsCsv(Enums.Role role) {
+        if (role == null) {
+            return "";
+        }
+        return switch (role) {
+            case LIBRARY_STAFF -> "LIBRARY_MANAGE,LIBRARY_CIRCULATION";
+            case ADMIN -> "TENANT_ADMIN";
+            case SUPER_ADMIN -> "PLATFORM_ADMIN";
+            case TEACHER, PARENT, STUDENT -> "";
+        };
     }
 
     private String buildTenantId(String schoolCode) {

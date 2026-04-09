@@ -1,6 +1,7 @@
 package com.school.erp.modules.settings.service;
 
 import com.school.erp.common.exception.ResourceNotFoundException;
+import com.school.erp.modules.settings.dto.SchoolBranchDTO;
 import com.school.erp.modules.settings.entity.TenantConfig;
 import com.school.erp.modules.settings.repository.TenantConfigRepository;
 import com.school.erp.tenant.TenantContext;
@@ -8,7 +9,9 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @Service
 public class SettingsService {
@@ -34,6 +37,7 @@ public class SettingsService {
         if (update.getSecondaryColor() != null) config.setSecondaryColor(update.getSecondaryColor());
         if (update.getLogo() != null) config.setLogo(update.getLogo());
         if (update.getFeaturesJson() != null) config.setFeaturesJson(update.getFeaturesJson());
+        if (update.getLibraryFinePerDay() != null) config.setLibraryFinePerDay(update.getLibraryFinePerDay());
         return repo.save(config);
     }
 
@@ -61,6 +65,27 @@ public class SettingsService {
             log.error("Failed to save features JSON", e);
         }
         return flags;
+    }
+
+    /**
+     * All tenant configs that share the same school code (sibling branches / campuses).
+     */
+    @Transactional(readOnly = true)
+    public List<SchoolBranchDTO> listBranchesBySchoolCode(String schoolCodeParam) {
+        String t = TenantContext.getTenantId();
+        TenantConfig self = repo.findByTenantId(t).orElseThrow(() -> new ResourceNotFoundException("Tenant settings not configured"));
+        String code = (schoolCodeParam != null && !schoolCodeParam.isBlank()) ? schoolCodeParam.trim() : self.getSchoolCode();
+        return repo.findAllBySchoolCodeOrderBySchoolNameAsc(code).stream().map(row -> {
+            SchoolBranchDTO d = new SchoolBranchDTO();
+            d.setTenantId(row.getTenantId());
+            d.setSchoolName(row.getSchoolName());
+            d.setSchoolCode(row.getSchoolCode());
+            d.setAddress(row.getAddress());
+            d.setPhone(row.getPhone());
+            d.setEmail(row.getEmail());
+            d.setCurrentTenant(t.equals(row.getTenantId()));
+            return d;
+        }).collect(Collectors.toList());
     }
 
     public SettingsService(final TenantConfigRepository repo, final ObjectMapper objectMapper) {

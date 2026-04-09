@@ -6,7 +6,9 @@ import com.school.erp.common.exception.ResourceNotFoundException;
 import com.school.erp.modules.library.dto.LibraryDTOs;
 import com.school.erp.modules.library.entity.*;
 import com.school.erp.modules.library.repository.*;
+import com.school.erp.modules.settings.repository.TenantConfigRepository;
 import com.school.erp.tenant.TenantContext;
+import com.school.erp.tenant.TenantQueryPolicy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -23,17 +25,20 @@ public class LibraryService {
 
     private final BookRepository bookRepo;
     private final BookIssueRepository issueRepo;
+    private final TenantConfigRepository tenantConfigRepository;
 
-    private static final BigDecimal FINE_PER_DAY = BigDecimal.valueOf(2); // $2 per day overdue
-
-    public LibraryService(BookRepository bookRepo, BookIssueRepository issueRepo) {
+    public LibraryService(BookRepository bookRepo, BookIssueRepository issueRepo, TenantConfigRepository tenantConfigRepository) {
         this.bookRepo = bookRepo;
         this.issueRepo = issueRepo;
+        this.tenantConfigRepository = tenantConfigRepository;
     }
 
     @Transactional(readOnly = true)
-    public List<Book> getBooks(String search) {
+    public List<Book> getBooks(String search, boolean includeInactive) {
         List<Book> books = bookRepo.findByTenantIdAndIsDeletedFalse(TenantContext.getTenantId());
+        if (!includeInactive) {
+            books = books.stream().filter(b -> !Boolean.FALSE.equals(b.getIsActive())).toList();
+        }
         if (search != null && !search.isBlank()) {
             String s = search.toLowerCase();
             return books.stream().filter(b ->
@@ -46,18 +51,45 @@ public class LibraryService {
     @Transactional
     public Book addBook(Book book) {
         book.setTenantId(TenantContext.getTenantId());
+        if (book.getIsActive() == null) {
+            book.setIsActive(true);
+        }
         if (book.getAvailableCopies() == null) book.setAvailableCopies(book.getTotalCopies());
+        return bookRepo.save(book);
+    }
+
+    private Book requireBook(Long bookId) {
+        String t = TenantContext.getTenantId();
+        if (TenantQueryPolicy.isPlatformSuperAdmin()) {
+            return bookRepo.findById(bookId).filter(b -> !Boolean.TRUE.equals(b.getIsDeleted())).orElseThrow(() -> new ResourceNotFoundException("Book", bookId));
+        }
+        return bookRepo.findByIdAndTenantIdAndIsDeletedFalse(bookId, t).orElseThrow(() -> new ResourceNotFoundException("Book", bookId));
+    }
+
+    private BookIssue requireIssue(Long issueId) {
+        String t = TenantContext.getTenantId();
+        if (TenantQueryPolicy.isPlatformSuperAdmin()) {
+            return issueRepo.findById(issueId).filter(i -> !Boolean.TRUE.equals(i.getIsDeleted())).orElseThrow(() -> new ResourceNotFoundException("BookIssue", issueId));
+        }
+        return issueRepo.findByIdAndTenantIdAndIsDeletedFalse(issueId, t).orElseThrow(() -> new ResourceNotFoundException("BookIssue", issueId));
+    }
+
+    @Transactional
+    public Book setCatalogActive(Long bookId, boolean active) {
+        Book book = requireBook(bookId);
+        book.setIsActive(active);
         return bookRepo.save(book);
     }
 
     @Transactional
     public LibraryDTOs.BookIssueResponse issueBook(LibraryDTOs.IssueBookRequest req) {
-        String t = TenantContext.getTenantId();
-        Book book = bookRepo.findById(req.getBookId()).orElseThrow(() -> new ResourceNotFoundException("Book", req.getBookId()));
-        if (!book.getTenantId().equals(t)) throw new BusinessException("Book not found");
+        Book book = requireBook(req.getBookId());
+        String t = book.getTenantId();
+        if (Boolean.FALSE.equals(book.getIsActive())) {
+            throw new BusinessException("This title is inactive in the catalog");
+        }
         if (book.getAvailableCopies() <= 0) throw new BusinessException("No copies available for: " + book.getTitle());
 
-        // Decrease available copies
         book.setAvailableCopies(book.getAvailableCopies() - 1);
         bookRepo.save(book);
 
@@ -78,25 +110,32 @@ public class LibraryService {
     }
 
     @Transactional
-    public LibraryDTOs.BookIssueResponse returnBook(Long issueId) {
-        String t = TenantContext.getTenantId();
-        BookIssue issue = issueRepo.findById(issueId).orElseThrow(() -> new ResourceNotFoundException("BookIssue", issueId));
-        if (!issue.getTenantId().equals(t)) throw new BusinessException("Issue not found");
+    public LibraryDTOs.BookIssueResponse returnBook(Long issueId, LibraryDTOs.ReturnBookRequest req) {
+        BookIssue issue = requireIssue(issueId);
+        String t = issue.getTenantId();
         if (issue.getStatus() == Enums.BookIssueStatus.RETURNED) throw new BusinessException("Book already returned");
 
-        issue.setReturnDate(LocalDate.now());
+        LocalDate returnDate = LocalDate.now();
+        if (req != null && req.getReturnDate() != null && !req.getReturnDate().isBlank()) {
+            returnDate = LocalDate.parse(req.getReturnDate().trim());
+        }
+
+        BigDecimal perDay = resolveFinePerDay(t, req != null ? req.getFinePerDay() : null);
+
+        issue.setReturnDate(returnDate);
         issue.setStatus(Enums.BookIssueStatus.RETURNED);
 
-        // Calculate fine if overdue
-        if (LocalDate.now().isAfter(issue.getDueDate())) {
-            long daysOverdue = ChronoUnit.DAYS.between(issue.getDueDate(), LocalDate.now());
-            issue.setFine(FINE_PER_DAY.multiply(BigDecimal.valueOf(daysOverdue)));
+        if (returnDate.isAfter(issue.getDueDate())) {
+            long daysOverdue = ChronoUnit.DAYS.between(issue.getDueDate(), returnDate);
+            if (daysOverdue < 0) daysOverdue = 0;
+            issue.setFine(perDay.multiply(BigDecimal.valueOf(daysOverdue)));
+        } else {
+            issue.setFine(BigDecimal.ZERO);
         }
 
         issueRepo.save(issue);
 
-        // Increase available copies
-        Book book = bookRepo.findById(issue.getBookId()).orElse(null);
+        Book book = bookRepo.findByIdAndTenantIdAndIsDeletedFalse(issue.getBookId(), t).orElse(null);
         if (book != null) {
             book.setAvailableCopies(book.getAvailableCopies() + 1);
             bookRepo.save(book);
@@ -106,11 +145,19 @@ public class LibraryService {
         return toIssueResponse(issue);
     }
 
+    private BigDecimal resolveFinePerDay(String tenantId, BigDecimal override) {
+        if (override != null && override.compareTo(BigDecimal.ZERO) > 0) {
+            return override;
+        }
+        return tenantConfigRepository.findByTenantId(tenantId)
+                .map(c -> c.getLibraryFinePerDay() != null ? c.getLibraryFinePerDay() : BigDecimal.TEN)
+                .orElse(BigDecimal.TEN);
+    }
+
     @Transactional(readOnly = true)
     public List<LibraryDTOs.BookIssueResponse> getIssues(Enums.BookIssueStatus status) {
         List<BookIssue> issues = issueRepo.findByTenantIdAndIsDeletedFalse(TenantContext.getTenantId());
         if (status != null) issues = issues.stream().filter(i -> i.getStatus() == status).toList();
-        // Auto-mark overdue
         issues.forEach(i -> {
             if (i.getStatus() == Enums.BookIssueStatus.ISSUED && i.getDueDate() != null && LocalDate.now().isAfter(i.getDueDate())) {
                 i.setStatus(Enums.BookIssueStatus.OVERDUE);

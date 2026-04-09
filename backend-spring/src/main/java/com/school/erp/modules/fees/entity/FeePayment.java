@@ -4,6 +4,8 @@ import com.school.erp.common.entity.BaseEntity;
 import com.school.erp.common.enums.Enums;
 import jakarta.persistence.*;
 import java.math.BigDecimal;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 import java.time.LocalDate;
 
 @Entity
@@ -22,6 +24,7 @@ public class FeePayment extends BaseEntity {
     @Column(name = "due_amount", precision = 12, scale = 2)
     private BigDecimal dueAmount;
     @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.VARCHAR)
     @Column(length = 10)
     private Enums.FeeStatus status;
     @Column(name = "payment_date")

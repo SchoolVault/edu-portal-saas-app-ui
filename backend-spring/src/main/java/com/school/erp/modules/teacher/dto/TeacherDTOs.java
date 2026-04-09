@@ -566,6 +566,8 @@ public class TeacherDTOs {
         private List<String> subjects;
         private String avatar;
         private String tenantId;
+        private Long userId;
+        private String libraryStaffRole;
 
 
         public static class ResponseBuilder {
@@ -806,6 +808,22 @@ public class TeacherDTOs {
 
         public void setTenantId(final String tenantId) {
             this.tenantId = tenantId;
+        }
+
+        public Long getUserId() {
+            return userId;
+        }
+
+        public void setUserId(final Long userId) {
+            this.userId = userId;
+        }
+
+        public String getLibraryStaffRole() {
+            return libraryStaffRole;
+        }
+
+        public void setLibraryStaffRole(final String libraryStaffRole) {
+            this.libraryStaffRole = libraryStaffRole;
         }
 
         @Override

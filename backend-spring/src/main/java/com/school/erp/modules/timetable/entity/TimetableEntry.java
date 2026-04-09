@@ -4,15 +4,24 @@ import com.school.erp.common.entity.BaseEntity;
 import com.school.erp.common.enums.Enums;
 import jakarta.persistence.*;
 import java.time.LocalTime;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 @Entity
 @Table(name = "timetable_entries", indexes = {@Index(name = "idx_tt_class_section", columnList = "tenant_id, class_id, section_id"), @Index(name = "idx_tt_teacher", columnList = "tenant_id, teacher_id")})
 public class TimetableEntry extends BaseEntity {
+    @Column(name = "academic_year_id")
+    private Long academicYearId;
+    @Column(name = "timetable_version")
+    private Integer timetableVersion = 1;
+    @Column(name = "has_conflict")
+    private Boolean hasConflict = false;
     @Column(name = "class_id", nullable = false)
     private Long classId;
-    @Column(name = "section_id", nullable = false)
+    @Column(name = "section_id")
     private Long sectionId;
     @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.VARCHAR)
     @Column(nullable = false, length = 10)
     private Enums.DayOfWeek day;
     @Column(nullable = false)
@@ -138,6 +147,30 @@ public class TimetableEntry extends BaseEntity {
 
     public static TimetableEntry.TimetableEntryBuilder builder() {
         return new TimetableEntry.TimetableEntryBuilder();
+    }
+
+    public Long getAcademicYearId() {
+        return academicYearId;
+    }
+
+    public void setAcademicYearId(Long academicYearId) {
+        this.academicYearId = academicYearId;
+    }
+
+    public Integer getTimetableVersion() {
+        return timetableVersion;
+    }
+
+    public void setTimetableVersion(Integer timetableVersion) {
+        this.timetableVersion = timetableVersion;
+    }
+
+    public Boolean getHasConflict() {
+        return hasConflict;
+    }
+
+    public void setHasConflict(Boolean hasConflict) {
+        this.hasConflict = hasConflict;
     }
 
     public Long getClassId() {

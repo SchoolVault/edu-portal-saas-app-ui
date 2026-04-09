@@ -182,10 +182,41 @@ public class AcademicWorkflowDTOs {
         }
     }
 
+    public static class PromotedStudentRow {
+        private Long studentId;
+        private String fullName;
+        private String rollNumber;
+
+        public Long getStudentId() {
+            return studentId;
+        }
+
+        public void setStudentId(Long studentId) {
+            this.studentId = studentId;
+        }
+
+        public String getFullName() {
+            return fullName;
+        }
+
+        public void setFullName(String fullName) {
+            this.fullName = fullName;
+        }
+
+        public String getRollNumber() {
+            return rollNumber;
+        }
+
+        public void setRollNumber(String rollNumber) {
+            this.rollNumber = rollNumber;
+        }
+    }
+
     public static class PromotionResultResponse {
         private int promotedCount;
         private String targetClassName;
         private String targetSectionName;
+        private List<PromotedStudentRow> promotedStudents = new ArrayList<>();
 
         public int getPromotedCount() {
             return this.promotedCount;
@@ -209,6 +240,14 @@ public class AcademicWorkflowDTOs {
 
         public void setTargetSectionName(final String targetSectionName) {
             this.targetSectionName = targetSectionName;
+        }
+
+        public List<PromotedStudentRow> getPromotedStudents() {
+            return promotedStudents;
+        }
+
+        public void setPromotedStudents(List<PromotedStudentRow> promotedStudents) {
+            this.promotedStudents = promotedStudents != null ? promotedStudents : new ArrayList<>();
         }
     }
 }

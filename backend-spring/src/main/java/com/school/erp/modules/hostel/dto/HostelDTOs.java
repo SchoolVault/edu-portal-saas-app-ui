@@ -15,6 +15,8 @@ public class HostelDTOs {
         private int occupancy;
         private String roomType;
         private List<AllocationDTO> residents;
+        private Long hostelId;
+        private String hostelName;
 
 
         public static class RoomResponseBuilder {
@@ -138,6 +140,22 @@ public class HostelDTOs {
 
         public List<AllocationDTO> getResidents() {
             return this.residents;
+        }
+
+        public Long getHostelId() {
+            return hostelId;
+        }
+
+        public void setHostelId(Long hostelId) {
+            this.hostelId = hostelId;
+        }
+
+        public String getHostelName() {
+            return hostelName;
+        }
+
+        public void setHostelName(String hostelName) {
+            this.hostelName = hostelName;
         }
 
         public void setId(final Long id) {
@@ -782,6 +800,63 @@ public class HostelDTOs {
             this.totalOccupancy = totalOccupancy;
             this.availableBeds = availableBeds;
             this.blocks = blocks;
+        }
+    }
+
+    public static class HostelSummary {
+        private Long id;
+        private String name;
+        private String code;
+        private String genderScope;
+        private int roomCount;
+        private int availableBeds;
+
+        public Long getId() {
+            return id;
+        }
+
+        public void setId(Long id) {
+            this.id = id;
+        }
+
+        public String getName() {
+            return name;
+        }
+
+        public void setName(String name) {
+            this.name = name;
+        }
+
+        public String getCode() {
+            return code;
+        }
+
+        public void setCode(String code) {
+            this.code = code;
+        }
+
+        public String getGenderScope() {
+            return genderScope;
+        }
+
+        public void setGenderScope(String genderScope) {
+            this.genderScope = genderScope;
+        }
+
+        public int getRoomCount() {
+            return roomCount;
+        }
+
+        public void setRoomCount(int roomCount) {
+            this.roomCount = roomCount;
+        }
+
+        public int getAvailableBeds() {
+            return availableBeds;
+        }
+
+        public void setAvailableBeds(int availableBeds) {
+            this.availableBeds = availableBeds;
         }
     }
 }

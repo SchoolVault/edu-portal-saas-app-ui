@@ -4,6 +4,8 @@ import com.school.erp.common.entity.BaseEntity;
 import com.school.erp.common.enums.Enums;
 import jakarta.persistence.*;
 import java.time.LocalDate;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 @Entity
 @Table(name = "hostel_allocations", indexes = {@Index(name = "idx_ha_student", columnList = "tenant_id, student_id"), @Index(name = "idx_ha_room", columnList = "tenant_id, room_id")})
@@ -21,6 +23,7 @@ public class HostelAllocation extends BaseEntity {
     @Column(name = "to_date")
     private LocalDate toDate;
     @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.VARCHAR)
     @Column(length = 10)
     private Enums.HostelAllocationStatus status;
 

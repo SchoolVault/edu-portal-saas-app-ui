@@ -1582,4 +1582,56 @@ public class StudentDTOs {
             this.studentIds = studentIds;
         }
     }
+
+    /** Per-row outcome when importing many students (partial success). */
+    public static class BulkUploadReport {
+        private java.util.List<Response> successes = new java.util.ArrayList<>();
+        private java.util.List<BulkRowError> errors = new java.util.ArrayList<>();
+
+        public java.util.List<Response> getSuccesses() {
+            return successes;
+        }
+
+        public void setSuccesses(java.util.List<Response> successes) {
+            this.successes = successes;
+        }
+
+        public java.util.List<BulkRowError> getErrors() {
+            return errors;
+        }
+
+        public void setErrors(java.util.List<BulkRowError> errors) {
+            this.errors = errors;
+        }
+    }
+
+    public static class BulkRowError {
+        private int rowIndex;
+        private String admissionNumber;
+        private String message;
+
+        public int getRowIndex() {
+            return rowIndex;
+        }
+
+        public void setRowIndex(int rowIndex) {
+            this.rowIndex = rowIndex;
+        }
+
+        public String getAdmissionNumber() {
+            return admissionNumber;
+        }
+
+        public void setAdmissionNumber(String admissionNumber) {
+            this.admissionNumber = admissionNumber;
+        }
+
+        public String getMessage() {
+            return message;
+        }
+
+        public void setMessage(String message) {
+            this.message = message;
+        }
+    }
 }

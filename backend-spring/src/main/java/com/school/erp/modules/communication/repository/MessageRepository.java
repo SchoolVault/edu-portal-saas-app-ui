@@ -4,8 +4,11 @@ import com.school.erp.modules.communication.entity.Message;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import java.util.List;
+import java.util.Optional;
 
 public interface MessageRepository extends JpaRepository<Message, Long> {
+    Optional<Message> findByIdAndTenantIdAndIsDeletedFalse(Long id, String tenantId);
+
     @Query("SELECT m FROM Message m WHERE m.tenantId = :t AND (m.senderId = :userId OR m.receiverId = :userId) AND m.isDeleted = false ORDER BY m.createdAt DESC")
     List<Message> findUserMessages(String t, Long userId);
 

@@ -1,11 +1,22 @@
 package com.school.erp.common.entity;
 
+import com.school.erp.tenant.hibernate.TenantScopedFilter;
 import jakarta.persistence.*;
+import org.hibernate.annotations.Filter;
+import org.hibernate.annotations.FilterDef;
+import org.hibernate.annotations.ParamDef;
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 import java.time.LocalDateTime;
 
+/**
+ * All concrete entities inherit {@code tenant_id}. Hibernate filter {@value TenantScopedFilter#NAME} is applied
+ * automatically per transaction (see {@link com.school.erp.tenant.hibernate.TenantAwareJpaTransactionManager})
+ * except for platform {@code SUPER_ADMIN}. Explicit repository tenant predicates remain the primary contract.
+ */
+@FilterDef(name = TenantScopedFilter.NAME, parameters = @ParamDef(name = "tenantId", type = String.class))
+@Filter(name = TenantScopedFilter.NAME, condition = "tenant_id = :tenantId")
 @MappedSuperclass
 @EntityListeners(AuditingEntityListener.class)
 public abstract class BaseEntity {

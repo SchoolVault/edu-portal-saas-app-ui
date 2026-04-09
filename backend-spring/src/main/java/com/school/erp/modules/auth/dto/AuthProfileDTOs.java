@@ -25,6 +25,8 @@ public class AuthProfileDTOs {
         private long subjectCount;
         private long managedStudentCount;
         private long managedTeacherCount;
+        /** Populated for SUPER_ADMIN: active (non-deleted) school workspaces. */
+        private int platformWorkspaceCount;
 
         public Long getId() { return id; }
         public void setId(Long id) { this.id = id; }
@@ -70,5 +72,7 @@ public class AuthProfileDTOs {
         public void setManagedStudentCount(long managedStudentCount) { this.managedStudentCount = managedStudentCount; }
         public long getManagedTeacherCount() { return managedTeacherCount; }
         public void setManagedTeacherCount(long managedTeacherCount) { this.managedTeacherCount = managedTeacherCount; }
+        public int getPlatformWorkspaceCount() { return platformWorkspaceCount; }
+        public void setPlatformWorkspaceCount(int platformWorkspaceCount) { this.platformWorkspaceCount = platformWorkspaceCount; }
     }
 }

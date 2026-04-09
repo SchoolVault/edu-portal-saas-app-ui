@@ -1,3 +1,7 @@
+app:
+  demo-seed:
+    enabled: false
+
 spring:
   datasource:
     url: ${DB_URL}

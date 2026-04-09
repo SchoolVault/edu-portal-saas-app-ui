@@ -5,8 +5,12 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.util.List;
+import java.util.Optional;
+
 public interface AnnouncementRepository extends JpaRepository<Announcement, Long> {
     List<Announcement> findByTenantIdAndIsDeletedFalseOrderByCreatedAtDesc(String tenantId);
+
+    Optional<Announcement> findByIdAndTenantIdAndIsDeletedFalse(Long id, String tenantId);
 
     @Query("""
             select a from Announcement a

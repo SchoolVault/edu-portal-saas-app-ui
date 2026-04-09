@@ -5,6 +5,18 @@ import java.math.BigDecimal;
 
 public class LibraryDTOs {
 
+    public static class CatalogActiveRequest {
+        private Boolean active;
+
+        public Boolean getActive() {
+            return active;
+        }
+
+        public void setActive(Boolean active) {
+            this.active = active;
+        }
+    }
+
     public static class IssueBookRequest {
         @NotNull
         private Long bookId;
@@ -449,6 +461,29 @@ public class LibraryDTOs {
             this.returnDate = returnDate;
             this.fine = fine;
             this.status = status;
+        }
+    }
+
+    public static class ReturnBookRequest {
+        /** ISO date; defaults to today if blank */
+        private String returnDate;
+        /** Overrides tenant default per-day overdue rate when set */
+        private BigDecimal finePerDay;
+
+        public String getReturnDate() {
+            return returnDate;
+        }
+
+        public void setReturnDate(String returnDate) {
+            this.returnDate = returnDate;
+        }
+
+        public BigDecimal getFinePerDay() {
+            return finePerDay;
+        }
+
+        public void setFinePerDay(BigDecimal finePerDay) {
+            this.finePerDay = finePerDay;
         }
     }
 }

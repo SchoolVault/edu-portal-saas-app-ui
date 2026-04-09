@@ -3,6 +3,8 @@ package com.school.erp.modules.library.entity;
 import com.school.erp.common.entity.BaseEntity;
 import com.school.erp.common.enums.Enums;
 import jakarta.persistence.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -29,6 +31,7 @@ public class BookIssue extends BaseEntity {
     @Column(precision = 8, scale = 2)
     private BigDecimal fine;
     @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.VARCHAR)
     @Column(length = 10)
     private Enums.BookIssueStatus status;
 

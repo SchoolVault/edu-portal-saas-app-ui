@@ -684,4 +684,153 @@ public class PayrollDTOs {
             this.year = year;
         }
     }
+
+    /** Admin: teachers on payroll with masked bank details for disbursement. */
+    public static class TeacherPaymentDetailsResponse {
+        private Long teacherId;
+        private String teacherName;
+        private BigDecimal monthlyNetSalary;
+        private String bankAccountHolder;
+        private String bankName;
+        private String bankAccountMasked;
+        private String bankIfsc;
+        private boolean bankDetailsComplete;
+
+        public Long getTeacherId() {
+            return teacherId;
+        }
+
+        public void setTeacherId(Long teacherId) {
+            this.teacherId = teacherId;
+        }
+
+        public String getTeacherName() {
+            return teacherName;
+        }
+
+        public void setTeacherName(String teacherName) {
+            this.teacherName = teacherName;
+        }
+
+        public BigDecimal getMonthlyNetSalary() {
+            return monthlyNetSalary;
+        }
+
+        public void setMonthlyNetSalary(BigDecimal monthlyNetSalary) {
+            this.monthlyNetSalary = monthlyNetSalary;
+        }
+
+        public String getBankAccountHolder() {
+            return bankAccountHolder;
+        }
+
+        public void setBankAccountHolder(String bankAccountHolder) {
+            this.bankAccountHolder = bankAccountHolder;
+        }
+
+        public String getBankName() {
+            return bankName;
+        }
+
+        public void setBankName(String bankName) {
+            this.bankName = bankName;
+        }
+
+        public String getBankAccountMasked() {
+            return bankAccountMasked;
+        }
+
+        public void setBankAccountMasked(String bankAccountMasked) {
+            this.bankAccountMasked = bankAccountMasked;
+        }
+
+        public String getBankIfsc() {
+            return bankIfsc;
+        }
+
+        public void setBankIfsc(String bankIfsc) {
+            this.bankIfsc = bankIfsc;
+        }
+
+        public boolean isBankDetailsComplete() {
+            return bankDetailsComplete;
+        }
+
+        public void setBankDetailsComplete(boolean bankDetailsComplete) {
+            this.bankDetailsComplete = bankDetailsComplete;
+        }
+    }
+
+    /** Admin: submit net salary to bank using teacher profile & generated payslip for the period. */
+    public static class DisburseSalaryRequest {
+        @jakarta.validation.constraints.NotNull
+        private Long teacherId;
+        @jakarta.validation.constraints.NotNull
+        private String month;
+        @jakarta.validation.constraints.NotNull
+        private Integer year;
+
+        public Long getTeacherId() {
+            return teacherId;
+        }
+
+        public void setTeacherId(Long teacherId) {
+            this.teacherId = teacherId;
+        }
+
+        public String getMonth() {
+            return month;
+        }
+
+        public void setMonth(String month) {
+            this.month = month;
+        }
+
+        public Integer getYear() {
+            return year;
+        }
+
+        public void setYear(Integer year) {
+            this.year = year;
+        }
+    }
+
+    public static class DisburseSalaryResponse {
+        private String referenceId;
+        private java.math.BigDecimal amount;
+        private String teacherName;
+        private String message;
+
+        public String getReferenceId() {
+            return referenceId;
+        }
+
+        public void setReferenceId(String referenceId) {
+            this.referenceId = referenceId;
+        }
+
+        public java.math.BigDecimal getAmount() {
+            return amount;
+        }
+
+        public void setAmount(java.math.BigDecimal amount) {
+            this.amount = amount;
+        }
+
+        public String getTeacherName() {
+            return teacherName;
+        }
+
+        public void setTeacherName(String teacherName) {
+            this.teacherName = teacherName;
+        }
+
+        public String getMessage() {
+            return message;
+        }
+
+        public void setMessage(String message) {
+            this.message = message;
+        }
+    }
 }

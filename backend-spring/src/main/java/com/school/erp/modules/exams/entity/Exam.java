@@ -4,6 +4,8 @@ import com.school.erp.common.entity.BaseEntity;
 import com.school.erp.common.enums.Enums;
 import jakarta.persistence.*;
 import java.time.LocalDate;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -23,8 +25,13 @@ public class Exam extends BaseEntity {
     @Column(name = "class_id")
     private List<Long> classIds = new ArrayList<>();
     @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.VARCHAR)
     @Column(length = 20)
     private Enums.ExamStatus status;
+    @Column(name = "results_published")
+    private Boolean resultsPublished = false;
+    @Column(name = "grading_config_json", columnDefinition = "json")
+    private String gradingConfigJson;
 
 
     public static class ExamBuilder {
@@ -119,6 +126,22 @@ public class Exam extends BaseEntity {
 
     public Enums.ExamStatus getStatus() {
         return this.status;
+    }
+
+    public Boolean getResultsPublished() {
+        return resultsPublished;
+    }
+
+    public void setResultsPublished(Boolean resultsPublished) {
+        this.resultsPublished = resultsPublished;
+    }
+
+    public String getGradingConfigJson() {
+        return gradingConfigJson;
+    }
+
+    public void setGradingConfigJson(String gradingConfigJson) {
+        this.gradingConfigJson = gradingConfigJson;
     }
 
     public void setName(final String name) {

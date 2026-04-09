@@ -1,13 +1,23 @@
 package com.school.erp.modules.exams.service;
 
 import com.school.erp.common.enums.Enums;
+import com.school.erp.common.exception.BusinessException;
 import com.school.erp.common.exception.ResourceNotFoundException;
+import com.school.erp.modules.academic.entity.SchoolClass;
+import com.school.erp.modules.academic.entity.Section;
+import com.school.erp.modules.academic.repository.SchoolClassRepository;
+import com.school.erp.modules.academic.repository.SectionRepository;
 import com.school.erp.modules.exams.dto.ExamDTOs;
+import com.school.erp.modules.exams.dto.ExamScopeDtos;
 import com.school.erp.modules.exams.entity.*;
 import com.school.erp.modules.exams.repository.*;
 import com.school.erp.tenant.TenantContext;
+import com.school.erp.tenant.TenantQueryPolicy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import java.time.LocalDate;
+import java.time.LocalTime;
+import java.time.format.DateTimeParseException;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -16,27 +26,105 @@ public class ExamService {
     private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(ExamService.class);
     private final ExamRepository examRepo;
     private final MarkRecordRepository markRepo;
+    private final ExamClassScopeRepository scopeRepo;
+    private final ExamScheduleSlotRepository scheduleRepo;
+    private final SchoolClassRepository classRepo;
+    private final SectionRepository sectionRepo;
 
     @Transactional(readOnly = true)
     public List<ExamDTOs.ExamResponse> getExams() {
-        return examRepo.findByTenantIdAndIsDeletedFalse(TenantContext.getTenantId()).stream().map(e -> ExamDTOs.ExamResponse.builder().id(e.getId()).name(e.getName()).academicYearId(e.getAcademicYearId()).startDate(e.getStartDate() != null ? e.getStartDate().toString() : null).endDate(e.getEndDate() != null ? e.getEndDate().toString() : null).classIds(e.getClassIds()).status(e.getStatus() != null ? e.getStatus().name().toLowerCase() : null).build()).collect(Collectors.toList());
+        String t = TenantContext.getTenantId();
+        return examRepo.findByTenantIdAndIsDeletedFalse(t).stream().map(this::toExamResponse).collect(Collectors.toList());
     }
 
     @Transactional
     public ExamDTOs.ExamResponse createExam(ExamDTOs.CreateExamRequest req) {
-        Exam exam = Exam.builder().name(req.getName()).academicYearId(req.getAcademicYearId()).startDate(req.getStartDate()).endDate(req.getEndDate()).classIds(req.getClassIds()).status(Enums.ExamStatus.UPCOMING).build();
-        exam.setTenantId(TenantContext.getTenantId());
+        String tenant = TenantContext.getTenantId();
+        List<Long> classIds = resolveClassIdsForCreate(req);
+        if (classIds == null || classIds.isEmpty()) {
+            throw new BusinessException("At least one class is required");
+        }
+        Exam exam = Exam.builder()
+                .name(req.getName())
+                .academicYearId(req.getAcademicYearId())
+                .startDate(req.getStartDate())
+                .endDate(req.getEndDate())
+                .classIds(classIds)
+                .status(Enums.ExamStatus.UPCOMING)
+                .build();
+        exam.setTenantId(tenant);
         examRepo.save(exam);
+        persistClassScopes(tenant, exam.getId(), req, classIds);
         log.info("Exam created: {}", exam.getName());
-        return ExamDTOs.ExamResponse.builder().id(exam.getId()).name(exam.getName()).academicYearId(exam.getAcademicYearId()).startDate(exam.getStartDate() != null ? exam.getStartDate().toString() : null).endDate(exam.getEndDate() != null ? exam.getEndDate().toString() : null).classIds(exam.getClassIds()).status("upcoming").build();
+        return toExamResponse(exam);
     }
 
     @Transactional
     public ExamDTOs.ExamResponse updateExamStatus(Long examId, String status) {
-        Exam exam = examRepo.findById(examId).orElseThrow(() -> new ResourceNotFoundException("Exam", examId));
+        Exam exam = requireExam(examId);
         exam.setStatus(Enums.ExamStatus.valueOf(status.toUpperCase()));
         examRepo.save(exam);
-        return ExamDTOs.ExamResponse.builder().id(exam.getId()).name(exam.getName()).academicYearId(exam.getAcademicYearId()).startDate(exam.getStartDate() != null ? exam.getStartDate().toString() : null).endDate(exam.getEndDate() != null ? exam.getEndDate().toString() : null).classIds(exam.getClassIds()).status(exam.getStatus().name().toLowerCase()).build();
+        return toExamResponse(exam);
+    }
+
+    @Transactional
+    public ExamDTOs.ExamResponse setResultsPublished(Long examId, boolean published) {
+        Exam exam = requireExam(examId);
+        exam.setResultsPublished(published);
+        examRepo.save(exam);
+        return toExamResponse(exam);
+    }
+
+    @Transactional(readOnly = true)
+    public List<ExamScopeDtos.ScheduleSlotOut> getSchedule(Long examId) {
+        Exam exam = requireExam(examId);
+        String examTenant = exam.getTenantId();
+        return scheduleRepo.findByTenantIdAndExamIdAndIsDeletedFalseOrderByExamDateAscStartTimeAsc(examTenant, examId).stream().map(this::toScheduleOut).collect(Collectors.toList());
+    }
+
+    @Transactional
+    public List<ExamScopeDtos.ScheduleSlotOut> replaceSchedule(Long examId, ExamScopeDtos.ReplaceScheduleRequest body) {
+        Exam exam = requireExam(examId);
+        String t = exam.getTenantId();
+        List<ExamScheduleSlot> existing = scheduleRepo.findByTenantIdAndExamIdAndIsDeletedFalseOrderByExamDateAscStartTimeAsc(t, examId);
+        for (ExamScheduleSlot s : existing) {
+            s.setIsDeleted(true);
+        }
+        scheduleRepo.saveAll(existing);
+        List<ExamScheduleSlot> created = new ArrayList<>();
+        if (body.getSlots() != null) {
+            for (ExamScopeDtos.ScheduleSlotIn in : body.getSlots()) {
+                if (in.getClassId() == null || in.getSubjectName() == null || in.getSubjectName().isBlank()) {
+                    continue;
+                }
+                LocalDate d;
+                LocalTime st;
+                LocalTime et;
+                try {
+                    d = LocalDate.parse(in.getExamDate());
+                    st = LocalTime.parse(in.getStartTime());
+                    et = LocalTime.parse(in.getEndTime());
+                } catch (DateTimeParseException | NullPointerException ex) {
+                    throw new BusinessException("Invalid date or time on schedule row: " + in.getSubjectName());
+                }
+                ExamScheduleSlot row = new ExamScheduleSlot();
+                row.setTenantId(t);
+                row.setExamId(examId);
+                row.setClassId(in.getClassId());
+                row.setSectionId(in.getSectionId());
+                row.setSubjectName(in.getSubjectName().trim());
+                row.setExamDate(d);
+                row.setStartTime(st);
+                row.setEndTime(et);
+                row.setRoom(in.getRoom());
+                row.setNotes(in.getNotes());
+                row.setIsDeleted(false);
+                created.add(row);
+            }
+        }
+        scheduleRepo.saveAll(created);
+        log.info("Exam schedule replaced: exam={} rows={}", examId, created.size());
+        return created.stream().map(this::toScheduleOut).collect(Collectors.toList());
     }
 
     @Transactional(readOnly = true)
@@ -55,7 +143,16 @@ public class ExamService {
         List<MarkRecord> records = req.getMarks().stream().map(m -> {
             double pct = m.getMaxMarks() > 0 ? (m.getMarksObtained() / m.getMaxMarks()) * 100 : 0;
             String grade = pct >= 90 ? "A+" : pct >= 80 ? "A" : pct >= 70 ? "B+" : pct >= 60 ? "B" : pct >= 50 ? "C" : pct >= 40 ? "D" : "F";
-            MarkRecord rec = MarkRecord.builder().examId(req.getExamId()).studentId(m.getStudentId()).studentName(m.getStudentName()).subjectName(m.getSubjectName()).marksObtained(m.getMarksObtained()).maxMarks(m.getMaxMarks()).grade(grade).classId(m.getClassId()).build();
+            MarkRecord rec = MarkRecord.builder()
+                    .examId(req.getExamId())
+                    .studentId(m.getStudentId())
+                    .studentName(m.getStudentName())
+                    .subjectName(m.getSubjectName())
+                    .marksObtained(m.getMarksObtained())
+                    .maxMarks(m.getMaxMarks())
+                    .grade(grade)
+                    .classId(m.getClassId())
+                    .build();
             rec.setTenantId(t);
             return rec;
         }).collect(Collectors.toList());
@@ -72,15 +169,143 @@ public class ExamService {
         double totalMax = marks.stream().mapToDouble(MarkRecord::getMaxMarks).sum();
         double overallPct = totalMax > 0 ? (totalObtained / totalMax) * 100 : 0;
         String overallGrade = overallPct >= 90 ? "A+" : overallPct >= 80 ? "A" : overallPct >= 70 ? "B+" : overallPct >= 60 ? "B" : overallPct >= 50 ? "C" : "D";
-        return ExamDTOs.ReportCardResponse.builder().studentId(studentId).studentName(marks.isEmpty() ? "" : marks.get(0).getStudentName()).subjects(marks.stream().map(this::toMarkResponse).collect(Collectors.toList())).totalMarks(totalObtained).totalMaxMarks(totalMax).overallPercentage(Math.round(overallPct * 10) / 10.0).overallGrade(overallGrade).build();
+        return ExamDTOs.ReportCardResponse.builder()
+                .studentId(studentId)
+                .studentName(marks.isEmpty() ? "" : marks.get(0).getStudentName())
+                .subjects(marks.stream().map(this::toMarkResponse).collect(Collectors.toList()))
+                .totalMarks(totalObtained)
+                .totalMaxMarks(totalMax)
+                .overallPercentage(Math.round(overallPct * 10) / 10.0)
+                .overallGrade(overallGrade)
+                .build();
+    }
+
+    private Exam requireExam(Long examId) {
+        String ctx = TenantContext.getTenantId();
+        if (TenantQueryPolicy.isPlatformSuperAdmin()) {
+            return examRepo.findById(examId).filter(e -> !Boolean.TRUE.equals(e.getIsDeleted())).orElseThrow(() -> new ResourceNotFoundException("Exam", examId));
+        }
+        return examRepo.findByIdAndTenantIdAndIsDeletedFalse(examId, ctx).orElseThrow(() -> new ResourceNotFoundException("Exam", examId));
+    }
+
+    private List<Long> resolveClassIdsForCreate(ExamDTOs.CreateExamRequest req) {
+        if (req.getClassScopes() != null && !req.getClassScopes().isEmpty()) {
+            return req.getClassScopes().stream().map(ExamScopeDtos.ClassScopeIn::getClassId).filter(Objects::nonNull).distinct().collect(Collectors.toList());
+        }
+        return req.getClassIds() != null ? new ArrayList<>(req.getClassIds()) : Collections.emptyList();
+    }
+
+    private void persistClassScopes(String tenant, Long examId, ExamDTOs.CreateExamRequest req, List<Long> fallbackClassIds) {
+        if (req.getClassScopes() != null && !req.getClassScopes().isEmpty()) {
+            for (ExamScopeDtos.ClassScopeIn row : req.getClassScopes()) {
+                if (row.getClassId() == null) {
+                    continue;
+                }
+                ExamClassScope s = new ExamClassScope();
+                s.setTenantId(tenant);
+                s.setExamId(examId);
+                s.setClassId(row.getClassId());
+                s.setSectionId(row.getSectionId());
+                s.setIsDeleted(false);
+                scopeRepo.save(s);
+            }
+        } else {
+            for (Long cid : fallbackClassIds) {
+                ExamClassScope s = new ExamClassScope();
+                s.setTenantId(tenant);
+                s.setExamId(examId);
+                s.setClassId(cid);
+                s.setSectionId(null);
+                s.setIsDeleted(false);
+                scopeRepo.save(s);
+            }
+        }
     }
 
     private ExamDTOs.MarkResponse toMarkResponse(MarkRecord m) {
-        return ExamDTOs.MarkResponse.builder().id(m.getId()).examId(m.getExamId()).studentId(m.getStudentId()).studentName(m.getStudentName()).subjectName(m.getSubjectName()).marksObtained(m.getMarksObtained()).maxMarks(m.getMaxMarks()).grade(m.getGrade()).classId(m.getClassId()).percentage(m.getMaxMarks() > 0 ? Math.round((m.getMarksObtained() / m.getMaxMarks()) * 1000) / 10.0 : 0).build();
+        return ExamDTOs.MarkResponse.builder()
+                .id(m.getId())
+                .examId(m.getExamId())
+                .studentId(m.getStudentId())
+                .studentName(m.getStudentName())
+                .subjectName(m.getSubjectName())
+                .marksObtained(m.getMarksObtained())
+                .maxMarks(m.getMaxMarks())
+                .grade(m.getGrade())
+                .classId(m.getClassId())
+                .percentage(m.getMaxMarks() > 0 ? Math.round((m.getMarksObtained() / m.getMaxMarks()) * 1000) / 10.0 : 0)
+                .build();
     }
 
-    public ExamService(final ExamRepository examRepo, final MarkRecordRepository markRepo) {
+    private ExamDTOs.ExamResponse toExamResponse(Exam e) {
+        String examTenant = e.getTenantId();
+        ExamDTOs.ExamResponse r = ExamDTOs.ExamResponse.builder()
+                .id(e.getId())
+                .name(e.getName())
+                .academicYearId(e.getAcademicYearId())
+                .startDate(e.getStartDate() != null ? e.getStartDate().toString() : null)
+                .endDate(e.getEndDate() != null ? e.getEndDate().toString() : null)
+                .classIds(e.getClassIds())
+                .status(e.getStatus() != null ? e.getStatus().name().toLowerCase() : null)
+                .build();
+        r.setResultsPublished(Boolean.TRUE.equals(e.getResultsPublished()));
+        r.setClassScopes(buildScopeOut(examTenant, e));
+        r.setScheduleSlots(scheduleRepo.findByTenantIdAndExamIdAndIsDeletedFalseOrderByExamDateAscStartTimeAsc(examTenant, e.getId()).stream().map(this::toScheduleOut).collect(Collectors.toList()));
+        return r;
+    }
+
+    private List<ExamScopeDtos.ClassScopeOut> buildScopeOut(String examTenant, Exam exam) {
+        List<ExamClassScope> rows = scopeRepo.findByTenantIdAndExamIdAndIsDeletedFalse(examTenant, exam.getId());
+        if (!rows.isEmpty()) {
+            return rows.stream().map(row -> {
+                String cn = classRepo.findByIdAndTenantIdAndIsDeletedFalse(row.getClassId(), examTenant).map(SchoolClass::getName).orElse(null);
+                String sn = null;
+                if (row.getSectionId() != null) {
+                    sn = sectionRepo.findByIdAndTenantIdAndIsDeletedFalse(row.getSectionId(), examTenant).map(Section::getName).orElse(null);
+                }
+                return new ExamScopeDtos.ClassScopeOut(row.getClassId(), row.getSectionId(), cn, sn);
+            }).collect(Collectors.toList());
+        }
+        if (exam.getClassIds() == null || exam.getClassIds().isEmpty()) {
+            return Collections.emptyList();
+        }
+        return exam.getClassIds().stream().map(cid -> {
+            String cn = classRepo.findByIdAndTenantIdAndIsDeletedFalse(cid, examTenant).map(SchoolClass::getName).orElse(null);
+            return new ExamScopeDtos.ClassScopeOut(cid, null, cn, null);
+        }).collect(Collectors.toList());
+    }
+
+    private ExamScopeDtos.ScheduleSlotOut toScheduleOut(ExamScheduleSlot s) {
+        String slotTenant = s.getTenantId();
+        ExamScopeDtos.ScheduleSlotOut o = new ExamScopeDtos.ScheduleSlotOut();
+        o.setId(s.getId());
+        o.setClassId(s.getClassId());
+        o.setSectionId(s.getSectionId());
+        o.setClassName(classRepo.findByIdAndTenantIdAndIsDeletedFalse(s.getClassId(), slotTenant).map(SchoolClass::getName).orElse(null));
+        if (s.getSectionId() != null) {
+            o.setSectionName(sectionRepo.findByIdAndTenantIdAndIsDeletedFalse(s.getSectionId(), slotTenant).map(Section::getName).orElse(null));
+        }
+        o.setSubjectName(s.getSubjectName());
+        o.setExamDate(s.getExamDate() != null ? s.getExamDate().toString() : null);
+        o.setStartTime(s.getStartTime() != null ? s.getStartTime().toString() : null);
+        o.setEndTime(s.getEndTime() != null ? s.getEndTime().toString() : null);
+        o.setRoom(s.getRoom());
+        o.setNotes(s.getNotes());
+        return o;
+    }
+
+    public ExamService(
+            final ExamRepository examRepo,
+            final MarkRecordRepository markRepo,
+            final ExamClassScopeRepository scopeRepo,
+            final ExamScheduleSlotRepository scheduleRepo,
+            final SchoolClassRepository classRepo,
+            final SectionRepository sectionRepo) {
         this.examRepo = examRepo;
         this.markRepo = markRepo;
+        this.scopeRepo = scopeRepo;
+        this.scheduleRepo = scheduleRepo;
+        this.classRepo = classRepo;
+        this.sectionRepo = sectionRepo;
     }
 }

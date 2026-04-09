@@ -3,6 +3,8 @@ package com.school.erp.modules.notification.entity;
 import com.school.erp.common.entity.BaseEntity;
 import com.school.erp.common.enums.Enums;
 import jakarta.persistence.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 @Entity
 @Table(name = "notifications", indexes = {@Index(name = "idx_notif_user", columnList = "tenant_id, user_id"), @Index(name = "idx_notif_read", columnList = "tenant_id, user_id, is_read")})
@@ -12,6 +14,7 @@ public class Notification extends BaseEntity {
     @Column(length = 500)
     private String message;
     @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.VARCHAR)
     @Column(length = 10)
     private Enums.NotificationType type;
     @Column(name = "is_read")

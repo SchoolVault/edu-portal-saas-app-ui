@@ -19,8 +19,11 @@ public class DocumentController {
 
     @GetMapping
     @Operation(summary = "List documents", description = "Filter by category: STUDENT, TEACHER, ADMIN, GENERAL")
-    public ResponseEntity<ApiResponse<List<Document>>> list(@RequestParam(required = false) String category) {
-        return ResponseEntity.ok(ApiResponse.ok(service.getDocuments(category)));
+    public ResponseEntity<ApiResponse<List<Document>>> list(
+            @RequestParam(required = false) String category,
+            @RequestParam(required = false) String ownerType,
+            @RequestParam(required = false) Long ownerId) {
+        return ResponseEntity.ok(ApiResponse.ok(service.getDocuments(category, ownerType, ownerId)));
     }
 
     @PostMapping
@@ -38,8 +41,8 @@ public class DocumentController {
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasRole(\'ADMIN\')")
-    @Operation(summary = "Delete document")
+    @PreAuthorize("hasAnyRole(\'ADMIN\',\'TEACHER\')")
+    @Operation(summary = "Delete document", description = "Admin or the user who uploaded the document may delete")
     public ResponseEntity<ApiResponse<Void>> delete(@PathVariable Long id) {
         service.delete(id);
         return ResponseEntity.ok(ApiResponse.ok(null, "Deleted"));

@@ -1,0 +1,9 @@
+package com.school.erp.modules.exams.repository;
+
+import com.school.erp.modules.exams.entity.ExamClassScope;
+import org.springframework.data.jpa.repository.JpaRepository;
+import java.util.List;
+
+public interface ExamClassScopeRepository extends JpaRepository<ExamClassScope, Long> {
+    List<ExamClassScope> findByTenantIdAndExamIdAndIsDeletedFalse(String tenantId, Long examId);
+}

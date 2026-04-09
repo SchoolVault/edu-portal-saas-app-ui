@@ -3,6 +3,8 @@ package com.school.erp.modules.documents.entity;
 import com.school.erp.common.entity.BaseEntity;
 import com.school.erp.common.enums.Enums;
 import jakarta.persistence.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 @Entity
 @Table(name = "documents")
@@ -12,6 +14,7 @@ public class Document extends BaseEntity {
     @Column(name = "file_type", length = 20)
     private String fileType;
     @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.VARCHAR)
     @Column(length = 20)
     private Enums.DocumentCategory category;
     @Column(name = "uploaded_by", length = 100)
@@ -24,6 +27,28 @@ public class Document extends BaseEntity {
     private Long relatedEntityId;
     @Column(name = "related_entity_type", length = 50)
     private String relatedEntityType;
+    @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.VARCHAR)
+    @Column(name = "owner_type", length = 30)
+    private Enums.DocumentOwnerType ownerType;
+    @Column(name = "owner_id")
+    private Long ownerId;
+    @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.VARCHAR)
+    @Column(name = "visibility_scope", length = 30)
+    private Enums.DocumentVisibilityScope visibilityScope;
+    @Column(name = "file_version")
+    private Integer fileVersion = 1;
+    @Column(name = "mime_type", length = 120)
+    private String mimeType;
+    @Column(name = "size_bytes")
+    private Long sizeBytes;
+    @Column(name = "storage_key", length = 500)
+    private String storageKey;
+    @Column(name = "parent_folder_id")
+    private Long parentFolderId;
+    @Column(name = "tags_json", columnDefinition = "json")
+    private String tagsJson;
 
 
     public static class DocumentBuilder {
@@ -147,6 +172,78 @@ public class Document extends BaseEntity {
 
     public String getRelatedEntityType() {
         return this.relatedEntityType;
+    }
+
+    public Enums.DocumentOwnerType getOwnerType() {
+        return ownerType;
+    }
+
+    public void setOwnerType(Enums.DocumentOwnerType ownerType) {
+        this.ownerType = ownerType;
+    }
+
+    public Long getOwnerId() {
+        return ownerId;
+    }
+
+    public void setOwnerId(Long ownerId) {
+        this.ownerId = ownerId;
+    }
+
+    public Enums.DocumentVisibilityScope getVisibilityScope() {
+        return visibilityScope;
+    }
+
+    public void setVisibilityScope(Enums.DocumentVisibilityScope visibilityScope) {
+        this.visibilityScope = visibilityScope;
+    }
+
+    public Integer getFileVersion() {
+        return fileVersion;
+    }
+
+    public void setFileVersion(Integer fileVersion) {
+        this.fileVersion = fileVersion;
+    }
+
+    public String getMimeType() {
+        return mimeType;
+    }
+
+    public void setMimeType(String mimeType) {
+        this.mimeType = mimeType;
+    }
+
+    public Long getSizeBytes() {
+        return sizeBytes;
+    }
+
+    public void setSizeBytes(Long sizeBytes) {
+        this.sizeBytes = sizeBytes;
+    }
+
+    public String getStorageKey() {
+        return storageKey;
+    }
+
+    public void setStorageKey(String storageKey) {
+        this.storageKey = storageKey;
+    }
+
+    public Long getParentFolderId() {
+        return parentFolderId;
+    }
+
+    public void setParentFolderId(Long parentFolderId) {
+        this.parentFolderId = parentFolderId;
+    }
+
+    public String getTagsJson() {
+        return tagsJson;
+    }
+
+    public void setTagsJson(String tagsJson) {
+        this.tagsJson = tagsJson;
     }
 
     public void setName(final String name) {

@@ -2,14 +2,18 @@ package com.school.erp.modules.notification.service;
 
 import com.school.erp.common.enums.Enums;
 import com.school.erp.config.RabbitMQConfig;
+import com.school.erp.common.exception.ResourceNotFoundException;
 import com.school.erp.modules.notification.entity.Notification;
 import com.school.erp.modules.notification.repository.NotificationRepository;
 import com.school.erp.tenant.TenantContext;
+import com.school.erp.tenant.TenantQueryPolicy;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @Service
 public class NotificationService {
@@ -19,20 +23,58 @@ public class NotificationService {
 
     @Transactional(readOnly = true)
     public List<Notification> getUserNotifications() {
-        return repo.findByTenantIdAndUserIdOrderByCreatedAtDesc(TenantContext.getTenantId(), TenantContext.getUserId());
+        List<Notification> raw = repo.findByTenantIdAndUserIdOrderByCreatedAtDesc(TenantContext.getTenantId(), TenantContext.getUserId());
+        if (isSuperAdminRole()) {
+            return raw.stream().filter(this::isPlatformOperatorNotification).collect(Collectors.toList());
+        }
+        return raw;
     }
 
     @Transactional(readOnly = true)
     public long getUnreadCount() {
+        if (isSuperAdminRole()) {
+            return getUserNotifications().stream().filter(n -> !Boolean.TRUE.equals(n.getIsRead())).count();
+        }
         return repo.countByTenantIdAndUserIdAndIsReadFalse(TenantContext.getTenantId(), TenantContext.getUserId());
+    }
+
+    private static boolean isSuperAdminRole() {
+        String r = TenantContext.getUserRole();
+        if (r == null) {
+            return false;
+        }
+        return "SUPER_ADMIN".equalsIgnoreCase(r) || "super_admin".equalsIgnoreCase(r);
+    }
+
+    /**
+     * Super-admins should not see per-school operational toasts (admissions, fees, class attendance, etc.).
+     */
+    private boolean isPlatformOperatorNotification(Notification n) {
+        String title = n.getTitle() != null ? n.getTitle().toLowerCase(Locale.ROOT) : "";
+        String link = n.getLink() != null ? n.getLink().toLowerCase(Locale.ROOT) : "";
+        if (link.contains("/super-admin") || link.contains("/platform-") || link.contains("/platform/")) {
+            return true;
+        }
+        if (title.contains("platform") || title.contains("subscription") || title.contains("workspace")
+                || title.contains("tenant") || title.contains("billing") || title.contains("maintenance")
+                || title.contains("broadcast") || title.contains("purge") || title.contains("onboard")) {
+            return true;
+        }
+        return false;
     }
 
     @Transactional
     public void markAsRead(Long id) {
-        repo.findById(id).ifPresent(n -> {
-            n.setIsRead(true);
-            repo.save(n);
-        });
+        Long uid = TenantContext.getUserId();
+        Notification n;
+        if (TenantQueryPolicy.isPlatformSuperAdmin()) {
+            n = repo.findById(id).filter(x -> !Boolean.TRUE.equals(x.getIsDeleted())).orElseThrow(() -> new ResourceNotFoundException("Notification", id));
+        } else {
+            n = repo.findByIdAndTenantIdAndUserIdAndIsDeletedFalse(id, TenantContext.getTenantId(), uid)
+                    .orElseThrow(() -> new ResourceNotFoundException("Notification", id));
+        }
+        n.setIsRead(true);
+        repo.save(n);
     }
 
     @Transactional

@@ -5,6 +5,7 @@ import com.school.erp.common.exception.UnauthorizedException;
 import com.school.erp.modules.attendance.dto.AttendanceDTOs;
 import com.school.erp.modules.attendance.entity.AttendanceRecord;
 import com.school.erp.modules.attendance.repository.AttendanceRepository;
+import com.school.erp.modules.guardian.service.GuardianService;
 import com.school.erp.modules.student.entity.Student;
 import com.school.erp.modules.student.repository.StudentRepository;
 import com.school.erp.modules.exams.repository.MarkRecordRepository;
@@ -29,6 +30,7 @@ import java.util.stream.Collectors;
 @PreAuthorize("hasAnyRole('PARENT','ADMIN')")
 public class ParentController {
     private final StudentRepository studentRepo;
+    private final GuardianService guardianService;
     private final MarkRecordRepository markRepo;
     private final FeePaymentRepository feeRepo;
     private final AttendanceRepository attendanceRepo;
@@ -39,7 +41,7 @@ public class ParentController {
     public ResponseEntity<ApiResponse<List<Student>>> getChildren() {
         String t = TenantContext.getTenantId();
         Long parentId = TenantContext.getUserId();
-        List<Student> children = studentRepo.findByTenantIdAndParentIdAndIsDeletedFalse(t, parentId);
+        List<Student> children = guardianService.findStudentsForParentUser(t, parentId);
         return ResponseEntity.ok(ApiResponse.ok(children));
     }
 
@@ -58,7 +60,8 @@ public class ParentController {
     }
 
     @GetMapping("/children/{studentId}/fee-obligations")
-    @Operation(summary = "Get child fee obligations with payment breakdown")
+    @Operation(summary = "Get child fee obligations with payment breakdown",
+            description = "Each obligation includes lineItems from the linked fee structure (tuition, transport, hostel, uniform, …) for parent-facing breakdown.")
     public ResponseEntity<ApiResponse<List<FeeDTOs.ParentFeeObligationResponse>>> getChildFeeObligations(@PathVariable Long studentId) {
         return ResponseEntity.ok(ApiResponse.ok(feeService.getParentFeeObligations(studentId)));
     }
@@ -133,14 +136,25 @@ public class ParentController {
     private Student assertParentOwnsStudent(Long studentId) {
         Student student = studentRepo.findByIdAndTenantIdAndIsDeletedFalse(studentId, TenantContext.getTenantId())
                 .orElseThrow(() -> new com.school.erp.common.exception.ResourceNotFoundException("Student", studentId));
-        if (!TenantContext.getUserId().equals(student.getParentId()) && !"ADMIN".equals(TenantContext.getUserRole())) {
+        Long uid = TenantContext.getUserId();
+        boolean admin = "ADMIN".equals(TenantContext.getUserRole());
+        if (!admin
+                && !uid.equals(student.getParentId())
+                && !guardianService.guardianUserHasAccessToStudent(TenantContext.getTenantId(), uid, studentId)) {
             throw new UnauthorizedException("You are not allowed to access this student");
         }
         return student;
     }
 
-    public ParentController(final StudentRepository studentRepo, final MarkRecordRepository markRepo, final FeePaymentRepository feeRepo, final AttendanceRepository attendanceRepo, final FeeService feeService) {
+    public ParentController(
+            final StudentRepository studentRepo,
+            final GuardianService guardianService,
+            final MarkRecordRepository markRepo,
+            final FeePaymentRepository feeRepo,
+            final AttendanceRepository attendanceRepo,
+            final FeeService feeService) {
         this.studentRepo = studentRepo;
+        this.guardianService = guardianService;
         this.markRepo = markRepo;
         this.feeRepo = feeRepo;
         this.attendanceRepo = attendanceRepo;

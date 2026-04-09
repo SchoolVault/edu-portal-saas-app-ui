@@ -14,6 +14,8 @@ public class ExamDTOs {
         private LocalDate startDate;
         private LocalDate endDate;
         private List<Long> classIds;
+        /** When set, defines class/section audience; null/empty falls back to {@code classIds} as whole-class scope. */
+        private List<ExamScopeDtos.ClassScopeIn> classScopes;
 
 
         public static class CreateExamRequestBuilder {
@@ -120,6 +122,14 @@ public class ExamDTOs {
             this.classIds = classIds;
         }
 
+        public List<ExamScopeDtos.ClassScopeIn> getClassScopes() {
+            return classScopes;
+        }
+
+        public void setClassScopes(List<ExamScopeDtos.ClassScopeIn> classScopes) {
+            this.classScopes = classScopes;
+        }
+
         @Override
         public boolean equals(final Object o) {
             if (o == this) return true;
@@ -191,6 +201,9 @@ public class ExamDTOs {
         private String endDate;
         private List<Long> classIds;
         private String status;
+        private Boolean resultsPublished;
+        private List<ExamScopeDtos.ClassScopeOut> classScopes;
+        private List<ExamScopeDtos.ScheduleSlotOut> scheduleSlots;
 
 
         public static class ExamResponseBuilder {
@@ -298,6 +311,30 @@ public class ExamDTOs {
 
         public String getStatus() {
             return this.status;
+        }
+
+        public Boolean getResultsPublished() {
+            return resultsPublished;
+        }
+
+        public void setResultsPublished(Boolean resultsPublished) {
+            this.resultsPublished = resultsPublished;
+        }
+
+        public List<ExamScopeDtos.ClassScopeOut> getClassScopes() {
+            return classScopes;
+        }
+
+        public void setClassScopes(List<ExamScopeDtos.ClassScopeOut> classScopes) {
+            this.classScopes = classScopes;
+        }
+
+        public List<ExamScopeDtos.ScheduleSlotOut> getScheduleSlots() {
+            return scheduleSlots;
+        }
+
+        public void setScheduleSlots(List<ExamScopeDtos.ScheduleSlotOut> scheduleSlots) {
+            this.scheduleSlots = scheduleSlots;
         }
 
         public void setId(final Long id) {

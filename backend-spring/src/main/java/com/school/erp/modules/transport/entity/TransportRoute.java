@@ -16,6 +16,10 @@ public class TransportRoute extends BaseEntity {
     private String driverPhone;
     @Column(name = "assigned_students")
     private Integer assignedStudents = 0;
+    @Column(name = "vehicle_id")
+    private Long vehicleId;
+    @Column(name = "driver_id")
+    private Long driverId;
 
 
     public static class TransportRouteBuilder {
@@ -24,6 +28,8 @@ public class TransportRoute extends BaseEntity {
         private String driverName;
         private String driverPhone;
         private Integer assignedStudents;
+        private Long vehicleId;
+        private Long driverId;
 
         TransportRouteBuilder() {
         }
@@ -68,13 +74,23 @@ public class TransportRoute extends BaseEntity {
             return this;
         }
 
+        public TransportRoute.TransportRouteBuilder vehicleId(final Long vehicleId) {
+            this.vehicleId = vehicleId;
+            return this;
+        }
+
+        public TransportRoute.TransportRouteBuilder driverId(final Long driverId) {
+            this.driverId = driverId;
+            return this;
+        }
+
         public TransportRoute build() {
-            return new TransportRoute(this.name, this.vehicleNumber, this.driverName, this.driverPhone, this.assignedStudents);
+            return new TransportRoute(this.name, this.vehicleNumber, this.driverName, this.driverPhone, this.assignedStudents, this.vehicleId, this.driverId);
         }
 
         @Override
         public String toString() {
-            return "TransportRoute.TransportRouteBuilder(name=" + this.name + ", vehicleNumber=" + this.vehicleNumber + ", driverName=" + this.driverName + ", driverPhone=" + this.driverPhone + ", assignedStudents=" + this.assignedStudents + ")";
+            return "TransportRoute.TransportRouteBuilder(name=" + this.name + ", vehicleNumber=" + this.vehicleNumber + ", driverName=" + this.driverName + ", driverPhone=" + this.driverPhone + ", assignedStudents=" + this.assignedStudents + ", vehicleId=" + this.vehicleId + ", driverId=" + this.driverId + ")";
         }
     }
 
@@ -102,6 +118,22 @@ public class TransportRoute extends BaseEntity {
         return this.assignedStudents;
     }
 
+    public Long getVehicleId() {
+        return vehicleId;
+    }
+
+    public Long getDriverId() {
+        return driverId;
+    }
+
+    public void setVehicleId(final Long vehicleId) {
+        this.vehicleId = vehicleId;
+    }
+
+    public void setDriverId(final Long driverId) {
+        this.driverId = driverId;
+    }
+
     public void setName(final String name) {
         this.name = name;
     }
@@ -125,11 +157,13 @@ public class TransportRoute extends BaseEntity {
     public TransportRoute() {
     }
 
-    public TransportRoute(final String name, final String vehicleNumber, final String driverName, final String driverPhone, final Integer assignedStudents) {
+    public TransportRoute(final String name, final String vehicleNumber, final String driverName, final String driverPhone, final Integer assignedStudents, final Long vehicleId, final Long driverId) {
         this.name = name;
         this.vehicleNumber = vehicleNumber;
         this.driverName = driverName;
         this.driverPhone = driverPhone;
         this.assignedStudents = assignedStudents;
+        this.vehicleId = vehicleId;
+        this.driverId = driverId;
     }
 }

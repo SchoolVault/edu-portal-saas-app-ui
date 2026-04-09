@@ -4,6 +4,8 @@ import com.school.erp.common.entity.BaseEntity;
 import com.school.erp.common.enums.Enums;
 import jakarta.persistence.*;
 import java.time.LocalDate;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 @Entity
 @Table(name = "attendance_records", indexes = {@Index(name = "idx_att_tenant_class_date", columnList = "tenant_id, class_id, date"), @Index(name = "idx_att_student_date", columnList = "tenant_id, student_id, date")})
@@ -19,6 +21,7 @@ public class AttendanceRecord extends BaseEntity {
     @Column(nullable = false)
     private LocalDate date;
     @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.VARCHAR)
     @Column(nullable = false, length = 10)
     private Enums.AttendanceStatus status;
     @Column(name = "marked_by")

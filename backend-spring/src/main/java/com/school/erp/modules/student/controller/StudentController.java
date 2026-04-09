@@ -3,6 +3,8 @@ package com.school.erp.modules.student.controller;
 import com.school.erp.common.dto.ApiResponse;
 import com.school.erp.common.dto.PageResponse;
 import com.school.erp.common.enums.Enums;
+import com.school.erp.modules.guardian.dto.GuardianDTOs;
+import com.school.erp.modules.guardian.service.GuardianService;
 import com.school.erp.modules.student.dto.StudentDTOs;
 import com.school.erp.modules.student.service.StudentService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -22,6 +24,7 @@ import java.util.List;
 @Tag(name = "Students", description = "Student Management CRUD APIs")
 public class StudentController {
     private final StudentService studentService;
+    private final GuardianService guardianService;
 
     @GetMapping
     @PreAuthorize("hasAnyRole('ADMIN','TEACHER')")
@@ -80,6 +83,13 @@ public class StudentController {
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.created(studentService.bulkCreate(request)));
     }
 
+    @PostMapping("/bulk-report")
+    @PreAuthorize("hasRole(\'ADMIN\')")
+    @Operation(summary = "Bulk create with validation report", description = "Partial success: returns successes and per-row errors")
+    public ResponseEntity<ApiResponse<StudentDTOs.BulkUploadReport>> bulkCreateReport(@Valid @RequestBody StudentDTOs.BulkUploadRequest request) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.created(studentService.bulkCreateWithReport(request)));
+    }
+
     @PostMapping(value = "/import", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @PreAuthorize("hasRole(\'ADMIN\')")
     @Operation(summary = "Import students from ZIP", description = "Upload a ZIP archive containing students.csv")
@@ -102,7 +112,23 @@ public class StudentController {
         return ResponseEntity.ok(ApiResponse.ok(studentService.countStudents()));
     }
 
-    public StudentController(final StudentService studentService) {
+    @GetMapping("/{id}/guardian-mappings")
+    @PreAuthorize("hasAnyRole('ADMIN','TEACHER')")
+    @Operation(summary = "List guardian links for a student")
+    public ResponseEntity<ApiResponse<List<GuardianDTOs.MappingResponse>>> listGuardianMappings(@PathVariable Long id) {
+        return ResponseEntity.ok(ApiResponse.ok(guardianService.listMappingsForStudent(id)));
+    }
+
+    @PostMapping("/{id}/guardian-mappings")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Link a guardian to a student with relationship metadata")
+    public ResponseEntity<ApiResponse<GuardianDTOs.MappingResponse>> addGuardianMapping(
+            @PathVariable Long id, @Valid @RequestBody GuardianDTOs.CreateMappingRequest request) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.created(guardianService.addMapping(id, request)));
+    }
+
+    public StudentController(final StudentService studentService, final GuardianService guardianService) {
         this.studentService = studentService;
+        this.guardianService = guardianService;
     }
 }

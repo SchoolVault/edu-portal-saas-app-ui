@@ -14,6 +14,12 @@ public class TransportDTOs {
         private int assignedStudents;
         private List<StopDTO> stops;
         private List<StudentMappingDTO> students;
+        private Long vehicleId;
+        private Long driverId;
+        private String vehicleType;
+        private Double liveLatitude;
+        private Double liveLongitude;
+        private String liveRecordedAt;
 
 
         public static class RouteResponseBuilder {
@@ -169,6 +175,54 @@ public class TransportDTOs {
 
         public void setStudents(final List<StudentMappingDTO> students) {
             this.students = students;
+        }
+
+        public Long getVehicleId() {
+            return vehicleId;
+        }
+
+        public void setVehicleId(Long vehicleId) {
+            this.vehicleId = vehicleId;
+        }
+
+        public Long getDriverId() {
+            return driverId;
+        }
+
+        public void setDriverId(Long driverId) {
+            this.driverId = driverId;
+        }
+
+        public String getVehicleType() {
+            return vehicleType;
+        }
+
+        public void setVehicleType(String vehicleType) {
+            this.vehicleType = vehicleType;
+        }
+
+        public Double getLiveLatitude() {
+            return liveLatitude;
+        }
+
+        public void setLiveLatitude(Double liveLatitude) {
+            this.liveLatitude = liveLatitude;
+        }
+
+        public Double getLiveLongitude() {
+            return liveLongitude;
+        }
+
+        public void setLiveLongitude(Double liveLongitude) {
+            this.liveLongitude = liveLongitude;
+        }
+
+        public String getLiveRecordedAt() {
+            return liveRecordedAt;
+        }
+
+        public void setLiveRecordedAt(String liveRecordedAt) {
+            this.liveRecordedAt = liveRecordedAt;
         }
 
         @Override

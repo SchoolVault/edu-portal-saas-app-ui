@@ -267,6 +267,25 @@ public class ReportService {
     }
 
     @Transactional(readOnly = true)
+    public List<Map<String, Object>> getSectionSummary() {
+        String tenantId = TenantContext.getTenantId();
+        List<Map<String, Object>> rows = new ArrayList<>();
+        for (com.school.erp.modules.academic.entity.SchoolClass cls : classRepo.findByTenantIdAndIsDeletedFalseOrderByGrade(tenantId)) {
+            for (com.school.erp.modules.academic.entity.Section sec : sectionRepo.findByTenantIdAndClassIdAndIsDeletedFalse(tenantId, cls.getId())) {
+                int count = studentRepo.findByTenantIdAndClassIdAndSectionIdAndIsDeletedFalse(tenantId, cls.getId(), sec.getId()).size();
+                rows.add(Map.of(
+                        "sectionId", sec.getId(),
+                        "sectionName", sec.getName(),
+                        "classId", cls.getId(),
+                        "className", cls.getName(),
+                        "studentCount", count
+                ));
+            }
+        }
+        return rows;
+    }
+
+    @Transactional(readOnly = true)
     public List<Map<String, Object>> getTeacherWorkload() {
         String tenantId = TenantContext.getTenantId();
         var teachers = teacherRepo.findByTenantIdAndIsDeletedFalse(tenantId);

@@ -4,6 +4,8 @@ import com.school.erp.common.entity.BaseEntity;
 import com.school.erp.common.enums.Enums;
 import jakarta.persistence.*;
 import java.math.BigDecimal;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 import java.time.LocalDate;
 
 @Entity
@@ -13,6 +15,12 @@ public class Payslip extends BaseEntity {
     private Long teacherId;
     @Column(name = "teacher_name", length = 200)
     private String teacherName;
+    @Column(name = "payroll_month", length = 7)
+    private String payrollMonth;
+    @Column(name = "components_json", columnDefinition = "json")
+    private String componentsJson;
+    @Column(name = "tax_details_json", columnDefinition = "json")
+    private String taxDetailsJson;
     @Column(length = 20)
     private String month;
     private Integer year;
@@ -25,6 +33,7 @@ public class Payslip extends BaseEntity {
     @Column(name = "net_salary", precision = 12, scale = 2)
     private BigDecimal netSalary;
     @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.VARCHAR)
     @Column(length = 15)
     private Enums.PayslipStatus status;
     @Column(name = "payment_date")
@@ -146,6 +155,30 @@ public class Payslip extends BaseEntity {
 
     public String getTeacherName() {
         return this.teacherName;
+    }
+
+    public String getPayrollMonth() {
+        return payrollMonth;
+    }
+
+    public void setPayrollMonth(String payrollMonth) {
+        this.payrollMonth = payrollMonth;
+    }
+
+    public String getComponentsJson() {
+        return componentsJson;
+    }
+
+    public void setComponentsJson(String componentsJson) {
+        this.componentsJson = componentsJson;
+    }
+
+    public String getTaxDetailsJson() {
+        return taxDetailsJson;
+    }
+
+    public void setTaxDetailsJson(String taxDetailsJson) {
+        this.taxDetailsJson = taxDetailsJson;
     }
 
     public String getMonth() {

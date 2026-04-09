@@ -1,0 +1,149 @@
+package com.school.erp.modules.academic.service;
+
+import com.school.erp.common.exception.ResourceNotFoundException;
+import com.school.erp.modules.academic.dto.TeacherAssignmentDTOs;
+import com.school.erp.modules.academic.entity.ClassTeacherAssignment;
+import com.school.erp.modules.academic.entity.SubjectTeacherAssignment;
+import com.school.erp.modules.academic.repository.ClassTeacherAssignmentRepository;
+import com.school.erp.modules.academic.repository.SubjectTeacherAssignmentRepository;
+import com.school.erp.modules.teacher.entity.Teacher;
+import com.school.erp.modules.teacher.repository.TeacherRepository;
+import com.school.erp.tenant.TenantContext;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.time.LocalDate;
+import java.util.List;
+import java.util.stream.Collectors;
+
+@Service
+public class TeacherAssignmentService {
+
+    private final ClassTeacherAssignmentRepository classTeacherRepo;
+    private final SubjectTeacherAssignmentRepository subjectTeacherRepo;
+    private final TeacherRepository teacherRepository;
+
+    public TeacherAssignmentService(
+            ClassTeacherAssignmentRepository classTeacherRepo,
+            SubjectTeacherAssignmentRepository subjectTeacherRepo,
+            TeacherRepository teacherRepository) {
+        this.classTeacherRepo = classTeacherRepo;
+        this.subjectTeacherRepo = subjectTeacherRepo;
+        this.teacherRepository = teacherRepository;
+    }
+
+    /** Persists a class-teacher assignment row (used when admin assigns class teacher). */
+    @Transactional
+    public void recordClassTeacherAssignment(
+            Long classId, Long sectionId, Long teacherId, Long academicYearId, LocalDate effectiveFrom) {
+        String t = TenantContext.getTenantId();
+        ClassTeacherAssignment a = new ClassTeacherAssignment();
+        a.setTenantId(t);
+        a.setAcademicYearId(academicYearId);
+        a.setClassId(classId);
+        a.setSectionId(sectionId);
+        a.setTeacherId(teacherId);
+        a.setEffectiveFrom(effectiveFrom != null ? effectiveFrom : LocalDate.now());
+        classTeacherRepo.save(a);
+    }
+
+    @Transactional
+    public TeacherAssignmentDTOs.ClassTeacherAssignmentResponse createClassAssignment(
+            TeacherAssignmentDTOs.CreateClassTeacherAssignmentRequest req) {
+        String t = TenantContext.getTenantId();
+        ClassTeacherAssignment a = new ClassTeacherAssignment();
+        a.setTenantId(t);
+        a.setAcademicYearId(req.getAcademicYearId());
+        a.setClassId(req.getClassId());
+        a.setSectionId(req.getSectionId());
+        a.setTeacherId(req.getTeacherId());
+        a.setEffectiveFrom(req.getEffectiveFrom() != null ? req.getEffectiveFrom() : LocalDate.now());
+        a.setEffectiveTo(req.getEffectiveTo());
+        ClassTeacherAssignment saved = classTeacherRepo.save(a);
+        return toClassResponse(saved);
+    }
+
+    @Transactional
+    public TeacherAssignmentDTOs.SubjectTeacherAssignmentResponse createSubjectAssignment(
+            TeacherAssignmentDTOs.CreateSubjectTeacherAssignmentRequest req) {
+        String t = TenantContext.getTenantId();
+        SubjectTeacherAssignment a = new SubjectTeacherAssignment();
+        a.setTenantId(t);
+        a.setAcademicYearId(req.getAcademicYearId());
+        a.setClassId(req.getClassId());
+        a.setSectionId(req.getSectionId());
+        a.setSubjectName(req.getSubjectName().trim());
+        a.setTeacherId(req.getTeacherId());
+        a.setEffectiveFrom(req.getEffectiveFrom() != null ? req.getEffectiveFrom() : LocalDate.now());
+        a.setEffectiveTo(req.getEffectiveTo());
+        SubjectTeacherAssignment saved = subjectTeacherRepo.save(a);
+        return toSubjectResponse(saved);
+    }
+
+    @Transactional(readOnly = true)
+    public List<TeacherAssignmentDTOs.ClassTeacherAssignmentResponse> listClassAssignments(Long classId, Long sectionId) {
+        String t = TenantContext.getTenantId();
+        LocalDate d = LocalDate.now();
+        return classTeacherRepo.findActiveForClass(t, classId, sectionId, d).stream()
+                .map(this::toClassResponse)
+                .collect(Collectors.toList());
+    }
+
+    @Transactional(readOnly = true)
+    public List<TeacherAssignmentDTOs.SubjectTeacherAssignmentResponse> listSubjectAssignments(Long classId, Long sectionId) {
+        String t = TenantContext.getTenantId();
+        LocalDate d = LocalDate.now();
+        return subjectTeacherRepo.findActiveForClass(t, classId, sectionId, d).stream()
+                .map(this::toSubjectResponse)
+                .collect(Collectors.toList());
+    }
+
+    @Transactional(readOnly = true)
+    public TeacherAssignmentDTOs.TeacherWorkloadResponse getWorkload(Long teacherId) {
+        String t = TenantContext.getTenantId();
+        LocalDate d = LocalDate.now();
+        Teacher teacher = teacherRepository
+                .findByIdAndTenantIdAndIsDeletedFalse(teacherId, t)
+                .orElseThrow(() -> new ResourceNotFoundException("Teacher", teacherId));
+        String name = teacher.getFirstName() + " " + teacher.getLastName();
+        int ct = classTeacherRepo.findActiveForTeacher(t, teacherId, d).size();
+        int st = subjectTeacherRepo.findActiveForTeacher(t, teacherId, d).size();
+        TeacherAssignmentDTOs.TeacherWorkloadResponse r = new TeacherAssignmentDTOs.TeacherWorkloadResponse();
+        r.setTeacherId(teacherId);
+        r.setTeacherName(name.trim());
+        r.setClassTeacherSlots(ct);
+        r.setSubjectAssignments(st);
+        return r;
+    }
+
+    private TeacherAssignmentDTOs.ClassTeacherAssignmentResponse toClassResponse(ClassTeacherAssignment a) {
+        TeacherAssignmentDTOs.ClassTeacherAssignmentResponse r = new TeacherAssignmentDTOs.ClassTeacherAssignmentResponse();
+        r.setId(a.getId());
+        r.setAcademicYearId(a.getAcademicYearId());
+        r.setClassId(a.getClassId());
+        r.setSectionId(a.getSectionId());
+        r.setTeacherId(a.getTeacherId());
+        r.setEffectiveFrom(a.getEffectiveFrom());
+        r.setEffectiveTo(a.getEffectiveTo());
+        teacherRepository
+                .findByIdAndTenantIdAndIsDeletedFalse(a.getTeacherId(), TenantContext.getTenantId())
+                .ifPresent(tr -> r.setTeacherName(tr.getFirstName() + " " + tr.getLastName()));
+        return r;
+    }
+
+    private TeacherAssignmentDTOs.SubjectTeacherAssignmentResponse toSubjectResponse(SubjectTeacherAssignment a) {
+        TeacherAssignmentDTOs.SubjectTeacherAssignmentResponse r = new TeacherAssignmentDTOs.SubjectTeacherAssignmentResponse();
+        r.setId(a.getId());
+        r.setAcademicYearId(a.getAcademicYearId());
+        r.setClassId(a.getClassId());
+        r.setSectionId(a.getSectionId());
+        r.setSubjectName(a.getSubjectName());
+        r.setTeacherId(a.getTeacherId());
+        r.setEffectiveFrom(a.getEffectiveFrom());
+        r.setEffectiveTo(a.getEffectiveTo());
+        teacherRepository
+                .findByIdAndTenantIdAndIsDeletedFalse(a.getTeacherId(), TenantContext.getTenantId())
+                .ifPresent(tr -> r.setTeacherName(tr.getFirstName() + " " + tr.getLastName()));
+        return r;
+    }
+}

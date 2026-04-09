@@ -33,6 +33,21 @@ public class FeeController {
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.created(service.createStructure(req)));
     }
 
+    @PutMapping("/structures/{id}")
+    @PreAuthorize("hasRole(\'ADMIN\')")
+    @Operation(summary = "Update fee structure", description = "Replaces component lines with the submitted list")
+    public ResponseEntity<ApiResponse<FeeDTOs.FeeStructureResponse>> updateStructure(@PathVariable Long id, @Valid @RequestBody FeeDTOs.CreateFeeStructureRequest req) {
+        return ResponseEntity.ok(ApiResponse.ok(service.updateStructure(id, req)));
+    }
+
+    @DeleteMapping("/structures/{id}")
+    @PreAuthorize("hasRole(\'ADMIN\')")
+    @Operation(summary = "Delete fee structure (soft)", description = "Marks structure and its components as deleted")
+    public ResponseEntity<ApiResponse<Void>> deleteStructure(@PathVariable Long id) {
+        service.deleteStructure(id);
+        return ResponseEntity.ok(ApiResponse.ok(null, "Fee structure removed"));
+    }
+
     @GetMapping("/payments")
     @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "List fee payments", description = "Filter by status: PAID, PARTIAL, UNPAID, OVERDUE")

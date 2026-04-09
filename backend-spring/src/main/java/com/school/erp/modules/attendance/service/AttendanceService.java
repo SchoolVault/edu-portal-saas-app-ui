@@ -1,6 +1,7 @@
 package com.school.erp.modules.attendance.service;
 
 import com.school.erp.common.enums.Enums;
+import com.school.erp.common.exception.BusinessException;
 import com.school.erp.modules.attendance.dto.AttendanceDTOs;
 import com.school.erp.modules.attendance.entity.AttendanceRecord;
 import com.school.erp.modules.attendance.repository.AttendanceRepository;
@@ -26,6 +27,10 @@ public class AttendanceService {
         String t = TenantContext.getTenantId();
         Long markedBy = TenantContext.getUserId();
         LocalDate date = LocalDate.parse(request.getDate());
+        String role = TenantContext.getUserRole();
+        if (role != null && "TEACHER".equalsIgnoreCase(role) && date.isBefore(LocalDate.now())) {
+            throw new BusinessException("Teachers cannot edit attendance for past dates. View the record or ask an administrator to make changes.");
+        }
         List<AttendanceRecord> records = 
         // Check if record exists for this student+date - update or create
         request.getRecords().stream().map(r -> {

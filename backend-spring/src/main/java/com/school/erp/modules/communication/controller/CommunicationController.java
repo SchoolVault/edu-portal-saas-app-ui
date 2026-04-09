@@ -27,6 +27,18 @@ public class CommunicationController {
         return ResponseEntity.ok(ApiResponse.ok(service.getAnnouncements()));
     }
 
+    @GetMapping("/announcements/previews")
+    @Operation(summary = "Announcement previews for header widgets (truncated body)")
+    public ResponseEntity<ApiResponse<List<AnnouncementDTOs.AnnouncementPreviewResponse>>> announcementPreviews() {
+        return ResponseEntity.ok(ApiResponse.ok(service.getAnnouncementPreviews()));
+    }
+
+    @GetMapping("/announcements/{id}")
+    @Operation(summary = "Single announcement (tenant-scoped)")
+    public ResponseEntity<ApiResponse<Announcement>> getAnnouncement(@PathVariable Long id) {
+        return ResponseEntity.ok(ApiResponse.ok(service.getAnnouncement(id)));
+    }
+
     @PostMapping("/announcements")
     @PreAuthorize("hasAnyRole(\'ADMIN\',\'TEACHER\')")
     @Operation(summary = "Create announcement")

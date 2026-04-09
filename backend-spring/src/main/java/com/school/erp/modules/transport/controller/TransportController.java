@@ -11,6 +11,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+
+import java.math.BigDecimal;
 import java.util.List;
 
 @RestController
@@ -62,6 +64,13 @@ public class TransportController {
         return ResponseEntity.ok(ApiResponse.ok(null, "Removed"));
     }
 
+    @PutMapping("/stops/{id}")
+    @PreAuthorize("hasRole(\'ADMIN\')")
+    @Operation(summary = "Update stop name, order, or time")
+    public ResponseEntity<ApiResponse<RouteStop>> updateStop(@PathVariable Long id, @RequestBody RouteStop patch) {
+        return ResponseEntity.ok(ApiResponse.ok(service.updateStop(id, patch)));
+    }
+
     @PostMapping("/assign-student")
     @PreAuthorize("hasRole(\'ADMIN\')")
     @Operation(summary = "Assign student to route with pickup/drop stops")
@@ -75,6 +84,45 @@ public class TransportController {
     public ResponseEntity<ApiResponse<Void>> removeStudent(@PathVariable Long id) {
         service.removeStudentFromRoute(id);
         return ResponseEntity.ok(ApiResponse.ok(null, "Removed"));
+    }
+
+    @GetMapping("/vehicles")
+    @PreAuthorize("hasRole(\'ADMIN\')")
+    @Operation(summary = "Fleet vehicles")
+    public ResponseEntity<ApiResponse<List<com.school.erp.modules.transport.entity.TransportVehicle>>> listVehicles() {
+        return ResponseEntity.ok(ApiResponse.ok(service.listVehicles()));
+    }
+
+    @PostMapping("/vehicles")
+    @PreAuthorize("hasRole(\'ADMIN\')")
+    @Operation(summary = "Register vehicle")
+    public ResponseEntity<ApiResponse<com.school.erp.modules.transport.entity.TransportVehicle>> createVehicle(@RequestBody com.school.erp.modules.transport.entity.TransportVehicle vehicle) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.created(service.createVehicle(vehicle)));
+    }
+
+    @GetMapping("/drivers")
+    @PreAuthorize("hasRole(\'ADMIN\')")
+    @Operation(summary = "Drivers")
+    public ResponseEntity<ApiResponse<List<com.school.erp.modules.transport.entity.TransportDriver>>> listDrivers() {
+        return ResponseEntity.ok(ApiResponse.ok(service.listDrivers()));
+    }
+
+    @PostMapping("/drivers")
+    @PreAuthorize("hasRole(\'ADMIN\')")
+    @Operation(summary = "Register driver")
+    public ResponseEntity<ApiResponse<com.school.erp.modules.transport.entity.TransportDriver>> createDriver(@RequestBody com.school.erp.modules.transport.entity.TransportDriver driver) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.created(service.createDriver(driver)));
+    }
+
+    @PostMapping("/vehicles/{vehicleId}/location")
+    @PreAuthorize("hasRole(\'ADMIN\')")
+    @Operation(summary = "Report GPS point (simulator / device gateway)")
+    public ResponseEntity<ApiResponse<com.school.erp.modules.transport.entity.VehicleLiveLocation>> reportLocation(
+            @PathVariable Long vehicleId,
+            @RequestParam(required = false) Long routeId,
+            @RequestParam BigDecimal lat,
+            @RequestParam BigDecimal lng) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.created(service.reportLiveLocation(vehicleId, routeId, lat, lng)));
     }
 
     public TransportController(final TransportService service) {

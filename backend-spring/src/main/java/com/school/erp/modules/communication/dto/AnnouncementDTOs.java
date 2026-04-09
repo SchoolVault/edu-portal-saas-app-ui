@@ -25,5 +25,45 @@ public class AnnouncementDTOs {
         public Long getTargetSectionId() { return targetSectionId; }
         public void setTargetSectionId(Long targetSectionId) { this.targetSectionId = targetSectionId; }
     }
+
+    /** Safe for headers / notification strip (no full body). */
+    public static class AnnouncementPreviewResponse {
+        private Long id;
+        private String title;
+        private String preview;
+        private String createdAt;
+
+        public Long getId() {
+            return id;
+        }
+
+        public void setId(Long id) {
+            this.id = id;
+        }
+
+        public String getTitle() {
+            return title;
+        }
+
+        public void setTitle(String title) {
+            this.title = title;
+        }
+
+        public String getPreview() {
+            return preview;
+        }
+
+        public void setPreview(String preview) {
+            this.preview = preview;
+        }
+
+        public String getCreatedAt() {
+            return createdAt;
+        }
+
+        public void setCreatedAt(String createdAt) {
+            this.createdAt = createdAt;
+        }
+    }
 }
 

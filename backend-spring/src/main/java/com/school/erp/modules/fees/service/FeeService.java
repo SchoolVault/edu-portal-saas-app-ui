@@ -11,6 +11,7 @@ import com.school.erp.modules.fees.repository.*;
 import com.school.erp.modules.student.entity.Student;
 import com.school.erp.modules.student.repository.StudentRepository;
 import com.school.erp.tenant.TenantContext;
+import com.school.erp.tenant.TenantQueryPolicy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
@@ -50,13 +51,73 @@ public class FeeService {
         fs.setTenantId(t);
         structureRepo.save(fs);
         List<FeeComponent> comps = req.getComponents().stream().map(c -> {
-            FeeComponent fc = FeeComponent.builder().feeStructureId(fs.getId()).name(c.getName()).amount(c.getAmount()).type(c.getType() != null ? Enums.FeeComponentType.valueOf(c.getType()) : Enums.FeeComponentType.MISC).build();
+            FeeComponent fc = FeeComponent.builder().feeStructureId(fs.getId()).name(c.getName()).amount(c.getAmount()).type(parseFeeComponentType(c.getType())).build();
             fc.setTenantId(t);
             return fc;
         }).collect(Collectors.toList());
         componentRepo.saveAll(comps);
         log.info("Fee structure created: {} total={}", fs.getName(), total);
         return getStructures().stream().filter(s -> s.getId().equals(fs.getId())).findFirst().orElse(null);
+    }
+
+    private Enums.FeeComponentType parseFeeComponentType(String type) {
+        if (type == null || type.isBlank()) {
+            return Enums.FeeComponentType.MISC;
+        }
+        try {
+            return Enums.FeeComponentType.valueOf(type.trim().toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException ex) {
+            return Enums.FeeComponentType.MISC;
+        }
+    }
+
+    @Transactional
+    public FeeDTOs.FeeStructureResponse updateStructure(Long id, FeeDTOs.CreateFeeStructureRequest req) {
+        FeeStructure fs = requireFeeStructure(id);
+        String structureTenant = fs.getTenantId();
+        BigDecimal total = req.getComponents().stream().map(FeeDTOs.FeeComponentDTO::getAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
+        fs.setName(req.getName());
+        fs.setClassId(req.getClassId());
+        fs.setClassName(req.getClassName());
+        fs.setAcademicYearId(req.getAcademicYearId());
+        fs.setTotalAmount(total);
+        structureRepo.save(fs);
+        List<FeeComponent> old = componentRepo.findByTenantIdAndFeeStructureId(structureTenant, id);
+        componentRepo.deleteAll(old);
+        List<FeeComponent> comps = req.getComponents().stream().map(c -> {
+            FeeComponent fc = FeeComponent.builder().feeStructureId(fs.getId()).name(c.getName()).amount(c.getAmount()).type(parseFeeComponentType(c.getType())).build();
+            fc.setTenantId(structureTenant);
+            return fc;
+        }).collect(Collectors.toList());
+        componentRepo.saveAll(comps);
+        log.info("Fee structure updated: id={} total={}", id, total);
+        return mapStructureResponse(fs, structureTenant);
+    }
+
+    private FeeDTOs.FeeStructureResponse mapStructureResponse(FeeStructure fs, String tenantForComponents) {
+        List<FeeComponent> comps = componentRepo.findByTenantIdAndFeeStructureId(tenantForComponents, fs.getId());
+        return FeeDTOs.FeeStructureResponse.builder().id(fs.getId()).name(fs.getName()).classId(fs.getClassId()).className(fs.getClassName()).academicYearId(fs.getAcademicYearId()).totalAmount(fs.getTotalAmount()).components(comps.stream().map(c -> FeeDTOs.FeeComponentDTO.builder().id(c.getId()).name(c.getName()).amount(c.getAmount()).type(c.getType() != null ? c.getType().name() : null).build()).collect(Collectors.toList())).build();
+    }
+
+    private FeeStructure requireFeeStructure(Long id) {
+        String t = TenantContext.getTenantId();
+        if (TenantQueryPolicy.isPlatformSuperAdmin()) {
+            return structureRepo.findById(id).filter(x -> !Boolean.TRUE.equals(x.getIsDeleted())).orElseThrow(() -> new ResourceNotFoundException("FeeStructure", id));
+        }
+        return structureRepo.findByIdAndTenantIdAndIsDeletedFalse(id, t).orElseThrow(() -> new ResourceNotFoundException("FeeStructure", id));
+    }
+
+    @Transactional
+    public void deleteStructure(Long id) {
+        FeeStructure fs = requireFeeStructure(id);
+        String t = fs.getTenantId();
+        fs.setIsDeleted(true);
+        structureRepo.save(fs);
+        for (FeeComponent c : componentRepo.findByTenantIdAndFeeStructureId(t, id)) {
+            c.setIsDeleted(true);
+            componentRepo.save(c);
+        }
+        log.info("Fee structure soft-deleted: id={}", id);
     }
 
     // ========== FEE PAYMENTS ==========
@@ -78,8 +139,11 @@ public class FeeService {
         // Find existing payment record or create new
         FeePayment payment;
         if (req.getPaymentId() != null) {
-            payment = paymentRepo.findById(req.getPaymentId()).orElseThrow(() -> new ResourceNotFoundException("Payment", req.getPaymentId()));
-            if (!payment.getTenantId().equals(t)) throw new BusinessException("Invalid payment record");
+            if (TenantQueryPolicy.isPlatformSuperAdmin()) {
+                payment = paymentRepo.findById(req.getPaymentId()).filter(p -> !Boolean.TRUE.equals(p.getIsDeleted())).orElseThrow(() -> new ResourceNotFoundException("Payment", req.getPaymentId()));
+            } else {
+                payment = paymentRepo.findByIdAndTenantIdAndIsDeletedFalse(req.getPaymentId(), t).orElseThrow(() -> new ResourceNotFoundException("Payment", req.getPaymentId()));
+            }
             // Update existing - add to paid amount
             BigDecimal newPaid = payment.getPaidAmount().add(req.getPaymentAmount());
             payment.setPaidAmount(newPaid);
@@ -255,7 +319,9 @@ public class FeeService {
         response.setStudentId(payment.getStudentId());
         response.setStudentName(payment.getStudentName());
         response.setFeeStructureId(payment.getFeeStructureId());
-        FeeStructure structure = payment.getFeeStructureId() != null ? structureRepo.findById(payment.getFeeStructureId()).orElse(null) : null;
+        FeeStructure structure = payment.getFeeStructureId() != null
+                ? structureRepo.findByIdAndTenantIdAndIsDeletedFalse(payment.getFeeStructureId(), payment.getTenantId()).orElse(null)
+                : null;
         response.setFeeStructureName(structure != null ? structure.getName() : "Fee Plan");
         response.setClassName(structure != null ? structure.getClassName() : null);
         response.setDueDate(payment.getDueDate() != null ? payment.getDueDate().toString() : null);
@@ -267,15 +333,15 @@ public class FeeService {
         response.setDiscount(payment.getDiscount() != null ? payment.getDiscount() : BigDecimal.ZERO);
         response.setLateFee(payment.getLateFee() != null ? payment.getLateFee() : BigDecimal.ZERO);
         response.setPayableNow(getPayableNow(payment));
-        response.setLineItems(getLineItems(payment.getFeeStructureId()));
+        response.setLineItems(getLineItems(payment.getTenantId(), payment.getFeeStructureId()));
         return response;
     }
 
-    private List<FeeDTOs.ParentFeeLineItem> getLineItems(Long feeStructureId) {
-        if (feeStructureId == null) {
+    private List<FeeDTOs.ParentFeeLineItem> getLineItems(String feeTenantId, Long feeStructureId) {
+        if (feeStructureId == null || feeTenantId == null) {
             return List.of();
         }
-        return componentRepo.findByTenantIdAndFeeStructureId(TenantContext.getTenantId(), feeStructureId).stream()
+        return componentRepo.findByTenantIdAndFeeStructureId(feeTenantId, feeStructureId).stream()
                 .map(item -> new FeeDTOs.ParentFeeLineItem(item.getName(), item.getAmount(), item.getType() != null ? item.getType().name().toLowerCase() : "misc"))
                 .collect(Collectors.toList());
     }
@@ -324,7 +390,9 @@ public class FeeService {
 
     private FeeDTOs.PaymentReceiptResponse toReceiptResponse(FeePayment payment, FeePaymentAttempt attempt) {
         FeeDTOs.PaymentReceiptResponse response = new FeeDTOs.PaymentReceiptResponse();
-        FeeStructure structure = payment.getFeeStructureId() != null ? structureRepo.findById(payment.getFeeStructureId()).orElse(null) : null;
+        FeeStructure structure = payment.getFeeStructureId() != null
+                ? structureRepo.findByIdAndTenantIdAndIsDeletedFalse(payment.getFeeStructureId(), payment.getTenantId()).orElse(null)
+                : null;
         response.setReceiptNumber(payment.getReceiptNumber());
         response.setPaymentId(payment.getId());
         response.setStudentId(payment.getStudentId());
@@ -343,7 +411,7 @@ public class FeeService {
         response.setDueAmount(payment.getDueAmount());
         response.setDiscount(payment.getDiscount() != null ? payment.getDiscount() : BigDecimal.ZERO);
         response.setLateFee(payment.getLateFee() != null ? payment.getLateFee() : BigDecimal.ZERO);
-        response.setLineItems(getLineItems(payment.getFeeStructureId()));
+        response.setLineItems(getLineItems(payment.getTenantId(), payment.getFeeStructureId()));
         return response;
     }
 

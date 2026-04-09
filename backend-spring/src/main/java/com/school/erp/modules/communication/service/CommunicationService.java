@@ -1,13 +1,19 @@
 package com.school.erp.modules.communication.service;
 
+import com.school.erp.common.exception.ResourceNotFoundException;
+import com.school.erp.common.exception.UnauthorizedException;
 import com.school.erp.modules.communication.dto.CommunicationDTOs;
 import com.school.erp.modules.communication.dto.AnnouncementDTOs;
 import com.school.erp.modules.communication.entity.*;
 import com.school.erp.modules.communication.repository.*;
-import com.school.erp.modules.student.repository.StudentRepository;
+import com.school.erp.modules.guardian.service.GuardianService;
+import com.school.erp.config.CacheConfig;
 import com.school.erp.tenant.TenantContext;
+import com.school.erp.tenant.TenantQueryPolicy;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -18,17 +24,34 @@ public class CommunicationService {
     private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(CommunicationService.class);
     private final AnnouncementRepository annRepo;
     private final MessageRepository msgRepo;
-    private final StudentRepository studentRepository;
+    private final GuardianService guardianService;
 
-    // ========== ANNOUNCEMENTS ==========
     @Transactional(readOnly = true)
     public List<Announcement> getAnnouncements() {
         String role = TenantContext.getUserRole() != null ? TenantContext.getUserRole().trim().toUpperCase(Locale.ROOT) : "";
-        // Admins/teachers can browse all; parents/students get filtered announcements
-        if ("ADMIN".equals(role) || "TEACHER".equals(role) || "SUPER_ADMIN".equals(role)) {
+        if ("ADMIN".equals(role) || "TEACHER".equals(role) || "SUPER_ADMIN".equals(role) || "LIBRARY_STAFF".equals(role)) {
             return annRepo.findByTenantIdAndIsDeletedFalseOrderByCreatedAtDesc(TenantContext.getTenantId());
         }
         return getAnnouncementsForMe();
+    }
+
+    @Cacheable(cacheNames = CacheConfig.ANNOUNCEMENT_PREVIEWS, keyGenerator = "tenantUserRoleKeyGenerator", unless = "#result == null")
+    @Transactional(readOnly = true)
+    public List<AnnouncementDTOs.AnnouncementPreviewResponse> getAnnouncementPreviews() {
+        return getAnnouncements().stream().map(a -> {
+            AnnouncementDTOs.AnnouncementPreviewResponse p = new AnnouncementDTOs.AnnouncementPreviewResponse();
+            p.setId(a.getId());
+            p.setTitle(a.getTitle());
+            p.setPreview(previewText(a.getContent()));
+            p.setCreatedAt(a.getCreatedAt() != null ? a.getCreatedAt().toString() : null);
+            return p;
+        }).collect(Collectors.toList());
+    }
+
+    @Transactional(readOnly = true)
+    public Announcement getAnnouncement(Long id) {
+        return annRepo.findByIdAndTenantIdAndIsDeletedFalse(id, TenantContext.getTenantId())
+                .orElseThrow(() -> new ResourceNotFoundException("Announcement", id));
     }
 
     @Transactional(readOnly = true)
@@ -40,17 +63,15 @@ public class CommunicationService {
         List<Long> sectionIds = new ArrayList<>();
 
         if ("PARENT".equals(role) || "ADMIN".equals(role)) {
-            // Parent scope: all of their children
             Long parentId = TenantContext.getUserId();
-            for (var s : studentRepository.findByTenantIdAndParentIdAndIsDeletedFalse(tenantId, parentId)) {
+            for (var s : guardianService.findStudentsForParentUser(tenantId, parentId)) {
                 if (s.getClassId() != null) classIds.add(s.getClassId());
                 if (s.getSectionId() != null) sectionIds.add(s.getSectionId());
             }
         }
 
         if ("STUDENT".equals(role)) {
-            // Student scope: find student by current user id is not modeled; fallback to only ALL + role-based.
-            // This is intentionally conservative until we add a proper student-user mapping.
+            // Conservative until student-user mapping exists
         }
 
         if (classIds.isEmpty()) classIds = List.of(-1L);
@@ -75,7 +96,8 @@ public class CommunicationService {
 
     @Transactional
     public Announcement updateAnnouncement(Long id, Announcement update) {
-        Announcement ann = annRepo.findById(id).orElseThrow(() -> new com.school.erp.common.exception.ResourceNotFoundException("Announcement", id));
+        Announcement ann = annRepo.findByIdAndTenantIdAndIsDeletedFalse(id, TenantContext.getTenantId())
+                .orElseThrow(() -> new ResourceNotFoundException("Announcement", id));
         if (update.getTitle() != null) ann.setTitle(update.getTitle());
         if (update.getContent() != null) ann.setContent(update.getContent());
         if (update.getTargetAudience() != null) ann.setTargetAudience(update.getTargetAudience());
@@ -84,13 +106,12 @@ public class CommunicationService {
 
     @Transactional
     public void deleteAnnouncement(Long id) {
-        annRepo.findById(id).ifPresent(a -> {
-            a.setIsDeleted(true);
-            annRepo.save(a);
-        });
+        Announcement a = annRepo.findByIdAndTenantIdAndIsDeletedFalse(id, TenantContext.getTenantId())
+                .orElseThrow(() -> new ResourceNotFoundException("Announcement", id));
+        a.setIsDeleted(true);
+        annRepo.save(a);
     }
 
-    // ========== MESSAGING (Teacher-Parent Chat) ==========
     @Transactional(readOnly = true)
     public List<CommunicationDTOs.MessageResponse> getMyMessages() {
         String t = TenantContext.getTenantId();
@@ -117,10 +138,19 @@ public class CommunicationService {
 
     @Transactional
     public void markMessageRead(Long messageId) {
-        msgRepo.findById(messageId).ifPresent(m -> {
-            m.setIsRead(true);
-            msgRepo.save(m);
-        });
+        Long userId = TenantContext.getUserId();
+        Message m;
+        if (TenantQueryPolicy.isPlatformSuperAdmin()) {
+            m = msgRepo.findById(messageId).filter(x -> !Boolean.TRUE.equals(x.getIsDeleted())).orElseThrow(() -> new ResourceNotFoundException("Message", messageId));
+        } else {
+            m = msgRepo.findByIdAndTenantIdAndIsDeletedFalse(messageId, TenantContext.getTenantId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Message", messageId));
+            if (userId == null || !userId.equals(m.getReceiverId())) {
+                throw new UnauthorizedException("Not allowed to update this message");
+            }
+        }
+        m.setIsRead(true);
+        msgRepo.save(m);
     }
 
     @Transactional(readOnly = true)
@@ -128,13 +158,23 @@ public class CommunicationService {
         return msgRepo.countByTenantIdAndReceiverIdAndIsReadFalse(TenantContext.getTenantId(), TenantContext.getUserId());
     }
 
+    private static String previewText(String content) {
+        if (content == null) return "";
+        String t = content.replaceAll("\\s+", " ").trim();
+        if (t.length() <= 160) return t;
+        return t.substring(0, 157) + "…";
+    }
+
     private CommunicationDTOs.MessageResponse toMsgResponse(Message m) {
         return CommunicationDTOs.MessageResponse.builder().id(m.getId()).senderId(m.getSenderId()).senderName(m.getSenderName()).senderRole(m.getSenderRole()).receiverId(m.getReceiverId()).receiverName(m.getReceiverName()).content(m.getContent()).isRead(m.getIsRead()).timestamp(m.getCreatedAt() != null ? m.getCreatedAt().toString() : null).build();
     }
 
-    public CommunicationService(final AnnouncementRepository annRepo, final MessageRepository msgRepo, final StudentRepository studentRepository) {
+    public CommunicationService(
+            final AnnouncementRepository annRepo,
+            final MessageRepository msgRepo,
+            final GuardianService guardianService) {
         this.annRepo = annRepo;
         this.msgRepo = msgRepo;
-        this.studentRepository = studentRepository;
+        this.guardianService = guardianService;
     }
 }

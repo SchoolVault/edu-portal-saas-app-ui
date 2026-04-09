@@ -65,6 +65,13 @@ public class ReportController {
         return ResponseEntity.ok(ApiResponse.ok(reportService.getClassSummary()));
     }
 
+    @GetMapping("/section-summary")
+    @PreAuthorize("hasRole(\'ADMIN\')")
+    @Operation(summary = "Section summary report", description = "Per-section student counts by class")
+    public ResponseEntity<ApiResponse<List<Map<String, Object>>>> sectionSummary() {
+        return ResponseEntity.ok(ApiResponse.ok(reportService.getSectionSummary()));
+    }
+
     @GetMapping("/teacher-workload")
     @PreAuthorize("hasRole(\'ADMIN\')")
     @Operation(summary = "Teacher workload report", description = "Teacher teaching hours and class assignments")

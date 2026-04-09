@@ -19,14 +19,14 @@ public class TimetableController {
     private final TimetableService service;
 
     @GetMapping
-    @Operation(summary = "Get timetable entries by class and section")
-    public ResponseEntity<ApiResponse<List<TimetableEntry>>> get(@RequestParam Long classId, @RequestParam Long sectionId) {
+    @Operation(summary = "Get timetable entries by class and optional section", description = "When the class has no sections, pass sectionId omitted or null.")
+    public ResponseEntity<ApiResponse<List<TimetableEntry>>> get(@RequestParam Long classId, @RequestParam(required = false) Long sectionId) {
         return ResponseEntity.ok(ApiResponse.ok(service.getByClassAndSection(classId, sectionId)));
     }
 
     @GetMapping("/grid")
     @Operation(summary = "Get timetable as grid (day x period)", description = "Returns structured grid ready for UI rendering")
-    public ResponseEntity<ApiResponse<TimetableDTOs.TimetableGridResponse>> getGrid(@RequestParam Long classId, @RequestParam Long sectionId) {
+    public ResponseEntity<ApiResponse<TimetableDTOs.TimetableGridResponse>> getGrid(@RequestParam Long classId, @RequestParam(required = false) Long sectionId) {
         return ResponseEntity.ok(ApiResponse.ok(service.getGrid(classId, sectionId)));
     }
 

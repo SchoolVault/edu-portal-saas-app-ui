@@ -2,6 +2,7 @@ package com.school.erp.modules.hostel.controller;
 
 import com.school.erp.common.dto.ApiResponse;
 import com.school.erp.modules.hostel.dto.HostelDTOs;
+import com.school.erp.modules.hostel.entity.Hostel;
 import com.school.erp.modules.hostel.entity.HostelRoom;
 import com.school.erp.modules.hostel.service.HostelService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -19,6 +20,19 @@ import java.util.List;
 public class HostelController {
     private final HostelService service;
 
+    @GetMapping("/buildings")
+    @Operation(summary = "Hostel buildings with live availability summary")
+    public ResponseEntity<ApiResponse<List<HostelDTOs.HostelSummary>>> listBuildings() {
+        return ResponseEntity.ok(ApiResponse.ok(service.listHostels()));
+    }
+
+    @PostMapping("/buildings")
+    @PreAuthorize("hasRole(\'ADMIN\')")
+    @Operation(summary = "Create hostel building (e.g. Boys BH1)")
+    public ResponseEntity<ApiResponse<Hostel>> createBuilding(@RequestBody Hostel hostel) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.created(service.createHostel(hostel)));
+    }
+
     @GetMapping("/rooms")
     @Operation(summary = "List rooms with current residents")
     public ResponseEntity<ApiResponse<List<HostelDTOs.RoomResponse>>> listRooms() {
@@ -30,6 +44,13 @@ public class HostelController {
     @Operation(summary = "Create room")
     public ResponseEntity<ApiResponse<HostelRoom>> createRoom(@RequestBody HostelRoom room) {
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.created(service.createRoom(room)));
+    }
+
+    @PutMapping("/rooms/{id}")
+    @PreAuthorize("hasRole(\'ADMIN\')")
+    @Operation(summary = "Update room metadata", description = "Hostel, block, floor, room number, type, capacity (cannot drop below occupancy)")
+    public ResponseEntity<ApiResponse<HostelRoom>> updateRoom(@PathVariable Long id, @RequestBody HostelRoom patch) {
+        return ResponseEntity.ok(ApiResponse.ok(service.updateRoom(id, patch)));
     }
 
     @PostMapping("/allocate")

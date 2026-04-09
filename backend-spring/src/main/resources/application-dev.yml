@@ -1,8 +1,21 @@
+# Active when spring.profiles.active includes dev (default in application.yml for local work).
+app:
+  demo-seed:
+    enabled: true
+
 spring:
   jpa:
     show-sql: true
   flyway:
     clean-disabled: false
+
+# Local dev often runs without Redis/RabbitMQ; keep actuator health usable.
+management:
+  health:
+    redis:
+      enabled: false
+    rabbit:
+      enabled: false
 
 logging:
   level:

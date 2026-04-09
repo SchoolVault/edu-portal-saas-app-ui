@@ -21,14 +21,24 @@ public class LibraryController {
     private final LibraryService service;
 
     @GetMapping("/books")
-    @Operation(summary = "List/search books")
-    public ResponseEntity<ApiResponse<List<Book>>> listBooks(@RequestParam(required = false) String search) {
-        return ResponseEntity.ok(ApiResponse.ok(service.getBooks(search)));
+    @Operation(summary = "List/search books", description = "By default only catalog-active titles; pass includeInactive=true to list withdrawn titles")
+    public ResponseEntity<ApiResponse<List<Book>>> listBooks(
+            @RequestParam(required = false) String search,
+            @RequestParam(required = false, defaultValue = "false") boolean includeInactive) {
+        return ResponseEntity.ok(ApiResponse.ok(service.getBooks(search, includeInactive)));
+    }
+
+    @PutMapping("/books/{id}/catalog")
+    @PreAuthorize("hasRole(\'ADMIN\') or hasAuthority(\'LIBRARY_MANAGE\')")
+    @Operation(summary = "Activate or deactivate catalog title", description = "Inactive titles cannot be issued; copies on loan are unchanged")
+    public ResponseEntity<ApiResponse<Book>> setCatalogActive(@PathVariable Long id, @RequestBody LibraryDTOs.CatalogActiveRequest body) {
+        boolean active = body != null && Boolean.TRUE.equals(body.getActive());
+        return ResponseEntity.ok(ApiResponse.ok(service.setCatalogActive(id, active)));
     }
 
     @PostMapping("/books")
-    @PreAuthorize("hasRole(\'ADMIN\')")
-    @Operation(summary = "Add book to catalog")
+    @PreAuthorize("hasRole(\'ADMIN\') or hasAuthority(\'LIBRARY_MANAGE\')")
+    @Operation(summary = "Add book to catalog", description = "Admin or teacher (e.g. librarian role) may add titles")
     public ResponseEntity<ApiResponse<Book>> addBook(@RequestBody Book book) {
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.created(service.addBook(book)));
     }
@@ -40,17 +50,17 @@ public class LibraryController {
     }
 
     @PostMapping("/issues")
-    @PreAuthorize("hasAnyRole(\'ADMIN\',\'TEACHER\')")
+    @PreAuthorize("hasRole(\'ADMIN\') or hasAnyAuthority(\'LIBRARY_MANAGE\',\'LIBRARY_CIRCULATION\')")
     @Operation(summary = "Issue book to student", description = "Decreases available copies. Default due: 14 days.")
     public ResponseEntity<ApiResponse<LibraryDTOs.BookIssueResponse>> issueBook(@Valid @RequestBody LibraryDTOs.IssueBookRequest req) {
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.created(service.issueBook(req)));
     }
 
     @PutMapping("/issues/{id}/return")
-    @PreAuthorize("hasAnyRole(\'ADMIN\',\'TEACHER\')")
-    @Operation(summary = "Return book", description = "Auto-calculates fine if overdue ($2/day). Increases available copies.")
-    public ResponseEntity<ApiResponse<LibraryDTOs.BookIssueResponse>> returnBook(@PathVariable Long id) {
-        return ResponseEntity.ok(ApiResponse.ok(service.returnBook(id), "Book returned"));
+    @PreAuthorize("hasRole(\'ADMIN\') or hasAnyAuthority(\'LIBRARY_MANAGE\',\'LIBRARY_CIRCULATION\')")
+    @Operation(summary = "Return book", description = "Return date & optional fine/day override; otherwise tenant library_fine_per_day applies.")
+    public ResponseEntity<ApiResponse<LibraryDTOs.BookIssueResponse>> returnBook(@PathVariable Long id, @RequestBody(required = false) LibraryDTOs.ReturnBookRequest req) {
+        return ResponseEntity.ok(ApiResponse.ok(service.returnBook(id, req), "Book returned"));
     }
 
     public LibraryController(final LibraryService service) {

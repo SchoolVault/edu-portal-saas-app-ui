@@ -4,6 +4,8 @@ import com.school.erp.common.entity.BaseEntity;
 import com.school.erp.common.enums.Enums;
 import jakarta.persistence.*;
 import java.time.LocalDate;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 @Entity
 @Table(name = "students", uniqueConstraints = {@UniqueConstraint(columnNames = {"tenant_id", "admission_number"}), @UniqueConstraint(columnNames = {"tenant_id", "email"})}, indexes = {@Index(name = "idx_student_tenant", columnList = "tenant_id"), @Index(name = "idx_student_class", columnList = "tenant_id, class_id"), @Index(name = "idx_student_section", columnList = "tenant_id, class_id, section_id")})
@@ -19,6 +21,7 @@ public class Student extends BaseEntity {
     @Column(name = "date_of_birth")
     private LocalDate dateOfBirth;
     @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.VARCHAR)
     @Column(length = 10)
     private Enums.Gender gender;
     @Column(name = "class_id")
@@ -35,13 +38,18 @@ public class Student extends BaseEntity {
     private Long parentId;
     @Column(name = "parent_name", length = 200)
     private String parentName;
+    @Column(name = "primary_contact_guardian_id")
+    private Long primaryContactGuardianId;
     @Column(length = 500)
     private String address;
     @Column(name = "blood_group", length = 5)
     private String bloodGroup;
+    @Column(name = "attributes_json", columnDefinition = "json")
+    private String attributesJson;
     @Column(length = 500)
     private String avatar;
     @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.VARCHAR)
     @Column(nullable = false, length = 20)
     private Enums.StudentStatus status;
     // Transient fields for response enrichment
@@ -293,12 +301,20 @@ public class Student extends BaseEntity {
         return this.parentName;
     }
 
+    public Long getPrimaryContactGuardianId() {
+        return this.primaryContactGuardianId;
+    }
+
     public String getAddress() {
         return this.address;
     }
 
     public String getBloodGroup() {
         return this.bloodGroup;
+    }
+
+    public String getAttributesJson() {
+        return this.attributesJson;
     }
 
     public String getAvatar() {
@@ -369,12 +385,20 @@ public class Student extends BaseEntity {
         this.parentName = parentName;
     }
 
+    public void setPrimaryContactGuardianId(final Long primaryContactGuardianId) {
+        this.primaryContactGuardianId = primaryContactGuardianId;
+    }
+
     public void setAddress(final String address) {
         this.address = address;
     }
 
     public void setBloodGroup(final String bloodGroup) {
         this.bloodGroup = bloodGroup;
+    }
+
+    public void setAttributesJson(final String attributesJson) {
+        this.attributesJson = attributesJson;
     }
 
     public void setAvatar(final String avatar) {

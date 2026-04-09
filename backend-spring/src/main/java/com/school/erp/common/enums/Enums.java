@@ -3,7 +3,12 @@ package com.school.erp.common.enums;
 public class Enums {
 
     public enum Role {
-        SUPER_ADMIN, ADMIN, TEACHER, PARENT, STUDENT
+        SUPER_ADMIN, ADMIN, TEACHER, PARENT, STUDENT, LIBRARY_STAFF
+    }
+
+    /** Registered fleet types for transport (extensible). */
+    public enum VehicleType {
+        BUS, VAN, CAR, OTHER
     }
 
     public enum Gender {
@@ -11,11 +16,21 @@ public class Enums {
     }
 
     public enum StudentStatus {
-        ACTIVE, INACTIVE, GRADUATED, TRANSFERRED
+        ACTIVE, INACTIVE, GRADUATED, TRANSFERRED, ALUMNI
+    }
+
+    /** Role of a guardian/parent relative to the student (mapping metadata). */
+    public enum GuardianRelationType {
+        FATHER, MOTHER, GUARDIAN, OTHER
     }
 
     public enum TeacherStatus {
         ACTIVE, INACTIVE, ON_LEAVE, RESIGNED
+    }
+
+    /** Staff who may run library catalog & circulation (JWT adds LIBRARY_* authorities). */
+    public enum LibraryStaffRole {
+        ASSISTANT, LIBRARIAN, HEAD
     }
 
     public enum AttendanceStatus {
@@ -31,7 +46,7 @@ public class Enums {
     }
 
     public enum FeeComponentType {
-        TUITION, TRANSPORT, LIBRARY, LAB, SPORTS, MISC
+        TUITION, TRANSPORT, HOSTEL, UNIFORM, LIBRARY, LAB, SPORTS, MISC
     }
 
     public enum BookIssueStatus {
@@ -72,5 +87,31 @@ public class Enums {
 
     public enum DocumentCategory {
         STUDENT, TEACHER, ADMIN, GENERAL
+    }
+
+    public enum DocumentOwnerType {
+        STUDENT, CLASS, TEACHER, GLOBAL
+    }
+
+    public enum DocumentVisibilityScope {
+        PRIVATE, CLASS, SECTION, SCHOOL
+    }
+
+    public enum LeaveStatus {
+        PENDING, APPROVED, REJECTED, CANCELLED
+    }
+
+    /** Full day vs half-day sessions for leave requests. */
+    public enum LeaveDayUnit {
+        FULL_DAY, FIRST_HALF, SECOND_HALF
+    }
+
+    /** Fee / checkout attempt lifecycle for gateways and retries. */
+    public enum PaymentAttemptStatus {
+        CREATED, PAID, FAILED, EXPIRED
+    }
+
+    public enum HostelOccupancyStatus {
+        AVAILABLE, FULL, MAINTENANCE, RESERVED
     }
 }

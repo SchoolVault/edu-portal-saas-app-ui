@@ -3,6 +3,8 @@ package com.school.erp.modules.auth.entity;
 import com.school.erp.common.entity.BaseEntity;
 import com.school.erp.common.enums.Enums;
 import jakarta.persistence.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 @Entity
 @Table(name = "users", uniqueConstraints = {@UniqueConstraint(columnNames = {"tenant_id", "email"})}, indexes = {@Index(name = "idx_user_tenant", columnList = "tenant_id"), @Index(name = "idx_user_email", columnList = "tenant_id, email")})
@@ -16,6 +18,7 @@ public class User extends BaseEntity {
     @Column(length = 20)
     private String phone;
     @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.VARCHAR)
     @Column(nullable = false, length = 20)
     private Enums.Role role;
     @Column(length = 100)

@@ -3,6 +3,8 @@ package com.school.erp.modules.communication.entity;
 import com.school.erp.common.entity.BaseEntity;
 import com.school.erp.common.enums.Enums;
 import jakarta.persistence.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 @Entity
 @Table(name = "announcements", indexes = {@Index(name = "idx_ann_tenant", columnList = "tenant_id")})
@@ -16,6 +18,7 @@ public class Announcement extends BaseEntity {
     @Column(name = "author_role", length = 20)
     private String authorRole;
     @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.VARCHAR)
     @Column(name = "target_audience", length = 20)
     private Enums.TargetAudience targetAudience;
     @Column(name = "target_class_id")

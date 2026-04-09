@@ -3,11 +3,14 @@ package com.school.erp.modules.audit.entity;
 import com.school.erp.common.entity.BaseEntity;
 import com.school.erp.common.enums.Enums;
 import jakarta.persistence.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 @Entity
 @Table(name = "audit_logs", indexes = {@Index(name = "idx_audit_tenant_date", columnList = "tenant_id, created_at"), @Index(name = "idx_audit_user", columnList = "tenant_id, user_id")})
 public class AuditLog extends BaseEntity {
     @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.VARCHAR)
     @Column(nullable = false, length = 10)
     private Enums.AuditAction action;
     @Column(nullable = false, length = 50)

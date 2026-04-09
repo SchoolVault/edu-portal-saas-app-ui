@@ -106,6 +106,28 @@ public class StudentService {
     }
 
     @Transactional
+    public StudentDTOs.BulkUploadReport bulkCreateWithReport(StudentDTOs.BulkUploadRequest request) {
+        StudentDTOs.BulkUploadReport report = new StudentDTOs.BulkUploadReport();
+        java.util.List<StudentDTOs.CreateRequest> students = request.getStudents();
+        if (students == null) {
+            return report;
+        }
+        for (int i = 0; i < students.size(); i++) {
+            StudentDTOs.CreateRequest cr = students.get(i);
+            try {
+                report.getSuccesses().add(createStudent(cr));
+            } catch (Exception ex) {
+                StudentDTOs.BulkRowError err = new StudentDTOs.BulkRowError();
+                err.setRowIndex(i);
+                err.setAdmissionNumber(cr != null ? cr.getAdmissionNumber() : null);
+                err.setMessage(ex.getMessage() != null ? ex.getMessage() : ex.getClass().getSimpleName());
+                report.getErrors().add(err);
+            }
+        }
+        return report;
+    }
+
+    @Transactional
     public List<StudentDTOs.Response> importFromZip(MultipartFile file) {
         List<Map<String, String>> rows = ZipCsvImportUtil.readRows(file, "students.csv");
         List<StudentDTOs.Response> created = new ArrayList<>();

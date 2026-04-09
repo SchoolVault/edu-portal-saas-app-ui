@@ -4,10 +4,10 @@ import io.jsonwebtoken.*;
 import io.jsonwebtoken.security.Keys;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
+
 import javax.crypto.SecretKey;
-import java.util.Base64;
-import java.util.Date;
-import java.util.Map;
+import java.util.*;
+import java.util.stream.Collectors;
 
 @Component
 public class JwtUtil {
@@ -21,7 +21,17 @@ public class JwtUtil {
     }
 
     public String generateToken(Long userId, String tenantId, String email, String role, String name) {
-        return Jwts.builder().subject(email).claims(Map.of("userId", userId, "tenantId", tenantId, "role", role, "name", name)).issuedAt(new Date()).expiration(new Date(System.currentTimeMillis() + expirationMs)).signWith(key).compact();
+        return generateToken(userId, tenantId, email, role, name, "");
+    }
+
+    public String generateToken(Long userId, String tenantId, String email, String role, String name, String permissionsCsv) {
+        Map<String, Object> claims = new LinkedHashMap<>();
+        claims.put("userId", userId);
+        claims.put("tenantId", tenantId);
+        claims.put("role", role);
+        claims.put("name", name);
+        claims.put("permissions", permissionsCsv != null ? permissionsCsv : "");
+        return Jwts.builder().subject(email).claims(claims).issuedAt(new Date()).expiration(new Date(System.currentTimeMillis() + expirationMs)).signWith(key).compact();
     }
 
     public Claims parseToken(String token) {
@@ -52,5 +62,14 @@ public class JwtUtil {
 
     public String getRole(String token) {
         return parseToken(token).get("role", String.class);
+    }
+
+    /** Fine-grained authorities (e.g. LIBRARY_CIRCULATION) in addition to ROLE_* . */
+    public List<String> getPermissionAuthorities(String token) {
+        String raw = parseToken(token).get("permissions", String.class);
+        if (raw == null || raw.isBlank()) {
+            return List.of();
+        }
+        return Arrays.stream(raw.split(",")).map(String::trim).filter(s -> !s.isEmpty()).collect(Collectors.toList());
     }
 }
