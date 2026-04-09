@@ -39,7 +39,7 @@ public class AuthService {
     private final JwtUtil jwtUtil;
     private final AuditService auditService;
 
-    @Transactional(readOnly = true)
+    @Transactional
     public AuthDTOs.LoginResponse login(AuthDTOs.LoginRequest request) {
         User user = userRepository.findByEmailAndSchoolCodeAndIsDeletedFalse(request.getEmail(), request.getSchoolCode()).orElseThrow(() -> new UnauthorizedException("Invalid credentials or school code"));
         if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) throw new UnauthorizedException("Invalid credentials or school code");

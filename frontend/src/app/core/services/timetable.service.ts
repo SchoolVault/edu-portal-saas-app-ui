@@ -3,7 +3,7 @@ import { Observable, of } from 'rxjs';
 import { delay, map } from 'rxjs/operators';
 import { TimetableEntry, TimetableGrid, TimetableGridSlot } from '../models/models';
 import { ApiService } from './api.service';
-import { environment } from '../../../environments/environment';
+import { runtimeConfig } from '../config/runtime-config';
 
 @Injectable({ providedIn: 'root' })
 export class TimetableService {
@@ -59,7 +59,7 @@ export class TimetableService {
   ];
 
   getByClassAndSection(classId: string, sectionId: string): Observable<TimetableEntry[]> {
-    if (!environment.useMocks) {
+    if (!runtimeConfig.useMocks) {
       let q = `classId=${encodeURIComponent(classId)}`;
       if (sectionId) {
         q += `&sectionId=${encodeURIComponent(sectionId)}`;
@@ -72,7 +72,7 @@ export class TimetableService {
   }
 
   getGrid(classId: string, sectionId: string): Observable<TimetableGrid> {
-    if (!environment.useMocks) {
+    if (!runtimeConfig.useMocks) {
       let q = `classId=${encodeURIComponent(classId)}`;
       if (sectionId) {
         q += `&sectionId=${encodeURIComponent(sectionId)}`;
@@ -120,7 +120,7 @@ export class TimetableService {
   }
 
   getByTeacher(teacherId: string): Observable<TimetableEntry[]> {
-    if (!environment.useMocks) {
+    if (!runtimeConfig.useMocks) {
       return this.api.get<any[]>(`/timetable/teacher/${teacherId}`).pipe(
         map(entries => entries.map(entry => this.normalizeEntry(entry)))
       );
@@ -136,14 +136,14 @@ export class TimetableService {
   }
 
   getAll(): Observable<TimetableEntry[]> {
-    if (!environment.useMocks) {
+    if (!runtimeConfig.useMocks) {
       return this.api.get<TimetableEntry[]>('/timetable?classId=0&sectionId=0');
     }
     return of([...this.entries]).pipe(delay(400));
   }
 
   addEntry(entry: TimetableEntry): Observable<TimetableEntry> {
-    if (!environment.useMocks) {
+    if (!runtimeConfig.useMocks) {
       return this.api.post<any>('/timetable', this.toPayload(entry)).pipe(map(created => this.normalizeEntry(created)));
     }
     const id = entry.id && entry.id.length ? entry.id : 'tt' + Date.now();
@@ -153,7 +153,7 @@ export class TimetableService {
   }
 
   updateEntry(id: string, entry: Partial<TimetableEntry>): Observable<TimetableEntry> {
-    if (!environment.useMocks) {
+    if (!runtimeConfig.useMocks) {
       return this.api.put<any>(`/timetable/${id}`, this.toPayload(entry)).pipe(map(updated => this.normalizeEntry(updated)));
     }
     const idx = this.entries.findIndex(e => e.id === id);
@@ -166,7 +166,7 @@ export class TimetableService {
   }
 
   deleteEntry(id: string): Observable<void> {
-    if (!environment.useMocks) {
+    if (!runtimeConfig.useMocks) {
       return this.api.delete<void>(`/timetable/${id}`);
     }
     this.entries = this.entries.filter(entry => entry.id !== id);

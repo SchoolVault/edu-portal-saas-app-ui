@@ -3,7 +3,7 @@ import { Observable, of } from 'rxjs';
 import { map } from 'rxjs/operators';
 import { SchoolBranch, TenantConfig } from '../models/models';
 import { ApiService } from './api.service';
-import { environment } from '../../../environments/environment';
+import { runtimeConfig } from '../config/runtime-config';
 
 const MOCK_TENANT_LS = 'erp_mock_tenant_general_v1';
 
@@ -30,7 +30,7 @@ export class SettingsService {
   constructor(private api: ApiService) {}
 
   get(): Observable<TenantConfig> {
-    if (environment.useMocks) {
+    if (runtimeConfig.useMocks) {
       const base: TenantConfig = {
         id: '1',
         schoolName: 'SchoolVault Academy',
@@ -49,7 +49,7 @@ export class SettingsService {
   }
 
   update(config: Partial<TenantConfig>): Observable<TenantConfig> {
-    if (environment.useMocks) {
+    if (runtimeConfig.useMocks) {
       writeMockTenant(config);
       return this.get();
     }
@@ -58,7 +58,7 @@ export class SettingsService {
 
   listBranches(schoolCode?: string): Observable<SchoolBranch[]> {
     const code = (schoolCode ?? '').trim() || 'SCH001';
-    if (environment.useMocks) {
+    if (runtimeConfig.useMocks) {
       return of([
         {
           tenantId: 't1',

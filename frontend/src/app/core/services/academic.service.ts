@@ -3,7 +3,7 @@ import { Observable, of } from 'rxjs';
 import { delay, map } from 'rxjs/operators';
 import { AcademicYear, PromotionPreview, PromotionResult, SchoolClass } from '../models/models';
 import { ApiService } from './api.service';
-import { environment } from '../../../environments/environment';
+import { runtimeConfig } from '../config/runtime-config';
 
 @Injectable({ providedIn: 'root' })
 export class AcademicService {
@@ -28,17 +28,17 @@ export class AcademicService {
   ];
 
   getAcademicYears(): Observable<AcademicYear[]> {
-    if (!environment.useMocks) { return this.api.get<AcademicYear[]>('/academic/years'); }
+    if (!runtimeConfig.useMocks) { return this.api.get<AcademicYear[]>('/academic/years'); }
     return of([...this.academicYears]).pipe(delay(300));
   }
   getClasses(): Observable<SchoolClass[]> {
-    if (!environment.useMocks) {
+    if (!runtimeConfig.useMocks) {
       return this.api.get<any[]>('/academic/classes').pipe(map(list => list.map((c: any) => this.normalizeClass(c))));
     }
     return of([...this.classes]).pipe(delay(400));
   }
   getClassById(id: string): Observable<SchoolClass | undefined> {
-    if (!environment.useMocks) { return this.api.get<any>('/academic/classes/' + id).pipe(map((c: any) => this.normalizeClass(c))); }
+    if (!runtimeConfig.useMocks) { return this.api.get<any>('/academic/classes/' + id).pipe(map((c: any) => this.normalizeClass(c))); }
     return of(this.classes.find(c => c.id === id)).pipe(delay(200));
   }
 
@@ -50,13 +50,13 @@ export class AcademicService {
   }
 
   addAcademicYear(ay: AcademicYear): Observable<AcademicYear> {
-    if (!environment.useMocks) { return this.api.post<AcademicYear>('/academic/years', ay); }
+    if (!runtimeConfig.useMocks) { return this.api.post<AcademicYear>('/academic/years', ay); }
     this.academicYears.push(ay);
     return of(ay).pipe(delay(400));
   }
 
   previewPromotion(fromClassId: string): Observable<PromotionPreview> {
-    if (!environment.useMocks) {
+    if (!runtimeConfig.useMocks) {
       return this.api.get<any>(`/academic/promotion/preview?fromClassId=${fromClassId}`).pipe(
         map(preview => ({
           sourceClassId: String(preview.sourceClassId),
@@ -88,7 +88,7 @@ export class AcademicService {
   }
 
   executePromotion(sourceClassId: string, targetClassId: string, studentIds: string[], targetSectionId?: string): Observable<PromotionResult> {
-    if (!environment.useMocks) {
+    if (!runtimeConfig.useMocks) {
       return this.api.post<PromotionResult>('/academic/promotion/execute', {
         sourceClassId: Number(sourceClassId),
         targetClassId: Number(targetClassId),
@@ -100,7 +100,7 @@ export class AcademicService {
   }
 
   assignClassTeacher(classId: string, teacherId: string | null, teacherName?: string): Observable<SchoolClass> {
-    if (!environment.useMocks) {
+    if (!runtimeConfig.useMocks) {
       return this.api.put<any>(`/academic/classes/${classId}/teacher`, {
         teacherId: teacherId ? Number(teacherId) : null,
         teacherName: teacherName ?? null

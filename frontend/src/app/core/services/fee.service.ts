@@ -3,7 +3,7 @@ import { Observable, of } from 'rxjs';
 import { delay, map } from 'rxjs/operators';
 import { FeeStructure, FeePayment } from '../models/models';
 import { ApiService } from './api.service';
-import { environment } from '../../../environments/environment';
+import { runtimeConfig } from '../config/runtime-config';
 import { coerceApiLongId } from '../utils/coerce-api-long-id';
 
 let MOCK_FEE_STRUCTURES: FeeStructure[] = [
@@ -83,21 +83,21 @@ export class FeeService {
   constructor(private api: ApiService) {}
 
   getFeeStructures(): Observable<FeeStructure[]> {
-    if (!environment.useMocks) {
+    if (!runtimeConfig.useMocks) {
       return this.api.get<any[]>('/fees/structures').pipe(map(structures => structures.map(item => this.normalizeStructure(item))));
     }
     return of(MOCK_FEE_STRUCTURES.map(s => ({ ...s, components: s.components.map(c => ({ ...c })) }))).pipe(delay(400));
   }
 
   getPayments(): Observable<FeePayment[]> {
-    if (!environment.useMocks) {
+    if (!runtimeConfig.useMocks) {
       return this.api.get<any[]>('/fees/payments').pipe(map(payments => payments.map(item => this.normalizePayment(item))));
     }
     return of([...this.payments]).pipe(delay(400));
   }
 
   getStudentPayments(studentId: string): Observable<FeePayment[]> {
-    if (!environment.useMocks) {
+    if (!runtimeConfig.useMocks) {
       const sid = coerceApiLongId(studentId, 'student');
       return this.api.get<any[]>(`/fees/payments/student/${sid}`).pipe(map(payments => payments.map(item => this.normalizePayment(item))));
     }
@@ -105,7 +105,7 @@ export class FeeService {
   }
 
   recordPayment(payment: FeePayment): Observable<FeePayment> {
-    if (!environment.useMocks) {
+    if (!runtimeConfig.useMocks) {
       const body: Record<string, unknown> = {
         studentId: coerceApiLongId(payment.studentId, 'student'),
         studentName: payment.studentName,
@@ -134,7 +134,7 @@ export class FeeService {
 
   addFeeStructure(fs: Omit<FeeStructure, 'id' | 'totalAmount' | 'tenantId'> & { id?: string }): Observable<FeeStructure> {
     const total = sumComponents(fs.components);
-    if (!environment.useMocks) {
+    if (!runtimeConfig.useMocks) {
       return this.api
         .post<any>('/fees/structures', {
           name: fs.name,
@@ -168,7 +168,7 @@ export class FeeService {
     fs: Omit<FeeStructure, 'id' | 'totalAmount' | 'tenantId'> & { components: FeeStructure['components'] }
   ): Observable<FeeStructure> {
     const total = sumComponents(fs.components);
-    if (!environment.useMocks) {
+    if (!runtimeConfig.useMocks) {
       return this.api
         .put<any>(`/fees/structures/${coerceApiLongId(id, 'fee structure')}`, {
           name: fs.name,
@@ -196,7 +196,7 @@ export class FeeService {
   }
 
   deleteFeeStructure(id: string): Observable<void> {
-    if (!environment.useMocks) {
+    if (!runtimeConfig.useMocks) {
       return this.api.delete<void>(`/fees/structures/${coerceApiLongId(id, 'fee structure')}`);
     }
     MOCK_FEE_STRUCTURES = MOCK_FEE_STRUCTURES.filter(x => x.id !== id);

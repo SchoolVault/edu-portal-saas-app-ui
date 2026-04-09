@@ -5,7 +5,7 @@ import { Subscription } from 'rxjs';
 import { ChatService } from '../../core/services/chat.service';
 import { AuthService } from '../../core/services/auth.service';
 import { ChatDirectoryResponse, ChatInboxConversation, ChatMessage } from '../../core/models/models';
-import { environment } from '../../../environments/environment';
+import { runtimeConfig } from '../../core/config/runtime-config';
 
 @Component({
   selector: 'app-chat',
@@ -317,7 +317,7 @@ import { environment } from '../../../environments/environment';
   `
 })
 export class ChatComponent implements OnInit, OnDestroy {
-  readonly useMocks = environment.useMocks;
+  readonly useMocks = runtimeConfig.useMocks;
   realtimeConnected = false;
   role = 'admin';
   inbox: ChatInboxConversation[] = [];

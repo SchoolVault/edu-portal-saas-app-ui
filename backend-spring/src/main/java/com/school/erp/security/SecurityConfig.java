@@ -28,6 +28,10 @@ public class SecurityConfig {
     private final JwtAuthenticationFilter jwtFilter;
     @Value("${app.cors.allowed-origins}")
     private String allowedOrigins;
+    @Value("${app.cors.allowed-methods}")
+    private String allowedMethods;
+    @Value("${app.cors.allowed-headers}")
+    private String allowedHeaders;
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
@@ -49,9 +53,13 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigSource() {
         CorsConfiguration config = new CorsConfiguration();
-        config.setAllowedOrigins(Arrays.asList(allowedOrigins.split(",")));
-        config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
-        config.setAllowedHeaders(List.of("*"));
+        config.setAllowedOrigins(Arrays.stream(allowedOrigins.split(",")).map(String::trim).filter(s -> !s.isEmpty()).toList());
+        config.setAllowedMethods(Arrays.stream(allowedMethods.split(",")).map(String::trim).filter(s -> !s.isEmpty()).toList());
+        if ("*".equals(allowedHeaders.trim())) {
+            config.setAllowedHeaders(List.of("*"));
+        } else {
+            config.setAllowedHeaders(Arrays.stream(allowedHeaders.split(",")).map(String::trim).filter(s -> !s.isEmpty()).toList());
+        }
         config.setAllowCredentials(true);
         config.setMaxAge(3600L);
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();

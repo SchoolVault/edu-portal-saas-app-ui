@@ -4,6 +4,10 @@ app:
     enabled: true
 
 spring:
+  datasource:
+    # Local MySQL password; override with DB_PASSWORD in your shell or .env.
+    password: ${DB_PASSWORD:changeme}
+
   jpa:
     show-sql: true
   flyway:

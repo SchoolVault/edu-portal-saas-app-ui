@@ -3,7 +3,7 @@ import { Observable, of } from 'rxjs';
 import { delay, map } from 'rxjs/operators';
 import { AttendanceRecord, AttendanceStats } from '../models/models';
 import { ApiService } from './api.service';
-import { environment } from '../../../environments/environment';
+import { runtimeConfig } from '../config/runtime-config';
 
 @Injectable({ providedIn: 'root' })
 export class AttendanceService {
@@ -34,7 +34,7 @@ export class AttendanceService {
   }
 
   getAttendanceByClassAndDate(classId: string, sectionId: string, date: string): Observable<AttendanceRecord[]> {
-    if (!environment.useMocks) {
+    if (!runtimeConfig.useMocks) {
       return this.api.get<any[]>(`/attendance?classId=${classId}&sectionId=${sectionId}&date=${date}`).pipe(
         map(records => records.map(record => this.normalizeRecord(record)))
       );
@@ -44,7 +44,7 @@ export class AttendanceService {
   }
 
   saveAttendance(records: AttendanceRecord[]): Observable<boolean> {
-    if (!environment.useMocks) {
+    if (!runtimeConfig.useMocks) {
       return this.api.post<any>('/attendance', {
         classId: Number(records[0]?.classId),
         sectionId: Number(records[0]?.sectionId),
@@ -66,7 +66,7 @@ export class AttendanceService {
   }
 
   getStudentAttendanceStats(studentId: string, from: string, to: string): Observable<AttendanceStats> {
-    if (!environment.useMocks) {
+    if (!runtimeConfig.useMocks) {
       return this.api.get<any>(`/attendance/student/${studentId}/stats?from=${from}&to=${to}`).pipe(
         map(stats => ({
           studentId: stats.studentId != null ? String(stats.studentId) : undefined,
@@ -96,7 +96,7 @@ export class AttendanceService {
   }
 
   getAttendanceStats(classId: string): Observable<{ present: number; absent: number; late: number; total: number }> {
-    if (!environment.useMocks) {
+    if (!runtimeConfig.useMocks) {
       const today = new Date().toISOString().split('T')[0];
       return this.api.get<any>(`/attendance/class-stats?classId=${classId}&sectionId=1&date=${today}`).pipe(
         map(res => ({

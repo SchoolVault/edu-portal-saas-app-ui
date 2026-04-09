@@ -3,7 +3,7 @@ import { Observable, of, throwError } from 'rxjs';
 import { map } from 'rxjs/operators';
 import { Book, BookIssue } from '../models/models';
 import { ApiService } from './api.service';
-import { environment } from '../../../environments/environment';
+import { runtimeConfig } from '../config/runtime-config';
 import { coerceApiLongId } from '../utils/coerce-api-long-id';
 
 /** Mutable in-memory catalog (same shape as API). */
@@ -73,7 +73,7 @@ export class LibraryService {
     catalogFilter: LibraryCatalogFilter = 'active',
     includeInactiveOnApi = false
   ): Observable<Book[]> {
-    if (environment.useMocks) {
+    if (runtimeConfig.useMocks) {
       let rows = MOCK_BOOKS.map(b => ({ ...b }));
       if (catalogFilter === 'active') {
         rows = rows.filter(b => b.catalogActive !== false);
@@ -115,7 +115,7 @@ export class LibraryService {
   }
 
   addBook(body: Partial<Book>): Observable<Book> {
-    if (environment.useMocks) {
+    if (runtimeConfig.useMocks) {
       const total = Number(body.totalCopies ?? 1);
       const avail = body.availableCopies != null ? Number(body.availableCopies) : total;
       const book: Book = {
@@ -147,7 +147,7 @@ export class LibraryService {
   }
 
   setCatalogActive(bookId: string, active: boolean): Observable<Book> {
-    if (environment.useMocks) {
+    if (runtimeConfig.useMocks) {
       const book = MOCK_BOOKS.find(b => b.id === bookId);
       if (!book) return throwError(() => new Error('Book not found'));
       book.catalogActive = active;
@@ -159,7 +159,7 @@ export class LibraryService {
   }
 
   listIssues(status?: string): Observable<BookIssue[]> {
-    if (environment.useMocks) {
+    if (runtimeConfig.useMocks) {
       let rows = MOCK_ISSUES.map(i => withDerivedStatus({ ...i }));
       if (status?.trim()) {
         const st = status.trim().toLowerCase();
@@ -172,7 +172,7 @@ export class LibraryService {
   }
 
   issueBook(bookId: string, studentId: string, studentName?: string, dueDays?: number): Observable<BookIssue> {
-    if (environment.useMocks) {
+    if (runtimeConfig.useMocks) {
       const book = MOCK_BOOKS.find(b => b.id === bookId);
       if (!book) return throwError(() => new Error('Book not found'));
       if (book.catalogActive === false) {
@@ -214,7 +214,7 @@ export class LibraryService {
   }
 
   returnBook(issueId: string, opts?: { returnDate?: string; finePerDay?: number }): Observable<BookIssue> {
-    if (environment.useMocks) {
+    if (runtimeConfig.useMocks) {
       const idx = MOCK_ISSUES.findIndex(i => i.id === issueId);
       if (idx < 0) return throwError(() => new Error('Issue not found'));
       const issue = { ...MOCK_ISSUES[idx] };

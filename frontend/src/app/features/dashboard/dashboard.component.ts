@@ -1,4 +1,4 @@
-import { AfterViewInit, Component, ElementRef, OnDestroy, OnInit, ViewChild } from '@angular/core';
+import { AfterViewInit, ChangeDetectorRef, Component, ElementRef, OnDestroy, OnInit, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
 import { FormsModule } from '@angular/forms';
@@ -310,7 +310,11 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
   private attendanceChart?: Chart;
   private admissionsTrendChart?: Chart;
 
-  constructor(private authService: AuthService, private dashboardService: DashboardService) {}
+  constructor(
+    private authService: AuthService,
+    private dashboardService: DashboardService,
+    private cdr: ChangeDetectorRef
+  ) {}
 
   ngOnInit(): void {
     this.role = this.authService.getRole() || 'admin';
@@ -336,10 +340,9 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
             { label: 'Attendance Logged', value: String(dashboard.attendanceOverview?.total ?? 0), icon: 'bi-calendar-check-fill', bgColor: 'rgba(2,132,199,0.1)', color: '#0284C7', subtext: 'Today' }
           ];
           this.admissionInsights = this.buildAdmissionInsights(dashboard);
-          setTimeout(() => {
-            this.initAdminCharts();
-            finish();
-          }, 0);
+          this.cdr.detectChanges();
+          this.initAdminCharts();
+          finish();
         },
         error: () => finish()
       });
@@ -394,7 +397,8 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
           ];
           this.admissionInsights = this.buildAdmissionInsights(dashboard);
           this.loading = false;
-          setTimeout(() => this.initAdminCharts(), 0);
+          this.cdr.detectChanges();
+          this.initAdminCharts();
         },
         error: () => {
           this.loading = false;
@@ -469,13 +473,23 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
     this.attendanceChart?.destroy();
     this.admissionsTrendChart?.destroy();
 
+    const monthlyAdmissions = this.adminDashboard.monthlyAdmissions ?? [];
+    const monthlyCollections = this.adminDashboard.monthlyCollections ?? [];
+    const overview = this.adminDashboard.attendanceOverview ?? {
+      total: 0,
+      present: 0,
+      absent: 0,
+      late: 0,
+      excused: 0
+    };
+
     this.admissionChart = new Chart(this.admissionChartRef.nativeElement, {
       type: 'bar',
       data: {
-        labels: this.adminDashboard.monthlyAdmissions.map(point => point.label),
+        labels: monthlyAdmissions.map(point => point.label),
         datasets: [
-          { label: 'Admissions', data: this.adminDashboard.monthlyAdmissions.map(point => point.value), backgroundColor: 'rgba(27,58,48,0.8)', borderRadius: 6, barPercentage: 0.5 },
-          { label: 'Fee Collection', data: this.adminDashboard.monthlyCollections.map(point => point.value), backgroundColor: 'rgba(192,92,61,0.8)', borderRadius: 6, barPercentage: 0.5 }
+          { label: 'Admissions', data: monthlyAdmissions.map(point => Number(point.value)), backgroundColor: 'rgba(27,58,48,0.8)', borderRadius: 6, barPercentage: 0.5 },
+          { label: 'Fee Collection', data: monthlyCollections.map(point => Number(point.value)), backgroundColor: 'rgba(192,92,61,0.8)', borderRadius: 6, barPercentage: 0.5 }
         ]
       },
       options: {
@@ -492,10 +506,10 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
         labels: ['Present', 'Absent', 'Late', 'Excused'],
         datasets: [{
           data: [
-            this.adminDashboard.attendanceOverview.present,
-            this.adminDashboard.attendanceOverview.absent,
-            this.adminDashboard.attendanceOverview.late,
-            this.adminDashboard.attendanceOverview.excused
+            Number(overview.present),
+            Number(overview.absent),
+            Number(overview.late),
+            Number(overview.excused)
           ],
           backgroundColor: ['#1B3A30', '#C05C3D', '#D97706', '#0284C7'],
           borderWidth: 0
@@ -511,10 +525,10 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
     this.admissionsTrendChart = new Chart(this.admissionsTrendChartRef.nativeElement, {
       type: 'line',
       data: {
-        labels: this.adminDashboard.monthlyAdmissions.map(point => point.label),
+        labels: monthlyAdmissions.map(point => point.label),
         datasets: [{
           label: 'Admissions',
-          data: this.adminDashboard.monthlyAdmissions.map(point => point.value),
+          data: monthlyAdmissions.map(point => Number(point.value)),
           borderColor: '#1B3A30',
           backgroundColor: 'rgba(27,58,48,0.12)',
           fill: true,

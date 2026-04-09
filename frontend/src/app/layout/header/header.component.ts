@@ -9,7 +9,7 @@ import { CommunicationService } from '../../core/services/communication.service'
 import { PlatformHealthService } from '../../core/services/platform-health.service';
 import { AppNotification, AnnouncementPreview, ProfileSummary } from '../../core/models/models';
 import { ThemeService } from '../../core/services/theme.service';
-import { environment } from '../../../environments/environment';
+import { runtimeConfig } from '../../core/config/runtime-config';
 
 @Component({
   selector: 'app-header',
@@ -209,7 +209,7 @@ export class HeaderComponent implements OnInit, OnDestroy {
       this.notifications = notifs;
       this.unreadCount = notifs.filter(n => !n.read).length;
     });
-    if (!environment.useMocks) {
+    if (!runtimeConfig.useMocks) {
       this.notificationService.refreshFromServer().subscribe({ error: () => { /* not logged in or API down */ } });
     }
     this.authService.profileSummary$.pipe(takeUntil(this.destroy$)).subscribe(s => {

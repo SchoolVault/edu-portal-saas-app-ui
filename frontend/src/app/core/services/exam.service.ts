@@ -3,7 +3,7 @@ import { Observable, of, throwError } from 'rxjs';
 import { delay, map } from 'rxjs/operators';
 import { Exam, ExamClassScope, ExamScheduleSlot, MarkRecord } from '../models/models';
 import { ApiService } from './api.service';
-import { environment } from '../../../environments/environment';
+import { runtimeConfig } from '../config/runtime-config';
 import { coerceApiLongId } from '../utils/coerce-api-long-id';
 
 @Injectable({ providedIn: 'root' })
@@ -111,7 +111,7 @@ export class ExamService {
   constructor(private api: ApiService) {}
 
   getExams(): Observable<Exam[]> {
-    if (!environment.useMocks) {
+    if (!runtimeConfig.useMocks) {
       return this.api.get<any[]>('/exams').pipe(map(exams => exams.map(exam => this.normalizeExam(exam))));
     }
     return of(
@@ -126,7 +126,7 @@ export class ExamService {
   }
 
   getMarksByExam(examId: string): Observable<MarkRecord[]> {
-    if (!environment.useMocks) {
+    if (!runtimeConfig.useMocks) {
       const eid = coerceApiLongId(examId, 'exam');
       return this.api.get<any[]>(`/exams/${eid}/marks`).pipe(map(marks => marks.map(mark => this.normalizeMark(mark))));
     }
@@ -134,14 +134,14 @@ export class ExamService {
   }
 
   getMarksByStudent(studentId: string): Observable<MarkRecord[]> {
-    if (!environment.useMocks) {
+    if (!runtimeConfig.useMocks) {
       return this.api.get<any[]>(`/exams/marks/student/${coerceApiLongId(studentId, 'student')}`).pipe(map(marks => marks.map(mark => this.normalizeMark(mark))));
     }
     return of(this.marks.filter(m => m.studentId === studentId)).pipe(delay(300));
   }
 
   getSchedule(examId: string): Observable<ExamScheduleSlot[]> {
-    if (!environment.useMocks) {
+    if (!runtimeConfig.useMocks) {
       const eid = coerceApiLongId(examId, 'exam');
       return this.api.get<any[]>(`/exams/${eid}/schedule`).pipe(map(rows => rows.map(r => this.normalizeSlot(r, examId))));
     }
@@ -149,7 +149,7 @@ export class ExamService {
   }
 
   replaceSchedule(examId: string, slots: Omit<ExamScheduleSlot, 'id' | 'examId'>[]): Observable<ExamScheduleSlot[]> {
-    if (!environment.useMocks) {
+    if (!runtimeConfig.useMocks) {
       try {
         const eid = coerceApiLongId(examId, 'exam');
         const body = {
@@ -184,7 +184,7 @@ export class ExamService {
   }
 
   addExam(exam: Exam, classScopes?: ExamClassScope[]): Observable<Exam> {
-    if (!environment.useMocks) {
+    if (!runtimeConfig.useMocks) {
       const payload: Record<string, unknown> = {
         name: exam.name,
         academicYearId: exam.academicYearId ? coerceApiLongId(exam.academicYearId, 'academic year') : null,
@@ -212,7 +212,7 @@ export class ExamService {
   }
 
   saveMarks(examId: string, marks: MarkRecord[]): Observable<MarkRecord[]> {
-    if (!environment.useMocks) {
+    if (!runtimeConfig.useMocks) {
       return this.api
         .post<any[]>('/exams/marks', {
           examId: coerceApiLongId(examId, 'exam'),

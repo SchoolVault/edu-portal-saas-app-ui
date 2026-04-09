@@ -76,9 +76,11 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.YearMonth;
 import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.function.Consumer;
 
 /**
@@ -90,8 +92,10 @@ import java.util.function.Consumer;
 public class DemoDataSeedService {
 
     private static final Logger log = LoggerFactory.getLogger(DemoDataSeedService.class);
-    /** Same as Flyway V2: password {@code admin123} */
-    private static final String BCRYPT_ADMIN123 = "$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy";
+    /**
+     * BCrypt for {@code admin123} (verified with Spring {@code BCryptPasswordEncoder}).
+     */
+    private static final String BCRYPT_ADMIN123 = "$2a$10$OF9wtmX3lDzBIYsrZlAe8Ou2829Ih6l6WTe2TxSVRacFh1fAr2mBy";
     private static final String FEATURES_JSON = "{\"transport\":true,\"library\":true,\"hostel\":true,\"payroll\":true,"
             + "\"documents\":true,\"audit\":true,\"communication\":true,\"reports\":true,\"student\":true,\"teacher\":true,"
             + "\"attendance\":true,\"fees\":true}";
@@ -244,7 +248,11 @@ public class DemoDataSeedService {
         if (!tenantConfigRepository.existsBySchoolCode("MRIDGE-PN")) {
             seedMeridianRidge();
         }
-        log.info("Demo data seed check complete (skipped schools that already exist by school_code).");
+        tenantConfigRepository.findBySchoolCode("STXHER-KOL")
+                .ifPresent(c -> expandStXaviersBulkSeed(c.getTenantId(), "STXHER-KOL"));
+        tenantConfigRepository.findBySchoolCode("MRIDGE-PN")
+                .ifPresent(c -> expandMeridianBulkSeed(c.getTenantId(), "MRIDGE-PN"));
+        log.info("Demo data seed complete (baseline tenants + idempotent bulk extension for STXHER-KOL / MRIDGE-PN).");
     }
 
     private void seedPlatformSuperAdminIfMissing() {
@@ -460,8 +468,8 @@ public class DemoDataSeedService {
         r1.setHostelId(h.getId());
         hostelRoomRepository.save(r1);
         hostelAllocationRepository.save(tap(HostelAllocation.builder().roomId(r1.getId()).roomNumber("B-204")
-                .studentId(studs.get(2).getId()).studentName(studs.get(2).getFirstName() + " " + studs.get(2).getLastName())
-                .fromDate(LocalDate.now().minusMonths(2)).status(Enums.HostelAllocationStatus.ACTIVE).build(),
+                        .studentId(studs.get(2).getId()).studentName(studs.get(2).getFirstName() + " " + studs.get(2).getLastName())
+                        .fromDate(LocalDate.now().minusMonths(2)).status(Enums.HostelAllocationStatus.ACTIVE).build(),
                 a -> a.setTenantId(tenantId)));
         r1.setOccupancy(1);
         hostelRoomRepository.save(r1);
@@ -497,12 +505,12 @@ public class DemoDataSeedService {
                 .build(), p -> p.setTenantId(tenantId)));
 
         documentRepository.save(tap(Document.builder().name("Academic Calendar 2025-26.pdf").fileType("pdf")
-                .category(Enums.DocumentCategory.ADMIN).uploadedBy("Dr. Ananya Dutta").fileSize("420 KB")
-                .fileUrl("/demo/calendar-2025-26.pdf").relatedEntityId(ay.getId()).relatedEntityType("ACADEMIC_YEAR").build(),
+                        .category(Enums.DocumentCategory.ADMIN).uploadedBy("Dr. Ananya Dutta").fileSize("420 KB")
+                        .fileUrl("/demo/calendar-2025-26.pdf").relatedEntityId(ay.getId()).relatedEntityType("ACADEMIC_YEAR").build(),
                 d -> d.setTenantId(tenantId)));
         documentRepository.save(tap(Document.builder().name("Transport route consent — Garia.pdf").fileType("pdf")
-                .category(Enums.DocumentCategory.GENERAL).uploadedBy("Office").fileSize("88 KB")
-                .fileUrl("/demo/transport-consent.pdf").relatedEntityId(route.getId()).relatedEntityType("TRANSPORT_ROUTE").build(),
+                        .category(Enums.DocumentCategory.GENERAL).uploadedBy("Office").fileSize("88 KB")
+                        .fileUrl("/demo/transport-consent.pdf").relatedEntityId(route.getId()).relatedEntityType("TRANSPORT_ROUTE").build(),
                 d -> d.setTenantId(tenantId)));
 
         auditLogRepository.save(tap(AuditLog.builder().action(Enums.AuditAction.LOGIN).module("AUTH")
@@ -668,7 +676,7 @@ public class DemoDataSeedService {
         st.setRouteId(rt.getId());
         routeStopRepository.save(st);
         studentTransportMappingRepository.save(tap(StudentTransportMapping.builder().routeId(rt.getId())
-                .studentId(studs.get(2).getId()).studentName("Kabir Shah").pickupStop("Infosys Circle").dropStop("School").build(),
+                        .studentId(studs.get(2).getId()).studentName("Kabir Shah").pickupStop("Infosys Circle").dropStop("School").build(),
                 m -> m.setTenantId(tenantId)));
 
         Hostel hx = new Hostel();
@@ -704,6 +712,635 @@ public class DemoDataSeedService {
 
         log.info("Seeded demo workspace Meridian Ridge (tenant_id={}, school_code={}, login principal@meridianridge.edu / admin123)",
                 tenantId, schoolCode);
+    }
+
+    /**
+     * Idempotent bulk rows for St. Xavier's only (school_code STXHER-KOL). Safe to run every dev startup.
+     */
+    private void expandStXaviersBulkSeed(String tenantId, String schoolCode) {
+        List<AcademicYear> years = academicYearRepository.findByTenantIdAndIsDeletedFalse(tenantId);
+        Optional<AcademicYear> current = years.stream().filter(y -> Boolean.TRUE.equals(y.getIsCurrent())).findFirst();
+        AcademicYear ay = current.orElse(years.isEmpty() ? null : years.get(0));
+        if (ay == null) {
+            return;
+        }
+        List<SchoolClass> classes = schoolClassRepository.findByTenantIdAndIsDeletedFalseOrderByGrade(tenantId);
+        if (classes.isEmpty()) {
+            return;
+        }
+        List<long[]> classSectionPairs = new ArrayList<>();
+        for (SchoolClass sc : classes) {
+            for (Section sec : sectionRepository.findByTenantIdAndClassIdAndIsDeletedFalse(tenantId, sc.getId())) {
+                classSectionPairs.add(new long[]{sc.getId(), sec.getId()});
+            }
+        }
+        if (classSectionPairs.isEmpty()) {
+            return;
+        }
+        Long parentA = userRepository.findByEmailAndTenantIdAndIsDeletedFalse("s.banerjee.parent@stxheritage.edu", tenantId).map(User::getId).orElse(null);
+        Long parentB = userRepository.findByEmailAndTenantIdAndIsDeletedFalse("a.khanna.parent@stxheritage.edu", tenantId).map(User::getId).orElse(null);
+        User admin = userRepository.findByEmailAndTenantIdAndIsDeletedFalse("principal@stxheritage.edu", tenantId).orElse(null);
+        List<Teacher> teachers = teacherRepository.findByTenantIdAndIsDeletedFalse(tenantId);
+        Long markerTid = teachers.isEmpty() ? null : teachers.get(0).getId();
+
+        String[] bf = {"Aditya", "Kavya", "Sohan", "Diya", "Rohan", "Ira", "Dev", "Mira", "Kabir", "Tara", "Rehan", "Anvi", "Vihaan", "Myra", "Neil", "Pari", "Yash", "Zara", "Krish", "Lavanya"};
+        String[] bl = {"Sen", "Roy", "Basu", "Dutta", "Mukherjee", "Iyer", "Ghosh", "Nair", "Bose", "Chatterjee", "Malik", "Kapoor", "Ahuja", "Das", "Joshi", "Seth", "Varma", "Oberoi", "Desai", "Khan"};
+        List<Student> bulkStudents = new ArrayList<>();
+        for (int i = 0; i < 20; i++) {
+            String adm = String.format("SX-BULK-%03d", i + 1);
+            if (studentRepository.existsByTenantIdAndAdmissionNumber(tenantId, adm)) {
+                continue;
+            }
+            long[] cs = classSectionPairs.get(i % classSectionPairs.size());
+            Long pid;
+            String pnm;
+            switch (i % 3) {
+                case 0 -> {
+                    pid = parentA;
+                    pnm = "Sujata Banerjee";
+                }
+                case 1 -> {
+                    pid = parentB;
+                    pnm = "Arvind Khanna";
+                }
+                default -> {
+                    pid = null;
+                    pnm = "—";
+                }
+            }
+            Student s = student(tenantId, bf[i], bl[i], adm, cs[0], cs[1], pid, pnm,
+                    "sx.bulk" + (i + 1) + "@stxheritage.stu", i % 2 == 0 ? Enums.Gender.MALE : Enums.Gender.FEMALE);
+            YearMonth admYm = YearMonth.now().minusMonths(i % 6);
+            s.setAdmissionDate(admYm.atDay(Math.min(28, 5 + (i % 23))));
+            studentRepository.save(s);
+            bulkStudents.add(s);
+        }
+        flush();
+
+        if (!userRepository.existsByEmailAndTenantIdAndIsDeletedFalse("t.mehra@stxheritage.edu", tenantId)) {
+            User u1 = user(tenantId, schoolCode, "Tanya Mehra", "t.mehra@stxheritage.edu", Enums.Role.TEACHER);
+            userRepository.save(u1);
+            Teacher t1 = teacher(tenantId, "Tanya", "Mehra", "t.mehra@stxheritage.edu", u1.getId(), List.of("Geography", "Economics"));
+            teacherRepository.save(t1);
+            SchoolClass c0 = classes.get(0);
+            List<Section> secs0 = sectionRepository.findByTenantIdAndClassIdAndIsDeletedFalse(tenantId, c0.getId());
+            if (!secs0.isEmpty()) {
+                subjectRow(tenantId, ay.getId(), c0.getId(), secs0.get(0).getId(), "Geography", t1.getId());
+            }
+        }
+        if (!userRepository.existsByEmailAndTenantIdAndIsDeletedFalse("r.ghosh@stxheritage.edu", tenantId)) {
+            User u2 = user(tenantId, schoolCode, "Rupak Ghosh", "r.ghosh@stxheritage.edu", Enums.Role.TEACHER);
+            userRepository.save(u2);
+            Teacher t2 = teacher(tenantId, "Rupak", "Ghosh", "r.ghosh@stxheritage.edu", u2.getId(), List.of("Civics", "EVS"));
+            teacherRepository.save(t2);
+            if (classes.size() > 1) {
+                SchoolClass c1 = classes.get(1);
+                List<Section> secs1 = sectionRepository.findByTenantIdAndClassIdAndIsDeletedFalse(tenantId, c1.getId());
+                if (!secs1.isEmpty()) {
+                    subjectRow(tenantId, ay.getId(), c1.getId(), secs1.get(secs1.size() - 1).getId(), "Civics", t2.getId());
+                }
+            }
+        }
+        flush();
+        teachers = teacherRepository.findByTenantIdAndIsDeletedFalse(tenantId);
+        markerTid = teachers.isEmpty() ? null : teachers.get(0).getId();
+        Enums.AttendanceStatus[] rot = {Enums.AttendanceStatus.PRESENT, Enums.AttendanceStatus.PRESENT, Enums.AttendanceStatus.LATE,
+                Enums.AttendanceStatus.ABSENT, Enums.AttendanceStatus.PRESENT};
+        if (markerTid != null) {
+            for (Student s : studentRepository.findByTenantIdAndIsDeletedFalse(tenantId)) {
+                for (int d = 1; d <= 8; d++) {
+                    LocalDate day = LocalDate.now().minusDays(d);
+                    if (!attendanceRepository.existsByTenantIdAndStudentIdAndDateAndIsDeletedFalse(tenantId, s.getId(), day)) {
+                        attendanceRepository.save(att(tenantId, s, day, rot[d % rot.length], markerTid));
+                    }
+                }
+            }
+        }
+
+        String[][] bookRows = {
+                {"The Story of My Experiments with Truth", "M.K. Gandhi", "978-STXB-2001", "Memoir", "A-01"},
+                {"Wings of Fire", "A.P.J. Abdul Kalam", "978-STXB-2002", "Biography", "A-02"},
+                {"Brief History of Time", "Stephen Hawking", "978-STXB-2003", "Science", "A-03"},
+                {"Pride and Prejudice", "Jane Austen", "978-STXB-2004", "Fiction", "A-04"},
+                {"India After Gandhi", "Ramachandra Guha", "978-STXB-2005", "History", "A-05"},
+                {"NCERT Mathematics X", "NCERT", "978-STXB-2006", "Textbook", "B-01"},
+                {"NCERT Science IX", "NCERT", "978-STXB-2007", "Textbook", "B-02"},
+                {"Computer Science with Python", "Sumita Arora", "978-STXB-2008", "Computing", "B-03"},
+                {"Wren & Martin High School", "P.C. Wren", "978-STXB-2009", "Grammar", "B-04"},
+                {"Atlas of India", "Oxford", "978-STXB-2010", "Reference", "C-01"},
+                {"Periodic Table Poster Book", "DK", "978-STXB-2011", "Science", "C-02"},
+                {"Bengali Sahityer Itihas", "Various", "978-STXB-2012", "Regional", "C-03"}
+        };
+        for (String[] br : bookRows) {
+            if (bookRepository.existsByTenantIdAndIsbnAndIsDeletedFalse(tenantId, br[2])) {
+                continue;
+            }
+            Book b = new Book(br[0], br[1], br[2], br[3], 12, 10, br[4]);
+            b.setTenantId(tenantId);
+            bookRepository.save(b);
+        }
+        flush();
+
+        boolean hasBulkExam = examRepository.findByTenantIdAndIsDeletedFalse(tenantId).stream()
+                .anyMatch(e -> "Demo bulk — Periodic Test 1".equals(e.getName()));
+        if (!hasBulkExam && !classes.isEmpty()) {
+            SchoolClass c0 = classes.get(0);
+            List<Section> sx = sectionRepository.findByTenantIdAndClassIdAndIsDeletedFalse(tenantId, c0.getId());
+            Exam ex = Exam.builder().name("Demo bulk — Periodic Test 1").academicYearId(ay.getId())
+                    .startDate(LocalDate.now().minusWeeks(1)).endDate(LocalDate.now().minusDays(1))
+                    .classIds(List.of(c0.getId()))
+                    .status(Enums.ExamStatus.COMPLETED).build();
+            ex.setTenantId(tenantId);
+            ex.setResultsPublished(true);
+            examRepository.save(ex);
+            flush();
+            ExamScope(tenantId, ex.getId(), c0.getId(), sx.isEmpty() ? null : sx.get(0).getId());
+            examSlot(tenantId, ex.getId(), c0.getId(), sx.isEmpty() ? null : sx.get(0).getId(), "Mathematics",
+                    LocalDate.now().minusDays(5), LocalTime.of(9, 0), LocalTime.of(11, 0), "Hall B");
+            List<Student> markPool = studentRepository.findByTenantIdAndClassIdAndIsDeletedFalse(tenantId, c0.getId());
+            int lim = Math.min(12, markPool.size());
+            for (int i = 0; i < lim; i++) {
+                Student st = markPool.get(i);
+                markRecord(tenantId, ex.getId(), st, "Mathematics", 55 + (i * 3) % 40, 100,
+                        i % 4 == 0 ? "A" : "B", c0.getId());
+            }
+        }
+
+        String[] annTitles = {"[Bulk demo] Sports day — heats schedule", "[Bulk demo] Lab safety refresher", "[Bulk demo] PTA snack roster",
+                "[Bulk demo] Winter uniform window", "[Bulk demo] Debate club auditions"};
+        long annCount = announcementRepository.findByTenantIdAndIsDeletedFalseOrderByCreatedAtDesc(tenantId).stream()
+                .filter(a -> a.getTitle() != null && a.getTitle().startsWith("[Bulk demo]")).count();
+        if (annCount < annTitles.length && admin != null) {
+            for (String title : annTitles) {
+                if (announcementRepository.findByTenantIdAndIsDeletedFalseOrderByCreatedAtDesc(tenantId).stream()
+                        .anyMatch(a -> title.equals(a.getTitle()))) {
+                    continue;
+                }
+                Announcement a = new Announcement();
+                a.setTenantId(tenantId);
+                a.setTitle(title);
+                a.setContent("Automated demo copy for UI lists and filters. No action required.");
+                a.setAuthor(admin.getName());
+                a.setAuthorRole("ADMIN");
+                a.setTargetAudience(Enums.TargetAudience.ALL);
+                announcementRepository.save(a);
+            }
+        }
+
+        if (admin != null) {
+            String[] nTitles = {"Bulk demo: fee window extended", "Bulk demo: transport delay drill", "Bulk demo: library fine amnesty hour"};
+            List<Notification> existingN = notificationRepository.findByTenantIdAndUserIdOrderByCreatedAtDesc(tenantId, admin.getId());
+            for (String nt : nTitles) {
+                boolean exists = existingN.stream().anyMatch(n -> nt.equals(n.getTitle()));
+                if (!exists) {
+                    notificationRepository.save(notif(tenantId, admin.getId(), nt, "Seeded notification for dashboard density.", Enums.NotificationType.INFO));
+                }
+            }
+        }
+
+        SchoolClass c9 = classes.stream().filter(c -> c.getGrade() == 9).findFirst().orElse(classes.get(0));
+        List<Section> c9secs = sectionRepository.findByTenantIdAndClassIdAndIsDeletedFalse(tenantId, c9.getId());
+        if (!c9secs.isEmpty() && markerTid != null) {
+            Long c9sec0 = c9secs.get(0).getId();
+            List<TimetableEntry> tt9 = timetableRepository.findByTenantIdAndClassIdAndSectionIdAndIsDeletedFalse(tenantId, c9.getId(), c9sec0);
+            if (tt9.size() < 12) {
+                Teacher tMath = teachers.stream().filter(t -> t.getEmail() != null && t.getEmail().contains("sen")).findFirst().orElse(teachers.get(0));
+                String tn = tMath.getFirstName() + " " + tMath.getLastName();
+                timetableRepository.save(tt(tenantId, ay.getId(), c9.getId(), c9sec0, Enums.DayOfWeek.WEDNESDAY, 3,
+                        LocalTime.of(10, 10), LocalTime.of(10, 55), "Physics", tMath.getId(), tn, "Lab 2"));
+                timetableRepository.save(tt(tenantId, ay.getId(), c9.getId(), c9sec0, Enums.DayOfWeek.THURSDAY, 1,
+                        LocalTime.of(8, 30), LocalTime.of(9, 15), "Geography", tMath.getId(), tn, "Room 105"));
+                timetableRepository.save(tt(tenantId, ay.getId(), c9.getId(), c9sec0, Enums.DayOfWeek.FRIDAY, 2,
+                        LocalTime.of(9, 20), LocalTime.of(10, 5), "English", tMath.getId(), tn, "Room 201"));
+            }
+        }
+
+        boolean hasBulkVehicle = transportVehicleRepository.findByTenantIdAndIsDeletedFalse(tenantId).stream()
+                .anyMatch(v -> "WB-BULK-STX-01".equals(v.getRegistrationNumber()));
+        if (!hasBulkVehicle) {
+            TransportVehicle v2 = vehicle(tenantId, "WB-BULK-STX-01", Enums.VehicleType.VAN, 24, "Ashok Leyland MiTR");
+            transportVehicleRepository.save(v2);
+            TransportDriver d2 = driver(tenantId, "Pranab Halder", "+91-98333-22100", "WB-BULK-DRV-01");
+            transportDriverRepository.save(d2);
+            TransportRoute r2 = TransportRoute.builder().name("Salt Lake — VIP Road loop")
+                    .vehicleNumber("WB-BULK-STX-01").driverName("Pranab Halder").driverPhone("+91-98333-22100")
+                    .assignedStudents(4).vehicleId(v2.getId()).driverId(d2.getId()).build();
+            r2.setTenantId(tenantId);
+            transportRouteRepository.save(r2);
+            flush();
+            RouteStop s1 = RouteStop.builder().name("City Centre 1").stopTime(LocalTime.of(7, 20)).stopOrder(1).build();
+            s1.setTenantId(tenantId);
+            s1.setRouteId(r2.getId());
+            RouteStop s2 = RouteStop.builder().name("Ultadanga").stopTime(LocalTime.of(7, 40)).stopOrder(2).build();
+            s2.setTenantId(tenantId);
+            s2.setRouteId(r2.getId());
+            routeStopRepository.saveAll(List.of(s1, s2));
+            List<Student> pool = studentRepository.findByTenantIdAndClassIdAndIsDeletedFalse(tenantId, c9.getId());
+            for (int i = 0; i < Math.min(4, pool.size()); i++) {
+                Student st = pool.get(i);
+                studentTransportMappingRepository.save(tap(StudentTransportMapping.builder().routeId(r2.getId())
+                        .studentId(st.getId()).studentName(st.getFirstName() + " " + st.getLastName())
+                        .pickupStop("City Centre 1").dropStop("School").build(), m -> m.setTenantId(tenantId)));
+            }
+        }
+
+        List<Hostel> hostels = hostelRepository.findByTenantIdAndIsDeletedFalse(tenantId);
+        if (!hostels.isEmpty()) {
+            boolean hasB205 = hostelRoomRepository.findByTenantIdAndHostelIdAndIsDeletedFalse(tenantId, hostels.get(0).getId()).stream()
+                    .anyMatch(r -> "B-205".equals(r.getRoomNumber()));
+            if (!hasB205) {
+                HostelRoom r205 = HostelRoom.builder().roomNumber("B-205").block("B").floor(2).capacity(4).occupancy(0)
+                        .roomType(Enums.HostelRoomType.DOUBLE.name()).build();
+                r205.setTenantId(tenantId);
+                r205.setHostelId(hostels.get(0).getId());
+                hostelRoomRepository.save(r205);
+            }
+        }
+
+        boolean hasBulkFee = feeStructureRepository.findByTenantIdAndIsDeletedFalse(tenantId).stream()
+                .anyMatch(f -> "Bulk demo — Activity fee".equals(f.getName()));
+        if (!hasBulkFee && !classes.isEmpty()) {
+            FeeStructure fs = feeStructure(tenantId, "Bulk demo — Activity fee", classes.get(0).getId(), classes.get(0).getName(), ay.getId(), new BigDecimal("6200.00"));
+            feeStructureRepository.save(fs);
+            feeComponentRepository.save(comp(tenantId, fs.getId(), "Clubs", new BigDecimal("3200"), Enums.FeeComponentType.MISC));
+            feeComponentRepository.save(comp(tenantId, fs.getId(), "Events", new BigDecimal("3000"), Enums.FeeComponentType.MISC));
+            flush();
+            List<Student> payers = studentRepository.findByTenantIdAndClassIdAndIsDeletedFalse(tenantId, classes.get(0).getId());
+            for (int i = 0; i < Math.min(6, payers.size()); i++) {
+                String rec = "SX-BULK-FEE-" + (100 + i);
+                if (feePaymentRepository.findByReceiptNumberAndTenantIdAndIsDeletedFalse(rec, tenantId).isEmpty()) {
+                    feePaymentRepository.save(payment(tenantId, payers.get(i), fs.getId(), new BigDecimal("6200"),
+                            new BigDecimal(i % 2 == 0 ? 6200 : 3100), new BigDecimal(i % 2 == 0 ? 0 : 3100),
+                            i % 2 == 0 ? Enums.FeeStatus.PAID : Enums.FeeStatus.PARTIAL, rec));
+                }
+            }
+        }
+
+        feeStructureRepository.findByTenantIdAndIsDeletedFalse(tenantId).stream()
+                .filter(f -> "Bulk demo — Activity fee".equals(f.getName()))
+                .findFirst()
+                .ifPresent(dashFs -> {
+                    List<Student> pool = studentRepository.findByTenantIdAndIsDeletedFalse(tenantId);
+                    if (!pool.isEmpty()) {
+                        for (int mi = 0; mi < 6; mi++) {
+                            YearMonth ym = YearMonth.now().minusMonths(5 - mi);
+                            String rec = "SX-DASH-CHART-" + ym;
+                            if (feePaymentRepository.findByReceiptNumberAndTenantIdAndIsDeletedFalse(rec, tenantId).isEmpty()) {
+                                Student st = pool.get(mi % pool.size());
+                                BigDecimal amt = new BigDecimal(4800 + mi * 820);
+                                feePaymentRepository.save(payment(tenantId, st, dashFs.getId(), amt, amt, BigDecimal.ZERO,
+                                        Enums.FeeStatus.PAID, rec, ym.atDay(14)));
+                            }
+                        }
+                    }
+                });
+
+        if (bookIssueRepository.countByTenantIdAndIsDeletedFalse(tenantId) <= 1) {
+            List<Book> shelf = bookRepository.findByTenantIdAndIsDeletedFalse(tenantId);
+            List<Student> issuePool = studentRepository.findByTenantIdAndClassIdAndIsDeletedFalse(tenantId, classes.get(0).getId());
+            int issues = 0;
+            for (Book bk : shelf) {
+                if (issues >= 8) {
+                    break;
+                }
+                if (bk.getAvailableCopies() != null && bk.getAvailableCopies() > 0 && !issuePool.isEmpty()) {
+                    Student st = issuePool.get(issues % issuePool.size());
+                    BookIssue bi = new BookIssue();
+                    bi.setTenantId(tenantId);
+                    bi.setBookId(bk.getId());
+                    bi.setBookTitle(bk.getTitle());
+                    bi.setStudentId(st.getId());
+                    bi.setStudentName(st.getFirstName() + " " + st.getLastName());
+                    bi.setIssueDate(LocalDate.now().minusDays(2 + issues));
+                    bi.setDueDate(LocalDate.now().plusDays(7 + issues));
+                    bi.setFine(BigDecimal.ZERO);
+                    bi.setStatus(issues % 3 == 0 ? Enums.BookIssueStatus.ISSUED : Enums.BookIssueStatus.RETURNED);
+                    bookIssueRepository.save(bi);
+                    issues++;
+                }
+            }
+        }
+
+        long bulkLeave = leaveRequestRepository.findByTenantIdAndIsDeletedFalseOrderByCreatedAtDesc(tenantId).stream()
+                .filter(lr -> lr.getReason() != null && lr.getReason().startsWith("Bulk demo leave")).count();
+        if (bulkLeave < 5) {
+            List<User> tusers = userRepository.findByTenantIdAndRoleAndIsDeletedFalse(tenantId, Enums.Role.TEACHER);
+            for (int i = 0; i < Math.min(5, tusers.size()); i++) {
+                LeaveRequest lr = new LeaveRequest();
+                lr.setTenantId(tenantId);
+                lr.setApplicantUserId(tusers.get(i).getId());
+                lr.setApplicantRole("TEACHER");
+                lr.setLeaveType(i % 2 == 0 ? "CASUAL" : "SICK");
+                lr.setStartDate(LocalDate.now().plusDays(5 + i));
+                lr.setEndDate(LocalDate.now().plusDays(5 + i));
+                lr.setDayUnit(Enums.LeaveDayUnit.FULL_DAY);
+                lr.setReason("Bulk demo leave row " + i);
+                lr.setStatus(i % 3 == 0 ? Enums.LeaveStatus.APPROVED : Enums.LeaveStatus.PENDING);
+                leaveRequestRepository.save(lr);
+            }
+        }
+
+        List<User> teacherUsers = userRepository.findByTenantIdAndRoleAndIsDeletedFalse(tenantId, Enums.Role.TEACHER);
+        if (admin != null && !teacherUsers.isEmpty()) {
+            boolean hasBulkMsg = messageRepository.findUserMessages(tenantId, admin.getId()).stream()
+                    .anyMatch(m -> m.getContent() != null && m.getContent().contains("lab inventory"));
+            if (!hasBulkMsg) {
+                messageRepository.save(tap(Message.builder().senderId(admin.getId()).senderName(admin.getName()).senderRole("ADMIN")
+                        .receiverId(teacherUsers.get(0).getId()).receiverName("Staff").content("[Bulk demo] Please confirm lab inventory before Friday.")
+                        .isRead(false).build(), m -> m.setTenantId(tenantId)));
+            }
+        }
+
+        LocalDate todayDash = LocalDate.now();
+        Enums.AttendanceStatus[] todayMix = {
+                Enums.AttendanceStatus.PRESENT, Enums.AttendanceStatus.PRESENT, Enums.AttendanceStatus.PRESENT, Enums.AttendanceStatus.PRESENT,
+                Enums.AttendanceStatus.LATE, Enums.AttendanceStatus.LATE,
+                Enums.AttendanceStatus.ABSENT, Enums.AttendanceStatus.EXCUSED
+        };
+        if (markerTid != null) {
+            int ti = 0;
+            for (Student s : studentRepository.findByTenantIdAndIsDeletedFalse(tenantId)) {
+                if (!attendanceRepository.existsByTenantIdAndStudentIdAndDateAndIsDeletedFalse(tenantId, s.getId(), todayDash)) {
+                    attendanceRepository.save(att(tenantId, s, todayDash, todayMix[ti % todayMix.length], markerTid));
+                }
+                ti++;
+            }
+            List<AttendanceRecord> todayRows = attendanceRepository.findByTenantIdAndDateAndIsDeletedFalseOrderByStudentIdAsc(tenantId, todayDash);
+            for (int j = 0; j < todayRows.size(); j++) {
+                AttendanceRecord row = todayRows.get(j);
+                row.setStatus(todayMix[j % todayMix.length]);
+                attendanceRepository.save(row);
+            }
+        }
+
+        Optional<User> tSenOpt = userRepository.findByEmailAndTenantIdAndIsDeletedFalse("d.sen@stxheritage.edu", tenantId);
+        Optional<User> parSx = userRepository.findByEmailAndTenantIdAndIsDeletedFalse("s.banerjee.parent@stxheritage.edu", tenantId);
+        if (tSenOpt.isPresent() && parSx.isPresent()) {
+            User tSen = tSenOpt.get();
+            User pBan = parSx.get();
+            boolean hasTeacherInboxDemo = chatConversationRepository.findInbox(tenantId, tSen.getId()).stream()
+                    .anyMatch(c -> c.getSubject() != null && c.getSubject().contains("Teacher inbox demo"));
+            if (!hasTeacherInboxDemo) {
+                ChatConversation cc = new ChatConversation();
+                cc.setTenantId(tenantId);
+                cc.setType("direct");
+                cc.setSubject("Riya Banerjee — Teacher inbox demo");
+                cc.setLastMessageAt(LocalDateTime.now().minusHours(1));
+                cc.setLastMessagePreview("Could you share the worksheet for Chapter 4?");
+                chatConversationRepository.save(cc);
+                flush();
+                ChatParticipant pTeach = new ChatParticipant();
+                pTeach.setTenantId(tenantId);
+                pTeach.setConversationId(cc.getId());
+                pTeach.setUserId(tSen.getId());
+                pTeach.setUserRole("TEACHER");
+                pTeach.setDisplayName("Debjyoti Sen");
+                ChatParticipant pPar = new ChatParticipant();
+                pPar.setTenantId(tenantId);
+                pPar.setConversationId(cc.getId());
+                pPar.setUserId(pBan.getId());
+                pPar.setUserRole("PARENT");
+                pPar.setDisplayName("Sujata Banerjee");
+                chatParticipantRepository.saveAll(List.of(pTeach, pPar));
+            }
+            long unreadTeach = notificationRepository.countByTenantIdAndUserIdAndIsReadFalse(tenantId, tSen.getId());
+            for (long n = unreadTeach; n < 4; n++) {
+                notificationRepository.save(notif(tenantId, tSen.getId(), "Class IX-A: dashboard demo notice " + (n + 1),
+                        "Please review attendance or marks when convenient.", Enums.NotificationType.WARNING));
+            }
+        }
+
+        log.info("Bulk demo extension applied for St. Xavier's (tenant_id={})", tenantId);
+    }
+
+    /**
+     * Idempotent bulk rows for Meridian Ridge only (school_code MRIDGE-PN).
+     */
+    private void expandMeridianBulkSeed(String tenantId, String schoolCode) {
+        List<AcademicYear> years = academicYearRepository.findByTenantIdAndIsDeletedFalse(tenantId);
+        AcademicYear ay = years.stream().filter(y -> Boolean.TRUE.equals(y.getIsCurrent())).findFirst().orElse(years.isEmpty() ? null : years.get(0));
+        if (ay == null) {
+            return;
+        }
+        List<SchoolClass> classes = schoolClassRepository.findByTenantIdAndIsDeletedFalseOrderByGrade(tenantId);
+        if (classes.isEmpty()) {
+            return;
+        }
+        SchoolClass c8 = classes.get(0);
+        List<Section> secs = sectionRepository.findByTenantIdAndClassIdAndIsDeletedFalse(tenantId, c8.getId());
+        if (secs.isEmpty()) {
+            return;
+        }
+        Long parent1 = userRepository.findByEmailAndTenantIdAndIsDeletedFalse("k.deshmukh.parent@meridianridge.edu", tenantId).map(User::getId).orElse(null);
+        User admin = userRepository.findByEmailAndTenantIdAndIsDeletedFalse("principal@meridianridge.edu", tenantId).orElse(null);
+        List<Teacher> teachers = teacherRepository.findByTenantIdAndIsDeletedFalse(tenantId);
+        Long markerTid = teachers.isEmpty() ? null : teachers.get(0).getId();
+
+        String[] mf = {"Aarav", "Sara", "Vihaan", "Kiara", "Reyansh", "Anika", "Shaurya", "Misha", "Arjun", "Navya", "Dhruv", "Ishita", "Om", "Riya", "Ved"};
+        String[] ml = {"Kulkarni", "Patil", "Joshi", "Shah", "Desai", "Reddy", "Menon", "Pillai", "Rao", "Iyer", "Nayar", "Bose", "Singh", "Mehta", "Verma"};
+        for (int i = 0; i < 15; i++) {
+            String adm = String.format("MR-BULK-%03d", i + 1);
+            if (studentRepository.existsByTenantIdAndAdmissionNumber(tenantId, adm)) {
+                continue;
+            }
+            Section sec = secs.get(i % secs.size());
+            Long pid = (i % 2 == 0) ? parent1 : null;
+            String pnm = pid != null ? "Kavita Deshmukh" : "—";
+            Student s = student(tenantId, mf[i], ml[i], adm, c8.getId(), sec.getId(), pid, pnm,
+                    "mr.bulk" + (i + 1) + "@meridianridge.stu", i % 2 == 0 ? Enums.Gender.MALE : Enums.Gender.FEMALE);
+            studentRepository.save(s);
+        }
+        flush();
+
+        if (!userRepository.existsByEmailAndTenantIdAndIsDeletedFalse("a.mehta@meridianridge.edu", tenantId)) {
+            User u = user(tenantId, schoolCode, "Anaya Mehta", "a.mehta@meridianridge.edu", Enums.Role.TEACHER);
+            userRepository.save(u);
+            Teacher t = teacher(tenantId, "Anaya", "Mehta", "a.mehta@meridianridge.edu", u.getId(), List.of("English", "Drama"));
+            teacherRepository.save(t);
+            subjectRow(tenantId, ay.getId(), c8.getId(), secs.get(0).getId(), "English", t.getId());
+        }
+        flush();
+        teachers = teacherRepository.findByTenantIdAndIsDeletedFalse(tenantId);
+        markerTid = teachers.isEmpty() ? null : teachers.get(0).getId();
+        if (markerTid != null) {
+            for (Student s : studentRepository.findByTenantIdAndClassIdAndIsDeletedFalse(tenantId, c8.getId())) {
+                for (int d = 1; d <= 6; d++) {
+                    LocalDate day = LocalDate.now().minusDays(d);
+                    if (!attendanceRepository.existsByTenantIdAndStudentIdAndDateAndIsDeletedFalse(tenantId, s.getId(), day)) {
+                        attendanceRepository.save(att(tenantId, s, day, Enums.AttendanceStatus.PRESENT, markerTid));
+                    }
+                }
+            }
+        }
+
+        String[][] mbooks = {
+                {"Matilda", "Roald Dahl", "978-MRB-3001", "Fiction", "D-01"},
+                {"Charlotte's Web", "E.B. White", "978-MRB-3002", "Fiction", "D-02"},
+                {"Number the Stars", "Lois Lowry", "978-MRB-3003", "Fiction", "D-03"},
+                {"NCERT Honeydew VIII", "NCERT", "978-MRB-3004", "Textbook", "E-01"},
+                {"India: Physical Env.", "NCERT", "978-MRB-3005", "Textbook", "E-02"},
+                {"Coding Projects Python", "No Starch", "978-MRB-3006", "Computing", "E-03"},
+                {"Art of Problem Solving", "AoPS", "978-MRB-3007", "Math", "E-04"},
+                {"Pune Heritage Walks", "INTACH", "978-MRB-3008", "Guide", "F-01"}
+        };
+        for (String[] br : mbooks) {
+            if (!bookRepository.existsByTenantIdAndIsbnAndIsDeletedFalse(tenantId, br[2])) {
+                Book b = new Book(br[0], br[1], br[2], br[3], 8, 7, br[4]);
+                b.setTenantId(tenantId);
+                bookRepository.save(b);
+            }
+        }
+
+        boolean hasBulkEx = examRepository.findByTenantIdAndIsDeletedFalse(tenantId).stream()
+                .anyMatch(e -> "Demo bulk — MR diagnostic".equals(e.getName()));
+        if (!hasBulkEx) {
+            Exam ex = Exam.builder().name("Demo bulk — MR diagnostic").academicYearId(ay.getId())
+                    .startDate(LocalDate.now().minusDays(10)).endDate(LocalDate.now().minusDays(8))
+                    .classIds(List.of(c8.getId())).status(Enums.ExamStatus.COMPLETED).build();
+            ex.setTenantId(tenantId);
+            ex.setResultsPublished(true);
+            examRepository.save(ex);
+            flush();
+            ExamScope(tenantId, ex.getId(), c8.getId(), null);
+            examSlot(tenantId, ex.getId(), c8.getId(), secs.get(0).getId(), "Mathematics", LocalDate.now().minusDays(9), LocalTime.of(10, 0), LocalTime.of(11, 30), "Room 105");
+            List<Student> pool = studentRepository.findByTenantIdAndClassIdAndIsDeletedFalse(tenantId, c8.getId());
+            for (int i = 0; i < Math.min(10, pool.size()); i++) {
+                markRecord(tenantId, ex.getId(), pool.get(i), "Mathematics", 52 + i * 2, 80, i > 5 ? "B" : "A", c8.getId());
+            }
+        }
+
+        String[] mtitles = {"[Bulk demo] Monsoon bus timings", "[Bulk demo] Science fair booths", "[Bulk demo] Inter-house quiz"};
+        for (String title : mtitles) {
+            if (announcementRepository.findByTenantIdAndIsDeletedFalseOrderByCreatedAtDesc(tenantId).stream().noneMatch(a -> title.equals(a.getTitle())) && admin != null) {
+                Announcement a = new Announcement();
+                a.setTenantId(tenantId);
+                a.setTitle(title);
+                a.setContent("Meridian Ridge demo content for list views.");
+                a.setAuthor(admin.getName());
+                a.setAuthorRole("ADMIN");
+                a.setTargetAudience(Enums.TargetAudience.ALL);
+                announcementRepository.save(a);
+            }
+        }
+
+        if (!transportVehicleRepository.findByTenantIdAndIsDeletedFalse(tenantId).stream().anyMatch(v -> "MH-BULK-MR-02".equals(v.getRegistrationNumber()))) {
+            TransportVehicle v = vehicle(tenantId, "MH-BULK-MR-02", Enums.VehicleType.BUS, 35, "Tata Marcopolo");
+            transportVehicleRepository.save(v);
+            TransportDriver d = driver(tenantId, "Ganesh Pawar", "+91-98220-77881", "MH-BULK-DRV-02");
+            transportDriverRepository.save(d);
+            TransportRoute rt = TransportRoute.builder().name("Kothrud — School express")
+                    .vehicleNumber("MH-BULK-MR-02").driverName("Ganesh Pawar").driverPhone("+91-98220-77881")
+                    .assignedStudents(3).vehicleId(v.getId()).driverId(d.getId()).build();
+            rt.setTenantId(tenantId);
+            transportRouteRepository.save(rt);
+            flush();
+            RouteStop st = RouteStop.builder().name("Karve Road").stopTime(LocalTime.of(7, 30)).stopOrder(1).build();
+            st.setTenantId(tenantId);
+            st.setRouteId(rt.getId());
+            routeStopRepository.save(st);
+        }
+
+        boolean hasMrFee = feeStructureRepository.findByTenantIdAndIsDeletedFalse(tenantId).stream()
+                .anyMatch(f -> "Bulk demo — VIII enrichment".equals(f.getName()));
+        if (!hasMrFee) {
+            FeeStructure fs = feeStructure(tenantId, "Bulk demo — VIII enrichment", c8.getId(), c8.getName(), ay.getId(), new BigDecimal("8400.00"));
+            feeStructureRepository.save(fs);
+            feeComponentRepository.save(comp(tenantId, fs.getId(), "Workshops", new BigDecimal("5400"), Enums.FeeComponentType.MISC));
+            feeComponentRepository.save(comp(tenantId, fs.getId(), "Materials", new BigDecimal("3000"), Enums.FeeComponentType.MISC));
+            flush();
+            List<Student> pool = studentRepository.findByTenantIdAndClassIdAndIsDeletedFalse(tenantId, c8.getId());
+            for (int i = 0; i < Math.min(5, pool.size()); i++) {
+                String rec = "MR-BULK-FEE-" + i;
+                if (feePaymentRepository.findByReceiptNumberAndTenantIdAndIsDeletedFalse(rec, tenantId).isEmpty()) {
+                    feePaymentRepository.save(payment(tenantId, pool.get(i), fs.getId(), new BigDecimal("8400"), new BigDecimal("4200"), new BigDecimal("4200"),
+                            Enums.FeeStatus.PARTIAL, rec));
+                }
+            }
+        }
+
+        Section secLast = secs.get(secs.size() - 1);
+        if (!teachers.isEmpty()) {
+            List<TimetableEntry> ttMr = timetableRepository.findByTenantIdAndClassIdAndSectionIdAndIsDeletedFalse(tenantId, c8.getId(), secLast.getId());
+            boolean hasThuP2 = ttMr.stream().anyMatch(e -> e.getDay() == Enums.DayOfWeek.THURSDAY && e.getPeriod() == 2);
+            if (!hasThuP2) {
+                Teacher tLast = teachers.get(teachers.size() - 1);
+                String tnm = tLast.getFirstName() + " " + tLast.getLastName();
+                timetableRepository.save(tt(tenantId, ay.getId(), c8.getId(), secLast.getId(), Enums.DayOfWeek.THURSDAY, 2,
+                        LocalTime.of(10, 0), LocalTime.of(10, 45), "Computer Science", tLast.getId(), tnm, "Lab 2"));
+            }
+        }
+
+        if (bookIssueRepository.countByTenantIdAndIsDeletedFalse(tenantId) == 0) {
+            List<Book> shelf = bookRepository.findByTenantIdAndIsDeletedFalse(tenantId);
+            List<Student> pool = studentRepository.findByTenantIdAndClassIdAndIsDeletedFalse(tenantId, c8.getId());
+            int k = 0;
+            for (Book bk : shelf) {
+                if (k >= 5 || pool.isEmpty()) {
+                    break;
+                }
+                BookIssue bi = new BookIssue();
+                bi.setTenantId(tenantId);
+                bi.setBookId(bk.getId());
+                bi.setBookTitle(bk.getTitle());
+                Student st = pool.get(k % pool.size());
+                bi.setStudentId(st.getId());
+                bi.setStudentName(st.getFirstName() + " " + st.getLastName());
+                bi.setIssueDate(LocalDate.now().minusDays(1 + k));
+                bi.setDueDate(LocalDate.now().plusDays(10));
+                bi.setFine(BigDecimal.ZERO);
+                bi.setStatus(Enums.BookIssueStatus.ISSUED);
+                bookIssueRepository.save(bi);
+                k++;
+            }
+        }
+
+        LocalDate todayMr = LocalDate.now();
+        if (markerTid != null) {
+            for (Student s : studentRepository.findByTenantIdAndIsDeletedFalse(tenantId)) {
+                if (!attendanceRepository.existsByTenantIdAndStudentIdAndDateAndIsDeletedFalse(tenantId, s.getId(), todayMr)) {
+                    attendanceRepository.save(att(tenantId, s, todayMr, Enums.AttendanceStatus.PRESENT, markerTid));
+                }
+            }
+        }
+
+        Optional<User> tPatilOpt = userRepository.findByEmailAndTenantIdAndIsDeletedFalse("s.patil@meridianridge.edu", tenantId);
+        Optional<User> parMr = userRepository.findByEmailAndTenantIdAndIsDeletedFalse("k.deshmukh.parent@meridianridge.edu", tenantId);
+        if (tPatilOpt.isPresent() && parMr.isPresent()) {
+            User tPat = tPatilOpt.get();
+            User pKav = parMr.get();
+            boolean hasMrInboxDemo = chatConversationRepository.findInbox(tenantId, tPat.getId()).stream()
+                    .anyMatch(c -> c.getSubject() != null && c.getSubject().contains("Teacher inbox demo"));
+            if (!hasMrInboxDemo) {
+                ChatConversation cc = new ChatConversation();
+                cc.setTenantId(tenantId);
+                cc.setType("direct");
+                cc.setSubject("Advik Deshmukh — Teacher inbox demo");
+                cc.setLastMessageAt(LocalDateTime.now().minusMinutes(45));
+                cc.setLastMessagePreview("Can we meet briefly about the math assessment?");
+                chatConversationRepository.save(cc);
+                flush();
+                ChatParticipant pTeach = new ChatParticipant();
+                pTeach.setTenantId(tenantId);
+                pTeach.setConversationId(cc.getId());
+                pTeach.setUserId(tPat.getId());
+                pTeach.setUserRole("TEACHER");
+                pTeach.setDisplayName("Sneha Patil");
+                ChatParticipant pPar = new ChatParticipant();
+                pPar.setTenantId(tenantId);
+                pPar.setConversationId(cc.getId());
+                pPar.setUserId(pKav.getId());
+                pPar.setUserRole("PARENT");
+                pPar.setDisplayName("Kavita Deshmukh");
+                chatParticipantRepository.saveAll(List.of(pTeach, pPar));
+            }
+            long unreadPatil = notificationRepository.countByTenantIdAndUserIdAndIsReadFalse(tenantId, tPat.getId());
+            for (long n = unreadPatil; n < 4; n++) {
+                notificationRepository.save(notif(tenantId, tPat.getId(), "Meridian demo notice " + (n + 1),
+                        "Please check timetable updates or leave approvals.", Enums.NotificationType.INFO));
+            }
+        }
+
+        log.info("Bulk demo extension applied for Meridian Ridge (tenant_id={})", tenantId);
     }
 
     private void flush() {
@@ -757,7 +1394,7 @@ public class DemoDataSeedService {
     }
 
     private Student student(String tenantId, String fn, String ln, String adm, Long classId, Long secId, Long parentId,
-            String parentName, String email, Enums.Gender gender) {
+                            String parentName, String email, Enums.Gender gender) {
         Student s = Student.builder().firstName(fn).lastName(ln).email(email).phone("+91-99000-00000")
                 .dateOfBirth(LocalDate.of(2011, 5, 15)).gender(gender).classId(classId).sectionId(secId)
                 .rollNumber(adm.substring(adm.length() - 3)).admissionNumber(adm).admissionDate(LocalDate.of(2025, 4, 8))
@@ -824,7 +1461,7 @@ public class DemoDataSeedService {
     }
 
     private TimetableEntry tt(String tenantId, Long ayId, Long classId, Long secId, Enums.DayOfWeek day, int period,
-            LocalTime st, LocalTime et, String subject, Long tid, String tname, String room) {
+                              LocalTime st, LocalTime et, String subject, Long tid, String tname, String room) {
         TimetableEntry e = TimetableEntry.builder().classId(classId).sectionId(secId).day(day).period(period)
                 .startTime(st).endTime(et).subjectName(subject).teacherId(tid).teacherName(tname).room(room).build();
         e.setTenantId(tenantId);
@@ -844,7 +1481,7 @@ public class DemoDataSeedService {
     }
 
     private void examSlot(String tenantId, Long examId, Long classId, Long secId, String subject, LocalDate date,
-            LocalTime st, LocalTime et, String room) {
+                          LocalTime st, LocalTime et, String room) {
         ExamScheduleSlot sl = new ExamScheduleSlot();
         sl.setTenantId(tenantId);
         sl.setExamId(examId);
@@ -882,9 +1519,14 @@ public class DemoDataSeedService {
     }
 
     private FeePayment payment(String tenantId, Student s, Long fsId, BigDecimal amt, BigDecimal paid, BigDecimal due,
-            Enums.FeeStatus st, String receipt) {
+                               Enums.FeeStatus st, String receipt) {
+        return payment(tenantId, s, fsId, amt, paid, due, st, receipt, LocalDate.now().minusDays(7));
+    }
+
+    private FeePayment payment(String tenantId, Student s, Long fsId, BigDecimal amt, BigDecimal paid, BigDecimal due,
+                               Enums.FeeStatus st, String receipt, LocalDate paymentDate) {
         FeePayment p = FeePayment.builder().studentId(s.getId()).studentName(s.getFirstName() + " " + s.getLastName())
-                .feeStructureId(fsId).amount(amt).paidAmount(paid).dueAmount(due).status(st).paymentDate(LocalDate.now().minusDays(7))
+                .feeStructureId(fsId).amount(amt).paidAmount(paid).dueAmount(due).status(st).paymentDate(paymentDate)
                 .dueDate(LocalDate.now().plusMonths(2)).discount(BigDecimal.ZERO).lateFee(BigDecimal.ZERO)
                 .receiptNumber(receipt).paymentMethod("UPI").build();
         p.setTenantId(tenantId);

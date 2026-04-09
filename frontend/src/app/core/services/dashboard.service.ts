@@ -11,14 +11,14 @@ import {
 } from '../models/models';
 import { ApiService } from './api.service';
 import { ParentService } from './parent.service';
-import { environment } from '../../../environments/environment';
+import { runtimeConfig } from '../config/runtime-config';
 
 @Injectable({ providedIn: 'root' })
 export class DashboardService {
   constructor(private api: ApiService, private parentService: ParentService) {}
 
   getAdminDashboard(): Observable<AdminDashboardData> {
-    if (environment.useMocks) {
+    if (runtimeConfig.useMocks) {
       return of({
         totalStudents: 2847,
         totalTeachers: 124,
@@ -65,7 +65,7 @@ export class DashboardService {
   }
 
   getTeacherDashboard(): Observable<TeacherDashboardData> {
-    if (environment.useMocks) {
+    if (runtimeConfig.useMocks) {
       return of({
         assignedClasses: 6,
         studentsAssigned: 186,
@@ -98,8 +98,14 @@ export class DashboardService {
     return this.api.get<any>('/reports/dashboard/teacher').pipe(
       map(dashboard => ({
         ...dashboard,
-        classTeacherOf: dashboard.classTeacherOf ?? [],
-        messageQueue: dashboard.messageQueue ?? [],
+        classTeacherOf: (dashboard.classTeacherOf ?? []).map((row: any) => ({
+          ...row,
+          classId: row.classId != null ? String(row.classId) : ''
+        })),
+        messageQueue: (dashboard.messageQueue ?? []).map((m: any) => ({
+          ...m,
+          conversationId: String(m.conversationId ?? '')
+        })),
         quickActions: dashboard.quickActions ?? [],
         todaySchedule: (dashboard.todaySchedule ?? []).map((item: any) => ({
           ...item,
@@ -111,7 +117,7 @@ export class DashboardService {
   }
 
   getParentDashboard(from: string, to: string): Observable<ParentDashboardData> {
-    if (environment.useMocks) {
+    if (runtimeConfig.useMocks) {
       const children: Student[] = [
         {
           id: 's12',
@@ -186,26 +192,57 @@ export class DashboardService {
           fees: this.parentService.getChildFees(selectedChild.id),
           attendance: this.parentService.getChildAttendance(selectedChild.id, from, to)
         }).pipe(
-          map(({ marks, fees, attendance }) => ({
-            childCount: children.length,
-            children,
-            selectedChild,
-            selectedChildId: selectedChild.id,
-            attendancePercentage: attendance.attendancePercentage,
-            overallGrade: this.getOverallGrade(marks),
-            feeDue: fees.reduce((sum, fee) => sum + (fee.dueAmount ?? 0), 0),
-            childPerformance: marks,
-            feeStatus: fees,
-            alerts: [],
-            upcoming: [],
-            attendanceSnapshot: {
-              totalDays: attendance.totalDays,
-              present: attendance.present,
-              absent: attendance.absent,
-              late: attendance.late,
-              excused: attendance.excused ?? 0
+          map(({ marks, fees, attendance }) => {
+            const feeDue = fees.reduce((sum, fee) => sum + (fee.dueAmount ?? 0), 0);
+            const alerts: ParentDashboardData['alerts'] = [];
+            if (feeDue > 0) {
+              alerts.push({
+                type: 'warning',
+                title: 'Fee balance outstanding',
+                message: `There is an unpaid balance for ${selectedChild.firstName} ${selectedChild.lastName}. Visit Fees to pay or review receipts.`,
+                ctaLabel: 'Open fees',
+                ctaRoute: '/app/parent'
+              });
             }
-          }))
+            if ((attendance.totalDays ?? 0) > 0 && (attendance.attendancePercentage ?? 100) < 85) {
+              alerts.push({
+                type: 'info',
+                title: 'Attendance this month',
+                message: `Attendance is ${attendance.attendancePercentage?.toFixed(1) ?? '—'}% for the selected period. Contact the class teacher if you have questions.`,
+                ctaLabel: 'Inbox',
+                ctaRoute: '/app/chat'
+              });
+            }
+            if (marks.length) {
+              alerts.push({
+                type: 'success',
+                title: 'Latest results on file',
+                message: `${marks.length} subject record(s) available. Overall grade trend: ${this.getOverallGrade(marks)}.`,
+                ctaLabel: 'View inbox',
+                ctaRoute: '/app/chat'
+              });
+            }
+            return {
+              childCount: children.length,
+              children,
+              selectedChild,
+              selectedChildId: selectedChild.id,
+              attendancePercentage: attendance.attendancePercentage,
+              overallGrade: this.getOverallGrade(marks),
+              feeDue,
+              childPerformance: marks,
+              feeStatus: fees,
+              alerts,
+              upcoming: [] as ParentDashboardData['upcoming'],
+              attendanceSnapshot: {
+                totalDays: attendance.totalDays,
+                present: attendance.present,
+                absent: attendance.absent,
+                late: attendance.late,
+                excused: attendance.excused ?? 0
+              }
+            };
+          })
         );
       })
     );

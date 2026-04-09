@@ -8,7 +8,7 @@ import { AcademicService } from '../../core/services/academic.service';
 import { GuardianService } from '../../core/services/guardian.service';
 import { Student, SchoolClass } from '../../core/models/models';
 import { BLOOD_GROUPS, GENDERS } from '../../core/config/app-constants';
-import { environment } from '../../../environments/environment';
+import { runtimeConfig } from '../../core/config/runtime-config';
 
 @Component({
   selector: 'app-student-form',
@@ -226,7 +226,7 @@ export class StudentFormComponent implements OnInit {
       this.studentService.addStudent(this.student as Omit<Student, 'id'>).subscribe({
         next: async created => {
           const extras = [this.g1, this.g2].filter(g => g.fullName.trim().length > 0);
-          if (!environment.useMocks && extras.length > 0) {
+          if (!runtimeConfig.useMocks && extras.length > 0) {
             try {
               for (let i = 0; i < extras.length; i++) {
                 const g = extras[i];

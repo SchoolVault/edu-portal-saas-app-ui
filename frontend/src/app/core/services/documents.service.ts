@@ -3,14 +3,14 @@ import { Observable, of } from 'rxjs';
 import { map } from 'rxjs/operators';
 import { DocumentRecord } from '../models/models';
 import { ApiService } from './api.service';
-import { environment } from '../../../environments/environment';
+import { runtimeConfig } from '../config/runtime-config';
 
 @Injectable({ providedIn: 'root' })
 export class DocumentsService {
   constructor(private api: ApiService) {}
 
   list(category?: string): Observable<DocumentRecord[]> {
-    if (environment.useMocks) {
+    if (runtimeConfig.useMocks) {
       return of([
         { id: 'd1', name: 'School Calendar', type: 'PDF', category: 'general', uploadedBy: '1', uploadDate: '2025-06-01', size: '2 MB', fileUrl: 'https://example.com/cal.pdf', tenantId: 't1' }
       ]);
@@ -20,7 +20,7 @@ export class DocumentsService {
   }
 
   uploadMeta(body: { name: string; fileType: string; category: string; fileSize?: string; fileUrl?: string }): Observable<DocumentRecord> {
-    if (environment.useMocks) {
+    if (runtimeConfig.useMocks) {
       return of({ id: 'd-new', name: body.name, type: body.fileType, category: body.category, uploadedBy: 'me', uploadDate: new Date().toISOString().slice(0, 10), size: body.fileSize ?? '', fileUrl: body.fileUrl, tenantId: '' });
     }
     const payload: any = {
@@ -34,7 +34,7 @@ export class DocumentsService {
   }
 
   delete(id: string): Observable<void> {
-    if (environment.useMocks) return of(undefined);
+    if (runtimeConfig.useMocks) return of(undefined);
     return this.api.delete<void>(`/documents/${id}`);
   }
 

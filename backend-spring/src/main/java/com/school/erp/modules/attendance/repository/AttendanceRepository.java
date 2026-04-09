@@ -4,6 +4,10 @@ import org.springframework.data.jpa.repository.JpaRepository; import org.springf
 import java.time.LocalDate; import java.util.List;
 
 public interface AttendanceRepository extends JpaRepository<AttendanceRecord, Long> {
+    boolean existsByTenantIdAndStudentIdAndDateAndIsDeletedFalse(String tenantId, Long studentId, LocalDate date);
+
+    List<AttendanceRecord> findByTenantIdAndDateAndIsDeletedFalseOrderByStudentIdAsc(String tenantId, LocalDate date);
+
     List<AttendanceRecord> findByTenantIdAndClassIdAndSectionIdAndDate(String tenantId, Long classId, Long sectionId, LocalDate date);
     List<AttendanceRecord> findByTenantIdAndStudentIdAndDateBetween(String tenantId, Long studentId, LocalDate from, LocalDate to);
     long countByTenantIdAndDate(String tenantId, LocalDate date);

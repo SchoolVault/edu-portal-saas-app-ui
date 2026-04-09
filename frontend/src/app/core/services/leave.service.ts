@@ -2,7 +2,7 @@ import { Injectable } from '@angular/core';
 import { Observable, of } from 'rxjs';
 import { delay, map } from 'rxjs/operators';
 import { ApiService } from './api.service';
-import { environment } from '../../../environments/environment';
+import { runtimeConfig } from '../config/runtime-config';
 import { AuthService } from './auth.service';
 
 export type LeaveDayUnit = 'FULL_DAY' | 'FIRST_HALF' | 'SECOND_HALF';
@@ -88,7 +88,7 @@ export class LeaveService {
     teacherId?: number;
     dayUnit?: LeaveDayUnit;
   }): Observable<LeaveRequestRow> {
-    if (!environment.useMocks) {
+    if (!runtimeConfig.useMocks) {
       return this.api.post<LeaveRequestRow>('/leave/requests', {
         ...body,
         dayUnit: body.dayUnit ?? 'FULL_DAY'
@@ -112,7 +112,7 @@ export class LeaveService {
   }
 
   listMine(): Observable<LeaveRequestRow[]> {
-    if (!environment.useMocks) {
+    if (!runtimeConfig.useMocks) {
       return this.api.get<LeaveRequestRow[]>('/leave/requests/mine');
     }
     const uid = this.mockUserNumId();
@@ -120,14 +120,14 @@ export class LeaveService {
   }
 
   listAll(): Observable<LeaveRequestRow[]> {
-    if (!environment.useMocks) {
+    if (!runtimeConfig.useMocks) {
       return this.api.get<LeaveRequestRow[]>('/leave/requests');
     }
     return of([...MOCK_REQUESTS]).pipe(delay(200));
   }
 
   decide(id: number, approve: boolean, approverRemarks?: string): Observable<LeaveRequestRow> {
-    if (!environment.useMocks) {
+    if (!runtimeConfig.useMocks) {
       return this.api.put<LeaveRequestRow>(`/leave/requests/${id}/decision`, { approve, approverRemarks });
     }
     const row = MOCK_REQUESTS.find(r => r.id === id);
@@ -140,7 +140,7 @@ export class LeaveService {
   }
 
   getBalance(): Observable<LeaveBalanceSummary> {
-    if (!environment.useMocks) {
+    if (!runtimeConfig.useMocks) {
       return this.api.get<LeaveBalanceSummary>('/leave/balance').pipe(
         map(b => ({
           annualEntitled: b.annualEntitled ?? 24,

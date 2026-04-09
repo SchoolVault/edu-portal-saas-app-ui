@@ -4,7 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { DocumentRecord } from '../../core/models/models';
 import { DocumentsService } from '../../core/services/documents.service';
 import { AuthService } from '../../core/services/auth.service';
-import { environment } from '../../../environments/environment';
+import { runtimeConfig } from '../../core/config/runtime-config';
 
 @Component({
   selector: 'app-documents',
@@ -119,7 +119,7 @@ export class DocumentsComponent implements OnInit {
 
   canDelete(doc: DocumentRecord): boolean {
     if (this.isAdmin) return true;
-    if (environment.useMocks) return true;
+    if (runtimeConfig.useMocks) return true;
     return !!this.currentUserId && doc.uploadedBy === this.currentUserId;
   }
 

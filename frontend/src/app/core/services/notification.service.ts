@@ -4,7 +4,7 @@ import { delay, map, tap } from 'rxjs/operators';
 import { AppNotification } from '../models/models';
 import { ApiService } from './api.service';
 import { AuthService } from './auth.service';
-import { environment } from '../../../environments/environment';
+import { runtimeConfig } from '../config/runtime-config';
 
 @Injectable({ providedIn: 'root' })
 export class NotificationService {
@@ -75,7 +75,7 @@ export class NotificationService {
   refreshFromServer(): Observable<AppNotification[]> {
     const role = (this.auth.getCurrentUser()?.role || '').toLowerCase();
     if (role === 'super_admin') {
-      if (environment.useMocks) {
+      if (runtimeConfig.useMocks) {
         this.usePlatformOperatorFeed();
         return of(this.notifications);
       }
@@ -87,7 +87,7 @@ export class NotificationService {
         })
       );
     }
-    if (environment.useMocks) {
+    if (runtimeConfig.useMocks) {
       this.useSchoolNotificationFeed();
       return of(this.notifications).pipe(delay(200));
     }
@@ -105,7 +105,7 @@ export class NotificationService {
   }
 
   getNotifications(): Observable<AppNotification[]> {
-    if (!environment.useMocks) {
+    if (!runtimeConfig.useMocks) {
       return this.refreshFromServer();
     }
     return of(this.notifications).pipe(delay(300));
@@ -121,7 +121,7 @@ export class NotificationService {
       n.read = true;
       this.notificationsSubject.next([...this.notifications]);
     }
-    if (!environment.useMocks) {
+    if (!runtimeConfig.useMocks) {
       this.api.put<void>(`/notifications/${id}/read`, {}).subscribe({
         error: () => this.refreshFromServer().subscribe()
       });
@@ -131,7 +131,7 @@ export class NotificationService {
   markAllAsRead(): void {
     this.notifications.forEach(n => { n.read = true; });
     this.notificationsSubject.next([...this.notifications]);
-    if (!environment.useMocks) {
+    if (!runtimeConfig.useMocks) {
       this.api.put<void>('/notifications/read-all', {}).subscribe({
         error: () => this.refreshFromServer().subscribe()
       });

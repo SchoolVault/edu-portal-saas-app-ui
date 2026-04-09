@@ -3,7 +3,7 @@ import { Observable, of, throwError } from 'rxjs';
 import { delay, map } from 'rxjs/operators';
 import { Announcement, AnnouncementPreview } from '../models/models';
 import { ApiService } from './api.service';
-import { environment } from '../../../environments/environment';
+import { runtimeConfig } from '../config/runtime-config';
 
 /** Payload for POST /communication/announcements (matches backend CreateAnnouncementRequest). */
 export interface CreateAnnouncementPayload {
@@ -25,12 +25,12 @@ export class CommunicationService {
   ];
 
   getAnnouncements(): Observable<Announcement[]> {
-    if (!environment.useMocks) { return this.api.get<Announcement[]>('/communication/announcements'); }
+    if (!runtimeConfig.useMocks) { return this.api.get<Announcement[]>('/communication/announcements'); }
     return of([...this.announcements]).pipe(delay(400));
   }
 
   getAnnouncement(id: string): Observable<Announcement> {
-    if (!environment.useMocks) {
+    if (!runtimeConfig.useMocks) {
       return this.api.get<Announcement>(`/communication/announcements/${encodeURIComponent(id)}`);
     }
     const found = this.announcements.find(a => String(a.id) === String(id));
@@ -41,7 +41,7 @@ export class CommunicationService {
   }
 
   createAnnouncement(payload: CreateAnnouncementPayload): Observable<Announcement> {
-    if (!environment.useMocks) {
+    if (!runtimeConfig.useMocks) {
       return this.api.post<Announcement>('/communication/announcements', {
         title: payload.title,
         content: payload.content,
@@ -65,7 +65,7 @@ export class CommunicationService {
   }
 
   getAnnouncementPreviews(): Observable<AnnouncementPreview[]> {
-    if (!environment.useMocks) {
+    if (!runtimeConfig.useMocks) {
       return this.api.get<AnnouncementPreview[]>('/communication/announcements/previews');
     }
     return this.getAnnouncements().pipe(
@@ -82,7 +82,7 @@ export class CommunicationService {
   constructor(private api: ApiService) {}
 
   addAnnouncement(announcement: Announcement): Observable<Announcement> {
-    if (!environment.useMocks) { return this.api.post<Announcement>('/communication/announcements', announcement); }
+    if (!runtimeConfig.useMocks) { return this.api.post<Announcement>('/communication/announcements', announcement); }
     this.announcements = [announcement, ...this.announcements];
     return of(announcement).pipe(delay(500));
   }

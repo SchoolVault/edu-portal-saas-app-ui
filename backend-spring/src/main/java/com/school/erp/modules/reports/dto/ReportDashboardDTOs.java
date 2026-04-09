@@ -347,6 +347,124 @@ public class ReportDashboardDTOs {
         }
     }
 
+    public static class TeacherClassTeacherRow {
+        private Long classId;
+        private String className;
+        private String sectionName;
+        private int totalStudents;
+
+        public TeacherClassTeacherRow() {
+        }
+
+        public TeacherClassTeacherRow(Long classId, String className, String sectionName, int totalStudents) {
+            this.classId = classId;
+            this.className = className;
+            this.sectionName = sectionName;
+            this.totalStudents = totalStudents;
+        }
+
+        public Long getClassId() {
+            return classId;
+        }
+
+        public void setClassId(Long classId) {
+            this.classId = classId;
+        }
+
+        public String getClassName() {
+            return className;
+        }
+
+        public void setClassName(String className) {
+            this.className = className;
+        }
+
+        public String getSectionName() {
+            return sectionName;
+        }
+
+        public void setSectionName(String sectionName) {
+            this.sectionName = sectionName;
+        }
+
+        public int getTotalStudents() {
+            return totalStudents;
+        }
+
+        public void setTotalStudents(int totalStudents) {
+            this.totalStudents = totalStudents;
+        }
+    }
+
+    public static class TeacherMessageQueueItem {
+        private long conversationId;
+        private String fromName;
+        private String studentName;
+        private String preview;
+        private String timestamp;
+        private String priority;
+
+        public TeacherMessageQueueItem() {
+        }
+
+        public TeacherMessageQueueItem(long conversationId, String fromName, String studentName, String preview, String timestamp, String priority) {
+            this.conversationId = conversationId;
+            this.fromName = fromName;
+            this.studentName = studentName;
+            this.preview = preview;
+            this.timestamp = timestamp;
+            this.priority = priority;
+        }
+
+        public long getConversationId() {
+            return conversationId;
+        }
+
+        public void setConversationId(long conversationId) {
+            this.conversationId = conversationId;
+        }
+
+        public String getFromName() {
+            return fromName;
+        }
+
+        public void setFromName(String fromName) {
+            this.fromName = fromName;
+        }
+
+        public String getStudentName() {
+            return studentName;
+        }
+
+        public void setStudentName(String studentName) {
+            this.studentName = studentName;
+        }
+
+        public String getPreview() {
+            return preview;
+        }
+
+        public void setPreview(String preview) {
+            this.preview = preview;
+        }
+
+        public String getTimestamp() {
+            return timestamp;
+        }
+
+        public void setTimestamp(String timestamp) {
+            this.timestamp = timestamp;
+        }
+
+        public String getPriority() {
+            return priority;
+        }
+
+        public void setPriority(String priority) {
+            this.priority = priority;
+        }
+    }
+
     public static class TeacherDashboardResponse {
         private long assignedClasses;
         private long studentsAssigned;
@@ -354,6 +472,8 @@ public class ReportDashboardDTOs {
         private long unreadNotifications;
         private List<TeacherScheduleItem> todaySchedule = new ArrayList<>();
         private List<ActivityItem> pendingTasks = new ArrayList<>();
+        private List<TeacherClassTeacherRow> classTeacherOf = new ArrayList<>();
+        private List<TeacherMessageQueueItem> messageQueue = new ArrayList<>();
 
         public long getAssignedClasses() {
             return this.assignedClasses;
@@ -401,6 +521,22 @@ public class ReportDashboardDTOs {
 
         public void setPendingTasks(final List<ActivityItem> pendingTasks) {
             this.pendingTasks = pendingTasks;
+        }
+
+        public List<TeacherClassTeacherRow> getClassTeacherOf() {
+            return classTeacherOf;
+        }
+
+        public void setClassTeacherOf(List<TeacherClassTeacherRow> classTeacherOf) {
+            this.classTeacherOf = classTeacherOf != null ? classTeacherOf : new ArrayList<>();
+        }
+
+        public List<TeacherMessageQueueItem> getMessageQueue() {
+            return messageQueue;
+        }
+
+        public void setMessageQueue(List<TeacherMessageQueueItem> messageQueue) {
+            this.messageQueue = messageQueue != null ? messageQueue : new ArrayList<>();
         }
     }
 }

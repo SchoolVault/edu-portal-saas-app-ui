@@ -1,7 +1,7 @@
 import { Injectable } from '@angular/core';
 import { Observable, of, throwError } from 'rxjs';
 import { delay, map } from 'rxjs/operators';
-import { environment } from '../../../environments/environment';
+import { runtimeConfig } from '../config/runtime-config';
 import { ApiService } from './api.service';
 import {
   PlatformBroadcastResult,
@@ -87,7 +87,7 @@ export class PlatformService {
   constructor(private api: ApiService) {}
 
   getDashboard(): Observable<PlatformDashboardData> {
-    if (environment.useMocks) {
+    if (runtimeConfig.useMocks) {
       return of({
         totalSchools: 24,
         activeSchools: 21,
@@ -122,14 +122,14 @@ export class PlatformService {
   }
 
   getSchools(): Observable<PlatformSchoolSummary[]> {
-    if (environment.useMocks) {
+    if (runtimeConfig.useMocks) {
       return of(this.mockSchools.map(school => ({ ...school }))).pipe(delay(200));
     }
     return this.api.get<PlatformSchoolSummary[]>('/platform/schools');
   }
 
   getSchoolDetail(tenantId: string): Observable<PlatformSchoolDetail> {
-    if (environment.useMocks) {
+    if (runtimeConfig.useMocks) {
       const school = this.mockSchools.find(s => s.tenantId === tenantId);
       if (!school) {
         return throwError(() => new Error('School not found'));
@@ -148,7 +148,7 @@ export class PlatformService {
   }
 
   suspendSchoolWorkspace(tenantId: string): Observable<void> {
-    if (environment.useMocks) {
+    if (runtimeConfig.useMocks) {
       const school = this.mockSchools.find(s => s.tenantId === tenantId);
       if (school) {
         school.active = false;
@@ -160,7 +160,7 @@ export class PlatformService {
   }
 
   activateSchoolWorkspace(tenantId: string): Observable<void> {
-    if (environment.useMocks) {
+    if (runtimeConfig.useMocks) {
       const school = this.mockSchools.find(s => s.tenantId === tenantId);
       if (school) {
         school.active = true;
@@ -171,7 +171,7 @@ export class PlatformService {
   }
 
   requestTenantDataPurge(tenantId: string, confirmSchoolCode: string): Observable<PlatformPurgeJob> {
-    if (environment.useMocks) {
+    if (runtimeConfig.useMocks) {
       const school = this.mockSchools.find(s => s.tenantId === tenantId);
       if (!school) {
         return throwError(() => new Error('School not found'));
@@ -208,7 +208,7 @@ export class PlatformService {
   }
 
   listPurgeJobs(tenantId: string): Observable<PlatformPurgeJob[]> {
-    if (environment.useMocks) {
+    if (runtimeConfig.useMocks) {
       const list = (this.mockPurgeJobs[tenantId] ?? []).map(j => ({ ...j }));
       return of(list).pipe(delay(120));
     }
@@ -221,7 +221,7 @@ export class PlatformService {
   }
 
   listSubscriptionPlans(): Observable<PlatformSubscriptionPlan[]> {
-    if (environment.useMocks) {
+    if (runtimeConfig.useMocks) {
       return of(this.mockPlans.map(p => ({
         ...p,
         highlights: [...p.highlights],
@@ -232,7 +232,7 @@ export class PlatformService {
   }
 
   broadcastToAdmins(payload: { targetTenantId?: string | null; title: string; message: string; notificationType?: string }): Observable<PlatformBroadcastResult> {
-    if (environment.useMocks) {
+    if (runtimeConfig.useMocks) {
       const tenants = payload.targetTenantId
         ? [payload.targetTenantId]
         : this.mockSchools.map(s => s.tenantId);
@@ -246,7 +246,7 @@ export class PlatformService {
   }
 
   getSchoolAdmins(tenantId: string): Observable<PlatformSchoolAdmin[]> {
-    if (environment.useMocks) {
+    if (runtimeConfig.useMocks) {
       return of((this.mockAdmins[tenantId] ?? []).map(admin => ({ ...admin }))).pipe(delay(150));
     }
     return this.api.get<any[]>(`/platform/schools/${tenantId}/admins`).pipe(
@@ -258,7 +258,7 @@ export class PlatformService {
   }
 
   toggleSchoolAdminStatus(tenantId: string, adminId: string, active: boolean): Observable<PlatformSchoolAdmin> {
-    if (environment.useMocks) {
+    if (runtimeConfig.useMocks) {
       const admins = this.mockAdmins[tenantId] ?? [];
       const match = admins.find(admin => admin.id === adminId);
       if (match) {

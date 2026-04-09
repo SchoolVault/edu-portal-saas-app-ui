@@ -5,6 +5,8 @@ import java.util.List;
 import java.util.Optional;
 
 public interface BookIssueRepository extends JpaRepository<BookIssue, Long> {
+    long countByTenantIdAndIsDeletedFalse(String tenantId);
+
     List<BookIssue> findByTenantIdAndIsDeletedFalse(String t);
     List<BookIssue> findByTenantIdAndStudentIdAndIsDeletedFalse(String t, Long studentId);
 

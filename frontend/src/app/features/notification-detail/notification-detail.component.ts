@@ -3,7 +3,7 @@ import { CommonModule } from '@angular/common';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { NotificationService } from '../../core/services/notification.service';
 import { AppNotification } from '../../core/models/models';
-import { environment } from '../../../environments/environment';
+import { runtimeConfig } from '../../core/config/runtime-config';
 
 @Component({
   selector: 'app-notification-detail',
@@ -47,7 +47,7 @@ export class NotificationDetailComponent implements OnInit {
         this.color = this.pickColor(this.n.type);
       }
     };
-    if (!environment.useMocks) {
+    if (!runtimeConfig.useMocks) {
       this.notificationService.refreshFromServer().subscribe(() => apply());
     } else {
       apply();

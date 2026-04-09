@@ -3,7 +3,7 @@ import { BehaviorSubject, Observable, of } from 'rxjs';
 import { delay, map } from 'rxjs/operators';
 import { Student } from '../models/models';
 import { ApiService } from './api.service';
-import { environment } from '../../../environments/environment';
+import { runtimeConfig } from '../config/runtime-config';
 
 @Injectable({ providedIn: 'root' })
 export class StudentService {
@@ -37,21 +37,21 @@ export class StudentService {
   constructor(private api: ApiService) {}
 
   getStudents(): Observable<Student[]> {
-    if (!environment.useMocks) {
+    if (!runtimeConfig.useMocks) {
       return this.api.getPage<any>('/students').pipe(map(p => p.content.map((student: any) => this.normalizeStudent(student))));
     }
     return of([...this.students]).pipe(delay(400));
   }
 
   getStudentById(id: string): Observable<Student | undefined> {
-    if (!environment.useMocks) {
+    if (!runtimeConfig.useMocks) {
       return this.api.get<any>('/students/' + id).pipe(map(student => this.normalizeStudent(student)));
     }
     return of(this.students.find(s => s.id === id)).pipe(delay(300));
   }
 
   addStudent(student: Omit<Student, 'id'>): Observable<Student> {
-    if (!environment.useMocks) {
+    if (!runtimeConfig.useMocks) {
       return this.api.post<any>('/students', this.toCreatePayload(student)).pipe(map(created => this.normalizeStudent(created)));
     }
     const newStudent: Student = { ...student, id: 'su' + Date.now() } as Student;
@@ -61,7 +61,7 @@ export class StudentService {
   }
 
   updateStudent(id: string, data: Partial<Student>): Observable<Student> {
-    if (!environment.useMocks) {
+    if (!runtimeConfig.useMocks) {
       return this.api.put<any>('/students/' + id, this.toUpdatePayload(data)).pipe(map(student => this.normalizeStudent(student)));
     }
     const idx = this.students.findIndex(s => s.id === id);
@@ -74,7 +74,7 @@ export class StudentService {
   }
 
   deleteStudent(id: string): Observable<boolean> {
-    if (!environment.useMocks) {
+    if (!runtimeConfig.useMocks) {
       return this.api.delete<any>('/students/' + id).pipe(map(() => true));
     }
     this.students = this.students.filter(s => s.id !== id);
@@ -83,14 +83,14 @@ export class StudentService {
   }
 
   getStudentsByClass(classId: string): Observable<Student[]> {
-    if (!environment.useMocks) {
+    if (!runtimeConfig.useMocks) {
       return this.api.get<any[]>('/students/class/' + classId).pipe(map(students => students.map(student => this.normalizeStudent(student))));
     }
     return of(this.students.filter(s => s.classId === classId)).pipe(delay(300));
   }
 
   getStudentsByClassAndSection(classId: string, sectionId: string): Observable<Student[]> {
-    if (!environment.useMocks) {
+    if (!runtimeConfig.useMocks) {
       return this.api.get<any[]>(`/students/class/${classId}/section/${sectionId}`).pipe(
         map(students => students.map(student => this.normalizeStudent(student)))
       );
@@ -99,7 +99,7 @@ export class StudentService {
   }
 
   importStudentsZip(file: File): Observable<Student[]> {
-    if (!environment.useMocks) {
+    if (!runtimeConfig.useMocks) {
       const formData = new FormData();
       formData.append('file', file);
       return this.api.postFormData<any[]>('/students/import', formData).pipe(

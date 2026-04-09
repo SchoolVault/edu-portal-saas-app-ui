@@ -4,12 +4,14 @@ import com.school.erp.common.exception.RateLimitExceededException;
 import com.school.erp.tenant.TenantContext;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.HandlerInterceptor;
 import java.time.Duration;
 
 @Component
+@ConditionalOnBean(RedisTemplate.class)
 public class RateLimitInterceptor implements HandlerInterceptor {
     private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(RateLimitInterceptor.class);
     private final RedisTemplate<String, Object> redisTemplate;

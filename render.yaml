@@ -1,0 +1,46 @@
+# Render Blueprint — Docker API from monorepo root; static UI from /frontend.
+# Dashboard (manual): Language = Docker, Root Directory empty, Dockerfile Path = Dockerfile
+# Or: Root Directory = backend-spring, Dockerfile Path = Dockerfile
+
+services:
+  - type: web
+    name: schoolvault-api
+    region: oregon
+    plan: starter
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /actuator/health
+    envVars:
+      - key: SPRING_PROFILES_ACTIVE
+        value: prod
+      - key: DEMO_SEED_ENABLED
+        value: "false"
+      - key: CACHE_TYPE
+        value: none
+      - key: SPRING_AUTOCONFIGURE_EXCLUDE
+        value: org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration,org.springframework.boot.autoconfigure.data.redis.RedisRepositoriesAutoConfiguration
+      - key: DB_URL
+        sync: false
+      - key: DB_USERNAME
+        sync: false
+      - key: DB_PASSWORD
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: CORS_ORIGINS
+        sync: false
+
+  - type: web
+    name: schoolvault-ui
+    region: oregon
+    plan: starter
+    rootDir: frontend
+    runtime: static
+    buildCommand: npm ci && npm run build:render
+    staticPublishPath: dist/school-erp/browser
+    envVars:
+      - key: API_URL
+        sync: false
+      - key: USE_MOCKS
+        value: "false"

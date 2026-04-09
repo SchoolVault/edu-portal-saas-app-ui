@@ -3,7 +3,7 @@ import { BehaviorSubject, Observable, of } from 'rxjs';
 import { delay, map } from 'rxjs/operators';
 import { Teacher } from '../models/models';
 import { ApiService } from './api.service';
-import { environment } from '../../../environments/environment';
+import { runtimeConfig } from '../config/runtime-config';
 
 @Injectable({ providedIn: 'root' })
 export class TeacherService {
@@ -54,21 +54,21 @@ export class TeacherService {
   constructor(private api: ApiService) {}
 
   getTeachers(): Observable<Teacher[]> {
-    if (!environment.useMocks) {
+    if (!runtimeConfig.useMocks) {
       return this.api.getPage<any>('/teachers').pipe(map(p => p.content.map((teacher: any) => this.normalizeTeacher(teacher))));
     }
     return of([...this.teachers]).pipe(delay(400));
   }
 
   getTeacherById(id: string): Observable<Teacher | undefined> {
-    if (!environment.useMocks) {
+    if (!runtimeConfig.useMocks) {
       return this.api.get<any>('/teachers/' + id).pipe(map(teacher => this.normalizeTeacher(teacher)));
     }
     return of(this.teachers.find(t => t.id === id)).pipe(delay(300));
   }
 
   addTeacher(teacher: Omit<Teacher, 'id'>): Observable<Teacher> {
-    if (!environment.useMocks) {
+    if (!runtimeConfig.useMocks) {
       return this.api.post<Teacher>('/teachers', {
         firstName: teacher.firstName,
         lastName: teacher.lastName,
@@ -88,7 +88,7 @@ export class TeacherService {
   }
 
   updateTeacher(id: string, data: Partial<Teacher>): Observable<Teacher> {
-    if (!environment.useMocks) {
+    if (!runtimeConfig.useMocks) {
       return this.api.put<Teacher>('/teachers/' + id, {
         firstName: data.firstName,
         lastName: data.lastName,
@@ -111,14 +111,14 @@ export class TeacherService {
   }
 
   deleteTeacher(id: string): Observable<boolean> {
-    if (!environment.useMocks) { return this.api.delete<any>('/teachers/' + id).pipe(map(() => true)); }
+    if (!runtimeConfig.useMocks) { return this.api.delete<any>('/teachers/' + id).pipe(map(() => true)); }
     this.teachers = this.teachers.filter(t => t.id !== id);
     this.teachersSubject.next(this.teachers);
     return of(true).pipe(delay(300));
   }
 
   importTeachersZip(file: File): Observable<Teacher[]> {
-    if (!environment.useMocks) {
+    if (!runtimeConfig.useMocks) {
       const formData = new FormData();
       formData.append('file', file);
       return this.api.postFormData<any[]>('/teachers/import', formData).pipe(

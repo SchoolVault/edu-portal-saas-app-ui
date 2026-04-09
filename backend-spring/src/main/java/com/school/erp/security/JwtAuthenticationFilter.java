@@ -25,7 +25,10 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain) throws ServletException, IOException {
         try {
             String token = extractToken(request);
-            if (token != null && jwtUtil.validateToken(token)) {
+            // Do not bind TenantContext / SecurityContext from JWT on auth endpoints that must work
+            // without tenant scope (e.g. switching schools). Otherwise a stale Bearer token scopes
+            // Hibernate's tenant filter to the wrong tenant and login returns 401 for valid users.
+            if (!isAnonymousAuthPath(request) && token != null && jwtUtil.validateToken(token)) {
                 String email = jwtUtil.getEmail(token);
                 String tenantId = jwtUtil.getTenantId(token);
                 Long userId = jwtUtil.getUserId(token);
@@ -51,6 +54,17 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         } finally {
             TenantContext.clear();
         }
+    }
+
+    private static boolean isAnonymousAuthPath(HttpServletRequest request) {
+        String uri = request.getRequestURI();
+        if (uri == null) {
+            return false;
+        }
+        return uri.contains("/api/v1/auth/login")
+                || uri.contains("/api/v1/auth/onboard-tenant")
+                || uri.contains("/api/v1/auth/refresh-token")
+                || uri.contains("/api/v1/auth/logout");
     }
 
     private String extractToken(HttpServletRequest request) {

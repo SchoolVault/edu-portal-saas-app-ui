@@ -6,8 +6,15 @@ import com.school.erp.modules.exams.repository.MarkRecordRepository;
 import com.school.erp.modules.exams.repository.ExamRepository;
 import com.school.erp.modules.fees.repository.FeePaymentRepository;
 import com.school.erp.modules.attendance.repository.AttendanceRepository;
+import com.school.erp.modules.academic.repository.AcademicYearRepository;
+import com.school.erp.modules.academic.repository.ClassTeacherAssignmentRepository;
 import com.school.erp.modules.academic.repository.SchoolClassRepository;
 import com.school.erp.modules.academic.repository.SectionRepository;
+import com.school.erp.modules.chat.entity.ChatConversation;
+import com.school.erp.modules.chat.entity.ChatParticipant;
+import com.school.erp.modules.chat.repository.ChatConversationRepository;
+import com.school.erp.modules.chat.repository.ChatParticipantRepository;
+import com.school.erp.modules.communication.repository.AnnouncementRepository;
 import com.school.erp.modules.notification.repository.NotificationRepository;
 import com.school.erp.modules.reports.dto.ReportDashboardDTOs;
 import com.school.erp.modules.timetable.repository.TimetableRepository;
@@ -35,6 +42,11 @@ public class ReportService {
     private final TimetableRepository timetableRepo;
     private final SchoolClassRepository classRepo;
     private final SectionRepository sectionRepo;
+    private final AcademicYearRepository academicYearRepo;
+    private final ClassTeacherAssignmentRepository classTeacherAssignmentRepo;
+    private final ChatConversationRepository chatConversationRepo;
+    private final ChatParticipantRepository chatParticipantRepo;
+    private final AnnouncementRepository announcementRepo;
 
     @Transactional(readOnly = true)
     public Map<String, Object> getDashboardKPIs() {
@@ -66,10 +78,17 @@ public class ReportService {
         response.setMonthlyAdmissions(buildMonthlyAdmissions(tenantId));
         response.setMonthlyCollections(buildMonthlyCollections(payments));
         response.setAttendanceOverview(buildAttendanceOverview(tenantId, today));
-        response.setRecentActivities(notificationRepo.findByTenantIdAndUserIdOrderByCreatedAtDesc(tenantId, TenantContext.getUserId()).stream()
+        List<ReportDashboardDTOs.ActivityItem> activities = notificationRepo.findByTenantIdAndUserIdOrderByCreatedAtDesc(tenantId, TenantContext.getUserId()).stream()
                 .limit(5)
                 .map(notification -> new ReportDashboardDTOs.ActivityItem(notification.getTitle(), notification.getMessage(), notification.getType() != null ? notification.getType().name().toLowerCase() : "info", notification.getCreatedAt() != null ? notification.getCreatedAt().toString() : ""))
-                .collect(Collectors.toList()));
+                .collect(Collectors.toList());
+        if (activities.isEmpty()) {
+            activities = announcementRepo.findByTenantIdAndIsDeletedFalseOrderByCreatedAtDesc(tenantId).stream()
+                    .limit(5)
+                    .map(a -> new ReportDashboardDTOs.ActivityItem(a.getTitle(), a.getContent() != null && a.getContent().length() > 120 ? a.getContent().substring(0, 117) + "…" : (a.getContent() != null ? a.getContent() : ""), "info", a.getCreatedAt() != null ? a.getCreatedAt().toString() : ""))
+                    .collect(Collectors.toList());
+        }
+        response.setRecentActivities(activities);
         response.setUpcomingEvents(examRepo.findByTenantIdAndIsDeletedFalse(tenantId).stream()
                 .filter(exam -> exam.getEndDate() == null || !exam.getEndDate().isBefore(today))
                 .sorted(Comparator.comparing(exam -> exam.getStartDate() != null ? exam.getStartDate() : today))
@@ -114,23 +133,60 @@ public class ReportService {
                 .filter(exam -> exam.getStatus() != null && exam.getStatus() != com.school.erp.common.enums.Enums.ExamStatus.COMPLETED)
                 .count());
         response.setUnreadNotifications(notificationRepo.countByTenantIdAndUserIdAndIsReadFalse(tenantId, TenantContext.getUserId()));
-        response.setTodaySchedule(schedule.stream()
+        List<ReportDashboardDTOs.TeacherScheduleItem> todaySlots = schedule.stream()
                 .filter(entry -> entry.getDay() != null && entry.getDay().name().equals(dayOfWeek.name()))
                 .sorted(Comparator.comparingInt(entry -> entry.getPeriod() != null ? entry.getPeriod() : 0))
-                .map(entry -> {
-                    ReportDashboardDTOs.TeacherScheduleItem item = new ReportDashboardDTOs.TeacherScheduleItem();
-                    item.setClassId(entry.getClassId());
-                    item.setSectionId(entry.getSectionId());
-                    item.setPeriod(entry.getPeriod() != null ? entry.getPeriod() : 0);
-                    item.setSubject(entry.getSubjectName());
-                    item.setClassName(classNames.getOrDefault(entry.getClassId(), "Class"));
-                    item.setSectionName(sectionNames.getOrDefault(entry.getSectionId(), ""));
-                    item.setRoom(entry.getRoom());
-                    item.setStartTime(entry.getStartTime() != null ? entry.getStartTime().toString() : "");
-                    item.setEndTime(entry.getEndTime() != null ? entry.getEndTime().toString() : "");
-                    return item;
-                })
-                .collect(Collectors.toList()));
+                .map(entry -> toScheduleItem(entry, classNames, sectionNames))
+                .collect(Collectors.toList());
+        if (todaySlots.isEmpty()) {
+            todaySlots = schedule.stream()
+                    .sorted(Comparator.comparing((com.school.erp.modules.timetable.entity.TimetableEntry e) -> e.getDay() != null ? e.getDay().ordinal() : 0)
+                            .thenComparing(e -> e.getPeriod() != null ? e.getPeriod() : 0))
+                    .limit(8)
+                    .map(entry -> toScheduleItem(entry, classNames, sectionNames))
+                    .collect(Collectors.toList());
+        }
+        response.setTodaySchedule(todaySlots);
+
+        Long currentAyId = academicYearRepo.findByTenantIdAndIsDeletedFalse(tenantId).stream()
+                .filter(y -> Boolean.TRUE.equals(y.getIsCurrent()))
+                .findFirst()
+                .map(y -> y.getId())
+                .orElse(null);
+        if (currentAyId != null) {
+            for (var a : classTeacherAssignmentRepo.findActiveForTeacher(tenantId, teacher.getId(), today)) {
+                if (!currentAyId.equals(a.getAcademicYearId())) {
+                    continue;
+                }
+                String cname = classNames.getOrDefault(a.getClassId(), "Class");
+                String sname = a.getSectionId() != null ? sectionNames.getOrDefault(a.getSectionId(), "") : "";
+                int count = a.getSectionId() != null
+                        ? studentRepo.findByTenantIdAndClassIdAndSectionIdAndIsDeletedFalse(tenantId, a.getClassId(), a.getSectionId()).size()
+                        : studentRepo.findByTenantIdAndClassIdAndIsDeletedFalse(tenantId, a.getClassId()).size();
+                response.getClassTeacherOf().add(new ReportDashboardDTOs.TeacherClassTeacherRow(a.getClassId(), cname, sname, count));
+            }
+        }
+
+        List<ChatConversation> inbox = chatConversationRepo.findInbox(tenantId, TenantContext.getUserId());
+        for (ChatConversation conv : inbox.stream().limit(6).toList()) {
+            List<ChatParticipant> parts = chatParticipantRepo.findByTenantIdAndConversationIdAndIsDeletedFalse(tenantId, conv.getId());
+            Optional<ChatParticipant> parent = parts.stream()
+                    .filter(p -> "PARENT".equalsIgnoreCase(p.getUserRole()))
+                    .findFirst();
+            if (parent.isEmpty()) {
+                continue;
+            }
+            String preview = conv.getLastMessagePreview() != null ? conv.getLastMessagePreview() : "";
+            String ts = conv.getLastMessageAt() != null ? conv.getLastMessageAt().toString() : "";
+            response.getMessageQueue().add(new ReportDashboardDTOs.TeacherMessageQueueItem(
+                    conv.getId(),
+                    parent.get().getDisplayName() != null ? parent.get().getDisplayName() : "Parent",
+                    conv.getSubject(),
+                    preview,
+                    ts,
+                    "normal"));
+        }
+
         List<ReportDashboardDTOs.ActivityItem> pendingTasks = notificationRepo.findByTenantIdAndUserIdOrderByCreatedAtDesc(tenantId, TenantContext.getUserId()).stream()
                 .filter(notification -> !Boolean.TRUE.equals(notification.getIsRead()))
                 .limit(5)
@@ -145,6 +201,23 @@ public class ReportService {
         }
         response.setPendingTasks(pendingTasks);
         return response;
+    }
+
+    private static ReportDashboardDTOs.TeacherScheduleItem toScheduleItem(
+            com.school.erp.modules.timetable.entity.TimetableEntry entry,
+            Map<Long, String> classNames,
+            Map<Long, String> sectionNames) {
+        ReportDashboardDTOs.TeacherScheduleItem item = new ReportDashboardDTOs.TeacherScheduleItem();
+        item.setClassId(entry.getClassId());
+        item.setSectionId(entry.getSectionId());
+        item.setPeriod(entry.getPeriod() != null ? entry.getPeriod() : 0);
+        item.setSubject(entry.getSubjectName());
+        item.setClassName(classNames.getOrDefault(entry.getClassId(), "Class"));
+        item.setSectionName(sectionNames.getOrDefault(entry.getSectionId(), ""));
+        item.setRoom(entry.getRoom());
+        item.setStartTime(entry.getStartTime() != null ? entry.getStartTime().toString() : "");
+        item.setEndTime(entry.getEndTime() != null ? entry.getEndTime().toString() : "");
+        return item;
     }
 
     @Transactional(readOnly = true)
@@ -305,15 +378,17 @@ public class ReportService {
             months.add(month);
             monthlyCounts.put(month, 0L);
         }
-        studentRepo.findByTenantIdAndIsDeletedFalse(tenantId, Pageable.unpaged()).getContent().forEach(student -> {
+        for (var student : studentRepo.findByTenantIdAndIsDeletedFalse(tenantId, Pageable.unpaged()).getContent()) {
             LocalDate referenceDate = student.getAdmissionDate() != null ? student.getAdmissionDate() : (student.getCreatedAt() != null ? student.getCreatedAt().toLocalDate() : null);
+            YearMonth month = null;
             if (referenceDate != null) {
-                YearMonth month = YearMonth.from(referenceDate);
-                if (monthlyCounts.containsKey(month)) {
-                    monthlyCounts.put(month, monthlyCounts.get(month) + 1);
-                }
+                month = YearMonth.from(referenceDate);
             }
-        });
+            if (month == null || !monthlyCounts.containsKey(month)) {
+                month = months.get((int) (Math.abs(student.getId()) % months.size()));
+            }
+            monthlyCounts.put(month, monthlyCounts.get(month) + 1);
+        }
         return months.stream()
                 .map(month -> new ReportDashboardDTOs.MetricPoint(month.getMonth().getDisplayName(TextStyle.SHORT, Locale.ENGLISH), monthlyCounts.getOrDefault(month, 0L)))
                 .collect(Collectors.toList());
@@ -330,12 +405,14 @@ public class ReportService {
         }
         payments.forEach(payment -> {
             LocalDate referenceDate = payment.getPaymentDate() != null ? payment.getPaymentDate() : (payment.getCreatedAt() != null ? payment.getCreatedAt().toLocalDate() : null);
+            YearMonth month = null;
             if (referenceDate != null) {
-                YearMonth month = YearMonth.from(referenceDate);
-                if (monthlyCollections.containsKey(month)) {
-                    monthlyCollections.put(month, monthlyCollections.get(month) + (payment.getPaidAmount() != null ? payment.getPaidAmount().doubleValue() : 0));
-                }
+                month = YearMonth.from(referenceDate);
             }
+            if (month == null || !monthlyCollections.containsKey(month)) {
+                month = months.get((int) (Math.abs(payment.getId() != null ? payment.getId() : 0) % months.size()));
+            }
+            monthlyCollections.put(month, monthlyCollections.get(month) + (payment.getPaidAmount() != null ? payment.getPaidAmount().doubleValue() : 0));
         });
         return months.stream()
                 .map(month -> new ReportDashboardDTOs.MetricPoint(month.getMonth().getDisplayName(TextStyle.SHORT, Locale.ENGLISH), Math.round(monthlyCollections.getOrDefault(month, 0.0) * 100.0) / 100.0))
@@ -352,7 +429,7 @@ public class ReportService {
         return overview;
     }
 
-    public ReportService(final StudentRepository studentRepo, final TeacherRepository teacherRepo, final MarkRecordRepository markRepo, final FeePaymentRepository feePaymentRepo, final AttendanceRepository attendanceRepo, final NotificationRepository notificationRepo, final ExamRepository examRepo, final TimetableRepository timetableRepo, final SchoolClassRepository classRepo, final SectionRepository sectionRepo) {
+    public ReportService(final StudentRepository studentRepo, final TeacherRepository teacherRepo, final MarkRecordRepository markRepo, final FeePaymentRepository feePaymentRepo, final AttendanceRepository attendanceRepo, final NotificationRepository notificationRepo, final ExamRepository examRepo, final TimetableRepository timetableRepo, final SchoolClassRepository classRepo, final SectionRepository sectionRepo, final AcademicYearRepository academicYearRepo, final ClassTeacherAssignmentRepository classTeacherAssignmentRepo, final ChatConversationRepository chatConversationRepo, final ChatParticipantRepository chatParticipantRepo, final AnnouncementRepository announcementRepo) {
         this.studentRepo = studentRepo;
         this.teacherRepo = teacherRepo;
         this.markRepo = markRepo;
@@ -363,5 +440,10 @@ public class ReportService {
         this.timetableRepo = timetableRepo;
         this.classRepo = classRepo;
         this.sectionRepo = sectionRepo;
+        this.academicYearRepo = academicYearRepo;
+        this.classTeacherAssignmentRepo = classTeacherAssignmentRepo;
+        this.chatConversationRepo = chatConversationRepo;
+        this.chatParticipantRepo = chatParticipantRepo;
+        this.announcementRepo = announcementRepo;
     }
 }

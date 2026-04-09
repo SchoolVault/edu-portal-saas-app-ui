@@ -2,7 +2,7 @@ import { Injectable } from '@angular/core';
 import { Observable, throwError } from 'rxjs';
 import { map } from 'rxjs/operators';
 import { ApiService } from './api.service';
-import { environment } from '../../../environments/environment';
+import { runtimeConfig } from '../config/runtime-config';
 
 export interface CreateGuardianPayload {
   fullName: string;
@@ -22,14 +22,14 @@ export class GuardianService {
   constructor(private api: ApiService) {}
 
   createGuardian(body: CreateGuardianPayload): Observable<{ id: string }> {
-    if (environment.useMocks) {
+    if (runtimeConfig.useMocks) {
       return throwError(() => new Error('Guardian API disabled in mock mode'));
     }
     return this.api.post<any>('/guardians', body).pipe(map(g => ({ id: String(g.id) })));
   }
 
   addStudentMapping(studentId: string, body: CreateMappingPayload): Observable<void> {
-    if (environment.useMocks) {
+    if (runtimeConfig.useMocks) {
       return throwError(() => new Error('Guardian API disabled in mock mode'));
     }
     return this.api.post<void>(`/students/${studentId}/guardian-mappings`, {

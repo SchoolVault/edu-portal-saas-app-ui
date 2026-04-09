@@ -6,7 +6,7 @@ import { ThemeService } from '../../core/services/theme.service';
 import { AuthService } from '../../core/services/auth.service';
 import { StudentService } from '../../core/services/student.service';
 import { SchoolBranch, Student } from '../../core/models/models';
-import { environment } from '../../../environments/environment';
+import { runtimeConfig } from '../../core/config/runtime-config';
 
 @Component({
   selector: 'app-settings',
@@ -346,7 +346,7 @@ export class SettingsComponent implements OnInit {
     this.settingsService.update(payload).subscribe({
       next: () => {
         this.saving = false;
-        this.generalSaveMsg = environment.useMocks
+        this.generalSaveMsg = runtimeConfig.useMocks
           ? 'Saved on this device (mock). Same fields will sync from API when mocks are off.'
           : 'School information updated.';
         this.auth.fetchProfileSummary().subscribe();
@@ -361,7 +361,7 @@ export class SettingsComponent implements OnInit {
 
   applyBranding(): void {
     this.themeService.applySchoolBranding(this.primaryColor, this.accentColor);
-    if (!environment.useMocks) {
+    if (!runtimeConfig.useMocks) {
       this.settingsService.update({
         primaryColor: this.primaryColor,
         secondaryColor: this.accentColor,
@@ -374,7 +374,7 @@ export class SettingsComponent implements OnInit {
     this.primaryColor = ThemeService.DEFAULT_PRIMARY;
     this.accentColor = ThemeService.DEFAULT_ACCENT;
     this.themeService.resetBrandingToDefault();
-    if (!environment.useMocks && this.tenantId) {
+    if (!runtimeConfig.useMocks && this.tenantId) {
       this.settingsService
         .update({
           primaryColor: this.primaryColor,

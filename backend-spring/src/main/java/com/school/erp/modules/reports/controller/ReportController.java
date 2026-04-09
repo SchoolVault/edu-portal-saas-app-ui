@@ -24,7 +24,7 @@ public class ReportController {
     }
 
     @GetMapping("/dashboard/admin")
-    @PreAuthorize("hasRole(\'ADMIN\')")
+    @PreAuthorize("hasAnyRole(\'ADMIN\',\'LIBRARY_STAFF\')")
     @Operation(summary = "Get admin dashboard", description = "Returns KPI, chart, activity, and upcoming event data for the admin dashboard")
     public ResponseEntity<ApiResponse<ReportDashboardDTOs.AdminDashboardResponse>> getAdminDashboard() {
         return ResponseEntity.ok(ApiResponse.ok(reportService.getAdminDashboard()));

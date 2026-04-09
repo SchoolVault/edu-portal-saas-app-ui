@@ -3,7 +3,7 @@ import { Observable, of } from 'rxjs';
 import { map } from 'rxjs/operators';
 import { TransportDriver, TransportRoute, TransportVehicle } from '../models/models';
 import { ApiService } from './api.service';
-import { environment } from '../../../environments/environment';
+import { runtimeConfig } from '../config/runtime-config';
 
 /** Mutable mock fleet (same response shape as API). */
 const MOCK_VEHICLES: TransportVehicle[] = [
@@ -56,14 +56,14 @@ export class TransportService {
   constructor(private api: ApiService) {}
 
   listRoutes(): Observable<TransportRoute[]> {
-    if (environment.useMocks) {
+    if (runtimeConfig.useMocks) {
       return of(MOCK_ROUTES.map(r => ({ ...r, stops: r.stops.map(s => ({ ...s })) })));
     }
     return this.api.get<any[]>('/transport/routes').pipe(map(list => list.map(r => this.normalizeRoute(r))));
   }
 
   listVehicles(): Observable<TransportVehicle[]> {
-    if (environment.useMocks) {
+    if (runtimeConfig.useMocks) {
       return of([...MOCK_VEHICLES]);
     }
     return this.api.get<any[]>('/transport/vehicles').pipe(
@@ -80,7 +80,7 @@ export class TransportService {
   }
 
   listDrivers(): Observable<TransportDriver[]> {
-    if (environment.useMocks) {
+    if (runtimeConfig.useMocks) {
       return of([...MOCK_DRIVERS]);
     }
     return this.api.get<any[]>('/transport/drivers').pipe(
@@ -96,7 +96,7 @@ export class TransportService {
   }
 
   createVehicle(body: { registrationNumber: string; vehicleType: string; capacity: number; model?: string }): Observable<TransportVehicle> {
-    if (environment.useMocks) {
+    if (runtimeConfig.useMocks) {
       const v: TransportVehicle = {
         id: 'v' + Date.now(),
         registrationNumber: body.registrationNumber,
@@ -119,7 +119,7 @@ export class TransportService {
   }
 
   createDriver(body: { fullName: string; phone?: string; licenseNumber?: string }): Observable<TransportDriver> {
-    if (environment.useMocks) {
+    if (runtimeConfig.useMocks) {
       const d: TransportDriver = {
         id: 'd' + Date.now(),
         fullName: body.fullName,
@@ -147,7 +147,7 @@ export class TransportService {
     driverName?: string;
     driverPhone?: string;
   }): Observable<TransportRoute> {
-    if (environment.useMocks) {
+    if (runtimeConfig.useMocks) {
       const v = body.vehicleId ? MOCK_VEHICLES.find(x => x.id === body.vehicleId) : undefined;
       const d = body.driverId ? MOCK_DRIVERS.find(x => x.id === body.driverId) : undefined;
       const r: TransportRoute = {
@@ -182,7 +182,7 @@ export class TransportService {
     id: string,
     body: Partial<{ name: string; vehicleNumber: string; driverName: string; driverPhone: string; vehicleId: string; driverId: string }>
   ): Observable<TransportRoute> {
-    if (environment.useMocks) {
+    if (runtimeConfig.useMocks) {
       const idx = MOCK_ROUTES.findIndex(r => r.id === id);
       if (idx === -1) return of({} as TransportRoute);
       const cur = MOCK_ROUTES[idx];
@@ -206,7 +206,7 @@ export class TransportService {
   }
 
   deleteRoute(id: string): Observable<void> {
-    if (environment.useMocks) {
+    if (runtimeConfig.useMocks) {
       MOCK_ROUTES = MOCK_ROUTES.filter(r => r.id !== id);
       return of(undefined);
     }
@@ -214,7 +214,7 @@ export class TransportService {
   }
 
   addStop(body: { routeId: string; name: string; stopOrder: number; stopTime?: string }): Observable<{ id: string }> {
-    if (environment.useMocks) {
+    if (runtimeConfig.useMocks) {
       const route = MOCK_ROUTES.find(r => r.id === body.routeId);
       if (route) {
         const sid = 'stop-' + Date.now() + '-' + Math.random().toString(36).slice(2, 9);
@@ -239,7 +239,7 @@ export class TransportService {
     stopId: string,
     body: Partial<{ name: string; stopOrder: number; stopTime: string }>
   ): Observable<void> {
-    if (environment.useMocks) {
+    if (runtimeConfig.useMocks) {
       const sid = stopId;
       MOCK_ROUTES.forEach(route => {
         route.stops = route.stops.map(s => {
@@ -264,7 +264,7 @@ export class TransportService {
   }
 
   removeStop(stopId: string): Observable<void> {
-    if (environment.useMocks) {
+    if (runtimeConfig.useMocks) {
       MOCK_ROUTES.forEach(r => {
         r.stops = r.stops.filter(s => s.id !== stopId);
       });
@@ -274,7 +274,7 @@ export class TransportService {
   }
 
   assignStudent(body: { routeId: string; studentId: string; studentName?: string; pickupStop?: string; dropStop?: string }): Observable<void> {
-    if (environment.useMocks) {
+    if (runtimeConfig.useMocks) {
       const route = MOCK_ROUTES.find(r => r.id === body.routeId);
       if (route) {
         route.students = [
@@ -301,7 +301,7 @@ export class TransportService {
   }
 
   removeStudentMapping(mappingId: string): Observable<void> {
-    if (environment.useMocks) {
+    if (runtimeConfig.useMocks) {
       MOCK_ROUTES.forEach(r => {
         if (r.students) {
           r.students = r.students.filter(m => m.id !== mappingId);
@@ -315,7 +315,7 @@ export class TransportService {
 
   /** Admin / simulator: push a GPS point for map widgets. */
   reportVehicleLocation(vehicleId: string, lat: number, lng: number, routeId?: string): Observable<void> {
-    if (environment.useMocks) {
+    if (runtimeConfig.useMocks) {
       MOCK_ROUTES.filter(r => r.vehicleId === vehicleId).forEach(r => {
         r.liveLatitude = lat;
         r.liveLongitude = lng;

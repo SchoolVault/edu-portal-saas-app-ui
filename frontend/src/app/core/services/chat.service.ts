@@ -3,7 +3,7 @@ import { Client, IMessage, StompSubscription } from '@stomp/stompjs';
 import { BehaviorSubject, Observable, Subject, of } from 'rxjs';
 import { delay, map, tap } from 'rxjs/operators';
 import { ApiService } from './api.service';
-import { environment } from '../../../environments/environment';
+import { runtimeConfig } from '../config/runtime-config';
 import { AuthService } from './auth.service';
 import { ChatCreateConversationRequest, ChatDirectoryResponse, ChatInboxConversation, ChatMessage } from '../models/models';
 
@@ -27,7 +27,7 @@ export class ChatService implements OnDestroy {
   private mockMessages: Record<string, ChatMessage[]> = {};
 
   constructor(private api: ApiService, private auth: AuthService) {
-    if (environment.useMocks) {
+    if (runtimeConfig.useMocks) {
       this.seedMocks();
       this.inboxSubject.next(this.mockConversations);
       this.rtConnected.next(false);
@@ -35,7 +35,7 @@ export class ChatService implements OnDestroy {
   }
 
   loadInbox(): Observable<ChatInboxConversation[]> {
-    if (environment.useMocks) {
+    if (runtimeConfig.useMocks) {
       return of(this.mockConversations).pipe(delay(150), tap(items => this.inboxSubject.next(items)));
     }
     return this.api.get<any[]>('/chat/inbox').pipe(
@@ -61,7 +61,7 @@ export class ChatService implements OnDestroy {
   }
 
   loadDirectory(): Observable<ChatDirectoryResponse> {
-    if (environment.useMocks) {
+    if (runtimeConfig.useMocks) {
       const me = this.auth.getCurrentUser();
       const role = (me?.role || 'teacher') as string;
       if (role === 'teacher') {
@@ -131,7 +131,7 @@ export class ChatService implements OnDestroy {
   }
 
   createConversation(req: ChatCreateConversationRequest): Observable<ChatInboxConversation> {
-    if (environment.useMocks) {
+    if (runtimeConfig.useMocks) {
       const conv: ChatInboxConversation = {
         conversationId: 'c-' + Date.now(),
         type: req.type,
@@ -171,7 +171,7 @@ export class ChatService implements OnDestroy {
   }
 
   loadMessages(conversationId: string, page = 0, size = 50): Observable<ChatMessage[]> {
-    if (environment.useMocks) {
+    if (runtimeConfig.useMocks) {
       const list = (this.mockMessages[conversationId] ?? []).slice().reverse();
       return of(list).pipe(delay(150));
     }
@@ -189,7 +189,7 @@ export class ChatService implements OnDestroy {
 
   sendMessage(conversationId: string, body: string): Observable<ChatMessage> {
     const clientMessageId = 'cm-' + Date.now();
-    if (environment.useMocks) {
+    if (runtimeConfig.useMocks) {
       const me = this.auth.getCurrentUser()?.id || 'me';
       const role = this.auth.getRole() || 'admin';
       const msg: ChatMessage = {
@@ -215,11 +215,11 @@ export class ChatService implements OnDestroy {
   }
 
   connectRealtime(): void {
-    if (environment.useMocks) return;
+    if (runtimeConfig.useMocks) return;
     if (this.ws?.connected) return;
 
     const token = this.auth.getToken();
-    const wsUrl = (environment.apiUrl || 'http://localhost:8080').replace(/^http/, 'ws') + '/ws';
+    const wsUrl = (runtimeConfig.apiUrl || 'http://localhost:8080').replace(/^http/, 'ws') + '/ws';
 
     const client = new Client({
       brokerURL: wsUrl,
@@ -267,7 +267,7 @@ export class ChatService implements OnDestroy {
   }
 
   subscribeConversation(conversationId: string): void {
-    if (environment.useMocks) return;
+    if (runtimeConfig.useMocks) return;
     if (!this.ws?.connected) return;
 
     this.wsSubscriptions.push(

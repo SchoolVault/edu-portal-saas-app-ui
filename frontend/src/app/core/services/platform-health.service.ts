@@ -3,14 +3,14 @@ import { Observable, of } from 'rxjs';
 import { delay } from 'rxjs/operators';
 import { PlatformHealthSnapshot } from '../models/models';
 import { ApiService } from './api.service';
-import { environment } from '../../../environments/environment';
+import { runtimeConfig } from '../config/runtime-config';
 
 @Injectable({ providedIn: 'root' })
 export class PlatformHealthService {
   constructor(private api: ApiService) {}
 
   getSnapshot(): Observable<PlatformHealthSnapshot> {
-    if (!environment.useMocks) {
+    if (!runtimeConfig.useMocks) {
       return this.api.get<PlatformHealthSnapshot>('/platform/health');
     }
     const heapMax = 512 * 1024 * 1024;

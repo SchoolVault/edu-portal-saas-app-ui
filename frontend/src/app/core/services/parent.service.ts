@@ -3,7 +3,7 @@ import { Observable, forkJoin, of } from 'rxjs';
 import { delay, map } from 'rxjs/operators';
 import { ApiService } from './api.service';
 import { AttendanceRecord, AttendanceStats, CheckoutSession, CheckoutSessionRequest, FeePayment, MarkRecord, ParentFeeObligation, PaymentReceipt, Student } from '../models/models';
-import { environment } from '../../../environments/environment';
+import { runtimeConfig } from '../config/runtime-config';
 import { coerceApiLongId } from '../utils/coerce-api-long-id';
 
 @Injectable({ providedIn: 'root' })
@@ -13,7 +13,7 @@ export class ParentService {
   constructor(private api: ApiService) {}
 
   getChildren(): Observable<Student[]> {
-    if (environment.useMocks) {
+    if (runtimeConfig.useMocks) {
       return of([
         {
           id: 's12',
@@ -53,7 +53,7 @@ export class ParentService {
   }
 
   getChildMarks(studentId: string): Observable<MarkRecord[]> {
-    if (environment.useMocks) {
+    if (runtimeConfig.useMocks) {
       return of([
         { id: 'm1', examId: 'e2', studentId, studentName: 'Emma Chen', subjectName: 'Mathematics', marksObtained: 92, maxMarks: 100, grade: 'A+', classId: 'c8', tenantId: 't1' },
         { id: 'm2', examId: 'e2', studentId, studentName: 'Emma Chen', subjectName: 'Science', marksObtained: 85, maxMarks: 100, grade: 'A', classId: 'c8', tenantId: 't1' },
@@ -74,7 +74,7 @@ export class ParentService {
   }
 
   getChildFees(studentId: string): Observable<FeePayment[]> {
-    if (environment.useMocks) {
+    if (runtimeConfig.useMocks) {
       return of(this.mockFeePayments().filter(payment => payment.studentId === studentId)).pipe(delay(150));
     }
     const sid = coerceApiLongId(studentId, 'student');
@@ -96,7 +96,7 @@ export class ParentService {
   }
 
   getChildAttendance(studentId: string, from: string, to: string): Observable<AttendanceStats> {
-    if (environment.useMocks) {
+    if (runtimeConfig.useMocks) {
       return of({
         studentId,
         totalDays: 22,
@@ -122,7 +122,7 @@ export class ParentService {
   }
 
   getChildAttendanceRecords(studentId: string, from: string, to: string): Observable<AttendanceRecord[]> {
-    if (environment.useMocks) {
+    if (runtimeConfig.useMocks) {
       return of([
         { id: 'ar1', studentId, studentName: 'Emma Chen', classId: 'c8', sectionId: 'sec8a', date: from, status: 'present' as const, markedBy: 'u2', tenantId: 't1' },
         { id: 'ar2', studentId, studentName: 'Emma Chen', classId: 'c8', sectionId: 'sec8a', date: to, status: 'late' as const, markedBy: 'u2', tenantId: 't1' }
@@ -153,7 +153,7 @@ export class ParentService {
   }
 
   getChildFeeObligations(studentId: string): Observable<ParentFeeObligation[]> {
-    if (environment.useMocks) {
+    if (runtimeConfig.useMocks) {
       return of(this.mockFeeObligations().filter(item => item.studentId === studentId)).pipe(delay(150));
     }
     const sid = coerceApiLongId(studentId, 'student');
@@ -163,7 +163,7 @@ export class ParentService {
   }
 
   createCheckoutSession(request: CheckoutSessionRequest): Observable<CheckoutSession> {
-    if (environment.useMocks) {
+    if (runtimeConfig.useMocks) {
       return of({
         attemptId: 'attempt-' + Date.now(),
         provider: request.provider,
@@ -191,7 +191,7 @@ export class ParentService {
   }
 
   confirmCheckout(attemptId: string, checkoutToken: string, providerPaymentId?: string): Observable<PaymentReceipt> {
-    if (environment.useMocks) {
+    if (runtimeConfig.useMocks) {
       const receipt = this.buildMockReceipt(attemptId, providerPaymentId);
       this.mockReceipts = [receipt, ...this.mockReceipts.filter(item => item.receiptNumber !== receipt.receiptNumber)];
       return of(receipt).pipe(delay(500));
@@ -204,7 +204,7 @@ export class ParentService {
   }
 
   getReceipt(receiptNumber: string): Observable<PaymentReceipt> {
-    if (environment.useMocks) {
+    if (runtimeConfig.useMocks) {
       const receipt = this.mockReceipts.find(item => item.receiptNumber === receiptNumber) ?? this.buildMockReceipt('attempt-existing');
       return of(receipt).pipe(delay(150));
     }

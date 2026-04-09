@@ -3,7 +3,7 @@ import { Observable, of } from 'rxjs';
 import { map } from 'rxjs/operators';
 import { HostelBuilding, HostelResident, HostelRoom } from '../models/models';
 import { ApiService } from './api.service';
-import { environment } from '../../../environments/environment';
+import { runtimeConfig } from '../config/runtime-config';
 
 export interface HostelStats {
   totalRooms: number;
@@ -95,7 +95,7 @@ export class HostelService {
   constructor(private api: ApiService) {}
 
   listBuildings(): Observable<HostelBuilding[]> {
-    if (environment.useMocks) {
+    if (runtimeConfig.useMocks) {
       syncBuildingCounts();
       return of(MOCK_BUILDINGS.map(b => ({ ...b })));
     }
@@ -114,7 +114,7 @@ export class HostelService {
   }
 
   createBuilding(body: { name: string; code?: string; genderScope?: string }): Observable<HostelBuilding> {
-    if (environment.useMocks) {
+    if (runtimeConfig.useMocks) {
       const b: HostelBuilding = {
         id: 'h' + Date.now(),
         name: body.name,
@@ -139,7 +139,7 @@ export class HostelService {
   }
 
   listRooms(): Observable<HostelRoom[]> {
-    if (environment.useMocks) {
+    if (runtimeConfig.useMocks) {
       syncBuildingCounts();
       return of(MOCK_ROOMS.map(r => ({ ...r, residents: (r.residents || []).map(x => ({ ...x })) })));
     }
@@ -147,7 +147,7 @@ export class HostelService {
   }
 
   stats(): Observable<HostelStats> {
-    if (environment.useMocks) {
+    if (runtimeConfig.useMocks) {
       return of(recomputeMockStats());
     }
     return this.api.get<HostelStats>('/hostel/stats');
@@ -161,7 +161,7 @@ export class HostelService {
     capacity: number;
     roomType: string;
   }): Observable<HostelRoom> {
-    if (environment.useMocks) {
+    if (runtimeConfig.useMocks) {
       const hb = MOCK_BUILDINGS.find(x => x.id === body.hostelId);
       const room: HostelRoom = {
         id: 'hr' + Date.now(),
@@ -196,7 +196,7 @@ export class HostelService {
       roomType?: string;
     }
   ): Observable<HostelRoom> {
-    if (environment.useMocks) {
+    if (runtimeConfig.useMocks) {
       const room = MOCK_ROOMS.find(r => r.id === roomId);
       if (!room) {
         return of({} as HostelRoom);
@@ -232,7 +232,7 @@ export class HostelService {
   }
 
   allocate(body: { roomId: string; studentId: string; studentName?: string; fromDate?: string; toDate?: string }): Observable<void> {
-    if (environment.useMocks) {
+    if (runtimeConfig.useMocks) {
       const room = MOCK_ROOMS.find(r => r.id === body.roomId);
       if (!room || room.occupancy >= room.capacity) {
         return of(undefined);
@@ -263,7 +263,7 @@ export class HostelService {
   }
 
   vacate(allocationId: string): Observable<void> {
-    if (environment.useMocks) {
+    if (runtimeConfig.useMocks) {
       for (const room of MOCK_ROOMS) {
         if (!room.residents?.length) continue;
         const next = room.residents.filter(r => r.allocationId !== allocationId);

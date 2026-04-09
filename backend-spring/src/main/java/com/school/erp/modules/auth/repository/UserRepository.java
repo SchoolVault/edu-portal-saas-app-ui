@@ -15,6 +15,9 @@ import java.util.Optional;
 public interface UserRepository extends JpaRepository<User, Long> {
     Optional<User> findByEmailAndTenantIdAndIsDeletedFalse(String email, String tenantId);
     Optional<User> findByEmailAndSchoolCodeAndIsDeletedFalse(String email, String schoolCode);
+
+    boolean existsByEmailAndTenantIdAndIsDeletedFalse(String email, String tenantId);
+
     boolean existsByEmailAndTenantId(String email, String tenantId);
     Optional<User> findByIdAndTenantIdAndIsDeletedFalse(Long id, String tenantId);
     List<User> findByTenantIdAndRoleAndIsDeletedFalse(String tenantId, Enums.Role role);

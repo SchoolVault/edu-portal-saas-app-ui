@@ -3,7 +3,7 @@ import { Observable, of, throwError } from 'rxjs';
 import { map } from 'rxjs/operators';
 import { Payslip, SalaryStructure, TeacherPaymentDetails } from '../models/models';
 import { ApiService } from './api.service';
-import { environment } from '../../../environments/environment';
+import { runtimeConfig } from '../config/runtime-config';
 
 export interface SalaryDisburseResult {
   referenceId: string;
@@ -19,7 +19,7 @@ export class PayrollService {
   constructor(private api: ApiService) {}
 
   getStructures(): Observable<SalaryStructure[]> {
-    if (environment.useMocks) {
+    if (runtimeConfig.useMocks) {
       return of([
         {
           id: 'ss1',
@@ -47,7 +47,7 @@ export class PayrollService {
   }
 
   getTeacherPaymentDetails(): Observable<TeacherPaymentDetails[]> {
-    if (environment.useMocks) {
+    if (runtimeConfig.useMocks) {
       return of([
         {
           teacherId: 't1',
@@ -88,7 +88,7 @@ export class PayrollService {
   }
 
   generatePayslips(month: string, year: number): Observable<Payslip[]> {
-    if (environment.useMocks) {
+    if (runtimeConfig.useMocks) {
       const m = month.trim();
       const y = Number(year);
       const key = (p: Payslip) => p.year === y && (p.month || '').trim().toLowerCase() === m.toLowerCase();
@@ -136,7 +136,7 @@ export class PayrollService {
   }
 
   listPayslips(year?: number, month?: string): Observable<Payslip[]> {
-    if (environment.useMocks) {
+    if (runtimeConfig.useMocks) {
       let rows = [...this.mockPayslips];
       if (year != null) rows = rows.filter(p => p.year === Number(year));
       if (month?.trim()) {
@@ -153,7 +153,7 @@ export class PayrollService {
   }
 
   listMyPayslips(year?: number, month?: string): Observable<Payslip[]> {
-    if (environment.useMocks) {
+    if (runtimeConfig.useMocks) {
       let rows = this.mockPayslips.filter(p => p.teacherId === 't1' || p.teacherName === 'Sarah Mitchell');
       if (year != null) rows = rows.filter(p => p.year === Number(year));
       if (month?.trim()) {
@@ -170,7 +170,7 @@ export class PayrollService {
   }
 
   initiateDisbursement(teacherId: string, month: string, year: number): Observable<SalaryDisburseResult> {
-    if (environment.useMocks) {
+    if (runtimeConfig.useMocks) {
       const m = month.trim().toLowerCase();
       const ps = this.mockPayslips.find(
         p =>
@@ -204,7 +204,7 @@ export class PayrollService {
   }
 
   markPayslipPaid(id: string): Observable<Payslip> {
-    if (environment.useMocks) {
+    if (runtimeConfig.useMocks) {
       const p = this.mockPayslips.find(x => x.id === id);
       if (!p) return throwError(() => new Error('Payslip not found'));
       p.status = 'paid';
@@ -215,7 +215,7 @@ export class PayrollService {
   }
 
   downloadPayslipPdf(id: string): Observable<Blob> {
-    if (environment.useMocks) {
+    if (runtimeConfig.useMocks) {
       return of(new Blob(['Mock payslip PDF for id ' + id], { type: 'application/pdf' }));
     }
     return this.api.getBlob(`/payroll/payslips/${id}/pdf`);

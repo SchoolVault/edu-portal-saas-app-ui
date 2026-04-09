@@ -10,14 +10,14 @@ import {
   TeacherWorkloadRow
 } from '../models/models';
 import { ApiService } from './api.service';
-import { environment } from '../../../environments/environment';
+import { runtimeConfig } from '../config/runtime-config';
 
 @Injectable({ providedIn: 'root' })
 export class ReportService {
   constructor(private api: ApiService) {}
 
   getStudentPerformance(classId: string, examId: string): Observable<StudentPerformanceRow[]> {
-    if (environment.useMocks) {
+    if (runtimeConfig.useMocks) {
       return of([
         { studentId: 's12', studentName: 'Emma Chen', subjects: { Mathematics: 92, Science: 85, English: 88, History: 78 }, totalMarks: 343, totalMax: 400, percentage: 85.8, grade: 'A', rank: 1 },
         { studentId: 's4', studentName: 'Sofia Martinez', subjects: { Mathematics: 88, Science: 95, English: 82, History: 90 }, totalMarks: 355, totalMax: 400, percentage: 88.8, grade: 'A+', rank: 2 },
@@ -39,7 +39,7 @@ export class ReportService {
   }
 
   getAttendanceSummary(classId: string, month: string): Observable<AttendanceSummaryRow[]> {
-    if (environment.useMocks) {
+    if (runtimeConfig.useMocks) {
       return of([
         { studentId: 's12', studentName: 'Emma Chen', present: 20, absent: 1, late: 1, excused: 0, totalDays: 22, attendancePercentage: 93.2 },
         { studentId: 's4', studentName: 'Sofia Martinez', present: 21, absent: 0, late: 1, excused: 0, totalDays: 22, attendancePercentage: 97.7 },
@@ -61,7 +61,7 @@ export class ReportService {
   }
 
   getClassSummary(): Observable<ClassSummaryRow[]> {
-    if (environment.useMocks) {
+    if (runtimeConfig.useMocks) {
       return of([
         { classId: 'c5', className: 'Class 5', grade: 5, sections: 2, totalStudents: 74, attendancePercentage: 94.1, performancePercentage: 81.2, feeCollectionPercentage: 90.0, classTeacherName: 'James O’Brien' },
         { classId: 'c8', className: 'Class 8', grade: 8, sections: 2, totalStudents: 75, attendancePercentage: 93.5, performancePercentage: 79.8, feeCollectionPercentage: 91.0, classTeacherName: 'Sarah Mitchell' },
@@ -84,7 +84,7 @@ export class ReportService {
   }
 
   getSectionSummary(): Observable<SectionSummaryRow[]> {
-    if (environment.useMocks) {
+    if (runtimeConfig.useMocks) {
       return of([
         { sectionId: 'sec5a', sectionName: 'A', classId: 'c5', className: 'Class 5', studentCount: 38 },
         { sectionId: 'sec5b', sectionName: 'B', classId: 'c5', className: 'Class 5', studentCount: 36 },
@@ -103,7 +103,7 @@ export class ReportService {
   }
 
   getTeacherWorkload(): Observable<TeacherWorkloadRow[]> {
-    if (environment.useMocks) {
+    if (runtimeConfig.useMocks) {
       return of([
         { teacherId: 't1', teacherName: 'Sarah Mitchell', specialization: 'Mathematics', subjects: ['Mathematics', 'Physics'], status: 'ACTIVE' },
         { teacherId: 't2', teacherName: 'James O’Brien', specialization: 'English', subjects: ['English', 'Literature'], status: 'ACTIVE' },
@@ -122,14 +122,14 @@ export class ReportService {
   }
 
   getFeeCollectionSummary(classId?: string): Observable<{ totalCollected: number; totalPending: number; overdueCount: number; totalStudents: number; collectionRate: number }> {
-    if (environment.useMocks) {
+    if (runtimeConfig.useMocks) {
       return of({ totalCollected: 284000, totalPending: 46300, overdueCount: 18, totalStudents: 2847, collectionRate: 86 });
     }
     return this.api.get(`/reports/fee-collection${classId ? `?classId=${classId}` : ''}`);
   }
 
   getReportCard(studentId: string, examId?: string): Observable<ReportCard> {
-    if (environment.useMocks) {
+    if (runtimeConfig.useMocks) {
       return of({
         studentId: 's12',
         studentName: 'Emma Chen',

@@ -1,47 +1,48 @@
+# All runtime tuning via environment variables (Render, K8s ConfigMap, .env, etc.).
+# See deploy/render.env.example for a full list.
+
 server:
-  port: 8080
+  port: ${PORT:${SERVER_PORT:8080}}
   servlet:
-    context-path: /
+    context-path: ${SERVER_CONTEXT_PATH:/}
 
 spring:
   application:
-    name: school-erp
-  # Local default: loads application-dev.yml (demo DB seed, relaxed health checks). Production must set SPRING_PROFILES_ACTIVE=prod.
+    name: ${SPRING_APPLICATION_NAME:school-erp}
   profiles:
     active: ${SPRING_PROFILES_ACTIVE:dev}
 
   datasource:
     url: ${DB_URL:jdbc:mysql://localhost:3306/edu-portal?useSSL=true&serverTimezone=UTC&createDatabaseIfNotExist=true}
     username: ${DB_USERNAME:root}
-    password: ${DB_PASSWORD:Arif@#123}
-    driver-class-name: com.mysql.cj.jdbc.Driver
+    password: ${DB_PASSWORD:}
+    driver-class-name: ${DB_DRIVER:com.mysql.cj.jdbc.Driver}
     hikari:
-      maximum-pool-size: 20
-      minimum-idle: 5
-      idle-timeout: 300000
-      max-lifetime: 600000
-      connection-timeout: 20000
+      maximum-pool-size: ${DB_POOL_MAX:20}
+      minimum-idle: ${DB_POOL_MIN_IDLE:5}
+      idle-timeout: ${DB_POOL_IDLE_TIMEOUT_MS:300000}
+      max-lifetime: ${DB_POOL_MAX_LIFETIME_MS:600000}
+      connection-timeout: ${DB_POOL_CONNECTION_TIMEOUT_MS:20000}
 
   jpa:
     hibernate:
-      ddl-auto: validate
-    show-sql: false
+      ddl-auto: ${JPA_DDL_AUTO:validate}
+    show-sql: ${JPA_SHOW_SQL:false}
     properties:
       hibernate:
-        dialect: org.hibernate.dialect.MySQLDialect
-        format_sql: true
+        dialect: ${HIBERNATE_DIALECT:org.hibernate.dialect.MySQLDialect}
+        format_sql: ${HIBERNATE_FORMAT_SQL:true}
         jdbc:
-          batch_size: 50
+          batch_size: ${HIBERNATE_JDBC_BATCH_SIZE:50}
         order_inserts: true
         order_updates: true
 
   flyway:
-    enabled: true
-    locations: classpath:db/migration
-    baseline-on-migrate: true
+    enabled: ${FLYWAY_ENABLED:true}
+    locations: ${FLYWAY_LOCATIONS:classpath:db/migration}
+    baseline-on-migrate: ${FLYWAY_BASELINE_ON_MIGRATE:true}
 
   cache:
-    # redis | none — use none if Redis is not running (e.g. CACHE_TYPE=none)
     type: ${CACHE_TYPE:redis}
 
   data:
@@ -49,7 +50,9 @@ spring:
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
       password: ${REDIS_PASSWORD:}
-      timeout: 5000
+      timeout: ${REDIS_TIMEOUT_MS:5000}
+      ssl:
+        enabled: ${REDIS_SSL:false}
 
   rabbitmq:
     host: ${RABBITMQ_HOST:localhost}
@@ -64,26 +67,31 @@ spring:
 
 app:
   demo-seed:
-    # Loads realistic multi-tenant demo rows at startup when true (see application-dev.yml).
     enabled: ${DEMO_SEED_ENABLED:false}
   jwt:
     secret: ${JWT_SECRET:c2Nob29sLWVycC1zZWNyZXQta2V5LWZvci1qd3QtdG9rZW4tZ2VuZXJhdGlvbi0yMDI2}
-    expiration-ms: 86400000  # 24 hours
-    refresh-expiration-ms: 604800000  # 7 days
+    expiration-ms: ${JWT_EXPIRATION_MS:86400000}
+    refresh-expiration-ms: ${JWT_REFRESH_EXPIRATION_MS:604800000}
 
   cors:
     allowed-origins: ${CORS_ORIGINS:http://localhost:3000,http://localhost:4200}
-    allowed-methods: GET,POST,PUT,DELETE,PATCH,OPTIONS
-    allowed-headers: "*"
+    allowed-methods: ${CORS_ALLOWED_METHODS:GET,POST,PUT,DELETE,PATCH,OPTIONS}
+    allowed-headers: ${CORS_ALLOWED_HEADERS:*}
 
-  default-page-size: 20
-  max-page-size: 100
+  default-page-size: ${APP_DEFAULT_PAGE_SIZE:20}
+  max-page-size: ${APP_MAX_PAGE_SIZE:100}
+
+  payments:
+    razorpay:
+      api-base: ${RAZORPAY_API_BASE:https://api.razorpay.com}
+      key: ${RAZORPAY_KEY:}
+      secret: ${RAZORPAY_SECRET:}
 
 springdoc:
   api-docs:
-    path: /api-docs
+    path: ${SPRINGDOC_API_DOCS_PATH:/api-docs}
   swagger-ui:
-    path: /swagger-ui.html
+    path: ${SPRINGDOC_SWAGGER_UI_PATH:/swagger-ui.html}
     tags-sorter: alpha
     operations-sorter: alpha
 
@@ -91,13 +99,14 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info,metrics
+        include: ${MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE:health,info,metrics}
   endpoint:
     health:
-      show-details: when-authorized
+      show-details: ${MANAGEMENT_HEALTH_SHOW_DETAILS:when-authorized}
 
 logging:
   level:
-    com.school.erp: INFO
-    org.hibernate.SQL: WARN
-    org.springframework.security: WARN
+    com.school.erp: ${LOG_LEVEL_APP:INFO}
+    org.hibernate.SQL: ${LOG_LEVEL_HIBERNATE_SQL:WARN}
+    org.springframework.security: ${LOG_LEVEL_SECURITY:WARN}
+    root: ${LOG_LEVEL_ROOT:INFO}

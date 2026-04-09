@@ -2,7 +2,7 @@ import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { map, catchError } from 'rxjs/operators';
-import { environment } from '../../../environments/environment';
+import { runtimeConfig } from '../config/runtime-config';
 
 export interface ApiResp<T> {
   success: boolean;
@@ -25,7 +25,9 @@ export interface PageResp<T> {
 @Injectable({ providedIn: 'root' })
 export class ApiService {
 
-  private baseUrl = environment.apiUrl;
+  private get baseUrl(): string {
+    return runtimeConfig.apiUrl ?? '';
+  }
 
   constructor(private http: HttpClient) {}
 

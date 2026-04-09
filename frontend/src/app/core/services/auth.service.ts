@@ -3,7 +3,7 @@ import { BehaviorSubject, Observable, of, throwError } from 'rxjs';
 import { delay, tap } from 'rxjs/operators';
 import { User, LoginRequest, LoginResponse, OnboardSchoolRequest, ProfileSummary } from '../models/models';
 import { ApiService } from './api.service';
-import { environment } from '../../../environments/environment';
+import { runtimeConfig } from '../config/runtime-config';
 
 @Injectable({ providedIn: 'root' })
 export class AuthService {
@@ -58,7 +58,7 @@ export class AuthService {
   }
 
   login(request: LoginRequest): Observable<LoginResponse> {
-    if (!environment.useMocks) {
+    if (!runtimeConfig.useMocks) {
       return this.api.post<LoginResponse>('/auth/login', request).pipe(
         tap(res => {
           localStorage.setItem('erp_token', res.token);
@@ -96,7 +96,7 @@ export class AuthService {
 
   logout(): void {
     const refreshToken = this.refreshTokenSubject.value;
-    if (!environment.useMocks && refreshToken) {
+    if (!runtimeConfig.useMocks && refreshToken) {
       this.api.post<void>('/auth/logout', { refreshToken }).subscribe({ error: () => void 0 });
     }
     localStorage.removeItem('erp_token');
@@ -109,7 +109,7 @@ export class AuthService {
   }
 
   onboardSchool(request: OnboardSchoolRequest): Observable<LoginResponse> {
-    if (environment.useMocks) {
+    if (runtimeConfig.useMocks) {
       const response: LoginResponse = {
         token: 'mock-onboard-token-' + Date.now(),
         refreshToken: 'mock-onboard-refresh-' + Date.now(),
@@ -214,7 +214,7 @@ export class AuthService {
   }
 
   fetchProfileSummary(): Observable<ProfileSummary> {
-    if (environment.useMocks) {
+    if (runtimeConfig.useMocks) {
       const user = this.getCurrentUser();
       const summary: ProfileSummary = user?.role === 'teacher'
         ? {
