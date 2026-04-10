@@ -14,6 +14,18 @@ Run `ng generate component component-name` to generate a new component. You can 
 
 Run `ng build` to build the project. The build artifacts will be stored in the `dist/` directory.
 
+## Production on Render (static site)
+
+Angular uses **path-based** routes (`/app/...`). The CDN must **rewrite** unknown paths to `index.html`, or a full page reload on `/app/dashboard` returns **404 Not Found**.
+
+In [Render Dashboard](https://dashboard.render.com/) → your **Static Site** → **Redirects / Rewrites** → add:
+
+- **Source:** `/*`
+- **Destination:** `/index.html`
+- **Action:** **Rewrite** (keeps the URL bar on `/app/...`; do not use Redirect)
+
+See [Render: Redirects and rewrites](https://render.com/docs/redirects-rewrites). The file `public/_redirects` is for Netlify-style hosts; Render ignores it.
+
 ## Running unit tests
 
 Run `ng test` to execute the unit tests via [Karma](https://karma-runner.github.io).

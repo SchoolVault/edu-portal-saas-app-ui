@@ -31,6 +31,8 @@ services:
       - key: CORS_ORIGINS
         sync: false
 
+  # After first deploy: Dashboard → this static site → Redirects/Rewrites →
+  #   Source /* → Destination /index.html → Action Rewrite (SPA refresh / deep links).
   - type: web
     name: schoolvault-ui
     region: oregon
