@@ -26,6 +26,10 @@ In [Render Dashboard](https://dashboard.render.com/) → your **Static Site** �
 
 See [Render: Redirects and rewrites](https://render.com/docs/redirects-rewrites). The file `public/_redirects` is for Netlify-style hosts; Render ignores it.
 
+### Tab icon (favicon)
+
+Brand asset: `public/schoolvault-icon.png` (School Vault shield logo). `index.html` links to it as `rel="icon"`. If you still see an old Angular icon after deploy, the browser cached `/favicon.ico` — try a hard refresh, clear site data for the origin, or an incognito window.
+
 ## Running unit tests
 
 Run `ng test` to execute the unit tests via [Karma](https://karma-runner.github.io).
