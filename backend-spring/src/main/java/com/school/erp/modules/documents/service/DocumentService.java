@@ -18,11 +18,13 @@ public class DocumentService {
     @Transactional(readOnly = true)
     public List<Document> getDocuments(String category, String ownerType, Long ownerId) {
         String t = TenantContext.getTenantId();
+        log.debug("Listing documents tenantId={} category={} ownerType={} ownerId={}", t, category, ownerType, ownerId);
         List<Document> docs;
         if (ownerType != null && !ownerType.isBlank() && ownerId != null) {
             try {
                 docs = repo.findByTenantIdAndOwnerTypeAndOwnerIdAndIsDeletedFalse(t, Enums.DocumentOwnerType.valueOf(ownerType.toUpperCase()), ownerId);
             } catch (IllegalArgumentException ex) {
+                log.warn("Invalid ownerType '{}', falling back to tenant-wide list", ownerType);
                 docs = repo.findByTenantIdAndIsDeletedFalse(t);
             }
         } else {
@@ -31,22 +33,27 @@ public class DocumentService {
         if (category != null && !category.isBlank()) {
             docs = docs.stream().filter(d -> category.equalsIgnoreCase(d.getCategory() != null ? d.getCategory().name() : "")).toList();
         }
+        log.info("Documents query returned count={} tenantId={}", docs.size(), t);
         return docs;
     }
 
     @Transactional
     public Document upload(Document doc) {
+        log.info("Uploading document name={} category={}", doc.getName(), doc.getCategory());
         doc.setTenantId(TenantContext.getTenantId());
         doc.setUploadedBy(TenantContext.getUserId() != null ? TenantContext.getUserId().toString() : "system");
         if (doc.getFileVersion() == null) {
             doc.setFileVersion(1);
         }
-        return repo.save(doc);
+        Document saved = repo.save(doc);
+        log.info("Document stored id={} version={}", saved.getId(), saved.getFileVersion());
+        return saved;
     }
 
     @Transactional
     public Document update(Long id, Document update) {
         String t = TenantContext.getTenantId();
+        log.info("Updating document id={}", id);
         Document doc = repo.findByIdAndTenantIdAndIsDeletedFalse(id, t).orElseThrow(() -> new ResourceNotFoundException("Document", id));
         if (update.getName() != null) doc.setName(update.getName());
         if (update.getCategory() != null) doc.setCategory(update.getCategory());
@@ -60,22 +67,27 @@ public class DocumentService {
         if (update.getParentFolderId() != null) doc.setParentFolderId(update.getParentFolderId());
         if (update.getTagsJson() != null) doc.setTagsJson(update.getTagsJson());
         if (update.getFileUrl() != null) doc.setFileUrl(update.getFileUrl());
-        return repo.save(doc);
+        Document saved = repo.save(doc);
+        log.info("Document updated id={}", id);
+        return saved;
     }
 
     @Transactional
     public void delete(Long id) {
         String t = TenantContext.getTenantId();
+        log.debug("Delete document requested id={}", id);
         Document doc = repo.findByIdAndTenantIdAndIsDeletedFalse(id, t).orElseThrow(() -> new ResourceNotFoundException("Document", id));
         String role = TenantContext.getUserRole();
         Long uid = TenantContext.getUserId();
         boolean admin = role != null && (role.equalsIgnoreCase("ADMIN") || role.equalsIgnoreCase("SUPER_ADMIN"));
         boolean owner = uid != null && doc.getUploadedBy() != null && doc.getUploadedBy().equals(String.valueOf(uid));
         if (!admin && !owner) {
+            log.warn("Document delete denied id={} userId={} role={}", id, uid, role);
             throw new UnauthorizedException("You can only delete documents you uploaded (or as admin)");
         }
         doc.setIsDeleted(true);
         repo.save(doc);
+        log.info("Document soft-deleted id={}", id);
     }
 
     public DocumentService(final DocumentRepository repo) {

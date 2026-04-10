@@ -27,25 +27,34 @@ public class TeacherService {
 
     @Transactional(readOnly = true)
     public PageResponse<TeacherDTOs.Response> getTeachers(int page, int size) {
-        Page<Teacher> result = repo.findByTenantIdAndIsDeletedFalse(TenantContext.getTenantId(), PageRequest.of(page, size, Sort.by("firstName")));
+        String tenantId = TenantContext.getTenantId();
+        log.debug("Listing teachers page={} size={}", page, size);
+        Page<Teacher> result = repo.findByTenantIdAndIsDeletedFalse(tenantId, PageRequest.of(page, size, Sort.by("firstName")));
+        log.info("Teachers page loaded page={} returned={} total={}", page, result.getNumberOfElements(), result.getTotalElements());
         return PageResponse.of(result.getContent().stream().map(this::toRes).collect(Collectors.toList()), page, size, result.getTotalElements());
     }
 
     @Transactional(readOnly = true)
     public TeacherDTOs.Response getById(Long id) {
-        return toRes(repo.findByIdAndTenantIdAndIsDeletedFalse(id, TenantContext.getTenantId()).orElseThrow(() -> new ResourceNotFoundException("Teacher", id)));
+        log.debug("Fetching teacher id={}", id);
+        TeacherDTOs.Response r = toRes(repo.findByIdAndTenantIdAndIsDeletedFalse(id, TenantContext.getTenantId()).orElseThrow(() -> new ResourceNotFoundException("Teacher", id)));
+        log.info("Teacher loaded id={}", id);
+        return r;
     }
 
     @Transactional
     public TeacherDTOs.Response create(TeacherDTOs.CreateRequest req) {
+        log.info("Creating teacher email={}", req.getEmail());
         Teacher t = Teacher.builder().firstName(req.getFirstName()).lastName(req.getLastName()).email(req.getEmail()).phone(req.getPhone()).qualification(req.getQualification()).specialization(req.getSpecialization()).joinDate(req.getJoinDate()).salary(req.getSalary()).subjects(req.getSubjects()).status(Enums.TeacherStatus.ACTIVE).build();
         t.setTenantId(TenantContext.getTenantId());
         repo.save(t);
+        log.info("Teacher created id={}", t.getId());
         return toRes(t);
     }
 
     @Transactional
     public TeacherDTOs.Response update(Long id, TeacherDTOs.UpdateRequest req) {
+        log.info("Updating teacher id={}", id);
         Teacher t = repo.findByIdAndTenantIdAndIsDeletedFalse(id, TenantContext.getTenantId()).orElseThrow(() -> new ResourceNotFoundException("Teacher", id));
         if (req.getFirstName() != null) t.setFirstName(req.getFirstName());
         if (req.getLastName() != null) t.setLastName(req.getLastName());
@@ -56,19 +65,23 @@ public class TeacherService {
         if (req.getSalary() != null) t.setSalary(req.getSalary());
         if (req.getSubjects() != null) t.setSubjects(req.getSubjects());
         repo.save(t);
+        log.info("Teacher updated id={}", id);
         return toRes(t);
     }
 
     @Transactional
     public void delete(Long id) {
+        log.warn("Soft-deleting teacher id={}", id);
         Teacher t = repo.findByIdAndTenantIdAndIsDeletedFalse(id, TenantContext.getTenantId()).orElseThrow(() -> new ResourceNotFoundException("Teacher", id));
         t.setIsDeleted(true);
         repo.save(t);
+        log.info("Teacher soft-deleted id={}", id);
     }
 
     @Transactional
     public List<TeacherDTOs.Response> importFromZip(MultipartFile file) {
-        return ZipCsvImportUtil.readRows(file, "teachers.csv").stream().map(row -> {
+        log.info("Importing teachers from zip teachers.csv");
+        List<TeacherDTOs.Response> imported = ZipCsvImportUtil.readRows(file, "teachers.csv").stream().map(row -> {
             TeacherDTOs.CreateRequest request = new TeacherDTOs.CreateRequest();
             request.setFirstName(required(row, "firstname"));
             request.setLastName(required(row, "lastname"));
@@ -81,10 +94,14 @@ public class TeacherService {
             request.setSubjects(parseSubjects(row.get("subjects")));
             return create(request);
         }).collect(Collectors.toList());
+        log.info("Teacher import finished count={}", imported.size());
+        return imported;
     }
 
     public long count() {
-        return repo.countByTenantIdAndIsDeletedFalse(TenantContext.getTenantId());
+        long n = repo.countByTenantIdAndIsDeletedFalse(TenantContext.getTenantId());
+        log.debug("Teacher count tenant={} n={}", TenantContext.getTenantId(), n);
+        return n;
     }
 
     private TeacherDTOs.Response toRes(Teacher t) {

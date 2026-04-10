@@ -9,6 +9,8 @@ import com.school.erp.modules.academic.repository.SubjectTeacherAssignmentReposi
 import com.school.erp.modules.teacher.entity.Teacher;
 import com.school.erp.modules.teacher.repository.TeacherRepository;
 import com.school.erp.tenant.TenantContext;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -18,6 +20,8 @@ import java.util.stream.Collectors;
 
 @Service
 public class TeacherAssignmentService {
+
+    private static final Logger log = LoggerFactory.getLogger(TeacherAssignmentService.class);
 
     private final ClassTeacherAssignmentRepository classTeacherRepo;
     private final SubjectTeacherAssignmentRepository subjectTeacherRepo;
@@ -37,6 +41,7 @@ public class TeacherAssignmentService {
     public void recordClassTeacherAssignment(
             Long classId, Long sectionId, Long teacherId, Long academicYearId, LocalDate effectiveFrom) {
         String t = TenantContext.getTenantId();
+        log.debug("Recording class-teacher assignment classId={} teacherId={} academicYearId={}", classId, teacherId, academicYearId);
         ClassTeacherAssignment a = new ClassTeacherAssignment();
         a.setTenantId(t);
         a.setAcademicYearId(academicYearId);
@@ -45,12 +50,14 @@ public class TeacherAssignmentService {
         a.setTeacherId(teacherId);
         a.setEffectiveFrom(effectiveFrom != null ? effectiveFrom : LocalDate.now());
         classTeacherRepo.save(a);
+        log.info("Class-teacher assignment recorded classId={} teacherId={}", classId, teacherId);
     }
 
     @Transactional
     public TeacherAssignmentDTOs.ClassTeacherAssignmentResponse createClassAssignment(
             TeacherAssignmentDTOs.CreateClassTeacherAssignmentRequest req) {
         String t = TenantContext.getTenantId();
+        log.info("Creating class-teacher assignment classId={} teacherId={}", req.getClassId(), req.getTeacherId());
         ClassTeacherAssignment a = new ClassTeacherAssignment();
         a.setTenantId(t);
         a.setAcademicYearId(req.getAcademicYearId());
@@ -60,6 +67,7 @@ public class TeacherAssignmentService {
         a.setEffectiveFrom(req.getEffectiveFrom() != null ? req.getEffectiveFrom() : LocalDate.now());
         a.setEffectiveTo(req.getEffectiveTo());
         ClassTeacherAssignment saved = classTeacherRepo.save(a);
+        log.info("Class-teacher assignment created id={}", saved.getId());
         return toClassResponse(saved);
     }
 
@@ -67,6 +75,7 @@ public class TeacherAssignmentService {
     public TeacherAssignmentDTOs.SubjectTeacherAssignmentResponse createSubjectAssignment(
             TeacherAssignmentDTOs.CreateSubjectTeacherAssignmentRequest req) {
         String t = TenantContext.getTenantId();
+        log.info("Creating subject-teacher assignment classId={} subject={} teacherId={}", req.getClassId(), req.getSubjectName(), req.getTeacherId());
         SubjectTeacherAssignment a = new SubjectTeacherAssignment();
         a.setTenantId(t);
         a.setAcademicYearId(req.getAcademicYearId());
@@ -77,6 +86,7 @@ public class TeacherAssignmentService {
         a.setEffectiveFrom(req.getEffectiveFrom() != null ? req.getEffectiveFrom() : LocalDate.now());
         a.setEffectiveTo(req.getEffectiveTo());
         SubjectTeacherAssignment saved = subjectTeacherRepo.save(a);
+        log.info("Subject-teacher assignment created id={}", saved.getId());
         return toSubjectResponse(saved);
     }
 
@@ -84,23 +94,30 @@ public class TeacherAssignmentService {
     public List<TeacherAssignmentDTOs.ClassTeacherAssignmentResponse> listClassAssignments(Long classId, Long sectionId) {
         String t = TenantContext.getTenantId();
         LocalDate d = LocalDate.now();
-        return classTeacherRepo.findActiveForClass(t, classId, sectionId, d).stream()
+        log.debug("Listing class-teacher assignments classId={} sectionId={}", classId, sectionId);
+        List<TeacherAssignmentDTOs.ClassTeacherAssignmentResponse> list = classTeacherRepo.findActiveForClass(t, classId, sectionId, d).stream()
                 .map(this::toClassResponse)
                 .collect(Collectors.toList());
+        log.info("Found {} class-teacher assignment(s) classId={}", list.size(), classId);
+        return list;
     }
 
     @Transactional(readOnly = true)
     public List<TeacherAssignmentDTOs.SubjectTeacherAssignmentResponse> listSubjectAssignments(Long classId, Long sectionId) {
         String t = TenantContext.getTenantId();
         LocalDate d = LocalDate.now();
-        return subjectTeacherRepo.findActiveForClass(t, classId, sectionId, d).stream()
+        log.debug("Listing subject-teacher assignments classId={} sectionId={}", classId, sectionId);
+        List<TeacherAssignmentDTOs.SubjectTeacherAssignmentResponse> list = subjectTeacherRepo.findActiveForClass(t, classId, sectionId, d).stream()
                 .map(this::toSubjectResponse)
                 .collect(Collectors.toList());
+        log.info("Found {} subject-teacher assignment(s) classId={}", list.size(), classId);
+        return list;
     }
 
     @Transactional(readOnly = true)
     public TeacherAssignmentDTOs.TeacherWorkloadResponse getWorkload(Long teacherId) {
         String t = TenantContext.getTenantId();
+        log.debug("Computing teacher workload teacherId={}", teacherId);
         LocalDate d = LocalDate.now();
         Teacher teacher = teacherRepository
                 .findByIdAndTenantIdAndIsDeletedFalse(teacherId, t)
@@ -113,6 +130,7 @@ public class TeacherAssignmentService {
         r.setTeacherName(name.trim());
         r.setClassTeacherSlots(ct);
         r.setSubjectAssignments(st);
+        log.info("Teacher workload teacherId={} classSlots={} subjectSlots={}", teacherId, ct, st);
         return r;
     }
 

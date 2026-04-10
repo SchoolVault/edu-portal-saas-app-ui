@@ -22,14 +22,19 @@ public class AuditService {
     @Transactional(readOnly = true)
     public Page<AuditLog> getAuditLogs(int page, int size, Enums.AuditAction action, String module) {
         String t = TenantContext.getTenantId();
+        log.debug("Query audit logs page={} action={} module={}", page, action, module);
+        Page<AuditLog> pageResult;
         if (action != null && module != null) {
-            return repo.findByTenantIdAndActionAndModuleAndIsDeletedFalse(t, action, module, PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt")));
+            pageResult = repo.findByTenantIdAndActionAndModuleAndIsDeletedFalse(t, action, module, PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt")));
         } else if (action != null) {
-            return repo.findByTenantIdAndActionAndIsDeletedFalse(t, action, PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt")));
+            pageResult = repo.findByTenantIdAndActionAndIsDeletedFalse(t, action, PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt")));
         } else if (module != null) {
-            return repo.findByTenantIdAndModuleAndIsDeletedFalse(t, module, PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt")));
+            pageResult = repo.findByTenantIdAndModuleAndIsDeletedFalse(t, module, PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt")));
+        } else {
+            pageResult = repo.findByTenantIdAndIsDeletedFalse(t, PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt")));
         }
-        return repo.findByTenantIdAndIsDeletedFalse(t, PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt")));
+        log.info("Audit logs returned page={} elements={} total={}", page, pageResult.getNumberOfElements(), pageResult.getTotalElements());
+        return pageResult;
     }
 
     /**
@@ -43,11 +48,12 @@ public class AuditService {
         AuditLog.builder().action(action).module(module).description(description).userId(userId).userName(TenantContext.getUserRole()).entityId(entityId).entityType(entityType).oldValue(oldValue).newValue(newValue).ipAddress("system").build();
         auditLog.setTenantId(t != null ? t : "system");
         repo.save(auditLog);
+        log.info("Audit persisted action={} module={} entityId={}", action, module, entityId);
         // Publish to RabbitMQ for async processing
         try {
             rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE, "event.audit.logged", Map.of("action", action.name(), "module", module, "description", description));
         } catch (Exception e) {
-            log.debug("Audit event publish skipped: {}", e.getMessage());
+            log.warn("Audit event publish skipped: {}", e.getMessage());
         }
     }
 

@@ -28,7 +28,8 @@ public class TransportService {
     @Transactional(readOnly = true)
     public List<TransportDTOs.RouteResponse> getRoutes() {
         String t = TenantContext.getTenantId();
-        return routeRepo.findByTenantIdAndIsDeletedFalse(t).stream().map(r -> {
+        log.debug("Loading transport routes tenantId={}", t);
+        List<TransportDTOs.RouteResponse> routes = routeRepo.findByTenantIdAndIsDeletedFalse(t).stream().map(r -> {
             List<RouteStop> stops = stopRepo.findByTenantIdAndRouteIdOrderByStopOrder(t, r.getId());
             List<StudentTransportMapping> students = mappingRepo.findByTenantIdAndRouteIdAndIsDeletedFalse(t, r.getId());
             String vehicleNumber = r.getVehicleNumber();
@@ -71,19 +72,25 @@ public class TransportService {
             }
             return resp;
         }).collect(Collectors.toList());
+        log.info("Loaded {} transport route(s) tenantId={}", routes.size(), t);
+        return routes;
     }
 
     @CacheEvict(cacheNames = CacheConfig.TRANSPORT_ROUTES, keyGenerator = "tenantKeyGenerator")
     @Transactional
     public TransportRoute createRoute(TransportRoute route) {
+        log.info("Creating transport route name={}", route.getName());
         route.setTenantId(TenantContext.getTenantId());
-        return routeRepo.save(route);
+        TransportRoute saved = routeRepo.save(route);
+        log.info("Transport route created id={}", saved.getId());
+        return saved;
     }
 
     @CacheEvict(cacheNames = CacheConfig.TRANSPORT_ROUTES, keyGenerator = "tenantKeyGenerator")
     @Transactional
     public TransportRoute updateRoute(Long id, TransportRoute update) {
         String t = TenantContext.getTenantId();
+        log.info("Updating transport route id={}", id);
         TransportRoute route = routeRepo.findByIdAndTenantIdAndIsDeletedFalse(id, t).orElseThrow(() -> new ResourceNotFoundException("Route", id));
         if (update.getName() != null) route.setName(update.getName());
         if (update.getVehicleNumber() != null) route.setVehicleNumber(update.getVehicleNumber());
@@ -91,13 +98,16 @@ public class TransportService {
         if (update.getDriverPhone() != null) route.setDriverPhone(update.getDriverPhone());
         if (update.getVehicleId() != null) route.setVehicleId(update.getVehicleId());
         if (update.getDriverId() != null) route.setDriverId(update.getDriverId());
-        return routeRepo.save(route);
+        TransportRoute saved = routeRepo.save(route);
+        log.info("Transport route updated id={}", id);
+        return saved;
     }
 
     @CacheEvict(cacheNames = CacheConfig.TRANSPORT_ROUTES, keyGenerator = "tenantKeyGenerator")
     @Transactional
     public void deleteRoute(Long id) {
         String t = TenantContext.getTenantId();
+        log.warn("Soft-deleting transport route id={}", id);
         TransportRoute r = routeRepo.findByIdAndTenantIdAndIsDeletedFalse(id, t).orElseThrow(() -> new ResourceNotFoundException("Route", id));
         r.setIsDeleted(true);
         routeRepo.save(r);
@@ -110,7 +120,9 @@ public class TransportService {
         routeRepo.findByIdAndTenantIdAndIsDeletedFalse(stop.getRouteId(), t)
                 .orElseThrow(() -> new ResourceNotFoundException("Route", stop.getRouteId()));
         stop.setTenantId(t);
-        return stopRepo.save(stop);
+        RouteStop saved = stopRepo.save(stop);
+        log.info("Route stop added id={} routeId={}", saved.getId(), stop.getRouteId());
+        return saved;
     }
 
     @CacheEvict(cacheNames = CacheConfig.TRANSPORT_ROUTES, keyGenerator = "tenantKeyGenerator")
@@ -120,6 +132,7 @@ public class TransportService {
         RouteStop s = stopRepo.findByIdAndTenantIdAndIsDeletedFalse(stopId, t).orElseThrow(() -> new ResourceNotFoundException("RouteStop", stopId));
         s.setIsDeleted(true);
         stopRepo.save(s);
+        log.info("Route stop removed stopId={}", stopId);
     }
 
     @CacheEvict(cacheNames = CacheConfig.TRANSPORT_ROUTES, keyGenerator = "tenantKeyGenerator")
@@ -136,13 +149,16 @@ public class TransportService {
         if (patch.getStopTime() != null) {
             s.setStopTime(patch.getStopTime());
         }
-        return stopRepo.save(s);
+        RouteStop saved = stopRepo.save(s);
+        log.info("Route stop updated stopId={}", stopId);
+        return saved;
     }
 
     @CacheEvict(cacheNames = CacheConfig.TRANSPORT_ROUTES, keyGenerator = "tenantKeyGenerator")
     @Transactional
     public StudentTransportMapping assignStudent(TransportDTOs.AssignStudentRequest req) {
         String t = TenantContext.getTenantId();
+        log.info("Assigning student {} to route {}", req.getStudentId(), req.getRouteId());
         routeRepo.findByIdAndTenantIdAndIsDeletedFalse(req.getRouteId(), t).orElseThrow(() -> new ResourceNotFoundException("Route", req.getRouteId()));
         StudentTransportMapping m = StudentTransportMapping.builder().routeId(req.getRouteId()).studentId(req.getStudentId()).studentName(req.getStudentName()).pickupStop(req.getPickupStop()).dropStop(req.getDropStop()).build();
         m.setTenantId(t);
@@ -152,6 +168,7 @@ public class TransportService {
             route.setAssignedStudents((int) mappingRepo.findByTenantIdAndRouteIdAndIsDeletedFalse(t, req.getRouteId()).size());
             routeRepo.save(route);
         }
+        log.info("Student transport mapping saved mappingId={} routeId={}", m.getId(), req.getRouteId());
         return m;
     }
 
@@ -167,36 +184,48 @@ public class TransportService {
             route.setAssignedStudents((int) mappingRepo.findByTenantIdAndRouteIdAndIsDeletedFalse(t, routeId).size());
             routeRepo.save(route);
         });
+        log.info("Student removed from route mappingId={}", mappingId);
     }
 
     @Transactional(readOnly = true)
     public List<TransportVehicle> listVehicles() {
-        return vehicleRepo.findByTenantIdAndIsDeletedFalse(TenantContext.getTenantId());
+        String t = TenantContext.getTenantId();
+        List<TransportVehicle> list = vehicleRepo.findByTenantIdAndIsDeletedFalse(t);
+        log.info("Listed {} vehicle(s)", list.size());
+        return list;
     }
 
     @CacheEvict(cacheNames = CacheConfig.TRANSPORT_ROUTES, keyGenerator = "tenantKeyGenerator")
     @Transactional
     public TransportVehicle createVehicle(TransportVehicle v) {
         v.setTenantId(TenantContext.getTenantId());
-        return vehicleRepo.save(v);
+        TransportVehicle saved = vehicleRepo.save(v);
+        log.info("Vehicle created id={}", saved.getId());
+        return saved;
     }
 
     @Transactional(readOnly = true)
     public List<TransportDriver> listDrivers() {
-        return driverRepo.findByTenantIdAndIsDeletedFalse(TenantContext.getTenantId());
+        String t = TenantContext.getTenantId();
+        List<TransportDriver> list = driverRepo.findByTenantIdAndIsDeletedFalse(t);
+        log.info("Listed {} driver(s)", list.size());
+        return list;
     }
 
     @CacheEvict(cacheNames = CacheConfig.TRANSPORT_ROUTES, keyGenerator = "tenantKeyGenerator")
     @Transactional
     public TransportDriver createDriver(TransportDriver d) {
         d.setTenantId(TenantContext.getTenantId());
-        return driverRepo.save(d);
+        TransportDriver saved = driverRepo.save(d);
+        log.info("Driver created id={}", saved.getId());
+        return saved;
     }
 
     @CacheEvict(cacheNames = CacheConfig.TRANSPORT_ROUTES, keyGenerator = "tenantKeyGenerator")
     @Transactional
     public VehicleLiveLocation reportLiveLocation(Long vehicleId, Long routeId, java.math.BigDecimal lat, java.math.BigDecimal lng) {
         String t = TenantContext.getTenantId();
+        log.debug("Live location vehicleId={} routeId={}", vehicleId, routeId);
         vehicleRepo.findByIdAndTenantIdAndIsDeletedFalse(vehicleId, t).orElseThrow(() -> new ResourceNotFoundException("Vehicle", vehicleId));
         VehicleLiveLocation loc = new VehicleLiveLocation();
         loc.setTenantId(t);
@@ -205,7 +234,9 @@ public class TransportService {
         loc.setLatitude(lat);
         loc.setLongitude(lng);
         loc.setRecordedAt(java.time.Instant.now());
-        return liveRepo.save(loc);
+        VehicleLiveLocation saved = liveRepo.save(loc);
+        log.debug("Live location recorded id={}", saved.getId());
+        return saved;
     }
 
     public TransportService(

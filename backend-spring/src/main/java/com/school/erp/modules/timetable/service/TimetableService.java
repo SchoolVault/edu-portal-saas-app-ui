@@ -21,16 +21,25 @@ public class TimetableService {
 
     @Transactional(readOnly = true)
     public List<TimetableEntry> getByClassAndSection(Long classId, Long sectionId) {
-        return repo.findForTenantClassAndOptionalSection(TenantContext.getTenantId(), classId, sectionId);
+        String t = TenantContext.getTenantId();
+        log.debug("Fetching timetable entries classId={} sectionId={}", classId, sectionId);
+        List<TimetableEntry> list = repo.findForTenantClassAndOptionalSection(t, classId, sectionId);
+        log.debug("Timetable entries count={} classId={} sectionId={}", list.size(), classId, sectionId);
+        return list;
     }
 
     @Transactional(readOnly = true)
     public List<TimetableEntry> getByTeacher(Long teacherId) {
-        return repo.findByTenantIdAndTeacherIdAndIsDeletedFalse(TenantContext.getTenantId(), teacherId);
+        String t = TenantContext.getTenantId();
+        log.debug("Fetching timetable by teacherId={}", teacherId);
+        List<TimetableEntry> list = repo.findByTenantIdAndTeacherIdAndIsDeletedFalse(t, teacherId);
+        log.debug("Teacher timetable entry count={} teacherId={}", list.size(), teacherId);
+        return list;
     }
 
     @Transactional(readOnly = true)
     public TimetableDTOs.TimetableGridResponse getGrid(Long classId, Long sectionId) {
+        log.debug("Building timetable grid classId={} sectionId={}", classId, sectionId);
         List<TimetableEntry> entries = getByClassAndSection(classId, sectionId);
         List<String> days = entries.stream().map(e -> e.getDay().name()).distinct()
                 .sorted(Comparator.comparingInt(d -> DEFAULT_DAYS.indexOf(d) >= 0 ? DEFAULT_DAYS.indexOf(d) : 99))
@@ -61,38 +70,48 @@ public class TimetableService {
             }
             grid.put(day, daySlots);
         }
+        log.info("Timetable grid built classId={} sectionId={} filledSlots={}", classId, sectionId, entries.size());
         return TimetableDTOs.TimetableGridResponse.builder().classId(classId).sectionId(sectionId).days(days).periods(periods).grid(grid).build();
     }
 
     @Transactional
     public TimetableEntry createEntry(TimetableEntry entry) {
         String t = TenantContext.getTenantId();
+        log.info("Creating timetable slot classId={} day={} period={}", entry.getClassId(), entry.getDay(), entry.getPeriod());
         List<TimetableEntry> existing = repo.findForTenantClassAndOptionalSection(t, entry.getClassId(), entry.getSectionId());
         boolean conflict = existing.stream().anyMatch(e -> e.getDay() == entry.getDay() && e.getPeriod().equals(entry.getPeriod()));
         if (conflict) {
+            log.warn("Timetable slot conflict classId={} day={} period={}", entry.getClassId(), entry.getDay(), entry.getPeriod());
             throw new BusinessException("Timetable conflict: " + entry.getDay() + " period " + entry.getPeriod() + " already assigned");
         }
         if (entry.getTeacherId() != null) {
             List<TimetableEntry> teacherSchedule = repo.findByTenantIdAndTeacherIdAndIsDeletedFalse(t, entry.getTeacherId());
             boolean teacherConflict = teacherSchedule.stream().anyMatch(e -> e.getDay() == entry.getDay() && e.getPeriod().equals(entry.getPeriod()));
             if (teacherConflict) {
+                log.warn("Teacher double-booking teacherId={} day={} period={}", entry.getTeacherId(), entry.getDay(), entry.getPeriod());
                 throw new BusinessException("Teacher conflict: already assigned for " + entry.getDay() + " period " + entry.getPeriod());
             }
         }
         entry.setTenantId(t);
-        return repo.save(entry);
+        TimetableEntry saved = repo.save(entry);
+        log.info("Timetable entry created id={}", saved.getId());
+        return saved;
     }
 
     @Transactional
     public List<TimetableEntry> batchCreate(List<TimetableEntry> entries) {
         String t = TenantContext.getTenantId();
+        log.info("Batch creating timetable rows count={}", entries.size());
         entries.forEach(e -> e.setTenantId(t));
-        return repo.saveAll(entries);
+        List<TimetableEntry> saved = repo.saveAll(entries);
+        log.info("Batch timetable save completed count={}", saved.size());
+        return saved;
     }
 
     @Transactional
     public void deleteEntry(Long id) {
         String t = TenantContext.getTenantId();
+        log.info("Soft-deleting timetable entry id={}", id);
         TimetableEntry e = repo.findByIdAndTenantIdAndIsDeletedFalse(id, t).orElseThrow(() -> new ResourceNotFoundException("TimetableEntry", id));
         e.setIsDeleted(true);
         repo.save(e);
@@ -101,6 +120,7 @@ public class TimetableService {
     @Transactional
     public TimetableEntry updateEntry(Long id, TimetableEntry update) {
         String t = TenantContext.getTenantId();
+        log.info("Updating timetable entry id={}", id);
         TimetableEntry entry = repo.findByIdAndTenantIdAndIsDeletedFalse(id, t).orElseThrow(() -> new ResourceNotFoundException("TimetableEntry", id));
         if (update.getSubjectName() != null) entry.setSubjectName(update.getSubjectName());
         if (update.getTeacherId() != null) entry.setTeacherId(update.getTeacherId());
@@ -108,7 +128,9 @@ public class TimetableService {
         if (update.getRoom() != null) entry.setRoom(update.getRoom());
         if (update.getStartTime() != null) entry.setStartTime(update.getStartTime());
         if (update.getEndTime() != null) entry.setEndTime(update.getEndTime());
-        return repo.save(entry);
+        TimetableEntry saved = repo.save(entry);
+        log.info("Timetable entry updated id={}", id);
+        return saved;
     }
 
     public TimetableService(final TimetableRepository repo) {

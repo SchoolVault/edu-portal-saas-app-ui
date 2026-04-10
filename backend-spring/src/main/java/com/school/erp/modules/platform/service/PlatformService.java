@@ -14,6 +14,8 @@ import com.school.erp.modules.settings.entity.TenantConfig;
 import com.school.erp.modules.settings.repository.TenantConfigRepository;
 import com.school.erp.modules.student.repository.StudentRepository;
 import com.school.erp.modules.teacher.repository.TeacherRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -33,6 +35,9 @@ import java.util.Locale;
 
 @Service
 public class PlatformService {
+
+    private static final Logger log = LoggerFactory.getLogger(PlatformService.class);
+
     private final TenantConfigRepository tenantConfigRepository;
     private final UserRepository userRepository;
     private final StudentRepository studentRepository;
@@ -43,6 +48,7 @@ public class PlatformService {
 
     @Transactional(readOnly = true)
     public PlatformDTOs.PlatformDashboardResponse getDashboard() {
+        log.debug("Building platform dashboard aggregate");
         List<TenantConfig> schools = tenantConfigRepository.findAll().stream()
                 .filter(config -> !Boolean.TRUE.equals(config.getIsDeleted()))
                 .toList();
@@ -79,6 +85,7 @@ public class PlatformService {
                 .sorted(Comparator.comparingLong(PlatformDTOs.SchoolSummary::getStudentCount).reversed())
                 .limit(5)
                 .toList());
+        log.info("Platform dashboard ready schools={} activeSchools={}", response.getTotalSchools(), response.getActiveSchools());
         return response;
     }
 
@@ -86,6 +93,7 @@ public class PlatformService {
      * Lightweight runtime snapshot (extend later with Actuator / Redis ping / external probes).
      */
     public PlatformDTOs.PlatformHealthResponse getHealthSnapshot() {
+        log.debug("Collecting platform health snapshot");
         PlatformDTOs.PlatformHealthResponse out = new PlatformDTOs.PlatformHealthResponse();
         out.setCheckedAt(Instant.now().toString());
         MemoryMXBean mem = ManagementFactory.getMemoryMXBean();
@@ -112,6 +120,7 @@ public class PlatformService {
                 disk.setUsagePercent(0);
             }
         } catch (IOException e) {
+            log.warn("Disk space probe failed for {}: {}", root, e.getMessage());
             disk.setTotalBytes(0);
             disk.setUsableBytes(0);
             disk.setUsagePercent(0);
@@ -122,53 +131,66 @@ public class PlatformService {
         comps.add(new PlatformDTOs.ComponentHealth("Database pool", "UP", "HikariCP active (tenant queries use this pool)"));
         comps.add(new PlatformDTOs.ComponentHealth("Object storage", "WARN", "Attach S3/MinIO health when media module is enabled"));
         out.setComponents(comps);
+        log.info("Health snapshot heapUsagePercent={} diskUsagePercent={}", out.getJvm().getHeapUsagePercent(), out.getDisk().getUsagePercent());
         return out;
     }
 
     @Transactional(readOnly = true)
     public List<PlatformDTOs.SchoolSummary> getSchools() {
-        return tenantConfigRepository.findAll().stream()
+        log.debug("Listing all school workspaces");
+        List<PlatformDTOs.SchoolSummary> list = tenantConfigRepository.findAll().stream()
                 .filter(config -> !Boolean.TRUE.equals(config.getIsDeleted()))
                 .map(this::toSchoolSummary)
                 .sorted(Comparator.comparing(PlatformDTOs.SchoolSummary::getSchoolName, String.CASE_INSENSITIVE_ORDER))
                 .toList();
+        log.info("Listed {} school workspace(s)", list.size());
+        return list;
     }
 
     @Transactional(readOnly = true)
     public PlatformDTOs.SchoolDetailResponse getSchoolDetail(String tenantId) {
+        log.debug("Loading school detail tenantId={}", tenantId);
         TenantConfig tc = requireTenant(tenantId);
         PlatformDTOs.SchoolDetailResponse out = new PlatformDTOs.SchoolDetailResponse();
         out.setSchool(toSchoolSummary(tc));
         out.setAdmins(getSchoolAdmins(tenantId));
         out.setParentUserCount(userRepository.countByTenantIdAndRoleAndIsDeletedFalse(tenantId, Enums.Role.PARENT));
+        log.info("School detail tenantId={} admins={} parentUsers={}", tenantId, out.getAdmins().size(), out.getParentUserCount());
         return out;
     }
 
     @Transactional
     public void suspendSchoolWorkspace(String tenantId) {
+        log.warn("Suspending school workspace tenantId={}", tenantId);
         TenantConfig tc = requireTenant(tenantId);
         tc.setIsActive(false);
         tenantConfigRepository.save(tc);
         userRepository.deactivateAllByTenantId(tenantId);
+        log.info("School workspace suspended tenantId={}", tenantId);
     }
 
     @Transactional
     public void activateSchoolWorkspace(String tenantId) {
+        log.info("Activating school workspace tenantId={}", tenantId);
         TenantConfig tc = requireTenant(tenantId);
         tc.setIsActive(true);
         tenantConfigRepository.save(tc);
+        log.info("School workspace activated tenantId={}", tenantId);
     }
 
     @Transactional
     public PlatformDTOs.PurgeJobSummary requestTenantDataPurge(String tenantId, PlatformDTOs.PurgeSchoolDataRequest request) {
+        log.warn("Tenant data purge requested tenantId={}", tenantId);
         TenantConfig tc = requireTenant(tenantId);
         if (Boolean.TRUE.equals(tc.getIsActive())) {
+            log.warn("Purge rejected: workspace still active tenantId={}", tenantId);
             throw new BusinessException("Suspend the school workspace before requesting a data purge.");
         }
         String confirm = request.getConfirmSchoolCode() != null
                 ? request.getConfirmSchoolCode().trim().toUpperCase(Locale.ROOT)
                 : "";
         if (!tc.getSchoolCode().equalsIgnoreCase(confirm)) {
+            log.warn("Purge rejected: school code mismatch tenantId={}", tenantId);
             throw new BusinessException("School code confirmation does not match this workspace.");
         }
         PlatformTenantPurgeJob job = new PlatformTenantPurgeJob();
@@ -187,15 +209,18 @@ public class PlatformService {
         } else {
             tenantPurgeJobProcessor.processJobAsync(jobId);
         }
+        log.info("Purge job queued jobId={} tenantId={}", job.getId(), tenantId);
         return toPurgeJobSummary(job);
     }
 
     @Transactional(readOnly = true)
     public List<PlatformDTOs.PurgeJobSummary> listPurgeJobsForTenant(String tenantId) {
         // Do not require tenant_configs row — after a completed purge the workspace row is gone but job history remains.
-        return purgeJobRepository.findByTenantIdOrderByCreatedAtDesc(tenantId).stream()
+        List<PlatformDTOs.PurgeJobSummary> jobs = purgeJobRepository.findByTenantIdOrderByCreatedAtDesc(tenantId).stream()
                 .map(this::toPurgeJobSummary)
                 .toList();
+        log.info("Listed {} purge job(s) tenantId={}", jobs.size(), tenantId);
+        return jobs;
     }
 
     @Transactional(readOnly = true)
@@ -216,6 +241,7 @@ public class PlatformService {
                 "Custom (unlimited branches)", "Named CSM + 24×7 hotline",
                 List.of("Everything in Standard", "Multi-branch roll-up", "Advanced audit (retention policies)", "Custom integrations", "Sandbox tenant", "DR runbooks"),
                 false));
+        log.debug("Returning {} subscription plan row(s)", rows.size());
         return rows;
     }
 
@@ -248,6 +274,7 @@ public class PlatformService {
 
     @Transactional
     public PlatformDTOs.PlatformBroadcastResult broadcastToSchoolAdmins(PlatformDTOs.PlatformBroadcastRequest request) {
+        log.info("Platform broadcast starting title={} targetTenantId={}", request.getTitle(), request.getTargetTenantId());
         Enums.NotificationType type = parseNotificationType(request.getNotificationType());
         List<TenantConfig> targets;
         if (request.getTargetTenantId() != null && !request.getTargetTenantId().isBlank()) {
@@ -279,6 +306,7 @@ public class PlatformService {
                 rows += batch.size();
             }
         }
+        log.info("Platform broadcast done notificationsCreated={} workspacesTouched={}", rows, targets.size());
         return new PlatformDTOs.PlatformBroadcastResult(rows, targets.size());
     }
 
@@ -315,18 +343,22 @@ public class PlatformService {
 
     @Transactional(readOnly = true)
     public List<PlatformDTOs.SchoolAdminSummary> getSchoolAdmins(String tenantId) {
-        return userRepository.findByTenantIdAndRoleAndIsDeletedFalse(tenantId, Enums.Role.ADMIN).stream()
+        List<PlatformDTOs.SchoolAdminSummary> admins = userRepository.findByTenantIdAndRoleAndIsDeletedFalse(tenantId, Enums.Role.ADMIN).stream()
                 .map(this::toAdminSummary)
                 .toList();
+        log.info("Listed {} admin(s) for tenantId={}", admins.size(), tenantId);
+        return admins;
     }
 
     @Transactional
     public PlatformDTOs.SchoolAdminSummary updateSchoolAdminStatus(String tenantId, Long userId, PlatformDTOs.ToggleAdminStatusRequest request) {
+        log.info("Updating admin status tenantId={} userId={} active={}", tenantId, userId, request.isActive());
         User admin = userRepository.findById(userId)
                 .filter(user -> tenantId.equals(user.getTenantId()) && user.getRole() == Enums.Role.ADMIN && !Boolean.TRUE.equals(user.getIsDeleted()))
                 .orElseThrow(() -> new ResourceNotFoundException("User", userId));
         admin.setIsActive(request.isActive());
         userRepository.save(admin);
+        log.info("Admin status updated userId={} active={}", userId, request.isActive());
         return toAdminSummary(admin);
     }
 

@@ -9,6 +9,8 @@ import com.school.erp.modules.guardian.repository.StudentGuardianMappingReposito
 import com.school.erp.modules.student.entity.Student;
 import com.school.erp.modules.student.repository.StudentRepository;
 import com.school.erp.tenant.TenantContext;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -20,6 +22,8 @@ import java.util.Map;
 
 @Service
 public class GuardianService {
+
+    private static final Logger log = LoggerFactory.getLogger(GuardianService.class);
 
     private final GuardianRepository guardianRepository;
     private final StudentGuardianMappingRepository mappingRepository;
@@ -39,6 +43,7 @@ public class GuardianService {
      */
     @Transactional(readOnly = true)
     public List<Student> findStudentsForParentUser(String tenantId, Long parentUserId) {
+        log.debug("Attempting to resolve students for parent user tenantId={} parentUserId={}", tenantId, parentUserId);
         Map<Long, Student> byId = new LinkedHashMap<>();
         studentRepository.findByTenantIdAndParentIdAndIsDeletedFalse(tenantId, parentUserId).forEach(s -> byId.put(s.getId(), s));
         List<Long> mappedStudentIds =
@@ -46,48 +51,67 @@ public class GuardianService {
         if (!mappedStudentIds.isEmpty()) {
             studentRepository.findByTenantIdAndIdInAndIsDeletedFalse(tenantId, mappedStudentIds).forEach(s -> byId.put(s.getId(), s));
         }
-        return new ArrayList<>(byId.values());
+        List<Student> out = new ArrayList<>(byId.values());
+        log.info("Resolved {} student(s) for parent user {} (tenant={})", out.size(), parentUserId, tenantId);
+        return out;
     }
 
     @Transactional(readOnly = true)
     public boolean guardianUserHasAccessToStudent(String tenantId, Long parentUserId, Long studentId) {
-        return studentRepository
+        log.debug("Checking guardian access tenantId={} parentUserId={} studentId={}", tenantId, parentUserId, studentId);
+        boolean ok = studentRepository
                 .findByIdAndTenantIdAndIsDeletedFalse(studentId, tenantId)
                 .map(s -> parentUserId.equals(s.getParentId()))
                 .orElse(false)
                 || mappingRepository.existsActiveLinkForStudentAndGuardianUser(
                         tenantId, studentId, parentUserId, LocalDate.now());
+        if (!ok) {
+            log.warn("Guardian access denied tenantId={} parentUserId={} studentId={}", tenantId, parentUserId, studentId);
+        } else {
+            log.debug("Guardian access granted tenantId={} parentUserId={} studentId={}", tenantId, parentUserId, studentId);
+        }
+        return ok;
     }
 
     @Transactional(readOnly = true)
     public List<GuardianDTOs.GuardianResponse> searchByPhone(String phone) {
         if (phone == null || phone.isBlank()) {
+            log.debug("Guardian search skipped: blank phone");
             return List.of();
         }
         String t = TenantContext.getTenantId();
         String normalized = phone.trim();
-        return guardianRepository.findByTenantIdAndPrimaryPhoneAndIsDeletedFalse(t, normalized).stream()
+        log.debug("Searching guardians by phone (tenant={}, normalized length={})", t, normalized.length());
+        List<GuardianDTOs.GuardianResponse> list = guardianRepository.findByTenantIdAndPrimaryPhoneAndIsDeletedFalse(t, normalized).stream()
                 .map(this::toGuardianResponse)
                 .toList();
+        log.info("Guardian phone search tenant={} matches={}", t, list.size());
+        return list;
     }
 
     @Transactional(readOnly = true)
     public GuardianDTOs.GuardianResponse getById(Long id) {
+        log.debug("Fetching guardian by id={}", id);
         Guardian g =
                 guardianRepository.findByIdAndTenantIdAndIsDeletedFalse(id, TenantContext.getTenantId()).orElseThrow(() -> new ResourceNotFoundException("Guardian", id));
+        log.info("Loaded guardian id={}", id);
         return toGuardianResponse(g);
     }
 
     @Transactional
     public GuardianDTOs.GuardianResponse create(GuardianDTOs.CreateGuardianRequest req) {
+        log.info("Creating guardian primaryPhonePresent={}", req.getPrimaryPhone() != null);
         Guardian g = new Guardian();
         g.setTenantId(TenantContext.getTenantId());
         applyCreate(g, req);
-        return toGuardianResponse(guardianRepository.save(g));
+        GuardianDTOs.GuardianResponse saved = toGuardianResponse(guardianRepository.save(g));
+        log.info("Created guardian id={}", saved.getId());
+        return saved;
     }
 
     @Transactional
     public GuardianDTOs.GuardianResponse update(Long id, GuardianDTOs.UpdateGuardianRequest req) {
+        log.info("Updating guardian id={}", id);
         Guardian g =
                 guardianRepository.findByIdAndTenantIdAndIsDeletedFalse(id, TenantContext.getTenantId()).orElseThrow(() -> new ResourceNotFoundException("Guardian", id));
         if (req.getFullName() != null) g.setFullName(req.getFullName());
@@ -97,12 +121,15 @@ public class GuardianService {
         if (req.getEmailsJson() != null) g.setEmailsJson(req.getEmailsJson());
         if (req.getUserId() != null) g.setUserId(req.getUserId());
         if (req.getAttributesJson() != null) g.setAttributesJson(req.getAttributesJson());
-        return toGuardianResponse(guardianRepository.save(g));
+        GuardianDTOs.GuardianResponse updated = toGuardianResponse(guardianRepository.save(g));
+        log.info("Updated guardian id={}", id);
+        return updated;
     }
 
     @Transactional(readOnly = true)
     public List<GuardianDTOs.MappingResponse> listMappingsForStudent(Long studentId) {
         String t = TenantContext.getTenantId();
+        log.debug("Listing guardian mappings for studentId={}", studentId);
         studentRepository.findByIdAndTenantIdAndIsDeletedFalse(studentId, t).orElseThrow(() -> new ResourceNotFoundException("Student", studentId));
         List<StudentGuardianMapping> list = mappingRepository.findByTenantIdAndStudentIdAndIsDeletedFalse(t, studentId);
         List<GuardianDTOs.MappingResponse> out = new ArrayList<>();
@@ -111,12 +138,14 @@ public class GuardianService {
             guardianRepository.findByIdAndTenantIdAndIsDeletedFalse(m.getGuardianId(), t).ifPresent(g -> r.setGuardianName(g.getFullName()));
             out.add(r);
         }
+        log.info("Listed {} guardian mapping(s) for studentId={}", out.size(), studentId);
         return out;
     }
 
     @Transactional
     public GuardianDTOs.MappingResponse addMapping(Long studentId, GuardianDTOs.CreateMappingRequest req) {
         String t = TenantContext.getTenantId();
+        log.info("Adding guardian mapping studentId={} guardianId={}", studentId, req.getGuardianId());
         studentRepository.findByIdAndTenantIdAndIsDeletedFalse(studentId, t).orElseThrow(() -> new ResourceNotFoundException("Student", studentId));
         guardianRepository.findByIdAndTenantIdAndIsDeletedFalse(req.getGuardianId(), t).orElseThrow(() -> new ResourceNotFoundException("Guardian", req.getGuardianId()));
 
@@ -141,6 +170,7 @@ public class GuardianService {
 
         GuardianDTOs.MappingResponse r = toMappingResponse(saved);
         guardianRepository.findByIdAndTenantIdAndIsDeletedFalse(saved.getGuardianId(), t).ifPresent(g -> r.setGuardianName(g.getFullName()));
+        log.info("Saved guardian mapping id={} studentId={}", saved.getId(), studentId);
         return r;
     }
 

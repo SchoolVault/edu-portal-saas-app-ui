@@ -11,6 +11,8 @@ import com.school.erp.modules.student.repository.StudentRepository;
 import com.school.erp.modules.teacher.entity.Teacher;
 import com.school.erp.modules.teacher.repository.TeacherRepository;
 import com.school.erp.tenant.TenantContext;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -24,6 +26,9 @@ import java.util.stream.Collectors;
 
 @Service
 public class ChatDirectoryService {
+
+    private static final Logger log = LoggerFactory.getLogger(ChatDirectoryService.class);
+
     private final StudentRepository studentRepository;
     private final SchoolClassRepository classRepository;
     private final UserRepository userRepository;
@@ -34,15 +39,18 @@ public class ChatDirectoryService {
         String tenantId = TenantContext.getTenantId();
         Long userId = TenantContext.getUserId();
         String role = TenantContext.getUserRole() != null ? TenantContext.getUserRole().trim().toUpperCase(Locale.ROOT) : "";
+        log.debug("Building chat directory tenantId={} userId={} role={}", tenantId, userId, role);
 
         ChatDirectoryDTOs.DirectoryResponse res = new ChatDirectoryDTOs.DirectoryResponse();
 
         if ("TEACHER".equals(role)) {
             res.setMyClassRosters(getTeacherRosters(tenantId, userId));
+            log.info("Chat directory (teacher) rosterCount={}", res.getMyClassRosters() != null ? res.getMyClassRosters().size() : 0);
             return res;
         }
         if ("PARENT".equals(role)) {
             res.setMyChildren(getParentChildren(tenantId, userId));
+            log.info("Chat directory (parent) childGroupCount={}", res.getMyChildren() != null ? res.getMyChildren().size() : 0);
             return res;
         }
         if ("ADMIN".equals(role) || "SUPER_ADMIN".equals(role)) {
@@ -56,16 +64,21 @@ public class ChatDirectoryService {
                     .map(u -> new ChatDirectoryDTOs.UserCard(u.getId(), u.getName(), u.getRole() != null ? u.getRole().name() : "PARENT"))
                     .sorted(Comparator.comparing(ChatDirectoryDTOs.UserCard::getName, Comparator.nullsLast(String::compareToIgnoreCase)))
                     .collect(Collectors.toList()));
+            log.info("Chat directory (admin) teachers={} parents={}", res.getTeachers().size(), res.getParents().size());
             return res;
         }
 
         // students and others: keep empty for now (until we add student-user mapping)
+        log.info("Chat directory empty for role={}", role.isEmpty() ? "UNKNOWN" : role);
         return res;
     }
 
     private List<ChatDirectoryDTOs.ClassRoster> getTeacherRosters(String tenantId, Long userId) {
         Teacher teacher = teacherRepository.findByTenantIdAndUserIdAndIsDeletedFalse(tenantId, userId).orElse(null);
-        if (teacher == null) return List.of();
+        if (teacher == null) {
+            log.warn("Chat directory: no teacher row for userId={} tenantId={}", userId, tenantId);
+            return List.of();
+        }
 
         List<SchoolClass> classes = classRepository.findByTenantIdAndIsDeletedFalseOrderByGrade(tenantId).stream()
                 .filter(c -> Objects.equals(c.getClassTeacherId(), teacher.getId()) || Objects.equals(c.getClassTeacherId(), userId))

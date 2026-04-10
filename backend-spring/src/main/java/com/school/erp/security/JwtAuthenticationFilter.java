@@ -1,5 +1,6 @@
 package com.school.erp.security;
 
+import com.school.erp.common.logging.MdcKeys;
 import com.school.erp.tenant.TenantContext;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -12,6 +13,7 @@ import org.springframework.security.web.authentication.WebAuthenticationDetailsS
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
+import org.slf4j.MDC;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
@@ -45,13 +47,18 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 var auth = new UsernamePasswordAuthenticationToken(email, null, authorities);
                 auth.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
                 SecurityContextHolder.getContext().setAuthentication(auth);
+                MDC.put(MdcKeys.TENANT_ID, tenantId == null ? "" : tenantId);
+                MDC.put(MdcKeys.USER_ID, userId == null ? "" : String.valueOf(userId));
+                MDC.put(MdcKeys.USER_ROLE, role == null ? "" : role);
+                log.debug("JWT accepted tenant={} userId={} role={}", tenantId, userId, role);
             }
         } catch (Exception e) {
-            log.error("JWT authentication error: {}", e.getMessage());
+            log.error("JWT authentication error: {}", e.getMessage(), e);
         }
         try {
             filterChain.doFilter(request, response);
         } finally {
+            MdcKeys.clearTenantUser();
             TenantContext.clear();
         }
     }

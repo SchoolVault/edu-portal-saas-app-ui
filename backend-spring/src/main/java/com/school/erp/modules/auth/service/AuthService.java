@@ -41,6 +41,7 @@ public class AuthService {
 
     @Transactional
     public AuthDTOs.LoginResponse login(AuthDTOs.LoginRequest request) {
+        log.debug("Login attempt schoolCode={}", request.getSchoolCode());
         User user = userRepository.findByEmailAndSchoolCodeAndIsDeletedFalse(request.getEmail(), request.getSchoolCode()).orElseThrow(() -> new UnauthorizedException("Invalid credentials or school code"));
         if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) throw new UnauthorizedException("Invalid credentials or school code");
         if (!user.getIsActive()) throw new BusinessException("Account is deactivated. Contact admin.");
@@ -61,6 +62,7 @@ public class AuthService {
         } catch (Exception e) {
             log.debug("Audit log skipped: {}", e.getMessage());
         }
+        log.info("Login successful userId={} tenantId={} role={}", user.getId(), user.getTenantId(), user.getRole());
         return AuthDTOs.LoginResponse.builder().token(token).refreshToken(refreshToken).user(toProfile(user)).build();
     }
 
@@ -81,8 +83,10 @@ public class AuthService {
 
     @Transactional
     public AuthDTOs.LoginResponse onboardTenant(AuthManagementDTOs.OnboardTenantRequest request) {
+        log.info("Onboarding tenant schoolCode={}", request.getSchoolCode());
         String normalizedSchoolCode = request.getSchoolCode().trim().toUpperCase(Locale.ROOT);
         if (tenantConfigRepository.existsBySchoolCode(normalizedSchoolCode)) {
+            log.warn("Onboard rejected: school code already exists {}", normalizedSchoolCode);
             throw new DuplicateResourceException("School code already in use");
         }
         String tenantId = buildTenantId(normalizedSchoolCode);
@@ -114,12 +118,15 @@ public class AuthService {
 
         String token = jwtUtil.generateToken(admin.getId(), admin.getTenantId(), admin.getEmail(), admin.getRole().name(), admin.getName(), jwtPermissionsCsv(admin.getRole()));
         String refreshToken = issueRefreshToken(admin);
+        log.info("Tenant onboarded tenantId={} schoolCode={} adminUserId={}", tenantId, normalizedSchoolCode, admin.getId());
         return AuthDTOs.LoginResponse.builder().token(token).refreshToken(refreshToken).user(toProfile(admin)).build();
     }
 
     @Transactional(readOnly = true)
     public AuthDTOs.UserProfile getProfile() {
-        User user = userRepository.findByIdAndTenantIdAndIsDeletedFalse(TenantContext.getUserId(), TenantContext.getTenantId()).orElseThrow(() -> new ResourceNotFoundException("User", TenantContext.getUserId()));
+        Long uid = TenantContext.getUserId();
+        log.debug("Loading auth profile userId={}", uid);
+        User user = userRepository.findByIdAndTenantIdAndIsDeletedFalse(uid, TenantContext.getTenantId()).orElseThrow(() -> new ResourceNotFoundException("User", uid));
         return toProfile(user);
     }
 

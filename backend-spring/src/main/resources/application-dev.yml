@@ -1,12 +1,16 @@
 # Active when spring.profiles.active includes dev (default in application.yml for local work).
+#
+# Local IDE → Aiven MySQL: set DB_URL, DB_USERNAME, DB_PASSWORD on THIS run configuration (not only system env).
+# 1) Aiven → your service → Networking / trusted sources: add your public IP (/32) or temporarily 0.0.0.0/0 to test.
+# 2) Confirm credentials outside Spring: mysql -h <host> -P <port> -u avnadmin -p --ssl-mode=REQUIRED defaultdb
+# 3) If you still get 1045: reset avnadmin password in Aiven, re-paste into IDE (no trailing newline). Hikari DEBUG below logs jdbcUrl + username at startup.
 app:
   demo-seed:
     enabled: true
 
 spring:
-  datasource:
-    # Local MySQL password; override with DB_PASSWORD in your shell or .env.
-    password: ${DB_PASSWORD:changeme}
+  # Datasource URL/user/password come from application.yml (${DB_URL}, ${DB_USERNAME}, ${DB_PASSWORD}).
+  # Do not default DB_PASSWORD here: a forgotten env var would send a wrong password (e.g. to Aiven) and cause MySQL 1045.
 
   jpa:
     show-sql: true
@@ -25,3 +29,4 @@ logging:
   level:
     com.school.erp: DEBUG
     org.hibernate.SQL: DEBUG
+    com.zaxxer.hikari.HikariConfig: DEBUG

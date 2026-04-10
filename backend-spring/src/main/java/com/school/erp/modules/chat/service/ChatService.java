@@ -39,6 +39,7 @@ public class ChatService {
         Long userId = TenantContext.getUserId();
 
         List<ChatConversation> conversations = conversationRepo.findInbox(tenantId, userId);
+        log.debug("Chat inbox load tenantId={} userId={} conversationCount={}", tenantId, userId, conversations.size());
         Map<Long, List<ChatParticipant>> participantsByConversation = participantRepo.findByUser(tenantId, userId).stream()
                 .map(p -> p.getConversationId())
                 .distinct()
@@ -47,7 +48,9 @@ public class ChatService {
                         id -> participantRepo.findByTenantIdAndConversationIdAndIsDeletedFalse(tenantId, id)
                 ));
 
-        return conversations.stream().map(c -> toInboxResponse(tenantId, userId, c, participantsByConversation.getOrDefault(c.getId(), List.of()))).collect(Collectors.toList());
+        List<ChatDTOs.InboxConversationResponse> rows = conversations.stream().map(c -> toInboxResponse(tenantId, userId, c, participantsByConversation.getOrDefault(c.getId(), List.of()))).collect(Collectors.toList());
+        log.info("Chat inbox returned {} conversation(s)", rows.size());
+        return rows;
     }
 
     @Transactional
@@ -55,17 +58,21 @@ public class ChatService {
         String tenantId = TenantContext.getTenantId();
         Long initiatorId = TenantContext.getUserId();
         String initiatorRole = TenantContext.getUserRole();
+        log.info("Creating chat conversation type={} participantCount={}", request.getType(), request.getParticipants() != null ? request.getParticipants().size() : 0);
 
         String type = normLower(request.getType());
         if (!"direct".equals(type) && !"group".equals(type)) {
+            log.warn("Unsupported chat type {}", request.getType());
             throw new BusinessException("Unsupported conversation type: " + request.getType());
         }
         if ("direct".equals(type) && request.getParticipants().size() != 2) {
+            log.warn("Direct chat requires 2 participants, got {}", request.getParticipants().size());
             throw new BusinessException("Direct conversation must have exactly 2 participants");
         }
 
         boolean initiatorIncluded = request.getParticipants().stream().anyMatch(p -> p.getUserId().equals(initiatorId));
         if (!initiatorIncluded) {
+            log.warn("Initiator {} not in participant list", initiatorId);
             throw new BusinessException("Initiator must be included as a participant");
         }
 
@@ -76,6 +83,7 @@ public class ChatService {
                     .findFirst()
                     .orElseThrow(() -> new BusinessException("Missing other participant"));
             if (!policy.canStartConversation(initiatorRole, other.getUserRole())) {
+                log.warn("Chat policy denied initiatorRole={} targetRole={}", initiatorRole, other.getUserRole());
                 throw new UnauthorizedException("You are not allowed to start a conversation with this role");
             }
         }
@@ -105,6 +113,7 @@ public class ChatService {
         participantRepo.saveAll(participants);
 
         ChatDTOs.InboxConversationResponse response = toInboxResponse(tenantId, initiatorId, conv, participants);
+        log.info("Chat conversation created id={} type={} participants={}", conv.getId(), type, participants.size());
         // notify participants they have a new conversation
         broadcastInboxUpdate(conv.getId(), participants);
         return response;
@@ -114,11 +123,13 @@ public class ChatService {
     public Page<ChatDTOs.MessageResponse> getMessages(Long conversationId, int page, int size) {
         String tenantId = TenantContext.getTenantId();
         Long userId = TenantContext.getUserId();
+        log.debug("Loading chat messages conversationId={} page={} size={}", conversationId, page, size);
         assertParticipant(tenantId, conversationId, userId);
 
         Page<ChatMessage> messages = messageRepo.findByTenantIdAndConversationIdAndIsDeletedFalseOrderByIdDesc(
                 tenantId, conversationId, PageRequest.of(Math.max(page, 0), Math.min(Math.max(size, 1), 200))
         );
+        log.info("Chat messages page conversationId={} returned={} total={}", conversationId, messages.getNumberOfElements(), messages.getTotalElements());
         return messages.map(this::toMessageResponse);
     }
 
@@ -127,6 +138,7 @@ public class ChatService {
         String tenantId = TenantContext.getTenantId();
         Long userId = TenantContext.getUserId();
         String role = TenantContext.getUserRole();
+        log.debug("Sending chat message conversationId={} userId={}", request.getConversationId(), userId);
         assertParticipant(tenantId, request.getConversationId(), userId);
 
         ChatConversation conv = conversationRepo.findByIdAndTenantIdAndIsDeletedFalse(request.getConversationId(), tenantId)
@@ -155,6 +167,7 @@ public class ChatService {
         List<ChatParticipant> participants = participantRepo.findByTenantIdAndConversationIdAndIsDeletedFalse(tenantId, conv.getId());
         broadcastInboxUpdate(conv.getId(), participants);
 
+        log.info("Chat message sent id={} conversationId={}", msg.getId(), conv.getId());
         return response;
     }
 
@@ -162,6 +175,7 @@ public class ChatService {
     public void markRead(ChatDTOs.MarkReadRequest request) {
         String tenantId = TenantContext.getTenantId();
         Long userId = TenantContext.getUserId();
+        log.debug("Mark chat read conversationId={} userId={} upToMessageId={}", request.getConversationId(), userId, request.getLastReadMessageId());
         ChatParticipant p = participantRepo.findByTenantIdAndConversationIdAndUserIdAndIsDeletedFalse(tenantId, request.getConversationId(), userId)
                 .orElseThrow(() -> new UnauthorizedException("Not a participant"));
         p.setLastReadMessageId(request.getLastReadMessageId());
@@ -171,11 +185,15 @@ public class ChatService {
         // inbox update is enough; clients compute badges
         List<ChatParticipant> participants = participantRepo.findByTenantIdAndConversationIdAndIsDeletedFalse(tenantId, request.getConversationId());
         broadcastInboxUpdate(request.getConversationId(), participants);
+        log.info("Chat read marked conversationId={} userId={}", request.getConversationId(), userId);
     }
 
     private void assertParticipant(String tenantId, Long conversationId, Long userId) {
         participantRepo.findByTenantIdAndConversationIdAndUserIdAndIsDeletedFalse(tenantId, conversationId, userId)
-                .orElseThrow(() -> new UnauthorizedException("You are not allowed to access this conversation"));
+                .orElseThrow(() -> {
+                    log.warn("Chat access denied: not a participant conversationId={} userId={}", conversationId, userId);
+                    return new UnauthorizedException("You are not allowed to access this conversation");
+                });
     }
 
     private ChatDTOs.InboxConversationResponse toInboxResponse(String tenantId, Long currentUserId, ChatConversation c, List<ChatParticipant> participants) {

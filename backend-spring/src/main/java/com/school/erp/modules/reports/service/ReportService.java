@@ -19,6 +19,8 @@ import com.school.erp.modules.notification.repository.NotificationRepository;
 import com.school.erp.modules.reports.dto.ReportDashboardDTOs;
 import com.school.erp.modules.timetable.repository.TimetableRepository;
 import com.school.erp.tenant.TenantContext;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.data.domain.Pageable;
@@ -32,6 +34,9 @@ import java.util.Locale;
 
 @Service
 public class ReportService {
+
+    private static final Logger log = LoggerFactory.getLogger(ReportService.class);
+
     private final StudentRepository studentRepo;
     private final TeacherRepository teacherRepo;
     private final MarkRecordRepository markRepo;
@@ -51,6 +56,7 @@ public class ReportService {
     @Transactional(readOnly = true)
     public Map<String, Object> getDashboardKPIs() {
         String tenantId = TenantContext.getTenantId();
+        log.debug("Building dashboard KPIs tenantId={}", tenantId);
         Map<String, Object> kpis = new HashMap<>();
         kpis.put("totalStudents", studentRepo.countByTenantIdAndIsDeletedFalse(tenantId));
         kpis.put("totalTeachers", teacherRepo.countByTenantIdAndIsDeletedFalse(tenantId));
@@ -60,12 +66,14 @@ public class ReportService {
         kpis.put("feesCollected", totalCollected);
         kpis.put("feesPending", totalPending);
         kpis.put("collectionRate", totalCollected + totalPending > 0 ? Math.round((totalCollected / (totalCollected + totalPending)) * 100) : 0);
+        log.info("Dashboard KPIs tenantId={} students={} teachers={}", tenantId, kpis.get("totalStudents"), kpis.get("totalTeachers"));
         return kpis;
     }
 
     @Transactional(readOnly = true)
     public ReportDashboardDTOs.AdminDashboardResponse getAdminDashboard() {
         String tenantId = TenantContext.getTenantId();
+        log.debug("Building admin dashboard tenantId={}", tenantId);
         LocalDate today = LocalDate.now();
         var payments = feePaymentRepo.findByTenantIdAndIsDeletedFalse(tenantId);
 
@@ -102,17 +110,20 @@ public class ReportService {
                     return event;
                 })
                 .collect(Collectors.toList()));
+        log.info("Admin dashboard ready tenantId={} students={} activities={}", tenantId, response.getTotalStudents(), response.getRecentActivities().size());
         return response;
     }
 
     @Transactional(readOnly = true)
     public ReportDashboardDTOs.TeacherDashboardResponse getTeacherDashboard() {
         String tenantId = TenantContext.getTenantId();
+        log.debug("Building teacher dashboard tenantId={} userId={}", tenantId, TenantContext.getUserId());
         LocalDate today = LocalDate.now();
         DayOfWeek dayOfWeek = today.getDayOfWeek();
         ReportDashboardDTOs.TeacherDashboardResponse response = new ReportDashboardDTOs.TeacherDashboardResponse();
         var teacherOpt = teacherRepo.findByTenantIdAndUserIdAndIsDeletedFalse(tenantId, TenantContext.getUserId());
         if (teacherOpt.isEmpty()) {
+            log.warn("Teacher dashboard: no teacher profile for userId={} tenantId={}", TenantContext.getUserId(), tenantId);
             return response;
         }
 
@@ -200,6 +211,7 @@ public class ReportService {
                     .collect(Collectors.toList());
         }
         response.setPendingTasks(pendingTasks);
+        log.info("Teacher dashboard ready teacherId={} assignedClasses={}", teacher.getId(), response.getAssignedClasses());
         return response;
     }
 
@@ -223,6 +235,7 @@ public class ReportService {
     @Transactional(readOnly = true)
     public List<Map<String, Object>> getStudentPerformanceReport(Long classId, Long examId) {
         String tenantId = TenantContext.getTenantId();
+        log.debug("Student performance report classId={} examId={} tenantId={}", classId, examId, tenantId);
         var marks = markRepo.findByTenantIdAndExamIdAndClassId(tenantId, examId, classId);
         Map<Long, Map<String, Object>> studentMap = new LinkedHashMap<>();
         for (var m : marks) {
@@ -250,16 +263,18 @@ public class ReportService {
         for (int i = 0; i < result.size(); i++) {
             result.get(i).put("rank", i + 1);
         }
+        log.info("Student performance report rows={} classId={} examId={}", result.size(), classId, examId);
         return result;
     }
 
     @Transactional(readOnly = true)
     public List<Map<String, Object>> getAttendanceSummary(Long classId, String month) {
         String tenantId = TenantContext.getTenantId();
+        log.debug("Attendance summary classId={} month={}", classId, month);
         java.time.YearMonth ym = java.time.YearMonth.parse(month);
         LocalDate from = ym.atDay(1);
         LocalDate to = ym.atEndOfMonth();
-        return studentRepo.findByTenantIdAndClassIdAndIsDeletedFalse(tenantId, classId).stream().map(student -> {
+        List<Map<String, Object>> rows = studentRepo.findByTenantIdAndClassIdAndIsDeletedFalse(tenantId, classId).stream().map(student -> {
             List<Object[]> stats = attendanceRepo.getStudentAttendanceStats(tenantId, student.getId(), from, to);
             long present = 0;
             long absent = 0;
@@ -288,23 +303,29 @@ public class ReportService {
                     "attendancePercentage", Math.round(percentage * 10) / 10.0
             );
         }).collect(Collectors.toList());
+        log.info("Attendance summary rows={} classId={} month={}", rows.size(), classId, month);
+        return rows;
     }
 
     @Transactional(readOnly = true)
     public Map<String, Object> getFeeCollectionReport(Long classId) {
         String tenantId = TenantContext.getTenantId();
+        log.debug("Fee collection report classId={} (tenant-scoped payments)", classId);
         var payments = feePaymentRepo.findByTenantIdAndIsDeletedFalse(tenantId);
         double collected = payments.stream().mapToDouble(p -> p.getPaidAmount() != null ? p.getPaidAmount().doubleValue() : 0).sum();
         double pending = payments.stream().mapToDouble(p -> p.getDueAmount() != null ? p.getDueAmount().doubleValue() : 0).sum();
         long overdueCount = payments.stream().filter(p -> p.getStatus() == com.school.erp.common.enums.Enums.FeeStatus.OVERDUE).count();
-        return Map.of("totalCollected", collected, "totalPending", pending, "overdueCount", overdueCount, "totalStudents", payments.size(), "collectionRate", collected + pending > 0 ? Math.round((collected / (collected + pending)) * 100) : 0);
+        Map<String, Object> report = Map.of("totalCollected", collected, "totalPending", pending, "overdueCount", overdueCount, "totalStudents", payments.size(), "collectionRate", collected + pending > 0 ? Math.round((collected / (collected + pending)) * 100) : 0);
+        log.info("Fee collection report tenantId={} overdueCount={}", tenantId, overdueCount);
+        return report;
     }
 
     @Transactional(readOnly = true)
     public List<Map<String, Object>> getClassSummary() {
         String tenantId = TenantContext.getTenantId();
+        log.debug("Building class summary tenantId={}", tenantId);
         LocalDate today = LocalDate.now();
-        return classRepo.findByTenantIdAndIsDeletedFalseOrderByGrade(tenantId).stream().map(cls -> {
+        List<Map<String, Object>> list = classRepo.findByTenantIdAndIsDeletedFalseOrderByGrade(tenantId).stream().map(cls -> {
             List<com.school.erp.modules.student.entity.Student> students = studentRepo.findByTenantIdAndClassIdAndIsDeletedFalse(tenantId, cls.getId());
             List<com.school.erp.modules.fees.entity.FeePayment> payments = feePaymentRepo.findByTenantIdAndIsDeletedFalse(tenantId).stream()
                     .filter(payment -> students.stream().anyMatch(student -> student.getId().equals(payment.getStudentId())))
@@ -337,11 +358,14 @@ public class ReportService {
                     "classTeacherName", cls.getClassTeacherName() != null ? cls.getClassTeacherName() : ""
             );
         }).collect(Collectors.toList());
+        log.info("Class summary rows={} tenantId={}", list.size(), tenantId);
+        return list;
     }
 
     @Transactional(readOnly = true)
     public List<Map<String, Object>> getSectionSummary() {
         String tenantId = TenantContext.getTenantId();
+        log.debug("Building section summary tenantId={}", tenantId);
         List<Map<String, Object>> rows = new ArrayList<>();
         for (com.school.erp.modules.academic.entity.SchoolClass cls : classRepo.findByTenantIdAndIsDeletedFalseOrderByGrade(tenantId)) {
             for (com.school.erp.modules.academic.entity.Section sec : sectionRepo.findByTenantIdAndClassIdAndIsDeletedFalse(tenantId, cls.getId())) {
@@ -355,17 +379,20 @@ public class ReportService {
                 ));
             }
         }
+        log.info("Section summary rows={} tenantId={}", rows.size(), tenantId);
         return rows;
     }
 
     @Transactional(readOnly = true)
     public List<Map<String, Object>> getTeacherWorkload() {
         String tenantId = TenantContext.getTenantId();
+        log.debug("Building teacher workload tenantId={}", tenantId);
         var teachers = teacherRepo.findByTenantIdAndIsDeletedFalse(tenantId);
         List<Map<String, Object>> result = new ArrayList<>();
         for (var t : teachers) {
             result.add(Map.of("teacherId", t.getId(), "teacherName", t.getFirstName() + " " + t.getLastName(), "specialization", t.getSpecialization() != null ? t.getSpecialization() : "", "subjects", t.getSubjects() != null ? t.getSubjects() : List.of(), "status", t.getStatus() != null ? t.getStatus().name() : "ACTIVE"));
         }
+        log.info("Teacher workload rows={} tenantId={}", result.size(), tenantId);
         return result;
     }
 

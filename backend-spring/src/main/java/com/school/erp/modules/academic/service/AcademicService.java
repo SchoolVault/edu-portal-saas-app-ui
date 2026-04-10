@@ -48,12 +48,15 @@ public class AcademicService {
     @Transactional(readOnly = true)
     public List<AcademicDTOs.SubjectCatalogItem> getSubjectCatalog() {
         String tenantId = TenantContext.getTenantId();
+        log.debug("Fetching subject catalog tenantId={}", tenantId);
         List<AcademicSubject> rows = academicSubjectRepo.findByTenantIdAndIsDeletedFalseOrderBySortOrderAscNameAsc(tenantId);
         if (rows.isEmpty()) {
+            log.info("Subject catalog empty for tenant={}; returning {} default platform subjects", tenantId, DEFAULT_SUBJECT_CATALOG.size());
             return DEFAULT_SUBJECT_CATALOG.stream()
                     .map(d -> new AcademicDTOs.SubjectCatalogItem(d.getId(), d.getCode(), d.getName(), d.getCategory()))
                     .collect(Collectors.toList());
         }
+        log.info("Subject catalog loaded tenant={} rowCount={}", tenantId, rows.size());
         return rows.stream()
                 .map(s -> new AcademicDTOs.SubjectCatalogItem(s.getId(), s.getCode(), s.getName(), s.getCategory()))
                 .collect(Collectors.toList());
@@ -62,11 +65,16 @@ public class AcademicService {
     // ========== ACADEMIC YEARS ==========
     @Transactional(readOnly = true)
     public List<AcademicYear> getYears() {
-        return yearRepo.findByTenantIdAndIsDeletedFalse(TenantContext.getTenantId());
+        String t = TenantContext.getTenantId();
+        log.debug("Listing academic years tenantId={}", t);
+        List<AcademicYear> list = yearRepo.findByTenantIdAndIsDeletedFalse(t);
+        log.info("Found {} academic year(s) tenantId={}", list.size(), t);
+        return list;
     }
 
     @Transactional
     public AcademicYear createYear(AcademicYear year) {
+        log.info("Creating academic year name={} isCurrent={}", year.getName(), year.getIsCurrent());
         year.setTenantId(TenantContext.getTenantId());
         if (year.getIsCurrent() != null && year.getIsCurrent()) {
             // Set all other years as not current
@@ -75,11 +83,14 @@ public class AcademicService {
                 yearRepo.save(y);
             });
         }
-        return yearRepo.save(year);
+        AcademicYear saved = yearRepo.save(year);
+        log.info("Academic year created id={}", saved.getId());
+        return saved;
     }
 
     @Transactional
     public AcademicYear setCurrentYear(Long yearId) {
+        log.info("Setting current academic year id={}", yearId);
         String ctx = TenantContext.getTenantId();
         AcademicYear year;
         String tenantForYears;
@@ -102,9 +113,12 @@ public class AcademicService {
     @Transactional(readOnly = true)
     public List<AcademicDTOs.ClassWithSectionsResponse> getClassesWithSections() {
         String t = TenantContext.getTenantId();
-        return classRepo.findByTenantIdAndIsDeletedFalseOrderByGrade(t).stream()
+        log.debug("Listing classes with sections tenantId={}", t);
+        List<AcademicDTOs.ClassWithSectionsResponse> list = classRepo.findByTenantIdAndIsDeletedFalseOrderByGrade(t).stream()
                 .map(this::toClassWithSectionsResponse)
                 .collect(Collectors.toList());
+        log.info("Loaded {} class(es) with sections tenantId={}", list.size(), t);
+        return list;
     }
 
     /**
@@ -113,8 +127,10 @@ public class AcademicService {
     @Transactional(readOnly = true)
     public AcademicDTOs.ClassWithSectionsResponse getClassWithSectionsById(Long classId) {
         String t = TenantContext.getTenantId();
+        log.debug("Fetching class by id={} tenantId={}", classId, t);
         SchoolClass cls = classRepo.findByIdAndTenantIdAndIsDeletedFalse(classId, t)
                 .orElseThrow(() -> new ResourceNotFoundException("Class", classId));
+        log.info("Loaded class id={} name={}", classId, cls.getName());
         return toClassWithSectionsResponse(cls);
     }
 
@@ -163,14 +179,18 @@ public class AcademicService {
     @Transactional
     public Section addSection(Long classId, String sectionName, Integer capacity) {
         String t = TenantContext.getTenantId();
+        log.info("Adding section name={} to classId={}", sectionName, classId);
         classRepo.findByIdAndTenantIdAndIsDeletedFalse(classId, t).orElseThrow(() -> new ResourceNotFoundException("Class", classId));
         Section sec = Section.builder().name(sectionName).classId(classId).capacity(capacity != null ? capacity : 40).studentCount(0).build();
         sec.setTenantId(t);
-        return sectionRepo.save(sec);
+        Section saved = sectionRepo.save(sec);
+        log.info("Section created id={} classId={}", saved.getId(), classId);
+        return saved;
     }
 
     @Transactional
     public SchoolClass assignClassTeacher(Long classId, Long teacherId, String teacherName) {
+        log.info("Assigning class teacher classId={} teacherId={}", classId, teacherId);
         SchoolClass cls = classRepo.findByIdAndTenantIdAndIsDeletedFalse(classId, TenantContext.getTenantId()).orElseThrow(() -> new ResourceNotFoundException("Class", classId));
         cls.setClassTeacherId(teacherId);
         cls.setClassTeacherName(teacherName);
@@ -179,17 +199,23 @@ public class AcademicService {
             teacherAssignmentService.recordClassTeacherAssignment(
                     classId, null, teacherId, cls.getAcademicYearId(), LocalDate.now());
         }
+        log.info("Class teacher assigned classId={}", classId);
         return saved;
     }
 
     @Transactional(readOnly = true)
     public List<Section> getSectionsByClass(Long classId) {
-        return sectionRepo.findByTenantIdAndClassIdAndIsDeletedFalse(TenantContext.getTenantId(), classId);
+        String t = TenantContext.getTenantId();
+        log.debug("Listing sections for classId={}", classId);
+        List<Section> list = sectionRepo.findByTenantIdAndClassIdAndIsDeletedFalse(t, classId);
+        log.info("Found {} section(s) for classId={}", list.size(), classId);
+        return list;
     }
 
     @Transactional(readOnly = true)
     public AcademicWorkflowDTOs.PromotionPreviewResponse previewPromotion(Long fromClassId) {
         String tenantId = TenantContext.getTenantId();
+        log.debug("Preview promotion fromClassId={} tenantId={}", fromClassId, tenantId);
         SchoolClass sourceClass = classRepo.findByIdAndTenantIdAndIsDeletedFalse(fromClassId, tenantId).orElseThrow(() -> new ResourceNotFoundException("Class", fromClassId));
         SchoolClass targetClass = classRepo.findByTenantIdAndIsDeletedFalseOrderByGrade(tenantId).stream()
                 .filter(cls -> cls.getGrade() != null && sourceClass.getGrade() != null && cls.getGrade().equals(sourceClass.getGrade() + 1))
@@ -226,12 +252,15 @@ public class AcademicService {
         response.setDefaultSectionId(defaultSection != null ? defaultSection.getId() : null);
         response.setDefaultSectionName(defaultSection != null ? defaultSection.getName() : null);
         response.setStudents(students);
+        log.info("Promotion preview fromClassId={} targetClassId={} studentCount={}", fromClassId, targetClass.getId(), students.size());
         return response;
     }
 
     @Transactional
     public AcademicWorkflowDTOs.PromotionResultResponse promoteStudents(AcademicWorkflowDTOs.PromoteStudentsRequest req) {
         String tenantId = TenantContext.getTenantId();
+        log.info("Executing promotion sourceClassId={} targetClassId={} studentIdsCount={}",
+                req.getSourceClassId(), req.getTargetClassId(), req.getStudentIds() != null ? req.getStudentIds().size() : 0);
         classRepo.findByIdAndTenantIdAndIsDeletedFalse(req.getSourceClassId(), tenantId).orElseThrow(() -> new ResourceNotFoundException("Class", req.getSourceClassId()));
         SchoolClass targetClass = classRepo.findByIdAndTenantIdAndIsDeletedFalse(req.getTargetClassId(), tenantId).orElseThrow(() -> new ResourceNotFoundException("Class", req.getTargetClassId()));
         Section targetSection = null;
@@ -275,6 +304,7 @@ public class AcademicService {
         response.setTargetClassName(targetClass.getName());
         response.setTargetSectionName(targetSection != null ? targetSection.getName() : "");
         response.setPromotedStudents(promotedRows);
+        log.info("Promotion completed promotedCount={} targetClassId={}", students.size(), targetClass.getId());
         return response;
     }
 

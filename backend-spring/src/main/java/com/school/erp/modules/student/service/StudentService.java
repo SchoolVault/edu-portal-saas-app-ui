@@ -30,26 +30,36 @@ public class StudentService {
     @Transactional(readOnly = true)
     public PageResponse<StudentDTOs.Response> getStudents(int page, int size, Long classId, Enums.StudentStatus status, String search, String sortBy, String direction) {
         String tenantId = TenantContext.getTenantId();
+        log.debug("Listing students page={} classId={} status={} searchPresent={}", page, classId, status, search != null && !search.isBlank());
         Sort sort = Sort.by(Sort.Direction.fromString(direction != null ? direction : "asc"), sortBy != null ? sortBy : "firstName");
         Page<Student> result = studentRepository.findByFilters(tenantId, classId, status, search, PageRequest.of(page, size, sort));
         List<StudentDTOs.Response> content = result.getContent().stream().map(this::toResponse).collect(Collectors.toList());
+        log.info("Students page loaded page={} returned={} total={}", page, content.size(), result.getTotalElements());
         return PageResponse.of(content, page, size, result.getTotalElements());
     }
 
     @Transactional(readOnly = true)
     public StudentDTOs.Response getStudentById(Long id) {
+        log.debug("Fetching student id={}", id);
         Student student = studentRepository.findByIdAndTenantIdAndIsDeletedFalse(id, TenantContext.getTenantId()).orElseThrow(() -> new ResourceNotFoundException("Student", id));
+        log.info("Student loaded id={} admissionNumber={}", id, student.getAdmissionNumber());
         return toResponse(student);
     }
 
     @Transactional(readOnly = true)
     public List<StudentDTOs.Response> getStudentsByClass(Long classId) {
-        return studentRepository.findByTenantIdAndClassIdAndIsDeletedFalse(TenantContext.getTenantId(), classId).stream().map(this::toResponse).collect(Collectors.toList());
+        log.debug("Listing students by classId={}", classId);
+        List<StudentDTOs.Response> list = studentRepository.findByTenantIdAndClassIdAndIsDeletedFalse(TenantContext.getTenantId(), classId).stream().map(this::toResponse).collect(Collectors.toList());
+        log.info("Students in class classId={} count={}", classId, list.size());
+        return list;
     }
 
     @Transactional(readOnly = true)
     public List<StudentDTOs.Response> getStudentsByClassAndSection(Long classId, Long sectionId) {
-        return studentRepository.findByTenantIdAndClassIdAndSectionIdAndIsDeletedFalse(TenantContext.getTenantId(), classId, sectionId).stream().map(this::toResponse).collect(Collectors.toList());
+        log.debug("Listing students classId={} sectionId={}", classId, sectionId);
+        List<StudentDTOs.Response> list = studentRepository.findByTenantIdAndClassIdAndSectionIdAndIsDeletedFalse(TenantContext.getTenantId(), classId, sectionId).stream().map(this::toResponse).collect(Collectors.toList());
+        log.info("Students in class/section classId={} sectionId={} count={}", classId, sectionId, list.size());
+        return list;
     }
 
     @Transactional
@@ -60,6 +70,7 @@ public class StudentService {
             admNo = "ADM" + System.currentTimeMillis();
         }
         if (studentRepository.existsByTenantIdAndAdmissionNumber(tenantId, admNo)) {
+            log.warn("Student create rejected: duplicate admissionNumber={}", admNo);
             throw new DuplicateResourceException("Admission number already exists: " + admNo);
         }
         Student student = Student.builder().firstName(request.getFirstName()).lastName(request.getLastName()).email(request.getEmail()).phone(request.getPhone()).dateOfBirth(request.getDateOfBirth()).gender(request.getGender()).classId(request.getClassId()).sectionId(request.getSectionId()).rollNumber(request.getRollNumber()).admissionNumber(admNo).admissionDate(request.getAdmissionDate() != null ? request.getAdmissionDate() : LocalDate.now()).parentId(request.getParentId()).parentName(request.getParentName()).address(request.getAddress()).bloodGroup(request.getBloodGroup()).status(Enums.StudentStatus.ACTIVE).build();
@@ -72,6 +83,7 @@ public class StudentService {
 
     @Transactional
     public StudentDTOs.Response updateStudent(Long id, StudentDTOs.UpdateRequest request) {
+        log.info("Updating student id={}", id);
         Student student = studentRepository.findByIdAndTenantIdAndIsDeletedFalse(id, TenantContext.getTenantId()).orElseThrow(() -> new ResourceNotFoundException("Student", id));
         if (request.getFirstName() != null) student.setFirstName(request.getFirstName());
         if (request.getLastName() != null) student.setLastName(request.getLastName());
@@ -89,11 +101,13 @@ public class StudentService {
         if (request.getStatus() != null) student.setStatus(request.getStatus());
         student.setUpdatedBy(TenantContext.getUserId() != null ? TenantContext.getUserId().toString() : null);
         studentRepository.save(student);
+        log.info("Student updated id={}", id);
         return toResponse(student);
     }
 
     @Transactional
     public void deleteStudent(Long id) {
+        log.warn("Soft-deleting student id={}", id);
         Student student = studentRepository.findByIdAndTenantIdAndIsDeletedFalse(id, TenantContext.getTenantId()).orElseThrow(() -> new ResourceNotFoundException("Student", id));
         student.setIsDeleted(true);
         studentRepository.save(student);
@@ -102,6 +116,8 @@ public class StudentService {
 
     @Transactional
     public List<StudentDTOs.Response> bulkCreate(StudentDTOs.BulkUploadRequest request) {
+        int n = request.getStudents() != null ? request.getStudents().size() : 0;
+        log.info("Bulk creating {} student(s)", n);
         return request.getStudents().stream().map(this::createStudent).collect(Collectors.toList());
     }
 
@@ -110,13 +126,16 @@ public class StudentService {
         StudentDTOs.BulkUploadReport report = new StudentDTOs.BulkUploadReport();
         java.util.List<StudentDTOs.CreateRequest> students = request.getStudents();
         if (students == null) {
+            log.warn("Bulk student upload: empty payload");
             return report;
         }
+        log.info("Bulk student upload with report: {} row(s)", students.size());
         for (int i = 0; i < students.size(); i++) {
             StudentDTOs.CreateRequest cr = students.get(i);
             try {
                 report.getSuccesses().add(createStudent(cr));
             } catch (Exception ex) {
+                log.warn("Bulk student row {} failed: {}", i, ex.getMessage());
                 StudentDTOs.BulkRowError err = new StudentDTOs.BulkRowError();
                 err.setRowIndex(i);
                 err.setAdmissionNumber(cr != null ? cr.getAdmissionNumber() : null);
@@ -124,11 +143,13 @@ public class StudentService {
                 report.getErrors().add(err);
             }
         }
+        log.info("Bulk student upload done successes={} errors={}", report.getSuccesses().size(), report.getErrors().size());
         return report;
     }
 
     @Transactional
     public List<StudentDTOs.Response> importFromZip(MultipartFile file) {
+        log.info("Importing students from zip students.csv");
         List<Map<String, String>> rows = ZipCsvImportUtil.readRows(file, "students.csv");
         List<StudentDTOs.Response> created = new ArrayList<>();
         for (Map<String, String> row : rows) {
@@ -150,12 +171,15 @@ public class StudentService {
             request.setBloodGroup(blankToNull(row.get("bloodgroup")));
             created.add(createStudent(request));
         }
+        log.info("Student zip import finished count={}", created.size());
         return created;
     }
 
     @Transactional
     public int promoteStudents(StudentDTOs.PromotionRequest request) {
         String tenantId = TenantContext.getTenantId();
+        log.info("Promote students fromClass={} toClass={} explicitIds={}",
+                request.getFromClassId(), request.getToClassId(), request.getStudentIds() != null ? request.getStudentIds().size() : 0);
         List<Student> students;
         if (request.getStudentIds() != null && !request.getStudentIds().isEmpty()) {
             students = studentRepository.findAllById(request.getStudentIds()).stream().filter(s -> s.getTenantId().equals(tenantId) && !s.getIsDeleted()).collect(Collectors.toList());
@@ -172,7 +196,9 @@ public class StudentService {
     }
 
     public long countStudents() {
-        return studentRepository.countByTenantIdAndIsDeletedFalse(TenantContext.getTenantId());
+        long n = studentRepository.countByTenantIdAndIsDeletedFalse(TenantContext.getTenantId());
+        log.debug("Student count tenant={} n={}", TenantContext.getTenantId(), n);
+        return n;
     }
 
     private StudentDTOs.Response toResponse(Student s) {

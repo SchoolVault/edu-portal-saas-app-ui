@@ -109,8 +109,17 @@ management:
       show-details: ${MANAGEMENT_HEALTH_SHOW_DETAILS:when-authorized}
 
 logging:
+  # Render-friendly single line: correlation + tenant/user from MDC (see CorrelationMdcFilter, JwtAuthenticationFilter).
+  pattern:
+    console: "%d{yyyy-MM-dd'T'HH:mm:ss.SSSXXX} %-5level [${spring.application.name}] [%thread] [trace:%X{traceId:-}] [tenant:%X{tenantId:-}] [user:%X{userId:-}] [role:%X{userRole:-}] %logger{40} : %msg%n%wEx"
   level:
     com.school.erp: ${LOG_LEVEL_APP:INFO}
+    com.school.erp.common.logging: ${LOG_LEVEL_APP_HTTP:INFO}
     org.hibernate.SQL: ${LOG_LEVEL_HIBERNATE_SQL:WARN}
+    org.hibernate.orm.jdbc.bind: ${LOG_LEVEL_HIBERNATE_BIND:WARN}
     org.springframework.security: ${LOG_LEVEL_SECURITY:WARN}
+    org.springframework.web: ${LOG_LEVEL_SPRING_WEB:WARN}
+    org.springframework.web.servlet.DispatcherServlet: ${LOG_LEVEL_DISPATCHER_SERVLET:WARN}
+    com.zaxxer.hikari: ${LOG_LEVEL_HIKARI:WARN}
+    org.springframework.amqp: ${LOG_LEVEL_AMQP:WARN}
     root: ${LOG_LEVEL_ROOT:INFO}

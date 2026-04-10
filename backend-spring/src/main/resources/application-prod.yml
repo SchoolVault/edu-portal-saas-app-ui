@@ -26,7 +26,9 @@ spring:
     clean-disabled: true
 
 logging:
+  # Override any of these in Render: LOG_LEVEL_ROOT, LOG_LEVEL_APP, LOG_LEVEL_APP_HTTP, etc. (see application.yml).
   level:
-    com.school.erp: INFO
-    org.hibernate.SQL: WARN
-    root: WARN
+    root: ${LOG_LEVEL_ROOT:INFO}
+    com.school.erp: ${LOG_LEVEL_APP:INFO}
+    com.school.erp.common.logging: ${LOG_LEVEL_APP_HTTP:INFO}
+    org.hibernate.SQL: ${LOG_LEVEL_HIBERNATE_SQL:WARN}
