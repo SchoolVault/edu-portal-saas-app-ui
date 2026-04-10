@@ -3,11 +3,12 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ParentService } from '../../core/services/parent.service';
 import { AttendanceRecord, AttendanceStats, CheckoutSession, FeePayment, MarkRecord, ParentFeeObligation, PaymentReceipt, Student } from '../../core/models/models';
+import { ErpDatePickerComponent } from '../../shared/erp-date-picker/erp-date-picker.component';
 
 @Component({
   selector: 'app-parent-portal',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, ErpDatePickerComponent],
   template: `
     <div data-testid="parent-portal-page">
       <div class="d-flex justify-content-between align-items-center mb-4 animate-in flex-wrap gap-2">
@@ -31,11 +32,11 @@ import { AttendanceRecord, AttendanceStats, CheckoutSession, FeePayment, MarkRec
           </div>
           <div class="col-md-3">
             <label class="erp-label">From</label>
-            <input type="date" class="erp-input" [(ngModel)]="fromDate" (change)="reloadSelectedChild()">
+            <app-erp-date-picker [(ngModel)]="fromDate" (ngModelChange)="reloadSelectedChild()" placeholder="From" />
           </div>
           <div class="col-md-3">
             <label class="erp-label">To</label>
-            <input type="date" class="erp-input" [(ngModel)]="toDate" (change)="reloadSelectedChild()">
+            <app-erp-date-picker [(ngModel)]="toDate" (ngModelChange)="reloadSelectedChild()" placeholder="To" />
           </div>
         </div>
       </div>

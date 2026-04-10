@@ -7,11 +7,12 @@ import { AcademicService } from '../../core/services/academic.service';
 import { TeacherService } from '../../core/services/teacher.service';
 import { AuthService } from '../../core/services/auth.service';
 import { SchoolClass, Student, AttendanceRecord } from '../../core/models/models';
+import { ErpDatePickerComponent } from '../../shared/erp-date-picker/erp-date-picker.component';
 
 @Component({
   selector: 'app-attendance',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, ErpDatePickerComponent],
   template: `
     <div data-testid="attendance-page">
       <div class="d-flex justify-content-between align-items-center mb-4 animate-in flex-wrap gap-2">
@@ -40,7 +41,12 @@ import { SchoolClass, Student, AttendanceRecord } from '../../core/models/models
           </div>
           <div class="col-md-3">
             <label class="erp-label">Date</label>
-            <input type="date" class="erp-input" [(ngModel)]="selectedDate" (change)="loadAttendance()" data-testid="attendance-date">
+            <app-erp-date-picker
+              [(ngModel)]="selectedDate"
+              (ngModelChange)="loadAttendance()"
+              dataTestId="attendance-date"
+              placeholder="Session date"
+            />
           </div>
           <div class="col-md-3">
             <button class="btn-primary-erp" style="width: 100%;" (click)="saveAttendance()" [disabled]="!records.length || saving || attendanceLocked" data-testid="save-attendance-btn">

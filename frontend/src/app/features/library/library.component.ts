@@ -6,11 +6,12 @@ import { LibraryCatalogFilter, LibraryService } from '../../core/services/librar
 import { StudentService } from '../../core/services/student.service';
 import { TeacherService } from '../../core/services/teacher.service';
 import { AuthService } from '../../core/services/auth.service';
+import { ErpDatePickerComponent } from '../../shared/erp-date-picker/erp-date-picker.component';
 
 @Component({
   selector: 'app-library',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, ErpDatePickerComponent],
   template: `
     <div data-testid="library-page">
       <div class="d-flex justify-content-between align-items-center mb-4 animate-in flex-wrap gap-2">
@@ -171,7 +172,7 @@ import { AuthService } from '../../core/services/auth.service';
         <div class="modal-body-erp">
           <p class="small text-muted mb-2">{{ returnIssue.bookTitle }} · due {{ returnIssue.dueDate }}</p>
           <label class="erp-label">Return date</label>
-          <input type="date" class="erp-input mb-2" [(ngModel)]="returnForm.returnDate">
+          <app-erp-date-picker class="mb-2" [(ngModel)]="returnForm.returnDate" placeholder="Return date" />
           <label class="erp-label">Fine per overdue day (₹)</label>
           <input type="number" class="erp-input mb-2" [(ngModel)]="returnForm.finePerDay" min="0" step="1">
           <p class="small text-muted mb-0">Leave per-day rate empty to use the school default from settings / tenant config.</p>

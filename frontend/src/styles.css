@@ -1,4 +1,5 @@
 :root {
+  color-scheme: light;
   --clr-primary: #1B3A30;
   --clr-primary-light: #2A5A47;
   --clr-primary-dark: #122A22;
@@ -35,6 +36,7 @@
 }
 
 [data-theme='dark'] {
+  color-scheme: dark;
   --clr-primary: #7dd3a7;
   --clr-primary-light: #98e0b9;
   --clr-primary-dark: #4fa57a;
@@ -541,6 +543,26 @@ a:hover { color: var(--clr-accent-dark); }
   box-shadow: 0 0 0 4px rgba(220,38,38,0.12);
 }
 
+/* Autofill / browser defaults must follow theme (fixes “white” fields in dark mode) */
+.erp-input:-webkit-autofill,
+.erp-input:-webkit-autofill:hover,
+.erp-input:-webkit-autofill:focus,
+.erp-textarea:-webkit-autofill,
+.erp-textarea:-webkit-autofill:hover,
+.erp-textarea:-webkit-autofill:focus {
+  -webkit-text-fill-color: var(--clr-text) !important;
+  box-shadow: 0 0 0 1000px var(--clr-surface) inset !important;
+  transition: background-color 99999s ease-out;
+}
+
+/* Bootstrap form widgets: keep ERP palette if any slip in */
+.form-control,
+.form-select {
+  background-color: var(--clr-surface) !important;
+  color: var(--clr-text) !important;
+  border-color: var(--clr-border) !important;
+}
+
 .erp-select {
   width: 100%;
   padding: 10px 16px;
@@ -1025,4 +1047,163 @@ a:hover { color: var(--clr-accent-dark); }
 @media (max-width: 576px) {
   .erp-card { padding: 16px; }
   .stat-card { padding: 16px; }
+}
+
+/* === ERP DATE PICKER (Flatpickr) — SchoolVault tokens, light + dark === */
+.erp-date-picker__visible {
+  cursor: pointer;
+  width: 100%;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='%2394a3b8' viewBox='0 0 16 16'%3E%3Cpath d='M3.5 0a.5.5 0 0 1 .5.5V1h8V.5a.5.5 0 0 1 1 0V1h1a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V3a2 2 0 0 1 2-2h1V.5a.5.5 0 0 1 .5-.5zM1 4v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V4H1z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+  padding-right: 42px;
+}
+[data-theme='light'] .erp-date-picker__visible {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='%2357534E' viewBox='0 0 16 16'%3E%3Cpath d='M3.5 0a.5.5 0 0 1 .5.5V1h8V.5a.5.5 0 0 1 1 0V1h1a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V3a2 2 0 0 1 2-2h1V.5a.5.5 0 0 1 .5-.5zM1 4v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V4H1z'/%3E%3C/svg%3E");
+}
+.erp-date-picker--disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.flatpickr-calendar {
+  background: var(--clr-surface);
+  border: 1px solid var(--clr-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  font-family: var(--font-body);
+  color: var(--clr-text);
+  z-index: 1055;
+}
+.flatpickr-months {
+  padding: 6px 4px 2px;
+}
+.flatpickr-months .flatpickr-month {
+  background: transparent;
+  color: var(--clr-text);
+}
+.flatpickr-current-month {
+  font-size: 105%;
+  font-weight: 700;
+}
+.flatpickr-current-month .flatpickr-monthDropdown-months {
+  background: var(--clr-surface-muted);
+  color: var(--clr-text);
+  border: 1px solid var(--clr-border);
+  border-radius: var(--radius-sm);
+  font-weight: 600;
+  padding: 4px 8px;
+}
+.flatpickr-current-month .numInputWrapper {
+  background: var(--clr-surface-muted);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--clr-border);
+}
+.flatpickr-current-month .numInputWrapper input {
+  color: var(--clr-text);
+  font-weight: 600;
+}
+.flatpickr-current-month .numInputWrapper span.arrowUp,
+.flatpickr-current-month .numInputWrapper span.arrowDown {
+  border-color: var(--clr-border);
+}
+.flatpickr-weekdays {
+  background: transparent;
+}
+span.flatpickr-weekday {
+  color: var(--clr-text-muted);
+  font-weight: 600;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.flatpickr-days {
+  border-color: var(--clr-border-light);
+}
+.dayContainer {
+  border-color: var(--clr-border-light);
+}
+.flatpickr-day {
+  color: var(--clr-text);
+  border-radius: var(--radius-sm);
+  font-weight: 500;
+  border-color: transparent;
+}
+.flatpickr-day:hover {
+  background: var(--clr-hover);
+  border-color: transparent;
+}
+.flatpickr-day.today:not(.selected) {
+  border-color: var(--clr-primary);
+  color: var(--clr-primary);
+  font-weight: 700;
+}
+.flatpickr-day.selected,
+.flatpickr-day.startRange,
+.flatpickr-day.endRange {
+  background: var(--clr-accent) !important;
+  border-color: var(--clr-accent) !important;
+  color: #fff !important;
+}
+.flatpickr-day.flatpickr-disabled,
+.flatpickr-day.prevMonthDay,
+.flatpickr-day.nextMonthDay {
+  color: var(--clr-text-muted);
+  opacity: 0.5;
+}
+.flatpickr-months .flatpickr-prev-month,
+.flatpickr-months .flatpickr-next-month {
+  fill: var(--clr-text-secondary);
+}
+.flatpickr-months .flatpickr-prev-month:hover,
+.flatpickr-months .flatpickr-next-month:hover {
+  fill: var(--clr-text);
+  background: var(--clr-hover);
+  border-radius: var(--radius-sm);
+}
+.flatpickr-calendar.arrowTop:before {
+  border-bottom-color: var(--clr-border);
+}
+.flatpickr-calendar.arrowTop:after {
+  border-bottom-color: var(--clr-surface);
+}
+.flatpickr-calendar.arrowBottom:before {
+  border-top-color: var(--clr-border);
+}
+.flatpickr-calendar.arrowBottom:after {
+  border-top-color: var(--clr-surface);
+}
+
+.erp-fp-footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 12px;
+  border-top: 1px solid var(--clr-border);
+  background: var(--clr-surface-muted);
+  border-radius: 0 0 calc(var(--radius-lg) - 2px) calc(var(--radius-lg) - 2px);
+}
+.erp-fp-footer__btn {
+  flex: 1;
+  padding: 8px 12px;
+  border-radius: var(--radius-md);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid var(--clr-border);
+  background: var(--clr-surface);
+  color: var(--clr-text-secondary);
+  font-family: var(--font-body);
+}
+.erp-fp-footer__btn:hover {
+  background: var(--clr-hover);
+  color: var(--clr-text);
+}
+.erp-fp-footer__btn--primary {
+  background: color-mix(in srgb, var(--clr-accent) 12%, var(--clr-surface));
+  border-color: color-mix(in srgb, var(--clr-accent) 40%, var(--clr-border));
+  color: var(--clr-accent-dark);
+}
+[data-theme='dark'] .erp-fp-footer__btn--primary {
+  color: var(--clr-accent);
 }

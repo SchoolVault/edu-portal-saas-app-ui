@@ -3,11 +3,12 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { LeaveBalanceSummary, LeaveDayUnit, LeaveRequestRow, LeaveService } from '../../core/services/leave.service';
 import { AuthService } from '../../core/services/auth.service';
+import { ErpDatePickerComponent } from '../../shared/erp-date-picker/erp-date-picker.component';
 
 @Component({
   selector: 'app-leave',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, ErpDatePickerComponent],
   template: `
     <div class="animate-in leave-page">
       <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-1">
@@ -69,11 +70,11 @@ import { AuthService } from '../../core/services/auth.service';
           </div>
           <div class="col-md-4">
             <label class="erp-label">From</label>
-            <input type="date" class="erp-input" [(ngModel)]="form.startDate" />
+            <app-erp-date-picker [(ngModel)]="form.startDate" placeholder="From" />
           </div>
           <div class="col-md-4">
             <label class="erp-label">To</label>
-            <input type="date" class="erp-input" [(ngModel)]="form.endDate" />
+            <app-erp-date-picker [(ngModel)]="form.endDate" placeholder="To" />
           </div>
           <div class="col-12">
             <label class="erp-label">Reason</label>

@@ -6,13 +6,14 @@ import { ExamService } from '../../core/services/exam.service';
 import { StudentService } from '../../core/services/student.service';
 import { AuthService } from '../../core/services/auth.service';
 import { AcademicYear, Exam, ExamClassScope, ExamScheduleSlot, MarkRecord, SchoolClass, Student } from '../../core/models/models';
+import { ErpDatePickerComponent } from '../../shared/erp-date-picker/erp-date-picker.component';
 
 type ExamDetailTab = 'marks' | 'timetable';
 
 @Component({
   selector: 'app-exams',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, ErpDatePickerComponent],
   template: `
     <div data-testid="exams-page">
       <div class="d-flex justify-content-between align-items-center mb-4 animate-in flex-wrap gap-2">
@@ -136,7 +137,7 @@ type ExamDetailTab = 'marks' | 'timetable';
               </thead>
               <tbody>
                 <tr *ngFor="let row of scheduleDraft; let i = index">
-                  <td><input type="date" class="erp-input" [(ngModel)]="row.examDate" [disabled]="!canEditSchedule"></td>
+                  <td><app-erp-date-picker [(ngModel)]="row.examDate" [ngModelOptions]="{standalone: true}" [disabled]="!canEditSchedule" placeholder="Exam date" /></td>
                   <td><input type="time" class="erp-input" [(ngModel)]="row.startTime" [disabled]="!canEditSchedule"></td>
                   <td><input type="time" class="erp-input" [(ngModel)]="row.endTime" [disabled]="!canEditSchedule"></td>
                   <td><input class="erp-input" [(ngModel)]="row.subjectName" [disabled]="!canEditSchedule"></td>
@@ -186,8 +187,8 @@ type ExamDetailTab = 'marks' | 'timetable';
             </select>
           </div>
           <div class="row g-3">
-            <div class="col-md-6"><div class="erp-form-group"><label class="erp-label">Start</label><input type="date" class="erp-input" [(ngModel)]="newExam.startDate"></div></div>
-            <div class="col-md-6"><div class="erp-form-group"><label class="erp-label">End</label><input type="date" class="erp-input" [(ngModel)]="newExam.endDate"></div></div>
+            <div class="col-md-6"><div class="erp-form-group"><label class="erp-label">Start</label><app-erp-date-picker [(ngModel)]="newExam.startDate" placeholder="Start" /></div></div>
+            <div class="col-md-6"><div class="erp-form-group"><label class="erp-label">End</label><app-erp-date-picker [(ngModel)]="newExam.endDate" placeholder="End" /></div></div>
           </div>
           <div class="erp-form-group">
             <label class="erp-label">Classes &amp; sections</label>

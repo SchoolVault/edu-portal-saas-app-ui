@@ -12,11 +12,12 @@ import { BLOOD_GROUPS, GENDERS } from '../../core/config/app-constants';
 import { runtimeConfig } from '../../core/config/runtime-config';
 import { canUploadStudentDirectoryPhoto } from '../../core/policy/profile-photo-upload.policy';
 import { ProfilePhotoPickerComponent, ProfilePhotoPickEvent } from '../../shared/profile-photo-picker/profile-photo-picker.component';
+import { ErpDatePickerComponent } from '../../shared/erp-date-picker/erp-date-picker.component';
 
 @Component({
   selector: 'app-student-form',
   standalone: true,
-  imports: [CommonModule, FormsModule, ProfilePhotoPickerComponent],
+  imports: [CommonModule, FormsModule, ProfilePhotoPickerComponent, ErpDatePickerComponent],
   template: `
     <div data-testid="student-form-page" class="animate-in">
       <div class="d-flex align-items-center gap-3 mb-4">
@@ -52,7 +53,13 @@ import { ProfilePhotoPickerComponent, ProfilePhotoPickEvent } from '../../shared
             </div>
             <div class="col-md-4">
               <div class="erp-form-group"><label class="erp-label">Date of Birth *</label>
-                <input type="date" class="erp-input" [(ngModel)]="student.dateOfBirth" name="dob" required data-testid="student-dob">
+                <app-erp-date-picker
+                  [(ngModel)]="student.dateOfBirth"
+                  name="dob"
+                  dataTestId="student-dob"
+                  placeholder="Date of birth"
+                  required
+                />
               </div>
             </div>
             <div class="col-md-4">
@@ -121,7 +128,12 @@ import { ProfilePhotoPickerComponent, ProfilePhotoPickEvent } from '../../shared
             </div>
             <div class="col-md-4">
               <div class="erp-form-group"><label class="erp-label">Admission Date</label>
-                <input type="date" class="erp-input" [(ngModel)]="student.admissionDate" name="admissionDate" data-testid="student-admission-date">
+                <app-erp-date-picker
+                  [(ngModel)]="student.admissionDate"
+                  name="admissionDate"
+                  dataTestId="student-admission-date"
+                  placeholder="Admission date"
+                />
               </div>
             </div>
             <div class="col-md-4">

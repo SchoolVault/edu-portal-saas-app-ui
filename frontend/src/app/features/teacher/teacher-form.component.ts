@@ -8,11 +8,12 @@ import { AuthService } from '../../core/services/auth.service';
 import { SubjectCatalogItem, Teacher } from '../../core/models/models';
 import { canAdminSetTeacherDirectoryPhoto } from '../../core/policy/profile-photo-upload.policy';
 import { ProfilePhotoPickerComponent, ProfilePhotoPickEvent } from '../../shared/profile-photo-picker/profile-photo-picker.component';
+import { ErpDatePickerComponent } from '../../shared/erp-date-picker/erp-date-picker.component';
 
 @Component({
   selector: 'app-teacher-form',
   standalone: true,
-  imports: [CommonModule, FormsModule, ProfilePhotoPickerComponent],
+  imports: [CommonModule, FormsModule, ProfilePhotoPickerComponent, ErpDatePickerComponent],
   template: `
     <div data-testid="teacher-form-page" class="animate-in">
       <div class="d-flex align-items-center gap-3 mb-4">
@@ -28,7 +29,7 @@ import { ProfilePhotoPickerComponent, ProfilePhotoPickEvent } from '../../shared
             <div class="col-md-4"><div class="erp-form-group"><label class="erp-label">Phone</label><input type="text" class="erp-input" [(ngModel)]="teacher.phone" name="phone"></div></div>
             <div class="col-md-4"><div class="erp-form-group"><label class="erp-label">Qualification</label><input type="text" class="erp-input" [(ngModel)]="teacher.qualification" name="qualification"></div></div>
             <div class="col-md-4"><div class="erp-form-group"><label class="erp-label">Specialization</label><input type="text" class="erp-input" [(ngModel)]="teacher.specialization" name="specialization"></div></div>
-            <div class="col-md-4"><div class="erp-form-group"><label class="erp-label">Join Date</label><input type="date" class="erp-input" [(ngModel)]="teacher.joinDate" name="joinDate"></div></div>
+            <div class="col-md-4"><div class="erp-form-group"><label class="erp-label">Join Date</label><app-erp-date-picker [(ngModel)]="teacher.joinDate" name="joinDate" placeholder="Join date" /></div></div>
             <div class="col-md-4"><div class="erp-form-group"><label class="erp-label">Salary</label><input type="number" class="erp-input" [(ngModel)]="teacher.salary" name="salary"></div></div>
             <div class="col-12">
               <div class="erp-form-group">

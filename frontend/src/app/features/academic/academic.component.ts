@@ -4,11 +4,12 @@ import { FormsModule } from '@angular/forms';
 import { AcademicService } from '../../core/services/academic.service';
 import { TeacherService } from '../../core/services/teacher.service';
 import { AcademicYear, PromotionPreview, SchoolClass, Teacher } from '../../core/models/models';
+import { ErpDatePickerComponent } from '../../shared/erp-date-picker/erp-date-picker.component';
 
 @Component({
   selector: 'app-academic',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, ErpDatePickerComponent],
   template: `
     <div data-testid="academic-page">
       <div class="d-flex justify-content-between align-items-center mb-4 animate-in">
@@ -168,8 +169,8 @@ import { AcademicYear, PromotionPreview, SchoolClass, Teacher } from '../../core
           <div class="modal-body-erp">
             <div class="erp-form-group"><label class="erp-label">Year Name</label><input type="text" class="erp-input" [(ngModel)]="newYear.name" placeholder="e.g. 2026-2027"></div>
             <div class="row g-3">
-              <div class="col-md-6"><div class="erp-form-group"><label class="erp-label">Start Date</label><input type="date" class="erp-input" [(ngModel)]="newYear.startDate"></div></div>
-              <div class="col-md-6"><div class="erp-form-group"><label class="erp-label">End Date</label><input type="date" class="erp-input" [(ngModel)]="newYear.endDate"></div></div>
+              <div class="col-md-6"><div class="erp-form-group"><label class="erp-label">Start Date</label><app-erp-date-picker [(ngModel)]="newYear.startDate" placeholder="Start" /></div></div>
+              <div class="col-md-6"><div class="erp-form-group"><label class="erp-label">End Date</label><app-erp-date-picker [(ngModel)]="newYear.endDate" placeholder="End" /></div></div>
             </div>
           </div>
           <div class="modal-footer-erp">
