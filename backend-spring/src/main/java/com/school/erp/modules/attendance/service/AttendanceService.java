@@ -2,9 +2,11 @@ package com.school.erp.modules.attendance.service;
 
 import com.school.erp.common.enums.Enums;
 import com.school.erp.common.exception.BusinessException;
+import com.school.erp.common.exception.UnauthorizedException;
 import com.school.erp.modules.attendance.dto.AttendanceDTOs;
 import com.school.erp.modules.attendance.entity.AttendanceRecord;
 import com.school.erp.modules.attendance.repository.AttendanceRepository;
+import com.school.erp.modules.student.service.TeacherRosterScopeService;
 import com.school.erp.tenant.TenantContext;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -16,9 +18,17 @@ import java.util.stream.Collectors;
 public class AttendanceService {
     private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(AttendanceService.class);
     private final AttendanceRepository repo;
+    private final TeacherRosterScopeService teacherRosterScopeService;
+
+    private void assertTeacherAttendanceScope(Long classId, Long sectionId, LocalDate date) {
+        if (!teacherRosterScopeService.teacherMayMarkAttendance(classId, sectionId, date)) {
+            throw new UnauthorizedException("Not allowed to access or mark attendance for this class/section");
+        }
+    }
 
     @Transactional(readOnly = true)
     public List<AttendanceDTOs.AttendanceResponse> getByClassSectionDate(Long classId, Long sectionId, LocalDate date) {
+        assertTeacherAttendanceScope(classId, sectionId, date);
         return repo.findByTenantIdAndClassIdAndSectionIdAndDate(TenantContext.getTenantId(), classId, sectionId, date).stream().map(this::toResponse).collect(Collectors.toList());
     }
 
@@ -27,6 +37,7 @@ public class AttendanceService {
         String t = TenantContext.getTenantId();
         Long markedBy = TenantContext.getUserId();
         LocalDate date = LocalDate.parse(request.getDate());
+        assertTeacherAttendanceScope(request.getClassId(), request.getSectionId(), date);
         String role = TenantContext.getUserRole();
         if (role != null && "TEACHER".equalsIgnoreCase(role) && date.isBefore(LocalDate.now())) {
             throw new BusinessException("Teachers cannot edit attendance for past dates. View the record or ask an administrator to make changes.");
@@ -66,6 +77,7 @@ public class AttendanceService {
 
     @Transactional(readOnly = true)
     public AttendanceDTOs.ClassAttendanceStatsResponse getClassStats(Long classId, Long sectionId, LocalDate date) {
+        assertTeacherAttendanceScope(classId, sectionId, date);
         List<AttendanceRecord> records = repo.findByTenantIdAndClassIdAndSectionIdAndDate(TenantContext.getTenantId(), classId, sectionId, date);
         long present = records.stream().filter(r -> r.getStatus() == Enums.AttendanceStatus.PRESENT).count();
         long absent = records.stream().filter(r -> r.getStatus() == Enums.AttendanceStatus.ABSENT).count();
@@ -76,6 +88,7 @@ public class AttendanceService {
 
     @Transactional(readOnly = true)
     public List<AttendanceDTOs.MonthlyAttendanceRow> getMonthlyReport(Long classId, Long sectionId, int year, int month) {
+        assertTeacherAttendanceScope(classId, sectionId, LocalDate.now());
         String t = TenantContext.getTenantId();
         LocalDate from = LocalDate.of(year, month, 1);
         LocalDate to = from.withDayOfMonth(from.lengthOfMonth());
@@ -104,7 +117,8 @@ public class AttendanceService {
         return AttendanceDTOs.AttendanceResponse.builder().id(r.getId()).studentId(r.getStudentId()).studentName(r.getStudentName()).classId(r.getClassId()).sectionId(r.getSectionId()).date(r.getDate().toString()).status(r.getStatus().name().toLowerCase()).markedBy(r.getMarkedBy()).remarks(r.getRemarks()).build();
     }
 
-    public AttendanceService(final AttendanceRepository repo) {
+    public AttendanceService(final AttendanceRepository repo, final TeacherRosterScopeService teacherRosterScopeService) {
         this.repo = repo;
+        this.teacherRosterScopeService = teacherRosterScopeService;
     }
 }

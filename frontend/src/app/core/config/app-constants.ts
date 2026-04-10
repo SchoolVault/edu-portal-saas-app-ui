@@ -15,8 +15,9 @@ export const NAV_ITEMS: NavItem[] = [
   { label: 'System health', icon: 'bi-heart-pulse', route: '/app/platform-health', roles: ['super_admin'], section: 'Platform' },
   { label: 'Settings', icon: 'bi-gear-fill', route: '/app/platform-settings', roles: ['super_admin'], section: 'Platform' },
   { label: 'My Children', icon: 'bi-person-vcard-fill', route: '/app/parent', roles: ['parent'], section: 'Main' },
-  { label: 'Academic', icon: 'bi-mortarboard-fill', route: '/app/academic', roles: ['admin'], section: 'Main' },
+  { label: 'Academic', icon: 'bi-mortarboard-fill', route: '/app/academic', roles: ['admin', 'teacher'], section: 'Main' },
   { label: 'Students', icon: 'bi-people-fill', route: '/app/students', roles: ['admin', 'teacher'], section: 'People' },
+  { label: 'Directory', icon: 'bi-search-heart', route: '/app/directory', roles: ['admin'], section: 'People' },
   { label: 'Teachers', icon: 'bi-person-badge-fill', route: '/app/teachers', roles: ['admin'], section: 'People' },
   { label: 'Attendance', icon: 'bi-calendar-check-fill', route: '/app/attendance', roles: ['admin', 'teacher'], section: 'Academics' },
   { label: 'Timetable', icon: 'bi-clock-fill', route: '/app/timetable', roles: ['admin', 'teacher', 'parent'], section: 'Academics' },
@@ -24,20 +25,21 @@ export const NAV_ITEMS: NavItem[] = [
   { label: 'Fees', icon: 'bi-credit-card-fill', route: '/app/fees', roles: ['admin'], section: 'Finance' },
   { label: 'Payroll', icon: 'bi-wallet-fill', route: '/app/payroll', roles: ['admin'], section: 'Finance' },
   { label: 'Inbox', icon: 'bi-inbox-fill', route: '/app/inbox', roles: ['admin', 'teacher', 'parent', 'student'], section: 'Connect' },
-  { label: 'Chat', icon: 'bi-chat-dots-fill', route: '/app/chat', roles: ['admin', 'teacher', 'parent'], section: 'Connect' },
+  { label: 'Chat', icon: 'bi-chat-dots-fill', route: '/app/chat', roles: ['admin', 'teacher', 'parent', 'super_admin'], section: 'Connect' },
   { label: 'Leave', icon: 'bi-calendar-x', route: '/app/leave', roles: ['admin', 'teacher'], section: 'Connect' },
   { label: 'Reports', icon: 'bi-graph-up', route: '/app/reports', roles: ['admin'], section: 'Analytics' },
+  { label: 'Operations hub', icon: 'bi-building-gear', route: '/app/operations', roles: ['admin'], section: 'Operations' },
   { label: 'Transport', icon: 'bi-bus-front-fill', route: '/app/transport', roles: ['admin'], section: 'Operations' },
   { label: 'Library', icon: 'bi-book-fill', route: '/app/library', roles: ['admin', 'teacher'], section: 'Operations' },
   { label: 'Hostel', icon: 'bi-house-fill', route: '/app/hostel', roles: ['admin'], section: 'Operations' },
   { label: 'Documents', icon: 'bi-folder2-open', route: '/app/documents', roles: ['admin', 'teacher'], section: 'System' },
   { label: 'Audit Log', icon: 'bi-shield-check', route: '/app/audit', roles: ['admin'], section: 'System' },
-  { label: 'Settings', icon: 'bi-gear-fill', route: '/app/settings', roles: ['admin'], section: 'System' },
+  { label: 'Settings', icon: 'bi-gear-fill', route: '/app/settings', roles: ['admin', 'teacher', 'parent'], section: 'System' },
 ];
 
 export const ROLES = { SUPER_ADMIN: 'super_admin', ADMIN: 'admin', TEACHER: 'teacher', PARENT: 'parent', STUDENT: 'student' } as const;
 
-export const STUDENT_STATUS = ['active', 'inactive', 'graduated'] as const;
+export const STUDENT_STATUS = ['active', 'inactive', 'graduated', 'transferred', 'alumni'] as const;
 export const ATTENDANCE_STATUS = ['present', 'absent', 'late', 'excused'] as const;
 export const FEE_STATUS = ['paid', 'partial', 'unpaid', 'overdue'] as const;
 export const EXAM_STATUS = ['upcoming', 'ongoing', 'completed'] as const;

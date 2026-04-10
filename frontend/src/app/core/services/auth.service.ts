@@ -294,7 +294,12 @@ export class AuthService {
               primaryColor: '#0F172A',
               secondaryColor: '#0EA5E9',
               userTitle: 'Platform super administrator',
-              platformWorkspaceCount: 4
+              platformWorkspaceCount: 4,
+              platformOperatorSince: '2024-08-12',
+              platformLastLoginDisplay: 'Today · 09:42 (browser session)',
+              platformTimezone: 'Asia/Kolkata (operator preference)',
+              platformMfaEnabled: true,
+              platformPrimaryRegion: 'IN · Primary data residency — multi-tenant EU/US shards available'
             }
         : user?.role === 'parent'
           ? {

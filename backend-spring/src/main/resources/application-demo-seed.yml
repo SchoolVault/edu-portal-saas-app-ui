@@ -1,0 +1,9 @@
+# Activate with: spring.profiles.active=prod,demo-seed  (put demo-seed AFTER prod so this file overrides app.demo-seed.enabled)
+# Or use the profile group: spring.profiles.active=prod-with-demo-seed
+#
+# Intended for ONE-TIME (or idempotent re-runs) bootstrap of showcase tenants on a production-style database.
+# After data is loaded, run with only `prod` and keep app.demo-seed.enabled=false.
+
+app:
+  demo-seed:
+    enabled: true

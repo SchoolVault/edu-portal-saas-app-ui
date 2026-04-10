@@ -11,6 +11,11 @@ spring:
     name: ${SPRING_APPLICATION_NAME:school-erp}
   profiles:
     active: ${SPRING_PROFILES_ACTIVE:dev}
+    group:
+      # Ordered: prod first, then demo-seed so application-demo-seed.yml overrides app.demo-seed.enabled.
+      prod-with-demo-seed:
+        - prod
+        - demo-seed
 
   datasource:
     url: ${DB_URL:jdbc:mysql://localhost:3306/edu-portal?useSSL=true&serverTimezone=UTC&createDatabaseIfNotExist=true}

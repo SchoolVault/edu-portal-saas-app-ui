@@ -4,7 +4,12 @@ import com.school.erp.common.dto.PageResponse;
 import com.school.erp.common.enums.Enums;
 import com.school.erp.common.exception.DuplicateResourceException;
 import com.school.erp.common.exception.ResourceNotFoundException;
+import com.school.erp.common.exception.UnauthorizedException;
 import com.school.erp.common.importer.ZipCsvImportUtil;
+import com.school.erp.modules.academic.entity.SchoolClass;
+import com.school.erp.modules.academic.entity.Section;
+import com.school.erp.modules.academic.repository.SchoolClassRepository;
+import com.school.erp.modules.academic.repository.SectionRepository;
 import com.school.erp.modules.student.dto.StudentDTOs;
 import com.school.erp.modules.student.entity.Student;
 import com.school.erp.modules.student.repository.StudentRepository;
@@ -18,22 +23,45 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
 public class StudentService {
     private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(StudentService.class);
     private final StudentRepository studentRepository;
+    private final SchoolClassRepository schoolClassRepository;
+    private final SectionRepository sectionRepository;
+    private final TeacherRosterScopeService teacherRosterScopeService;
 
     @Transactional(readOnly = true)
     public PageResponse<StudentDTOs.Response> getStudents(int page, int size, Long classId, Enums.StudentStatus status, String search, String sortBy, String direction) {
         String tenantId = TenantContext.getTenantId();
         log.debug("Listing students page={} classId={} status={} searchPresent={}", page, classId, status, search != null && !search.isBlank());
         Sort sort = Sort.by(Sort.Direction.fromString(direction != null ? direction : "asc"), sortBy != null ? sortBy : "firstName");
-        Page<Student> result = studentRepository.findByFilters(tenantId, classId, status, search, PageRequest.of(page, size, sort));
-        List<StudentDTOs.Response> content = result.getContent().stream().map(this::toResponse).collect(Collectors.toList());
+        Optional<Set<Long>> teacherScope = teacherRosterScopeService.allowedClassIdsForCurrentUser();
+        Page<Student> result;
+        if (teacherScope.isPresent()) {
+            Set<Long> classIds = teacherScope.get();
+            if (classIds.isEmpty()) {
+                return PageResponse.of(List.of(), page, size, 0);
+            }
+            if (classId != null && !classIds.contains(classId)) {
+                return PageResponse.of(List.of(), page, size, 0);
+            }
+            result = studentRepository.findByFiltersClassScope(tenantId, classIds, classId, status, search, PageRequest.of(page, size, sort));
+        } else {
+            result = studentRepository.findByFilters(tenantId, classId, status, search, PageRequest.of(page, size, sort));
+        }
+        Map<Long, String> classNames = new HashMap<>();
+        Map<Long, String> sectionNames = new HashMap<>();
+        List<StudentDTOs.Response> content = result.getContent().stream()
+                .map(s -> toResponse(s, classNames, sectionNames))
+                .collect(Collectors.toList());
         log.info("Students page loaded page={} returned={} total={}", page, content.size(), result.getTotalElements());
         return PageResponse.of(content, page, size, result.getTotalElements());
     }
@@ -42,6 +70,9 @@ public class StudentService {
     public StudentDTOs.Response getStudentById(Long id) {
         log.debug("Fetching student id={}", id);
         Student student = studentRepository.findByIdAndTenantIdAndIsDeletedFalse(id, TenantContext.getTenantId()).orElseThrow(() -> new ResourceNotFoundException("Student", id));
+        if (!teacherRosterScopeService.teacherMayAccessStudentClass(student.getClassId())) {
+            throw new UnauthorizedException("You are not allowed to view this student");
+        }
         log.info("Student loaded id={} admissionNumber={}", id, student.getAdmissionNumber());
         return toResponse(student);
     }
@@ -49,7 +80,13 @@ public class StudentService {
     @Transactional(readOnly = true)
     public List<StudentDTOs.Response> getStudentsByClass(Long classId) {
         log.debug("Listing students by classId={}", classId);
-        List<StudentDTOs.Response> list = studentRepository.findByTenantIdAndClassIdAndIsDeletedFalse(TenantContext.getTenantId(), classId).stream().map(this::toResponse).collect(Collectors.toList());
+        if (!teacherRosterScopeService.teacherMayAccessStudentClass(classId)) {
+            throw new UnauthorizedException("You are not allowed to view this class roster");
+        }
+        List<StudentDTOs.Response> list = studentRepository.findByTenantIdAndClassIdAndIsDeletedFalse(TenantContext.getTenantId(), classId).stream()
+                .filter(s -> s.getStatus() == Enums.StudentStatus.ACTIVE)
+                .map(this::toResponse)
+                .collect(Collectors.toList());
         log.info("Students in class classId={} count={}", classId, list.size());
         return list;
     }
@@ -57,7 +94,13 @@ public class StudentService {
     @Transactional(readOnly = true)
     public List<StudentDTOs.Response> getStudentsByClassAndSection(Long classId, Long sectionId) {
         log.debug("Listing students classId={} sectionId={}", classId, sectionId);
-        List<StudentDTOs.Response> list = studentRepository.findByTenantIdAndClassIdAndSectionIdAndIsDeletedFalse(TenantContext.getTenantId(), classId, sectionId).stream().map(this::toResponse).collect(Collectors.toList());
+        if (!teacherRosterScopeService.teacherMayAccessStudentClass(classId)) {
+            throw new UnauthorizedException("You are not allowed to view this class roster");
+        }
+        List<StudentDTOs.Response> list = studentRepository.findByTenantIdAndClassIdAndSectionIdAndIsDeletedFalse(TenantContext.getTenantId(), classId, sectionId).stream()
+                .filter(s -> s.getStatus() == Enums.StudentStatus.ACTIVE)
+                .map(this::toResponse)
+                .collect(Collectors.toList());
         log.info("Students in class/section classId={} sectionId={} count={}", classId, sectionId, list.size());
         return list;
     }
@@ -202,11 +245,58 @@ public class StudentService {
     }
 
     private StudentDTOs.Response toResponse(Student s) {
-        return StudentDTOs.Response.builder().id(s.getId()).firstName(s.getFirstName()).lastName(s.getLastName()).email(s.getEmail()).phone(s.getPhone()).dateOfBirth(s.getDateOfBirth()).gender(s.getGender() != null ? s.getGender().name().toLowerCase() : null).classId(s.getClassId()).sectionId(s.getSectionId()).rollNumber(s.getRollNumber()).admissionNumber(s.getAdmissionNumber()).admissionDate(s.getAdmissionDate()).parentId(s.getParentId()).parentName(s.getParentName()).address(s.getAddress()).bloodGroup(s.getBloodGroup()).avatar(s.getAvatar()).status(s.getStatus() != null ? s.getStatus().name().toLowerCase() : "active").tenantId(s.getTenantId()).build();
+        return toResponse(s, new HashMap<>(), new HashMap<>());
     }
 
-    public StudentService(final StudentRepository studentRepository) {
+    private StudentDTOs.Response toResponse(Student s, Map<Long, String> classNameCache, Map<Long, String> sectionNameCache) {
+        String tenantId = TenantContext.getTenantId();
+        String className = null;
+        String sectionName = null;
+        if (s.getClassId() != null) {
+            className = classNameCache.computeIfAbsent(s.getClassId(), id -> schoolClassRepository
+                    .findByIdAndTenantIdAndIsDeletedFalse(id, tenantId)
+                    .map(SchoolClass::getName)
+                    .orElse(null));
+        }
+        if (s.getSectionId() != null) {
+            sectionName = sectionNameCache.computeIfAbsent(s.getSectionId(), id -> sectionRepository
+                    .findByIdAndTenantIdAndIsDeletedFalse(id, tenantId)
+                    .map(Section::getName)
+                    .orElse(null));
+        }
+        return StudentDTOs.Response.builder()
+                .id(s.getId())
+                .firstName(s.getFirstName())
+                .lastName(s.getLastName())
+                .email(s.getEmail())
+                .phone(s.getPhone())
+                .dateOfBirth(s.getDateOfBirth())
+                .gender(s.getGender() != null ? s.getGender().name().toLowerCase() : null)
+                .classId(s.getClassId())
+                .className(className)
+                .sectionId(s.getSectionId())
+                .sectionName(sectionName)
+                .rollNumber(s.getRollNumber())
+                .admissionNumber(s.getAdmissionNumber())
+                .admissionDate(s.getAdmissionDate())
+                .parentId(s.getParentId())
+                .parentName(s.getParentName())
+                .address(s.getAddress())
+                .bloodGroup(s.getBloodGroup())
+                .avatar(s.getAvatar())
+                .status(s.getStatus() != null ? s.getStatus().name().toLowerCase() : "active")
+                .tenantId(s.getTenantId())
+                .build();
+    }
+
+    public StudentService(final StudentRepository studentRepository,
+                          final SchoolClassRepository schoolClassRepository,
+                          final SectionRepository sectionRepository,
+                          final TeacherRosterScopeService teacherRosterScopeService) {
         this.studentRepository = studentRepository;
+        this.schoolClassRepository = schoolClassRepository;
+        this.sectionRepository = sectionRepository;
+        this.teacherRosterScopeService = teacherRosterScopeService;
     }
 
     private String required(Map<String, String> row, String key) {

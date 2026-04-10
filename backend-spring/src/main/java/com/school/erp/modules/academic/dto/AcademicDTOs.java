@@ -781,9 +781,9 @@ public class AcademicDTOs {
 
 
     public static class AssignTeacherRequest {
-        @NotNull
+        /** Optional in JSON; class is taken from path variable on {@code PUT /classes/{classId}/teacher}. */
         private Long classId;
-        @NotNull
+        /** Null clears class teacher assignment. */
         private Long teacherId;
         private String teacherName;
 

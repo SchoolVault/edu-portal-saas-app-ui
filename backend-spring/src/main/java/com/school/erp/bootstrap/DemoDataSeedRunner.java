@@ -10,11 +10,11 @@ import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
 /**
- * Runs after Flyway when the {@code dev} profile is active and {@code app.demo-seed.enabled=true}.
+ * Runs after Flyway when profile {@code dev}, {@code showcase-seed}, or {@code demo-seed} is active and {@code app.demo-seed.enabled=true}.
  */
 @Component
 @Order(100)
-@Profile("dev")
+@Profile({"dev", "showcase-seed", "demo-seed"})
 @ConditionalOnProperty(name = "app.demo-seed.enabled", havingValue = "true")
 public class DemoDataSeedRunner implements ApplicationRunner {
 

@@ -1,26 +1,30 @@
 import { environment } from '../../../environments/environment';
 
-/** Loaded from `/config.json` at startup (optional). Falls back to `environment.ts` / build-time defaults. */
-export interface PublicAppConfig {
+/**
+ * Optional overrides for **production** builds only (see `load-public-app-config.factory.ts`).
+ * Local `ng serve` never loads `/config.json` — use `environment.ts` for mocks vs backend.
+ */
+export interface DeployedApiConfig {
   apiUrl?: string;
-  /** When true, services use in-memory mocks instead of HTTP. */
-  useMocks?: boolean;
 }
 
 /**
- * Effective runtime settings. Mutated once by {@link applyPublicAppConfig} before the app bootstraps.
+ * Effective settings for the running app. Initialized from Angular environments;
+ * in production, `apiUrl` may be patched once from `/config.json` (hosting/CDN).
  */
-export const runtimeConfig: PublicAppConfig & { production: boolean } = {
+export const runtimeConfig: DeployedApiConfig & {
+  production: boolean;
+  /** In-memory mocks vs HTTP. Set only from environment files, never from config.json. */
+  useMocks: boolean;
+} = {
   apiUrl: environment.apiUrl,
   useMocks: environment.useMocks,
   production: environment.production
 };
 
-export function applyPublicAppConfig(overrides: PublicAppConfig): void {
+/** Production only: merge deployed API base URL (e.g. Render) without touching mock mode. */
+export function applyDeployedApiConfig(overrides: DeployedApiConfig): void {
   if (overrides.apiUrl != null && String(overrides.apiUrl).trim() !== '') {
     runtimeConfig.apiUrl = String(overrides.apiUrl).replace(/\/$/, '');
-  }
-  if (typeof overrides.useMocks === 'boolean') {
-    runtimeConfig.useMocks = overrides.useMocks;
   }
 }

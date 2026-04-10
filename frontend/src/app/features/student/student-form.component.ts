@@ -8,7 +8,7 @@ import { AcademicService } from '../../core/services/academic.service';
 import { GuardianService } from '../../core/services/guardian.service';
 import { AuthService } from '../../core/services/auth.service';
 import { Student, SchoolClass } from '../../core/models/models';
-import { BLOOD_GROUPS, GENDERS } from '../../core/config/app-constants';
+import { BLOOD_GROUPS, GENDERS, STUDENT_STATUS } from '../../core/config/app-constants';
 import { runtimeConfig } from '../../core/config/runtime-config';
 import { canUploadStudentDirectoryPhoto } from '../../core/policy/profile-photo-upload.policy';
 import { ProfilePhotoPickerComponent, ProfilePhotoPickEvent } from '../../shared/profile-photo-picker/profile-photo-picker.component';
@@ -109,11 +109,21 @@ import { ErpDatePickerComponent } from '../../shared/erp-date-picker/erp-date-pi
               </div>
             </div>
             <div class="col-md-4">
-              <div class="erp-form-group"><label class="erp-label">Section *</label>
-                <select class="erp-select" [(ngModel)]="student.sectionId" name="sectionId" required data-testid="student-section">
-                  <option value="">Select Section</option>
+              <div class="erp-form-group"><label class="erp-label">Section<span *ngIf="sectionRequired"> *</span></label>
+                <select class="erp-select" [(ngModel)]="student.sectionId" name="sectionId" [required]="sectionRequired"
+                  [disabled]="!sectionRequired" data-testid="student-section">
+                  <option value="">{{ sectionRequired ? 'Select section' : 'Whole class (no section)' }}</option>
                   <option *ngFor="let sec of availableSections" [value]="sec.id">{{ sec.name }}</option>
                 </select>
+                <p *ngIf="student.classId && !sectionRequired" class="text-muted small mb-0 mt-1">This class has no sections; the student is enrolled at class level only.</p>
+              </div>
+            </div>
+            <div class="col-md-4" *ngIf="isEdit && isAdmin">
+              <div class="erp-form-group"><label class="erp-label">Enrolment status</label>
+                <select class="erp-select" [(ngModel)]="student.status" name="status" data-testid="student-status">
+                  <option *ngFor="let st of studentStatuses" [value]="st">{{ st | titlecase }}</option>
+                </select>
+                <p class="text-muted small mb-0 mt-1">Inactive / transferred / alumni hide the pupil from default lists; soft-delete from the profile removes them from the directory entirely.</p>
               </div>
             </div>
             <div class="col-md-4">
@@ -196,11 +206,17 @@ export class StudentFormComponent implements OnInit {
   availableSections: { id: string; name: string }[] = [];
   genders = GENDERS;
   bloodGroups = BLOOD_GROUPS;
+  studentStatuses = [...STUDENT_STATUS];
   isEdit = false;
   saving = false;
   studentDirectoryPreview: string | null = null;
   g1 = { fullName: '', primaryPhone: '', occupation: '', relationType: 'FATHER' as const };
   g2 = { fullName: '', primaryPhone: '', occupation: '', relationType: 'MOTHER' as const };
+
+  get isAdmin(): boolean {
+    const r = (this.auth.getRole() || '').toLowerCase();
+    return r === 'admin' || r === 'super_admin';
+  }
 
   constructor(
     private studentService: StudentService,
@@ -272,11 +288,29 @@ export class StudentFormComponent implements OnInit {
     const cls = this.classes.find(c => c.id === this.student.classId);
     this.availableSections = cls ? cls.sections.map(s => ({ id: s.id, name: s.name })) : [];
     if (cls) this.student.className = cls.name;
+    if (cls && cls.sections.length === 0) {
+      this.student.sectionId = '';
+      this.student.sectionName = '';
+    } else if (cls && this.student.sectionId && !this.availableSections.some(s => s.id === this.student.sectionId)) {
+      this.student.sectionId = '';
+      this.student.sectionName = '';
+    }
+  }
+
+  /** False when the selected class has no sections (whole-class enrollment). */
+  get sectionRequired(): boolean {
+    const cls = this.classes.find(c => c.id === this.student.classId);
+    return !!cls && cls.sections.length > 0;
   }
 
   onSubmit(): void {
     if (!this.student.firstName || !this.student.lastName || !this.student.classId) return;
+    if (this.sectionRequired && !this.student.sectionId) return;
     this.saving = true;
+    if (!this.sectionRequired) {
+      this.student.sectionId = '';
+      this.student.sectionName = '';
+    }
     const sec = this.availableSections.find(s => s.id === this.student.sectionId);
     if (sec) this.student.sectionName = sec.name;
 

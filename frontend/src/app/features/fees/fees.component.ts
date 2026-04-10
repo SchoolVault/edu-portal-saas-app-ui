@@ -4,7 +4,9 @@ import { FormsModule } from '@angular/forms';
 import { FeeService } from '../../core/services/fee.service';
 import { AcademicService } from '../../core/services/academic.service';
 import { AuthService } from '../../core/services/auth.service';
+import { filter } from 'rxjs/operators';
 import { AcademicYear, FeeComponent, FeePayment, FeeStructure, SchoolClass } from '../../core/models/models';
+import { ConfirmDialogService } from '../../shared/confirm-dialog/confirm-dialog.service';
 
 @Component({
   selector: 'app-fees',
@@ -194,7 +196,8 @@ export class FeesComponent implements OnInit {
   constructor(
     private feeService: FeeService,
     private academicService: AcademicService,
-    private auth: AuthService
+    private auth: AuthService,
+    private confirmDialog: ConfirmDialogService
   ) {}
 
   get draftTotal(): number {
@@ -331,10 +334,20 @@ export class FeesComponent implements OnInit {
   }
 
   deleteStructure(fs: FeeStructure): void {
-    if (!confirm(`Delete fee structure "${fs.name}"? Existing payment rows are not removed.`)) return;
-    this.feeService.deleteFeeStructure(fs.id).subscribe({
-      next: () => this.loadStructures(),
-      error: (e: Error) => alert(e?.message || 'Delete failed')
-    });
+    this.confirmDialog
+      .confirm({
+        title: 'Delete fee structure?',
+        message: `Structure "${fs.name}" will be removed from configuration. Existing fee payment rows in the ledger are not deleted.`,
+        details: [`Class: ${fs.className}`, `Academic year id: ${fs.academicYearId}`],
+        variant: 'danger',
+        confirmLabel: 'Yes, delete structure',
+      })
+      .pipe(filter(Boolean))
+      .subscribe(() => {
+        this.feeService.deleteFeeStructure(fs.id).subscribe({
+          next: () => this.loadStructures(),
+          error: (e: Error) => alert(e?.message || 'Delete failed'),
+        });
+      });
   }
 }

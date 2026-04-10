@@ -1,13 +1,17 @@
 package com.school.erp.modules.academic.service;
 
+import com.school.erp.common.enums.Enums;
+import com.school.erp.common.exception.BusinessException;
 import com.school.erp.common.exception.ResourceNotFoundException;
 import com.school.erp.modules.academic.dto.AcademicDTOs;
+import com.school.erp.modules.academic.dto.AcademicMutationRequests;
 import com.school.erp.modules.academic.dto.AcademicWorkflowDTOs;
 import com.school.erp.modules.academic.entity.*;
 import com.school.erp.modules.exams.repository.MarkRecordRepository;
 import com.school.erp.modules.academic.repository.*;
 import com.school.erp.modules.student.entity.Student;
 import com.school.erp.modules.student.repository.StudentRepository;
+import com.school.erp.modules.teacher.repository.TeacherRepository;
 import com.school.erp.tenant.TenantContext;
 import com.school.erp.tenant.TenantQueryPolicy;
 import org.springframework.stereotype.Service;
@@ -43,6 +47,7 @@ public class AcademicService {
     private final MarkRecordRepository markRepo;
     private final TeacherAssignmentService teacherAssignmentService;
     private final AcademicSubjectRepository academicSubjectRepo;
+    private final TeacherRepository teacherRepository;
 
     // ========== SUBJECT CATALOG ==========
     @Transactional(readOnly = true)
@@ -189,18 +194,31 @@ public class AcademicService {
     }
 
     @Transactional
-    public SchoolClass assignClassTeacher(Long classId, Long teacherId, String teacherName) {
+    public AcademicDTOs.ClassWithSectionsResponse assignClassTeacher(Long classId, Long teacherId, String teacherName) {
+        String tenantId = TenantContext.getTenantId();
         log.info("Assigning class teacher classId={} teacherId={}", classId, teacherId);
-        SchoolClass cls = classRepo.findByIdAndTenantIdAndIsDeletedFalse(classId, TenantContext.getTenantId()).orElseThrow(() -> new ResourceNotFoundException("Class", classId));
+        SchoolClass cls = classRepo.findByIdAndTenantIdAndIsDeletedFalse(classId, tenantId).orElseThrow(() -> new ResourceNotFoundException("Class", classId));
+        if (teacherId != null) {
+            teacherRepository.findByIdAndTenantIdAndIsDeletedFalse(teacherId, tenantId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Teacher", teacherId));
+            for (SchoolClass other : classRepo.findByTenantIdAndIsDeletedFalseOrderByGrade(tenantId)) {
+                if (!other.getId().equals(classId) && teacherId.equals(other.getClassTeacherId())) {
+                    other.setClassTeacherId(null);
+                    other.setClassTeacherName(null);
+                    classRepo.save(other);
+                    log.info("Cleared homeroom teacher from classId={} (moved to classId={})", other.getId(), classId);
+                }
+            }
+        }
         cls.setClassTeacherId(teacherId);
-        cls.setClassTeacherName(teacherName);
-        SchoolClass saved = classRepo.save(cls);
+        cls.setClassTeacherName(teacherId != null ? teacherName : null);
+        classRepo.save(cls);
         if (teacherId != null) {
             teacherAssignmentService.recordClassTeacherAssignment(
                     classId, null, teacherId, cls.getAcademicYearId(), LocalDate.now());
         }
         log.info("Class teacher assigned classId={}", classId);
-        return saved;
+        return getClassWithSectionsById(classId);
     }
 
     @Transactional(readOnly = true)
@@ -210,6 +228,41 @@ public class AcademicService {
         List<Section> list = sectionRepo.findByTenantIdAndClassIdAndIsDeletedFalse(t, classId);
         log.info("Found {} section(s) for classId={}", list.size(), classId);
         return list;
+    }
+
+    @Transactional
+    public AcademicDTOs.ClassWithSectionsResponse updateClass(Long classId, AcademicMutationRequests.UpdateSchoolClassRequest req) {
+        String t = TenantContext.getTenantId();
+        SchoolClass cls = classRepo.findByIdAndTenantIdAndIsDeletedFalse(classId, t).orElseThrow(() -> new ResourceNotFoundException("Class", classId));
+        cls.setName(req.getName());
+        cls.setGrade(req.getGrade());
+        classRepo.save(cls);
+        log.info("Class updated id={} name={}", classId, req.getName());
+        return getClassWithSectionsById(classId);
+    }
+
+    @Transactional
+    public Section updateSection(Long sectionId, AcademicMutationRequests.UpdateSectionRequest req) {
+        String t = TenantContext.getTenantId();
+        Section sec = sectionRepo.findByIdAndTenantIdAndIsDeletedFalse(sectionId, t).orElseThrow(() -> new ResourceNotFoundException("Section", sectionId));
+        sec.setName(req.getName());
+        sec.setCapacity(req.getCapacity());
+        Section saved = sectionRepo.save(sec);
+        log.info("Section updated id={}", sectionId);
+        return saved;
+    }
+
+    @Transactional
+    public void deleteSection(Long sectionId) {
+        String t = TenantContext.getTenantId();
+        Section sec = sectionRepo.findByIdAndTenantIdAndIsDeletedFalse(sectionId, t).orElseThrow(() -> new ResourceNotFoundException("Section", sectionId));
+        int enrolled = sec.getStudentCount() != null ? sec.getStudentCount() : 0;
+        if (enrolled > 0) {
+            throw new BusinessException("Cannot delete a section that still has students. Reassign students first.");
+        }
+        sec.setIsDeleted(true);
+        sectionRepo.save(sec);
+        log.info("Section soft-deleted id={}", sectionId);
     }
 
     @Transactional(readOnly = true)
@@ -227,6 +280,7 @@ public class AcademicService {
         Section defaultSection = targetSections.isEmpty() ? null : targetSections.get(0);
 
         List<AcademicWorkflowDTOs.PromotionStudentPreview> students = studentRepo.findByTenantIdAndClassIdAndIsDeletedFalse(tenantId, fromClassId).stream()
+                .filter(student -> student.getStatus() == Enums.StudentStatus.ACTIVE)
                 .map(student -> {
                     AcademicWorkflowDTOs.PromotionStudentPreview preview = new AcademicWorkflowDTOs.PromotionStudentPreview();
                     double average = markRepo.findByTenantIdAndStudentId(tenantId, student.getId()).stream()
@@ -251,9 +305,63 @@ public class AcademicService {
         response.setTargetClassName(targetClass.getName());
         response.setDefaultSectionId(defaultSection != null ? defaultSection.getId() : null);
         response.setDefaultSectionName(defaultSection != null ? defaultSection.getName() : null);
+        response.setTargetSections(targetSections.stream().map(sec -> {
+            AcademicWorkflowDTOs.PromotionTargetSectionOption o = new AcademicWorkflowDTOs.PromotionTargetSectionOption();
+            o.setId(sec.getId());
+            o.setName(sec.getName());
+            o.setCapacity(sec.getCapacity());
+            return o;
+        }).collect(Collectors.toList()));
         response.setStudents(students);
+        long sourceSecCount = sectionRepo.findByTenantIdAndClassIdAndIsDeletedFalse(tenantId, fromClassId).size();
+        if (targetSections.isEmpty()) {
+            response.setSectionPlacementNote("Target class has no sections; students can be promoted with section unassigned until you add sections and redistribute.");
+        } else if (targetSections.size() < sourceSecCount) {
+            response.setSectionPlacementNote("Target has fewer sections than source; pick a target section per batch or open split preview for suggested counts.");
+        }
         log.info("Promotion preview fromClassId={} targetClassId={} studentCount={}", fromClassId, targetClass.getId(), students.size());
         return response;
+    }
+
+    @Transactional(readOnly = true)
+    public AcademicWorkflowDTOs.PromotionSplitPreviewResponse promotionSplitPreview(Long fromClassId, Long toClassId) {
+        String tenantId = TenantContext.getTenantId();
+        classRepo.findByIdAndTenantIdAndIsDeletedFalse(fromClassId, tenantId).orElseThrow(() -> new ResourceNotFoundException("Class", fromClassId));
+        classRepo.findByIdAndTenantIdAndIsDeletedFalse(toClassId, tenantId).orElseThrow(() -> new ResourceNotFoundException("Class", toClassId));
+        int elig = (int) studentRepo.findByTenantIdAndClassIdAndIsDeletedFalse(tenantId, fromClassId).stream()
+                .filter(s -> s.getStatus() == Enums.StudentStatus.ACTIVE)
+                .count();
+        List<Section> targetSecs = sectionRepo.findByTenantIdAndClassIdAndIsDeletedFalse(tenantId, toClassId).stream()
+                .sorted(Comparator.comparing(Section::getName))
+                .collect(Collectors.toList());
+        AcademicWorkflowDTOs.PromotionSplitPreviewResponse out = new AcademicWorkflowDTOs.PromotionSplitPreviewResponse();
+        out.setFromClassId(fromClassId);
+        out.setToClassId(toClassId);
+        out.setEligibleStudentCount(elig);
+        if (targetSecs.isEmpty()) {
+            out.setHint("Create sections on the target class before using split suggestions.");
+            return out;
+        }
+        List<Section> ordered = new ArrayList<>(targetSecs);
+        ordered.sort(Comparator.comparingInt(s -> -(s.getCapacity() != null ? s.getCapacity() : 0)));
+        int m = ordered.size();
+        int[] counts = new int[m];
+        for (int i = 0; i < elig; i++) {
+            counts[i % m]++;
+        }
+        List<AcademicWorkflowDTOs.PromotionSplitSectionRow> rows = new ArrayList<>();
+        for (int i = 0; i < m; i++) {
+            Section s = ordered.get(i);
+            AcademicWorkflowDTOs.PromotionSplitSectionRow row = new AcademicWorkflowDTOs.PromotionSplitSectionRow();
+            row.setSectionId(s.getId());
+            row.setSectionName(s.getName());
+            row.setCapacity(s.getCapacity());
+            row.setSuggestedAssignCount(counts[i]);
+            rows.add(row);
+        }
+        out.setSections(rows);
+        out.setHint("Suggested counts are heuristic (round-robin); execute promotions per section from the main promotion UI.");
+        return out;
     }
 
     @Transactional
@@ -278,6 +386,7 @@ public class AcademicService {
 
         List<Student> students = studentRepo.findByTenantIdAndIdInAndIsDeletedFalse(tenantId, req.getStudentIds()).stream()
                 .filter(student -> req.getSourceClassId().equals(student.getClassId()))
+                .filter(student -> student.getStatus() == Enums.StudentStatus.ACTIVE)
                 .collect(Collectors.toList());
         Set<Long> affectedSectionIds = new HashSet<>();
         List<AcademicWorkflowDTOs.PromotedStudentRow> promotedRows = new ArrayList<>();
@@ -329,7 +438,8 @@ public class AcademicService {
             final StudentRepository studentRepo,
             final MarkRecordRepository markRepo,
             final TeacherAssignmentService teacherAssignmentService,
-            final AcademicSubjectRepository academicSubjectRepo) {
+            final AcademicSubjectRepository academicSubjectRepo,
+            final TeacherRepository teacherRepository) {
         this.yearRepo = yearRepo;
         this.classRepo = classRepo;
         this.sectionRepo = sectionRepo;
@@ -337,5 +447,6 @@ public class AcademicService {
         this.markRepo = markRepo;
         this.teacherAssignmentService = teacherAssignmentService;
         this.academicSubjectRepo = academicSubjectRepo;
+        this.teacherRepository = teacherRepository;
     }
 }

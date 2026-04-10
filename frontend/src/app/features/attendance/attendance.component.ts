@@ -6,7 +6,11 @@ import { StudentService } from '../../core/services/student.service';
 import { AcademicService } from '../../core/services/academic.service';
 import { TeacherService } from '../../core/services/teacher.service';
 import { AuthService } from '../../core/services/auth.service';
+import { filter } from 'rxjs/operators';
+import { OperationsService } from '../../core/services/operations.service';
+import { ConfirmDialogService } from '../../shared/confirm-dialog/confirm-dialog.service';
 import { SchoolClass, Student, AttendanceRecord } from '../../core/models/models';
+import { AttendanceCoverRow } from '../../core/models/operations.models';
 import { ErpDatePickerComponent } from '../../shared/erp-date-picker/erp-date-picker.component';
 
 @Component({
@@ -23,6 +27,14 @@ import { ErpDatePickerComponent } from '../../shared/erp-date-picker/erp-date-pi
         <button type="button" class="btn-outline-erp btn-sm" (click)="refreshAttendance()"><i class="bi bi-arrow-clockwise"></i> Refresh</button>
       </div>
 
+      <div class="erp-card mb-3 animate-in" *ngIf="isTeacher && myCovers.length > 0">
+        <h4 class="erp-card-title mb-2" style="font-size: 15px;">Your cover assignments ({{ selectedDate }})</h4>
+        <p class="text-muted small mb-2">You may mark attendance for these classes when covering for colleagues.</p>
+        <ul class="mb-0 ps-3 small">
+          <li *ngFor="let c of myCovers">Class ID {{ c.classId }}<span *ngIf="c.sectionId"> — section {{ c.sectionId }}</span> <span *ngIf="c.reason">({{ c.reason }})</span></li>
+        </ul>
+      </div>
+
       <div class="erp-card mb-4 animate-in animate-in-delay-1">
         <div class="row g-3 align-items-end">
           <div class="col-md-3">
@@ -34,7 +46,7 @@ import { ErpDatePickerComponent } from '../../shared/erp-date-picker/erp-date-pi
           </div>
           <div class="col-md-3">
             <label class="erp-label">Section</label>
-            <select class="erp-select" [(ngModel)]="selectedSectionId" (change)="loadAttendance()" data-testid="attendance-section-select">
+            <select class="erp-select" [(ngModel)]="selectedSectionId" (change)="onSectionChange()" data-testid="attendance-section-select">
               <option value="">Select Section</option>
               <option *ngFor="let sec of sections" [value]="sec.id">{{ sec.name }}</option>
             </select>
@@ -43,21 +55,42 @@ import { ErpDatePickerComponent } from '../../shared/erp-date-picker/erp-date-pi
             <label class="erp-label">Date</label>
             <app-erp-date-picker
               [(ngModel)]="selectedDate"
-              (ngModelChange)="loadAttendance()"
+              (ngModelChange)="onDateChange()"
               dataTestId="attendance-date"
               placeholder="Session date"
             />
           </div>
-          <div class="col-md-3">
-            <button class="btn-primary-erp" style="width: 100%;" (click)="saveAttendance()" [disabled]="!records.length || saving || attendanceLocked" data-testid="save-attendance-btn">
+          <div class="col-md-3 d-flex flex-column gap-2">
+            <button
+              *ngIf="adminPastAuditView && !adminPastEditing"
+              type="button"
+              class="btn-outline-erp"
+              style="width: 100%;"
+              [disabled]="!records.length"
+              (click)="adminPastEditing = true"
+              data-testid="edit-past-attendance-btn"
+            >
+              Edit attendance
+            </button>
+            <button
+              class="btn-primary-erp"
+              style="width: 100%;"
+              (click)="saveAttendance()"
+              [disabled]="!records.length || saving || saveDisabled"
+              data-testid="save-attendance-btn"
+            >
               <span class="spinner" *ngIf="saving"></span>
-              {{ saving ? 'Saving...' : (attendanceLocked ? 'View only' : 'Save attendance') }}
+              {{ saveButtonLabel }}
             </button>
           </div>
         </div>
-        <div *ngIf="attendanceLocked" class="alert alert-info py-2 px-3 small mb-0 mt-3" style="border-radius: var(--radius-md);">
+        <div *ngIf="teacherPastLocked" class="alert alert-info py-2 px-3 small mb-0 mt-3" style="border-radius: var(--radius-md);">
           <i class="bi bi-info-circle me-1"></i>
           This date is in the past. You can review records; only administrators can change past attendance.
+        </div>
+        <div *ngIf="adminPastAuditView && !adminPastEditing" class="alert alert-info py-2 px-3 small mb-0 mt-3" style="border-radius: var(--radius-md);">
+          <i class="bi bi-info-circle me-1"></i>
+          Past session — view only. Click <strong>Edit attendance</strong> to change records (audit). You will confirm before saving.
         </div>
         <div *ngIf="saveError" class="alert alert-danger py-2 small mb-0 mt-2">{{ saveError }}</div>
       </div>
@@ -78,7 +111,7 @@ import { ErpDatePickerComponent } from '../../shared/erp-date-picker/erp-date-pi
               <td>{{ i + 1 }}</td>
               <td><strong>{{ rec.studentName }}</strong></td>
               <td>
-                <div class="d-flex gap-2" [class.opacity-50]="attendanceLocked" [style.pointer-events]="attendanceLocked ? 'none' : 'auto'">
+                <div class="d-flex gap-2" [class.opacity-50]="cellsLocked" [style.pointer-events]="cellsLocked ? 'none' : 'auto'">
                   <div class="attendance-cell" [class.present]="rec.status === 'present'" (click)="rec.status = 'present'" title="Present">
                     <i class="bi bi-check-lg"></i>
                   </div>
@@ -115,39 +148,100 @@ export class AttendanceComponent implements OnInit {
   saving = false;
   saveError = '';
   isAdmin = false;
+  isTeacher = false;
+  myCovers: AttendanceCoverRow[] = [];
 
   constructor(
     private attendanceService: AttendanceService,
     private studentService: StudentService,
     private academicService: AcademicService,
     private teacherService: TeacherService,
-    private auth: AuthService
+    private auth: AuthService,
+    private operationsService: OperationsService,
+    private confirmDialog: ConfirmDialogService
   ) {}
 
   /** Teacher record id linked to the signed-in user (for class-teacher checks). */
   private linkedTeacherId: string | null = null;
+  /** False until teacher roster fetch completes (avoids skipping the homeroom warning on fast save). */
+  teacherRosterResolved = false;
+  /** Admin-only: after opening a past date, edits are blocked until user explicitly enables edit mode. */
+  adminPastEditing = false;
 
   ngOnInit(): void {
     const r = (this.auth.getRole() ?? '').toLowerCase();
     this.isAdmin = r === 'admin' || r === 'super_admin';
+    this.isTeacher = r === 'teacher';
     this.academicService.getClasses().subscribe(c => (this.classes = c));
     if (r === 'teacher') {
       const me = this.auth.getCurrentUser();
-      this.teacherService.getTeachers().subscribe(list => {
-        const row = (list || []).find(t => t.userId === me?.id);
-        this.linkedTeacherId = row?.id ?? null;
+      this.teacherService.getTeachers().subscribe({
+        next: list => {
+          const row = (list || []).find(t => t.userId === me?.id);
+          this.linkedTeacherId = row?.id ?? null;
+          this.teacherRosterResolved = true;
+        },
+        error: () => {
+          this.teacherRosterResolved = true;
+        },
       });
     }
+    if (this.isTeacher) {
+      this.loadMyCovers();
+    }
+  }
+
+  onDateChange(): void {
+    this.adminPastEditing = false;
+    if (this.isTeacher) {
+      this.loadMyCovers();
+    }
+    this.loadAttendance();
+  }
+
+  private loadMyCovers(): void {
+    this.operationsService.listAttendanceCovers(this.selectedDate).subscribe({
+      next: list => (this.myCovers = (list || []).filter(c => c.status === 'ACTIVE')),
+      error: () => (this.myCovers = []),
+    });
   }
 
   refreshAttendance(): void {
     this.academicService.getClasses().subscribe(c => (this.classes = c));
+    if (this.isTeacher) {
+      this.loadMyCovers();
+    }
     this.loadAttendance();
   }
 
-  get attendanceLocked(): boolean {
-    if (this.isAdmin) return false;
+  get isPastSession(): boolean {
     return this.isPastDate(this.selectedDate);
+  }
+
+  /** Teachers cannot edit past dates; admins use audit flow instead. */
+  get teacherPastLocked(): boolean {
+    return this.isTeacher && this.isPastSession;
+  }
+
+  /** Admin viewing a historical session date (read-only until edit mode). */
+  get adminPastAuditView(): boolean {
+    return this.isAdmin && this.isPastSession;
+  }
+
+  get cellsLocked(): boolean {
+    if (this.teacherPastLocked) return true;
+    if (this.adminPastAuditView && !this.adminPastEditing) return true;
+    return false;
+  }
+
+  get saveDisabled(): boolean {
+    return this.teacherPastLocked || (this.adminPastAuditView && !this.adminPastEditing);
+  }
+
+  get saveButtonLabel(): string {
+    if (this.saving) return 'Saving...';
+    if (this.saveDisabled) return 'View only';
+    return 'Save attendance';
   }
 
   private isPastDate(isoDate: string): boolean {
@@ -158,7 +252,13 @@ export class AttendanceComponent implements OnInit {
     return d.getTime() < t.getTime();
   }
 
+  onSectionChange(): void {
+    this.adminPastEditing = false;
+    this.loadAttendance();
+  }
+
   onClassChange(): void {
+    this.adminPastEditing = false;
     const cls = this.classes.find(c => c.id === this.selectedClassId);
     this.sections = cls ? cls.sections.map(s => ({ id: s.id, name: s.name })) : [];
     this.selectedSectionId = '';
@@ -195,29 +295,99 @@ export class AttendanceComponent implements OnInit {
     return cls.classTeacherId === this.linkedTeacherId;
   }
 
+  private hasActiveCoverForSelection(): boolean {
+    if (!this.linkedTeacherId || !this.selectedClassId) {
+      return false;
+    }
+    return this.myCovers.some(c => {
+      if (c.coverDate !== this.selectedDate) {
+        return false;
+      }
+      if (String(c.classId) !== String(this.selectedClassId)) {
+        return false;
+      }
+      if (String(c.coveringTeacherId) !== String(this.linkedTeacherId)) {
+        return false;
+      }
+      if (!c.sectionId) {
+        return true;
+      }
+      return String(c.sectionId) === String(this.selectedSectionId);
+    });
+  }
+
   saveAttendance(): void {
-    if (this.attendanceLocked) return;
+    if (this.saveDisabled || this.saving) return;
     const role = (this.auth.getRole() ?? '').toLowerCase();
-    if (
-      role === 'teacher' &&
-      this.linkedTeacherId &&
-      !this.isClassTeacherForCurrentClass()
-    ) {
-      const ok = window.confirm(
-        'You are not the class teacher for this class. Attendance is usually recorded by the class teacher. If they are absent or unavailable, you may continue. Proceed?'
-      );
-      if (!ok) {
+    if (role === 'teacher') {
+      if (!this.teacherRosterResolved) {
+        this.saveError = 'Loading your teacher profile… please wait a moment and try again.';
+        return;
+      }
+      if (!this.isClassTeacherForCurrentClass()) {
+        const covering = this.hasActiveCoverForSelection();
+        const cls = this.classes.find(c => c.id === this.selectedClassId);
+        this.confirmDialog
+          .confirm({
+            title: covering ? 'Submit attendance as substitute?' : 'You are not the class teacher',
+            message: covering
+              ? 'You have an active cover assignment for this class and date. Submit attendance for this session?'
+              : this.linkedTeacherId
+                ? 'Attendance is usually recorded by the class teacher. If they are absent or unavailable, you may still submit.'
+                : 'Your account is not linked to a teacher profile in the directory, or you are not the homeroom teacher for this class. Submit anyway only if you are authorised.',
+            details: [
+              `Date: ${this.selectedDate}`,
+              cls ? `Class: ${cls.name}` : undefined,
+              this.selectedSectionId ? `Section id: ${this.selectedSectionId}` : undefined,
+            ].filter((x): x is string => !!x),
+            variant: 'warning',
+            confirmLabel: 'Yes, submit attendance',
+            cancelLabel: 'Go back',
+          })
+          .pipe(filter(Boolean))
+          .subscribe(() => this.finishSaveAfterGuards());
         return;
       }
     }
+    this.finishSaveAfterGuards();
+  }
+
+  private finishSaveAfterGuards(): void {
+    if (this.adminPastAuditView && this.adminPastEditing) {
+      const cls = this.classes.find(c => c.id === this.selectedClassId);
+      this.confirmDialog
+        .confirm({
+          title: 'Update past attendance?',
+          message:
+            'You are changing historical attendance for this class and date. Use this only for verified corrections; changes are written to the server.',
+          details: [
+            `Date: ${this.selectedDate}`,
+            cls ? `Class: ${cls.name}` : undefined,
+            this.selectedSectionId ? `Section: ${this.selectedSectionId}` : undefined,
+            `Rows: ${this.records.length}`,
+          ].filter((x): x is string => !!x),
+          variant: 'warning',
+          confirmLabel: 'Yes, save changes',
+          cancelLabel: 'Cancel',
+        })
+        .pipe(filter(Boolean))
+        .subscribe(() => this.persistAttendance());
+      return;
+    }
+    this.persistAttendance();
+  }
+
+  private persistAttendance(): void {
     this.saveError = '';
     this.saving = true;
     this.attendanceService.saveAttendance(this.records).subscribe({
-      next: () => { this.saving = false; },
+      next: () => {
+        this.saving = false;
+      },
       error: (e: Error) => {
         this.saving = false;
         this.saveError = e?.message || 'Could not save attendance.';
-      }
+      },
     });
   }
 

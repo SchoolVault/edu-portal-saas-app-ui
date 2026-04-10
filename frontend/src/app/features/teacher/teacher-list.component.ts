@@ -2,8 +2,11 @@ import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterModule } from '@angular/router';
+import { filter } from 'rxjs/operators';
 import { TeacherService } from '../../core/services/teacher.service';
+import { AuthService } from '../../core/services/auth.service';
 import { Teacher } from '../../core/models/models';
+import { ConfirmDialogService } from '../../shared/confirm-dialog/confirm-dialog.service';
 
 @Component({
   selector: 'app-teacher-list',
@@ -43,10 +46,18 @@ import { Teacher } from '../../core/models/models';
               <tr *ngFor="let t of filtered" [attr.data-testid]="'teacher-row-' + t.id">
                 <td>
                   <div class="d-flex align-items-center">
-                    <div class="table-avatar">{{ t.firstName[0] }}{{ t.lastName[0] }}</div>
+                    <img
+                      *ngIf="teacherPortraitUrl(t) as src"
+                      [src]="src"
+                      alt=""
+                      class="table-avatar"
+                      width="36"
+                      height="36"
+                    />
+                    <div *ngIf="!teacherPortraitUrl(t)" class="table-avatar">{{ t.firstName[0] }}{{ t.lastName[0] }}</div>
                     <div>
                       <div style="font-weight: 600; color: var(--clr-text);">{{ t.firstName }} {{ t.lastName }}</div>
-                      <div style="font-size: 12px; color: var(--clr-text-muted);">{{ t.email }}</div>
+                      <div style="font-size: 12px; color: var(--clr-text-secondary);">{{ t.email }}</div>
                     </div>
                   </div>
                 </td>
@@ -57,8 +68,11 @@ import { Teacher } from '../../core/models/models';
                 <td><span class="badge-erp badge-success">{{ t.status }}</span></td>
                 <td>
                   <div class="d-flex gap-1">
+                    <a [routerLink]="['/app/teachers', t.id]" class="btn-icon" title="View profile" [attr.data-testid]="'view-teacher-' + t.id">
+                      <i class="bi bi-eye"></i>
+                    </a>
                     <a [routerLink]="['/app/teachers', t.id, 'edit']" class="btn-icon" title="Edit"><i class="bi bi-pencil"></i></a>
-                    <button class="btn-icon" (click)="deleteTeacher(t.id)"><i class="bi bi-trash" style="color: var(--clr-danger);"></i></button>
+                    <button type="button" class="btn-icon" (click)="deleteTeacher(t.id)" title="Deactivate"><i class="bi bi-trash" style="color: var(--clr-danger);"></i></button>
                   </div>
                 </td>
               </tr>
@@ -74,7 +88,15 @@ export class TeacherListComponent implements OnInit {
   filtered: Teacher[] = [];
   searchTerm = '';
 
-  constructor(private teacherService: TeacherService) {}
+  constructor(
+    private teacherService: TeacherService,
+    private auth: AuthService,
+    private confirmDialog: ConfirmDialogService
+  ) {}
+
+  teacherPortraitUrl(t: Teacher): string | null {
+    return this.auth.getDirectoryTeacherAvatarDataUrl(t.id) || t.avatar || null;
+  }
 
   ngOnInit(): void {
     this.reloadTeachers();
@@ -95,12 +117,27 @@ export class TeacherListComponent implements OnInit {
   }
 
   deleteTeacher(id: string): void {
-    if (confirm('Delete this teacher?')) {
-      this.teacherService.deleteTeacher(id).subscribe(() => {
-        this.teachers = this.teachers.filter(t => t.id !== id);
-        this.filter();
+    const t = this.teachers.find(x => x.id === id);
+    const name = t ? `${t.firstName} ${t.lastName}` : 'This teacher';
+    this.confirmDialog
+      .confirm({
+        title: 'Remove teacher?',
+        message: `${name} will be deactivated and removed from staff lists. Homeroom assignments for this teacher are cleared in the backend.`,
+        details: [
+          t?.email ? `Email: ${t.email}` : undefined,
+          t?.specialization ? `Focus: ${t.specialization}` : undefined,
+          'This is a soft delete for compliance and audit.',
+        ].filter((x): x is string => !!x),
+        variant: 'danger',
+        confirmLabel: 'Yes, remove',
+      })
+      .pipe(filter(Boolean))
+      .subscribe(() => {
+        this.teacherService.deleteTeacher(id).subscribe(() => {
+          this.teachers = this.teachers.filter(x => x.id !== id);
+          this.filter();
+        });
       });
-    }
   }
 
   onImport(event: Event): void {

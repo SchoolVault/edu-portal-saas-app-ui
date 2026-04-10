@@ -8,6 +8,7 @@ import {
   PlatformDashboardData,
   PlatformPurgeJob,
   PlatformSchoolAdmin,
+  PlatformSchoolAdminChatHit,
   PlatformSchoolDetail,
   PlatformSchoolSummary,
   PlatformSubscriptionPlan,
@@ -42,7 +43,7 @@ export class PlatformService {
   private mockPurgeJobs: Record<string, PlatformPurgeJob[]> = {};
   private purgeJobSeq = 1;
 
-  private readonly mockPlans: PlatformSubscriptionPlan[] = [
+  private mockPlans: PlatformSubscriptionPlan[] = [
     {
       code: 'STARTER',
       name: 'Starter',
@@ -54,7 +55,9 @@ export class PlatformService {
       supportTier: 'Email & chat (business hours)',
       billingCadence: 'Billed monthly per active workspace',
       modules: ['Students & classes', 'Attendance', 'Timetable (read)', 'Fees (core)', 'Parent portal (read)', 'Announcements', 'Basic reports'],
-      recommended: false
+      recommended: false,
+      commercialNotes: 'Pilot-friendly tier. Good fit for single-branch schools before committing to Standard.',
+      integrationPriceKey: 'price_starter_monthly'
     },
     {
       code: 'STANDARD',
@@ -67,7 +70,9 @@ export class PlatformService {
       supportTier: 'Priority support (12×5)',
       billingCadence: 'Billed monthly per active workspace',
       modules: ['Everything in Starter', 'Exams & gradebook', 'Library', 'Transport & routes', 'Hostel', 'Payroll (standard)', 'Documents', 'Audit trail (90 days)', 'Chat'],
-      recommended: true
+      recommended: true,
+      commercialNotes: 'Default provisioning SKU for new workspaces. Aligns with monthly recurring billing per active tenant.',
+      integrationPriceKey: 'price_standard_monthly'
     },
     {
       code: 'ENTERPRISE',
@@ -80,7 +85,9 @@ export class PlatformService {
       supportTier: 'Named CSM + 24×7 hotline',
       billingCadence: 'Billed monthly per active workspace',
       modules: ['Everything in Standard', 'Multi-branch roll-up', 'Advanced audit (retention policies)', 'Custom integrations', 'Sandbox tenant', 'DR runbooks'],
-      recommended: false
+      recommended: false,
+      commercialNotes: 'Contract-led pricing and limits. Integration keys assigned manually when billing connects.',
+      integrationPriceKey: ''
     }
   ];
 
@@ -126,6 +133,48 @@ export class PlatformService {
       return of(this.mockSchools.map(school => ({ ...school }))).pipe(delay(200));
     }
     return this.api.get<PlatformSchoolSummary[]>('/platform/schools');
+  }
+
+  /** Super-admin inbox: search campus admins with school context (same contract as backend). */
+  searchSchoolAdminsForChat(q: string): Observable<PlatformSchoolAdminChatHit[]> {
+    const needle = (q || '').trim().toLowerCase();
+    if (runtimeConfig.useMocks) {
+      const rows: PlatformSchoolAdminChatHit[] = [];
+      for (const s of this.mockSchools) {
+        for (const a of this.mockAdmins[s.tenantId] ?? []) {
+          if (!a.active) continue;
+          rows.push({
+            userId: a.id,
+            name: a.name,
+            email: a.email,
+            phone: a.phone,
+            schoolName: s.schoolName,
+            schoolCode: s.schoolCode,
+            tenantId: s.tenantId,
+          });
+        }
+      }
+      const filtered =
+        needle.length < 2
+          ? []
+          : rows.filter(r =>
+              `${r.name} ${r.email} ${r.schoolName} ${r.schoolCode} ${r.tenantId}`.toLowerCase().includes(needle)
+            );
+      return of(filtered).pipe(delay(100));
+    }
+    return this.api.get<any[]>(`/platform/school-admins/chat-search?q=${encodeURIComponent(q)}`).pipe(
+      map(list =>
+        (list || []).map((x: any) => ({
+          userId: String(x.userId),
+          name: x.name,
+          email: x.email ?? '',
+          phone: x.phone,
+          schoolName: x.schoolName ?? '',
+          schoolCode: x.schoolCode ?? '',
+          tenantId: x.tenantId ?? '',
+        }))
+      )
+    );
   }
 
   getSchoolDetail(tenantId: string): Observable<PlatformSchoolDetail> {
@@ -229,6 +278,26 @@ export class PlatformService {
       }))).pipe(delay(150));
     }
     return this.api.get<PlatformSubscriptionPlan[]>('/platform/subscription-plans');
+  }
+
+  /** Super-admin catalog edit; same contract as PUT /api/v1/platform/subscription-plans/{code}. */
+  updateSubscriptionPlan(code: string, body: PlatformSubscriptionPlan): Observable<PlatformSubscriptionPlan> {
+    if (runtimeConfig.useMocks) {
+      const idx = this.mockPlans.findIndex(p => p.code.toUpperCase() === code.toUpperCase());
+      if (idx < 0) {
+        return throwError(() => new Error('Plan not found'));
+      }
+      const merged: PlatformSubscriptionPlan = {
+        ...this.mockPlans[idx],
+        ...body,
+        code: this.mockPlans[idx].code,
+        highlights: [...(body.highlights ?? this.mockPlans[idx].highlights)],
+        modules: [...(body.modules ?? this.mockPlans[idx].modules ?? [])]
+      };
+      this.mockPlans[idx] = merged;
+      return of({ ...merged, highlights: [...merged.highlights], modules: [...(merged.modules || [])] }).pipe(delay(200));
+    }
+    return this.api.put<PlatformSubscriptionPlan>(`/platform/subscription-plans/${encodeURIComponent(code)}`, body);
   }
 
   broadcastToAdmins(payload: { targetTenantId?: string | null; title: string; message: string; notificationType?: string }): Observable<PlatformBroadcastResult> {

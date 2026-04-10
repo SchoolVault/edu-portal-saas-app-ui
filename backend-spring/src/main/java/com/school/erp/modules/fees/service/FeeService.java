@@ -8,6 +8,7 @@ import com.school.erp.modules.fees.gateway.PaymentGatewayClient;
 import com.school.erp.modules.fees.dto.FeeDTOs;
 import com.school.erp.modules.fees.entity.*;
 import com.school.erp.modules.fees.repository.*;
+import com.school.erp.modules.guardian.service.GuardianService;
 import com.school.erp.modules.student.entity.Student;
 import com.school.erp.modules.student.repository.StudentRepository;
 import com.school.erp.tenant.TenantContext;
@@ -17,6 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.stream.Collectors;
@@ -31,6 +33,7 @@ public class FeeService {
     private final FeePaymentRepository paymentRepo;
     private final FeePaymentAttemptRepository paymentAttemptRepository;
     private final StudentRepository studentRepository;
+    private final GuardianService guardianService;
     private final PaymentGatewayClient paymentGatewayClient;
 
     // ========== FEE STRUCTURES ==========
@@ -292,12 +295,32 @@ public class FeeService {
         FeePayment payment = paymentRepo.findByReceiptNumberAndTenantIdAndIsDeletedFalse(receiptNumber, TenantContext.getTenantId())
                 .orElseThrow(() -> new ResourceNotFoundException("Receipt not found"));
         assertParentOwnsStudent(payment.getStudentId());
-        FeePaymentAttempt attempt = paymentAttemptRepository.findByTenantIdAndFeePaymentIdAndIsDeletedFalse(TenantContext.getTenantId(), payment.getId())
+        return toReceiptResponse(payment, latestSuccessAttempt(TenantContext.getTenantId(), payment.getId()));
+    }
+
+    /**
+     * Receipts for parent portal: one row per {@link FeePayment} that already has a receipt number and a payment date in range.
+     */
+    @Transactional(readOnly = true)
+    public List<FeeDTOs.PaymentReceiptResponse> listParentReceipts(Long studentId, LocalDate from, LocalDate to) {
+        assertParentOwnsStudent(studentId);
+        String tenantId = TenantContext.getTenantId();
+        return paymentRepo.findByTenantIdAndStudentIdAndIsDeletedFalse(tenantId, studentId).stream()
+                .filter(p -> p.getReceiptNumber() != null && !p.getReceiptNumber().isBlank())
+                .filter(p -> p.getPaymentDate() != null
+                        && !p.getPaymentDate().isBefore(from)
+                        && !p.getPaymentDate().isAfter(to))
+                .sorted(Comparator.comparing(FeePayment::getPaymentDate).reversed())
+                .map(p -> toReceiptResponse(p, latestSuccessAttempt(tenantId, p.getId())))
+                .collect(Collectors.toList());
+    }
+
+    private FeePaymentAttempt latestSuccessAttempt(String tenantId, Long feePaymentId) {
+        return paymentAttemptRepository.findByTenantIdAndFeePaymentIdAndIsDeletedFalseOrderByCreatedAtDesc(tenantId, feePaymentId)
                 .stream()
-                .filter(item -> "success".equalsIgnoreCase(item.getStatus()))
+                .filter(a -> "success".equalsIgnoreCase(a.getStatus()))
                 .findFirst()
                 .orElse(null);
-        return toReceiptResponse(payment, attempt);
     }
 
     private FeeDTOs.FeePaymentResponse toPaymentResponse(FeePayment p) {
@@ -305,9 +328,14 @@ public class FeeService {
     }
 
     private Student assertParentOwnsStudent(Long studentId) {
-        Student student = studentRepository.findByIdAndTenantIdAndIsDeletedFalse(studentId, TenantContext.getTenantId())
+        String tenantId = TenantContext.getTenantId();
+        Student student = studentRepository.findByIdAndTenantIdAndIsDeletedFalse(studentId, tenantId)
                 .orElseThrow(() -> new ResourceNotFoundException("Student", studentId));
-        if (!TenantContext.getUserId().equals(student.getParentId()) && !"ADMIN".equals(TenantContext.getUserRole())) {
+        Long uid = TenantContext.getUserId();
+        boolean ok = uid != null
+                && (uid.equals(student.getParentId())
+                || guardianService.guardianUserHasAccessToStudent(tenantId, uid, studentId));
+        if (!ok) {
             throw new UnauthorizedException("You are not allowed to access this student");
         }
         return student;
@@ -404,7 +432,7 @@ public class FeeService {
         response.setPaymentMethod(payment.getPaymentMethod());
         response.setPaymentDate(payment.getPaymentDate() != null ? payment.getPaymentDate().toString() : null);
         response.setDueDate(payment.getDueDate() != null ? payment.getDueDate().toString() : null);
-        response.setCurrency("USD");
+        response.setCurrency(DEFAULT_CURRENCY);
         response.setAmountPaid(attempt != null ? attempt.getAmount() : payment.getPaidAmount());
         response.setTotalAmount(payment.getAmount());
         response.setPaidAmount(payment.getPaidAmount());
@@ -415,12 +443,13 @@ public class FeeService {
         return response;
     }
 
-    public FeeService(final FeeStructureRepository structureRepo, final FeeComponentRepository componentRepo, final FeePaymentRepository paymentRepo, final FeePaymentAttemptRepository paymentAttemptRepository, final StudentRepository studentRepository, final PaymentGatewayClient paymentGatewayClient) {
+    public FeeService(final FeeStructureRepository structureRepo, final FeeComponentRepository componentRepo, final FeePaymentRepository paymentRepo, final FeePaymentAttemptRepository paymentAttemptRepository, final StudentRepository studentRepository, final GuardianService guardianService, final PaymentGatewayClient paymentGatewayClient) {
         this.structureRepo = structureRepo;
         this.componentRepo = componentRepo;
         this.paymentRepo = paymentRepo;
         this.paymentAttemptRepository = paymentAttemptRepository;
         this.studentRepository = studentRepository;
+        this.guardianService = guardianService;
         this.paymentGatewayClient = paymentGatewayClient;
     }
 }

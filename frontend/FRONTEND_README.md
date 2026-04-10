@@ -15,19 +15,17 @@ yarn start
 # App runs at http://localhost:3000
 ```
 
-### Environment Configuration
+### Configuration (local vs production)
 
-**File:** `src/environments/environment.ts`
+| Where | What it controls |
+|--------|-------------------|
+| **`src/environments/environment.ts`** | **Local only.** Toggle `useMocks` and set `apiUrl`. `/config.json` is **not** read during `ng serve`. |
+| **`src/environments/environment.prod.ts`** | **Production build.** `useMocks` is always `false` (real API). |
+| **`public/config.json`** | **Production only** (optional). Can override **`apiUrl`** after deploy (e.g. `API_URL` in CI via `npm run config:write` / `prebuild`). Does not change mock mode. |
 
-```typescript
-export const environment = {
-  production: false,
-  useMocks: true,   // true = standalone with mock data, false = calls Spring Boot backend
-  apiUrl: 'http://localhost:8080/api/v1'  // Spring Boot backend URL
-};
-```
+Local: set `useMocks: true` for flows without a backend; set `useMocks: false` and run Spring Boot on the same `apiUrl` for integration debugging.
 
-**To switch to real backend:** Set `useMocks: false` and ensure Spring Boot is running on port 8080.
+Production: real school data always comes from the backend. For **demo / sales**, use a dedicated **tenant** (school code + users) in the production database with rich seed data — same app build and API as live schools; only the login tenant differs (see backend README).
 
 ### Demo Credentials
 | Role | Email | Password | School Code |

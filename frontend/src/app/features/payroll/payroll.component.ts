@@ -2,8 +2,10 @@ import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Payslip, SalaryStructure, TeacherPaymentDetails } from '../../core/models/models';
+import { filter } from 'rxjs/operators';
 import { PayrollService } from '../../core/services/payroll.service';
 import { AuthService } from '../../core/services/auth.service';
+import { ConfirmDialogService } from '../../shared/confirm-dialog/confirm-dialog.service';
 
 @Component({
   selector: 'app-payroll',
@@ -240,7 +242,8 @@ export class PayrollComponent implements OnInit {
 
   constructor(
     private payrollService: PayrollService,
-    private auth: AuthService
+    private auth: AuthService,
+    private confirmDialog: ConfirmDialogService
   ) {}
 
   ngOnInit(): void {
@@ -359,14 +362,27 @@ export class PayrollComponent implements OnInit {
   }
 
   markPaid(p: Payslip): void {
-    if (!confirm(`Mark payslip for ${p.teacherName} (${p.month} ${p.year}) as paid?`)) return;
-    this.markingId = p.id;
-    this.payrollService.markPayslipPaid(p.id).subscribe({
-      next: () => {
-        this.markingId = null;
-        this.refreshPayroll();
-      },
-      error: () => (this.markingId = null)
-    });
+    this.confirmDialog
+      .confirm({
+        title: 'Mark payslip as paid?',
+        message: `Confirm disbursement for ${p.teacherName} — ${p.month} ${p.year}.`,
+        details: [
+          p.netSalary != null ? `Net salary: ₹${p.netSalary}` : undefined,
+          p.status ? `Current status: ${p.status}` : undefined,
+        ].filter((x): x is string => !!x),
+        variant: 'primary',
+        confirmLabel: 'Yes, mark paid',
+      })
+      .pipe(filter(Boolean))
+      .subscribe(() => {
+        this.markingId = p.id;
+        this.payrollService.markPayslipPaid(p.id).subscribe({
+          next: () => {
+            this.markingId = null;
+            this.refreshPayroll();
+          },
+          error: () => (this.markingId = null),
+        });
+      });
   }
 }

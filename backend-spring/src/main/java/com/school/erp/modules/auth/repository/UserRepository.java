@@ -20,9 +20,13 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     boolean existsByEmailAndTenantId(String email, String tenantId);
     Optional<User> findByIdAndTenantIdAndIsDeletedFalse(Long id, String tenantId);
+
+    Optional<User> findByIdAndIsDeletedFalse(Long id);
     List<User> findByTenantIdAndRoleAndIsDeletedFalse(String tenantId, Enums.Role role);
     long countByRoleAndIsDeletedFalse(Enums.Role role);
     long countByTenantIdAndRoleAndIsDeletedFalse(String tenantId, Enums.Role role);
+
+    List<User> findByTenantIdAndIsDeletedFalseOrderByNameAsc(String tenantId);
 
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("UPDATE User u SET u.isActive = false WHERE u.tenantId = :tenantId AND u.isDeleted = false")

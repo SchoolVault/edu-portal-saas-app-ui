@@ -1,3 +1,5 @@
+# Demo org bootstrap (one-time): use profile group prod-with-demo-seed or SPRING_PROFILES_ACTIVE=prod,demo-seed
+# with demo-seed last, then redeploy with prod only. See docs/DEMO_SHOWCASE_TENANT.md.
 app:
   demo-seed:
     enabled: false

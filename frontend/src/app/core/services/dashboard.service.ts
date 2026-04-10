@@ -58,6 +58,10 @@ export class DashboardService {
           { id: 'e1', title: 'Parent-Teacher Meeting', date: '2026-04-15', description: 'Campus-wide parent interaction day' },
           { id: 'e2', title: 'Annual Sports Day', date: '2026-04-22', description: 'Inter-house athletics and opening ceremony' },
           { id: 'e3', title: 'Final Exam Window', date: '2026-05-05', description: 'Main term-end examinations begin' }
+        ],
+        classesWithoutHomeroomTeacher: [
+          { classId: 901, className: 'Grade 6 — Emerald', grade: 6 },
+          { classId: 902, className: 'Grade 9 — Sapphire', grade: 9 }
         ]
       }).pipe();
     }

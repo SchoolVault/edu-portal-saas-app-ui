@@ -4,7 +4,9 @@ import { FormsModule } from '@angular/forms';
 import { DocumentRecord } from '../../core/models/models';
 import { DocumentsService } from '../../core/services/documents.service';
 import { AuthService } from '../../core/services/auth.service';
+import { filter } from 'rxjs/operators';
 import { runtimeConfig } from '../../core/config/runtime-config';
+import { ConfirmDialogService } from '../../shared/confirm-dialog/confirm-dialog.service';
 
 @Component({
   selector: 'app-documents',
@@ -93,7 +95,8 @@ export class DocumentsComponent implements OnInit {
 
   constructor(
     private documentsService: DocumentsService,
-    private authService: AuthService
+    private authService: AuthService,
+    private confirmDialog: ConfirmDialogService
   ) {}
 
   ngOnInit(): void {
@@ -128,8 +131,16 @@ export class DocumentsComponent implements OnInit {
   }
 
   remove(doc: DocumentRecord): void {
-    if (!confirm('Delete this document record?')) return;
-    this.documentsService.delete(doc.id).subscribe(() => this.reload());
+    this.confirmDialog
+      .confirm({
+        title: 'Delete document record?',
+        message: `Remove "${doc.name}" from the document register. Linked files in storage are not deleted automatically.`,
+        details: [`Type: ${doc.type}`, `Category: ${doc.category}`, `Uploaded: ${doc.uploadDate}`],
+        variant: 'danger',
+        confirmLabel: 'Yes, delete record',
+      })
+      .pipe(filter(Boolean))
+      .subscribe(() => this.documentsService.delete(doc.id).subscribe(() => this.reload()));
   }
 
   openUpload(): void {

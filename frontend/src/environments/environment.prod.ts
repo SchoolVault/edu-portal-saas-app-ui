@@ -1,6 +1,7 @@
 /**
- * Production build defaults. Overridden at runtime by `/config.json`
- * (generated from API_URL / USE_MOCKS during `npm run build:render` or `prebuild`).
+ * Production build: always talks to the real API (`useMocks` is always false).
+ * Optional runtime override: `/config.json` may set `apiUrl` only (e.g. CDN → API on Render).
+ * School data (including a dedicated “demo showcase” tenant) lives in the database, not the UI.
  */
 export const environment = {
   production: true,

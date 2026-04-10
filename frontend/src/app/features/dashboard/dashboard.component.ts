@@ -38,13 +38,45 @@ Chart.register(...registerables);
         <div class="row g-4 mb-4">
           <div class="col-lg-8">
             <div class="erp-card">
-              <div class="erp-card-header"><h3 class="erp-card-title">Monthly Admissions & Fee Collection</h3></div>
-              <div class="chart-container"><canvas #admissionChart></canvas></div>
+              <div class="erp-card-header d-flex flex-wrap justify-content-between align-items-center gap-3">
+                <h3 class="erp-card-title mb-0">Intake &amp; collections</h3>
+                <div class="d-flex flex-wrap gap-3 align-items-center small">
+                  <label class="d-flex align-items-center gap-2 mb-0" style="cursor: pointer;">
+                    <input type="checkbox" [(ngModel)]="showAdmissionsSeries" (change)="updateCombinedTrendChart()" />
+                    Admissions
+                  </label>
+                  <label class="d-flex align-items-center gap-2 mb-0" style="cursor: pointer;">
+                    <input type="checkbox" [(ngModel)]="showFeesSeries" (change)="updateCombinedTrendChart()" />
+                    Fee collection
+                  </label>
+                </div>
+              </div>
+              <div class="chart-container"><canvas #combinedTrendChart></canvas></div>
             </div>
           </div>
           <div class="col-lg-4">
             <div class="erp-card" style="height: 100%;">
-              <div class="erp-card-header"><h3 class="erp-card-title">Attendance Overview</h3></div>
+              <div class="erp-card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
+                <h3 class="erp-card-title mb-0">Attendance overview</h3>
+                <div class="d-flex flex-wrap gap-2 small">
+                  <label class="d-flex align-items-center gap-1 mb-0" style="cursor: pointer;" title="Present">
+                    <input type="checkbox" [(ngModel)]="attSlicePresent" (change)="updateAttendanceChart()" />
+                    P
+                  </label>
+                  <label class="d-flex align-items-center gap-1 mb-0" style="cursor: pointer;" title="Absent">
+                    <input type="checkbox" [(ngModel)]="attSliceAbsent" (change)="updateAttendanceChart()" />
+                    A
+                  </label>
+                  <label class="d-flex align-items-center gap-1 mb-0" style="cursor: pointer;" title="Late">
+                    <input type="checkbox" [(ngModel)]="attSliceLate" (change)="updateAttendanceChart()" />
+                    L
+                  </label>
+                  <label class="d-flex align-items-center gap-1 mb-0" style="cursor: pointer;" title="Excused">
+                    <input type="checkbox" [(ngModel)]="attSliceExcused" (change)="updateAttendanceChart()" />
+                    E
+                  </label>
+                </div>
+              </div>
               <div class="chart-container" style="height: 220px;"><canvas #attendanceChart></canvas></div>
             </div>
           </div>
@@ -291,7 +323,7 @@ Chart.register(...registerables);
   `
 })
 export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
-  @ViewChild('admissionChart') admissionChartRef?: ElementRef<HTMLCanvasElement>;
+  @ViewChild('combinedTrendChart') combinedTrendChartRef?: ElementRef<HTMLCanvasElement>;
   @ViewChild('attendanceChart') attendanceChartRef?: ElementRef<HTMLCanvasElement>;
   @ViewChild('admissionsTrendChart') admissionsTrendChartRef?: ElementRef<HTMLCanvasElement>;
 
@@ -306,7 +338,13 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
   teacherKPIs: Array<{ label: string; value: string; icon: string; bgColor: string; color: string }> = [];
   parentKPIs: Array<{ label: string; value: string; icon: string; bgColor: string; color: string }> = [];
   selectedParentChildId = '';
-  private admissionChart?: Chart;
+  showAdmissionsSeries = true;
+  showFeesSeries = true;
+  attSlicePresent = true;
+  attSliceAbsent = true;
+  attSliceLate = true;
+  attSliceExcused = true;
+  private combinedTrendChart?: Chart;
   private attendanceChart?: Chart;
   private admissionsTrendChart?: Chart;
 
@@ -460,16 +498,40 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
-    this.admissionChart?.destroy();
+    this.combinedTrendChart?.destroy();
     this.attendanceChart?.destroy();
     this.admissionsTrendChart?.destroy();
   }
 
+  updateCombinedTrendChart(): void {
+    if (!this.combinedTrendChart) return;
+    const ds = this.combinedTrendChart.data.datasets;
+    if (ds[0]) ds[0].hidden = !this.showAdmissionsSeries;
+    if (ds[1]) ds[1].hidden = !this.showFeesSeries;
+    this.combinedTrendChart.update();
+  }
+
+  updateAttendanceChart(): void {
+    this.applyAttendanceVisibility();
+  }
+
+  private applyAttendanceVisibility(): void {
+    if (!this.attendanceChart) return;
+    const meta = this.attendanceChart.getDatasetMeta(0);
+    const flags = [this.attSlicePresent, this.attSliceAbsent, this.attSliceLate, this.attSliceExcused];
+    meta.data.forEach((arc, i) => {
+      if (arc && 'hidden' in arc) {
+        (arc as { hidden?: boolean }).hidden = !flags[i];
+      }
+    });
+    this.attendanceChart.update();
+  }
+
   private initAdminCharts(): void {
-    if (!this.adminDashboard || !this.admissionChartRef || !this.attendanceChartRef || !this.admissionsTrendChartRef) {
+    if (!this.adminDashboard || !this.combinedTrendChartRef || !this.attendanceChartRef || !this.admissionsTrendChartRef) {
       return;
     }
-    this.admissionChart?.destroy();
+    this.combinedTrendChart?.destroy();
     this.attendanceChart?.destroy();
     this.admissionsTrendChart?.destroy();
 
@@ -483,13 +545,13 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
       excused: 0
     };
 
-    this.admissionChart = new Chart(this.admissionChartRef.nativeElement, {
+    this.combinedTrendChart = new Chart(this.combinedTrendChartRef.nativeElement, {
       type: 'bar',
       data: {
         labels: monthlyAdmissions.map(point => point.label),
         datasets: [
-          { label: 'Admissions', data: monthlyAdmissions.map(point => Number(point.value)), backgroundColor: 'rgba(27,58,48,0.8)', borderRadius: 6, barPercentage: 0.5 },
-          { label: 'Fee Collection', data: monthlyCollections.map(point => Number(point.value)), backgroundColor: 'rgba(192,92,61,0.8)', borderRadius: 6, barPercentage: 0.5 }
+          { label: 'Admissions', data: monthlyAdmissions.map(point => Number(point.value)), backgroundColor: 'rgba(27,58,48,0.8)', borderRadius: 6, barPercentage: 0.55, hidden: !this.showAdmissionsSeries },
+          { label: 'Fee collection', data: monthlyCollections.map(point => Number(point.value)), backgroundColor: 'rgba(192,92,61,0.8)', borderRadius: 6, barPercentage: 0.55, hidden: !this.showFeesSeries }
         ]
       },
       options: {
@@ -521,6 +583,7 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
         cutout: '70%'
       }
     });
+    this.applyAttendanceVisibility();
 
     this.admissionsTrendChart = new Chart(this.admissionsTrendChartRef.nativeElement, {
       type: 'line',

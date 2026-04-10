@@ -164,29 +164,38 @@ import { StudentService } from '../../core/services/student.service';
         </div>
       </div>
 
-      <div class="erp-card animate-in" *ngIf="entries.length">
-        <div class="erp-card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
-          <h3 class="erp-card-title mb-0">Slot list</h3>
+      <div class="erp-card animate-in py-2 px-3 mb-4" *ngIf="entries.length">
+        <button
+          type="button"
+          class="btn btn-link p-0 text-start w-100 erp-collapse-toggle"
+          (click)="showSlotList = !showSlotList"
+          [attr.aria-expanded]="showSlotList"
+        >
+          <span class="me-2"><i class="bi" [ngClass]="showSlotList ? 'bi-chevron-down' : 'bi-chevron-right'"></i></span>
+          <strong>Flat slot list</strong>
+          <span class="text-muted small ms-2">(optional — same data as the grid; useful for bulk review or export)</span>
+        </button>
+        <div *ngIf="showSlotList" class="mt-3">
+          <table class="erp-table mb-0">
+            <thead><tr><th>Day</th><th>Period</th><th>Subject</th><th>Teacher</th><th>Time</th><th>Room</th><th *ngIf="canMutateTimetable">Actions</th></tr></thead>
+            <tbody>
+              <tr *ngFor="let entry of entries">
+                <td>{{ entry.day }}</td>
+                <td>{{ entry.period }}</td>
+                <td>{{ entry.subjectName }}</td>
+                <td>{{ entry.teacherName }}</td>
+                <td>{{ entry.startTime }} - {{ entry.endTime }}</td>
+                <td>{{ entry.room }}</td>
+                <td *ngIf="canMutateTimetable">
+                  <div class="d-flex gap-1">
+                    <button type="button" class="btn-icon" (click)="openEditModal(entry)"><i class="bi bi-pencil"></i></button>
+                    <button type="button" class="btn-icon" (click)="deleteEntry(entry.id)"><i class="bi bi-trash" style="color: var(--clr-danger);"></i></button>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
         </div>
-        <table class="erp-table">
-          <thead><tr><th>Day</th><th>Period</th><th>Subject</th><th>Teacher</th><th>Time</th><th>Room</th><th *ngIf="canMutateTimetable">Actions</th></tr></thead>
-          <tbody>
-            <tr *ngFor="let entry of entries">
-              <td>{{ entry.day }}</td>
-              <td>{{ entry.period }}</td>
-              <td>{{ entry.subjectName }}</td>
-              <td>{{ entry.teacherName }}</td>
-              <td>{{ entry.startTime }} - {{ entry.endTime }}</td>
-              <td>{{ entry.room }}</td>
-              <td *ngIf="canMutateTimetable">
-                <div class="d-flex gap-1">
-                  <button class="btn-icon" (click)="openEditModal(entry)"><i class="bi bi-pencil"></i></button>
-                  <button class="btn-icon" (click)="deleteEntry(entry.id)"><i class="bi bi-trash" style="color: var(--clr-danger);"></i></button>
-                </div>
-              </td>
-            </tr>
-          </tbody>
-        </table>
       </div>
     </div>
 
@@ -273,6 +282,8 @@ export class TimetableComponent implements OnInit {
   entries: TimetableEntry[] = [];
   grid: TimetableGrid | null = null;
   layout: 'dayRows' | 'periodRows' = 'dayRows';
+  /** Duplicate flat view of slots; collapsed by default to save vertical space. */
+  showSlotList = false;
   showModal = false;
   editingEntryId = '';
   dayOptions = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];

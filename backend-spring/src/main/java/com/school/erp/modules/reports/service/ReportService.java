@@ -110,7 +110,12 @@ public class ReportService {
                     return event;
                 })
                 .collect(Collectors.toList()));
-        log.info("Admin dashboard ready tenantId={} students={} activities={}", tenantId, response.getTotalStudents(), response.getRecentActivities().size());
+        List<ReportDashboardDTOs.ClassHomeroomGap> homeroomGaps = classRepo.findByTenantIdAndIsDeletedFalseOrderByGrade(tenantId).stream()
+                .filter(c -> c.getClassTeacherId() == null)
+                .map(c -> new ReportDashboardDTOs.ClassHomeroomGap(c.getId(), c.getName(), c.getGrade()))
+                .collect(Collectors.toList());
+        response.setClassesWithoutHomeroomTeacher(homeroomGaps);
+        log.info("Admin dashboard ready tenantId={} students={} activities={} homeroomGaps={}", tenantId, response.getTotalStudents(), response.getRecentActivities().size(), homeroomGaps.size());
         return response;
     }
 

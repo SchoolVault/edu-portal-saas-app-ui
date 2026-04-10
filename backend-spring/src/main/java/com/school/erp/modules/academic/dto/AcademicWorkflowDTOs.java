@@ -74,6 +74,37 @@ public class AcademicWorkflowDTOs {
         }
     }
 
+    /** Target class sections for promotion UI (e.g. fewer sections than source — admin picks placement). */
+    public static class PromotionTargetSectionOption {
+        private Long id;
+        private String name;
+        private Integer capacity;
+
+        public Long getId() {
+            return id;
+        }
+
+        public void setId(Long id) {
+            this.id = id;
+        }
+
+        public String getName() {
+            return name;
+        }
+
+        public void setName(String name) {
+            this.name = name;
+        }
+
+        public Integer getCapacity() {
+            return capacity;
+        }
+
+        public void setCapacity(Integer capacity) {
+            this.capacity = capacity;
+        }
+    }
+
     public static class PromotionPreviewResponse {
         private Long sourceClassId;
         private String sourceClassName;
@@ -81,6 +112,7 @@ public class AcademicWorkflowDTOs {
         private String targetClassName;
         private Long defaultSectionId;
         private String defaultSectionName;
+        private List<PromotionTargetSectionOption> targetSections = new ArrayList<>();
         private List<PromotionStudentPreview> students = new ArrayList<>();
 
         public Long getSourceClassId() {
@@ -131,12 +163,119 @@ public class AcademicWorkflowDTOs {
             this.defaultSectionName = defaultSectionName;
         }
 
+        public List<PromotionTargetSectionOption> getTargetSections() {
+            return targetSections;
+        }
+
+        public void setTargetSections(List<PromotionTargetSectionOption> targetSections) {
+            this.targetSections = targetSections != null ? targetSections : new ArrayList<>();
+        }
+
+        /** Guidance when target has no sections or fewer than source (admin workflow). */
+        private String sectionPlacementNote;
+
+        public String getSectionPlacementNote() {
+            return sectionPlacementNote;
+        }
+
+        public void setSectionPlacementNote(String sectionPlacementNote) {
+            this.sectionPlacementNote = sectionPlacementNote;
+        }
+
         public List<PromotionStudentPreview> getStudents() {
             return this.students;
         }
 
         public void setStudents(final List<PromotionStudentPreview> students) {
             this.students = students;
+        }
+    }
+
+    /** Heuristic distribution of promoted students across target sections (capacity-aware round-robin). */
+    public static class PromotionSplitSectionRow {
+        private Long sectionId;
+        private String sectionName;
+        private Integer capacity;
+        private int suggestedAssignCount;
+
+        public Long getSectionId() {
+            return sectionId;
+        }
+
+        public void setSectionId(Long sectionId) {
+            this.sectionId = sectionId;
+        }
+
+        public String getSectionName() {
+            return sectionName;
+        }
+
+        public void setSectionName(String sectionName) {
+            this.sectionName = sectionName;
+        }
+
+        public Integer getCapacity() {
+            return capacity;
+        }
+
+        public void setCapacity(Integer capacity) {
+            this.capacity = capacity;
+        }
+
+        public int getSuggestedAssignCount() {
+            return suggestedAssignCount;
+        }
+
+        public void setSuggestedAssignCount(int suggestedAssignCount) {
+            this.suggestedAssignCount = suggestedAssignCount;
+        }
+    }
+
+    public static class PromotionSplitPreviewResponse {
+        private Long fromClassId;
+        private Long toClassId;
+        private int eligibleStudentCount;
+        private String hint;
+        private List<PromotionSplitSectionRow> sections = new ArrayList<>();
+
+        public Long getFromClassId() {
+            return fromClassId;
+        }
+
+        public void setFromClassId(Long fromClassId) {
+            this.fromClassId = fromClassId;
+        }
+
+        public Long getToClassId() {
+            return toClassId;
+        }
+
+        public void setToClassId(Long toClassId) {
+            this.toClassId = toClassId;
+        }
+
+        public int getEligibleStudentCount() {
+            return eligibleStudentCount;
+        }
+
+        public void setEligibleStudentCount(int eligibleStudentCount) {
+            this.eligibleStudentCount = eligibleStudentCount;
+        }
+
+        public String getHint() {
+            return hint;
+        }
+
+        public void setHint(String hint) {
+            this.hint = hint;
+        }
+
+        public List<PromotionSplitSectionRow> getSections() {
+            return sections;
+        }
+
+        public void setSections(List<PromotionSplitSectionRow> sections) {
+            this.sections = sections != null ? sections : new ArrayList<>();
         }
     }
 

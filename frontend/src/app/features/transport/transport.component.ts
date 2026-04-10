@@ -3,7 +3,8 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { from } from 'rxjs';
-import { concatMap } from 'rxjs/operators';
+import { concatMap, filter } from 'rxjs/operators';
+import { ConfirmDialogService } from '../../shared/confirm-dialog/confirm-dialog.service';
 import { TransportDriver, TransportRoute, TransportVehicle } from '../../core/models/models';
 import { TransportService } from '../../core/services/transport.service';
 import { StudentService } from '../../core/services/student.service';
@@ -282,7 +283,8 @@ export class TransportComponent implements OnInit {
     private transportService: TransportService,
     private studentService: StudentService,
     private authService: AuthService,
-    private sanitizer: DomSanitizer
+    private sanitizer: DomSanitizer,
+    private confirmDialog: ConfirmDialogService
   ) {}
 
   ngOnInit(): void {
@@ -433,8 +435,20 @@ export class TransportComponent implements OnInit {
   }
 
   deleteRoute(r: TransportRoute): void {
-    if (!confirm('Delete this route?')) return;
-    this.transportService.deleteRoute(r.id).subscribe(() => this.reload());
+    this.confirmDialog
+      .confirm({
+        title: 'Delete transport route?',
+        message: `Route "${r.name}" will be removed. Student assignments and stops linked to this route may need to be reviewed.`,
+        details: [
+          r.vehicleNumber ? `Vehicle: ${r.vehicleNumber}` : undefined,
+          r.driverName ? `Driver: ${r.driverName}` : undefined,
+          `${r.stops?.length ?? 0} stop(s) configured`,
+        ].filter((x): x is string => !!x),
+        variant: 'danger',
+        confirmLabel: 'Yes, delete route',
+      })
+      .pipe(filter(Boolean))
+      .subscribe(() => this.transportService.deleteRoute(r.id).subscribe(() => this.reload()));
   }
 
   openStopModal(r: TransportRoute): void {

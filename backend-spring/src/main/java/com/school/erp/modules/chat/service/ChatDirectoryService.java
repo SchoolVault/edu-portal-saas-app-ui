@@ -6,6 +6,7 @@ import com.school.erp.modules.academic.repository.SchoolClassRepository;
 import com.school.erp.modules.auth.entity.User;
 import com.school.erp.modules.auth.repository.UserRepository;
 import com.school.erp.modules.chat.dto.ChatDirectoryDTOs;
+import com.school.erp.modules.guardian.service.GuardianService;
 import com.school.erp.modules.student.entity.Student;
 import com.school.erp.modules.student.repository.StudentRepository;
 import com.school.erp.modules.teacher.entity.Teacher;
@@ -17,11 +18,14 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
@@ -33,6 +37,7 @@ public class ChatDirectoryService {
     private final SchoolClassRepository classRepository;
     private final UserRepository userRepository;
     private final TeacherRepository teacherRepository;
+    private final GuardianService guardianService;
 
     @Transactional(readOnly = true)
     public ChatDirectoryDTOs.DirectoryResponse getDirectory() {
@@ -53,7 +58,11 @@ public class ChatDirectoryService {
             log.info("Chat directory (parent) childGroupCount={}", res.getMyChildren() != null ? res.getMyChildren().size() : 0);
             return res;
         }
-        if ("ADMIN".equals(role) || "SUPER_ADMIN".equals(role)) {
+        if ("SUPER_ADMIN".equals(role)) {
+            log.info("Chat directory (super admin) empty — use GET /platform/school-admins/chat-search");
+            return res;
+        }
+        if ("ADMIN".equals(role)) {
             res.setTeachers(userRepository.findByTenantIdAndRoleAndIsDeletedFalse(tenantId, Enums.Role.TEACHER)
                     .stream()
                     .map(u -> new ChatDirectoryDTOs.UserCard(u.getId(), u.getName(), u.getRole() != null ? u.getRole().name() : "TEACHER"))
@@ -71,6 +80,38 @@ public class ChatDirectoryService {
         // students and others: keep empty for now (until we add student-user mapping)
         log.info("Chat directory empty for role={}", role.isEmpty() ? "UNKNOWN" : role);
         return res;
+    }
+
+    /**
+     * Homeroom teacher user ids for all students linked to this parent (same rules as parent directory cards).
+     */
+    @Transactional(readOnly = true)
+    public boolean parentMayMessageTeacherUser(Long parentUserId, Long teacherUserId) {
+        if (teacherUserId == null) {
+            return false;
+        }
+        String tenantId = TenantContext.getTenantId();
+        return homeroomTeacherUserIdsForParent(tenantId, parentUserId).contains(teacherUserId);
+    }
+
+    private Set<Long> homeroomTeacherUserIdsForParent(String tenantId, Long parentUserId) {
+        List<Student> kids = guardianService.findStudentsForParentUser(tenantId, parentUserId);
+        if (kids.isEmpty()) {
+            return Set.of();
+        }
+        Map<Long, SchoolClass> classMap = classRepository.findByTenantIdAndIsDeletedFalseOrderByGrade(tenantId)
+                .stream().collect(Collectors.toMap(SchoolClass::getId, c -> c, (a, b) -> a));
+        Set<Long> out = new HashSet<>();
+        for (Student s : kids) {
+            SchoolClass c = s.getClassId() != null ? classMap.get(s.getClassId()) : null;
+            if (c == null || c.getClassTeacherId() == null) {
+                continue;
+            }
+            teacherRepository.findByIdAndTenantIdAndIsDeletedFalse(c.getClassTeacherId(), tenantId)
+                    .map(Teacher::getUserId)
+                    .ifPresent(out::add);
+        }
+        return out;
     }
 
     private List<ChatDirectoryDTOs.ClassRoster> getTeacherRosters(String tenantId, Long userId) {
@@ -129,14 +170,15 @@ public class ChatDirectoryService {
     }
 
     private List<ChatDirectoryDTOs.ParentChildRoster> getParentChildren(String tenantId, Long parentUserId) {
-        List<Student> kids = studentRepository.findByTenantIdAndParentIdAndIsDeletedFalse(tenantId, parentUserId);
-        if (kids.isEmpty()) return List.of();
+        List<Student> kids = guardianService.findStudentsForParentUser(tenantId, parentUserId);
+        if (kids.isEmpty()) {
+            return List.of();
+        }
 
         Map<Long, SchoolClass> classMap = classRepository.findByTenantIdAndIsDeletedFalseOrderByGrade(tenantId)
                 .stream().collect(Collectors.toMap(SchoolClass::getId, c -> c, (a, b) -> a));
 
-        // For now: parent can message class teacher (main teacher). Subject teachers can be added later via timetable/subject mapping.
-        List<Long> classTeacherUserIds = kids.stream()
+        List<Long> classTeacherTeacherPks = kids.stream()
                 .map(Student::getClassId)
                 .map(classMap::get)
                 .filter(Objects::nonNull)
@@ -145,12 +187,13 @@ public class ChatDirectoryService {
                 .distinct()
                 .collect(Collectors.toList());
 
-        Map<Long, User> teacherUsers = classTeacherUserIds.isEmpty()
-                ? Map.of()
-                : classTeacherUserIds.stream()
-                .map(id -> userRepository.findByIdAndTenantIdAndIsDeletedFalse(id, tenantId).orElse(null))
-                .filter(Objects::nonNull)
-                .collect(Collectors.toMap(User::getId, u -> u));
+        Map<Long, User> homeroomTeacherUserByTeacherPk = new HashMap<>();
+        for (Long teacherPk : classTeacherTeacherPks) {
+            teacherRepository.findByIdAndTenantIdAndIsDeletedFalse(teacherPk, tenantId)
+                    .map(Teacher::getUserId)
+                    .flatMap(uid -> userRepository.findByIdAndTenantIdAndIsDeletedFalse(uid, tenantId))
+                    .ifPresent(u -> homeroomTeacherUserByTeacherPk.put(teacherPk, u));
+        }
 
         return kids.stream().map(s -> {
                     ChatDirectoryDTOs.ParentChildRoster r = new ChatDirectoryDTOs.ParentChildRoster();
@@ -162,7 +205,7 @@ public class ChatDirectoryService {
                     r.setSectionId(s.getSectionId());
                     r.setSectionName(null);
                     if (c != null && c.getClassTeacherId() != null) {
-                        User u = teacherUsers.get(c.getClassTeacherId());
+                        User u = homeroomTeacherUserByTeacherPk.get(c.getClassTeacherId());
                         if (u != null) {
                             r.setClassTeacher(new ChatDirectoryDTOs.UserCard(u.getId(), u.getName(), u.getRole() != null ? u.getRole().name() : "TEACHER"));
                         }
@@ -176,11 +219,13 @@ public class ChatDirectoryService {
     public ChatDirectoryService(StudentRepository studentRepository,
                                SchoolClassRepository classRepository,
                                UserRepository userRepository,
-                               TeacherRepository teacherRepository) {
+                               TeacherRepository teacherRepository,
+                               GuardianService guardianService) {
         this.studentRepository = studentRepository;
         this.classRepository = classRepository;
         this.userRepository = userRepository;
         this.teacherRepository = teacherRepository;
+        this.guardianService = guardianService;
     }
 }
 

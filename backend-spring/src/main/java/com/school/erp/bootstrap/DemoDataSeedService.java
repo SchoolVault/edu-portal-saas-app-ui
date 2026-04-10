@@ -65,6 +65,7 @@ import com.school.erp.modules.timetable.entity.TimetableEntry;
 import com.school.erp.modules.timetable.repository.TimetableRepository;
 import com.school.erp.modules.transport.entity.*;
 import com.school.erp.modules.transport.repository.*;
+import com.school.erp.bootstrap.demo.DemoExtendedTablesSeed;
 import jakarta.persistence.EntityManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -88,7 +89,7 @@ import java.util.function.Consumer;
  * (school + region + short hash), not generic {@code t1}.
  */
 @Service
-@Profile("dev")
+@Profile({"dev", "showcase-seed", "demo-seed"})
 public class DemoDataSeedService {
 
     private static final Logger log = LoggerFactory.getLogger(DemoDataSeedService.class);
@@ -145,6 +146,7 @@ public class DemoDataSeedService {
     private final ChatParticipantRepository chatParticipantRepository;
     private final ChatMessageRepository chatMessageRepository;
     private final EntityManager entityManager;
+    private final DemoExtendedTablesSeed demoExtendedTablesSeed;
 
     public DemoDataSeedService(
             TenantConfigRepository tenantConfigRepository,
@@ -191,7 +193,8 @@ public class DemoDataSeedService {
             ChatConversationRepository chatConversationRepository,
             ChatParticipantRepository chatParticipantRepository,
             ChatMessageRepository chatMessageRepository,
-            EntityManager entityManager) {
+            EntityManager entityManager,
+            DemoExtendedTablesSeed demoExtendedTablesSeed) {
         this.tenantConfigRepository = tenantConfigRepository;
         this.userRepository = userRepository;
         this.academicYearRepository = academicYearRepository;
@@ -237,6 +240,7 @@ public class DemoDataSeedService {
         this.chatParticipantRepository = chatParticipantRepository;
         this.chatMessageRepository = chatMessageRepository;
         this.entityManager = entityManager;
+        this.demoExtendedTablesSeed = demoExtendedTablesSeed;
     }
 
     @Transactional
@@ -252,7 +256,11 @@ public class DemoDataSeedService {
                 .ifPresent(c -> expandStXaviersBulkSeed(c.getTenantId(), "STXHER-KOL"));
         tenantConfigRepository.findBySchoolCode("MRIDGE-PN")
                 .ifPresent(c -> expandMeridianBulkSeed(c.getTenantId(), "MRIDGE-PN"));
-        log.info("Demo data seed complete (baseline tenants + idempotent bulk extension for STXHER-KOL / MRIDGE-PN).");
+        tenantConfigRepository.findBySchoolCode("STXHER-KOL")
+                .ifPresent(c -> demoExtendedTablesSeed.seedExtendedModuleRows(c.getTenantId(), "STXHER-KOL"));
+        tenantConfigRepository.findBySchoolCode("MRIDGE-PN")
+                .ifPresent(c -> demoExtendedTablesSeed.seedExtendedModuleRows(c.getTenantId(), "MRIDGE-PN"));
+        log.info("Demo data seed complete (baseline tenants + idempotent bulk extension + extended module rows).");
     }
 
     private void seedPlatformSuperAdminIfMissing() {
@@ -272,6 +280,14 @@ public class DemoDataSeedService {
         u.setIsDeleted(false);
         userRepository.save(u);
         log.info("Seeded platform SUPER_ADMIN (login: super.ops@schoolvault.edu / school code PLATFORM / password admin123)");
+    }
+
+    /** JWT STUDENT role for future student-portal flows; not linked to {@link Student} row yet. */
+    private void seedStudentPreviewLogin(String tenantId, String schoolCode, String email, String displayName) {
+        if (userRepository.findByEmailAndSchoolCodeAndIsDeletedFalse(email, schoolCode).isPresent()) {
+            return;
+        }
+        userRepository.save(user(tenantId, schoolCode, displayName, email, Enums.Role.STUDENT));
     }
 
     private void seedStXaviersHeritage() {
@@ -313,14 +329,18 @@ public class DemoDataSeedService {
 
         SchoolClass c9 = clazz(tenantId, "Class IX", 9, ay.getId(), t1.getId(), "Debjyoti Sen");
         SchoolClass c10 = clazz(tenantId, "Class X", 10, ay.getId(), t2.getId(), "Meera Iyer");
-        schoolClassRepository.saveAll(List.of(c9, c10));
+        SchoolClass c7Demo = clazz(tenantId, "Class VII — Homeroom TBD (demo)", 7, ay.getId(), null, null);
+        SchoolClass c8Demo = clazz(tenantId, "Class VIII — Homeroom TBD (demo)", 8, ay.getId(), null, null);
+        schoolClassRepository.saveAll(List.of(c9, c10, c7Demo, c8Demo));
         flush();
 
         Section c9a = section(tenantId, "A", c9.getId(), 40, 4);
         Section c9b = section(tenantId, "B", c9.getId(), 40, 4);
         Section c10a = section(tenantId, "A", c10.getId(), 40, 4);
         Section c10b = section(tenantId, "B", c10.getId(), 40, 4);
-        sectionRepository.saveAll(List.of(c9a, c9b, c10a, c10b));
+        Section c7a = section(tenantId, "A", c7Demo.getId(), 40, 0);
+        Section c8a = section(tenantId, "A", c8Demo.getId(), 40, 0);
+        sectionRepository.saveAll(List.of(c9a, c9b, c10a, c10b, c7a, c8a));
         flush();
 
         List<Student> studs = new ArrayList<>();
@@ -399,6 +419,12 @@ public class DemoDataSeedService {
         FeePayment fp2 = payment(tenantId, studs.get(3), fs.getId(), new BigDecimal("48500"), new BigDecimal("48500"),
                 BigDecimal.ZERO, Enums.FeeStatus.PAID, "SX-REC-002");
         feePaymentRepository.saveAll(List.of(fp1, fp2));
+        fp1.setDueDate(LocalDate.now().plusDays(10));
+        feePaymentRepository.save(fp1);
+        FeePayment fpOver = payment(tenantId, studs.get(1), fs.getId(), new BigDecimal("12000"), BigDecimal.ZERO,
+                new BigDecimal("12000"), Enums.FeeStatus.OVERDUE, "SX-REC-OVD-01");
+        fpOver.setDueDate(LocalDate.now().minusDays(5));
+        feePaymentRepository.save(fpOver);
         flush();
 
         FeePaymentAttempt att = new FeePaymentAttempt();
@@ -568,6 +594,8 @@ public class DemoDataSeedService {
         cm2.setBodyType("text");
         chatMessageRepository.saveAll(List.of(cm1, cm2));
 
+        seedStudentPreviewLogin(tenantId, schoolCode, "student.preview@stxheritage.edu", "Riya Banerjee (student portal)");
+
         log.info("Seeded demo workspace St. Xavier's (tenant_id={}, school_code={}, login principal@stxheritage.edu / admin123)",
                 tenantId, schoolCode);
     }
@@ -709,6 +737,8 @@ public class DemoDataSeedService {
         auditLogRepository.save(tap(AuditLog.builder().action(Enums.AuditAction.CREATE).module("STUDENT")
                 .description("Bulk import: 3 new admissions for Class VIII").userId(admin.getId()).userName(admin.getName())
                 .build(), a -> a.setTenantId(tenantId)));
+
+        seedStudentPreviewLogin(tenantId, schoolCode, "student.preview@meridianridge.edu", "Advik Deshmukh (student portal)");
 
         log.info("Seeded demo workspace Meridian Ridge (tenant_id={}, school_code={}, login principal@meridianridge.edu / admin123)",
                 tenantId, schoolCode);

@@ -114,6 +114,32 @@ public class PlatformDTOs {
         public void setCreatedAt(String createdAt) { this.createdAt = createdAt; }
     }
 
+    /** Super-admin chat picker: campus admin + school context (same shape for UI list). */
+    public static class SchoolAdminChatHit {
+        private Long userId;
+        private String name;
+        private String email;
+        private String phone;
+        private String schoolName;
+        private String schoolCode;
+        private String tenantId;
+
+        public Long getUserId() { return userId; }
+        public void setUserId(Long userId) { this.userId = userId; }
+        public String getName() { return name; }
+        public void setName(String name) { this.name = name; }
+        public String getEmail() { return email; }
+        public void setEmail(String email) { this.email = email; }
+        public String getPhone() { return phone; }
+        public void setPhone(String phone) { this.phone = phone; }
+        public String getSchoolName() { return schoolName; }
+        public void setSchoolName(String schoolName) { this.schoolName = schoolName; }
+        public String getSchoolCode() { return schoolCode; }
+        public void setSchoolCode(String schoolCode) { this.schoolCode = schoolCode; }
+        public String getTenantId() { return tenantId; }
+        public void setTenantId(String tenantId) { this.tenantId = tenantId; }
+    }
+
     public static class ToggleAdminStatusRequest {
         private boolean active;
 
@@ -330,6 +356,10 @@ public class PlatformDTOs {
         /** Product modules included (academics, fees, transport, …). */
         private List<String> modules = new ArrayList<>();
         private boolean recommended;
+        /** Longer commercial / GTM copy for operator detail drawer (optional). */
+        private String commercialNotes;
+        /** Placeholder for billing integration key (e.g. Stripe price id) until invoicing service owns catalog. */
+        private String integrationPriceKey;
 
         public String getCode() { return code; }
         public void setCode(String code) { this.code = code; }
@@ -353,5 +383,9 @@ public class PlatformDTOs {
         public void setModules(List<String> modules) { this.modules = modules; }
         public boolean isRecommended() { return recommended; }
         public void setRecommended(boolean recommended) { this.recommended = recommended; }
+        public String getCommercialNotes() { return commercialNotes; }
+        public void setCommercialNotes(String commercialNotes) { this.commercialNotes = commercialNotes; }
+        public String getIntegrationPriceKey() { return integrationPriceKey; }
+        public void setIntegrationPriceKey(String integrationPriceKey) { this.integrationPriceKey = integrationPriceKey; }
     }
 }

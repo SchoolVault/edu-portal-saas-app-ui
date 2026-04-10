@@ -1,5 +1,6 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { PlatformService } from '../../core/services/platform.service';
 import { PlatformSubscriptionPlan } from '../../core/models/models';
@@ -7,7 +8,7 @@ import { PlatformSubscriptionPlan } from '../../core/models/models';
 @Component({
   selector: 'app-platform-subscriptions',
   standalone: true,
-  imports: [CommonModule, RouterLink],
+  imports: [CommonModule, FormsModule, RouterLink],
   template: `
     <div class="platform-subs-root" data-testid="platform-subscriptions-page">
       <div class="platform-subs-inner animate-in">
@@ -22,7 +23,8 @@ import { PlatformSubscriptionPlan } from '../../core/models/models';
           <a routerLink="/app/super-admin" class="btn-outline-erp btn-sm"><i class="bi bi-arrow-left me-1"></i>Platform overview</a>
         </div>
 
-        <div *ngIf="error" class="alert alert-danger py-2 mb-4">{{ error }}</div>
+        <div *ngIf="pageError" class="alert alert-danger py-2 mb-4">{{ pageError }}</div>
+        <div *ngIf="saveBanner" class="alert alert-success py-2 mb-4">{{ saveBanner }}</div>
 
         <div class="erp-card platform-compare-intro mb-4">
           <div class="row g-3 align-items-center">
@@ -76,8 +78,147 @@ import { PlatformSubscriptionPlan } from '../../core/models/models';
                 <ul class="platform-plan-highlights">
                   <li *ngFor="let h of p.highlights">{{ h }}</li>
                 </ul>
+                <div class="d-flex flex-wrap gap-2 mt-auto pt-3 platform-plan-actions">
+                  <button type="button" class="btn-outline-erp btn-sm" (click)="openDetail(p)">View details</button>
+                  <button type="button" class="btn-primary-erp btn-sm" (click)="openEdit(p)">Edit catalog</button>
+                </div>
               </div>
             </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-overlay" *ngIf="detailPlan" (click)="closeDetail()">
+        <div class="modal-content-erp platform-plan-modal" (click)="$event.stopPropagation()">
+          <div class="modal-header-erp">
+            <h3>{{ detailPlan.name }}</h3>
+            <button type="button" class="btn-icon" (click)="closeDetail()" aria-label="Close"><i class="bi bi-x-lg"></i></button>
+          </div>
+          <div class="modal-body-erp">
+            <p class="text-muted small mb-3">{{ detailPlan.code }} · Catalog row for provisioning &amp; billing adapters</p>
+            <dl class="platform-detail-dl row g-3">
+              <div class="col-md-6">
+                <dt>Monthly price (minor units)</dt>
+                <dd>{{ detailPlan.monthlyPriceMinorUnits }} {{ detailPlan.currency }}</dd>
+              </div>
+              <div class="col-md-6">
+                <dt>Recommended default</dt>
+                <dd>{{ detailPlan.recommended ? 'Yes' : 'No' }}</dd>
+              </div>
+              <div class="col-12">
+                <dt>Description</dt>
+                <dd>{{ detailPlan.description }}</dd>
+              </div>
+              <div class="col-md-6">
+                <dt>Capacity</dt>
+                <dd>{{ detailPlan.maxStudentsLabel || '—' }}</dd>
+              </div>
+              <div class="col-md-6">
+                <dt>Support</dt>
+                <dd>{{ detailPlan.supportTier || '—' }}</dd>
+              </div>
+              <div class="col-12">
+                <dt>Billing cadence</dt>
+                <dd>{{ detailPlan.billingCadence || '—' }}</dd>
+              </div>
+              <div class="col-12">
+                <dt>Commercial notes</dt>
+                <dd class="text-secondary">{{ detailPlan.commercialNotes || '—' }}</dd>
+              </div>
+              <div class="col-12">
+                <dt>Integration price key</dt>
+                <dd><code class="small">{{ detailPlan.integrationPriceKey || '—' }}</code></dd>
+              </div>
+              <div class="col-12">
+                <dt>Modules</dt>
+                <dd>
+                  <div class="platform-module-chips">
+                    <span class="platform-chip" *ngFor="let m of detailPlan.modules">{{ m }}</span>
+                  </div>
+                </dd>
+              </div>
+              <div class="col-12">
+                <dt>Highlights</dt>
+                <dd>
+                  <ul class="platform-plan-highlights mb-0">
+                    <li *ngFor="let h of detailPlan.highlights">{{ h }}</li>
+                  </ul>
+                </dd>
+              </div>
+            </dl>
+          </div>
+          <div class="modal-footer-erp">
+            <button type="button" class="btn-outline-erp" (click)="closeDetail()">Close</button>
+            <button type="button" class="btn-primary-erp" (click)="openEditFromDetail()">Edit catalog</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-overlay" *ngIf="editDraft" (click)="closeEdit()">
+        <div class="modal-content-erp platform-plan-modal" style="max-width: 720px;" (click)="$event.stopPropagation()">
+          <div class="modal-header-erp">
+            <h3>Edit {{ editDraft.code }}</h3>
+            <button type="button" class="btn-icon" (click)="closeEdit()" [disabled]="saving" aria-label="Close"><i class="bi bi-x-lg"></i></button>
+          </div>
+          <div class="modal-body-erp">
+            <div *ngIf="editError" class="alert alert-danger py-2 small">{{ editError }}</div>
+            <p class="text-muted small">Uses the same JSON body as <code>PUT /api/v1/platform/subscription-plans/:code</code>; the tier code in the URL cannot be changed here.</p>
+            <div class="row g-3">
+              <div class="col-md-8 erp-form-group">
+                <label class="erp-label">Display name</label>
+                <input type="text" class="erp-input" [(ngModel)]="editDraft.name" />
+              </div>
+              <div class="col-md-4 erp-form-group">
+                <label class="erp-label">Currency</label>
+                <input type="text" class="erp-input" [(ngModel)]="editDraft.currency" maxlength="8" />
+              </div>
+              <div class="col-12 erp-form-group">
+                <label class="erp-label">Description</label>
+                <textarea class="erp-input" rows="3" [(ngModel)]="editDraft.description"></textarea>
+              </div>
+              <div class="col-md-6 erp-form-group">
+                <label class="erp-label">Monthly price (minor units)</label>
+                <input type="number" class="erp-input" [(ngModel)]="editDraft.monthlyPriceMinorUnits" min="0" />
+              </div>
+              <div class="col-md-6 erp-form-group d-flex align-items-end">
+                <label class="d-flex align-items-center gap-2 mb-0">
+                  <input type="checkbox" [(ngModel)]="editDraft.recommended" />
+                  <span>Mark as recommended tier</span>
+                </label>
+              </div>
+              <div class="col-md-6 erp-form-group">
+                <label class="erp-label">Capacity label</label>
+                <input type="text" class="erp-input" [(ngModel)]="editDraft.maxStudentsLabel" />
+              </div>
+              <div class="col-md-6 erp-form-group">
+                <label class="erp-label">Support tier</label>
+                <input type="text" class="erp-input" [(ngModel)]="editDraft.supportTier" />
+              </div>
+              <div class="col-12 erp-form-group">
+                <label class="erp-label">Billing cadence</label>
+                <input type="text" class="erp-input" [(ngModel)]="editDraft.billingCadence" />
+              </div>
+              <div class="col-12 erp-form-group">
+                <label class="erp-label">Commercial notes (internal / GTM)</label>
+                <textarea class="erp-input" rows="2" [(ngModel)]="editDraft.commercialNotes"></textarea>
+              </div>
+              <div class="col-12 erp-form-group">
+                <label class="erp-label">Integration price key</label>
+                <input type="text" class="erp-input" [(ngModel)]="editDraft.integrationPriceKey" placeholder="e.g. price_standard_monthly" />
+              </div>
+              <div class="col-12 erp-form-group">
+                <label class="erp-label">Modules (one per line)</label>
+                <textarea class="erp-input font-monospace small" rows="5" [(ngModel)]="editModulesText"></textarea>
+              </div>
+              <div class="col-12 erp-form-group">
+                <label class="erp-label">Highlights (one per line)</label>
+                <textarea class="erp-input font-monospace small" rows="4" [(ngModel)]="editHighlightsText"></textarea>
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer-erp">
+            <button type="button" class="btn-outline-erp" (click)="closeEdit()" [disabled]="saving">Cancel</button>
+            <button type="button" class="btn-primary-erp" (click)="saveEdit()" [disabled]="saving">{{ saving ? 'Saving…' : 'Save catalog' }}</button>
           </div>
         </div>
       </div>
@@ -130,7 +271,7 @@ import { PlatformSubscriptionPlan } from '../../core/models/models';
       line-height: 1.45;
     }
     .platform-meta-full { grid-column: 1 / -1; }
-    .platform-plan-body { padding: 18px 22px 22px; flex: 1; }
+    .platform-plan-body { padding: 18px 22px 22px; flex: 1; display: flex; flex-direction: column; }
     .platform-subhead {
       font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em;
       color: var(--clr-text-muted); margin-bottom: 10px;
@@ -145,15 +286,34 @@ import { PlatformSubscriptionPlan } from '../../core/models/models';
     }
     .platform-plan-highlights { margin: 0; padding-left: 1.15rem; font-size: 13px; line-height: 1.55; color: var(--clr-text-secondary); }
     .platform-plan-highlights li { margin-bottom: 6px; }
+    .platform-plan-actions { border-top: 1px solid var(--clr-border-light); }
+    .platform-plan-modal { max-width: 640px; max-height: 90vh; overflow: hidden; display: flex; flex-direction: column; }
+    .platform-plan-modal .modal-body-erp { overflow-y: auto; }
+    .platform-detail-dl dt {
+      font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--clr-text-muted); margin-bottom: 4px;
+    }
+    .platform-detail-dl dd { margin: 0; font-size: 14px; }
   `]
 })
 export class PlatformSubscriptionsComponent implements OnInit {
   plans: PlatformSubscriptionPlan[] = [];
-  error = '';
+  pageError = '';
+  saveBanner = '';
+  detailPlan: PlatformSubscriptionPlan | null = null;
+  editDraft: PlatformSubscriptionPlan | null = null;
+  editModulesText = '';
+  editHighlightsText = '';
+  editError = '';
+  saving = false;
 
   constructor(private platform: PlatformService) {}
 
   ngOnInit(): void {
+    this.loadPlans();
+  }
+
+  private loadPlans(): void {
+    this.pageError = '';
     this.platform.listSubscriptionPlans().subscribe({
       next: p => {
         this.plans = p.map(row => ({
@@ -162,7 +322,82 @@ export class PlatformSubscriptionsComponent implements OnInit {
           modules: [...(row.modules || [])]
         }));
       },
-      error: e => { this.error = e?.message || 'Could not load plans.'; }
+      error: e => { this.pageError = e?.message || 'Could not load plans.'; }
     });
+  }
+
+  openDetail(p: PlatformSubscriptionPlan): void {
+    this.detailPlan = { ...p, highlights: [...(p.highlights || [])], modules: [...(p.modules || [])] };
+  }
+
+  closeDetail(): void {
+    this.detailPlan = null;
+  }
+
+  openEdit(p: PlatformSubscriptionPlan): void {
+    this.closeDetail();
+    this.editError = '';
+    this.editDraft = this.cloneForEdit(p);
+    this.editModulesText = this.linesFromArray(p.modules);
+    this.editHighlightsText = this.linesFromArray(p.highlights);
+  }
+
+  openEditFromDetail(): void {
+    if (!this.detailPlan) return;
+    const p = this.detailPlan;
+    this.openEdit(p);
+  }
+
+  closeEdit(): void {
+    if (this.saving) return;
+    this.editDraft = null;
+    this.editModulesText = '';
+    this.editHighlightsText = '';
+    this.editError = '';
+  }
+
+  saveEdit(): void {
+    if (!this.editDraft) return;
+    this.saving = true;
+    this.editError = '';
+    const body: PlatformSubscriptionPlan = {
+      ...this.editDraft,
+      modules: this.arrayFromLines(this.editModulesText),
+      highlights: this.arrayFromLines(this.editHighlightsText)
+    };
+    this.platform.updateSubscriptionPlan(body.code, body).subscribe({
+      next: updated => {
+        this.saving = false;
+        this.saveBanner = `Saved catalog tier ${updated.code}.`;
+        setTimeout(() => { this.saveBanner = ''; }, 4000);
+        this.closeEdit();
+        this.loadPlans();
+      },
+      error: e => {
+        this.saving = false;
+        this.editError = e?.message || 'Save failed.';
+      }
+    });
+  }
+
+  private cloneForEdit(p: PlatformSubscriptionPlan): PlatformSubscriptionPlan {
+    return {
+      ...p,
+      highlights: [...(p.highlights || [])],
+      modules: [...(p.modules || [])],
+      commercialNotes: p.commercialNotes ?? '',
+      integrationPriceKey: p.integrationPriceKey ?? ''
+    };
+  }
+
+  private linesFromArray(arr?: string[]): string {
+    return (arr || []).join('\n');
+  }
+
+  private arrayFromLines(text: string): string[] {
+    return text
+      .split(/\r?\n/)
+      .map(s => s.trim())
+      .filter(Boolean);
   }
 }

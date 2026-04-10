@@ -4,6 +4,8 @@ import com.school.erp.common.dto.PageResponse;
 import com.school.erp.common.enums.Enums;
 import com.school.erp.common.importer.ZipCsvImportUtil;
 import com.school.erp.common.exception.ResourceNotFoundException;
+import com.school.erp.modules.academic.entity.SchoolClass;
+import com.school.erp.modules.academic.repository.SchoolClassRepository;
 import com.school.erp.modules.teacher.dto.TeacherDTOs;
 import com.school.erp.modules.teacher.entity.Teacher;
 import com.school.erp.modules.teacher.repository.TeacherRepository;
@@ -17,6 +19,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -24,6 +27,7 @@ import java.util.stream.Collectors;
 public class TeacherService {
     private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(TeacherService.class);
     private final TeacherRepository repo;
+    private final SchoolClassRepository schoolClassRepository;
 
     @Transactional(readOnly = true)
     public PageResponse<TeacherDTOs.Response> getTeachers(int page, int size) {
@@ -64,6 +68,17 @@ public class TeacherService {
         if (req.getSpecialization() != null) t.setSpecialization(req.getSpecialization());
         if (req.getSalary() != null) t.setSalary(req.getSalary());
         if (req.getSubjects() != null) t.setSubjects(req.getSubjects());
+        if (req.getStatus() != null && !req.getStatus().isBlank()) {
+            try {
+                Enums.TeacherStatus next = Enums.TeacherStatus.valueOf(req.getStatus().trim().toUpperCase(Locale.ROOT));
+                t.setStatus(next);
+                if (next == Enums.TeacherStatus.INACTIVE || next == Enums.TeacherStatus.RESIGNED) {
+                    clearHomeroomForTeacher(t.getId(), TenantContext.getTenantId());
+                }
+            } catch (IllegalArgumentException ex) {
+                log.warn("Ignoring invalid teacher status on update id={} status={}", id, req.getStatus());
+            }
+        }
         repo.save(t);
         log.info("Teacher updated id={}", id);
         return toRes(t);
@@ -72,10 +87,21 @@ public class TeacherService {
     @Transactional
     public void delete(Long id) {
         log.warn("Soft-deleting teacher id={}", id);
-        Teacher t = repo.findByIdAndTenantIdAndIsDeletedFalse(id, TenantContext.getTenantId()).orElseThrow(() -> new ResourceNotFoundException("Teacher", id));
+        String tenantId = TenantContext.getTenantId();
+        Teacher t = repo.findByIdAndTenantIdAndIsDeletedFalse(id, tenantId).orElseThrow(() -> new ResourceNotFoundException("Teacher", id));
+        clearHomeroomForTeacher(id, tenantId);
         t.setIsDeleted(true);
         repo.save(t);
         log.info("Teacher soft-deleted id={}", id);
+    }
+
+    private void clearHomeroomForTeacher(Long teacherPk, String tenantId) {
+        for (SchoolClass c : schoolClassRepository.findByTenantIdAndClassTeacherIdAndIsDeletedFalse(tenantId, teacherPk)) {
+            c.setClassTeacherId(null);
+            c.setClassTeacherName(null);
+            schoolClassRepository.save(c);
+            log.info("Cleared homeroom for classId={} after teacher change teacherPk={}", c.getId(), teacherPk);
+        }
     }
 
     @Transactional
@@ -113,8 +139,9 @@ public class TeacherService {
         return r;
     }
 
-    public TeacherService(final TeacherRepository repo) {
+    public TeacherService(final TeacherRepository repo, final SchoolClassRepository schoolClassRepository) {
         this.repo = repo;
+        this.schoolClassRepository = schoolClassRepository;
     }
 
     private String required(Map<String, String> row, String key) {

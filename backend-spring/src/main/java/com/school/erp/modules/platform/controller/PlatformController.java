@@ -37,6 +37,14 @@ public class PlatformController {
         return ResponseEntity.ok(ApiResponse.ok(platformService.getSchools()));
     }
 
+    @GetMapping("/school-admins/chat-search")
+    @Operation(summary = "Search school admins for platform operator chat (name, email, school, code)")
+    public ResponseEntity<ApiResponse<List<PlatformDTOs.SchoolAdminChatHit>>> searchSchoolAdminsForChat(
+            @RequestParam(value = "q", defaultValue = "") String q
+    ) {
+        return ResponseEntity.ok(ApiResponse.ok(platformService.searchSchoolAdminsForChat(q)));
+    }
+
     @GetMapping("/schools/{tenantId}/detail")
     @Operation(summary = "School overview: profile, admins, counts (platform scope)")
     public ResponseEntity<ApiResponse<PlatformDTOs.SchoolDetailResponse>> getSchoolDetail(@PathVariable String tenantId) {
@@ -73,9 +81,18 @@ public class PlatformController {
     }
 
     @GetMapping("/subscription-plans")
-    @Operation(summary = "Catalog of subscription tiers (static until billing service is integrated)")
+    @Operation(summary = "Catalog of subscription tiers (in-memory until billing service is integrated)")
     public ResponseEntity<ApiResponse<List<PlatformDTOs.SubscriptionPlanRow>>> subscriptionPlans() {
         return ResponseEntity.ok(ApiResponse.ok(platformService.listSubscriptionPlans()));
+    }
+
+    @PutMapping("/subscription-plans/{code}")
+    @Operation(summary = "Update a catalog tier (super-admin; persisted in-memory for now)")
+    public ResponseEntity<ApiResponse<PlatformDTOs.SubscriptionPlanRow>> updateSubscriptionPlan(
+            @PathVariable String code,
+            @RequestBody PlatformDTOs.SubscriptionPlanRow body
+    ) {
+        return ResponseEntity.ok(ApiResponse.ok(platformService.replaceSubscriptionPlan(code, body), "Plan updated"));
     }
 
     @PostMapping("/broadcasts")

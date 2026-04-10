@@ -170,6 +170,46 @@ public class ReportDashboardDTOs {
         }
     }
 
+    /** Class with no homeroom (class) teacher assigned — surfaced on admin dashboard for follow-up. */
+    public static class ClassHomeroomGap {
+        private Long classId;
+        private String className;
+        private Integer grade;
+
+        public ClassHomeroomGap() {
+        }
+
+        public ClassHomeroomGap(Long classId, String className, Integer grade) {
+            this.classId = classId;
+            this.className = className;
+            this.grade = grade;
+        }
+
+        public Long getClassId() {
+            return classId;
+        }
+
+        public void setClassId(Long classId) {
+            this.classId = classId;
+        }
+
+        public String getClassName() {
+            return className;
+        }
+
+        public void setClassName(String className) {
+            this.className = className;
+        }
+
+        public Integer getGrade() {
+            return grade;
+        }
+
+        public void setGrade(Integer grade) {
+            this.grade = grade;
+        }
+    }
+
     public static class AdminDashboardResponse {
         private long totalStudents;
         private long totalTeachers;
@@ -181,6 +221,7 @@ public class ReportDashboardDTOs {
         private AttendanceOverview attendanceOverview;
         private List<ActivityItem> recentActivities = new ArrayList<>();
         private List<UpcomingEvent> upcomingEvents = new ArrayList<>();
+        private List<ClassHomeroomGap> classesWithoutHomeroomTeacher = new ArrayList<>();
 
         public long getTotalStudents() {
             return this.totalStudents;
@@ -260,6 +301,14 @@ public class ReportDashboardDTOs {
 
         public void setUpcomingEvents(final List<UpcomingEvent> upcomingEvents) {
             this.upcomingEvents = upcomingEvents;
+        }
+
+        public List<ClassHomeroomGap> getClassesWithoutHomeroomTeacher() {
+            return this.classesWithoutHomeroomTeacher;
+        }
+
+        public void setClassesWithoutHomeroomTeacher(final List<ClassHomeroomGap> classesWithoutHomeroomTeacher) {
+            this.classesWithoutHomeroomTeacher = classesWithoutHomeroomTeacher;
         }
     }
 

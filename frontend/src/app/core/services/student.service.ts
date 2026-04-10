@@ -1,7 +1,7 @@
 import { Injectable } from '@angular/core';
 import { BehaviorSubject, Observable, of } from 'rxjs';
 import { delay, map } from 'rxjs/operators';
-import { Student } from '../models/models';
+import { PromotionResult, Student } from '../models/models';
 import { ApiService } from './api.service';
 import { runtimeConfig } from '../config/runtime-config';
 
@@ -10,7 +10,7 @@ export class StudentService {
   private students: Student[] = [
     { id: 's1', firstName: 'Arjun', lastName: 'Patel', email: 'arjun.p@school.com', phone: '+1-555-0201', dateOfBirth: '2012-03-15', gender: 'male', classId: 'c5', className: 'Class 5', sectionId: 'sec5a', sectionName: 'A', rollNumber: '501', admissionNumber: 'ADM2025001', admissionDate: '2025-06-15', parentId: 'p1', parentName: 'Rajesh Patel', address: '123 Oak Street', bloodGroup: 'A+', status: 'active', tenantId: 't1' },
     { id: 's2', firstName: 'Emily', lastName: 'Watson', email: 'emily.w@school.com', phone: '+1-555-0202', dateOfBirth: '2011-07-22', gender: 'female', classId: 'c6', className: 'Class 6', sectionId: 'sec6a', sectionName: 'A', rollNumber: '601', admissionNumber: 'ADM2024012', admissionDate: '2024-06-10', parentId: 'p2', parentName: 'James Watson', address: '456 Elm Avenue', bloodGroup: 'B+', status: 'active', tenantId: 't1' },
-    { id: 's3', firstName: 'Liam', lastName: 'Chen', email: 'liam.c@school.com', phone: '+1-555-0203', dateOfBirth: '2010-11-08', gender: 'male', classId: 'c7', className: 'Class 7', sectionId: 'sec7b', sectionName: 'B', rollNumber: '712', admissionNumber: 'ADM2023045', admissionDate: '2023-06-12', parentId: 'p3', parentName: 'Wei Chen', address: '789 Pine Road', bloodGroup: 'O+', status: 'active', tenantId: 't1' },
+    { id: 's3', firstName: 'Liam', lastName: 'Chen', email: 'liam.c@school.com', phone: '+1-555-0203', dateOfBirth: '2010-11-08', gender: 'male', classId: 'c7', className: 'Class 7', sectionId: 'sec7b', sectionName: 'B', rollNumber: '712', admissionNumber: 'ADM2023045', admissionDate: '2023-06-12', parentId: 'p3', parentUserId: 'u3', parentName: 'Wei Chen (demo login: parent@school.com)', address: '789 Pine Road', bloodGroup: 'O+', status: 'active', tenantId: 't1' },
     { id: 's4', firstName: 'Sofia', lastName: 'Martinez', email: 'sofia.m@school.com', phone: '+1-555-0204', dateOfBirth: '2009-05-30', gender: 'female', classId: 'c8', className: 'Class 8', sectionId: 'sec8a', sectionName: 'A', rollNumber: '803', admissionNumber: 'ADM2022078', admissionDate: '2022-06-08', parentId: 'p4', parentName: 'Carlos Martinez', address: '321 Maple Lane', bloodGroup: 'AB+', status: 'active', tenantId: 't1' },
     { id: 's5', firstName: 'Noah', lastName: 'Williams', email: 'noah.w@school.com', phone: '+1-555-0205', dateOfBirth: '2012-01-14', gender: 'male', classId: 'c5', className: 'Class 5', sectionId: 'sec5b', sectionName: 'B', rollNumber: '515', admissionNumber: 'ADM2025002', admissionDate: '2025-06-15', parentId: 'p5', parentName: 'David Williams', address: '654 Cedar Blvd', bloodGroup: 'A-', status: 'active', tenantId: 't1' },
     { id: 's6', firstName: 'Ava', lastName: 'Johnson', email: 'ava.j@school.com', phone: '+1-555-0206', dateOfBirth: '2010-09-03', gender: 'female', classId: 'c7', className: 'Class 7', sectionId: 'sec7a', sectionName: 'A', rollNumber: '705', admissionNumber: 'ADM2023046', admissionDate: '2023-06-12', parentId: 'p6', parentName: 'Robert Johnson', address: '987 Birch Court', bloodGroup: 'B-', status: 'active', tenantId: 't1' },
@@ -19,7 +19,7 @@ export class StudentService {
     { id: 's9', firstName: 'Mason', lastName: 'Davis', email: 'mason.d@school.com', phone: '+1-555-0209', dateOfBirth: '2008-04-11', gender: 'male', classId: 'c9', className: 'Class 9', sectionId: 'sec9a', sectionName: 'A', rollNumber: '902', admissionNumber: 'ADM2021032', admissionDate: '2021-06-10', parentId: 'p9', parentName: 'Kevin Davis', address: '369 Ash Drive', bloodGroup: 'B+', status: 'active', tenantId: 't1' },
     { id: 's10', firstName: 'Charlotte', lastName: 'Wilson', email: 'charlotte.w@school.com', phone: '+1-555-0210', dateOfBirth: '2008-10-29', gender: 'female', classId: 'c9', className: 'Class 9', sectionId: 'sec9b', sectionName: 'B', rollNumber: '916', admissionNumber: 'ADM2021033', admissionDate: '2021-06-10', parentId: 'p10', parentName: 'Thomas Wilson', address: '741 Poplar Road', bloodGroup: 'AB-', status: 'active', tenantId: 't1' },
     { id: 's11', firstName: 'Oliver', lastName: 'Taylor', email: 'oliver.t@school.com', phone: '+1-555-0211', dateOfBirth: '2007-06-20', gender: 'male', classId: 'c10', className: 'Class 10', sectionId: 'sec10a', sectionName: 'A', rollNumber: '1001', admissionNumber: 'ADM2020015', admissionDate: '2020-06-08', parentId: 'p11', parentName: 'Andrew Taylor', address: '852 Hickory Lane', bloodGroup: 'O+', status: 'active', tenantId: 't1' },
-    { id: 's12', firstName: 'Emma', lastName: 'Chen', email: 'emma.c@school.com', phone: '+1-555-0212', dateOfBirth: '2009-02-14', gender: 'female', classId: 'c8', className: 'Class 8', sectionId: 'sec8a', sectionName: 'A', rollNumber: '805', admissionNumber: 'ADM2022080', admissionDate: '2022-06-08', parentId: 'u3', parentName: 'Michael Chen', address: '963 Willow Street', bloodGroup: 'A+', status: 'active', tenantId: 't1' },
+    { id: 's12', firstName: 'Emma', lastName: 'Chen', email: 'emma.c@school.com', phone: '+1-555-0212', dateOfBirth: '2009-02-14', gender: 'female', classId: 'c8', className: 'Class 8', sectionId: 'sec8a', sectionName: 'A', rollNumber: '805', admissionNumber: 'ADM2022080', admissionDate: '2022-06-08', parentId: 'u3', parentUserId: 'u3', parentName: 'Michael Chen', address: '963 Willow Street', bloodGroup: 'A+', status: 'active', tenantId: 't1' },
     { id: 's13', firstName: 'Aiden', lastName: 'Murphy', email: 'aiden.m@school.com', phone: '+1-555-0213', dateOfBirth: '2009-06-18', gender: 'male', classId: 'c8', className: 'Class 8', sectionId: 'sec8a', sectionName: 'A', rollNumber: '806', admissionNumber: 'ADM2022081', admissionDate: '2022-06-08', parentId: 'p13', parentName: 'Sean Murphy', address: '111 Ivy Lane', bloodGroup: 'B+', status: 'active', tenantId: 't1' },
     { id: 's14', firstName: 'Mia', lastName: 'Rodriguez', email: 'mia.r@school.com', phone: '+1-555-0214', dateOfBirth: '2009-09-25', gender: 'female', classId: 'c8', className: 'Class 8', sectionId: 'sec8a', sectionName: 'A', rollNumber: '807', admissionNumber: 'ADM2022082', admissionDate: '2022-06-08', parentId: 'p14', parentName: 'Pedro Rodriguez', address: '222 Fern Court', bloodGroup: 'O+', status: 'active', tenantId: 't1' },
     { id: 's15', firstName: 'Lucas', lastName: 'Kim', email: 'lucas.k@school.com', phone: '+1-555-0215', dateOfBirth: '2009-04-10', gender: 'male', classId: 'c8', className: 'Class 8', sectionId: 'sec8a', sectionName: 'A', rollNumber: '808', admissionNumber: 'ADM2022083', admissionDate: '2022-06-08', parentId: 'p15', parentName: 'Jun Kim', address: '333 Rosewood Dr', bloodGroup: 'A-', status: 'active', tenantId: 't1' },
@@ -30,6 +30,7 @@ export class StudentService {
     { id: 's20', firstName: 'Zoe', lastName: 'King', email: 'zoe.k@school.com', phone: '+1-555-0220', dateOfBirth: '2012-02-28', gender: 'female', classId: 'c5', className: 'Class 5', sectionId: 'sec5a', sectionName: 'A', rollNumber: '505', admissionNumber: 'ADM2025006', admissionDate: '2025-06-15', parentId: 'p20', parentName: 'Mark King', address: '888 Daisy Road', bloodGroup: 'B+', status: 'active', tenantId: 't1' },
     { id: 's21', firstName: 'Alexander', lastName: 'Scott', email: 'alex.s@school.com', phone: '+1-555-0221', dateOfBirth: '2008-07-15', gender: 'male', classId: 'c9', className: 'Class 9', sectionId: 'sec9a', sectionName: 'A', rollNumber: '903', admissionNumber: 'ADM2021034', admissionDate: '2021-06-10', parentId: 'p21', parentName: 'Bruce Scott', address: '999 Tulip Lane', bloodGroup: 'O+', status: 'active', tenantId: 't1' },
     { id: 's22', firstName: 'Grace', lastName: 'Adams', email: 'grace.a@school.com', phone: '+1-555-0222', dateOfBirth: '2008-03-22', gender: 'female', classId: 'c9', className: 'Class 9', sectionId: 'sec9a', sectionName: 'A', rollNumber: '904', admissionNumber: 'ADM2021035', admissionDate: '2021-06-10', parentId: 'p22', parentName: 'Alan Adams', address: '100 Sunflower Dr', bloodGroup: 'A+', status: 'active', tenantId: 't1' },
+    { id: 's23', firstName: 'Riya', lastName: 'Nair', email: 'riya.n@school.com', phone: '+1-555-0223', dateOfBirth: '2012-06-01', gender: 'female', classId: 'c5', className: 'Class 5', sectionId: 'sec5a', sectionName: 'A', rollNumber: '506', admissionNumber: 'ADM2025999', admissionDate: '2025-06-15', parentId: 'p23', parentName: 'Anil Nair', address: '12 Cedar Close', bloodGroup: 'O+', status: 'inactive', tenantId: 't1' },
   ];
 
   private studentsSubject = new BehaviorSubject<Student[]>(this.students);
@@ -96,6 +97,44 @@ export class StudentService {
       );
     }
     return of(this.students.filter(s => s.classId === classId && s.sectionId === sectionId)).pipe(delay(300));
+  }
+
+  /**
+   * Mock only: move selected students to target class/section (same shape as academic promotion execute).
+   * Keeps roster in sync with {@link AcademicService} preview/execute when useMocks is true.
+   */
+  applyPromotionInMemory(
+    sourceClassId: string,
+    targetClassId: string,
+    studentIds: string[],
+    targetSectionId: string | null | undefined,
+    targetClassName: string,
+    targetSectionName: string
+  ): Observable<PromotionResult> {
+    if (!runtimeConfig.useMocks) {
+      throw new Error('applyPromotionInMemory is mock-only');
+    }
+    const idSet = new Set(studentIds);
+    let n = 0;
+    this.students = this.students.map(s => {
+      if (!idSet.has(s.id) || s.classId !== sourceClassId || s.status !== 'active') {
+        return s;
+      }
+      n++;
+      return {
+        ...s,
+        classId: targetClassId,
+        className: targetClassName,
+        sectionId: targetSectionId || '',
+        sectionName: targetSectionId ? targetSectionName : '',
+      };
+    });
+    this.studentsSubject.next(this.students);
+    return of({
+      promotedCount: n,
+      targetClassName,
+      targetSectionName: targetSectionName || '',
+    }).pipe(delay(400));
   }
 
   importStudentsZip(file: File): Observable<Student[]> {

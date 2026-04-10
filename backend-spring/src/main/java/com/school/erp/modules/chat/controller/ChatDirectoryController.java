@@ -14,7 +14,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/v1/chat")
 @Tag(name = "Chat Directory", description = "Role-aware directory for starting chats (teacher<->parent via students/classes)")
-@PreAuthorize("hasAnyRole('ADMIN','TEACHER','PARENT','SUPER_ADMIN')")
+@PreAuthorize("hasAnyRole('ADMIN','TEACHER','PARENT','STUDENT','SUPER_ADMIN')")
 public class ChatDirectoryController {
     private final ChatDirectoryService directoryService;
 

@@ -13,8 +13,14 @@ public class ChatPolicyService {
         String a = norm(initiatorRole);
         String b = norm(targetRole);
 
-        if (Enums.Role.SUPER_ADMIN.name().equals(a)) return true;
-        if (Enums.Role.ADMIN.name().equals(a)) return true;
+        // Platform operators may open threads only with campus administrators (not parents/teachers here).
+        if (Enums.Role.SUPER_ADMIN.name().equals(a)) {
+            return Enums.Role.ADMIN.name().equals(b);
+        }
+
+        if (Enums.Role.ADMIN.name().equals(a)) {
+            return true;
+        }
 
         // Teachers can talk to parents/students/admins
         if (Enums.Role.TEACHER.name().equals(a)) {
@@ -23,10 +29,9 @@ public class ChatPolicyService {
                     || Enums.Role.ADMIN.name().equals(b);
         }
 
-        // Parents can talk to teachers/admins
+        // Parents may start chats only with teachers (homeroom/subject linkage enforced in ChatService).
         if (Enums.Role.PARENT.name().equals(a)) {
-            return Enums.Role.TEACHER.name().equals(b)
-                    || Enums.Role.ADMIN.name().equals(b);
+            return Enums.Role.TEACHER.name().equals(b);
         }
 
         // Students can talk to teachers/admins

@@ -14,6 +14,7 @@ import com.school.erp.modules.settings.entity.TenantConfig;
 import com.school.erp.modules.settings.repository.TenantConfigRepository;
 import com.school.erp.modules.student.repository.StudentRepository;
 import com.school.erp.modules.teacher.repository.TeacherRepository;
+import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -32,6 +33,8 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.stream.Collectors;
 
 @Service
 public class PlatformService {
@@ -45,6 +48,17 @@ public class PlatformService {
     private final PlatformTenantPurgeJobRepository purgeJobRepository;
     private final TenantPurgeJobProcessor tenantPurgeJobProcessor;
     private final NotificationRepository notificationRepository;
+
+    /** Mutable in-process catalog (replace with persistence + audit when billing service is integrated). */
+    private final List<PlatformDTOs.SubscriptionPlanRow> subscriptionPlanCatalog = new CopyOnWriteArrayList<>();
+
+    @PostConstruct
+    void initSubscriptionPlanCatalog() {
+        if (!subscriptionPlanCatalog.isEmpty()) {
+            return;
+        }
+        subscriptionPlanCatalog.addAll(buildDefaultSubscriptionPlans());
+    }
 
     @Transactional(readOnly = true)
     public PlatformDTOs.PlatformDashboardResponse getDashboard() {
@@ -225,24 +239,90 @@ public class PlatformService {
 
     @Transactional(readOnly = true)
     public List<PlatformDTOs.SubscriptionPlanRow> listSubscriptionPlans() {
+        initSubscriptionPlanCatalog();
+        List<PlatformDTOs.SubscriptionPlanRow> rows = subscriptionPlanCatalog.stream()
+                .map(PlatformService::cloneSubscriptionPlan)
+                .collect(Collectors.toList());
+        log.debug("Returning {} subscription plan row(s)", rows.size());
+        return rows;
+    }
+
+    /**
+     * Super-admin catalog edit (in-memory until external billing owns plans).
+     */
+    public synchronized PlatformDTOs.SubscriptionPlanRow replaceSubscriptionPlan(String code, PlatformDTOs.SubscriptionPlanRow body) {
+        initSubscriptionPlanCatalog();
+        if (body == null) {
+            throw new BusinessException("Plan body is required");
+        }
+        String want = code != null ? code.trim().toUpperCase(Locale.ROOT) : "";
+        for (int i = 0; i < subscriptionPlanCatalog.size(); i++) {
+            PlatformDTOs.SubscriptionPlanRow row = subscriptionPlanCatalog.get(i);
+            if (row.getCode() != null && row.getCode().equalsIgnoreCase(want)) {
+                body.setCode(row.getCode());
+                normalizePlanLists(body);
+                subscriptionPlanCatalog.set(i, cloneSubscriptionPlan(body));
+                log.info("Subscription plan updated code={}", row.getCode());
+                return cloneSubscriptionPlan(body);
+            }
+        }
+        throw new ResourceNotFoundException("Subscription plan not found: " + want);
+    }
+
+    private List<PlatformDTOs.SubscriptionPlanRow> buildDefaultSubscriptionPlans() {
         List<PlatformDTOs.SubscriptionPlanRow> rows = new ArrayList<>();
         rows.add(plan("STARTER", "Starter", "Ideal for a single campus validating digital attendance, fees, and parent engagement.", 4900, "USD",
                 List.of("Guided onboarding checklist", "Standard uptime targets", "Community knowledge base"),
                 "Up to 300 active students", "Email & chat (business hours)",
                 List.of("Students & classes", "Attendance", "Timetable (read)", "Fees (core)", "Parent portal (read)", "Announcements", "Basic reports"),
-                false));
+                false,
+                "Best for pilot schools and single-branch validation. Upgrade path to Standard without data migration.",
+                "price_starter_monthly"));
         rows.add(plan("STANDARD", "Standard", "The default production tier for schools running academics, finance, and operations in one place.", 12900, "USD",
                 List.of("Quarterly success review", "Data export APIs", "Optional SSO add-on"),
                 "Up to 2,000 active students", "Priority support (12×5)",
                 List.of("Everything in Starter", "Exams & gradebook", "Library", "Transport & routes", "Hostel", "Payroll (standard)", "Documents", "Audit trail (90 days)", "Chat"),
-                true));
+                true,
+                "Default SKU for new workspace provisioning. Maps to monthly recurring per active tenant in billing integrations.",
+                "price_standard_monthly"));
         rows.add(plan("ENTERPRISE", "Enterprise", "Regional groups, compliance-heavy boards, and multi-branch governance with custom limits.", 0, "USD",
                 List.of("Custom MSA & DPA", "Dedicated technical account lead", "Optional on-prem / VPC"),
                 "Custom (unlimited branches)", "Named CSM + 24×7 hotline",
                 List.of("Everything in Standard", "Multi-branch roll-up", "Advanced audit (retention policies)", "Custom integrations", "Sandbox tenant", "DR runbooks"),
-                false));
-        log.debug("Returning {} subscription plan row(s)", rows.size());
+                false,
+                "Contract-led pricing; workspace caps and module flags negotiated per MSA. Integration keys assigned manually.",
+                null));
         return rows;
+    }
+
+    private static PlatformDTOs.SubscriptionPlanRow cloneSubscriptionPlan(PlatformDTOs.SubscriptionPlanRow s) {
+        PlatformDTOs.SubscriptionPlanRow r = new PlatformDTOs.SubscriptionPlanRow();
+        r.setCode(s.getCode());
+        r.setName(s.getName());
+        r.setDescription(s.getDescription());
+        r.setMonthlyPriceMinorUnits(s.getMonthlyPriceMinorUnits());
+        r.setCurrency(s.getCurrency());
+        r.setHighlights(s.getHighlights() != null ? new ArrayList<>(s.getHighlights()) : new ArrayList<>());
+        r.setMaxStudentsLabel(s.getMaxStudentsLabel());
+        r.setSupportTier(s.getSupportTier());
+        r.setBillingCadence(s.getBillingCadence());
+        r.setModules(s.getModules() != null ? new ArrayList<>(s.getModules()) : new ArrayList<>());
+        r.setRecommended(s.isRecommended());
+        r.setCommercialNotes(s.getCommercialNotes());
+        r.setIntegrationPriceKey(s.getIntegrationPriceKey());
+        return r;
+    }
+
+    private static void normalizePlanLists(PlatformDTOs.SubscriptionPlanRow body) {
+        if (body.getHighlights() == null) {
+            body.setHighlights(new ArrayList<>());
+        }
+        if (body.getModules() == null) {
+            body.setModules(new ArrayList<>());
+        }
+        if (body.getBillingCadence() == null || body.getBillingCadence().isBlank()) {
+            body.setBillingCadence("Billed monthly per active workspace");
+        }
     }
 
     private static PlatformDTOs.SubscriptionPlanRow plan(
@@ -255,7 +335,9 @@ public class PlatformService {
             String maxStudentsLabel,
             String supportTier,
             List<String> modules,
-            boolean recommended
+            boolean recommended,
+            String commercialNotes,
+            String integrationPriceKey
     ) {
         PlatformDTOs.SubscriptionPlanRow r = new PlatformDTOs.SubscriptionPlanRow();
         r.setCode(code);
@@ -269,6 +351,8 @@ public class PlatformService {
         r.setBillingCadence("Billed monthly per active workspace");
         r.setModules(new ArrayList<>(modules));
         r.setRecommended(recommended);
+        r.setCommercialNotes(commercialNotes);
+        r.setIntegrationPriceKey(integrationPriceKey);
         return r;
     }
 
@@ -339,6 +423,48 @@ public class PlatformService {
         return tenantConfigRepository.findByTenantId(tenantId)
                 .filter(config -> !Boolean.TRUE.equals(config.getIsDeleted()))
                 .orElseThrow(() -> new ResourceNotFoundException("School workspace not found for tenant: " + tenantId));
+    }
+
+    /**
+     * Search active campus administrators across workspaces for super-admin → admin messaging.
+     */
+    @Transactional(readOnly = true)
+    public List<PlatformDTOs.SchoolAdminChatHit> searchSchoolAdminsForChat(String qRaw) {
+        String q = qRaw == null ? "" : qRaw.trim().toLowerCase(Locale.ROOT);
+        if (q.length() < 2) {
+            return List.of();
+        }
+        List<PlatformDTOs.SchoolAdminChatHit> out = new ArrayList<>();
+        for (TenantConfig tc : tenantConfigRepository.findAll().stream()
+                .filter(config -> !Boolean.TRUE.equals(config.getIsDeleted()))
+                .toList()) {
+            String schoolName = tc.getSchoolName() != null ? tc.getSchoolName() : "";
+            String schoolCode = tc.getSchoolCode() != null ? tc.getSchoolCode() : "";
+            String tid = tc.getTenantId();
+            for (User u : userRepository.findByTenantIdAndRoleAndIsDeletedFalse(tid, Enums.Role.ADMIN)) {
+                if (!Boolean.TRUE.equals(u.getIsActive())) {
+                    continue;
+                }
+                String hay = (u.getName() + " " + u.getEmail() + " " + schoolName + " " + schoolCode + " " + tid)
+                        .toLowerCase(Locale.ROOT);
+                if (!hay.contains(q)) {
+                    continue;
+                }
+                PlatformDTOs.SchoolAdminChatHit hit = new PlatformDTOs.SchoolAdminChatHit();
+                hit.setUserId(u.getId());
+                hit.setName(u.getName());
+                hit.setEmail(u.getEmail());
+                hit.setPhone(u.getPhone());
+                hit.setSchoolName(schoolName);
+                hit.setSchoolCode(schoolCode);
+                hit.setTenantId(tid);
+                out.add(hit);
+            }
+        }
+        out.sort(Comparator.comparing(PlatformDTOs.SchoolAdminChatHit::getSchoolName, String.CASE_INSENSITIVE_ORDER)
+                .thenComparing(PlatformDTOs.SchoolAdminChatHit::getName, String.CASE_INSENSITIVE_ORDER));
+        log.info("Platform chat directory search qLen={} hits={}", q.length(), out.size());
+        return out;
     }
 
     @Transactional(readOnly = true)

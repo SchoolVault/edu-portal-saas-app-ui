@@ -2,9 +2,12 @@ import { Component, OnDestroy, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Subscription } from 'rxjs';
+import { Router } from '@angular/router';
 import { ChatService } from '../../core/services/chat.service';
 import { AuthService } from '../../core/services/auth.service';
-import { ChatDirectoryResponse, ChatInboxConversation, ChatMessage } from '../../core/models/models';
+import { DirectoryEntry, DirectoryService } from '../../core/services/directory.service';
+import { PlatformService } from '../../core/services/platform.service';
+import { ChatDirectoryResponse, ChatInboxConversation, ChatMessage, PlatformSchoolAdminChatHit } from '../../core/models/models';
 import { runtimeConfig } from '../../core/config/runtime-config';
 
 @Component({
@@ -28,7 +31,7 @@ import { runtimeConfig } from '../../core/config/runtime-config';
         border-bottom: 1px solid var(--clr-border);
       }
       .chat-messages {
-        background: linear-gradient(180deg, var(--clr-surface-alt) 0%, rgba(37, 99, 235, 0.03) 100%);
+        background: linear-gradient(180deg, var(--clr-surface-alt) 0%, color-mix(in srgb, var(--clr-primary) 6%, transparent) 100%);
       }
       .chat-status {
         display: inline-flex;
@@ -75,11 +78,11 @@ import { runtimeConfig } from '../../core/config/runtime-config';
         transition: background 0.12s ease;
       }
       .chat-row:hover {
-        background: rgba(37, 99, 235, 0.06);
+        background: color-mix(in srgb, var(--clr-primary) 8%, transparent);
       }
       .chat-row.active {
-        background: rgba(37, 99, 235, 0.12);
-        border-left: 3px solid var(--clr-primary, #2563eb);
+        background: color-mix(in srgb, var(--clr-accent) 14%, transparent);
+        border-left: 3px solid var(--clr-accent);
         padding-left: 11px;
       }
       .bubble {
@@ -92,8 +95,12 @@ import { runtimeConfig } from '../../core/config/runtime-config';
       }
       .bubble--mine {
         border-radius: 14px 14px 6px 14px;
-        background: linear-gradient(135deg, rgba(37, 99, 235, 0.18), rgba(37, 99, 235, 0.08));
-        border-color: rgba(37, 99, 235, 0.25);
+        background: linear-gradient(
+          135deg,
+          color-mix(in srgb, var(--clr-accent) 22%, transparent),
+          color-mix(in srgb, var(--clr-primary) 12%, transparent)
+        );
+        border-color: color-mix(in srgb, var(--clr-accent) 35%, var(--clr-border-light));
       }
       .chat-compose {
         background: var(--clr-surface);
@@ -106,8 +113,13 @@ import { runtimeConfig } from '../../core/config/runtime-config';
       <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3">
         <div>
           <h2 style="font-size: 24px; font-weight: 800; margin: 0;">Inbox</h2>
-          <p class="text-muted mb-0" style="font-size: 13px; max-width: 520px;">
-            Secure messaging for teacher–parent updates, admin coordination, and support threads. Live delivery when the server is connected; same REST shape with mocks for local demos.
+          <p class="text-muted mb-0" style="font-size: 13px; max-width: 560px;">
+            <ng-container *ngIf="role !== 'super_admin'">
+              Secure messaging for teacher–parent updates, admin coordination, and support threads. Live delivery when the server is connected; same REST shape with mocks for local demos.
+            </ng-container>
+            <ng-container *ngIf="role === 'super_admin'">
+              Platform operator inbox: message campus administrators only. Search shows each admin with their school name and code. Same APIs as production; mocks use the platform school directory.
+            </ng-container>
           </p>
         </div>
         <div class="d-flex flex-wrap align-items-center gap-2">
@@ -142,7 +154,70 @@ import { runtimeConfig } from '../../core/config/runtime-config';
             <div *ngIf="openDirectory" style="padding: 12px; border-top: 1px solid var(--clr-border-light); background: var(--clr-surface-alt);">
               <div style="font-weight: 900; margin-bottom: 8px;">Start a conversation</div>
               <div class="text-muted" style="font-size: 12px; margin-bottom: 10px;">
-                You can only message people related to you (students/classes) based on ERP rules.
+                <ng-container *ngIf="role === 'super_admin'">
+                  Type at least two characters to find an active school admin. Results list <strong>name · school (code)</strong> so you can tell workspaces apart.
+                </ng-container>
+                <ng-container *ngIf="role !== 'parent' && role !== 'super_admin'">
+                  Search the same directory as Staff &amp; people: teachers show homeroom context; students include parent chat when a parent login is linked.
+                </ng-container>
+                <ng-container *ngIf="role === 'parent'">
+                  Parents can start chats only with their children&apos;s class teachers — use the child selector below (directory search is disabled for your role).
+                </ng-container>
+              </div>
+
+              <div class="mb-3" *ngIf="role === 'super_admin'">
+                <label class="erp-label">School administrators</label>
+                <input
+                  class="erp-input"
+                  placeholder="Search by admin name, email, school name, or code…"
+                  [(ngModel)]="platformAdminQuery"
+                  (ngModelChange)="onPlatformAdminQueryChange()"
+                />
+                <div *ngIf="platformAdminSearchLoading" class="text-muted mt-1" style="font-size: 11px;">Searching…</div>
+                <div *ngIf="platformAdminResults.length" class="mt-2" style="max-height: 240px; overflow: auto; border: 1px solid var(--clr-border-light); border-radius: var(--radius-md); background: var(--clr-surface);">
+                  <button
+                    type="button"
+                    *ngFor="let hit of platformAdminResults"
+                    class="chat-row text-start w-100 border-0 bg-transparent"
+                    style="border-top: none !important;"
+                    (click)="pickPlatformAdmin(hit)"
+                  >
+                    <div class="d-flex flex-column align-items-start gap-1">
+                      <span style="font-weight: 800; font-size: 13px;">{{ hit.name }}</span>
+                      <span class="text-muted" style="font-size: 12px;">{{ hit.schoolName }} · <code class="small">{{ hit.schoolCode }}</code></span>
+                      <span class="text-muted" style="font-size: 11px;">{{ hit.email }}</span>
+                    </div>
+                  </button>
+                </div>
+              </div>
+
+              <div class="mb-3" *ngIf="role !== 'parent' && role !== 'super_admin'">
+                <label class="erp-label">Directory search</label>
+                <input
+                  class="erp-input"
+                  placeholder="Type at least 2 characters (name, email, admission #)…"
+                  [(ngModel)]="directorySearchQuery"
+                  (ngModelChange)="onDirectoryQueryChange()"
+                />
+                <div *ngIf="directorySearchLoading" class="text-muted mt-1" style="font-size: 11px;">Searching…</div>
+                <div *ngIf="directorySearchResults.length" class="mt-2" style="max-height: 200px; overflow: auto; border: 1px solid var(--clr-border-light); border-radius: var(--radius-md); background: var(--clr-surface);">
+                  <button
+                    type="button"
+                    *ngFor="let hit of directorySearchResults"
+                    class="chat-row text-start w-100 border-0 bg-transparent"
+                    style="border-top: none !important;"
+                    (click)="pickDirectoryEntry(hit)"
+                  >
+                    <div class="d-flex flex-column align-items-start gap-1">
+                      <span style="font-weight: 700; font-size: 12px;">{{ hit.displayName }}</span>
+                      <span class="text-muted" style="font-size: 11px;">{{ hit.subtitle }}</span>
+                      <span class="text-muted" style="font-size: 10px;">
+                        <ng-container *ngIf="hit.chatUserId">Chat available</ng-container>
+                        <ng-container *ngIf="!hit.chatUserId">Profile only — open record</ng-container>
+                      </span>
+                    </div>
+                  </button>
+                </div>
               </div>
 
               <div *ngIf="loadingDirectory" class="text-muted" style="font-size: 12px;">Loading directory…</div>
@@ -196,7 +271,7 @@ import { runtimeConfig } from '../../core/config/runtime-config';
                 </button>
               </div>
 
-              <div *ngIf="!loadingDirectory && openDirectory && !hasDirectoryData()" class="text-muted" style="font-size: 12px;">
+              <div *ngIf="!loadingDirectory && openDirectory && !hasDirectoryData() && role !== 'super_admin'" class="text-muted" style="font-size: 12px;">
                 No directory data available for your role yet.
               </div>
             </div>
@@ -334,11 +409,25 @@ export class ChatComponent implements OnInit, OnDestroy {
   sending = false;
   draft = '';
   query = '';
+  directorySearchQuery = '';
+  directorySearchResults: DirectoryEntry[] = [];
+  directorySearchLoading = false;
+  private directorySearchTimer: ReturnType<typeof setTimeout> | null = null;
+  platformAdminQuery = '';
+  platformAdminResults: PlatformSchoolAdminChatHit[] = [];
+  platformAdminSearchLoading = false;
+  private platformAdminSearchTimer: ReturnType<typeof setTimeout> | null = null;
 
   private myUserId = '';
   private rtSub?: Subscription;
 
-  constructor(private chat: ChatService, private auth: AuthService) {}
+  constructor(
+    private chat: ChatService,
+    private auth: AuthService,
+    private directoryService: DirectoryService,
+    private platform: PlatformService,
+    private router: Router
+  ) {}
 
   ngOnInit(): void {
     this.myUserId = String(this.auth.getCurrentUser()?.id || '');
@@ -381,9 +470,43 @@ export class ChatComponent implements OnInit, OnDestroy {
   }
 
   hasDirectoryData(): boolean {
+    if (this.role === 'super_admin') {
+      return true;
+    }
     const d = this.directory;
     if (!d) return false;
     return !!(d.myClassRosters?.length || d.myChildren?.length || d.teachers?.length || d.parents?.length);
+  }
+
+  onPlatformAdminQueryChange(): void {
+    if (this.platformAdminSearchTimer) {
+      clearTimeout(this.platformAdminSearchTimer);
+    }
+    this.platformAdminSearchTimer = setTimeout(() => this.runPlatformAdminSearch(), 280);
+  }
+
+  private runPlatformAdminSearch(): void {
+    const q = this.platformAdminQuery.trim();
+    if (q.length < 2) {
+      this.platformAdminResults = [];
+      return;
+    }
+    this.platformAdminSearchLoading = true;
+    this.platform.searchSchoolAdminsForChat(q).subscribe({
+      next: rows => {
+        this.platformAdminResults = rows;
+        this.platformAdminSearchLoading = false;
+      },
+      error: () => {
+        this.platformAdminResults = [];
+        this.platformAdminSearchLoading = false;
+      },
+    });
+  }
+
+  pickPlatformAdmin(hit: PlatformSchoolAdminChatHit): void {
+    const label = `${hit.name} · ${hit.schoolName} (${hit.schoolCode})`;
+    this.startDirectChat(hit.userId, 'ADMIN', label);
   }
 
   startTeacherParentChat(): void {
@@ -391,13 +514,19 @@ export class ChatComponent implements OnInit, OnDestroy {
     const all = this.directory.myClassRosters.flatMap(r => r.students || []);
     const student = all.find(s => s.studentId === this.selectedStudentForChat);
     if (!student?.parent) return;
-    this.startDirectChat(student.parent.userId, 'PARENT', `Parent of ${student.studentName}`);
+    this.startDirectChat(student.parent.userId, 'PARENT', `Parent of ${student.studentName}`, {
+      contextType: 'student',
+      contextId: student.studentId,
+    });
   }
 
   startParentTeacherChat(): void {
     const child = this.directory?.myChildren?.find(c => c.studentId === this.selectedChildForChat);
     if (!child?.classTeacher) return;
-    this.startDirectChat(child.classTeacher.userId, 'TEACHER', child.classTeacher.name);
+    this.startDirectChat(child.classTeacher.userId, 'TEACHER', child.classTeacher.name, {
+      contextType: 'student',
+      contextId: child.studentId,
+    });
   }
 
   startAdminDirectChat(): void {
@@ -413,11 +542,94 @@ export class ChatComponent implements OnInit, OnDestroy {
     }
   }
 
-  private startDirectChat(otherUserId: string, otherRole: string, otherName?: string): void {
+  onDirectoryQueryChange(): void {
+    if (this.directorySearchTimer) {
+      clearTimeout(this.directorySearchTimer);
+    }
+    this.directorySearchTimer = setTimeout(() => this.runDirectorySearch(), 300);
+  }
+
+  private runDirectorySearch(): void {
+    if (this.role === 'super_admin') {
+      this.directorySearchResults = [];
+      return;
+    }
+    if (this.role === 'parent') {
+      this.directorySearchResults = [];
+      return;
+    }
+    const q = this.directorySearchQuery.trim();
+    if (q.length < 2) {
+      this.directorySearchResults = [];
+      return;
+    }
+    this.directorySearchLoading = true;
+    this.directoryService.search(q).subscribe({
+      next: res => {
+        let rows = res.results || [];
+        if (this.role === 'parent') {
+          rows = rows.filter(hit => this.isParentAllowedDirectoryHit(hit));
+        }
+        this.directorySearchResults = rows;
+        this.directorySearchLoading = false;
+      },
+      error: () => {
+        this.directorySearchLoading = false;
+      },
+    });
+  }
+
+  pickDirectoryEntry(hit: DirectoryEntry): void {
+    if (this.role === 'parent' && !this.isParentAllowedDirectoryHit(hit)) {
+      return;
+    }
+    if (!hit.chatUserId) {
+      if (hit.deepLink) {
+        this.openDirectory = false;
+        this.router.navigateByUrl(hit.deepLink);
+      }
+      return;
+    }
+    const me = String(this.auth.getCurrentUser()?.id || '');
+    if (hit.chatUserId === me) {
+      return;
+    }
+    const role =
+      hit.chatTargetRole ||
+      (hit.kind === 'teacher' ? 'TEACHER' : hit.kind === 'student' ? 'PARENT' : 'USER');
+    const label =
+      hit.kind === 'student'
+        ? `Parent · ${hit.displayName}`
+        : hit.displayName;
+    this.startDirectChat(hit.chatUserId, role, label, {
+      contextType: hit.contextType,
+      contextId: hit.contextId,
+    });
+  }
+
+  /** Parent accounts may only open chat with homeroom teachers linked to their children (matches server policy). */
+  private isParentAllowedDirectoryHit(hit: DirectoryEntry): boolean {
+    if (this.role !== 'parent') return true;
+    if (hit.kind !== 'teacher' || !hit.chatUserId) return false;
+    const allowed = new Set<string>();
+    for (const c of this.directory?.myChildren ?? []) {
+      if (c.classTeacher?.userId) allowed.add(String(c.classTeacher.userId));
+    }
+    return allowed.has(String(hit.chatUserId));
+  }
+
+  private startDirectChat(
+    otherUserId: string,
+    otherRole: string,
+    otherName?: string,
+    ctx?: { contextType?: string; contextId?: string }
+  ): void {
     const me = this.auth.getCurrentUser();
     if (!me) return;
     this.chat.createConversation({
       type: 'direct',
+      contextType: ctx?.contextType,
+      contextId: ctx?.contextId,
       participants: [
         { userId: String(me.id), userRole: (me.role || 'admin').toUpperCase(), displayName: me.name },
         { userId: String(otherUserId), userRole: (otherRole || '').toUpperCase(), displayName: otherName }

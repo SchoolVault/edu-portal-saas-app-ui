@@ -1,15 +1,51 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { RouterLink } from '@angular/router';
 import { AcademicService } from '../../core/services/academic.service';
 import { TeacherService } from '../../core/services/teacher.service';
-import { AcademicYear, PromotionPreview, SchoolClass, Teacher } from '../../core/models/models';
+import { AuthService } from '../../core/services/auth.service';
+import { AcademicYear, PromotionPreview, PromotionSplitPreview, SchoolClass, Teacher } from '../../core/models/models';
+import { filter } from 'rxjs/operators';
 import { ErpDatePickerComponent } from '../../shared/erp-date-picker/erp-date-picker.component';
+import { ConfirmDialogService } from '../../shared/confirm-dialog/confirm-dialog.service';
 
 @Component({
   selector: 'app-academic',
   standalone: true,
-  imports: [CommonModule, FormsModule, ErpDatePickerComponent],
+  imports: [CommonModule, FormsModule, ErpDatePickerComponent, RouterLink],
+  styles: [
+    `
+      .academic-help-text {
+        color: var(--clr-text-secondary);
+      }
+      .academic-homeroom-strip {
+        border-left: 4px solid var(--clr-warning);
+        background: color-mix(in srgb, var(--clr-warning) 14%, var(--clr-surface));
+      }
+      .academic-homeroom-strip__title {
+        color: var(--clr-text);
+      }
+      .academic-homeroom-strip__text {
+        color: var(--clr-text-secondary);
+        max-width: 720px;
+      }
+      .academic-class-card--needs-homeroom {
+        border: 1px solid color-mix(in srgb, var(--clr-warning) 35%, var(--clr-border));
+        box-shadow: 0 0 0 1px color-mix(in srgb, var(--clr-warning) 15%, transparent);
+      }
+      .academic-homeroom-missing-callout {
+        font-size: 13px;
+        line-height: 1.45;
+        color: var(--clr-text-secondary);
+        background: color-mix(in srgb, var(--clr-warning) 10%, var(--clr-surface));
+        border: 1px solid color-mix(in srgb, var(--clr-warning) 35%, var(--clr-border));
+        border-radius: var(--radius-md);
+        padding: 10px 12px;
+        margin-bottom: 10px;
+      }
+    `,
+  ],
   template: `
     <div data-testid="academic-page">
       <div class="d-flex justify-content-between align-items-center mb-4 animate-in">
@@ -19,14 +55,14 @@ import { ErpDatePickerComponent } from '../../shared/erp-date-picker/erp-date-pi
         </div>
       </div>
       <div class="erp-tabs animate-in">
-        <button class="erp-tab" [class.active]="tab === 'years'" (click)="tab = 'years'">Academic Years</button>
-        <button class="erp-tab" [class.active]="tab === 'classes'" (click)="tab = 'classes'">Classes & Sections</button>
-        <button class="erp-tab" [class.active]="tab === 'promotion'" (click)="activatePromotionTab()">Class Promotion</button>
+        <button *ngIf="canManageAcademic" type="button" class="erp-tab" [class.active]="tab === 'years'" (click)="tab = 'years'">Academic Years</button>
+        <button type="button" class="erp-tab" [class.active]="tab === 'classes'" (click)="tab = 'classes'">Classes &amp; Sections</button>
+        <button *ngIf="canManageAcademic" type="button" class="erp-tab" [class.active]="tab === 'promotion'" (click)="activatePromotionTab()">Class Promotion</button>
       </div>
 
-      <div *ngIf="tab === 'years'" class="animate-in">
+      <div *ngIf="tab === 'years' && canManageAcademic" class="animate-in">
         <div class="d-flex justify-content-end mb-3">
-          <button class="btn-primary-erp btn-sm" (click)="showAddYear = true"><i class="bi bi-plus-lg"></i> Add Academic Year</button>
+          <button type="button" class="btn-primary-erp btn-sm" (click)="showAddYear = true"><i class="bi bi-plus-lg"></i> Add Academic Year</button>
         </div>
         <div class="row g-4">
           <div class="col-md-6 col-lg-4" *ngFor="let ay of academicYears">
@@ -45,14 +81,43 @@ import { ErpDatePickerComponent } from '../../shared/erp-date-picker/erp-date-pi
       </div>
 
       <div *ngIf="tab === 'classes'" class="animate-in">
-        <div class="erp-card mb-4">
-          <div class="d-flex justify-content-between align-items-center">
+        <p *ngIf="!canManageAcademic" class="text-muted mb-3" style="font-size: 13px;">
+          <i class="bi bi-info-circle me-1"></i> View-only: structure and class-teacher changes are limited to administrators.
+        </p>
+
+        <div class="d-flex flex-wrap justify-content-between align-items-end gap-3 mb-3">
+          <div class="d-flex flex-wrap align-items-end gap-3">
             <div>
-              <h4 class="erp-card-title mb-1">Class Teacher Assignment</h4>
-              <p class="text-muted mb-0" style="font-size: 12px;">Every class can have one class teacher. Sections are optional.</p>
+              <label class="erp-label mb-1">Academic year</label>
+              <select class="erp-select" style="min-width: 180px;" [(ngModel)]="filterYearId">
+                <option value="">All years</option>
+                <option *ngFor="let ay of academicYears" [value]="ay.id">{{ ay.name }}</option>
+              </select>
+            </div>
+            <a routerLink="/app/students" class="btn-outline-erp btn-sm" style="text-decoration: none;"><i class="bi bi-people me-1"></i> Students</a>
+          </div>
+          <button *ngIf="canManageAcademic" type="button" class="btn-primary-erp btn-sm" (click)="openCreateClassModal()"><i class="bi bi-plus-lg"></i> Create class</button>
+        </div>
+
+        <div *ngIf="canManageAcademic && classesMissingHomeroom.length" class="erp-card mb-3 academic-homeroom-strip">
+          <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
+            <div>
+              <strong class="academic-homeroom-strip__title"><i class="bi bi-person-exclamation me-1"></i> Homeroom needed</strong>
+              <p class="academic-homeroom-strip__text mb-0 small">
+                {{ classesMissingHomeroom.length }} class(es) in this view have no class teacher. Use the card actions or the form below.
+              </p>
             </div>
           </div>
-          <div class="row g-3 align-items-end">
+        </div>
+
+        <div class="erp-card mb-4" *ngIf="canManageAcademic" id="academic-assign-class-teacher-panel">
+          <div class="d-flex justify-content-between align-items-center">
+            <div>
+              <h4 class="erp-card-title mb-1">Assign class teacher</h4>
+              <p class="academic-help-text mb-0" style="font-size: 12px;">One homeroom teacher per class. Moving a teacher here removes them from any other class. Sections stay separate.</p>
+            </div>
+          </div>
+          <div class="row g-3 align-items-end mt-2">
             <div class="col-md-5">
               <label class="erp-label">Class</label>
               <select class="erp-select" [(ngModel)]="assignClassId">
@@ -68,7 +133,7 @@ import { ErpDatePickerComponent } from '../../shared/erp-date-picker/erp-date-pi
               </select>
             </div>
             <div class="col-md-2">
-              <button class="btn-primary-erp" style="width: 100%;" [disabled]="!assignClassId || assigningTeacher" (click)="saveClassTeacher()">
+              <button type="button" class="btn-primary-erp" style="width: 100%;" [disabled]="!assignClassId || assigningTeacher" (click)="saveClassTeacher()">
                 <span class="spinner" *ngIf="assigningTeacher"></span>
                 {{ assigningTeacher ? 'Saving...' : 'Save' }}
               </button>
@@ -77,58 +142,135 @@ import { ErpDatePickerComponent } from '../../shared/erp-date-picker/erp-date-pi
         </div>
 
         <div class="row g-4">
-          <div class="col-md-6 col-lg-4" *ngFor="let cls of classes">
-            <div class="erp-card">
-              <div class="d-flex justify-content-between align-items-center mb-3">
-                <h4 style="font-size: 16px; font-weight: 700;">{{ cls.name }}</h4>
-                <span class="badge-erp badge-info">{{ cls.sections.length }} Sections</span>
-              </div>
-              <div *ngIf="cls.classTeacherName" style="font-size: 13px; color: var(--clr-text-secondary); margin-bottom: 12px;">
-                <i class="bi bi-person-badge me-1"></i> Class Teacher: <strong>{{ cls.classTeacherName }}</strong>
-              </div>
-              <div *ngIf="!cls.classTeacherName" style="font-size: 13px; color: var(--clr-text-muted); margin-bottom: 12px;">
-                <i class="bi bi-person-badge me-1"></i> Class Teacher: <strong>Not assigned</strong>
-              </div>
-              <div class="d-flex flex-wrap gap-2">
-                <div *ngFor="let sec of cls.sections" style="flex: 1; min-width: 80px; background: var(--clr-bg); border-radius: var(--radius-md); padding: 10px; text-align: center;">
-                  <div style="font-weight: 700; font-size: 15px;">{{ sec.name }}</div>
-                  <div style="font-size: 12px; color: var(--clr-text-muted);">{{ sec.studentCount }}/{{ sec.capacity }}</div>
+          <div class="col-md-6 col-lg-4" *ngFor="let cls of filteredClasses">
+            <div class="erp-card academic-class-card" [class.academic-class-card--needs-homeroom]="canManageAcademic && !cls.classTeacherId">
+              <div class="d-flex justify-content-between align-items-start mb-2 gap-2">
+                <div>
+                  <h4 style="font-size: 16px; font-weight: 700; margin-bottom: 2px;">{{ cls.name }}</h4>
+                  <span class="academic-help-text" style="font-size: 12px;">Grade {{ cls.grade }}</span>
+                </div>
+                <div class="d-flex flex-column align-items-end gap-1">
+                  <span class="badge-erp" [ngClass]="cls.sections.length ? 'badge-info' : 'badge-neutral'">{{ cls.sections.length ? cls.sections.length + ' section(s)' : 'Whole class' }}</span>
+                  <span *ngIf="canManageAcademic && !cls.classTeacherId" class="badge-erp" style="background: color-mix(in srgb, var(--clr-warning) 22%, transparent); color: var(--clr-warning); border: 1px solid color-mix(in srgb, var(--clr-warning) 45%, transparent);">Homeroom TBD</span>
+                  <button *ngIf="canManageAcademic" type="button" class="btn-outline-erp btn-xs" (click)="openEditClassModal(cls)">Edit class</button>
                 </div>
               </div>
+              <div *ngIf="cls.classTeacherName" style="font-size: 13px; color: var(--clr-text-secondary); margin-bottom: 10px;">
+                <i class="bi bi-person-badge me-1"></i> Class teacher: <strong>{{ cls.classTeacherName }}</strong>
+              </div>
+              <div *ngIf="!cls.classTeacherName" class="academic-homeroom-missing-callout">
+                <i class="bi bi-person-x me-1"></i>
+                <span><strong>No class teacher</strong> — assign a homeroom teacher for attendance and parent comms.</span>
+                <button *ngIf="canManageAcademic" type="button" class="btn-primary-erp btn-xs mt-2" (click)="prefillAssignClassTeacher(cls)">Assign teacher…</button>
+              </div>
+              <div *ngIf="cls.sections.length === 0" class="text-muted mb-2" style="font-size: 12px;">No sections — enroll students at class level only.</div>
+              <div class="d-flex flex-wrap gap-2">
+                <div *ngFor="let sec of cls.sections" class="d-flex align-items-center gap-1" style="flex: 1; min-width: 100px; background: var(--clr-surface-muted); border: 1px solid var(--clr-border-light); border-radius: var(--radius-md); padding: 8px 10px;">
+                  <div style="flex: 1; text-align: center;">
+                    <div style="font-weight: 700; font-size: 15px;">{{ sec.name }}</div>
+                    <div style="font-size: 12px; color: var(--clr-text-muted);">{{ sec.studentCount }}/{{ sec.capacity }}</div>
+                  </div>
+                  <div *ngIf="canManageAcademic" class="d-flex flex-column gap-1">
+                    <button type="button" class="btn-icon btn-xs p-0" style="font-size: 14px;" (click)="openEditSectionModal(cls, sec)" title="Edit"><i class="bi bi-pencil"></i></button>
+                    <button type="button" class="btn-icon btn-xs p-0" style="font-size: 14px; color: var(--clr-danger);" [disabled]="sec.studentCount > 0 || sectionBusy" (click)="removeSection(cls, sec)" title="Remove"><i class="bi bi-trash"></i></button>
+                  </div>
+                </div>
+              </div>
+              <div *ngIf="canManageAcademic" class="mt-2">
+                <button type="button" class="btn-outline-erp btn-xs" [disabled]="sectionBusy" (click)="openAddSectionModal(cls)"><i class="bi bi-plus"></i> Add section</button>
+              </div>
               <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--clr-border-light); font-size: 12px; color: var(--clr-text-muted);">
-                Total Students: <strong style="color: var(--clr-text);">{{ getTotalStudents(cls) }}</strong>
+                Total students: <strong style="color: var(--clr-text);">{{ getTotalStudents(cls) }}</strong>
               </div>
             </div>
           </div>
         </div>
       </div>
 
-      <div *ngIf="tab === 'promotion'" class="animate-in">
+      <div *ngIf="tab === 'promotion' && canManageAcademic" class="animate-in">
         <div class="erp-card mb-4">
           <h4 class="erp-card-title mb-3">Bulk Student Promotion</h4>
-          <p style="font-size: 13px; color: var(--clr-text-muted); margin-bottom: 16px;">Preview the next class, review eligible students, and run promotion against real academic records.</p>
+          <p style="font-size: 13px; color: var(--clr-text-secondary); margin-bottom: 16px;">End-of-year workflow: promoted students are moved to the next grade in the database (class, section, and display names). Only <strong>active</strong> pupils are listed; inactive or alumni are skipped.</p>
           <div class="row g-3 align-items-end mb-4">
             <div class="col-md-4">
               <label class="erp-label">From Class</label>
-              <select class="erp-select" [(ngModel)]="promoFromClass" (change)="loadPromotionPreview()">
+              <select
+                class="erp-select"
+                [(ngModel)]="promoFromClass"
+                (change)="loadPromotionPreview()"
+                title="Source grade: students currently enrolled here are candidates for promotion to the configured next class."
+              >
                 <option value="">Select Class</option>
                 <option *ngFor="let cls of promotableClasses" [value]="cls.id">{{ cls.name }}</option>
               </select>
             </div>
             <div class="col-md-4">
               <label class="erp-label">To Class</label>
-              <input type="text" class="erp-input" [value]="promotionPreview?.targetClassName || ''" disabled>
+              <input
+                type="text"
+                class="erp-input"
+                [value]="promotionPreview?.targetClassName || ''"
+                disabled
+                title="Target grade after promotion — determined by academic rules (usually the next grade up)."
+              />
             </div>
             <div class="col-md-4">
-              <button class="btn-primary-erp" style="width: 100%;" [disabled]="selectedForPromo === 0 || promoting" (click)="promoteStudents()">
+              <button
+                class="btn-primary-erp"
+                style="width: 100%;"
+                [disabled]="selectedForPromo === 0 || promoting"
+                (click)="promoteStudents()"
+                title="Moves selected eligible students from the source class to the target class (and section if chosen). Ineligible rows stay behind."
+              >
                 <span class="spinner" *ngIf="promoting"></span>
                 {{ promoting ? 'Promoting...' : 'Promote Selected' }}
               </button>
             </div>
           </div>
+          <div class="row g-3 mb-4" *ngIf="promotionPreview?.targetSections?.length">
+            <div class="col-md-6">
+              <label class="erp-label">Target section</label>
+              <select
+                class="erp-select"
+                [(ngModel)]="promoTargetSectionId"
+                title="Homeroom section in the target class. Capacity hints help balance strength; split preview suggests counts per section."
+              >
+                <option *ngFor="let sec of promotionPreview!.targetSections!" [value]="sec.id">{{ sec.name }}<ng-container *ngIf="sec.capacity != null"> (cap {{ sec.capacity }})</ng-container></option>
+              </select>
+              <p class="text-muted mt-1 mb-0" style="font-size: 12px;">If the next grade has fewer sections than the current one, pick where promoted students land first; you can rebalance sections afterward.</p>
+            </div>
+          </div>
 
           <div *ngIf="promotionLoading" class="empty-state">
             <i class="bi bi-hourglass-split"></i><h3>Loading Preview</h3><p>Fetching live promotion data</p>
+          </div>
+
+          <div *ngIf="promotionPreview?.sectionPlacementNote" class="alert alert-warning py-2 px-3 small mb-3" style="border-radius: var(--radius-md);">
+            {{ promotionPreview!.sectionPlacementNote }}
+          </div>
+          <div class="d-flex flex-wrap gap-2 mb-3" *ngIf="promotionPreview">
+            <button
+              type="button"
+              class="btn-outline-erp btn-sm"
+              [disabled]="splitLoading"
+              (click)="loadSplitPreview()"
+              title="Estimates how many promoted students could go into each target section based on capacity and current counts — planning aid only until you confirm promotion."
+            >
+              {{ splitLoading ? 'Loading…' : 'Split preview (suggested section counts)' }}
+            </button>
+          </div>
+          <div *ngIf="splitPreview" class="mb-4 p-3" style="border: 1px solid var(--clr-border-light); border-radius: var(--radius-lg); background: rgba(0,0,0,0.02);">
+            <div class="small text-muted mb-2" [attr.title]="'Section strength: suggested headcount per section in the target class for balanced rolls.'">{{ splitPreview.hint }} — {{ splitPreview.eligibleStudentCount }} eligible students</div>
+            <table class="erp-table mb-0" *ngIf="splitPreview.sections.length">
+              <thead><tr><th>Section</th><th>Capacity</th><th>Suggested count</th></tr></thead>
+              <tbody>
+                <tr *ngFor="let s of splitPreview.sections">
+                  <td>{{ s.sectionName }}</td>
+                  <td>{{ s.capacity ?? '—' }}</td>
+                  <td><strong>{{ s.suggestedAssignCount }}</strong></td>
+                </tr>
+              </tbody>
+            </table>
           </div>
 
           <div *ngIf="promotionPreview && promotionPreview.students.length > 0">
@@ -179,18 +321,100 @@ import { ErpDatePickerComponent } from '../../shared/erp-date-picker/erp-date-pi
           </div>
         </div>
       </div>
+
+      <div class="modal-overlay" *ngIf="showCreateClass" (click)="showCreateClass = false">
+        <div class="modal-content-erp" (click)="$event.stopPropagation()">
+          <div class="modal-header-erp"><h3>Create class</h3><button type="button" class="btn-icon" (click)="showCreateClass = false"><i class="bi bi-x-lg"></i></button></div>
+          <div class="modal-body-erp">
+            <div class="erp-form-group"><label class="erp-label">Academic year *</label>
+              <select class="erp-select" [(ngModel)]="newClass.academicYearId"><option *ngFor="let ay of academicYears" [value]="ay.id">{{ ay.name }}</option></select></div>
+            <div class="erp-form-group"><label class="erp-label">Display name *</label>
+              <input type="text" class="erp-input" [(ngModel)]="newClass.name" placeholder="e.g. Class 5"></div>
+            <div class="erp-form-group"><label class="erp-label">Grade *</label>
+              <input type="number" class="erp-input" [(ngModel)]="newClass.grade" min="0" max="20"></div>
+            <div class="erp-form-group"><label class="erp-label">Initial sections (optional)</label>
+              <input type="text" class="erp-input" [(ngModel)]="newClass.sectionNamesText" placeholder="A, B, C — leave empty for whole class only"></div>
+            <div class="erp-form-group"><label class="erp-label">Default section capacity</label>
+              <input type="number" class="erp-input" [(ngModel)]="newClass.sectionCapacity" min="1"></div>
+            <div class="erp-form-group"><label class="erp-label">Class teacher (optional)</label>
+              <select class="erp-select" [(ngModel)]="newClass.classTeacherId"><option value="">Later</option><option *ngFor="let t of teachers" [value]="t.id">{{ t.firstName }} {{ t.lastName }}</option></select></div>
+          </div>
+          <div class="modal-footer-erp">
+            <button type="button" class="btn-outline-erp" (click)="showCreateClass = false">Cancel</button>
+            <button type="button" class="btn-primary-erp" [disabled]="savingClass" (click)="submitCreateClass()"><span class="spinner" *ngIf="savingClass"></span>{{ savingClass ? 'Saving...' : 'Create' }}</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-overlay" *ngIf="showEditClass" (click)="showEditClass = false">
+        <div class="modal-content-erp" (click)="$event.stopPropagation()">
+          <div class="modal-header-erp"><h3>Edit class</h3><button type="button" class="btn-icon" (click)="showEditClass = false"><i class="bi bi-x-lg"></i></button></div>
+          <div class="modal-body-erp">
+            <div class="erp-form-group"><label class="erp-label">Name *</label><input type="text" class="erp-input" [(ngModel)]="editClassForm.name"></div>
+            <div class="erp-form-group"><label class="erp-label">Grade *</label><input type="number" class="erp-input" [(ngModel)]="editClassForm.grade" min="0" max="20"></div>
+          </div>
+          <div class="modal-footer-erp">
+            <button type="button" class="btn-outline-erp" (click)="showEditClass = false">Cancel</button>
+            <button type="button" class="btn-primary-erp" [disabled]="savingClass" (click)="submitEditClass()">{{ savingClass ? 'Saving...' : 'Save' }}</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-overlay" *ngIf="showAddSection" (click)="showAddSection = false">
+        <div class="modal-content-erp" (click)="$event.stopPropagation()">
+          <div class="modal-header-erp"><h3>Add section</h3><button type="button" class="btn-icon" (click)="showAddSection = false"><i class="bi bi-x-lg"></i></button></div>
+          <div class="modal-body-erp">
+            <div class="erp-form-group"><label class="erp-label">Name *</label><input type="text" class="erp-input" [(ngModel)]="newSection.name" placeholder="e.g. A"></div>
+            <div class="erp-form-group"><label class="erp-label">Capacity</label><input type="number" class="erp-input" [(ngModel)]="newSection.capacity" min="1"></div>
+          </div>
+          <div class="modal-footer-erp">
+            <button type="button" class="btn-outline-erp" (click)="showAddSection = false">Cancel</button>
+            <button type="button" class="btn-primary-erp" [disabled]="sectionBusy" (click)="submitAddSection()">{{ sectionBusy ? 'Saving...' : 'Add' }}</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-overlay" *ngIf="showEditSection" (click)="showEditSection = false">
+        <div class="modal-content-erp" (click)="$event.stopPropagation()">
+          <div class="modal-header-erp"><h3>Edit section</h3><button type="button" class="btn-icon" (click)="showEditSection = false"><i class="bi bi-x-lg"></i></button></div>
+          <div class="modal-body-erp">
+            <div class="erp-form-group"><label class="erp-label">Name *</label><input type="text" class="erp-input" [(ngModel)]="editSectionForm.name"></div>
+            <div class="erp-form-group"><label class="erp-label">Capacity</label><input type="number" class="erp-input" [(ngModel)]="editSectionForm.capacity" min="1"></div>
+          </div>
+          <div class="modal-footer-erp">
+            <button type="button" class="btn-outline-erp" (click)="showEditSection = false">Cancel</button>
+            <button type="button" class="btn-primary-erp" [disabled]="sectionBusy" (click)="submitEditSection()">{{ sectionBusy ? 'Saving...' : 'Save' }}</button>
+          </div>
+        </div>
+      </div>
     </div>
   `
 })
 export class AcademicComponent implements OnInit {
-  tab = 'years';
+  tab: 'years' | 'classes' | 'promotion' = 'classes';
   academicYears: AcademicYear[] = [];
   classes: SchoolClass[] = [];
   teachers: Teacher[] = [];
+  canManageAcademic = false;
+  filterYearId = '';
   assignClassId = '';
   assignTeacherId = '';
   assigningTeacher = false;
   showAddYear = false;
+  showCreateClass = false;
+  showEditClass = false;
+  editClassTarget: SchoolClass | null = null;
+  newClass = { name: '', grade: 1, academicYearId: '', sectionNamesText: '', sectionCapacity: 40, classTeacherId: '' };
+  editClassForm = { name: '', grade: 1 };
+  showAddSection = false;
+  sectionClassId = '';
+  newSection = { name: '', capacity: 40 };
+  showEditSection = false;
+  editSectionClassId = '';
+  editSectionId = '';
+  editSectionForm = { name: '', capacity: 40 };
+  savingClass = false;
+  sectionBusy = false;
   newYear = { name: '', startDate: '', endDate: '' };
   promoFromClass = '';
   promotionPreview: PromotionPreview | null = null;
@@ -198,12 +422,43 @@ export class AcademicComponent implements OnInit {
   promoting = false;
   promotionDone = '';
   allSelected = true;
+  /** Chosen target section for bulk promotion (API targetSectionId). */
+  promoTargetSectionId = '';
+  splitPreview: PromotionSplitPreview | null = null;
+  splitLoading = false;
 
-  constructor(private academicService: AcademicService, private teacherService: TeacherService) {}
+  constructor(
+    private academicService: AcademicService,
+    private teacherService: TeacherService,
+    private auth: AuthService,
+    private confirmDialog: ConfirmDialogService
+  ) {}
 
   ngOnInit(): void {
+    const r = this.auth.getRole();
+    this.canManageAcademic = r === 'admin' || r === 'super_admin';
+    if (this.canManageAcademic) {
+      this.tab = 'classes';
+    }
     this.reloadData();
     this.teacherService.getTeachers().subscribe(list => (this.teachers = list));
+  }
+
+  get filteredClasses(): SchoolClass[] {
+    if (!this.filterYearId) return this.classes;
+    return this.classes.filter(c => c.academicYearId === this.filterYearId);
+  }
+
+  get classesMissingHomeroom(): SchoolClass[] {
+    return this.filteredClasses.filter(c => !c.classTeacherId);
+  }
+
+  prefillAssignClassTeacher(cls: SchoolClass): void {
+    this.assignClassId = cls.id;
+    this.assignTeacherId = cls.classTeacherId || '';
+    setTimeout(() => {
+      document.getElementById('academic-assign-class-teacher-panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 0);
   }
 
   get promotableClasses(): SchoolClass[] {
@@ -215,7 +470,149 @@ export class AcademicComponent implements OnInit {
   }
 
   getTotalStudents(cls: SchoolClass): number {
+    if (cls.sections.length === 0) {
+      return cls.totalStudents ?? 0;
+    }
     return cls.sections.reduce((sum, section) => sum + section.studentCount, 0);
+  }
+
+  openCreateClassModal(): void {
+    const cur = this.academicYears.find(y => y.isCurrent);
+    this.newClass = {
+      name: '',
+      grade: 1,
+      academicYearId: cur?.id ?? this.academicYears[0]?.id ?? '',
+      sectionNamesText: '',
+      sectionCapacity: 40,
+      classTeacherId: '',
+    };
+    this.showCreateClass = true;
+  }
+
+  submitCreateClass(): void {
+    const n = this.newClass.name.trim();
+    if (!n || !this.newClass.academicYearId) return;
+    const names = this.newClass.sectionNamesText.split(/[,;\n]+/).map(s => s.trim()).filter(Boolean);
+    const t = this.newClass.classTeacherId ? this.teachers.find(x => x.id === this.newClass.classTeacherId) : undefined;
+    this.savingClass = true;
+    this.academicService
+      .createClass({
+        name: n,
+        grade: Number(this.newClass.grade),
+        academicYearId: this.newClass.academicYearId,
+        sectionNames: names,
+        sectionCapacity: this.newClass.sectionCapacity,
+        classTeacherId: this.newClass.classTeacherId || null,
+        classTeacherName: t ? `${t.firstName} ${t.lastName}` : undefined,
+      })
+      .subscribe({
+        next: created => {
+          this.classes = [...this.classes, created].sort((a, b) => a.grade - b.grade);
+          this.savingClass = false;
+          this.showCreateClass = false;
+        },
+        error: () => {
+          this.savingClass = false;
+        },
+      });
+  }
+
+  openEditClassModal(cls: SchoolClass): void {
+    this.editClassTarget = cls;
+    this.editClassForm = { name: cls.name, grade: cls.grade };
+    this.showEditClass = true;
+  }
+
+  submitEditClass(): void {
+    if (!this.editClassTarget) return;
+    const name = this.editClassForm.name.trim();
+    if (!name) return;
+    this.savingClass = true;
+    this.academicService.updateClass(this.editClassTarget.id, name, Number(this.editClassForm.grade)).subscribe({
+      next: updated => {
+        this.classes = this.classes.map(c => (c.id === updated.id ? updated : c));
+        this.savingClass = false;
+        this.showEditClass = false;
+        this.editClassTarget = null;
+      },
+      error: () => {
+        this.savingClass = false;
+      },
+    });
+  }
+
+  openAddSectionModal(cls: SchoolClass): void {
+    this.sectionClassId = cls.id;
+    this.newSection = { name: '', capacity: 40 };
+    this.showAddSection = true;
+  }
+
+  submitAddSection(): void {
+    const name = this.newSection.name.trim();
+    if (!name || !this.sectionClassId) return;
+    this.sectionBusy = true;
+    this.academicService.addSectionToClass(this.sectionClassId, name, Number(this.newSection.capacity) || 40).subscribe({
+      next: updated => {
+        this.classes = this.classes.map(c => (c.id === updated.id ? updated : c));
+        this.sectionBusy = false;
+        this.showAddSection = false;
+      },
+      error: () => {
+        this.sectionBusy = false;
+      },
+    });
+  }
+
+  openEditSectionModal(cls: SchoolClass, sec: { id: string; name: string; capacity: number }): void {
+    this.editSectionClassId = cls.id;
+    this.editSectionId = sec.id;
+    this.editSectionForm = { name: sec.name, capacity: sec.capacity };
+    this.showEditSection = true;
+  }
+
+  submitEditSection(): void {
+    const name = this.editSectionForm.name.trim();
+    if (!name || !this.editSectionClassId || !this.editSectionId) return;
+    this.sectionBusy = true;
+    this.academicService
+      .updateSection(this.editSectionClassId, this.editSectionId, name, Number(this.editSectionForm.capacity) || 40)
+      .subscribe({
+        next: updated => {
+          this.classes = this.classes.map(c => (c.id === updated.id ? updated : c));
+          this.sectionBusy = false;
+          this.showEditSection = false;
+        },
+        error: () => {
+          this.sectionBusy = false;
+        },
+      });
+  }
+
+  removeSection(cls: SchoolClass, sec: { id: string; name: string; studentCount: number }): void {
+    if (sec.studentCount > 0) return;
+    this.confirmDialog
+      .confirm({
+        title: 'Remove section?',
+        message: `Section "${sec.name}" will be removed from class "${cls.name}". This cannot be undone from the UI.`,
+        details: [`Class: ${cls.name} (grade ${cls.grade ?? '—'})`, 'Sections with enrolled students cannot be removed.'],
+        variant: 'danger',
+        confirmLabel: 'Yes, remove section',
+      })
+      .pipe(filter(Boolean))
+      .subscribe(() => {
+        this.sectionBusy = true;
+        this.academicService.deleteSection(cls.id, sec.id).subscribe({
+          next: updated => {
+            if (updated) {
+              this.classes = this.classes.map(c => (c.id === updated.id ? updated : c));
+            }
+            this.sectionBusy = false;
+          },
+          error: () => {
+            this.sectionBusy = false;
+          },
+        });
+      });
   }
 
   saveClassTeacher(): void {
@@ -241,6 +638,8 @@ export class AcademicComponent implements OnInit {
   loadPromotionPreview(): void {
     this.promotionDone = '';
     this.promotionPreview = null;
+    this.splitPreview = null;
+    this.promoTargetSectionId = '';
     if (!this.promoFromClass) {
       return;
     }
@@ -248,6 +647,9 @@ export class AcademicComponent implements OnInit {
     this.academicService.previewPromotion(this.promoFromClass).subscribe({
       next: preview => {
         this.promotionPreview = preview;
+        this.promoTargetSectionId =
+          preview.defaultSectionId
+          ?? (preview.targetSections?.length ? preview.targetSections[0].id : '');
         this.allSelected = preview.students.every(student => student.selected);
         this.promotionLoading = false;
       },
@@ -255,6 +657,24 @@ export class AcademicComponent implements OnInit {
         this.promotionLoading = false;
       }
     });
+  }
+
+  loadSplitPreview(): void {
+    if (!this.promotionPreview) {
+      return;
+    }
+    this.splitLoading = true;
+    this.academicService
+      .promotionSplitPreview(this.promotionPreview.sourceClassId, this.promotionPreview.targetClassId)
+      .subscribe({
+        next: sp => {
+          this.splitPreview = sp;
+          this.splitLoading = false;
+        },
+        error: () => {
+          this.splitLoading = false;
+        },
+      });
   }
 
   toggleAllPromo(): void {
@@ -278,11 +698,13 @@ export class AcademicComponent implements OnInit {
       return;
     }
     this.promoting = true;
+    const targetSection =
+      this.promoTargetSectionId || this.promotionPreview.defaultSectionId || undefined;
     this.academicService.executePromotion(
       this.promotionPreview.sourceClassId,
       this.promotionPreview.targetClassId,
       studentIds,
-      this.promotionPreview.defaultSectionId
+      targetSection
     ).subscribe({
       next: result => {
         this.promoting = false;

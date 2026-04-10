@@ -6,7 +6,9 @@ import { LibraryCatalogFilter, LibraryService } from '../../core/services/librar
 import { StudentService } from '../../core/services/student.service';
 import { TeacherService } from '../../core/services/teacher.service';
 import { AuthService } from '../../core/services/auth.service';
+import { filter } from 'rxjs/operators';
 import { ErpDatePickerComponent } from '../../shared/erp-date-picker/erp-date-picker.component';
+import { ConfirmDialogService } from '../../shared/confirm-dialog/confirm-dialog.service';
 
 @Component({
   selector: 'app-library',
@@ -232,7 +234,8 @@ export class LibraryComponent implements OnInit {
     private libraryService: LibraryService,
     private studentService: StudentService,
     private teacherService: TeacherService,
-    private authService: AuthService
+    private authService: AuthService,
+    private confirmDialog: ConfirmDialogService
   ) {}
 
   ngOnInit(): void {
@@ -360,13 +363,23 @@ export class LibraryComponent implements OnInit {
   }
 
   deactivateBook(b: Book): void {
-    if (!confirm(`Mark "${b.title}" inactive? It will disappear from the active catalog and cannot be issued until restored.`)) return;
-    this.libraryService.setCatalogActive(b.id, false).subscribe({
-      next: () => {
-        this.loadBooks();
-      },
-      error: (e: Error) => alert(e?.message || 'Could not update catalog')
-    });
+    this.confirmDialog
+      .confirm({
+        title: 'Mark book inactive?',
+        message: `"${b.title}" will disappear from the active catalog and cannot be issued until it is restored.`,
+        details: [b.author ? `Author: ${b.author}` : undefined, b.isbn ? `ISBN: ${b.isbn}` : undefined].filter(
+          (x): x is string => !!x
+        ),
+        variant: 'warning',
+        confirmLabel: 'Yes, mark inactive',
+      })
+      .pipe(filter(Boolean))
+      .subscribe(() => {
+        this.libraryService.setCatalogActive(b.id, false).subscribe({
+          next: () => this.loadBooks(),
+          error: (e: Error) => alert(e?.message || 'Could not update catalog'),
+        });
+      });
   }
 
   reactivateBook(b: Book): void {

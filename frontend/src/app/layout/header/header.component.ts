@@ -203,6 +203,7 @@ export class HeaderComponent implements OnInit, OnDestroy {
     this.isSuperAdmin = (user?.role || '').toLowerCase() === 'super_admin';
     if (this.isSuperAdmin) {
       this.notificationService.usePlatformOperatorFeed();
+      this.themeService.applyStoredConsolePaletteIfSuperAdmin();
     }
 
     this.notificationService.notifications$.subscribe(notifs => {
@@ -298,6 +299,8 @@ export class HeaderComponent implements OnInit, OnDestroy {
       communication: 'Announcements',
       leave: 'Leave',
       reports: 'Reports',
+      directory: 'Directory',
+      operations: 'Operations hub',
       transport: 'Transport',
       library: 'Library',
       hostel: 'Hostel',

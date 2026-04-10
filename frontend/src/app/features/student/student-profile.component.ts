@@ -6,7 +6,9 @@ import { AuthService } from '../../core/services/auth.service';
 import { ExamService } from '../../core/services/exam.service';
 import { FeeService } from '../../core/services/fee.service';
 import { AttendanceService } from '../../core/services/attendance.service';
+import { filter } from 'rxjs/operators';
 import { Student, MarkRecord, FeePayment, AttendanceStats } from '../../core/models/models';
+import { ConfirmDialogService } from '../../shared/confirm-dialog/confirm-dialog.service';
 
 @Component({
   selector: 'app-student-profile',
@@ -26,6 +28,15 @@ import { Student, MarkRecord, FeePayment, AttendanceStats } from '../../core/mod
           <a *ngIf="isAdmin" [routerLink]="['/app/students', student.id, 'edit']" class="btn-primary-erp btn-sm" data-testid="edit-profile-btn">
             <i class="bi bi-pencil"></i> Edit
           </a>
+          <button *ngIf="isAdmin && student.status === 'active'" type="button" class="btn-outline-erp btn-sm" [disabled]="lifecycleBusy" (click)="markInactive()" data-testid="mark-inactive-btn">
+            Mark inactive (left school)
+          </button>
+          <button *ngIf="isAdmin && student.status === 'inactive'" type="button" class="btn-outline-erp btn-sm" [disabled]="lifecycleBusy" (click)="reactivate()" data-testid="reactivate-student-btn">
+            Reactivate
+          </button>
+          <button *ngIf="isAdmin" type="button" class="btn-outline-erp btn-sm" style="border-color: var(--clr-danger); color: var(--clr-danger);" [disabled]="lifecycleBusy" (click)="softDeleteFromSchool()" data-testid="remove-directory-btn">
+            Remove from directory
+          </button>
         </div>
       </div>
 
@@ -142,6 +153,7 @@ import { Student, MarkRecord, FeePayment, AttendanceStats } from '../../core/mod
 })
 export class StudentProfileComponent implements OnInit {
   student: Student | null = null;
+  lifecycleBusy = false;
   activeTab = 'marks';
   marks: MarkRecord[] = [];
   fees: FeePayment[] = [];
@@ -161,7 +173,8 @@ export class StudentProfileComponent implements OnInit {
     private attendanceService: AttendanceService,
     private auth: AuthService,
     private route: ActivatedRoute,
-    public router: Router
+    public router: Router,
+    private confirmDialog: ConfirmDialogService
   ) {}
 
   get isAdmin(): boolean {
@@ -235,5 +248,80 @@ export class StudentProfileComponent implements OnInit {
   getExamName(examId: string): string {
     const map: Record<string, string> = { e1: 'Unit Test 1', e2: 'Midterm', e3: 'Unit Test 2', e4: 'Final Exam' };
     return map[examId] || examId;
+  }
+
+  markInactive(): void {
+    if (!this.student) {
+      return;
+    }
+    const s = this.student;
+    this.confirmDialog
+      .confirm({
+        title: 'Mark student inactive?',
+        message: `${s.firstName} ${s.lastName} will disappear from default class and student lists. The record stays for history and can be reactivated.`,
+        details: [`Admission #: ${s.admissionNumber}`, `Current class: ${s.className} ${s.sectionName || ''}`.trim()],
+        variant: 'warning',
+        confirmLabel: 'Yes, mark inactive',
+      })
+      .pipe(filter(Boolean))
+      .subscribe(() => {
+        this.lifecycleBusy = true;
+        this.studentService.updateStudent(s.id, { ...s, status: 'inactive' }).subscribe({
+          next: next => {
+            this.student = next;
+            this.lifecycleBusy = false;
+          },
+          error: () => {
+            this.lifecycleBusy = false;
+          },
+        });
+      });
+  }
+
+  reactivate(): void {
+    if (!this.student) {
+      return;
+    }
+    this.lifecycleBusy = true;
+    this.studentService.updateStudent(this.student.id, { ...this.student, status: 'active' }).subscribe({
+      next: s => {
+        this.student = s;
+        this.lifecycleBusy = false;
+      },
+      error: () => {
+        this.lifecycleBusy = false;
+      },
+    });
+  }
+
+  softDeleteFromSchool(): void {
+    if (!this.student) {
+      return;
+    }
+    const s = this.student;
+    this.confirmDialog
+      .confirm({
+        title: 'Remove from directory?',
+        message: `${s.firstName} ${s.lastName} will be removed from all directory views. Use after withdrawal or per your data-retention policy.`,
+        details: [
+          `Admission #: ${s.admissionNumber}`,
+          'Soft delete only — not permanent erasure from secured archives.',
+        ],
+        variant: 'danger',
+        confirmLabel: 'Yes, remove',
+      })
+      .pipe(filter(Boolean))
+      .subscribe(() => {
+        this.lifecycleBusy = true;
+        this.studentService.deleteStudent(s.id).subscribe({
+          next: () => {
+            this.lifecycleBusy = false;
+            this.router.navigate(['/app/students']);
+          },
+          error: () => {
+            this.lifecycleBusy = false;
+          },
+        });
+      });
   }
 }

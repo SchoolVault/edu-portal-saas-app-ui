@@ -1,5 +1,5 @@
 import { Routes } from '@angular/router';
-import { adminOnlyGuard, authGuard, leaveStaffGuard, schoolSettingsGuard, superAdminGuard } from './core/guards/auth.guard';
+import { adminOnlyGuard, authGuard, leaveStaffGuard, schoolSettingsGuard, schoolStaffGuard, superAdminGuard } from './core/guards/auth.guard';
 
 export const routes: Routes = [
   { path: '', redirectTo: 'login', pathMatch: 'full' },
@@ -45,15 +45,17 @@ export const routes: Routes = [
         canActivate: [superAdminGuard]
       },
       { path: 'parent', loadComponent: () => import('./features/parent/parent-portal.component').then(m => m.ParentPortalComponent) },
-      { path: 'students', loadComponent: () => import('./features/student/student-list.component').then(m => m.StudentListComponent) },
+      { path: 'students', loadComponent: () => import('./features/student/student-list.component').then(m => m.StudentListComponent), canActivate: [schoolStaffGuard] },
       { path: 'students/new', loadComponent: () => import('./features/student/student-form.component').then(m => m.StudentFormComponent), canActivate: [adminOnlyGuard] },
-      { path: 'students/:id', loadComponent: () => import('./features/student/student-profile.component').then(m => m.StudentProfileComponent) },
+      { path: 'students/:id', loadComponent: () => import('./features/student/student-profile.component').then(m => m.StudentProfileComponent), canActivate: [schoolStaffGuard] },
       { path: 'students/:id/edit', loadComponent: () => import('./features/student/student-form.component').then(m => m.StudentFormComponent), canActivate: [adminOnlyGuard] },
-      { path: 'teachers', loadComponent: () => import('./features/teacher/teacher-list.component').then(m => m.TeacherListComponent) },
-      { path: 'teachers/new', loadComponent: () => import('./features/teacher/teacher-form.component').then(m => m.TeacherFormComponent) },
-      { path: 'teachers/:id/edit', loadComponent: () => import('./features/teacher/teacher-form.component').then(m => m.TeacherFormComponent) },
-      { path: 'academic', loadComponent: () => import('./features/academic/academic.component').then(m => m.AcademicComponent) },
-      { path: 'attendance', loadComponent: () => import('./features/attendance/attendance.component').then(m => m.AttendanceComponent) },
+      { path: 'directory', loadComponent: () => import('./features/directory/directory.component').then(m => m.DirectoryComponent), canActivate: [adminOnlyGuard] },
+      { path: 'teachers', loadComponent: () => import('./features/teacher/teacher-list.component').then(m => m.TeacherListComponent), canActivate: [schoolStaffGuard] },
+      { path: 'teachers/new', loadComponent: () => import('./features/teacher/teacher-form.component').then(m => m.TeacherFormComponent), canActivate: [adminOnlyGuard] },
+      { path: 'teachers/:id/edit', loadComponent: () => import('./features/teacher/teacher-form.component').then(m => m.TeacherFormComponent), canActivate: [adminOnlyGuard] },
+      { path: 'teachers/:id', loadComponent: () => import('./features/teacher/teacher-profile.component').then(m => m.TeacherProfileComponent), canActivate: [schoolStaffGuard] },
+      { path: 'academic', loadComponent: () => import('./features/academic/academic.component').then(m => m.AcademicComponent), canActivate: [schoolStaffGuard] },
+      { path: 'attendance', loadComponent: () => import('./features/attendance/attendance.component').then(m => m.AttendanceComponent), canActivate: [schoolStaffGuard] },
       { path: 'timetable', loadComponent: () => import('./features/timetable/timetable.component').then(m => m.TimetableComponent) },
       { path: 'exams', loadComponent: () => import('./features/exams/exams.component').then(m => m.ExamsComponent) },
       { path: 'fees', loadComponent: () => import('./features/fees/fees.component').then(m => m.FeesComponent) },
@@ -63,6 +65,7 @@ export const routes: Routes = [
       { path: 'announcement/:id', loadComponent: () => import('./features/announcement-detail/announcement-detail.component').then(m => m.AnnouncementDetailComponent) },
       { path: 'leave', loadComponent: () => import('./features/leave/leave.component').then(m => m.LeaveComponent), canActivate: [leaveStaffGuard] },
       { path: 'reports', loadComponent: () => import('./features/reports/reports.component').then(m => m.ReportsComponent) },
+      { path: 'operations', loadComponent: () => import('./features/operations/operations-hub.component').then(m => m.OperationsHubComponent), canActivate: [adminOnlyGuard] },
       { path: 'transport', loadComponent: () => import('./features/transport/transport.component').then(m => m.TransportComponent) },
       { path: 'library', loadComponent: () => import('./features/library/library.component').then(m => m.LibraryComponent) },
       { path: 'hostel', loadComponent: () => import('./features/hostel/hostel.component').then(m => m.HostelComponent) },

@@ -2,6 +2,8 @@ import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ParentService } from '../../core/services/parent.service';
+import { PaymentCheckoutService } from '../../core/services/payment-checkout.service';
+import { runtimeConfig } from '../../core/config/runtime-config';
 import { AttendanceRecord, AttendanceStats, CheckoutSession, FeePayment, MarkRecord, ParentFeeObligation, PaymentReceipt, Student } from '../../core/models/models';
 import { ErpDatePickerComponent } from '../../shared/erp-date-picker/erp-date-picker.component';
 
@@ -9,6 +11,25 @@ import { ErpDatePickerComponent } from '../../shared/erp-date-picker/erp-date-pi
   selector: 'app-parent-portal',
   standalone: true,
   imports: [CommonModule, FormsModule, ErpDatePickerComponent],
+  styles: [
+    `
+      .parent-payment-activity .parent-receipt-scroll {
+        max-height: 320px;
+        overflow-y: auto;
+        border: 1px solid var(--clr-border-light);
+        border-radius: var(--radius-md);
+        background: var(--clr-surface-alt);
+      }
+      .parent-receipt-row {
+        padding: 10px 12px;
+        border-bottom: 1px solid var(--clr-border-light);
+        background: var(--clr-surface);
+      }
+      .parent-receipt-row:last-child {
+        border-bottom: none;
+      }
+    `,
+  ],
   template: `
     <div data-testid="parent-portal-page">
       <div class="d-flex justify-content-between align-items-center mb-4 animate-in flex-wrap gap-2">
@@ -146,7 +167,7 @@ import { ErpDatePickerComponent } from '../../shared/erp-date-picker/erp-date-pi
                     Outstanding {{ obligation.dueAmount | currency:obligation.currency:'symbol':'1.0-0' }} · Discount {{ obligation.discount | currency:obligation.currency:'symbol':'1.0-0' }}
                   </div>
                   <div class="d-flex gap-2">
-                    <button class="btn-outline-erp btn-sm" *ngIf="latestReceipt?.paymentId === obligation.paymentId && latestReceipt" (click)="downloadReceipt(latestReceipt!)">Download Receipt</button>
+                    <button type="button" class="btn-outline-erp btn-sm" *ngIf="latestReceiptForPayment(obligation.paymentId) as rec" (click)="downloadReceipt(rec)"><i class="bi bi-download me-1"></i>Receipt</button>
                     <button class="btn-primary-erp btn-sm" [disabled]="obligation.payableNow <= 0 || processingPayment" (click)="openPayment(obligation)">
                       {{ obligation.payableNow > 0 ? 'Pay Now' : 'Settled' }}
                     </button>
@@ -155,30 +176,52 @@ import { ErpDatePickerComponent } from '../../shared/erp-date-picker/erp-date-pi
               </div>
             </div>
             <div class="col-lg-5">
-              <div class="erp-card" style="height: 100%;">
-                <div class="erp-card-header"><h3 class="erp-card-title">Payment Activity</h3></div>
-                <div *ngIf="latestReceipt; else paymentHelp" class="insight-card" style="margin-bottom: 16px;">
-                  <div class="insight-label">Latest Receipt</div>
-                  <div class="insight-value">{{ latestReceipt.receiptNumber }}</div>
-                  <div class="insight-subtext">{{ latestReceipt.paymentDate }} · {{ latestReceipt.amountPaid | currency:latestReceipt.currency:'symbol':'1.0-0' }}</div>
-                </div>
-                <ng-template #paymentHelp>
-                  <div class="empty-state" style="padding: 32px 16px;">
-                    <i class="bi bi-receipt-cutoff"></i>
-                    <h3>No recent receipt</h3>
-                    <p>Once a payment is confirmed, receipt details will appear here.</p>
+              <div class="erp-card parent-payment-activity">
+                <div class="erp-card-header d-flex justify-content-between align-items-start flex-wrap gap-2">
+                  <div>
+                    <h3 class="erp-card-title mb-0">Payment Activity</h3>
+                    <p class="text-muted small mb-0 mt-1">Official receipts for the selected period (download HTML for your records).</p>
                   </div>
-                </ng-template>
-                <table class="erp-table" *ngIf="fees.length">
-                  <thead><tr><th>Receipt</th><th>Paid</th><th>Status</th></tr></thead>
-                  <tbody>
-                    <tr *ngFor="let fee of fees">
-                      <td>{{ fee.receiptNumber || '-' }}</td>
-                      <td>{{ fee.paidAmount | number:'1.0-0' }}</td>
-                      <td>{{ fee.status }}</td>
-                    </tr>
-                  </tbody>
-                </table>
+                </div>
+                <div class="row g-2 mb-3">
+                  <div class="col-sm-6">
+                    <label class="erp-label small mb-1">Receipts from</label>
+                    <app-erp-date-picker [(ngModel)]="receiptFrom" (ngModelChange)="reloadReceiptHistory()" placeholder="From" />
+                  </div>
+                  <div class="col-sm-6">
+                    <label class="erp-label small mb-1">Receipts to</label>
+                    <app-erp-date-picker [(ngModel)]="receiptTo" (ngModelChange)="reloadReceiptHistory()" placeholder="To" />
+                  </div>
+                  <div class="col-12 d-flex flex-wrap gap-1">
+                    <button type="button" class="btn-outline-erp btn-xs" (click)="setReceiptPreset(30)">Last 30 days</button>
+                    <button type="button" class="btn-outline-erp btn-xs" (click)="setReceiptPreset(90)">Last 90 days</button>
+                    <button type="button" class="btn-outline-erp btn-xs" (click)="setReceiptPreset(365)">Last 12 months</button>
+                  </div>
+                </div>
+                <div *ngIf="latestReceipt" class="insight-card mb-3">
+                  <div class="insight-label">Latest in range</div>
+                  <div class="insight-value" style="font-size: 15px;">{{ latestReceipt.receiptNumber }}</div>
+                  <div class="insight-subtext">{{ latestReceipt.paymentDate }} · {{ latestReceipt.amountPaid | currency:latestReceipt.currency:'symbol':'1.0-0' }}</div>
+                  <button type="button" class="btn-outline-erp btn-xs mt-2" (click)="downloadReceipt(latestReceipt)"><i class="bi bi-download me-1"></i>Download</button>
+                </div>
+                <div *ngIf="!receiptHistory.length && !receiptsLoading" class="empty-state" style="padding: 20px 12px;">
+                  <i class="bi bi-receipt-cutoff"></i>
+                  <h3>No receipts in this range</h3>
+                  <p class="small mb-0">Adjust dates or complete a payment — ledger receipts appear here.</p>
+                </div>
+                <div *ngIf="receiptsLoading" class="text-muted small py-2">Loading receipts…</div>
+                <div class="parent-receipt-scroll" *ngIf="receiptHistory.length">
+                  <div
+                    *ngFor="let r of receiptHistory"
+                    class="parent-receipt-row d-flex flex-wrap justify-content-between align-items-center gap-2"
+                  >
+                    <div style="min-width: 0;">
+                      <div class="fw-bold" style="font-size: 13px;">{{ r.receiptNumber }}</div>
+                      <div class="text-muted small">{{ r.paymentDate }} · {{ r.amountPaid | currency:r.currency:'symbol':'1.0-0' }} · {{ receiptLedgerStatus(r) }}</div>
+                    </div>
+                    <button type="button" class="btn-outline-erp btn-xs flex-shrink-0" (click)="downloadReceipt(r)"><i class="bi bi-download"></i></button>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -208,7 +251,14 @@ import { ErpDatePickerComponent } from '../../shared/erp-date-picker/erp-date-pi
             <button class="btn-icon" (click)="closePaymentModal()"><i class="bi bi-x-lg"></i></button>
           </div>
           <div class="modal-body-erp">
-            <div class="row g-4">
+            <div class="d-flex gap-2 mb-3 small text-muted">
+              <span [style.fontWeight]="paymentStep === 'review' ? '700' : '400'">1. Review</span>
+              <span>→</span>
+              <span [style.fontWeight]="paymentStep === 'method' ? '700' : '400'">2. Method</span>
+              <span>→</span>
+              <span [style.fontWeight]="paymentStep === 'confirm' ? '700' : '400'">3. Pay</span>
+            </div>
+            <div class="row g-4" *ngIf="paymentStep === 'review'">
               <div class="col-md-7">
                 <div class="insight-card mb-3">
                   <div class="insight-label">Payment For</div>
@@ -222,14 +272,6 @@ import { ErpDatePickerComponent } from '../../shared/erp-date-picker/erp-date-pi
               </div>
               <div class="col-md-5">
                 <div class="erp-form-group">
-                  <label class="erp-label">Payment Provider</label>
-                  <select class="erp-select" [(ngModel)]="paymentProvider">
-                    <option value="mockpay">MockPay Gateway</option>
-                    <option value="razorpay">Razorpay Adapter</option>
-                    <option value="stripe">Stripe Adapter</option>
-                  </select>
-                </div>
-                <div class="erp-form-group">
                   <label class="erp-label">Amount to Pay</label>
                   <input type="number" class="erp-input" [(ngModel)]="paymentAmount" min="1" [max]="selectedObligation.payableNow">
                 </div>
@@ -240,11 +282,32 @@ import { ErpDatePickerComponent } from '../../shared/erp-date-picker/erp-date-pi
                 </div>
               </div>
             </div>
+            <div *ngIf="paymentStep === 'method'" class="row g-3">
+              <div class="col-12">
+                <label class="erp-label">Choose how to pay</label>
+                <p class="text-muted small">Production: Razorpay Checkout loads UPI, cards, and netbanking in one modal. Stripe uses Payment Element with the same server order flow.</p>
+              </div>
+              <div class="col-md-4" *ngFor="let m of paymentMethods">
+                <button type="button" class="erp-card w-100 text-start p-3 border-0" style="cursor: pointer; border: 2px solid transparent;" [style.borderColor]="paymentProvider === m.id ? 'var(--clr-accent)' : 'var(--clr-border-light)'" (click)="paymentProvider = m.id">
+                  <div style="font-weight: 800;">{{ m.label }}</div>
+                  <div class="text-muted small">{{ m.hint }}</div>
+                </button>
+              </div>
+            </div>
+            <div *ngIf="paymentStep === 'confirm'" class="text-center py-3">
+              <p class="mb-2" *ngIf="processingPayment"><span class="spinner me-2"></span>Talking to gateway…</p>
+              <p class="text-muted small mb-0" *ngIf="lastOrderPreview">Order {{ lastOrderPreview.providerOrderId }} · {{ lastOrderPreview.amount | currency:selectedObligation!.currency:'symbol':'1.0-0' }}</p>
+              <p class="text-muted small mt-2" *ngIf="useMocks">Demo: no script loaded — click Complete to simulate a successful authorization.</p>
+              <button *ngIf="useMocks && !processingPayment" type="button" class="btn-primary-erp mt-3" (click)="simulateGatewaySuccess()">Simulate successful payment</button>
+            </div>
           </div>
           <div class="modal-footer-erp">
             <button class="btn-outline-erp" (click)="closePaymentModal()">Cancel</button>
-            <button class="btn-primary-erp" [disabled]="processingPayment || paymentAmount <= 0" (click)="startPayment()">
-              {{ processingPayment ? 'Processing...' : 'Proceed to Pay' }}
+            <button *ngIf="paymentStep === 'review'" class="btn-primary-erp" [disabled]="paymentAmount <= 0" (click)="paymentStep = 'method'">Continue</button>
+            <button *ngIf="paymentStep === 'method'" class="btn-outline-erp me-auto" (click)="paymentStep = 'review'">Back</button>
+            <button *ngIf="paymentStep === 'method'" class="btn-primary-erp" (click)="goToPaymentConfirm()">Open pay screen</button>
+            <button *ngIf="paymentStep === 'confirm' && !useMocks" class="btn-primary-erp" [disabled]="processingPayment" (click)="startPayment()">
+              {{ processingPayment ? 'Processing...' : 'Confirm paid' }}
             </button>
           </div>
         </div>
@@ -271,9 +334,34 @@ export class ParentPortalComponent implements OnInit {
   paymentAmount = 0;
   processingPayment = false;
   latestReceipt: PaymentReceipt | null = null;
+  receiptHistory: PaymentReceipt[] = [];
+  /** Latest receipt per fee payment (wide date range) so obligation actions work even when the UI filter is narrow. */
+  receiptLookupByPaymentId = new Map<string, PaymentReceipt>();
+  receiptsLoading = false;
+  receiptFrom = ParentPortalComponent.defaultReceiptFromIso();
+  receiptTo = new Date().toISOString().split('T')[0];
   currentCheckoutSession: CheckoutSession | null = null;
+  paymentStep: 'review' | 'method' | 'confirm' = 'review';
+  lastOrderPreview: { providerOrderId: string; amount: number } | null = null;
+  readonly useMocks = runtimeConfig.useMocks;
+  paymentMethods = [
+    { id: 'mockpay', label: 'Instant (demo)', hint: 'Local mock — no external call' },
+    { id: 'razorpay', label: 'Razorpay', hint: 'UPI · Cards · Netbanking (SDK in prod)' },
+    { id: 'stripe', label: 'Stripe', hint: 'Cards · Wallets (Payment Element)' },
+  ];
 
-  constructor(private parentService: ParentService) {}
+  constructor(
+    private parentService: ParentService,
+    private paymentCheckout: PaymentCheckoutService
+  ) {}
+
+  private static readonly RECEIPT_LOOKUP_FROM = '2020-01-01';
+
+  private static defaultReceiptFromIso(): string {
+    const d = new Date();
+    d.setDate(d.getDate() - 30);
+    return d.toISOString().split('T')[0];
+  }
 
   ngOnInit(): void {
     this.refreshPortal();
@@ -297,7 +385,12 @@ export class ParentPortalComponent implements OnInit {
   }
 
   reloadSelectedChild(): void {
-    if (!this.selectedStudentId) return;
+    if (!this.selectedStudentId) {
+      this.receiptHistory = [];
+      this.latestReceipt = null;
+      this.receiptLookupByPaymentId = new Map();
+      return;
+    }
     this.parentService.getChildOverview(this.selectedStudentId, this.fromDate, this.toDate).subscribe(data => {
       this.marks = data.marks;
       this.fees = data.fees;
@@ -308,6 +401,78 @@ export class ParentPortalComponent implements OnInit {
     this.parentService.getChildFeeObligations(this.selectedStudentId).subscribe(items => {
       this.feeObligations = items;
     });
+    this.reloadReceiptHistory();
+    this.reloadReceiptLookup();
+  }
+
+  /** Build paymentId → latest receipt (by payment date) for the whole ledger window. */
+  reloadReceiptLookup(): void {
+    if (!this.selectedStudentId) {
+      this.receiptLookupByPaymentId = new Map();
+      return;
+    }
+    const end = new Date();
+    end.setDate(end.getDate() + 1);
+    const toIso = end.toISOString().split('T')[0];
+    this.parentService.listChildReceipts(this.selectedStudentId, ParentPortalComponent.RECEIPT_LOOKUP_FROM, toIso).subscribe({
+      next: list => {
+        const map = new Map<string, PaymentReceipt>();
+        for (const r of list) {
+          if (!map.has(r.paymentId)) {
+            map.set(r.paymentId, r);
+          }
+        }
+        this.receiptLookupByPaymentId = map;
+      },
+      error: () => {
+        this.receiptLookupByPaymentId = new Map();
+      }
+    });
+  }
+
+  reloadReceiptHistory(): void {
+    if (!this.selectedStudentId) {
+      this.receiptHistory = [];
+      this.latestReceipt = null;
+      return;
+    }
+    this.receiptsLoading = true;
+    this.parentService.listChildReceipts(this.selectedStudentId, this.receiptFrom, this.receiptTo).subscribe({
+      next: list => {
+        this.receiptHistory = list;
+        this.latestReceipt = list.length ? list[0] : null;
+        this.receiptsLoading = false;
+      },
+      error: () => {
+        this.receiptHistory = [];
+        this.latestReceipt = null;
+        this.receiptsLoading = false;
+      }
+    });
+  }
+
+  setReceiptPreset(days: number): void {
+    const end = new Date();
+    const start = new Date();
+    start.setDate(end.getDate() - days);
+    this.receiptTo = end.toISOString().split('T')[0];
+    this.receiptFrom = start.toISOString().split('T')[0];
+    this.reloadReceiptHistory();
+  }
+
+  latestReceiptForPayment(paymentId: string): PaymentReceipt | null {
+    return this.receiptLookupByPaymentId.get(paymentId) ?? null;
+  }
+
+  receiptLedgerStatus(r: PaymentReceipt): string {
+    const due = r.dueAmount ?? 0;
+    if (due <= 0) {
+      return 'Paid';
+    }
+    if ((r.paidAmount ?? 0) > 0) {
+      return 'Partial';
+    }
+    return 'Posted';
   }
 
   getAttendanceRemarks(record: AttendanceRecord): string {
@@ -319,6 +484,8 @@ export class ParentPortalComponent implements OnInit {
     this.selectedObligation = obligation;
     this.paymentAmount = obligation.payableNow;
     this.paymentProvider = 'mockpay';
+    this.paymentStep = 'review';
+    this.lastOrderPreview = null;
     this.showPaymentModal = true;
   }
 
@@ -328,6 +495,45 @@ export class ParentPortalComponent implements OnInit {
     this.paymentAmount = 0;
     this.processingPayment = false;
     this.currentCheckoutSession = null;
+    this.paymentStep = 'review';
+    this.lastOrderPreview = null;
+  }
+
+  goToPaymentConfirm(): void {
+    if (!this.selectedObligation || !this.selectedChild || this.paymentAmount <= 0) {
+      return;
+    }
+    if (this.paymentProvider === 'mockpay') {
+      this.paymentStep = 'confirm';
+      this.simulateGatewaySuccess();
+      return;
+    }
+    const prov = this.paymentProvider === 'stripe' ? 'STRIPE' : 'RAZORPAY';
+    this.processingPayment = true;
+    this.paymentCheckout
+      .createOrder({
+        purpose: 'SCHOOL_FEE',
+        feePaymentId: this.selectedObligation.paymentId,
+        studentId: this.selectedChild.id,
+        amount: this.paymentAmount,
+        currency: this.selectedObligation.currency || 'INR',
+        provider: prov,
+        returnUrl: '/app/parent',
+      })
+      .subscribe({
+        next: ord => {
+          this.lastOrderPreview = { providerOrderId: ord.providerOrderId, amount: ord.amount };
+          this.processingPayment = false;
+          this.paymentStep = 'confirm';
+        },
+        error: () => {
+          this.processingPayment = false;
+        },
+      });
+  }
+
+  simulateGatewaySuccess(): void {
+    this.startPayment();
   }
 
   startPayment(): void {
@@ -335,21 +541,25 @@ export class ParentPortalComponent implements OnInit {
       return;
     }
     this.processingPayment = true;
-    this.parentService.createCheckoutSession({
-      paymentId: this.selectedObligation.paymentId,
-      studentId: this.selectedChild.id,
-      amount: this.paymentAmount,
-      provider: this.paymentProvider,
-      returnUrl: '/app/parent'
-    }).subscribe(session => {
-      this.currentCheckoutSession = session;
-      this.parentService.confirmCheckout(session.attemptId, session.checkoutToken, session.providerOrderId + '-SUCCESS').subscribe(receipt => {
-        this.latestReceipt = receipt;
-        this.processingPayment = false;
-        this.closePaymentModal();
-        this.reloadSelectedChild();
+    this.parentService
+      .createCheckoutSession({
+        paymentId: this.selectedObligation.paymentId,
+        studentId: this.selectedChild.id,
+        amount: this.paymentAmount,
+        provider: this.paymentProvider,
+        returnUrl: '/app/parent',
+      })
+      .subscribe(session => {
+        this.currentCheckoutSession = session;
+        this.parentService.confirmCheckout(session.attemptId, session.checkoutToken, session.providerOrderId + '-SUCCESS').subscribe(receipt => {
+          this.latestReceipt = receipt;
+          this.processingPayment = false;
+          this.closePaymentModal();
+          this.reloadSelectedChild();
+          this.reloadReceiptHistory();
+          this.reloadReceiptLookup();
+        });
       });
-    });
   }
 
   downloadReceipt(receipt: PaymentReceipt): void {

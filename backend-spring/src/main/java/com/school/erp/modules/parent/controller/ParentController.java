@@ -27,7 +27,7 @@ import java.util.stream.Collectors;
 @RestController
 @RequestMapping("/api/v1/parent")
 @Tag(name = "Parent Portal", description = "Parent view - children, grades, fees, attendance")
-@PreAuthorize("hasAnyRole('PARENT','ADMIN')")
+@PreAuthorize("hasRole('PARENT')")
 public class ParentController {
     private final StudentRepository studentRepo;
     private final GuardianService guardianService;
@@ -85,6 +85,16 @@ public class ParentController {
         return ResponseEntity.ok(ApiResponse.ok(feeService.getReceipt(receiptNumber)));
     }
 
+    @GetMapping("/children/{studentId}/receipts")
+    @Operation(summary = "List fee receipts for a child in a date range (payment activity)")
+    public ResponseEntity<ApiResponse<List<FeeDTOs.PaymentReceiptResponse>>> listChildReceipts(
+            @PathVariable Long studentId,
+            @RequestParam String from,
+            @RequestParam String to) {
+        assertParentOwnsStudent(studentId);
+        return ResponseEntity.ok(ApiResponse.ok(feeService.listParentReceipts(studentId, LocalDate.parse(from), LocalDate.parse(to))));
+    }
+
     @GetMapping("/children/{studentId}/attendance")
     @Operation(summary = "Get child's attendance summary")
     public ResponseEntity<ApiResponse<AttendanceDTOs.AttendanceStatsResponse>> getChildAttendance(@PathVariable Long studentId,
@@ -137,10 +147,9 @@ public class ParentController {
         Student student = studentRepo.findByIdAndTenantIdAndIsDeletedFalse(studentId, TenantContext.getTenantId())
                 .orElseThrow(() -> new com.school.erp.common.exception.ResourceNotFoundException("Student", studentId));
         Long uid = TenantContext.getUserId();
-        boolean admin = "ADMIN".equals(TenantContext.getUserRole());
-        if (!admin
-                && !uid.equals(student.getParentId())
-                && !guardianService.guardianUserHasAccessToStudent(TenantContext.getTenantId(), uid, studentId)) {
+        if (uid == null
+                || (!uid.equals(student.getParentId())
+                && !guardianService.guardianUserHasAccessToStudent(TenantContext.getTenantId(), uid, studentId))) {
             throw new UnauthorizedException("You are not allowed to access this student");
         }
         return student;

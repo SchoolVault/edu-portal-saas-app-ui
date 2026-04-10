@@ -40,6 +40,19 @@ public interface StudentRepository extends JpaRepository<Student, Long> {
                                 @Param("search") String search,
                                 Pageable pageable);
 
+    @Query("SELECT s FROM Student s WHERE s.tenantId = :tenantId AND s.isDeleted = false " +
+           "AND s.classId IN :classIds " +
+           "AND (:classId IS NULL OR s.classId = :classId) " +
+           "AND (:status IS NULL OR s.status = :status) " +
+           "AND (:search IS NULL OR LOWER(CONCAT(s.firstName, ' ', s.lastName)) LIKE LOWER(CONCAT('%', :search, '%')) " +
+           "OR LOWER(s.admissionNumber) LIKE LOWER(CONCAT('%', :search, '%')))")
+    Page<Student> findByFiltersClassScope(@Param("tenantId") String tenantId,
+                                          @Param("classIds") java.util.Collection<Long> classIds,
+                                          @Param("classId") Long classId,
+                                          @Param("status") com.school.erp.common.enums.Enums.StudentStatus status,
+                                          @Param("search") String search,
+                                          Pageable pageable);
+
     long countByTenantIdAndIsDeletedFalse(String tenantId);
     long countByIsDeletedFalse();
 

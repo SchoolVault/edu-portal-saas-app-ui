@@ -9,6 +9,8 @@ import java.util.List;
 import java.util.Optional;
 
 public interface ChatConversationRepository extends JpaRepository<ChatConversation, Long> {
+    Optional<ChatConversation> findByIdAndIsDeletedFalse(Long id);
+
     Optional<ChatConversation> findByIdAndTenantIdAndIsDeletedFalse(Long id, String tenantId);
 
     @Query("""

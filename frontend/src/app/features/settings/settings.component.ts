@@ -18,18 +18,21 @@ import { ProfilePhotoPickerComponent, ProfilePhotoPickEvent } from '../../shared
       <div class="mb-4 animate-in d-flex flex-wrap justify-content-between align-items-start gap-2">
         <div>
           <h2 style="font-size: 24px; font-weight: 800;">Settings</h2>
-          <p class="text-muted mb-0" style="font-size: 13px;">School configuration and preferences</p>
+          <p class="text-muted mb-0" style="font-size: 13px;">
+            <ng-container *ngIf="isTenantAdmin">School configuration and preferences.</ng-container>
+            <ng-container *ngIf="!isTenantAdmin">Your profile and read-only school information. Tenant changes are limited to school administrators.</ng-container>
+          </p>
         </div>
         <button type="button" class="btn-outline-erp btn-sm align-self-center" (click)="reloadSettings()" [disabled]="settingsRefreshing">
           <i class="bi bi-arrow-clockwise"></i> {{ settingsRefreshing ? 'Refreshing…' : 'Refresh' }}
         </button>
       </div>
       <div class="erp-tabs animate-in">
-        <button class="erp-tab" [class.active]="tab === 'general'" (click)="tab = 'general'">General</button>
-        <button class="erp-tab" [class.active]="tab === 'branding'" (click)="tab = 'branding'">Branding</button>
-        <button class="erp-tab" [class.active]="tab === 'roles'" (click)="tab = 'roles'">Roles & Permissions</button>
-        <button class="erp-tab" [class.active]="tab === 'features'" (click)="tab = 'features'">Feature Toggles</button>
-        <button class="erp-tab" [class.active]="tab === 'profile'" (click)="tab = 'profile'">Profile &amp; photo</button>
+        <button type="button" class="erp-tab" [class.active]="tab === 'general'" (click)="tab = 'general'">{{ isTenantAdmin ? 'General' : 'School' }}</button>
+        <button type="button" *ngIf="isTenantAdmin" class="erp-tab" [class.active]="tab === 'branding'" (click)="tab = 'branding'">Branding</button>
+        <button type="button" *ngIf="isTenantAdmin" class="erp-tab" [class.active]="tab === 'roles'" (click)="tab = 'roles'">Roles & Permissions</button>
+        <button type="button" *ngIf="isTenantAdmin" class="erp-tab" [class.active]="tab === 'features'" (click)="tab = 'features'">Feature Toggles</button>
+        <button type="button" class="erp-tab" [class.active]="tab === 'profile'" (click)="tab = 'profile'">Profile &amp; photo</button>
       </div>
 
       <div *ngIf="tab === 'profile'" class="erp-card animate-in settings-profile-root">
@@ -154,20 +157,32 @@ import { ProfilePhotoPickerComponent, ProfilePhotoPickEvent } from '../../shared
 
       <div *ngIf="tab === 'general'" class="erp-card animate-in">
         <h4 style="font-size: 15px; font-weight: 700; margin-bottom: 20px;">School Information</h4>
-        <div class="row g-3">
-          <div class="col-md-6"><div class="erp-form-group"><label class="erp-label">School Name</label><input type="text" class="erp-input" [(ngModel)]="schoolName" data-testid="school-name-input"></div></div>
-          <div class="col-md-6"><div class="erp-form-group"><label class="erp-label">School Code</label><input type="text" class="erp-input" [(ngModel)]="schoolCode" disabled title="Used to link branches in multi-campus setups"></div></div>
-          <div class="col-md-6"><div class="erp-form-group"><label class="erp-label">Email</label><input type="email" class="erp-input" [(ngModel)]="schoolEmail"></div></div>
-          <div class="col-md-6"><div class="erp-form-group"><label class="erp-label">Phone</label><input type="text" class="erp-input" [(ngModel)]="schoolPhone"></div></div>
-          <div class="col-12"><div class="erp-form-group"><label class="erp-label">Address</label><textarea class="erp-input erp-textarea" [(ngModel)]="schoolAddress" style="min-height: 80px;"></textarea></div></div>
-        </div>
-        <div class="d-flex justify-content-end align-items-center flex-wrap gap-2 mt-3">
-          <span *ngIf="generalSaveMsg" class="text-success small">{{ generalSaveMsg }}</span>
-          <span *ngIf="generalSaveError" class="text-danger small">{{ generalSaveError }}</span>
-          <button class="btn-primary-erp" data-testid="save-settings-btn" type="button" (click)="saveGeneral()" [disabled]="saving">{{ saving ? 'Saving…' : 'Save changes' }}</button>
-        </div>
+        <ng-container *ngIf="isTenantAdmin">
+          <div class="row g-3">
+            <div class="col-md-6"><div class="erp-form-group"><label class="erp-label">School Name</label><input type="text" class="erp-input" [(ngModel)]="schoolName" data-testid="school-name-input"></div></div>
+            <div class="col-md-6"><div class="erp-form-group"><label class="erp-label">School Code</label><input type="text" class="erp-input" [(ngModel)]="schoolCode" disabled title="Used to link branches in multi-campus setups"></div></div>
+            <div class="col-md-6"><div class="erp-form-group"><label class="erp-label">Email</label><input type="email" class="erp-input" [(ngModel)]="schoolEmail"></div></div>
+            <div class="col-md-6"><div class="erp-form-group"><label class="erp-label">Phone</label><input type="text" class="erp-input" [(ngModel)]="schoolPhone"></div></div>
+            <div class="col-12"><div class="erp-form-group"><label class="erp-label">Address</label><textarea class="erp-input erp-textarea" [(ngModel)]="schoolAddress" style="min-height: 80px;"></textarea></div></div>
+          </div>
+          <div class="d-flex justify-content-end align-items-center flex-wrap gap-2 mt-3">
+            <span *ngIf="generalSaveMsg" class="text-success small">{{ generalSaveMsg }}</span>
+            <span *ngIf="generalSaveError" class="text-danger small">{{ generalSaveError }}</span>
+            <button class="btn-primary-erp" data-testid="save-settings-btn" type="button" (click)="saveGeneral()" [disabled]="saving">{{ saving ? 'Saving…' : 'Save changes' }}</button>
+          </div>
+        </ng-container>
+        <ng-container *ngIf="!isTenantAdmin">
+          <p class="text-muted small mb-3">Contact your school office if any detail needs updating.</p>
+          <dl class="settings-readonly-grid row g-3 mb-0">
+            <div class="col-md-6"><dt class="erp-label">School Name</dt><dd class="settings-ro-value">{{ schoolName }}</dd></div>
+            <div class="col-md-6"><dt class="erp-label">School Code</dt><dd class="settings-ro-value"><code class="settings-profile-code">{{ schoolCode }}</code></dd></div>
+            <div class="col-md-6"><dt class="erp-label">Email</dt><dd class="settings-ro-value">{{ schoolEmail || '—' }}</dd></div>
+            <div class="col-md-6"><dt class="erp-label">Phone</dt><dd class="settings-ro-value">{{ schoolPhone || '—' }}</dd></div>
+            <div class="col-12"><dt class="erp-label">Address</dt><dd class="settings-ro-value" style="white-space: pre-wrap;">{{ schoolAddress || '—' }}</dd></div>
+          </dl>
+        </ng-container>
 
-        <div class="mt-4 pt-4" style="border-top: 1px solid var(--clr-border-light);">
+        <div *ngIf="isTenantAdmin" class="mt-4 pt-4" style="border-top: 1px solid var(--clr-border-light);">
           <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
             <div>
               <h4 style="font-size: 15px; font-weight: 700; margin-bottom: 4px;">Branches &amp; campuses</h4>
@@ -220,7 +235,7 @@ import { ProfilePhotoPickerComponent, ProfilePhotoPickEvent } from '../../shared
           <button type="button" class="btn-outline-erp" (click)="resetBranding()">Reset to default colours</button>
           <button type="button" class="btn-primary-erp" (click)="applyBranding()">Apply branding (UI)</button>
         </div>
-        <p class="text-muted small mt-2 mb-0">Persists primary/accent to this browser and updates CSS variables. With API, also saves to tenant settings (admin).</p>
+        <p class="text-muted small mt-2 mb-0">Persists primary/accent to this browser and updates CSS variables. With API, also saves to tenant settings (school admin only).</p>
       </div>
 
       <div *ngIf="tab === 'roles'" class="erp-card animate-in">
@@ -424,6 +439,18 @@ import { ProfilePhotoPickerComponent, ProfilePhotoPickEvent } from '../../shared
       .settings-profile-bullets li + li {
         margin-top: 0.35rem;
       }
+      .settings-readonly-grid dt {
+        margin-bottom: 4px;
+      }
+      .settings-readonly-grid dd {
+        margin: 0 0 12px;
+      }
+      .settings-ro-value {
+        font-size: 14px;
+        color: var(--clr-text-primary, #0f172a);
+        font-weight: 500;
+        line-height: 1.45;
+      }
     `,
   ],
 })
@@ -471,6 +498,11 @@ export class SettingsComponent implements OnInit {
     private cdr: ChangeDetectorRef
   ) {}
 
+  /** School tenant administrator — only this role may change tenant config, branding, roles, and feature toggles. */
+  get isTenantAdmin(): boolean {
+    return (this.auth.getRole() || '').toLowerCase() === 'admin';
+  }
+
   get canEditOwnPhoto(): boolean {
     const r = this.auth.getRole();
     return r === 'admin' || r === 'teacher' || r === 'super_admin' || r === 'student';
@@ -504,6 +536,9 @@ export class SettingsComponent implements OnInit {
   }
 
   ngOnInit(): void {
+    if (!this.isTenantAdmin) {
+      this.tab = 'profile';
+    }
     this.refreshProfilePreview();
     this.reloadSettings();
   }
@@ -600,6 +635,9 @@ export class SettingsComponent implements OnInit {
   }
 
   saveGeneral(): void {
+    if (!this.isTenantAdmin) {
+      return;
+    }
     this.generalSaveMsg = '';
     this.generalSaveError = '';
     this.auth.saveTenantDisplay({
@@ -636,6 +674,9 @@ export class SettingsComponent implements OnInit {
   }
 
   applyBranding(): void {
+    if (!this.isTenantAdmin) {
+      return;
+    }
     this.themeService.applySchoolBranding(this.primaryColor, this.accentColor);
     if (!runtimeConfig.useMocks) {
       this.settingsService.update({
@@ -647,6 +688,9 @@ export class SettingsComponent implements OnInit {
   }
 
   resetBranding(): void {
+    if (!this.isTenantAdmin) {
+      return;
+    }
     this.primaryColor = ThemeService.DEFAULT_PRIMARY;
     this.accentColor = ThemeService.DEFAULT_ACCENT;
     this.themeService.resetBrandingToDefault();

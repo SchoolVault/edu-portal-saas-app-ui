@@ -59,6 +59,12 @@ export interface ProfileSummary {
   platformWorkspaceCount?: number;
   /** TEACHER: classes where this user is the assigned class teacher (photo / roster policy). */
   classTeacherOf?: { classId: string; className?: string; sectionName?: string; totalStudents?: number }[];
+  /** SUPER_ADMIN: console operator metadata (API or mock). */
+  platformOperatorSince?: string;
+  platformLastLoginDisplay?: string;
+  platformTimezone?: string;
+  platformMfaEnabled?: boolean;
+  platformPrimaryRegion?: string;
 }
 
 export interface Student {
@@ -77,11 +83,13 @@ export interface Student {
   admissionNumber: string;
   admissionDate: string;
   parentId: string;
+  /** Linked parent ERP user id for chat/directory (when parent has a login). */
+  parentUserId?: string;
   parentName: string;
   address: string;
   bloodGroup: string;
   avatar?: string;
-  status: 'active' | 'inactive' | 'graduated';
+  status: 'active' | 'inactive' | 'graduated' | 'transferred' | 'alumni';
   tenantId: string;
 }
 
@@ -145,6 +153,8 @@ export interface SchoolClass {
   classTeacherName?: string;
   academicYearId: string;
   tenantId: string;
+  /** From API aggregate; optional in mocks. */
+  totalStudents?: number;
 }
 
 export interface Section {
@@ -248,6 +258,12 @@ export interface PromotionStudentPreview {
   selected?: boolean;
 }
 
+export interface PromotionTargetSectionOption {
+  id: string;
+  name: string;
+  capacity?: number;
+}
+
 export interface PromotionPreview {
   sourceClassId: string;
   sourceClassName: string;
@@ -255,7 +271,26 @@ export interface PromotionPreview {
   targetClassName: string;
   defaultSectionId?: string;
   defaultSectionName?: string;
+  /** All sections of the target class; UI picks one when promoting into fewer sections. */
+  targetSections?: PromotionTargetSectionOption[];
+  /** Backend hint when target has no sections or fewer than source. */
+  sectionPlacementNote?: string;
   students: PromotionStudentPreview[];
+}
+
+export interface PromotionSplitSectionRow {
+  sectionId: string;
+  sectionName: string;
+  capacity?: number;
+  suggestedAssignCount: number;
+}
+
+export interface PromotionSplitPreview {
+  fromClassId: string;
+  toClassId: string;
+  eligibleStudentCount: number;
+  hint?: string;
+  sections: PromotionSplitSectionRow[];
 }
 
 export interface PromotionResult {
@@ -291,6 +326,12 @@ export interface DashboardAttendanceOverview {
   excused: number;
 }
 
+export interface ClassHomeroomGap {
+  classId: number;
+  className: string;
+  grade?: number;
+}
+
 export interface AdminDashboardData {
   totalStudents: number;
   totalTeachers: number;
@@ -302,6 +343,8 @@ export interface AdminDashboardData {
   attendanceOverview: DashboardAttendanceOverview;
   recentActivities: DashboardActivityItem[];
   upcomingEvents: DashboardUpcomingEvent[];
+  /** Classes with no homeroom teacher — admin should assign in Academic. */
+  classesWithoutHomeroomTeacher?: ClassHomeroomGap[];
 }
 
 export interface PlatformMetricPoint {
@@ -339,6 +382,17 @@ export interface PlatformSchoolAdmin {
   schoolCode: string;
   active: boolean;
   createdAt?: string;
+}
+
+/** Super-admin chat picker row (GET /platform/school-admins/chat-search). */
+export interface PlatformSchoolAdminChatHit {
+  userId: string;
+  name: string;
+  email: string;
+  phone?: string;
+  schoolName: string;
+  schoolCode: string;
+  tenantId: string;
 }
 
 export interface PlatformDashboardData {
@@ -390,6 +444,8 @@ export interface PlatformSubscriptionPlan {
   billingCadence?: string;
   modules?: string[];
   recommended?: boolean;
+  commercialNotes?: string;
+  integrationPriceKey?: string;
 }
 
 export interface TeacherScheduleItem {

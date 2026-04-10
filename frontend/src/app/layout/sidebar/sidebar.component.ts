@@ -9,7 +9,7 @@ import { NAV_ITEMS, NavItem } from '../../core/config/app-constants';
   standalone: true,
   imports: [CommonModule, RouterModule],
   template: `
-    <aside class="sidebar" [class.collapsed]="collapsed" data-testid="sidebar-nav">
+    <aside class="sidebar" [class.collapsed]="collapsed" [class.mobile-open]="mobileOpen" data-testid="sidebar-nav">
       <div class="sidebar-brand">
         <img src="https://static.prod-images.emergentagent.com/jobs/9a0eef39-d991-4ee9-b692-a0f34292613c/images/327dafae8a43bdee0145f51e32a05747aa82374ad2bb3b35ccfdb8cc1130bd22.png" alt="Logo">
         <h2>SchoolVault</h2>
@@ -21,6 +21,7 @@ import { NAV_ITEMS, NavItem } from '../../core/config/app-constants';
              [routerLink]="item.route"
              routerLinkActive="active"
              class="nav-item"
+             (click)="navigateRequest.emit()"
              [attr.data-testid]="'sidebar-nav-' + item.route.split('/').pop()">
             <i class="bi" [ngClass]="item.icon"></i>
             <span class="nav-label">{{ item.label }}</span>
@@ -38,7 +39,10 @@ import { NAV_ITEMS, NavItem } from '../../core/config/app-constants';
 })
 export class SidebarComponent implements OnInit {
   @Input() collapsed = false;
+  /** When true, drawer is visible on small screens (controlled by layout). */
+  @Input() mobileOpen = false;
   @Output() toggle = new EventEmitter<void>();
+  @Output() navigateRequest = new EventEmitter<void>();
 
   filteredItems: NavItem[] = [];
   sections: string[] = [];

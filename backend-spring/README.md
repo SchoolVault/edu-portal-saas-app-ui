@@ -11,6 +11,10 @@
 - JWT Authentication
 - SpringDoc OpenAPI (Swagger)
 
+### Demo / showcase tenant (production)
+
+Use one dedicated tenant in the **live** database for prospects (admin / teacher / parent logins). The UI is identical to customer schools; only data and credentials differ. Seed that tenant with realistic, rich records (classes, students, fees, etc.) via Flyway SQL or a controlled admin import — keep it isolated by `tenant_id` / school code so it never mixes with paying customers’ data.
+
 ### Local development (two profiles)
 
 | Profile | When to use | Infra | Notes |
