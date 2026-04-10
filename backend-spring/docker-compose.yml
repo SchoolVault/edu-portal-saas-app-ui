@@ -1,5 +1,5 @@
-version: '3.8'
-
+# Infra for local debugging: docker compose up -d mysql redis rabbitmq
+# Then run the app on the host with profile "local" (see application-local.yml + README).
 services:
   app:
     build: .

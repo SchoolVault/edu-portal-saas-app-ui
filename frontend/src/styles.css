@@ -530,6 +530,16 @@ a:hover { color: var(--clr-accent-dark); }
 .erp-input:focus { border-color: var(--clr-success); box-shadow: 0 0 0 4px rgba(5,150,105,0.12); }
 .erp-input::placeholder { color: var(--clr-text-muted); }
 .erp-input.ng-invalid.ng-touched { border-color: var(--clr-danger); box-shadow: 0 0 0 4px rgba(220,38,38,0.08); }
+.erp-input.erp-input--error,
+.erp-textarea.erp-input--error {
+  border-color: var(--clr-danger);
+  box-shadow: 0 0 0 4px rgba(220,38,38,0.08);
+}
+.erp-input.erp-input--error:focus,
+.erp-textarea.erp-input--error:focus {
+  border-color: var(--clr-danger);
+  box-shadow: 0 0 0 4px rgba(220,38,38,0.12);
+}
 
 .erp-select {
   width: 100%;

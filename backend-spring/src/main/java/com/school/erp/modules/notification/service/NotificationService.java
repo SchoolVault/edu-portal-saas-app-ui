@@ -7,7 +7,9 @@ import com.school.erp.modules.notification.entity.Notification;
 import com.school.erp.modules.notification.repository.NotificationRepository;
 import com.school.erp.tenant.TenantContext;
 import com.school.erp.tenant.TenantQueryPolicy;
+import jakarta.annotation.Nullable;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
@@ -19,6 +21,7 @@ import java.util.stream.Collectors;
 public class NotificationService {
     private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(NotificationService.class);
     private final NotificationRepository repo;
+    @Nullable
     private final RabbitTemplate rabbitTemplate;
 
     @Transactional(readOnly = true)
@@ -93,11 +96,12 @@ public class NotificationService {
         Notification n = Notification.builder().title(title).message(message).type(type).userId(userId).isRead(false).link(link).build();
         n.setTenantId(tenantId);
         repo.save(n);
-        // Publish event for async processing
-        try {
-            rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE, "event.notification.created", Map.of("tenantId", tenantId, "userId", userId, "title", title, "message", message));
-        } catch (Exception e) {
-            log.warn("Failed to publish notification event: {}", e.getMessage());
+        if (rabbitTemplate != null) {
+            try {
+                rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE, "event.notification.created", Map.of("tenantId", tenantId, "userId", userId, "title", title, "message", message));
+            } catch (Exception e) {
+                log.warn("Failed to publish notification event: {}", e.getMessage());
+            }
         }
         return n;
     }
@@ -121,7 +125,7 @@ public class NotificationService {
         createNotification(tenantId, userId, "Exam Schedule", examName + " schedule has been published", Enums.NotificationType.INFO, "/app/exams");
     }
 
-    public NotificationService(final NotificationRepository repo, final RabbitTemplate rabbitTemplate) {
+    public NotificationService(final NotificationRepository repo, @Autowired(required = false) @Nullable RabbitTemplate rabbitTemplate) {
         this.repo = repo;
         this.rabbitTemplate = rabbitTemplate;
     }

@@ -3,6 +3,7 @@ import { provideRouter, withComponentInputBinding } from '@angular/router';
 import { provideHttpClient, withInterceptors } from '@angular/common/http';
 import { provideAnimations } from '@angular/platform-browser/animations';
 import { routes } from './app.routes';
+import { httpErrorInterceptor } from './core/interceptors/http-error.interceptor';
 import { jwtInterceptor } from './core/interceptors/jwt.interceptor';
 import { loadPublicAppConfig } from './core/config/load-public-app-config.factory';
 
@@ -15,7 +16,7 @@ export const appConfig: ApplicationConfig = {
       useFactory: loadPublicAppConfig
     },
     provideRouter(routes, withComponentInputBinding()),
-    provideHttpClient(withInterceptors([jwtInterceptor])),
+    provideHttpClient(withInterceptors([jwtInterceptor, httpErrorInterceptor])),
     provideAnimations(),
   ]
 };

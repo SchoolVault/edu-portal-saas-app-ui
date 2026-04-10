@@ -3,7 +3,8 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterModule } from '@angular/router';
 import { AuthService } from '../../../core/services/auth.service';
-import { ThemeService } from '../../../core/services/theme.service';
+import type { FieldErrors } from '../../../core/validation';
+import { type LoginField, validateLoginForm } from '../../../core/validation';
 
 @Component({
   selector: 'app-login',
@@ -25,27 +26,66 @@ import { ThemeService } from '../../../core/services/theme.service';
             {{ error }}
           </div>
 
-          <form (ngSubmit)="onLogin()" data-testid="login-form">
+          <form (ngSubmit)="onLogin()" novalidate data-testid="login-form">
             <div class="erp-form-group">
-              <label class="erp-label">School Code</label>
-              <input type="text" class="erp-input" [(ngModel)]="schoolCode" name="schoolCode"
-                     placeholder="Enter school code (e.g., SCH001)" required data-testid="login-school-code">
+              <label class="erp-label" for="lg-schoolCode">School code</label>
+              <input
+                id="lg-schoolCode"
+                type="text"
+                class="erp-input"
+                [class.erp-input--error]="!!fieldErrors.schoolCode"
+                [(ngModel)]="schoolCode"
+                (ngModelChange)="clearField('schoolCode')"
+                name="schoolCode"
+                maxlength="64"
+                placeholder="Enter school code (e.g., SCH001)"
+                [attr.aria-invalid]="!!fieldErrors.schoolCode"
+                [attr.aria-describedby]="fieldErrors.schoolCode ? 'lg-err-schoolCode' : null"
+                data-testid="login-school-code"
+                autocomplete="username" />
+              <div id="lg-err-schoolCode" class="field-error" *ngIf="fieldErrors.schoolCode" role="alert">{{ fieldErrors.schoolCode }}</div>
             </div>
             <div class="erp-form-group">
-              <label class="erp-label">Email Address</label>
-              <input type="email" class="erp-input" [(ngModel)]="email" name="email"
-                     placeholder="Enter your email" required data-testid="login-email">
+              <label class="erp-label" for="lg-email">Email address</label>
+              <input
+                id="lg-email"
+                type="email"
+                class="erp-input"
+                [class.erp-input--error]="!!fieldErrors.email"
+                [(ngModel)]="email"
+                (ngModelChange)="clearField('email')"
+                name="email"
+                maxlength="254"
+                placeholder="Enter your email"
+                [attr.aria-invalid]="!!fieldErrors.email"
+                [attr.aria-describedby]="fieldErrors.email ? 'lg-err-email' : null"
+                data-testid="login-email"
+                autocomplete="email" />
+              <div id="lg-err-email" class="field-error" *ngIf="fieldErrors.email" role="alert">{{ fieldErrors.email }}</div>
             </div>
             <div class="erp-form-group">
-              <label class="erp-label">Password</label>
+              <label class="erp-label" for="lg-password">Password</label>
               <div style="position: relative;">
-                <input [type]="showPassword ? 'text' : 'password'" class="erp-input" [(ngModel)]="password" name="password"
-                       placeholder="Enter your password" required style="padding-right: 44px;" data-testid="login-password">
+                <input
+                  id="lg-password"
+                  [type]="showPassword ? 'text' : 'password'"
+                  class="erp-input"
+                  [class.erp-input--error]="!!fieldErrors.password"
+                  [(ngModel)]="password"
+                  (ngModelChange)="clearField('password')"
+                  name="password"
+                  placeholder="Enter your password"
+                  style="padding-right: 44px;"
+                  [attr.aria-invalid]="!!fieldErrors.password"
+                  [attr.aria-describedby]="fieldErrors.password ? 'lg-err-password' : null"
+                  data-testid="login-password"
+                  autocomplete="current-password" />
                 <button type="button" class="btn-icon" style="position: absolute; right: 8px; top: 50%; transform: translateY(-50%);"
                         (click)="showPassword = !showPassword">
                   <i class="bi" [ngClass]="showPassword ? 'bi-eye-slash' : 'bi-eye'"></i>
                 </button>
               </div>
+              <div id="lg-err-password" class="field-error" *ngIf="fieldErrors.password" role="alert">{{ fieldErrors.password }}</div>
             </div>
             <button type="submit" class="btn-primary-erp" style="width: 100%; justify-content: center; padding: 12px;"
                     [disabled]="loading" data-testid="login-submit-button">
@@ -132,23 +172,35 @@ export class LoginComponent {
   email = '';
   password = '';
   schoolCode = '';
+  fieldErrors: FieldErrors<LoginField> = {};
   error = '';
   loading = false;
   showPassword = false;
 
-  constructor(private authService: AuthService, private router: Router, private themeService: ThemeService) {
+  constructor(private authService: AuthService, private router: Router) {
     if (this.authService.isAuthenticated()) {
       const role = this.authService.getRole();
       this.router.navigate([role === 'parent' ? '/app/parent' : role === 'super_admin' ? '/app/super-admin' : '/app/dashboard']);
     }
   }
 
-  onLogin(): void {
-    if (!this.email || !this.password || !this.schoolCode) {
-      this.error = 'Please fill in all fields';
+  clearField(field: LoginField): void {
+    if (!this.fieldErrors[field]) {
       return;
     }
+    const next = { ...this.fieldErrors };
+    delete next[field];
+    this.fieldErrors = next;
+  }
+
+  onLogin(): void {
     this.error = '';
+    this.fieldErrors = {};
+    const errs = validateLoginForm({ email: this.email, password: this.password, schoolCode: this.schoolCode });
+    if (Object.keys(errs).length > 0) {
+      this.fieldErrors = errs;
+      return;
+    }
     this.loading = true;
     this.authService.login({ email: this.email, password: this.password, schoolCode: this.schoolCode }).subscribe({
       next: (response) => {

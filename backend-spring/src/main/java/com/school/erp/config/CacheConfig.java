@@ -3,17 +3,22 @@ package com.school.erp.config;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.school.erp.tenant.TenantContext;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.cache.CacheManager;
 import org.springframework.cache.annotation.EnableCaching;
 import org.springframework.cache.interceptor.KeyGenerator;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.env.Environment;
+import org.springframework.data.redis.cache.CacheKeyPrefix;
 import org.springframework.data.redis.cache.RedisCacheConfiguration;
 import org.springframework.data.redis.cache.RedisCacheManager;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.serializer.GenericJackson2JsonRedisSerializer;
 import org.springframework.data.redis.serializer.RedisSerializationContext;
 import org.springframework.data.redis.serializer.StringRedisSerializer;
+
+import org.springframework.util.StringUtils;
 
 import java.time.Duration;
 import java.util.HashMap;
@@ -25,6 +30,7 @@ import java.util.Map;
  */
 @Configuration
 @EnableCaching
+@EnableConfigurationProperties(AppCacheTtlProperties.class)
 @ConditionalOnProperty(prefix = "spring.cache", name = "type", havingValue = "redis")
 public class CacheConfig {
 
@@ -40,7 +46,11 @@ public class CacheConfig {
     public static final String PAYROLL_STRUCTURES = "payrollStructures";
 
     @Bean
-    public CacheManager cacheManager(RedisConnectionFactory connectionFactory, ObjectMapper objectMapper) {
+    public CacheManager cacheManager(
+            RedisConnectionFactory connectionFactory,
+            ObjectMapper objectMapper,
+            AppCacheTtlProperties ttlProps,
+            Environment environment) {
         GenericJackson2JsonRedisSerializer json = new GenericJackson2JsonRedisSerializer(objectMapper);
 
         RedisCacheConfiguration base = RedisCacheConfiguration.defaultCacheConfig()
@@ -48,13 +58,19 @@ public class CacheConfig {
                 .serializeValuesWith(RedisSerializationContext.SerializationPair.fromSerializer(json))
                 .disableCachingNullValues();
 
+        String keyPrefix = environment.getProperty("spring.cache.redis.key-prefix", "sv::");
+        if (StringUtils.hasText(keyPrefix)) {
+            String p = keyPrefix.endsWith("::") ? keyPrefix : keyPrefix + "::";
+            base = base.computePrefixWith(CacheKeyPrefix.prefixed(p));
+        }
+
         Map<String, RedisCacheConfiguration> perCache = new HashMap<>();
-        perCache.put(TRANSPORT_ROUTES, base.entryTtl(Duration.ofMinutes(15)));
-        perCache.put(ANNOUNCEMENT_PREVIEWS, base.entryTtl(Duration.ofSeconds(90)));
-        perCache.put(PAYROLL_STRUCTURES, base.entryTtl(Duration.ofMinutes(10)));
+        perCache.put(TRANSPORT_ROUTES, base.entryTtl(ttlProps.getTransportRoutes()));
+        perCache.put(ANNOUNCEMENT_PREVIEWS, base.entryTtl(ttlProps.getAnnouncementPreviews()));
+        perCache.put(PAYROLL_STRUCTURES, base.entryTtl(ttlProps.getPayrollStructures()));
 
         return RedisCacheManager.builder(connectionFactory)
-                .cacheDefaults(base.entryTtl(Duration.ofMinutes(5)))
+                .cacheDefaults(base.entryTtl(ttlProps.getDefaultTtl()))
                 .withInitialCacheConfigurations(perCache)
                 .transactionAware()
                 .build();

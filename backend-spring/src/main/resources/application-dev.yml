@@ -1,4 +1,5 @@
 # Active when spring.profiles.active includes dev (default in application.yml for local work).
+# For Docker Desktop + Redis + RabbitMQ with zero extra env, use profile "local" (application-local.yml).
 #
 # Local IDE → Aiven MySQL: set DB_URL, DB_USERNAME, DB_PASSWORD on THIS run configuration (not only system env).
 # 1) Aiven → your service → Networking / trusted sources: add your public IP (/32) or temporarily 0.0.0.0/0 to test.
@@ -11,6 +12,15 @@ app:
 spring:
   # Datasource URL/user/password come from application.yml (${DB_URL}, ${DB_USERNAME}, ${DB_PASSWORD}).
   # Do not default DB_PASSWORD here: a forgotten env var would send a wrong password (e.g. to Aiven) and cause MySQL 1045.
+
+  # Local IDE: no Redis/Valkey or RabbitMQ required — only MySQL (see docker-compose or Aiven).
+  cache:
+    type: none
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration
+      - org.springframework.boot.autoconfigure.data.redis.RedisRepositoriesAutoConfiguration
+      - org.springframework.boot.autoconfigure.amqp.RabbitAutoConfiguration
 
   jpa:
     show-sql: true

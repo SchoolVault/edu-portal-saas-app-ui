@@ -4,6 +4,7 @@ import com.school.erp.common.exception.RateLimitExceededException;
 import com.school.erp.tenant.TenantContext;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Component;
@@ -15,6 +16,7 @@ import java.time.Duration;
 public class RateLimitInterceptor implements HandlerInterceptor {
     private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(RateLimitInterceptor.class);
     private final RedisTemplate<String, Object> redisTemplate;
+    private final String rateKeyPrefix;
     private static final int MAX_REQUESTS_PER_MINUTE = 120;
     private static final int MAX_REQUESTS_PER_HOUR = 3600;
 
@@ -24,7 +26,7 @@ public class RateLimitInterceptor implements HandlerInterceptor {
         if (tenantId == null) return true; // Public endpoints
         try {
             // Per-minute rate limit
-            String minuteKey = "rate:min:" + tenantId;
+            String minuteKey = rateKeyPrefix + "rate:min:" + tenantId;
             Long minuteCount = redisTemplate.opsForValue().increment(minuteKey);
             if (minuteCount != null && minuteCount == 1) {
                 redisTemplate.expire(minuteKey, Duration.ofMinutes(1));
@@ -34,7 +36,7 @@ public class RateLimitInterceptor implements HandlerInterceptor {
                 throw new RateLimitExceededException("Rate limit exceeded. Maximum " + MAX_REQUESTS_PER_MINUTE + " requests per minute.");
             }
             // Per-hour rate limit
-            String hourKey = "rate:hour:" + tenantId;
+            String hourKey = rateKeyPrefix + "rate:hour:" + tenantId;
             Long hourCount = redisTemplate.opsForValue().increment(hourKey);
             if (hourCount != null && hourCount == 1) {
                 redisTemplate.expire(hourKey, Duration.ofHours(1));
@@ -54,7 +56,11 @@ public class RateLimitInterceptor implements HandlerInterceptor {
         return true;
     }
 
-    public RateLimitInterceptor(final RedisTemplate<String, Object> redisTemplate) {
+    public RateLimitInterceptor(
+            final RedisTemplate<String, Object> redisTemplate,
+            @Value("${app.redis.key-namespace:sv}") String redisKeyNamespace) {
         this.redisTemplate = redisTemplate;
+        String ns = redisKeyNamespace == null || redisKeyNamespace.isBlank() ? "sv" : redisKeyNamespace.trim();
+        this.rateKeyPrefix = ns.endsWith(":") ? ns : ns + ":";
     }
 }

@@ -5,7 +5,9 @@ import com.school.erp.config.RabbitMQConfig;
 import com.school.erp.modules.audit.entity.AuditLog;
 import com.school.erp.modules.audit.repository.AuditLogRepository;
 import com.school.erp.tenant.TenantContext;
+import jakarta.annotation.Nullable;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -17,6 +19,7 @@ import java.util.Map;
 public class AuditService {
     private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(AuditService.class);
     private final AuditLogRepository repo;
+    @Nullable
     private final RabbitTemplate rabbitTemplate;
 
     @Transactional(readOnly = true)
@@ -49,11 +52,12 @@ public class AuditService {
         auditLog.setTenantId(t != null ? t : "system");
         repo.save(auditLog);
         log.info("Audit persisted action={} module={} entityId={}", action, module, entityId);
-        // Publish to RabbitMQ for async processing
-        try {
-            rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE, "event.audit.logged", Map.of("action", action.name(), "module", module, "description", description));
-        } catch (Exception e) {
-            log.warn("Audit event publish skipped: {}", e.getMessage());
+        if (rabbitTemplate != null) {
+            try {
+                rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE, "event.audit.logged", Map.of("action", action.name(), "module", module, "description", description));
+            } catch (Exception e) {
+                log.warn("Audit event publish skipped: {}", e.getMessage());
+            }
         }
     }
 
@@ -76,7 +80,7 @@ public class AuditService {
         logAction(Enums.AuditAction.LOGIN, "Auth", "User logged in: " + email, null, "User", null, null);
     }
 
-    public AuditService(final AuditLogRepository repo, final RabbitTemplate rabbitTemplate) {
+    public AuditService(final AuditLogRepository repo, @Autowired(required = false) @Nullable RabbitTemplate rabbitTemplate) {
         this.repo = repo;
         this.rabbitTemplate = rabbitTemplate;
     }

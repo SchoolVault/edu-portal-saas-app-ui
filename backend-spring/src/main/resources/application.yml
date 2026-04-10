@@ -48,15 +48,21 @@ spring:
 
   cache:
     type: ${CACHE_TYPE:redis}
+    redis:
+      # Namespaces all Spring Cache keys in Redis (shared Valkey/Aiven: use app name + env, e.g. school-erp-prod::)
+      key-prefix: ${CACHE_REDIS_KEY_PREFIX:sv::}
 
   data:
     redis:
+      # Optional: set env SPRING_DATA_REDIS_URL=rediss://user:pass@host:port (Aiven Valkey). Do not put url: in YAML with an empty default — Boot rejects ''.
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
+      username: ${REDIS_USERNAME:}
       password: ${REDIS_PASSWORD:}
       timeout: ${REDIS_TIMEOUT_MS:5000}
       ssl:
         enabled: ${REDIS_SSL:false}
+
 
   rabbitmq:
     host: ${RABBITMQ_HOST:localhost}
@@ -72,6 +78,15 @@ spring:
 app:
   demo-seed:
     enabled: ${DEMO_SEED_ENABLED:false}
+  # Redis keys for non-cache use (rate limits). Align with spring.cache.redis.key-prefix for one logical app namespace.
+  redis:
+    key-namespace: ${REDIS_KEY_NAMESPACE:sv}
+  cache:
+    ttl:
+      default-ttl: ${CACHE_TTL_DEFAULT:5m}
+      transport-routes: ${CACHE_TTL_TRANSPORT_ROUTES:15m}
+      announcement-previews: ${CACHE_TTL_ANNOUNCEMENT_PREVIEWS:90s}
+      payroll-structures: ${CACHE_TTL_PAYROLL_STRUCTURES:10m}
   jwt:
     secret: ${JWT_SECRET:c2Nob29sLWVycC1zZWNyZXQta2V5LWZvci1qd3QtdG9rZW4tZ2VuZXJhdGlvbi0yMDI2}
     expiration-ms: ${JWT_EXPIRATION_MS:86400000}

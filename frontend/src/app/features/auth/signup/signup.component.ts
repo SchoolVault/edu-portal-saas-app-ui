@@ -4,6 +4,18 @@ import { FormsModule } from '@angular/forms';
 import { Router, RouterModule } from '@angular/router';
 import { AuthService } from '../../../core/services/auth.service';
 import { ThemeService } from '../../../core/services/theme.service';
+import type { OnboardSchoolRequest } from '../../../core/models/models';
+import {
+  ONBOARD_ADMIN_PASSWORD_MAX,
+  ONBOARD_SCHOOL_CODE_MAX,
+  ONBOARD_SCHOOL_CODE_MIN,
+} from '../../../core/validation/auth-forms.constants';
+import {
+  type FieldErrors,
+  type OnboardSchoolField,
+  hasFieldErrors,
+  validateOnboardSchoolForm,
+} from '../../../core/validation/onboard-school-form.validation';
 
 const HERO_IMG =
   'https://static.prod-images.emergentagent.com/jobs/9a0eef39-d991-4ee9-b692-a0f34292613c/images/39ade40298c502bd4785354a93143be5e368f4457b5f0aee6cbf5d84e82fe503.png';
@@ -28,34 +40,110 @@ const HERO_IMG =
             {{ error }}
           </div>
 
-          <form (ngSubmit)="onSubmit()">
+          <form (ngSubmit)="onSubmit()" novalidate>
             <div class="erp-form-group">
-              <label class="erp-label">School Name</label>
-              <input class="erp-input" [(ngModel)]="form.schoolName" name="schoolName" required placeholder="e.g. Crescent Heights Academy">
+              <label class="erp-label" for="su-schoolName">School name</label>
+              <input
+                id="su-schoolName"
+                class="erp-input"
+                [class.erp-input--error]="!!fieldErrors.schoolName"
+                [(ngModel)]="form.schoolName"
+                (ngModelChange)="clearField('schoolName')"
+                name="schoolName"
+                maxlength="200"
+                placeholder="e.g. Crescent Heights Academy"
+                [attr.aria-invalid]="!!fieldErrors.schoolName"
+                [attr.aria-describedby]="fieldErrors.schoolName ? 'su-err-schoolName' : null"
+                autocomplete="organization" />
+              <div id="su-err-schoolName" class="field-error" *ngIf="fieldErrors.schoolName" role="alert">{{ fieldErrors.schoolName }}</div>
             </div>
             <div class="erp-form-group">
-              <label class="erp-label">School Code</label>
-              <input class="erp-input" [(ngModel)]="form.schoolCode" name="schoolCode" required placeholder="Short code (e.g. CHA01)">
+              <label class="erp-label" for="su-schoolCode">School code <span class="erp-label-hint">{{ schoolCodeMin }}–{{ schoolCodeMax }} characters</span></label>
+              <input
+                id="su-schoolCode"
+                class="erp-input"
+                [class.erp-input--error]="!!fieldErrors.schoolCode"
+                [(ngModel)]="form.schoolCode"
+                (ngModelChange)="clearField('schoolCode')"
+                name="schoolCode"
+                [maxlength]="schoolCodeMax"
+                [minlength]="schoolCodeMin"
+                placeholder="e.g. CHA01"
+                [attr.aria-invalid]="!!fieldErrors.schoolCode"
+                [attr.aria-describedby]="fieldErrors.schoolCode ? 'su-err-schoolCode' : null"
+                autocomplete="off" />
+              <div id="su-err-schoolCode" class="field-error" *ngIf="fieldErrors.schoolCode" role="alert">{{ fieldErrors.schoolCode }}</div>
             </div>
             <div class="erp-form-group">
-              <label class="erp-label">Admin Name</label>
-              <input class="erp-input" [(ngModel)]="form.adminName" name="adminName" required>
+              <label class="erp-label" for="su-adminName">Admin name</label>
+              <input
+                id="su-adminName"
+                class="erp-input"
+                [class.erp-input--error]="!!fieldErrors.adminName"
+                [(ngModel)]="form.adminName"
+                (ngModelChange)="clearField('adminName')"
+                name="adminName"
+                maxlength="120"
+                [attr.aria-invalid]="!!fieldErrors.adminName"
+                [attr.aria-describedby]="fieldErrors.adminName ? 'su-err-adminName' : null"
+                autocomplete="name" />
+              <div id="su-err-adminName" class="field-error" *ngIf="fieldErrors.adminName" role="alert">{{ fieldErrors.adminName }}</div>
             </div>
             <div class="erp-form-group">
-              <label class="erp-label">Admin Email</label>
-              <input type="email" class="erp-input" [(ngModel)]="form.adminEmail" name="adminEmail" required>
+              <label class="erp-label" for="su-adminEmail">Admin email</label>
+              <input
+                id="su-adminEmail"
+                type="email"
+                class="erp-input"
+                [class.erp-input--error]="!!fieldErrors.adminEmail"
+                [(ngModel)]="form.adminEmail"
+                (ngModelChange)="clearField('adminEmail')"
+                name="adminEmail"
+                maxlength="254"
+                [attr.aria-invalid]="!!fieldErrors.adminEmail"
+                [attr.aria-describedby]="fieldErrors.adminEmail ? 'su-err-adminEmail' : null"
+                autocomplete="email" />
+              <div id="su-err-adminEmail" class="field-error" *ngIf="fieldErrors.adminEmail" role="alert">{{ fieldErrors.adminEmail }}</div>
             </div>
             <div class="erp-form-group">
-              <label class="erp-label">Admin Password</label>
-              <input type="password" class="erp-input" [(ngModel)]="form.adminPassword" name="adminPassword" required minlength="8" placeholder="Min. 8 characters">
+              <label class="erp-label" for="su-adminPassword">Admin password <span class="erp-label-hint">8–{{ pwdMax }} characters</span></label>
+              <input
+                id="su-adminPassword"
+                type="password"
+                class="erp-input"
+                [class.erp-input--error]="!!fieldErrors.adminPassword"
+                [(ngModel)]="form.adminPassword"
+                (ngModelChange)="clearField('adminPassword')"
+                name="adminPassword"
+                [maxlength]="pwdMax"
+                minlength="8"
+                placeholder="Choose a strong password"
+                [attr.aria-invalid]="!!fieldErrors.adminPassword"
+                [attr.aria-describedby]="fieldErrors.adminPassword ? 'su-err-adminPassword' : null"
+                autocomplete="new-password" />
+              <div id="su-err-adminPassword" class="field-error" *ngIf="fieldErrors.adminPassword" role="alert">{{ fieldErrors.adminPassword }}</div>
             </div>
             <div class="erp-form-group">
-              <label class="erp-label">Phone</label>
-              <input class="erp-input" [(ngModel)]="form.phone" name="phone" placeholder="School office line">
+              <label class="erp-label" for="su-phone">Phone <span class="erp-label-hint">optional</span></label>
+              <input
+                id="su-phone"
+                class="erp-input"
+                [(ngModel)]="form.phone"
+                name="phone"
+                maxlength="40"
+                placeholder="School office line"
+                autocomplete="tel" />
             </div>
             <div class="erp-form-group">
-              <label class="erp-label">Address</label>
-              <textarea class="erp-input erp-textarea" [(ngModel)]="form.address" name="address" rows="3"></textarea>
+              <label class="erp-label" for="su-address">Address <span class="erp-label-hint">optional</span></label>
+              <textarea
+                id="su-address"
+                class="erp-input erp-textarea"
+                [(ngModel)]="form.address"
+                name="address"
+                rows="3"
+                maxlength="500"
+                placeholder="Campus address"></textarea>
             </div>
             <button type="submit" class="btn-primary-erp" style="width: 100%; justify-content: center; padding: 12px;" [disabled]="loading">
               <span class="spinner" *ngIf="loading"></span>
@@ -99,6 +187,12 @@ const HERO_IMG =
   `,
   styles: [
     `
+      .erp-label-hint {
+        font-weight: 500;
+        color: var(--clr-text-muted);
+        font-size: 11px;
+        margin-left: 6px;
+      }
       .signup-marketing-band {
         margin-top: 22px;
         padding-top: 16px;
@@ -125,6 +219,10 @@ const HERO_IMG =
 })
 export class SignupComponent {
   readonly HERO_IMG = HERO_IMG;
+  readonly schoolCodeMin = ONBOARD_SCHOOL_CODE_MIN;
+  readonly schoolCodeMax = ONBOARD_SCHOOL_CODE_MAX;
+  readonly pwdMax = ONBOARD_ADMIN_PASSWORD_MAX;
+
   readonly platform = { email: 'hello@schoolvault.com', phone: '+1 (512) 555-0140' };
   readonly platformEmailDisplay = 'hello@schoolvault.com';
   readonly platformMailto = 'mailto:hello@schoolvault.com';
@@ -134,7 +232,7 @@ export class SignupComponent {
     { text: 'Role-based access for teachers and guardians is granular without feeling heavy — exactly what our trust needed.', name: 'Elena Vogt', role: 'IT Director, Stadt Gymnasium' }
   ];
 
-  form = {
+  form: OnboardSchoolRequest = {
     schoolName: '',
     schoolCode: '',
     adminName: '',
@@ -143,13 +241,34 @@ export class SignupComponent {
     phone: '',
     address: ''
   };
+
+  fieldErrors: FieldErrors<OnboardSchoolField> = {};
   loading = false;
   error = '';
 
-  constructor(private authService: AuthService, private router: Router, private themeService: ThemeService) {}
+  constructor(
+    private authService: AuthService,
+    private router: Router,
+    private themeService: ThemeService
+  ) {}
+
+  clearField(field: OnboardSchoolField): void {
+    if (!this.fieldErrors[field]) {
+      return;
+    }
+    const next = { ...this.fieldErrors };
+    delete next[field];
+    this.fieldErrors = next;
+  }
 
   onSubmit(): void {
     this.error = '';
+    this.fieldErrors = {};
+    const errs = validateOnboardSchoolForm(this.form);
+    if (hasFieldErrors(errs)) {
+      this.fieldErrors = errs;
+      return;
+    }
     this.loading = true;
     this.authService.onboardSchool(this.form).subscribe({
       next: () => {

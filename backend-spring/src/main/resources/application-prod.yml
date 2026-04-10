@@ -14,11 +14,17 @@ spring:
   jpa:
     show-sql: false
 
+  cache:
+    redis:
+      key-prefix: ${CACHE_REDIS_KEY_PREFIX:sv::}
+
   data:
     redis:
-      host: ${REDIS_HOST}
+      # Prefer env SPRING_DATA_REDIS_URL=rediss://... (Aiven). Host/password below are fallbacks when URL is unset.
+      host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
-      password: ${REDIS_PASSWORD}
+      username: ${REDIS_USERNAME:}
+      password: ${REDIS_PASSWORD:}
       ssl:
         enabled: ${REDIS_SSL:true}
 
