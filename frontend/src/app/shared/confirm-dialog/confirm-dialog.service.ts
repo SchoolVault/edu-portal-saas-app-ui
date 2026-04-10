@@ -27,9 +27,8 @@ export class ConfirmDialogService {
   confirm(opts: ConfirmDialogOptions): Observable<boolean> {
     return new Observable<boolean>(subscriber => {
       if (this.pending) {
-        subscriber.next(false);
-        subscriber.complete();
-        return;
+        // Replace stale dialog (e.g. double submit) so the user always sees the latest confirmation.
+        this.pending.finish(false);
       }
       this.state.next({
         variant: 'danger',

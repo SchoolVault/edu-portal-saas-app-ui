@@ -1,8 +1,10 @@
 import { Injectable } from '@angular/core';
 import { Observable, of } from 'rxjs';
-import { delay, map } from 'rxjs/operators';
+import { delay, map, switchMap } from 'rxjs/operators';
 import { TimetableEntry, TimetableGrid, TimetableGridSlot } from '../models/models';
+import { AttendanceCoverRow } from '../models/operations.models';
 import { ApiService } from './api.service';
+import { OperationsService } from './operations.service';
 import { runtimeConfig } from '../config/runtime-config';
 
 @Injectable({ providedIn: 'root' })
@@ -56,6 +58,32 @@ export class TimetableService {
     { id: 'tt46', classId: 'c9', sectionId: 'sec9a', day: 'Thursday', period: 2, startTime: '08:45', endTime: '09:30', subjectName: 'Physics', teacherId: 't8', teacherName: 'Thomas Lee', room: 'Lab 2', tenantId: 't1' },
     { id: 'tt47', classId: 'c9', sectionId: 'sec9a', day: 'Friday', period: 1, startTime: '08:00', endTime: '08:45', subjectName: 'Mathematics', teacherId: 't1', teacherName: 'Sarah Mitchell', room: 'Room 301', tenantId: 't1' },
     { id: 'tt48', classId: 'c9', sectionId: 'sec9a', day: 'Friday', period: 2, startTime: '08:45', endTime: '09:30', subjectName: 'Chemistry', teacherId: 't3', teacherName: 'Priya Sharma', room: 'Lab 1', tenantId: 't1' },
+    { id: 'tt49', classId: 'c9', sectionId: 'sec9b', day: 'Monday', period: 1, startTime: '08:00', endTime: '08:45', subjectName: 'English', teacherId: 't2', teacherName: "James O'Brien", room: 'Room 302', tenantId: 't1' },
+    { id: 'tt50', classId: 'c9', sectionId: 'sec9b', day: 'Monday', period: 2, startTime: '08:45', endTime: '09:30', subjectName: 'Mathematics', teacherId: 't1', teacherName: 'Sarah Mitchell', room: 'Room 302', tenantId: 't1' },
+    { id: 'tt51', classId: 'c9', sectionId: 'sec9b', day: 'Tuesday', period: 1, startTime: '08:00', endTime: '08:45', subjectName: 'Science', teacherId: 't3', teacherName: 'Priya Sharma', room: 'Lab 1', tenantId: 't1' },
+    { id: 'tt52', classId: 'c9', sectionId: 'sec9b', day: 'Wednesday', period: 1, startTime: '08:00', endTime: '08:45', subjectName: 'History', teacherId: 't4', teacherName: 'Robert Kim', room: 'Room 302', tenantId: 't1' },
+    { id: 'tt53', classId: 'c9', sectionId: 'sec9b', day: 'Thursday', period: 1, startTime: '08:00', endTime: '08:45', subjectName: 'Physics', teacherId: 't8', teacherName: 'Thomas Lee', room: 'Lab 2', tenantId: 't1' },
+    { id: 'tt54', classId: 'c10', sectionId: 'sec10a', day: 'Wednesday', period: 1, startTime: '08:00', endTime: '08:45', subjectName: 'Chemistry', teacherId: 't3', teacherName: 'Priya Sharma', room: 'Lab 1', tenantId: 't1' },
+    { id: 'tt55', classId: 'c10', sectionId: 'sec10a', day: 'Thursday', period: 1, startTime: '08:00', endTime: '08:45', subjectName: 'Mathematics', teacherId: 't1', teacherName: 'Sarah Mitchell', room: 'Room 401', tenantId: 't1' },
+    { id: 'tt56', classId: 'c10', sectionId: 'sec10b', day: 'Monday', period: 1, startTime: '08:00', endTime: '08:45', subjectName: 'English', teacherId: 't2', teacherName: "James O'Brien", room: 'Room 402', tenantId: 't1' },
+    { id: 'tt57', classId: 'c10', sectionId: 'sec10b', day: 'Tuesday', period: 1, startTime: '08:00', endTime: '08:45', subjectName: 'Biology', teacherId: 't3', teacherName: 'Priya Sharma', room: 'Lab 1', tenantId: 't1' },
+    { id: 'tt58', classId: 'c10', sectionId: 'sec10b', day: 'Friday', period: 1, startTime: '08:00', endTime: '08:45', subjectName: 'Physical Education', teacherId: 't6', teacherName: 'David Anderson', room: 'Ground', tenantId: 't1' },
+    { id: 'tt59', classId: 'c11', sectionId: 'sec11a', day: 'Monday', period: 1, startTime: '08:00', endTime: '08:45', subjectName: 'Physics', teacherId: 't8', teacherName: 'Thomas Lee', room: 'Lab 2', tenantId: 't1' },
+    { id: 'tt60', classId: 'c11', sectionId: 'sec11a', day: 'Monday', period: 2, startTime: '08:45', endTime: '09:30', subjectName: 'Mathematics', teacherId: 't1', teacherName: 'Sarah Mitchell', room: 'Room 501', tenantId: 't1' },
+    { id: 'tt61', classId: 'c11', sectionId: 'sec11a', day: 'Tuesday', period: 1, startTime: '08:00', endTime: '08:45', subjectName: 'Chemistry', teacherId: 't3', teacherName: 'Priya Sharma', room: 'Lab 1', tenantId: 't1' },
+    { id: 'tt62', classId: 'c11', sectionId: 'sec11a', day: 'Wednesday', period: 1, startTime: '08:00', endTime: '08:45', subjectName: 'Computer Science', teacherId: 't5', teacherName: 'Maria Torres', room: 'Comp Lab', tenantId: 't1' },
+    { id: 'tt63', classId: 'c11', sectionId: 'sec11b', day: 'Monday', period: 1, startTime: '08:00', endTime: '08:45', subjectName: 'English', teacherId: 't2', teacherName: "James O'Brien", room: 'Room 502', tenantId: 't1' },
+    { id: 'tt64', classId: 'c11', sectionId: 'sec11b', day: 'Tuesday', period: 1, startTime: '08:00', endTime: '08:45', subjectName: 'Mathematics', teacherId: 't1', teacherName: 'Sarah Mitchell', room: 'Room 502', tenantId: 't1' },
+    { id: 'tt65', classId: 'c11', sectionId: 'sec11b', day: 'Thursday', period: 1, startTime: '08:00', endTime: '08:45', subjectName: 'Economics', teacherId: 't4', teacherName: 'Robert Kim', room: 'Room 502', tenantId: 't1' },
+    { id: 'tt66', classId: 'c12', sectionId: 'sec12a', day: 'Monday', period: 1, startTime: '08:00', endTime: '08:45', subjectName: 'Chemistry', teacherId: 't3', teacherName: 'Priya Sharma', room: 'Lab 1', tenantId: 't1' },
+    { id: 'tt67', classId: 'c12', sectionId: 'sec12a', day: 'Tuesday', period: 1, startTime: '08:00', endTime: '08:45', subjectName: 'Biology', teacherId: 't3', teacherName: 'Priya Sharma', room: 'Lab 1', tenantId: 't1' },
+    { id: 'tt68', classId: 'c12', sectionId: 'sec12a', day: 'Wednesday', period: 1, startTime: '08:00', endTime: '08:45', subjectName: 'English', teacherId: 't2', teacherName: "James O'Brien", room: 'Room 601', tenantId: 't1' },
+    { id: 'tt69', classId: 'c12', sectionId: 'sec12b', day: 'Monday', period: 1, startTime: '08:00', endTime: '08:45', subjectName: 'Mathematics', teacherId: 't1', teacherName: 'Sarah Mitchell', room: 'Room 602', tenantId: 't1' },
+    { id: 'tt70', classId: 'c12', sectionId: 'sec12b', day: 'Thursday', period: 1, startTime: '08:00', endTime: '08:45', subjectName: 'Physics', teacherId: 't8', teacherName: 'Thomas Lee', room: 'Lab 2', tenantId: 't1' },
+    { id: 'tt71', classId: 'c6', sectionId: 'sec6b', day: 'Monday', period: 1, startTime: '08:00', endTime: '08:45', subjectName: 'Mathematics', teacherId: 't4', teacherName: 'Robert Kim', room: 'Room 106', tenantId: 't1' },
+    { id: 'tt72', classId: 'c6', sectionId: 'sec6b', day: 'Tuesday', period: 1, startTime: '08:00', endTime: '08:45', subjectName: 'Science', teacherId: 't3', teacherName: 'Priya Sharma', room: 'Lab 1', tenantId: 't1' },
+    { id: 'tt73', classId: 'c7', sectionId: 'sec7c', day: 'Monday', period: 1, startTime: '08:00', endTime: '08:45', subjectName: 'English', teacherId: 't2', teacherName: "James O'Brien", room: 'Room 207', tenantId: 't1' },
+    { id: 'tt74', classId: 'c7', sectionId: 'sec7c', day: 'Wednesday', period: 1, startTime: '08:00', endTime: '08:45', subjectName: 'Geography', teacherId: 't4', teacherName: 'Robert Kim', room: 'Room 207', tenantId: 't1' },
   ];
 
   getByClassAndSection(classId: string, sectionId: string): Observable<TimetableEntry[]> {
@@ -119,13 +147,90 @@ export class TimetableService {
     return { classId, sectionId, days: useDays, periods: usePeriods, grid };
   }
 
-  getByTeacher(teacherId: string): Observable<TimetableEntry[]> {
+  /**
+   * @param forDate Optional ISO date: merges active attendance covers for that day into the teacher view (same API as backend).
+   */
+  getByTeacher(teacherId: string, forDate?: string): Observable<TimetableEntry[]> {
     if (!runtimeConfig.useMocks) {
-      return this.api.get<any[]>(`/timetable/teacher/${teacherId}`).pipe(
+      const q = forDate ? `?forDate=${encodeURIComponent(forDate)}` : '';
+      return this.api.get<any[]>(`/timetable/teacher/${teacherId}${q}`).pipe(
         map(entries => entries.map(entry => this.normalizeEntry(entry)))
       );
     }
-    return of(this.entries.filter(e => e.teacherId === teacherId)).pipe(delay(300));
+    const base = this.entries.filter(e => e.teacherId === teacherId);
+    if (!forDate) {
+      return of(base.map(e => ({ ...e, scheduleSource: 'RECURRING' as const }))).pipe(delay(300));
+    }
+    return this.operations.listAttendanceCoversAdmin(forDate).pipe(
+      switchMap(covers => of(this.mergeMockCoversIntoTeacherSchedule(teacherId, forDate, covers, base))),
+      delay(300)
+    );
+  }
+
+  private mergeMockCoversIntoTeacherSchedule(
+    teacherId: string,
+    forDate: string,
+    covers: AttendanceCoverRow[],
+    base: TimetableEntry[]
+  ): TimetableEntry[] {
+    const dow = this.isoDateToDayName(forDate);
+    const mine = (covers || []).filter(
+      c => c.status === 'ACTIVE' && String(c.coveringTeacherId) === String(teacherId)
+    );
+    const coverRows: TimetableEntry[] = [];
+    const keys = new Set<string>();
+    for (const c of mine) {
+      const template = this.findMockTemplateForCover(c, dow);
+      const period = template?.period ?? c.periodNumber ?? 1;
+      const t = this.teachersNameById(teacherId);
+      coverRows.push({
+        id: `cover-${c.id}`,
+        classId: String(c.classId),
+        sectionId: c.sectionId ? String(c.sectionId) : '',
+        day: dow,
+        period,
+        startTime: template?.startTime ?? '09:00',
+        endTime: template?.endTime ?? '09:45',
+        subjectName: `${template?.subjectName ?? 'Cover session'} · Cover`,
+        teacherId,
+        teacherName: t,
+        room: template?.room ?? '',
+        tenantId: base[0]?.tenantId ?? 't1',
+        scheduleSource: 'COVER',
+        coverForDate: forDate,
+      });
+      keys.add(`${dow}|${period}`);
+    }
+    const recurring = base.map(e => ({ ...e, scheduleSource: 'RECURRING' as const }));
+    const filtered = recurring.filter(e => !keys.has(`${e.day}|${e.period}`));
+    return [...coverRows, ...filtered];
+  }
+
+  private teachersNameById(teacherId: string): string {
+    const hit = this.entries.find(e => e.teacherId === teacherId);
+    return hit?.teacherName ?? '';
+  }
+
+  private findMockTemplateForCover(c: AttendanceCoverRow, dow: string): TimetableEntry | undefined {
+    const classSlots = this.entries.filter(
+      e =>
+        e.classId === String(c.classId) &&
+        (!c.sectionId || e.sectionId === String(c.sectionId)) &&
+        e.day === dow
+    );
+    if (c.periodNumber != null) {
+      return classSlots.find(e => e.period === c.periodNumber);
+    }
+    if (c.regularTeacherId) {
+      return classSlots.find(e => e.teacherId === String(c.regularTeacherId));
+    }
+    return classSlots[0];
+  }
+
+  private isoDateToDayName(iso: string): string {
+    const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const d = new Date(iso + 'T12:00:00').getDay();
+    return days[d];
   }
 
   /** Build a day×period grid from an arbitrary entry list (e.g. teacher schedule). */
@@ -173,18 +278,27 @@ export class TimetableService {
     return of(void 0).pipe(delay(200));
   }
 
-  constructor(private api: ApiService) {}
+  constructor(
+    private api: ApiService,
+    private operations: OperationsService
+  ) {}
 
   private normalizeEntry(entry: any): TimetableEntry {
+    const dayRaw = entry.day ?? '';
+    const dayNorm = dayRaw
+      ? dayRaw.charAt(0) + dayRaw.slice(1).toLowerCase()
+      : '';
     return {
       ...entry,
       id: String(entry.id),
-      classId: String(entry.classId),
-      sectionId: String(entry.sectionId),
+      classId: String(entry.classId ?? ''),
+      sectionId: entry.sectionId != null && entry.sectionId !== '' ? String(entry.sectionId) : '',
       teacherId: entry.teacherId != null ? String(entry.teacherId) : '',
-      day: entry.day ? entry.day.charAt(0) + entry.day.slice(1).toLowerCase() : '',
+      day: dayNorm,
       period: Number(entry.period ?? 0),
-      tenantId: entry.tenantId ?? ''
+      tenantId: entry.tenantId ?? '',
+      scheduleSource: entry.scheduleSource === 'COVER' ? 'COVER' : entry.scheduleSource === 'RECURRING' ? 'RECURRING' : undefined,
+      coverForDate: entry.coverForDate ?? undefined,
     };
   }
 

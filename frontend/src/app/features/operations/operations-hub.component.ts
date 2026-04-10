@@ -38,29 +38,33 @@ import { filter } from 'rxjs/operators';
       <div class="erp-card mb-4" *ngIf="tab === 'covers'">
         <h4 class="erp-card-title mb-3">Attendance cover</h4>
         <div class="row g-3 align-items-end mb-3">
-          <div class="col-md-3">
+          <div class="col-md-2">
             <label class="erp-label">Date</label>
             <app-erp-date-picker [(ngModel)]="coverDate" placeholder="Cover date" />
           </div>
-          <div class="col-md-3">
+          <div class="col-md-2">
             <label class="erp-label">Class</label>
             <select class="erp-select" [(ngModel)]="coverForm.classId">
               <option value="">Select</option>
               <option *ngFor="let c of classes" [value]="c.id">{{ c.name }}</option>
             </select>
           </div>
-          <div class="col-md-3">
-            <label class="erp-label">Covering teacher</label>
-            <select class="erp-select" [(ngModel)]="coverForm.coveringTeacherId">
-              <option value="">Select</option>
-              <option *ngFor="let te of teachers" [value]="te.id">{{ te.firstName }} {{ te.lastName }}</option>
-            </select>
-          </div>
-          <div class="col-md-3">
+          <div class="col-md-2">
             <label class="erp-label">Section (optional)</label>
             <select class="erp-select" [(ngModel)]="coverForm.sectionId">
               <option value="">All sections</option>
               <option *ngFor="let s of coverSections" [value]="s.id">{{ s.name }}</option>
+            </select>
+          </div>
+          <div class="col-md-2">
+            <label class="erp-label">Period (optional)</label>
+            <input type="number" min="1" max="12" class="erp-input" [(ngModel)]="coverForm.periodNumber" placeholder="e.g. 3" title="Helps place the cover on the teacher timetable when the class grid has no regular teacher slot" />
+          </div>
+          <div class="col-md-4">
+            <label class="erp-label">Covering teacher</label>
+            <select class="erp-select" [(ngModel)]="coverForm.coveringTeacherId">
+              <option value="">Select</option>
+              <option *ngFor="let te of teachers" [value]="te.id">{{ te.firstName }} {{ te.lastName }}</option>
             </select>
           </div>
         </div>
@@ -88,12 +92,14 @@ import { filter } from 'rxjs/operators';
       <!-- Staff -->
       <div class="erp-card mb-4" *ngIf="tab === 'staff'">
         <h4 class="erp-card-title mb-3">Operational staff</h4>
+        <p class="text-muted small mb-2">Non-teaching roles (security, drivers, office). Same payload is sent to the API when mocks are off.</p>
+        <div *ngIf="staffTabError" class="alert alert-danger py-2 px-3 small mb-2" style="border-radius: var(--radius-md);">{{ staffTabError }}</div>
         <div class="row g-2 mb-3">
           <div class="col-md-3"><select class="erp-select" [(ngModel)]="staffForm.staffRole"><option *ngFor="let r of staffRoles" [value]="r">{{ r }}</option></select></div>
           <div class="col-md-3"><input class="erp-input" [(ngModel)]="staffForm.fullName" placeholder="Full name" /></div>
           <div class="col-md-2"><input class="erp-input" [(ngModel)]="staffForm.phone" placeholder="Phone" /></div>
           <div class="col-md-2"><input class="erp-input" [(ngModel)]="staffForm.employeeCode" placeholder="Code" /></div>
-          <div class="col-md-2"><button class="btn-primary-erp w-100" (click)="addStaff()">Add</button></div>
+          <div class="col-md-2"><button type="button" class="btn-primary-erp w-100" (click)="addStaff()">Add</button></div>
         </div>
         <table class="erp-table mb-0">
           <thead><tr><th>Role</th><th>Name</th><th>Phone</th><th>Code</th><th></th></tr></thead>
@@ -156,18 +162,57 @@ import { filter } from 'rxjs/operators';
       <!-- Inventory -->
       <div class="erp-card mb-4" *ngIf="tab === 'inventory'">
         <h4 class="erp-card-title mb-3">Inventory</h4>
-        <div class="row g-2 mb-3">
-          <div class="col-md-2"><input class="erp-input" [(ngModel)]="invForm.sku" placeholder="SKU" /></div>
-          <div class="col-md-3"><input class="erp-input" [(ngModel)]="invForm.name" placeholder="Name" /></div>
-          <div class="col-md-2"><input type="number" class="erp-input" [(ngModel)]="invForm.quantityOnHand" placeholder="Qty" /></div>
-          <div class="col-md-2"><input type="number" class="erp-input" [(ngModel)]="invForm.reorderLevel" placeholder="Reorder" /></div>
-          <div class="col-md-2"><input class="erp-input" [(ngModel)]="invForm.location" placeholder="Location" /></div>
-          <div class="col-md-1"><button class="btn-primary-erp w-100" (click)="saveInv()">Save</button></div>
+        <p class="text-muted small mb-2">
+          Create and update rows by SKU (server upsert). Edit loads the row; SKU stays fixed until you clear the form. Remove soft-deletes on the server when not using mocks.
+        </p>
+        <div *ngIf="inventoryTabError" class="alert alert-danger py-2 px-3 small mb-2" style="border-radius: var(--radius-md);">{{ inventoryTabError }}</div>
+        <div class="row g-2 mb-3 align-items-end">
+          <div class="col-lg-2 col-md-4">
+            <label class="erp-label">SKU</label>
+            <input class="erp-input" [(ngModel)]="invForm.sku" placeholder="SKU" [readOnly]="!!invEditingId" [title]="invEditingId ? 'Clear form to use a different SKU' : ''" />
+          </div>
+          <div class="col-lg-2 col-md-4">
+            <label class="erp-label">Name</label>
+            <input class="erp-input" [(ngModel)]="invForm.name" placeholder="Name" />
+          </div>
+          <div class="col-lg-2 col-md-4">
+            <label class="erp-label">Category</label>
+            <input class="erp-input" [(ngModel)]="invForm.category" placeholder="Category" />
+          </div>
+          <div class="col-lg-1 col-md-3">
+            <label class="erp-label">Qty</label>
+            <input type="number" class="erp-input" [(ngModel)]="invForm.quantityOnHand" placeholder="0" />
+          </div>
+          <div class="col-lg-1 col-md-3">
+            <label class="erp-label">Reorder</label>
+            <input type="number" class="erp-input" [(ngModel)]="invForm.reorderLevel" placeholder="0" />
+          </div>
+          <div class="col-lg-2 col-md-4">
+            <label class="erp-label">Location</label>
+            <input class="erp-input" [(ngModel)]="invForm.location" placeholder="Location" />
+          </div>
+          <div class="col-lg-1 col-md-3">
+            <button type="button" class="btn-primary-erp w-100" (click)="saveInv()">{{ invEditingId ? 'Update' : 'Save' }}</button>
+          </div>
+          <div class="col-lg-1 col-md-3" *ngIf="invEditingId">
+            <button type="button" class="btn-outline-erp w-100" (click)="clearInventoryForm()">Clear</button>
+          </div>
         </div>
         <table class="erp-table mb-0">
-          <thead><tr><th>SKU</th><th>Name</th><th>Qty</th><th>Reorder</th></tr></thead>
+          <thead><tr><th>SKU</th><th>Name</th><th>Category</th><th>Qty</th><th>Reorder</th><th>Location</th><th></th></tr></thead>
           <tbody>
-            <tr *ngFor="let i of inventory"><td>{{ i.sku }}</td><td>{{ i.name }}</td><td>{{ i.quantityOnHand }}</td><td>{{ i.reorderLevel }}</td></tr>
+            <tr *ngFor="let i of inventory">
+              <td>{{ i.sku }}</td>
+              <td>{{ i.name }}</td>
+              <td>{{ i.category || '—' }}</td>
+              <td>{{ i.quantityOnHand }}</td>
+              <td>{{ i.reorderLevel }}</td>
+              <td>{{ i.location || '—' }}</td>
+              <td class="text-nowrap">
+                <button type="button" class="btn-outline-erp btn-xs me-1" (click)="editInventoryRow(i)">Edit</button>
+                <button type="button" class="btn-outline-erp btn-xs" (click)="removeInventoryRow(i)">Remove</button>
+              </td>
+            </tr>
           </tbody>
         </table>
       </div>
@@ -266,7 +311,7 @@ export class OperationsHubComponent implements OnInit {
   payroll: PayrollAccrualSummary | null = null;
 
   coverDate = new Date().toISOString().split('T')[0];
-  coverForm = { classId: '', sectionId: '', coveringTeacherId: '', reason: '' };
+  coverForm = { classId: '', sectionId: '', coveringTeacherId: '', reason: '', periodNumber: null as number | null };
   staffRoles = ['DRIVER', 'SECURITY', 'OFFICE', 'NURSE', 'MAINTENANCE', 'LAB_ASSISTANT', 'OTHER'];
   staffForm = { staffRole: 'DRIVER', fullName: '', phone: '', employeeCode: '' };
   visitorForm = { visitorName: '', phone: '', hostName: '', purpose: '' };
@@ -276,7 +321,11 @@ export class OperationsHubComponent implements OnInit {
     validTo: new Date().toISOString().split('T')[0],
     purpose: '',
   };
-  invForm = { sku: '', name: '', quantityOnHand: 0, reorderLevel: 0, location: '' };
+  invForm = { sku: '', name: '', category: '', quantityOnHand: 0, reorderLevel: 0, location: '' };
+  /** When set, SKU is read-only; POST upserts this tenant row. */
+  invEditingId: string | null = null;
+  staffTabError = '';
+  inventoryTabError = '';
   constructor(
     private operations: OperationsService,
     private academic: AcademicService,
@@ -299,10 +348,16 @@ export class OperationsHubComponent implements OnInit {
   selectTab(t: OperationsTab): void {
     this.tab = t;
     if (t === 'covers') this.reloadCovers();
-    if (t === 'staff') this.operations.listStaff().subscribe(s => (this.staff = s));
+    if (t === 'staff') {
+      this.staffTabError = '';
+      this.operations.listStaff().subscribe(s => (this.staff = s));
+    }
     if (t === 'visitors') this.operations.listVisitors().subscribe(s => (this.visitors = s));
     if (t === 'gate') this.operations.listGatePasses().subscribe(s => (this.gatePasses = s));
-    if (t === 'inventory') this.operations.listInventory().subscribe(s => (this.inventory = s));
+    if (t === 'inventory') {
+      this.inventoryTabError = '';
+      this.operations.listInventory().subscribe(s => (this.inventory = s));
+    }
     if (t === 'reminders') this.reloadReminders();
     if (t === 'payroll') this.loadPayroll();
   }
@@ -320,6 +375,7 @@ export class OperationsHubComponent implements OnInit {
         sectionId: this.coverForm.sectionId || undefined,
         coveringTeacherId: this.coverForm.coveringTeacherId,
         reason: this.coverForm.reason,
+        periodNumber: this.coverForm.periodNumber != null && this.coverForm.periodNumber > 0 ? this.coverForm.periodNumber : undefined,
       })
       .subscribe(() => this.reloadCovers());
   }
@@ -329,7 +385,32 @@ export class OperationsHubComponent implements OnInit {
   }
 
   addStaff(): void {
-    this.operations.createStaff(this.staffForm).subscribe(() => this.operations.listStaff().subscribe(s => (this.staff = s)));
+    this.staffTabError = '';
+    const fullName = this.staffForm.fullName?.trim();
+    if (!fullName) {
+      this.staffTabError = 'Full name is required.';
+      return;
+    }
+    if (!this.staffForm.staffRole?.trim()) {
+      this.staffTabError = 'Role is required.';
+      return;
+    }
+    this.operations
+      .createStaff({
+        staffRole: this.staffForm.staffRole.trim(),
+        fullName,
+        phone: this.staffForm.phone?.trim() || undefined,
+        employeeCode: this.staffForm.employeeCode?.trim() || undefined,
+      })
+      .subscribe({
+        next: () => {
+          this.staffForm = { staffRole: this.staffForm.staffRole, fullName: '', phone: '', employeeCode: '' };
+          this.operations.listStaff().subscribe(s => (this.staff = s));
+        },
+        error: (e: Error) => {
+          this.staffTabError = e?.message || 'Could not add staff.';
+        },
+      });
   }
 
   removeStaff(s: OperationalStaffRow): void {
@@ -369,8 +450,75 @@ export class OperationsHubComponent implements OnInit {
   }
 
   saveInv(): void {
-    if (!this.invForm.sku || !this.invForm.name) return;
-    this.operations.upsertInventory(this.invForm).subscribe(() => this.operations.listInventory().subscribe(s => (this.inventory = s)));
+    this.inventoryTabError = '';
+    const sku = this.invForm.sku?.trim();
+    const name = this.invForm.name?.trim();
+    if (!sku || !name) {
+      this.inventoryTabError = 'SKU and name are required.';
+      return;
+    }
+    this.operations
+      .upsertInventory({
+        sku,
+        name,
+        category: this.invForm.category?.trim() || undefined,
+        quantityOnHand: this.invForm.quantityOnHand ?? 0,
+        reorderLevel: this.invForm.reorderLevel ?? 0,
+        location: this.invForm.location?.trim() || undefined,
+      })
+      .subscribe({
+        next: () => {
+          this.clearInventoryForm();
+          this.operations.listInventory().subscribe(s => (this.inventory = s));
+        },
+        error: (e: Error) => {
+          this.inventoryTabError = e?.message || 'Could not save inventory.';
+        },
+      });
+  }
+
+  editInventoryRow(row: InventoryRow): void {
+    this.inventoryTabError = '';
+    this.invEditingId = row.id;
+    this.invForm = {
+      sku: row.sku,
+      name: row.name,
+      category: row.category ?? '',
+      quantityOnHand: row.quantityOnHand ?? 0,
+      reorderLevel: row.reorderLevel ?? 0,
+      location: row.location ?? '',
+    };
+  }
+
+  clearInventoryForm(): void {
+    this.invEditingId = null;
+    this.invForm = { sku: '', name: '', category: '', quantityOnHand: 0, reorderLevel: 0, location: '' };
+  }
+
+  removeInventoryRow(row: InventoryRow): void {
+    this.inventoryTabError = '';
+    this.confirmDialog
+      .confirm({
+        title: 'Remove inventory item?',
+        message: `This will remove “${row.name}” (${row.sku}) from the active catalogue.`,
+        variant: 'danger',
+        confirmLabel: 'Remove',
+        cancelLabel: 'Cancel',
+      })
+      .pipe(filter(Boolean))
+      .subscribe(() => {
+        this.operations.deleteInventory(row.id).subscribe({
+          next: () => {
+            if (this.invEditingId === row.id) {
+              this.clearInventoryForm();
+            }
+            this.operations.listInventory().subscribe(s => (this.inventory = s));
+          },
+          error: (e: Error) => {
+            this.inventoryTabError = e?.message || 'Could not remove item.';
+          },
+        });
+      });
   }
 
   reloadReminders(): void {

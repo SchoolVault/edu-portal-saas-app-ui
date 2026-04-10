@@ -47,7 +47,7 @@ import { ConfirmDialogOptions, ConfirmDialogService } from './confirm-dialog.ser
       .confirm-dialog-root {
         position: fixed;
         inset: 0;
-        z-index: 11040;
+        z-index: 20000;
         display: flex;
         align-items: center;
         justify-content: center;

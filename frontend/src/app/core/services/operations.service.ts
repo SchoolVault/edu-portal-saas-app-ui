@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 import { Observable, of, throwError } from 'rxjs';
-import { delay } from 'rxjs/operators';
+import { delay, map } from 'rxjs/operators';
 import { ApiService } from './api.service';
 import { runtimeConfig } from '../config/runtime-config';
 import {
@@ -28,9 +28,30 @@ export class OperationsService {
 
   constructor(private api: ApiService) {}
 
+  /** Align API numeric ids with UI string ids (strict templates). */
+  private normalizeStaffRow(raw: OperationalStaffRow): OperationalStaffRow {
+    return {
+      ...raw,
+      id: String(raw.id),
+      userId: raw.userId != null ? String(raw.userId) : undefined,
+      transportRouteId: raw.transportRouteId != null ? String(raw.transportRouteId) : undefined,
+    };
+  }
+
+  private normalizeInventoryRow(raw: InventoryRow): InventoryRow {
+    return {
+      ...raw,
+      id: String(raw.id),
+      quantityOnHand: Number(raw.quantityOnHand ?? 0),
+      reorderLevel: Number(raw.reorderLevel ?? 0),
+    };
+  }
+
   listStaff(): Observable<OperationalStaffRow[]> {
     if (runtimeConfig.useMocks) return of([...this.mockStaff]).pipe(delay(200));
-    return this.api.get<OperationalStaffRow[]>('/operations/staff');
+    return this.api
+      .get<OperationalStaffRow[]>('/operations/staff')
+      .pipe(map(rows => (rows ?? []).map(r => this.normalizeStaffRow(r))));
   }
 
   deleteStaff(id: string, permanent = false): Observable<void> {
@@ -64,7 +85,7 @@ export class OperationsService {
       this.mockStaff = [...this.mockStaff, row];
       return of(row).pipe(delay(200));
     }
-    return this.api.post<OperationalStaffRow>('/operations/staff', body);
+    return this.api.post<OperationalStaffRow>('/operations/staff', body).pipe(map(r => this.normalizeStaffRow(r)));
   }
 
   listVisitors(): Observable<VisitorLogRow[]> {
@@ -133,7 +154,9 @@ export class OperationsService {
 
   listInventory(): Observable<InventoryRow[]> {
     if (runtimeConfig.useMocks) return of([...this.mockInv]).pipe(delay(150));
-    return this.api.get<InventoryRow[]>('/operations/inventory');
+    return this.api
+      .get<InventoryRow[]>('/operations/inventory')
+      .pipe(map(rows => (rows ?? []).map(r => this.normalizeInventoryRow(r))));
   }
 
   upsertInventory(body: Partial<InventoryRow> & { sku: string; name: string }): Observable<InventoryRow> {
@@ -152,7 +175,15 @@ export class OperationsService {
       else this.mockInv = [...this.mockInv, row];
       return of(row).pipe(delay(200));
     }
-    return this.api.post<InventoryRow>('/operations/inventory', body);
+    return this.api.post<InventoryRow>('/operations/inventory', body).pipe(map(r => this.normalizeInventoryRow(r)));
+  }
+
+  deleteInventory(id: string): Observable<void> {
+    if (runtimeConfig.useMocks) {
+      this.mockInv = this.mockInv.filter(x => String(x.id) !== String(id));
+      return of(undefined).pipe(delay(150));
+    }
+    return this.api.delete<void>(`/operations/inventory/${encodeURIComponent(id)}`);
   }
 
   listFeeReminders(status?: string): Observable<FeeReminderRow[]> {
@@ -261,6 +292,7 @@ export class OperationsService {
       const row: AttendanceCoverRow = {
         id: String(this.nextId++),
         coverDate: body.coverDate,
+        periodNumber: body.periodNumber,
         classId: body.classId,
         sectionId: body.sectionId,
         regularTeacherId: body.regularTeacherId,

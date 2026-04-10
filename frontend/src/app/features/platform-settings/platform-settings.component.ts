@@ -335,10 +335,12 @@ export class PlatformSettingsComponent implements OnInit {
   onOperatorPhotoPicked(ev: ProfilePhotoPickEvent): void {
     this.auth.setMyProfileAvatarDataUrl(ev.dataUrl);
     this.refreshOperatorPhoto();
+    this.cdr.markForCheck();
   }
 
   onOperatorPhotoRemoved(): void {
     this.auth.clearMyProfileAvatarDataUrl();
     this.refreshOperatorPhoto();
+    this.cdr.markForCheck();
   }
 }

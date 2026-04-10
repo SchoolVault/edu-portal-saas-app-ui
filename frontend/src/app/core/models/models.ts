@@ -190,6 +190,10 @@ export interface TimetableEntry {
   teacherName: string;
   room: string;
   tenantId: string;
+  /** {@code RECURRING} weekly slot vs one-day {@code COVER} from attendance cover assignments */
+  scheduleSource?: 'RECURRING' | 'COVER';
+  /** ISO date when this row is a cover overlay */
+  coverForDate?: string;
 }
 
 export interface TimetableGridSlot {

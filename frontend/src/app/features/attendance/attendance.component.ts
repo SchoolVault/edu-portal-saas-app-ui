@@ -93,6 +93,10 @@ import { ErpDatePickerComponent } from '../../shared/erp-date-picker/erp-date-pi
           Past session — view only. Click <strong>Edit attendance</strong> to change records (audit). You will confirm before saving.
         </div>
         <div *ngIf="saveError" class="alert alert-danger py-2 small mb-0 mt-2">{{ saveError }}</div>
+        <p *ngIf="isAdmin && !adminPastAuditView" class="text-muted small mb-0 mt-3" style="line-height: 1.5;">
+          <i class="bi bi-shield-check me-1"></i>
+          Administrators can submit attendance when needed; you will be asked to confirm before changes are saved (same rules apply with the live API).
+        </p>
       </div>
 
       <div class="erp-card animate-in animate-in-delay-2" *ngIf="records.length > 0">
@@ -147,9 +151,17 @@ export class AttendanceComponent implements OnInit {
   records: AttendanceRecord[] = [];
   saving = false;
   saveError = '';
-  isAdmin = false;
-  isTeacher = false;
   myCovers: AttendanceCoverRow[] = [];
+
+  /** Derived from auth on each read so role is never stale if the session hydrates after navigation. */
+  get isAdmin(): boolean {
+    const r = this.auth.getNormalizedRole();
+    return r === 'admin' || r === 'super_admin';
+  }
+
+  get isTeacher(): boolean {
+    return this.auth.getNormalizedRole() === 'teacher';
+  }
 
   constructor(
     private attendanceService: AttendanceService,
@@ -169,11 +181,8 @@ export class AttendanceComponent implements OnInit {
   adminPastEditing = false;
 
   ngOnInit(): void {
-    const r = (this.auth.getRole() ?? '').toLowerCase();
-    this.isAdmin = r === 'admin' || r === 'super_admin';
-    this.isTeacher = r === 'teacher';
     this.academicService.getClasses().subscribe(c => (this.classes = c));
-    if (r === 'teacher') {
+    if (this.isTeacher || this.isAdmin) {
       const me = this.auth.getCurrentUser();
       this.teacherService.getTeachers().subscribe({
         next: list => {
@@ -185,6 +194,8 @@ export class AttendanceComponent implements OnInit {
           this.teacherRosterResolved = true;
         },
       });
+    } else {
+      this.teacherRosterResolved = true;
     }
     if (this.isTeacher) {
       this.loadMyCovers();
@@ -292,7 +303,7 @@ export class AttendanceComponent implements OnInit {
     if (!cls?.classTeacherId || !this.linkedTeacherId) {
       return false;
     }
-    return cls.classTeacherId === this.linkedTeacherId;
+    return String(cls.classTeacherId) === String(this.linkedTeacherId);
   }
 
   private hasActiveCoverForSelection(): boolean {
@@ -318,7 +329,11 @@ export class AttendanceComponent implements OnInit {
 
   saveAttendance(): void {
     if (this.saveDisabled || this.saving) return;
-    const role = (this.auth.getRole() ?? '').toLowerCase();
+    const role = this.auth.getNormalizedRole();
+    if (!this.isTeacher && !this.isAdmin) {
+      this.saveError = 'Only administrators and teachers can mark class attendance.';
+      return;
+    }
     if (role === 'teacher') {
       if (!this.teacherRosterResolved) {
         this.saveError = 'Loading your teacher profile… please wait a moment and try again.';
@@ -348,6 +363,34 @@ export class AttendanceComponent implements OnInit {
           .subscribe(() => this.finishSaveAfterGuards());
         return;
       }
+    }
+    if (this.isAdmin) {
+      if (!this.teacherRosterResolved) {
+        this.saveError = 'Loading directory… please wait a moment and try again.';
+        return;
+      }
+      this.saveError = '';
+      const cls = this.classes.find(c => c.id === this.selectedClassId);
+      const homeroom = cls?.classTeacherName?.trim() || 'Not assigned';
+      const asHomeroom = this.isClassTeacherForCurrentClass();
+      this.confirmDialog
+        .confirm({
+          title: 'Submit attendance as administrator',
+          message: asHomeroom
+            ? `You are signed in as an administrator. You are also recorded as the homeroom teacher for this class (${homeroom}). Confirm submission for this session?`
+            : `You are not the class teacher for this group. Daily attendance is normally recorded by the homeroom teacher (${homeroom}). Continue only if you are authorised to submit on their behalf.`,
+          details: [
+            `Date: ${this.selectedDate}`,
+            cls ? `Class: ${cls.name}` : undefined,
+            this.selectedSectionId ? `Section id: ${this.selectedSectionId}` : undefined,
+          ].filter((x): x is string => !!x),
+          variant: 'warning',
+          confirmLabel: 'Yes, submit attendance',
+          cancelLabel: 'Go back',
+        })
+        .pipe(filter(Boolean))
+        .subscribe(() => this.finishSaveAfterGuards());
+      return;
     }
     this.finishSaveAfterGuards();
   }

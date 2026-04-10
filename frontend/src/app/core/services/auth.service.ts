@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { BehaviorSubject, Observable, of, throwError } from 'rxjs';
+import { BehaviorSubject, Observable, Subject, of, throwError } from 'rxjs';
 import { delay, tap } from 'rxjs/operators';
 import { User, LoginRequest, LoginResponse, OnboardSchoolRequest, ProfileSummary } from '../models/models';
 import { ApiService } from './api.service';
@@ -17,6 +17,10 @@ export class AuthService {
   currentUser$ = this.currentUserSubject.asObservable();
   token$ = this.tokenSubject.asObservable();
   profileSummary$ = this.profileSummarySubject.asObservable();
+
+  /** Emits when the signed-in user’s profile photo changes (local or future API). Header/settings subscribe. */
+  private readonly profileAvatarChanged = new Subject<void>();
+  readonly profileAvatarChanged$ = this.profileAvatarChanged.asObservable();
 
   private mockUsers = [
     {
@@ -162,6 +166,18 @@ export class AuthService {
     return this.currentUserSubject.value?.role || null;
   }
 
+  /**
+   * Canonical role key for UI / guards (lowercase, strips Spring-style ROLE_ prefix).
+   * Use this anywhere role string equality matters so API/token drift does not skip flows (e.g. admin confirm dialogs).
+   */
+  getNormalizedRole(): string {
+    const raw = (this.getRole() ?? '').trim().toLowerCase();
+    if (!raw) {
+      return '';
+    }
+    return raw.startsWith('role_') ? raw.slice(5) : raw;
+  }
+
   getTenantId(): string | null {
     return this.currentUserSubject.value?.tenantId || null;
   }
@@ -184,12 +200,26 @@ export class AuthService {
     const u = this.getCurrentUser();
     if (!u) return;
     localStorage.setItem(`erp_avatar_${u.id}`, dataUrl);
+    const next = { ...u, avatar: dataUrl };
+    localStorage.setItem('erp_user', JSON.stringify(next));
+    this.currentUserSubject.next(next);
+    this.profileAvatarChanged.next();
   }
 
   clearMyProfileAvatarDataUrl(): void {
     const u = this.getCurrentUser();
     if (!u) return;
     localStorage.removeItem(`erp_avatar_${u.id}`);
+    const { avatar: _a, ...rest } = u;
+    const next = { ...rest } as User;
+    localStorage.setItem('erp_user', JSON.stringify(next));
+    this.currentUserSubject.next(next);
+    this.profileAvatarChanged.next();
+  }
+
+  /** Resolved avatar for header / shell: device override, then user model, then optional summary. */
+  resolveCurrentUserAvatarUrl(summaryAvatar?: string | null): string | null {
+    return this.getStoredAvatarDataUrl() || this.getCurrentUser()?.avatar || summaryAvatar || null;
   }
 
   setChildAvatarDataUrl(studentId: string, dataUrl: string): void {

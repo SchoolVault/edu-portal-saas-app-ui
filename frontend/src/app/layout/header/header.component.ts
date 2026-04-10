@@ -213,23 +213,33 @@ export class HeaderComponent implements OnInit, OnDestroy {
     if (!runtimeConfig.useMocks) {
       this.notificationService.refreshFromServer().subscribe({ error: () => { /* not logged in or API down */ } });
     }
-    this.authService.profileSummary$.pipe(takeUntil(this.destroy$)).subscribe(s => {
-      if (!s) return;
-      this.profileSummary = s;
-      this.userName = s.name || this.userName;
-      this.userRole = (s.role as string) || this.userRole;
-      const nm = s.name || '';
-      this.initials = nm
+    const syncHeaderIdentity = (): void => {
+      const user = this.authService.getCurrentUser();
+      const s = this.profileSummary;
+      const displayName = s?.name || user?.name || '';
+      this.userName = displayName;
+      this.userRole = (s?.role as string) || user?.role || this.userRole;
+      this.initials = displayName
         .split(/\s+/)
         .filter(Boolean)
         .map(p => p[0])
         .join('')
         .toUpperCase()
         .substring(0, 2);
-      this.avatarUrl = s.avatar || this.authService.getCurrentUser()?.avatar || this.authService.getStoredAvatarDataUrl() || null;
+      this.avatarUrl = this.authService.resolveCurrentUserAvatarUrl(s?.avatar ?? null);
+    };
+
+    this.authService.profileSummary$.pipe(takeUntil(this.destroy$)).subscribe(s => {
+      if (!s) return;
+      this.profileSummary = s;
+      syncHeaderIdentity();
     });
+    this.authService.profileAvatarChanged$.pipe(takeUntil(this.destroy$)).subscribe(() => syncHeaderIdentity());
+    this.authService.currentUser$.pipe(takeUntil(this.destroy$)).subscribe(() => syncHeaderIdentity());
     this.authService.fetchProfileSummary().subscribe();
     this.themeService.theme$.subscribe(theme => this.currentTheme = theme);
+
+    syncHeaderIdentity();
 
     if (this.isSuperAdmin) {
       merge(of(null), this.router.events.pipe(filter(e => e instanceof NavigationEnd)))

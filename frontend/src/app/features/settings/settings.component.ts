@@ -54,7 +54,13 @@ import { ProfilePhotoPickerComponent, ProfilePhotoPickEvent } from '../../shared
               </div>
               <div class="settings-profile-panel__body">
                 <div class="settings-profile-identity" *ngIf="profileUser as u">
-                  <div class="settings-profile-identity__avatar" aria-hidden="true">{{ profileInitials }}</div>
+                  <div *ngIf="!profilePreviewUrl" class="settings-profile-identity__avatar" aria-hidden="true">{{ profileInitials }}</div>
+                  <img
+                    *ngIf="profilePreviewUrl"
+                    [src]="profilePreviewUrl"
+                    alt=""
+                    class="settings-profile-identity__avatar settings-profile-identity__avatar--photo"
+                  />
                   <div class="settings-profile-identity__text">
                     <div class="settings-profile-identity__name">{{ u.name }}</div>
                     <div class="settings-profile-identity__email">{{ u.email }}</div>
@@ -352,6 +358,11 @@ import { ProfilePhotoPickerComponent, ProfilePhotoPickEvent } from '../../shared
         flex-shrink: 0;
         overflow: hidden;
       }
+      .settings-profile-identity__avatar--photo {
+        display: block;
+        object-fit: cover;
+        padding: 0;
+      }
       .settings-profile-identity__name {
         font-weight: 700;
         font-size: 15px;
@@ -586,11 +597,13 @@ export class SettingsComponent implements OnInit {
   onOwnPhotoPicked(ev: ProfilePhotoPickEvent): void {
     this.auth.setMyProfileAvatarDataUrl(ev.dataUrl);
     this.refreshProfilePreview();
+    this.cdr.markForCheck();
   }
 
   onOwnPhotoRemoved(): void {
     this.auth.clearMyProfileAvatarDataUrl();
     this.refreshProfilePreview();
+    this.cdr.markForCheck();
   }
 
   syncChildPhotoPreview(): void {
