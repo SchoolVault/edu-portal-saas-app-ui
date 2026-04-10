@@ -41,6 +41,10 @@ spring:
     enabled: ${FLYWAY_ENABLED:true}
     locations: ${FLYWAY_LOCATIONS:classpath:db/migration}
     baseline-on-migrate: ${FLYWAY_BASELINE_ON_MIGRATE:true}
+    # Runs Flyway repair before migrate (clears failed entries in flyway_schema_history).
+    # Safe only after you have removed partial objects from the failed migration (e.g. dropped all app tables or recreated the DB).
+    # See deploy/render.env.example — do not leave true permanently in production.
+    repair-on-migrate: ${FLYWAY_REPAIR_ON_MIGRATE:false}
 
   cache:
     type: ${CACHE_TYPE:redis}
