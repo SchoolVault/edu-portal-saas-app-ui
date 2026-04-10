@@ -6,6 +6,9 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import javax.crypto.SecretKey;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -16,8 +19,46 @@ public class JwtUtil {
     private final long expirationMs;
 
     public JwtUtil(@Value("${app.jwt.secret}") String secret, @Value("${app.jwt.expiration-ms}") long expirationMs) {
-        this.key = Keys.hmacShaKeyFor(Base64.getDecoder().decode(secret));
+        this.key = Keys.hmacShaKeyFor(resolveHmacKeyBytes(secret));
         this.expirationMs = expirationMs;
+    }
+
+    /**
+     * Accepts (1) standard or URL-safe Base64 that decodes to at least 32 bytes (legacy / openssl rand -base64 32),
+     * or (2) any non-empty UTF-8 string (e.g. Render “generate password”) — hashed with SHA-256 to 32 bytes for HS256.
+     */
+    static byte[] resolveHmacKeyBytes(String secret) {
+        if (secret == null || secret.isBlank()) {
+            throw new IllegalArgumentException("app.jwt.secret must not be empty");
+        }
+        String s = secret.trim();
+        try {
+            byte[] decoded = Base64.getDecoder().decode(s);
+            if (decoded.length >= 32) {
+                return decoded;
+            }
+        } catch (IllegalArgumentException ignored) {
+            // not standard Base64 (e.g. contains '-' from UUIDs or plain phrases)
+        }
+        try {
+            byte[] decoded = Base64.getUrlDecoder().decode(s);
+            if (decoded.length >= 32) {
+                return decoded;
+            }
+        } catch (IllegalArgumentException ignored) {
+            // not URL-safe Base64
+        }
+        org.slf4j.LoggerFactory.getLogger(JwtUtil.class).debug(
+                "JWT secret is not Base64 (or decoded length < 32); using SHA-256(UTF-8 secret) for HMAC key");
+        return sha256(s.getBytes(StandardCharsets.UTF_8));
+    }
+
+    private static byte[] sha256(byte[] input) {
+        try {
+            return MessageDigest.getInstance("SHA-256").digest(input);
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 not available", e);
+        }
     }
 
     public String generateToken(Long userId, String tenantId, String email, String role, String name) {
