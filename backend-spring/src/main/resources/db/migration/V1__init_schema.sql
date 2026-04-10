@@ -120,6 +120,7 @@ CREATE TABLE teachers (
 CREATE TABLE teacher_subjects (
     teacher_id BIGINT NOT NULL,
     subject VARCHAR(100) NOT NULL,
+    PRIMARY KEY (teacher_id, subject),
     FOREIGN KEY (teacher_id) REFERENCES teachers(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 

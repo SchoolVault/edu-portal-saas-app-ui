@@ -23,12 +23,41 @@ import java.util.stream.Collectors;
 @Service
 public class AcademicService {
     private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(AcademicService.class);
+
+    /** Used when a tenant has no {@code academic_subjects} rows yet (new school). */
+    private static final List<AcademicDTOs.SubjectCatalogItem> DEFAULT_SUBJECT_CATALOG = List.of(
+            new AcademicDTOs.SubjectCatalogItem(null, "MATH", "Mathematics", "STEM"),
+            new AcademicDTOs.SubjectCatalogItem(null, "PHY", "Physics", "STEM"),
+            new AcademicDTOs.SubjectCatalogItem(null, "CHEM", "Chemistry", "STEM"),
+            new AcademicDTOs.SubjectCatalogItem(null, "BIO", "Biology", "STEM"),
+            new AcademicDTOs.SubjectCatalogItem(null, "CS", "Computer Science", "STEM"),
+            new AcademicDTOs.SubjectCatalogItem(null, "ENG", "English", "Languages"),
+            new AcademicDTOs.SubjectCatalogItem(null, "HIST", "History", "Social"),
+            new AcademicDTOs.SubjectCatalogItem(null, "GEO", "Geography", "Social"),
+            new AcademicDTOs.SubjectCatalogItem(null, "PE", "Physical Education", "Arts"));
+
     private final AcademicYearRepository yearRepo;
     private final SchoolClassRepository classRepo;
     private final SectionRepository sectionRepo;
     private final StudentRepository studentRepo;
     private final MarkRecordRepository markRepo;
     private final TeacherAssignmentService teacherAssignmentService;
+    private final AcademicSubjectRepository academicSubjectRepo;
+
+    // ========== SUBJECT CATALOG ==========
+    @Transactional(readOnly = true)
+    public List<AcademicDTOs.SubjectCatalogItem> getSubjectCatalog() {
+        String tenantId = TenantContext.getTenantId();
+        List<AcademicSubject> rows = academicSubjectRepo.findByTenantIdAndIsDeletedFalseOrderBySortOrderAscNameAsc(tenantId);
+        if (rows.isEmpty()) {
+            return DEFAULT_SUBJECT_CATALOG.stream()
+                    .map(d -> new AcademicDTOs.SubjectCatalogItem(d.getId(), d.getCode(), d.getName(), d.getCategory()))
+                    .collect(Collectors.toList());
+        }
+        return rows.stream()
+                .map(s -> new AcademicDTOs.SubjectCatalogItem(s.getId(), s.getCode(), s.getName(), s.getCategory()))
+                .collect(Collectors.toList());
+    }
 
     // ========== ACADEMIC YEARS ==========
     @Transactional(readOnly = true)
@@ -269,12 +298,14 @@ public class AcademicService {
             final SectionRepository sectionRepo,
             final StudentRepository studentRepo,
             final MarkRecordRepository markRepo,
-            final TeacherAssignmentService teacherAssignmentService) {
+            final TeacherAssignmentService teacherAssignmentService,
+            final AcademicSubjectRepository academicSubjectRepo) {
         this.yearRepo = yearRepo;
         this.classRepo = classRepo;
         this.sectionRepo = sectionRepo;
         this.studentRepo = studentRepo;
         this.markRepo = markRepo;
         this.teacherAssignmentService = teacherAssignmentService;
+        this.academicSubjectRepo = academicSubjectRepo;
     }
 }

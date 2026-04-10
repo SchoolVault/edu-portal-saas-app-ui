@@ -3,7 +3,8 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, ActivatedRoute } from '@angular/router';
 import { TeacherService } from '../../core/services/teacher.service';
-import { Teacher } from '../../core/models/models';
+import { AcademicService } from '../../core/services/academic.service';
+import { SubjectCatalogItem, Teacher } from '../../core/models/models';
 
 @Component({
   selector: 'app-teacher-form',
@@ -26,10 +27,33 @@ import { Teacher } from '../../core/models/models';
             <div class="col-md-4"><div class="erp-form-group"><label class="erp-label">Specialization</label><input type="text" class="erp-input" [(ngModel)]="teacher.specialization" name="specialization"></div></div>
             <div class="col-md-4"><div class="erp-form-group"><label class="erp-label">Join Date</label><input type="date" class="erp-input" [(ngModel)]="teacher.joinDate" name="joinDate"></div></div>
             <div class="col-md-4"><div class="erp-form-group"><label class="erp-label">Salary</label><input type="number" class="erp-input" [(ngModel)]="teacher.salary" name="salary"></div></div>
+            <div class="col-12">
+              <div class="erp-form-group">
+                <label class="erp-label">Subjects (from school catalog)</label>
+                <p class="text-muted small mb-2" *ngIf="catalogLoading">Loading catalog…</p>
+                <div *ngIf="!catalogLoading && subjectsByCategory().length === 0" class="text-muted small">No subjects configured for this school.</div>
+                <div *ngFor="let group of subjectsByCategory()" class="mb-3">
+                  <div class="fw-semibold small text-uppercase text-muted mb-1">{{ group[0] }}</div>
+                  <div class="d-flex flex-wrap gap-3">
+                    <label *ngFor="let s of group[1]" class="d-flex align-items-center gap-2 small mb-0" style="cursor: pointer;">
+                      <input type="checkbox" [checked]="catalogSubjectSelected(s.name)" (change)="toggleCatalogSubject(s.name)">
+                      <span>{{ s.name }}<span *ngIf="s.code" class="text-muted"> ({{ s.code }})</span></span>
+                    </label>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="col-12">
+              <div class="erp-form-group">
+                <label class="erp-label">Additional subjects (optional)</label>
+                <input type="text" class="erp-input" [(ngModel)]="additionalSubjectsRaw" name="additionalSubjects" placeholder="e.g. Music, Drama — comma-separated">
+                <div class="small text-muted mt-1">Use for subjects not yet in the catalog; admins can add them to the master list later.</div>
+              </div>
+            </div>
           </div>
           <div class="d-flex justify-content-end gap-3">
             <button type="button" class="btn-outline-erp" (click)="goBack()">Cancel</button>
-            <button type="submit" class="btn-primary-erp" [disabled]="saving" data-testid="save-teacher-btn">
+            <button type="submit" class="btn-primary-erp" [disabled]="saving || catalogLoading" data-testid="save-teacher-btn">
               {{ saving ? 'Saving...' : (isEdit ? 'Update' : 'Add Teacher') }}
             </button>
           </div>
@@ -40,26 +64,91 @@ import { Teacher } from '../../core/models/models';
 })
 export class TeacherFormComponent implements OnInit {
   teacher: Partial<Teacher> = { status: 'active', tenantId: 't1', subjects: [], classIds: [], salary: 0 };
+  subjectCatalog: SubjectCatalogItem[] = [];
+  catalogLoading = true;
+  additionalSubjectsRaw = '';
   isEdit = false;
   saving = false;
 
-  constructor(private teacherService: TeacherService, private router: Router, private route: ActivatedRoute) {}
+  constructor(
+    private teacherService: TeacherService,
+    private academicService: AcademicService,
+    private router: Router,
+    private route: ActivatedRoute
+  ) {}
 
   ngOnInit(): void {
     const id = this.route.snapshot.paramMap.get('id');
-    if (id && id !== 'new') {
-      this.isEdit = true;
-      this.teacherService.getTeacherById(id).subscribe(t => { if (t) this.teacher = { ...t }; });
+    if (id && id !== 'new') this.isEdit = true;
+
+    this.academicService.getSubjectCatalog().subscribe({
+      next: cat => {
+        this.subjectCatalog = cat;
+        this.catalogLoading = false;
+        if (this.isEdit && id) {
+          this.teacherService.getTeacherById(id).subscribe(t => {
+            if (t) this.applyTeacherFromApi(t);
+          });
+        }
+      },
+      error: () => {
+        this.subjectCatalog = [];
+        this.catalogLoading = false;
+      }
+    });
+  }
+
+  subjectsByCategory(): [string, SubjectCatalogItem[]][] {
+    const m = new Map<string, SubjectCatalogItem[]>();
+    for (const s of this.subjectCatalog) {
+      const c = s.category?.trim() || 'Other';
+      if (!m.has(c)) m.set(c, []);
+      m.get(c)!.push(s);
     }
+    return [...m.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+  }
+
+  catalogSubjectSelected(name: string): boolean {
+    return (this.teacher.subjects ?? []).includes(name);
+  }
+
+  toggleCatalogSubject(name: string): void {
+    if (!this.teacher.subjects) this.teacher.subjects = [];
+    const i = this.teacher.subjects.indexOf(name);
+    if (i >= 0) this.teacher.subjects.splice(i, 1);
+    else this.teacher.subjects.push(name);
+  }
+
+  private applyTeacherFromApi(t: Teacher): void {
+    const catNames = new Set(this.subjectCatalog.map(s => s.name));
+    const all = [...(t.subjects ?? [])];
+    this.teacher = { ...t, subjects: all.filter(s => catNames.has(s)) };
+    this.additionalSubjectsRaw = all.filter(s => !catNames.has(s)).join(', ');
+  }
+
+  private mergeSubjectsForSave(): string[] {
+    const extra = this.additionalSubjectsRaw
+      .split(',')
+      .map(s => s.trim())
+      .filter(Boolean);
+    const fromCatalog = [...(this.teacher.subjects ?? [])];
+    return [...new Set([...fromCatalog, ...extra])];
   }
 
   onSubmit(): void {
     if (!this.teacher.firstName || !this.teacher.lastName || !this.teacher.email) return;
     this.saving = true;
-    if (this.isEdit && this.teacher.id) {
-      this.teacherService.updateTeacher(this.teacher.id, this.teacher).subscribe(() => { this.saving = false; this.router.navigate(['/app/teachers']); });
+    const payload = { ...this.teacher, subjects: this.mergeSubjectsForSave() };
+    if (this.isEdit && payload.id) {
+      this.teacherService.updateTeacher(payload.id, payload).subscribe({
+        next: () => { this.saving = false; this.router.navigate(['/app/teachers']); },
+        error: () => { this.saving = false; }
+      });
     } else {
-      this.teacherService.addTeacher(this.teacher as Omit<Teacher, 'id'>).subscribe(() => { this.saving = false; this.router.navigate(['/app/teachers']); });
+      this.teacherService.addTeacher(payload as Omit<Teacher, 'id'>).subscribe({
+        next: () => { this.saving = false; this.router.navigate(['/app/teachers']); },
+        error: () => { this.saving = false; }
+      });
     }
   }
 

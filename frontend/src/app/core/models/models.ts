@@ -96,6 +96,14 @@ export interface AttendanceStats {
 /** Library desk privileges (mirrors backend Enums.LibraryStaffRole). */
 export type LibraryStaffRole = 'assistant' | 'librarian' | 'head';
 
+/** Tenant subject master row; mirrors GET /api/v1/academic/subjects/catalog. */
+export interface SubjectCatalogItem {
+  id: string | null;
+  code: string | null;
+  name: string;
+  category: string | null;
+}
+
 export interface Teacher {
   id: string;
   firstName: string;

@@ -907,4 +907,54 @@ public class AcademicDTOs {
             this.teacherName = teacherName;
         }
     }
+
+    /** Subject pick-list for forms (timetable, teacher profile, exams). {@code id} null = platform default when DB has no rows for tenant. */
+    public static class SubjectCatalogItem {
+        private Long id;
+        private String code;
+        private String name;
+        private String category;
+
+        public SubjectCatalogItem() {
+        }
+
+        public SubjectCatalogItem(final Long id, final String code, final String name, final String category) {
+            this.id = id;
+            this.code = code;
+            this.name = name;
+            this.category = category;
+        }
+
+        public Long getId() {
+            return this.id;
+        }
+
+        public void setId(final Long id) {
+            this.id = id;
+        }
+
+        public String getCode() {
+            return this.code;
+        }
+
+        public void setCode(final String code) {
+            this.code = code;
+        }
+
+        public String getName() {
+            return this.name;
+        }
+
+        public void setName(final String name) {
+            this.name = name;
+        }
+
+        public String getCategory() {
+            return this.category;
+        }
+
+        public void setCategory(final String category) {
+            this.category = category;
+        }
+    }
 }

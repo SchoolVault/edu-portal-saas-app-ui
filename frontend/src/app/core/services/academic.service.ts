@@ -1,7 +1,7 @@
 import { Injectable } from '@angular/core';
 import { Observable, of } from 'rxjs';
 import { delay, map } from 'rxjs/operators';
-import { AcademicYear, PromotionPreview, PromotionResult, SchoolClass } from '../models/models';
+import { AcademicYear, PromotionPreview, PromotionResult, SchoolClass, SubjectCatalogItem } from '../models/models';
 import { ApiService } from './api.service';
 import { runtimeConfig } from '../config/runtime-config';
 
@@ -10,6 +10,19 @@ export class AcademicService {
   private academicYears: AcademicYear[] = [
     { id: 'ay1', name: '2025-2026', startDate: '2025-06-01', endDate: '2026-05-31', isCurrent: true, tenantId: 't1' },
     { id: 'ay2', name: '2024-2025', startDate: '2024-06-01', endDate: '2025-05-31', isCurrent: false, tenantId: 't1' },
+  ];
+
+  /** Same defaults as backend AcademicService.DEFAULT_SUBJECT_CATALOG (mock path). */
+  private mockSubjectCatalog: SubjectCatalogItem[] = [
+    { id: null, code: 'MATH', name: 'Mathematics', category: 'STEM' },
+    { id: null, code: 'PHY', name: 'Physics', category: 'STEM' },
+    { id: null, code: 'CHEM', name: 'Chemistry', category: 'STEM' },
+    { id: null, code: 'BIO', name: 'Biology', category: 'STEM' },
+    { id: null, code: 'CS', name: 'Computer Science', category: 'STEM' },
+    { id: null, code: 'ENG', name: 'English', category: 'Languages' },
+    { id: null, code: 'HIST', name: 'History', category: 'Social' },
+    { id: null, code: 'GEO', name: 'Geography', category: 'Social' },
+    { id: null, code: 'PE', name: 'Physical Education', category: 'Arts' },
   ];
 
   private classes: SchoolClass[] = [
@@ -30,6 +43,23 @@ export class AcademicService {
   getAcademicYears(): Observable<AcademicYear[]> {
     if (!runtimeConfig.useMocks) { return this.api.get<AcademicYear[]>('/academic/years'); }
     return of([...this.academicYears]).pipe(delay(300));
+  }
+
+  /** Subject master list for dropdowns; persisted teacher skills still use subject display names in API. */
+  getSubjectCatalog(): Observable<SubjectCatalogItem[]> {
+    if (!runtimeConfig.useMocks) {
+      return this.api.get<any[]>('/academic/subjects/catalog').pipe(
+        map(rows =>
+          (rows ?? []).map((r: any) => ({
+            id: r.id != null ? String(r.id) : null,
+            code: r.code ?? null,
+            name: String(r.name ?? ''),
+            category: r.category ?? null,
+          }))
+        )
+      );
+    }
+    return of(this.mockSubjectCatalog.map(s => ({ ...s }))).pipe(delay(200));
   }
   getClasses(): Observable<SchoolClass[]> {
     if (!runtimeConfig.useMocks) {

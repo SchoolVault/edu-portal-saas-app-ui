@@ -82,6 +82,13 @@ public class AcademicController {
         return ResponseEntity.ok(ApiResponse.ok(service.assignClassTeacher(classId, req.getTeacherId(), req.getTeacherName())));
     }
 
+    @GetMapping("/subjects/catalog")
+    @PreAuthorize("hasAnyRole(\'ADMIN\',\'TEACHER\')")
+    @Operation(summary = "Subject catalog for dropdowns", description = "Tenant-scoped master list; falls back to platform defaults if no rows.")
+    public ResponseEntity<ApiResponse<List<AcademicDTOs.SubjectCatalogItem>>> subjectCatalog() {
+        return ResponseEntity.ok(ApiResponse.ok(service.getSubjectCatalog()));
+    }
+
     @GetMapping("/promotion/preview")
     @PreAuthorize("hasRole(\'ADMIN\')")
     @Operation(summary = "Preview class promotion", description = "Returns target class and eligible students for promotion")
