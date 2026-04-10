@@ -1,6 +1,25 @@
 package com.school.erp.modules.auth.dto;
 
+import java.util.List;
+
 public class AuthProfileDTOs {
+
+    /** Classes where the current teacher is assigned as class teacher (directory / photo policy). */
+    public static class ClassTeacherAssignment {
+        private String classId;
+        private String className;
+        private String sectionName;
+        private long totalStudents;
+
+        public String getClassId() { return classId; }
+        public void setClassId(String classId) { this.classId = classId; }
+        public String getClassName() { return className; }
+        public void setClassName(String className) { this.className = className; }
+        public String getSectionName() { return sectionName; }
+        public void setSectionName(String sectionName) { this.sectionName = sectionName; }
+        public long getTotalStudents() { return totalStudents; }
+        public void setTotalStudents(long totalStudents) { this.totalStudents = totalStudents; }
+    }
 
     public static class ProfileSummaryResponse {
         private Long id;
@@ -27,6 +46,8 @@ public class AuthProfileDTOs {
         private long managedTeacherCount;
         /** Populated for SUPER_ADMIN: active (non-deleted) school workspaces. */
         private int platformWorkspaceCount;
+        /** Populated for TEACHER: classes where this teacher is the class teacher. */
+        private List<ClassTeacherAssignment> classTeacherOf;
 
         public Long getId() { return id; }
         public void setId(Long id) { this.id = id; }
@@ -74,5 +95,7 @@ public class AuthProfileDTOs {
         public void setManagedTeacherCount(long managedTeacherCount) { this.managedTeacherCount = managedTeacherCount; }
         public int getPlatformWorkspaceCount() { return platformWorkspaceCount; }
         public void setPlatformWorkspaceCount(int platformWorkspaceCount) { this.platformWorkspaceCount = platformWorkspaceCount; }
+        public List<ClassTeacherAssignment> getClassTeacherOf() { return classTeacherOf; }
+        public void setClassTeacherOf(List<ClassTeacherAssignment> classTeacherOf) { this.classTeacherOf = classTeacherOf; }
     }
 }

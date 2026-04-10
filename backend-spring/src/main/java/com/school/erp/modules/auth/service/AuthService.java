@@ -13,6 +13,8 @@ import com.school.erp.modules.auth.entity.User;
 import com.school.erp.modules.auth.repository.RefreshTokenRepository;
 import com.school.erp.modules.auth.repository.UserRepository;
 import com.school.erp.modules.audit.service.AuditService;
+import com.school.erp.modules.academic.entity.SchoolClass;
+import com.school.erp.modules.academic.repository.SchoolClassRepository;
 import com.school.erp.modules.settings.entity.TenantConfig;
 import com.school.erp.modules.settings.repository.TenantConfigRepository;
 import com.school.erp.modules.student.repository.StudentRepository;
@@ -24,6 +26,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
 
@@ -35,6 +39,7 @@ public class AuthService {
     private final TenantConfigRepository tenantConfigRepository;
     private final StudentRepository studentRepository;
     private final TeacherRepository teacherRepository;
+    private final SchoolClassRepository schoolClassRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
     private final AuditService auditService;
@@ -179,6 +184,19 @@ public class AuthService {
                 response.setQualification(teacher.getQualification());
                 response.setSpecialization(teacher.getSpecialization());
                 response.setSubjectCount(teacher.getSubjects() != null ? teacher.getSubjects().size() : 0);
+                List<SchoolClass> ctClasses = schoolClassRepository.findByTenantIdAndClassTeacherIdAndIsDeletedFalse(tenantId, teacher.getId());
+                if (!ctClasses.isEmpty()) {
+                    List<AuthProfileDTOs.ClassTeacherAssignment> rows = new ArrayList<>();
+                    for (SchoolClass sc : ctClasses) {
+                        AuthProfileDTOs.ClassTeacherAssignment row = new AuthProfileDTOs.ClassTeacherAssignment();
+                        row.setClassId(sc.getId() != null ? String.valueOf(sc.getId()) : null);
+                        row.setClassName(sc.getName());
+                        row.setSectionName(null);
+                        row.setTotalStudents(0L);
+                        rows.add(row);
+                    }
+                    response.setClassTeacherOf(rows);
+                }
             });
             case PARENT -> {
                 response.setUserTitle("Parent Account");
@@ -286,12 +304,13 @@ public class AuthService {
         return "tenant_" + schoolCode.toLowerCase(Locale.ROOT) + "_" + UUID.randomUUID().toString().substring(0, 8);
     }
 
-    public AuthService(final UserRepository userRepository, final RefreshTokenRepository refreshTokenRepository, final TenantConfigRepository tenantConfigRepository, final StudentRepository studentRepository, final TeacherRepository teacherRepository, final PasswordEncoder passwordEncoder, final JwtUtil jwtUtil, final AuditService auditService) {
+    public AuthService(final UserRepository userRepository, final RefreshTokenRepository refreshTokenRepository, final TenantConfigRepository tenantConfigRepository, final StudentRepository studentRepository, final TeacherRepository teacherRepository, final SchoolClassRepository schoolClassRepository, final PasswordEncoder passwordEncoder, final JwtUtil jwtUtil, final AuditService auditService) {
         this.userRepository = userRepository;
         this.refreshTokenRepository = refreshTokenRepository;
         this.tenantConfigRepository = tenantConfigRepository;
         this.studentRepository = studentRepository;
         this.teacherRepository = teacherRepository;
+        this.schoolClassRepository = schoolClassRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtUtil = jwtUtil;
         this.auditService = auditService;

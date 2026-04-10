@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { ChangeDetectorRef, Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { SettingsService } from '../../core/services/settings.service';
@@ -7,11 +7,12 @@ import { AuthService } from '../../core/services/auth.service';
 import { StudentService } from '../../core/services/student.service';
 import { SchoolBranch, Student } from '../../core/models/models';
 import { runtimeConfig } from '../../core/config/runtime-config';
+import { ProfilePhotoPickerComponent, ProfilePhotoPickEvent } from '../../shared/profile-photo-picker/profile-photo-picker.component';
 
 @Component({
   selector: 'app-settings',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, ProfilePhotoPickerComponent],
   template: `
     <div data-testid="settings-page">
       <div class="mb-4 animate-in d-flex flex-wrap justify-content-between align-items-start gap-2">
@@ -31,30 +32,121 @@ import { runtimeConfig } from '../../core/config/runtime-config';
         <button class="erp-tab" [class.active]="tab === 'profile'" (click)="tab = 'profile'">Profile &amp; photo</button>
       </div>
 
-      <div *ngIf="tab === 'profile'" class="erp-card animate-in">
-        <h4 style="font-size: 15px; font-weight: 700; margin-bottom: 12px;">Profile photo</h4>
-        <p class="text-muted small">Photos are stored in this browser for demo (data URL). A future media service will sync across devices.</p>
-        <div class="row g-3 align-items-center mt-1">
-          <div class="col-auto">
-            <div *ngIf="!profilePreviewUrl" class="settings-avatar-preview">{{ profileInitials }}</div>
-            <img *ngIf="profilePreviewUrl" [src]="profilePreviewUrl" alt="" class="settings-avatar-preview settings-avatar-img" />
+      <div *ngIf="tab === 'profile'" class="erp-card animate-in settings-profile-root">
+        <header class="settings-profile-root__header">
+          <div>
+            <h3 class="settings-profile-root__title">Profile &amp; photo</h3>
+            <p class="settings-profile-root__lead">
+              Who you are in SchoolVault, and the picture shown in the header.
+            </p>
           </div>
-          <div class="col-md-8">
+        </header>
+
+        <div class="row g-4 align-items-start">
+          <div class="col-lg-5">
+            <section class="settings-profile-panel" aria-labelledby="settings-profile-account-h">
+              <div class="settings-profile-panel__head" id="settings-profile-account-h">
+                <span class="settings-profile-panel__icon"><i class="bi bi-person-vcard"></i></span>
+                <span class="settings-profile-panel__head-text">Account</span>
+              </div>
+              <div class="settings-profile-panel__body">
+                <div class="settings-profile-identity" *ngIf="profileUser as u">
+                  <div class="settings-profile-identity__avatar" aria-hidden="true">{{ profileInitials }}</div>
+                  <div class="settings-profile-identity__text">
+                    <div class="settings-profile-identity__name">{{ u.name }}</div>
+                    <div class="settings-profile-identity__email">{{ u.email }}</div>
+                  </div>
+                </div>
+                <dl class="settings-profile-meta">
+                  <div class="settings-profile-meta__row">
+                    <dt>Role</dt>
+                    <dd><span class="settings-profile-role">{{ roleDisplayLabel }}</span></dd>
+                  </div>
+                  <div class="settings-profile-meta__row">
+                    <dt>School</dt>
+                    <dd>{{ schoolName || '—' }}</dd>
+                  </div>
+                  <div class="settings-profile-meta__row" *ngIf="schoolCode">
+                    <dt>Code</dt>
+                    <dd><code class="settings-profile-code">{{ schoolCode }}</code></dd>
+                  </div>
+                </dl>
+                <p class="settings-profile-footnote" *ngIf="isParentOnlyChildren && myChildren.length">
+                  <i class="bi bi-people me-1"></i>{{ myChildren.length }} linked {{ myChildren.length === 1 ? 'child' : 'children' }}
+                </p>
+              </div>
+            </section>
+          </div>
+
+          <div class="col-lg-7">
             <ng-container *ngIf="canEditOwnPhoto">
-              <label class="erp-label">Your picture</label>
-              <input type="file" accept="image/*" class="erp-input" (change)="onOwnPhotoSelected($event)" />
+              <section class="settings-profile-panel settings-profile-panel--emphasis" aria-labelledby="settings-profile-photo-h">
+                <div class="settings-profile-panel__head" id="settings-profile-photo-h">
+                  <span class="settings-profile-panel__icon"><i class="bi bi-camera"></i></span>
+                  <span class="settings-profile-panel__head-text">Your photo</span>
+                </div>
+                <div class="settings-profile-panel__body">
+                  <p class="settings-profile-hint">{{ photoHintLine }}</p>
+                  <app-profile-photo-picker
+                    [previewUrl]="profilePreviewUrl"
+                    [initials]="profileInitials"
+                    [frameAriaLabel]="'Upload your profile photo'"
+                    size="comfortable"
+                    statusMode="minimal"
+                    (photoPicked)="onOwnPhotoPicked($event)"
+                    (photoRemoved)="onOwnPhotoRemoved()"
+                  />
+                </div>
+              </section>
             </ng-container>
+
             <ng-container *ngIf="isParentOnlyChildren">
-              <label class="erp-label">Child portrait</label>
-              <select class="erp-select mb-2" [(ngModel)]="childPhotoTargetId">
-                <option value="">Select child</option>
-                <option *ngFor="let s of myChildren" [value]="s.id">{{ s.firstName }} {{ s.lastName }}</option>
-              </select>
-              <input type="file" accept="image/*" class="erp-input" [disabled]="!childPhotoTargetId" (change)="onChildPhotoSelected($event)" />
-              <p class="small text-muted mb-0 mt-1">Parents may only upload photos for their linked children. Staff manage student records in the Students module.</p>
+              <section
+                class="settings-profile-panel"
+                [class.mt-4]="canEditOwnPhoto"
+                aria-labelledby="settings-profile-child-h"
+              >
+                <div class="settings-profile-panel__head" id="settings-profile-child-h">
+                  <span class="settings-profile-panel__icon"><i class="bi bi-person-hearts"></i></span>
+                  <span class="settings-profile-panel__head-text">Child portrait</span>
+                </div>
+                <div class="settings-profile-panel__body">
+                  <p class="settings-profile-hint">Choose a linked child, then add or replace their picture (parent view only).</p>
+                  <label class="erp-label d-block mb-2">Child</label>
+                  <select class="erp-select mb-3" [(ngModel)]="childPhotoTargetId" (ngModelChange)="syncChildPhotoPreview()">
+                    <option value="">Select child</option>
+                    <option *ngFor="let s of myChildren" [value]="s.id">{{ s.firstName }} {{ s.lastName }}</option>
+                  </select>
+                  <app-profile-photo-picker
+                    *ngIf="childPhotoTargetId"
+                    [previewUrl]="childPhotoPreview"
+                    [initials]="childPhotoInitials"
+                    [frameAriaLabel]="'Upload child photo'"
+                    size="comfortable"
+                    statusMode="minimal"
+                    (photoPicked)="onChildPhotoPicked($event)"
+                    (photoRemoved)="onChildPhotoRemoved()"
+                  />
+                  <p *ngIf="!childPhotoTargetId" class="settings-profile-placeholder mb-0">Select a child to continue.</p>
+                  <p class="settings-profile-footnote settings-profile-footnote--below">Staff set official directory photos under Students or Teachers.</p>
+                </div>
+              </section>
             </ng-container>
+
             <ng-container *ngIf="!canEditOwnPhoto && !isParentOnlyChildren">
-              <p class="small text-muted mb-0">Your role uses directory photos managed by administrators.</p>
+              <section class="settings-profile-panel settings-profile-panel--note" aria-labelledby="settings-profile-dir-h">
+                <div class="settings-profile-panel__head" id="settings-profile-dir-h">
+                  <span class="settings-profile-panel__icon"><i class="bi bi-info-circle"></i></span>
+                  <span class="settings-profile-panel__head-text">Directory photo</span>
+                </div>
+                <div class="settings-profile-panel__body">
+                  <p class="settings-profile-hint mb-2">Your picture is managed by school staff, not on this screen.</p>
+                  <ul class="settings-profile-bullets">
+                    <li>Admins and class teachers can set photos where your role allows.</li>
+                    <li>Contact the office if you need an update.</li>
+                  </ul>
+                </div>
+              </section>
             </ng-container>
           </div>
         </div>
@@ -163,26 +255,177 @@ import { runtimeConfig } from '../../core/config/runtime-config';
   `,
   styles: [
     `
-      .settings-avatar-preview {
-        width: 72px;
-        height: 72px;
+      .settings-profile-root__header {
+        margin-bottom: 1.5rem;
+        padding-bottom: 1rem;
+        border-bottom: 1px solid var(--clr-border-light, #e8eef0);
+      }
+      .settings-profile-root__title {
+        font-size: 1.125rem;
+        font-weight: 800;
+        margin: 0 0 0.35rem;
+        color: var(--clr-text-primary, #0f172a);
+      }
+      .settings-profile-root__lead {
+        margin: 0;
+        font-size: 13px;
+        color: var(--clr-text-muted, #64748b);
+        max-width: 42rem;
+        line-height: 1.5;
+      }
+      .settings-profile-panel {
+        border: 1px solid var(--clr-border, #e2e8f0);
+        border-radius: var(--radius-lg, 12px);
+        background: var(--clr-surface, #fff);
+        overflow: hidden;
+      }
+      .settings-profile-panel--emphasis {
+        border-color: color-mix(in srgb, var(--clr-primary, #1b3a30) 22%, var(--clr-border, #e2e8f0));
+        box-shadow: 0 1px 0 color-mix(in srgb, var(--clr-primary, #1b3a30) 8%, transparent);
+      }
+      .settings-profile-panel--note {
+        background: var(--clr-surface-muted, #f8fafc);
+        border-style: dashed;
+      }
+      .settings-profile-panel__head {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 12px 16px;
+        background: var(--clr-surface-muted, #f8fafc);
+        border-bottom: 1px solid var(--clr-border-light, #e8eef0);
+        font-size: 13px;
+        font-weight: 700;
+        color: var(--clr-text-secondary, #475569);
+      }
+      .settings-profile-panel__icon {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 32px;
+        height: 32px;
+        border-radius: 8px;
+        background: color-mix(in srgb, var(--clr-primary, #1b3a30) 10%, transparent);
+        color: var(--clr-primary, #1b3a30);
+        font-size: 16px;
+      }
+      .settings-profile-panel--note .settings-profile-panel__icon {
+        background: color-mix(in srgb, var(--clr-accent, #c05c3d) 12%, transparent);
+        color: var(--clr-accent, #c05c3d);
+      }
+      .settings-profile-panel__body {
+        padding: 16px;
+      }
+      .settings-profile-identity {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        margin-bottom: 1rem;
+      }
+      .settings-profile-identity__avatar {
+        width: 56px;
+        height: 56px;
         border-radius: 50%;
-        background: var(--clr-surface-muted);
-        border: 1px solid var(--clr-border);
+        border: 2px solid var(--clr-border, #e2e8f0);
+        background: var(--clr-surface-muted, #f1f5f9);
         display: flex;
         align-items: center;
         justify-content: center;
         font-weight: 800;
-        font-size: 22px;
-        color: var(--clr-text-secondary);
+        font-size: 18px;
+        color: var(--clr-text-secondary, #64748b);
+        flex-shrink: 0;
+        overflow: hidden;
       }
-      .settings-avatar-img {
-        object-fit: cover;
-        padding: 0;
-        font-size: 0;
+      .settings-profile-identity__name {
+        font-weight: 700;
+        font-size: 15px;
+        color: var(--clr-text-primary, #0f172a);
+        line-height: 1.25;
       }
-    `
-  ]
+      .settings-profile-identity__email {
+        font-size: 12px;
+        color: var(--clr-text-muted, #64748b);
+        margin-top: 2px;
+        word-break: break-all;
+      }
+      .settings-profile-meta {
+        margin: 0;
+      }
+      .settings-profile-meta__row {
+        display: flex;
+        gap: 12px;
+        padding: 8px 0;
+        border-top: 1px solid var(--clr-border-light, #eef2f4);
+        font-size: 13px;
+      }
+      .settings-profile-meta__row:first-of-type {
+        border-top: none;
+        padding-top: 0;
+      }
+      .settings-profile-meta__row dt {
+        flex: 0 0 4.5rem;
+        margin: 0;
+        color: var(--clr-text-muted, #64748b);
+        font-weight: 600;
+      }
+      .settings-profile-meta__row dd {
+        margin: 0;
+        color: var(--clr-text-primary, #334155);
+        flex: 1;
+        min-width: 0;
+      }
+      .settings-profile-role {
+        display: inline-block;
+        padding: 2px 10px;
+        border-radius: 999px;
+        font-size: 11px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+        background: color-mix(in srgb, var(--clr-primary, #1b3a30) 12%, transparent);
+        color: var(--clr-primary, #1b3a30);
+      }
+      .settings-profile-code {
+        font-size: 12px;
+        padding: 2px 8px;
+        border-radius: 6px;
+        background: var(--clr-surface-muted, #f1f5f9);
+        color: var(--clr-text-secondary, #475569);
+      }
+      .settings-profile-hint {
+        font-size: 12px;
+        color: var(--clr-text-muted, #64748b);
+        margin: 0 0 14px;
+        line-height: 1.5;
+      }
+      .settings-profile-placeholder {
+        font-size: 13px;
+        color: var(--clr-text-muted, #94a3b8);
+        font-style: italic;
+      }
+      .settings-profile-footnote {
+        font-size: 11px;
+        color: var(--clr-text-muted, #94a3b8);
+        margin: 12px 0 0;
+        line-height: 1.45;
+      }
+      .settings-profile-footnote--below {
+        margin-top: 1rem;
+        margin-bottom: 0;
+      }
+      .settings-profile-bullets {
+        margin: 0;
+        padding-left: 1.15rem;
+        font-size: 12px;
+        color: var(--clr-text-secondary, #475569);
+        line-height: 1.55;
+      }
+      .settings-profile-bullets li + li {
+        margin-top: 0.35rem;
+      }
+    `,
+  ],
 })
 export class SettingsComponent implements OnInit {
   tab = 'general';
@@ -205,6 +448,8 @@ export class SettingsComponent implements OnInit {
   profileInitials = '';
   myChildren: Student[] = [];
   childPhotoTargetId = '';
+  childPhotoPreview: string | null = null;
+  childPhotoInitials = '';
   settingsRefreshing = false;
 
   features = [
@@ -222,7 +467,8 @@ export class SettingsComponent implements OnInit {
     private settingsService: SettingsService,
     private themeService: ThemeService,
     private auth: AuthService,
-    private studentService: StudentService
+    private studentService: StudentService,
+    private cdr: ChangeDetectorRef
   ) {}
 
   get canEditOwnPhoto(): boolean {
@@ -232,6 +478,29 @@ export class SettingsComponent implements OnInit {
 
   get isParentOnlyChildren(): boolean {
     return this.auth.getRole() === 'parent';
+  }
+
+  get profileUser() {
+    return this.auth.getCurrentUser();
+  }
+
+  get roleDisplayLabel(): string {
+    const r = (this.auth.getRole() || '').toLowerCase();
+    const map: Record<string, string> = {
+      admin: 'Administrator',
+      super_admin: 'Super administrator',
+      teacher: 'Teacher',
+      parent: 'Parent',
+      student: 'Student',
+      library_staff: 'Library staff',
+    };
+    return map[r] || (r ? r.replace(/_/g, ' ') : 'User');
+  }
+
+  get photoHintLine(): string {
+    return runtimeConfig.useMocks
+      ? 'Shown in the header and menus. Saved on this browser only until your school connects cloud photos.'
+      : 'Shown in the header and menus. Stored with your account when you save; full media sync may follow.';
   }
 
   ngOnInit(): void {
@@ -245,6 +514,8 @@ export class SettingsComponent implements OnInit {
       this.studentService.getStudents().subscribe(list => {
         const uid = this.auth.getCurrentUser()?.id ?? '';
         this.myChildren = (list || []).filter(s => s.parentId === uid);
+        this.syncChildPhotoPreview();
+        this.cdr.markForCheck();
       });
     }
     this.settingsService.get().subscribe({
@@ -277,34 +548,39 @@ export class SettingsComponent implements OnInit {
     this.profileInitials = this.auth.getUserInitials();
   }
 
-  onOwnPhotoSelected(ev: Event): void {
-    const input = ev.target as HTMLInputElement;
-    const file = input.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      const data = typeof reader.result === 'string' ? reader.result : null;
-      if (data) {
-        this.auth.setMyProfileAvatarDataUrl(data);
-        this.refreshProfilePreview();
-      }
-    };
-    reader.readAsDataURL(file);
-    input.value = '';
+  onOwnPhotoPicked(ev: ProfilePhotoPickEvent): void {
+    this.auth.setMyProfileAvatarDataUrl(ev.dataUrl);
+    this.refreshProfilePreview();
   }
 
-  onChildPhotoSelected(ev: Event): void {
+  onOwnPhotoRemoved(): void {
+    this.auth.clearMyProfileAvatarDataUrl();
+    this.refreshProfilePreview();
+  }
+
+  syncChildPhotoPreview(): void {
+    if (!this.childPhotoTargetId) {
+      this.childPhotoPreview = null;
+      this.childPhotoInitials = '';
+      return;
+    }
+    const s = this.myChildren.find(x => x.id === this.childPhotoTargetId);
+    this.childPhotoInitials = s ? (s.firstName[0] + s.lastName[0]).toUpperCase() : '';
+    this.childPhotoPreview = this.auth.getChildAvatarDataUrl(this.childPhotoTargetId);
+  }
+
+  onChildPhotoPicked(ev: ProfilePhotoPickEvent): void {
     if (!this.childPhotoTargetId) return;
-    const input = ev.target as HTMLInputElement;
-    const file = input.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      const data = typeof reader.result === 'string' ? reader.result : null;
-      if (data) this.auth.setChildAvatarDataUrl(this.childPhotoTargetId, data);
-    };
-    reader.readAsDataURL(file);
-    input.value = '';
+    this.auth.setChildAvatarDataUrl(this.childPhotoTargetId, ev.dataUrl);
+    this.syncChildPhotoPreview();
+    this.cdr.markForCheck();
+  }
+
+  onChildPhotoRemoved(): void {
+    if (!this.childPhotoTargetId) return;
+    this.auth.clearChildAvatarDataUrl(this.childPhotoTargetId);
+    this.syncChildPhotoPreview();
+    this.cdr.markForCheck();
   }
 
   loadBranches(): void {

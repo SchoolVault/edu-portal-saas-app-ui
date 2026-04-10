@@ -57,6 +57,8 @@ export interface ProfileSummary {
   managedTeacherCount?: number;
   /** SUPER_ADMIN: count of active school workspaces (non-deleted tenants). */
   platformWorkspaceCount?: number;
+  /** TEACHER: classes where this user is the assigned class teacher (photo / roster policy). */
+  classTeacherOf?: { classId: string; className?: string; sectionName?: string; totalStudents?: number }[];
 }
 
 export interface Student {

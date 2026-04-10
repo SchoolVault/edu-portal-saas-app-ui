@@ -186,8 +186,47 @@ export class AuthService {
     localStorage.setItem(`erp_avatar_${u.id}`, dataUrl);
   }
 
+  clearMyProfileAvatarDataUrl(): void {
+    const u = this.getCurrentUser();
+    if (!u) return;
+    localStorage.removeItem(`erp_avatar_${u.id}`);
+  }
+
   setChildAvatarDataUrl(studentId: string, dataUrl: string): void {
     localStorage.setItem(`erp_child_avatar_${studentId}`, dataUrl);
+  }
+
+  getChildAvatarDataUrl(studentId: string): string | null {
+    return localStorage.getItem(`erp_child_avatar_${studentId}`);
+  }
+
+  clearChildAvatarDataUrl(studentId: string): void {
+    localStorage.removeItem(`erp_child_avatar_${studentId}`);
+  }
+
+  /** Demo local storage for student directory photo; replace with PUT .../avatar or media URL from API. */
+  getDirectoryStudentAvatarDataUrl(studentId: string): string | null {
+    return localStorage.getItem(`erp_dir_student_avatar_${studentId}`);
+  }
+
+  setDirectoryStudentAvatarDataUrl(studentId: string, dataUrl: string): void {
+    localStorage.setItem(`erp_dir_student_avatar_${studentId}`, dataUrl);
+  }
+
+  clearDirectoryStudentAvatar(studentId: string): void {
+    localStorage.removeItem(`erp_dir_student_avatar_${studentId}`);
+  }
+
+  getDirectoryTeacherAvatarDataUrl(teacherId: string): string | null {
+    return localStorage.getItem(`erp_dir_teacher_avatar_${teacherId}`);
+  }
+
+  setDirectoryTeacherAvatarDataUrl(teacherId: string, dataUrl: string): void {
+    localStorage.setItem(`erp_dir_teacher_avatar_${teacherId}`, dataUrl);
+  }
+
+  clearDirectoryTeacherAvatar(teacherId: string): void {
+    localStorage.removeItem(`erp_dir_teacher_avatar_${teacherId}`);
   }
 
   readTenantDisplayOverrides(): {
@@ -234,7 +273,10 @@ export class AuthService {
             userTitle: 'Senior Mathematics Teacher',
             qualification: 'M.Sc Mathematics',
             specialization: 'Mathematics',
-            subjectCount: 3
+            subjectCount: 3,
+            classTeacherOf: [
+              { classId: 'c5', className: 'Class 5', totalStudents: 0 },
+            ],
           }
         : user?.role === 'super_admin'
           ? {
@@ -294,12 +336,15 @@ export class AuthService {
       return of(summary).pipe(delay(200));
     }
     return this.api.get<any>('/auth/profile-summary').pipe(
-      tap(summary => this.profileSummarySubject.next({
-        ...summary,
-        id: String(summary.id),
-        role: summary.role,
-        platformWorkspaceCount: summary.platformWorkspaceCount ?? undefined
-      }))
+      tap(summary =>
+        this.profileSummarySubject.next({
+          ...summary,
+          id: String(summary.id),
+          role: summary.role,
+          platformWorkspaceCount: summary.platformWorkspaceCount ?? undefined,
+          classTeacherOf: summary.classTeacherOf ?? undefined,
+        })
+      )
     );
   }
 

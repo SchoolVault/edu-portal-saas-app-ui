@@ -32,7 +32,8 @@ import { Student, MarkRecord, FeePayment, AttendanceStats } from '../../core/mod
       <div class="row g-4">
         <div class="col-lg-4">
           <div class="erp-card text-center" style="padding: 32px;">
-            <div class="profile-avatar mx-auto mb-3" style="width: 80px; height: 80px; font-size: 28px;"
+            <img *ngIf="studentPortraitUrl" [src]="studentPortraitUrl" alt="" class="mx-auto mb-3 d-block rounded-circle" style="width: 80px; height: 80px; object-fit: cover; border: 2px solid var(--clr-border);" />
+            <div *ngIf="!studentPortraitUrl" class="profile-avatar mx-auto mb-3" style="width: 80px; height: 80px; font-size: 28px;"
                  [style.background]="student.gender === 'female' ? '#C05C3D' : '#1B3A30'">
               {{ student.firstName[0] }}{{ student.lastName[0] }}
             </div>
@@ -166,6 +167,11 @@ export class StudentProfileComponent implements OnInit {
   get isAdmin(): boolean {
     const r = (this.auth.getRole() || '').toLowerCase();
     return r === 'admin' || r === 'super_admin';
+  }
+
+  get studentPortraitUrl(): string | null {
+    if (!this.student) return null;
+    return this.auth.getDirectoryStudentAvatarDataUrl(this.student.id) || this.student.avatar || null;
   }
 
   ngOnInit(): void {

@@ -4,12 +4,15 @@ import { FormsModule } from '@angular/forms';
 import { Router, ActivatedRoute } from '@angular/router';
 import { TeacherService } from '../../core/services/teacher.service';
 import { AcademicService } from '../../core/services/academic.service';
+import { AuthService } from '../../core/services/auth.service';
 import { SubjectCatalogItem, Teacher } from '../../core/models/models';
+import { canAdminSetTeacherDirectoryPhoto } from '../../core/policy/profile-photo-upload.policy';
+import { ProfilePhotoPickerComponent, ProfilePhotoPickEvent } from '../../shared/profile-photo-picker/profile-photo-picker.component';
 
 @Component({
   selector: 'app-teacher-form',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, ProfilePhotoPickerComponent],
   template: `
     <div data-testid="teacher-form-page" class="animate-in">
       <div class="d-flex align-items-center gap-3 mb-4">
@@ -50,6 +53,19 @@ import { SubjectCatalogItem, Teacher } from '../../core/models/models';
                 <div class="small text-muted mt-1">Use for subjects not yet in the catalog; admins can add them to the master list later.</div>
               </div>
             </div>
+            <div class="col-12" *ngIf="canSetTeacherDirectoryPhoto()">
+              <div class="pt-3 mt-2" style="border-top: 1px solid var(--clr-border-light);">
+                <h4 style="font-size: 15px; font-weight: 700; margin-bottom: 8px; color: var(--clr-primary);">Directory photo</h4>
+                <p class="text-muted small mb-3">Admin-only in this release. Demo storage matches future teacher avatar API.</p>
+                <app-profile-photo-picker
+                  [previewUrl]="teacherDirectoryPreview"
+                  [initials]="teacherDirectoryInitials()"
+                  [frameAriaLabel]="'Set teacher directory photo'"
+                  (photoPicked)="onTeacherDirPhotoPicked($event)"
+                  (photoRemoved)="onTeacherDirPhotoRemoved()"
+                />
+              </div>
+            </div>
           </div>
           <div class="d-flex justify-content-end gap-3">
             <button type="button" class="btn-outline-erp" (click)="goBack()">Cancel</button>
@@ -69,15 +85,18 @@ export class TeacherFormComponent implements OnInit {
   additionalSubjectsRaw = '';
   isEdit = false;
   saving = false;
+  teacherDirectoryPreview: string | null = null;
 
   constructor(
     private teacherService: TeacherService,
     private academicService: AcademicService,
+    private auth: AuthService,
     private router: Router,
     private route: ActivatedRoute
   ) {}
 
   ngOnInit(): void {
+    this.auth.fetchProfileSummary().subscribe({ error: () => void 0 });
     const id = this.route.snapshot.paramMap.get('id');
     if (id && id !== 'new') this.isEdit = true;
 
@@ -119,11 +138,47 @@ export class TeacherFormComponent implements OnInit {
     else this.teacher.subjects.push(name);
   }
 
+  canSetTeacherDirectoryPhoto(): boolean {
+    return (
+      this.isEdit &&
+      !!this.teacher.id &&
+      canAdminSetTeacherDirectoryPhoto(this.auth.getRole())
+    );
+  }
+
+  teacherDirectoryInitials(): string {
+    const a = (this.teacher.firstName?.[0] || '').toUpperCase();
+    const b = (this.teacher.lastName?.[0] || '').toUpperCase();
+    return (a + b) || '?';
+  }
+
+  refreshTeacherDirectoryPreview(): void {
+    if (!this.teacher.id) {
+      this.teacherDirectoryPreview = null;
+      return;
+    }
+    this.teacherDirectoryPreview =
+      this.auth.getDirectoryTeacherAvatarDataUrl(String(this.teacher.id)) || this.teacher.avatar || null;
+  }
+
+  onTeacherDirPhotoPicked(ev: ProfilePhotoPickEvent): void {
+    if (!this.teacher.id) return;
+    this.auth.setDirectoryTeacherAvatarDataUrl(String(this.teacher.id), ev.dataUrl);
+    this.refreshTeacherDirectoryPreview();
+  }
+
+  onTeacherDirPhotoRemoved(): void {
+    if (!this.teacher.id) return;
+    this.auth.clearDirectoryTeacherAvatar(String(this.teacher.id));
+    this.refreshTeacherDirectoryPreview();
+  }
+
   private applyTeacherFromApi(t: Teacher): void {
     const catNames = new Set(this.subjectCatalog.map(s => s.name));
     const all = [...(t.subjects ?? [])];
     this.teacher = { ...t, subjects: all.filter(s => catNames.has(s)) };
     this.additionalSubjectsRaw = all.filter(s => !catNames.has(s)).join(', ');
+    this.refreshTeacherDirectoryPreview();
   }
 
   private mergeSubjectsForSave(): string[] {

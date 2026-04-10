@@ -6,14 +6,17 @@ import { firstValueFrom } from 'rxjs';
 import { StudentService } from '../../core/services/student.service';
 import { AcademicService } from '../../core/services/academic.service';
 import { GuardianService } from '../../core/services/guardian.service';
+import { AuthService } from '../../core/services/auth.service';
 import { Student, SchoolClass } from '../../core/models/models';
 import { BLOOD_GROUPS, GENDERS } from '../../core/config/app-constants';
 import { runtimeConfig } from '../../core/config/runtime-config';
+import { canUploadStudentDirectoryPhoto } from '../../core/policy/profile-photo-upload.policy';
+import { ProfilePhotoPickerComponent, ProfilePhotoPickEvent } from '../../shared/profile-photo-picker/profile-photo-picker.component';
 
 @Component({
   selector: 'app-student-form',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, ProfilePhotoPickerComponent],
   template: `
     <div data-testid="student-form-page" class="animate-in">
       <div class="d-flex align-items-center gap-3 mb-4">
@@ -71,6 +74,19 @@ import { runtimeConfig } from '../../core/config/runtime-config';
             <div class="col-md-8">
               <div class="erp-form-group"><label class="erp-label">Address</label>
                 <input type="text" class="erp-input" [(ngModel)]="student.address" name="address" data-testid="student-address">
+              </div>
+            </div>
+            <div class="col-12" *ngIf="showStudentDirectoryPhoto()">
+              <div class="pt-3 mt-2" style="border-top: 1px solid var(--clr-border-light);">
+                <h4 style="font-size: 15px; font-weight: 700; margin-bottom: 8px; color: var(--clr-primary);">Directory photo</h4>
+                <p class="text-muted small mb-3">Demo: browser storage. Production: same UI will call the media / student avatar API.</p>
+                <app-profile-photo-picker
+                  [previewUrl]="studentDirectoryPreview"
+                  [initials]="studentDirectoryInitials()"
+                  [frameAriaLabel]="'Set student directory photo'"
+                  (photoPicked)="onStudentDirPhotoPicked($event)"
+                  (photoRemoved)="onStudentDirPhotoRemoved()"
+                />
               </div>
             </div>
           </div>
@@ -170,6 +186,7 @@ export class StudentFormComponent implements OnInit {
   bloodGroups = BLOOD_GROUPS;
   isEdit = false;
   saving = false;
+  studentDirectoryPreview: string | null = null;
   g1 = { fullName: '', primaryPhone: '', occupation: '', relationType: 'FATHER' as const };
   g2 = { fullName: '', primaryPhone: '', occupation: '', relationType: 'MOTHER' as const };
 
@@ -177,11 +194,13 @@ export class StudentFormComponent implements OnInit {
     private studentService: StudentService,
     private academicService: AcademicService,
     private guardianService: GuardianService,
+    private auth: AuthService,
     private router: Router,
     private route: ActivatedRoute
   ) {}
 
   ngOnInit(): void {
+    this.auth.fetchProfileSummary().subscribe({ error: () => void 0 });
     this.academicService.getClasses().subscribe(classes => {
       this.classes = classes;
     });
@@ -192,9 +211,49 @@ export class StudentFormComponent implements OnInit {
         if (s) {
           this.student = { ...s };
           this.onClassChange();
+          this.refreshStudentDirectoryPreview();
         }
       });
     }
+  }
+
+  showStudentDirectoryPhoto(): boolean {
+    return (
+      this.isEdit &&
+      !!this.student.id &&
+      canUploadStudentDirectoryPhoto({
+        viewerRole: this.auth.getRole(),
+        studentClassId: this.student.classId,
+        classTeacherOf: this.auth.getProfileSummarySnapshot()?.classTeacherOf,
+      })
+    );
+  }
+
+  studentDirectoryInitials(): string {
+    const a = (this.student.firstName?.[0] || '').toUpperCase();
+    const b = (this.student.lastName?.[0] || '').toUpperCase();
+    return (a + b) || '?';
+  }
+
+  refreshStudentDirectoryPreview(): void {
+    if (!this.student.id) {
+      this.studentDirectoryPreview = null;
+      return;
+    }
+    this.studentDirectoryPreview =
+      this.auth.getDirectoryStudentAvatarDataUrl(this.student.id) || this.student.avatar || null;
+  }
+
+  onStudentDirPhotoPicked(ev: ProfilePhotoPickEvent): void {
+    if (!this.student.id) return;
+    this.auth.setDirectoryStudentAvatarDataUrl(this.student.id, ev.dataUrl);
+    this.refreshStudentDirectoryPreview();
+  }
+
+  onStudentDirPhotoRemoved(): void {
+    if (!this.student.id) return;
+    this.auth.clearDirectoryStudentAvatar(this.student.id);
+    this.refreshStudentDirectoryPreview();
   }
 
   onClassChange(): void {
