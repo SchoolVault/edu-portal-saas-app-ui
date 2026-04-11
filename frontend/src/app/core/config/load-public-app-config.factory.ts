@@ -14,9 +14,14 @@ export function loadPublicAppConfig(): () => Promise<void> {
       .then(res => (res.ok ? res.json() : {}))
       .then((raw: unknown) => {
         if (!raw || typeof raw !== 'object') return;
-        const apiUrl = (raw as { apiUrl?: unknown }).apiUrl;
+        const r = raw as { apiUrl?: unknown; websocketUrl?: unknown };
+        const apiUrl = r.apiUrl;
+        const websocketUrl = r.websocketUrl;
         if (typeof apiUrl === 'string' && apiUrl.trim() !== '') {
-          applyDeployedApiConfig({ apiUrl });
+          applyDeployedApiConfig({
+            apiUrl,
+            ...(typeof websocketUrl === 'string' && websocketUrl.trim() !== '' ? { websocketUrl } : {})
+          });
         }
       })
       .catch(() => undefined);

@@ -14,22 +14,22 @@ import { ConfirmDialogService } from '../../shared/confirm-dialog/confirm-dialog
   imports: [CommonModule, FormsModule, RouterModule],
   template: `
     <div data-testid="student-list-page">
-      <div class="d-flex justify-content-between align-items-center mb-4 animate-in">
+      <header class="erp-page-header animate-in">
         <div>
-          <h2 style="font-size: 24px; font-weight: 800;">Students</h2>
-          <p class="text-muted mb-0" style="font-size: 13px;">
-            {{ isAdmin ? 'Manage enrolment and student master records. Default view shows active pupils only; use status to include left/alumni records. Bulk ZIP/CSV import and export are under Operations → Import / export.' : 'Directory of active students in the school (read-only roster). Admins handle admissions, class moves, and withdrawals.' }}
+          <h1 class="erp-page-header__title">Students</h1>
+          <p class="erp-page-header__lead">
+            {{ isAdmin ? 'Manage enrolment and student master records. Default view shows active pupils only; use status to include left/alumni records.' : 'Directory of active students in the school (read-only roster). Admins handle admissions, class moves, and withdrawals.' }}
           </p>
         </div>
-        <div class="d-flex gap-3 flex-wrap">
-          <button type="button" class="btn-outline-erp btn-sm" (click)="reloadStudents()"><i class="bi bi-arrow-clockwise"></i> Refresh</button>
+        <div class="erp-page-header__actions">
+          <button type="button" class="btn-outline-erp btn-sm" (click)="reloadStudents()"><i class="bi bi-arrow-clockwise" aria-hidden="true"></i> Refresh</button>
           <ng-container *ngIf="isAdmin">
             <a routerLink="/app/students/new" class="btn-primary-erp btn-sm" data-testid="add-student-btn">
-              <i class="bi bi-plus-lg"></i> Add Student
+              <i class="bi bi-plus-lg" aria-hidden="true"></i><span>Add Student</span>
             </a>
           </ng-container>
         </div>
-      </div>
+      </header>
 
       <div class="erp-card animate-in animate-in-delay-1">
         <div class="d-flex justify-content-between align-items-center mb-3">

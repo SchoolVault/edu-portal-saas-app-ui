@@ -20,5 +20,20 @@ const apiUrl = (
 ).replace(/\/$/, '');
 
 const cfg = { apiUrl };
+
+let websocketUrl = (process.env.WEBSOCKET_URL || process.env.NG_APP_WEBSOCKET_URL || '').trim().replace(/\/$/, '');
+if (!websocketUrl && /^https?:\/\//i.test(apiUrl)) {
+  try {
+    const u = new URL(apiUrl);
+    const wsProto = u.protocol === 'https:' ? 'wss:' : 'ws:';
+    websocketUrl = `${wsProto}//${u.host}/ws`;
+  } catch {
+    /* keep unset */
+  }
+}
+if (websocketUrl) {
+  cfg.websocketUrl = websocketUrl;
+}
+
 writeFileSync(join(publicDir, 'config.json'), JSON.stringify(cfg, null, 2) + '\n');
 console.log('[write-frontend-config]', cfg);

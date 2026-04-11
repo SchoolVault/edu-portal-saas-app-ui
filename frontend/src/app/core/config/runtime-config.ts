@@ -1,4 +1,5 @@
 import { environment } from '../../../environments/environment';
+import { resolveStompBrokerUrl } from './resolve-stomp-broker-url';
 
 /**
  * Optional overrides for **production** builds only (see `load-public-app-config.factory.ts`).
@@ -6,6 +7,8 @@ import { environment } from '../../../environments/environment';
  */
 export interface DeployedApiConfig {
   apiUrl?: string;
+  /** Full STOMP broker URL (e.g. {@code wss://api.host/ws}). Omit to derive from {@code apiUrl}. */
+  websocketUrl?: string;
 }
 
 /**
@@ -18,13 +21,23 @@ export const runtimeConfig: DeployedApiConfig & {
   useMocks: boolean;
 } = {
   apiUrl: environment.apiUrl,
+  websocketUrl: undefined,
   useMocks: environment.useMocks,
   production: environment.production
 };
 
-/** Production only: merge deployed API base URL (e.g. Render) without touching mock mode. */
+/** Production only: merge deployed API / WebSocket URLs (e.g. Render) without touching mock mode. */
 export function applyDeployedApiConfig(overrides: DeployedApiConfig): void {
   if (overrides.apiUrl != null && String(overrides.apiUrl).trim() !== '') {
     runtimeConfig.apiUrl = String(overrides.apiUrl).replace(/\/$/, '');
   }
+  if (overrides.websocketUrl != null && String(overrides.websocketUrl).trim() !== '') {
+    runtimeConfig.websocketUrl = String(overrides.websocketUrl).replace(/\/$/, '');
+  }
+}
+
+/** STOMP broker URL aligned with Spring {@code WebSocketConfig} endpoint {@code /ws}. */
+export function getStompBrokerUrl(): string {
+  const origin = typeof window !== 'undefined' ? window.location.origin : undefined;
+  return resolveStompBrokerUrl(runtimeConfig.apiUrl || '', runtimeConfig.websocketUrl, origin);
 }

@@ -9,7 +9,7 @@ import {
   MOCK_CHAT_DIRECTORY_TEACHER,
 } from '../mocks/chat.mock-data';
 import { ApiService } from './api.service';
-import { runtimeConfig } from '../config/runtime-config';
+import { getStompBrokerUrl, runtimeConfig } from '../config/runtime-config';
 import { AuthService } from './auth.service';
 import { ChatCreateConversationRequest, ChatDirectoryResponse, ChatInboxConversation, ChatMessage } from '../models/models';
 
@@ -257,7 +257,7 @@ export class ChatService implements OnDestroy {
     if (this.ws?.connected) return;
 
     const token = this.auth.getToken();
-    const wsUrl = (runtimeConfig.apiUrl || 'http://localhost:8080').replace(/^http/, 'ws') + '/ws';
+    const wsUrl = getStompBrokerUrl();
 
     const client = new Client({
       brokerURL: wsUrl,
