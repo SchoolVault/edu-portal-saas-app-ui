@@ -17,14 +17,10 @@ import { ConfirmDialogService } from '../../shared/confirm-dialog/confirm-dialog
       <div class="d-flex justify-content-between align-items-center mb-4 animate-in">
         <div>
           <h2 style="font-size: 24px; font-weight: 800;">Teachers</h2>
-          <p class="text-muted mb-0" style="font-size: 13px;">Manage teaching staff</p>
+          <p class="text-muted mb-0" style="font-size: 13px;">Manage teaching staff. Bulk ZIP/CSV import is under Operations → Import / export.</p>
         </div>
         <div class="d-flex gap-3">
           <button type="button" class="btn-outline-erp btn-sm" (click)="reloadTeachers()"><i class="bi bi-arrow-clockwise"></i> Refresh</button>
-          <label class="btn-outline-erp btn-sm" style="cursor: pointer; margin-bottom: 0;">
-            <i class="bi bi-upload"></i> Import ZIP
-            <input type="file" accept=".zip" style="display: none;" (change)="onImport($event)">
-          </label>
           <a routerLink="/app/teachers/new" class="btn-primary-erp btn-sm" data-testid="add-teacher-btn">
             <i class="bi bi-plus-lg"></i> Add Teacher
           </a>
@@ -138,18 +134,5 @@ export class TeacherListComponent implements OnInit {
           this.filter();
         });
       });
-  }
-
-  onImport(event: Event): void {
-    const input = event.target as HTMLInputElement;
-    const file = input.files?.[0];
-    if (!file) {
-      return;
-    }
-    this.teacherService.importTeachersZip(file).subscribe(imported => {
-      this.teachers = [...imported, ...this.teachers];
-      this.filter();
-      input.value = '';
-    });
   }
 }

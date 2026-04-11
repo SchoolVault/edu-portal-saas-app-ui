@@ -66,6 +66,11 @@ import com.school.erp.modules.timetable.repository.TimetableRepository;
 import com.school.erp.modules.transport.entity.*;
 import com.school.erp.modules.transport.repository.*;
 import com.school.erp.bootstrap.demo.DemoExtendedTablesSeed;
+import com.school.erp.modules.importexport.ImportJobConstants;
+import com.school.erp.modules.importexport.entity.ImportJob;
+import com.school.erp.modules.importexport.entity.ImportJobLine;
+import com.school.erp.modules.importexport.repository.ImportJobLineRepository;
+import com.school.erp.modules.importexport.repository.ImportJobRepository;
 import jakarta.persistence.EntityManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -80,6 +85,7 @@ import java.time.LocalDateTime;
 import java.time.YearMonth;
 import java.time.LocalTime;
 import java.util.ArrayList;
+import java.util.Locale;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -146,6 +152,8 @@ public class DemoDataSeedService {
     private final ChatConversationRepository chatConversationRepository;
     private final ChatParticipantRepository chatParticipantRepository;
     private final ChatMessageRepository chatMessageRepository;
+    private final ImportJobRepository importJobRepository;
+    private final ImportJobLineRepository importJobLineRepository;
     private final EntityManager entityManager;
     private final DemoExtendedTablesSeed demoExtendedTablesSeed;
 
@@ -194,6 +202,8 @@ public class DemoDataSeedService {
             ChatConversationRepository chatConversationRepository,
             ChatParticipantRepository chatParticipantRepository,
             ChatMessageRepository chatMessageRepository,
+            ImportJobRepository importJobRepository,
+            ImportJobLineRepository importJobLineRepository,
             EntityManager entityManager,
             DemoExtendedTablesSeed demoExtendedTablesSeed) {
         this.tenantConfigRepository = tenantConfigRepository;
@@ -240,6 +250,8 @@ public class DemoDataSeedService {
         this.chatConversationRepository = chatConversationRepository;
         this.chatParticipantRepository = chatParticipantRepository;
         this.chatMessageRepository = chatMessageRepository;
+        this.importJobRepository = importJobRepository;
+        this.importJobLineRepository = importJobLineRepository;
         this.entityManager = entityManager;
         this.demoExtendedTablesSeed = demoExtendedTablesSeed;
     }
@@ -261,7 +273,108 @@ public class DemoDataSeedService {
                 .ifPresent(c -> demoExtendedTablesSeed.seedExtendedModuleRows(c.getTenantId(), "STXHER-KOL"));
         tenantConfigRepository.findBySchoolCode("MRIDGE-PN")
                 .ifPresent(c -> demoExtendedTablesSeed.seedExtendedModuleRows(c.getTenantId(), "MRIDGE-PN"));
-        log.info("Demo data seed complete (baseline tenants + idempotent bulk extension + extended module rows).");
+        ensureImportExportDemoJobsForShowcaseTenants();
+        log.info("Demo data seed complete (baseline tenants + bulk extension + extended modules + import/export demo jobs).");
+    }
+
+    /**
+     * Sample {@code import_jobs} rows for Java-seeded showcase schools. Flyway {@code t1} tenant is covered by V31;
+     * St. Xavier / Meridian are created after migrations, so the same UI data is applied here idempotently.
+     */
+    private void ensureImportExportDemoJobsForShowcaseTenants() {
+        tenantConfigRepository.findBySchoolCode("STXHER-KOL").ifPresent(c -> seedStXImportExportDemo(c.getTenantId()));
+        tenantConfigRepository.findBySchoolCode("MRIDGE-PN").ifPresent(c -> seedMeridianImportExportDemo(c.getTenantId()));
+    }
+
+    private void seedStXImportExportDemo(String tenantId) {
+        if (importJobRepository.existsByTenantIdAndOriginalFilenameAndIsDeletedFalse(tenantId, "admissions-batch-2026-demo.zip")) {
+            return;
+        }
+        User admin = userRepository.findByEmailAndTenantIdAndIsDeletedFalse("principal@stxheritage.edu", tenantId).orElse(null);
+        long classId = schoolClassRepository.findByTenantIdAndIsDeletedFalseOrderByGrade(tenantId).stream()
+                .findFirst()
+                .map(SchoolClass::getId)
+                .orElse(1L);
+        String cid = String.valueOf(classId);
+
+        ImportJob job = new ImportJob();
+        job.setTenantId(tenantId);
+        if (admin != null) {
+            job.setCreatedByUserId(admin.getId());
+            job.setCreatedBy(String.valueOf(admin.getId()));
+        }
+        job.setJobType("STUDENTS");
+        job.setStatus(ImportJobConstants.JOB_COMPLETED);
+        job.setOriginalFilename("admissions-batch-2026-demo.zip");
+        job.setTotalRows(3);
+        job.setSuccessCount(2);
+        job.setFailCount(1);
+        job.setStartedAt(LocalDateTime.now().minusHours(2));
+        job.setFinishedAt(LocalDateTime.now().minusHours(2).plusMinutes(3));
+        job.setSummaryMessage("Processed 3 row(s): 2 succeeded, 1 failed.");
+        importJobRepository.save(job);
+
+        ImportJobLine l0 = importDemoLine(tenantId, job.getId(), 0, ImportJobConstants.LINE_SUCCESS,
+                String.format(Locale.ROOT,
+                        "{\"firstname\":\"Aarav\",\"lastname\":\"Mehta\",\"classid\":\"%s\",\"sectionid\":\"\",\"admissionnumber\":\"DEMO-IMP-001\",\"parentemail\":\"demo.parent1@example.com\"}",
+                        cid),
+                null, "STUDENT", null);
+        ImportJobLine l1 = importDemoLine(tenantId, job.getId(), 1, ImportJobConstants.LINE_FAILED,
+                String.format(Locale.ROOT, "{\"firstname\":\"\",\"lastname\":\"BrokenRow\",\"classid\":\"%s\"}", cid),
+                "Missing required column: firstname", null, null);
+        ImportJobLine l2 = importDemoLine(tenantId, job.getId(), 2, ImportJobConstants.LINE_SUCCESS,
+                String.format(Locale.ROOT,
+                        "{\"firstname\":\"Diya\",\"lastname\":\"Ghosh\",\"classid\":\"%s\",\"admissionnumber\":\"DEMO-IMP-002\",\"parentemail\":\"demo.parent2@example.com\"}",
+                        cid),
+                null, "STUDENT", null);
+        importJobLineRepository.saveAll(List.of(l0, l1, l2));
+        log.info("Seeded import/export demo job (students) for tenant {}", tenantId);
+    }
+
+    private void seedMeridianImportExportDemo(String tenantId) {
+        if (importJobRepository.existsByTenantIdAndOriginalFilenameAndIsDeletedFalse(tenantId, "mridge-faculty-import-demo.zip")) {
+            return;
+        }
+        User admin = userRepository.findByEmailAndTenantIdAndIsDeletedFalse("principal@meridianridge.edu", tenantId).orElse(null);
+        ImportJob job = new ImportJob();
+        job.setTenantId(tenantId);
+        if (admin != null) {
+            job.setCreatedByUserId(admin.getId());
+            job.setCreatedBy(String.valueOf(admin.getId()));
+        }
+        job.setJobType("TEACHERS");
+        job.setStatus(ImportJobConstants.JOB_COMPLETED);
+        job.setOriginalFilename("mridge-faculty-import-demo.zip");
+        job.setTotalRows(2);
+        job.setSuccessCount(2);
+        job.setFailCount(0);
+        job.setStartedAt(LocalDateTime.now().minusDays(1));
+        job.setFinishedAt(LocalDateTime.now().minusDays(1).plusMinutes(2));
+        job.setSummaryMessage("Processed 2 row(s): 2 succeeded, 0 failed.");
+        importJobRepository.save(job);
+
+        ImportJobLine a = importDemoLine(tenantId, job.getId(), 0, ImportJobConstants.LINE_SUCCESS,
+                "{\"firstname\":\"Neha\",\"lastname\":\"Kapoor\",\"email\":\"n.kapoor.demo@meridianridge.edu\",\"createportal\":\"Y\",\"portalrole\":\"TEACHER\"}",
+                null, "TEACHER", null);
+        ImportJobLine b = importDemoLine(tenantId, job.getId(), 1, ImportJobConstants.LINE_SUCCESS,
+                "{\"firstname\":\"Rahul\",\"lastname\":\"Menon\",\"email\":\"r.menon.demo@meridianridge.edu\",\"createportal\":\"N\",\"portalrole\":\"TEACHER\"}",
+                null, "TEACHER", null);
+        importJobLineRepository.saveAll(List.of(a, b));
+        log.info("Seeded import/export demo job (teachers) for tenant {}", tenantId);
+    }
+
+    private static ImportJobLine importDemoLine(String tenantId, Long jobId, int lineIndex, String status, String payloadJson,
+                                                String errorMessage, String entityType, Long entityId) {
+        ImportJobLine line = new ImportJobLine();
+        line.setTenantId(tenantId);
+        line.setJobId(jobId);
+        line.setLineIndex(lineIndex);
+        line.setStatus(status);
+        line.setPayloadJson(payloadJson);
+        line.setErrorMessage(errorMessage);
+        line.setEntityType(entityType);
+        line.setEntityId(entityId);
+        return line;
     }
 
     private void seedPlatformSuperAdminIfMissing() {

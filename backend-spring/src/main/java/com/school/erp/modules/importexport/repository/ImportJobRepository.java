@@ -10,4 +10,6 @@ public interface ImportJobRepository extends JpaRepository<ImportJob, Long> {
     Optional<ImportJob> findByIdAndTenantIdAndIsDeletedFalse(Long id, String tenantId);
 
     Page<ImportJob> findByTenantIdAndIsDeletedFalseOrderByCreatedAtDesc(String tenantId, Pageable pageable);
+
+    boolean existsByTenantIdAndOriginalFilenameAndIsDeletedFalse(String tenantId, String originalFilename);
 }

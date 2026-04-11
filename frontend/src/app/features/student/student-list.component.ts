@@ -18,19 +18,12 @@ import { ConfirmDialogService } from '../../shared/confirm-dialog/confirm-dialog
         <div>
           <h2 style="font-size: 24px; font-weight: 800;">Students</h2>
           <p class="text-muted mb-0" style="font-size: 13px;">
-            {{ isAdmin ? 'Manage enrolment and student master records. Default view shows active pupils only; use status to include left/alumni records.' : 'Directory of active students in the school (read-only roster). Admins handle admissions, class moves, and withdrawals.' }}
+            {{ isAdmin ? 'Manage enrolment and student master records. Default view shows active pupils only; use status to include left/alumni records. Bulk ZIP/CSV import and export are under Operations → Import / export.' : 'Directory of active students in the school (read-only roster). Admins handle admissions, class moves, and withdrawals.' }}
           </p>
         </div>
         <div class="d-flex gap-3 flex-wrap">
           <button type="button" class="btn-outline-erp btn-sm" (click)="reloadStudents()"><i class="bi bi-arrow-clockwise"></i> Refresh</button>
           <ng-container *ngIf="isAdmin">
-            <label class="btn-outline-erp btn-sm" style="cursor: pointer; margin-bottom: 0;">
-              <i class="bi bi-upload"></i> Import ZIP
-              <input type="file" accept=".zip" style="display: none;" (change)="onImport($event)">
-            </label>
-            <button class="btn-outline-erp btn-sm" data-testid="export-students-btn">
-              <i class="bi bi-download"></i> Export
-            </button>
             <a routerLink="/app/students/new" class="btn-primary-erp btn-sm" data-testid="add-student-btn">
               <i class="bi bi-plus-lg"></i> Add Student
             </a>
@@ -157,7 +150,6 @@ export class StudentListComponent implements OnInit {
   pages: number[] = [];
   classOptions: string[] = [];
   Math = Math;
-  importError = '';
 
   constructor(
     private studentService: StudentService,
@@ -243,19 +235,5 @@ export class StudentListComponent implements OnInit {
           this.filterStudents();
         });
       });
-  }
-
-  onImport(event: Event): void {
-    const input = event.target as HTMLInputElement;
-    const file = input.files?.[0];
-    if (!file) {
-      return;
-    }
-    this.studentService.importStudentsZip(file).subscribe(imported => {
-      this.students = [...imported, ...this.students];
-      this.classOptions = [...new Set(this.students.map(s => s.className))].sort();
-      this.filterStudents();
-      input.value = '';
-    });
   }
 }

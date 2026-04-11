@@ -115,17 +115,6 @@ export class StudentService {
     }).pipe(delay(400));
   }
 
-  importStudentsZip(file: File): Observable<Student[]> {
-    if (!runtimeConfig.useMocks) {
-      const formData = new FormData();
-      formData.append('file', file);
-      return this.api.postFormData<any[]>('/students/import', formData).pipe(
-        map(students => students.map(student => this.normalizeStudent(student)))
-      );
-    }
-    return of([]).pipe(delay(300));
-  }
-
   private normalizeStudent(student: any): Student {
     return {
       ...student,

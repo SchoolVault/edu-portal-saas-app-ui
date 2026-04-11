@@ -41,3 +41,9 @@ Excel users should **Save as CSV** and pack into a `.zip` archive.
 ## Export
 
 CSV exports for students and teachers match the import column shape where applicable (`GET /api/v1/import-export/export/students.csv` and `.../teachers.csv`) so admins can round-trip edit and re-import.
+
+## Demo / QA sample jobs (UI)
+
+- **Flyway `V31`**: seeds `import_jobs` + lines for default tenant **`t1`** (`admin@school.com`) so Import / export shows history without Java demo profiles.
+- **`V30`**: optional SQL for St. Xavier’s tenant when `tenant_configs` already exists (e.g. restored DB).
+- **`DemoDataSeedService`** (profiles `dev`, `showcase-seed`, `demo-seed`): idempotently adds sample jobs for **St. Xavier’s** (`admissions-batch-2026-demo.zip`) and **Meridian Ridge** (`mridge-faculty-import-demo.zip`) after those workspaces are created. Safe to replace with real jobs once admins run live imports.

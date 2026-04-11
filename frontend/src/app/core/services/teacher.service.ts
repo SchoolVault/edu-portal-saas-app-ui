@@ -85,17 +85,6 @@ export class TeacherService {
     return of(true).pipe(delay(300));
   }
 
-  importTeachersZip(file: File): Observable<Teacher[]> {
-    if (!runtimeConfig.useMocks) {
-      const formData = new FormData();
-      formData.append('file', file);
-      return this.api.postFormData<any[]>('/teachers/import', formData).pipe(
-        map(teachers => teachers.map(teacher => this.normalizeTeacher(teacher)))
-      );
-    }
-    return of([]).pipe(delay(300));
-  }
-
   private normalizeTeacher(teacher: any): Teacher {
     const lib = teacher.libraryStaffRole ?? teacher.library_staff_role;
     const libNorm =
