@@ -44,5 +44,8 @@ services:
     envVars:
       - key: API_URL
         sync: false
+      # Optional; build script derives wss://<api-host>/ws from API_URL when API_URL is absolute.
+      - key: WEBSOCKET_URL
+        sync: false
       - key: USE_MOCKS
         value: "false"

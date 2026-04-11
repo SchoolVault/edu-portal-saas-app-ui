@@ -20,6 +20,10 @@ import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerCo
 
 import java.util.List;
 
+/**
+ * STOMP broker endpoint is {@code /ws} on this server (not under {@code /api/v1}).
+ * The UI derives {@code wss://api-host/ws} from the REST base URL; use {@code websocketUrl} in {@code config.json} if a gateway uses a different path.
+ */
 @Configuration
 @EnableWebSocketMessageBroker
 public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
