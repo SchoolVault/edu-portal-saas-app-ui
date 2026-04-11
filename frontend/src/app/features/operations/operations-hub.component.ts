@@ -44,16 +44,16 @@ import { filter } from 'rxjs/operators';
           </div>
           <div class="col-md-2">
             <label class="erp-label">Class</label>
-            <select class="erp-select" [(ngModel)]="coverForm.classId">
-              <option value="">Select</option>
-              <option *ngFor="let c of classes" [value]="c.id">{{ c.name }}</option>
+            <select class="erp-select" [(ngModel)]="coverForm.classId" (change)="coverForm.sectionId = null">
+              <option [ngValue]="null">Select</option>
+              <option *ngFor="let c of classes" [ngValue]="c.id">{{ c.name }}</option>
             </select>
           </div>
           <div class="col-md-2">
             <label class="erp-label">Section (optional)</label>
             <select class="erp-select" [(ngModel)]="coverForm.sectionId">
-              <option value="">All sections</option>
-              <option *ngFor="let s of coverSections" [value]="s.id">{{ s.name }}</option>
+              <option [ngValue]="null">All sections</option>
+              <option *ngFor="let s of coverSections" [ngValue]="s.id">{{ s.name }}</option>
             </select>
           </div>
           <div class="col-md-2">
@@ -63,8 +63,8 @@ import { filter } from 'rxjs/operators';
           <div class="col-md-4">
             <label class="erp-label">Covering teacher</label>
             <select class="erp-select" [(ngModel)]="coverForm.coveringTeacherId">
-              <option value="">Select</option>
-              <option *ngFor="let te of teachers" [value]="te.id">{{ te.firstName }} {{ te.lastName }}</option>
+              <option [ngValue]="null">Select</option>
+              <option *ngFor="let te of teachers" [ngValue]="te.id">{{ te.firstName }} {{ te.lastName }}</option>
             </select>
           </div>
         </div>
@@ -311,7 +311,13 @@ export class OperationsHubComponent implements OnInit {
   payroll: PayrollAccrualSummary | null = null;
 
   coverDate = new Date().toISOString().split('T')[0];
-  coverForm = { classId: '', sectionId: '', coveringTeacherId: '', reason: '', periodNumber: null as number | null };
+  coverForm = {
+    classId: null as number | null,
+    sectionId: null as number | null,
+    coveringTeacherId: null as number | null,
+    reason: '',
+    periodNumber: null as number | null,
+  };
   staffRoles = ['DRIVER', 'SECURITY', 'OFFICE', 'NURSE', 'MAINTENANCE', 'LAB_ASSISTANT', 'OTHER'];
   staffForm = { staffRole: 'DRIVER', fullName: '', phone: '', employeeCode: '' };
   visitorForm = { visitorName: '', phone: '', hostName: '', purpose: '' };
@@ -340,7 +346,7 @@ export class OperationsHubComponent implements OnInit {
     this.reloadCovers();
   }
 
-  get coverSections(): { id: string; name: string }[] {
+  get coverSections(): { id: number; name: string }[] {
     const cls = this.classes.find(c => c.id === this.coverForm.classId);
     return cls?.sections?.map(s => ({ id: s.id, name: s.name })) ?? [];
   }
@@ -367,12 +373,12 @@ export class OperationsHubComponent implements OnInit {
   }
 
   submitCover(): void {
-    if (!this.coverForm.classId || !this.coverForm.coveringTeacherId) return;
+    if (this.coverForm.classId == null || this.coverForm.coveringTeacherId == null) return;
     this.operations
       .createAttendanceCover({
         coverDate: this.coverDate,
         classId: this.coverForm.classId,
-        sectionId: this.coverForm.sectionId || undefined,
+        sectionId: this.coverForm.sectionId ?? undefined,
         coveringTeacherId: this.coverForm.coveringTeacherId,
         reason: this.coverForm.reason,
         periodNumber: this.coverForm.periodNumber != null && this.coverForm.periodNumber > 0 ? this.coverForm.periodNumber : undefined,

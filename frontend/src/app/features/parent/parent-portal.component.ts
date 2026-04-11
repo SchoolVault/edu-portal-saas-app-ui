@@ -5,6 +5,7 @@ import { ParentService } from '../../core/services/parent.service';
 import { PaymentCheckoutService } from '../../core/services/payment-checkout.service';
 import { runtimeConfig } from '../../core/config/runtime-config';
 import { AttendanceRecord, AttendanceStats, CheckoutSession, FeePayment, MarkRecord, ParentFeeObligation, PaymentReceipt, Student } from '../../core/models/models';
+import { coerceApiLongId } from '../../core/utils/coerce-api-long-id';
 import { ErpDatePickerComponent } from '../../shared/erp-date-picker/erp-date-picker.component';
 
 @Component({
@@ -45,8 +46,8 @@ import { ErpDatePickerComponent } from '../../shared/erp-date-picker/erp-date-pi
           <div class="col-md-4">
             <label class="erp-label">Child</label>
             <select class="erp-select" [(ngModel)]="selectedStudentId" (change)="onStudentChange()">
-              <option value="">Select Child</option>
-              <option *ngFor="let child of children" [value]="child.id">
+              <option [ngValue]="null">Select Child</option>
+              <option *ngFor="let child of children" [ngValue]="child.id">
                 {{ child.firstName }} {{ child.lastName }} - {{ child.className || ('Class ' + child.classId) }}
               </option>
             </select>
@@ -317,7 +318,7 @@ import { ErpDatePickerComponent } from '../../shared/erp-date-picker/erp-date-pi
 })
 export class ParentPortalComponent implements OnInit {
   children: Student[] = [];
-  selectedStudentId = '';
+  selectedStudentId: number | null = null;
   selectedChild: Student | null = null;
   tab: 'attendance' | 'fees' | 'marks' = 'attendance';
   fromDate = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0];
@@ -370,10 +371,10 @@ export class ParentPortalComponent implements OnInit {
   refreshPortal(): void {
     this.parentService.getChildren().subscribe(children => {
       this.children = children;
-      if (!this.selectedStudentId && children.length) {
+      if (this.selectedStudentId == null && children.length) {
         this.selectedStudentId = children[0].id;
       }
-      if (this.selectedStudentId) {
+      if (this.selectedStudentId != null) {
         this.onStudentChange();
       }
     });
@@ -385,7 +386,7 @@ export class ParentPortalComponent implements OnInit {
   }
 
   reloadSelectedChild(): void {
-    if (!this.selectedStudentId) {
+    if (this.selectedStudentId == null) {
       this.receiptHistory = [];
       this.latestReceipt = null;
       this.receiptLookupByPaymentId = new Map();
@@ -407,7 +408,7 @@ export class ParentPortalComponent implements OnInit {
 
   /** Build paymentId → latest receipt (by payment date) for the whole ledger window. */
   reloadReceiptLookup(): void {
-    if (!this.selectedStudentId) {
+    if (this.selectedStudentId == null) {
       this.receiptLookupByPaymentId = new Map();
       return;
     }
@@ -418,8 +419,9 @@ export class ParentPortalComponent implements OnInit {
       next: list => {
         const map = new Map<string, PaymentReceipt>();
         for (const r of list) {
-          if (!map.has(r.paymentId)) {
-            map.set(r.paymentId, r);
+          const key = String(r.paymentId);
+          if (!map.has(key)) {
+            map.set(key, r);
           }
         }
         this.receiptLookupByPaymentId = map;
@@ -460,8 +462,8 @@ export class ParentPortalComponent implements OnInit {
     this.reloadReceiptHistory();
   }
 
-  latestReceiptForPayment(paymentId: string): PaymentReceipt | null {
-    return this.receiptLookupByPaymentId.get(paymentId) ?? null;
+  latestReceiptForPayment(paymentId: string | number): PaymentReceipt | null {
+    return this.receiptLookupByPaymentId.get(String(paymentId)) ?? null;
   }
 
   receiptLedgerStatus(r: PaymentReceipt): string {
@@ -514,7 +516,7 @@ export class ParentPortalComponent implements OnInit {
       .createOrder({
         purpose: 'SCHOOL_FEE',
         feePaymentId: this.selectedObligation.paymentId,
-        studentId: this.selectedChild.id,
+        studentId: coerceApiLongId(this.selectedChild.id, 'student'),
         amount: this.paymentAmount,
         currency: this.selectedObligation.currency || 'INR',
         provider: prov,
@@ -544,7 +546,7 @@ export class ParentPortalComponent implements OnInit {
     this.parentService
       .createCheckoutSession({
         paymentId: this.selectedObligation.paymentId,
-        studentId: this.selectedChild.id,
+        studentId: coerceApiLongId(this.selectedChild.id, 'student'),
         amount: this.paymentAmount,
         provider: this.paymentProvider,
         returnUrl: '/app/parent',

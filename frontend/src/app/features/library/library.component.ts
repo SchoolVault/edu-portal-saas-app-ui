@@ -225,7 +225,7 @@ export class LibraryComponent implements OnInit {
   bookModal = false;
   bookForm = { title: '', author: '', isbn: '', category: '', totalCopies: 1, shelfLocation: '' };
   issueBook: Book | null = null;
-  issueForm = { studentId: null as string | null, studentName: '', dueDays: 14 };
+  issueForm = { studentId: null as number | null, studentName: '', dueDays: 14 };
   issueError = '';
   returnIssue: BookIssue | null = null;
   returnForm = { returnDate: '', finePerDay: '' as string | number };
@@ -344,7 +344,7 @@ export class LibraryComponent implements OnInit {
   saveIssue(): void {
     this.issueError = '';
     if (!this.issueBook) return;
-    if (this.issueForm.studentId == null || this.issueForm.studentId === '') {
+    if (this.issueForm.studentId == null) {
       this.issueError = 'Please select a student.';
       return;
     }

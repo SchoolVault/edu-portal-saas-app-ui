@@ -1,0 +1,101 @@
+import type { Exam, ExamScheduleSlot, MarkRecord } from '../models/models';
+
+export const MOCK_EXAMS_SEED: Exam[] = [
+    {
+      id: 1,
+      name: 'First Unit Test',
+      academicYearId: 1,
+      startDate: '2025-08-15',
+      endDate: '2025-08-22',
+      classIds: [5, 6, 7, 8, 9, 10],
+      classScopes: [
+        { classId: 5, sectionId: null, className: 'Class 5' },
+        { classId: 8, sectionId: 801, className: 'Class 8', sectionName: 'A' }
+      ],
+      status: 'completed',
+      tenantId: 't1'
+    },
+    {
+      id: 2,
+      name: 'Midterm Examination',
+      academicYearId: 1,
+      startDate: '2025-10-10',
+      endDate: '2025-10-20',
+      classIds: [5, 6, 7, 8, 9, 10, 11, 12],
+      status: 'completed',
+      tenantId: 't1'
+    },
+    {
+      id: 3,
+      name: 'Second Unit Test',
+      academicYearId: 1,
+      startDate: '2025-12-05',
+      endDate: '2025-12-12',
+      classIds: [5, 6, 7, 8, 9, 10],
+      status: 'completed',
+      tenantId: 't1'
+    },
+    {
+      id: 4,
+      name: 'Final Examination',
+      academicYearId: 1,
+      startDate: '2026-03-10',
+      endDate: '2026-03-25',
+      classIds: [5, 6, 7, 8, 9, 10, 11, 12],
+      status: 'upcoming',
+      tenantId: 't1'
+    },
+  ];
+
+export const MOCK_EXAM_MARKS_SEED: MarkRecord[] = [
+    { id: 1, examId: 2, studentId: 1, studentName: 'Arjun Patel', subjectName: 'Mathematics', marksObtained: 85, maxMarks: 100, grade: 'A', classId: 5, tenantId: 't1' },
+    { id: 2, examId: 2, studentId: 1, studentName: 'Arjun Patel', subjectName: 'English', marksObtained: 72, maxMarks: 100, grade: 'B+', classId: 5, tenantId: 't1' },
+    { id: 3, examId: 2, studentId: 1, studentName: 'Arjun Patel', subjectName: 'Science', marksObtained: 90, maxMarks: 100, grade: 'A+', classId: 5, tenantId: 't1' },
+    { id: 4, examId: 2, studentId: 2, studentName: 'Emily Watson', subjectName: 'Mathematics', marksObtained: 78, maxMarks: 100, grade: 'B+', classId: 6, tenantId: 't1' },
+    { id: 5, examId: 2, studentId: 2, studentName: 'Emily Watson', subjectName: 'English', marksObtained: 92, maxMarks: 100, grade: 'A+', classId: 6, tenantId: 't1' },
+    { id: 6, examId: 2, studentId: 4, studentName: 'Sofia Martinez', subjectName: 'Mathematics', marksObtained: 88, maxMarks: 100, grade: 'A', classId: 8, tenantId: 't1' },
+    { id: 7, examId: 2, studentId: 4, studentName: 'Sofia Martinez', subjectName: 'Science', marksObtained: 95, maxMarks: 100, grade: 'A+', classId: 8, tenantId: 't1' },
+    { id: 8, examId: 2, studentId: 9, studentName: 'Mason Davis', subjectName: 'Mathematics', marksObtained: 65, maxMarks: 100, grade: 'B', classId: 9, tenantId: 't1' },
+    { id: 9, examId: 2, studentId: 12, studentName: 'Emma Chen', subjectName: 'Mathematics', marksObtained: 92, maxMarks: 100, grade: 'A+', classId: 8, tenantId: 't1' },
+    { id: 10, examId: 2, studentId: 12, studentName: 'Emma Chen', subjectName: 'Science', marksObtained: 85, maxMarks: 100, grade: 'A', classId: 8, tenantId: 't1' },
+    { id: 11, examId: 1, studentId: 1, studentName: 'Arjun Patel', subjectName: 'Mathematics', marksObtained: 78, maxMarks: 100, grade: 'B+', classId: 5, tenantId: 't1' },
+    { id: 12, examId: 1, studentId: 1, studentName: 'Arjun Patel', subjectName: 'English', marksObtained: 65, maxMarks: 100, grade: 'B', classId: 5, tenantId: 't1' },
+    { id: 13, examId: 1, studentId: 1, studentName: 'Arjun Patel', subjectName: 'Science', marksObtained: 82, maxMarks: 100, grade: 'A', classId: 5, tenantId: 't1' },
+    { id: 14, examId: 1, studentId: 4, studentName: 'Sofia Martinez', subjectName: 'Mathematics', marksObtained: 82, maxMarks: 100, grade: 'A', classId: 8, tenantId: 't1' },
+    { id: 15, examId: 1, studentId: 4, studentName: 'Sofia Martinez', subjectName: 'Science', marksObtained: 90, maxMarks: 100, grade: 'A+', classId: 8, tenantId: 't1' },
+    { id: 16, examId: 1, studentId: 12, studentName: 'Emma Chen', subjectName: 'Mathematics', marksObtained: 88, maxMarks: 100, grade: 'A', classId: 8, tenantId: 't1' },
+    { id: 17, examId: 1, studentId: 12, studentName: 'Emma Chen', subjectName: 'Science', marksObtained: 80, maxMarks: 100, grade: 'A', classId: 8, tenantId: 't1' },
+    { id: 18, examId: 3, studentId: 4, studentName: 'Sofia Martinez', subjectName: 'Mathematics', marksObtained: 91, maxMarks: 100, grade: 'A+', classId: 8, tenantId: 't1' },
+    { id: 19, examId: 3, studentId: 4, studentName: 'Sofia Martinez', subjectName: 'Science', marksObtained: 96, maxMarks: 100, grade: 'A+', classId: 8, tenantId: 't1' },
+    { id: 20, examId: 3, studentId: 12, studentName: 'Emma Chen', subjectName: 'Mathematics', marksObtained: 94, maxMarks: 100, grade: 'A+', classId: 8, tenantId: 't1' },
+  ];
+
+export const MOCK_EXAM_SCHEDULE_SEED: Record<number, ExamScheduleSlot[]> = {
+    2: [
+      {
+        id: 1,
+        examId: 2,
+        classId: 8,
+        sectionId: null,
+        className: 'Class 8',
+        subjectName: 'Mathematics',
+        examDate: '2025-10-12',
+        startTime: '09:00:00',
+        endTime: '12:00:00',
+        room: 'Hall A',
+        notes: 'Scientific calculator allowed'
+      },
+      {
+        id: 2,
+        examId: 2,
+        classId: 8,
+        sectionId: null,
+        className: 'Class 8',
+        subjectName: 'Science',
+        examDate: '2025-10-13',
+        startTime: '09:00:00',
+        endTime: '11:30:00',
+        room: 'Lab 2'
+      }
+    ],
+};

@@ -1,7 +1,10 @@
+import type { ParentFeeDtos } from './parent-fee.dto';
+
 export type AppRole = 'super_admin' | 'admin' | 'teacher' | 'parent';
 
 export interface User {
-  id: string;
+  /** ERP user id (Java Long → JSON number). */
+  id: number;
   email: string;
   name: string;
   role: AppRole;
@@ -22,6 +25,12 @@ export interface LoginResponse {
   user: User;
 }
 
+/** Same shape as Spring {@code AuthDTOs.TokenResponse} (refresh endpoint). */
+export interface TokenResponse {
+  token: string;
+  refreshToken: string;
+}
+
 export interface OnboardSchoolRequest {
   schoolName: string;
   schoolCode: string;
@@ -33,7 +42,7 @@ export interface OnboardSchoolRequest {
 }
 
 export interface ProfileSummary {
-  id: string;
+  id: number;
   name: string;
   email: string;
   phone?: string;
@@ -58,7 +67,7 @@ export interface ProfileSummary {
   /** SUPER_ADMIN: count of active school workspaces (non-deleted tenants). */
   platformWorkspaceCount?: number;
   /** TEACHER: classes where this user is the assigned class teacher (photo / roster policy). */
-  classTeacherOf?: { classId: string; className?: string; sectionName?: string; totalStudents?: number }[];
+  classTeacherOf?: { classId: number; className?: string; sectionName?: string; totalStudents?: number }[];
   /** SUPER_ADMIN: console operator metadata (API or mock). */
   platformOperatorSince?: string;
   platformLastLoginDisplay?: string;
@@ -68,23 +77,23 @@ export interface ProfileSummary {
 }
 
 export interface Student {
-  id: string;
+  id: number;
   firstName: string;
   lastName: string;
   email: string;
   phone: string;
   dateOfBirth: string;
   gender: string;
-  classId: string;
+  classId: number;
   className: string;
-  sectionId: string;
+  sectionId: number;
   sectionName: string;
   rollNumber: string;
   admissionNumber: string;
   admissionDate: string;
-  parentId: string;
+  parentId: number;
   /** Linked parent ERP user id for chat/directory (when parent has a login). */
-  parentUserId?: string;
+  parentUserId?: number;
   parentName: string;
   address: string;
   bloodGroup: string;
@@ -94,7 +103,7 @@ export interface Student {
 }
 
 export interface AttendanceStats {
-  studentId?: string;
+  studentId?: number;
   totalDays: number;
   present: number;
   absent: number;
@@ -115,7 +124,7 @@ export interface SubjectCatalogItem {
 }
 
 export interface Teacher {
-  id: string;
+  id: number;
   firstName: string;
   lastName: string;
   email: string;
@@ -124,19 +133,19 @@ export interface Teacher {
   specialization: string;
   joinDate: string;
   subjects: string[];
-  classIds: string[];
+  classIds: number[];
   salary: number;
   status: 'active' | 'inactive';
   avatar?: string;
   /** Links to User.id when staff logs in with a teacher account. */
-  userId?: string;
+  userId?: number;
   /** When set, login JWT includes LIBRARY_MANAGE / LIBRARY_CIRCULATION (backend). */
   libraryStaffRole?: LibraryStaffRole;
   tenantId: string;
 }
 
 export interface AcademicYear {
-  id: string;
+  id: number;
   name: string;
   startDate: string;
   endDate: string;
@@ -145,48 +154,48 @@ export interface AcademicYear {
 }
 
 export interface SchoolClass {
-  id: string;
+  id: number;
   name: string;
   grade: number;
   sections: Section[];
-  classTeacherId?: string;
+  classTeacherId?: number;
   classTeacherName?: string;
-  academicYearId: string;
+  academicYearId: number;
   tenantId: string;
   /** From API aggregate; optional in mocks. */
   totalStudents?: number;
 }
 
 export interface Section {
-  id: string;
+  id: number;
   name: string;
-  classId: string;
+  classId: number;
   capacity: number;
   studentCount: number;
 }
 
 export interface AttendanceRecord {
-  id: string;
-  studentId: string;
+  id: number;
+  studentId: number;
   studentName: string;
-  classId: string;
-  sectionId: string;
+  classId: number;
+  sectionId: number;
   date: string;
   status: 'present' | 'absent' | 'late' | 'excused';
-  markedBy: string;
+  markedBy: number;
   tenantId: string;
 }
 
 export interface TimetableEntry {
-  id: string;
-  classId: string;
-  sectionId: string;
+  id: number;
+  classId: number;
+  sectionId: number;
   day: string;
   period: number;
   startTime: string;
   endTime: string;
   subjectName: string;
-  teacherId: string;
+  teacherId: number;
   teacherName: string;
   room: string;
   tenantId: string;
@@ -205,8 +214,8 @@ export interface TimetableGridSlot {
 }
 
 export interface TimetableGrid {
-  classId: string;
-  sectionId: string;
+  classId: number;
+  sectionId: number;
   days: string[];
   periods: number[];
   grid: Record<string, Record<number, TimetableGridSlot>>;
@@ -214,19 +223,19 @@ export interface TimetableGrid {
 
 /** Per-class/section audience for an exam (aligns with backend ExamScopeDtos.ClassScopeOut). */
 export interface ExamClassScope {
-  classId: string;
-  sectionId?: string | null;
+  classId: number;
+  sectionId?: number | null;
   className?: string;
   sectionName?: string;
 }
 
 /** Scheduled paper slot (aligns with backend ExamScopeDtos.ScheduleSlotOut). */
 export interface ExamScheduleSlot {
-  id?: string;
+  id?: number;
   /** Present when slot is nested under a known exam in UI mocks. */
-  examId?: string;
-  classId: string;
-  sectionId?: string | null;
+  examId?: number;
+  classId: number;
+  sectionId?: number | null;
   className?: string;
   sectionName?: string;
   subjectName: string;
@@ -238,12 +247,12 @@ export interface ExamScheduleSlot {
 }
 
 export interface Exam {
-  id: string;
+  id: number;
   name: string;
-  academicYearId: string;
+  academicYearId: number;
   startDate: string;
   endDate: string;
-  classIds: string[];
+  classIds: number[];
   /** When set, preferred over classIds for scoped exams (API + UI). */
   classScopes?: ExamClassScope[];
   scheduleSlots?: ExamScheduleSlot[];
@@ -252,7 +261,7 @@ export interface Exam {
 }
 
 export interface PromotionStudentPreview {
-  studentId: string;
+  studentId: number;
   firstName: string;
   lastName: string;
   rollNumber: string;
@@ -263,17 +272,17 @@ export interface PromotionStudentPreview {
 }
 
 export interface PromotionTargetSectionOption {
-  id: string;
+  id: number;
   name: string;
   capacity?: number;
 }
 
 export interface PromotionPreview {
-  sourceClassId: string;
+  sourceClassId: number;
   sourceClassName: string;
-  targetClassId: string;
+  targetClassId: number;
   targetClassName: string;
-  defaultSectionId?: string;
+  defaultSectionId?: number;
   defaultSectionName?: string;
   /** All sections of the target class; UI picks one when promoting into fewer sections. */
   targetSections?: PromotionTargetSectionOption[];
@@ -283,15 +292,15 @@ export interface PromotionPreview {
 }
 
 export interface PromotionSplitSectionRow {
-  sectionId: string;
+  sectionId: number;
   sectionName: string;
   capacity?: number;
   suggestedAssignCount: number;
 }
 
 export interface PromotionSplitPreview {
-  fromClassId: string;
-  toClassId: string;
+  fromClassId: number;
+  toClassId: number;
   eligibleStudentCount: number;
   hint?: string;
   sections: PromotionSplitSectionRow[];
@@ -316,7 +325,7 @@ export interface DashboardActivityItem {
 }
 
 export interface DashboardUpcomingEvent {
-  id?: string;
+  id?: number;
   title: string;
   date: string;
   description: string;
@@ -390,7 +399,7 @@ export interface PlatformSchoolAdmin {
 
 /** Super-admin chat picker row (GET /platform/school-admins/chat-search). */
 export interface PlatformSchoolAdminChatHit {
-  userId: string;
+  userId: number;
   name: string;
   email: string;
   phone?: string;
@@ -453,8 +462,8 @@ export interface PlatformSubscriptionPlan {
 }
 
 export interface TeacherScheduleItem {
-  classId: string;
-  sectionId: string;
+  classId: number;
+  sectionId: number;
   period: number;
   subject: string;
   className: string;
@@ -471,7 +480,7 @@ export interface TeacherDashboardData {
   unreadNotifications: number;
   todaySchedule: TeacherScheduleItem[];
   pendingTasks: DashboardActivityItem[];
-  classTeacherOf?: { classId: string; className: string; sectionName?: string; totalStudents: number }[];
+  classTeacherOf?: { classId: number; className: string; sectionName?: string; totalStudents: number }[];
   messageQueue?: { conversationId: string; fromName: string; studentName?: string; preview: string; timestamp: string; priority: 'low' | 'normal' | 'high' }[];
   quickActions?: { label: string; route: string; icon: string }[];
 }
@@ -480,19 +489,19 @@ export interface ParentDashboardData {
   childCount: number;
   children?: Student[];
   selectedChild?: Student;
-  selectedChildId?: string;
+  selectedChildId?: number;
   attendancePercentage: number;
   overallGrade: string;
   feeDue: number;
   childPerformance: MarkRecord[];
   feeStatus: FeePayment[];
   alerts?: { type: 'info' | 'warning' | 'success' | 'error'; title: string; message: string; ctaLabel?: string; ctaRoute?: string }[];
-  upcoming?: { id: string; title: string; date: string; description?: string }[];
+  upcoming?: DashboardUpcomingEvent[];
   attendanceSnapshot?: { present: number; absent: number; late: number; excused: number; totalDays: number };
 }
 
 export interface StudentPerformanceRow {
-  studentId: string;
+  studentId: number;
   studentName: string;
   subjects: Record<string, number>;
   totalMarks: number;
@@ -503,7 +512,7 @@ export interface StudentPerformanceRow {
 }
 
 export interface AttendanceSummaryRow {
-  studentId: string;
+  studentId: number;
   studentName: string;
   present: number;
   absent: number;
@@ -514,7 +523,7 @@ export interface AttendanceSummaryRow {
 }
 
 export interface ClassSummaryRow {
-  classId: string;
+  classId: number;
   className: string;
   grade: number;
   sections: number;
@@ -526,15 +535,15 @@ export interface ClassSummaryRow {
 }
 
 export interface SectionSummaryRow {
-  sectionId: string;
+  sectionId: number;
   sectionName: string;
-  classId: string;
+  classId: number;
   className: string;
   studentCount: number;
 }
 
 export interface TeacherWorkloadRow {
-  teacherId: string;
+  teacherId: number;
   teacherName: string;
   specialization: string;
   subjects: string[];
@@ -542,7 +551,7 @@ export interface TeacherWorkloadRow {
 }
 
 export interface ReportCard {
-  studentId: string;
+  studentId: number;
   studentName: string;
   subjects: MarkRecord[];
   totalMarks: number;
@@ -552,24 +561,24 @@ export interface ReportCard {
 }
 
 export interface MarkRecord {
-  id: string;
-  examId: string;
-  studentId: string;
+  id: number;
+  examId: number;
+  studentId: number;
   studentName: string;
   subjectName: string;
   marksObtained: number;
   maxMarks: number;
   grade: string;
-  classId: string;
+  classId: number;
   tenantId: string;
 }
 
 export interface FeeStructure {
-  id: string;
+  id: number;
   name: string;
-  classId: string;
+  classId: number;
   className: string;
-  academicYearId: string;
+  academicYearId: number;
   components: FeeComponent[];
   totalAmount: number;
   tenantId: string;
@@ -582,10 +591,10 @@ export interface FeeComponent {
 }
 
 export interface FeePayment {
-  id: string;
-  studentId: string;
+  id: number;
+  studentId: number;
   studentName: string;
-  feeStructureId: string;
+  feeStructureId: number;
   amount: number;
   paidAmount: number;
   dueAmount: number;
@@ -598,74 +607,19 @@ export interface FeePayment {
   tenantId: string;
 }
 
-export interface ParentFeeLineItem {
-  name: string;
-  amount: number;
-  type: string;
-}
-
-export interface ParentFeeObligation {
-  paymentId: string;
-  studentId: string;
-  studentName: string;
-  feeStructureId: string;
-  feeStructureName: string;
-  className?: string;
-  dueDate?: string;
-  status: 'paid' | 'partial' | 'unpaid' | 'overdue';
-  currency: string;
-  totalAmount: number;
-  paidAmount: number;
-  dueAmount: number;
-  discount: number;
-  lateFee: number;
-  payableNow: number;
-  lineItems: ParentFeeLineItem[];
-}
-
-export interface CheckoutSessionRequest {
-  paymentId: string;
-  studentId: string;
-  amount: number;
-  provider: string;
-  returnUrl?: string;
-}
-
-export interface CheckoutSession {
-  attemptId: string;
-  provider: string;
-  providerOrderId: string;
-  checkoutToken: string;
-  currency: string;
-  amount: number;
-  checkoutUrl: string;
-  status: string;
-}
-
-export interface PaymentReceipt {
-  receiptNumber: string;
-  paymentId: string;
-  studentId: string;
-  studentName: string;
-  feeStructureName: string;
-  className?: string;
-  provider?: string;
-  providerPaymentId?: string;
-  paymentMethod?: string;
-  paymentDate?: string;
-  dueDate?: string;
-  currency: string;
-  amountPaid: number;
-  totalAmount: number;
-  paidAmount: number;
-  dueAmount: number;
-  discount: number;
-  lateFee: number;
-  lineItems: ParentFeeLineItem[];
-}
+/** @see ParentFeeDtos — mirrors {@code FeeDTOs.ParentFeeLineItem}. */
+export type ParentFeeLineItem = ParentFeeDtos.ParentFeeLineItem;
+/** @see ParentFeeDtos — mirrors {@code FeeDTOs.ParentFeeObligationResponse}. */
+export type ParentFeeObligation = ParentFeeDtos.ParentFeeObligationResponse;
+/** @see ParentFeeDtos — mirrors {@code FeeDTOs.CreateCheckoutSessionRequest}. */
+export type CheckoutSessionRequest = ParentFeeDtos.CreateCheckoutSessionRequest;
+/** @see ParentFeeDtos — mirrors {@code FeeDTOs.CheckoutSessionResponse}. */
+export type CheckoutSession = ParentFeeDtos.CheckoutSessionResponse;
+/** @see ParentFeeDtos — mirrors {@code FeeDTOs.PaymentReceiptResponse}. */
+export type PaymentReceipt = ParentFeeDtos.PaymentReceiptResponse;
 
 export interface ChatParticipantSummary {
-  userId: string;
+  userId: number;
   userRole: string;
   displayName?: string;
 }
@@ -693,7 +647,7 @@ export interface ChatCreateConversationRequest {
 export interface ChatMessage {
   id: string;
   conversationId: string;
-  senderUserId: string;
+  senderUserId: number;
   senderRole: string;
   senderName?: string;
   body: string;
@@ -703,31 +657,31 @@ export interface ChatMessage {
 }
 
 export interface ChatDirectoryUserCard {
-  userId: string;
+  userId: number;
   name: string;
   role: string;
 }
 
 export interface ChatDirectoryStudentCard {
-  studentId: string;
+  studentId: number;
   studentName: string;
   parent?: ChatDirectoryUserCard;
 }
 
 export interface ChatDirectoryClassRoster {
-  classId: string;
+  classId: number;
   className?: string;
-  sectionId?: string;
+  sectionId?: number;
   sectionName?: string;
   students: ChatDirectoryStudentCard[];
 }
 
 export interface ChatDirectoryParentChildRoster {
-  studentId: string;
+  studentId: number;
   studentName: string;
-  classId?: string;
+  classId?: number;
   className?: string;
-  sectionId?: string;
+  sectionId?: number;
   sectionName?: string;
   classTeacher?: ChatDirectoryUserCard;
 }
@@ -763,7 +717,7 @@ export interface AppNotification {
   message: string;
   type: 'info' | 'warning' | 'success' | 'error';
   read: boolean;
-  userId: string;
+  userId: number;
   createdAt: string;
   link?: string;
 }
@@ -797,14 +751,14 @@ export interface TransportRoute {
   liveLatitude?: number;
   liveLongitude?: number;
   liveRecordedAt?: string;
-  stops: { id?: string; name: string; time: string; order: number }[];
+  stops: { id?: number; name: string; time: string; order: number }[];
   assignedStudents: number;
-  students?: { id: string; studentId: string; studentName: string; pickupStop?: string; dropStop?: string }[];
+  students?: { id: number; studentId: number; studentName: string; pickupStop?: string; dropStop?: string }[];
   tenantId: string;
 }
 
 export interface Book {
-  id: string;
+  id: number;
   title: string;
   author: string;
   isbn: string;
@@ -819,9 +773,9 @@ export interface Book {
 
 export interface BookIssue {
   id: string;
-  bookId: string;
+  bookId: number;
   bookTitle: string;
-  studentId: string;
+  studentId: number;
   studentName: string;
   issueDate: string;
   dueDate: string;
@@ -843,7 +797,7 @@ export interface HostelBuilding {
 
 export interface HostelResident {
   allocationId: string;
-  studentId: string;
+  studentId: number;
   studentName: string;
   fromDate?: string;
   toDate?: string;
@@ -864,8 +818,8 @@ export interface HostelRoom {
 }
 
 export interface SalaryStructure {
-  id: string;
-  teacherId: string;
+  id: number;
+  teacherId: number;
   teacherName: string;
   basicSalary: number;
   allowances: { name: string; amount: number }[];
@@ -876,7 +830,7 @@ export interface SalaryStructure {
 
 export interface Payslip {
   id: string;
-  teacherId: string;
+  teacherId: number;
   teacherName: string;
   month: string;
   year: number;
@@ -891,7 +845,7 @@ export interface Payslip {
 }
 
 export interface TeacherPaymentDetails {
-  teacherId: string;
+  teacherId: number;
   teacherName: string;
   monthlyNetSalary: number;
   bankAccountHolder?: string;

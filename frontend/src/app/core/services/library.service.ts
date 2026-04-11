@@ -2,52 +2,12 @@ import { Injectable } from '@angular/core';
 import { Observable, of, throwError } from 'rxjs';
 import { map } from 'rxjs/operators';
 import { Book, BookIssue } from '../models/models';
+import { MOCK_LIBRARY_BOOKS, MOCK_LIBRARY_ISSUES } from '../mocks/library.mock-data';
 import { ApiService } from './api.service';
 import { runtimeConfig } from '../config/runtime-config';
-import { coerceApiLongId } from '../utils/coerce-api-long-id';
 
-/** Mutable in-memory catalog (same shape as API). */
-let MOCK_BOOKS: Book[] = [
-  {
-    id: 'b1',
-    title: 'To Kill a Mockingbird',
-    author: 'Harper Lee',
-    isbn: '978-0061120084',
-    category: 'Fiction',
-    totalCopies: 5,
-    availableCopies: 3,
-    shelfLocation: 'A-12',
-    catalogActive: true,
-    tenantId: 't1'
-  },
-  {
-    id: 'b2',
-    title: 'A Brief History of Time',
-    author: 'Stephen Hawking',
-    isbn: '978-0553380163',
-    category: 'Science',
-    totalCopies: 3,
-    availableCopies: 1,
-    shelfLocation: 'B-05',
-    catalogActive: true,
-    tenantId: 't1'
-  }
-];
-
-let MOCK_ISSUES: BookIssue[] = [
-  {
-    id: 'bi1',
-    bookId: 'b1',
-    bookTitle: 'To Kill a Mockingbird',
-    studentId: 's1',
-    studentName: 'Arjun Patel',
-    issueDate: '2026-01-15',
-    dueDate: '2026-02-15',
-    status: 'issued',
-    fine: 0,
-    tenantId: 't1'
-  }
-];
+let MOCK_BOOKS: Book[] = MOCK_LIBRARY_BOOKS.map(b => ({ ...b }));
+let MOCK_ISSUES: BookIssue[] = MOCK_LIBRARY_ISSUES.map(i => ({ ...i }));
 
 function todayStr(): string {
   return new Date().toISOString().slice(0, 10);
@@ -118,8 +78,9 @@ export class LibraryService {
     if (runtimeConfig.useMocks) {
       const total = Number(body.totalCopies ?? 1);
       const avail = body.availableCopies != null ? Number(body.availableCopies) : total;
+      const nextId = Math.max(0, ...MOCK_BOOKS.map(b => b.id)) + 1;
       const book: Book = {
-        id: 'b' + Date.now(),
+        id: nextId,
         title: (body.title ?? '').trim(),
         author: (body.author ?? '').trim(),
         isbn: (body.isbn ?? '').trim(),
@@ -146,16 +107,14 @@ export class LibraryService {
     return this.api.post<any>('/library/books', payload).pipe(map(b => this.normalizeBook(b)));
   }
 
-  setCatalogActive(bookId: string, active: boolean): Observable<Book> {
+  setCatalogActive(bookId: number, active: boolean): Observable<Book> {
     if (runtimeConfig.useMocks) {
       const book = MOCK_BOOKS.find(b => b.id === bookId);
       if (!book) return throwError(() => new Error('Book not found'));
       book.catalogActive = active;
       return of({ ...book });
     }
-    return this.api
-      .put<any>(`/library/books/${coerceApiLongId(bookId, 'book')}/catalog`, { active })
-      .pipe(map(b => this.normalizeBook(b)));
+    return this.api.put<any>(`/library/books/${bookId}/catalog`, { active }).pipe(map(b => this.normalizeBook(b)));
   }
 
   listIssues(status?: string): Observable<BookIssue[]> {
@@ -171,7 +130,7 @@ export class LibraryService {
     return this.api.get<any[]>(`/library/issues${q}`).pipe(map(list => list.map(i => this.normalizeIssue(i))));
   }
 
-  issueBook(bookId: string, studentId: string, studentName?: string, dueDays?: number): Observable<BookIssue> {
+  issueBook(bookId: number, studentId: number, studentName?: string, dueDays?: number): Observable<BookIssue> {
     if (runtimeConfig.useMocks) {
       const book = MOCK_BOOKS.find(b => b.id === bookId);
       if (!book) return throwError(() => new Error('Book not found'));
@@ -200,16 +159,8 @@ export class LibraryService {
       MOCK_ISSUES = [issue, ...MOCK_ISSUES];
       return of({ ...issue });
     }
-    let sid: number;
-    let bid: number;
-    try {
-      bid = coerceApiLongId(bookId, 'book');
-      sid = coerceApiLongId(studentId, 'student');
-    } catch (e: any) {
-      return throwError(() => new Error(e?.message || 'Invalid id'));
-    }
     return this.api
-      .post<any>('/library/issues', { bookId: bid, studentId: sid, studentName, dueDays })
+      .post<any>('/library/issues', { bookId, studentId, studentName, dueDays })
       .pipe(map(i => this.normalizeIssue(i)));
   }
 
@@ -241,11 +192,9 @@ export class LibraryService {
       }
       return of({ ...updated });
     }
-    let iid: number;
-    try {
-      iid = coerceApiLongId(issueId, 'issue');
-    } catch (e: any) {
-      return throwError(() => new Error(e?.message || 'Invalid issue id'));
+    const iid = Number(issueId);
+    if (!Number.isFinite(iid)) {
+      return throwError(() => new Error('Invalid issue id'));
     }
     const body: Record<string, unknown> = {};
     if (opts?.returnDate) body.returnDate = opts.returnDate;
@@ -256,7 +205,7 @@ export class LibraryService {
   private normalizeBook(b: any): Book {
     const active = b.catalogActive !== undefined ? !!b.catalogActive : b.isActive !== false;
     return {
-      id: String(b.id),
+      id: Number(b.id),
       title: b.title ?? '',
       author: b.author ?? '',
       isbn: b.isbn ?? '',
@@ -274,9 +223,9 @@ export class LibraryService {
     const status: BookIssue['status'] = st === 'returned' ? 'returned' : st === 'overdue' ? 'overdue' : 'issued';
     return {
       id: String(i.id),
-      bookId: String(i.bookId),
+      bookId: Number(i.bookId),
       bookTitle: i.bookTitle ?? '',
-      studentId: String(i.studentId),
+      studentId: Number(i.studentId),
       studentName: i.studentName ?? '',
       issueDate: (i.issueDate ?? '').toString().slice(0, 10),
       dueDate: (i.dueDate ?? '').toString().slice(0, 10),

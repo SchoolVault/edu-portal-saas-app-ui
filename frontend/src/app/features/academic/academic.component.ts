@@ -90,8 +90,8 @@ import { ConfirmDialogService } from '../../shared/confirm-dialog/confirm-dialog
             <div>
               <label class="erp-label mb-1">Academic year</label>
               <select class="erp-select" style="min-width: 180px;" [(ngModel)]="filterYearId">
-                <option value="">All years</option>
-                <option *ngFor="let ay of academicYears" [value]="ay.id">{{ ay.name }}</option>
+                <option [ngValue]="null">All years</option>
+                <option *ngFor="let ay of academicYears" [ngValue]="ay.id">{{ ay.name }}</option>
               </select>
             </div>
             <a routerLink="/app/students" class="btn-outline-erp btn-sm" style="text-decoration: none;"><i class="bi bi-people me-1"></i> Students</a>
@@ -121,19 +121,19 @@ import { ConfirmDialogService } from '../../shared/confirm-dialog/confirm-dialog
             <div class="col-md-5">
               <label class="erp-label">Class</label>
               <select class="erp-select" [(ngModel)]="assignClassId">
-                <option value="">Select class</option>
-                <option *ngFor="let cls of classes" [value]="cls.id">{{ cls.name }}</option>
+                <option [ngValue]="null">Select class</option>
+                <option *ngFor="let cls of classes" [ngValue]="cls.id">{{ cls.name }}</option>
               </select>
             </div>
             <div class="col-md-5">
               <label class="erp-label">Teacher</label>
               <select class="erp-select" [(ngModel)]="assignTeacherId">
-                <option value="">Unassigned</option>
-                <option *ngFor="let t of teachers" [value]="t.id">{{ t.firstName }} {{ t.lastName }}</option>
+                <option [ngValue]="null">Unassigned</option>
+                <option *ngFor="let t of teachers" [ngValue]="t.id">{{ t.firstName }} {{ t.lastName }}</option>
               </select>
             </div>
             <div class="col-md-2">
-              <button type="button" class="btn-primary-erp" style="width: 100%;" [disabled]="!assignClassId || assigningTeacher" (click)="saveClassTeacher()">
+              <button type="button" class="btn-primary-erp" style="width: 100%;" [disabled]="assignClassId == null || assigningTeacher" (click)="saveClassTeacher()">
                 <span class="spinner" *ngIf="assigningTeacher"></span>
                 {{ assigningTeacher ? 'Saving...' : 'Save' }}
               </button>
@@ -200,8 +200,8 @@ import { ConfirmDialogService } from '../../shared/confirm-dialog/confirm-dialog
                 (change)="loadPromotionPreview()"
                 title="Source grade: students currently enrolled here are candidates for promotion to the configured next class."
               >
-                <option value="">Select Class</option>
-                <option *ngFor="let cls of promotableClasses" [value]="cls.id">{{ cls.name }}</option>
+                <option [ngValue]="null">Select Class</option>
+                <option *ngFor="let cls of promotableClasses" [ngValue]="cls.id">{{ cls.name }}</option>
               </select>
             </div>
             <div class="col-md-4">
@@ -235,7 +235,7 @@ import { ConfirmDialogService } from '../../shared/confirm-dialog/confirm-dialog
                 [(ngModel)]="promoTargetSectionId"
                 title="Homeroom section in the target class. Capacity hints help balance strength; split preview suggests counts per section."
               >
-                <option *ngFor="let sec of promotionPreview!.targetSections!" [value]="sec.id">{{ sec.name }}<ng-container *ngIf="sec.capacity != null"> (cap {{ sec.capacity }})</ng-container></option>
+                <option *ngFor="let sec of promotionPreview!.targetSections!" [ngValue]="sec.id">{{ sec.name }}<ng-container *ngIf="sec.capacity != null"> (cap {{ sec.capacity }})</ng-container></option>
               </select>
               <p class="text-muted mt-1 mb-0" style="font-size: 12px;">If the next grade has fewer sections than the current one, pick where promoted students land first; you can rebalance sections afterward.</p>
             </div>
@@ -327,7 +327,7 @@ import { ConfirmDialogService } from '../../shared/confirm-dialog/confirm-dialog
           <div class="modal-header-erp"><h3>Create class</h3><button type="button" class="btn-icon" (click)="showCreateClass = false"><i class="bi bi-x-lg"></i></button></div>
           <div class="modal-body-erp">
             <div class="erp-form-group"><label class="erp-label">Academic year *</label>
-              <select class="erp-select" [(ngModel)]="newClass.academicYearId"><option *ngFor="let ay of academicYears" [value]="ay.id">{{ ay.name }}</option></select></div>
+              <select class="erp-select" [(ngModel)]="newClass.academicYearId"><option *ngFor="let ay of academicYears" [ngValue]="ay.id">{{ ay.name }}</option></select></div>
             <div class="erp-form-group"><label class="erp-label">Display name *</label>
               <input type="text" class="erp-input" [(ngModel)]="newClass.name" placeholder="e.g. Class 5"></div>
             <div class="erp-form-group"><label class="erp-label">Grade *</label>
@@ -337,7 +337,7 @@ import { ConfirmDialogService } from '../../shared/confirm-dialog/confirm-dialog
             <div class="erp-form-group"><label class="erp-label">Default section capacity</label>
               <input type="number" class="erp-input" [(ngModel)]="newClass.sectionCapacity" min="1"></div>
             <div class="erp-form-group"><label class="erp-label">Class teacher (optional)</label>
-              <select class="erp-select" [(ngModel)]="newClass.classTeacherId"><option value="">Later</option><option *ngFor="let t of teachers" [value]="t.id">{{ t.firstName }} {{ t.lastName }}</option></select></div>
+              <select class="erp-select" [(ngModel)]="newClass.classTeacherId"><option [ngValue]="null">Later</option><option *ngFor="let t of teachers" [ngValue]="t.id">{{ t.firstName }} {{ t.lastName }}</option></select></div>
           </div>
           <div class="modal-footer-erp">
             <button type="button" class="btn-outline-erp" (click)="showCreateClass = false">Cancel</button>
@@ -396,34 +396,41 @@ export class AcademicComponent implements OnInit {
   classes: SchoolClass[] = [];
   teachers: Teacher[] = [];
   canManageAcademic = false;
-  filterYearId = '';
-  assignClassId = '';
-  assignTeacherId = '';
+  filterYearId: number | null = null;
+  assignClassId: number | null = null;
+  assignTeacherId: number | null = null;
   assigningTeacher = false;
   showAddYear = false;
   showCreateClass = false;
   showEditClass = false;
   editClassTarget: SchoolClass | null = null;
-  newClass = { name: '', grade: 1, academicYearId: '', sectionNamesText: '', sectionCapacity: 40, classTeacherId: '' };
+  newClass: {
+    name: string;
+    grade: number;
+    academicYearId: number | null;
+    sectionNamesText: string;
+    sectionCapacity: number;
+    classTeacherId: number | null;
+  } = { name: '', grade: 1, academicYearId: null, sectionNamesText: '', sectionCapacity: 40, classTeacherId: null };
   editClassForm = { name: '', grade: 1 };
   showAddSection = false;
-  sectionClassId = '';
+  sectionClassId: number | null = null;
   newSection = { name: '', capacity: 40 };
   showEditSection = false;
-  editSectionClassId = '';
-  editSectionId = '';
+  editSectionClassId: number | null = null;
+  editSectionId: number | null = null;
   editSectionForm = { name: '', capacity: 40 };
   savingClass = false;
   sectionBusy = false;
   newYear = { name: '', startDate: '', endDate: '' };
-  promoFromClass = '';
+  promoFromClass: number | null = null;
   promotionPreview: PromotionPreview | null = null;
   promotionLoading = false;
   promoting = false;
   promotionDone = '';
   allSelected = true;
   /** Chosen target section for bulk promotion (API targetSectionId). */
-  promoTargetSectionId = '';
+  promoTargetSectionId: number | null = null;
   splitPreview: PromotionSplitPreview | null = null;
   splitLoading = false;
 
@@ -445,7 +452,7 @@ export class AcademicComponent implements OnInit {
   }
 
   get filteredClasses(): SchoolClass[] {
-    if (!this.filterYearId) return this.classes;
+    if (this.filterYearId == null) return this.classes;
     return this.classes.filter(c => c.academicYearId === this.filterYearId);
   }
 
@@ -455,7 +462,7 @@ export class AcademicComponent implements OnInit {
 
   prefillAssignClassTeacher(cls: SchoolClass): void {
     this.assignClassId = cls.id;
-    this.assignTeacherId = cls.classTeacherId || '';
+    this.assignTeacherId = cls.classTeacherId ?? null;
     setTimeout(() => {
       document.getElementById('academic-assign-class-teacher-panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }, 0);
@@ -481,19 +488,22 @@ export class AcademicComponent implements OnInit {
     this.newClass = {
       name: '',
       grade: 1,
-      academicYearId: cur?.id ?? this.academicYears[0]?.id ?? '',
+      academicYearId: cur?.id ?? this.academicYears[0]?.id ?? null,
       sectionNamesText: '',
       sectionCapacity: 40,
-      classTeacherId: '',
+      classTeacherId: null,
     };
     this.showCreateClass = true;
   }
 
   submitCreateClass(): void {
     const n = this.newClass.name.trim();
-    if (!n || !this.newClass.academicYearId) return;
+    if (!n || this.newClass.academicYearId == null) return;
     const names = this.newClass.sectionNamesText.split(/[,;\n]+/).map(s => s.trim()).filter(Boolean);
-    const t = this.newClass.classTeacherId ? this.teachers.find(x => x.id === this.newClass.classTeacherId) : undefined;
+    const t =
+      this.newClass.classTeacherId != null
+        ? this.teachers.find(x => x.id === this.newClass.classTeacherId)
+        : undefined;
     this.savingClass = true;
     this.academicService
       .createClass({
@@ -502,7 +512,7 @@ export class AcademicComponent implements OnInit {
         academicYearId: this.newClass.academicYearId,
         sectionNames: names,
         sectionCapacity: this.newClass.sectionCapacity,
-        classTeacherId: this.newClass.classTeacherId || null,
+        classTeacherId: this.newClass.classTeacherId ?? null,
         classTeacherName: t ? `${t.firstName} ${t.lastName}` : undefined,
       })
       .subscribe({
@@ -549,7 +559,7 @@ export class AcademicComponent implements OnInit {
 
   submitAddSection(): void {
     const name = this.newSection.name.trim();
-    if (!name || !this.sectionClassId) return;
+    if (!name || this.sectionClassId == null) return;
     this.sectionBusy = true;
     this.academicService.addSectionToClass(this.sectionClassId, name, Number(this.newSection.capacity) || 40).subscribe({
       next: updated => {
@@ -563,7 +573,7 @@ export class AcademicComponent implements OnInit {
     });
   }
 
-  openEditSectionModal(cls: SchoolClass, sec: { id: string; name: string; capacity: number }): void {
+  openEditSectionModal(cls: SchoolClass, sec: { id: number; name: string; capacity: number }): void {
     this.editSectionClassId = cls.id;
     this.editSectionId = sec.id;
     this.editSectionForm = { name: sec.name, capacity: sec.capacity };
@@ -572,7 +582,7 @@ export class AcademicComponent implements OnInit {
 
   submitEditSection(): void {
     const name = this.editSectionForm.name.trim();
-    if (!name || !this.editSectionClassId || !this.editSectionId) return;
+    if (!name || this.editSectionClassId == null || this.editSectionId == null) return;
     this.sectionBusy = true;
     this.academicService
       .updateSection(this.editSectionClassId, this.editSectionId, name, Number(this.editSectionForm.capacity) || 40)
@@ -588,7 +598,7 @@ export class AcademicComponent implements OnInit {
       });
   }
 
-  removeSection(cls: SchoolClass, sec: { id: string; name: string; studentCount: number }): void {
+  removeSection(cls: SchoolClass, sec: { id: number; name: string; studentCount: number }): void {
     if (sec.studentCount > 0) return;
     this.confirmDialog
       .confirm({
@@ -616,10 +626,13 @@ export class AcademicComponent implements OnInit {
   }
 
   saveClassTeacher(): void {
-    if (!this.assignClassId) return;
-    const t = this.teachers.find(x => x.id === this.assignTeacherId);
+    if (this.assignClassId == null) return;
+    const t =
+      this.assignTeacherId != null ? this.teachers.find(x => x.id === this.assignTeacherId) : undefined;
     this.assigningTeacher = true;
-    this.academicService.assignClassTeacher(this.assignClassId, this.assignTeacherId || null, t ? `${t.firstName} ${t.lastName}` : undefined).subscribe({
+    this.academicService
+      .assignClassTeacher(this.assignClassId, this.assignTeacherId ?? null, t ? `${t.firstName} ${t.lastName}` : undefined)
+      .subscribe({
       next: updated => {
         this.classes = this.classes.map(c => (c.id === updated.id ? updated : c));
         this.assigningTeacher = false;
@@ -639,8 +652,8 @@ export class AcademicComponent implements OnInit {
     this.promotionDone = '';
     this.promotionPreview = null;
     this.splitPreview = null;
-    this.promoTargetSectionId = '';
-    if (!this.promoFromClass) {
+    this.promoTargetSectionId = null;
+    if (this.promoFromClass == null) {
       return;
     }
     this.promotionLoading = true;
@@ -648,8 +661,7 @@ export class AcademicComponent implements OnInit {
       next: preview => {
         this.promotionPreview = preview;
         this.promoTargetSectionId =
-          preview.defaultSectionId
-          ?? (preview.targetSections?.length ? preview.targetSections[0].id : '');
+          preview.defaultSectionId ?? (preview.targetSections?.length ? preview.targetSections[0].id : null);
         this.allSelected = preview.students.every(student => student.selected);
         this.promotionLoading = false;
       },
@@ -698,8 +710,7 @@ export class AcademicComponent implements OnInit {
       return;
     }
     this.promoting = true;
-    const targetSection =
-      this.promoTargetSectionId || this.promotionPreview.defaultSectionId || undefined;
+    const targetSection = this.promoTargetSectionId ?? this.promotionPreview.defaultSectionId ?? undefined;
     this.academicService.executePromotion(
       this.promotionPreview.sourceClassId,
       this.promotionPreview.targetClassId,
@@ -722,8 +733,9 @@ export class AcademicComponent implements OnInit {
     if (!this.newYear.name) {
       return;
     }
+    const nextAyId = this.academicYears.reduce((m, y) => Math.max(m, y.id), 0) + 1;
     const academicYear: AcademicYear = {
-      id: '',
+      id: nextAyId,
       name: this.newYear.name,
       startDate: this.newYear.startDate,
       endDate: this.newYear.endDate,

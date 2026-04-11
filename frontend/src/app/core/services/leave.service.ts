@@ -4,6 +4,7 @@ import { delay, map } from 'rxjs/operators';
 import { ApiService } from './api.service';
 import { runtimeConfig } from '../config/runtime-config';
 import { AuthService } from './auth.service';
+import { MOCK_LEAVE_REQUESTS_SEED, MOCK_LEAVE_SEQ_START } from '../mocks/leave.mock-data';
 
 export type LeaveDayUnit = 'FULL_DAY' | 'FIRST_HALF' | 'SECOND_HALF';
 
@@ -32,32 +33,8 @@ export interface LeaveBalanceSummary {
   casualUsed: number;
 }
 
-let MOCK_SEQ = 100;
-let MOCK_REQUESTS: LeaveRequestRow[] = [
-  {
-    id: 1,
-    applicantUserId: 2,
-    applicantRole: 'TEACHER',
-    leaveType: 'Casual',
-    startDate: '2026-03-10',
-    endDate: '2026-03-10',
-    reason: 'Personal work',
-    status: 'APPROVED',
-    dayUnit: 'FULL_DAY',
-    approverRemarks: 'Approved'
-  },
-  {
-    id: 2,
-    applicantUserId: 2,
-    applicantRole: 'TEACHER',
-    leaveType: 'Sick',
-    startDate: '2026-04-02',
-    endDate: '2026-04-02',
-    reason: 'Fever',
-    status: 'PENDING',
-    dayUnit: 'FIRST_HALF'
-  }
-];
+let MOCK_SEQ = MOCK_LEAVE_SEQ_START;
+let MOCK_REQUESTS: LeaveRequestRow[] = MOCK_LEAVE_REQUESTS_SEED.map(r => ({ ...r }));
 
 @Injectable({ providedIn: 'root' })
 export class LeaveService {
@@ -70,9 +47,7 @@ export class LeaveService {
     const u = this.auth.getCurrentUser();
     if (!u) return 1;
     const n = Number(u.id);
-    if (Number.isFinite(n)) return n;
-    const map: Record<string, number> = { u1: 1, u2: 2, u3: 3, sa1: 99, u_new: 10 };
-    return map[u.id] ?? Math.abs([...u.id].reduce((a, c) => a + c.charCodeAt(0), 0) % 100000);
+    return Number.isFinite(n) ? n : 1;
   }
 
   private mockRoleUpper(): string {

@@ -89,15 +89,15 @@ import { Announcement, SchoolClass } from '../../core/models/models';
             <div class="erp-form-group" *ngIf="annForm.targetAudience === 'CLASS' || annForm.targetAudience === 'SECTION'">
               <label class="erp-label">Class</label>
               <select class="erp-select" [(ngModel)]="annSelectedClassId" (ngModelChange)="onAnnClassChange()">
-                <option value="">Select class</option>
-                <option *ngFor="let c of annClasses" [value]="c.id">{{ c.name }}</option>
+                <option [ngValue]="null">Select class</option>
+                <option *ngFor="let c of annClasses" [ngValue]="c.id">{{ c.name }}</option>
               </select>
             </div>
             <div class="erp-form-group" *ngIf="annForm.targetAudience === 'SECTION'">
               <label class="erp-label">Section</label>
               <select class="erp-select" [(ngModel)]="annSelectedSectionId" [disabled]="!annSections.length">
-                <option value="">{{ annSections.length ? 'Select section' : 'No sections for this class' }}</option>
-                <option *ngFor="let s of annSections" [value]="s.id">{{ s.name }}</option>
+                <option [ngValue]="null">{{ annSections.length ? 'Select section' : 'No sections for this class' }}</option>
+                <option *ngFor="let s of annSections" [ngValue]="s.id">{{ s.name }}</option>
               </select>
             </div>
           </div>
@@ -126,9 +126,9 @@ export class CommunicationComponent implements OnInit {
   announcements: Announcement[] = [];
   showAnnouncementModal = false;
   annClasses: SchoolClass[] = [];
-  annSections: { id: string; name: string }[] = [];
-  annSelectedClassId = '';
-  annSelectedSectionId = '';
+  annSections: { id: number; name: string }[] = [];
+  annSelectedClassId: number | null = null;
+  annSelectedSectionId: number | null = null;
   annForm: CreateAnnouncementPayload = {
     title: '',
     content: '',
@@ -179,7 +179,7 @@ export class CommunicationComponent implements OnInit {
   onAnnClassChange(): void {
     const cls = this.annClasses.find(c => c.id === this.annSelectedClassId);
     this.annSections = cls ? cls.sections.map(s => ({ id: s.id, name: s.name })) : [];
-    this.annSelectedSectionId = '';
+    this.annSelectedSectionId = null;
   }
 
   openAnnouncementModal(): void {
@@ -188,8 +188,8 @@ export class CommunicationComponent implements OnInit {
       content: '',
       targetAudience: 'ALL'
     };
-    this.annSelectedClassId = '';
-    this.annSelectedSectionId = '';
+    this.annSelectedClassId = null;
+    this.annSelectedSectionId = null;
     this.annSections = [];
     this.showAnnouncementModal = true;
   }
@@ -198,12 +198,10 @@ export class CommunicationComponent implements OnInit {
     let targetClassId: number | undefined;
     let targetSectionId: number | undefined;
     if (this.annForm.targetAudience === 'CLASS' || this.annForm.targetAudience === 'SECTION') {
-      const cid = Number(this.annSelectedClassId);
-      targetClassId = Number.isFinite(cid) ? cid : undefined;
+      targetClassId = this.annSelectedClassId ?? undefined;
     }
     if (this.annForm.targetAudience === 'SECTION') {
-      const sid = Number(this.annSelectedSectionId);
-      targetSectionId = Number.isFinite(sid) ? sid : undefined;
+      targetSectionId = this.annSelectedSectionId ?? undefined;
     }
     const payload: CreateAnnouncementPayload = {
       title: this.annForm.title.trim(),

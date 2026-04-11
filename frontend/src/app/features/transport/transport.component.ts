@@ -230,7 +230,7 @@ import { AuthService } from '../../core/services/auth.service';
         <div class="modal-body-erp">
           <label class="erp-label">Student</label>
           <select class="erp-select mb-2" [(ngModel)]="assignForm.studentId" (ngModelChange)="syncAssignStudentName()">
-            <option [ngValue]="''">Select</option>
+            <option [ngValue]="null">Select</option>
             <option *ngFor="let s of students" [ngValue]="s.id">{{ s.firstName }} {{ s.lastName }}</option>
           </select>
           <label class="erp-label">Pickup stop</label>
@@ -274,9 +274,14 @@ export class TransportComponent implements OnInit {
   stopModalRoute: TransportRoute | null = null;
   stopForm = { name: '', stopOrder: 1, stopTime: '' };
   assignModalRoute: TransportRoute | null = null;
-  assignForm = { studentId: '', studentName: '', pickupStop: '', dropStop: '' };
+  assignForm: { studentId: number | null; studentName: string; pickupStop: string; dropStop: string } = {
+    studentId: null,
+    studentName: '',
+    pickupStop: '',
+    dropStop: ''
+  };
   mapPanelRoute: TransportRoute | null = null;
-  editStopCtx: { route: TransportRoute; stop: { id?: string; name: string; time: string; order: number } } | null = null;
+  editStopCtx: { route: TransportRoute; stop: { id?: number; name: string; time: string; order: number } } | null = null;
   editStopForm = { name: '', stopOrder: 1, stopTime: '' };
 
   constructor(
@@ -471,11 +476,11 @@ export class TransportComponent implements OnInit {
       });
   }
 
-  removeStop(route: TransportRoute, stopId: string): void {
+  removeStop(route: TransportRoute, stopId: number): void {
     this.transportService.removeStop(stopId).subscribe(() => this.reload());
   }
 
-  openEditStop(route: TransportRoute, stop: { id?: string; name: string; time: string; order: number }): void {
+  openEditStop(route: TransportRoute, stop: { id?: number; name: string; time: string; order: number }): void {
     this.editStopCtx = { route, stop };
     this.editStopForm = { name: stop.name, stopOrder: stop.order, stopTime: stop.time || '' };
   }
@@ -496,7 +501,7 @@ export class TransportComponent implements OnInit {
 
   openAssignModal(r: TransportRoute): void {
     this.assignModalRoute = r;
-    this.assignForm = { studentId: '', studentName: '', pickupStop: '', dropStop: '' };
+    this.assignForm = { studentId: null, studentName: '', pickupStop: '', dropStop: '' };
   }
 
   syncAssignStudentName(): void {
@@ -505,7 +510,7 @@ export class TransportComponent implements OnInit {
   }
 
   saveAssign(): void {
-    if (!this.assignModalRoute || !this.assignForm.studentId) return;
+    if (!this.assignModalRoute || this.assignForm.studentId == null) return;
     this.transportService
       .assignStudent({
         routeId: this.assignModalRoute.id,
@@ -520,7 +525,7 @@ export class TransportComponent implements OnInit {
       });
   }
 
-  unassign(mappingId: string): void {
+  unassign(mappingId: number): void {
     this.transportService.removeStudentMapping(mappingId).subscribe(() => this.reload());
   }
 

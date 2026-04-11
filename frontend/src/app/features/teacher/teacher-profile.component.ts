@@ -163,7 +163,12 @@ export class TeacherProfileComponent implements OnInit {
 
   private load(id: string): void {
     this.loadError = '';
-    this.teacherService.getTeacherById(id).subscribe({
+    const nid = Number(id);
+    if (!Number.isFinite(nid)) {
+      this.loadError = 'Invalid teacher id.';
+      return;
+    }
+    this.teacherService.getTeacherById(nid).subscribe({
       next: t => {
         this.teacher = t ?? null;
         if (!this.teacher) this.loadError = 'No record for this id.';

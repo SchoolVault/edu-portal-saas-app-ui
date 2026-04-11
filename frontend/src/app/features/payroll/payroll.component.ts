@@ -69,8 +69,8 @@ import { ConfirmDialogService } from '../../shared/confirm-dialog/confirm-dialog
           <div class="col-md-4">
             <label class="erp-label">Teacher (step-by-step)</label>
             <select class="erp-select" [(ngModel)]="payrollFocusTeacherId">
-              <option value="">— Choose teacher —</option>
-              <option *ngFor="let d of paymentDetails" [value]="d.teacherId">{{ d.teacherName }}</option>
+              <option [ngValue]="null">— Choose teacher —</option>
+              <option *ngFor="let d of paymentDetails" [ngValue]="d.teacherId">{{ d.teacherName }}</option>
             </select>
           </div>
           <div class="col-md-8" *ngIf="payrollFocusDetail as fd">
@@ -227,14 +227,14 @@ export class PayrollComponent implements OnInit {
   generating = false;
   genError = '';
   disburseInfo = '';
-  disbursingTeacherId: string | null = null;
+  disbursingTeacherId: number | null = null;
   pdfLoadingId: string | null = null;
   markingId: string | null = null;
   monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
   isAdmin = false;
   isTeacher = false;
-  payrollFocusTeacherId = '';
+  payrollFocusTeacherId: number | null = null;
 
   get bankReadyCount(): number {
     return this.paymentDetails.filter(d => d.bankDetailsComplete).length;
@@ -261,14 +261,14 @@ export class PayrollComponent implements OnInit {
     if (!this.isAdmin) return;
     this.payrollService.getTeacherPaymentDetails().subscribe(d => {
       this.paymentDetails = d;
-      if (this.payrollFocusTeacherId && !d.some(x => x.teacherId === this.payrollFocusTeacherId)) {
-        this.payrollFocusTeacherId = '';
+      if (this.payrollFocusTeacherId != null && !d.some(x => x.teacherId === this.payrollFocusTeacherId)) {
+        this.payrollFocusTeacherId = null;
       }
     });
   }
 
   get payrollFocusDetail(): TeacherPaymentDetails | null {
-    if (!this.payrollFocusTeacherId) return null;
+    if (this.payrollFocusTeacherId == null) return null;
     return this.paymentDetails.find(d => d.teacherId === this.payrollFocusTeacherId) ?? null;
   }
 
@@ -284,7 +284,7 @@ export class PayrollComponent implements OnInit {
     return s.deductions.reduce((sum, d) => sum + d.amount, 0);
   }
 
-  payslipForTeacher(teacherId: string): Payslip | undefined {
+  payslipForTeacher(teacherId: number): Payslip | undefined {
     const y = Number(this.genYear);
     const m = this.genMonth.trim().toLowerCase();
     return this.payslips.find(

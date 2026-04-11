@@ -104,7 +104,7 @@ export class DocumentsComponent implements OnInit {
     const r = (u?.role ?? '').toLowerCase();
     this.isAdmin = r === 'admin';
     this.canUpload = this.isAdmin || r === 'teacher';
-    this.currentUserId = u?.id ?? '';
+    this.currentUserId = u?.id != null ? String(u.id) : '';
     this.reload();
   }
 

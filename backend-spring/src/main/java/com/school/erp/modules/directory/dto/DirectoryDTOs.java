@@ -3,6 +3,7 @@ package com.school.erp.modules.directory.dto;
 import java.util.ArrayList;
 import java.util.List;
 
+/** Frontend mirror: {@code frontend/src/app/core/models/directory.dto.ts} ({@code DirectoryDtos}). */
 public class DirectoryDTOs {
 
     public static class Entry {

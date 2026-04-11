@@ -81,6 +81,7 @@ import java.time.YearMonth;
 import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Consumer;
 
@@ -331,16 +332,22 @@ public class DemoDataSeedService {
         SchoolClass c10 = clazz(tenantId, "Class X", 10, ay.getId(), t2.getId(), "Meera Iyer");
         SchoolClass c7Demo = clazz(tenantId, "Class VII — Homeroom TBD (demo)", 7, ay.getId(), null, null);
         SchoolClass c8Demo = clazz(tenantId, "Class VIII — Homeroom TBD (demo)", 8, ay.getId(), null, null);
-        schoolClassRepository.saveAll(List.of(c9, c10, c7Demo, c8Demo));
+        SchoolClass c11 = clazz(tenantId, "Class XI", 11, ay.getId(), t2.getId(), "Meera Iyer");
+        SchoolClass c12 = clazz(tenantId, "Class XII", 12, ay.getId(), t1.getId(), "Debjyoti Sen");
+        schoolClassRepository.saveAll(List.of(c9, c10, c7Demo, c8Demo, c11, c12));
         flush();
 
         Section c9a = section(tenantId, "A", c9.getId(), 40, 4);
         Section c9b = section(tenantId, "B", c9.getId(), 40, 4);
         Section c10a = section(tenantId, "A", c10.getId(), 40, 4);
         Section c10b = section(tenantId, "B", c10.getId(), 40, 4);
-        Section c7a = section(tenantId, "A", c7Demo.getId(), 40, 0);
-        Section c8a = section(tenantId, "A", c8Demo.getId(), 40, 0);
-        sectionRepository.saveAll(List.of(c9a, c9b, c10a, c10b, c7a, c8a));
+        Section c7a = section(tenantId, "A", c7Demo.getId(), 40, 2);
+        Section c8a = section(tenantId, "A", c8Demo.getId(), 40, 2);
+        Section c11a = section(tenantId, "A", c11.getId(), 40, 3);
+        Section c11b = section(tenantId, "B", c11.getId(), 40, 3);
+        Section c12a = section(tenantId, "A", c12.getId(), 40, 2);
+        Section c12b = section(tenantId, "B", c12.getId(), 40, 2);
+        sectionRepository.saveAll(List.of(c9a, c9b, c10a, c10b, c7a, c8a, c11a, c11b, c12a, c12b));
         flush();
 
         List<Student> studs = new ArrayList<>();
@@ -348,14 +355,62 @@ public class DemoDataSeedService {
                 "riya.b@stxheritage.edu", Enums.Gender.FEMALE));
         studs.add(student(tenantId, "Ayan", "Banerjee", "SX-2025-015", c9.getId(), c9a.getId(), pUser1.getId(), "Sujata Banerjee",
                 "ayan.b@stxheritage.edu", Enums.Gender.MALE));
+        studs.add(student(tenantId, "Priya", "Malhotra", "SX-2025-016", c9.getId(), c9a.getId(), pUser2.getId(), "Arvind Khanna",
+                "priya.m@stxheritage.edu", Enums.Gender.FEMALE));
+        studs.add(student(tenantId, "Rahul", "Nambiar", "SX-2025-017", c9.getId(), c9a.getId(), null, "—",
+                "rahul.n@stxheritage.edu", Enums.Gender.MALE));
         studs.add(student(tenantId, "Ishaan", "Khanna", "SX-2025-028", c9.getId(), c9b.getId(), pUser2.getId(), "Arvind Khanna",
                 "ishaan.k@stxheritage.edu", Enums.Gender.MALE));
+        studs.add(student(tenantId, "Aisha", "Rahman", "SX-2025-033", c9.getId(), c9b.getId(), null, "—",
+                "aisha.r@stxheritage.edu", Enums.Gender.FEMALE));
+        studs.add(student(tenantId, "Farhan", "Qureshi", "SX-2025-034", c9.getId(), c9b.getId(), null, "—",
+                "farhan.q@stxheritage.edu", Enums.Gender.MALE));
+        studs.add(student(tenantId, "Zain", "Kapoor", "SX-2025-035", c9.getId(), c9b.getId(), pUser1.getId(), "Sujata Banerjee",
+                "zain.k@stxheritage.edu", Enums.Gender.MALE));
         studs.add(student(tenantId, "Neha", "Khanna", "SX-2025-029", c10.getId(), c10a.getId(), pUser2.getId(), "Arvind Khanna",
                 "neha.k@stxheritage.edu", Enums.Gender.FEMALE));
+        studs.add(student(tenantId, "Kabir", "Sethi", "SX-2025-040", c10.getId(), c10a.getId(), null, "—",
+                "kabir.s@stxheritage.edu", Enums.Gender.MALE));
+        studs.add(student(tenantId, "Tara", "Bhattacharya", "SX-2025-041", c10.getId(), c10a.getId(), pUser1.getId(), "Sujata Banerjee",
+                "tara.b@stxheritage.edu", Enums.Gender.FEMALE));
+        studs.add(student(tenantId, "Vihaan", "Oberoi", "SX-2025-042", c10.getId(), c10a.getId(), null, "—",
+                "vihaan.o@stxheritage.edu", Enums.Gender.MALE));
         studs.add(student(tenantId, "Vikram", "Das", "SX-2025-031", c10.getId(), c10b.getId(), null, "—",
                 "vikram.d@stxheritage.edu", Enums.Gender.MALE));
         studs.add(student(tenantId, "Ananya", "Ghosh", "SX-2025-032", c10.getId(), c10b.getId(), null, "—",
                 "ananya.g@stxheritage.edu", Enums.Gender.FEMALE));
+        studs.add(student(tenantId, "Myra", "Dutta", "SX-2025-043", c10.getId(), c10b.getId(), pUser2.getId(), "Arvind Khanna",
+                "myra.d@stxheritage.edu", Enums.Gender.FEMALE));
+        studs.add(student(tenantId, "Neil", "Joshi", "SX-2025-044", c10.getId(), c10b.getId(), null, "—",
+                "neil.j@stxheritage.edu", Enums.Gender.MALE));
+        studs.add(student(tenantId, "Aditi", "Rao", "SX-2025-101", c7Demo.getId(), c7a.getId(), pUser1.getId(), "Sujata Banerjee",
+                "aditi.r@stxheritage.edu", Enums.Gender.FEMALE));
+        studs.add(student(tenantId, "Karthik", "Menon", "SX-2025-102", c7Demo.getId(), c7a.getId(), null, "—",
+                "karthik.m@stxheritage.edu", Enums.Gender.MALE));
+        studs.add(student(tenantId, "Sneha", "Reddy", "SX-2025-103", c8Demo.getId(), c8a.getId(), pUser2.getId(), "Arvind Khanna",
+                "sneha.r@stxheritage.edu", Enums.Gender.FEMALE));
+        studs.add(student(tenantId, "Varun", "Saxena", "SX-2025-104", c8Demo.getId(), c8a.getId(), null, "—",
+                "varun.s@stxheritage.edu", Enums.Gender.MALE));
+        studs.add(student(tenantId, "Sanjana", "Kapoor", "SX-2025-201", c11.getId(), c11a.getId(), pUser1.getId(), "Sujata Banerjee",
+                "sanjana.k@stxheritage.edu", Enums.Gender.FEMALE));
+        studs.add(student(tenantId, "Arnav", "Desai", "SX-2025-202", c11.getId(), c11a.getId(), null, "—",
+                "arnav.d@stxheritage.edu", Enums.Gender.MALE));
+        studs.add(student(tenantId, "Kiara", "Malik", "SX-2025-203", c11.getId(), c11a.getId(), pUser2.getId(), "Arvind Khanna",
+                "kiara.m@stxheritage.edu", Enums.Gender.FEMALE));
+        studs.add(student(tenantId, "Rehan", "Varma", "SX-2025-211", c11.getId(), c11b.getId(), null, "—",
+                "rehan.v@stxheritage.edu", Enums.Gender.MALE));
+        studs.add(student(tenantId, "Pari", "Ahuja", "SX-2025-212", c11.getId(), c11b.getId(), pUser1.getId(), "Sujata Banerjee",
+                "pari.a@stxheritage.edu", Enums.Gender.FEMALE));
+        studs.add(student(tenantId, "Yash", "Khan", "SX-2025-213", c11.getId(), c11b.getId(), null, "—",
+                "yash.k@stxheritage.edu", Enums.Gender.MALE));
+        studs.add(student(tenantId, "Dhruv", "Mehta", "SX-2025-301", c12.getId(), c12a.getId(), pUser2.getId(), "Arvind Khanna",
+                "dhruv.m@stxheritage.edu", Enums.Gender.MALE));
+        studs.add(student(tenantId, "Anika", "Sen", "SX-2025-302", c12.getId(), c12a.getId(), null, "—",
+                "anika.s@stxheritage.edu", Enums.Gender.FEMALE));
+        studs.add(student(tenantId, "Rohan", "Iyer", "SX-2025-311", c12.getId(), c12b.getId(), pUser1.getId(), "Sujata Banerjee",
+                "rohan.i@stxheritage.edu", Enums.Gender.MALE));
+        studs.add(student(tenantId, "Ira", "Bose", "SX-2025-312", c12.getId(), c12b.getId(), null, "—",
+                "ira.b@stxheritage.edu", Enums.Gender.FEMALE));
         studentRepository.saveAll(studs);
         flush();
 
@@ -366,10 +421,21 @@ public class DemoDataSeedService {
         flush();
 
         classTeacherRow(tenantId, ay.getId(), c9.getId(), c9a.getId(), t1.getId());
+        classTeacherRow(tenantId, ay.getId(), c10.getId(), c10a.getId(), t2.getId());
         classTeacherRow(tenantId, ay.getId(), c10.getId(), c10b.getId(), t3.getId());
+        classTeacherRow(tenantId, ay.getId(), c11.getId(), c11a.getId(), t2.getId());
+        classTeacherRow(tenantId, ay.getId(), c11.getId(), c11b.getId(), t2.getId());
+        classTeacherRow(tenantId, ay.getId(), c12.getId(), c12a.getId(), t1.getId());
+        classTeacherRow(tenantId, ay.getId(), c12.getId(), c12b.getId(), t1.getId());
         subjectRow(tenantId, ay.getId(), c9.getId(), c9a.getId(), "Mathematics", t1.getId());
         subjectRow(tenantId, ay.getId(), c9.getId(), c9a.getId(), "English", t2.getId());
+        subjectRow(tenantId, ay.getId(), c9.getId(), c9b.getId(), "Mathematics", t1.getId());
         subjectRow(tenantId, ay.getId(), c10.getId(), null, "Science", t3.getId());
+        subjectRow(tenantId, ay.getId(), c11.getId(), c11a.getId(), "Mathematics", t1.getId());
+        subjectRow(tenantId, ay.getId(), c11.getId(), c11a.getId(), "English", t2.getId());
+        subjectRow(tenantId, ay.getId(), c11.getId(), c11a.getId(), "Physics", t1.getId());
+        subjectRow(tenantId, ay.getId(), c12.getId(), c12a.getId(), "Chemistry", t3.getId());
+        subjectRow(tenantId, ay.getId(), c12.getId(), c12a.getId(), "Biology", t3.getId());
         flush();
 
         LocalDate attDay = LocalDate.now().minusDays(1);
@@ -384,13 +450,49 @@ public class DemoDataSeedService {
                 LocalTime.of(9, 20), LocalTime.of(10, 5), "English", t2.getId(), "Meera Iyer", "Room 201"));
         timetableRepository.save(tt(tenantId, ay.getId(), c10.getId(), c10b.getId(), Enums.DayOfWeek.TUESDAY, 1,
                 LocalTime.of(8, 30), LocalTime.of(9, 15), "Chemistry", t3.getId(), "Kunal Bose", "Lab 1"));
+        timetableRepository.save(tt(tenantId, ay.getId(), c9.getId(), c9b.getId(), Enums.DayOfWeek.MONDAY, 1,
+                LocalTime.of(8, 30), LocalTime.of(9, 15), "Mathematics", t1.getId(), "Debjyoti Sen", "Room 202"));
+        timetableRepository.save(tt(tenantId, ay.getId(), c9.getId(), c9b.getId(), Enums.DayOfWeek.MONDAY, 2,
+                LocalTime.of(9, 20), LocalTime.of(10, 5), "English", t2.getId(), "Meera Iyer", "Room 202"));
+        timetableRepository.save(tt(tenantId, ay.getId(), c9.getId(), c9b.getId(), Enums.DayOfWeek.WEDNESDAY, 1,
+                LocalTime.of(8, 30), LocalTime.of(9, 15), "Chemistry", t3.getId(), "Kunal Bose", "Lab 1"));
+        timetableRepository.save(tt(tenantId, ay.getId(), c10.getId(), c10a.getId(), Enums.DayOfWeek.MONDAY, 1,
+                LocalTime.of(8, 30), LocalTime.of(9, 15), "English", t2.getId(), "Meera Iyer", "Room 301"));
+        timetableRepository.save(tt(tenantId, ay.getId(), c10.getId(), c10a.getId(), Enums.DayOfWeek.MONDAY, 2,
+                LocalTime.of(9, 20), LocalTime.of(10, 5), "Mathematics", t1.getId(), "Debjyoti Sen", "Room 301"));
+        timetableRepository.save(tt(tenantId, ay.getId(), c10.getId(), c10a.getId(), Enums.DayOfWeek.THURSDAY, 1,
+                LocalTime.of(8, 30), LocalTime.of(9, 15), "Science", t3.getId(), "Kunal Bose", "Lab 1"));
+        timetableRepository.save(tt(tenantId, ay.getId(), c7Demo.getId(), c7a.getId(), Enums.DayOfWeek.TUESDAY, 1,
+                LocalTime.of(8, 30), LocalTime.of(9, 15), "English", t2.getId(), "Meera Iyer", "Room 102"));
+        timetableRepository.save(tt(tenantId, ay.getId(), c7Demo.getId(), c7a.getId(), Enums.DayOfWeek.TUESDAY, 2,
+                LocalTime.of(9, 20), LocalTime.of(10, 5), "Mathematics", t1.getId(), "Debjyoti Sen", "Room 102"));
+        timetableRepository.save(tt(tenantId, ay.getId(), c8Demo.getId(), c8a.getId(), Enums.DayOfWeek.WEDNESDAY, 1,
+                LocalTime.of(8, 30), LocalTime.of(9, 15), "Science", t3.getId(), "Kunal Bose", "Lab 1"));
+        timetableRepository.save(tt(tenantId, ay.getId(), c8Demo.getId(), c8a.getId(), Enums.DayOfWeek.WEDNESDAY, 2,
+                LocalTime.of(9, 20), LocalTime.of(10, 5), "English", t2.getId(), "Meera Iyer", "Room 108"));
+        timetableRepository.save(tt(tenantId, ay.getId(), c11.getId(), c11a.getId(), Enums.DayOfWeek.MONDAY, 1,
+                LocalTime.of(8, 30), LocalTime.of(9, 15), "Mathematics", t1.getId(), "Debjyoti Sen", "Room 401"));
+        timetableRepository.save(tt(tenantId, ay.getId(), c11.getId(), c11a.getId(), Enums.DayOfWeek.MONDAY, 2,
+                LocalTime.of(9, 20), LocalTime.of(10, 5), "Physics", t1.getId(), "Debjyoti Sen", "Lab 2"));
+        timetableRepository.save(tt(tenantId, ay.getId(), c11.getId(), c11a.getId(), Enums.DayOfWeek.TUESDAY, 1,
+                LocalTime.of(8, 30), LocalTime.of(9, 15), "English", t2.getId(), "Meera Iyer", "Room 401"));
+        timetableRepository.save(tt(tenantId, ay.getId(), c11.getId(), c11b.getId(), Enums.DayOfWeek.MONDAY, 1,
+                LocalTime.of(8, 30), LocalTime.of(9, 15), "Chemistry", t3.getId(), "Kunal Bose", "Lab 1"));
+        timetableRepository.save(tt(tenantId, ay.getId(), c11.getId(), c11b.getId(), Enums.DayOfWeek.THURSDAY, 1,
+                LocalTime.of(8, 30), LocalTime.of(9, 15), "Mathematics", t1.getId(), "Debjyoti Sen", "Room 402"));
+        timetableRepository.save(tt(tenantId, ay.getId(), c12.getId(), c12a.getId(), Enums.DayOfWeek.MONDAY, 1,
+                LocalTime.of(8, 30), LocalTime.of(9, 15), "Chemistry", t3.getId(), "Kunal Bose", "Lab 1"));
+        timetableRepository.save(tt(tenantId, ay.getId(), c12.getId(), c12a.getId(), Enums.DayOfWeek.TUESDAY, 1,
+                LocalTime.of(8, 30), LocalTime.of(9, 15), "Biology", t3.getId(), "Kunal Bose", "Lab 1"));
+        timetableRepository.save(tt(tenantId, ay.getId(), c12.getId(), c12b.getId(), Enums.DayOfWeek.WEDNESDAY, 1,
+                LocalTime.of(8, 30), LocalTime.of(9, 15), "Mathematics", t1.getId(), "Debjyoti Sen", "Room 501"));
 
         Exam exam = Exam.builder()
                 .name("Half-Yearly Assessment 2025")
                 .academicYearId(ay.getId())
                 .startDate(LocalDate.now().plusWeeks(2))
                 .endDate(LocalDate.now().plusWeeks(3))
-                .classIds(List.of(c9.getId(), c10.getId()))
+                .classIds(List.of(c9.getId(), c10.getId(), c11.getId(), c12.getId()))
                 .status(Enums.ExamStatus.UPCOMING)
                 .build();
         exam.setTenantId(tenantId);
@@ -400,12 +502,17 @@ public class DemoDataSeedService {
 
         ExamScope(tenantId, exam.getId(), c9.getId(), null);
         ExamScope(tenantId, exam.getId(), c10.getId(), c10b.getId());
+        ExamScope(tenantId, exam.getId(), c11.getId(), c11a.getId());
+        ExamScope(tenantId, exam.getId(), c12.getId(), c12a.getId());
         examSlot(tenantId, exam.getId(), c9.getId(), c9a.getId(), "Mathematics", LocalDate.now().plusWeeks(2), LocalTime.of(9, 0), LocalTime.of(11, 0), "Hall A");
         examSlot(tenantId, exam.getId(), c10.getId(), c10b.getId(), "Science", LocalDate.now().plusWeeks(2), LocalTime.of(13, 0), LocalTime.of(15, 0), "Lab 1");
+        examSlot(tenantId, exam.getId(), c11.getId(), c11a.getId(), "Mathematics", LocalDate.now().plusWeeks(2).plusDays(1), LocalTime.of(9, 0), LocalTime.of(11, 0), "Hall B");
+        examSlot(tenantId, exam.getId(), c12.getId(), c12a.getId(), "Chemistry", LocalDate.now().plusWeeks(2).plusDays(1), LocalTime.of(13, 0), LocalTime.of(15, 0), "Lab 2");
 
         markRecord(tenantId, exam.getId(), studs.get(0), "Mathematics", 82, 100, "B+", c9.getId());
         markRecord(tenantId, exam.getId(), studs.get(0), "English", 76, 100, "B", c9.getId());
-        markRecord(tenantId, exam.getId(), studs.get(3), "English", 91, 100, "A+", c10.getId());
+        markRecord(tenantId, exam.getId(), studs.get(8), "English", 91, 100, "A+", c10.getId());
+        markRecord(tenantId, exam.getId(), studs.get(20), "Mathematics", 88, 100, "A", c11.getId());
 
         FeeStructure fs = feeStructure(tenantId, "Annual Fee — IX", c9.getId(), "Class IX", ay.getId(), new BigDecimal("48500.00"));
         feeStructureRepository.save(fs);
@@ -416,7 +523,7 @@ public class DemoDataSeedService {
 
         FeePayment fp1 = payment(tenantId, studs.get(0), fs.getId(), new BigDecimal("48500"), new BigDecimal("25000"),
                 new BigDecimal("23500"), Enums.FeeStatus.PARTIAL, "SX-REC-001");
-        FeePayment fp2 = payment(tenantId, studs.get(3), fs.getId(), new BigDecimal("48500"), new BigDecimal("48500"),
+        FeePayment fp2 = payment(tenantId, studs.get(8), fs.getId(), new BigDecimal("48500"), new BigDecimal("48500"),
                 BigDecimal.ZERO, Enums.FeeStatus.PAID, "SX-REC-002");
         feePaymentRepository.saveAll(List.of(fp1, fp2));
         fp1.setDueDate(LocalDate.now().plusDays(10));
@@ -442,6 +549,14 @@ public class DemoDataSeedService {
         att.setCompletedAt(LocalDateTime.now().minusDays(2));
         att.setIsDeleted(false);
         feePaymentAttemptRepository.save(att);
+
+        FeeStructure fsXi = feeStructure(tenantId, "Annual Fee — XI", c11.getId(), "Class XI", ay.getId(), new BigDecimal("52000.00"));
+        feeStructureRepository.save(fsXi);
+        feeComponentRepository.save(comp(tenantId, fsXi.getId(), "Tuition", new BigDecimal("41000"), Enums.FeeComponentType.TUITION));
+        feeComponentRepository.save(comp(tenantId, fsXi.getId(), "Labs", new BigDecimal("11000"), Enums.FeeComponentType.LAB));
+        flush();
+        feePaymentRepository.save(payment(tenantId, studs.get(20), fsXi.getId(), new BigDecimal("52000"), new BigDecimal("26000"),
+                new BigDecimal("26000"), Enums.FeeStatus.PARTIAL, "SX-REC-XI-01"));
 
         saveAnnouncements(tenantId, c9.getId(), c9a.getId(), c10.getId(), c10b.getId());
         notificationRepository.save(notif(tenantId, admin.getId(), "Welcome to the new academic session", "Term calendars are published under Documents.", Enums.NotificationType.INFO));
@@ -494,7 +609,7 @@ public class DemoDataSeedService {
         r1.setHostelId(h.getId());
         hostelRoomRepository.save(r1);
         hostelAllocationRepository.save(tap(HostelAllocation.builder().roomId(r1.getId()).roomNumber("B-204")
-                        .studentId(studs.get(2).getId()).studentName(studs.get(2).getFirstName() + " " + studs.get(2).getLastName())
+                        .studentId(studs.get(4).getId()).studentName(studs.get(4).getFirstName() + " " + studs.get(4).getLastName())
                         .fromDate(LocalDate.now().minusMonths(2)).status(Enums.HostelAllocationStatus.ACTIVE).build(),
                 a -> a.setTenantId(tenantId)));
         r1.setOccupancy(1);
@@ -776,7 +891,7 @@ public class DemoDataSeedService {
         String[] bf = {"Aditya", "Kavya", "Sohan", "Diya", "Rohan", "Ira", "Dev", "Mira", "Kabir", "Tara", "Rehan", "Anvi", "Vihaan", "Myra", "Neil", "Pari", "Yash", "Zara", "Krish", "Lavanya"};
         String[] bl = {"Sen", "Roy", "Basu", "Dutta", "Mukherjee", "Iyer", "Ghosh", "Nair", "Bose", "Chatterjee", "Malik", "Kapoor", "Ahuja", "Das", "Joshi", "Seth", "Varma", "Oberoi", "Desai", "Khan"};
         List<Student> bulkStudents = new ArrayList<>();
-        for (int i = 0; i < 20; i++) {
+        for (int i = 0; i < 40; i++) {
             String adm = String.format("SX-BULK-%03d", i + 1);
             if (studentRepository.existsByTenantIdAndAdmissionNumber(tenantId, adm)) {
                 continue;
@@ -944,6 +1059,11 @@ public class DemoDataSeedService {
                         LocalTime.of(9, 20), LocalTime.of(10, 5), "English", tMath.getId(), tn, "Room 201"));
             }
         }
+
+        for (long[] pair : classSectionPairs) {
+            seedDenseWeekTimetableIfSparse(tenantId, ay.getId(), pair[0], pair[1], teachers);
+        }
+        flush();
 
         boolean hasBulkVehicle = transportVehicleRepository.findByTenantIdAndIsDeletedFalse(tenantId).stream()
                 .anyMatch(v -> "WB-BULK-STX-01".equals(v.getRegistrationNumber()));
@@ -1371,6 +1491,51 @@ public class DemoDataSeedService {
         }
 
         log.info("Bulk demo extension applied for Meridian Ridge (tenant_id={})", tenantId);
+    }
+
+    /**
+     * Fills Mon–Fri core periods when a class-section has fewer than 15 rows (sales demo density; skips day/period clashes).
+     */
+    private void seedDenseWeekTimetableIfSparse(String tenantId, Long ayId, Long classId, Long sectionId, List<Teacher> teachers) {
+        if (teachers.isEmpty()) {
+            return;
+        }
+        List<TimetableEntry> existing = timetableRepository.findByTenantIdAndClassIdAndSectionIdAndIsDeletedFalse(tenantId, classId, sectionId);
+        if (existing.size() >= 15) {
+            return;
+        }
+        List<DenseDemoSlot> plan = List.of(
+                new DenseDemoSlot(Enums.DayOfWeek.MONDAY, 1, LocalTime.of(8, 30), LocalTime.of(9, 15), "Mathematics", 0, "Room 201"),
+                new DenseDemoSlot(Enums.DayOfWeek.MONDAY, 2, LocalTime.of(9, 20), LocalTime.of(10, 5), "English", 1, "Room 201"),
+                new DenseDemoSlot(Enums.DayOfWeek.MONDAY, 3, LocalTime.of(10, 10), LocalTime.of(10, 55), "Chemistry", 2, "Lab 1"),
+                new DenseDemoSlot(Enums.DayOfWeek.MONDAY, 4, LocalTime.of(11, 0), LocalTime.of(11, 45), "Physics", 0, "Lab 2"),
+                new DenseDemoSlot(Enums.DayOfWeek.TUESDAY, 1, LocalTime.of(8, 30), LocalTime.of(9, 15), "English", 1, "Room 201"),
+                new DenseDemoSlot(Enums.DayOfWeek.TUESDAY, 2, LocalTime.of(9, 20), LocalTime.of(10, 5), "Mathematics", 0, "Room 201"),
+                new DenseDemoSlot(Enums.DayOfWeek.TUESDAY, 3, LocalTime.of(10, 10), LocalTime.of(10, 55), "Biology", 2, "Lab 1"),
+                new DenseDemoSlot(Enums.DayOfWeek.WEDNESDAY, 1, LocalTime.of(8, 30), LocalTime.of(9, 15), "Physics", 0, "Lab 2"),
+                new DenseDemoSlot(Enums.DayOfWeek.WEDNESDAY, 2, LocalTime.of(9, 20), LocalTime.of(10, 5), "History", 1, "Room 105"),
+                new DenseDemoSlot(Enums.DayOfWeek.WEDNESDAY, 3, LocalTime.of(10, 10), LocalTime.of(10, 55), "Geography", 3, "Room 105"),
+                new DenseDemoSlot(Enums.DayOfWeek.THURSDAY, 1, LocalTime.of(8, 30), LocalTime.of(9, 15), "Chemistry", 2, "Lab 1"),
+                new DenseDemoSlot(Enums.DayOfWeek.THURSDAY, 2, LocalTime.of(9, 20), LocalTime.of(10, 5), "English", 1, "Room 201"),
+                new DenseDemoSlot(Enums.DayOfWeek.THURSDAY, 3, LocalTime.of(10, 10), LocalTime.of(10, 55), "Mathematics", 0, "Room 201"),
+                new DenseDemoSlot(Enums.DayOfWeek.FRIDAY, 1, LocalTime.of(8, 30), LocalTime.of(9, 15), "Biology", 2, "Lab 1"),
+                new DenseDemoSlot(Enums.DayOfWeek.FRIDAY, 2, LocalTime.of(9, 20), LocalTime.of(10, 5), "Physical Education", 4, "Ground"),
+                new DenseDemoSlot(Enums.DayOfWeek.FRIDAY, 3, LocalTime.of(10, 10), LocalTime.of(10, 55), "Computer Science", 3, "Lab 3"));
+        for (DenseDemoSlot row : plan) {
+            boolean has = existing.stream().anyMatch(e -> e.getDay() == row.day && Objects.equals(e.getPeriod(), row.period));
+            if (has) {
+                continue;
+            }
+            int ti = Math.min(row.teacherIndex, teachers.size() - 1);
+            Teacher t = teachers.get(ti);
+            String nm = t.getFirstName() + " " + t.getLastName();
+            timetableRepository.save(tt(tenantId, ayId, classId, sectionId, row.day, row.period, row.start, row.end, row.subject,
+                    t.getId(), nm, row.room));
+        }
+    }
+
+    private record DenseDemoSlot(Enums.DayOfWeek day, int period, LocalTime start, LocalTime end, String subject, int teacherIndex,
+                               String room) {
     }
 
     private void flush() {

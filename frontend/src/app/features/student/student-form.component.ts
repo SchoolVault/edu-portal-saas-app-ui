@@ -103,8 +103,8 @@ import { ErpDatePickerComponent } from '../../shared/erp-date-picker/erp-date-pi
             <div class="col-md-4">
               <div class="erp-form-group"><label class="erp-label">Class *</label>
                 <select class="erp-select" [(ngModel)]="student.classId" name="classId" required (change)="onClassChange()" data-testid="student-class">
-                  <option value="">Select Class</option>
-                  <option *ngFor="let cls of classes" [value]="cls.id">{{ cls.name }}</option>
+                  <option [ngValue]="null">Select Class</option>
+                  <option *ngFor="let cls of classes" [ngValue]="cls.id">{{ cls.name }}</option>
                 </select>
               </div>
             </div>
@@ -112,10 +112,15 @@ import { ErpDatePickerComponent } from '../../shared/erp-date-picker/erp-date-pi
               <div class="erp-form-group"><label class="erp-label">Section<span *ngIf="sectionRequired"> *</span></label>
                 <select class="erp-select" [(ngModel)]="student.sectionId" name="sectionId" [required]="sectionRequired"
                   [disabled]="!sectionRequired" data-testid="student-section">
-                  <option value="">{{ sectionRequired ? 'Select section' : 'Whole class (no section)' }}</option>
-                  <option *ngFor="let sec of availableSections" [value]="sec.id">{{ sec.name }}</option>
+                  <ng-container *ngIf="sectionRequired">
+                    <option [ngValue]="null">Select section</option>
+                    <option *ngFor="let sec of availableSections" [ngValue]="sec.id">{{ sec.name }}</option>
+                  </ng-container>
+                  <ng-container *ngIf="!sectionRequired">
+                    <option [ngValue]="0">Whole class (no section)</option>
+                  </ng-container>
                 </select>
-                <p *ngIf="student.classId && !sectionRequired" class="text-muted small mb-0 mt-1">This class has no sections; the student is enrolled at class level only.</p>
+                <p *ngIf="student.classId != null && student.classId !== 0 && !sectionRequired" class="text-muted small mb-0 mt-1">This class has no sections; the student is enrolled at class level only.</p>
               </div>
             </div>
             <div class="col-md-4" *ngIf="isEdit && isAdmin">
@@ -201,9 +206,9 @@ import { ErpDatePickerComponent } from '../../shared/erp-date-picker/erp-date-pi
   `
 })
 export class StudentFormComponent implements OnInit {
-  student: Partial<Student> = { status: 'active', tenantId: 't1', gender: '', classId: '', sectionId: '', bloodGroup: '' };
+  student: Partial<Student> = { status: 'active', tenantId: 't1', gender: '', bloodGroup: '' };
   classes: SchoolClass[] = [];
-  availableSections: { id: string; name: string }[] = [];
+  availableSections: { id: number; name: string }[] = [];
   genders = GENDERS;
   bloodGroups = BLOOD_GROUPS;
   studentStatuses = [...STUDENT_STATUS];
@@ -232,8 +237,10 @@ export class StudentFormComponent implements OnInit {
     this.academicService.getClasses().subscribe(classes => {
       this.classes = classes;
     });
-    const id = this.route.snapshot.paramMap.get('id');
-    if (id && id !== 'new') {
+    const raw = this.route.snapshot.paramMap.get('id');
+    if (raw && raw !== 'new') {
+      const id = Number(raw);
+      if (!Number.isFinite(id)) return;
       this.isEdit = true;
       this.studentService.getStudentById(id).subscribe(s => {
         if (s) {
@@ -289,10 +296,15 @@ export class StudentFormComponent implements OnInit {
     this.availableSections = cls ? cls.sections.map(s => ({ id: s.id, name: s.name })) : [];
     if (cls) this.student.className = cls.name;
     if (cls && cls.sections.length === 0) {
-      this.student.sectionId = '';
+      this.student.sectionId = 0;
       this.student.sectionName = '';
-    } else if (cls && this.student.sectionId && !this.availableSections.some(s => s.id === this.student.sectionId)) {
-      this.student.sectionId = '';
+    } else if (
+      cls &&
+      this.student.sectionId != null &&
+      this.student.sectionId !== 0 &&
+      !this.availableSections.some(s => s.id === this.student.sectionId)
+    ) {
+      delete this.student.sectionId;
       this.student.sectionName = '';
     }
   }
@@ -304,11 +316,13 @@ export class StudentFormComponent implements OnInit {
   }
 
   onSubmit(): void {
-    if (!this.student.firstName || !this.student.lastName || !this.student.classId) return;
-    if (this.sectionRequired && !this.student.sectionId) return;
+    if (!this.student.firstName || !this.student.lastName || this.student.classId == null || this.student.classId === 0) {
+      return;
+    }
+    if (this.sectionRequired && (this.student.sectionId == null || this.student.sectionId === 0)) return;
     this.saving = true;
     if (!this.sectionRequired) {
-      this.student.sectionId = '';
+      this.student.sectionId = 0;
       this.student.sectionName = '';
     }
     const sec = this.availableSections.find(s => s.id === this.student.sectionId);

@@ -2,6 +2,12 @@ import { Injectable, OnDestroy } from '@angular/core';
 import { Client, IMessage, StompSubscription } from '@stomp/stompjs';
 import { BehaviorSubject, Observable, Subject, of } from 'rxjs';
 import { delay, map, tap } from 'rxjs/operators';
+import {
+  buildMockChatInboxSeed,
+  MOCK_CHAT_DIRECTORY_ADMIN,
+  MOCK_CHAT_DIRECTORY_PARENT,
+  MOCK_CHAT_DIRECTORY_TEACHER,
+} from '../mocks/chat.mock-data';
 import { ApiService } from './api.service';
 import { runtimeConfig } from '../config/runtime-config';
 import { AuthService } from './auth.service';
@@ -49,7 +55,7 @@ export class ChatService implements OnDestroy {
           lastMessageAt: item.lastMessageAt ?? undefined,
           lastMessagePreview: item.lastMessagePreview ?? undefined,
           participants: (item.participants ?? []).map((p: any) => ({
-            userId: String(p.userId),
+            userId: Number(p.userId),
             userRole: p.userRole,
             displayName: p.displayName ?? undefined
           })),
@@ -66,34 +72,27 @@ export class ChatService implements OnDestroy {
       const role = (me?.role || 'teacher') as string;
       if (role === 'teacher') {
         return of({
-          myClassRosters: [
-            {
-              classId: 'c8',
-              className: 'Class 8',
-              students: [
-                { studentId: 's12', studentName: 'Emma Chen', parent: { userId: 'u3', name: 'Michael Chen', role: 'PARENT' } }
-              ]
-            }
-          ]
+          myClassRosters: MOCK_CHAT_DIRECTORY_TEACHER.myClassRosters?.map(r => ({
+            ...r,
+            students: r.students.map(s => ({
+              ...s,
+              parent: s.parent ? { ...s.parent } : undefined,
+            })),
+          })),
         }).pipe(delay(150));
       }
       if (role === 'parent') {
         return of({
-          myChildren: [
-            {
-              studentId: 's12',
-              studentName: 'Emma Chen',
-              classId: 'c8',
-              className: 'Class 8',
-              classTeacher: { userId: 'u2', name: 'Sarah Mitchell', role: 'TEACHER' }
-            }
-          ]
+          myChildren: MOCK_CHAT_DIRECTORY_PARENT.myChildren?.map(c => ({
+            ...c,
+            classTeacher: c.classTeacher ? { ...c.classTeacher } : undefined,
+          })),
         }).pipe(delay(150));
       }
       if (role === 'admin') {
         return of({
-          teachers: [{ userId: 'u2', name: 'Sarah Mitchell', role: 'TEACHER' }],
-          parents: [{ userId: 'u3', name: 'Michael Chen', role: 'PARENT' }]
+          teachers: MOCK_CHAT_DIRECTORY_ADMIN.teachers?.map(u => ({ ...u })),
+          parents: MOCK_CHAT_DIRECTORY_ADMIN.parents?.map(u => ({ ...u })),
         }).pipe(delay(150));
       }
       return of({}).pipe(delay(150));
@@ -101,31 +100,31 @@ export class ChatService implements OnDestroy {
     return this.api.get<any>('/chat/directory').pipe(
       map(item => ({
         myClassRosters: (item.myClassRosters ?? []).map((r: any) => ({
-          classId: String(r.classId),
+          classId: Number(r.classId),
           className: r.className ?? undefined,
-          sectionId: r.sectionId != null ? String(r.sectionId) : undefined,
+          sectionId: r.sectionId != null ? Number(r.sectionId) : undefined,
           sectionName: r.sectionName ?? undefined,
           students: (r.students ?? []).map((s: any) => ({
-            studentId: String(s.studentId),
+            studentId: Number(s.studentId),
             studentName: s.studentName,
             parent: s.parent
-              ? { userId: String(s.parent.userId), name: s.parent.name, role: s.parent.role }
+              ? { userId: Number(s.parent.userId), name: s.parent.name, role: s.parent.role }
               : undefined
           }))
         })),
         myChildren: (item.myChildren ?? []).map((c: any) => ({
-          studentId: String(c.studentId),
+          studentId: Number(c.studentId),
           studentName: c.studentName,
-          classId: c.classId != null ? String(c.classId) : undefined,
+          classId: c.classId != null ? Number(c.classId) : undefined,
           className: c.className ?? undefined,
-          sectionId: c.sectionId != null ? String(c.sectionId) : undefined,
+          sectionId: c.sectionId != null ? Number(c.sectionId) : undefined,
           sectionName: c.sectionName ?? undefined,
           classTeacher: c.classTeacher
-            ? { userId: String(c.classTeacher.userId), name: c.classTeacher.name, role: c.classTeacher.role }
+            ? { userId: Number(c.classTeacher.userId), name: c.classTeacher.name, role: c.classTeacher.role }
             : undefined
         })),
-        teachers: (item.teachers ?? []).map((u: any) => ({ userId: String(u.userId), name: u.name, role: u.role })),
-        parents: (item.parents ?? []).map((u: any) => ({ userId: String(u.userId), name: u.name, role: u.role }))
+        teachers: (item.teachers ?? []).map((u: any) => ({ userId: Number(u.userId), name: u.name, role: u.role })),
+        parents: (item.parents ?? []).map((u: any) => ({ userId: Number(u.userId), name: u.name, role: u.role }))
       }) as ChatDirectoryResponse)
     );
   }
@@ -163,7 +162,7 @@ export class ChatService implements OnDestroy {
         contextId: item.contextId != null ? String(item.contextId) : undefined,
         lastMessageAt: item.lastMessageAt ?? undefined,
         lastMessagePreview: item.lastMessagePreview ?? undefined,
-        participants: (item.participants ?? []).map((p: any) => ({ userId: String(p.userId), userRole: p.userRole, displayName: p.displayName ?? undefined })),
+        participants: (item.participants ?? []).map((p: any) => ({ userId: Number(p.userId), userRole: p.userRole, displayName: p.displayName ?? undefined })),
         unreadCount: Number(item.unreadCount ?? 0)
       }) as ChatInboxConversation
       )
@@ -190,12 +189,12 @@ export class ChatService implements OnDestroy {
   sendMessage(conversationId: string, body: string): Observable<ChatMessage> {
     const clientMessageId = 'cm-' + Date.now();
     if (runtimeConfig.useMocks) {
-      const me = this.auth.getCurrentUser()?.id || 'me';
+      const me = this.auth.getCurrentUser()?.id ?? 1;
       const role = this.auth.getRole() || 'admin';
       const msg: ChatMessage = {
         id: 'm-' + Date.now(),
         conversationId,
-        senderUserId: String(me),
+        senderUserId: me,
         senderRole: role.toUpperCase(),
         senderName: undefined,
         body,
@@ -249,7 +248,7 @@ export class ChatService implements OnDestroy {
               contextId: item.contextId != null ? String(item.contextId) : undefined,
               lastMessageAt: item.lastMessageAt ?? undefined,
               lastMessagePreview: item.lastMessagePreview ?? undefined,
-              participants: (item.participants ?? []).map((p: any) => ({ userId: String(p.userId), userRole: p.userRole, displayName: p.displayName ?? undefined })),
+              participants: (item.participants ?? []).map((p: any) => ({ userId: Number(p.userId), userRole: p.userRole, displayName: p.displayName ?? undefined })),
               unreadCount: Number(item.unreadCount ?? 0)
             };
             const current = this.inboxSubject.getValue();
@@ -298,7 +297,7 @@ export class ChatService implements OnDestroy {
     return {
       id: String(m.id),
       conversationId: String(m.conversationId),
-      senderUserId: String(m.senderUserId),
+      senderUserId: Number(m.senderUserId),
       senderRole: m.senderRole,
       senderName: m.senderName ?? undefined,
       body: m.body,
@@ -319,45 +318,16 @@ export class ChatService implements OnDestroy {
   }
 
   private seedMocks(): void {
-    const me = this.auth.getCurrentUser()?.id || 'u2';
-    const role = (this.auth.getRole() || 'teacher').toUpperCase();
-    const other: ChatInboxConversation = {
-      conversationId: 'c-101',
-      type: 'direct',
-      subject: undefined,
-      contextType: 'student',
-      contextId: 's12',
-      lastMessageAt: new Date(Date.now() - 1000 * 60 * 4).toISOString(),
-      lastMessagePreview: 'Please review today’s homework.',
-      participants: [
-        { userId: String(me), userRole: role, displayName: 'You' },
-        { userId: 'u3', userRole: 'PARENT', displayName: 'Parent - Michael Chen' }
-      ],
-      unreadCount: 0
-    };
-    this.mockConversations = [other];
-    this.mockMessages['c-101'] = [
-      {
-        id: 'm-1',
-        conversationId: 'c-101',
-        senderUserId: 'u3',
-        senderRole: 'PARENT',
-        senderName: 'Michael Chen',
-        body: 'Please review today’s homework.',
-        bodyType: 'text',
-        createdAt: new Date(Date.now() - 1000 * 60 * 4).toISOString()
-      },
-      {
-        id: 'm-2',
-        conversationId: 'c-101',
-        senderUserId: String(me),
-        senderRole: role,
-        senderName: 'You',
-        body: 'Sure — I’ll share feedback by evening.',
-        bodyType: 'text',
-        createdAt: new Date(Date.now() - 1000 * 60 * 3).toISOString()
-      }
-    ];
+      const me = this.auth.getCurrentUser()?.id ?? 2;
+      const role = (this.auth.getRole() || 'teacher').toUpperCase();
+      const seed = buildMockChatInboxSeed(me, role);
+    this.mockConversations = seed.conversations.map(c => ({
+      ...c,
+      participants: c.participants.map(p => ({ ...p })),
+    }));
+    this.mockMessages = Object.fromEntries(
+      Object.entries(seed.messages).map(([k, msgs]) => [k, msgs.map(m => ({ ...m }))])
+    );
   }
 
   private clearWsSubscriptions(): void {

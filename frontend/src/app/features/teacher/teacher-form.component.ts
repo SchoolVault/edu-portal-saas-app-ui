@@ -106,9 +106,12 @@ export class TeacherFormComponent implements OnInit {
         this.subjectCatalog = cat;
         this.catalogLoading = false;
         if (this.isEdit && id) {
-          this.teacherService.getTeacherById(id).subscribe(t => {
-            if (t) this.applyTeacherFromApi(t);
-          });
+          const nid = Number(id);
+          if (Number.isFinite(nid)) {
+            this.teacherService.getTeacherById(nid).subscribe(t => {
+              if (t) this.applyTeacherFromApi(t);
+            });
+          }
         }
       },
       error: () => {
@@ -159,18 +162,18 @@ export class TeacherFormComponent implements OnInit {
       return;
     }
     this.teacherDirectoryPreview =
-      this.auth.getDirectoryTeacherAvatarDataUrl(String(this.teacher.id)) || this.teacher.avatar || null;
+      this.auth.getDirectoryTeacherAvatarDataUrl(this.teacher.id) || this.teacher.avatar || null;
   }
 
   onTeacherDirPhotoPicked(ev: ProfilePhotoPickEvent): void {
     if (!this.teacher.id) return;
-    this.auth.setDirectoryTeacherAvatarDataUrl(String(this.teacher.id), ev.dataUrl);
+    this.auth.setDirectoryTeacherAvatarDataUrl(this.teacher.id, ev.dataUrl);
     this.refreshTeacherDirectoryPreview();
   }
 
   onTeacherDirPhotoRemoved(): void {
     if (!this.teacher.id) return;
-    this.auth.clearDirectoryTeacherAvatar(String(this.teacher.id));
+    this.auth.clearDirectoryTeacherAvatar(this.teacher.id);
     this.refreshTeacherDirectoryPreview();
   }
 

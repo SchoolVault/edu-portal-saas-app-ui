@@ -115,12 +115,14 @@ import { ConfirmDialogService } from '../../shared/confirm-dialog/confirm-dialog
             <div class="col-md-6">
               <label class="erp-label">Class</label>
               <select class="erp-select mb-2" [(ngModel)]="structureForm.classId" (ngModelChange)="syncClassName()">
+                <option [ngValue]="null">Select class</option>
                 <option *ngFor="let c of classes" [ngValue]="c.id">{{ c.name }}</option>
               </select>
             </div>
             <div class="col-md-6">
               <label class="erp-label">Academic year</label>
               <select class="erp-select mb-2" [(ngModel)]="structureForm.academicYearId">
+                <option [ngValue]="null">Select year</option>
                 <option *ngFor="let y of academicYears" [ngValue]="y.id">{{ y.name }}</option>
               </select>
             </div>
@@ -171,14 +173,14 @@ export class FeesComponent implements OnInit {
   isAdmin = false;
   refreshing = false;
   structureModal = false;
-  editingStructureId: string | null = null;
+  editingStructureId: number | null = null;
   structureError = '';
   savingStructure = false;
   structureForm: {
     name: string;
-    classId: string;
+    classId: number | null;
     className: string;
-    academicYearId: string;
+    academicYearId: number | null;
     components: { name: string; amount: number; type: string }[];
   } = this.emptyStructureForm();
 
@@ -248,9 +250,9 @@ export class FeesComponent implements OnInit {
   emptyStructureForm() {
     return {
       name: '',
-      classId: '',
+      classId: null as number | null,
       className: '',
-      academicYearId: '',
+      academicYearId: null as number | null,
       components: [
         { name: 'Tuition', amount: 0, type: 'tuition' },
         { name: 'Transport', amount: 0, type: 'transport' }
@@ -276,8 +278,9 @@ export class FeesComponent implements OnInit {
       };
     } else {
       this.structureForm = this.emptyStructureForm();
-      this.structureForm.classId = this.classes[0]?.id ?? '';
-      this.structureForm.academicYearId = this.academicYears.find(y => y.isCurrent)?.id ?? this.academicYears[0]?.id ?? '';
+      this.structureForm.classId = this.classes[0]?.id ?? null;
+      this.structureForm.academicYearId =
+        this.academicYears.find(y => y.isCurrent)?.id ?? this.academicYears[0]?.id ?? null;
       this.syncClassName();
     }
     this.structureModal = true;
@@ -297,8 +300,12 @@ export class FeesComponent implements OnInit {
       this.structureError = 'Name is required.';
       return;
     }
-    if (!this.structureForm.classId) {
+    if (this.structureForm.classId == null) {
       this.structureError = 'Select a class.';
+      return;
+    }
+    if (this.structureForm.academicYearId == null) {
+      this.structureError = 'Select an academic year.';
       return;
     }
     const comps: FeeComponent[] = this.structureForm.components
@@ -312,12 +319,12 @@ export class FeesComponent implements OnInit {
     this.savingStructure = true;
     const body = {
       name: this.structureForm.name.trim(),
-      classId: this.structureForm.classId,
+      classId: this.structureForm.classId as number,
       className: this.structureForm.className,
-      academicYearId: this.structureForm.academicYearId,
+      academicYearId: this.structureForm.academicYearId as number,
       components: comps
     };
-    const req$ = this.editingStructureId
+    const req$ = this.editingStructureId != null
       ? this.feeService.updateFeeStructure(this.editingStructureId, body)
       : this.feeService.addFeeStructure(body);
     req$.subscribe({

@@ -1413,6 +1413,7 @@ public class FeeDTOs {
         public void setType(String type) { this.type = type; }
     }
 
+    /** Frontend mirror: {@code frontend/src/app/core/models/parent-fee.dto.ts} ({@code ParentFeeDtos}). */
     public static class ParentFeeObligationResponse {
         private Long paymentId;
         private Long studentId;

@@ -235,7 +235,7 @@ Chart.register(...registerables);
             <div class="col-md-6">
               <label class="erp-label">Child</label>
               <select class="erp-select" [(ngModel)]="selectedParentChildId" (change)="onParentChildChange()">
-                <option *ngFor="let c of parentDashboard?.children" [value]="c.id">
+                <option *ngFor="let c of parentDashboard?.children" [ngValue]="c.id">
                   {{ c.firstName }} {{ c.lastName }} · {{ c.className || ('Class ' + c.classId) }}{{ c.sectionName ? ' - ' + c.sectionName : '' }}
                 </option>
               </select>
@@ -337,7 +337,7 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
   admissionInsights: Array<{ label: string; value: string; subtext: string; tone: string }> = [];
   teacherKPIs: Array<{ label: string; value: string; icon: string; bgColor: string; color: string }> = [];
   parentKPIs: Array<{ label: string; value: string; icon: string; bgColor: string; color: string }> = [];
-  selectedParentChildId = '';
+  selectedParentChildId: number | null = null;
   showAdmissionsSeries = true;
   showFeesSeries = true;
   attSlicePresent = true;
@@ -408,7 +408,7 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
     this.dashboardService.getParentDashboard(from, to).subscribe({
       next: dashboard => {
         this.parentDashboard = dashboard;
-        this.selectedParentChildId = dashboard.selectedChildId || dashboard.selectedChild?.id || '';
+        this.selectedParentChildId = dashboard.selectedChildId ?? dashboard.selectedChild?.id ?? null;
         this.parentKPIs = [
           { label: 'Children Linked', value: String(dashboard.childCount), icon: 'bi-person-heart', bgColor: 'rgba(27,58,48,0.1)', color: '#1B3A30' },
           { label: 'Attendance', value: `${dashboard.attendancePercentage.toFixed(1)}%`, icon: 'bi-calendar-check-fill', bgColor: 'rgba(5,150,105,0.1)', color: '#059669' },
@@ -468,7 +468,7 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
     this.dashboardService.getParentDashboard(from, to).subscribe({
       next: dashboard => {
         this.parentDashboard = dashboard;
-        this.selectedParentChildId = dashboard.selectedChildId || dashboard.selectedChild?.id || '';
+        this.selectedParentChildId = dashboard.selectedChildId ?? dashboard.selectedChild?.id ?? null;
         this.parentKPIs = [
           { label: 'Children Linked', value: String(dashboard.childCount), icon: 'bi-person-heart', bgColor: 'rgba(27,58,48,0.1)', color: '#1B3A30' },
           { label: 'Attendance', value: `${dashboard.attendancePercentage.toFixed(1)}%`, icon: 'bi-calendar-check-fill', bgColor: 'rgba(5,150,105,0.1)', color: '#059669' },

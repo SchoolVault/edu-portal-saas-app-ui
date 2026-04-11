@@ -1,28 +1,25 @@
 import { Injectable } from '@angular/core';
 import { Observable, forkJoin, of } from 'rxjs';
 import { delay, map } from 'rxjs/operators';
+import {
+  buildParentMockInitialReceipts,
+  MOCK_PARENT_CHILDREN,
+  MOCK_PARENT_SEED_FEE_OBLIGATIONS,
+  MOCK_PARENT_SEED_FEE_PAYMENTS,
+  mockParentAttendanceRecords,
+  mockParentAttendanceStats,
+  mockParentMarkRows,
+} from '../mocks/parent.mock-data';
 import { ApiService } from './api.service';
-import { AttendanceRecord, AttendanceStats, CheckoutSession, CheckoutSessionRequest, FeePayment, MarkRecord, ParentFeeLineItem, ParentFeeObligation, PaymentReceipt, Student } from '../models/models';
+import { AttendanceRecord, AttendanceStats, CheckoutSession, CheckoutSessionRequest, FeePayment, MarkRecord, ParentFeeObligation, PaymentReceipt, Student } from '../models/models';
 import { runtimeConfig } from '../config/runtime-config';
-import { coerceApiLongId } from '../utils/coerce-api-long-id';
 
 @Injectable({ providedIn: 'root' })
 export class ParentService {
   private mockReceipts: PaymentReceipt[] = [];
-  /** Mutable mock fee state (obligations + ledger rows) updated after mock checkout confirm. */
   private mockObligationsMutable: ParentFeeObligation[] | null = null;
   private mockFeePaymentsMutable: FeePayment[] | null = null;
-  private pendingCheckout: { paymentId: string; studentId: string; amount: number } | null = null;
-
-  private static readonly MOCK_RECEIPT_LINES: ParentFeeLineItem[] = [
-    { name: 'Tuition', amount: 3200, type: 'tuition' },
-    { name: 'Transport', amount: 600, type: 'transport' },
-    { name: 'Hostel', amount: 800, type: 'hostel' },
-    { name: 'Uniform', amount: 400, type: 'uniform' },
-    { name: 'Library', amount: 300, type: 'library' },
-    { name: 'Lab Fee', amount: 500, type: 'lab' },
-    { name: 'Computer Fee', amount: 400, type: 'misc' }
-  ];
+  private pendingCheckout: { paymentId: number; studentId: number; amount: number } | null = null;
 
   constructor(private api: ApiService) {
     this.bootstrapMockReceiptLedger();
@@ -30,104 +27,91 @@ export class ParentService {
 
   getChildren(): Observable<Student[]> {
     if (runtimeConfig.useMocks) {
-      return of([
-        {
-          id: 's12',
-          firstName: 'Emma',
-          lastName: 'Chen',
-          email: 'emma.c@school.com',
-          phone: '+1-555-0212',
-          dateOfBirth: '2009-02-14',
-          gender: 'female',
-          classId: 'c8',
-          className: 'Class 8',
-          sectionId: 'sec8a',
-          sectionName: 'A',
-          rollNumber: '805',
-          admissionNumber: 'ADM2022080',
-          admissionDate: '2022-06-08',
-          parentId: 'u3',
-          parentName: 'Michael Chen',
-          address: '963 Willow Street',
-          bloodGroup: 'A+',
-          status: 'active' as const,
-          tenantId: 't1'
-        }
-      ]).pipe(delay(150));
+      return of(MOCK_PARENT_CHILDREN.map(c => ({ ...c }))).pipe(delay(150));
     }
     return this.api.get<any[]>('/parent/children').pipe(
-      map(children => children.map(child => ({
-        ...child,
-        id: String(child.id),
-        classId: child.classId != null ? String(child.classId) : '',
-        sectionId: child.sectionId != null ? String(child.sectionId) : '',
-        parentId: child.parentId != null ? String(child.parentId) : '',
-        tenantId: child.tenantId ?? '',
-        status: child.status?.toLowerCase?.() ?? 'active'
-      })))
+      map(children => children.map(child => this.normalizeStudent(child)))
     );
   }
 
-  getChildMarks(studentId: string): Observable<MarkRecord[]> {
+  private normalizeStudent(child: any): Student {
+    return {
+      ...child,
+      id: Number(child.id),
+      classId: child.classId != null ? Number(child.classId) : 0,
+      sectionId: child.sectionId != null ? Number(child.sectionId) : 0,
+      parentId: child.parentId != null ? Number(child.parentId) : 0,
+      parentUserId: child.parentUserId != null ? Number(child.parentUserId) : undefined,
+      tenantId: child.tenantId ?? '',
+      status: (child.status?.toLowerCase?.() ?? 'active') as Student['status'],
+      firstName: child.firstName ?? '',
+      lastName: child.lastName ?? '',
+      email: child.email ?? '',
+      phone: child.phone ?? '',
+      dateOfBirth: child.dateOfBirth ?? '',
+      gender: child.gender ?? '',
+      className: child.className ?? '',
+      sectionName: child.sectionName ?? '',
+      rollNumber: child.rollNumber ?? '',
+      admissionNumber: child.admissionNumber ?? '',
+      admissionDate: child.admissionDate ?? '',
+      parentName: child.parentName ?? '',
+      address: child.address ?? '',
+      bloodGroup: child.bloodGroup ?? '',
+    };
+  }
+
+  getChildMarks(studentId: number): Observable<MarkRecord[]> {
     if (runtimeConfig.useMocks) {
-      return of([
-        { id: 'm1', examId: 'e2', studentId, studentName: 'Emma Chen', subjectName: 'Mathematics', marksObtained: 92, maxMarks: 100, grade: 'A+', classId: 'c8', tenantId: 't1' },
-        { id: 'm2', examId: 'e2', studentId, studentName: 'Emma Chen', subjectName: 'Science', marksObtained: 85, maxMarks: 100, grade: 'A', classId: 'c8', tenantId: 't1' },
-        { id: 'm3', examId: 'e2', studentId, studentName: 'Emma Chen', subjectName: 'English', marksObtained: 88, maxMarks: 100, grade: 'A', classId: 'c8', tenantId: 't1' }
-      ]).pipe(delay(150));
+      const child = MOCK_PARENT_CHILDREN.find(c => c.id === studentId);
+      const name = child ? `${child.firstName} ${child.lastName}` : 'Student';
+      return of(mockParentMarkRows(studentId, name).map(m => ({ ...m }))).pipe(delay(150));
     }
-    const sid = coerceApiLongId(studentId, 'student');
-    return this.api.get<any[]>(`/parent/children/${sid}/marks`).pipe(
-      map(marks => marks.map(mark => ({
-        ...mark,
-        id: String(mark.id),
-        examId: String(mark.examId),
-        studentId: String(mark.studentId),
-        classId: mark.classId != null ? String(mark.classId) : '',
-        tenantId: mark.tenantId ?? ''
-      })))
+    return this.api.get<any[]>(`/parent/children/${studentId}/marks`).pipe(
+      map(marks =>
+        marks.map(mark => ({
+          ...mark,
+          id: Number(mark.id),
+          examId: Number(mark.examId),
+          studentId: Number(mark.studentId),
+          classId: mark.classId != null ? Number(mark.classId) : 0,
+          tenantId: mark.tenantId ?? ''
+        }))
+      )
     );
   }
 
-  getChildFees(studentId: string): Observable<FeePayment[]> {
+  getChildFees(studentId: number): Observable<FeePayment[]> {
     if (runtimeConfig.useMocks) {
       this.ensureMockFeeState();
       return of(this.mockFeePaymentsMutable!.filter(payment => payment.studentId === studentId)).pipe(delay(150));
     }
-    const sid = coerceApiLongId(studentId, 'student');
-    return this.api.get<any[]>(`/parent/children/${sid}/fees`).pipe(
-      map(payments => payments.map(payment => ({
-        ...payment,
-        id: String(payment.id),
-        studentId: String(payment.studentId),
-        feeStructureId: payment.feeStructureId != null ? String(payment.feeStructureId) : '',
-        amount: Number(payment.amount ?? 0),
-        paidAmount: Number(payment.paidAmount ?? 0),
-        dueAmount: Number(payment.dueAmount ?? 0),
-        discount: Number(payment.discount ?? 0),
-        lateFee: Number(payment.lateFee ?? 0),
-        tenantId: payment.tenantId ?? '',
-        status: payment.status
-      })))
+    return this.api.get<any[]>(`/parent/children/${studentId}/fees`).pipe(
+      map(payments =>
+        payments.map(payment => ({
+          ...payment,
+          id: Number(payment.id),
+          studentId: Number(payment.studentId),
+          feeStructureId: payment.feeStructureId != null ? Number(payment.feeStructureId) : 0,
+          amount: Number(payment.amount ?? 0),
+          paidAmount: Number(payment.paidAmount ?? 0),
+          dueAmount: Number(payment.dueAmount ?? 0),
+          discount: Number(payment.discount ?? 0),
+          lateFee: Number(payment.lateFee ?? 0),
+          tenantId: payment.tenantId ?? '',
+          status: payment.status
+        }))
+      )
     );
   }
 
-  getChildAttendance(studentId: string, from: string, to: string): Observable<AttendanceStats> {
+  getChildAttendance(studentId: number, from: string, to: string): Observable<AttendanceStats> {
     if (runtimeConfig.useMocks) {
-      return of({
-        studentId,
-        totalDays: 22,
-        present: 20,
-        absent: 1,
-        late: 1,
-        excused: 0,
-        attendancePercentage: 95.5
-      }).pipe(delay(150));
+      return of({ ...mockParentAttendanceStats(studentId) }).pipe(delay(150));
     }
-    const sid = coerceApiLongId(studentId, 'student');
-    return this.api.get<any>(`/parent/children/${sid}/attendance?from=${from}&to=${to}`).pipe(
+    return this.api.get<any>(`/parent/children/${studentId}/attendance?from=${from}&to=${to}`).pipe(
       map(stats => ({
-        studentId: stats.studentId != null ? String(stats.studentId) : undefined,
+        studentId: stats.studentId != null ? Number(stats.studentId) : undefined,
         totalDays: stats.totalDays,
         present: stats.present,
         absent: stats.absent,
@@ -138,29 +122,27 @@ export class ParentService {
     );
   }
 
-  getChildAttendanceRecords(studentId: string, from: string, to: string): Observable<AttendanceRecord[]> {
+  getChildAttendanceRecords(studentId: number, from: string, to: string): Observable<AttendanceRecord[]> {
     if (runtimeConfig.useMocks) {
-      return of([
-        { id: 'ar1', studentId, studentName: 'Emma Chen', classId: 'c8', sectionId: 'sec8a', date: from, status: 'present' as const, markedBy: 'u2', tenantId: 't1' },
-        { id: 'ar2', studentId, studentName: 'Emma Chen', classId: 'c8', sectionId: 'sec8a', date: to, status: 'late' as const, markedBy: 'u2', tenantId: 't1' }
-      ]).pipe(delay(150));
+      return of(mockParentAttendanceRecords(studentId, from, to).map(r => ({ ...r }))).pipe(delay(150));
     }
-    const sid = coerceApiLongId(studentId, 'student');
-    return this.api.get<any[]>(`/parent/children/${sid}/attendance-records?from=${from}&to=${to}`).pipe(
-      map(records => records.map(record => ({
-        ...record,
-        id: String(record.id),
-        studentId: String(record.studentId),
-        classId: String(record.classId),
-        sectionId: String(record.sectionId),
-        markedBy: record.markedBy != null ? String(record.markedBy) : '',
-        tenantId: record.tenantId ?? '',
-        status: record.status
-      })))
+    return this.api.get<any[]>(`/parent/children/${studentId}/attendance-records?from=${from}&to=${to}`).pipe(
+      map(records =>
+        records.map(record => ({
+          ...record,
+          id: Number(record.id),
+          studentId: Number(record.studentId),
+          classId: Number(record.classId),
+          sectionId: Number(record.sectionId),
+          markedBy: record.markedBy != null ? Number(record.markedBy) : 0,
+          tenantId: record.tenantId ?? '',
+          status: record.status
+        }))
+      )
     );
   }
 
-  getChildOverview(studentId: string, from: string, to: string) {
+  getChildOverview(studentId: number, from: string, to: string) {
     return forkJoin({
       marks: this.getChildMarks(studentId),
       fees: this.getChildFees(studentId),
@@ -169,13 +151,12 @@ export class ParentService {
     });
   }
 
-  getChildFeeObligations(studentId: string): Observable<ParentFeeObligation[]> {
+  getChildFeeObligations(studentId: number): Observable<ParentFeeObligation[]> {
     if (runtimeConfig.useMocks) {
       this.ensureMockFeeState();
       return of(this.mockObligationsMutable!.filter(item => item.studentId === studentId)).pipe(delay(150));
     }
-    const sid = coerceApiLongId(studentId, 'student');
-    return this.api.get<any[]>(`/parent/children/${sid}/fee-obligations`).pipe(
+    return this.api.get<any[]>(`/parent/children/${studentId}/fee-obligations`).pipe(
       map(items => items.map(item => this.normalizeObligation(item)))
     );
   }
@@ -188,7 +169,7 @@ export class ParentService {
         amount: request.amount
       };
       return of({
-        attemptId: 'attempt-' + Date.now(),
+        attemptId: Date.now(),
         provider: request.provider,
         providerOrderId: 'MOCK-ORDER-' + Date.now(),
         checkoutToken: 'mock-token-' + Date.now(),
@@ -198,22 +179,31 @@ export class ParentService {
         status: 'initiated'
       }).pipe(delay(300));
     }
-    return this.api.post<any>('/parent/payments/checkout-session', {
-      paymentId: coerceApiLongId(request.paymentId, 'payment'),
-      studentId: coerceApiLongId(request.studentId, 'student'),
-      amount: request.amount,
-      provider: request.provider,
-      returnUrl: request.returnUrl
-    }).pipe(
-      map(session => ({
-        ...session,
-        attemptId: String(session.attemptId),
-        amount: Number(session.amount ?? 0)
-      }))
-    );
+    return this.api
+      .post<any>('/parent/payments/checkout-session', {
+        paymentId: request.paymentId,
+        studentId: request.studentId,
+        amount: request.amount,
+        provider: request.provider,
+        returnUrl: request.returnUrl,
+      })
+      .pipe(
+        map(
+          (session): CheckoutSession => ({
+            attemptId: Number(session.attemptId),
+            provider: String(session.provider ?? ''),
+            providerOrderId: String(session.providerOrderId ?? ''),
+            checkoutToken: String(session.checkoutToken ?? ''),
+            currency: String(session.currency ?? 'INR'),
+            amount: Number(session.amount ?? 0),
+            checkoutUrl: String(session.checkoutUrl ?? ''),
+            status: String(session.status ?? ''),
+          })
+        )
+      );
   }
 
-  confirmCheckout(attemptId: string, checkoutToken: string, providerPaymentId?: string): Observable<PaymentReceipt> {
+  confirmCheckout(attemptId: string | number, checkoutToken: string, providerPaymentId?: string): Observable<PaymentReceipt> {
     if (runtimeConfig.useMocks) {
       this.ensureMockFeeState();
       const receipt = this.buildMockReceipt(attemptId, providerPaymentId);
@@ -222,7 +212,7 @@ export class ParentService {
       this.mockReceipts = [receipt, ...this.mockReceipts.filter(item => item.receiptNumber !== receipt.receiptNumber)];
       return of(receipt).pipe(delay(500));
     }
-    const aid = coerceApiLongId(attemptId, 'checkout attempt');
+    const aid = Number(attemptId);
     return this.api.post<any>(`/parent/payments/checkout-session/${aid}/confirm`, {
       checkoutToken,
       providerPaymentId
@@ -238,8 +228,7 @@ export class ParentService {
     return this.api.get<any>(`/parent/payments/receipts/${receiptNumber}`).pipe(map(item => this.normalizeReceipt(item)));
   }
 
-  /** Receipts for payment activity (date range inclusive, ISO yyyy-MM-dd). */
-  listChildReceipts(studentId: string, from: string, to: string): Observable<PaymentReceipt[]> {
+  listChildReceipts(studentId: number, from: string, to: string): Observable<PaymentReceipt[]> {
     if (runtimeConfig.useMocks) {
       this.bootstrapMockReceiptLedger();
       const start = ParentService.parseYmd(from);
@@ -262,18 +251,17 @@ export class ParentService {
       );
       return of(rows).pipe(delay(120));
     }
-    const sid = coerceApiLongId(studentId, 'student');
     return this.api
-      .get<any[]>(`/parent/children/${sid}/receipts?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`)
+      .get<any[]>(`/parent/children/${studentId}/receipts?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`)
       .pipe(map(list => (list || []).map(item => this.normalizeReceipt(item))));
   }
 
   private normalizeObligation(item: any): ParentFeeObligation {
     return {
-      paymentId: String(item.paymentId),
-      studentId: String(item.studentId),
+      paymentId: Number(item.paymentId),
+      studentId: Number(item.studentId),
       studentName: item.studentName,
-      feeStructureId: item.feeStructureId != null ? String(item.feeStructureId) : '',
+      feeStructureId: Number(item.feeStructureId ?? 0),
       feeStructureName: item.feeStructureName,
       className: item.className,
       dueDate: item.dueDate,
@@ -296,8 +284,8 @@ export class ParentService {
   private normalizeReceipt(item: any): PaymentReceipt {
     return {
       receiptNumber: item.receiptNumber,
-      paymentId: String(item.paymentId),
-      studentId: String(item.studentId),
+      paymentId: Number(item.paymentId),
+      studentId: Number(item.studentId),
       studentName: item.studentName,
       feeStructureName: item.feeStructureName,
       className: item.className,
@@ -325,72 +313,10 @@ export class ParentService {
     if (this.mockReceipts.length > 0) {
       return;
     }
-    const lines = ParentService.MOCK_RECEIPT_LINES.map(l => ({ ...l }));
-    this.mockReceipts = [
-      {
-        receiptNumber: 'REC-2026-101',
-        paymentId: 'fp8',
-        studentId: 's12',
-        studentName: 'Emma Chen',
-        feeStructureName: 'Standard Fee - Class 6-8',
-        className: 'Class 8',
-        provider: 'upi',
-        providerPaymentId: 'UPI-778821',
-        paymentMethod: 'UPI',
-        paymentDate: '2026-03-10',
-        dueDate: '2026-03-31',
-        currency: 'INR',
-        amountPaid: 4800,
-        totalAmount: 6200,
-        paidAmount: 4800,
-        dueAmount: 1400,
-        discount: 0,
-        lateFee: 50,
-        lineItems: lines.map(l => ({ ...l }))
-      },
-      {
-        receiptNumber: 'REC-DEMO-20260214',
-        paymentId: 'fp8',
-        studentId: 's12',
-        studentName: 'Emma Chen',
-        feeStructureName: 'Standard Fee - Class 6-8',
-        className: 'Class 8',
-        provider: 'mockpay',
-        providerPaymentId: 'MOCK-PARTIAL-1',
-        paymentMethod: 'MOCKPAY',
-        paymentDate: '2026-02-14',
-        dueDate: '2026-03-31',
-        currency: 'INR',
-        amountPaid: 1200,
-        totalAmount: 6200,
-        paidAmount: 3600,
-        dueAmount: 2600,
-        discount: 0,
-        lateFee: 0,
-        lineItems: lines.map(l => ({ ...l }))
-      },
-      {
-        receiptNumber: 'REC-DEMO-20260120',
-        paymentId: 'fp8',
-        studentId: 's12',
-        studentName: 'Emma Chen',
-        feeStructureName: 'Standard Fee - Class 6-8',
-        className: 'Class 8',
-        provider: 'card',
-        providerPaymentId: 'CARD-99102',
-        paymentMethod: 'CARD',
-        paymentDate: '2026-01-20',
-        dueDate: '2026-03-31',
-        currency: 'INR',
-        amountPaid: 2400,
-        totalAmount: 6200,
-        paidAmount: 2400,
-        dueAmount: 3800,
-        discount: 0,
-        lateFee: 0,
-        lineItems: lines.map(l => ({ ...l }))
-      }
-    ];
+    this.mockReceipts = buildParentMockInitialReceipts().map(r => ({
+      ...r,
+      lineItems: r.lineItems.map(li => ({ ...li })),
+    }));
   }
 
   private static parseYmd(iso: string): Date {
@@ -410,41 +336,14 @@ export class ParentService {
   }
 
   private seedMockFeePayments(): FeePayment[] {
-    return [
-      { id: 'fp8', studentId: 's12', studentName: 'Emma Chen', feeStructureId: 'fs2', amount: 6200, paidAmount: 4800, dueAmount: 1400, status: 'partial', paymentDate: '2026-03-10', dueDate: '2026-03-31', discount: 0, lateFee: 50, receiptNumber: 'REC-2026-101', tenantId: 't1' },
-      { id: 'fp9', studentId: 's18', studentName: 'Lily Chen', feeStructureId: 'fs1', amount: 3500, paidAmount: 3500, dueAmount: 0, status: 'paid', paymentDate: '2026-03-02', dueDate: '2026-03-31', discount: 0, lateFee: 0, receiptNumber: 'REC-2026-102', tenantId: 't1' }
-    ];
+    return MOCK_PARENT_SEED_FEE_PAYMENTS.map(p => ({ ...p }));
   }
 
   private seedMockFeeObligations(): ParentFeeObligation[] {
-    return [
-      {
-        paymentId: 'fp8',
-        studentId: 's12',
-        studentName: 'Emma Chen',
-        feeStructureId: 'fs2',
-        feeStructureName: 'Standard Fee - Class 6-8',
-        className: 'Class 8',
-        dueDate: '2026-03-31',
-        status: 'partial',
-        currency: 'INR',
-        totalAmount: 6200,
-        paidAmount: 4800,
-        dueAmount: 1400,
-        discount: 0,
-        lateFee: 50,
-        payableNow: 1450,
-        lineItems: [
-          { name: 'Tuition', amount: 3200, type: 'tuition' },
-          { name: 'Transport', amount: 600, type: 'transport' },
-          { name: 'Hostel', amount: 800, type: 'hostel' },
-          { name: 'Uniform', amount: 400, type: 'uniform' },
-          { name: 'Library', amount: 300, type: 'library' },
-          { name: 'Lab Fee', amount: 500, type: 'lab' },
-          { name: 'Computer Fee', amount: 400, type: 'misc' }
-        ]
-      }
-    ];
+    return MOCK_PARENT_SEED_FEE_OBLIGATIONS.map(o => ({
+      ...o,
+      lineItems: o.lineItems.map(li => ({ ...li })),
+    }));
   }
 
   private applyMockPaymentToState(receipt: PaymentReceipt): void {
@@ -480,10 +379,10 @@ export class ParentService {
     }
   }
 
-  private buildMockReceipt(attemptId: string, providerPaymentId?: string): PaymentReceipt {
+  private buildMockReceipt(attemptId: string | number, providerPaymentId?: string): PaymentReceipt {
     const pend = this.pendingCheckout;
-    const paymentId = pend?.paymentId ?? 'fp8';
-    const studentId = pend?.studentId ?? 's12';
+    const paymentId = pend?.paymentId ?? 8;
+    const studentId = pend?.studentId ?? 12;
     const amountPaid = pend?.amount ?? 1450;
     const seedObs = this.seedMockFeeObligations();
     const ob =
@@ -501,7 +400,7 @@ export class ParentService {
       feeStructureName: ob.feeStructureName,
       className: ob.className,
       provider: 'mockpay',
-      providerPaymentId: providerPaymentId || 'MOCK-PAY-' + attemptId,
+      providerPaymentId: providerPaymentId || 'MOCK-PAY-' + String(attemptId),
       paymentMethod: 'MOCKPAY',
       paymentDate: new Date().toISOString().slice(0, 10),
       dueDate: ob.dueDate,

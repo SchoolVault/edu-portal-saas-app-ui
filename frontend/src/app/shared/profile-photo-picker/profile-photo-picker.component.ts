@@ -18,7 +18,10 @@ export interface ProfilePhotoPickEvent {
       class="ppp"
       [class.ppp--disabled]="disabled"
       [class.ppp--comfortable]="size === 'comfortable'"
+      [class.ppp--hero]="size === 'hero'"
+      [class.ppp--stacked]="layout === 'stacked'"
       [class.ppp--minimal-status]="statusMode === 'minimal'"
+      [class.ppp--no-status]="statusMode === 'none'"
     >
       <button
         type="button"
@@ -47,7 +50,7 @@ export interface ProfilePhotoPickEvent {
             <i class="bi bi-trash3"></i> Remove
           </button>
         </div>
-        <p class="ppp__status">{{ statusText }}</p>
+        <p class="ppp__status" *ngIf="statusMode !== 'none'">{{ statusText }}</p>
       </div>
       <input
         #fileInput
@@ -161,8 +164,37 @@ export interface ProfilePhotoPickEvent {
         font-size: 26px;
         margin-top: 22px;
       }
+      .ppp--hero .ppp__frame {
+        width: 128px;
+        height: 128px;
+      }
+      .ppp--hero .ppp__initials {
+        font-size: 36px;
+      }
+      .ppp--hero .ppp__cam {
+        font-size: 28px;
+        margin-top: 26px;
+      }
       .ppp--minimal-status .ppp__status {
         font-size: 11px;
+      }
+      .ppp--no-status .ppp__actions {
+        margin-bottom: 0;
+      }
+      /** Avatar above actions — narrows horizontal footprint next to identity block (settings hero). */
+      .ppp--stacked {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 12px;
+      }
+      .ppp--stacked .ppp__side {
+        min-width: 0;
+        max-width: none;
+        flex: none;
+        width: 100%;
+      }
+      .ppp--stacked .ppp__actions {
+        margin-bottom: 0;
       }
     `,
   ],
@@ -174,10 +206,12 @@ export class ProfilePhotoPickerComponent implements OnChanges {
   @Input() showRemove = true;
   @Input() uploadLabel = 'Upload photo';
   @Input() frameAriaLabel = 'Choose profile photo';
-  /** Larger avatar for settings-style layouts */
-  @Input() size: 'default' | 'comfortable' = 'default';
-  /** Shorter status line when the page already explains context */
-  @Input() statusMode: 'default' | 'minimal' = 'default';
+  /** default: 96px; comfortable: 112px; hero: 128px (single focal avatar on profile screens). */
+  @Input() size: 'default' | 'comfortable' | 'hero' = 'default';
+  /** default / minimal: show helper under actions; none: hide (parent supplies copy). */
+  @Input() statusMode: 'default' | 'minimal' | 'none' = 'default';
+  /** inline: frame and actions side-by-side (default). stacked: actions under frame (dense profile rows). */
+  @Input() layout: 'inline' | 'stacked' = 'inline';
 
   @Output() photoPicked = new EventEmitter<ProfilePhotoPickEvent>();
   @Output() photoRemoved = new EventEmitter<void>();

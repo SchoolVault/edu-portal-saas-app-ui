@@ -3,73 +3,51 @@ import { Observable, of } from 'rxjs';
 import { delay, map } from 'rxjs/operators';
 import { ApiService } from './api.service';
 import { runtimeConfig } from '../config/runtime-config';
+import { PaymentDtos } from '../models/payment.dto';
+import { buildMockPaymentCheckoutOrderResponse } from '../mocks/payment.mock-data';
 
-export interface CreatePaymentOrderRequest {
-  purpose: string;
-  feePaymentId?: string;
-  studentId?: string;
-  payeeUserId?: string;
-  amount: number;
-  currency: string;
-  provider: 'RAZORPAY' | 'STRIPE' | 'MOCK';
-  returnUrl?: string;
-}
-
-export interface CreatePaymentOrderResponse {
-  attemptId: string;
-  providerOrderId: string;
-  publicKeyId: string;
-  amount: number;
-  currency: string;
-  clientOptionsJson: string;
-  status: string;
-}
+/** Alias for {@link PaymentDtos.CreateOrderRequest} (backward compatible imports). */
+export type CreatePaymentOrderRequest = PaymentDtos.CreateOrderRequest;
+/** Alias for {@link PaymentDtos.CreateOrderResponse}. */
+export type CreatePaymentOrderResponse = PaymentDtos.CreateOrderResponse;
 
 @Injectable({ providedIn: 'root' })
 export class PaymentCheckoutService {
   constructor(private api: ApiService) {}
 
-  createOrder(body: CreatePaymentOrderRequest): Observable<CreatePaymentOrderResponse> {
+  createOrder(body: PaymentDtos.CreateOrderRequest): Observable<PaymentDtos.CreateOrderResponse> {
     if (runtimeConfig.useMocks) {
-      const res: CreatePaymentOrderResponse = {
-        attemptId: 'mock-att-' + Date.now(),
-        providerOrderId: 'ord_mock_' + Date.now(),
-        publicKeyId: 'rzp_test_mock',
-        amount: body.amount,
-        currency: body.currency,
-        clientOptionsJson: JSON.stringify({
-          key: 'rzp_test_mock',
-          amount: Math.round(body.amount * 100),
+      return of(
+        buildMockPaymentCheckoutOrderResponse({
+          amount: body.amount,
           currency: body.currency,
-          order_id: 'ord_mock_' + Date.now(),
-          name: 'SchoolVault (demo)',
-          description: body.purpose,
-        }),
-        status: 'CREATED',
-      };
-      return of(res).pipe(delay(200));
+          purpose: body.purpose,
+        })
+      ).pipe(delay(200));
     }
     return this.api
-      .post<any>('/payments/checkout/orders', {
+      .post<PaymentDtos.CreateOrderResponse>('/payments/checkout/orders', {
         purpose: body.purpose,
-        feePaymentId: body.feePaymentId ? Number(body.feePaymentId) : undefined,
-        studentId: body.studentId ? Number(body.studentId) : undefined,
-        payeeUserId: body.payeeUserId ? Number(body.payeeUserId) : undefined,
+        feePaymentId: body.feePaymentId,
+        studentId: body.studentId,
+        payeeUserId: body.payeeUserId,
         amount: body.amount,
         currency: body.currency,
         provider: body.provider,
         returnUrl: body.returnUrl,
       })
       .pipe(
-        map((r: any) => ({
-          attemptId: String(r.attemptId),
-          providerOrderId: String(r.providerOrderId),
-          publicKeyId: String(r.publicKeyId),
-          amount: Number(r.amount),
-          currency: String(r.currency),
-          clientOptionsJson: String(r.clientOptionsJson ?? '{}'),
-          status: String(r.status ?? 'CREATED'),
-        }))
+        map(
+          (r): PaymentDtos.CreateOrderResponse => ({
+            attemptId: String(r.attemptId),
+            providerOrderId: String(r.providerOrderId),
+            publicKeyId: String(r.publicKeyId),
+            amount: Number(r.amount),
+            currency: String(r.currency),
+            clientOptionsJson: String(r.clientOptionsJson ?? '{}'),
+            status: String(r.status ?? 'CREATED'),
+          })
+        )
       );
   }
 }

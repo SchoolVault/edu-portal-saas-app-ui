@@ -9,6 +9,12 @@ import { SchoolClass, Student, Teacher, TimetableEntry, TimetableGrid } from '..
 import { StudentService } from '../../core/services/student.service';
 import { ErpDatePickerComponent } from '../../shared/erp-date-picker/erp-date-picker.component';
 
+type TimetableEntryForm = Omit<Partial<TimetableEntry>, 'teacherId' | 'classId' | 'sectionId'> & {
+  teacherId?: number | null;
+  classId?: number | null;
+  sectionId?: number | null;
+};
+
 @Component({
   selector: 'app-timetable',
   standalone: true,
@@ -50,8 +56,8 @@ import { ErpDatePickerComponent } from '../../shared/erp-date-picker/erp-date-pi
           <div class="col-md-6">
             <label class="erp-label">Child</label>
             <select class="erp-select" [(ngModel)]="selectedChildId" (change)="onParentChildChange()">
-              <option value="">Select child</option>
-              <option *ngFor="let ch of myChildren" [value]="ch.id">{{ ch.firstName }} {{ ch.lastName }} — {{ ch.className }} {{ ch.sectionName }}</option>
+              <option [ngValue]="null">Select child</option>
+              <option *ngFor="let ch of myChildren" [ngValue]="ch.id">{{ ch.firstName }} {{ ch.lastName }} — {{ ch.className }} {{ ch.sectionName }}</option>
             </select>
           </div>
           <p class="text-muted small col-12 mb-0">Timetable updates are done by a school administrator.</p>
@@ -63,15 +69,15 @@ import { ErpDatePickerComponent } from '../../shared/erp-date-picker/erp-date-pi
           <div class="col-md-3">
             <label class="erp-label">Class</label>
             <select class="erp-select" [(ngModel)]="selectedClassId" (change)="onClassChange()">
-              <option value="">Select Class</option>
-              <option *ngFor="let cls of classes" [value]="cls.id">{{ cls.name }}</option>
+              <option [ngValue]="null">Select Class</option>
+              <option *ngFor="let cls of classes" [ngValue]="cls.id">{{ cls.name }}</option>
             </select>
           </div>
           <div class="col-md-3" *ngIf="sections.length">
             <label class="erp-label">Section</label>
             <select class="erp-select" [(ngModel)]="selectedSectionId" (change)="loadTimetable()">
-              <option value="">Select Section</option>
-              <option *ngFor="let sec of sections" [value]="sec.id">{{ sec.name }}</option>
+              <option [ngValue]="null">Select Section</option>
+              <option *ngFor="let sec of sections" [ngValue]="sec.id">{{ sec.name }}</option>
             </select>
           </div>
         </div>
@@ -84,8 +90,8 @@ import { ErpDatePickerComponent } from '../../shared/erp-date-picker/erp-date-pi
               (change)="onTeacherChange()"
               [disabled]="isTeacherViewer"
             >
-              <option value="">Select teacher</option>
-              <option *ngFor="let t of teachers" [value]="t.id">{{ t.firstName }} {{ t.lastName }}</option>
+              <option [ngValue]="null">Select teacher</option>
+              <option *ngFor="let t of teachers" [ngValue]="t.id">{{ t.firstName }} {{ t.lastName }}</option>
             </select>
           </div>
           <div class="col-md-4">
@@ -227,20 +233,20 @@ import { ErpDatePickerComponent } from '../../shared/erp-date-picker/erp-date-pi
     <div class="modal-overlay" *ngIf="showModal" (click)="closeModal()">
       <div class="modal-content-erp" (click)="$event.stopPropagation()">
         <div class="modal-header-erp">
-          <h3>{{ editingEntryId ? 'Edit Slot' : 'Add Slot' }}</h3>
+          <h3>{{ editingEntryId != null ? 'Edit Slot' : 'Add Slot' }}</h3>
           <button class="btn-icon" (click)="closeModal()"><i class="bi bi-x-lg"></i></button>
         </div>
         <div class="modal-body-erp">
           <div class="row g-3">
             <div class="col-md-6">
               <label class="erp-label">Day</label>
-              <select class="erp-select" [(ngModel)]="entryForm.day" [disabled]="!!editingEntryId">
+              <select class="erp-select" [(ngModel)]="entryForm.day" [disabled]="editingEntryId != null">
                 <option *ngFor="let day of dayOptions" [value]="day">{{ day }}</option>
               </select>
             </div>
             <div class="col-md-6">
               <label class="erp-label">Period</label>
-              <input class="erp-input" type="number" [(ngModel)]="entryForm.period" [disabled]="!!editingEntryId">
+              <input class="erp-input" type="number" [(ngModel)]="entryForm.period" [disabled]="editingEntryId != null">
             </div>
             <div class="col-md-6">
               <label class="erp-label">Subject</label>
@@ -248,23 +254,23 @@ import { ErpDatePickerComponent } from '../../shared/erp-date-picker/erp-date-pi
             </div>
             <div class="col-md-6">
               <label class="erp-label">Teacher</label>
-              <select class="erp-select" [(ngModel)]="entryForm.teacherId" (change)="syncTeacherName()" [disabled]="scheduleScope === 'teacher' && !!selectedTeacherId && !editingEntryId">
-                <option value="">Select Teacher</option>
-                <option *ngFor="let teacher of teachers" [value]="teacher.id">{{ teacher.firstName }} {{ teacher.lastName }}</option>
+              <select class="erp-select" [(ngModel)]="entryForm.teacherId" (change)="syncTeacherName()" [disabled]="scheduleScope === 'teacher' && selectedTeacherId != null && editingEntryId == null">
+                <option [ngValue]="null">Select Teacher</option>
+                <option *ngFor="let teacher of teachers" [ngValue]="teacher.id">{{ teacher.firstName }} {{ teacher.lastName }}</option>
               </select>
             </div>
             <ng-container *ngIf="scheduleScope === 'teacher'">
               <div class="col-md-6">
                 <label class="erp-label">Class</label>
                 <select class="erp-select" [(ngModel)]="entryForm.classId" (change)="onEntryFormClassChange()">
-                  <option *ngFor="let cls of classes" [value]="cls.id">{{ cls.name }}</option>
+                  <option *ngFor="let cls of classes" [ngValue]="cls.id">{{ cls.name }}</option>
                 </select>
               </div>
               <div class="col-md-6">
                 <label class="erp-label">Section</label>
                 <select class="erp-select" [(ngModel)]="entryForm.sectionId">
-                  <option value="">Whole class (no section)</option>
-                  <option *ngFor="let sec of entryFormSections" [value]="sec.id">{{ sec.name }}</option>
+                  <option [ngValue]="null">Whole class (no section)</option>
+                  <option *ngFor="let sec of entryFormSections" [ngValue]="sec.id">{{ sec.name }}</option>
                 </select>
               </div>
             </ng-container>
@@ -284,7 +290,7 @@ import { ErpDatePickerComponent } from '../../shared/erp-date-picker/erp-date-pi
         </div>
         <div class="modal-footer-erp">
           <button class="btn-outline-erp" (click)="closeModal()">Cancel</button>
-          <button class="btn-primary-erp" (click)="saveEntry()">{{ editingEntryId ? 'Update' : 'Create' }}</button>
+          <button class="btn-primary-erp" (click)="saveEntry()">{{ editingEntryId != null ? 'Update' : 'Create' }}</button>
         </div>
       </div>
     </div>
@@ -292,27 +298,28 @@ import { ErpDatePickerComponent } from '../../shared/erp-date-picker/erp-date-pi
 })
 export class TimetableComponent implements OnInit {
   classes: SchoolClass[] = [];
-  sections: { id: string; name: string }[] = [];
+  sections: { id: number; name: string }[] = [];
   teachers: Teacher[] = [];
-  selectedClassId = '';
-  selectedSectionId = '';
-  selectedTeacherId = '';
+  selectedClassId: number | null = null;
+  selectedSectionId: number | null = null;
+  selectedTeacherId: number | null = null;
   scheduleScope: 'class' | 'teacher' = 'class';
   isAdmin = false;
   isParent = false;
   /** Only school admins may create/update/delete slots (API enforces the same). */
   canMutateTimetable = false;
   myChildren: Student[] = [];
-  selectedChildId = '';
+  selectedChildId: number | null = null;
   entries: TimetableEntry[] = [];
   grid: TimetableGrid | null = null;
   layout: 'dayRows' | 'periodRows' = 'dayRows';
   /** Duplicate flat view of slots; collapsed by default to save vertical space. */
   showSlotList = false;
   showModal = false;
-  editingEntryId = '';
+  /** Set when editing an existing slot; null when creating. */
+  editingEntryId: number | null = null;
   dayOptions = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-  entryForm: Partial<TimetableEntry> = this.defaultEntryForm();
+  entryForm: TimetableEntryForm = this.defaultEntryForm();
   /** When viewing by teacher, merge attendance covers for this calendar date only. */
   teacherViewDate = new Date().toISOString().split('T')[0];
 
@@ -324,8 +331,9 @@ export class TimetableComponent implements OnInit {
     private auth: AuthService
   ) {}
 
-  get entryFormSections(): { id: string; name: string }[] {
-    const c = this.classes.find(x => x.id === this.entryForm.classId);
+  get entryFormSections(): { id: number; name: string }[] {
+    const cid = this.entryForm.classId ?? undefined;
+    const c = cid != null ? this.classes.find(x => x.id === cid) : undefined;
     return c ? c.sections.map(s => ({ id: s.id, name: s.name })) : [];
   }
 
@@ -355,16 +363,16 @@ export class TimetableComponent implements OnInit {
   }
 
   private loadParentTimetableContext(): void {
-    const uid = this.auth.getCurrentUser()?.id ?? '';
+    const uid = this.auth.getCurrentUser()?.id;
     this.studentService.getStudents().subscribe(all => {
-      this.myChildren = (all || []).filter(s => s.parentId === uid);
+      this.myChildren = uid != null ? (all || []).filter(s => s.parentId === uid) : [];
       this.academicService.getClasses().subscribe(classes => {
         const allowed = new Set(this.myChildren.map(c => c.classId));
         this.classes = classes.filter(c => allowed.has(c.id));
         if (this.myChildren.length === 1) {
           this.selectedChildId = this.myChildren[0].id;
           this.applyParentChildSelection();
-        } else if (this.selectedChildId) {
+        } else if (this.selectedChildId != null) {
           this.applyParentChildSelection();
         }
       });
@@ -385,7 +393,7 @@ export class TimetableComponent implements OnInit {
     this.selectedClassId = st.classId;
     const cls = this.classes.find(c => c.id === st.classId);
     this.sections = cls ? cls.sections.map(s => ({ id: s.id, name: s.name })) : [];
-    this.selectedSectionId = st.sectionId || '';
+    this.selectedSectionId = st.sectionId > 0 ? st.sectionId : null;
     this.loadTimetable();
   }
 
@@ -397,7 +405,7 @@ export class TimetableComponent implements OnInit {
     }
     this.teacherService.getTeachers().subscribe(teachers => {
       this.teachers = teachers;
-      if (this.scheduleScope === 'teacher' && !this.selectedTeacherId && this.isTeacherViewer) {
+      if (this.scheduleScope === 'teacher' && this.selectedTeacherId == null && this.isTeacherViewer) {
         const me = this.auth.getCurrentUser()?.id;
         const row = teachers.find(t => t.userId === me);
         if (row) {
@@ -410,7 +418,7 @@ export class TimetableComponent implements OnInit {
         this.sections = sel ? sel.sections.map(s => ({ id: s.id, name: s.name })) : [];
         if (this.scheduleScope === 'class') {
           this.loadTimetable();
-        } else if (this.selectedTeacherId) {
+        } else if (this.selectedTeacherId != null) {
           this.loadTeacherTimetable();
         }
       });
@@ -422,15 +430,15 @@ export class TimetableComponent implements OnInit {
     this.entries = [];
     this.grid = null;
     if (scope === 'class') {
-      this.selectedTeacherId = '';
-      if (this.selectedClassId && (this.sections.length === 0 || !!this.selectedSectionId)) {
+      this.selectedTeacherId = null;
+      if (this.selectedClassId != null && (this.sections.length === 0 || this.selectedSectionId != null)) {
         this.loadTimetable();
       }
     } else {
-      this.selectedClassId = '';
-      this.selectedSectionId = '';
+      this.selectedClassId = null;
+      this.selectedSectionId = null;
       this.sections = [];
-      if (this.selectedTeacherId) {
+      if (this.selectedTeacherId != null) {
         this.loadTeacherTimetable();
       }
     }
@@ -439,20 +447,20 @@ export class TimetableComponent implements OnInit {
   onTeacherChange(): void {
     this.entries = [];
     this.grid = null;
-    if (!this.selectedTeacherId) {
+    if (this.selectedTeacherId == null) {
       return;
     }
     this.loadTeacherTimetable();
   }
 
   onTeacherViewDateChange(): void {
-    if (this.scheduleScope === 'teacher' && this.selectedTeacherId) {
+    if (this.scheduleScope === 'teacher' && this.selectedTeacherId != null) {
       this.loadTeacherTimetable();
     }
   }
 
   private loadTeacherTimetable(): void {
-    if (!this.selectedTeacherId) {
+    if (this.selectedTeacherId == null) {
       return;
     }
     this.timetableService.getByTeacher(this.selectedTeacherId, this.teacherViewDate).subscribe(entries => {
@@ -463,18 +471,19 @@ export class TimetableComponent implements OnInit {
 
   onEntryFormClassChange(): void {
     const ids = new Set(this.entryFormSections.map(s => s.id));
-    if (this.entryForm.sectionId && !ids.has(this.entryForm.sectionId)) {
-      this.entryForm.sectionId = this.entryFormSections[0]?.id ?? '';
+    const sid = this.entryForm.sectionId;
+    if (sid != null && sid !== 0 && !ids.has(sid)) {
+      this.entryForm.sectionId = this.entryFormSections[0]?.id ?? null;
     }
   }
 
   onClassChange(): void {
     const selectedClass = this.classes.find(cls => cls.id === this.selectedClassId);
     this.sections = selectedClass ? selectedClass.sections.map(section => ({ id: section.id, name: section.name })) : [];
-    this.selectedSectionId = '';
+    this.selectedSectionId = null;
     this.entries = [];
     this.grid = null;
-    if (this.selectedClassId && this.sections.length === 0) {
+    if (this.selectedClassId != null && this.sections.length === 0) {
       this.loadTimetable();
     }
   }
@@ -484,19 +493,19 @@ export class TimetableComponent implements OnInit {
       return false;
     }
     if (this.scheduleScope === 'teacher') {
-      return this.isAdmin && !!this.selectedTeacherId;
+      return this.isAdmin && this.selectedTeacherId != null;
     }
-    if (!this.selectedClassId) return false;
-    if (this.sections.length > 0) return !!this.selectedSectionId;
+    if (this.selectedClassId == null) return false;
+    if (this.sections.length > 0) return this.selectedSectionId != null;
     return true;
   }
 
   loadTimetable(): void {
-    if (!this.selectedClassId) return;
-    if (this.sections.length > 0 && !this.selectedSectionId) return;
-    const section = this.sections.length > 0 ? this.selectedSectionId : '';
-    this.timetableService.getByClassAndSection(this.selectedClassId, section).subscribe(entries => this.entries = entries);
-    this.timetableService.getGrid(this.selectedClassId, section).subscribe(grid => this.grid = grid);
+    if (this.selectedClassId == null) return;
+    if (this.sections.length > 0 && this.selectedSectionId == null) return;
+    const sectionArg = this.sections.length > 0 ? this.selectedSectionId! : undefined;
+    this.timetableService.getByClassAndSection(this.selectedClassId, sectionArg).subscribe(entries => (this.entries = entries));
+    this.timetableService.getGrid(this.selectedClassId, sectionArg).subscribe(grid => (this.grid = grid));
   }
 
   getEntry(day: string, period: number): TimetableEntry | undefined {
@@ -508,13 +517,13 @@ export class TimetableComponent implements OnInit {
     if (!this.canMutateTimetable) {
       return;
     }
-    this.editingEntryId = '';
+    this.editingEntryId = null;
     this.entryForm = this.defaultEntryForm();
     if (this.scheduleScope === 'teacher') {
-      this.entryForm.teacherId = this.selectedTeacherId;
+      this.entryForm.teacherId = this.selectedTeacherId ?? undefined;
       this.syncTeacherName();
-      this.entryForm.classId = this.classes[0]?.id ?? '';
-      this.entryForm.sectionId = this.entryFormSections[0]?.id ?? '';
+      this.entryForm.classId = this.classes[0]?.id ?? null;
+      this.entryForm.sectionId = this.entryFormSections[0]?.id ?? null;
     }
     this.showModal = true;
   }
@@ -531,11 +540,12 @@ export class TimetableComponent implements OnInit {
   closeModal(): void {
     this.showModal = false;
     this.entryForm = this.defaultEntryForm();
-    this.editingEntryId = '';
+    this.editingEntryId = null;
   }
 
   syncTeacherName(): void {
-    const teacher = this.teachers.find(item => item.id === this.entryForm.teacherId);
+    const tid = this.entryForm.teacherId ?? undefined;
+    const teacher = tid != null ? this.teachers.find(item => item.id === tid) : undefined;
     this.entryForm.teacherName = teacher ? `${teacher.firstName} ${teacher.lastName}`.trim() : '';
   }
 
@@ -543,21 +553,25 @@ export class TimetableComponent implements OnInit {
     if (!this.canMutateTimetable) {
       return;
     }
-    let classId = this.selectedClassId;
-    let sectionId = '';
+    let classId: number;
+    let sectionId: number;
     if (this.scheduleScope === 'class') {
-      sectionId = this.sections.length > 0 ? this.selectedSectionId : '';
+      classId = this.selectedClassId!;
+      sectionId = this.sections.length > 0 ? this.selectedSectionId! : 0;
     } else {
-      classId = this.entryForm.classId || this.classes[0]?.id || '';
+      classId = this.entryForm.classId ?? this.classes[0]?.id ?? 0;
       const cls = this.classes.find(c => c.id === classId);
       if (cls && cls.sections.length > 0) {
-        sectionId = this.entryForm.sectionId || cls.sections[0].id;
+        const picked = this.entryForm.sectionId;
+        sectionId =
+          picked != null && picked !== 0 ? picked : cls.sections[0].id;
       } else {
-        sectionId = '';
+        sectionId = 0;
       }
     }
+    const teacherId = this.entryForm.teacherId ?? 0;
     const payload: TimetableEntry = {
-      id: this.editingEntryId || '',
+      id: this.editingEntryId ?? 0,
       classId,
       sectionId,
       day: this.entryForm.day || 'Monday',
@@ -565,14 +579,15 @@ export class TimetableComponent implements OnInit {
       startTime: this.entryForm.startTime || '',
       endTime: this.entryForm.endTime || '',
       subjectName: this.entryForm.subjectName || '',
-      teacherId: this.entryForm.teacherId || '',
+      teacherId,
       teacherName: this.entryForm.teacherName || '',
       room: this.entryForm.room || '',
       tenantId: ''
     };
-    const request$ = this.editingEntryId
-      ? this.timetableService.updateEntry(this.editingEntryId, payload)
-      : this.timetableService.addEntry(payload);
+    const request$ =
+      this.editingEntryId != null
+        ? this.timetableService.updateEntry(this.editingEntryId, payload)
+        : this.timetableService.addEntry(payload);
     request$.subscribe(() => {
       this.closeModal();
       if (this.scheduleScope === 'class') {
@@ -583,7 +598,7 @@ export class TimetableComponent implements OnInit {
     });
   }
 
-  deleteEntry(id: string): void {
+  deleteEntry(id: number): void {
     if (!this.canMutateTimetable) {
       return;
     }
@@ -596,18 +611,18 @@ export class TimetableComponent implements OnInit {
     });
   }
 
-  private defaultEntryForm(): Partial<TimetableEntry> {
+  private defaultEntryForm(): TimetableEntryForm {
     return {
       day: 'Monday',
       period: 1,
       startTime: '08:00',
       endTime: '08:45',
       subjectName: '',
-      teacherId: '',
+      teacherId: null,
       teacherName: '',
       room: '',
-      classId: '',
-      sectionId: ''
+      classId: null,
+      sectionId: null
     };
   }
 

@@ -226,16 +226,16 @@ import { runtimeConfig } from '../../core/config/runtime-config';
               <div *ngIf="role === 'teacher' && directory?.myClassRosters?.length">
                 <label class="erp-label">Student</label>
                 <select class="erp-select" [(ngModel)]="selectedStudentForChat">
-                  <option value="">Select student</option>
+                  <option [ngValue]="null">Select student</option>
                   <ng-container *ngFor="let roster of (directory?.myClassRosters || [])">
                     <optgroup [label]="roster.className || ('Class ' + roster.classId)">
-                      <option *ngFor="let s of roster.students" [value]="s.studentId">
+                      <option *ngFor="let s of roster.students" [ngValue]="s.studentId">
                         {{ s.studentName }}
                       </option>
                     </optgroup>
                   </ng-container>
                 </select>
-                <button class="btn-primary-erp btn-sm mt-2" [disabled]="!selectedStudentForChat" (click)="startTeacherParentChat()">
+                <button class="btn-primary-erp btn-sm mt-2" [disabled]="selectedStudentForChat == null" (click)="startTeacherParentChat()">
                   Message Parent
                 </button>
               </div>
@@ -244,12 +244,12 @@ import { runtimeConfig } from '../../core/config/runtime-config';
               <div *ngIf="role === 'parent' && directory?.myChildren?.length">
                 <label class="erp-label">Child</label>
                 <select class="erp-select" [(ngModel)]="selectedChildForChat">
-                  <option value="">Select child</option>
-                  <option *ngFor="let c of (directory?.myChildren || [])" [value]="c.studentId">
+                  <option [ngValue]="null">Select child</option>
+                  <option *ngFor="let c of (directory?.myChildren || [])" [ngValue]="c.studentId">
                     {{ c.studentName }} · {{ c.className || ('Class ' + c.classId) }}
                   </option>
                 </select>
-                <button class="btn-primary-erp btn-sm mt-2" [disabled]="!selectedChildForChat" (click)="startParentTeacherChat()">
+                <button class="btn-primary-erp btn-sm mt-2" [disabled]="selectedChildForChat == null" (click)="startParentTeacherChat()">
                   Message Class Teacher
                 </button>
               </div>
@@ -257,16 +257,16 @@ import { runtimeConfig } from '../../core/config/runtime-config';
               <!-- Admin: direct pick (MVP) -->
               <div *ngIf="role === 'admin'">
                 <label class="erp-label">Teachers</label>
-                <select class="erp-select" [(ngModel)]="selectedAdminTeacher">
-                  <option value="">Select teacher</option>
-                  <option *ngFor="let t of (directory?.teachers || [])" [value]="t.userId">{{ t.name }}</option>
+                <select class="erp-select" [(ngModel)]="selectedAdminTeacher" (ngModelChange)="selectedAdminParent = null">
+                  <option [ngValue]="null">Select teacher</option>
+                  <option *ngFor="let t of (directory?.teachers || [])" [ngValue]="t.userId">{{ t.name }}</option>
                 </select>
                 <label class="erp-label mt-2">Parents</label>
-                <select class="erp-select" [(ngModel)]="selectedAdminParent">
-                  <option value="">Select parent</option>
-                  <option *ngFor="let p of (directory?.parents || [])" [value]="p.userId">{{ p.name }}</option>
+                <select class="erp-select" [(ngModel)]="selectedAdminParent" (ngModelChange)="selectedAdminTeacher = null">
+                  <option [ngValue]="null">Select parent</option>
+                  <option *ngFor="let p of (directory?.parents || [])" [ngValue]="p.userId">{{ p.name }}</option>
                 </select>
-                <button class="btn-primary-erp btn-sm mt-2" [disabled]="!selectedAdminTeacher && !selectedAdminParent" (click)="startAdminDirectChat()">
+                <button class="btn-primary-erp btn-sm mt-2" [disabled]="selectedAdminTeacher == null && selectedAdminParent == null" (click)="startAdminDirectChat()">
                   Start Chat
                 </button>
               </div>
@@ -402,10 +402,10 @@ export class ChatComponent implements OnInit, OnDestroy {
   openDirectory = false;
   loadingDirectory = false;
   directory: ChatDirectoryResponse | null = null;
-  selectedStudentForChat = '';
-  selectedChildForChat = '';
-  selectedAdminTeacher = '';
-  selectedAdminParent = '';
+  selectedStudentForChat: number | null = null;
+  selectedChildForChat: number | null = null;
+  selectedAdminTeacher: number | null = null;
+  selectedAdminParent: number | null = null;
   sending = false;
   draft = '';
   query = '';
@@ -418,7 +418,7 @@ export class ChatComponent implements OnInit, OnDestroy {
   platformAdminSearchLoading = false;
   private platformAdminSearchTimer: ReturnType<typeof setTimeout> | null = null;
 
-  private myUserId = '';
+  private myUserId: number | null = null;
   private rtSub?: Subscription;
 
   constructor(
@@ -430,7 +430,7 @@ export class ChatComponent implements OnInit, OnDestroy {
   ) {}
 
   ngOnInit(): void {
-    this.myUserId = String(this.auth.getCurrentUser()?.id || '');
+    this.myUserId = this.auth.getCurrentUser()?.id ?? null;
     this.role = this.auth.getRole() || 'admin';
     this.chat.connectRealtime();
     this.rtSub = this.chat.realtimeConnected$.subscribe(v => (this.realtimeConnected = v));
@@ -516,7 +516,7 @@ export class ChatComponent implements OnInit, OnDestroy {
     if (!student?.parent) return;
     this.startDirectChat(student.parent.userId, 'PARENT', `Parent of ${student.studentName}`, {
       contextType: 'student',
-      contextId: student.studentId,
+      contextId: String(student.studentId),
     });
   }
 
@@ -525,18 +525,18 @@ export class ChatComponent implements OnInit, OnDestroy {
     if (!child?.classTeacher) return;
     this.startDirectChat(child.classTeacher.userId, 'TEACHER', child.classTeacher.name, {
       contextType: 'student',
-      contextId: child.studentId,
+      contextId: String(child.studentId),
     });
   }
 
   startAdminDirectChat(): void {
     // MVP: if teacher selected, start direct with teacher; otherwise with parent.
-    if (this.selectedAdminTeacher) {
+    if (this.selectedAdminTeacher != null) {
       const t = this.directory?.teachers?.find(x => x.userId === this.selectedAdminTeacher);
       if (t) this.startDirectChat(t.userId, t.role, t.name);
       return;
     }
-    if (this.selectedAdminParent) {
+    if (this.selectedAdminParent != null) {
       const p = this.directory?.parents?.find(x => x.userId === this.selectedAdminParent);
       if (p) this.startDirectChat(p.userId, p.role, p.name);
     }
@@ -590,8 +590,8 @@ export class ChatComponent implements OnInit, OnDestroy {
       }
       return;
     }
-    const me = String(this.auth.getCurrentUser()?.id || '');
-    if (hit.chatUserId === me) {
+    const me = this.auth.getCurrentUser()?.id ?? null;
+    if (me != null && hit.chatUserId === me) {
       return;
     }
     const role =
@@ -611,15 +611,15 @@ export class ChatComponent implements OnInit, OnDestroy {
   private isParentAllowedDirectoryHit(hit: DirectoryEntry): boolean {
     if (this.role !== 'parent') return true;
     if (hit.kind !== 'teacher' || !hit.chatUserId) return false;
-    const allowed = new Set<string>();
+    const allowed = new Set<number>();
     for (const c of this.directory?.myChildren ?? []) {
-      if (c.classTeacher?.userId) allowed.add(String(c.classTeacher.userId));
+      if (c.classTeacher?.userId != null) allowed.add(c.classTeacher.userId);
     }
-    return allowed.has(String(hit.chatUserId));
+    return hit.chatUserId != null && allowed.has(hit.chatUserId);
   }
 
   private startDirectChat(
-    otherUserId: string,
+    otherUserId: number,
     otherRole: string,
     otherName?: string,
     ctx?: { contextType?: string; contextId?: string }
@@ -631,8 +631,8 @@ export class ChatComponent implements OnInit, OnDestroy {
       contextType: ctx?.contextType,
       contextId: ctx?.contextId,
       participants: [
-        { userId: String(me.id), userRole: (me.role || 'admin').toUpperCase(), displayName: me.name },
-        { userId: String(otherUserId), userRole: (otherRole || '').toUpperCase(), displayName: otherName }
+        { userId: me.id, userRole: (me.role || 'admin').toUpperCase(), displayName: me.name },
+        { userId: otherUserId, userRole: (otherRole || '').toUpperCase(), displayName: otherName }
       ]
     }).subscribe(conv => {
       this.openDirectory = false;
@@ -685,7 +685,7 @@ export class ChatComponent implements OnInit, OnDestroy {
   }
 
   isMine(m: ChatMessage): boolean {
-    return !!this.myUserId && m.senderUserId === this.myUserId;
+    return this.myUserId != null && m.senderUserId === this.myUserId;
   }
 
   threadSubtitle(conv: ChatInboxConversation): string {

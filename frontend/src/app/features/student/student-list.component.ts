@@ -221,7 +221,7 @@ export class StudentListComponent implements OnInit {
     this.paginatedStudents = this.filteredStudents.slice(start, start + this.pageSize);
   }
 
-  deleteStudent(id: string): void {
+  deleteStudent(id: number): void {
     const st = this.students.find(s => s.id === id);
     const name = st ? `${st.firstName} ${st.lastName}` : 'This student';
     this.confirmDialog

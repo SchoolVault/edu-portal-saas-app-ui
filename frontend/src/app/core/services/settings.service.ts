@@ -1,6 +1,7 @@
 import { Injectable } from '@angular/core';
 import { Observable, of } from 'rxjs';
 import { map } from 'rxjs/operators';
+import { MOCK_TENANT_CONFIG_DEFAULT, mockSchoolBranches } from '../mocks/settings.mock-data';
 import { SchoolBranch, TenantConfig } from '../models/models';
 import { ApiService } from './api.service';
 import { runtimeConfig } from '../config/runtime-config';
@@ -31,19 +32,7 @@ export class SettingsService {
 
   get(): Observable<TenantConfig> {
     if (runtimeConfig.useMocks) {
-      const base: TenantConfig = {
-        id: '1',
-        schoolName: 'SchoolVault Academy',
-        schoolCode: 'SCH001',
-        address: '123 Education Lane, Knowledge City',
-        phone: '+91-9876009834',
-        email: 'schoolvault@gmail.com',
-        primaryColor: '#1B3A30',
-        secondaryColor: '#C05C3D',
-        features: {},
-        tenantId: 't1'
-      };
-      return of({ ...base, ...readMockTenant() });
+      return of({ ...MOCK_TENANT_CONFIG_DEFAULT, ...readMockTenant() });
     }
     return this.api.get<TenantConfig>('/settings');
   }
@@ -59,35 +48,7 @@ export class SettingsService {
   listBranches(schoolCode?: string): Observable<SchoolBranch[]> {
     const code = (schoolCode ?? '').trim() || 'SCH001';
     if (runtimeConfig.useMocks) {
-      return of([
-        {
-          tenantId: 't1',
-          schoolName: 'SchoolVault Academy — Main campus',
-          schoolCode: code,
-          address: '123 Education Lane, Knowledge City',
-          phone: '+91-9876009834',
-          email: 'main@schoolvault.edu',
-          currentTenant: true
-        },
-        {
-          tenantId: 't-branch-east',
-          schoolName: 'SchoolVault Academy — East wing',
-          schoolCode: code,
-          address: '88 Riverside Road, Knowledge City',
-          phone: '+91-9876009900',
-          email: 'east@schoolvault.edu',
-          currentTenant: false
-        },
-        {
-          tenantId: 't-branch-north',
-          schoolName: 'SchoolVault Academy — North junior',
-          schoolCode: code,
-          address: '2 Oak Avenue, Knowledge City',
-          phone: '+91-9876009911',
-          email: 'north@schoolvault.edu',
-          currentTenant: false
-        }
-      ]);
+      return of(mockSchoolBranches(code).map(b => ({ ...b })));
     }
     const q = schoolCode?.trim() ? `?schoolCode=${encodeURIComponent(schoolCode.trim())}` : '';
     return this.api.get<any[]>(`/settings/branches${q}`).pipe(

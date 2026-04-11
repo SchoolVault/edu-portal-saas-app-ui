@@ -116,7 +116,7 @@ export class TeacherListComponent implements OnInit {
     );
   }
 
-  deleteTeacher(id: string): void {
+  deleteTeacher(id: number): void {
     const t = this.teachers.find(x => x.id === id);
     const name = t ? `${t.firstName} ${t.lastName}` : 'This teacher';
     this.confirmDialog

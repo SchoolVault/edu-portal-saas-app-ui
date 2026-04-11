@@ -28,7 +28,7 @@ export class GuardianService {
     return this.api.post<any>('/guardians', body).pipe(map(g => ({ id: String(g.id) })));
   }
 
-  addStudentMapping(studentId: string, body: CreateMappingPayload): Observable<void> {
+  addStudentMapping(studentId: number, body: CreateMappingPayload): Observable<void> {
     if (runtimeConfig.useMocks) {
       return throwError(() => new Error('Guardian API disabled in mock mode'));
     }

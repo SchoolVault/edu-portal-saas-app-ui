@@ -1,15 +1,19 @@
 package com.school.erp.modules.timetable.controller;
 
 import com.school.erp.common.dto.ApiResponse;
+import com.school.erp.modules.timetable.dto.TeacherScheduleSlot;
 import com.school.erp.modules.timetable.dto.TimetableDTOs;
 import com.school.erp.modules.timetable.entity.TimetableEntry;
 import com.school.erp.modules.timetable.service.TimetableService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+
+import java.time.LocalDate;
 import java.util.List;
 
 @RestController
@@ -31,9 +35,11 @@ public class TimetableController {
     }
 
     @GetMapping("/teacher/{teacherId}")
-    @Operation(summary = "Get teacher\'s complete schedule")
-    public ResponseEntity<ApiResponse<List<TimetableEntry>>> getByTeacher(@PathVariable Long teacherId) {
-        return ResponseEntity.ok(ApiResponse.ok(service.getByTeacher(teacherId)));
+    @Operation(summary = "Get teacher schedule", description = "Recurring weekly slots. When forDate is set, merges active attendance-cover rows for that calendar day (virtual COVER slots override same weekday/period for display only).")
+    public ResponseEntity<ApiResponse<List<TeacherScheduleSlot>>> getByTeacher(
+            @PathVariable Long teacherId,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate forDate) {
+        return ResponseEntity.ok(ApiResponse.ok(service.getTeacherSchedule(teacherId, forDate)));
     }
 
     @PostMapping

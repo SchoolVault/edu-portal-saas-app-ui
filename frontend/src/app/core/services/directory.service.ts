@@ -6,27 +6,10 @@ import { AcademicService } from './academic.service';
 import { StudentService } from './student.service';
 import { TeacherService } from './teacher.service';
 import { runtimeConfig } from '../config/runtime-config';
+import type { DirectoryEntry, DirectorySearchResponse } from '../models/directory.dto';
+import { MOCK_DIRECTORY_STATIC_ENTRIES } from '../mocks/directory.mock-data';
 
-export interface DirectoryEntry {
-  kind: string;
-  id: number;
-  displayName: string;
-  subtitle?: string;
-  email?: string;
-  phone?: string;
-  deepLink?: string;
-  /** ERP user id to open a direct chat (parent, teacher, admin user, …). */
-  chatUserId?: string;
-  chatTargetRole?: string;
-  /** e.g. student id for parent-context threads */
-  contextType?: string;
-  contextId?: string;
-}
-
-export interface DirectorySearchResponse {
-  query: string;
-  results: DirectoryEntry[];
-}
+export type { DirectoryEntry, DirectorySearchResponse } from '../models/directory.dto';
 
 @Injectable({ providedIn: 'root' })
 export class DirectoryService {
@@ -66,11 +49,7 @@ export class DirectoryService {
     const byKey = new Map<string, DirectoryEntry>();
     const push = (e: DirectoryEntry) => byKey.set(`${e.kind}-${e.id}`, e);
 
-    const staticPool: DirectoryEntry[] = [
-      { kind: 'staff', id: 501, displayName: 'Ravi Transport', subtitle: 'TRANSPORT', phone: '+91-9000000501', deepLink: '/app/operations' },
-      { kind: 'user', id: 2, displayName: 'John Anderson', subtitle: 'ADMIN · admin@school.com', email: 'admin@school.com', deepLink: '/app/settings' },
-    ];
-    for (const p of staticPool) {
+    for (const p of MOCK_DIRECTORY_STATIC_ENTRIES) {
       if (this.blob(p).includes(t)) {
         push(p);
       }
@@ -81,10 +60,8 @@ export class DirectoryService {
       if (!blob.includes(t)) {
         continue;
       }
-      const idNum = parseInt(String(s.id).replace(/^s/i, ''), 10) || Math.abs(this.hashCode(s.id));
-      const parentChat =
-        s.parentUserId ||
-        (typeof s.parentId === 'string' && /^u\d+$/i.test(s.parentId) ? s.parentId : undefined);
+      const idNum = Number(s.id);
+      const parentChat = s.parentUserId;
       push({
         kind: 'student',
         id: idNum,
@@ -96,7 +73,7 @@ export class DirectoryService {
         chatUserId: parentChat,
         chatTargetRole: parentChat ? 'PARENT' : undefined,
         contextType: parentChat ? 'student' : undefined,
-        contextId: parentChat ? s.id : undefined,
+        contextId: parentChat ? String(s.id) : undefined,
       });
     }
 
@@ -105,7 +82,7 @@ export class DirectoryService {
       if (!blob.includes(t)) {
         continue;
       }
-      const idNum = parseInt(String(te.id).replace(/^t/i, ''), 10) || Math.abs(this.hashCode(te.id));
+      const idNum = Number(te.id);
       const homeroomClass = classes.find(c => c.classTeacherId === te.id);
       const homeroom = homeroomClass
         ? `Homeroom: ${homeroomClass.name}`
@@ -121,7 +98,7 @@ export class DirectoryService {
         phone: te.phone,
         deepLink: `/app/teachers/${te.id}`,
         chatUserId: te.userId,
-        chatTargetRole: te.userId ? 'TEACHER' : undefined,
+        chatTargetRole: te.userId != null ? 'TEACHER' : undefined,
       });
     }
 
@@ -133,11 +110,4 @@ export class DirectoryService {
     return `${e.displayName} ${e.subtitle || ''} ${e.email || ''} ${e.phone || ''}`.toLowerCase();
   }
 
-  private hashCode(s: string): number {
-    let h = 0;
-    for (let i = 0; i < s.length; i++) {
-      h = (Math.imul(31, h) + s.charCodeAt(i)) | 0;
-    }
-    return h;
-  }
 }

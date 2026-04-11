@@ -1,7 +1,8 @@
-import { Component } from '@angular/core';
+import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterModule } from '@angular/router';
+import { take } from 'rxjs/operators';
 import { AuthService } from '../../../core/services/auth.service';
 import type { FieldErrors } from '../../../core/validation';
 import { type LoginField, validateLoginForm } from '../../../core/validation';
@@ -168,7 +169,7 @@ import { type LoginField, validateLoginForm } from '../../../core/validation';
     `
   ]
 })
-export class LoginComponent {
+export class LoginComponent implements OnInit {
   email = '';
   password = '';
   schoolCode = '';
@@ -177,11 +178,19 @@ export class LoginComponent {
   loading = false;
   showPassword = false;
 
-  constructor(private authService: AuthService, private router: Router) {
-    if (this.authService.isAuthenticated()) {
-      const role = this.authService.getRole();
-      this.router.navigate([role === 'parent' ? '/app/parent' : role === 'super_admin' ? '/app/super-admin' : '/app/dashboard']);
-    }
+  constructor(private authService: AuthService, private router: Router) {}
+
+  ngOnInit(): void {
+    this.authService
+      .ensureValidSession()
+      .pipe(take(1))
+      .subscribe(ok => {
+        if (!ok) {
+          return;
+        }
+        const role = this.authService.getRole();
+        this.router.navigate([role === 'parent' ? '/app/parent' : role === 'super_admin' ? '/app/super-admin' : '/app/dashboard']);
+      });
   }
 
   clearField(field: LoginField): void {

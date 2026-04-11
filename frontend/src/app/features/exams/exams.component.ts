@@ -64,15 +64,15 @@ type ExamDetailTab = 'marks' | 'timetable';
             <div class="col-md-4">
               <label class="erp-label">Class</label>
               <select class="erp-select" [(ngModel)]="selectedClassId" (change)="onClassOrSectionChange()">
-                <option value="">Select class</option>
-                <option *ngFor="let cls of selectedExamClasses" [value]="cls.id">{{ cls.name }}</option>
+                <option [ngValue]="null">Select class</option>
+                <option *ngFor="let cls of selectedExamClasses" [ngValue]="cls.id">{{ cls.name }}</option>
               </select>
             </div>
             <div class="col-md-4" *ngIf="sectionsForSelectedClass.length">
               <label class="erp-label">Section</label>
               <select class="erp-select" [(ngModel)]="marksSectionId" (change)="onClassOrSectionChange()">
-                <option value="">All sections in class</option>
-                <option *ngFor="let sec of sectionsForSelectedClass" [value]="sec.id">{{ sec.name }}</option>
+                <option [ngValue]="null">All sections in class</option>
+                <option *ngFor="let sec of sectionsForSelectedClass" [ngValue]="sec.id">{{ sec.name }}</option>
               </select>
             </div>
             <div class="col-md-4">
@@ -99,7 +99,7 @@ type ExamDetailTab = 'marks' | 'timetable';
               </tbody>
             </table>
             <div class="d-flex justify-content-end mt-3">
-              <button type="button" class="btn-primary-erp" (click)="saveMarks()" [disabled]="!marksSubject || !selectedClassId || marksSaving">
+              <button type="button" class="btn-primary-erp" (click)="saveMarks()" [disabled]="!marksSubject || selectedClassId == null || marksSaving">
                 {{ marksSaving ? 'Saving…' : 'Save marks' }}
               </button>
             </div>
@@ -143,13 +143,13 @@ type ExamDetailTab = 'marks' | 'timetable';
                   <td><input class="erp-input" [(ngModel)]="row.subjectName" [disabled]="!canEditSchedule"></td>
                   <td>
                     <select class="erp-select" [(ngModel)]="row.classId" (change)="onScheduleRowClass(row)" [disabled]="!canEditSchedule">
-                      <option *ngFor="let c of classes" [value]="c.id">{{ c.name }}</option>
+                      <option *ngFor="let c of classes" [ngValue]="c.id">{{ c.name }}</option>
                     </select>
                   </td>
                   <td>
                     <select class="erp-select" [(ngModel)]="row.sectionId" [disabled]="!canEditSchedule">
-                      <option value="">All sections</option>
-                      <option *ngFor="let s of sectionsForClass(row.classId)" [value]="s.id">{{ s.name }}</option>
+                      <option [ngValue]="null">All sections</option>
+                      <option *ngFor="let s of sectionsForClass(row.classId)" [ngValue]="s.id">{{ s.name }}</option>
                     </select>
                   </td>
                   <td><input class="erp-input" [(ngModel)]="row.room" [disabled]="!canEditSchedule"></td>
@@ -182,8 +182,8 @@ type ExamDetailTab = 'marks' | 'timetable';
           <div class="erp-form-group">
             <label class="erp-label">Academic year</label>
             <select class="erp-select" [(ngModel)]="newExam.academicYearId">
-              <option value="">Select year</option>
-              <option *ngFor="let year of academicYears" [value]="year.id">{{ year.name }}</option>
+              <option [ngValue]="null">Select year</option>
+              <option *ngFor="let year of academicYears" [ngValue]="year.id">{{ year.name }}</option>
             </select>
           </div>
           <div class="row g-3">
@@ -201,8 +201,8 @@ type ExamDetailTab = 'marks' | 'timetable';
               <div *ngIf="newExam.classIds.includes(cls.id)" class="ps-4">
                 <label class="erp-label small">Audience</label>
                 <select class="erp-select" [(ngModel)]="sectionChoiceByClass[cls.id]">
-                  <option value="">All sections (whole class)</option>
-                  <option *ngFor="let sec of cls.sections" [value]="sec.id">Section {{ sec.name }}</option>
+                  <option [ngValue]="null">All sections (whole class)</option>
+                  <option *ngFor="let sec of cls.sections" [ngValue]="sec.id">Section {{ sec.name }}</option>
                 </select>
               </div>
             </div>
@@ -229,8 +229,8 @@ export class ExamsComponent implements OnInit {
   classes: SchoolClass[] = [];
   academicYears: AcademicYear[] = [];
   selectedExam: Exam | null = null;
-  selectedClassId = '';
-  marksSectionId = '';
+  selectedClassId: number | null = null;
+  marksSectionId: number | null = null;
   showCreateModal = false;
   detailTab: ExamDetailTab = 'marks';
   marksSubject = '';
@@ -240,9 +240,15 @@ export class ExamsComponent implements OnInit {
   scheduleUiMessage = '';
   scheduleUiError = false;
   marksEntryStudents: Student[] = [];
-  marksByStudent: Record<string, number | null> = {};
-  newExam = { name: '', academicYearId: '', startDate: '', endDate: '', classIds: [] as string[] };
-  sectionChoiceByClass: Record<string, string> = {};
+  marksByStudent: Record<number, number | null> = {};
+  newExam = {
+    name: '',
+    academicYearId: null as number | null,
+    startDate: '',
+    endDate: '',
+    classIds: [] as number[]
+  };
+  sectionChoiceByClass: Record<number, number | null> = {};
   scheduleDraft: ExamScheduleSlot[] = [];
 
   constructor(
@@ -277,13 +283,15 @@ export class ExamsComponent implements OnInit {
   }
 
   scopeSummary(exam: Exam): string {
-    const scopes = exam.classScopes?.length ? exam.classScopes : (exam.classIds ?? []).map(cid => ({ classId: cid, sectionId: null as string | null }));
+    const scopes = exam.classScopes?.length
+      ? exam.classScopes
+      : (exam.classIds ?? []).map(cid => ({ classId: cid, sectionId: null as number | null }));
     if (!scopes.length) return 'No classes';
     const parts = scopes.map(s => {
       const cls = this.classes.find(c => c.id === s.classId);
       const apiName = 'className' in s ? s.className : undefined;
       const name = cls?.name || apiName || 'Class';
-      if (!s.sectionId) return `${name} · all sections`;
+      if (s.sectionId == null) return `${name} · all sections`;
       const sec = cls?.sections?.find(x => x.id === s.sectionId);
       const secApi = 'sectionName' in s ? s.sectionName : undefined;
       return `${name} · ${sec?.name || secApi || 'section'}`;
@@ -297,38 +305,38 @@ export class ExamsComponent implements OnInit {
     return this.classes.filter(cls => ids.has(cls.id));
   }
 
-  get sectionsForSelectedClass(): { id: string; name: string }[] {
+  get sectionsForSelectedClass(): SectionLite[] {
     const cls = this.classes.find(c => c.id === this.selectedClassId);
-    return cls?.sections ?? [];
+    return cls?.sections?.map(s => ({ id: s.id, name: s.name })) ?? [];
   }
 
-  sectionsForClass(classId: string): { id: string; name: string }[] {
+  sectionsForClass(classId: number): SectionLite[] {
     const cls = this.classes.find(c => c.id === classId);
-    return cls?.sections ?? [];
+    return cls?.sections?.map(s => ({ id: s.id, name: s.name })) ?? [];
   }
 
   get sectionHint(): string {
-    if (!this.selectedExam || !this.selectedClassId) return '';
+    if (!this.selectedExam || this.selectedClassId == null) return '';
     const scoped = this.selectedExam.classScopes?.filter(s => s.classId === this.selectedClassId) ?? [];
     if (!scoped.length) return '';
-    const onlySections = scoped.map(s => s.sectionId).filter(Boolean) as string[];
+    const onlySections = scoped.map(s => s.sectionId).filter((x): x is number => x != null);
     if (!onlySections.length) return '';
-    if (onlySections.length === 1 && !this.marksSectionId) {
+    if (onlySections.length === 1 && this.marksSectionId == null) {
       return 'This exam targets one section for this class — pick that section above for mark entry.';
     }
     return '';
   }
 
   openCreateModal(): void {
-    this.newExam = { name: '', academicYearId: '', startDate: '', endDate: '', classIds: [] };
+    this.newExam = { name: '', academicYearId: null, startDate: '', endDate: '', classIds: [] };
     this.sectionChoiceByClass = {};
     this.showCreateModal = true;
   }
 
   selectExam(exam: Exam): void {
     this.selectedExam = exam;
-    this.selectedClassId = exam.classIds[0] ?? '';
-    this.marksSectionId = '';
+    this.selectedClassId = exam.classIds[0] ?? null;
+    this.marksSectionId = null;
     this.marksSubject = '';
     this.marksByStudent = {};
     this.scheduleUiMessage = '';
@@ -338,14 +346,14 @@ export class ExamsComponent implements OnInit {
     this.examService.getSchedule(exam.id).subscribe({
       next: slots => {
         const list = slots.length ? slots : (exam.scheduleSlots ?? []);
-        this.scheduleDraft = list.map(s => ({ ...s, sectionId: s.sectionId || '' }));
-        if (this.selectedExam && String(this.selectedExam.id) === String(exam.id)) {
+        this.scheduleDraft = list.map(s => ({ ...s, sectionId: s.sectionId ?? null }));
+        if (this.selectedExam && this.selectedExam.id === exam.id) {
           this.selectedExam.scheduleSlots = [...list];
         }
       },
       error: () => {
         const list = exam.scheduleSlots ?? [];
-        this.scheduleDraft = list.map(s => ({ ...s, sectionId: s.sectionId || '' }));
+        this.scheduleDraft = list.map(s => ({ ...s, sectionId: s.sectionId ?? null }));
         this.scheduleUiMessage = 'Could not load timetable from the server; showing any rows bundled with the exam list.';
         this.scheduleUiError = true;
       }
@@ -360,10 +368,10 @@ export class ExamsComponent implements OnInit {
     this.examService.getSchedule(ex.id).subscribe({
       next: slots => {
         const list = slots.length ? slots : (ex.scheduleSlots ?? []);
-        this.scheduleDraft = list.map(s => ({ ...s, sectionId: s.sectionId || '' }));
+        this.scheduleDraft = list.map(s => ({ ...s, sectionId: s.sectionId ?? null }));
       },
       error: () => {
-        this.scheduleDraft = (ex.scheduleSlots ?? []).map(s => ({ ...s, sectionId: s.sectionId || '' }));
+        this.scheduleDraft = (ex.scheduleSlots ?? []).map(s => ({ ...s, sectionId: s.sectionId ?? null }));
       }
     });
   }
@@ -373,12 +381,12 @@ export class ExamsComponent implements OnInit {
   }
 
   loadMarksEntryStudents(): void {
-    if (!this.selectedClassId) {
+    if (this.selectedClassId == null) {
       this.marksEntryStudents = [];
       return;
     }
     const req$ =
-      this.marksSectionId && this.marksSectionId.length
+      this.marksSectionId != null
         ? this.studentService.getStudentsByClassAndSection(this.selectedClassId, this.marksSectionId)
         : this.studentService.getStudentsByClass(this.selectedClassId);
     req$.subscribe(students => {
@@ -388,17 +396,17 @@ export class ExamsComponent implements OnInit {
   }
 
   onScheduleRowClass(row: ExamScheduleSlot): void {
-    row.sectionId = '';
+    row.sectionId = null;
   }
 
   addScheduleRow(): void {
-    const cid = this.selectedExam?.classIds[0] ?? this.classes[0]?.id ?? '';
+    const cid = this.selectedExam?.classIds[0] ?? this.classes[0]?.id;
+    if (cid == null) return;
     const defaultDate = this.selectedExam?.startDate?.trim() || new Date().toISOString().slice(0, 10);
     this.scheduleDraft.push({
-      id: '',
-      examId: this.selectedExam?.id ?? '',
+      examId: this.selectedExam?.id,
       classId: cid,
-      sectionId: '',
+      sectionId: null,
       subjectName: '',
       examDate: defaultDate,
       startTime: '09:00',
@@ -420,7 +428,7 @@ export class ExamsComponent implements OnInit {
       for (let i = 0; i < this.scheduleDraft.length; i++) {
         const r = this.scheduleDraft[i];
         const n = i + 1;
-        if (!r.classId || !String(r.classId).trim()) {
+        if (r.classId == null) {
           this.scheduleUiMessage = `Row ${n}: select a class.`;
           this.scheduleUiError = true;
           return;
@@ -444,8 +452,8 @@ export class ExamsComponent implements OnInit {
     }
     this.scheduleSaving = true;
     const payload = this.scheduleDraft.map(({ classId, sectionId, subjectName, examDate, startTime, endTime, room, notes }) => ({
-      classId,
-      sectionId: sectionId && String(sectionId).length ? sectionId : null,
+      classId: classId as number,
+      sectionId: sectionId ?? null,
       subjectName,
       examDate,
       startTime,
@@ -455,7 +463,7 @@ export class ExamsComponent implements OnInit {
     }));
     this.examService.replaceSchedule(this.selectedExam.id, payload).subscribe({
       next: rows => {
-        this.scheduleDraft = rows.map(r => ({ ...r, sectionId: r.sectionId || '' }));
+        this.scheduleDraft = rows.map(r => ({ ...r, sectionId: r.sectionId ?? null }));
         this.selectedExam!.scheduleSlots = [...rows];
         this.scheduleSaving = false;
         this.scheduleUiMessage = 'Timetable saved.';
@@ -475,25 +483,25 @@ export class ExamsComponent implements OnInit {
     });
   }
 
-  toggleClassSelection(classId: string): void {
+  toggleClassSelection(classId: number): void {
     if (this.newExam.classIds.includes(classId)) {
       this.newExam.classIds = this.newExam.classIds.filter(id => id !== classId);
       delete this.sectionChoiceByClass[classId];
       return;
     }
     this.newExam.classIds = [...this.newExam.classIds, classId];
-    this.sectionChoiceByClass[classId] = '';
+    this.sectionChoiceByClass[classId] = null;
   }
 
   createExam(): void {
-    if (!this.newExam.name || !this.newExam.academicYearId || !this.newExam.classIds.length) return;
+    if (!this.newExam.name?.trim() || this.newExam.academicYearId == null || !this.newExam.classIds.length) return;
     const classScopes: ExamClassScope[] = this.newExam.classIds.map(cid => ({
       classId: cid,
-      sectionId: this.sectionChoiceByClass[cid] || null
+      sectionId: this.sectionChoiceByClass[cid] ?? null
     }));
     const exam: Exam = {
-      id: '',
-      name: this.newExam.name,
+      id: 0,
+      name: this.newExam.name.trim(),
       academicYearId: this.newExam.academicYearId,
       startDate: this.newExam.startDate,
       endDate: this.newExam.endDate,
@@ -510,13 +518,14 @@ export class ExamsComponent implements OnInit {
   }
 
   saveMarks(): void {
-    if (!this.selectedExam || !this.selectedClassId || !this.marksSubject) return;
+    if (!this.selectedExam || this.selectedClassId == null || !this.marksSubject) return;
+    const classId = this.selectedClassId;
     const payload = this.marksEntryStudents
       .filter(student => this.marksByStudent[student.id] !== null && this.marksByStudent[student.id] !== undefined)
       .map(student => {
         const obtained = Number(this.marksByStudent[student.id]);
         return {
-          id: '',
+          id: 0,
           examId: this.selectedExam!.id,
           studentId: student.id,
           studentName: `${student.firstName} ${student.lastName}`.trim(),
@@ -524,7 +533,7 @@ export class ExamsComponent implements OnInit {
           marksObtained: obtained,
           maxMarks: Number(this.maxMarks),
           grade: this.getAutoGrade(obtained, this.maxMarks),
-          classId: this.selectedClassId,
+          classId,
           tenantId: ''
         } as MarkRecord;
       });
@@ -533,7 +542,7 @@ export class ExamsComponent implements OnInit {
     this.examService.saveMarks(this.selectedExam.id, payload).subscribe({
       next: savedMarks => {
         this.marksSaving = false;
-        this.marks = [...this.marks.filter(m => !(m.subjectName === this.marksSubject && m.classId === this.selectedClassId)), ...savedMarks];
+        this.marks = [...this.marks.filter(m => !(m.subjectName === this.marksSubject && m.classId === classId)), ...savedMarks];
         this.marksByStudent = {};
       },
       error: () => {
@@ -565,7 +574,7 @@ export class ExamsComponent implements OnInit {
     return 'D';
   }
 
-  getDraftMark(studentId: string): number {
+  getDraftMark(studentId: number): number {
     return Number(this.marksByStudent[studentId] ?? 0);
   }
 
@@ -575,8 +584,8 @@ export class ExamsComponent implements OnInit {
     this.examService.getExams().subscribe(exams => {
       this.exams = exams;
       if (this.selectedExam) {
-        const sid = String(this.selectedExam.id);
-        const next = exams.find(e => String(e.id) === sid);
+        const sid = this.selectedExam.id;
+        const next = exams.find(e => e.id === sid);
         if (next) this.selectExam(next);
       }
     });
@@ -591,3 +600,5 @@ export class ExamsComponent implements OnInit {
     this.examService.getExams().subscribe(exams => (this.exams = exams));
   }
 }
+
+type SectionLite = { id: number; name: string };

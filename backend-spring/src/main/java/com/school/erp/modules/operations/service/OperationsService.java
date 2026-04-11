@@ -197,6 +197,15 @@ public class OperationsService {
         return toInvResponse(e);
     }
 
+    @Transactional
+    public void deleteInventory(Long id) {
+        InventoryItem e = inventoryRepo.findByIdAndTenantIdAndIsDeletedFalse(id, TenantContext.getTenantId())
+                .orElseThrow(() -> new ResourceNotFoundException("Inventory item", id));
+        e.setIsDeleted(true);
+        e.setUpdatedBy(TenantContext.getUserId() != null ? TenantContext.getUserId().toString() : null);
+        inventoryRepo.save(e);
+    }
+
     // --- fee reminders ---
     @Transactional(readOnly = true)
     public List<OperationsDTOs.FeeReminderResponse> listFeeReminders(String status) {

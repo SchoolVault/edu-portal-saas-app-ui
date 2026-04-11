@@ -188,8 +188,9 @@ export class StudentProfileComponent implements OnInit {
   }
 
   ngOnInit(): void {
-    const id = this.route.snapshot.paramMap.get('id');
-    if (id) {
+    const raw = this.route.snapshot.paramMap.get('id');
+    const id = raw != null ? Number(raw) : NaN;
+    if (Number.isFinite(id)) {
       this.studentService.getStudentById(id).subscribe(s => {
         if (s) {
           this.student = s;
@@ -202,8 +203,10 @@ export class StudentProfileComponent implements OnInit {
   }
 
   reloadAll(): void {
-    const id = this.student?.id ?? this.route.snapshot.paramMap.get('id');
-    if (!id) {
+    const sid = this.student?.id;
+    const raw = this.route.snapshot.paramMap.get('id');
+    const id = sid ?? (raw != null ? Number(raw) : NaN);
+    if (!Number.isFinite(id)) {
       return;
     }
     this.studentService.getStudentById(id).subscribe(s => {
@@ -216,7 +219,7 @@ export class StudentProfileComponent implements OnInit {
     });
   }
 
-  private loadMarks(studentId: string): void {
+  private loadMarks(studentId: number): void {
     this.examService.getMarksByStudent(studentId).subscribe(marks => {
       this.marks = marks;
       this.totalMarks = marks.reduce((sum, m) => sum + m.marksObtained, 0);
@@ -227,7 +230,7 @@ export class StudentProfileComponent implements OnInit {
     });
   }
 
-  private loadFees(studentId: string): void {
+  private loadFees(studentId: number): void {
     this.feeService.getStudentPayments(studentId).subscribe(payments => {
       this.fees = payments;
       this.totalFee = this.fees.reduce((sum, f) => sum + f.amount, 0);
@@ -236,7 +239,7 @@ export class StudentProfileComponent implements OnInit {
     });
   }
 
-  private loadAttendance(studentId: string): void {
+  private loadAttendance(studentId: number): void {
     const today = new Date();
     const from = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T')[0];
     const to = today.toISOString().split('T')[0];
@@ -245,9 +248,9 @@ export class StudentProfileComponent implements OnInit {
     });
   }
 
-  getExamName(examId: string): string {
-    const map: Record<string, string> = { e1: 'Unit Test 1', e2: 'Midterm', e3: 'Unit Test 2', e4: 'Final Exam' };
-    return map[examId] || examId;
+  getExamName(examId: number): string {
+    const map: Record<number, string> = { 1: 'Unit Test 1', 2: 'Midterm', 3: 'Unit Test 2', 4: 'Final Exam' };
+    return map[examId] ?? `Exam ${examId}`;
   }
 
   markInactive(): void {

@@ -1,13 +1,20 @@
 import { Injectable } from '@angular/core';
 import { BehaviorSubject, Observable, Subject, of, throwError } from 'rxjs';
-import { delay, tap } from 'rxjs/operators';
-import { User, LoginRequest, LoginResponse, OnboardSchoolRequest, ProfileSummary } from '../models/models';
+import { catchError, delay, map, take, tap } from 'rxjs/operators';
+import { User, LoginRequest, LoginResponse, OnboardSchoolRequest, ProfileSummary, TokenResponse } from '../models/models';
 import { ApiService } from './api.service';
 import { runtimeConfig } from '../config/runtime-config';
+import { environment } from '../../../environments/environment';
+import { isAccessExpiredByClock, isLikelyJwt } from '../auth/access-token';
+import { buildMockProfileSummary, findMockLoginUser } from '../mocks/auth.mock-data';
 
 @Injectable({ providedIn: 'root' })
 export class AuthService {
   private static readonly TENANT_DISPLAY_KEY = 'erp_tenant_display_overrides';
+  /** Mock / non-JWT sessions: client-side access expiry (epoch ms). */
+  private static readonly STORAGE_ACCESS_EXPIRES_AT = 'erp_access_expires_at';
+  private static readonly STORAGE_REFRESH_EXPIRES_AT = 'erp_refresh_expires_at';
+  private static readonly CLOCK_SKEW_MS = 60_000;
 
   private currentUserSubject = new BehaviorSubject<User | null>(null);
   private tokenSubject = new BehaviorSubject<string | null>(null);
@@ -22,25 +29,6 @@ export class AuthService {
   private readonly profileAvatarChanged = new Subject<void>();
   readonly profileAvatarChanged$ = this.profileAvatarChanged.asObservable();
 
-  private mockUsers = [
-    {
-      email: 'admin@school.com', password: 'admin123', schoolCode: 'SCH001',
-      user: { id: 'u1', email: 'admin@school.com', name: 'John Anderson', role: 'admin' as const, tenantId: 't1', phone: '+1-555-0101' }
-    },
-    {
-      email: 'teacher@school.com', password: 'teacher123', schoolCode: 'SCH001',
-      user: { id: 'u2', email: 'teacher@school.com', name: 'Sarah Mitchell', role: 'teacher' as const, tenantId: 't1', phone: '+1-555-0102' }
-    },
-    {
-      email: 'parent@school.com', password: 'parent123', schoolCode: 'SCH001',
-      user: { id: 'u3', email: 'parent@school.com', name: 'Michael Chen', role: 'parent' as const, tenantId: 't1', phone: '+1-555-0103' }
-    },
-    {
-      email: 'superadmin@schoolvault.com', password: 'super123', schoolCode: 'PLATFORM',
-      user: { id: 'sa1', email: 'superadmin@schoolvault.com', name: 'Priya Narang', role: 'super_admin' as const, tenantId: 'platform', phone: '+1-555-0199' }
-    },
-  ];
-
   constructor(private api: ApiService) {
     this.loadFromStorage();
   }
@@ -52,31 +40,173 @@ export class AuthService {
     if (token && refreshToken && userStr) {
       try {
         const user = JSON.parse(userStr);
+        this.ensureMockSessionMetadata(token);
         this.tokenSubject.next(token);
         this.refreshTokenSubject.next(refreshToken);
         this.currentUserSubject.next(user);
       } catch {
-        this.logout();
+        this.clearLocalAuthState();
       }
     }
+  }
+
+  private getMockAccessTtlMs(): number {
+    const n = (environment as { mockSessionAccessTtlMs?: number }).mockSessionAccessTtlMs;
+    return typeof n === 'number' && n > 0 ? n : 86400000;
+  }
+
+  private getMockRefreshTtlMs(): number {
+    const n = (environment as { mockSessionRefreshTtlMs?: number }).mockSessionRefreshTtlMs;
+    return typeof n === 'number' && n > 0 ? n : 604800000;
+  }
+
+  /** One-time metadata for mock tokens so sessions can expire like real JWTs. */
+  private ensureMockSessionMetadata(token: string): void {
+    if (isLikelyJwt(token)) {
+      return;
+    }
+    if (!localStorage.getItem(AuthService.STORAGE_ACCESS_EXPIRES_AT)) {
+      localStorage.setItem(AuthService.STORAGE_ACCESS_EXPIRES_AT, String(Date.now() + this.getMockAccessTtlMs()));
+    }
+    if (!localStorage.getItem(AuthService.STORAGE_REFRESH_EXPIRES_AT)) {
+      localStorage.setItem(AuthService.STORAGE_REFRESH_EXPIRES_AT, String(Date.now() + this.getMockRefreshTtlMs()));
+    }
+  }
+
+  private readMockAccessExpiryMs(): number | null {
+    const raw = localStorage.getItem(AuthService.STORAGE_ACCESS_EXPIRES_AT);
+    if (!raw) {
+      return null;
+    }
+    const n = Number(raw);
+    return Number.isFinite(n) ? n : null;
+  }
+
+  private readMockRefreshExpiryMs(): number | null {
+    const raw = localStorage.getItem(AuthService.STORAGE_REFRESH_EXPIRES_AT);
+    if (!raw) {
+      return null;
+    }
+    const n = Number(raw);
+    return Number.isFinite(n) ? n : null;
+  }
+
+  private isAccessExpired(token: string | null): boolean {
+    if (!token) {
+      return true;
+    }
+    const now = Date.now();
+    if (isLikelyJwt(token)) {
+      return isAccessExpiredByClock(token, now, AuthService.CLOCK_SKEW_MS, null);
+    }
+    const mockExp = this.readMockAccessExpiryMs();
+    if (mockExp == null) {
+      return false;
+    }
+    const skew = this.mockSkewForTtl(this.getMockAccessTtlMs());
+    return now >= mockExp - skew;
+  }
+
+  /** Proportional early-expiry skew so short TTLs (e.g. 60s QA) are not treated as expired immediately. */
+  private mockSkewForTtl(ttlMs: number): number {
+    return Math.min(AuthService.CLOCK_SKEW_MS, Math.max(2000, Math.floor(ttlMs * 0.1)));
+  }
+
+  private stripMockExpiryKeys(): void {
+    localStorage.removeItem(AuthService.STORAGE_ACCESS_EXPIRES_AT);
+    localStorage.removeItem(AuthService.STORAGE_REFRESH_EXPIRES_AT);
+  }
+
+  private persistMockSessionFromNow(): void {
+    localStorage.setItem(AuthService.STORAGE_ACCESS_EXPIRES_AT, String(Date.now() + this.getMockAccessTtlMs()));
+    localStorage.setItem(AuthService.STORAGE_REFRESH_EXPIRES_AT, String(Date.now() + this.getMockRefreshTtlMs()));
+  }
+
+  /** Apply new access + refresh pair after login or refresh (keeps user row unchanged). */
+  applyTokenPair(token: string, refreshToken: string): void {
+    localStorage.setItem('erp_token', token);
+    localStorage.setItem('erp_refresh_token', refreshToken);
+    this.tokenSubject.next(token);
+    this.refreshTokenSubject.next(refreshToken);
+    if (isLikelyJwt(token)) {
+      this.stripMockExpiryKeys();
+    }
+  }
+
+  /**
+   * Clears tokens and user context locally. Used after 401 and failed refresh (no server logout call).
+   */
+  clearLocalAuthState(): void {
+    localStorage.removeItem('erp_token');
+    localStorage.removeItem('erp_refresh_token');
+    localStorage.removeItem('erp_user');
+    this.stripMockExpiryKeys();
+    this.tokenSubject.next(null);
+    this.refreshTokenSubject.next(null);
+    this.currentUserSubject.next(null);
+    this.profileSummarySubject.next(null);
+  }
+
+  /**
+   * Ensures a valid access token for protected routes: uses JWT `exp` or mock TTL, then one refresh call if needed.
+   * Backend remains the authority; 401 on API calls still triggers {@link clearLocalAuthState} via the HTTP interceptor.
+   */
+  ensureValidSession(): Observable<boolean> {
+    const token = this.tokenSubject.value;
+    const refresh = this.refreshTokenSubject.value;
+
+    if (!token && !refresh) {
+      return of(false);
+    }
+    if (!token || !refresh) {
+      this.clearLocalAuthState();
+      return of(false);
+    }
+
+    if (!this.isAccessExpired(token)) {
+      return of(true);
+    }
+
+    if (runtimeConfig.useMocks) {
+      return of(this.performMockRefresh());
+    }
+
+    return this.api.post<TokenResponse>('/auth/refresh-token', { refreshToken: refresh }).pipe(
+      tap(res => this.applyTokenPair(res.token, res.refreshToken)),
+      map(() => true),
+      catchError(() => {
+        this.clearLocalAuthState();
+        return of(false);
+      }),
+      take(1)
+    );
+  }
+
+  private performMockRefresh(): boolean {
+    const refreshExp = this.readMockRefreshExpiryMs();
+    const refreshSkew = this.mockSkewForTtl(this.getMockRefreshTtlMs());
+    if (refreshExp == null || Date.now() >= refreshExp - refreshSkew) {
+      this.clearLocalAuthState();
+      return false;
+    }
+    const newRt = 'mock-refresh-' + Date.now();
+    localStorage.setItem('erp_refresh_token', newRt);
+    this.refreshTokenSubject.next(newRt);
+    localStorage.setItem(AuthService.STORAGE_ACCESS_EXPIRES_AT, String(Date.now() + this.getMockAccessTtlMs()));
+    return true;
   }
 
   login(request: LoginRequest): Observable<LoginResponse> {
     if (!runtimeConfig.useMocks) {
       return this.api.post<LoginResponse>('/auth/login', request).pipe(
         tap(res => {
-          localStorage.setItem('erp_token', res.token);
-          localStorage.setItem('erp_refresh_token', res.refreshToken);
+          this.applyTokenPair(res.token, res.refreshToken);
           localStorage.setItem('erp_user', JSON.stringify(res.user));
-          this.tokenSubject.next(res.token);
-          this.refreshTokenSubject.next(res.refreshToken);
           this.currentUserSubject.next(res.user);
         })
       );
     }
-    const found = this.mockUsers.find(
-      u => u.email === request.email && u.password === request.password && u.schoolCode === request.schoolCode
-    );
+    const found = findMockLoginUser(request);
     if (found) {
       const response: LoginResponse = {
         token: 'eyJhbGciOiJIUzI1NiJ9.mock-jwt-' + found.user.role + '-' + Date.now(),
@@ -86,12 +216,10 @@ export class AuthService {
       return of(response).pipe(
         delay(800),
         tap(res => {
-          localStorage.setItem('erp_token', res.token);
-          localStorage.setItem('erp_refresh_token', res.refreshToken);
+          this.applyTokenPair(res.token, res.refreshToken);
           localStorage.setItem('erp_user', JSON.stringify(res.user));
-          this.tokenSubject.next(res.token);
-          this.refreshTokenSubject.next(res.refreshToken);
           this.currentUserSubject.next(res.user);
+          this.persistMockSessionFromNow();
         })
       );
     }
@@ -103,13 +231,7 @@ export class AuthService {
     if (!runtimeConfig.useMocks && refreshToken) {
       this.api.post<void>('/auth/logout', { refreshToken }).subscribe({ error: () => void 0 });
     }
-    localStorage.removeItem('erp_token');
-    localStorage.removeItem('erp_refresh_token');
-    localStorage.removeItem('erp_user');
-    this.tokenSubject.next(null);
-    this.refreshTokenSubject.next(null);
-    this.currentUserSubject.next(null);
-    this.profileSummarySubject.next(null);
+    this.clearLocalAuthState();
   }
 
   onboardSchool(request: OnboardSchoolRequest): Observable<LoginResponse> {
@@ -118,7 +240,7 @@ export class AuthService {
         token: 'mock-onboard-token-' + Date.now(),
         refreshToken: 'mock-onboard-refresh-' + Date.now(),
         user: {
-          id: 'u_new',
+          id: 999001,
           email: request.adminEmail,
           name: request.adminName,
           role: 'admin',
@@ -129,29 +251,29 @@ export class AuthService {
       return of(response).pipe(
         delay(800),
         tap(res => {
-          localStorage.setItem('erp_token', res.token);
-          localStorage.setItem('erp_refresh_token', res.refreshToken);
+          this.applyTokenPair(res.token, res.refreshToken);
           localStorage.setItem('erp_user', JSON.stringify(res.user));
-          this.tokenSubject.next(res.token);
-          this.refreshTokenSubject.next(res.refreshToken);
           this.currentUserSubject.next(res.user);
+          this.persistMockSessionFromNow();
         })
       );
     }
     return this.api.post<LoginResponse>('/auth/onboard-tenant', request).pipe(
       tap(res => {
-        localStorage.setItem('erp_token', res.token);
-        localStorage.setItem('erp_refresh_token', res.refreshToken);
+        this.applyTokenPair(res.token, res.refreshToken);
         localStorage.setItem('erp_user', JSON.stringify(res.user));
-        this.tokenSubject.next(res.token);
-        this.refreshTokenSubject.next(res.refreshToken);
         this.currentUserSubject.next(res.user);
       })
     );
   }
 
   isAuthenticated(): boolean {
-    return !!this.tokenSubject.value;
+    const token = this.tokenSubject.value;
+    const refresh = this.refreshTokenSubject.value;
+    if (!token || !refresh) {
+      return false;
+    }
+    return !this.isAccessExpired(token);
   }
 
   getToken(): string | null {
@@ -222,40 +344,40 @@ export class AuthService {
     return this.getStoredAvatarDataUrl() || this.getCurrentUser()?.avatar || summaryAvatar || null;
   }
 
-  setChildAvatarDataUrl(studentId: string, dataUrl: string): void {
+  setChildAvatarDataUrl(studentId: number, dataUrl: string): void {
     localStorage.setItem(`erp_child_avatar_${studentId}`, dataUrl);
   }
 
-  getChildAvatarDataUrl(studentId: string): string | null {
+  getChildAvatarDataUrl(studentId: number): string | null {
     return localStorage.getItem(`erp_child_avatar_${studentId}`);
   }
 
-  clearChildAvatarDataUrl(studentId: string): void {
+  clearChildAvatarDataUrl(studentId: number): void {
     localStorage.removeItem(`erp_child_avatar_${studentId}`);
   }
 
   /** Demo local storage for student directory photo; replace with PUT .../avatar or media URL from API. */
-  getDirectoryStudentAvatarDataUrl(studentId: string): string | null {
+  getDirectoryStudentAvatarDataUrl(studentId: number): string | null {
     return localStorage.getItem(`erp_dir_student_avatar_${studentId}`);
   }
 
-  setDirectoryStudentAvatarDataUrl(studentId: string, dataUrl: string): void {
+  setDirectoryStudentAvatarDataUrl(studentId: number, dataUrl: string): void {
     localStorage.setItem(`erp_dir_student_avatar_${studentId}`, dataUrl);
   }
 
-  clearDirectoryStudentAvatar(studentId: string): void {
+  clearDirectoryStudentAvatar(studentId: number): void {
     localStorage.removeItem(`erp_dir_student_avatar_${studentId}`);
   }
 
-  getDirectoryTeacherAvatarDataUrl(teacherId: string): string | null {
+  getDirectoryTeacherAvatarDataUrl(teacherId: number): string | null {
     return localStorage.getItem(`erp_dir_teacher_avatar_${teacherId}`);
   }
 
-  setDirectoryTeacherAvatarDataUrl(teacherId: string, dataUrl: string): void {
+  setDirectoryTeacherAvatarDataUrl(teacherId: number, dataUrl: string): void {
     localStorage.setItem(`erp_dir_teacher_avatar_${teacherId}`, dataUrl);
   }
 
-  clearDirectoryTeacherAvatar(teacherId: string): void {
+  clearDirectoryTeacherAvatar(teacherId: number): void {
     localStorage.removeItem(`erp_dir_teacher_avatar_${teacherId}`);
   }
 
@@ -284,89 +406,7 @@ export class AuthService {
 
   fetchProfileSummary(): Observable<ProfileSummary> {
     if (runtimeConfig.useMocks) {
-      const user = this.getCurrentUser();
-      const summary: ProfileSummary = user?.role === 'teacher'
-        ? {
-            id: user.id,
-            name: user.name,
-            email: user.email,
-            phone: user.phone,
-            role: 'teacher',
-            tenantId: user.tenantId,
-            schoolName: 'Crescent Heights Academy',
-            schoolCode: 'SCH001',
-            schoolEmail: 'info@crescentheights.edu',
-            schoolPhone: '+1-555-1000',
-            schoolAddress: '245 Learning Avenue, Austin, TX',
-            primaryColor: '#1B3A30',
-            secondaryColor: '#C05C3D',
-            userTitle: 'Senior Mathematics Teacher',
-            qualification: 'M.Sc Mathematics',
-            specialization: 'Mathematics',
-            subjectCount: 3,
-            classTeacherOf: [
-              { classId: 'c5', className: 'Class 5', totalStudents: 0 },
-            ],
-          }
-        : user?.role === 'super_admin'
-          ? {
-              id: user.id,
-              name: user.name,
-              email: user.email,
-              phone: user.phone,
-              role: 'super_admin',
-              tenantId: user.tenantId,
-              schoolName: 'SchoolVault platform operations',
-              schoolCode: 'PLATFORM',
-              schoolEmail: 'platform@schoolvault.com',
-              schoolPhone: '+1-555-9000',
-              schoolAddress: 'Operating console — not a single campus tenant',
-              primaryColor: '#0F172A',
-              secondaryColor: '#0EA5E9',
-              userTitle: 'Platform super administrator',
-              platformWorkspaceCount: 4,
-              platformOperatorSince: '2024-08-12',
-              platformLastLoginDisplay: 'Today · 09:42 (browser session)',
-              platformTimezone: 'Asia/Kolkata (operator preference)',
-              platformMfaEnabled: true,
-              platformPrimaryRegion: 'IN · Primary data residency — multi-tenant EU/US shards available'
-            }
-        : user?.role === 'parent'
-          ? {
-              id: user.id,
-              name: user.name,
-              email: user.email,
-              phone: user.phone,
-              role: 'parent',
-              tenantId: user.tenantId,
-              schoolName: 'Crescent Heights Academy',
-              schoolCode: 'SCH001',
-              schoolEmail: 'info@crescentheights.edu',
-              schoolPhone: '+1-555-1000',
-              schoolAddress: '245 Learning Avenue, Austin, TX',
-              primaryColor: '#1B3A30',
-              secondaryColor: '#C05C3D',
-              userTitle: 'Parent Account',
-              childCount: 2
-            }
-          : {
-              id: user?.id ?? 'u1',
-              name: user?.name ?? 'John Anderson',
-              email: user?.email ?? 'admin@school.com',
-              phone: user?.phone ?? '+1-555-0101',
-              role: 'admin',
-              tenantId: user?.tenantId ?? 't1',
-              schoolName: 'Crescent Heights Academy',
-              schoolCode: 'SCH001',
-              schoolEmail: 'info@crescentheights.edu',
-              schoolPhone: '+1-555-1000',
-              schoolAddress: '245 Learning Avenue, Austin, TX',
-              primaryColor: '#1B3A30',
-              secondaryColor: '#C05C3D',
-              userTitle: 'School Administrator',
-              managedStudentCount: 2847,
-              managedTeacherCount: 124
-            };
+      const summary = buildMockProfileSummary(this.getCurrentUser());
       this.profileSummarySubject.next(summary);
       return of(summary).pipe(delay(200));
     }
@@ -374,7 +414,7 @@ export class AuthService {
       tap(summary =>
         this.profileSummarySubject.next({
           ...summary,
-          id: String(summary.id),
+          id: Number(summary.id),
           role: summary.role,
           platformWorkspaceCount: summary.platformWorkspaceCount ?? undefined,
           classTeacherOf: summary.classTeacherOf ?? undefined,

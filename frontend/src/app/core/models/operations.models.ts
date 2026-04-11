@@ -45,8 +45,8 @@ export interface InventoryRow {
 
 export interface FeeReminderRow {
   id: string;
-  studentId: string;
-  feePaymentId?: string;
+  studentId: number;
+  feePaymentId?: number;
   dueDate?: string;
   channel: string;
   status: string;
@@ -65,13 +65,13 @@ export interface PayrollAccrualSummary {
 }
 
 export interface AttendanceCoverRow {
-  id: string;
+  id: number;
   coverDate: string;
   periodNumber?: number;
-  classId: string;
-  sectionId?: string;
-  regularTeacherId?: string;
-  coveringTeacherId: string;
+  classId: number;
+  sectionId?: number;
+  regularTeacherId?: number;
+  coveringTeacherId: number;
   reason?: string;
   status: string;
 }

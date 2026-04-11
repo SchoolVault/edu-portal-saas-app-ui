@@ -2,16 +2,17 @@ import { Injectable } from '@angular/core';
 import { Observable, of } from 'rxjs';
 import { delay, map, switchMap } from 'rxjs/operators';
 import { AcademicYear, PromotionPreview, PromotionResult, PromotionSplitPreview, SchoolClass, SubjectCatalogItem } from '../models/models';
+import { MOCK_ACADEMIC_YEARS, MOCK_SCHOOL_CLASSES, MOCK_SUBJECT_CATALOG } from '../mocks/academic.mock-data';
 import { ApiService } from './api.service';
 import { StudentService } from './student.service';
 import { runtimeConfig } from '../config/runtime-config';
 
-/** Mirrors POST /academic/classes body (IDs as strings in UI; API uses numbers). */
+/** Mirrors POST /academic/classes body (ERP Long ids as JSON numbers). */
 export interface CreateClassPayload {
   name: string;
   grade: number;
-  academicYearId: string;
-  classTeacherId?: string | null;
+  academicYearId: number;
+  classTeacherId?: number | null;
   classTeacherName?: string | null;
   /** Omit or empty = whole-class (no section rows). */
   sectionNames?: string[];
@@ -20,42 +21,20 @@ export interface CreateClassPayload {
 
 @Injectable({ providedIn: 'root' })
 export class AcademicService {
-  private academicYears: AcademicYear[] = [
-    { id: 'ay1', name: '2025-2026', startDate: '2025-06-01', endDate: '2026-05-31', isCurrent: true, tenantId: 't1' },
-    { id: 'ay2', name: '2024-2025', startDate: '2024-06-01', endDate: '2025-05-31', isCurrent: false, tenantId: 't1' },
-  ];
+  private academicYears: AcademicYear[] = MOCK_ACADEMIC_YEARS.map(y => ({ ...y }));
 
   /** Same defaults as backend AcademicService.DEFAULT_SUBJECT_CATALOG (mock path). */
-  private mockSubjectCatalog: SubjectCatalogItem[] = [
-    { id: null, code: 'MATH', name: 'Mathematics', category: 'STEM' },
-    { id: null, code: 'PHY', name: 'Physics', category: 'STEM' },
-    { id: null, code: 'CHEM', name: 'Chemistry', category: 'STEM' },
-    { id: null, code: 'BIO', name: 'Biology', category: 'STEM' },
-    { id: null, code: 'CS', name: 'Computer Science', category: 'STEM' },
-    { id: null, code: 'ENG', name: 'English', category: 'Languages' },
-    { id: null, code: 'HIST', name: 'History', category: 'Social' },
-    { id: null, code: 'GEO', name: 'Geography', category: 'Social' },
-    { id: null, code: 'PE', name: 'Physical Education', category: 'Arts' },
-  ];
+  private mockSubjectCatalog: SubjectCatalogItem[] = MOCK_SUBJECT_CATALOG.map(s => ({ ...s }));
 
-  private classes: SchoolClass[] = [
-    { id: 'c0', name: 'Pre-Primary (whole class)', grade: 0, sections: [], academicYearId: 'ay1', tenantId: 't1' },
-    { id: 'c1', name: 'Class 1', grade: 1, sections: [{ id: 'sec1a', name: 'A', classId: 'c1', capacity: 40, studentCount: 35 }, { id: 'sec1b', name: 'B', classId: 'c1', capacity: 40, studentCount: 38 }], classTeacherId: 't7', classTeacherName: 'Aisha Khan', academicYearId: 'ay1', tenantId: 't1' },
-    { id: 'c2', name: 'Class 2', grade: 2, sections: [{ id: 'sec2a', name: 'A', classId: 'c2', capacity: 40, studentCount: 36 }], academicYearId: 'ay1', tenantId: 't1' },
-    { id: 'c3', name: 'Class 3', grade: 3, sections: [{ id: 'sec3a', name: 'A', classId: 'c3', capacity: 40, studentCount: 34 }, { id: 'sec3b', name: 'B', classId: 'c3', capacity: 40, studentCount: 37 }], academicYearId: 'ay1', tenantId: 't1' },
-    { id: 'c4', name: 'Class 4', grade: 4, sections: [{ id: 'sec4a', name: 'A', classId: 'c4', capacity: 40, studentCount: 39 }], academicYearId: 'ay1', tenantId: 't1' },
-    { id: 'c5', name: 'Class 5', grade: 5, sections: [{ id: 'sec5a', name: 'A', classId: 'c5', capacity: 40, studentCount: 38 }, { id: 'sec5b', name: 'B', classId: 'c5', capacity: 40, studentCount: 36 }], classTeacherId: 't2', classTeacherName: "James O'Brien", academicYearId: 'ay1', tenantId: 't1' },
-    { id: 'c6', name: 'Class 6', grade: 6, sections: [{ id: 'sec6a', name: 'A', classId: 'c6', capacity: 40, studentCount: 38 }, { id: 'sec6b', name: 'B', classId: 'c6', capacity: 40, studentCount: 36 }], classTeacherId: 't4', classTeacherName: 'Robert Kim', academicYearId: 'ay1', tenantId: 't1' },
-    { id: 'c7', name: 'Class 7', grade: 7, sections: [{ id: 'sec7a', name: 'A', classId: 'c7', capacity: 40, studentCount: 36 }, { id: 'sec7b', name: 'B', classId: 'c7', capacity: 40, studentCount: 34 }, { id: 'sec7c', name: 'C', classId: 'c7', capacity: 40, studentCount: 33 }], academicYearId: 'ay1', tenantId: 't1' },
-    { id: 'c8', name: 'Class 8', grade: 8, sections: [{ id: 'sec8a', name: 'A', classId: 'c8', capacity: 40, studentCount: 38 }, { id: 'sec8b', name: 'B', classId: 'c8', capacity: 40, studentCount: 37 }], classTeacherId: 't1', classTeacherName: 'Sarah Mitchell', academicYearId: 'ay1', tenantId: 't1' },
-    { id: 'c9', name: 'Class 9', grade: 9, sections: [{ id: 'sec9a', name: 'A', classId: 'c9', capacity: 40, studentCount: 35 }, { id: 'sec9b', name: 'B', classId: 'c9', capacity: 40, studentCount: 35 }], classTeacherId: 't3', classTeacherName: 'Priya Sharma', academicYearId: 'ay1', tenantId: 't1' },
-    { id: 'c10', name: 'Class 10', grade: 10, sections: [{ id: 'sec10a', name: 'A', classId: 'c10', capacity: 40, studentCount: 36 }, { id: 'sec10b', name: 'B', classId: 'c10', capacity: 40, studentCount: 35 }], classTeacherId: 't5', classTeacherName: 'Maria Torres', academicYearId: 'ay1', tenantId: 't1' },
-    { id: 'c11', name: 'Class 11', grade: 11, sections: [{ id: 'sec11a', name: 'A', classId: 'c11', capacity: 35, studentCount: 33 }, { id: 'sec11b', name: 'B', classId: 'c11', capacity: 35, studentCount: 32 }], classTeacherId: 't8', classTeacherName: 'Thomas Lee', academicYearId: 'ay1', tenantId: 't1' },
-    { id: 'c12', name: 'Class 12', grade: 12, sections: [{ id: 'sec12a', name: 'A', classId: 'c12', capacity: 35, studentCount: 31 }, { id: 'sec12b', name: 'B', classId: 'c12', capacity: 35, studentCount: 28 }], classTeacherId: 't1', classTeacherName: 'Sarah Mitchell', academicYearId: 'ay1', tenantId: 't1' },
-  ];
+  private classes: SchoolClass[] = MOCK_SCHOOL_CLASSES.map(c => ({
+    ...c,
+    sections: c.sections.map(sec => ({ ...sec })),
+  }));
 
   getAcademicYears(): Observable<AcademicYear[]> {
-    if (!runtimeConfig.useMocks) { return this.api.get<AcademicYear[]>('/academic/years'); }
+    if (!runtimeConfig.useMocks) {
+      return this.api.get<AcademicYear[]>('/academic/years');
+    }
     return of([...this.academicYears]).pipe(delay(300));
   }
 
@@ -81,8 +60,10 @@ export class AcademicService {
     }
     return of([...this.classes]).pipe(delay(400));
   }
-  getClassById(id: string): Observable<SchoolClass | undefined> {
-    if (!runtimeConfig.useMocks) { return this.api.get<any>('/academic/classes/' + id).pipe(map((c: any) => this.normalizeClass(c))); }
+  getClassById(id: number): Observable<SchoolClass | undefined> {
+    if (!runtimeConfig.useMocks) {
+      return this.api.get<any>('/academic/classes/' + id).pipe(map((c: any) => this.normalizeClass(c)));
+    }
     return of(this.classes.find(c => c.id === id)).pipe(delay(200));
   }
 
@@ -98,21 +79,21 @@ export class AcademicService {
         .post<any>('/academic/classes', {
           name: payload.name,
           grade: payload.grade,
-          academicYearId: Number(payload.academicYearId),
-          classTeacherId: payload.classTeacherId ? Number(payload.classTeacherId) : null,
+          academicYearId: payload.academicYearId,
+          classTeacherId: payload.classTeacherId ?? null,
           classTeacherName: payload.classTeacherName ?? null,
           sectionNames: names.length ? names : null,
           sectionCapacity: payload.sectionCapacity ?? 40,
         })
         .pipe(map((c: any) => this.normalizeClass(c)));
     }
-    const id = 'c' + Date.now();
+    const nextClassId = this.classes.reduce((m, c) => Math.max(m, c.id), 0) + 1;
     const cap = payload.sectionCapacity ?? 40;
     const names = (payload.sectionNames ?? []).map(s => s.trim()).filter(Boolean);
     const sections = names.map((n, i) => ({
-      id: `sec_${id}_${i}`,
+      id: nextClassId * 1000 + i + 1,
       name: n,
-      classId: id,
+      classId: nextClassId,
       capacity: cap,
       studentCount: 0,
     }));
@@ -123,7 +104,7 @@ export class AcademicService {
         }
       : {};
     const cls: SchoolClass = {
-      id,
+      id: nextClassId,
       name: payload.name,
       grade: payload.grade,
       sections,
@@ -135,7 +116,7 @@ export class AcademicService {
     return of({ ...cls }).pipe(delay(350));
   }
 
-  updateClass(classId: string, name: string, grade: number): Observable<SchoolClass> {
+  updateClass(classId: number, name: string, grade: number): Observable<SchoolClass> {
     if (!runtimeConfig.useMocks) {
       return this.api
         .put<any>(`/academic/classes/${classId}`, { name, grade })
@@ -147,21 +128,21 @@ export class AcademicService {
     return of({ ...this.classes[i] }).pipe(delay(250));
   }
 
-  addSectionToClass(classId: string, name: string, capacity: number): Observable<SchoolClass> {
+  addSectionToClass(classId: number, name: string, capacity: number): Observable<SchoolClass> {
     if (!runtimeConfig.useMocks) {
       return this.api
-        .post<any>('/academic/sections', { classId: Number(classId), name, capacity })
+        .post<any>('/academic/sections', { classId, name, capacity })
         .pipe(switchMap(() => this.getClassById(classId).pipe(map(c => c!))));
     }
     const ci = this.classes.findIndex(c => c.id === classId);
     if (ci === -1) return of(this.classes[0]).pipe(delay(200));
-    const secId = 'sec' + Date.now();
+    const secId = Date.now();
     const sec = { id: secId, name: name.trim(), classId, capacity, studentCount: 0 };
     this.classes[ci] = { ...this.classes[ci], sections: [...this.classes[ci].sections, sec] };
     return of({ ...this.classes[ci] }).pipe(delay(300));
   }
 
-  updateSection(classId: string, sectionId: string, name: string, capacity: number): Observable<SchoolClass> {
+  updateSection(classId: number, sectionId: number, name: string, capacity: number): Observable<SchoolClass> {
     if (!runtimeConfig.useMocks) {
       return this.api.put<any>(`/academic/sections/${sectionId}`, { name, capacity }).pipe(
         switchMap(() => this.getClassById(classId).pipe(map(c => c!)))
@@ -177,7 +158,7 @@ export class AcademicService {
     return of({ ...this.classes[ci] }).pipe(delay(250));
   }
 
-  deleteSection(classId: string, sectionId: string): Observable<SchoolClass | void> {
+  deleteSection(classId: number, sectionId: number): Observable<SchoolClass | void> {
     if (!runtimeConfig.useMocks) {
       return this.api.delete<void>(`/academic/sections/${sectionId}`).pipe(
         switchMap(() => this.getClassById(classId).pipe(map(c => c!)))
@@ -195,37 +176,40 @@ export class AcademicService {
   }
 
   addAcademicYear(ay: AcademicYear): Observable<AcademicYear> {
-    if (!runtimeConfig.useMocks) { return this.api.post<AcademicYear>('/academic/years', ay); }
+    if (!runtimeConfig.useMocks) {
+      return this.api.post<AcademicYear>('/academic/years', ay);
+    }
     this.academicYears.push(ay);
     return of(ay).pipe(delay(400));
   }
 
-  previewPromotion(fromClassId: string): Observable<PromotionPreview> {
+  previewPromotion(fromClassId: number): Observable<PromotionPreview> {
     if (!runtimeConfig.useMocks) {
       return this.api.get<any>(`/academic/promotion/preview?fromClassId=${fromClassId}`).pipe(
         map(preview => ({
-          sourceClassId: String(preview.sourceClassId),
+          sourceClassId: Number(preview.sourceClassId),
           sourceClassName: preview.sourceClassName,
-          targetClassId: String(preview.targetClassId),
+          targetClassId: Number(preview.targetClassId),
           targetClassName: preview.targetClassName,
-          defaultSectionId: preview.defaultSectionId != null ? String(preview.defaultSectionId) : undefined,
+          defaultSectionId:
+            preview.defaultSectionId != null ? Number(preview.defaultSectionId) : undefined,
           defaultSectionName: preview.defaultSectionName,
           targetSections: (preview.targetSections ?? []).map((s: any) => ({
-            id: String(s.id),
+            id: Number(s.id),
             name: s.name ?? '',
             capacity: s.capacity != null ? Number(s.capacity) : undefined,
           })),
           sectionPlacementNote: preview.sectionPlacementNote ?? undefined,
           students: (preview.students ?? []).map((student: any) => ({
-            studentId: String(student.studentId),
+            studentId: Number(student.studentId),
             firstName: student.firstName,
             lastName: student.lastName,
             rollNumber: student.rollNumber ?? '',
             currentClassName: student.currentClassName ?? '',
             averageScore: Number(student.averageScore ?? 0),
             eligible: !!student.eligible,
-            selected: !!student.eligible
-          }))
+            selected: !!student.eligible,
+          })),
         }))
       );
     }
@@ -241,7 +225,7 @@ export class AcademicService {
         return of({
           sourceClassId: fromClassId,
           sourceClassName: source?.name ?? '',
-          targetClassId: target?.id ?? '',
+          targetClassId: target?.id ?? 0,
           targetClassName: target?.name ?? '',
           defaultSectionId: defaultSec?.id,
           defaultSectionName: defaultSec?.name,
@@ -268,20 +252,25 @@ export class AcademicService {
     );
   }
 
-  executePromotion(sourceClassId: string, targetClassId: string, studentIds: string[], targetSectionId?: string): Observable<PromotionResult> {
+  executePromotion(
+    sourceClassId: number,
+    targetClassId: number,
+    studentIds: number[],
+    targetSectionId?: number
+  ): Observable<PromotionResult> {
     if (!runtimeConfig.useMocks) {
       return this.api.post<PromotionResult>('/academic/promotion/execute', {
-        sourceClassId: Number(sourceClassId),
-        targetClassId: Number(targetClassId),
-        targetSectionId: targetSectionId ? Number(targetSectionId) : null,
-        studentIds: studentIds.map(id => Number(id))
+        sourceClassId,
+        targetClassId,
+        targetSectionId: targetSectionId ?? null,
+        studentIds,
       });
     }
     const tgt = this.classes.find(c => c.id === targetClassId);
     let secName = '';
-    let secId: string | null | undefined = targetSectionId;
+    let secId: number | null | undefined = targetSectionId;
     if (tgt) {
-      if (targetSectionId) {
+      if (targetSectionId != null) {
         const sec = tgt.sections.find(s => s.id === targetSectionId);
         secName = sec?.name ?? '';
       } else if (tgt.sections.length) {
@@ -294,26 +283,26 @@ export class AcademicService {
       sourceClassId,
       targetClassId,
       studentIds,
-      secId || null,
+      secId ?? null,
       tgt?.name ?? '',
       secName
     );
   }
 
-  promotionSplitPreview(fromClassId: string, toClassId: string): Observable<PromotionSplitPreview> {
+  promotionSplitPreview(fromClassId: number, toClassId: number): Observable<PromotionSplitPreview> {
     if (!runtimeConfig.useMocks) {
       return this.api
         .get<any>(
-          `/academic/promotion/split-preview?fromClassId=${encodeURIComponent(fromClassId)}&toClassId=${encodeURIComponent(toClassId)}`
+          `/academic/promotion/split-preview?fromClassId=${encodeURIComponent(String(fromClassId))}&toClassId=${encodeURIComponent(String(toClassId))}`
         )
         .pipe(
           map((p: any) => ({
-            fromClassId: String(p.fromClassId),
-            toClassId: String(p.toClassId),
+            fromClassId: Number(p.fromClassId),
+            toClassId: Number(p.toClassId),
             eligibleStudentCount: Number(p.eligibleStudentCount ?? 0),
             hint: p.hint,
             sections: (p.sections ?? []).map((s: any) => ({
-              sectionId: String(s.sectionId),
+              sectionId: Number(s.sectionId),
               sectionName: s.sectionName ?? '',
               capacity: s.capacity != null ? Number(s.capacity) : undefined,
               suggestedAssignCount: Number(s.suggestedAssignCount ?? 0),
@@ -359,16 +348,18 @@ export class AcademicService {
     );
   }
 
-  assignClassTeacher(classId: string, teacherId: string | null, teacherName?: string): Observable<SchoolClass> {
+  assignClassTeacher(classId: number, teacherId: number | null, teacherName?: string): Observable<SchoolClass> {
     if (!runtimeConfig.useMocks) {
-      return this.api.put<any>(`/academic/classes/${classId}/teacher`, {
-        teacherId: teacherId ? Number(teacherId) : null,
-        teacherName: teacherName ?? null
-      }).pipe(map((cls: any) => this.normalizeClass(cls)));
+      return this.api
+        .put<any>(`/academic/classes/${classId}/teacher`, {
+          teacherId: teacherId ?? null,
+          teacherName: teacherName ?? null,
+        })
+        .pipe(map((cls: any) => this.normalizeClass(cls)));
     }
     const idx = this.classes.findIndex(c => c.id === classId);
     if (idx === -1) return of(this.classes[0]).pipe(delay(200));
-    if (teacherId) {
+    if (teacherId != null) {
       this.classes = this.classes.map(c =>
         c.id !== classId && c.classTeacherId === teacherId
           ? { ...c, classTeacherId: undefined, classTeacherName: undefined }
@@ -378,29 +369,29 @@ export class AcademicService {
     const i = this.classes.findIndex(c => c.id === classId);
     this.classes[i] = {
       ...this.classes[i],
-      classTeacherId: teacherId || undefined,
-      classTeacherName: teacherName || undefined
+      classTeacherId: teacherId ?? undefined,
+      classTeacherName: teacherName || undefined,
     };
     return of(this.classes[i]).pipe(delay(300));
   }
 
   private normalizeClass(raw: any): SchoolClass {
     const sections = (raw.sections ?? []).map((section: any) => ({
-      id: String(section.id),
+      id: Number(section.id),
       name: section.name,
-      classId: String(section.classId ?? raw.id),
+      classId: Number(section.classId ?? raw.id),
       capacity: section.capacity,
       studentCount: section.studentCount ?? 0,
     }));
     const sum = sections.reduce((s: number, x: { studentCount: number }) => s + (x.studentCount ?? 0), 0);
     const total = raw.totalStudents != null ? Number(raw.totalStudents) : sum;
     return {
-      id: String(raw.id),
+      id: Number(raw.id),
       name: raw.name,
       grade: raw.grade,
-      classTeacherId: raw.classTeacherId != null ? String(raw.classTeacherId) : undefined,
+      classTeacherId: raw.classTeacherId != null ? Number(raw.classTeacherId) : undefined,
       classTeacherName: raw.classTeacherName,
-      academicYearId: String(raw.academicYearId),
+      academicYearId: Number(raw.academicYearId),
       tenantId: raw.tenantId ?? '',
       sections,
       totalStudents: total,

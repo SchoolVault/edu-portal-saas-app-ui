@@ -1,28 +1,8 @@
-/**
- * Coerce UI / mock ids or numeric strings for Spring {@code Long} path/body fields.
- * Pure numeric strings use {@code Number} first; otherwise trailing digits are used (demo-friendly).
- */
-export function coerceApiLongId(raw: string | number | null | undefined, fieldLabel: string): number {
-  if (raw == null || raw === '') {
-    throw new Error(`${fieldLabel} id is required`);
+/** Normalizes API / route ids (number or numeric string) to a finite number. */
+export function coerceApiLongId(value: unknown, label?: string): number {
+  const n = typeof value === 'string' ? Number(value) : Number(value);
+  if (!Number.isFinite(n)) {
+    throw new Error(label ? `Invalid ${label} id` : 'Invalid id');
   }
-  if (typeof raw === 'number') {
-    if (!Number.isFinite(raw) || raw <= 0) {
-      throw new Error(`Invalid ${fieldLabel} id`);
-    }
-    return raw;
-  }
-  const s = String(raw).trim();
-  const n = Number(s);
-  if (Number.isFinite(n) && n > 0) {
-    return n;
-  }
-  const m = /(\d+)$/.exec(s);
-  if (m) {
-    const v = Number(m[1]);
-    if (Number.isFinite(v) && v > 0) {
-      return v;
-    }
-  }
-  throw new Error(`Invalid ${fieldLabel} id for server: "${raw}"`);
+  return n;
 }

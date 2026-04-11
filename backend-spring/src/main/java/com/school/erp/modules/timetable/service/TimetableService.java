@@ -1,7 +1,17 @@
 package com.school.erp.modules.timetable.service;
 
+import com.school.erp.common.enums.Enums;
 import com.school.erp.common.exception.BusinessException;
 import com.school.erp.common.exception.ResourceNotFoundException;
+import com.school.erp.modules.academic.entity.SchoolClass;
+import com.school.erp.modules.academic.entity.Section;
+import com.school.erp.modules.academic.repository.SchoolClassRepository;
+import com.school.erp.modules.academic.repository.SectionRepository;
+import com.school.erp.modules.attendance.entity.AttendanceCoverAssignment;
+import com.school.erp.modules.attendance.repository.AttendanceCoverAssignmentRepository;
+import com.school.erp.modules.teacher.entity.Teacher;
+import com.school.erp.modules.teacher.repository.TeacherRepository;
+import com.school.erp.modules.timetable.dto.TeacherScheduleSlot;
 import com.school.erp.modules.timetable.dto.TimetableDTOs;
 import com.school.erp.modules.timetable.entity.TimetableEntry;
 import com.school.erp.modules.timetable.repository.TimetableRepository;
@@ -9,6 +19,8 @@ import com.school.erp.tenant.TenantContext;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
+import java.time.LocalTime;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -18,6 +30,10 @@ public class TimetableService {
     private static final List<String> DEFAULT_DAYS = List.of("MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY");
     private static final List<Integer> DEFAULT_PERIODS = List.of(1, 2, 3, 4, 5, 6, 7, 8);
     private final TimetableRepository repo;
+    private final AttendanceCoverAssignmentRepository coverRepo;
+    private final SchoolClassRepository schoolClassRepository;
+    private final SectionRepository sectionRepository;
+    private final TeacherRepository teacherRepository;
 
     @Transactional(readOnly = true)
     public List<TimetableEntry> getByClassAndSection(Long classId, Long sectionId) {
@@ -35,6 +51,146 @@ public class TimetableService {
         List<TimetableEntry> list = repo.findByTenantIdAndTeacherIdAndIsDeletedFalse(t, teacherId);
         log.debug("Teacher timetable entry count={} teacherId={}", list.size(), teacherId);
         return list;
+    }
+
+    /**
+     * Teacher schedule: recurring weekly rows plus optional one-day {@code COVER} slots for {@code forDate}.
+     * Cover rows override the same weekday/period recurring slot for that calendar day only (response is date-scoped).
+     */
+    @Transactional(readOnly = true)
+    public List<TeacherScheduleSlot> getTeacherSchedule(Long teacherId, LocalDate forDate) {
+        if (forDate == null) {
+            return getByTeacher(teacherId).stream().map(this::toRecurringSlot).collect(Collectors.toList());
+        }
+        String tenantId = TenantContext.getTenantId();
+        Enums.DayOfWeek dow = Enums.DayOfWeek.valueOf(forDate.getDayOfWeek().name());
+        List<TeacherScheduleSlot> recurring = getByTeacher(teacherId).stream().map(this::toRecurringSlot).collect(Collectors.toList());
+
+        String coveringName = teacherRepository.findByIdAndTenantIdAndIsDeletedFalse(teacherId, tenantId)
+                .map(te -> (te.getFirstName() + " " + te.getLastName()).trim())
+                .orElse("");
+
+        List<AttendanceCoverAssignment> covers = coverRepo.findByTenantIdAndCoverDateAndCoveringTeacherIdAndStatusAndIsDeletedFalse(
+                tenantId, forDate, teacherId, "ACTIVE");
+
+        List<TeacherScheduleSlot> coverSlots = new ArrayList<>();
+        for (AttendanceCoverAssignment cover : covers) {
+            TimetableEntry template = resolveCoverTemplate(cover, dow, tenantId);
+            coverSlots.add(buildCoverSlot(cover, forDate, dow, template, coveringName, teacherId, tenantId));
+        }
+
+        Set<String> occupied = coverSlots.stream()
+                .map(s -> s.getDay() + "|" + s.getPeriod())
+                .collect(Collectors.toSet());
+
+        List<TeacherScheduleSlot> merged = new ArrayList<>(coverSlots);
+        for (TeacherScheduleSlot r : recurring) {
+            if (!occupied.contains(r.getDay() + "|" + r.getPeriod())) {
+                merged.add(r);
+            }
+        }
+        log.info("Teacher schedule merged teacherId={} forDate={} recurring={} covers={} out={}",
+                teacherId, forDate, recurring.size(), coverSlots.size(), merged.size());
+        return merged;
+    }
+
+    private TimetableEntry resolveCoverTemplate(AttendanceCoverAssignment cover, Enums.DayOfWeek dow, String tenantId) {
+        if (cover.getTimetableEntryId() != null) {
+            Optional<TimetableEntry> linked = repo.findByIdAndTenantIdAndIsDeletedFalse(cover.getTimetableEntryId(), tenantId);
+            if (linked.isPresent()) {
+                return linked.get();
+            }
+        }
+        List<TimetableEntry> classSlots = repo.findForTenantClassAndOptionalSection(tenantId, cover.getClassId(), cover.getSectionId());
+        if (cover.getPeriodNumber() != null) {
+            Optional<TimetableEntry> byPeriod = classSlots.stream()
+                    .filter(e -> e.getDay() == dow && Objects.equals(e.getPeriod(), cover.getPeriodNumber()))
+                    .findFirst();
+            if (byPeriod.isPresent()) {
+                return byPeriod.get();
+            }
+        }
+        if (cover.getRegularTeacherId() != null) {
+            Optional<TimetableEntry> byRegular = classSlots.stream()
+                    .filter(e -> e.getDay() == dow && Objects.equals(e.getTeacherId(), cover.getRegularTeacherId()))
+                    .findFirst();
+            if (byRegular.isPresent()) {
+                return byRegular.get();
+            }
+        }
+        return classSlots.stream().filter(e -> e.getDay() == dow).findFirst().orElse(null);
+    }
+
+    private TeacherScheduleSlot buildCoverSlot(
+            AttendanceCoverAssignment cover,
+            LocalDate forDate,
+            Enums.DayOfWeek dow,
+            TimetableEntry template,
+            String coveringTeacherName,
+            Long coveringTeacherId,
+            String tenantId) {
+        TeacherScheduleSlot s = new TeacherScheduleSlot();
+        s.setId(-cover.getId());
+        s.setScheduleSource("COVER");
+        s.setCoverForDate(forDate.toString());
+        s.setClassId(cover.getClassId());
+        s.setSectionId(cover.getSectionId());
+        s.setDay(dow.name());
+        s.setTeacherId(coveringTeacherId);
+        s.setTeacherName(coveringTeacherName);
+
+        int period = template != null ? template.getPeriod()
+                : (cover.getPeriodNumber() != null ? cover.getPeriodNumber() : 1);
+        s.setPeriod(period);
+
+        if (template != null && template.getStartTime() != null) {
+            s.setStartTime(fmtTime(template.getStartTime()));
+            s.setEndTime(fmtTime(template.getEndTime()));
+        } else {
+            s.setStartTime("09:00");
+            s.setEndTime("09:45");
+        }
+
+        String classLabel = schoolClassRepository.findByIdAndTenantIdAndIsDeletedFalse(cover.getClassId(), tenantId)
+                .map(SchoolClass::getName)
+                .orElse("Class");
+        String secSuffix = "";
+        if (cover.getSectionId() != null) {
+            secSuffix = sectionRepository.findByIdAndTenantIdAndIsDeletedFalse(cover.getSectionId(), tenantId)
+                    .map(Section::getName)
+                    .map(n -> " · " + n)
+                    .orElse("");
+        }
+        String baseSubject = template != null ? template.getSubjectName() : "Cover session";
+        s.setSubjectName(baseSubject + " · Cover (" + classLabel + secSuffix + ")");
+        s.setRoom(template != null && template.getRoom() != null ? template.getRoom() : "");
+        return s;
+    }
+
+    private TeacherScheduleSlot toRecurringSlot(TimetableEntry e) {
+        TeacherScheduleSlot s = new TeacherScheduleSlot();
+        s.setId(e.getId());
+        s.setClassId(e.getClassId());
+        s.setSectionId(e.getSectionId());
+        s.setDay(e.getDay().name());
+        s.setPeriod(e.getPeriod());
+        s.setStartTime(fmtTime(e.getStartTime()));
+        s.setEndTime(fmtTime(e.getEndTime()));
+        s.setSubjectName(e.getSubjectName());
+        s.setTeacherId(e.getTeacherId());
+        s.setTeacherName(e.getTeacherName());
+        s.setRoom(e.getRoom() != null ? e.getRoom() : "");
+        s.setScheduleSource("RECURRING");
+        s.setCoverForDate(null);
+        return s;
+    }
+
+    private static String fmtTime(LocalTime t) {
+        if (t == null) {
+            return "";
+        }
+        String str = t.toString();
+        return str.length() >= 5 ? str.substring(0, 5) : str;
     }
 
     @Transactional(readOnly = true)
@@ -133,7 +289,16 @@ public class TimetableService {
         return saved;
     }
 
-    public TimetableService(final TimetableRepository repo) {
+    public TimetableService(
+            TimetableRepository repo,
+            AttendanceCoverAssignmentRepository coverRepo,
+            SchoolClassRepository schoolClassRepository,
+            SectionRepository sectionRepository,
+            TeacherRepository teacherRepository) {
         this.repo = repo;
+        this.coverRepo = coverRepo;
+        this.schoolClassRepository = schoolClassRepository;
+        this.sectionRepository = sectionRepository;
+        this.teacherRepository = teacherRepository;
     }
 }

@@ -1,10 +1,10 @@
 /**
- * Production build: always talks to the real API (`useMocks` is always false).
- * Optional runtime override: `/config.json` may set `apiUrl` only (e.g. CDN → API on Render).
- * School data (including a dedicated “demo showcase” tenant) lives in the database, not the UI.
+ * Production: real API only. Mock TTL keys are ignored when `useMocks` is false.
  */
 export const environment = {
   production: true,
   useMocks: false,
-  apiUrl: '/api/v1'
+  apiUrl: '/api/v1',
+  mockSessionAccessTtlMs: 86_400_000,
+  mockSessionRefreshTtlMs: 604_800_000
 };

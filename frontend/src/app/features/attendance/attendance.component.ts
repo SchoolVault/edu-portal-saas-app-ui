@@ -40,15 +40,21 @@ import { ErpDatePickerComponent } from '../../shared/erp-date-picker/erp-date-pi
           <div class="col-md-3">
             <label class="erp-label">Class</label>
             <select class="erp-select" [(ngModel)]="selectedClassId" (change)="onClassChange()" data-testid="attendance-class-select">
-              <option value="">Select Class</option>
-              <option *ngFor="let cls of classes" [value]="cls.id">{{ cls.name }}</option>
+              <option [ngValue]="null">Select Class</option>
+              <option *ngFor="let cls of classes" [ngValue]="cls.id">{{ cls.name }}</option>
             </select>
           </div>
           <div class="col-md-3">
             <label class="erp-label">Section</label>
-            <select class="erp-select" [(ngModel)]="selectedSectionId" (change)="onSectionChange()" data-testid="attendance-section-select">
-              <option value="">Select Section</option>
-              <option *ngFor="let sec of sections" [value]="sec.id">{{ sec.name }}</option>
+            <select
+              class="erp-select"
+              [(ngModel)]="selectedSectionId"
+              (change)="onSectionChange()"
+              data-testid="attendance-section-select"
+              [disabled]="sectionSelectDisabled"
+            >
+              <option [ngValue]="null">Select Section</option>
+              <option *ngFor="let sec of sections" [ngValue]="sec.id">{{ sec.name }}</option>
             </select>
           </div>
           <div class="col-md-3">
@@ -132,7 +138,7 @@ import { ErpDatePickerComponent } from '../../shared/erp-date-picker/erp-date-pi
         </table>
       </div>
 
-      <div *ngIf="!records.length && selectedClassId" class="erp-card animate-in">
+      <div *ngIf="!records.length && selectedClassId != null" class="erp-card animate-in">
         <div class="empty-state">
           <i class="bi bi-calendar-check"></i>
           <h3>Select a class and section</h3>
@@ -144,9 +150,9 @@ import { ErpDatePickerComponent } from '../../shared/erp-date-picker/erp-date-pi
 })
 export class AttendanceComponent implements OnInit {
   classes: SchoolClass[] = [];
-  sections: { id: string; name: string }[] = [];
-  selectedClassId = '';
-  selectedSectionId = '';
+  sections: { id: number; name: string }[] = [];
+  selectedClassId: number | null = null;
+  selectedSectionId: number | null = null;
   selectedDate = new Date().toISOString().split('T')[0];
   records: AttendanceRecord[] = [];
   saving = false;
@@ -174,7 +180,7 @@ export class AttendanceComponent implements OnInit {
   ) {}
 
   /** Teacher record id linked to the signed-in user (for class-teacher checks). */
-  private linkedTeacherId: string | null = null;
+  private linkedTeacherId: number | null = null;
   /** False until teacher roster fetch completes (avoids skipping the homeroom warning on fast save). */
   teacherRosterResolved = false;
   /** Admin-only: after opening a past date, edits are blocked until user explicitly enables edit mode. */
@@ -255,6 +261,12 @@ export class AttendanceComponent implements OnInit {
     return 'Save attendance';
   }
 
+  /** No real sections: roster uses section id 0; dropdown is disabled. */
+  get sectionSelectDisabled(): boolean {
+    const cls = this.classes.find(c => c.id === this.selectedClassId);
+    return !cls || cls.sections.length === 0;
+  }
+
   private isPastDate(isoDate: string): boolean {
     const d = new Date(isoDate + 'T12:00:00');
     const t = new Date();
@@ -271,28 +283,54 @@ export class AttendanceComponent implements OnInit {
   onClassChange(): void {
     this.adminPastEditing = false;
     const cls = this.classes.find(c => c.id === this.selectedClassId);
-    this.sections = cls ? cls.sections.map(s => ({ id: s.id, name: s.name })) : [];
-    this.selectedSectionId = '';
+    if (!cls) {
+      this.sections = [];
+      this.selectedSectionId = null;
+      this.records = [];
+      return;
+    }
+    if (cls.sections.length === 0) {
+      this.sections = [{ id: 0, name: 'Whole class' }];
+      this.selectedSectionId = 0;
+    } else {
+      this.sections = cls.sections.map(s => ({ id: s.id, name: s.name }));
+      this.selectedSectionId = null;
+    }
     this.records = [];
+    this.loadAttendance();
   }
 
   loadAttendance(): void {
-    if (!this.selectedClassId || !this.selectedSectionId) return;
-    this.studentService.getStudentsByClassAndSection(this.selectedClassId, this.selectedSectionId).subscribe(sectionStudents => {
-      this.attendanceService.getAttendanceByClassAndDate(this.selectedClassId, this.selectedSectionId, this.selectedDate).subscribe(existing => {
+    if (this.selectedClassId == null) return;
+    const cls = this.classes.find(c => c.id === this.selectedClassId);
+    if (!cls) return;
+    const sectionId =
+      cls.sections.length === 0
+        ? 0
+        : this.selectedSectionId != null && this.selectedSectionId !== 0
+          ? this.selectedSectionId
+          : null;
+    if (sectionId == null) return;
+    const classId = this.selectedClassId;
+    this.studentService.getStudentsByClassAndSection(classId, sectionId).subscribe(sectionStudents => {
+      this.attendanceService.getAttendanceByClassAndDate(classId, sectionId, this.selectedDate).subscribe(existing => {
+        const me = this.auth.getCurrentUser();
+        const markedBy = me?.id ?? 0;
         this.records = sectionStudents.map(s => {
           const ex = existing.find(e => e.studentId === s.id);
-          return ex || {
-            id: 'att-' + s.id + '-' + this.selectedDate,
-            studentId: s.id,
-            studentName: s.firstName + ' ' + s.lastName,
-            classId: this.selectedClassId,
-            sectionId: this.selectedSectionId,
-            date: this.selectedDate,
-            status: 'present' as const,
-            markedBy: 'u1',
-            tenantId: 't1'
-          };
+          return (
+            ex || {
+              id: 800_000 + s.id,
+              studentId: s.id,
+              studentName: s.firstName + ' ' + s.lastName,
+              classId,
+              sectionId,
+              date: this.selectedDate,
+              status: 'present' as const,
+              markedBy,
+              tenantId: 't1',
+            }
+          );
         });
       });
     });
@@ -300,31 +338,40 @@ export class AttendanceComponent implements OnInit {
 
   private isClassTeacherForCurrentClass(): boolean {
     const cls = this.classes.find(c => c.id === this.selectedClassId);
-    if (!cls?.classTeacherId || !this.linkedTeacherId) {
+    if (cls?.classTeacherId == null || this.linkedTeacherId == null) {
       return false;
     }
-    return String(cls.classTeacherId) === String(this.linkedTeacherId);
+    return cls.classTeacherId === this.linkedTeacherId;
   }
 
   private hasActiveCoverForSelection(): boolean {
-    if (!this.linkedTeacherId || !this.selectedClassId) {
+    if (this.linkedTeacherId == null || this.selectedClassId == null) {
       return false;
     }
+    const sec = this.effectiveSectionIdForCover();
+    if (sec == null) return false;
     return this.myCovers.some(c => {
       if (c.coverDate !== this.selectedDate) {
         return false;
       }
-      if (String(c.classId) !== String(this.selectedClassId)) {
+      if (c.classId !== this.selectedClassId) {
         return false;
       }
-      if (String(c.coveringTeacherId) !== String(this.linkedTeacherId)) {
+      if (c.coveringTeacherId !== this.linkedTeacherId) {
         return false;
       }
-      if (!c.sectionId) {
+      if (c.sectionId == null) {
         return true;
       }
-      return String(c.sectionId) === String(this.selectedSectionId);
+      return c.sectionId === sec;
     });
+  }
+
+  private effectiveSectionIdForCover(): number | null {
+    const cls = this.classes.find(c => c.id === this.selectedClassId);
+    if (!cls) return null;
+    if (cls.sections.length === 0) return 0;
+    return this.selectedSectionId != null && this.selectedSectionId !== 0 ? this.selectedSectionId : null;
   }
 
   saveAttendance(): void {
@@ -353,7 +400,7 @@ export class AttendanceComponent implements OnInit {
             details: [
               `Date: ${this.selectedDate}`,
               cls ? `Class: ${cls.name}` : undefined,
-              this.selectedSectionId ? `Section id: ${this.selectedSectionId}` : undefined,
+              this.effectiveSectionIdForCover() != null ? `Section id: ${this.effectiveSectionIdForCover()}` : undefined,
             ].filter((x): x is string => !!x),
             variant: 'warning',
             confirmLabel: 'Yes, submit attendance',
@@ -382,7 +429,7 @@ export class AttendanceComponent implements OnInit {
           details: [
             `Date: ${this.selectedDate}`,
             cls ? `Class: ${cls.name}` : undefined,
-            this.selectedSectionId ? `Section id: ${this.selectedSectionId}` : undefined,
+            this.effectiveSectionIdForCover() != null ? `Section id: ${this.effectiveSectionIdForCover()}` : undefined,
           ].filter((x): x is string => !!x),
           variant: 'warning',
           confirmLabel: 'Yes, submit attendance',
@@ -406,7 +453,7 @@ export class AttendanceComponent implements OnInit {
           details: [
             `Date: ${this.selectedDate}`,
             cls ? `Class: ${cls.name}` : undefined,
-            this.selectedSectionId ? `Section: ${this.selectedSectionId}` : undefined,
+            this.effectiveSectionIdForCover() != null ? `Section: ${this.effectiveSectionIdForCover()}` : undefined,
             `Rows: ${this.records.length}`,
           ].filter((x): x is string => !!x),
           variant: 'warning',

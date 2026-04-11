@@ -2,6 +2,7 @@ package com.school.erp.modules.chat.dto;
 
 import java.util.List;
 
+/** Frontend mirror: {@code frontend/src/app/core/models/chat-directory.dto.ts} ({@code ChatDirectoryDtos}). */
 public class ChatDirectoryDTOs {
     public static class DirectoryResponse {
         private List<ClassRoster> myClassRosters;       // teacher/admin

@@ -1,6 +1,7 @@
 import { Injectable } from '@angular/core';
 import { Observable, of } from 'rxjs';
 import { map } from 'rxjs/operators';
+import { MOCK_HOSTEL_BUILDINGS_SEED, MOCK_HOSTEL_ROOMS_SEED } from '../mocks/hostel.mock-data';
 import { HostelBuilding, HostelResident, HostelRoom } from '../models/models';
 import { ApiService } from './api.service';
 import { runtimeConfig } from '../config/runtime-config';
@@ -13,60 +14,12 @@ export interface HostelStats {
   blocks: number;
 }
 
-let MOCK_BUILDINGS: HostelBuilding[] = [
-  { id: 'h1', name: 'Boys Hostel BH1', code: 'BH1', genderScope: 'MALE', roomCount: 2, availableBeds: 3 },
-  { id: 'h2', name: 'Boys Hostel BH2', code: 'BH2', genderScope: 'MALE', roomCount: 1, availableBeds: 2 },
-  { id: 'h3', name: 'Girls Hostel GH1', code: 'GH1', genderScope: 'FEMALE', roomCount: 1, availableBeds: 1 }
-];
+let MOCK_BUILDINGS: HostelBuilding[] = MOCK_HOSTEL_BUILDINGS_SEED.map(b => ({ ...b }));
 
-let MOCK_ROOMS: HostelRoom[] = [
-  {
-    id: 'hr1',
-    roomNumber: 'A-101',
-    block: 'Block A',
-    floor: 1,
-    capacity: 4,
-    occupancy: 3,
-    type: 'four',
-    hostelId: 'h1',
-    hostelName: 'Boys Hostel BH1',
-    tenantId: 't1',
-    residents: [
-      { allocationId: 'ha1', studentId: '1', studentName: 'Alex Kumar' },
-      { allocationId: 'ha2', studentId: '2', studentName: 'Ben Lee' },
-      { allocationId: 'ha3', studentId: '3', studentName: 'Chris Park' }
-    ]
-  },
-  {
-    id: 'hr2',
-    roomNumber: 'A-102',
-    block: 'Block A',
-    floor: 1,
-    capacity: 2,
-    occupancy: 2,
-    type: 'double',
-    hostelId: 'h1',
-    hostelName: 'Boys Hostel BH1',
-    tenantId: 't1',
-    residents: [
-      { allocationId: 'ha4', studentId: '4', studentName: 'Dan Ross' },
-      { allocationId: 'ha5', studentId: '5', studentName: 'Evan Singh' }
-    ]
-  },
-  {
-    id: 'hr3',
-    roomNumber: 'B-101',
-    block: 'Block B',
-    floor: 1,
-    capacity: 1,
-    occupancy: 0,
-    type: 'single',
-    hostelId: 'h2',
-    hostelName: 'Boys Hostel BH2',
-    tenantId: 't1',
-    residents: []
-  }
-];
+let MOCK_ROOMS: HostelRoom[] = MOCK_HOSTEL_ROOMS_SEED.map(r => ({
+  ...r,
+  residents: (r.residents || []).map(x => ({ ...x })),
+}));
 
 function recomputeMockStats(): HostelStats {
   const totalRooms = MOCK_ROOMS.length;
@@ -231,7 +184,7 @@ export class HostelService {
     return this.api.put<any>(`/hostel/rooms/${roomId}`, payload).pipe(map(r => this.normalizeRoom(r)));
   }
 
-  allocate(body: { roomId: string; studentId: string; studentName?: string; fromDate?: string; toDate?: string }): Observable<void> {
+  allocate(body: { roomId: string; studentId: number; studentName?: string; fromDate?: string; toDate?: string }): Observable<void> {
     if (runtimeConfig.useMocks) {
       const room = MOCK_ROOMS.find(r => r.id === body.roomId);
       if (!room || room.occupancy >= room.capacity) {
@@ -255,7 +208,7 @@ export class HostelService {
     }
     return this.api.post<void>('/hostel/allocate', {
       roomId: Number(body.roomId),
-      studentId: Number(body.studentId),
+      studentId: body.studentId,
       studentName: body.studentName,
       fromDate: body.fromDate || null,
       toDate: body.toDate || null
@@ -281,8 +234,8 @@ export class HostelService {
 
   private normalizeRoom(r: any): HostelRoom {
     const residents = (r.residents ?? []).map((a: any) => ({
-      allocationId: String(a.id),
-      studentId: String(a.studentId),
+      allocationId: String(a.id ?? a.allocationId),
+      studentId: Number(a.studentId),
       studentName: a.studentName ?? '',
       fromDate: a.fromDate,
       toDate: a.toDate

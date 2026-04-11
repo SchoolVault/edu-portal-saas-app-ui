@@ -1,6 +1,7 @@
 import { Injectable } from '@angular/core';
 import { Observable, of, throwError } from 'rxjs';
 import { delay, map } from 'rxjs/operators';
+import { MOCK_OPERATIONS_INVENTORY_SEED, MOCK_OPERATIONS_STAFF_SEED, mockPayrollAccrualSummary } from '../mocks/operations.mock-data';
 import { ApiService } from './api.service';
 import { runtimeConfig } from '../config/runtime-config';
 import {
@@ -15,13 +16,10 @@ import {
 
 @Injectable({ providedIn: 'root' })
 export class OperationsService {
-  private mockStaff: OperationalStaffRow[] = [
-    { id: '1', staffRole: 'DRIVER', fullName: 'Rahim Khan', phone: '+91-900001', employeeCode: 'DRV-01', transportRouteId: '10' },
-    { id: '2', staffRole: 'SECURITY', fullName: 'Anita Desai', phone: '+91-900002', employeeCode: 'SEC-02' },
-  ];
+  private mockStaff: OperationalStaffRow[] = MOCK_OPERATIONS_STAFF_SEED.map(s => ({ ...s }));
   private mockVisitors: VisitorLogRow[] = [];
   private mockGate: GatePassRow[] = [];
-  private mockInv: InventoryRow[] = [{ id: '1', sku: 'CHALK-01', name: 'White chalk box', category: 'Supplies', quantityOnHand: 40, reorderLevel: 10, location: 'Store A' }];
+  private mockInv: InventoryRow[] = MOCK_OPERATIONS_INVENTORY_SEED.map(r => ({ ...r }));
   private mockRem: FeeReminderRow[] = [];
   private mockCovers: AttendanceCoverRow[] = [];
   private nextId = 100;
@@ -192,7 +190,7 @@ export class OperationsService {
     return this.api.get<FeeReminderRow[]>(`/operations/fee-reminders${q}`);
   }
 
-  enqueueFeeReminder(body: { studentId: string; feePaymentId?: string; dueDate?: string; channel?: string }): Observable<FeeReminderRow> {
+  enqueueFeeReminder(body: { studentId: number; feePaymentId?: number; dueDate?: string; channel?: string }): Observable<FeeReminderRow> {
     if (runtimeConfig.useMocks) {
       const row: FeeReminderRow = {
         id: String(this.nextId++),
@@ -207,8 +205,8 @@ export class OperationsService {
       return of(row).pipe(delay(200));
     }
     return this.api.post<FeeReminderRow>('/operations/fee-reminders', {
-      studentId: Number(body.studentId),
-      feePaymentId: body.feePaymentId ? Number(body.feePaymentId) : undefined,
+      studentId: body.studentId,
+      feePaymentId: body.feePaymentId,
       dueDate: body.dueDate,
       channel: body.channel,
     });
@@ -219,7 +217,7 @@ export class OperationsService {
    * Production: no-op (returns 0); a real job would call the messaging provider from the server.
    */
   syncAutoRemindersForOutstandingFees(
-    payments: Array<{ id: string; studentId: string; dueDate?: string; dueAmount: number }>,
+    payments: Array<{ id: number; studentId: number; dueDate?: string; dueAmount: number }>,
     withinDays = 14
   ): Observable<number> {
     if (!runtimeConfig.useMocks) {
@@ -254,14 +252,7 @@ export class OperationsService {
 
   payrollAccrualSummary(period?: string): Observable<PayrollAccrualSummary> {
     if (runtimeConfig.useMocks) {
-      return of({
-        periodLabel: period || '2026-04',
-        grossAccrued: 0,
-        deductionsAccrued: 0,
-        netAccrued: 0,
-        employeeCount: 0,
-        notes: ['Mock: wire to payroll posting service when ready.'],
-      }).pipe(delay(200));
+      return of(mockPayrollAccrualSummary(period)).pipe(delay(200));
     }
     const q = period ? `?period=${encodeURIComponent(period)}` : '';
     return this.api.get<PayrollAccrualSummary>(`/operations/payroll-accrual/summary${q}`);
@@ -281,16 +272,16 @@ export class OperationsService {
 
   createAttendanceCover(body: {
     coverDate: string;
-    classId: string;
-    sectionId?: string;
-    regularTeacherId?: string;
-    coveringTeacherId: string;
+    classId: number;
+    sectionId?: number;
+    regularTeacherId?: number;
+    coveringTeacherId: number;
     reason?: string;
     periodNumber?: number;
   }): Observable<AttendanceCoverRow> {
     if (runtimeConfig.useMocks) {
       const row: AttendanceCoverRow = {
-        id: String(this.nextId++),
+        id: this.nextId++,
         coverDate: body.coverDate,
         periodNumber: body.periodNumber,
         classId: body.classId,
@@ -305,16 +296,16 @@ export class OperationsService {
     }
     return this.api.post<AttendanceCoverRow>('/attendance/covers', {
       coverDate: body.coverDate,
-      classId: Number(body.classId),
-      sectionId: body.sectionId ? Number(body.sectionId) : null,
-      regularTeacherId: body.regularTeacherId ? Number(body.regularTeacherId) : null,
-      coveringTeacherId: Number(body.coveringTeacherId),
+      classId: body.classId,
+      sectionId: body.sectionId ?? null,
+      regularTeacherId: body.regularTeacherId ?? null,
+      coveringTeacherId: body.coveringTeacherId,
       reason: body.reason,
       periodNumber: body.periodNumber ?? null,
     });
   }
 
-  cancelAttendanceCover(id: string): Observable<void> {
+  cancelAttendanceCover(id: number): Observable<void> {
     if (runtimeConfig.useMocks) {
       this.mockCovers = this.mockCovers.map(c => (c.id === id ? { ...c, status: 'CANCELLED' } : c));
       return of(undefined).pipe(delay(120));

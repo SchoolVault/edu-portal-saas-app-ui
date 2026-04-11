@@ -8,6 +8,7 @@ import java.math.BigDecimal;
 /**
  * Request/response contracts for hosted checkout (Razorpay, Stripe, …).
  * Aligns with {@code fee_payment_attempts} and future payroll payout flows.
+ * Frontend mirror: {@code frontend/src/app/core/models/payment.dto.ts} ({@code PaymentDtos}).
  */
 public final class PaymentDTOs {
 

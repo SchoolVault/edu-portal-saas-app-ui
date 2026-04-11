@@ -1,6 +1,11 @@
 import { Injectable } from '@angular/core';
 import { Observable, of, throwError } from 'rxjs';
 import { map } from 'rxjs/operators';
+import {
+  MOCK_PAYROLL_STRUCTURES,
+  MOCK_PAYROLL_TEACHER_PAYMENT_DETAILS,
+  MOCK_PAYSLIP_GENERATION_TEMPLATES,
+} from '../mocks/payroll.mock-data';
 import { Payslip, SalaryStructure, TeacherPaymentDetails } from '../models/models';
 import { ApiService } from './api.service';
 import { runtimeConfig } from '../config/runtime-config';
@@ -20,61 +25,25 @@ export class PayrollService {
 
   getStructures(): Observable<SalaryStructure[]> {
     if (runtimeConfig.useMocks) {
-      return of([
-        {
-          id: 'ss1',
-          teacherId: 't1',
-          teacherName: 'Sarah Mitchell',
-          basicSalary: 45000,
-          allowances: [{ name: 'HRA', amount: 5000 }],
-          deductions: [{ name: 'Tax', amount: 4500 }],
-          netSalary: 45500,
-          tenantId: 't1'
-        },
-        {
-          id: 'ss2',
-          teacherId: 't2',
-          teacherName: "James O'Brien",
-          basicSalary: 42000,
-          allowances: [{ name: 'HRA', amount: 4800 }],
-          deductions: [{ name: 'Tax', amount: 4000 }],
-          netSalary: 42800,
-          tenantId: 't1'
-        }
-      ]);
+      return of(
+        MOCK_PAYROLL_STRUCTURES.map(s => ({
+          ...s,
+          allowances: s.allowances.map(a => ({ ...a })),
+          deductions: s.deductions.map(d => ({ ...d })),
+        }))
+      );
     }
     return this.api.get<any[]>('/payroll/structures').pipe(map(list => list.map(s => this.normalizeStructure(s))));
   }
 
   getTeacherPaymentDetails(): Observable<TeacherPaymentDetails[]> {
     if (runtimeConfig.useMocks) {
-      return of([
-        {
-          teacherId: 't1',
-          teacherName: 'Sarah Mitchell',
-          monthlyNetSalary: 45500,
-          bankAccountHolder: 'Sarah Mitchell',
-          bankName: 'State Bank of India',
-          bankAccountMasked: '****3210',
-          bankIfsc: 'SBIN0001234',
-          bankDetailsComplete: true
-        },
-        {
-          teacherId: 't2',
-          teacherName: "James O'Brien",
-          monthlyNetSalary: 42800,
-          bankAccountHolder: "James O'Brien",
-          bankName: 'HDFC Bank',
-          bankAccountMasked: '****8844',
-          bankIfsc: 'HDFC0000999',
-          bankDetailsComplete: true
-        }
-      ]);
+      return of(MOCK_PAYROLL_TEACHER_PAYMENT_DETAILS.map(r => ({ ...r })));
     }
     return this.api.get<any[]>('/payroll/teachers/payment-details').pipe(
       map(list =>
         (list || []).map(r => ({
-          teacherId: String(r.teacherId),
+          teacherId: Number(r.teacherId),
           teacherName: r.teacherName ?? '',
           monthlyNetSalary: Number(r.monthlyNetSalary ?? 0),
           bankAccountHolder: r.bankAccountHolder ?? undefined,
@@ -93,24 +62,7 @@ export class PayrollService {
       const y = Number(year);
       const key = (p: Payslip) => p.year === y && (p.month || '').trim().toLowerCase() === m.toLowerCase();
       const existingForPeriod = this.mockPayslips.filter(key);
-      const templates = [
-        {
-          teacherId: 't1',
-          teacherName: 'Sarah Mitchell',
-          basic: 45000,
-          allow: 5000,
-          ded: 4500,
-          net: 45500
-        },
-        {
-          teacherId: 't2',
-          teacherName: "James O'Brien",
-          basic: 42000,
-          allow: 4800,
-          ded: 4000,
-          net: 42800
-        }
-      ];
+      const templates = MOCK_PAYSLIP_GENERATION_TEMPLATES.map(t => ({ ...t }));
       const already = new Set(existingForPeriod.map(p => p.teacherId));
       const toAdd = templates.filter(t => !already.has(t.teacherId));
       if (!toAdd.length) {
@@ -154,7 +106,7 @@ export class PayrollService {
 
   listMyPayslips(year?: number, month?: string): Observable<Payslip[]> {
     if (runtimeConfig.useMocks) {
-      let rows = this.mockPayslips.filter(p => p.teacherId === 't1' || p.teacherName === 'Sarah Mitchell');
+      let rows = this.mockPayslips.filter(p => p.teacherId === 1 || p.teacherName === 'Sarah Mitchell');
       if (year != null) rows = rows.filter(p => p.year === Number(year));
       if (month?.trim()) {
         const m = month.trim().toLowerCase();
@@ -169,7 +121,7 @@ export class PayrollService {
     return this.api.get<any[]>(path).pipe(map(list => list.map(p => this.normalizePayslip(p))));
   }
 
-  initiateDisbursement(teacherId: string, month: string, year: number): Observable<SalaryDisburseResult> {
+  initiateDisbursement(teacherId: number, month: string, year: number): Observable<SalaryDisburseResult> {
     if (runtimeConfig.useMocks) {
       const m = month.trim().toLowerCase();
       const ps = this.mockPayslips.find(
@@ -192,7 +144,7 @@ export class PayrollService {
       });
     }
     return this.api
-      .post<any>('/payroll/disburse/initiate', { teacherId: Number(teacherId), month, year: Number(year) })
+      .post<any>('/payroll/disburse/initiate', { teacherId, month, year: Number(year) })
       .pipe(
         map(r => ({
           referenceId: String(r.referenceId ?? ''),
@@ -230,8 +182,8 @@ export class PayrollService {
       .filter((c: any) => String(c.type || '').toUpperCase() === 'DEDUCTION')
       .map((c: any) => ({ name: c.name ?? 'Deduction', amount: Number(c.amount ?? 0) }));
     return {
-      id: String(s.id),
-      teacherId: String(s.teacherId),
+      id: Number(s.id),
+      teacherId: Number(s.teacherId),
       teacherName: s.teacherName ?? '',
       basicSalary: Number(s.basicSalary ?? 0),
       allowances,
@@ -245,7 +197,7 @@ export class PayrollService {
     const st = String(p.status ?? 'GENERATED').toUpperCase();
     return {
       id: String(p.id),
-      teacherId: String(p.teacherId),
+      teacherId: Number(p.teacherId),
       teacherName: p.teacherName ?? '',
       month: p.month ?? '',
       year: Number(p.year ?? 0),

@@ -1,55 +1,23 @@
 import { Injectable } from '@angular/core';
 import { Observable, of } from 'rxjs';
 import { map } from 'rxjs/operators';
+import {
+  MOCK_TRANSPORT_DRIVERS_SEED,
+  MOCK_TRANSPORT_ROUTES_SEED,
+  MOCK_TRANSPORT_VEHICLES_SEED,
+} from '../mocks/transport.mock-data';
 import { TransportDriver, TransportRoute, TransportVehicle } from '../models/models';
 import { ApiService } from './api.service';
 import { runtimeConfig } from '../config/runtime-config';
 
 /** Mutable mock fleet (same response shape as API). */
-const MOCK_VEHICLES: TransportVehicle[] = [
-  { id: 'v1', registrationNumber: 'BUS-001', vehicleType: 'BUS', capacity: 40, model: 'Volvo' },
-  { id: 'v2', registrationNumber: 'VAN-014', vehicleType: 'VAN', capacity: 12, model: 'Force Traveller' }
-];
-const MOCK_DRIVERS: TransportDriver[] = [
-  { id: 'd1', fullName: 'Mark Stevens', phone: '+91-9800011001', licenseNumber: 'DL042011009988' },
-  { id: 'd2', fullName: 'Paul Walker', phone: '+91-9800011002', licenseNumber: 'DL042011009977' }
-];
-let MOCK_ROUTES: TransportRoute[] = [
-  {
-    id: 'tr1',
-    name: 'Route A - North',
-    vehicleNumber: 'BUS-001',
-    driverName: 'Mark Stevens',
-    driverPhone: '+91-9800011001',
-    vehicleId: 'v1',
-    driverId: 'd1',
-    vehicleType: 'BUS',
-    liveLatitude: 28.55,
-    liveLongitude: 77.22,
-    liveRecordedAt: new Date().toISOString(),
-    stops: [
-      { id: 's1', name: 'Main Gate', time: '07:00', order: 1 },
-      { id: 's2', name: 'School', time: '07:50', order: 2 }
-    ],
-    assignedStudents: 42,
-    students: [],
-    tenantId: 't1'
-  },
-  {
-    id: 'tr2',
-    name: 'Route B - South',
-    vehicleNumber: 'VAN-014',
-    driverName: 'Paul Walker',
-    driverPhone: '+91-9800011002',
-    vehicleId: 'v2',
-    driverId: 'd2',
-    vehicleType: 'VAN',
-    stops: [{ id: 's3', name: 'South Gate', time: '07:10', order: 1 }],
-    assignedStudents: 12,
-    students: [],
-    tenantId: 't1'
-  }
-];
+let MOCK_VEHICLES: TransportVehicle[] = MOCK_TRANSPORT_VEHICLES_SEED.map(v => ({ ...v }));
+let MOCK_DRIVERS: TransportDriver[] = MOCK_TRANSPORT_DRIVERS_SEED.map(d => ({ ...d }));
+let MOCK_ROUTES: TransportRoute[] = MOCK_TRANSPORT_ROUTES_SEED.map(r => ({
+  ...r,
+  stops: r.stops.map(s => ({ ...s })),
+  students: [...(r.students || [])],
+}));
 
 @Injectable({ providedIn: 'root' })
 export class TransportService {
@@ -213,18 +181,18 @@ export class TransportService {
     return this.api.delete<void>(`/transport/routes/${id}`);
   }
 
-  addStop(body: { routeId: string; name: string; stopOrder: number; stopTime?: string }): Observable<{ id: string }> {
+  addStop(body: { routeId: string; name: string; stopOrder: number; stopTime?: string }): Observable<{ id: number }> {
     if (runtimeConfig.useMocks) {
       const route = MOCK_ROUTES.find(r => r.id === body.routeId);
       if (route) {
-        const sid = 'stop-' + Date.now() + '-' + Math.random().toString(36).slice(2, 9);
+        const sid = Date.now();
         route.stops = [...route.stops, { id: sid, name: body.name, time: body.stopTime || '', order: body.stopOrder }];
       }
-      return of({ id: 'stop-new' });
+      return of({ id: Date.now() });
     }
     const rid = Number(body.routeId);
     if (!Number.isFinite(rid)) {
-      return of({ id: '' });
+      return of({ id: 0 });
     }
     const payload: any = {
       routeId: rid,
@@ -232,11 +200,11 @@ export class TransportService {
       stopOrder: body.stopOrder,
       stopTime: body.stopTime || null
     };
-    return this.api.post<{ id?: number }>('/transport/stops', payload).pipe(map(s => ({ id: String(s?.id ?? '') })));
+    return this.api.post<{ id?: number }>('/transport/stops', payload).pipe(map(s => ({ id: Number(s?.id ?? 0) })));
   }
 
   updateStop(
-    stopId: string,
+    stopId: number,
     body: Partial<{ name: string; stopOrder: number; stopTime: string }>
   ): Observable<void> {
     if (runtimeConfig.useMocks) {
@@ -254,7 +222,7 @@ export class TransportService {
       });
       return of(undefined);
     }
-    const id = Number(stopId);
+    const id = stopId;
     if (!Number.isFinite(id)) return of(undefined);
     const payload: Record<string, unknown> = {};
     if (body.name != null) payload.name = body.name;
@@ -263,7 +231,7 @@ export class TransportService {
     return this.api.put<unknown>(`/transport/stops/${id}`, payload).pipe(map(() => void 0));
   }
 
-  removeStop(stopId: string): Observable<void> {
+  removeStop(stopId: number): Observable<void> {
     if (runtimeConfig.useMocks) {
       MOCK_ROUTES.forEach(r => {
         r.stops = r.stops.filter(s => s.id !== stopId);
@@ -273,14 +241,14 @@ export class TransportService {
     return this.api.delete<void>(`/transport/stops/${stopId}`);
   }
 
-  assignStudent(body: { routeId: string; studentId: string; studentName?: string; pickupStop?: string; dropStop?: string }): Observable<void> {
+  assignStudent(body: { routeId: string; studentId: number; studentName?: string; pickupStop?: string; dropStop?: string }): Observable<void> {
     if (runtimeConfig.useMocks) {
       const route = MOCK_ROUTES.find(r => r.id === body.routeId);
       if (route) {
         route.students = [
           ...(route.students || []),
           {
-            id: 'm' + Date.now(),
+            id: Date.now(),
             studentId: body.studentId,
             studentName: body.studentName ?? '',
             pickupStop: body.pickupStop,
@@ -300,7 +268,7 @@ export class TransportService {
     });
   }
 
-  removeStudentMapping(mappingId: string): Observable<void> {
+  removeStudentMapping(mappingId: number): Observable<void> {
     if (runtimeConfig.useMocks) {
       MOCK_ROUTES.forEach(r => {
         if (r.students) {
@@ -330,14 +298,14 @@ export class TransportService {
 
   private normalizeRoute(r: any): TransportRoute {
     const stops = (r.stops ?? []).map((s: any) => ({
-      id: s.id != null ? String(s.id) : undefined,
+      id: s.id != null ? Number(s.id) : undefined,
       name: s.name ?? '',
       time: s.time ?? '',
       order: Number(s.order ?? 0)
     }));
     const students = (r.students ?? []).map((m: any) => ({
-      id: String(m.id),
-      studentId: String(m.studentId),
+      id: Number(m.id),
+      studentId: Number(m.studentId),
       studentName: m.studentName ?? '',
       pickupStop: m.pickupStop,
       dropStop: m.dropStop

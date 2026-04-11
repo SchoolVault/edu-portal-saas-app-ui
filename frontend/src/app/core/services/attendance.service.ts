@@ -1,43 +1,25 @@
 import { Injectable } from '@angular/core';
 import { Observable, of } from 'rxjs';
 import { delay, map } from 'rxjs/operators';
+import { buildMockAttendanceRecordsForClassDate } from '../mocks/attendance.mock-data';
 import { AttendanceRecord, AttendanceStats } from '../models/models';
 import { ApiService } from './api.service';
 import { runtimeConfig } from '../config/runtime-config';
 
 @Injectable({ providedIn: 'root' })
 export class AttendanceService {
-  private records: AttendanceRecord[] = [];
+  private records: AttendanceRecord[];
 
   constructor(private api: ApiService) {
-    const students = [
-      { id: 's1', name: 'Arjun Patel' }, { id: 's2', name: 'Emily Watson' },
-      { id: 's3', name: 'Liam Chen' }, { id: 's4', name: 'Sofia Martinez' },
-      { id: 's5', name: 'Noah Williams' }, { id: 's6', name: 'Ava Johnson' },
-      { id: 's7', name: 'Ethan Brown' }, { id: 's8', name: 'Isabella Garcia' },
-    ];
-    const statuses: ('present' | 'absent' | 'late')[] = ['present', 'present', 'present', 'present', 'present', 'absent', 'late', 'present'];
     const today = new Date().toISOString().split('T')[0];
-    students.forEach((s, i) => {
-      this.records.push({
-        id: 'att' + i,
-        studentId: s.id,
-        studentName: s.name,
-        classId: 'c5',
-        sectionId: 'sec5a',
-        date: today,
-        status: statuses[i % statuses.length],
-        markedBy: 'u2',
-        tenantId: 't1'
-      });
-    });
+    this.records = buildMockAttendanceRecordsForClassDate(today).map(r => ({ ...r }));
   }
 
-  getAttendanceByClassAndDate(classId: string, sectionId: string, date: string): Observable<AttendanceRecord[]> {
+  getAttendanceByClassAndDate(classId: number, sectionId: number, date: string): Observable<AttendanceRecord[]> {
     if (!runtimeConfig.useMocks) {
-      return this.api.get<any[]>(`/attendance?classId=${classId}&sectionId=${sectionId}&date=${date}`).pipe(
-        map(records => records.map(record => this.normalizeRecord(record)))
-      );
+      return this.api
+        .get<any[]>(`/attendance?classId=${classId}&sectionId=${sectionId}&date=${date}`)
+        .pipe(map(records => records.map(record => this.normalizeRecord(record))));
     }
     const filtered = this.records.filter(r => r.classId === classId && r.sectionId === sectionId && r.date === date);
     return of(filtered).pipe(delay(400));
@@ -45,31 +27,36 @@ export class AttendanceService {
 
   saveAttendance(records: AttendanceRecord[]): Observable<boolean> {
     if (!runtimeConfig.useMocks) {
-      return this.api.post<any>('/attendance', {
-        classId: Number(records[0]?.classId),
-        sectionId: Number(records[0]?.sectionId),
-        date: records[0]?.date,
-        records: records.map(r => ({
-          studentId: Number(r.studentId),
-          studentName: r.studentName,
-          status: r.status,
-          remarks: ''
-        }))
-      }).pipe(map(() => true));
+      return this.api
+        .post<any>('/attendance', {
+          classId: Number(records[0]?.classId),
+          sectionId: Number(records[0]?.sectionId),
+          date: records[0]?.date,
+          records: records.map(r => ({
+            studentId: Number(r.studentId),
+            studentName: r.studentName,
+            status: r.status,
+            remarks: ''
+          }))
+        })
+        .pipe(map(() => true));
     }
     records.forEach(r => {
       const idx = this.records.findIndex(x => x.studentId === r.studentId && x.date === r.date);
-      if (idx !== -1) { this.records[idx] = r; }
-      else { this.records.push(r); }
+      if (idx !== -1) {
+        this.records[idx] = r;
+      } else {
+        this.records.push(r);
+      }
     });
     return of(true).pipe(delay(500));
   }
 
-  getStudentAttendanceStats(studentId: string, from: string, to: string): Observable<AttendanceStats> {
+  getStudentAttendanceStats(studentId: number, from: string, to: string): Observable<AttendanceStats> {
     if (!runtimeConfig.useMocks) {
       return this.api.get<any>(`/attendance/student/${studentId}/stats?from=${from}&to=${to}`).pipe(
         map(stats => ({
-          studentId: stats.studentId != null ? String(stats.studentId) : undefined,
+          studentId: stats.studentId != null ? Number(stats.studentId) : undefined,
           totalDays: stats.totalDays,
           present: stats.present,
           absent: stats.absent,
@@ -95,7 +82,7 @@ export class AttendanceService {
     }).pipe(delay(300));
   }
 
-  getAttendanceStats(classId: string): Observable<{ present: number; absent: number; late: number; total: number }> {
+  getAttendanceStats(classId: number): Observable<{ present: number; absent: number; late: number; total: number }> {
     if (!runtimeConfig.useMocks) {
       const today = new Date().toISOString().split('T')[0];
       return this.api.get<any>(`/attendance/class-stats?classId=${classId}&sectionId=1&date=${today}`).pipe(
@@ -119,11 +106,11 @@ export class AttendanceService {
   private normalizeRecord(record: any): AttendanceRecord {
     return {
       ...record,
-      id: String(record.id),
-      studentId: String(record.studentId),
-      classId: String(record.classId),
-      sectionId: String(record.sectionId),
-      markedBy: record.markedBy != null ? String(record.markedBy) : '',
+      id: Number(record.id),
+      studentId: Number(record.studentId),
+      classId: Number(record.classId),
+      sectionId: Number(record.sectionId),
+      markedBy: record.markedBy != null ? Number(record.markedBy) : 0,
       tenantId: record.tenantId ?? '',
       status: record.status
     };

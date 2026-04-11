@@ -15,7 +15,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/v1/operations")
 @Tag(name = "School operations", description = "Staff, visitors, gate passes, inventory, fee reminders, payroll accrual stub")
-@PreAuthorize("hasRole('ADMIN')")
+@PreAuthorize("hasAnyRole('ADMIN','SUPER_ADMIN')")
 public class OperationsController {
 
     private final OperationsService operationsService;
@@ -85,6 +85,13 @@ public class OperationsController {
     @PostMapping("/inventory")
     public ResponseEntity<ApiResponse<OperationsDTOs.InventoryItemResponse>> upsertInv(@RequestBody OperationsDTOs.InventoryItemCreateRequest req) {
         return ResponseEntity.ok(ApiResponse.ok(operationsService.upsertInventory(req)));
+    }
+
+    @DeleteMapping("/inventory/{id}")
+    @Operation(summary = "Remove inventory item (soft delete)")
+    public ResponseEntity<ApiResponse<Void>> deleteInv(@PathVariable Long id) {
+        operationsService.deleteInventory(id);
+        return ResponseEntity.ok(ApiResponse.ok(null, "Inventory item removed"));
     }
 
     @GetMapping("/fee-reminders")

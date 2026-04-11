@@ -1,6 +1,7 @@
 import { Injectable } from '@angular/core';
 import { Observable, of } from 'rxjs';
 import { map } from 'rxjs/operators';
+import { MOCK_DOCUMENTS_LIST } from '../mocks/documents.mock-data';
 import { DocumentRecord } from '../models/models';
 import { ApiService } from './api.service';
 import { runtimeConfig } from '../config/runtime-config';
@@ -11,9 +12,7 @@ export class DocumentsService {
 
   list(category?: string): Observable<DocumentRecord[]> {
     if (runtimeConfig.useMocks) {
-      return of([
-        { id: 'd1', name: 'School Calendar', type: 'PDF', category: 'general', uploadedBy: '1', uploadDate: '2025-06-01', size: '2 MB', fileUrl: 'https://example.com/cal.pdf', tenantId: 't1' }
-      ]);
+      return of(MOCK_DOCUMENTS_LIST.map(d => ({ ...d })));
     }
     const q = category ? `?category=${encodeURIComponent(category)}` : '';
     return this.api.get<any[]>(`/documents${q}`).pipe(map(list => list.map(d => this.normalizeDoc(d))));

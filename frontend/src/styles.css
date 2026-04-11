@@ -11,8 +11,10 @@
   --clr-surface-alt: #FAFAF9;
   --clr-surface-muted: #F0EFED;
   --clr-text: #1C1917;
+  /** Alias for headings / strong body (matches components that use --clr-text-primary). */
+  --clr-text-primary: #1C1917;
   --clr-text-secondary: #57534E;
-  --clr-text-muted: #A8A29E;
+  --clr-text-muted: #78716C;
   --clr-border: #E7E5E4;
   --clr-border-light: #F5F5F4;
   --clr-hover: #F5F5F4;
@@ -49,6 +51,7 @@
   --clr-surface-alt: #1e293b;
   --clr-surface-muted: #243048;
   --clr-text: #f3f4f6;
+  --clr-text-primary: #f3f4f6;
   --clr-text-secondary: #d1d5db;
   --clr-text-muted: #94a3b8;
   --clr-border: #334155;
@@ -104,7 +107,7 @@ a:hover { color: var(--clr-accent-dark); }
 .sidebar {
   width: var(--sidebar-w);
   background: var(--clr-surface);
-  border-right: 2px solid var(--surface-ring);
+  border-right: 1px solid var(--surface-ring);
   position: fixed;
   top: 0;
   left: 0;

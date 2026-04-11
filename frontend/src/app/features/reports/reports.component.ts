@@ -50,13 +50,13 @@ import { downloadCsv } from '../../core/utils/csv-export.util';
             <div class="col-md-4">
               <label class="erp-label">Class</label>
               <select class="erp-select" [(ngModel)]="selectedClassId" (change)="loadPerformance()">
-                <option *ngFor="let cls of classes" [value]="cls.id">{{ cls.name }}</option>
+                <option *ngFor="let cls of classes" [ngValue]="cls.id">{{ cls.name }}</option>
               </select>
             </div>
             <div class="col-md-4">
               <label class="erp-label">Exam</label>
               <select class="erp-select" [(ngModel)]="selectedExamId" (change)="loadPerformance()">
-                <option *ngFor="let exam of exams" [value]="exam.id">{{ exam.name }}</option>
+                <option *ngFor="let exam of exams" [ngValue]="exam.id">{{ exam.name }}</option>
               </select>
             </div>
           </div>
@@ -86,7 +86,7 @@ import { downloadCsv } from '../../core/utils/csv-export.util';
             <div class="col-md-4">
               <label class="erp-label">Class</label>
               <select class="erp-select" [(ngModel)]="selectedClassId" (change)="loadAttendance()">
-                <option *ngFor="let cls of classes" [value]="cls.id">{{ cls.name }}</option>
+                <option *ngFor="let cls of classes" [ngValue]="cls.id">{{ cls.name }}</option>
               </select>
             </div>
             <div class="col-md-4">
@@ -121,8 +121,8 @@ import { downloadCsv } from '../../core/utils/csv-export.util';
             <div class="col-md-4">
               <label class="erp-label">Class Filter</label>
               <select class="erp-select" [(ngModel)]="selectedFeeClassId" (change)="loadFees()">
-                <option value="">All Classes</option>
-                <option *ngFor="let cls of classes" [value]="cls.id">{{ cls.name }}</option>
+                <option [ngValue]="null">All Classes</option>
+                <option *ngFor="let cls of classes" [ngValue]="cls.id">{{ cls.name }}</option>
               </select>
             </div>
           </div>
@@ -218,14 +218,14 @@ import { downloadCsv } from '../../core/utils/csv-export.util';
             <div class="col-md-4">
               <label class="erp-label">Student</label>
               <select class="erp-select" [(ngModel)]="selectedStudentId" (change)="loadReportCard()">
-                <option *ngFor="let student of reportCardStudents" [value]="student.id">{{ student.firstName }} {{ student.lastName }}</option>
+                <option *ngFor="let student of reportCardStudents" [ngValue]="student.id">{{ student.firstName }} {{ student.lastName }}</option>
               </select>
             </div>
             <div class="col-md-4">
               <label class="erp-label">Exam</label>
               <select class="erp-select" [(ngModel)]="selectedExamId" (change)="loadReportCard()">
-                <option value="">All Exams</option>
-                <option *ngFor="let exam of exams" [value]="exam.id">{{ exam.name }}</option>
+                <option [ngValue]="null">All Exams</option>
+                <option *ngFor="let exam of exams" [ngValue]="exam.id">{{ exam.name }}</option>
               </select>
             </div>
           </div>
@@ -259,11 +259,11 @@ export class ReportsComponent implements OnInit {
   classes: SchoolClass[] = [];
   exams: Exam[] = [];
   students: Student[] = [];
-  selectedClassId = '';
-  selectedExamId = '';
-  selectedStudentId = '';
+  selectedClassId: number | null = null;
+  selectedExamId: number | null = null;
+  selectedStudentId: number | null = null;
   selectedMonth = new Date().toISOString().slice(0, 7);
-  selectedFeeClassId = '';
+  selectedFeeClassId: number | null = null;
   performanceRows: StudentPerformanceRow[] = [];
   attendanceRows: AttendanceSummaryRow[] = [];
   feeRows: FeePayment[] = [];
@@ -288,21 +288,21 @@ export class ReportsComponent implements OnInit {
   refreshAllReports(): void {
     this.academicService.getClasses().subscribe(classes => {
       this.classes = classes;
-      if (!this.selectedClassId && classes[0]?.id) {
+      if (this.selectedClassId == null && classes[0]?.id != null) {
         this.selectedClassId = classes[0].id;
       }
       this.refreshVisibleTab();
     });
     this.examService.getExams().subscribe(exams => {
       this.exams = exams;
-      if (!this.selectedExamId && exams[0]?.id) {
+      if (this.selectedExamId == null && exams[0]?.id != null) {
         this.selectedExamId = exams[0].id;
       }
       this.refreshVisibleTab();
     });
     this.studentService.getStudents().subscribe(students => {
       this.students = students;
-      if (!this.selectedStudentId && students[0]?.id) {
+      if (this.selectedStudentId == null && students[0]?.id != null) {
         this.selectedStudentId = students[0].id;
       }
       this.refreshVisibleTab();
@@ -310,24 +310,26 @@ export class ReportsComponent implements OnInit {
   }
 
   get reportCardStudents(): Student[] {
-    return this.selectedClassId ? this.students.filter(student => student.classId === this.selectedClassId) : this.students;
+    return this.selectedClassId != null
+      ? this.students.filter(student => student.classId === this.selectedClassId)
+      : this.students;
   }
 
   loadPerformance(): void {
-    if (!this.selectedClassId || !this.selectedExamId) return;
-    this.reportService.getStudentPerformance(this.selectedClassId, this.selectedExamId).subscribe(rows => this.performanceRows = rows);
+    if (this.selectedClassId == null || this.selectedExamId == null) return;
+    this.reportService.getStudentPerformance(this.selectedClassId, this.selectedExamId).subscribe(rows => (this.performanceRows = rows));
   }
 
   loadAttendance(): void {
-    if (!this.selectedClassId || !this.selectedMonth) return;
-    this.reportService.getAttendanceSummary(this.selectedClassId, this.selectedMonth).subscribe(rows => this.attendanceRows = rows);
+    if (this.selectedClassId == null || !this.selectedMonth) return;
+    this.reportService.getAttendanceSummary(this.selectedClassId, this.selectedMonth).subscribe(rows => (this.attendanceRows = rows));
   }
 
   loadFees(): void {
-    this.reportService.getFeeCollectionSummary(this.selectedFeeClassId || undefined).subscribe(summary => this.feeSummary = summary);
+    this.reportService.getFeeCollectionSummary(this.selectedFeeClassId ?? undefined).subscribe(summary => (this.feeSummary = summary));
     this.feeService.getPayments().subscribe(payments => {
       this.feeRows = payments.filter(payment => {
-        if (!this.selectedFeeClassId) return true;
+        if (this.selectedFeeClassId == null) return true;
         return this.students.find(student => student.id === payment.studentId)?.classId === this.selectedFeeClassId;
       });
     });
@@ -346,13 +348,13 @@ export class ReportsComponent implements OnInit {
   }
 
   loadReportCard(): void {
-    const studentId = this.selectedStudentId || this.reportCardStudents[0]?.id;
-    if (!studentId) return;
+    const studentId = this.selectedStudentId ?? this.reportCardStudents[0]?.id;
+    if (studentId == null) return;
     this.selectedStudentId = studentId;
-    this.reportService.getReportCard(studentId, this.selectedExamId || undefined).subscribe(card => this.reportCard = card);
+    this.reportService.getReportCard(studentId, this.selectedExamId ?? undefined).subscribe(card => (this.reportCard = card));
   }
 
-  getStudentClassName(studentId: string): string {
+  getStudentClassName(studentId: number): string {
     return this.students.find(student => student.id === studentId)?.className || '-';
   }
 

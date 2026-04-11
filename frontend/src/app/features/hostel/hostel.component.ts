@@ -169,7 +169,7 @@ import { AuthService } from '../../core/services/auth.service';
           <p class="small text-muted mb-2">Room {{ allocRoom.roomNumber }} · {{ allocRoom.occupancy }}/{{ allocRoom.capacity }} occupied</p>
           <label class="erp-label">Student</label>
           <select class="erp-select mb-2" [(ngModel)]="allocForm.studentId" (ngModelChange)="syncAllocName()">
-            <option [ngValue]="''">Select</option>
+            <option [ngValue]="null">Select</option>
             <option *ngFor="let s of students" [ngValue]="s.id">{{ s.firstName }} {{ s.lastName }}</option>
           </select>
         </div>
@@ -190,7 +190,7 @@ export class HostelComponent implements OnInit {
   roomModal = false;
   roomForm = { hostelId: '', roomNumber: '', block: '', floor: 1, capacity: 2, roomType: 'double' };
   allocRoom: HostelRoom | null = null;
-  allocForm = { studentId: '', studentName: '' };
+  allocForm = { studentId: null as number | null, studentName: '' };
   vacateCtx: { allocationId: string; studentName: string; roomNumber: string; hostelName?: string } | null = null;
   editRoom: HostelRoom | null = null;
   editForm = { hostelId: '', roomNumber: '', block: '', floor: 1, capacity: 2, roomType: 'double' };
@@ -271,7 +271,7 @@ export class HostelComponent implements OnInit {
 
   openAllocate(room: HostelRoom): void {
     this.allocRoom = room;
-    this.allocForm = { studentId: '', studentName: '' };
+    this.allocForm = { studentId: null, studentName: '' };
   }
 
   syncAllocName(): void {
@@ -280,7 +280,7 @@ export class HostelComponent implements OnInit {
   }
 
   saveAllocate(): void {
-    if (!this.allocRoom || !this.allocForm.studentId) return;
+    if (!this.allocRoom || this.allocForm.studentId == null) return;
     this.hostelService.allocate({
       roomId: this.allocRoom.id,
       studentId: this.allocForm.studentId,
