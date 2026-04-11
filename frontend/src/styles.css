@@ -698,6 +698,27 @@ img.table-avatar {
 }
 .btn-primary-erp:disabled { opacity: 0.6; cursor: not-allowed; transform: none; box-shadow: none; color: #fff; }
 
+/* Dark mode: flat, desaturated primary — avoids neon orange on charcoal (eye strain). */
+[data-theme='dark'] .btn-primary-erp {
+  background: color-mix(in srgb, var(--clr-accent) 50%, var(--clr-surface));
+  border-color: color-mix(in srgb, var(--clr-accent) 22%, var(--clr-border));
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.45);
+}
+[data-theme='dark'] .btn-primary-erp:hover {
+  background: color-mix(in srgb, var(--clr-accent) 58%, var(--clr-surface));
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+}
+[data-theme='dark'] .btn-primary-erp:active {
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.45);
+}
+[data-theme='dark'] .btn-secondary-erp {
+  background: color-mix(in srgb, var(--clr-primary) 35%, var(--clr-surface));
+  border: 1px solid color-mix(in srgb, var(--clr-primary) 25%, var(--clr-border));
+}
+[data-theme='dark'] .btn-secondary-erp:hover {
+  background: color-mix(in srgb, var(--clr-primary) 48%, var(--clr-surface));
+}
+
 .btn-secondary-erp {
   background: var(--clr-primary);
   color: #fff;

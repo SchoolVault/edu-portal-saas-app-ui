@@ -14,7 +14,7 @@ import org.springframework.stereotype.Component;
  */
 @Component
 @Order(100)
-@Profile({"dev", "showcase-seed", "demo-seed"})
+@Profile({"demo-seed"})
 @ConditionalOnProperty(name = "app.demo-seed.enabled", havingValue = "true")
 public class DemoDataSeedRunner implements ApplicationRunner {
 

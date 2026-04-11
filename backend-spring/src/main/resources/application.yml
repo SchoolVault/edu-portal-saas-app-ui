@@ -18,9 +18,9 @@ spring:
         - demo-seed
 
   datasource:
-    url: ${DB_URL:jdbc:mysql://localhost:3306/edu-portal?useSSL=true&serverTimezone=UTC&createDatabaseIfNotExist=true}
-    username: ${DB_USERNAME:root}
-    password: ${DB_PASSWORD:}
+    url: ${DEV_DB_URL:jdbc:mysql://localhost:3306/school_erp?useSSL=true&serverTimezone=UTC&createDatabaseIfNotExist=true}
+    username: ${DEV_DB_USERNAME:root}
+    password: ${DEV_DB_PASSWORD:Arif@#123}
     driver-class-name: ${DB_DRIVER:com.mysql.cj.jdbc.Driver}
     hikari:
       maximum-pool-size: ${DB_POOL_MAX:20}
@@ -105,6 +105,8 @@ app:
   default-page-size: ${APP_DEFAULT_PAGE_SIZE:20}
   max-page-size: ${APP_MAX_PAGE_SIZE:100}
 
+  # Key Id = publishable (rzp_test_… / rzp_live_…). Secret = from same "Generate key" pair. Never commit real values.
+  # If RAZORPAY_KEY is set to "" in an IDE env block, Spring uses empty string (not the default) — Checkout then gets 401 on preferences.
   payments:
     razorpay:
       api-base: ${RAZORPAY_API_BASE:https://api.razorpay.com}

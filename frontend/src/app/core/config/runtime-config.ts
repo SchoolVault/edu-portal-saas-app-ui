@@ -19,10 +19,13 @@ export const runtimeConfig: DeployedApiConfig & {
   production: boolean;
   /** In-memory mocks vs HTTP. Set only from environment files, never from config.json. */
   useMocks: boolean;
+  /** Show Instant/UPI/Netbanking mock tiles (demo tenants). Production parents typically only see Razorpay + real options. */
+  showDemoPaymentRails: boolean;
 } = {
   apiUrl: environment.apiUrl,
   websocketUrl: undefined,
   useMocks: environment.useMocks,
+  showDemoPaymentRails: environment.showDemoPaymentRails ?? environment.useMocks,
   production: environment.production
 };
 

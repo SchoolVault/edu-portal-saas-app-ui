@@ -96,7 +96,7 @@ import java.util.function.Consumer;
  * (school + region + short hash), not generic {@code t1}.
  */
 @Service
-@Profile({"dev", "showcase-seed", "demo-seed"})
+@Profile({"demo-seed"})
 public class DemoDataSeedService {
 
     private static final Logger log = LoggerFactory.getLogger(DemoDataSeedService.class);

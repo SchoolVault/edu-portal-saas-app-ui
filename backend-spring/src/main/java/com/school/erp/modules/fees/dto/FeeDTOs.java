@@ -1498,6 +1498,8 @@ public class FeeDTOs {
         private BigDecimal amount;
         private String checkoutUrl;
         private String status;
+        /** Razorpay key_id for browser Checkout.js (safe to expose; secret stays server-side). */
+        private String publicKeyId;
 
         public Long getAttemptId() { return attemptId; }
         public void setAttemptId(Long attemptId) { this.attemptId = attemptId; }
@@ -1515,6 +1517,8 @@ public class FeeDTOs {
         public void setCheckoutUrl(String checkoutUrl) { this.checkoutUrl = checkoutUrl; }
         public String getStatus() { return status; }
         public void setStatus(String status) { this.status = status; }
+        public String getPublicKeyId() { return publicKeyId; }
+        public void setPublicKeyId(String publicKeyId) { this.publicKeyId = publicKeyId; }
     }
 
     public static class ConfirmCheckoutRequest {

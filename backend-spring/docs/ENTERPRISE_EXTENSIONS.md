@@ -24,9 +24,10 @@ Suggested REST:
 
 ## Payment gateway (Razorpay / Stripe)
 
-- **Live:** `POST /api/v1/payments/checkout/orders` (see `PaymentCheckoutController`) returns `clientOptionsJson` for browser SDKs.
-- **Next steps:** Persist attempts in `fee_payment_attempts`, verify signatures on webhook, map `provider_payment_id` → fee ledger posting.
-- **Payroll / teacher payout:** Reuse same controller with `purpose=PAYROLL_PAYOUT` and `payeeUserId`.
+- **Parent fees (live):** `POST /api/v1/parent/payments/checkout-session` with `provider=razorpay` creates a Razorpay order server-side; response includes `publicKeyId` (from `RAZORPAY_KEY`) for Checkout.js. Parent confirms via `POST .../confirm` with `providerPaymentId` + `razorpay_signature`. Env: `RAZORPAY_KEY`, `RAZORPAY_SECRET`, optional `RAZORPAY_API_BASE`.
+- **Generic orders:** `POST /api/v1/payments/checkout/orders` (`PaymentCheckoutService`) for future flows (e.g. payroll payout UI) — returns `clientOptionsJson`.
+- **Webhooks:** Recommended next step — verify Razorpay webhook signatures, idempotent ledger posts.
+- **Payroll / teacher payout:** Today `POST /api/v1/payroll/disburse/initiate` records `SalaryDisbursementAttempt` (mock payload). Plug a bank/PSP payout adapter the same way as `PaymentGatewayClient` for fees.
 
 ## Academic-year scoping (policy)
 

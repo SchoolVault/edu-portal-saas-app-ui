@@ -34,7 +34,6 @@ export class ParentService {
   private mockReceipts: PaymentReceipt[] = [];
   private mockObligationsMutable: ParentFeeObligation[] | null = null;
   private mockFeePaymentsMutable: FeePayment[] | null = null;
-  private pendingCheckout: { paymentId: number; studentId: number; amount: number } | null = null;
 
   constructor(private api: ApiService) {
     this.bootstrapMockReceiptLedger();
@@ -237,24 +236,10 @@ export class ParentService {
     );
   }
 
+  /**
+   * All providers (Razorpay, demo rails, banktransfer) go through the API; Spring {@code RoutingPaymentGatewayClient} picks Razorpay vs in-process mock.
+   */
   createCheckoutSession(request: CheckoutSessionRequest): Observable<CheckoutSession> {
-    if (runtimeConfig.useMocks) {
-      this.pendingCheckout = {
-        paymentId: request.paymentId,
-        studentId: request.studentId,
-        amount: request.amount
-      };
-      return of({
-        attemptId: Date.now(),
-        provider: request.provider,
-        providerOrderId: 'MOCK-ORDER-' + Date.now(),
-        checkoutToken: 'mock-token-' + Date.now(),
-        currency: 'INR',
-        amount: request.amount,
-        checkoutUrl: (request.returnUrl || '/app/parent') + '?mockPayment=1',
-        status: 'initiated'
-      }).pipe(delay(300));
-    }
     return this.api
       .post<any>('/parent/payments/checkout-session', {
         paymentId: request.paymentId,
@@ -263,43 +248,37 @@ export class ParentService {
         provider: request.provider,
         returnUrl: request.returnUrl,
       })
-      .pipe(
-        map(
-          (session): CheckoutSession => ({
-            attemptId: Number(session.attemptId),
-            provider: String(session.provider ?? ''),
-            providerOrderId: String(session.providerOrderId ?? ''),
-            checkoutToken: String(session.checkoutToken ?? ''),
-            currency: String(session.currency ?? 'INR'),
-            amount: Number(session.amount ?? 0),
-            checkoutUrl: String(session.checkoutUrl ?? ''),
-            status: String(session.status ?? ''),
-          })
-        )
-      );
+      .pipe(map(session => this.normalizeCheckoutSession(session)));
   }
 
-  confirmCheckout(attemptId: string | number, checkoutToken: string, providerPaymentId?: string): Observable<PaymentReceipt> {
-    if (runtimeConfig.useMocks) {
-      this.ensureMockFeeState();
-      const receipt = this.buildMockReceipt(attemptId, providerPaymentId);
-      this.applyMockPaymentToState(receipt);
-      this.pendingCheckout = null;
-      this.mockReceipts = [receipt, ...this.mockReceipts.filter(item => item.receiptNumber !== receipt.receiptNumber)];
-      return of(receipt).pipe(delay(500));
-    }
+  confirmCheckout(
+    attemptId: string | number,
+    checkoutToken: string,
+    providerPaymentId?: string,
+    providerSignature?: string
+  ): Observable<PaymentReceipt> {
     const aid = Number(attemptId);
-    return this.api.post<any>(`/parent/payments/checkout-session/${aid}/confirm`, {
-      checkoutToken,
-      providerPaymentId
-    }).pipe(map(item => this.normalizeReceipt(item)));
+    return this.api
+      .post<any>(`/parent/payments/checkout-session/${aid}/confirm`, {
+        checkoutToken,
+        providerPaymentId,
+        ...(providerSignature != null && providerSignature !== '' ? { providerSignature } : {}),
+      })
+      .pipe(map(item => this.normalizeReceipt(item)));
   }
 
   getReceipt(receiptNumber: string): Observable<PaymentReceipt> {
     if (runtimeConfig.useMocks) {
       this.bootstrapMockReceiptLedger();
-      const receipt = this.mockReceipts.find(item => item.receiptNumber === receiptNumber) ?? this.buildMockReceipt('attempt-existing');
-      return of(receipt).pipe(delay(150));
+      const receipt = this.mockReceipts.find(item => item.receiptNumber === receiptNumber);
+      if (receipt) {
+        return of(receipt).pipe(delay(150));
+      }
+      const seed = buildParentMockInitialReceipts()[0];
+      return of({
+        ...seed,
+        lineItems: seed.lineItems.map(li => ({ ...li })),
+      }).pipe(delay(150));
     }
     return this.api.get<any>(`/parent/payments/receipts/${receiptNumber}`).pipe(map(item => this.normalizeReceipt(item)));
   }
@@ -385,6 +364,20 @@ export class ParentService {
     };
   }
 
+  private normalizeCheckoutSession(session: any): CheckoutSession {
+    return {
+      attemptId: Number(session.attemptId),
+      provider: String(session.provider ?? ''),
+      providerOrderId: String(session.providerOrderId ?? ''),
+      checkoutToken: String(session.checkoutToken ?? ''),
+      currency: String(session.currency ?? 'INR'),
+      amount: Number(session.amount ?? 0),
+      checkoutUrl: String(session.checkoutUrl ?? ''),
+      status: String(session.status ?? ''),
+      publicKeyId: session.publicKeyId != null ? String(session.publicKeyId) : undefined,
+    };
+  }
+
   private bootstrapMockReceiptLedger(): void {
     if (this.mockReceipts.length > 0) {
       return;
@@ -422,72 +415,4 @@ export class ParentService {
     }));
   }
 
-  private applyMockPaymentToState(receipt: PaymentReceipt): void {
-    if (!this.mockObligationsMutable || !this.mockFeePaymentsMutable) return;
-    const amountPaid = receipt.amountPaid;
-    const pid = receipt.paymentId;
-    const sid = receipt.studentId;
-
-    const ob = this.mockObligationsMutable.find(o => o.paymentId === pid && o.studentId === sid);
-    if (ob) {
-      const netDue = Math.max(0, ob.totalAmount - (ob.discount || 0));
-      ob.paidAmount = Math.min(netDue, ob.paidAmount + amountPaid);
-      ob.dueAmount = Math.max(0, netDue - ob.paidAmount);
-      if (ob.dueAmount <= 0) {
-        ob.lateFee = 0;
-        ob.payableNow = 0;
-        ob.status = 'paid';
-      } else {
-        ob.payableNow = ob.dueAmount + (ob.lateFee || 0);
-        ob.status = 'partial';
-      }
-    }
-
-    const fp = this.mockFeePaymentsMutable.find(p => p.id === pid && p.studentId === sid);
-    if (fp) {
-      const net = Math.max(0, fp.amount - (fp.discount || 0));
-      fp.paidAmount = Math.min(net, fp.paidAmount + amountPaid);
-      fp.dueAmount = Math.max(0, net - fp.paidAmount);
-      fp.status = fp.dueAmount <= 0 ? 'paid' : 'partial';
-      if (fp.dueAmount <= 0) {
-        fp.lateFee = 0;
-      }
-    }
-  }
-
-  private buildMockReceipt(attemptId: string | number, providerPaymentId?: string): PaymentReceipt {
-    const pend = this.pendingCheckout;
-    const paymentId = pend?.paymentId ?? 8;
-    const studentId = pend?.studentId ?? 12;
-    const amountPaid = pend?.amount ?? 1450;
-    const seedObs = this.seedMockFeeObligations();
-    const ob =
-      this.mockObligationsMutable?.find(o => o.paymentId === paymentId && o.studentId === studentId) ??
-      seedObs.find(o => o.paymentId === paymentId && o.studentId === studentId) ??
-      seedObs[0];
-    const netDue = Math.max(0, ob.totalAmount - (ob.discount || 0));
-    const newPaid = Math.min(netDue, ob.paidAmount + amountPaid);
-    const newDue = Math.max(0, netDue - newPaid);
-    return {
-      receiptNumber: 'REC-MOCK-' + Date.now(),
-      paymentId,
-      studentId,
-      studentName: ob.studentName,
-      feeStructureName: ob.feeStructureName,
-      className: ob.className,
-      provider: 'mockpay',
-      providerPaymentId: providerPaymentId || 'MOCK-PAY-' + String(attemptId),
-      paymentMethod: 'MOCKPAY',
-      paymentDate: new Date().toISOString().slice(0, 10),
-      dueDate: ob.dueDate,
-      currency: ob.currency,
-      amountPaid,
-      totalAmount: ob.totalAmount,
-      paidAmount: newPaid,
-      dueAmount: newDue,
-      discount: ob.discount,
-      lateFee: newDue <= 0 ? 0 : ob.lateFee,
-      lineItems: ob.lineItems.map(li => ({ ...li }))
-    };
-  }
 }

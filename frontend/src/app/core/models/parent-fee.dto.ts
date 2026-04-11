@@ -47,6 +47,8 @@ export namespace ParentFeeDtos {
     amount: number;
     checkoutUrl: string;
     status: string;
+    /** Razorpay Checkout key_id when provider is razorpay. */
+    publicKeyId?: string;
   }
 
   export interface ConfirmCheckoutRequest {

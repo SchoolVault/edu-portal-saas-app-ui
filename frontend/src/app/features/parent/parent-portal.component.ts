@@ -2,7 +2,7 @@ import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ParentService } from '../../core/services/parent.service';
-import { PaymentCheckoutService } from '../../core/services/payment-checkout.service';
+import { openRazorpaySchoolFeeCheckout } from '../../core/payment/razorpay-checkout';
 import { runtimeConfig } from '../../core/config/runtime-config';
 import {
   AttendanceRecord,
@@ -17,6 +17,7 @@ import {
   Student,
 } from '../../core/models/models';
 import { coerceApiLongId } from '../../core/utils/coerce-api-long-id';
+import { isParentDemoGatewayProvider } from '../../core/payment/parent-fee-payment.rails';
 import { ErpDatePickerComponent } from '../../shared/erp-date-picker/erp-date-picker.component';
 
 @Component({
@@ -39,6 +40,42 @@ import { ErpDatePickerComponent } from '../../shared/erp-date-picker/erp-date-pi
       }
       .parent-receipt-row:last-child {
         border-bottom: none;
+      }
+      .payment-method-tile {
+        cursor: pointer;
+        border: 2px solid var(--clr-border-light);
+        border-radius: var(--radius-lg);
+        background: var(--clr-surface);
+        box-shadow: var(--shadow-sm);
+        transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+        width: 100%;
+        text-align: left;
+        padding: 1rem;
+        color: inherit;
+        font: inherit;
+      }
+      .payment-method-tile:hover {
+        border-color: color-mix(in srgb, var(--clr-text-muted) 55%, var(--clr-border-light));
+      }
+      .payment-method-tile:focus-visible {
+        outline: 2px solid var(--clr-accent);
+        outline-offset: 2px;
+      }
+      .payment-method-tile--selected {
+        border-color: var(--clr-accent);
+        background: color-mix(in srgb, var(--clr-accent) 10%, var(--clr-surface));
+        box-shadow: 0 0 0 1px color-mix(in srgb, var(--clr-accent) 45%, transparent), var(--shadow-sm);
+      }
+      [data-theme='dark'] .payment-method-tile--selected {
+        background: color-mix(in srgb, var(--clr-accent) 18%, var(--clr-surface));
+      }
+      .payment-method-tile__check {
+        color: var(--clr-accent);
+        font-size: 1.25rem;
+        line-height: 1;
+      }
+      .erp-input--invalid {
+        border-color: var(--clr-danger) !important;
       }
     `,
   ],
@@ -344,7 +381,19 @@ import { ErpDatePickerComponent } from '../../shared/erp-date-picker/erp-date-pi
               <div class="col-md-5">
                 <div class="erp-form-group">
                   <label class="erp-label">Amount to Pay</label>
-                  <input type="number" class="erp-input" [(ngModel)]="paymentAmount" min="1" [max]="selectedObligation.payableNow">
+                  <input
+                    type="number"
+                    class="erp-input"
+                    [class.erp-input--invalid]="paymentAmountError"
+                    [(ngModel)]="paymentAmount"
+                    (ngModelChange)="onPaymentAmountChange()"
+                    (blur)="refreshPaymentAmountError()"
+                    min="0.01"
+                    step="0.01"
+                    [attr.max]="selectedObligation.payableNow"
+                  />
+                  <p class="text-muted small mb-1">Maximum you can pay now: {{ selectedObligation.payableNow | currency:selectedObligation.currency:'symbol':'1.2-2' }}</p>
+                  <p *ngIf="paymentAmountError" class="small mb-0" style="color: var(--clr-danger);">{{ paymentAmountError }}</p>
                 </div>
                 <div class="insight-card">
                   <div class="insight-label">Current Payable</div>
@@ -356,30 +405,70 @@ import { ErpDatePickerComponent } from '../../shared/erp-date-picker/erp-date-pi
             <div *ngIf="paymentStep === 'method'" class="row g-3">
               <div class="col-12">
                 <label class="erp-label">Choose how to pay</label>
-                <p class="text-muted small">India rails: UPI and netbanking typically go through Razorpay (or similar) Checkout. Bank transfer uses NEFT/IMPS references from your ERP. Demo providers below all hit the same mock gateway with distinct labels for QA.</p>
+                <p class="text-muted small">
+                  <ng-container *ngIf="showDemoPaymentRails">Demo tiles exercise mock checkout; in production, parents typically pay with Razorpay (hosted card / UPI / netbanking — same screens as on Razorpay’s site).</ng-container>
+                  <ng-container *ngIf="!showDemoPaymentRails">Card, UPI, and netbanking run in Razorpay’s secure checkout window after you continue. The school receives confirmation only after the bank authorizes the payment.</ng-container>
+                </p>
               </div>
-              <div class="col-md-4" *ngFor="let m of paymentMethods">
-                <button type="button" class="erp-card w-100 text-start p-3 border-0" style="cursor: pointer; border: 2px solid transparent;" [style.borderColor]="paymentProvider === m.id ? 'var(--clr-accent)' : 'var(--clr-border-light)'" (click)="paymentProvider = m.id">
-                  <div style="font-weight: 800;">{{ m.label }}</div>
-                  <div class="text-muted small">{{ m.hint }}</div>
+              <div class="col-md-4" *ngFor="let m of paymentMethodOptions">
+                <button
+                  type="button"
+                  class="payment-method-tile"
+                  [class.payment-method-tile--selected]="paymentProvider === m.id"
+                  [attr.aria-pressed]="paymentProvider === m.id"
+                  (click)="paymentProvider = m.id"
+                >
+                  <div class="d-flex justify-content-between align-items-start gap-2">
+                    <div class="flex-grow-1 min-w-0">
+                      <div class="fw-bold">{{ m.label }}</div>
+                      <div class="text-muted small">{{ m.hint }}</div>
+                    </div>
+                    <i *ngIf="paymentProvider === m.id" class="bi bi-check-circle-fill payment-method-tile__check flex-shrink-0" aria-hidden="true"></i>
+                  </div>
                 </button>
               </div>
             </div>
             <div *ngIf="paymentStep === 'confirm'" class="text-center py-3">
-              <p class="mb-2" *ngIf="processingPayment"><span class="spinner me-2"></span>Talking to gateway…</p>
-              <p class="text-muted small mb-0" *ngIf="lastOrderPreview">Order {{ lastOrderPreview.providerOrderId }} · {{ lastOrderPreview.amount | currency:selectedObligation!.currency:'symbol':'1.0-0' }}</p>
-              <p class="text-muted small mt-2" *ngIf="useMocks">Demo: no script loaded — click Complete to simulate a successful authorization.</p>
-              <button *ngIf="useMocks && !processingPayment" type="button" class="btn-primary-erp mt-3" (click)="simulateGatewaySuccess()">Simulate successful payment</button>
+              <p class="small mb-2" style="color: var(--clr-danger);" *ngIf="paymentGatewayMessage && paymentProvider !== 'banktransfer'">{{ paymentGatewayMessage }}</p>
+              <p class="small mb-2 text-start" style="color: var(--clr-text-muted);" *ngIf="paymentProvider === 'banktransfer' && !showDemoPaymentRails && paymentGatewayMessage">{{ paymentGatewayMessage }}</p>
+              <p class="mb-2" *ngIf="processingPayment"><span class="spinner me-2"></span>Processing…</p>
+              <p class="text-muted small mb-0" *ngIf="lastOrderPreview && paymentProvider === 'razorpay'">
+                Order {{ lastOrderPreview.providerOrderId }} · {{ lastOrderPreview.amount | currency:selectedObligation!.currency:'symbol':'1.0-0' }}
+              </p>
+              <ng-container *ngIf="paymentProvider === 'razorpay' && currentCheckoutSession">
+                <p class="text-muted small mt-2 mb-0" *ngIf="!currentCheckoutSession.publicKeyId">
+                  Razorpay is not configured on the server (set <code>RAZORPAY_KEY</code> / <code>RAZORPAY_SECRET</code> on the API).
+                </p>
+                <p class="text-muted small mt-2 mb-0" *ngIf="currentCheckoutSession.publicKeyId">
+                  A secure Razorpay window opens for card, UPI, or netbanking (including bank OTP). If it did not appear, allow pop-ups or use the button below.
+                </p>
+                <button
+                  *ngIf="currentCheckoutSession.publicKeyId && !processingPayment"
+                  type="button"
+                  class="btn-primary-erp mt-3"
+                  (click)="openRazorpayWidget()"
+                >
+                  Open Razorpay again
+                </button>
+              </ng-container>
+              <p class="text-muted small mt-2" *ngIf="showDemoPaymentRails && showServerBackedDemoPaymentButton()">
+                Demo / tenant: payment is recorded through your school API (in-process mock gateway — no Razorpay).
+              </p>
+              <button
+                *ngIf="showServerBackedDemoPaymentButton()"
+                type="button"
+                class="btn-primary-erp mt-3"
+                (click)="completeFeePaymentThroughApi()"
+              >
+                Complete test payment
+              </button>
             </div>
           </div>
           <div class="modal-footer-erp">
             <button class="btn-outline-erp" (click)="closePaymentModal()">Cancel</button>
-            <button *ngIf="paymentStep === 'review'" class="btn-primary-erp" [disabled]="paymentAmount <= 0" (click)="paymentStep = 'method'">Continue</button>
-            <button *ngIf="paymentStep === 'method'" class="btn-outline-erp me-auto" (click)="paymentStep = 'review'">Back</button>
-            <button *ngIf="paymentStep === 'method'" class="btn-primary-erp" (click)="goToPaymentConfirm()">Open pay screen</button>
-            <button *ngIf="paymentStep === 'confirm' && !useMocks" class="btn-primary-erp" [disabled]="processingPayment" (click)="startPayment()">
-              {{ processingPayment ? 'Processing...' : 'Confirm paid' }}
-            </button>
+            <button *ngIf="paymentStep === 'review'" class="btn-primary-erp" [disabled]="!canContinueFromPaymentReview" (click)="continuePaymentReview()">Continue</button>
+            <button *ngIf="paymentStep === 'method'" class="btn-outline-erp me-auto" (click)="backToPaymentReview()">Back</button>
+            <button *ngIf="paymentStep === 'method'" class="btn-primary-erp" [disabled]="!canSubmitPaymentMethod" (click)="goToPaymentConfirm()">Open pay screen</button>
           </div>
         </div>
       </div>
@@ -418,20 +507,101 @@ export class ParentPortalComponent implements OnInit {
   currentCheckoutSession: CheckoutSession | null = null;
   paymentStep: 'review' | 'method' | 'confirm' = 'review';
   lastOrderPreview: { providerOrderId: string; amount: number } | null = null;
+  /** Inline error for gateway (Stripe unsupported, Razorpay config, etc.). */
+  paymentGatewayMessage: string | null = null;
+  /** Review-step validation for amount vs payable. */
+  paymentAmountError: string | null = null;
   readonly useMocks = runtimeConfig.useMocks;
-  paymentMethods = [
+  readonly showDemoPaymentRails = runtimeConfig.showDemoPaymentRails;
+
+  private static readonly ALL_PAYMENT_METHODS: ReadonlyArray<{ id: string; label: string; hint: string }> = [
     { id: 'mockpay', label: 'Instant (demo)', hint: 'Local mock — no external call' },
     { id: 'upi', label: 'UPI', hint: 'Mock UPI intent / Razorpay in prod' },
     { id: 'netbanking', label: 'Netbanking', hint: 'Mock bank redirect / Razorpay in prod' },
     { id: 'banktransfer', label: 'Bank transfer', hint: 'NEFT/IMPS reference (manual reconcile)' },
-    { id: 'razorpay', label: 'Razorpay', hint: 'UPI · Cards · Netbanking (SDK in prod)' },
+    { id: 'razorpay', label: 'Razorpay', hint: 'UPI · Cards · Netbanking (hosted checkout)' },
     { id: 'stripe', label: 'Stripe', hint: 'Cards · Wallets (Payment Element)' },
   ];
 
-  constructor(
-    private parentService: ParentService,
-    private paymentCheckout: PaymentCheckoutService
-  ) {}
+  constructor(private parentService: ParentService) {}
+
+  get paymentMethodOptions(): ReadonlyArray<{ id: string; label: string; hint: string }> {
+    if (runtimeConfig.showDemoPaymentRails) {
+      return ParentPortalComponent.ALL_PAYMENT_METHODS;
+    }
+    return ParentPortalComponent.ALL_PAYMENT_METHODS.filter(m => !['mockpay', 'upi', 'netbanking'].includes(m.id));
+  }
+
+  /** Demo gateway rails + optional demo banktransfer: confirm step shows one action; always uses {@link ParentService} → Spring. */
+  showServerBackedDemoPaymentButton(): boolean {
+    if (this.processingPayment || this.paymentStep !== 'confirm') {
+      return false;
+    }
+    const p = this.paymentProvider;
+    if (p === 'razorpay' || p === 'stripe') {
+      return false;
+    }
+    if (isParentDemoGatewayProvider(p)) {
+      return true;
+    }
+    return p === 'banktransfer' && this.showDemoPaymentRails;
+  }
+
+  get canContinueFromPaymentReview(): boolean {
+    return !this.computePaymentAmountError();
+  }
+
+  get canSubmitPaymentMethod(): boolean {
+    return !this.computePaymentAmountError();
+  }
+
+  private computePaymentAmountError(): string | null {
+    const ob = this.selectedObligation;
+    if (!ob) {
+      return 'No fee selected.';
+    }
+    const raw = Number(this.paymentAmount);
+    if (!Number.isFinite(raw)) {
+      return 'Enter a valid number.';
+    }
+    if (raw <= 0) {
+      return 'Amount must be greater than zero.';
+    }
+    const max = Number(ob.payableNow);
+    if (!Number.isFinite(max) || max <= 0) {
+      return 'Nothing is payable for this fee right now.';
+    }
+    const rounded = Math.round(raw * 100) / 100;
+    const maxRounded = Math.round(max * 100) / 100;
+    if (rounded > maxRounded) {
+      return `Amount cannot exceed current payable (${ob.currency} ${maxRounded.toFixed(2)}).`;
+    }
+    if (rounded < 0.01) {
+      return 'Minimum payment is 0.01.';
+    }
+    return null;
+  }
+
+  onPaymentAmountChange(): void {
+    this.paymentAmountError = null;
+  }
+
+  refreshPaymentAmountError(): void {
+    this.paymentAmountError = this.computePaymentAmountError();
+  }
+
+  continuePaymentReview(): void {
+    this.refreshPaymentAmountError();
+    if (this.paymentAmountError) {
+      return;
+    }
+    this.paymentStep = 'method';
+  }
+
+  backToPaymentReview(): void {
+    this.paymentStep = 'review';
+    this.refreshPaymentAmountError();
+  }
 
   private static readonly RECEIPT_LOOKUP_FROM = '2020-01-01';
 
@@ -638,10 +808,18 @@ export class ParentPortalComponent implements OnInit {
   openPayment(obligation: ParentFeeObligation): void {
     this.selectedObligation = obligation;
     this.paymentAmount = obligation.payableNow;
-    this.paymentProvider = 'mockpay';
+    this.paymentProvider = this.pickDefaultPaymentProvider();
     this.paymentStep = 'review';
     this.lastOrderPreview = null;
+    this.paymentGatewayMessage = null;
+    this.paymentAmountError = null;
     this.showPaymentModal = true;
+  }
+
+  /** Prefer Razorpay when visible so production-like flows work even with `useMocks` auth/data. */
+  private pickDefaultPaymentProvider(): string {
+    const opts = this.paymentMethodOptions;
+    return opts.find(m => m.id === 'razorpay')?.id ?? opts[0]?.id ?? 'razorpay';
   }
 
   closePaymentModal(): void {
@@ -652,68 +830,182 @@ export class ParentPortalComponent implements OnInit {
     this.currentCheckoutSession = null;
     this.paymentStep = 'review';
     this.lastOrderPreview = null;
+    this.paymentGatewayMessage = null;
+    this.paymentAmountError = null;
   }
 
   goToPaymentConfirm(): void {
-    if (!this.selectedObligation || !this.selectedChild || this.paymentAmount <= 0) {
+    this.paymentGatewayMessage = null;
+    if (!this.selectedObligation || !this.selectedChild) {
       return;
     }
-    if (this.paymentProvider === 'mockpay' || this.paymentProvider === 'upi' || this.paymentProvider === 'netbanking' || this.paymentProvider === 'banktransfer') {
+    const amountErr = this.computePaymentAmountError();
+    if (amountErr) {
+      this.paymentGatewayMessage = amountErr;
+      return;
+    }
+
+    if (this.paymentProvider === 'stripe') {
+      this.paymentGatewayMessage =
+        'Stripe for school fees is not wired yet. Use Razorpay for INR, or enable demo payment rails for mock providers.';
+      return;
+    }
+
+    if (this.paymentProvider === 'razorpay') {
+      this.processingPayment = true;
+      const returnUrl =
+        typeof window !== 'undefined' ? `${window.location.origin}/app/parent` : '/app/parent';
+      const amount = Math.round(Number(this.paymentAmount) * 100) / 100;
+      this.parentService
+        .createCheckoutSession({
+          paymentId: this.selectedObligation.paymentId,
+          studentId: coerceApiLongId(this.selectedChild.id, 'student'),
+          amount,
+          provider: 'razorpay',
+          returnUrl,
+        })
+        .subscribe({
+          next: session => {
+            this.currentCheckoutSession = session;
+            this.lastOrderPreview = { providerOrderId: session.providerOrderId, amount: session.amount };
+            this.processingPayment = false;
+            this.paymentStep = 'confirm';
+            if (session.publicKeyId) {
+              setTimeout(() => this.openRazorpayWidget(), 0);
+            } else {
+              this.paymentGatewayMessage =
+                'Order created but Razorpay publishable key is missing on the API. Set app.payments.razorpay.key or RAZORPAY_KEY, then try again.';
+            }
+          },
+          error: () => {
+            this.processingPayment = false;
+            this.paymentGatewayMessage =
+              'Could not create checkout. Use a valid Razorpay test/live key pair on the API, correct amount (≤ payable), and ensure you are logged in as the parent.';
+          },
+        });
+      return;
+    }
+
+    if (this.paymentProvider === 'banktransfer' && !this.showDemoPaymentRails) {
       this.paymentStep = 'confirm';
-      this.simulateGatewaySuccess();
+      this.paymentGatewayMessage =
+        'Pay via NEFT/IMPS using the bank details on your fee notice. This app will show as paid only after the school records your transfer. Contact the office for the reference format.';
       return;
     }
-    const prov = this.paymentProvider === 'stripe' ? 'STRIPE' : 'RAZORPAY';
-    this.processingPayment = true;
-    this.paymentCheckout
-      .createOrder({
-        purpose: 'SCHOOL_FEE',
-        feePaymentId: this.selectedObligation.paymentId,
-        studentId: coerceApiLongId(this.selectedChild.id, 'student'),
-        amount: this.paymentAmount,
-        currency: this.selectedObligation.currency || 'INR',
-        provider: prov,
-        returnUrl: '/app/parent',
-      })
-      .subscribe({
-        next: ord => {
-          this.lastOrderPreview = { providerOrderId: ord.providerOrderId, amount: ord.amount };
-          this.processingPayment = false;
-          this.paymentStep = 'confirm';
-        },
-        error: () => {
-          this.processingPayment = false;
-        },
-      });
+
+    if (isParentDemoGatewayProvider(this.paymentProvider) || (this.paymentProvider === 'banktransfer' && this.showDemoPaymentRails)) {
+      this.paymentStep = 'confirm';
+      return;
+    }
+
+    this.paymentGatewayMessage = 'This payment method is not available.';
   }
 
-  simulateGatewaySuccess(): void {
+  /** Creates checkout session + confirm via API (demo rails and banktransfer-in-demo). */
+  completeFeePaymentThroughApi(): void {
     this.startPayment();
   }
 
+  /** Opens Razorpay Checkout.js after {@link #goToPaymentConfirm} created a server order. */
+  openRazorpayWidget(): void {
+    const session = this.currentCheckoutSession;
+    const ob = this.selectedObligation;
+    const child = this.selectedChild;
+    if (!session || !ob || session.provider !== 'razorpay') {
+      return;
+    }
+    const key = session.publicKeyId;
+    if (!key) {
+      this.paymentGatewayMessage = 'Missing Razorpay key on server (RAZORPAY_KEY).';
+      return;
+    }
+    const currency = (ob.currency || 'INR').toUpperCase();
+    if (currency !== 'INR') {
+      this.paymentGatewayMessage = 'Razorpay checkout supports INR only in this integration.';
+      return;
+    }
+    const paise = Math.round(Number(session.amount) * 100);
+    openRazorpaySchoolFeeCheckout({
+      keyId: key,
+      orderId: session.providerOrderId,
+      amountPaise: paise,
+      currency,
+      name: 'SchoolVault',
+      description: `${ob.feeStructureName} (${child?.firstName ?? ''} ${child?.lastName ?? ''})`.trim(),
+      onLoadError: msg => {
+        this.paymentGatewayMessage = msg;
+        this.processingPayment = false;
+      },
+      onSuccess: resp => {
+        this.processingPayment = true;
+        this.paymentGatewayMessage = null;
+        this.parentService
+          .confirmCheckout(session.attemptId, session.checkoutToken, resp.razorpay_payment_id, resp.razorpay_signature)
+          .subscribe({
+            next: receipt => {
+              this.latestReceipt = receipt;
+              this.processingPayment = false;
+              this.closePaymentModal();
+              this.reloadSelectedChild();
+              this.reloadReceiptHistory();
+              this.reloadReceiptLookup();
+            },
+            error: () => {
+              this.processingPayment = false;
+              this.paymentGatewayMessage =
+                'Confirmation failed. If your account was debited, contact the school with your bank reference.';
+            },
+          });
+      },
+      onDismiss: () => {
+        this.processingPayment = false;
+      },
+    });
+  }
+
+  /** Demo / mock-gateway rails: create session then confirm with synthetic provider id (server mock adapter). */
   startPayment(): void {
-    if (!this.selectedObligation || !this.selectedChild || this.paymentAmount <= 0) {
+    if (!this.selectedObligation || !this.selectedChild) {
+      return;
+    }
+    if (this.computePaymentAmountError()) {
       return;
     }
     this.processingPayment = true;
+    this.paymentGatewayMessage = null;
+    const amount = Math.round(Number(this.paymentAmount) * 100) / 100;
     this.parentService
       .createCheckoutSession({
         paymentId: this.selectedObligation.paymentId,
         studentId: coerceApiLongId(this.selectedChild.id, 'student'),
-        amount: this.paymentAmount,
+        amount,
         provider: this.paymentProvider,
-        returnUrl: '/app/parent',
+        returnUrl: typeof window !== 'undefined' ? `${window.location.origin}/app/parent` : '/app/parent',
       })
-      .subscribe(session => {
-        this.currentCheckoutSession = session;
-        this.parentService.confirmCheckout(session.attemptId, session.checkoutToken, session.providerOrderId + '-SUCCESS').subscribe(receipt => {
-          this.latestReceipt = receipt;
+      .subscribe({
+        next: session => {
+          this.currentCheckoutSession = session;
+          this.parentService
+            .confirmCheckout(session.attemptId, session.checkoutToken, session.providerOrderId + '-SUCCESS')
+            .subscribe({
+              next: receipt => {
+                this.latestReceipt = receipt;
+                this.processingPayment = false;
+                this.closePaymentModal();
+                this.reloadSelectedChild();
+                this.reloadReceiptHistory();
+                this.reloadReceiptLookup();
+              },
+              error: () => {
+                this.processingPayment = false;
+                this.paymentGatewayMessage = 'Payment confirmation failed.';
+              },
+            });
+        },
+        error: () => {
           this.processingPayment = false;
-          this.closePaymentModal();
-          this.reloadSelectedChild();
-          this.reloadReceiptHistory();
-          this.reloadReceiptLookup();
-        });
+          this.paymentGatewayMessage = 'Could not start payment session.';
+        },
       });
   }
 

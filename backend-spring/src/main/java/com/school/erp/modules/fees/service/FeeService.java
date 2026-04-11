@@ -15,6 +15,7 @@ import com.school.erp.modules.student.entity.Student;
 import com.school.erp.modules.student.repository.StudentRepository;
 import com.school.erp.tenant.TenantContext;
 import com.school.erp.tenant.TenantQueryPolicy;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
@@ -39,6 +40,9 @@ public class FeeService {
     private final PaymentGatewayClient paymentGatewayClient;
     private final NotificationOutboxService notificationOutboxService;
     private final UserRepository userRepository;
+
+    @Value("${app.payments.razorpay.key:}")
+    private String razorpayPublishableKeyId;
 
     // ========== FEE STRUCTURES ==========
     @Transactional(readOnly = true)
@@ -254,6 +258,11 @@ public class FeeService {
         response.setAmount(attempt.getAmount());
         response.setCheckoutUrl(gatewaySession.getCheckoutUrl());
         response.setStatus(attempt.getStatus());
+        if ("razorpay".equalsIgnoreCase(attempt.getProvider())
+                && razorpayPublishableKeyId != null
+                && !razorpayPublishableKeyId.isBlank()) {
+            response.setPublicKeyId(razorpayPublishableKeyId.trim());
+        }
         return response;
     }
 
