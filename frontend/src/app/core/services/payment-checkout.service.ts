@@ -3,7 +3,7 @@ import { Observable, of } from 'rxjs';
 import { delay, map } from 'rxjs/operators';
 import { ApiService } from './api.service';
 import { runtimeConfig } from '../config/runtime-config';
-import { PaymentDtos } from '../models/payment.dto';
+import { PaymentDtos } from '../payment/payment.dto';
 import { buildMockPaymentCheckoutOrderResponse } from '../mocks/payment.mock-data';
 
 /** Alias for {@link PaymentDtos.CreateOrderRequest} (backward compatible imports). */

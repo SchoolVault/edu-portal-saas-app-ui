@@ -1,6 +1,7 @@
 /**
  * Mirrors {@code com.school.erp.modules.payment.dto.PaymentDTOs}
- * (POST /api/v1/payments/checkout/orders body + {@link ApiResp} data).
+ * (POST /api/v1/payments/checkout/orders body + ApiResponse data).
+ * For {@code purpose}, prefer constants from {@link ./payment-checkout-purpose}.
  * Amount is {@code BigDecimal} on the server → JSON number.
  */
 export namespace PaymentDtos {
@@ -11,7 +12,7 @@ export namespace PaymentDtos {
     payeeUserId?: number;
     amount: number;
     currency: string;
-    /** Uppercase: RAZORPAY | STRIPE | MOCK (see server validation). */
+    /** Legacy generic checkout: uppercase RAZORPAY | STRIPE | MOCK. Parent fee API uses lowercase (see payment-provider-ids). */
     provider: string;
     returnUrl?: string;
   }

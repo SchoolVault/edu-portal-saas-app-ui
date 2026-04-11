@@ -108,6 +108,10 @@ app:
   # Key Id = publishable (rzp_test_… / rzp_live_…). Secret = from same "Generate key" pair. Never commit real values.
   # If RAZORPAY_KEY is set to "" in an IDE env block, Spring uses empty string (not the default) — Checkout then gets 401 on preferences.
   payments:
+    # Parent portal checkout: comma-separated provider ids (matches FeePaymentCheckoutStrategy routing).
+    # Production: razorpay only. For server integration tests add e.g. mockpay.
+    parent:
+      enabled-providers: ${PARENT_FEE_ENABLED_PROVIDERS:razorpay}
     razorpay:
       api-base: ${RAZORPAY_API_BASE:https://api.razorpay.com}
       key: ${RAZORPAY_KEY:}

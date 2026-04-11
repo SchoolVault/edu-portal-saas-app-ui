@@ -4,7 +4,6 @@
 export const environment = {
   production: true,
   useMocks: false,
-  showDemoPaymentRails: false,
   apiUrl: '/api/v1',
   mockSessionAccessTtlMs: 86_400_000,
   mockSessionRefreshTtlMs: 604_800_000

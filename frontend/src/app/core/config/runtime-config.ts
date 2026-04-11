@@ -17,15 +17,15 @@ export interface DeployedApiConfig {
  */
 export const runtimeConfig: DeployedApiConfig & {
   production: boolean;
-  /** In-memory mocks vs HTTP. Set only from environment files, never from config.json. */
+  /**
+   * Dev: true = in-memory parent data; fee pay uses in-browser settlement only for {@code mockpay} (see {@link ParentService.usesLocalPortalFeeSimulation}).
+   * Prod: false = all parent calls and fee checkout use the API with a real JWT.
+   */
   useMocks: boolean;
-  /** Show Instant/UPI/Netbanking mock tiles (demo tenants). Production parents typically only see Razorpay + real options. */
-  showDemoPaymentRails: boolean;
 } = {
   apiUrl: environment.apiUrl,
   websocketUrl: undefined,
   useMocks: environment.useMocks,
-  showDemoPaymentRails: environment.showDemoPaymentRails ?? environment.useMocks,
   production: environment.production
 };
 

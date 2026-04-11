@@ -5,6 +5,7 @@ import com.school.erp.common.exception.BusinessException;
 import com.school.erp.common.exception.ResourceNotFoundException;
 import com.school.erp.common.exception.UnauthorizedException;
 import com.school.erp.modules.fees.gateway.PaymentGatewayClient;
+import com.school.erp.modules.payment.domain.PaymentProviderIds;
 import com.school.erp.modules.fees.dto.FeeDTOs;
 import com.school.erp.modules.fees.entity.*;
 import com.school.erp.modules.fees.repository.*;
@@ -21,9 +22,12 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.Arrays;
 import java.util.Comparator;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
@@ -43,6 +47,10 @@ public class FeeService {
 
     @Value("${app.payments.razorpay.key:}")
     private String razorpayPublishableKeyId;
+
+    /** CSV of provider ids allowed for parent fee checkout (e.g. {@code razorpay} or {@code razorpay,mockpay} for tests). */
+    @Value("${app.payments.parent.enabled-providers:razorpay}")
+    private String parentFeeEnabledProvidersCsv;
 
     // ========== FEE STRUCTURES ==========
     @Transactional(readOnly = true)
@@ -229,6 +237,9 @@ public class FeeService {
         }
 
         String provider = request.getProvider().trim().toLowerCase(Locale.ROOT);
+        if (!enabledParentFeeProviders().contains(provider)) {
+            throw new BusinessException("Payment provider is not enabled for parent checkout: " + provider);
+        }
         PaymentGatewayClient.GatewayCheckoutSession gatewaySession = paymentGatewayClient.createSession(provider, tenantId, payment.getId(), request.getAmount(), DEFAULT_CURRENCY, request.getReturnUrl());
 
         FeePaymentAttempt attempt = new FeePaymentAttempt();
@@ -258,7 +269,7 @@ public class FeeService {
         response.setAmount(attempt.getAmount());
         response.setCheckoutUrl(gatewaySession.getCheckoutUrl());
         response.setStatus(attempt.getStatus());
-        if ("razorpay".equalsIgnoreCase(attempt.getProvider())
+        if (PaymentProviderIds.RAZORPAY.equalsIgnoreCase(attempt.getProvider())
                 && razorpayPublishableKeyId != null
                 && !razorpayPublishableKeyId.isBlank()) {
             response.setPublicKeyId(razorpayPublishableKeyId.trim());
@@ -405,6 +416,14 @@ public class FeeService {
         return componentRepo.findByTenantIdAndFeeStructureId(feeTenantId, feeStructureId).stream()
                 .map(item -> new FeeDTOs.ParentFeeLineItem(item.getName(), item.getAmount(), item.getType() != null ? item.getType().name().toLowerCase() : "misc"))
                 .collect(Collectors.toList());
+    }
+
+    private Set<String> enabledParentFeeProviders() {
+        return Arrays.stream(parentFeeEnabledProvidersCsv.split(","))
+                .map(String::trim)
+                .filter(s -> !s.isEmpty())
+                .map(s -> s.toLowerCase(Locale.ROOT))
+                .collect(Collectors.toCollection(LinkedHashSet::new));
     }
 
     private BigDecimal getPayableNow(FeePayment payment) {

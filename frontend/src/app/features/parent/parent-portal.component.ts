@@ -2,7 +2,7 @@ import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ParentService } from '../../core/services/parent.service';
-import { openRazorpaySchoolFeeCheckout } from '../../core/payment/razorpay-checkout';
+import { openRazorpaySchoolFeeCheckout, PAYMENT_PROVIDER_IDS } from '../../core/payment';
 import { runtimeConfig } from '../../core/config/runtime-config';
 import {
   AttendanceRecord,
@@ -17,8 +17,11 @@ import {
   Student,
 } from '../../core/models/models';
 import { coerceApiLongId } from '../../core/utils/coerce-api-long-id';
-import { isParentDemoGatewayProvider } from '../../core/payment/parent-fee-payment.rails';
 import { ErpDatePickerComponent } from '../../shared/erp-date-picker/erp-date-picker.component';
+import {
+  parentFeePaymentMethodOptions,
+  type ParentFeePaymentMethodOption,
+} from './parent-fee-payment.providers';
 
 @Component({
   selector: 'app-parent-portal',
@@ -406,8 +409,12 @@ import { ErpDatePickerComponent } from '../../shared/erp-date-picker/erp-date-pi
               <div class="col-12">
                 <label class="erp-label">Choose how to pay</label>
                 <p class="text-muted small">
-                  <ng-container *ngIf="showDemoPaymentRails">Demo tiles exercise mock checkout; in production, parents typically pay with Razorpay (hosted card / UPI / netbanking — same screens as on Razorpay’s site).</ng-container>
-                  <ng-container *ngIf="!showDemoPaymentRails">Card, UPI, and netbanking run in Razorpay’s secure checkout window after you continue. The school receives confirmation only after the bank authorizes the payment.</ng-container>
+                  <ng-container *ngIf="useMocks">
+                    <strong>Instant (demo)</strong> records a payment in-browser. <strong>Razorpay</strong> is a preview tile — use a real parent login (<code>useMocks: false</code>) to run checkout.
+                  </ng-container>
+                  <ng-container *ngIf="!useMocks">
+                    Card, UPI, and netbanking run in Razorpay’s secure window. The school is notified only after your bank authorizes the payment.
+                  </ng-container>
                 </p>
               </div>
               <div class="col-md-4" *ngFor="let m of paymentMethodOptions">
@@ -429,13 +436,12 @@ import { ErpDatePickerComponent } from '../../shared/erp-date-picker/erp-date-pi
               </div>
             </div>
             <div *ngIf="paymentStep === 'confirm'" class="text-center py-3">
-              <p class="small mb-2" style="color: var(--clr-danger);" *ngIf="paymentGatewayMessage && paymentProvider !== 'banktransfer'">{{ paymentGatewayMessage }}</p>
-              <p class="small mb-2 text-start" style="color: var(--clr-text-muted);" *ngIf="paymentProvider === 'banktransfer' && !showDemoPaymentRails && paymentGatewayMessage">{{ paymentGatewayMessage }}</p>
+              <p class="small mb-2" style="color: var(--clr-danger);" *ngIf="paymentGatewayMessage">{{ paymentGatewayMessage }}</p>
               <p class="mb-2" *ngIf="processingPayment"><span class="spinner me-2"></span>Processing…</p>
-              <p class="text-muted small mb-0" *ngIf="lastOrderPreview && paymentProvider === 'razorpay'">
+              <p class="text-muted small mb-0" *ngIf="lastOrderPreview && paymentProvider === PAYMENT_PROVIDER_IDS.RAZORPAY">
                 Order {{ lastOrderPreview.providerOrderId }} · {{ lastOrderPreview.amount | currency:selectedObligation!.currency:'symbol':'1.0-0' }}
               </p>
-              <ng-container *ngIf="paymentProvider === 'razorpay' && currentCheckoutSession">
+              <ng-container *ngIf="paymentProvider === PAYMENT_PROVIDER_IDS.RAZORPAY && currentCheckoutSession">
                 <p class="text-muted small mt-2 mb-0" *ngIf="!currentCheckoutSession.publicKeyId">
                   Razorpay is not configured on the server (set <code>RAZORPAY_KEY</code> / <code>RAZORPAY_SECRET</code> on the API).
                 </p>
@@ -451,11 +457,11 @@ import { ErpDatePickerComponent } from '../../shared/erp-date-picker/erp-date-pi
                   Open Razorpay again
                 </button>
               </ng-container>
-              <p class="text-muted small mt-2" *ngIf="showDemoPaymentRails && showServerBackedDemoPaymentButton()">
-                Demo / tenant: payment is recorded through your school API (in-process mock gateway — no Razorpay).
+              <p class="text-muted small mt-2" *ngIf="showCompleteTestPaymentButton() && usesLocalPortalDemoFeePayment()">
+                Dev: completing here updates in-browser mock fee state only (mock login is not a JWT).
               </p>
               <button
-                *ngIf="showServerBackedDemoPaymentButton()"
+                *ngIf="showCompleteTestPaymentButton()"
                 type="button"
                 class="btn-primary-erp mt-3"
                 (click)="completeFeePaymentThroughApi()"
@@ -476,6 +482,9 @@ import { ErpDatePickerComponent } from '../../shared/erp-date-picker/erp-date-pi
   `
 })
 export class ParentPortalComponent implements OnInit {
+  /** Expose for template comparisons (canonical provider ids). */
+  readonly PAYMENT_PROVIDER_IDS = PAYMENT_PROVIDER_IDS;
+
   children: Student[] = [];
   selectedStudentId: number | null = null;
   selectedChild: Student | null = null;
@@ -494,7 +503,7 @@ export class ParentPortalComponent implements OnInit {
   totalPending = 0;
   selectedObligation: ParentFeeObligation | null = null;
   showPaymentModal = false;
-  paymentProvider = 'mockpay';
+  paymentProvider: string = PAYMENT_PROVIDER_IDS.MOCKPAY;
   paymentAmount = 0;
   processingPayment = false;
   latestReceipt: PaymentReceipt | null = null;
@@ -512,39 +521,23 @@ export class ParentPortalComponent implements OnInit {
   /** Review-step validation for amount vs payable. */
   paymentAmountError: string | null = null;
   readonly useMocks = runtimeConfig.useMocks;
-  readonly showDemoPaymentRails = runtimeConfig.showDemoPaymentRails;
-
-  private static readonly ALL_PAYMENT_METHODS: ReadonlyArray<{ id: string; label: string; hint: string }> = [
-    { id: 'mockpay', label: 'Instant (demo)', hint: 'Local mock — no external call' },
-    { id: 'upi', label: 'UPI', hint: 'Mock UPI intent / Razorpay in prod' },
-    { id: 'netbanking', label: 'Netbanking', hint: 'Mock bank redirect / Razorpay in prod' },
-    { id: 'banktransfer', label: 'Bank transfer', hint: 'NEFT/IMPS reference (manual reconcile)' },
-    { id: 'razorpay', label: 'Razorpay', hint: 'UPI · Cards · Netbanking (hosted checkout)' },
-    { id: 'stripe', label: 'Stripe', hint: 'Cards · Wallets (Payment Element)' },
-  ];
 
   constructor(private parentService: ParentService) {}
 
-  get paymentMethodOptions(): ReadonlyArray<{ id: string; label: string; hint: string }> {
-    if (runtimeConfig.showDemoPaymentRails) {
-      return ParentPortalComponent.ALL_PAYMENT_METHODS;
-    }
-    return ParentPortalComponent.ALL_PAYMENT_METHODS.filter(m => !['mockpay', 'upi', 'netbanking'].includes(m.id));
+  get paymentMethodOptions(): ReadonlyArray<ParentFeePaymentMethodOption> {
+    return parentFeePaymentMethodOptions(this.useMocks);
   }
 
-  /** Demo gateway rails + optional demo banktransfer: confirm step shows one action; always uses {@link ParentService} → Spring. */
-  showServerBackedDemoPaymentButton(): boolean {
+  /** Mock portal: only Instant (demo) uses the in-browser complete button. */
+  showCompleteTestPaymentButton(): boolean {
     if (this.processingPayment || this.paymentStep !== 'confirm') {
       return false;
     }
-    const p = this.paymentProvider;
-    if (p === 'razorpay' || p === 'stripe') {
-      return false;
-    }
-    if (isParentDemoGatewayProvider(p)) {
-      return true;
-    }
-    return p === 'banktransfer' && this.showDemoPaymentRails;
+    return this.useMocks && this.paymentProvider === PAYMENT_PROVIDER_IDS.MOCKPAY;
+  }
+
+  usesLocalPortalDemoFeePayment(): boolean {
+    return ParentService.usesLocalPortalFeeSimulation(this.paymentProvider);
   }
 
   get canContinueFromPaymentReview(): boolean {
@@ -816,10 +809,13 @@ export class ParentPortalComponent implements OnInit {
     this.showPaymentModal = true;
   }
 
-  /** Prefer Razorpay when visible so production-like flows work even with `useMocks` auth/data. */
+  /** Mock portal defaults to the only working tile; production defaults to Razorpay. */
   private pickDefaultPaymentProvider(): string {
     const opts = this.paymentMethodOptions;
-    return opts.find(m => m.id === 'razorpay')?.id ?? opts[0]?.id ?? 'razorpay';
+    if (this.useMocks && opts.some(m => m.id === PAYMENT_PROVIDER_IDS.MOCKPAY)) {
+      return PAYMENT_PROVIDER_IDS.MOCKPAY;
+    }
+    return opts.find(m => m.id === PAYMENT_PROVIDER_IDS.RAZORPAY)?.id ?? opts[0]?.id ?? PAYMENT_PROVIDER_IDS.RAZORPAY;
   }
 
   closePaymentModal(): void {
@@ -845,13 +841,12 @@ export class ParentPortalComponent implements OnInit {
       return;
     }
 
-    if (this.paymentProvider === 'stripe') {
-      this.paymentGatewayMessage =
-        'Stripe for school fees is not wired yet. Use Razorpay for INR, or enable demo payment rails for mock providers.';
-      return;
-    }
-
-    if (this.paymentProvider === 'razorpay') {
+    if (this.paymentProvider === PAYMENT_PROVIDER_IDS.RAZORPAY) {
+      if (this.useMocks) {
+        this.paymentGatewayMessage =
+          'Razorpay is preview-only in mock portal. Choose Instant (demo) to record a payment, or set useMocks to false for real checkout.';
+        return;
+      }
       this.processingPayment = true;
       const returnUrl =
         typeof window !== 'undefined' ? `${window.location.origin}/app/parent` : '/app/parent';
@@ -861,7 +856,7 @@ export class ParentPortalComponent implements OnInit {
           paymentId: this.selectedObligation.paymentId,
           studentId: coerceApiLongId(this.selectedChild.id, 'student'),
           amount,
-          provider: 'razorpay',
+          provider: PAYMENT_PROVIDER_IDS.RAZORPAY,
           returnUrl,
         })
         .subscribe({
@@ -880,20 +875,13 @@ export class ParentPortalComponent implements OnInit {
           error: () => {
             this.processingPayment = false;
             this.paymentGatewayMessage =
-              'Could not create checkout. Use a valid Razorpay test/live key pair on the API, correct amount (≤ payable), and ensure you are logged in as the parent.';
+              'Could not create checkout. Use valid Razorpay keys on the API, amount ≤ payable, and a real parent login.';
           },
         });
       return;
     }
 
-    if (this.paymentProvider === 'banktransfer' && !this.showDemoPaymentRails) {
-      this.paymentStep = 'confirm';
-      this.paymentGatewayMessage =
-        'Pay via NEFT/IMPS using the bank details on your fee notice. This app will show as paid only after the school records your transfer. Contact the office for the reference format.';
-      return;
-    }
-
-    if (isParentDemoGatewayProvider(this.paymentProvider) || (this.paymentProvider === 'banktransfer' && this.showDemoPaymentRails)) {
+    if (this.useMocks && this.paymentProvider === PAYMENT_PROVIDER_IDS.MOCKPAY) {
       this.paymentStep = 'confirm';
       return;
     }
@@ -901,7 +889,7 @@ export class ParentPortalComponent implements OnInit {
     this.paymentGatewayMessage = 'This payment method is not available.';
   }
 
-  /** Creates checkout session + confirm via API (demo rails and banktransfer-in-demo). */
+  /** Mock portal: create local checkout session then confirm (Instant / demo only). */
   completeFeePaymentThroughApi(): void {
     this.startPayment();
   }
@@ -911,7 +899,7 @@ export class ParentPortalComponent implements OnInit {
     const session = this.currentCheckoutSession;
     const ob = this.selectedObligation;
     const child = this.selectedChild;
-    if (!session || !ob || session.provider !== 'razorpay') {
+    if (!session || !ob || session.provider !== PAYMENT_PROVIDER_IDS.RAZORPAY) {
       return;
     }
     const key = session.publicKeyId;
@@ -963,7 +951,7 @@ export class ParentPortalComponent implements OnInit {
     });
   }
 
-  /** Demo / mock-gateway rails: create session then confirm with synthetic provider id (server mock adapter). */
+  /** Instant (demo): in-browser checkout token then confirm (mock portal only). */
   startPayment(): void {
     if (!this.selectedObligation || !this.selectedChild) {
       return;

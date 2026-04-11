@@ -1,4 +1,4 @@
-import type { PaymentDtos } from '../models/payment.dto';
+import type { PaymentDtos } from '../payment/payment.dto';
 
 /**
  * Mock aligned with {@link PaymentDtos.CreateOrderResponse} (POST /api/v1/payments/checkout/orders).

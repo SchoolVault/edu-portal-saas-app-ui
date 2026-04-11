@@ -43,7 +43,7 @@ export {
 export { MOCK_TENANT_CONFIG_DEFAULT, mockSchoolBranches } from './settings.mock-data';
 export { MOCK_DIRECTORY_STATIC_ENTRIES } from './directory.mock-data';
 export { buildMockPaymentCheckoutOrderResponse } from './payment.mock-data';
-export type { PaymentDtos } from '../models/payment.dto';
+export type { PaymentDtos } from '../payment/payment.dto';
 export type { DirectoryDtos, DirectoryEntry, DirectorySearchResponse } from '../models/directory.dto';
 export type { ParentFeeDtos } from '../models/parent-fee.dto';
 export type { ChatDirectoryDtos } from '../models/chat-directory.dto';

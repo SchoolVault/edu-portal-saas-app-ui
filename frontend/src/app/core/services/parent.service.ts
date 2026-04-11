@@ -28,12 +28,18 @@ import {
   Student,
 } from '../models/models';
 import { runtimeConfig } from '../config/runtime-config';
+import { PAYMENT_PROVIDER_IDS, normalizePaymentProviderId } from '../payment/payment-provider-ids';
 
 @Injectable({ providedIn: 'root' })
 export class ParentService {
+  /** Checkout tokens for in-browser demo completion (see {@link #useLocalPortalFeeCheckout}). */
+  private static readonly LOCAL_DEMO_TOKEN_PREFIX = 'local-demo-token-';
+
   private mockReceipts: PaymentReceipt[] = [];
   private mockObligationsMutable: ParentFeeObligation[] | null = null;
   private mockFeePaymentsMutable: FeePayment[] | null = null;
+  /** Last amounts for local demo checkout/confirm (mock JWT cannot call {@code /parent/payments/*}). */
+  private localDemoCheckout: { paymentId: number; studentId: number; amount: number } | null = null;
 
   constructor(private api: ApiService) {
     this.bootstrapMockReceiptLedger();
@@ -237,9 +243,32 @@ export class ParentService {
   }
 
   /**
-   * All providers (Razorpay, demo rails, banktransfer) go through the API; Spring {@code RoutingPaymentGatewayClient} picks Razorpay vs in-process mock.
+   * Mock portal ({@code useMocks}): only {@code mockpay} settles in-browser (no JWT on parent payment API).
+   * Real JWT: always false — checkout uses the school API (e.g. Razorpay).
    */
+  static usesLocalPortalFeeSimulation(provider: string | undefined): boolean {
+    return runtimeConfig.useMocks && normalizePaymentProviderId(provider) === PAYMENT_PROVIDER_IDS.MOCKPAY;
+  }
+
   createCheckoutSession(request: CheckoutSessionRequest): Observable<CheckoutSession> {
+    if (ParentService.usesLocalPortalFeeSimulation(request.provider)) {
+      this.localDemoCheckout = {
+        paymentId: request.paymentId,
+        studentId: request.studentId,
+        amount: request.amount,
+      };
+      const ts = Date.now();
+      return of({
+        attemptId: ts,
+        provider: request.provider,
+        providerOrderId: 'LOCAL-DEMO-ORDER-' + ts,
+        checkoutToken: ParentService.LOCAL_DEMO_TOKEN_PREFIX + ts,
+        currency: 'INR',
+        amount: request.amount,
+        checkoutUrl: (request.returnUrl || '/app/parent') + '?localDemoPayment=1',
+        status: 'initiated',
+      }).pipe(delay(200));
+    }
     return this.api
       .post<any>('/parent/payments/checkout-session', {
         paymentId: request.paymentId,
@@ -257,6 +286,13 @@ export class ParentService {
     providerPaymentId?: string,
     providerSignature?: string
   ): Observable<PaymentReceipt> {
+    if (ParentService.isLocalDemoCheckoutToken(checkoutToken)) {
+      this.ensureMockFeeState();
+      const receipt = this.completeLocalMockpayCheckout(attemptId, providerPaymentId);
+      this.localDemoCheckout = null;
+      this.mockReceipts = [receipt, ...this.mockReceipts.filter(item => item.receiptNumber !== receipt.receiptNumber)];
+      return of(receipt).pipe(delay(400));
+    }
     const aid = Number(attemptId);
     return this.api
       .post<any>(`/parent/payments/checkout-session/${aid}/confirm`, {
@@ -415,4 +451,71 @@ export class ParentService {
     }));
   }
 
+  private static isLocalDemoCheckoutToken(token: string | undefined | null): boolean {
+    return String(token ?? '').startsWith(ParentService.LOCAL_DEMO_TOKEN_PREFIX);
+  }
+
+  /** Builds receipt and mutates in-memory fee rows (mock portal {@code mockpay} only). */
+  private completeLocalMockpayCheckout(attemptId: string | number, providerPaymentId?: string): PaymentReceipt {
+    const pend = this.localDemoCheckout;
+    const paymentId = pend?.paymentId ?? 8;
+    const studentId = pend?.studentId ?? 12;
+    const amountPaid = pend?.amount ?? 1450;
+    const seedObs = this.seedMockFeeObligations();
+    const ob =
+      this.mockObligationsMutable?.find(o => o.paymentId === paymentId && o.studentId === studentId) ??
+      seedObs.find(o => o.paymentId === paymentId && o.studentId === studentId) ??
+      seedObs[0];
+    const netDue = Math.max(0, ob.totalAmount - (ob.discount || 0));
+    const newPaid = Math.min(netDue, ob.paidAmount + amountPaid);
+    const newDue = Math.max(0, netDue - newPaid);
+    const receipt: PaymentReceipt = {
+      receiptNumber: 'REC-MOCKPORTAL-' + Date.now(),
+      paymentId,
+      studentId,
+      studentName: ob.studentName,
+      feeStructureName: ob.feeStructureName,
+      className: ob.className,
+      provider: 'mockpay',
+      providerPaymentId: providerPaymentId || 'MOCKPORTAL-' + String(attemptId),
+      paymentMethod: 'MOCKPORTAL',
+      paymentDate: new Date().toISOString().slice(0, 10),
+      dueDate: ob.dueDate,
+      currency: ob.currency,
+      amountPaid,
+      totalAmount: ob.totalAmount,
+      paidAmount: newPaid,
+      dueAmount: newDue,
+      discount: ob.discount,
+      lateFee: newDue <= 0 ? 0 : ob.lateFee,
+      lineItems: ob.lineItems.map(li => ({ ...li })),
+    };
+    if (this.mockObligationsMutable && this.mockFeePaymentsMutable) {
+      const o = this.mockObligationsMutable.find(x => x.paymentId === paymentId && x.studentId === studentId);
+      if (o) {
+        const nd = Math.max(0, o.totalAmount - (o.discount || 0));
+        o.paidAmount = Math.min(nd, o.paidAmount + amountPaid);
+        o.dueAmount = Math.max(0, nd - o.paidAmount);
+        if (o.dueAmount <= 0) {
+          o.lateFee = 0;
+          o.payableNow = 0;
+          o.status = 'paid';
+        } else {
+          o.payableNow = o.dueAmount + (o.lateFee || 0);
+          o.status = 'partial';
+        }
+      }
+      const row = this.mockFeePaymentsMutable.find(x => x.id === paymentId && x.studentId === studentId);
+      if (row) {
+        const net = Math.max(0, row.amount - (row.discount || 0));
+        row.paidAmount = Math.min(net, row.paidAmount + amountPaid);
+        row.dueAmount = Math.max(0, net - row.paidAmount);
+        row.status = row.dueAmount <= 0 ? 'paid' : 'partial';
+        if (row.dueAmount <= 0) {
+          row.lateFee = 0;
+        }
+      }
+    }
+    return receipt;
+  }
 }
