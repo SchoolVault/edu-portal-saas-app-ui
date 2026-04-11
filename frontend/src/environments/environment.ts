@@ -9,6 +9,7 @@ export const environment = {
   production: false,
   useMocks: true,
   apiUrl: 'http://localhost:8080/api/v1',
-  mockSessionAccessTtlMs: 60_000,
-  mockSessionRefreshTtlMs: 60_000
+  /** Dev-friendly TTLs; use 60_000 + 60_000 only when testing expiry flows. */
+  mockSessionAccessTtlMs: 86_400_000,
+  mockSessionRefreshTtlMs: 604_800_000
 };

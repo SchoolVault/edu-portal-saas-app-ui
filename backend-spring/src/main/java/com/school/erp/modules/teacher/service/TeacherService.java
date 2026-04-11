@@ -2,8 +2,10 @@ package com.school.erp.modules.teacher.service;
 
 import com.school.erp.common.dto.PageResponse;
 import com.school.erp.common.enums.Enums;
+import com.school.erp.common.exception.DuplicateResourceException;
 import com.school.erp.common.importer.ZipCsvImportUtil;
 import com.school.erp.common.exception.ResourceNotFoundException;
+import com.school.erp.modules.auth.service.PortalUserProvisioningService;
 import com.school.erp.modules.academic.entity.SchoolClass;
 import com.school.erp.modules.academic.repository.SchoolClassRepository;
 import com.school.erp.modules.teacher.dto.TeacherDTOs;
@@ -28,6 +30,7 @@ public class TeacherService {
     private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(TeacherService.class);
     private final TeacherRepository repo;
     private final SchoolClassRepository schoolClassRepository;
+    private final PortalUserProvisioningService portalUserProvisioningService;
 
     @Transactional(readOnly = true)
     public PageResponse<TeacherDTOs.Response> getTeachers(int page, int size) {
@@ -53,6 +56,48 @@ public class TeacherService {
         t.setTenantId(TenantContext.getTenantId());
         repo.save(t);
         log.info("Teacher created id={}", t.getId());
+        return toRes(t);
+    }
+
+    /**
+     * Bulk import path: optional portal user (teacher or library staff) linked to {@code teachers.user_id}.
+     */
+    @Transactional
+    public TeacherDTOs.Response createForBulkImport(TeacherDTOs.CreateRequest req, boolean createPortal,
+                                                     Enums.Role portalRole, Enums.LibraryStaffRole libraryStaffRole) {
+        String tenantId = TenantContext.getTenantId();
+        String email = req.getEmail() != null ? req.getEmail().trim().toLowerCase(java.util.Locale.ROOT) : null;
+        if (email == null || email.isBlank()) {
+            throw new com.school.erp.common.exception.BusinessException("Teacher email is required");
+        }
+        if (repo.existsByTenantIdAndEmailAndIsDeletedFalse(tenantId, email)) {
+            throw new DuplicateResourceException("Teacher email already exists: " + email);
+        }
+        Teacher t = Teacher.builder()
+                .firstName(req.getFirstName())
+                .lastName(req.getLastName())
+                .email(email)
+                .phone(req.getPhone() != null ? req.getPhone().trim() : null)
+                .qualification(req.getQualification())
+                .specialization(req.getSpecialization())
+                .joinDate(req.getJoinDate())
+                .salary(req.getSalary())
+                .subjects(req.getSubjects() != null ? req.getSubjects() : List.of())
+                .status(Enums.TeacherStatus.ACTIVE)
+                .build();
+        if (libraryStaffRole != null) {
+            t.setLibraryStaffRole(libraryStaffRole);
+        }
+        t.setTenantId(tenantId);
+        repo.save(t);
+        if (createPortal) {
+            String display = req.getFirstName() + " " + req.getLastName();
+            PortalUserProvisioningService.ProvisionResult pr = portalUserProvisioningService.ensureStaffUser(
+                    tenantId, email, display.trim(), req.getPhone(), portalRole);
+            t.setUserId(pr.userId());
+            repo.save(t);
+        }
+        log.info("Teacher bulk row created id={} portalLinked={}", t.getId(), createPortal);
         return toRes(t);
     }
 
@@ -130,6 +175,45 @@ public class TeacherService {
         return n;
     }
 
+    /** CSV aligned with bulk import template ({@code teachers.csv} / {@code staff.csv}). */
+    @Transactional(readOnly = true)
+    public String exportTeachersAsCsv() {
+        String tenantId = TenantContext.getTenantId();
+        StringBuilder sb = new StringBuilder();
+        sb.append("firstname,lastname,email,phone,qualification,specialization,joindate,salary,subjects,createportal,portalrole,libraryrole\n");
+        for (Teacher t : repo.findByTenantIdAndIsDeletedFalse(tenantId)) {
+            sb.append(csv(t.getFirstName())).append(',');
+            sb.append(csv(t.getLastName())).append(',');
+            sb.append(csv(t.getEmail())).append(',');
+            sb.append(csv(t.getPhone())).append(',');
+            sb.append(csv(t.getQualification())).append(',');
+            sb.append(csv(t.getSpecialization())).append(',');
+            sb.append(t.getJoinDate() != null ? t.getJoinDate() : "").append(',');
+            sb.append(t.getSalary() != null ? t.getSalary().toPlainString() : "").append(',');
+            sb.append(csv(t.getSubjects() != null ? String.join("|", t.getSubjects()) : "")).append(',');
+            sb.append(t.getUserId() != null ? "Y" : "N").append(',');
+            if (t.getLibraryStaffRole() != null) {
+                sb.append("LIBRARY_STAFF");
+            } else {
+                sb.append("TEACHER");
+            }
+            sb.append(',');
+            sb.append(t.getLibraryStaffRole() != null ? t.getLibraryStaffRole().name() : "").append('\n');
+        }
+        return sb.toString();
+    }
+
+    private static String csv(String v) {
+        if (v == null) {
+            return "";
+        }
+        String x = v.replace("\"", "\"\"");
+        if (x.contains(",") || x.contains("\n") || x.contains("\"")) {
+            return "\"" + x + "\"";
+        }
+        return x;
+    }
+
     private TeacherDTOs.Response toRes(Teacher t) {
         TeacherDTOs.Response r = TeacherDTOs.Response.builder().id(t.getId()).firstName(t.getFirstName()).lastName(t.getLastName()).email(t.getEmail()).phone(t.getPhone()).qualification(t.getQualification()).specialization(t.getSpecialization()).joinDate(t.getJoinDate()).salary(t.getSalary()).status(t.getStatus() != null ? t.getStatus().name().toLowerCase() : "active").subjects(t.getSubjects()).avatar(t.getAvatar()).tenantId(t.getTenantId()).build();
         r.setUserId(t.getUserId());
@@ -139,9 +223,12 @@ public class TeacherService {
         return r;
     }
 
-    public TeacherService(final TeacherRepository repo, final SchoolClassRepository schoolClassRepository) {
+    public TeacherService(final TeacherRepository repo,
+                          final SchoolClassRepository schoolClassRepository,
+                          final PortalUserProvisioningService portalUserProvisioningService) {
         this.repo = repo;
         this.schoolClassRepository = schoolClassRepository;
+        this.portalUserProvisioningService = portalUserProvisioningService;
     }
 
     private String required(Map<String, String> row, String key) {

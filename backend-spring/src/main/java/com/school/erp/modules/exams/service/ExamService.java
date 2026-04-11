@@ -3,6 +3,7 @@ package com.school.erp.modules.exams.service;
 import com.school.erp.common.enums.Enums;
 import com.school.erp.common.exception.BusinessException;
 import com.school.erp.common.exception.ResourceNotFoundException;
+import com.school.erp.common.exception.UnauthorizedException;
 import com.school.erp.modules.academic.entity.SchoolClass;
 import com.school.erp.modules.academic.entity.Section;
 import com.school.erp.modules.academic.repository.SchoolClassRepository;
@@ -135,6 +136,117 @@ public class ExamService {
     @Transactional(readOnly = true)
     public List<ExamDTOs.MarkResponse> getMarksByStudent(Long studentId) {
         return markRepo.findByTenantIdAndStudentId(TenantContext.getTenantId(), studentId).stream().map(this::toMarkResponse).collect(Collectors.toList());
+    }
+
+    /**
+     * Parent portal: exams whose class/section scope includes this child (cancelled omitted).
+     */
+    @Transactional(readOnly = true)
+    public List<ExamDTOs.ParentExamSummaryResponse> listExamsForParentStudent(Long classId, Long sectionId) {
+        String t = TenantContext.getTenantId();
+        return examRepo.findByTenantIdAndIsDeletedFalse(t).stream()
+                .filter(e -> e.getStatus() != Enums.ExamStatus.CANCELLED)
+                .filter(e -> studentMatchesExamScope(t, e, classId, sectionId))
+                .sorted(Comparator
+                        .comparing((Exam e) -> e.getStartDate(), Comparator.nullsLast(Comparator.naturalOrder()))
+                        .reversed()
+                        .thenComparing(Exam::getId, Comparator.reverseOrder()))
+                .map(this::toParentExamSummary)
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Parent portal: timetable rows for this child’s class/section only.
+     */
+    @Transactional(readOnly = true)
+    public List<ExamScopeDtos.ScheduleSlotOut> listScheduleForParentStudent(Long examId, Long classId, Long sectionId) {
+        Exam exam = requireExam(examId);
+        String t = exam.getTenantId();
+        if (!studentMatchesExamScope(t, exam, classId, sectionId)) {
+            throw new UnauthorizedException("This exam is not available for your child’s class.");
+        }
+        return scheduleRepo.findByTenantIdAndExamIdAndIsDeletedFalseOrderByExamDateAscStartTimeAsc(t, examId).stream()
+                .map(this::toScheduleOut)
+                .filter(slot -> scheduleRowVisibleToStudent(slot, classId, sectionId))
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Parent portal: published marks for one exam and student, scope-checked.
+     */
+    @Transactional(readOnly = true)
+    public List<ExamDTOs.MarkResponse> listPublishedMarksForParentExam(Long studentId, Long examId, Long classId, Long sectionId) {
+        Exam exam = requireExam(examId);
+        String t = exam.getTenantId();
+        if (!studentMatchesExamScope(t, exam, classId, sectionId)) {
+            throw new UnauthorizedException("This exam is not available for your child’s class.");
+        }
+        if (!Boolean.TRUE.equals(exam.getResultsPublished())) {
+            return List.of();
+        }
+        return markRepo.findByTenantIdAndExamId(t, examId).stream()
+                .filter(m -> studentId.equals(m.getStudentId()))
+                .map(this::toMarkResponse)
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Parent portal: all published marks for a student across in-scope exams (aggregated “results” tab).
+     */
+    @Transactional(readOnly = true)
+    public List<ExamDTOs.MarkResponse> listPublishedMarksForParentStudent(Long studentId, Long classId, Long sectionId) {
+        String t = TenantContext.getTenantId();
+        List<MarkRecord> all = markRepo.findByTenantIdAndStudentId(t, studentId);
+        List<ExamDTOs.MarkResponse> out = new ArrayList<>();
+        for (MarkRecord m : all) {
+            Exam ex = examRepo.findByIdAndTenantIdAndIsDeletedFalse(m.getExamId(), t).orElse(null);
+            if (ex == null || !Boolean.TRUE.equals(ex.getResultsPublished())) {
+                continue;
+            }
+            if (!studentMatchesExamScope(t, ex, classId, sectionId)) {
+                continue;
+            }
+            out.add(toMarkResponse(m));
+        }
+        out.sort(Comparator.comparing(ExamDTOs.MarkResponse::getExamId, Comparator.nullsLast(Comparator.naturalOrder()))
+                .thenComparing(ExamDTOs.MarkResponse::getId, Comparator.nullsLast(Comparator.naturalOrder())));
+        return out;
+    }
+
+    private boolean studentMatchesExamScope(String tenantId, Exam exam, Long classId, Long sectionId) {
+        if (classId == null) {
+            return false;
+        }
+        List<ExamClassScope> scopes = scopeRepo.findByTenantIdAndExamIdAndIsDeletedFalse(tenantId, exam.getId());
+        if (!scopes.isEmpty()) {
+            return scopes.stream().anyMatch(sc ->
+                    classId.equals(sc.getClassId())
+                            && (sc.getSectionId() == null || (sectionId != null && sc.getSectionId().equals(sectionId))));
+        }
+        List<Long> ids = exam.getClassIds();
+        return ids != null && ids.contains(classId);
+    }
+
+    private boolean scheduleRowVisibleToStudent(ExamScopeDtos.ScheduleSlotOut slot, Long classId, Long sectionId) {
+        if (classId == null || slot.getClassId() == null || !slot.getClassId().equals(classId)) {
+            return false;
+        }
+        if (slot.getSectionId() == null) {
+            return true;
+        }
+        return sectionId != null && slot.getSectionId().equals(sectionId);
+    }
+
+    private ExamDTOs.ParentExamSummaryResponse toParentExamSummary(Exam e) {
+        ExamDTOs.ParentExamSummaryResponse r = new ExamDTOs.ParentExamSummaryResponse();
+        r.setId(e.getId());
+        r.setName(e.getName());
+        r.setAcademicYearId(e.getAcademicYearId());
+        r.setStartDate(e.getStartDate() != null ? e.getStartDate().toString() : null);
+        r.setEndDate(e.getEndDate() != null ? e.getEndDate().toString() : null);
+        r.setStatus(e.getStatus() != null ? e.getStatus().name().toLowerCase(Locale.ROOT) : null);
+        r.setResultsPublished(Boolean.TRUE.equals(e.getResultsPublished()));
+        return r;
     }
 
     @Transactional

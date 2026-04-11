@@ -4,7 +4,18 @@ import { FormsModule } from '@angular/forms';
 import { ParentService } from '../../core/services/parent.service';
 import { PaymentCheckoutService } from '../../core/services/payment-checkout.service';
 import { runtimeConfig } from '../../core/config/runtime-config';
-import { AttendanceRecord, AttendanceStats, CheckoutSession, FeePayment, MarkRecord, ParentFeeObligation, PaymentReceipt, Student } from '../../core/models/models';
+import {
+  AttendanceRecord,
+  AttendanceStats,
+  CheckoutSession,
+  ExamScheduleSlot,
+  FeePayment,
+  MarkRecord,
+  ParentExamSummary,
+  ParentFeeObligation,
+  PaymentReceipt,
+  Student,
+} from '../../core/models/models';
 import { coerceApiLongId } from '../../core/utils/coerce-api-long-id';
 import { ErpDatePickerComponent } from '../../shared/erp-date-picker/erp-date-picker.component';
 
@@ -36,7 +47,7 @@ import { ErpDatePickerComponent } from '../../shared/erp-date-picker/erp-date-pi
       <div class="d-flex justify-content-between align-items-center mb-4 animate-in flex-wrap gap-2">
         <div>
           <h2 style="font-size: 24px; font-weight: 800;">Parent Portal</h2>
-          <p class="text-muted mb-0" style="font-size: 13px;">Track your child’s attendance, fees, and performance</p>
+          <p class="text-muted mb-0" style="font-size: 13px;">Track attendance, fees, exams (timetable + published results), and performance. Fee payments are per selected child.</p>
         </div>
         <button type="button" class="btn-outline-erp btn-sm" (click)="refreshPortal()"><i class="bi bi-arrow-clockwise"></i> Refresh</button>
       </div>
@@ -94,6 +105,7 @@ import { ErpDatePickerComponent } from '../../shared/erp-date-picker/erp-date-pi
         <div class="erp-tabs mb-3">
           <button class="erp-tab" [class.active]="tab === 'attendance'" (click)="tab = 'attendance'">Attendance</button>
           <button class="erp-tab" [class.active]="tab === 'fees'" (click)="tab = 'fees'">Fees</button>
+          <button class="erp-tab" [class.active]="tab === 'exams'" (click)="onExamsTab()">Exams</button>
           <button class="erp-tab" [class.active]="tab === 'marks'" (click)="tab = 'marks'">Marks</button>
         </div>
 
@@ -229,11 +241,69 @@ import { ErpDatePickerComponent } from '../../shared/erp-date-picker/erp-date-pi
           <div *ngIf="!feeObligations.length" class="empty-state"><h3>No fee records</h3></div>
         </div>
 
+        <div class="erp-card" *ngIf="tab === 'exams'">
+          <p class="text-muted small mb-3">
+            Only exams that include your child’s <strong>class and section</strong> appear here. Timetable shows their papers only; results appear after the school publishes them.
+          </p>
+          <div class="row g-3 align-items-end mb-3" *ngIf="examSummaries.length">
+            <div class="col-md-6">
+              <label class="erp-label">Exam</label>
+              <select class="erp-select" [(ngModel)]="selectedExamId" (ngModelChange)="loadSelectedExamDetail()">
+                <option *ngFor="let ex of examSummaries" [ngValue]="ex.id">{{ examOptionLabel(ex) }}</option>
+              </select>
+            </div>
+            <div class="col-md-6 text-md-end">
+              <span class="badge-erp" [class.badge-success]="selectedExam?.resultsPublished" [class.badge-neutral]="!selectedExam?.resultsPublished">
+                {{ selectedExam?.resultsPublished ? 'Results published' : 'Results not published' }}
+              </span>
+            </div>
+          </div>
+          <div *ngIf="!examSummaries.length" class="empty-state"><h3>No exams for this class</h3><p class="small mb-0">When the school schedules assessments for this class or section, they will show here.</p></div>
+
+          <ng-container *ngIf="selectedExam && examSummaries.length">
+            <h4 class="mt-4 mb-2" style="font-size: 15px; font-weight: 800;">Timetable (your child)</h4>
+            <table class="erp-table mb-4" *ngIf="examSchedule.length">
+              <thead>
+                <tr><th>Date</th><th>Time</th><th>Subject</th><th>Room</th><th>Notes</th></tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let row of examSchedule">
+                  <td>{{ row.examDate }}</td>
+                  <td>{{ formatExamTime(row.startTime) }} – {{ formatExamTime(row.endTime) }}</td>
+                  <td>{{ row.subjectName }}</td>
+                  <td>{{ row.room || '—' }}</td>
+                  <td>{{ row.notes || '—' }}</td>
+                </tr>
+              </tbody>
+            </table>
+            <p *ngIf="!examSchedule.length" class="text-muted small mb-4">No timetable rows for your child’s section yet.</p>
+
+            <h4 class="mb-2" style="font-size: 15px; font-weight: 800;">Results (this exam)</h4>
+            <table class="erp-table" *ngIf="examMarks.length">
+              <thead><tr><th>Subject</th><th>Marks</th><th>Max</th><th>Grade</th></tr></thead>
+              <tbody>
+                <tr *ngFor="let mark of examMarks">
+                  <td>{{ mark.subjectName }}</td>
+                  <td>{{ mark.marksObtained }}</td>
+                  <td>{{ mark.maxMarks }}</td>
+                  <td>{{ mark.grade }}</td>
+                </tr>
+              </tbody>
+            </table>
+            <p *ngIf="!examMarks.length" class="text-muted small mb-0">
+              <ng-container *ngIf="selectedExam.resultsPublished">No mark rows for your child in this exam yet.</ng-container>
+              <ng-container *ngIf="!selectedExam.resultsPublished">The school has not published results for this exam yet.</ng-container>
+            </p>
+          </ng-container>
+        </div>
+
         <div class="erp-card" *ngIf="tab === 'marks'">
+          <p class="text-muted small mb-2">All <strong>published</strong> results across exams for your child’s class/section (same data as the Exams tab, aggregated).</p>
           <table class="erp-table" *ngIf="marks.length">
-            <thead><tr><th>Subject</th><th>Marks</th><th>Max</th><th>Grade</th></tr></thead>
+            <thead><tr><th>Exam</th><th>Subject</th><th>Marks</th><th>Max</th><th>Grade</th></tr></thead>
             <tbody>
               <tr *ngFor="let mark of marks">
+                <td>{{ examNameForMark(mark.examId) }}</td>
                 <td>{{ mark.subjectName }}</td>
                 <td>{{ mark.marksObtained }}</td>
                 <td>{{ mark.maxMarks }}</td>
@@ -241,7 +311,7 @@ import { ErpDatePickerComponent } from '../../shared/erp-date-picker/erp-date-pi
               </tr>
             </tbody>
           </table>
-          <div *ngIf="!marks.length" class="empty-state"><h3>No marks published yet</h3></div>
+          <div *ngIf="!marks.length" class="empty-state"><h3>No published marks yet</h3></div>
         </div>
       </div>
 
@@ -262,9 +332,9 @@ import { ErpDatePickerComponent } from '../../shared/erp-date-picker/erp-date-pi
             <div class="row g-4" *ngIf="paymentStep === 'review'">
               <div class="col-md-7">
                 <div class="insight-card mb-3">
-                  <div class="insight-label">Payment For</div>
-                  <div class="insight-value">{{ selectedObligation.studentName }}</div>
-                  <div class="insight-subtext">{{ selectedObligation.feeStructureName }} · {{ selectedObligation.className }}</div>
+                  <div class="insight-label">Child &amp; fee plan</div>
+                  <div class="insight-value">{{ selectedChild?.firstName }} {{ selectedChild?.lastName }}</div>
+                  <div class="insight-subtext">{{ selectedObligation.studentName }} · {{ selectedObligation.feeStructureName }} · {{ selectedObligation.className }}</div>
                 </div>
                 <div *ngFor="let line of selectedObligation.lineItems" class="d-flex justify-content-between align-items-center" style="padding: 8px 0; border-bottom: 1px solid var(--clr-border-light);">
                   <span>{{ line.name }}</span>
@@ -286,7 +356,7 @@ import { ErpDatePickerComponent } from '../../shared/erp-date-picker/erp-date-pi
             <div *ngIf="paymentStep === 'method'" class="row g-3">
               <div class="col-12">
                 <label class="erp-label">Choose how to pay</label>
-                <p class="text-muted small">Production: Razorpay Checkout loads UPI, cards, and netbanking in one modal. Stripe uses Payment Element with the same server order flow.</p>
+                <p class="text-muted small">India rails: UPI and netbanking typically go through Razorpay (or similar) Checkout. Bank transfer uses NEFT/IMPS references from your ERP. Demo providers below all hit the same mock gateway with distinct labels for QA.</p>
               </div>
               <div class="col-md-4" *ngFor="let m of paymentMethods">
                 <button type="button" class="erp-card w-100 text-start p-3 border-0" style="cursor: pointer; border: 2px solid transparent;" [style.borderColor]="paymentProvider === m.id ? 'var(--clr-accent)' : 'var(--clr-border-light)'" (click)="paymentProvider = m.id">
@@ -320,7 +390,11 @@ export class ParentPortalComponent implements OnInit {
   children: Student[] = [];
   selectedStudentId: number | null = null;
   selectedChild: Student | null = null;
-  tab: 'attendance' | 'fees' | 'marks' = 'attendance';
+  tab: 'attendance' | 'fees' | 'marks' | 'exams' = 'attendance';
+  examSummaries: ParentExamSummary[] = [];
+  selectedExamId: number | null = null;
+  examSchedule: ExamScheduleSlot[] = [];
+  examMarks: MarkRecord[] = [];
   fromDate = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0];
   toDate = new Date().toISOString().split('T')[0];
   attendanceStats: AttendanceStats = { totalDays: 0, present: 0, absent: 0, late: 0, excused: 0, attendancePercentage: 0 };
@@ -347,6 +421,9 @@ export class ParentPortalComponent implements OnInit {
   readonly useMocks = runtimeConfig.useMocks;
   paymentMethods = [
     { id: 'mockpay', label: 'Instant (demo)', hint: 'Local mock — no external call' },
+    { id: 'upi', label: 'UPI', hint: 'Mock UPI intent / Razorpay in prod' },
+    { id: 'netbanking', label: 'Netbanking', hint: 'Mock bank redirect / Razorpay in prod' },
+    { id: 'banktransfer', label: 'Bank transfer', hint: 'NEFT/IMPS reference (manual reconcile)' },
     { id: 'razorpay', label: 'Razorpay', hint: 'UPI · Cards · Netbanking (SDK in prod)' },
     { id: 'stripe', label: 'Stripe', hint: 'Cards · Wallets (Payment Element)' },
   ];
@@ -390,6 +467,10 @@ export class ParentPortalComponent implements OnInit {
       this.receiptHistory = [];
       this.latestReceipt = null;
       this.receiptLookupByPaymentId = new Map();
+      this.examSummaries = [];
+      this.selectedExamId = null;
+      this.examSchedule = [];
+      this.examMarks = [];
       return;
     }
     this.parentService.getChildOverview(this.selectedStudentId, this.fromDate, this.toDate).subscribe(data => {
@@ -398,6 +479,22 @@ export class ParentPortalComponent implements OnInit {
       this.attendanceStats = data.attendance;
       this.attendanceRecords = data.attendanceRecords;
       this.totalPending = this.fees.reduce((sum, fee) => sum + fee.dueAmount, 0);
+    });
+    this.parentService.getChildExams(this.selectedStudentId).subscribe(list => {
+      this.examSummaries = list;
+      if (this.tab === 'exams') {
+        if (!list.length) {
+          this.selectedExamId = null;
+          this.examSchedule = [];
+          this.examMarks = [];
+          return;
+        }
+        const stillValid = this.selectedExamId != null && list.some(e => e.id === this.selectedExamId);
+        if (!stillValid) {
+          this.selectedExamId = list[0].id;
+        }
+        this.loadSelectedExamDetail();
+      }
     });
     this.parentService.getChildFeeObligations(this.selectedStudentId).subscribe(items => {
       this.feeObligations = items;
@@ -477,6 +574,62 @@ export class ParentPortalComponent implements OnInit {
     return 'Posted';
   }
 
+  get selectedExam(): ParentExamSummary | null {
+    if (this.selectedExamId == null) {
+      return null;
+    }
+    return this.examSummaries.find(e => e.id === this.selectedExamId) ?? null;
+  }
+
+  onExamsTab(): void {
+    this.tab = 'exams';
+    if (this.selectedStudentId == null) {
+      return;
+    }
+    if (!this.examSummaries.length) {
+      this.parentService.getChildExams(this.selectedStudentId).subscribe(list => {
+        this.examSummaries = list;
+        this.selectedExamId = list.length ? list[0].id : null;
+        this.loadSelectedExamDetail();
+      });
+      return;
+    }
+    const stillValid = this.selectedExamId != null && this.examSummaries.some(e => e.id === this.selectedExamId);
+    if (!stillValid) {
+      this.selectedExamId = this.examSummaries[0].id;
+    }
+    this.loadSelectedExamDetail();
+  }
+
+  loadSelectedExamDetail(): void {
+    if (this.selectedStudentId == null || this.selectedExamId == null) {
+      this.examSchedule = [];
+      this.examMarks = [];
+      return;
+    }
+    const eid = this.selectedExamId;
+    this.parentService.getChildExamSchedule(this.selectedStudentId, eid).subscribe(rows => (this.examSchedule = rows));
+    this.parentService.getChildExamMarks(this.selectedStudentId, eid).subscribe(rows => (this.examMarks = rows));
+  }
+
+  examOptionLabel(ex: ParentExamSummary): string {
+    const tail = ex.resultsPublished ? ' · Results out' : '';
+    return `${ex.name} · ${ex.startDate} → ${ex.endDate}${tail}`;
+  }
+
+  examNameForMark(examId: number): string {
+    return this.examSummaries.find(e => e.id === examId)?.name ?? `Exam #${examId}`;
+  }
+
+  /** Show HH:MM for API times like "09:00:00". */
+  formatExamTime(t: string): string {
+    if (!t) {
+      return '—';
+    }
+    const parts = t.split(':');
+    return parts.length >= 2 ? `${parts[0]}:${parts[1]}` : t;
+  }
+
   getAttendanceRemarks(record: AttendanceRecord): string {
     const remarks = (record as AttendanceRecord & { remarks?: string }).remarks;
     return remarks && remarks.trim() ? remarks : '-';
@@ -505,7 +658,7 @@ export class ParentPortalComponent implements OnInit {
     if (!this.selectedObligation || !this.selectedChild || this.paymentAmount <= 0) {
       return;
     }
-    if (this.paymentProvider === 'mockpay') {
+    if (this.paymentProvider === 'mockpay' || this.paymentProvider === 'upi' || this.paymentProvider === 'netbanking' || this.paymentProvider === 'banktransfer') {
       this.paymentStep = 'confirm';
       this.simulateGatewaySuccess();
       return;

@@ -11,4 +11,6 @@ public interface TeacherRepository extends JpaRepository<Teacher, Long> {
     List<Teacher> findByTenantIdAndIsDeletedFalse(String tenantId);
     long countByTenantIdAndIsDeletedFalse(String tenantId);
     long countByIsDeletedFalse();
+
+    boolean existsByTenantIdAndEmailAndIsDeletedFalse(String tenantId, String email);
 }

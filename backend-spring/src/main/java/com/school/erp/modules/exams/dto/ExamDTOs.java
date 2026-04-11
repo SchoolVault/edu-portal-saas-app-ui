@@ -1251,4 +1251,71 @@ public class ExamDTOs {
             this.overallGrade = overallGrade;
         }
     }
+
+    /** Parent portal: exams visible for the child’s class/section (no full schedule embedded). */
+    public static class ParentExamSummaryResponse {
+        private Long id;
+        private String name;
+        private Long academicYearId;
+        private String startDate;
+        private String endDate;
+        private String status;
+        private boolean resultsPublished;
+
+        public Long getId() {
+            return id;
+        }
+
+        public void setId(final Long id) {
+            this.id = id;
+        }
+
+        public String getName() {
+            return name;
+        }
+
+        public void setName(final String name) {
+            this.name = name;
+        }
+
+        public Long getAcademicYearId() {
+            return academicYearId;
+        }
+
+        public void setAcademicYearId(final Long academicYearId) {
+            this.academicYearId = academicYearId;
+        }
+
+        public String getStartDate() {
+            return startDate;
+        }
+
+        public void setStartDate(final String startDate) {
+            this.startDate = startDate;
+        }
+
+        public String getEndDate() {
+            return endDate;
+        }
+
+        public void setEndDate(final String endDate) {
+            this.endDate = endDate;
+        }
+
+        public String getStatus() {
+            return status;
+        }
+
+        public void setStatus(final String status) {
+            this.status = status;
+        }
+
+        public boolean isResultsPublished() {
+            return resultsPublished;
+        }
+
+        public void setResultsPublished(final boolean resultsPublished) {
+            this.resultsPublished = resultsPublished;
+        }
+    }
 }

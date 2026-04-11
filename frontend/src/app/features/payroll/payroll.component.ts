@@ -39,7 +39,14 @@ import { ConfirmDialogService } from '../../shared/confirm-dialog/confirm-dialog
       </div>
 
         <div *ngIf="genError" class="alert alert-danger py-2 small mb-3">{{ genError }}</div>
-        <div *ngIf="disburseInfo" class="alert alert-success py-2 small mb-3">{{ disburseInfo }}</div>
+        <div *ngIf="disburseInfo" class="alert alert-success py-2 small mb-3">
+          {{ disburseInfo }}
+          <div class="mt-2 pt-2 text-muted" style="font-size: 12px; border-top: 1px solid rgba(15, 23, 42, 0.12);">
+            <strong>How this works in production:</strong> this step only submits the transfer to your bank or PSP.
+            Success/failure of the payment itself arrives later via bank webhooks or manual reconciliation; the teacher then gets SMS/WhatsApp and in-app notice from that pipeline.
+            Until funds settle, use <em>Mark paid</em> on the payslip after you confirm the credit.
+          </div>
+        </div>
 
       <div *ngIf="isAdmin" class="row g-4 mb-4 animate-in animate-in-delay-1">
         <div class="col-sm-6 col-lg-3">
@@ -71,6 +78,13 @@ import { ConfirmDialogService } from '../../shared/confirm-dialog/confirm-dialog
             <select class="erp-select" [(ngModel)]="payrollFocusTeacherId">
               <option [ngValue]="null">— Choose teacher —</option>
               <option *ngFor="let d of paymentDetails" [ngValue]="d.teacherId">{{ d.teacherName }}</option>
+            </select>
+            <label class="erp-label mt-2">Payment rail</label>
+            <select class="erp-select" [(ngModel)]="disbursePaymentMethod">
+              <option value="NETBANKING">Netbanking (corporate)</option>
+              <option value="UPI">UPI (instant)</option>
+              <option value="NEFT">NEFT</option>
+              <option value="IMPS">IMPS</option>
             </select>
           </div>
           <div class="col-md-8" *ngIf="payrollFocusDetail as fd">
@@ -235,6 +249,8 @@ export class PayrollComponent implements OnInit {
   isAdmin = false;
   isTeacher = false;
   payrollFocusTeacherId: number | null = null;
+  /** NETBANKING | UPI | NEFT | IMPS — sent to backend for reference prefix + audit. */
+  disbursePaymentMethod = 'NETBANKING';
 
   get bankReadyCount(): number {
     return this.paymentDetails.filter(d => d.bankDetailsComplete).length;
@@ -306,10 +322,13 @@ export class PayrollComponent implements OnInit {
     this.genError = '';
     if (!this.canInitiateDisburse(d)) return;
     this.disbursingTeacherId = d.teacherId;
-    this.payrollService.initiateDisbursement(d.teacherId, this.genMonth, Number(this.genYear)).subscribe({
+    this.payrollService
+      .initiateDisbursement(d.teacherId, this.genMonth, Number(this.genYear), this.disbursePaymentMethod)
+      .subscribe({
       next: res => {
         this.disbursingTeacherId = null;
-        this.disburseInfo = `Transfer queued: ${res.referenceId} · ₹${res.amount.toLocaleString('en-IN')} for ${res.teacherName}.`;
+        const rail = res.paymentMethod ? `${res.paymentMethod} · ` : '';
+        this.disburseInfo = `Transfer queued: ${rail}${res.referenceId} · ₹${res.amount.toLocaleString('en-IN')} for ${res.teacherName}.`;
       },
       error: (e: Error) => {
         this.disbursingTeacherId = null;

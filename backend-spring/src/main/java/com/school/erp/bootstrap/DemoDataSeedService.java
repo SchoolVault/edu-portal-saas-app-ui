@@ -779,6 +779,7 @@ public class DemoDataSeedService {
                 .startDate(LocalDate.now().plusWeeks(1)).endDate(LocalDate.now().plusWeeks(1))
                 .classIds(List.of(c8.getId())).status(Enums.ExamStatus.ONGOING).build();
         ex.setTenantId(tenantId);
+        ex.setResultsPublished(true);
         examRepository.save(ex);
         flush();
         ExamScope(tenantId, ex.getId(), c8.getId(), null);

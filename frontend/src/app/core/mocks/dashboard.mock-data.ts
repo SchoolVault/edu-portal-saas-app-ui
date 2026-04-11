@@ -96,8 +96,8 @@ export function buildMockParentDashboardData(): ParentDashboardData {
     ],
     childPerformance: marks,
     feeStatus: [
-      { id: 8, studentId: 12, studentName: 'Emma Chen', feeStructureId: 2, amount: 5000, paidAmount: 3800, dueAmount: 1200, status: 'partial', paymentDate: '2025-08-01', dueDate: '2025-08-31', discount: 0, lateFee: 0, receiptNumber: 'REC-2025-004', tenantId: 't1' },
-      { id: 9, studentId: 18, studentName: 'Lily Chen', feeStructureId: 1, amount: 3500, paidAmount: 3500, dueAmount: 0, status: 'paid', paymentDate: '2025-08-01', dueDate: '2025-08-31', discount: 0, lateFee: 0, receiptNumber: 'REC-2025-008', tenantId: 't1' },
+      { id: 8, studentId: 12, studentName: 'Emma Chen', feeStructureId: 2, amount: 6200, paidAmount: 4800, dueAmount: 1400, status: 'partial', paymentDate: '2026-03-10', dueDate: '2026-03-31', discount: 0, lateFee: 50, receiptNumber: 'REC-2026-101', tenantId: 't1' },
+      { id: 11, studentId: 25, studentName: 'Nina Park', feeStructureId: 3, amount: 5800, paidAmount: 0, dueAmount: 5800, status: 'unpaid', dueDate: '2026-04-30', discount: 0, lateFee: 0, tenantId: 't1' },
     ],
   };
 }

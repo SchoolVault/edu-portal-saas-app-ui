@@ -57,6 +57,11 @@ public class Student extends BaseEntity {
     private String className;
     @Transient
     private String sectionName;
+    /** Homeroom / class teacher user id from {@code school_classes.class_teacher_id} (parent portal + chat directory parity with frontend mocks). */
+    @Transient
+    private Long homeroomTeacherUserId;
+    @Transient
+    private String homeroomTeacherName;
 
 
     public static class StudentBuilder {
@@ -333,6 +338,14 @@ public class Student extends BaseEntity {
         return this.sectionName;
     }
 
+    public Long getHomeroomTeacherUserId() {
+        return this.homeroomTeacherUserId;
+    }
+
+    public String getHomeroomTeacherName() {
+        return this.homeroomTeacherName;
+    }
+
     public void setFirstName(final String firstName) {
         this.firstName = firstName;
     }
@@ -415,6 +428,14 @@ public class Student extends BaseEntity {
 
     public void setSectionName(final String sectionName) {
         this.sectionName = sectionName;
+    }
+
+    public void setHomeroomTeacherUserId(final Long homeroomTeacherUserId) {
+        this.homeroomTeacherUserId = homeroomTeacherUserId;
+    }
+
+    public void setHomeroomTeacherName(final String homeroomTeacherName) {
+        this.homeroomTeacherName = homeroomTeacherName;
     }
 
     public Student() {

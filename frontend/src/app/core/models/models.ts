@@ -98,6 +98,9 @@ export interface Student {
   address: string;
   bloodGroup: string;
   avatar?: string;
+  /** Homeroom / class teacher when API or seed provides it (parent portal, settings). */
+  homeroomTeacherName?: string;
+  homeroomTeacherUserId?: number;
   status: 'active' | 'inactive' | 'graduated' | 'transferred' | 'alumni';
   tenantId: string;
 }
@@ -230,6 +233,17 @@ export interface ExamClassScope {
 }
 
 /** Scheduled paper slot (aligns with backend ExamScopeDtos.ScheduleSlotOut). */
+/** Parent portal exam list item (backend ExamDTOs.ParentExamSummaryResponse). */
+export interface ParentExamSummary {
+  id: number;
+  name: string;
+  academicYearId?: number;
+  startDate?: string;
+  endDate?: string;
+  status: string;
+  resultsPublished: boolean;
+}
+
 export interface ExamScheduleSlot {
   id?: number;
   /** Present when slot is nested under a known exam in UI mocks. */
@@ -256,7 +270,9 @@ export interface Exam {
   /** When set, preferred over classIds for scoped exams (API + UI). */
   classScopes?: ExamClassScope[];
   scheduleSlots?: ExamScheduleSlot[];
-  status: 'upcoming' | 'ongoing' | 'completed';
+  status: 'upcoming' | 'ongoing' | 'completed' | 'cancelled';
+  /** When false, parents do not see marks until school publishes. */
+  resultsPublished?: boolean;
   tenantId: string;
 }
 

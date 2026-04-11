@@ -15,6 +15,7 @@ export interface SalaryDisburseResult {
   amount: number;
   teacherName: string;
   message?: string;
+  paymentMethod?: string;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -121,7 +122,12 @@ export class PayrollService {
     return this.api.get<any[]>(path).pipe(map(list => list.map(p => this.normalizePayslip(p))));
   }
 
-  initiateDisbursement(teacherId: number, month: string, year: number): Observable<SalaryDisburseResult> {
+  initiateDisbursement(
+    teacherId: number,
+    month: string,
+    year: number,
+    paymentMethod: string = 'NETBANKING'
+  ): Observable<SalaryDisburseResult> {
     if (runtimeConfig.useMocks) {
       const m = month.trim().toLowerCase();
       const ps = this.mockPayslips.find(
@@ -136,21 +142,29 @@ export class PayrollService {
           () => new Error('No generated payslip for this teacher and month. Generate payslips first.')
         );
       }
+      const pm = (paymentMethod || 'NETBANKING').toUpperCase();
       return of({
-        referenceId: 'NEFT-' + Date.now().toString(36).toUpperCase(),
+        referenceId: pm + '-' + Date.now().toString(36).toUpperCase(),
         amount: ps.netSalary,
         teacherName: ps.teacherName,
+        paymentMethod: pm,
         message: 'Submitted to mock bank rail. Mark paid after settlement.'
       });
     }
     return this.api
-      .post<any>('/payroll/disburse/initiate', { teacherId, month, year: Number(year) })
+      .post<any>('/payroll/disburse/initiate', {
+        teacherId,
+        month,
+        year: Number(year),
+        paymentMethod: (paymentMethod || 'NETBANKING').toUpperCase()
+      })
       .pipe(
         map(r => ({
           referenceId: String(r.referenceId ?? ''),
           amount: Number(r.amount ?? 0),
           teacherName: String(r.teacherName ?? ''),
-          message: r.message != null ? String(r.message) : undefined
+          message: r.message != null ? String(r.message) : undefined,
+          paymentMethod: r.paymentMethod != null ? String(r.paymentMethod) : undefined
         }))
       );
   }

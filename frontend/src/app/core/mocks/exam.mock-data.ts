@@ -13,6 +13,7 @@ export const MOCK_EXAMS_SEED: Exam[] = [
         { classId: 8, sectionId: 801, className: 'Class 8', sectionName: 'A' }
       ],
       status: 'completed',
+      resultsPublished: true,
       tenantId: 't1'
     },
     {
@@ -23,6 +24,7 @@ export const MOCK_EXAMS_SEED: Exam[] = [
       endDate: '2025-10-20',
       classIds: [5, 6, 7, 8, 9, 10, 11, 12],
       status: 'completed',
+      resultsPublished: true,
       tenantId: 't1'
     },
     {
@@ -33,6 +35,7 @@ export const MOCK_EXAMS_SEED: Exam[] = [
       endDate: '2025-12-12',
       classIds: [5, 6, 7, 8, 9, 10],
       status: 'completed',
+      resultsPublished: true,
       tenantId: 't1'
     },
     {
@@ -43,6 +46,7 @@ export const MOCK_EXAMS_SEED: Exam[] = [
       endDate: '2026-03-25',
       classIds: [5, 6, 7, 8, 9, 10, 11, 12],
       status: 'upcoming',
+      resultsPublished: false,
       tenantId: 't1'
     },
   ];
@@ -58,6 +62,9 @@ export const MOCK_EXAM_MARKS_SEED: MarkRecord[] = [
     { id: 8, examId: 2, studentId: 9, studentName: 'Mason Davis', subjectName: 'Mathematics', marksObtained: 65, maxMarks: 100, grade: 'B', classId: 9, tenantId: 't1' },
     { id: 9, examId: 2, studentId: 12, studentName: 'Emma Chen', subjectName: 'Mathematics', marksObtained: 92, maxMarks: 100, grade: 'A+', classId: 8, tenantId: 't1' },
     { id: 10, examId: 2, studentId: 12, studentName: 'Emma Chen', subjectName: 'Science', marksObtained: 85, maxMarks: 100, grade: 'A', classId: 8, tenantId: 't1' },
+    { id: 110, examId: 2, studentId: 12, studentName: 'Emma Chen', subjectName: 'English', marksObtained: 90, maxMarks: 100, grade: 'A+', classId: 8, tenantId: 't1' },
+    { id: 21, examId: 2, studentId: 24, studentName: 'Jordan Lee', subjectName: 'Mathematics', marksObtained: 79, maxMarks: 100, grade: 'B+', classId: 6, tenantId: 't1' },
+    { id: 22, examId: 2, studentId: 24, studentName: 'Jordan Lee', subjectName: 'English', marksObtained: 84, maxMarks: 100, grade: 'A', classId: 6, tenantId: 't1' },
     { id: 11, examId: 1, studentId: 1, studentName: 'Arjun Patel', subjectName: 'Mathematics', marksObtained: 78, maxMarks: 100, grade: 'B+', classId: 5, tenantId: 't1' },
     { id: 12, examId: 1, studentId: 1, studentName: 'Arjun Patel', subjectName: 'English', marksObtained: 65, maxMarks: 100, grade: 'B', classId: 5, tenantId: 't1' },
     { id: 13, examId: 1, studentId: 1, studentName: 'Arjun Patel', subjectName: 'Science', marksObtained: 82, maxMarks: 100, grade: 'A', classId: 5, tenantId: 't1' },
@@ -68,9 +75,40 @@ export const MOCK_EXAM_MARKS_SEED: MarkRecord[] = [
     { id: 18, examId: 3, studentId: 4, studentName: 'Sofia Martinez', subjectName: 'Mathematics', marksObtained: 91, maxMarks: 100, grade: 'A+', classId: 8, tenantId: 't1' },
     { id: 19, examId: 3, studentId: 4, studentName: 'Sofia Martinez', subjectName: 'Science', marksObtained: 96, maxMarks: 100, grade: 'A+', classId: 8, tenantId: 't1' },
     { id: 20, examId: 3, studentId: 12, studentName: 'Emma Chen', subjectName: 'Mathematics', marksObtained: 94, maxMarks: 100, grade: 'A+', classId: 8, tenantId: 't1' },
+    { id: 23, examId: 2, studentId: 25, studentName: 'Nina Park', subjectName: 'Mathematics', marksObtained: 81, maxMarks: 100, grade: 'A', classId: 9, tenantId: 't1' },
+    { id: 24, examId: 2, studentId: 27, studentName: 'Taylor Brooks', subjectName: 'Mathematics', marksObtained: 86, maxMarks: 100, grade: 'A', classId: 11, tenantId: 't1' },
   ];
 
 export const MOCK_EXAM_SCHEDULE_SEED: Record<number, ExamScheduleSlot[]> = {
+    1: [
+      {
+        id: 101,
+        examId: 1,
+        classId: 8,
+        sectionId: 801,
+        className: 'Class 8',
+        sectionName: 'A',
+        subjectName: 'Mathematics',
+        examDate: '2025-08-16',
+        startTime: '09:00:00',
+        endTime: '11:00:00',
+        room: 'Hall A',
+        notes: 'Bring geometry set',
+      },
+      {
+        id: 102,
+        examId: 1,
+        classId: 8,
+        sectionId: 801,
+        className: 'Class 8',
+        sectionName: 'A',
+        subjectName: 'Science',
+        examDate: '2025-08-17',
+        startTime: '09:00:00',
+        endTime: '11:30:00',
+        room: 'Lab 2',
+      },
+    ],
     2: [
       {
         id: 1,
@@ -97,5 +135,19 @@ export const MOCK_EXAM_SCHEDULE_SEED: Record<number, ExamScheduleSlot[]> = {
         endTime: '11:30:00',
         room: 'Lab 2'
       }
+    ],
+    3: [
+      {
+        id: 301,
+        examId: 3,
+        classId: 8,
+        sectionId: null,
+        className: 'Class 8',
+        subjectName: 'Mathematics',
+        examDate: '2025-12-06',
+        startTime: '09:00:00',
+        endTime: '11:00:00',
+        room: 'Hall B',
+      },
     ],
 };

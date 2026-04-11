@@ -176,6 +176,7 @@ export class ExamService {
         : undefined,
       scheduleSlots: scheduleSlots.length ? scheduleSlots.map((s: any) => this.normalizeSlot(s, eid)) : undefined,
       status: (exam.status ?? 'upcoming') as Exam['status'],
+      resultsPublished: !!exam.resultsPublished,
       tenantId: exam.tenantId ?? ''
     };
   }

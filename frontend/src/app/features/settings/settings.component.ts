@@ -178,7 +178,7 @@ import { ProfilePhotoPickerComponent, ProfilePhotoPickEvent } from '../../shared
             </section>
           </ng-container>
 
-          <!-- Parent: child portrait (separate intent; visually separated) -->
+          <!-- Parent: school record + optional portal-only photo -->
           <section
             *ngIf="isParentOnlyChildren"
             class="settings-profile-panel settings-profile-child-section"
@@ -186,27 +186,44 @@ import { ProfilePhotoPickerComponent, ProfilePhotoPickEvent } from '../../shared
           >
             <div class="settings-profile-panel__head" id="settings-profile-child-h">
               <span class="settings-profile-panel__icon"><i class="bi bi-person-hearts"></i></span>
-              <span class="settings-profile-panel__head-text">Child portrait</span>
+              <span class="settings-profile-panel__head-text">Linked children</span>
             </div>
             <div class="settings-profile-panel__body">
-              <p class="settings-profile-hint">Choose a linked child, then add or replace their picture (visible in your parent portal).</p>
+              <p class="settings-profile-hint">Pick a child to see their class, section, and homeroom teacher from the school roster. Optional photo below is only for your parent portal view — not the official record.</p>
               <label class="erp-label d-block mb-2">Child</label>
               <select class="erp-select mb-3" [(ngModel)]="childPhotoTargetId" (ngModelChange)="syncChildPhotoPreview()">
                 <option [ngValue]="null">Select child</option>
                 <option *ngFor="let s of myChildren" [ngValue]="s.id">{{ s.firstName }} {{ s.lastName }}</option>
               </select>
-              <app-profile-photo-picker
-                *ngIf="childPhotoTargetId"
-                [previewUrl]="childPhotoPreview"
-                [initials]="childPhotoInitials"
-                [frameAriaLabel]="'Upload child photo'"
-                size="comfortable"
-                statusMode="minimal"
-                (photoPicked)="onChildPhotoPicked($event)"
-                (photoRemoved)="onChildPhotoRemoved()"
-              />
-              <p *ngIf="!childPhotoTargetId" class="settings-profile-placeholder mb-0">Select a child to continue.</p>
-              <p class="settings-profile-footnote settings-profile-footnote--below">Official school directory photos are set under Students or Teachers.</p>
+
+              <div *ngIf="selectedChildForProfile as ch" class="settings-child-school-card mb-4">
+                <div class="settings-child-school-card__title">School record (read-only)</div>
+                <dl class="settings-child-school-card__grid">
+                  <div><dt>Class &amp; section</dt><dd>{{ ch.className }} · Section {{ ch.sectionName }}</dd></div>
+                  <div><dt>Roll / admission</dt><dd>{{ ch.rollNumber }} · {{ ch.admissionNumber }}</dd></div>
+                  <div><dt>Admission date</dt><dd>{{ ch.admissionDate || '—' }}</dd></div>
+                  <div><dt>Status</dt><dd class="text-capitalize">{{ ch.status }}</dd></div>
+                  <div><dt>Homeroom teacher</dt><dd>{{ ch.homeroomTeacherName || '—' }}</dd></div>
+                  <div><dt>School email</dt><dd>{{ ch.email || '—' }}</dd></div>
+                </dl>
+              </div>
+
+              <p *ngIf="!childPhotoTargetId" class="settings-profile-placeholder mb-3">Select a child to view their school details.</p>
+
+              <div *ngIf="childPhotoTargetId" class="settings-child-photo-block">
+                <label class="erp-label d-block mb-2">Optional portal photo</label>
+                <p class="settings-profile-hint small mb-2">Only shown to you in the app until the school enables cloud photos.</p>
+                <app-profile-photo-picker
+                  [previewUrl]="childPhotoPreview"
+                  [initials]="childPhotoInitials"
+                  [frameAriaLabel]="'Optional child photo for parent portal'"
+                  size="comfortable"
+                  statusMode="minimal"
+                  (photoPicked)="onChildPhotoPicked($event)"
+                  (photoRemoved)="onChildPhotoRemoved()"
+                />
+              </div>
+              <p class="settings-profile-footnote settings-profile-footnote--below mb-0">Official directory photos are updated by staff under Students or Teachers.</p>
             </div>
           </section>
         </div>
@@ -499,6 +516,42 @@ import { ProfilePhotoPickerComponent, ProfilePhotoPickEvent } from '../../shared
       .settings-profile-child-section {
         margin-top: 1.25rem;
       }
+      .settings-child-school-card {
+        border: 1px solid var(--clr-border-light, #e8eef0);
+        border-radius: var(--radius-md, 10px);
+        padding: 14px 16px;
+        background: var(--clr-surface-alt, #f8fafc);
+      }
+      .settings-child-school-card__title {
+        font-size: 12px;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        color: var(--clr-text-muted, #64748b);
+        margin-bottom: 12px;
+      }
+      .settings-child-school-card__grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+        gap: 12px 20px;
+        margin: 0;
+      }
+      .settings-child-school-card__grid dt {
+        font-size: 11px;
+        font-weight: 700;
+        color: var(--clr-text-muted, #64748b);
+        margin: 0 0 2px;
+      }
+      .settings-child-school-card__grid dd {
+        margin: 0;
+        font-size: 14px;
+        font-weight: 600;
+        color: var(--clr-text, #0f172a);
+      }
+      .settings-child-photo-block {
+        padding-top: 8px;
+        border-top: 1px dashed var(--clr-border-light, #e8eef0);
+      }
       .settings-profile-panel {
         border: 1px solid var(--clr-border, #e2e8f0);
         border-radius: var(--radius-lg, 12px);
@@ -671,11 +724,19 @@ export class SettingsComponent implements OnInit {
 
   get canEditOwnPhoto(): boolean {
     const r = this.auth.getRole();
-    return r === 'admin' || r === 'teacher' || r === 'super_admin' || r === 'student';
+    return r === 'admin' || r === 'teacher' || r === 'super_admin' || r === 'student' || r === 'parent';
   }
 
   get isParentOnlyChildren(): boolean {
     return this.auth.getRole() === 'parent';
+  }
+
+  /** Selected child in the parent settings dropdown — school roster fields for read-only summary. */
+  get selectedChildForProfile(): Student | null {
+    if (this.childPhotoTargetId == null) {
+      return null;
+    }
+    return this.myChildren.find(s => s.id === this.childPhotoTargetId) ?? null;
   }
 
   get profileUser() {

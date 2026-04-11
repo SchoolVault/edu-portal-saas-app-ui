@@ -39,8 +39,10 @@ public class AttendanceService {
         LocalDate date = LocalDate.parse(request.getDate());
         assertTeacherAttendanceScope(request.getClassId(), request.getSectionId(), date);
         String role = TenantContext.getUserRole();
-        if (role != null && "TEACHER".equalsIgnoreCase(role) && date.isBefore(LocalDate.now())) {
-            throw new BusinessException("Teachers cannot edit attendance for past dates. View the record or ask an administrator to make changes.");
+        // Class / cover teachers may save only for the current calendar day; once the day has passed, only administrators may change records.
+        if (role != null && "TEACHER".equalsIgnoreCase(role) && !date.equals(LocalDate.now())) {
+            throw new BusinessException(
+                    "Teachers may record or correct attendance only for today. After the day ends, contact an administrator to change historical attendance.");
         }
         List<AttendanceRecord> records = 
         // Check if record exists for this student+date - update or create

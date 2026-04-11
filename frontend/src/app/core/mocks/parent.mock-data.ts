@@ -1,40 +1,35 @@
 import type {
   AttendanceRecord,
   AttendanceStats,
+  Exam,
+  ExamScheduleSlot,
   FeePayment,
   MarkRecord,
+  ParentExamSummary,
   ParentFeeLineItem,
   ParentFeeObligation,
   PaymentReceipt,
   Student,
 } from '../models/models';
+import { MOCK_EXAM_MARKS_SEED, MOCK_EXAMS_SEED, MOCK_EXAM_SCHEDULE_SEED } from './exam.mock-data';
+import { MOCK_STUDENTS } from './students.mock-data';
 
-/** Primary demo child for parent login (u3) — aligns with students.mock-data s12. */
-export const MOCK_PARENT_DEMO_STUDENT: Student = {
-  id: 12,
-  firstName: 'Emma',
-  lastName: 'Chen',
-  email: 'emma.c@school.com',
-  phone: '+1-555-0212',
-  dateOfBirth: '2009-02-14',
-  gender: 'female',
-  classId: 8,
-  className: 'Class 8',
-  sectionId: 801,
-  sectionName: 'A',
-  rollNumber: '805',
-  admissionNumber: 'ADM2022080',
-  admissionDate: '2022-06-08',
-  parentId: 3,
-  parentUserId: 3,
-  parentName: 'Michael Chen',
-  address: '963 Willow Street',
-  bloodGroup: 'A+',
-  status: 'active',
-  tenantId: 't1',
-};
+/** Demo homeroom for Michael Chen's children (Sarah Mitchell = teacher@school.com user id 2). */
+const DEMO_HOMEROOM = { homeroomTeacherName: 'Sarah Mitchell', homeroomTeacherUserId: 2 } as const;
 
-export const MOCK_PARENT_CHILDREN: Student[] = [{ ...MOCK_PARENT_DEMO_STUDENT }];
+/**
+ * All active students linked to parent user id 3 (Michael Chen) — must match Settings filter `parentId === user.id` and backend guardian resolution.
+ */
+export const MOCK_PARENT_CHILDREN: Student[] = MOCK_STUDENTS.filter(s => s.parentId === 3 && s.status === 'active')
+  .sort((a, b) => a.id - b.id)
+  .map(s => ({
+    ...s,
+    homeroomTeacherName: DEMO_HOMEROOM.homeroomTeacherName,
+    homeroomTeacherUserId: DEMO_HOMEROOM.homeroomTeacherUserId,
+  }));
+
+/** Primary demo child (first linked); fee mocks default to this student when unspecified. */
+export const MOCK_PARENT_DEMO_STUDENT: Student = { ...MOCK_PARENT_CHILDREN[0] };
 
 export const MOCK_PARENT_RECEIPT_LINES: ParentFeeLineItem[] = [
   { name: 'Tuition', amount: 3200, type: 'tuition' },
@@ -46,37 +41,114 @@ export const MOCK_PARENT_RECEIPT_LINES: ParentFeeLineItem[] = [
   { name: 'Computer Fee', amount: 400, type: 'misc' },
 ];
 
-export function mockParentMarkRows(studentId: number, studentName: string): MarkRecord[] {
-  return [
-    { id: 1, examId: 2, studentId, studentName, subjectName: 'Mathematics', marksObtained: 92, maxMarks: 100, grade: 'A+', classId: 8, tenantId: 't1' },
-    { id: 2, examId: 2, studentId, studentName, subjectName: 'Science', marksObtained: 85, maxMarks: 100, grade: 'A', classId: 8, tenantId: 't1' },
-    { id: 3, examId: 2, studentId, studentName, subjectName: 'English', marksObtained: 88, maxMarks: 100, grade: 'A', classId: 8, tenantId: 't1' },
-  ];
+/** True when an exam’s declared audience includes this student’s class (and section when narrowed). */
+export function examAppliesToStudent(exam: Exam, student: Student): boolean {
+  if (exam.classScopes?.length) {
+    return exam.classScopes.some(
+      cs => cs.classId === student.classId && (cs.sectionId == null || cs.sectionId === student.sectionId)
+    );
+  }
+  return (exam.classIds ?? []).includes(student.classId);
+}
+
+/** Marks visible to parents: same tenant seed, in-scope exams, resultsPublished only. */
+export function mockParentPublishedMarks(studentId: number): MarkRecord[] {
+  const student = MOCK_PARENT_CHILDREN.find(c => c.id === studentId);
+  if (!student) {
+    return [];
+  }
+  return MOCK_EXAM_MARKS_SEED.filter(m => {
+    if (m.studentId !== studentId) {
+      return false;
+    }
+    const ex = MOCK_EXAMS_SEED.find(e => e.id === m.examId);
+    return !!(ex && ex.resultsPublished && examAppliesToStudent(ex, student));
+  }).map(m => ({ ...m, classId: student.classId, tenantId: m.tenantId ?? 't1' }));
+}
+
+export function mockParentExamsForStudent(studentId: number): ParentExamSummary[] {
+  const student = MOCK_PARENT_CHILDREN.find(c => c.id === studentId);
+  if (!student) {
+    return [];
+  }
+  return MOCK_EXAMS_SEED.filter(e => e.status !== 'cancelled' && examAppliesToStudent(e, student))
+    .map(e => ({
+      id: e.id,
+      name: e.name,
+      academicYearId: e.academicYearId,
+      startDate: e.startDate,
+      endDate: e.endDate,
+      status: e.status,
+      resultsPublished: !!e.resultsPublished,
+    }))
+    .sort((a, b) => (b.startDate || '').localeCompare(a.startDate || ''));
+}
+
+export function mockParentExamSchedule(studentId: number, examId: number): ExamScheduleSlot[] {
+  const student = MOCK_PARENT_CHILDREN.find(c => c.id === studentId);
+  if (!student) {
+    return [];
+  }
+  const ex = MOCK_EXAMS_SEED.find(e => e.id === examId);
+  if (!ex || !examAppliesToStudent(ex, student)) {
+    return [];
+  }
+  const rows = MOCK_EXAM_SCHEDULE_SEED[examId] ?? [];
+  return rows
+    .filter(
+      r =>
+        r.classId === student.classId && (r.sectionId == null || r.sectionId === student.sectionId)
+    )
+    .map(r => ({ ...r, examId }));
+}
+
+export function mockParentExamMarks(studentId: number, examId: number): MarkRecord[] {
+  return mockParentPublishedMarks(studentId).filter(m => m.examId === examId);
+}
+
+/** @deprecated Use {@link mockParentPublishedMarks} — kept for dashboard seed compatibility. */
+export function mockParentMarkRows(studentId: number, _studentName: string): MarkRecord[] {
+  return mockParentPublishedMarks(studentId);
 }
 
 export function mockParentAttendanceStats(studentId: number): AttendanceStats {
+  const p = 18 + (studentId % 4);
+  const t = 20 + (studentId % 3);
   return {
     studentId,
-    totalDays: 22,
-    present: 20,
+    totalDays: t,
+    present: p,
     absent: 1,
     late: 1,
     excused: 0,
-    attendancePercentage: 95.5,
+    attendancePercentage: Math.round((p / t) * 1000) / 10,
   };
 }
 
-export function mockParentAttendanceRecords(studentId: number, from: string, to: string): AttendanceRecord[] {
+export function mockParentAttendanceRecords(studentId: number, studentName: string, from: string, to: string): AttendanceRecord[] {
+  const st = MOCK_PARENT_CHILDREN.find(c => c.id === studentId);
+  const classId = st?.classId ?? 8;
+  const sectionId = st?.sectionId ?? 801;
   return [
-    { id: 1, studentId, studentName: 'Emma Chen', classId: 8, sectionId: 801, date: from, status: 'present', markedBy: 2, tenantId: 't1' },
-    { id: 2, studentId, studentName: 'Emma Chen', classId: 8, sectionId: 801, date: to, status: 'late', markedBy: 2, tenantId: 't1' },
+    { id: 1, studentId, studentName, classId, sectionId, date: from, status: 'present', markedBy: 2, tenantId: 't1' },
+    { id: 2, studentId, studentName, classId, sectionId, date: to, status: 'late', markedBy: 2, tenantId: 't1' },
   ];
 }
 
-/** Numeric payment/fee ids align with FeeDTOs Longs (legacy mock slugs fp8/fs2 → 8 / 2). */
+function miniLinesForTotal(total: number): ParentFeeLineItem[] {
+  const tuition = Math.round(total * 0.86);
+  return [
+    { name: 'Tuition', amount: tuition, type: 'tuition' },
+    { name: 'Activities & lab', amount: total - tuition, type: 'misc' },
+  ];
+}
+
+/** Numeric payment ids align with fee checkout Longs. */
 export const MOCK_PARENT_SEED_FEE_PAYMENTS: FeePayment[] = [
   { id: 8, studentId: 12, studentName: 'Emma Chen', feeStructureId: 2, amount: 6200, paidAmount: 4800, dueAmount: 1400, status: 'partial', paymentDate: '2026-03-10', dueDate: '2026-03-31', discount: 0, lateFee: 50, receiptNumber: 'REC-2026-101', tenantId: 't1' },
-  { id: 9, studentId: 18, studentName: 'Lily Chen', feeStructureId: 1, amount: 3500, paidAmount: 3500, dueAmount: 0, status: 'paid', paymentDate: '2026-03-02', dueDate: '2026-03-31', discount: 0, lateFee: 0, receiptNumber: 'REC-2026-102', tenantId: 't1' },
+  { id: 10, studentId: 24, studentName: 'Jordan Lee', feeStructureId: 1, amount: 4200, paidAmount: 2000, dueAmount: 2200, status: 'partial', paymentDate: '2026-02-01', dueDate: '2026-04-15', discount: 0, lateFee: 0, receiptNumber: 'REC-2026-110', tenantId: 't1' },
+  { id: 11, studentId: 25, studentName: 'Nina Park', feeStructureId: 3, amount: 5800, paidAmount: 0, dueAmount: 5800, status: 'unpaid', dueDate: '2026-04-30', discount: 0, lateFee: 0, tenantId: 't1' },
+  { id: 12, studentId: 27, studentName: 'Taylor Brooks', feeStructureId: 4, amount: 7200, paidAmount: 5000, dueAmount: 2200, status: 'partial', paymentDate: '2026-01-15', dueDate: '2026-05-10', discount: 0, lateFee: 40, receiptNumber: 'REC-2026-112', tenantId: 't1' },
 ];
 
 export const MOCK_PARENT_SEED_FEE_OBLIGATIONS: ParentFeeObligation[] = [
@@ -105,6 +177,60 @@ export const MOCK_PARENT_SEED_FEE_OBLIGATIONS: ParentFeeObligation[] = [
       { name: 'Lab Fee', amount: 500, type: 'lab' },
       { name: 'Computer Fee', amount: 400, type: 'misc' },
     ],
+  },
+  {
+    paymentId: 10,
+    studentId: 24,
+    studentName: 'Jordan Lee',
+    feeStructureId: 1,
+    feeStructureName: 'Primary Fee - Class 6',
+    className: 'Class 6',
+    dueDate: '2026-04-15',
+    status: 'partial',
+    currency: 'INR',
+    totalAmount: 4200,
+    paidAmount: 2000,
+    dueAmount: 2200,
+    discount: 0,
+    lateFee: 0,
+    payableNow: 2200,
+    lineItems: miniLinesForTotal(4200),
+  },
+  {
+    paymentId: 11,
+    studentId: 25,
+    studentName: 'Nina Park',
+    feeStructureId: 3,
+    feeStructureName: 'Upper Primary - Class 9',
+    className: 'Class 9',
+    dueDate: '2026-04-30',
+    status: 'unpaid',
+    currency: 'INR',
+    totalAmount: 5800,
+    paidAmount: 0,
+    dueAmount: 5800,
+    discount: 0,
+    lateFee: 0,
+    payableNow: 5800,
+    lineItems: miniLinesForTotal(5800),
+  },
+  {
+    paymentId: 12,
+    studentId: 27,
+    studentName: 'Taylor Brooks',
+    feeStructureId: 4,
+    feeStructureName: 'Senior Secondary - Class 11',
+    className: 'Class 11',
+    dueDate: '2026-05-10',
+    status: 'partial',
+    currency: 'INR',
+    totalAmount: 7200,
+    paidAmount: 5000,
+    dueAmount: 2200,
+    discount: 0,
+    lateFee: 40,
+    payableNow: 2240,
+    lineItems: miniLinesForTotal(7200),
   },
 ];
 

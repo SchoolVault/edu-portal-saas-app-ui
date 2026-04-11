@@ -209,7 +209,8 @@ export class AuthService {
     const found = findMockLoginUser(request);
     if (found) {
       const response: LoginResponse = {
-        token: 'eyJhbGciOiJIUzI1NiJ9.mock-jwt-' + found.user.role + '-' + Date.now(),
+        // Must NOT be three dot-separated segments: otherwise isLikelyJwt() is true, exp decode fails, session is always "expired" and refresh clears storage on every navigation.
+        token: 'mock-access-' + found.user.role + '-' + Date.now(),
         refreshToken: 'mock-refresh-' + Date.now(),
         user: found.user,
       };

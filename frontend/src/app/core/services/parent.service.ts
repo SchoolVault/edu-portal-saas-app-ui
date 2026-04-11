@@ -8,10 +8,25 @@ import {
   MOCK_PARENT_SEED_FEE_PAYMENTS,
   mockParentAttendanceRecords,
   mockParentAttendanceStats,
-  mockParentMarkRows,
+  mockParentExamMarks,
+  mockParentExamsForStudent,
+  mockParentExamSchedule,
+  mockParentPublishedMarks,
 } from '../mocks/parent.mock-data';
 import { ApiService } from './api.service';
-import { AttendanceRecord, AttendanceStats, CheckoutSession, CheckoutSessionRequest, FeePayment, MarkRecord, ParentFeeObligation, PaymentReceipt, Student } from '../models/models';
+import {
+  AttendanceRecord,
+  AttendanceStats,
+  CheckoutSession,
+  CheckoutSessionRequest,
+  ExamScheduleSlot,
+  FeePayment,
+  MarkRecord,
+  ParentExamSummary,
+  ParentFeeObligation,
+  PaymentReceipt,
+  Student,
+} from '../models/models';
 import { runtimeConfig } from '../config/runtime-config';
 
 @Injectable({ providedIn: 'root' })
@@ -58,27 +73,86 @@ export class ParentService {
       parentName: child.parentName ?? '',
       address: child.address ?? '',
       bloodGroup: child.bloodGroup ?? '',
+      homeroomTeacherUserId:
+        child.homeroomTeacherUserId != null ? Number(child.homeroomTeacherUserId) : undefined,
+      homeroomTeacherName: child.homeroomTeacherName ?? undefined,
     };
   }
 
   getChildMarks(studentId: number): Observable<MarkRecord[]> {
     if (runtimeConfig.useMocks) {
-      const child = MOCK_PARENT_CHILDREN.find(c => c.id === studentId);
-      const name = child ? `${child.firstName} ${child.lastName}` : 'Student';
-      return of(mockParentMarkRows(studentId, name).map(m => ({ ...m }))).pipe(delay(150));
+      return of(mockParentPublishedMarks(studentId).map(m => ({ ...m }))).pipe(delay(150));
     }
-    return this.api.get<any[]>(`/parent/children/${studentId}/marks`).pipe(
-      map(marks =>
-        marks.map(mark => ({
-          ...mark,
-          id: Number(mark.id),
-          examId: Number(mark.examId),
-          studentId: Number(mark.studentId),
-          classId: mark.classId != null ? Number(mark.classId) : 0,
-          tenantId: mark.tenantId ?? ''
+    return this.api.get<any[]>(`/parent/children/${studentId}/marks`).pipe(map(marks => marks.map(m => this.normalizeMarkRecord(m))));
+  }
+
+  getChildExams(studentId: number): Observable<ParentExamSummary[]> {
+    if (runtimeConfig.useMocks) {
+      return of(mockParentExamsForStudent(studentId).map(e => ({ ...e }))).pipe(delay(120));
+    }
+    return this.api.get<any[]>(`/parent/children/${studentId}/exams`).pipe(
+      map(rows =>
+        (rows ?? []).map(r => ({
+          id: Number(r.id),
+          name: r.name ?? '',
+          academicYearId: r.academicYearId != null ? Number(r.academicYearId) : undefined,
+          startDate: r.startDate ?? undefined,
+          endDate: r.endDate ?? undefined,
+          status: (r.status ?? 'upcoming').toLowerCase(),
+          resultsPublished: !!r.resultsPublished,
         }))
       )
     );
+  }
+
+  getChildExamSchedule(studentId: number, examId: number): Observable<ExamScheduleSlot[]> {
+    if (runtimeConfig.useMocks) {
+      return of(mockParentExamSchedule(studentId, examId).map(s => ({ ...s }))).pipe(delay(120));
+    }
+    return this.api.get<any[]>(`/parent/children/${studentId}/exams/${examId}/schedule`).pipe(
+      map(rows => (rows ?? []).map(s => this.normalizeExamScheduleSlot(s, examId)))
+    );
+  }
+
+  getChildExamMarks(studentId: number, examId: number): Observable<MarkRecord[]> {
+    if (runtimeConfig.useMocks) {
+      return of(mockParentExamMarks(studentId, examId).map(m => ({ ...m }))).pipe(delay(120));
+    }
+    return this.api.get<any[]>(`/parent/children/${studentId}/exams/${examId}/marks`).pipe(
+      map(marks => marks.map(m => this.normalizeMarkRecord(m)))
+    );
+  }
+
+  private normalizeMarkRecord(mark: any): MarkRecord {
+    return {
+      id: Number(mark.id),
+      examId: Number(mark.examId),
+      studentId: Number(mark.studentId),
+      studentName: mark.studentName ?? '',
+      subjectName: mark.subjectName ?? '',
+      marksObtained: Number(mark.marksObtained ?? 0),
+      maxMarks: Number(mark.maxMarks ?? 0),
+      grade: mark.grade ?? '',
+      classId: mark.classId != null ? Number(mark.classId) : 0,
+      tenantId: mark.tenantId ?? '',
+    };
+  }
+
+  private normalizeExamScheduleSlot(s: any, examId: number): ExamScheduleSlot {
+    return {
+      id: s.id != null ? Number(s.id) : undefined,
+      examId,
+      classId: Number(s.classId),
+      sectionId: s.sectionId != null ? Number(s.sectionId) : null,
+      className: s.className ?? undefined,
+      sectionName: s.sectionName ?? undefined,
+      subjectName: s.subjectName ?? '',
+      examDate: s.examDate ?? '',
+      startTime: s.startTime ?? '',
+      endTime: s.endTime ?? '',
+      room: s.room ?? undefined,
+      notes: s.notes ?? undefined,
+    };
   }
 
   getChildFees(studentId: number): Observable<FeePayment[]> {
@@ -124,7 +198,9 @@ export class ParentService {
 
   getChildAttendanceRecords(studentId: number, from: string, to: string): Observable<AttendanceRecord[]> {
     if (runtimeConfig.useMocks) {
-      return of(mockParentAttendanceRecords(studentId, from, to).map(r => ({ ...r }))).pipe(delay(150));
+      const child = MOCK_PARENT_CHILDREN.find(c => c.id === studentId);
+      const name = child ? `${child.firstName} ${child.lastName}` : 'Student';
+      return of(mockParentAttendanceRecords(studentId, name, from, to).map(r => ({ ...r }))).pipe(delay(150));
     }
     return this.api.get<any[]>(`/parent/children/${studentId}/attendance-records?from=${from}&to=${to}`).pipe(
       map(records =>

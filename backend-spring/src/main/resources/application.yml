@@ -131,7 +131,7 @@ management:
 logging:
   # Render-friendly single line: correlation + tenant/user from MDC (see CorrelationMdcFilter, JwtAuthenticationFilter).
   pattern:
-    console: "%d{yyyy-MM-dd'T'HH:mm:ss.SSSXXX} %-5level [${spring.application.name}] [%thread] [trace:%X{traceId:-}] [tenant:%X{tenantId:-}] [user:%X{userId:-}] [role:%X{userRole:-}] %logger{40} : %msg%n%wEx"
+    console: "%d{yyyy-MM-dd'T'HH:mm:ss.SSSXXX} %-5level [${spring.application.name}] [%thread] [corr:%X{correlationId:-}] [trace:%X{traceId:-}] [tenant:%X{tenantId:-}] [user:%X{userId:-}] [role:%X{userRole:-}] %logger{40} : %msg%n%wEx"
   level:
     com.school.erp: ${LOG_LEVEL_APP:INFO}
     com.school.erp.common.logging: ${LOG_LEVEL_APP_HTTP:INFO}

@@ -7,6 +7,7 @@ import com.school.erp.modules.communication.dto.AnnouncementDTOs;
 import com.school.erp.modules.communication.entity.*;
 import com.school.erp.modules.communication.repository.*;
 import com.school.erp.modules.guardian.service.GuardianService;
+import com.school.erp.modules.notification.service.AnnouncementNotificationFanoutService;
 import com.school.erp.config.CacheConfig;
 import com.school.erp.tenant.TenantContext;
 import com.school.erp.tenant.TenantQueryPolicy;
@@ -25,6 +26,7 @@ public class CommunicationService {
     private final AnnouncementRepository annRepo;
     private final MessageRepository msgRepo;
     private final GuardianService guardianService;
+    private final AnnouncementNotificationFanoutService announcementFanout;
 
     @Transactional(readOnly = true)
     public List<Announcement> getAnnouncements() {
@@ -91,7 +93,13 @@ public class CommunicationService {
         ann.setTargetAudience(req.getTargetAudience());
         ann.setTargetClassId(req.getTargetClassId());
         ann.setTargetSectionId(req.getTargetSectionId());
-        return annRepo.save(ann);
+        Announcement saved = annRepo.save(ann);
+        try {
+            announcementFanout.onAnnouncementCreated(saved);
+        } catch (Exception e) {
+            log.warn("Announcement fan-out failed id={}: {}", saved.getId(), e.getMessage());
+        }
+        return saved;
     }
 
     @Transactional
@@ -172,9 +180,11 @@ public class CommunicationService {
     public CommunicationService(
             final AnnouncementRepository annRepo,
             final MessageRepository msgRepo,
-            final GuardianService guardianService) {
+            final GuardianService guardianService,
+            final AnnouncementNotificationFanoutService announcementFanout) {
         this.annRepo = annRepo;
         this.msgRepo = msgRepo;
         this.guardianService = guardianService;
+        this.announcementFanout = announcementFanout;
     }
 }

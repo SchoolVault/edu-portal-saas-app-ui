@@ -6,10 +6,15 @@ import com.school.erp.modules.attendance.dto.AttendanceDTOs;
 import com.school.erp.modules.attendance.entity.AttendanceRecord;
 import com.school.erp.modules.attendance.repository.AttendanceRepository;
 import com.school.erp.modules.guardian.service.GuardianService;
+import com.school.erp.modules.academic.entity.SchoolClass;
+import com.school.erp.modules.academic.repository.SchoolClassRepository;
+import com.school.erp.modules.auth.repository.UserRepository;
 import com.school.erp.modules.student.entity.Student;
+import com.school.erp.modules.teacher.repository.TeacherRepository;
 import com.school.erp.modules.student.repository.StudentRepository;
-import com.school.erp.modules.exams.repository.MarkRecordRepository;
-import com.school.erp.modules.exams.entity.MarkRecord;
+import com.school.erp.modules.exams.dto.ExamDTOs;
+import com.school.erp.modules.exams.dto.ExamScopeDtos;
+import com.school.erp.modules.exams.service.ExamService;
 import com.school.erp.modules.fees.repository.FeePaymentRepository;
 import com.school.erp.modules.fees.entity.FeePayment;
 import com.school.erp.modules.fees.dto.FeeDTOs;
@@ -21,7 +26,9 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import java.time.LocalDate;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @RestController
@@ -31,10 +38,13 @@ import java.util.stream.Collectors;
 public class ParentController {
     private final StudentRepository studentRepo;
     private final GuardianService guardianService;
-    private final MarkRecordRepository markRepo;
+    private final ExamService examService;
     private final FeePaymentRepository feeRepo;
     private final AttendanceRepository attendanceRepo;
     private final FeeService feeService;
+    private final SchoolClassRepository schoolClassRepository;
+    private final TeacherRepository teacherRepository;
+    private final UserRepository userRepository;
 
     @GetMapping("/children")
     @Operation(summary = "Get parent's children", description = "Returns all students linked to the current parent user")
@@ -42,14 +52,44 @@ public class ParentController {
         String t = TenantContext.getTenantId();
         Long parentId = TenantContext.getUserId();
         List<Student> children = guardianService.findStudentsForParentUser(t, parentId);
+        enrichHomeroomFromSchoolClass(t, children);
         return ResponseEntity.ok(ApiResponse.ok(children));
     }
 
     @GetMapping("/children/{studentId}/marks")
-    @Operation(summary = "Get child's exam marks")
-    public ResponseEntity<ApiResponse<List<MarkRecord>>> getChildMarks(@PathVariable Long studentId) {
-        assertParentOwnsStudent(studentId);
-        return ResponseEntity.ok(ApiResponse.ok(markRepo.findByTenantIdAndStudentId(TenantContext.getTenantId(), studentId)));
+    @Operation(summary = "Get child's published exam marks",
+            description = "Only marks for exams that include this student’s class/section and have results published.")
+    public ResponseEntity<ApiResponse<List<ExamDTOs.MarkResponse>>> getChildMarks(@PathVariable Long studentId) {
+        Student s = assertParentOwnsStudent(studentId);
+        return ResponseEntity.ok(ApiResponse.ok(
+                examService.listPublishedMarksForParentStudent(studentId, s.getClassId(), s.getSectionId())));
+    }
+
+    @GetMapping("/children/{studentId}/exams")
+    @Operation(summary = "List exams for the child’s class/section")
+    public ResponseEntity<ApiResponse<List<ExamDTOs.ParentExamSummaryResponse>>> getChildExams(@PathVariable Long studentId) {
+        Student s = assertParentOwnsStudent(studentId);
+        return ResponseEntity.ok(ApiResponse.ok(examService.listExamsForParentStudent(s.getClassId(), s.getSectionId())));
+    }
+
+    @GetMapping("/children/{studentId}/exams/{examId}/schedule")
+    @Operation(summary = "Exam timetable for the child (scoped rows only)")
+    public ResponseEntity<ApiResponse<List<ExamScopeDtos.ScheduleSlotOut>>> getChildExamSchedule(
+            @PathVariable Long studentId,
+            @PathVariable Long examId) {
+        Student s = assertParentOwnsStudent(studentId);
+        return ResponseEntity.ok(ApiResponse.ok(
+                examService.listScheduleForParentStudent(examId, s.getClassId(), s.getSectionId())));
+    }
+
+    @GetMapping("/children/{studentId}/exams/{examId}/marks")
+    @Operation(summary = "Published marks for one exam and this child")
+    public ResponseEntity<ApiResponse<List<ExamDTOs.MarkResponse>>> getChildExamMarks(
+            @PathVariable Long studentId,
+            @PathVariable Long examId) {
+        Student s = assertParentOwnsStudent(studentId);
+        return ResponseEntity.ok(ApiResponse.ok(
+                examService.listPublishedMarksForParentExam(studentId, examId, s.getClassId(), s.getSectionId())));
     }
 
     @GetMapping("/children/{studentId}/fees")
@@ -143,6 +183,37 @@ public class ParentController {
         return ResponseEntity.ok(ApiResponse.ok(records));
     }
 
+    /**
+     * Fills {@code homeroomTeacherUserId} / {@code homeroomTeacherName} from the student's class row so the JSON matches parent-portal mocks.
+     */
+    private void enrichHomeroomFromSchoolClass(String tenantId, List<Student> children) {
+        if (children == null || children.isEmpty()) {
+            return;
+        }
+        Map<Long, SchoolClass> byClassId = new HashMap<>();
+        for (Student s : children) {
+            Long classId = s.getClassId();
+            if (classId == null) {
+                continue;
+            }
+            SchoolClass sc = byClassId.computeIfAbsent(
+                    classId,
+                    id -> schoolClassRepository.findByIdAndTenantIdAndIsDeletedFalse(id, tenantId).orElse(null));
+            if (sc != null && sc.getClassTeacherId() != null) {
+                teacherRepository.findByIdAndTenantIdAndIsDeletedFalse(sc.getClassTeacherId(), tenantId).ifPresent(t -> {
+                    s.setHomeroomTeacherUserId(t.getUserId());
+                    if (t.getUserId() != null) {
+                        userRepository.findByIdAndTenantIdAndIsDeletedFalse(t.getUserId(), tenantId)
+                                .ifPresent(u -> s.setHomeroomTeacherName(u.getName()));
+                    }
+                    if (s.getHomeroomTeacherName() == null || s.getHomeroomTeacherName().isBlank()) {
+                        s.setHomeroomTeacherName(sc.getClassTeacherName());
+                    }
+                });
+            }
+        }
+    }
+
     private Student assertParentOwnsStudent(Long studentId) {
         Student student = studentRepo.findByIdAndTenantIdAndIsDeletedFalse(studentId, TenantContext.getTenantId())
                 .orElseThrow(() -> new com.school.erp.common.exception.ResourceNotFoundException("Student", studentId));
@@ -158,15 +229,21 @@ public class ParentController {
     public ParentController(
             final StudentRepository studentRepo,
             final GuardianService guardianService,
-            final MarkRecordRepository markRepo,
+            final ExamService examService,
             final FeePaymentRepository feeRepo,
             final AttendanceRepository attendanceRepo,
-            final FeeService feeService) {
+            final FeeService feeService,
+            final SchoolClassRepository schoolClassRepository,
+            final TeacherRepository teacherRepository,
+            final UserRepository userRepository) {
         this.studentRepo = studentRepo;
         this.guardianService = guardianService;
-        this.markRepo = markRepo;
+        this.examService = examService;
         this.feeRepo = feeRepo;
         this.attendanceRepo = attendanceRepo;
         this.feeService = feeService;
+        this.schoolClassRepository = schoolClassRepository;
+        this.teacherRepository = teacherRepository;
+        this.userRepository = userRepository;
     }
 }

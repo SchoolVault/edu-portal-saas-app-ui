@@ -5,6 +5,8 @@ import com.school.erp.common.exception.BusinessException;
 import com.school.erp.common.exception.ResourceNotFoundException;
 import com.school.erp.common.exception.UnauthorizedException;
 import com.school.erp.modules.payroll.dto.PayrollDTOs;
+import com.school.erp.modules.notification.service.NotificationOutboxService;
+import com.school.erp.modules.notification.service.NotificationService;
 import com.school.erp.modules.payroll.entity.*;
 import com.school.erp.modules.payroll.repository.*;
 import com.school.erp.modules.settings.repository.TenantConfigRepository;
@@ -37,6 +39,9 @@ public class PayrollService {
     private final TeacherRepository teacherRepository;
     private final TenantConfigRepository tenantConfigRepository;
     private final PayslipPdfService payslipPdfService;
+    private final SalaryDisbursementAttemptRepository salaryDisbursementAttemptRepository;
+    private final NotificationService notificationService;
+    private final NotificationOutboxService notificationOutboxService;
 
     @Cacheable(cacheNames = CacheConfig.PAYROLL_STRUCTURES, keyGenerator = "tenantKeyGenerator", unless = "#result == null")
     @Transactional(readOnly = true)
@@ -154,12 +159,16 @@ public class PayrollService {
      * Records a disbursement hand-off to the bank (reference id for reconciliation).
      * Does not change payslip status; admin marks paid after settlement.
      */
-    @Transactional(readOnly = true)
+    @Transactional
     public PayrollDTOs.DisburseSalaryResponse initiateSalaryDisbursement(PayrollDTOs.DisburseSalaryRequest req) {
         String t = TenantContext.getTenantId();
         Long teacherId = req.getTeacherId();
         int year = req.getYear();
         String month = req.getMonth() != null ? req.getMonth().trim() : "";
+        String methodRaw = req.getPaymentMethod() != null ? req.getPaymentMethod().trim().toUpperCase(Locale.ROOT) : "NETBANKING";
+        if (!methodRaw.matches("NETBANKING|UPI|NEFT|IMPS")) {
+            methodRaw = "NETBANKING";
+        }
         Payslip p = psRepo.findByTenantIdAndIsDeletedFalse(t).stream()
                 .filter(x -> teacherId.equals(x.getTeacherId())
                         && Objects.equals(x.getYear(), year)
@@ -174,12 +183,42 @@ public class PayrollService {
         if (!isBankProfileComplete(teacher)) {
             throw new BusinessException("Bank details incomplete for " + p.getTeacherName() + ". Update the teacher profile before disbursement.");
         }
-        String ref = "NEFT-" + UUID.randomUUID().toString().replace("-", "").substring(0, 12).toUpperCase(Locale.ROOT);
-        log.info("Salary disbursement initiated ref={} teacherId={} net={}", ref, teacherId, p.getNetSalary());
+        String ref = methodRaw + "-" + UUID.randomUUID().toString().replace("-", "").substring(0, 12).toUpperCase(Locale.ROOT);
+        log.info("Salary disbursement initiated ref={} teacherId={} net={} method={}", ref, teacherId, p.getNetSalary(), methodRaw);
+        SalaryDisbursementAttempt att = new SalaryDisbursementAttempt();
+        att.setTenantId(t);
+        att.setPayslipId(p.getId());
+        att.setTeacherId(teacherId);
+        att.setAmount(p.getNetSalary());
+        att.setPaymentMethod(methodRaw);
+        att.setReferenceId(ref);
+        att.setStatus("SUBMITTED");
+        att.setGatewayPayload("{\"mock\":true,\"rail\":\"" + methodRaw + "\"}");
+        salaryDisbursementAttemptRepository.save(att);
+
+        Long staffUserId = teacher.getUserId();
+        if (staffUserId != null) {
+            notificationService.createNotification(
+                    t,
+                    staffUserId,
+                    "Salary disbursement initiated",
+                    methodRaw + " transfer " + ref + " for " + month + " " + year + " (" + p.getTeacherName() + ").",
+                    Enums.NotificationType.INFO,
+                    "/app/payroll");
+            String body = "Salary " + methodRaw + " initiated. Ref " + ref + ". Net " + p.getNetSalary() + " INR. Mark payslip paid after settlement.";
+            notificationOutboxService.enqueue(
+                    t, "SALARY_DISBURSE", "SMS", staffUserId, null, "Salary transfer", body,
+                    "SALDIS:" + p.getId() + ":" + ref, "payroll-" + p.getId());
+            notificationOutboxService.enqueue(
+                    t, "SALARY_DISBURSE", "WHATSAPP", staffUserId, null, "Salary transfer", body,
+                    "SALDIS:" + p.getId() + ":" + ref + ":WA", "payroll-" + p.getId());
+        }
+
         PayrollDTOs.DisburseSalaryResponse out = new PayrollDTOs.DisburseSalaryResponse();
         out.setReferenceId(ref);
         out.setAmount(p.getNetSalary());
         out.setTeacherName(p.getTeacherName());
+        out.setPaymentMethod(methodRaw);
         out.setMessage("Transfer submitted to bank pipeline (connect your PSP). Mark paid after funds settle.");
         return out;
     }
@@ -240,12 +279,18 @@ public class PayrollService {
             final PayslipRepository psRepo,
             final TeacherRepository teacherRepository,
             final TenantConfigRepository tenantConfigRepository,
-            final PayslipPdfService payslipPdfService) {
+            final PayslipPdfService payslipPdfService,
+            final SalaryDisbursementAttemptRepository salaryDisbursementAttemptRepository,
+            final NotificationService notificationService,
+            final NotificationOutboxService notificationOutboxService) {
         this.ssRepo = ssRepo;
         this.scRepo = scRepo;
         this.psRepo = psRepo;
         this.teacherRepository = teacherRepository;
         this.tenantConfigRepository = tenantConfigRepository;
         this.payslipPdfService = payslipPdfService;
+        this.salaryDisbursementAttemptRepository = salaryDisbursementAttemptRepository;
+        this.notificationService = notificationService;
+        this.notificationOutboxService = notificationOutboxService;
     }
 }

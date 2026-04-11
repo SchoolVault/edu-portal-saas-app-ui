@@ -50,6 +50,25 @@ export const adminOnlyGuard: CanActivateFn = () => {
   );
 };
 
+/** Bulk import / export — school admin and platform super-admin only (not teachers). */
+export const importExportGuard: CanActivateFn = () => {
+  const auth = inject(AuthService);
+  const router = inject(Router);
+  return auth.ensureValidSession().pipe(
+    take(1),
+    map(ok => {
+      if (!ok) {
+        return router.createUrlTree(['/login']);
+      }
+      const r = auth.getNormalizedRole();
+      if (r === 'admin' || r === 'super_admin') {
+        return true;
+      }
+      return router.createUrlTree(['/app/dashboard']);
+    })
+  );
+};
+
 /** Leave & HR workflows — school staff only (not parents). */
 export const leaveStaffGuard: CanActivateFn = () => {
   const auth = inject(AuthService);

@@ -1,5 +1,5 @@
 import { Routes } from '@angular/router';
-import { adminOnlyGuard, authGuard, leaveStaffGuard, schoolSettingsGuard, schoolStaffGuard, superAdminGuard } from './core/guards/auth.guard';
+import { adminOnlyGuard, authGuard, importExportGuard, leaveStaffGuard, schoolSettingsGuard, schoolStaffGuard, superAdminGuard } from './core/guards/auth.guard';
 
 export const routes: Routes = [
   { path: '', redirectTo: 'login', pathMatch: 'full' },
@@ -66,6 +66,11 @@ export const routes: Routes = [
       { path: 'leave', loadComponent: () => import('./features/leave/leave.component').then(m => m.LeaveComponent), canActivate: [leaveStaffGuard] },
       { path: 'reports', loadComponent: () => import('./features/reports/reports.component').then(m => m.ReportsComponent) },
       { path: 'operations', loadComponent: () => import('./features/operations/operations-hub.component').then(m => m.OperationsHubComponent), canActivate: [adminOnlyGuard] },
+      {
+        path: 'import-export',
+        loadComponent: () => import('./features/import-export/import-export.component').then(m => m.ImportExportComponent),
+        canActivate: [importExportGuard],
+      },
       { path: 'transport', loadComponent: () => import('./features/transport/transport.component').then(m => m.TransportComponent) },
       { path: 'library', loadComponent: () => import('./features/library/library.component').then(m => m.LibraryComponent) },
       { path: 'hostel', loadComponent: () => import('./features/hostel/hostel.component').then(m => m.HostelComponent) },

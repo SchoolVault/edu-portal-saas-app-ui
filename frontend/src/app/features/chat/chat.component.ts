@@ -1,4 +1,4 @@
-import { Component, OnDestroy, OnInit } from '@angular/core';
+import { Component, ElementRef, OnDestroy, OnInit, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Subscription } from 'rxjs';
@@ -22,15 +22,56 @@ import { runtimeConfig } from '../../core/config/runtime-config';
         border: 1px solid var(--clr-border);
         box-shadow: 0 8px 28px rgba(15, 23, 42, 0.06);
       }
+      /* Fixed viewport band + flex column so the message list scrolls and the composer stays pinned (WhatsApp-style). */
+      .chat-layout-row {
+        min-height: 480px;
+        height: min(680px, calc(100vh - 168px));
+      }
+      @media (max-width: 991.98px) {
+        .chat-layout-row {
+          height: auto;
+          min-height: 360px;
+          max-height: none;
+        }
+      }
+      .chat-sidebar {
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+        max-height: 100%;
+        overflow: hidden;
+      }
+      .chat-sidebar > div:not(.chat-sidebar-scroll) {
+        flex-shrink: 0;
+      }
+      .chat-sidebar-scroll {
+        flex: 1 1 auto;
+        min-height: 0;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+      }
+      .chat-thread-column {
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+        min-width: 0;
+        max-height: 100%;
+        overflow: hidden;
+      }
       .chat-sidebar {
         background: linear-gradient(180deg, var(--clr-surface) 0%, var(--clr-surface-alt) 100%);
         border-right: 1px solid var(--clr-border);
       }
       .chat-thread-header {
+        flex-shrink: 0;
         background: var(--clr-surface);
         border-bottom: 1px solid var(--clr-border);
       }
       .chat-messages {
+        flex: 1 1 auto;
+        min-height: 0;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
         background: linear-gradient(180deg, var(--clr-surface-alt) 0%, color-mix(in srgb, var(--clr-primary) 6%, transparent) 100%);
       }
       .chat-status {
@@ -103,6 +144,7 @@ import { runtimeConfig } from '../../core/config/runtime-config';
         border-color: color-mix(in srgb, var(--clr-accent) 35%, var(--clr-border-light));
       }
       .chat-compose {
+        flex-shrink: 0;
         background: var(--clr-surface);
         border-top: 1px solid var(--clr-border);
       }
@@ -140,7 +182,7 @@ import { runtimeConfig } from '../../core/config/runtime-config';
       </div>
 
       <div class="erp-card chat-shell" style="padding: 0;">
-        <div class="row g-0" style="min-height: 620px;">
+        <div class="row g-0 flex-lg-nowrap chat-layout-row">
           <div class="col-lg-4 chat-sidebar">
             <div style="padding: 12px;">
               <div class="d-flex gap-2">
@@ -276,7 +318,7 @@ import { runtimeConfig } from '../../core/config/runtime-config';
               </div>
             </div>
 
-            <div style="max-height: 560px; overflow: auto;">
+            <div class="chat-sidebar-scroll">
               <div *ngFor="let conv of filteredInbox()"
                    (click)="selectConversation(conv)"
                    class="chat-row"
@@ -309,7 +351,7 @@ import { runtimeConfig } from '../../core/config/runtime-config';
             </div>
           </div>
 
-          <div class="col-lg-8 d-flex flex-column">
+          <div class="col-lg-8 chat-thread-column">
             <div class="chat-thread-header" style="padding: 12px 14px;">
               <div *ngIf="selectedConversation; else noSelection" class="d-flex align-items-start justify-content-between gap-3">
                 <div class="d-flex align-items-start gap-3 min-w-0">
@@ -341,7 +383,7 @@ import { runtimeConfig } from '../../core/config/runtime-config';
               </ng-template>
             </div>
 
-            <div class="chat-messages" style="padding: 14px; flex: 1; overflow: auto;">
+            <div #threadScroll class="chat-messages" style="padding: 14px;">
               <div *ngIf="selectedConversation && loadingMessages" class="empty-state" style="padding: 28px 14px;">
                 <h3>Loading…</h3>
               </div>
@@ -421,6 +463,8 @@ export class ChatComponent implements OnInit, OnDestroy {
   private myUserId: number | null = null;
   private rtSub?: Subscription;
 
+  @ViewChild('threadScroll') private threadScroll?: ElementRef<HTMLElement>;
+
   constructor(
     private chat: ChatService,
     private auth: AuthService,
@@ -440,6 +484,7 @@ export class ChatComponent implements OnInit, OnDestroy {
         // avoid duplicates on optimistic UI
         if (!this.messages.some(x => x.id === m.id)) {
           this.messages = [...this.messages, m];
+          this.scrollThreadToBottom();
         }
       }
     });
@@ -655,7 +700,33 @@ export class ChatComponent implements OnInit, OnDestroy {
     this.chat.loadMessages(conv.conversationId).subscribe(list => {
       this.messages = list;
       this.loadingMessages = false;
+      this.scrollThreadToBottom();
+      const lastId = list.length ? this.parseMessageIdForReadCursor(list[list.length - 1].id) : 0;
+      if (lastId > 0) {
+        this.chat.markRead(conv.conversationId, lastId).subscribe({
+          error: () => {
+            /* non-fatal */
+          }
+        });
+      }
     });
+  }
+
+  private parseMessageIdForReadCursor(id: string | undefined): number {
+    if (id == null) {
+      return 0;
+    }
+    const n = Number(id);
+    return Number.isFinite(n) && n > 0 ? n : 0;
+  }
+
+  private scrollThreadToBottom(): void {
+    setTimeout(() => {
+      const el = this.threadScroll?.nativeElement;
+      if (el) {
+        el.scrollTop = el.scrollHeight;
+      }
+    }, 0);
   }
 
   send(): void {
@@ -667,6 +738,7 @@ export class ChatComponent implements OnInit, OnDestroy {
       next: msg => {
         if (!this.messages.some(x => x.id === msg.id)) {
           this.messages = [...this.messages, msg];
+          this.scrollThreadToBottom();
         }
         this.draft = '';
         this.sending = false;
@@ -689,9 +761,35 @@ export class ChatComponent implements OnInit, OnDestroy {
   }
 
   threadSubtitle(conv: ChatInboxConversation): string {
-    const ctx = conv.contextType && conv.contextId ? `${conv.contextType} #${conv.contextId}` : 'General';
+    const ctx = this.describeContext(conv);
     const type = (conv.type || 'direct').replace(/_/g, ' ');
     return `${type} · ${ctx}`;
+  }
+
+  private describeContext(conv: ChatInboxConversation): string {
+    const role = (this.auth.getRole() || '').toLowerCase();
+    if (conv.contextType === 'student' && conv.contextId) {
+      const sid = Number(conv.contextId);
+      if (role === 'parent' && this.directory?.myChildren?.length) {
+        const child = this.directory.myChildren.find(c => c.studentId === sid);
+        if (child?.studentName) {
+          return `Child: ${child.studentName}`;
+        }
+      }
+      if (role === 'teacher' && this.directory?.myClassRosters?.length) {
+        for (const r of this.directory.myClassRosters) {
+          const hit = r.students?.find(s => s.studentId === sid);
+          if (hit?.studentName) {
+            return `Student: ${hit.studentName}`;
+          }
+        }
+      }
+      return `Student #${conv.contextId}`;
+    }
+    if (conv.contextType && conv.contextId) {
+      return `${conv.contextType} #${conv.contextId}`;
+    }
+    return 'General';
   }
 
   initials(title: string): string {
@@ -717,7 +815,7 @@ export class ChatComponent implements OnInit, OnDestroy {
       return other?.displayName || `${other?.userRole || 'User'} ${other?.userId || ''}`.trim();
     }
     if (conv.subject) return conv.subject;
-    if (conv.contextType && conv.contextId) return `${conv.contextType} #${conv.contextId}`;
+    if (conv.contextType && conv.contextId) return this.describeContext(conv);
     return role ? role.toUpperCase() + ' Group' : 'Group';
   }
 

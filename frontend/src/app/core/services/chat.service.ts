@@ -131,6 +131,17 @@ export class ChatService implements OnDestroy {
 
   createConversation(req: ChatCreateConversationRequest): Observable<ChatInboxConversation> {
     if (runtimeConfig.useMocks) {
+      if (req.type === 'direct' && req.participants?.length === 2) {
+        const sorted = [...req.participants].map(p => Number(p.userId)).sort((a, b) => a - b);
+        const existing = this.mockConversations.find(c => {
+          if (c.type !== 'direct') return false;
+          const pids = (c.participants || []).map(p => Number(p.userId)).sort((a, b) => a - b);
+          return pids.length === 2 && pids[0] === sorted[0] && pids[1] === sorted[1];
+        });
+        if (existing) {
+          return of(existing).pipe(delay(120));
+        }
+      }
       const conv: ChatInboxConversation = {
         conversationId: 'c-' + Date.now(),
         type: req.type,
@@ -171,19 +182,47 @@ export class ChatService implements OnDestroy {
 
   loadMessages(conversationId: string, page = 0, size = 50): Observable<ChatMessage[]> {
     if (runtimeConfig.useMocks) {
-      const list = (this.mockMessages[conversationId] ?? []).slice().reverse();
+      const list = this.sortMessagesChronological(this.mockMessages[conversationId] ?? []);
       return of(list).pipe(delay(150));
     }
     return this.api.get<any>(`/chat/conversations/${conversationId}/messages?page=${page}&size=${size}`).pipe(
       map(resp => {
         const content = resp?.content ?? [];
-        // backend is desc by id; UI wants asc
-        const normalized = content
-          .map((m: any) => this.normalizeMessage(m))
-          .reverse();
-        return normalized as ChatMessage[];
+        // backend is desc by id; UI wants oldest → newest (WhatsApp-style)
+        const normalized = content.map((m: any) => this.normalizeMessage(m));
+        return this.sortMessagesChronological(normalized as ChatMessage[]);
       })
     );
+  }
+
+  private sortMessagesChronological(messages: ChatMessage[]): ChatMessage[] {
+    return [...messages].sort((a, b) => {
+      const na = Number(a.id);
+      const nb = Number(b.id);
+      if (Number.isFinite(na) && Number.isFinite(nb) && na !== nb) {
+        return na - nb;
+      }
+      const ta = a.createdAt ? Date.parse(a.createdAt) : 0;
+      const tb = b.createdAt ? Date.parse(b.createdAt) : 0;
+      return ta - tb;
+    });
+  }
+
+  markRead(conversationId: string, lastReadMessageId: number): Observable<void> {
+    if (runtimeConfig.useMocks) {
+      const updated = this.mockConversations.map(c =>
+        c.conversationId === conversationId ? { ...c, unreadCount: 0 } : c
+      );
+      this.mockConversations = updated;
+      this.inboxSubject.next(this.mockConversations);
+      return of(undefined).pipe(delay(30));
+    }
+    return this.api
+      .put<void>('/chat/conversations/read', {
+        conversationId: Number(conversationId),
+        lastReadMessageId
+      })
+      .pipe(map(() => undefined));
   }
 
   sendMessage(conversationId: string, body: string): Observable<ChatMessage> {

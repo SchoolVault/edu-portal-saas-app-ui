@@ -28,6 +28,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Service
@@ -124,6 +125,15 @@ public class ChatService {
             if (isPlatformAdminBridge(iRole, oRole)) {
                 validatePlatformBridgePair(initiatorId, other.getUserId());
                 convTenant = ChatTenantConstants.PLATFORM_BRIDGE_TENANT;
+            }
+
+            Optional<ChatConversation> reuse = findReusableDirectConversation(convTenant, initiatorId, other.getUserId());
+            if (reuse.isPresent()) {
+                ChatConversation existing = reuse.get();
+                List<ChatParticipant> existingParts =
+                        participantRepo.findByTenantIdAndConversationIdAndIsDeletedFalse(convTenant, existing.getId());
+                log.info("Reusing existing direct conversation id={} tenant={}", existing.getId(), convTenant);
+                return toInboxResponse(convTenant, initiatorId, existing, existingParts);
             }
         }
 
@@ -244,6 +254,17 @@ public class ChatService {
         }
     }
 
+    private Optional<ChatConversation> findReusableDirectConversation(String convTenant, Long userIdA, Long userIdB) {
+        List<ChatConversation> candidates = conversationRepo.findDirectConversationsForUserPair(convTenant, userIdA, userIdB);
+        for (ChatConversation c : candidates) {
+            List<ChatParticipant> parts = participantRepo.findByTenantIdAndConversationIdAndIsDeletedFalse(convTenant, c.getId());
+            if (parts.size() == 2) {
+                return Optional.of(c);
+            }
+        }
+        return Optional.empty();
+    }
+
     private void assertParticipant(String tenantId, Long conversationId, Long userId) {
         participantRepo.findByTenantIdAndConversationIdAndUserIdAndIsDeletedFalse(tenantId, conversationId, userId)
                 .orElseThrow(() -> {
@@ -266,7 +287,14 @@ public class ChatService {
                 .map(p -> new ChatDTOs.ParticipantSummary(p.getUserId(), p.getUserRole(), p.getDisplayName()))
                 .collect(Collectors.toList()));
 
-        r.setUnreadCount(0);
+        long afterId = 0L;
+        ChatParticipant me = participants.stream().filter(x -> x.getUserId().equals(currentUserId)).findFirst().orElse(null);
+        if (me != null && me.getLastReadMessageId() != null) {
+            afterId = me.getLastReadMessageId();
+        }
+        long unread = messageRepo.countByTenantIdAndConversationIdAndIsDeletedFalseAndIdGreaterThanAndSenderUserIdNot(
+                tenantId, c.getId(), afterId, currentUserId);
+        r.setUnreadCount(unread);
         return r;
     }
 

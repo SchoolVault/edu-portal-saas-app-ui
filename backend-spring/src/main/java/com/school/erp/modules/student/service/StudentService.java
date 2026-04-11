@@ -2,6 +2,7 @@ package com.school.erp.modules.student.service;
 
 import com.school.erp.common.dto.PageResponse;
 import com.school.erp.common.enums.Enums;
+import com.school.erp.common.exception.BusinessException;
 import com.school.erp.common.exception.DuplicateResourceException;
 import com.school.erp.common.exception.ResourceNotFoundException;
 import com.school.erp.common.exception.UnauthorizedException;
@@ -108,6 +109,18 @@ public class StudentService {
     @Transactional
     public StudentDTOs.Response createStudent(StudentDTOs.CreateRequest request) {
         String tenantId = TenantContext.getTenantId();
+        if (request.getClassId() == null) {
+            throw new BusinessException("classId is required");
+        }
+        schoolClassRepository.findByIdAndTenantIdAndIsDeletedFalse(request.getClassId(), tenantId)
+                .orElseThrow(() -> new ResourceNotFoundException("Class", request.getClassId()));
+        if (request.getSectionId() != null) {
+            Section sec = sectionRepository.findByIdAndTenantIdAndIsDeletedFalse(request.getSectionId(), tenantId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Section", request.getSectionId()));
+            if (!request.getClassId().equals(sec.getClassId())) {
+                throw new BusinessException("sectionId does not belong to the given classId");
+            }
+        }
         String admNo = request.getAdmissionNumber();
         if (admNo == null || admNo.isBlank()) {
             admNo = "ADM" + System.currentTimeMillis();
@@ -116,7 +129,11 @@ public class StudentService {
             log.warn("Student create rejected: duplicate admissionNumber={}", admNo);
             throw new DuplicateResourceException("Admission number already exists: " + admNo);
         }
-        Student student = Student.builder().firstName(request.getFirstName()).lastName(request.getLastName()).email(request.getEmail()).phone(request.getPhone()).dateOfBirth(request.getDateOfBirth()).gender(request.getGender()).classId(request.getClassId()).sectionId(request.getSectionId()).rollNumber(request.getRollNumber()).admissionNumber(admNo).admissionDate(request.getAdmissionDate() != null ? request.getAdmissionDate() : LocalDate.now()).parentId(request.getParentId()).parentName(request.getParentName()).address(request.getAddress()).bloodGroup(request.getBloodGroup()).status(Enums.StudentStatus.ACTIVE).build();
+        String email = request.getEmail();
+        if (email != null && email.isBlank()) {
+            email = null;
+        }
+        Student student = Student.builder().firstName(request.getFirstName()).lastName(request.getLastName()).email(email).phone(request.getPhone()).dateOfBirth(request.getDateOfBirth()).gender(request.getGender()).classId(request.getClassId()).sectionId(request.getSectionId()).rollNumber(request.getRollNumber()).admissionNumber(admNo).admissionDate(request.getAdmissionDate() != null ? request.getAdmissionDate() : LocalDate.now()).parentId(request.getParentId()).parentName(request.getParentName()).address(request.getAddress()).bloodGroup(request.getBloodGroup()).status(Enums.StudentStatus.ACTIVE).build();
         student.setTenantId(tenantId);
         student.setCreatedBy(TenantContext.getUserId() != null ? TenantContext.getUserId().toString() : null);
         studentRepository.save(student);
@@ -204,7 +221,7 @@ public class StudentService {
             request.setDateOfBirth(parseDate(row.get("dateofbirth")));
             request.setGender(parseGender(row.get("gender")));
             request.setClassId(parseLongRequired(row, "classid"));
-            request.setSectionId(parseLongRequired(row, "sectionid"));
+            request.setSectionId(parseLong(row.get("sectionid")));
             request.setRollNumber(blankToNull(row.get("rollnumber")));
             request.setAdmissionNumber(blankToNull(row.get("admissionnumber")));
             request.setAdmissionDate(parseDate(row.get("admissiondate")));
@@ -242,6 +259,45 @@ public class StudentService {
         long n = studentRepository.countByTenantIdAndIsDeletedFalse(TenantContext.getTenantId());
         log.debug("Student count tenant={} n={}", TenantContext.getTenantId(), n);
         return n;
+    }
+
+    /**
+     * CSV aligned with bulk import template ({@code students.csv} inside ZIP).
+     */
+    @Transactional(readOnly = true)
+    public String exportStudentsAsCsv() {
+        String tenantId = TenantContext.getTenantId();
+        StringBuilder sb = new StringBuilder();
+        sb.append("firstname,lastname,email,phone,dateofbirth,gender,classid,sectionid,rollnumber,admissionnumber,admissiondate,parentid,parentname,parentemail,parentphone,notifycredentials,address,bloodgroup\n");
+        for (Student s : studentRepository.findByTenantIdAndIsDeletedFalse(tenantId)) {
+            sb.append(csv(s.getFirstName())).append(',');
+            sb.append(csv(s.getLastName())).append(',');
+            sb.append(csv(s.getEmail())).append(',');
+            sb.append(csv(s.getPhone())).append(',');
+            sb.append(s.getDateOfBirth() != null ? s.getDateOfBirth() : "").append(',');
+            sb.append(s.getGender() != null ? s.getGender().name().toLowerCase() : "").append(',');
+            sb.append(s.getClassId() != null ? s.getClassId() : "").append(',');
+            sb.append(s.getSectionId() != null ? s.getSectionId() : "").append(',');
+            sb.append(csv(s.getRollNumber())).append(',');
+            sb.append(csv(s.getAdmissionNumber())).append(',');
+            sb.append(s.getAdmissionDate() != null ? s.getAdmissionDate() : "").append(',');
+            sb.append(s.getParentId() != null ? s.getParentId() : "").append(',');
+            sb.append(csv(s.getParentName())).append(",,,");
+            sb.append(csv(s.getAddress())).append(',');
+            sb.append(csv(s.getBloodGroup())).append('\n');
+        }
+        return sb.toString();
+    }
+
+    private static String csv(String v) {
+        if (v == null) {
+            return "";
+        }
+        String x = v.replace("\"", "\"\"");
+        if (x.contains(",") || x.contains("\n") || x.contains("\"")) {
+            return "\"" + x + "\"";
+        }
+        return x;
     }
 
     private StudentDTOs.Response toResponse(Student s) {

@@ -7,5 +7,8 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface ChatMessageRepository extends JpaRepository<ChatMessage, Long> {
     Page<ChatMessage> findByTenantIdAndConversationIdAndIsDeletedFalseOrderByIdDesc(String tenantId, Long conversationId, Pageable pageable);
+
+    long countByTenantIdAndConversationIdAndIsDeletedFalseAndIdGreaterThanAndSenderUserIdNot(
+            String tenantId, Long conversationId, Long idAfter, Long excludeSenderUserId);
 }
 

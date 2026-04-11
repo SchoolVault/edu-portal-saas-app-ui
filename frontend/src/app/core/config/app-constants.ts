@@ -29,6 +29,7 @@ export const NAV_ITEMS: NavItem[] = [
   { label: 'Leave', icon: 'bi-calendar-x', route: '/app/leave', roles: ['admin', 'teacher'], section: 'Connect' },
   { label: 'Reports', icon: 'bi-graph-up', route: '/app/reports', roles: ['admin'], section: 'Analytics' },
   { label: 'Operations hub', icon: 'bi-building-gear', route: '/app/operations', roles: ['admin'], section: 'Operations' },
+  { label: 'Import / export', icon: 'bi-file-earmark-zip-fill', route: '/app/import-export', roles: ['admin', 'super_admin'], section: 'Operations' },
   { label: 'Transport', icon: 'bi-bus-front-fill', route: '/app/transport', roles: ['admin'], section: 'Operations' },
   { label: 'Library', icon: 'bi-book-fill', route: '/app/library', roles: ['admin', 'teacher'], section: 'Operations' },
   { label: 'Hostel', icon: 'bi-house-fill', route: '/app/hostel', roles: ['admin'], section: 'Operations' },

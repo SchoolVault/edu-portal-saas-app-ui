@@ -50,8 +50,8 @@ export class SidebarComponent implements OnInit {
   constructor(private authService: AuthService) {}
 
   ngOnInit(): void {
-    const role = this.authService.getRole() || 'admin';
-    this.filteredItems = NAV_ITEMS.filter(item => item.roles.includes(role));
+    const role = this.authService.getNormalizedRole();
+    this.filteredItems = NAV_ITEMS.filter(item => role && item.roles.includes(role));
     const sectionSet = new Set(this.filteredItems.map(i => i.section || 'General'));
     this.sections = Array.from(sectionSet);
   }

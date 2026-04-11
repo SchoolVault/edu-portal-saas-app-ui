@@ -769,6 +769,8 @@ public class PayrollDTOs {
         private String month;
         @jakarta.validation.constraints.NotNull
         private Integer year;
+        /** NETBANKING, UPI, NEFT, IMPS — drives reference prefix and audit row. */
+        private String paymentMethod;
 
         public Long getTeacherId() {
             return teacherId;
@@ -793,6 +795,14 @@ public class PayrollDTOs {
         public void setYear(Integer year) {
             this.year = year;
         }
+
+        public String getPaymentMethod() {
+            return paymentMethod;
+        }
+
+        public void setPaymentMethod(String paymentMethod) {
+            this.paymentMethod = paymentMethod;
+        }
     }
 
     public static class DisburseSalaryResponse {
@@ -800,6 +810,7 @@ public class PayrollDTOs {
         private java.math.BigDecimal amount;
         private String teacherName;
         private String message;
+        private String paymentMethod;
 
         public String getReferenceId() {
             return referenceId;
@@ -831,6 +842,14 @@ public class PayrollDTOs {
 
         public void setMessage(String message) {
             this.message = message;
+        }
+
+        public String getPaymentMethod() {
+            return paymentMethod;
+        }
+
+        public void setPaymentMethod(String paymentMethod) {
+            this.paymentMethod = paymentMethod;
         }
     }
 }

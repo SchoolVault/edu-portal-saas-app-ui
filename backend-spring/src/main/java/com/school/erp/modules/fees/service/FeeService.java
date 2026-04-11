@@ -8,7 +8,9 @@ import com.school.erp.modules.fees.gateway.PaymentGatewayClient;
 import com.school.erp.modules.fees.dto.FeeDTOs;
 import com.school.erp.modules.fees.entity.*;
 import com.school.erp.modules.fees.repository.*;
+import com.school.erp.modules.auth.repository.UserRepository;
 import com.school.erp.modules.guardian.service.GuardianService;
+import com.school.erp.modules.notification.service.NotificationOutboxService;
 import com.school.erp.modules.student.entity.Student;
 import com.school.erp.modules.student.repository.StudentRepository;
 import com.school.erp.tenant.TenantContext;
@@ -35,6 +37,8 @@ public class FeeService {
     private final StudentRepository studentRepository;
     private final GuardianService guardianService;
     private final PaymentGatewayClient paymentGatewayClient;
+    private final NotificationOutboxService notificationOutboxService;
+    private final UserRepository userRepository;
 
     // ========== FEE STRUCTURES ==========
     @Transactional(readOnly = true)
@@ -287,7 +291,27 @@ public class FeeService {
 
         applySuccessfulPayment(payment, attempt.getAmount(), attempt.getProvider());
         paymentRepo.save(payment);
+        enqueueParentPaymentChannels(tenantId, payment, attempt);
         return toReceiptResponse(payment, attempt);
+    }
+
+    private void enqueueParentPaymentChannels(String tenantId, FeePayment payment, FeePaymentAttempt attempt) {
+        Long parentUserId = TenantContext.getUserId();
+        String statusLabel = payment.getStatus() == Enums.FeeStatus.PAID ? "paid in full" : "partial payment";
+        String body = "Fee receipt " + (payment.getReceiptNumber() != null ? payment.getReceiptNumber() : "")
+                + ": " + DEFAULT_CURRENCY + " " + attempt.getAmount()
+                + " for " + (payment.getStudentName() != null ? payment.getStudentName() : "student")
+                + ". " + statusLabel + ". Outstanding: " + DEFAULT_CURRENCY + " " + payment.getDueAmount() + ".";
+        String corr = "fee-pay-" + attempt.getId();
+        notificationOutboxService.enqueue(
+                tenantId, "FEE_PAYMENT_CONFIRM", "SMS", parentUserId, null,
+                "Payment received", body, "PAYCONF:" + attempt.getId(), corr);
+        notificationOutboxService.enqueue(
+                tenantId, "FEE_PAYMENT_CONFIRM", "WHATSAPP", parentUserId, null,
+                "Payment received", body, "PAYCONF:" + attempt.getId() + ":WA", corr);
+        userRepository.findByIdAndTenantIdAndIsDeletedFalse(parentUserId, tenantId).ifPresent(u ->
+                log.info("Fee payment confirmed tenant={} parentUser={} student={} amount={} status={}",
+                        tenantId, parentUserId, payment.getStudentId(), attempt.getAmount(), payment.getStatus()));
     }
 
     @Transactional(readOnly = true)
@@ -443,7 +467,16 @@ public class FeeService {
         return response;
     }
 
-    public FeeService(final FeeStructureRepository structureRepo, final FeeComponentRepository componentRepo, final FeePaymentRepository paymentRepo, final FeePaymentAttemptRepository paymentAttemptRepository, final StudentRepository studentRepository, final GuardianService guardianService, final PaymentGatewayClient paymentGatewayClient) {
+    public FeeService(
+            final FeeStructureRepository structureRepo,
+            final FeeComponentRepository componentRepo,
+            final FeePaymentRepository paymentRepo,
+            final FeePaymentAttemptRepository paymentAttemptRepository,
+            final StudentRepository studentRepository,
+            final GuardianService guardianService,
+            final PaymentGatewayClient paymentGatewayClient,
+            final NotificationOutboxService notificationOutboxService,
+            final UserRepository userRepository) {
         this.structureRepo = structureRepo;
         this.componentRepo = componentRepo;
         this.paymentRepo = paymentRepo;
@@ -451,5 +484,7 @@ public class FeeService {
         this.studentRepository = studentRepository;
         this.guardianService = guardianService;
         this.paymentGatewayClient = paymentGatewayClient;
+        this.notificationOutboxService = notificationOutboxService;
+        this.userRepository = userRepository;
     }
 }
