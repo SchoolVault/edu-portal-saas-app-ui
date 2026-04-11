@@ -1027,7 +1027,7 @@ public class DemoDataSeedService {
                     pnm = "—";
                 }
             }
-            Student s = student(tenantId, bf[i], bl[i], adm, cs[0], cs[1], pid, pnm,
+            Student s = student(tenantId, bf[i % bf.length], bl[i % bl.length], adm, cs[0], cs[1], pid, pnm,
                     "sx.bulk" + (i + 1) + "@stxheritage.stu", i % 2 == 0 ? Enums.Gender.MALE : Enums.Gender.FEMALE);
             YearMonth admYm = YearMonth.now().minusMonths(i % 6);
             s.setAdmissionDate(admYm.atDay(Math.min(28, 5 + (i % 23))));
