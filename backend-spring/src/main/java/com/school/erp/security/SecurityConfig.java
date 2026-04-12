@@ -1,6 +1,8 @@
 package com.school.erp.security;
 
+import com.school.erp.config.AppSecurityProperties;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -18,14 +20,18 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+
 import java.util.Arrays;
 import java.util.List;
 
 @Configuration
 @EnableWebSecurity
 @EnableMethodSecurity
+@EnableConfigurationProperties(AppSecurityProperties.class)
 public class SecurityConfig {
     private final JwtAuthenticationFilter jwtFilter;
+    private final AppSecurityProperties appSecurityProperties;
+
     @Value("${app.cors.allowed-origins}")
     private String allowedOrigins;
     @Value("${app.cors.allowed-methods}")
@@ -38,14 +44,26 @@ public class SecurityConfig {
         return http.csrf(AbstractHttpConfigurer::disable)
                 .cors(cors -> cors.configurationSource(corsConfigSource()))
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/api/v1/auth/**").permitAll()
-                        .requestMatchers("/swagger-ui/**", "/api-docs/**", "/v3/api-docs/**").permitAll()
-                        .requestMatchers("/actuator/**").permitAll()
-                        .requestMatchers("/ws", "/ws/**").permitAll()
-                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-                        .anyRequest().authenticated()
-                )
+                .authorizeHttpRequests(auth -> {
+                    auth.requestMatchers("/api/v1/auth/**").permitAll();
+                    auth.requestMatchers("/api/v1/fees/webhooks/**").permitAll();
+                    if (appSecurityProperties.isPermitSwaggerAnonymous()) {
+                        auth.requestMatchers("/swagger-ui/**", "/swagger-ui.html", "/api-docs/**", "/v3/api-docs/**").permitAll();
+                    } else {
+                        auth.requestMatchers("/swagger-ui/**", "/swagger-ui.html", "/api-docs/**", "/v3/api-docs/**")
+                                .hasAnyRole("ADMIN", "SUPER_ADMIN");
+                    }
+                    if (appSecurityProperties.isPermitActuatorAnonymous()) {
+                        auth.requestMatchers("/actuator/**").permitAll();
+                    } else {
+                        auth.requestMatchers("/actuator/health", "/actuator/health/**").permitAll();
+                        auth.requestMatchers("/actuator/info", "/actuator/info/**").permitAll();
+                        auth.requestMatchers("/actuator/**").hasAnyRole("ADMIN", "SUPER_ADMIN");
+                    }
+                    auth.requestMatchers("/ws", "/ws/**").permitAll();
+                    auth.requestMatchers(HttpMethod.OPTIONS, "/**").permitAll();
+                    auth.anyRequest().authenticated();
+                })
                 .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class)
                 .build();
     }
@@ -77,7 +95,8 @@ public class SecurityConfig {
         return config.getAuthenticationManager();
     }
 
-    public SecurityConfig(final JwtAuthenticationFilter jwtFilter) {
+    public SecurityConfig(final JwtAuthenticationFilter jwtFilter, final AppSecurityProperties appSecurityProperties) {
         this.jwtFilter = jwtFilter;
+        this.appSecurityProperties = appSecurityProperties;
     }
 }

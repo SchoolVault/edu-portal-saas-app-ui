@@ -12,8 +12,10 @@ import {
   mockParentExamsForStudent,
   mockParentExamSchedule,
   mockParentPublishedMarks,
+  mockParentTimetableForChild,
 } from '../mocks/parent.mock-data';
 import { ApiService } from './api.service';
+import { TimetableService } from './timetable.service';
 import {
   AttendanceRecord,
   AttendanceStats,
@@ -26,6 +28,8 @@ import {
   ParentFeeObligation,
   PaymentReceipt,
   Student,
+  TimetableEntry,
+  TimetableGrid,
 } from '../models/models';
 import { runtimeConfig } from '../config/runtime-config';
 import { PAYMENT_PROVIDER_IDS, normalizePaymentProviderId } from '../payment/payment-provider-ids';
@@ -41,8 +45,56 @@ export class ParentService {
   /** Last amounts for local demo checkout/confirm (mock JWT cannot call {@code /parent/payments/*}). */
   private localDemoCheckout: { paymentId: number; studentId: number; amount: number } | null = null;
 
-  constructor(private api: ApiService) {
+  constructor(
+    private api: ApiService,
+    private timetableService: TimetableService
+  ) {
     this.bootstrapMockReceiptLedger();
+  }
+
+  getChildTimetableEntries(studentId: number): Observable<TimetableEntry[]> {
+    if (runtimeConfig.useMocks) {
+      return of(mockParentTimetableForChild(studentId).map(e => ({ ...e }))).pipe(delay(200));
+    }
+    return this.api.get<any[]>(`/parent/children/${studentId}/timetable`).pipe(
+      map(rows => (rows ?? []).map(e => this.normalizeTimetableEntry(e)))
+    );
+  }
+
+  getChildTimetableGrid(studentId: number): Observable<TimetableGrid> {
+    if (runtimeConfig.useMocks) {
+      return this.getChildTimetableEntries(studentId).pipe(
+        map(entries => this.timetableService.toGridFromEntries(entries)),
+        delay(120)
+      );
+    }
+    return this.api.get<any>(`/parent/children/${studentId}/timetable/grid`).pipe(
+      map(grid => ({
+        classId: Number(grid.classId ?? 0),
+        sectionId: grid.sectionId != null ? Number(grid.sectionId) : 0,
+        days: (grid.days ?? []).map((day: string) => day.charAt(0) + day.slice(1).toLowerCase()),
+        periods: grid.periods ?? [],
+        grid: grid.grid ?? {}
+      }))
+    );
+  }
+
+  private normalizeTimetableEntry(entry: any): TimetableEntry {
+    const dayRaw = entry.day ?? '';
+    const dayNorm = dayRaw ? dayRaw.charAt(0) + dayRaw.slice(1).toLowerCase() : '';
+    return {
+      ...entry,
+      id: Number(entry.id),
+      classId: Number(entry.classId ?? 0),
+      sectionId: entry.sectionId != null && entry.sectionId !== '' ? Number(entry.sectionId) : 0,
+      teacherId: entry.teacherId != null && entry.teacherId !== '' ? Number(entry.teacherId) : 0,
+      day: dayNorm,
+      period: Number(entry.period ?? 0),
+      tenantId: entry.tenantId ?? '',
+      scheduleSource:
+        entry.scheduleSource === 'COVER' ? 'COVER' : entry.scheduleSource === 'RECURRING' ? 'RECURRING' : undefined,
+      coverForDate: entry.coverForDate ?? undefined
+    };
   }
 
   getChildren(): Observable<Student[]> {

@@ -94,6 +94,36 @@ public class ChatDirectoryService {
         return homeroomTeacherUserIdsForParent(tenantId, parentUserId).contains(teacherUserId);
     }
 
+    /**
+     * Homeroom teacher may message parents of students in classes where they are assigned class teacher.
+     */
+    @Transactional(readOnly = true)
+    public boolean teacherMayMessageParentUser(Long teacherUserId, Long parentUserId) {
+        if (teacherUserId == null || parentUserId == null) {
+            return false;
+        }
+        return parentUserIdsInHomeroomRoster(TenantContext.getTenantId(), teacherUserId).contains(parentUserId);
+    }
+
+    private java.util.Set<Long> parentUserIdsInHomeroomRoster(String tenantId, Long teacherUserId) {
+        java.util.Set<Long> out = new java.util.HashSet<>();
+        Teacher teacher = teacherRepository.findByTenantIdAndUserIdAndIsDeletedFalse(tenantId, teacherUserId).orElse(null);
+        if (teacher == null) {
+            return out;
+        }
+        List<SchoolClass> classes = classRepository.findByTenantIdAndIsDeletedFalseOrderByGrade(tenantId).stream()
+                .filter(c -> Objects.equals(c.getClassTeacherId(), teacher.getId()) || Objects.equals(c.getClassTeacherId(), teacherUserId))
+                .collect(Collectors.toList());
+        for (SchoolClass c : classes) {
+            for (Student s : studentRepository.findByTenantIdAndClassIdAndIsDeletedFalse(tenantId, c.getId())) {
+                if (s.getParentId() != null) {
+                    out.add(s.getParentId());
+                }
+            }
+        }
+        return out;
+    }
+
     private Set<Long> homeroomTeacherUserIdsForParent(String tenantId, Long parentUserId) {
         List<Student> kids = guardianService.findStudentsForParentUser(tenantId, parentUserId);
         if (kids.isEmpty()) {

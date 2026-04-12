@@ -15,7 +15,12 @@ public class WebConfig implements WebMvcConfigurer {
         pathBasedRateLimitInterceptor.ifAvailable(p -> registry.addInterceptor(p)
                 .addPathPatterns("/api/v1/auth/login", "/api/v1/auth/otp/**", "/api/v1/parent/payments/**"));
         rateLimitInterceptor.ifAvailable(r ->
-                registry.addInterceptor(r).addPathPatterns("/api/**").excludePathPatterns("/api/v1/auth/**", "/swagger-ui/**", "/api-docs/**", "/actuator/**"));
+                registry.addInterceptor(r).addPathPatterns("/api/**").excludePathPatterns(
+                        "/api/v1/auth/**",
+                        "/api/v1/fees/webhooks/**",
+                        "/swagger-ui/**",
+                        "/api-docs/**",
+                        "/actuator/**"));
     }
 
     public WebConfig(

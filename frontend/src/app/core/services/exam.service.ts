@@ -2,7 +2,8 @@ import { Injectable } from '@angular/core';
 import { Observable, of, throwError } from 'rxjs';
 import { delay, map } from 'rxjs/operators';
 import { MOCK_EXAM_MARKS_SEED, MOCK_EXAMS_SEED, MOCK_EXAM_SCHEDULE_SEED } from '../mocks/exam.mock-data';
-import { Exam, ExamClassScope, ExamScheduleSlot, MarkRecord } from '../models/models';
+import { mockParentPortalExams } from '../mocks/parent.mock-data';
+import { Exam, ExamClassScope, ExamScheduleSlot, MarkRecord, MarksEntryScopeRow } from '../models/models';
 import { ApiService } from './api.service';
 import { runtimeConfig } from '../config/runtime-config';
 
@@ -38,11 +39,36 @@ export class ExamService {
     ).pipe(delay(400));
   }
 
+  /** Parent role: server-scoped list (GET /parent/exams). Staff should use {@link #getExams}. */
+  getParentPortalExams(): Observable<Exam[]> {
+    if (!runtimeConfig.useMocks) {
+      return this.api.get<any[]>('/parent/exams').pipe(map(exams => exams.map(exam => this.normalizeExam(exam))));
+    }
+    return of(mockParentPortalExams().map(e => this.copyExam(e))).pipe(delay(400));
+  }
+
   getMarksByExam(examId: number): Observable<MarkRecord[]> {
     if (!runtimeConfig.useMocks) {
       return this.api.get<any[]>(`/exams/${examId}/marks`).pipe(map(marks => marks.map(mark => this.normalizeMark(mark))));
     }
     return of(this.marks.filter(m => m.examId === examId)).pipe(delay(400));
+  }
+
+  /** Teacher UI: which class/section/subject combinations may receive marks for this exam */
+  getMarksEntryScope(examId: number): Observable<MarksEntryScopeRow[]> {
+    if (!runtimeConfig.useMocks) {
+      return this.api.get<MarksEntryScopeRow[]>(`/exams/${examId}/marks-entry-scope`);
+    }
+    const subjects = [...new Set(this.marks.filter(m => m.examId === examId).map(m => m.subjectName))];
+    const classId = this.marks.find(m => m.examId === examId)?.classId ?? 0;
+    return of(
+      subjects.map(subjectName => ({
+        examId,
+        classId,
+        sectionId: null,
+        subjectName
+      }))
+    ).pipe(delay(150));
   }
 
   getMarksByStudent(studentId: number): Observable<MarkRecord[]> {

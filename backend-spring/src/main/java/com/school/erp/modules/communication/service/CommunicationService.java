@@ -1,7 +1,11 @@
 package com.school.erp.modules.communication.service;
 
+import com.school.erp.common.exception.BusinessException;
 import com.school.erp.common.exception.ResourceNotFoundException;
 import com.school.erp.common.exception.UnauthorizedException;
+import com.school.erp.modules.auth.entity.User;
+import com.school.erp.modules.auth.repository.UserRepository;
+import com.school.erp.modules.chat.service.ChatDirectoryService;
 import com.school.erp.modules.communication.dto.CommunicationDTOs;
 import com.school.erp.modules.communication.dto.AnnouncementDTOs;
 import com.school.erp.modules.communication.entity.*;
@@ -27,6 +31,8 @@ public class CommunicationService {
     private final MessageRepository msgRepo;
     private final GuardianService guardianService;
     private final AnnouncementNotificationFanoutService announcementFanout;
+    private final UserRepository userRepository;
+    private final ChatDirectoryService chatDirectoryService;
 
     @Transactional(readOnly = true)
     public List<Announcement> getAnnouncements() {
@@ -136,6 +142,7 @@ public class CommunicationService {
 
     @Transactional
     public CommunicationDTOs.MessageResponse sendMessage(CommunicationDTOs.SendMessageRequest req) {
+        assertMaySendDirectMessage(req.getReceiverId());
         String t = TenantContext.getTenantId();
         Message msg = Message.builder().senderId(TenantContext.getUserId()).senderName(req.getSenderName()).senderRole(TenantContext.getUserRole()).receiverId(req.getReceiverId()).receiverName(req.getReceiverName()).content(req.getContent()).isRead(false).build();
         msg.setTenantId(t);
@@ -166,6 +173,43 @@ public class CommunicationService {
         return msgRepo.countByTenantIdAndReceiverIdAndIsReadFalse(TenantContext.getTenantId(), TenantContext.getUserId());
     }
 
+    private void assertMaySendDirectMessage(Long receiverId) {
+        if (receiverId == null) {
+            throw new BusinessException("Receiver is required");
+        }
+        Long senderId = TenantContext.getUserId();
+        if (senderId != null && senderId.equals(receiverId)) {
+            throw new BusinessException("Cannot message yourself");
+        }
+        String t = TenantContext.getTenantId();
+        String sr = TenantContext.getUserRole() != null ? TenantContext.getUserRole().trim().toUpperCase(Locale.ROOT) : "";
+        User receiver = userRepository.findByIdAndTenantIdAndIsDeletedFalse(receiverId, t)
+                .orElseThrow(() -> new ResourceNotFoundException("User", receiverId));
+        String rr = receiver.getRole() != null ? receiver.getRole().name().trim().toUpperCase(Locale.ROOT) : "";
+        if (TenantQueryPolicy.isPlatformSuperAdmin()) {
+            return;
+        }
+        if ("ADMIN".equals(sr) || "SUPER_ADMIN".equals(sr)) {
+            return;
+        }
+        if ("PARENT".equals(sr) && "TEACHER".equals(rr)) {
+            if (!chatDirectoryService.parentMayMessageTeacherUser(senderId, receiverId)) {
+                throw new UnauthorizedException("You may only message your child's class teachers.");
+            }
+            return;
+        }
+        if ("TEACHER".equals(sr) && "PARENT".equals(rr)) {
+            if (!chatDirectoryService.teacherMayMessageParentUser(senderId, receiverId)) {
+                throw new UnauthorizedException("You may only message parents in your class rosters.");
+            }
+            return;
+        }
+        if ("TEACHER".equals(sr) && "TEACHER".equals(rr)) {
+            return;
+        }
+        throw new UnauthorizedException("Direct messaging is not enabled for this recipient.");
+    }
+
     private static String previewText(String content) {
         if (content == null) return "";
         String t = content.replaceAll("\\s+", " ").trim();
@@ -181,10 +225,14 @@ public class CommunicationService {
             final AnnouncementRepository annRepo,
             final MessageRepository msgRepo,
             final GuardianService guardianService,
-            final AnnouncementNotificationFanoutService announcementFanout) {
+            final AnnouncementNotificationFanoutService announcementFanout,
+            final UserRepository userRepository,
+            final ChatDirectoryService chatDirectoryService) {
         this.annRepo = annRepo;
         this.msgRepo = msgRepo;
         this.guardianService = guardianService;
         this.announcementFanout = announcementFanout;
+        this.userRepository = userRepository;
+        this.chatDirectoryService = chatDirectoryService;
     }
 }

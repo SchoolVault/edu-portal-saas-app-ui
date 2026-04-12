@@ -6,6 +6,7 @@ import { TeacherService } from '../../core/services/teacher.service';
 import { TimetableService } from '../../core/services/timetable.service';
 import { AuthService } from '../../core/services/auth.service';
 import { SchoolClass, Student, Teacher, TimetableEntry, TimetableGrid } from '../../core/models/models';
+import { ParentService } from '../../core/services/parent.service';
 import { StudentService } from '../../core/services/student.service';
 import { ErpDatePickerComponent } from '../../shared/erp-date-picker/erp-date-picker.component';
 
@@ -328,6 +329,7 @@ export class TimetableComponent implements OnInit {
     private academicService: AcademicService,
     private teacherService: TeacherService,
     private studentService: StudentService,
+    private parentService: ParentService,
     private auth: AuthService
   ) {}
 
@@ -363,20 +365,50 @@ export class TimetableComponent implements OnInit {
   }
 
   private loadParentTimetableContext(): void {
-    const uid = this.auth.getCurrentUser()?.id;
-    this.studentService.getStudents().subscribe(all => {
-      this.myChildren = uid != null ? (all || []).filter(s => s.parentId === uid) : [];
-      this.academicService.getClasses().subscribe(classes => {
-        const allowed = new Set(this.myChildren.map(c => c.classId));
-        this.classes = classes.filter(c => allowed.has(c.id));
-        if (this.myChildren.length === 1) {
-          this.selectedChildId = this.myChildren[0].id;
-          this.applyParentChildSelection();
-        } else if (this.selectedChildId != null) {
-          this.applyParentChildSelection();
-        }
-      });
+    this.parentService.getChildren().subscribe(children => {
+      this.myChildren = children || [];
+      this.classes = this.buildParentSyntheticClasses(this.myChildren);
+      if (this.myChildren.length === 1) {
+        this.selectedChildId = this.myChildren[0].id;
+        this.applyParentChildSelection();
+      } else if (this.selectedChildId != null) {
+        this.applyParentChildSelection();
+      }
     });
+  }
+
+  /** Minimal class/section rows derived from `/parent/children` (no `/academic/classes` — parents are not staff). */
+  private buildParentSyntheticClasses(children: Student[]): SchoolClass[] {
+    const byClass = new Map<
+      number,
+      { name: string; sections: Map<number, { id: number; name: string; classId: number; capacity: number; studentCount: number }> }
+    >();
+    const tenantId = children[0]?.tenantId ?? '';
+    for (const ch of children) {
+      const cid = ch.classId;
+      if (!byClass.has(cid)) {
+        byClass.set(cid, { name: ch.className?.trim() || `Class ${cid}`, sections: new Map() });
+      }
+      if (ch.sectionId > 0) {
+        byClass.get(cid)!.sections.set(ch.sectionId, {
+          id: ch.sectionId,
+          name: ch.sectionName?.trim() || `Section`,
+          classId: cid,
+          capacity: 0,
+          studentCount: 0
+        });
+      }
+    }
+    return [...byClass.entries()]
+      .map(([id, v]) => ({
+        id,
+        name: v.name,
+        grade: 0,
+        sections: [...v.sections.values()],
+        academicYearId: 0,
+        tenantId
+      }))
+      .sort((a, b) => a.id - b.id);
   }
 
   onParentChildChange(): void {
@@ -501,6 +533,16 @@ export class TimetableComponent implements OnInit {
   }
 
   loadTimetable(): void {
+    if (this.isParent) {
+      if (this.selectedChildId == null) {
+        this.entries = [];
+        this.grid = null;
+        return;
+      }
+      this.parentService.getChildTimetableEntries(this.selectedChildId).subscribe(entries => (this.entries = entries));
+      this.parentService.getChildTimetableGrid(this.selectedChildId).subscribe(grid => (this.grid = grid));
+      return;
+    }
     if (this.selectedClassId == null) return;
     if (this.sections.length > 0 && this.selectedSectionId == null) return;
     const sectionArg = this.sections.length > 0 ? this.selectedSectionId! : undefined;

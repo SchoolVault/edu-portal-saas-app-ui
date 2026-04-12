@@ -105,8 +105,14 @@ app:
   default-page-size: ${APP_DEFAULT_PAGE_SIZE:20}
   max-page-size: ${APP_MAX_PAGE_SIZE:100}
 
+
   # Key Id = publishable (rzp_test_… / rzp_live_…). Secret = from same "Generate key" pair. Never commit real values.
   # If RAZORPAY_KEY is set to "" in an IDE env block, Spring uses empty string (not the default) — Checkout then gets 401 on preferences.
+  security:
+    permit-swagger-anonymous: ${APP_SECURITY_PERMIT_SWAGGER_ANONYMOUS:true}
+    permit-actuator-anonymous: ${APP_SECURITY_PERMIT_ACTUATOR_ANONYMOUS:true}
+    websocket-allowed-origins: ${APP_WEBSOCKET_ALLOWED_ORIGINS:}
+
   payments:
     # Parent portal checkout: comma-separated provider ids (matches FeePaymentCheckoutStrategy routing).
     # Production: razorpay only. For server integration tests add e.g. mockpay.
@@ -116,6 +122,9 @@ app:
       api-base: ${RAZORPAY_API_BASE:https://api.razorpay.com}
       key: ${RAZORPAY_KEY:}
       secret: ${RAZORPAY_SECRET:}
+      webhook-secret: ${RAZORPAY_WEBHOOK_SECRET:}
+      # Dev only: synthetic order ids if key/secret missing (Checkout.js will 400). Keep false in prod.
+      fallback-without-credentials: ${RAZORPAY_FALLBACK_WITHOUT_CREDS:false}
 
 springdoc:
   api-docs:

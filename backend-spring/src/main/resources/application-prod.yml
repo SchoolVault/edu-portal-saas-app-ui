@@ -3,6 +3,10 @@
 app:
   demo-seed:
     enabled: false
+  security:
+    permit-swagger-anonymous: ${APP_SECURITY_PERMIT_SWAGGER_ANONYMOUS:false}
+    permit-actuator-anonymous: ${APP_SECURITY_PERMIT_ACTUATOR_ANONYMOUS:false}
+    websocket-allowed-origins: ${APP_WEBSOCKET_ALLOWED_ORIGINS:}
 
 spring:
   datasource:

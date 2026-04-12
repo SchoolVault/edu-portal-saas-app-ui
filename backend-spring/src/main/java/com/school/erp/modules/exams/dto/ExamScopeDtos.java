@@ -267,4 +267,44 @@ public final class ExamScopeDtos {
             this.slots = slots;
         }
     }
+
+    /** Teacher-facing: class/section/subject combinations they may enter marks for on an exam. */
+    public static class MarksEntryScopeRow {
+        private Long examId;
+        private Long classId;
+        private Long sectionId;
+        private String subjectName;
+
+        public Long getExamId() {
+            return examId;
+        }
+
+        public void setExamId(Long examId) {
+            this.examId = examId;
+        }
+
+        public Long getClassId() {
+            return classId;
+        }
+
+        public void setClassId(Long classId) {
+            this.classId = classId;
+        }
+
+        public Long getSectionId() {
+            return sectionId;
+        }
+
+        public void setSectionId(Long sectionId) {
+            this.sectionId = sectionId;
+        }
+
+        public String getSubjectName() {
+            return subjectName;
+        }
+
+        public void setSubjectName(String subjectName) {
+            this.subjectName = subjectName;
+        }
+    }
 }
