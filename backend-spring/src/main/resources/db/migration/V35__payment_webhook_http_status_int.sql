@@ -1,2 +1,3 @@
--- Widen http_status to INT for JPA Integer / Hibernate; safe no-op widening from SMALLINT.
-ALTER TABLE payment_webhook_events MODIFY COLUMN http_status INT NULL;
+-- Standardize http_status as INT (JPA Integer); V33 used SMALLINT — widen for consistency across DBs.
+ALTER TABLE payment_webhook_events
+  MODIFY COLUMN http_status INT NULL;
