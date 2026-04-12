@@ -17,6 +17,8 @@ import javax.crypto.spec.SecretKeySpec;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.Base64;
 import java.util.Locale;
 import java.util.Map;
@@ -32,6 +34,8 @@ import java.util.UUID;
  */
 @Component
 public class RazorpayPaymentGatewayClient {
+    /** Razorpay Orders API: {@code receipt} max length 40. */
+    private static final int RAZORPAY_RECEIPT_MAX_LEN = 40;
     private static final Logger log = LoggerFactory.getLogger(RazorpayPaymentGatewayClient.class);
     private final RestTemplate restTemplate = new RestTemplate();
 
@@ -65,7 +69,7 @@ public class RazorpayPaymentGatewayClient {
 
         // Razorpay expects amount in smallest currency unit (paise); round HALF_UP to 2 decimal places first.
         long amountPaise = amount.setScale(2, RoundingMode.HALF_UP).multiply(BigDecimal.valueOf(100)).longValueExact();
-        String receipt = "TENANT-" + tenantId + "-PAY-" + paymentId + "-" + UUID.randomUUID().toString().substring(0, 8);
+        String receipt = buildRazorpayReceipt(tenantId, paymentId);
 
         String url = apiBase.replaceAll("/+$", "") + "/v1/orders";
         Map<String, Object> body = Map.of(
@@ -109,6 +113,33 @@ public class RazorpayPaymentGatewayClient {
         // In real UI you would open Razorpay Checkout with orderId + key; checkoutUrl is a UI concern.
         String checkoutUrl = (returnUrl != null && !returnUrl.isBlank()) ? returnUrl : null;
         return new PaymentGatewayClient.GatewayCheckoutSession("razorpay", orderId, token, checkoutUrl, payload);
+    }
+
+    /**
+     * Receipt must be ≤ 40 chars (Razorpay limit). Embed tenant + payment in the hash, UUID per attempt for uniqueness.
+     * Correlate with server logs via {@code paymentId} / {@code tenantId} — Razorpay dashboard shows receipt only.
+     */
+    static String buildRazorpayReceipt(String tenantId, Long paymentId) {
+        try {
+            MessageDigest md = MessageDigest.getInstance("SHA-256");
+            md.update((tenantId != null ? tenantId : "").getBytes(StandardCharsets.UTF_8));
+            md.update((byte) '|');
+            md.update(String.valueOf(paymentId).getBytes(StandardCharsets.UTF_8));
+            md.update((byte) '|');
+            md.update(UUID.randomUUID().toString().getBytes(StandardCharsets.UTF_8));
+            byte[] digest = md.digest();
+            StringBuilder sb = new StringBuilder(32);
+            for (int i = 0; i < 16; i++) {
+                sb.append(String.format("%02x", digest[i]));
+            }
+            String out = sb.toString();
+            if (out.length() > RAZORPAY_RECEIPT_MAX_LEN) {
+                throw new IllegalStateException("receipt length invariant broken");
+            }
+            return out;
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException(e);
+        }
     }
 
     private PaymentGatewayClient.GatewayCheckoutSession syntheticSession(Long paymentId, BigDecimal amount, String returnUrl, String reason) {
