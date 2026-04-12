@@ -30,6 +30,9 @@ services:
         sync: false
       - key: CORS_ORIGINS
         sync: false
+      # Optional: POST /api/v1/internal/jobs/reminders/run with header X-Job-Key (Render Cron Job)
+      - key: APP_INTERNAL_JOB_KEY
+        sync: false
 
   # After first deploy: Dashboard → this static site → Redirects/Rewrites →
   #   Source /* → Destination /index.html → Action Rewrite (SPA refresh / deep links).

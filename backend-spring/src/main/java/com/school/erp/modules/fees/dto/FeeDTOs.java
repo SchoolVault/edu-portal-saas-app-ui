@@ -1431,6 +1431,8 @@ public class FeeDTOs {
         private BigDecimal lateFee;
         private BigDecimal payableNow;
         private List<ParentFeeLineItem> lineItems;
+        /** Days from today until due date; negative when overdue. Null when paid or no due date. */
+        private Integer daysUntilDue;
 
         public Long getPaymentId() { return paymentId; }
         public void setPaymentId(Long paymentId) { this.paymentId = paymentId; }
@@ -1464,6 +1466,8 @@ public class FeeDTOs {
         public void setPayableNow(BigDecimal payableNow) { this.payableNow = payableNow; }
         public List<ParentFeeLineItem> getLineItems() { return lineItems; }
         public void setLineItems(List<ParentFeeLineItem> lineItems) { this.lineItems = lineItems; }
+        public Integer getDaysUntilDue() { return daysUntilDue; }
+        public void setDaysUntilDue(Integer daysUntilDue) { this.daysUntilDue = daysUntilDue; }
     }
 
     public static class CreateCheckoutSessionRequest {
@@ -1594,5 +1598,149 @@ public class FeeDTOs {
         public void setLateFee(BigDecimal lateFee) { this.lateFee = lateFee; }
         public List<ParentFeeLineItem> getLineItems() { return lineItems; }
         public void setLineItems(List<ParentFeeLineItem> lineItems) { this.lineItems = lineItems; }
+    }
+
+    /** Assign one fee structure to all active students in a class (optional section). */
+    public static class BulkAssignFeesRequest {
+        @NotNull
+        private Long feeStructureId;
+        @NotNull
+        private Long classId;
+        /** When null, all sections in the class are included. */
+        private Long sectionId;
+        @NotNull
+        private LocalDate dueDate;
+        private BigDecimal discount;
+        /** When true (default), students who already have this structure + due date are skipped. */
+        private Boolean skipIfDuplicate = Boolean.TRUE;
+        /** Optional client correlation for logs and future idempotency. */
+        private String correlationId;
+
+        public Long getFeeStructureId() {
+            return feeStructureId;
+        }
+
+        public void setFeeStructureId(Long feeStructureId) {
+            this.feeStructureId = feeStructureId;
+        }
+
+        public Long getClassId() {
+            return classId;
+        }
+
+        public void setClassId(Long classId) {
+            this.classId = classId;
+        }
+
+        public Long getSectionId() {
+            return sectionId;
+        }
+
+        public void setSectionId(Long sectionId) {
+            this.sectionId = sectionId;
+        }
+
+        public LocalDate getDueDate() {
+            return dueDate;
+        }
+
+        public void setDueDate(LocalDate dueDate) {
+            this.dueDate = dueDate;
+        }
+
+        public BigDecimal getDiscount() {
+            return discount;
+        }
+
+        public void setDiscount(BigDecimal discount) {
+            this.discount = discount;
+        }
+
+        public Boolean getSkipIfDuplicate() {
+            return skipIfDuplicate;
+        }
+
+        public void setSkipIfDuplicate(Boolean skipIfDuplicate) {
+            this.skipIfDuplicate = skipIfDuplicate;
+        }
+
+        public String getCorrelationId() {
+            return correlationId;
+        }
+
+        public void setCorrelationId(String correlationId) {
+            this.correlationId = correlationId;
+        }
+    }
+
+    public static class BulkAssignFeesSkipEntry {
+        private Long studentId;
+        /** e.g. INACTIVE, DUPLICATE_OBLIGATION */
+        private String code;
+        private String detail;
+
+        public Long getStudentId() {
+            return studentId;
+        }
+
+        public void setStudentId(Long studentId) {
+            this.studentId = studentId;
+        }
+
+        public String getCode() {
+            return code;
+        }
+
+        public void setCode(String code) {
+            this.code = code;
+        }
+
+        public String getDetail() {
+            return detail;
+        }
+
+        public void setDetail(String detail) {
+            this.detail = detail;
+        }
+    }
+
+    public static class BulkAssignFeesResponse {
+        private int createdCount;
+        private int skippedCount;
+        private List<BulkAssignFeesSkipEntry> skipped;
+        /** First rows for UI preview; full ledger remains on GET /fees/payments. */
+        private List<FeePaymentResponse> createdSample;
+
+        public int getCreatedCount() {
+            return createdCount;
+        }
+
+        public void setCreatedCount(int createdCount) {
+            this.createdCount = createdCount;
+        }
+
+        public int getSkippedCount() {
+            return skippedCount;
+        }
+
+        public void setSkippedCount(int skippedCount) {
+            this.skippedCount = skippedCount;
+        }
+
+        public List<BulkAssignFeesSkipEntry> getSkipped() {
+            return skipped;
+        }
+
+        public void setSkipped(List<BulkAssignFeesSkipEntry> skipped) {
+            this.skipped = skipped;
+        }
+
+        public List<FeePaymentResponse> getCreatedSample() {
+            return createdSample;
+        }
+
+        public void setCreatedSample(List<FeePaymentResponse> createdSample) {
+            this.createdSample = createdSample;
+        }
     }
 }

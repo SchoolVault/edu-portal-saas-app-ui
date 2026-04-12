@@ -105,6 +105,15 @@ app:
   default-page-size: ${APP_DEFAULT_PAGE_SIZE:20}
   max-page-size: ${APP_MAX_PAGE_SIZE:100}
 
+  jobs:
+    fee-reminder-cron: ${APP_JOBS_FEE_REMINDER_CRON:0 15 8 * * *}
+    reminders:
+      enabled: ${APP_JOBS_REMINDERS_ENABLED:true}
+      external-scheduler-only: ${APP_JOBS_REMINDERS_EXTERNAL_ONLY:false}
+
+  internal-jobs:
+    # Set APP_INTERNAL_JOB_KEY for POST /api/v1/internal/jobs/reminders/run (Render Cron). Empty = endpoint hidden (404).
+    key: ${APP_INTERNAL_JOB_KEY:}
 
   # Key Id = publishable (rzp_test_… / rzp_live_…). Secret = from same "Generate key" pair. Never commit real values.
   # If RAZORPAY_KEY is set to "" in an IDE env block, Spring uses empty string (not the default) — Checkout then gets 401 on preferences.

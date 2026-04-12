@@ -3,12 +3,8 @@ package com.school.erp.modules.notification.service;
 import com.school.erp.common.enums.Enums;
 import com.school.erp.config.RabbitMQConfig;
 import com.school.erp.common.exception.ResourceNotFoundException;
-import com.school.erp.modules.fees.entity.FeePayment;
-import com.school.erp.modules.fees.repository.FeePaymentRepository;
-import com.school.erp.modules.guardian.service.GuardianService;
 import com.school.erp.modules.notification.entity.Notification;
 import com.school.erp.modules.notification.repository.NotificationRepository;
-import com.school.erp.modules.student.entity.Student;
 import com.school.erp.tenant.TenantContext;
 import com.school.erp.tenant.TenantQueryPolicy;
 import jakarta.annotation.Nullable;
@@ -17,15 +13,11 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.math.BigDecimal;
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
@@ -34,9 +26,6 @@ public class NotificationService {
     private final NotificationRepository repo;
     @Nullable
     private final RabbitTemplate rabbitTemplate;
-    private final GuardianService guardianService;
-    private final FeePaymentRepository feePaymentRepository;
-
     @Transactional(readOnly = true)
     public List<Notification> getUserNotifications() {
         String tenantId = TenantContext.getTenantId();
@@ -45,24 +34,12 @@ public class NotificationService {
         if (isSuperAdminRole()) {
             return raw.stream().filter(this::isPlatformOperatorNotification).collect(Collectors.toList());
         }
-        if (isParentRole()) {
-            raw.addAll(buildParentFeeReminderNotifications(tenantId, userId));
-            raw.sort(Comparator.comparing((Notification n) -> n.getCreatedAt() != null ? n.getCreatedAt() : LocalDateTime.MIN).reversed());
-        }
         return raw;
-    }
-
-    private boolean isParentRole() {
-        String r = TenantContext.getUserRole();
-        return r != null && "parent".equalsIgnoreCase(r);
     }
 
     @Transactional(readOnly = true)
     public long getUnreadCount() {
         if (isSuperAdminRole()) {
-            return getUserNotifications().stream().filter(n -> !Boolean.TRUE.equals(n.getIsRead())).count();
-        }
-        if (isParentRole()) {
             return getUserNotifications().stream().filter(n -> !Boolean.TRUE.equals(n.getIsRead())).count();
         }
         return repo.countByTenantIdAndUserIdAndIsReadFalse(TenantContext.getTenantId(), TenantContext.getUserId());
@@ -132,50 +109,6 @@ public class NotificationService {
                 });
     }
 
-    private List<Notification> buildParentFeeReminderNotifications(String tenantId, Long parentUserId) {
-        List<Student> children = guardianService.findStudentsForParentUser(tenantId, parentUserId);
-        if (children.isEmpty()) {
-            return List.of();
-        }
-        Set<Long> childIds = children.stream().map(Student::getId).collect(Collectors.toSet());
-        LocalDate today = LocalDate.now();
-        List<Notification> out = new ArrayList<>();
-        for (FeePayment p : feePaymentRepository.findByTenantIdAndIsDeletedFalse(tenantId)) {
-            if (!childIds.contains(p.getStudentId()) || !isFeeDueForParentReminder(p, today)) {
-                continue;
-            }
-            String studentLabel = p.getStudentName() != null ? p.getStudentName() : "your child";
-            BigDecimal due = p.getDueAmount() != null ? p.getDueAmount() : BigDecimal.ZERO;
-            String dueBit = p.getDueDate() != null ? " Due by " + p.getDueDate() + "." : "";
-            Notification n = Notification.builder()
-                    .title("Fee payment reminder")
-                    .message("Outstanding fee for " + studentLabel + ": " + due + "." + dueBit)
-                    .type(Enums.NotificationType.WARNING)
-                    .userId(parentUserId)
-                    .isRead(false)
-                    .link("/app/parent")
-                    .build();
-            n.setTenantId(tenantId);
-            n.setId(-p.getId());
-            n.setCreatedAt(LocalDateTime.now());
-            out.add(n);
-        }
-        return out;
-    }
-
-    private static boolean isFeeDueForParentReminder(FeePayment p, LocalDate today) {
-        if (p.getStatus() == Enums.FeeStatus.OVERDUE) {
-            return true;
-        }
-        if (p.getStatus() == Enums.FeeStatus.UNPAID || p.getStatus() == Enums.FeeStatus.PARTIAL) {
-            if (p.getDueDate() == null) {
-                return false;
-            }
-            return !p.getDueDate().isAfter(today.plusDays(14));
-        }
-        return false;
-    }
-
     /**
      * Create notification and optionally publish to RabbitMQ for async processing (email, SMS)
      */
@@ -215,12 +148,8 @@ public class NotificationService {
 
     public NotificationService(
             final NotificationRepository repo,
-            @Autowired(required = false) @Nullable RabbitTemplate rabbitTemplate,
-            final GuardianService guardianService,
-            final FeePaymentRepository feePaymentRepository) {
+            @Autowired(required = false) @Nullable RabbitTemplate rabbitTemplate) {
         this.repo = repo;
         this.rabbitTemplate = rabbitTemplate;
-        this.guardianService = guardianService;
-        this.feePaymentRepository = feePaymentRepository;
     }
 }

@@ -61,6 +61,7 @@ public class SecurityConfig {
                         auth.requestMatchers("/actuator/**").hasAnyRole("ADMIN", "SUPER_ADMIN");
                     }
                     auth.requestMatchers("/ws", "/ws/**").permitAll();
+                    auth.requestMatchers(HttpMethod.POST, "/api/v1/internal/jobs/**").permitAll();
                     auth.requestMatchers(HttpMethod.OPTIONS, "/**").permitAll();
                     auth.anyRequest().authenticated();
                 })

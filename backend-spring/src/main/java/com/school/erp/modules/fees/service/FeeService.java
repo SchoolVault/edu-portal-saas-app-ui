@@ -7,11 +7,13 @@ import com.school.erp.common.exception.UnauthorizedException;
 import com.school.erp.modules.fees.gateway.PaymentGatewayClient;
 import com.school.erp.modules.payment.domain.PaymentProviderIds;
 import com.school.erp.modules.fees.dto.FeeDTOs;
+import com.school.erp.modules.academic.repository.SectionRepository;
 import com.school.erp.modules.fees.entity.*;
 import com.school.erp.modules.fees.repository.*;
 import com.school.erp.modules.auth.repository.UserRepository;
 import com.school.erp.modules.guardian.service.GuardianService;
 import com.school.erp.modules.notification.service.NotificationOutboxService;
+import com.school.erp.modules.reminder.service.FeeReminderAutomationService;
 import com.school.erp.modules.student.entity.Student;
 import com.school.erp.modules.student.repository.StudentRepository;
 import com.school.erp.tenant.TenantContext;
@@ -23,7 +25,10 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -36,6 +41,9 @@ public class FeeService {
     private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(FeeService.class);
     private static final String DEFAULT_CURRENCY = "INR";
     private static final BigDecimal LATE_FEE_PER_DAY = BigDecimal.valueOf(50); // ₹50 per day late (tunable)
+    private static final int BULK_ASSIGN_MAX_STUDENTS = 2000;
+    private static final int BULK_ASSIGN_SKIPPED_CAP = 100;
+    private static final int BULK_ASSIGN_CREATED_SAMPLE = 25;
     private final FeeStructureRepository structureRepo;
     private final FeeComponentRepository componentRepo;
     private final FeePaymentRepository paymentRepo;
@@ -45,6 +53,8 @@ public class FeeService {
     private final PaymentGatewayClient paymentGatewayClient;
     private final NotificationOutboxService notificationOutboxService;
     private final UserRepository userRepository;
+    private final FeeReminderAutomationService feeReminderAutomationService;
+    private final SectionRepository sectionRepository;
 
     @Value("${app.payments.razorpay.key:}")
     private String razorpayPublishableKeyId;
@@ -173,13 +183,143 @@ public class FeeService {
             payment = FeePayment.builder().studentId(req.getStudentId()).studentName(req.getStudentName()).feeStructureId(req.getFeeStructureId()).amount(req.getTotalAmount()).paidAmount(req.getPaymentAmount()).dueAmount(req.getTotalAmount().subtract(req.getPaymentAmount()).max(BigDecimal.ZERO)).dueDate(req.getDueDate()).discount(req.getDiscount() != null ? req.getDiscount() : BigDecimal.ZERO).lateFee(BigDecimal.ZERO).build();
             payment.setTenantId(t);
         }
-        // Apply late fee if past due date
+        applyDueDateLateFeeAndStatus(payment);
+        // Set payment date and receipt
+        payment.setPaymentDate(LocalDate.now());
+        if (payment.getReceiptNumber() == null) {
+            payment.setReceiptNumber("REC-" + t.toUpperCase() + "-" + System.currentTimeMillis());
+        }
+        payment.setPaymentMethod(req.getPaymentMethod() != null ? req.getPaymentMethod() : "CASH");
+        paymentRepo.save(payment);
+        if (req.getPaymentId() == null
+                && payment.getDueAmount() != null
+                && payment.getDueAmount().compareTo(BigDecimal.ZERO) > 0) {
+            feeReminderAutomationService.onFeeAssigned(t, payment);
+        }
+        log.info("Payment recorded: student={} amount={} status={}", payment.getStudentId(), req.getPaymentAmount(), payment.getStatus());
+        return toPaymentResponse(payment);
+    }
+
+    /**
+     * Creates unpaid fee obligations for all active students in a class (or one section) in one transaction.
+     * Uses a single duplicate lookup query and {@link FeePaymentRepository#saveAll} for persistence.
+     */
+    @Transactional
+    public FeeDTOs.BulkAssignFeesResponse bulkAssignFees(FeeDTOs.BulkAssignFeesRequest req) {
+        String t = TenantContext.getTenantId();
+        FeeStructure fs = requireFeeStructure(req.getFeeStructureId());
+        if (!fs.getClassId().equals(req.getClassId())) {
+            throw new BusinessException("Fee structure does not apply to the selected class");
+        }
+        if (req.getSectionId() != null) {
+            var section = sectionRepository.findByIdAndTenantIdAndIsDeletedFalse(req.getSectionId(), t)
+                    .orElseThrow(() -> new ResourceNotFoundException("Section", req.getSectionId()));
+            if (!section.getClassId().equals(req.getClassId())) {
+                throw new BusinessException("Section does not belong to the selected class");
+            }
+        }
+        List<Student> students = req.getSectionId() == null
+                ? studentRepository.findByTenantIdAndClassIdAndIsDeletedFalse(t, req.getClassId())
+                : studentRepository.findByTenantIdAndClassIdAndSectionIdAndIsDeletedFalse(t, req.getClassId(), req.getSectionId());
+        if (students.size() > BULK_ASSIGN_MAX_STUDENTS) {
+            throw new BusinessException("Too many students in scope (max " + BULK_ASSIGN_MAX_STUDENTS + "). Narrow by section or split the run.");
+        }
+        boolean skipDup = !Boolean.FALSE.equals(req.getSkipIfDuplicate());
+        BigDecimal discount = req.getDiscount() != null ? req.getDiscount() : BigDecimal.ZERO;
+
+        List<FeeDTOs.BulkAssignFeesSkipEntry> skippedSample = new ArrayList<>();
+        List<Student> activeStudents = new ArrayList<>();
+        int inactiveSkipped = 0;
+        for (Student s : students) {
+            if (s.getStatus() != Enums.StudentStatus.ACTIVE) {
+                inactiveSkipped++;
+                appendBulkSkip(skippedSample, s.getId(), "STUDENT_INACTIVE", "Student is not active");
+                continue;
+            }
+            activeStudents.add(s);
+        }
+
+        Set<Long> duplicateIds = Collections.emptySet();
+        List<Long> activeIds = activeStudents.stream().map(Student::getId).collect(Collectors.toList());
+        if (skipDup && !activeIds.isEmpty()) {
+            duplicateIds = paymentRepo.findStudentIdsWithObligationOnDueDate(t, fs.getId(), req.getDueDate(), activeIds);
+        }
+
+        List<Student> toCreate = new ArrayList<>();
+        int duplicateSkipped = 0;
+        for (Student s : activeStudents) {
+            if (duplicateIds.contains(s.getId())) {
+                if (skipDup) {
+                    duplicateSkipped++;
+                    appendBulkSkip(skippedSample, s.getId(), "DUPLICATE_OBLIGATION", "Same structure and due date already assigned");
+                    continue;
+                }
+                throw new BusinessException("Student " + s.getId() + " already has this fee for the chosen due date");
+            }
+            toCreate.add(s);
+        }
+
+        long stamp = System.currentTimeMillis();
+        String tenantUpper = t.toUpperCase(Locale.ROOT);
+        List<FeePayment> batch = new ArrayList<>(toCreate.size());
+        for (Student s : toCreate) {
+            FeePayment p = FeePayment.builder()
+                    .studentId(s.getId())
+                    .studentName(trimToEmpty(s.getFirstName()) + " " + trimToEmpty(s.getLastName()))
+                    .feeStructureId(fs.getId())
+                    .amount(fs.getTotalAmount())
+                    .paidAmount(BigDecimal.ZERO)
+                    .dueAmount(fs.getTotalAmount())
+                    .dueDate(req.getDueDate())
+                    .discount(discount)
+                    .lateFee(BigDecimal.ZERO)
+                    .build();
+            p.setTenantId(t);
+            p.setPaymentDate(LocalDate.now());
+            p.setReceiptNumber("REC-" + tenantUpper + "-" + stamp + "-" + s.getId());
+            p.setPaymentMethod("BULK_ASSIGN");
+            applyDueDateLateFeeAndStatus(p);
+            batch.add(p);
+        }
+
+        List<FeePayment> saved = paymentRepo.saveAll(batch);
+        for (FeePayment p : saved) {
+            if (p.getDueAmount() != null && p.getDueAmount().compareTo(BigDecimal.ZERO) > 0) {
+                feeReminderAutomationService.onFeeAssigned(t, p);
+            }
+        }
+
+        FeeDTOs.BulkAssignFeesResponse resp = new FeeDTOs.BulkAssignFeesResponse();
+        resp.setCreatedCount(saved.size());
+        resp.setSkippedCount(inactiveSkipped + duplicateSkipped);
+        resp.setSkipped(skippedSample);
+        resp.setCreatedSample(saved.stream().limit(BULK_ASSIGN_CREATED_SAMPLE).map(this::toPaymentResponse).collect(Collectors.toList()));
+        log.info("Bulk fee assign tenant={} structure={} class={} section={} created={} skipped={} correlationId={}",
+                t, fs.getId(), req.getClassId(), req.getSectionId(), saved.size(), resp.getSkippedCount(), req.getCorrelationId());
+        return resp;
+    }
+
+    private static String trimToEmpty(String s) {
+        return s != null ? s.trim() : "";
+    }
+
+    private void appendBulkSkip(List<FeeDTOs.BulkAssignFeesSkipEntry> out, Long studentId, String code, String detail) {
+        if (out.size() >= BULK_ASSIGN_SKIPPED_CAP) {
+            return;
+        }
+        FeeDTOs.BulkAssignFeesSkipEntry e = new FeeDTOs.BulkAssignFeesSkipEntry();
+        e.setStudentId(studentId);
+        e.setCode(code);
+        e.setDetail(detail);
+        out.add(e);
+    }
+
+    private void applyDueDateLateFeeAndStatus(FeePayment payment) {
         if (payment.getDueDate() != null && LocalDate.now().isAfter(payment.getDueDate()) && payment.getDueAmount().compareTo(BigDecimal.ZERO) > 0) {
-            long daysLate = java.time.temporal.ChronoUnit.DAYS.between(payment.getDueDate(), LocalDate.now());
+            long daysLate = ChronoUnit.DAYS.between(payment.getDueDate(), LocalDate.now());
             BigDecimal lateFee = LATE_FEE_PER_DAY.multiply(BigDecimal.valueOf(Math.max(daysLate, 0)));
             payment.setLateFee(lateFee);
         }
-        // Set status
         if (payment.getDueAmount().compareTo(BigDecimal.ZERO) <= 0) {
             payment.setStatus(Enums.FeeStatus.PAID);
         } else if (payment.getPaidAmount().compareTo(BigDecimal.ZERO) > 0) {
@@ -189,15 +329,6 @@ public class FeeService {
         } else {
             payment.setStatus(Enums.FeeStatus.UNPAID);
         }
-        // Set payment date and receipt
-        payment.setPaymentDate(LocalDate.now());
-        if (payment.getReceiptNumber() == null) {
-            payment.setReceiptNumber("REC-" + t.toUpperCase() + "-" + System.currentTimeMillis());
-        }
-        payment.setPaymentMethod(req.getPaymentMethod() != null ? req.getPaymentMethod() : "CASH");
-        paymentRepo.save(payment);
-        log.info("Payment recorded: student={} amount={} status={}", payment.getStudentId(), req.getPaymentAmount(), payment.getStatus());
-        return toPaymentResponse(payment);
     }
 
     // ========== REPORTS ==========
@@ -490,6 +621,12 @@ public class FeeService {
         response.setLateFee(payment.getLateFee() != null ? payment.getLateFee() : BigDecimal.ZERO);
         response.setPayableNow(getPayableNow(payment));
         response.setLineItems(getLineItems(payment.getTenantId(), payment.getFeeStructureId()));
+        if (payment.getDueDate() != null && payment.getStatus() != Enums.FeeStatus.PAID) {
+            long days = ChronoUnit.DAYS.between(LocalDate.now(), payment.getDueDate());
+            response.setDaysUntilDue((int) days);
+        } else {
+            response.setDaysUntilDue(null);
+        }
         return response;
     }
 
@@ -588,7 +725,9 @@ public class FeeService {
             final GuardianService guardianService,
             final PaymentGatewayClient paymentGatewayClient,
             final NotificationOutboxService notificationOutboxService,
-            final UserRepository userRepository) {
+            final UserRepository userRepository,
+            final FeeReminderAutomationService feeReminderAutomationService,
+            final SectionRepository sectionRepository) {
         this.structureRepo = structureRepo;
         this.componentRepo = componentRepo;
         this.paymentRepo = paymentRepo;
@@ -598,5 +737,7 @@ public class FeeService {
         this.paymentGatewayClient = paymentGatewayClient;
         this.notificationOutboxService = notificationOutboxService;
         this.userRepository = userRepository;
+        this.feeReminderAutomationService = feeReminderAutomationService;
+        this.sectionRepository = sectionRepository;
     }
 }
