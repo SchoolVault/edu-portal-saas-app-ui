@@ -17,6 +17,8 @@ spring:
         - prod
         - demo-seed
 
+  # MySQL 8.x (InnoDB, utf8mb4). Schema = Flyway migrations under db/migration; Hibernate only validates mapping vs DB.
+  # Suggested cloud URL params (add as needed): &allowPublicKeyRetrieval=true
   datasource:
     url: ${DEV_DB_URL:jdbc:mysql://localhost:3306/school_erp?useSSL=true&serverTimezone=UTC&createDatabaseIfNotExist=true}
     username: ${DEV_DB_USERNAME:root}
@@ -31,11 +33,13 @@ spring:
 
   jpa:
     hibernate:
+      # validate: fail fast if @Entity columns/types differ from MySQL (common causes: edited migrations, pending Flyway version).
       ddl-auto: ${JPA_DDL_AUTO:validate}
     show-sql: ${JPA_SHOW_SQL:false}
+    # database: mysql  # optional; inferred from JDBC URL
     properties:
       hibernate:
-        dialect: ${HIBERNATE_DIALECT:org.hibernate.dialect.MySQLDialect}
+        # Let Hibernate 6 pick MySQL dialect from the driver (avoids HHH90000025). Override: spring.jpa.properties.hibernate.dialect in env/YAML if needed.
         format_sql: ${HIBERNATE_FORMAT_SQL:true}
         jdbc:
           batch_size: ${HIBERNATE_JDBC_BATCH_SIZE:50}
