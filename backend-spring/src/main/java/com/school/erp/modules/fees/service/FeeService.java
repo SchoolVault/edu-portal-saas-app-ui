@@ -20,6 +20,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Arrays;
@@ -282,6 +283,12 @@ public class FeeService {
         String tenantId = TenantContext.getTenantId();
         FeePaymentAttempt attempt = paymentAttemptRepository.findByIdAndTenantIdAndIsDeletedFalse(attemptId, tenantId)
                 .orElseThrow(() -> new ResourceNotFoundException("Payment attempt not found"));
+        Long uid = TenantContext.getUserId();
+        if (attempt.getParentUserId() != null) {
+            if (uid == null || !attempt.getParentUserId().equals(uid)) {
+                throw new UnauthorizedException("This checkout session belongs to another account.");
+            }
+        }
         if (!attempt.getCheckoutToken().equals(request.getCheckoutToken())) {
             throw new UnauthorizedException("Invalid checkout token");
         }
@@ -315,8 +322,85 @@ public class FeeService {
         return toReceiptResponse(payment, attempt);
     }
 
+    /**
+     * Applies a provider-captured payment when notified by webhook (no browser session).
+     * Idempotent if attempt is already {@code success} with the same {@code razorpayPaymentId}.
+     * Sets {@link TenantContext} for the attempt's tenant and parent for downstream filters and notifications.
+     */
+    @Transactional
+    public boolean reconcilePaymentCapturedFromWebhook(
+            FeePaymentAttempt attempt,
+            String razorpayPaymentId,
+            long amountPaise,
+            String currency,
+            String rawPayload) {
+        String tenantId = attempt.getTenantId();
+        try {
+            TenantContext.setTenantId(tenantId);
+            TenantContext.setUserId(attempt.getParentUserId());
+            TenantContext.setUserRole("PARENT");
+
+            if ("success".equalsIgnoreCase(attempt.getStatus())) {
+                if (razorpayPaymentId != null && razorpayPaymentId.equals(attempt.getProviderPaymentId())) {
+                    return true;
+                }
+                log.warn("Webhook capture ignored: attempt {} already settled with a different provider payment id", attempt.getId());
+                return false;
+            }
+
+            String cur = currency != null ? currency.trim() : "INR";
+            if (!"INR".equalsIgnoreCase(cur)) {
+                log.warn("Webhook capture: non-INR currency {} for attempt {} — verify amount scaling", cur, attempt.getId());
+            }
+            long expectedPaise = attempt.getAmount().movePointRight(2).setScale(0, RoundingMode.HALF_UP).longValue();
+            if (Math.abs(amountPaise - expectedPaise) > 1) {
+                log.warn("Webhook amount mismatch: paise={} expectedPaise={} attemptId={}", amountPaise, expectedPaise, attempt.getId());
+                throw new BusinessException("Webhook amount does not match checkout session");
+            }
+
+            FeePayment payment = paymentRepo.findByIdAndTenantIdAndIsDeletedFalse(attempt.getFeePaymentId(), tenantId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Fee payment", attempt.getFeePaymentId()));
+
+            attempt.setProviderPaymentId(razorpayPaymentId);
+            attempt.setStatus("success");
+            attempt.setGatewayPayload(rawPayload);
+            attempt.setCompletedAt(LocalDateTime.now());
+            paymentAttemptRepository.save(attempt);
+
+            applySuccessfulPayment(payment, attempt.getAmount(), attempt.getProvider());
+            paymentRepo.save(payment);
+            enqueueParentPaymentChannels(tenantId, payment, attempt);
+            return true;
+        } finally {
+            TenantContext.clear();
+        }
+    }
+
+    @Transactional
+    public void reconcilePaymentFailedFromWebhook(FeePaymentAttempt attempt, String rawPayload) {
+        String tenantId = attempt.getTenantId();
+        try {
+            TenantContext.setTenantId(tenantId);
+            TenantContext.setUserId(attempt.getParentUserId());
+            TenantContext.setUserRole("PARENT");
+            if ("success".equalsIgnoreCase(attempt.getStatus())) {
+                return;
+            }
+            attempt.setStatus("failed");
+            attempt.setGatewayPayload(rawPayload);
+            attempt.setCompletedAt(LocalDateTime.now());
+            paymentAttemptRepository.save(attempt);
+        } finally {
+            TenantContext.clear();
+        }
+    }
+
     private void enqueueParentPaymentChannels(String tenantId, FeePayment payment, FeePaymentAttempt attempt) {
-        Long parentUserId = TenantContext.getUserId();
+        Long parentUserId = attempt.getParentUserId() != null ? attempt.getParentUserId() : TenantContext.getUserId();
+        if (parentUserId == null) {
+            log.warn("Skipping fee payment notifications: no parent user on attempt {}", attempt.getId());
+            return;
+        }
         String statusLabel = payment.getStatus() == Enums.FeeStatus.PAID ? "paid in full" : "partial payment";
         String body = "Fee receipt " + (payment.getReceiptNumber() != null ? payment.getReceiptNumber() : "")
                 + ": " + DEFAULT_CURRENCY + " " + attempt.getAmount()

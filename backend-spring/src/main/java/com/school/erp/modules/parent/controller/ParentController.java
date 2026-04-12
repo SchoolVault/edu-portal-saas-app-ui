@@ -12,6 +12,9 @@ import com.school.erp.modules.auth.repository.UserRepository;
 import com.school.erp.modules.student.entity.Student;
 import com.school.erp.modules.teacher.repository.TeacherRepository;
 import com.school.erp.modules.student.repository.StudentRepository;
+import com.school.erp.modules.timetable.dto.TimetableDTOs;
+import com.school.erp.modules.timetable.entity.TimetableEntry;
+import com.school.erp.modules.timetable.service.TimetableService;
 import com.school.erp.modules.exams.dto.ExamDTOs;
 import com.school.erp.modules.exams.dto.ExamScopeDtos;
 import com.school.erp.modules.exams.service.ExamService;
@@ -19,6 +22,7 @@ import com.school.erp.modules.fees.repository.FeePaymentRepository;
 import com.school.erp.modules.fees.entity.FeePayment;
 import com.school.erp.modules.fees.dto.FeeDTOs;
 import com.school.erp.modules.fees.service.FeeService;
+import com.school.erp.modules.parent.service.ParentPortalReadFacade;
 import com.school.erp.tenant.TenantContext;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -45,6 +49,16 @@ public class ParentController {
     private final SchoolClassRepository schoolClassRepository;
     private final TeacherRepository teacherRepository;
     private final UserRepository userRepository;
+    private final TimetableService timetableService;
+    private final ParentPortalReadFacade parentPortalReadFacade;
+
+    @GetMapping("/exams")
+    @Operation(summary = "Exams for your children only",
+            description = "Union of exam cycles whose class/section audience includes at least one linked child. "
+                    + "Same JSON shape as GET /exams (staff-only). Parents must not call GET /exams.")
+    public ResponseEntity<ApiResponse<List<ExamDTOs.ExamResponse>>> listExamsForMyChildren() {
+        return ResponseEntity.ok(ApiResponse.ok(parentPortalReadFacade.listExamsForCurrentParentUser()));
+    }
 
     @GetMapping("/children")
     @Operation(summary = "Get parent's children", description = "Returns all students linked to the current parent user")
@@ -103,6 +117,7 @@ public class ParentController {
     @Operation(summary = "Get child fee obligations with payment breakdown",
             description = "Each obligation includes lineItems from the linked fee structure (tuition, transport, hostel, uniform, …) for parent-facing breakdown.")
     public ResponseEntity<ApiResponse<List<FeeDTOs.ParentFeeObligationResponse>>> getChildFeeObligations(@PathVariable Long studentId) {
+        assertParentOwnsStudent(studentId);
         return ResponseEntity.ok(ApiResponse.ok(feeService.getParentFeeObligations(studentId)));
     }
 
@@ -183,6 +198,22 @@ public class ParentController {
         return ResponseEntity.ok(ApiResponse.ok(records));
     }
 
+    @GetMapping("/children/{studentId}/timetable")
+    @Operation(summary = "Child’s weekly class timetable", description = "Resolves class/section from the student after parent access check; same payload shape as GET /timetable.")
+    public ResponseEntity<ApiResponse<List<TimetableEntry>>> getChildClassTimetable(@PathVariable Long studentId) {
+        Student s = assertParentOwnsStudent(studentId);
+        Long sectionParam = (s.getSectionId() != null && s.getSectionId() > 0) ? s.getSectionId() : null;
+        return ResponseEntity.ok(ApiResponse.ok(timetableService.getByClassAndSection(s.getClassId(), sectionParam)));
+    }
+
+    @GetMapping("/children/{studentId}/timetable/grid")
+    @Operation(summary = "Child’s timetable grid", description = "Same shape as GET /timetable/grid, scoped to the linked student.")
+    public ResponseEntity<ApiResponse<TimetableDTOs.TimetableGridResponse>> getChildClassTimetableGrid(@PathVariable Long studentId) {
+        Student s = assertParentOwnsStudent(studentId);
+        Long sectionParam = (s.getSectionId() != null && s.getSectionId() > 0) ? s.getSectionId() : null;
+        return ResponseEntity.ok(ApiResponse.ok(timetableService.getGrid(s.getClassId(), sectionParam)));
+    }
+
     /**
      * Fills {@code homeroomTeacherUserId} / {@code homeroomTeacherName} from the student's class row so the JSON matches parent-portal mocks.
      */
@@ -235,7 +266,9 @@ public class ParentController {
             final FeeService feeService,
             final SchoolClassRepository schoolClassRepository,
             final TeacherRepository teacherRepository,
-            final UserRepository userRepository) {
+            final UserRepository userRepository,
+            final TimetableService timetableService,
+            final ParentPortalReadFacade parentPortalReadFacade) {
         this.studentRepo = studentRepo;
         this.guardianService = guardianService;
         this.examService = examService;
@@ -245,5 +278,7 @@ public class ParentController {
         this.schoolClassRepository = schoolClassRepository;
         this.teacherRepository = teacherRepository;
         this.userRepository = userRepository;
+        this.timetableService = timetableService;
+        this.parentPortalReadFacade = parentPortalReadFacade;
     }
 }

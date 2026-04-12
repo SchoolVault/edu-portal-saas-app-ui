@@ -23,18 +23,21 @@ public class TimetableController {
     private final TimetableService service;
 
     @GetMapping
-    @Operation(summary = "Get timetable entries by class and optional section", description = "When the class has no sections, pass sectionId omitted or null.")
+    @PreAuthorize("hasAnyRole('ADMIN','TEACHER','SUPER_ADMIN')")
+    @Operation(summary = "Get timetable entries by class and optional section", description = "When the class has no sections, pass sectionId omitted or null. Parents use GET /api/v1/parent/children/{studentId}/timetable (child-scoped).")
     public ResponseEntity<ApiResponse<List<TimetableEntry>>> get(@RequestParam Long classId, @RequestParam(required = false) Long sectionId) {
         return ResponseEntity.ok(ApiResponse.ok(service.getByClassAndSection(classId, sectionId)));
     }
 
     @GetMapping("/grid")
-    @Operation(summary = "Get timetable as grid (day x period)", description = "Returns structured grid ready for UI rendering")
+    @PreAuthorize("hasAnyRole('ADMIN','TEACHER','SUPER_ADMIN')")
+    @Operation(summary = "Get timetable as grid (day x period)", description = "Returns structured grid ready for UI rendering. Parents use GET /api/v1/parent/children/{studentId}/timetable/grid.")
     public ResponseEntity<ApiResponse<TimetableDTOs.TimetableGridResponse>> getGrid(@RequestParam Long classId, @RequestParam(required = false) Long sectionId) {
         return ResponseEntity.ok(ApiResponse.ok(service.getGrid(classId, sectionId)));
     }
 
     @GetMapping("/teacher/{teacherId}")
+    @PreAuthorize("hasAnyRole('ADMIN','TEACHER','SUPER_ADMIN')")
     @Operation(summary = "Get teacher schedule", description = "Recurring weekly slots. When forDate is set, merges active attendance-cover rows for that calendar day (virtual COVER slots override same weekday/period for display only).")
     public ResponseEntity<ApiResponse<List<TeacherScheduleSlot>>> getByTeacher(
             @PathVariable Long teacherId,

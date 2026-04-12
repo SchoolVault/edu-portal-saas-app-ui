@@ -10,15 +10,20 @@ import type {
   ParentFeeObligation,
   PaymentReceipt,
   Student,
+  TimetableEntry,
 } from '../models/models';
+import { MOCK_TIMETABLE_ENTRIES } from './timetable.mock-data';
+import { examAppliesToStudent } from '../utils/exam-scope';
 import { MOCK_EXAM_MARKS_SEED, MOCK_EXAMS_SEED, MOCK_EXAM_SCHEDULE_SEED } from './exam.mock-data';
 import { MOCK_STUDENTS } from './students.mock-data';
+
+export { examAppliesToStudent };
 
 /** Demo homeroom for Michael Chen's children (Sarah Mitchell = teacher@school.com user id 2). */
 const DEMO_HOMEROOM = { homeroomTeacherName: 'Sarah Mitchell', homeroomTeacherUserId: 2 } as const;
 
 /**
- * All active students linked to parent user id 3 (Michael Chen) — must match Settings filter `parentId === user.id` and backend guardian resolution.
+ * All active students linked to parent user id 3 (Michael Chen) — aligns with backend {@code GuardianService.findStudentsForParentUser} (parent_id + guardian mappings).
  */
 export const MOCK_PARENT_CHILDREN: Student[] = MOCK_STUDENTS.filter(s => s.parentId === 3 && s.status === 'active')
   .sort((a, b) => a.id - b.id)
@@ -40,16 +45,6 @@ export const MOCK_PARENT_RECEIPT_LINES: ParentFeeLineItem[] = [
   { name: 'Lab Fee', amount: 500, type: 'lab' },
   { name: 'Computer Fee', amount: 400, type: 'misc' },
 ];
-
-/** True when an exam’s declared audience includes this student’s class (and section when narrowed). */
-export function examAppliesToStudent(exam: Exam, student: Student): boolean {
-  if (exam.classScopes?.length) {
-    return exam.classScopes.some(
-      cs => cs.classId === student.classId && (cs.sectionId == null || cs.sectionId === student.sectionId)
-    );
-  }
-  return (exam.classIds ?? []).includes(student.classId);
-}
 
 /** Marks visible to parents: same tenant seed, in-scope exams, resultsPublished only. */
 export function mockParentPublishedMarks(studentId: number): MarkRecord[] {
@@ -301,4 +296,55 @@ export function buildParentMockInitialReceipts(): PaymentReceipt[] {
       lineItems: lines.map(l => ({ ...l })),
     },
   ];
+}
+
+/**
+ * Mirrors GET /parent/exams: exams that apply to linked children, with classIds / classScopes / scheduleSlots
+ * trimmed to those children (no other classes’ timetable rows).
+ */
+export function mockParentPortalExams(): Exam[] {
+  const children = MOCK_PARENT_CHILDREN;
+  return MOCK_EXAMS_SEED.filter(
+    ex => ex.status !== 'cancelled' && children.some(s => examAppliesToStudent(ex, s))
+  ).map(ex => {
+    const inScope = children.filter(s => examAppliesToStudent(ex, s));
+    const classIds = [...new Set(inScope.map(c => c.classId))];
+    const allScopes = ex.classScopes ?? [];
+    const classScopes =
+      allScopes.length === 0
+        ? undefined
+        : allScopes
+            .filter(
+              s =>
+                inScope.some(
+                  c =>
+                    c.classId === s.classId &&
+                    (s.sectionId == null || (c.sectionId > 0 && c.sectionId === s.sectionId))
+                )
+            )
+            .map(s => ({ ...s }));
+    const scheduleSlots = (MOCK_EXAM_SCHEDULE_SEED[ex.id] ?? [])
+      .filter(slot =>
+        inScope.some(
+          c =>
+            c.classId === slot.classId &&
+            (slot.sectionId == null || (c.sectionId > 0 && c.sectionId === slot.sectionId))
+        )
+      )
+      .map(s => ({ ...s, examId: ex.id }));
+    return { ...ex, classIds, classScopes, scheduleSlots };
+  });
+}
+
+/** Class/section-scoped weekly slots for a linked child (same seed as {@link MOCK_TIMETABLE_ENTRIES}). */
+export function mockParentTimetableForChild(studentId: number): TimetableEntry[] {
+  const student = MOCK_PARENT_CHILDREN.find(c => c.id === studentId);
+  if (!student) {
+    return [];
+  }
+  return MOCK_TIMETABLE_ENTRIES.filter(
+    e =>
+      e.classId === student.classId &&
+      (student.sectionId <= 0 || e.sectionId === student.sectionId)
+  ).map(e => ({ ...e }));
 }

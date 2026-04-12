@@ -4,7 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { SettingsService } from '../../core/services/settings.service';
 import { ThemeService } from '../../core/services/theme.service';
 import { AuthService } from '../../core/services/auth.service';
-import { StudentService } from '../../core/services/student.service';
+import { ParentService } from '../../core/services/parent.service';
 import { SchoolBranch, Student } from '../../core/models/models';
 import { runtimeConfig } from '../../core/config/runtime-config';
 import { ProfilePhotoPickerComponent, ProfilePhotoPickEvent } from '../../shared/profile-photo-picker/profile-photo-picker.component';
@@ -701,7 +701,7 @@ export class SettingsComponent implements OnInit {
     private settingsService: SettingsService,
     private themeService: ThemeService,
     private auth: AuthService,
-    private studentService: StudentService,
+    private parentService: ParentService,
     private cdr: ChangeDetectorRef
   ) {}
 
@@ -773,9 +773,8 @@ export class SettingsComponent implements OnInit {
   reloadSettings(): void {
     this.settingsRefreshing = true;
     if (this.isParentOnlyChildren) {
-      this.studentService.getStudents().subscribe(list => {
-        const uid = this.auth.getCurrentUser()?.id ?? '';
-        this.myChildren = (list || []).filter(s => s.parentId === uid);
+      this.parentService.getChildren().subscribe(list => {
+        this.myChildren = list ?? [];
         this.syncChildPhotoPreview();
         this.cdr.markForCheck();
       });

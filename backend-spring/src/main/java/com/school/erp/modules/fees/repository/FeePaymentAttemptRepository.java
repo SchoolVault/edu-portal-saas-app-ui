@@ -11,4 +11,11 @@ public interface FeePaymentAttemptRepository extends JpaRepository<FeePaymentAtt
     Optional<FeePaymentAttempt> findByCheckoutTokenAndTenantIdAndIsDeletedFalse(String checkoutToken, String tenantId);
     List<FeePaymentAttempt> findByTenantIdAndFeePaymentIdAndIsDeletedFalse(String tenantId, Long feePaymentId);
     List<FeePaymentAttempt> findByTenantIdAndFeePaymentIdAndIsDeletedFalseOrderByCreatedAtDesc(String tenantId, Long feePaymentId);
+
+    List<FeePaymentAttempt> findByProviderAndProviderOrderIdAndIsDeletedFalse(String provider, String providerOrderId);
+
+    List<FeePaymentAttempt> findByProviderAndProviderPaymentIdAndIsDeletedFalse(String provider, String providerPaymentId);
+
+    Optional<FeePaymentAttempt> findByTenantIdAndProviderAndProviderPaymentIdAndIsDeletedFalse(
+            String tenantId, String provider, String providerPaymentId);
 }

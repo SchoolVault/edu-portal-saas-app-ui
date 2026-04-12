@@ -589,6 +589,14 @@ export interface MarkRecord {
   tenantId: string;
 }
 
+/** Backend: teacher marks-entry authorization scope per exam */
+export interface MarksEntryScopeRow {
+  examId: number;
+  classId: number;
+  sectionId: number | null;
+  subjectName: string;
+}
+
 export interface FeeStructure {
   id: number;
   name: string;

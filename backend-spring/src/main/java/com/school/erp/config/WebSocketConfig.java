@@ -2,6 +2,7 @@ package com.school.erp.config;
 
 import com.school.erp.security.JwtUtil;
 import com.school.erp.tenant.TenantContext;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpHeaders;
 import org.springframework.messaging.Message;
@@ -18,6 +19,7 @@ import org.springframework.web.socket.config.annotation.EnableWebSocketMessageBr
 import org.springframework.web.socket.config.annotation.StompEndpointRegistry;
 import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerConfigurer;
 
+import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -28,11 +30,12 @@ import java.util.List;
 @EnableWebSocketMessageBroker
 public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     private final JwtUtil jwtUtil;
+    private final String[] stompAllowedOriginPatterns;
 
     @Override
     public void registerStompEndpoints(StompEndpointRegistry registry) {
         registry.addEndpoint("/ws")
-                .setAllowedOriginPatterns("*");
+                .setAllowedOriginPatterns(stompAllowedOriginPatterns);
     }
 
     @Override
@@ -84,8 +87,25 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
         });
     }
 
-    public WebSocketConfig(JwtUtil jwtUtil) {
+    public WebSocketConfig(
+            JwtUtil jwtUtil,
+            AppSecurityProperties appSecurityProperties,
+            @Value("${app.cors.allowed-origins}") String corsAllowedOrigins) {
         this.jwtUtil = jwtUtil;
+        String ws = appSecurityProperties.getWebsocketAllowedOrigins();
+        if (ws != null && !ws.isBlank()) {
+            this.stompAllowedOriginPatterns = splitOriginCsv(ws);
+        } else {
+            this.stompAllowedOriginPatterns = splitOriginCsv(corsAllowedOrigins);
+        }
+    }
+
+    private static String[] splitOriginCsv(String csv) {
+        if (csv == null || csv.isBlank()) {
+            return new String[] {"http://localhost:4200", "http://localhost:3000"};
+        }
+        String[] parts = Arrays.stream(csv.split(",")).map(String::trim).filter(s -> !s.isEmpty()).toArray(String[]::new);
+        return parts.length > 0 ? parts : new String[] {"http://localhost:4200", "http://localhost:3000"};
     }
 }
 
