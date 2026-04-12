@@ -1,4 +1,5 @@
 -- Tenant-configurable reminder rules + scheduled generic reminders (announcement-style).
+-- Superseded by feature-flag fee automation; tables removed in V37.
 
 CREATE TABLE reminder_tenant_policy (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
