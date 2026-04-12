@@ -1,8 +1,9 @@
 import { Injectable } from '@angular/core';
-import { Observable, of } from 'rxjs';
+import { Observable, of, throwError } from 'rxjs';
 import { delay, map } from 'rxjs/operators';
 import { MOCK_FEE_PAYMENTS_SEED, MOCK_FEE_STRUCTURES_SEED } from '../mocks/fee.mock-data';
-import { FeeStructure, FeePayment } from '../models/models';
+import { MOCK_STUDENTS } from '../mocks/students.mock-data';
+import { BulkAssignFeesRequest, BulkAssignFeesResponse, FeeStructure, FeePayment } from '../models/models';
 import { ApiService } from './api.service';
 import { runtimeConfig } from '../config/runtime-config';
 
@@ -40,6 +41,95 @@ export class FeeService {
       return this.api.get<any[]>(`/fees/payments/student/${studentId}`).pipe(map(payments => payments.map(item => this.normalizePayment(item))));
     }
     return of(this.payments.filter(p => p.studentId === studentId)).pipe(delay(300));
+  }
+
+  bulkAssignFees(req: BulkAssignFeesRequest): Observable<BulkAssignFeesResponse> {
+    if (!runtimeConfig.useMocks) {
+      return this.api.post<BulkAssignFeesResponse>('/fees/payments/bulk-assign', {
+        feeStructureId: req.feeStructureId,
+        classId: req.classId,
+        sectionId: req.sectionId ?? null,
+        dueDate: req.dueDate,
+        discount: req.discount ?? 0,
+        skipIfDuplicate: req.skipIfDuplicate !== false,
+        correlationId: req.correlationId ?? null,
+      }).pipe(map(r => this.normalizeBulkAssignResponse(r)));
+    }
+    const fs = MOCK_FEE_STRUCTURES.find(s => s.id === req.feeStructureId);
+    if (!fs || fs.classId !== req.classId) {
+      return throwError(() => new Error('Selected fee structure does not match the class.'));
+    }
+    const skipDup = req.skipIfDuplicate !== false;
+    const discount = Number(req.discount ?? 0) || 0;
+    const due = req.dueDate;
+    const inScope = MOCK_STUDENTS.filter(
+      s => s.classId === req.classId && (req.sectionId == null || s.sectionId === req.sectionId)
+    );
+    const skipped: BulkAssignFeesResponse['skipped'] = [];
+    const created: FeePayment[] = [];
+    const stamp = Date.now();
+    let nextId = Math.max(0, ...this.payments.map(p => p.id)) + 1;
+    for (const st of inScope) {
+      if (st.status !== 'active') {
+        if (skipped.length < 100) {
+          skipped.push({
+            studentId: st.id,
+            code: 'STUDENT_INACTIVE',
+            detail: 'Student is not active',
+          });
+        }
+        continue;
+      }
+      const dup = this.payments.some(
+        p => p.studentId === st.id && p.feeStructureId === fs.id && p.dueDate === due
+      );
+      if (dup) {
+        if (skipDup) {
+          if (skipped.length < 100) {
+            skipped.push({
+              studentId: st.id,
+              code: 'DUPLICATE_OBLIGATION',
+              detail: 'Same structure and due date already assigned',
+            });
+          }
+          continue;
+        }
+        return throwError(() => new Error(`Student ${st.id} already has this fee for the chosen due date.`));
+      }
+      const name = `${st.firstName} ${st.lastName}`.trim();
+      const row: FeePayment = {
+        id: nextId++,
+        studentId: st.id,
+        studentName: name,
+        feeStructureId: fs.id,
+        amount: fs.totalAmount,
+        paidAmount: 0,
+        dueAmount: fs.totalAmount,
+        status: 'unpaid',
+        paymentDate: new Date().toISOString().slice(0, 10),
+        dueDate: due,
+        discount,
+        lateFee: 0,
+        receiptNumber: `REC-MOCK-${stamp}-${st.id}`,
+        tenantId: 't1',
+      };
+      if (new Date(due) < new Date(new Date().toISOString().slice(0, 10))) {
+        row.status = 'overdue';
+        row.lateFee = 50;
+      }
+      this.payments.push(row);
+      created.push({ ...row });
+    }
+    const inactiveN = inScope.filter(s => s.status !== 'active').length;
+    const activeN = inScope.filter(s => s.status === 'active').length;
+    const skippedTotal = inactiveN + (activeN - created.length);
+    const resp: BulkAssignFeesResponse = {
+      createdCount: created.length,
+      skippedCount: skippedTotal,
+      skipped,
+      createdSample: created.slice(0, 25).map(p => ({ ...p })),
+    };
+    return of(resp).pipe(delay(450));
   }
 
   recordPayment(payment: FeePayment): Observable<FeePayment> {
@@ -155,6 +245,21 @@ export class FeeService {
         type: (component.type ?? '').toLowerCase()
       })),
       totalAmount: Number(structure.totalAmount ?? 0)
+    };
+  }
+
+  private normalizeBulkAssignResponse(raw: any): BulkAssignFeesResponse {
+    const skipped = (raw?.skipped ?? []).map((x: any) => ({
+      studentId: Number(x.studentId),
+      code: String(x.code ?? ''),
+      detail: x.detail != null ? String(x.detail) : undefined,
+    }));
+    const createdSample = (raw?.createdSample ?? []).map((p: any) => this.normalizePayment(p));
+    return {
+      createdCount: Number(raw?.createdCount ?? 0),
+      skippedCount: Number(raw?.skippedCount ?? 0),
+      skipped,
+      createdSample,
     };
   }
 

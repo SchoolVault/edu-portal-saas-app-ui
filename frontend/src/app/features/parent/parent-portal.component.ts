@@ -180,7 +180,16 @@ import {
                 <div class="d-flex justify-content-between align-items-start mb-3">
                   <div>
                     <h4 style="font-size: 16px; font-weight: 800; margin-bottom: 6px;">{{ obligation.feeStructureName }}</h4>
-                    <p class="text-muted mb-0" style="font-size: 12px;">{{ obligation.className }} · Due {{ obligation.dueDate || '-' }}</p>
+                    <p class="text-muted mb-0" style="font-size: 12px;">
+                      {{ obligation.className || '—' }}
+                      <ng-container *ngIf="obligation.dueDate"> · Due {{ obligation.dueDate }}</ng-container>
+                      <ng-container *ngIf="obligation.daysUntilDue != null && obligation.daysUntilDue > 0 && obligation.status !== 'paid'">
+                        · {{ obligation.daysUntilDue }} day(s) left
+                      </ng-container>
+                      <ng-container *ngIf="obligation.daysUntilDue != null && obligation.daysUntilDue <= 0 && obligation.status !== 'paid'">
+                        · Due now / overdue
+                      </ng-container>
+                    </p>
                   </div>
                   <span class="badge-erp" [ngClass]="{'badge-success': obligation.status === 'paid', 'badge-warning': obligation.status === 'partial', 'badge-danger': obligation.status === 'overdue', 'badge-neutral': obligation.status === 'unpaid'}">
                     {{ obligation.status }}

@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 import { Observable, of } from 'rxjs';
-import { map } from 'rxjs/operators';
+import { delay, map } from 'rxjs/operators';
 import { MOCK_TENANT_CONFIG_DEFAULT, mockSchoolBranches } from '../mocks/settings.mock-data';
 import { SchoolBranch, TenantConfig } from '../models/models';
 import { ApiService } from './api.service';
@@ -43,6 +43,25 @@ export class SettingsService {
       return this.get();
     }
     return this.api.put<TenantConfig>('/settings', config);
+  }
+
+  getFeatures(): Observable<Record<string, boolean>> {
+    if (runtimeConfig.useMocks) {
+      const t = readMockTenant();
+      return of({ ...MOCK_TENANT_CONFIG_DEFAULT.features, ...(t.features || {}) }).pipe(delay(80));
+    }
+    return this.api.get<Record<string, boolean>>('/settings/features');
+  }
+
+  /** Merges with existing flags on the server (partial updates safe). */
+  updateFeatures(flags: Record<string, boolean>): Observable<Record<string, boolean>> {
+    if (runtimeConfig.useMocks) {
+      const prev = readMockTenant();
+      const merged = { ...MOCK_TENANT_CONFIG_DEFAULT.features, ...(prev.features || {}), ...flags };
+      writeMockTenant({ ...prev, features: merged });
+      return of({ ...merged }).pipe(delay(120));
+    }
+    return this.api.put<Record<string, boolean>>('/settings/features', flags);
   }
 
   listBranches(schoolCode?: string): Observable<SchoolBranch[]> {

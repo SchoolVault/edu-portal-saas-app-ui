@@ -7,8 +7,10 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDate;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 public interface FeePaymentRepository extends JpaRepository<FeePayment, Long> {
     List<FeePayment> findByTenantIdAndIsDeletedFalse(String tenantId);
@@ -40,4 +42,16 @@ public interface FeePaymentRepository extends JpaRepository<FeePayment, Long> {
             @Param("toInclusive") LocalDate toInclusive,
             @Param("statuses") List<Enums.FeeStatus> statuses,
             @Param("overdueStatus") Enums.FeeStatus overdueStatus);
+
+    @Query("""
+            select p.studentId from FeePayment p
+            where p.tenantId = :tenantId and p.isDeleted = false
+              and p.feeStructureId = :feeStructureId and p.dueDate = :dueDate
+              and p.studentId in :studentIds
+            """)
+    Set<Long> findStudentIdsWithObligationOnDueDate(
+            @Param("tenantId") String tenantId,
+            @Param("feeStructureId") Long feeStructureId,
+            @Param("dueDate") LocalDate dueDate,
+            @Param("studentIds") Collection<Long> studentIds);
 }

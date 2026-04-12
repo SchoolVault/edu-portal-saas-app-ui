@@ -5,7 +5,16 @@ import { FeeService } from '../../core/services/fee.service';
 import { AcademicService } from '../../core/services/academic.service';
 import { AuthService } from '../../core/services/auth.service';
 import { filter } from 'rxjs/operators';
-import { AcademicYear, FeeComponent, FeePayment, FeeStructure, SchoolClass } from '../../core/models/models';
+import {
+  AcademicYear,
+  BulkAssignFeesResponse,
+  BulkAssignFeesSkipEntry,
+  FeeComponent,
+  FeePayment,
+  FeeStructure,
+  SchoolClass,
+  Section,
+} from '../../core/models/models';
 import { ConfirmDialogService } from '../../shared/confirm-dialog/confirm-dialog.service';
 
 @Component({
@@ -52,8 +61,16 @@ import { ConfirmDialogService } from '../../shared/confirm-dialog/confirm-dialog
                 </span>
                 <strong>₹{{ comp.amount | number:'1.0-0':'en-IN' }}</strong>
               </div>
-              <div *ngIf="isAdmin" class="d-flex gap-2 mt-3 pt-2" style="border-top: 1px solid var(--clr-border-light);">
+              <div *ngIf="isAdmin" class="d-flex flex-wrap gap-2 mt-3 pt-2" style="border-top: 1px solid var(--clr-border-light);">
                 <button type="button" class="btn-outline-erp btn-xs" (click)="openStructureModal(fs)">Edit</button>
+                <button
+                  type="button"
+                  class="btn-outline-erp btn-xs"
+                  (click)="openBulkAssignModal(fs)"
+                  data-testid="bulk-assign-open"
+                  title="Create a fee record for many students at once (e.g. new term or new admission batch)">
+                  <i class="bi bi-people"></i> Add for students
+                </button>
                 <button type="button" class="btn-outline-erp btn-xs" style="color: var(--clr-danger); border-color: color-mix(in srgb, var(--clr-danger) 35%, var(--clr-border));" (click)="deleteStructure(fs)">Delete</button>
               </div>
             </div>
@@ -160,6 +177,73 @@ import { ConfirmDialogService } from '../../shared/confirm-dialog/confirm-dialog
         </div>
       </div>
     </div>
+
+    <div class="modal-overlay" *ngIf="bulkAssignModal" (click)="closeBulkAssignModal()">
+      <div class="modal-content-erp modal-lg" style="max-width: 600px;" (click)="$event.stopPropagation()" data-testid="bulk-assign-modal">
+        <div class="modal-header-erp">
+          <h3>Add this fee for many students</h3>
+          <button type="button" class="btn-icon" (click)="closeBulkAssignModal()" aria-label="Close"><i class="bi bi-x-lg"></i></button>
+        </div>
+        <div class="modal-body-erp" *ngIf="bulkTargetStructure as bfs">
+          <div class="p-3 rounded-2 mb-3" style="background: var(--clr-surface-muted); border: 1px solid var(--clr-border);">
+            <div class="small text-muted mb-1">Fee plan you are adding</div>
+            <div style="font-weight: 700;">{{ bfs.name }}</div>
+            <div class="small text-muted mt-1">{{ bfs.className }} · total ₹{{ bfs.totalAmount | number:'1.0-0':'en-IN' }} per student</div>
+          </div>
+
+          <div class="mb-4">
+            <div class="erp-label mb-2">What happens when you click &quot;Add fees for students&quot;?</div>
+            <ol class="small text-muted mb-0 ps-3" style="line-height: 1.55;">
+              <li class="mb-1">The system finds <strong>active</strong> students in the class (or section) you choose below.</li>
+              <li class="mb-1">For each of those students it adds <strong>one fee row</strong> with this plan’s amount and the due date you pick.</li>
+              <li class="mb-1">Those rows appear on the <strong>Payments</strong> tab and in the parent portal as amounts the family needs to pay.</li>
+              <li class="mb-1">No money is collected here—this step only <strong>records who owes what</strong>. You record payments later as usual.</li>
+              <li>If your school uses automated fee reminders, families may get a notice when a new fee is added (according to your settings).</li>
+            </ol>
+          </div>
+
+          <label class="erp-label" for="bulk-section-select">Which students?</label>
+          <select id="bulk-section-select" class="erp-select mb-1" [(ngModel)]="bulkSectionId">
+            <option [ngValue]="null">Everyone in {{ bfs.className }} (all sections)</option>
+            <option *ngFor="let sec of bulkSections" [ngValue]="sec.id">Only section {{ sec.name }}</option>
+          </select>
+          <p class="text-muted small mb-3">Pick one section if you are rolling this fee out to part of the class; otherwise leave “everyone” selected.</p>
+
+          <label class="erp-label" for="bulk-due-date">When should this fee be paid by?</label>
+          <input id="bulk-due-date" class="erp-input mb-1" type="date" [(ngModel)]="bulkDueDate" />
+          <p class="text-muted small mb-3">This due date is stored on each student’s fee row. You can use it for reports, reminders, and overdue status.</p>
+
+          <label class="d-flex align-items-start gap-2 mb-3" style="cursor: pointer;">
+            <input type="checkbox" class="mt-1" [(ngModel)]="bulkSkipDuplicates" />
+            <span class="small">
+              <strong>Skip students who already have this fee</strong> for the same due date (recommended). Turn off only if you intend to allow duplicate rows.
+            </span>
+          </label>
+
+          <div *ngIf="bulkAssignError" class="text-danger small mb-2">{{ bulkAssignError }}</div>
+          <div *ngIf="bulkAssignResult as r" class="p-3 rounded-2 small mb-0" style="background: color-mix(in srgb, var(--clr-success) 8%, var(--clr-surface-muted)); border: 1px solid var(--clr-border);">
+            <div class="fw-semibold mb-2">Done</div>
+            <div><strong>{{ r.createdCount }}</strong> student fee {{ r.createdCount === 1 ? 'record was' : 'records were' }} added.</div>
+            <div *ngIf="r.skippedCount > 0" class="mt-1">
+              <strong>{{ r.skippedCount }}</strong> {{ r.skippedCount === 1 ? 'student was' : 'students were' }} not given a new row (see reasons below).
+            </div>
+            <div *ngIf="r.skipped?.length" class="mt-2 pt-2 text-muted" style="border-top: 1px solid var(--clr-border); max-height: 140px; overflow-y: auto;">
+              <div class="small fw-semibold text-body mb-1">Details (sample)</div>
+              <div *ngFor="let s of r.skipped" class="mb-1">
+                Student #{{ s.studentId }} — {{ friendlyBulkSkipLabel(s) }}
+              </div>
+            </div>
+            <p class="text-muted mb-0 mt-2 small">Open the <strong>Payments</strong> tab to see the new rows.</p>
+          </div>
+        </div>
+        <div class="modal-footer-erp">
+          <button type="button" class="btn-outline-erp" (click)="closeBulkAssignModal()">{{ bulkAssignResult ? 'Close' : 'Cancel' }}</button>
+          <button type="button" class="btn-primary-erp" [disabled]="bulkAssignSaving || !bulkDueDate" (click)="submitBulkAssign()">
+            {{ bulkAssignSaving ? 'Adding…' : 'Add fees for students' }}
+          </button>
+        </div>
+      </div>
+    </div>
   `
 })
 export class FeesComponent implements OnInit {
@@ -183,6 +267,16 @@ export class FeesComponent implements OnInit {
     academicYearId: number | null;
     components: { name: string; amount: number; type: string }[];
   } = this.emptyStructureForm();
+
+  bulkAssignModal = false;
+  bulkTargetStructure: FeeStructure | null = null;
+  bulkSections: Section[] = [];
+  bulkSectionId: number | null = null;
+  bulkDueDate = '';
+  bulkSkipDuplicates = true;
+  bulkAssignSaving = false;
+  bulkAssignError = '';
+  bulkAssignResult: BulkAssignFeesResponse | null = null;
 
   componentTypes = [
     { id: 'tuition', label: 'Tuition' },
@@ -338,6 +432,78 @@ export class FeesComponent implements OnInit {
         this.structureError = e?.message || 'Save failed.';
       }
     });
+  }
+
+  private defaultDueDateStr(): string {
+    const d = new Date();
+    d.setDate(d.getDate() + 30);
+    return d.toISOString().slice(0, 10);
+  }
+
+  openBulkAssignModal(fs: FeeStructure): void {
+    this.bulkTargetStructure = fs;
+    this.bulkSectionId = null;
+    this.bulkDueDate = this.defaultDueDateStr();
+    this.bulkSkipDuplicates = true;
+    this.bulkAssignError = '';
+    this.bulkAssignResult = null;
+    this.academicService.getClassById(fs.classId).subscribe({
+      next: c => {
+        this.bulkSections = c?.sections ?? this.classes.find(cl => cl.id === fs.classId)?.sections ?? [];
+        this.bulkAssignModal = true;
+      },
+      error: () => {
+        this.bulkSections = this.classes.find(cl => cl.id === fs.classId)?.sections ?? [];
+        this.bulkAssignModal = true;
+      },
+    });
+  }
+
+  closeBulkAssignModal(): void {
+    this.bulkAssignModal = false;
+    this.bulkTargetStructure = null;
+    this.bulkSections = [];
+  }
+
+  /** Maps backend skip codes to short, admin-friendly text (results panel). */
+  friendlyBulkSkipLabel(row: BulkAssignFeesSkipEntry): string {
+    switch (row.code) {
+      case 'STUDENT_INACTIVE':
+        return 'inactive student — fee not added';
+      case 'DUPLICATE_OBLIGATION':
+        return 'already has this fee with the same due date';
+      default:
+        return row.detail?.trim() || row.code.replace(/_/g, ' ').toLowerCase();
+    }
+  }
+
+  submitBulkAssign(): void {
+    const fs = this.bulkTargetStructure;
+    if (!fs || !this.bulkDueDate) {
+      return;
+    }
+    this.bulkAssignSaving = true;
+    this.bulkAssignError = '';
+    this.bulkAssignResult = null;
+    this.feeService
+      .bulkAssignFees({
+        feeStructureId: fs.id,
+        classId: fs.classId,
+        sectionId: this.bulkSectionId,
+        dueDate: this.bulkDueDate,
+        skipIfDuplicate: this.bulkSkipDuplicates,
+      })
+      .subscribe({
+        next: res => {
+          this.bulkAssignResult = res;
+          this.bulkAssignSaving = false;
+          this.loadPayments();
+        },
+        error: (e: Error) => {
+          this.bulkAssignSaving = false;
+          this.bulkAssignError = e?.message || 'Could not add fees. Please try again or contact support.';
+        },
+      });
   }
 
   deleteStructure(fs: FeeStructure): void {

@@ -631,6 +631,33 @@ export interface FeePayment {
   tenantId: string;
 }
 
+/** Mirrors {@code FeeDTOs.BulkAssignFeesRequest}. */
+export interface BulkAssignFeesRequest {
+  feeStructureId: number;
+  classId: number;
+  sectionId?: number | null;
+  dueDate: string;
+  discount?: number;
+  /** Default true when omitted. */
+  skipIfDuplicate?: boolean;
+  correlationId?: string;
+}
+
+/** Mirrors {@code FeeDTOs.BulkAssignFeesSkipEntry}. */
+export interface BulkAssignFeesSkipEntry {
+  studentId: number;
+  code: string;
+  detail?: string;
+}
+
+/** Mirrors {@code FeeDTOs.BulkAssignFeesResponse}. */
+export interface BulkAssignFeesResponse {
+  createdCount: number;
+  skippedCount: number;
+  skipped: BulkAssignFeesSkipEntry[];
+  createdSample: FeePayment[];
+}
+
 /** @see ParentFeeDtos — mirrors {@code FeeDTOs.ParentFeeLineItem}. */
 export type ParentFeeLineItem = ParentFeeDtos.ParentFeeLineItem;
 /** @see ParentFeeDtos — mirrors {@code FeeDTOs.ParentFeeObligationResponse}. */

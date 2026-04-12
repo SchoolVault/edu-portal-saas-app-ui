@@ -69,6 +69,13 @@ public class FeeController {
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.created(service.recordPayment(req)));
     }
 
+    @PostMapping("/payments/bulk-assign")
+    @PreAuthorize("hasRole(\'ADMIN\')")
+    @Operation(summary = "Bulk-assign fee structure to a class or section", description = "One request creates obligations for all active students; optional skip when duplicate structure+due date exists.")
+    public ResponseEntity<ApiResponse<FeeDTOs.BulkAssignFeesResponse>> bulkAssignFees(@Valid @RequestBody FeeDTOs.BulkAssignFeesRequest req) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.created(service.bulkAssignFees(req)));
+    }
+
     @GetMapping("/collection-summary")
     @PreAuthorize("hasRole(\'ADMIN\')")
     @Operation(summary = "Fee collection summary", description = "Total collected, pending, overdue count, collection rate")

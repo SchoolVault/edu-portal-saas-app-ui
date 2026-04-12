@@ -326,7 +326,7 @@ import { ProfilePhotoPickerComponent, ProfilePhotoPickEvent } from '../../shared
 
       <div *ngIf="tab === 'features'" class="erp-card animate-in">
         <h4 style="font-size: 15px; font-weight: 700; margin-bottom: 20px;">Feature Toggles</h4>
-        <p style="font-size: 13px; color: var(--clr-text-muted); margin-bottom: 20px;">Enable or disable modules for your school</p>
+        <p style="font-size: 13px; color: var(--clr-text-muted); margin-bottom: 12px;">Turn modules on or off for your school. Use <strong>Save feature toggles</strong> so changes apply on the server (or local mock store).</p>
         <div *ngFor="let feat of features" class="d-flex justify-content-between align-items-center py-3" style="border-bottom: 1px solid var(--clr-border-light);">
           <div>
             <div style="font-weight: 600;">{{ feat.name }}</div>
@@ -338,6 +338,11 @@ import { ProfilePhotoPickerComponent, ProfilePhotoPickEvent } from '../../shared
               <span style="position: absolute; left: 3px; top: 3px; width: 20px; height: 20px; background: white; border-radius: 50%; transition: 0.3s;" [style.transform]="feat.enabled ? 'translateX(22px)' : 'translateX(0)'"></span>
             </span>
           </label>
+        </div>
+        <div class="d-flex flex-wrap gap-2 align-items-center mt-3 pt-2" style="border-top: 1px solid var(--clr-border-light);">
+          <button type="button" class="btn-primary-erp" (click)="saveFeatureFlags()" [disabled]="featureFlagsSaving">{{ featureFlagsSaving ? 'Saving…' : 'Save feature toggles' }}</button>
+          <span *ngIf="featureFlagsMsg" class="text-success small">{{ featureFlagsMsg }}</span>
+          <span *ngIf="featureFlagsErr" class="text-danger small">{{ featureFlagsErr }}</span>
         </div>
       </div>
     </div>
@@ -686,15 +691,26 @@ export class SettingsComponent implements OnInit {
   childPhotoInitials = '';
   settingsRefreshing = false;
 
-  features = [
-    { name: 'Transport Module', description: 'Manage school transport routes and vehicles', enabled: true },
-    { name: 'Library Module', description: 'Book catalog and circulation management', enabled: true },
-    { name: 'Hostel Module', description: 'Hostel room allocation and management', enabled: true },
-    { name: 'Payroll Module', description: 'Teacher salary and payslip management', enabled: true },
-    { name: 'Document Management', description: 'Upload and manage school documents', enabled: true },
-    { name: 'Audit Trail', description: 'Track all system actions and changes', enabled: true },
-    { name: 'SMS Notifications', description: 'Send SMS alerts to parents', enabled: false },
-    { name: 'Online Payments', description: 'Accept fee payments online', enabled: false },
+  featureFlagsSaving = false;
+  featureFlagsMsg = '';
+  featureFlagsErr = '';
+
+  features: Array<{ name: string; description: string; enabled: boolean; persistKey?: string }> = [
+    {
+      name: 'Automated fee reminders',
+      description:
+        'When a fee is recorded for a student, parents get one notice; then reminders in the last 10 days before due (every 3 days) and every 3 days after due, weekdays 9:00–18:00 only. Stops when the fee is fully paid.',
+      enabled: false,
+      persistKey: 'feeReminderAutomation',
+    },
+    { name: 'Transport Module', description: 'Manage school transport routes and vehicles', enabled: true, persistKey: 'transport' },
+    { name: 'Library Module', description: 'Book catalog and circulation management', enabled: true, persistKey: 'library' },
+    { name: 'Hostel Module', description: 'Hostel room allocation and management', enabled: true, persistKey: 'hostel' },
+    { name: 'Payroll Module', description: 'Teacher salary and payslip management', enabled: true, persistKey: 'payroll' },
+    { name: 'Document Management', description: 'Upload and manage school documents', enabled: true, persistKey: 'documents' },
+    { name: 'Audit Trail', description: 'Track all system actions and changes', enabled: true, persistKey: 'audit' },
+    { name: 'SMS Notifications', description: 'Send SMS alerts to parents', enabled: false, persistKey: 'smsNotifications' },
+    { name: 'Online Payments', description: 'Accept fee payments online', enabled: false, persistKey: 'onlinePayments' },
   ];
 
   constructor(
@@ -770,6 +786,63 @@ export class SettingsComponent implements OnInit {
     this.reloadSettings();
   }
 
+  private applyFeatureFlagsFromServer(): void {
+    if (!this.isTenantAdmin) {
+      return;
+    }
+    this.settingsService.getFeatures().subscribe({
+      next: flags => {
+        for (const f of this.features) {
+          if (f.persistKey != null && flags[f.persistKey] !== undefined) {
+            f.enabled = !!flags[f.persistKey];
+          }
+        }
+        this.cdr.markForCheck();
+      },
+      error: () => {
+        /* non-fatal */
+      },
+    });
+  }
+
+  saveFeatureFlags(): void {
+    if (!this.isTenantAdmin) {
+      return;
+    }
+    this.featureFlagsSaving = true;
+    this.featureFlagsMsg = '';
+    this.featureFlagsErr = '';
+    this.settingsService.getFeatures().subscribe({
+      next: flags => {
+        const merged = { ...flags };
+        for (const f of this.features) {
+          if (f.persistKey) {
+            merged[f.persistKey] = f.enabled;
+          }
+        }
+        this.settingsService.updateFeatures(merged).subscribe({
+          next: () => {
+            this.featureFlagsSaving = false;
+            this.featureFlagsMsg = runtimeConfig.useMocks
+              ? 'Saved locally (mock). Same keys sync to PUT /settings/features when mocks are off.'
+              : 'Feature toggles saved.';
+            this.cdr.markForCheck();
+          },
+          error: () => {
+            this.featureFlagsSaving = false;
+            this.featureFlagsErr = 'Could not save feature toggles.';
+            this.cdr.markForCheck();
+          },
+        });
+      },
+      error: () => {
+        this.featureFlagsSaving = false;
+        this.featureFlagsErr = 'Could not load current flags.';
+        this.cdr.markForCheck();
+      },
+    });
+  }
+
   reloadSettings(): void {
     this.settingsRefreshing = true;
     if (this.isParentOnlyChildren) {
@@ -795,6 +868,7 @@ export class SettingsComponent implements OnInit {
         if (td.schoolPhone) this.schoolPhone = td.schoolPhone;
         if (td.schoolAddress) this.schoolAddress = td.schoolAddress;
         this.settingsRefreshing = false;
+        this.applyFeatureFlagsFromServer();
       },
       error: () => {
         this.settingsRefreshing = false;

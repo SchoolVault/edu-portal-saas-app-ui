@@ -9,6 +9,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -59,12 +60,15 @@ public class SettingsService {
     public Map<String, Boolean> updateFeatureFlags(Map<String, Boolean> flags) {
         TenantConfig config = getSettings();
         try {
-            config.setFeaturesJson(objectMapper.writeValueAsString(flags));
+            Map<String, Boolean> merged = new HashMap<>(getFeatureFlags());
+            merged.putAll(flags);
+            config.setFeaturesJson(objectMapper.writeValueAsString(merged));
             repo.save(config);
+            return merged;
         } catch (Exception e) {
             log.error("Failed to save features JSON", e);
         }
-        return flags;
+        return getFeatureFlags();
     }
 
     /**

@@ -11,6 +11,9 @@
 # production
 /build
 
+# Angular CLI cache (do not commit)
+/.angular/
+
 # misc
 .DS_Store
 .env.local

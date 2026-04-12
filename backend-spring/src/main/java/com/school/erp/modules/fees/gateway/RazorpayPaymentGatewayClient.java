@@ -70,6 +70,7 @@ public class RazorpayPaymentGatewayClient {
         // Razorpay expects amount in smallest currency unit (paise); round HALF_UP to 2 decimal places first.
         long amountPaise = amount.setScale(2, RoundingMode.HALF_UP).multiply(BigDecimal.valueOf(100)).longValueExact();
         String receipt = buildRazorpayReceipt(tenantId, paymentId);
+        log.info("Razorpay order create paymentId={} receiptLen={} (max {})", paymentId, receipt.length(), RAZORPAY_RECEIPT_MAX_LEN);
 
         String url = apiBase.replaceAll("/+$", "") + "/v1/orders";
         Map<String, Object> body = Map.of(

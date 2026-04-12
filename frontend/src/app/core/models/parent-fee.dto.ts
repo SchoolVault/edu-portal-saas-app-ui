@@ -18,6 +18,8 @@ export namespace ParentFeeDtos {
     feeStructureName: string;
     className?: string;
     dueDate?: string;
+    /** Days until due (negative if overdue). Omitted when paid or no due date. */
+    daysUntilDue?: number | null;
     /** Server sends lowercase fee status (e.g. partial, paid). */
     status: string;
     currency: string;
