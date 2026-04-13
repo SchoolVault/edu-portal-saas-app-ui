@@ -47,7 +47,8 @@ Use a **dedicated database or tenant namespace** for this showcase org; do not r
 | **SUPER_ADMIN** | Platform | `super.ops@schoolvault.edu` | `PLATFORM` |
 | **ADMIN** | St. Xavier's Heritage | `principal@stxheritage.edu` | `STXHER-KOL` |
 | **TEACHER** | St. Xavier's | `d.sen@stxheritage.edu` (also `m.iyer`, `k.bose`) | `STXHER-KOL` |
-| **PARENT** | St. Xavier's | `s.banerjee.parent@stxheritage.edu` | `STXHER-KOL` |
+| **PARENT** | St. Xavier's | `s.banerjee.parent@stxheritage.edu` (Sujata — Banerjee children) | `STXHER-KOL` |
+| **PARENT** | St. Xavier's | `a.khanna.parent@stxheritage.edu` (Arvind — Khanna children) | `STXHER-KOL` |
 | **LIBRARY_STAFF** | St. Xavier's | `library@stxheritage.edu` | `STXHER-KOL` |
 | **STUDENT** (preview JWT) | St. Xavier's | `student.preview@stxheritage.edu` | `STXHER-KOL` |
 | **ADMIN** | Meridian Ridge | `principal@meridianridge.edu` | `MRIDGE-PN` |
@@ -56,6 +57,13 @@ Use a **dedicated database or tenant namespace** for this showcase org; do not r
 | **STUDENT** (preview JWT) | Meridian Ridge | `student.preview@meridianridge.edu` | `MRIDGE-PN` |
 
 Tenant ids (for support): `tenant_stxaviers_heritage_k7m2n9p4`, `tenant_meridian_ridge_pn_3q8w5r1x`.
+
+## Parent / admin / teacher data consistency (QA)
+
+- **Source of truth for “whose child is this?”** is `students.parent_id` (portal user id of the parent) **plus** optional `student_guardian_mappings` → `guardians.user_id` for the same parent user. The parent portal merges both (`GuardianService.findStudentsForParentUser`).
+- After each seed run, **`syncParentGuardianLinksForDemoTenant`** runs for both showcase tenants: for every student with a non-null `parent_id`, it ensures an active guardian row linked to that parent user and a mapping row, **idempotently**. That removes discrepancies where legacy `parent_id` was set but guardian mappings were missing (only two children were mapped in the original St. Xavier baseline).
+- **Bulk demo students** use **family-aligned surnames**: children tied to `s.banerjee.parent@stxheritage.edu` are named **Banerjee**; children tied to `a.khanna.parent@stxheritage.edu` are **Khanna**; Meridian children tied to `k.deshmukh.parent@meridianridge.edu` are **Deshmukh**. Wards with no portal parent keep varied Indian surnames so they are visibly “unlinked” in lists.
+- **Expect different list sizes by role** (not a bug): admin sees all students in the tenant; a parent sees only rows linked to their login; a teacher sees classes/sections they teach. **The same student id** should appear in all three where the role is allowed to see that student (e.g. Riya Banerjee in Class IX for admin, her parent, and her class teachers).
 
 ## Idempotency
 

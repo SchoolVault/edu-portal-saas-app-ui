@@ -15,4 +15,7 @@ public interface GuardianRepository extends JpaRepository<Guardian, Long> {
     List<Guardian> findByTenantIdAndPrimaryPhoneAndIsDeletedFalse(String tenantId, String primaryPhone);
 
     List<Guardian> findByTenantIdAndIsDeletedFalseAndFullNameContainingIgnoreCase(String tenantId, String namePart);
+
+    /** Portal user linked to a guardian profile (parent portal resolution via {@code StudentGuardianMapping}). */
+    Optional<Guardian> findFirstByTenantIdAndUserIdAndIsDeletedFalse(String tenantId, Long userId);
 }

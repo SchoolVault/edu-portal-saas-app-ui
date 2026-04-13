@@ -292,6 +292,10 @@ public class DemoDataSeedService {
         tenantConfigRepository.findBySchoolCode("MRIDGE-PN")
                 .ifPresent(c -> expandMeridianBulkSeed(c.getTenantId(), "MRIDGE-PN"));
         tenantConfigRepository.findBySchoolCode("STXHER-KOL")
+                .ifPresent(c -> syncParentGuardianLinksForDemoTenant(c.getTenantId()));
+        tenantConfigRepository.findBySchoolCode("MRIDGE-PN")
+                .ifPresent(c -> syncParentGuardianLinksForDemoTenant(c.getTenantId()));
+        tenantConfigRepository.findBySchoolCode("STXHER-KOL")
                 .ifPresent(c -> demoExtendedTablesSeed.seedExtendedModuleRows(c.getTenantId(), "STXHER-KOL"));
         tenantConfigRepository.findBySchoolCode("MRIDGE-PN")
                 .ifPresent(c -> demoExtendedTablesSeed.seedExtendedModuleRows(c.getTenantId(), "MRIDGE-PN"));
@@ -1212,9 +1216,12 @@ public class DemoDataSeedService {
         List<Teacher> teachers = teacherRepository.findByTenantIdAndIsDeletedFalse(tenantId);
         Long markerTid = teachers.isEmpty() ? null : teachers.get(0).getId();
 
-        String[] bf = {"Aditya", "Kavya", "Sohan", "Diya", "Rohan", "Ira", "Dev", "Mira", "Kabir", "Tara", "Rehan", "Anvi", "Vihaan", "Myra", "Neil", "Pari", "Yash", "Zara", "Krish", "Lavanya"};
-        String[] bl = {"Sen", "Roy", "Basu", "Dutta", "Mukherjee", "Iyer", "Ghosh", "Nair", "Bose", "Chatterjee", "Malik", "Kapoor", "Ahuja", "Das", "Joshi", "Seth", "Varma", "Oberoi", "Desai", "Khan"};
-        List<Student> bulkStudents = new ArrayList<>();
+        String[] banerjeeKids = {"Aditya", "Kavya", "Sohan", "Diya", "Dev", "Mira", "Krish", "Lavanya", "Anik", "Ritu"};
+        String[] khannaKids = {"Rohan", "Ira", "Vihaan", "Anvi", "Neil", "Zara", "Kabir", "Tara"};
+        String[] wardFirst = {"Piyush", "Nandini", "Sameer", "Ishani", "Vedant", "Meera", "Arjun", "Kiara", "Yuvraj", "Tania",
+                "Harsh", "Sneha", "Manav", "Riya", "Karan"};
+        String[] wardLast = {"Sen", "Roy", "Basu", "Dutta", "Mukherjee", "Nair", "Ghosh", "Chatterjee", "Malik", "Ahuja",
+                "Das", "Joshi", "Varma", "Oberoi", "Desai"};
         for (int i = 0; i < 40; i++) {
             String adm = String.format("SX-BULK-%03d", i + 1);
             if (studentRepository.existsByTenantIdAndAdmissionNumber(tenantId, adm)) {
@@ -1223,26 +1230,33 @@ public class DemoDataSeedService {
             long[] cs = classSectionPairs.get(i % classSectionPairs.size());
             Long pid;
             String pnm;
+            String fn;
+            String ln;
             switch (i % 3) {
                 case 0 -> {
                     pid = parentA;
                     pnm = "Sujata Banerjee";
+                    fn = banerjeeKids[i % banerjeeKids.length];
+                    ln = "Banerjee";
                 }
                 case 1 -> {
                     pid = parentB;
                     pnm = "Arvind Khanna";
+                    fn = khannaKids[i % khannaKids.length];
+                    ln = "Khanna";
                 }
                 default -> {
                     pid = null;
                     pnm = "—";
+                    fn = wardFirst[i % wardFirst.length];
+                    ln = wardLast[i % wardLast.length];
                 }
             }
-            Student s = student(tenantId, bf[i % bf.length], bl[i % bl.length], adm, cs[0], cs[1], pid, pnm,
+            Student s = student(tenantId, fn, ln, adm, cs[0], cs[1], pid, pnm,
                     "sx.bulk" + (i + 1) + "@stxheritage.stu", i % 2 == 0 ? Enums.Gender.MALE : Enums.Gender.FEMALE);
             YearMonth admYm = YearMonth.now().minusMonths(i % 6);
             s.setAdmissionDate(admYm.atDay(Math.min(28, 5 + (i % 23))));
             studentRepository.save(s);
-            bulkStudents.add(s);
         }
         flush();
 
@@ -1610,8 +1624,9 @@ public class DemoDataSeedService {
         List<Teacher> teachers = teacherRepository.findByTenantIdAndIsDeletedFalse(tenantId);
         Long markerTid = teachers.isEmpty() ? null : teachers.get(0).getId();
 
-        String[] mf = {"Aarav", "Sara", "Vihaan", "Kiara", "Reyansh", "Anika", "Shaurya", "Misha", "Arjun", "Navya", "Dhruv", "Ishita", "Om", "Riya", "Ved"};
-        String[] ml = {"Kulkarni", "Patil", "Joshi", "Shah", "Desai", "Reddy", "Menon", "Pillai", "Rao", "Iyer", "Nayar", "Bose", "Singh", "Mehta", "Verma"};
+        String[] deshmukhKids = {"Aarav", "Sara", "Vihaan", "Kiara", "Reyansh", "Anika", "Shaurya", "Misha"};
+        String[] wardFirstMr = {"Arjun", "Navya", "Dhruv", "Ishita", "Om", "Riya", "Ved", "Kunal", "Tara", "Neha", "Rahul", "Simran", "Vikram", "Anaya", "Rohan"};
+        String[] wardLastMr = {"Kulkarni", "Patil", "Joshi", "Shah", "Reddy", "Menon", "Pillai", "Rao", "Iyer", "Nayar", "Bose", "Singh", "Mehta", "Verma", "Kapoor"};
         for (int i = 0; i < 15; i++) {
             String adm = String.format("MR-BULK-%03d", i + 1);
             if (studentRepository.existsByTenantIdAndAdmissionNumber(tenantId, adm)) {
@@ -1620,7 +1635,9 @@ public class DemoDataSeedService {
             Section sec = secs.get(i % secs.size());
             Long pid = (i % 2 == 0) ? parent1 : null;
             String pnm = pid != null ? "Kavita Deshmukh" : "—";
-            Student s = student(tenantId, mf[i], ml[i], adm, c8.getId(), sec.getId(), pid, pnm,
+            String fn = pid != null ? deshmukhKids[i % deshmukhKids.length] : wardFirstMr[i % wardFirstMr.length];
+            String ln = pid != null ? "Deshmukh" : wardLastMr[i % wardLastMr.length];
+            Student s = student(tenantId, fn, ln, adm, c8.getId(), sec.getId(), pid, pnm,
                     "mr.bulk" + (i + 1) + "@meridianridge.stu", i % 2 == 0 ? Enums.Gender.MALE : Enums.Gender.FEMALE);
             studentRepository.save(s);
         }
@@ -1944,6 +1961,46 @@ public class DemoDataSeedService {
         m.setEffectiveFrom(LocalDate.of(2025, 4, 1));
         m.setIsDeleted(false);
         studentGuardianMappingRepository.save(m);
+    }
+
+    /**
+     * Ensures every student with {@code parent_id} has an active {@link StudentGuardianMapping} to a {@link Guardian}
+     * whose {@code userId} matches that parent portal user. Parent APIs merge legacy {@code parent_id} and guardian
+     * mappings; keeping both aligned avoids QA seeing “orphan” rows in one path only.
+     */
+    private void syncParentGuardianLinksForDemoTenant(String tenantId) {
+        LocalDate today = LocalDate.now();
+        int created = 0;
+        List<Student> students = studentRepository.findByTenantIdAndIsDeletedFalse(tenantId);
+        for (Student st : students) {
+            Long puid = st.getParentId();
+            if (puid == null || puid <= 0) {
+                continue;
+            }
+            Optional<User> parentUser = userRepository.findByIdAndTenantIdAndIsDeletedFalse(puid, tenantId);
+            if (parentUser.isEmpty()) {
+                log.warn("Demo sync: student id={} has parent_id={} but no user in tenant {}", st.getId(), puid, tenantId);
+                continue;
+            }
+            User pu = parentUser.get();
+            Guardian g = guardianRepository.findFirstByTenantIdAndUserIdAndIsDeletedFalse(tenantId, puid).orElseGet(() -> {
+                String phone = pu.getPhone() != null && !pu.getPhone().isBlank() ? pu.getPhone().trim() : "+91-98000-00000";
+                return guardianRepository.save(guardian(tenantId, pu.getName(), phone, puid));
+            });
+            if (!studentGuardianMappingRepository.existsActiveLinkForStudentAndGuardianUser(tenantId, st.getId(), puid, today)) {
+                Enums.GuardianRelationType rel = pu.getName() != null && pu.getName().toLowerCase(Locale.ROOT).contains("kavita")
+                        ? Enums.GuardianRelationType.MOTHER
+                        : (pu.getName() != null && pu.getName().toLowerCase(Locale.ROOT).contains("arvind")
+                        ? Enums.GuardianRelationType.FATHER
+                        : (pu.getName() != null && pu.getName().toLowerCase(Locale.ROOT).contains("sujata")
+                        ? Enums.GuardianRelationType.MOTHER
+                        : Enums.GuardianRelationType.GUARDIAN));
+                mapGuardian(tenantId, st.getId(), g.getId(), rel, true);
+                created++;
+            }
+        }
+        flush();
+        log.info("Demo guardian sync for tenant {}: {} new student–guardian link(s) (idempotent)", tenantId, created);
     }
 
     private void classTeacherRow(String tenantId, Long ay, Long classId, Long secId, Long teacherId) {
