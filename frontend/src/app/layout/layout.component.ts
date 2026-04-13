@@ -5,6 +5,7 @@ import { Subscription } from 'rxjs';
 import { filter } from 'rxjs/operators';
 import { SidebarComponent } from './sidebar/sidebar.component';
 import { HeaderComponent } from './header/header.component';
+
 @Component({
   selector: 'app-layout',
   standalone: true,
@@ -35,7 +36,13 @@ import { HeaderComponent } from './header/header.component';
       </div>
     </div>
   `,
-  styles: [`:host { display: block; }`]
+  styles: [
+    `
+      :host {
+        display: block;
+      }
+    `,
+  ],
 })
 export class LayoutComponent implements OnInit, OnDestroy {
   sidebarCollapsed = false;

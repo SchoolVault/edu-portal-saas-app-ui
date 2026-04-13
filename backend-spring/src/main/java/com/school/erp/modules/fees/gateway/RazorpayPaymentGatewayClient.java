@@ -1,6 +1,8 @@
 package com.school.erp.modules.fees.gateway;
 
 import com.school.erp.common.exception.BusinessException;
+import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
+import io.github.resilience4j.retry.annotation.Retry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -52,6 +54,8 @@ public class RazorpayPaymentGatewayClient {
     @Value("${app.payments.razorpay.fallback-without-credentials:false}")
     private boolean fallbackWithoutCredentials;
 
+    @CircuitBreaker(name = "paymentGateway")
+    @Retry(name = "paymentGateway")
     public PaymentGatewayClient.GatewayCheckoutSession create(String tenantId, Long paymentId, BigDecimal amount, String currency, String returnUrl) {
         String normalizedCurrency = (currency == null || currency.isBlank()) ? "INR" : currency.trim().toUpperCase(Locale.ROOT);
         if (!"INR".equals(normalizedCurrency)) {
@@ -151,6 +155,8 @@ public class RazorpayPaymentGatewayClient {
         return new PaymentGatewayClient.GatewayCheckoutSession("razorpay", orderId, token, returnUrl, payload);
     }
 
+    @CircuitBreaker(name = "paymentGateway")
+    @Retry(name = "paymentGateway")
     public PaymentGatewayClient.GatewayPaymentConfirmation confirm(String checkoutToken, String providerOrderId, String providerPaymentId, String providerSignature) {
         if (providerPaymentId == null || providerPaymentId.isBlank()) {
             throw new BusinessException("providerPaymentId is required for Razorpay confirmation");

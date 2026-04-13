@@ -22,6 +22,9 @@ public class AuthManagementDTOs {
         private String adminPassword;
         private String phone;
         private String address;
+        /** Optional UI language for the first admin (en | hi); defaults server-side if absent or invalid. */
+        @Size(max = 16)
+        private String interfaceLocale;
 
         public String getSchoolName() {
             return schoolName;
@@ -77,6 +80,14 @@ public class AuthManagementDTOs {
 
         public void setAddress(String address) {
             this.address = address;
+        }
+
+        public String getInterfaceLocale() {
+            return interfaceLocale;
+        }
+
+        public void setInterfaceLocale(String interfaceLocale) {
+            this.interfaceLocale = interfaceLocale;
         }
     }
 

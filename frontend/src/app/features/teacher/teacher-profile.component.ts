@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { ChangeDetectorRef, Component, OnDestroy, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { filter } from 'rxjs/operators';
@@ -7,11 +7,14 @@ import { AcademicService } from '../../core/services/academic.service';
 import { AuthService } from '../../core/services/auth.service';
 import { Teacher, SchoolClass } from '../../core/models/models';
 import { ConfirmDialogService } from '../../shared/confirm-dialog/confirm-dialog.service';
+import { TranslateModule, TranslateService } from '@ngx-translate/core';
+import { Subscription } from 'rxjs';
+import { formatSchoolClassName } from '../../core/i18n/school-class-display';
 
 @Component({
   selector: 'app-teacher-profile',
   standalone: true,
-  imports: [CommonModule, RouterModule],
+  imports: [CommonModule, RouterModule, TranslateModule],
   template: `
     <div data-testid="teacher-profile-page" class="animate-in" *ngIf="teacher">
       <div class="d-flex align-items-center gap-3 mb-4">
@@ -19,14 +22,14 @@ import { ConfirmDialogService } from '../../shared/confirm-dialog/confirm-dialog
           <i class="bi bi-arrow-left" style="font-size: 20px;"></i>
         </button>
         <div class="flex-grow-1">
-          <h2 style="font-size: 24px; font-weight: 800;">Teacher profile</h2>
+          <h2 style="font-size: 24px; font-weight: 800;">{{ 'teachers.profile.title' | translate }}</h2>
         </div>
         <div class="d-flex gap-2 flex-wrap">
           <button type="button" class="btn-outline-erp btn-sm" (click)="reload()">
-            <i class="bi bi-arrow-clockwise"></i> Refresh
+            <i class="bi bi-arrow-clockwise"></i> {{ 'teachers.profile.refresh' | translate }}
           </button>
           <a *ngIf="isAdmin" [routerLink]="['/app/teachers', teacher.id, 'edit']" class="btn-primary-erp btn-sm">
-            <i class="bi bi-pencil"></i> Edit
+            <i class="bi bi-pencil"></i> {{ 'teachers.profile.edit' | translate }}
           </a>
           <button
             *ngIf="isAdmin && teacher.status === 'active'"
@@ -36,7 +39,7 @@ import { ConfirmDialogService } from '../../shared/confirm-dialog/confirm-dialog
             [disabled]="lifecycleBusy"
             (click)="deactivateTeacher()"
           >
-            Deactivate
+            {{ 'teachers.profile.deactivate' | translate }}
           </button>
         </div>
       </div>
@@ -60,74 +63,68 @@ import { ConfirmDialogService } from '../../shared/confirm-dialog/confirm-dialog
             </div>
             <h3 style="font-size: 20px; font-weight: 700;">{{ teacher.firstName }} {{ teacher.lastName }}</h3>
             <p class="text-muted" style="font-size: 13px;">{{ teacher.specialization }}</p>
-            <span class="badge-erp" [ngClass]="teacher.status === 'active' ? 'badge-success' : 'badge-neutral'">{{ teacher.status }}</span>
+            <span class="badge-erp" [ngClass]="teacher.status === 'active' ? 'badge-success' : 'badge-neutral'">{{ statusLabel(teacher.status) }}</span>
             <hr style="border-color: var(--clr-border); margin: 20px 0;" />
             <div style="text-align: left;">
               <div class="mb-3">
-                <span style="font-size: 12px; color: var(--clr-text-muted); display: block;">Email</span>
+                <span style="font-size: 12px; color: var(--clr-text-muted); display: block;">{{ 'teachers.profile.email' | translate }}</span>
                 <strong>{{ teacher.email }}</strong>
               </div>
               <div class="mb-3">
-                <span style="font-size: 12px; color: var(--clr-text-muted); display: block;">Phone</span>
+                <span style="font-size: 12px; color: var(--clr-text-muted); display: block;">{{ 'teachers.profile.phone' | translate }}</span>
                 <strong>{{ teacher.phone }}</strong>
               </div>
               <div class="mb-3">
-                <span style="font-size: 12px; color: var(--clr-text-muted); display: block;">Qualification</span>
+                <span style="font-size: 12px; color: var(--clr-text-muted); display: block;">{{ 'teachers.form.qualification' | translate }}</span>
                 <strong>{{ teacher.qualification }}</strong>
               </div>
               <div class="mb-3">
-                <span style="font-size: 12px; color: var(--clr-text-muted); display: block;">Joined</span>
+                <span style="font-size: 12px; color: var(--clr-text-muted); display: block;">{{ 'teachers.profile.joined' | translate }}</span>
                 <strong>{{ teacher.joinDate }}</strong>
               </div>
               <div *ngIf="teacher.userId">
-                <span style="font-size: 12px; color: var(--clr-text-muted); display: block;">Linked login</span>
-                <strong>Yes (staff portal)</strong>
+                <span style="font-size: 12px; color: var(--clr-text-muted); display: block;">{{ 'teachers.profile.linkedLogin' | translate }}</span>
+                <strong>{{ 'teachers.profile.linkedYes' | translate }}</strong>
               </div>
             </div>
           </div>
         </div>
         <div class="col-lg-8">
           <div class="erp-card mb-4">
-            <h4 class="erp-card-title mb-3">Teaching</h4>
+            <h4 class="erp-card-title mb-3">{{ 'teachers.profile.teaching' | translate }}</h4>
             <div class="row g-3">
               <div class="col-md-6">
-                <span style="font-size: 12px; color: var(--clr-text-muted); display: block;">Subjects</span>
+                <span style="font-size: 12px; color: var(--clr-text-muted); display: block;">{{ 'teachers.profile.subjects' | translate }}</span>
                 <div class="d-flex flex-wrap gap-1 mt-1">
-                  <span class="badge-erp badge-neutral" *ngFor="let s of teacher.subjects">{{ s }}</span>
+                  <span class="badge-erp badge-subject-pill" *ngFor="let s of teacher.subjects">{{ s }}</span>
                 </div>
               </div>
               <div class="col-md-6">
-                <span style="font-size: 12px; color: var(--clr-text-muted); display: block;">Assigned classes (IDs)</span>
-                <strong>{{ teacher.classIds.join(', ') || '—' }}</strong>
-              </div>
-              <div class="col-12" *ngIf="homeroomLines.length">
-                <span style="font-size: 12px; color: var(--clr-text-muted); display: block;">Homeroom</span>
-                <ul class="mb-0 ps-3 small">
-                  <li *ngFor="let line of homeroomLines">{{ line }}</li>
-                </ul>
+                <span style="font-size: 12px; color: var(--clr-text-muted); display: block;">{{ 'teachers.profile.homeroomClasses' | translate }}</span>
+                <strong>{{ homeroomFormatted() || ('directory.emDash' | translate) }}</strong>
               </div>
             </div>
           </div>
           <div class="erp-card" *ngIf="teacher.libraryStaffRole">
-            <h4 class="erp-card-title mb-2">Library</h4>
-            <p class="text-muted small mb-0">Desk role: <strong>{{ teacher.libraryStaffRole }}</strong></p>
+            <h4 class="erp-card-title mb-2">{{ 'teachers.profile.library' | translate }}</h4>
+            <p class="text-muted small mb-0">{{ 'teachers.profile.libraryDesk' | translate }} <strong>{{ teacher.libraryStaffRole }}</strong></p>
           </div>
         </div>
       </div>
     </div>
     <div *ngIf="!teacher && loadError" class="erp-card empty-state">
-      <h3>Teacher not found</h3>
+      <h3>{{ 'teachers.profile.notFoundTitle' | translate }}</h3>
       <p>{{ loadError }}</p>
-      <a routerLink="/app/teachers" class="btn-outline-erp btn-sm">Back to list</a>
+      <a routerLink="/app/teachers" class="btn-outline-erp btn-sm">{{ 'teachers.profile.backToList' | translate }}</a>
     </div>
   `,
 })
-export class TeacherProfileComponent implements OnInit {
+export class TeacherProfileComponent implements OnInit, OnDestroy {
   teacher: Teacher | null = null;
   loadError = '';
   lifecycleBusy = false;
-  homeroomLines: string[] = [];
   classes: SchoolClass[] = [];
+  private langSub?: Subscription;
 
   constructor(
     private route: ActivatedRoute,
@@ -135,8 +132,29 @@ export class TeacherProfileComponent implements OnInit {
     private teacherService: TeacherService,
     private academicService: AcademicService,
     private auth: AuthService,
-    private confirmDialog: ConfirmDialogService
+    private confirmDialog: ConfirmDialogService,
+    private translate: TranslateService,
+    private cdr: ChangeDetectorRef
   ) {}
+
+  /** Homeroom class names (class teacher), localized; falls back to academic class list if API omitted names. */
+  homeroomFormatted(): string {
+    if (!this.teacher) return '';
+    const fromApi = this.teacher.homeroomClassNames ?? [];
+    const sep = this.translate.instant('teachers.list.homeroomSeparator');
+    if (fromApi.length) {
+      return fromApi.map(n => formatSchoolClassName(n, this.translate)).join(sep);
+    }
+    const names = (this.classes || []).filter(c => c.classTeacherId === this.teacher!.id).map(c => c.name);
+    if (!names.length) return '';
+    return names.map(n => formatSchoolClassName(n, this.translate)).join(sep);
+  }
+
+  statusLabel(status: string): string {
+    const key = 'teachers.enums.status.' + status;
+    const t = this.translate.instant(key);
+    return t !== key ? t : status;
+  }
 
   get isAdmin(): boolean {
     const r = (this.auth.getRole() || '').toLowerCase();
@@ -149,6 +167,7 @@ export class TeacherProfileComponent implements OnInit {
   }
 
   ngOnInit(): void {
+    this.langSub = this.translate.onLangChange.subscribe(() => this.cdr.markForCheck());
     this.route.paramMap.subscribe(pm => {
       const id = pm.get('id');
       if (!id) return;
@@ -165,30 +184,32 @@ export class TeacherProfileComponent implements OnInit {
     this.loadError = '';
     const nid = Number(id);
     if (!Number.isFinite(nid)) {
-      this.loadError = 'Invalid teacher id.';
+      this.loadError = this.translate.instant('teachers.profile.invalidId');
       return;
     }
     this.teacherService.getTeacherById(nid).subscribe({
       next: t => {
         this.teacher = t ?? null;
-        if (!this.teacher) this.loadError = 'No record for this id.';
+        if (!this.teacher) this.loadError = this.translate.instant('teachers.profile.noRecord');
         else this.refreshHomeroom();
       },
       error: () => {
         this.teacher = null;
-        this.loadError = 'Could not load teacher.';
+        this.loadError = this.translate.instant('teachers.profile.loadFailed');
       },
     });
   }
 
   private refreshHomeroom(): void {
     if (!this.teacher) return;
+    if (this.teacher.homeroomClassNames?.length) {
+      this.classes = [];
+      this.cdr.markForCheck();
+      return;
+    }
     this.academicService.getClasses().subscribe(list => {
       this.classes = list || [];
-      const tid = this.teacher!.id;
-      this.homeroomLines = (list || [])
-        .filter(c => c.classTeacherId === tid)
-        .map(c => `${c.name} (${c.sections?.length || 0} section(s))`);
+      this.cdr.markForCheck();
     });
   }
 
@@ -197,10 +218,10 @@ export class TeacherProfileComponent implements OnInit {
     const name = `${this.teacher.firstName} ${this.teacher.lastName}`;
     this.confirmDialog
       .confirm({
-        title: 'Deactivate teacher?',
-        message: `${name} will be removed from active teaching lists and homeroom assignments may be cleared in the backend.`,
+        title: this.translate.instant('teachers.profile.confirmDeactivate.title'),
+        message: this.translate.instant('teachers.profile.confirmDeactivate.message', { name }),
         variant: 'danger',
-        confirmLabel: 'Yes, deactivate',
+        confirmLabel: this.translate.instant('teachers.profile.confirmDeactivate.confirm'),
       })
       .pipe(filter(Boolean))
       .subscribe(() => {
@@ -213,5 +234,9 @@ export class TeacherProfileComponent implements OnInit {
           error: () => (this.lifecycleBusy = false),
         });
       });
+  }
+
+  ngOnDestroy(): void {
+    this.langSub?.unsubscribe();
   }
 }

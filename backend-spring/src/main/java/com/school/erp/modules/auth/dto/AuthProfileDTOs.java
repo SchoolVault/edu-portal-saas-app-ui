@@ -29,6 +29,7 @@ public class AuthProfileDTOs {
         private String role;
         private String tenantId;
         private String avatar;
+        private String interfaceLocale;
         private String schoolName;
         private String schoolCode;
         private String schoolEmail;
@@ -63,6 +64,8 @@ public class AuthProfileDTOs {
         public void setTenantId(String tenantId) { this.tenantId = tenantId; }
         public String getAvatar() { return avatar; }
         public void setAvatar(String avatar) { this.avatar = avatar; }
+        public String getInterfaceLocale() { return interfaceLocale; }
+        public void setInterfaceLocale(String interfaceLocale) { this.interfaceLocale = interfaceLocale; }
         public String getSchoolName() { return schoolName; }
         public void setSchoolName(String schoolName) { this.schoolName = schoolName; }
         public String getSchoolCode() { return schoolCode; }

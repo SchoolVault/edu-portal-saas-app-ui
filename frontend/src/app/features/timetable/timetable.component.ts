@@ -1,14 +1,16 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, ChangeDetectorRef, DestroyRef, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { AcademicService } from '../../core/services/academic.service';
 import { TeacherService } from '../../core/services/teacher.service';
 import { TimetableService } from '../../core/services/timetable.service';
 import { AuthService } from '../../core/services/auth.service';
 import { SchoolClass, Student, Teacher, TimetableEntry, TimetableGrid } from '../../core/models/models';
 import { ParentService } from '../../core/services/parent.service';
-import { StudentService } from '../../core/services/student.service';
 import { ErpDatePickerComponent } from '../../shared/erp-date-picker/erp-date-picker.component';
+import { TranslateModule, TranslateService } from '@ngx-translate/core';
+import { SchoolClassNamePipe } from '../../core/i18n/school-class-name.pipe';
 
 type TimetableEntryForm = Omit<Partial<TimetableEntry>, 'teacherId' | 'classId' | 'sectionId'> & {
   teacherId?: number | null;
@@ -19,35 +21,67 @@ type TimetableEntryForm = Omit<Partial<TimetableEntry>, 'teacherId' | 'classId' 
 @Component({
   selector: 'app-timetable',
   standalone: true,
-  imports: [CommonModule, FormsModule, ErpDatePickerComponent],
-  styles: [`
-    .timetable-slot-cell { background: var(--clr-bg); border-radius: var(--radius-md); padding: 8px; min-height: 72px; border: 1px solid var(--clr-border-light); }
-    .btn-group-erp .active-layout { background: var(--clr-primary); color: #fff; border-color: var(--clr-primary); }
-    .timetable-calendar td { vertical-align: top; }
-    .timetable-calendar-week .timetable-slot-cell { background: linear-gradient(145deg, var(--clr-surface-alt), var(--clr-bg)); min-height: 88px; }
-    .classic-wrap .timetable-slot-cell { box-shadow: 0 1px 2px rgba(0,0,0,0.04); }
-    .timetable-slot--cover { border-color: color-mix(in srgb, var(--clr-info) 35%, var(--clr-border-light)); background: color-mix(in srgb, var(--clr-info) 8%, var(--clr-bg)); }
-  `],
+  imports: [CommonModule, FormsModule, ErpDatePickerComponent, TranslateModule, SchoolClassNamePipe],
+  styles: [
+    `
+      .timetable-slot-cell {
+        background: var(--clr-bg);
+        border-radius: var(--radius-md);
+        padding: 8px;
+        min-height: 72px;
+        border: 1px solid var(--clr-border-light);
+      }
+      .btn-group-erp .active-layout {
+        background: var(--clr-primary);
+        color: #fff;
+        border-color: var(--clr-primary);
+      }
+      .timetable-calendar td {
+        vertical-align: top;
+      }
+      .timetable-calendar-week .timetable-slot-cell {
+        background: linear-gradient(145deg, var(--clr-surface-alt), var(--clr-bg));
+        min-height: 88px;
+      }
+      .classic-wrap .timetable-slot-cell {
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+      }
+      .timetable-slot--cover {
+        border-color: color-mix(in srgb, var(--clr-info) 35%, var(--clr-border-light));
+        background: color-mix(in srgb, var(--clr-info) 8%, var(--clr-bg));
+      }
+    `,
+  ],
   template: `
     <div data-testid="timetable-page">
       <div class="d-flex justify-content-between align-items-center mb-4 animate-in">
         <div>
-          <h2 style="font-size: 24px; font-weight: 800;">Timetable</h2>
-          <p class="text-muted mb-0" style="font-size: 13px;" *ngIf="!isParent">Manage class schedules, teachers, rooms, and period allocations</p>
-          <p class="text-muted mb-0" style="font-size: 13px;" *ngIf="isParent">View your children’s class timetable (read-only).</p>
+          <h2 style="font-size: 24px; font-weight: 800;">{{ 'timetable.pageTitle' | translate }}</h2>
+          <p class="text-muted mb-0" style="font-size: 13px;" *ngIf="!isParent">{{ 'timetable.leadAdmin' | translate }}</p>
+          <p class="text-muted mb-0" style="font-size: 13px;" *ngIf="isParent">{{ 'timetable.leadParent' | translate }}</p>
         </div>
         <div class="d-flex gap-2 flex-wrap align-items-center">
           <div class="btn-group-erp d-flex gap-1" *ngIf="isAdmin">
-            <button type="button" class="btn-outline-erp btn-sm" [class.active-layout]="scheduleScope === 'class'" (click)="setScheduleScope('class')">By class</button>
-            <button type="button" class="btn-outline-erp btn-sm" [class.active-layout]="scheduleScope === 'teacher'" (click)="setScheduleScope('teacher')">By teacher</button>
+            <button type="button" class="btn-outline-erp btn-sm" [class.active-layout]="scheduleScope === 'class'" (click)="setScheduleScope('class')">
+              {{ 'timetable.scopeClass' | translate }}
+            </button>
+            <button type="button" class="btn-outline-erp btn-sm" [class.active-layout]="scheduleScope === 'teacher'" (click)="setScheduleScope('teacher')">
+              {{ 'timetable.scopeTeacher' | translate }}
+            </button>
           </div>
           <div class="btn-group-erp d-flex gap-1">
-            <button type="button" class="btn-outline-erp btn-sm" [class.active-layout]="layout === 'dayRows'" (click)="layout = 'dayRows'">Classic grid</button>
-            <button type="button" class="btn-outline-erp btn-sm" [class.active-layout]="layout === 'periodRows'" (click)="layout = 'periodRows'">Week matrix</button>
+            <button type="button" class="btn-outline-erp btn-sm" [class.active-layout]="layout === 'dayRows'" (click)="layout = 'dayRows'">
+              {{ 'timetable.layoutClassic' | translate }}
+            </button>
+            <button type="button" class="btn-outline-erp btn-sm" [class.active-layout]="layout === 'periodRows'" (click)="layout = 'periodRows'">
+              {{ 'timetable.layoutWeek' | translate }}
+            </button>
           </div>
-          <button type="button" class="btn-outline-erp btn-sm" (click)="refreshTimetable()"><i class="bi bi-arrow-clockwise"></i> Refresh</button>
+          <button type="button" class="btn-outline-erp btn-sm" (click)="refreshTimetable()">
+            <i class="bi bi-arrow-clockwise"></i> {{ 'timetable.refresh' | translate }}
+          </button>
           <button *ngIf="canMutateTimetable" class="btn-primary-erp btn-sm" [disabled]="!canEditTimetable()" (click)="openCreateModal()">
-            <i class="bi bi-plus-lg"></i> Add Slot
+            <i class="bi bi-plus-lg"></i> {{ 'timetable.addSlot' | translate }}
           </button>
         </div>
       </div>
@@ -55,68 +89,73 @@ type TimetableEntryForm = Omit<Partial<TimetableEntry>, 'teacherId' | 'classId' 
       <div class="erp-card mb-4 animate-in" *ngIf="isParent">
         <div class="row g-3 align-items-end">
           <div class="col-md-6">
-            <label class="erp-label">Child</label>
+            <label class="erp-label">{{ 'timetable.labelChild' | translate }}</label>
             <select class="erp-select" [(ngModel)]="selectedChildId" (change)="onParentChildChange()">
-              <option [ngValue]="null">Select child</option>
-              <option *ngFor="let ch of myChildren" [ngValue]="ch.id">{{ ch.firstName }} {{ ch.lastName }} — {{ ch.className }} {{ ch.sectionName }}</option>
+              <option [ngValue]="null">{{ 'timetable.selectChild' | translate }}</option>
+              <option *ngFor="let ch of myChildren" [ngValue]="ch.id">
+                {{ ch.firstName }} {{ ch.lastName }} — {{ ch.className | schoolClassName }} {{ ch.sectionName }}
+              </option>
             </select>
           </div>
-          <p class="text-muted small col-12 mb-0">Timetable updates are done by a school administrator.</p>
+          <p class="text-muted small col-12 mb-0">{{ 'timetable.parentHint' | translate }}</p>
         </div>
       </div>
 
       <div class="erp-card mb-4 animate-in" *ngIf="!isParent">
         <div class="row g-3 align-items-end" *ngIf="scheduleScope === 'class'">
           <div class="col-md-3">
-            <label class="erp-label">Class</label>
+            <label class="erp-label">{{ 'timetable.labelClass' | translate }}</label>
             <select class="erp-select" [(ngModel)]="selectedClassId" (change)="onClassChange()">
-              <option [ngValue]="null">Select Class</option>
-              <option *ngFor="let cls of classes" [ngValue]="cls.id">{{ cls.name }}</option>
+              <option [ngValue]="null">{{ 'timetable.selectClass' | translate }}</option>
+              <option *ngFor="let cls of classes" [ngValue]="cls.id">{{ cls.name | schoolClassName }}</option>
             </select>
           </div>
           <div class="col-md-3" *ngIf="sections.length">
-            <label class="erp-label">Section</label>
+            <label class="erp-label">{{ 'timetable.labelSection' | translate }}</label>
             <select class="erp-select" [(ngModel)]="selectedSectionId" (change)="loadTimetable()">
-              <option [ngValue]="null">Select Section</option>
+              <option [ngValue]="null">{{ 'timetable.selectSection' | translate }}</option>
               <option *ngFor="let sec of sections" [ngValue]="sec.id">{{ sec.name }}</option>
             </select>
           </div>
         </div>
         <div class="row g-3 align-items-end" *ngIf="scheduleScope === 'teacher'">
           <div class="col-md-4">
-            <label class="erp-label">Teacher</label>
-            <select
-              class="erp-select"
-              [(ngModel)]="selectedTeacherId"
-              (change)="onTeacherChange()"
-              [disabled]="isTeacherViewer"
-            >
-              <option [ngValue]="null">Select teacher</option>
+            <label class="erp-label">{{ 'timetable.labelTeacher' | translate }}</label>
+            <select class="erp-select" [(ngModel)]="selectedTeacherId" (change)="onTeacherChange()" [disabled]="isTeacherViewer">
+              <option [ngValue]="null">{{ 'timetable.selectTeacher' | translate }}</option>
               <option *ngFor="let t of teachers" [ngValue]="t.id">{{ t.firstName }} {{ t.lastName }}</option>
             </select>
           </div>
           <div class="col-md-4">
-            <label class="erp-label">Session date</label>
+            <label class="erp-label">{{ 'timetable.labelSessionDate' | translate }}</label>
             <app-erp-date-picker
               [(ngModel)]="teacherViewDate"
               (ngModelChange)="onTeacherViewDateChange()"
-              placeholder="Date for cover merge"
+              [placeholder]="'timetable.datePlaceholderCover' | translate"
             />
           </div>
           <p class="text-muted small col-12 mb-0">
-            <ng-container *ngIf="isAdmin">Pick a date to include <strong>attendance cover</strong> classes for that day only (does not change the master timetable).</ng-container>
-            <ng-container *ngIf="isTeacherViewer">Your cover assignments for the selected date appear as <span class="badge-erp badge-info" style="font-size:10px;">Cover</span> slots.</ng-container>
-            <ng-container *ngIf="!isAdmin && !isTeacherViewer && !isParent">Teachers can view schedules; only an administrator can add or change slots.</ng-container>
+            <ng-container *ngIf="isAdmin">
+              {{ 'timetable.hintAdminCoverBefore' | translate }}<strong>{{ 'timetable.hintAdminCoverStrong' | translate }}</strong
+              >{{ 'timetable.hintAdminCoverAfter' | translate }}
+            </ng-container>
+            <ng-container *ngIf="isTeacherViewer">
+              {{ 'timetable.hintTeacherCoverBefore' | translate }}<span class="badge-erp badge-info" style="font-size: 10px;">{{
+                'timetable.coverBadge' | translate
+              }}</span
+              >{{ 'timetable.hintTeacherCoverAfter' | translate }}
+            </ng-container>
+            <ng-container *ngIf="!isAdmin && !isTeacherViewer && !isParent">{{ 'timetable.hintReadOnly' | translate }}</ng-container>
           </p>
         </div>
         <p *ngIf="scheduleScope === 'class' && selectedClassId && !sections.length" class="text-muted small mt-2 mb-0">
-          This class has no sections — the timetable applies to the entire class.
+          {{ 'timetable.noSectionsClass' | translate }}
         </p>
         <p *ngIf="scheduleScope === 'class' && selectedClassId && sections.length && !selectedSectionId" class="text-muted small mt-2 mb-0">
-          Select a section to load this class timetable.
+          {{ 'timetable.pickSection' | translate }}
         </p>
         <p *ngIf="scheduleScope === 'teacher' && isAdmin && selectedTeacherId" class="text-muted small mt-2 mb-0">
-          Showing all slots for this teacher across classes. Add slot picks class/section in the form.
+          {{ 'timetable.teacherGridHint' | translate }}
         </p>
       </div>
 
@@ -125,26 +164,30 @@ type TimetableEntryForm = Omit<Partial<TimetableEntry>, 'teacherId' | 'classId' 
           <table class="erp-table">
             <thead>
               <tr>
-                <th style="min-width: 120px;">Day / Period</th>
-                <th *ngFor="let period of grid?.periods" style="min-width: 180px;">Period {{ period }}</th>
+                <th style="min-width: 120px;">{{ 'timetable.gridDayPeriod' | translate }}</th>
+                <th *ngFor="let period of grid?.periods" style="min-width: 180px;">{{ 'timetable.gridPeriod' | translate: { n: period } }}</th>
               </tr>
             </thead>
             <tbody>
               <tr *ngFor="let day of grid?.days">
-                <td><strong>{{ day }}</strong></td>
+                <td>
+                  <strong>{{ weekdayLabel(day) }}</strong>
+                </td>
                 <td *ngFor="let period of grid?.periods">
                   <ng-container *ngIf="getEntry(day, period) as entry; else emptySlot">
                     <div class="timetable-slot-cell" [class.timetable-slot--cover]="isCoverRow(entry)">
                       <div class="d-flex align-items-center gap-1 flex-wrap mb-1">
-                        <span *ngIf="isCoverRow(entry)" class="badge-erp badge-info" style="font-size: 9px; text-transform: uppercase;">Cover</span>
+                        <span *ngIf="isCoverRow(entry)" class="badge-erp badge-info" style="font-size: 9px; text-transform: uppercase;">{{
+                          'timetable.coverBadge' | translate
+                        }}</span>
                         <span *ngIf="isCoverRow(entry) && entry.coverForDate" class="text-muted" style="font-size: 10px;">{{ entry.coverForDate }}</span>
                       </div>
                       <div style="font-weight: 700; color: var(--clr-text);">{{ entry.subjectName }}</div>
                       <div style="font-size: 12px; color: var(--clr-text-secondary);">{{ entry.teacherName }}</div>
                       <div style="font-size: 12px; color: var(--clr-text-muted);">{{ entry.startTime }} - {{ entry.endTime }} · {{ entry.room }}</div>
                       <div class="d-flex gap-2 mt-2" *ngIf="canMutateTimetable && !isCoverRow(entry)">
-                        <button class="btn-outline-erp btn-xs" (click)="openEditModal(entry)">Edit</button>
-                        <button class="btn-outline-erp btn-xs" (click)="deleteEntry(entry.id)">Delete</button>
+                        <button class="btn-outline-erp btn-xs" (click)="openEditModal(entry)">{{ 'timetable.edit' | translate }}</button>
+                        <button class="btn-outline-erp btn-xs" (click)="deleteEntry(entry.id)">{{ 'timetable.delete' | translate }}</button>
                       </div>
                     </div>
                   </ng-container>
@@ -160,34 +203,38 @@ type TimetableEntryForm = Omit<Partial<TimetableEntry>, 'teacherId' | 'classId' 
 
       <div class="erp-card mb-4 timetable-calendar-week animate-in" *ngIf="grid?.days?.length && layout === 'periodRows'">
         <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
-          <h4 class="erp-card-title mb-0" style="font-size: 15px;">Week matrix</h4>
-          <span class="text-muted small">Rows = periods · Columns = weekdays</span>
+          <h4 class="erp-card-title mb-0" style="font-size: 15px;">{{ 'timetable.weekMatrixTitle' | translate }}</h4>
+          <span class="text-muted small">{{ 'timetable.weekMatrixSubtitle' | translate }}</span>
         </div>
         <div style="overflow-x: auto;">
           <table class="erp-table timetable-calendar">
             <thead>
               <tr>
-                <th style="min-width: 88px;">Period</th>
-                <th *ngFor="let day of grid?.days" style="min-width: 160px;">{{ day }}</th>
+                <th style="min-width: 88px;">{{ 'timetable.thPeriod' | translate }}</th>
+                <th *ngFor="let day of grid?.days" style="min-width: 160px;">{{ weekdayLabel(day) }}</th>
               </tr>
             </thead>
             <tbody>
               <tr *ngFor="let period of grid?.periods">
-                <td><strong>P{{ period }}</strong></td>
+                <td>
+                  <strong>{{ 'timetable.gridPeriodShort' | translate: { n: period } }}</strong>
+                </td>
                 <td *ngFor="let day of grid?.days">
                   <ng-container *ngIf="getEntry(day, period) as entry; else emptyCal">
                     <div class="timetable-slot-cell" [class.timetable-slot--cover]="isCoverRow(entry)">
-                      <div *ngIf="isCoverRow(entry)" class="mb-1"><span class="badge-erp badge-info" style="font-size: 8px;">Cover</span></div>
+                      <div *ngIf="isCoverRow(entry)" class="mb-1">
+                        <span class="badge-erp badge-info" style="font-size: 8px;">{{ 'timetable.coverBadge' | translate }}</span>
+                      </div>
                       <div style="font-weight: 700; font-size: 13px;">{{ entry.subjectName }}</div>
                       <div style="font-size: 11px; color: var(--clr-text-secondary);">{{ entry.teacherName }}</div>
                       <div style="font-size: 10px; color: var(--clr-text-muted);">{{ entry.startTime }}-{{ entry.endTime }} · {{ entry.room }}</div>
                       <div class="d-flex gap-1 mt-1 flex-wrap" *ngIf="canMutateTimetable && !isCoverRow(entry)">
-                        <button class="btn-outline-erp btn-xs" (click)="openEditModal(entry)">Edit</button>
-                        <button class="btn-outline-erp btn-xs" (click)="deleteEntry(entry.id)">Del</button>
+                        <button class="btn-outline-erp btn-xs" (click)="openEditModal(entry)">{{ 'timetable.edit' | translate }}</button>
+                        <button class="btn-outline-erp btn-xs" (click)="deleteEntry(entry.id)">{{ 'timetable.deleteShort' | translate }}</button>
                       </div>
                     </div>
                   </ng-container>
-                  <ng-template #emptyCal><span class="text-muted" style="font-size: 11px;">—</span></ng-template>
+                  <ng-template #emptyCal><span class="text-muted" style="font-size: 11px;">{{ 'timetable.emptyCell' | translate }}</span></ng-template>
                 </td>
               </tr>
             </tbody>
@@ -203,15 +250,25 @@ type TimetableEntryForm = Omit<Partial<TimetableEntry>, 'teacherId' | 'classId' 
           [attr.aria-expanded]="showSlotList"
         >
           <span class="me-2"><i class="bi" [ngClass]="showSlotList ? 'bi-chevron-down' : 'bi-chevron-right'"></i></span>
-          <strong>Flat slot list</strong>
-          <span class="text-muted small ms-2">(optional — same data as the grid; useful for bulk review or export)</span>
+          <strong>{{ 'timetable.flatListTitle' | translate }}</strong>
+          <span class="text-muted small ms-2">{{ 'timetable.flatListHint' | translate }}</span>
         </button>
         <div *ngIf="showSlotList" class="mt-3">
           <table class="erp-table mb-0">
-            <thead><tr><th>Day</th><th>Period</th><th>Subject</th><th>Teacher</th><th>Time</th><th>Room</th><th *ngIf="canMutateTimetable">Actions</th></tr></thead>
+            <thead>
+              <tr>
+                <th>{{ 'timetable.thDay' | translate }}</th>
+                <th>{{ 'timetable.thPeriod' | translate }}</th>
+                <th>{{ 'timetable.thSubject' | translate }}</th>
+                <th>{{ 'timetable.thTeacher' | translate }}</th>
+                <th>{{ 'timetable.thTime' | translate }}</th>
+                <th>{{ 'timetable.thRoom' | translate }}</th>
+                <th *ngIf="canMutateTimetable">{{ 'timetable.thActions' | translate }}</th>
+              </tr>
+            </thead>
             <tbody>
               <tr *ngFor="let entry of entries">
-                <td>{{ entry.day }}</td>
+                <td>{{ weekdayLabel(entry.day) }}</td>
                 <td>{{ entry.period }}</td>
                 <td>{{ entry.subjectName }}</td>
                 <td>{{ entry.teacherName }}</td>
@@ -222,7 +279,7 @@ type TimetableEntryForm = Omit<Partial<TimetableEntry>, 'teacherId' | 'classId' 
                     <button type="button" class="btn-icon" (click)="openEditModal(entry)"><i class="bi bi-pencil"></i></button>
                     <button type="button" class="btn-icon" (click)="deleteEntry(entry.id)"><i class="bi bi-trash" style="color: var(--clr-danger);"></i></button>
                   </div>
-                  <span *ngIf="isCoverRow(entry)" class="text-muted small">Cover</span>
+                  <span *ngIf="isCoverRow(entry)" class="text-muted small">{{ 'timetable.coverRowLabel' | translate }}</span>
                 </td>
               </tr>
             </tbody>
@@ -234,70 +291,77 @@ type TimetableEntryForm = Omit<Partial<TimetableEntry>, 'teacherId' | 'classId' 
     <div class="modal-overlay" *ngIf="showModal" (click)="closeModal()">
       <div class="modal-content-erp" (click)="$event.stopPropagation()">
         <div class="modal-header-erp">
-          <h3>{{ editingEntryId != null ? 'Edit Slot' : 'Add Slot' }}</h3>
+          <h3>{{ (editingEntryId != null ? 'timetable.modalEdit' : 'timetable.modalAdd') | translate }}</h3>
           <button class="btn-icon" (click)="closeModal()"><i class="bi bi-x-lg"></i></button>
         </div>
         <div class="modal-body-erp">
           <div class="row g-3">
             <div class="col-md-6">
-              <label class="erp-label">Day</label>
+              <label class="erp-label">{{ 'timetable.labelDay' | translate }}</label>
               <select class="erp-select" [(ngModel)]="entryForm.day" [disabled]="editingEntryId != null">
-                <option *ngFor="let day of dayOptions" [value]="day">{{ day }}</option>
+                <option *ngFor="let day of dayOptions" [value]="day">{{ ('timetable.days.' + day.toLowerCase()) | translate }}</option>
               </select>
             </div>
             <div class="col-md-6">
-              <label class="erp-label">Period</label>
-              <input class="erp-input" type="number" [(ngModel)]="entryForm.period" [disabled]="editingEntryId != null">
+              <label class="erp-label">{{ 'timetable.labelPeriod' | translate }}</label>
+              <input class="erp-input" type="number" [(ngModel)]="entryForm.period" [disabled]="editingEntryId != null" />
             </div>
             <div class="col-md-6">
-              <label class="erp-label">Subject</label>
-              <input class="erp-input" [(ngModel)]="entryForm.subjectName">
+              <label class="erp-label">{{ 'timetable.labelSubject' | translate }}</label>
+              <input class="erp-input" [(ngModel)]="entryForm.subjectName" />
             </div>
             <div class="col-md-6">
-              <label class="erp-label">Teacher</label>
-              <select class="erp-select" [(ngModel)]="entryForm.teacherId" (change)="syncTeacherName()" [disabled]="scheduleScope === 'teacher' && selectedTeacherId != null && editingEntryId == null">
-                <option [ngValue]="null">Select Teacher</option>
+              <label class="erp-label">{{ 'timetable.labelTeacherForm' | translate }}</label>
+              <select
+                class="erp-select"
+                [(ngModel)]="entryForm.teacherId"
+                (change)="syncTeacherName()"
+                [disabled]="scheduleScope === 'teacher' && selectedTeacherId != null && editingEntryId == null"
+              >
+                <option [ngValue]="null">{{ 'timetable.selectTeacherForm' | translate }}</option>
                 <option *ngFor="let teacher of teachers" [ngValue]="teacher.id">{{ teacher.firstName }} {{ teacher.lastName }}</option>
               </select>
             </div>
             <ng-container *ngIf="scheduleScope === 'teacher'">
               <div class="col-md-6">
-                <label class="erp-label">Class</label>
+                <label class="erp-label">{{ 'timetable.labelClassForm' | translate }}</label>
                 <select class="erp-select" [(ngModel)]="entryForm.classId" (change)="onEntryFormClassChange()">
-                  <option *ngFor="let cls of classes" [ngValue]="cls.id">{{ cls.name }}</option>
+                  <option *ngFor="let cls of classes" [ngValue]="cls.id">{{ cls.name | schoolClassName }}</option>
                 </select>
               </div>
               <div class="col-md-6">
-                <label class="erp-label">Section</label>
+                <label class="erp-label">{{ 'timetable.labelSection' | translate }}</label>
                 <select class="erp-select" [(ngModel)]="entryForm.sectionId">
-                  <option [ngValue]="null">Whole class (no section)</option>
+                  <option [ngValue]="null">{{ 'timetable.sectionWholeClass' | translate }}</option>
                   <option *ngFor="let sec of entryFormSections" [ngValue]="sec.id">{{ sec.name }}</option>
                 </select>
               </div>
             </ng-container>
             <div class="col-md-6">
-              <label class="erp-label">Start Time</label>
-              <input class="erp-input" type="time" [(ngModel)]="entryForm.startTime">
+              <label class="erp-label">{{ 'timetable.labelStart' | translate }}</label>
+              <input class="erp-input" type="time" [(ngModel)]="entryForm.startTime" />
             </div>
             <div class="col-md-6">
-              <label class="erp-label">End Time</label>
-              <input class="erp-input" type="time" [(ngModel)]="entryForm.endTime">
+              <label class="erp-label">{{ 'timetable.labelEnd' | translate }}</label>
+              <input class="erp-input" type="time" [(ngModel)]="entryForm.endTime" />
             </div>
             <div class="col-md-12">
-              <label class="erp-label">Room</label>
-              <input class="erp-input" [(ngModel)]="entryForm.room">
+              <label class="erp-label">{{ 'timetable.labelRoom' | translate }}</label>
+              <input class="erp-input" [(ngModel)]="entryForm.room" />
             </div>
           </div>
         </div>
         <div class="modal-footer-erp">
-          <button class="btn-outline-erp" (click)="closeModal()">Cancel</button>
-          <button class="btn-primary-erp" (click)="saveEntry()">{{ editingEntryId != null ? 'Update' : 'Create' }}</button>
+          <button class="btn-outline-erp" (click)="closeModal()">{{ 'timetable.cancel' | translate }}</button>
+          <button class="btn-primary-erp" (click)="saveEntry()">{{ (editingEntryId != null ? 'timetable.update' : 'timetable.create') | translate }}</button>
         </div>
       </div>
     </div>
-  `
+  `,
 })
 export class TimetableComponent implements OnInit {
+  private readonly destroyRef = inject(DestroyRef);
+
   classes: SchoolClass[] = [];
   sections: { id: number; name: string }[] = [];
   teachers: Teacher[] = [];
@@ -307,30 +371,27 @@ export class TimetableComponent implements OnInit {
   scheduleScope: 'class' | 'teacher' = 'class';
   isAdmin = false;
   isParent = false;
-  /** Only school admins may create/update/delete slots (API enforces the same). */
   canMutateTimetable = false;
   myChildren: Student[] = [];
   selectedChildId: number | null = null;
   entries: TimetableEntry[] = [];
   grid: TimetableGrid | null = null;
   layout: 'dayRows' | 'periodRows' = 'dayRows';
-  /** Duplicate flat view of slots; collapsed by default to save vertical space. */
   showSlotList = false;
   showModal = false;
-  /** Set when editing an existing slot; null when creating. */
   editingEntryId: number | null = null;
   dayOptions = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
   entryForm: TimetableEntryForm = this.defaultEntryForm();
-  /** When viewing by teacher, merge attendance covers for this calendar date only. */
   teacherViewDate = new Date().toISOString().split('T')[0];
 
   constructor(
     private timetableService: TimetableService,
     private academicService: AcademicService,
     private teacherService: TeacherService,
-    private studentService: StudentService,
     private parentService: ParentService,
-    private auth: AuthService
+    private auth: AuthService,
+    private translate: TranslateService,
+    private cdr: ChangeDetectorRef
   ) {}
 
   get entryFormSections(): { id: number; name: string }[] {
@@ -340,6 +401,8 @@ export class TimetableComponent implements OnInit {
   }
 
   ngOnInit(): void {
+    this.translate.onLangChange.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => this.cdr.markForCheck());
+
     const r = (this.auth.getRole() ?? '').toLowerCase();
     this.isAdmin = r === 'admin' || r === 'super_admin';
     this.isParent = r === 'parent';
@@ -360,6 +423,14 @@ export class TimetableComponent implements OnInit {
     return (this.auth.getRole() ?? '').toLowerCase() === 'teacher';
   }
 
+  /** Localized weekday label; API values stay English — display only. */
+  weekdayLabel(day: string): string {
+    const d = this.normalizeDay(day).toLowerCase();
+    const key = `timetable.days.${d}`;
+    const tr = this.translate.instant(key);
+    return tr !== key ? tr : day;
+  }
+
   isCoverRow(entry: TimetableEntry): boolean {
     return entry.scheduleSource === 'COVER';
   }
@@ -377,7 +448,6 @@ export class TimetableComponent implements OnInit {
     });
   }
 
-  /** Minimal class/section rows derived from `/parent/children` (no `/academic/classes` — parents are not staff). */
   private buildParentSyntheticClasses(children: Student[]): SchoolClass[] {
     const byClass = new Map<
       number,
@@ -395,7 +465,7 @@ export class TimetableComponent implements OnInit {
           name: ch.sectionName?.trim() || `Section`,
           classId: cid,
           capacity: 0,
-          studentCount: 0
+          studentCount: 0,
         });
       }
     }
@@ -406,7 +476,7 @@ export class TimetableComponent implements OnInit {
         grade: 0,
         sections: [...v.sections.values()],
         academicYearId: 0,
-        tenantId
+        tenantId,
       }))
       .sort((a, b) => a.id - b.id);
   }
@@ -429,7 +499,6 @@ export class TimetableComponent implements OnInit {
     this.loadTimetable();
   }
 
-  /** Reload master data and current grid from the backend (same paths as mocks-off). */
   refreshTimetable(): void {
     if (this.isParent) {
       this.loadParentTimetableContext();
@@ -605,8 +674,7 @@ export class TimetableComponent implements OnInit {
       const cls = this.classes.find(c => c.id === classId);
       if (cls && cls.sections.length > 0) {
         const picked = this.entryForm.sectionId;
-        sectionId =
-          picked != null && picked !== 0 ? picked : cls.sections[0].id;
+        sectionId = picked != null && picked !== 0 ? picked : cls.sections[0].id;
       } else {
         sectionId = 0;
       }
@@ -624,12 +692,10 @@ export class TimetableComponent implements OnInit {
       teacherId,
       teacherName: this.entryForm.teacherName || '',
       room: this.entryForm.room || '',
-      tenantId: ''
+      tenantId: '',
     };
     const request$ =
-      this.editingEntryId != null
-        ? this.timetableService.updateEntry(this.editingEntryId, payload)
-        : this.timetableService.addEntry(payload);
+      this.editingEntryId != null ? this.timetableService.updateEntry(this.editingEntryId, payload) : this.timetableService.addEntry(payload);
     request$.subscribe(() => {
       this.closeModal();
       if (this.scheduleScope === 'class') {
@@ -664,7 +730,7 @@ export class TimetableComponent implements OnInit {
       teacherName: '',
       room: '',
       classId: null,
-      sectionId: null
+      sectionId: null,
     };
   }
 

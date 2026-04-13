@@ -824,9 +824,26 @@ img.table-avatar {
 .badge-danger { background: rgba(220,38,38,0.1); color: var(--clr-danger); }
 .badge-info { background: rgba(2,132,199,0.1); color: var(--clr-info); }
 .badge-neutral { background: var(--clr-hover); color: var(--clr-text-secondary); }
+/* Subject / catalog labels — aligns with --clr-primary chips (teachers, academic). */
+.badge-subject-pill {
+  background: color-mix(in srgb, var(--clr-primary) 10%, var(--clr-surface));
+  color: var(--clr-primary);
+  border: 1px solid color-mix(in srgb, var(--clr-primary) 24%, var(--clr-border));
+}
+[data-theme='dark'] .badge-subject-pill {
+  background: color-mix(in srgb, var(--clr-primary) 14%, var(--clr-surface));
+  border-color: color-mix(in srgb, var(--clr-primary) 30%, var(--clr-border));
+}
 
 /* === LOGIN PAGE === */
-.login-container { display: flex; min-height: 100vh; background: var(--clr-bg); }
+/* Explicit LTR flex so form stays left / hero right regardless of nested bidi content. */
+.login-container {
+  display: flex;
+  flex-direction: row;
+  direction: ltr;
+  min-height: 100vh;
+  background: var(--clr-bg);
+}
 
 .login-left {
   flex: 1;
@@ -836,7 +853,8 @@ img.table-avatar {
   padding: 40px;
 }
 
-.login-form-wrapper { width: 100%; max-width: 420px; }
+/* Same width on login + signup so the shared marketing band lays out identically. */
+.login-form-wrapper { width: 100%; max-width: min(100%, 520px); }
 
 .login-logo { display: flex; align-items: center; gap: 12px; margin-bottom: 40px; }
 .login-logo img { width: 44px; height: 44px; border-radius: var(--radius-md); }
@@ -853,11 +871,21 @@ img.table-avatar {
   background: linear-gradient(135deg, rgba(27,58,48,0.85) 0%, rgba(27,58,48,0.4) 100%);
   display: flex;
   align-items: flex-end;
-  padding: 48px;
+  justify-content: flex-start;
+  padding: clamp(28px, 4vw, 48px);
+  box-sizing: border-box;
 }
 
-.login-right-text h2 { color: white; font-size: 32px; margin-bottom: 12px; }
-.login-right-text p { color: rgba(255,255,255,0.8); font-size: 16px; line-height: 1.6; }
+/* Hero copy stays English (brand); isolate bidi so UI language does not mirror this block. */
+.login-right-text {
+  max-width: min(100%, 36rem);
+  text-align: left;
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
+.login-right-text h2 { color: white; font-size: clamp(22px, 2.5vw, 32px); margin: 0 0 12px; line-height: 1.2; }
+.login-right-text p { color: rgba(255,255,255,0.88); font-size: clamp(14px, 1.35vw, 16px); line-height: 1.6; margin: 0; }
 
 @media (min-width: 768px) { .login-right { display: block; } }
 
@@ -891,6 +919,167 @@ img.table-avatar {
 }
 
 .demo-credentials p { font-size: 12px; color: var(--clr-text-secondary); line-height: 1.8; margin: 0; }
+
+/* === AUTH MARKETING (login + signup): testimonials + contact — shared layout === */
+.auth-marketing-band {
+  margin-top: 28px;
+  padding-top: 22px;
+  border-top: 1px solid color-mix(in srgb, var(--clr-border) 85%, var(--clr-primary) 15%);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 20px;
+  align-items: start;
+}
+@media (min-width: 640px) {
+  .auth-marketing-band {
+    grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+    gap: 22px;
+    column-gap: 24px;
+  }
+}
+.auth-marketing-band > .auth-testimonials,
+.auth-marketing-band > .auth-contact-card {
+  min-width: 0;
+}
+.auth-testimonials {
+  margin: 0;
+  padding: 0;
+}
+.auth-marketing-kicker {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-weight: 700;
+  color: var(--clr-text-muted);
+  margin: 0 0 14px;
+}
+/* Pairs visually with left-column kicker; slightly stronger for CTA scan. */
+.auth-marketing-card-title {
+  margin: 0 0 10px;
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--clr-text-primary);
+}
+.auth-quote {
+  position: relative;
+  margin-bottom: 12px;
+  padding: 14px 14px 14px 16px;
+  border-radius: var(--radius-xl);
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--clr-surface-muted) 100%, transparent) 0%,
+    color-mix(in srgb, var(--clr-primary) 4%, var(--clr-surface)) 100%
+  );
+  border: 1px solid var(--clr-border-light);
+  box-shadow: var(--shadow-sm);
+}
+.auth-quote-compact { margin-bottom: 0; }
+.auth-quote-mark {
+  position: absolute;
+  left: 12px;
+  top: 10px;
+  font-size: 1.35rem;
+  line-height: 1;
+  font-family: Georgia, 'Times New Roman', serif;
+  color: color-mix(in srgb, var(--clr-primary) 40%, var(--clr-border-light));
+  opacity: 0.85;
+  pointer-events: none;
+}
+.auth-quote p {
+  margin: 0;
+  padding-left: 22px;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--clr-text-secondary);
+  font-weight: 500;
+}
+.auth-quote-meta {
+  margin-top: 10px;
+  padding-left: 22px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--clr-text-muted);
+  letter-spacing: 0.02em;
+}
+.auth-contact-card {
+  position: relative;
+  margin-top: 0;
+  padding: 18px 18px 18px 20px;
+  border-radius: var(--radius-xl);
+  border: 1px solid var(--clr-border-light);
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--clr-surface-muted) 100%, transparent) 0%,
+    color-mix(in srgb, var(--clr-primary) 4%, var(--clr-surface)) 100%
+  );
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+  align-self: start;
+}
+.auth-contact-accent {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  background: linear-gradient(
+    180deg,
+    var(--clr-primary) 0%,
+    color-mix(in srgb, var(--clr-accent) 85%, var(--clr-primary)) 100%
+  );
+}
+.auth-contact-lead {
+  margin: 0 0 14px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--clr-text-muted);
+  font-weight: 500;
+}
+.auth-contact-lead + .auth-contact-row {
+  margin-top: 0;
+}
+.auth-contact-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  margin-top: 10px;
+  color: var(--clr-text-secondary);
+}
+.auth-contact-row > a,
+.auth-contact-row > span:not(.auth-contact-icon) {
+  min-width: 0;
+  line-height: 1.45;
+  word-break: break-word;
+}
+.auth-contact-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--clr-primary) 10%, transparent);
+  color: var(--clr-primary);
+  flex-shrink: 0;
+}
+.auth-contact-row a {
+  color: var(--clr-text-primary);
+  font-weight: 700;
+  text-decoration: none;
+}
+.auth-contact-row a:hover {
+  color: var(--clr-accent);
+  text-decoration: underline;
+}
+
+.auth-page-footer-link {
+  margin-top: 20px;
+  font-size: 13px;
+  line-height: 1.5;
+}
 
 /* === PAGINATION === */
 .pagination-wrapper {

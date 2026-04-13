@@ -1,6 +1,7 @@
 import { ChangeDetectorRef, Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { SettingsService } from '../../core/services/settings.service';
 import { ThemeService } from '../../core/services/theme.service';
 import { AuthService } from '../../core/services/auth.service';
@@ -8,38 +9,69 @@ import { ParentService } from '../../core/services/parent.service';
 import { SchoolBranch, Student } from '../../core/models/models';
 import { runtimeConfig } from '../../core/config/runtime-config';
 import { ProfilePhotoPickerComponent, ProfilePhotoPickEvent } from '../../shared/profile-photo-picker/profile-photo-picker.component';
+import { UserLocaleService, type UiLanguage } from '../../core/i18n/user-locale.service';
 
 @Component({
   selector: 'app-settings',
   standalone: true,
-  imports: [CommonModule, FormsModule, ProfilePhotoPickerComponent],
+  imports: [CommonModule, FormsModule, TranslateModule, ProfilePhotoPickerComponent],
   template: `
     <div data-testid="settings-page">
       <div class="mb-4 animate-in d-flex flex-wrap justify-content-between align-items-start gap-2">
         <div>
-          <h2 style="font-size: 24px; font-weight: 800;">Settings</h2>
+          <h2 style="font-size: 24px; font-weight: 800;">{{ 'settings.pageTitle' | translate }}</h2>
           <p class="text-muted mb-0" style="font-size: 13px;">
-            <ng-container *ngIf="isTenantAdmin">School configuration and preferences.</ng-container>
-            <ng-container *ngIf="!isTenantAdmin">Your profile and read-only school information. Tenant changes are limited to school administrators.</ng-container>
+            <ng-container *ngIf="isTenantAdmin">{{ 'settings.leadAdmin' | translate }}</ng-container>
+            <ng-container *ngIf="!isTenantAdmin">{{ 'settings.leadUser' | translate }}</ng-container>
           </p>
         </div>
         <button type="button" class="btn-outline-erp btn-sm align-self-center" (click)="reloadSettings()" [disabled]="settingsRefreshing">
-          <i class="bi bi-arrow-clockwise"></i> {{ settingsRefreshing ? 'Refreshing…' : 'Refresh' }}
+          <i class="bi bi-arrow-clockwise"></i> {{ settingsRefreshing ? ('settings.refreshing' | translate) : ('settings.refresh' | translate) }}
         </button>
       </div>
       <div class="erp-tabs animate-in">
-        <button type="button" class="erp-tab" [class.active]="tab === 'general'" (click)="tab = 'general'">{{ isTenantAdmin ? 'General' : 'School' }}</button>
-        <button type="button" *ngIf="isTenantAdmin" class="erp-tab" [class.active]="tab === 'branding'" (click)="tab = 'branding'">Branding</button>
-        <button type="button" *ngIf="isTenantAdmin" class="erp-tab" [class.active]="tab === 'roles'" (click)="tab = 'roles'">Roles & Permissions</button>
-        <button type="button" *ngIf="isTenantAdmin" class="erp-tab" [class.active]="tab === 'features'" (click)="tab = 'features'">Feature Toggles</button>
-        <button type="button" class="erp-tab" [class.active]="tab === 'profile'" (click)="tab = 'profile'">Profile &amp; photo</button>
+        <button type="button" class="erp-tab" [class.active]="tab === 'general'" (click)="tab = 'general'">{{ isTenantAdmin ? ('settings.tabGeneralAdmin' | translate) : ('settings.tabGeneralUser' | translate) }}</button>
+        <button type="button" class="erp-tab" [class.active]="tab === 'preferences'" (click)="tab = 'preferences'">{{ 'prefs.tab' | translate }}</button>
+        <button type="button" *ngIf="isTenantAdmin" class="erp-tab" [class.active]="tab === 'branding'" (click)="tab = 'branding'">{{ 'settings.tabBranding' | translate }}</button>
+        <button type="button" *ngIf="isTenantAdmin" class="erp-tab" [class.active]="tab === 'roles'" (click)="tab = 'roles'">{{ 'settings.tabRoles' | translate }}</button>
+        <button type="button" *ngIf="isTenantAdmin" class="erp-tab" [class.active]="tab === 'features'" (click)="tab = 'features'">{{ 'settings.tabFeatures' | translate }}</button>
+        <button type="button" class="erp-tab" [class.active]="tab === 'profile'" (click)="tab = 'profile'">{{ 'settings.tabProfile' | translate }}</button>
+      </div>
+
+      <div *ngIf="tab === 'preferences'" class="erp-card animate-in settings-prefs-card">
+        <header class="settings-prefs-card__header">
+          <h3 class="settings-prefs-card__title">{{ 'prefs.heading' | translate }}</h3>
+          <p class="settings-prefs-card__lead">{{ 'prefs.lead' | translate }}</p>
+        </header>
+        <div class="settings-prefs-card__body">
+          <div class="erp-form-group">
+            <label class="erp-label" for="settings-ui-lang">{{ 'prefs.fieldLabel' | translate }}</label>
+            <select
+              id="settings-ui-lang"
+              class="erp-select settings-prefs-card__select"
+              name="prefsLang"
+              [(ngModel)]="prefsLang"
+              (ngModelChange)="onPrefsLangDraftChange()"
+              [attr.aria-label]="'prefs.fieldLabel' | translate">
+              <option *ngFor="let o of userLocale.supported" [value]="o.code">{{ o.nativeLabel }}</option>
+            </select>
+            <p class="text-muted small mb-0 mt-1">{{ 'prefs.fieldHelp' | translate }}</p>
+          </div>
+          <div class="d-flex flex-wrap align-items-center gap-2 mt-3">
+            <button type="button" class="btn-primary-erp" (click)="savePreferences()" [disabled]="prefsSaving">
+              {{ prefsSaving ? ('prefs.saving' | translate) : ('prefs.save' | translate) }}
+            </button>
+            <span *ngIf="prefsSaved" class="text-success small">{{ 'prefs.saved' | translate }}</span>
+            <span *ngIf="prefsErr" class="text-danger small">{{ prefsErr }}</span>
+          </div>
+        </div>
       </div>
 
       <div *ngIf="tab === 'profile'" class="erp-card animate-in settings-profile-root">
         <header class="settings-profile-root__header">
-          <h3 class="settings-profile-root__title">Profile &amp; photo</h3>
+          <h3 class="settings-profile-root__title">{{ 'settings.profileTitle' | translate }}</h3>
           <p class="settings-profile-root__lead">
-            Your portrait and account details — the same identity shown in the header and menus.
+            {{ 'settings.profileLead' | translate }}
           </p>
         </header>
 
@@ -49,14 +81,14 @@ import { ProfilePhotoPickerComponent, ProfilePhotoPickEvent } from '../../shared
             *ngIf="canEditOwnPhoto && profileUser as u"
             class="settings-profile-unified"
             [attr.data-role]="profileVisualRole"
-            aria-label="Your profile and photo"
+            [attr.aria-label]="'settings.ariaProfilePhoto' | translate"
           >
             <div class="settings-profile-hero">
               <div class="settings-profile-hero__visual">
                 <app-profile-photo-picker
                   [previewUrl]="profilePreviewUrl"
                   [initials]="profileInitials"
-                  [frameAriaLabel]="'Upload or change your profile photo'"
+                  [frameAriaLabel]="'settings.uploadPhotoAria' | translate"
                   size="hero"
                   layout="stacked"
                   statusMode="none"
@@ -74,11 +106,11 @@ import { ProfilePhotoPickerComponent, ProfilePhotoPickEvent } from '../../shared
                 </div>
                 <dl class="settings-profile-hero__meta">
                   <div class="settings-profile-hero__meta-row">
-                    <dt>School</dt>
-                    <dd>{{ schoolName || '—' }}</dd>
+                    <dt>{{ 'settings.labelSchool' | translate }}</dt>
+                    <dd>{{ schoolName || ('exams.dash' | translate) }}</dd>
                   </div>
                   <div class="settings-profile-hero__meta-row" *ngIf="schoolCode">
-                    <dt>Code</dt>
+                    <dt>{{ 'settings.labelCode' | translate }}</dt>
                     <dd><code class="settings-profile-code">{{ schoolCode }}</code></dd>
                   </div>
                 </dl>
@@ -92,7 +124,7 @@ import { ProfilePhotoPickerComponent, ProfilePhotoPickEvent } from '../../shared
             *ngIf="!canEditOwnPhoto && isParentOnlyChildren && profileUser as u"
             class="settings-profile-unified"
             [attr.data-role]="profileVisualRole"
-            aria-label="Your account"
+            [attr.aria-label]="'settings.ariaAccount' | translate"
           >
             <div class="settings-profile-hero settings-profile-hero--readonly">
               <div class="settings-profile-hero__visual">
@@ -114,16 +146,16 @@ import { ProfilePhotoPickerComponent, ProfilePhotoPickEvent } from '../../shared
                 </div>
                 <dl class="settings-profile-hero__meta">
                   <div class="settings-profile-hero__meta-row">
-                    <dt>School</dt>
-                    <dd>{{ schoolName || '—' }}</dd>
+                    <dt>{{ 'settings.labelSchool' | translate }}</dt>
+                    <dd>{{ schoolName || ('exams.dash' | translate) }}</dd>
                   </div>
                   <div class="settings-profile-hero__meta-row" *ngIf="schoolCode">
-                    <dt>Code</dt>
+                    <dt>{{ 'settings.labelCode' | translate }}</dt>
                     <dd><code class="settings-profile-code">{{ schoolCode }}</code></dd>
                   </div>
                 </dl>
                 <p class="settings-profile-footnote mb-0" *ngIf="myChildren.length">
-                  <i class="bi bi-people me-1"></i>{{ myChildren.length }} linked {{ myChildren.length === 1 ? 'child' : 'children' }}
+                  <i class="bi bi-people me-1"></i>{{ myChildren.length === 1 ? ('settings.linkedChildrenOne' | translate: { n: myChildren.length }) : ('settings.linkedChildrenMany' | translate: { n: myChildren.length }) }}
                 </p>
               </div>
             </div>
@@ -131,7 +163,7 @@ import { ProfilePhotoPickerComponent, ProfilePhotoPickEvent } from '../../shared
 
           <!-- Roles without self-serve photo: identity + directory policy -->
           <ng-container *ngIf="!canEditOwnPhoto && !isParentOnlyChildren && profileUser as u">
-            <section class="settings-profile-unified" [attr.data-role]="profileVisualRole" aria-label="Your profile">
+            <section class="settings-profile-unified" [attr.data-role]="profileVisualRole" [attr.aria-label]="'settings.ariaProfileReadonly' | translate">
               <div class="settings-profile-hero settings-profile-hero--readonly">
                 <div class="settings-profile-hero__visual">
                   <div *ngIf="!profilePreviewUrl" class="settings-profile-hero__avatar-fallback" aria-hidden="true">{{ profileInitials }}</div>
@@ -152,11 +184,11 @@ import { ProfilePhotoPickerComponent, ProfilePhotoPickEvent } from '../../shared
                   </div>
                   <dl class="settings-profile-hero__meta">
                     <div class="settings-profile-hero__meta-row">
-                      <dt>School</dt>
-                      <dd>{{ schoolName || '—' }}</dd>
+                      <dt>{{ 'settings.labelSchool' | translate }}</dt>
+                      <dd>{{ schoolName || ('exams.dash' | translate) }}</dd>
                     </div>
                     <div class="settings-profile-hero__meta-row" *ngIf="schoolCode">
-                      <dt>Code</dt>
+                      <dt>{{ 'settings.labelCode' | translate }}</dt>
                       <dd><code class="settings-profile-code">{{ schoolCode }}</code></dd>
                     </div>
                   </dl>
@@ -166,13 +198,13 @@ import { ProfilePhotoPickerComponent, ProfilePhotoPickEvent } from '../../shared
             <section class="settings-profile-panel settings-profile-panel--note settings-profile-follow" aria-labelledby="settings-profile-dir-h">
               <div class="settings-profile-panel__head" id="settings-profile-dir-h">
                 <span class="settings-profile-panel__icon"><i class="bi bi-info-circle"></i></span>
-                <span class="settings-profile-panel__head-text">Directory photo</span>
+                <span class="settings-profile-panel__head-text">{{ 'settings.directoryPhotoHeading' | translate }}</span>
               </div>
               <div class="settings-profile-panel__body">
-                <p class="settings-profile-hint mb-2">Your portrait is managed by school staff — not edited on this screen.</p>
+                <p class="settings-profile-hint mb-2">{{ 'settings.photoHintManaged' | translate }}</p>
                 <ul class="settings-profile-bullets">
-                  <li>Admins and class teachers update official photos where your role allows.</li>
-                  <li>Contact the office if you need a change.</li>
+                  <li>{{ 'settings.directoryPhotoBullet1' | translate }}</li>
+                  <li>{{ 'settings.directoryPhotoBullet2' | translate }}</li>
                 </ul>
               </div>
             </section>
@@ -186,84 +218,84 @@ import { ProfilePhotoPickerComponent, ProfilePhotoPickEvent } from '../../shared
           >
             <div class="settings-profile-panel__head" id="settings-profile-child-h">
               <span class="settings-profile-panel__icon"><i class="bi bi-person-hearts"></i></span>
-              <span class="settings-profile-panel__head-text">Linked children</span>
+              <span class="settings-profile-panel__head-text">{{ 'settings.linkedChildrenHeading' | translate }}</span>
             </div>
             <div class="settings-profile-panel__body">
-              <p class="settings-profile-hint">Pick a child to see their class, section, and homeroom teacher from the school roster. Optional photo below is only for your parent portal view — not the official record.</p>
-              <label class="erp-label d-block mb-2">Child</label>
+              <p class="settings-profile-hint">{{ 'settings.linkedChildrenHintLong' | translate }}</p>
+              <label class="erp-label d-block mb-2">{{ 'settings.labelChildSelect' | translate }}</label>
               <select class="erp-select mb-3" [(ngModel)]="childPhotoTargetId" (ngModelChange)="syncChildPhotoPreview()">
-                <option [ngValue]="null">Select child</option>
+                <option [ngValue]="null">{{ 'settings.selectChildOption' | translate }}</option>
                 <option *ngFor="let s of myChildren" [ngValue]="s.id">{{ s.firstName }} {{ s.lastName }}</option>
               </select>
 
               <div *ngIf="selectedChildForProfile as ch" class="settings-child-school-card mb-4">
-                <div class="settings-child-school-card__title">School record (read-only)</div>
+                <div class="settings-child-school-card__title">{{ 'settings.schoolRecordTitle' | translate }}</div>
                 <dl class="settings-child-school-card__grid">
-                  <div><dt>Class &amp; section</dt><dd>{{ ch.className }} · Section {{ ch.sectionName }}</dd></div>
-                  <div><dt>Roll / admission</dt><dd>{{ ch.rollNumber }} · {{ ch.admissionNumber }}</dd></div>
-                  <div><dt>Admission date</dt><dd>{{ ch.admissionDate || '—' }}</dd></div>
-                  <div><dt>Status</dt><dd class="text-capitalize">{{ ch.status }}</dd></div>
-                  <div><dt>Homeroom teacher</dt><dd>{{ ch.homeroomTeacherName || '—' }}</dd></div>
-                  <div><dt>School email</dt><dd>{{ ch.email || '—' }}</dd></div>
+                  <div><dt>{{ 'settings.dtClassSection' | translate }}</dt><dd>{{ ch.className }} · {{ 'settings.sectionLabel' | translate: { name: ch.sectionName } }}</dd></div>
+                  <div><dt>{{ 'settings.dtRollAdmission' | translate }}</dt><dd>{{ ch.rollNumber }} · {{ ch.admissionNumber }}</dd></div>
+                  <div><dt>{{ 'settings.dtAdmissionDate' | translate }}</dt><dd>{{ ch.admissionDate || ('exams.dash' | translate) }}</dd></div>
+                  <div><dt>{{ 'settings.dtStatus' | translate }}</dt><dd class="text-capitalize">{{ ch.status }}</dd></div>
+                  <div><dt>{{ 'settings.dtHomeroomTeacher' | translate }}</dt><dd>{{ ch.homeroomTeacherName || ('exams.dash' | translate) }}</dd></div>
+                  <div><dt>{{ 'settings.labelSchoolEmail' | translate }}</dt><dd>{{ ch.email || ('exams.dash' | translate) }}</dd></div>
                 </dl>
               </div>
 
-              <p *ngIf="!childPhotoTargetId" class="settings-profile-placeholder mb-3">Select a child to view their school details.</p>
+              <p *ngIf="!childPhotoTargetId" class="settings-profile-placeholder mb-3">{{ 'settings.selectChildForDetails' | translate }}</p>
 
               <div *ngIf="childPhotoTargetId" class="settings-child-photo-block">
-                <label class="erp-label d-block mb-2">Optional portal photo</label>
-                <p class="settings-profile-hint small mb-2">Only shown to you in the app until the school enables cloud photos.</p>
+                <label class="erp-label d-block mb-2">{{ 'settings.optionalPortalPhoto' | translate }}</label>
+                <p class="settings-profile-hint small mb-2">{{ 'settings.optionalPortalPhotoHint' | translate }}</p>
                 <app-profile-photo-picker
                   [previewUrl]="childPhotoPreview"
                   [initials]="childPhotoInitials"
-                  [frameAriaLabel]="'Optional child photo for parent portal'"
+                  [frameAriaLabel]="'settings.frameAriaOptionalChildPhoto' | translate"
                   size="comfortable"
                   statusMode="minimal"
                   (photoPicked)="onChildPhotoPicked($event)"
                   (photoRemoved)="onChildPhotoRemoved()"
                 />
               </div>
-              <p class="settings-profile-footnote settings-profile-footnote--below mb-0">Official directory photos are updated by staff under Students or Teachers.</p>
+              <p class="settings-profile-footnote settings-profile-footnote--below mb-0">{{ 'settings.directoryPhotosUpdatedByStaff' | translate }}</p>
             </div>
           </section>
         </div>
       </div>
 
       <div *ngIf="tab === 'general'" class="erp-card animate-in">
-        <h4 style="font-size: 15px; font-weight: 700; margin-bottom: 20px;">School Information</h4>
+        <h4 style="font-size: 15px; font-weight: 700; margin-bottom: 20px;">{{ 'settings.schoolInfoTitle' | translate }}</h4>
         <ng-container *ngIf="isTenantAdmin">
           <div class="row g-3">
-            <div class="col-md-6"><div class="erp-form-group"><label class="erp-label">School Name</label><input type="text" class="erp-input" [(ngModel)]="schoolName" data-testid="school-name-input"></div></div>
-            <div class="col-md-6"><div class="erp-form-group"><label class="erp-label">School Code</label><input type="text" class="erp-input" [(ngModel)]="schoolCode" disabled title="Used to link branches in multi-campus setups"></div></div>
-            <div class="col-md-6"><div class="erp-form-group"><label class="erp-label">Email</label><input type="email" class="erp-input" [(ngModel)]="schoolEmail"></div></div>
-            <div class="col-md-6"><div class="erp-form-group"><label class="erp-label">Phone</label><input type="text" class="erp-input" [(ngModel)]="schoolPhone"></div></div>
-            <div class="col-12"><div class="erp-form-group"><label class="erp-label">Address</label><textarea class="erp-input erp-textarea" [(ngModel)]="schoolAddress" style="min-height: 80px;"></textarea></div></div>
+            <div class="col-md-6"><div class="erp-form-group"><label class="erp-label">{{ 'settings.labelSchoolName' | translate }}</label><input type="text" class="erp-input" [(ngModel)]="schoolName" data-testid="school-name-input"></div></div>
+            <div class="col-md-6"><div class="erp-form-group"><label class="erp-label">{{ 'settings.labelSchoolCode' | translate }}</label><input type="text" class="erp-input" [(ngModel)]="schoolCode" disabled [title]="'settings.schoolCodeTitle' | translate"></div></div>
+            <div class="col-md-6"><div class="erp-form-group"><label class="erp-label">{{ 'settings.labelEmail' | translate }}</label><input type="email" class="erp-input" [(ngModel)]="schoolEmail"></div></div>
+            <div class="col-md-6"><div class="erp-form-group"><label class="erp-label">{{ 'settings.labelPhone' | translate }}</label><input type="text" class="erp-input" [(ngModel)]="schoolPhone"></div></div>
+            <div class="col-12"><div class="erp-form-group"><label class="erp-label">{{ 'settings.labelAddress' | translate }}</label><textarea class="erp-input erp-textarea" [(ngModel)]="schoolAddress" style="min-height: 80px;"></textarea></div></div>
           </div>
           <div class="d-flex justify-content-end align-items-center flex-wrap gap-2 mt-3">
             <span *ngIf="generalSaveMsg" class="text-success small">{{ generalSaveMsg }}</span>
             <span *ngIf="generalSaveError" class="text-danger small">{{ generalSaveError }}</span>
-            <button class="btn-primary-erp" data-testid="save-settings-btn" type="button" (click)="saveGeneral()" [disabled]="saving">{{ saving ? 'Saving…' : 'Save changes' }}</button>
+            <button class="btn-primary-erp" data-testid="save-settings-btn" type="button" (click)="saveGeneral()" [disabled]="saving">{{ saving ? ('settings.savingEllipsis' | translate) : ('settings.saveChanges' | translate) }}</button>
           </div>
         </ng-container>
         <ng-container *ngIf="!isTenantAdmin">
-          <p class="text-muted small mb-3">Contact your school office if any detail needs updating.</p>
+          <p class="text-muted small mb-3">{{ 'settings.contactOfficeForUpdates' | translate }}</p>
           <dl class="settings-readonly-grid row g-3 mb-0">
-            <div class="col-md-6"><dt class="erp-label">School Name</dt><dd class="settings-ro-value">{{ schoolName }}</dd></div>
-            <div class="col-md-6"><dt class="erp-label">School Code</dt><dd class="settings-ro-value"><code class="settings-profile-code">{{ schoolCode }}</code></dd></div>
-            <div class="col-md-6"><dt class="erp-label">Email</dt><dd class="settings-ro-value">{{ schoolEmail || '—' }}</dd></div>
-            <div class="col-md-6"><dt class="erp-label">Phone</dt><dd class="settings-ro-value">{{ schoolPhone || '—' }}</dd></div>
-            <div class="col-12"><dt class="erp-label">Address</dt><dd class="settings-ro-value" style="white-space: pre-wrap;">{{ schoolAddress || '—' }}</dd></div>
+            <div class="col-md-6"><dt class="erp-label">{{ 'settings.labelSchoolName' | translate }}</dt><dd class="settings-ro-value">{{ schoolName }}</dd></div>
+            <div class="col-md-6"><dt class="erp-label">{{ 'settings.labelSchoolCode' | translate }}</dt><dd class="settings-ro-value"><code class="settings-profile-code">{{ schoolCode }}</code></dd></div>
+            <div class="col-md-6"><dt class="erp-label">{{ 'settings.labelEmail' | translate }}</dt><dd class="settings-ro-value">{{ schoolEmail || ('exams.dash' | translate) }}</dd></div>
+            <div class="col-md-6"><dt class="erp-label">{{ 'settings.labelPhone' | translate }}</dt><dd class="settings-ro-value">{{ schoolPhone || ('exams.dash' | translate) }}</dd></div>
+            <div class="col-12"><dt class="erp-label">{{ 'settings.labelAddress' | translate }}</dt><dd class="settings-ro-value" style="white-space: pre-wrap;">{{ schoolAddress || ('exams.dash' | translate) }}</dd></div>
           </dl>
         </ng-container>
 
         <div *ngIf="isTenantAdmin" class="mt-4 pt-4" style="border-top: 1px solid var(--clr-border-light);">
           <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
             <div>
-              <h4 style="font-size: 15px; font-weight: 700; margin-bottom: 4px;">Branches &amp; campuses</h4>
-              <p class="text-muted small mb-0">Schools that share your school code appear here (read-only directory). Each branch logs in as its own tenant.</p>
+              <h4 style="font-size: 15px; font-weight: 700; margin-bottom: 4px;">{{ 'settings.branchesHeading' | translate }}</h4>
+              <p class="text-muted small mb-0">{{ 'settings.branchesLead' | translate }}</p>
             </div>
             <button type="button" class="btn-outline-erp btn-sm" (click)="loadBranches()" [disabled]="branchesLoading">
-              {{ branchesLoading ? 'Loading…' : 'Fetch branches' }}
+              {{ branchesLoading ? ('settings.loadingEllipsis' | translate) : ('settings.fetchBranches' | translate) }}
             </button>
           </div>
           <div *ngIf="branchesError" class="alert alert-danger py-2 small">{{ branchesError }}</div>
@@ -272,7 +304,7 @@ import { ProfilePhotoPickerComponent, ProfilePhotoPickEvent } from '../../shared
               <div class="p-3 rounded-3 h-100" style="border: 1px solid var(--clr-border); background: var(--clr-surface-muted);">
                 <div class="d-flex justify-content-between align-items-start gap-2 mb-2">
                   <strong style="font-size: 14px;">{{ br.schoolName }}</strong>
-                  <span *ngIf="br.currentTenant" class="badge-erp badge-success">You are here</span>
+                  <span *ngIf="br.currentTenant" class="badge-erp badge-success">{{ 'settings.youAreHere' | translate }}</span>
                 </div>
                 <div class="small text-muted mb-1"><i class="bi bi-hash me-1"></i>{{ br.schoolCode }}</div>
                 <div class="small mb-1" *ngIf="br.address"><i class="bi bi-geo-alt me-1 text-muted"></i>{{ br.address }}</div>
@@ -281,15 +313,15 @@ import { ProfilePhotoPickerComponent, ProfilePhotoPickEvent } from '../../shared
               </div>
             </div>
           </div>
-          <p *ngIf="!branches.length && !branchesLoading && branchesFetched" class="text-muted small mb-0">No other branches returned for this code.</p>
+          <p *ngIf="!branches.length && !branchesLoading && branchesFetched" class="text-muted small mb-0">{{ 'settings.noOtherBranches' | translate }}</p>
         </div>
       </div>
 
       <div *ngIf="tab === 'branding'" class="erp-card animate-in">
-        <h4 style="font-size: 15px; font-weight: 700; margin-bottom: 20px;">Theme & Branding</h4>
+        <h4 style="font-size: 15px; font-weight: 700; margin-bottom: 20px;">{{ 'settings.themeBrandingHeading' | translate }}</h4>
         <div class="row g-3">
           <div class="col-md-6">
-            <div class="erp-form-group"><label class="erp-label">Primary Color</label>
+            <div class="erp-form-group"><label class="erp-label">{{ 'settings.labelPrimaryColor' | translate }}</label>
               <div class="d-flex gap-2 align-items-center">
                 <input type="color" [(ngModel)]="primaryColor" style="width: 50px; height: 40px; border: 1px solid var(--clr-border); border-radius: var(--radius-md); cursor: pointer;">
                 <input type="text" class="erp-input" [(ngModel)]="primaryColor" style="flex: 1;">
@@ -297,7 +329,7 @@ import { ProfilePhotoPickerComponent, ProfilePhotoPickEvent } from '../../shared
             </div>
           </div>
           <div class="col-md-6">
-            <div class="erp-form-group"><label class="erp-label">Accent Color</label>
+            <div class="erp-form-group"><label class="erp-label">{{ 'settings.labelAccentColor' | translate }}</label>
               <div class="d-flex gap-2 align-items-center">
                 <input type="color" [(ngModel)]="accentColor" style="width: 50px; height: 40px; border: 1px solid var(--clr-border); border-radius: var(--radius-md); cursor: pointer;">
                 <input type="text" class="erp-input" [(ngModel)]="accentColor" style="flex: 1;">
@@ -306,31 +338,31 @@ import { ProfilePhotoPickerComponent, ProfilePhotoPickEvent } from '../../shared
           </div>
         </div>
         <div class="d-flex justify-content-end mt-3 gap-2 flex-wrap">
-          <button type="button" class="btn-outline-erp" (click)="resetBranding()">Reset to default colours</button>
-          <button type="button" class="btn-primary-erp" (click)="applyBranding()">Apply branding (UI)</button>
+          <button type="button" class="btn-outline-erp" (click)="resetBranding()">{{ 'settings.resetBranding' | translate }}</button>
+          <button type="button" class="btn-primary-erp" (click)="applyBranding()">{{ 'settings.applyBranding' | translate }}</button>
         </div>
-        <p class="text-muted small mt-2 mb-0">Persists primary/accent to this browser and updates CSS variables. With API, also saves to tenant settings (school admin only).</p>
+        <p class="text-muted small mt-2 mb-0">{{ 'settings.brandingPersistNote' | translate }}</p>
       </div>
 
       <div *ngIf="tab === 'roles'" class="erp-card animate-in">
-        <h4 style="font-size: 15px; font-weight: 700; margin-bottom: 20px;">Roles & Permissions</h4>
+        <h4 style="font-size: 15px; font-weight: 700; margin-bottom: 20px;">{{ 'settings.rolesHeading' | translate }}</h4>
         <table class="erp-table">
-          <thead><tr><th>Role</th><th>Description</th><th>Users</th><th>Status</th></tr></thead>
+          <thead><tr><th>{{ 'settings.thRole' | translate }}</th><th>{{ 'settings.thDescription' | translate }}</th><th>{{ 'settings.thUsers' | translate }}</th><th>{{ 'settings.thStatus' | translate }}</th></tr></thead>
           <tbody>
-            <tr><td><strong>Admin</strong></td><td>Full system access</td><td>1</td><td><span class="badge-erp badge-success">Active</span></td></tr>
-            <tr><td><strong>Teacher</strong></td><td>Academics, attendance, grades</td><td>8</td><td><span class="badge-erp badge-success">Active</span></td></tr>
-            <tr><td><strong>Parent</strong></td><td>View child info, fees, communication</td><td>12</td><td><span class="badge-erp badge-success">Active</span></td></tr>
+            <tr><td><strong>{{ 'settings.roleAdminLabel' | translate }}</strong></td><td>{{ 'settings.roleAdminDesc' | translate }}</td><td>1</td><td><span class="badge-erp badge-success">{{ 'settings.statusActive' | translate }}</span></td></tr>
+            <tr><td><strong>{{ 'settings.roleTeacherLabel' | translate }}</strong></td><td>{{ 'settings.roleTeacherDesc' | translate }}</td><td>8</td><td><span class="badge-erp badge-success">{{ 'settings.statusActive' | translate }}</span></td></tr>
+            <tr><td><strong>{{ 'settings.roleParentLabel' | translate }}</strong></td><td>{{ 'settings.roleParentDesc' | translate }}</td><td>12</td><td><span class="badge-erp badge-success">{{ 'settings.statusActive' | translate }}</span></td></tr>
           </tbody>
         </table>
       </div>
 
       <div *ngIf="tab === 'features'" class="erp-card animate-in">
-        <h4 style="font-size: 15px; font-weight: 700; margin-bottom: 20px;">Feature Toggles</h4>
-        <p style="font-size: 13px; color: var(--clr-text-muted); margin-bottom: 12px;">Turn modules on or off for your school. Use <strong>Save feature toggles</strong> so changes apply on the server (or local mock store).</p>
+        <h4 style="font-size: 15px; font-weight: 700; margin-bottom: 20px;">{{ 'settings.featureTogglesHeading' | translate }}</h4>
+        <p class="text-muted small mb-3" style="font-size: 13px;" [innerHTML]="'settings.featureTogglesLeadHtml' | translate"></p>
         <div *ngFor="let feat of features" class="d-flex justify-content-between align-items-center py-3" style="border-bottom: 1px solid var(--clr-border-light);">
           <div>
-            <div style="font-weight: 600;">{{ feat.name }}</div>
-            <div style="font-size: 12px; color: var(--clr-text-muted);">{{ feat.description }}</div>
+            <div style="font-weight: 600;">{{ featureToggleName(feat) }}</div>
+            <div style="font-size: 12px; color: var(--clr-text-muted);">{{ featureToggleDescription(feat) }}</div>
           </div>
           <label style="position: relative; display: inline-block; width: 48px; height: 26px; cursor: pointer;">
             <input type="checkbox" [(ngModel)]="feat.enabled" style="opacity: 0; width: 0; height: 0;">
@@ -340,7 +372,7 @@ import { ProfilePhotoPickerComponent, ProfilePhotoPickEvent } from '../../shared
           </label>
         </div>
         <div class="d-flex flex-wrap gap-2 align-items-center mt-3 pt-2" style="border-top: 1px solid var(--clr-border-light);">
-          <button type="button" class="btn-primary-erp" (click)="saveFeatureFlags()" [disabled]="featureFlagsSaving">{{ featureFlagsSaving ? 'Saving…' : 'Save feature toggles' }}</button>
+          <button type="button" class="btn-primary-erp" (click)="saveFeatureFlags()" [disabled]="featureFlagsSaving">{{ featureFlagsSaving ? ('settings.savingEllipsis' | translate) : ('settings.saveFeatureToggles' | translate) }}</button>
           <span *ngIf="featureFlagsMsg" class="text-success small">{{ featureFlagsMsg }}</span>
           <span *ngIf="featureFlagsErr" class="text-danger small">{{ featureFlagsErr }}</span>
         </div>
@@ -663,6 +695,32 @@ import { ProfilePhotoPickerComponent, ProfilePhotoPickEvent } from '../../shared
         font-weight: 500;
         line-height: 1.45;
       }
+      .settings-prefs-card__header {
+        margin-bottom: 1rem;
+        padding-bottom: 0.85rem;
+        border-bottom: 1px solid var(--clr-border-light, #e8eef0);
+      }
+      .settings-prefs-card__title {
+        font-size: 1.125rem;
+        font-weight: 800;
+        margin: 0 0 0.4rem;
+        color: var(--clr-text-primary, #0f172a);
+        letter-spacing: -0.02em;
+      }
+      .settings-prefs-card__lead {
+        margin: 0;
+        font-size: 13px;
+        font-weight: 500;
+        color: var(--clr-text-secondary, #475569);
+        line-height: 1.55;
+      }
+      .settings-prefs-card__body {
+        max-width: 28rem;
+      }
+      .settings-prefs-card__select {
+        max-width: 16rem;
+        font-weight: 600;
+      }
     `,
   ],
 })
@@ -695,22 +753,22 @@ export class SettingsComponent implements OnInit {
   featureFlagsMsg = '';
   featureFlagsErr = '';
 
-  features: Array<{ name: string; description: string; enabled: boolean; persistKey?: string }> = [
-    {
-      name: 'Automated fee reminders',
-      description:
-        'When a fee is recorded for a student, parents get one notice; then reminders in the last 10 days before due (every 3 days) and every 3 days after due, weekdays 9:00–18:00 only. Stops when the fee is fully paid.',
-      enabled: false,
-      persistKey: 'feeReminderAutomation',
-    },
-    { name: 'Transport Module', description: 'Manage school transport routes and vehicles', enabled: true, persistKey: 'transport' },
-    { name: 'Library Module', description: 'Book catalog and circulation management', enabled: true, persistKey: 'library' },
-    { name: 'Hostel Module', description: 'Hostel room allocation and management', enabled: true, persistKey: 'hostel' },
-    { name: 'Payroll Module', description: 'Teacher salary and payslip management', enabled: true, persistKey: 'payroll' },
-    { name: 'Document Management', description: 'Upload and manage school documents', enabled: true, persistKey: 'documents' },
-    { name: 'Audit Trail', description: 'Track all system actions and changes', enabled: true, persistKey: 'audit' },
-    { name: 'SMS Notifications', description: 'Send SMS alerts to parents', enabled: false, persistKey: 'smsNotifications' },
-    { name: 'Online Payments', description: 'Accept fee payments online', enabled: false, persistKey: 'onlinePayments' },
+  prefsLang: UiLanguage = 'en';
+  prefsSaving = false;
+  prefsSaved = false;
+  prefsErr = '';
+
+  /** Feature toggles: labels come from `settings.features.<persistKey>.{name,description}` for i18n. */
+  features: Array<{ enabled: boolean; persistKey: string }> = [
+    { enabled: false, persistKey: 'feeReminderAutomation' },
+    { enabled: true, persistKey: 'transport' },
+    { enabled: true, persistKey: 'library' },
+    { enabled: true, persistKey: 'hostel' },
+    { enabled: true, persistKey: 'payroll' },
+    { enabled: true, persistKey: 'documents' },
+    { enabled: true, persistKey: 'audit' },
+    { enabled: false, persistKey: 'smsNotifications' },
+    { enabled: false, persistKey: 'onlinePayments' },
   ];
 
   constructor(
@@ -718,7 +776,9 @@ export class SettingsComponent implements OnInit {
     private themeService: ThemeService,
     private auth: AuthService,
     private parentService: ParentService,
-    private cdr: ChangeDetectorRef
+    private cdr: ChangeDetectorRef,
+    readonly userLocale: UserLocaleService,
+    private translate: TranslateService
   ) {}
 
   /** School tenant administrator — only this role may change tenant config, branding, roles, and feature toggles. */
@@ -761,29 +821,73 @@ export class SettingsComponent implements OnInit {
 
   get roleDisplayLabel(): string {
     const r = (this.auth.getRole() || '').toLowerCase();
-    const map: Record<string, string> = {
-      admin: 'Administrator',
-      super_admin: 'Super administrator',
-      teacher: 'Teacher',
-      parent: 'Parent',
-      student: 'Student',
-      library_staff: 'Library staff',
-    };
-    return map[r] || (r ? r.replace(/_/g, ' ') : 'User');
+    const key =
+      r === 'super_admin'
+        ? 'header.role.superAdmin'
+        : r === 'library_staff'
+          ? 'header.role.libraryStaff'
+          : r === 'admin'
+            ? 'header.role.admin'
+            : r === 'teacher'
+              ? 'header.role.teacher'
+              : r === 'parent'
+                ? 'header.role.parent'
+                : r === 'student'
+                  ? 'header.role.student'
+                  : '';
+    if (key) {
+      const t = this.translate.instant(key);
+      if (t !== key) return t;
+    }
+    return r ? r.replace(/_/g, ' ') : this.translate.instant('header.role.user');
   }
 
   get photoHintLine(): string {
-    return runtimeConfig.useMocks
-      ? 'Shown in the header and menus. Saved on this browser only until your school connects cloud photos.'
-      : 'Shown in the header and menus. Stored with your account when you save; full media sync may follow.';
+    return this.translate.instant(runtimeConfig.useMocks ? 'settings.photoHintMock' : 'settings.photoHintLive');
+  }
+
+  featureToggleName(feat: { persistKey: string }): string {
+    return this.translate.instant(`settings.features.${feat.persistKey}.name`);
+  }
+
+  featureToggleDescription(feat: { persistKey: string }): string {
+    return this.translate.instant(`settings.features.${feat.persistKey}.description`);
   }
 
   ngOnInit(): void {
     if (!this.isTenantAdmin) {
       this.tab = 'profile';
     }
+    this.prefsLang = this.userLocale.readStored();
+    const u = this.auth.getCurrentUser();
+    if (u?.interfaceLocale === 'hi' || u?.interfaceLocale === 'en') {
+      this.prefsLang = u.interfaceLocale === 'hi' ? 'hi' : 'en';
+    }
     this.refreshProfilePreview();
     this.reloadSettings();
+  }
+
+  onPrefsLangDraftChange(): void {
+    this.prefsSaved = false;
+    this.prefsErr = '';
+  }
+
+  savePreferences(): void {
+    this.prefsSaving = true;
+    this.prefsSaved = false;
+    this.prefsErr = '';
+    this.auth.updateInterfacePreferences(this.prefsLang).subscribe({
+      next: () => {
+        this.prefsSaving = false;
+        this.prefsSaved = true;
+        this.cdr.markForCheck();
+      },
+      error: () => {
+        this.prefsSaving = false;
+        this.prefsErr = this.translate.instant('prefs.saveFailed');
+        this.cdr.markForCheck();
+      },
+    });
   }
 
   private applyFeatureFlagsFromServer(): void {
@@ -823,21 +927,21 @@ export class SettingsComponent implements OnInit {
         this.settingsService.updateFeatures(merged).subscribe({
           next: () => {
             this.featureFlagsSaving = false;
-            this.featureFlagsMsg = runtimeConfig.useMocks
-              ? 'Saved locally (mock). Same keys sync to PUT /settings/features when mocks are off.'
-              : 'Feature toggles saved.';
+            this.featureFlagsMsg = this.translate.instant(
+              runtimeConfig.useMocks ? 'settings.featureFlagsSavedMock' : 'settings.featureFlagsSaved'
+            );
             this.cdr.markForCheck();
           },
           error: () => {
             this.featureFlagsSaving = false;
-            this.featureFlagsErr = 'Could not save feature toggles.';
+            this.featureFlagsErr = this.translate.instant('settings.featureFlagsSaveErr');
             this.cdr.markForCheck();
           },
         });
       },
       error: () => {
         this.featureFlagsSaving = false;
-        this.featureFlagsErr = 'Could not load current flags.';
+        this.featureFlagsErr = this.translate.instant('settings.featureFlagsLoadErr');
         this.cdr.markForCheck();
       },
     });

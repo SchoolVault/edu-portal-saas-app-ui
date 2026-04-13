@@ -1,6 +1,8 @@
 package com.school.erp.security;
 
+import com.school.erp.common.idempotency.IdempotencyFilter;
 import com.school.erp.config.AppSecurityProperties;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
@@ -31,6 +33,7 @@ import java.util.List;
 public class SecurityConfig {
     private final JwtAuthenticationFilter jwtFilter;
     private final AppSecurityProperties appSecurityProperties;
+    private final ObjectProvider<IdempotencyFilter> idempotencyFilter;
 
     @Value("${app.cors.allowed-origins}")
     private String allowedOrigins;
@@ -41,11 +44,15 @@ public class SecurityConfig {
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
-        return http.csrf(AbstractHttpConfigurer::disable)
+        http.csrf(AbstractHttpConfigurer::disable)
                 .cors(cors -> cors.configurationSource(corsConfigSource()))
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> {
-                    auth.requestMatchers("/api/v1/auth/**").permitAll();
+                    // Public auth surface only — profile, preferences, register (admin), etc. require JWT.
+                    auth.requestMatchers(HttpMethod.POST, "/api/v1/auth/login").permitAll();
+                    auth.requestMatchers(HttpMethod.POST, "/api/v1/auth/onboard-tenant").permitAll();
+                    auth.requestMatchers(HttpMethod.POST, "/api/v1/auth/refresh-token").permitAll();
+                    auth.requestMatchers(HttpMethod.POST, "/api/v1/auth/logout").permitAll();
                     auth.requestMatchers("/api/v1/fees/webhooks/**").permitAll();
                     if (appSecurityProperties.isPermitSwaggerAnonymous()) {
                         auth.requestMatchers("/swagger-ui/**", "/swagger-ui.html", "/api-docs/**", "/v3/api-docs/**").permitAll();
@@ -65,8 +72,9 @@ public class SecurityConfig {
                     auth.requestMatchers(HttpMethod.OPTIONS, "/**").permitAll();
                     auth.anyRequest().authenticated();
                 })
-                .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class)
-                .build();
+                .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
+        idempotencyFilter.ifAvailable(f -> http.addFilterAfter(f, JwtAuthenticationFilter.class));
+        return http.build();
     }
 
     @Bean
@@ -81,6 +89,7 @@ public class SecurityConfig {
         }
         config.setAllowCredentials(true);
         config.setMaxAge(3600L);
+        config.setExposedHeaders(List.of("X-Request-Id", "X-Correlation-Id"));
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", config);
         return source;
@@ -96,8 +105,12 @@ public class SecurityConfig {
         return config.getAuthenticationManager();
     }
 
-    public SecurityConfig(final JwtAuthenticationFilter jwtFilter, final AppSecurityProperties appSecurityProperties) {
+    public SecurityConfig(
+            final JwtAuthenticationFilter jwtFilter,
+            final AppSecurityProperties appSecurityProperties,
+            ObjectProvider<IdempotencyFilter> idempotencyFilter) {
         this.jwtFilter = jwtFilter;
         this.appSecurityProperties = appSecurityProperties;
+        this.idempotencyFilter = idempotencyFilter;
     }
 }

@@ -11,9 +11,12 @@ import com.school.erp.modules.academic.entity.SchoolClass;
 import com.school.erp.modules.academic.entity.Section;
 import com.school.erp.modules.academic.repository.SchoolClassRepository;
 import com.school.erp.modules.academic.repository.SectionRepository;
+import com.school.erp.events.domain.StudentAdmittedEvent;
+import com.school.erp.events.domain.StudentEnrollmentChangedEvent;
 import com.school.erp.modules.student.dto.StudentDTOs;
 import com.school.erp.modules.student.entity.Student;
 import com.school.erp.modules.student.repository.StudentRepository;
+import com.school.erp.platform.port.DomainEventPublisher;
 import com.school.erp.tenant.TenantContext;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -22,6 +25,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -38,6 +42,7 @@ public class StudentService {
     private final SchoolClassRepository schoolClassRepository;
     private final SectionRepository sectionRepository;
     private final TeacherRosterScopeService teacherRosterScopeService;
+    private final DomainEventPublisher domainEventPublisher;
 
     @Transactional(readOnly = true)
     public PageResponse<StudentDTOs.Response> getStudents(int page, int size, Long classId, Enums.StudentStatus status, String search, String sortBy, String direction) {
@@ -138,6 +143,13 @@ public class StudentService {
         student.setCreatedBy(TenantContext.getUserId() != null ? TenantContext.getUserId().toString() : null);
         studentRepository.save(student);
         log.info("Student created: {} {} [{}]", student.getFirstName(), student.getLastName(), student.getAdmissionNumber());
+        domainEventPublisher.publish(new StudentAdmittedEvent(
+                tenantId,
+                student.getId(),
+                student.getClassId(),
+                student.getSectionId(),
+                student.getAdmissionNumber(),
+                Instant.now()));
         return toResponse(student);
     }
 
@@ -145,6 +157,8 @@ public class StudentService {
     public StudentDTOs.Response updateStudent(Long id, StudentDTOs.UpdateRequest request) {
         log.info("Updating student id={}", id);
         Student student = studentRepository.findByIdAndTenantIdAndIsDeletedFalse(id, TenantContext.getTenantId()).orElseThrow(() -> new ResourceNotFoundException("Student", id));
+        Long priorClassId = student.getClassId();
+        Long priorSectionId = student.getSectionId();
         if (request.getFirstName() != null) student.setFirstName(request.getFirstName());
         if (request.getLastName() != null) student.setLastName(request.getLastName());
         if (request.getEmail() != null) student.setEmail(request.getEmail());
@@ -161,6 +175,18 @@ public class StudentService {
         if (request.getStatus() != null) student.setStatus(request.getStatus());
         student.setUpdatedBy(TenantContext.getUserId() != null ? TenantContext.getUserId().toString() : null);
         studentRepository.save(student);
+        boolean classChanged = request.getClassId() != null && !java.util.Objects.equals(priorClassId, student.getClassId());
+        boolean sectionChanged = request.getSectionId() != null && !java.util.Objects.equals(priorSectionId, student.getSectionId());
+        if (classChanged || sectionChanged) {
+            domainEventPublisher.publish(new StudentEnrollmentChangedEvent(
+                    TenantContext.getTenantId(),
+                    student.getId(),
+                    priorClassId,
+                    student.getClassId(),
+                    priorSectionId,
+                    student.getSectionId(),
+                    Instant.now()));
+        }
         log.info("Student updated id={}", id);
         return toResponse(student);
     }
@@ -348,11 +374,13 @@ public class StudentService {
     public StudentService(final StudentRepository studentRepository,
                           final SchoolClassRepository schoolClassRepository,
                           final SectionRepository sectionRepository,
-                          final TeacherRosterScopeService teacherRosterScopeService) {
+                          final TeacherRosterScopeService teacherRosterScopeService,
+                          final DomainEventPublisher domainEventPublisher) {
         this.studentRepository = studentRepository;
         this.schoolClassRepository = schoolClassRepository;
         this.sectionRepository = sectionRepository;
         this.teacherRosterScopeService = teacherRosterScopeService;
+        this.domainEventPublisher = domainEventPublisher;
     }
 
     private String required(Map<String, String> row, String key) {

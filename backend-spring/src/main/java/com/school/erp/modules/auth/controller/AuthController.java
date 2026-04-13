@@ -4,6 +4,7 @@ import com.school.erp.common.dto.ApiResponse;
 import com.school.erp.modules.auth.dto.AuthDTOs;
 import com.school.erp.modules.auth.dto.AuthManagementDTOs;
 import com.school.erp.modules.auth.dto.AuthProfileDTOs;
+import com.school.erp.modules.auth.dto.UserPreferencesRequest;
 import com.school.erp.modules.auth.service.AuthService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -53,6 +54,12 @@ public class AuthController {
     @Operation(summary = "Update profile (name, phone, avatar)")
     public ResponseEntity<ApiResponse<AuthDTOs.UserProfile>> updateProfile(@Valid @RequestBody AuthDTOs.UpdateProfileRequest request) {
         return ResponseEntity.ok(ApiResponse.ok(authService.updateProfile(request), "Profile updated"));
+    }
+
+    @PutMapping("/preferences")
+    @Operation(summary = "Update user preferences", description = "Interface language and future per-user settings. Persists to the user row.")
+    public ResponseEntity<ApiResponse<AuthDTOs.UserProfile>> updatePreferences(@Valid @RequestBody UserPreferencesRequest request) {
+        return ResponseEntity.ok(ApiResponse.ok(authService.updatePreferences(request), "Preferences saved"));
     }
 
     @PostMapping("/change-password")

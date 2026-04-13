@@ -1,13 +1,14 @@
 import { Component, Input, Output, EventEmitter, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
+import { TranslateModule } from '@ngx-translate/core';
 import { AuthService } from '../../core/services/auth.service';
 import { NAV_ITEMS, NavItem } from '../../core/config/app-constants';
 
 @Component({
   selector: 'app-sidebar',
   standalone: true,
-  imports: [CommonModule, RouterModule],
+  imports: [CommonModule, RouterModule, TranslateModule],
   template: `
     <aside class="sidebar" [class.collapsed]="collapsed" [class.mobile-open]="mobileOpen" data-testid="sidebar-nav">
       <div class="sidebar-brand">
@@ -15,23 +16,23 @@ import { NAV_ITEMS, NavItem } from '../../core/config/app-constants';
         <h2>SchoolVault</h2>
       </div>
       <nav class="sidebar-nav">
-        <ng-container *ngFor="let section of sections">
-          <div class="sidebar-section-label">{{ section }}</div>
-          <a *ngFor="let item of getItemsBySection(section)"
+        <ng-container *ngFor="let sectionKey of sectionKeys">
+          <div class="sidebar-section-label">{{ sectionKey | translate }}</div>
+          <a *ngFor="let item of getItemsBySection(sectionKey)"
              [routerLink]="item.route"
              routerLinkActive="active"
              class="nav-item"
              (click)="navigateRequest.emit()"
              [attr.data-testid]="'sidebar-nav-' + item.route.split('/').pop()">
             <i class="bi" [ngClass]="item.icon"></i>
-            <span class="nav-label">{{ item.label }}</span>
+            <span class="nav-label">{{ item.labelKey | translate }}</span>
           </a>
         </ng-container>
       </nav>
       <div style="padding: 12px 8px; border-top: 1px solid var(--clr-border); flex-shrink: 0;">
         <div class="nav-item" style="color: var(--clr-text-muted); font-size: 11px;" *ngIf="!collapsed">
           <i class="bi bi-shield-lock"></i>
-          <span class="nav-label">Multi-Tenant SaaS ERP</span>
+          <span class="nav-label">{{ 'nav.footerTagline' | translate }}</span>
         </div>
       </div>
     </aside>
@@ -45,18 +46,18 @@ export class SidebarComponent implements OnInit {
   @Output() navigateRequest = new EventEmitter<void>();
 
   filteredItems: NavItem[] = [];
-  sections: string[] = [];
+  sectionKeys: string[] = [];
 
   constructor(private authService: AuthService) {}
 
   ngOnInit(): void {
     const role = this.authService.getNormalizedRole();
     this.filteredItems = NAV_ITEMS.filter(item => role && item.roles.includes(role));
-    const sectionSet = new Set(this.filteredItems.map(i => i.section || 'General'));
-    this.sections = Array.from(sectionSet);
+    const sectionSet = new Set(this.filteredItems.map(i => i.sectionKey));
+    this.sectionKeys = Array.from(sectionSet);
   }
 
-  getItemsBySection(section: string): NavItem[] {
-    return this.filteredItems.filter(i => (i.section || 'General') === section);
+  getItemsBySection(sectionKey: string): NavItem[] {
+    return this.filteredItems.filter(i => i.sectionKey === sectionKey);
   }
 }

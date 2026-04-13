@@ -1,10 +1,12 @@
+import { HttpErrorResponse } from '@angular/common/http';
 import { Injectable } from '@angular/core';
-import { Observable, of } from 'rxjs';
+import { Observable, of, throwError } from 'rxjs';
 import { delay, map } from 'rxjs/operators';
 import { ApiService } from './api.service';
 import { runtimeConfig } from '../config/runtime-config';
 import { AuthService } from './auth.service';
 import { MOCK_LEAVE_REQUESTS_SEED, MOCK_LEAVE_SEQ_START } from '../mocks/leave.mock-data';
+import { LEAVE_OTHER_REASON_MIN_LEN, normalizeLeaveRequestRow } from '../leave/leave-api.contract';
 
 export type LeaveDayUnit = 'FULL_DAY' | 'FIRST_HALF' | 'SECOND_HALF';
 
@@ -34,7 +36,7 @@ export interface LeaveBalanceSummary {
 }
 
 let MOCK_SEQ = MOCK_LEAVE_SEQ_START;
-let MOCK_REQUESTS: LeaveRequestRow[] = MOCK_LEAVE_REQUESTS_SEED.map(r => ({ ...r }));
+let MOCK_REQUESTS: LeaveRequestRow[] = MOCK_LEAVE_REQUESTS_SEED.map(r => normalizeLeaveRequestRow({ ...r }));
 
 @Injectable({ providedIn: 'root' })
 export class LeaveService {
@@ -64,12 +66,29 @@ export class LeaveService {
     dayUnit?: LeaveDayUnit;
   }): Observable<LeaveRequestRow> {
     if (!runtimeConfig.useMocks) {
-      return this.api.post<LeaveRequestRow>('/leave/requests', {
-        ...body,
-        dayUnit: body.dayUnit ?? 'FULL_DAY'
-      });
+      return this.api
+        .post<LeaveRequestRow>('/leave/requests', {
+          ...body,
+          dayUnit: body.dayUnit ?? 'FULL_DAY'
+        })
+        .pipe(map(normalizeLeaveRequestRow));
     }
-    const row: LeaveRequestRow = {
+    if (body.leaveType === 'OTHER' && (body.reason?.trim().length ?? 0) < LEAVE_OTHER_REASON_MIN_LEN) {
+      return throwError(
+        () =>
+          new HttpErrorResponse({
+            status: 400,
+            statusText: 'Bad Request',
+            url: '/leave/requests',
+            error: {
+              success: false,
+              message: 'LEAVE_OTHER_REASON_REQUIRED',
+              errorCode: 'LEAVE_OTHER_REASON_REQUIRED',
+            },
+          })
+      ).pipe(delay(200));
+    }
+    const row: LeaveRequestRow = normalizeLeaveRequestRow({
       id: ++MOCK_SEQ,
       applicantUserId: this.mockUserNumId(),
       applicantRole: this.mockRoleUpper(),
@@ -81,29 +100,31 @@ export class LeaveService {
       dayUnit: body.dayUnit ?? 'FULL_DAY',
       studentId: body.studentId,
       teacherId: body.teacherId
-    };
+    });
     MOCK_REQUESTS = [row, ...MOCK_REQUESTS];
     return of(row).pipe(delay(400));
   }
 
   listMine(): Observable<LeaveRequestRow[]> {
     if (!runtimeConfig.useMocks) {
-      return this.api.get<LeaveRequestRow[]>('/leave/requests/mine');
+      return this.api.get<LeaveRequestRow[]>('/leave/requests/mine').pipe(map(rows => (rows || []).map(normalizeLeaveRequestRow)));
     }
     const uid = this.mockUserNumId();
-    return of(MOCK_REQUESTS.filter(r => r.applicantUserId === uid)).pipe(delay(200));
+    return of(MOCK_REQUESTS.filter(r => r.applicantUserId === uid).map(normalizeLeaveRequestRow)).pipe(delay(200));
   }
 
   listAll(): Observable<LeaveRequestRow[]> {
     if (!runtimeConfig.useMocks) {
-      return this.api.get<LeaveRequestRow[]>('/leave/requests');
+      return this.api.get<LeaveRequestRow[]>('/leave/requests').pipe(map(rows => (rows || []).map(normalizeLeaveRequestRow)));
     }
-    return of([...MOCK_REQUESTS]).pipe(delay(200));
+    return of([...MOCK_REQUESTS].map(normalizeLeaveRequestRow)).pipe(delay(200));
   }
 
   decide(id: number, approve: boolean, approverRemarks?: string): Observable<LeaveRequestRow> {
     if (!runtimeConfig.useMocks) {
-      return this.api.put<LeaveRequestRow>(`/leave/requests/${id}/decision`, { approve, approverRemarks });
+      return this.api
+        .put<LeaveRequestRow>(`/leave/requests/${id}/decision`, { approve, approverRemarks })
+        .pipe(map(normalizeLeaveRequestRow));
     }
     const row = MOCK_REQUESTS.find(r => r.id === id);
     if (row) {
@@ -111,7 +132,7 @@ export class LeaveService {
       row.approverRemarks = approverRemarks ?? null;
       row.approverUserId = this.mockUserNumId();
     }
-    return of(row ?? ({} as LeaveRequestRow)).pipe(delay(300));
+    return of(row ? normalizeLeaveRequestRow(row) : ({} as LeaveRequestRow)).pipe(delay(300));
   }
 
   getBalance(): Observable<LeaveBalanceSummary> {

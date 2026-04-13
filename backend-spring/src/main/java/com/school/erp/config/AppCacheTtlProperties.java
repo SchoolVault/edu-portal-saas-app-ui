@@ -15,6 +15,10 @@ public class AppCacheTtlProperties {
     private Duration transportRoutes = Duration.ofMinutes(15);
     private Duration announcementPreviews = Duration.ofSeconds(90);
     private Duration payrollStructures = Duration.ofMinutes(10);
+    private Duration referenceData = Duration.ofHours(1);
+    private Duration permissions = Duration.ofMinutes(15);
+    private Duration tenantConfig = Duration.ofMinutes(10);
+    private Duration reportResults = Duration.ofMinutes(5);
 
     public Duration getDefaultTtl() {
         return defaultTtl;
@@ -46,5 +50,37 @@ public class AppCacheTtlProperties {
 
     public void setPayrollStructures(Duration payrollStructures) {
         this.payrollStructures = payrollStructures;
+    }
+
+    public Duration getReferenceData() {
+        return referenceData;
+    }
+
+    public void setReferenceData(Duration referenceData) {
+        this.referenceData = referenceData;
+    }
+
+    public Duration getPermissions() {
+        return permissions;
+    }
+
+    public void setPermissions(Duration permissions) {
+        this.permissions = permissions;
+    }
+
+    public Duration getTenantConfig() {
+        return tenantConfig;
+    }
+
+    public void setTenantConfig(Duration tenantConfig) {
+        this.tenantConfig = tenantConfig;
+    }
+
+    public Duration getReportResults() {
+        return reportResults;
+    }
+
+    public void setReportResults(Duration reportResults) {
+        this.reportResults = reportResults;
     }
 }

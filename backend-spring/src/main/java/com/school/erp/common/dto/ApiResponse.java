@@ -11,6 +11,10 @@ public class ApiResponse<T> {
     private T data;
     private LocalDateTime timestamp;
     private List<String> errors;
+    /** Stable machine-readable code for clients (i18n, support); null on success responses. */
+    private String errorCode;
+    /** Same id as {@code X-Request-Id} / MDC {@code traceId} for support correlation. */
+    private String traceId;
 
     public static <T> ApiResponse<T> ok(T data) {
         return ApiResponse.<T>builder().success(true).message("Success").data(data).timestamp(LocalDateTime.now()).build();
@@ -32,6 +36,14 @@ public class ApiResponse<T> {
         return ApiResponse.<T>builder().success(false).message(message).errors(errors).timestamp(LocalDateTime.now()).build();
     }
 
+    public static <T> ApiResponse<T> error(String message, String errorCode, String traceId) {
+        return ApiResponse.<T>builder().success(false).message(message).errorCode(errorCode).traceId(traceId).timestamp(LocalDateTime.now()).build();
+    }
+
+    public static <T> ApiResponse<T> error(String message, String errorCode, String traceId, List<String> errors) {
+        return ApiResponse.<T>builder().success(false).message(message).errorCode(errorCode).traceId(traceId).errors(errors).timestamp(LocalDateTime.now()).build();
+    }
+
 
     public static class ApiResponseBuilder<T> {
         private boolean success;
@@ -39,6 +51,8 @@ public class ApiResponse<T> {
         private T data;
         private LocalDateTime timestamp;
         private List<String> errors;
+        private String errorCode;
+        private String traceId;
 
         ApiResponseBuilder() {
         }
@@ -83,13 +97,23 @@ public class ApiResponse<T> {
             return this;
         }
 
+        public ApiResponse.ApiResponseBuilder<T> errorCode(final String errorCode) {
+            this.errorCode = errorCode;
+            return this;
+        }
+
+        public ApiResponse.ApiResponseBuilder<T> traceId(final String traceId) {
+            this.traceId = traceId;
+            return this;
+        }
+
         public ApiResponse<T> build() {
-            return new ApiResponse<T>(this.success, this.message, this.data, this.timestamp, this.errors);
+            return new ApiResponse<T>(this.success, this.message, this.data, this.timestamp, this.errors, this.errorCode, this.traceId);
         }
 
         @Override
         public String toString() {
-            return "ApiResponse.ApiResponseBuilder(success=" + this.success + ", message=" + this.message + ", data=" + this.data + ", timestamp=" + this.timestamp + ", errors=" + this.errors + ")";
+            return "ApiResponse.ApiResponseBuilder(success=" + this.success + ", message=" + this.message + ", data=" + this.data + ", timestamp=" + this.timestamp + ", errors=" + this.errors + ", errorCode=" + this.errorCode + ", traceId=" + this.traceId + ")";
         }
     }
 
@@ -117,6 +141,14 @@ public class ApiResponse<T> {
         return this.errors;
     }
 
+    public String getErrorCode() {
+        return this.errorCode;
+    }
+
+    public String getTraceId() {
+        return this.traceId;
+    }
+
     public void setSuccess(final boolean success) {
         this.success = success;
     }
@@ -135,6 +167,14 @@ public class ApiResponse<T> {
 
     public void setErrors(final List<String> errors) {
         this.errors = errors;
+    }
+
+    public void setErrorCode(final String errorCode) {
+        this.errorCode = errorCode;
+    }
+
+    public void setTraceId(final String traceId) {
+        this.traceId = traceId;
     }
 
     @Override
@@ -156,6 +196,12 @@ public class ApiResponse<T> {
         final Object this$errors = this.getErrors();
         final Object other$errors = other.getErrors();
         if (this$errors == null ? other$errors != null : !this$errors.equals(other$errors)) return false;
+        final Object this$errorCode = this.getErrorCode();
+        final Object other$errorCode = other.getErrorCode();
+        if (this$errorCode == null ? other$errorCode != null : !this$errorCode.equals(other$errorCode)) return false;
+        final Object this$traceId = this.getTraceId();
+        final Object other$traceId = other.getTraceId();
+        if (this$traceId == null ? other$traceId != null : !this$traceId.equals(other$traceId)) return false;
         return true;
     }
 
@@ -176,22 +222,29 @@ public class ApiResponse<T> {
         result = result * PRIME + ($timestamp == null ? 43 : $timestamp.hashCode());
         final Object $errors = this.getErrors();
         result = result * PRIME + ($errors == null ? 43 : $errors.hashCode());
+        final Object $errorCode = this.getErrorCode();
+        result = result * PRIME + ($errorCode == null ? 43 : $errorCode.hashCode());
+        final Object $traceId = this.getTraceId();
+        result = result * PRIME + ($traceId == null ? 43 : $traceId.hashCode());
         return result;
     }
 
     @Override
     public String toString() {
-        return "ApiResponse(success=" + this.isSuccess() + ", message=" + this.getMessage() + ", data=" + this.getData() + ", timestamp=" + this.getTimestamp() + ", errors=" + this.getErrors() + ")";
+        return "ApiResponse(success=" + this.isSuccess() + ", message=" + this.getMessage() + ", data=" + this.getData() + ", timestamp=" + this.getTimestamp() + ", errors=" + this.getErrors() + ", errorCode=" + this.getErrorCode() + ", traceId=" + this.getTraceId() + ")";
     }
 
     public ApiResponse() {
     }
 
-    public ApiResponse(final boolean success, final String message, final T data, final LocalDateTime timestamp, final List<String> errors) {
+    public ApiResponse(final boolean success, final String message, final T data, final LocalDateTime timestamp, final List<String> errors,
+                       final String errorCode, final String traceId) {
         this.success = success;
         this.message = message;
         this.data = data;
         this.timestamp = timestamp;
         this.errors = errors;
+        this.errorCode = errorCode;
+        this.traceId = traceId;
     }
 }

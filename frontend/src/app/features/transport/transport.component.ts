@@ -1,6 +1,7 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { from } from 'rxjs';
 import { concatMap, filter } from 'rxjs/operators';
@@ -14,39 +15,39 @@ import { AuthService } from '../../core/services/auth.service';
 @Component({
   selector: 'app-transport',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, TranslateModule],
   template: `
     <div data-testid="transport-page">
       <div class="d-flex justify-content-between align-items-center mb-4 animate-in flex-wrap gap-2">
         <div>
-          <h2 style="font-size: 24px; font-weight: 800;">Transport</h2>
-          <p class="text-muted mb-0" style="font-size: 13px;">Routes, fleet, drivers, ordered stops, assignments, and live map</p>
+          <h2 style="font-size: 24px; font-weight: 800;">{{ 'transport.pageTitle' | translate }}</h2>
+          <p class="text-muted mb-0" style="font-size: 13px;">{{ 'transport.lead' | translate }}</p>
         </div>
         <div class="d-flex gap-2 flex-wrap" *ngIf="canManageRoutes">
-          <button type="button" class="btn-outline-erp btn-sm" (click)="reload()"><i class="bi bi-arrow-clockwise"></i> Refresh</button>
-          <button class="btn-primary-erp btn-sm" data-testid="add-route-btn" (click)="openRouteWizard()"><i class="bi bi-plus-lg"></i> Add route</button>
+          <button type="button" class="btn-outline-erp btn-sm" (click)="reload()"><i class="bi bi-arrow-clockwise"></i> {{ 'transport.refresh' | translate }}</button>
+          <button class="btn-primary-erp btn-sm" data-testid="add-route-btn" (click)="openRouteWizard()"><i class="bi bi-plus-lg"></i> {{ 'transport.addRoute' | translate }}</button>
         </div>
       </div>
 
       <div class="erp-card mb-4 animate-in animate-in-delay-1" *ngIf="routes.length && anyLiveLocation">
         <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
-          <h4 class="erp-card-title mb-0">Live vehicles</h4>
-          <span class="text-muted small">Last reported positions (simulator / GPS gateway)</span>
+          <h4 class="erp-card-title mb-0">{{ 'transport.liveVehicles' | translate }}</h4>
+          <span class="text-muted small">{{ 'transport.liveHint' | translate }}</span>
         </div>
         <div class="row g-3">
           <div class="col-md-6" *ngFor="let route of routesWithLive">
             <div class="transport-live-card p-3 rounded-3" style="border: 1px solid var(--clr-border);">
               <div class="d-flex justify-content-between align-items-start mb-2">
                 <strong>{{ route.name }}</strong>
-                <button type="button" class="btn-outline-erp btn-xs" (click)="mapPanelRoute = route">Expand map</button>
+                <button type="button" class="btn-outline-erp btn-xs" (click)="mapPanelRoute = route">{{ 'transport.expandMap' | translate }}</button>
               </div>
               <iframe
                 class="w-100 rounded-2"
                 style="height: 200px; border: 0;"
                 loading="lazy"
                 [src]="embedUrlForRoute(route)"
-                title="Map for {{ route.name }}"></iframe>
-              <p class="small text-muted mb-0 mt-2"><i class="bi bi-clock me-1"></i>{{ route.liveRecordedAt ? (route.liveRecordedAt | date:'medium') : 'No live GPS — showing planned area' }}</p>
+                [title]="'transport.mapForRoute' | translate: { name: route.name }"></iframe>
+              <p class="small text-muted mb-0 mt-2"><i class="bi bi-clock me-1"></i>{{ route.liveRecordedAt ? (route.liveRecordedAt | date:'medium') : ('transport.noGps' | translate) }}</p>
             </div>
           </div>
         </div>
@@ -58,32 +59,32 @@ import { AuthService } from '../../core/services/auth.service';
             <div class="d-flex justify-content-between align-items-start mb-3 gap-2 flex-wrap">
               <h4 style="font-size: 16px; font-weight: 700;">{{ route.name }}</h4>
               <div class="d-flex gap-1 align-items-center flex-wrap">
-                <button type="button" class="btn-outline-erp btn-xs" (click)="mapPanelRoute = route">Route map</button>
-                <span class="badge-erp badge-info">{{ route.assignedStudents }} students</span>
+                <button type="button" class="btn-outline-erp btn-xs" (click)="mapPanelRoute = route">{{ 'transport.routeMap' | translate }}</button>
+                <span class="badge-erp badge-info">{{ 'transport.studentsCount' | translate: { n: route.assignedStudents } }}</span>
               </div>
             </div>
             <div style="font-size: 13px; color: var(--clr-text-secondary); margin-bottom: 12px;">
-              <div class="mb-1"><i class="bi bi-truck me-2"></i>{{ route.vehicleNumber || '—' }} <span *ngIf="route.vehicleType" class="badge-erp badge-neutral ms-1">{{ route.vehicleType }}</span></div>
-              <div class="mb-1"><i class="bi bi-person me-2"></i>{{ route.driverName || '—' }}</div>
-              <div><i class="bi bi-telephone me-2"></i>{{ route.driverPhone || '—' }}</div>
+              <div class="mb-1"><i class="bi bi-truck me-2"></i>{{ route.vehicleNumber || ('transport.dash' | translate) }} <span *ngIf="route.vehicleType" class="badge-erp badge-neutral ms-1">{{ route.vehicleType }}</span></div>
+              <div class="mb-1"><i class="bi bi-person me-2"></i>{{ route.driverName || ('transport.dash' | translate) }}</div>
+              <div><i class="bi bi-telephone me-2"></i>{{ route.driverPhone || ('transport.dash' | translate) }}</div>
             </div>
             <div *ngIf="canManageRoutes" class="d-flex flex-wrap gap-1 mb-2">
-              <button type="button" class="btn-outline-erp btn-xs" (click)="openEditWizard(route)">Edit</button>
-              <button type="button" class="btn-outline-erp btn-xs" (click)="openStopModal(route)">Add stop</button>
-              <button type="button" class="btn-outline-erp btn-xs" (click)="openAssignModal(route)">Assign student</button>
-              <button *ngIf="route.vehicleId" type="button" class="btn-outline-erp btn-xs" (click)="simulateGps(route)">Simulate GPS</button>
-              <button type="button" class="btn-outline-erp btn-xs" style="color: var(--clr-danger);" (click)="deleteRoute(route)">Delete</button>
+              <button type="button" class="btn-outline-erp btn-xs" (click)="openEditWizard(route)">{{ 'transport.edit' | translate }}</button>
+              <button type="button" class="btn-outline-erp btn-xs" (click)="openStopModal(route)">{{ 'transport.addStop' | translate }}</button>
+              <button type="button" class="btn-outline-erp btn-xs" (click)="openAssignModal(route)">{{ 'transport.assignStudent' | translate }}</button>
+              <button *ngIf="route.vehicleId" type="button" class="btn-outline-erp btn-xs" (click)="simulateGps(route)">{{ 'transport.simulateGps' | translate }}</button>
+              <button type="button" class="btn-outline-erp btn-xs" style="color: var(--clr-danger);" (click)="deleteRoute(route)">{{ 'transport.delete' | translate }}</button>
             </div>
-            <div style="font-size: 12px; font-weight: 600; color: var(--clr-text-muted); margin-bottom: 8px;">STOPS ({{ route.stops.length }})</div>
+            <div style="font-size: 12px; font-weight: 600; color: var(--clr-text-muted); margin-bottom: 8px;">{{ 'transport.stopsHeading' | translate: { n: route.stops.length } }}</div>
             <div *ngFor="let stop of route.stops" class="d-flex align-items-center gap-2 mb-1" style="font-size: 12px;">
               <i class="bi bi-geo-alt-fill" style="color: var(--clr-accent);"></i>
               <span>{{ stop.name }}</span>
-              <span class="ms-auto" style="color: var(--clr-text-muted);">{{ stop.time || '—' }}</span>
-              <button *ngIf="canManageRoutes && stop.id" type="button" class="btn-icon btn-xs" (click)="openEditStop(route, stop)" title="Edit stop"><i class="bi bi-pencil"></i></button>
-              <button *ngIf="canManageRoutes && stop.id" type="button" class="btn-icon btn-xs" (click)="removeStop(route, stop.id!)" title="Remove stop"><i class="bi bi-x-lg"></i></button>
+              <span class="ms-auto" style="color: var(--clr-text-muted);">{{ stop.time || ('transport.dash' | translate) }}</span>
+              <button *ngIf="canManageRoutes && stop.id" type="button" class="btn-icon btn-xs" (click)="openEditStop(route, stop)" [title]="'transport.editStopTitle' | translate"><i class="bi bi-pencil"></i></button>
+              <button *ngIf="canManageRoutes && stop.id" type="button" class="btn-icon btn-xs" (click)="removeStop(route, stop.id!)" [title]="'transport.removeStopTitle' | translate"><i class="bi bi-x-lg"></i></button>
             </div>
             <div *ngIf="route.students?.length" class="mt-3 pt-2" style="border-top: 1px solid var(--clr-border-light);">
-              <div style="font-size: 11px; font-weight: 600; color: var(--clr-text-muted);">ASSIGNED</div>
+              <div style="font-size: 11px; font-weight: 600; color: var(--clr-text-muted);">{{ 'transport.assignedHeading' | translate }}</div>
               <div *ngFor="let m of route.students" class="d-flex justify-content-between align-items-center" style="font-size: 12px;">
                 <span>{{ m.studentName }}</span>
                 <button *ngIf="canManageRoutes" type="button" class="btn-icon btn-xs" (click)="unassign(m.id)"><i class="bi bi-person-dash"></i></button>
@@ -92,7 +93,7 @@ import { AuthService } from '../../core/services/auth.service';
           </div>
         </div>
         <div *ngIf="routes.length === 0" class="col-12">
-          <div class="erp-card text-muted text-center py-5">No routes yet. Add a route as admin (works with mocks or API).</div>
+          <div class="erp-card text-muted text-center py-5">{{ 'transport.emptyRoutes' | translate }}</div>
         </div>
       </div>
     </div>
@@ -101,7 +102,7 @@ import { AuthService } from '../../core/services/auth.service';
     <div class="modal-overlay" *ngIf="mapPanelRoute" (click)="mapPanelRoute = null">
       <div class="modal-content-erp modal-wide-map" (click)="$event.stopPropagation()">
         <div class="modal-header-erp">
-          <h3>Live map — {{ mapPanelRoute.name }}</h3>
+          <h3>{{ 'transport.modalMapTitle' | translate: { name: mapPanelRoute.name } }}</h3>
           <button class="btn-icon" type="button" (click)="mapPanelRoute = null"><i class="bi bi-x-lg"></i></button>
         </div>
         <div class="modal-body-erp p-0">
@@ -109,8 +110,8 @@ import { AuthService } from '../../core/services/auth.service';
             class="w-100"
             style="height: 420px; border: 0;"
             [src]="embedUrlForRoute(mapPanelRoute)"
-            title="Route map"></iframe>
-          <p class="small text-muted px-3 py-2 mb-0" *ngIf="mapPanelRoute.liveLatitude == null">Tip: use “Simulate GPS” to move the pin to a live position.</p>
+            [title]="'transport.routeMapTitle' | translate"></iframe>
+          <p class="small text-muted px-3 py-2 mb-0" *ngIf="mapPanelRoute.liveLatitude == null">{{ 'transport.mapTip' | translate }}</p>
         </div>
       </div>
     </div>
@@ -119,134 +120,134 @@ import { AuthService } from '../../core/services/auth.service';
     <div class="modal-overlay" *ngIf="routeWizard" (click)="closeRouteWizard()">
       <div class="modal-content-erp modal-wide-map" (click)="$event.stopPropagation()">
         <div class="modal-header-erp">
-          <h3>{{ editingRouteId ? 'Edit route' : 'New route' }}</h3>
+          <h3>{{ (editingRouteId ? 'transport.wizardEditTitle' : 'transport.wizardNewTitle') | translate }}</h3>
           <button class="btn-icon" type="button" (click)="closeRouteWizard()"><i class="bi bi-x-lg"></i></button>
         </div>
         <div class="modal-body-erp">
           <div class="d-flex gap-2 mb-3 flex-wrap">
-            <span class="badge-erp" [class.badge-info]="wizardStep === 1" [class.badge-neutral]="wizardStep !== 1">1. Route</span>
-            <span class="badge-erp" [class.badge-info]="wizardStep === 2" [class.badge-neutral]="wizardStep !== 2">2. Vehicle</span>
-            <span class="badge-erp" [class.badge-info]="wizardStep === 3" [class.badge-neutral]="wizardStep !== 3">3. Driver</span>
+            <span class="badge-erp" [class.badge-info]="wizardStep === 1" [class.badge-neutral]="wizardStep !== 1">{{ 'transport.stepRoute' | translate }}</span>
+            <span class="badge-erp" [class.badge-info]="wizardStep === 2" [class.badge-neutral]="wizardStep !== 2">{{ 'transport.stepVehicle' | translate }}</span>
+            <span class="badge-erp" [class.badge-info]="wizardStep === 3" [class.badge-neutral]="wizardStep !== 3">{{ 'transport.stepDriver' | translate }}</span>
           </div>
           <ng-container *ngIf="wizardStep === 1">
-            <label class="erp-label">Route name</label>
-            <input class="erp-input mb-3" [(ngModel)]="routeForm.name" placeholder="e.g. North loop">
+            <label class="erp-label">{{ 'transport.labelRouteName' | translate }}</label>
+            <input class="erp-input mb-3" [(ngModel)]="routeForm.name" [placeholder]="'transport.phRouteName' | translate">
             <div class="d-flex justify-content-between align-items-center mb-2">
-              <label class="erp-label mb-0">Stops (optional)</label>
-              <button type="button" class="btn-outline-erp btn-xs" (click)="addWizardStop()">Add stop</button>
+              <label class="erp-label mb-0">{{ 'transport.labelStopsOptional' | translate }}</label>
+              <button type="button" class="btn-outline-erp btn-xs" (click)="addWizardStop()">{{ 'transport.addStopBtn' | translate }}</button>
             </div>
-            <p class="small text-muted mb-2">Define pickup/drop order now; you can edit stops later from the route card.</p>
+            <p class="small text-muted mb-2">{{ 'transport.stopsHelp' | translate }}</p>
             <div *ngFor="let s of wizardStops; let i = index" class="row g-2 align-items-end mb-2">
-              <div class="col-md-5"><input class="erp-input" [(ngModel)]="s.name" placeholder="Stop name"></div>
-              <div class="col-md-2"><input class="erp-input" type="number" [(ngModel)]="s.stopOrder" placeholder="Order"></div>
-              <div class="col-md-3"><input class="erp-input" [(ngModel)]="s.stopTime" placeholder="HH:MM"></div>
-              <div class="col-md-2"><button type="button" class="btn-outline-erp btn-sm w-100" (click)="removeWizardStop(i)">Remove</button></div>
+              <div class="col-md-5"><input class="erp-input" [(ngModel)]="s.name" [placeholder]="'transport.phStopName' | translate"></div>
+              <div class="col-md-2"><input class="erp-input" type="number" [(ngModel)]="s.stopOrder" [placeholder]="'transport.phOrder' | translate"></div>
+              <div class="col-md-3"><input class="erp-input" [(ngModel)]="s.stopTime" [placeholder]="'transport.phTime' | translate"></div>
+              <div class="col-md-2"><button type="button" class="btn-outline-erp btn-sm w-100" (click)="removeWizardStop(i)">{{ 'transport.remove' | translate }}</button></div>
             </div>
           </ng-container>
           <ng-container *ngIf="wizardStep === 2">
-            <label class="erp-label">Use fleet vehicle</label>
+            <label class="erp-label">{{ 'transport.labelUseVehicle' | translate }}</label>
             <select class="erp-select mb-2" [(ngModel)]="routeForm.vehicleId">
-              <option [ngValue]="''">Select vehicle</option>
-              <option *ngFor="let v of vehicles" [ngValue]="v.id">{{ v.registrationNumber }} · {{ v.vehicleType }} ({{ v.capacity }} seats)</option>
+              <option [ngValue]="''">{{ 'transport.selectVehicle' | translate }}</option>
+              <option *ngFor="let v of vehicles" [ngValue]="v.id">{{ 'transport.vehicleOption' | translate: { reg: v.registrationNumber, type: v.vehicleType, cap: v.capacity } }}</option>
             </select>
-            <p class="small text-muted">Or register a new vehicle:</p>
+            <p class="small text-muted">{{ 'transport.registerNewVehicle' | translate }}</p>
             <div class="row g-2 mb-2">
-              <div class="col-md-4"><input class="erp-input" [(ngModel)]="newVehicle.registrationNumber" placeholder="Registration #"></div>
+              <div class="col-md-4"><input class="erp-input" [(ngModel)]="newVehicle.registrationNumber" [placeholder]="'transport.phReg' | translate"></div>
               <div class="col-md-3">
                 <select class="erp-select" [(ngModel)]="newVehicle.vehicleType">
-                  <option value="BUS">Bus</option>
-                  <option value="VAN">Van</option>
-                  <option value="CAR">Car</option>
-                  <option value="OTHER">Other</option>
+                  <option value="BUS">{{ 'transport.vehTypeBus' | translate }}</option>
+                  <option value="VAN">{{ 'transport.vehTypeVan' | translate }}</option>
+                  <option value="CAR">{{ 'transport.vehTypeCar' | translate }}</option>
+                  <option value="OTHER">{{ 'transport.vehTypeOther' | translate }}</option>
                 </select>
               </div>
-              <div class="col-md-2"><input class="erp-input" type="number" [(ngModel)]="newVehicle.capacity" placeholder="Seats"></div>
-              <div class="col-md-3"><input class="erp-input" [(ngModel)]="newVehicle.model" placeholder="Model"></div>
+              <div class="col-md-2"><input class="erp-input" type="number" [(ngModel)]="newVehicle.capacity" [placeholder]="'transport.phSeats' | translate"></div>
+              <div class="col-md-3"><input class="erp-input" [(ngModel)]="newVehicle.model" [placeholder]="'transport.phModel' | translate"></div>
             </div>
-            <button type="button" class="btn-outline-erp btn-sm" (click)="saveNewVehicle()">Add to fleet & select</button>
+            <button type="button" class="btn-outline-erp btn-sm" (click)="saveNewVehicle()">{{ 'transport.addToFleet' | translate }}</button>
           </ng-container>
           <ng-container *ngIf="wizardStep === 3">
-            <label class="erp-label">Assign driver</label>
+            <label class="erp-label">{{ 'transport.labelAssignDriver' | translate }}</label>
             <select class="erp-select mb-2" [(ngModel)]="routeForm.driverId">
-              <option [ngValue]="''">Select driver</option>
-              <option *ngFor="let d of drivers" [ngValue]="d.id">{{ d.fullName }} · {{ d.phone }}</option>
+              <option [ngValue]="''">{{ 'transport.selectDriver' | translate }}</option>
+              <option *ngFor="let d of drivers" [ngValue]="d.id">{{ 'transport.driverOption' | translate: { name: d.fullName, phone: d.phone } }}</option>
             </select>
-            <p class="small text-muted">Or add driver:</p>
+            <p class="small text-muted">{{ 'transport.addDriverLead' | translate }}</p>
             <div class="row g-2 mb-2">
-              <div class="col-md-5"><input class="erp-input" [(ngModel)]="newDriver.fullName" placeholder="Full name"></div>
-              <div class="col-md-4"><input class="erp-input" [(ngModel)]="newDriver.phone" placeholder="Phone"></div>
-              <div class="col-md-3"><input class="erp-input" [(ngModel)]="newDriver.licenseNumber" placeholder="License #"></div>
+              <div class="col-md-5"><input class="erp-input" [(ngModel)]="newDriver.fullName" [placeholder]="'transport.phFullName' | translate"></div>
+              <div class="col-md-4"><input class="erp-input" [(ngModel)]="newDriver.phone" [placeholder]="'transport.phPhone' | translate"></div>
+              <div class="col-md-3"><input class="erp-input" [(ngModel)]="newDriver.licenseNumber" [placeholder]="'transport.phLicense' | translate"></div>
             </div>
-            <button type="button" class="btn-outline-erp btn-sm" (click)="saveNewDriver()">Add driver & select</button>
+            <button type="button" class="btn-outline-erp btn-sm" (click)="saveNewDriver()">{{ 'transport.addDriverSelect' | translate }}</button>
           </ng-container>
         </div>
         <div class="modal-footer-erp">
-          <button class="btn-outline-erp" type="button" (click)="wizardStep > 1 ? wizardStep = wizardStep - 1 : closeRouteWizard()">{{ wizardStep > 1 ? 'Back' : 'Cancel' }}</button>
-          <button class="btn-primary-erp" type="button" *ngIf="wizardStep < 3" (click)="wizardStep = wizardStep + 1" [disabled]="wizardStep === 1 && !routeForm.name.trim()">Next</button>
-          <button class="btn-primary-erp" type="button" *ngIf="wizardStep === 3" (click)="saveRouteFromWizard()">Save route</button>
+          <button class="btn-outline-erp" type="button" (click)="wizardStep > 1 ? wizardStep = wizardStep - 1 : closeRouteWizard()">{{ wizardStep > 1 ? ('transport.back' | translate) : ('transport.cancel' | translate) }}</button>
+          <button class="btn-primary-erp" type="button" *ngIf="wizardStep < 3" (click)="wizardStep = wizardStep + 1" [disabled]="wizardStep === 1 && !routeForm.name.trim()">{{ 'transport.next' | translate }}</button>
+          <button class="btn-primary-erp" type="button" *ngIf="wizardStep === 3" (click)="saveRouteFromWizard()">{{ 'transport.saveRoute' | translate }}</button>
         </div>
       </div>
     </div>
 
     <div class="modal-overlay" *ngIf="stopModalRoute" (click)="stopModalRoute = null">
       <div class="modal-content-erp" (click)="$event.stopPropagation()">
-        <div class="modal-header-erp"><h3>Add stop</h3><button class="btn-icon" (click)="stopModalRoute = null"><i class="bi bi-x-lg"></i></button></div>
+        <div class="modal-header-erp"><h3>{{ 'transport.modalAddStopTitle' | translate }}</h3><button class="btn-icon" (click)="stopModalRoute = null"><i class="bi bi-x-lg"></i></button></div>
         <div class="modal-body-erp">
-          <label class="erp-label">Stop name</label>
+          <label class="erp-label">{{ 'transport.labelStopName' | translate }}</label>
           <input class="erp-input mb-2" [(ngModel)]="stopForm.name">
-          <label class="erp-label">Order</label>
+          <label class="erp-label">{{ 'transport.labelOrder' | translate }}</label>
           <input class="erp-input mb-2" type="number" [(ngModel)]="stopForm.stopOrder">
-          <label class="erp-label">Time (HH:MM)</label>
+          <label class="erp-label">{{ 'transport.labelTime' | translate }}</label>
           <input class="erp-input" [(ngModel)]="stopForm.stopTime" placeholder="07:30">
         </div>
         <div class="modal-footer-erp">
-          <button class="btn-outline-erp" (click)="stopModalRoute = null">Cancel</button>
-          <button class="btn-primary-erp" (click)="saveStop()">Add</button>
+          <button class="btn-outline-erp" (click)="stopModalRoute = null">{{ 'transport.cancel' | translate }}</button>
+          <button class="btn-primary-erp" (click)="saveStop()">{{ 'transport.add' | translate }}</button>
         </div>
       </div>
     </div>
 
     <div class="modal-overlay" *ngIf="editStopCtx" (click)="editStopCtx = null">
       <div class="modal-content-erp" (click)="$event.stopPropagation()">
-        <div class="modal-header-erp"><h3>Edit stop</h3><button class="btn-icon" (click)="editStopCtx = null"><i class="bi bi-x-lg"></i></button></div>
+        <div class="modal-header-erp"><h3>{{ 'transport.modalEditStopTitle' | translate }}</h3><button class="btn-icon" (click)="editStopCtx = null"><i class="bi bi-x-lg"></i></button></div>
         <div class="modal-body-erp">
-          <label class="erp-label">Stop name</label>
+          <label class="erp-label">{{ 'transport.labelStopName' | translate }}</label>
           <input class="erp-input mb-2" [(ngModel)]="editStopForm.name">
-          <label class="erp-label">Order</label>
+          <label class="erp-label">{{ 'transport.labelOrder' | translate }}</label>
           <input class="erp-input mb-2" type="number" [(ngModel)]="editStopForm.stopOrder">
-          <label class="erp-label">Time (HH:MM)</label>
+          <label class="erp-label">{{ 'transport.labelTime' | translate }}</label>
           <input class="erp-input" [(ngModel)]="editStopForm.stopTime" placeholder="07:30">
         </div>
         <div class="modal-footer-erp">
-          <button class="btn-outline-erp" (click)="editStopCtx = null">Cancel</button>
-          <button class="btn-primary-erp" (click)="saveEditStop()">Save</button>
+          <button class="btn-outline-erp" (click)="editStopCtx = null">{{ 'transport.cancel' | translate }}</button>
+          <button class="btn-primary-erp" (click)="saveEditStop()">{{ 'transport.save' | translate }}</button>
         </div>
       </div>
     </div>
 
     <div class="modal-overlay" *ngIf="assignModalRoute" (click)="assignModalRoute = null">
       <div class="modal-content-erp" (click)="$event.stopPropagation()">
-        <div class="modal-header-erp"><h3>Assign student</h3><button class="btn-icon" (click)="assignModalRoute = null"><i class="bi bi-x-lg"></i></button></div>
+        <div class="modal-header-erp"><h3>{{ 'transport.modalAssignTitle' | translate }}</h3><button class="btn-icon" (click)="assignModalRoute = null"><i class="bi bi-x-lg"></i></button></div>
         <div class="modal-body-erp">
-          <label class="erp-label">Student</label>
+          <label class="erp-label">{{ 'transport.labelStudent' | translate }}</label>
           <select class="erp-select mb-2" [(ngModel)]="assignForm.studentId" (ngModelChange)="syncAssignStudentName()">
-            <option [ngValue]="null">Select</option>
+            <option [ngValue]="null">{{ 'transport.select' | translate }}</option>
             <option *ngFor="let s of students" [ngValue]="s.id">{{ s.firstName }} {{ s.lastName }}</option>
           </select>
-          <label class="erp-label">Pickup stop</label>
+          <label class="erp-label">{{ 'transport.labelPickupStop' | translate }}</label>
           <select class="erp-select mb-2" [(ngModel)]="assignForm.pickupStop">
-            <option value="">—</option>
+            <option value="">{{ 'transport.dash' | translate }}</option>
             <option *ngFor="let st of assignModalRoute.stops" [value]="st.name">{{ st.name }}</option>
           </select>
-          <label class="erp-label">Drop stop</label>
+          <label class="erp-label">{{ 'transport.labelDropStop' | translate }}</label>
           <select class="erp-select" [(ngModel)]="assignForm.dropStop">
-            <option value="">—</option>
+            <option value="">{{ 'transport.dash' | translate }}</option>
             <option *ngFor="let st of assignModalRoute.stops" [value]="st.name">{{ st.name }}</option>
           </select>
         </div>
         <div class="modal-footer-erp">
-          <button class="btn-outline-erp" (click)="assignModalRoute = null">Cancel</button>
-          <button class="btn-primary-erp" (click)="saveAssign()">Assign</button>
+          <button class="btn-outline-erp" (click)="assignModalRoute = null">{{ 'transport.cancel' | translate }}</button>
+          <button class="btn-primary-erp" (click)="saveAssign()">{{ 'transport.assign' | translate }}</button>
         </div>
       </div>
     </div>
@@ -289,7 +290,8 @@ export class TransportComponent implements OnInit {
     private studentService: StudentService,
     private authService: AuthService,
     private sanitizer: DomSanitizer,
-    private confirmDialog: ConfirmDialogService
+    private confirmDialog: ConfirmDialogService,
+    private translate: TranslateService
   ) {}
 
   ngOnInit(): void {
@@ -440,17 +442,18 @@ export class TransportComponent implements OnInit {
   }
 
   deleteRoute(r: TransportRoute): void {
+    const t = this.translate.instant.bind(this.translate);
     this.confirmDialog
       .confirm({
-        title: 'Delete transport route?',
-        message: `Route "${r.name}" will be removed. Student assignments and stops linked to this route may need to be reviewed.`,
+        title: t('transport.confirmDeleteTitle'),
+        message: t('transport.confirmDeleteMessage', { name: r.name }),
         details: [
-          r.vehicleNumber ? `Vehicle: ${r.vehicleNumber}` : undefined,
-          r.driverName ? `Driver: ${r.driverName}` : undefined,
-          `${r.stops?.length ?? 0} stop(s) configured`,
+          r.vehicleNumber ? t('transport.detailVehicle', { v: r.vehicleNumber }) : undefined,
+          r.driverName ? t('transport.detailDriver', { d: r.driverName }) : undefined,
+          t('transport.detailStops', { n: r.stops?.length ?? 0 }),
         ].filter((x): x is string => !!x),
         variant: 'danger',
-        confirmLabel: 'Yes, delete route',
+        confirmLabel: t('transport.confirmDelete'),
       })
       .pipe(filter(Boolean))
       .subscribe(() => this.transportService.deleteRoute(r.id).subscribe(() => this.reload()));

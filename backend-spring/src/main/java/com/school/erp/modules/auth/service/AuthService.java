@@ -1,6 +1,7 @@
 package com.school.erp.modules.auth.service;
 
 import com.school.erp.common.enums.Enums;
+import com.school.erp.common.locale.InterfaceLocale;
 import com.school.erp.common.exception.BusinessException;
 import com.school.erp.common.exception.DuplicateResourceException;
 import com.school.erp.common.exception.ResourceNotFoundException;
@@ -8,6 +9,7 @@ import com.school.erp.common.exception.UnauthorizedException;
 import com.school.erp.modules.auth.dto.AuthDTOs;
 import com.school.erp.modules.auth.dto.AuthManagementDTOs;
 import com.school.erp.modules.auth.dto.AuthProfileDTOs;
+import com.school.erp.modules.auth.dto.UserPreferencesRequest;
 import com.school.erp.modules.auth.entity.RefreshToken;
 import com.school.erp.modules.auth.entity.User;
 import com.school.erp.modules.auth.repository.RefreshTokenRepository;
@@ -68,6 +70,11 @@ public class AuthService {
             log.debug("Audit log skipped: {}", e.getMessage());
         }
         log.info("Login successful userId={} tenantId={} role={}", user.getId(), user.getTenantId(), user.getRole());
+        String fromClient = InterfaceLocale.normalize(request.getInterfaceLocale());
+        if (fromClient != null) {
+            user.setPreferredLocale(fromClient);
+            userRepository.save(user);
+        }
         return AuthDTOs.LoginResponse.builder().token(token).refreshToken(refreshToken).user(toProfile(user)).build();
     }
 
@@ -115,6 +122,7 @@ public class AuthService {
                 .phone(request.getPhone())
                 .role(com.school.erp.common.enums.Enums.Role.ADMIN)
                 .schoolCode(normalizedSchoolCode)
+                .preferredLocale(com.school.erp.common.locale.InterfaceLocale.orDefault(request.getInterfaceLocale()))
                 .build();
         admin.setTenantId(tenantId);
         admin.setIsActive(true);
@@ -150,6 +158,7 @@ public class AuthService {
         response.setRole(user.getRole() != null ? user.getRole().name().toLowerCase() : "");
         response.setTenantId(user.getTenantId());
         response.setAvatar(user.getAvatar());
+        response.setInterfaceLocale(InterfaceLocale.orDefault(user.getPreferredLocale()));
         if (config != null) {
             response.setSchoolName(config.getSchoolName());
             response.setSchoolCode(config.getSchoolCode());
@@ -209,6 +218,20 @@ public class AuthService {
     }
 
     @Transactional
+    public AuthDTOs.UserProfile updatePreferences(UserPreferencesRequest request) {
+        String tag = InterfaceLocale.normalize(request.getInterfaceLocale());
+        if (tag == null) {
+            throw new BusinessException("Unsupported interface language. Supported: en, hi.");
+        }
+        User user = userRepository.findByIdAndTenantIdAndIsDeletedFalse(TenantContext.getUserId(), TenantContext.getTenantId())
+                .orElseThrow(() -> new ResourceNotFoundException("User", TenantContext.getUserId()));
+        user.setPreferredLocale(tag);
+        userRepository.save(user);
+        log.info("User preferences updated userId={} interfaceLocale={}", user.getId(), tag);
+        return toProfile(user);
+    }
+
+    @Transactional
     public AuthDTOs.UserProfile updateProfile(AuthDTOs.UpdateProfileRequest request) {
         User user = userRepository.findByIdAndTenantIdAndIsDeletedFalse(TenantContext.getUserId(), TenantContext.getTenantId()).orElseThrow(() -> new ResourceNotFoundException("User", TenantContext.getUserId()));
         if (request.getName() != null) user.setName(request.getName());
@@ -244,7 +267,16 @@ public class AuthService {
     }
 
     private AuthDTOs.UserProfile toProfile(User user) {
-        return AuthDTOs.UserProfile.builder().id(user.getId()).name(user.getName()).email(user.getEmail()).phone(user.getPhone()).role(user.getRole().name().toLowerCase()).tenantId(user.getTenantId()).avatar(user.getAvatar()).build();
+        return AuthDTOs.UserProfile.builder()
+                .id(user.getId())
+                .name(user.getName())
+                .email(user.getEmail())
+                .phone(user.getPhone())
+                .role(user.getRole().name().toLowerCase())
+                .tenantId(user.getTenantId())
+                .avatar(user.getAvatar())
+                .interfaceLocale(InterfaceLocale.orDefault(user.getPreferredLocale()))
+                .build();
     }
 
     private String issueRefreshToken(User user) {

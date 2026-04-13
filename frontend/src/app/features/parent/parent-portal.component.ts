@@ -1,7 +1,9 @@
-import { Component, OnInit } from '@angular/core';
+import { ChangeDetectorRef, Component, OnDestroy, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterModule } from '@angular/router';
+import { TranslateModule, TranslateService } from '@ngx-translate/core';
+import { Subject, takeUntil } from 'rxjs';
 import { ParentService } from '../../core/services/parent.service';
 import { openRazorpaySchoolFeeCheckout, PAYMENT_PROVIDER_IDS } from '../../core/payment';
 import { runtimeConfig } from '../../core/config/runtime-config';
@@ -25,7 +27,7 @@ import {
 @Component({
   selector: 'app-parent-portal',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterModule, ErpDatePickerComponent],
+  imports: [CommonModule, FormsModule, RouterModule, ErpDatePickerComponent, TranslateModule],
   styles: [
     `
       .parent-payment-activity .parent-receipt-scroll {
@@ -85,30 +87,34 @@ import {
     <div data-testid="parent-portal-page">
       <div class="d-flex justify-content-between align-items-center mb-4 animate-in flex-wrap gap-2">
         <div>
-          <h2 style="font-size: 24px; font-weight: 800;">Parent Portal</h2>
-          <p class="text-muted mb-0" style="font-size: 13px;">Track attendance, fees, and performance. Exams, timetables, and published grades live under <strong>Examinations</strong> in the sidebar. Fee payments are per selected child.</p>
+          <h2 style="font-size: 24px; font-weight: 800;">{{ 'parentPortal.pageTitle' | translate }}</h2>
+          <p class="text-muted mb-0" style="font-size: 13px;">
+            {{ 'parentPortal.leadBefore' | translate }}
+            <strong>{{ 'parentPortal.leadExams' | translate }}</strong>
+            {{ 'parentPortal.leadAfter' | translate }}
+          </p>
         </div>
-        <button type="button" class="btn-outline-erp btn-sm" (click)="refreshPortal()"><i class="bi bi-arrow-clockwise"></i> Refresh</button>
+        <button type="button" class="btn-outline-erp btn-sm" (click)="refreshPortal()"><i class="bi bi-arrow-clockwise"></i> {{ 'parentPortal.refresh' | translate }}</button>
       </div>
 
       <div class="erp-card mb-4 animate-in animate-in-delay-1">
         <div class="row g-3 align-items-end">
           <div class="col-md-4">
-            <label class="erp-label">Child</label>
+            <label class="erp-label">{{ 'parentPortal.labelChild' | translate }}</label>
             <select class="erp-select" [(ngModel)]="selectedStudentId" (change)="onStudentChange()">
-              <option [ngValue]="null">Select Child</option>
+              <option [ngValue]="null">{{ 'parentPortal.selectChild' | translate }}</option>
               <option *ngFor="let child of children" [ngValue]="child.id">
-                {{ child.firstName }} {{ child.lastName }} - {{ child.className || ('Class ' + child.classId) }}
+                {{ child.firstName }} {{ child.lastName }} - {{ child.className || (('parentPortal.classFallback' | translate: { id: child.classId })) }}
               </option>
             </select>
           </div>
           <div class="col-md-3">
-            <label class="erp-label">From</label>
-            <app-erp-date-picker [(ngModel)]="fromDate" (ngModelChange)="reloadSelectedChild()" placeholder="From" />
+            <label class="erp-label">{{ 'parentPortal.labelFrom' | translate }}</label>
+            <app-erp-date-picker [(ngModel)]="fromDate" (ngModelChange)="reloadSelectedChild()" [placeholder]="'parentPortal.phFrom' | translate" />
           </div>
           <div class="col-md-3">
-            <label class="erp-label">To</label>
-            <app-erp-date-picker [(ngModel)]="toDate" (ngModelChange)="reloadSelectedChild()" placeholder="To" />
+            <label class="erp-label">{{ 'parentPortal.labelTo' | translate }}</label>
+            <app-erp-date-picker [(ngModel)]="toDate" (ngModelChange)="reloadSelectedChild()" [placeholder]="'parentPortal.phTo' | translate" />
           </div>
         </div>
       </div>
@@ -118,59 +124,61 @@ import {
           <div class="col-md-3">
             <div class="stat-card">
               <div class="stat-value">{{ attendanceStats.attendancePercentage | number:'1.0-1' }}%</div>
-              <div class="stat-label">Attendance Rate</div>
+              <div class="stat-label">{{ 'parentPortal.statAttendanceRate' | translate }}</div>
             </div>
           </div>
           <div class="col-md-3">
             <div class="stat-card">
               <div class="stat-value">{{ attendanceStats.present }}</div>
-              <div class="stat-label">Days Present</div>
+              <div class="stat-label">{{ 'parentPortal.statDaysPresent' | translate }}</div>
             </div>
           </div>
           <div class="col-md-3">
             <div class="stat-card">
               <div class="stat-value">{{ totalPending | number:'1.0-0' }}</div>
-              <div class="stat-label">Fees Pending</div>
+              <div class="stat-label">{{ 'parentPortal.statFeesPending' | translate }}</div>
             </div>
           </div>
           <div class="col-md-3">
             <div class="stat-card">
               <div class="stat-value">{{ marks.length }}</div>
-              <div class="stat-label">Marks Entries</div>
+              <div class="stat-label">{{ 'parentPortal.statMarksEntries' | translate }}</div>
             </div>
           </div>
         </div>
 
         <div class="erp-card mb-3 p-3 d-flex flex-wrap align-items-center justify-content-between gap-2" style="background: var(--clr-surface-alt); border: 1px solid var(--clr-border-light);">
           <p class="small text-muted mb-0" style="max-width: 42rem;">
-            <strong>Exams &amp; grades</strong> — open <strong>Examinations</strong>: pick your child, then each exam’s <strong>Timetable</strong> and <strong>Results</strong> (when published) in one place.
+            <strong>{{ 'parentPortal.examsBannerBefore' | translate }}</strong> <strong>{{ 'parentPortal.leadExams' | translate }}</strong>{{ 'parentPortal.examsBannerMid' | translate }}
+            <strong>{{ 'parentPortal.examsBannerTimetable' | translate }}</strong> {{ 'parentPortal.examsBannerAnd' | translate }}
+            <strong>{{ 'parentPortal.examsBannerResults' | translate }}</strong> {{ 'parentPortal.examsBannerAfter' | translate }}
           </p>
-          <a routerLink="/app/exams" class="btn-primary-erp btn-sm text-decoration-none">Open Examinations</a>
+          <a routerLink="/app/exams" class="btn-primary-erp btn-sm text-decoration-none">{{ 'parentPortal.openExams' | translate }}</a>
         </div>
 
         <div class="erp-tabs mb-3">
-          <button class="erp-tab" [class.active]="tab === 'attendance'" (click)="tab = 'attendance'">Attendance</button>
-          <button class="erp-tab" [class.active]="tab === 'fees'" (click)="tab = 'fees'">Fees</button>
+          <button class="erp-tab" [class.active]="tab === 'attendance'" (click)="tab = 'attendance'">{{ 'parentPortal.tabAttendance' | translate }}</button>
+          <button class="erp-tab" [class.active]="tab === 'fees'" (click)="tab = 'fees'">{{ 'parentPortal.tabFees' | translate }}</button>
         </div>
 
         <div class="erp-card" *ngIf="tab === 'attendance'">
           <div class="row text-center mb-4">
-            <div class="col-md-3"><strong>{{ attendanceStats.totalDays }}</strong><div class="text-muted">Total Days</div></div>
-            <div class="col-md-3"><strong style="color: var(--clr-success);">{{ attendanceStats.present }}</strong><div class="text-muted">Present</div></div>
-            <div class="col-md-3"><strong style="color: var(--clr-danger);">{{ attendanceStats.absent }}</strong><div class="text-muted">Absent</div></div>
-            <div class="col-md-3"><strong style="color: var(--clr-warning);">{{ attendanceStats.late }}</strong><div class="text-muted">Late</div></div>
+            <div class="col-md-3"><strong>{{ attendanceStats.totalDays }}</strong><div class="text-muted">{{ 'parentPortal.totalDays' | translate }}</div></div>
+            <div class="col-md-3"><strong style="color: var(--clr-success);">{{ attendanceStats.present }}</strong><div class="text-muted">{{ 'parentPortal.present' | translate }}</div></div>
+            <div class="col-md-3"><strong style="color: var(--clr-danger);">{{ attendanceStats.absent }}</strong><div class="text-muted">{{ 'parentPortal.absent' | translate }}</div></div>
+            <div class="col-md-3"><strong style="color: var(--clr-warning);">{{ attendanceStats.late }}</strong><div class="text-muted">{{ 'parentPortal.late' | translate }}</div></div>
           </div>
           <table class="erp-table" *ngIf="attendanceRecords.length">
-            <thead><tr><th>Date</th><th>Status</th><th>Remarks</th></tr></thead>
+            <thead><tr><th>{{ 'parentPortal.thDate' | translate }}</th><th>{{ 'parentPortal.thStatus' | translate }}</th><th>{{ 'parentPortal.thRemarks' | translate }}</th></tr></thead>
             <tbody>
               <tr *ngFor="let record of attendanceRecords">
                 <td>{{ record.date }}</td>
-                <td><span class="badge-erp badge-neutral">{{ record.status }}</span></td>
+                <td><span class="badge-erp badge-neutral">{{ attendanceRowStatusLabel(record.status) }}</span></td>
                 <td>{{ getAttendanceRemarks(record) }}</td>
               </tr>
             </tbody>
           </table>
-          <div *ngIf="!attendanceRecords.length" class="empty-state"><h3>No attendance records</h3></div>
+          <div *ngIf="!attendanceRecords.length" class="empty-state"><h3>{{ 'parentPortal.emptyAttendance' | translate }}</h3></div>
         </div>
 
         <div class="erp-card" *ngIf="tab === 'fees'">
@@ -181,47 +189,47 @@ import {
                   <div>
                     <h4 style="font-size: 16px; font-weight: 800; margin-bottom: 6px;">{{ obligation.feeStructureName }}</h4>
                     <p class="text-muted mb-0" style="font-size: 12px;">
-                      {{ obligation.className || '—' }}
-                      <ng-container *ngIf="obligation.dueDate"> · Due {{ obligation.dueDate }}</ng-container>
+                      {{ obligation.className || ('exams.dash' | translate) }}
+                      <ng-container *ngIf="obligation.dueDate">{{ 'parentPortal.obligationDuePrefix' | translate: { date: obligation.dueDate } }}</ng-container>
                       <ng-container *ngIf="obligation.daysUntilDue != null && obligation.daysUntilDue > 0 && obligation.status !== 'paid'">
-                        · {{ obligation.daysUntilDue }} day(s) left
+                        · {{ 'parentPortal.dueInDays' | translate: { n: obligation.daysUntilDue } }}
                       </ng-container>
                       <ng-container *ngIf="obligation.daysUntilDue != null && obligation.daysUntilDue <= 0 && obligation.status !== 'paid'">
-                        · Due now / overdue
+                        · {{ 'parentPortal.dueNow' | translate }}
                       </ng-container>
                     </p>
                   </div>
                   <span class="badge-erp" [ngClass]="{'badge-success': obligation.status === 'paid', 'badge-warning': obligation.status === 'partial', 'badge-danger': obligation.status === 'overdue', 'badge-neutral': obligation.status === 'unpaid'}">
-                    {{ obligation.status }}
+                    {{ obligationStatusLabel(obligation.status) }}
                   </span>
                 </div>
                 <div class="row g-3 mb-3">
                   <div class="col-md-4">
                     <div class="insight-card">
-                      <div class="insight-label">Total</div>
+                      <div class="insight-label">{{ 'parentPortal.insightTotal' | translate }}</div>
                       <div class="insight-value">{{ obligation.totalAmount | currency:obligation.currency:'symbol':'1.0-0' }}</div>
-                      <div class="insight-subtext">Academic billing plan</div>
+                      <div class="insight-subtext">{{ 'parentPortal.insightAcademicPlan' | translate }}</div>
                     </div>
                   </div>
                   <div class="col-md-4">
                     <div class="insight-card">
-                      <div class="insight-label">Paid</div>
+                      <div class="insight-label">{{ 'parentPortal.insightPaid' | translate }}</div>
                       <div class="insight-value" style="color: var(--clr-success);">{{ obligation.paidAmount | currency:obligation.currency:'symbol':'1.0-0' }}</div>
-                      <div class="insight-subtext">Received so far</div>
+                      <div class="insight-subtext">{{ 'parentPortal.insightReceivedSoFar' | translate }}</div>
                     </div>
                   </div>
                   <div class="col-md-4">
                     <div class="insight-card">
-                      <div class="insight-label">Payable Now</div>
+                      <div class="insight-label">{{ 'parentPortal.insightPayableNow' | translate }}</div>
                       <div class="insight-value" style="color: var(--clr-danger);">{{ obligation.payableNow | currency:obligation.currency:'symbol':'1.0-0' }}</div>
-                      <div class="insight-subtext">Including late fee</div>
+                      <div class="insight-subtext">{{ 'parentPortal.insightIncludingLateFee' | translate }}</div>
                     </div>
                   </div>
                 </div>
                 <div class="erp-card" style="background: var(--clr-surface-alt); box-shadow: none; border: 1px solid var(--clr-border-light);">
                   <div class="d-flex justify-content-between align-items-center mb-2">
-                    <h5 style="font-size: 14px; font-weight: 700; margin: 0;">Fee Breakdown</h5>
-                    <span style="font-size: 12px; color: var(--clr-text-muted);">Late fee {{ obligation.lateFee | currency:obligation.currency:'symbol':'1.0-0' }}</span>
+                    <h5 style="font-size: 14px; font-weight: 700; margin: 0;">{{ 'parentPortal.feeBreakdown' | translate }}</h5>
+                    <span style="font-size: 12px; color: var(--clr-text-muted);">{{ 'parentPortal.lateFeeLabel' | translate: { amount: (obligation.lateFee | currency:obligation.currency:'symbol':'1.0-0') } }}</span>
                   </div>
                   <div *ngFor="let line of obligation.lineItems" class="d-flex justify-content-between align-items-center" style="padding: 8px 0; border-bottom: 1px solid var(--clr-border-light); font-size: 13px;">
                     <span>{{ line.name }}</span>
@@ -230,12 +238,15 @@ import {
                 </div>
                 <div class="d-flex justify-content-between align-items-center mt-3">
                   <div style="font-size: 12px; color: var(--clr-text-muted);">
-                    Outstanding {{ obligation.dueAmount | currency:obligation.currency:'symbol':'1.0-0' }} · Discount {{ obligation.discount | currency:obligation.currency:'symbol':'1.0-0' }}
+                    {{ 'parentPortal.outstandingLine' | translate: {
+                      outstanding: (obligation.dueAmount | currency:obligation.currency:'symbol':'1.0-0'),
+                      discount: (obligation.discount | currency:obligation.currency:'symbol':'1.0-0')
+                    } }}
                   </div>
                   <div class="d-flex gap-2">
-                    <button type="button" class="btn-outline-erp btn-sm" *ngIf="latestReceiptForPayment(obligation.paymentId) as rec" (click)="downloadReceipt(rec)"><i class="bi bi-download me-1"></i>Receipt</button>
+                    <button type="button" class="btn-outline-erp btn-sm" *ngIf="latestReceiptForPayment(obligation.paymentId) as rec" (click)="downloadReceipt(rec)"><i class="bi bi-download me-1"></i>{{ 'parentPortal.receiptBtn' | translate }}</button>
                     <button class="btn-primary-erp btn-sm" [disabled]="obligation.payableNow <= 0 || processingPayment" (click)="openPayment(obligation)">
-                      {{ obligation.payableNow > 0 ? 'Pay Now' : 'Settled' }}
+                      {{ obligation.payableNow > 0 ? ('parentPortal.payNow' | translate) : ('parentPortal.settled' | translate) }}
                     </button>
                   </div>
                 </div>
@@ -245,37 +256,37 @@ import {
               <div class="erp-card parent-payment-activity">
                 <div class="erp-card-header d-flex justify-content-between align-items-start flex-wrap gap-2">
                   <div>
-                    <h3 class="erp-card-title mb-0">Payment Activity</h3>
-                    <p class="text-muted small mb-0 mt-1">Official receipts for the selected period (download HTML for your records).</p>
+                    <h3 class="erp-card-title mb-0">{{ 'parentPortal.paymentActivityTitle' | translate }}</h3>
+                    <p class="text-muted small mb-0 mt-1">{{ 'parentPortal.paymentActivityLead' | translate }}</p>
                   </div>
                 </div>
                 <div class="row g-2 mb-3">
                   <div class="col-sm-6">
-                    <label class="erp-label small mb-1">Receipts from</label>
-                    <app-erp-date-picker [(ngModel)]="receiptFrom" (ngModelChange)="reloadReceiptHistory()" placeholder="From" />
+                    <label class="erp-label small mb-1">{{ 'parentPortal.receiptsFrom' | translate }}</label>
+                    <app-erp-date-picker [(ngModel)]="receiptFrom" (ngModelChange)="reloadReceiptHistory()" [placeholder]="'parentPortal.phFrom' | translate" />
                   </div>
                   <div class="col-sm-6">
-                    <label class="erp-label small mb-1">Receipts to</label>
-                    <app-erp-date-picker [(ngModel)]="receiptTo" (ngModelChange)="reloadReceiptHistory()" placeholder="To" />
+                    <label class="erp-label small mb-1">{{ 'parentPortal.receiptsTo' | translate }}</label>
+                    <app-erp-date-picker [(ngModel)]="receiptTo" (ngModelChange)="reloadReceiptHistory()" [placeholder]="'parentPortal.phTo' | translate" />
                   </div>
                   <div class="col-12 d-flex flex-wrap gap-1">
-                    <button type="button" class="btn-outline-erp btn-xs" (click)="setReceiptPreset(30)">Last 30 days</button>
-                    <button type="button" class="btn-outline-erp btn-xs" (click)="setReceiptPreset(90)">Last 90 days</button>
-                    <button type="button" class="btn-outline-erp btn-xs" (click)="setReceiptPreset(365)">Last 12 months</button>
+                    <button type="button" class="btn-outline-erp btn-xs" (click)="setReceiptPreset(30)">{{ 'parentPortal.preset30' | translate }}</button>
+                    <button type="button" class="btn-outline-erp btn-xs" (click)="setReceiptPreset(90)">{{ 'parentPortal.preset90' | translate }}</button>
+                    <button type="button" class="btn-outline-erp btn-xs" (click)="setReceiptPreset(365)">{{ 'parentPortal.preset12m' | translate }}</button>
                   </div>
                 </div>
                 <div *ngIf="latestReceipt" class="insight-card mb-3">
-                  <div class="insight-label">Latest in range</div>
+                  <div class="insight-label">{{ 'parentPortal.latestInRange' | translate }}</div>
                   <div class="insight-value" style="font-size: 15px;">{{ latestReceipt.receiptNumber }}</div>
                   <div class="insight-subtext">{{ latestReceipt.paymentDate }} · {{ latestReceipt.amountPaid | currency:latestReceipt.currency:'symbol':'1.0-0' }}</div>
-                  <button type="button" class="btn-outline-erp btn-xs mt-2" (click)="downloadReceipt(latestReceipt)"><i class="bi bi-download me-1"></i>Download</button>
+                  <button type="button" class="btn-outline-erp btn-xs mt-2" (click)="downloadReceipt(latestReceipt)"><i class="bi bi-download me-1"></i>{{ 'parentPortal.download' | translate }}</button>
                 </div>
                 <div *ngIf="!receiptHistory.length && !receiptsLoading" class="empty-state" style="padding: 20px 12px;">
                   <i class="bi bi-receipt-cutoff"></i>
-                  <h3>No receipts in this range</h3>
-                  <p class="small mb-0">Adjust dates or complete a payment — ledger receipts appear here.</p>
+                  <h3>{{ 'parentPortal.emptyReceiptsTitle' | translate }}</h3>
+                  <p class="small mb-0">{{ 'parentPortal.emptyReceiptsLead' | translate }}</p>
                 </div>
-                <div *ngIf="receiptsLoading" class="text-muted small py-2">Loading receipts…</div>
+                <div *ngIf="receiptsLoading" class="text-muted small py-2">{{ 'parentPortal.loadingReceipts' | translate }}</div>
                 <div class="parent-receipt-scroll" *ngIf="receiptHistory.length">
                   <div
                     *ngFor="let r of receiptHistory"
@@ -283,7 +294,7 @@ import {
                   >
                     <div style="min-width: 0;">
                       <div class="fw-bold" style="font-size: 13px;">{{ r.receiptNumber }}</div>
-                      <div class="text-muted small">{{ r.paymentDate }} · {{ r.amountPaid | currency:r.currency:'symbol':'1.0-0' }} · {{ receiptLedgerStatus(r) }}</div>
+                      <div class="text-muted small">{{ r.paymentDate }} · {{ r.amountPaid | currency:r.currency:'symbol':'1.0-0' }} · {{ receiptLedgerStatusLabel(r) }}</div>
                     </div>
                     <button type="button" class="btn-outline-erp btn-xs flex-shrink-0" (click)="downloadReceipt(r)"><i class="bi bi-download"></i></button>
                   </div>
@@ -291,7 +302,7 @@ import {
               </div>
             </div>
           </div>
-          <div *ngIf="!feeObligations.length" class="empty-state"><h3>No fee records</h3></div>
+          <div *ngIf="!feeObligations.length" class="empty-state"><h3>{{ 'parentPortal.emptyFeesTitle' | translate }}</h3></div>
         </div>
 
       </div>
@@ -299,21 +310,21 @@ import {
       <div class="modal-overlay" *ngIf="showPaymentModal && selectedObligation" (click)="closePaymentModal()">
         <div class="modal-content-erp" style="max-width: 720px;" (click)="$event.stopPropagation()">
           <div class="modal-header-erp">
-            <h3>Pay School Fees</h3>
+            <h3>{{ 'parentPortal.modalPayTitle' | translate }}</h3>
             <button class="btn-icon" (click)="closePaymentModal()"><i class="bi bi-x-lg"></i></button>
           </div>
           <div class="modal-body-erp">
             <div class="d-flex gap-2 mb-3 small text-muted">
-              <span [style.fontWeight]="paymentStep === 'review' ? '700' : '400'">1. Review</span>
+              <span [style.fontWeight]="paymentStep === 'review' ? '700' : '400'">{{ 'parentPortal.stepReview' | translate }}</span>
               <span>→</span>
-              <span [style.fontWeight]="paymentStep === 'method' ? '700' : '400'">2. Method</span>
+              <span [style.fontWeight]="paymentStep === 'method' ? '700' : '400'">{{ 'parentPortal.stepMethod' | translate }}</span>
               <span>→</span>
-              <span [style.fontWeight]="paymentStep === 'confirm' ? '700' : '400'">3. Pay</span>
+              <span [style.fontWeight]="paymentStep === 'confirm' ? '700' : '400'">{{ 'parentPortal.stepPay' | translate }}</span>
             </div>
             <div class="row g-4" *ngIf="paymentStep === 'review'">
               <div class="col-md-7">
                 <div class="insight-card mb-3">
-                  <div class="insight-label">Child &amp; fee plan</div>
+                  <div class="insight-label">{{ 'parentPortal.childFeePlan' | translate }}</div>
                   <div class="insight-value">{{ selectedChild?.firstName }} {{ selectedChild?.lastName }}</div>
                   <div class="insight-subtext">{{ selectedObligation.studentName }} · {{ selectedObligation.feeStructureName }} · {{ selectedObligation.className }}</div>
                 </div>
@@ -324,7 +335,7 @@ import {
               </div>
               <div class="col-md-5">
                 <div class="erp-form-group">
-                  <label class="erp-label">Amount to Pay</label>
+                  <label class="erp-label">{{ 'parentPortal.labelAmountToPay' | translate }}</label>
                   <input
                     type="number"
                     class="erp-input"
@@ -336,25 +347,25 @@ import {
                     step="0.01"
                     [attr.max]="selectedObligation.payableNow"
                   />
-                  <p class="text-muted small mb-1">Maximum you can pay now: {{ selectedObligation.payableNow | currency:selectedObligation.currency:'symbol':'1.2-2' }}</p>
+                  <p class="text-muted small mb-1">{{ 'parentPortal.maxPayableNow' | translate: { amount: (selectedObligation.payableNow | currency:selectedObligation.currency:'symbol':'1.2-2') } }}</p>
                   <p *ngIf="paymentAmountError" class="small mb-0" style="color: var(--clr-danger);">{{ paymentAmountError }}</p>
                 </div>
                 <div class="insight-card">
-                  <div class="insight-label">Current Payable</div>
+                  <div class="insight-label">{{ 'parentPortal.currentPayable' | translate }}</div>
                   <div class="insight-value" style="color: var(--clr-danger);">{{ selectedObligation.payableNow | currency:selectedObligation.currency:'symbol':'1.0-0' }}</div>
-                  <div class="insight-subtext">Includes overdue balance and late fee.</div>
+                  <div class="insight-subtext">{{ 'parentPortal.payableSubtext' | translate }}</div>
                 </div>
               </div>
             </div>
             <div *ngIf="paymentStep === 'method'" class="row g-3">
               <div class="col-12">
-                <label class="erp-label">Choose how to pay</label>
+                <label class="erp-label">{{ 'parentPortal.chooseHowToPay' | translate }}</label>
                 <p class="text-muted small">
                   <ng-container *ngIf="useMocks">
-                    <strong>Instant (demo)</strong> records a payment in-browser. <strong>Razorpay</strong> is a preview tile — use a real parent login (<code>useMocks: false</code>) to run checkout.
+                    <span [innerHTML]="'parentPortal.payHintMocksHtml' | translate"></span>
                   </ng-container>
                   <ng-container *ngIf="!useMocks">
-                    Card, UPI, and netbanking run in Razorpay’s secure window. The school is notified only after your bank authorizes the payment.
+                    {{ 'parentPortal.payHintProd' | translate }}
                   </ng-container>
                 </p>
               </div>
@@ -368,8 +379,8 @@ import {
                 >
                   <div class="d-flex justify-content-between align-items-start gap-2">
                     <div class="flex-grow-1 min-w-0">
-                      <div class="fw-bold">{{ m.label }}</div>
-                      <div class="text-muted small">{{ m.hint }}</div>
+                      <div class="fw-bold">{{ m.labelKey | translate }}</div>
+                      <div class="text-muted small">{{ m.hintKey | translate }}</div>
                     </div>
                     <i *ngIf="paymentProvider === m.id" class="bi bi-check-circle-fill payment-method-tile__check flex-shrink-0" aria-hidden="true"></i>
                   </div>
@@ -378,16 +389,14 @@ import {
             </div>
             <div *ngIf="paymentStep === 'confirm'" class="text-center py-3">
               <p class="small mb-2" style="color: var(--clr-danger);" *ngIf="paymentGatewayMessage">{{ paymentGatewayMessage }}</p>
-              <p class="mb-2" *ngIf="processingPayment"><span class="spinner me-2"></span>Processing…</p>
+              <p class="mb-2" *ngIf="processingPayment"><span class="spinner me-2"></span>{{ 'parentPortal.processing' | translate }}</p>
               <p class="text-muted small mb-0" *ngIf="lastOrderPreview && paymentProvider === PAYMENT_PROVIDER_IDS.RAZORPAY">
-                Order {{ lastOrderPreview.providerOrderId }} · {{ lastOrderPreview.amount | currency:selectedObligation!.currency:'symbol':'1.0-0' }}
+                {{ 'parentPortal.orderPreview' | translate: { id: lastOrderPreview.providerOrderId, amount: (lastOrderPreview.amount | currency:selectedObligation!.currency:'symbol':'1.0-0') } }}
               </p>
               <ng-container *ngIf="paymentProvider === PAYMENT_PROVIDER_IDS.RAZORPAY && currentCheckoutSession">
-                <p class="text-muted small mt-2 mb-0" *ngIf="!currentCheckoutSession.publicKeyId">
-                  Razorpay is not configured on the server (set <code>RAZORPAY_KEY</code> / <code>RAZORPAY_SECRET</code> on the API).
-                </p>
+                <p class="text-muted small mt-2 mb-0" *ngIf="!currentCheckoutSession.publicKeyId" [innerHTML]="'parentPortal.razorpayMissingKeys' | translate"></p>
                 <p class="text-muted small mt-2 mb-0" *ngIf="currentCheckoutSession.publicKeyId">
-                  A secure Razorpay window opens for card, UPI, or netbanking (including bank OTP). If it did not appear, allow pop-ups or use the button below.
+                  {{ 'parentPortal.razorpayWindowHint' | translate }}
                 </p>
                 <button
                   *ngIf="currentCheckoutSession.publicKeyId && !processingPayment"
@@ -395,11 +404,11 @@ import {
                   class="btn-primary-erp mt-3"
                   (click)="openRazorpayWidget()"
                 >
-                  Open Razorpay again
+                  {{ 'parentPortal.openRazorpayAgain' | translate }}
                 </button>
               </ng-container>
               <p class="text-muted small mt-2" *ngIf="showCompleteTestPaymentButton() && usesLocalPortalDemoFeePayment()">
-                Dev: completing here updates in-browser mock fee state only (mock login is not a JWT).
+                {{ 'parentPortal.devMockHint' | translate }}
               </p>
               <button
                 *ngIf="showCompleteTestPaymentButton()"
@@ -407,24 +416,26 @@ import {
                 class="btn-primary-erp mt-3"
                 (click)="completeFeePaymentThroughApi()"
               >
-                Complete test payment
+                {{ 'parentPortal.completeTestPayment' | translate }}
               </button>
             </div>
           </div>
           <div class="modal-footer-erp">
-            <button class="btn-outline-erp" (click)="closePaymentModal()">Cancel</button>
-            <button *ngIf="paymentStep === 'review'" class="btn-primary-erp" [disabled]="!canContinueFromPaymentReview" (click)="continuePaymentReview()">Continue</button>
-            <button *ngIf="paymentStep === 'method'" class="btn-outline-erp me-auto" (click)="backToPaymentReview()">Back</button>
-            <button *ngIf="paymentStep === 'method'" class="btn-primary-erp" [disabled]="!canSubmitPaymentMethod" (click)="goToPaymentConfirm()">Open pay screen</button>
+            <button class="btn-outline-erp" (click)="closePaymentModal()">{{ 'parentPortal.cancel' | translate }}</button>
+            <button *ngIf="paymentStep === 'review'" class="btn-primary-erp" [disabled]="!canContinueFromPaymentReview" (click)="continuePaymentReview()">{{ 'parentPortal.continue' | translate }}</button>
+            <button *ngIf="paymentStep === 'method'" class="btn-outline-erp me-auto" (click)="backToPaymentReview()">{{ 'parentPortal.back' | translate }}</button>
+            <button *ngIf="paymentStep === 'method'" class="btn-primary-erp" [disabled]="!canSubmitPaymentMethod" (click)="goToPaymentConfirm()">{{ 'parentPortal.openPayScreen' | translate }}</button>
           </div>
         </div>
       </div>
     </div>
   `
 })
-export class ParentPortalComponent implements OnInit {
+export class ParentPortalComponent implements OnInit, OnDestroy {
   /** Expose for template comparisons (canonical provider ids). */
   readonly PAYMENT_PROVIDER_IDS = PAYMENT_PROVIDER_IDS;
+
+  private readonly destroy$ = new Subject<void>();
 
   children: Student[] = [];
   selectedStudentId: number | null = null;
@@ -459,7 +470,11 @@ export class ParentPortalComponent implements OnInit {
   paymentAmountError: string | null = null;
   readonly useMocks = runtimeConfig.useMocks;
 
-  constructor(private parentService: ParentService) {}
+  constructor(
+    private parentService: ParentService,
+    private translate: TranslateService,
+    private cdr: ChangeDetectorRef,
+  ) {}
 
   get paymentMethodOptions(): ReadonlyArray<ParentFeePaymentMethodOption> {
     return parentFeePaymentMethodOptions(this.useMocks);
@@ -488,26 +503,29 @@ export class ParentPortalComponent implements OnInit {
   private computePaymentAmountError(): string | null {
     const ob = this.selectedObligation;
     if (!ob) {
-      return 'No fee selected.';
+      return this.translate.instant('parentPortal.err.noFee');
     }
     const raw = Number(this.paymentAmount);
     if (!Number.isFinite(raw)) {
-      return 'Enter a valid number.';
+      return this.translate.instant('parentPortal.err.invalidNumber');
     }
     if (raw <= 0) {
-      return 'Amount must be greater than zero.';
+      return this.translate.instant('parentPortal.err.amountPositive');
     }
     const max = Number(ob.payableNow);
     if (!Number.isFinite(max) || max <= 0) {
-      return 'Nothing is payable for this fee right now.';
+      return this.translate.instant('parentPortal.err.nothingPayable');
     }
     const rounded = Math.round(raw * 100) / 100;
     const maxRounded = Math.round(max * 100) / 100;
     if (rounded > maxRounded) {
-      return `Amount cannot exceed current payable (${ob.currency} ${maxRounded.toFixed(2)}).`;
+      return this.translate.instant('parentPortal.err.exceedsPayable', {
+        currency: ob.currency || 'INR',
+        max: maxRounded.toFixed(2),
+      });
     }
     if (rounded < 0.01) {
-      return 'Minimum payment is 0.01.';
+      return this.translate.instant('parentPortal.err.minPayment');
     }
     return null;
   }
@@ -542,7 +560,13 @@ export class ParentPortalComponent implements OnInit {
   }
 
   ngOnInit(): void {
+    this.translate.onLangChange.pipe(takeUntil(this.destroy$)).subscribe(() => this.cdr.markForCheck());
     this.refreshPortal();
+  }
+
+  ngOnDestroy(): void {
+    this.destroy$.next();
+    this.destroy$.complete();
   }
 
   refreshPortal(): void {
@@ -643,20 +667,34 @@ export class ParentPortalComponent implements OnInit {
     return this.receiptLookupByPaymentId.get(String(paymentId)) ?? null;
   }
 
-  receiptLedgerStatus(r: PaymentReceipt): string {
+  receiptLedgerStatusLabel(r: PaymentReceipt): string {
     const due = r.dueAmount ?? 0;
     if (due <= 0) {
-      return 'Paid';
+      return this.translate.instant('parentPortal.receiptStatus.paid');
     }
     if ((r.paidAmount ?? 0) > 0) {
-      return 'Partial';
+      return this.translate.instant('parentPortal.receiptStatus.partial');
     }
-    return 'Posted';
+    return this.translate.instant('parentPortal.receiptStatus.posted');
+  }
+
+  obligationStatusLabel(status: string): string {
+    const c = (status || '').toLowerCase();
+    const key = `parentPortal.obligationStatus.${c}`;
+    const t = this.translate.instant(key);
+    return t !== key ? t : status;
+  }
+
+  attendanceRowStatusLabel(status: string): string {
+    const c = (status || '').toLowerCase();
+    const key = `parentPortal.attendanceRow.${c}`;
+    const t = this.translate.instant(key);
+    return t !== key ? t : status;
   }
 
   getAttendanceRemarks(record: AttendanceRecord): string {
     const remarks = (record as AttendanceRecord & { remarks?: string }).remarks;
-    return remarks && remarks.trim() ? remarks : '-';
+    return remarks && remarks.trim() ? remarks : this.translate.instant('exams.dash');
   }
 
   openPayment(obligation: ParentFeeObligation): void {
@@ -704,8 +742,7 @@ export class ParentPortalComponent implements OnInit {
 
     if (this.paymentProvider === PAYMENT_PROVIDER_IDS.RAZORPAY) {
       if (this.useMocks) {
-        this.paymentGatewayMessage =
-          'Razorpay is preview-only in mock portal. Choose Instant (demo) to record a payment, or set useMocks to false for real checkout.';
+        this.paymentGatewayMessage = this.translate.instant('parentPortal.err.razorpayPreviewMock');
         return;
       }
       this.processingPayment = true;
@@ -729,14 +766,12 @@ export class ParentPortalComponent implements OnInit {
             if (session.publicKeyId) {
               setTimeout(() => this.openRazorpayWidget(), 0);
             } else {
-              this.paymentGatewayMessage =
-                'Order created but Razorpay publishable key is missing on the API. Set app.payments.razorpay.key or RAZORPAY_KEY, then try again.';
+              this.paymentGatewayMessage = this.translate.instant('parentPortal.err.orderNoKey');
             }
           },
           error: () => {
             this.processingPayment = false;
-            this.paymentGatewayMessage =
-              'Could not create checkout. Use valid Razorpay keys on the API, amount ≤ payable, and a real parent login.';
+            this.paymentGatewayMessage = this.translate.instant('parentPortal.err.checkoutFailed');
           },
         });
       return;
@@ -747,7 +782,7 @@ export class ParentPortalComponent implements OnInit {
       return;
     }
 
-    this.paymentGatewayMessage = 'This payment method is not available.';
+    this.paymentGatewayMessage = this.translate.instant('parentPortal.err.methodUnavailable');
   }
 
   /** Mock portal: create local checkout session then confirm (Instant / demo only). */
@@ -765,12 +800,12 @@ export class ParentPortalComponent implements OnInit {
     }
     const key = session.publicKeyId;
     if (!key) {
-      this.paymentGatewayMessage = 'Missing Razorpay key on server (RAZORPAY_KEY).';
+      this.paymentGatewayMessage = this.translate.instant('parentPortal.err.missingRzpKey');
       return;
     }
     const currency = (ob.currency || 'INR').toUpperCase();
     if (currency !== 'INR') {
-      this.paymentGatewayMessage = 'Razorpay checkout supports INR only in this integration.';
+      this.paymentGatewayMessage = this.translate.instant('parentPortal.err.rzpInrOnly');
       return;
     }
     const paise = Math.round(Number(session.amount) * 100);
@@ -779,7 +814,7 @@ export class ParentPortalComponent implements OnInit {
       orderId: session.providerOrderId,
       amountPaise: paise,
       currency,
-      name: 'SchoolVault',
+      name: this.translate.instant('parentPortal.checkoutMerchantName'),
       description: `${ob.feeStructureName} (${child?.firstName ?? ''} ${child?.lastName ?? ''})`.trim(),
       onLoadError: msg => {
         this.paymentGatewayMessage = msg;
@@ -801,8 +836,7 @@ export class ParentPortalComponent implements OnInit {
             },
             error: () => {
               this.processingPayment = false;
-              this.paymentGatewayMessage =
-                'Confirmation failed. If your account was debited, contact the school with your bank reference.';
+              this.paymentGatewayMessage = this.translate.instant('parentPortal.err.confirmFailed');
             },
           });
       },
@@ -847,26 +881,28 @@ export class ParentPortalComponent implements OnInit {
               },
               error: () => {
                 this.processingPayment = false;
-                this.paymentGatewayMessage = 'Payment confirmation failed.';
+                this.paymentGatewayMessage = this.translate.instant('parentPortal.err.paymentConfirmFailed');
               },
             });
         },
         error: () => {
           this.processingPayment = false;
-          this.paymentGatewayMessage = 'Could not start payment session.';
+          this.paymentGatewayMessage = this.translate.instant('parentPortal.err.sessionStartFailed');
         },
       });
   }
 
   downloadReceipt(receipt: PaymentReceipt): void {
+    const t = (key: string, params?: Record<string, string | number>) => this.translate.instant(key, params);
+    const dash = this.translate.instant('exams.dash');
     const html = `
-      <html><head><title>${receipt.receiptNumber}</title></head><body style="font-family: Arial, sans-serif; padding: 24px;">
-      <h1>School Fee Receipt</h1>
-      <p><strong>Receipt:</strong> ${receipt.receiptNumber}</p>
-      <p><strong>Student:</strong> ${receipt.studentName}</p>
-      <p><strong>Fee Plan:</strong> ${receipt.feeStructureName}</p>
-      <p><strong>Payment Date:</strong> ${receipt.paymentDate || '-'}</p>
-      <p><strong>Amount Paid:</strong> ${receipt.currency} ${receipt.amountPaid}</p>
+      <html><head><title>${t('parentPortal.receiptHtml.docTitle', { no: receipt.receiptNumber })}</title></head><body style="font-family: Arial, sans-serif; padding: 24px;">
+      <h1>${t('parentPortal.receiptHtml.heading')}</h1>
+      <p><strong>${t('parentPortal.receiptHtml.receipt')}</strong> ${receipt.receiptNumber}</p>
+      <p><strong>${t('parentPortal.receiptHtml.student')}</strong> ${receipt.studentName}</p>
+      <p><strong>${t('parentPortal.receiptHtml.feePlan')}</strong> ${receipt.feeStructureName}</p>
+      <p><strong>${t('parentPortal.receiptHtml.paymentDate')}</strong> ${receipt.paymentDate || dash}</p>
+      <p><strong>${t('parentPortal.receiptHtml.amountPaid')}</strong> ${receipt.currency} ${receipt.amountPaid}</p>
       <hr />
       ${receipt.lineItems.map(line => `<div style="display:flex;justify-content:space-between;padding:6px 0;"><span>${line.name}</span><strong>${receipt.currency} ${line.amount}</strong></div>`).join('')}
       </body></html>

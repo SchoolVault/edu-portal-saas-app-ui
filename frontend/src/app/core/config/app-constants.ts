@@ -1,41 +1,43 @@
 export interface NavItem {
-  label: string;
+  /** ngx-translate key, e.g. {@code nav.dashboard}. */
+  labelKey: string;
   icon: string;
   route: string;
   roles: string[];
-  section?: string;
+  /** Section group key, e.g. {@code nav.section.main}. */
+  sectionKey: string;
 }
 
 export const NAV_ITEMS: NavItem[] = [
-  { label: 'Dashboard', icon: 'bi-grid-1x2-fill', route: '/app/dashboard', roles: ['admin', 'teacher', 'parent'], section: 'Main' },
-  { label: 'Platform', icon: 'bi-buildings-fill', route: '/app/super-admin', roles: ['super_admin'], section: 'Main' },
-  { label: 'Schools', icon: 'bi-bank2', route: '/app/platform-schools', roles: ['super_admin'], section: 'Platform' },
-  { label: 'Subscriptions', icon: 'bi-receipt', route: '/app/platform-subscriptions', roles: ['super_admin'], section: 'Platform' },
-  { label: 'Broadcasts', icon: 'bi-megaphone-fill', route: '/app/platform-broadcasts', roles: ['super_admin'], section: 'Platform' },
-  { label: 'System health', icon: 'bi-heart-pulse', route: '/app/platform-health', roles: ['super_admin'], section: 'Platform' },
-  { label: 'Settings', icon: 'bi-gear-fill', route: '/app/platform-settings', roles: ['super_admin'], section: 'Platform' },
-  { label: 'My Children', icon: 'bi-person-vcard-fill', route: '/app/parent', roles: ['parent'], section: 'Main' },
-  { label: 'Academic', icon: 'bi-mortarboard-fill', route: '/app/academic', roles: ['admin', 'teacher'], section: 'Main' },
-  { label: 'Students', icon: 'bi-people-fill', route: '/app/students', roles: ['admin', 'teacher'], section: 'People' },
-  { label: 'Directory', icon: 'bi-search-heart', route: '/app/directory', roles: ['admin'], section: 'People' },
-  { label: 'Teachers', icon: 'bi-person-badge-fill', route: '/app/teachers', roles: ['admin'], section: 'People' },
-  { label: 'Attendance', icon: 'bi-calendar-check-fill', route: '/app/attendance', roles: ['admin', 'teacher'], section: 'Academics' },
-  { label: 'Timetable', icon: 'bi-clock-fill', route: '/app/timetable', roles: ['admin', 'teacher', 'parent'], section: 'Academics' },
-  { label: 'Exams', icon: 'bi-journal-text', route: '/app/exams', roles: ['admin', 'teacher', 'parent'], section: 'Academics' },
-  { label: 'Fees', icon: 'bi-credit-card-fill', route: '/app/fees', roles: ['admin'], section: 'Finance' },
-  { label: 'Payroll', icon: 'bi-wallet-fill', route: '/app/payroll', roles: ['admin'], section: 'Finance' },
-  { label: 'Inbox', icon: 'bi-inbox-fill', route: '/app/inbox', roles: ['admin', 'teacher', 'parent', 'student'], section: 'Connect' },
-  { label: 'Chat', icon: 'bi-chat-dots-fill', route: '/app/chat', roles: ['admin', 'teacher', 'parent', 'super_admin'], section: 'Connect' },
-  { label: 'Leave', icon: 'bi-calendar-x', route: '/app/leave', roles: ['admin', 'teacher'], section: 'Connect' },
-  { label: 'Reports', icon: 'bi-graph-up', route: '/app/reports', roles: ['admin'], section: 'Analytics' },
-  { label: 'Operations hub', icon: 'bi-building-gear', route: '/app/operations', roles: ['admin'], section: 'Operations' },
-  { label: 'Import / export', icon: 'bi-file-earmark-zip-fill', route: '/app/import-export', roles: ['admin', 'super_admin'], section: 'Operations' },
-  { label: 'Transport', icon: 'bi-bus-front-fill', route: '/app/transport', roles: ['admin'], section: 'Operations' },
-  { label: 'Library', icon: 'bi-book-fill', route: '/app/library', roles: ['admin', 'teacher'], section: 'Operations' },
-  { label: 'Hostel', icon: 'bi-house-fill', route: '/app/hostel', roles: ['admin'], section: 'Operations' },
-  { label: 'Documents', icon: 'bi-folder2-open', route: '/app/documents', roles: ['admin', 'teacher'], section: 'System' },
-  { label: 'Audit Log', icon: 'bi-shield-check', route: '/app/audit', roles: ['admin'], section: 'System' },
-  { label: 'Settings', icon: 'bi-gear-fill', route: '/app/settings', roles: ['admin', 'teacher', 'parent'], section: 'System' },
+  { labelKey: 'nav.dashboard', icon: 'bi-grid-1x2-fill', route: '/app/dashboard', roles: ['admin', 'teacher', 'parent'], sectionKey: 'nav.section.main' },
+  { labelKey: 'nav.platform', icon: 'bi-buildings-fill', route: '/app/super-admin', roles: ['super_admin'], sectionKey: 'nav.section.main' },
+  { labelKey: 'nav.schools', icon: 'bi-bank2', route: '/app/platform-schools', roles: ['super_admin'], sectionKey: 'nav.section.platform' },
+  { labelKey: 'nav.subscriptions', icon: 'bi-receipt', route: '/app/platform-subscriptions', roles: ['super_admin'], sectionKey: 'nav.section.platform' },
+  { labelKey: 'nav.broadcasts', icon: 'bi-megaphone-fill', route: '/app/platform-broadcasts', roles: ['super_admin'], sectionKey: 'nav.section.platform' },
+  { labelKey: 'nav.systemHealth', icon: 'bi-heart-pulse', route: '/app/platform-health', roles: ['super_admin'], sectionKey: 'nav.section.platform' },
+  { labelKey: 'nav.platformSettings', icon: 'bi-gear-fill', route: '/app/platform-settings', roles: ['super_admin'], sectionKey: 'nav.section.platform' },
+  { labelKey: 'nav.myChildren', icon: 'bi-person-vcard-fill', route: '/app/parent', roles: ['parent'], sectionKey: 'nav.section.main' },
+  { labelKey: 'nav.academic', icon: 'bi-mortarboard-fill', route: '/app/academic', roles: ['admin', 'teacher'], sectionKey: 'nav.section.main' },
+  { labelKey: 'nav.students', icon: 'bi-people-fill', route: '/app/students', roles: ['admin', 'teacher'], sectionKey: 'nav.section.people' },
+  { labelKey: 'nav.directory', icon: 'bi-search-heart', route: '/app/directory', roles: ['admin'], sectionKey: 'nav.section.people' },
+  { labelKey: 'nav.teachers', icon: 'bi-person-badge-fill', route: '/app/teachers', roles: ['admin'], sectionKey: 'nav.section.people' },
+  { labelKey: 'nav.attendance', icon: 'bi-calendar-check-fill', route: '/app/attendance', roles: ['admin', 'teacher'], sectionKey: 'nav.section.academics' },
+  { labelKey: 'nav.timetable', icon: 'bi-clock-fill', route: '/app/timetable', roles: ['admin', 'teacher', 'parent'], sectionKey: 'nav.section.academics' },
+  { labelKey: 'nav.exams', icon: 'bi-journal-text', route: '/app/exams', roles: ['admin', 'teacher', 'parent'], sectionKey: 'nav.section.academics' },
+  { labelKey: 'nav.fees', icon: 'bi-credit-card-fill', route: '/app/fees', roles: ['admin'], sectionKey: 'nav.section.finance' },
+  { labelKey: 'nav.payroll', icon: 'bi-wallet-fill', route: '/app/payroll', roles: ['admin'], sectionKey: 'nav.section.finance' },
+  { labelKey: 'nav.inbox', icon: 'bi-inbox-fill', route: '/app/inbox', roles: ['admin', 'teacher', 'parent', 'student'], sectionKey: 'nav.section.connect' },
+  { labelKey: 'nav.chat', icon: 'bi-chat-dots-fill', route: '/app/chat', roles: ['admin', 'teacher', 'parent', 'super_admin'], sectionKey: 'nav.section.connect' },
+  { labelKey: 'nav.leave', icon: 'bi-calendar-x', route: '/app/leave', roles: ['admin', 'teacher'], sectionKey: 'nav.section.connect' },
+  { labelKey: 'nav.reports', icon: 'bi-graph-up', route: '/app/reports', roles: ['admin'], sectionKey: 'nav.section.analytics' },
+  { labelKey: 'nav.operationsHub', icon: 'bi-building-gear', route: '/app/operations', roles: ['admin'], sectionKey: 'nav.section.operations' },
+  { labelKey: 'nav.importExport', icon: 'bi-file-earmark-zip-fill', route: '/app/import-export', roles: ['admin', 'super_admin'], sectionKey: 'nav.section.operations' },
+  { labelKey: 'nav.transport', icon: 'bi-bus-front-fill', route: '/app/transport', roles: ['admin'], sectionKey: 'nav.section.operations' },
+  { labelKey: 'nav.library', icon: 'bi-book-fill', route: '/app/library', roles: ['admin', 'teacher'], sectionKey: 'nav.section.operations' },
+  { labelKey: 'nav.hostel', icon: 'bi-house-fill', route: '/app/hostel', roles: ['admin'], sectionKey: 'nav.section.operations' },
+  { labelKey: 'nav.documents', icon: 'bi-folder2-open', route: '/app/documents', roles: ['admin', 'teacher'], sectionKey: 'nav.section.system' },
+  { labelKey: 'nav.auditLog', icon: 'bi-shield-check', route: '/app/audit', roles: ['admin'], sectionKey: 'nav.section.system' },
+  { labelKey: 'nav.settings', icon: 'bi-gear-fill', route: '/app/settings', roles: ['admin', 'teacher', 'parent'], sectionKey: 'nav.section.system' },
 ];
 
 export const ROLES = { SUPER_ADMIN: 'super_admin', ADMIN: 'admin', TEACHER: 'teacher', PARENT: 'parent', STUDENT: 'student' } as const;

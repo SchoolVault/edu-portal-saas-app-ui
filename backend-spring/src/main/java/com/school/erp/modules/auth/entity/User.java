@@ -25,7 +25,8 @@ public class User extends BaseEntity {
     private String schoolCode;
     @Column(length = 500)
     private String avatar;
-
+    @Column(name = "preferred_locale", nullable = false, length = 16)
+    private String preferredLocale = "en";
 
     public static class UserBuilder {
         private String name;
@@ -35,6 +36,7 @@ public class User extends BaseEntity {
         private Enums.Role role;
         private String schoolCode;
         private String avatar;
+        private String preferredLocale;
 
         UserBuilder() {
         }
@@ -95,13 +97,22 @@ public class User extends BaseEntity {
             return this;
         }
 
+        public User.UserBuilder preferredLocale(final String preferredLocale) {
+            this.preferredLocale = preferredLocale;
+            return this;
+        }
+
         public User build() {
-            return new User(this.name, this.email, this.password, this.phone, this.role, this.schoolCode, this.avatar);
+            User u = new User(this.name, this.email, this.password, this.phone, this.role, this.schoolCode, this.avatar);
+            if (this.preferredLocale != null && !this.preferredLocale.isBlank()) {
+                u.setPreferredLocale(this.preferredLocale);
+            }
+            return u;
         }
 
         @Override
         public String toString() {
-            return "User.UserBuilder(name=" + this.name + ", email=" + this.email + ", password=" + this.password + ", phone=" + this.phone + ", role=" + this.role + ", schoolCode=" + this.schoolCode + ", avatar=" + this.avatar + ")";
+            return "User.UserBuilder(name=" + this.name + ", email=" + this.email + ", password=" + this.password + ", phone=" + this.phone + ", role=" + this.role + ", schoolCode=" + this.schoolCode + ", avatar=" + this.avatar + ", preferredLocale=" + this.preferredLocale + ")";
         }
     }
 
@@ -165,6 +176,14 @@ public class User extends BaseEntity {
         this.avatar = avatar;
     }
 
+    public String getPreferredLocale() {
+        return this.preferredLocale;
+    }
+
+    public void setPreferredLocale(final String preferredLocale) {
+        this.preferredLocale = preferredLocale != null && !preferredLocale.isBlank() ? preferredLocale : "en";
+    }
+
     public User() {
     }
 
@@ -176,5 +195,6 @@ public class User extends BaseEntity {
         this.role = role;
         this.schoolCode = schoolCode;
         this.avatar = avatar;
+        this.preferredLocale = "en";
     }
 }

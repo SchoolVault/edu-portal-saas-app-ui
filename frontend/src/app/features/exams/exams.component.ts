@@ -1,6 +1,7 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, ChangeDetectorRef, DestroyRef, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { AcademicService } from '../../core/services/academic.service';
 import { ExamService } from '../../core/services/exam.service';
 import { ParentService } from '../../core/services/parent.service';
@@ -8,6 +9,9 @@ import { StudentService } from '../../core/services/student.service';
 import { AuthService } from '../../core/services/auth.service';
 import { examAppliesToStudent } from '../../core/utils/exam-scope';
 import { forkJoin } from 'rxjs';
+import { TranslateModule, TranslateService } from '@ngx-translate/core';
+import { SchoolClassNamePipe } from '../../core/i18n/school-class-name.pipe';
+import { formatSchoolClassDisplayName } from '../../core/i18n/school-class-display';
 import {
   AcademicYear,
   Exam,
@@ -25,24 +29,33 @@ type ExamDetailTab = 'marks' | 'timetable';
 @Component({
   selector: 'app-exams',
   standalone: true,
-  imports: [CommonModule, FormsModule, ErpDatePickerComponent],
+  imports: [CommonModule, FormsModule, ErpDatePickerComponent, TranslateModule, SchoolClassNamePipe],
   template: `
     <div data-testid="exams-page">
       <div class="d-flex justify-content-between align-items-center mb-4 animate-in flex-wrap gap-2">
         <div>
-          <h2 style="font-size: 24px; font-weight: 800;">Examinations</h2>
+          <h2 style="font-size: 24px; font-weight: 800;">{{ 'exams.pageTitle' | translate }}</h2>
           <p class="text-muted mb-0" style="font-size: 13px;" *ngIf="role !== 'parent'">
-            Exam cycles, <strong>class / section scope</strong>, dated <strong>timetable</strong> per subject, and mark entry.
-            {{ canEditSchedule ? 'Teachers and admins build timetables; only admins create new exam cycles.' : 'View published schedules and results.' }}
+            {{ 'exams.leadStaffBefore' | translate }}<strong>{{ 'exams.leadStaffStrong1' | translate }}</strong
+            >{{ 'exams.leadStaffMid' | translate }}<strong>{{ 'exams.leadStaffStrong2' | translate }}</strong
+            >{{ 'exams.leadStaffAfter' | translate }}
+            {{ canEditSchedule ? ('exams.leadStaffEdit' | translate) : ('exams.leadStaffView' | translate) }}
           </p>
           <p class="text-muted mb-0" style="font-size: 13px;" *ngIf="role === 'parent'">
-            Choose a child, then pick a <strong>completed</strong> or <strong>ongoing</strong> exam to view <strong>Timetable</strong> and <strong>Results</strong> (when published). <strong>Upcoming</strong> exams are listed but stay closed until the cycle starts.
+            {{ 'exams.leadParentBefore' | translate }}<strong>{{ 'exams.leadParentStrong1' | translate }}</strong
+            >{{ 'exams.leadParentMid' | translate }}<strong>{{ 'exams.leadParentStrong2' | translate }}</strong
+            >{{ 'exams.leadParentAfter' | translate }}<strong>{{ 'exams.leadParentStrong3' | translate }}</strong
+            >{{ 'exams.leadParentMid2' | translate }}<strong>{{ 'exams.leadParentStrong4' | translate }}</strong
+            >{{ 'exams.leadParentEnd' | translate }}<strong>{{ 'exams.leadParentStrong5' | translate }}</strong
+            >{{ 'exams.leadParentTail' | translate }}
           </p>
         </div>
         <div class="d-flex gap-2 flex-wrap">
-          <button type="button" class="btn-outline-erp btn-sm" (click)="refreshExams()"><i class="bi bi-arrow-clockwise"></i> Refresh</button>
+          <button type="button" class="btn-outline-erp btn-sm" (click)="refreshExams()">
+            <i class="bi bi-arrow-clockwise"></i> {{ 'exams.refresh' | translate }}
+          </button>
           <button *ngIf="canCreateExam" type="button" class="btn-primary-erp btn-sm" (click)="openCreateModal()">
-            <i class="bi bi-plus-lg"></i> Create exam
+            <i class="bi bi-plus-lg"></i> {{ 'exams.createExam' | translate }}
           </button>
         </div>
       </div>
@@ -50,23 +63,21 @@ type ExamDetailTab = 'marks' | 'timetable';
       <div class="erp-card mb-3 animate-in animate-in-delay-1" *ngIf="role === 'parent'">
         <div class="row g-3 align-items-end">
           <div class="col-md-8">
-            <label class="erp-label">Child</label>
+            <label class="erp-label">{{ 'exams.labelChild' | translate }}</label>
             <select
               class="erp-select"
               [(ngModel)]="selectedParentChildId"
               (change)="onParentChildChangeForExams()"
               [disabled]="!parentChildren.length"
             >
-              <option [ngValue]="null" *ngIf="parentChildren.length > 1">Select a child…</option>
+              <option [ngValue]="null" *ngIf="parentChildren.length > 1">{{ 'exams.selectChild' | translate }}</option>
               <option *ngFor="let c of parentChildren" [ngValue]="c.id">
-                {{ c.firstName }} {{ c.lastName }} — {{ c.className || ('Class ' + c.classId) }}
+                {{ c.firstName }} {{ c.lastName }} — {{ childClassDisplay(c) }}
               </option>
             </select>
           </div>
-          <p class="text-muted small col-12 mb-0">
-            Only exams that apply to the <strong>selected child’s class and section</strong> appear below. List source: <code class="small">GET /parent/exams</code>; per-exam timetable and marks: <code class="small">…/exams/:examId/schedule</code> and <code class="small">…/marks</code>.
-          </p>
-          <p *ngIf="!parentChildren.length" class="text-warning small col-12 mb-0">No students are linked to your account.</p>
+          <p class="text-muted small col-12 mb-0">{{ 'exams.parentHelp' | translate }}</p>
+          <p *ngIf="!parentChildren.length" class="text-warning small col-12 mb-0">{{ 'exams.noChildrenLinked' | translate }}</p>
         </div>
       </div>
 
@@ -80,7 +91,7 @@ type ExamDetailTab = 'marks' | 'timetable';
           >
             <div class="d-flex justify-content-between align-items-start mb-2">
               <h4 style="font-size: 15px; font-weight: 700;">{{ exam.name }}</h4>
-              <span class="badge-erp" [ngClass]="getExamBadge(exam.status)">{{ exam.status }}</span>
+              <span class="badge-erp" [ngClass]="getExamBadge(exam.status)">{{ examStatusLabel(exam.status) }}</span>
             </div>
             <div style="font-size: 12px; color: var(--clr-text-muted);">
               <div><i class="bi bi-calendar3 me-1"></i>{{ exam.startDate }} → {{ exam.endDate }}</div>
@@ -91,12 +102,12 @@ type ExamDetailTab = 'marks' | 'timetable';
       </div>
 
       <div *ngIf="role === 'parent' && parentChildren.length && selectedParentChildId == null" class="erp-card mb-4 animate-in text-muted small">
-        Select a child above to see their exams.
+        {{ 'exams.pickChildPrompt' | translate }}
       </div>
 
       <div *ngIf="role === 'parent' && selectedParentChildId != null && !examGridList.length" class="erp-card mb-4 animate-in empty-state">
-        <h3>No exams for this child</h3>
-        <p class="small mb-0 text-muted">When the school schedules assessments for this class or section, they will appear here.</p>
+        <h3>{{ 'exams.noExamsChildTitle' | translate }}</h3>
+        <p class="small mb-0 text-muted">{{ 'exams.noExamsChildLead' | translate }}</p>
       </div>
 
       <div *ngIf="selectedExam" class="erp-card animate-in animate-in-delay-2 mb-4">
@@ -106,28 +117,36 @@ type ExamDetailTab = 'marks' | 'timetable';
             <p class="text-muted small mb-0">{{ scopeSummary(selectedExam) }}</p>
           </div>
           <div class="erp-tabs" style="margin: 0;" *ngIf="role === 'parent'">
-            <button type="button" class="erp-tab" [class.active]="parentDetailTab === 'timetable'" (click)="parentDetailTab = 'timetable'">Timetable</button>
+            <button type="button" class="erp-tab" [class.active]="parentDetailTab === 'timetable'" (click)="parentDetailTab = 'timetable'">{{ 'exams.tabTimetable' | translate }}</button>
             <button
               type="button"
               class="erp-tab"
               [class.active]="parentDetailTab === 'results'"
               [disabled]="!selectedExam.resultsPublished"
-              [title]="!selectedExam.resultsPublished ? 'School has not published results for this exam yet.' : ''"
+              [title]="!selectedExam.resultsPublished ? ('exams.resultsNotPublishedTitle' | translate) : ''"
               (click)="selectedExam.resultsPublished && (parentDetailTab = 'results')"
             >
-              Results
+              {{ 'exams.tabResults' | translate }}
             </button>
           </div>
           <div class="erp-tabs" style="margin: 0;" *ngIf="canEnterMarks">
-            <button type="button" class="erp-tab" [class.active]="detailTab === 'marks'" (click)="detailTab = 'marks'">Marks</button>
-            <button type="button" class="erp-tab" [class.active]="detailTab === 'timetable'" (click)="onTimetableTab()">Timetable</button>
+            <button type="button" class="erp-tab" [class.active]="detailTab === 'marks'" (click)="detailTab = 'marks'">{{ 'exams.tabMarks' | translate }}</button>
+            <button type="button" class="erp-tab" [class.active]="detailTab === 'timetable'" (click)="onTimetableTab()">{{ 'exams.tabTimetable' | translate }}</button>
           </div>
         </div>
 
         <ng-container *ngIf="role === 'parent' && selectedExam && parentDetailTab === 'results'">
-          <p *ngIf="!selectedExam.resultsPublished" class="text-muted small">Results are not published yet.</p>
+          <p *ngIf="!selectedExam.resultsPublished" class="text-muted small">{{ 'exams.resultsNotPublished' | translate }}</p>
           <table class="erp-table" *ngIf="selectedExam.resultsPublished && marks.length">
-            <thead><tr><th>Subject</th><th>Marks</th><th>Max</th><th>%</th><th>Grade</th></tr></thead>
+            <thead
+              ><tr
+                ><th>{{ 'exams.thSubject' | translate }}</th
+                ><th>{{ 'exams.thMarks' | translate }}</th
+                ><th>{{ 'exams.thMax' | translate }}</th
+                ><th>{{ 'exams.thPct' | translate }}</th
+                ><th>{{ 'exams.thGrade' | translate }}</th></tr
+              ></thead
+            >
             <tbody>
               <tr *ngFor="let mark of marks">
                 <td><strong>{{ mark.subjectName }}</strong></td>
@@ -138,70 +157,93 @@ type ExamDetailTab = 'marks' | 'timetable';
               </tr>
             </tbody>
           </table>
-          <p *ngIf="selectedExam.resultsPublished && !marks.length" class="text-muted small mb-0">No mark rows for your child in this exam yet.</p>
+          <p *ngIf="selectedExam.resultsPublished && !marks.length" class="text-muted small mb-0">{{ 'exams.noMarkRows' | translate }}</p>
         </ng-container>
 
         <ng-container *ngIf="detailTab === 'marks' && canEnterMarks">
           <div class="row g-3 align-items-end mb-3">
             <div class="col-md-4">
-              <label class="erp-label">Class</label>
+              <label class="erp-label">{{ 'exams.labelClass' | translate }}</label>
               <select class="erp-select" [(ngModel)]="selectedClassId" (change)="onClassOrSectionChange()">
-                <option [ngValue]="null">Select class</option>
-                <option *ngFor="let cls of marksClassOptions" [ngValue]="cls.id">{{ cls.name }}</option>
+                <option [ngValue]="null">{{ 'exams.selectClass' | translate }}</option>
+                <option *ngFor="let cls of marksClassOptions" [ngValue]="cls.id">{{ cls.name | schoolClassName }}</option>
               </select>
             </div>
             <div class="col-md-4" *ngIf="sectionsForMarksEntry.length">
-              <label class="erp-label">Section</label>
+              <label class="erp-label">{{ 'exams.labelSection' | translate }}</label>
               <select class="erp-select" [(ngModel)]="marksSectionId" (change)="onClassOrSectionChange()">
-                <option [ngValue]="null">All sections in class</option>
+                <option [ngValue]="null">{{ 'exams.allSectionsInClass' | translate }}</option>
                 <option *ngFor="let sec of sectionsForMarksEntry" [ngValue]="sec.id">{{ sec.name }}</option>
               </select>
             </div>
             <div class="col-md-4">
-              <label class="erp-label">Subject</label>
+              <label class="erp-label">{{ 'exams.labelSubject' | translate }}</label>
               <select *ngIf="teacherMarksScopeActive && subjectSelectOptions.length" class="erp-select" [(ngModel)]="marksSubject">
-                <option value="">Select subject</option>
+                <option value="">{{ 'exams.selectSubject' | translate }}</option>
                 <option *ngFor="let s of subjectSelectOptions" [ngValue]="s">{{ s }}</option>
               </select>
-              <input *ngIf="!teacherMarksScopeActive || !subjectSelectOptions.length" class="erp-input" [(ngModel)]="marksSubject" placeholder="e.g. Mathematics">
+              <input
+                *ngIf="!teacherMarksScopeActive || !subjectSelectOptions.length"
+                class="erp-input"
+                [(ngModel)]="marksSubject"
+                [placeholder]="'exams.subjectPlaceholder' | translate"
+              />
             </div>
             <div class="col-md-4">
-              <label class="erp-label">Max marks</label>
-              <input class="erp-input" type="number" [(ngModel)]="maxMarks">
+              <label class="erp-label">{{ 'exams.labelMaxMarks' | translate }}</label>
+              <input class="erp-input" type="number" [(ngModel)]="maxMarks" />
             </div>
           </div>
           <p *ngIf="sectionHint" class="small text-muted mb-2">{{ sectionHint }}</p>
           <div *ngIf="teacherMarksScopeActive && marksScopeRows.length" class="erp-alert info small mb-3" style="padding: 10px 12px;">
-            <strong>Your mark-entry scope</strong> (from subject assignments):
+            <strong>{{ 'exams.scopeTitle' | translate }}</strong> {{ 'exams.scopeFrom' | translate }}
             <span *ngFor="let r of marksScopeRows; let last = last" class="ms-1">
-              {{ className(r.classId) }}<ng-container *ngIf="r.sectionId != null"> · sec {{ sectionName(r.classId, r.sectionId) }}</ng-container> · {{ r.subjectName }}<span *ngIf="!last">;</span>
+              {{ className(r.classId)
+              }}<ng-container *ngIf="r.sectionId != null"> · {{ 'exams.scopeSec' | translate }} {{ sectionName(r.classId, r.sectionId) }}</ng-container> ·
+              {{ r.subjectName }}<span *ngIf="!last">;</span>
             </span>
           </div>
           <p *ngIf="marksScopeError" class="small text-warning mb-2">{{ marksScopeError }}</p>
 
           <div *ngIf="marksEntryStudents.length > 0" class="mb-4">
             <table class="erp-table">
-              <thead><tr><th>Student</th><th>Roll</th><th>Marks</th><th>Grade</th></tr></thead>
+              <thead
+                ><tr
+                  ><th>{{ 'exams.thStudent' | translate }}</th
+                  ><th>{{ 'exams.thRoll' | translate }}</th
+                  ><th>{{ 'exams.thMarks' | translate }}</th
+                  ><th>{{ 'exams.thGrade' | translate }}</th></tr
+                ></thead
+              >
               <tbody>
                 <tr *ngFor="let student of marksEntryStudents">
                   <td><strong>{{ student.firstName }} {{ student.lastName }}</strong></td>
                   <td>{{ student.rollNumber }}</td>
-                  <td><input class="erp-input" type="number" min="0" [max]="maxMarks" [(ngModel)]="marksByStudent[student.id]"></td>
+                  <td><input class="erp-input" type="number" min="0" [max]="maxMarks" [(ngModel)]="marksByStudent[student.id]" /></td>
                   <td>{{ getAutoGrade(getDraftMark(student.id), maxMarks) }}</td>
                 </tr>
               </tbody>
             </table>
             <div class="d-flex justify-content-end mt-3">
               <button type="button" class="btn-primary-erp" (click)="saveMarks()" [disabled]="!marksSubject || selectedClassId == null || marksSaving">
-                {{ marksSaving ? 'Saving…' : 'Save marks' }}
+                {{ marksSaving ? ('exams.marksSaving' | translate) : ('exams.saveMarks' | translate) }}
               </button>
             </div>
           </div>
 
           <div *ngIf="marks.length > 0">
-            <h4 style="font-size: 16px; font-weight: 700; margin-bottom: 12px;">Recorded results</h4>
+            <h4 style="font-size: 16px; font-weight: 700; margin-bottom: 12px;">{{ 'exams.recordedResults' | translate }}</h4>
             <table class="erp-table">
-              <thead><tr><th>Student</th><th>Subject</th><th>Marks</th><th>Max</th><th>%</th><th>Grade</th></tr></thead>
+              <thead
+                ><tr
+                  ><th>{{ 'exams.thStudent' | translate }}</th
+                  ><th>{{ 'exams.thSubject' | translate }}</th
+                  ><th>{{ 'exams.thMarks' | translate }}</th
+                  ><th>{{ 'exams.thMax' | translate }}</th
+                  ><th>{{ 'exams.thPct' | translate }}</th
+                  ><th>{{ 'exams.thGrade' | translate }}</th></tr
+                ></thead
+              >
               <tbody>
                 <tr *ngFor="let mark of marks">
                   <td><strong>{{ mark.studentName }}</strong></td>
@@ -217,12 +259,19 @@ type ExamDetailTab = 'marks' | 'timetable';
         </ng-container>
 
         <ng-container *ngIf="role === 'parent' && parentDetailTab === 'timetable'">
-          <p class="text-muted small mb-3">Published papers for this exam (read-only).</p>
+          <p class="text-muted small mb-3">{{ 'exams.parentTimetableLead' | translate }}</p>
           <div class="table-responsive mb-3" *ngIf="scheduleDraft.length">
             <table class="erp-table">
               <thead>
                 <tr>
-                  <th>Date</th><th>Start</th><th>End</th><th>Subject</th><th>Class</th><th>Section</th><th>Room</th><th>Notes</th>
+                  <th>{{ 'exams.thDate' | translate }}</th
+                  ><th>{{ 'exams.thStart' | translate }}</th
+                  ><th>{{ 'exams.thEnd' | translate }}</th
+                  ><th>{{ 'exams.thSubject' | translate }}</th
+                  ><th>{{ 'exams.thClass' | translate }}</th
+                  ><th>{{ 'exams.thSection' | translate }}</th
+                  ><th>{{ 'exams.thRoom' | translate }}</th
+                  ><th>{{ 'exams.thNotes' | translate }}</th>
                 </tr>
               </thead>
               <tbody>
@@ -232,61 +281,72 @@ type ExamDetailTab = 'marks' | 'timetable';
                   <td>{{ formatSlotTime(row.endTime) }}</td>
                   <td><strong>{{ row.subjectName }}</strong></td>
                   <td>{{ className(row.classId) }}</td>
-                  <td>{{ row.sectionId != null ? sectionName(row.classId, row.sectionId) : 'All' }}</td>
-                  <td>{{ row.room?.trim() ? row.room : '—' }}</td>
-                  <td>{{ row.notes?.trim() ? row.notes : '—' }}</td>
+                  <td>{{ row.sectionId != null ? sectionName(row.classId, row.sectionId) : ('exams.sectionAll' | translate) }}</td>
+                  <td>{{ row.room?.trim() ? row.room : ('exams.dash' | translate) }}</td>
+                  <td>{{ row.notes?.trim() ? row.notes : ('exams.dash' | translate) }}</td>
                 </tr>
               </tbody>
             </table>
           </div>
           <p *ngIf="scheduleUiMessage && scheduleDraft.length === 0" class="small mb-2" [class.text-danger]="scheduleUiError">{{ scheduleUiMessage }}</p>
-          <p *ngIf="!scheduleDraft.length" class="text-muted small mb-0">No timetable published for this exam yet.</p>
+          <p *ngIf="!scheduleDraft.length" class="text-muted small mb-0">{{ 'exams.noTimetableYet' | translate }}</p>
         </ng-container>
 
         <ng-container *ngIf="role !== 'parent' && detailTab === 'timetable'">
-          <p class="text-muted small mb-3">
-            Each row is one paper: date, time window, class (and optional section), room and notes.
-          </p>
+          <p class="text-muted small mb-3">{{ 'exams.staffTimetableLead' | translate }}</p>
           <div class="table-responsive mb-3" *ngIf="scheduleDraft.length || canEditSchedule">
             <table class="erp-table">
               <thead>
                 <tr>
-                  <th>Date</th><th>Start</th><th>End</th><th>Subject</th><th>Class</th><th>Section</th><th>Room</th><th>Notes</th>
+                  <th>{{ 'exams.thDate' | translate }}</th
+                  ><th>{{ 'exams.thStart' | translate }}</th
+                  ><th>{{ 'exams.thEnd' | translate }}</th
+                  ><th>{{ 'exams.thSubject' | translate }}</th
+                  ><th>{{ 'exams.thClass' | translate }}</th
+                  ><th>{{ 'exams.thSection' | translate }}</th
+                  ><th>{{ 'exams.thRoom' | translate }}</th
+                  ><th>{{ 'exams.thNotes' | translate }}</th>
                   <th *ngIf="canEditSchedule"></th>
                 </tr>
               </thead>
               <tbody>
                 <tr *ngFor="let row of scheduleDraft; let i = index">
-                  <td><app-erp-date-picker [(ngModel)]="row.examDate" [ngModelOptions]="{standalone: true}" [disabled]="!canEditSchedule" placeholder="Exam date" /></td>
-                  <td><input type="time" class="erp-input" [(ngModel)]="row.startTime" [disabled]="!canEditSchedule"></td>
-                  <td><input type="time" class="erp-input" [(ngModel)]="row.endTime" [disabled]="!canEditSchedule"></td>
-                  <td><input class="erp-input" [(ngModel)]="row.subjectName" [disabled]="!canEditSchedule"></td>
+                  <td
+                    ><app-erp-date-picker
+                      [(ngModel)]="row.examDate"
+                      [ngModelOptions]="{ standalone: true }"
+                      [disabled]="!canEditSchedule"
+                      [placeholder]="'exams.examDatePh' | translate"
+                  /></td>
+                  <td><input type="time" class="erp-input" [(ngModel)]="row.startTime" [disabled]="!canEditSchedule" /></td>
+                  <td><input type="time" class="erp-input" [(ngModel)]="row.endTime" [disabled]="!canEditSchedule" /></td>
+                  <td><input class="erp-input" [(ngModel)]="row.subjectName" [disabled]="!canEditSchedule" /></td>
                   <td>
                     <select class="erp-select" [(ngModel)]="row.classId" (change)="onScheduleRowClass(row)" [disabled]="!canEditSchedule">
-                      <option *ngFor="let c of classes" [ngValue]="c.id">{{ c.name }}</option>
+                      <option *ngFor="let c of classes" [ngValue]="c.id">{{ c.name | schoolClassName }}</option>
                     </select>
                   </td>
                   <td>
                     <select class="erp-select" [(ngModel)]="row.sectionId" [disabled]="!canEditSchedule">
-                      <option [ngValue]="null">All sections</option>
+                      <option [ngValue]="null">{{ 'exams.allSections' | translate }}</option>
                       <option *ngFor="let s of sectionsForClass(row.classId)" [ngValue]="s.id">{{ s.name }}</option>
                     </select>
                   </td>
-                  <td><input class="erp-input" [(ngModel)]="row.room" [disabled]="!canEditSchedule"></td>
-                  <td><input class="erp-input" [(ngModel)]="row.notes" [disabled]="!canEditSchedule"></td>
+                  <td><input class="erp-input" [(ngModel)]="row.room" [disabled]="!canEditSchedule" /></td>
+                  <td><input class="erp-input" [(ngModel)]="row.notes" [disabled]="!canEditSchedule" /></td>
                   <td *ngIf="canEditSchedule">
-                    <button type="button" class="btn-icon" (click)="removeScheduleRow(i)" title="Remove"><i class="bi bi-x-lg"></i></button>
+                    <button type="button" class="btn-icon" (click)="removeScheduleRow(i)" [title]="'exams.removeRowTitle' | translate"><i class="bi bi-x-lg"></i></button>
                   </td>
                 </tr>
               </tbody>
             </table>
           </div>
           <div class="d-flex gap-2 flex-wrap" *ngIf="canEditSchedule">
-            <button type="button" class="btn-outline-erp btn-sm" (click)="addScheduleRow()"><i class="bi bi-plus-lg"></i> Add slot</button>
-            <button type="button" class="btn-primary-erp btn-sm" (click)="saveSchedule()" [disabled]="scheduleSaving">Save timetable</button>
+            <button type="button" class="btn-outline-erp btn-sm" (click)="addScheduleRow()"><i class="bi bi-plus-lg"></i> {{ 'exams.addSlot' | translate }}</button>
+            <button type="button" class="btn-primary-erp btn-sm" (click)="saveSchedule()" [disabled]="scheduleSaving">{{ 'exams.saveTimetable' | translate }}</button>
           </div>
           <p *ngIf="scheduleUiMessage" class="small mt-2 mb-0" [class.text-danger]="scheduleUiError" [class.text-success]="!scheduleUiError">{{ scheduleUiMessage }}</p>
-          <p *ngIf="!scheduleDraft.length && !canEditSchedule" class="text-muted small">No timetable published for this exam yet.</p>
+          <p *ngIf="!scheduleDraft.length && !canEditSchedule" class="text-muted small">{{ 'exams.noTimetableYet' | translate }}</p>
         </ng-container>
       </div>
     </div>
@@ -294,43 +354,55 @@ type ExamDetailTab = 'marks' | 'timetable';
     <div class="modal-overlay" *ngIf="showCreateModal" (click)="showCreateModal = false">
       <div class="modal-content-erp modal-lg" (click)="$event.stopPropagation()">
         <div class="modal-header-erp">
-          <h3>Create exam</h3>
+          <h3>{{ 'exams.modalCreateTitle' | translate }}</h3>
           <button type="button" class="btn-icon" (click)="showCreateModal = false"><i class="bi bi-x-lg"></i></button>
         </div>
         <div class="modal-body-erp">
-          <div class="erp-form-group"><label class="erp-label">Exam name</label><input type="text" class="erp-input" [(ngModel)]="newExam.name"></div>
           <div class="erp-form-group">
-            <label class="erp-label">Academic year</label>
+            <label class="erp-label">{{ 'exams.labelExamName' | translate }}</label><input type="text" class="erp-input" [(ngModel)]="newExam.name" />
+          </div>
+          <div class="erp-form-group">
+            <label class="erp-label">{{ 'exams.labelAcademicYear' | translate }}</label>
             <select class="erp-select" [(ngModel)]="newExam.academicYearId">
-              <option [ngValue]="null">Select year</option>
+              <option [ngValue]="null">{{ 'exams.selectYear' | translate }}</option>
               <option *ngFor="let year of academicYears" [ngValue]="year.id">{{ year.name }}</option>
             </select>
           </div>
           <div class="row g-3">
-            <div class="col-md-6"><div class="erp-form-group"><label class="erp-label">Start</label><app-erp-date-picker [(ngModel)]="newExam.startDate" placeholder="Start" /></div></div>
-            <div class="col-md-6"><div class="erp-form-group"><label class="erp-label">End</label><app-erp-date-picker [(ngModel)]="newExam.endDate" placeholder="End" /></div></div>
+            <div class="col-md-6">
+              <div class="erp-form-group">
+                <label class="erp-label">{{ 'exams.labelStart' | translate }}</label
+                ><app-erp-date-picker [(ngModel)]="newExam.startDate" [placeholder]="'exams.labelStart' | translate" />
+              </div>
+            </div>
+            <div class="col-md-6">
+              <div class="erp-form-group">
+                <label class="erp-label">{{ 'exams.labelEnd' | translate }}</label
+                ><app-erp-date-picker [(ngModel)]="newExam.endDate" [placeholder]="'exams.labelEnd' | translate" />
+              </div>
+            </div>
           </div>
           <div class="erp-form-group">
-            <label class="erp-label">Classes &amp; sections</label>
-            <p class="small text-muted">Pick classes included in this exam. For each class, choose <strong>All sections</strong> or one section (classes without sections stay “All”).</p>
+            <label class="erp-label">{{ 'exams.labelClassesSections' | translate }}</label>
+            <p class="small text-muted">{{ 'exams.classesHelp' | translate }}</p>
             <div *ngFor="let cls of classes" class="mb-2 p-2 rounded-3" style="border: 1px solid var(--clr-border-light); background: var(--clr-surface-muted);">
               <label class="d-flex align-items-center gap-2 mb-2">
-                <input type="checkbox" [checked]="newExam.classIds.includes(cls.id)" (change)="toggleClassSelection(cls.id)">
-                <span style="font-weight: 700;">{{ cls.name }}</span>
+                <input type="checkbox" [checked]="newExam.classIds.includes(cls.id)" (change)="toggleClassSelection(cls.id)" />
+                <span style="font-weight: 700;">{{ cls.name | schoolClassName }}</span>
               </label>
               <div *ngIf="newExam.classIds.includes(cls.id)" class="ps-4">
-                <label class="erp-label small">Audience</label>
+                <label class="erp-label small">{{ 'exams.labelAudience' | translate }}</label>
                 <select class="erp-select" [(ngModel)]="sectionChoiceByClass[cls.id]">
-                  <option [ngValue]="null">All sections (whole class)</option>
-                  <option *ngFor="let sec of cls.sections" [ngValue]="sec.id">Section {{ sec.name }}</option>
+                  <option [ngValue]="null">{{ 'exams.audienceAll' | translate }}</option>
+                  <option *ngFor="let sec of cls.sections" [ngValue]="sec.id">{{ 'exams.audienceSection' | translate: { name: sec.name } }}</option>
                 </select>
               </div>
             </div>
           </div>
         </div>
         <div class="modal-footer-erp">
-          <button type="button" class="btn-outline-erp" (click)="showCreateModal = false">Cancel</button>
-          <button type="button" class="btn-primary-erp" (click)="createExam()">Create</button>
+          <button type="button" class="btn-outline-erp" (click)="showCreateModal = false">{{ 'exams.cancel' | translate }}</button>
+          <button type="button" class="btn-primary-erp" (click)="createExam()">{{ 'exams.create' | translate }}</button>
         </div>
       </div>
     </div>
@@ -377,12 +449,16 @@ export class ExamsComponent implements OnInit {
   selectedParentChildId: number | null = null;
   parentDetailTab: 'timetable' | 'results' = 'timetable';
 
+  private readonly destroyRef = inject(DestroyRef);
+
   constructor(
     private examService: ExamService,
     private academicService: AcademicService,
     private studentService: StudentService,
     private parentService: ParentService,
-    private auth: AuthService
+    private auth: AuthService,
+    private translate: TranslateService,
+    private cdr: ChangeDetectorRef
   ) {}
 
   get role(): string {
@@ -479,6 +555,8 @@ export class ExamsComponent implements OnInit {
   }
 
   ngOnInit(): void {
+    this.translate.onLangChange.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => this.cdr.markForCheck());
+
     if (this.role === 'parent') {
       this.detailTab = 'timetable';
       forkJoin({
@@ -561,17 +639,32 @@ export class ExamsComponent implements OnInit {
     const scopes = exam.classScopes?.length
       ? exam.classScopes
       : (exam.classIds ?? []).map(cid => ({ classId: cid, sectionId: null as number | null }));
-    if (!scopes.length) return 'No classes';
+    if (!scopes.length) return this.translate.instant('exams.scopeNoClasses');
+    const allSec = this.translate.instant('exams.scopeAllSections');
+    const secFb = this.translate.instant('exams.scopeSectionFallback');
     const parts = scopes.map(s => {
       const cls = this.classes.find(c => c.id === s.classId);
-      const apiName = 'className' in s ? s.className : undefined;
-      const name = cls?.name || apiName || 'Class';
-      if (s.sectionId == null) return `${name} · all sections`;
+      const apiName = 'className' in s ? (s as { className?: string }).className : undefined;
+      const name = formatSchoolClassDisplayName(s.classId, cls?.name ?? apiName, this.translate);
+      if (s.sectionId == null) return `${name} · ${allSec}`;
       const sec = cls?.sections?.find(x => x.id === s.sectionId);
-      const secApi = 'sectionName' in s ? s.sectionName : undefined;
-      return `${name} · ${sec?.name || secApi || 'section'}`;
+      const secApi = 'sectionName' in s ? (s as { sectionName?: string }).sectionName : undefined;
+      return `${name} · ${sec?.name || secApi || secFb}`;
     });
-    return parts.slice(0, 3).join(' · ') + (parts.length > 3 ? ` +${parts.length - 3}` : '');
+    const more =
+      parts.length > 3 ? ' ' + this.translate.instant('exams.scopeMore', { n: parts.length - 3 }) : '';
+    return parts.slice(0, 3).join(' · ') + more;
+  }
+
+  examStatusLabel(status: string | undefined): string {
+    const k = (status ?? '').toLowerCase();
+    const key = `exams.status.${k}`;
+    const t = this.translate.instant(key);
+    return t !== key ? t : (status ?? '');
+  }
+
+  childClassDisplay(c: Student): string {
+    return formatSchoolClassDisplayName(c.classId, c.className, this.translate);
   }
 
   get selectedExamClasses(): SchoolClass[] {
@@ -597,7 +690,7 @@ export class ExamsComponent implements OnInit {
     const onlySections = scoped.map(s => s.sectionId).filter((x): x is number => x != null);
     if (!onlySections.length) return '';
     if (onlySections.length === 1 && this.marksSectionId == null) {
-      return 'This exam targets one section for this class — pick that section above for mark entry.';
+      return this.translate.instant('exams.sectionHintSingle');
     }
     return '';
   }
@@ -639,8 +732,7 @@ export class ExamsComponent implements OnInit {
         error: () => {
           const list = exam.scheduleSlots ?? [];
           this.scheduleDraft = list.map(s => ({ ...s, sectionId: s.sectionId ?? null }));
-          this.scheduleUiMessage =
-            'Could not load this exam’s timetable from the server; showing any rows bundled with the exam list.';
+          this.scheduleUiMessage = this.translate.instant('exams.scheduleLoadErrorParent');
           this.scheduleUiError = true;
         }
       });
@@ -658,7 +750,7 @@ export class ExamsComponent implements OnInit {
       error: () => {
         const list = exam.scheduleSlots ?? [];
         this.scheduleDraft = list.map(s => ({ ...s, sectionId: s.sectionId ?? null }));
-        this.scheduleUiMessage = 'Could not load timetable from the server; showing any rows bundled with the exam list.';
+        this.scheduleUiMessage = this.translate.instant('exams.scheduleLoadErrorBundled');
         this.scheduleUiError = true;
       }
     });
@@ -673,8 +765,7 @@ export class ExamsComponent implements OnInit {
         },
         error: () => {
           this.marksScopeRows = [];
-          this.marksScopeError =
-            'Could not load your marks-entry scope from the server. You may still try to save; the API will reject unauthorized subjects.';
+          this.marksScopeError = this.translate.instant('exams.marksScopeError');
         }
       });
     }
@@ -682,15 +773,16 @@ export class ExamsComponent implements OnInit {
 
   className(classId: number | undefined): string {
     if (classId == null) {
-      return '—';
+      return this.translate.instant('exams.dash');
     }
-    return this.classes.find(c => c.id === classId)?.name ?? 'Class ' + classId;
+    const cls = this.classes.find(c => c.id === classId);
+    return formatSchoolClassDisplayName(classId, cls?.name, this.translate);
   }
 
   /** HH:MM for API values like "09:00:00". */
   formatSlotTime(t: string | undefined): string {
     if (!t?.trim()) {
-      return '—';
+      return this.translate.instant('exams.dash');
     }
     const parts = t.split(':');
     return parts.length >= 2 ? `${parts[0]}:${parts[1]}` : t;
@@ -807,22 +899,22 @@ export class ExamsComponent implements OnInit {
         const r = this.scheduleDraft[i];
         const n = i + 1;
         if (r.classId == null) {
-          this.scheduleUiMessage = `Row ${n}: select a class.`;
+          this.scheduleUiMessage = this.translate.instant('exams.validation.rowClass', { n });
           this.scheduleUiError = true;
           return;
         }
         if (!r.subjectName?.trim()) {
-          this.scheduleUiMessage = `Row ${n}: enter a subject.`;
+          this.scheduleUiMessage = this.translate.instant('exams.validation.rowSubject', { n });
           this.scheduleUiError = true;
           return;
         }
         if (!r.examDate?.trim()) {
-          this.scheduleUiMessage = `Row ${n}: pick a date.`;
+          this.scheduleUiMessage = this.translate.instant('exams.validation.rowDate', { n });
           this.scheduleUiError = true;
           return;
         }
         if (!r.startTime?.trim() || !r.endTime?.trim()) {
-          this.scheduleUiMessage = `Row ${n}: set start and end times.`;
+          this.scheduleUiMessage = this.translate.instant('exams.validation.rowTime', { n });
           this.scheduleUiError = true;
           return;
         }
@@ -844,7 +936,7 @@ export class ExamsComponent implements OnInit {
         this.scheduleDraft = rows.map(r => ({ ...r, sectionId: r.sectionId ?? null }));
         this.selectedExam!.scheduleSlots = [...rows];
         this.scheduleSaving = false;
-        this.scheduleUiMessage = 'Timetable saved.';
+        this.scheduleUiMessage = this.translate.instant('exams.timetableSaved');
         this.scheduleUiError = false;
       },
       error: (err: unknown) => {
@@ -853,9 +945,10 @@ export class ExamsComponent implements OnInit {
         const msg =
           err instanceof Error
             ? err.message
-            : (http?.error?.message ?? http?.message ?? 'Save failed');
+            : (http?.error?.message ?? http?.message ?? this.translate.instant('exams.saveFailed'));
         this.scheduleUiMessage =
-          msg + (String(msg).toLowerCase().includes('network') ? '' : ' — use admin or teacher role; ensure the API is running if not using mocks.');
+          msg +
+          (String(msg).toLowerCase().includes('network') ? '' : this.translate.instant('exams.scheduleSaveNetwork'));
         this.scheduleUiError = true;
       }
     });

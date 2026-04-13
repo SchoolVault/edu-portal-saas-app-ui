@@ -1,6 +1,7 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { Book, BookIssue, Student } from '../../core/models/models';
 import { LibraryCatalogFilter, LibraryService } from '../../core/services/library.service';
 import { StudentService } from '../../core/services/student.service';
@@ -13,58 +14,58 @@ import { ConfirmDialogService } from '../../shared/confirm-dialog/confirm-dialog
 @Component({
   selector: 'app-library',
   standalone: true,
-  imports: [CommonModule, FormsModule, ErpDatePickerComponent],
+  imports: [CommonModule, FormsModule, ErpDatePickerComponent, TranslateModule],
   template: `
     <div data-testid="library-page">
       <div class="d-flex justify-content-between align-items-center mb-4 animate-in flex-wrap gap-2">
         <div>
-          <h2 style="font-size: 24px; font-weight: 800;">Library</h2>
-          <p class="text-muted mb-0" style="font-size: 13px;">Catalog, circulation, and copy counts stay in sync when you issue or return</p>
+          <h2 style="font-size: 24px; font-weight: 800;">{{ 'library.pageTitle' | translate }}</h2>
+          <p class="text-muted mb-0" style="font-size: 13px;">{{ 'library.lead' | translate }}</p>
         </div>
         <div class="d-flex gap-2 flex-wrap">
           <button type="button" class="btn-outline-erp btn-sm" (click)="refreshAll()" [disabled]="refreshing">
-            <i class="bi bi-arrow-clockwise"></i> {{ refreshing ? 'Refreshing…' : 'Refresh' }}
+            <i class="bi bi-arrow-clockwise"></i> {{ refreshing ? ('library.refreshing' | translate) : ('library.refresh' | translate) }}
           </button>
           <button *ngIf="canManageLibrary" type="button" class="btn-primary-erp btn-sm" data-testid="add-book-btn" (click)="openBookModal()">
-            <i class="bi bi-plus-lg"></i> Add book
+            <i class="bi bi-plus-lg"></i> {{ 'library.addBook' | translate }}
           </button>
         </div>
       </div>
-      <div *ngIf="libraryReadOnlyHint" class="alert alert-info py-2 small mb-3" style="border-radius: var(--radius-md);">
-        <i class="bi bi-info-circle me-1"></i>{{ libraryReadOnlyHint }}
+      <div *ngIf="readOnlyHintVisible" class="alert alert-info py-2 small mb-3" style="border-radius: var(--radius-md);">
+        <i class="bi bi-info-circle me-1"></i>{{ 'library.readOnlyHint' | translate }}
       </div>
       <div class="erp-tabs animate-in">
-        <button type="button" class="erp-tab" [class.active]="tab === 'catalog'" (click)="tab = 'catalog'; loadBooks()">Book catalog</button>
-        <button type="button" class="erp-tab" [class.active]="tab === 'issued'" (click)="tab = 'issued'; loadIssues()">Circulation</button>
+        <button type="button" class="erp-tab" [class.active]="tab === 'catalog'" (click)="tab = 'catalog'; loadBooks()">{{ 'library.tabCatalog' | translate }}</button>
+        <button type="button" class="erp-tab" [class.active]="tab === 'issued'" (click)="tab = 'issued'; loadIssues()">{{ 'library.tabCirculation' | translate }}</button>
       </div>
       <div *ngIf="tab === 'catalog'" class="animate-in">
         <div class="erp-card">
           <div class="d-flex flex-wrap gap-2 align-items-end mb-3">
             <div class="search-input-wrapper flex-grow-1" style="min-width: 200px; max-width: 400px;">
               <i class="bi bi-search"></i>
-              <input type="text" class="erp-input" placeholder="Search title, author, ISBN…" [(ngModel)]="searchTerm" (input)="loadBooks()" data-testid="book-search">
+              <input type="text" class="erp-input" [placeholder]="'library.searchPlaceholder' | translate" [(ngModel)]="searchTerm" (input)="loadBooks()" data-testid="book-search">
             </div>
             <div>
-              <label class="erp-label d-block mb-1 small">Category</label>
+              <label class="erp-label d-block mb-1 small">{{ 'library.labelCategory' | translate }}</label>
               <select class="erp-select" style="min-width: 160px;" [(ngModel)]="catalogCategory" (change)="loadBooks()">
-                <option value="">All categories</option>
+                <option value="">{{ 'library.allCategories' | translate }}</option>
                 <option *ngFor="let c of bookCategories" [value]="c">{{ c }}</option>
               </select>
             </div>
             <div>
-              <label class="erp-label d-block mb-1 small">Catalog</label>
+              <label class="erp-label d-block mb-1 small">{{ 'library.labelCatalog' | translate }}</label>
               <select class="erp-select" style="min-width: 140px;" [(ngModel)]="catalogFilter" (change)="loadBooks()">
-                <option value="active">Active</option>
-                <option value="inactive">Inactive</option>
-                <option value="all">All</option>
+                <option value="active">{{ 'library.catalogActive' | translate }}</option>
+                <option value="inactive">{{ 'library.catalogInactive' | translate }}</option>
+                <option value="all">{{ 'library.catalogAll' | translate }}</option>
               </select>
             </div>
           </div>
           <table class="erp-table" data-testid="books-table">
             <thead>
               <tr>
-                <th>Title</th><th>Author</th><th>ISBN</th><th>Category</th><th>Copies</th><th>On loan</th><th>Status</th><th>Shelf</th>
-                <th *ngIf="canManageLibrary">Actions</th>
+                <th>{{ 'library.thTitle' | translate }}</th><th>{{ 'library.thAuthor' | translate }}</th><th>{{ 'library.thIsbn' | translate }}</th><th>{{ 'library.thCategory' | translate }}</th><th>{{ 'library.thCopies' | translate }}</th><th>{{ 'library.thOnLoan' | translate }}</th><th>{{ 'library.thStatus' | translate }}</th><th>{{ 'library.thShelf' | translate }}</th>
+                <th *ngIf="canManageLibrary">{{ 'library.thActions' | translate }}</th>
               </tr>
             </thead>
             <tbody>
@@ -75,13 +76,13 @@ import { ConfirmDialogService } from '../../shared/confirm-dialog/confirm-dialog
                 <td><span class="badge-erp badge-neutral">{{ b.category }}</span></td>
                 <td>
                   <span [style.color]="b.availableCopies > 0 ? 'var(--clr-success)' : 'var(--clr-danger)'">{{ b.availableCopies }}/{{ b.totalCopies }}</span>
-                  available
+                  {{ 'library.availableSuffix' | translate }}
                 </td>
                 <td>{{ onLoan(b) }}</td>
                 <td>
-                  <span *ngIf="b.catalogActive === false" class="badge-erp badge-warning">Inactive</span>
-                  <span *ngIf="b.catalogActive !== false && b.availableCopies <= 0" class="badge-erp badge-danger">Out of stock</span>
-                  <span *ngIf="b.catalogActive !== false && b.availableCopies > 0" class="badge-erp badge-success">In stock</span>
+                  <span *ngIf="b.catalogActive === false" class="badge-erp badge-warning">{{ 'library.statusInactive' | translate }}</span>
+                  <span *ngIf="b.catalogActive !== false && b.availableCopies <= 0" class="badge-erp badge-danger">{{ 'library.statusOutOfStock' | translate }}</span>
+                  <span *ngIf="b.catalogActive !== false && b.availableCopies > 0" class="badge-erp badge-success">{{ 'library.statusInStock' | translate }}</span>
                 </td>
                 <td>{{ b.shelfLocation }}</td>
                 <td *ngIf="canManageLibrary" class="text-nowrap">
@@ -90,52 +91,52 @@ import { ConfirmDialogService } from '../../shared/confirm-dialog/confirm-dialog
                     type="button"
                     class="btn-outline-erp btn-xs"
                     (click)="openIssueModal(b)"
-                  >Issue</button>
+                  >{{ 'library.issue' | translate }}</button>
                   <button
                     *ngIf="b.catalogActive !== false"
                     type="button"
                     class="btn-outline-erp btn-xs ms-1"
                     (click)="deactivateBook(b)"
-                  >Remove</button>
+                  >{{ 'library.remove' | translate }}</button>
                   <button
                     *ngIf="b.catalogActive === false"
                     type="button"
                     class="btn-outline-erp btn-xs"
                     (click)="reactivateBook(b)"
-                  >Restore</button>
+                  >{{ 'library.restore' | translate }}</button>
                 </td>
               </tr>
             </tbody>
           </table>
-          <p *ngIf="!books.length" class="text-muted small mb-0">No titles match your filters.</p>
+          <p *ngIf="!books.length" class="text-muted small mb-0">{{ 'library.emptyFilters' | translate }}</p>
         </div>
       </div>
       <div *ngIf="tab === 'issued'" class="animate-in">
         <div class="erp-card">
           <div class="d-flex flex-wrap gap-2 align-items-end mb-3">
             <div>
-              <label class="erp-label d-block mb-1 small">Status</label>
+              <label class="erp-label d-block mb-1 small">{{ 'library.labelIssueStatus' | translate }}</label>
               <select class="erp-select" style="min-width: 180px;" [(ngModel)]="issueStatusFilter" (change)="loadIssues()">
-                <option value="">All active &amp; history</option>
-                <option value="issued">Issued</option>
-                <option value="overdue">Overdue</option>
-                <option value="returned">Returned</option>
+                <option value="">{{ 'library.issueFilterAll' | translate }}</option>
+                <option value="issued">{{ 'library.issueFilterIssued' | translate }}</option>
+                <option value="overdue">{{ 'library.issueFilterOverdue' | translate }}</option>
+                <option value="returned">{{ 'library.issueFilterReturned' | translate }}</option>
               </select>
             </div>
-            <button type="button" class="btn-outline-erp btn-sm" (click)="loadIssues()"><i class="bi bi-arrow-clockwise"></i> Refresh</button>
+            <button type="button" class="btn-outline-erp btn-sm" (click)="loadIssues()"><i class="bi bi-arrow-clockwise"></i> {{ 'library.refresh' | translate }}</button>
           </div>
           <table class="erp-table" data-testid="issued-books-table">
-            <thead><tr><th>Book</th><th>Student</th><th>Issue</th><th>Due</th><th>Status</th><th>Fine</th><th *ngIf="canManageLibrary">Return</th></tr></thead>
+            <thead><tr><th>{{ 'library.thBook' | translate }}</th><th>{{ 'library.thStudent' | translate }}</th><th>{{ 'library.thIssue' | translate }}</th><th>{{ 'library.thDue' | translate }}</th><th>{{ 'library.thStatus' | translate }}</th><th>{{ 'library.thFine' | translate }}</th><th *ngIf="canManageLibrary">{{ 'library.thReturn' | translate }}</th></tr></thead>
             <tbody>
               <tr *ngFor="let issue of issues">
                 <td><strong>{{ issue.bookTitle }}</strong></td>
                 <td>{{ issue.studentName }}</td>
                 <td>{{ issue.issueDate }}</td>
                 <td>{{ issue.dueDate }}</td>
-                <td><span class="badge-erp" [ngClass]="{'badge-success': issue.status === 'returned', 'badge-info': issue.status === 'issued', 'badge-danger': issue.status === 'overdue'}">{{ issue.status }}</span></td>
+                <td><span class="badge-erp" [ngClass]="{'badge-success': issue.status === 'returned', 'badge-info': issue.status === 'issued', 'badge-danger': issue.status === 'overdue'}">{{ issueStatusLabel(issue.status) }}</span></td>
                 <td [style.color]="issue.fine > 0 ? 'var(--clr-danger)' : ''">₹{{ issue.fine | number:'1.2-2':'en-IN' }}</td>
                 <td *ngIf="canManageLibrary">
-                  <button *ngIf="issue.status === 'issued' || issue.status === 'overdue'" type="button" class="btn-outline-erp btn-xs" (click)="openReturnModal(issue)">Return</button>
+                  <button *ngIf="issue.status === 'issued' || issue.status === 'overdue'" type="button" class="btn-outline-erp btn-xs" (click)="openReturnModal(issue)">{{ 'library.return' | translate }}</button>
                 </td>
               </tr>
             </tbody>
@@ -146,64 +147,64 @@ import { ConfirmDialogService } from '../../shared/confirm-dialog/confirm-dialog
 
     <div class="modal-overlay" *ngIf="bookModal" (click)="bookModal = false">
       <div class="modal-content-erp" (click)="$event.stopPropagation()">
-        <div class="modal-header-erp"><h3>Add book</h3><button type="button" class="btn-icon" (click)="bookModal = false"><i class="bi bi-x-lg"></i></button></div>
+        <div class="modal-header-erp"><h3>{{ 'library.modalAddTitle' | translate }}</h3><button type="button" class="btn-icon" (click)="bookModal = false"><i class="bi bi-x-lg"></i></button></div>
         <div class="modal-body-erp">
-          <label class="erp-label">Title</label>
+          <label class="erp-label">{{ 'library.thTitle' | translate }}</label>
           <input class="erp-input mb-2" [(ngModel)]="bookForm.title">
-          <label class="erp-label">Author</label>
+          <label class="erp-label">{{ 'library.thAuthor' | translate }}</label>
           <input class="erp-input mb-2" [(ngModel)]="bookForm.author">
-          <label class="erp-label">ISBN</label>
+          <label class="erp-label">{{ 'library.thIsbn' | translate }}</label>
           <input class="erp-input mb-2" [(ngModel)]="bookForm.isbn">
-          <label class="erp-label">Category</label>
+          <label class="erp-label">{{ 'library.thCategory' | translate }}</label>
           <input class="erp-input mb-2" [(ngModel)]="bookForm.category">
-          <label class="erp-label">Total copies</label>
+          <label class="erp-label">{{ 'library.thCopies' | translate }}</label>
           <input class="erp-input mb-2" type="number" [(ngModel)]="bookForm.totalCopies">
-          <label class="erp-label">Shelf</label>
+          <label class="erp-label">{{ 'library.thShelf' | translate }}</label>
           <input class="erp-input" [(ngModel)]="bookForm.shelfLocation">
         </div>
         <div class="modal-footer-erp">
-          <button type="button" class="btn-outline-erp" (click)="bookModal = false">Cancel</button>
-          <button type="button" class="btn-primary-erp" (click)="saveBook()">Save</button>
+          <button type="button" class="btn-outline-erp" (click)="bookModal = false">{{ 'library.cancel' | translate }}</button>
+          <button type="button" class="btn-primary-erp" (click)="saveBook()">{{ 'library.save' | translate }}</button>
         </div>
       </div>
     </div>
 
     <div class="modal-overlay" *ngIf="returnIssue" (click)="returnIssue = null">
       <div class="modal-content-erp" (click)="$event.stopPropagation()">
-        <div class="modal-header-erp"><h3>Return book</h3><button type="button" class="btn-icon" (click)="returnIssue = null"><i class="bi bi-x-lg"></i></button></div>
+        <div class="modal-header-erp"><h3>{{ 'library.modalReturnTitle' | translate }}</h3><button type="button" class="btn-icon" (click)="returnIssue = null"><i class="bi bi-x-lg"></i></button></div>
         <div class="modal-body-erp">
-          <p class="small text-muted mb-2">{{ returnIssue.bookTitle }} · due {{ returnIssue.dueDate }}</p>
-          <label class="erp-label">Return date</label>
-          <app-erp-date-picker class="mb-2" [(ngModel)]="returnForm.returnDate" placeholder="Return date" />
-          <label class="erp-label">Fine per overdue day (₹)</label>
+          <p class="small text-muted mb-2">{{ 'library.returnSummary' | translate: { title: returnIssue.bookTitle, due: returnIssue.dueDate } }}</p>
+          <label class="erp-label">{{ 'library.labelReturnDate' | translate }}</label>
+          <app-erp-date-picker class="mb-2" [(ngModel)]="returnForm.returnDate" [placeholder]="'library.phReturnDate' | translate" />
+          <label class="erp-label">{{ 'library.labelFinePerDay' | translate }}</label>
           <input type="number" class="erp-input mb-2" [(ngModel)]="returnForm.finePerDay" min="0" step="1">
-          <p class="small text-muted mb-0">Leave per-day rate empty to use the school default from settings / tenant config.</p>
+          <p class="small text-muted mb-0">{{ 'library.fineHelp' | translate }}</p>
         </div>
         <div class="modal-footer-erp">
-          <button type="button" class="btn-outline-erp" (click)="returnIssue = null">Cancel</button>
-          <button type="button" class="btn-primary-erp" (click)="confirmReturn()">Confirm return</button>
+          <button type="button" class="btn-outline-erp" (click)="returnIssue = null">{{ 'library.cancel' | translate }}</button>
+          <button type="button" class="btn-primary-erp" (click)="confirmReturn()">{{ 'library.confirmReturn' | translate }}</button>
         </div>
       </div>
     </div>
 
     <div class="modal-overlay" *ngIf="issueBook" (click)="closeIssueModal()">
       <div class="modal-content-erp" (click)="$event.stopPropagation()">
-        <div class="modal-header-erp"><h3>Issue: {{ issueBook.title }}</h3><button type="button" class="btn-icon" (click)="closeIssueModal()"><i class="bi bi-x-lg"></i></button></div>
+        <div class="modal-header-erp"><h3>{{ 'library.issueHeading' | translate: { title: issueBook.title } }}</h3><button type="button" class="btn-icon" (click)="closeIssueModal()"><i class="bi bi-x-lg"></i></button></div>
         <div class="modal-body-erp">
-          <p class="small text-muted mb-2">{{ issueBook.availableCopies }} of {{ issueBook.totalCopies }} copies available to lend.</p>
-          <div *ngIf="!students.length" class="alert alert-warning py-2 small">No students loaded. Use Refresh, or check your account permissions.</div>
-          <label class="erp-label">Student</label>
+          <p class="small text-muted mb-2">{{ 'library.issueCopiesAvailable' | translate: { avail: issueBook.availableCopies, total: issueBook.totalCopies } }}</p>
+          <div *ngIf="!students.length" class="alert alert-warning py-2 small">{{ 'library.noStudentsLoaded' | translate }}</div>
+          <label class="erp-label">{{ 'library.thStudent' | translate }}</label>
           <select class="erp-select mb-2" [(ngModel)]="issueForm.studentId" (ngModelChange)="syncIssueStudent()">
-            <option [ngValue]="null">Select student</option>
+            <option [ngValue]="null">{{ 'library.selectStudent' | translate }}</option>
             <option *ngFor="let s of students" [ngValue]="s.id">{{ s.firstName }} {{ s.lastName }} · {{ s.className }}</option>
           </select>
-          <label class="erp-label">Due in (days)</label>
+          <label class="erp-label">{{ 'library.labelDueDays' | translate }}</label>
           <input class="erp-input mb-2" type="number" min="1" [(ngModel)]="issueForm.dueDays">
           <p *ngIf="issueError" class="text-danger small mb-0">{{ issueError }}</p>
         </div>
         <div class="modal-footer-erp">
-          <button type="button" class="btn-outline-erp" (click)="closeIssueModal()">Cancel</button>
-          <button type="button" class="btn-primary-erp" (click)="saveIssue()">Issue</button>
+          <button type="button" class="btn-outline-erp" (click)="closeIssueModal()">{{ 'library.cancel' | translate }}</button>
+          <button type="button" class="btn-primary-erp" (click)="saveIssue()">{{ 'library.issue' | translate }}</button>
         </div>
       </div>
     </div>
@@ -220,7 +221,7 @@ export class LibraryComponent implements OnInit {
   issues: BookIssue[] = [];
   students: Student[] = [];
   canManageLibrary = false;
-  libraryReadOnlyHint = '';
+  readOnlyHintVisible = false;
   refreshing = false;
   bookModal = false;
   bookForm = { title: '', author: '', isbn: '', category: '', totalCopies: 1, shelfLocation: '' };
@@ -235,12 +236,19 @@ export class LibraryComponent implements OnInit {
     private studentService: StudentService,
     private teacherService: TeacherService,
     private authService: AuthService,
-    private confirmDialog: ConfirmDialogService
+    private confirmDialog: ConfirmDialogService,
+    private translate: TranslateService
   ) {}
+
+  issueStatusLabel(raw: string): string {
+    const k = `library.issueStatus.${raw}`;
+    const t = this.translate.instant(k);
+    return t !== k ? t : raw;
+  }
 
   ngOnInit(): void {
     const r = (this.authService.getCurrentUser()?.role ?? '').toLowerCase();
-    this.libraryReadOnlyHint = '';
+    this.readOnlyHintVisible = false;
     if (r === 'admin' || r === 'super_admin') {
       this.canManageLibrary = true;
     } else if (r === 'teacher') {
@@ -248,10 +256,7 @@ export class LibraryComponent implements OnInit {
       this.teacherService.getTeachers().subscribe(list => {
         const row = (list || []).find(t => t.userId === me?.id);
         this.canManageLibrary = !!row?.libraryStaffRole;
-        if (!this.canManageLibrary) {
-          this.libraryReadOnlyHint =
-            'Library catalog changes and circulation are limited to administrators and designated library staff (assistant, librarian, or head).';
-        }
+        this.readOnlyHintVisible = !this.canManageLibrary;
       });
     } else {
       this.canManageLibrary = false;
@@ -320,7 +325,7 @@ export class LibraryComponent implements OnInit {
           this.rebuildCategories();
           this.loadBooks();
         },
-        error: (e: Error) => alert(e?.message || 'Could not add book')
+        error: (e: Error) => alert(e?.message || this.translate.instant('library.errAddBook'))
       });
   }
 
@@ -345,7 +350,7 @@ export class LibraryComponent implements OnInit {
     this.issueError = '';
     if (!this.issueBook) return;
     if (this.issueForm.studentId == null) {
-      this.issueError = 'Please select a student.';
+      this.issueError = this.translate.instant('library.errSelectStudent');
       return;
     }
     this.libraryService
@@ -357,27 +362,28 @@ export class LibraryComponent implements OnInit {
           this.loadIssues();
         },
         error: (e: Error) => {
-          this.issueError = e?.message || 'Could not issue book.';
+          this.issueError = e?.message || this.translate.instant('library.errIssueFailed');
         }
       });
   }
 
   deactivateBook(b: Book): void {
+    const t = this.translate.instant.bind(this.translate);
     this.confirmDialog
       .confirm({
-        title: 'Mark book inactive?',
-        message: `"${b.title}" will disappear from the active catalog and cannot be issued until it is restored.`,
-        details: [b.author ? `Author: ${b.author}` : undefined, b.isbn ? `ISBN: ${b.isbn}` : undefined].filter(
+        title: t('library.confirmInactiveTitle'),
+        message: t('library.confirmInactiveMessage', { title: b.title }),
+        details: [b.author ? t('library.detailAuthor', { author: b.author }) : undefined, b.isbn ? t('library.detailIsbn', { isbn: b.isbn }) : undefined].filter(
           (x): x is string => !!x
         ),
         variant: 'warning',
-        confirmLabel: 'Yes, mark inactive',
+        confirmLabel: t('library.confirmInactive'),
       })
       .pipe(filter(Boolean))
       .subscribe(() => {
         this.libraryService.setCatalogActive(b.id, false).subscribe({
           next: () => this.loadBooks(),
-          error: (e: Error) => alert(e?.message || 'Could not update catalog'),
+          error: (e: Error) => alert(e?.message || this.translate.instant('library.errCatalog')),
         });
       });
   }
@@ -385,7 +391,7 @@ export class LibraryComponent implements OnInit {
   reactivateBook(b: Book): void {
     this.libraryService.setCatalogActive(b.id, true).subscribe({
       next: () => this.loadBooks(),
-      error: (e: Error) => alert(e?.message || 'Could not update catalog')
+      error: (e: Error) => alert(e?.message || this.translate.instant('library.errCatalog'))
     });
   }
 
@@ -412,7 +418,7 @@ export class LibraryComponent implements OnInit {
           this.loadIssues();
           this.loadBooks();
         },
-        error: (e: Error) => alert(e?.message || 'Could not return book')
+        error: (e: Error) => alert(e?.message || this.translate.instant('library.errReturnFailed'))
       });
   }
 }

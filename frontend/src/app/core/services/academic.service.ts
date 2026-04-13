@@ -97,6 +97,13 @@ export class AcademicService {
       capacity: cap,
       studentCount: 0,
     }));
+    if (payload.classTeacherId != null) {
+      this.classes = this.classes.map(c =>
+        c.classTeacherId === payload.classTeacherId
+          ? { ...c, classTeacherId: undefined, classTeacherName: undefined }
+          : c
+      );
+    }
     const t = payload.classTeacherId
       ? {
           classTeacherId: payload.classTeacherId,
@@ -348,6 +355,17 @@ export class AcademicService {
     );
   }
 
+  /**
+   * Mock: canonical class names where {@code classTeacherId} matches (sorted).
+   * Real API: teacher list includes {@code homeroomClassNames} from the server.
+   */
+  homeroomClassNamesForTeacher(teacherId: number): string[] {
+    return this.classes
+      .filter(c => c.classTeacherId === teacherId)
+      .map(c => c.name)
+      .sort((a, b) => a.localeCompare(b));
+  }
+
   assignClassTeacher(classId: number, teacherId: number | null, teacherName?: string): Observable<SchoolClass> {
     if (!runtimeConfig.useMocks) {
       return this.api
@@ -367,12 +385,13 @@ export class AcademicService {
       );
     }
     const i = this.classes.findIndex(c => c.id === classId);
+    if (i === -1) return of(this.classes[0]).pipe(delay(200));
     this.classes[i] = {
       ...this.classes[i],
       classTeacherId: teacherId ?? undefined,
-      classTeacherName: teacherName || undefined,
+      classTeacherName: teacherId != null ? teacherName?.trim() || undefined : undefined,
     };
-    return of(this.classes[i]).pipe(delay(300));
+    return of({ ...this.classes[i], sections: this.classes[i].sections.map(s => ({ ...s })) }).pipe(delay(300));
   }
 
   private normalizeClass(raw: any): SchoolClass {

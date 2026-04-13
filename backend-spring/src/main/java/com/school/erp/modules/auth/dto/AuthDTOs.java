@@ -14,12 +14,14 @@ public class AuthDTOs {
         private String password;
         @NotBlank(message = "School code is required")
         private String schoolCode;
-
+        /** Optional UI language (e.g. en, hi). When valid, persisted on successful login. */
+        private String interfaceLocale;
 
         public static class LoginRequestBuilder {
             private String email;
             private String password;
             private String schoolCode;
+            private String interfaceLocale;
 
             LoginRequestBuilder() {
             }
@@ -48,13 +50,18 @@ public class AuthDTOs {
                 return this;
             }
 
+            public AuthDTOs.LoginRequest.LoginRequestBuilder interfaceLocale(final String interfaceLocale) {
+                this.interfaceLocale = interfaceLocale;
+                return this;
+            }
+
             public AuthDTOs.LoginRequest build() {
-                return new AuthDTOs.LoginRequest(this.email, this.password, this.schoolCode);
+                return new AuthDTOs.LoginRequest(this.email, this.password, this.schoolCode, this.interfaceLocale);
             }
 
             @Override
             public String toString() {
-                return "AuthDTOs.LoginRequest.LoginRequestBuilder(email=" + this.email + ", password=" + this.password + ", schoolCode=" + this.schoolCode + ")";
+                return "AuthDTOs.LoginRequest.LoginRequestBuilder(email=" + this.email + ", password=" + this.password + ", schoolCode=" + this.schoolCode + ", interfaceLocale=" + this.interfaceLocale + ")";
             }
         }
 
@@ -74,6 +81,10 @@ public class AuthDTOs {
             return this.schoolCode;
         }
 
+        public String getInterfaceLocale() {
+            return this.interfaceLocale;
+        }
+
         public void setEmail(final String email) {
             this.email = email;
         }
@@ -84,6 +95,10 @@ public class AuthDTOs {
 
         public void setSchoolCode(final String schoolCode) {
             this.schoolCode = schoolCode;
+        }
+
+        public void setInterfaceLocale(final String interfaceLocale) {
+            this.interfaceLocale = interfaceLocale;
         }
 
         @Override
@@ -101,6 +116,9 @@ public class AuthDTOs {
             final Object this$schoolCode = this.getSchoolCode();
             final Object other$schoolCode = other.getSchoolCode();
             if (this$schoolCode == null ? other$schoolCode != null : !this$schoolCode.equals(other$schoolCode)) return false;
+            final Object this$interfaceLocale = this.getInterfaceLocale();
+            final Object other$interfaceLocale = other.getInterfaceLocale();
+            if (this$interfaceLocale == null ? other$interfaceLocale != null : !this$interfaceLocale.equals(other$interfaceLocale)) return false;
             return true;
         }
 
@@ -118,21 +136,24 @@ public class AuthDTOs {
             result = result * PRIME + ($password == null ? 43 : $password.hashCode());
             final Object $schoolCode = this.getSchoolCode();
             result = result * PRIME + ($schoolCode == null ? 43 : $schoolCode.hashCode());
+            final Object $interfaceLocale = this.getInterfaceLocale();
+            result = result * PRIME + ($interfaceLocale == null ? 43 : $interfaceLocale.hashCode());
             return result;
         }
 
         @Override
         public String toString() {
-            return "AuthDTOs.LoginRequest(email=" + this.getEmail() + ", password=" + this.getPassword() + ", schoolCode=" + this.getSchoolCode() + ")";
+            return "AuthDTOs.LoginRequest(email=" + this.getEmail() + ", password=" + this.getPassword() + ", schoolCode=" + this.getSchoolCode() + ", interfaceLocale=" + this.getInterfaceLocale() + ")";
         }
 
         public LoginRequest() {
         }
 
-        public LoginRequest(final String email, final String password, final String schoolCode) {
+        public LoginRequest(final String email, final String password, final String schoolCode, final String interfaceLocale) {
             this.email = email;
             this.password = password;
             this.schoolCode = schoolCode;
+            this.interfaceLocale = interfaceLocale;
         }
     }
 
@@ -501,7 +522,7 @@ public class AuthDTOs {
         private String role;
         private String tenantId;
         private String avatar;
-
+        private String interfaceLocale;
 
         public static class UserProfileBuilder {
             private Long id;
@@ -511,6 +532,7 @@ public class AuthDTOs {
             private String role;
             private String tenantId;
             private String avatar;
+            private String interfaceLocale;
 
             UserProfileBuilder() {
             }
@@ -571,13 +593,18 @@ public class AuthDTOs {
                 return this;
             }
 
+            public AuthDTOs.UserProfile.UserProfileBuilder interfaceLocale(final String interfaceLocale) {
+                this.interfaceLocale = interfaceLocale;
+                return this;
+            }
+
             public AuthDTOs.UserProfile build() {
-                return new AuthDTOs.UserProfile(this.id, this.name, this.email, this.phone, this.role, this.tenantId, this.avatar);
+                return new AuthDTOs.UserProfile(this.id, this.name, this.email, this.phone, this.role, this.tenantId, this.avatar, this.interfaceLocale);
             }
 
             @Override
             public String toString() {
-                return "AuthDTOs.UserProfile.UserProfileBuilder(id=" + this.id + ", name=" + this.name + ", email=" + this.email + ", phone=" + this.phone + ", role=" + this.role + ", tenantId=" + this.tenantId + ", avatar=" + this.avatar + ")";
+                return "AuthDTOs.UserProfile.UserProfileBuilder(id=" + this.id + ", name=" + this.name + ", email=" + this.email + ", phone=" + this.phone + ", role=" + this.role + ", tenantId=" + this.tenantId + ", avatar=" + this.avatar + ", interfaceLocale=" + this.interfaceLocale + ")";
             }
         }
 
@@ -613,6 +640,10 @@ public class AuthDTOs {
             return this.avatar;
         }
 
+        public String getInterfaceLocale() {
+            return this.interfaceLocale;
+        }
+
         public void setId(final Long id) {
             this.id = id;
         }
@@ -639,6 +670,10 @@ public class AuthDTOs {
 
         public void setAvatar(final String avatar) {
             this.avatar = avatar;
+        }
+
+        public void setInterfaceLocale(final String interfaceLocale) {
+            this.interfaceLocale = interfaceLocale;
         }
 
         @Override
@@ -668,6 +703,9 @@ public class AuthDTOs {
             final Object this$avatar = this.getAvatar();
             final Object other$avatar = other.getAvatar();
             if (this$avatar == null ? other$avatar != null : !this$avatar.equals(other$avatar)) return false;
+            final Object this$interfaceLocale = this.getInterfaceLocale();
+            final Object other$interfaceLocale = other.getInterfaceLocale();
+            if (this$interfaceLocale == null ? other$interfaceLocale != null : !this$interfaceLocale.equals(other$interfaceLocale)) return false;
             return true;
         }
 
@@ -693,18 +731,20 @@ public class AuthDTOs {
             result = result * PRIME + ($tenantId == null ? 43 : $tenantId.hashCode());
             final Object $avatar = this.getAvatar();
             result = result * PRIME + ($avatar == null ? 43 : $avatar.hashCode());
+            final Object $interfaceLocale = this.getInterfaceLocale();
+            result = result * PRIME + ($interfaceLocale == null ? 43 : $interfaceLocale.hashCode());
             return result;
         }
 
         @Override
         public String toString() {
-            return "AuthDTOs.UserProfile(id=" + this.getId() + ", name=" + this.getName() + ", email=" + this.getEmail() + ", phone=" + this.getPhone() + ", role=" + this.getRole() + ", tenantId=" + this.getTenantId() + ", avatar=" + this.getAvatar() + ")";
+            return "AuthDTOs.UserProfile(id=" + this.getId() + ", name=" + this.getName() + ", email=" + this.getEmail() + ", phone=" + this.getPhone() + ", role=" + this.getRole() + ", tenantId=" + this.getTenantId() + ", avatar=" + this.getAvatar() + ", interfaceLocale=" + this.getInterfaceLocale() + ")";
         }
 
         public UserProfile() {
         }
 
-        public UserProfile(final Long id, final String name, final String email, final String phone, final String role, final String tenantId, final String avatar) {
+        public UserProfile(final Long id, final String name, final String email, final String phone, final String role, final String tenantId, final String avatar, final String interfaceLocale) {
             this.id = id;
             this.name = name;
             this.email = email;
@@ -712,6 +752,7 @@ public class AuthDTOs {
             this.role = role;
             this.tenantId = tenantId;
             this.avatar = avatar;
+            this.interfaceLocale = interfaceLocale;
         }
     }
 

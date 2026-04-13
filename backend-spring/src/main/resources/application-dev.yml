@@ -8,6 +8,10 @@
 app:
   demo-seed:
     enabled: true
+  datasource:
+    slow-query:
+      enabled: true
+      threshold-ms: 500
 
 spring:
   # Datasource URL/user/password come from application.yml (${DB_URL}, ${DB_USERNAME}, ${DB_PASSWORD}).

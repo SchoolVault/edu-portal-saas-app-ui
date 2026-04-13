@@ -51,7 +51,12 @@ export function findMockLoginUser(req: LoginRequest): MockLoginRecord | undefine
 }
 
 /** Mirrors `GET /auth/profile-summary` mock payload per role until API drives the shell. */
+function mockInterfaceLocale(user: User | null): string {
+  return user?.interfaceLocale === 'hi' ? 'hi' : 'en';
+}
+
 export function buildMockProfileSummary(user: User | null): ProfileSummary {
+  const iface = mockInterfaceLocale(user);
   if (user?.role === 'teacher') {
     return {
       id: user.id,
@@ -60,6 +65,7 @@ export function buildMockProfileSummary(user: User | null): ProfileSummary {
       phone: user.phone,
       role: 'teacher',
       tenantId: user.tenantId,
+      interfaceLocale: iface,
       schoolName: 'Crescent Heights Academy',
       schoolCode: 'SCH001',
       schoolEmail: 'info@crescentheights.edu',
@@ -82,6 +88,7 @@ export function buildMockProfileSummary(user: User | null): ProfileSummary {
       phone: user.phone,
       role: 'super_admin',
       tenantId: user.tenantId,
+      interfaceLocale: iface,
       schoolName: 'SchoolVault platform operations',
       schoolCode: 'PLATFORM',
       schoolEmail: 'platform@schoolvault.com',
@@ -106,6 +113,7 @@ export function buildMockProfileSummary(user: User | null): ProfileSummary {
       phone: user.phone,
       role: 'parent',
       tenantId: user.tenantId,
+      interfaceLocale: iface,
       schoolName: 'Crescent Heights Academy',
       schoolCode: 'SCH001',
       schoolEmail: 'info@crescentheights.edu',
@@ -124,6 +132,7 @@ export function buildMockProfileSummary(user: User | null): ProfileSummary {
     phone: user?.phone ?? '+1-555-0101',
     role: 'admin',
     tenantId: user?.tenantId ?? 't1',
+    interfaceLocale: iface,
     schoolName: 'Crescent Heights Academy',
     schoolCode: 'SCH001',
     schoolEmail: 'info@crescentheights.edu',

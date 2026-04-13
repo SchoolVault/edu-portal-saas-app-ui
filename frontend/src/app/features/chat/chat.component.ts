@@ -1,19 +1,29 @@
-import { Component, ElementRef, OnDestroy, OnInit, ViewChild } from '@angular/core';
+import { ChangeDetectorRef, Component, DestroyRef, ElementRef, OnDestroy, OnInit, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Subscription } from 'rxjs';
 import { Router } from '@angular/router';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { ChatService } from '../../core/services/chat.service';
 import { AuthService } from '../../core/services/auth.service';
 import { DirectoryEntry, DirectoryService } from '../../core/services/directory.service';
 import { PlatformService } from '../../core/services/platform.service';
-import { ChatDirectoryResponse, ChatInboxConversation, ChatMessage, PlatformSchoolAdminChatHit } from '../../core/models/models';
+import {
+  ChatDirectoryClassRoster,
+  ChatDirectoryParentChildRoster,
+  ChatDirectoryResponse,
+  ChatInboxConversation,
+  ChatMessage,
+  PlatformSchoolAdminChatHit,
+} from '../../core/models/models';
 import { runtimeConfig } from '../../core/config/runtime-config';
+import { formatSchoolClassDisplayName, formatSchoolClassName } from '../../core/i18n/school-class-display';
 
 @Component({
   selector: 'app-chat',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, TranslateModule],
   styles: [
     `
       .chat-shell {
@@ -154,14 +164,10 @@ import { runtimeConfig } from '../../core/config/runtime-config';
     <div class="animate-in" data-testid="chat-page">
       <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3">
         <div>
-          <h2 style="font-size: 24px; font-weight: 800; margin: 0;">Inbox</h2>
+          <h2 style="font-size: 24px; font-weight: 800; margin: 0;">{{ 'chat.pageTitle' | translate }}</h2>
           <p class="text-muted mb-0" style="font-size: 13px; max-width: 560px;">
-            <ng-container *ngIf="role !== 'super_admin'">
-              Secure messaging for teacher–parent updates, admin coordination, and support threads. Live delivery when the server is connected; same REST shape with mocks for local demos.
-            </ng-container>
-            <ng-container *ngIf="role === 'super_admin'">
-              Platform operator inbox: message campus administrators only. Search shows each admin with their school name and code. Same APIs as production; mocks use the platform school directory.
-            </ng-container>
+            <ng-container *ngIf="role !== 'super_admin'">{{ 'chat.leadStaff' | translate }}</ng-container>
+            <ng-container *ngIf="role === 'super_admin'">{{ 'chat.leadSuperAdmin' | translate }}</ng-container>
           </p>
         </div>
         <div class="d-flex flex-wrap align-items-center gap-2">
@@ -170,14 +176,14 @@ import { runtimeConfig } from '../../core/config/runtime-config';
             [class.chat-status--live]="!useMocks && realtimeConnected"
             [class.chat-status--demo]="useMocks"
             [class.chat-status--off]="!useMocks && !realtimeConnected"
-            title="WebSocket inbox + conversation topics push new messages without refresh."
+            [attr.title]="'chat.statusWsTitle' | translate"
           >
             <span class="chat-status-dot"></span>
-            <ng-container *ngIf="useMocks">Demo · local only</ng-container>
-            <ng-container *ngIf="!useMocks && realtimeConnected">Live · real-time</ng-container>
-            <ng-container *ngIf="!useMocks && !realtimeConnected">Connecting…</ng-container>
+            <ng-container *ngIf="useMocks">{{ 'chat.statusDemo' | translate }}</ng-container>
+            <ng-container *ngIf="!useMocks && realtimeConnected">{{ 'chat.statusLive' | translate }}</ng-container>
+            <ng-container *ngIf="!useMocks && !realtimeConnected">{{ 'chat.statusConnecting' | translate }}</ng-container>
           </span>
-          <button class="btn-outline-erp btn-sm" type="button" (click)="refresh()">Refresh</button>
+          <button class="btn-outline-erp btn-sm" type="button" (click)="refresh()">{{ 'chat.refresh' | translate }}</button>
         </div>
       </div>
 
@@ -186,36 +192,30 @@ import { runtimeConfig } from '../../core/config/runtime-config';
           <div class="col-lg-4 chat-sidebar">
             <div style="padding: 12px;">
               <div class="d-flex gap-2">
-                <input class="erp-input flex-grow-1" placeholder="Search conversations…" [(ngModel)]="query" />
+                <input class="erp-input flex-grow-1" [placeholder]="'chat.searchPlaceholder' | translate" [(ngModel)]="query" />
                 <button class="btn-outline-erp btn-sm flex-shrink-0" type="button" (click)="openDirectory = !openDirectory">
-                  {{ openDirectory ? 'Close' : 'New' }}
+                  {{ openDirectory ? ('chat.close' | translate) : ('chat.newChat' | translate) }}
                 </button>
               </div>
             </div>
 
             <div *ngIf="openDirectory" style="padding: 12px; border-top: 1px solid var(--clr-border-light); background: var(--clr-surface-alt);">
-              <div style="font-weight: 900; margin-bottom: 8px;">Start a conversation</div>
+              <div style="font-weight: 900; margin-bottom: 8px;">{{ 'chat.startConversationTitle' | translate }}</div>
               <div class="text-muted" style="font-size: 12px; margin-bottom: 10px;">
-                <ng-container *ngIf="role === 'super_admin'">
-                  Type at least two characters to find an active school admin. Results list <strong>name · school (code)</strong> so you can tell workspaces apart.
-                </ng-container>
-                <ng-container *ngIf="role !== 'parent' && role !== 'super_admin'">
-                  Search the same directory as Staff &amp; people: teachers show homeroom context; students include parent chat when a parent login is linked.
-                </ng-container>
-                <ng-container *ngIf="role === 'parent'">
-                  Parents can start chats only with their children&apos;s class teachers — use the child selector below (directory search is disabled for your role).
-                </ng-container>
+                <ng-container *ngIf="role === 'super_admin'">{{ 'chat.dirHelpSuperAdmin' | translate }}</ng-container>
+                <ng-container *ngIf="role !== 'parent' && role !== 'super_admin'">{{ 'chat.dirHelpStaff' | translate }}</ng-container>
+                <ng-container *ngIf="role === 'parent'">{{ 'chat.dirHelpParent' | translate }}</ng-container>
               </div>
 
               <div class="mb-3" *ngIf="role === 'super_admin'">
-                <label class="erp-label">School administrators</label>
+                <label class="erp-label">{{ 'chat.labelSchoolAdmins' | translate }}</label>
                 <input
                   class="erp-input"
-                  placeholder="Search by admin name, email, school name, or code…"
+                  [placeholder]="'chat.plaSearchPh' | translate"
                   [(ngModel)]="platformAdminQuery"
                   (ngModelChange)="onPlatformAdminQueryChange()"
                 />
-                <div *ngIf="platformAdminSearchLoading" class="text-muted mt-1" style="font-size: 11px;">Searching…</div>
+                <div *ngIf="platformAdminSearchLoading" class="text-muted mt-1" style="font-size: 11px;">{{ 'chat.searching' | translate }}</div>
                 <div *ngIf="platformAdminResults.length" class="mt-2" style="max-height: 240px; overflow: auto; border: 1px solid var(--clr-border-light); border-radius: var(--radius-md); background: var(--clr-surface);">
                   <button
                     type="button"
@@ -234,14 +234,14 @@ import { runtimeConfig } from '../../core/config/runtime-config';
               </div>
 
               <div class="mb-3" *ngIf="role !== 'parent' && role !== 'super_admin'">
-                <label class="erp-label">Directory search</label>
+                <label class="erp-label">{{ 'chat.labelDirSearch' | translate }}</label>
                 <input
                   class="erp-input"
-                  placeholder="Type at least 2 characters (name, email, admission #)…"
+                  [placeholder]="'chat.dirSearchPh' | translate"
                   [(ngModel)]="directorySearchQuery"
                   (ngModelChange)="onDirectoryQueryChange()"
                 />
-                <div *ngIf="directorySearchLoading" class="text-muted mt-1" style="font-size: 11px;">Searching…</div>
+                <div *ngIf="directorySearchLoading" class="text-muted mt-1" style="font-size: 11px;">{{ 'chat.searching' | translate }}</div>
                 <div *ngIf="directorySearchResults.length" class="mt-2" style="max-height: 200px; overflow: auto; border: 1px solid var(--clr-border-light); border-radius: var(--radius-md); background: var(--clr-surface);">
                   <button
                     type="button"
@@ -254,67 +254,67 @@ import { runtimeConfig } from '../../core/config/runtime-config';
                       <span style="font-weight: 700; font-size: 12px;">{{ hit.displayName }}</span>
                       <span class="text-muted" style="font-size: 11px;">{{ hit.subtitle }}</span>
                       <span class="text-muted" style="font-size: 10px;">
-                        <ng-container *ngIf="hit.chatUserId">Chat available</ng-container>
-                        <ng-container *ngIf="!hit.chatUserId">Profile only — open record</ng-container>
+                        <ng-container *ngIf="hit.chatUserId">{{ 'chat.chatAvailable' | translate }}</ng-container>
+                        <ng-container *ngIf="!hit.chatUserId">{{ 'chat.profileOnly' | translate }}</ng-container>
                       </span>
                     </div>
                   </button>
                 </div>
               </div>
 
-              <div *ngIf="loadingDirectory" class="text-muted" style="font-size: 12px;">Loading directory…</div>
+              <div *ngIf="loadingDirectory" class="text-muted" style="font-size: 12px;">{{ 'chat.loadingDirectory' | translate }}</div>
 
               <!-- Teacher: choose a student -> chat with parent -->
               <div *ngIf="role === 'teacher' && directory?.myClassRosters?.length">
-                <label class="erp-label">Student</label>
+                <label class="erp-label">{{ 'chat.labelStudent' | translate }}</label>
                 <select class="erp-select" [(ngModel)]="selectedStudentForChat">
-                  <option [ngValue]="null">Select student</option>
+                  <option [ngValue]="null">{{ 'chat.selectStudent' | translate }}</option>
                   <ng-container *ngFor="let roster of (directory?.myClassRosters || [])">
-                    <optgroup [label]="roster.className || ('Class ' + roster.classId)">
-                      <option *ngFor="let s of roster.students" [ngValue]="s.studentId">
+                    <optgroup [label]="rosterOptgroupLabel(roster)">
+                      <option *ngFor="let s of roster.students || []" [ngValue]="s.studentId">
                         {{ s.studentName }}
                       </option>
                     </optgroup>
                   </ng-container>
                 </select>
                 <button class="btn-primary-erp btn-sm mt-2" [disabled]="selectedStudentForChat == null" (click)="startTeacherParentChat()">
-                  Message Parent
+                  {{ 'chat.messageParent' | translate }}
                 </button>
               </div>
 
               <!-- Parent: choose child -> message class teacher -->
               <div *ngIf="role === 'parent' && directory?.myChildren?.length">
-                <label class="erp-label">Child</label>
+                <label class="erp-label">{{ 'chat.labelChild' | translate }}</label>
                 <select class="erp-select" [(ngModel)]="selectedChildForChat">
-                  <option [ngValue]="null">Select child</option>
+                  <option [ngValue]="null">{{ 'chat.selectChild' | translate }}</option>
                   <option *ngFor="let c of (directory?.myChildren || [])" [ngValue]="c.studentId">
-                    {{ c.studentName }} · {{ c.className || ('Class ' + c.classId) }}
+                    {{ childPickerLine(c) }}
                   </option>
                 </select>
                 <button class="btn-primary-erp btn-sm mt-2" [disabled]="selectedChildForChat == null" (click)="startParentTeacherChat()">
-                  Message Class Teacher
+                  {{ 'chat.messageClassTeacher' | translate }}
                 </button>
               </div>
 
               <!-- Admin: direct pick (MVP) -->
               <div *ngIf="role === 'admin'">
-                <label class="erp-label">Teachers</label>
+                <label class="erp-label">{{ 'chat.labelTeachers' | translate }}</label>
                 <select class="erp-select" [(ngModel)]="selectedAdminTeacher" (ngModelChange)="selectedAdminParent = null">
-                  <option [ngValue]="null">Select teacher</option>
+                  <option [ngValue]="null">{{ 'chat.selectTeacher' | translate }}</option>
                   <option *ngFor="let t of (directory?.teachers || [])" [ngValue]="t.userId">{{ t.name }}</option>
                 </select>
-                <label class="erp-label mt-2">Parents</label>
+                <label class="erp-label mt-2">{{ 'chat.labelParents' | translate }}</label>
                 <select class="erp-select" [(ngModel)]="selectedAdminParent" (ngModelChange)="selectedAdminTeacher = null">
-                  <option [ngValue]="null">Select parent</option>
+                  <option [ngValue]="null">{{ 'chat.selectParent' | translate }}</option>
                   <option *ngFor="let p of (directory?.parents || [])" [ngValue]="p.userId">{{ p.name }}</option>
                 </select>
                 <button class="btn-primary-erp btn-sm mt-2" [disabled]="selectedAdminTeacher == null && selectedAdminParent == null" (click)="startAdminDirectChat()">
-                  Start Chat
+                  {{ 'chat.startChat' | translate }}
                 </button>
               </div>
 
               <div *ngIf="!loadingDirectory && openDirectory && !hasDirectoryData() && role !== 'super_admin'" class="text-muted" style="font-size: 12px;">
-                No directory data available for your role yet.
+                {{ 'chat.noDirectoryData' | translate }}
               </div>
             </div>
 
@@ -333,7 +333,7 @@ import { runtimeConfig } from '../../core/config/runtime-config';
                         {{ conversationTitle(conv) }}
                       </div>
                       <div class="text-muted" style="font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
-                        {{ conv.lastMessagePreview || 'No messages yet' }}
+                        {{ conv.lastMessagePreview || ('chat.noMessagesPreview' | translate) }}
                       </div>
                     </div>
                     <div style="text-align: right; flex-shrink: 0;">
@@ -345,8 +345,8 @@ import { runtimeConfig } from '../../core/config/runtime-config';
               </div>
               <div *ngIf="!inbox.length" class="empty-state" style="padding: 28px 14px;">
                 <i class="bi bi-inbox"></i>
-                <h3>No conversations</h3>
-                <p>Start a thread from <strong>New</strong> or wait for an inbound message. With a live backend, updates also arrive over WebSocket.</p>
+                <h3>{{ 'chat.emptyInboxTitle' | translate }}</h3>
+                <p>{{ 'chat.emptyInboxHint' | translate }}</p>
               </div>
             </div>
           </div>
@@ -372,26 +372,26 @@ import { runtimeConfig } from '../../core/config/runtime-config';
                   [class.chat-status--off]="!useMocks && !realtimeConnected"
                 >
                   <span class="chat-status-dot"></span>
-                  <ng-container *ngIf="useMocks">Mock stream</ng-container>
-                  <ng-container *ngIf="!useMocks && realtimeConnected">Subscribed</ng-container>
-                  <ng-container *ngIf="!useMocks && !realtimeConnected">WS idle</ng-container>
+                  <ng-container *ngIf="useMocks">{{ 'chat.statusThreadDemo' | translate }}</ng-container>
+                  <ng-container *ngIf="!useMocks && realtimeConnected">{{ 'chat.statusThreadLive' | translate }}</ng-container>
+                  <ng-container *ngIf="!useMocks && !realtimeConnected">{{ 'chat.statusThreadIdle' | translate }}</ng-container>
                 </span>
               </div>
               <ng-template #noSelection>
-                <div style="font-weight: 900;">Select a conversation</div>
-                <div class="text-muted" style="font-size: 12px;">Choose a thread to load history and send messages. New replies push in real time when connected.</div>
+                <div style="font-weight: 900;">{{ 'chat.selectConversation' | translate }}</div>
+                <div class="text-muted" style="font-size: 12px;">{{ 'chat.selectConversationHint' | translate }}</div>
               </ng-template>
             </div>
 
             <div #threadScroll class="chat-messages" style="padding: 14px;">
               <div *ngIf="selectedConversation && loadingMessages" class="empty-state" style="padding: 28px 14px;">
-                <h3>Loading…</h3>
+                <h3>{{ 'chat.loading' | translate }}</h3>
               </div>
 
               <div *ngIf="selectedConversation && !loadingMessages && !messages.length" class="empty-state" style="padding: 28px 14px;">
                 <i class="bi bi-chat-left-text"></i>
-                <h3>No messages yet</h3>
-                <p>Open the conversation with a short note. Participants see the same thread; tenant and role checks apply on the server.</p>
+                <h3>{{ 'chat.emptyThreadTitle' | translate }}</h3>
+                <p>{{ 'chat.emptyThreadHint' | translate }}</p>
               </div>
 
               <div *ngFor="let m of messages" style="margin-bottom: 12px;">
@@ -413,18 +413,18 @@ import { runtimeConfig } from '../../core/config/runtime-config';
               <div class="d-flex gap-2 align-items-stretch">
                 <input class="erp-input flex-grow-1"
                        [disabled]="!selectedConversation || sending"
-                       placeholder="Write a message… (Enter to send, Shift+Enter for newline)"
+                       [placeholder]="'chat.composePlaceholder' | translate"
                        [(ngModel)]="draft"
                        (keydown.enter)="onEnter($event)" />
                 <button class="btn-primary-erp flex-shrink-0"
                         type="button"
                         [disabled]="!selectedConversation || sending || !draft.trim()"
                         (click)="send()">
-                  {{ sending ? 'Sending…' : 'Send' }}
+                  {{ sending ? ('chat.sending' | translate) : ('chat.send' | translate) }}
                 </button>
               </div>
               <div class="text-muted" style="font-size: 11px; margin-top: 8px;">
-                End-to-end policy: only conversation participants can read or post; switching accounts or tenants never leaks threads across schools.
+                {{ 'chat.policyFootnote' | translate }}
               </div>
             </div>
           </div>
@@ -470,10 +470,14 @@ export class ChatComponent implements OnInit, OnDestroy {
     private auth: AuthService,
     private directoryService: DirectoryService,
     private platform: PlatformService,
-    private router: Router
+    private router: Router,
+    private translate: TranslateService,
+    private cdr: ChangeDetectorRef,
+    private destroyRef: DestroyRef
   ) {}
 
   ngOnInit(): void {
+    this.translate.onLangChange.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => this.cdr.markForCheck());
     this.myUserId = this.auth.getCurrentUser()?.id ?? null;
     this.role = this.auth.getRole() || 'admin';
     this.chat.connectRealtime();
@@ -559,7 +563,7 @@ export class ChatComponent implements OnInit, OnDestroy {
     const all = this.directory.myClassRosters.flatMap(r => r.students || []);
     const student = all.find(s => s.studentId === this.selectedStudentForChat);
     if (!student?.parent) return;
-    this.startDirectChat(student.parent.userId, 'PARENT', `Parent of ${student.studentName}`, {
+    this.startDirectChat(student.parent.userId, 'PARENT', this.translate.instant('chat.parentOf', { name: student.studentName }), {
       contextType: 'student',
       contextId: String(student.studentId),
     });
@@ -644,7 +648,7 @@ export class ChatComponent implements OnInit, OnDestroy {
       (hit.kind === 'teacher' ? 'TEACHER' : hit.kind === 'student' ? 'PARENT' : 'USER');
     const label =
       hit.kind === 'student'
-        ? `Parent · ${hit.displayName}`
+        ? this.translate.instant('chat.parentDirectoryLabel', { name: hit.displayName })
         : hit.displayName;
     this.startDirectChat(hit.chatUserId, role, label, {
       contextType: hit.contextType,
@@ -762,8 +766,30 @@ export class ChatComponent implements OnInit, OnDestroy {
 
   threadSubtitle(conv: ChatInboxConversation): string {
     const ctx = this.describeContext(conv);
-    const type = (conv.type || 'direct').replace(/_/g, ' ');
-    return `${type} · ${ctx}`;
+    return this.convTypeLabel(conv.type) + this.translate.instant('chat.threadSep') + ctx;
+  }
+
+  rosterOptgroupLabel(roster: ChatDirectoryClassRoster): string {
+    return formatSchoolClassDisplayName(roster.classId, roster.className ?? null, this.translate);
+  }
+
+  childPickerLine(c: ChatDirectoryParentChildRoster): string {
+    const cls =
+      c.classId != null
+        ? formatSchoolClassDisplayName(c.classId, c.className ?? null, this.translate)
+        : formatSchoolClassName(c.className, this.translate) || c.className?.trim() || '';
+    return cls ? `${c.studentName} · ${cls}` : c.studentName;
+  }
+
+  private convTypeLabel(type?: string): string {
+    const normalized = (type || 'direct').toLowerCase().replace(/_/g, ' ');
+    if (normalized === 'direct') {
+      return this.translate.instant('chat.typeDirect');
+    }
+    if (normalized === 'group') {
+      return this.translate.instant('chat.typeGroup');
+    }
+    return (type || 'direct').replace(/_/g, ' ');
   }
 
   private describeContext(conv: ChatInboxConversation): string {
@@ -773,23 +799,23 @@ export class ChatComponent implements OnInit, OnDestroy {
       if (role === 'parent' && this.directory?.myChildren?.length) {
         const child = this.directory.myChildren.find(c => c.studentId === sid);
         if (child?.studentName) {
-          return `Child: ${child.studentName}`;
+          return this.translate.instant('chat.ctxChild', { name: child.studentName });
         }
       }
       if (role === 'teacher' && this.directory?.myClassRosters?.length) {
         for (const r of this.directory.myClassRosters) {
           const hit = r.students?.find(s => s.studentId === sid);
           if (hit?.studentName) {
-            return `Student: ${hit.studentName}`;
+            return this.translate.instant('chat.ctxStudentNamed', { name: hit.studentName });
           }
         }
       }
-      return `Student #${conv.contextId}`;
+      return this.translate.instant('chat.ctxStudentId', { id: conv.contextId });
     }
     if (conv.contextType && conv.contextId) {
-      return `${conv.contextType} #${conv.contextId}`;
+      return this.translate.instant('chat.ctxGeneric', { type: conv.contextType, id: conv.contextId });
     }
-    return 'General';
+    return this.translate.instant('chat.ctxGeneral');
   }
 
   initials(title: string): string {
@@ -812,18 +838,24 @@ export class ChatComponent implements OnInit, OnDestroy {
     const others = conv.participants.filter(p => p.userId !== me);
     if (conv.type === 'direct') {
       const other = others[0] || conv.participants[0];
-      return other?.displayName || `${other?.userRole || 'User'} ${other?.userId || ''}`.trim();
+      return (
+        other?.displayName ||
+        `${other?.userRole || this.translate.instant('chat.fallbackUser')} ${other?.userId || ''}`.trim()
+      );
     }
     if (conv.subject) return conv.subject;
     if (conv.contextType && conv.contextId) return this.describeContext(conv);
-    return role ? role.toUpperCase() + ' Group' : 'Group';
+    return role
+      ? this.translate.instant('chat.roleGroup', { role: role.toUpperCase() })
+      : this.translate.instant('chat.fallbackGroup');
   }
 
   asTime(iso?: string): string {
     if (!iso) return '';
     const d = new Date(iso);
     if (Number.isNaN(d.getTime())) return '';
-    return d.toLocaleString(undefined, { month: 'short', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+    const loc = this.translate.currentLang === 'hi' ? 'hi-IN' : 'en-IN';
+    return d.toLocaleString(loc, { month: 'short', day: '2-digit', hour: '2-digit', minute: '2-digit' });
   }
 }
 

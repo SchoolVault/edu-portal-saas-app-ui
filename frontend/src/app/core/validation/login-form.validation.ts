@@ -15,17 +15,17 @@ export function validateLoginForm(values: LoginFormValues): FieldErrors<LoginFie
 
   const email = (values.email ?? '').trim();
   if (!email) {
-    errors.email = 'Email is required';
+    errors.email = 'login.validation.emailRequired';
   } else if (!isValidEmail(email)) {
-    errors.email = 'Enter a valid email address';
+    errors.email = 'login.validation.emailInvalid';
   }
 
   if (!(values.password ?? '').trim()) {
-    errors.password = 'Password is required';
+    errors.password = 'login.validation.passwordRequired';
   }
 
   if (!(values.schoolCode ?? '').trim()) {
-    errors.schoolCode = 'School code is required';
+    errors.schoolCode = 'login.validation.schoolCodeRequired';
   }
 
   return errors;

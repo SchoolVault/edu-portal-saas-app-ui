@@ -10,6 +10,8 @@ export interface ApiResp<T> {
   data: T;
   timestamp: string;
   errors?: string[];
+  /** Stable code from Spring {@code ApiResponse} for client-side i18n (e.g. {@code LEAVE_OTHER_REASON_REQUIRED}). */
+  errorCode?: string;
 }
 
 export interface PageResp<T> {

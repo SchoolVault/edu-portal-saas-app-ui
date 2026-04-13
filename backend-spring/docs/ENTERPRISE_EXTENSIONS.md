@@ -45,7 +45,7 @@ Suggested REST:
 
 **Isolation:** Every repository query must include `tenant_id` from `TenantContext` (already enforced on services using tenant-scoped repositories).
 
-**Logging:** MDC carries `traceId`, `tenantId`, `userId`, `role` (see `application.yml` logging pattern).
+**Logging:** MDC carries `traceId`, `correlationId` (same as trace), `tenantId`, `userId`, `role` (see `application.yml` logging pattern). Phase 1 seams: [PHASE1_FOUNDATION_SEAMS.md](PHASE1_FOUNDATION_SEAMS.md).
 
 **Indexes / uniqueness:** Prefer composite uniques on `(tenant_id, business_key)` — e.g. `uk_student_admission`, `uk_user_tenant_email`, fee reminder dedupe as above.
 

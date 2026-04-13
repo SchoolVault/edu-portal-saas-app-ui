@@ -5,7 +5,6 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.slf4j.MDC;
 import org.springframework.lang.NonNull;
 import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Component;
@@ -21,23 +20,9 @@ public class HttpRequestLoggingInterceptor implements HandlerInterceptor {
     private static final Logger log = LoggerFactory.getLogger(HttpRequestLoggingInterceptor.class);
     static final String ATTR_START_NS = HttpRequestLoggingInterceptor.class.getName() + ".startNs";
 
-    public static final String HEADER_CORRELATION = "X-Correlation-ID";
-    private static final String MDC_CORRELATION = "correlationId";
-
     @Override
     public boolean preHandle(@NonNull HttpServletRequest request, @NonNull HttpServletResponse response, @NonNull Object handler) {
         request.setAttribute(ATTR_START_NS, System.nanoTime());
-        String cid = request.getHeader(HEADER_CORRELATION);
-        if (cid == null || cid.isBlank()) {
-            cid = java.util.UUID.randomUUID().toString().replace("-", "").substring(0, 16);
-        } else {
-            cid = cid.trim();
-            if (cid.length() > 64) {
-                cid = cid.substring(0, 64);
-            }
-        }
-        MDC.put(MDC_CORRELATION, cid);
-        response.setHeader(HEADER_CORRELATION, cid);
         return true;
     }
 
@@ -47,33 +32,29 @@ public class HttpRequestLoggingInterceptor implements HandlerInterceptor {
             @NonNull HttpServletResponse response,
             @NonNull Object handler,
             @Nullable Exception ex) {
-        try {
-            Long startNs = (Long) request.getAttribute(ATTR_START_NS);
-            long durationMs = startNs == null ? -1L : (System.nanoTime() - startNs) / 1_000_000L;
-            String method = request.getMethod();
-            String uri = request.getRequestURI();
-            int status = response.getStatus();
-            String tenant = TenantContext.getTenantId();
-            Long userId = TenantContext.getUserId();
-            String role = TenantContext.getUserRole();
+        Long startNs = (Long) request.getAttribute(ATTR_START_NS);
+        long durationMs = startNs == null ? -1L : (System.nanoTime() - startNs) / 1_000_000L;
+        String method = request.getMethod();
+        String uri = request.getRequestURI();
+        int status = response.getStatus();
+        String tenant = TenantContext.getTenantId();
+        Long userId = TenantContext.getUserId();
+        String role = TenantContext.getUserRole();
 
-            if (ex != null) {
-                log.warn("HTTP {} {} -> {} ({} ms) tenant={} userId={} role={} — handler exception: {}",
-                        method, uri, status, durationMs, tenant, userId, role, ex.getMessage());
-                return;
-            }
-            if (status >= 500) {
-                log.error("HTTP {} {} -> {} ({} ms) tenant={} userId={} role={}",
-                        method, uri, status, durationMs, tenant, userId, role);
-            } else if (status >= 400) {
-                log.warn("HTTP {} {} -> {} ({} ms) tenant={} userId={} role={}",
-                        method, uri, status, durationMs, tenant, userId, role);
-            } else {
-                log.info("HTTP {} {} -> {} ({} ms) tenant={} userId={} role={}",
-                        method, uri, status, durationMs, tenant, userId, role);
-            }
-        } finally {
-            MDC.remove(MDC_CORRELATION);
+        if (ex != null) {
+            log.warn("HTTP {} {} -> {} ({} ms) tenant={} userId={} role={} — handler exception: {}",
+                    method, uri, status, durationMs, tenant, userId, role, ex.getMessage());
+            return;
+        }
+        if (status >= 500) {
+            log.error("HTTP {} {} -> {} ({} ms) tenant={} userId={} role={}",
+                    method, uri, status, durationMs, tenant, userId, role);
+        } else if (status >= 400) {
+            log.warn("HTTP {} {} -> {} ({} ms) tenant={} userId={} role={}",
+                    method, uri, status, durationMs, tenant, userId, role);
+        } else {
+            log.info("HTTP {} {} -> {} ({} ms) tenant={} userId={} role={}",
+                    method, uri, status, durationMs, tenant, userId, role);
         }
     }
 }
