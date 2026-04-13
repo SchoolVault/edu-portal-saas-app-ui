@@ -1,2 +1,0 @@
-ALTER TABLE leave_requests
-    ADD COLUMN day_unit VARCHAR(20) NOT NULL DEFAULT 'FULL_DAY' AFTER end_date;

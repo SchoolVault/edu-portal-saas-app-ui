@@ -1,3 +1,46 @@
+-- Squashed Flyway baseline (part 2/10): auth_exams_fees_chat
+-- Built by scripts/build_squashed_flyway_migrations.py — do not edit by hand; regenerate from legacy migrations.
+
+-- >>> Legacy V5: V5__exam_class_scope.sql
+CREATE TABLE IF NOT EXISTS exam_classes (
+    exam_id BIGINT NOT NULL,
+    class_id BIGINT NOT NULL,
+    PRIMARY KEY (exam_id, class_id),
+    CONSTRAINT fk_exam_classes_exam FOREIGN KEY (exam_id) REFERENCES exams(id)
+);
+
+-- >>> Legacy V6: V6__fee_payment_checkout.sql
+CREATE TABLE fee_payment_attempts (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    tenant_id VARCHAR(50) NOT NULL,
+    is_active BIT DEFAULT 1,
+    is_deleted BIT DEFAULT 0,
+    created_at DATETIME NULL,
+    updated_at DATETIME NULL,
+    created_by VARCHAR(100) NULL,
+    updated_by VARCHAR(100) NULL,
+    fee_payment_id BIGINT NOT NULL,
+    student_id BIGINT NOT NULL,
+    parent_user_id BIGINT NOT NULL,
+    provider VARCHAR(40) NOT NULL,
+    provider_order_id VARCHAR(100) NOT NULL,
+    provider_payment_id VARCHAR(100) NULL,
+    checkout_token VARCHAR(120) NOT NULL,
+    currency VARCHAR(10) NOT NULL,
+    amount DECIMAL(12,2) NOT NULL,
+    status VARCHAR(20) NOT NULL,
+    return_url VARCHAR(300) NULL,
+    gateway_payload TEXT NULL,
+    initiated_at DATETIME NULL,
+    completed_at DATETIME NULL,
+    PRIMARY KEY (id)
+);
+
+CREATE INDEX idx_fpa_payment ON fee_payment_attempts (tenant_id, fee_payment_id);
+CREATE INDEX idx_fpa_student ON fee_payment_attempts (tenant_id, student_id);
+CREATE INDEX idx_fpa_status ON fee_payment_attempts (tenant_id, status);
+
+-- >>> Legacy V7: V7__chat_conversations.sql
 CREATE TABLE chat_conversations (
     id BIGINT NOT NULL AUTO_INCREMENT,
     tenant_id VARCHAR(50) NOT NULL,
@@ -63,3 +106,8 @@ CREATE TABLE chat_messages (
 CREATE INDEX idx_chat_msg_conv ON chat_messages (tenant_id, conversation_id, id);
 CREATE INDEX idx_chat_msg_sender ON chat_messages (tenant_id, sender_user_id);
 
+-- >>> Legacy V8: V8__announcement_target_section.sql
+ALTER TABLE announcements
+    ADD COLUMN target_section_id BIGINT NULL AFTER target_class_id;
+
+CREATE INDEX idx_ann_target ON announcements (tenant_id, target_audience, target_class_id, target_section_id);
