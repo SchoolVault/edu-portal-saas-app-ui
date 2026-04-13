@@ -11,6 +11,7 @@ import com.school.erp.modules.exams.repository.MarkRecordRepository;
 import com.school.erp.modules.academic.repository.*;
 import com.school.erp.modules.student.entity.Student;
 import com.school.erp.modules.student.repository.StudentRepository;
+import com.school.erp.modules.teacher.entity.Teacher;
 import com.school.erp.modules.teacher.repository.TeacherRepository;
 import com.school.erp.tenant.TenantContext;
 import com.school.erp.tenant.TenantQueryPolicy;
@@ -178,7 +179,33 @@ public class AcademicService {
             });
         }
         log.info("Class created: {} with {} sections", cls.getName(), req.getSectionNames() != null ? req.getSectionNames().size() : 0);
+        if (req.getClassTeacherId() != null) {
+            Teacher teach = teacherRepository.findByIdAndTenantIdAndIsDeletedFalse(req.getClassTeacherId(), t)
+                    .orElseThrow(() -> new ResourceNotFoundException("Teacher", req.getClassTeacherId()));
+            if (teach.getStatus() != null && teach.getStatus() != Enums.TeacherStatus.ACTIVE) {
+                throw new BusinessException("Only active teachers can be assigned as class teacher.");
+            }
+            clearClassTeacherFromOtherClasses(req.getClassTeacherId(), cls.getId(), t);
+            String resolved = req.getClassTeacherName() != null && !req.getClassTeacherName().isBlank()
+                    ? req.getClassTeacherName().trim()
+                    : (teach.getFirstName() + " " + teach.getLastName()).trim();
+            cls.setClassTeacherName(resolved);
+            classRepo.save(cls);
+            teacherAssignmentService.recordClassTeacherAssignment(
+                    cls.getId(), null, req.getClassTeacherId(), cls.getAcademicYearId(), LocalDate.now());
+        }
         return cls;
+    }
+
+    private void clearClassTeacherFromOtherClasses(Long teacherId, Long keepClassId, String tenantId) {
+        for (SchoolClass other : classRepo.findByTenantIdAndIsDeletedFalseOrderByGrade(tenantId)) {
+            if (!other.getId().equals(keepClassId) && teacherId.equals(other.getClassTeacherId())) {
+                other.setClassTeacherId(null);
+                other.setClassTeacherName(null);
+                classRepo.save(other);
+                log.info("Cleared homeroom teacher from classId={} (single-class rule; keepClassId={})", other.getId(), keepClassId);
+            }
+        }
     }
 
     @Transactional
@@ -199,19 +226,21 @@ public class AcademicService {
         log.info("Assigning class teacher classId={} teacherId={}", classId, teacherId);
         SchoolClass cls = classRepo.findByIdAndTenantIdAndIsDeletedFalse(classId, tenantId).orElseThrow(() -> new ResourceNotFoundException("Class", classId));
         if (teacherId != null) {
-            teacherRepository.findByIdAndTenantIdAndIsDeletedFalse(teacherId, tenantId)
+            Teacher teach = teacherRepository.findByIdAndTenantIdAndIsDeletedFalse(teacherId, tenantId)
                     .orElseThrow(() -> new ResourceNotFoundException("Teacher", teacherId));
-            for (SchoolClass other : classRepo.findByTenantIdAndIsDeletedFalseOrderByGrade(tenantId)) {
-                if (!other.getId().equals(classId) && teacherId.equals(other.getClassTeacherId())) {
-                    other.setClassTeacherId(null);
-                    other.setClassTeacherName(null);
-                    classRepo.save(other);
-                    log.info("Cleared homeroom teacher from classId={} (moved to classId={})", other.getId(), classId);
-                }
+            if (teach.getStatus() != null && teach.getStatus() != Enums.TeacherStatus.ACTIVE) {
+                throw new BusinessException("Only active teachers can be assigned as class teacher.");
             }
+            clearClassTeacherFromOtherClasses(teacherId, classId, tenantId);
+            String resolved = teacherName != null && !teacherName.isBlank()
+                    ? teacherName.trim()
+                    : (teach.getFirstName() + " " + teach.getLastName()).trim();
+            cls.setClassTeacherId(teacherId);
+            cls.setClassTeacherName(resolved);
+        } else {
+            cls.setClassTeacherId(null);
+            cls.setClassTeacherName(null);
         }
-        cls.setClassTeacherId(teacherId);
-        cls.setClassTeacherName(teacherId != null ? teacherName : null);
         classRepo.save(cls);
         if (teacherId != null) {
             teacherAssignmentService.recordClassTeacherAssignment(

@@ -19,36 +19,36 @@ export function validateOnboardSchoolForm(form: OnboardSchoolRequest): FieldErro
 
   const schoolName = (form.schoolName ?? '').trim();
   if (!schoolName) {
-    errors.schoolName = 'School name is required';
+    errors.schoolName = 'signup.validation.schoolNameRequired';
   }
 
   const schoolCode = (form.schoolCode ?? '').trim();
   if (!schoolCode) {
-    errors.schoolCode = 'School code is required';
+    errors.schoolCode = 'signup.validation.schoolCodeRequired';
   } else if (schoolCode.length < ONBOARD_SCHOOL_CODE_MIN || schoolCode.length > ONBOARD_SCHOOL_CODE_MAX) {
-    errors.schoolCode = `Use ${ONBOARD_SCHOOL_CODE_MIN}–${ONBOARD_SCHOOL_CODE_MAX} characters (letters/numbers).`;
+    errors.schoolCode = 'signup.validation.schoolCodeLength';
   }
 
   const adminName = (form.adminName ?? '').trim();
   if (!adminName) {
-    errors.adminName = 'Admin name is required';
+    errors.adminName = 'signup.validation.adminNameRequired';
   }
 
   const adminEmail = (form.adminEmail ?? '').trim();
   if (!adminEmail) {
-    errors.adminEmail = 'Admin email is required';
+    errors.adminEmail = 'signup.validation.adminEmailRequired';
   } else if (!isValidEmail(adminEmail)) {
-    errors.adminEmail = 'Enter a valid email address';
+    errors.adminEmail = 'signup.validation.adminEmailInvalid';
   }
 
   const adminPassword = form.adminPassword ?? '';
   if (!adminPassword) {
-    errors.adminPassword = 'Password is required';
+    errors.adminPassword = 'signup.validation.adminPasswordRequired';
   } else if (
     adminPassword.length < ONBOARD_ADMIN_PASSWORD_MIN ||
     adminPassword.length > ONBOARD_ADMIN_PASSWORD_MAX
   ) {
-    errors.adminPassword = `Password must be ${ONBOARD_ADMIN_PASSWORD_MIN}–${ONBOARD_ADMIN_PASSWORD_MAX} characters`;
+    errors.adminPassword = 'signup.validation.adminPasswordLength';
   }
 
   return errors;

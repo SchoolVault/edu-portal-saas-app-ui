@@ -1,6 +1,5 @@
 import { HttpInterceptorFn } from '@angular/common/http';
-import { inject } from '@angular/core';
-import { AuthService } from '../services/auth.service';
+import { readStoredAccessToken } from '../auth/client-session-keys';
 
 /** These calls must not send a stale JWT or Hibernate tenant filter + login can 401 a valid user. */
 function skipBearerForUrl(url: string): boolean {
@@ -13,8 +12,7 @@ function skipBearerForUrl(url: string): boolean {
 }
 
 export const jwtInterceptor: HttpInterceptorFn = (req, next) => {
-  const authService = inject(AuthService);
-  const token = authService.getToken();
+  const token = readStoredAccessToken();
 
   if (token && !skipBearerForUrl(req.url)) {
     const cloned = req.clone({

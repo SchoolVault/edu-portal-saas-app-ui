@@ -106,6 +106,19 @@ public class Enums {
         FULL_DAY, FIRST_HALF, SECOND_HALF
     }
 
+    /**
+     * Stable leave-type codes stored in {@code leave_requests.leave_type} and exchanged in JSON.
+     * UI maps these to i18n keys ({@code leave.type.&lt;CODE&gt;}); do not persist localized labels.
+     */
+    public enum LeaveTypeCode {
+        ANNUAL,
+        SICK,
+        CASUAL,
+        EMERGENCY,
+        /** Free-form category; {@code reason} must describe the leave (validated in service). */
+        OTHER
+    }
+
     /** Fee / checkout attempt lifecycle for gateways and retries. */
     public enum PaymentAttemptStatus {
         CREATED, PAID, FAILED, EXPIRED

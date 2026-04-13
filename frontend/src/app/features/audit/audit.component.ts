@@ -1,6 +1,7 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { AuditLog } from '../../core/models/models';
 
 const AUDIT_LOG_SEED: AuditLog[] = [
@@ -17,36 +18,36 @@ const AUDIT_LOG_SEED: AuditLog[] = [
 @Component({
   selector: 'app-audit',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, TranslateModule],
   template: `
     <div data-testid="audit-page">
       <div class="d-flex justify-content-between align-items-center mb-4 animate-in">
-        <div><h2 style="font-size: 24px; font-weight: 800;">Audit Log</h2><p class="text-muted mb-0" style="font-size: 13px;">Track all system actions</p></div>
+        <div><h2 style="font-size: 24px; font-weight: 800;">{{ 'audit.pageTitle' | translate }}</h2><p class="text-muted mb-0" style="font-size: 13px;">{{ 'audit.lead' | translate }}</p></div>
         <div class="d-flex gap-2 flex-wrap">
-          <button type="button" class="btn-outline-erp btn-sm" (click)="reloadFromServer()"><i class="bi bi-arrow-clockwise"></i> Refresh</button>
-          <button type="button" class="btn-outline-erp btn-sm" data-testid="export-audit-btn"><i class="bi bi-download"></i> Export</button>
+          <button type="button" class="btn-outline-erp btn-sm" (click)="reloadFromServer()"><i class="bi bi-arrow-clockwise"></i> {{ 'audit.refresh' | translate }}</button>
+          <button type="button" class="btn-outline-erp btn-sm" data-testid="export-audit-btn"><i class="bi bi-download"></i> {{ 'audit.export' | translate }}</button>
         </div>
       </div>
       <div class="erp-card animate-in animate-in-delay-1">
         <div class="d-flex gap-3 mb-3">
           <select class="erp-select" style="width: 160px;" [(ngModel)]="actionFilter" (change)="filter()">
-            <option value="">All Actions</option>
-            <option value="create">Create</option>
-            <option value="update">Update</option>
-            <option value="delete">Delete</option>
-            <option value="login">Login</option>
+            <option value="">{{ 'audit.filterAllActions' | translate }}</option>
+            <option value="create">{{ 'audit.action.create' | translate }}</option>
+            <option value="update">{{ 'audit.action.update' | translate }}</option>
+            <option value="delete">{{ 'audit.action.delete' | translate }}</option>
+            <option value="login">{{ 'audit.action.login' | translate }}</option>
           </select>
           <select class="erp-select" style="width: 160px;" [(ngModel)]="moduleFilter" (change)="filter()">
-            <option value="">All Modules</option>
-            <option *ngFor="let m of modules" [value]="m">{{ m }}</option>
+            <option value="">{{ 'audit.filterAllModules' | translate }}</option>
+            <option *ngFor="let m of modules" [value]="m">{{ moduleLabel(m) }}</option>
           </select>
         </div>
         <table class="erp-table" data-testid="audit-table">
-          <thead><tr><th>Action</th><th>Module</th><th>Description</th><th>User</th><th>Timestamp</th><th>IP Address</th></tr></thead>
+          <thead><tr><th>{{ 'audit.thAction' | translate }}</th><th>{{ 'audit.thModule' | translate }}</th><th>{{ 'audit.thDescription' | translate }}</th><th>{{ 'audit.thUser' | translate }}</th><th>{{ 'audit.thTimestamp' | translate }}</th><th>{{ 'audit.thIp' | translate }}</th></tr></thead>
           <tbody>
             <tr *ngFor="let log of filteredLogs">
-              <td><span class="badge-erp" [ngClass]="getActionBadge(log.action)">{{ log.action }}</span></td>
-              <td>{{ log.module }}</td>
+              <td><span class="badge-erp" [ngClass]="getActionBadge(log.action)">{{ actionLabel(log.action) }}</span></td>
+              <td>{{ moduleLabel(log.module) }}</td>
               <td>{{ log.description }}</td>
               <td>{{ log.userName }}</td>
               <td style="white-space: nowrap;">{{ formatDate(log.timestamp) }}</td>
@@ -66,6 +67,8 @@ export class AuditComponent implements OnInit {
   logs: AuditLog[] = [];
   filteredLogs: AuditLog[] = [];
 
+  constructor(private translate: TranslateService) {}
+
   ngOnInit(): void {
     this.reloadFromServer();
   }
@@ -82,12 +85,25 @@ export class AuditComponent implements OnInit {
     );
   }
 
+  actionLabel(action: string): string {
+    const key = `audit.action.${action}`;
+    const t = this.translate.instant(key);
+    return t !== key ? t : action;
+  }
+
+  moduleLabel(module: string): string {
+    const key = `audit.modules.${module}`;
+    const t = this.translate.instant(key);
+    return t !== key ? t : module;
+  }
+
   getActionBadge(action: string): string {
     const map: Record<string, string> = { create: 'badge-success', update: 'badge-info', delete: 'badge-danger', login: 'badge-neutral', logout: 'badge-neutral' };
     return map[action] || 'badge-neutral';
   }
 
   formatDate(dateStr: string): string {
-    return new Date(dateStr).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+    const lang = (this.translate.currentLang || 'en').split('-')[0];
+    return new Date(dateStr).toLocaleString(lang, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
   }
 }

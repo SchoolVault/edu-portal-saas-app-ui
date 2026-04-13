@@ -83,12 +83,13 @@ export class DirectoryService {
         continue;
       }
       const idNum = Number(te.id);
-      const homeroomClass = classes.find(c => c.classTeacherId === te.id);
-      const homeroom = homeroomClass
-        ? `Homeroom: ${homeroomClass.name}`
-        : te.classIds?.length
-          ? `Teaching ${te.classIds.length} class(es)`
-          : 'Teacher';
+      const homeroomNames = te.homeroomClassNames?.length
+        ? te.homeroomClassNames.join(', ')
+        : (() => {
+            const hc = classes.find(c => c.classTeacherId === te.id);
+            return hc ? `Homeroom: ${hc.name}` : '';
+          })();
+      const homeroom = homeroomNames || 'Teacher';
       push({
         kind: 'teacher',
         id: idNum,

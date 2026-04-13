@@ -1,6 +1,7 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import {
   ImportExportService,
   ImportJobLine,
@@ -9,16 +10,14 @@ import {
 
 interface JobTypeOption {
   id: string;
-  label: string;
   file: string;
-  hint: string;
   icon: string;
 }
 
 @Component({
   selector: 'app-import-export',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, TranslateModule],
   template: `
     <div class="ie-page" data-testid="import-export-page">
       <!-- Hero -->
@@ -30,15 +29,14 @@ interface JobTypeOption {
           </div>
           <div class="ie-hero-text">
             <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
-              <h1 class="ie-title mb-0">Import &amp; export</h1>
-              <span class="ie-pill" title="Only school administrators and platform super-admins can use this module">
+              <h1 class="ie-title mb-0">{{ 'importExport.pageTitle' | translate }}</h1>
+              <span class="ie-pill" [attr.title]="'importExport.pillTitle' | translate">
                 <i class="bi bi-shield-lock-fill" aria-hidden="true"></i>
-                Admin &amp; super admin
+                {{ 'importExport.pill' | translate }}
               </span>
             </div>
             <p class="ie-lead mb-0">
-              Queue <strong>ZIP + CSV</strong> jobs in the background—no blocking. Download CSVs in the same shape for
-              round-trip edits. See per-row outcomes and retry only what failed.
+              {{ 'importExport.lead' | translate }}
             </p>
           </div>
         </div>
@@ -49,13 +47,13 @@ interface JobTypeOption {
         <div class="erp-card-header d-flex flex-wrap justify-content-between align-items-start gap-2 mb-0 pb-3 border-bottom-0">
           <div>
             <h3 class="erp-card-title mb-1">
-              <i class="bi bi-upload me-2 text-muted" aria-hidden="true"></i>New import job
+              <i class="bi bi-upload me-2 text-muted" aria-hidden="true"></i>{{ 'importExport.sectionNewJob' | translate }}
             </h3>
-            <p class="small text-muted mb-0">Pick a dataset, drop a ZIP (contains the CSV below), then queue.</p>
+            <p class="small text-muted mb-0">{{ 'importExport.newJobLead' | translate }}</p>
           </div>
         </div>
 
-        <p class="small fw-semibold text-uppercase text-muted mb-2 mt-2" style="letter-spacing: 0.04em;">1. Job type</p>
+        <p class="small fw-semibold text-uppercase text-muted mb-2 mt-2" style="letter-spacing: 0.04em;">{{ 'importExport.stepJobType' | translate }}</p>
         <div class="row g-3 mb-4">
           <div class="col-6 col-lg-3" *ngFor="let jt of jobTypes">
             <button
@@ -66,14 +64,14 @@ interface JobTypeOption {
               [attr.aria-pressed]="jobType === jt.id"
             >
               <span class="ie-type-icon"><i class="bi" [ngClass]="jt.icon" aria-hidden="true"></i></span>
-              <span class="ie-type-label">{{ jt.label }}</span>
+              <span class="ie-type-label">{{ ('importExport.jobType.' + jt.id) | translate }}</span>
               <span class="ie-type-file"><code>{{ jt.file }}</code></span>
-              <span class="ie-type-hint">{{ jt.hint }}</span>
+              <span class="ie-type-hint">{{ ('importExport.jobTypeHint.' + jt.id) | translate }}</span>
             </button>
           </div>
         </div>
 
-        <p class="small fw-semibold text-uppercase text-muted mb-2" style="letter-spacing: 0.04em;">2. Upload ZIP</p>
+        <p class="small fw-semibold text-uppercase text-muted mb-2" style="letter-spacing: 0.04em;">{{ 'importExport.stepUpload' | translate }}</p>
         <div
           class="ie-dropzone"
           [class.ie-dropzone--active]="dragOver"
@@ -96,8 +94,8 @@ interface JobTypeOption {
           <div class="ie-dropzone-inner">
             <i class="bi bi-file-earmark-zip ie-drop-ico" aria-hidden="true"></i>
             <div>
-              <div class="ie-drop-title">Drop your ZIP here</div>
-              <div class="ie-drop-sub">or click to browse · must include <code>{{ activeTypeFile }}</code></div>
+              <div class="ie-drop-title">{{ 'importExport.dropTitle' | translate }}</div>
+              <div class="ie-drop-sub">{{ 'importExport.dropSubBefore' | translate }} <code>{{ activeTypeFile }}</code></div>
             </div>
           </div>
         </div>
@@ -107,7 +105,7 @@ interface JobTypeOption {
             {{ file.name }}
             <span class="text-muted">({{ (file.size / 1024) | number : '1.0-0' }} KB)</span>
           </span>
-          <button type="button" class="btn btn-link btn-sm text-muted p-0" (click)="clearFile(fileInput)">Remove</button>
+          <button type="button" class="btn btn-link btn-sm text-muted p-0" (click)="clearFile(fileInput)">{{ 'importExport.removeFile' | translate }}</button>
         </div>
 
         <div class="d-flex flex-wrap align-items-center gap-2 mt-4">
@@ -119,7 +117,7 @@ interface JobTypeOption {
           >
             <span *ngIf="busy" class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
             <i *ngIf="!busy" class="bi bi-lightning-charge-fill me-2" aria-hidden="true"></i>
-            {{ busy ? 'Queuing…' : 'Upload & queue job' }}
+            {{ busy ? ('importExport.queueBusy' | translate) : ('importExport.queueBtn' | translate) }}
           </button>
           <span class="small" [class.text-success]="lastSubmitOk" [class.text-danger]="lastSubmitOk === false" *ngIf="lastSubmitMsg">
             {{ lastSubmitMsg }}
@@ -131,17 +129,17 @@ interface JobTypeOption {
       <div class="erp-card ie-section mb-4">
         <div class="erp-card-header pb-3 border-bottom-0 mb-0">
           <h3 class="erp-card-title mb-1">
-            <i class="bi bi-download me-2 text-muted" aria-hidden="true"></i>Exports
+            <i class="bi bi-download me-2 text-muted" aria-hidden="true"></i>{{ 'importExport.exportsTitle' | translate }}
           </h3>
-          <p class="small text-muted mb-0">Download current roster data—columns match bulk import templates.</p>
+          <p class="small text-muted mb-0">{{ 'importExport.exportsLead' | translate }}</p>
         </div>
         <div class="row g-3">
           <div class="col-md-6">
             <button type="button" class="ie-export-card w-100 text-start" (click)="dlStudents()">
               <span class="ie-export-icon ie-export-icon--students"><i class="bi bi-people-fill" aria-hidden="true"></i></span>
               <span class="ie-export-body">
-                <span class="ie-export-title">Students CSV</span>
-                <span class="ie-export-desc">firstname, class, section, parent email, …</span>
+                <span class="ie-export-title">{{ 'importExport.exportStudentsTitle' | translate }}</span>
+                <span class="ie-export-desc">{{ 'importExport.exportStudentsDesc' | translate }}</span>
               </span>
               <i class="bi bi-arrow-right-short ie-export-arrow" aria-hidden="true"></i>
             </button>
@@ -150,8 +148,8 @@ interface JobTypeOption {
             <button type="button" class="ie-export-card w-100 text-start" (click)="dlTeachers()">
               <span class="ie-export-icon ie-export-icon--staff"><i class="bi bi-person-badge-fill" aria-hidden="true"></i></span>
               <span class="ie-export-body">
-                <span class="ie-export-title">Teachers &amp; staff CSV</span>
-                <span class="ie-export-desc">Portal flags, library role, subjects</span>
+                <span class="ie-export-title">{{ 'importExport.exportTeachersTitle' | translate }}</span>
+                <span class="ie-export-desc">{{ 'importExport.exportTeachersDesc' | translate }}</span>
               </span>
               <i class="bi bi-arrow-right-short ie-export-arrow" aria-hidden="true"></i>
             </button>
@@ -164,51 +162,51 @@ interface JobTypeOption {
         <div class="erp-card-header d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
           <div>
             <h3 class="erp-card-title mb-0">
-              <i class="bi bi-clock-history me-2 text-muted" aria-hidden="true"></i>Recent jobs
+              <i class="bi bi-clock-history me-2 text-muted" aria-hidden="true"></i>{{ 'importExport.jobsTitle' | translate }}
             </h3>
           </div>
           <button type="button" class="btn-outline-erp btn-sm" (click)="reloadJobs()" [disabled]="busy || jobsLoading">
             <span *ngIf="jobsLoading" class="spinner-border spinner-border-sm me-1" aria-hidden="true"></span>
             <i *ngIf="!jobsLoading" class="bi bi-arrow-clockwise me-1" aria-hidden="true"></i>
-            Refresh
+            {{ 'importExport.refresh' | translate }}
           </button>
         </div>
 
         <div *ngIf="jobsLoading && jobs.length === 0" class="empty-state py-5">
           <i class="bi bi-hourglass-split"></i>
-          <h4 class="mt-3">Loading jobs</h4>
-          <p class="text-muted mb-0">Fetching your import history</p>
+          <h4 class="mt-3">{{ 'importExport.loadingJobsTitle' | translate }}</h4>
+          <p class="text-muted mb-0">{{ 'importExport.loadingJobsLead' | translate }}</p>
         </div>
 
         <div *ngIf="!jobsLoading && jobs.length === 0" class="empty-state py-5">
           <i class="bi bi-inbox"></i>
-          <h4 class="mt-3">No jobs yet</h4>
-          <p class="text-muted mb-0">Upload a ZIP above to run your first async import.</p>
+          <h4 class="mt-3">{{ 'importExport.emptyJobsTitle' | translate }}</h4>
+          <p class="text-muted mb-0">{{ 'importExport.emptyJobsLead' | translate }}</p>
         </div>
 
         <div class="table-responsive ie-table-wrap" *ngIf="jobs.length > 0">
           <table class="erp-table mb-0 ie-table">
             <thead>
               <tr>
-                <th>ID</th>
-                <th>Type</th>
-                <th>Status</th>
-                <th>File</th>
-                <th class="text-end">Rows</th>
-                <th class="text-end">OK / fail</th>
-                <th class="text-end">Actions</th>
+                <th>{{ 'importExport.thId' | translate }}</th>
+                <th>{{ 'importExport.thType' | translate }}</th>
+                <th>{{ 'importExport.thStatus' | translate }}</th>
+                <th>{{ 'importExport.thFile' | translate }}</th>
+                <th class="text-end">{{ 'importExport.thRows' | translate }}</th>
+                <th class="text-end">{{ 'importExport.thOkFail' | translate }}</th>
+                <th class="text-end">{{ 'importExport.thActions' | translate }}</th>
               </tr>
             </thead>
             <tbody>
               <tr *ngFor="let j of jobs" [class.ie-row--open]="selectedJob?.id === j.id">
                 <td class="fw-semibold text-muted">#{{ j.id }}</td>
                 <td>
-                  <span class="ie-type-pill">{{ j.jobType }}</span>
+                  <span class="ie-type-pill">{{ jobTypeLabel(j.jobType) }}</span>
                 </td>
                 <td>
                   <span class="ie-status" [ngClass]="statusClass(j.status)">
                     <span class="ie-status-dot" aria-hidden="true"></span>
-                    {{ j.status }}
+                    {{ jobStatusLabel(j.status) }}
                   </span>
                 </td>
                 <td class="small text-truncate" style="max-width: 200px;" [title]="j.originalFilename || ''">
@@ -226,7 +224,7 @@ interface JobTypeOption {
                     class="btn btn-sm btn-link p-0 me-2 ie-action-link"
                     (click)="selectJob(j); $event.stopPropagation()"
                   >
-                    <i class="bi bi-list-ul me-1" aria-hidden="true"></i>Lines
+                    <i class="bi bi-list-ul me-1" aria-hidden="true"></i>{{ 'importExport.lines' | translate }}
                   </button>
                   <button
                     type="button"
@@ -234,7 +232,7 @@ interface JobTypeOption {
                     *ngIf="j.status === 'COMPLETED' && j.failCount > 0"
                     (click)="retry(j); $event.stopPropagation()"
                   >
-                    <i class="bi bi-arrow-repeat me-1" aria-hidden="true"></i>Retry failed
+                    <i class="bi bi-arrow-repeat me-1" aria-hidden="true"></i>{{ 'importExport.retryFailed' | translate }}
                   </button>
                 </td>
               </tr>
@@ -249,29 +247,29 @@ interface JobTypeOption {
           <div>
             <h3 class="erp-card-title mb-1">
               <i class="bi bi-ui-checks me-2 text-muted" aria-hidden="true"></i>
-              Job #{{ selectedJob.id }} — line outcomes
+              {{ 'importExport.lineOutcomesTitle' | translate: { id: selectedJob.id } }}
             </h3>
             <p class="small text-muted mb-0" *ngIf="selectedJob.summaryMessage">{{ selectedJob.summaryMessage }}</p>
           </div>
           <button type="button" class="btn-outline-erp btn-sm" (click)="closeLines()">
-            <i class="bi bi-x-lg me-1" aria-hidden="true"></i>Close
+            <i class="bi bi-x-lg me-1" aria-hidden="true"></i>{{ 'importExport.close' | translate }}
           </button>
         </div>
 
         <div *ngIf="linesLoading" class="text-center py-4 text-muted">
           <span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>
-          Loading lines…
+          {{ 'importExport.loadingLines' | translate }}
         </div>
 
         <div class="table-responsive" *ngIf="!linesLoading && lines.length > 0">
           <table class="erp-table mb-0 ie-table">
             <thead>
               <tr>
-                <th>#</th>
-                <th>Status</th>
-                <th>Entity</th>
-                <th>Error</th>
-                <th>Payload</th>
+                <th>{{ 'importExport.thLineNum' | translate }}</th>
+                <th>{{ 'importExport.thLineStatus' | translate }}</th>
+                <th>{{ 'importExport.thEntity' | translate }}</th>
+                <th>{{ 'importExport.thError' | translate }}</th>
+                <th>{{ 'importExport.thPayload' | translate }}</th>
                 <th class="text-end"></th>
               </tr>
             </thead>
@@ -281,7 +279,7 @@ interface JobTypeOption {
                 <td>
                   <span class="ie-status ie-status--sm" [ngClass]="statusClass(l.status)">
                     <span class="ie-status-dot" aria-hidden="true"></span>
-                    {{ l.status }}
+                    {{ lineStatusLabel(l.status) }}
                   </span>
                 </td>
                 <td class="small">
@@ -298,7 +296,7 @@ interface JobTypeOption {
                     class="btn btn-sm btn-outline-secondary border-0"
                     *ngIf="l.payloadJson"
                     (click)="copyPayload(l)"
-                    title="Copy JSON"
+                    [title]="'importExport.copyJson' | translate"
                   >
                     <i class="bi bi-clipboard" aria-hidden="true"></i>
                   </button>
@@ -307,7 +305,7 @@ interface JobTypeOption {
             </tbody>
           </table>
         </div>
-        <p class="small text-muted mb-0" *ngIf="!linesLoading && lines.length === 0">No line rows returned.</p>
+        <p class="small text-muted mb-0" *ngIf="!linesLoading && lines.length === 0">{{ 'importExport.noLineRows' | translate }}</p>
       </div>
     </div>
   `,
@@ -629,34 +627,10 @@ interface JobTypeOption {
 })
 export class ImportExportComponent implements OnInit {
   jobTypes: JobTypeOption[] = [
-    {
-      id: 'STUDENTS',
-      label: 'Students',
-      file: 'students.csv',
-      hint: 'Parents, class, optional section',
-      icon: 'bi-people-fill',
-    },
-    {
-      id: 'TEACHERS',
-      label: 'Teachers',
-      file: 'teachers.csv',
-      hint: 'Portal login optional',
-      icon: 'bi-person-workspace',
-    },
-    {
-      id: 'STAFF',
-      label: 'Library / staff',
-      file: 'staff.csv',
-      hint: 'Defaults to library portal',
-      icon: 'bi-book-half',
-    },
-    {
-      id: 'CLASSES',
-      label: 'Classes',
-      file: 'classes.csv',
-      hint: 'Sections pipe-separated',
-      icon: 'bi-diagram-3-fill',
-    },
+    { id: 'STUDENTS', file: 'students.csv', icon: 'bi-people-fill' },
+    { id: 'TEACHERS', file: 'teachers.csv', icon: 'bi-person-workspace' },
+    { id: 'STAFF', file: 'staff.csv', icon: 'bi-book-half' },
+    { id: 'CLASSES', file: 'classes.csv', icon: 'bi-diagram-3-fill' },
   ];
 
   jobType = 'STUDENTS';
@@ -671,7 +645,31 @@ export class ImportExportComponent implements OnInit {
   selectedJob: ImportJobSummary | null = null;
   dragOver = false;
 
-  constructor(private importExport: ImportExportService) {}
+  constructor(
+    private importExport: ImportExportService,
+    private translate: TranslateService
+  ) {}
+
+  jobTypeLabel(raw: string): string {
+    const id = String(raw || '').toUpperCase();
+    const key = `importExport.jobType.${id}`;
+    const t = this.translate.instant(key);
+    return t !== key ? t : raw;
+  }
+
+  jobStatusLabel(raw: string): string {
+    const id = String(raw || '').toUpperCase();
+    const key = `importExport.jobStatus.${id}`;
+    const t = this.translate.instant(key);
+    return t !== key ? t : raw;
+  }
+
+  lineStatusLabel(raw: string): string {
+    const id = String(raw || '').toUpperCase();
+    const key = `importExport.lineStatus.${id}`;
+    const t = this.translate.instant(key);
+    return t !== key ? t : raw;
+  }
 
   get activeTypeFile(): string {
     return this.jobTypes.find(j => j.id === this.jobType)?.file ?? 'students.csv';
@@ -728,12 +726,12 @@ export class ImportExportComponent implements OnInit {
     this.lastSubmitOk = null;
     this.importExport.submitJob(this.jobType, this.file).subscribe({
       next: r => {
-        this.lastSubmitMsg = 'Job #' + r.jobId + ' queued · ' + r.totalRows + ' row(s).';
+        this.lastSubmitMsg = this.translate.instant('importExport.msgQueued', { jobId: r.jobId, rows: r.totalRows });
         this.lastSubmitOk = true;
         this.reloadJobs();
       },
       error: e => {
-        this.lastSubmitMsg = e?.message || 'Upload failed';
+        this.lastSubmitMsg = e?.message || this.translate.instant('importExport.msgUploadFailed');
         this.lastSubmitOk = false;
       },
       complete: () => (this.busy = false),
@@ -773,12 +771,12 @@ export class ImportExportComponent implements OnInit {
     this.busy = true;
     this.importExport.retryFailed(j.id).subscribe({
       next: () => {
-        this.lastSubmitMsg = 'Retry queued for job #' + j.id;
+        this.lastSubmitMsg = this.translate.instant('importExport.msgRetryQueued', { id: j.id });
         this.lastSubmitOk = true;
         this.reloadJobs();
       },
       error: e => {
-        this.lastSubmitMsg = e?.message || 'Retry failed';
+        this.lastSubmitMsg = e?.message || this.translate.instant('importExport.msgRetryFailed');
         this.lastSubmitOk = false;
       },
       complete: () => (this.busy = false),
@@ -796,11 +794,12 @@ export class ImportExportComponent implements OnInit {
   copyPayload(l: ImportJobLine): void {
     const t = l.payloadJson || '';
     if (!t || !navigator.clipboard) return;
+    const copiedMsg = this.translate.instant('importExport.msgPayloadCopied');
     navigator.clipboard.writeText(t).then(() => {
-      this.lastSubmitMsg = 'Payload copied to clipboard';
+      this.lastSubmitMsg = copiedMsg;
       this.lastSubmitOk = true;
       setTimeout(() => {
-        if (this.lastSubmitMsg === 'Payload copied to clipboard') {
+        if (this.lastSubmitMsg === copiedMsg) {
           this.lastSubmitMsg = '';
           this.lastSubmitOk = null;
         }

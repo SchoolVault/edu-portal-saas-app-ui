@@ -1,6 +1,7 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { AcademicService } from '../../core/services/academic.service';
 import { ExamService } from '../../core/services/exam.service';
 import { FeeService } from '../../core/services/fee.service';
@@ -23,38 +24,38 @@ import { downloadCsv } from '../../core/utils/csv-export.util';
 @Component({
   selector: 'app-reports',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, TranslateModule],
   template: `
     <div data-testid="reports-page">
       <div class="d-flex justify-content-between align-items-center mb-4 animate-in flex-wrap gap-2">
         <div>
-          <h2 style="font-size: 24px; font-weight: 800;">Reports & Analytics</h2>
-          <p class="text-muted mb-0" style="font-size: 13px;">Live operational reporting across performance, attendance, fees, classes, teachers, and report cards</p>
+          <h2 style="font-size: 24px; font-weight: 800;">{{ 'reports.pageTitle' | translate }}</h2>
+          <p class="text-muted mb-0" style="font-size: 13px;">{{ 'reports.lead' | translate }}</p>
         </div>
-        <button type="button" class="btn-outline-erp btn-sm" (click)="refreshAllReports()"><i class="bi bi-arrow-clockwise"></i> Refresh</button>
+        <button type="button" class="btn-outline-erp btn-sm" (click)="refreshAllReports()"><i class="bi bi-arrow-clockwise"></i> {{ 'reports.refresh' | translate }}</button>
       </div>
 
       <div class="erp-tabs animate-in">
-        <button class="erp-tab" [class.active]="tab === 'performance'" (click)="tab = 'performance'; loadPerformance()">Student Performance</button>
-        <button class="erp-tab" [class.active]="tab === 'attendance'" (click)="tab = 'attendance'; loadAttendance()">Attendance</button>
-        <button class="erp-tab" [class.active]="tab === 'fees'" (click)="tab = 'fees'; loadFees()">Fee Collection</button>
-        <button class="erp-tab" [class.active]="tab === 'class'" (click)="tab = 'class'; loadClassSummary()">Class Summary</button>
-        <button class="erp-tab" [class.active]="tab === 'section'" (click)="tab = 'section'; loadSectionSummary()">Sections</button>
-        <button class="erp-tab" [class.active]="tab === 'teacher'" (click)="tab = 'teacher'; loadTeacherWorkload()">Teacher Workload</button>
-        <button class="erp-tab" [class.active]="tab === 'report-card'" (click)="tab = 'report-card'; loadReportCard()">Report Card</button>
+        <button class="erp-tab" [class.active]="tab === 'performance'" (click)="tab = 'performance'; loadPerformance()">{{ 'reports.tab.performance' | translate }}</button>
+        <button class="erp-tab" [class.active]="tab === 'attendance'" (click)="tab = 'attendance'; loadAttendance()">{{ 'reports.tab.attendance' | translate }}</button>
+        <button class="erp-tab" [class.active]="tab === 'fees'" (click)="tab = 'fees'; loadFees()">{{ 'reports.tab.fees' | translate }}</button>
+        <button class="erp-tab" [class.active]="tab === 'class'" (click)="tab = 'class'; loadClassSummary()">{{ 'reports.tab.class' | translate }}</button>
+        <button class="erp-tab" [class.active]="tab === 'section'" (click)="tab = 'section'; loadSectionSummary()">{{ 'reports.tab.section' | translate }}</button>
+        <button class="erp-tab" [class.active]="tab === 'teacher'" (click)="tab = 'teacher'; loadTeacherWorkload()">{{ 'reports.tab.teacher' | translate }}</button>
+        <button class="erp-tab" [class.active]="tab === 'report-card'" (click)="tab = 'report-card'; loadReportCard()">{{ 'reports.tab.reportCard' | translate }}</button>
       </div>
 
       <div *ngIf="tab === 'performance'" class="animate-in">
         <div class="erp-card mb-4">
           <div class="row g-3 align-items-end">
             <div class="col-md-4">
-              <label class="erp-label">Class</label>
+              <label class="erp-label">{{ 'reports.labelClass' | translate }}</label>
               <select class="erp-select" [(ngModel)]="selectedClassId" (change)="loadPerformance()">
                 <option *ngFor="let cls of classes" [ngValue]="cls.id">{{ cls.name }}</option>
               </select>
             </div>
             <div class="col-md-4">
-              <label class="erp-label">Exam</label>
+              <label class="erp-label">{{ 'reports.labelExam' | translate }}</label>
               <select class="erp-select" [(ngModel)]="selectedExamId" (change)="loadPerformance()">
                 <option *ngFor="let exam of exams" [ngValue]="exam.id">{{ exam.name }}</option>
               </select>
@@ -63,10 +64,10 @@ import { downloadCsv } from '../../core/utils/csv-export.util';
         </div>
         <div class="erp-card">
           <div class="d-flex justify-content-end mb-2">
-            <button type="button" class="btn-outline-erp btn-sm" (click)="exportPerformanceCsv()"><i class="bi bi-download"></i> Export CSV</button>
+            <button type="button" class="btn-outline-erp btn-sm" (click)="exportPerformanceCsv()"><i class="bi bi-download"></i> {{ 'reports.exportCsv' | translate }}</button>
           </div>
           <table class="erp-table">
-            <thead><tr><th>Rank</th><th>Student</th><th>Total</th><th>%</th><th>Grade</th></tr></thead>
+            <thead><tr><th>{{ 'reports.th.rank' | translate }}</th><th>{{ 'reports.th.student' | translate }}</th><th>{{ 'reports.th.total' | translate }}</th><th>{{ 'reports.th.pct' | translate }}</th><th>{{ 'reports.th.grade' | translate }}</th></tr></thead>
             <tbody>
               <tr *ngFor="let row of performanceRows">
                 <td>{{ row.rank }}</td>
@@ -84,23 +85,23 @@ import { downloadCsv } from '../../core/utils/csv-export.util';
         <div class="erp-card mb-4">
           <div class="row g-3 align-items-end">
             <div class="col-md-4">
-              <label class="erp-label">Class</label>
+              <label class="erp-label">{{ 'reports.labelClass' | translate }}</label>
               <select class="erp-select" [(ngModel)]="selectedClassId" (change)="loadAttendance()">
                 <option *ngFor="let cls of classes" [ngValue]="cls.id">{{ cls.name }}</option>
               </select>
             </div>
             <div class="col-md-4">
-              <label class="erp-label">Month</label>
+              <label class="erp-label">{{ 'reports.labelMonth' | translate }}</label>
               <input class="erp-input" type="month" [(ngModel)]="selectedMonth" (change)="loadAttendance()">
             </div>
           </div>
         </div>
         <div class="erp-card">
           <div class="d-flex justify-content-end mb-2">
-            <button type="button" class="btn-outline-erp btn-sm" (click)="exportAttendanceCsv()"><i class="bi bi-download"></i> Export CSV</button>
+            <button type="button" class="btn-outline-erp btn-sm" (click)="exportAttendanceCsv()"><i class="bi bi-download"></i> {{ 'reports.exportCsv' | translate }}</button>
           </div>
           <table class="erp-table">
-            <thead><tr><th>Student</th><th>Present</th><th>Absent</th><th>Late</th><th>Excused</th><th>Attendance %</th></tr></thead>
+            <thead><tr><th>{{ 'reports.th.student' | translate }}</th><th>{{ 'reports.th.present' | translate }}</th><th>{{ 'reports.th.absent' | translate }}</th><th>{{ 'reports.th.late' | translate }}</th><th>{{ 'reports.th.excused' | translate }}</th><th>{{ 'reports.th.attendancePct' | translate }}</th></tr></thead>
             <tbody>
               <tr *ngFor="let row of attendanceRows">
                 <td><strong>{{ row.studentName }}</strong></td>
@@ -119,26 +120,26 @@ import { downloadCsv } from '../../core/utils/csv-export.util';
         <div class="erp-card mb-4">
           <div class="row g-3 align-items-end">
             <div class="col-md-4">
-              <label class="erp-label">Class Filter</label>
+              <label class="erp-label">{{ 'reports.classFilter' | translate }}</label>
               <select class="erp-select" [(ngModel)]="selectedFeeClassId" (change)="loadFees()">
-                <option [ngValue]="null">All Classes</option>
+                <option [ngValue]="null">{{ 'reports.allClasses' | translate }}</option>
                 <option *ngFor="let cls of classes" [ngValue]="cls.id">{{ cls.name }}</option>
               </select>
             </div>
           </div>
         </div>
         <div class="row g-4 mb-4">
-          <div class="col-sm-6 col-lg-3"><div class="stat-card"><div class="stat-value">{{ feeSummary.totalCollected | currency:'INR':'symbol':'1.0-0' }}</div><div class="stat-label">Collected</div></div></div>
-          <div class="col-sm-6 col-lg-3"><div class="stat-card"><div class="stat-value">{{ feeSummary.totalPending | currency:'INR':'symbol':'1.0-0' }}</div><div class="stat-label">Pending</div></div></div>
-          <div class="col-sm-6 col-lg-3"><div class="stat-card"><div class="stat-value">{{ feeSummary.collectionRate }}%</div><div class="stat-label">Collection Rate</div></div></div>
-          <div class="col-sm-6 col-lg-3"><div class="stat-card"><div class="stat-value">{{ feeSummary.overdueCount }}</div><div class="stat-label">Overdue Accounts</div></div></div>
+          <div class="col-sm-6 col-lg-3"><div class="stat-card"><div class="stat-value">{{ feeSummary.totalCollected | currency:'INR':'symbol':'1.0-0' }}</div><div class="stat-label">{{ 'reports.stat.collected' | translate }}</div></div></div>
+          <div class="col-sm-6 col-lg-3"><div class="stat-card"><div class="stat-value">{{ feeSummary.totalPending | currency:'INR':'symbol':'1.0-0' }}</div><div class="stat-label">{{ 'reports.stat.pending' | translate }}</div></div></div>
+          <div class="col-sm-6 col-lg-3"><div class="stat-card"><div class="stat-value">{{ feeSummary.collectionRate }}%</div><div class="stat-label">{{ 'reports.stat.collectionRate' | translate }}</div></div></div>
+          <div class="col-sm-6 col-lg-3"><div class="stat-card"><div class="stat-value">{{ feeSummary.overdueCount }}</div><div class="stat-label">{{ 'reports.stat.overdueAccounts' | translate }}</div></div></div>
         </div>
         <div class="erp-card">
           <div class="d-flex justify-content-end mb-2">
-            <button type="button" class="btn-outline-erp btn-sm" (click)="exportFeesCsv()"><i class="bi bi-download"></i> Export CSV</button>
+            <button type="button" class="btn-outline-erp btn-sm" (click)="exportFeesCsv()"><i class="bi bi-download"></i> {{ 'reports.exportCsv' | translate }}</button>
           </div>
           <table class="erp-table">
-            <thead><tr><th>Student</th><th>Class</th><th>Total</th><th>Paid</th><th>Pending</th><th>Status</th></tr></thead>
+            <thead><tr><th>{{ 'reports.th.student' | translate }}</th><th>{{ 'reports.th.classCol' | translate }}</th><th>{{ 'reports.th.total' | translate }}</th><th>{{ 'reports.th.paid' | translate }}</th><th>{{ 'reports.th.pendingAmt' | translate }}</th><th>{{ 'reports.th.status' | translate }}</th></tr></thead>
             <tbody>
               <tr *ngFor="let payment of feeRows">
                 <td><strong>{{ payment.studentName }}</strong></td>
@@ -146,7 +147,7 @@ import { downloadCsv } from '../../core/utils/csv-export.util';
                 <td>{{ payment.amount | currency:'INR':'symbol':'1.0-0' }}</td>
                 <td>{{ payment.paidAmount | currency:'INR':'symbol':'1.0-0' }}</td>
                 <td>{{ payment.dueAmount | currency:'INR':'symbol':'1.0-0' }}</td>
-                <td>{{ payment.status }}</td>
+                <td>{{ feeStatusLabel(payment.status) }}</td>
               </tr>
             </tbody>
           </table>
@@ -156,10 +157,10 @@ import { downloadCsv } from '../../core/utils/csv-export.util';
       <div *ngIf="tab === 'class'" class="animate-in">
         <div class="erp-card">
           <div class="d-flex justify-content-end mb-2">
-            <button type="button" class="btn-outline-erp btn-sm" (click)="exportClassCsv()"><i class="bi bi-download"></i> Export CSV</button>
+            <button type="button" class="btn-outline-erp btn-sm" (click)="exportClassCsv()"><i class="bi bi-download"></i> {{ 'reports.exportCsv' | translate }}</button>
           </div>
           <table class="erp-table">
-            <thead><tr><th>Class</th><th>Sections</th><th>Students</th><th>Attendance %</th><th>Performance %</th><th>Fee Collection %</th><th>Teacher</th></tr></thead>
+            <thead><tr><th>{{ 'reports.th.classCol' | translate }}</th><th>{{ 'reports.th.sections' | translate }}</th><th>{{ 'reports.th.students' | translate }}</th><th>{{ 'reports.th.attendancePct' | translate }}</th><th>{{ 'reports.th.performancePct' | translate }}</th><th>{{ 'reports.th.feeCollectionPct' | translate }}</th><th>{{ 'reports.th.teacher' | translate }}</th></tr></thead>
             <tbody>
               <tr *ngFor="let row of classSummaryRows">
                 <td><strong>{{ row.className }}</strong></td>
@@ -178,10 +179,10 @@ import { downloadCsv } from '../../core/utils/csv-export.util';
       <div *ngIf="tab === 'section'" class="animate-in">
         <div class="erp-card">
           <div class="d-flex justify-content-end mb-2">
-            <button type="button" class="btn-outline-erp btn-sm" (click)="exportSectionCsv()"><i class="bi bi-download"></i> Export CSV</button>
+            <button type="button" class="btn-outline-erp btn-sm" (click)="exportSectionCsv()"><i class="bi bi-download"></i> {{ 'reports.exportCsv' | translate }}</button>
           </div>
           <table class="erp-table">
-            <thead><tr><th>Class</th><th>Section</th><th>Students</th></tr></thead>
+            <thead><tr><th>{{ 'reports.th.classCol' | translate }}</th><th>{{ 'reports.th.section' | translate }}</th><th>{{ 'reports.th.students' | translate }}</th></tr></thead>
             <tbody>
               <tr *ngFor="let row of sectionRows">
                 <td><strong>{{ row.className }}</strong></td>
@@ -196,16 +197,16 @@ import { downloadCsv } from '../../core/utils/csv-export.util';
       <div *ngIf="tab === 'teacher'" class="animate-in">
         <div class="erp-card">
           <div class="d-flex justify-content-end mb-2">
-            <button type="button" class="btn-outline-erp btn-sm" (click)="exportTeacherCsv()"><i class="bi bi-download"></i> Export CSV</button>
+            <button type="button" class="btn-outline-erp btn-sm" (click)="exportTeacherCsv()"><i class="bi bi-download"></i> {{ 'reports.exportCsv' | translate }}</button>
           </div>
           <table class="erp-table">
-            <thead><tr><th>Teacher</th><th>Specialization</th><th>Subjects</th><th>Status</th></tr></thead>
+            <thead><tr><th>{{ 'reports.th.teacher' | translate }}</th><th>{{ 'reports.th.specialization' | translate }}</th><th>{{ 'reports.th.subjects' | translate }}</th><th>{{ 'reports.th.status' | translate }}</th></tr></thead>
             <tbody>
               <tr *ngFor="let row of teacherRows">
                 <td><strong>{{ row.teacherName }}</strong></td>
                 <td>{{ row.specialization }}</td>
                 <td>{{ row.subjects.join(', ') }}</td>
-                <td>{{ row.status }}</td>
+                <td>{{ teacherStatusLabel(row.status) }}</td>
               </tr>
             </tbody>
           </table>
@@ -216,15 +217,15 @@ import { downloadCsv } from '../../core/utils/csv-export.util';
         <div class="erp-card mb-4">
           <div class="row g-3 align-items-end">
             <div class="col-md-4">
-              <label class="erp-label">Student</label>
+              <label class="erp-label">{{ 'reports.labelStudent' | translate }}</label>
               <select class="erp-select" [(ngModel)]="selectedStudentId" (change)="loadReportCard()">
                 <option *ngFor="let student of reportCardStudents" [ngValue]="student.id">{{ student.firstName }} {{ student.lastName }}</option>
               </select>
             </div>
             <div class="col-md-4">
-              <label class="erp-label">Exam</label>
+              <label class="erp-label">{{ 'reports.labelExam' | translate }}</label>
               <select class="erp-select" [(ngModel)]="selectedExamId" (change)="loadReportCard()">
-                <option [ngValue]="null">All Exams</option>
+                <option [ngValue]="null">{{ 'reports.allExams' | translate }}</option>
                 <option *ngFor="let exam of exams" [ngValue]="exam.id">{{ exam.name }}</option>
               </select>
             </div>
@@ -232,14 +233,14 @@ import { downloadCsv } from '../../core/utils/csv-export.util';
         </div>
         <div class="erp-card" *ngIf="reportCard">
           <div class="erp-card-header">
-            <h3 class="erp-card-title">{{ reportCard.studentName }} Report Card</h3>
+            <h3 class="erp-card-title">{{ 'reports.reportCardTitle' | translate: { name: reportCard.studentName } }}</h3>
             <div class="d-flex align-items-center gap-2">
-              <button type="button" class="btn-outline-erp btn-sm" (click)="exportReportCardCsv()"><i class="bi bi-download"></i> Export</button>
+              <button type="button" class="btn-outline-erp btn-sm" (click)="exportReportCardCsv()"><i class="bi bi-download"></i> {{ 'reports.export' | translate }}</button>
               <div>{{ reportCard.overallPercentage | number:'1.0-1' }}% · {{ reportCard.overallGrade }}</div>
             </div>
           </div>
           <table class="erp-table">
-            <thead><tr><th>Subject</th><th>Marks</th><th>Max Marks</th><th>Grade</th></tr></thead>
+            <thead><tr><th>{{ 'reports.th.subject' | translate }}</th><th>{{ 'reports.th.marks' | translate }}</th><th>{{ 'reports.th.maxMarks' | translate }}</th><th>{{ 'reports.th.grade' | translate }}</th></tr></thead>
             <tbody>
               <tr *ngFor="let subject of reportCard.subjects">
                 <td><strong>{{ subject.subjectName }}</strong></td>
@@ -278,8 +279,34 @@ export class ReportsComponent implements OnInit {
     private examService: ExamService,
     private feeService: FeeService,
     private reportService: ReportService,
-    private studentService: StudentService
+    private studentService: StudentService,
+    private translate: TranslateService
   ) {}
+
+  feeStatusLabel(raw: string | undefined): string {
+    const n = String(raw ?? '')
+      .trim()
+      .toLowerCase()
+      .replace(/[\s-]+/g, '_');
+    const map: Record<string, string> = {
+      paid: 'fees.statusPaid',
+      partial: 'fees.statusPartial',
+      unpaid: 'fees.statusUnpaid',
+      overdue: 'fees.statusOverdue',
+    };
+    const key = map[n];
+    return key ? this.translate.instant(key) : String(raw ?? '');
+  }
+
+  teacherStatusLabel(raw: string | undefined): string {
+    const code = String(raw ?? '')
+      .trim()
+      .toUpperCase()
+      .replace(/\s+/g, '_');
+    const i18nKey = `reports.teacherStatus.${code}`;
+    const t = this.translate.instant(i18nKey);
+    return t !== i18nKey ? t : String(raw ?? '');
+  }
 
   ngOnInit(): void {
     this.refreshAllReports();
@@ -359,60 +386,114 @@ export class ReportsComponent implements OnInit {
   }
 
   exportPerformanceCsv(): void {
+    const t = this.translate.instant.bind(this.translate);
     const rows: string[][] = [
-      ['Rank', 'Student', 'Total marks', 'Max', 'Percentage', 'Grade'],
+      [
+        t('reports.csv.performance.rank'),
+        t('reports.csv.performance.student'),
+        t('reports.csv.performance.totalMarks'),
+        t('reports.csv.performance.max'),
+        t('reports.csv.performance.percentage'),
+        t('reports.csv.performance.grade'),
+      ],
       ...this.performanceRows.map(r => [String(r.rank), r.studentName, String(r.totalMarks), String(r.totalMax), String(r.percentage), r.grade])
     ];
     downloadCsv(`report-student-performance.csv`, rows);
   }
 
   exportAttendanceCsv(): void {
+    const t = this.translate.instant.bind(this.translate);
     const rows: string[][] = [
-      ['Student', 'Present', 'Absent', 'Late', 'Excused', 'Total days', 'Attendance %'],
+      [
+        t('reports.csv.attendance.student'),
+        t('reports.csv.attendance.present'),
+        t('reports.csv.attendance.absent'),
+        t('reports.csv.attendance.late'),
+        t('reports.csv.attendance.excused'),
+        t('reports.csv.attendance.totalDays'),
+        t('reports.csv.attendance.attendancePct'),
+      ],
       ...this.attendanceRows.map(r => [r.studentName, String(r.present), String(r.absent), String(r.late), String(r.excused), String(r.totalDays), String(r.attendancePercentage)])
     ];
     downloadCsv(`report-attendance-${this.selectedMonth}.csv`, rows);
   }
 
   exportFeesCsv(): void {
+    const t = this.translate.instant.bind(this.translate);
     const rows: string[][] = [
-      ['Student', 'Class', 'Total', 'Paid', 'Pending', 'Status'],
-      ...this.feeRows.map(p => [p.studentName, this.getStudentClassName(p.studentId), String(p.amount), String(p.paidAmount), String(p.dueAmount), p.status])
+      [
+        t('reports.csv.fees.student'),
+        t('reports.csv.fees.class'),
+        t('reports.csv.fees.total'),
+        t('reports.csv.fees.paid'),
+        t('reports.csv.fees.pending'),
+        t('reports.csv.fees.status'),
+      ],
+      ...this.feeRows.map(p => [
+        p.studentName,
+        this.getStudentClassName(p.studentId),
+        String(p.amount),
+        String(p.paidAmount),
+        String(p.dueAmount),
+        this.feeStatusLabel(p.status),
+      ])
     ];
     downloadCsv(`report-fee-collection.csv`, rows);
   }
 
   exportClassCsv(): void {
+    const t = this.translate.instant.bind(this.translate);
     const rows: string[][] = [
-      ['Class', 'Sections', 'Students', 'Attendance %', 'Performance %', 'Fee collection %', 'Class teacher'],
+      [
+        t('reports.csv.class.class'),
+        t('reports.csv.class.sections'),
+        t('reports.csv.class.students'),
+        t('reports.csv.class.attendancePct'),
+        t('reports.csv.class.performancePct'),
+        t('reports.csv.class.feeCollectionPct'),
+        t('reports.csv.class.classTeacher'),
+      ],
       ...this.classSummaryRows.map(r => [r.className, String(r.sections), String(r.totalStudents), String(r.attendancePercentage), String(r.performancePercentage), String(r.feeCollectionPercentage), r.classTeacherName || ''])
     ];
     downloadCsv(`report-class-summary.csv`, rows);
   }
 
   exportSectionCsv(): void {
+    const t = this.translate.instant.bind(this.translate);
     const rows: string[][] = [
-      ['Class', 'Section', 'Student count'],
+      [t('reports.csv.section.class'), t('reports.csv.section.section'), t('reports.csv.section.studentCount')],
       ...this.sectionRows.map(r => [r.className, r.sectionName, String(r.studentCount)])
     ];
     downloadCsv(`report-section-summary.csv`, rows);
   }
 
   exportTeacherCsv(): void {
+    const t = this.translate.instant.bind(this.translate);
     const rows: string[][] = [
-      ['Teacher', 'Specialization', 'Subjects', 'Status'],
-      ...this.teacherRows.map(r => [r.teacherName, r.specialization, r.subjects.join('; '), r.status])
+      [
+        t('reports.csv.teacher.teacher'),
+        t('reports.csv.teacher.specialization'),
+        t('reports.csv.teacher.subjects'),
+        t('reports.csv.teacher.status'),
+      ],
+      ...this.teacherRows.map(r => [r.teacherName, r.specialization, r.subjects.join('; '), this.teacherStatusLabel(r.status)])
     ];
     downloadCsv(`report-teacher-workload.csv`, rows);
   }
 
   exportReportCardCsv(): void {
     if (!this.reportCard) return;
+    const t = this.translate.instant.bind(this.translate);
     const rows: string[][] = [
-      ['Student', 'Overall %', 'Overall grade'],
+      [t('reports.csv.reportCard.student'), t('reports.csv.reportCard.overallPct'), t('reports.csv.reportCard.overallGrade')],
       [this.reportCard.studentName, String(this.reportCard.overallPercentage), this.reportCard.overallGrade],
       [],
-      ['Subject', 'Marks', 'Max marks', 'Grade'],
+      [
+        t('reports.csv.reportCard.subject'),
+        t('reports.csv.reportCard.marks'),
+        t('reports.csv.reportCard.maxMarks'),
+        t('reports.csv.reportCard.grade'),
+      ],
       ...this.reportCard.subjects.map(s => [s.subjectName, String(s.marksObtained), String(s.maxMarks), s.grade])
     ];
     downloadCsv(`report-card-${this.reportCard.studentId}.csv`, rows);

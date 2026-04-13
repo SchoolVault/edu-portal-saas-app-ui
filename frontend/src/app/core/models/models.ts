@@ -11,12 +11,15 @@ export interface User {
   tenantId: string;
   avatar?: string;
   phone?: string;
+  /** Mirrors backend `UserProfile.interfaceLocale` (en | hi, …). */
+  interfaceLocale?: string;
 }
 
 export interface LoginRequest {
   email: string;
   password: string;
   schoolCode: string;
+  interfaceLocale?: string;
 }
 
 export interface LoginResponse {
@@ -39,6 +42,8 @@ export interface OnboardSchoolRequest {
   adminPassword: string;
   phone?: string;
   address?: string;
+  /** Optional UI locale for first admin; mirrors backend when enabled. */
+  interfaceLocale?: string;
 }
 
 export interface ProfileSummary {
@@ -74,6 +79,8 @@ export interface ProfileSummary {
   platformTimezone?: string;
   platformMfaEnabled?: boolean;
   platformPrimaryRegion?: string;
+  /** Server-driven UI language for shell sync after refresh. */
+  interfaceLocale?: string;
 }
 
 export interface Student {
@@ -136,7 +143,10 @@ export interface Teacher {
   specialization: string;
   joinDate: string;
   subjects: string[];
+  /** @deprecated Prefer {@link homeroomClassNames}; kept for legacy mocks/API fields. */
   classIds: number[];
+  /** Class display names where this teacher is homeroom/class teacher (from {@code school_classes.class_teacher_id}). */
+  homeroomClassNames?: string[];
   salary: number;
   status: 'active' | 'inactive';
   avatar?: string;

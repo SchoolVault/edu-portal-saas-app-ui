@@ -1,11 +1,16 @@
 package com.school.erp.modules.leave.dto;
 
 import com.school.erp.common.enums.Enums;
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 
 import java.time.LocalDate;
 
+/**
+ * REST contract for {@code /api/v1/leave/**}. Use stable enum names in JSON for status, dayUnit, and leaveType;
+ * localized strings belong in the client only.
+ */
 public final class LeaveDTOs {
 
     private LeaveDTOs() {
@@ -13,15 +18,21 @@ public final class LeaveDTOs {
 
     public static class CreateLeaveRequest {
         @NotBlank
+        @Schema(
+                description = "Stable leave type code (uppercase).",
+                allowableValues = {"ANNUAL", "SICK", "CASUAL", "EMERGENCY", "OTHER"},
+                example = "ANNUAL")
         private String leaveType;
         @NotNull
         private LocalDate startDate;
         @NotNull
         private LocalDate endDate;
+        @Schema(description = "Required detail when leaveType is OTHER; optional otherwise.")
         private String reason;
         private Long studentId;
         private Long teacherId;
         private String balanceSnapshotJson;
+        @Schema(description = "Session coverage for this request")
         private Enums.LeaveDayUnit dayUnit;
 
         public String getLeaveType() {
@@ -116,13 +127,18 @@ public final class LeaveDTOs {
         private String applicantRole;
         private Long studentId;
         private Long teacherId;
+        @Schema(
+                description = "Stable leave type code as stored in the tenant DB.",
+                allowableValues = {"ANNUAL", "SICK", "CASUAL", "EMERGENCY", "OTHER"})
         private String leaveType;
         private LocalDate startDate;
         private LocalDate endDate;
         private String reason;
-        private String status;
+        @Schema(description = "Workflow status", implementation = Enums.LeaveStatus.class)
+        private Enums.LeaveStatus status;
         private Long approverUserId;
         private String approverRemarks;
+        @Schema(implementation = Enums.LeaveDayUnit.class)
         private Enums.LeaveDayUnit dayUnit;
 
         public Long getId() {
@@ -197,11 +213,11 @@ public final class LeaveDTOs {
             this.reason = reason;
         }
 
-        public String getStatus() {
+        public Enums.LeaveStatus getStatus() {
             return status;
         }
 
-        public void setStatus(String status) {
+        public void setStatus(Enums.LeaveStatus status) {
             this.status = status;
         }
 

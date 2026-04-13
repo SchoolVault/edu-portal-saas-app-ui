@@ -9,33 +9,34 @@ import { AttendanceService } from '../../core/services/attendance.service';
 import { filter } from 'rxjs/operators';
 import { Student, MarkRecord, FeePayment, AttendanceStats } from '../../core/models/models';
 import { ConfirmDialogService } from '../../shared/confirm-dialog/confirm-dialog.service';
+import { TranslateModule, TranslateService } from '@ngx-translate/core';
 
 @Component({
   selector: 'app-student-profile',
   standalone: true,
-  imports: [CommonModule, RouterModule],
+  imports: [CommonModule, RouterModule, TranslateModule],
   template: `
     <div data-testid="student-profile-page" class="animate-in" *ngIf="student">
       <div class="d-flex align-items-center gap-3 mb-4">
         <button class="btn-icon" (click)="router.navigate(['/app/students'])" data-testid="back-btn"><i class="bi bi-arrow-left" style="font-size: 20px;"></i></button>
         <div class="flex-grow-1">
-          <h2 style="font-size: 24px; font-weight: 800;">Student Profile</h2>
+          <h2 style="font-size: 24px; font-weight: 800;">{{ 'students.profile.title' | translate }}</h2>
         </div>
         <div class="d-flex gap-2 flex-wrap">
           <button type="button" class="btn-outline-erp btn-sm" (click)="reloadAll()" data-testid="profile-refresh-btn">
-            <i class="bi bi-arrow-clockwise"></i> Refresh
+            <i class="bi bi-arrow-clockwise"></i> {{ 'students.profile.refresh' | translate }}
           </button>
           <a *ngIf="isAdmin" [routerLink]="['/app/students', student.id, 'edit']" class="btn-primary-erp btn-sm" data-testid="edit-profile-btn">
-            <i class="bi bi-pencil"></i> Edit
+            <i class="bi bi-pencil"></i> {{ 'students.profile.edit' | translate }}
           </a>
           <button *ngIf="isAdmin && student.status === 'active'" type="button" class="btn-outline-erp btn-sm" [disabled]="lifecycleBusy" (click)="markInactive()" data-testid="mark-inactive-btn">
-            Mark inactive (left school)
+            {{ 'students.profile.markInactive' | translate }}
           </button>
           <button *ngIf="isAdmin && student.status === 'inactive'" type="button" class="btn-outline-erp btn-sm" [disabled]="lifecycleBusy" (click)="reactivate()" data-testid="reactivate-student-btn">
-            Reactivate
+            {{ 'students.profile.reactivate' | translate }}
           </button>
           <button *ngIf="isAdmin" type="button" class="btn-outline-erp btn-sm" style="border-color: var(--clr-danger); color: var(--clr-danger);" [disabled]="lifecycleBusy" (click)="softDeleteFromSchool()" data-testid="remove-directory-btn">
-            Remove from directory
+            {{ 'students.profile.removeDirectory' | translate }}
           </button>
         </div>
       </div>
@@ -50,40 +51,40 @@ import { ConfirmDialogService } from '../../shared/confirm-dialog/confirm-dialog
             </div>
             <h3 style="font-size: 20px; font-weight: 700;">{{ student.firstName }} {{ student.lastName }}</h3>
             <p class="text-muted" style="font-size: 13px;">{{ student.admissionNumber }}</p>
-            <span class="badge-erp badge-success">{{ student.status }}</span>
+            <span class="badge-erp badge-success">{{ statusLabel(student.status) }}</span>
             <hr style="border-color: var(--clr-border); margin: 20px 0;">
             <div style="text-align: left;">
-              <div class="mb-3"><span style="font-size: 12px; color: var(--clr-text-muted); display: block;">Email</span><strong>{{ student.email }}</strong></div>
-              <div class="mb-3"><span style="font-size: 12px; color: var(--clr-text-muted); display: block;">Phone</span><strong>{{ student.phone }}</strong></div>
-              <div class="mb-3"><span style="font-size: 12px; color: var(--clr-text-muted); display: block;">Date of Birth</span><strong>{{ student.dateOfBirth }}</strong></div>
-              <div class="mb-3"><span style="font-size: 12px; color: var(--clr-text-muted); display: block;">Blood Group</span><strong>{{ student.bloodGroup }}</strong></div>
-              <div class="mb-3"><span style="font-size: 12px; color: var(--clr-text-muted); display: block;">Gender</span><strong style="text-transform: capitalize;">{{ student.gender }}</strong></div>
-              <div><span style="font-size: 12px; color: var(--clr-text-muted); display: block;">Address</span><strong>{{ student.address }}</strong></div>
+              <div class="mb-3"><span style="font-size: 12px; color: var(--clr-text-muted); display: block;">{{ 'students.profile.email' | translate }}</span><strong>{{ student.email }}</strong></div>
+              <div class="mb-3"><span style="font-size: 12px; color: var(--clr-text-muted); display: block;">{{ 'students.profile.phone' | translate }}</span><strong>{{ student.phone }}</strong></div>
+              <div class="mb-3"><span style="font-size: 12px; color: var(--clr-text-muted); display: block;">{{ 'students.profile.dob' | translate }}</span><strong>{{ student.dateOfBirth }}</strong></div>
+              <div class="mb-3"><span style="font-size: 12px; color: var(--clr-text-muted); display: block;">{{ 'students.form.bloodGroup' | translate }}</span><strong>{{ student.bloodGroup }}</strong></div>
+              <div class="mb-3"><span style="font-size: 12px; color: var(--clr-text-muted); display: block;">{{ 'students.profile.gender' | translate }}</span><strong>{{ genderLabel(student.gender) }}</strong></div>
+              <div><span style="font-size: 12px; color: var(--clr-text-muted); display: block;">{{ 'students.profile.address' | translate }}</span><strong>{{ student.address }}</strong></div>
             </div>
           </div>
         </div>
         <div class="col-lg-8">
           <div class="erp-card mb-4">
-            <h4 class="erp-card-title mb-3">Academic Information</h4>
+            <h4 class="erp-card-title mb-3">{{ 'students.profile.academicInfo' | translate }}</h4>
             <div class="row g-3">
-              <div class="col-md-4"><span style="font-size: 12px; color: var(--clr-text-muted); display: block;">Class</span><strong>{{ student.className }}</strong></div>
-              <div class="col-md-4"><span style="font-size: 12px; color: var(--clr-text-muted); display: block;">Section</span><strong>{{ student.sectionName }}</strong></div>
-              <div class="col-md-4"><span style="font-size: 12px; color: var(--clr-text-muted); display: block;">Roll Number</span><strong>{{ student.rollNumber }}</strong></div>
-              <div class="col-md-4"><span style="font-size: 12px; color: var(--clr-text-muted); display: block;">Admission Date</span><strong>{{ student.admissionDate }}</strong></div>
-              <div class="col-md-4"><span style="font-size: 12px; color: var(--clr-text-muted); display: block;">Parent/Guardian</span><strong>{{ student.parentName }}</strong></div>
+              <div class="col-md-4"><span style="font-size: 12px; color: var(--clr-text-muted); display: block;">{{ 'students.profile.class' | translate }}</span><strong>{{ student.className }}</strong></div>
+              <div class="col-md-4"><span style="font-size: 12px; color: var(--clr-text-muted); display: block;">{{ 'students.profile.section' | translate }}</span><strong>{{ student.sectionName }}</strong></div>
+              <div class="col-md-4"><span style="font-size: 12px; color: var(--clr-text-muted); display: block;">{{ 'students.profile.rollNumber' | translate }}</span><strong>{{ student.rollNumber }}</strong></div>
+              <div class="col-md-4"><span style="font-size: 12px; color: var(--clr-text-muted); display: block;">{{ 'students.profile.admissionDate' | translate }}</span><strong>{{ student.admissionDate }}</strong></div>
+              <div class="col-md-4"><span style="font-size: 12px; color: var(--clr-text-muted); display: block;">{{ 'students.profile.parentGuardian' | translate }}</span><strong>{{ student.parentName }}</strong></div>
             </div>
           </div>
           <div class="erp-card">
             <div class="erp-tabs">
-              <button class="erp-tab" [class.active]="activeTab === 'marks'" (click)="activeTab = 'marks'" data-testid="tab-marks">Exam Results</button>
-              <button class="erp-tab" [class.active]="activeTab === 'fees'" (click)="activeTab = 'fees'" data-testid="tab-fees">Fee History</button>
-              <button class="erp-tab" [class.active]="activeTab === 'attendance'" (click)="activeTab = 'attendance'" data-testid="tab-attendance">Attendance</button>
+              <button class="erp-tab" [class.active]="activeTab === 'marks'" (click)="activeTab = 'marks'" data-testid="tab-marks">{{ 'students.profile.tabMarks' | translate }}</button>
+              <button class="erp-tab" [class.active]="activeTab === 'fees'" (click)="activeTab = 'fees'" data-testid="tab-fees">{{ 'students.profile.tabFees' | translate }}</button>
+              <button class="erp-tab" [class.active]="activeTab === 'attendance'" (click)="activeTab = 'attendance'" data-testid="tab-attendance">{{ 'students.profile.tabAttendance' | translate }}</button>
             </div>
 
             <div *ngIf="activeTab === 'marks'">
               <div *ngIf="marks.length > 0">
                 <table class="erp-table" data-testid="student-marks-table">
-                  <thead><tr><th>Exam</th><th>Subject</th><th>Marks</th><th>Max</th><th>Percentage</th><th>Grade</th></tr></thead>
+                  <thead><tr><th>{{ 'students.profile.thExam' | translate }}</th><th>{{ 'students.profile.thSubject' | translate }}</th><th>{{ 'students.profile.thMarks' | translate }}</th><th>{{ 'students.profile.thMax' | translate }}</th><th>{{ 'students.profile.thPct' | translate }}</th><th>{{ 'students.profile.thGrade' | translate }}</th></tr></thead>
                   <tbody>
                     <tr *ngFor="let m of marks">
                       <td>{{ getExamName(m.examId) }}</td>
@@ -97,53 +98,53 @@ import { ConfirmDialogService } from '../../shared/confirm-dialog/confirm-dialog
                 </table>
                 <div style="padding: 16px; background: var(--clr-bg); border-radius: var(--radius-lg); margin-top: 12px;">
                   <div class="row">
-                    <div class="col-md-3"><span style="font-size: 12px; color: var(--clr-text-muted);">Total Marks</span><br><strong>{{ totalMarks }}/{{ totalMax }}</strong></div>
-                    <div class="col-md-3"><span style="font-size: 12px; color: var(--clr-text-muted);">Overall %</span><br><strong>{{ overallPercentage }}%</strong></div>
-                    <div class="col-md-3"><span style="font-size: 12px; color: var(--clr-text-muted);">Subjects</span><br><strong>{{ marks.length }}</strong></div>
-                    <div class="col-md-3"><span style="font-size: 12px; color: var(--clr-text-muted);">Overall Grade</span><br><strong style="color: var(--clr-success);">{{ overallGrade }}</strong></div>
+                    <div class="col-md-3"><span style="font-size: 12px; color: var(--clr-text-muted);">{{ 'students.profile.summaryTotalMarks' | translate }}</span><br><strong>{{ totalMarks }}/{{ totalMax }}</strong></div>
+                    <div class="col-md-3"><span style="font-size: 12px; color: var(--clr-text-muted);">{{ 'students.profile.summaryOverallPct' | translate }}</span><br><strong>{{ overallPercentage }}%</strong></div>
+                    <div class="col-md-3"><span style="font-size: 12px; color: var(--clr-text-muted);">{{ 'students.profile.summarySubjects' | translate }}</span><br><strong>{{ marks.length }}</strong></div>
+                    <div class="col-md-3"><span style="font-size: 12px; color: var(--clr-text-muted);">{{ 'students.profile.summaryOverallGrade' | translate }}</span><br><strong style="color: var(--clr-success);">{{ overallGrade }}</strong></div>
                   </div>
                 </div>
               </div>
-              <div *ngIf="marks.length === 0" class="empty-state"><i class="bi bi-journal-text"></i><h3>No Results</h3><p>No exam results found for this student</p></div>
+              <div *ngIf="marks.length === 0" class="empty-state"><i class="bi bi-journal-text"></i><h3>{{ 'students.profile.emptyMarksTitle' | translate }}</h3><p>{{ 'students.profile.emptyMarksLead' | translate }}</p></div>
             </div>
 
             <div *ngIf="activeTab === 'fees'">
               <div *ngIf="fees.length > 0">
                 <table class="erp-table" data-testid="student-fees-table">
-                  <thead><tr><th>Description</th><th>Amount</th><th>Paid</th><th>Pending</th><th>Due Date</th><th>Status</th><th>Receipt</th></tr></thead>
+                  <thead><tr><th>{{ 'students.profile.feeDescription' | translate }}</th><th>{{ 'students.profile.thAmount' | translate }}</th><th>{{ 'students.profile.thPaid' | translate }}</th><th>{{ 'students.profile.thPending' | translate }}</th><th>{{ 'students.profile.thDueDate' | translate }}</th><th>{{ 'students.profile.thStatus' | translate }}</th><th>{{ 'students.profile.thReceipt' | translate }}</th></tr></thead>
                   <tbody>
                     <tr *ngFor="let f of fees">
-                      <td><strong>Fee Payment</strong></td>
+                      <td><strong>{{ 'students.profile.feeDescription' | translate }}</strong></td>
                       <td>&#36;{{ f.amount | number }}</td>
                       <td style="color: var(--clr-success);">&#36;{{ f.paidAmount | number }}</td>
                       <td [style.color]="f.dueAmount > 0 ? 'var(--clr-danger)' : 'var(--clr-success)'">&#36;{{ f.dueAmount | number }}</td>
                       <td>{{ f.dueDate }}</td>
-                      <td><span class="badge-erp" [ngClass]="{'badge-success': f.status === 'paid', 'badge-warning': f.status === 'partial', 'badge-danger': f.status === 'overdue', 'badge-neutral': f.status === 'unpaid'}">{{ f.status }}</span></td>
+                      <td><span class="badge-erp" [ngClass]="{'badge-success': f.status === 'paid', 'badge-warning': f.status === 'partial', 'badge-danger': f.status === 'overdue', 'badge-neutral': f.status === 'unpaid'}">{{ feeStatusLabel(f.status) }}</span></td>
                       <td>{{ f.receiptNumber || '-' }}</td>
                     </tr>
                   </tbody>
                 </table>
                 <div style="padding: 16px; background: var(--clr-bg); border-radius: var(--radius-lg); margin-top: 12px;">
                   <div class="row">
-                    <div class="col-md-4"><span style="font-size: 12px; color: var(--clr-text-muted);">Total Fee</span><br><strong>&#36;{{ totalFee | number }}</strong></div>
-                    <div class="col-md-4"><span style="font-size: 12px; color: var(--clr-text-muted);">Total Paid</span><br><strong style="color: var(--clr-success);">&#36;{{ totalPaid | number }}</strong></div>
-                    <div class="col-md-4"><span style="font-size: 12px; color: var(--clr-text-muted);">Total Pending</span><br><strong style="color: var(--clr-danger);">&#36;{{ totalPending | number }}</strong></div>
+                    <div class="col-md-4"><span style="font-size: 12px; color: var(--clr-text-muted);">{{ 'students.profile.summaryTotalFee' | translate }}</span><br><strong>&#36;{{ totalFee | number }}</strong></div>
+                    <div class="col-md-4"><span style="font-size: 12px; color: var(--clr-text-muted);">{{ 'students.profile.summaryTotalPaid' | translate }}</span><br><strong style="color: var(--clr-success);">&#36;{{ totalPaid | number }}</strong></div>
+                    <div class="col-md-4"><span style="font-size: 12px; color: var(--clr-text-muted);">{{ 'students.profile.summaryTotalPending' | translate }}</span><br><strong style="color: var(--clr-danger);">&#36;{{ totalPending | number }}</strong></div>
                   </div>
                 </div>
               </div>
-              <div *ngIf="fees.length === 0" class="empty-state"><i class="bi bi-credit-card"></i><h3>No Fee Records</h3><p>No fee payment records found</p></div>
+              <div *ngIf="fees.length === 0" class="empty-state"><i class="bi bi-credit-card"></i><h3>{{ 'students.profile.emptyFeesTitle' | translate }}</h3><p>{{ 'students.profile.emptyFeesLead' | translate }}</p></div>
             </div>
 
             <div *ngIf="activeTab === 'attendance'">
               <div style="padding: 16px; background: var(--clr-bg); border-radius: var(--radius-lg); margin-bottom: 16px;">
                 <div class="row text-center">
-                  <div class="col-md-3"><div style="font-size: 28px; font-weight: 800; color: var(--clr-success);">{{ attendanceStats.present }}</div><div style="font-size: 12px; color: var(--clr-text-muted);">Days Present</div></div>
-                  <div class="col-md-3"><div style="font-size: 28px; font-weight: 800; color: var(--clr-danger);">{{ attendanceStats.absent }}</div><div style="font-size: 12px; color: var(--clr-text-muted);">Days Absent</div></div>
-                  <div class="col-md-3"><div style="font-size: 28px; font-weight: 800; color: var(--clr-warning);">{{ attendanceStats.late }}</div><div style="font-size: 12px; color: var(--clr-text-muted);">Days Late</div></div>
-                  <div class="col-md-3"><div style="font-size: 28px; font-weight: 800; color: var(--clr-primary);">{{ attendanceStats.attendancePercentage }}%</div><div style="font-size: 12px; color: var(--clr-text-muted);">Attendance Rate</div></div>
+                  <div class="col-md-3"><div style="font-size: 28px; font-weight: 800; color: var(--clr-success);">{{ attendanceStats.present }}</div><div style="font-size: 12px; color: var(--clr-text-muted);">{{ 'students.profile.attPresent' | translate }}</div></div>
+                  <div class="col-md-3"><div style="font-size: 28px; font-weight: 800; color: var(--clr-danger);">{{ attendanceStats.absent }}</div><div style="font-size: 12px; color: var(--clr-text-muted);">{{ 'students.profile.attAbsent' | translate }}</div></div>
+                  <div class="col-md-3"><div style="font-size: 28px; font-weight: 800; color: var(--clr-warning);">{{ attendanceStats.late }}</div><div style="font-size: 12px; color: var(--clr-text-muted);">{{ 'students.profile.attLate' | translate }}</div></div>
+                  <div class="col-md-3"><div style="font-size: 28px; font-weight: 800; color: var(--clr-primary);">{{ attendanceStats.attendancePercentage }}%</div><div style="font-size: 12px; color: var(--clr-text-muted);">{{ 'students.profile.attRate' | translate }}</div></div>
                 </div>
               </div>
-              <p style="font-size: 13px; color: var(--clr-text-muted);">Attendance summary shown for the current month.</p>
+              <p style="font-size: 13px; color: var(--clr-text-muted);">{{ 'students.profile.attNote' | translate }}</p>
             </div>
           </div>
         </div>
@@ -174,8 +175,28 @@ export class StudentProfileComponent implements OnInit {
     private auth: AuthService,
     private route: ActivatedRoute,
     public router: Router,
-    private confirmDialog: ConfirmDialogService
+    private confirmDialog: ConfirmDialogService,
+    private translate: TranslateService
   ) {}
+
+  statusLabel(status: string): string {
+    const key = 'students.enums.status.' + status;
+    const t = this.translate.instant(key);
+    return t !== key ? t : status;
+  }
+
+  genderLabel(g: string | undefined): string {
+    if (!g) return '';
+    const key = 'students.enums.gender.' + g;
+    const t = this.translate.instant(key);
+    return t !== key ? t : g;
+  }
+
+  feeStatusLabel(s: string): string {
+    const key = 'students.enums.feeStatus.' + s;
+    const t = this.translate.instant(key);
+    return t !== key ? t : s;
+  }
 
   get isAdmin(): boolean {
     const r = (this.auth.getRole() || '').toLowerCase();
@@ -249,8 +270,12 @@ export class StudentProfileComponent implements OnInit {
   }
 
   getExamName(examId: number): string {
-    const map: Record<number, string> = { 1: 'Unit Test 1', 2: 'Midterm', 3: 'Unit Test 2', 4: 'Final Exam' };
-    return map[examId] ?? `Exam ${examId}`;
+    const key = 'students.profile.exam' + examId;
+    const t = this.translate.instant(key);
+    if (t !== key) {
+      return t;
+    }
+    return this.translate.instant('students.profile.examFallback', { id: examId });
   }
 
   markInactive(): void {
@@ -260,11 +285,18 @@ export class StudentProfileComponent implements OnInit {
     const s = this.student;
     this.confirmDialog
       .confirm({
-        title: 'Mark student inactive?',
-        message: `${s.firstName} ${s.lastName} will disappear from default class and student lists. The record stays for history and can be reactivated.`,
-        details: [`Admission #: ${s.admissionNumber}`, `Current class: ${s.className} ${s.sectionName || ''}`.trim()],
+        title: this.translate.instant('students.profile.confirmInactive.title'),
+        message: this.translate.instant('students.profile.confirmInactive.message', {
+          name: `${s.firstName} ${s.lastName}`,
+        }),
+        details: [
+          this.translate.instant('students.profile.confirmInactive.detailAdmission', { no: s.admissionNumber }),
+          this.translate.instant('students.profile.confirmInactive.detailClass', {
+            class: `${s.className} ${s.sectionName || ''}`.trim(),
+          }),
+        ],
         variant: 'warning',
-        confirmLabel: 'Yes, mark inactive',
+        confirmLabel: this.translate.instant('students.profile.confirmInactive.confirm'),
       })
       .pipe(filter(Boolean))
       .subscribe(() => {
@@ -304,14 +336,16 @@ export class StudentProfileComponent implements OnInit {
     const s = this.student;
     this.confirmDialog
       .confirm({
-        title: 'Remove from directory?',
-        message: `${s.firstName} ${s.lastName} will be removed from all directory views. Use after withdrawal or per your data-retention policy.`,
+        title: this.translate.instant('students.profile.confirmRemove.title'),
+        message: this.translate.instant('students.profile.confirmRemove.message', {
+          name: `${s.firstName} ${s.lastName}`,
+        }),
         details: [
-          `Admission #: ${s.admissionNumber}`,
-          'Soft delete only — not permanent erasure from secured archives.',
+          this.translate.instant('students.profile.confirmRemove.detailAdmission', { no: s.admissionNumber }),
+          this.translate.instant('students.profile.confirmRemove.detailSoft'),
         ],
         variant: 'danger',
-        confirmLabel: 'Yes, remove',
+        confirmLabel: this.translate.instant('students.profile.confirmRemove.confirm'),
       })
       .pipe(filter(Boolean))
       .subscribe(() => {

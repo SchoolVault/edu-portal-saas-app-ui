@@ -34,11 +34,12 @@ public class CorrelationMdcFilter extends OncePerRequestFilter {
             traceId = UUID.randomUUID().toString();
         }
         MDC.put(MdcKeys.TRACE_ID, traceId);
+        MDC.put(MdcKeys.CORRELATION_ID, traceId);
         response.setHeader(HEADER_REQUEST_ID, traceId);
         try {
             filterChain.doFilter(request, response);
         } finally {
-            MDC.remove(MdcKeys.TRACE_ID);
+            MdcKeys.clearCorrelationAndTrace();
         }
     }
 

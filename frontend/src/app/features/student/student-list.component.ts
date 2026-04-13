@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { ChangeDetectorRef, Component, OnDestroy, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterModule } from '@angular/router';
@@ -7,25 +7,28 @@ import { StudentService } from '../../core/services/student.service';
 import { AuthService } from '../../core/services/auth.service';
 import { Student } from '../../core/models/models';
 import { ConfirmDialogService } from '../../shared/confirm-dialog/confirm-dialog.service';
+import { TranslateModule, TranslateService } from '@ngx-translate/core';
+import { Subscription } from 'rxjs';
+import { formatSchoolClassName } from '../../core/i18n/school-class-display';
 
 @Component({
   selector: 'app-student-list',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterModule],
+  imports: [CommonModule, FormsModule, RouterModule, TranslateModule],
   template: `
     <div data-testid="student-list-page">
       <header class="erp-page-header animate-in">
         <div>
-          <h1 class="erp-page-header__title">Students</h1>
+          <h1 class="erp-page-header__title">{{ 'students.list.title' | translate }}</h1>
           <p class="erp-page-header__lead">
-            {{ isAdmin ? 'Manage enrolment and student master records. Default view shows active pupils only; use status to include left/alumni records.' : 'Directory of active students in the school (read-only roster). Admins handle admissions, class moves, and withdrawals.' }}
+            {{ isAdmin ? ('students.list.leadAdmin' | translate) : ('students.list.leadTeacher' | translate) }}
           </p>
         </div>
         <div class="erp-page-header__actions">
-          <button type="button" class="btn-outline-erp btn-sm" (click)="reloadStudents()"><i class="bi bi-arrow-clockwise" aria-hidden="true"></i> Refresh</button>
+          <button type="button" class="btn-outline-erp btn-sm" (click)="reloadStudents()"><i class="bi bi-arrow-clockwise" aria-hidden="true"></i> {{ 'students.list.refresh' | translate }}</button>
           <ng-container *ngIf="isAdmin">
             <a routerLink="/app/students/new" class="btn-primary-erp btn-sm" data-testid="add-student-btn">
-              <i class="bi bi-plus-lg" aria-hidden="true"></i><span>Add Student</span>
+              <i class="bi bi-plus-lg" aria-hidden="true"></i><span>{{ 'students.list.add' | translate }}</span>
             </a>
           </ng-container>
         </div>
@@ -35,36 +38,36 @@ import { ConfirmDialogService } from '../../shared/confirm-dialog/confirm-dialog
         <div class="d-flex justify-content-between align-items-center mb-3">
           <div class="search-input-wrapper" style="min-width: 300px;">
             <i class="bi bi-search"></i>
-            <input type="text" class="erp-input" placeholder="Search students..." [(ngModel)]="searchTerm"
+            <input type="text" class="erp-input" [placeholder]="'students.list.searchPlaceholder' | translate" [(ngModel)]="searchTerm"
                    (input)="filterStudents()" data-testid="student-search-input">
           </div>
           <div class="d-flex gap-2">
             <select class="erp-select" style="width: 160px;" [(ngModel)]="classFilter" (change)="filterStudents()" data-testid="class-filter">
-              <option value="">All Classes</option>
-              <option *ngFor="let c of classOptions" [value]="c">{{ c }}</option>
+              <option value="">{{ 'students.list.allClasses' | translate }}</option>
+              <option *ngFor="let c of classOptions" [value]="c">{{ classDisplayName(c) }}</option>
             </select>
             <select class="erp-select" style="width: 140px;" [(ngModel)]="statusFilter" (change)="filterStudents()" data-testid="status-filter">
-              <option value="">All Status</option>
-              <option value="active">Active</option>
-              <option value="inactive">Inactive</option>
-              <option value="graduated">Graduated</option>
-              <option value="transferred">Transferred</option>
-              <option value="alumni">Alumni</option>
+              <option value="">{{ 'students.list.allStatus' | translate }}</option>
+              <option value="active">{{ 'students.enums.status.active' | translate }}</option>
+              <option value="inactive">{{ 'students.enums.status.inactive' | translate }}</option>
+              <option value="graduated">{{ 'students.enums.status.graduated' | translate }}</option>
+              <option value="transferred">{{ 'students.enums.status.transferred' | translate }}</option>
+              <option value="alumni">{{ 'students.enums.status.alumni' | translate }}</option>
             </select>
           </div>
         </div>
 
-        <div style="overflow-x: auto;">
+        <div style="overflow-x: auto;" dir="ltr">
           <table class="erp-table" data-testid="student-table">
             <thead>
               <tr>
-                <th class="sortable" (click)="sort('firstName')">Student <i class="bi bi-chevron-expand" style="font-size: 10px;"></i></th>
-                <th>Admission #</th>
-                <th class="sortable" (click)="sort('className')">Class</th>
-                <th>Section</th>
-                <th>Parent</th>
-                <th>Status</th>
-                <th>Actions</th>
+                <th class="sortable" (click)="sort('firstName')">{{ 'students.list.thStudent' | translate }} <i class="bi bi-chevron-expand" style="font-size: 10px;"></i></th>
+                <th>{{ 'students.list.thAdmission' | translate }}</th>
+                <th class="sortable" (click)="sort('className')">{{ 'students.list.thClass' | translate }} <i class="bi bi-chevron-expand" style="font-size: 10px;"></i></th>
+                <th>{{ 'students.list.thSection' | translate }}</th>
+                <th>{{ 'students.list.thParent' | translate }}</th>
+                <th>{{ 'students.list.thStatus' | translate }}</th>
+                <th>{{ 'students.list.thActions' | translate }}</th>
               </tr>
             </thead>
             <tbody>
@@ -93,23 +96,23 @@ import { ConfirmDialogService } from '../../shared/confirm-dialog/confirm-dialog
                   </div>
                 </td>
                 <td style="color: var(--clr-text-secondary);">{{ student.admissionNumber }}</td>
-                <td>{{ student.className }}</td>
+                <td>{{ classDisplayName(student.className) }}</td>
                 <td>{{ student.sectionName }}</td>
                 <td>{{ student.parentName }}</td>
                 <td>
                   <span class="badge-erp" [ngClass]="{'badge-success': student.status === 'active', 'badge-warning': student.status === 'inactive', 'badge-neutral': student.status === 'graduated' || student.status === 'alumni', 'badge-info': student.status === 'transferred'}">
-                    {{ student.status }}
+                    {{ statusLabel(student.status) }}
                   </span>
                 </td>
                 <td>
                   <div class="d-flex gap-1">
-                    <a [routerLink]="['/app/students', student.id]" class="btn-icon" title="View" [attr.data-testid]="'view-student-' + student.id">
+                    <a [routerLink]="['/app/students', student.id]" class="btn-icon" [attr.title]="'students.list.view' | translate" [attr.data-testid]="'view-student-' + student.id">
                       <i class="bi bi-eye"></i>
                     </a>
-                    <a *ngIf="isAdmin" [routerLink]="['/app/students', student.id, 'edit']" class="btn-icon" title="Edit" [attr.data-testid]="'edit-student-' + student.id">
+                    <a *ngIf="isAdmin" [routerLink]="['/app/students', student.id, 'edit']" class="btn-icon" [attr.title]="'students.list.edit' | translate" [attr.data-testid]="'edit-student-' + student.id">
                       <i class="bi bi-pencil"></i>
                     </a>
-                    <button *ngIf="isAdmin" type="button" class="btn-icon" title="Delete" (click)="deleteStudent(student.id)" [attr.data-testid]="'delete-student-' + student.id">
+                    <button *ngIf="isAdmin" type="button" class="btn-icon" [attr.title]="'students.list.delete' | translate" (click)="deleteStudent(student.id)" [attr.data-testid]="'delete-student-' + student.id">
                       <i class="bi bi-trash" style="color: var(--clr-danger);"></i>
                     </button>
                   </div>
@@ -120,7 +123,7 @@ import { ConfirmDialogService } from '../../shared/confirm-dialog/confirm-dialog
         </div>
 
         <div class="pagination-wrapper" *ngIf="filteredStudents.length > pageSize">
-          <span>Showing {{ (page - 1) * pageSize + 1 }} to {{ Math.min(page * pageSize, filteredStudents.length) }} of {{ filteredStudents.length }}</span>
+          <span>{{ 'students.list.showing' | translate: { from: (page - 1) * pageSize + 1, to: Math.min(page * pageSize, filteredStudents.length), total: filteredStudents.length } }}</span>
           <div class="pagination-controls">
             <button class="page-btn" [disabled]="page === 1" (click)="page = page - 1; paginate()">
               <i class="bi bi-chevron-left"></i>
@@ -135,7 +138,7 @@ import { ConfirmDialogService } from '../../shared/confirm-dialog/confirm-dialog
     </div>
   `
 })
-export class StudentListComponent implements OnInit {
+export class StudentListComponent implements OnInit, OnDestroy {
   students: Student[] = [];
   filteredStudents: Student[] = [];
   paginatedStudents: Student[] = [];
@@ -150,12 +153,25 @@ export class StudentListComponent implements OnInit {
   pages: number[] = [];
   classOptions: string[] = [];
   Math = Math;
+  private langSub?: Subscription;
 
   constructor(
     private studentService: StudentService,
     private auth: AuthService,
-    private confirmDialog: ConfirmDialogService
+    private confirmDialog: ConfirmDialogService,
+    private translate: TranslateService,
+    private cdr: ChangeDetectorRef
   ) {}
+
+  statusLabel(status: string): string {
+    const key = 'students.enums.status.' + status;
+    const t = this.translate.instant(key);
+    return t !== key ? t : status;
+  }
+
+  classDisplayName(raw: string | null | undefined): string {
+    return formatSchoolClassName(raw, this.translate);
+  }
 
   studentPortraitUrl(s: Student): string | null {
     return this.auth.getDirectoryStudentAvatarDataUrl(s.id) || s.avatar || null;
@@ -167,7 +183,12 @@ export class StudentListComponent implements OnInit {
   }
 
   ngOnInit(): void {
+    this.langSub = this.translate.onLangChange.subscribe(() => this.cdr.markForCheck());
     this.reloadStudents();
+  }
+
+  ngOnDestroy(): void {
+    this.langSub?.unsubscribe();
   }
 
   reloadStudents(): void {
@@ -215,18 +236,24 @@ export class StudentListComponent implements OnInit {
 
   deleteStudent(id: number): void {
     const st = this.students.find(s => s.id === id);
-    const name = st ? `${st.firstName} ${st.lastName}` : 'This student';
+    const name = st
+      ? `${st.firstName} ${st.lastName}`
+      : this.translate.instant('students.list.confirmDelete.fallbackName');
     this.confirmDialog
       .confirm({
-        title: 'Remove student from directory?',
-        message: `${name} will be hidden from default active lists. The record is kept for audit and history.`,
+        title: this.translate.instant('students.list.confirmDelete.title'),
+        message: this.translate.instant('students.list.confirmDelete.message', { name }),
         details: [
-          st ? `Admission #: ${st.admissionNumber}` : undefined,
-          st ? `Class: ${st.className} ${st.sectionName || ''}`.trim() : undefined,
-          'Soft delete only — data is not permanently destroyed.',
+          st ? this.translate.instant('students.list.confirmDelete.detailAdmission', { no: st.admissionNumber }) : undefined,
+          st
+            ? this.translate.instant('students.list.confirmDelete.detailClass', {
+                class: `${st.className} ${st.sectionName || ''}`.trim(),
+              })
+            : undefined,
+          this.translate.instant('students.list.confirmDelete.detailSoft'),
         ].filter((x): x is string => !!x),
         variant: 'danger',
-        confirmLabel: 'Yes, remove',
+        confirmLabel: this.translate.instant('students.list.confirmDelete.confirm'),
       })
       .pipe(filter(Boolean))
       .subscribe(() => {

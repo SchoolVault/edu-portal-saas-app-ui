@@ -6,7 +6,9 @@ export class UserFacingHttpError extends Error {
 
   constructor(
     message: string,
-    readonly httpStatus: number
+    readonly httpStatus: number,
+    readonly apiErrorCode?: string,
+    readonly apiTraceId?: string
   ) {
     super(message);
     Object.setPrototypeOf(this, new.target.prototype);
@@ -65,7 +67,7 @@ function isSafeUserFacingText(text: string): boolean {
   return true;
 }
 
-function parseApiBody(raw: unknown): { message?: string; errors: string[] } {
+function parseApiBody(raw: unknown): { message?: string; errors: string[]; errorCode?: string; traceId?: string } {
   let body: unknown = raw;
   if (typeof body === 'string') {
     const s = body.trim();
@@ -89,51 +91,59 @@ function parseApiBody(raw: unknown): { message?: string; errors: string[] } {
   const errors: string[] = Array.isArray(errArr)
     ? errArr.filter((e): e is string => typeof e === 'string').map(e => e.trim()).filter(e => isSafeUserFacingText(e))
     : [];
-  return { message, errors };
+  const ec = o['errorCode'];
+  const errorCode = typeof ec === 'string' && ec.length <= 80 ? ec : undefined;
+  const tid = o['traceId'];
+  const traceId = typeof tid === 'string' && tid.length <= 80 && /^[\w-]+$/.test(tid) ? tid : undefined;
+  return { message, errors, errorCode, traceId };
 }
 
 /**
  * Maps {@link HttpErrorResponse} to a single string suitable for alerts, toasts, and inline banners.
  * Prefer structured {@link ApiResp} fields when present and safe; never include request URLs.
  */
-export function mapHttpErrorResponseToUserMessage(error: HttpErrorResponse): string {
+export function mapHttpErrorResponseToUserMessage(error: HttpErrorResponse): {
+  message: string;
+  errorCode?: string;
+  traceId?: string;
+} {
   if (error.status === 0) {
-    return MSG_CONNECTIVITY;
+    return { message: MSG_CONNECTIVITY };
   }
 
-  const { message, errors } = parseApiBody(error.error);
+  const { message, errors, errorCode, traceId } = parseApiBody(error.error);
   if (errors.length > 0) {
-    return errors[0];
+    return { message: errors[0], errorCode, traceId };
   }
   if (message) {
-    return message;
+    return { message, errorCode, traceId };
   }
 
   const authPublic = isAuthPublicEndpoint(error.url ?? undefined);
 
   switch (error.status) {
     case 400:
-      return MSG_BAD_REQUEST;
+      return { message: MSG_BAD_REQUEST, errorCode, traceId };
     case 401:
-      return authPublic ? MSG_LOGIN_CONTEXT : MSG_SESSION;
+      return { message: authPublic ? MSG_LOGIN_CONTEXT : MSG_SESSION, errorCode, traceId };
     case 403:
-      return MSG_FORBIDDEN;
+      return { message: MSG_FORBIDDEN, errorCode, traceId };
     case 404:
-      return MSG_NOT_FOUND;
+      return { message: MSG_NOT_FOUND, errorCode, traceId };
     case 409:
-      return MSG_CONFLICT;
+      return { message: MSG_CONFLICT, errorCode, traceId };
     case 408:
     case 504:
-      return MSG_SERVER_UNAVAILABLE;
+      return { message: MSG_SERVER_UNAVAILABLE, errorCode, traceId };
     case 429:
-      return MSG_RATE_LIMIT;
+      return { message: MSG_RATE_LIMIT, errorCode, traceId };
     case 502:
     case 503:
-      return MSG_SERVER_UNAVAILABLE;
+      return { message: MSG_SERVER_UNAVAILABLE, errorCode, traceId };
     default:
       if (error.status >= 500) {
-        return MSG_TRY_AGAIN;
+        return { message: MSG_TRY_AGAIN, errorCode, traceId };
       }
-      return MSG_TRY_AGAIN;
+      return { message: MSG_TRY_AGAIN, errorCode, traceId };
   }
 }

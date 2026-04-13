@@ -1,5 +1,6 @@
 import { Component, ElementRef, EventEmitter, Input, OnChanges, Output, SimpleChanges, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { TranslateModule } from '@ngx-translate/core';
 
 export interface ProfilePhotoPickEvent {
   dataUrl: string;
@@ -12,7 +13,7 @@ export interface ProfilePhotoPickEvent {
 @Component({
   selector: 'app-profile-photo-picker',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, TranslateModule],
   template: `
     <div
       class="ppp"
@@ -39,7 +40,7 @@ export interface ProfilePhotoPickEvent {
       <div class="ppp__side" *ngIf="!disabled">
         <div class="ppp__actions">
           <button type="button" class="btn-outline-erp btn-sm ppp__btn" (click)="openPicker($event)">
-            <i class="bi bi-cloud-arrow-up"></i> {{ uploadLabel }}
+            <i class="bi bi-cloud-arrow-up"></i> {{ uploadLabel || ('shared.profilePhoto.upload' | translate) }}
           </button>
           <button
             type="button"
@@ -47,7 +48,7 @@ export interface ProfilePhotoPickEvent {
             *ngIf="showRemove && (displayUrl || pendingFileName)"
             (click)="onRemove()"
           >
-            <i class="bi bi-trash3"></i> Remove
+            <i class="bi bi-trash3"></i> {{ 'shared.profilePhoto.remove' | translate }}
           </button>
         </div>
         <p class="ppp__status" *ngIf="statusMode !== 'none'">{{ statusText }}</p>
@@ -204,7 +205,8 @@ export class ProfilePhotoPickerComponent implements OnChanges {
   @Input() initials = '';
   @Input() disabled = false;
   @Input() showRemove = true;
-  @Input() uploadLabel = 'Upload photo';
+  /** When empty, {@code shared.profilePhoto.upload} is used. */
+  @Input() uploadLabel = '';
   @Input() frameAriaLabel = 'Choose profile photo';
   /** default: 96px; comfortable: 112px; hero: 128px (single focal avatar on profile screens). */
   @Input() size: 'default' | 'comfortable' | 'hero' = 'default';

@@ -1,8 +1,8 @@
-import { Component, OnInit } from '@angular/core';
+import { ChangeDetectorRef, Component, OnDestroy, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, ActivatedRoute } from '@angular/router';
-import { firstValueFrom } from 'rxjs';
+import { firstValueFrom, Subscription } from 'rxjs';
 import { StudentService } from '../../core/services/student.service';
 import { AcademicService } from '../../core/services/academic.service';
 import { GuardianService } from '../../core/services/guardian.service';
@@ -13,84 +13,87 @@ import { runtimeConfig } from '../../core/config/runtime-config';
 import { canUploadStudentDirectoryPhoto } from '../../core/policy/profile-photo-upload.policy';
 import { ProfilePhotoPickerComponent, ProfilePhotoPickEvent } from '../../shared/profile-photo-picker/profile-photo-picker.component';
 import { ErpDatePickerComponent } from '../../shared/erp-date-picker/erp-date-picker.component';
+import { TranslateModule, TranslateService } from '@ngx-translate/core';
+import { formatSchoolClassName } from '../../core/i18n/school-class-display';
 
 @Component({
   selector: 'app-student-form',
   standalone: true,
-  imports: [CommonModule, FormsModule, ProfilePhotoPickerComponent, ErpDatePickerComponent],
+  imports: [CommonModule, FormsModule, ProfilePhotoPickerComponent, ErpDatePickerComponent, TranslateModule],
   template: `
     <div data-testid="student-form-page" class="animate-in">
       <div class="d-flex align-items-center gap-3 mb-4">
         <button class="btn-icon" (click)="goBack()" data-testid="back-btn"><i class="bi bi-arrow-left" style="font-size: 20px;"></i></button>
         <div>
-          <h2 style="font-size: 24px; font-weight: 800;">{{ isEdit ? 'Edit Student' : 'Add New Student' }}</h2>
-          <p class="text-muted mb-0" style="font-size: 13px;">{{ isEdit ? 'Update student information' : 'Register a new student' }}</p>
+          <h2 style="font-size: 24px; font-weight: 800;">{{ isEdit ? ('students.form.editTitle' | translate) : ('students.form.addTitle' | translate) }}</h2>
+          <p class="text-muted mb-0" style="font-size: 13px;">{{ isEdit ? ('students.form.editSubtitle' | translate) : ('students.form.addSubtitle' | translate) }}</p>
         </div>
       </div>
       <div class="erp-card">
         <form (ngSubmit)="onSubmit()" data-testid="student-form">
-          <h4 style="font-size: 15px; font-weight: 700; margin-bottom: 20px; color: var(--clr-primary);">Personal Information</h4>
+          <h4 style="font-size: 15px; font-weight: 700; margin-bottom: 20px; color: var(--clr-primary);">{{ 'students.form.sectionPersonal' | translate }}</h4>
           <div class="row g-3 mb-4">
             <div class="col-md-4">
-              <div class="erp-form-group"><label class="erp-label">First Name *</label>
+              <div class="erp-form-group"><label class="erp-label">{{ 'students.form.firstName' | translate }}</label>
                 <input type="text" class="erp-input" [(ngModel)]="student.firstName" name="firstName" required data-testid="student-firstName">
               </div>
             </div>
             <div class="col-md-4">
-              <div class="erp-form-group"><label class="erp-label">Last Name *</label>
+              <div class="erp-form-group"><label class="erp-label">{{ 'students.form.lastName' | translate }}</label>
                 <input type="text" class="erp-input" [(ngModel)]="student.lastName" name="lastName" required data-testid="student-lastName">
               </div>
             </div>
             <div class="col-md-4">
-              <div class="erp-form-group"><label class="erp-label">Email</label>
+              <div class="erp-form-group"><label class="erp-label">{{ 'students.form.email' | translate }}</label>
                 <input type="email" class="erp-input" [(ngModel)]="student.email" name="email" data-testid="student-email">
               </div>
             </div>
             <div class="col-md-4">
-              <div class="erp-form-group"><label class="erp-label">Phone</label>
+              <div class="erp-form-group"><label class="erp-label">{{ 'students.form.phone' | translate }}</label>
                 <input type="text" class="erp-input" [(ngModel)]="student.phone" name="phone" data-testid="student-phone">
               </div>
             </div>
             <div class="col-md-4">
-              <div class="erp-form-group"><label class="erp-label">Date of Birth *</label>
+              <div class="erp-form-group"><label class="erp-label">{{ 'students.form.dob' | translate }}</label>
                 <app-erp-date-picker
                   [(ngModel)]="student.dateOfBirth"
                   name="dob"
                   dataTestId="student-dob"
-                  placeholder="Date of birth"
+                  [placeholder]="'students.form.dobPh' | translate"
                   required
                 />
               </div>
             </div>
             <div class="col-md-4">
-              <div class="erp-form-group"><label class="erp-label">Gender *</label>
+              <div class="erp-form-group"><label class="erp-label">{{ 'students.form.gender' | translate }}</label>
                 <select class="erp-select" [(ngModel)]="student.gender" name="gender" required data-testid="student-gender">
-                  <option value="">Select</option>
-                  <option *ngFor="let g of genders" [value]="g">{{ g | titlecase }}</option>
+                  <option value="">{{ 'students.form.select' | translate }}</option>
+                  <option *ngFor="let g of genders" [value]="g">{{ ('students.enums.gender.' + g) | translate }}</option>
                 </select>
               </div>
             </div>
             <div class="col-md-4">
-              <div class="erp-form-group"><label class="erp-label">Blood Group</label>
+              <div class="erp-form-group"><label class="erp-label">{{ 'students.form.bloodGroup' | translate }}</label>
                 <select class="erp-select" [(ngModel)]="student.bloodGroup" name="bloodGroup" data-testid="student-blood-group">
-                  <option value="">Select</option>
+                  <option value="">{{ 'students.form.select' | translate }}</option>
                   <option *ngFor="let bg of bloodGroups" [value]="bg">{{ bg }}</option>
                 </select>
               </div>
             </div>
             <div class="col-md-8">
-              <div class="erp-form-group"><label class="erp-label">Address</label>
+              <div class="erp-form-group"><label class="erp-label">{{ 'students.form.address' | translate }}</label>
                 <input type="text" class="erp-input" [(ngModel)]="student.address" name="address" data-testid="student-address">
               </div>
             </div>
             <div class="col-12" *ngIf="showStudentDirectoryPhoto()">
               <div class="pt-3 mt-2" style="border-top: 1px solid var(--clr-border-light);">
-                <h4 style="font-size: 15px; font-weight: 700; margin-bottom: 8px; color: var(--clr-primary);">Directory photo</h4>
-                <p class="text-muted small mb-3">Demo: browser storage. Production: same UI will call the media / student avatar API.</p>
+                <h4 style="font-size: 15px; font-weight: 700; margin-bottom: 8px; color: var(--clr-primary);">{{ 'students.form.sectionDirectoryPhoto' | translate }}</h4>
+                <p class="text-muted small mb-3">{{ 'students.form.directoryPhotoLead' | translate }}</p>
                 <app-profile-photo-picker
                   [previewUrl]="studentDirectoryPreview"
                   [initials]="studentDirectoryInitials()"
-                  [frameAriaLabel]="'Set student directory photo'"
+                  [frameAriaLabel]="'students.form.directoryPhotoAria' | translate"
+                  statusMode="none"
                   (photoPicked)="onStudentDirPhotoPicked($event)"
                   (photoRemoved)="onStudentDirPhotoRemoved()"
                 />
@@ -98,106 +101,106 @@ import { ErpDatePickerComponent } from '../../shared/erp-date-picker/erp-date-pi
             </div>
           </div>
 
-          <h4 style="font-size: 15px; font-weight: 700; margin-bottom: 20px; color: var(--clr-primary);">Academic Information</h4>
+          <h4 style="font-size: 15px; font-weight: 700; margin-bottom: 20px; color: var(--clr-primary);">{{ 'students.form.sectionAcademic' | translate }}</h4>
           <div class="row g-3 mb-4">
             <div class="col-md-4">
-              <div class="erp-form-group"><label class="erp-label">Class *</label>
+              <div class="erp-form-group"><label class="erp-label">{{ 'students.form.class' | translate }}</label>
                 <select class="erp-select" [(ngModel)]="student.classId" name="classId" required (change)="onClassChange()" data-testid="student-class">
-                  <option [ngValue]="null">Select Class</option>
-                  <option *ngFor="let cls of classes" [ngValue]="cls.id">{{ cls.name }}</option>
+                  <option [ngValue]="null">{{ 'students.form.selectClass' | translate }}</option>
+                  <option *ngFor="let cls of classes" [ngValue]="cls.id">{{ classDisplayName(cls.name) }}</option>
                 </select>
               </div>
             </div>
             <div class="col-md-4">
-              <div class="erp-form-group"><label class="erp-label">Section<span *ngIf="sectionRequired"> *</span></label>
+              <div class="erp-form-group"><label class="erp-label">{{ 'students.form.section' | translate }}<span *ngIf="sectionRequired">{{ 'students.form.sectionReq' | translate }}</span></label>
                 <select class="erp-select" [(ngModel)]="student.sectionId" name="sectionId" [required]="sectionRequired"
                   [disabled]="!sectionRequired" data-testid="student-section">
                   <ng-container *ngIf="sectionRequired">
-                    <option [ngValue]="null">Select section</option>
+                    <option [ngValue]="null">{{ 'students.form.selectSection' | translate }}</option>
                     <option *ngFor="let sec of availableSections" [ngValue]="sec.id">{{ sec.name }}</option>
                   </ng-container>
                   <ng-container *ngIf="!sectionRequired">
-                    <option [ngValue]="0">Whole class (no section)</option>
+                    <option [ngValue]="0">{{ 'students.form.wholeClass' | translate }}</option>
                   </ng-container>
                 </select>
-                <p *ngIf="student.classId != null && student.classId !== 0 && !sectionRequired" class="text-muted small mb-0 mt-1">This class has no sections; the student is enrolled at class level only.</p>
+                <p *ngIf="student.classId != null && student.classId !== 0 && !sectionRequired" class="text-muted small mb-0 mt-1">{{ 'students.form.noSectionsHint' | translate }}</p>
               </div>
             </div>
             <div class="col-md-4" *ngIf="isEdit && isAdmin">
-              <div class="erp-form-group"><label class="erp-label">Enrolment status</label>
+              <div class="erp-form-group"><label class="erp-label">{{ 'students.form.enrolmentStatus' | translate }}</label>
                 <select class="erp-select" [(ngModel)]="student.status" name="status" data-testid="student-status">
-                  <option *ngFor="let st of studentStatuses" [value]="st">{{ st | titlecase }}</option>
+                  <option *ngFor="let st of studentStatuses" [value]="st">{{ ('students.enums.status.' + st) | translate }}</option>
                 </select>
-                <p class="text-muted small mb-0 mt-1">Inactive / transferred / alumni hide the pupil from default lists; soft-delete from the profile removes them from the directory entirely.</p>
+                <p class="text-muted small mb-0 mt-1">{{ 'students.form.statusHelp' | translate }}</p>
               </div>
             </div>
             <div class="col-md-4">
-              <div class="erp-form-group"><label class="erp-label">Roll Number</label>
+              <div class="erp-form-group"><label class="erp-label">{{ 'students.form.rollNumber' | translate }}</label>
                 <input type="text" class="erp-input" [(ngModel)]="student.rollNumber" name="rollNumber" data-testid="student-roll">
               </div>
             </div>
             <div class="col-md-4">
-              <div class="erp-form-group"><label class="erp-label">Admission Number</label>
+              <div class="erp-form-group"><label class="erp-label">{{ 'students.form.admissionNumber' | translate }}</label>
                 <input type="text" class="erp-input" [(ngModel)]="student.admissionNumber" name="admissionNumber" data-testid="student-admission-no">
               </div>
             </div>
             <div class="col-md-4">
-              <div class="erp-form-group"><label class="erp-label">Admission Date</label>
+              <div class="erp-form-group"><label class="erp-label">{{ 'students.form.admissionDate' | translate }}</label>
                 <app-erp-date-picker
                   [(ngModel)]="student.admissionDate"
                   name="admissionDate"
                   dataTestId="student-admission-date"
-                  placeholder="Admission date"
+                  [placeholder]="'students.form.admissionDatePh' | translate"
                 />
               </div>
             </div>
             <div class="col-md-4">
-              <div class="erp-form-group"><label class="erp-label">Primary parent / guardian (legacy display)</label>
-                <input type="text" class="erp-input" [(ngModel)]="student.parentName" name="parentName" data-testid="student-parent-name" placeholder="Optional if detailed below">
+              <div class="erp-form-group"><label class="erp-label">{{ 'students.form.parentLegacy' | translate }}</label>
+                <input type="text" class="erp-input" [(ngModel)]="student.parentName" name="parentName" data-testid="student-parent-name" [placeholder]="'students.form.parentPlaceholder' | translate">
               </div>
             </div>
           </div>
 
-          <h4 *ngIf="!isEdit" style="font-size: 15px; font-weight: 700; margin-bottom: 20px; color: var(--clr-primary);">Parents / guardians (API)</h4>
+          <h4 *ngIf="!isEdit" style="font-size: 15px; font-weight: 700; margin-bottom: 20px; color: var(--clr-primary);">{{ 'students.form.sectionGuardians' | translate }}</h4>
           <div *ngIf="!isEdit" class="row g-3 mb-4">
-            <div class="col-12"><p class="text-muted small mb-0">Add up to two contacts (name + phone recommended). Saved as guardian records and linked to the student when not in mock mode.</p></div>
+            <div class="col-12"><p class="text-muted small mb-0">{{ 'students.form.guardiansIntro' | translate }}</p></div>
             <div class="col-md-6 erp-card p-3">
-              <div class="erp-form-group"><label class="erp-label">Guardian 1 — name</label>
+              <div class="erp-form-group"><label class="erp-label">{{ 'students.form.g1name' | translate }}</label>
                 <input type="text" class="erp-input" [(ngModel)]="g1.fullName" name="g1name"></div>
-              <div class="erp-form-group"><label class="erp-label">Phone</label>
+              <div class="erp-form-group"><label class="erp-label">{{ 'students.form.phone' | translate }}</label>
                 <input type="text" class="erp-input" [(ngModel)]="g1.primaryPhone" name="g1phone"></div>
-              <div class="erp-form-group"><label class="erp-label">Occupation</label>
+              <div class="erp-form-group"><label class="erp-label">{{ 'students.form.occupation' | translate }}</label>
                 <input type="text" class="erp-input" [(ngModel)]="g1.occupation" name="g1job"></div>
-              <div class="erp-form-group"><label class="erp-label">Relation</label>
+              <div class="erp-form-group"><label class="erp-label">{{ 'students.form.relation' | translate }}</label>
                 <select class="erp-select" [(ngModel)]="g1.relationType" name="g1rel">
-                  <option value="FATHER">Father</option>
-                  <option value="MOTHER">Mother</option>
-                  <option value="GUARDIAN">Guardian</option>
-                  <option value="OTHER">Other</option>
+                  <option value="FATHER">{{ 'students.enums.guardianRelation.FATHER' | translate }}</option>
+                  <option value="MOTHER">{{ 'students.enums.guardianRelation.MOTHER' | translate }}</option>
+                  <option value="GUARDIAN">{{ 'students.enums.guardianRelation.GUARDIAN' | translate }}</option>
+                  <option value="OTHER">{{ 'students.enums.guardianRelation.OTHER' | translate }}</option>
                 </select></div>
             </div>
             <div class="col-md-6 erp-card p-3">
-              <div class="erp-form-group"><label class="erp-label">Guardian 2 — name (optional)</label>
+              <div class="erp-form-group"><label class="erp-label">{{ 'students.form.g2name' | translate }}</label>
                 <input type="text" class="erp-input" [(ngModel)]="g2.fullName" name="g2name"></div>
-              <div class="erp-form-group"><label class="erp-label">Phone</label>
+              <div class="erp-form-group"><label class="erp-label">{{ 'students.form.phone' | translate }}</label>
                 <input type="text" class="erp-input" [(ngModel)]="g2.primaryPhone" name="g2phone"></div>
-              <div class="erp-form-group"><label class="erp-label">Occupation</label>
+              <div class="erp-form-group"><label class="erp-label">{{ 'students.form.occupation' | translate }}</label>
                 <input type="text" class="erp-input" [(ngModel)]="g2.occupation" name="g2job"></div>
-              <div class="erp-form-group"><label class="erp-label">Relation</label>
+              <div class="erp-form-group"><label class="erp-label">{{ 'students.form.relation' | translate }}</label>
                 <select class="erp-select" [(ngModel)]="g2.relationType" name="g2rel">
-                  <option value="FATHER">Father</option>
-                  <option value="MOTHER">Mother</option>
-                  <option value="GUARDIAN">Guardian</option>
-                  <option value="OTHER">Other</option>
+                  <option value="FATHER">{{ 'students.enums.guardianRelation.FATHER' | translate }}</option>
+                  <option value="MOTHER">{{ 'students.enums.guardianRelation.MOTHER' | translate }}</option>
+                  <option value="GUARDIAN">{{ 'students.enums.guardianRelation.GUARDIAN' | translate }}</option>
+                  <option value="OTHER">{{ 'students.enums.guardianRelation.OTHER' | translate }}</option>
                 </select></div>
             </div>
           </div>
 
           <div class="d-flex justify-content-end gap-3">
-            <button type="button" class="btn-outline-erp" (click)="goBack()" data-testid="cancel-btn">Cancel</button>
+            <button type="button" class="btn-outline-erp" (click)="goBack()" data-testid="cancel-btn">{{ 'students.form.cancel' | translate }}</button>
             <button type="submit" class="btn-primary-erp" [disabled]="saving" data-testid="save-student-btn">
               <span class="spinner" *ngIf="saving"></span>
-              {{ saving ? 'Saving...' : (isEdit ? 'Update Student' : 'Add Student') }}
+              {{ saving ? ('students.form.saving' | translate) : (isEdit ? ('students.form.saveUpdate' | translate) : ('students.form.saveAdd' | translate)) }}
             </button>
           </div>
         </form>
@@ -205,7 +208,7 @@ import { ErpDatePickerComponent } from '../../shared/erp-date-picker/erp-date-pi
     </div>
   `
 })
-export class StudentFormComponent implements OnInit {
+export class StudentFormComponent implements OnInit, OnDestroy {
   student: Partial<Student> = { status: 'active', tenantId: 't1', gender: '', bloodGroup: '' };
   classes: SchoolClass[] = [];
   availableSections: { id: number; name: string }[] = [];
@@ -217,6 +220,7 @@ export class StudentFormComponent implements OnInit {
   studentDirectoryPreview: string | null = null;
   g1 = { fullName: '', primaryPhone: '', occupation: '', relationType: 'FATHER' as const };
   g2 = { fullName: '', primaryPhone: '', occupation: '', relationType: 'MOTHER' as const };
+  private langSub?: Subscription;
 
   get isAdmin(): boolean {
     const r = (this.auth.getRole() || '').toLowerCase();
@@ -229,10 +233,17 @@ export class StudentFormComponent implements OnInit {
     private guardianService: GuardianService,
     private auth: AuthService,
     private router: Router,
-    private route: ActivatedRoute
+    private route: ActivatedRoute,
+    private translate: TranslateService,
+    private cdr: ChangeDetectorRef
   ) {}
 
+  classDisplayName(raw: string | null | undefined): string {
+    return formatSchoolClassName(raw, this.translate);
+  }
+
   ngOnInit(): void {
+    this.langSub = this.translate.onLangChange.subscribe(() => this.cdr.markForCheck());
     this.auth.fetchProfileSummary().subscribe({ error: () => void 0 });
     this.academicService.getClasses().subscribe(classes => {
       this.classes = classes;
@@ -374,4 +385,8 @@ export class StudentFormComponent implements OnInit {
   }
 
   goBack(): void { this.router.navigate(['/app/students']); }
+
+  ngOnDestroy(): void {
+    this.langSub?.unsubscribe();
+  }
 }

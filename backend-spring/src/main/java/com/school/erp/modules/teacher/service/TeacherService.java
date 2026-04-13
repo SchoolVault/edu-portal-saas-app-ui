@@ -20,6 +20,9 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -38,13 +41,18 @@ public class TeacherService {
         log.debug("Listing teachers page={} size={}", page, size);
         Page<Teacher> result = repo.findByTenantIdAndIsDeletedFalse(tenantId, PageRequest.of(page, size, Sort.by("firstName")));
         log.info("Teachers page loaded page={} returned={} total={}", page, result.getNumberOfElements(), result.getTotalElements());
-        return PageResponse.of(result.getContent().stream().map(this::toRes).collect(Collectors.toList()), page, size, result.getTotalElements());
+        Map<Long, List<String>> homeroomByTeacher = homeroomClassNamesByTeacherId(tenantId);
+        return PageResponse.of(result.getContent().stream()
+                .map(t -> toRes(t, homeroomByTeacher.getOrDefault(t.getId(), List.of())))
+                .collect(Collectors.toList()), page, size, result.getTotalElements());
     }
 
     @Transactional(readOnly = true)
     public TeacherDTOs.Response getById(Long id) {
         log.debug("Fetching teacher id={}", id);
-        TeacherDTOs.Response r = toRes(repo.findByIdAndTenantIdAndIsDeletedFalse(id, TenantContext.getTenantId()).orElseThrow(() -> new ResourceNotFoundException("Teacher", id)));
+        String tenantId = TenantContext.getTenantId();
+        Teacher t = repo.findByIdAndTenantIdAndIsDeletedFalse(id, tenantId).orElseThrow(() -> new ResourceNotFoundException("Teacher", id));
+        TeacherDTOs.Response r = toRes(t, homeroomClassNamesForTeacher(tenantId, t.getId()));
         log.info("Teacher loaded id={}", id);
         return r;
     }
@@ -56,7 +64,7 @@ public class TeacherService {
         t.setTenantId(TenantContext.getTenantId());
         repo.save(t);
         log.info("Teacher created id={}", t.getId());
-        return toRes(t);
+        return toRes(t, List.of());
     }
 
     /**
@@ -98,7 +106,7 @@ public class TeacherService {
             repo.save(t);
         }
         log.info("Teacher bulk row created id={} portalLinked={}", t.getId(), createPortal);
-        return toRes(t);
+        return toRes(t, List.of());
     }
 
     @Transactional
@@ -126,7 +134,7 @@ public class TeacherService {
         }
         repo.save(t);
         log.info("Teacher updated id={}", id);
-        return toRes(t);
+        return toRes(t, homeroomClassNamesForTeacher(TenantContext.getTenantId(), t.getId()));
     }
 
     @Transactional
@@ -214,13 +222,37 @@ public class TeacherService {
         return x;
     }
 
-    private TeacherDTOs.Response toRes(Teacher t) {
+    private TeacherDTOs.Response toRes(Teacher t, List<String> homeroomClassNames) {
         TeacherDTOs.Response r = TeacherDTOs.Response.builder().id(t.getId()).firstName(t.getFirstName()).lastName(t.getLastName()).email(t.getEmail()).phone(t.getPhone()).qualification(t.getQualification()).specialization(t.getSpecialization()).joinDate(t.getJoinDate()).salary(t.getSalary()).status(t.getStatus() != null ? t.getStatus().name().toLowerCase() : "active").subjects(t.getSubjects()).avatar(t.getAvatar()).tenantId(t.getTenantId()).build();
         r.setUserId(t.getUserId());
         if (t.getLibraryStaffRole() != null) {
             r.setLibraryStaffRole(t.getLibraryStaffRole().name().toLowerCase());
         }
+        r.setHomeroomClassNames(homeroomClassNames != null ? homeroomClassNames : List.of());
         return r;
+    }
+
+    /** Homeroom class names per teacher primary key (one query for list pages). */
+    private Map<Long, List<String>> homeroomClassNamesByTeacherId(String tenantId) {
+        List<SchoolClass> classes = schoolClassRepository.findByTenantIdAndIsDeletedFalseOrderByGrade(tenantId);
+        Map<Long, List<String>> map = new HashMap<>();
+        for (SchoolClass c : classes) {
+            Long tid = c.getClassTeacherId();
+            if (tid != null) {
+                map.computeIfAbsent(tid, k -> new ArrayList<>()).add(c.getName());
+            }
+        }
+        for (List<String> names : map.values()) {
+            Collections.sort(names);
+        }
+        return map;
+    }
+
+    private List<String> homeroomClassNamesForTeacher(String tenantId, Long teacherPk) {
+        return schoolClassRepository.findByTenantIdAndClassTeacherIdAndIsDeletedFalse(tenantId, teacherPk).stream()
+                .map(SchoolClass::getName)
+                .sorted()
+                .collect(Collectors.toList());
     }
 
     public TeacherService(final TeacherRepository repo,

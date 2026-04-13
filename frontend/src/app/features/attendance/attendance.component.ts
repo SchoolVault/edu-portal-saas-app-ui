@@ -1,6 +1,7 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, ChangeDetectorRef, DestroyRef, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { AttendanceService } from '../../core/services/attendance.service';
 import { StudentService } from '../../core/services/student.service';
 import { AcademicService } from '../../core/services/academic.service';
@@ -12,40 +13,49 @@ import { ConfirmDialogService } from '../../shared/confirm-dialog/confirm-dialog
 import { SchoolClass, Student, AttendanceRecord } from '../../core/models/models';
 import { AttendanceCoverRow } from '../../core/models/operations.models';
 import { ErpDatePickerComponent } from '../../shared/erp-date-picker/erp-date-picker.component';
+import { TranslateModule, TranslateService } from '@ngx-translate/core';
 
 @Component({
   selector: 'app-attendance',
   standalone: true,
-  imports: [CommonModule, FormsModule, ErpDatePickerComponent],
+  imports: [CommonModule, FormsModule, ErpDatePickerComponent, TranslateModule],
   template: `
     <div data-testid="attendance-page">
       <div class="d-flex justify-content-between align-items-center mb-4 animate-in flex-wrap gap-2">
         <div>
-          <h2 style="font-size: 24px; font-weight: 800;">Attendance</h2>
-          <p class="text-muted mb-0" style="font-size: 13px;">Mark and manage daily attendance</p>
+          <h2 style="font-size: 24px; font-weight: 800;">{{ 'attendance.pageTitle' | translate }}</h2>
+          <p class="text-muted mb-0" style="font-size: 13px;">{{ 'attendance.pageLead' | translate }}</p>
         </div>
-        <button type="button" class="btn-outline-erp btn-sm" (click)="refreshAttendance()"><i class="bi bi-arrow-clockwise"></i> Refresh</button>
+        <button type="button" class="btn-outline-erp btn-sm" (click)="refreshAttendance()">
+          <i class="bi bi-arrow-clockwise"></i> {{ 'attendance.refresh' | translate }}
+        </button>
       </div>
 
       <div class="erp-card mb-3 animate-in" *ngIf="isTeacher && myCovers.length > 0">
-        <h4 class="erp-card-title mb-2" style="font-size: 15px;">Your cover assignments ({{ selectedDate }})</h4>
-        <p class="text-muted small mb-2">You may mark attendance for these classes when covering for colleagues.</p>
+        <h4 class="erp-card-title mb-2" style="font-size: 15px;">
+          {{ 'attendance.coverAssignmentsTitle' | translate: { date: selectedDate } }}
+        </h4>
+        <p class="text-muted small mb-2">{{ 'attendance.coverAssignmentsLead' | translate }}</p>
         <ul class="mb-0 ps-3 small">
-          <li *ngFor="let c of myCovers">Class ID {{ c.classId }}<span *ngIf="c.sectionId"> — section {{ c.sectionId }}</span> <span *ngIf="c.reason">({{ c.reason }})</span></li>
+          <li *ngFor="let c of myCovers">
+            {{ 'attendance.coverClassId' | translate: { classId: c.classId } }}
+            <span *ngIf="c.sectionId"> — {{ 'attendance.coverSection' | translate: { sectionId: c.sectionId } }}</span>
+            <span *ngIf="c.reason">({{ c.reason }})</span>
+          </li>
         </ul>
       </div>
 
       <div class="erp-card mb-4 animate-in animate-in-delay-1">
         <div class="row g-3 align-items-end">
           <div class="col-md-3">
-            <label class="erp-label">Class</label>
+            <label class="erp-label">{{ 'attendance.labelClass' | translate }}</label>
             <select class="erp-select" [(ngModel)]="selectedClassId" (change)="onClassChange()" data-testid="attendance-class-select">
-              <option [ngValue]="null">Select Class</option>
+              <option [ngValue]="null">{{ 'attendance.selectClass' | translate }}</option>
               <option *ngFor="let cls of classes" [ngValue]="cls.id">{{ cls.name }}</option>
             </select>
           </div>
           <div class="col-md-3">
-            <label class="erp-label">Section</label>
+            <label class="erp-label">{{ 'attendance.labelSection' | translate }}</label>
             <select
               class="erp-select"
               [(ngModel)]="selectedSectionId"
@@ -53,17 +63,19 @@ import { ErpDatePickerComponent } from '../../shared/erp-date-picker/erp-date-pi
               data-testid="attendance-section-select"
               [disabled]="sectionSelectDisabled"
             >
-              <option [ngValue]="null">Select Section</option>
-              <option *ngFor="let sec of sections" [ngValue]="sec.id">{{ sec.name }}</option>
+              <option [ngValue]="null">{{ 'attendance.selectSection' | translate }}</option>
+              <option *ngFor="let sec of sections" [ngValue]="sec.id">
+                {{ sec.id === 0 ? ('attendance.wholeClass' | translate) : sec.name }}
+              </option>
             </select>
           </div>
           <div class="col-md-3">
-            <label class="erp-label">Date</label>
+            <label class="erp-label">{{ 'attendance.labelDate' | translate }}</label>
             <app-erp-date-picker
               [(ngModel)]="selectedDate"
               (ngModelChange)="onDateChange()"
               dataTestId="attendance-date"
-              placeholder="Session date"
+              [placeholder]="'attendance.datePlaceholder' | translate"
             />
           </div>
           <div class="col-md-3 d-flex flex-column gap-2">
@@ -76,7 +88,7 @@ import { ErpDatePickerComponent } from '../../shared/erp-date-picker/erp-date-pi
               (click)="adminPastEditing = true"
               data-testid="edit-past-attendance-btn"
             >
-              Edit attendance
+              {{ 'attendance.editPast' | translate }}
             </button>
             <button
               class="btn-primary-erp"
@@ -86,49 +98,64 @@ import { ErpDatePickerComponent } from '../../shared/erp-date-picker/erp-date-pi
               data-testid="save-attendance-btn"
             >
               <span class="spinner" *ngIf="saving"></span>
-              {{ saveButtonLabel }}
+              <ng-container *ngIf="saving">{{ 'attendance.saveSaving' | translate }}</ng-container>
+              <ng-container *ngIf="!saving && saveDisabled">{{ 'attendance.saveViewOnly' | translate }}</ng-container>
+              <ng-container *ngIf="!saving && !saveDisabled">{{ 'attendance.saveCta' | translate }}</ng-container>
             </button>
           </div>
         </div>
         <div *ngIf="teacherPastLocked" class="alert alert-info py-2 px-3 small mb-0 mt-3" style="border-radius: var(--radius-md);">
           <i class="bi bi-info-circle me-1"></i>
-          This date is in the past. You can review records; only administrators can change past attendance.
+          {{ 'attendance.alertTeacherPast' | translate }}
         </div>
         <div *ngIf="adminPastAuditView && !adminPastEditing" class="alert alert-info py-2 px-3 small mb-0 mt-3" style="border-radius: var(--radius-md);">
           <i class="bi bi-info-circle me-1"></i>
-          Past session — view only. Click <strong>Edit attendance</strong> to change records (audit). You will confirm before saving.
+          {{ 'attendance.alertAdminPastBefore' | translate }}<strong>{{ 'attendance.editPast' | translate }}</strong
+          >{{ 'attendance.alertAdminPastAfter' | translate }}
         </div>
         <div *ngIf="saveError" class="alert alert-danger py-2 small mb-0 mt-2">{{ saveError }}</div>
         <p *ngIf="isAdmin && !adminPastAuditView" class="text-muted small mb-0 mt-3" style="line-height: 1.5;">
           <i class="bi bi-shield-check me-1"></i>
-          Administrators can submit attendance when needed; you will be asked to confirm before changes are saved (same rules apply with the live API).
+          {{ 'attendance.hintAdminConfirm' | translate }}
         </p>
       </div>
 
       <div class="erp-card animate-in animate-in-delay-2" *ngIf="records.length > 0">
         <div class="d-flex justify-content-between align-items-center mb-3">
-          <h4 class="erp-card-title">Mark Attendance ({{ records.length }} students)</h4>
+          <h4 class="erp-card-title">{{ 'attendance.markTitle' | translate: { count: records.length } }}</h4>
           <div class="d-flex gap-3" style="font-size: 13px;">
-            <span style="color: var(--clr-success);"><i class="bi bi-check-circle-fill me-1"></i> Present: {{ countByStatus('present') }}</span>
-            <span style="color: var(--clr-danger);"><i class="bi bi-x-circle-fill me-1"></i> Absent: {{ countByStatus('absent') }}</span>
-            <span style="color: var(--clr-warning);"><i class="bi bi-clock-fill me-1"></i> Late: {{ countByStatus('late') }}</span>
+            <span style="color: var(--clr-success);"
+              ><i class="bi bi-check-circle-fill me-1"></i> {{ 'attendance.countPresent' | translate: { count: countByStatus('present') } }}</span
+            >
+            <span style="color: var(--clr-danger);"
+              ><i class="bi bi-x-circle-fill me-1"></i> {{ 'attendance.countAbsent' | translate: { count: countByStatus('absent') } }}</span
+            >
+            <span style="color: var(--clr-warning);"
+              ><i class="bi bi-clock-fill me-1"></i> {{ 'attendance.countLate' | translate: { count: countByStatus('late') } }}</span
+            >
           </div>
         </div>
         <table class="erp-table">
-          <thead><tr><th>#</th><th>Student</th><th>Status</th></tr></thead>
+          <thead>
+            <tr>
+              <th>{{ 'attendance.thNum' | translate }}</th>
+              <th>{{ 'attendance.thStudent' | translate }}</th>
+              <th>{{ 'attendance.thStatus' | translate }}</th>
+            </tr>
+          </thead>
           <tbody>
             <tr *ngFor="let rec of records; let i = index" [attr.data-testid]="'attendance-row-' + rec.studentId">
               <td>{{ i + 1 }}</td>
               <td><strong>{{ rec.studentName }}</strong></td>
               <td>
                 <div class="d-flex gap-2" [class.opacity-50]="cellsLocked" [style.pointer-events]="cellsLocked ? 'none' : 'auto'">
-                  <div class="attendance-cell" [class.present]="rec.status === 'present'" (click)="rec.status = 'present'" title="Present">
+                  <div class="attendance-cell" [class.present]="rec.status === 'present'" (click)="rec.status = 'present'" [title]="'attendance.titlePresent' | translate">
                     <i class="bi bi-check-lg"></i>
                   </div>
-                  <div class="attendance-cell" [class.absent]="rec.status === 'absent'" (click)="rec.status = 'absent'" title="Absent">
+                  <div class="attendance-cell" [class.absent]="rec.status === 'absent'" (click)="rec.status = 'absent'" [title]="'attendance.titleAbsent' | translate">
                     <i class="bi bi-x-lg"></i>
                   </div>
-                  <div class="attendance-cell" [class.late]="rec.status === 'late'" (click)="rec.status = 'late'" title="Late">
+                  <div class="attendance-cell" [class.late]="rec.status === 'late'" (click)="rec.status = 'late'" [title]="'attendance.titleLate' | translate">
                     <i class="bi bi-clock"></i>
                   </div>
                 </div>
@@ -141,14 +168,16 @@ import { ErpDatePickerComponent } from '../../shared/erp-date-picker/erp-date-pi
       <div *ngIf="!records.length && selectedClassId != null" class="erp-card animate-in">
         <div class="empty-state">
           <i class="bi bi-calendar-check"></i>
-          <h3>Select a class and section</h3>
-          <p>Choose a class, section, and date to start marking attendance</p>
+          <h3>{{ 'attendance.emptyTitle' | translate }}</h3>
+          <p>{{ 'attendance.emptyLead' | translate }}</p>
         </div>
       </div>
     </div>
-  `
+  `,
 })
 export class AttendanceComponent implements OnInit {
+  private readonly destroyRef = inject(DestroyRef);
+
   classes: SchoolClass[] = [];
   sections: { id: number; name: string }[] = [];
   selectedClassId: number | null = null;
@@ -159,7 +188,6 @@ export class AttendanceComponent implements OnInit {
   saveError = '';
   myCovers: AttendanceCoverRow[] = [];
 
-  /** Derived from auth on each read so role is never stale if the session hydrates after navigation. */
   get isAdmin(): boolean {
     const r = this.auth.getNormalizedRole();
     return r === 'admin' || r === 'super_admin';
@@ -176,17 +204,18 @@ export class AttendanceComponent implements OnInit {
     private teacherService: TeacherService,
     private auth: AuthService,
     private operationsService: OperationsService,
-    private confirmDialog: ConfirmDialogService
+    private confirmDialog: ConfirmDialogService,
+    private translate: TranslateService,
+    private cdr: ChangeDetectorRef
   ) {}
 
-  /** Teacher record id linked to the signed-in user (for class-teacher checks). */
   private linkedTeacherId: number | null = null;
-  /** False until teacher roster fetch completes (avoids skipping the homeroom warning on fast save). */
   teacherRosterResolved = false;
-  /** Admin-only: after opening a past date, edits are blocked until user explicitly enables edit mode. */
   adminPastEditing = false;
 
   ngOnInit(): void {
+    this.translate.onLangChange.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => this.cdr.markForCheck());
+
     this.academicService.getClasses().subscribe(c => (this.classes = c));
     if (this.isTeacher || this.isAdmin) {
       const me = this.auth.getCurrentUser();
@@ -235,12 +264,10 @@ export class AttendanceComponent implements OnInit {
     return this.isPastDate(this.selectedDate);
   }
 
-  /** Teachers cannot edit past dates; admins use audit flow instead. */
   get teacherPastLocked(): boolean {
     return this.isTeacher && this.isPastSession;
   }
 
-  /** Admin viewing a historical session date (read-only until edit mode). */
   get adminPastAuditView(): boolean {
     return this.isAdmin && this.isPastSession;
   }
@@ -255,13 +282,6 @@ export class AttendanceComponent implements OnInit {
     return this.teacherPastLocked || (this.adminPastAuditView && !this.adminPastEditing);
   }
 
-  get saveButtonLabel(): string {
-    if (this.saving) return 'Saving...';
-    if (this.saveDisabled) return 'View only';
-    return 'Save attendance';
-  }
-
-  /** No real sections: roster uses section id 0; dropdown is disabled. */
   get sectionSelectDisabled(): boolean {
     const cls = this.classes.find(c => c.id === this.selectedClassId);
     return !cls || cls.sections.length === 0;
@@ -367,23 +387,36 @@ export class AttendanceComponent implements OnInit {
     });
   }
 
-  private effectiveSectionIdForCover(): number | null {
+  effectiveSectionIdForCover(): number | null {
     const cls = this.classes.find(c => c.id === this.selectedClassId);
     if (!cls) return null;
     if (cls.sections.length === 0) return 0;
     return this.selectedSectionId != null && this.selectedSectionId !== 0 ? this.selectedSectionId : null;
   }
 
+  private confirmDetailLines(cls: SchoolClass | undefined, useSectionWord: boolean): string[] {
+    const sid = this.effectiveSectionIdForCover();
+    return [
+      this.translate.instant('attendance.confirmDetail.date', { date: this.selectedDate }),
+      cls ? this.translate.instant('attendance.confirmDetail.class', { name: cls.name }) : '',
+      sid != null
+        ? this.translate.instant(useSectionWord ? 'attendance.confirmDetail.section' : 'attendance.confirmDetail.sectionId', {
+            id: sid,
+          })
+        : '',
+    ].filter((x): x is string => !!x);
+  }
+
   saveAttendance(): void {
     if (this.saveDisabled || this.saving) return;
     const role = this.auth.getNormalizedRole();
     if (!this.isTeacher && !this.isAdmin) {
-      this.saveError = 'Only administrators and teachers can mark class attendance.';
+      this.saveError = this.translate.instant('attendance.errors.roleDenied');
       return;
     }
     if (role === 'teacher') {
       if (!this.teacherRosterResolved) {
-        this.saveError = 'Loading your teacher profile… please wait a moment and try again.';
+        this.saveError = this.translate.instant('attendance.errors.teacherProfileLoading');
         return;
       }
       if (!this.isClassTeacherForCurrentClass()) {
@@ -391,20 +424,18 @@ export class AttendanceComponent implements OnInit {
         const cls = this.classes.find(c => c.id === this.selectedClassId);
         this.confirmDialog
           .confirm({
-            title: covering ? 'Submit attendance as substitute?' : 'You are not the class teacher',
+            title: covering
+              ? this.translate.instant('attendance.confirm.teacherSubstituteTitle')
+              : this.translate.instant('attendance.confirm.notHomeroomTitle'),
             message: covering
-              ? 'You have an active cover assignment for this class and date. Submit attendance for this session?'
+              ? this.translate.instant('attendance.confirm.teacherSubstituteMessage')
               : this.linkedTeacherId
-                ? 'Attendance is usually recorded by the class teacher. If they are absent or unavailable, you may still submit.'
-                : 'Your account is not linked to a teacher profile in the directory, or you are not the homeroom teacher for this class. Submit anyway only if you are authorised.',
-            details: [
-              `Date: ${this.selectedDate}`,
-              cls ? `Class: ${cls.name}` : undefined,
-              this.effectiveSectionIdForCover() != null ? `Section id: ${this.effectiveSectionIdForCover()}` : undefined,
-            ].filter((x): x is string => !!x),
+                ? this.translate.instant('attendance.confirm.notHomeroomMessageLinked')
+                : this.translate.instant('attendance.confirm.notHomeroomMessageUnlinked'),
+            details: this.confirmDetailLines(cls, false),
             variant: 'warning',
-            confirmLabel: 'Yes, submit attendance',
-            cancelLabel: 'Go back',
+            confirmLabel: this.translate.instant('attendance.confirm.confirmSubmit'),
+            cancelLabel: this.translate.instant('attendance.confirm.goBack'),
           })
           .pipe(filter(Boolean))
           .subscribe(() => this.finishSaveAfterGuards());
@@ -413,27 +444,23 @@ export class AttendanceComponent implements OnInit {
     }
     if (this.isAdmin) {
       if (!this.teacherRosterResolved) {
-        this.saveError = 'Loading directory… please wait a moment and try again.';
+        this.saveError = this.translate.instant('attendance.errors.adminDirectoryLoading');
         return;
       }
       this.saveError = '';
       const cls = this.classes.find(c => c.id === this.selectedClassId);
-      const homeroom = cls?.classTeacherName?.trim() || 'Not assigned';
+      const homeroom = cls?.classTeacherName?.trim() || this.translate.instant('attendance.confirm.notAssigned');
       const asHomeroom = this.isClassTeacherForCurrentClass();
       this.confirmDialog
         .confirm({
-          title: 'Submit attendance as administrator',
+          title: this.translate.instant('attendance.confirm.adminTitle'),
           message: asHomeroom
-            ? `You are signed in as an administrator. You are also recorded as the homeroom teacher for this class (${homeroom}). Confirm submission for this session?`
-            : `You are not the class teacher for this group. Daily attendance is normally recorded by the homeroom teacher (${homeroom}). Continue only if you are authorised to submit on their behalf.`,
-          details: [
-            `Date: ${this.selectedDate}`,
-            cls ? `Class: ${cls.name}` : undefined,
-            this.effectiveSectionIdForCover() != null ? `Section id: ${this.effectiveSectionIdForCover()}` : undefined,
-          ].filter((x): x is string => !!x),
+            ? this.translate.instant('attendance.confirm.adminMessageHomeroom', { name: homeroom })
+            : this.translate.instant('attendance.confirm.adminMessageNotHomeroom', { name: homeroom }),
+          details: this.confirmDetailLines(cls, false),
           variant: 'warning',
-          confirmLabel: 'Yes, submit attendance',
-          cancelLabel: 'Go back',
+          confirmLabel: this.translate.instant('attendance.confirm.confirmSubmit'),
+          cancelLabel: this.translate.instant('attendance.confirm.goBack'),
         })
         .pipe(filter(Boolean))
         .subscribe(() => this.finishSaveAfterGuards());
@@ -447,18 +474,15 @@ export class AttendanceComponent implements OnInit {
       const cls = this.classes.find(c => c.id === this.selectedClassId);
       this.confirmDialog
         .confirm({
-          title: 'Update past attendance?',
-          message:
-            'You are changing historical attendance for this class and date. Use this only for verified corrections; changes are written to the server.',
+          title: this.translate.instant('attendance.confirm.pastTitle'),
+          message: this.translate.instant('attendance.confirm.pastMessage'),
           details: [
-            `Date: ${this.selectedDate}`,
-            cls ? `Class: ${cls.name}` : undefined,
-            this.effectiveSectionIdForCover() != null ? `Section: ${this.effectiveSectionIdForCover()}` : undefined,
-            `Rows: ${this.records.length}`,
-          ].filter((x): x is string => !!x),
+            ...this.confirmDetailLines(cls, true),
+            this.translate.instant('attendance.confirmDetail.rows', { count: this.records.length }),
+          ],
           variant: 'warning',
-          confirmLabel: 'Yes, save changes',
-          cancelLabel: 'Cancel',
+          confirmLabel: this.translate.instant('attendance.confirm.pastSave'),
+          cancelLabel: this.translate.instant('attendance.confirm.cancel'),
         })
         .pipe(filter(Boolean))
         .subscribe(() => this.persistAttendance());
@@ -476,7 +500,7 @@ export class AttendanceComponent implements OnInit {
       },
       error: (e: Error) => {
         this.saving = false;
-        this.saveError = e?.message || 'Could not save attendance.';
+        this.saveError = e?.message || this.translate.instant('attendance.errors.saveFailed');
       },
     });
   }

@@ -3,25 +3,61 @@ import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { Chart, registerables } from 'chart.js';
+import { Subscription } from 'rxjs';
+import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { AuthService } from '../../core/services/auth.service';
 import { DashboardService } from '../../core/services/dashboard.service';
 import { AdminDashboardData, ParentDashboardData, TeacherDashboardData } from '../../core/models/models';
 
 Chart.register(...registerables);
 
+interface DashboardAdminKpi {
+  labelKey: string;
+  value: string;
+  icon: string;
+  bgColor: string;
+  color: string;
+  subtextKey: string;
+  subtextParams?: Record<string, string | number>;
+}
+
+interface DashboardTeacherKpi {
+  labelKey: string;
+  value: string;
+  icon: string;
+  bgColor: string;
+  color: string;
+}
+
+interface DashboardParentKpi {
+  labelKey: string;
+  value: string;
+  icon: string;
+  bgColor: string;
+  color: string;
+}
+
+interface DashboardAdmissionInsight {
+  labelKey: string;
+  value: string;
+  subtextKey: string;
+  subtextParams?: Record<string, string | number>;
+  tone: string;
+}
+
 @Component({
   selector: 'app-dashboard',
   standalone: true,
-  imports: [CommonModule, RouterModule, FormsModule],
+  imports: [CommonModule, RouterModule, FormsModule, TranslateModule],
   template: `
     <div data-testid="dashboard-page">
       <div class="d-flex justify-content-end mb-2">
         <button type="button" class="btn-outline-erp btn-sm" (click)="refreshDashboard()" [disabled]="loading || refreshing" data-testid="dashboard-refresh">
-          <i class="bi bi-arrow-clockwise"></i> {{ refreshing ? 'Refreshing…' : 'Refresh' }}
+          <i class="bi bi-arrow-clockwise"></i> {{ refreshing ? ('dashboard.refreshing' | translate) : ('dashboard.refresh' | translate) }}
         </button>
       </div>
       <div *ngIf="loading" class="empty-state">
-        <i class="bi bi-hourglass-split"></i><h3>Loading Dashboard</h3><p>Fetching live ERP insights</p>
+        <i class="bi bi-hourglass-split"></i><h3>{{ 'dashboard.loadingTitle' | translate }}</h3><p>{{ 'dashboard.loadingLead' | translate }}</p>
       </div>
 
       <ng-container *ngIf="!loading && role === 'admin'">
@@ -30,8 +66,8 @@ Chart.register(...registerables);
             <div class="stat-card">
               <div class="stat-icon" [style.background]="kpi.bgColor" [style.color]="kpi.color"><i class="bi" [ngClass]="kpi.icon"></i></div>
               <div class="stat-value">{{ kpi.value }}</div>
-              <div class="stat-label">{{ kpi.label }}</div>
-              <div class="stat-change positive">{{ kpi.subtext }}</div>
+              <div class="stat-label">{{ kpi.labelKey | translate }}</div>
+              <div class="stat-change positive">{{ kpi.subtextKey | translate: kpi.subtextParams }}</div>
             </div>
           </div>
         </div>
@@ -39,15 +75,15 @@ Chart.register(...registerables);
           <div class="col-lg-8">
             <div class="erp-card">
               <div class="erp-card-header d-flex flex-wrap justify-content-between align-items-center gap-3">
-                <h3 class="erp-card-title mb-0">Intake &amp; collections</h3>
+                <h3 class="erp-card-title mb-0">{{ 'dashboard.admin.intakeCollections' | translate }}</h3>
                 <div class="d-flex flex-wrap gap-3 align-items-center small">
                   <label class="d-flex align-items-center gap-2 mb-0" style="cursor: pointer;">
                     <input type="checkbox" [(ngModel)]="showAdmissionsSeries" (change)="updateCombinedTrendChart()" />
-                    Admissions
+                    {{ 'dashboard.admin.legendAdmissions' | translate }}
                   </label>
                   <label class="d-flex align-items-center gap-2 mb-0" style="cursor: pointer;">
                     <input type="checkbox" [(ngModel)]="showFeesSeries" (change)="updateCombinedTrendChart()" />
-                    Fee collection
+                    {{ 'dashboard.admin.legendFees' | translate }}
                   </label>
                 </div>
               </div>
@@ -57,21 +93,21 @@ Chart.register(...registerables);
           <div class="col-lg-4">
             <div class="erp-card" style="height: 100%;">
               <div class="erp-card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
-                <h3 class="erp-card-title mb-0">Attendance overview</h3>
+                <h3 class="erp-card-title mb-0">{{ 'dashboard.admin.attendanceOverview' | translate }}</h3>
                 <div class="d-flex flex-wrap gap-2 small">
-                  <label class="d-flex align-items-center gap-1 mb-0" style="cursor: pointer;" title="Present">
+                  <label class="d-flex align-items-center gap-1 mb-0" style="cursor: pointer;" [attr.title]="'dashboard.admin.slicePresent' | translate">
                     <input type="checkbox" [(ngModel)]="attSlicePresent" (change)="updateAttendanceChart()" />
                     P
                   </label>
-                  <label class="d-flex align-items-center gap-1 mb-0" style="cursor: pointer;" title="Absent">
+                  <label class="d-flex align-items-center gap-1 mb-0" style="cursor: pointer;" [attr.title]="'dashboard.admin.sliceAbsent' | translate">
                     <input type="checkbox" [(ngModel)]="attSliceAbsent" (change)="updateAttendanceChart()" />
                     A
                   </label>
-                  <label class="d-flex align-items-center gap-1 mb-0" style="cursor: pointer;" title="Late">
+                  <label class="d-flex align-items-center gap-1 mb-0" style="cursor: pointer;" [attr.title]="'dashboard.admin.sliceLate' | translate">
                     <input type="checkbox" [(ngModel)]="attSliceLate" (change)="updateAttendanceChart()" />
                     L
                   </label>
-                  <label class="d-flex align-items-center gap-1 mb-0" style="cursor: pointer;" title="Excused">
+                  <label class="d-flex align-items-center gap-1 mb-0" style="cursor: pointer;" [attr.title]="'dashboard.admin.sliceExcused' | translate">
                     <input type="checkbox" [(ngModel)]="attSliceExcused" (change)="updateAttendanceChart()" />
                     E
                   </label>
@@ -84,19 +120,19 @@ Chart.register(...registerables);
         <div class="row g-4 mb-4">
           <div class="col-lg-5">
             <div class="erp-card" style="height: 100%;">
-              <div class="erp-card-header"><h3 class="erp-card-title">Admissions Snapshot</h3></div>
+              <div class="erp-card-header"><h3 class="erp-card-title">{{ 'dashboard.admin.admissionsSnapshot' | translate }}</h3></div>
               <div class="insight-list">
                 <div *ngFor="let insight of admissionInsights" class="insight-card">
-                  <div class="insight-label">{{ insight.label }}</div>
+                  <div class="insight-label">{{ insight.labelKey | translate }}</div>
                   <div class="insight-value" [style.color]="insight.tone">{{ insight.value }}</div>
-                  <div class="insight-subtext">{{ insight.subtext }}</div>
+                  <div class="insight-subtext">{{ insight.subtextKey | translate: insight.subtextParams }}</div>
                 </div>
               </div>
             </div>
           </div>
           <div class="col-lg-7">
             <div class="erp-card" style="height: 100%;">
-              <div class="erp-card-header"><h3 class="erp-card-title">Admissions Trend</h3></div>
+              <div class="erp-card-header"><h3 class="erp-card-title">{{ 'dashboard.admin.admissionsTrend' | translate }}</h3></div>
               <div class="chart-container" style="height: 280px;"><canvas #admissionsTrendChart></canvas></div>
             </div>
           </div>
@@ -104,7 +140,7 @@ Chart.register(...registerables);
         <div class="row g-4">
           <div class="col-lg-6">
             <div class="erp-card">
-              <div class="erp-card-header"><h3 class="erp-card-title">Recent Activity</h3></div>
+              <div class="erp-card-header"><h3 class="erp-card-title">{{ 'dashboard.admin.recentActivity' | translate }}</h3></div>
               <div *ngFor="let activity of adminDashboard?.recentActivities" class="activity-item">
                 <div class="activity-icon" style="background: rgba(27,58,48,0.1); color: var(--clr-primary);"><i class="bi bi-bell"></i></div>
                 <div class="activity-content">
@@ -116,7 +152,7 @@ Chart.register(...registerables);
           </div>
           <div class="col-lg-6">
             <div class="erp-card">
-              <div class="erp-card-header"><h3 class="erp-card-title">Upcoming Events</h3></div>
+              <div class="erp-card-header"><h3 class="erp-card-title">{{ 'dashboard.admin.upcomingEvents' | translate }}</h3></div>
               <div *ngFor="let event of adminDashboard?.upcomingEvents" class="activity-item">
                 <div class="activity-icon" style="background: rgba(2,132,199,0.1); color: var(--clr-info);"><i class="bi bi-calendar-event"></i></div>
                 <div class="activity-content">
@@ -135,14 +171,14 @@ Chart.register(...registerables);
             <div class="stat-card">
               <div class="stat-icon" [style.background]="kpi.bgColor" [style.color]="kpi.color"><i class="bi" [ngClass]="kpi.icon"></i></div>
               <div class="stat-value">{{ kpi.value }}</div>
-              <div class="stat-label">{{ kpi.label }}</div>
+              <div class="stat-label">{{ kpi.labelKey | translate }}</div>
             </div>
           </div>
         </div>
         <div class="row g-4 mb-4">
           <div class="col-lg-5">
             <div class="erp-card" style="height: 100%;">
-              <div class="erp-card-header"><h3 class="erp-card-title">Parent Message Queue</h3></div>
+              <div class="erp-card-header"><h3 class="erp-card-title">{{ 'dashboard.teacher.messageQueue' | translate }}</h3></div>
               <div *ngIf="(teacherDashboard?.messageQueue || []).length; else noMsgQueue">
                 <div *ngFor="let item of teacherDashboard?.messageQueue" class="activity-item" [routerLink]="['/app/chat']" style="cursor: pointer;">
                   <div class="activity-icon" style="background: rgba(2,132,199,0.1); color: var(--clr-info);">
@@ -155,32 +191,32 @@ Chart.register(...registerables);
                     </h5>
                     <p>{{ item.preview }} · {{ item.timestamp }}</p>
                   </div>
-                  <span class="badge-erp" [ngClass]="item.priority === 'high' ? 'badge-danger' : 'badge-neutral'">{{ item.priority }}</span>
+                  <span class="badge-erp" [ngClass]="item.priority === 'high' ? 'badge-danger' : 'badge-neutral'">{{ priorityLabel(item.priority) }}</span>
                 </div>
               </div>
               <ng-template #noMsgQueue>
                 <div class="empty-state" style="padding: 20px 12px;">
                   <i class="bi bi-inbox"></i>
-                  <h3>No pending parent messages</h3>
-                  <p>New requests will appear here for quick follow-up.</p>
+                  <h3>{{ 'dashboard.teacher.noMessagesTitle' | translate }}</h3>
+                  <p>{{ 'dashboard.teacher.noMessagesLead' | translate }}</p>
                 </div>
               </ng-template>
             </div>
           </div>
           <div class="col-lg-7">
             <div class="erp-card" style="height: 100%;">
-              <div class="erp-card-header"><h3 class="erp-card-title">Class Teacher Overview</h3></div>
+              <div class="erp-card-header"><h3 class="erp-card-title">{{ 'dashboard.teacher.classOverview' | translate }}</h3></div>
               <div *ngIf="(teacherDashboard?.classTeacherOf || []).length; else noClassTeacher">
                 <div *ngFor="let cls of teacherDashboard?.classTeacherOf" class="insight-card" style="margin-bottom: 10px;">
                   <div class="d-flex justify-content-between align-items-center">
                     <div>
-                      <div class="insight-label">Class Teacher</div>
+                      <div class="insight-label">{{ 'dashboard.teacher.classTeacherLabel' | translate }}</div>
                       <div class="insight-value">{{ cls.className }}{{ cls.sectionName ? ' - ' + cls.sectionName : '' }}</div>
-                      <div class="insight-subtext">{{ cls.totalStudents }} students · Attendance + announcements + parent communication</div>
+                      <div class="insight-subtext">{{ 'dashboard.teacher.classTeacherSub' | translate: { count: cls.totalStudents } }}</div>
                     </div>
                     <div class="d-flex gap-2">
-                      <a class="btn-outline-erp btn-sm" [routerLink]="['/app/attendance']">Attendance</a>
-                      <a class="btn-outline-erp btn-sm" [routerLink]="['/app/chat']">Inbox</a>
+                      <a class="btn-outline-erp btn-sm" [routerLink]="['/app/attendance']">{{ 'dashboard.teacher.btnAttendance' | translate }}</a>
+                      <a class="btn-outline-erp btn-sm" [routerLink]="['/app/chat']">{{ 'dashboard.teacher.btnInbox' | translate }}</a>
                     </div>
                   </div>
                 </div>
@@ -188,8 +224,8 @@ Chart.register(...registerables);
               <ng-template #noClassTeacher>
                 <div class="empty-state" style="padding: 20px 12px;">
                   <i class="bi bi-person-badge"></i>
-                  <h3>No class teacher assignment</h3>
-                  <p>Once assigned, you’ll see your class teacher duties here.</p>
+                  <h3>{{ 'dashboard.teacher.noClassTitle' | translate }}</h3>
+                  <p>{{ 'dashboard.teacher.noClassLead' | translate }}</p>
                 </div>
               </ng-template>
             </div>
@@ -199,9 +235,9 @@ Chart.register(...registerables);
         <div class="row g-4">
           <div class="col-lg-8">
             <div class="erp-card">
-              <div class="erp-card-header"><h3 class="erp-card-title">Today's Timetable</h3></div>
+              <div class="erp-card-header"><h3 class="erp-card-title">{{ 'dashboard.teacher.todayTimetable' | translate }}</h3></div>
               <table class="erp-table">
-                <thead><tr><th>Period</th><th>Time</th><th>Subject</th><th>Class</th><th>Room</th></tr></thead>
+                <thead><tr><th>{{ 'dashboard.teacher.thPeriod' | translate }}</th><th>{{ 'dashboard.teacher.thTime' | translate }}</th><th>{{ 'dashboard.teacher.thSubject' | translate }}</th><th>{{ 'dashboard.teacher.thClass' | translate }}</th><th>{{ 'dashboard.teacher.thRoom' | translate }}</th></tr></thead>
                 <tbody>
                   <tr *ngFor="let slot of teacherDashboard?.todaySchedule">
                     <td>{{ slot.period }}</td>
@@ -216,7 +252,7 @@ Chart.register(...registerables);
           </div>
           <div class="col-lg-4">
             <div class="erp-card">
-              <div class="erp-card-header"><h3 class="erp-card-title">Pending Tasks</h3></div>
+              <div class="erp-card-header"><h3 class="erp-card-title">{{ 'dashboard.teacher.pendingTasks' | translate }}</h3></div>
               <div *ngFor="let task of teacherDashboard?.pendingTasks" class="activity-item">
                 <div class="activity-icon" style="background: rgba(217,119,6,0.1); color: var(--clr-warning);"><i class="bi bi-list-task"></i></div>
                 <div class="activity-content">
@@ -233,16 +269,16 @@ Chart.register(...registerables);
         <div class="erp-card mb-4" *ngIf="(parentDashboard?.children || []).length">
           <div class="row g-3 align-items-end">
             <div class="col-md-6">
-              <label class="erp-label">Child</label>
+              <label class="erp-label">{{ 'dashboard.parent.child' | translate }}</label>
               <select class="erp-select" [(ngModel)]="selectedParentChildId" (change)="onParentChildChange()">
                 <option *ngFor="let c of parentDashboard?.children" [ngValue]="c.id">
-                  {{ c.firstName }} {{ c.lastName }} · {{ c.className || ('Class ' + c.classId) }}{{ c.sectionName ? ' - ' + c.sectionName : '' }}
+                  {{ c.firstName }} {{ c.lastName }} · {{ c.className || ('dashboard.parent.classFallback' | translate: { id: c.classId }) }}{{ c.sectionName ? ' - ' + c.sectionName : '' }}
                 </option>
               </select>
             </div>
             <div class="col-md-6 d-flex justify-content-end gap-2">
-              <a class="btn-outline-erp btn-sm" [routerLink]="['/app/chat']"><i class="bi bi-inbox-fill me-1"></i> Inbox</a>
-              <a class="btn-primary-erp btn-sm" [routerLink]="['/app/parent']"><i class="bi bi-credit-card-fill me-1"></i> Fees</a>
+              <a class="btn-outline-erp btn-sm" [routerLink]="['/app/chat']"><i class="bi bi-inbox-fill me-1"></i> {{ 'dashboard.parent.inbox' | translate }}</a>
+              <a class="btn-primary-erp btn-sm" [routerLink]="['/app/parent']"><i class="bi bi-credit-card-fill me-1"></i> {{ 'dashboard.parent.fees' | translate }}</a>
             </div>
           </div>
         </div>
@@ -252,14 +288,14 @@ Chart.register(...registerables);
             <div class="stat-card">
               <div class="stat-icon" [style.background]="kpi.bgColor" [style.color]="kpi.color"><i class="bi" [ngClass]="kpi.icon"></i></div>
               <div class="stat-value">{{ kpi.value }}</div>
-              <div class="stat-label">{{ kpi.label }}</div>
+              <div class="stat-label">{{ kpi.labelKey | translate }}</div>
             </div>
           </div>
         </div>
         <div class="row g-4 mb-4" *ngIf="(parentDashboard?.alerts || []).length">
           <div class="col-lg-12">
             <div class="erp-card">
-              <div class="erp-card-header"><h3 class="erp-card-title">Alerts & Reminders</h3></div>
+              <div class="erp-card-header"><h3 class="erp-card-title">{{ 'dashboard.parent.alertsTitle' | translate }}</h3></div>
               <div *ngFor="let a of parentDashboard?.alerts" class="activity-item">
                 <div class="activity-icon" [style.background]="a.type === 'warning' ? 'rgba(217,119,6,0.12)' : 'rgba(2,132,199,0.12)'" [style.color]="a.type === 'warning' ? 'var(--clr-warning)' : 'var(--clr-info)'">
                   <i class="bi" [ngClass]="a.type === 'warning' ? 'bi-exclamation-triangle-fill' : 'bi-info-circle-fill'"></i>
@@ -268,7 +304,7 @@ Chart.register(...registerables);
                   <h5>{{ a.title }}</h5>
                   <p>{{ a.message }}</p>
                 </div>
-                <a *ngIf="a.ctaRoute" class="btn-outline-erp btn-sm" [routerLink]="[a.ctaRoute]">{{ a.ctaLabel || 'Open' }}</a>
+                <a *ngIf="a.ctaRoute" class="btn-outline-erp btn-sm" [routerLink]="[a.ctaRoute]">{{ a.ctaLabel || ('dashboard.common.open' | translate) }}</a>
               </div>
             </div>
           </div>
@@ -277,9 +313,9 @@ Chart.register(...registerables);
         <div class="row g-4">
           <div class="col-lg-6">
             <div class="erp-card">
-              <div class="erp-card-header"><h3 class="erp-card-title">Child Performance</h3></div>
+              <div class="erp-card-header"><h3 class="erp-card-title">{{ 'dashboard.parent.performanceTitle' | translate }}</h3></div>
               <table class="erp-table">
-                <thead><tr><th>Subject</th><th>Marks</th><th>Grade</th></tr></thead>
+                <thead><tr><th>{{ 'dashboard.parent.thSubject' | translate }}</th><th>{{ 'dashboard.parent.thMarks' | translate }}</th><th>{{ 'dashboard.parent.thGrade' | translate }}</th></tr></thead>
                 <tbody>
                   <tr *ngFor="let mark of parentDashboard?.childPerformance">
                     <td><strong>{{ mark.subjectName }}</strong></td>
@@ -292,12 +328,12 @@ Chart.register(...registerables);
           </div>
           <div class="col-lg-6">
             <div class="erp-card">
-              <div class="erp-card-header"><h3 class="erp-card-title">Fee Status</h3></div>
+              <div class="erp-card-header"><h3 class="erp-card-title">{{ 'dashboard.parent.feeStatusTitle' | translate }}</h3></div>
               <div *ngFor="let fee of parentDashboard?.feeStatus" class="activity-item">
                 <div class="activity-icon" style="background: rgba(220,38,38,0.1); color: var(--clr-danger);"><i class="bi bi-credit-card"></i></div>
                 <div class="activity-content">
                   <h5>{{ fee.studentName }} - {{ fee.dueAmount | currency:'INR':'symbol':'1.0-0' }}</h5>
-                  <p>Due: {{ fee.dueDate }} &middot; <span style="font-weight: 600;">{{ fee.status }}</span></p>
+                  <p>{{ 'dashboard.parent.due' | translate }}: {{ fee.dueDate }} &middot; <span style="font-weight: 600;">{{ fee.status }}</span></p>
                 </div>
               </div>
             </div>
@@ -307,7 +343,7 @@ Chart.register(...registerables);
         <div class="row g-4 mt-1" *ngIf="(parentDashboard?.upcoming || []).length">
           <div class="col-lg-12">
             <div class="erp-card">
-              <div class="erp-card-header"><h3 class="erp-card-title">Upcoming</h3></div>
+              <div class="erp-card-header"><h3 class="erp-card-title">{{ 'dashboard.parent.upcomingTitle' | translate }}</h3></div>
               <div *ngFor="let u of parentDashboard?.upcoming" class="activity-item">
                 <div class="activity-icon" style="background: rgba(5,150,105,0.1); color: var(--clr-success);"><i class="bi bi-calendar-event"></i></div>
                 <div class="activity-content">
@@ -333,10 +369,11 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
   adminDashboard: AdminDashboardData | null = null;
   teacherDashboard: TeacherDashboardData | null = null;
   parentDashboard: ParentDashboardData | null = null;
-  adminKPIs: Array<{ label: string; value: string; icon: string; bgColor: string; color: string; subtext: string }> = [];
-  admissionInsights: Array<{ label: string; value: string; subtext: string; tone: string }> = [];
-  teacherKPIs: Array<{ label: string; value: string; icon: string; bgColor: string; color: string }> = [];
-  parentKPIs: Array<{ label: string; value: string; icon: string; bgColor: string; color: string }> = [];
+  adminKPIs: DashboardAdminKpi[] = [];
+  admissionInsights: DashboardAdmissionInsight[] = [];
+  teacherKPIs: DashboardTeacherKpi[] = [];
+  parentKPIs: DashboardParentKpi[] = [];
+  private langSub?: Subscription;
   selectedParentChildId: number | null = null;
   showAdmissionsSeries = true;
   showFeesSeries = true;
@@ -351,11 +388,18 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
   constructor(
     private authService: AuthService,
     private dashboardService: DashboardService,
-    private cdr: ChangeDetectorRef
+    private cdr: ChangeDetectorRef,
+    private translate: TranslateService
   ) {}
 
   ngOnInit(): void {
     this.role = this.authService.getRole() || 'admin';
+    this.langSub = this.translate.onLangChange.subscribe(() => {
+      if (this.role === 'admin' && this.adminDashboard) {
+        this.cdr.detectChanges();
+        queueMicrotask(() => this.initAdminCharts());
+      }
+    });
     this.loadDashboard();
   }
 
@@ -371,12 +415,7 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
       this.dashboardService.getAdminDashboard().subscribe({
         next: dashboard => {
           this.adminDashboard = dashboard;
-          this.adminKPIs = [
-            { label: 'Total Students', value: String(dashboard.totalStudents), icon: 'bi-people-fill', bgColor: 'rgba(27,58,48,0.1)', color: '#1B3A30', subtext: 'Live enrolment' },
-            { label: 'Total Teachers', value: String(dashboard.totalTeachers), icon: 'bi-person-badge-fill', bgColor: 'rgba(192,92,61,0.1)', color: '#C05C3D', subtext: 'Current staff strength' },
-            { label: 'Fees Collected', value: this.asCurrency(dashboard.feesCollected), icon: 'bi-credit-card-fill', bgColor: 'rgba(5,150,105,0.1)', color: '#059669', subtext: `${dashboard.collectionRate}% collection rate` },
-            { label: 'Attendance Logged', value: String(dashboard.attendanceOverview?.total ?? 0), icon: 'bi-calendar-check-fill', bgColor: 'rgba(2,132,199,0.1)', color: '#0284C7', subtext: 'Today' }
-          ];
+          this.adminKPIs = this.buildAdminKpis(dashboard);
           this.admissionInsights = this.buildAdmissionInsights(dashboard);
           this.cdr.detectChanges();
           this.initAdminCharts();
@@ -390,12 +429,7 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
       this.dashboardService.getTeacherDashboard().subscribe({
         next: dashboard => {
           this.teacherDashboard = dashboard;
-          this.teacherKPIs = [
-            { label: 'My Classes', value: String(dashboard.assignedClasses), icon: 'bi-journal-bookmark-fill', bgColor: 'rgba(27,58,48,0.1)', color: '#1B3A30' },
-            { label: 'Students Assigned', value: String(dashboard.studentsAssigned), icon: 'bi-people-fill', bgColor: 'rgba(192,92,61,0.1)', color: '#C05C3D' },
-            { label: 'Upcoming Exams', value: String(dashboard.upcomingExams), icon: 'bi-file-earmark-text', bgColor: 'rgba(217,119,6,0.1)', color: '#D97706' },
-            { label: 'Unread Alerts', value: String(dashboard.unreadNotifications), icon: 'bi-bell-fill', bgColor: 'rgba(5,150,105,0.1)', color: '#059669' }
-          ];
+          this.teacherKPIs = this.buildTeacherKpis(dashboard);
           finish();
         },
         error: () => finish()
@@ -409,12 +443,7 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
       next: dashboard => {
         this.parentDashboard = dashboard;
         this.selectedParentChildId = dashboard.selectedChildId ?? dashboard.selectedChild?.id ?? null;
-        this.parentKPIs = [
-          { label: 'Children Linked', value: String(dashboard.childCount), icon: 'bi-person-heart', bgColor: 'rgba(27,58,48,0.1)', color: '#1B3A30' },
-          { label: 'Attendance', value: `${dashboard.attendancePercentage.toFixed(1)}%`, icon: 'bi-calendar-check-fill', bgColor: 'rgba(5,150,105,0.1)', color: '#059669' },
-          { label: 'Overall Grade', value: dashboard.overallGrade, icon: 'bi-trophy-fill', bgColor: 'rgba(217,119,6,0.1)', color: '#D97706' },
-          { label: 'Fee Due', value: this.asCurrency(dashboard.feeDue), icon: 'bi-credit-card-fill', bgColor: 'rgba(220,38,38,0.1)', color: '#DC2626' }
-        ];
+        this.parentKPIs = this.buildParentKpis(dashboard);
         finish();
       },
       error: () => finish()
@@ -427,12 +456,7 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
       this.dashboardService.getAdminDashboard().subscribe({
         next: dashboard => {
           this.adminDashboard = dashboard;
-          this.adminKPIs = [
-            { label: 'Total Students', value: String(dashboard.totalStudents), icon: 'bi-people-fill', bgColor: 'rgba(27,58,48,0.1)', color: '#1B3A30', subtext: 'Live enrolment' },
-            { label: 'Total Teachers', value: String(dashboard.totalTeachers), icon: 'bi-person-badge-fill', bgColor: 'rgba(192,92,61,0.1)', color: '#C05C3D', subtext: 'Current staff strength' },
-            { label: 'Fees Collected', value: this.asCurrency(dashboard.feesCollected), icon: 'bi-credit-card-fill', bgColor: 'rgba(5,150,105,0.1)', color: '#059669', subtext: `${dashboard.collectionRate}% collection rate` },
-            { label: 'Attendance Logged', value: String(dashboard.attendanceOverview?.total ?? 0), icon: 'bi-calendar-check-fill', bgColor: 'rgba(2,132,199,0.1)', color: '#0284C7', subtext: 'Today' }
-          ];
+          this.adminKPIs = this.buildAdminKpis(dashboard);
           this.admissionInsights = this.buildAdmissionInsights(dashboard);
           this.loading = false;
           this.cdr.detectChanges();
@@ -448,12 +472,7 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
       this.dashboardService.getTeacherDashboard().subscribe({
         next: dashboard => {
           this.teacherDashboard = dashboard;
-          this.teacherKPIs = [
-            { label: 'My Classes', value: String(dashboard.assignedClasses), icon: 'bi-journal-bookmark-fill', bgColor: 'rgba(27,58,48,0.1)', color: '#1B3A30' },
-            { label: 'Students Assigned', value: String(dashboard.studentsAssigned), icon: 'bi-people-fill', bgColor: 'rgba(192,92,61,0.1)', color: '#C05C3D' },
-            { label: 'Upcoming Exams', value: String(dashboard.upcomingExams), icon: 'bi-file-earmark-text', bgColor: 'rgba(217,119,6,0.1)', color: '#D97706' },
-            { label: 'Unread Alerts', value: String(dashboard.unreadNotifications), icon: 'bi-bell-fill', bgColor: 'rgba(5,150,105,0.1)', color: '#059669' }
-          ];
+          this.teacherKPIs = this.buildTeacherKpis(dashboard);
           this.loading = false;
         },
         error: () => {
@@ -469,12 +488,7 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
       next: dashboard => {
         this.parentDashboard = dashboard;
         this.selectedParentChildId = dashboard.selectedChildId ?? dashboard.selectedChild?.id ?? null;
-        this.parentKPIs = [
-          { label: 'Children Linked', value: String(dashboard.childCount), icon: 'bi-person-heart', bgColor: 'rgba(27,58,48,0.1)', color: '#1B3A30' },
-          { label: 'Attendance', value: `${dashboard.attendancePercentage.toFixed(1)}%`, icon: 'bi-calendar-check-fill', bgColor: 'rgba(5,150,105,0.1)', color: '#059669' },
-          { label: 'Overall Grade', value: dashboard.overallGrade, icon: 'bi-trophy-fill', bgColor: 'rgba(217,119,6,0.1)', color: '#D97706' },
-          { label: 'Fee Due', value: this.asCurrency(dashboard.feeDue), icon: 'bi-credit-card-fill', bgColor: 'rgba(220,38,38,0.1)', color: '#DC2626' }
-        ];
+        this.parentKPIs = this.buildParentKpis(dashboard);
         this.loading = false;
       },
       error: () => {
@@ -498,9 +512,120 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
+    this.langSub?.unsubscribe();
     this.combinedTrendChart?.destroy();
     this.attendanceChart?.destroy();
     this.admissionsTrendChart?.destroy();
+  }
+
+  priorityLabel(p: string | undefined): string {
+    const key = 'dashboard.enums.priority.' + String(p || '').toLowerCase();
+    const t = this.translate.instant(key);
+    return t !== key ? t : (p || '');
+  }
+
+  private buildAdminKpis(dashboard: AdminDashboardData): DashboardAdminKpi[] {
+    return [
+      {
+        labelKey: 'dashboard.admin.kpi.totalStudents',
+        value: String(dashboard.totalStudents),
+        icon: 'bi-people-fill',
+        bgColor: 'rgba(27,58,48,0.1)',
+        color: '#1B3A30',
+        subtextKey: 'dashboard.admin.kpi.totalStudentsSub',
+      },
+      {
+        labelKey: 'dashboard.admin.kpi.totalTeachers',
+        value: String(dashboard.totalTeachers),
+        icon: 'bi-person-badge-fill',
+        bgColor: 'rgba(192,92,61,0.1)',
+        color: '#C05C3D',
+        subtextKey: 'dashboard.admin.kpi.totalTeachersSub',
+      },
+      {
+        labelKey: 'dashboard.admin.kpi.feesCollected',
+        value: this.asCurrency(dashboard.feesCollected),
+        icon: 'bi-credit-card-fill',
+        bgColor: 'rgba(5,150,105,0.1)',
+        color: '#059669',
+        subtextKey: 'dashboard.admin.kpi.feesCollectedSub',
+        subtextParams: { rate: dashboard.collectionRate },
+      },
+      {
+        labelKey: 'dashboard.admin.kpi.attendanceLogged',
+        value: String(dashboard.attendanceOverview?.total ?? 0),
+        icon: 'bi-calendar-check-fill',
+        bgColor: 'rgba(2,132,199,0.1)',
+        color: '#0284C7',
+        subtextKey: 'dashboard.admin.kpi.attendanceLoggedSub',
+      },
+    ];
+  }
+
+  private buildTeacherKpis(dashboard: TeacherDashboardData): DashboardTeacherKpi[] {
+    return [
+      {
+        labelKey: 'dashboard.teacher.kpi.myClasses',
+        value: String(dashboard.assignedClasses),
+        icon: 'bi-journal-bookmark-fill',
+        bgColor: 'rgba(27,58,48,0.1)',
+        color: '#1B3A30',
+      },
+      {
+        labelKey: 'dashboard.teacher.kpi.studentsAssigned',
+        value: String(dashboard.studentsAssigned),
+        icon: 'bi-people-fill',
+        bgColor: 'rgba(192,92,61,0.1)',
+        color: '#C05C3D',
+      },
+      {
+        labelKey: 'dashboard.teacher.kpi.upcomingExams',
+        value: String(dashboard.upcomingExams),
+        icon: 'bi-file-earmark-text',
+        bgColor: 'rgba(217,119,6,0.1)',
+        color: '#D97706',
+      },
+      {
+        labelKey: 'dashboard.teacher.kpi.unreadAlerts',
+        value: String(dashboard.unreadNotifications),
+        icon: 'bi-bell-fill',
+        bgColor: 'rgba(5,150,105,0.1)',
+        color: '#059669',
+      },
+    ];
+  }
+
+  private buildParentKpis(dashboard: ParentDashboardData): DashboardParentKpi[] {
+    return [
+      {
+        labelKey: 'dashboard.parent.kpi.childrenLinked',
+        value: String(dashboard.childCount),
+        icon: 'bi-person-heart',
+        bgColor: 'rgba(27,58,48,0.1)',
+        color: '#1B3A30',
+      },
+      {
+        labelKey: 'dashboard.parent.kpi.attendance',
+        value: `${dashboard.attendancePercentage.toFixed(1)}%`,
+        icon: 'bi-calendar-check-fill',
+        bgColor: 'rgba(5,150,105,0.1)',
+        color: '#059669',
+      },
+      {
+        labelKey: 'dashboard.parent.kpi.overallGrade',
+        value: dashboard.overallGrade,
+        icon: 'bi-trophy-fill',
+        bgColor: 'rgba(217,119,6,0.1)',
+        color: '#D97706',
+      },
+      {
+        labelKey: 'dashboard.parent.kpi.feeDue',
+        value: this.asCurrency(dashboard.feeDue),
+        icon: 'bi-credit-card-fill',
+        bgColor: 'rgba(220,38,38,0.1)',
+        color: '#DC2626',
+      },
+    ];
   }
 
   updateCombinedTrendChart(): void {
@@ -545,13 +670,14 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
       excused: 0
     };
 
+    const t = (k: string) => this.translate.instant(k);
     this.combinedTrendChart = new Chart(this.combinedTrendChartRef.nativeElement, {
       type: 'bar',
       data: {
         labels: monthlyAdmissions.map(point => point.label),
         datasets: [
-          { label: 'Admissions', data: monthlyAdmissions.map(point => Number(point.value)), backgroundColor: 'rgba(27,58,48,0.8)', borderRadius: 6, barPercentage: 0.55, hidden: !this.showAdmissionsSeries },
-          { label: 'Fee collection', data: monthlyCollections.map(point => Number(point.value)), backgroundColor: 'rgba(192,92,61,0.8)', borderRadius: 6, barPercentage: 0.55, hidden: !this.showFeesSeries }
+          { label: t('dashboard.chart.admissions'), data: monthlyAdmissions.map(point => Number(point.value)), backgroundColor: 'rgba(27,58,48,0.8)', borderRadius: 6, barPercentage: 0.55, hidden: !this.showAdmissionsSeries },
+          { label: t('dashboard.chart.feeCollection'), data: monthlyCollections.map(point => Number(point.value)), backgroundColor: 'rgba(192,92,61,0.8)', borderRadius: 6, barPercentage: 0.55, hidden: !this.showFeesSeries }
         ]
       },
       options: {
@@ -565,7 +691,7 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
     this.attendanceChart = new Chart(this.attendanceChartRef.nativeElement, {
       type: 'doughnut',
       data: {
-        labels: ['Present', 'Absent', 'Late', 'Excused'],
+        labels: [t('dashboard.chart.present'), t('dashboard.chart.absent'), t('dashboard.chart.late'), t('dashboard.chart.excused')],
         datasets: [{
           data: [
             Number(overview.present),
@@ -590,7 +716,7 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
       data: {
         labels: monthlyAdmissions.map(point => point.label),
         datasets: [{
-          label: 'Admissions',
+          label: t('dashboard.chart.admissions'),
           data: monthlyAdmissions.map(point => Number(point.value)),
           borderColor: '#1B3A30',
           backgroundColor: 'rgba(27,58,48,0.12)',
@@ -613,7 +739,7 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
     });
   }
 
-  private buildAdmissionInsights(dashboard: AdminDashboardData): Array<{ label: string; value: string; subtext: string; tone: string }> {
+  private buildAdmissionInsights(dashboard: AdminDashboardData): DashboardAdmissionInsight[] {
     const admissions = dashboard.monthlyAdmissions.map(point => point.value);
     const total = admissions.reduce((sum, value) => sum + value, 0);
     const average = admissions.length ? total / admissions.length : 0;
@@ -622,26 +748,28 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
     const latest = admissions[admissions.length - 1] ?? 0;
     const previous = admissions[admissions.length - 2] ?? 0;
     const trend = previous > 0 ? ((latest - previous) / previous) * 100 : 0;
+    const signed = trend > 0 ? '+' : '';
 
     return [
       {
-        label: 'Six-Month Intake',
+        labelKey: 'dashboard.admin.insight.sixMonth',
         value: String(total),
-        subtext: 'Confirmed admissions across the current rolling window',
-        tone: 'var(--clr-primary)'
+        subtextKey: 'dashboard.admin.insight.sixMonthSub',
+        tone: 'var(--clr-primary)',
       },
       {
-        label: 'Peak Month',
+        labelKey: 'dashboard.admin.insight.peakMonth',
         value: `${peakMonth} · ${peakValue}`,
-        subtext: 'Strongest enrolment month in the current trend line',
-        tone: 'var(--clr-accent)'
+        subtextKey: 'dashboard.admin.insight.peakMonthSub',
+        tone: 'var(--clr-accent)',
       },
       {
-        label: 'Monthly Average',
+        labelKey: 'dashboard.admin.insight.monthlyAvg',
         value: average.toFixed(1),
-        subtext: `${trend >= 0 ? '+' : ''}${trend.toFixed(1)}% versus previous month`,
-        tone: trend >= 0 ? 'var(--clr-success)' : 'var(--clr-danger)'
-      }
+        subtextKey: 'dashboard.admin.insight.monthlyAvgSub',
+        subtextParams: { signed, pct: trend.toFixed(1) },
+        tone: trend >= 0 ? 'var(--clr-success)' : 'var(--clr-danger)',
+      },
     ];
   }
 

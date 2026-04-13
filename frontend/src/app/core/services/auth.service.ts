@@ -1,12 +1,14 @@
 import { Injectable } from '@angular/core';
 import { BehaviorSubject, Observable, Subject, of, throwError } from 'rxjs';
-import { catchError, delay, map, take, tap } from 'rxjs/operators';
+import { catchError, delay, map, switchMap, take, tap } from 'rxjs/operators';
 import { User, LoginRequest, LoginResponse, OnboardSchoolRequest, ProfileSummary, TokenResponse } from '../models/models';
 import { ApiService } from './api.service';
 import { runtimeConfig } from '../config/runtime-config';
 import { environment } from '../../../environments/environment';
 import { isAccessExpiredByClock, isLikelyJwt } from '../auth/access-token';
 import { buildMockProfileSummary, findMockLoginUser } from '../mocks/auth.mock-data';
+import { ERP_ACCESS_TOKEN_KEY, ERP_REFRESH_TOKEN_KEY, ERP_USER_KEY } from '../auth/client-session-keys';
+import { UserLocaleService, type UiLanguage } from '../i18n/user-locale.service';
 
 @Injectable({ providedIn: 'root' })
 export class AuthService {
@@ -29,14 +31,17 @@ export class AuthService {
   private readonly profileAvatarChanged = new Subject<void>();
   readonly profileAvatarChanged$ = this.profileAvatarChanged.asObservable();
 
-  constructor(private api: ApiService) {
+  constructor(
+    private api: ApiService,
+    private userLocale: UserLocaleService
+  ) {
     this.loadFromStorage();
   }
 
   private loadFromStorage(): void {
-    const token = localStorage.getItem('erp_token');
-    const refreshToken = localStorage.getItem('erp_refresh_token');
-    const userStr = localStorage.getItem('erp_user');
+    const token = localStorage.getItem(ERP_ACCESS_TOKEN_KEY);
+    const refreshToken = localStorage.getItem(ERP_REFRESH_TOKEN_KEY);
+    const userStr = localStorage.getItem(ERP_USER_KEY);
     if (token && refreshToken && userStr) {
       try {
         const user = JSON.parse(userStr);
@@ -44,6 +49,10 @@ export class AuthService {
         this.tokenSubject.next(token);
         this.refreshTokenSubject.next(refreshToken);
         this.currentUserSubject.next(user);
+        if (user?.interfaceLocale) {
+          const lang: UiLanguage = user.interfaceLocale === 'hi' ? 'hi' : 'en';
+          this.userLocale.useUiLanguage(lang).subscribe({ error: () => void 0 });
+        }
       } catch {
         this.clearLocalAuthState();
       }
@@ -124,8 +133,8 @@ export class AuthService {
 
   /** Apply new access + refresh pair after login or refresh (keeps user row unchanged). */
   applyTokenPair(token: string, refreshToken: string): void {
-    localStorage.setItem('erp_token', token);
-    localStorage.setItem('erp_refresh_token', refreshToken);
+    localStorage.setItem(ERP_ACCESS_TOKEN_KEY, token);
+    localStorage.setItem(ERP_REFRESH_TOKEN_KEY, refreshToken);
     this.tokenSubject.next(token);
     this.refreshTokenSubject.next(refreshToken);
     if (isLikelyJwt(token)) {
@@ -137,9 +146,9 @@ export class AuthService {
    * Clears tokens and user context locally. Used after 401 and failed refresh (no server logout call).
    */
   clearLocalAuthState(): void {
-    localStorage.removeItem('erp_token');
-    localStorage.removeItem('erp_refresh_token');
-    localStorage.removeItem('erp_user');
+    localStorage.removeItem(ERP_ACCESS_TOKEN_KEY);
+    localStorage.removeItem(ERP_REFRESH_TOKEN_KEY);
+    localStorage.removeItem(ERP_USER_KEY);
     this.stripMockExpiryKeys();
     this.tokenSubject.next(null);
     this.refreshTokenSubject.next(null);
@@ -190,7 +199,7 @@ export class AuthService {
       return false;
     }
     const newRt = 'mock-refresh-' + Date.now();
-    localStorage.setItem('erp_refresh_token', newRt);
+    localStorage.setItem(ERP_REFRESH_TOKEN_KEY, newRt);
     this.refreshTokenSubject.next(newRt);
     localStorage.setItem(AuthService.STORAGE_ACCESS_EXPIRES_AT, String(Date.now() + this.getMockAccessTtlMs()));
     return true;
@@ -201,26 +210,31 @@ export class AuthService {
       return this.api.post<LoginResponse>('/auth/login', request).pipe(
         tap(res => {
           this.applyTokenPair(res.token, res.refreshToken);
-          localStorage.setItem('erp_user', JSON.stringify(res.user));
+          localStorage.setItem(ERP_USER_KEY, JSON.stringify(res.user));
           this.currentUserSubject.next(res.user);
+          const lang: UiLanguage = res.user.interfaceLocale === 'hi' ? 'hi' : 'en';
+          this.userLocale.useUiLanguage(lang).subscribe({ error: () => void 0 });
         })
       );
     }
     const found = findMockLoginUser(request);
     if (found) {
+      const lang: UiLanguage = request.interfaceLocale === 'hi' ? 'hi' : 'en';
+      const user = { ...found.user, interfaceLocale: lang };
       const response: LoginResponse = {
         // Must NOT be three dot-separated segments: otherwise isLikelyJwt() is true, exp decode fails, session is always "expired" and refresh clears storage on every navigation.
         token: 'mock-access-' + found.user.role + '-' + Date.now(),
         refreshToken: 'mock-refresh-' + Date.now(),
-        user: found.user,
+        user,
       };
       return of(response).pipe(
         delay(800),
         tap(res => {
           this.applyTokenPair(res.token, res.refreshToken);
-          localStorage.setItem('erp_user', JSON.stringify(res.user));
+          localStorage.setItem(ERP_USER_KEY, JSON.stringify(res.user));
           this.currentUserSubject.next(res.user);
           this.persistMockSessionFromNow();
+          this.userLocale.useUiLanguage(res.user.interfaceLocale === 'hi' ? 'hi' : 'en').subscribe({ error: () => void 0 });
         })
       );
     }
@@ -236,6 +250,7 @@ export class AuthService {
   }
 
   onboardSchool(request: OnboardSchoolRequest): Observable<LoginResponse> {
+    const iface: UiLanguage = request.interfaceLocale === 'hi' ? 'hi' : 'en';
     if (runtimeConfig.useMocks) {
       const response: LoginResponse = {
         token: 'mock-onboard-token-' + Date.now(),
@@ -246,24 +261,28 @@ export class AuthService {
           name: request.adminName,
           role: 'admin',
           tenantId: 'tenant_' + request.schoolCode.toLowerCase(),
-          phone: request.phone
+          phone: request.phone,
+          interfaceLocale: iface,
         }
       };
       return of(response).pipe(
         delay(800),
         tap(res => {
           this.applyTokenPair(res.token, res.refreshToken);
-          localStorage.setItem('erp_user', JSON.stringify(res.user));
+          localStorage.setItem(ERP_USER_KEY, JSON.stringify(res.user));
           this.currentUserSubject.next(res.user);
           this.persistMockSessionFromNow();
+          this.userLocale.useUiLanguage(iface).subscribe({ error: () => void 0 });
         })
       );
     }
     return this.api.post<LoginResponse>('/auth/onboard-tenant', request).pipe(
       tap(res => {
         this.applyTokenPair(res.token, res.refreshToken);
-        localStorage.setItem('erp_user', JSON.stringify(res.user));
+        localStorage.setItem(ERP_USER_KEY, JSON.stringify(res.user));
         this.currentUserSubject.next(res.user);
+        const lang: UiLanguage = res.user.interfaceLocale === 'hi' ? 'hi' : 'en';
+        this.userLocale.useUiLanguage(lang).subscribe({ error: () => void 0 });
       })
     );
   }
@@ -324,7 +343,7 @@ export class AuthService {
     if (!u) return;
     localStorage.setItem(`erp_avatar_${u.id}`, dataUrl);
     const next = { ...u, avatar: dataUrl };
-    localStorage.setItem('erp_user', JSON.stringify(next));
+    localStorage.setItem(ERP_USER_KEY, JSON.stringify(next));
     this.currentUserSubject.next(next);
     this.profileAvatarChanged.next();
   }
@@ -335,7 +354,7 @@ export class AuthService {
     localStorage.removeItem(`erp_avatar_${u.id}`);
     const { avatar: _a, ...rest } = u;
     const next = { ...rest } as User;
-    localStorage.setItem('erp_user', JSON.stringify(next));
+    localStorage.setItem(ERP_USER_KEY, JSON.stringify(next));
     this.currentUserSubject.next(next);
     this.profileAvatarChanged.next();
   }
@@ -409,19 +428,68 @@ export class AuthService {
     if (runtimeConfig.useMocks) {
       const summary = buildMockProfileSummary(this.getCurrentUser());
       this.profileSummarySubject.next(summary);
+      const lang: UiLanguage = summary.interfaceLocale === 'hi' ? 'hi' : 'en';
+      this.userLocale.useUiLanguage(lang).subscribe({ error: () => void 0 });
       return of(summary).pipe(delay(200));
     }
     return this.api.get<any>('/auth/profile-summary').pipe(
-      tap(summary =>
-        this.profileSummarySubject.next({
+      tap(summary => {
+        const normalized: ProfileSummary = {
           ...summary,
           id: Number(summary.id),
           role: summary.role,
           platformWorkspaceCount: summary.platformWorkspaceCount ?? undefined,
           classTeacherOf: summary.classTeacherOf ?? undefined,
-        })
-      )
+        };
+        this.profileSummarySubject.next(normalized);
+        if (summary.interfaceLocale) {
+          const lang: UiLanguage = summary.interfaceLocale === 'hi' ? 'hi' : 'en';
+          this.userLocale.useUiLanguage(lang).subscribe({ error: () => void 0 });
+          this.applyInterfaceLocaleToStoredUser(lang);
+        }
+      })
     );
+  }
+
+  /**
+   * Persists interface language to the server (or mock storage) after {@link UserLocaleService#useUiLanguage}.
+   */
+  updateInterfacePreferences(lang: UiLanguage) {
+    const previous = this.userLocale.readStored();
+    return this.userLocale.useUiLanguage(lang).pipe(
+      switchMap(() => {
+        if (!this.isAuthenticated()) {
+          return this.userLocale.useUiLanguage(previous).pipe(switchMap(() => of(null)));
+        }
+        if (runtimeConfig.useMocks) {
+          this.applyInterfaceLocaleToStoredUser(lang);
+          return of(this.getCurrentUser());
+        }
+        return this.api.put<User>('/auth/preferences', { interfaceLocale: lang }).pipe(
+          tap(p => {
+            if (p?.interfaceLocale) {
+              this.applyInterfaceLocaleToStoredUser(p.interfaceLocale === 'hi' ? 'hi' : 'en');
+            } else {
+              this.applyInterfaceLocaleToStoredUser(lang);
+            }
+          }),
+          map(() => this.getCurrentUser()),
+          catchError(err =>
+            this.userLocale.useUiLanguage(previous).pipe(switchMap(() => throwError(() => err)))
+          )
+        );
+      })
+    );
+  }
+
+  private applyInterfaceLocaleToStoredUser(lang: UiLanguage): void {
+    const u = this.getCurrentUser();
+    if (!u) {
+      return;
+    }
+    const next = { ...u, interfaceLocale: lang };
+    localStorage.setItem(ERP_USER_KEY, JSON.stringify(next));
+    this.currentUserSubject.next(next);
   }
 
   getProfileSummarySnapshot(): ProfileSummary | null {

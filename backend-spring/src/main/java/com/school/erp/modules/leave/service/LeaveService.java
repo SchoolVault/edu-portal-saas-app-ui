@@ -1,6 +1,8 @@
 package com.school.erp.modules.leave.service;
 
 import com.school.erp.common.enums.Enums;
+import com.school.erp.common.exception.ApiErrorCode;
+import com.school.erp.common.exception.BusinessException;
 import com.school.erp.common.exception.ResourceNotFoundException;
 import com.school.erp.modules.leave.dto.LeaveDTOs;
 import com.school.erp.modules.leave.entity.LeaveRequest;
@@ -13,12 +15,16 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Locale;
 import java.util.stream.Collectors;
 
 @Service
 public class LeaveService {
 
     private static final Logger log = LoggerFactory.getLogger(LeaveService.class);
+
+    /** Minimum trimmed reason length when {@link Enums.LeaveTypeCode#OTHER} is used (policy; keep in sync with UI). */
+    public static final int MIN_REASON_LENGTH_FOR_OTHER = 10;
 
     private final LeaveRequestRepository repo;
 
@@ -33,7 +39,9 @@ public class LeaveService {
         e.setTenantId(TenantContext.getTenantId());
         e.setApplicantUserId(TenantContext.getUserId());
         e.setApplicantRole(TenantContext.getUserRole() != null ? TenantContext.getUserRole() : "USER");
-        e.setLeaveType(req.getLeaveType());
+        String typeCode = normalizeLeaveTypeCode(req.getLeaveType());
+        requireReasonWhenOther(typeCode, req.getReason());
+        e.setLeaveType(typeCode);
         e.setStartDate(req.getStartDate());
         e.setEndDate(req.getEndDate());
         e.setReason(req.getReason());
@@ -125,10 +133,38 @@ public class LeaveService {
         r.setStartDate(e.getStartDate());
         r.setEndDate(e.getEndDate());
         r.setReason(e.getReason());
-        r.setStatus(e.getStatus() != null ? e.getStatus().name() : null);
+        r.setStatus(e.getStatus());
         r.setApproverUserId(e.getApproverUserId());
         r.setApproverRemarks(e.getApproverRemarks());
         r.setDayUnit(e.getDayUnit());
         return r;
+    }
+
+    /**
+     * Accepts uppercase codes or common legacy casing; persists canonical {@link Enums.LeaveTypeCode} names only.
+     */
+    static String normalizeLeaveTypeCode(String raw) {
+        if (raw == null || raw.isBlank()) {
+            throw new BusinessException("leaveType is required");
+        }
+        String code = raw.trim().toUpperCase(Locale.ROOT);
+        try {
+            Enums.LeaveTypeCode.valueOf(code);
+            return code;
+        } catch (IllegalArgumentException ex) {
+            throw new BusinessException("Invalid leaveType; use one of: ANNUAL, SICK, CASUAL, EMERGENCY, OTHER");
+        }
+    }
+
+    private static void requireReasonWhenOther(String typeCode, String reason) {
+        if (!Enums.LeaveTypeCode.OTHER.name().equals(typeCode)) {
+            return;
+        }
+        int len = reason != null ? reason.trim().length() : 0;
+        if (len < MIN_REASON_LENGTH_FOR_OTHER) {
+            throw new BusinessException(
+                    "When leave type is OTHER, describe the leave in reason (at least " + MIN_REASON_LENGTH_FOR_OTHER + " characters).",
+                    ApiErrorCode.LEAVE_OTHER_REASON_REQUIRED);
+        }
     }
 }

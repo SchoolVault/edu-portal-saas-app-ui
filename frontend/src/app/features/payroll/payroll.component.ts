@@ -1,106 +1,123 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, ChangeDetectorRef, DestroyRef, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Payslip, SalaryStructure, TeacherPaymentDetails } from '../../core/models/models';
 import { filter } from 'rxjs/operators';
 import { PayrollService } from '../../core/services/payroll.service';
 import { AuthService } from '../../core/services/auth.service';
 import { ConfirmDialogService } from '../../shared/confirm-dialog/confirm-dialog.service';
+import { TranslateModule, TranslateService } from '@ngx-translate/core';
 
 @Component({
   selector: 'app-payroll',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, TranslateModule],
   template: `
     <div data-testid="payroll-page">
       <div class="d-flex justify-content-between align-items-center mb-4 animate-in flex-wrap gap-2">
         <div>
-          <h2 style="font-size: 24px; font-weight: 800;">Payroll</h2>
+          <h2 style="font-size: 24px; font-weight: 800;">{{ 'payroll.pageTitle' | translate }}</h2>
           <p class="text-muted mb-0" style="font-size: 13px;">
-            {{ isAdmin ? 'Salary structures, bank disbursement, payslips & PDFs' : isTeacher ? 'Your payslips and PDF downloads' : 'Payroll is available to administrators and teachers.' }}
+            {{ isAdmin ? ('payroll.leadAdmin' | translate) : isTeacher ? ('payroll.leadTeacher' | translate) : ('payroll.leadDenied' | translate) }}
           </p>
         </div>
         <div *ngIf="isAdmin || isTeacher" class="d-flex gap-2 align-items-end flex-wrap">
           <div>
-            <label class="erp-label d-block mb-1">Month</label>
+            <label class="erp-label d-block mb-1">{{ 'payroll.labelMonth' | translate }}</label>
             <select class="erp-select" [(ngModel)]="genMonth">
-              <option *ngFor="let m of monthNames" [value]="m">{{ m }}</option>
+              <option *ngFor="let m of monthNames" [value]="m">{{ monthOptionLabel(m) }}</option>
             </select>
           </div>
           <div>
-            <label class="erp-label d-block mb-1">Year</label>
-            <input class="erp-input" type="number" [(ngModel)]="genYear" style="width: 100px;">
+            <label class="erp-label d-block mb-1">{{ 'payroll.labelYear' | translate }}</label>
+            <input class="erp-input" type="number" [(ngModel)]="genYear" style="width: 100px;" />
           </div>
           <button *ngIf="isAdmin" class="btn-primary-erp btn-sm align-self-end" data-testid="generate-payslips-btn" [disabled]="generating" (click)="runGenerate()">
-            <i class="bi bi-file-earmark-text"></i> {{ generating ? 'Generating…' : 'Generate payslips' }}
+            <i class="bi bi-file-earmark-text"></i> {{ generating ? ('payroll.generating' | translate) : ('payroll.generate' | translate) }}
           </button>
-          <button class="btn-outline-erp btn-sm align-self-end" type="button" (click)="refreshPayroll()">Refresh</button>
+          <button class="btn-outline-erp btn-sm align-self-end" type="button" (click)="refreshPayroll()">{{ 'payroll.refresh' | translate }}</button>
         </div>
       </div>
 
-        <div *ngIf="genError" class="alert alert-danger py-2 small mb-3">{{ genError }}</div>
-        <div *ngIf="disburseInfo" class="alert alert-success py-2 small mb-3">
-          {{ disburseInfo }}
-          <div class="mt-2 pt-2 text-muted" style="font-size: 12px; border-top: 1px solid rgba(15, 23, 42, 0.12);">
-            <strong>How this works in production:</strong> this step only submits the transfer to your bank or PSP.
-            Success/failure of the payment itself arrives later via bank webhooks or manual reconciliation; the teacher then gets SMS/WhatsApp and in-app notice from that pipeline.
-            Until funds settle, use <em>Mark paid</em> on the payslip after you confirm the credit.
-          </div>
+      <div *ngIf="genError" class="alert alert-danger py-2 small mb-3">{{ genError }}</div>
+      <div *ngIf="disburseInfo" class="alert alert-success py-2 small mb-3">
+        {{ disburseInfo }}
+        <div class="mt-2 pt-2 text-muted" style="font-size: 12px; border-top: 1px solid rgba(15, 23, 42, 0.12);">
+          <strong>{{ 'payroll.disburseHowTitle' | translate }}</strong> {{ 'payroll.disburseHowBody' | translate }}
         </div>
+      </div>
 
       <div *ngIf="isAdmin" class="row g-4 mb-4 animate-in animate-in-delay-1">
         <div class="col-sm-6 col-lg-3">
-          <div class="stat-card"><div class="stat-icon" style="background: rgba(27,58,48,0.1); color: #1B3A30;"><i class="bi bi-people-fill"></i></div><div class="stat-value">{{ salaryStructures.length }}</div><div class="stat-label">Salary structures</div></div>
+          <div class="stat-card"
+            ><div class="stat-icon" style="background: rgba(27,58,48,0.1); color: #1B3A30;"><i class="bi bi-people-fill"></i></div
+            ><div class="stat-value">{{ salaryStructures.length }}</div
+            ><div class="stat-label">{{ 'payroll.statStructures' | translate }}</div></div
+          >
         </div>
         <div class="col-sm-6 col-lg-3">
-          <div class="stat-card"><div class="stat-icon" style="background: rgba(5,150,105,0.1); color: #059669;"><i class="bi bi-wallet-fill"></i></div><div class="stat-value">₹{{ totalPayroll | number:'1.0-0':'en-IN' }}</div><div class="stat-label">Net payroll (structures)</div></div>
+          <div class="stat-card"
+            ><div class="stat-icon" style="background: rgba(5,150,105,0.1); color: #059669;"><i class="bi bi-wallet-fill"></i></div
+            ><div class="stat-value">₹{{ totalPayroll | number:'1.0-0':'en-IN' }}</div
+            ><div class="stat-label">{{ 'payroll.statNetPayroll' | translate }}</div></div
+          >
         </div>
         <div class="col-sm-6 col-lg-3">
-          <div class="stat-card"><div class="stat-icon" style="background: rgba(2,132,199,0.1); color: #0284C7;"><i class="bi bi-receipt"></i></div><div class="stat-value">{{ payslips.length }}</div><div class="stat-label">Payslips (filter)</div></div>
+          <div class="stat-card"
+            ><div class="stat-icon" style="background: rgba(2,132,199,0.1); color: #0284C7;"><i class="bi bi-receipt"></i></div
+            ><div class="stat-value">{{ payslips.length }}</div
+            ><div class="stat-label">{{ 'payroll.statPayslips' | translate }}</div></div
+          >
         </div>
         <div class="col-sm-6 col-lg-3">
-          <div class="stat-card"><div class="stat-icon" style="background: rgba(192,92,61,0.12); color: #C05C3D;"><i class="bi bi-bank"></i></div><div class="stat-value">{{ bankReadyCount }}/{{ paymentDetails.length }}</div><div class="stat-label">Bank profiles ready</div></div>
+          <div class="stat-card"
+            ><div class="stat-icon" style="background: rgba(192,92,61,0.12); color: #C05C3D;"><i class="bi bi-bank"></i></div
+            ><div class="stat-value">{{ bankReadyCount }}/{{ paymentDetails.length }}</div
+            ><div class="stat-label">{{ 'payroll.statBankReady' | translate }}</div></div
+          >
         </div>
       </div>
 
       <div *ngIf="isAdmin" class="erp-card animate-in animate-in-delay-2 mb-4 payroll-disburse-card">
         <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
           <div>
-            <h4 class="erp-card-title mb-1">Salary disbursement</h4>
-            <p class="text-muted small mb-0">Pick a teacher for a simple payment checklist, or use the table for everyone. Generate payslips for the month first, then initiate bank transfer.</p>
+            <h4 class="erp-card-title mb-1">{{ 'payroll.cardDisburseTitle' | translate }}</h4>
+            <p class="text-muted small mb-0">{{ 'payroll.cardDisburseLead' | translate }}</p>
           </div>
-          <button type="button" class="btn-outline-erp btn-sm" (click)="loadPaymentDetails()"><i class="bi bi-arrow-clockwise"></i> Reload bank list</button>
+          <button type="button" class="btn-outline-erp btn-sm" (click)="loadPaymentDetails()"><i class="bi bi-arrow-clockwise"></i> {{ 'payroll.reloadBank' | translate }}</button>
         </div>
 
         <div class="row g-3 mb-4" *ngIf="paymentDetails.length">
           <div class="col-md-4">
-            <label class="erp-label">Teacher (step-by-step)</label>
+            <label class="erp-label">{{ 'payroll.labelTeacherStep' | translate }}</label>
             <select class="erp-select" [(ngModel)]="payrollFocusTeacherId">
-              <option [ngValue]="null">— Choose teacher —</option>
+              <option [ngValue]="null">{{ 'payroll.chooseTeacher' | translate }}</option>
               <option *ngFor="let d of paymentDetails" [ngValue]="d.teacherId">{{ d.teacherName }}</option>
             </select>
-            <label class="erp-label mt-2">Payment rail</label>
+            <label class="erp-label mt-2">{{ 'payroll.labelPaymentRail' | translate }}</label>
             <select class="erp-select" [(ngModel)]="disbursePaymentMethod">
-              <option value="NETBANKING">Netbanking (corporate)</option>
-              <option value="UPI">UPI (instant)</option>
-              <option value="NEFT">NEFT</option>
-              <option value="IMPS">IMPS</option>
+              <option value="NETBANKING">{{ 'payroll.railNetbanking' | translate }}</option>
+              <option value="UPI">{{ 'payroll.railUpi' | translate }}</option>
+              <option value="NEFT">{{ 'payroll.railNeft' | translate }}</option>
+              <option value="IMPS">{{ 'payroll.railImps' | translate }}</option>
             </select>
           </div>
           <div class="col-md-8" *ngIf="payrollFocusDetail as fd">
             <div class="p-3 rounded-3 payroll-focus-panel">
               <div class="row g-2 small">
-                <div class="col-sm-6"><span class="text-muted">Pay to</span><br><strong>{{ fd.bankAccountHolder || fd.teacherName }}</strong></div>
-                <div class="col-sm-6"><span class="text-muted">Bank</span><br><strong>{{ fd.bankName || '—' }}</strong></div>
-                <div class="col-sm-6"><span class="text-muted">Account</span><br><code class="user-select-all">{{ fd.bankAccountMasked || '—' }}</code></div>
-                <div class="col-sm-6"><span class="text-muted">IFSC</span><br><code class="user-select-all">{{ fd.bankIfsc || '—' }}</code></div>
-                <div class="col-sm-6"><span class="text-muted">Salary structure (monthly net)</span><br><strong>₹{{ fd.monthlyNetSalary | number:'1.0-0':'en-IN' }}</strong></div>
-                <div class="col-sm-6"><span class="text-muted">Payslip ({{ genMonth }} {{ genYear }})</span><br>
+                <div class="col-sm-6"><span class="text-muted">{{ 'payroll.payTo' | translate }}</span><br /><strong>{{ fd.bankAccountHolder || fd.teacherName }}</strong></div>
+                <div class="col-sm-6"><span class="text-muted">{{ 'payroll.bank' | translate }}</span><br /><strong>{{ fd.bankName || ('exams.dash' | translate) }}</strong></div>
+                <div class="col-sm-6"><span class="text-muted">{{ 'payroll.account' | translate }}</span><br /><code class="user-select-all">{{ fd.bankAccountMasked || ('exams.dash' | translate) }}</code></div>
+                <div class="col-sm-6"><span class="text-muted">{{ 'payroll.ifsc' | translate }}</span><br /><code class="user-select-all">{{ fd.bankIfsc || ('exams.dash' | translate) }}</code></div>
+                <div class="col-sm-6"><span class="text-muted">{{ 'payroll.salaryStructureNet' | translate }}</span><br /><strong>₹{{ fd.monthlyNetSalary | number:'1.0-0':'en-IN' }}</strong></div>
+                <div class="col-sm-6">
+                  <span class="text-muted">{{ 'payroll.payslipForPeriod' | translate: { month: monthOptionLabel(genMonth), year: genYear } }}</span><br />
                   <ng-container *ngIf="payslipForTeacher(fd.teacherId) as ps">
                     <strong>₹{{ ps.netSalary | number:'1.0-0':'en-IN' }}</strong>
-                    <span class="badge-erp ms-1" [class.badge-neutral]="ps.status === 'generated'" [class.badge-success]="ps.status === 'paid'">{{ ps.status }}</span>
+                    <span class="badge-erp ms-1" [class.badge-neutral]="ps.status === 'generated'" [class.badge-success]="ps.status === 'paid'">{{ payslipStatusLabel(ps.status) }}</span>
                   </ng-container>
-                  <span *ngIf="!payslipForTeacher(fd.teacherId)" class="text-warning">Generate payslips for this period first.</span>
+                  <span *ngIf="!payslipForTeacher(fd.teacherId)" class="text-warning">{{ 'payroll.generateFirst' | translate }}</span>
                 </div>
               </div>
               <div class="mt-3 d-flex flex-wrap gap-2">
@@ -110,9 +127,9 @@ import { ConfirmDialogService } from '../../shared/confirm-dialog/confirm-dialog
                   [disabled]="!canInitiateDisburse(fd) || disbursingTeacherId === fd.teacherId"
                   (click)="runDisburse(fd)"
                 >
-                  {{ disbursingTeacherId === fd.teacherId ? 'Submitting…' : 'Initiate transfer for this teacher' }}
+                  {{ disbursingTeacherId === fd.teacherId ? ('payroll.submitting' | translate) : ('payroll.initiateTransfer' | translate) }}
                 </button>
-                <span class="text-muted small align-self-center">After your bank confirms, mark the payslip paid in the table below.</span>
+                <span class="text-muted small align-self-center">{{ 'payroll.afterBankNote' | translate }}</span>
               </div>
             </div>
           </div>
@@ -122,25 +139,25 @@ import { ConfirmDialogService } from '../../shared/confirm-dialog/confirm-dialog
           <table class="erp-table">
             <thead>
               <tr>
-                <th>Teacher</th>
-                <th>Monthly net (structure)</th>
-                <th>Bank</th>
-                <th>Account</th>
-                <th>IFSC</th>
-                <th>Status</th>
-                <th class="text-end">Bank transfer</th>
+                <th>{{ 'payroll.thTeacher' | translate }}</th>
+                <th>{{ 'payroll.thMonthlyNet' | translate }}</th>
+                <th>{{ 'payroll.thBank' | translate }}</th>
+                <th>{{ 'payroll.thAccount' | translate }}</th>
+                <th>{{ 'payroll.thIfsc' | translate }}</th>
+                <th>{{ 'payroll.thStatus' | translate }}</th>
+                <th class="text-end">{{ 'payroll.thBankTransfer' | translate }}</th>
               </tr>
             </thead>
             <tbody>
               <tr *ngFor="let d of paymentDetails">
                 <td><strong>{{ d.teacherName }}</strong></td>
                 <td>₹{{ d.monthlyNetSalary | number:'1.0-0':'en-IN' }}</td>
-                <td>{{ d.bankName || '—' }}</td>
-                <td style="font-family: monospace; font-size: 12px;">{{ d.bankAccountMasked || '—' }}</td>
-                <td style="font-family: monospace; font-size: 12px;">{{ d.bankIfsc || '—' }}</td>
+                <td>{{ d.bankName || ('exams.dash' | translate) }}</td>
+                <td style="font-family: monospace; font-size: 12px;">{{ d.bankAccountMasked || ('exams.dash' | translate) }}</td>
+                <td style="font-family: monospace; font-size: 12px;">{{ d.bankIfsc || ('exams.dash' | translate) }}</td>
                 <td>
                   <span class="badge-erp" [class.badge-success]="d.bankDetailsComplete" [class.badge-warning]="!d.bankDetailsComplete">
-                    {{ d.bankDetailsComplete ? 'Ready' : 'Incomplete' }}
+                    {{ d.bankDetailsComplete ? ('payroll.statusReady' | translate) : ('payroll.statusIncomplete' | translate) }}
                   </span>
                 </td>
                 <td class="text-end">
@@ -149,22 +166,30 @@ import { ConfirmDialogService } from '../../shared/confirm-dialog/confirm-dialog
                     class="btn-primary-erp btn-xs"
                     [disabled]="!canInitiateDisburse(d) || disbursingTeacherId === d.teacherId"
                     (click)="runDisburse(d)"
-                    title="Uses net from generated payslip for selected month/year"
+                    [title]="'payroll.initiateTitle' | translate"
                   >
-                    {{ disbursingTeacherId === d.teacherId ? 'Submitting…' : 'Initiate' }}
+                    {{ disbursingTeacherId === d.teacherId ? ('payroll.submitting' | translate) : ('payroll.initiate' | translate) }}
                   </button>
                 </td>
               </tr>
-              <tr *ngIf="!paymentDetails.length"><td colspan="7" class="text-muted text-center py-3">No salary structures yet.</td></tr>
+              <tr *ngIf="!paymentDetails.length"><td colspan="7" class="text-muted text-center py-3">{{ 'payroll.noStructures' | translate }}</td></tr>
             </tbody>
           </table>
         </div>
       </div>
 
       <div *ngIf="isAdmin" class="erp-card animate-in mb-4">
-        <h4 class="erp-card-title mb-3">Salary structures</h4>
+        <h4 class="erp-card-title mb-3">{{ 'payroll.structuresTitle' | translate }}</h4>
         <table class="erp-table" data-testid="salary-table">
-          <thead><tr><th>Teacher</th><th>Basic</th><th>Allowances</th><th>Deductions</th><th>Net</th></tr></thead>
+          <thead
+            ><tr
+              ><th>{{ 'payroll.thTeacher' | translate }}</th
+              ><th>{{ 'payroll.thBasic' | translate }}</th
+              ><th>{{ 'payroll.thAllowances' | translate }}</th
+              ><th>{{ 'payroll.thDeductions' | translate }}</th
+              ><th>{{ 'payroll.thNet' | translate }}</th></tr
+            ></thead
+          >
           <tbody>
             <tr *ngFor="let s of salaryStructures">
               <td><strong>{{ s.teacherName }}</strong></td>
@@ -178,32 +203,37 @@ import { ConfirmDialogService } from '../../shared/confirm-dialog/confirm-dialog
       </div>
 
       <div class="erp-card animate-in" *ngIf="isAdmin || isTeacher">
-        <h4 class="erp-card-title mb-3">{{ isTeacher ? 'My payslips' : 'Generated payslips' }}</h4>
-        <p class="text-muted small mb-2">Filtered by month/year above. PDF opens in a new tab; mark paid after you confirm the bank transfer (admin only).</p>
+        <h4 class="erp-card-title mb-3">{{ isTeacher ? ('payroll.payslipsTitleTeacher' | translate) : ('payroll.payslipsTitleAdmin' | translate) }}</h4>
+        <p class="text-muted small mb-2">{{ 'payroll.payslipsLead' | translate }}</p>
         <div class="table-responsive">
           <table class="erp-table">
             <thead>
               <tr>
-                <th>Teacher</th><th>Period</th><th>Net</th><th>Status</th><th>Paid on</th><th class="text-end">Actions</th>
+                <th>{{ 'payroll.thTeacher' | translate }}</th
+                ><th>{{ 'payroll.thPeriod' | translate }}</th
+                ><th>{{ 'payroll.thNetSalary' | translate }}</th
+                ><th>{{ 'payroll.thStatus' | translate }}</th
+                ><th>{{ 'payroll.thPaidOn' | translate }}</th
+                ><th class="text-end">{{ 'payroll.thActions' | translate }}</th>
               </tr>
             </thead>
             <tbody>
               <tr *ngFor="let p of payslips">
                 <td><strong>{{ p.teacherName }}</strong></td>
-                <td>{{ p.month }} {{ p.year }}</td>
+                <td>{{ monthOptionLabel(p.month || '') }} {{ p.year }}</td>
                 <td><strong>₹{{ p.netSalary | number:'1.0-0':'en-IN' }}</strong></td>
                 <td>
-                  <span class="badge-erp" [class.badge-neutral]="p.status === 'generated'" [class.badge-success]="p.status === 'paid'">{{ p.status }}</span>
+                  <span class="badge-erp" [class.badge-neutral]="p.status === 'generated'" [class.badge-success]="p.status === 'paid'">{{ payslipStatusLabel(p.status) }}</span>
                 </td>
-                <td>{{ p.paymentDate || '—' }}</td>
+                <td>{{ p.paymentDate || ('exams.dash' | translate) }}</td>
                 <td class="text-end text-nowrap">
                   <button type="button" class="btn-outline-erp btn-xs me-1" (click)="openPdf(p)" [disabled]="pdfLoadingId === p.id">
-                    <i class="bi bi-file-pdf"></i> PDF
+                    <i class="bi bi-file-pdf"></i> {{ 'payroll.pdf' | translate }}
                   </button>
-                  <button *ngIf="isAdmin && p.status === 'generated'" type="button" class="btn-primary-erp btn-xs" (click)="markPaid(p)" [disabled]="markingId === p.id">Mark paid</button>
+                  <button *ngIf="isAdmin && p.status === 'generated'" type="button" class="btn-primary-erp btn-xs" (click)="markPaid(p)" [disabled]="markingId === p.id">{{ 'payroll.markPaid' | translate }}</button>
                 </td>
               </tr>
-              <tr *ngIf="payslips.length === 0"><td colspan="6" class="text-muted text-center py-4">No payslips for this period.</td></tr>
+              <tr *ngIf="payslips.length === 0"><td colspan="6" class="text-muted text-center py-4">{{ 'payroll.noPayslips' | translate }}</td></tr>
             </tbody>
           </table>
         </div>
@@ -211,7 +241,7 @@ import { ConfirmDialogService } from '../../shared/confirm-dialog/confirm-dialog
 
       <div *ngIf="!isAdmin && !isTeacher" class="erp-card text-muted text-center py-5">
         <i class="bi bi-lock" style="font-size: 2rem;"></i>
-        <p class="mt-2 mb-0">You do not have access to payroll details.</p>
+        <p class="mt-2 mb-0">{{ 'payroll.accessDenied' | translate }}</p>
       </div>
     </div>
   `,
@@ -256,13 +286,19 @@ export class PayrollComponent implements OnInit {
     return this.paymentDetails.filter(d => d.bankDetailsComplete).length;
   }
 
+  private readonly destroyRef = inject(DestroyRef);
+
   constructor(
     private payrollService: PayrollService,
     private auth: AuthService,
-    private confirmDialog: ConfirmDialogService
+    private confirmDialog: ConfirmDialogService,
+    private translate: TranslateService,
+    private cdr: ChangeDetectorRef
   ) {}
 
   ngOnInit(): void {
+    this.translate.onLangChange.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => this.cdr.markForCheck());
+
     const r = (this.auth.getRole() ?? '').toLowerCase();
     this.isAdmin = r === 'admin';
     this.isTeacher = r === 'teacher';
@@ -328,11 +364,16 @@ export class PayrollComponent implements OnInit {
       next: res => {
         this.disbursingTeacherId = null;
         const rail = res.paymentMethod ? `${res.paymentMethod} · ` : '';
-        this.disburseInfo = `Transfer queued: ${rail}${res.referenceId} · ₹${res.amount.toLocaleString('en-IN')} for ${res.teacherName}.`;
+        this.disburseInfo = this.translate.instant('payroll.disburseSuccess', {
+          rail,
+          referenceId: res.referenceId,
+          amount: res.amount.toLocaleString('en-IN'),
+          name: res.teacherName,
+        });
       },
       error: (e: Error) => {
         this.disbursingTeacherId = null;
-        this.genError = e?.message || 'Could not initiate disbursement.';
+        this.genError = e?.message || this.translate.instant('payroll.genDisburseError');
       }
     });
   }
@@ -362,7 +403,7 @@ export class PayrollComponent implements OnInit {
       },
       error: (e: Error) => {
         this.generating = false;
-        this.genError = e?.message || 'Could not generate payslips.';
+        this.genError = e?.message || this.translate.instant('payroll.genPayslipError');
       }
     });
   }
@@ -380,17 +421,36 @@ export class PayrollComponent implements OnInit {
     });
   }
 
+  monthOptionLabel(monthEn: string): string {
+    const key = 'payroll.months.' + monthEn.trim().toLowerCase();
+    const t = this.translate.instant(key);
+    return t !== key ? t : monthEn;
+  }
+
+  payslipStatusLabel(status: string | undefined): string {
+    const k = (status ?? '').toLowerCase();
+    const key = `payroll.payslip.${k}`;
+    const t = this.translate.instant(key);
+    return t !== key ? t : (status ?? '');
+  }
+
   markPaid(p: Payslip): void {
     this.confirmDialog
       .confirm({
-        title: 'Mark payslip as paid?',
-        message: `Confirm disbursement for ${p.teacherName} — ${p.month} ${p.year}.`,
+        title: this.translate.instant('payroll.confirmMarkPaidTitle'),
+        message: this.translate.instant('payroll.confirmMarkPaidMessage', {
+          name: p.teacherName,
+          month: this.monthOptionLabel(p.month || ''),
+          year: p.year,
+        }),
         details: [
-          p.netSalary != null ? `Net salary: ₹${p.netSalary}` : undefined,
-          p.status ? `Current status: ${p.status}` : undefined,
+          p.netSalary != null
+            ? this.translate.instant('payroll.detailNet', { amount: String(p.netSalary) })
+            : undefined,
+          p.status ? this.translate.instant('payroll.detailStatus', { status: this.payslipStatusLabel(p.status) }) : undefined,
         ].filter((x): x is string => !!x),
         variant: 'primary',
-        confirmLabel: 'Yes, mark paid',
+        confirmLabel: this.translate.instant('payroll.confirmMarkPaidOk'),
       })
       .pipe(filter(Boolean))
       .subscribe(() => {

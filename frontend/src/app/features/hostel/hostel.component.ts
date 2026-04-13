@@ -1,6 +1,7 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { HostelBuilding, HostelRoom, Student } from '../../core/models/models';
 import { HostelService, HostelStats } from '../../core/services/hostel.service';
 import { StudentService } from '../../core/services/student.service';
@@ -9,22 +10,22 @@ import { AuthService } from '../../core/services/auth.service';
 @Component({
   selector: 'app-hostel',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, TranslateModule],
   template: `
     <div data-testid="hostel-page">
       <div class="d-flex justify-content-between align-items-center mb-4 animate-in flex-wrap gap-2">
         <div>
-          <h2 style="font-size: 24px; font-weight: 800;">Hostel</h2>
-          <p class="text-muted mb-0" style="font-size: 13px;">Rooms by capacity (1–4 beds), live occupancy, allocations</p>
+          <h2 style="font-size: 24px; font-weight: 800;">{{ 'hostel.pageTitle' | translate }}</h2>
+          <p class="text-muted mb-0" style="font-size: 13px;">{{ 'hostel.lead' | translate }}</p>
         </div>
         <div class="d-flex gap-2 flex-wrap">
-          <button type="button" class="btn-outline-erp btn-sm" (click)="reload()"><i class="bi bi-arrow-clockwise"></i> Refresh</button>
-          <button *ngIf="isAdmin" class="btn-primary-erp btn-sm" data-testid="add-room-btn" (click)="openRoomModal()"><i class="bi bi-plus-lg"></i> Add room</button>
+          <button type="button" class="btn-outline-erp btn-sm" (click)="reload()"><i class="bi bi-arrow-clockwise"></i> {{ 'hostel.refresh' | translate }}</button>
+          <button *ngIf="isAdmin" class="btn-primary-erp btn-sm" data-testid="add-room-btn" (click)="openRoomModal()"><i class="bi bi-plus-lg"></i> {{ 'hostel.addRoom' | translate }}</button>
         </div>
       </div>
       <div class="erp-card mb-4 animate-in" *ngIf="buildings.length">
-        <h4 class="erp-card-title mb-3">Hostel buildings</h4>
-        <p class="text-muted small mb-3">Real-time free beds per building. Add rooms against the correct hostel so capacity stays accurate.</p>
+        <h4 class="erp-card-title mb-3">{{ 'hostel.buildingsTitle' | translate }}</h4>
+        <p class="text-muted small mb-3">{{ 'hostel.buildingsLead' | translate }}</p>
         <div class="row g-3">
           <div class="col-md-4" *ngFor="let b of buildings">
             <div class="p-3 rounded-3" style="border: 1px solid var(--clr-border); background: var(--clr-surface-muted);">
@@ -33,9 +34,9 @@ import { AuthService } from '../../core/services/auth.service';
                   <strong>{{ b.name }}</strong>
                   <div class="small text-muted">{{ b.code }} <span *ngIf="b.genderScope">· {{ b.genderScope }}</span></div>
                 </div>
-                <span class="badge-erp badge-success">{{ b.availableBeds }} free beds</span>
+                <span class="badge-erp badge-success">{{ 'hostel.freeBeds' | translate: { n: b.availableBeds } }}</span>
               </div>
-              <div class="small text-muted mt-2">{{ b.roomCount }} rooms</div>
+              <div class="small text-muted mt-2">{{ 'hostel.roomsCount' | translate: { n: b.roomCount } }}</div>
             </div>
           </div>
         </div>
@@ -43,38 +44,38 @@ import { AuthService } from '../../core/services/auth.service';
 
       <div class="row g-4 mb-4 animate-in animate-in-delay-1">
         <div class="col-sm-6 col-lg-3">
-          <div class="stat-card"><div class="stat-icon" style="background: rgba(27,58,48,0.1); color: #1B3A30;"><i class="bi bi-house-fill"></i></div><div class="stat-value">{{ stats.totalRooms }}</div><div class="stat-label">Rooms</div></div>
+          <div class="stat-card"><div class="stat-icon" style="background: rgba(27,58,48,0.1); color: #1B3A30;"><i class="bi bi-house-fill"></i></div><div class="stat-value">{{ stats.totalRooms }}</div><div class="stat-label">{{ 'hostel.statRooms' | translate }}</div></div>
         </div>
         <div class="col-sm-6 col-lg-3">
-          <div class="stat-card"><div class="stat-icon" style="background: rgba(5,150,105,0.1); color: #059669;"><i class="bi bi-check-circle-fill"></i></div><div class="stat-value">{{ stats.totalOccupancy }}</div><div class="stat-label">Occupied beds</div></div>
+          <div class="stat-card"><div class="stat-icon" style="background: rgba(5,150,105,0.1); color: #059669;"><i class="bi bi-check-circle-fill"></i></div><div class="stat-value">{{ stats.totalOccupancy }}</div><div class="stat-label">{{ 'hostel.statOccupied' | translate }}</div></div>
         </div>
         <div class="col-sm-6 col-lg-3">
-          <div class="stat-card"><div class="stat-icon" style="background: rgba(217,119,6,0.1); color: #D97706;"><i class="bi bi-door-open-fill"></i></div><div class="stat-value">{{ stats.availableBeds }}</div><div class="stat-label">Available beds</div></div>
+          <div class="stat-card"><div class="stat-icon" style="background: rgba(217,119,6,0.1); color: #D97706;"><i class="bi bi-door-open-fill"></i></div><div class="stat-value">{{ stats.availableBeds }}</div><div class="stat-label">{{ 'hostel.statAvailable' | translate }}</div></div>
         </div>
         <div class="col-sm-6 col-lg-3">
-          <div class="stat-card"><div class="stat-icon" style="background: rgba(2,132,199,0.1); color: #0284C7;"><i class="bi bi-building"></i></div><div class="stat-value">{{ stats.blocks }}</div><div class="stat-label">Blocks</div></div>
+          <div class="stat-card"><div class="stat-icon" style="background: rgba(2,132,199,0.1); color: #0284C7;"><i class="bi bi-building"></i></div><div class="stat-value">{{ stats.blocks }}</div><div class="stat-label">{{ 'hostel.statBlocks' | translate }}</div></div>
         </div>
       </div>
       <div class="erp-card animate-in animate-in-delay-2">
         <table class="erp-table" data-testid="hostel-rooms-table">
-          <thead><tr><th>Hostel</th><th>Room</th><th>Block</th><th>Floor</th><th>Type / capacity</th><th>Occupancy</th><th>Residents</th><th *ngIf="isAdmin">Actions</th></tr></thead>
+          <thead><tr><th>{{ 'hostel.thHostel' | translate }}</th><th>{{ 'hostel.thRoom' | translate }}</th><th>{{ 'hostel.thBlock' | translate }}</th><th>{{ 'hostel.thFloor' | translate }}</th><th>{{ 'hostel.thTypeCap' | translate }}</th><th>{{ 'hostel.thOccupancy' | translate }}</th><th>{{ 'hostel.thResidents' | translate }}</th><th *ngIf="isAdmin">{{ 'hostel.thActions' | translate }}</th></tr></thead>
           <tbody>
             <tr *ngFor="let room of rooms">
-              <td><span class="badge-erp badge-neutral">{{ room.hostelName || '—' }}</span></td>
+              <td><span class="badge-erp badge-neutral">{{ room.hostelName || ('transport.dash' | translate) }}</span></td>
               <td><strong>{{ room.roomNumber }}</strong></td>
               <td>{{ room.block }}</td>
-              <td>Floor {{ room.floor }}</td>
-              <td style="text-transform: capitalize;">{{ room.type }} ({{ room.capacity }} bed{{ room.capacity > 1 ? 's' : '' }})</td>
+              <td>{{ floorLabel(room.floor) }}</td>
+              <td style="text-transform: capitalize;">{{ typeCapacityLabel(room) }}</td>
               <td>{{ room.occupancy }}/{{ room.capacity }}</td>
               <td>
                 <span *ngFor="let r of room.residents" class="badge-erp badge-neutral me-1">{{ r.studentName }}</span>
-                <span *ngIf="!room.residents?.length" class="text-muted">—</span>
+                <span *ngIf="!room.residents?.length" class="text-muted">{{ 'transport.dash' | translate }}</span>
               </td>
               <td *ngIf="isAdmin">
-                <button type="button" class="btn-outline-erp btn-xs" (click)="openEditRoom(room)">Edit</button>
-                <button *ngIf="room.occupancy < room.capacity" type="button" class="btn-outline-erp btn-xs ms-1" (click)="openAllocate(room)">Book / allocate</button>
+                <button type="button" class="btn-outline-erp btn-xs" (click)="openEditRoom(room)">{{ 'hostel.edit' | translate }}</button>
+                <button *ngIf="room.occupancy < room.capacity" type="button" class="btn-outline-erp btn-xs ms-1" (click)="openAllocate(room)">{{ 'hostel.bookAllocate' | translate }}</button>
                 <ng-container *ngFor="let r of room.residents">
-                  <button type="button" class="btn-outline-erp btn-xs ms-1" (click)="openVacate(room, r)">Vacate</button>
+                  <button type="button" class="btn-outline-erp btn-xs ms-1" (click)="openVacate(room, r)">{{ 'hostel.vacate' | translate }}</button>
                 </ng-container>
               </td>
             </tr>
@@ -85,97 +86,97 @@ import { AuthService } from '../../core/services/auth.service';
 
     <div class="modal-overlay" *ngIf="roomModal" (click)="roomModal = false">
       <div class="modal-content-erp" (click)="$event.stopPropagation()">
-        <div class="modal-header-erp"><h3>Add room</h3><button class="btn-icon" (click)="roomModal = false"><i class="bi bi-x-lg"></i></button></div>
+        <div class="modal-header-erp"><h3>{{ 'hostel.modalAddTitle' | translate }}</h3><button class="btn-icon" (click)="roomModal = false"><i class="bi bi-x-lg"></i></button></div>
         <div class="modal-body-erp">
-          <label class="erp-label">Hostel building</label>
+          <label class="erp-label">{{ 'hostel.labelHostelBuilding' | translate }}</label>
           <select class="erp-select mb-2" [(ngModel)]="roomForm.hostelId">
-            <option value="">Select hostel</option>
-            <option *ngFor="let b of buildings" [value]="b.id">{{ b.name }} ({{ b.availableBeds }} beds free)</option>
+            <option value="">{{ 'hostel.selectHostel' | translate }}</option>
+            <option *ngFor="let b of buildings" [value]="b.id">{{ 'hostel.hostelOption' | translate: { name: b.name, n: b.availableBeds } }}</option>
           </select>
-          <label class="erp-label">Room number</label>
+          <label class="erp-label">{{ 'hostel.labelRoomNumber' | translate }}</label>
           <input class="erp-input mb-2" [(ngModel)]="roomForm.roomNumber">
-          <label class="erp-label">Block</label>
+          <label class="erp-label">{{ 'hostel.labelBlock' | translate }}</label>
           <input class="erp-input mb-2" [(ngModel)]="roomForm.block">
-          <label class="erp-label">Floor</label>
+          <label class="erp-label">{{ 'hostel.labelFloor' | translate }}</label>
           <input class="erp-input mb-2" type="number" [(ngModel)]="roomForm.floor">
-          <label class="erp-label">Capacity (beds)</label>
+          <label class="erp-label">{{ 'hostel.labelCapacity' | translate }}</label>
           <select class="erp-select mb-2" [(ngModel)]="roomForm.capacity">
-            <option [ngValue]="1">1 (single)</option>
-            <option [ngValue]="2">2 (double)</option>
-            <option [ngValue]="3">3 (triple)</option>
-            <option [ngValue]="4">4 (quad)</option>
+            <option [ngValue]="1">{{ 'hostel.cap1' | translate }}</option>
+            <option [ngValue]="2">{{ 'hostel.cap2' | translate }}</option>
+            <option [ngValue]="3">{{ 'hostel.cap3' | translate }}</option>
+            <option [ngValue]="4">{{ 'hostel.cap4' | translate }}</option>
           </select>
-          <label class="erp-label">Room type label</label>
-          <input class="erp-input" [(ngModel)]="roomForm.roomType" placeholder="single, double, ...">
+          <label class="erp-label">{{ 'hostel.labelRoomType' | translate }}</label>
+          <input class="erp-input" [(ngModel)]="roomForm.roomType" [placeholder]="'hostel.phRoomType' | translate">
         </div>
         <div class="modal-footer-erp">
-          <button class="btn-outline-erp" (click)="roomModal = false">Cancel</button>
-          <button class="btn-primary-erp" (click)="saveRoom()">Create</button>
+          <button class="btn-outline-erp" (click)="roomModal = false">{{ 'hostel.cancel' | translate }}</button>
+          <button class="btn-primary-erp" (click)="saveRoom()">{{ 'hostel.create' | translate }}</button>
         </div>
       </div>
     </div>
 
     <div class="modal-overlay" *ngIf="vacateCtx" (click)="vacateCtx = null">
       <div class="modal-content-erp" (click)="$event.stopPropagation()">
-        <div class="modal-header-erp"><h3>Confirm vacate</h3><button class="btn-icon" (click)="vacateCtx = null"><i class="bi bi-x-lg"></i></button></div>
+        <div class="modal-header-erp"><h3>{{ 'hostel.modalVacateTitle' | translate }}</h3><button class="btn-icon" (click)="vacateCtx = null"><i class="bi bi-x-lg"></i></button></div>
         <div class="modal-body-erp">
-          <p class="mb-2"><strong>{{ vacateCtx.studentName }}</strong> will be removed from <strong>Room {{ vacateCtx.roomNumber }}</strong><span *ngIf="vacateCtx.hostelName"> · {{ vacateCtx.hostelName }}</span>.</p>
-          <p class="small text-muted mb-0">This frees one bed for new allocations, same as the allocate flow.</p>
+          <p class="mb-2">{{ 'hostel.vacateMessage' | translate: { student: vacateCtx.studentName, room: vacateCtx.roomNumber, hostelPart: vacateHostelPart(vacateCtx) } }}</p>
+          <p class="small text-muted mb-0">{{ 'hostel.vacateHint' | translate }}</p>
         </div>
         <div class="modal-footer-erp">
-          <button class="btn-outline-erp" type="button" (click)="vacateCtx = null">Cancel</button>
-          <button class="btn-primary-erp" type="button" (click)="confirmVacate()">Vacate bed</button>
+          <button class="btn-outline-erp" type="button" (click)="vacateCtx = null">{{ 'hostel.cancel' | translate }}</button>
+          <button class="btn-primary-erp" type="button" (click)="confirmVacate()">{{ 'hostel.vacateBed' | translate }}</button>
         </div>
       </div>
     </div>
 
     <div class="modal-overlay" *ngIf="editRoom" (click)="editRoom = null">
       <div class="modal-content-erp" (click)="$event.stopPropagation()">
-        <div class="modal-header-erp"><h3>Edit room</h3><button class="btn-icon" (click)="editRoom = null"><i class="bi bi-x-lg"></i></button></div>
+        <div class="modal-header-erp"><h3>{{ 'hostel.modalEditTitle' | translate }}</h3><button class="btn-icon" (click)="editRoom = null"><i class="bi bi-x-lg"></i></button></div>
         <div class="modal-body-erp">
-          <p class="small text-muted mb-2" *ngIf="editRoom as er">Capacity cannot be set below current occupancy ({{ er.occupancy }}).</p>
-          <label class="erp-label">Hostel building</label>
+          <p class="small text-muted mb-2" *ngIf="editRoom as er">{{ 'hostel.capacityBelowOccupancy' | translate: { n: er.occupancy } }}</p>
+          <label class="erp-label">{{ 'hostel.labelHostelBuilding' | translate }}</label>
           <select class="erp-select mb-2" [(ngModel)]="editForm.hostelId">
-            <option value="">Select hostel</option>
+            <option value="">{{ 'hostel.selectHostel' | translate }}</option>
             <option *ngFor="let b of buildings" [value]="b.id">{{ b.name }}</option>
           </select>
-          <label class="erp-label">Room number</label>
+          <label class="erp-label">{{ 'hostel.labelRoomNumber' | translate }}</label>
           <input class="erp-input mb-2" [(ngModel)]="editForm.roomNumber">
-          <label class="erp-label">Block</label>
+          <label class="erp-label">{{ 'hostel.labelBlock' | translate }}</label>
           <input class="erp-input mb-2" [(ngModel)]="editForm.block">
-          <label class="erp-label">Floor</label>
+          <label class="erp-label">{{ 'hostel.labelFloor' | translate }}</label>
           <input class="erp-input mb-2" type="number" [(ngModel)]="editForm.floor">
-          <label class="erp-label">Capacity (beds)</label>
+          <label class="erp-label">{{ 'hostel.labelCapacity' | translate }}</label>
           <select class="erp-select mb-2" [(ngModel)]="editForm.capacity">
-            <option [ngValue]="1">1 (single)</option>
-            <option [ngValue]="2">2 (double)</option>
-            <option [ngValue]="3">3 (triple)</option>
-            <option [ngValue]="4">4 (quad)</option>
+            <option [ngValue]="1">{{ 'hostel.cap1' | translate }}</option>
+            <option [ngValue]="2">{{ 'hostel.cap2' | translate }}</option>
+            <option [ngValue]="3">{{ 'hostel.cap3' | translate }}</option>
+            <option [ngValue]="4">{{ 'hostel.cap4' | translate }}</option>
           </select>
-          <label class="erp-label">Room type label</label>
-          <input class="erp-input" [(ngModel)]="editForm.roomType" placeholder="single, double, …">
+          <label class="erp-label">{{ 'hostel.labelRoomType' | translate }}</label>
+          <input class="erp-input" [(ngModel)]="editForm.roomType" [placeholder]="'hostel.phRoomType' | translate">
         </div>
         <div class="modal-footer-erp">
-          <button class="btn-outline-erp" (click)="editRoom = null">Cancel</button>
-          <button class="btn-primary-erp" (click)="saveEditRoom()">Save</button>
+          <button class="btn-outline-erp" (click)="editRoom = null">{{ 'hostel.cancel' | translate }}</button>
+          <button class="btn-primary-erp" (click)="saveEditRoom()">{{ 'hostel.save' | translate }}</button>
         </div>
       </div>
     </div>
 
     <div class="modal-overlay" *ngIf="allocRoom" (click)="allocRoom = null">
       <div class="modal-content-erp" (click)="$event.stopPropagation()">
-        <div class="modal-header-erp"><h3>Allocate student</h3><button class="btn-icon" (click)="allocRoom = null"><i class="bi bi-x-lg"></i></button></div>
+        <div class="modal-header-erp"><h3>{{ 'hostel.modalAllocateTitle' | translate }}</h3><button class="btn-icon" (click)="allocRoom = null"><i class="bi bi-x-lg"></i></button></div>
         <div class="modal-body-erp">
-          <p class="small text-muted mb-2">Room {{ allocRoom.roomNumber }} · {{ allocRoom.occupancy }}/{{ allocRoom.capacity }} occupied</p>
-          <label class="erp-label">Student</label>
+          <p class="small text-muted mb-2">{{ 'hostel.allocSummary' | translate: { room: allocRoom.roomNumber, occ: allocRoom.occupancy, cap: allocRoom.capacity } }}</p>
+          <label class="erp-label">{{ 'hostel.labelStudent' | translate }}</label>
           <select class="erp-select mb-2" [(ngModel)]="allocForm.studentId" (ngModelChange)="syncAllocName()">
-            <option [ngValue]="null">Select</option>
+            <option [ngValue]="null">{{ 'hostel.select' | translate }}</option>
             <option *ngFor="let s of students" [ngValue]="s.id">{{ s.firstName }} {{ s.lastName }}</option>
           </select>
         </div>
         <div class="modal-footer-erp">
-          <button class="btn-outline-erp" (click)="allocRoom = null">Cancel</button>
-          <button class="btn-primary-erp" (click)="saveAllocate()">Allocate</button>
+          <button class="btn-outline-erp" (click)="allocRoom = null">{{ 'hostel.cancel' | translate }}</button>
+          <button class="btn-primary-erp" (click)="saveAllocate()">{{ 'hostel.allocate' | translate }}</button>
         </div>
       </div>
     </div>
@@ -198,19 +199,34 @@ export class HostelComponent implements OnInit {
   constructor(
     private hostelService: HostelService,
     private studentService: StudentService,
-    private authService: AuthService
+    private authService: AuthService,
+    private translate: TranslateService
   ) {}
+
+  floorLabel(n: number): string {
+    return this.translate.instant('hostel.floorLabel', { n });
+  }
+
+  typeCapacityLabel(room: HostelRoom): string {
+    const beds =
+      room.capacity > 1 ? this.translate.instant('hostel.bedPlural') : this.translate.instant('hostel.bedSingular');
+    return this.translate.instant('hostel.typeCapacity', { type: room.type, n: room.capacity, beds });
+  }
+
+  vacateHostelPart(ctx: { hostelName?: string }): string {
+    return ctx.hostelName ? this.translate.instant('hostel.vacateHostelPart', { hostel: ctx.hostelName }) : '';
+  }
 
   ngOnInit(): void {
     this.isAdmin = (this.authService.getCurrentUser()?.role ?? '').toLowerCase() === 'admin';
     this.reload();
-    this.studentService.getStudents().subscribe(s => this.students = s);
+    this.studentService.getStudents().subscribe(s => (this.students = s));
   }
 
   reload(): void {
     this.hostelService.listBuildings().subscribe(b => (this.buildings = b));
-    this.hostelService.listRooms().subscribe(r => this.rooms = r);
-    this.hostelService.stats().subscribe(s => this.stats = s);
+    this.hostelService.listRooms().subscribe(r => (this.rooms = r));
+    this.hostelService.stats().subscribe(s => (this.stats = s));
   }
 
   openRoomModal(): void {
@@ -222,17 +238,19 @@ export class HostelComponent implements OnInit {
     if (!this.roomForm.roomNumber.trim() || !this.roomForm.hostelId) return;
     const cap = Number(this.roomForm.capacity);
     const typeLabel = this.roomForm.roomType || (cap === 1 ? 'single' : cap === 2 ? 'double' : cap === 3 ? 'triple' : 'quad');
-    this.hostelService.createRoom({
-      hostelId: this.roomForm.hostelId,
-      roomNumber: this.roomForm.roomNumber,
-      block: this.roomForm.block || 'Block A',
-      floor: Number(this.roomForm.floor),
-      capacity: cap,
-      roomType: typeLabel
-    }).subscribe(() => {
-      this.roomModal = false;
-      this.reload();
-    });
+    this.hostelService
+      .createRoom({
+        hostelId: this.roomForm.hostelId,
+        roomNumber: this.roomForm.roomNumber,
+        block: this.roomForm.block || 'Block A',
+        floor: Number(this.roomForm.floor),
+        capacity: cap,
+        roomType: typeLabel
+      })
+      .subscribe(() => {
+        this.roomModal = false;
+        this.reload();
+      });
   }
 
   openEditRoom(room: HostelRoom): void {
@@ -251,7 +269,7 @@ export class HostelComponent implements OnInit {
     if (!this.editRoom || !this.editForm.roomNumber.trim() || !this.editForm.hostelId) return;
     const cap = Number(this.editForm.capacity);
     if (cap < this.editRoom.occupancy) {
-      alert(`Capacity must be at least ${this.editRoom.occupancy} (current occupancy).`);
+      alert(this.translate.instant('hostel.capacityBelowOccupancy', { n: this.editRoom.occupancy }));
       return;
     }
     this.hostelService
@@ -281,14 +299,16 @@ export class HostelComponent implements OnInit {
 
   saveAllocate(): void {
     if (!this.allocRoom || this.allocForm.studentId == null) return;
-    this.hostelService.allocate({
-      roomId: this.allocRoom.id,
-      studentId: this.allocForm.studentId,
-      studentName: this.allocForm.studentName
-    }).subscribe(() => {
-      this.allocRoom = null;
-      this.reload();
-    });
+    this.hostelService
+      .allocate({
+        roomId: this.allocRoom.id,
+        studentId: this.allocForm.studentId,
+        studentName: this.allocForm.studentName
+      })
+      .subscribe(() => {
+        this.allocRoom = null;
+        this.reload();
+      });
   }
 
   openVacate(

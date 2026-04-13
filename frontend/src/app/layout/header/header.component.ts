@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { Router, NavigationEnd, RouterLink } from '@angular/router';
 import { Subject, merge, of } from 'rxjs';
 import { debounceTime, filter, switchMap, takeUntil } from 'rxjs/operators';
+import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { AuthService } from '../../core/services/auth.service';
 import { NotificationService } from '../../core/services/notification.service';
 import { CommunicationService } from '../../core/services/communication.service';
@@ -14,18 +15,21 @@ import { runtimeConfig } from '../../core/config/runtime-config';
 @Component({
   selector: 'app-header',
   standalone: true,
-  imports: [CommonModule, RouterLink],
+  imports: [CommonModule, RouterLink, TranslateModule],
   template: `
     <header class="app-header" data-testid="app-header-bar">
       <div class="header-left">
         <button class="toggle-btn" (click)="toggleSidebar.emit()" data-testid="sidebar-toggle-btn">
           <i class="bi" [ngClass]="collapsed ? 'bi-list' : 'bi-text-indent-left'" style="font-size: 20px;"></i>
         </button>
-        <h1 class="page-title">{{ pageTitle }}</h1>
+        <h1 class="page-title">{{ pageTitleKey | translate }}</h1>
       </div>
       <div class="header-right">
         <div style="position: relative;">
-          <button class="notification-btn" (click)="toggleTheme()" [attr.aria-label]="'Switch to ' + (currentTheme === 'light' ? 'dark' : 'light') + ' mode'">
+          <button
+            class="notification-btn"
+            (click)="toggleTheme()"
+            [attr.aria-label]="themeAriaLabel">
             <i class="bi" [ngClass]="currentTheme === 'light' ? 'bi-moon-stars' : 'bi-sun' " style="font-size: 20px;"></i>
           </button>
         </div>
@@ -36,20 +40,22 @@ import { runtimeConfig } from '../../core/config/runtime-config';
           </button>
           <div class="notification-dropdown" *ngIf="showNotifications" data-testid="notification-dropdown">
             <div class="notification-dropdown-header">
-              <h4>Alerts & notices</h4>
+              <h4>{{ 'header.bell.title' | translate }}</h4>
               <button class="btn-icon btn-xs" (click)="markAllRead()" data-testid="mark-all-read-btn">
                 <i class="bi bi-check2-all"></i>
               </button>
             </div>
             <div class="notification-list">
-              <div *ngIf="isSuperAdmin && platformHealthItems.length" class="notification-section-label">Platform status</div>
+              <div *ngIf="isSuperAdmin && platformHealthItems.length" class="notification-section-label">
+                {{ 'header.bell.platformStatus' | translate }}
+              </div>
               <a
                 *ngIf="isSuperAdmin"
                 routerLink="/app/platform-health"
                 class="notification-see-all"
                 (click)="showNotifications = false"
                 style="margin-bottom: 8px; display: block;">
-                Open system health →
+                {{ 'header.bell.openSystemHealth' | translate }}
               </a>
               <div
                 *ngFor="let h of platformHealthItems"
@@ -60,10 +66,12 @@ import { runtimeConfig } from '../../core/config/runtime-config';
                   {{ h.name }}
                   <span class="badge-erp badge-neutral ms-1" style="font-size: 10px;">{{ h.status }}</span>
                 </h5>
-                <p>{{ h.detail || '—' }}</p>
+                <p>{{ h.detail || ('header.bell.emptyDetail' | translate) }}</p>
               </div>
 
-              <div *ngIf="!isSuperAdmin && announcementPreviews.length" class="notification-section-label">School notices</div>
+              <div *ngIf="!isSuperAdmin && announcementPreviews.length" class="notification-section-label">
+                {{ 'header.bell.schoolNotices' | translate }}
+              </div>
               <div *ngFor="let ann of announcementPreviews"
                    class="notification-item notification-item-announcement"
                    (click)="openAnnouncementFromBell(ann, $event)"
@@ -73,12 +81,18 @@ import { runtimeConfig } from '../../core/config/runtime-config';
                   {{ ann.title }}
                 </h5>
                 <p>{{ ann.preview }}</p>
-                <div class="time">{{ getTimeAgo(ann.createdAt || '') }}</div>
+                <div class="time">{{ timeAgo(ann.createdAt || '') }}</div>
               </div>
-              <a *ngIf="!isSuperAdmin && announcementPreviews.length" routerLink="/app/inbox" class="notification-see-all" (click)="showNotifications = false">All announcements →</a>
+              <a *ngIf="!isSuperAdmin && announcementPreviews.length" routerLink="/app/inbox" class="notification-see-all" (click)="showNotifications = false">
+                {{ 'header.bell.allAnnouncements' | translate }}
+              </a>
 
-              <div *ngIf="notifications.length && isSuperAdmin" class="notification-section-label">Platform alerts</div>
-              <div *ngIf="notifications.length && !isSuperAdmin" class="notification-section-label">Your notifications</div>
+              <div *ngIf="notifications.length && isSuperAdmin" class="notification-section-label">
+                {{ 'header.bell.platformAlerts' | translate }}
+              </div>
+              <div *ngIf="notifications.length && !isSuperAdmin" class="notification-section-label">
+                {{ 'header.bell.yourNotifications' | translate }}
+              </div>
               <div *ngFor="let n of notifications"
                    class="notification-item"
                    [class.unread]="!n.read"
@@ -90,13 +104,13 @@ import { runtimeConfig } from '../../core/config/runtime-config';
                   {{ n.title }}
                 </h5>
                 <p>{{ n.message }}</p>
-                <div class="time">{{ getTimeAgo(n.createdAt) }}</div>
+                <div class="time">{{ timeAgo(n.createdAt) }}</div>
               </div>
               <div
                 *ngIf="notificationDropdownEmpty"
                 class="empty-state"
                 style="padding: 24px;">
-                <p>No notifications</p>
+                <p>{{ 'header.bell.none' | translate }}</p>
               </div>
             </div>
           </div>
@@ -107,41 +121,57 @@ import { runtimeConfig } from '../../core/config/runtime-config';
             <img *ngIf="avatarUrl" [src]="avatarUrl" alt="" class="profile-avatar profile-avatar-img" />
             <div class="profile-info">
               <div class="profile-name">{{ userName }}</div>
-              <div class="profile-role">{{ roleDisplayLabel }}</div>
+              <div class="profile-role">{{ roleDisplayLabelKey | translate }}</div>
             </div>
             <i class="bi bi-chevron-down" style="font-size: 12px; color: var(--clr-text-muted);"></i>
           </button>
           <div class="profile-dropdown" *ngIf="showProfile" data-testid="profile-dropdown">
             <div class="profile-summary-card" *ngIf="profileSummary && !isSuperAdmin">
               <div class="profile-summary-school">{{ profileSummary.schoolName }}</div>
-              <div class="profile-summary-title">{{ profileSummary.userTitle || userRole }}</div>
+              <div class="profile-summary-title">{{ profileSummary.userTitle || (roleDisplayLabelKey | translate) }}</div>
               <div class="profile-summary-meta">{{ profileSummary.schoolCode }} · {{ profileSummary.email }}</div>
               <div class="profile-summary-stats">
-                <span *ngIf="profileSummary.managedStudentCount">Students {{ profileSummary.managedStudentCount }}</span>
-                <span *ngIf="profileSummary.managedTeacherCount">Teachers {{ profileSummary.managedTeacherCount }}</span>
-                <span *ngIf="profileSummary.childCount">Children {{ profileSummary.childCount }}</span>
-                <span *ngIf="profileSummary.subjectCount">Subjects {{ profileSummary.subjectCount }}</span>
+                <span *ngIf="profileSummary.managedStudentCount != null">
+                  {{ 'header.stats.students' | translate: { count: profileSummary.managedStudentCount } }}
+                </span>
+                <span *ngIf="profileSummary.managedTeacherCount != null">
+                  {{ 'header.stats.teachers' | translate: { count: profileSummary.managedTeacherCount } }}
+                </span>
+                <span *ngIf="profileSummary.childCount != null">
+                  {{ 'header.stats.children' | translate: { count: profileSummary.childCount } }}
+                </span>
+                <span *ngIf="profileSummary.subjectCount != null">
+                  {{ 'header.stats.subjects' | translate: { count: profileSummary.subjectCount } }}
+                </span>
               </div>
             </div>
             <div class="profile-summary-card" *ngIf="profileSummary && isSuperAdmin">
-              <div class="profile-summary-school" style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--clr-text-muted);">Platform operator</div>
+              <div class="profile-summary-school" style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--clr-text-muted);">
+                {{ 'header.super.platformOperator' | translate }}
+              </div>
               <div class="profile-summary-title">{{ profileSummary.name }}</div>
-              <div class="profile-summary-meta">{{ profileSummary.userTitle || 'Platform super administrator' }}</div>
+              <div class="profile-summary-meta">
+                {{ profileSummary.userTitle || ('header.super.defaultTitle' | translate) }}
+              </div>
               <div class="profile-summary-meta mt-1" style="font-size: 12px;">{{ profileSummary.email }}</div>
               <div class="profile-summary-stats mt-2" *ngIf="profileSummary.platformWorkspaceCount != null">
-                <span>Active workspaces {{ profileSummary.platformWorkspaceCount }}</span>
+                <span>{{ 'header.super.activeWorkspaces' | translate: { count: profileSummary.platformWorkspaceCount } }}</span>
               </div>
-              <p class="text-muted mb-0 mt-2" style="font-size: 11px; line-height: 1.4;">You are not scoped to a single school tenant. Use Platform settings for your console preferences.</p>
+              <p class="text-muted mb-0 mt-2" style="font-size: 11px; line-height: 1.4;">
+                {{ 'header.super.scopedHint' | translate }}
+              </p>
             </div>
             <button class="profile-dropdown-item" data-testid="profile-view-btn" (click)="goToSettings()">
-              <i class="bi bi-person"></i> {{ isSuperAdmin ? 'Platform profile' : 'My profile' }}
+              <i class="bi bi-person"></i>
+              {{ (isSuperAdmin ? 'header.menu.platformProfile' : 'header.menu.myProfile') | translate }}
             </button>
             <button class="profile-dropdown-item" (click)="goToSettings()">
-              <i class="bi bi-gear"></i> {{ isSuperAdmin ? 'Platform settings' : 'Settings' }}
+              <i class="bi bi-gear"></i>
+              {{ (isSuperAdmin ? 'header.menu.platformSettings' : 'header.menu.settings') | translate }}
             </button>
             <div class="profile-dropdown-divider"></div>
             <button class="profile-dropdown-item danger" (click)="logout()" data-testid="logout-btn">
-              <i class="bi bi-box-arrow-right"></i> Logout
+              <i class="bi bi-box-arrow-right"></i> {{ 'header.menu.logout' | translate }}
             </button>
           </div>
         </div>
@@ -155,7 +185,7 @@ export class HeaderComponent implements OnInit, OnDestroy {
 
   private readonly destroy$ = new Subject<void>();
 
-  pageTitle = 'Dashboard';
+  pageTitleKey = 'header.title.dashboard';
   showNotifications = false;
   showProfile = false;
   userName = '';
@@ -171,19 +201,34 @@ export class HeaderComponent implements OnInit, OnDestroy {
 
   avatarUrl: string | null = null;
 
-  /** Bell dropdown: nothing to show in the scrollable list (health blocks are separate for super admin). */
+  get themeAriaLabel(): string {
+    return this.translate.instant(
+      this.currentTheme === 'light' ? 'header.theme.switchDark' : 'header.theme.switchLight'
+    );
+  }
+
+  /** ngx-translate key for the subtitle under the user name. */
+  get roleDisplayLabelKey(): string {
+    let r = (this.userRole || '').toLowerCase().trim();
+    if (r.startsWith('role_')) {
+      r = r.slice(5);
+    }
+    const map: Record<string, string> = {
+      admin: 'header.role.admin',
+      super_admin: 'header.role.superAdmin',
+      teacher: 'header.role.teacher',
+      parent: 'header.role.parent',
+      student: 'header.role.student',
+      library_staff: 'header.role.libraryStaff',
+    };
+    return map[r] || 'header.role.user';
+  }
+
   get notificationDropdownEmpty(): boolean {
     if (this.isSuperAdmin) {
       return this.notifications.length === 0 && this.platformHealthItems.length === 0;
     }
     return this.notifications.length === 0 && this.announcementPreviews.length === 0;
-  }
-
-  get roleDisplayLabel(): string {
-    const r = (this.userRole || '').toLowerCase().replace(/_/g, ' ');
-    if (r === 'super admin') return 'Platform super administrator';
-    if (r === 'library staff') return 'Library staff';
-    return r.replace(/\b\w/g, c => c.toUpperCase()) || this.userRole;
   }
 
   constructor(
@@ -192,7 +237,8 @@ export class HeaderComponent implements OnInit, OnDestroy {
     private communicationService: CommunicationService,
     private platformHealthService: PlatformHealthService,
     private router: Router,
-    private themeService: ThemeService
+    private themeService: ThemeService,
+    private translate: TranslateService
   ) {}
 
   ngOnInit(): void {
@@ -214,11 +260,11 @@ export class HeaderComponent implements OnInit, OnDestroy {
       this.notificationService.refreshFromServer().subscribe({ error: () => { /* not logged in or API down */ } });
     }
     const syncHeaderIdentity = (): void => {
-      const user = this.authService.getCurrentUser();
+      const u = this.authService.getCurrentUser();
       const s = this.profileSummary;
-      const displayName = s?.name || user?.name || '';
+      const displayName = s?.name || u?.name || '';
       this.userName = displayName;
-      this.userRole = (s?.role as string) || user?.role || this.userRole;
+      this.userRole = (s?.role as string) || u?.role || this.userRole;
       this.initials = displayName
         .split(/\s+/)
         .filter(Boolean)
@@ -237,7 +283,7 @@ export class HeaderComponent implements OnInit, OnDestroy {
     this.authService.profileAvatarChanged$.pipe(takeUntil(this.destroy$)).subscribe(() => syncHeaderIdentity());
     this.authService.currentUser$.pipe(takeUntil(this.destroy$)).subscribe(() => syncHeaderIdentity());
     this.authService.fetchProfileSummary().subscribe();
-    this.themeService.theme$.subscribe(theme => this.currentTheme = theme);
+    this.themeService.theme$.subscribe(theme => (this.currentTheme = theme));
 
     syncHeaderIdentity();
 
@@ -259,10 +305,7 @@ export class HeaderComponent implements OnInit, OnDestroy {
           }
         });
     } else {
-      merge(
-        of(null),
-        this.router.events.pipe(filter(e => e instanceof NavigationEnd))
-      )
+      merge(of(null), this.router.events.pipe(filter(e => e instanceof NavigationEnd)))
         .pipe(
           debounceTime(450),
           switchMap(() => this.communicationService.getAnnouncementPreviews()),
@@ -283,10 +326,10 @@ export class HeaderComponent implements OnInit, OnDestroy {
       .pipe(filter(e => e instanceof NavigationEnd), takeUntil(this.destroy$))
       .subscribe((e) => {
         const url = (e as NavigationEnd).urlAfterRedirects;
-        this.pageTitle = this.getTitleFromUrl(url);
+        this.pageTitleKey = this.getTitleKeyFromUrl(url);
       });
 
-    this.pageTitle = this.getTitleFromUrl(this.router.url);
+    this.pageTitleKey = this.getTitleKeyFromUrl(this.router.url);
   }
 
   ngOnDestroy(): void {
@@ -294,45 +337,63 @@ export class HeaderComponent implements OnInit, OnDestroy {
     this.destroy$.complete();
   }
 
-  private getTitleFromUrl(url: string): string {
+  private getTitleKeyFromUrl(url: string): string {
     const map: Record<string, string> = {
-      dashboard: 'Dashboard',
-      students: 'Students',
-      teachers: 'Teachers',
-      academic: 'Academic',
-      attendance: 'Attendance',
-      timetable: 'Timetable',
-      exams: 'Exams',
-      fees: 'Fees',
-      chat: 'Messages',
-      inbox: 'Announcements',
-      communication: 'Announcements',
-      leave: 'Leave',
-      reports: 'Reports',
-      directory: 'Directory',
-      operations: 'Operations hub',
-      transport: 'Transport',
-      library: 'Library',
-      hostel: 'Hostel',
-      payroll: 'Payroll',
-      documents: 'Documents',
-      audit: 'Audit Log',
-      settings: 'Settings',
-      parent: 'Parent portal',
-      'super-admin': 'Super admin',
-      'platform-health': 'System health',
-      'platform-schools': 'School directory',
-      'platform-subscriptions': 'Subscription plans',
-      'platform-broadcasts': 'Admin broadcasts',
-      'platform-settings': 'Platform settings'
+      dashboard: 'header.title.dashboard',
+      students: 'header.title.students',
+      teachers: 'header.title.teachers',
+      academic: 'header.title.academic',
+      attendance: 'header.title.attendance',
+      timetable: 'header.title.timetable',
+      exams: 'header.title.exams',
+      fees: 'header.title.fees',
+      chat: 'header.title.messages',
+      inbox: 'header.title.announcements',
+      communication: 'header.title.announcements',
+      leave: 'header.title.leave',
+      reports: 'header.title.reports',
+      directory: 'header.title.directory',
+      operations: 'header.title.operationsHub',
+      transport: 'header.title.transport',
+      library: 'header.title.library',
+      hostel: 'header.title.hostel',
+      payroll: 'header.title.payroll',
+      documents: 'header.title.documents',
+      audit: 'header.title.auditLog',
+      settings: 'header.title.settings',
+      parent: 'header.title.parentPortal',
+      'super-admin': 'header.title.superAdmin',
+      'platform-health': 'header.title.systemHealth',
+      'platform-schools': 'header.title.schoolDirectory',
+      'platform-subscriptions': 'header.title.subscriptionPlans',
+      'platform-broadcasts': 'header.title.adminBroadcasts',
+      'platform-settings': 'header.title.platformSettings',
+      'import-export': 'header.title.importExport',
     };
     const parts = url.split('/').filter(Boolean);
     const appIdx = parts.indexOf('app');
     const first = appIdx >= 0 ? parts[appIdx + 1] : parts[0];
-    if (first === 'announcement') return 'Notice';
-    if (first === 'notification') return 'Notification';
+    if (first === 'announcement') return 'header.title.notice';
+    if (first === 'notification') return 'header.title.notificationDetail';
     const seg = first || 'dashboard';
-    return map[seg] || seg.charAt(0).toUpperCase() + seg.slice(1);
+    return map[seg] || 'header.title.fallback';
+  }
+
+  timeAgo(dateStr: string): string {
+    const t = new Date(dateStr).getTime();
+    if (Number.isNaN(t)) {
+      return '';
+    }
+    const diff = Date.now() - t;
+    const mins = Math.floor(diff / 60000);
+    if (mins < 60) {
+      return this.translate.instant('header.time.minutesAgo', { n: Math.max(0, mins) });
+    }
+    const hours = Math.floor(mins / 60);
+    if (hours < 24) {
+      return this.translate.instant('header.time.hoursAgo', { n: hours });
+    }
+    return this.translate.instant('header.time.daysAgo', { n: Math.floor(hours / 24) });
   }
 
   toggleNotifications(): void {
@@ -396,21 +457,22 @@ export class HeaderComponent implements OnInit, OnDestroy {
   }
 
   getNotifIcon(type: string): string {
-    const icons: Record<string, string> = { info: 'bi-info-circle-fill', warning: 'bi-exclamation-triangle-fill', success: 'bi-check-circle-fill', error: 'bi-x-circle-fill' };
+    const icons: Record<string, string> = {
+      info: 'bi-info-circle-fill',
+      warning: 'bi-exclamation-triangle-fill',
+      success: 'bi-check-circle-fill',
+      error: 'bi-x-circle-fill'
+    };
     return icons[type] || 'bi-info-circle-fill';
   }
 
   getNotifColor(type: string): string {
-    const colors: Record<string, string> = { info: 'var(--clr-info)', warning: 'var(--clr-warning)', success: 'var(--clr-success)', error: 'var(--clr-danger)' };
+    const colors: Record<string, string> = {
+      info: 'var(--clr-info)',
+      warning: 'var(--clr-warning)',
+      success: 'var(--clr-success)',
+      error: 'var(--clr-danger)'
+    };
     return colors[type] || 'var(--clr-info)';
-  }
-
-  getTimeAgo(dateStr: string): string {
-    const diff = Date.now() - new Date(dateStr).getTime();
-    const mins = Math.floor(diff / 60000);
-    if (mins < 60) return mins + 'm ago';
-    const hours = Math.floor(mins / 60);
-    if (hours < 24) return hours + 'h ago';
-    return Math.floor(hours / 24) + 'd ago';
   }
 }

@@ -14,8 +14,10 @@ import com.school.erp.modules.auth.repository.UserRepository;
 import com.school.erp.modules.guardian.service.GuardianService;
 import com.school.erp.modules.notification.service.NotificationOutboxService;
 import com.school.erp.modules.reminder.service.FeeReminderAutomationService;
+import com.school.erp.events.domain.FeePaymentRecordedEvent;
 import com.school.erp.modules.student.entity.Student;
 import com.school.erp.modules.student.repository.StudentRepository;
+import com.school.erp.platform.port.DomainEventPublisher;
 import com.school.erp.tenant.TenantContext;
 import com.school.erp.tenant.TenantQueryPolicy;
 import org.springframework.beans.factory.annotation.Value;
@@ -23,6 +25,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
@@ -55,6 +58,7 @@ public class FeeService {
     private final UserRepository userRepository;
     private final FeeReminderAutomationService feeReminderAutomationService;
     private final SectionRepository sectionRepository;
+    private final DomainEventPublisher domainEventPublisher;
 
     @Value("${app.payments.razorpay.key:}")
     private String razorpayPublishableKeyId;
@@ -197,6 +201,15 @@ public class FeeService {
             feeReminderAutomationService.onFeeAssigned(t, payment);
         }
         log.info("Payment recorded: student={} amount={} status={}", payment.getStudentId(), req.getPaymentAmount(), payment.getStatus());
+        domainEventPublisher.publish(new FeePaymentRecordedEvent(
+                t,
+                payment.getId(),
+                payment.getStudentId(),
+                payment.getStudentName(),
+                req.getPaymentAmount(),
+                payment.getStatus() != null ? payment.getStatus().name() : "UNKNOWN",
+                payment.getReceiptNumber(),
+                Instant.now()));
         return toPaymentResponse(payment);
     }
 
@@ -727,7 +740,8 @@ public class FeeService {
             final NotificationOutboxService notificationOutboxService,
             final UserRepository userRepository,
             final FeeReminderAutomationService feeReminderAutomationService,
-            final SectionRepository sectionRepository) {
+            final SectionRepository sectionRepository,
+            final DomainEventPublisher domainEventPublisher) {
         this.structureRepo = structureRepo;
         this.componentRepo = componentRepo;
         this.paymentRepo = paymentRepo;
@@ -739,5 +753,6 @@ public class FeeService {
         this.userRepository = userRepository;
         this.feeReminderAutomationService = feeReminderAutomationService;
         this.sectionRepository = sectionRepository;
+        this.domainEventPublisher = domainEventPublisher;
     }
 }

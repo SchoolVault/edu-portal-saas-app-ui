@@ -50,6 +50,8 @@ spring:
     enabled: ${FLYWAY_ENABLED:true}
     locations: ${FLYWAY_LOCATIONS:classpath:db/migration}
     baseline-on-migrate: ${FLYWAY_BASELINE_ON_MIGRATE:true}
+    # Fail migrate when applied scripts were changed or DB is ahead/behind in an invalid way
+    validate-on-migrate: ${FLYWAY_VALIDATE_ON_MIGRATE:true}
     # Runs Flyway repair before migrate (clears failed entries in flyway_schema_history).
     # Safe only after you have removed partial objects from the failed migration (e.g. dropped all app tables or recreated the DB).
     # See deploy/render.env.example — do not leave true permanently in production.
@@ -84,9 +86,75 @@ spring:
       write-dates-as-timestamps: false
     default-property-inclusion: non_null
 
+resilience4j:
+  circuitbreaker:
+    configs:
+      default:
+        registerHealthIndicator: true
+        slidingWindowType: COUNT_BASED
+        slidingWindowSize: 20
+        failureRateThreshold: 50
+        waitDurationInOpenState: 30s
+        permittedNumberOfCallsInHalfOpenState: 5
+    instances:
+      paymentGateway:
+        baseConfig: default
+      emailProvider:
+        baseConfig: default
+      partnerWebhook:
+        baseConfig: default
+  retry:
+    configs:
+      default:
+        maxAttempts: 2
+        waitDuration: 200ms
+    instances:
+      paymentGateway:
+        baseConfig: default
+      emailProvider:
+        baseConfig: default
+      partnerWebhook:
+        baseConfig: default
+
 app:
+  integration:
+    # Optional HTTP hooks for domain-event side effects (empty = no outbound calls).
+    email:
+      trigger-url: ${APP_INTEGRATION_EMAIL_TRIGGER_URL:}
+    webhook:
+      url: ${APP_INTEGRATION_WEBHOOK_URL:}
+
   demo-seed:
     enabled: ${DEMO_SEED_ENABLED:false}
+
+  # Read replica JDBC URL — leave empty to disable routing (single primary only).
+  datasource:
+    slow-query:
+      # Dev/staging: log SQL slower than threshold. Prod: enable only when diagnosing (adds proxy overhead).
+      enabled: ${APP_DATASOURCE_SLOW_QUERY_ENABLED:false}
+      threshold-ms: ${APP_DATASOURCE_SLOW_QUERY_THRESHOLD_MS:1000}
+    read:
+      url: ${READ_DATASOURCE_URL:}
+      username: ${READ_DB_USERNAME:}
+      password: ${READ_DB_PASSWORD:}
+      driver-class-name: ${READ_DB_DRIVER:}
+      hikari:
+        maximum-pool-size: ${READ_DB_POOL_MAX:10}
+        minimum-idle: ${READ_DB_POOL_MIN_IDLE:2}
+
+  flyway:
+    policy:
+      # After startup migrate, fail if any migration is FAILED or still PENDING (belt-and-suspenders).
+      fail-on-pending: ${APP_FLYWAY_FAIL_ON_PENDING:true}
+
+  idempotency:
+    enabled: ${APP_IDEMPOTENCY_ENABLED:true}
+    fail-open-on-redis-error: ${APP_IDEMPOTENCY_FAIL_OPEN:true}
+    response-ttl-seconds: ${APP_IDEMPOTENCY_RESPONSE_TTL:86400}
+    lock-ttl-seconds: ${APP_IDEMPOTENCY_LOCK_TTL:120}
+    max-body-bytes: ${APP_IDEMPOTENCY_MAX_BODY:262144}
+    max-key-length: ${APP_IDEMPOTENCY_MAX_KEY_LEN:128}
+
   # Redis keys for non-cache use (rate limits). Align with spring.cache.redis.key-prefix for one logical app namespace.
   redis:
     key-namespace: ${REDIS_KEY_NAMESPACE:sv}
@@ -96,6 +164,10 @@ app:
       transport-routes: ${CACHE_TTL_TRANSPORT_ROUTES:15m}
       announcement-previews: ${CACHE_TTL_ANNOUNCEMENT_PREVIEWS:90s}
       payroll-structures: ${CACHE_TTL_PAYROLL_STRUCTURES:10m}
+      reference-data: ${CACHE_TTL_REFERENCE_DATA:1h}
+      permissions: ${CACHE_TTL_PERMISSIONS:15m}
+      tenant-config: ${CACHE_TTL_TENANT_CONFIG:10m}
+      report-results: ${CACHE_TTL_REPORT_RESULTS:5m}
   jwt:
     secret: ${JWT_SECRET:c2Nob29sLWVycC1zZWNyZXQta2V5LWZvci1qd3QtdG9rZW4tZ2VuZXJhdGlvbi0yMDI2}
     expiration-ms: ${JWT_EXPIRATION_MS:86400000}

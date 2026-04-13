@@ -45,6 +45,15 @@ public class CacheConfig {
     /** Salary structure grid — evicted when structures change. */
     public static final String PAYROLL_STRUCTURES = "payrollStructures";
 
+    /** Shared catalogs (countries, static lookups) — long TTL; explicit evict on admin edits. */
+    public static final String REFERENCE_DATA = "referenceData";
+    /** Role / permission matrices per tenant. */
+    public static final String PERMISSIONS = "permissions";
+    /** Feature flags, theme, school branding JSON. */
+    public static final String TENANT_CONFIG = "tenantConfig";
+    /** Heavy report snapshots (optional L1 Caffeine in front later). */
+    public static final String REPORT_RESULTS = "reportResults";
+
     @Bean
     public CacheManager cacheManager(
             RedisConnectionFactory connectionFactory,
@@ -68,6 +77,10 @@ public class CacheConfig {
         perCache.put(TRANSPORT_ROUTES, base.entryTtl(ttlProps.getTransportRoutes()));
         perCache.put(ANNOUNCEMENT_PREVIEWS, base.entryTtl(ttlProps.getAnnouncementPreviews()));
         perCache.put(PAYROLL_STRUCTURES, base.entryTtl(ttlProps.getPayrollStructures()));
+        perCache.put(REFERENCE_DATA, base.entryTtl(ttlProps.getReferenceData()));
+        perCache.put(PERMISSIONS, base.entryTtl(ttlProps.getPermissions()));
+        perCache.put(TENANT_CONFIG, base.entryTtl(ttlProps.getTenantConfig()));
+        perCache.put(REPORT_RESULTS, base.entryTtl(ttlProps.getReportResults()));
 
         return RedisCacheManager.builder(connectionFactory)
                 .cacheDefaults(base.entryTtl(ttlProps.getDefaultTtl()))

@@ -568,6 +568,8 @@ public class TeacherDTOs {
         private String tenantId;
         private Long userId;
         private String libraryStaffRole;
+        /** School class names where this teacher is homeroom / class teacher ({@code school_classes.class_teacher_id}). */
+        private java.util.List<String> homeroomClassNames;
 
 
         public static class ResponseBuilder {
@@ -826,6 +828,14 @@ public class TeacherDTOs {
             this.libraryStaffRole = libraryStaffRole;
         }
 
+        public java.util.List<String> getHomeroomClassNames() {
+            return this.homeroomClassNames;
+        }
+
+        public void setHomeroomClassNames(final java.util.List<String> homeroomClassNames) {
+            this.homeroomClassNames = homeroomClassNames;
+        }
+
         @Override
         public boolean equals(final Object o) {
             if (o == this) return true;
@@ -871,6 +881,9 @@ public class TeacherDTOs {
             final Object this$tenantId = this.getTenantId();
             final Object other$tenantId = other.getTenantId();
             if (this$tenantId == null ? other$tenantId != null : !this$tenantId.equals(other$tenantId)) return false;
+            final Object this$homeroomClassNames = this.getHomeroomClassNames();
+            final Object other$homeroomClassNames = other.getHomeroomClassNames();
+            if (this$homeroomClassNames == null ? other$homeroomClassNames != null : !this$homeroomClassNames.equals(other$homeroomClassNames)) return false;
             return true;
         }
 
@@ -908,12 +921,14 @@ public class TeacherDTOs {
             result = result * PRIME + ($avatar == null ? 43 : $avatar.hashCode());
             final Object $tenantId = this.getTenantId();
             result = result * PRIME + ($tenantId == null ? 43 : $tenantId.hashCode());
+            final Object $homeroomClassNames = this.getHomeroomClassNames();
+            result = result * PRIME + ($homeroomClassNames == null ? 43 : $homeroomClassNames.hashCode());
             return result;
         }
 
         @Override
         public String toString() {
-            return "TeacherDTOs.Response(id=" + this.getId() + ", firstName=" + this.getFirstName() + ", lastName=" + this.getLastName() + ", email=" + this.getEmail() + ", phone=" + this.getPhone() + ", qualification=" + this.getQualification() + ", specialization=" + this.getSpecialization() + ", joinDate=" + this.getJoinDate() + ", salary=" + this.getSalary() + ", status=" + this.getStatus() + ", subjects=" + this.getSubjects() + ", avatar=" + this.getAvatar() + ", tenantId=" + this.getTenantId() + ")";
+            return "TeacherDTOs.Response(id=" + this.getId() + ", firstName=" + this.getFirstName() + ", lastName=" + this.getLastName() + ", email=" + this.getEmail() + ", phone=" + this.getPhone() + ", qualification=" + this.getQualification() + ", specialization=" + this.getSpecialization() + ", joinDate=" + this.getJoinDate() + ", salary=" + this.getSalary() + ", status=" + this.getStatus() + ", subjects=" + this.getSubjects() + ", avatar=" + this.getAvatar() + ", tenantId=" + this.getTenantId() + ", homeroomClassNames=" + this.getHomeroomClassNames() + ")";
         }
 
         public Response() {
