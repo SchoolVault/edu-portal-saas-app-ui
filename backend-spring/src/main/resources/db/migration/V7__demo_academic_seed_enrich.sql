@@ -1,5 +1,5 @@
--- Squashed Flyway baseline (part 7/10): demo_academic_seed_enrich
--- Built by scripts/build_squashed_flyway_migrations.py — do not edit by hand; regenerate from legacy migrations.
+-- Flyway baseline (part 7/10): demo_academic_seed_enrich
+-- Regenerate from legacy scripts: backend-spring/scripts/build_squashed_flyway_migrations.py
 
 -- >>> Legacy V23: V23__fix_seed_password_bcrypt.sql
 -- Replace incorrect legacy bcrypt (documented as admin123 but never matched Spring BCryptPasswordEncoder).

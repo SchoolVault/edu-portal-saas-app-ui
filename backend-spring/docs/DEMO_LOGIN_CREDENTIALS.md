@@ -20,6 +20,8 @@ Related: [DEMO_SHOWCASE_TENANT.md](./DEMO_SHOWCASE_TENANT.md) (how to run the se
 
 **Password for every user below:** `admin123`
 
+Seeding fills **most** domain tables used by the ERP (academics, fees, transport, hostel, library, payroll, chat, import jobs, operations extensions, etc.). It does **not** pre-populate purely **runtime** tables (e.g. **`refresh_tokens`**) or **platform purge** jobs. After each deploy, run the **one-time** profile described in [DEMO_SHOWCASE_TENANT.md](./DEMO_SHOWCASE_TENANT.md), then return to **`prod`** only.
+
 ### Platform
 
 | Role | Email | School code |
@@ -59,9 +61,9 @@ Related: [DEMO_SHOWCASE_TENANT.md](./DEMO_SHOWCASE_TENANT.md) (how to run the se
 
 ---
 
-## Default tenant `t1` (Flyway V2)
+## Default tenant `t1` (Flyway baseline seed)
 
-Inserted by `db/migration/V2__seed_data.sql`. **Password for all:** `admin123`
+Inserted by **`V1__core_init_seed.sql`** (users + `tenant_configs` + default admin rows). **Password for all:** `admin123`
 
 | Role | Email | School code | Tenant ID (DB) |
 |------|-------|-------------|----------------|
@@ -69,7 +71,9 @@ Inserted by `db/migration/V2__seed_data.sql`. **Password for all:** `admin123`
 | TEACHER | `teacher@school.com` | `SCH001` | `t1` |
 | PARENT | `parent@school.com` | `SCH001` | `t1` |
 
-Additional demo rows for `t1` (class, student Emma Chen, etc.) may be applied by later migrations such as `V26__demo_tenant_academic_seed.sql`.
+Extra **`t1`** academics (classes, Emma Chen, timetable samples, etc.) come from later baseline scripts (e.g. **`V8__outbox_import_demo_jobs.sql`** and related demo inserts), not from the showcase Java seed.
+
+**Showcase vs `t1`:** St. Xavier / Meridian are **only** created when you run the app with **`demo-seed`** (or **`prod-with-demo-seed`**) and **`app.demo-seed.enabled=true`**. Flyway alone does **not** insert those orgs.
 
 ---
 

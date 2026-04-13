@@ -8,4 +8,6 @@ import java.util.List;
 public interface AcademicSubjectRepository extends JpaRepository<AcademicSubject, Long> {
 
     List<AcademicSubject> findByTenantIdAndIsDeletedFalseOrderBySortOrderAscNameAsc(String tenantId);
+
+    boolean existsByTenantIdAndNameAndIsDeletedFalse(String tenantId, String name);
 }

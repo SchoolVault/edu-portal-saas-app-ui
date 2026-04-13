@@ -4,6 +4,7 @@
 
 - **Flyway** creates the schema (all migrations). **Java seed** fills realistic rows for sales/E2E demos.
 - **`DemoDataSeedService`** (core): two showcase schools, platform **SUPER_ADMIN**, academics, fees, attendance, timetable, exams, transport, hostel, library, payroll, documents, audit, leave, chat, communications, guardians, fee payment attempts.
+- **Supplementary pass** (same service, idempotent): **`academic_subjects`** catalog rows, **`notification_outbox`** (EMAIL / WHATSAPP / IN_APP + one **SENT** SMS row), **Meridian `payslips`** (October 2026 **GENERATED**) + **`salary_disbursement_attempts`**, St. Xavier archived **salary disbursement** on an existing **PAID** payslip, **`payment_webhook_events`** (Razorpay demo row per tenant).
 - **`DemoExtendedTablesSeed`** (modular add-on): operations (**inventory**, **operational staff**, **gate passes**, **visitor logs**, **fee reminder queue**), **attendance cover** assignments — idempotent per tenant via an inventory marker SKU.
 
 New or rarely used domain tables can follow the same pattern: add a small `@Service` under `com.school.erp.bootstrap.demo` and invoke it from `DemoDataSeedService.seedIfNeeded()`.

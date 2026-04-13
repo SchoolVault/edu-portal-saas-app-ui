@@ -1,5 +1,5 @@
--- Squashed Flyway baseline (part 9/10): salary_outbox_payment_webhook
--- Built by scripts/build_squashed_flyway_migrations.py — do not edit by hand; regenerate from legacy migrations.
+-- Flyway baseline (part 9/10): salary_outbox_payment_webhook
+-- Regenerate from legacy scripts: backend-spring/scripts/build_squashed_flyway_migrations.py
 
 -- >>> Legacy V29: V29__import_export_jobs.sql
 -- Async bulk import jobs (ZIP/CSV) with per-row outcomes for admin retry and auditing.

@@ -8,4 +8,6 @@ import java.util.List;
 public interface SalaryDisbursementAttemptRepository extends JpaRepository<SalaryDisbursementAttempt, Long> {
 
     List<SalaryDisbursementAttempt> findByTenantIdAndIsDeletedFalseOrderByCreatedAtDesc(String tenantId);
+
+    boolean existsByTenantIdAndReferenceIdAndIsDeletedFalse(String tenantId, String referenceId);
 }

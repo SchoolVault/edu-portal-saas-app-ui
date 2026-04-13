@@ -1,5 +1,5 @@
--- Squashed Flyway baseline (part 8/10): outbox_import_demo_jobs
--- Built by scripts/build_squashed_flyway_migrations.py — do not edit by hand; regenerate from legacy migrations.
+-- Flyway baseline (part 8/10): outbox_import_demo_jobs
+-- Regenerate from legacy scripts: backend-spring/scripts/build_squashed_flyway_migrations.py
 
 -- >>> Legacy V26: V26__demo_tenant_academic_seed.sql
 -- Showcase / sales demo data for default tenant t1: one class, section, teacher row linked to Sarah's login, one student linked to parent user.

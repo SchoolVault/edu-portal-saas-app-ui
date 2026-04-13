@@ -1,5 +1,5 @@
--- Squashed Flyway baseline (part 10/10): fee_attempt_indexes
--- Built by scripts/build_squashed_flyway_migrations.py — do not edit by hand; regenerate from legacy migrations.
+-- Flyway baseline (part 10/10): fee_attempt_indexes
+-- Regenerate from legacy scripts: backend-spring/scripts/build_squashed_flyway_migrations.py
 
 -- >>> Legacy V32: V32__outbox_salary_audit_columns.sql
 -- Align notification_outbox and salary_disbursement_attempts with BaseEntity (created_by, updated_by).

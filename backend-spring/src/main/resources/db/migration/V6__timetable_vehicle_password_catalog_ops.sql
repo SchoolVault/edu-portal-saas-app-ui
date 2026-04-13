@@ -1,5 +1,5 @@
--- Squashed Flyway baseline (part 6/10): timetable_vehicle_password_catalog_ops
--- Built by scripts/build_squashed_flyway_migrations.py — do not edit by hand; regenerate from legacy migrations.
+-- Flyway baseline (part 6/10): timetable_vehicle_password_catalog_ops
+-- Regenerate from legacy scripts: backend-spring/scripts/build_squashed_flyway_migrations.py
 
 -- >>> Legacy V20: V20__platform_purge_jobs.sql
 CREATE TABLE platform_tenant_purge_jobs (

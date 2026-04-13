@@ -1,5 +1,5 @@
--- Squashed Flyway baseline (part 1/10): core_init_seed
--- Built by scripts/build_squashed_flyway_migrations.py — do not edit by hand; regenerate from legacy migrations.
+-- Flyway baseline (part 1/10): core_init_seed
+-- Regenerate from legacy scripts: backend-spring/scripts/build_squashed_flyway_migrations.py
 
 -- >>> Legacy V1: V1__init_schema.sql
 -- V1__init_schema.sql - SchoolVault ERP Complete Database Schema

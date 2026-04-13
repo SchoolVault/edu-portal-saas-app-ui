@@ -1,5 +1,5 @@
--- Squashed Flyway baseline (part 2/10): auth_exams_fees_chat
--- Built by scripts/build_squashed_flyway_migrations.py — do not edit by hand; regenerate from legacy migrations.
+-- Flyway baseline (part 2/10): auth_exams_fees_chat
+-- Regenerate from legacy scripts: backend-spring/scripts/build_squashed_flyway_migrations.py
 
 -- >>> Legacy V5: V5__exam_class_scope.sql
 CREATE TABLE IF NOT EXISTS exam_classes (

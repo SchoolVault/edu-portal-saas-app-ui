@@ -1,5 +1,5 @@
--- Squashed Flyway baseline (part 5/10): exams_roles_platform_jobs
--- Built by scripts/build_squashed_flyway_migrations.py — do not edit by hand; regenerate from legacy migrations.
+-- Flyway baseline (part 5/10): exams_roles_platform_jobs
+-- Regenerate from legacy scripts: backend-spring/scripts/build_squashed_flyway_migrations.py
 
 -- >>> Legacy V17: V17__transport_fleet_and_live_location.sql
 CREATE TABLE transport_vehicles (

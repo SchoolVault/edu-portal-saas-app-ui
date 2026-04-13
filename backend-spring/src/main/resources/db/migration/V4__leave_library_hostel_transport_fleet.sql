@@ -1,5 +1,5 @@
--- Squashed Flyway baseline (part 4/10): leave_library_hostel_transport_fleet
--- Built by scripts/build_squashed_flyway_migrations.py — do not edit by hand; regenerate from legacy migrations.
+-- Flyway baseline (part 4/10): leave_library_hostel_transport_fleet
+-- Regenerate from legacy scripts: backend-spring/scripts/build_squashed_flyway_migrations.py
 
 -- >>> Legacy V13: V13__leave_requests.sql
 CREATE TABLE leave_requests (

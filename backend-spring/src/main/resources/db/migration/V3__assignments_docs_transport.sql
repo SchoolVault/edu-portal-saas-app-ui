@@ -1,5 +1,5 @@
--- Squashed Flyway baseline (part 3/10): assignments_docs_transport
--- Built by scripts/build_squashed_flyway_migrations.py — do not edit by hand; regenerate from legacy migrations.
+-- Flyway baseline (part 3/10): assignments_docs_transport
+-- Regenerate from legacy scripts: backend-spring/scripts/build_squashed_flyway_migrations.py
 
 -- >>> Legacy V9: V9__student_guardian_flexibility.sql
 -- Flexible parent/guardian model: many-to-many with role metadata; student extensions for primary contact + dynamic attributes
