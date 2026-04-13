@@ -1,3 +1,7 @@
+-- Squashed Flyway baseline (part 1/10): core_init_seed
+-- Built by scripts/build_squashed_flyway_migrations.py — do not edit by hand; regenerate from legacy migrations.
+
+-- >>> Legacy V1: V1__init_schema.sql
 -- V1__init_schema.sql - SchoolVault ERP Complete Database Schema
 -- Multi-tenant with tenant_id on every table, soft-delete, audit columns
 
@@ -457,4 +461,101 @@ CREATE TABLE tenant_configs (
     is_active BOOLEAN DEFAULT TRUE, is_deleted BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     created_by VARCHAR(100), updated_by VARCHAR(100)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- >>> Legacy V2: V2__seed_data.sql
+-- V2__seed_data.sql - Default admin user and tenant config
+
+-- Default tenant config
+INSERT INTO tenant_configs (tenant_id, school_name, school_code, address, phone, email, primary_color, secondary_color, features_json)
+VALUES ('t1', 'SchoolVault Academy', 'SCH001', '123 Education Lane, Knowledge City', '+1-555-0100', 'info@schoolvault.edu', '#1B3A30', '#C05C3D',
+        '{"transport":true,"library":true,"hostel":true,"payroll":true,"documents":true,"audit":true,"communication":true,"reports":true}');
+
+-- Default admin user (password: admin123 - bcrypt encoded)
+INSERT INTO users (tenant_id, name, email, password, phone, role, school_code)
+VALUES ('t1', 'John Anderson', 'admin@school.com', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', '+1-555-0101', 'ADMIN', 'SCH001');
+
+INSERT INTO users (tenant_id, name, email, password, phone, role, school_code)
+VALUES ('t1', 'Sarah Mitchell', 'teacher@school.com', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', '+1-555-0102', 'TEACHER', 'SCH001');
+
+INSERT INTO users (tenant_id, name, email, password, phone, role, school_code)
+VALUES ('t1', 'Michael Chen', 'parent@school.com', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', '+1-555-0103', 'PARENT', 'SCH001');
+
+-- Academic Year
+INSERT INTO academic_years (tenant_id, name, start_date, end_date, is_current) VALUES ('t1', '2025-2026', '2025-06-01', '2026-05-31', TRUE);
+
+-- >>> Legacy V3: V3__add_missing_tables.sql
+-- V3__add_missing_tables.sql
+
+-- Hostel Allocations
+CREATE TABLE IF NOT EXISTS hostel_allocations (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    tenant_id VARCHAR(50) NOT NULL,
+    room_id BIGINT NOT NULL,
+    room_number VARCHAR(20),
+    student_id BIGINT NOT NULL,
+    student_name VARCHAR(200),
+    from_date DATE,
+    to_date DATE,
+    status VARCHAR(10),
+    is_active BOOLEAN DEFAULT TRUE, is_deleted BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    created_by VARCHAR(100), updated_by VARCHAR(100),
+    INDEX idx_ha_student (tenant_id, student_id),
+    INDEX idx_ha_room (tenant_id, room_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Student Transport Mapping
+CREATE TABLE IF NOT EXISTS student_transport_mapping (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    tenant_id VARCHAR(50) NOT NULL,
+    route_id BIGINT NOT NULL,
+    student_id BIGINT NOT NULL,
+    student_name VARCHAR(200),
+    pickup_stop VARCHAR(100),
+    drop_stop VARCHAR(100),
+    is_active BOOLEAN DEFAULT TRUE, is_deleted BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    created_by VARCHAR(100), updated_by VARCHAR(100),
+    INDEX idx_stm_student (tenant_id, student_id),
+    INDEX idx_stm_route (tenant_id, route_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Messages (Teacher-Parent Chat)
+CREATE TABLE IF NOT EXISTS messages (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    tenant_id VARCHAR(50) NOT NULL,
+    sender_id BIGINT NOT NULL,
+    sender_name VARCHAR(200),
+    sender_role VARCHAR(20),
+    receiver_id BIGINT NOT NULL,
+    receiver_name VARCHAR(200),
+    content TEXT NOT NULL,
+    is_read BOOLEAN DEFAULT FALSE,
+    is_active BOOLEAN DEFAULT TRUE, is_deleted BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    created_by VARCHAR(100), updated_by VARCHAR(100),
+    INDEX idx_msg_sender (tenant_id, sender_id),
+    INDEX idx_msg_receiver (tenant_id, receiver_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- >>> Legacy V4: V4__auth_hardening.sql
+ALTER TABLE tenant_configs
+    ADD CONSTRAINT uk_tenant_configs_school_code UNIQUE (school_code);
+
+CREATE TABLE refresh_tokens (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    tenant_id VARCHAR(50) NOT NULL,
+    user_id BIGINT NOT NULL,
+    token VARCHAR(255) NOT NULL UNIQUE,
+    expires_at TIMESTAMP NOT NULL,
+    revoked_at TIMESTAMP NULL,
+    is_active BOOLEAN DEFAULT TRUE,
+    is_deleted BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    created_by VARCHAR(100),
+    updated_by VARCHAR(100),
+    INDEX idx_rt_user (tenant_id, user_id),
+    INDEX idx_rt_token (token)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

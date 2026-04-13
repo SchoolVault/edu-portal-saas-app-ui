@@ -9,7 +9,15 @@ import org.hibernate.type.SqlTypes;
 import java.time.LocalDate;
 
 @Entity
-@Table(name = "fee_payments", indexes = {@Index(name = "idx_fp_tenant_student", columnList = "tenant_id, student_id"), @Index(name = "idx_fp_status", columnList = "tenant_id, status")})
+@Table(
+        name = "fee_payments",
+        indexes = {
+            @Index(name = "idx_fp_tenant_student", columnList = "tenant_id, student_id"),
+            @Index(name = "idx_fp_status", columnList = "tenant_id, status")
+        },
+        uniqueConstraints = @UniqueConstraint(
+                name = "uq_fee_payment_tenant_receipt",
+                columnNames = {"tenant_id", "receipt_number"}))
 public class FeePayment extends BaseEntity {
     @Column(name = "student_id", nullable = false)
     private Long studentId;
