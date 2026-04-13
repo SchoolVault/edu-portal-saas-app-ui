@@ -53,7 +53,7 @@ import com.school.erp.modules.notification.entity.Notification;
 import com.school.erp.modules.notification.entity.NotificationOutbox;
 import com.school.erp.modules.notification.repository.NotificationOutboxRepository;
 import com.school.erp.modules.notification.repository.NotificationRepository;
-import com.school.erp.modules.notification.service.NotificationOutboxService;
+import com.school.erp.platform.port.NotificationDispatchPort;
 import com.school.erp.modules.payroll.entity.Payslip;
 import com.school.erp.modules.payroll.entity.SalaryComponent;
 import com.school.erp.modules.payroll.entity.SalaryDisbursementAttempt;
@@ -163,7 +163,7 @@ public class DemoDataSeedService {
     private final ImportJobLineRepository importJobLineRepository;
     private final AcademicSubjectRepository academicSubjectRepository;
     private final NotificationOutboxRepository notificationOutboxRepository;
-    private final NotificationOutboxService notificationOutboxService;
+    private final NotificationDispatchPort notificationDispatchPort;
     private final SalaryDisbursementAttemptRepository salaryDisbursementAttemptRepository;
     private final PaymentWebhookEventRepository paymentWebhookEventRepository;
     private final EntityManager entityManager;
@@ -218,7 +218,7 @@ public class DemoDataSeedService {
             ImportJobLineRepository importJobLineRepository,
             AcademicSubjectRepository academicSubjectRepository,
             NotificationOutboxRepository notificationOutboxRepository,
-            NotificationOutboxService notificationOutboxService,
+            NotificationDispatchPort notificationDispatchPort,
             SalaryDisbursementAttemptRepository salaryDisbursementAttemptRepository,
             PaymentWebhookEventRepository paymentWebhookEventRepository,
             EntityManager entityManager,
@@ -271,7 +271,7 @@ public class DemoDataSeedService {
         this.importJobLineRepository = importJobLineRepository;
         this.academicSubjectRepository = academicSubjectRepository;
         this.notificationOutboxRepository = notificationOutboxRepository;
-        this.notificationOutboxService = notificationOutboxService;
+        this.notificationDispatchPort = notificationDispatchPort;
         this.salaryDisbursementAttemptRepository = salaryDisbursementAttemptRepository;
         this.paymentWebhookEventRepository = paymentWebhookEventRepository;
         this.entityManager = entityManager;
@@ -348,7 +348,7 @@ public class DemoDataSeedService {
         if (parent == null) {
             return;
         }
-        notificationOutboxService.enqueue(
+        notificationDispatchPort.enqueue(
                 tenantId,
                 "FEE_REMINDER",
                 "EMAIL",
@@ -358,7 +358,7 @@ public class DemoDataSeedService {
                 "Demo: term fee balance can be cleared via the parent portal.",
                 "demo:v3:fee_email:" + schoolCode,
                 "seed-fee-email");
-        notificationOutboxService.enqueue(
+        notificationDispatchPort.enqueue(
                 tenantId,
                 "FEE_REMINDER",
                 "WHATSAPP",
@@ -368,7 +368,7 @@ public class DemoDataSeedService {
                 "Demo: pay online or visit the accounts office.",
                 "demo:v3:fee_wa:" + schoolCode,
                 "seed-fee-wa");
-        notificationOutboxService.enqueue(
+        notificationDispatchPort.enqueue(
                 tenantId,
                 "FEE_REMINDER",
                 "IN_APP",

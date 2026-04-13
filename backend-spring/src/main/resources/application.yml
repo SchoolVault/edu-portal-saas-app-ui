@@ -64,6 +64,9 @@ spring:
       key-prefix: ${CACHE_REDIS_KEY_PREFIX:sv::}
 
   data:
+    mongodb:
+      # Required when app.chat.message-store=mongo (Atlas SRV: mongodb+srv://user:pass@cluster/...).
+      uri: ${SPRING_DATA_MONGODB_URI:}
     redis:
       # Optional: set env SPRING_DATA_REDIS_URL=rediss://user:pass@host:port (Aiven Valkey). Do not put url: in YAML with an empty default — Boot rejects ''.
       host: ${REDIS_HOST:localhost}
@@ -190,6 +193,41 @@ app:
   internal-jobs:
     # Set APP_INTERNAL_JOB_KEY for POST /api/v1/internal/jobs/reminders/run (Render Cron). Empty = endpoint hidden (404).
     key: ${APP_INTERNAL_JOB_KEY:}
+
+  storage:
+    public-base-url: ${APP_STORAGE_PUBLIC_BASE_URL:http://localhost:8080/api/v1/documents/download/}
+
+  chat:
+    # jpa = MySQL (default). mongo = MongoDB (set spring.data.mongodb.uri and APP_CHAT_MESSAGE_STORE=mongo).
+    message-store: ${APP_CHAT_MESSAGE_STORE:jpa}
+
+  reports:
+    # oltp = JPA (default). warehouse = WarehouseReportQueryAdapter (delegates to OLTP until analytics JDBC is implemented).
+    backend: ${APP_REPORTS_BACKEND:oltp}
+
+  lifecycle:
+    purge:
+      enabled: ${APP_LIFECYCLE_PURGE_ENABLED:false}
+      dry-run: ${APP_LIFECYCLE_PURGE_DRY_RUN:true}
+      retention-days: ${APP_LIFECYCLE_PURGE_RETENTION_DAYS:90}
+      cron: ${APP_LIFECYCLE_PURGE_CRON:0 0 4 * * SUN}
+      # Comma-separated tenant ids (soft-deleted audit/notifications only). Required unless allow-all-tenants=true.
+      tenant-ids: ${APP_LIFECYCLE_PURGE_TENANT_IDS:}
+      # true = if tenant-ids empty, run for every school (NOT full wipe — only soft-delete cleanup). Default false.
+      allow-all-tenants: ${APP_LIFECYCLE_PURGE_ALLOW_ALL_TENANTS:false}
+    archive:
+      enabled: ${APP_LIFECYCLE_ARCHIVE_ENABLED:false}
+      dry-run: ${APP_LIFECYCLE_ARCHIVE_DRY_RUN:true}
+      cron: ${APP_LIFECYCLE_ARCHIVE_CRON:0 30 2 * * SAT}
+
+  analytics:
+    datasource:
+      url: ${APP_ANALYTICS_DATASOURCE_URL:}
+      username: ${APP_ANALYTICS_DATASOURCE_USERNAME:}
+      password: ${APP_ANALYTICS_DATASOURCE_PASSWORD:}
+    etl:
+      enabled: ${APP_ANALYTICS_ETL_ENABLED:false}
+      cron: ${APP_ANALYTICS_ETL_CRON:0 15 1 * * *}
 
   # Key Id = publishable (rzp_test_… / rzp_live_…). Secret = from same "Generate key" pair. Never commit real values.
   # If RAZORPAY_KEY is set to "" in an IDE env block, Spring uses empty string (not the default) — Checkout then gets 401 on preferences.

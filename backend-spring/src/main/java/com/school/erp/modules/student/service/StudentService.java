@@ -7,7 +7,6 @@ import com.school.erp.common.exception.DuplicateResourceException;
 import com.school.erp.common.exception.ResourceNotFoundException;
 import com.school.erp.common.exception.UnauthorizedException;
 import com.school.erp.common.importer.ZipCsvImportUtil;
-import com.school.erp.modules.academic.entity.SchoolClass;
 import com.school.erp.modules.academic.entity.Section;
 import com.school.erp.modules.academic.repository.SchoolClassRepository;
 import com.school.erp.modules.academic.repository.SectionRepository;
@@ -15,7 +14,8 @@ import com.school.erp.events.domain.StudentAdmittedEvent;
 import com.school.erp.events.domain.StudentEnrollmentChangedEvent;
 import com.school.erp.modules.student.dto.StudentDTOs;
 import com.school.erp.modules.student.entity.Student;
-import com.school.erp.modules.student.repository.StudentRepository;
+import com.school.erp.modules.student.mapper.StudentResponseMapper;
+import com.school.erp.modules.student.port.StudentPersistencePort;
 import com.school.erp.platform.port.DomainEventPublisher;
 import com.school.erp.tenant.TenantContext;
 import org.springframework.data.domain.Page;
@@ -38,7 +38,7 @@ import java.util.stream.Collectors;
 @Service
 public class StudentService {
     private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(StudentService.class);
-    private final StudentRepository studentRepository;
+    private final StudentPersistencePort studentPersistence;
     private final SchoolClassRepository schoolClassRepository;
     private final SectionRepository sectionRepository;
     private final TeacherRosterScopeService teacherRosterScopeService;
@@ -59,9 +59,9 @@ public class StudentService {
             if (classId != null && !classIds.contains(classId)) {
                 return PageResponse.of(List.of(), page, size, 0);
             }
-            result = studentRepository.findByFiltersClassScope(tenantId, classIds, classId, status, search, PageRequest.of(page, size, sort));
+            result = studentPersistence.findByFiltersClassScope(tenantId, classIds, classId, status, search, PageRequest.of(page, size, sort));
         } else {
-            result = studentRepository.findByFilters(tenantId, classId, status, search, PageRequest.of(page, size, sort));
+            result = studentPersistence.findByFilters(tenantId, classId, status, search, PageRequest.of(page, size, sort));
         }
         Map<Long, String> classNames = new HashMap<>();
         Map<Long, String> sectionNames = new HashMap<>();
@@ -75,7 +75,7 @@ public class StudentService {
     @Transactional(readOnly = true)
     public StudentDTOs.Response getStudentById(Long id) {
         log.debug("Fetching student id={}", id);
-        Student student = studentRepository.findByIdAndTenantIdAndIsDeletedFalse(id, TenantContext.getTenantId()).orElseThrow(() -> new ResourceNotFoundException("Student", id));
+        Student student = studentPersistence.findByIdAndTenantIdAndIsDeletedFalse(id, TenantContext.getTenantId()).orElseThrow(() -> new ResourceNotFoundException("Student", id));
         if (!teacherRosterScopeService.teacherMayAccessStudentClass(student.getClassId())) {
             throw new UnauthorizedException("You are not allowed to view this student");
         }
@@ -89,7 +89,7 @@ public class StudentService {
         if (!teacherRosterScopeService.teacherMayAccessStudentClass(classId)) {
             throw new UnauthorizedException("You are not allowed to view this class roster");
         }
-        List<StudentDTOs.Response> list = studentRepository.findByTenantIdAndClassIdAndIsDeletedFalse(TenantContext.getTenantId(), classId).stream()
+        List<StudentDTOs.Response> list = studentPersistence.findByTenantIdAndClassIdAndIsDeletedFalse(TenantContext.getTenantId(), classId).stream()
                 .filter(s -> s.getStatus() == Enums.StudentStatus.ACTIVE)
                 .map(this::toResponse)
                 .collect(Collectors.toList());
@@ -103,7 +103,7 @@ public class StudentService {
         if (!teacherRosterScopeService.teacherMayAccessStudentClass(classId)) {
             throw new UnauthorizedException("You are not allowed to view this class roster");
         }
-        List<StudentDTOs.Response> list = studentRepository.findByTenantIdAndClassIdAndSectionIdAndIsDeletedFalse(TenantContext.getTenantId(), classId, sectionId).stream()
+        List<StudentDTOs.Response> list = studentPersistence.findByTenantIdAndClassIdAndSectionIdAndIsDeletedFalse(TenantContext.getTenantId(), classId, sectionId).stream()
                 .filter(s -> s.getStatus() == Enums.StudentStatus.ACTIVE)
                 .map(this::toResponse)
                 .collect(Collectors.toList());
@@ -130,7 +130,7 @@ public class StudentService {
         if (admNo == null || admNo.isBlank()) {
             admNo = "ADM" + System.currentTimeMillis();
         }
-        if (studentRepository.existsByTenantIdAndAdmissionNumber(tenantId, admNo)) {
+        if (studentPersistence.existsByTenantIdAndAdmissionNumber(tenantId, admNo)) {
             log.warn("Student create rejected: duplicate admissionNumber={}", admNo);
             throw new DuplicateResourceException("Admission number already exists: " + admNo);
         }
@@ -141,7 +141,7 @@ public class StudentService {
         Student student = Student.builder().firstName(request.getFirstName()).lastName(request.getLastName()).email(email).phone(request.getPhone()).dateOfBirth(request.getDateOfBirth()).gender(request.getGender()).classId(request.getClassId()).sectionId(request.getSectionId()).rollNumber(request.getRollNumber()).admissionNumber(admNo).admissionDate(request.getAdmissionDate() != null ? request.getAdmissionDate() : LocalDate.now()).parentId(request.getParentId()).parentName(request.getParentName()).address(request.getAddress()).bloodGroup(request.getBloodGroup()).status(Enums.StudentStatus.ACTIVE).build();
         student.setTenantId(tenantId);
         student.setCreatedBy(TenantContext.getUserId() != null ? TenantContext.getUserId().toString() : null);
-        studentRepository.save(student);
+        studentPersistence.save(student);
         log.info("Student created: {} {} [{}]", student.getFirstName(), student.getLastName(), student.getAdmissionNumber());
         domainEventPublisher.publish(new StudentAdmittedEvent(
                 tenantId,
@@ -156,7 +156,7 @@ public class StudentService {
     @Transactional
     public StudentDTOs.Response updateStudent(Long id, StudentDTOs.UpdateRequest request) {
         log.info("Updating student id={}", id);
-        Student student = studentRepository.findByIdAndTenantIdAndIsDeletedFalse(id, TenantContext.getTenantId()).orElseThrow(() -> new ResourceNotFoundException("Student", id));
+        Student student = studentPersistence.findByIdAndTenantIdAndIsDeletedFalse(id, TenantContext.getTenantId()).orElseThrow(() -> new ResourceNotFoundException("Student", id));
         Long priorClassId = student.getClassId();
         Long priorSectionId = student.getSectionId();
         if (request.getFirstName() != null) student.setFirstName(request.getFirstName());
@@ -174,7 +174,7 @@ public class StudentService {
         if (request.getBloodGroup() != null) student.setBloodGroup(request.getBloodGroup());
         if (request.getStatus() != null) student.setStatus(request.getStatus());
         student.setUpdatedBy(TenantContext.getUserId() != null ? TenantContext.getUserId().toString() : null);
-        studentRepository.save(student);
+        studentPersistence.save(student);
         boolean classChanged = request.getClassId() != null && !java.util.Objects.equals(priorClassId, student.getClassId());
         boolean sectionChanged = request.getSectionId() != null && !java.util.Objects.equals(priorSectionId, student.getSectionId());
         if (classChanged || sectionChanged) {
@@ -194,9 +194,9 @@ public class StudentService {
     @Transactional
     public void deleteStudent(Long id) {
         log.warn("Soft-deleting student id={}", id);
-        Student student = studentRepository.findByIdAndTenantIdAndIsDeletedFalse(id, TenantContext.getTenantId()).orElseThrow(() -> new ResourceNotFoundException("Student", id));
-        student.setIsDeleted(true);
-        studentRepository.save(student);
+        Student student = studentPersistence.findByIdAndTenantIdAndIsDeletedFalse(id, TenantContext.getTenantId()).orElseThrow(() -> new ResourceNotFoundException("Student", id));
+        student.markSoftDeleted();
+        studentPersistence.save(student);
         log.info("Student soft-deleted: {}", id);
     }
 
@@ -268,21 +268,21 @@ public class StudentService {
                 request.getFromClassId(), request.getToClassId(), request.getStudentIds() != null ? request.getStudentIds().size() : 0);
         List<Student> students;
         if (request.getStudentIds() != null && !request.getStudentIds().isEmpty()) {
-            students = studentRepository.findAllById(request.getStudentIds()).stream().filter(s -> s.getTenantId().equals(tenantId) && !s.getIsDeleted()).collect(Collectors.toList());
+            students = studentPersistence.findAllById(request.getStudentIds()).stream().filter(s -> s.getTenantId().equals(tenantId) && !s.getIsDeleted()).collect(Collectors.toList());
         } else {
-            students = studentRepository.findByTenantIdAndClassIdAndIsDeletedFalse(tenantId, request.getFromClassId());
+            students = studentPersistence.findByTenantIdAndClassIdAndIsDeletedFalse(tenantId, request.getFromClassId());
         }
         students.forEach(s -> {
             s.setClassId(request.getToClassId());
             s.setSectionId(null); // Reset section - to be reassigned
         });
-        studentRepository.saveAll(students);
+        studentPersistence.saveAll(students);
         log.info("Promoted {} students from class {} to class {}", students.size(), request.getFromClassId(), request.getToClassId());
         return students.size();
     }
 
     public long countStudents() {
-        long n = studentRepository.countByTenantIdAndIsDeletedFalse(TenantContext.getTenantId());
+        long n = studentPersistence.countByTenantIdAndIsDeletedFalse(TenantContext.getTenantId());
         log.debug("Student count tenant={} n={}", TenantContext.getTenantId(), n);
         return n;
     }
@@ -295,7 +295,7 @@ public class StudentService {
         String tenantId = TenantContext.getTenantId();
         StringBuilder sb = new StringBuilder();
         sb.append("firstname,lastname,email,phone,dateofbirth,gender,classid,sectionid,rollnumber,admissionnumber,admissiondate,parentid,parentname,parentemail,parentphone,notifycredentials,address,bloodgroup\n");
-        for (Student s : studentRepository.findByTenantIdAndIsDeletedFalse(tenantId)) {
+        for (Student s : studentPersistence.findByTenantIdAndIsDeletedFalse(tenantId)) {
             sb.append(csv(s.getFirstName())).append(',');
             sb.append(csv(s.getLastName())).append(',');
             sb.append(csv(s.getEmail())).append(',');
@@ -327,56 +327,19 @@ public class StudentService {
     }
 
     private StudentDTOs.Response toResponse(Student s) {
-        return toResponse(s, new HashMap<>(), new HashMap<>());
+        return StudentResponseMapper.toResponse(s, TenantContext.getTenantId(), schoolClassRepository, sectionRepository);
     }
 
     private StudentDTOs.Response toResponse(Student s, Map<Long, String> classNameCache, Map<Long, String> sectionNameCache) {
-        String tenantId = TenantContext.getTenantId();
-        String className = null;
-        String sectionName = null;
-        if (s.getClassId() != null) {
-            className = classNameCache.computeIfAbsent(s.getClassId(), id -> schoolClassRepository
-                    .findByIdAndTenantIdAndIsDeletedFalse(id, tenantId)
-                    .map(SchoolClass::getName)
-                    .orElse(null));
-        }
-        if (s.getSectionId() != null) {
-            sectionName = sectionNameCache.computeIfAbsent(s.getSectionId(), id -> sectionRepository
-                    .findByIdAndTenantIdAndIsDeletedFalse(id, tenantId)
-                    .map(Section::getName)
-                    .orElse(null));
-        }
-        return StudentDTOs.Response.builder()
-                .id(s.getId())
-                .firstName(s.getFirstName())
-                .lastName(s.getLastName())
-                .email(s.getEmail())
-                .phone(s.getPhone())
-                .dateOfBirth(s.getDateOfBirth())
-                .gender(s.getGender() != null ? s.getGender().name().toLowerCase() : null)
-                .classId(s.getClassId())
-                .className(className)
-                .sectionId(s.getSectionId())
-                .sectionName(sectionName)
-                .rollNumber(s.getRollNumber())
-                .admissionNumber(s.getAdmissionNumber())
-                .admissionDate(s.getAdmissionDate())
-                .parentId(s.getParentId())
-                .parentName(s.getParentName())
-                .address(s.getAddress())
-                .bloodGroup(s.getBloodGroup())
-                .avatar(s.getAvatar())
-                .status(s.getStatus() != null ? s.getStatus().name().toLowerCase() : "active")
-                .tenantId(s.getTenantId())
-                .build();
+        return StudentResponseMapper.toResponse(s, TenantContext.getTenantId(), schoolClassRepository, sectionRepository, classNameCache, sectionNameCache);
     }
 
-    public StudentService(final StudentRepository studentRepository,
+    public StudentService(final StudentPersistencePort studentPersistence,
                           final SchoolClassRepository schoolClassRepository,
                           final SectionRepository sectionRepository,
                           final TeacherRosterScopeService teacherRosterScopeService,
                           final DomainEventPublisher domainEventPublisher) {
-        this.studentRepository = studentRepository;
+        this.studentPersistence = studentPersistence;
         this.schoolClassRepository = schoolClassRepository;
         this.sectionRepository = sectionRepository;
         this.teacherRosterScopeService = teacherRosterScopeService;

@@ -1,6 +1,11 @@
 package com.school.erp.modules.notification.repository;
 import com.school.erp.modules.notification.entity.Notification;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -9,4 +14,8 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
     long countByTenantIdAndUserIdAndIsReadFalse(String tenantId, Long userId);
 
     Optional<Notification> findByIdAndTenantIdAndUserIdAndIsDeletedFalse(Long id, String tenantId, Long userId);
+
+    @Modifying
+    @Query("DELETE FROM Notification n WHERE n.tenantId = :tenantId AND n.isDeleted = true AND n.deletedAt IS NOT NULL AND n.deletedAt < :cutoff")
+    int deleteSoftDeletedBeforeForTenant(@Param("tenantId") String tenantId, @Param("cutoff") LocalDateTime cutoff);
 }

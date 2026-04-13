@@ -14,7 +14,7 @@ import com.school.erp.modules.auth.entity.RefreshToken;
 import com.school.erp.modules.auth.entity.User;
 import com.school.erp.modules.auth.repository.RefreshTokenRepository;
 import com.school.erp.modules.auth.repository.UserRepository;
-import com.school.erp.modules.audit.service.AuditService;
+import com.school.erp.platform.port.AuditTrailPort;
 import com.school.erp.modules.academic.entity.SchoolClass;
 import com.school.erp.modules.academic.repository.SchoolClassRepository;
 import com.school.erp.modules.settings.entity.TenantConfig;
@@ -44,7 +44,7 @@ public class AuthService {
     private final SchoolClassRepository schoolClassRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
-    private final AuditService auditService;
+    private final AuditTrailPort auditTrailPort;
 
     @Transactional
     public AuthDTOs.LoginResponse login(AuthDTOs.LoginRequest request) {
@@ -65,7 +65,7 @@ public class AuthService {
         try {
             TenantContext.setTenantId(user.getTenantId());
             TenantContext.setUserId(user.getId());
-            auditService.logLogin(user.getEmail());
+            auditTrailPort.logLogin(user.getEmail());
         } catch (Exception e) {
             log.debug("Audit log skipped: {}", e.getMessage());
         }
@@ -336,7 +336,7 @@ public class AuthService {
         return "tenant_" + schoolCode.toLowerCase(Locale.ROOT) + "_" + UUID.randomUUID().toString().substring(0, 8);
     }
 
-    public AuthService(final UserRepository userRepository, final RefreshTokenRepository refreshTokenRepository, final TenantConfigRepository tenantConfigRepository, final StudentRepository studentRepository, final TeacherRepository teacherRepository, final SchoolClassRepository schoolClassRepository, final PasswordEncoder passwordEncoder, final JwtUtil jwtUtil, final AuditService auditService) {
+    public AuthService(final UserRepository userRepository, final RefreshTokenRepository refreshTokenRepository, final TenantConfigRepository tenantConfigRepository, final StudentRepository studentRepository, final TeacherRepository teacherRepository, final SchoolClassRepository schoolClassRepository, final PasswordEncoder passwordEncoder, final JwtUtil jwtUtil, final AuditTrailPort auditTrailPort) {
         this.userRepository = userRepository;
         this.refreshTokenRepository = refreshTokenRepository;
         this.tenantConfigRepository = tenantConfigRepository;
@@ -345,6 +345,6 @@ public class AuthService {
         this.schoolClassRepository = schoolClassRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtUtil = jwtUtil;
-        this.auditService = auditService;
+        this.auditTrailPort = auditTrailPort;
     }
 }

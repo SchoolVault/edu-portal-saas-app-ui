@@ -5,6 +5,7 @@ import com.school.erp.common.exception.ResourceNotFoundException;
 import com.school.erp.common.exception.UnauthorizedException;
 import com.school.erp.modules.documents.entity.Document;
 import com.school.erp.modules.documents.repository.DocumentRepository;
+import com.school.erp.platform.port.FileStoragePort;
 import com.school.erp.tenant.TenantContext;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -14,6 +15,7 @@ import java.util.List;
 public class DocumentService {
     private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(DocumentService.class);
     private final DocumentRepository repo;
+    private final FileStoragePort fileStoragePort;
 
     @Transactional(readOnly = true)
     public List<Document> getDocuments(String category, String ownerType, Long ownerId) {
@@ -42,6 +44,13 @@ public class DocumentService {
         log.info("Uploading document name={} category={}", doc.getName(), doc.getCategory());
         doc.setTenantId(TenantContext.getTenantId());
         doc.setUploadedBy(TenantContext.getUserId() != null ? TenantContext.getUserId().toString() : "system");
+        if (doc.getStorageKey() == null || doc.getStorageKey().isBlank()) {
+            String cat = doc.getCategory() != null ? doc.getCategory().name() : "document";
+            doc.setStorageKey(fileStoragePort.buildObjectKey(doc.getTenantId(), cat, doc.getName()));
+        }
+        if (doc.getFileUrl() == null || doc.getFileUrl().isBlank()) {
+            doc.setFileUrl(fileStoragePort.buildPublicUrl(doc.getTenantId(), doc.getStorageKey()));
+        }
         if (doc.getFileVersion() == null) {
             doc.setFileVersion(1);
         }
@@ -85,12 +94,13 @@ public class DocumentService {
             log.warn("Document delete denied id={} userId={} role={}", id, uid, role);
             throw new UnauthorizedException("You can only delete documents you uploaded (or as admin)");
         }
-        doc.setIsDeleted(true);
+        doc.markSoftDeleted();
         repo.save(doc);
         log.info("Document soft-deleted id={}", id);
     }
 
-    public DocumentService(final DocumentRepository repo) {
+    public DocumentService(final DocumentRepository repo, final FileStoragePort fileStoragePort) {
         this.repo = repo;
+        this.fileStoragePort = fileStoragePort;
     }
 }

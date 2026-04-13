@@ -12,11 +12,11 @@ import com.school.erp.modules.fees.entity.*;
 import com.school.erp.modules.fees.repository.*;
 import com.school.erp.modules.auth.repository.UserRepository;
 import com.school.erp.modules.guardian.service.GuardianService;
-import com.school.erp.modules.notification.service.NotificationOutboxService;
+import com.school.erp.platform.port.NotificationDispatchPort;
 import com.school.erp.modules.reminder.service.FeeReminderAutomationService;
 import com.school.erp.events.domain.FeePaymentRecordedEvent;
 import com.school.erp.modules.student.entity.Student;
-import com.school.erp.modules.student.repository.StudentRepository;
+import com.school.erp.modules.student.port.StudentPersistencePort;
 import com.school.erp.platform.port.DomainEventPublisher;
 import com.school.erp.tenant.TenantContext;
 import com.school.erp.tenant.TenantQueryPolicy;
@@ -51,10 +51,10 @@ public class FeeService {
     private final FeeComponentRepository componentRepo;
     private final FeePaymentRepository paymentRepo;
     private final FeePaymentAttemptRepository paymentAttemptRepository;
-    private final StudentRepository studentRepository;
+    private final StudentPersistencePort studentPersistence;
     private final GuardianService guardianService;
     private final PaymentGatewayClient paymentGatewayClient;
-    private final NotificationOutboxService notificationOutboxService;
+    private final NotificationDispatchPort notificationDispatchPort;
     private final UserRepository userRepository;
     private final FeeReminderAutomationService feeReminderAutomationService;
     private final SectionRepository sectionRepository;
@@ -232,8 +232,8 @@ public class FeeService {
             }
         }
         List<Student> students = req.getSectionId() == null
-                ? studentRepository.findByTenantIdAndClassIdAndIsDeletedFalse(t, req.getClassId())
-                : studentRepository.findByTenantIdAndClassIdAndSectionIdAndIsDeletedFalse(t, req.getClassId(), req.getSectionId());
+                ? studentPersistence.findByTenantIdAndClassIdAndIsDeletedFalse(t, req.getClassId())
+                : studentPersistence.findByTenantIdAndClassIdAndSectionIdAndIsDeletedFalse(t, req.getClassId(), req.getSectionId());
         if (students.size() > BULK_ASSIGN_MAX_STUDENTS) {
             throw new BusinessException("Too many students in scope (max " + BULK_ASSIGN_MAX_STUDENTS + "). Narrow by section or split the run.");
         }
@@ -551,10 +551,10 @@ public class FeeService {
                 + " for " + (payment.getStudentName() != null ? payment.getStudentName() : "student")
                 + ". " + statusLabel + ". Outstanding: " + DEFAULT_CURRENCY + " " + payment.getDueAmount() + ".";
         String corr = "fee-pay-" + attempt.getId();
-        notificationOutboxService.enqueue(
+        notificationDispatchPort.enqueue(
                 tenantId, "FEE_PAYMENT_CONFIRM", "SMS", parentUserId, null,
                 "Payment received", body, "PAYCONF:" + attempt.getId(), corr);
-        notificationOutboxService.enqueue(
+        notificationDispatchPort.enqueue(
                 tenantId, "FEE_PAYMENT_CONFIRM", "WHATSAPP", parentUserId, null,
                 "Payment received", body, "PAYCONF:" + attempt.getId() + ":WA", corr);
         userRepository.findByIdAndTenantIdAndIsDeletedFalse(parentUserId, tenantId).ifPresent(u ->
@@ -601,7 +601,7 @@ public class FeeService {
 
     private Student assertParentOwnsStudent(Long studentId) {
         String tenantId = TenantContext.getTenantId();
-        Student student = studentRepository.findByIdAndTenantIdAndIsDeletedFalse(studentId, tenantId)
+        Student student = studentPersistence.findByIdAndTenantIdAndIsDeletedFalse(studentId, tenantId)
                 .orElseThrow(() -> new ResourceNotFoundException("Student", studentId));
         Long uid = TenantContext.getUserId();
         boolean ok = uid != null
@@ -734,10 +734,10 @@ public class FeeService {
             final FeeComponentRepository componentRepo,
             final FeePaymentRepository paymentRepo,
             final FeePaymentAttemptRepository paymentAttemptRepository,
-            final StudentRepository studentRepository,
+            final StudentPersistencePort studentPersistence,
             final GuardianService guardianService,
             final PaymentGatewayClient paymentGatewayClient,
-            final NotificationOutboxService notificationOutboxService,
+            final NotificationDispatchPort notificationDispatchPort,
             final UserRepository userRepository,
             final FeeReminderAutomationService feeReminderAutomationService,
             final SectionRepository sectionRepository,
@@ -746,10 +746,10 @@ public class FeeService {
         this.componentRepo = componentRepo;
         this.paymentRepo = paymentRepo;
         this.paymentAttemptRepository = paymentAttemptRepository;
-        this.studentRepository = studentRepository;
+        this.studentPersistence = studentPersistence;
         this.guardianService = guardianService;
         this.paymentGatewayClient = paymentGatewayClient;
-        this.notificationOutboxService = notificationOutboxService;
+        this.notificationDispatchPort = notificationDispatchPort;
         this.userRepository = userRepository;
         this.feeReminderAutomationService = feeReminderAutomationService;
         this.sectionRepository = sectionRepository;

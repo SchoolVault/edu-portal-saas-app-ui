@@ -6,6 +6,7 @@ import com.school.erp.modules.notification.entity.Notification;
 import com.school.erp.modules.notification.entity.NotificationOutbox;
 import com.school.erp.modules.notification.repository.NotificationOutboxRepository;
 import com.school.erp.modules.notification.repository.NotificationRepository;
+import com.school.erp.platform.port.NotificationDispatchPort;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -18,7 +19,7 @@ import java.time.LocalDateTime;
  * Transactional outbox for SMS/WhatsApp (and similar). A scheduled worker marks rows SENT in mock mode.
  */
 @Service
-public class NotificationOutboxService {
+public class NotificationOutboxService implements NotificationDispatchPort {
     private static final Logger log = LoggerFactory.getLogger(NotificationOutboxService.class);
     private final NotificationOutboxRepository repo;
     private final UserRepository userRepository;
@@ -33,6 +34,7 @@ public class NotificationOutboxService {
         this.notificationRepository = notificationRepository;
     }
 
+    @Override
     @Transactional
     public void enqueue(String tenantId, String eventType, String channel, Long recipientUserId, String phoneE164,
                         String subject, String body, String dedupeKey, String correlationId) {

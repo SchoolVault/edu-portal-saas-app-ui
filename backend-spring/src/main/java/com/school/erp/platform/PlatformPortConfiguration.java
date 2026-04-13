@@ -1,5 +1,6 @@
 package com.school.erp.platform;
 
+import com.school.erp.platform.port.AnalyticsEventPort;
 import com.school.erp.platform.port.AnalyticsEventPublisher;
 import com.school.erp.platform.port.DomainEventPublisher;
 import com.school.erp.platform.port.SearchIndexService;
@@ -10,6 +11,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Primary;
 
 /**
  * Registers default (no-op / Spring) platform ports. Provide your own {@code @Bean} of the same
@@ -22,6 +24,13 @@ public class PlatformPortConfiguration {
     @ConditionalOnMissingBean(AnalyticsEventPublisher.class)
     public AnalyticsEventPublisher analyticsEventPublisher() {
         return new NoOpAnalyticsEventPublisher();
+    }
+
+    @Bean
+    @Primary
+    @ConditionalOnMissingBean(AnalyticsEventPort.class)
+    public AnalyticsEventPort analyticsEventPort(AnalyticsEventPublisher analyticsEventPublisher) {
+        return analyticsEventPublisher::publish;
     }
 
     @Bean

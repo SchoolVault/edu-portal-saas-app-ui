@@ -5,7 +5,7 @@ import com.school.erp.common.exception.BusinessException;
 import com.school.erp.common.exception.ResourceNotFoundException;
 import com.school.erp.common.exception.UnauthorizedException;
 import com.school.erp.modules.payroll.dto.PayrollDTOs;
-import com.school.erp.modules.notification.service.NotificationOutboxService;
+import com.school.erp.platform.port.NotificationDispatchPort;
 import com.school.erp.modules.notification.service.NotificationService;
 import com.school.erp.modules.payroll.entity.*;
 import com.school.erp.modules.payroll.repository.*;
@@ -41,7 +41,7 @@ public class PayrollService {
     private final PayslipPdfService payslipPdfService;
     private final SalaryDisbursementAttemptRepository salaryDisbursementAttemptRepository;
     private final NotificationService notificationService;
-    private final NotificationOutboxService notificationOutboxService;
+    private final NotificationDispatchPort notificationDispatchPort;
 
     @Cacheable(cacheNames = CacheConfig.PAYROLL_STRUCTURES, keyGenerator = "tenantKeyGenerator", unless = "#result == null")
     @Transactional(readOnly = true)
@@ -206,10 +206,10 @@ public class PayrollService {
                     Enums.NotificationType.INFO,
                     "/app/payroll");
             String body = "Salary " + methodRaw + " initiated. Ref " + ref + ". Net " + p.getNetSalary() + " INR. Mark payslip paid after settlement.";
-            notificationOutboxService.enqueue(
+            notificationDispatchPort.enqueue(
                     t, "SALARY_DISBURSE", "SMS", staffUserId, null, "Salary transfer", body,
                     "SALDIS:" + p.getId() + ":" + ref, "payroll-" + p.getId());
-            notificationOutboxService.enqueue(
+            notificationDispatchPort.enqueue(
                     t, "SALARY_DISBURSE", "WHATSAPP", staffUserId, null, "Salary transfer", body,
                     "SALDIS:" + p.getId() + ":" + ref + ":WA", "payroll-" + p.getId());
         }
@@ -282,7 +282,7 @@ public class PayrollService {
             final PayslipPdfService payslipPdfService,
             final SalaryDisbursementAttemptRepository salaryDisbursementAttemptRepository,
             final NotificationService notificationService,
-            final NotificationOutboxService notificationOutboxService) {
+            final NotificationDispatchPort notificationDispatchPort) {
         this.ssRepo = ssRepo;
         this.scRepo = scRepo;
         this.psRepo = psRepo;
@@ -291,6 +291,6 @@ public class PayrollService {
         this.payslipPdfService = payslipPdfService;
         this.salaryDisbursementAttemptRepository = salaryDisbursementAttemptRepository;
         this.notificationService = notificationService;
-        this.notificationOutboxService = notificationOutboxService;
+        this.notificationDispatchPort = notificationDispatchPort;
     }
 }
