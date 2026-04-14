@@ -45,10 +45,22 @@ export const MOCK_LOGIN_USERS: readonly MockLoginRecord[] = [
   },
 ];
 
+export function phonesMatch(a: string | undefined, b: string | undefined): boolean {
+  const na = (a ?? '').replace(/\D/g, '');
+  const nb = (b ?? '').replace(/\D/g, '');
+  return na.length > 0 && na === nb;
+}
+
 export function findMockLoginUser(req: LoginRequest): MockLoginRecord | undefined {
-  return MOCK_LOGIN_USERS.find(
-    u => u.email === req.email && u.password === req.password && u.schoolCode === req.schoolCode
-  );
+  return MOCK_LOGIN_USERS.find(u => {
+    if (u.password !== req.password || u.schoolCode !== req.schoolCode) {
+      return false;
+    }
+    if (req.phone && req.phone.trim()) {
+      return phonesMatch(u.user.phone, req.phone);
+    }
+    return u.email === (req.email ?? '').trim();
+  });
 }
 
 /** Stable tenant school-admin row for chat seeds / directory (aligns with {@link MOCK_LOGIN_USERS} admin when present). */
@@ -71,7 +83,7 @@ export function buildMockProfileSummary(user: User | null): ProfileSummary {
     return {
       id: user.id,
       name: user.name,
-      email: user.email,
+      email: user.email ?? '',
       phone: user.phone,
       role: 'teacher',
       tenantId: user.tenantId,
@@ -94,7 +106,7 @@ export function buildMockProfileSummary(user: User | null): ProfileSummary {
     return {
       id: user.id,
       name: user.name,
-      email: user.email,
+      email: user.email ?? '',
       phone: user.phone,
       role: 'super_admin',
       tenantId: user.tenantId,
@@ -119,7 +131,7 @@ export function buildMockProfileSummary(user: User | null): ProfileSummary {
     return {
       id: user.id,
       name: user.name,
-      email: user.email,
+      email: user.email ?? '',
       phone: user.phone,
       role: 'parent',
       tenantId: user.tenantId,

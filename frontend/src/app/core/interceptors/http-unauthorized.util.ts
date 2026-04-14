@@ -8,6 +8,7 @@ export function isAuthFlowOrAnonymousUrl(url: string): boolean {
     u.includes('/auth/onboard-tenant') ||
     u.includes('/auth/refresh-token') ||
     u.includes('/auth/logout') ||
-    u.includes('/auth/register')
+    u.includes('/auth/register') ||
+    u.includes('/auth/phone/')
   );
 }
