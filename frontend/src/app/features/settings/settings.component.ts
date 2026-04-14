@@ -35,7 +35,7 @@ import { UserLocaleService, type UiLanguage } from '../../core/i18n/user-locale.
         <button type="button" *ngIf="isTenantAdmin" class="erp-tab" [class.active]="tab === 'branding'" (click)="tab = 'branding'">{{ 'settings.tabBranding' | translate }}</button>
         <button type="button" *ngIf="isTenantAdmin" class="erp-tab" [class.active]="tab === 'roles'" (click)="tab = 'roles'">{{ 'settings.tabRoles' | translate }}</button>
         <button type="button" *ngIf="isTenantAdmin" class="erp-tab" [class.active]="tab === 'features'" (click)="tab = 'features'">{{ 'settings.tabFeatures' | translate }}</button>
-        <button type="button" class="erp-tab" [class.active]="tab === 'profile'" (click)="tab = 'profile'">{{ 'settings.tabProfile' | translate }}</button>
+        <button type="button" class="erp-tab" [class.active]="tab === 'profile'" (click)="openProfileTab()">{{ 'settings.tabProfile' | translate }}</button>
       </div>
 
       <div *ngIf="tab === 'preferences'" class="erp-card animate-in settings-prefs-card">
@@ -113,6 +113,10 @@ import { UserLocaleService, type UiLanguage } from '../../core/i18n/user-locale.
                     <dt>{{ 'settings.labelCode' | translate }}</dt>
                     <dd><code class="settings-profile-code">{{ schoolCode }}</code></dd>
                   </div>
+                  <div class="settings-profile-hero__meta-row">
+                    <dt>{{ 'settings.labelContactPhone' | translate }}</dt>
+                    <dd>{{ u.phone || ('exams.dash' | translate) }}</dd>
+                  </div>
                 </dl>
                 <p class="settings-profile-hero__hint">{{ photoHintLine }}</p>
               </div>
@@ -153,6 +157,10 @@ import { UserLocaleService, type UiLanguage } from '../../core/i18n/user-locale.
                     <dt>{{ 'settings.labelCode' | translate }}</dt>
                     <dd><code class="settings-profile-code">{{ schoolCode }}</code></dd>
                   </div>
+                  <div class="settings-profile-hero__meta-row">
+                    <dt>{{ 'settings.labelContactPhone' | translate }}</dt>
+                    <dd>{{ u.phone || ('exams.dash' | translate) }}</dd>
+                  </div>
                 </dl>
                 <p class="settings-profile-footnote mb-0" *ngIf="myChildren.length">
                   <i class="bi bi-people me-1"></i>{{ myChildren.length === 1 ? ('settings.linkedChildrenOne' | translate: { n: myChildren.length }) : ('settings.linkedChildrenMany' | translate: { n: myChildren.length }) }}
@@ -190,6 +198,10 @@ import { UserLocaleService, type UiLanguage } from '../../core/i18n/user-locale.
                     <div class="settings-profile-hero__meta-row" *ngIf="schoolCode">
                       <dt>{{ 'settings.labelCode' | translate }}</dt>
                       <dd><code class="settings-profile-code">{{ schoolCode }}</code></dd>
+                    </div>
+                    <div class="settings-profile-hero__meta-row">
+                      <dt>{{ 'settings.labelContactPhone' | translate }}</dt>
+                      <dd>{{ u.phone || ('exams.dash' | translate) }}</dd>
                     </div>
                   </dl>
                 </div>
@@ -256,6 +268,70 @@ import { UserLocaleService, type UiLanguage } from '../../core/i18n/user-locale.
                 />
               </div>
               <p class="settings-profile-footnote settings-profile-footnote--below mb-0">{{ 'settings.directoryPhotosUpdatedByStaff' | translate }}</p>
+            </div>
+          </section>
+
+          <section
+            *ngIf="profileUser as account"
+            class="settings-profile-panel settings-profile-follow"
+            aria-labelledby="settings-profile-account-h"
+          >
+            <div class="settings-profile-panel__head" id="settings-profile-account-h">
+              <span class="settings-profile-panel__icon"><i class="bi bi-person-badge"></i></span>
+              <span class="settings-profile-panel__head-text">{{ 'settings.accountDetailsTitle' | translate }}</span>
+            </div>
+            <div class="settings-profile-panel__body">
+              <p class="settings-profile-hint mb-3">{{ 'settings.accountDetailsLead' | translate }}</p>
+              <div class="row g-3">
+                <div class="col-md-6">
+                  <div class="erp-form-group">
+                    <label class="erp-label" for="settings-acct-name">{{ 'settings.profileFullNameLabel' | translate }}</label>
+                    <input
+                      id="settings-acct-name"
+                      type="text"
+                      class="erp-input"
+                      name="profileDraftName"
+                      [(ngModel)]="profileDraftName"
+                      autocomplete="name"
+                    />
+                  </div>
+                </div>
+                <div class="col-md-6">
+                  <div class="erp-form-group">
+                    <label class="erp-label" for="settings-acct-phone">{{ 'settings.profileContactPhoneLabel' | translate }}</label>
+                    <input
+                      id="settings-acct-phone"
+                      type="tel"
+                      class="erp-input"
+                      name="profileDraftPhone"
+                      [(ngModel)]="profileDraftPhone"
+                      autocomplete="tel"
+                    />
+                  </div>
+                </div>
+                <div class="col-12">
+                  <div class="erp-form-group mb-0">
+                    <label class="erp-label" for="settings-acct-email-ro">{{ 'settings.labelEmail' | translate }}</label>
+                    <input
+                      id="settings-acct-email-ro"
+                      type="email"
+                      class="erp-input"
+                      [value]="account.email"
+                      readonly
+                      tabindex="-1"
+                      [attr.aria-label]="'settings.profileEmailReadonlyAria' | translate"
+                    />
+                    <p class="text-muted small mb-0 mt-1">{{ 'settings.profileEmailReadonlyHint' | translate }}</p>
+                  </div>
+                </div>
+              </div>
+              <div class="d-flex flex-wrap align-items-center gap-2 mt-3">
+                <button type="button" class="btn-primary-erp" (click)="saveProfileAccount()" [disabled]="profileAccountSaving">
+                  {{ profileAccountSaving ? ('settings.profileSaving' | translate) : ('settings.saveProfileDetails' | translate) }}
+                </button>
+                <span *ngIf="profileAccountMsg" class="text-success small">{{ profileAccountMsg }}</span>
+                <span *ngIf="profileAccountErr" class="text-danger small">{{ profileAccountErr }}</span>
+              </div>
             </div>
           </section>
         </div>
@@ -758,6 +834,12 @@ export class SettingsComponent implements OnInit {
   prefsSaved = false;
   prefsErr = '';
 
+  profileDraftName = '';
+  profileDraftPhone = '';
+  profileAccountSaving = false;
+  profileAccountMsg = '';
+  profileAccountErr = '';
+
   /** Feature toggles: labels come from `settings.features.<persistKey>.{name,description}` for i18n. */
   features: Array<{ enabled: boolean; persistKey: string }> = [
     { enabled: false, persistKey: 'feeReminderAutomation' },
@@ -863,8 +945,51 @@ export class SettingsComponent implements OnInit {
     if (u?.interfaceLocale === 'hi' || u?.interfaceLocale === 'en') {
       this.prefsLang = u.interfaceLocale === 'hi' ? 'hi' : 'en';
     }
+    this.syncAccountDrafts();
     this.refreshProfilePreview();
     this.reloadSettings();
+  }
+
+  openProfileTab(): void {
+    this.tab = 'profile';
+    this.profileAccountMsg = '';
+    this.profileAccountErr = '';
+    this.syncAccountDrafts();
+  }
+
+  private syncAccountDrafts(): void {
+    const u = this.auth.getCurrentUser();
+    this.profileDraftName = u?.name ?? '';
+    this.profileDraftPhone = u?.phone ?? '';
+  }
+
+  saveProfileAccount(): void {
+    const name = (this.profileDraftName ?? '').trim();
+    if (!name) {
+      this.profileAccountErr = this.translate.instant('settings.profileNameRequired');
+      this.profileAccountMsg = '';
+      return;
+    }
+    this.profileAccountSaving = true;
+    this.profileAccountMsg = '';
+    this.profileAccountErr = '';
+    this.auth.updateAccountProfile({ name, phone: this.profileDraftPhone ?? '' }).subscribe({
+      next: () => {
+        this.profileAccountSaving = false;
+        this.profileAccountMsg = this.translate.instant(
+          runtimeConfig.useMocks ? 'settings.profileSavedMock' : 'settings.profileSaved'
+        );
+        this.syncAccountDrafts();
+        this.refreshProfilePreview();
+        this.auth.fetchProfileSummary().subscribe({ error: () => void 0 });
+        this.cdr.markForCheck();
+      },
+      error: () => {
+        this.profileAccountSaving = false;
+        this.profileAccountErr = this.translate.instant('settings.profileSaveErr');
+        this.cdr.markForCheck();
+      },
+    });
   }
 
   onPrefsLangDraftChange(): void {
@@ -973,6 +1098,18 @@ export class SettingsComponent implements OnInit {
         if (td.schoolAddress) this.schoolAddress = td.schoolAddress;
         this.settingsRefreshing = false;
         this.applyFeatureFlagsFromServer();
+        const afterHydrate = () => {
+          this.syncAccountDrafts();
+          this.cdr.markForCheck();
+        };
+        if (!runtimeConfig.useMocks) {
+          this.auth.syncProfileFromServer().subscribe({
+            next: () => afterHydrate(),
+            error: () => afterHydrate(),
+          });
+        } else {
+          afterHydrate();
+        }
       },
       error: () => {
         this.settingsRefreshing = false;
@@ -1035,7 +1172,7 @@ export class SettingsComponent implements OnInit {
       },
       error: () => {
         this.branchesLoading = false;
-        this.branchesError = 'Could not load branches. Try again or check your connection.';
+        this.branchesError = this.translate.instant('settings.branchesLoadErr');
       }
     });
   }
@@ -1066,14 +1203,14 @@ export class SettingsComponent implements OnInit {
     this.settingsService.update(payload).subscribe({
       next: () => {
         this.saving = false;
-        this.generalSaveMsg = runtimeConfig.useMocks
-          ? 'Saved on this device (mock). Same fields will sync from API when mocks are off.'
-          : 'School information updated.';
+        this.generalSaveMsg = this.translate.instant(
+          runtimeConfig.useMocks ? 'settings.generalSavedMock' : 'settings.generalSaved'
+        );
         this.auth.fetchProfileSummary().subscribe();
       },
       error: () => {
         this.saving = false;
-        this.generalSaveError = 'Save failed. Please try again.';
+        this.generalSaveError = this.translate.instant('settings.generalSaveErr');
       }
     });
     this.themeService.applySchoolBranding(this.primaryColor, this.accentColor);

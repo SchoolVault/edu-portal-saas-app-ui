@@ -1,7 +1,15 @@
 import { Injectable } from '@angular/core';
 import { BehaviorSubject, Observable, Subject, of, throwError } from 'rxjs';
 import { catchError, delay, map, switchMap, take, tap } from 'rxjs/operators';
-import { User, LoginRequest, LoginResponse, OnboardSchoolRequest, ProfileSummary, TokenResponse } from '../models/models';
+import {
+  User,
+  LoginRequest,
+  LoginResponse,
+  OnboardSchoolRequest,
+  ProfileSummary,
+  TokenResponse,
+  UpdateAccountProfileRequest,
+} from '../models/models';
 import { ApiService } from './api.service';
 import { runtimeConfig } from '../config/runtime-config';
 import { environment } from '../../../environments/environment';
@@ -490,6 +498,94 @@ export class AuthService {
     const next = { ...u, interfaceLocale: lang };
     localStorage.setItem(ERP_USER_KEY, JSON.stringify(next));
     this.currentUserSubject.next(next);
+  }
+
+  /**
+   * Normalizes {@code GET/PUT /auth/profile} payloads into the client {@link User} model.
+   * Role strings follow the API (lowercase, underscores).
+   */
+  private mapServerProfileToUser(p: Record<string, unknown>, previous: User | null): User {
+    const id = Number(p['id']);
+    const roleRaw = String(p['role'] ?? previous?.role ?? 'parent');
+    const iface = p['interfaceLocale'];
+    const interfaceLocale: User['interfaceLocale'] =
+      iface === 'hi' ? 'hi' : iface === 'en' ? 'en' : previous?.interfaceLocale;
+    return {
+      id: Number.isFinite(id) ? id : (previous?.id ?? 0),
+      name: String(p['name'] ?? previous?.name ?? ''),
+      email: String(p['email'] ?? previous?.email ?? ''),
+      phone: p['phone'] != null && String(p['phone']).length > 0 ? String(p['phone']) : undefined,
+      role: roleRaw as User['role'],
+      tenantId: String(p['tenantId'] ?? previous?.tenantId ?? ''),
+      avatar: p['avatar'] != null && String(p['avatar']).length > 0 ? String(p['avatar']) : undefined,
+      interfaceLocale,
+    };
+  }
+
+  /**
+   * Refreshes the signed-in user from {@code GET /auth/profile} so phone/name match the database
+   * (e.g. after onboarding or staff edits). No-op in mock mode.
+   */
+  syncProfileFromServer(): Observable<User | null> {
+    if (runtimeConfig.useMocks || !this.isAuthenticated()) {
+      return of(this.getCurrentUser());
+    }
+    return this.api.get<Record<string, unknown>>('/auth/profile').pipe(
+      map(row => this.mapServerProfileToUser(row, this.getCurrentUser())),
+      tap(nextRow => {
+        const cur = this.getCurrentUser();
+        if (!cur || nextRow.id !== cur.id) {
+          return;
+        }
+        const hasLocalPhoto = !!this.getStoredAvatarDataUrl();
+        const merged: User = {
+          ...nextRow,
+          avatar: hasLocalPhoto ? cur.avatar : nextRow.avatar,
+          interfaceLocale: cur.interfaceLocale ?? nextRow.interfaceLocale,
+        };
+        localStorage.setItem(ERP_USER_KEY, JSON.stringify(merged));
+        this.currentUserSubject.next(merged);
+      }),
+      map(() => this.getCurrentUser())
+    );
+  }
+
+  /**
+   * Persists display name and contact phone for the signed-in portal user (same row as login identity).
+   * Mirrors {@code PUT /api/v1/auth/profile}; mock mode updates local session only.
+   */
+  updateAccountProfile(body: { name: string; phone: string }): Observable<User> {
+    const u = this.getCurrentUser();
+    if (!u) {
+      return throwError(() => new Error('Not signed in'));
+    }
+    const name = body.name.trim();
+    const phoneTrimmed = (body.phone ?? '').trim();
+    const payload: UpdateAccountProfileRequest = { name, phone: phoneTrimmed };
+    if (runtimeConfig.useMocks) {
+      const next: User = { ...u, name, phone: phoneTrimmed || undefined };
+      localStorage.setItem(ERP_USER_KEY, JSON.stringify(next));
+      this.currentUserSubject.next(next);
+      const sm = this.profileSummarySubject.value;
+      if (sm && sm.id === next.id) {
+        this.profileSummarySubject.next({ ...sm, name: next.name, phone: next.phone });
+      }
+      return of(next).pipe(delay(250));
+    }
+    return this.api.put<Record<string, unknown>>('/auth/profile', payload).pipe(
+      map(row => this.mapServerProfileToUser(row, u)),
+      tap(nextRow => {
+        const hasLocalPhoto = !!this.getStoredAvatarDataUrl();
+        const merged: User = {
+          ...nextRow,
+          avatar: hasLocalPhoto ? u.avatar : nextRow.avatar,
+          interfaceLocale: u.interfaceLocale ?? nextRow.interfaceLocale,
+        };
+        localStorage.setItem(ERP_USER_KEY, JSON.stringify(merged));
+        this.currentUserSubject.next(merged);
+      }),
+      map(() => this.getCurrentUser() as User)
+    );
   }
 
   getProfileSummarySnapshot(): ProfileSummary | null {

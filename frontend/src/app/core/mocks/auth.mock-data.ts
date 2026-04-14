@@ -51,6 +51,15 @@ export function findMockLoginUser(req: LoginRequest): MockLoginRecord | undefine
   );
 }
 
+/** Stable tenant school-admin row for chat seeds / directory (aligns with {@link MOCK_LOGIN_USERS} admin when present). */
+export function getMockSchoolAdminPeer(): { userId: number; displayName: string } {
+  const row = MOCK_LOGIN_USERS.find(u => u.user.role === 'admin');
+  if (row) {
+    return { userId: row.user.id, displayName: row.user.name };
+  }
+  return { userId: 1, displayName: 'John Anderson' };
+}
+
 /** Mirrors `GET /auth/profile-summary` mock payload per role until API drives the shell. */
 function mockInterfaceLocale(user: User | null): string {
   return user?.interfaceLocale === 'hi' ? 'hi' : 'en';
