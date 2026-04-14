@@ -19,6 +19,7 @@ import {
   PlatformSchoolAdminChatHit,
 } from '../../core/models/models';
 import { resolveCounterpartInsight } from '../../core/chat/chat-counterpart.resolve';
+import { chatDirectPeerTitle, chatIncomingBubbleLabel } from '../../core/identity/participant-display';
 import { runtimeConfig } from '../../core/config/runtime-config';
 import { formatSchoolClassDisplayName, formatSchoolClassName } from '../../core/i18n/school-class-display';
 import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directives';
@@ -278,13 +279,12 @@ import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directiv
         color: var(--clr-text);
       }
       .bubble-sender {
-        font-size: 11px;
-        font-weight: 800;
-        text-transform: uppercase;
-        letter-spacing: 0.04em;
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: 0.01em;
         color: var(--clr-primary);
         margin-bottom: 4px;
-        opacity: 0.92;
+        opacity: 0.95;
       }
       .bubble-body {
         white-space: pre-wrap;
@@ -657,7 +657,7 @@ import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directiv
               <div *ngFor="let m of messages" class="chat-msg-row">
                 <div class="d-flex" [style.justifyContent]="isMine(m) ? 'flex-end' : 'flex-start'">
                   <div class="bubble" [class.bubble--mine]="isMine(m)">
-                    <div *ngIf="!isMine(m)" class="bubble-sender">{{ m.senderName || m.senderRole }}</div>
+                    <div *ngIf="!isMine(m)" class="bubble-sender">{{ messageSenderLabel(m) }}</div>
                     <div class="bubble-body">{{ m.body }}</div>
                     <div class="bubble-footer">
                       <span class="bubble-time">{{ asTime(m.createdAt) }}</span>
@@ -1031,15 +1031,22 @@ export class ChatComponent implements OnInit, OnDestroy {
     return this.myUserId != null && m.senderUserId === this.myUserId;
   }
 
+  messageSenderLabel(m: ChatMessage): string {
+    return chatIncomingBubbleLabel(m, this.selectedConversation, this.translate);
+  }
+
   threadSubtitle(conv: ChatInboxConversation): string {
-    const type = this.convTypeLabel(conv.type);
-    const sep = this.translate.instant('chat.threadSep');
     const insight = resolveCounterpartInsight(conv, { myUserId: this.myUserId, directory: this.directory });
-    const identity = this.formatCounterpartIdentity(insight);
-    if (identity) {
-      return type + sep + identity;
+    if (conv.type === 'direct' && insight?.roleCode === 'PARENT' && (insight.linkedStudents?.length || 0) > 0) {
+      return this.formatCounterpartIdentity(insight);
     }
-    return type + sep + this.describeContext(conv);
+    if (conv.contextType && conv.contextId) {
+      return this.describeContext(conv);
+    }
+    if (conv.type === 'direct') {
+      return this.translate.instant('chat.threadSubtitleDirect');
+    }
+    return this.convTypeLabel(conv.type);
   }
 
   /** Sidebar / screen reader: one-line identity under the name (truncation handled by CSS). */
@@ -1073,7 +1080,10 @@ export class ChatComponent implements OnInit, OnDestroy {
       return line;
     }
 
-    return roleLabel;
+    if (insight.roleCode === 'PARENT') {
+      return roleLabel;
+    }
+    return this.translate.instant('chat.inboxSecondaryDirect');
   }
 
   private counterpartRoleLabel(code: string): string {
@@ -1159,10 +1169,11 @@ export class ChatComponent implements OnInit, OnDestroy {
     const others = conv.participants.filter(p => p.userId !== me);
     if (conv.type === 'direct') {
       const other = others[0] || conv.participants[0];
-      return (
-        other?.displayName ||
-        `${other?.userRole || this.translate.instant('chat.fallbackUser')} ${other?.userId || ''}`.trim()
-      );
+      const insight = resolveCounterpartInsight(conv, { myUserId: this.myUserId, directory: this.directory });
+      if (other) {
+        return chatDirectPeerTitle(other, insight, this.translate);
+      }
+      return this.translate.instant('chat.fallbackUser');
     }
     if (conv.subject) return conv.subject;
     if (conv.contextType && conv.contextId) return this.describeContext(conv);

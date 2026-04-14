@@ -2,6 +2,11 @@ import type { ChatDirectoryResponse, ChatInboxConversation, ChatMessage } from '
 import { classShortFromRoster } from '../chat/chat-counterpart.resolve';
 import { MOCK_PARENT_CHILDREN } from './parent.mock-data';
 
+/** Optional labels for the tenant school admin in mock threads (teacher/parent view). */
+export interface MockChatSeedOptions {
+  schoolAdminPeer?: { userId?: number; displayName: string; jobTitle?: string };
+}
+
 const MICHAEL_LINKED = MOCK_PARENT_CHILDREN.map(s => ({
   studentId: s.id,
   studentName: `${s.firstName} ${s.lastName}`,
@@ -69,17 +74,22 @@ export const MOCK_CHAT_DIRECTORY_ADMIN: ChatDirectoryResponse = {
   ],
 };
 
-const ADMIN_USER_ID = 1;
-
 /**
  * Inbox + messages for mocks. Messages are **chronological ascending** (oldest first) — WhatsApp-style scroll.
  */
 export function buildMockChatInboxSeed(
   meUserId: number,
-  roleUpper: string
+  roleUpper: string,
+  opts?: MockChatSeedOptions
 ): { conversations: ChatInboxConversation[]; messages: Record<string, ChatMessage[]> } {
   const role = roleUpper.toUpperCase();
   const now = Date.now();
+  const adminId =
+    opts?.schoolAdminPeer?.userId != null && Number.isFinite(Number(opts.schoolAdminPeer.userId))
+      ? Number(opts.schoolAdminPeer.userId)
+      : 1;
+  const adminPeerName = opts?.schoolAdminPeer?.displayName?.trim() || 'John Anderson';
+  const adminPeerJob = opts?.schoolAdminPeer?.jobTitle?.trim();
 
   if (role === 'PARENT') {
     const conv: ChatInboxConversation = {
@@ -121,9 +131,10 @@ export function buildMockChatInboxSeed(
       {
         id: '1003',
         conversationId: 'c-parent-homeroom',
-        senderUserId: ADMIN_USER_ID,
+        senderUserId: adminId,
         senderRole: 'ADMIN',
-        senderName: 'School Office',
+        senderName: adminPeerName,
+        senderJobTitle: adminPeerJob,
         body: 'Hello parent — a fee balance is pending for Emma Chen. Please clear dues on time.',
         bodyType: 'text',
         createdAt: new Date(now - 1000 * 60 * 2).toISOString(),
@@ -133,7 +144,7 @@ export function buildMockChatInboxSeed(
   }
 
   if (role === 'TEACHER') {
-    const conv: ChatInboxConversation = {
+    const convParent: ChatInboxConversation = {
       conversationId: 'c-teacher-parent',
       type: 'direct',
       contextType: 'student',
@@ -144,9 +155,27 @@ export function buildMockChatInboxSeed(
         { userId: meUserId, userRole: 'TEACHER', displayName: 'You' },
         { userId: 3, userRole: 'PARENT', displayName: 'Michael Chen' },
       ],
+      counterpartInsight: { roleCode: 'PARENT' },
       unreadCount: 0,
     };
-    const messages: ChatMessage[] = [
+    const convAdmin: ChatInboxConversation = {
+      conversationId: 'c-teacher-admin',
+      type: 'direct',
+      lastMessageAt: new Date(now - 1000 * 60 * 1).toISOString(),
+      lastMessagePreview: 'Hello mukesh',
+      participants: [
+        { userId: meUserId, userRole: 'TEACHER', displayName: 'You' },
+        {
+          userId: adminId,
+          userRole: 'ADMIN',
+          displayName: adminPeerName,
+          jobTitle: adminPeerJob,
+        },
+      ],
+      counterpartInsight: { roleCode: 'ADMIN' },
+      unreadCount: 0,
+    };
+    const messagesParent: ChatMessage[] = [
       {
         id: '2001',
         conversationId: 'c-teacher-parent',
@@ -168,7 +197,34 @@ export function buildMockChatInboxSeed(
         createdAt: new Date(now - 1000 * 60 * 4).toISOString(),
       },
     ];
-    return { conversations: [conv], messages: { 'c-teacher-parent': messages } };
+    const messagesAdmin: ChatMessage[] = [
+      {
+        id: '2101',
+        conversationId: 'c-teacher-admin',
+        senderUserId: adminId,
+        senderRole: 'ADMIN',
+        senderName: adminPeerName,
+        senderJobTitle: adminPeerJob,
+        body: 'Hey Arav',
+        bodyType: 'text',
+        createdAt: new Date(now - 1000 * 60 * 90).toISOString(),
+      },
+      {
+        id: '2102',
+        conversationId: 'c-teacher-admin',
+        senderUserId: adminId,
+        senderRole: 'ADMIN',
+        senderName: adminPeerName,
+        senderJobTitle: adminPeerJob,
+        body: 'Hello mukesh',
+        bodyType: 'text',
+        createdAt: new Date(now - 1000 * 60 * 1).toISOString(),
+      },
+    ];
+    return {
+      conversations: [convAdmin, convParent],
+      messages: { 'c-teacher-parent': messagesParent, 'c-teacher-admin': messagesAdmin },
+    };
   }
 
   const convMichael: ChatInboxConversation = {

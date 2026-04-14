@@ -155,6 +155,7 @@ const HERO_IMG =
                 maxlength="40"
                 erpI18nPh="signup.phonePlaceholder"
                 autocomplete="tel" />
+              <p class="text-muted small mb-0 mt-1">{{ 'signup.phoneHintAdmin' | translate }}</p>
             </div>
             <div class="erp-form-group">
               <label class="erp-label" for="su-address">

@@ -8,6 +8,7 @@ import {
   MOCK_CHAT_DIRECTORY_PARENT,
   MOCK_CHAT_DIRECTORY_TEACHER,
 } from '../mocks/chat.mock-data';
+import { getMockSchoolAdminPeer } from '../mocks/auth.mock-data';
 import { ApiService } from './api.service';
 import { getStompBrokerUrl, runtimeConfig } from '../config/runtime-config';
 import { AuthService } from './auth.service';
@@ -62,6 +63,7 @@ function mapChatInboxFromApi(item: any): ChatInboxConversation {
       userId: Number(p.userId),
       userRole: p.userRole,
       displayName: p.displayName ?? undefined,
+      jobTitle: p.jobTitle != null && String(p.jobTitle).trim() ? String(p.jobTitle).trim() : undefined,
     })),
     unreadCount: Number(item.unreadCount ?? 0),
     counterpartInsight: mapCounterpartInsight(item.counterpartInsight),
@@ -214,7 +216,12 @@ export class ChatService implements OnDestroy {
       subject: req.subject,
       contextType: req.contextType,
       contextId: req.contextId != null ? Number(req.contextId) : null,
-      participants: req.participants.map(p => ({ userId: Number(p.userId), userRole: p.userRole, displayName: p.displayName }))
+      participants: req.participants.map(p => ({
+        userId: Number(p.userId),
+        userRole: p.userRole,
+        displayName: p.displayName,
+        jobTitle: p.jobTitle != null && String(p.jobTitle).trim() ? String(p.jobTitle).trim() : undefined,
+      }))
     }).pipe(map(item => mapChatInboxFromApi(item)));
   }
 
@@ -268,12 +275,19 @@ export class ChatService implements OnDestroy {
     if (runtimeConfig.useMocks) {
       const me = this.auth.getCurrentUser()?.id ?? 1;
       const role = this.auth.getRole() || 'admin';
+      const u = this.auth.getCurrentUser();
+      const summary = this.auth.getProfileSummarySnapshot();
+      const job =
+        summary?.userTitle != null && String(summary.userTitle).trim()
+          ? String(summary.userTitle).trim()
+          : undefined;
       const msg: ChatMessage = {
         id: 'm-' + Date.now(),
         conversationId,
         senderUserId: me,
         senderRole: role.toUpperCase(),
-        senderName: undefined,
+        senderName: u?.name,
+        senderJobTitle: job,
         body,
         bodyType: 'text',
         clientMessageId,
@@ -367,6 +381,7 @@ export class ChatService implements OnDestroy {
       senderUserId: Number(m.senderUserId),
       senderRole: m.senderRole,
       senderName: m.senderName ?? undefined,
+      senderJobTitle: m.senderJobTitle != null && String(m.senderJobTitle).trim() ? String(m.senderJobTitle).trim() : undefined,
       body: m.body,
       bodyType: m.bodyType,
       clientMessageId: m.clientMessageId ?? undefined,
@@ -387,7 +402,10 @@ export class ChatService implements OnDestroy {
   private seedMocks(): void {
       const me = this.auth.getCurrentUser()?.id ?? 2;
       const role = (this.auth.getRole() || 'teacher').toUpperCase();
-      const seed = buildMockChatInboxSeed(me, role);
+      const peer = getMockSchoolAdminPeer();
+      const seed = buildMockChatInboxSeed(me, role, {
+        schoolAdminPeer: { userId: peer.userId, displayName: peer.displayName, jobTitle: undefined },
+      });
     this.mockConversations = seed.conversations.map(c => ({
       ...c,
       participants: c.participants.map(p => ({ ...p })),

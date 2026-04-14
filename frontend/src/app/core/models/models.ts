@@ -1,6 +1,13 @@
 import type { ParentFeeDtos } from './parent-fee.dto';
 
-export type AppRole = 'super_admin' | 'admin' | 'teacher' | 'parent';
+export type AppRole = 'super_admin' | 'admin' | 'teacher' | 'parent' | 'student' | 'library_staff';
+
+/** Body for {@code PUT /api/v1/auth/profile} — mirrors Spring {@code AuthDTOs.UpdateProfileRequest}. */
+export interface UpdateAccountProfileRequest {
+  name?: string;
+  phone?: string | null;
+  avatar?: string | null;
+}
 
 export interface User {
   /** ERP user id (Java Long → JSON number). */
@@ -696,6 +703,8 @@ export interface ChatParticipantSummary {
   userId: number;
   userRole: string;
   displayName?: string;
+  /** Optional professional label from user profile / API (e.g. Principal) — mirrors Spring {@code ParticipantSummary.jobTitle}. */
+  jobTitle?: string;
 }
 
 /**
@@ -747,6 +756,8 @@ export interface ChatMessage {
   senderUserId: number;
   senderRole: string;
   senderName?: string;
+  /** Optional; mirrors Spring {@code MessageResponse.senderJobTitle}. */
+  senderJobTitle?: string;
   body: string;
   bodyType: string;
   clientMessageId?: string;
