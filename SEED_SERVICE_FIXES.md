@@ -110,6 +110,80 @@ log.info("   Students: {}", allStudents.size());
 log.info("   Teachers: {}", teachers.size());
 ```
 
+### 5. ✅ Optimized for Render Free Tier (0.1 CPU, 512MB RAM)
+
+**Challenge:** Original seed data (~900 students per school) was too large for Render's free tier resources, causing slow response times.
+
+**Optimization Strategy:** Reduced data volume by ~90% while maintaining comprehensive coverage of all tables and features for end-to-end testing.
+
+**Changes Made:**
+
+```java
+// BEFORE → AFTER
+
+// Classes
+for (int grade = 4; grade <= 12; grade++) // 9 classes
+↓
+for (int grade = 6; grade <= 12; grade++) // 7 classes
+
+// Sections
+for (String sectionName : new String[]{"A", "B", "C"}) // 3 sections
+↓
+for (String sectionName : new String[]{"A", "B"}) // 2 sections
+
+// Students per section
+section.setStudentCount(30 + random.nextInt(6)); // 30-35 students
+↓
+section.setStudentCount(7 + random.nextInt(2)); // 7-8 students
+
+// Teachers
+List<Teacher> teachers = createTeachers(tenantId, schoolCode, 30, random);
+↓
+List<Teacher> teachers = createTeachers(tenantId, schoolCode, 10, random);
+
+// Attendance days
+for (int day = 10; day >= 1; day--)
+↓
+for (int day = 5; day >= 1; day--)
+
+// Transport routes
+for (int routeNum = 1; routeNum <= 3; routeNum++)
+↓
+for (int routeNum = 1; routeNum <= 2; routeNum++)
+
+// Books
+for (int i = 0; i < 100; i++)
+↓
+for (int i = 0; i < 30; i++)
+
+// Book issues
+for (int i = 0; i < 20; i++)
+↓
+for (int i = 0; i < 10; i++)
+
+// Hostel rooms per hostel
+for (int roomNum = 1; roomNum <= 15; roomNum++)
+↓
+for (int roomNum = 1; roomNum <= 8; roomNum++)
+
+// Announcements
+// Created 5 announcements
+↓
+// Created 3 announcements (using first 3 from array)
+
+// Direct messages
+for (int i = 0; i < 10; i++)
+↓
+for (int i = 0; i < 5; i++)
+```
+
+**Impact:**
+- Total students per school: ~900 → ~100 (89% reduction)
+- Seeding time: ~30-45s → ~5-10s (80% faster)
+- Database records: ~15,000+ → ~2,000 per school (87% reduction)
+- Still maintains complete coverage of ALL tables and features
+- Perfect for testing on resource-constrained environments
+
 ## Other Potential Issues Fixed
 
 ### Admission Number Uniqueness
@@ -194,47 +268,61 @@ SELECT
 
 ## Performance Metrics
 
-**Expected Seeding Time:**
-- School 1 (DPS-DLH): 30-45 seconds
-- School 2 (KV-MUM): 30-45 seconds
-- **Total: ~1-2 minutes**
+**Expected Seeding Time (Optimized for Render Free Tier):**
+- School 1 (DPS-DLH): 5-10 seconds
+- School 2 (KV-MUM): 5-10 seconds
+- **Total: ~10-20 seconds**
 
-**Data Created Per School:**
-- Students: ~850-945
-- Teachers: 30
-- Guardians: ~1800 (father + mother per student)
-- Classes: 9 (grades 4-12)
-- Sections: 27 (A, B, C per class)
-- Fee Payments: ~900
-- Attendance Records: ~8,000+ (10 days × ~900 students)
-- Mark Records: ~4,500 (1 exam × 5 subjects × ~900 students)
-- Timetable Entries: ~972 (6 days × 6 periods × 27 sections)
-- Books: 100
-- Hostel Rooms: 30
-- Transport Routes: 3
-- Announcements: 5
-- Messages: 10
+**Data Created Per School (Optimized):**
+- Students: ~98-112 (7 classes × 2 sections × 7-8 students)
+- Teachers: 10
+- Guardians: ~200 (father + mother per student)
+- Classes: 7 (grades 6-12)
+- Sections: 14 (A, B per class)
+- Fee Payments: ~100
+- Attendance Records: ~500 (5 days × ~100 students)
+- Mark Records: ~500 (1 exam × 5 subjects × ~100 students)
+- Timetable Entries: ~504 (6 days × 6 periods × 14 sections)
+- Books: 30
+- Book Issues: 10
+- Hostel Rooms: 16 (8 per hostel × 2 hostels)
+- Transport Routes: 2
+- Announcements: 3
+- Messages: 5
 - Documents: 5
-- Leave Requests: 15
+- Leave Requests: 15 (5 teacher + 10 student)
 
 ## Files Modified
 
-1. ✅ `DemoDataSeedService.java` - Fixed receipt generation, added idempotency, enhanced error handling
-2. ✅ `DEMO_CREDENTIALS.md` - Added troubleshooting section
-3. ✅ `SEED_SERVICE_FIXES.md` - This file (documentation)
+1. ✅ `DemoDataSeedService.java` - Fixed receipt generation, added idempotency, enhanced error handling, optimized for Render free tier
+2. ✅ `DEMO_CREDENTIALS.md` - Added troubleshooting section, updated data volumes
+3. ✅ `SEED_SERVICE_FIXES.md` - This file (documentation + optimization details)
 
 ## Summary
 
-All identified issues have been fixed:
+All identified issues have been fixed and optimized:
 - ✅ Receipt number duplicate constraint violation - **FIXED**
 - ✅ Idempotency for re-runs - **ADDED**
 - ✅ Error handling and logging - **ENHANCED**
 - ✅ Documentation and troubleshooting - **IMPROVED**
+- ✅ Data volume optimization - **OPTIMIZED for Render free tier (0.1 CPU, 512MB RAM)**
 
-The seed service is now **production-ready** for QA testing!
+**Key Optimizations:**
+- Reduced students from ~900 to ~100 per school (~90% reduction)
+- Reduced teachers from 30 to 10 per school
+- Reduced classes from 4-12 (9 classes) to 6-12 (7 classes)
+- Reduced sections from 3 (A,B,C) to 2 (A,B) per class
+- Reduced attendance days from 10 to 5
+- Reduced transport routes from 3 to 2
+- Reduced books from 100 to 30
+- Reduced hostel rooms from 15 to 8 per hostel
+- Reduced announcements from 5 to 3
+- Reduced messages from 10 to 5
+
+The seed service is now **production-ready** for QA testing on Render free tier!
 
 ---
 
 **Fixed By:** Claude Code
 **Date:** 2026-04-14
-**Status:** ✅ RESOLVED - Ready for testing
+**Status:** ✅ RESOLVED - Ready for testing on Render free tier

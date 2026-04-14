@@ -29,21 +29,23 @@ import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directiv
   imports: [CommonModule, FormsModule, TranslateModule, ErpI18nPhDirective],
   styles: [
     `
+      /* Shell: card that reads as one continuous chat workspace (theme-aligned). */
       .chat-shell {
-        border-radius: 14px;
+        border-radius: var(--radius-lg, 16px);
         overflow: hidden;
         border: 1px solid var(--clr-border);
-        box-shadow: 0 8px 28px rgba(15, 23, 42, 0.06);
+        box-shadow:
+          0 4px 6px -1px color-mix(in srgb, var(--clr-text) 6%, transparent),
+          0 16px 40px -12px color-mix(in srgb, var(--clr-primary) 12%, transparent);
       }
-      /* Fixed viewport band + flex column so the message list scrolls and the composer stays pinned (WhatsApp-style). */
       .chat-layout-row {
         min-height: 480px;
-        height: min(680px, calc(100vh - 168px));
+        height: min(720px, calc(100vh - 160px));
       }
       @media (max-width: 991.98px) {
         .chat-layout-row {
           height: auto;
-          min-height: 360px;
+          min-height: 380px;
           max-height: none;
         }
       }
@@ -53,6 +55,8 @@ import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directiv
         min-height: 0;
         max-height: 100%;
         overflow: hidden;
+        background: var(--clr-surface);
+        border-right: 1px solid var(--clr-border);
       }
       .chat-sidebar > div:not(.chat-sidebar-scroll) {
         flex-shrink: 0;
@@ -62,6 +66,7 @@ import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directiv
         min-height: 0;
         overflow-y: auto;
         -webkit-overflow-scrolling: touch;
+        scrollbar-gutter: stable;
       }
       .chat-thread-column {
         display: flex;
@@ -70,22 +75,99 @@ import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directiv
         min-width: 0;
         max-height: 100%;
         overflow: hidden;
+        background: var(--clr-surface);
       }
-      .chat-sidebar {
-        background: linear-gradient(180deg, var(--clr-surface) 0%, var(--clr-surface-alt) 100%);
-        border-right: 1px solid var(--clr-border);
+      .chat-sidebar-toolbar {
+        padding: 14px 14px 12px;
+        border-bottom: 1px solid var(--clr-border-light);
+        background: color-mix(in srgb, var(--clr-surface-alt) 65%, var(--clr-surface));
+      }
+      .chat-search-field {
+        position: relative;
+        flex: 1;
+        min-width: 0;
+      }
+      .chat-search-field > i {
+        position: absolute;
+        left: 14px;
+        top: 50%;
+        transform: translateY(-50%);
+        font-size: 15px;
+        color: var(--clr-text-muted);
+        pointer-events: none;
+      }
+      .chat-search-field .erp-input {
+        padding-left: 40px;
+        border-radius: 999px;
+        border: 1px solid var(--clr-border);
+        background: var(--clr-surface);
+        min-height: 42px;
+        font-size: 14px;
+      }
+      .chat-sidebar-toolbar .btn-outline-erp {
+        border-radius: 999px;
+        font-weight: 700;
+        padding-left: 14px;
+        padding-right: 14px;
+        white-space: nowrap;
+      }
+      .chat-directory-panel {
+        padding: 14px;
+        border-top: 1px solid var(--clr-border-light);
+        background: linear-gradient(
+          180deg,
+          color-mix(in srgb, var(--clr-primary) 5%, var(--clr-surface-alt)) 0%,
+          var(--clr-surface-alt) 100%
+        );
+        border-bottom: 1px solid var(--clr-border-light);
       }
       .chat-thread-header {
         flex-shrink: 0;
-        background: var(--clr-surface);
+        padding: 14px 16px;
+        background: linear-gradient(
+          180deg,
+          color-mix(in srgb, var(--clr-primary) 9%, var(--clr-surface)) 0%,
+          var(--clr-surface) 100%
+        );
         border-bottom: 1px solid var(--clr-border);
+        box-shadow: 0 1px 0 color-mix(in srgb, var(--clr-border) 80%, transparent);
       }
+      .chat-thread-title {
+        font-weight: 800;
+        font-size: 16px;
+        letter-spacing: -0.02em;
+        color: var(--clr-text);
+      }
+      .chat-thread-placeholder-title {
+        font-weight: 800;
+        font-size: 15px;
+        color: var(--clr-text-muted);
+      }
+      /* Message list: soft “chat canvas” (WhatsApp-like depth, theme tokens only). */
       .chat-messages {
         flex: 1 1 auto;
         min-height: 0;
         overflow-y: auto;
         -webkit-overflow-scrolling: touch;
-        background: linear-gradient(180deg, var(--clr-surface-alt) 0%, color-mix(in srgb, var(--clr-primary) 6%, transparent) 100%);
+        padding: 16px 18px 20px;
+        background-color: var(--clr-surface-muted);
+        background-image: radial-gradient(
+            circle at 12% 18%,
+            color-mix(in srgb, var(--clr-primary) 7%, transparent) 0%,
+            transparent 42%
+          ),
+          radial-gradient(
+            circle at 88% 72%,
+            color-mix(in srgb, var(--clr-accent) 6%, transparent) 0%,
+            transparent 48%
+          ),
+          repeating-linear-gradient(
+            -12deg,
+            transparent,
+            transparent 11px,
+            color-mix(in srgb, var(--clr-primary) 3.5%, transparent) 11px,
+            color-mix(in srgb, var(--clr-primary) 3.5%, transparent) 12px
+          );
       }
       .chat-status {
         display: inline-flex;
@@ -93,73 +175,241 @@ import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directiv
         gap: 6px;
         font-size: 11px;
         font-weight: 700;
-        padding: 4px 10px;
+        padding: 5px 12px;
         border-radius: 999px;
-        border: 1px solid var(--clr-border-light);
+        border: 1px solid var(--clr-border);
+        background: color-mix(in srgb, var(--clr-surface) 92%, transparent);
       }
       .chat-status-dot {
-        width: 7px;
-        height: 7px;
+        width: 8px;
+        height: 8px;
         border-radius: 50%;
         flex-shrink: 0;
       }
       .chat-status--live .chat-status-dot {
-        background: #16a34a;
-        box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.25);
+        background: var(--clr-success);
+        box-shadow: 0 0 0 3px color-mix(in srgb, var(--clr-success) 35%, transparent);
       }
       .chat-status--demo .chat-status-dot {
-        background: #ca8a04;
+        background: var(--clr-warning);
       }
       .chat-status--off .chat-status-dot {
-        background: #94a3b8;
+        background: var(--clr-text-muted);
       }
       .chat-avatar {
-        width: 40px;
-        height: 40px;
-        border-radius: 12px;
+        width: 44px;
+        height: 44px;
+        border-radius: 50%;
         display: flex;
         align-items: center;
         justify-content: center;
         font-weight: 800;
-        font-size: 13px;
+        font-size: 14px;
         color: #fff;
         flex-shrink: 0;
+        box-shadow: 0 0 0 2px color-mix(in srgb, var(--clr-surface) 88%, transparent);
       }
       .chat-row {
         padding: 12px 14px;
-        border-top: 1px solid var(--clr-border-light);
+        border-bottom: 1px solid var(--clr-border-light);
         cursor: pointer;
-        transition: background 0.12s ease;
+        transition: background 0.15s ease, box-shadow 0.15s ease;
       }
       .chat-row:hover {
-        background: color-mix(in srgb, var(--clr-primary) 8%, transparent);
+        background: color-mix(in srgb, var(--clr-primary) 6%, var(--clr-surface));
       }
       .chat-row.active {
-        background: color-mix(in srgb, var(--clr-accent) 14%, transparent);
-        border-left: 3px solid var(--clr-accent);
-        padding-left: 11px;
+        background: color-mix(in srgb, var(--clr-primary) 11%, var(--clr-surface));
+        box-shadow: inset 3px 0 0 var(--clr-accent);
+      }
+      .chat-inbox-name {
+        font-weight: 800;
+        font-size: 14px;
+        letter-spacing: -0.01em;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .chat-inbox-preview {
+        font-size: 13px;
+        line-height: 1.35;
+        color: var(--clr-text-secondary);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .chat-inbox-time {
+        font-size: 11px;
+        font-weight: 600;
+        color: var(--clr-text-muted);
+      }
+      .chat-unread-pill {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 22px;
+        height: 22px;
+        padding: 0 7px;
+        margin-top: 8px;
+        font-size: 11px;
+        font-weight: 800;
+        border-radius: 999px;
+        background: var(--clr-accent);
+        color: #fff;
+        line-height: 1;
+        box-shadow: 0 2px 8px color-mix(in srgb, var(--clr-accent) 45%, transparent);
       }
       .bubble {
-        max-width: 78%;
-        padding: 10px 14px;
-        border-radius: 14px 14px 14px 6px;
-        border: 1px solid var(--clr-border-light);
+        max-width: min(78%, 520px);
+        padding: 8px 12px 6px 14px;
+        border-radius: 12px 12px 12px 4px;
+        border: 1px solid color-mix(in srgb, var(--clr-border) 70%, transparent);
         background: var(--clr-surface);
-        box-shadow: 0 2px 10px rgba(15, 23, 42, 0.05);
+        box-shadow: 0 1px 2px color-mix(in srgb, var(--clr-text) 6%, transparent);
       }
       .bubble--mine {
-        border-radius: 14px 14px 6px 14px;
+        border-radius: 12px 12px 4px 12px;
         background: linear-gradient(
-          135deg,
-          color-mix(in srgb, var(--clr-accent) 22%, transparent),
-          color-mix(in srgb, var(--clr-primary) 12%, transparent)
+          145deg,
+          color-mix(in srgb, var(--clr-primary) 22%, var(--clr-surface)) 0%,
+          color-mix(in srgb, var(--clr-primary) 12%, var(--clr-surface)) 100%
         );
-        border-color: color-mix(in srgb, var(--clr-accent) 35%, var(--clr-border-light));
+        border-color: color-mix(in srgb, var(--clr-primary) 28%, var(--clr-border));
+        color: var(--clr-text);
+      }
+      .bubble-sender {
+        font-size: 11px;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        color: var(--clr-primary);
+        margin-bottom: 4px;
+        opacity: 0.92;
+      }
+      .bubble-body {
+        white-space: pre-wrap;
+        font-size: 14px;
+        line-height: 1.5;
+        color: var(--clr-text);
+      }
+      .bubble-footer {
+        display: flex;
+        justify-content: flex-end;
+        align-items: center;
+        margin-top: 4px;
+        padding-top: 2px;
+      }
+      .bubble-time {
+        font-size: 11px;
+        font-weight: 600;
+        color: var(--clr-text-muted);
+        opacity: 0.9;
+      }
+      .bubble--mine .bubble-time {
+        color: color-mix(in srgb, var(--clr-text) 72%, var(--clr-primary));
+      }
+      .chat-msg-row {
+        margin-bottom: 10px;
       }
       .chat-compose {
         flex-shrink: 0;
-        background: var(--clr-surface);
+        padding: 12px 14px 14px;
+        background: color-mix(in srgb, var(--clr-surface-alt) 40%, var(--clr-surface));
         border-top: 1px solid var(--clr-border);
+      }
+      .chat-compose-bar {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .chat-compose-bar .chat-compose-input {
+        flex: 1;
+        min-width: 0;
+        min-height: 46px;
+        border-radius: 999px;
+        padding-left: 18px;
+        padding-right: 18px;
+        font-size: 14px;
+        border: 1px solid var(--clr-border);
+        background: var(--clr-surface);
+        box-shadow: inset 0 1px 2px color-mix(in srgb, var(--clr-text) 4%, transparent);
+      }
+      .chat-compose-bar .chat-compose-input:focus {
+        outline: none;
+        border-color: color-mix(in srgb, var(--clr-primary) 45%, var(--clr-border));
+        box-shadow:
+          inset 0 1px 2px color-mix(in srgb, var(--clr-text) 4%, transparent),
+          0 0 0 3px color-mix(in srgb, var(--clr-primary) 18%, transparent);
+      }
+      .chat-compose-bar .chat-compose-input:disabled {
+        opacity: 0.65;
+      }
+      .chat-send-fab {
+        width: 46px;
+        height: 46px;
+        padding: 0;
+        border-radius: 50%;
+        border: none;
+        flex-shrink: 0;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        background: linear-gradient(145deg, var(--clr-primary) 0%, var(--clr-primary-light) 100%);
+        color: #fff;
+        font-size: 18px;
+        box-shadow: 0 4px 14px color-mix(in srgb, var(--clr-primary) 42%, transparent);
+        transition: transform 0.12s ease, box-shadow 0.12s ease, opacity 0.12s ease;
+      }
+      .chat-send-fab:hover:not(:disabled) {
+        transform: scale(1.04);
+        box-shadow: 0 6px 18px color-mix(in srgb, var(--clr-primary) 48%, transparent);
+      }
+      .chat-send-fab:disabled {
+        opacity: 0.45;
+        transform: none;
+        box-shadow: none;
+      }
+      .chat-send-fab .spinner-border {
+        width: 1.15rem;
+        height: 1.15rem;
+        border-width: 0.14em;
+        border-color: rgba(255, 255, 255, 0.35);
+        border-right-color: #fff;
+      }
+      .chat-policy-note {
+        font-size: 11px;
+        margin-top: 10px;
+        text-align: center;
+        color: var(--clr-text-muted);
+        line-height: 1.45;
+      }
+      .chat-empty-inbox,
+      .chat-empty-thread {
+        padding: 36px 20px;
+        text-align: center;
+      }
+      .chat-empty-inbox i,
+      .chat-empty-thread i {
+        font-size: 52px;
+        color: color-mix(in srgb, var(--clr-primary) 28%, var(--clr-border));
+        margin-bottom: 14px;
+        display: block;
+        opacity: 0.85;
+      }
+      .chat-empty-inbox h3,
+      .chat-empty-thread h3 {
+        font-size: 17px;
+        font-weight: 800;
+        margin-bottom: 8px;
+        color: var(--clr-text);
+      }
+      .chat-empty-inbox p,
+      .chat-empty-thread p {
+        color: var(--clr-text-muted);
+        font-size: 14px;
+        max-width: 320px;
+        margin: 0 auto;
+        line-height: 1.5;
       }
     `
   ],
@@ -193,16 +443,19 @@ import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directiv
       <div class="erp-card chat-shell" style="padding: 0;">
         <div class="row g-0 flex-lg-nowrap chat-layout-row">
           <div class="col-lg-4 chat-sidebar">
-            <div style="padding: 12px;">
-              <div class="d-flex gap-2">
-                <input class="erp-input flex-grow-1" erpI18nPh="chat.searchPlaceholder" [(ngModel)]="query" />
+            <div class="chat-sidebar-toolbar">
+              <div class="d-flex gap-2 align-items-center">
+                <div class="chat-search-field">
+                  <i class="bi bi-search" aria-hidden="true"></i>
+                  <input class="erp-input w-100" erpI18nPh="chat.searchPlaceholder" [(ngModel)]="query" />
+                </div>
                 <button class="btn-outline-erp btn-sm flex-shrink-0" type="button" (click)="openDirectory = !openDirectory">
                   {{ openDirectory ? ('chat.close' | translate) : ('chat.newChat' | translate) }}
                 </button>
               </div>
             </div>
 
-            <div *ngIf="openDirectory" style="padding: 12px; border-top: 1px solid var(--clr-border-light); background: var(--clr-surface-alt);">
+            <div *ngIf="openDirectory" class="chat-directory-panel">
               <div style="font-weight: 900; margin-bottom: 8px;">{{ 'chat.startConversationTitle' | translate }}</div>
               <div class="text-muted" style="font-size: 12px; margin-bottom: 10px;">
                 <ng-container *ngIf="role === 'super_admin'">{{ 'chat.dirHelpSuperAdmin' | translate }}</ng-container>
@@ -331,10 +584,8 @@ import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directiv
                     {{ initials(conversationTitle(conv)) }}
                   </div>
                   <div class="d-flex justify-content-between align-items-start gap-2 flex-grow-1 min-w-0">
-                    <div style="min-width: 0;">
-                      <div style="font-weight: 800; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
-                        {{ conversationTitle(conv) }}
-                      </div>
+                    <div class="min-w-0">
+                      <div class="chat-inbox-name">{{ conversationTitle(conv) }}</div>
                       <div
                         *ngIf="conversationIdentityHint(conv) as hint"
                         class="text-muted"
@@ -343,19 +594,17 @@ import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directiv
                       >
                         {{ hint }}
                       </div>
-                      <div class="text-muted" style="font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
-                        {{ conv.lastMessagePreview || ('chat.noMessagesPreview' | translate) }}
-                      </div>
+                      <div class="chat-inbox-preview">{{ conv.lastMessagePreview || ('chat.noMessagesPreview' | translate) }}</div>
                     </div>
-                    <div style="text-align: right; flex-shrink: 0;">
-                      <div class="text-muted" style="font-size: 11px;">{{ asTime(conv.lastMessageAt) }}</div>
-                      <span *ngIf="conv.unreadCount > 0" class="badge-erp badge-danger" style="margin-top: 6px;">{{ conv.unreadCount }}</span>
+                    <div class="text-end flex-shrink-0">
+                      <div class="chat-inbox-time">{{ asTime(conv.lastMessageAt) }}</div>
+                      <span *ngIf="conv.unreadCount > 0" class="chat-unread-pill">{{ conv.unreadCount }}</span>
                     </div>
                   </div>
                 </div>
               </div>
-              <div *ngIf="!inbox.length" class="empty-state" style="padding: 28px 14px;">
-                <i class="bi bi-inbox"></i>
+              <div *ngIf="!inbox.length" class="chat-empty-inbox">
+                <i class="bi bi-inbox" aria-hidden="true"></i>
                 <h3>{{ 'chat.emptyInboxTitle' | translate }}</h3>
                 <p>{{ 'chat.emptyInboxHint' | translate }}</p>
               </div>
@@ -363,14 +612,14 @@ import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directiv
           </div>
 
           <div class="col-lg-8 chat-thread-column">
-            <div class="chat-thread-header" style="padding: 12px 14px;">
+            <div class="chat-thread-header">
               <div *ngIf="selectedConversation; else noSelection" class="d-flex align-items-start justify-content-between gap-3">
                 <div class="d-flex align-items-start gap-3 min-w-0">
                   <div class="chat-avatar d-none d-sm-flex" [style.background]="avatarColor(conversationTitle(selectedConversation))">
                     {{ initials(conversationTitle(selectedConversation)) }}
                   </div>
                   <div class="min-w-0">
-                    <div style="font-weight: 900; font-size: 15px;">{{ conversationTitle(selectedConversation) }}</div>
+                    <div class="chat-thread-title">{{ conversationTitle(selectedConversation) }}</div>
                     <div class="text-muted chat-thread-meta" style="font-size: 12px; line-height: 1.45;">
                       {{ threadSubtitle(selectedConversation) }}
                     </div>
@@ -389,54 +638,56 @@ import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directiv
                 </span>
               </div>
               <ng-template #noSelection>
-                <div style="font-weight: 900;">{{ 'chat.selectConversation' | translate }}</div>
+                <div class="chat-thread-placeholder-title">{{ 'chat.selectConversation' | translate }}</div>
                 <div class="text-muted" style="font-size: 12px;">{{ 'chat.selectConversationHint' | translate }}</div>
               </ng-template>
             </div>
 
-            <div #threadScroll class="chat-messages" style="padding: 14px;">
-              <div *ngIf="selectedConversation && loadingMessages" class="empty-state" style="padding: 28px 14px;">
+            <div #threadScroll class="chat-messages">
+              <div *ngIf="selectedConversation && loadingMessages" class="chat-empty-thread">
                 <h3>{{ 'chat.loading' | translate }}</h3>
               </div>
 
-              <div *ngIf="selectedConversation && !loadingMessages && !messages.length" class="empty-state" style="padding: 28px 14px;">
-                <i class="bi bi-chat-left-text"></i>
+              <div *ngIf="selectedConversation && !loadingMessages && !messages.length" class="chat-empty-thread">
+                <i class="bi bi-chat-dots" aria-hidden="true"></i>
                 <h3>{{ 'chat.emptyThreadTitle' | translate }}</h3>
                 <p>{{ 'chat.emptyThreadHint' | translate }}</p>
               </div>
 
-              <div *ngFor="let m of messages" style="margin-bottom: 12px;">
+              <div *ngFor="let m of messages" class="chat-msg-row">
                 <div class="d-flex" [style.justifyContent]="isMine(m) ? 'flex-end' : 'flex-start'">
                   <div class="bubble" [class.bubble--mine]="isMine(m)">
-                    <div *ngIf="!isMine(m)" class="text-muted" style="font-size: 11px; font-weight: 700; margin-bottom: 4px;">
-                      {{ m.senderName || m.senderRole }}
-                    </div>
-                    <div style="white-space: pre-wrap; font-size: 13px; line-height: 1.45;">{{ m.body }}</div>
-                    <div class="text-muted" style="font-size: 11px; margin-top: 8px; text-align: right;">
-                      {{ asTime(m.createdAt) }}
+                    <div *ngIf="!isMine(m)" class="bubble-sender">{{ m.senderName || m.senderRole }}</div>
+                    <div class="bubble-body">{{ m.body }}</div>
+                    <div class="bubble-footer">
+                      <span class="bubble-time">{{ asTime(m.createdAt) }}</span>
                     </div>
                   </div>
                 </div>
               </div>
             </div>
 
-            <div class="chat-compose" style="padding: 12px 14px;">
-              <div class="d-flex gap-2 align-items-stretch">
-                <input class="erp-input flex-grow-1"
-                       [disabled]="!selectedConversation || sending"
-                       erpI18nPh="chat.composePlaceholder"
-                       [(ngModel)]="draft"
-                       (keydown.enter)="onEnter($event)" />
-                <button class="btn-primary-erp flex-shrink-0"
-                        type="button"
-                        [disabled]="!selectedConversation || sending || !draft.trim()"
-                        (click)="send()">
-                  {{ sending ? ('chat.sending' | translate) : ('chat.send' | translate) }}
+            <div class="chat-compose">
+              <div class="chat-compose-bar">
+                <input
+                  class="erp-input chat-compose-input"
+                  [disabled]="!selectedConversation || sending"
+                  erpI18nPh="chat.composePlaceholder"
+                  [(ngModel)]="draft"
+                  (keydown.enter)="onEnter($event)"
+                />
+                <button
+                  class="chat-send-fab"
+                  type="button"
+                  [disabled]="!selectedConversation || sending || !draft.trim()"
+                  (click)="send()"
+                  [attr.aria-label]="sending ? ('chat.sending' | translate) : ('chat.send' | translate)"
+                >
+                  <span *ngIf="sending" class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                  <i *ngIf="!sending" class="bi bi-send-fill" aria-hidden="true"></i>
                 </button>
               </div>
-              <div class="text-muted" style="font-size: 11px; margin-top: 8px;">
-                {{ 'chat.policyFootnote' | translate }}
-              </div>
+              <div class="chat-policy-note">{{ 'chat.policyFootnote' | translate }}</div>
             </div>
           </div>
         </div>
