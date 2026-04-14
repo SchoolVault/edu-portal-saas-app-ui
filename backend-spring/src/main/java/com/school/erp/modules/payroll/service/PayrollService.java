@@ -1,5 +1,6 @@
 package com.school.erp.modules.payroll.service;
 
+import com.school.erp.common.dto.PageResponse;
 import com.school.erp.common.enums.Enums;
 import com.school.erp.common.exception.BusinessException;
 import com.school.erp.common.exception.ResourceNotFoundException;
@@ -16,6 +17,10 @@ import com.school.erp.config.CacheConfig;
 import com.school.erp.tenant.TenantContext;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -47,12 +52,23 @@ public class PayrollService {
     @Transactional(readOnly = true)
     public List<PayrollDTOs.SalaryStructureResponse> getStructures() {
         String t = TenantContext.getTenantId();
-        return ssRepo.findByTenantIdAndIsDeletedFalse(t).stream().map(ss -> {
-            List<SalaryComponent> comps = scRepo.findByTenantIdAndSalaryStructureId(t, ss.getId());
-            BigDecimal totalAllowances = comps.stream().filter(c -> c.getType() == Enums.SalaryComponentType.ALLOWANCE).map(SalaryComponent::getAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
-            BigDecimal totalDeductions = comps.stream().filter(c -> c.getType() == Enums.SalaryComponentType.DEDUCTION).map(SalaryComponent::getAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
-            return PayrollDTOs.SalaryStructureResponse.builder().id(ss.getId()).teacherId(ss.getTeacherId()).teacherName(ss.getTeacherName()).basicSalary(ss.getBasicSalary()).netSalary(ss.getNetSalary()).totalAllowances(totalAllowances).totalDeductions(totalDeductions).components(comps.stream().map(c -> PayrollDTOs.SalaryComponentDTO.builder().id(c.getId()).name(c.getName()).amount(c.getAmount()).type(c.getType().name().toLowerCase()).build()).collect(Collectors.toList())).build();
-        }).collect(Collectors.toList());
+        return ssRepo.findByTenantIdAndIsDeletedFalse(t).stream().map(ss -> toSalaryStructureResponse(t, ss)).collect(Collectors.toList());
+    }
+
+    /** DB-paged grid; not Redis-cached (avoid huge single-key payloads). */
+    @Transactional(readOnly = true)
+    public PageResponse<PayrollDTOs.SalaryStructureResponse> getStructuresPaged(int page, int size) {
+        String t = TenantContext.getTenantId();
+        Pageable pageable = PageRequest.of(page, size, Sort.by("teacherName"));
+        Page<SalaryStructure> sp = ssRepo.findByTenantIdAndIsDeletedFalse(t, pageable);
+        return PageResponse.fromSpringPage(sp.map(ss -> toSalaryStructureResponse(t, ss)));
+    }
+
+    private PayrollDTOs.SalaryStructureResponse toSalaryStructureResponse(String t, SalaryStructure ss) {
+        List<SalaryComponent> comps = scRepo.findByTenantIdAndSalaryStructureId(t, ss.getId());
+        BigDecimal totalAllowances = comps.stream().filter(c -> c.getType() == Enums.SalaryComponentType.ALLOWANCE).map(SalaryComponent::getAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal totalDeductions = comps.stream().filter(c -> c.getType() == Enums.SalaryComponentType.DEDUCTION).map(SalaryComponent::getAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
+        return PayrollDTOs.SalaryStructureResponse.builder().id(ss.getId()).teacherId(ss.getTeacherId()).teacherName(ss.getTeacherName()).basicSalary(ss.getBasicSalary()).netSalary(ss.getNetSalary()).totalAllowances(totalAllowances).totalDeductions(totalDeductions).components(comps.stream().map(c -> PayrollDTOs.SalaryComponentDTO.builder().id(c.getId()).name(c.getName()).amount(c.getAmount()).type(c.getType().name().toLowerCase()).build()).collect(Collectors.toList())).build();
     }
 
     @CacheEvict(cacheNames = CacheConfig.PAYROLL_STRUCTURES, keyGenerator = "tenantKeyGenerator")
@@ -153,6 +169,24 @@ public class PayrollService {
                     .collect(Collectors.toList());
         }
         return all;
+    }
+
+    @Transactional(readOnly = true)
+    public PageResponse<Payslip> getPayslipsPaged(int page, int size, Integer year, String month) {
+        String t = TenantContext.getTenantId();
+        Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "year", "payrollMonth"));
+        String m = month != null && !month.isBlank() ? month.trim() : null;
+        return PageResponse.fromSpringPage(psRepo.pageByTenantAndPeriod(t, year, m, pageable));
+    }
+
+    @Transactional(readOnly = true)
+    public PageResponse<Payslip> getMyPayslipsPaged(int page, int size, Integer year, String month) {
+        String t = TenantContext.getTenantId();
+        Long uid = TenantContext.getUserId();
+        Teacher teacher = teacherRepository.findByTenantIdAndUserIdAndIsDeletedFalse(t, uid).orElseThrow(() -> new UnauthorizedException("Only staff with a linked teacher profile can view payslips."));
+        Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "year", "payrollMonth"));
+        String m = month != null && !month.isBlank() ? month.trim() : null;
+        return PageResponse.fromSpringPage(psRepo.pageByTenantTeacherAndPeriod(t, teacher.getId(), year, m, pageable));
     }
 
     /**

@@ -1,5 +1,6 @@
 package com.school.erp.modules.hostel.service;
 
+import com.school.erp.common.dto.PageResponse;
 import com.school.erp.common.enums.Enums;
 import com.school.erp.common.exception.BusinessException;
 import com.school.erp.common.exception.ResourceNotFoundException;
@@ -12,8 +13,12 @@ import com.school.erp.modules.hostel.repository.HostelRepository;
 import com.school.erp.modules.hostel.repository.HostelRoomRepository;
 import com.school.erp.tenant.TenantContext;
 import com.school.erp.tenant.TenantQueryPolicy;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
 import java.time.LocalDate;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -47,6 +52,29 @@ public class HostelService {
         }).collect(Collectors.toList());
     }
 
+    @Transactional(readOnly = true)
+    public PageResponse<HostelDTOs.RoomResponse> getRoomsPaged(int page, int size) {
+        String t = TenantContext.getTenantId();
+        java.util.Map<Long, String> hostelNames = hostelRepo.findByTenantIdAndIsDeletedFalse(t).stream()
+                .collect(Collectors.toMap(Hostel::getId, Hostel::getName, (a, b) -> a));
+        Pageable p = PageRequest.of(page, size);
+        Page<HostelRoom> pg = roomRepo.findByTenantIdAndIsDeletedFalseOrderByHostelIdAscRoomNumberAsc(t, p);
+        List<HostelDTOs.RoomResponse> content = pg.getContent().stream().map(r -> toRoomResponse(r, t, hostelNames)).collect(Collectors.toList());
+        log.debug("Hostel rooms paged page={} total={}", page, pg.getTotalElements());
+        return PageResponse.of(content, page, size, pg.getTotalElements());
+    }
+
+    private HostelDTOs.RoomResponse toRoomResponse(HostelRoom r, String t, java.util.Map<Long, String> hostelNames) {
+        List<HostelAllocation> allocs = allocRepo.findByTenantIdAndRoomIdAndIsDeletedFalse(t, r.getId()).stream()
+                .filter(a -> a.getStatus() == Enums.HostelAllocationStatus.ACTIVE).toList();
+        HostelDTOs.RoomResponse resp = HostelDTOs.RoomResponse.builder().id(r.getId()).roomNumber(r.getRoomNumber()).block(r.getBlock()).floor(r.getFloor()).capacity(r.getCapacity()).occupancy(allocs.size()).roomType(r.getRoomType()).residents(allocs.stream().map(a -> HostelDTOs.AllocationDTO.builder().id(a.getId()).studentId(a.getStudentId()).studentName(a.getStudentName()).fromDate(a.getFromDate() != null ? a.getFromDate().toString() : null).toDate(a.getToDate() != null ? a.getToDate().toString() : null).status(a.getStatus().name().toLowerCase()).build()).collect(Collectors.toList())).build();
+        resp.setHostelId(r.getHostelId());
+        if (r.getHostelId() != null) {
+            resp.setHostelName(hostelNames.get(r.getHostelId()));
+        }
+        return resp;
+    }
+
     @Transactional
     public Hostel createHostel(Hostel hostel) {
         hostel.setTenantId(TenantContext.getTenantId());
@@ -58,15 +86,7 @@ public class HostelService {
         String t = TenantContext.getTenantId();
         java.util.Map<Long, String> hostelNames = hostelRepo.findByTenantIdAndIsDeletedFalse(t).stream()
                 .collect(Collectors.toMap(Hostel::getId, Hostel::getName, (a, b) -> a));
-        return roomRepo.findByTenantIdAndIsDeletedFalse(t).stream().map(r -> {
-            List<HostelAllocation> allocs = allocRepo.findByTenantIdAndRoomIdAndIsDeletedFalse(t, r.getId()).stream().filter(a -> a.getStatus() == Enums.HostelAllocationStatus.ACTIVE).toList();
-            HostelDTOs.RoomResponse resp = HostelDTOs.RoomResponse.builder().id(r.getId()).roomNumber(r.getRoomNumber()).block(r.getBlock()).floor(r.getFloor()).capacity(r.getCapacity()).occupancy(allocs.size()).roomType(r.getRoomType()).residents(allocs.stream().map(a -> HostelDTOs.AllocationDTO.builder().id(a.getId()).studentId(a.getStudentId()).studentName(a.getStudentName()).fromDate(a.getFromDate() != null ? a.getFromDate().toString() : null).toDate(a.getToDate() != null ? a.getToDate().toString() : null).status(a.getStatus().name().toLowerCase()).build()).collect(Collectors.toList())).build();
-            resp.setHostelId(r.getHostelId());
-            if (r.getHostelId() != null) {
-                resp.setHostelName(hostelNames.get(r.getHostelId()));
-            }
-            return resp;
-        }).collect(Collectors.toList());
+        return roomRepo.findByTenantIdAndIsDeletedFalse(t).stream().map(r -> toRoomResponse(r, t, hostelNames)).collect(Collectors.toList());
     }
 
     @Transactional

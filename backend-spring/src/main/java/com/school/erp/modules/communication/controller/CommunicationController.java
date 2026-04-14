@@ -1,6 +1,7 @@
 package com.school.erp.modules.communication.controller;
 
 import com.school.erp.common.dto.ApiResponse;
+import com.school.erp.common.dto.PageResponse;
 import com.school.erp.modules.communication.dto.CommunicationDTOs;
 import com.school.erp.modules.communication.dto.AnnouncementDTOs;
 import com.school.erp.modules.communication.entity.Announcement;
@@ -25,6 +26,15 @@ public class CommunicationController {
     @Operation(summary = "List announcements")
     public ResponseEntity<ApiResponse<List<Announcement>>> listAnnouncements() {
         return ResponseEntity.ok(ApiResponse.ok(service.getAnnouncements()));
+    }
+
+    @GetMapping("/announcements/paged")
+    @Operation(summary = "List announcements (paged)")
+    public ResponseEntity<ApiResponse<PageResponse<Announcement>>> listAnnouncementsPaged(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(required = false) String q) {
+        return ResponseEntity.ok(ApiResponse.ok(service.getAnnouncementsPaged(page, size, q)));
     }
 
     @GetMapping("/announcements/previews")

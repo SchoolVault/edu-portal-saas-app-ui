@@ -16,10 +16,9 @@ public interface StudentGuardianMappingRepository extends JpaRepository<StudentG
 
     @Query(
             "SELECT DISTINCT m.studentId FROM StudentGuardianMapping m WHERE m.tenantId = :t AND m.isDeleted = false "
-                    + "AND m.guardianId IN (SELECT g.id FROM Guardian g WHERE g.tenantId = :t AND g.isDeleted = false AND g.userId = :userId) "
-                    + "AND (m.effectiveTo IS NULL OR m.effectiveTo >= :today)")
+                    + "AND m.guardianId IN (SELECT g.id FROM Guardian g WHERE g.tenantId = :t AND g.isDeleted = false AND g.userId = :userId) ")
     List<Long> findStudentIdsLinkedToGuardianUser(
-            @Param("t") String tenantId, @Param("userId") Long userId, @Param("today") LocalDate today);
+            @Param("t") String tenantId, @Param("userId") Long userId);
 
     @Query(
             "SELECT COUNT(m) > 0 FROM StudentGuardianMapping m, Guardian g WHERE m.guardianId = g.id AND m.tenantId = :t AND g.tenantId = :t "

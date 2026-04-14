@@ -81,6 +81,9 @@ public class ChatDirectoryDTOs {
         private Long userId;
         private String name;
         private String role;
+        /** Admin directory: children linked to this parent account (for chat identity). */
+        private List<LinkedStudentBrief> linkedStudents;
+        private Integer linkedStudentTotal;
 
         public UserCard() {}
         public UserCard(Long userId, String name, String role) {
@@ -95,6 +98,23 @@ public class ChatDirectoryDTOs {
         public void setName(String name) { this.name = name; }
         public String getRole() { return role; }
         public void setRole(String role) { this.role = role; }
+        public List<LinkedStudentBrief> getLinkedStudents() { return linkedStudents; }
+        public void setLinkedStudents(List<LinkedStudentBrief> linkedStudents) { this.linkedStudents = linkedStudents; }
+        public Integer getLinkedStudentTotal() { return linkedStudentTotal; }
+        public void setLinkedStudentTotal(Integer linkedStudentTotal) { this.linkedStudentTotal = linkedStudentTotal; }
+    }
+
+    public static class LinkedStudentBrief {
+        private Long studentId;
+        private String studentName;
+        private String classShort;
+
+        public Long getStudentId() { return studentId; }
+        public void setStudentId(Long studentId) { this.studentId = studentId; }
+        public String getStudentName() { return studentName; }
+        public void setStudentName(String studentName) { this.studentName = studentName; }
+        public String getClassShort() { return classShort; }
+        public void setClassShort(String classShort) { this.classShort = classShort; }
     }
 }
 

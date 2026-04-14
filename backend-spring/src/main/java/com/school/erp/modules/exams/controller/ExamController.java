@@ -1,6 +1,7 @@
 package com.school.erp.modules.exams.controller;
 
 import com.school.erp.common.dto.ApiResponse;
+import com.school.erp.common.dto.PageResponse;
 import com.school.erp.modules.exams.dto.ExamDTOs;
 import com.school.erp.modules.exams.dto.ExamScopeDtos;
 import com.school.erp.modules.exams.service.ExamService;
@@ -24,6 +25,17 @@ public class ExamController {
     @Operation(summary = "List all exams (school staff)", description = "Parents use GET /api/v1/parent/exams — scoped to linked children only.")
     public ResponseEntity<ApiResponse<List<ExamDTOs.ExamResponse>>> list() {
         return ResponseEntity.ok(ApiResponse.ok(service.getExams()));
+    }
+
+    @GetMapping("/paged")
+    @PreAuthorize("hasAnyRole('ADMIN','TEACHER','SUPER_ADMIN')")
+    @Operation(summary = "List exams (paged)", description = "Optional q (name) and status (UPCOMING, ONGOING, COMPLETED, CANCELLED).")
+    public ResponseEntity<ApiResponse<PageResponse<ExamDTOs.ExamResponse>>> listPaged(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(required = false) String q,
+            @RequestParam(required = false) String status) {
+        return ResponseEntity.ok(ApiResponse.ok(service.getExamsPaged(page, size, q, status)));
     }
 
     @PostMapping

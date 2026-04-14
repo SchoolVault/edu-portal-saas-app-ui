@@ -36,10 +36,11 @@ public class TeacherService {
     private final PortalUserProvisioningService portalUserProvisioningService;
 
     @Transactional(readOnly = true)
-    public PageResponse<TeacherDTOs.Response> getTeachers(int page, int size) {
+    public PageResponse<TeacherDTOs.Response> getTeachers(int page, int size, String search) {
         String tenantId = TenantContext.getTenantId();
-        log.debug("Listing teachers page={} size={}", page, size);
-        Page<Teacher> result = repo.findByTenantIdAndIsDeletedFalse(tenantId, PageRequest.of(page, size, Sort.by("firstName")));
+        String q = search == null ? "" : search.trim();
+        log.debug("Listing teachers page={} size={} searchPresent={}", page, size, !q.isEmpty());
+        Page<Teacher> result = repo.findByTenantIdAndSearch(tenantId, q, PageRequest.of(page, size, Sort.by("firstName")));
         log.info("Teachers page loaded page={} returned={} total={}", page, result.getNumberOfElements(), result.getTotalElements());
         Map<Long, List<String>> homeroomByTeacher = homeroomClassNamesByTeacherId(tenantId);
         return PageResponse.of(result.getContent().stream()

@@ -1,11 +1,14 @@
 package com.school.erp.modules.operations.service;
 
+import com.school.erp.common.dto.PageResponse;
 import com.school.erp.common.exception.BusinessException;
 import com.school.erp.common.exception.ResourceNotFoundException;
 import com.school.erp.modules.operations.dto.OperationsDTOs;
 import com.school.erp.modules.operations.entity.*;
 import com.school.erp.modules.operations.repository.*;
 import com.school.erp.tenant.TenantContext;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -214,6 +217,51 @@ public class OperationsService {
         return feeReminderRepo.findByTenantIdAndStatusAndIsDeletedFalseOrderByScheduledAtAsc(t, st).stream()
                 .map(this::toFeeRemResponse)
                 .collect(Collectors.toList());
+    }
+
+    @Transactional(readOnly = true)
+    public PageResponse<OperationsDTOs.OperationalStaffResponse> listStaffPaged(int page, int size) {
+        Pageable p = PageRequest.of(page, size);
+        return PageResponse.fromSpringPage(
+                staffRepo.findByTenantIdAndIsDeletedFalseOrderByFullNameAsc(TenantContext.getTenantId(), p).map(this::toStaffResponse));
+    }
+
+    @Transactional(readOnly = true)
+    public PageResponse<OperationsDTOs.VisitorLogResponse> listVisitorsPaged(int page, int size) {
+        Pageable p = PageRequest.of(page, size);
+        return PageResponse.fromSpringPage(
+                visitorRepo.findByTenantIdAndIsDeletedFalseOrderByCheckInAtDesc(TenantContext.getTenantId(), p).map(this::toVisitorResponse));
+    }
+
+    @Transactional(readOnly = true)
+    public PageResponse<OperationsDTOs.GatePassResponse> listGatePassesPaged(int page, int size) {
+        Pageable p = PageRequest.of(page, size);
+        return PageResponse.fromSpringPage(
+                gatePassRepo.findByTenantIdAndIsDeletedFalseOrderByValidFromDesc(TenantContext.getTenantId(), p).map(this::toGateResponse));
+    }
+
+    @Transactional(readOnly = true)
+    public PageResponse<OperationsDTOs.InventoryItemResponse> listInventoryPaged(int page, int size) {
+        Pageable p = PageRequest.of(page, size);
+        return PageResponse.fromSpringPage(
+                inventoryRepo.findByTenantIdAndIsDeletedFalseOrderByNameAsc(TenantContext.getTenantId(), p).map(this::toInvResponse));
+    }
+
+    /**
+     * When {@code status} is blank, returns all reminder rows for the tenant (paged).
+     * When set, filters by status (same as non-paged default of PENDING only does not apply here—pass explicit status).
+     */
+    @Transactional(readOnly = true)
+    public PageResponse<OperationsDTOs.FeeReminderResponse> listFeeRemindersPaged(String status, int page, int size) {
+        String t = TenantContext.getTenantId();
+        Pageable p = PageRequest.of(page, size);
+        if (status == null || status.isBlank()) {
+            return PageResponse.fromSpringPage(
+                    feeReminderRepo.findByTenantIdAndIsDeletedFalseOrderByScheduledAtAsc(t, p).map(this::toFeeRemResponse));
+        }
+        return PageResponse.fromSpringPage(
+                feeReminderRepo.findByTenantIdAndStatusAndIsDeletedFalseOrderByScheduledAtAsc(t, status.trim().toUpperCase(), p)
+                        .map(this::toFeeRemResponse));
     }
 
     @Transactional

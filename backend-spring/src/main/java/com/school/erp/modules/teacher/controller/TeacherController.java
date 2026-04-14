@@ -23,8 +23,11 @@ public class TeacherController {
     @GetMapping
     @PreAuthorize("hasAnyRole('ADMIN','TEACHER')")
     @Operation(summary = "List teachers")
-    public ResponseEntity<ApiResponse<PageResponse<TeacherDTOs.Response>>> list(@RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "20") int size) {
-        return ResponseEntity.ok(ApiResponse.ok(service.getTeachers(page, size)));
+    public ResponseEntity<ApiResponse<PageResponse<TeacherDTOs.Response>>> list(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(required = false) String search) {
+        return ResponseEntity.ok(ApiResponse.ok(service.getTeachers(page, size, search)));
     }
 
     @GetMapping("/{id}")

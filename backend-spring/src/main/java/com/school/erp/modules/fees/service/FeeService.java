@@ -1,5 +1,6 @@
 package com.school.erp.modules.fees.service;
 
+import com.school.erp.common.dto.PageResponse;
 import com.school.erp.common.enums.Enums;
 import com.school.erp.common.exception.BusinessException;
 import com.school.erp.common.exception.ResourceNotFoundException;
@@ -160,6 +161,30 @@ public class FeeService {
         String t = TenantContext.getTenantId();
         List<FeePayment> payments = status != null ? paymentRepo.findByTenantIdAndStatusAndIsDeletedFalse(t, status) : paymentRepo.findByTenantIdAndIsDeletedFalse(t);
         return payments.stream().map(this::toPaymentResponse).collect(Collectors.toList());
+    }
+
+    /**
+     * Paged fee ledger for admin UI (matches frontend {@code PageResp} / {@link PageResponse}).
+     */
+    @Transactional(readOnly = true)
+    public PageResponse<FeeDTOs.FeePaymentResponse> getPaymentsPaged(int page, int size, Enums.FeeStatus status, String q) {
+        String t = TenantContext.getTenantId();
+        int safeSize = Math.min(Math.max(size, 1), 200);
+        int safePage = Math.max(page, 0);
+        List<FeePayment> payments = status != null ? paymentRepo.findByTenantIdAndStatusAndIsDeletedFalse(t, status) : paymentRepo.findByTenantIdAndIsDeletedFalse(t);
+        String needle = q == null ? "" : q.trim().toLowerCase(Locale.ROOT);
+        List<FeePayment> filtered = payments.stream()
+                .sorted(Comparator.comparing(FeePayment::getId).reversed())
+                .filter(p -> needle.isEmpty()
+                        || (p.getStudentName() != null && p.getStudentName().toLowerCase(Locale.ROOT).contains(needle)))
+                .collect(Collectors.toList());
+        long total = filtered.size();
+        int from = (int) Math.min((long) safePage * safeSize, total);
+        int to = (int) Math.min(from + safeSize, total);
+        List<FeeDTOs.FeePaymentResponse> content = filtered.subList(from, to).stream()
+                .map(this::toPaymentResponse)
+                .collect(Collectors.toList());
+        return PageResponse.of(content, safePage, safeSize, total);
     }
 
     @Transactional(readOnly = true)

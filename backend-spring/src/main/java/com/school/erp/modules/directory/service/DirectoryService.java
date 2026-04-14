@@ -1,5 +1,6 @@
 package com.school.erp.modules.directory.service;
 
+import com.school.erp.common.dto.PageResponse;
 import com.school.erp.common.enums.Enums;
 import com.school.erp.modules.auth.entity.User;
 import com.school.erp.modules.auth.repository.UserRepository;
@@ -76,6 +77,22 @@ public class DirectoryService {
         res.setResults(merged);
         log.info("Directory search tenant={} qLen={} hits={}", tenantId, q.length(), merged.size());
         return res;
+    }
+
+    /**
+     * Same matching rules as {@link #search(String, Set)} (per-kind caps), then windowed for UI pagination.
+     */
+    @Transactional(readOnly = true)
+    public PageResponse<DirectoryDTOs.Entry> searchPaged(String rawQuery, Set<String> kindsFilter, int page, int size) {
+        DirectoryDTOs.SearchResponse full = search(rawQuery, kindsFilter);
+        List<DirectoryDTOs.Entry> merged = full.getResults() != null ? full.getResults() : List.of();
+        long total = merged.size();
+        int from = page * size;
+        if (from >= merged.size()) {
+            return PageResponse.of(List.of(), page, size, total);
+        }
+        int to = Math.min(from + size, merged.size());
+        return PageResponse.of(merged.subList(from, to), page, size, total);
     }
 
     private List<DirectoryDTOs.Entry> matchTeachers(String tenantId, String q) {

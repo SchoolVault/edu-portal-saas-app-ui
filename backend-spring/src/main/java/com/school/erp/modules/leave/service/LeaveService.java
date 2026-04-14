@@ -1,5 +1,6 @@
 package com.school.erp.modules.leave.service;
 
+import com.school.erp.common.dto.PageResponse;
 import com.school.erp.common.enums.Enums;
 import com.school.erp.common.exception.ApiErrorCode;
 import com.school.erp.common.exception.BusinessException;
@@ -10,6 +11,9 @@ import com.school.erp.modules.leave.repository.LeaveRequestRepository;
 import com.school.erp.tenant.TenantContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -76,6 +80,27 @@ public class LeaveService {
                 .collect(Collectors.toList());
         log.info("Listed {} leave request(s) for userId={}", list.size(), uid);
         return list;
+    }
+
+    @Transactional(readOnly = true)
+    public PageResponse<LeaveDTOs.LeaveResponse> listMinePaged(int page, int size, String q) {
+        Long uid = TenantContext.getUserId();
+        String tenant = TenantContext.getTenantId();
+        String qq = q == null ? "" : q.trim();
+        Page<LeaveRequest> result = repo.pageMine(tenant, uid, qq, PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt")));
+        List<LeaveDTOs.LeaveResponse> content = result.getContent().stream().map(this::toResponse).collect(Collectors.toList());
+        log.info("Leave mine paged page={} size={} total={}", page, size, result.getTotalElements());
+        return PageResponse.of(content, page, size, result.getTotalElements());
+    }
+
+    @Transactional(readOnly = true)
+    public PageResponse<LeaveDTOs.LeaveResponse> listAllPaged(int page, int size, String q) {
+        String tenant = TenantContext.getTenantId();
+        String qq = q == null ? "" : q.trim();
+        Page<LeaveRequest> result = repo.pageAll(tenant, qq, PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt")));
+        List<LeaveDTOs.LeaveResponse> content = result.getContent().stream().map(this::toResponse).collect(Collectors.toList());
+        log.info("Leave all paged page={} size={} total={}", page, size, result.getTotalElements());
+        return PageResponse.of(content, page, size, result.getTotalElements());
     }
 
     @Transactional(readOnly = true)

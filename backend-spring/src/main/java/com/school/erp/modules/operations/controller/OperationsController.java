@@ -1,6 +1,7 @@
 package com.school.erp.modules.operations.controller;
 
 import com.school.erp.common.dto.ApiResponse;
+import com.school.erp.common.dto.PageResponse;
 import com.school.erp.modules.operations.dto.OperationsDTOs;
 import com.school.erp.modules.operations.service.OperationsService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -30,6 +31,14 @@ public class OperationsController {
         return ResponseEntity.ok(ApiResponse.ok(operationsService.listStaff()));
     }
 
+    @GetMapping("/staff/paged")
+    @Operation(summary = "List operational staff (paged)")
+    public ResponseEntity<ApiResponse<PageResponse<OperationsDTOs.OperationalStaffResponse>>> listStaffPaged(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return ResponseEntity.ok(ApiResponse.ok(operationsService.listStaffPaged(page, size)));
+    }
+
     @PostMapping("/staff")
     @Operation(summary = "Add operational staff")
     public ResponseEntity<ApiResponse<OperationsDTOs.OperationalStaffResponse>> createStaff(
@@ -51,6 +60,13 @@ public class OperationsController {
         return ResponseEntity.ok(ApiResponse.ok(operationsService.listVisitors()));
     }
 
+    @GetMapping("/visitors/paged")
+    public ResponseEntity<ApiResponse<PageResponse<OperationsDTOs.VisitorLogResponse>>> listVisitorsPaged(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return ResponseEntity.ok(ApiResponse.ok(operationsService.listVisitorsPaged(page, size)));
+    }
+
     @PostMapping("/visitors/check-in")
     public ResponseEntity<ApiResponse<OperationsDTOs.VisitorLogResponse>> checkIn(@RequestBody OperationsDTOs.VisitorCheckInRequest req) {
         return ResponseEntity.ok(ApiResponse.ok(operationsService.checkInVisitor(req)));
@@ -64,6 +80,13 @@ public class OperationsController {
     @GetMapping("/gate-passes")
     public ResponseEntity<ApiResponse<List<OperationsDTOs.GatePassResponse>>> listGate() {
         return ResponseEntity.ok(ApiResponse.ok(operationsService.listGatePasses()));
+    }
+
+    @GetMapping("/gate-passes/paged")
+    public ResponseEntity<ApiResponse<PageResponse<OperationsDTOs.GatePassResponse>>> listGatePaged(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return ResponseEntity.ok(ApiResponse.ok(operationsService.listGatePassesPaged(page, size)));
     }
 
     @PostMapping("/gate-passes")
@@ -82,6 +105,13 @@ public class OperationsController {
         return ResponseEntity.ok(ApiResponse.ok(operationsService.listInventory()));
     }
 
+    @GetMapping("/inventory/paged")
+    public ResponseEntity<ApiResponse<PageResponse<OperationsDTOs.InventoryItemResponse>>> listInvPaged(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return ResponseEntity.ok(ApiResponse.ok(operationsService.listInventoryPaged(page, size)));
+    }
+
     @PostMapping("/inventory")
     public ResponseEntity<ApiResponse<OperationsDTOs.InventoryItemResponse>> upsertInv(@RequestBody OperationsDTOs.InventoryItemCreateRequest req) {
         return ResponseEntity.ok(ApiResponse.ok(operationsService.upsertInventory(req)));
@@ -98,6 +128,15 @@ public class OperationsController {
     public ResponseEntity<ApiResponse<List<OperationsDTOs.FeeReminderResponse>>> listRem(
             @RequestParam(required = false) String status) {
         return ResponseEntity.ok(ApiResponse.ok(operationsService.listFeeReminders(status)));
+    }
+
+    @GetMapping("/fee-reminders/paged")
+    @Operation(summary = "Fee reminder queue (paged)", description = "Omit status for all rows; otherwise filter by status")
+    public ResponseEntity<ApiResponse<PageResponse<OperationsDTOs.FeeReminderResponse>>> listRemPaged(
+            @RequestParam(required = false) String status,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return ResponseEntity.ok(ApiResponse.ok(operationsService.listFeeRemindersPaged(status, page, size)));
     }
 
     @PostMapping("/fee-reminders")

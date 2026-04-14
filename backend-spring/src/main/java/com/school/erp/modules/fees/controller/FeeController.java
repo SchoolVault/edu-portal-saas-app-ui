@@ -1,6 +1,7 @@
 package com.school.erp.modules.fees.controller;
 
 import com.school.erp.common.dto.ApiResponse;
+import com.school.erp.common.dto.PageResponse;
 import com.school.erp.common.enums.Enums;
 import com.school.erp.modules.fees.dto.FeeDTOs;
 import com.school.erp.modules.fees.service.FeeService;
@@ -53,6 +54,17 @@ public class FeeController {
     @Operation(summary = "List fee payments", description = "Filter by status: PAID, PARTIAL, UNPAID, OVERDUE")
     public ResponseEntity<ApiResponse<List<FeeDTOs.FeePaymentResponse>>> getPayments(@RequestParam(required = false) Enums.FeeStatus status) {
         return ResponseEntity.ok(ApiResponse.ok(service.getPayments(status)));
+    }
+
+    @GetMapping("/payments/paged")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "List fee payments (paged)", description = "Spring-style page in data; optional status and student name search (q)")
+    public ResponseEntity<ApiResponse<PageResponse<FeeDTOs.FeePaymentResponse>>> getPaymentsPaged(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "16") int size,
+            @RequestParam(required = false) Enums.FeeStatus status,
+            @RequestParam(required = false) String q) {
+        return ResponseEntity.ok(ApiResponse.ok(service.getPaymentsPaged(page, size, status, q)));
     }
 
     @GetMapping("/payments/student/{studentId}")

@@ -1,6 +1,7 @@
 package com.school.erp.modules.transport.controller;
 
 import com.school.erp.common.dto.ApiResponse;
+import com.school.erp.common.dto.PageResponse;
 import com.school.erp.modules.transport.dto.TransportDTOs;
 import com.school.erp.modules.transport.entity.*;
 import com.school.erp.modules.transport.service.TransportService;
@@ -25,6 +26,15 @@ public class TransportController {
     @Operation(summary = "List routes with stops and assigned students")
     public ResponseEntity<ApiResponse<List<TransportDTOs.RouteResponse>>> listRoutes() {
         return ResponseEntity.ok(ApiResponse.ok(service.getRoutes()));
+    }
+
+    @GetMapping("/routes/paged")
+    @Operation(summary = "List routes (paged)", description = "Optional search on route name")
+    public ResponseEntity<ApiResponse<PageResponse<TransportDTOs.RouteResponse>>> listRoutesPaged(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(required = false) String q) {
+        return ResponseEntity.ok(ApiResponse.ok(service.getRoutesPaged(page, size, q)));
     }
 
     @PostMapping("/routes")

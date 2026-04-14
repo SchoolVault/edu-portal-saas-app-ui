@@ -1,6 +1,7 @@
 package com.school.erp.modules.documents.controller;
 
 import com.school.erp.common.dto.ApiResponse;
+import com.school.erp.common.dto.PageResponse;
 import com.school.erp.modules.documents.entity.Document;
 import com.school.erp.modules.documents.service.DocumentService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -24,6 +25,18 @@ public class DocumentController {
             @RequestParam(required = false) String ownerType,
             @RequestParam(required = false) Long ownerId) {
         return ResponseEntity.ok(ApiResponse.ok(service.getDocuments(category, ownerType, ownerId)));
+    }
+
+    @GetMapping("/paged")
+    @Operation(summary = "List documents (paged)")
+    public ResponseEntity<ApiResponse<PageResponse<Document>>> listPaged(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(required = false) String category,
+            @RequestParam(required = false) String ownerType,
+            @RequestParam(required = false) Long ownerId,
+            @RequestParam(required = false) String q) {
+        return ResponseEntity.ok(ApiResponse.ok(service.getDocumentsPaged(page, size, category, ownerType, ownerId, q)));
     }
 
     @PostMapping

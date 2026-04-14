@@ -1,6 +1,7 @@
 package com.school.erp.modules.leave.controller;
 
 import com.school.erp.common.dto.ApiResponse;
+import com.school.erp.common.dto.PageResponse;
 import com.school.erp.modules.leave.dto.LeaveDTOs;
 import com.school.erp.modules.leave.service.LeaveService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -43,6 +44,26 @@ public class LeaveController {
     @Operation(summary = "All leave requests (admin/teacher)")
     public ResponseEntity<ApiResponse<List<LeaveDTOs.LeaveResponse>>> list() {
         return ResponseEntity.ok(ApiResponse.ok(leaveService.listAll()));
+    }
+
+    @GetMapping("/requests/mine/paged")
+    @PreAuthorize("hasAnyRole('ADMIN','TEACHER')")
+    @Operation(summary = "My leave requests (paged)")
+    public ResponseEntity<ApiResponse<PageResponse<LeaveDTOs.LeaveResponse>>> minePaged(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(required = false) String q) {
+        return ResponseEntity.ok(ApiResponse.ok(leaveService.listMinePaged(page, size, q)));
+    }
+
+    @GetMapping("/requests/paged")
+    @PreAuthorize("hasAnyRole('ADMIN','TEACHER')")
+    @Operation(summary = "All leave requests (paged)")
+    public ResponseEntity<ApiResponse<PageResponse<LeaveDTOs.LeaveResponse>>> listPaged(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(required = false) String q) {
+        return ResponseEntity.ok(ApiResponse.ok(leaveService.listAllPaged(page, size, q)));
     }
 
     @PutMapping("/requests/{id}/decision")

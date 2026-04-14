@@ -1,6 +1,7 @@
 package com.school.erp.modules.library.controller;
 
 import com.school.erp.common.dto.ApiResponse;
+import com.school.erp.common.dto.PageResponse;
 import com.school.erp.common.enums.Enums;
 import com.school.erp.modules.library.dto.LibraryDTOs;
 import com.school.erp.modules.library.entity.Book;
@@ -47,6 +48,26 @@ public class LibraryController {
     @Operation(summary = "List book issues", description = "Filter by status: ISSUED, RETURNED, OVERDUE")
     public ResponseEntity<ApiResponse<List<LibraryDTOs.BookIssueResponse>>> listIssues(@RequestParam(required = false) Enums.BookIssueStatus status) {
         return ResponseEntity.ok(ApiResponse.ok(service.getIssues(status)));
+    }
+
+    @GetMapping("/books/paged")
+    @Operation(summary = "List/search books (paged)", description = "catalogScope: ACTIVE (default), INACTIVE, or ALL")
+    public ResponseEntity<ApiResponse<PageResponse<Book>>> listBooksPaged(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(required = false) String search,
+            @RequestParam(required = false) String category,
+            @RequestParam(required = false, defaultValue = "ACTIVE") String catalogScope) {
+        return ResponseEntity.ok(ApiResponse.ok(service.getBooksPaged(page, size, search, category, catalogScope)));
+    }
+
+    @GetMapping("/issues/paged")
+    @Operation(summary = "List book issues (paged)", description = "Filter by status: ISSUED, RETURNED, OVERDUE")
+    public ResponseEntity<ApiResponse<PageResponse<LibraryDTOs.BookIssueResponse>>> listIssuesPaged(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(required = false) Enums.BookIssueStatus status) {
+        return ResponseEntity.ok(ApiResponse.ok(service.getIssuesPaged(page, size, status)));
     }
 
     @PostMapping("/issues")

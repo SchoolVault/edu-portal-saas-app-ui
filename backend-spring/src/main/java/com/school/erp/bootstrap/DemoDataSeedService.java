@@ -5,16 +5,8 @@ import com.school.erp.modules.academic.entity.*;
 import com.school.erp.modules.academic.repository.*;
 import com.school.erp.modules.attendance.entity.AttendanceRecord;
 import com.school.erp.modules.attendance.repository.AttendanceRepository;
-import com.school.erp.modules.audit.entity.AuditLog;
-import com.school.erp.modules.audit.repository.AuditLogRepository;
 import com.school.erp.modules.auth.entity.User;
 import com.school.erp.modules.auth.repository.UserRepository;
-import com.school.erp.modules.chat.entity.ChatConversation;
-import com.school.erp.modules.chat.entity.ChatMessage;
-import com.school.erp.modules.chat.entity.ChatParticipant;
-import com.school.erp.modules.chat.repository.ChatConversationRepository;
-import com.school.erp.modules.chat.repository.ChatMessageRepository;
-import com.school.erp.modules.chat.repository.ChatParticipantRepository;
 import com.school.erp.modules.communication.entity.Announcement;
 import com.school.erp.modules.communication.entity.Message;
 import com.school.erp.modules.communication.repository.AnnouncementRepository;
@@ -25,14 +17,10 @@ import com.school.erp.modules.exams.entity.*;
 import com.school.erp.modules.exams.repository.*;
 import com.school.erp.modules.fees.entity.FeeComponent;
 import com.school.erp.modules.fees.entity.FeePayment;
-import com.school.erp.modules.fees.entity.FeePaymentAttempt;
 import com.school.erp.modules.fees.entity.FeeStructure;
-import com.school.erp.modules.fees.entity.PaymentWebhookEvent;
 import com.school.erp.modules.fees.repository.FeeComponentRepository;
-import com.school.erp.modules.fees.repository.FeePaymentAttemptRepository;
 import com.school.erp.modules.fees.repository.FeePaymentRepository;
 import com.school.erp.modules.fees.repository.FeeStructureRepository;
-import com.school.erp.modules.fees.repository.PaymentWebhookEventRepository;
 import com.school.erp.modules.guardian.entity.Guardian;
 import com.school.erp.modules.guardian.entity.StudentGuardianMapping;
 import com.school.erp.modules.guardian.repository.GuardianRepository;
@@ -49,18 +37,11 @@ import com.school.erp.modules.library.entity.Book;
 import com.school.erp.modules.library.entity.BookIssue;
 import com.school.erp.modules.library.repository.BookIssueRepository;
 import com.school.erp.modules.library.repository.BookRepository;
-import com.school.erp.modules.notification.entity.Notification;
-import com.school.erp.modules.notification.entity.NotificationOutbox;
-import com.school.erp.modules.notification.repository.NotificationOutboxRepository;
-import com.school.erp.modules.notification.repository.NotificationRepository;
-import com.school.erp.modules.notification.service.NotificationOutboxService;
 import com.school.erp.modules.payroll.entity.Payslip;
 import com.school.erp.modules.payroll.entity.SalaryComponent;
-import com.school.erp.modules.payroll.entity.SalaryDisbursementAttempt;
 import com.school.erp.modules.payroll.entity.SalaryStructure;
 import com.school.erp.modules.payroll.repository.PayslipRepository;
 import com.school.erp.modules.payroll.repository.SalaryComponentRepository;
-import com.school.erp.modules.payroll.repository.SalaryDisbursementAttemptRepository;
 import com.school.erp.modules.payroll.repository.SalaryStructureRepository;
 import com.school.erp.modules.settings.entity.TenantConfig;
 import com.school.erp.modules.settings.repository.TenantConfigRepository;
@@ -72,12 +53,6 @@ import com.school.erp.modules.timetable.entity.TimetableEntry;
 import com.school.erp.modules.timetable.repository.TimetableRepository;
 import com.school.erp.modules.transport.entity.*;
 import com.school.erp.modules.transport.repository.*;
-import com.school.erp.bootstrap.demo.DemoExtendedTablesSeed;
-import com.school.erp.modules.importexport.ImportJobConstants;
-import com.school.erp.modules.importexport.entity.ImportJob;
-import com.school.erp.modules.importexport.entity.ImportJobLine;
-import com.school.erp.modules.importexport.repository.ImportJobLineRepository;
-import com.school.erp.modules.importexport.repository.ImportJobRepository;
 import jakarta.persistence.EntityManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -86,42 +61,111 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
-import java.time.Instant;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.time.YearMonth;
 import java.time.LocalTime;
-import java.util.ArrayList;
-import java.util.Locale;
-import java.util.List;
-import java.util.Objects;
-import java.util.Optional;
-import java.util.function.Consumer;
+import java.time.YearMonth;
+import java.util.*;
+import java.util.stream.Collectors;
 
 /**
- * Idempotent demo workspaces with realistic rows across modules. Tenant ids look like production slugs
- * (school + region + short hash), not generic {@code t1}.
+ * ═══════════════════════════════════════════════════════════════════════════════════════════════
+ * COMPREHENSIVE DEMO DATA SEED SERVICE FOR SCHOOL ERP
+ * ═══════════════════════════════════════════════════════════════════════════════════════════════
+ *
+ * Seeds TWO realistic Indian schools with COMPLETE data for classes 4-12 for comprehensive
+ * end-to-end testing across ALL roles and modules.
+ *
+ * SCHOOL 1: Delhi Public School (DPS-DLH) - New Delhi
+ * SCHOOL 2: Kendriya Vidyalaya (KV-MUM) - Mumbai
+ *
+ * Each school includes:
+ * ├── Classes: 4, 5, 6, 7, 8, 9, 10, 11, 12 (9 classes)
+ * ├── Sections: A, B, C per class (3 sections × 9 classes = 27 sections)
+ * ├── Students: ~30-35 per section (~280+ students total per school)
+ * ├── Teachers: ~30 teachers with proper subject assignments
+ * ├── Guardians: Father + Mother for each student (proper mapping)
+ * ├── Users: ADMIN, TEACHERS, PARENTS, LIBRARY_STAFF with login credentials
+ * ├── Academic: Subjects, Teacher Assignments (Class + Subject)
+ * ├── Fees: Fee structures, components, payments (PAID, PARTIAL, UNPAID examples)
+ * ├── Exams: Multiple exams with schedules, mark records
+ * ├── Attendance: Last 10 days of attendance for all students
+ * ├── Timetable: Complete weekly schedule for all classes
+ * ├── Transport: Routes, vehicles, drivers, stops, student mappings
+ * ├── Library: 100+ books, book issues
+ * ├── Hostel: Hostels, rooms, student allocations
+ * ├── Payroll: Teacher salary structures, components, payslips
+ * ├── Communication: Announcements, direct messages
+ * ├── Documents: Sample documents for testing
+ * └── Leave: Leave requests (approved, pending, rejected examples)
+ *
+ * PASSWORD FOR ALL USERS: admin123
+ *
+ * See DEMO_CREDENTIALS.md for complete list of login credentials
+ * ═══════════════════════════════════════════════════════════════════════════════════════════════
  */
 @Service
 @Profile({"demo-seed"})
 public class DemoDataSeedService {
 
     private static final Logger log = LoggerFactory.getLogger(DemoDataSeedService.class);
-    /**
-     * BCrypt for {@code admin123} (verified with Spring {@code BCryptPasswordEncoder}).
-     */
+
+    /** BCrypt hash for "admin123" - all demo users use this password */
     private static final String BCRYPT_ADMIN123 = "$2a$10$OF9wtmX3lDzBIYsrZlAe8Ou2829Ih6l6WTe2TxSVRacFh1fAr2mBy";
+
     private static final String FEATURES_JSON = "{\"transport\":true,\"library\":true,\"hostel\":true,\"payroll\":true,"
             + "\"documents\":true,\"audit\":true,\"communication\":true,\"reports\":true,\"student\":true,\"teacher\":true,"
             + "\"attendance\":true,\"fees\":true}";
 
+    // Realistic Indian name pools for data generation
+    private static final String[] MALE_FIRST_NAMES = {
+        "Aarav", "Vivaan", "Aditya", "Vihaan", "Arjun", "Sai", "Arnav", "Ayaan", "Krishna", "Ishaan",
+        "Shaurya", "Atharv", "Advaith", "Pranav", "Aaradhya", "Darsh", "Dhruv", "Kabir", "Kiaan", "Reyansh",
+        "Rohan", "Rudra", "Shivansh", "Veer", "Yash", "Aarush", "Ansh", "Dev", "Karthik", "Lakshya",
+        "Mihir", "Naveen", "Parth", "Rahul", "Rishi", "Samarth", "Tanish", "Utkarsh", "Varun", "Yug",
+        "Aaryan", "Abhinav", "Amar", "Anirudh", "Aryan", "Ashwin", "Bhavya", "Deepak", "Gaurav", "Harsh"
+    };
+
+    private static final String[] FEMALE_FIRST_NAMES = {
+        "Aadhya", "Ananya", "Diya", "Pari", "Aaradhya", "Anika", "Saanvi", "Sara", "Prisha", "Myra",
+        "Navya", "Avni", "Kiara", "Riya", "Tanya", "Ishita", "Jiya", "Anvi", "Ira", "Pihu",
+        "Aanya", "Shanaya", "Zara", "Aditi", "Kavya", "Meera", "Nitya", "Pooja", "Shreya", "Siya",
+        "Tanvi", "Vani", "Aisha", "Anushka", "Diya", "Gauri", "Hriday", "Isha", "Janvi", "Khushi",
+        "Mahika", "Naina", "Palak", "Radhika", "Sakshi", "Tara", "Vanshi", "Yamini", "Zoya", "Divya"
+    };
+
+    private static final String[] LAST_NAMES = {
+        "Sharma", "Verma", "Singh", "Kumar", "Gupta", "Agarwal", "Reddy", "Patel", "Mehta", "Joshi",
+        "Desai", "Rao", "Pillai", "Nair", "Iyer", "Menon", "Chopra", "Malhotra", "Kapoor", "Khanna",
+        "Bhatia", "Sethi", "Banerjee", "Chatterjee", "Mukherjee", "Ghosh", "Das", "Sen", "Bose", "Roy",
+        "Saxena", "Srivastava", "Pandey", "Mishra", "Jain", "Shah", "Modi", "Thakur", "Chauhan", "Rajput",
+        "Khan", "Ali", "Rahman", "Ahmed", "Siddiqui", "Ansari", "Fernandes", "D'Souza", "Rodrigues", "Pereira"
+    };
+
+    private static final String[] FATHER_NAMES = {
+        "Rajesh", "Amit", "Suresh", "Prakash", "Vijay", "Manoj", "Anil", "Sanjay", "Deepak", "Ashok",
+        "Ramesh", "Mukesh", "Santosh", "Dinesh", "Mahesh", "Naresh", "Rajendra", "Sunil", "Vinod", "Ajay",
+        "Vikram", "Rajeev", "Sandeep", "Pradeep", "Manish", "Ankit", "Nitin", "Rohit", "Sachin", "Rahul"
+    };
+
+    private static final String[] MOTHER_NAMES = {
+        "Sunita", "Rekha", "Kavita", "Meena", "Neeta", "Seema", "Rita", "Geeta", "Anita", "Sangita",
+        "Priya", "Pooja", "Divya", "Anju", "Ritu", "Suman", "Nisha", "Reena", "Sapna", "Komal",
+        "Swati", "Anjali", "Preeti", "Shikha", "Shweta", "Sonia", "Varsha", "Rashmi", "Archana", "Usha"
+    };
+
+    // All repositories - injected via constructor
     private final TenantConfigRepository tenantConfigRepository;
     private final UserRepository userRepository;
     private final AcademicYearRepository academicYearRepository;
     private final SchoolClassRepository schoolClassRepository;
     private final SectionRepository sectionRepository;
+    private final AcademicSubjectRepository academicSubjectRepository;
     private final TeacherRepository teacherRepository;
     private final StudentRepository studentRepository;
+    private final GuardianRepository guardianRepository;
+    private final StudentGuardianMappingRepository studentGuardianMappingRepository;
+    private final ClassTeacherAssignmentRepository classTeacherAssignmentRepository;
+    private final SubjectTeacherAssignmentRepository subjectTeacherAssignmentRepository;
     private final AttendanceRepository attendanceRepository;
     private final TimetableRepository timetableRepository;
     private final ExamRepository examRepository;
@@ -131,16 +175,11 @@ public class DemoDataSeedService {
     private final FeeStructureRepository feeStructureRepository;
     private final FeeComponentRepository feeComponentRepository;
     private final FeePaymentRepository feePaymentRepository;
-    private final FeePaymentAttemptRepository feePaymentAttemptRepository;
-    private final AnnouncementRepository announcementRepository;
-    private final NotificationRepository notificationRepository;
-    private final MessageRepository messageRepository;
     private final TransportVehicleRepository transportVehicleRepository;
     private final TransportDriverRepository transportDriverRepository;
     private final TransportRouteRepository transportRouteRepository;
     private final RouteStopRepository routeStopRepository;
     private final StudentTransportMappingRepository studentTransportMappingRepository;
-    private final VehicleLiveLocationRepository vehicleLiveLocationRepository;
     private final BookRepository bookRepository;
     private final BookIssueRepository bookIssueRepository;
     private final HostelRepository hostelRepository;
@@ -149,25 +188,11 @@ public class DemoDataSeedService {
     private final SalaryStructureRepository salaryStructureRepository;
     private final SalaryComponentRepository salaryComponentRepository;
     private final PayslipRepository payslipRepository;
+    private final AnnouncementRepository announcementRepository;
+    private final MessageRepository messageRepository;
     private final DocumentRepository documentRepository;
-    private final AuditLogRepository auditLogRepository;
     private final LeaveRequestRepository leaveRequestRepository;
-    private final GuardianRepository guardianRepository;
-    private final StudentGuardianMappingRepository studentGuardianMappingRepository;
-    private final ClassTeacherAssignmentRepository classTeacherAssignmentRepository;
-    private final SubjectTeacherAssignmentRepository subjectTeacherAssignmentRepository;
-    private final ChatConversationRepository chatConversationRepository;
-    private final ChatParticipantRepository chatParticipantRepository;
-    private final ChatMessageRepository chatMessageRepository;
-    private final ImportJobRepository importJobRepository;
-    private final ImportJobLineRepository importJobLineRepository;
-    private final AcademicSubjectRepository academicSubjectRepository;
-    private final NotificationOutboxRepository notificationOutboxRepository;
-    private final NotificationOutboxService notificationOutboxService;
-    private final SalaryDisbursementAttemptRepository salaryDisbursementAttemptRepository;
-    private final PaymentWebhookEventRepository paymentWebhookEventRepository;
     private final EntityManager entityManager;
-    private final DemoExtendedTablesSeed demoExtendedTablesSeed;
 
     public DemoDataSeedService(
             TenantConfigRepository tenantConfigRepository,
@@ -175,8 +200,13 @@ public class DemoDataSeedService {
             AcademicYearRepository academicYearRepository,
             SchoolClassRepository schoolClassRepository,
             SectionRepository sectionRepository,
+            AcademicSubjectRepository academicSubjectRepository,
             TeacherRepository teacherRepository,
             StudentRepository studentRepository,
+            GuardianRepository guardianRepository,
+            StudentGuardianMappingRepository studentGuardianMappingRepository,
+            ClassTeacherAssignmentRepository classTeacherAssignmentRepository,
+            SubjectTeacherAssignmentRepository subjectTeacherAssignmentRepository,
             AttendanceRepository attendanceRepository,
             TimetableRepository timetableRepository,
             ExamRepository examRepository,
@@ -186,16 +216,11 @@ public class DemoDataSeedService {
             FeeStructureRepository feeStructureRepository,
             FeeComponentRepository feeComponentRepository,
             FeePaymentRepository feePaymentRepository,
-            FeePaymentAttemptRepository feePaymentAttemptRepository,
-            AnnouncementRepository announcementRepository,
-            NotificationRepository notificationRepository,
-            MessageRepository messageRepository,
             TransportVehicleRepository transportVehicleRepository,
             TransportDriverRepository transportDriverRepository,
             TransportRouteRepository transportRouteRepository,
             RouteStopRepository routeStopRepository,
             StudentTransportMappingRepository studentTransportMappingRepository,
-            VehicleLiveLocationRepository vehicleLiveLocationRepository,
             BookRepository bookRepository,
             BookIssueRepository bookIssueRepository,
             HostelRepository hostelRepository,
@@ -204,32 +229,23 @@ public class DemoDataSeedService {
             SalaryStructureRepository salaryStructureRepository,
             SalaryComponentRepository salaryComponentRepository,
             PayslipRepository payslipRepository,
+            AnnouncementRepository announcementRepository,
+            MessageRepository messageRepository,
             DocumentRepository documentRepository,
-            AuditLogRepository auditLogRepository,
             LeaveRequestRepository leaveRequestRepository,
-            GuardianRepository guardianRepository,
-            StudentGuardianMappingRepository studentGuardianMappingRepository,
-            ClassTeacherAssignmentRepository classTeacherAssignmentRepository,
-            SubjectTeacherAssignmentRepository subjectTeacherAssignmentRepository,
-            ChatConversationRepository chatConversationRepository,
-            ChatParticipantRepository chatParticipantRepository,
-            ChatMessageRepository chatMessageRepository,
-            ImportJobRepository importJobRepository,
-            ImportJobLineRepository importJobLineRepository,
-            AcademicSubjectRepository academicSubjectRepository,
-            NotificationOutboxRepository notificationOutboxRepository,
-            NotificationOutboxService notificationOutboxService,
-            SalaryDisbursementAttemptRepository salaryDisbursementAttemptRepository,
-            PaymentWebhookEventRepository paymentWebhookEventRepository,
-            EntityManager entityManager,
-            DemoExtendedTablesSeed demoExtendedTablesSeed) {
+            EntityManager entityManager) {
         this.tenantConfigRepository = tenantConfigRepository;
         this.userRepository = userRepository;
         this.academicYearRepository = academicYearRepository;
         this.schoolClassRepository = schoolClassRepository;
         this.sectionRepository = sectionRepository;
+        this.academicSubjectRepository = academicSubjectRepository;
         this.teacherRepository = teacherRepository;
         this.studentRepository = studentRepository;
+        this.guardianRepository = guardianRepository;
+        this.studentGuardianMappingRepository = studentGuardianMappingRepository;
+        this.classTeacherAssignmentRepository = classTeacherAssignmentRepository;
+        this.subjectTeacherAssignmentRepository = subjectTeacherAssignmentRepository;
         this.attendanceRepository = attendanceRepository;
         this.timetableRepository = timetableRepository;
         this.examRepository = examRepository;
@@ -239,16 +255,11 @@ public class DemoDataSeedService {
         this.feeStructureRepository = feeStructureRepository;
         this.feeComponentRepository = feeComponentRepository;
         this.feePaymentRepository = feePaymentRepository;
-        this.feePaymentAttemptRepository = feePaymentAttemptRepository;
-        this.announcementRepository = announcementRepository;
-        this.notificationRepository = notificationRepository;
-        this.messageRepository = messageRepository;
         this.transportVehicleRepository = transportVehicleRepository;
         this.transportDriverRepository = transportDriverRepository;
         this.transportRouteRepository = transportRouteRepository;
         this.routeStopRepository = routeStopRepository;
         this.studentTransportMappingRepository = studentTransportMappingRepository;
-        this.vehicleLiveLocationRepository = vehicleLiveLocationRepository;
         this.bookRepository = bookRepository;
         this.bookIssueRepository = bookIssueRepository;
         this.hostelRepository = hostelRepository;
@@ -257,1921 +268,1301 @@ public class DemoDataSeedService {
         this.salaryStructureRepository = salaryStructureRepository;
         this.salaryComponentRepository = salaryComponentRepository;
         this.payslipRepository = payslipRepository;
+        this.announcementRepository = announcementRepository;
+        this.messageRepository = messageRepository;
         this.documentRepository = documentRepository;
-        this.auditLogRepository = auditLogRepository;
         this.leaveRequestRepository = leaveRequestRepository;
-        this.guardianRepository = guardianRepository;
-        this.studentGuardianMappingRepository = studentGuardianMappingRepository;
-        this.classTeacherAssignmentRepository = classTeacherAssignmentRepository;
-        this.subjectTeacherAssignmentRepository = subjectTeacherAssignmentRepository;
-        this.chatConversationRepository = chatConversationRepository;
-        this.chatParticipantRepository = chatParticipantRepository;
-        this.chatMessageRepository = chatMessageRepository;
-        this.importJobRepository = importJobRepository;
-        this.importJobLineRepository = importJobLineRepository;
-        this.academicSubjectRepository = academicSubjectRepository;
-        this.notificationOutboxRepository = notificationOutboxRepository;
-        this.notificationOutboxService = notificationOutboxService;
-        this.salaryDisbursementAttemptRepository = salaryDisbursementAttemptRepository;
-        this.paymentWebhookEventRepository = paymentWebhookEventRepository;
         this.entityManager = entityManager;
-        this.demoExtendedTablesSeed = demoExtendedTablesSeed;
     }
 
+    /**
+     * Main seeding entry point - idempotent
+     */
     @Transactional
     public void seedIfNeeded() {
-        seedPlatformSuperAdminIfMissing();
-        if (!tenantConfigRepository.existsBySchoolCode("STXHER-KOL")) {
-            seedStXaviersHeritage();
-        }
-        if (!tenantConfigRepository.existsBySchoolCode("MRIDGE-PN")) {
-            seedMeridianRidge();
-        }
-        tenantConfigRepository.findBySchoolCode("STXHER-KOL")
-                .ifPresent(c -> expandStXaviersBulkSeed(c.getTenantId(), "STXHER-KOL"));
-        tenantConfigRepository.findBySchoolCode("MRIDGE-PN")
-                .ifPresent(c -> expandMeridianBulkSeed(c.getTenantId(), "MRIDGE-PN"));
-        tenantConfigRepository.findBySchoolCode("STXHER-KOL")
-                .ifPresent(c -> syncParentGuardianLinksForDemoTenant(c.getTenantId()));
-        tenantConfigRepository.findBySchoolCode("MRIDGE-PN")
-                .ifPresent(c -> syncParentGuardianLinksForDemoTenant(c.getTenantId()));
-        tenantConfigRepository.findBySchoolCode("STXHER-KOL")
-                .ifPresent(c -> demoExtendedTablesSeed.seedExtendedModuleRows(c.getTenantId(), "STXHER-KOL"));
-        tenantConfigRepository.findBySchoolCode("MRIDGE-PN")
-                .ifPresent(c -> demoExtendedTablesSeed.seedExtendedModuleRows(c.getTenantId(), "MRIDGE-PN"));
-        ensureImportExportDemoJobsForShowcaseTenants();
-        tenantConfigRepository.findBySchoolCode("STXHER-KOL")
-                .ifPresent(c -> seedShowcaseSupplementaryRows(c.getTenantId(), "STXHER-KOL"));
-        tenantConfigRepository.findBySchoolCode("MRIDGE-PN")
-                .ifPresent(c -> seedShowcaseSupplementaryRows(c.getTenantId(), "MRIDGE-PN"));
-        log.info("Demo data seed complete (baseline + bulk + extended modules + import jobs + catalog/outbox/payroll/webhook).");
-    }
+        log.info("══════════════════════════════════════════════════════════════");
+        log.info("  COMPREHENSIVE DEMO DATA SEED - SCHOOL ERP");
+        log.info("══════════════════════════════════════════════════════════════");
 
-    /**
-     * Idempotent rows for tables not fully covered by baseline/bulk seed: subject catalog, comms outbox, payroll attempts,
-     * payment webhook audit — improves QA coverage for settings, notifications worker, payroll, and fee webhooks.
-     */
-    private void seedShowcaseSupplementaryRows(String tenantId, String schoolCode) {
-        seedAcademicSubjectCatalogIfMissing(tenantId);
-        seedNotificationOutboxShowcase(tenantId, schoolCode);
-        seedPayslipAndSalaryDisbursementDemo(tenantId, schoolCode);
-        seedPaymentWebhookDemoRow(tenantId, schoolCode);
-    }
+        try {
+            // 1. Platform Super Admin (global)
+            seedPlatformSuperAdmin();
 
-    private void seedAcademicSubjectCatalogIfMissing(String tenantId) {
-        record SubRow(String code, String name, String category, int sort) {}
-        List<SubRow> rows = List.of(
-                new SubRow("MATH", "Mathematics", "STEM", 10),
-                new SubRow("PHY", "Physics", "STEM", 20),
-                new SubRow("CHEM", "Chemistry", "STEM", 30),
-                new SubRow("BIO", "Biology", "STEM", 35),
-                new SubRow("CS", "Computer Science", "STEM", 50),
-                new SubRow("ENG", "English", "Languages", 60),
-                new SubRow("HIN", "Hindi", "Languages", 65),
-                new SubRow("HIST", "History", "Social", 70),
-                new SubRow("PE", "Physical Education", "Arts", 80));
-        for (SubRow s : rows) {
-            if (academicSubjectRepository.existsByTenantIdAndNameAndIsDeletedFalse(tenantId, s.name())) {
-                continue;
+            // 2. School 1: Delhi Public School
+            if (!tenantConfigRepository.existsBySchoolCode("DPS-DLH")) {
+                log.info("→ Seeding School 1: Delhi Public School (DPS-DLH)");
+                seedSchool("DPS-DLH",
+                          "tenant_dps_delhi_9x4k7m2p",
+                          "Delhi Public School",
+                          "A-Block, Defence Colony, New Delhi 110024, Delhi",
+                          "+91-11-2433-5050",
+                          "office@dpsdel.edu.in");
+            } else {
+                log.info("→ School 1 (DPS-DLH) already exists");
             }
-            AcademicSubject a = new AcademicSubject();
-            a.setTenantId(tenantId);
-            a.setCode(s.code());
-            a.setName(s.name());
-            a.setCategory(s.category());
-            a.setSortOrder(s.sort());
-            a.setIsDeleted(false);
-            academicSubjectRepository.save(a);
-        }
-    }
 
-    private void seedNotificationOutboxShowcase(String tenantId, String schoolCode) {
-        String parentEmail =
-                "STXHER-KOL".equals(schoolCode) ? "s.banerjee.parent@stxheritage.edu" : "k.deshmukh.parent@meridianridge.edu";
-        User parent = userRepository.findByEmailAndTenantIdAndIsDeletedFalse(parentEmail, tenantId).orElse(null);
-        if (parent == null) {
-            return;
-        }
-        notificationOutboxService.enqueue(
-                tenantId,
-                "FEE_REMINDER",
-                "EMAIL",
-                parent.getId(),
-                null,
-                "Fee balance — gentle reminder",
-                "Demo: term fee balance can be cleared via the parent portal.",
-                "demo:v3:fee_email:" + schoolCode,
-                "seed-fee-email");
-        notificationOutboxService.enqueue(
-                tenantId,
-                "FEE_REMINDER",
-                "WHATSAPP",
-                parent.getId(),
-                null,
-                "Fee reminder",
-                "Demo: pay online or visit the accounts office.",
-                "demo:v3:fee_wa:" + schoolCode,
-                "seed-fee-wa");
-        notificationOutboxService.enqueue(
-                tenantId,
-                "FEE_REMINDER",
-                "IN_APP",
-                parent.getId(),
-                null,
-                "In-app: fee due",
-                "Demo notification delivered via outbox (IN_APP channel).",
-                "demo:v3:fee_inapp:" + schoolCode,
-                "seed-fee-inapp");
-
-        String dedupeSent = "demo:v3:sent_sms:" + schoolCode;
-        if (!notificationOutboxRepository.existsByTenantIdAndDedupeKeyAndIsDeletedFalse(tenantId, dedupeSent)) {
-            NotificationOutbox row = new NotificationOutbox();
-            row.setTenantId(tenantId);
-            row.setEventType("ANNOUNCEMENT_SMS");
-            row.setChannel("SMS");
-            row.setRecipientUserId(parent.getId());
-            row.setRecipientPhoneE164(parent.getPhone() != null ? parent.getPhone().trim() : null);
-            row.setSubject("Holiday — Republic Day");
-            row.setBodyText("Demo: school closed 26 Jan; transport runs per circular.");
-            row.setDedupeKey(dedupeSent);
-            row.setStatus("SENT");
-            row.setAttempts(1);
-            row.setProcessedAt(LocalDateTime.now().minusHours(2));
-            row.setCorrelationId("seed-holiday-sms");
-            row.setIsDeleted(false);
-            notificationOutboxRepository.save(row);
-        }
-    }
-
-    private void seedPayslipAndSalaryDisbursementDemo(String tenantId, String schoolCode) {
-        if ("MRIDGE-PN".equals(schoolCode)) {
-            if (!payslipRepository.existsByTenantIdAndPayrollMonthAndIsDeletedFalse(tenantId, "2026-10")) {
-                teacherRepository.findByTenantIdAndIsDeletedFalse(tenantId).stream()
-                        .filter(t -> "s.patil@meridianridge.edu".equalsIgnoreCase(t.getEmail()))
-                        .findFirst()
-                        .ifPresent(tr -> {
-                            Payslip p = Payslip.builder()
-                                    .teacherId(tr.getId())
-                                    .teacherName(tr.getFirstName() + " " + tr.getLastName())
-                                    .month("October")
-                                    .year(2026)
-                                    .basicSalary(new BigDecimal("48000"))
-                                    .totalAllowances(new BigDecimal("3000"))
-                                    .totalDeductions(new BigDecimal("7800"))
-                                    .netSalary(new BigDecimal("43200"))
-                                    .status(Enums.PayslipStatus.GENERATED)
-                                    .build();
-                            p.setTenantId(tenantId);
-                            p.setPayrollMonth("2026-10");
-                            p.setIsDeleted(false);
-                            payslipRepository.save(p);
-                            flush();
-                        });
+            // 3. School 2: Kendriya Vidyalaya
+            if (!tenantConfigRepository.existsBySchoolCode("KV-MUM")) {
+                log.info("→ Seeding School 2: Kendriya Vidyalaya (KV-MUM)");
+                seedSchool("KV-MUM",
+                          "tenant_kv_mumbai_7p5n3x8q",
+                          "Kendriya Vidyalaya No. 1",
+                          "INS Hamla, Marve Road, Malad West, Mumbai 400095, Maharashtra",
+                          "+91-22-2844-6633",
+                          "kvmumbai1@gmail.com");
+            } else {
+                log.info("→ School 2 (KV-MUM) already exists");
             }
-            payslipRepository.findByTenantIdAndIsDeletedFalse(tenantId).stream()
-                    .filter(ps -> "2026-10".equals(ps.getPayrollMonth()))
-                    .findFirst()
-                    .ifPresent(ps -> {
-                        if (!salaryDisbursementAttemptRepository.existsByTenantIdAndReferenceIdAndIsDeletedFalse(
-                                tenantId, "DEMO-MR-SAL-PENDING")) {
-                            SalaryDisbursementAttempt a = new SalaryDisbursementAttempt();
-                            a.setTenantId(tenantId);
-                            a.setPayslipId(ps.getId());
-                            a.setTeacherId(ps.getTeacherId());
-                            a.setAmount(ps.getNetSalary());
-                            a.setPaymentMethod("NEFT");
-                            a.setReferenceId("DEMO-MR-SAL-PENDING");
-                            a.setStatus("SUBMITTED");
-                            a.setGatewayPayload("{\"demo\":true,\"seed\":\"meridian\"}");
-                            a.setIsDeleted(false);
-                            salaryDisbursementAttemptRepository.save(a);
-                        }
-                    });
-        }
-        if ("STXHER-KOL".equals(schoolCode)) {
-            payslipRepository.findByTenantIdAndIsDeletedFalse(tenantId).stream()
-                    .filter(ps -> ps.getTeacherId() != null && Enums.PayslipStatus.PAID.equals(ps.getStatus()))
-                    .findFirst()
-                    .ifPresent(ps -> {
-                        if (!salaryDisbursementAttemptRepository.existsByTenantIdAndReferenceIdAndIsDeletedFalse(
-                                tenantId, "DEMO-STX-SAL-COMPLETE")) {
-                            SalaryDisbursementAttempt a = new SalaryDisbursementAttempt();
-                            a.setTenantId(tenantId);
-                            a.setPayslipId(ps.getId());
-                            a.setTeacherId(ps.getTeacherId());
-                            a.setAmount(ps.getNetSalary());
-                            a.setPaymentMethod("NEFT");
-                            a.setReferenceId("DEMO-STX-SAL-COMPLETE");
-                            a.setStatus("COMPLETED");
-                            a.setCompletedAt(LocalDateTime.now().minusDays(14));
-                            a.setGatewayPayload("{\"demo\":true,\"seed\":\"stx-archived\"}");
-                            a.setIsDeleted(false);
-                            salaryDisbursementAttemptRepository.save(a);
-                        }
-                    });
+
+            log.info("══════════════════════════════════════════════════════════════");
+            log.info("  ✅ DEMO DATA SEED COMPLETE");
+            log.info("  All users password: admin123");
+            log.info("  See credentials summary below or check DEMO_CREDENTIALS.md");
+            log.info("══════════════════════════════════════════════════════════════");
+
+            // Print credentials summary
+            printCredentialsSummary();
+
+        } catch (Exception e) {
+            log.error("══════════════════════════════════════════════════════════════");
+            log.error("❌ DEMO DATA SEED FAILED!");
+            log.error("Error: {}", e.getMessage());
+            log.error("══════════════════════════════════════════════════════════════");
+            log.error("Troubleshooting tips:");
+            log.error("1. Check if database is accessible");
+            log.error("2. If you see duplicate key errors, data might already exist");
+            log.error("3. To re-seed, use a fresh database or manually delete existing data");
+            log.error("4. Check application logs for detailed error information");
+            log.error("══════════════════════════════════════════════════════════════");
+            throw new RuntimeException("Demo data seeding failed", e);
         }
     }
 
-    private void seedPaymentWebhookDemoRow(String tenantId, String schoolCode) {
-        String shaHex = "STXHER-KOL".equals(schoolCode)
-                ? "1".repeat(64)
-                : "2".repeat(64);
-        if (paymentWebhookEventRepository.findByProviderAndPayloadSha256("razorpay", shaHex).isPresent()) {
+    // ═══════════════════════════════════════════════════════════════════════════════════════════
+    // PLATFORM SUPER ADMIN
+    // ═══════════════════════════════════════════════════════════════════════════════════════════
+
+    private void seedPlatformSuperAdmin() {
+        String email = "superadmin@schoolerp.com";
+        String platformTenant = "PLATFORM";
+        if (userRepository.existsByEmailAndTenantIdAndIsDeletedFalse(email, platformTenant)) {
             return;
         }
-        PaymentWebhookEvent e = new PaymentWebhookEvent();
-        e.setTenantId(tenantId);
-        e.setProvider("razorpay");
-        e.setPayloadSha256(shaHex);
-        e.setExternalEventId("evt_demo_" + schoolCode.replace('-', '_'));
-        e.setStatus("PROCESSED");
-        e.setHttpStatus(200);
-        e.setDetail("Demo webhook ingested (Java seed)");
-        e.setProcessedAt(Instant.now().minusSeconds(7200));
-        paymentWebhookEventRepository.save(e);
+
+        User superAdmin = new User();
+        superAdmin.setTenantId(platformTenant);
+        superAdmin.setName("Platform Super Admin");
+        superAdmin.setEmail(email);
+        superAdmin.setPassword(BCRYPT_ADMIN123);
+        superAdmin.setPhone("+91-11-2800-0000");
+        superAdmin.setRole(Enums.Role.SUPER_ADMIN);
+        superAdmin.setSchoolCode(null);
+        superAdmin.setIsActive(true);
+        superAdmin.setIsDeleted(false);
+        userRepository.save(superAdmin);
+
+        log.info("✓ Created SUPER_ADMIN: {}", email);
     }
 
-    /**
-     * Sample {@code import_jobs} rows for Java-seeded showcase schools. Flyway {@code t1} tenant is covered by V31;
-     * St. Xavier / Meridian are created after migrations, so the same UI data is applied here idempotently.
-     */
-    private void ensureImportExportDemoJobsForShowcaseTenants() {
-        tenantConfigRepository.findBySchoolCode("STXHER-KOL").ifPresent(c -> seedStXImportExportDemo(c.getTenantId()));
-        tenantConfigRepository.findBySchoolCode("MRIDGE-PN").ifPresent(c -> seedMeridianImportExportDemo(c.getTenantId()));
-    }
+    // ═══════════════════════════════════════════════════════════════════════════════════════════
+    // COMPREHENSIVE SCHOOL SEEDING (Works for any school)
+    // ═══════════════════════════════════════════════════════════════════════════════════════════
 
-    private void seedStXImportExportDemo(String tenantId) {
-        if (importJobRepository.existsByTenantIdAndOriginalFilenameAndIsDeletedFalse(tenantId, "admissions-batch-2026-demo.zip")) {
+    private void seedSchool(String schoolCode, String tenantId, String schoolName,
+                           String address, String phone, String email) {
+        // Check if school already has data - if yes, skip to avoid duplicates
+        long existingStudents = studentRepository.countByTenantIdAndIsDeletedFalse(tenantId);
+        if (existingStudents > 0) {
+            log.info("  ⚠️  School {} already has {} students - SKIPPING to avoid duplicates",
+                     schoolCode, existingStudents);
+            log.info("  To re-seed, manually delete existing data or use a fresh database");
             return;
         }
-        User admin = userRepository.findByEmailAndTenantIdAndIsDeletedFalse("principal@stxheritage.edu", tenantId).orElse(null);
-        long classId = schoolClassRepository.findByTenantIdAndIsDeletedFalseOrderByGrade(tenantId).stream()
-                .findFirst()
-                .map(SchoolClass::getId)
-                .orElse(1L);
-        String cid = String.valueOf(classId);
 
-        ImportJob job = new ImportJob();
-        job.setTenantId(tenantId);
-        if (admin != null) {
-            job.setCreatedByUserId(admin.getId());
-            job.setCreatedBy(String.valueOf(admin.getId()));
-        }
-        job.setJobType("STUDENTS");
-        job.setStatus(ImportJobConstants.JOB_COMPLETED);
-        job.setOriginalFilename("admissions-batch-2026-demo.zip");
-        job.setTotalRows(3);
-        job.setSuccessCount(2);
-        job.setFailCount(1);
-        job.setStartedAt(LocalDateTime.now().minusHours(2));
-        job.setFinishedAt(LocalDateTime.now().minusHours(2).plusMinutes(3));
-        job.setSummaryMessage("Processed 3 row(s): 2 succeeded, 1 failed.");
-        importJobRepository.save(job);
+        log.info("  🏫 Starting seed for {} (tenant: {})", schoolName, tenantId);
+        Random random = new Random(schoolCode.hashCode()); // Deterministic randomness per school
 
-        ImportJobLine l0 = importDemoLine(tenantId, job.getId(), 0, ImportJobConstants.LINE_SUCCESS,
-                String.format(Locale.ROOT,
-                        "{\"firstname\":\"Aarav\",\"lastname\":\"Mehta\",\"classid\":\"%s\",\"sectionid\":\"\",\"admissionnumber\":\"DEMO-IMP-001\",\"parentemail\":\"demo.parent1@example.com\"}",
-                        cid),
-                null, "STUDENT", null);
-        ImportJobLine l1 = importDemoLine(tenantId, job.getId(), 1, ImportJobConstants.LINE_FAILED,
-                String.format(Locale.ROOT, "{\"firstname\":\"\",\"lastname\":\"BrokenRow\",\"classid\":\"%s\"}", cid),
-                "Missing required column: firstname", null, null);
-        ImportJobLine l2 = importDemoLine(tenantId, job.getId(), 2, ImportJobConstants.LINE_SUCCESS,
-                String.format(Locale.ROOT,
-                        "{\"firstname\":\"Diya\",\"lastname\":\"Ghosh\",\"classid\":\"%s\",\"admissionnumber\":\"DEMO-IMP-002\",\"parentemail\":\"demo.parent2@example.com\"}",
-                        cid),
-                null, "STUDENT", null);
-        importJobLineRepository.saveAll(List.of(l0, l1, l2));
-        log.info("Seeded import/export demo job (students) for tenant {}", tenantId);
+        // STEP 1: Tenant Config
+        log.info("  [1/15] Tenant Config...");
+        TenantConfig config = createTenantConfig(tenantId, schoolCode, schoolName, address, phone, email);
+
+        // STEP 2: Admin User
+        log.info("  [2/15] Admin User...");
+        User adminUser = createUser(tenantId, schoolCode, "School Admin", "admin@" + email.split("@")[1],
+                                    Enums.Role.ADMIN, "+91-" + phone.substring(4, 14));
+
+        // STEP 3: Academic Year
+        log.info("  [3/15] Academic Year...");
+        AcademicYear academicYear = createAcademicYear(tenantId, "2025-2026",
+                                                       LocalDate.of(2025, 4, 1),
+                                                       LocalDate.of(2026, 3, 31),
+                                                       true);
+
+        // STEP 4: Academic Subjects (common across all classes)
+        log.info("  [4/15] Academic Subjects...");
+        createAcademicSubjects(tenantId);
+
+        // STEP 5: Teachers (30 teachers with various subjects)
+        log.info("  [5/15] Teachers...");
+        List<Teacher> teachers = createTeachers(tenantId, schoolCode, 30, random);
+
+        // STEP 6: Classes & Sections (Classes 4-12, Sections A, B, C)
+        log.info("  [6/15] Classes & Sections...");
+        Map<Integer, List<ClassSectionPair>> classesMap = createClassesAndSections(tenantId, academicYear.getId(), teachers, random);
+
+        // STEP 7: Students with Guardians (30-35 per section)
+        log.info("  [7/15] Students & Guardians...");
+        List<Student> allStudents = createStudentsWithGuardians(tenantId, schoolCode, classesMap, random);
+
+        // STEP 8: Teacher Assignments (Class Teachers + Subject Teachers)
+        log.info("  [8/15] Teacher Assignments...");
+        assignTeachersToClasses(tenantId, academicYear.getId(), classesMap, teachers, random);
+
+        // STEP 9: Fee Structures & Payments
+        log.info("  [9/15] Fees & Payments...");
+        createFeesAndPayments(tenantId, academicYear.getId(), classesMap, allStudents, random);
+
+        // STEP 10: Exams & Mark Records
+        log.info("  [10/15] Exams & Marks...");
+        createExamsAndMarks(tenantId, academicYear.getId(), classesMap, allStudents, random);
+
+        // STEP 11: Attendance (last 10 days)
+        log.info("  [11/15] Attendance...");
+        createAttendance(tenantId, allStudents, teachers, random);
+
+        // STEP 12: Timetables
+        log.info("  [12/15] Timetables...");
+        createTimetables(tenantId, academicYear.getId(), classesMap, teachers, random);
+
+        // STEP 13: Transport
+        log.info("  [13/15] Transport...");
+        createTransport(tenantId, allStudents, random);
+
+        // STEP 14: Library
+        log.info("  [14/15] Library...");
+        createLibrary(tenantId, allStudents, teachers, random);
+
+        // STEP 15: Hostel & Payroll & Communication & Documents & Leave
+        log.info("  [15/15] Hostel, Payroll, Communication, Documents, Leave...");
+        createHostel(tenantId, allStudents, random);
+        createPayroll(tenantId, teachers, random);
+        createCommunication(tenantId, adminUser, teachers, allStudents, random);
+        createDocuments(tenantId, allStudents, teachers, random);
+        createLeaveRequests(tenantId, teachers, allStudents, random);
+
+        log.info("══════════════════════════════════════════════════════════════");
+        log.info("✅ School {} SEEDED SUCCESSFULLY!", schoolCode);
+        log.info("   Students: {}", allStudents.size());
+        log.info("   Teachers: {}", teachers.size());
+        log.info("   Classes: 9 (grades 4-12)");
+        log.info("   Sections: 27 (A, B, C per class)");
+        log.info("══════════════════════════════════════════════════════════════");
     }
 
-    private void seedMeridianImportExportDemo(String tenantId) {
-        if (importJobRepository.existsByTenantIdAndOriginalFilenameAndIsDeletedFalse(tenantId, "mridge-faculty-import-demo.zip")) {
-            return;
-        }
-        User admin = userRepository.findByEmailAndTenantIdAndIsDeletedFalse("principal@meridianridge.edu", tenantId).orElse(null);
-        ImportJob job = new ImportJob();
-        job.setTenantId(tenantId);
-        if (admin != null) {
-            job.setCreatedByUserId(admin.getId());
-            job.setCreatedBy(String.valueOf(admin.getId()));
-        }
-        job.setJobType("TEACHERS");
-        job.setStatus(ImportJobConstants.JOB_COMPLETED);
-        job.setOriginalFilename("mridge-faculty-import-demo.zip");
-        job.setTotalRows(2);
-        job.setSuccessCount(2);
-        job.setFailCount(0);
-        job.setStartedAt(LocalDateTime.now().minusDays(1));
-        job.setFinishedAt(LocalDateTime.now().minusDays(1).plusMinutes(2));
-        job.setSummaryMessage("Processed 2 row(s): 2 succeeded, 0 failed.");
-        importJobRepository.save(job);
+    // ═══════════════════════════════════════════════════════════════════════════════════════════
+    // HELPER CLASSES
+    // ═══════════════════════════════════════════════════════════════════════════════════════════
 
-        ImportJobLine a = importDemoLine(tenantId, job.getId(), 0, ImportJobConstants.LINE_SUCCESS,
-                "{\"firstname\":\"Neha\",\"lastname\":\"Kapoor\",\"email\":\"n.kapoor.demo@meridianridge.edu\",\"createportal\":\"Y\",\"portalrole\":\"TEACHER\"}",
-                null, "TEACHER", null);
-        ImportJobLine b = importDemoLine(tenantId, job.getId(), 1, ImportJobConstants.LINE_SUCCESS,
-                "{\"firstname\":\"Rahul\",\"lastname\":\"Menon\",\"email\":\"r.menon.demo@meridianridge.edu\",\"createportal\":\"N\",\"portalrole\":\"TEACHER\"}",
-                null, "TEACHER", null);
-        importJobLineRepository.saveAll(List.of(a, b));
-        log.info("Seeded import/export demo job (teachers) for tenant {}", tenantId);
+    private static class ClassSectionPair {
+        SchoolClass schoolClass;
+        Section section;
+
+        ClassSectionPair(SchoolClass sc, Section sec) {
+            this.schoolClass = sc;
+            this.section = sec;
+        }
     }
 
-    private static ImportJobLine importDemoLine(String tenantId, Long jobId, int lineIndex, String status, String payloadJson,
-                                                String errorMessage, String entityType, Long entityId) {
-        ImportJobLine line = new ImportJobLine();
-        line.setTenantId(tenantId);
-        line.setJobId(jobId);
-        line.setLineIndex(lineIndex);
-        line.setStatus(status);
-        line.setPayloadJson(payloadJson);
-        line.setErrorMessage(errorMessage);
-        line.setEntityType(entityType);
-        line.setEntityId(entityId);
-        return line;
-    }
+    private static class StudentGuardianPair {
+        Student student;
+        Guardian father;
+        Guardian mother;
 
-    private void seedPlatformSuperAdminIfMissing() {
-        if (userRepository.findByEmailAndSchoolCodeAndIsDeletedFalse("super.ops@schoolvault.edu", "PLATFORM").isPresent()) {
-            return;
+        StudentGuardianPair(Student s, Guardian f, Guardian m) {
+            this.student = s;
+            this.father = f;
+            this.mother = m;
         }
-        User u = User.builder()
-                .name("Rahul Mehta")
-                .email("super.ops@schoolvault.edu")
-                .password(BCRYPT_ADMIN123)
-                .phone("+91-98000-11223")
-                .role(Enums.Role.SUPER_ADMIN)
-                .schoolCode("PLATFORM")
-                .build();
-        u.setTenantId("sv_platform_ops_9d4e2a8f");
-        u.setIsActive(true);
-        u.setIsDeleted(false);
-        userRepository.save(u);
-        log.info("Seeded platform SUPER_ADMIN (login: super.ops@schoolvault.edu / school code PLATFORM / password admin123)");
     }
 
-    /** JWT STUDENT role for future student-portal flows; not linked to {@link Student} row yet. */
-    private void seedStudentPreviewLogin(String tenantId, String schoolCode, String email, String displayName) {
-        if (userRepository.findByEmailAndSchoolCodeAndIsDeletedFalse(email, schoolCode).isPresent()) {
-            return;
-        }
-        userRepository.save(user(tenantId, schoolCode, displayName, email, Enums.Role.STUDENT));
-    }
+    // ═══════════════════════════════════════════════════════════════════════════════════════════
+    // ENTITY CREATION METHODS
+    // ═══════════════════════════════════════════════════════════════════════════════════════════
 
-    private void seedStXaviersHeritage() {
-        final String tenantId = "tenant_stxaviers_heritage_k7m2n9p4";
-        final String schoolCode = "STXHER-KOL";
-        TenantConfig cfg = tenant("St. Xavier's Heritage School", schoolCode,
-                "42 Park Street, Kolkata 700016, West Bengal", "+91-33-2288-4400", "office@stxheritage.edu");
+    private TenantConfig createTenantConfig(String tenantId, String schoolCode, String name,
+                                           String address, String phone, String email) {
+        TenantConfig cfg = new TenantConfig();
         cfg.setTenantId(tenantId);
+        cfg.setSchoolName(name);
+        cfg.setSchoolCode(schoolCode);
+        cfg.setAddress(address);
+        cfg.setPhone(phone);
+        cfg.setEmail(email);
+        cfg.setLogo("https://via.placeholder.com/200x200?text=" + schoolCode);
+        cfg.setPrimaryColor("#1E40AF");
+        cfg.setSecondaryColor("#10B981");
         cfg.setFeaturesJson(FEATURES_JSON);
-        cfg.setLibraryFinePerDay(new BigDecimal("12.00"));
-        tenantConfigRepository.save(cfg);
-
-        User admin = user(tenantId, schoolCode, "Dr. Ananya Dutta", "principal@stxheritage.edu", Enums.Role.ADMIN);
-        User tUser1 = user(tenantId, schoolCode, "Debjyoti Sen", "d.sen@stxheritage.edu", Enums.Role.TEACHER);
-        User tUser2 = user(tenantId, schoolCode, "Meera Iyer", "m.iyer@stxheritage.edu", Enums.Role.TEACHER);
-        User tUser3 = user(tenantId, schoolCode, "Kunal Bose", "k.bose@stxheritage.edu", Enums.Role.TEACHER);
-        User pUser1 = user(tenantId, schoolCode, "Sujata Banerjee", "s.banerjee.parent@stxheritage.edu", Enums.Role.PARENT);
-        User pUser2 = user(tenantId, schoolCode, "Arvind Khanna", "a.khanna.parent@stxheritage.edu", Enums.Role.PARENT);
-        User lib = user(tenantId, schoolCode, "Priyanka Ghosh", "library@stxheritage.edu", Enums.Role.LIBRARY_STAFF);
-        userRepository.saveAll(List.of(admin, tUser1, tUser2, tUser3, pUser1, pUser2, lib));
-        flush();
-
-        AcademicYear ay = AcademicYear.builder()
-                .name("2025-2026")
-                .startDate(LocalDate.of(2025, 4, 1))
-                .endDate(LocalDate.of(2026, 3, 31))
-                .isCurrent(true)
-                .build();
-        ay.setTenantId(tenantId);
-        academicYearRepository.save(ay);
-        flush();
-
-        Teacher t1 = teacher(tenantId, "Debjyoti", "Sen", "d.sen@stxheritage.edu", tUser1.getId(), List.of("Mathematics", "Physics"));
-        Teacher t2 = teacher(tenantId, "Meera", "Iyer", "m.iyer@stxheritage.edu", tUser2.getId(), List.of("English", "History"));
-        Teacher t3 = teacher(tenantId, "Kunal", "Bose", "k.bose@stxheritage.edu", tUser3.getId(), List.of("Chemistry", "Biology"));
-        t3.setLibraryStaffRole(Enums.LibraryStaffRole.ASSISTANT);
-        teacherRepository.saveAll(List.of(t1, t2, t3));
-        flush();
-
-        SchoolClass c9 = clazz(tenantId, "Class IX", 9, ay.getId(), t1.getId(), "Debjyoti Sen");
-        SchoolClass c10 = clazz(tenantId, "Class X", 10, ay.getId(), t2.getId(), "Meera Iyer");
-        SchoolClass c7Demo = clazz(tenantId, "Class VII — Homeroom TBD (demo)", 7, ay.getId(), null, null);
-        SchoolClass c8Demo = clazz(tenantId, "Class VIII — Homeroom TBD (demo)", 8, ay.getId(), null, null);
-        SchoolClass c11 = clazz(tenantId, "Class XI", 11, ay.getId(), t2.getId(), "Meera Iyer");
-        SchoolClass c12 = clazz(tenantId, "Class XII", 12, ay.getId(), t1.getId(), "Debjyoti Sen");
-        schoolClassRepository.saveAll(List.of(c9, c10, c7Demo, c8Demo, c11, c12));
-        flush();
-
-        Section c9a = section(tenantId, "A", c9.getId(), 40, 4);
-        Section c9b = section(tenantId, "B", c9.getId(), 40, 4);
-        Section c10a = section(tenantId, "A", c10.getId(), 40, 4);
-        Section c10b = section(tenantId, "B", c10.getId(), 40, 4);
-        Section c7a = section(tenantId, "A", c7Demo.getId(), 40, 2);
-        Section c8a = section(tenantId, "A", c8Demo.getId(), 40, 2);
-        Section c11a = section(tenantId, "A", c11.getId(), 40, 3);
-        Section c11b = section(tenantId, "B", c11.getId(), 40, 3);
-        Section c12a = section(tenantId, "A", c12.getId(), 40, 2);
-        Section c12b = section(tenantId, "B", c12.getId(), 40, 2);
-        sectionRepository.saveAll(List.of(c9a, c9b, c10a, c10b, c7a, c8a, c11a, c11b, c12a, c12b));
-        flush();
-
-        List<Student> studs = new ArrayList<>();
-        studs.add(student(tenantId, "Riya", "Banerjee", "SX-2025-014", c9.getId(), c9a.getId(), pUser1.getId(), "Sujata Banerjee",
-                "riya.b@stxheritage.edu", Enums.Gender.FEMALE));
-        studs.add(student(tenantId, "Ayan", "Banerjee", "SX-2025-015", c9.getId(), c9a.getId(), pUser1.getId(), "Sujata Banerjee",
-                "ayan.b@stxheritage.edu", Enums.Gender.MALE));
-        studs.add(student(tenantId, "Priya", "Malhotra", "SX-2025-016", c9.getId(), c9a.getId(), pUser2.getId(), "Arvind Khanna",
-                "priya.m@stxheritage.edu", Enums.Gender.FEMALE));
-        studs.add(student(tenantId, "Rahul", "Nambiar", "SX-2025-017", c9.getId(), c9a.getId(), null, "—",
-                "rahul.n@stxheritage.edu", Enums.Gender.MALE));
-        studs.add(student(tenantId, "Ishaan", "Khanna", "SX-2025-028", c9.getId(), c9b.getId(), pUser2.getId(), "Arvind Khanna",
-                "ishaan.k@stxheritage.edu", Enums.Gender.MALE));
-        studs.add(student(tenantId, "Aisha", "Rahman", "SX-2025-033", c9.getId(), c9b.getId(), null, "—",
-                "aisha.r@stxheritage.edu", Enums.Gender.FEMALE));
-        studs.add(student(tenantId, "Farhan", "Qureshi", "SX-2025-034", c9.getId(), c9b.getId(), null, "—",
-                "farhan.q@stxheritage.edu", Enums.Gender.MALE));
-        studs.add(student(tenantId, "Zain", "Kapoor", "SX-2025-035", c9.getId(), c9b.getId(), pUser1.getId(), "Sujata Banerjee",
-                "zain.k@stxheritage.edu", Enums.Gender.MALE));
-        studs.add(student(tenantId, "Neha", "Khanna", "SX-2025-029", c10.getId(), c10a.getId(), pUser2.getId(), "Arvind Khanna",
-                "neha.k@stxheritage.edu", Enums.Gender.FEMALE));
-        studs.add(student(tenantId, "Kabir", "Sethi", "SX-2025-040", c10.getId(), c10a.getId(), null, "—",
-                "kabir.s@stxheritage.edu", Enums.Gender.MALE));
-        studs.add(student(tenantId, "Tara", "Bhattacharya", "SX-2025-041", c10.getId(), c10a.getId(), pUser1.getId(), "Sujata Banerjee",
-                "tara.b@stxheritage.edu", Enums.Gender.FEMALE));
-        studs.add(student(tenantId, "Vihaan", "Oberoi", "SX-2025-042", c10.getId(), c10a.getId(), null, "—",
-                "vihaan.o@stxheritage.edu", Enums.Gender.MALE));
-        studs.add(student(tenantId, "Vikram", "Das", "SX-2025-031", c10.getId(), c10b.getId(), null, "—",
-                "vikram.d@stxheritage.edu", Enums.Gender.MALE));
-        studs.add(student(tenantId, "Ananya", "Ghosh", "SX-2025-032", c10.getId(), c10b.getId(), null, "—",
-                "ananya.g@stxheritage.edu", Enums.Gender.FEMALE));
-        studs.add(student(tenantId, "Myra", "Dutta", "SX-2025-043", c10.getId(), c10b.getId(), pUser2.getId(), "Arvind Khanna",
-                "myra.d@stxheritage.edu", Enums.Gender.FEMALE));
-        studs.add(student(tenantId, "Neil", "Joshi", "SX-2025-044", c10.getId(), c10b.getId(), null, "—",
-                "neil.j@stxheritage.edu", Enums.Gender.MALE));
-        studs.add(student(tenantId, "Aditi", "Rao", "SX-2025-101", c7Demo.getId(), c7a.getId(), pUser1.getId(), "Sujata Banerjee",
-                "aditi.r@stxheritage.edu", Enums.Gender.FEMALE));
-        studs.add(student(tenantId, "Karthik", "Menon", "SX-2025-102", c7Demo.getId(), c7a.getId(), null, "—",
-                "karthik.m@stxheritage.edu", Enums.Gender.MALE));
-        studs.add(student(tenantId, "Sneha", "Reddy", "SX-2025-103", c8Demo.getId(), c8a.getId(), pUser2.getId(), "Arvind Khanna",
-                "sneha.r@stxheritage.edu", Enums.Gender.FEMALE));
-        studs.add(student(tenantId, "Varun", "Saxena", "SX-2025-104", c8Demo.getId(), c8a.getId(), null, "—",
-                "varun.s@stxheritage.edu", Enums.Gender.MALE));
-        studs.add(student(tenantId, "Sanjana", "Kapoor", "SX-2025-201", c11.getId(), c11a.getId(), pUser1.getId(), "Sujata Banerjee",
-                "sanjana.k@stxheritage.edu", Enums.Gender.FEMALE));
-        studs.add(student(tenantId, "Arnav", "Desai", "SX-2025-202", c11.getId(), c11a.getId(), null, "—",
-                "arnav.d@stxheritage.edu", Enums.Gender.MALE));
-        studs.add(student(tenantId, "Kiara", "Malik", "SX-2025-203", c11.getId(), c11a.getId(), pUser2.getId(), "Arvind Khanna",
-                "kiara.m@stxheritage.edu", Enums.Gender.FEMALE));
-        studs.add(student(tenantId, "Rehan", "Varma", "SX-2025-211", c11.getId(), c11b.getId(), null, "—",
-                "rehan.v@stxheritage.edu", Enums.Gender.MALE));
-        studs.add(student(tenantId, "Pari", "Ahuja", "SX-2025-212", c11.getId(), c11b.getId(), pUser1.getId(), "Sujata Banerjee",
-                "pari.a@stxheritage.edu", Enums.Gender.FEMALE));
-        studs.add(student(tenantId, "Yash", "Khan", "SX-2025-213", c11.getId(), c11b.getId(), null, "—",
-                "yash.k@stxheritage.edu", Enums.Gender.MALE));
-        studs.add(student(tenantId, "Dhruv", "Mehta", "SX-2025-301", c12.getId(), c12a.getId(), pUser2.getId(), "Arvind Khanna",
-                "dhruv.m@stxheritage.edu", Enums.Gender.MALE));
-        studs.add(student(tenantId, "Anika", "Sen", "SX-2025-302", c12.getId(), c12a.getId(), null, "—",
-                "anika.s@stxheritage.edu", Enums.Gender.FEMALE));
-        studs.add(student(tenantId, "Rohan", "Iyer", "SX-2025-311", c12.getId(), c12b.getId(), pUser1.getId(), "Sujata Banerjee",
-                "rohan.i@stxheritage.edu", Enums.Gender.MALE));
-        studs.add(student(tenantId, "Ira", "Bose", "SX-2025-312", c12.getId(), c12b.getId(), null, "—",
-                "ira.b@stxheritage.edu", Enums.Gender.FEMALE));
-        studentRepository.saveAll(studs);
-        flush();
-
-        Guardian g1 = guardian(tenantId, "Sujata Banerjee", "+91-98300-22114", pUser1.getId());
-        guardianRepository.save(g1);
-        mapGuardian(tenantId, studs.get(0).getId(), g1.getId(), Enums.GuardianRelationType.MOTHER, true);
-        mapGuardian(tenantId, studs.get(1).getId(), g1.getId(), Enums.GuardianRelationType.MOTHER, true);
-        flush();
-
-        classTeacherRow(tenantId, ay.getId(), c9.getId(), c9a.getId(), t1.getId());
-        classTeacherRow(tenantId, ay.getId(), c10.getId(), c10a.getId(), t2.getId());
-        classTeacherRow(tenantId, ay.getId(), c10.getId(), c10b.getId(), t3.getId());
-        classTeacherRow(tenantId, ay.getId(), c11.getId(), c11a.getId(), t2.getId());
-        classTeacherRow(tenantId, ay.getId(), c11.getId(), c11b.getId(), t2.getId());
-        classTeacherRow(tenantId, ay.getId(), c12.getId(), c12a.getId(), t1.getId());
-        classTeacherRow(tenantId, ay.getId(), c12.getId(), c12b.getId(), t1.getId());
-        subjectRow(tenantId, ay.getId(), c9.getId(), c9a.getId(), "Mathematics", t1.getId());
-        subjectRow(tenantId, ay.getId(), c9.getId(), c9a.getId(), "English", t2.getId());
-        subjectRow(tenantId, ay.getId(), c9.getId(), c9b.getId(), "Mathematics", t1.getId());
-        subjectRow(tenantId, ay.getId(), c10.getId(), null, "Science", t3.getId());
-        subjectRow(tenantId, ay.getId(), c11.getId(), c11a.getId(), "Mathematics", t1.getId());
-        subjectRow(tenantId, ay.getId(), c11.getId(), c11a.getId(), "English", t2.getId());
-        subjectRow(tenantId, ay.getId(), c11.getId(), c11a.getId(), "Physics", t1.getId());
-        subjectRow(tenantId, ay.getId(), c12.getId(), c12a.getId(), "Chemistry", t3.getId());
-        subjectRow(tenantId, ay.getId(), c12.getId(), c12a.getId(), "Biology", t3.getId());
-        flush();
-
-        LocalDate attDay = LocalDate.now().minusDays(1);
-        for (Student s : studs.subList(0, 4)) {
-            attendanceRepository.save(att(tenantId, s, attDay, Enums.AttendanceStatus.PRESENT, t1.getId()));
-        }
-        attendanceRepository.save(att(tenantId, studs.get(4), attDay, Enums.AttendanceStatus.LATE, t1.getId()));
-
-        timetableRepository.save(tt(tenantId, ay.getId(), c9.getId(), c9a.getId(), Enums.DayOfWeek.MONDAY, 1,
-                LocalTime.of(8, 30), LocalTime.of(9, 15), "Mathematics", t1.getId(), "Debjyoti Sen", "Room 201"));
-        timetableRepository.save(tt(tenantId, ay.getId(), c9.getId(), c9a.getId(), Enums.DayOfWeek.MONDAY, 2,
-                LocalTime.of(9, 20), LocalTime.of(10, 5), "English", t2.getId(), "Meera Iyer", "Room 201"));
-        timetableRepository.save(tt(tenantId, ay.getId(), c10.getId(), c10b.getId(), Enums.DayOfWeek.TUESDAY, 1,
-                LocalTime.of(8, 30), LocalTime.of(9, 15), "Chemistry", t3.getId(), "Kunal Bose", "Lab 1"));
-        timetableRepository.save(tt(tenantId, ay.getId(), c9.getId(), c9b.getId(), Enums.DayOfWeek.MONDAY, 1,
-                LocalTime.of(8, 30), LocalTime.of(9, 15), "Mathematics", t1.getId(), "Debjyoti Sen", "Room 202"));
-        timetableRepository.save(tt(tenantId, ay.getId(), c9.getId(), c9b.getId(), Enums.DayOfWeek.MONDAY, 2,
-                LocalTime.of(9, 20), LocalTime.of(10, 5), "English", t2.getId(), "Meera Iyer", "Room 202"));
-        timetableRepository.save(tt(tenantId, ay.getId(), c9.getId(), c9b.getId(), Enums.DayOfWeek.WEDNESDAY, 1,
-                LocalTime.of(8, 30), LocalTime.of(9, 15), "Chemistry", t3.getId(), "Kunal Bose", "Lab 1"));
-        timetableRepository.save(tt(tenantId, ay.getId(), c10.getId(), c10a.getId(), Enums.DayOfWeek.MONDAY, 1,
-                LocalTime.of(8, 30), LocalTime.of(9, 15), "English", t2.getId(), "Meera Iyer", "Room 301"));
-        timetableRepository.save(tt(tenantId, ay.getId(), c10.getId(), c10a.getId(), Enums.DayOfWeek.MONDAY, 2,
-                LocalTime.of(9, 20), LocalTime.of(10, 5), "Mathematics", t1.getId(), "Debjyoti Sen", "Room 301"));
-        timetableRepository.save(tt(tenantId, ay.getId(), c10.getId(), c10a.getId(), Enums.DayOfWeek.THURSDAY, 1,
-                LocalTime.of(8, 30), LocalTime.of(9, 15), "Science", t3.getId(), "Kunal Bose", "Lab 1"));
-        timetableRepository.save(tt(tenantId, ay.getId(), c7Demo.getId(), c7a.getId(), Enums.DayOfWeek.TUESDAY, 1,
-                LocalTime.of(8, 30), LocalTime.of(9, 15), "English", t2.getId(), "Meera Iyer", "Room 102"));
-        timetableRepository.save(tt(tenantId, ay.getId(), c7Demo.getId(), c7a.getId(), Enums.DayOfWeek.TUESDAY, 2,
-                LocalTime.of(9, 20), LocalTime.of(10, 5), "Mathematics", t1.getId(), "Debjyoti Sen", "Room 102"));
-        timetableRepository.save(tt(tenantId, ay.getId(), c8Demo.getId(), c8a.getId(), Enums.DayOfWeek.WEDNESDAY, 1,
-                LocalTime.of(8, 30), LocalTime.of(9, 15), "Science", t3.getId(), "Kunal Bose", "Lab 1"));
-        timetableRepository.save(tt(tenantId, ay.getId(), c8Demo.getId(), c8a.getId(), Enums.DayOfWeek.WEDNESDAY, 2,
-                LocalTime.of(9, 20), LocalTime.of(10, 5), "English", t2.getId(), "Meera Iyer", "Room 108"));
-        timetableRepository.save(tt(tenantId, ay.getId(), c11.getId(), c11a.getId(), Enums.DayOfWeek.MONDAY, 1,
-                LocalTime.of(8, 30), LocalTime.of(9, 15), "Mathematics", t1.getId(), "Debjyoti Sen", "Room 401"));
-        timetableRepository.save(tt(tenantId, ay.getId(), c11.getId(), c11a.getId(), Enums.DayOfWeek.MONDAY, 2,
-                LocalTime.of(9, 20), LocalTime.of(10, 5), "Physics", t1.getId(), "Debjyoti Sen", "Lab 2"));
-        timetableRepository.save(tt(tenantId, ay.getId(), c11.getId(), c11a.getId(), Enums.DayOfWeek.TUESDAY, 1,
-                LocalTime.of(8, 30), LocalTime.of(9, 15), "English", t2.getId(), "Meera Iyer", "Room 401"));
-        timetableRepository.save(tt(tenantId, ay.getId(), c11.getId(), c11b.getId(), Enums.DayOfWeek.MONDAY, 1,
-                LocalTime.of(8, 30), LocalTime.of(9, 15), "Chemistry", t3.getId(), "Kunal Bose", "Lab 1"));
-        timetableRepository.save(tt(tenantId, ay.getId(), c11.getId(), c11b.getId(), Enums.DayOfWeek.THURSDAY, 1,
-                LocalTime.of(8, 30), LocalTime.of(9, 15), "Mathematics", t1.getId(), "Debjyoti Sen", "Room 402"));
-        timetableRepository.save(tt(tenantId, ay.getId(), c12.getId(), c12a.getId(), Enums.DayOfWeek.MONDAY, 1,
-                LocalTime.of(8, 30), LocalTime.of(9, 15), "Chemistry", t3.getId(), "Kunal Bose", "Lab 1"));
-        timetableRepository.save(tt(tenantId, ay.getId(), c12.getId(), c12a.getId(), Enums.DayOfWeek.TUESDAY, 1,
-                LocalTime.of(8, 30), LocalTime.of(9, 15), "Biology", t3.getId(), "Kunal Bose", "Lab 1"));
-        timetableRepository.save(tt(tenantId, ay.getId(), c12.getId(), c12b.getId(), Enums.DayOfWeek.WEDNESDAY, 1,
-                LocalTime.of(8, 30), LocalTime.of(9, 15), "Mathematics", t1.getId(), "Debjyoti Sen", "Room 501"));
-
-        Exam exam = Exam.builder()
-                .name("Half-Yearly Assessment 2025")
-                .academicYearId(ay.getId())
-                .startDate(LocalDate.now().plusWeeks(2))
-                .endDate(LocalDate.now().plusWeeks(3))
-                .classIds(List.of(c9.getId(), c10.getId(), c11.getId(), c12.getId()))
-                .status(Enums.ExamStatus.UPCOMING)
-                .build();
-        exam.setTenantId(tenantId);
-        exam.setResultsPublished(false);
-        examRepository.save(exam);
-        flush();
-
-        ExamScope(tenantId, exam.getId(), c9.getId(), null);
-        ExamScope(tenantId, exam.getId(), c10.getId(), c10b.getId());
-        ExamScope(tenantId, exam.getId(), c11.getId(), c11a.getId());
-        ExamScope(tenantId, exam.getId(), c12.getId(), c12a.getId());
-        examSlot(tenantId, exam.getId(), c9.getId(), c9a.getId(), "Mathematics", LocalDate.now().plusWeeks(2), LocalTime.of(9, 0), LocalTime.of(11, 0), "Hall A");
-        examSlot(tenantId, exam.getId(), c10.getId(), c10b.getId(), "Science", LocalDate.now().plusWeeks(2), LocalTime.of(13, 0), LocalTime.of(15, 0), "Lab 1");
-        examSlot(tenantId, exam.getId(), c11.getId(), c11a.getId(), "Mathematics", LocalDate.now().plusWeeks(2).plusDays(1), LocalTime.of(9, 0), LocalTime.of(11, 0), "Hall B");
-        examSlot(tenantId, exam.getId(), c12.getId(), c12a.getId(), "Chemistry", LocalDate.now().plusWeeks(2).plusDays(1), LocalTime.of(13, 0), LocalTime.of(15, 0), "Lab 2");
-
-        markRecord(tenantId, exam.getId(), studs.get(0), "Mathematics", 82, 100, "B+", c9.getId());
-        markRecord(tenantId, exam.getId(), studs.get(0), "English", 76, 100, "B", c9.getId());
-        markRecord(tenantId, exam.getId(), studs.get(8), "English", 91, 100, "A+", c10.getId());
-        markRecord(tenantId, exam.getId(), studs.get(20), "Mathematics", 88, 100, "A", c11.getId());
-
-        FeeStructure fs = feeStructure(tenantId, "Annual Fee — IX", c9.getId(), "Class IX", ay.getId(), new BigDecimal("48500.00"));
-        feeStructureRepository.save(fs);
-        feeComponentRepository.save(comp(tenantId, fs.getId(), "Tuition", new BigDecimal("38000"), Enums.FeeComponentType.TUITION));
-        feeComponentRepository.save(comp(tenantId, fs.getId(), "Lab & IT", new BigDecimal("6500"), Enums.FeeComponentType.LAB));
-        feeComponentRepository.save(comp(tenantId, fs.getId(), "Sports", new BigDecimal("4000"), Enums.FeeComponentType.SPORTS));
-        flush();
-
-        FeePayment fp1 = payment(tenantId, studs.get(0), fs.getId(), new BigDecimal("48500"), new BigDecimal("25000"),
-                new BigDecimal("23500"), Enums.FeeStatus.PARTIAL, "SX-REC-001");
-        FeePayment fp2 = payment(tenantId, studs.get(8), fs.getId(), new BigDecimal("48500"), new BigDecimal("48500"),
-                BigDecimal.ZERO, Enums.FeeStatus.PAID, "SX-REC-002");
-        feePaymentRepository.saveAll(List.of(fp1, fp2));
-        fp1.setDueDate(LocalDate.now().plusDays(10));
-        feePaymentRepository.save(fp1);
-        FeePayment fpOver = payment(tenantId, studs.get(1), fs.getId(), new BigDecimal("12000"), BigDecimal.ZERO,
-                new BigDecimal("12000"), Enums.FeeStatus.OVERDUE, "SX-REC-OVD-01");
-        fpOver.setDueDate(LocalDate.now().minusDays(5));
-        feePaymentRepository.save(fpOver);
-        flush();
-
-        FeePaymentAttempt att = new FeePaymentAttempt();
-        att.setTenantId(tenantId);
-        att.setFeePaymentId(fp1.getId());
-        att.setStudentId(studs.get(0).getId());
-        att.setParentUserId(pUser1.getId());
-        att.setProvider("razorpay");
-        att.setProviderOrderId("ord_demo_sx_88421");
-        att.setCheckoutToken("tok_demo_sx_99102");
-        att.setCurrency("INR");
-        att.setAmount(new BigDecimal("12000.00"));
-        att.setStatus("success");
-        att.setInitiatedAt(LocalDateTime.now().minusDays(2));
-        att.setCompletedAt(LocalDateTime.now().minusDays(2));
-        att.setIsDeleted(false);
-        feePaymentAttemptRepository.save(att);
-
-        FeeStructure fsXi = feeStructure(tenantId, "Annual Fee — XI", c11.getId(), "Class XI", ay.getId(), new BigDecimal("52000.00"));
-        feeStructureRepository.save(fsXi);
-        feeComponentRepository.save(comp(tenantId, fsXi.getId(), "Tuition", new BigDecimal("41000"), Enums.FeeComponentType.TUITION));
-        feeComponentRepository.save(comp(tenantId, fsXi.getId(), "Labs", new BigDecimal("11000"), Enums.FeeComponentType.LAB));
-        flush();
-        feePaymentRepository.save(payment(tenantId, studs.get(20), fsXi.getId(), new BigDecimal("52000"), new BigDecimal("26000"),
-                new BigDecimal("26000"), Enums.FeeStatus.PARTIAL, "SX-REC-XI-01"));
-
-        saveAnnouncements(tenantId, c9.getId(), c9a.getId(), c10.getId(), c10b.getId());
-        notificationRepository.save(notif(tenantId, admin.getId(), "Welcome to the new academic session", "Term calendars are published under Documents.", Enums.NotificationType.INFO));
-        notificationRepository.save(notif(tenantId, lib.getId(), "Library: new arrivals", "STEM reading list updated for Class IX–X.", Enums.NotificationType.SUCCESS));
-
-        messageRepository.save(tap(Message.builder().senderId(admin.getId()).senderName("Dr. Ananya Dutta").senderRole("ADMIN")
-                .receiverId(tUser1.getId()).receiverName("Debjyoti Sen").content("Please submit the IX-A assessment grid by Friday.")
-                .isRead(false).build(), m -> m.setTenantId(tenantId)));
-
-        TransportVehicle veh = vehicle(tenantId, "WB-04-K-9921", Enums.VehicleType.BUS, 42, "Tata Starbus");
-        transportVehicleRepository.save(veh);
-        TransportDriver drv = driver(tenantId, "Haradhan Mondal", "+91-98765-44102", "WB-DRV-88421");
-        transportDriverRepository.save(drv);
-        TransportRoute route = TransportRoute.builder().name("South Kolkata — Garia to Park Street")
-                .vehicleNumber("WB-04-K-9921").driverName("Haradhan Mondal").driverPhone("+91-98765-44102")
-                .assignedStudents(2).vehicleId(veh.getId()).driverId(drv.getId()).build();
-        route.setTenantId(tenantId);
-        transportRouteRepository.save(route);
-        flush();
-        RouteStop rs1 = RouteStop.builder().name("Garia Hat").stopTime(LocalTime.of(7, 10)).stopOrder(1).build();
-        rs1.setTenantId(tenantId);
-        rs1.setRouteId(route.getId());
-        RouteStop rs2 = RouteStop.builder().name("Rash Behari Crossing").stopTime(LocalTime.of(7, 35)).stopOrder(2).build();
-        rs2.setTenantId(tenantId);
-        rs2.setRouteId(route.getId());
-        routeStopRepository.saveAll(List.of(rs1, rs2));
-
-        studentTransportMappingRepository.save(tap(StudentTransportMapping.builder().routeId(route.getId())
-                .studentId(studs.get(0).getId()).studentName(studs.get(0).getFirstName() + " " + studs.get(0).getLastName())
-                .pickupStop("Garia Hat").dropStop("School").build(), m -> m.setTenantId(tenantId)));
-
-        VehicleLiveLocation vll = new VehicleLiveLocation();
-        vll.setTenantId(tenantId);
-        vll.setVehicleId(veh.getId());
-        vll.setRouteId(route.getId());
-        vll.setLatitude(new BigDecimal("22.5180"));
-        vll.setLongitude(new BigDecimal("88.3832"));
-        vll.setRecordedAt(Instant.now().minusSeconds(120));
-        vehicleLiveLocationRepository.save(vll);
-
-        Hostel h = new Hostel();
-        h.setTenantId(tenantId);
-        h.setName("St. Xavier's Residency — Boys");
-        h.setCode("SX-RES-B");
-        h.setGenderScope("MALE");
-        hostelRepository.save(h);
-        HostelRoom r1 = HostelRoom.builder().roomNumber("B-204").block("B").floor(2).capacity(4).occupancy(1)
-                .roomType(Enums.HostelRoomType.DOUBLE.name()).build();
-        r1.setTenantId(tenantId);
-        r1.setHostelId(h.getId());
-        hostelRoomRepository.save(r1);
-        hostelAllocationRepository.save(tap(HostelAllocation.builder().roomId(r1.getId()).roomNumber("B-204")
-                        .studentId(studs.get(4).getId()).studentName(studs.get(4).getFirstName() + " " + studs.get(4).getLastName())
-                        .fromDate(LocalDate.now().minusMonths(2)).status(Enums.HostelAllocationStatus.ACTIVE).build(),
-                a -> a.setTenantId(tenantId)));
-        r1.setOccupancy(1);
-        hostelRoomRepository.save(r1);
-
-        Book b1 = new Book("Ignited Minds", "A.P.J. Abdul Kalam", "978-0143031635", "Biography", 6, 5, "A-12");
-        b1.setTenantId(tenantId);
-        Book b2 = new Book("Concepts of Physics Vol.1", "H.C. Verma", "978-8177091878", "Textbook", 10, 9, "B-04");
-        b2.setTenantId(tenantId);
-        bookRepository.saveAll(List.of(b1, b2));
-        BookIssue bi = new BookIssue();
-        bi.setTenantId(tenantId);
-        bi.setBookId(b1.getId());
-        bi.setBookTitle(b1.getTitle());
-        bi.setStudentId(studs.get(0).getId());
-        bi.setStudentName(studs.get(0).getFirstName() + " " + studs.get(0).getLastName());
-        bi.setIssueDate(LocalDate.now().minusDays(5));
-        bi.setDueDate(LocalDate.now().plusDays(9));
-        bi.setFine(BigDecimal.ZERO);
-        bi.setStatus(Enums.BookIssueStatus.ISSUED);
-        bookIssueRepository.save(bi);
-
-        SalaryStructure ss = SalaryStructure.builder().teacherId(t1.getId()).teacherName("Debjyoti Sen")
-                .basicSalary(new BigDecimal("52000")).netSalary(new BigDecimal("46800")).build();
-        ss.setTenantId(tenantId);
-        salaryStructureRepository.save(ss);
-        salaryComponentRepository.save(tap(SalaryComponent.builder().salaryStructureId(ss.getId()).name("HRA")
-                .amount(new BigDecimal("8000")).type(Enums.SalaryComponentType.ALLOWANCE).build(), c -> c.setTenantId(tenantId)));
-        salaryComponentRepository.save(tap(SalaryComponent.builder().salaryStructureId(ss.getId()).name("PF")
-                .amount(new BigDecimal("5200")).type(Enums.SalaryComponentType.DEDUCTION).build(), c -> c.setTenantId(tenantId)));
-        payslipRepository.save(tap(Payslip.builder().teacherId(t1.getId()).teacherName("Debjyoti Sen").month("March").year(2025)
-                .basicSalary(new BigDecimal("52000")).totalAllowances(new BigDecimal("8000")).totalDeductions(new BigDecimal("13200"))
-                .netSalary(new BigDecimal("46800")).status(Enums.PayslipStatus.PAID).paymentDate(LocalDate.of(2025, 3, 28))
-                .build(), p -> p.setTenantId(tenantId)));
-
-        documentRepository.save(tap(Document.builder().name("Academic Calendar 2025-26.pdf").fileType("pdf")
-                        .category(Enums.DocumentCategory.ADMIN).uploadedBy("Dr. Ananya Dutta").fileSize("420 KB")
-                        .fileUrl("/demo/calendar-2025-26.pdf").relatedEntityId(ay.getId()).relatedEntityType("ACADEMIC_YEAR").build(),
-                d -> d.setTenantId(tenantId)));
-        documentRepository.save(tap(Document.builder().name("Transport route consent — Garia.pdf").fileType("pdf")
-                        .category(Enums.DocumentCategory.GENERAL).uploadedBy("Office").fileSize("88 KB")
-                        .fileUrl("/demo/transport-consent.pdf").relatedEntityId(route.getId()).relatedEntityType("TRANSPORT_ROUTE").build(),
-                d -> d.setTenantId(tenantId)));
-
-        auditLogRepository.save(tap(AuditLog.builder().action(Enums.AuditAction.LOGIN).module("AUTH")
-                .description("Principal logged in from trusted workstation").userId(admin.getId()).userName(admin.getName())
-                .ipAddress("192.168.1.44").build(), a -> a.setTenantId(tenantId)));
-
-        LeaveRequest lr = new LeaveRequest();
-        lr.setTenantId(tenantId);
-        lr.setApplicantUserId(tUser2.getId());
-        lr.setApplicantRole("TEACHER");
-        lr.setLeaveType("SICK");
-        lr.setStartDate(LocalDate.now().plusDays(3));
-        lr.setEndDate(LocalDate.now().plusDays(3));
-        lr.setDayUnit(Enums.LeaveDayUnit.FULL_DAY);
-        lr.setReason("Medical appointment — will share prescription with HR.");
-        lr.setStatus(Enums.LeaveStatus.PENDING);
-        leaveRequestRepository.save(lr);
-
-        ChatConversation conv = new ChatConversation();
-        conv.setTenantId(tenantId);
-        conv.setType("direct");
-        conv.setSubject("IX-A — PT meeting follow-up");
-        conv.setLastMessageAt(LocalDateTime.now().minusHours(2));
-        conv.setLastMessagePreview("Thank you for the update on Riya's progress.");
-        chatConversationRepository.save(conv);
-        flush();
-        ChatParticipant part1 = new ChatParticipant();
-        part1.setTenantId(tenantId);
-        part1.setConversationId(conv.getId());
-        part1.setUserId(admin.getId());
-        part1.setUserRole("ADMIN");
-        part1.setDisplayName("Dr. Ananya Dutta");
-        ChatParticipant part2 = new ChatParticipant();
-        part2.setTenantId(tenantId);
-        part2.setConversationId(conv.getId());
-        part2.setUserId(pUser1.getId());
-        part2.setUserRole("PARENT");
-        part2.setDisplayName("Sujata Banerjee");
-        chatParticipantRepository.saveAll(List.of(part1, part2));
-        ChatMessage cm1 = new ChatMessage();
-        cm1.setTenantId(tenantId);
-        cm1.setConversationId(conv.getId());
-        cm1.setSenderUserId(admin.getId());
-        cm1.setSenderRole("ADMIN");
-        cm1.setSenderName("Dr. Ananya Dutta");
-        cm1.setBody("Riya is doing well in Mathematics; we suggest extra practice on geometry proofs.");
-        cm1.setBodyType("text");
-        ChatMessage cm2 = new ChatMessage();
-        cm2.setTenantId(tenantId);
-        cm2.setConversationId(conv.getId());
-        cm2.setSenderUserId(pUser1.getId());
-        cm2.setSenderRole("PARENT");
-        cm2.setSenderName("Sujata Banerjee");
-        cm2.setBody("Thank you for the update on Riya's progress.");
-        cm2.setBodyType("text");
-        chatMessageRepository.saveAll(List.of(cm1, cm2));
-
-        seedStudentPreviewLogin(tenantId, schoolCode, "student.preview@stxheritage.edu", "Riya Banerjee (student portal)");
-
-        log.info("Seeded demo workspace St. Xavier's (tenant_id={}, school_code={}, login principal@stxheritage.edu / admin123)",
-                tenantId, schoolCode);
+        cfg.setLibraryFinePerDay(new BigDecimal("10.00"));
+        cfg.setIsActive(true);
+        cfg.setIsDeleted(false);
+        return tenantConfigRepository.save(cfg);
     }
 
-    private void seedMeridianRidge() {
-        final String tenantId = "tenant_meridian_ridge_pn_3q8w5r1x";
-        final String schoolCode = "MRIDGE-PN";
-        TenantConfig cfg = tenant("Meridian Ridge International School", schoolCode,
-                "Baner Road, Pune 411045, Maharashtra", "+91-20-6688-1200", "admissions@meridianridge.edu");
-        cfg.setTenantId(tenantId);
-        cfg.setFeaturesJson(FEATURES_JSON);
-        cfg.setLibraryFinePerDay(new BigDecimal("15.00"));
-        tenantConfigRepository.save(cfg);
-
-        User admin = user(tenantId, schoolCode, "Col. Vikram Rathore", "principal@meridianridge.edu", Enums.Role.ADMIN);
-        User tu1 = user(tenantId, schoolCode, "Sneha Patil", "s.patil@meridianridge.edu", Enums.Role.TEACHER);
-        User tu2 = user(tenantId, schoolCode, "Daniel Fernandes", "d.fernandes@meridianridge.edu", Enums.Role.TEACHER);
-        User pu1 = user(tenantId, schoolCode, "Kavita Deshmukh", "k.deshmukh.parent@meridianridge.edu", Enums.Role.PARENT);
-        userRepository.saveAll(List.of(admin, tu1, tu2, pu1));
-        flush();
-
-        AcademicYear ay = AcademicYear.builder()
-                .name("2025-2026")
-                .startDate(LocalDate.of(2025, 4, 1))
-                .endDate(LocalDate.of(2026, 3, 31))
-                .isCurrent(true)
-                .build();
-        ay.setTenantId(tenantId);
-        academicYearRepository.save(ay);
-        flush();
-
-        Teacher tr1 = teacher(tenantId, "Sneha", "Patil", "s.patil@meridianridge.edu", tu1.getId(), List.of("Mathematics"));
-        Teacher tr2 = teacher(tenantId, "Daniel", "Fernandes", "d.fernandes@meridianridge.edu", tu2.getId(), List.of("Computer Science"));
-        teacherRepository.saveAll(List.of(tr1, tr2));
-        flush();
-
-        SchoolClass c8 = clazz(tenantId, "Class VIII", 8, ay.getId(), tr1.getId(), "Sneha Patil");
-        schoolClassRepository.save(c8);
-        flush();
-        Section s8a = section(tenantId, "A", c8.getId(), 36, 3);
-        Section s8b = section(tenantId, "B", c8.getId(), 36, 2);
-        sectionRepository.saveAll(List.of(s8a, s8b));
-        flush();
-
-        List<Student> studs = new ArrayList<>();
-        studs.add(student(tenantId, "Advik", "Deshmukh", "MR-2025-101", c8.getId(), s8a.getId(), pu1.getId(), "Kavita Deshmukh",
-                "advik.d@meridianridge.edu", Enums.Gender.MALE));
-        studs.add(student(tenantId, "Myra", "Deshmukh", "MR-2025-102", c8.getId(), s8a.getId(), pu1.getId(), "Kavita Deshmukh",
-                "myra.d@meridianridge.edu", Enums.Gender.FEMALE));
-        studs.add(student(tenantId, "Kabir", "Shah", "MR-2025-115", c8.getId(), s8b.getId(), null, "—",
-                "kabir.s@meridianridge.edu", Enums.Gender.MALE));
-        studentRepository.saveAll(studs);
-        flush();
-
-        classTeacherRow(tenantId, ay.getId(), c8.getId(), s8a.getId(), tr1.getId());
-        subjectRow(tenantId, ay.getId(), c8.getId(), s8a.getId(), "Mathematics", tr1.getId());
-        subjectRow(tenantId, ay.getId(), c8.getId(), s8b.getId(), "Computer Science", tr2.getId());
-
-        attendanceRepository.save(att(tenantId, studs.get(0), LocalDate.now().minusDays(1), Enums.AttendanceStatus.PRESENT, tr1.getId()));
-        attendanceRepository.save(att(tenantId, studs.get(1), LocalDate.now().minusDays(1), Enums.AttendanceStatus.EXCUSED, tr1.getId()));
-
-        timetableRepository.save(tt(tenantId, ay.getId(), c8.getId(), s8a.getId(), Enums.DayOfWeek.WEDNESDAY, 1,
-                LocalTime.of(9, 0), LocalTime.of(9, 45), "Mathematics", tr1.getId(), "Sneha Patil", "Room 105"));
-
-        Exam ex = Exam.builder().name("Unit Test 1 — Term I").academicYearId(ay.getId())
-                .startDate(LocalDate.now().plusWeeks(1)).endDate(LocalDate.now().plusWeeks(1))
-                .classIds(List.of(c8.getId())).status(Enums.ExamStatus.ONGOING).build();
-        ex.setTenantId(tenantId);
-        ex.setResultsPublished(true);
-        examRepository.save(ex);
-        flush();
-        ExamScope(tenantId, ex.getId(), c8.getId(), null);
-        examSlot(tenantId, ex.getId(), c8.getId(), s8a.getId(), "Mathematics", LocalDate.now().plusWeeks(1), LocalTime.of(10, 0), LocalTime.of(11, 30), "Room 105");
-        markRecord(tenantId, ex.getId(), studs.get(0), "Mathematics", 68, 80, "B", c8.getId());
-
-        FeeStructure fs = feeStructure(tenantId, "Composite Fee — VIII", c8.getId(), "Class VIII", ay.getId(), new BigDecimal("41200.00"));
-        feeStructureRepository.save(fs);
-        feeComponentRepository.save(comp(tenantId, fs.getId(), "Tuition", new BigDecimal("32000"), Enums.FeeComponentType.TUITION));
-        feeComponentRepository.save(comp(tenantId, fs.getId(), "Technology", new BigDecimal("9200"), Enums.FeeComponentType.MISC));
-        flush();
-        feePaymentRepository.save(payment(tenantId, studs.get(0), fs.getId(), new BigDecimal("41200"), new BigDecimal("20000"),
-                new BigDecimal("21200"), Enums.FeeStatus.PARTIAL, "MR-REC-4401"));
-
-        Announcement a1 = new Announcement();
-        a1.setTenantId(tenantId);
-        a1.setTitle("Pune monsoon — safety advisory");
-        a1.setContent("Students using school transport should carry rain gear this week.");
-        a1.setAuthor("Col. Vikram Rathore");
-        a1.setAuthorRole("ADMIN");
-        a1.setTargetAudience(Enums.TargetAudience.ALL);
-        announcementRepository.save(a1);
-
-        notificationRepository.save(notif(tenantId, admin.getId(), "Fee reminder", "Term I balance due for some VIII-A students.", Enums.NotificationType.WARNING));
-
-        TransportVehicle v = vehicle(tenantId, "MH-12-AB-7711", Enums.VehicleType.VAN, 14, "Force Traveller");
-        transportVehicleRepository.save(v);
-        TransportDriver d = driver(tenantId, "Suresh Jadhav", "+91-98220-55190", "MH-DRV-22109");
-        transportDriverRepository.save(d);
-        TransportRoute rt = TransportRoute.builder().name("Hinjewadi Phase 2 — School")
-                .vehicleNumber("MH-12-AB-7711").driverName("Suresh Jadhav").driverPhone("+91-98220-55190")
-                .assignedStudents(1).vehicleId(v.getId()).driverId(d.getId()).build();
-        rt.setTenantId(tenantId);
-        transportRouteRepository.save(rt);
-        flush();
-        RouteStop st = RouteStop.builder().name("Infosys Circle").stopTime(LocalTime.of(7, 45)).stopOrder(1).build();
-        st.setTenantId(tenantId);
-        st.setRouteId(rt.getId());
-        routeStopRepository.save(st);
-        studentTransportMappingRepository.save(tap(StudentTransportMapping.builder().routeId(rt.getId())
-                        .studentId(studs.get(2).getId()).studentName("Kabir Shah").pickupStop("Infosys Circle").dropStop("School").build(),
-                m -> m.setTenantId(tenantId)));
-
-        Hostel hx = new Hostel();
-        hx.setTenantId(tenantId);
-        hx.setName("Meridian Scholars Hostel");
-        hx.setCode("MR-H1");
-        hx.setGenderScope("MIXED");
-        hostelRepository.save(hx);
-        HostelRoom rx = HostelRoom.builder().roomNumber("H-112").block("H").floor(1).capacity(3).occupancy(0)
-                .roomType(Enums.HostelRoomType.TRIPLE.name()).build();
-        rx.setTenantId(tenantId);
-        rx.setHostelId(hx.getId());
-        hostelRoomRepository.save(rx);
-
-        Book bk = new Book("Python for Young Learners", "Natasha Singh", "978-9355512345", "Computing", 5, 5, "C-07");
-        bk.setTenantId(tenantId);
-        bookRepository.save(bk);
-
-        SalaryStructure sx = SalaryStructure.builder().teacherId(tr1.getId()).teacherName("Sneha Patil")
-                .basicSalary(new BigDecimal("48000")).netSalary(new BigDecimal("43200")).build();
-        sx.setTenantId(tenantId);
-        salaryStructureRepository.save(sx);
-        salaryComponentRepository.save(tap(SalaryComponent.builder().salaryStructureId(sx.getId()).name("Transport allowance")
-                .amount(new BigDecimal("3000")).type(Enums.SalaryComponentType.ALLOWANCE).build(), c -> c.setTenantId(tenantId)));
-
-        documentRepository.save(tap(Document.builder().name("Meridian — Parent handbook.pdf").fileType("pdf")
-                .category(Enums.DocumentCategory.GENERAL).uploadedBy("Admissions").fileSize("1.2 MB")
-                .fileUrl("/demo/meridian-handbook.pdf").build(), doc -> doc.setTenantId(tenantId)));
-
-        auditLogRepository.save(tap(AuditLog.builder().action(Enums.AuditAction.CREATE).module("STUDENT")
-                .description("Bulk import: 3 new admissions for Class VIII").userId(admin.getId()).userName(admin.getName())
-                .build(), a -> a.setTenantId(tenantId)));
-
-        seedStudentPreviewLogin(tenantId, schoolCode, "student.preview@meridianridge.edu", "Advik Deshmukh (student portal)");
-
-        log.info("Seeded demo workspace Meridian Ridge (tenant_id={}, school_code={}, login principal@meridianridge.edu / admin123)",
-                tenantId, schoolCode);
-    }
-
-    /**
-     * Idempotent bulk rows for St. Xavier's only (school_code STXHER-KOL). Safe to run every dev startup.
-     */
-    private void expandStXaviersBulkSeed(String tenantId, String schoolCode) {
-        List<AcademicYear> years = academicYearRepository.findByTenantIdAndIsDeletedFalse(tenantId);
-        Optional<AcademicYear> current = years.stream().filter(y -> Boolean.TRUE.equals(y.getIsCurrent())).findFirst();
-        AcademicYear ay = current.orElse(years.isEmpty() ? null : years.get(0));
-        if (ay == null) {
-            return;
-        }
-        List<SchoolClass> classes = schoolClassRepository.findByTenantIdAndIsDeletedFalseOrderByGrade(tenantId);
-        if (classes.isEmpty()) {
-            return;
-        }
-        List<long[]> classSectionPairs = new ArrayList<>();
-        for (SchoolClass sc : classes) {
-            for (Section sec : sectionRepository.findByTenantIdAndClassIdAndIsDeletedFalse(tenantId, sc.getId())) {
-                classSectionPairs.add(new long[]{sc.getId(), sec.getId()});
-            }
-        }
-        if (classSectionPairs.isEmpty()) {
-            return;
-        }
-        Long parentA = userRepository.findByEmailAndTenantIdAndIsDeletedFalse("s.banerjee.parent@stxheritage.edu", tenantId).map(User::getId).orElse(null);
-        Long parentB = userRepository.findByEmailAndTenantIdAndIsDeletedFalse("a.khanna.parent@stxheritage.edu", tenantId).map(User::getId).orElse(null);
-        User admin = userRepository.findByEmailAndTenantIdAndIsDeletedFalse("principal@stxheritage.edu", tenantId).orElse(null);
-        List<Teacher> teachers = teacherRepository.findByTenantIdAndIsDeletedFalse(tenantId);
-        Long markerTid = teachers.isEmpty() ? null : teachers.get(0).getId();
-
-        String[] banerjeeKids = {"Aditya", "Kavya", "Sohan", "Diya", "Dev", "Mira", "Krish", "Lavanya", "Anik", "Ritu"};
-        String[] khannaKids = {"Rohan", "Ira", "Vihaan", "Anvi", "Neil", "Zara", "Kabir", "Tara"};
-        String[] wardFirst = {"Piyush", "Nandini", "Sameer", "Ishani", "Vedant", "Meera", "Arjun", "Kiara", "Yuvraj", "Tania",
-                "Harsh", "Sneha", "Manav", "Riya", "Karan"};
-        String[] wardLast = {"Sen", "Roy", "Basu", "Dutta", "Mukherjee", "Nair", "Ghosh", "Chatterjee", "Malik", "Ahuja",
-                "Das", "Joshi", "Varma", "Oberoi", "Desai"};
-        for (int i = 0; i < 40; i++) {
-            String adm = String.format("SX-BULK-%03d", i + 1);
-            if (studentRepository.existsByTenantIdAndAdmissionNumber(tenantId, adm)) {
-                continue;
-            }
-            long[] cs = classSectionPairs.get(i % classSectionPairs.size());
-            Long pid;
-            String pnm;
-            String fn;
-            String ln;
-            switch (i % 3) {
-                case 0 -> {
-                    pid = parentA;
-                    pnm = "Sujata Banerjee";
-                    fn = banerjeeKids[i % banerjeeKids.length];
-                    ln = "Banerjee";
-                }
-                case 1 -> {
-                    pid = parentB;
-                    pnm = "Arvind Khanna";
-                    fn = khannaKids[i % khannaKids.length];
-                    ln = "Khanna";
-                }
-                default -> {
-                    pid = null;
-                    pnm = "—";
-                    fn = wardFirst[i % wardFirst.length];
-                    ln = wardLast[i % wardLast.length];
-                }
-            }
-            Student s = student(tenantId, fn, ln, adm, cs[0], cs[1], pid, pnm,
-                    "sx.bulk" + (i + 1) + "@stxheritage.stu", i % 2 == 0 ? Enums.Gender.MALE : Enums.Gender.FEMALE);
-            YearMonth admYm = YearMonth.now().minusMonths(i % 6);
-            s.setAdmissionDate(admYm.atDay(Math.min(28, 5 + (i % 23))));
-            studentRepository.save(s);
-        }
-        flush();
-
-        if (!userRepository.existsByEmailAndTenantIdAndIsDeletedFalse("t.mehra@stxheritage.edu", tenantId)) {
-            User u1 = user(tenantId, schoolCode, "Tanya Mehra", "t.mehra@stxheritage.edu", Enums.Role.TEACHER);
-            userRepository.save(u1);
-            Teacher t1 = teacher(tenantId, "Tanya", "Mehra", "t.mehra@stxheritage.edu", u1.getId(), List.of("Geography", "Economics"));
-            teacherRepository.save(t1);
-            SchoolClass c0 = classes.get(0);
-            List<Section> secs0 = sectionRepository.findByTenantIdAndClassIdAndIsDeletedFalse(tenantId, c0.getId());
-            if (!secs0.isEmpty()) {
-                subjectRow(tenantId, ay.getId(), c0.getId(), secs0.get(0).getId(), "Geography", t1.getId());
-            }
-        }
-        if (!userRepository.existsByEmailAndTenantIdAndIsDeletedFalse("r.ghosh@stxheritage.edu", tenantId)) {
-            User u2 = user(tenantId, schoolCode, "Rupak Ghosh", "r.ghosh@stxheritage.edu", Enums.Role.TEACHER);
-            userRepository.save(u2);
-            Teacher t2 = teacher(tenantId, "Rupak", "Ghosh", "r.ghosh@stxheritage.edu", u2.getId(), List.of("Civics", "EVS"));
-            teacherRepository.save(t2);
-            if (classes.size() > 1) {
-                SchoolClass c1 = classes.get(1);
-                List<Section> secs1 = sectionRepository.findByTenantIdAndClassIdAndIsDeletedFalse(tenantId, c1.getId());
-                if (!secs1.isEmpty()) {
-                    subjectRow(tenantId, ay.getId(), c1.getId(), secs1.get(secs1.size() - 1).getId(), "Civics", t2.getId());
-                }
-            }
-        }
-        flush();
-        teachers = teacherRepository.findByTenantIdAndIsDeletedFalse(tenantId);
-        markerTid = teachers.isEmpty() ? null : teachers.get(0).getId();
-        Enums.AttendanceStatus[] rot = {Enums.AttendanceStatus.PRESENT, Enums.AttendanceStatus.PRESENT, Enums.AttendanceStatus.LATE,
-                Enums.AttendanceStatus.ABSENT, Enums.AttendanceStatus.PRESENT};
-        if (markerTid != null) {
-            for (Student s : studentRepository.findByTenantIdAndIsDeletedFalse(tenantId)) {
-                for (int d = 1; d <= 8; d++) {
-                    LocalDate day = LocalDate.now().minusDays(d);
-                    if (!attendanceRepository.existsByTenantIdAndStudentIdAndDateAndIsDeletedFalse(tenantId, s.getId(), day)) {
-                        attendanceRepository.save(att(tenantId, s, day, rot[d % rot.length], markerTid));
-                    }
-                }
-            }
+    private User createUser(String tenantId, String schoolCode, String name, String email,
+                           Enums.Role role, String phone) {
+        if (userRepository.existsByEmailAndTenantIdAndIsDeletedFalse(email, tenantId)) {
+            return userRepository.findByEmailAndTenantIdAndIsDeletedFalse(email, tenantId).get();
         }
 
-        String[][] bookRows = {
-                {"The Story of My Experiments with Truth", "M.K. Gandhi", "978-STXB-2001", "Memoir", "A-01"},
-                {"Wings of Fire", "A.P.J. Abdul Kalam", "978-STXB-2002", "Biography", "A-02"},
-                {"Brief History of Time", "Stephen Hawking", "978-STXB-2003", "Science", "A-03"},
-                {"Pride and Prejudice", "Jane Austen", "978-STXB-2004", "Fiction", "A-04"},
-                {"India After Gandhi", "Ramachandra Guha", "978-STXB-2005", "History", "A-05"},
-                {"NCERT Mathematics X", "NCERT", "978-STXB-2006", "Textbook", "B-01"},
-                {"NCERT Science IX", "NCERT", "978-STXB-2007", "Textbook", "B-02"},
-                {"Computer Science with Python", "Sumita Arora", "978-STXB-2008", "Computing", "B-03"},
-                {"Wren & Martin High School", "P.C. Wren", "978-STXB-2009", "Grammar", "B-04"},
-                {"Atlas of India", "Oxford", "978-STXB-2010", "Reference", "C-01"},
-                {"Periodic Table Poster Book", "DK", "978-STXB-2011", "Science", "C-02"},
-                {"Bengali Sahityer Itihas", "Various", "978-STXB-2012", "Regional", "C-03"}
-        };
-        for (String[] br : bookRows) {
-            if (bookRepository.existsByTenantIdAndIsbnAndIsDeletedFalse(tenantId, br[2])) {
-                continue;
-            }
-            Book b = new Book(br[0], br[1], br[2], br[3], 12, 10, br[4]);
-            b.setTenantId(tenantId);
-            bookRepository.save(b);
-        }
-        flush();
-
-        boolean hasBulkExam = examRepository.findByTenantIdAndIsDeletedFalse(tenantId).stream()
-                .anyMatch(e -> "Demo bulk — Periodic Test 1".equals(e.getName()));
-        if (!hasBulkExam && !classes.isEmpty()) {
-            SchoolClass c0 = classes.get(0);
-            List<Section> sx = sectionRepository.findByTenantIdAndClassIdAndIsDeletedFalse(tenantId, c0.getId());
-            Exam ex = Exam.builder().name("Demo bulk — Periodic Test 1").academicYearId(ay.getId())
-                    .startDate(LocalDate.now().minusWeeks(1)).endDate(LocalDate.now().minusDays(1))
-                    .classIds(List.of(c0.getId()))
-                    .status(Enums.ExamStatus.COMPLETED).build();
-            ex.setTenantId(tenantId);
-            ex.setResultsPublished(true);
-            examRepository.save(ex);
-            flush();
-            ExamScope(tenantId, ex.getId(), c0.getId(), sx.isEmpty() ? null : sx.get(0).getId());
-            examSlot(tenantId, ex.getId(), c0.getId(), sx.isEmpty() ? null : sx.get(0).getId(), "Mathematics",
-                    LocalDate.now().minusDays(5), LocalTime.of(9, 0), LocalTime.of(11, 0), "Hall B");
-            List<Student> markPool = studentRepository.findByTenantIdAndClassIdAndIsDeletedFalse(tenantId, c0.getId());
-            int lim = Math.min(12, markPool.size());
-            for (int i = 0; i < lim; i++) {
-                Student st = markPool.get(i);
-                markRecord(tenantId, ex.getId(), st, "Mathematics", 55 + (i * 3) % 40, 100,
-                        i % 4 == 0 ? "A" : "B", c0.getId());
-            }
-        }
-
-        String[] annTitles = {"[Bulk demo] Sports day — heats schedule", "[Bulk demo] Lab safety refresher", "[Bulk demo] PTA snack roster",
-                "[Bulk demo] Winter uniform window", "[Bulk demo] Debate club auditions"};
-        long annCount = announcementRepository.findByTenantIdAndIsDeletedFalseOrderByCreatedAtDesc(tenantId).stream()
-                .filter(a -> a.getTitle() != null && a.getTitle().startsWith("[Bulk demo]")).count();
-        if (annCount < annTitles.length && admin != null) {
-            for (String title : annTitles) {
-                if (announcementRepository.findByTenantIdAndIsDeletedFalseOrderByCreatedAtDesc(tenantId).stream()
-                        .anyMatch(a -> title.equals(a.getTitle()))) {
-                    continue;
-                }
-                Announcement a = new Announcement();
-                a.setTenantId(tenantId);
-                a.setTitle(title);
-                a.setContent("Automated demo copy for UI lists and filters. No action required.");
-                a.setAuthor(admin.getName());
-                a.setAuthorRole("ADMIN");
-                a.setTargetAudience(Enums.TargetAudience.ALL);
-                announcementRepository.save(a);
-            }
-        }
-
-        if (admin != null) {
-            String[] nTitles = {"Bulk demo: fee window extended", "Bulk demo: transport delay drill", "Bulk demo: library fine amnesty hour"};
-            List<Notification> existingN = notificationRepository.findByTenantIdAndUserIdOrderByCreatedAtDesc(tenantId, admin.getId());
-            for (String nt : nTitles) {
-                boolean exists = existingN.stream().anyMatch(n -> nt.equals(n.getTitle()));
-                if (!exists) {
-                    notificationRepository.save(notif(tenantId, admin.getId(), nt, "Seeded notification for dashboard density.", Enums.NotificationType.INFO));
-                }
-            }
-        }
-
-        SchoolClass c9 = classes.stream().filter(c -> c.getGrade() == 9).findFirst().orElse(classes.get(0));
-        List<Section> c9secs = sectionRepository.findByTenantIdAndClassIdAndIsDeletedFalse(tenantId, c9.getId());
-        if (!c9secs.isEmpty() && markerTid != null) {
-            Long c9sec0 = c9secs.get(0).getId();
-            List<TimetableEntry> tt9 = timetableRepository.findByTenantIdAndClassIdAndSectionIdAndIsDeletedFalse(tenantId, c9.getId(), c9sec0);
-            if (tt9.size() < 12) {
-                Teacher tMath = teachers.stream().filter(t -> t.getEmail() != null && t.getEmail().contains("sen")).findFirst().orElse(teachers.get(0));
-                String tn = tMath.getFirstName() + " " + tMath.getLastName();
-                timetableRepository.save(tt(tenantId, ay.getId(), c9.getId(), c9sec0, Enums.DayOfWeek.WEDNESDAY, 3,
-                        LocalTime.of(10, 10), LocalTime.of(10, 55), "Physics", tMath.getId(), tn, "Lab 2"));
-                timetableRepository.save(tt(tenantId, ay.getId(), c9.getId(), c9sec0, Enums.DayOfWeek.THURSDAY, 1,
-                        LocalTime.of(8, 30), LocalTime.of(9, 15), "Geography", tMath.getId(), tn, "Room 105"));
-                timetableRepository.save(tt(tenantId, ay.getId(), c9.getId(), c9sec0, Enums.DayOfWeek.FRIDAY, 2,
-                        LocalTime.of(9, 20), LocalTime.of(10, 5), "English", tMath.getId(), tn, "Room 201"));
-            }
-        }
-
-        for (long[] pair : classSectionPairs) {
-            seedDenseWeekTimetableIfSparse(tenantId, ay.getId(), pair[0], pair[1], teachers);
-        }
-        flush();
-
-        boolean hasBulkVehicle = transportVehicleRepository.findByTenantIdAndIsDeletedFalse(tenantId).stream()
-                .anyMatch(v -> "WB-BULK-STX-01".equals(v.getRegistrationNumber()));
-        if (!hasBulkVehicle) {
-            TransportVehicle v2 = vehicle(tenantId, "WB-BULK-STX-01", Enums.VehicleType.VAN, 24, "Ashok Leyland MiTR");
-            transportVehicleRepository.save(v2);
-            TransportDriver d2 = driver(tenantId, "Pranab Halder", "+91-98333-22100", "WB-BULK-DRV-01");
-            transportDriverRepository.save(d2);
-            TransportRoute r2 = TransportRoute.builder().name("Salt Lake — VIP Road loop")
-                    .vehicleNumber("WB-BULK-STX-01").driverName("Pranab Halder").driverPhone("+91-98333-22100")
-                    .assignedStudents(4).vehicleId(v2.getId()).driverId(d2.getId()).build();
-            r2.setTenantId(tenantId);
-            transportRouteRepository.save(r2);
-            flush();
-            RouteStop s1 = RouteStop.builder().name("City Centre 1").stopTime(LocalTime.of(7, 20)).stopOrder(1).build();
-            s1.setTenantId(tenantId);
-            s1.setRouteId(r2.getId());
-            RouteStop s2 = RouteStop.builder().name("Ultadanga").stopTime(LocalTime.of(7, 40)).stopOrder(2).build();
-            s2.setTenantId(tenantId);
-            s2.setRouteId(r2.getId());
-            routeStopRepository.saveAll(List.of(s1, s2));
-            List<Student> pool = studentRepository.findByTenantIdAndClassIdAndIsDeletedFalse(tenantId, c9.getId());
-            for (int i = 0; i < Math.min(4, pool.size()); i++) {
-                Student st = pool.get(i);
-                studentTransportMappingRepository.save(tap(StudentTransportMapping.builder().routeId(r2.getId())
-                        .studentId(st.getId()).studentName(st.getFirstName() + " " + st.getLastName())
-                        .pickupStop("City Centre 1").dropStop("School").build(), m -> m.setTenantId(tenantId)));
-            }
-        }
-
-        List<Hostel> hostels = hostelRepository.findByTenantIdAndIsDeletedFalse(tenantId);
-        if (!hostels.isEmpty()) {
-            boolean hasB205 = hostelRoomRepository.findByTenantIdAndHostelIdAndIsDeletedFalse(tenantId, hostels.get(0).getId()).stream()
-                    .anyMatch(r -> "B-205".equals(r.getRoomNumber()));
-            if (!hasB205) {
-                HostelRoom r205 = HostelRoom.builder().roomNumber("B-205").block("B").floor(2).capacity(4).occupancy(0)
-                        .roomType(Enums.HostelRoomType.DOUBLE.name()).build();
-                r205.setTenantId(tenantId);
-                r205.setHostelId(hostels.get(0).getId());
-                hostelRoomRepository.save(r205);
-            }
-        }
-
-        boolean hasBulkFee = feeStructureRepository.findByTenantIdAndIsDeletedFalse(tenantId).stream()
-                .anyMatch(f -> "Bulk demo — Activity fee".equals(f.getName()));
-        if (!hasBulkFee && !classes.isEmpty()) {
-            FeeStructure fs = feeStructure(tenantId, "Bulk demo — Activity fee", classes.get(0).getId(), classes.get(0).getName(), ay.getId(), new BigDecimal("6200.00"));
-            feeStructureRepository.save(fs);
-            feeComponentRepository.save(comp(tenantId, fs.getId(), "Clubs", new BigDecimal("3200"), Enums.FeeComponentType.MISC));
-            feeComponentRepository.save(comp(tenantId, fs.getId(), "Events", new BigDecimal("3000"), Enums.FeeComponentType.MISC));
-            flush();
-            List<Student> payers = studentRepository.findByTenantIdAndClassIdAndIsDeletedFalse(tenantId, classes.get(0).getId());
-            for (int i = 0; i < Math.min(6, payers.size()); i++) {
-                String rec = "SX-BULK-FEE-" + (100 + i);
-                if (feePaymentRepository.findByReceiptNumberAndTenantIdAndIsDeletedFalse(rec, tenantId).isEmpty()) {
-                    feePaymentRepository.save(payment(tenantId, payers.get(i), fs.getId(), new BigDecimal("6200"),
-                            new BigDecimal(i % 2 == 0 ? 6200 : 3100), new BigDecimal(i % 2 == 0 ? 0 : 3100),
-                            i % 2 == 0 ? Enums.FeeStatus.PAID : Enums.FeeStatus.PARTIAL, rec));
-                }
-            }
-        }
-
-        feeStructureRepository.findByTenantIdAndIsDeletedFalse(tenantId).stream()
-                .filter(f -> "Bulk demo — Activity fee".equals(f.getName()))
-                .findFirst()
-                .ifPresent(dashFs -> {
-                    List<Student> pool = studentRepository.findByTenantIdAndIsDeletedFalse(tenantId);
-                    if (!pool.isEmpty()) {
-                        for (int mi = 0; mi < 6; mi++) {
-                            YearMonth ym = YearMonth.now().minusMonths(5 - mi);
-                            String rec = "SX-DASH-CHART-" + ym;
-                            if (feePaymentRepository.findByReceiptNumberAndTenantIdAndIsDeletedFalse(rec, tenantId).isEmpty()) {
-                                Student st = pool.get(mi % pool.size());
-                                BigDecimal amt = new BigDecimal(4800 + mi * 820);
-                                feePaymentRepository.save(payment(tenantId, st, dashFs.getId(), amt, amt, BigDecimal.ZERO,
-                                        Enums.FeeStatus.PAID, rec, ym.atDay(14)));
-                            }
-                        }
-                    }
-                });
-
-        if (bookIssueRepository.countByTenantIdAndIsDeletedFalse(tenantId) <= 1) {
-            List<Book> shelf = bookRepository.findByTenantIdAndIsDeletedFalse(tenantId);
-            List<Student> issuePool = studentRepository.findByTenantIdAndClassIdAndIsDeletedFalse(tenantId, classes.get(0).getId());
-            int issues = 0;
-            for (Book bk : shelf) {
-                if (issues >= 8) {
-                    break;
-                }
-                if (bk.getAvailableCopies() != null && bk.getAvailableCopies() > 0 && !issuePool.isEmpty()) {
-                    Student st = issuePool.get(issues % issuePool.size());
-                    BookIssue bi = new BookIssue();
-                    bi.setTenantId(tenantId);
-                    bi.setBookId(bk.getId());
-                    bi.setBookTitle(bk.getTitle());
-                    bi.setStudentId(st.getId());
-                    bi.setStudentName(st.getFirstName() + " " + st.getLastName());
-                    bi.setIssueDate(LocalDate.now().minusDays(2 + issues));
-                    bi.setDueDate(LocalDate.now().plusDays(7 + issues));
-                    bi.setFine(BigDecimal.ZERO);
-                    bi.setStatus(issues % 3 == 0 ? Enums.BookIssueStatus.ISSUED : Enums.BookIssueStatus.RETURNED);
-                    bookIssueRepository.save(bi);
-                    issues++;
-                }
-            }
-        }
-
-        long bulkLeave = leaveRequestRepository.findByTenantIdAndIsDeletedFalseOrderByCreatedAtDesc(tenantId).stream()
-                .filter(lr -> lr.getReason() != null && lr.getReason().startsWith("Bulk demo leave")).count();
-        if (bulkLeave < 5) {
-            List<User> tusers = userRepository.findByTenantIdAndRoleAndIsDeletedFalse(tenantId, Enums.Role.TEACHER);
-            for (int i = 0; i < Math.min(5, tusers.size()); i++) {
-                LeaveRequest lr = new LeaveRequest();
-                lr.setTenantId(tenantId);
-                lr.setApplicantUserId(tusers.get(i).getId());
-                lr.setApplicantRole("TEACHER");
-                lr.setLeaveType(i % 2 == 0 ? "CASUAL" : "SICK");
-                lr.setStartDate(LocalDate.now().plusDays(5 + i));
-                lr.setEndDate(LocalDate.now().plusDays(5 + i));
-                lr.setDayUnit(Enums.LeaveDayUnit.FULL_DAY);
-                lr.setReason("Bulk demo leave row " + i);
-                lr.setStatus(i % 3 == 0 ? Enums.LeaveStatus.APPROVED : Enums.LeaveStatus.PENDING);
-                leaveRequestRepository.save(lr);
-            }
-        }
-
-        List<User> teacherUsers = userRepository.findByTenantIdAndRoleAndIsDeletedFalse(tenantId, Enums.Role.TEACHER);
-        if (admin != null && !teacherUsers.isEmpty()) {
-            boolean hasBulkMsg = messageRepository.findUserMessages(tenantId, admin.getId()).stream()
-                    .anyMatch(m -> m.getContent() != null && m.getContent().contains("lab inventory"));
-            if (!hasBulkMsg) {
-                messageRepository.save(tap(Message.builder().senderId(admin.getId()).senderName(admin.getName()).senderRole("ADMIN")
-                        .receiverId(teacherUsers.get(0).getId()).receiverName("Staff").content("[Bulk demo] Please confirm lab inventory before Friday.")
-                        .isRead(false).build(), m -> m.setTenantId(tenantId)));
-            }
-        }
-
-        LocalDate todayDash = LocalDate.now();
-        Enums.AttendanceStatus[] todayMix = {
-                Enums.AttendanceStatus.PRESENT, Enums.AttendanceStatus.PRESENT, Enums.AttendanceStatus.PRESENT, Enums.AttendanceStatus.PRESENT,
-                Enums.AttendanceStatus.LATE, Enums.AttendanceStatus.LATE,
-                Enums.AttendanceStatus.ABSENT, Enums.AttendanceStatus.EXCUSED
-        };
-        if (markerTid != null) {
-            int ti = 0;
-            for (Student s : studentRepository.findByTenantIdAndIsDeletedFalse(tenantId)) {
-                if (!attendanceRepository.existsByTenantIdAndStudentIdAndDateAndIsDeletedFalse(tenantId, s.getId(), todayDash)) {
-                    attendanceRepository.save(att(tenantId, s, todayDash, todayMix[ti % todayMix.length], markerTid));
-                }
-                ti++;
-            }
-            List<AttendanceRecord> todayRows = attendanceRepository.findByTenantIdAndDateAndIsDeletedFalseOrderByStudentIdAsc(tenantId, todayDash);
-            for (int j = 0; j < todayRows.size(); j++) {
-                AttendanceRecord row = todayRows.get(j);
-                row.setStatus(todayMix[j % todayMix.length]);
-                attendanceRepository.save(row);
-            }
-        }
-
-        Optional<User> tSenOpt = userRepository.findByEmailAndTenantIdAndIsDeletedFalse("d.sen@stxheritage.edu", tenantId);
-        Optional<User> parSx = userRepository.findByEmailAndTenantIdAndIsDeletedFalse("s.banerjee.parent@stxheritage.edu", tenantId);
-        if (tSenOpt.isPresent() && parSx.isPresent()) {
-            User tSen = tSenOpt.get();
-            User pBan = parSx.get();
-            boolean hasTeacherInboxDemo = chatConversationRepository.findInbox(tenantId, tSen.getId()).stream()
-                    .anyMatch(c -> c.getSubject() != null && c.getSubject().contains("Teacher inbox demo"));
-            if (!hasTeacherInboxDemo) {
-                ChatConversation cc = new ChatConversation();
-                cc.setTenantId(tenantId);
-                cc.setType("direct");
-                cc.setSubject("Riya Banerjee — Teacher inbox demo");
-                cc.setLastMessageAt(LocalDateTime.now().minusHours(1));
-                cc.setLastMessagePreview("Could you share the worksheet for Chapter 4?");
-                chatConversationRepository.save(cc);
-                flush();
-                ChatParticipant pTeach = new ChatParticipant();
-                pTeach.setTenantId(tenantId);
-                pTeach.setConversationId(cc.getId());
-                pTeach.setUserId(tSen.getId());
-                pTeach.setUserRole("TEACHER");
-                pTeach.setDisplayName("Debjyoti Sen");
-                ChatParticipant pPar = new ChatParticipant();
-                pPar.setTenantId(tenantId);
-                pPar.setConversationId(cc.getId());
-                pPar.setUserId(pBan.getId());
-                pPar.setUserRole("PARENT");
-                pPar.setDisplayName("Sujata Banerjee");
-                chatParticipantRepository.saveAll(List.of(pTeach, pPar));
-            }
-            long unreadTeach = notificationRepository.countByTenantIdAndUserIdAndIsReadFalse(tenantId, tSen.getId());
-            for (long n = unreadTeach; n < 4; n++) {
-                notificationRepository.save(notif(tenantId, tSen.getId(), "Class IX-A: dashboard demo notice " + (n + 1),
-                        "Please review attendance or marks when convenient.", Enums.NotificationType.WARNING));
-            }
-        }
-
-        log.info("Bulk demo extension applied for St. Xavier's (tenant_id={})", tenantId);
-    }
-
-    /**
-     * Idempotent bulk rows for Meridian Ridge only (school_code MRIDGE-PN).
-     */
-    private void expandMeridianBulkSeed(String tenantId, String schoolCode) {
-        List<AcademicYear> years = academicYearRepository.findByTenantIdAndIsDeletedFalse(tenantId);
-        AcademicYear ay = years.stream().filter(y -> Boolean.TRUE.equals(y.getIsCurrent())).findFirst().orElse(years.isEmpty() ? null : years.get(0));
-        if (ay == null) {
-            return;
-        }
-        List<SchoolClass> classes = schoolClassRepository.findByTenantIdAndIsDeletedFalseOrderByGrade(tenantId);
-        if (classes.isEmpty()) {
-            return;
-        }
-        SchoolClass c8 = classes.get(0);
-        List<Section> secs = sectionRepository.findByTenantIdAndClassIdAndIsDeletedFalse(tenantId, c8.getId());
-        if (secs.isEmpty()) {
-            return;
-        }
-        Long parent1 = userRepository.findByEmailAndTenantIdAndIsDeletedFalse("k.deshmukh.parent@meridianridge.edu", tenantId).map(User::getId).orElse(null);
-        User admin = userRepository.findByEmailAndTenantIdAndIsDeletedFalse("principal@meridianridge.edu", tenantId).orElse(null);
-        List<Teacher> teachers = teacherRepository.findByTenantIdAndIsDeletedFalse(tenantId);
-        Long markerTid = teachers.isEmpty() ? null : teachers.get(0).getId();
-
-        String[] deshmukhKids = {"Aarav", "Sara", "Vihaan", "Kiara", "Reyansh", "Anika", "Shaurya", "Misha"};
-        String[] wardFirstMr = {"Arjun", "Navya", "Dhruv", "Ishita", "Om", "Riya", "Ved", "Kunal", "Tara", "Neha", "Rahul", "Simran", "Vikram", "Anaya", "Rohan"};
-        String[] wardLastMr = {"Kulkarni", "Patil", "Joshi", "Shah", "Reddy", "Menon", "Pillai", "Rao", "Iyer", "Nayar", "Bose", "Singh", "Mehta", "Verma", "Kapoor"};
-        for (int i = 0; i < 15; i++) {
-            String adm = String.format("MR-BULK-%03d", i + 1);
-            if (studentRepository.existsByTenantIdAndAdmissionNumber(tenantId, adm)) {
-                continue;
-            }
-            Section sec = secs.get(i % secs.size());
-            Long pid = (i % 2 == 0) ? parent1 : null;
-            String pnm = pid != null ? "Kavita Deshmukh" : "—";
-            String fn = pid != null ? deshmukhKids[i % deshmukhKids.length] : wardFirstMr[i % wardFirstMr.length];
-            String ln = pid != null ? "Deshmukh" : wardLastMr[i % wardLastMr.length];
-            Student s = student(tenantId, fn, ln, adm, c8.getId(), sec.getId(), pid, pnm,
-                    "mr.bulk" + (i + 1) + "@meridianridge.stu", i % 2 == 0 ? Enums.Gender.MALE : Enums.Gender.FEMALE);
-            studentRepository.save(s);
-        }
-        flush();
-
-        if (!userRepository.existsByEmailAndTenantIdAndIsDeletedFalse("a.mehta@meridianridge.edu", tenantId)) {
-            User u = user(tenantId, schoolCode, "Anaya Mehta", "a.mehta@meridianridge.edu", Enums.Role.TEACHER);
-            userRepository.save(u);
-            Teacher t = teacher(tenantId, "Anaya", "Mehta", "a.mehta@meridianridge.edu", u.getId(), List.of("English", "Drama"));
-            teacherRepository.save(t);
-            subjectRow(tenantId, ay.getId(), c8.getId(), secs.get(0).getId(), "English", t.getId());
-        }
-        flush();
-        teachers = teacherRepository.findByTenantIdAndIsDeletedFalse(tenantId);
-        markerTid = teachers.isEmpty() ? null : teachers.get(0).getId();
-        if (markerTid != null) {
-            for (Student s : studentRepository.findByTenantIdAndClassIdAndIsDeletedFalse(tenantId, c8.getId())) {
-                for (int d = 1; d <= 6; d++) {
-                    LocalDate day = LocalDate.now().minusDays(d);
-                    if (!attendanceRepository.existsByTenantIdAndStudentIdAndDateAndIsDeletedFalse(tenantId, s.getId(), day)) {
-                        attendanceRepository.save(att(tenantId, s, day, Enums.AttendanceStatus.PRESENT, markerTid));
-                    }
-                }
-            }
-        }
-
-        String[][] mbooks = {
-                {"Matilda", "Roald Dahl", "978-MRB-3001", "Fiction", "D-01"},
-                {"Charlotte's Web", "E.B. White", "978-MRB-3002", "Fiction", "D-02"},
-                {"Number the Stars", "Lois Lowry", "978-MRB-3003", "Fiction", "D-03"},
-                {"NCERT Honeydew VIII", "NCERT", "978-MRB-3004", "Textbook", "E-01"},
-                {"India: Physical Env.", "NCERT", "978-MRB-3005", "Textbook", "E-02"},
-                {"Coding Projects Python", "No Starch", "978-MRB-3006", "Computing", "E-03"},
-                {"Art of Problem Solving", "AoPS", "978-MRB-3007", "Math", "E-04"},
-                {"Pune Heritage Walks", "INTACH", "978-MRB-3008", "Guide", "F-01"}
-        };
-        for (String[] br : mbooks) {
-            if (!bookRepository.existsByTenantIdAndIsbnAndIsDeletedFalse(tenantId, br[2])) {
-                Book b = new Book(br[0], br[1], br[2], br[3], 8, 7, br[4]);
-                b.setTenantId(tenantId);
-                bookRepository.save(b);
-            }
-        }
-
-        boolean hasBulkEx = examRepository.findByTenantIdAndIsDeletedFalse(tenantId).stream()
-                .anyMatch(e -> "Demo bulk — MR diagnostic".equals(e.getName()));
-        if (!hasBulkEx) {
-            Exam ex = Exam.builder().name("Demo bulk — MR diagnostic").academicYearId(ay.getId())
-                    .startDate(LocalDate.now().minusDays(10)).endDate(LocalDate.now().minusDays(8))
-                    .classIds(List.of(c8.getId())).status(Enums.ExamStatus.COMPLETED).build();
-            ex.setTenantId(tenantId);
-            ex.setResultsPublished(true);
-            examRepository.save(ex);
-            flush();
-            ExamScope(tenantId, ex.getId(), c8.getId(), null);
-            examSlot(tenantId, ex.getId(), c8.getId(), secs.get(0).getId(), "Mathematics", LocalDate.now().minusDays(9), LocalTime.of(10, 0), LocalTime.of(11, 30), "Room 105");
-            List<Student> pool = studentRepository.findByTenantIdAndClassIdAndIsDeletedFalse(tenantId, c8.getId());
-            for (int i = 0; i < Math.min(10, pool.size()); i++) {
-                markRecord(tenantId, ex.getId(), pool.get(i), "Mathematics", 52 + i * 2, 80, i > 5 ? "B" : "A", c8.getId());
-            }
-        }
-
-        String[] mtitles = {"[Bulk demo] Monsoon bus timings", "[Bulk demo] Science fair booths", "[Bulk demo] Inter-house quiz"};
-        for (String title : mtitles) {
-            if (announcementRepository.findByTenantIdAndIsDeletedFalseOrderByCreatedAtDesc(tenantId).stream().noneMatch(a -> title.equals(a.getTitle())) && admin != null) {
-                Announcement a = new Announcement();
-                a.setTenantId(tenantId);
-                a.setTitle(title);
-                a.setContent("Meridian Ridge demo content for list views.");
-                a.setAuthor(admin.getName());
-                a.setAuthorRole("ADMIN");
-                a.setTargetAudience(Enums.TargetAudience.ALL);
-                announcementRepository.save(a);
-            }
-        }
-
-        if (!transportVehicleRepository.findByTenantIdAndIsDeletedFalse(tenantId).stream().anyMatch(v -> "MH-BULK-MR-02".equals(v.getRegistrationNumber()))) {
-            TransportVehicle v = vehicle(tenantId, "MH-BULK-MR-02", Enums.VehicleType.BUS, 35, "Tata Marcopolo");
-            transportVehicleRepository.save(v);
-            TransportDriver d = driver(tenantId, "Ganesh Pawar", "+91-98220-77881", "MH-BULK-DRV-02");
-            transportDriverRepository.save(d);
-            TransportRoute rt = TransportRoute.builder().name("Kothrud — School express")
-                    .vehicleNumber("MH-BULK-MR-02").driverName("Ganesh Pawar").driverPhone("+91-98220-77881")
-                    .assignedStudents(3).vehicleId(v.getId()).driverId(d.getId()).build();
-            rt.setTenantId(tenantId);
-            transportRouteRepository.save(rt);
-            flush();
-            RouteStop st = RouteStop.builder().name("Karve Road").stopTime(LocalTime.of(7, 30)).stopOrder(1).build();
-            st.setTenantId(tenantId);
-            st.setRouteId(rt.getId());
-            routeStopRepository.save(st);
-        }
-
-        boolean hasMrFee = feeStructureRepository.findByTenantIdAndIsDeletedFalse(tenantId).stream()
-                .anyMatch(f -> "Bulk demo — VIII enrichment".equals(f.getName()));
-        if (!hasMrFee) {
-            FeeStructure fs = feeStructure(tenantId, "Bulk demo — VIII enrichment", c8.getId(), c8.getName(), ay.getId(), new BigDecimal("8400.00"));
-            feeStructureRepository.save(fs);
-            feeComponentRepository.save(comp(tenantId, fs.getId(), "Workshops", new BigDecimal("5400"), Enums.FeeComponentType.MISC));
-            feeComponentRepository.save(comp(tenantId, fs.getId(), "Materials", new BigDecimal("3000"), Enums.FeeComponentType.MISC));
-            flush();
-            List<Student> pool = studentRepository.findByTenantIdAndClassIdAndIsDeletedFalse(tenantId, c8.getId());
-            for (int i = 0; i < Math.min(5, pool.size()); i++) {
-                String rec = "MR-BULK-FEE-" + i;
-                if (feePaymentRepository.findByReceiptNumberAndTenantIdAndIsDeletedFalse(rec, tenantId).isEmpty()) {
-                    feePaymentRepository.save(payment(tenantId, pool.get(i), fs.getId(), new BigDecimal("8400"), new BigDecimal("4200"), new BigDecimal("4200"),
-                            Enums.FeeStatus.PARTIAL, rec));
-                }
-            }
-        }
-
-        Section secLast = secs.get(secs.size() - 1);
-        if (!teachers.isEmpty()) {
-            List<TimetableEntry> ttMr = timetableRepository.findByTenantIdAndClassIdAndSectionIdAndIsDeletedFalse(tenantId, c8.getId(), secLast.getId());
-            boolean hasThuP2 = ttMr.stream().anyMatch(e -> e.getDay() == Enums.DayOfWeek.THURSDAY && e.getPeriod() == 2);
-            if (!hasThuP2) {
-                Teacher tLast = teachers.get(teachers.size() - 1);
-                String tnm = tLast.getFirstName() + " " + tLast.getLastName();
-                timetableRepository.save(tt(tenantId, ay.getId(), c8.getId(), secLast.getId(), Enums.DayOfWeek.THURSDAY, 2,
-                        LocalTime.of(10, 0), LocalTime.of(10, 45), "Computer Science", tLast.getId(), tnm, "Lab 2"));
-            }
-        }
-
-        if (bookIssueRepository.countByTenantIdAndIsDeletedFalse(tenantId) == 0) {
-            List<Book> shelf = bookRepository.findByTenantIdAndIsDeletedFalse(tenantId);
-            List<Student> pool = studentRepository.findByTenantIdAndClassIdAndIsDeletedFalse(tenantId, c8.getId());
-            int k = 0;
-            for (Book bk : shelf) {
-                if (k >= 5 || pool.isEmpty()) {
-                    break;
-                }
-                BookIssue bi = new BookIssue();
-                bi.setTenantId(tenantId);
-                bi.setBookId(bk.getId());
-                bi.setBookTitle(bk.getTitle());
-                Student st = pool.get(k % pool.size());
-                bi.setStudentId(st.getId());
-                bi.setStudentName(st.getFirstName() + " " + st.getLastName());
-                bi.setIssueDate(LocalDate.now().minusDays(1 + k));
-                bi.setDueDate(LocalDate.now().plusDays(10));
-                bi.setFine(BigDecimal.ZERO);
-                bi.setStatus(Enums.BookIssueStatus.ISSUED);
-                bookIssueRepository.save(bi);
-                k++;
-            }
-        }
-
-        LocalDate todayMr = LocalDate.now();
-        if (markerTid != null) {
-            for (Student s : studentRepository.findByTenantIdAndIsDeletedFalse(tenantId)) {
-                if (!attendanceRepository.existsByTenantIdAndStudentIdAndDateAndIsDeletedFalse(tenantId, s.getId(), todayMr)) {
-                    attendanceRepository.save(att(tenantId, s, todayMr, Enums.AttendanceStatus.PRESENT, markerTid));
-                }
-            }
-        }
-
-        Optional<User> tPatilOpt = userRepository.findByEmailAndTenantIdAndIsDeletedFalse("s.patil@meridianridge.edu", tenantId);
-        Optional<User> parMr = userRepository.findByEmailAndTenantIdAndIsDeletedFalse("k.deshmukh.parent@meridianridge.edu", tenantId);
-        if (tPatilOpt.isPresent() && parMr.isPresent()) {
-            User tPat = tPatilOpt.get();
-            User pKav = parMr.get();
-            boolean hasMrInboxDemo = chatConversationRepository.findInbox(tenantId, tPat.getId()).stream()
-                    .anyMatch(c -> c.getSubject() != null && c.getSubject().contains("Teacher inbox demo"));
-            if (!hasMrInboxDemo) {
-                ChatConversation cc = new ChatConversation();
-                cc.setTenantId(tenantId);
-                cc.setType("direct");
-                cc.setSubject("Advik Deshmukh — Teacher inbox demo");
-                cc.setLastMessageAt(LocalDateTime.now().minusMinutes(45));
-                cc.setLastMessagePreview("Can we meet briefly about the math assessment?");
-                chatConversationRepository.save(cc);
-                flush();
-                ChatParticipant pTeach = new ChatParticipant();
-                pTeach.setTenantId(tenantId);
-                pTeach.setConversationId(cc.getId());
-                pTeach.setUserId(tPat.getId());
-                pTeach.setUserRole("TEACHER");
-                pTeach.setDisplayName("Sneha Patil");
-                ChatParticipant pPar = new ChatParticipant();
-                pPar.setTenantId(tenantId);
-                pPar.setConversationId(cc.getId());
-                pPar.setUserId(pKav.getId());
-                pPar.setUserRole("PARENT");
-                pPar.setDisplayName("Kavita Deshmukh");
-                chatParticipantRepository.saveAll(List.of(pTeach, pPar));
-            }
-            long unreadPatil = notificationRepository.countByTenantIdAndUserIdAndIsReadFalse(tenantId, tPat.getId());
-            for (long n = unreadPatil; n < 4; n++) {
-                notificationRepository.save(notif(tenantId, tPat.getId(), "Meridian demo notice " + (n + 1),
-                        "Please check timetable updates or leave approvals.", Enums.NotificationType.INFO));
-            }
-        }
-
-        log.info("Bulk demo extension applied for Meridian Ridge (tenant_id={})", tenantId);
-    }
-
-    /**
-     * Fills Mon–Fri core periods when a class-section has fewer than 15 rows (sales demo density; skips day/period clashes).
-     */
-    private void seedDenseWeekTimetableIfSparse(String tenantId, Long ayId, Long classId, Long sectionId, List<Teacher> teachers) {
-        if (teachers.isEmpty()) {
-            return;
-        }
-        List<TimetableEntry> existing = timetableRepository.findByTenantIdAndClassIdAndSectionIdAndIsDeletedFalse(tenantId, classId, sectionId);
-        if (existing.size() >= 15) {
-            return;
-        }
-        List<DenseDemoSlot> plan = List.of(
-                new DenseDemoSlot(Enums.DayOfWeek.MONDAY, 1, LocalTime.of(8, 30), LocalTime.of(9, 15), "Mathematics", 0, "Room 201"),
-                new DenseDemoSlot(Enums.DayOfWeek.MONDAY, 2, LocalTime.of(9, 20), LocalTime.of(10, 5), "English", 1, "Room 201"),
-                new DenseDemoSlot(Enums.DayOfWeek.MONDAY, 3, LocalTime.of(10, 10), LocalTime.of(10, 55), "Chemistry", 2, "Lab 1"),
-                new DenseDemoSlot(Enums.DayOfWeek.MONDAY, 4, LocalTime.of(11, 0), LocalTime.of(11, 45), "Physics", 0, "Lab 2"),
-                new DenseDemoSlot(Enums.DayOfWeek.TUESDAY, 1, LocalTime.of(8, 30), LocalTime.of(9, 15), "English", 1, "Room 201"),
-                new DenseDemoSlot(Enums.DayOfWeek.TUESDAY, 2, LocalTime.of(9, 20), LocalTime.of(10, 5), "Mathematics", 0, "Room 201"),
-                new DenseDemoSlot(Enums.DayOfWeek.TUESDAY, 3, LocalTime.of(10, 10), LocalTime.of(10, 55), "Biology", 2, "Lab 1"),
-                new DenseDemoSlot(Enums.DayOfWeek.WEDNESDAY, 1, LocalTime.of(8, 30), LocalTime.of(9, 15), "Physics", 0, "Lab 2"),
-                new DenseDemoSlot(Enums.DayOfWeek.WEDNESDAY, 2, LocalTime.of(9, 20), LocalTime.of(10, 5), "History", 1, "Room 105"),
-                new DenseDemoSlot(Enums.DayOfWeek.WEDNESDAY, 3, LocalTime.of(10, 10), LocalTime.of(10, 55), "Geography", 3, "Room 105"),
-                new DenseDemoSlot(Enums.DayOfWeek.THURSDAY, 1, LocalTime.of(8, 30), LocalTime.of(9, 15), "Chemistry", 2, "Lab 1"),
-                new DenseDemoSlot(Enums.DayOfWeek.THURSDAY, 2, LocalTime.of(9, 20), LocalTime.of(10, 5), "English", 1, "Room 201"),
-                new DenseDemoSlot(Enums.DayOfWeek.THURSDAY, 3, LocalTime.of(10, 10), LocalTime.of(10, 55), "Mathematics", 0, "Room 201"),
-                new DenseDemoSlot(Enums.DayOfWeek.FRIDAY, 1, LocalTime.of(8, 30), LocalTime.of(9, 15), "Biology", 2, "Lab 1"),
-                new DenseDemoSlot(Enums.DayOfWeek.FRIDAY, 2, LocalTime.of(9, 20), LocalTime.of(10, 5), "Physical Education", 4, "Ground"),
-                new DenseDemoSlot(Enums.DayOfWeek.FRIDAY, 3, LocalTime.of(10, 10), LocalTime.of(10, 55), "Computer Science", 3, "Lab 3"));
-        for (DenseDemoSlot row : plan) {
-            boolean has = existing.stream().anyMatch(e -> e.getDay() == row.day && Objects.equals(e.getPeriod(), row.period));
-            if (has) {
-                continue;
-            }
-            int ti = Math.min(row.teacherIndex, teachers.size() - 1);
-            Teacher t = teachers.get(ti);
-            String nm = t.getFirstName() + " " + t.getLastName();
-            timetableRepository.save(tt(tenantId, ayId, classId, sectionId, row.day, row.period, row.start, row.end, row.subject,
-                    t.getId(), nm, row.room));
-        }
-    }
-
-    private record DenseDemoSlot(Enums.DayOfWeek day, int period, LocalTime start, LocalTime end, String subject, int teacherIndex,
-                               String room) {
-    }
-
-    private void flush() {
-        entityManager.flush();
-    }
-
-    private TenantConfig tenant(String schoolName, String schoolCode, String address, String phone, String email) {
-        TenantConfig c = new TenantConfig();
-        c.setSchoolName(schoolName);
-        c.setSchoolCode(schoolCode);
-        c.setAddress(address);
-        c.setPhone(phone);
-        c.setEmail(email);
-        c.setPrimaryColor("#1B3A30");
-        c.setSecondaryColor("#C05C3D");
-        c.setIsActive(true);
-        c.setIsDeleted(false);
-        return c;
-    }
-
-    private User user(String tenantId, String schoolCode, String name, String email, Enums.Role role) {
-        User u = User.builder().name(name).email(email).password(BCRYPT_ADMIN123).phone("+91-90000-00000")
-                .role(role).schoolCode(schoolCode).build();
+        User u = new User();
         u.setTenantId(tenantId);
+        u.setName(name);
+        u.setEmail(email);
+        u.setPassword(BCRYPT_ADMIN123);
+        u.setPhone(phone);
+        u.setRole(role);
+        u.setSchoolCode(schoolCode);
         u.setIsActive(true);
         u.setIsDeleted(false);
-        return u;
+        return userRepository.save(u);
     }
 
-    private Teacher teacher(String tenantId, String fn, String ln, String email, Long userId, List<String> subjects) {
-        Teacher t = Teacher.builder().firstName(fn).lastName(ln).email(email).phone("+91-98100-00000")
-                .qualification("M.Ed, B.Sc").specialization(subjects.get(0)).joinDate(LocalDate.of(2019, 6, 1))
-                .salary(new BigDecimal("50000")).status(Enums.TeacherStatus.ACTIVE).userId(userId).subjects(subjects).build();
-        t.setTenantId(tenantId);
-        t.setIsDeleted(false);
-        return t;
+    private AcademicYear createAcademicYear(String tenantId, String name, LocalDate start,
+                                           LocalDate end, boolean isCurrent) {
+        AcademicYear ay = new AcademicYear();
+        ay.setTenantId(tenantId);
+        ay.setName(name);
+        ay.setStartDate(start);
+        ay.setEndDate(end);
+        ay.setIsCurrent(isCurrent);
+        ay.setIsActive(true);
+        ay.setIsDeleted(false);
+        return academicYearRepository.save(ay);
     }
 
-    private SchoolClass clazz(String tenantId, String name, int grade, Long ayId, Long ctId, String ctName) {
-        SchoolClass c = SchoolClass.builder().name(name).grade(grade).academicYearId(ayId).classTeacherId(ctId).classTeacherName(ctName).build();
-        c.setTenantId(tenantId);
-        c.setIsDeleted(false);
-        return c;
-    }
+    private void createAcademicSubjects(String tenantId) {
+        String[][] subjects = {
+            {"MATH", "Mathematics", "STEM", "10"},
+            {"SCI", "Science", "STEM", "20"},
+            {"PHY", "Physics", "STEM", "25"},
+            {"CHEM", "Chemistry", "STEM", "30"},
+            {"BIO", "Biology", "STEM", "35"},
+            {"CS", "Computer Science", "STEM", "40"},
+            {"ENG", "English", "Languages", "50"},
+            {"HIN", "Hindi", "Languages", "60"},
+            {"SANS", "Sanskrit", "Languages", "65"},
+            {"HIST", "History", "Social Studies", "70"},
+            {"GEO", "Geography", "Social Studies", "75"},
+            {"CIV", "Civics", "Social Studies", "80"},
+            {"ECO", "Economics", "Social Studies", "85"},
+            {"PE", "Physical Education", "Sports", "90"},
+            {"ART", "Art & Craft", "Arts", "95"}
+        };
 
-    private Section section(String tenantId, String name, Long classId, int cap, int count) {
-        Section s = Section.builder().name(name).classId(classId).capacity(cap).studentCount(count).build();
-        s.setTenantId(tenantId);
-        s.setIsDeleted(false);
-        return s;
-    }
-
-    private Student student(String tenantId, String fn, String ln, String adm, Long classId, Long secId, Long parentId,
-                            String parentName, String email, Enums.Gender gender) {
-        Student s = Student.builder().firstName(fn).lastName(ln).email(email).phone("+91-99000-00000")
-                .dateOfBirth(LocalDate.of(2011, 5, 15)).gender(gender).classId(classId).sectionId(secId)
-                .rollNumber(adm.substring(adm.length() - 3)).admissionNumber(adm).admissionDate(LocalDate.of(2025, 4, 8))
-                .parentId(parentId).parentName(parentName).address("India").bloodGroup("O+").status(Enums.StudentStatus.ACTIVE).build();
-        s.setTenantId(tenantId);
-        s.setIsDeleted(false);
-        return s;
-    }
-
-    private Guardian guardian(String tenantId, String name, String phone, Long userId) {
-        Guardian g = new Guardian();
-        g.setTenantId(tenantId);
-        g.setFullName(name);
-        g.setPrimaryPhone(phone);
-        g.setOccupation("Professional");
-        g.setUserId(userId);
-        g.setIsDeleted(false);
-        return g;
-    }
-
-    private void mapGuardian(String tenantId, Long studentId, Long gid, Enums.GuardianRelationType rel, boolean primary) {
-        StudentGuardianMapping m = new StudentGuardianMapping();
-        m.setTenantId(tenantId);
-        m.setStudentId(studentId);
-        m.setGuardianId(gid);
-        m.setRelationType(rel);
-        m.setIsPrimary(primary);
-        m.setEffectiveFrom(LocalDate.of(2025, 4, 1));
-        m.setIsDeleted(false);
-        studentGuardianMappingRepository.save(m);
-    }
-
-    /**
-     * Ensures every student with {@code parent_id} has an active {@link StudentGuardianMapping} to a {@link Guardian}
-     * whose {@code userId} matches that parent portal user. Parent APIs merge legacy {@code parent_id} and guardian
-     * mappings; keeping both aligned avoids QA seeing “orphan” rows in one path only.
-     */
-    private void syncParentGuardianLinksForDemoTenant(String tenantId) {
-        LocalDate today = LocalDate.now();
-        int created = 0;
-        List<Student> students = studentRepository.findByTenantIdAndIsDeletedFalse(tenantId);
-        for (Student st : students) {
-            Long puid = st.getParentId();
-            if (puid == null || puid <= 0) {
-                continue;
-            }
-            Optional<User> parentUser = userRepository.findByIdAndTenantIdAndIsDeletedFalse(puid, tenantId);
-            if (parentUser.isEmpty()) {
-                log.warn("Demo sync: student id={} has parent_id={} but no user in tenant {}", st.getId(), puid, tenantId);
-                continue;
-            }
-            User pu = parentUser.get();
-            Guardian g = guardianRepository.findFirstByTenantIdAndUserIdAndIsDeletedFalse(tenantId, puid).orElseGet(() -> {
-                String phone = pu.getPhone() != null && !pu.getPhone().isBlank() ? pu.getPhone().trim() : "+91-98000-00000";
-                return guardianRepository.save(guardian(tenantId, pu.getName(), phone, puid));
-            });
-            if (!studentGuardianMappingRepository.existsActiveLinkForStudentAndGuardianUser(tenantId, st.getId(), puid, today)) {
-                Enums.GuardianRelationType rel = pu.getName() != null && pu.getName().toLowerCase(Locale.ROOT).contains("kavita")
-                        ? Enums.GuardianRelationType.MOTHER
-                        : (pu.getName() != null && pu.getName().toLowerCase(Locale.ROOT).contains("arvind")
-                        ? Enums.GuardianRelationType.FATHER
-                        : (pu.getName() != null && pu.getName().toLowerCase(Locale.ROOT).contains("sujata")
-                        ? Enums.GuardianRelationType.MOTHER
-                        : Enums.GuardianRelationType.GUARDIAN));
-                mapGuardian(tenantId, st.getId(), g.getId(), rel, true);
-                created++;
+        for (String[] sub : subjects) {
+            if (!academicSubjectRepository.existsByTenantIdAndNameAndIsDeletedFalse(tenantId, sub[1])) {
+                AcademicSubject as = new AcademicSubject();
+                as.setTenantId(tenantId);
+                as.setCode(sub[0]);
+                as.setName(sub[1]);
+                as.setCategory(sub[2]);
+                as.setSortOrder(Integer.parseInt(sub[3]));
+                as.setIsDeleted(false);
+                academicSubjectRepository.save(as);
             }
         }
-        flush();
-        log.info("Demo guardian sync for tenant {}: {} new student–guardian link(s) (idempotent)", tenantId, created);
     }
 
-    private void classTeacherRow(String tenantId, Long ay, Long classId, Long secId, Long teacherId) {
-        ClassTeacherAssignment a = new ClassTeacherAssignment();
-        a.setTenantId(tenantId);
-        a.setAcademicYearId(ay);
-        a.setClassId(classId);
-        a.setSectionId(secId);
-        a.setTeacherId(teacherId);
-        a.setEffectiveFrom(LocalDate.of(2025, 4, 1));
-        a.setIsDeleted(false);
-        classTeacherAssignmentRepository.save(a);
+    private List<Teacher> createTeachers(String tenantId, String schoolCode, int count, Random random) {
+        List<Teacher> teachers = new ArrayList<>();
+        String[] teacherSubjects = {"Mathematics", "Science", "English", "Hindi", "Social Studies",
+                                    "Physics", "Chemistry", "Biology", "Computer Science", "Physical Education"};
+
+        for (int i = 0; i < count; i++) {
+            String firstName = (i % 2 == 0) ? MALE_FIRST_NAMES[i % MALE_FIRST_NAMES.length]
+                                            : FEMALE_FIRST_NAMES[i % FEMALE_FIRST_NAMES.length];
+            String lastName = LAST_NAMES[i % LAST_NAMES.length];
+            String email = firstName.toLowerCase() + "." + lastName.toLowerCase() + "@" + schoolCode.toLowerCase() + ".edu.in";
+            String phone = "+91-" + (9000000000L + random.nextInt(1000000000));
+
+            // Assign 1-2 subjects per teacher
+            List<String> subjects = new ArrayList<>();
+            subjects.add(teacherSubjects[i % teacherSubjects.length]);
+            if (random.nextBoolean()) {
+                subjects.add(teacherSubjects[(i + 1) % teacherSubjects.length]);
+            }
+
+            // Create user for teacher
+            User teacherUser = createUser(tenantId, schoolCode, firstName + " " + lastName,
+                                         email, Enums.Role.TEACHER, phone);
+
+            // Create teacher
+            Teacher t = new Teacher();
+            t.setTenantId(tenantId);
+            t.setFirstName(firstName);
+            t.setLastName(lastName);
+            t.setEmail(email);
+            t.setPhone(phone);
+            t.setQualification(random.nextBoolean() ? "M.Ed, B.Sc" : "B.Ed, M.A");
+            t.setSpecialization(subjects.get(0));
+            t.setJoinDate(LocalDate.of(2015 + random.nextInt(10), 1 + random.nextInt(12), 1 + random.nextInt(28)));
+            t.setSalary(new BigDecimal(35000 + random.nextInt(40000))); // 35k-75k
+            t.setStatus(Enums.TeacherStatus.ACTIVE);
+            t.setUserId(teacherUser.getId());
+            t.setSubjects(subjects);
+            t.setBankAccountHolder(firstName + " " + lastName);
+            t.setBankName(random.nextBoolean() ? "HDFC Bank" : "ICICI Bank");
+            t.setBankAccountNumber("ACC" + (100000000000L + random.nextLong(900000000000L)));
+            t.setBankIfsc(random.nextBoolean() ? "HDFC0001234" : "ICIC0005678");
+            t.setIsDeleted(false);
+
+            // Assign library role to 2 teachers
+            if (i == 0) t.setLibraryStaffRole(Enums.LibraryStaffRole.LIBRARIAN);
+            if (i == 1) t.setLibraryStaffRole(Enums.LibraryStaffRole.ASSISTANT);
+
+            teachers.add(teacherRepository.save(t));
+        }
+
+        return teachers;
     }
 
-    private void subjectRow(String tenantId, Long ay, Long classId, Long secId, String subject, Long teacherId) {
-        SubjectTeacherAssignment a = new SubjectTeacherAssignment();
-        a.setTenantId(tenantId);
-        a.setAcademicYearId(ay);
-        a.setClassId(classId);
-        a.setSectionId(secId);
-        a.setSubjectName(subject);
-        a.setTeacherId(teacherId);
-        a.setEffectiveFrom(LocalDate.of(2025, 4, 1));
-        a.setIsDeleted(false);
-        subjectTeacherAssignmentRepository.save(a);
+    private Map<Integer, List<ClassSectionPair>> createClassesAndSections(String tenantId, Long academicYearId,
+                                                                          List<Teacher> teachers, Random random) {
+        Map<Integer, List<ClassSectionPair>> classesMap = new HashMap<>();
+
+        // Create classes 4-12
+        for (int grade = 4; grade <= 12; grade++) {
+            List<ClassSectionPair> sectionsForGrade = new ArrayList<>();
+
+            // Assign a class teacher (homeroom) for each grade
+            Teacher classTeacher = teachers.get((grade - 4) % teachers.size());
+
+            SchoolClass schoolClass = new SchoolClass();
+            schoolClass.setTenantId(tenantId);
+            schoolClass.setName("Class " + grade);
+            schoolClass.setGrade(grade);
+            schoolClass.setAcademicYearId(academicYearId);
+            schoolClass.setClassTeacherId(classTeacher.getId());
+            schoolClass.setClassTeacherName(classTeacher.getFirstName() + " " + classTeacher.getLastName());
+            schoolClass.setIsDeleted(false);
+            schoolClass = schoolClassRepository.save(schoolClass);
+
+            // Create sections A, B, C
+            for (String sectionName : new String[]{"A", "B", "C"}) {
+                Section section = new Section();
+                section.setTenantId(tenantId);
+                section.setName(sectionName);
+                section.setClassId(schoolClass.getId());
+                section.setCapacity(40);
+                section.setStudentCount(30 + random.nextInt(6)); // 30-35 students per section
+                section.setIsDeleted(false);
+                section = sectionRepository.save(section);
+
+                sectionsForGrade.add(new ClassSectionPair(schoolClass, section));
+            }
+
+            classesMap.put(grade, sectionsForGrade);
+        }
+
+        return classesMap;
     }
 
-    private AttendanceRecord att(String tenantId, Student s, LocalDate d, Enums.AttendanceStatus st, Long markedBy) {
-        AttendanceRecord a = AttendanceRecord.builder().studentId(s.getId()).studentName(s.getFirstName() + " " + s.getLastName())
-                .classId(s.getClassId()).sectionId(s.getSectionId()).date(d).status(st).markedBy(markedBy).build();
-        a.setTenantId(tenantId);
-        a.setIsDeleted(false);
-        return a;
+    private List<Student> createStudentsWithGuardians(String tenantId, String schoolCode,
+                                                      Map<Integer, List<ClassSectionPair>> classesMap,
+                                                      Random random) {
+        List<Student> allStudents = new ArrayList<>();
+        int admissionCounter = 1000;
+
+        for (int grade = 4; grade <= 12; grade++) {
+            List<ClassSectionPair> sections = classesMap.get(grade);
+
+            for (ClassSectionPair pair : sections) {
+                int studentsInSection = pair.section.getStudentCount();
+
+                for (int i = 0; i < studentsInSection; i++) {
+                    boolean isMale = random.nextBoolean();
+                    String firstName = isMale ? MALE_FIRST_NAMES[random.nextInt(MALE_FIRST_NAMES.length)]
+                                              : FEMALE_FIRST_NAMES[random.nextInt(FEMALE_FIRST_NAMES.length)];
+                    String lastName = LAST_NAMES[random.nextInt(LAST_NAMES.length)];
+                    String admissionNumber = schoolCode + "-2025-" + String.format("%04d", admissionCounter++);
+                    String email = firstName.toLowerCase() + "." + lastName.toLowerCase() +
+                                   "@student." + schoolCode.toLowerCase() + ".edu.in";
+
+                    // Calculate age-appropriate birth year
+                    int birthYear = 2026 - grade - 6; // Rough age calculation
+                    LocalDate dob = LocalDate.of(birthYear, 1 + random.nextInt(12), 1 + random.nextInt(28));
+
+                    // Create guardians (Father + Mother)
+                    String fatherFirstName = FATHER_NAMES[random.nextInt(FATHER_NAMES.length)];
+                    String motherFirstName = MOTHER_NAMES[random.nextInt(MOTHER_NAMES.length)];
+                    String fatherEmail = fatherFirstName.toLowerCase() + "." + lastName.toLowerCase() +
+                                        "@parent." + schoolCode.toLowerCase() + ".edu.in";
+                    String motherEmail = motherFirstName.toLowerCase() + "." + lastName.toLowerCase() +
+                                        "@parent." + schoolCode.toLowerCase() + ".edu.in";
+
+                    // Father user
+                    User fatherUser = createUser(tenantId, schoolCode,
+                                                fatherFirstName + " " + lastName,
+                                                fatherEmail,
+                                                Enums.Role.PARENT,
+                                                "+91-" + (9000000000L + random.nextInt(1000000000)));
+
+                    // Father guardian
+                    Guardian father = new Guardian();
+                    father.setTenantId(tenantId);
+                    father.setFullName(fatherFirstName + " " + lastName);
+                    father.setPrimaryPhone(fatherUser.getPhone());
+                    father.setOccupation(random.nextBoolean() ? "Business" : "Professional");
+                    father.setUserId(fatherUser.getId());
+                    father.setIsDeleted(false);
+                    father = guardianRepository.save(father);
+
+                    // Mother user
+                    User motherUser = createUser(tenantId, schoolCode,
+                                                motherFirstName + " " + lastName,
+                                                motherEmail,
+                                                Enums.Role.PARENT,
+                                                "+91-" + (9000000000L + random.nextInt(1000000000)));
+
+                    // Mother guardian
+                    Guardian mother = new Guardian();
+                    mother.setTenantId(tenantId);
+                    mother.setFullName(motherFirstName + " " + lastName);
+                    mother.setPrimaryPhone(motherUser.getPhone());
+                    mother.setOccupation(random.nextBoolean() ? "Homemaker" : "Professional");
+                    mother.setUserId(motherUser.getId());
+                    mother.setIsDeleted(false);
+                    mother = guardianRepository.save(mother);
+
+                    // Create student
+                    Student student = new Student();
+                    student.setTenantId(tenantId);
+                    student.setFirstName(firstName);
+                    student.setLastName(lastName);
+                    student.setEmail(email);
+                    student.setPhone(fatherUser.getPhone()); // Use father's phone
+                    student.setDateOfBirth(dob);
+                    student.setGender(isMale ? Enums.Gender.MALE : Enums.Gender.FEMALE);
+                    student.setClassId(pair.schoolClass.getId());
+                    student.setSectionId(pair.section.getId());
+                    student.setRollNumber(String.format("%02d", i + 1));
+                    student.setAdmissionNumber(admissionNumber);
+                    student.setAdmissionDate(LocalDate.of(2025, 4, 8));
+                    student.setParentId(fatherUser.getId());
+                    student.setParentName(father.getFullName());
+                    student.setPrimaryContactGuardianId(father.getId());
+                    student.setAddress(grade + " Sample Street, " + (schoolCode.contains("DLH") ? "Delhi" : "Mumbai"));
+                    student.setBloodGroup(random.nextBoolean() ? "O+" : (random.nextBoolean() ? "A+" : "B+"));
+                    student.setStatus(Enums.StudentStatus.ACTIVE);
+                    student.setIsDeleted(false);
+                    student = studentRepository.save(student);
+
+                    // Map guardians to student
+                    mapGuardianToStudent(tenantId, student.getId(), father.getId(),
+                                        Enums.GuardianRelationType.FATHER, true);
+                    mapGuardianToStudent(tenantId, student.getId(), mother.getId(),
+                                        Enums.GuardianRelationType.MOTHER, false);
+
+                    allStudents.add(student);
+                }
+            }
+        }
+
+        return allStudents;
     }
 
-    private TimetableEntry tt(String tenantId, Long ayId, Long classId, Long secId, Enums.DayOfWeek day, int period,
-                              LocalTime st, LocalTime et, String subject, Long tid, String tname, String room) {
-        TimetableEntry e = TimetableEntry.builder().classId(classId).sectionId(secId).day(day).period(period)
-                .startTime(st).endTime(et).subjectName(subject).teacherId(tid).teacherName(tname).room(room).build();
-        e.setTenantId(tenantId);
-        e.setAcademicYearId(ayId);
-        e.setIsDeleted(false);
-        return e;
+    private void mapGuardianToStudent(String tenantId, Long studentId, Long guardianId,
+                                     Enums.GuardianRelationType relationType, boolean isPrimary) {
+        StudentGuardianMapping mapping = new StudentGuardianMapping();
+        mapping.setTenantId(tenantId);
+        mapping.setStudentId(studentId);
+        mapping.setGuardianId(guardianId);
+        mapping.setRelationType(relationType);
+        mapping.setIsPrimary(isPrimary);
+        mapping.setIsEmergencyContact(isPrimary);
+        mapping.setEffectiveFrom(LocalDate.of(2025, 4, 1));
+        mapping.setIsDeleted(false);
+        studentGuardianMappingRepository.save(mapping);
     }
 
-    private void ExamScope(String tenantId, Long examId, Long classId, Long sectionId) {
-        ExamClassScope s = new ExamClassScope();
-        s.setTenantId(tenantId);
-        s.setExamId(examId);
-        s.setClassId(classId);
-        s.setSectionId(sectionId);
-        s.setIsDeleted(false);
-        examClassScopeRepository.save(s);
+    private void assignTeachersToClasses(String tenantId, Long academicYearId,
+                                        Map<Integer, List<ClassSectionPair>> classesMap,
+                                        List<Teacher> teachers, Random random) {
+        String[] subjectNames = {"Mathematics", "Science", "English", "Hindi", "Social Studies",
+                                "Physics", "Chemistry", "Biology", "Computer Science"};
+
+        int teacherIdx = 0;
+
+        for (int grade = 4; grade <= 12; grade++) {
+            List<ClassSectionPair> sections = classesMap.get(grade);
+
+            for (ClassSectionPair pair : sections) {
+                // Class teacher assignment
+                ClassTeacherAssignment cta = new ClassTeacherAssignment();
+                cta.setTenantId(tenantId);
+                cta.setAcademicYearId(academicYearId);
+                cta.setClassId(pair.schoolClass.getId());
+                cta.setSectionId(pair.section.getId());
+                cta.setTeacherId(pair.schoolClass.getClassTeacherId());
+                cta.setEffectiveFrom(LocalDate.of(2025, 4, 1));
+                cta.setIsDeleted(false);
+                classTeacherAssignmentRepository.save(cta);
+
+                // Subject teacher assignments (5-7 subjects per class)
+                int subjectsCount = 5 + random.nextInt(3);
+                for (int s = 0; s < subjectsCount; s++) {
+                    String subject = subjectNames[s % subjectNames.length];
+                    Teacher teacher = teachers.get((teacherIdx++) % teachers.size());
+
+                    SubjectTeacherAssignment sta = new SubjectTeacherAssignment();
+                    sta.setTenantId(tenantId);
+                    sta.setAcademicYearId(academicYearId);
+                    sta.setClassId(pair.schoolClass.getId());
+                    sta.setSectionId(pair.section.getId());
+                    sta.setSubjectName(subject);
+                    sta.setTeacherId(teacher.getId());
+                    sta.setEffectiveFrom(LocalDate.of(2025, 4, 1));
+                    sta.setIsDeleted(false);
+                    subjectTeacherAssignmentRepository.save(sta);
+                }
+            }
+        }
     }
 
-    private void examSlot(String tenantId, Long examId, Long classId, Long secId, String subject, LocalDate date,
-                          LocalTime st, LocalTime et, String room) {
-        ExamScheduleSlot sl = new ExamScheduleSlot();
-        sl.setTenantId(tenantId);
-        sl.setExamId(examId);
-        sl.setClassId(classId);
-        sl.setSectionId(secId);
-        sl.setSubjectName(subject);
-        sl.setExamDate(date);
-        sl.setStartTime(st);
-        sl.setEndTime(et);
-        sl.setRoom(room);
-        sl.setIsDeleted(false);
-        examScheduleSlotRepository.save(sl);
+    private void createFeesAndPayments(String tenantId, Long academicYearId,
+                                      Map<Integer, List<ClassSectionPair>> classesMap,
+                                      List<Student> allStudents, Random random) {
+        Map<Long, FeeStructure> feeStructureMap = new HashMap<>();
+
+        // Create fee structures for each class
+        for (int grade = 4; grade <= 12; grade++) {
+            List<ClassSectionPair> sections = classesMap.get(grade);
+            SchoolClass schoolClass = sections.get(0).schoolClass;
+
+            // Fee varies by grade (higher grades = higher fees)
+            BigDecimal tuitionFee = new BigDecimal((25000 + (grade - 4) * 2000));
+            BigDecimal transportFee = new BigDecimal(8000);
+            BigDecimal libraryFee = new BigDecimal(1500);
+            BigDecimal examFee = new BigDecimal(2500);
+            BigDecimal sportsFee = new BigDecimal(2000);
+            BigDecimal totalFee = tuitionFee.add(transportFee).add(libraryFee).add(examFee).add(sportsFee);
+
+            FeeStructure fs = new FeeStructure();
+            fs.setTenantId(tenantId);
+            fs.setName("Annual Fee - Class " + grade);
+            fs.setClassId(schoolClass.getId());
+            fs.setClassName(schoolClass.getName());
+            fs.setAcademicYearId(academicYearId);
+            fs.setTotalAmount(totalFee);
+            fs.setIsDeleted(false);
+            fs = feeStructureRepository.save(fs);
+
+            // Fee components
+            saveFeeComponent(tenantId, fs.getId(), "Tuition Fee", tuitionFee, Enums.FeeComponentType.TUITION);
+            saveFeeComponent(tenantId, fs.getId(), "Transport Fee", transportFee, Enums.FeeComponentType.TRANSPORT);
+            saveFeeComponent(tenantId, fs.getId(), "Library Fee", libraryFee, Enums.FeeComponentType.LIBRARY);
+            saveFeeComponent(tenantId, fs.getId(), "Exam Fee", examFee, Enums.FeeComponentType.MISC);
+            saveFeeComponent(tenantId, fs.getId(), "Sports Fee", sportsFee, Enums.FeeComponentType.SPORTS);
+
+            feeStructureMap.put(schoolClass.getId(), fs);
+        }
+
+        // Create fee payments for all students
+        long receiptCounter = System.currentTimeMillis(); // Start counter with current timestamp
+        for (Student student : allStudents) {
+            FeeStructure fs = feeStructureMap.get(student.getClassId());
+            if (fs == null) continue;
+
+            // Random payment status: 60% PAID, 25% PARTIAL, 15% UNPAID
+            int statusRoll = random.nextInt(100);
+            Enums.FeeStatus feeStatus;
+            BigDecimal paidAmount;
+            BigDecimal dueAmount;
+
+            if (statusRoll < 60) {
+                // PAID
+                feeStatus = Enums.FeeStatus.PAID;
+                paidAmount = fs.getTotalAmount();
+                dueAmount = BigDecimal.ZERO;
+            } else if (statusRoll < 85) {
+                // PARTIAL
+                feeStatus = Enums.FeeStatus.PARTIAL;
+                paidAmount = fs.getTotalAmount().multiply(new BigDecimal("0.5"));
+                dueAmount = fs.getTotalAmount().subtract(paidAmount);
+            } else {
+                // UNPAID
+                feeStatus = Enums.FeeStatus.UNPAID;
+                paidAmount = BigDecimal.ZERO;
+                dueAmount = fs.getTotalAmount();
+            }
+
+            FeePayment payment = new FeePayment();
+            payment.setTenantId(tenantId);
+            payment.setStudentId(student.getId());
+            payment.setStudentName(student.getFirstName() + " " + student.getLastName());
+            payment.setFeeStructureId(fs.getId());
+            payment.setAmount(fs.getTotalAmount());
+            payment.setPaidAmount(paidAmount);
+            payment.setDueAmount(dueAmount);
+            payment.setStatus(feeStatus);
+            payment.setPaymentDate(feeStatus == Enums.FeeStatus.UNPAID ? null : LocalDate.now().minusDays(random.nextInt(30)));
+            payment.setDueDate(LocalDate.of(2025, 8, 31));
+            payment.setPaymentMethod(feeStatus != Enums.FeeStatus.UNPAID ?
+                                    (random.nextBoolean() ? "Online" : "Cash") : null);
+            // Generate unique receipt number using counter - guaranteed unique per execution
+            payment.setReceiptNumber(feeStatus != Enums.FeeStatus.UNPAID ?
+                                    "RCP" + (receiptCounter++) : null);
+            payment.setDiscount(BigDecimal.ZERO);
+            payment.setLateFee(BigDecimal.ZERO);
+            payment.setIsDeleted(false);
+            feePaymentRepository.save(payment);
+        }
     }
 
-    private void markRecord(String tenantId, Long examId, Student s, String sub, double got, double max, String grade, Long classId) {
-        MarkRecord m = MarkRecord.builder().examId(examId).studentId(s.getId()).studentName(s.getFirstName() + " " + s.getLastName())
-                .subjectName(sub).marksObtained(got).maxMarks(max).grade(grade).classId(classId).build();
-        m.setTenantId(tenantId);
-        m.setIsDeleted(false);
-        markRecordRepository.save(m);
+    private void saveFeeComponent(String tenantId, Long feeStructureId, String name,
+                                 BigDecimal amount, Enums.FeeComponentType type) {
+        FeeComponent fc = new FeeComponent();
+        fc.setTenantId(tenantId);
+        fc.setFeeStructureId(feeStructureId);
+        fc.setName(name);
+        fc.setAmount(amount);
+        fc.setType(type);
+        fc.setIsDeleted(false);
+        feeComponentRepository.save(fc);
     }
 
-    private FeeStructure feeStructure(String tenantId, String name, Long classId, String className, Long ay, BigDecimal total) {
-        FeeStructure f = FeeStructure.builder().name(name).classId(classId).className(className).academicYearId(ay).totalAmount(total).build();
-        f.setTenantId(tenantId);
-        f.setIsDeleted(false);
-        return f;
+    private void createExamsAndMarks(String tenantId, Long academicYearId,
+                                    Map<Integer, List<ClassSectionPair>> classesMap,
+                                    List<Student> allStudents, Random random) {
+        String[] examNames = {"Unit Test 1", "Mid-Term Exam", "Unit Test 2", "Final Exam"};
+        LocalDate[] examDates = {
+            LocalDate.of(2025, 6, 15),
+            LocalDate.of(2025, 8, 20),
+            LocalDate.of(2025, 11, 10),
+            LocalDate.of(2026, 2, 25)
+        };
+        String[] subjects = {"Mathematics", "Science", "English", "Hindi", "Social Studies"};
+
+        for (int examIdx = 0; examIdx < examNames.length; examIdx++) {
+            Exam exam = new Exam();
+            exam.setTenantId(tenantId);
+            exam.setName(examNames[examIdx]);
+            exam.setAcademicYearId(academicYearId);
+            exam.setStartDate(examDates[examIdx]);
+            exam.setEndDate(examDates[examIdx].plusDays(7));
+            exam.setStatus(examIdx <= 1 ? Enums.ExamStatus.COMPLETED : Enums.ExamStatus.UPCOMING);
+            exam.setResultsPublished(examIdx == 0); // Only first exam results published
+            exam.setIsDeleted(false);
+            exam = examRepository.save(exam);
+
+            // Add all classes to exam scope
+            for (int grade = 4; grade <= 12; grade++) {
+                List<ClassSectionPair> sections = classesMap.get(grade);
+                for (ClassSectionPair pair : sections) {
+                    ExamClassScope scope = new ExamClassScope();
+                    scope.setTenantId(tenantId);
+                    scope.setExamId(exam.getId());
+                    scope.setClassId(pair.schoolClass.getId());
+                    scope.setSectionId(pair.section.getId());
+                    scope.setIsDeleted(false);
+                    examClassScopeRepository.save(scope);
+
+                    // Create exam schedule slots for each subject
+                    for (int subIdx = 0; subIdx < subjects.length; subIdx++) {
+                        ExamScheduleSlot slot = new ExamScheduleSlot();
+                        slot.setTenantId(tenantId);
+                        slot.setExamId(exam.getId());
+                        slot.setClassId(pair.schoolClass.getId());
+                        slot.setSectionId(pair.section.getId());
+                        slot.setSubjectName(subjects[subIdx]);
+                        slot.setExamDate(examDates[examIdx].plusDays(subIdx));
+                        slot.setStartTime(LocalTime.of(9, 0));
+                        slot.setEndTime(LocalTime.of(12, 0));
+                        slot.setRoom("Hall " + (1 + (grade % 3)));
+                        slot.setIsDeleted(false);
+                        examScheduleSlotRepository.save(slot);
+                    }
+                }
+            }
+
+            // Create mark records for completed exams (only first exam)
+            if (examIdx == 0) {
+                for (Student student : allStudents) {
+                    for (String subject : subjects) {
+                        double maxMarks = 100;
+                        double obtained = 40 + random.nextInt(60); // 40-100 marks
+                        String grade = obtained >= 90 ? "A+" :
+                                      obtained >= 80 ? "A" :
+                                      obtained >= 70 ? "B+" :
+                                      obtained >= 60 ? "B" :
+                                      obtained >= 50 ? "C" : "D";
+
+                        MarkRecord mr = new MarkRecord();
+                        mr.setTenantId(tenantId);
+                        mr.setExamId(exam.getId());
+                        mr.setStudentId(student.getId());
+                        mr.setStudentName(student.getFirstName() + " " + student.getLastName());
+                        mr.setClassId(student.getClassId());
+                        mr.setSubjectName(subject);
+                        mr.setMarksObtained(obtained);
+                        mr.setMaxMarks(maxMarks);
+                        mr.setGrade(grade);
+                        mr.setIsDeleted(false);
+                        markRecordRepository.save(mr);
+                    }
+                }
+            }
+        }
     }
 
-    private FeeComponent comp(String tenantId, Long fsId, String name, BigDecimal amt, Enums.FeeComponentType type) {
-        FeeComponent c = FeeComponent.builder().feeStructureId(fsId).name(name).amount(amt).type(type).build();
-        c.setTenantId(tenantId);
-        c.setIsDeleted(false);
-        return c;
+    private void createAttendance(String tenantId, List<Student> allStudents,
+                                 List<Teacher> teachers, Random random) {
+        // Last 10 days of attendance
+        for (int day = 10; day >= 1; day--) {
+            LocalDate date = LocalDate.now().minusDays(day);
+
+            // Skip Sundays
+            if (date.getDayOfWeek().getValue() == 7) continue;
+
+            for (Student student : allStudents) {
+                // 85% present, 10% absent, 5% late
+                int attendanceRoll = random.nextInt(100);
+                Enums.AttendanceStatus status = attendanceRoll < 85 ? Enums.AttendanceStatus.PRESENT :
+                                                attendanceRoll < 95 ? Enums.AttendanceStatus.ABSENT :
+                                                Enums.AttendanceStatus.LATE;
+
+                AttendanceRecord ar = new AttendanceRecord();
+                ar.setTenantId(tenantId);
+                ar.setStudentId(student.getId());
+                ar.setStudentName(student.getFirstName() + " " + student.getLastName());
+                ar.setClassId(student.getClassId());
+                ar.setSectionId(student.getSectionId());
+                ar.setDate(date);
+                ar.setStatus(status);
+                ar.setMarkedBy(teachers.get(random.nextInt(teachers.size())).getId());
+                ar.setRemarks(status == Enums.AttendanceStatus.ABSENT ? "Absent without notice" : null);
+                ar.setIsDeleted(false);
+                attendanceRepository.save(ar);
+            }
+        }
     }
 
-    private FeePayment payment(String tenantId, Student s, Long fsId, BigDecimal amt, BigDecimal paid, BigDecimal due,
-                               Enums.FeeStatus st, String receipt) {
-        return payment(tenantId, s, fsId, amt, paid, due, st, receipt, LocalDate.now().minusDays(7));
+    private void createTimetables(String tenantId, Long academicYearId,
+                                 Map<Integer, List<ClassSectionPair>> classesMap,
+                                 List<Teacher> teachers, Random random) {
+        String[] subjects = {"Mathematics", "Science", "English", "Hindi", "Social Studies",
+                            "Physical Education", "Computer Science", "Art"};
+        Enums.DayOfWeek[] days = {Enums.DayOfWeek.MONDAY, Enums.DayOfWeek.TUESDAY,
+                                 Enums.DayOfWeek.WEDNESDAY, Enums.DayOfWeek.THURSDAY,
+                                 Enums.DayOfWeek.FRIDAY, Enums.DayOfWeek.SATURDAY};
+
+        int teacherIdx = 0;
+
+        for (int grade = 4; grade <= 12; grade++) {
+            List<ClassSectionPair> sections = classesMap.get(grade);
+
+            for (ClassSectionPair pair : sections) {
+                int subjectIdx = 0;
+
+                // 6 periods per day, 6 days a week
+                for (Enums.DayOfWeek day : days) {
+                    for (int period = 1; period <= 6; period++) {
+                        LocalTime startTime = LocalTime.of(8, 30).plusMinutes((period - 1) * 50);
+                        LocalTime endTime = startTime.plusMinutes(45);
+
+                        String subject = subjects[subjectIdx % subjects.length];
+                        Teacher teacher = teachers.get((teacherIdx++) % teachers.size());
+
+                        TimetableEntry tte = new TimetableEntry();
+                        tte.setTenantId(tenantId);
+                        tte.setAcademicYearId(academicYearId);
+                        tte.setClassId(pair.schoolClass.getId());
+                        tte.setSectionId(pair.section.getId());
+                        tte.setDay(day);
+                        tte.setPeriod(period);
+                        tte.setStartTime(startTime);
+                        tte.setEndTime(endTime);
+                        tte.setSubjectName(subject);
+                        tte.setTeacherId(teacher.getId());
+                        tte.setTeacherName(teacher.getFirstName() + " " + teacher.getLastName());
+                        tte.setRoom("Room " + (100 + grade * 10 + period));
+                        tte.setIsDeleted(false);
+                        timetableRepository.save(tte);
+
+                        subjectIdx++;
+                    }
+                }
+            }
+        }
     }
 
-    private FeePayment payment(String tenantId, Student s, Long fsId, BigDecimal amt, BigDecimal paid, BigDecimal due,
-                               Enums.FeeStatus st, String receipt, LocalDate paymentDate) {
-        FeePayment p = FeePayment.builder().studentId(s.getId()).studentName(s.getFirstName() + " " + s.getLastName())
-                .feeStructureId(fsId).amount(amt).paidAmount(paid).dueAmount(due).status(st).paymentDate(paymentDate)
-                .dueDate(LocalDate.now().plusMonths(2)).discount(BigDecimal.ZERO).lateFee(BigDecimal.ZERO)
-                .receiptNumber(receipt).paymentMethod("UPI").build();
-        p.setTenantId(tenantId);
-        p.setIsDeleted(false);
-        return p;
+    private void createTransport(String tenantId, List<Student> allStudents, Random random) {
+        // Create 3 routes
+        for (int routeNum = 1; routeNum <= 3; routeNum++) {
+            // Create vehicle
+            TransportVehicle vehicle = new TransportVehicle();
+            vehicle.setTenantId(tenantId);
+            vehicle.setRegistrationNumber("DL-01-AB-" + (1000 + routeNum));
+            vehicle.setVehicleType(Enums.VehicleType.BUS);
+            vehicle.setCapacity(50);
+            vehicle.setModel("Ashok Leyland Bus");
+            vehicle.setIsDeleted(false);
+            vehicle = transportVehicleRepository.save(vehicle);
+
+            // Create driver
+            TransportDriver driver = new TransportDriver();
+            driver.setTenantId(tenantId);
+            driver.setFullName("Driver Name " + routeNum);
+            driver.setPhone("+91-9100000" + routeNum + "00");
+            driver.setLicenseNumber("DL" + routeNum + "234567890");
+            driver.setIsDeleted(false);
+            driver = transportDriverRepository.save(driver);
+
+            // Create route
+            TransportRoute route = new TransportRoute();
+            route.setTenantId(tenantId);
+            route.setName("Route " + routeNum);
+            route.setVehicleNumber(vehicle.getRegistrationNumber());
+            route.setVehicleId(vehicle.getId());
+            route.setDriverId(driver.getId());
+            route.setDriverName(driver.getFullName());
+            route.setDriverPhone(driver.getPhone());
+            route.setAssignedStudents(0);
+            route.setIsDeleted(false);
+            route = transportRouteRepository.save(route);
+
+            // Create stops
+            String[] stopNames = {"Main Gate", "Park Street", "Market Road", "Temple Junction",
+                                 "School Junction", "School Gate"};
+            for (int stopIdx = 0; stopIdx < stopNames.length; stopIdx++) {
+                RouteStop stop = new RouteStop();
+                stop.setTenantId(tenantId);
+                stop.setRouteId(route.getId());
+                stop.setName(stopNames[stopIdx]);
+                stop.setStopOrder(stopIdx + 1);
+                stop.setStopTime(LocalTime.of(7, 0).plusMinutes(stopIdx * 10));
+                stop.setLatitude(BigDecimal.valueOf(28.6 + random.nextDouble() * 0.1));
+                stop.setLongitude(BigDecimal.valueOf(77.2 + random.nextDouble() * 0.1));
+                stop.setEstimatedTravelMinutes(stopIdx == 0 ? 0 : 10);
+                stop.setIsDeleted(false);
+                routeStopRepository.save(stop);
+            }
+
+            // Assign ~15 students per route (45 total out of 280+, ~16%)
+            List<Student> routeStudents = allStudents.stream()
+                .filter(s -> s.getId() != null) // Only assign students without a route
+                .filter(s -> s.getClassId() >= 4 && s.getClassId() <= 12) // Only assign students from classes 4-12
+                .limit(15)
+                .toList();
+
+            for (Student student : routeStudents) {
+                StudentTransportMapping mapping = new StudentTransportMapping();
+                mapping.setTenantId(tenantId);
+                mapping.setRouteId(route.getId());
+                mapping.setStudentId(student.getId());
+                mapping.setStudentName(student.getFirstName() + " " + student.getLastName());
+                mapping.setPickupStop(stopNames[random.nextInt(stopNames.length - 1)]);
+                mapping.setDropStop(stopNames[random.nextInt(stopNames.length - 1)]);
+                mapping.setIsDeleted(false);
+                studentTransportMappingRepository.save(mapping);
+            }
+
+            // Update route assigned students count
+            route.setAssignedStudents(routeStudents.size());
+            transportRouteRepository.save(route);
+        }
     }
 
-    private Notification notif(String tenantId, Long uid, String title, String msg, Enums.NotificationType type) {
-        Notification n = Notification.builder().title(title).message(msg).type(type).userId(uid).isRead(false).link("/app/dashboard").build();
-        n.setTenantId(tenantId);
-        n.setIsDeleted(false);
-        return n;
+    private void createLibrary(String tenantId, List<Student> allStudents,
+                              List<Teacher> teachers, Random random) {
+        // Create 100 books
+        String[][] bookData = {
+            {"To Kill a Mockingbird", "Harper Lee", "978-0061120084", "Fiction"},
+            {"1984", "George Orwell", "978-0451524935", "Fiction"},
+            {"The Great Gatsby", "F. Scott Fitzgerald", "978-0743273565", "Fiction"},
+            {"Harry Potter and the Philosopher's Stone", "J.K. Rowling", "978-0439708180", "Fiction"},
+            {"The Hobbit", "J.R.R. Tolkien", "978-0547928227", "Fiction"},
+            {"Pride and Prejudice", "Jane Austen", "978-0141439518", "Fiction"},
+            {"The Catcher in the Rye", "J.D. Salinger", "978-0316769488", "Fiction"},
+            {"Animal Farm", "George Orwell", "978-0452284244", "Fiction"},
+            {"Lord of the Flies", "William Golding", "978-0399501487", "Fiction"},
+            {"The Chronicles of Narnia", "C.S. Lewis", "978-0060598242", "Fiction"},
+            {"Introduction to Algorithms", "Cormen, Leiserson, Rivest, Stein", "978-0262033848", "Computer Science"},
+            {"Clean Code", "Robert C. Martin", "978-0132350884", "Computer Science"},
+            {"Design Patterns", "Gang of Four", "978-0201633612", "Computer Science"},
+            {"The Pragmatic Programmer", "Hunt & Thomas", "978-0135957059", "Computer Science"},
+            {"Code Complete", "Steve McConnell", "978-0735619678", "Computer Science"},
+            {"A Brief History of Time", "Stephen Hawking", "978-0553380163", "Science"},
+            {"The Selfish Gene", "Richard Dawkins", "978-0199291151", "Science"},
+            {"Cosmos", "Carl Sagan", "978-0345539434", "Science"},
+            {"The Origin of Species", "Charles Darwin", "978-0451529060", "Science"},
+            {"Sapiens", "Yuval Noah Harari", "978-0062316097", "History"}
+        };
+
+        List<Book> books = new ArrayList<>();
+
+        for (int i = 0; i < 100; i++) {
+            String[] data = bookData[i % bookData.length];
+
+            Book book = new Book();
+            book.setTenantId(tenantId);
+            book.setTitle(data[0] + (i >= bookData.length ? " (Copy " + (i / bookData.length + 1) + ")" : ""));
+            book.setAuthor(data[1]);
+            book.setIsbn(data[2]);
+            book.setCategory(data[3]);
+            book.setTotalCopies(3 + random.nextInt(5)); // 3-7 copies per book
+            book.setAvailableCopies(book.getTotalCopies() - random.nextInt(2)); // 0-2 issued
+            book.setShelfLocation("Shelf " + ((i % 20) + 1) + "-" + (char)('A' + (i % 5)));
+            book.setIsDeleted(false);
+            books.add(bookRepository.save(book));
+        }
+
+        // Issue 20 books to random students
+        for (int i = 0; i < 20; i++) {
+            Student student = allStudents.get(random.nextInt(allStudents.size()));
+            Book book = books.get(random.nextInt(books.size()));
+
+            if (book.getAvailableCopies() <= 0) continue;
+
+            LocalDate issueDate = LocalDate.now().minusDays(random.nextInt(20));
+            LocalDate dueDate = issueDate.plusDays(14);
+            boolean isReturned = random.nextInt(100) < 60; // 60% returned
+            LocalDate returnDate = isReturned ? issueDate.plusDays(7 + random.nextInt(10)) : null;
+
+            Enums.BookIssueStatus status = isReturned ? Enums.BookIssueStatus.RETURNED :
+                                          dueDate.isBefore(LocalDate.now()) ? Enums.BookIssueStatus.OVERDUE :
+                                          Enums.BookIssueStatus.ISSUED;
+
+            BigDecimal fine = BigDecimal.ZERO;
+            if (status == Enums.BookIssueStatus.OVERDUE) {
+                long daysOverdue = LocalDate.now().toEpochDay() - dueDate.toEpochDay();
+                fine = new BigDecimal(daysOverdue * 10); // Rs.10 per day
+            }
+
+            BookIssue issue = new BookIssue();
+            issue.setTenantId(tenantId);
+            issue.setBookId(book.getId());
+            issue.setBookTitle(book.getTitle());
+            issue.setStudentId(student.getId());
+            issue.setStudentName(student.getFirstName() + " " + student.getLastName());
+            issue.setIssueDate(issueDate);
+            issue.setDueDate(dueDate);
+            issue.setReturnDate(returnDate);
+            issue.setFine(fine);
+            issue.setStatus(status);
+            issue.setIsDeleted(false);
+            bookIssueRepository.save(issue);
+
+            // Update book available copies
+            if (!isReturned) {
+                book.setAvailableCopies(book.getAvailableCopies() - 1);
+                bookRepository.save(book);
+            }
+        }
     }
 
-    private void saveAnnouncements(String tenantId, Long class9, Long sec9a, Long class10, Long class10SectionId) {
-        Announcement a1 = new Announcement();
-        a1.setTenantId(tenantId);
-        a1.setTitle("Independence Day rehearsal — IX & X");
-        a1.setContent("March-past practice during zero period on Thursday. White uniform mandatory.");
-        a1.setAuthor("Dr. Ananya Dutta");
-        a1.setAuthorRole("ADMIN");
-        a1.setTargetAudience(Enums.TargetAudience.CLASS);
-        a1.setTargetClassId(class9);
-        announcementRepository.save(a1);
+    private void createHostel(String tenantId, List<Student> allStudents, Random random) {
+        // Create 2 hostels (Boys & Girls)
+        String[] hostelNames = {"Boys Hostel", "Girls Hostel"};
+        String[] genderScopes = {"MALE", "FEMALE"};
+        Enums.Gender[] genders = {Enums.Gender.MALE, Enums.Gender.FEMALE};
 
-        Announcement a2 = new Announcement();
-        a2.setTenantId(tenantId);
-        a2.setTitle("PTA — mid-term open house");
-        a2.setContent("Slots available 4–7 PM next Friday; RSVP via the parent portal.");
-        a2.setAuthor("Dr. Ananya Dutta");
-        a2.setAuthorRole("ADMIN");
-        a2.setTargetAudience(Enums.TargetAudience.PARENTS);
-        announcementRepository.save(a2);
+        for (int hostelIdx = 0; hostelIdx < 2; hostelIdx++) {
+            Hostel hostel = new Hostel();
+            hostel.setTenantId(tenantId);
+            hostel.setName(hostelNames[hostelIdx]);
+            hostel.setCode("H" + (hostelIdx + 1));
+            hostel.setGenderScope(genderScopes[hostelIdx]);
+            hostel.setIsDeleted(false);
+            hostel = hostelRepository.save(hostel);
 
-        Announcement a3 = new Announcement();
-        a3.setTenantId(tenantId);
-        a3.setTitle("Class X — career counselling");
-        a3.setContent("Science stream orientation with alumni panel this Saturday.");
-        a3.setAuthor("Counselling Cell");
-        a3.setAuthorRole("ADMIN");
-        a3.setTargetAudience(Enums.TargetAudience.SECTION);
-        a3.setTargetClassId(class10);
-        a3.setTargetSectionId(class10SectionId);
-        announcementRepository.save(a3);
+            // Create 15 rooms per hostel
+            for (int roomNum = 1; roomNum <= 15; roomNum++) {
+                String roomType = roomNum <= 5 ? "DOUBLE" :
+                                 roomNum <= 12 ? "TRIPLE" : "DORMITORY";
+                int capacity = "DOUBLE".equals(roomType) ? 2 :
+                              "TRIPLE".equals(roomType) ? 3 : 6;
+
+                HostelRoom room = new HostelRoom();
+                room.setTenantId(tenantId);
+                room.setHostelId(hostel.getId());
+                room.setRoomNumber(String.format("%03d", roomNum));
+                room.setBlock(hostelIdx == 0 ? "A" : "B");
+                room.setFloor(((roomNum - 1) / 5) + 1);
+                room.setCapacity(capacity);
+                room.setOccupancy(0);
+                room.setRoomType(roomType);
+                room.setOccupancyStatus(Enums.HostelOccupancyStatus.AVAILABLE);
+                room.setIsDeleted(false);
+                room = hostelRoomRepository.save(room);
+
+                // Allocate students to rooms (50% occupancy)
+                int allocations = capacity / 2;
+                final Enums.Gender targetGender = genders[hostelIdx];
+                final int targetHostelIdx = hostelIdx;
+                List<Student> eligibleStudents = allStudents.stream()
+                    .filter(s -> s.getGender() == targetGender)
+                    .filter(s -> s.getClassId() % 2 == targetHostelIdx) // Simple filter
+                    .limit(allocations)
+                    .collect(Collectors.toList());
+
+                for (Student student : eligibleStudents) {
+                    HostelAllocation allocation = new HostelAllocation();
+                    allocation.setTenantId(tenantId);
+                    allocation.setRoomId(room.getId());
+                    allocation.setRoomNumber(room.getRoomNumber());
+                    allocation.setStudentId(student.getId());
+                    allocation.setStudentName(student.getFirstName() + " " + student.getLastName());
+                    allocation.setFromDate(LocalDate.of(2025, 4, 1));
+                    allocation.setToDate(LocalDate.of(2026, 3, 31));
+                    allocation.setStatus(Enums.HostelAllocationStatus.ACTIVE);
+                    allocation.setIsDeleted(false);
+                    hostelAllocationRepository.save(allocation);
+
+                    room.setOccupancy(room.getOccupancy() + 1);
+                }
+
+                room.setOccupancyStatus(room.getOccupancy() >= capacity ? Enums.HostelOccupancyStatus.FULL :
+                                       Enums.HostelOccupancyStatus.AVAILABLE);
+                hostelRoomRepository.save(room);
+            }
+        }
     }
 
-    private TransportVehicle vehicle(String tenantId, String reg, Enums.VehicleType type, int cap, String model) {
-        TransportVehicle v = new TransportVehicle();
-        v.setTenantId(tenantId);
-        v.setRegistrationNumber(reg);
-        v.setVehicleType(type);
-        v.setCapacity(cap);
-        v.setModel(model);
-        v.setIsDeleted(false);
-        return v;
+    private void createPayroll(String tenantId, List<Teacher> teachers, Random random) {
+        YearMonth currentMonth = YearMonth.now();
+
+        for (Teacher teacher : teachers) {
+            // Salary structure
+            BigDecimal basic = teacher.getSalary();
+            BigDecimal da = basic.multiply(new BigDecimal("0.12")); // 12% DA
+            BigDecimal hra = basic.multiply(new BigDecimal("0.20")); // 20% HRA
+            BigDecimal ta = new BigDecimal("2000"); // Transport allowance
+            BigDecimal tds = basic.multiply(new BigDecimal("0.10")); // 10% TDS
+            BigDecimal pf = basic.multiply(new BigDecimal("0.12")); // 12% PF
+
+            BigDecimal totalAllowances = da.add(hra).add(ta);
+            BigDecimal totalDeductions = tds.add(pf);
+            BigDecimal netSalary = basic.add(totalAllowances).subtract(totalDeductions);
+
+            SalaryStructure ss = new SalaryStructure();
+            ss.setTenantId(tenantId);
+            ss.setTeacherId(teacher.getId());
+            ss.setTeacherName(teacher.getFirstName() + " " + teacher.getLastName());
+            ss.setBasicSalary(basic);
+            ss.setNetSalary(netSalary);
+            ss.setIsDeleted(false);
+            ss = salaryStructureRepository.save(ss);
+
+            // Salary components
+            saveSalaryComponent(tenantId, ss.getId(), "Dearness Allowance", da, Enums.SalaryComponentType.ALLOWANCE);
+            saveSalaryComponent(tenantId, ss.getId(), "House Rent Allowance", hra, Enums.SalaryComponentType.ALLOWANCE);
+            saveSalaryComponent(tenantId, ss.getId(), "Transport Allowance", ta, Enums.SalaryComponentType.ALLOWANCE);
+            saveSalaryComponent(tenantId, ss.getId(), "TDS", tds, Enums.SalaryComponentType.DEDUCTION);
+            saveSalaryComponent(tenantId, ss.getId(), "Provident Fund", pf, Enums.SalaryComponentType.DEDUCTION);
+
+            // Create payslips for last 3 months
+            for (int monthBack = 2; monthBack >= 0; monthBack--) {
+                YearMonth payrollMonth = currentMonth.minusMonths(monthBack);
+
+                Payslip payslip = new Payslip();
+                payslip.setTenantId(tenantId);
+                payslip.setTeacherId(teacher.getId());
+                payslip.setTeacherName(teacher.getFirstName() + " " + teacher.getLastName());
+                payslip.setPayrollMonth(payrollMonth.toString());
+                payslip.setMonth(String.valueOf(payrollMonth.getMonthValue()));
+                payslip.setYear(payrollMonth.getYear());
+                payslip.setBasicSalary(basic);
+                payslip.setTotalAllowances(totalAllowances);
+                payslip.setTotalDeductions(totalDeductions);
+                payslip.setNetSalary(netSalary);
+                payslip.setStatus(monthBack == 0 ? Enums.PayslipStatus.GENERATED : Enums.PayslipStatus.PAID);
+                payslip.setPaymentDate(monthBack == 0 ? null : payrollMonth.atEndOfMonth());
+                payslip.setIsDeleted(false);
+                payslipRepository.save(payslip);
+            }
+        }
     }
 
-    private TransportDriver driver(String tenantId, String name, String phone, String license) {
-        TransportDriver d = new TransportDriver();
-        d.setTenantId(tenantId);
-        d.setFullName(name);
-        d.setPhone(phone);
-        d.setLicenseNumber(license);
-        d.setIsDeleted(false);
-        return d;
+    private void saveSalaryComponent(String tenantId, Long salaryStructureId, String name,
+                                    BigDecimal amount, Enums.SalaryComponentType type) {
+        SalaryComponent sc = new SalaryComponent();
+        sc.setTenantId(tenantId);
+        sc.setSalaryStructureId(salaryStructureId);
+        sc.setName(name);
+        sc.setAmount(amount);
+        sc.setType(type);
+        sc.setIsDeleted(false);
+        salaryComponentRepository.save(sc);
     }
 
-    private static <T> T tap(T target, Consumer<T> fn) {
-        fn.accept(target);
-        return target;
+    private void createCommunication(String tenantId, User adminUser, List<Teacher> teachers,
+                                    List<Student> allStudents, Random random) {
+        // Create 5 announcements
+        String[][] announcementData = {
+            {"School Reopening Notice", "School will reopen on April 1st, 2025. All students must report by 8:00 AM."},
+            {"Parent-Teacher Meeting", "Parent-Teacher Meeting scheduled for May 15th. Parents are requested to attend."},
+            {"Sports Day Celebration", "Annual Sports Day will be celebrated on June 10th. All students must participate."},
+            {"Mid-Term Exam Schedule", "Mid-Term Examinations will commence from August 20th. Exam schedule attached."},
+            {"Winter Break Notice", "School will remain closed from December 20th to January 5th for winter break."}
+        };
+
+        for (String[] data : announcementData) {
+            Announcement announcement = new Announcement();
+            announcement.setTenantId(tenantId);
+            announcement.setTitle(data[0]);
+            announcement.setContent(data[1]);
+            announcement.setAuthor(adminUser.getName());
+            announcement.setAuthorRole(adminUser.getRole().toString());
+            announcement.setTargetAudience(Enums.TargetAudience.ALL);
+            announcement.setIsDeleted(false);
+            announcementRepository.save(announcement);
+        }
+
+        // Create 10 direct messages (teacher to parent)
+        for (int i = 0; i < 10; i++) {
+            Student student = allStudents.get(random.nextInt(allStudents.size()));
+            Teacher teacher = teachers.get(random.nextInt(teachers.size()));
+
+            // Get parent user
+            User parentUser = userRepository.findByIdAndTenantIdAndIsDeletedFalse(student.getParentId(), tenantId).orElse(null);
+            if (parentUser == null) continue;
+
+            Message message = new Message();
+            message.setTenantId(tenantId);
+            message.setSenderId(teacher.getUserId());
+            message.setSenderName(teacher.getFirstName() + " " + teacher.getLastName());
+            message.setSenderRole(Enums.Role.TEACHER.toString());
+            message.setReceiverId(parentUser.getId());
+            message.setReceiverName(parentUser.getName());
+            message.setContent("Dear Parent, Your child " + student.getFirstName() + " is doing well in class. Please encourage regular attendance.");
+            message.setIsRead(random.nextBoolean());
+            message.setIsDeleted(false);
+            messageRepository.save(message);
+        }
+    }
+
+    private void createDocuments(String tenantId, List<Student> allStudents,
+                                List<Teacher> teachers, Random random) {
+        String[][] docData = {
+            {"Class 10 Syllabus 2025", "application/pdf", "GENERAL", "Syllabus for Class 10 - All Subjects"},
+            {"Class 12 Syllabus 2025", "application/pdf", "GENERAL", "Syllabus for Class 12 - All Subjects"},
+            {"School Rules & Regulations", "application/pdf", "GENERAL", "Complete handbook of school rules"},
+            {"Annual Report 2024-25", "application/pdf", "ADMIN", "School annual report"},
+            {"Fee Structure 2025-26", "application/pdf", "GENERAL", "Detailed fee structure"}
+        };
+
+        for (int i = 0; i < docData.length; i++) {
+            String[] data = docData[i];
+            User uploader = i % 2 == 0 ?
+                userRepository.findByTenantIdAndRoleAndIsDeletedFalse(tenantId, Enums.Role.ADMIN).get(0) :
+                userRepository.findByEmailAndTenantIdAndIsDeletedFalse(teachers.get(0).getEmail(), tenantId).get();
+
+            Document doc = new Document();
+            doc.setTenantId(tenantId);
+            doc.setName(data[0]);
+            doc.setFileType("pdf");
+            doc.setMimeType(data[1]);
+            doc.setCategory(Enums.DocumentCategory.valueOf(data[2]));
+            doc.setUploadedBy(uploader.getName());
+            doc.setFileUrl("https://example.com/documents/" + (i + 1) + ".pdf");
+            doc.setStorageKey("docs/" + (i + 1) + ".pdf");
+            doc.setSizeBytes(1024L * (100 + random.nextInt(900))); // 100KB - 1MB
+            doc.setOwnerType(Enums.DocumentOwnerType.GLOBAL);
+            doc.setVisibilityScope(Enums.DocumentVisibilityScope.SCHOOL);
+            doc.setFileVersion(1);
+            doc.setIsDeleted(false);
+            documentRepository.save(doc);
+        }
+    }
+
+    private void createLeaveRequests(String tenantId, List<Teacher> teachers,
+                                    List<Student> allStudents, Random random) {
+        // Teacher leave requests
+        for (int i = 0; i < 5; i++) {
+            Teacher teacher = teachers.get(random.nextInt(teachers.size()));
+
+            LocalDate startDate = LocalDate.now().plusDays(random.nextInt(30));
+            LocalDate endDate = startDate.plusDays(1 + random.nextInt(3));
+
+            Enums.LeaveStatus status = i % 3 == 0 ? Enums.LeaveStatus.APPROVED :
+                                      i % 3 == 1 ? Enums.LeaveStatus.PENDING :
+                                      Enums.LeaveStatus.REJECTED;
+
+            LeaveRequest lr = new LeaveRequest();
+            lr.setTenantId(tenantId);
+            lr.setApplicantUserId(teacher.getUserId());
+            lr.setApplicantRole(Enums.Role.TEACHER.toString());
+            lr.setTeacherId(teacher.getId());
+            lr.setLeaveType(Enums.LeaveTypeCode.SICK.name());
+            lr.setStartDate(startDate);
+            lr.setEndDate(endDate);
+            lr.setDayUnit(Enums.LeaveDayUnit.FULL_DAY);
+            lr.setReason("Personal health reasons");
+            lr.setStatus(status);
+            lr.setApproverUserId(status != Enums.LeaveStatus.PENDING ?
+                userRepository.findByTenantIdAndRoleAndIsDeletedFalse(tenantId, Enums.Role.ADMIN).get(0).getId() : null);
+            lr.setApproverRemarks(status == Enums.LeaveStatus.REJECTED ? "Insufficient leave balance" :
+                                 status == Enums.LeaveStatus.APPROVED ? "Approved" : null);
+            lr.setIsDeleted(false);
+            leaveRequestRepository.save(lr);
+        }
+
+        // Student leave requests
+        for (int i = 0; i < 10; i++) {
+            Student student = allStudents.get(random.nextInt(allStudents.size()));
+
+            LocalDate startDate = LocalDate.now().minusDays(random.nextInt(10));
+            LocalDate endDate = startDate.plusDays(random.nextInt(3));
+
+            Enums.LeaveStatus status = i % 2 == 0 ? Enums.LeaveStatus.APPROVED : Enums.LeaveStatus.PENDING;
+
+            LeaveRequest lr = new LeaveRequest();
+            lr.setTenantId(tenantId);
+            lr.setApplicantUserId(student.getParentId());
+            lr.setApplicantRole(Enums.Role.PARENT.toString());
+            lr.setStudentId(student.getId());
+            lr.setLeaveType(Enums.LeaveTypeCode.SICK.name());
+            lr.setStartDate(startDate);
+            lr.setEndDate(endDate);
+            lr.setDayUnit(Enums.LeaveDayUnit.FULL_DAY);
+            lr.setReason("Fever and cold");
+            lr.setStatus(status);
+            lr.setApproverUserId(status == Enums.LeaveStatus.APPROVED ?
+                userRepository.findByTenantIdAndRoleAndIsDeletedFalse(tenantId, Enums.Role.ADMIN).get(0).getId() : null);
+            lr.setApproverRemarks(status == Enums.LeaveStatus.APPROVED ? "Approved" : null);
+            lr.setIsDeleted(false);
+            leaveRequestRepository.save(lr);
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════════════════════
+    // CREDENTIALS SUMMARY PRINTER
+    // ═══════════════════════════════════════════════════════════════════════════════════════════
+
+    private void printCredentialsSummary() {
+        log.info("");
+        log.info("╔══════════════════════════════════════════════════════════════════════════════════╗");
+        log.info("║                         DEMO CREDENTIALS SUMMARY                                  ║");
+        log.info("║                      Password for all users: admin123                            ║");
+        log.info("╚══════════════════════════════════════════════════════════════════════════════════╝");
+        log.info("");
+        log.info("PLATFORM SUPER ADMIN:");
+        log.info("  Email: superadmin@schoolerp.com");
+        log.info("");
+        log.info("SCHOOL 1: Delhi Public School (DPS-DLH)");
+        log.info("  School Code: DPS-DLH");
+        log.info("  Admin: admin@dpsdel.edu.in");
+        log.info("  Sample Teacher: Check database for teacher emails (e.g., aarav.sharma@dps-dlh.edu.in)");
+        log.info("  Sample Parent: Check database for parent emails (e.g., rajesh.sharma@parent.dps-dlh.edu.in)");
+        log.info("");
+        log.info("SCHOOL 2: Kendriya Vidyalaya (KV-MUM)");
+        log.info("  School Code: KV-MUM");
+        log.info("  Admin: admin@kvmumbai1@gmail.com");
+        log.info("  Sample Teacher: Check database for teacher emails (e.g., vivaan.verma@kv-mum.edu.in)");
+        log.info("  Sample Parent: Check database for parent emails (e.g., amit.verma@parent.kv-mum.edu.in)");
+        log.info("");
+        log.info("For complete list of all credentials, see DEMO_CREDENTIALS.md file");
+        log.info("══════════════════════════════════════════════════════════════════════════════════");
     }
 }
