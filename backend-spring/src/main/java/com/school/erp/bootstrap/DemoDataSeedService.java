@@ -75,7 +75,11 @@ import java.util.stream.Collectors;
  * Seeds TWO realistic Indian schools with COMPLETE data for classes 6-12 for comprehensive
  * end-to-end testing across ALL roles and modules.
  *
- * ⚠️  OPTIMIZED FOR RENDER FREE TIER (0.1 CPU, 512MB RAM) - Reduced data volume by ~90%
+ * ⚠️  OPTIMIZED FOR RENDER FREE TIER (0.1 CPU, 512MB RAM)
+ * - Reduced data volume by ~90%
+ * - Added 1-second pauses between major steps to avoid overwhelming CPU
+ * - Batch processing with memory flushes every 20 entities
+ * - EntityManager flush/clear after each major operation
  *
  * SCHOOL 1: Delhi Public School (DPS-DLH) - New Delhi
  * SCHOOL 2: Kendriya Vidyalaya (KV-MUM) - Mumbai
@@ -195,6 +199,12 @@ public class DemoDataSeedService {
     private final DocumentRepository documentRepository;
     private final LeaveRequestRepository leaveRequestRepository;
     private final EntityManager entityManager;
+
+    /** Pause duration between major steps (in milliseconds) to avoid overwhelming Render free tier */
+    private static final long STEP_PAUSE_MS = 1000; // 1 second between steps
+
+    /** Batch size for entity manager flush/clear operations */
+    private static final int BATCH_SIZE = 20;
 
     public DemoDataSeedService(
             TenantConfigRepository tenantConfigRepository,
@@ -387,11 +397,13 @@ public class DemoDataSeedService {
         // STEP 1: Tenant Config
         log.info("  [1/15] Tenant Config...");
         TenantConfig config = createTenantConfig(tenantId, schoolCode, schoolName, address, phone, email);
+        pauseForResourceManagement();
 
         // STEP 2: Admin User
         log.info("  [2/15] Admin User...");
         User adminUser = createUser(tenantId, schoolCode, "School Admin", "admin@" + email.split("@")[1],
                                     Enums.Role.ADMIN, "+91-" + phone.substring(4, 14));
+        pauseForResourceManagement();
 
         // STEP 3: Academic Year
         log.info("  [3/15] Academic Year...");
@@ -399,58 +411,99 @@ public class DemoDataSeedService {
                                                        LocalDate.of(2025, 4, 1),
                                                        LocalDate.of(2026, 3, 31),
                                                        true);
+        pauseForResourceManagement();
 
         // STEP 4: Academic Subjects (common across all classes)
         log.info("  [4/15] Academic Subjects...");
         createAcademicSubjects(tenantId);
+        flushAndClear(); // Clear memory after creating subjects
+        pauseForResourceManagement();
 
         // STEP 5: Teachers (10 teachers - optimized for Render free tier)
         log.info("  [5/15] Teachers...");
         List<Teacher> teachers = createTeachers(tenantId, schoolCode, 10, random);
+        flushAndClear(); // Clear memory after creating teachers
+        pauseForResourceManagement();
 
         // STEP 6: Classes & Sections (Classes 6-12, Sections A, B - optimized for Render)
         log.info("  [6/15] Classes & Sections...");
         Map<Integer, List<ClassSectionPair>> classesMap = createClassesAndSections(tenantId, academicYear.getId(), teachers, random);
+        flushAndClear(); // Clear memory after creating classes
+        pauseForResourceManagement();
 
         // STEP 7: Students with Guardians (7-8 per section = ~100 total - optimized for Render)
         log.info("  [7/15] Students & Guardians...");
         List<Student> allStudents = createStudentsWithGuardians(tenantId, schoolCode, classesMap, random);
+        log.info("  [7/15] ✓ Created {} students with guardians", allStudents.size());
+        flushAndClear(); // Critical: Clear memory after large student creation
+        pauseForResourceManagement();
 
         // STEP 8: Teacher Assignments (Class Teachers + Subject Teachers)
         log.info("  [8/15] Teacher Assignments...");
         assignTeachersToClasses(tenantId, academicYear.getId(), classesMap, teachers, random);
+        flushAndClear();
+        pauseForResourceManagement();
 
         // STEP 9: Fee Structures & Payments
         log.info("  [9/15] Fees & Payments...");
         createFeesAndPayments(tenantId, academicYear.getId(), classesMap, allStudents, random);
+        log.info("  [9/15] ✓ Created fee structures and payments");
+        flushAndClear(); // Critical: Clear memory after fee payments
+        pauseForResourceManagement();
 
         // STEP 10: Exams & Mark Records
         log.info("  [10/15] Exams & Marks...");
         createExamsAndMarks(tenantId, academicYear.getId(), classesMap, allStudents, random);
+        log.info("  [10/15] ✓ Created exams and mark records");
+        flushAndClear(); // Critical: Clear memory after marks
+        pauseForResourceManagement();
 
-        // STEP 11: Attendance (last 10 days)
+        // STEP 11: Attendance (last 5 days)
         log.info("  [11/15] Attendance...");
         createAttendance(tenantId, allStudents, teachers, random);
+        log.info("  [11/15] ✓ Created attendance records");
+        flushAndClear(); // Critical: Clear memory after attendance
+        pauseForResourceManagement();
 
         // STEP 12: Timetables
         log.info("  [12/15] Timetables...");
         createTimetables(tenantId, academicYear.getId(), classesMap, teachers, random);
+        log.info("  [12/15] ✓ Created timetables");
+        flushAndClear(); // Critical: Clear memory after timetables
+        pauseForResourceManagement();
 
         // STEP 13: Transport
         log.info("  [13/15] Transport...");
         createTransport(tenantId, allStudents, random);
+        flushAndClear();
+        pauseForResourceManagement();
 
         // STEP 14: Library
         log.info("  [14/15] Library...");
         createLibrary(tenantId, allStudents, teachers, random);
+        flushAndClear();
+        pauseForResourceManagement();
 
         // STEP 15: Hostel & Payroll & Communication & Documents & Leave
         log.info("  [15/15] Hostel, Payroll, Communication, Documents, Leave...");
         createHostel(tenantId, allStudents, random);
+        flushAndClear();
+        pauseForResourceManagement();
+
         createPayroll(tenantId, teachers, random);
+        flushAndClear();
+        pauseForResourceManagement();
+
         createCommunication(tenantId, adminUser, teachers, allStudents, random);
+        flushAndClear();
+        pauseForResourceManagement();
+
         createDocuments(tenantId, allStudents, teachers, random);
+        flushAndClear();
+        pauseForResourceManagement();
+
         createLeaveRequests(tenantId, teachers, allStudents, random);
+        flushAndClear();
 
         log.info("══════════════════════════════════════════════════════════════");
         log.info("✅ School {} SEEDED SUCCESSFULLY!", schoolCode);
@@ -459,6 +512,30 @@ public class DemoDataSeedService {
         log.info("   Classes: 7 (grades 6-12)");
         log.info("   Sections: 14 (A, B per class)");
         log.info("══════════════════════════════════════════════════════════════");
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════════════════════
+    // HELPER METHODS FOR RESOURCE MANAGEMENT
+    // ═══════════════════════════════════════════════════════════════════════════════════════════
+
+    /**
+     * Pauses execution to avoid overwhelming Render's limited resources (0.1 CPU, 512MB RAM)
+     */
+    private void pauseForResourceManagement() {
+        try {
+            Thread.sleep(STEP_PAUSE_MS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            log.warn("Pause interrupted: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * Flushes and clears entity manager to free up memory
+     */
+    private void flushAndClear() {
+        entityManager.flush();
+        entityManager.clear();
     }
 
     // ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -674,6 +751,7 @@ public class DemoDataSeedService {
                                                       Random random) {
         List<Student> allStudents = new ArrayList<>();
         int admissionCounter = 1000;
+        int entityCounter = 0; // For batch processing
 
         for (int grade = 6; grade <= 12; grade++) {
             List<ClassSectionPair> sections = classesMap.get(grade);
@@ -766,6 +844,13 @@ public class DemoDataSeedService {
                                         Enums.GuardianRelationType.MOTHER, false);
 
                     allStudents.add(student);
+
+                    // Batch processing: flush and clear every BATCH_SIZE students to manage memory
+                    entityCounter++;
+                    if (entityCounter % BATCH_SIZE == 0) {
+                        flushAndClear();
+                        log.debug("  Processed {} students, flushed memory", entityCounter);
+                    }
                 }
             }
         }
@@ -871,6 +956,7 @@ public class DemoDataSeedService {
 
         // Create fee payments for all students
         long receiptCounter = System.currentTimeMillis(); // Start counter with current timestamp
+        int paymentCounter = 0; // For batch processing
         for (Student student : allStudents) {
             FeeStructure fs = feeStructureMap.get(student.getClassId());
             if (fs == null) continue;
@@ -918,6 +1004,13 @@ public class DemoDataSeedService {
             payment.setLateFee(BigDecimal.ZERO);
             payment.setIsDeleted(false);
             feePaymentRepository.save(payment);
+
+            // Batch processing: flush and clear every BATCH_SIZE payments to manage memory
+            paymentCounter++;
+            if (paymentCounter % BATCH_SIZE == 0) {
+                flushAndClear();
+                log.debug("  Processed {} fee payments, flushed memory", paymentCounter);
+            }
         }
     }
 
@@ -989,6 +1082,7 @@ public class DemoDataSeedService {
 
             // Create mark records for completed exams (only first exam)
             if (examIdx == 0) {
+                int markCounter = 0; // For batch processing
                 for (Student student : allStudents) {
                     for (String subject : subjects) {
                         double maxMarks = 100;
@@ -1011,6 +1105,13 @@ public class DemoDataSeedService {
                         mr.setGrade(grade);
                         mr.setIsDeleted(false);
                         markRecordRepository.save(mr);
+
+                        // Batch processing: flush and clear every BATCH_SIZE marks to manage memory
+                        markCounter++;
+                        if (markCounter % BATCH_SIZE == 0) {
+                            flushAndClear();
+                            log.debug("  Processed {} mark records, flushed memory", markCounter);
+                        }
                     }
                 }
             }
@@ -1020,6 +1121,7 @@ public class DemoDataSeedService {
     private void createAttendance(String tenantId, List<Student> allStudents,
                                  List<Teacher> teachers, Random random) {
         // Last 5 days of attendance (optimized for Render free tier)
+        int attendanceCounter = 0; // For batch processing
         for (int day = 5; day >= 1; day--) {
             LocalDate date = LocalDate.now().minusDays(day);
 
@@ -1045,6 +1147,13 @@ public class DemoDataSeedService {
                 ar.setRemarks(status == Enums.AttendanceStatus.ABSENT ? "Absent without notice" : null);
                 ar.setIsDeleted(false);
                 attendanceRepository.save(ar);
+
+                // Batch processing: flush and clear every BATCH_SIZE records to manage memory
+                attendanceCounter++;
+                if (attendanceCounter % BATCH_SIZE == 0) {
+                    flushAndClear();
+                    log.debug("  Processed {} attendance records, flushed memory", attendanceCounter);
+                }
             }
         }
     }
@@ -1059,6 +1168,7 @@ public class DemoDataSeedService {
                                  Enums.DayOfWeek.FRIDAY, Enums.DayOfWeek.SATURDAY};
 
         int teacherIdx = 0;
+        int timetableCounter = 0; // For batch processing
 
         for (int grade = 6; grade <= 12; grade++) {
             List<ClassSectionPair> sections = classesMap.get(grade);
@@ -1090,6 +1200,13 @@ public class DemoDataSeedService {
                         tte.setRoom("Room " + (100 + grade * 10 + period));
                         tte.setIsDeleted(false);
                         timetableRepository.save(tte);
+
+                        // Batch processing: flush and clear every BATCH_SIZE entries to manage memory
+                        timetableCounter++;
+                        if (timetableCounter % BATCH_SIZE == 0) {
+                            flushAndClear();
+                            log.debug("  Processed {} timetable entries, flushed memory", timetableCounter);
+                        }
 
                         subjectIdx++;
                     }
