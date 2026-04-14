@@ -289,8 +289,10 @@
       }
     },
     "parent": {
+      "pageTitle": "Parent Dashboard",
       "child": "Child",
       "inbox": "Inbox",
+      "announcements": "Announcements",
       "fees": "Fees",
       "classFallback": "Class {{id}}",
       "alertsTitle": "Alerts & reminders",
@@ -301,6 +303,22 @@
       "feeStatusTitle": "Fee status",
       "due": "Due",
       "upcomingTitle": "Upcoming",
+      "cta": {
+        "payNow": "Pay now",
+        "openFees": "Open fees",
+        "openAnnouncements": "Open announcements",
+        "viewExams": "View exams"
+      },
+      "alert": {
+        "feeTitle": "Fee due this month",
+        "feeMessage": "{{amount}} is pending for {{name}}. Pay before the due date to avoid late fee.",
+        "attendanceTitle": "Attendance this period",
+        "attendanceMessage": "Attendance is {{pct}}% for the selected range. Check school announcements for notices from the class teacher.",
+        "resultsTitle": "Latest results on file",
+        "resultsMessage": "{{count}} subject record(s) available. Overall grade trend: {{grade}}. Details are under Examinations.",
+        "ptmTitle": "Parent–Teacher Meeting",
+        "ptmMessage": "PTM is scheduled next week. Confirm details and notices under Announcements."
+      },
       "kpi": {
         "childrenLinked": "Children linked",
         "attendance": "Attendance",
@@ -2139,7 +2157,8 @@
     }
   },
   "parentPortal": {
-    "pageTitle": "Parent portal",
+    "pageTitle": "Your Children ",
+    "childrenPageSubtitle": "Select a child and month for attendance; fees and receipts stay per child. Overview and guidance are on your Dashboard.",
     "leadBefore": "Track attendance, fees, and performance. Exams, timetables, and published grades live under",
     "leadExams": "Examinations",
     "leadAfter": "in the sidebar. Fee payments are per selected child.",
@@ -2147,6 +2166,10 @@
     "labelChild": "Child",
     "selectChild": "Select child",
     "classFallback": "Class {{id}}",
+    "labelAttendanceMonth": "Attendance month",
+    "attendanceMonthPlaceholder": "Select month",
+    "attendanceMonthHint": "Summary and the table use this calendar month (through today if it is the current month).",
+    "attendancePageSummary": "Showing {{from}} to {{to}} of {{total}}",
     "labelFrom": "From",
     "labelTo": "To",
     "phFrom": "From",
@@ -2155,6 +2178,8 @@
     "statDaysPresent": "Days present",
     "statFeesPending": "Fees pending",
     "statMarksEntries": "Marks entries",
+    "resultsTitle": "Results",
+    "resultsTileAria": "Open published examination results for the selected child",
     "examsBannerBefore": "Exams & grades — open",
     "examsBannerMid": ": pick your child, then each exam’s",
     "examsBannerTimetable": "Timetable",

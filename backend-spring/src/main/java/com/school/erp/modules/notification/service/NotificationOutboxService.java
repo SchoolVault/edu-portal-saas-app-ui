@@ -87,7 +87,7 @@ public class NotificationOutboxService {
                         ? Enums.NotificationType.WARNING
                         : Enums.NotificationType.INFO;
                 String link = ("FEE_REMINDER".equals(row.getEventType()) || "FEE_ASSIGNED".equals(row.getEventType()))
-                        ? "/app/parent"
+                        ? "/app/parent/children"
                         : "/app/inbox";
                 Notification inApp = Notification.builder()
                         .title(row.getSubject() != null ? row.getSubject() : "Notice")

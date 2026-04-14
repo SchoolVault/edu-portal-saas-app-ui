@@ -1422,19 +1422,25 @@ img.table-avatar {
   .stat-card { padding: 16px; }
 }
 
-/* === ERP DATE PICKER (Flatpickr) — SchoolVault tokens, light + dark === */
-.erp-date-picker__visible {
+/* === ERP DATE / MONTH PICKER (Flatpickr) — SchoolVault tokens, light + dark === */
+.erp-date-picker__visible,
+.erp-month-picker__visible {
   cursor: pointer;
   width: 100%;
+  box-sizing: border-box;
+  min-height: 42px;
+  line-height: 1.35;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='%2394a3b8' viewBox='0 0 16 16'%3E%3Cpath d='M3.5 0a.5.5 0 0 1 .5.5V1h8V.5a.5.5 0 0 1 1 0V1h1a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V3a2 2 0 0 1 2-2h1V.5a.5.5 0 0 1 .5-.5zM1 4v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V4H1z'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 14px center;
   padding-right: 42px;
 }
-[data-theme='light'] .erp-date-picker__visible {
+[data-theme='light'] .erp-date-picker__visible,
+[data-theme='light'] .erp-month-picker__visible {
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='%2357534E' viewBox='0 0 16 16'%3E%3Cpath d='M3.5 0a.5.5 0 0 1 .5.5V1h8V.5a.5.5 0 0 1 1 0V1h1a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V3a2 2 0 0 1 2-2h1V.5a.5.5 0 0 1 .5-.5zM1 4v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V4H1z'/%3E%3C/svg%3E");
 }
-.erp-date-picker--disabled {
+.erp-date-picker--disabled,
+.erp-month-picker--disabled {
   opacity: 0.55;
   cursor: not-allowed;
 }
@@ -1547,6 +1553,181 @@ span.flatpickr-weekday {
   border-top-color: var(--clr-surface);
 }
 
+/* Flatpickr monthSelect plugin — match ERP calendar tokens */
+.flatpickr-monthSelect-months {
+  margin: 10px 6px 6px;
+  gap: 6px;
+  row-gap: 8px;
+}
+.flatpickr-monthSelect-month {
+  width: calc(33.333% - 6px);
+  margin: 0;
+  padding: 12px 8px;
+  font-weight: 600;
+  font-size: 13px;
+  letter-spacing: 0.02em;
+  color: var(--clr-text);
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  box-sizing: border-box;
+}
+.flatpickr-monthSelect-month.flatpickr-disabled {
+  color: var(--clr-text-muted);
+  opacity: 0.42;
+  cursor: not-allowed;
+}
+.flatpickr-monthSelect-month.flatpickr-disabled:hover,
+.flatpickr-monthSelect-month.flatpickr-disabled:focus {
+  background: transparent !important;
+  border-color: transparent !important;
+}
+.flatpickr-monthSelect-month.today:not(.selected):not(.flatpickr-disabled) {
+  border-color: color-mix(in srgb, var(--clr-primary) 55%, var(--clr-border));
+  color: var(--clr-primary);
+  font-weight: 700;
+}
+.flatpickr-monthSelect-month:hover:not(.flatpickr-disabled):not(.selected),
+.flatpickr-monthSelect-month:focus:not(.flatpickr-disabled):not(.selected) {
+  background: var(--clr-hover);
+  border-color: var(--clr-border-light);
+  box-shadow: none !important;
+  outline: 0;
+}
+.flatpickr-monthSelect-month.inRange {
+  box-shadow: none !important;
+  border-radius: var(--radius-md) !important;
+}
+.flatpickr-monthSelect-month.selected,
+.flatpickr-monthSelect-month.startRange,
+.flatpickr-monthSelect-month.endRange {
+  background: var(--clr-accent) !important;
+  border-color: var(--clr-accent) !important;
+  color: #fff !important;
+  box-shadow: none !important;
+  border-radius: var(--radius-md) !important;
+}
+.flatpickr-monthSelect-month.startRange,
+.flatpickr-monthSelect-month.endRange {
+  border-radius: var(--radius-md) !important;
+}
+.flatpickr-monthSelect-theme-light .flatpickr-monthSelect-month {
+  color: var(--clr-text);
+}
+[data-theme='dark'] .flatpickr-monthSelect-theme-light .flatpickr-monthSelect-month.flatpickr-disabled {
+  opacity: 0.35;
+}
+
+/*
+ * Month-only popover: Flatpickr’s default `.flatpickr-current-month` is `position:absolute`
+ * with a fixed height for the day grid. monthSelect removes the month label, which leaves
+ * the year control misaligned and can clip/overlap stray UI ("00", page text bleeding through).
+ * Scoped to `.erp-flatpickr-month` (added by ErpMonthPickerComponent) so the day picker stays unchanged.
+ */
+.flatpickr-calendar.erp-flatpickr-month {
+  width: min(100vw - 24px, 304px);
+  max-width: min(100vw - 24px, 304px);
+  box-sizing: border-box;
+  overflow: hidden;
+  z-index: 1080;
+  background: var(--clr-surface);
+}
+.flatpickr-calendar.erp-flatpickr-month .flatpickr-innerContainer,
+.flatpickr-calendar.erp-flatpickr-month .flatpickr-rContainer {
+  display: block;
+  margin: 0;
+  padding: 0;
+}
+.flatpickr-calendar.erp-flatpickr-month .flatpickr-months {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 40px;
+  box-sizing: border-box;
+}
+.flatpickr-calendar.erp-flatpickr-month .flatpickr-months .flatpickr-month {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1 1 auto;
+  width: 100%;
+  height: auto;
+  min-height: 42px;
+  overflow: visible;
+}
+.flatpickr-calendar.erp-flatpickr-month .flatpickr-current-month {
+  position: relative !important;
+  left: auto !important;
+  width: 100% !important;
+  max-width: 100%;
+  height: auto !important;
+  padding: 0 !important;
+  margin: 0;
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  transform: none !important;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--clr-text);
+}
+.flatpickr-calendar.erp-flatpickr-month .flatpickr-current-month .numInputWrapper {
+  flex: 0 0 auto;
+  margin: 0;
+}
+.flatpickr-calendar.erp-flatpickr-month .flatpickr-current-month .numInput.cur-year {
+  width: 4.5rem;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+}
+.flatpickr-calendar.erp-flatpickr-month .flatpickr-months .flatpickr-prev-month,
+.flatpickr-calendar.erp-flatpickr-month .flatpickr-months .flatpickr-next-month {
+  top: 50%;
+  transform: translateY(-50%);
+  height: 36px;
+  width: 36px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+}
+.flatpickr-calendar.erp-flatpickr-month .flatpickr-months .flatpickr-next-month {
+  transform: translateY(-50%);
+}
+.flatpickr-calendar.erp-flatpickr-month .flatpickr-time {
+  display: none !important;
+}
+.flatpickr-calendar.erp-flatpickr-month .flatpickr-weekdays,
+.flatpickr-calendar.erp-flatpickr-month .flatpickr-days {
+  display: none !important;
+}
+.flatpickr-calendar.erp-flatpickr-month .flatpickr-weeks {
+  display: none !important;
+}
+.flatpickr-calendar.erp-flatpickr-month .flatpickr-monthSelect-months {
+  display: grid !important;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  row-gap: 8px;
+  margin: 4px 12px 10px;
+  padding: 0;
+  width: auto;
+  flex-wrap: unset !important;
+}
+.flatpickr-calendar.erp-flatpickr-month .flatpickr-monthSelect-month {
+  width: auto !important;
+  max-width: none;
+  margin: 0 !important;
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  min-height: 42px;
+  padding: 10px 6px;
+  box-sizing: border-box;
+}
+
 .erp-fp-footer {
   display: flex;
   justify-content: space-between;
@@ -1579,6 +1760,20 @@ span.flatpickr-weekday {
 }
 [data-theme='dark'] .erp-fp-footer__btn--primary {
   color: var(--clr-accent);
+}
+
+.erp-fp-footer--month {
+  flex-wrap: nowrap;
+  align-items: stretch;
+}
+.erp-fp-footer--month .erp-fp-footer__btn {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
 }
 
 /* === Interactive polish (primary/accent aware) === */

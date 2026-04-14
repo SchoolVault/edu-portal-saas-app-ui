@@ -289,8 +289,10 @@
       }
     },
     "parent": {
+      "pageTitle": "अभिभावक डैशबोर्ड",
       "child": "बच्चा",
       "inbox": "इनबॉक्स",
+      "announcements": "घोषणाएँ",
       "fees": "फीस",
       "classFallback": "कक्षा {{id}}",
       "alertsTitle": "चेतावनियाँ और अनुस्मारक",
@@ -301,6 +303,22 @@
       "feeStatusTitle": "फीस स्थिति",
       "due": "देय",
       "upcomingTitle": "आगामी",
+      "cta": {
+        "payNow": "अभी भुगतान करें",
+        "openFees": "फीस खोलें",
+        "openAnnouncements": "घोषणाएँ खोलें",
+        "viewExams": "परीक्षाएँ देखें"
+      },
+      "alert": {
+        "feeTitle": "इस माह फीस देय",
+        "feeMessage": "{{name}} के लिए {{amount}} लंबित है। विलंब शुल्क से बचने के लिए समय पर भुगतान करें।",
+        "attendanceTitle": "इस अवधि की उपस्थिति",
+        "attendanceMessage": "चयनित अवधि में उपस्थिति {{pct}}% है। कक्षा शिक्षक की सूचनाओं के लिए स्कूल घोषणाएँ देखें।",
+        "resultsTitle": "नवीनतम परिणाम उपलब्ध",
+        "resultsMessage": "{{count}} विषय रिकॉर्ड उपलब्ध हैं। समग्र ग्रेड रुझान: {{grade}}। विवरण परीक्षा अनुभाग में हैं।",
+        "ptmTitle": "अभिभावक–शिक्षक बैठक",
+        "ptmMessage": "अगले सप्ताह PTM निर्धारित है। विवरण और सूचनाएँ घोषणाओं में देखें।"
+      },
       "kpi": {
         "childrenLinked": "जुड़े बच्चे",
         "attendance": "उपस्थिति",
@@ -2139,7 +2157,8 @@
     "featureFlagsLoadErr": "वर्तमान ध्वज लोड नहीं हो सके।"
   },
   "parentPortal": {
-    "pageTitle": "अभिभावक पोर्टल",
+    "pageTitle": "आपके बच्चे",
+    "childrenPageSubtitle": "उपस्थिति के लिए बच्चा और माह चुनें; फीस और रसीदें चयनित बच्चे के अनुसार। सारांश और मार्गदर्शन डैशबोर्ड पर है।",
     "leadBefore": "उपस्थिति, फीस और प्रदर्शन यहाँ देखें। परीक्षाएँ, समय सारणी और प्रकाशित अंक — साइडबार में ",
     "leadExams": "परीक्षाएँ",
     "leadAfter": "। फीस भुगतान चयनित बच्चे के अनुसार होता है।",
@@ -2147,6 +2166,10 @@
     "labelChild": "बच्चा",
     "selectChild": "बच्चा चुनें",
     "classFallback": "कक्षा {{id}}",
+    "labelAttendanceMonth": "उपस्थिति का माह",
+    "attendanceMonthPlaceholder": "माह चुनें",
+    "attendanceMonthHint": "सारांश और तालिका इस कैलेंडर माह के लिए हैं (वर्तमान माह में आज तक)।",
+    "attendancePageSummary": "{{total}} में से {{from}}–{{to}} दिखा रहे हैं",
     "labelFrom": "से",
     "labelTo": "तक",
     "phFrom": "से",
@@ -2158,6 +2181,7 @@
     "examsBannerBefore": "परीक्षाएँ और ग्रेड — खोलें ",
     "examsBannerMid": ": अपना बच्चा चुनें, फिर प्रत्येक परीक्षा की ",
     "examsBannerTimetable": "समय सारणी",
+    "resultsTitle": "परिणाम",
     "examsBannerAnd": "और",
     "examsBannerResults": "परिणाम",
     "examsBannerAfter": " (प्रकाशित होने पर) एक ही स्थान पर।",

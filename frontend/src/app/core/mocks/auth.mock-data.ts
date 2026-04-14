@@ -1,6 +1,7 @@
 import type { LoginRequest } from '../models/models';
 import type { ProfileSummary } from '../models/models';
 import type { User } from '../models/models';
+import { mockHomeroomRowsForTeacherRecordId } from './mock-aggregates';
 
 /** Demo accounts — same shape as future `POST /auth/login` users; delete this file when mocks are off. */
 export interface MockLoginRecord {
@@ -77,7 +78,7 @@ export function buildMockProfileSummary(user: User | null): ProfileSummary {
       qualification: 'M.Sc Mathematics',
       specialization: 'Mathematics',
       subjectCount: 3,
-      classTeacherOf: [{ classId: 8, className: 'Class 8', sectionName: 'A', totalStudents: 38 }],
+      classTeacherOf: mockHomeroomRowsForTeacherRecordId(1),
     };
   }
   if (user?.role === 'super_admin') {

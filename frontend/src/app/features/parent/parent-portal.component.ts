@@ -1,7 +1,7 @@
 import { ChangeDetectorRef, Component, OnDestroy, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { RouterModule } from '@angular/router';
+import { ActivatedRoute, ParamMap, RouterModule } from '@angular/router';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { Subject, takeUntil } from 'rxjs';
 import { ParentService } from '../../core/services/parent.service';
@@ -19,15 +19,29 @@ import {
 } from '../../core/models/models';
 import { coerceApiLongId } from '../../core/utils/coerce-api-long-id';
 import { ErpDatePickerComponent } from '../../shared/erp-date-picker/erp-date-picker.component';
+import { ErpMonthPickerComponent } from '../../shared/erp-month-picker/erp-month-picker.component';
 import {
   parentFeePaymentMethodOptions,
   type ParentFeePaymentMethodOption,
 } from './parent-fee-payment.providers';
+import {
+  cssClassForTone,
+  toneClassForAmountHigherWorse,
+  toneClassForCountHigherBetter,
+  toneClassForPercent,
+} from '../../core/ui/metric-tone';
 
 @Component({
   selector: 'app-parent-portal',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterModule, ErpDatePickerComponent, TranslateModule],
+  imports: [
+    CommonModule,
+    FormsModule,
+    RouterModule,
+    ErpDatePickerComponent,
+    ErpMonthPickerComponent,
+    TranslateModule,
+  ],
   styles: [
     `
       .parent-payment-activity .parent-receipt-scroll {
@@ -81,20 +95,32 @@ import {
       .erp-input--invalid {
         border-color: var(--clr-danger) !important;
       }
+      .stat-card.metric-tone--danger .stat-value {
+        color: var(--clr-danger);
+        font-weight: 800;
+      }
+      .stat-card.metric-tone--warn .stat-value {
+        color: var(--clr-warning);
+        font-weight: 800;
+      }
+      .stat-card.metric-tone--ok .stat-value {
+        color: var(--clr-success);
+        font-weight: 800;
+      }
+      a.stat-card.stat-card--clickable:hover {
+        border-color: color-mix(in srgb, var(--clr-accent) 35%, var(--clr-border-light));
+        box-shadow: var(--shadow-md);
+      }
     `,
   ],
   template: `
     <div data-testid="parent-portal-page">
-      <div class="d-flex justify-content-between align-items-center mb-4 animate-in flex-wrap gap-2">
-        <div>
-          <h2 style="font-size: 24px; font-weight: 800;">{{ 'parentPortal.pageTitle' | translate }}</h2>
-          <p class="text-muted mb-0" style="font-size: 13px;">
-            {{ 'parentPortal.leadBefore' | translate }}
-            <strong>{{ 'parentPortal.leadExams' | translate }}</strong>
-            {{ 'parentPortal.leadAfter' | translate }}
-          </p>
+      <div class="d-flex justify-content-between align-items-start mb-4 animate-in flex-wrap gap-2">
+        <div class="flex-grow-1 min-w-0">
+          <h2 class="mb-1 lh-sm" style="font-size: 24px; font-weight: 800;">{{ 'parentPortal.pageTitle' | translate }}</h2>
+          <p class="text-muted mb-0 lh-sm" style="font-size: 13px;">{{ 'parentPortal.childrenPageSubtitle' | translate }}</p>
         </div>
-        <button type="button" class="btn-outline-erp btn-sm" (click)="refreshPortal()"><i class="bi bi-arrow-clockwise"></i> {{ 'parentPortal.refresh' | translate }}</button>
+        <button type="button" class="btn-outline-erp btn-sm flex-shrink-0 align-self-start" (click)="refreshPortal()"><i class="bi bi-arrow-clockwise"></i> {{ 'parentPortal.refresh' | translate }}</button>
       </div>
 
       <div class="erp-card mb-4 animate-in animate-in-delay-1">
@@ -108,13 +134,15 @@ import {
               </option>
             </select>
           </div>
-          <div class="col-md-3">
-            <label class="erp-label">{{ 'parentPortal.labelFrom' | translate }}</label>
-            <app-erp-date-picker [(ngModel)]="fromDate" (ngModelChange)="reloadSelectedChild()" [placeholder]="'parentPortal.phFrom' | translate" />
-          </div>
-          <div class="col-md-3">
-            <label class="erp-label">{{ 'parentPortal.labelTo' | translate }}</label>
-            <app-erp-date-picker [(ngModel)]="toDate" (ngModelChange)="reloadSelectedChild()" [placeholder]="'parentPortal.phTo' | translate" />
+          <div class="col-md-5 col-lg-4">
+            <label class="erp-label">{{ 'parentPortal.labelAttendanceMonth' | translate }}</label>
+            <app-erp-month-picker
+              class="w-100"
+              [placeholder]="'parentPortal.attendanceMonthPlaceholder' | translate"
+              [(ngModel)]="attendanceMonthYm"
+              (ngModelChange)="onAttendanceMonthChange()"
+              [maxYm]="maxAttendanceMonthYm"
+            />
           </div>
         </div>
       </div>
@@ -122,28 +150,34 @@ import {
       <div *ngIf="selectedChild" class="animate-in animate-in-delay-2">
         <div class="row g-4 mb-4">
           <div class="col-md-3">
-            <div class="stat-card">
+            <div class="stat-card" [ngClass]="attendancePctToneClass()">
               <div class="stat-value">{{ attendanceStats.attendancePercentage | number:'1.0-1' }}%</div>
               <div class="stat-label">{{ 'parentPortal.statAttendanceRate' | translate }}</div>
             </div>
           </div>
           <div class="col-md-3">
-            <div class="stat-card">
+            <div class="stat-card" [ngClass]="presentDaysToneClass()">
               <div class="stat-value">{{ attendanceStats.present }}</div>
               <div class="stat-label">{{ 'parentPortal.statDaysPresent' | translate }}</div>
             </div>
           </div>
           <div class="col-md-3">
-            <div class="stat-card">
+            <div class="stat-card" [ngClass]="feesPendingToneClass()">
               <div class="stat-value">{{ totalPending | number:'1.0-0' }}</div>
               <div class="stat-label">{{ 'parentPortal.statFeesPending' | translate }}</div>
             </div>
           </div>
           <div class="col-md-3">
-            <div class="stat-card">
+            <a
+              class="stat-card stat-card--clickable text-decoration-none text-reset d-block h-100"
+              [ngClass]="publishedResultsToneClass()"
+              [routerLink]="['/app/exams']"
+              [queryParams]="examsDeepLinkParams"
+              [attr.aria-label]="'parentPortal.resultsTileAria' | translate"
+            >
               <div class="stat-value">{{ marks.length }}</div>
-              <div class="stat-label">{{ 'parentPortal.statMarksEntries' | translate }}</div>
-            </div>
+              <div class="stat-label">{{ 'parentPortal.resultsTitle' | translate }}</div>
+            </a>
           </div>
         </div>
 
@@ -153,7 +187,7 @@ import {
             <strong>{{ 'parentPortal.examsBannerTimetable' | translate }}</strong> {{ 'parentPortal.examsBannerAnd' | translate }}
             <strong>{{ 'parentPortal.examsBannerResults' | translate }}</strong> {{ 'parentPortal.examsBannerAfter' | translate }}
           </p>
-          <a routerLink="/app/exams" class="btn-primary-erp btn-sm text-decoration-none">{{ 'parentPortal.openExams' | translate }}</a>
+          <a [routerLink]="['/app/exams']" [queryParams]="examsDeepLinkParams" class="btn-primary-erp btn-sm text-decoration-none">{{ 'parentPortal.openExams' | translate }}</a>
         </div>
 
         <div class="erp-tabs mb-3">
@@ -168,16 +202,34 @@ import {
             <div class="col-md-3"><strong style="color: var(--clr-danger);">{{ attendanceStats.absent }}</strong><div class="text-muted">{{ 'parentPortal.absent' | translate }}</div></div>
             <div class="col-md-3"><strong style="color: var(--clr-warning);">{{ attendanceStats.late }}</strong><div class="text-muted">{{ 'parentPortal.late' | translate }}</div></div>
           </div>
-          <table class="erp-table" *ngIf="attendanceRecords.length">
+          <table class="erp-table" *ngIf="paginatedAttendanceRecords.length">
             <thead><tr><th>{{ 'parentPortal.thDate' | translate }}</th><th>{{ 'parentPortal.thStatus' | translate }}</th><th>{{ 'parentPortal.thRemarks' | translate }}</th></tr></thead>
             <tbody>
-              <tr *ngFor="let record of attendanceRecords">
+              <tr *ngFor="let record of paginatedAttendanceRecords">
                 <td>{{ record.date }}</td>
                 <td><span class="badge-erp badge-neutral">{{ attendanceRowStatusLabel(record.status) }}</span></td>
                 <td>{{ getAttendanceRemarks(record) }}</td>
               </tr>
             </tbody>
           </table>
+          <div class="pagination-wrapper" *ngIf="attendanceRecords.length > attendancePageSize">
+            <span>{{ 'parentPortal.attendancePageSummary' | translate: { from: attendancePageFrom, to: attendancePageTo, total: attendanceRecords.length } }}</span>
+            <div class="pagination-controls">
+              <button type="button" class="page-btn" [disabled]="attendancePage === 1" (click)="setAttendancePage(attendancePage - 1)">
+                <i class="bi bi-chevron-left"></i>
+              </button>
+              <button
+                type="button"
+                *ngFor="let p of attendancePageButtons"
+                class="page-btn"
+                [class.active]="p === attendancePage"
+                (click)="setAttendancePage(p)"
+              >{{ p }}</button>
+              <button type="button" class="page-btn" [disabled]="attendancePage === attendanceTotalPages" (click)="setAttendancePage(attendancePage + 1)">
+                <i class="bi bi-chevron-right"></i>
+              </button>
+            </div>
+          </div>
           <div *ngIf="!attendanceRecords.length" class="empty-state"><h3>{{ 'parentPortal.emptyAttendance' | translate }}</h3></div>
         </div>
 
@@ -443,8 +495,16 @@ export class ParentPortalComponent implements OnInit, OnDestroy {
   tab: 'attendance' | 'fees' = 'attendance';
   fromDate = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0];
   toDate = new Date().toISOString().split('T')[0];
+  /** `YYYY-MM` — drives {@link fromDate}/{@link toDate} for attendance (and overview) fetch. */
+  attendanceMonthYm = ParentPortalComponent.currentCalendarYm();
   attendanceStats: AttendanceStats = { totalDays: 0, present: 0, absent: 0, late: 0, excused: 0, attendancePercentage: 0 };
   attendanceRecords: AttendanceRecord[] = [];
+  /** Sorted slice for the current page (server/mock returns full month; UI pages locally). */
+  paginatedAttendanceRecords: AttendanceRecord[] = [];
+  attendancePage = 1;
+  readonly attendancePageSize = 10;
+  attendanceTotalPages = 1;
+  attendancePageButtons: number[] = [];
   fees: FeePayment[] = [];
   feeObligations: ParentFeeObligation[] = [];
   marks: MarkRecord[] = [];
@@ -470,10 +530,58 @@ export class ParentPortalComponent implements OnInit, OnDestroy {
   paymentAmountError: string | null = null;
   readonly useMocks = runtimeConfig.useMocks;
 
+  /** Deep-link into Examinations with the selected child and Results tab when published. */
+  get examsDeepLinkParams(): Record<string, string> {
+    const sid = this.selectedStudentId;
+    if (sid == null) {
+      return { tab: 'results' };
+    }
+    return { studentId: String(sid), tab: 'results' };
+  }
+
+  attendancePctToneClass(): string {
+    return cssClassForTone(toneClassForPercent(this.attendanceStats.attendancePercentage));
+  }
+
+  presentDaysToneClass(): string {
+    const max = Math.max(1, this.attendanceStats.totalDays || 0);
+    return cssClassForTone(toneClassForCountHigherBetter(this.attendanceStats.present, max));
+  }
+
+  feesPendingToneClass(): string {
+    return cssClassForTone(toneClassForAmountHigherWorse(this.totalPending));
+  }
+
+  publishedResultsToneClass(): string {
+    const n = this.marks.length;
+    return cssClassForTone(n > 0 ? 'ok' : 'neutral');
+  }
+
+  get maxAttendanceMonthYm(): string {
+    return ParentPortalComponent.currentCalendarYm();
+  }
+
+  get attendancePageFrom(): number {
+    if (!this.attendanceRecords.length) {
+      return 0;
+    }
+    return (this.attendancePage - 1) * this.attendancePageSize + 1;
+  }
+
+  get attendancePageTo(): number {
+    return Math.min(this.attendancePage * this.attendancePageSize, this.attendanceRecords.length);
+  }
+
+  private static currentCalendarYm(): string {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  }
+
   constructor(
     private parentService: ParentService,
     private translate: TranslateService,
     private cdr: ChangeDetectorRef,
+    private route: ActivatedRoute,
   ) {}
 
   get paymentMethodOptions(): ReadonlyArray<ParentFeePaymentMethodOption> {
@@ -560,8 +668,76 @@ export class ParentPortalComponent implements OnInit, OnDestroy {
   }
 
   ngOnInit(): void {
+    this.applyAttendanceRangeForSelectedMonth(false);
+    this.route.queryParamMap.pipe(takeUntil(this.destroy$)).subscribe(qp => {
+      this.applyParentRouteQuery(qp);
+      this.cdr.markForCheck();
+    });
     this.translate.onLangChange.pipe(takeUntil(this.destroy$)).subscribe(() => this.cdr.markForCheck());
     this.refreshPortal();
+  }
+
+  /** Maps {@link attendanceMonthYm} to inclusive {@link fromDate}/{@link toDate} (capped at today for the current month). */
+  onAttendanceMonthChange(): void {
+    if (!/^\d{4}-\d{2}$/.test(this.attendanceMonthYm)) {
+      this.attendanceMonthYm = ParentPortalComponent.currentCalendarYm();
+    }
+    this.attendancePage = 1;
+    this.applyAttendanceRangeForSelectedMonth(true);
+  }
+
+  private applyAttendanceRangeForSelectedMonth(reload: boolean): void {
+    const ym = this.attendanceMonthYm;
+    if (!ym || !/^\d{4}-\d{2}$/.test(ym)) {
+      return;
+    }
+    const [y, m] = ym.split('-').map(Number);
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const first = `${y}-${pad(m)}-01`;
+    const lastDom = new Date(y, m, 0).getDate();
+    const last = `${y}-${pad(m)}-${pad(lastDom)}`;
+    const todayIso = new Date().toISOString().split('T')[0];
+    this.fromDate = first;
+    this.toDate = todayIso < last ? todayIso : last;
+    if (reload) {
+      this.reloadSelectedChild();
+    }
+  }
+
+  private rebuildAttendancePagination(): void {
+    const sorted = [...this.attendanceRecords].sort((a, b) => a.date.localeCompare(b.date));
+    this.attendanceTotalPages = Math.max(1, Math.ceil(sorted.length / this.attendancePageSize));
+    if (this.attendancePage > this.attendanceTotalPages) {
+      this.attendancePage = this.attendanceTotalPages;
+    }
+    if (this.attendancePage < 1) {
+      this.attendancePage = 1;
+    }
+    this.attendancePageButtons = Array.from({ length: this.attendanceTotalPages }, (_, i) => i + 1);
+    const start = (this.attendancePage - 1) * this.attendancePageSize;
+    this.paginatedAttendanceRecords = sorted.slice(start, start + this.attendancePageSize);
+  }
+
+  setAttendancePage(p: number): void {
+    if (p < 1 || p > this.attendanceTotalPages) {
+      return;
+    }
+    this.attendancePage = p;
+    this.rebuildAttendancePagination();
+  }
+
+  /** Deep links e.g. dashboard “Pay now” → {@code /app/parent/children?tab=fees&child=12}. */
+  private applyParentRouteQuery(qp: ParamMap): void {
+    const tab = qp.get('tab');
+    if (tab === 'fees') {
+      this.tab = 'fees';
+    } else if (tab === 'attendance') {
+      this.tab = 'attendance';
+    }
+    const child = qp.get('child');
+    if (child && /^\d+$/.test(child)) {
+      this.selectedStudentId = Number(child);
+    }
   }
 
   ngOnDestroy(): void {
@@ -572,6 +748,9 @@ export class ParentPortalComponent implements OnInit, OnDestroy {
   refreshPortal(): void {
     this.parentService.getChildren().subscribe(children => {
       this.children = children;
+      if (this.selectedStudentId != null && !children.some(c => c.id === this.selectedStudentId)) {
+        this.selectedStudentId = children.length ? children[0].id : null;
+      }
       if (this.selectedStudentId == null && children.length) {
         this.selectedStudentId = children[0].id;
       }
@@ -583,6 +762,7 @@ export class ParentPortalComponent implements OnInit, OnDestroy {
 
   onStudentChange(): void {
     this.selectedChild = this.children.find(child => child.id === this.selectedStudentId) ?? null;
+    this.attendancePage = 1;
     this.reloadSelectedChild();
   }
 
@@ -591,6 +771,9 @@ export class ParentPortalComponent implements OnInit, OnDestroy {
       this.receiptHistory = [];
       this.latestReceipt = null;
       this.receiptLookupByPaymentId = new Map();
+      this.attendanceRecords = [];
+      this.paginatedAttendanceRecords = [];
+      this.attendancePageButtons = [];
       return;
     }
     this.parentService.getChildOverview(this.selectedStudentId, this.fromDate, this.toDate).subscribe(data => {
@@ -598,7 +781,10 @@ export class ParentPortalComponent implements OnInit, OnDestroy {
       this.fees = data.fees;
       this.attendanceStats = data.attendance;
       this.attendanceRecords = data.attendanceRecords;
+      this.attendancePage = 1;
+      this.rebuildAttendancePagination();
       this.totalPending = this.fees.reduce((sum, fee) => sum + fee.dueAmount, 0);
+      this.cdr.markForCheck();
     });
     this.parentService.getChildFeeObligations(this.selectedStudentId).subscribe(items => {
       this.feeObligations = items;
@@ -747,7 +933,7 @@ export class ParentPortalComponent implements OnInit, OnDestroy {
       }
       this.processingPayment = true;
       const returnUrl =
-        typeof window !== 'undefined' ? `${window.location.origin}/app/parent` : '/app/parent';
+        typeof window !== 'undefined' ? `${window.location.origin}/app/parent/children` : '/app/parent/children';
       const amount = Math.round(Number(this.paymentAmount) * 100) / 100;
       this.parentService
         .createCheckoutSession({
@@ -863,7 +1049,7 @@ export class ParentPortalComponent implements OnInit, OnDestroy {
         studentId: coerceApiLongId(this.selectedChild.id, 'student'),
         amount,
         provider: this.paymentProvider,
-        returnUrl: typeof window !== 'undefined' ? `${window.location.origin}/app/parent` : '/app/parent',
+        returnUrl: typeof window !== 'undefined' ? `${window.location.origin}/app/parent/children` : '/app/parent/children',
       })
       .subscribe({
         next: session => {

@@ -51,7 +51,7 @@ interface DashboardAdmissionInsight {
   imports: [CommonModule, RouterModule, FormsModule, TranslateModule],
   template: `
     <div data-testid="dashboard-page">
-      <div class="d-flex justify-content-end mb-2">
+      <div class="d-flex justify-content-end mb-2" *ngIf="role !== 'parent' || loading">
         <button type="button" class="btn-outline-erp btn-sm" (click)="refreshDashboard()" [disabled]="loading || refreshing" data-testid="dashboard-refresh">
           <i class="bi bi-arrow-clockwise"></i> {{ refreshing ? ('dashboard.refreshing' | translate) : ('dashboard.refresh' | translate) }}
         </button>
@@ -266,6 +266,25 @@ interface DashboardAdmissionInsight {
       </ng-container>
 
       <ng-container *ngIf="!loading && role === 'parent'">
+        <div class="d-flex justify-content-between align-items-start mb-4 animate-in flex-wrap gap-2">
+          <div class="flex-grow-1 min-w-0">
+            <h2 class="mb-1 lh-sm" style="font-size: 24px; font-weight: 800;">{{ 'dashboard.parent.pageTitle' | translate }}</h2>
+            <p class="text-muted mb-0 lh-sm" style="font-size: 13px;">
+              {{ 'parentPortal.leadBefore' | translate }}
+              <strong>{{ 'parentPortal.leadExams' | translate }}</strong>
+              {{ 'parentPortal.leadAfter' | translate }}
+            </p>
+          </div>
+          <button
+            type="button"
+            class="btn-outline-erp btn-sm flex-shrink-0 align-self-start"
+            (click)="refreshDashboard()"
+            [disabled]="loading || refreshing"
+            data-testid="dashboard-refresh-parent"
+          >
+            <i class="bi bi-arrow-clockwise"></i> {{ refreshing ? ('dashboard.refreshing' | translate) : ('dashboard.refresh' | translate) }}
+          </button>
+        </div>
         <div class="erp-card mb-4" *ngIf="(parentDashboard?.children || []).length">
           <div class="row g-3 align-items-end">
             <div class="col-md-6">
@@ -277,8 +296,8 @@ interface DashboardAdmissionInsight {
               </select>
             </div>
             <div class="col-md-6 d-flex justify-content-end gap-2">
-              <a class="btn-outline-erp btn-sm" [routerLink]="['/app/chat']"><i class="bi bi-inbox-fill me-1"></i> {{ 'dashboard.parent.inbox' | translate }}</a>
-              <a class="btn-primary-erp btn-sm" [routerLink]="['/app/parent']"><i class="bi bi-credit-card-fill me-1"></i> {{ 'dashboard.parent.fees' | translate }}</a>
+              <a class="btn-outline-erp btn-sm" [routerLink]="['/app/inbox']"><i class="bi bi-inbox-fill me-1"></i> {{ 'dashboard.parent.inbox' | translate }}</a>
+              <a class="btn-primary-erp btn-sm" [routerLink]="['/app/parent/children']" [queryParams]="{ tab: 'fees' }"><i class="bi bi-credit-card-fill me-1"></i> {{ 'dashboard.parent.fees' | translate }}</a>
             </div>
           </div>
         </div>
@@ -301,55 +320,15 @@ interface DashboardAdmissionInsight {
                   <i class="bi" [ngClass]="a.type === 'warning' ? 'bi-exclamation-triangle-fill' : 'bi-info-circle-fill'"></i>
                 </div>
                 <div class="activity-content">
-                  <h5>{{ a.title }}</h5>
-                  <p>{{ a.message }}</p>
+                  <h5>{{ a.titleKey ? (a.titleKey | translate: (a.messageParams || {})) : a.title }}</h5>
+                  <p>{{ a.messageKey ? (a.messageKey | translate: (a.messageParams || {})) : a.message }}</p>
                 </div>
-                <a *ngIf="a.ctaRoute" class="btn-outline-erp btn-sm" [routerLink]="[a.ctaRoute]">{{ a.ctaLabel || ('dashboard.common.open' | translate) }}</a>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div class="row g-4">
-          <div class="col-lg-6">
-            <div class="erp-card">
-              <div class="erp-card-header"><h3 class="erp-card-title">{{ 'dashboard.parent.performanceTitle' | translate }}</h3></div>
-              <table class="erp-table">
-                <thead><tr><th>{{ 'dashboard.parent.thSubject' | translate }}</th><th>{{ 'dashboard.parent.thMarks' | translate }}</th><th>{{ 'dashboard.parent.thGrade' | translate }}</th></tr></thead>
-                <tbody>
-                  <tr *ngFor="let mark of parentDashboard?.childPerformance">
-                    <td><strong>{{ mark.subjectName }}</strong></td>
-                    <td>{{ mark.marksObtained }}/{{ mark.maxMarks }}</td>
-                    <td>{{ mark.grade }}</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
-          <div class="col-lg-6">
-            <div class="erp-card">
-              <div class="erp-card-header"><h3 class="erp-card-title">{{ 'dashboard.parent.feeStatusTitle' | translate }}</h3></div>
-              <div *ngFor="let fee of parentDashboard?.feeStatus" class="activity-item">
-                <div class="activity-icon" style="background: rgba(220,38,38,0.1); color: var(--clr-danger);"><i class="bi bi-credit-card"></i></div>
-                <div class="activity-content">
-                  <h5>{{ fee.studentName }} - {{ fee.dueAmount | currency:'INR':'symbol':'1.0-0' }}</h5>
-                  <p>{{ 'dashboard.parent.due' | translate }}: {{ fee.dueDate }} &middot; <span style="font-weight: 600;">{{ fee.status }}</span></p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div class="row g-4 mt-1" *ngIf="(parentDashboard?.upcoming || []).length">
-          <div class="col-lg-12">
-            <div class="erp-card">
-              <div class="erp-card-header"><h3 class="erp-card-title">{{ 'dashboard.parent.upcomingTitle' | translate }}</h3></div>
-              <div *ngFor="let u of parentDashboard?.upcoming" class="activity-item">
-                <div class="activity-icon" style="background: rgba(5,150,105,0.1); color: var(--clr-success);"><i class="bi bi-calendar-event"></i></div>
-                <div class="activity-content">
-                  <h5>{{ u.title }}</h5>
-                  <p>{{ u.date }} &middot; {{ u.description || '' }}</p>
-                </div>
+                <a
+                  *ngIf="a.ctaRoute"
+                  class="btn-outline-erp btn-sm"
+                  [routerLink]="a.ctaRoute"
+                  [queryParams]="a.ctaQueryParams || null"
+                >{{ a.ctaLabelKey ? (a.ctaLabelKey | translate) : (a.ctaLabel || ('dashboard.common.open' | translate)) }}</a>
               </div>
             </div>
           </div>

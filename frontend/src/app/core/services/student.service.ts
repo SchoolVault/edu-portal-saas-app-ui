@@ -74,7 +74,12 @@ export class StudentService {
         map(students => students.map(student => this.normalizeStudent(student)))
       );
     }
-    return of(this.students.filter(s => s.classId === classId && s.sectionId === sectionId)).pipe(delay(300));
+    const activeInClass = this.students.filter(s => s.classId === classId && s.status === 'active');
+    if (sectionId === 0) {
+      const whole = activeInClass.filter(s => !s.sectionId || s.sectionId === 0);
+      return of(whole.length ? whole : activeInClass).pipe(delay(300));
+    }
+    return of(activeInClass.filter(s => s.sectionId === sectionId)).pipe(delay(300));
   }
 
   /**

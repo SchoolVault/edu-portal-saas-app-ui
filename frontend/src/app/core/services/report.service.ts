@@ -10,13 +10,13 @@ import {
   TeacherWorkloadRow
 } from '../models/models';
 import {
-  MOCK_REPORT_ATTENDANCE_SUMMARY,
-  MOCK_REPORT_CARD_EMMA,
-  MOCK_REPORT_CLASS_SUMMARY,
-  MOCK_REPORT_FEE_COLLECTION_SUMMARY,
-  MOCK_REPORT_SECTION_SUMMARY,
-  MOCK_REPORT_STUDENT_PERFORMANCE,
-  MOCK_REPORT_TEACHER_WORKLOAD,
+  buildMockClassSummary,
+  buildMockFeeCollectionSummary,
+  buildMockReportAttendanceSummary,
+  buildMockReportCard,
+  buildMockSectionSummary,
+  buildMockStudentPerformance,
+  buildMockTeacherWorkload,
 } from '../mocks/report.mock-data';
 import { ApiService } from './api.service';
 import { runtimeConfig } from '../config/runtime-config';
@@ -27,7 +27,12 @@ export class ReportService {
 
   getStudentPerformance(classId: number, examId: number): Observable<StudentPerformanceRow[]> {
     if (runtimeConfig.useMocks) {
-      return of(MOCK_REPORT_STUDENT_PERFORMANCE.map(r => ({ ...r, subjects: { ...r.subjects } }))).pipe();
+      return of(
+        buildMockStudentPerformance(classId, examId).map(r => ({
+          ...r,
+          subjects: { ...r.subjects },
+        }))
+      ).pipe();
     }
     return this.api.get<any[]>(`/reports/student-performance?classId=${classId}&examId=${examId}`).pipe(
       map(rows =>
@@ -47,7 +52,7 @@ export class ReportService {
 
   getAttendanceSummary(classId: number, month: string): Observable<AttendanceSummaryRow[]> {
     if (runtimeConfig.useMocks) {
-      return of(MOCK_REPORT_ATTENDANCE_SUMMARY.map(r => ({ ...r }))).pipe();
+      return of(buildMockReportAttendanceSummary(classId, month).map(r => ({ ...r }))).pipe();
     }
     return this.api.get<any[]>(`/reports/attendance-summary?classId=${classId}&month=${month}`).pipe(
       map(rows =>
@@ -67,7 +72,7 @@ export class ReportService {
 
   getClassSummary(): Observable<ClassSummaryRow[]> {
     if (runtimeConfig.useMocks) {
-      return of(MOCK_REPORT_CLASS_SUMMARY.map(r => ({ ...r }))).pipe();
+      return of(buildMockClassSummary().map(r => ({ ...r }))).pipe();
     }
     return this.api.get<any[]>('/reports/class-summary').pipe(
       map(rows =>
@@ -88,7 +93,7 @@ export class ReportService {
 
   getSectionSummary(): Observable<SectionSummaryRow[]> {
     if (runtimeConfig.useMocks) {
-      return of(MOCK_REPORT_SECTION_SUMMARY.map(r => ({ ...r }))).pipe();
+      return of(buildMockSectionSummary().map(r => ({ ...r }))).pipe();
     }
     return this.api.get<any[]>('/reports/section-summary').pipe(
       map(rows =>
@@ -105,7 +110,7 @@ export class ReportService {
 
   getTeacherWorkload(): Observable<TeacherWorkloadRow[]> {
     if (runtimeConfig.useMocks) {
-      return of(MOCK_REPORT_TEACHER_WORKLOAD.map(r => ({ ...r, subjects: [...r.subjects] }))).pipe();
+      return of(buildMockTeacherWorkload().map(r => ({ ...r, subjects: [...r.subjects] }))).pipe();
     }
     return this.api.get<any[]>('/reports/teacher-workload').pipe(
       map(rows =>
@@ -128,14 +133,14 @@ export class ReportService {
     collectionRate: number;
   }> {
     if (runtimeConfig.useMocks) {
-      return of({ ...MOCK_REPORT_FEE_COLLECTION_SUMMARY });
+      return of({ ...buildMockFeeCollectionSummary() });
     }
     return this.api.get(`/reports/fee-collection${classId != null ? `?classId=${classId}` : ''}`);
   }
 
   getReportCard(studentId: number, examId?: number): Observable<ReportCard> {
     if (runtimeConfig.useMocks) {
-      const c = MOCK_REPORT_CARD_EMMA;
+      const c = buildMockReportCard(studentId, examId ?? 2);
       return of({
         ...c,
         subjects: c.subjects.map(s => ({ ...s })),

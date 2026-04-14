@@ -44,7 +44,17 @@ export const routes: Routes = [
         loadComponent: () => import('./features/platform-settings/platform-settings.component').then(m => m.PlatformSettingsComponent),
         canActivate: [superAdminGuard]
       },
-      { path: 'parent', loadComponent: () => import('./features/parent/parent-portal.component').then(m => m.ParentPortalComponent) },
+      {
+        path: 'parent',
+        loadComponent: () => import('./features/parent/parent-shell.component').then(m => m.ParentShellComponent),
+        children: [
+          { path: '', pathMatch: 'full', redirectTo: 'children' },
+          {
+            path: 'children',
+            loadComponent: () => import('./features/parent/parent-portal.component').then(m => m.ParentPortalComponent),
+          },
+        ],
+      },
       { path: 'students', loadComponent: () => import('./features/student/student-list.component').then(m => m.StudentListComponent), canActivate: [schoolStaffGuard] },
       { path: 'students/new', loadComponent: () => import('./features/student/student-form.component').then(m => m.StudentFormComponent), canActivate: [adminOnlyGuard] },
       { path: 'students/:id', loadComponent: () => import('./features/student/student-profile.component').then(m => m.StudentProfileComponent), canActivate: [schoolStaffGuard] },
