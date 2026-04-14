@@ -521,7 +521,20 @@ export interface ParentDashboardData {
   feeDue: number;
   childPerformance: MarkRecord[];
   feeStatus: FeePayment[];
-  alerts?: { type: 'info' | 'warning' | 'success' | 'error'; title: string; message: string; ctaLabel?: string; ctaRoute?: string }[];
+  alerts?: {
+    type: 'info' | 'warning' | 'success' | 'error';
+    /** Plain text (e.g. API). */
+    title?: string;
+    message?: string;
+    /** i18n keys — when set, template prefers these over title/message. */
+    titleKey?: string;
+    messageKey?: string;
+    messageParams?: Record<string, string | number>;
+    ctaLabel?: string;
+    ctaLabelKey?: string;
+    ctaRoute?: string;
+    ctaQueryParams?: Record<string, string>;
+  }[];
   upcoming?: DashboardUpcomingEvent[];
   attendanceSnapshot?: { present: number; absent: number; late: number; excused: number; totalDays: number };
 }

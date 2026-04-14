@@ -10,6 +10,14 @@ export { MOCK_TEACHERS } from './teachers.mock-data';
 export { MOCK_LIBRARY_BOOKS, MOCK_LIBRARY_ISSUES } from './library.mock-data';
 export { MOCK_LEAVE_REQUESTS_SEED, MOCK_LEAVE_SEQ_START } from './leave.mock-data';
 export { MOCK_ADMIN_DASHBOARD, MOCK_TEACHER_DASHBOARD, buildMockParentDashboardData } from './dashboard.mock-data';
+export {
+  mockActiveStudentCount,
+  mockActiveStudents,
+  mockClassesWithoutHomeroomTeacher,
+  mockHomeroomRowsForTeacherRecordId,
+  mockStudentsInClass,
+  mockStudentsInSection,
+} from './mock-aggregates';
 export * from './parent.mock-data';
 export { MOCK_OPERATIONS_STAFF_SEED, MOCK_OPERATIONS_INVENTORY_SEED, mockPayrollAccrualSummary } from './operations.mock-data';
 export { MOCK_TRANSPORT_VEHICLES_SEED, MOCK_TRANSPORT_DRIVERS_SEED, MOCK_TRANSPORT_ROUTES_SEED } from './transport.mock-data';
@@ -18,13 +26,13 @@ export { MOCK_FEE_STRUCTURES_SEED, MOCK_FEE_PAYMENTS_SEED } from './fee.mock-dat
 export { MOCK_PAYROLL_STRUCTURES, MOCK_PAYROLL_TEACHER_PAYMENT_DETAILS, MOCK_PAYSLIP_GENERATION_TEMPLATES } from './payroll.mock-data';
 export { MOCK_ANNOUNCEMENTS_SEED } from './communication.mock-data';
 export {
-  MOCK_REPORT_STUDENT_PERFORMANCE,
-  MOCK_REPORT_ATTENDANCE_SUMMARY,
-  MOCK_REPORT_CLASS_SUMMARY,
-  MOCK_REPORT_SECTION_SUMMARY,
-  MOCK_REPORT_TEACHER_WORKLOAD,
-  MOCK_REPORT_FEE_COLLECTION_SUMMARY,
-  MOCK_REPORT_CARD_EMMA,
+  buildMockClassSummary,
+  buildMockFeeCollectionSummary,
+  buildMockReportAttendanceSummary,
+  buildMockReportCard,
+  buildMockSectionSummary,
+  buildMockStudentPerformance,
+  buildMockTeacherWorkload,
 } from './report.mock-data';
 export { MOCK_SCHOOL_NOTIFICATIONS_SEED, MOCK_PLATFORM_OPERATOR_NOTIFICATIONS_SEED } from './notification.mock-data';
 export {
@@ -48,4 +56,13 @@ export type { DirectoryDtos, DirectoryEntry, DirectorySearchResponse } from '../
 export type { ParentFeeDtos } from '../models/parent-fee.dto';
 export type { ChatDirectoryDtos } from '../models/chat-directory.dto';
 export { MOCK_DOCUMENTS_LIST } from './documents.mock-data';
-export { buildMockAttendanceRecordsForClassDate } from './attendance.mock-data';
+export {
+  buildMockAttendanceRecordsForClassDate,
+  buildMockReportAttendanceSummaryForClassMonth,
+  mockAttendanceRecordsForStudentInRange,
+  mockAttendanceStatsForStudentInRange,
+  mockAttendanceStatusFor,
+  mockTenantAttendanceOverviewForMonth,
+  seedInitialMockAttendanceRecords,
+  stableMockAttendanceRowId,
+} from './attendance.mock-data';

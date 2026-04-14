@@ -1,7 +1,7 @@
 import { Injectable } from '@angular/core';
 import { Observable, of } from 'rxjs';
 import { delay, map } from 'rxjs/operators';
-import { buildMockAttendanceRecordsForClassDate } from '../mocks/attendance.mock-data';
+import { seedInitialMockAttendanceRecords } from '../mocks/attendance.mock-data';
 import { AttendanceRecord, AttendanceStats } from '../models/models';
 import { ApiService } from './api.service';
 import { runtimeConfig } from '../config/runtime-config';
@@ -11,8 +11,7 @@ export class AttendanceService {
   private records: AttendanceRecord[];
 
   constructor(private api: ApiService) {
-    const today = new Date().toISOString().split('T')[0];
-    this.records = buildMockAttendanceRecordsForClassDate(today).map(r => ({ ...r }));
+    this.records = seedInitialMockAttendanceRecords(55).map(r => ({ ...r }));
   }
 
   getAttendanceByClassAndDate(classId: number, sectionId: number, date: string): Observable<AttendanceRecord[]> {

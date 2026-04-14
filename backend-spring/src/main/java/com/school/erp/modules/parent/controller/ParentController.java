@@ -9,7 +9,9 @@ import com.school.erp.modules.guardian.service.GuardianService;
 import com.school.erp.modules.academic.entity.SchoolClass;
 import com.school.erp.modules.academic.repository.SchoolClassRepository;
 import com.school.erp.modules.auth.repository.UserRepository;
+import com.school.erp.common.enums.Enums;
 import com.school.erp.modules.student.entity.Student;
+import com.school.erp.modules.student.service.StudentEnrolmentDisplayService;
 import com.school.erp.modules.teacher.repository.TeacherRepository;
 import com.school.erp.modules.student.repository.StudentRepository;
 import com.school.erp.modules.timetable.dto.TimetableDTOs;
@@ -51,6 +53,7 @@ public class ParentController {
     private final UserRepository userRepository;
     private final TimetableService timetableService;
     private final ParentPortalReadFacade parentPortalReadFacade;
+    private final StudentEnrolmentDisplayService studentEnrolmentDisplayService;
 
     @GetMapping("/exams")
     @Operation(summary = "Exams for your children only",
@@ -65,7 +68,10 @@ public class ParentController {
     public ResponseEntity<ApiResponse<List<Student>>> getChildren() {
         String t = TenantContext.getTenantId();
         Long parentId = TenantContext.getUserId();
-        List<Student> children = guardianService.findStudentsForParentUser(t, parentId);
+        List<Student> children = guardianService.findStudentsForParentUser(t, parentId).stream()
+                .filter(s -> s.getStatus() == Enums.StudentStatus.ACTIVE)
+                .collect(Collectors.toList());
+        studentEnrolmentDisplayService.enrichClassSectionDisplay(t, children);
         enrichHomeroomFromSchoolClass(t, children);
         return ResponseEntity.ok(ApiResponse.ok(children));
     }
@@ -268,7 +274,8 @@ public class ParentController {
             final TeacherRepository teacherRepository,
             final UserRepository userRepository,
             final TimetableService timetableService,
-            final ParentPortalReadFacade parentPortalReadFacade) {
+            final ParentPortalReadFacade parentPortalReadFacade,
+            final StudentEnrolmentDisplayService studentEnrolmentDisplayService) {
         this.studentRepo = studentRepo;
         this.guardianService = guardianService;
         this.examService = examService;
@@ -280,5 +287,6 @@ public class ParentController {
         this.userRepository = userRepository;
         this.timetableService = timetableService;
         this.parentPortalReadFacade = parentPortalReadFacade;
+        this.studentEnrolmentDisplayService = studentEnrolmentDisplayService;
     }
 }

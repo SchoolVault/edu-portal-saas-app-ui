@@ -1,5 +1,6 @@
 package com.school.erp.modules.parent.service;
 
+import com.school.erp.common.enums.Enums;
 import com.school.erp.modules.exams.dto.ExamDTOs;
 import com.school.erp.modules.exams.service.ExamService;
 import com.school.erp.modules.guardian.service.GuardianService;
@@ -8,6 +9,7 @@ import com.school.erp.tenant.TenantContext;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * Read-only aggregates for the parent portal. Keeps controllers thin and allows future
@@ -27,7 +29,9 @@ public class ParentPortalReadFacade {
     public List<ExamDTOs.ExamResponse> listExamsForCurrentParentUser() {
         String t = TenantContext.getTenantId();
         Long uid = TenantContext.getUserId();
-        List<Student> children = guardianService.findStudentsForParentUser(t, uid);
+        List<Student> children = guardianService.findStudentsForParentUser(t, uid).stream()
+                .filter(s -> s.getStatus() == Enums.StudentStatus.ACTIVE)
+                .collect(Collectors.toList());
         return examService.listExamsForLinkedStudents(t, children);
     }
 }

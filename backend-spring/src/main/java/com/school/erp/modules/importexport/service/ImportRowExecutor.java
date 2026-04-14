@@ -116,7 +116,7 @@ public class ImportRowExecutor {
             String schoolCode = tenantConfigRepository.findByTenantId(tenantId).map(c -> c.getSchoolCode()).orElse("");
             String body = credentialMessage(schoolCode, parentEmail, parentProvision.plainPassword(), parentProvision.createdNew());
             notificationService.createNotification(tenantId, parentProvision.userId(), "Parent portal access",
-                    body, Enums.NotificationType.INFO, "/app/parent");
+                    body, Enums.NotificationType.INFO, "/app/parent/children");
             String phone = blankToNull(row.get("parentphone"));
             notificationOutboxService.enqueue(tenantId, "PARENT_PORTAL_CREDENTIALS", "SMS",
                     parentProvision.userId(), phone, "Parent portal access", body,

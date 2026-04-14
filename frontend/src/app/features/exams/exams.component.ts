@@ -1,4 +1,5 @@
 import { Component, OnInit, ChangeDetectorRef, DestroyRef, inject } from '@angular/core';
+import { ActivatedRoute } from '@angular/router';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
@@ -9,6 +10,7 @@ import { StudentService } from '../../core/services/student.service';
 import { AuthService } from '../../core/services/auth.service';
 import { examAppliesToStudent } from '../../core/utils/exam-scope';
 import { forkJoin } from 'rxjs';
+import { skip } from 'rxjs/operators';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { SchoolClassNamePipe } from '../../core/i18n/school-class-name.pipe';
 import { formatSchoolClassDisplayName } from '../../core/i18n/school-class-display';
@@ -458,7 +460,8 @@ export class ExamsComponent implements OnInit {
     private parentService: ParentService,
     private auth: AuthService,
     private translate: TranslateService,
-    private cdr: ChangeDetectorRef
+    private cdr: ChangeDetectorRef,
+    private route: ActivatedRoute
   ) {}
 
   get role(): string {
@@ -554,6 +557,31 @@ export class ExamsComponent implements OnInit {
     });
   }
 
+  /**
+   * Supports deep links from the parent portal: {@code ?studentId=}&{@code tab=results}.
+   */
+  private applyParentRouteQueryIntent(): void {
+    const qpm = this.route.snapshot.queryParamMap;
+    const raw = qpm.get('studentId');
+    const wantResults = qpm.get('tab') === 'results';
+    const sid = raw != null && raw !== '' ? Number(raw) : NaN;
+    if (Number.isFinite(sid) && this.parentChildren.some(c => c.id === sid)) {
+      this.selectedParentChildId = sid;
+    } else if (this.parentChildren.length === 1) {
+      this.selectedParentChildId = this.parentChildren[0]?.id ?? null;
+    } else {
+      this.selectedParentChildId = null;
+    }
+    if (!wantResults || this.selectedParentChildId == null) {
+      return;
+    }
+    const visible = this.parentFilteredExams;
+    const pick = visible.find(e => e.resultsPublished) ?? visible[0];
+    if (pick) {
+      this.selectExam(pick, 'results');
+    }
+  }
+
   ngOnInit(): void {
     this.translate.onLangChange.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => this.cdr.markForCheck());
 
@@ -565,10 +593,14 @@ export class ExamsComponent implements OnInit {
       }).subscribe(({ children, exams }) => {
         this.parentChildren = children ?? [];
         this.classes = this.buildSyntheticClassesFromChildren(this.parentChildren);
-        this.selectedParentChildId =
-          this.parentChildren.length === 1 ? (this.parentChildren[0]?.id ?? null) : null;
         this.exams = exams;
+        this.applyParentRouteQueryIntent();
         this.clearParentSelectionIfExamInvisible();
+      });
+      this.route.queryParamMap.pipe(skip(1), takeUntilDestroyed(this.destroyRef)).subscribe(() => {
+        if (this.parentChildren.length) {
+          this.applyParentRouteQueryIntent();
+        }
       });
       return;
     }
@@ -586,7 +618,7 @@ export class ExamsComponent implements OnInit {
     this.clearParentSelectionIfExamInvisible();
     const ex = this.selectedExam;
     if (ex && this.role === 'parent') {
-      this.selectExam(ex);
+      this.selectExam(ex, this.parentDetailTab);
     }
   }
 
@@ -701,7 +733,7 @@ export class ExamsComponent implements OnInit {
     this.showCreateModal = true;
   }
 
-  selectExam(exam: Exam): void {
+  selectExam(exam: Exam, parentInitialTab: 'timetable' | 'results' = 'timetable'): void {
     this.selectedExam = exam;
     this.selectedClassId = exam.classIds[0] ?? null;
     this.marksSectionId = null;
@@ -713,7 +745,8 @@ export class ExamsComponent implements OnInit {
     this.scheduleUiError = false;
     this.detailTab = this.canEnterMarks ? 'marks' : 'timetable';
     if (this.role === 'parent') {
-      this.parentDetailTab = 'timetable';
+      this.parentDetailTab =
+          parentInitialTab === 'results' && exam.resultsPublished ? 'results' : 'timetable';
       const sid = this.selectedParentChildId;
       if (sid == null) {
         this.marks = [];

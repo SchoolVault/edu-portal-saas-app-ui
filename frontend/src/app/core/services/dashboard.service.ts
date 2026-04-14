@@ -52,7 +52,7 @@ export class DashboardService {
 
   getParentDashboard(from: string, to: string): Observable<ParentDashboardData> {
     if (runtimeConfig.useMocks) {
-      return of(buildMockParentDashboardData()).pipe(delay(200));
+      return of(buildMockParentDashboardData(from, to)).pipe(delay(200));
     }
     return this.parentService.getChildren().pipe(
       switchMap(children => {
@@ -83,27 +83,29 @@ export class DashboardService {
               alerts.push({
                 type: 'warning',
                 title: 'Fee balance outstanding',
-                message: `There is an unpaid balance for ${selectedChild.firstName} ${selectedChild.lastName}. Visit Fees to pay or review receipts.`,
-                ctaLabel: 'Open fees',
-                ctaRoute: '/app/parent'
+                message: `There is an unpaid balance for ${selectedChild.firstName} ${selectedChild.lastName}. Open My children → Fees to pay or review receipts.`,
+                ctaLabelKey: 'dashboard.parent.cta.openFees',
+                ctaRoute: '/app/parent/children',
+                ctaQueryParams: { tab: 'fees', child: String(selectedChild.id) },
               });
             }
             if ((attendance.totalDays ?? 0) > 0 && (attendance.attendancePercentage ?? 100) < 85) {
               alerts.push({
                 type: 'info',
                 title: 'Attendance this month',
-                message: `Attendance is ${attendance.attendancePercentage?.toFixed(1) ?? '—'}% for the selected period. Contact the class teacher if you have questions.`,
-                ctaLabel: 'Inbox',
-                ctaRoute: '/app/chat'
+                message: `Attendance is ${attendance.attendancePercentage?.toFixed(1) ?? '—'}% for the selected period. Check school announcements for notices from the class teacher.`,
+                ctaLabelKey: 'dashboard.parent.cta.openAnnouncements',
+                ctaRoute: '/app/inbox',
               });
             }
             if (marks.length) {
               alerts.push({
                 type: 'success',
                 title: 'Latest results on file',
-                message: `${marks.length} subject record(s) available. Overall grade trend: ${this.getOverallGrade(marks)}.`,
-                ctaLabel: 'View inbox',
-                ctaRoute: '/app/chat'
+                message: `${marks.length} subject record(s) available. Overall grade trend: ${this.getOverallGrade(marks)}. View details under Examinations.`,
+                ctaLabelKey: 'dashboard.parent.cta.viewExams',
+                ctaRoute: '/app/exams',
+                ctaQueryParams: { tab: 'results', studentId: String(selectedChild.id) },
               });
             }
             return {

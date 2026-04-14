@@ -26,7 +26,7 @@ export const schoolStaffGuard: CanActivateFn = () => {
       if (schoolStaffRole(auth.getRole())) {
         return true;
       }
-      return router.createUrlTree(['/app/parent']);
+      return router.createUrlTree(['/app/parent/children']);
     })
   );
 };

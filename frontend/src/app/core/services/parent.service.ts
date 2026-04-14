@@ -238,7 +238,7 @@ export class ParentService {
 
   getChildAttendance(studentId: number, from: string, to: string): Observable<AttendanceStats> {
     if (runtimeConfig.useMocks) {
-      return of({ ...mockParentAttendanceStats(studentId) }).pipe(delay(150));
+      return of({ ...mockParentAttendanceStats(studentId, from, to) }).pipe(delay(150));
     }
     return this.api.get<any>(`/parent/children/${studentId}/attendance?from=${from}&to=${to}`).pipe(
       map(stats => ({
@@ -275,6 +275,11 @@ export class ParentService {
     );
   }
 
+  /**
+   * Portal bundle: marks and fees are per child; attendance stats and daily rows use inclusive
+   * {@code from}/{@code to} (typically one calendar month). The UI may page rows client-side;
+   * a future API can add {@code page}/{@code size} on attendance-records while keeping this contract.
+   */
   getChildOverview(studentId: number, from: string, to: string) {
     return forkJoin({
       marks: this.getChildMarks(studentId),
@@ -317,7 +322,7 @@ export class ParentService {
         checkoutToken: ParentService.LOCAL_DEMO_TOKEN_PREFIX + ts,
         currency: 'INR',
         amount: request.amount,
-        checkoutUrl: (request.returnUrl || '/app/parent') + '?localDemoPayment=1',
+        checkoutUrl: (request.returnUrl || '/app/parent/children') + '?localDemoPayment=1',
         status: 'initiated',
       }).pipe(delay(200));
     }

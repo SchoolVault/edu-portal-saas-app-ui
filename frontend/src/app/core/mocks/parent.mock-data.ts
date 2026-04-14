@@ -16,17 +16,34 @@ import { MOCK_TIMETABLE_ENTRIES } from './timetable.mock-data';
 import { examAppliesToStudent } from '../utils/exam-scope';
 import { MOCK_EXAM_MARKS_SEED, MOCK_EXAMS_SEED, MOCK_EXAM_SCHEDULE_SEED } from './exam.mock-data';
 import { MOCK_STUDENTS } from './students.mock-data';
+import { mockAttendanceRecordsForStudentInRange, mockAttendanceStatsForStudentInRange } from './attendance.mock-data';
 
 export { examAppliesToStudent };
 
 /** Demo homeroom for Michael Chen's children (Sarah Mitchell = teacher@school.com user id 2). */
 const DEMO_HOMEROOM = { homeroomTeacherName: 'Sarah Mitchell', homeroomTeacherUserId: 2 } as const;
 
+function isLinkedToParentUser(s: Student, parentUserId: number): boolean {
+  const uid = s.parentUserId ?? s.parentId;
+  return uid === parentUserId;
+}
+
+function demoPrimaryChildFirst(a: Student, b: Student): number {
+  if (a.id === 12) {
+    return -1;
+  }
+  if (b.id === 12) {
+    return 1;
+  }
+  return a.id - b.id;
+}
+
 /**
- * All active students linked to parent user id 3 (Michael Chen) — aligns with backend {@code GuardianService.findStudentsForParentUser} (parent_id + guardian mappings).
+ * Active students linked to demo parent portal user id 3 (Michael Chen).
+ * Uses {@code parentUserId} when set (portal user) else {@code parentId} — matches backend union semantics.
  */
-export const MOCK_PARENT_CHILDREN: Student[] = MOCK_STUDENTS.filter(s => s.parentId === 3 && s.status === 'active')
-  .sort((a, b) => a.id - b.id)
+export const MOCK_PARENT_CHILDREN: Student[] = MOCK_STUDENTS.filter(s => isLinkedToParentUser(s, 3) && s.status === 'active')
+  .sort(demoPrimaryChildFirst)
   .map(s => ({
     ...s,
     homeroomTeacherName: DEMO_HOMEROOM.homeroomTeacherName,
@@ -106,28 +123,13 @@ export function mockParentMarkRows(studentId: number, _studentName: string): Mar
   return mockParentPublishedMarks(studentId);
 }
 
-export function mockParentAttendanceStats(studentId: number): AttendanceStats {
-  const p = 18 + (studentId % 4);
-  const t = 20 + (studentId % 3);
-  return {
-    studentId,
-    totalDays: t,
-    present: p,
-    absent: 1,
-    late: 1,
-    excused: 0,
-    attendancePercentage: Math.round((p / t) * 1000) / 10,
-  };
+/** Same virtual rows as teacher/admin mocks — pass the same {@code from}/{@code to} as the parent API. */
+export function mockParentAttendanceStats(studentId: number, fromIso: string, toIso: string): AttendanceStats {
+  return mockAttendanceStatsForStudentInRange(studentId, fromIso, toIso);
 }
 
-export function mockParentAttendanceRecords(studentId: number, studentName: string, from: string, to: string): AttendanceRecord[] {
-  const st = MOCK_PARENT_CHILDREN.find(c => c.id === studentId);
-  const classId = st?.classId ?? 8;
-  const sectionId = st?.sectionId ?? 801;
-  return [
-    { id: 1, studentId, studentName, classId, sectionId, date: from, status: 'present', markedBy: 2, tenantId: 't1' },
-    { id: 2, studentId, studentName, classId, sectionId, date: to, status: 'late', markedBy: 2, tenantId: 't1' },
-  ];
+export function mockParentAttendanceRecords(studentId: number, _studentName: string, from: string, to: string): AttendanceRecord[] {
+  return mockAttendanceRecordsForStudentInRange(studentId, from, to);
 }
 
 function miniLinesForTotal(total: number): ParentFeeLineItem[] {

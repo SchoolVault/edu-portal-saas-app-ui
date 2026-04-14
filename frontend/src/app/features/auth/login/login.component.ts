@@ -191,7 +191,7 @@ export class LoginComponent implements OnInit {
           return;
         }
         const role = this.authService.getRole();
-        this.router.navigate([role === 'parent' ? '/app/parent' : role === 'super_admin' ? '/app/super-admin' : '/app/dashboard']);
+        this.router.navigate([role === 'parent' ? '/app/dashboard' : role === 'super_admin' ? '/app/super-admin' : '/app/dashboard']);
       });
   }
 
@@ -230,7 +230,7 @@ export class LoginComponent implements OnInit {
         this.loading = false;
         this.router.navigate([
           response.user.role === 'parent'
-            ? '/app/parent'
+            ? '/app/dashboard'
             : response.user.role === 'super_admin'
               ? '/app/super-admin'
               : '/app/dashboard'

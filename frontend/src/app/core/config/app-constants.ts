@@ -16,7 +16,7 @@ export const NAV_ITEMS: NavItem[] = [
   { labelKey: 'nav.broadcasts', icon: 'bi-megaphone-fill', route: '/app/platform-broadcasts', roles: ['super_admin'], sectionKey: 'nav.section.platform' },
   { labelKey: 'nav.systemHealth', icon: 'bi-heart-pulse', route: '/app/platform-health', roles: ['super_admin'], sectionKey: 'nav.section.platform' },
   { labelKey: 'nav.platformSettings', icon: 'bi-gear-fill', route: '/app/platform-settings', roles: ['super_admin'], sectionKey: 'nav.section.platform' },
-  { labelKey: 'nav.myChildren', icon: 'bi-person-vcard-fill', route: '/app/parent', roles: ['parent'], sectionKey: 'nav.section.main' },
+  { labelKey: 'nav.myChildren', icon: 'bi-person-vcard-fill', route: '/app/parent/children', roles: ['parent'], sectionKey: 'nav.section.main' },
   { labelKey: 'nav.academic', icon: 'bi-mortarboard-fill', route: '/app/academic', roles: ['admin', 'teacher'], sectionKey: 'nav.section.main' },
   { labelKey: 'nav.students', icon: 'bi-people-fill', route: '/app/students', roles: ['admin', 'teacher'], sectionKey: 'nav.section.people' },
   { labelKey: 'nav.directory', icon: 'bi-search-heart', route: '/app/directory', roles: ['admin'], sectionKey: 'nav.section.people' },

@@ -103,7 +103,20 @@ public class StudentService {
         if (!teacherRosterScopeService.teacherMayAccessStudentClass(classId)) {
             throw new UnauthorizedException("You are not allowed to view this class roster");
         }
-        List<StudentDTOs.Response> list = studentRepository.findByTenantIdAndClassIdAndSectionIdAndIsDeletedFalse(TenantContext.getTenantId(), classId, sectionId).stream()
+        String tenantId = TenantContext.getTenantId();
+        List<Student> rows;
+        if (sectionId == null || sectionId == 0L) {
+            List<Student> inClass = studentRepository.findByTenantIdAndClassIdAndIsDeletedFalse(tenantId, classId);
+            rows = inClass.stream()
+                    .filter(s -> s.getSectionId() == null || s.getSectionId() == 0L)
+                    .collect(Collectors.toList());
+            if (rows.isEmpty()) {
+                rows = inClass;
+            }
+        } else {
+            rows = studentRepository.findByTenantIdAndClassIdAndSectionIdAndIsDeletedFalse(tenantId, classId, sectionId);
+        }
+        List<StudentDTOs.Response> list = rows.stream()
                 .filter(s -> s.getStatus() == Enums.StudentStatus.ACTIVE)
                 .map(this::toResponse)
                 .collect(Collectors.toList());
