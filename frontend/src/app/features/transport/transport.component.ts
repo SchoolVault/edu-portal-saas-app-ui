@@ -245,27 +245,60 @@ import { AuthService } from '../../core/services/auth.service';
 
     <div class="modal-overlay" *ngIf="assignModalRoute" (click)="assignModalRoute = null">
       <div class="modal-content-erp" (click)="$event.stopPropagation()">
-        <div class="modal-header-erp"><h3>{{ 'transport.modalAssignTitle' | translate }}</h3><button class="btn-icon" (click)="assignModalRoute = null"><i class="bi bi-x-lg"></i></button></div>
+        <div class="modal-header-erp align-items-start">
+          <div class="flex-grow-1 me-3" style="min-width: 0;">
+            <h3 class="mb-1">{{ 'transport.modalAssignTitle' | translate }}</h3>
+            <p class="small text-muted mb-0">{{ 'transport.assignModalRouteContext' | translate: { name: assignModalRoute.name } }}</p>
+          </div>
+          <button type="button" class="btn-icon flex-shrink-0 mt-1" (click)="assignModalRoute = null"><i class="bi bi-x-lg"></i></button>
+        </div>
         <div class="modal-body-erp">
-          <label class="erp-label">{{ 'transport.labelStudent' | translate }}</label>
-          <select class="erp-select mb-2" [(ngModel)]="assignForm.studentId" (ngModelChange)="syncAssignStudentName()">
-            <option [ngValue]="null">{{ 'transport.select' | translate }}</option>
-            <option *ngFor="let s of students" [ngValue]="s.id">{{ s.firstName }} {{ s.lastName }}</option>
+          <div *ngIf="assignModalRoute.stops.length === 0" class="alert alert-warning py-2 small mb-3">
+            <i class="bi bi-exclamation-triangle me-1"></i>{{ 'transport.assignNoStopsWarning' | translate }}
+          </div>
+          <p class="small text-muted mb-2">{{ 'transport.assignStudentHelp' | translate }}</p>
+          <label class="erp-label" for="transport-assign-student-filter">{{ 'transport.assignFilterLabel' | translate }}</label>
+          <input
+            id="transport-assign-student-filter"
+            type="search"
+            class="erp-input mb-2"
+            [(ngModel)]="assignStudentFilter"
+            (ngModelChange)="onAssignStudentFilterChange()"
+            [attr.placeholder]="'transport.assignFilterPlaceholder' | translate"
+            autocomplete="off"
+          />
+          <label class="erp-label" for="transport-assign-student">{{ 'transport.labelStudent' | translate }}</label>
+          <select
+            id="transport-assign-student"
+            class="erp-select mb-2"
+            [(ngModel)]="assignForm.studentId"
+            (ngModelChange)="syncAssignStudentName()"
+          >
+            <option [ngValue]="null">{{ 'transport.selectStudent' | translate }}</option>
+            <option *ngFor="let s of assignEligibleStudents" [ngValue]="s.id">{{ studentAssignOptionLabel(s) }}</option>
           </select>
-          <label class="erp-label">{{ 'transport.labelPickupStop' | translate }}</label>
-          <select class="erp-select mb-2" [(ngModel)]="assignForm.pickupStop">
-            <option value="">{{ 'transport.dash' | translate }}</option>
-            <option *ngFor="let st of assignModalRoute.stops" [value]="st.name">{{ st.name }}</option>
+          <p *ngIf="assignEligibleStudents.length === 0 && students.length" class="small text-warning mb-3">
+            {{ 'transport.assignNoEligibleStudents' | translate }}
+          </p>
+          <label class="erp-label" for="transport-assign-pickup">{{ 'transport.labelPickupStop' | translate }}</label>
+          <select id="transport-assign-pickup" class="erp-select mb-2" [(ngModel)]="assignForm.pickupStop" [disabled]="assignModalRoute.stops.length === 0">
+            <option value="">{{ 'transport.selectPickupStop' | translate }}</option>
+            <option *ngFor="let st of assignModalRoute.stops" [value]="st.name">{{ stopSelectLabel(st) }}</option>
           </select>
-          <label class="erp-label">{{ 'transport.labelDropStop' | translate }}</label>
-          <select class="erp-select" [(ngModel)]="assignForm.dropStop">
-            <option value="">{{ 'transport.dash' | translate }}</option>
-            <option *ngFor="let st of assignModalRoute.stops" [value]="st.name">{{ st.name }}</option>
+          <label class="erp-label" for="transport-assign-drop">{{ 'transport.labelDropStop' | translate }}</label>
+          <select id="transport-assign-drop" class="erp-select" [(ngModel)]="assignForm.dropStop" [disabled]="assignModalRoute.stops.length === 0">
+            <option value="">{{ 'transport.selectDropStop' | translate }}</option>
+            <option *ngFor="let st of assignModalRoute.stops" [value]="st.name">{{ stopSelectLabel(st) }}</option>
           </select>
         </div>
         <div class="modal-footer-erp">
-          <button class="btn-outline-erp" (click)="assignModalRoute = null">{{ 'transport.cancel' | translate }}</button>
-          <button class="btn-primary-erp" (click)="saveAssign()">{{ 'transport.assign' | translate }}</button>
+          <button type="button" class="btn-outline-erp" (click)="assignModalRoute = null">{{ 'transport.cancel' | translate }}</button>
+          <button
+            type="button"
+            class="btn-primary-erp"
+            (click)="saveAssign()"
+            [disabled]="assignSaveDisabled"
+          >{{ 'transport.assign' | translate }}</button>
         </div>
       </div>
     </div>
@@ -302,6 +335,7 @@ export class TransportComponent implements OnInit {
   stopModalRoute: TransportRoute | null = null;
   stopForm = { name: '', stopOrder: 1, stopTime: '' };
   assignModalRoute: TransportRoute | null = null;
+  assignStudentFilter = '';
   assignForm: { studentId: number | null; studentName: string; pickupStop: string; dropStop: string } = {
     studentId: null,
     studentName: '',
@@ -581,7 +615,47 @@ export class TransportComponent implements OnInit {
 
   openAssignModal(r: TransportRoute): void {
     this.assignModalRoute = r;
+    this.assignStudentFilter = '';
     this.assignForm = { studentId: null, studentName: '', pickupStop: '', dropStop: '' };
+  }
+
+  /** Students not already mapped to this route, optionally filtered by name (API-ready shape: same list source as assign payload). */
+  get assignEligibleStudents(): Student[] {
+    const route = this.assignModalRoute;
+    if (!route) return [];
+    const assigned = new Set((route.students ?? []).map(m => m.studentId));
+    const q = this.assignStudentFilter.trim().toLowerCase();
+    return this.students.filter(s => {
+      if (assigned.has(s.id)) return false;
+      if (!q) return true;
+      const hay = `${s.firstName ?? ''} ${s.lastName ?? ''}`.trim().toLowerCase();
+      return hay.includes(q);
+    });
+  }
+
+  get assignSaveDisabled(): boolean {
+    if (!this.assignModalRoute || this.assignForm.studentId == null) return true;
+    if (!this.assignModalRoute.stops.length) return true;
+    return false;
+  }
+
+  studentAssignOptionLabel(s: Student): string {
+    const name = `${s.firstName ?? ''} ${s.lastName ?? ''}`.trim();
+    const cls = s.className?.trim();
+    return cls ? `${name} · ${cls}` : name;
+  }
+
+  stopSelectLabel(st: { name: string; time: string }): string {
+    const t = st.time?.trim();
+    return t ? `${st.name} (${t})` : st.name;
+  }
+
+  onAssignStudentFilterChange(): void {
+    if (this.assignForm.studentId == null) return;
+    if (!this.assignEligibleStudents.some(s => s.id === this.assignForm.studentId)) {
+      this.assignForm.studentId = null;
+      this.assignForm.studentName = '';
+    }
   }
 
   syncAssignStudentName(): void {
@@ -590,7 +664,7 @@ export class TransportComponent implements OnInit {
   }
 
   saveAssign(): void {
-    if (!this.assignModalRoute || this.assignForm.studentId == null) return;
+    if (!this.assignModalRoute || this.assignForm.studentId == null || !this.assignModalRoute.stops.length) return;
     this.transportService
       .assignStudent({
         routeId: this.assignModalRoute.id,

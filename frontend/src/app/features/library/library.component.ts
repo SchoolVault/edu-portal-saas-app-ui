@@ -46,25 +46,27 @@ import { runtimeConfig } from '../../core/config/runtime-config';
       </div>
       <div *ngIf="tab === 'catalog'" class="animate-in">
         <div class="erp-card">
-          <div class="d-flex flex-wrap gap-2 align-items-end mb-3">
-            <div class="search-input-wrapper flex-grow-1" style="min-width: 200px; max-width: 400px;">
+          <div class="d-flex flex-wrap gap-3 align-items-end mb-3 w-100">
+            <div class="search-input-wrapper flex-grow-1" style="min-width: 200px; max-width: 420px;">
               <i class="bi bi-search"></i>
               <input type="text" class="erp-input" erpI18nPh="library.searchPlaceholder" [(ngModel)]="searchTerm" (input)="onBookSearchInput()" data-testid="book-search">
             </div>
-            <div>
-              <label class="erp-label d-block mb-1 small">{{ 'library.labelCategory' | translate }}</label>
-              <select class="erp-select" style="min-width: 160px;" [(ngModel)]="catalogCategory" (change)="loadBooks()">
-                <option value="">{{ 'library.allCategories' | translate }}</option>
-                <option *ngFor="let c of bookCategories" [value]="c">{{ c }}</option>
-              </select>
-            </div>
-            <div>
-              <label class="erp-label d-block mb-1 small">{{ 'library.labelCatalog' | translate }}</label>
-              <select class="erp-select" style="min-width: 140px;" [(ngModel)]="catalogFilter" (change)="loadBooks()">
-                <option value="active">{{ 'library.catalogActive' | translate }}</option>
-                <option value="inactive">{{ 'library.catalogInactive' | translate }}</option>
-                <option value="all">{{ 'library.catalogAll' | translate }}</option>
-              </select>
+            <div class="d-flex flex-wrap gap-2 align-items-end ms-md-auto">
+              <div>
+                <label class="erp-label d-block mb-1 small">{{ 'library.labelCategory' | translate }}</label>
+                <select class="erp-select" style="min-width: 168px;" [(ngModel)]="catalogCategory" (change)="loadBooks()" [attr.aria-label]="'library.labelCategory' | translate">
+                  <option value="">{{ 'library.allCategories' | translate }}</option>
+                  <option *ngFor="let c of bookCategories" [value]="c">{{ c }}</option>
+                </select>
+              </div>
+              <div>
+                <label class="erp-label d-block mb-1 small">{{ 'library.labelCatalog' | translate }}</label>
+                <select class="erp-select" style="min-width: 148px;" [(ngModel)]="catalogFilter" (change)="loadBooks()" [attr.aria-label]="'library.labelCatalog' | translate">
+                  <option value="active">{{ 'library.catalogActive' | translate }}</option>
+                  <option value="inactive">{{ 'library.catalogInactive' | translate }}</option>
+                  <option value="all">{{ 'library.catalogAll' | translate }}</option>
+                </select>
+              </div>
             </div>
           </div>
           <table class="erp-table" data-testid="books-table">

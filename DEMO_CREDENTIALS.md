@@ -124,10 +124,12 @@ One or two teachers assigned library roles.
 
 ### Classes & Sections
 Both schools have:
-- **Classes:** 4, 5, 6, 7, 8, 9, 10, 11, 12 (9 classes)
-- **Sections:** A, B, C per class (27 sections total)
-- **Students:** 30-35 per section (~850-945 students per school)
-- **Teachers:** 30 teachers per school
+- **Classes:** 6, 7, 8, 9, 10, 11, 12 (7 classes)
+- **Sections:** A, B per class (14 sections total)
+- **Students:** 7-8 per section (~100 students per school)
+- **Teachers:** 10 teachers per school
+
+⚠️ **OPTIMIZED FOR RENDER FREE TIER** (0.1 CPU, 512MB RAM) - Reduced data volume by ~90%
 
 ### Comprehensive Module Coverage
 
@@ -138,7 +140,7 @@ Both schools have:
 - Subject Teacher Assignments: Each subject taught by specialized teachers
 
 #### 2. **Students & Guardians**
-- ~900 students per school across all classes
+- ~100 students per school across all classes
 - Each student has:
   - Father (with PARENT role user account)
   - Mother (with PARENT role user account)
@@ -167,7 +169,7 @@ Both schools have:
 - Grades: A+, A, B+, B, C, D based on marks
 
 #### 5. **Attendance**
-- Last 10 days of attendance for all students
+- Last 5 days of attendance for all students
 - Status distribution:
   - 85% PRESENT
   - 10% ABSENT
@@ -181,24 +183,24 @@ Both schools have:
 - Period times: 8:30 AM - 1:30 PM (45-minute periods)
 
 #### 7. **Transport**
-- 3 routes per school
+- 2 routes per school
 - Vehicles: Buses with registration numbers
 - Drivers: With license details
 - Route stops: 6 stops per route with GPS coordinates
-- ~15 students assigned to each route (~45 students using transport)
+- ~8 students assigned to each route (~16 students using transport)
 - Pickup and drop stop assignments
 
 #### 8. **Library**
-- 100 books per school
+- 30 books per school
 - Categories: Fiction, Computer Science, Science, History
 - Famous titles: Harry Potter, 1984, Introduction to Algorithms, etc.
-- 3-7 copies per book
-- 20 book issues (mix of issued, returned, overdue)
+- 2-4 copies per book
+- 10 book issues (mix of issued, returned, overdue)
 - Automatic fine calculation for overdue books (Rs.10/day)
 
 #### 9. **Hostel**
 - 2 hostels per school: Boys Hostel, Girls Hostel
-- 15 rooms per hostel
+- 8 rooms per hostel
 - Room types: Double (2 students), Triple (3 students), Dormitory (6 students)
 - Student allocations (50% occupancy)
 - Room status tracking
@@ -213,14 +215,14 @@ Both schools have:
 - Bank details for salary disbursement
 
 #### 11. **Communication**
-- 5 announcements per school
-  - School reopening, parent-teacher meeting, sports day, exams, holidays
-- 10 direct messages (teacher to parent)
+- 3 announcements per school
+  - School reopening, parent-teacher meeting, exams
+- 5 direct messages (teacher to parent)
 - Target audiences: ALL, TEACHERS, PARENTS, CLASS, SECTION
 
 #### 12. **Documents**
-- Sample documents:
-  - Class syllabuses
+- 5 sample documents:
+  - Class syllabuses (Class 10, 12)
   - School rules
   - Annual reports
   - Fee structures
@@ -462,10 +464,11 @@ Creating ~900 students per school with all relationships takes time (typically 3
 1. ✅ **Fixed receipt number duplicates** - Now uses a counter instead of timestamp + random
 2. ✅ **Idempotent seeding** - Checks if data exists before creating
 3. ✅ **Better error handling** - Clear error messages and troubleshooting tips
-4. ✅ **Comprehensive data** - All modules fully populated (915+ students per school)
+4. ✅ **Comprehensive data** - All modules fully populated (~100 students per school)
 5. ✅ **Realistic Indian data** - Authentic names, addresses, phone numbers
 6. ✅ **Proper relationships** - All foreign keys and mappings maintained
 7. ✅ **Better logging** - Progress indicators and completion summaries
+8. ✅ **Optimized for Render free tier** - Reduced data volume by ~90% (0.1 CPU, 512MB RAM)
 
 ---
 

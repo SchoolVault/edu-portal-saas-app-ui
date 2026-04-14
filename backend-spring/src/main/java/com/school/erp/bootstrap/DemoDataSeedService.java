@@ -72,31 +72,33 @@ import java.util.stream.Collectors;
  * COMPREHENSIVE DEMO DATA SEED SERVICE FOR SCHOOL ERP
  * ═══════════════════════════════════════════════════════════════════════════════════════════════
  *
- * Seeds TWO realistic Indian schools with COMPLETE data for classes 4-12 for comprehensive
+ * Seeds TWO realistic Indian schools with COMPLETE data for classes 6-12 for comprehensive
  * end-to-end testing across ALL roles and modules.
+ *
+ * ⚠️  OPTIMIZED FOR RENDER FREE TIER (0.1 CPU, 512MB RAM) - Reduced data volume by ~90%
  *
  * SCHOOL 1: Delhi Public School (DPS-DLH) - New Delhi
  * SCHOOL 2: Kendriya Vidyalaya (KV-MUM) - Mumbai
  *
  * Each school includes:
- * ├── Classes: 4, 5, 6, 7, 8, 9, 10, 11, 12 (9 classes)
- * ├── Sections: A, B, C per class (3 sections × 9 classes = 27 sections)
- * ├── Students: ~30-35 per section (~280+ students total per school)
- * ├── Teachers: ~30 teachers with proper subject assignments
+ * ├── Classes: 6, 7, 8, 9, 10, 11, 12 (7 classes)
+ * ├── Sections: A, B per class (2 sections × 7 classes = 14 sections)
+ * ├── Students: ~7-8 per section (~100 students total per school)
+ * ├── Teachers: 10 teachers with proper subject assignments
  * ├── Guardians: Father + Mother for each student (proper mapping)
  * ├── Users: ADMIN, TEACHERS, PARENTS, LIBRARY_STAFF with login credentials
  * ├── Academic: Subjects, Teacher Assignments (Class + Subject)
  * ├── Fees: Fee structures, components, payments (PAID, PARTIAL, UNPAID examples)
  * ├── Exams: Multiple exams with schedules, mark records
- * ├── Attendance: Last 10 days of attendance for all students
+ * ├── Attendance: Last 5 days of attendance for all students
  * ├── Timetable: Complete weekly schedule for all classes
- * ├── Transport: Routes, vehicles, drivers, stops, student mappings
- * ├── Library: 100+ books, book issues
- * ├── Hostel: Hostels, rooms, student allocations
- * ├── Payroll: Teacher salary structures, components, payslips
- * ├── Communication: Announcements, direct messages
- * ├── Documents: Sample documents for testing
- * └── Leave: Leave requests (approved, pending, rejected examples)
+ * ├── Transport: 2 routes, vehicles, drivers, stops, student mappings
+ * ├── Library: 30 books, 10 book issues
+ * ├── Hostel: 2 hostels, 8 rooms per hostel, student allocations
+ * ├── Payroll: Teacher salary structures, components, payslips (last 3 months)
+ * ├── Communication: 3 announcements, 5 direct messages
+ * ├── Documents: 5 sample documents for testing
+ * └── Leave: Leave requests (5 teacher + 10 student examples)
  *
  * PASSWORD FOR ALL USERS: admin123
  *
@@ -402,15 +404,15 @@ public class DemoDataSeedService {
         log.info("  [4/15] Academic Subjects...");
         createAcademicSubjects(tenantId);
 
-        // STEP 5: Teachers (30 teachers with various subjects)
+        // STEP 5: Teachers (10 teachers - optimized for Render free tier)
         log.info("  [5/15] Teachers...");
-        List<Teacher> teachers = createTeachers(tenantId, schoolCode, 30, random);
+        List<Teacher> teachers = createTeachers(tenantId, schoolCode, 10, random);
 
-        // STEP 6: Classes & Sections (Classes 4-12, Sections A, B, C)
+        // STEP 6: Classes & Sections (Classes 6-12, Sections A, B - optimized for Render)
         log.info("  [6/15] Classes & Sections...");
         Map<Integer, List<ClassSectionPair>> classesMap = createClassesAndSections(tenantId, academicYear.getId(), teachers, random);
 
-        // STEP 7: Students with Guardians (30-35 per section)
+        // STEP 7: Students with Guardians (7-8 per section = ~100 total - optimized for Render)
         log.info("  [7/15] Students & Guardians...");
         List<Student> allStudents = createStudentsWithGuardians(tenantId, schoolCode, classesMap, random);
 
@@ -454,8 +456,8 @@ public class DemoDataSeedService {
         log.info("✅ School {} SEEDED SUCCESSFULLY!", schoolCode);
         log.info("   Students: {}", allStudents.size());
         log.info("   Teachers: {}", teachers.size());
-        log.info("   Classes: 9 (grades 4-12)");
-        log.info("   Sections: 27 (A, B, C per class)");
+        log.info("   Classes: 7 (grades 6-12)");
+        log.info("   Sections: 14 (A, B per class)");
         log.info("══════════════════════════════════════════════════════════════");
     }
 
@@ -630,12 +632,12 @@ public class DemoDataSeedService {
                                                                           List<Teacher> teachers, Random random) {
         Map<Integer, List<ClassSectionPair>> classesMap = new HashMap<>();
 
-        // Create classes 4-12
-        for (int grade = 4; grade <= 12; grade++) {
+        // Create classes 6-12 (optimized for Render free tier - 7 classes instead of 9)
+        for (int grade = 6; grade <= 12; grade++) {
             List<ClassSectionPair> sectionsForGrade = new ArrayList<>();
 
             // Assign a class teacher (homeroom) for each grade
-            Teacher classTeacher = teachers.get((grade - 4) % teachers.size());
+            Teacher classTeacher = teachers.get((grade - 6) % teachers.size());
 
             SchoolClass schoolClass = new SchoolClass();
             schoolClass.setTenantId(tenantId);
@@ -647,14 +649,14 @@ public class DemoDataSeedService {
             schoolClass.setIsDeleted(false);
             schoolClass = schoolClassRepository.save(schoolClass);
 
-            // Create sections A, B, C
-            for (String sectionName : new String[]{"A", "B", "C"}) {
+            // Create sections A, B only (optimized for Render - 2 sections instead of 3)
+            for (String sectionName : new String[]{"A", "B"}) {
                 Section section = new Section();
                 section.setTenantId(tenantId);
                 section.setName(sectionName);
                 section.setClassId(schoolClass.getId());
-                section.setCapacity(40);
-                section.setStudentCount(30 + random.nextInt(6)); // 30-35 students per section
+                section.setCapacity(30);
+                section.setStudentCount(7 + random.nextInt(2)); // 7-8 students per section (optimized for Render)
                 section.setIsDeleted(false);
                 section = sectionRepository.save(section);
 
@@ -673,7 +675,7 @@ public class DemoDataSeedService {
         List<Student> allStudents = new ArrayList<>();
         int admissionCounter = 1000;
 
-        for (int grade = 4; grade <= 12; grade++) {
+        for (int grade = 6; grade <= 12; grade++) {
             List<ClassSectionPair> sections = classesMap.get(grade);
 
             for (ClassSectionPair pair : sections) {
@@ -793,7 +795,7 @@ public class DemoDataSeedService {
 
         int teacherIdx = 0;
 
-        for (int grade = 4; grade <= 12; grade++) {
+        for (int grade = 6; grade <= 12; grade++) {
             List<ClassSectionPair> sections = classesMap.get(grade);
 
             for (ClassSectionPair pair : sections) {
@@ -835,7 +837,7 @@ public class DemoDataSeedService {
         Map<Long, FeeStructure> feeStructureMap = new HashMap<>();
 
         // Create fee structures for each class
-        for (int grade = 4; grade <= 12; grade++) {
+        for (int grade = 6; grade <= 12; grade++) {
             List<ClassSectionPair> sections = classesMap.get(grade);
             SchoolClass schoolClass = sections.get(0).schoolClass;
 
@@ -956,7 +958,7 @@ public class DemoDataSeedService {
             exam = examRepository.save(exam);
 
             // Add all classes to exam scope
-            for (int grade = 4; grade <= 12; grade++) {
+            for (int grade = 6; grade <= 12; grade++) {
                 List<ClassSectionPair> sections = classesMap.get(grade);
                 for (ClassSectionPair pair : sections) {
                     ExamClassScope scope = new ExamClassScope();
@@ -1017,8 +1019,8 @@ public class DemoDataSeedService {
 
     private void createAttendance(String tenantId, List<Student> allStudents,
                                  List<Teacher> teachers, Random random) {
-        // Last 10 days of attendance
-        for (int day = 10; day >= 1; day--) {
+        // Last 5 days of attendance (optimized for Render free tier)
+        for (int day = 5; day >= 1; day--) {
             LocalDate date = LocalDate.now().minusDays(day);
 
             // Skip Sundays
@@ -1058,7 +1060,7 @@ public class DemoDataSeedService {
 
         int teacherIdx = 0;
 
-        for (int grade = 4; grade <= 12; grade++) {
+        for (int grade = 6; grade <= 12; grade++) {
             List<ClassSectionPair> sections = classesMap.get(grade);
 
             for (ClassSectionPair pair : sections) {
@@ -1097,8 +1099,8 @@ public class DemoDataSeedService {
     }
 
     private void createTransport(String tenantId, List<Student> allStudents, Random random) {
-        // Create 3 routes
-        for (int routeNum = 1; routeNum <= 3; routeNum++) {
+        // Create 2 routes (optimized for Render free tier)
+        for (int routeNum = 1; routeNum <= 2; routeNum++) {
             // Create vehicle
             TransportVehicle vehicle = new TransportVehicle();
             vehicle.setTenantId(tenantId);
@@ -1148,11 +1150,11 @@ public class DemoDataSeedService {
                 routeStopRepository.save(stop);
             }
 
-            // Assign ~15 students per route (45 total out of 280+, ~16%)
+            // Assign ~8 students per route (optimized for Render free tier)
             List<Student> routeStudents = allStudents.stream()
-                .filter(s -> s.getId() != null) // Only assign students without a route
-                .filter(s -> s.getClassId() >= 4 && s.getClassId() <= 12) // Only assign students from classes 4-12
-                .limit(15)
+                .filter(s -> s.getId() != null)
+                .filter(s -> s.getClassId() >= 6 && s.getClassId() <= 12) // Classes 6-12
+                .limit(8)
                 .toList();
 
             for (Student student : routeStudents) {
@@ -1175,7 +1177,7 @@ public class DemoDataSeedService {
 
     private void createLibrary(String tenantId, List<Student> allStudents,
                               List<Teacher> teachers, Random random) {
-        // Create 100 books
+        // Create 30 books (optimized for Render free tier)
         String[][] bookData = {
             {"To Kill a Mockingbird", "Harper Lee", "978-0061120084", "Fiction"},
             {"1984", "George Orwell", "978-0451524935", "Fiction"},
@@ -1201,7 +1203,7 @@ public class DemoDataSeedService {
 
         List<Book> books = new ArrayList<>();
 
-        for (int i = 0; i < 100; i++) {
+        for (int i = 0; i < 30; i++) {
             String[] data = bookData[i % bookData.length];
 
             Book book = new Book();
@@ -1210,15 +1212,15 @@ public class DemoDataSeedService {
             book.setAuthor(data[1]);
             book.setIsbn(data[2]);
             book.setCategory(data[3]);
-            book.setTotalCopies(3 + random.nextInt(5)); // 3-7 copies per book
-            book.setAvailableCopies(book.getTotalCopies() - random.nextInt(2)); // 0-2 issued
-            book.setShelfLocation("Shelf " + ((i % 20) + 1) + "-" + (char)('A' + (i % 5)));
+            book.setTotalCopies(2 + random.nextInt(3)); // 2-4 copies per book (reduced)
+            book.setAvailableCopies(book.getTotalCopies() - random.nextInt(2)); // 0-1 issued
+            book.setShelfLocation("Shelf " + ((i % 10) + 1) + "-" + (char)('A' + (i % 5)));
             book.setIsDeleted(false);
             books.add(bookRepository.save(book));
         }
 
-        // Issue 20 books to random students
-        for (int i = 0; i < 20; i++) {
+        // Issue 10 books to random students (optimized for Render)
+        for (int i = 0; i < 10; i++) {
             Student student = allStudents.get(random.nextInt(allStudents.size()));
             Book book = books.get(random.nextInt(books.size()));
 
@@ -1276,10 +1278,10 @@ public class DemoDataSeedService {
             hostel.setIsDeleted(false);
             hostel = hostelRepository.save(hostel);
 
-            // Create 15 rooms per hostel
-            for (int roomNum = 1; roomNum <= 15; roomNum++) {
-                String roomType = roomNum <= 5 ? "DOUBLE" :
-                                 roomNum <= 12 ? "TRIPLE" : "DORMITORY";
+            // Create 8 rooms per hostel (optimized for Render free tier)
+            for (int roomNum = 1; roomNum <= 8; roomNum++) {
+                String roomType = roomNum <= 3 ? "DOUBLE" :
+                                 roomNum <= 7 ? "TRIPLE" : "DORMITORY";
                 int capacity = "DOUBLE".equals(roomType) ? 2 :
                               "TRIPLE".equals(roomType) ? 3 : 6;
 
@@ -1398,13 +1400,11 @@ public class DemoDataSeedService {
 
     private void createCommunication(String tenantId, User adminUser, List<Teacher> teachers,
                                     List<Student> allStudents, Random random) {
-        // Create 5 announcements
+        // Create 3 announcements (optimized for Render free tier)
         String[][] announcementData = {
             {"School Reopening Notice", "School will reopen on April 1st, 2025. All students must report by 8:00 AM."},
             {"Parent-Teacher Meeting", "Parent-Teacher Meeting scheduled for May 15th. Parents are requested to attend."},
-            {"Sports Day Celebration", "Annual Sports Day will be celebrated on June 10th. All students must participate."},
-            {"Mid-Term Exam Schedule", "Mid-Term Examinations will commence from August 20th. Exam schedule attached."},
-            {"Winter Break Notice", "School will remain closed from December 20th to January 5th for winter break."}
+            {"Mid-Term Exam Schedule", "Mid-Term Examinations will commence from August 20th. Exam schedule attached."}
         };
 
         for (String[] data : announcementData) {
@@ -1419,8 +1419,8 @@ public class DemoDataSeedService {
             announcementRepository.save(announcement);
         }
 
-        // Create 10 direct messages (teacher to parent)
-        for (int i = 0; i < 10; i++) {
+        // Create 5 direct messages (teacher to parent - optimized for Render)
+        for (int i = 0; i < 5; i++) {
             Student student = allStudents.get(random.nextInt(allStudents.size()));
             Teacher teacher = teachers.get(random.nextInt(teachers.size()));
 
