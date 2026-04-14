@@ -23,19 +23,13 @@ public class AuditService {
     private final RabbitTemplate rabbitTemplate;
 
     @Transactional(readOnly = true)
-    public Page<AuditLog> getAuditLogs(int page, int size, Enums.AuditAction action, String module) {
+    public Page<AuditLog> getAuditLogs(int page, int size, Enums.AuditAction action, String module, String q) {
         String t = TenantContext.getTenantId();
-        log.debug("Query audit logs page={} action={} module={}", page, action, module);
-        Page<AuditLog> pageResult;
-        if (action != null && module != null) {
-            pageResult = repo.findByTenantIdAndActionAndModuleAndIsDeletedFalse(t, action, module, PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt")));
-        } else if (action != null) {
-            pageResult = repo.findByTenantIdAndActionAndIsDeletedFalse(t, action, PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt")));
-        } else if (module != null) {
-            pageResult = repo.findByTenantIdAndModuleAndIsDeletedFalse(t, module, PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt")));
-        } else {
-            pageResult = repo.findByTenantIdAndIsDeletedFalse(t, PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt")));
-        }
+        String qq = q == null || q.isBlank() ? "" : q.trim();
+        String mod = module == null || module.isBlank() ? null : module.trim();
+        log.debug("Query audit logs page={} action={} module={} qPresent={}", page, action, mod, !qq.isEmpty());
+        Page<AuditLog> pageResult = repo.searchPage(t, action, mod == null ? "" : mod, qq,
+                PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt")));
         log.info("Audit logs returned page={} elements={} total={}", page, pageResult.getNumberOfElements(), pageResult.getTotalElements());
         return pageResult;
     }

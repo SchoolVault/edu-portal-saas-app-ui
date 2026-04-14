@@ -1,5 +1,6 @@
 package com.school.erp.modules.reports.service;
 
+import com.school.erp.common.dto.PageResponse;
 import com.school.erp.modules.student.repository.StudentRepository;
 import com.school.erp.modules.teacher.repository.TeacherRepository;
 import com.school.erp.modules.exams.repository.MarkRecordRepository;
@@ -399,6 +400,31 @@ public class ReportService {
         }
         log.info("Teacher workload rows={} tenantId={}", result.size(), tenantId);
         return result;
+    }
+
+    private <T> PageResponse<T> sliceList(List<T> all, int page, int size) {
+        long total = all.size();
+        int from = page * size;
+        if (from >= all.size()) {
+            return PageResponse.of(List.of(), page, size, total);
+        }
+        int to = Math.min(from + size, all.size());
+        return PageResponse.of(all.subList(from, to), page, size, total);
+    }
+
+    @Transactional(readOnly = true)
+    public PageResponse<Map<String, Object>> getClassSummaryPaged(int page, int size) {
+        return sliceList(getClassSummary(), page, size);
+    }
+
+    @Transactional(readOnly = true)
+    public PageResponse<Map<String, Object>> getSectionSummaryPaged(int page, int size) {
+        return sliceList(getSectionSummary(), page, size);
+    }
+
+    @Transactional(readOnly = true)
+    public PageResponse<Map<String, Object>> getTeacherWorkloadPaged(int page, int size) {
+        return sliceList(getTeacherWorkload(), page, size);
     }
 
     private List<ReportDashboardDTOs.MetricPoint> buildMonthlyAdmissions(String tenantId) {

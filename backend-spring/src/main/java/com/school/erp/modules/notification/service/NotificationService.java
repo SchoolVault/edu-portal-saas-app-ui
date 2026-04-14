@@ -1,5 +1,6 @@
 package com.school.erp.modules.notification.service;
 
+import com.school.erp.common.dto.PageResponse;
 import com.school.erp.common.enums.Enums;
 import com.school.erp.config.RabbitMQConfig;
 import com.school.erp.common.exception.ResourceNotFoundException;
@@ -10,6 +11,10 @@ import com.school.erp.tenant.TenantQueryPolicy;
 import jakarta.annotation.Nullable;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -18,6 +23,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Service
@@ -35,6 +41,45 @@ public class NotificationService {
             return raw.stream().filter(this::isPlatformOperatorNotification).collect(Collectors.toList());
         }
         return raw;
+    }
+
+    @Transactional(readOnly = true)
+    public PageResponse<Notification> getUserNotificationsPaged(int page, int size) {
+        String tenantId = TenantContext.getTenantId();
+        Long userId = TenantContext.getUserId();
+        if (isSuperAdminRole()) {
+            Pageable cap = PageRequest.of(0, 2000, Sort.by(Sort.Direction.DESC, "createdAt"));
+            Page<Notification> chunk = repo.findByTenantIdAndUserIdAndIsDeletedFalseOrderByCreatedAtDesc(tenantId, userId, cap);
+            List<Notification> filtered = chunk.getContent().stream()
+                    .filter(this::isPlatformOperatorNotification)
+                    .collect(Collectors.toList());
+            long total = filtered.size();
+            int from = page * size;
+            if (from >= filtered.size()) {
+                return PageResponse.of(List.of(), page, size, total);
+            }
+            int to = Math.min(from + size, filtered.size());
+            return PageResponse.of(filtered.subList(from, to), page, size, total);
+        }
+        Pageable p = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
+        Page<Notification> pg = repo.findByTenantIdAndUserIdAndIsDeletedFalseOrderByCreatedAtDesc(tenantId, userId, p);
+        return PageResponse.fromSpringPage(pg);
+    }
+
+    /**
+     * Single notification for the current security context (tenant user or platform super-admin filtered feed).
+     */
+    @Transactional(readOnly = true)
+    public Optional<Notification> getNotificationForCurrentUser(Long id) {
+        if (id == null || id < 0) {
+            return Optional.empty();
+        }
+        if (TenantQueryPolicy.isPlatformSuperAdmin()) {
+            return repo.findById(id)
+                    .filter(n -> !Boolean.TRUE.equals(n.getIsDeleted()))
+                    .filter(this::isPlatformOperatorNotification);
+        }
+        return repo.findByIdAndTenantIdAndUserIdAndIsDeletedFalse(id, TenantContext.getTenantId(), TenantContext.getUserId());
     }
 
     @Transactional(readOnly = true)

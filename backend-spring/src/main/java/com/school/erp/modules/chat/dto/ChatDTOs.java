@@ -18,6 +18,8 @@ public class ChatDTOs {
         private String lastMessagePreview;
         private List<ParticipantSummary> participants;
         private long unreadCount;
+        /** Optional UI hint for the non-self participant (role + up to N linked students). Mirrors frontend {@code ChatCounterpartInsight}. */
+        private CounterpartInsight counterpartInsight;
 
         public Long getConversationId() { return conversationId; }
         public void setConversationId(Long conversationId) { this.conversationId = conversationId; }
@@ -37,6 +39,34 @@ public class ChatDTOs {
         public void setParticipants(List<ParticipantSummary> participants) { this.participants = participants; }
         public long getUnreadCount() { return unreadCount; }
         public void setUnreadCount(long unreadCount) { this.unreadCount = unreadCount; }
+        public CounterpartInsight getCounterpartInsight() { return counterpartInsight; }
+        public void setCounterpartInsight(CounterpartInsight counterpartInsight) { this.counterpartInsight = counterpartInsight; }
+    }
+
+    public static class LinkedStudentBrief {
+        private Long studentId;
+        private String studentName;
+        private String classShort;
+
+        public Long getStudentId() { return studentId; }
+        public void setStudentId(Long studentId) { this.studentId = studentId; }
+        public String getStudentName() { return studentName; }
+        public void setStudentName(String studentName) { this.studentName = studentName; }
+        public String getClassShort() { return classShort; }
+        public void setClassShort(String classShort) { this.classShort = classShort; }
+    }
+
+    public static class CounterpartInsight {
+        private String roleCode;
+        private List<LinkedStudentBrief> linkedStudents;
+        private Integer linkedStudentTotal;
+
+        public String getRoleCode() { return roleCode; }
+        public void setRoleCode(String roleCode) { this.roleCode = roleCode; }
+        public List<LinkedStudentBrief> getLinkedStudents() { return linkedStudents; }
+        public void setLinkedStudents(List<LinkedStudentBrief> linkedStudents) { this.linkedStudents = linkedStudents; }
+        public Integer getLinkedStudentTotal() { return linkedStudentTotal; }
+        public void setLinkedStudentTotal(Integer linkedStudentTotal) { this.linkedStudentTotal = linkedStudentTotal; }
     }
 
     public static class ParticipantSummary {

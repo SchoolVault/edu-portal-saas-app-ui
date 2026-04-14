@@ -21,8 +21,13 @@ public class AuditController {
     @GetMapping
     @PreAuthorize("hasRole(\'ADMIN\')")
     @Operation(summary = "Get audit logs", description = "Paginated audit logs with optional action and module filters")
-    public ResponseEntity<ApiResponse<PageResponse<AuditLog>>> list(@RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "50") int size, @RequestParam(required = false) Enums.AuditAction action, @RequestParam(required = false) String module) {
-        Page<AuditLog> result = service.getAuditLogs(page, size, action, module);
+    public ResponseEntity<ApiResponse<PageResponse<AuditLog>>> list(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "50") int size,
+            @RequestParam(required = false) Enums.AuditAction action,
+            @RequestParam(required = false) String module,
+            @RequestParam(required = false) String q) {
+        Page<AuditLog> result = service.getAuditLogs(page, size, action, module, q);
         return ResponseEntity.ok(ApiResponse.ok(PageResponse.of(result.getContent(), page, size, result.getTotalElements())));
     }
 

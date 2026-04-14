@@ -1,5 +1,7 @@
 package com.school.erp.common.dto;
 
+import org.springframework.data.domain.Page;
+
 import java.util.List;
 
 public class PageResponse<T> {
@@ -14,6 +16,14 @@ public class PageResponse<T> {
     public static <T> PageResponse<T> of(List<T> content, int page, int size, long totalElements) {
         int totalPages = (int) Math.ceil((double) totalElements / size);
         return PageResponse.<T>builder().content(content).page(page).size(size).totalElements(totalElements).totalPages(totalPages).first(page == 0).last(page >= totalPages - 1).build();
+    }
+
+    /** Maps Spring Data {@link Page} to API contract (0-based page index). */
+    public static <T> PageResponse<T> fromSpringPage(Page<T> page) {
+        if (page == null) {
+            return of(List.of(), 0, 0, 0);
+        }
+        return of(page.getContent(), page.getNumber(), page.getSize(), page.getTotalElements());
     }
 
 

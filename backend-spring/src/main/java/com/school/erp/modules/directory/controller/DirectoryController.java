@@ -1,6 +1,7 @@
 package com.school.erp.modules.directory.controller;
 
 import com.school.erp.common.dto.ApiResponse;
+import com.school.erp.common.dto.PageResponse;
 import com.school.erp.modules.directory.dto.DirectoryDTOs;
 import com.school.erp.modules.directory.service.DirectoryService;
 import org.springframework.http.ResponseEntity;
@@ -38,5 +39,22 @@ public class DirectoryController {
                     .collect(Collectors.toCollection(LinkedHashSet::new));
         }
         return ResponseEntity.ok(ApiResponse.ok(directoryService.search(q, kinds)));
+    }
+
+    @GetMapping("/search/paged")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<PageResponse<DirectoryDTOs.Entry>>> searchPaged(
+            @RequestParam("q") String q,
+            @RequestParam(value = "kinds", required = false) String kindsCsv,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        Set<String> kinds = null;
+        if (kindsCsv != null && !kindsCsv.isBlank()) {
+            kinds = Arrays.stream(kindsCsv.split(","))
+                    .map(String::trim)
+                    .filter(s -> !s.isEmpty())
+                    .collect(Collectors.toCollection(LinkedHashSet::new));
+        }
+        return ResponseEntity.ok(ApiResponse.ok(directoryService.searchPaged(q, kinds, page, size)));
     }
 }

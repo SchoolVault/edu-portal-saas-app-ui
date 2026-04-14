@@ -1,5 +1,6 @@
 package com.school.erp.modules.platform.service;
 
+import com.school.erp.common.dto.PageResponse;
 import com.school.erp.common.enums.Enums;
 import com.school.erp.common.exception.BusinessException;
 import com.school.erp.common.exception.ResourceNotFoundException;
@@ -17,6 +18,10 @@ import com.school.erp.modules.teacher.repository.TeacherRepository;
 import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -159,6 +164,14 @@ public class PlatformService {
                 .toList();
         log.info("Listed {} school workspace(s)", list.size());
         return list;
+    }
+
+    @Transactional(readOnly = true)
+    public PageResponse<PlatformDTOs.SchoolSummary> getSchoolsPaged(int page, int size, String q) {
+        Pageable pageable = PageRequest.of(page, size, Sort.by("schoolName"));
+        String qq = (q != null && !q.isBlank()) ? q.trim() : "";
+        Page<TenantConfig> pg = tenantConfigRepository.pageActiveSchools(qq, pageable);
+        return PageResponse.fromSpringPage(pg.map(this::toSchoolSummary));
     }
 
     @Transactional(readOnly = true)

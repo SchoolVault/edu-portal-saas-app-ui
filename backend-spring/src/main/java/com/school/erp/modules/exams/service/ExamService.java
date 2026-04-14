@@ -1,5 +1,6 @@
 package com.school.erp.modules.exams.service;
 
+import com.school.erp.common.dto.PageResponse;
 import com.school.erp.common.enums.Enums;
 import com.school.erp.common.exception.BusinessException;
 import com.school.erp.common.exception.ResourceNotFoundException;
@@ -17,6 +18,10 @@ import com.school.erp.modules.student.entity.Student;
 import com.school.erp.modules.student.repository.StudentRepository;
 import com.school.erp.tenant.TenantContext;
 import com.school.erp.tenant.TenantQueryPolicy;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
@@ -41,6 +46,32 @@ public class ExamService {
     public List<ExamDTOs.ExamResponse> getExams() {
         String t = TenantContext.getTenantId();
         return examRepo.findByTenantIdAndIsDeletedFalse(t).stream().map(this::toExamResponse).collect(Collectors.toList());
+    }
+
+    @Transactional(readOnly = true)
+    public PageResponse<ExamDTOs.ExamResponse> getExamsPaged(int page, int size, String q, String status) {
+        String t = TenantContext.getTenantId();
+        Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Order.desc("startDate"), Sort.Order.asc("name")));
+        Enums.ExamStatus st = null;
+        if (status != null && !status.isBlank()) {
+            try {
+                st = Enums.ExamStatus.valueOf(status.trim().toUpperCase());
+            } catch (IllegalArgumentException ignored) {
+                st = null;
+            }
+        }
+        String qq = q != null && !q.isBlank() ? q.trim() : null;
+        Page<Exam> pg;
+        if (st != null && qq != null) {
+            pg = examRepo.findByTenantIdAndIsDeletedFalseAndStatusAndNameContainingIgnoreCase(t, st, qq, pageable);
+        } else if (st != null) {
+            pg = examRepo.findByTenantIdAndIsDeletedFalseAndStatus(t, st, pageable);
+        } else if (qq != null) {
+            pg = examRepo.findByTenantIdAndIsDeletedFalseAndNameContainingIgnoreCase(t, qq, pageable);
+        } else {
+            pg = examRepo.findByTenantIdAndIsDeletedFalse(t, pageable);
+        }
+        return PageResponse.fromSpringPage(pg.map(this::toExamResponse));
     }
 
     @Transactional

@@ -47,7 +47,7 @@ public class GuardianService {
         Map<Long, Student> byId = new LinkedHashMap<>();
         studentRepository.findByTenantIdAndParentIdAndIsDeletedFalse(tenantId, parentUserId).forEach(s -> byId.put(s.getId(), s));
         List<Long> mappedStudentIds =
-                mappingRepository.findStudentIdsLinkedToGuardianUser(tenantId, parentUserId, LocalDate.now());
+                mappingRepository.findStudentIdsLinkedToGuardianUser(tenantId, parentUserId);
         if (!mappedStudentIds.isEmpty()) {
             studentRepository.findByTenantIdAndIdInAndIsDeletedFalse(tenantId, mappedStudentIds).forEach(s -> byId.put(s.getId(), s));
         }

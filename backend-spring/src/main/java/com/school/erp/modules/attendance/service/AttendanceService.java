@@ -1,5 +1,6 @@
 package com.school.erp.modules.attendance.service;
 
+import com.school.erp.common.dto.PageResponse;
 import com.school.erp.common.enums.Enums;
 import com.school.erp.common.exception.BusinessException;
 import com.school.erp.common.exception.UnauthorizedException;
@@ -8,6 +9,10 @@ import com.school.erp.modules.attendance.entity.AttendanceRecord;
 import com.school.erp.modules.attendance.repository.AttendanceRepository;
 import com.school.erp.modules.student.service.TeacherRosterScopeService;
 import com.school.erp.tenant.TenantContext;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
@@ -30,6 +35,15 @@ public class AttendanceService {
     public List<AttendanceDTOs.AttendanceResponse> getByClassSectionDate(Long classId, Long sectionId, LocalDate date) {
         assertTeacherAttendanceScope(classId, sectionId, date);
         return repo.findByTenantIdAndClassIdAndSectionIdAndDate(TenantContext.getTenantId(), classId, sectionId, date).stream().map(this::toResponse).collect(Collectors.toList());
+    }
+
+    @Transactional(readOnly = true)
+    public PageResponse<AttendanceDTOs.AttendanceResponse> getByClassSectionDatePaged(Long classId, Long sectionId, LocalDate date, int page, int size) {
+        assertTeacherAttendanceScope(classId, sectionId, date);
+        Pageable pageable = PageRequest.of(page, size, Sort.by("studentId"));
+        Page<AttendanceRecord> pg = repo.findByTenantIdAndClassIdAndSectionIdAndDateAndIsDeletedFalseOrderByStudentIdAsc(
+                TenantContext.getTenantId(), classId, sectionId, date, pageable);
+        return PageResponse.fromSpringPage(pg.map(this::toResponse));
     }
 
     @Transactional

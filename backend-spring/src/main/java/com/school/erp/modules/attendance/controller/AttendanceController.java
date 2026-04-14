@@ -1,6 +1,7 @@
 package com.school.erp.modules.attendance.controller;
 
 import com.school.erp.common.dto.ApiResponse;
+import com.school.erp.common.dto.PageResponse;
 import com.school.erp.modules.attendance.dto.AttendanceDTOs;
 import com.school.erp.modules.attendance.service.AttendanceService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -23,6 +24,18 @@ public class AttendanceController {
     @Operation(summary = "Get attendance by class, section, date")
     public ResponseEntity<ApiResponse<List<AttendanceDTOs.AttendanceResponse>>> get(@RequestParam Long classId, @RequestParam Long sectionId, @RequestParam String date) {
         return ResponseEntity.ok(ApiResponse.ok(service.getByClassSectionDate(classId, sectionId, LocalDate.parse(date))));
+    }
+
+    @GetMapping("/paged")
+    @PreAuthorize("hasAnyRole('ADMIN','TEACHER')")
+    @Operation(summary = "Get attendance by class, section, date (paged)")
+    public ResponseEntity<ApiResponse<PageResponse<AttendanceDTOs.AttendanceResponse>>> getPaged(
+            @RequestParam Long classId,
+            @RequestParam Long sectionId,
+            @RequestParam String date,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "50") int size) {
+        return ResponseEntity.ok(ApiResponse.ok(service.getByClassSectionDatePaged(classId, sectionId, LocalDate.parse(date), page, size)));
     }
 
     @PostMapping

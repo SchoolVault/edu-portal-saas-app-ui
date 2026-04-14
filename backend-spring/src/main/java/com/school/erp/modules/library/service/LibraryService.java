@@ -1,5 +1,6 @@
 package com.school.erp.modules.library.service;
 
+import com.school.erp.common.dto.PageResponse;
 import com.school.erp.common.enums.Enums;
 import com.school.erp.common.exception.BusinessException;
 import com.school.erp.common.exception.ResourceNotFoundException;
@@ -11,6 +12,10 @@ import com.school.erp.tenant.TenantContext;
 import com.school.erp.tenant.TenantQueryPolicy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -46,6 +51,37 @@ public class LibraryService {
             ).toList();
         }
         return books;
+    }
+
+    @Transactional(readOnly = true)
+    public PageResponse<Book> getBooksPaged(int page, int size, String search, String category, String catalogScope) {
+        String t = TenantContext.getTenantId();
+        String s = search == null || search.isBlank() ? "" : search.trim();
+        String cat = category == null || category.isBlank() ? "" : category.trim();
+        String scope = catalogScope == null || catalogScope.isBlank() ? "ACTIVE" : catalogScope.trim().toUpperCase();
+        if (!scope.equals("ALL") && !scope.equals("ACTIVE") && !scope.equals("INACTIVE")) {
+            scope = "ACTIVE";
+        }
+        Pageable p = PageRequest.of(page, size, Sort.by("title"));
+        Page<Book> pg = bookRepo.pageBooks(t, s, cat, scope, p);
+        log.debug("Books paged page={} total={} scope={}", page, pg.getTotalElements(), scope);
+        return PageResponse.of(pg.getContent(), page, size, pg.getTotalElements());
+    }
+
+    @Transactional(readOnly = true)
+    public PageResponse<LibraryDTOs.BookIssueResponse> getIssuesPaged(int page, int size, Enums.BookIssueStatus status) {
+        String t = TenantContext.getTenantId();
+        Pageable p = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "issueDate"));
+        Page<BookIssue> pg;
+        if (status == null) {
+            pg = issueRepo.findByTenantIdAndIsDeletedFalseOrderByIssueDateDesc(t, p);
+        } else if (status == Enums.BookIssueStatus.OVERDUE) {
+            pg = issueRepo.pageOverdue(t, LocalDate.now(), p);
+        } else {
+            pg = issueRepo.findByTenantIdAndStatusAndIsDeletedFalseOrderByIssueDateDesc(t, status, p);
+        }
+        List<LibraryDTOs.BookIssueResponse> content = pg.getContent().stream().map(this::toIssueResponse).toList();
+        return PageResponse.of(content, page, size, pg.getTotalElements());
     }
 
     @Transactional
@@ -157,23 +193,29 @@ public class LibraryService {
     @Transactional(readOnly = true)
     public List<LibraryDTOs.BookIssueResponse> getIssues(Enums.BookIssueStatus status) {
         List<BookIssue> issues = issueRepo.findByTenantIdAndIsDeletedFalse(TenantContext.getTenantId());
-        if (status != null) issues = issues.stream().filter(i -> i.getStatus() == status).toList();
-        issues.forEach(i -> {
-            if (i.getStatus() == Enums.BookIssueStatus.ISSUED && i.getDueDate() != null && LocalDate.now().isAfter(i.getDueDate())) {
-                i.setStatus(Enums.BookIssueStatus.OVERDUE);
-            }
-        });
-        return issues.stream().map(this::toIssueResponse).toList();
+        return issues.stream()
+                .filter(i -> status == null || effectiveIssueStatus(i) == status)
+                .map(this::toIssueResponse)
+                .toList();
+    }
+
+    private static Enums.BookIssueStatus effectiveIssueStatus(BookIssue i) {
+        Enums.BookIssueStatus st = i.getStatus();
+        if (st == Enums.BookIssueStatus.ISSUED && i.getDueDate() != null && LocalDate.now().isAfter(i.getDueDate())) {
+            return Enums.BookIssueStatus.OVERDUE;
+        }
+        return st;
     }
 
     private LibraryDTOs.BookIssueResponse toIssueResponse(BookIssue i) {
+        Enums.BookIssueStatus st = effectiveIssueStatus(i);
         return LibraryDTOs.BookIssueResponse.builder()
                 .id(i.getId()).bookId(i.getBookId()).bookTitle(i.getBookTitle())
                 .studentId(i.getStudentId()).studentName(i.getStudentName())
                 .issueDate(i.getIssueDate() != null ? i.getIssueDate().toString() : null)
                 .dueDate(i.getDueDate() != null ? i.getDueDate().toString() : null)
                 .returnDate(i.getReturnDate() != null ? i.getReturnDate().toString() : null)
-                .fine(i.getFine()).status(i.getStatus() != null ? i.getStatus().name().toLowerCase() : null)
+                .fine(i.getFine()).status(st != null ? st.name().toLowerCase() : null)
                 .build();
     }
 }

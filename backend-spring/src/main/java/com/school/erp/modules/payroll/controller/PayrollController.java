@@ -1,6 +1,7 @@
 package com.school.erp.modules.payroll.controller;
 
 import com.school.erp.common.dto.ApiResponse;
+import com.school.erp.common.dto.PageResponse;
 import com.school.erp.modules.payroll.dto.PayrollDTOs;
 import com.school.erp.modules.payroll.entity.Payslip;
 import com.school.erp.modules.payroll.service.PayrollService;
@@ -27,6 +28,15 @@ public class PayrollController {
     @Operation(summary = "List salary structures with components")
     public ResponseEntity<ApiResponse<List<PayrollDTOs.SalaryStructureResponse>>> listStructures() {
         return ResponseEntity.ok(ApiResponse.ok(service.getStructures()));
+    }
+
+    @GetMapping("/structures/paged")
+    @PreAuthorize("hasRole(\'ADMIN\')")
+    @Operation(summary = "List salary structures (paged)")
+    public ResponseEntity<ApiResponse<PageResponse<PayrollDTOs.SalaryStructureResponse>>> listStructuresPaged(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return ResponseEntity.ok(ApiResponse.ok(service.getStructuresPaged(page, size)));
     }
 
     @PostMapping("/structures")
@@ -57,11 +67,33 @@ public class PayrollController {
         return ResponseEntity.ok(ApiResponse.ok(service.getPayslips(year, month)));
     }
 
+    @GetMapping("/payslips/paged")
+    @PreAuthorize("hasRole(\'ADMIN\')")
+    @Operation(summary = "List payslips (paged)", description = "Filter by year and month")
+    public ResponseEntity<ApiResponse<PageResponse<Payslip>>> listPayslipsPaged(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(required = false) Integer year,
+            @RequestParam(required = false) String month) {
+        return ResponseEntity.ok(ApiResponse.ok(service.getPayslipsPaged(page, size, year, month)));
+    }
+
     @GetMapping("/payslips/me")
     @PreAuthorize("hasRole(\'TEACHER\')")
     @Operation(summary = "Teacher payslips for linked profile")
     public ResponseEntity<ApiResponse<List<Payslip>>> myPayslips(@RequestParam(required = false) Integer year, @RequestParam(required = false) String month) {
         return ResponseEntity.ok(ApiResponse.ok(service.getMyPayslips(year, month)));
+    }
+
+    @GetMapping("/payslips/me/paged")
+    @PreAuthorize("hasRole(\'TEACHER\')")
+    @Operation(summary = "Teacher payslips (paged)")
+    public ResponseEntity<ApiResponse<PageResponse<Payslip>>> myPayslipsPaged(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(required = false) Integer year,
+            @RequestParam(required = false) String month) {
+        return ResponseEntity.ok(ApiResponse.ok(service.getMyPayslipsPaged(page, size, year, month)));
     }
 
     @GetMapping(value = "/payslips/{id}/pdf", produces = MediaType.APPLICATION_PDF_VALUE)

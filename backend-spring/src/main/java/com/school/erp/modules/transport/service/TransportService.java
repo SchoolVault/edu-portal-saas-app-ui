@@ -1,5 +1,6 @@
 package com.school.erp.modules.transport.service;
 
+import com.school.erp.common.dto.PageResponse;
 import com.school.erp.common.exception.ResourceNotFoundException;
 import com.school.erp.modules.transport.dto.TransportDTOs;
 import com.school.erp.modules.transport.entity.*;
@@ -8,6 +9,10 @@ import com.school.erp.config.CacheConfig;
 import com.school.erp.tenant.TenantContext;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -29,51 +34,66 @@ public class TransportService {
     public List<TransportDTOs.RouteResponse> getRoutes() {
         String t = TenantContext.getTenantId();
         log.debug("Loading transport routes tenantId={}", t);
-        List<TransportDTOs.RouteResponse> routes = routeRepo.findByTenantIdAndIsDeletedFalse(t).stream().map(r -> {
-            List<RouteStop> stops = stopRepo.findByTenantIdAndRouteIdOrderByStopOrder(t, r.getId());
-            List<StudentTransportMapping> students = mappingRepo.findByTenantIdAndRouteIdAndIsDeletedFalse(t, r.getId());
-            String vehicleNumber = r.getVehicleNumber();
-            String vehicleType = null;
-            if (r.getVehicleId() != null) {
-                var ov = vehicleRepo.findByIdAndTenantIdAndIsDeletedFalse(r.getVehicleId(), t);
-                if (ov.isPresent()) {
-                    vehicleNumber = ov.get().getRegistrationNumber();
-                    vehicleType = ov.get().getVehicleType() != null ? ov.get().getVehicleType().name() : null;
-                }
-            }
-            String driverName = r.getDriverName();
-            String driverPhone = r.getDriverPhone();
-            if (r.getDriverId() != null) {
-                var od = driverRepo.findByIdAndTenantIdAndIsDeletedFalse(r.getDriverId(), t);
-                if (od.isPresent()) {
-                    driverName = od.get().getFullName();
-                    driverPhone = od.get().getPhone();
-                }
-            }
-            TransportDTOs.RouteResponse resp = TransportDTOs.RouteResponse.builder()
-                    .id(r.getId())
-                    .name(r.getName())
-                    .vehicleNumber(vehicleNumber)
-                    .driverName(driverName)
-                    .driverPhone(driverPhone)
-                    .assignedStudents(students.size())
-                    .stops(stops.stream().map(s -> TransportDTOs.StopDTO.builder().id(s.getId()).name(s.getName()).time(s.getStopTime() != null ? s.getStopTime().toString() : null).order(s.getStopOrder()).build()).collect(Collectors.toList()))
-                    .students(students.stream().map(m -> TransportDTOs.StudentMappingDTO.builder().id(m.getId()).studentId(m.getStudentId()).studentName(m.getStudentName()).pickupStop(m.getPickupStop()).dropStop(m.getDropStop()).build()).collect(Collectors.toList()))
-                    .build();
-            resp.setVehicleId(r.getVehicleId());
-            resp.setDriverId(r.getDriverId());
-            resp.setVehicleType(vehicleType);
-            if (r.getVehicleId() != null) {
-                liveRepo.findTopByTenantIdAndVehicleIdAndIsDeletedFalseOrderByRecordedAtDesc(t, r.getVehicleId()).ifPresent(loc -> {
-                    resp.setLiveLatitude(loc.getLatitude() != null ? loc.getLatitude().doubleValue() : null);
-                    resp.setLiveLongitude(loc.getLongitude() != null ? loc.getLongitude().doubleValue() : null);
-                    resp.setLiveRecordedAt(loc.getRecordedAt() != null ? loc.getRecordedAt().toString() : null);
-                });
-            }
-            return resp;
-        }).collect(Collectors.toList());
+        List<TransportDTOs.RouteResponse> routes = routeRepo.findByTenantIdAndIsDeletedFalse(t).stream()
+                .map(r -> buildRouteResponse(r, t))
+                .collect(Collectors.toList());
         log.info("Loaded {} transport route(s) tenantId={}", routes.size(), t);
         return routes;
+    }
+
+    /** Paged routes (not Redis-cached per page; use after mutations or for large fleets). */
+    @Transactional(readOnly = true)
+    public PageResponse<TransportDTOs.RouteResponse> getRoutesPaged(int page, int size, String q) {
+        String t = TenantContext.getTenantId();
+        Pageable pageable = PageRequest.of(page, size, Sort.by("name"));
+        Page<TransportRoute> pr = (q != null && !q.isBlank())
+                ? routeRepo.findByTenantIdAndIsDeletedFalseAndNameContainingIgnoreCase(t, q.trim(), pageable)
+                : routeRepo.findByTenantIdAndIsDeletedFalse(t, pageable);
+        return PageResponse.fromSpringPage(pr.map(r -> buildRouteResponse(r, t)));
+    }
+
+    private TransportDTOs.RouteResponse buildRouteResponse(TransportRoute r, String t) {
+        List<RouteStop> stops = stopRepo.findByTenantIdAndRouteIdOrderByStopOrder(t, r.getId());
+        List<StudentTransportMapping> students = mappingRepo.findByTenantIdAndRouteIdAndIsDeletedFalse(t, r.getId());
+        String vehicleNumber = r.getVehicleNumber();
+        String vehicleType = null;
+        if (r.getVehicleId() != null) {
+            var ov = vehicleRepo.findByIdAndTenantIdAndIsDeletedFalse(r.getVehicleId(), t);
+            if (ov.isPresent()) {
+                vehicleNumber = ov.get().getRegistrationNumber();
+                vehicleType = ov.get().getVehicleType() != null ? ov.get().getVehicleType().name() : null;
+            }
+        }
+        String driverName = r.getDriverName();
+        String driverPhone = r.getDriverPhone();
+        if (r.getDriverId() != null) {
+            var od = driverRepo.findByIdAndTenantIdAndIsDeletedFalse(r.getDriverId(), t);
+            if (od.isPresent()) {
+                driverName = od.get().getFullName();
+                driverPhone = od.get().getPhone();
+            }
+        }
+        TransportDTOs.RouteResponse resp = TransportDTOs.RouteResponse.builder()
+                .id(r.getId())
+                .name(r.getName())
+                .vehicleNumber(vehicleNumber)
+                .driverName(driverName)
+                .driverPhone(driverPhone)
+                .assignedStudents(students.size())
+                .stops(stops.stream().map(s -> TransportDTOs.StopDTO.builder().id(s.getId()).name(s.getName()).time(s.getStopTime() != null ? s.getStopTime().toString() : null).order(s.getStopOrder()).build()).collect(Collectors.toList()))
+                .students(students.stream().map(m -> TransportDTOs.StudentMappingDTO.builder().id(m.getId()).studentId(m.getStudentId()).studentName(m.getStudentName()).pickupStop(m.getPickupStop()).dropStop(m.getDropStop()).build()).collect(Collectors.toList()))
+                .build();
+        resp.setVehicleId(r.getVehicleId());
+        resp.setDriverId(r.getDriverId());
+        resp.setVehicleType(vehicleType);
+        if (r.getVehicleId() != null) {
+            liveRepo.findTopByTenantIdAndVehicleIdAndIsDeletedFalseOrderByRecordedAtDesc(t, r.getVehicleId()).ifPresent(loc -> {
+                resp.setLiveLatitude(loc.getLatitude() != null ? loc.getLatitude().doubleValue() : null);
+                resp.setLiveLongitude(loc.getLongitude() != null ? loc.getLongitude().doubleValue() : null);
+                resp.setLiveRecordedAt(loc.getRecordedAt() != null ? loc.getRecordedAt().toString() : null);
+            });
+        }
+        return resp;
     }
 
     @CacheEvict(cacheNames = CacheConfig.TRANSPORT_ROUTES, keyGenerator = "tenantKeyGenerator")

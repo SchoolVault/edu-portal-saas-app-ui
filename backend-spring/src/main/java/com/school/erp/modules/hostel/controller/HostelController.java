@@ -1,6 +1,7 @@
 package com.school.erp.modules.hostel.controller;
 
 import com.school.erp.common.dto.ApiResponse;
+import com.school.erp.common.dto.PageResponse;
 import com.school.erp.modules.hostel.dto.HostelDTOs;
 import com.school.erp.modules.hostel.entity.Hostel;
 import com.school.erp.modules.hostel.entity.HostelRoom;
@@ -37,6 +38,14 @@ public class HostelController {
     @Operation(summary = "List rooms with current residents")
     public ResponseEntity<ApiResponse<List<HostelDTOs.RoomResponse>>> listRooms() {
         return ResponseEntity.ok(ApiResponse.ok(service.getRooms()));
+    }
+
+    @GetMapping("/rooms/paged")
+    @Operation(summary = "List rooms (paged)")
+    public ResponseEntity<ApiResponse<PageResponse<HostelDTOs.RoomResponse>>> listRoomsPaged(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return ResponseEntity.ok(ApiResponse.ok(service.getRoomsPaged(page, size)));
     }
 
     @PostMapping("/rooms")

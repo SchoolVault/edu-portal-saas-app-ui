@@ -1,6 +1,7 @@
 package com.school.erp.modules.platform.controller;
 
 import com.school.erp.common.dto.ApiResponse;
+import com.school.erp.common.dto.PageResponse;
 import com.school.erp.modules.platform.dto.PlatformDTOs;
 import com.school.erp.modules.platform.service.PlatformService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -35,6 +36,15 @@ public class PlatformController {
     @Operation(summary = "List all schools")
     public ResponseEntity<ApiResponse<List<PlatformDTOs.SchoolSummary>>> getSchools() {
         return ResponseEntity.ok(ApiResponse.ok(platformService.getSchools()));
+    }
+
+    @GetMapping("/schools/paged")
+    @Operation(summary = "List schools (paged)", description = "Optional q filters school name or code")
+    public ResponseEntity<ApiResponse<PageResponse<PlatformDTOs.SchoolSummary>>> getSchoolsPaged(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(required = false) String q) {
+        return ResponseEntity.ok(ApiResponse.ok(platformService.getSchoolsPaged(page, size, q)));
     }
 
     @GetMapping("/school-admins/chat-search")

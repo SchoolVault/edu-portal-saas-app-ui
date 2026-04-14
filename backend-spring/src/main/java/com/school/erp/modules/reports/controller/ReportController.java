@@ -1,6 +1,7 @@
 package com.school.erp.modules.reports.controller;
 
 import com.school.erp.common.dto.ApiResponse;
+import com.school.erp.common.dto.PageResponse;
 import com.school.erp.modules.reports.dto.ReportDashboardDTOs;
 import com.school.erp.tenant.TenantContext;
 import io.swagger.v3.oas.annotations.Operation;
@@ -65,6 +66,15 @@ public class ReportController {
         return ResponseEntity.ok(ApiResponse.ok(reportService.getClassSummary()));
     }
 
+    @GetMapping("/class-summary/paged")
+    @PreAuthorize("hasRole(\'ADMIN\')")
+    @Operation(summary = "Class summary report (paged)", description = "Same aggregates as class-summary; windowed for large tenants")
+    public ResponseEntity<ApiResponse<PageResponse<Map<String, Object>>>> classSummaryPaged(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return ResponseEntity.ok(ApiResponse.ok(reportService.getClassSummaryPaged(page, size)));
+    }
+
     @GetMapping("/section-summary")
     @PreAuthorize("hasRole(\'ADMIN\')")
     @Operation(summary = "Section summary report", description = "Per-section student counts by class")
@@ -72,11 +82,29 @@ public class ReportController {
         return ResponseEntity.ok(ApiResponse.ok(reportService.getSectionSummary()));
     }
 
+    @GetMapping("/section-summary/paged")
+    @PreAuthorize("hasRole(\'ADMIN\')")
+    @Operation(summary = "Section summary report (paged)")
+    public ResponseEntity<ApiResponse<PageResponse<Map<String, Object>>>> sectionSummaryPaged(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return ResponseEntity.ok(ApiResponse.ok(reportService.getSectionSummaryPaged(page, size)));
+    }
+
     @GetMapping("/teacher-workload")
     @PreAuthorize("hasRole(\'ADMIN\')")
     @Operation(summary = "Teacher workload report", description = "Teacher teaching hours and class assignments")
     public ResponseEntity<ApiResponse<List<Map<String, Object>>>> teacherWorkload() {
         return ResponseEntity.ok(ApiResponse.ok(reportService.getTeacherWorkload()));
+    }
+
+    @GetMapping("/teacher-workload/paged")
+    @PreAuthorize("hasRole(\'ADMIN\')")
+    @Operation(summary = "Teacher workload report (paged)")
+    public ResponseEntity<ApiResponse<PageResponse<Map<String, Object>>>> teacherWorkloadPaged(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return ResponseEntity.ok(ApiResponse.ok(reportService.getTeacherWorkloadPaged(page, size)));
     }
 
     public ReportController(final com.school.erp.modules.reports.service.ReportService reportService) {

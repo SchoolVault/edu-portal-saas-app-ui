@@ -1,6 +1,8 @@
 package com.school.erp.modules.notification.controller;
 
 import com.school.erp.common.dto.ApiResponse;
+import com.school.erp.common.dto.PageResponse;
+import com.school.erp.common.exception.ResourceNotFoundException;
 import com.school.erp.modules.notification.entity.Notification;
 import com.school.erp.modules.notification.service.NotificationService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -21,10 +23,26 @@ public class NotificationController {
         return ResponseEntity.ok(ApiResponse.ok(service.getUserNotifications()));
     }
 
+    @GetMapping("/paged")
+    @Operation(summary = "Get user notifications (paged)")
+    public ResponseEntity<ApiResponse<PageResponse<Notification>>> listPaged(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return ResponseEntity.ok(ApiResponse.ok(service.getUserNotificationsPaged(page, size)));
+    }
+
     @GetMapping("/unread-count")
     @Operation(summary = "Get unread notification count")
     public ResponseEntity<ApiResponse<Long>> unreadCount() {
         return ResponseEntity.ok(ApiResponse.ok(service.getUnreadCount()));
+    }
+
+    @GetMapping("/{id}")
+    @Operation(summary = "Get one notification (current user / super-admin filtered scope)")
+    public ResponseEntity<ApiResponse<Notification>> getOne(@PathVariable Long id) {
+        Notification n = service.getNotificationForCurrentUser(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Notification", id));
+        return ResponseEntity.ok(ApiResponse.ok(n));
     }
 
     @PutMapping("/{id}/read")

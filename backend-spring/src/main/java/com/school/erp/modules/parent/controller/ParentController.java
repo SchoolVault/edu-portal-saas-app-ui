@@ -66,13 +66,13 @@ public class ParentController {
     @GetMapping("/children")
     @Operation(summary = "Get parent's children", description = "Returns all students linked to the current parent user")
     public ResponseEntity<ApiResponse<List<Student>>> getChildren() {
-        String t = TenantContext.getTenantId();
+        String tenantId = TenantContext.getTenantId();
         Long parentId = TenantContext.getUserId();
-        List<Student> children = guardianService.findStudentsForParentUser(t, parentId).stream()
+        List<Student> children = guardianService.findStudentsForParentUser(tenantId, parentId).stream()
                 .filter(s -> s.getStatus() == Enums.StudentStatus.ACTIVE)
                 .collect(Collectors.toList());
-        studentEnrolmentDisplayService.enrichClassSectionDisplay(t, children);
-        enrichHomeroomFromSchoolClass(t, children);
+        studentEnrolmentDisplayService.enrichClassSectionDisplay(tenantId, children);
+        enrichHomeroomFromSchoolClass(tenantId, children);
         return ResponseEntity.ok(ApiResponse.ok(children));
     }
 

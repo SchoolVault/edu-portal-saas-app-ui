@@ -1,13 +1,18 @@
 package com.school.erp.modules.documents.service;
 
+import com.school.erp.common.dto.PageResponse;
 import com.school.erp.common.enums.Enums;
 import com.school.erp.common.exception.ResourceNotFoundException;
 import com.school.erp.common.exception.UnauthorizedException;
 import com.school.erp.modules.documents.entity.Document;
 import com.school.erp.modules.documents.repository.DocumentRepository;
 import com.school.erp.tenant.TenantContext;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
 import java.util.List;
 
 @Service
@@ -35,6 +40,33 @@ public class DocumentService {
         }
         log.info("Documents query returned count={} tenantId={}", docs.size(), t);
         return docs;
+    }
+
+    @Transactional(readOnly = true)
+    public PageResponse<Document> getDocumentsPaged(int page, int size, String category, String ownerType, Long ownerId, String q) {
+        String t = TenantContext.getTenantId();
+        Enums.DocumentCategory cat = null;
+        if (category != null && !category.isBlank()) {
+            try {
+                cat = Enums.DocumentCategory.valueOf(category.trim().toUpperCase());
+            } catch (IllegalArgumentException ex) {
+                log.warn("Invalid document category '{}'", category);
+            }
+        }
+        Enums.DocumentOwnerType ot = null;
+        Long oid = null;
+        if (ownerType != null && !ownerType.isBlank() && ownerId != null) {
+            try {
+                ot = Enums.DocumentOwnerType.valueOf(ownerType.trim().toUpperCase());
+                oid = ownerId;
+            } catch (IllegalArgumentException ex) {
+                log.warn("Invalid ownerType '{}', listing tenant-wide paged", ownerType);
+            }
+        }
+        String qq = q == null || q.isBlank() ? "" : q.trim();
+        Page<Document> pg = repo.pageFiltered(t, cat, ot, oid, qq, PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt")));
+        log.info("Documents paged page={} total={}", page, pg.getTotalElements());
+        return PageResponse.of(pg.getContent(), page, size, pg.getTotalElements());
     }
 
     @Transactional
