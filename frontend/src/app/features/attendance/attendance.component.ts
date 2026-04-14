@@ -13,12 +13,24 @@ import { ConfirmDialogService } from '../../shared/confirm-dialog/confirm-dialog
 import { SchoolClass, Student, AttendanceRecord } from '../../core/models/models';
 import { AttendanceCoverRow } from '../../core/models/operations.models';
 import { ErpDatePickerComponent } from '../../shared/erp-date-picker/erp-date-picker.component';
+import { ErpPaginationComponent } from '../../shared/erp-pagination/erp-pagination.component';
+import { ErpI18nPhDirective, ErpI18nTextDirective } from '../../shared/erp-i18n/erp-i18n-host.directives';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
+import { sliceToPage } from '../../core/utils/paginate';
+import { DEFAULT_ERP_PAGE_SIZE } from '../../core/constants/pagination.constants';
 
 @Component({
   selector: 'app-attendance',
   standalone: true,
-  imports: [CommonModule, FormsModule, ErpDatePickerComponent, TranslateModule],
+  imports: [
+    CommonModule,
+    FormsModule,
+    ErpDatePickerComponent,
+    ErpPaginationComponent,
+    TranslateModule,
+    ErpI18nPhDirective,
+    ErpI18nTextDirective,
+  ],
   template: `
     <div data-testid="attendance-page">
       <div class="d-flex justify-content-between align-items-center mb-4 animate-in flex-wrap gap-2">
@@ -75,7 +87,7 @@ import { TranslateModule, TranslateService } from '@ngx-translate/core';
               [(ngModel)]="selectedDate"
               (ngModelChange)="onDateChange()"
               dataTestId="attendance-date"
-              [placeholder]="'attendance.datePlaceholder' | translate"
+              placeholderI18nKey="attendance.datePlaceholder"
             />
           </div>
           <div class="col-md-3 d-flex flex-column gap-2">
@@ -121,8 +133,8 @@ import { TranslateModule, TranslateService } from '@ngx-translate/core';
       </div>
 
       <div class="erp-card animate-in animate-in-delay-2" *ngIf="records.length > 0">
-        <div class="d-flex justify-content-between align-items-center mb-3">
-          <h4 class="erp-card-title">{{ 'attendance.markTitle' | translate: { count: records.length } }}</h4>
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+          <h4 class="erp-card-title mb-0">{{ 'attendance.markTitle' | translate: { count: records.length } }}</h4>
           <div class="d-flex gap-3" style="font-size: 13px;">
             <span style="color: var(--clr-success);"
               ><i class="bi bi-check-circle-fill me-1"></i> {{ 'attendance.countPresent' | translate: { count: countByStatus('present') } }}</span
@@ -135,7 +147,20 @@ import { TranslateModule, TranslateService } from '@ngx-translate/core';
             >
           </div>
         </div>
-        <table class="erp-table">
+        <div class="row g-2 align-items-end mb-3">
+          <div class="col-md-6 col-lg-4">
+            <label class="erp-label small mb-1" erpI18nText="attendance.searchStudent"></label>
+            <input
+              type="search"
+              class="erp-input"
+              erpI18nPh="attendance.searchStudentPh"
+              [(ngModel)]="attStudentSearch"
+              (ngModelChange)="onAttSearchChange()"
+            />
+          </div>
+        </div>
+        <p *ngIf="records.length && !attFilteredTotal" class="text-muted small mb-2">{{ 'attendance.noSearchMatches' | translate }}</p>
+        <table class="erp-table" *ngIf="attFilteredTotal > 0">
           <thead>
             <tr>
               <th>{{ 'attendance.thNum' | translate }}</th>
@@ -144,8 +169,8 @@ import { TranslateModule, TranslateService } from '@ngx-translate/core';
             </tr>
           </thead>
           <tbody>
-            <tr *ngFor="let rec of records; let i = index" [attr.data-testid]="'attendance-row-' + rec.studentId">
-              <td>{{ i + 1 }}</td>
+            <tr *ngFor="let rec of attPagedRecords; let i = index" [attr.data-testid]="'attendance-row-' + rec.studentId">
+              <td>{{ attPageIndex * attPageSize + i + 1 }}</td>
               <td><strong>{{ rec.studentName }}</strong></td>
               <td>
                 <div class="d-flex gap-2" [class.opacity-50]="cellsLocked" [style.pointer-events]="cellsLocked ? 'none' : 'auto'">
@@ -163,6 +188,14 @@ import { TranslateModule, TranslateService } from '@ngx-translate/core';
             </tr>
           </tbody>
         </table>
+        <app-erp-pagination
+          *ngIf="attFilteredTotal > attPageSize"
+          [totalElements]="attFilteredTotal"
+          [pageIndex]="attPageIndex"
+          [pageSize]="attPageSize"
+          (pageIndexChange)="onAttPageIndexChange($event)"
+          (pageSizeChange)="onAttPageSizeChange($event)"
+        />
       </div>
 
       <div *ngIf="!records.length && selectedClassId != null" class="erp-card animate-in">
@@ -184,6 +217,11 @@ export class AttendanceComponent implements OnInit {
   selectedSectionId: number | null = null;
   selectedDate = new Date().toISOString().split('T')[0];
   records: AttendanceRecord[] = [];
+  attStudentSearch = '';
+  attPageIndex = 0;
+  attPageSize = DEFAULT_ERP_PAGE_SIZE;
+  attPagedRecords: AttendanceRecord[] = [];
+  attFilteredTotal = 0;
   saving = false;
   saveError = '';
   myCovers: AttendanceCoverRow[] = [];
@@ -307,6 +345,7 @@ export class AttendanceComponent implements OnInit {
       this.sections = [];
       this.selectedSectionId = null;
       this.records = [];
+      this.rebuildAttendancePaging();
       return;
     }
     if (cls.sections.length === 0) {
@@ -318,6 +357,38 @@ export class AttendanceComponent implements OnInit {
     }
     this.records = [];
     this.loadAttendance();
+  }
+
+  private filterAttendanceForDisplay(): AttendanceRecord[] {
+    const q = this.attStudentSearch.trim().toLowerCase();
+    if (!q) {
+      return this.records;
+    }
+    return this.records.filter(r => r.studentName.toLowerCase().includes(q));
+  }
+
+  rebuildAttendancePaging(): void {
+    const filtered = this.filterAttendanceForDisplay();
+    const pg = sliceToPage(filtered, this.attPageIndex, this.attPageSize);
+    this.attPagedRecords = pg.content;
+    this.attPageIndex = pg.page;
+    this.attFilteredTotal = pg.totalElements;
+  }
+
+  onAttSearchChange(): void {
+    this.attPageIndex = 0;
+    this.rebuildAttendancePaging();
+  }
+
+  onAttPageIndexChange(i: number): void {
+    this.attPageIndex = i;
+    this.rebuildAttendancePaging();
+  }
+
+  onAttPageSizeChange(s: number): void {
+    this.attPageSize = s;
+    this.attPageIndex = 0;
+    this.rebuildAttendancePaging();
   }
 
   loadAttendance(): void {
@@ -352,6 +423,8 @@ export class AttendanceComponent implements OnInit {
             }
           );
         });
+        this.attPageIndex = 0;
+        this.rebuildAttendancePaging();
       });
     });
   }
@@ -509,3 +582,4 @@ export class AttendanceComponent implements OnInit {
     return this.records.filter(r => r.status === status).length;
   }
 }
+

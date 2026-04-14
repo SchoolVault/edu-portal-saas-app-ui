@@ -6,11 +6,16 @@ import { HostelBuilding, HostelRoom, Student } from '../../core/models/models';
 import { HostelService, HostelStats } from '../../core/services/hostel.service';
 import { StudentService } from '../../core/services/student.service';
 import { AuthService } from '../../core/services/auth.service';
+import { ErpPaginationComponent } from '../../shared/erp-pagination/erp-pagination.component';
+import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directives';
+import { DEFAULT_ERP_PAGE_SIZE } from '../../core/constants/pagination.constants';
+import { sliceToPage } from '../../core/utils/paginate';
+import { runtimeConfig } from '../../core/config/runtime-config';
 
 @Component({
   selector: 'app-hostel',
   standalone: true,
-  imports: [CommonModule, FormsModule, TranslateModule],
+  imports: [CommonModule, FormsModule, TranslateModule, ErpPaginationComponent, ErpI18nPhDirective],
   template: `
     <div data-testid="hostel-page">
       <div class="d-flex justify-content-between align-items-center mb-4 animate-in flex-wrap gap-2">
@@ -60,7 +65,7 @@ import { AuthService } from '../../core/services/auth.service';
         <table class="erp-table" data-testid="hostel-rooms-table">
           <thead><tr><th>{{ 'hostel.thHostel' | translate }}</th><th>{{ 'hostel.thRoom' | translate }}</th><th>{{ 'hostel.thBlock' | translate }}</th><th>{{ 'hostel.thFloor' | translate }}</th><th>{{ 'hostel.thTypeCap' | translate }}</th><th>{{ 'hostel.thOccupancy' | translate }}</th><th>{{ 'hostel.thResidents' | translate }}</th><th *ngIf="isAdmin">{{ 'hostel.thActions' | translate }}</th></tr></thead>
           <tbody>
-            <tr *ngFor="let room of rooms">
+            <tr *ngFor="let room of pagedRooms">
               <td><span class="badge-erp badge-neutral">{{ room.hostelName || ('transport.dash' | translate) }}</span></td>
               <td><strong>{{ room.roomNumber }}</strong></td>
               <td>{{ room.block }}</td>
@@ -81,6 +86,14 @@ import { AuthService } from '../../core/services/auth.service';
             </tr>
           </tbody>
         </table>
+        <app-erp-pagination
+          *ngIf="roomsTotal > 0"
+          [totalElements]="roomsTotal"
+          [pageIndex]="roomsPageIndex"
+          [pageSize]="roomsPageSize"
+          (pageIndexChange)="onRoomsPageIndexChange($event)"
+          (pageSizeChange)="onRoomsPageSizeChange($event)"
+        />
       </div>
     </div>
 
@@ -107,7 +120,7 @@ import { AuthService } from '../../core/services/auth.service';
             <option [ngValue]="4">{{ 'hostel.cap4' | translate }}</option>
           </select>
           <label class="erp-label">{{ 'hostel.labelRoomType' | translate }}</label>
-          <input class="erp-input" [(ngModel)]="roomForm.roomType" [placeholder]="'hostel.phRoomType' | translate">
+          <input class="erp-input" [(ngModel)]="roomForm.roomType" erpI18nPh="hostel.phRoomType">
         </div>
         <div class="modal-footer-erp">
           <button class="btn-outline-erp" (click)="roomModal = false">{{ 'hostel.cancel' | translate }}</button>
@@ -154,7 +167,7 @@ import { AuthService } from '../../core/services/auth.service';
             <option [ngValue]="4">{{ 'hostel.cap4' | translate }}</option>
           </select>
           <label class="erp-label">{{ 'hostel.labelRoomType' | translate }}</label>
-          <input class="erp-input" [(ngModel)]="editForm.roomType" [placeholder]="'hostel.phRoomType' | translate">
+          <input class="erp-input" [(ngModel)]="editForm.roomType" erpI18nPh="hostel.phRoomType">
         </div>
         <div class="modal-footer-erp">
           <button class="btn-outline-erp" (click)="editRoom = null">{{ 'hostel.cancel' | translate }}</button>
@@ -183,8 +196,14 @@ import { AuthService } from '../../core/services/auth.service';
   `
 })
 export class HostelComponent implements OnInit {
+  readonly useServerPaging = !runtimeConfig.useMocks;
+
   buildings: HostelBuilding[] = [];
-  rooms: HostelRoom[] = [];
+  private roomsFull: HostelRoom[] = [];
+  pagedRooms: HostelRoom[] = [];
+  roomsTotal = 0;
+  roomsPageIndex = 0;
+  roomsPageSize = DEFAULT_ERP_PAGE_SIZE;
   students: Student[] = [];
   stats: HostelStats = { totalRooms: 0, totalCapacity: 0, totalOccupancy: 0, availableBeds: 0, blocks: 0 };
   isAdmin = false;
@@ -195,6 +214,8 @@ export class HostelComponent implements OnInit {
   vacateCtx: { allocationId: string; studentName: string; roomNumber: string; hostelName?: string } | null = null;
   editRoom: HostelRoom | null = null;
   editForm = { hostelId: '', roomNumber: '', block: '', floor: 1, capacity: 2, roomType: 'double' };
+
+  private roomsReqSeq = 0;
 
   constructor(
     private hostelService: HostelService,
@@ -225,8 +246,48 @@ export class HostelComponent implements OnInit {
 
   reload(): void {
     this.hostelService.listBuildings().subscribe(b => (this.buildings = b));
-    this.hostelService.listRooms().subscribe(r => (this.rooms = r));
+    if (this.useServerPaging) {
+      this.roomsPageIndex = 0;
+      this.fetchRoomsPage();
+    } else {
+      this.hostelService.listRooms().subscribe(r => {
+        this.roomsFull = r || [];
+        this.roomsPageIndex = 0;
+        this.applyRoomsPage();
+      });
+    }
     this.hostelService.stats().subscribe(s => (this.stats = s));
+  }
+
+  private fetchRoomsPage(): void {
+    const seq = ++this.roomsReqSeq;
+    this.hostelService.listRoomsPaged({ page: this.roomsPageIndex, size: this.roomsPageSize }).subscribe(p => {
+      if (seq !== this.roomsReqSeq) return;
+      this.pagedRooms = p.content;
+      this.roomsTotal = p.totalElements;
+      this.roomsPageIndex = p.page;
+      this.roomsPageSize = p.size;
+    });
+  }
+
+  private applyRoomsPage(): void {
+    const slice = sliceToPage(this.roomsFull, this.roomsPageIndex, this.roomsPageSize);
+    this.pagedRooms = slice.content;
+    this.roomsTotal = slice.totalElements;
+    this.roomsPageIndex = slice.page;
+  }
+
+  onRoomsPageIndexChange(idx: number): void {
+    this.roomsPageIndex = idx;
+    if (this.useServerPaging) this.fetchRoomsPage();
+    else this.applyRoomsPage();
+  }
+
+  onRoomsPageSizeChange(size: number): void {
+    this.roomsPageSize = size;
+    this.roomsPageIndex = 0;
+    if (this.useServerPaging) this.fetchRoomsPage();
+    else this.applyRoomsPage();
   }
 
   openRoomModal(): void {

@@ -131,7 +131,7 @@ type TimetableEntryForm = Omit<Partial<TimetableEntry>, 'teacherId' | 'classId' 
             <app-erp-date-picker
               [(ngModel)]="teacherViewDate"
               (ngModelChange)="onTeacherViewDateChange()"
-              [placeholder]="'timetable.datePlaceholderCover' | translate"
+              placeholderI18nKey="timetable.datePlaceholderCover"
             />
           </div>
           <p class="text-muted small col-12 mb-0">

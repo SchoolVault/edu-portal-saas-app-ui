@@ -1,10 +1,15 @@
-import { Component, OnInit } from '@angular/core';
+import { ChangeDetectorRef, Component, DestroyRef, OnInit, inject } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
+import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directives';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
-import { from } from 'rxjs';
-import { concatMap, filter } from 'rxjs/operators';
+import { from, forkJoin, Subject } from 'rxjs';
+import { concatMap, debounceTime, distinctUntilChanged, filter } from 'rxjs/operators';
+import { ErpPaginationComponent } from '../../shared/erp-pagination/erp-pagination.component';
+import { DEFAULT_ERP_PAGE_SIZE } from '../../core/constants/pagination.constants';
+import { runtimeConfig } from '../../core/config/runtime-config';
 import { ConfirmDialogService } from '../../shared/confirm-dialog/confirm-dialog.service';
 import { TransportDriver, TransportRoute, TransportVehicle } from '../../core/models/models';
 import { TransportService } from '../../core/services/transport.service';
@@ -15,21 +20,25 @@ import { AuthService } from '../../core/services/auth.service';
 @Component({
   selector: 'app-transport',
   standalone: true,
-  imports: [CommonModule, FormsModule, TranslateModule],
+  imports: [CommonModule, FormsModule, TranslateModule, ErpI18nPhDirective, ErpPaginationComponent],
   template: `
     <div data-testid="transport-page">
-      <div class="d-flex justify-content-between align-items-center mb-4 animate-in flex-wrap gap-2">
+      <div class="d-flex justify-content-between align-items-end mb-4 animate-in flex-wrap gap-3">
         <div>
           <h2 style="font-size: 24px; font-weight: 800;">{{ 'transport.pageTitle' | translate }}</h2>
           <p class="text-muted mb-0" style="font-size: 13px;">{{ 'transport.lead' | translate }}</p>
         </div>
-        <div class="d-flex gap-2 flex-wrap" *ngIf="canManageRoutes">
+        <div *ngIf="routesUseServerPaging" class="flex-grow-1" style="min-width: 200px; max-width: 320px;">
+          <label class="erp-label small mb-1">{{ 'transport.listSearch' | translate }}</label>
+          <input type="search" class="erp-input" [(ngModel)]="routeSearchInput" (ngModelChange)="routeSearch$.next($event)" [placeholder]="'transport.listSearchPh' | translate" />
+        </div>
+        <div class="d-flex gap-2 flex-wrap align-items-end">
           <button type="button" class="btn-outline-erp btn-sm" (click)="reload()"><i class="bi bi-arrow-clockwise"></i> {{ 'transport.refresh' | translate }}</button>
-          <button class="btn-primary-erp btn-sm" data-testid="add-route-btn" (click)="openRouteWizard()"><i class="bi bi-plus-lg"></i> {{ 'transport.addRoute' | translate }}</button>
+          <button *ngIf="canManageRoutes" class="btn-primary-erp btn-sm" data-testid="add-route-btn" (click)="openRouteWizard()"><i class="bi bi-plus-lg"></i> {{ 'transport.addRoute' | translate }}</button>
         </div>
       </div>
 
-      <div class="erp-card mb-4 animate-in animate-in-delay-1" *ngIf="routes.length && anyLiveLocation">
+      <div class="erp-card mb-4 animate-in animate-in-delay-1" *ngIf="liveRoutes.length && anyLiveLocation">
         <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
           <h4 class="erp-card-title mb-0">{{ 'transport.liveVehicles' | translate }}</h4>
           <span class="text-muted small">{{ 'transport.liveHint' | translate }}</span>
@@ -96,6 +105,15 @@ import { AuthService } from '../../core/services/auth.service';
           <div class="erp-card text-muted text-center py-5">{{ 'transport.emptyRoutes' | translate }}</div>
         </div>
       </div>
+      <app-erp-pagination
+        *ngIf="routesUseServerPaging && routesTotal > 0"
+        class="d-block mt-3"
+        [totalElements]="routesTotal"
+        [pageIndex]="routePageIndex"
+        [pageSize]="routePageSize"
+        (pageIndexChange)="onRoutePageIndex($event)"
+        (pageSizeChange)="onRoutePageSize($event)"
+      />
     </div>
 
     <!-- Full map overlay -->
@@ -131,16 +149,16 @@ import { AuthService } from '../../core/services/auth.service';
           </div>
           <ng-container *ngIf="wizardStep === 1">
             <label class="erp-label">{{ 'transport.labelRouteName' | translate }}</label>
-            <input class="erp-input mb-3" [(ngModel)]="routeForm.name" [placeholder]="'transport.phRouteName' | translate">
+            <input class="erp-input mb-3" [(ngModel)]="routeForm.name" erpI18nPh="transport.phRouteName">
             <div class="d-flex justify-content-between align-items-center mb-2">
               <label class="erp-label mb-0">{{ 'transport.labelStopsOptional' | translate }}</label>
               <button type="button" class="btn-outline-erp btn-xs" (click)="addWizardStop()">{{ 'transport.addStopBtn' | translate }}</button>
             </div>
             <p class="small text-muted mb-2">{{ 'transport.stopsHelp' | translate }}</p>
             <div *ngFor="let s of wizardStops; let i = index" class="row g-2 align-items-end mb-2">
-              <div class="col-md-5"><input class="erp-input" [(ngModel)]="s.name" [placeholder]="'transport.phStopName' | translate"></div>
-              <div class="col-md-2"><input class="erp-input" type="number" [(ngModel)]="s.stopOrder" [placeholder]="'transport.phOrder' | translate"></div>
-              <div class="col-md-3"><input class="erp-input" [(ngModel)]="s.stopTime" [placeholder]="'transport.phTime' | translate"></div>
+              <div class="col-md-5"><input class="erp-input" [(ngModel)]="s.name" erpI18nPh="transport.phStopName"></div>
+              <div class="col-md-2"><input class="erp-input" type="number" [(ngModel)]="s.stopOrder" erpI18nPh="transport.phOrder"></div>
+              <div class="col-md-3"><input class="erp-input" [(ngModel)]="s.stopTime" erpI18nPh="transport.phTime"></div>
               <div class="col-md-2"><button type="button" class="btn-outline-erp btn-sm w-100" (click)="removeWizardStop(i)">{{ 'transport.remove' | translate }}</button></div>
             </div>
           </ng-container>
@@ -152,7 +170,7 @@ import { AuthService } from '../../core/services/auth.service';
             </select>
             <p class="small text-muted">{{ 'transport.registerNewVehicle' | translate }}</p>
             <div class="row g-2 mb-2">
-              <div class="col-md-4"><input class="erp-input" [(ngModel)]="newVehicle.registrationNumber" [placeholder]="'transport.phReg' | translate"></div>
+              <div class="col-md-4"><input class="erp-input" [(ngModel)]="newVehicle.registrationNumber" erpI18nPh="transport.phReg"></div>
               <div class="col-md-3">
                 <select class="erp-select" [(ngModel)]="newVehicle.vehicleType">
                   <option value="BUS">{{ 'transport.vehTypeBus' | translate }}</option>
@@ -161,8 +179,8 @@ import { AuthService } from '../../core/services/auth.service';
                   <option value="OTHER">{{ 'transport.vehTypeOther' | translate }}</option>
                 </select>
               </div>
-              <div class="col-md-2"><input class="erp-input" type="number" [(ngModel)]="newVehicle.capacity" [placeholder]="'transport.phSeats' | translate"></div>
-              <div class="col-md-3"><input class="erp-input" [(ngModel)]="newVehicle.model" [placeholder]="'transport.phModel' | translate"></div>
+              <div class="col-md-2"><input class="erp-input" type="number" [(ngModel)]="newVehicle.capacity" erpI18nPh="transport.phSeats"></div>
+              <div class="col-md-3"><input class="erp-input" [(ngModel)]="newVehicle.model" erpI18nPh="transport.phModel"></div>
             </div>
             <button type="button" class="btn-outline-erp btn-sm" (click)="saveNewVehicle()">{{ 'transport.addToFleet' | translate }}</button>
           </ng-container>
@@ -174,9 +192,9 @@ import { AuthService } from '../../core/services/auth.service';
             </select>
             <p class="small text-muted">{{ 'transport.addDriverLead' | translate }}</p>
             <div class="row g-2 mb-2">
-              <div class="col-md-5"><input class="erp-input" [(ngModel)]="newDriver.fullName" [placeholder]="'transport.phFullName' | translate"></div>
-              <div class="col-md-4"><input class="erp-input" [(ngModel)]="newDriver.phone" [placeholder]="'transport.phPhone' | translate"></div>
-              <div class="col-md-3"><input class="erp-input" [(ngModel)]="newDriver.licenseNumber" [placeholder]="'transport.phLicense' | translate"></div>
+              <div class="col-md-5"><input class="erp-input" [(ngModel)]="newDriver.fullName" erpI18nPh="transport.phFullName"></div>
+              <div class="col-md-4"><input class="erp-input" [(ngModel)]="newDriver.phone" erpI18nPh="transport.phPhone"></div>
+              <div class="col-md-3"><input class="erp-input" [(ngModel)]="newDriver.licenseNumber" erpI18nPh="transport.phLicense"></div>
             </div>
             <button type="button" class="btn-outline-erp btn-sm" (click)="saveNewDriver()">{{ 'transport.addDriverSelect' | translate }}</button>
           </ng-container>
@@ -260,7 +278,16 @@ import { AuthService } from '../../core/services/auth.service';
   ]
 })
 export class TransportComponent implements OnInit {
+  routesUseServerPaging = !runtimeConfig.useMocks;
+  /** All routes (API) for live GPS strip; same as `routes` when mocks. */
+  liveRoutes: TransportRoute[] = [];
   routes: TransportRoute[] = [];
+  routesTotal = 0;
+  routePageIndex = 0;
+  routePageSize = DEFAULT_ERP_PAGE_SIZE;
+  routeQuery = '';
+  routeSearchInput = '';
+  readonly routeSearch$ = new Subject<string>();
   vehicles: TransportVehicle[] = [];
   drivers: TransportDriver[] = [];
   students: Student[] = [];
@@ -285,19 +312,32 @@ export class TransportComponent implements OnInit {
   editStopCtx: { route: TransportRoute; stop: { id?: number; name: string; time: string; order: number } } | null = null;
   editStopForm = { name: '', stopOrder: 1, stopTime: '' };
 
+  private readonly destroyRef = inject(DestroyRef);
+
   constructor(
     private transportService: TransportService,
     private studentService: StudentService,
     private authService: AuthService,
     private sanitizer: DomSanitizer,
     private confirmDialog: ConfirmDialogService,
-    private translate: TranslateService
+    private translate: TranslateService,
+    private cdr: ChangeDetectorRef
   ) {}
 
   ngOnInit(): void {
+    this.translate.onLangChange.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => this.cdr.markForCheck());
     const u = this.authService.getCurrentUser();
     const role = (u?.role ?? '').toLowerCase();
     this.canManageRoutes = role === 'admin' || role === 'super_admin';
+    this.routeSearch$
+      .pipe(debounceTime(300), distinctUntilChanged(), takeUntilDestroyed(this.destroyRef))
+      .subscribe(q => {
+        this.routeQuery = (q || '').trim();
+        this.routePageIndex = 0;
+        if (this.routesUseServerPaging) {
+          this.loadRoutesPaged();
+        }
+      });
     this.reload();
     this.studentService.getStudents().subscribe(s => (this.students = s));
     this.transportService.listVehicles().subscribe(v => (this.vehicles = v));
@@ -305,7 +345,7 @@ export class TransportComponent implements OnInit {
   }
 
   get routesWithLive(): TransportRoute[] {
-    return this.routes.filter(r => r.liveLatitude != null && r.liveLongitude != null);
+    return this.liveRoutes.filter(r => r.liveLatitude != null && r.liveLongitude != null);
   }
 
   get anyLiveLocation(): boolean {
@@ -330,7 +370,44 @@ export class TransportComponent implements OnInit {
   }
 
   reload(): void {
-    this.transportService.listRoutes().subscribe(r => (this.routes = r));
+    if (runtimeConfig.useMocks) {
+      this.transportService.listRoutes().subscribe(r => {
+        this.routes = r;
+        this.liveRoutes = r;
+      });
+      return;
+    }
+    this.loadRoutesPaged();
+  }
+
+  private loadRoutesPaged(): void {
+    forkJoin({
+      live: this.transportService.listRoutes(),
+      page: this.transportService.listRoutesPage(this.routePageIndex, this.routePageSize, this.routeQuery || undefined),
+    }).subscribe({
+      next: ({ live, page }) => {
+        this.liveRoutes = live;
+        this.routes = page.content;
+        this.routesTotal = page.totalElements;
+        this.routePageIndex = page.page;
+      },
+      error: () => {
+        this.liveRoutes = [];
+        this.routes = [];
+        this.routesTotal = 0;
+      },
+    });
+  }
+
+  onRoutePageIndex(i: number): void {
+    this.routePageIndex = i;
+    if (this.routesUseServerPaging) this.loadRoutesPaged();
+  }
+
+  onRoutePageSize(s: number): void {
+    this.routePageSize = s;
+    this.routePageIndex = 0;
+    if (this.routesUseServerPaging) this.loadRoutesPaged();
   }
 
   trackRouteId(_index: number, route: TransportRoute): string {

@@ -2,19 +2,25 @@ import { ChangeDetectorRef, Component, OnDestroy, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterModule } from '@angular/router';
-import { filter } from 'rxjs/operators';
+import { debounceTime, filter } from 'rxjs/operators';
 import { StudentService } from '../../core/services/student.service';
+import { AcademicService } from '../../core/services/academic.service';
 import { AuthService } from '../../core/services/auth.service';
 import { Student } from '../../core/models/models';
 import { ConfirmDialogService } from '../../shared/confirm-dialog/confirm-dialog.service';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
-import { Subscription } from 'rxjs';
+import { Subject, Subscription } from 'rxjs';
 import { formatSchoolClassName } from '../../core/i18n/school-class-display';
+import { ErpPaginationComponent } from '../../shared/erp-pagination/erp-pagination.component';
+import { DEFAULT_ERP_PAGE_SIZE } from '../../core/constants/pagination.constants';
+import { sliceToPage } from '../../core/utils/paginate';
+import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directives';
+import { runtimeConfig } from '../../core/config/runtime-config';
 
 @Component({
   selector: 'app-student-list',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterModule, TranslateModule],
+  imports: [CommonModule, FormsModule, RouterModule, TranslateModule, ErpPaginationComponent, ErpI18nPhDirective],
   template: `
     <div data-testid="student-list-page">
       <header class="erp-page-header animate-in">
@@ -38,15 +44,14 @@ import { formatSchoolClassName } from '../../core/i18n/school-class-display';
         <div class="d-flex justify-content-between align-items-center mb-3">
           <div class="search-input-wrapper" style="min-width: 300px;">
             <i class="bi bi-search"></i>
-            <input type="text" class="erp-input" [placeholder]="'students.list.searchPlaceholder' | translate" [(ngModel)]="searchTerm"
-                   (input)="filterStudents()" data-testid="student-search-input">
+            <input type="text" class="erp-input" erpI18nPh="students.list.searchPlaceholder" [(ngModel)]="searchTerm"
+                   (input)="onSearchInput()" data-testid="student-search-input">
           </div>
           <div class="d-flex gap-2">
-            <select class="erp-select" style="width: 160px;" [(ngModel)]="classFilter" (change)="filterStudents()" data-testid="class-filter">
-              <option value="">{{ 'students.list.allClasses' | translate }}</option>
-              <option *ngFor="let c of classOptions" [value]="c">{{ classDisplayName(c) }}</option>
+            <select class="erp-select" style="width: 160px;" [(ngModel)]="classFilter" (change)="onClassOrStatusChange()" data-testid="class-filter">
+              <option *ngFor="let c of classOptions" [value]="c.value">{{ c.value === '' ? ('students.list.allClasses' | translate) : classDisplayName(c.label) }}</option>
             </select>
-            <select class="erp-select" style="width: 140px;" [(ngModel)]="statusFilter" (change)="filterStudents()" data-testid="status-filter">
+            <select class="erp-select" style="width: 140px;" [(ngModel)]="statusFilter" (change)="onClassOrStatusChange()" data-testid="status-filter">
               <option value="">{{ 'students.list.allStatus' | translate }}</option>
               <option value="active">{{ 'students.enums.status.active' | translate }}</option>
               <option value="inactive">{{ 'students.enums.status.inactive' | translate }}</option>
@@ -122,46 +127,52 @@ import { formatSchoolClassName } from '../../core/i18n/school-class-display';
           </table>
         </div>
 
-        <div class="pagination-wrapper" *ngIf="filteredStudents.length > pageSize">
-          <span>{{ 'students.list.showing' | translate: { from: (page - 1) * pageSize + 1, to: Math.min(page * pageSize, filteredStudents.length), total: filteredStudents.length } }}</span>
-          <div class="pagination-controls">
-            <button class="page-btn" [disabled]="page === 1" (click)="page = page - 1; paginate()">
-              <i class="bi bi-chevron-left"></i>
-            </button>
-            <button *ngFor="let p of pages" class="page-btn" [class.active]="p === page" (click)="page = p; paginate()">{{ p }}</button>
-            <button class="page-btn" [disabled]="page === totalPages" (click)="page = page + 1; paginate()">
-              <i class="bi bi-chevron-right"></i>
-            </button>
-          </div>
-        </div>
+        <app-erp-pagination
+          *ngIf="paginationTotal > 0"
+          [totalElements]="paginationTotal"
+          [pageIndex]="pageIndex"
+          [pageSize]="pageSize"
+          (pageIndexChange)="onPageIndexChange($event)"
+          (pageSizeChange)="onPageSizeChange($event)"
+        />
       </div>
     </div>
   `
 })
 export class StudentListComponent implements OnInit, OnDestroy {
+  /** Real API: server-driven pages so totals match DB. Mocks: client filter + slice. */
+  readonly useServerPaging = !runtimeConfig.useMocks;
+
   students: Student[] = [];
   filteredStudents: Student[] = [];
   paginatedStudents: Student[] = [];
+  serverTotal = 0;
   searchTerm = '';
   classFilter = '';
   statusFilter = 'active';
   sortField = '';
   sortAsc = true;
-  page = 1;
-  pageSize = 10;
-  totalPages = 1;
-  pages: number[] = [];
-  classOptions: string[] = [];
-  Math = Math;
-  private langSub?: Subscription;
+  pageIndex = 0;
+  pageSize = DEFAULT_ERP_PAGE_SIZE;
+  /** value: className (mock) or class id string (API); label: display name */
+  classOptions: { value: string; label: string }[] = [{ value: '', label: '' }];
+  private readonly subs = new Subscription();
+  private readonly searchDebounced$ = new Subject<void>();
+  /** Ignores stale HTTP responses when a newer list request was started. */
+  private studentsListRequestSeq = 0;
 
   constructor(
     private studentService: StudentService,
+    private academic: AcademicService,
     private auth: AuthService,
     private confirmDialog: ConfirmDialogService,
     private translate: TranslateService,
     private cdr: ChangeDetectorRef
   ) {}
+
+  get paginationTotal(): number {
+    return this.useServerPaging ? this.serverTotal : this.filteredStudents.length;
+  }
 
   statusLabel(status: string): string {
     const key = 'students.enums.status.' + status;
@@ -183,20 +194,93 @@ export class StudentListComponent implements OnInit, OnDestroy {
   }
 
   ngOnInit(): void {
-    this.langSub = this.translate.onLangChange.subscribe(() => this.cdr.markForCheck());
+    this.subs.add(this.translate.onLangChange.subscribe(() => this.cdr.markForCheck()));
+    this.subs.add(
+      this.searchDebounced$.pipe(debounceTime(300)).subscribe(() => {
+        if (!this.useServerPaging) return;
+        this.pageIndex = 0;
+        this.fetchStudentsPage();
+      })
+    );
     this.reloadStudents();
   }
 
   ngOnDestroy(): void {
-    this.langSub?.unsubscribe();
+    this.subs.unsubscribe();
+  }
+
+  onSearchInput(): void {
+    if (this.useServerPaging) {
+      this.searchDebounced$.next();
+    } else {
+      this.filterStudents();
+    }
+  }
+
+  onClassOrStatusChange(): void {
+    if (this.useServerPaging) {
+      this.pageIndex = 0;
+      this.fetchStudentsPage();
+    } else {
+      this.filterStudents();
+    }
   }
 
   reloadStudents(): void {
+    if (this.useServerPaging) {
+      this.subs.add(
+        this.academic.getClasses().subscribe(classes => {
+          this.classOptions = [
+            { value: '', label: '' },
+            ...classes
+              .slice()
+              .sort((a, b) => (a.name || '').localeCompare(b.name || ''))
+              .map(c => ({ value: String(c.id), label: c.name || '' })),
+          ];
+          this.pageIndex = 0;
+          this.fetchStudentsPage();
+        })
+      );
+      return;
+    }
     this.studentService.getStudents().subscribe(students => {
       this.students = students;
-      this.classOptions = [...new Set(students.map(s => s.className))].sort();
+      const names = [...new Set(students.map(s => s.className).filter(Boolean))].sort() as string[];
+      this.classOptions = [{ value: '', label: '' }, ...names.map(n => ({ value: n, label: n }))];
       this.filterStudents();
     });
+  }
+
+  private fetchStudentsPage(): void {
+    const classIdRaw = this.classFilter ? Number(this.classFilter) : NaN;
+    const classId = Number.isFinite(classIdRaw) && classIdRaw > 0 ? classIdRaw : undefined;
+    const seq = ++this.studentsListRequestSeq;
+    this.subs.add(
+      this.studentService
+        .getStudentsPage({
+          page: this.pageIndex,
+          size: this.pageSize,
+          search: this.searchTerm.trim() || undefined,
+          classId,
+          status: this.statusFilter || undefined,
+          sortBy: this.serverSortProperty(),
+          direction: this.sortAsc ? 'asc' : 'desc',
+        })
+        .subscribe(page => {
+          if (seq !== this.studentsListRequestSeq) return;
+          this.serverTotal = page.totalElements;
+          this.paginatedStudents = page.content;
+          this.pageIndex = page.page;
+          this.pageSize = page.size;
+          this.cdr.markForCheck();
+        })
+    );
+  }
+
+  /** Maps UI sort column to JPA property on {@code Student}. */
+  private serverSortProperty(): string {
+    const f = this.sortField || 'firstName';
+    return f === 'className' ? 'classId' : f;
   }
 
   filterStudents(): void {
@@ -212,13 +296,21 @@ export class StudentListComponent implements OnInit, OnDestroy {
     if (this.classFilter) filtered = filtered.filter(s => s.className === this.classFilter);
     if (this.statusFilter) filtered = filtered.filter(s => s.status === this.statusFilter);
     this.filteredStudents = filtered;
-    this.page = 1;
+    this.pageIndex = 0;
     this.paginate();
   }
 
   sort(field: string): void {
     if (this.sortField === field) this.sortAsc = !this.sortAsc;
-    else { this.sortField = field; this.sortAsc = true; }
+    else {
+      this.sortField = field;
+      this.sortAsc = true;
+    }
+    if (this.useServerPaging) {
+      this.pageIndex = 0;
+      this.fetchStudentsPage();
+      return;
+    }
     this.filteredStudents.sort((a: any, b: any) => {
       const va = a[field]?.toLowerCase?.() || a[field];
       const vb = b[field]?.toLowerCase?.() || b[field];
@@ -228,10 +320,28 @@ export class StudentListComponent implements OnInit, OnDestroy {
   }
 
   paginate(): void {
-    this.totalPages = Math.ceil(this.filteredStudents.length / this.pageSize);
-    this.pages = Array.from({ length: this.totalPages }, (_, i) => i + 1);
-    const start = (this.page - 1) * this.pageSize;
-    this.paginatedStudents = this.filteredStudents.slice(start, start + this.pageSize);
+    const slice = sliceToPage(this.filteredStudents, this.pageIndex, this.pageSize);
+    this.paginatedStudents = slice.content;
+    this.pageIndex = slice.page;
+  }
+
+  onPageIndexChange(idx: number): void {
+    this.pageIndex = idx;
+    if (this.useServerPaging) {
+      this.fetchStudentsPage();
+    } else {
+      this.paginate();
+    }
+  }
+
+  onPageSizeChange(size: number): void {
+    this.pageSize = size;
+    this.pageIndex = 0;
+    if (this.useServerPaging) {
+      this.fetchStudentsPage();
+    } else {
+      this.paginate();
+    }
   }
 
   deleteStudent(id: number): void {
@@ -258,8 +368,12 @@ export class StudentListComponent implements OnInit, OnDestroy {
       .pipe(filter(Boolean))
       .subscribe(() => {
         this.studentService.deleteStudent(id).subscribe(() => {
-          this.students = this.students.filter(s => s.id !== id);
-          this.filterStudents();
+          if (this.useServerPaging) {
+            this.fetchStudentsPage();
+          } else {
+            this.students = this.students.filter(s => s.id !== id);
+            this.filterStudents();
+          }
         });
       });
   }

@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnDestroy, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
@@ -7,14 +7,20 @@ import { LibraryCatalogFilter, LibraryService } from '../../core/services/librar
 import { StudentService } from '../../core/services/student.service';
 import { TeacherService } from '../../core/services/teacher.service';
 import { AuthService } from '../../core/services/auth.service';
-import { filter } from 'rxjs/operators';
+import { debounceTime, filter } from 'rxjs/operators';
+import { Subject, Subscription } from 'rxjs';
 import { ErpDatePickerComponent } from '../../shared/erp-date-picker/erp-date-picker.component';
 import { ConfirmDialogService } from '../../shared/confirm-dialog/confirm-dialog.service';
+import { ErpPaginationComponent } from '../../shared/erp-pagination/erp-pagination.component';
+import { DEFAULT_ERP_PAGE_SIZE } from '../../core/constants/pagination.constants';
+import { sliceToPage } from '../../core/utils/paginate';
+import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directives';
+import { runtimeConfig } from '../../core/config/runtime-config';
 
 @Component({
   selector: 'app-library',
   standalone: true,
-  imports: [CommonModule, FormsModule, ErpDatePickerComponent, TranslateModule],
+  imports: [CommonModule, FormsModule, ErpDatePickerComponent, TranslateModule, ErpPaginationComponent, ErpI18nPhDirective],
   template: `
     <div data-testid="library-page">
       <div class="d-flex justify-content-between align-items-center mb-4 animate-in flex-wrap gap-2">
@@ -43,7 +49,7 @@ import { ConfirmDialogService } from '../../shared/confirm-dialog/confirm-dialog
           <div class="d-flex flex-wrap gap-2 align-items-end mb-3">
             <div class="search-input-wrapper flex-grow-1" style="min-width: 200px; max-width: 400px;">
               <i class="bi bi-search"></i>
-              <input type="text" class="erp-input" [placeholder]="'library.searchPlaceholder' | translate" [(ngModel)]="searchTerm" (input)="loadBooks()" data-testid="book-search">
+              <input type="text" class="erp-input" erpI18nPh="library.searchPlaceholder" [(ngModel)]="searchTerm" (input)="onBookSearchInput()" data-testid="book-search">
             </div>
             <div>
               <label class="erp-label d-block mb-1 small">{{ 'library.labelCategory' | translate }}</label>
@@ -109,6 +115,14 @@ import { ConfirmDialogService } from '../../shared/confirm-dialog/confirm-dialog
             </tbody>
           </table>
           <p *ngIf="!books.length" class="text-muted small mb-0">{{ 'library.emptyFilters' | translate }}</p>
+          <app-erp-pagination
+            *ngIf="booksTotal > 0"
+            [totalElements]="booksTotal"
+            [pageIndex]="bookPageIndex"
+            [pageSize]="bookPageSize"
+            (pageIndexChange)="onBookPageIndexChange($event)"
+            (pageSizeChange)="onBookPageSizeChange($event)"
+          />
         </div>
       </div>
       <div *ngIf="tab === 'issued'" class="animate-in">
@@ -141,6 +155,14 @@ import { ConfirmDialogService } from '../../shared/confirm-dialog/confirm-dialog
               </tr>
             </tbody>
           </table>
+          <app-erp-pagination
+            *ngIf="issuesTotal > 0"
+            [totalElements]="issuesTotal"
+            [pageIndex]="issuePageIndex"
+            [pageSize]="issuePageSize"
+            (pageIndexChange)="onIssuePageIndexChange($event)"
+            (pageSizeChange)="onIssuePageSizeChange($event)"
+          />
         </div>
       </div>
     </div>
@@ -175,7 +197,7 @@ import { ConfirmDialogService } from '../../shared/confirm-dialog/confirm-dialog
         <div class="modal-body-erp">
           <p class="small text-muted mb-2">{{ 'library.returnSummary' | translate: { title: returnIssue.bookTitle, due: returnIssue.dueDate } }}</p>
           <label class="erp-label">{{ 'library.labelReturnDate' | translate }}</label>
-          <app-erp-date-picker class="mb-2" [(ngModel)]="returnForm.returnDate" [placeholder]="'library.phReturnDate' | translate" />
+          <app-erp-date-picker class="mb-2" [(ngModel)]="returnForm.returnDate" placeholderI18nKey="library.phReturnDate" />
           <label class="erp-label">{{ 'library.labelFinePerDay' | translate }}</label>
           <input type="number" class="erp-input mb-2" [(ngModel)]="returnForm.finePerDay" min="0" step="1">
           <p class="small text-muted mb-0">{{ 'library.fineHelp' | translate }}</p>
@@ -210,15 +232,25 @@ import { ConfirmDialogService } from '../../shared/confirm-dialog/confirm-dialog
     </div>
   `
 })
-export class LibraryComponent implements OnInit {
+export class LibraryComponent implements OnInit, OnDestroy {
+  readonly useServerPaging = !runtimeConfig.useMocks;
+
   tab = 'catalog';
   searchTerm = '';
   catalogCategory = '';
   catalogFilter: LibraryCatalogFilter = 'active';
   issueStatusFilter = '';
   bookCategories: string[] = [];
+  private booksFull: Book[] = [];
   books: Book[] = [];
+  booksTotal = 0;
+  bookPageIndex = 0;
+  bookPageSize = DEFAULT_ERP_PAGE_SIZE;
+  private issuesFull: BookIssue[] = [];
   issues: BookIssue[] = [];
+  issuesTotal = 0;
+  issuePageIndex = 0;
+  issuePageSize = DEFAULT_ERP_PAGE_SIZE;
   students: Student[] = [];
   canManageLibrary = false;
   readOnlyHintVisible = false;
@@ -230,6 +262,11 @@ export class LibraryComponent implements OnInit {
   issueError = '';
   returnIssue: BookIssue | null = null;
   returnForm = { returnDate: '', finePerDay: '' as string | number };
+
+  private readonly booksSearch$ = new Subject<void>();
+  private readonly subs = new Subscription();
+  private booksReqSeq = 0;
+  private issuesReqSeq = 0;
 
   constructor(
     private libraryService: LibraryService,
@@ -246,7 +283,18 @@ export class LibraryComponent implements OnInit {
     return t !== k ? t : raw;
   }
 
+  ngOnDestroy(): void {
+    this.subs.unsubscribe();
+  }
+
   ngOnInit(): void {
+    this.subs.add(
+      this.booksSearch$.pipe(debounceTime(300)).subscribe(() => {
+        if (!this.useServerPaging) return;
+        this.bookPageIndex = 0;
+        this.fetchBooksPage();
+      })
+    );
     const r = (this.authService.getCurrentUser()?.role ?? '').toLowerCase();
     this.readOnlyHintVisible = false;
     if (r === 'admin' || r === 'super_admin') {
@@ -289,6 +337,16 @@ export class LibraryComponent implements OnInit {
   }
 
   private rebuildCategories(): void {
+    if (this.useServerPaging) {
+      this.libraryService.getBooksPage({ page: 0, size: 500, catalogScope: 'ALL' }).subscribe(p => {
+        const set = new Set<string>();
+        (p.content || []).forEach(b => {
+          if (b.category?.trim()) set.add(b.category.trim());
+        });
+        this.bookCategories = Array.from(set).sort();
+      });
+      return;
+    }
     this.libraryService.listBooks(undefined, undefined, 'all', true).subscribe(all => {
       const set = new Set<string>();
       (all || []).forEach(b => {
@@ -298,12 +356,115 @@ export class LibraryComponent implements OnInit {
     });
   }
 
+  onBookSearchInput(): void {
+    if (this.useServerPaging) {
+      this.booksSearch$.next();
+    } else {
+      this.loadBooks();
+    }
+  }
+
   loadBooks(): void {
-    this.libraryService.listBooks(this.searchTerm || undefined, this.catalogCategory || undefined, this.catalogFilter).subscribe(b => (this.books = b));
+    if (this.useServerPaging) {
+      this.bookPageIndex = 0;
+      this.fetchBooksPage();
+      return;
+    }
+    this.libraryService.listBooks(this.searchTerm || undefined, this.catalogCategory || undefined, this.catalogFilter).subscribe(b => {
+      this.booksFull = b || [];
+      this.bookPageIndex = 0;
+      this.applyBooksPage();
+    });
+  }
+
+  private fetchBooksPage(): void {
+    const seq = ++this.booksReqSeq;
+    const scope = this.catalogFilter === 'active' ? 'ACTIVE' : this.catalogFilter === 'inactive' ? 'INACTIVE' : 'ALL';
+    this.libraryService
+      .getBooksPage({
+        page: this.bookPageIndex,
+        size: this.bookPageSize,
+        search: this.searchTerm || undefined,
+        category: this.catalogCategory || undefined,
+        catalogScope: scope,
+      })
+      .subscribe(p => {
+        if (seq !== this.booksReqSeq) return;
+        this.books = p.content;
+        this.booksTotal = p.totalElements;
+        this.bookPageIndex = p.page;
+        this.bookPageSize = p.size;
+      });
+  }
+
+  private applyBooksPage(): void {
+    const slice = sliceToPage(this.booksFull, this.bookPageIndex, this.bookPageSize);
+    this.books = slice.content;
+    this.booksTotal = slice.totalElements;
+    this.bookPageIndex = slice.page;
+  }
+
+  onBookPageIndexChange(idx: number): void {
+    this.bookPageIndex = idx;
+    if (this.useServerPaging) this.fetchBooksPage();
+    else this.applyBooksPage();
+  }
+
+  onBookPageSizeChange(size: number): void {
+    this.bookPageSize = size;
+    this.bookPageIndex = 0;
+    if (this.useServerPaging) this.fetchBooksPage();
+    else this.applyBooksPage();
   }
 
   loadIssues(): void {
-    this.libraryService.listIssues(this.issueStatusFilter || undefined).subscribe(i => (this.issues = i));
+    if (this.useServerPaging) {
+      this.issuePageIndex = 0;
+      this.fetchIssuesPage();
+      return;
+    }
+    this.libraryService.listIssues(this.issueStatusFilter || undefined).subscribe(i => {
+      this.issuesFull = i || [];
+      this.issuePageIndex = 0;
+      this.applyIssuesPage();
+    });
+  }
+
+  private fetchIssuesPage(): void {
+    const seq = ++this.issuesReqSeq;
+    this.libraryService
+      .getIssuesPage({
+        page: this.issuePageIndex,
+        size: this.issuePageSize,
+        status: this.issueStatusFilter || undefined,
+      })
+      .subscribe(p => {
+        if (seq !== this.issuesReqSeq) return;
+        this.issues = p.content;
+        this.issuesTotal = p.totalElements;
+        this.issuePageIndex = p.page;
+        this.issuePageSize = p.size;
+      });
+  }
+
+  private applyIssuesPage(): void {
+    const slice = sliceToPage(this.issuesFull, this.issuePageIndex, this.issuePageSize);
+    this.issues = slice.content;
+    this.issuesTotal = slice.totalElements;
+    this.issuePageIndex = slice.page;
+  }
+
+  onIssuePageIndexChange(idx: number): void {
+    this.issuePageIndex = idx;
+    if (this.useServerPaging) this.fetchIssuesPage();
+    else this.applyIssuesPage();
+  }
+
+  onIssuePageSizeChange(size: number): void {
+    this.issuePageSize = size;
+    this.issuePageIndex = 0;
+    if (this.useServerPaging) this.fetchIssuesPage();
+    else this.applyIssuesPage();
   }
 
   openBookModal(): void {

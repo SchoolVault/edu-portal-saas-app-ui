@@ -114,7 +114,7 @@ export class ImportExportService {
         last: true,
       }).pipe(delay(300));
     }
-    return this.api.getPage<ImportJobSummary>(`/import-export/jobs?page=${page}&size=${size}`);
+    return this.api.getPageParams<ImportJobSummary>('/import-export/jobs', { page, size });
   }
 
   getJob(jobId: number): Observable<ImportJobSummary> {
@@ -137,7 +137,7 @@ export class ImportExportService {
         last: true,
       }).pipe(delay(250));
     }
-    return this.api.getPage<ImportJobLine>(`/import-export/jobs/${jobId}/lines?page=${page}&size=${size}`);
+    return this.api.getPageParams<ImportJobLine>(`/import-export/jobs/${jobId}/lines`, { page, size });
   }
 
   retryFailed(jobId: number): Observable<JobSubmitResponse> {

@@ -1,10 +1,12 @@
 import { Injectable } from '@angular/core';
 import { Observable, of } from 'rxjs';
-import { map } from 'rxjs/operators';
+import { delay, map } from 'rxjs/operators';
 import { MOCK_HOSTEL_BUILDINGS_SEED, MOCK_HOSTEL_ROOMS_SEED } from '../mocks/hostel.mock-data';
 import { HostelBuilding, HostelResident, HostelRoom } from '../models/models';
-import { ApiService } from './api.service';
+import { ApiService, PageResp } from './api.service';
 import { runtimeConfig } from '../config/runtime-config';
+import { DEFAULT_ERP_PAGE_SIZE } from '../constants/pagination.constants';
+import { sliceToPage } from '../utils/paginate';
 
 export interface HostelStats {
   totalRooms: number;
@@ -97,6 +99,20 @@ export class HostelService {
       return of(MOCK_ROOMS.map(r => ({ ...r, residents: (r.residents || []).map(x => ({ ...x })) })));
     }
     return this.api.get<any[]>('/hostel/rooms').pipe(map(list => list.map(r => this.normalizeRoom(r))));
+  }
+
+  listRoomsPaged(opts: { page?: number; size?: number }): Observable<PageResp<HostelRoom>> {
+    const page = opts.page ?? 0;
+    const size = opts.size ?? DEFAULT_ERP_PAGE_SIZE;
+    if (!runtimeConfig.useMocks) {
+      return this.api
+        .getPageParams<any>('/hostel/rooms/paged', { page, size })
+        .pipe(map(p => ({ ...p, content: p.content.map((r: any) => this.normalizeRoom(r)) })));
+    }
+    return this.listRooms().pipe(
+      map(rows => sliceToPage(rows ?? [], page, size)),
+      delay(200)
+    );
   }
 
   stats(): Observable<HostelStats> {

@@ -8,6 +8,8 @@ import { AuthService } from '../../core/services/auth.service';
 import { filter } from 'rxjs/operators';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { SchoolClassNamePipe } from '../../core/i18n/school-class-name.pipe';
+import { ErpPaginationComponent } from '../../shared/erp-pagination/erp-pagination.component';
+import { DEFAULT_ERP_PAGE_SIZE } from '../../core/constants/pagination.constants';
 import { formatSchoolClassName } from '../../core/i18n/school-class-display';
 import {
   AcademicYear,
@@ -20,11 +22,12 @@ import {
   Section,
 } from '../../core/models/models';
 import { ConfirmDialogService } from '../../shared/confirm-dialog/confirm-dialog.service';
+import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directives';
 
 @Component({
   selector: 'app-fees',
   standalone: true,
-  imports: [CommonModule, FormsModule, TranslateModule, SchoolClassNamePipe],
+  imports: [CommonModule, FormsModule, TranslateModule, SchoolClassNamePipe, ErpPaginationComponent, ErpI18nPhDirective],
   template: `
     <div data-testid="fees-page">
       <div class="d-flex justify-content-between align-items-center mb-4 animate-in flex-wrap gap-2">
@@ -84,10 +87,21 @@ import { ConfirmDialogService } from '../../shared/confirm-dialog/confirm-dialog
 
       <div *ngIf="tab === 'payments'" class="animate-in">
         <div class="erp-card">
-          <div class="d-flex flex-wrap gap-2 align-items-end mb-3">
+          <div class="d-flex flex-wrap gap-3 align-items-end mb-3">
+            <div class="search-input-wrapper flex-grow-1" style="min-width: 200px; max-width: 360px;">
+              <i class="bi bi-search"></i>
+              <input
+                type="text"
+                class="erp-input"
+                erpI18nPh="fees.searchPaymentsPlaceholder"
+                [(ngModel)]="paymentSearch"
+                (ngModelChange)="schedulePaymentSearch()"
+                data-testid="payments-search"
+              />
+            </div>
             <div>
               <label class="erp-label d-block mb-1 small">{{ 'fees.labelStatus' | translate }}</label>
-              <select class="erp-select" style="width: 150px;" [(ngModel)]="statusFilter" (change)="filterPayments()">
+              <select class="erp-select" style="min-width: 150px;" [(ngModel)]="statusFilter" (ngModelChange)="onPaymentStatusChange()">
                 <option value="">{{ 'fees.allStatus' | translate }}</option>
                 <option value="paid">{{ 'fees.statusPaid' | translate }}</option>
                 <option value="partial">{{ 'fees.statusPartial' | translate }}</option>
@@ -95,36 +109,47 @@ import { ConfirmDialogService } from '../../shared/confirm-dialog/confirm-dialog
                 <option value="overdue">{{ 'fees.statusOverdue' | translate }}</option>
               </select>
             </div>
-            <button type="button" class="btn-outline-erp btn-sm" (click)="loadPayments()"><i class="bi bi-arrow-clockwise"></i> {{ 'fees.refresh' | translate }}</button>
+            <button type="button" class="btn-outline-erp btn-sm" (click)="loadPaymentsPage()"><i class="bi bi-arrow-clockwise"></i> {{ 'fees.refresh' | translate }}</button>
           </div>
-          <table class="erp-table" data-testid="payments-table">
-            <thead>
-              <tr
-                ><th>{{ 'fees.thStudent' | translate }}</th
-                ><th>{{ 'fees.thAmount' | translate }}</th
-                ><th>{{ 'fees.thPaid' | translate }}</th
-                ><th>{{ 'fees.thDue' | translate }}</th
-                ><th>{{ 'fees.thDueDate' | translate }}</th
-                ><th>{{ 'fees.thStatus' | translate }}</th
-                ><th>{{ 'fees.thReceipt' | translate }}</th></tr
-              >
-            </thead>
-            <tbody>
-              <tr *ngFor="let p of filteredPayments" [attr.data-testid]="'payment-row-' + p.id">
-                <td><strong>{{ p.studentName }}</strong></td>
-                <td>₹{{ p.amount | number:'1.0-0':'en-IN' }}</td>
-                <td style="color: var(--clr-success);">₹{{ p.paidAmount | number:'1.0-0':'en-IN' }}</td>
-                <td [style.color]="p.dueAmount > 0 ? 'var(--clr-danger)' : 'var(--clr-success)'">₹{{ p.dueAmount | number:'1.0-0':'en-IN' }}</td>
-                <td>{{ p.dueDate }}</td>
-                <td>
-                  <span class="badge-erp" [ngClass]="{'badge-success': p.status === 'paid', 'badge-warning': p.status === 'partial', 'badge-danger': p.status === 'overdue', 'badge-neutral': p.status === 'unpaid'}">
-                    {{ feeStatusLabel(p.status) }}
-                  </span>
-                </td>
-                <td>{{ p.receiptNumber || '-' }}</td>
-              </tr>
-            </tbody>
-          </table>
+          <div style="overflow-x: auto;" dir="ltr">
+            <table class="erp-table" data-testid="payments-table">
+              <thead>
+                <tr
+                  ><th>{{ 'fees.thStudent' | translate }}</th
+                  ><th>{{ 'fees.thAmount' | translate }}</th
+                  ><th>{{ 'fees.thPaid' | translate }}</th
+                  ><th>{{ 'fees.thDue' | translate }}</th
+                  ><th>{{ 'fees.thDueDate' | translate }}</th
+                  ><th>{{ 'fees.thStatus' | translate }}</th
+                  ><th>{{ 'fees.thReceipt' | translate }}</th></tr
+                >
+              </thead>
+              <tbody>
+                <tr *ngFor="let p of paymentsPage" [attr.data-testid]="'payment-row-' + p.id">
+                  <td><strong>{{ p.studentName }}</strong></td>
+                  <td>₹{{ p.amount | number:'1.0-0':'en-IN' }}</td>
+                  <td style="color: var(--clr-success);">₹{{ p.paidAmount | number:'1.0-0':'en-IN' }}</td>
+                  <td [style.color]="p.dueAmount > 0 ? 'var(--clr-danger)' : 'var(--clr-success)'">₹{{ p.dueAmount | number:'1.0-0':'en-IN' }}</td>
+                  <td>{{ p.dueDate }}</td>
+                  <td>
+                    <span class="badge-erp" [ngClass]="{'badge-success': p.status === 'paid', 'badge-warning': p.status === 'partial', 'badge-danger': p.status === 'overdue', 'badge-neutral': p.status === 'unpaid'}">
+                      {{ feeStatusLabel(p.status) }}
+                    </span>
+                  </td>
+                  <td>{{ p.receiptNumber || '-' }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p *ngIf="!paymentsPage.length && !paymentsLoading" class="text-muted small mb-0">{{ 'fees.emptyPayments' | translate }}</p>
+          <app-erp-pagination
+            *ngIf="paymentsTotal > 0"
+            [totalElements]="paymentsTotal"
+            [pageIndex]="paymentPageIndex"
+            [pageSize]="paymentPageSize"
+            (pageIndexChange)="onPaymentPageIndexChange($event)"
+            (pageSizeChange)="onPaymentPageSizeChange($event)"
+          />
         </div>
       </div>
     </div>
@@ -137,7 +162,7 @@ import { ConfirmDialogService } from '../../shared/confirm-dialog/confirm-dialog
         </div>
         <div class="modal-body-erp">
           <label class="erp-label">{{ 'fees.labelStructureName' | translate }}</label>
-          <input class="erp-input mb-2" [(ngModel)]="structureForm.name" [placeholder]="'fees.structureNamePh' | translate" />
+          <input class="erp-input mb-2" [(ngModel)]="structureForm.name" erpI18nPh="fees.structureNamePh" />
 
           <div class="row g-2">
             <div class="col-md-6">
@@ -162,7 +187,7 @@ import { ConfirmDialogService } from '../../shared/confirm-dialog/confirm-dialog
           </div>
           <div *ngFor="let row of structureForm.components; let i = index" class="row g-2 align-items-end mb-2">
             <div class="col-md-4">
-              <input class="erp-input" [(ngModel)]="row.name" [placeholder]="'fees.labelPlaceholder' | translate" />
+              <input class="erp-input" [(ngModel)]="row.name" erpI18nPh="fees.labelPlaceholder" />
             </div>
             <div class="col-md-3">
               <select class="erp-select" [(ngModel)]="row.type">
@@ -262,8 +287,13 @@ import { ConfirmDialogService } from '../../shared/confirm-dialog/confirm-dialog
 export class FeesComponent implements OnInit {
   tab = 'structures';
   feeStructures: FeeStructure[] = [];
-  payments: FeePayment[] = [];
-  filteredPayments: FeePayment[] = [];
+  paymentsPage: FeePayment[] = [];
+  paymentsTotal = 0;
+  paymentPageIndex = 0;
+  paymentPageSize = DEFAULT_ERP_PAGE_SIZE;
+  paymentSearch = '';
+  paymentsLoading = false;
+  private paymentSearchTimer: ReturnType<typeof setTimeout> | null = null;
   statusFilter = '';
   classes: SchoolClass[] = [];
   academicYears: AcademicYear[] = [];
@@ -319,7 +349,7 @@ export class FeesComponent implements OnInit {
     this.academicService.getClasses().subscribe(c => (this.classes = c || []));
     this.academicService.getAcademicYears().subscribe(y => (this.academicYears = y || []));
     this.loadStructures();
-    this.loadPayments();
+    this.loadPaymentsPage();
   }
 
   refreshAll(): void {
@@ -329,7 +359,7 @@ export class FeesComponent implements OnInit {
     this.feeService.getFeeStructures().subscribe({
       next: fs => {
         this.feeStructures = fs;
-        this.loadPayments();
+        this.loadPaymentsPage();
         this.refreshing = false;
       },
       error: () => {
@@ -342,16 +372,55 @@ export class FeesComponent implements OnInit {
     this.feeService.getFeeStructures().subscribe(fs => (this.feeStructures = fs));
   }
 
-  loadPayments(): void {
-    this.feeService.getPayments().subscribe(p => {
-      this.payments = p;
-      this.filterPayments();
-      this.refreshing = false;
-    });
+  loadPaymentsPage(): void {
+    this.paymentsLoading = true;
+    this.feeService
+      .getPaymentsPage({
+        page: this.paymentPageIndex,
+        size: this.paymentPageSize,
+        status: this.statusFilter || undefined,
+        q: this.paymentSearch || undefined,
+      })
+      .subscribe({
+        next: pr => {
+          this.paymentsPage = pr.content;
+          this.paymentsTotal = pr.totalElements;
+          this.paymentPageIndex = pr.page;
+          this.paymentsLoading = false;
+          this.refreshing = false;
+        },
+        error: () => {
+          this.paymentsLoading = false;
+          this.refreshing = false;
+        },
+      });
   }
 
-  filterPayments(): void {
-    this.filteredPayments = this.statusFilter ? this.payments.filter(p => p.status === this.statusFilter) : [...this.payments];
+  schedulePaymentSearch(): void {
+    if (this.paymentSearchTimer) {
+      clearTimeout(this.paymentSearchTimer);
+    }
+    this.paymentSearchTimer = setTimeout(() => {
+      this.paymentSearchTimer = null;
+      this.paymentPageIndex = 0;
+      this.loadPaymentsPage();
+    }, 400);
+  }
+
+  onPaymentStatusChange(): void {
+    this.paymentPageIndex = 0;
+    this.loadPaymentsPage();
+  }
+
+  onPaymentPageIndexChange(idx: number): void {
+    this.paymentPageIndex = idx;
+    this.loadPaymentsPage();
+  }
+
+  onPaymentPageSizeChange(size: number): void {
+    this.paymentPageSize = size;
+    this.paymentPageIndex = 0;
+    this.loadPaymentsPage();
   }
 
   emptyStructureForm() {
@@ -510,7 +579,7 @@ export class FeesComponent implements OnInit {
         next: res => {
           this.bulkAssignResult = res;
           this.bulkAssignSaving = false;
-          this.loadPayments();
+          this.loadPaymentsPage();
         },
         error: (e: Error) => {
           this.bulkAssignSaving = false;

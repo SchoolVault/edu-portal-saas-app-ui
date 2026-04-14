@@ -15,11 +15,12 @@ import { ProfilePhotoPickerComponent, ProfilePhotoPickEvent } from '../../shared
 import { ErpDatePickerComponent } from '../../shared/erp-date-picker/erp-date-picker.component';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { formatSchoolClassName } from '../../core/i18n/school-class-display';
+import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directives';
 
 @Component({
   selector: 'app-student-form',
   standalone: true,
-  imports: [CommonModule, FormsModule, ProfilePhotoPickerComponent, ErpDatePickerComponent, TranslateModule],
+  imports: [CommonModule, FormsModule, ProfilePhotoPickerComponent, ErpDatePickerComponent, TranslateModule, ErpI18nPhDirective],
   template: `
     <div data-testid="student-form-page" class="animate-in">
       <div class="d-flex align-items-center gap-3 mb-4">
@@ -59,7 +60,7 @@ import { formatSchoolClassName } from '../../core/i18n/school-class-display';
                   [(ngModel)]="student.dateOfBirth"
                   name="dob"
                   dataTestId="student-dob"
-                  [placeholder]="'students.form.dobPh' | translate"
+                  placeholderI18nKey="students.form.dobPh"
                   required
                 />
               </div>
@@ -150,13 +151,13 @@ import { formatSchoolClassName } from '../../core/i18n/school-class-display';
                   [(ngModel)]="student.admissionDate"
                   name="admissionDate"
                   dataTestId="student-admission-date"
-                  [placeholder]="'students.form.admissionDatePh' | translate"
+                  placeholderI18nKey="students.form.admissionDatePh"
                 />
               </div>
             </div>
             <div class="col-md-4">
               <div class="erp-form-group"><label class="erp-label">{{ 'students.form.parentLegacy' | translate }}</label>
-                <input type="text" class="erp-input" [(ngModel)]="student.parentName" name="parentName" data-testid="student-parent-name" [placeholder]="'students.form.parentPlaceholder' | translate">
+                <input type="text" class="erp-input" [(ngModel)]="student.parentName" name="parentName" data-testid="student-parent-name" erpI18nPh="students.form.parentPlaceholder">
               </div>
             </div>
           </div>

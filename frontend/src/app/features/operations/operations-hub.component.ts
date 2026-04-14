@@ -1,4 +1,5 @@
-import { Component, OnInit } from '@angular/core';
+import { ChangeDetectorRef, Component, DestroyRef, OnInit, inject } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
@@ -18,13 +19,26 @@ import {
   VisitorLogRow,
 } from '../../core/models/operations.models';
 import { ErpDatePickerComponent } from '../../shared/erp-date-picker/erp-date-picker.component';
+import { ErpPaginationComponent } from '../../shared/erp-pagination/erp-pagination.component';
 import { ConfirmDialogService } from '../../shared/confirm-dialog/confirm-dialog.service';
 import { filter } from 'rxjs/operators';
+import { sliceToPage } from '../../core/utils/paginate';
+import { DEFAULT_ERP_PAGE_SIZE } from '../../core/constants/pagination.constants';
+import { ErpI18nPhDirective, ErpI18nTextDirective } from '../../shared/erp-i18n/erp-i18n-host.directives';
+import { runtimeConfig } from '../../core/config/runtime-config';
 
 @Component({
   selector: 'app-operations-hub',
   standalone: true,
-  imports: [CommonModule, FormsModule, ErpDatePickerComponent, TranslateModule],
+  imports: [
+    CommonModule,
+    FormsModule,
+    ErpDatePickerComponent,
+    ErpPaginationComponent,
+    TranslateModule,
+    ErpI18nPhDirective,
+    ErpI18nTextDirective,
+  ],
   template: `
     <div data-testid="operations-hub-page">
       <div class="mb-4 animate-in">
@@ -40,7 +54,7 @@ import { filter } from 'rxjs/operators';
         <div class="row g-3 align-items-end mb-3">
           <div class="col-md-2">
             <label class="erp-label">{{ 'operations.covers.labelDate' | translate }}</label>
-            <app-erp-date-picker [(ngModel)]="coverDate" [placeholder]="'operations.covers.phCoverDate' | translate" />
+            <app-erp-date-picker [(ngModel)]="coverDate" placeholderI18nKey="operations.covers.phCoverDate" />
           </div>
           <div class="col-md-2">
             <label class="erp-label">{{ 'operations.covers.labelClass' | translate }}</label>
@@ -58,7 +72,7 @@ import { filter } from 'rxjs/operators';
           </div>
           <div class="col-md-2">
             <label class="erp-label">{{ 'operations.covers.labelPeriod' | translate }}</label>
-            <input type="number" min="1" max="12" class="erp-input" [(ngModel)]="coverForm.periodNumber" [placeholder]="'operations.covers.phPeriod' | translate" [title]="'operations.covers.periodTitle' | translate" />
+            <input type="number" min="1" max="12" class="erp-input" [(ngModel)]="coverForm.periodNumber" erpI18nPh="operations.covers.phPeriod" [title]="'operations.covers.periodTitle' | translate" />
           </div>
           <div class="col-md-4">
             <label class="erp-label">{{ 'operations.covers.labelCoveringTeacher' | translate }}</label>
@@ -70,7 +84,7 @@ import { filter } from 'rxjs/operators';
         </div>
         <div class="erp-form-group mb-3">
           <label class="erp-label">{{ 'operations.covers.labelReason' | translate }}</label>
-          <input type="text" class="erp-input" [(ngModel)]="coverForm.reason" [placeholder]="'operations.covers.phReason' | translate" />
+          <input type="text" class="erp-input" [(ngModel)]="coverForm.reason" erpI18nPh="operations.covers.phReason" />
         </div>
         <button type="button" class="btn-primary-erp btn-sm me-2" (click)="submitCover()">{{ 'operations.covers.addCover' | translate }}</button>
         <button type="button" class="btn-outline-erp btn-sm" (click)="reloadCovers()">{{ 'operations.covers.refreshList' | translate }}</button>
@@ -95,9 +109,9 @@ import { filter } from 'rxjs/operators';
         <div *ngIf="staffTabError" class="alert alert-danger py-2 px-3 small mb-2" style="border-radius: var(--radius-md);">{{ staffTabError }}</div>
         <div class="row g-2 mb-3">
           <div class="col-md-3"><select class="erp-select" [(ngModel)]="staffForm.staffRole"><option *ngFor="let r of staffRoles" [value]="r">{{ staffRoleLabel(r) }}</option></select></div>
-          <div class="col-md-3"><input class="erp-input" [(ngModel)]="staffForm.fullName" [placeholder]="'operations.staff.phFullName' | translate" /></div>
-          <div class="col-md-2"><input class="erp-input" [(ngModel)]="staffForm.phone" [placeholder]="'operations.staff.phPhone' | translate" /></div>
-          <div class="col-md-2"><input class="erp-input" [(ngModel)]="staffForm.employeeCode" [placeholder]="'operations.staff.phCode' | translate" /></div>
+          <div class="col-md-3"><input class="erp-input" [(ngModel)]="staffForm.fullName" erpI18nPh="operations.staff.phFullName" /></div>
+          <div class="col-md-2"><input class="erp-input" [(ngModel)]="staffForm.phone" erpI18nPh="operations.staff.phPhone" /></div>
+          <div class="col-md-2"><input class="erp-input" [(ngModel)]="staffForm.employeeCode" erpI18nPh="operations.staff.phCode" /></div>
           <div class="col-md-2"><button type="button" class="btn-primary-erp w-100" (click)="addStaff()">{{ 'operations.staff.add' | translate }}</button></div>
         </div>
         <table class="erp-table mb-0">
@@ -114,15 +128,24 @@ import { filter } from 'rxjs/operators';
             </tr>
           </tbody>
         </table>
+        <app-erp-pagination
+          *ngIf="staffTotal > 0"
+          class="d-block mt-2"
+          [totalElements]="staffTotal"
+          [pageIndex]="staffPageIndex"
+          [pageSize]="staffPageSize"
+          (pageIndexChange)="onStaffPageIndex($event)"
+          (pageSizeChange)="onStaffPageSize($event)"
+        />
       </div>
 
       <div class="erp-card mb-4" *ngIf="tab === 'visitors'">
         <h4 class="erp-card-title mb-3">{{ 'operations.visitors.title' | translate }}</h4>
         <div class="row g-2 mb-3">
-          <div class="col-md-3"><input class="erp-input" [(ngModel)]="visitorForm.visitorName" [placeholder]="'operations.visitors.phVisitorName' | translate" /></div>
-          <div class="col-md-2"><input class="erp-input" [(ngModel)]="visitorForm.phone" [placeholder]="'operations.visitors.phPhone' | translate" /></div>
-          <div class="col-md-3"><input class="erp-input" [(ngModel)]="visitorForm.hostName" [placeholder]="'operations.visitors.phHost' | translate" /></div>
-          <div class="col-md-3"><input class="erp-input" [(ngModel)]="visitorForm.purpose" [placeholder]="'operations.visitors.phPurpose' | translate" /></div>
+          <div class="col-md-3"><input class="erp-input" [(ngModel)]="visitorForm.visitorName" erpI18nPh="operations.visitors.phVisitorName" /></div>
+          <div class="col-md-2"><input class="erp-input" [(ngModel)]="visitorForm.phone" erpI18nPh="operations.visitors.phPhone" /></div>
+          <div class="col-md-3"><input class="erp-input" [(ngModel)]="visitorForm.hostName" erpI18nPh="operations.visitors.phHost" /></div>
+          <div class="col-md-3"><input class="erp-input" [(ngModel)]="visitorForm.purpose" erpI18nPh="operations.visitors.phPurpose" /></div>
           <div class="col-md-1"><button class="btn-primary-erp w-100" (click)="checkIn()">{{ 'operations.visitors.checkIn' | translate }}</button></div>
         </div>
         <table class="erp-table mb-0">
@@ -134,15 +157,24 @@ import { filter } from 'rxjs/operators';
             </tr>
           </tbody>
         </table>
+        <app-erp-pagination
+          *ngIf="visitorsTotal > 0"
+          class="d-block mt-2"
+          [totalElements]="visitorsTotal"
+          [pageIndex]="visitorPageIndex"
+          [pageSize]="visitorPageSize"
+          (pageIndexChange)="onVisitorPageIndex($event)"
+          (pageSizeChange)="onVisitorPageSize($event)"
+        />
       </div>
 
       <div class="erp-card mb-4" *ngIf="tab === 'gate'">
         <h4 class="erp-card-title mb-3">{{ 'operations.gate.title' | translate }}</h4>
         <div class="row g-2 mb-3">
-          <div class="col-md-3"><input class="erp-input" [(ngModel)]="gateForm.issuedToName" [placeholder]="'operations.gate.phIssuedTo' | translate" /></div>
+          <div class="col-md-3"><input class="erp-input" [(ngModel)]="gateForm.issuedToName" erpI18nPh="operations.gate.phIssuedTo" /></div>
           <div class="col-md-2"><input type="date" class="erp-input" [(ngModel)]="gateForm.validFrom" /></div>
           <div class="col-md-2"><input type="date" class="erp-input" [(ngModel)]="gateForm.validTo" /></div>
-          <div class="col-md-3"><input class="erp-input" [(ngModel)]="gateForm.purpose" [placeholder]="'operations.gate.phPurpose' | translate" /></div>
+          <div class="col-md-3"><input class="erp-input" [(ngModel)]="gateForm.purpose" erpI18nPh="operations.gate.phPurpose" /></div>
           <div class="col-md-2"><button class="btn-primary-erp w-100" (click)="addGate()">{{ 'operations.gate.issue' | translate }}</button></div>
         </div>
         <table class="erp-table mb-0">
@@ -154,6 +186,15 @@ import { filter } from 'rxjs/operators';
             </tr>
           </tbody>
         </table>
+        <app-erp-pagination
+          *ngIf="gateTotal > 0"
+          class="d-block mt-2"
+          [totalElements]="gateTotal"
+          [pageIndex]="gatePageIndex"
+          [pageSize]="gatePageSize"
+          (pageIndexChange)="onGatePageIndex($event)"
+          (pageSizeChange)="onGatePageSize($event)"
+        />
       </div>
 
       <div class="erp-card mb-4" *ngIf="tab === 'inventory'">
@@ -163,27 +204,27 @@ import { filter } from 'rxjs/operators';
         <div class="row g-2 mb-3 align-items-end">
           <div class="col-lg-2 col-md-4">
             <label class="erp-label">{{ 'operations.inventory.labelSku' | translate }}</label>
-            <input class="erp-input" [(ngModel)]="invForm.sku" [placeholder]="'operations.inventory.phSku' | translate" [readOnly]="!!invEditingId" [title]="invEditingId ? ('operations.inventory.skuLockedTitle' | translate) : ''" />
+            <input class="erp-input" [(ngModel)]="invForm.sku" erpI18nPh="operations.inventory.phSku" [readOnly]="!!invEditingId" [title]="invEditingId ? ('operations.inventory.skuLockedTitle' | translate) : ''" />
           </div>
           <div class="col-lg-2 col-md-4">
             <label class="erp-label">{{ 'operations.inventory.labelName' | translate }}</label>
-            <input class="erp-input" [(ngModel)]="invForm.name" [placeholder]="'operations.inventory.phName' | translate" />
+            <input class="erp-input" [(ngModel)]="invForm.name" erpI18nPh="operations.inventory.phName" />
           </div>
           <div class="col-lg-2 col-md-4">
             <label class="erp-label">{{ 'operations.inventory.labelCategory' | translate }}</label>
-            <input class="erp-input" [(ngModel)]="invForm.category" [placeholder]="'operations.inventory.phCategory' | translate" />
+            <input class="erp-input" [(ngModel)]="invForm.category" erpI18nPh="operations.inventory.phCategory" />
           </div>
           <div class="col-lg-1 col-md-3">
             <label class="erp-label">{{ 'operations.inventory.labelQty' | translate }}</label>
-            <input type="number" class="erp-input" [(ngModel)]="invForm.quantityOnHand" [placeholder]="'operations.inventory.phQty' | translate" />
+            <input type="number" class="erp-input" [(ngModel)]="invForm.quantityOnHand" erpI18nPh="operations.inventory.phQty" />
           </div>
           <div class="col-lg-1 col-md-3">
             <label class="erp-label">{{ 'operations.inventory.labelReorder' | translate }}</label>
-            <input type="number" class="erp-input" [(ngModel)]="invForm.reorderLevel" [placeholder]="'operations.inventory.phReorder' | translate" />
+            <input type="number" class="erp-input" [(ngModel)]="invForm.reorderLevel" erpI18nPh="operations.inventory.phReorder" />
           </div>
           <div class="col-lg-2 col-md-4">
             <label class="erp-label">{{ 'operations.inventory.labelLocation' | translate }}</label>
-            <input class="erp-input" [(ngModel)]="invForm.location" [placeholder]="'operations.inventory.phLocation' | translate" />
+            <input class="erp-input" [(ngModel)]="invForm.location" erpI18nPh="operations.inventory.phLocation" />
           </div>
           <div class="col-lg-1 col-md-3">
             <button type="button" class="btn-primary-erp w-100" (click)="saveInv()">{{ invEditingId ? ('operations.inventory.update' | translate) : ('operations.inventory.save' | translate) }}</button>
@@ -209,6 +250,15 @@ import { filter } from 'rxjs/operators';
             </tr>
           </tbody>
         </table>
+        <app-erp-pagination
+          *ngIf="invTotal > 0"
+          class="d-block mt-2"
+          [totalElements]="invTotal"
+          [pageIndex]="invPageIndex"
+          [pageSize]="invPageSize"
+          (pageIndexChange)="onInvPageIndex($event)"
+          (pageSizeChange)="onInvPageSize($event)"
+        />
       </div>
 
       <div class="erp-card mb-4" *ngIf="tab === 'reminders'">
@@ -220,7 +270,14 @@ import { filter } from 'rxjs/operators';
           <button type="button" class="btn-outline-erp btn-sm" (click)="reloadReminders()"><i class="bi bi-arrow-clockwise"></i> {{ 'operations.reminders.refresh' | translate }}</button>
         </div>
         <h5 class="erp-card-title mb-2" style="font-size: 14px;">{{ 'operations.reminders.outstandingTitle' | translate }}</h5>
-        <table class="erp-table mb-4">
+        <div class="row g-2 align-items-end mb-2" *ngIf="pendingFees.length">
+          <div class="col-md-6">
+            <label class="erp-label small mb-1" erpI18nText="operations.reminders.searchOutstanding"></label>
+            <input type="search" class="erp-input" erpI18nPh="operations.reminders.searchOutstandingPh" [(ngModel)]="pendingFeesSearch" (ngModelChange)="onPendingFeesSearchChange()" />
+          </div>
+        </div>
+        <p *ngIf="pendingFees.length && !pendingFeesFilteredTotal" class="text-muted small mb-2">{{ 'operations.reminders.noOutstandingMatches' | translate }}</p>
+        <table class="erp-table mb-2" *ngIf="pendingFeesFilteredTotal">
           <thead>
             <tr>
               <th>{{ 'operations.reminders.thStudent' | translate }}</th>
@@ -231,7 +288,7 @@ import { filter } from 'rxjs/operators';
             </tr>
           </thead>
           <tbody>
-            <tr *ngFor="let p of pendingFees">
+            <tr *ngFor="let p of pagedPendingFees">
               <td><strong>{{ p.studentName }}</strong><span class="d-block small text-muted">#{{ p.studentId }}</span></td>
               <td>{{ p.dueDate || ('transport.dash' | translate) }}</td>
               <td>{{ p.dueAmount | number:'1.0-0' }}</td>
@@ -244,25 +301,48 @@ import { filter } from 'rxjs/operators';
                 </div>
               </td>
             </tr>
-            <tr *ngIf="!pendingFees.length">
-              <td colspan="5" class="text-muted small">{{ 'operations.reminders.emptyPending' | translate }}</td>
-            </tr>
           </tbody>
         </table>
+        <app-erp-pagination
+          *ngIf="pendingFeesFilteredTotal > pendingFeesPageSize"
+          class="d-block mb-4"
+          [totalElements]="pendingFeesFilteredTotal"
+          [pageIndex]="pendingFeesPageIndex"
+          [pageSize]="pendingFeesPageSize"
+          (pageIndexChange)="onPendingFeesPageIndex($event)"
+          (pageSizeChange)="onPendingFeesPageSize($event)"
+        />
+        <p *ngIf="!pendingFees.length" class="text-muted small mb-4">{{ 'operations.reminders.emptyPending' | translate }}</p>
         <h5 class="erp-card-title mb-2" style="font-size: 14px;">{{ 'operations.reminders.queueTitle' | translate }}</h5>
-        <table class="erp-table mb-0">
+        <div class="row g-2 align-items-end mb-2" *ngIf="reminders.length && remindersQueueClientFilter">
+          <div class="col-md-6">
+            <label class="erp-label small mb-1" erpI18nText="operations.reminders.searchQueue"></label>
+            <input type="search" class="erp-input" erpI18nPh="operations.reminders.searchQueuePh" [(ngModel)]="remindersSearch" (ngModelChange)="onRemindersSearchChange()" />
+          </div>
+        </div>
+        <p *ngIf="reminders.length && !remindersFilteredTotal" class="text-muted small mb-2">{{ 'operations.reminders.noQueueMatches' | translate }}</p>
+        <table class="erp-table mb-0" *ngIf="remindersFilteredTotal">
           <thead><tr><th>{{ 'operations.reminders.thStudent' | translate }}</th><th>{{ 'operations.reminders.thDue' | translate }}</th><th>{{ 'operations.reminders.thChannel' | translate }}</th><th>{{ 'operations.reminders.thStatus' | translate }}</th><th>{{ 'operations.reminders.thScheduled' | translate }}</th></tr></thead>
           <tbody>
-            <tr *ngFor="let r of reminders">
-              <td>{{ r.studentId }}</td>
+            <tr *ngFor="let r of pagedReminders">
+              <td><strong>{{ reminderStudentLabel(r) }}</strong><span class="d-block small text-muted">#{{ r.studentId }}</span></td>
               <td>{{ r.dueDate || ('transport.dash' | translate) }}</td>
               <td>{{ r.channel }}</td>
               <td>{{ r.status }}</td>
               <td>{{ r.scheduledAt ? (r.scheduledAt | date:'short') : ('transport.dash' | translate) }}</td>
             </tr>
-            <tr *ngIf="!reminders.length"><td colspan="5" class="text-muted small">{{ 'operations.reminders.emptyQueue' | translate }}</td></tr>
           </tbody>
         </table>
+        <app-erp-pagination
+          *ngIf="remindersFilteredTotal > remindersPageSize"
+          class="d-block mt-2"
+          [totalElements]="remindersFilteredTotal"
+          [pageIndex]="remindersPageIndex"
+          [pageSize]="remindersPageSize"
+          (pageIndexChange)="onRemindersPageIndex($event)"
+          (pageSizeChange)="onRemindersPageSize($event)"
+        />
+        <p *ngIf="!reminders.length" class="text-muted small mb-0">{{ 'operations.reminders.emptyQueue' | translate }}</p>
       </div>
 
       <div class="erp-card mb-4" *ngIf="tab === 'payroll'">
@@ -293,11 +373,35 @@ export class OperationsHubComponent implements OnInit {
   teachers: Teacher[] = [];
   covers: AttendanceCoverRow[] = [];
   staff: OperationalStaffRow[] = [];
+  staffTotal = 0;
+  staffPageIndex = 0;
+  staffPageSize = DEFAULT_ERP_PAGE_SIZE;
   visitors: VisitorLogRow[] = [];
+  visitorsTotal = 0;
+  visitorPageIndex = 0;
+  visitorPageSize = DEFAULT_ERP_PAGE_SIZE;
   gatePasses: GatePassRow[] = [];
+  gateTotal = 0;
+  gatePageIndex = 0;
+  gatePageSize = DEFAULT_ERP_PAGE_SIZE;
   inventory: InventoryRow[] = [];
+  invTotal = 0;
+  invPageIndex = 0;
+  invPageSize = DEFAULT_ERP_PAGE_SIZE;
   reminders: FeeReminderRow[] = [];
+  readonly remindersQueueClientFilter = runtimeConfig.useMocks;
   pendingFees: FeePayment[] = [];
+  private studentNameById: Record<number, string> = {};
+  pendingFeesSearch = '';
+  pendingFeesPageIndex = 0;
+  pendingFeesPageSize = DEFAULT_ERP_PAGE_SIZE;
+  pagedPendingFees: FeePayment[] = [];
+  pendingFeesFilteredTotal = 0;
+  remindersSearch = '';
+  remindersPageIndex = 0;
+  remindersPageSize = DEFAULT_ERP_PAGE_SIZE;
+  pagedReminders: FeeReminderRow[] = [];
+  remindersFilteredTotal = 0;
   payroll: PayrollAccrualSummary | null = null;
 
   coverDate = new Date().toISOString().split('T')[0];
@@ -321,13 +425,16 @@ export class OperationsHubComponent implements OnInit {
   invEditingId: string | null = null;
   staffTabError = '';
   inventoryTabError = '';
+  private readonly destroyRef = inject(DestroyRef);
+
   constructor(
     private operations: OperationsService,
     private academic: AcademicService,
     private teacherService: TeacherService,
     private feeService: FeeService,
     private confirmDialog: ConfirmDialogService,
-    private translate: TranslateService
+    private translate: TranslateService,
+    private cdr: ChangeDetectorRef
   ) {}
 
   staffRoleLabel(code: string): string {
@@ -337,6 +444,7 @@ export class OperationsHubComponent implements OnInit {
   }
 
   ngOnInit(): void {
+    this.translate.onLangChange.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => this.cdr.markForCheck());
     this.academic.getClasses().subscribe(c => (this.classes = c));
     this.teacherService.getTeachers().subscribe(t => (this.teachers = t));
     this.reloadCovers();
@@ -352,16 +460,109 @@ export class OperationsHubComponent implements OnInit {
     if (t === 'covers') this.reloadCovers();
     if (t === 'staff') {
       this.staffTabError = '';
-      this.operations.listStaff().subscribe(s => (this.staff = s));
+      this.staffPageIndex = 0;
+      this.loadStaffPage();
     }
-    if (t === 'visitors') this.operations.listVisitors().subscribe(s => (this.visitors = s));
-    if (t === 'gate') this.operations.listGatePasses().subscribe(s => (this.gatePasses = s));
+    if (t === 'visitors') {
+      this.visitorPageIndex = 0;
+      this.loadVisitorsPage();
+    }
+    if (t === 'gate') {
+      this.gatePageIndex = 0;
+      this.loadGatePage();
+    }
     if (t === 'inventory') {
       this.inventoryTabError = '';
-      this.operations.listInventory().subscribe(s => (this.inventory = s));
+      this.invPageIndex = 0;
+      this.loadInventoryPage();
     }
     if (t === 'reminders') this.reloadReminders();
     if (t === 'payroll') this.loadPayroll();
+  }
+
+  loadStaffPage(): void {
+    this.operations.listStaffPage(this.staffPageIndex, this.staffPageSize).subscribe(p => {
+      this.staff = p.content;
+      this.staffTotal = p.totalElements;
+      this.staffPageIndex = p.page;
+    });
+  }
+
+  onStaffPageIndex(i: number): void {
+    this.staffPageIndex = i;
+    this.loadStaffPage();
+  }
+
+  onStaffPageSize(s: number): void {
+    this.staffPageSize = s;
+    this.staffPageIndex = 0;
+    this.loadStaffPage();
+  }
+
+  loadVisitorsPage(): void {
+    this.operations.listVisitorsPage(this.visitorPageIndex, this.visitorPageSize).subscribe(p => {
+      this.visitors = p.content;
+      this.visitorsTotal = p.totalElements;
+      this.visitorPageIndex = p.page;
+    });
+  }
+
+  onVisitorPageIndex(i: number): void {
+    this.visitorPageIndex = i;
+    this.loadVisitorsPage();
+  }
+
+  onVisitorPageSize(s: number): void {
+    this.visitorPageSize = s;
+    this.visitorPageIndex = 0;
+    this.loadVisitorsPage();
+  }
+
+  loadGatePage(): void {
+    this.operations.listGatePassesPage(this.gatePageIndex, this.gatePageSize).subscribe(p => {
+      this.gatePasses = p.content;
+      this.gateTotal = p.totalElements;
+      this.gatePageIndex = p.page;
+    });
+  }
+
+  onGatePageIndex(i: number): void {
+    this.gatePageIndex = i;
+    this.loadGatePage();
+  }
+
+  onGatePageSize(s: number): void {
+    this.gatePageSize = s;
+    this.gatePageIndex = 0;
+    this.loadGatePage();
+  }
+
+  loadInventoryPage(): void {
+    this.operations.listInventoryPage(this.invPageIndex, this.invPageSize).subscribe(p => {
+      this.inventory = p.content;
+      this.invTotal = p.totalElements;
+      this.invPageIndex = p.page;
+    });
+  }
+
+  onInvPageIndex(i: number): void {
+    this.invPageIndex = i;
+    this.loadInventoryPage();
+  }
+
+  onInvPageSize(s: number): void {
+    this.invPageSize = s;
+    this.invPageIndex = 0;
+    this.loadInventoryPage();
+  }
+
+  private fetchRemindersQueuePage(): void {
+    this.operations.listFeeRemindersPage(this.remindersPageIndex, this.remindersPageSize, 'PENDING').subscribe(p => {
+      this.reminders = p.content;
+      this.pagedReminders = p.content;
+      this.remindersFilteredTotal = p.totalElements;
+      this.remindersPageIndex = p.page;
+    });
   }
 
   reloadCovers(): void {
@@ -407,7 +608,8 @@ export class OperationsHubComponent implements OnInit {
       .subscribe({
         next: () => {
           this.staffForm = { staffRole: this.staffForm.staffRole, fullName: '', phone: '', employeeCode: '' };
-          this.operations.listStaff().subscribe(s => (this.staff = s));
+          this.staffPageIndex = 0;
+          this.loadStaffPage();
         },
         error: (e: Error) => {
           this.staffTabError = e?.message || this.translate.instant('operations.staff.errAddFailed');
@@ -433,27 +635,28 @@ export class OperationsHubComponent implements OnInit {
       })
       .pipe(filter(Boolean))
       .subscribe(() => {
-        this.operations.deleteStaff(s.id, false).subscribe(() => {
-          this.operations.listStaff().subscribe(list => (this.staff = list));
-        });
+        this.operations.deleteStaff(s.id, false).subscribe(() => this.loadStaffPage());
       });
   }
 
   checkIn(): void {
-    this.operations.checkInVisitor(this.visitorForm).subscribe(() => this.operations.listVisitors().subscribe(v => (this.visitors = v)));
+    this.operations.checkInVisitor(this.visitorForm).subscribe(() => this.loadVisitorsPage());
   }
 
   checkOut(v: VisitorLogRow): void {
-    this.operations.checkOutVisitor(v.id).subscribe(() => this.operations.listVisitors().subscribe(x => (this.visitors = x)));
+    this.operations.checkOutVisitor(v.id).subscribe(() => this.loadVisitorsPage());
   }
 
   addGate(): void {
     if (!this.gateForm.issuedToName || !this.gateForm.validFrom || !this.gateForm.validTo) return;
-    this.operations.createGatePass(this.gateForm as any).subscribe(() => this.operations.listGatePasses().subscribe(s => (this.gatePasses = s)));
+    this.operations.createGatePass(this.gateForm as any).subscribe(() => {
+      this.gatePageIndex = 0;
+      this.loadGatePage();
+    });
   }
 
   revokeGate(g: GatePassRow): void {
-    this.operations.revokeGatePass(g.id).subscribe(() => this.operations.listGatePasses().subscribe(s => (this.gatePasses = s)));
+    this.operations.revokeGatePass(g.id).subscribe(() => this.loadGatePage());
   }
 
   saveInv(): void {
@@ -476,7 +679,8 @@ export class OperationsHubComponent implements OnInit {
       .subscribe({
         next: () => {
           this.clearInventoryForm();
-          this.operations.listInventory().subscribe(s => (this.inventory = s));
+          this.invPageIndex = 0;
+          this.loadInventoryPage();
         },
         error: (e: Error) => {
           this.inventoryTabError = e?.message || this.translate.instant('operations.inventory.errSaveFailed');
@@ -519,7 +723,7 @@ export class OperationsHubComponent implements OnInit {
             if (this.invEditingId === row.id) {
               this.clearInventoryForm();
             }
-            this.operations.listInventory().subscribe(s => (this.inventory = s));
+            this.loadInventoryPage();
           },
           error: (e: Error) => {
             this.inventoryTabError = e?.message || this.translate.instant('operations.inventory.errRemoveFailed');
@@ -531,16 +735,115 @@ export class OperationsHubComponent implements OnInit {
   reloadReminders(): void {
     this.feeService.getPayments().subscribe(pays => {
       this.pendingFees = (pays || []).filter(p => (p.dueAmount ?? 0) > 0);
+      this.studentNameById = Object.fromEntries(this.pendingFees.map(p => [p.studentId, p.studentName]));
+      this.pendingFeesPageIndex = 0;
+      this.applyPendingFeesPaging();
       const slim = this.pendingFees.map(p => ({
         id: p.id,
         studentId: p.studentId,
         dueDate: p.dueDate,
         dueAmount: p.dueAmount ?? 0,
       }));
+      if (runtimeConfig.useMocks) {
+        this.operations.syncAutoRemindersForOutstandingFees(slim).subscribe(() => {
+          this.operations.listFeeReminders('PENDING').subscribe(rows => {
+            this.reminders = rows || [];
+            this.remindersPageIndex = 0;
+            this.applyRemindersPaging();
+          });
+        });
+        return;
+      }
       this.operations.syncAutoRemindersForOutstandingFees(slim).subscribe(() => {
-        this.operations.listFeeReminders('PENDING').subscribe(rows => (this.reminders = rows || []));
+        this.remindersPageIndex = 0;
+        this.fetchRemindersQueuePage();
       });
     });
+  }
+
+  reminderStudentLabel(r: FeeReminderRow): string {
+    return this.studentNameById[r.studentId] || '';
+  }
+
+  private filterPendingFees(): FeePayment[] {
+    const q = this.pendingFeesSearch.trim().toLowerCase();
+    if (!q) {
+      return this.pendingFees;
+    }
+    return this.pendingFees.filter(
+      p =>
+        p.studentName.toLowerCase().includes(q) ||
+        String(p.studentId).includes(q) ||
+        (p.status || '').toLowerCase().includes(q)
+    );
+  }
+
+  applyPendingFeesPaging(): void {
+    const pg = sliceToPage(this.filterPendingFees(), this.pendingFeesPageIndex, this.pendingFeesPageSize);
+    this.pagedPendingFees = pg.content;
+    this.pendingFeesPageIndex = pg.page;
+    this.pendingFeesFilteredTotal = pg.totalElements;
+  }
+
+  onPendingFeesSearchChange(): void {
+    this.pendingFeesPageIndex = 0;
+    this.applyPendingFeesPaging();
+  }
+
+  onPendingFeesPageIndex(i: number): void {
+    this.pendingFeesPageIndex = i;
+    this.applyPendingFeesPaging();
+  }
+
+  onPendingFeesPageSize(s: number): void {
+    this.pendingFeesPageSize = s;
+    this.pendingFeesPageIndex = 0;
+    this.applyPendingFeesPaging();
+  }
+
+  private filterReminders(): FeeReminderRow[] {
+    const q = this.remindersSearch.trim().toLowerCase();
+    if (!q) {
+      return this.reminders;
+    }
+    return this.reminders.filter(r => {
+      const name = this.reminderStudentLabel(r).toLowerCase();
+      return (
+        name.includes(q) ||
+        String(r.studentId).includes(q) ||
+        (r.channel || '').toLowerCase().includes(q) ||
+        (r.status || '').toLowerCase().includes(q)
+      );
+    });
+  }
+
+  applyRemindersPaging(): void {
+    if (!this.remindersQueueClientFilter) {
+      this.pagedReminders = this.reminders;
+      return;
+    }
+    const pg = sliceToPage(this.filterReminders(), this.remindersPageIndex, this.remindersPageSize);
+    this.pagedReminders = pg.content;
+    this.remindersPageIndex = pg.page;
+    this.remindersFilteredTotal = pg.totalElements;
+  }
+
+  onRemindersSearchChange(): void {
+    this.remindersPageIndex = 0;
+    if (this.remindersQueueClientFilter) this.applyRemindersPaging();
+  }
+
+  onRemindersPageIndex(i: number): void {
+    this.remindersPageIndex = i;
+    if (this.remindersQueueClientFilter) this.applyRemindersPaging();
+    else this.fetchRemindersQueuePage();
+  }
+
+  onRemindersPageSize(s: number): void {
+    this.remindersPageSize = s;
+    this.remindersPageIndex = 0;
+    if (this.remindersQueueClientFilter) this.applyRemindersPaging();
+    else this.fetchRemindersQueuePage();
   }
 
   enqueueReminderForPayment(p: FeePayment, channel: string): void {

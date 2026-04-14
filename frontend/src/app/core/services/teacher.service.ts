@@ -1,11 +1,13 @@
 import { Injectable } from '@angular/core';
-import { BehaviorSubject, Observable, of } from 'rxjs';
-import { delay, map } from 'rxjs/operators';
+import { BehaviorSubject, EMPTY, Observable, of } from 'rxjs';
+import { delay, expand, map, reduce } from 'rxjs/operators';
 import { Teacher } from '../models/models';
 import { MOCK_TEACHERS } from '../mocks/teachers.mock-data';
-import { ApiService } from './api.service';
+import { ApiService, PageResp } from './api.service';
 import { AcademicService } from './academic.service';
 import { runtimeConfig } from '../config/runtime-config';
+import { DEFAULT_ERP_PAGE_SIZE } from '../constants/pagination.constants';
+import { sliceToPage } from '../utils/paginate';
 
 function normalizeStringList(raw: unknown): string[] {
   if (!Array.isArray(raw)) return [];
@@ -28,11 +30,45 @@ export class TeacherService {
     private academic: AcademicService
   ) {}
 
+  /**
+   * Paged teachers aligned with {@code GET /api/v1/teachers}.
+   */
+  getTeachersPage(opts: { page?: number; size?: number; search?: string }): Observable<PageResp<Teacher>> {
+    const page = opts.page ?? 0;
+    const size = opts.size ?? DEFAULT_ERP_PAGE_SIZE;
+    const q = opts.search?.trim() || '';
+    if (!runtimeConfig.useMocks) {
+      return this.api
+        .getPageParams<any>('/teachers', { page, size, search: q || undefined })
+        .pipe(map(p => ({ ...p, content: p.content.map((t: any) => this.normalizeTeacher(t)) })));
+    }
+    let rows = this.teachers.map(t => this.withHomeroomFromMockAcademic(t));
+    if (q) {
+      const ql = q.toLowerCase();
+      rows = rows.filter(
+        t =>
+          `${t.firstName} ${t.lastName}`.toLowerCase().includes(ql) || (t.specialization || '').toLowerCase().includes(ql)
+      );
+    }
+    rows.sort((a, b) => a.firstName.localeCompare(b.firstName));
+    return of(sliceToPage(rows, page, size)).pipe(delay(250));
+  }
+
+  /** Full list for dropdowns; real API loads all pages in sequence. */
   getTeachers(): Observable<Teacher[]> {
     if (!runtimeConfig.useMocks) {
-      return this.api.getPage<any>('/teachers').pipe(map(p => p.content.map((teacher: any) => this.normalizeTeacher(teacher))));
+      return this.fetchAllTeachersFromApi(100);
     }
     return of(this.teachers.map(t => this.withHomeroomFromMockAcademic(t))).pipe(delay(400));
+  }
+
+  private fetchAllTeachersFromApi(chunkSize: number): Observable<Teacher[]> {
+    return this.getTeachersPage({ page: 0, size: chunkSize }).pipe(
+      expand(resp =>
+        resp.last || resp.content.length === 0 ? EMPTY : this.getTeachersPage({ page: resp.page + 1, size: chunkSize })
+      ),
+      reduce((acc, resp) => [...acc, ...resp.content], [] as Teacher[])
+    );
   }
 
   getTeacherById(id: number): Observable<Teacher | undefined> {

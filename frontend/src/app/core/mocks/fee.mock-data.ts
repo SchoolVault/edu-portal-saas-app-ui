@@ -66,4 +66,71 @@ export const MOCK_FEE_PAYMENTS_SEED: FeePayment[] = [
   { id: 6, studentId: 10, studentName: 'Charlotte Wilson', feeStructureId: 3, amount: 8200, paidAmount: 8200, dueAmount: 0, status: 'paid', paymentDate: '2026-01-05', dueDate: '2026-01-31', discount: 0, lateFee: 0, receiptNumber: 'REC-2026-001', tenantId: 't1' },
   { id: 7, studentId: 11, studentName: 'Oliver Taylor', feeStructureId: 3, amount: 8200, paidAmount: 4000, dueAmount: 4200, status: 'partial', paymentDate: '2026-01-10', dueDate: '2026-01-31', discount: 0, lateFee: 0, receiptNumber: 'REC-2026-002', tenantId: 't1' },
   { id: 8, studentId: 12, studentName: 'Emma Chen', feeStructureId: 2, amount: 6200, paidAmount: 4800, dueAmount: 1400, status: 'partial', paymentDate: '2025-08-01', dueDate: '2025-07-31', discount: 0, lateFee: 0, receiptNumber: 'REC-2025-004', tenantId: 't1' },
+  ...syntheticFeePayments(),
 ];
+
+/** Extra ledger rows so pagination & search are realistic in mock mode. */
+function syntheticFeePayments(): FeePayment[] {
+  const names = [
+    'Aadhya Reddy',
+    'Rahul Mukherjee',
+    'Tara Malhotra',
+    'Darsh Rajput',
+    'Priya Sharma',
+    'Vikram Singh',
+    'Neha Kapoor',
+    'Aditya Bose',
+    'Kavya Nair',
+    'Rohan Iyer',
+    'Ishita Desai',
+    'Manav Khanna',
+    'Ananya Ghosh',
+    'Kabir Mehta',
+    'Sneha Pillai',
+    'Devansh Rao',
+    'Meera Joshi',
+    'Arnav Saxena',
+  ];
+  const statuses: FeePayment['status'][] = ['unpaid', 'partial', 'paid', 'overdue'];
+  const structures = [
+    { id: 1, amount: 3850 },
+    { id: 2, amount: 6200 },
+    { id: 3, amount: 8200 },
+  ];
+  const out: FeePayment[] = [];
+  for (let i = 0; i < 34; i++) {
+    const st = structures[i % structures.length];
+    const status = statuses[i % statuses.length];
+    const base = st.amount;
+    let paidAmount = 0;
+    let dueAmount = base;
+    if (status === 'paid') {
+      paidAmount = base;
+      dueAmount = 0;
+    } else if (status === 'partial') {
+      paidAmount = Math.floor(base * 0.45);
+      dueAmount = base - paidAmount;
+    } else if (status === 'overdue') {
+      paidAmount = 0;
+      dueAmount = base;
+    }
+    const name = names[i % names.length] + (i >= names.length ? ` · ${Math.floor(i / names.length) + 1}` : '');
+    out.push({
+      id: 200 + i,
+      studentId: 500 + i,
+      studentName: name,
+      feeStructureId: st.id,
+      amount: base,
+      paidAmount,
+      dueAmount,
+      status,
+      paymentDate: status === 'unpaid' || status === 'overdue' ? undefined : '2025-08-15',
+      dueDate: '2025-08-31',
+      discount: 0,
+      lateFee: status === 'overdue' ? 120 : 0,
+      receiptNumber: status === 'paid' || status === 'partial' ? `REC-MOCK-${200 + i}` : undefined,
+      tenantId: 't1',
+    });
+  }
+  return out;
+}

@@ -4,15 +4,20 @@ import { FormsModule } from '@angular/forms';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Payslip, SalaryStructure, TeacherPaymentDetails } from '../../core/models/models';
 import { filter } from 'rxjs/operators';
+import { forkJoin } from 'rxjs';
 import { PayrollService } from '../../core/services/payroll.service';
 import { AuthService } from '../../core/services/auth.service';
 import { ConfirmDialogService } from '../../shared/confirm-dialog/confirm-dialog.service';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
+import { ErpPaginationComponent } from '../../shared/erp-pagination/erp-pagination.component';
+import { DEFAULT_ERP_PAGE_SIZE } from '../../core/constants/pagination.constants';
+import { sliceToPage } from '../../core/utils/paginate';
+import { runtimeConfig } from '../../core/config/runtime-config';
 
 @Component({
   selector: 'app-payroll',
   standalone: true,
-  imports: [CommonModule, FormsModule, TranslateModule],
+  imports: [CommonModule, FormsModule, TranslateModule, ErpPaginationComponent],
   template: `
     <div data-testid="payroll-page">
       <div class="d-flex justify-content-between align-items-center mb-4 animate-in flex-wrap gap-2">
@@ -52,7 +57,7 @@ import { TranslateModule, TranslateService } from '@ngx-translate/core';
         <div class="col-sm-6 col-lg-3">
           <div class="stat-card"
             ><div class="stat-icon" style="background: rgba(27,58,48,0.1); color: #1B3A30;"><i class="bi bi-people-fill"></i></div
-            ><div class="stat-value">{{ salaryStructures.length }}</div
+            ><div class="stat-value">{{ structCountForStat }}</div
             ><div class="stat-label">{{ 'payroll.statStructures' | translate }}</div></div
           >
         </div>
@@ -149,7 +154,7 @@ import { TranslateModule, TranslateService } from '@ngx-translate/core';
               </tr>
             </thead>
             <tbody>
-              <tr *ngFor="let d of paymentDetails">
+              <tr *ngFor="let d of pagedPaymentDetails">
                 <td><strong>{{ d.teacherName }}</strong></td>
                 <td>₹{{ d.monthlyNetSalary | number:'1.0-0':'en-IN' }}</td>
                 <td>{{ d.bankName || ('exams.dash' | translate) }}</td>
@@ -175,6 +180,14 @@ import { TranslateModule, TranslateService } from '@ngx-translate/core';
               <tr *ngIf="!paymentDetails.length"><td colspan="7" class="text-muted text-center py-3">{{ 'payroll.noStructures' | translate }}</td></tr>
             </tbody>
           </table>
+          <app-erp-pagination
+            *ngIf="paymentDetails.length > 0"
+            [totalElements]="paymentDetails.length"
+            [pageIndex]="payDetPageIndex"
+            [pageSize]="payDetPageSize"
+            (pageIndexChange)="onPayDetPageIndexChange($event)"
+            (pageSizeChange)="onPayDetPageSizeChange($event)"
+          />
         </div>
       </div>
 
@@ -191,7 +204,7 @@ import { TranslateModule, TranslateService } from '@ngx-translate/core';
             ></thead
           >
           <tbody>
-            <tr *ngFor="let s of salaryStructures">
+            <tr *ngFor="let s of pagedSalaryStructures">
               <td><strong>{{ s.teacherName }}</strong></td>
               <td>₹{{ s.basicSalary | number:'1.0-0':'en-IN' }}</td>
               <td style="color: var(--clr-success);">+₹{{ getAllowanceTotal(s) | number:'1.0-0':'en-IN' }}</td>
@@ -200,6 +213,14 @@ import { TranslateModule, TranslateService } from '@ngx-translate/core';
             </tr>
           </tbody>
         </table>
+        <app-erp-pagination
+          *ngIf="structPaginationTotal > 0"
+          [totalElements]="structPaginationTotal"
+          [pageIndex]="structPageIndex"
+          [pageSize]="structPageSize"
+          (pageIndexChange)="onStructPageIndexChange($event)"
+          (pageSizeChange)="onStructPageSizeChange($event)"
+        />
       </div>
 
       <div class="erp-card animate-in" *ngIf="isAdmin || isTeacher">
@@ -218,7 +239,7 @@ import { TranslateModule, TranslateService } from '@ngx-translate/core';
               </tr>
             </thead>
             <tbody>
-              <tr *ngFor="let p of payslips">
+              <tr *ngFor="let p of pagedPayslips">
                 <td><strong>{{ p.teacherName }}</strong></td>
                 <td>{{ monthOptionLabel(p.month || '') }} {{ p.year }}</td>
                 <td><strong>₹{{ p.netSalary | number:'1.0-0':'en-IN' }}</strong></td>
@@ -236,6 +257,14 @@ import { TranslateModule, TranslateService } from '@ngx-translate/core';
               <tr *ngIf="payslips.length === 0"><td colspan="6" class="text-muted text-center py-4">{{ 'payroll.noPayslips' | translate }}</td></tr>
             </tbody>
           </table>
+          <app-erp-pagination
+            *ngIf="payslipPaginationTotal > 0"
+            [totalElements]="payslipPaginationTotal"
+            [pageIndex]="payslipPageIndex"
+            [pageSize]="payslipPageSize"
+            (pageIndexChange)="onPayslipPageIndexChange($event)"
+            (pageSizeChange)="onPayslipPageSizeChange($event)"
+          />
         </div>
       </div>
 
@@ -263,9 +292,22 @@ import { TranslateModule, TranslateService } from '@ngx-translate/core';
   ]
 })
 export class PayrollComponent implements OnInit {
+  /** Full structures from API (or mocks) for payroll totals; table may be server-paged when live API. */
+  private structuresForTotals: SalaryStructure[] = [];
+  structTotalFromServer = 0;
+  payslipTotalFromServer = 0;
   salaryStructures: SalaryStructure[] = [];
+  pagedSalaryStructures: SalaryStructure[] = [];
+  structPageIndex = 0;
+  structPageSize = DEFAULT_ERP_PAGE_SIZE;
   paymentDetails: TeacherPaymentDetails[] = [];
+  pagedPaymentDetails: TeacherPaymentDetails[] = [];
+  payDetPageIndex = 0;
+  payDetPageSize = DEFAULT_ERP_PAGE_SIZE;
   payslips: Payslip[] = [];
+  pagedPayslips: Payslip[] = [];
+  payslipPageIndex = 0;
+  payslipPageSize = DEFAULT_ERP_PAGE_SIZE;
   genMonth = 'April';
   genYear = new Date().getFullYear();
   generating = false;
@@ -286,6 +328,18 @@ export class PayrollComponent implements OnInit {
     return this.paymentDetails.filter(d => d.bankDetailsComplete).length;
   }
 
+  get structPaginationTotal(): number {
+    return runtimeConfig.useMocks ? this.salaryStructures.length : this.structTotalFromServer;
+  }
+
+  get structCountForStat(): number {
+    return runtimeConfig.useMocks ? this.salaryStructures.length : this.structTotalFromServer;
+  }
+
+  get payslipPaginationTotal(): number {
+    return runtimeConfig.useMocks ? this.payslips.length : this.payslipTotalFromServer;
+  }
+
   private readonly destroyRef = inject(DestroyRef);
 
   constructor(
@@ -303,20 +357,127 @@ export class PayrollComponent implements OnInit {
     this.isAdmin = r === 'admin';
     this.isTeacher = r === 'teacher';
     if (this.isAdmin) {
-      this.payrollService.getStructures().subscribe(s => (this.salaryStructures = s));
+      this.loadAdminStructures();
       this.loadPaymentDetails();
     }
     this.refreshPayroll();
+  }
+
+  private loadAdminStructures(): void {
+    if (!this.isAdmin) return;
+    if (runtimeConfig.useMocks) {
+      this.payrollService.getStructures().subscribe(s => {
+        this.salaryStructures = s;
+        this.structuresForTotals = s;
+        this.structPageIndex = 0;
+        this.applyStructPage();
+      });
+      return;
+    }
+    forkJoin({
+      totals: this.payrollService.getStructures(),
+      page: this.payrollService.getStructuresPage(this.structPageIndex, this.structPageSize),
+    }).subscribe({
+      next: ({ totals, page }) => {
+        this.structuresForTotals = totals;
+        this.structTotalFromServer = page.totalElements;
+        this.pagedSalaryStructures = page.content;
+        this.structPageIndex = page.page;
+        this.salaryStructures = totals;
+      },
+    });
+  }
+
+  private fetchStructuresPage(): void {
+    if (!this.isAdmin || runtimeConfig.useMocks) {
+      this.applyStructPage();
+      return;
+    }
+    this.payrollService.getStructuresPage(this.structPageIndex, this.structPageSize).subscribe(p => {
+      this.structTotalFromServer = p.totalElements;
+      this.pagedSalaryStructures = p.content;
+      this.structPageIndex = p.page;
+    });
+  }
+
+  private fetchPayslipsPage(): void {
+    const y = Number(this.genYear);
+    const req$ =
+      this.isTeacher && !this.isAdmin
+        ? this.payrollService.listMyPayslipsPage(this.payslipPageIndex, this.payslipPageSize, y, this.genMonth)
+        : this.payrollService.listPayslipsPage(this.payslipPageIndex, this.payslipPageSize, y, this.genMonth);
+    req$.subscribe(p => {
+      this.payslipTotalFromServer = p.totalElements;
+      this.pagedPayslips = p.content;
+      this.payslipPageIndex = p.page;
+    });
   }
 
   loadPaymentDetails(): void {
     if (!this.isAdmin) return;
     this.payrollService.getTeacherPaymentDetails().subscribe(d => {
       this.paymentDetails = d;
+      this.payDetPageIndex = 0;
+      this.applyPayDetPage();
       if (this.payrollFocusTeacherId != null && !d.some(x => x.teacherId === this.payrollFocusTeacherId)) {
         this.payrollFocusTeacherId = null;
       }
     });
+  }
+
+  private applyStructPage(): void {
+    const slice = sliceToPage(this.salaryStructures, this.structPageIndex, this.structPageSize);
+    this.pagedSalaryStructures = slice.content;
+    this.structPageIndex = slice.page;
+  }
+
+  onStructPageIndexChange(idx: number): void {
+    this.structPageIndex = idx;
+    if (runtimeConfig.useMocks) this.applyStructPage();
+    else this.fetchStructuresPage();
+  }
+
+  onStructPageSizeChange(size: number): void {
+    this.structPageSize = size;
+    this.structPageIndex = 0;
+    if (runtimeConfig.useMocks) this.applyStructPage();
+    else this.fetchStructuresPage();
+  }
+
+  private applyPayDetPage(): void {
+    const slice = sliceToPage(this.paymentDetails, this.payDetPageIndex, this.payDetPageSize);
+    this.pagedPaymentDetails = slice.content;
+    this.payDetPageIndex = slice.page;
+  }
+
+  onPayDetPageIndexChange(idx: number): void {
+    this.payDetPageIndex = idx;
+    this.applyPayDetPage();
+  }
+
+  onPayDetPageSizeChange(size: number): void {
+    this.payDetPageSize = size;
+    this.payDetPageIndex = 0;
+    this.applyPayDetPage();
+  }
+
+  private applyPayslipPage(): void {
+    const slice = sliceToPage(this.payslips, this.payslipPageIndex, this.payslipPageSize);
+    this.pagedPayslips = slice.content;
+    this.payslipPageIndex = slice.page;
+  }
+
+  onPayslipPageIndexChange(idx: number): void {
+    this.payslipPageIndex = idx;
+    if (runtimeConfig.useMocks) this.applyPayslipPage();
+    else this.fetchPayslipsPage();
+  }
+
+  onPayslipPageSizeChange(size: number): void {
+    this.payslipPageSize = size;
+    this.payslipPageIndex = 0;
+    if (runtimeConfig.useMocks) this.applyPayslipPage();
+    else this.fetchPayslipsPage();
   }
 
   get payrollFocusDetail(): TeacherPaymentDetails | null {
@@ -325,7 +486,8 @@ export class PayrollComponent implements OnInit {
   }
 
   get totalPayroll(): number {
-    return this.salaryStructures.reduce((sum, s) => sum + s.netSalary, 0);
+    const src = runtimeConfig.useMocks ? this.salaryStructures : this.structuresForTotals;
+    return src.reduce((sum, s) => sum + s.netSalary, 0);
   }
 
   getAllowanceTotal(s: SalaryStructure): number {
@@ -383,14 +545,37 @@ export class PayrollComponent implements OnInit {
     this.disburseInfo = '';
     const y = Number(this.genYear);
     if (this.isAdmin) {
-      this.payrollService.getStructures().subscribe(s => (this.salaryStructures = s));
+      this.structPageIndex = 0;
+      this.loadAdminStructures();
       this.loadPaymentDetails();
     }
-    const req$ =
+    const full$ =
       this.isTeacher && !this.isAdmin
         ? this.payrollService.listMyPayslips(y, this.genMonth)
         : this.payrollService.listPayslips(y, this.genMonth);
-    req$.subscribe(p => (this.payslips = p));
+    if (runtimeConfig.useMocks) {
+      full$.subscribe(p => {
+        this.payslips = p;
+        this.payslipPageIndex = 0;
+        this.applyPayslipPage();
+      });
+      return;
+    }
+    this.payslipPageIndex = 0;
+    forkJoin({
+      full: full$,
+      page:
+        this.isTeacher && !this.isAdmin
+          ? this.payrollService.listMyPayslipsPage(0, this.payslipPageSize, y, this.genMonth)
+          : this.payrollService.listPayslipsPage(0, this.payslipPageSize, y, this.genMonth),
+    }).subscribe({
+      next: ({ full, page }) => {
+        this.payslips = full;
+        this.payslipTotalFromServer = page.totalElements;
+        this.pagedPayslips = page.content;
+        this.payslipPageIndex = page.page;
+      },
+    });
   }
 
   runGenerate(): void {

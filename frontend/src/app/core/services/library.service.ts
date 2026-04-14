@@ -1,10 +1,12 @@
 import { Injectable } from '@angular/core';
 import { Observable, of, throwError } from 'rxjs';
-import { map } from 'rxjs/operators';
+import { delay, map } from 'rxjs/operators';
 import { Book, BookIssue } from '../models/models';
 import { MOCK_LIBRARY_BOOKS, MOCK_LIBRARY_ISSUES } from '../mocks/library.mock-data';
-import { ApiService } from './api.service';
+import { ApiService, PageResp } from './api.service';
 import { runtimeConfig } from '../config/runtime-config';
+import { DEFAULT_ERP_PAGE_SIZE } from '../constants/pagination.constants';
+import { sliceToPage } from '../utils/paginate';
 
 let MOCK_BOOKS: Book[] = MOCK_LIBRARY_BOOKS.map(b => ({ ...b }));
 let MOCK_ISSUES: BookIssue[] = MOCK_LIBRARY_ISSUES.map(i => ({ ...i }));
@@ -115,6 +117,53 @@ export class LibraryService {
       return of({ ...book });
     }
     return this.api.put<any>(`/library/books/${bookId}/catalog`, { active }).pipe(map(b => this.normalizeBook(b)));
+  }
+
+  /** Server + mock: same {@link PageResp} shape as {@code GET /library/books/paged}. */
+  getBooksPage(opts: {
+    page?: number;
+    size?: number;
+    search?: string;
+    category?: string;
+    catalogScope?: 'ACTIVE' | 'INACTIVE' | 'ALL';
+  }): Observable<PageResp<Book>> {
+    const page = opts.page ?? 0;
+    const size = opts.size ?? DEFAULT_ERP_PAGE_SIZE;
+    const scope = opts.catalogScope ?? 'ACTIVE';
+    if (!runtimeConfig.useMocks) {
+      return this.api
+        .getPageParams<any>('/library/books/paged', {
+          page,
+          size,
+          search: opts.search?.trim() || undefined,
+          category: opts.category?.trim() || undefined,
+          catalogScope: scope,
+        })
+        .pipe(map(p => ({ ...p, content: p.content.map((b: any) => this.normalizeBook(b)) })));
+    }
+    const filter: LibraryCatalogFilter = scope === 'ALL' ? 'all' : scope === 'INACTIVE' ? 'inactive' : 'active';
+    return this.listBooks(opts.search, opts.category, filter, true).pipe(
+      map(rows => sliceToPage(rows ?? [], page, size)),
+      delay(200)
+    );
+  }
+
+  getIssuesPage(opts: { page?: number; size?: number; status?: string }): Observable<PageResp<BookIssue>> {
+    const page = opts.page ?? 0;
+    const size = opts.size ?? DEFAULT_ERP_PAGE_SIZE;
+    if (!runtimeConfig.useMocks) {
+      return this.api
+        .getPageParams<any>('/library/issues/paged', {
+          page,
+          size,
+          status: opts.status?.trim() ? opts.status.trim().toUpperCase() : undefined,
+        })
+        .pipe(map(p => ({ ...p, content: p.content.map((i: any) => this.normalizeIssue(i)) })));
+    }
+    return this.listIssues(opts.status).pipe(
+      map(rows => sliceToPage(rows ?? [], page, size)),
+      delay(200)
+    );
   }
 
   listIssues(status?: string): Observable<BookIssue[]> {

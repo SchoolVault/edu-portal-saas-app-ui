@@ -7,6 +7,9 @@ import {
   ImportJobLine,
   ImportJobSummary,
 } from '../../core/services/import-export.service';
+import { ErpPaginationComponent } from '../../shared/erp-pagination/erp-pagination.component';
+import { DEFAULT_ERP_PAGE_SIZE } from '../../core/constants/pagination.constants';
+import { sliceToPage } from '../../core/utils/paginate';
 
 interface JobTypeOption {
   id: string;
@@ -17,7 +20,7 @@ interface JobTypeOption {
 @Component({
   selector: 'app-import-export',
   standalone: true,
-  imports: [CommonModule, FormsModule, TranslateModule],
+  imports: [CommonModule, FormsModule, TranslateModule, ErpPaginationComponent],
   template: `
     <div class="ie-page" data-testid="import-export-page">
       <!-- Hero -->
@@ -198,7 +201,7 @@ interface JobTypeOption {
               </tr>
             </thead>
             <tbody>
-              <tr *ngFor="let j of jobs" [class.ie-row--open]="selectedJob?.id === j.id">
+              <tr *ngFor="let j of pagedJobs" [class.ie-row--open]="selectedJob?.id === j.id">
                 <td class="fw-semibold text-muted">#{{ j.id }}</td>
                 <td>
                   <span class="ie-type-pill">{{ jobTypeLabel(j.jobType) }}</span>
@@ -238,6 +241,14 @@ interface JobTypeOption {
               </tr>
             </tbody>
           </table>
+          <app-erp-pagination
+            *ngIf="jobs.length > 0"
+            [totalElements]="jobs.length"
+            [pageIndex]="jobsPageIndex"
+            [pageSize]="jobsPageSize"
+            (pageIndexChange)="onJobsPageIndexChange($event)"
+            (pageSizeChange)="onJobsPageSizeChange($event)"
+          />
         </div>
       </div>
 
@@ -274,7 +285,7 @@ interface JobTypeOption {
               </tr>
             </thead>
             <tbody>
-              <tr *ngFor="let l of lines">
+              <tr *ngFor="let l of pagedLines">
                 <td class="fw-semibold">{{ l.lineIndex }}</td>
                 <td>
                   <span class="ie-status ie-status--sm" [ngClass]="statusClass(l.status)">
@@ -304,6 +315,14 @@ interface JobTypeOption {
               </tr>
             </tbody>
           </table>
+          <app-erp-pagination
+            *ngIf="lines.length > 0"
+            [totalElements]="lines.length"
+            [pageIndex]="linesPageIndex"
+            [pageSize]="linesPageSize"
+            (pageIndexChange)="onLinesPageIndexChange($event)"
+            (pageSizeChange)="onLinesPageSizeChange($event)"
+          />
         </div>
         <p class="small text-muted mb-0" *ngIf="!linesLoading && lines.length === 0">{{ 'importExport.noLineRows' | translate }}</p>
       </div>
@@ -641,7 +660,13 @@ export class ImportExportComponent implements OnInit {
   lastSubmitMsg = '';
   lastSubmitOk: boolean | null = null;
   jobs: ImportJobSummary[] = [];
+  pagedJobs: ImportJobSummary[] = [];
+  jobsPageIndex = 0;
+  jobsPageSize = DEFAULT_ERP_PAGE_SIZE;
   lines: ImportJobLine[] = [];
+  pagedLines: ImportJobLine[] = [];
+  linesPageIndex = 0;
+  linesPageSize = DEFAULT_ERP_PAGE_SIZE;
   selectedJob: ImportJobSummary | null = null;
   dragOver = false;
 
@@ -743,28 +768,68 @@ export class ImportExportComponent implements OnInit {
     this.importExport.listJobs(0, 50).subscribe({
       next: p => {
         this.jobs = p.content;
+        this.jobsPageIndex = 0;
+        this.applyJobsPage();
         this.jobsLoading = false;
       },
       error: () => (this.jobsLoading = false),
     });
   }
 
+  private applyJobsPage(): void {
+    const slice = sliceToPage(this.jobs, this.jobsPageIndex, this.jobsPageSize);
+    this.pagedJobs = slice.content;
+    this.jobsPageIndex = slice.page;
+  }
+
+  onJobsPageIndexChange(idx: number): void {
+    this.jobsPageIndex = idx;
+    this.applyJobsPage();
+  }
+
+  onJobsPageSizeChange(size: number): void {
+    this.jobsPageSize = size;
+    this.jobsPageIndex = 0;
+    this.applyJobsPage();
+  }
+
   selectJob(j: ImportJobSummary): void {
     this.selectedJob = j;
     this.linesLoading = true;
     this.lines = [];
+    this.pagedLines = [];
     this.importExport.getLines(j.id, 0, 200).subscribe({
       next: p => {
         this.lines = p.content;
+        this.linesPageIndex = 0;
+        this.applyLinesPage();
         this.linesLoading = false;
       },
       error: () => (this.linesLoading = false),
     });
   }
 
+  private applyLinesPage(): void {
+    const slice = sliceToPage(this.lines, this.linesPageIndex, this.linesPageSize);
+    this.pagedLines = slice.content;
+    this.linesPageIndex = slice.page;
+  }
+
+  onLinesPageIndexChange(idx: number): void {
+    this.linesPageIndex = idx;
+    this.applyLinesPage();
+  }
+
+  onLinesPageSizeChange(size: number): void {
+    this.linesPageSize = size;
+    this.linesPageIndex = 0;
+    this.applyLinesPage();
+  }
+
   closeLines(): void {
     this.selectedJob = null;
     this.lines = [];
+    this.pagedLines = [];
   }
 
   retry(j: ImportJobSummary): void {

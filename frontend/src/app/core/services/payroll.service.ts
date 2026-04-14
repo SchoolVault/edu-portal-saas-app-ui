@@ -7,7 +7,9 @@ import {
   MOCK_PAYSLIP_GENERATION_TEMPLATES,
 } from '../mocks/payroll.mock-data';
 import { Payslip, SalaryStructure, TeacherPaymentDetails } from '../models/models';
-import { ApiService } from './api.service';
+import { ApiService, PageResp } from './api.service';
+import { DEFAULT_ERP_PAGE_SIZE } from '../constants/pagination.constants';
+import { sliceToPage } from '../utils/paginate';
 import { runtimeConfig } from '../config/runtime-config';
 
 export interface SalaryDisburseResult {
@@ -35,6 +37,15 @@ export class PayrollService {
       );
     }
     return this.api.get<any[]>('/payroll/structures').pipe(map(list => list.map(s => this.normalizeStructure(s))));
+  }
+
+  getStructuresPage(page = 0, size = DEFAULT_ERP_PAGE_SIZE): Observable<PageResp<SalaryStructure>> {
+    if (!runtimeConfig.useMocks) {
+      return this.api.getPageParams<SalaryStructure>('/payroll/structures/paged', { page, size }).pipe(
+        map(p => ({ ...p, content: p.content.map(s => this.normalizeStructure(s)) }))
+      );
+    }
+    return this.getStructures().pipe(map(all => sliceToPage(all, page, size)));
   }
 
   getTeacherPaymentDetails(): Observable<TeacherPaymentDetails[]> {
@@ -105,6 +116,25 @@ export class PayrollService {
     return this.api.get<any[]>(path).pipe(map(list => list.map(p => this.normalizePayslip(p))));
   }
 
+  listPayslipsPage(
+    page = 0,
+    size = DEFAULT_ERP_PAGE_SIZE,
+    year?: number,
+    month?: string
+  ): Observable<PageResp<Payslip>> {
+    if (!runtimeConfig.useMocks) {
+      return this.api
+        .getPageParams<Payslip>('/payroll/payslips/paged', {
+          page,
+          size,
+          year: year ?? undefined,
+          month: month?.trim() || undefined,
+        })
+        .pipe(map(p => ({ ...p, content: p.content.map(x => this.normalizePayslip(x)) })));
+    }
+    return this.listPayslips(year, month).pipe(map(all => sliceToPage(all, page, size)));
+  }
+
   listMyPayslips(year?: number, month?: string): Observable<Payslip[]> {
     if (runtimeConfig.useMocks) {
       let rows = this.mockPayslips.filter(p => p.teacherId === 1 || p.teacherName === 'Sarah Mitchell');
@@ -120,6 +150,25 @@ export class PayrollService {
     if (month) q += (q ? '&' : '') + `month=${encodeURIComponent(month)}`;
     const path = q ? `/payroll/payslips/me?${q}` : '/payroll/payslips/me';
     return this.api.get<any[]>(path).pipe(map(list => list.map(p => this.normalizePayslip(p))));
+  }
+
+  listMyPayslipsPage(
+    page = 0,
+    size = DEFAULT_ERP_PAGE_SIZE,
+    year?: number,
+    month?: string
+  ): Observable<PageResp<Payslip>> {
+    if (!runtimeConfig.useMocks) {
+      return this.api
+        .getPageParams<Payslip>('/payroll/payslips/me/paged', {
+          page,
+          size,
+          year: year ?? undefined,
+          month: month?.trim() || undefined,
+        })
+        .pipe(map(p => ({ ...p, content: p.content.map(x => this.normalizePayslip(x)) })));
+    }
+    return this.listMyPayslips(year, month).pipe(map(all => sliceToPage(all, page, size)));
   }
 
   initiateDisbursement(

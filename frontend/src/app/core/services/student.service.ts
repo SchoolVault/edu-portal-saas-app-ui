@@ -1,10 +1,12 @@
 import { Injectable } from '@angular/core';
-import { BehaviorSubject, Observable, of } from 'rxjs';
-import { delay, map } from 'rxjs/operators';
+import { BehaviorSubject, EMPTY, Observable, of } from 'rxjs';
+import { delay, expand, map, reduce } from 'rxjs/operators';
 import { PromotionResult, Student } from '../models/models';
 import { MOCK_STUDENTS } from '../mocks/students.mock-data';
-import { ApiService } from './api.service';
+import { ApiService, PageResp } from './api.service';
 import { runtimeConfig } from '../config/runtime-config';
+import { DEFAULT_ERP_PAGE_SIZE } from '../constants/pagination.constants';
+import { sliceToPage } from '../utils/paginate';
 
 @Injectable({ providedIn: 'root' })
 export class StudentService {
@@ -14,11 +16,88 @@ export class StudentService {
 
   constructor(private api: ApiService) {}
 
+  /**
+   * Paged students aligned with {@code GET /api/v1/students} (filters + totalElements).
+   * Mock path returns the same {@link PageResp} shape for UI parity.
+   */
+  getStudentsPage(opts: {
+    page?: number;
+    size?: number;
+    classId?: number;
+    status?: string;
+    search?: string;
+    sortBy?: string;
+    direction?: string;
+  }): Observable<PageResp<Student>> {
+    const page = opts.page ?? 0;
+    const size = opts.size ?? DEFAULT_ERP_PAGE_SIZE;
+    if (!runtimeConfig.useMocks) {
+      return this.api
+        .getPageParams<any>('/students', {
+          page,
+          size,
+          classId: opts.classId,
+          status: opts.status?.trim() ? opts.status.trim().toUpperCase() : undefined,
+          search: opts.search?.trim() || undefined,
+          sortBy: opts.sortBy ?? 'firstName',
+          direction: opts.direction ?? 'asc',
+        })
+        .pipe(map(p => ({ ...p, content: p.content.map((s: any) => this.normalizeStudent(s)) })));
+    }
+    return this.mockStudentsPage(opts, page, size);
+  }
+
+  /**
+   * Full student list for dropdowns and legacy screens. With real API, loads all pages in sequence (chunked).
+   */
   getStudents(): Observable<Student[]> {
     if (!runtimeConfig.useMocks) {
-      return this.api.getPage<any>('/students').pipe(map(p => p.content.map((student: any) => this.normalizeStudent(student))));
+      return this.fetchAllStudentsFromApi(250);
     }
     return of([...this.students]).pipe(delay(400));
+  }
+
+  private fetchAllStudentsFromApi(chunkSize: number): Observable<Student[]> {
+    return this.getStudentsPage({ page: 0, size: chunkSize, sortBy: 'firstName', direction: 'asc' }).pipe(
+      expand(resp =>
+        resp.last || resp.content.length === 0 ? EMPTY : this.getStudentsPage({ page: resp.page + 1, size: chunkSize, sortBy: 'firstName', direction: 'asc' })
+      ),
+      reduce((acc, resp) => [...acc, ...resp.content], [] as Student[])
+    );
+  }
+
+  private mockStudentsPage(
+    opts: { classId?: number; status?: string; search?: string; sortBy?: string; direction?: string },
+    page: number,
+    size: number
+  ): Observable<PageResp<Student>> {
+    let rows = [...this.students];
+    const q = opts.search?.trim().toLowerCase() || '';
+    if (q) {
+      rows = rows.filter(
+        s =>
+          `${s.firstName} ${s.lastName}`.toLowerCase().includes(q) ||
+          (s.email || '').toLowerCase().includes(q) ||
+          (s.admissionNumber || '').toLowerCase().includes(q)
+      );
+    }
+    if (opts.classId != null && opts.classId > 0) {
+      rows = rows.filter(s => s.classId === opts.classId);
+    }
+    if (opts.status?.trim()) {
+      const st = opts.status.trim().toLowerCase();
+      rows = rows.filter(s => s.status === st);
+    }
+    const field = opts.sortBy === 'classId' || opts.sortBy === 'className' ? 'className' : opts.sortBy || 'firstName';
+    const asc = (opts.direction ?? 'asc').toLowerCase() !== 'desc';
+    rows.sort((a: any, b: any) => {
+      const va = (a[field]?.toLowerCase?.() ?? a[field]) as string;
+      const vb = (b[field]?.toLowerCase?.() ?? b[field]) as string;
+      if (va < vb) return asc ? -1 : 1;
+      if (va > vb) return asc ? 1 : -1;
+      return 0;
+    });
+    return of(sliceToPage(rows, page, size)).pipe(delay(250));
   }
 
   getStudentById(id: number): Observable<Student | undefined> {

@@ -4,6 +4,91 @@
     "en": "English",
     "hi": "हिन्दी"
   },
+  "pagination": {
+    "showing": "{{total}} में से {{from}}–{{to}} दिखा रहे हैं",
+    "perPage": "पंक्तियाँ",
+    "prev": "पिछला पृष्ठ",
+    "next": "अगला पृष्ठ",
+    "navAria": "तालिका पृष्ठन"
+  },
+  "platformSchools": {
+    "badge": "प्लेटफ़ॉर्म",
+    "pageTitle": "स्कूल निर्देशिका",
+    "lead": "प्रत्येक वर्कस्पेस संचालित करें: मेट्रिक्स, कैंपस एडमिन, निलंबन, और अपरिवर्तनीय टेनेंट डेटा हटाना (अतुल्यकालिक जॉब)।",
+    "backOverview": "प्लेटफ़ॉर्म अवलोकन",
+    "workspaces": "वर्कस्पेस",
+    "schoolsCount": "{{count}} स्कूल",
+    "search": "वर्कस्पेस खोजें",
+    "searchPh": "नाम या कोड से फ़िल्टर",
+    "thSchool": "स्कूल",
+    "thRollup": "रोल-अप",
+    "thStatus": "स्थिति",
+    "rollup": "{{stu}} छा · {{tch}} शि · {{adm}} एड",
+    "active": "सक्रिय",
+    "suspended": "निलंबित",
+    "loadError": "स्कूल लोड नहीं हो सके।"
+  },
+  "notificationDetail": {
+    "back": "← डैशबोर्ड पर वापस",
+    "openLink": "लिंक खोलें",
+    "notFound": "सूचना नहीं मिली या आपके पास पहुँच नहीं है।",
+    "loading": "लोड हो रहा है…"
+  },
+  "superAdmin": {
+    "badge": "प्लेटफ़ॉर्म कंट्रोल प्लेन",
+    "title": "सुपर एडमिन कंसोल",
+    "lead": "स्कूल, एडमिन और प्लेटफ़ॉर्म स्वास्थ्य पर पोर्टफोलियो-व्यापी दृश्यता।",
+    "schoolDirectory": "स्कूल निर्देशिका",
+    "refresh": "रीफ़्रेश",
+    "refreshing": "रीफ़्रेश हो रहा है…",
+    "cards": {
+      "totalSchools": "कुल स्कूल",
+      "totalSchoolsSub": "{{count}} सक्रिय वर्कस्पेस",
+      "students": "प्रबंधित विद्यार्थी",
+      "studentsSub": "क्रॉस-टेनेंट नामांकन फुटप्रिंट",
+      "teachers": "प्रबंधित शिक्षक",
+      "teachersSub": "प्लेटफ़ॉर्म शासन के तहत संकाय खाते",
+      "admins": "कैंपस एडमिन",
+      "adminsSub": "सभी टेनेंट में परिचालन एडमिन"
+    },
+    "charts": {
+      "schoolGrowth": "स्कूल वृद्धि",
+      "revenueTrend": "राजस्व रुझान",
+      "datasetNewSchools": "नए स्कूल",
+      "datasetMrr": "MRR"
+    },
+    "portfolio": {
+      "title": "स्कूल पोर्टफोलियो",
+      "subtitle": "सभी स्कूल वर्कस्पेस पर परिचालन दृश्य (सर्वर पेजिंग)",
+      "search": "स्कूल खोजें",
+      "searchPh": "नाम या कोड से फ़िल्टर",
+      "thSchool": "स्कूल",
+      "thStudents": "छात्र",
+      "thTeachers": "शिक्षक",
+      "thAdmins": "एडमिन",
+      "thStatus": "स्थिति"
+    },
+    "noAddress": "कोई पता नहीं",
+    "status": {
+      "active": "सक्रिय",
+      "attention": "ध्यान दें"
+    },
+    "admins": {
+      "title": "स्कूल एडमिन",
+      "selectPrompt": "एक स्कूल चुनें",
+      "emptyTitle": "एक स्कूल चुनें",
+      "emptyLead": "एडमिन पहुँच और परिचालन संदर्भ यहाँ दिखेगा।",
+      "snapshotLabel": "परिचालन स्नैपशॉट",
+      "snapshotStudents": "{{count}} विद्यार्थी",
+      "snapshotSub": "{{teachers}} शिक्षक · {{admins}} एडमिन · {{phone}}",
+      "noPhone": "कोई फ़ोन नहीं",
+      "suspend": "निलंबित",
+      "activate": "सक्रिय करें"
+    },
+    "activity": {
+      "title": "हाल की प्लेटफ़ॉर्म गतिविधि"
+    }
+  },
   "nav": {
     "footerTagline": "मल्टी-टेनेंट SaaS ERP",
     "section": {
@@ -813,6 +898,9 @@
     "countPresent": "उपस्थित: {{count}}",
     "countAbsent": "अनुपस्थित: {{count}}",
     "countLate": "देर से: {{count}}",
+    "searchStudent": "इस सूची में छात्र ढूँढें",
+    "searchStudentPh": "छात्र का नाम टाइप करें…",
+    "noSearchMatches": "आपकी खोज से कोई छात्र मेल नहीं खाता।",
     "thNum": "#",
     "thStudent": "विद्यार्थी",
     "thStatus": "स्थिति",
@@ -971,6 +1059,8 @@
     "leadParentStrong5": "आगामी",
     "leadParentTail": " परीक्षाएँ सूची में हैं लेकिन चक्र शुरू होने तक बंद रहती हैं।",
     "refresh": "रीफ़्रेश",
+    "listSearch": "परीक्षा खोजें",
+    "listSearchPh": "परीक्षा का नाम…",
     "createExam": "परीक्षा बनाएँ",
     "labelChild": "बच्चा",
     "selectChild": "बच्चा चुनें…",
@@ -1006,6 +1096,13 @@
     "marksSaving": "सहेजा जा रहा है…",
     "saveMarks": "अंक सहेजें",
     "recordedResults": "दर्ज परिणाम",
+    "searchRecorded": "दर्ज अंक छाँटें",
+    "searchRecordedPh": "छात्र नाम या विषय…",
+    "searchMarksEntry": "अंक दर्ज करने हेतु छात्र ढूँढें",
+    "searchMarksEntryPh": "नाम या रोल नंबर…",
+    "searchParentResults": "परिणामों में विषय ढूँढें",
+    "searchParentResultsPh": "विषय नाम…",
+    "noMatches": "आपकी खोज से कोई पंक्ति मेल नहीं खाती।",
     "parentTimetableLead": "इस परीक्षा के प्रकाशित पेपर (केवल पढ़ें)।",
     "thDate": "तिथि",
     "thStart": "प्रारंभ",
@@ -1084,6 +1181,8 @@
     "thDueDate": "देय तिथि",
     "thStatus": "स्थिति",
     "thReceipt": "रसीद",
+    "searchPaymentsPlaceholder": "छात्र के नाम से खोजें…",
+    "emptyPayments": "आपके फ़िल्टर से मेल खाने वाला कोई भुगतान नहीं।",
     "yearPrefix": "वर्ष",
     "modalEditTitle": "शुल्क संरचना संपादित करें",
     "modalNewTitle": "नई शुल्क संरचना",
@@ -1162,6 +1261,9 @@
     "refresh": "रीफ़्रेश",
     "newAnnouncement": "नई घोषणा",
     "empty": "अभी कोई घोषणा नहीं।",
+    "searchAnnouncements": "सूचनाएँ खोजें",
+    "searchAnnouncementsPh": "शीर्षक, संदेश या लेखक का नाम…",
+    "noSearchMatches": "आपकी खोज से कोई घोषणा मेल नहीं खाती।",
     "openFullNotice": "पूरी सूचना खोलें",
     "modalTitle": "घोषणा प्रकाशित करें",
     "labelTitle": "शीर्षक",
@@ -1247,7 +1349,17 @@
     "parentDirectoryLabel": "अभिभावक · {{name}}",
     "typeDirect": "प्रत्यक्ष",
     "typeGroup": "समूह",
-    "threadSep": " · "
+    "threadSep": " · ",
+    "counterpartRoleParent": "अभिभावक",
+    "counterpartRoleTeacher": "शिक्षक",
+    "counterpartRoleAdmin": "प्रशासक",
+    "counterpartRoleSuperAdmin": "प्लेटफ़ॉर्म प्रशासक",
+    "counterpartRoleLibraryStaff": "पुस्तकालय कर्मी",
+    "counterpartRoleStudent": "छात्र/छात्रा",
+    "counterpartRoleGeneric": "{{role}}",
+    "threadChildWithClass": "{{name}} ({{cls}})",
+    "threadListSep": ", ",
+    "threadMoreChildren": "+{{n}} और"
   },
   "leave": {
     "pageTitle": "अवकाश",
@@ -1296,6 +1408,11 @@
     "placeholderTo": "तक",
     "submitRequest": "आवेदन भेजें",
     "myRequests": "मेरे आवेदन",
+    "searchMine": "मेरे आवेदन छाँटें",
+    "searchMinePh": "अवकाश प्रकार, तिथि या कारण के शब्द…",
+    "searchTeam": "टीम आवेदन छाँटें",
+    "searchTeamPh": "आवेदक id, भूमिका, प्रकार, स्थिति या तिथि…",
+    "noMatches": "आपकी खोज से कोई आवेदन मेल नहीं खाता।",
     "emptyMine": "अभी कोई आवेदन नहीं।",
     "teamTitle": "सभी आवेदन (टीम)",
     "emptyAll": "सिस्टम में कोई आवेदन नहीं।",
@@ -1399,6 +1516,31 @@
   "reports": {
     "pageTitle": "रिपोर्ट और विश्लेषण",
     "lead": "प्रदर्शन, उपस्थिति, फीस, कक्षाएँ, शिक्षक और रिपोर्ट कार्ड पर लाइव संचालन रिपोर्टिंग",
+    "searchRows": "तालिका खोजें",
+    "searchStudentPh": "छात्र का नाम…",
+    "searchFeePh": "छात्र, कक्षा या स्थिति…",
+    "searchClassPh": "कक्षा या शिक्षक…",
+    "searchSectionPh": "कक्षा या खंड…",
+    "searchTeacherPh": "शिक्षक, विषय या विशेषज्ञता…",
+    "searchSubjects": "विषय खोजें",
+    "searchSubjectsPh": "विषय नाम…",
+    "noMatches": "आपकी खोज से कोई पंक्ति मेल नहीं खाती।",
+    "filter": {
+      "performance": "इस सूची में छात्र ढूँढें",
+      "performancePh": "छात्र का नाम टाइप करके पंक्तियाँ छाँटें…",
+      "attendance": "इस सारांश में छात्र ढूँढें",
+      "attendancePh": "छात्र का नाम टाइप करके पंक्तियाँ छाँटें…",
+      "fees": "शुल्क भुगतान छाँटें",
+      "feesPh": "छात्र नाम, कक्षा या स्थिति (जैसे अवैतनिक)…",
+      "class": "कक्षा पंक्तियाँ छाँटें",
+      "classPh": "कक्षा नाम या कक्षा अध्यापक…",
+      "section": "खंड छाँटें",
+      "sectionPh": "कक्षा या खंड नाम…",
+      "teacher": "शिक्षक छाँटें",
+      "teacherPh": "शिक्षक नाम, विषय या विशेषज्ञता…",
+      "reportCardSubjects": "इस कार्ड पर विषय ढूँढें",
+      "reportCardSubjectsPh": "विषय नाम टाइप करें…"
+    },
     "refresh": "रीफ़्रेश",
     "tab": {
       "performance": "विद्यार्थी प्रदर्शन",
@@ -1558,6 +1700,7 @@
     "lead": "सभी सिस्टम क्रियाएँ ट्रैक करें",
     "refresh": "रीफ़्रेश",
     "export": "निर्यात",
+    "searchPlaceholder": "विवरण, उपयोगकर्ता या मॉड्यूल खोजें…",
     "filterAllActions": "सभी क्रियाएँ",
     "filterAllModules": "सभी मॉड्यूल",
     "action": {
@@ -1725,7 +1868,13 @@
       "thChannel": "चैनल",
       "thScheduled": "निर्धारित",
       "emptyPending": "वर्तमान लेजर में कोई लंबित फीस शेष नहीं।",
-      "emptyQueue": "कतार में अभी कोई पंक्ति नहीं। मॉक शेड्यूलर के लिए टैब दोबारा खोलें।"
+      "emptyQueue": "कतार में अभी कोई पंक्ति नहीं। मॉक शेड्यूलर के लिए टैब दोबारा खोलें।",
+      "searchOutstanding": "लंबित शेष छाँटें",
+      "searchOutstandingPh": "छात्र नाम, id या स्थिति…",
+      "searchQueue": "अनुस्मारक कतार छाँटें",
+      "searchQueuePh": "छात्र नाम, id, चैनल या स्थिति…",
+      "noOutstandingMatches": "आपकी खोज से कोई शेष मेल नहीं खाता।",
+      "noQueueMatches": "आपकी खोज से कोई अनुस्मारक मेल नहीं खाता।"
     },
     "payroll": {
       "title": "पेरोल संचय (प्रारूप)",
@@ -1815,6 +1964,8 @@
   "transport": {
     "pageTitle": "परिवहन",
     "lead": "मार्ग, बेड़ा, चालक, क्रमबद्ध स्टॉप, असाइनमेंट और लाइव मानचित्र",
+    "listSearch": "मार्ग खोजें",
+    "listSearchPh": "मार्ग नाम से फ़िल्टर",
     "refresh": "रीफ़्रेश",
     "addRoute": "+ मार्ग जोड़ें",
     "liveVehicles": "लाइव वाहन",

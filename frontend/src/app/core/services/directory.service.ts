@@ -1,7 +1,9 @@
 import { Injectable } from '@angular/core';
 import { Observable, forkJoin, of } from 'rxjs';
 import { delay, map } from 'rxjs/operators';
-import { ApiService } from './api.service';
+import { ApiService, PageResp } from './api.service';
+import { DEFAULT_ERP_PAGE_SIZE } from '../constants/pagination.constants';
+import { sliceToPage } from '../utils/paginate';
 import { AcademicService } from './academic.service';
 import { StudentService } from './student.service';
 import { TeacherService } from './teacher.service';
@@ -36,6 +38,33 @@ export class DirectoryService {
     }).pipe(
       map(({ students, teachers, classes }) => this.mergeMockDirectory(term, students, teachers, classes)),
       delay(220)
+    );
+  }
+
+  /** Same contract as {@code GET /api/v1/directory/search/paged}. */
+  searchPaged(q: string, kinds: string | undefined, page: number, size: number): Observable<PageResp<DirectoryEntry>> {
+    const term = (q || '').trim();
+    if (term.length < 2) {
+      return of({
+        content: [],
+        page: 0,
+        size,
+        totalElements: 0,
+        totalPages: 0,
+        first: true,
+        last: true,
+      });
+    }
+    if (!runtimeConfig.useMocks) {
+      return this.api.getPageParams<DirectoryEntry>('/directory/search/paged', {
+        q: term,
+        kinds: kinds?.trim() || undefined,
+        page,
+        size,
+      });
+    }
+    return this.search(q, kinds).pipe(
+      map(res => sliceToPage(res.results ?? [], page, size ?? DEFAULT_ERP_PAGE_SIZE))
     );
   }
 

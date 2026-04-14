@@ -19,6 +19,7 @@ import {
   validateOnboardSchoolForm,
 } from '../../../core/validation/onboard-school-form.validation';
 import { AuthMarketingBandComponent } from '../auth-marketing/auth-marketing-band.component';
+import { ErpI18nPhDirective } from '../../../shared/erp-i18n/erp-i18n-host.directives';
 
 const HERO_IMG =
   'https://static.prod-images.emergentagent.com/jobs/9a0eef39-d991-4ee9-b692-a0f34292613c/images/39ade40298c502bd4785354a93143be5e368f4457b5f0aee6cbf5d84e82fe503.png';
@@ -26,7 +27,7 @@ const HERO_IMG =
 @Component({
   selector: 'app-signup',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterModule, TranslateModule, AuthMarketingBandComponent],
+  imports: [CommonModule, FormsModule, RouterModule, TranslateModule, AuthMarketingBandComponent, ErpI18nPhDirective],
   template: `
     <div class="login-container" data-testid="signup-page">
       <div class="login-left">
@@ -54,7 +55,7 @@ const HERO_IMG =
                 (ngModelChange)="clearField('schoolName')"
                 name="schoolName"
                 maxlength="200"
-                [placeholder]="'signup.schoolNamePlaceholder' | translate"
+                erpI18nPh="signup.schoolNamePlaceholder"
                 [attr.aria-invalid]="!!fieldErrors.schoolName"
                 [attr.aria-describedby]="fieldErrors.schoolName ? 'su-err-schoolName' : null"
                 autocomplete="organization" />
@@ -76,7 +77,7 @@ const HERO_IMG =
                 name="schoolCode"
                 [maxlength]="schoolCodeMax"
                 [minlength]="schoolCodeMin"
-                [placeholder]="'signup.schoolCodePlaceholder' | translate"
+                erpI18nPh="signup.schoolCodePlaceholder"
                 [attr.aria-invalid]="!!fieldErrors.schoolCode"
                 [attr.aria-describedby]="fieldErrors.schoolCode ? 'su-err-schoolCode' : null"
                 autocomplete="off" />
@@ -134,7 +135,7 @@ const HERO_IMG =
                 name="adminPassword"
                 [maxlength]="pwdMax"
                 minlength="8"
-                [placeholder]="'signup.adminPasswordPlaceholder' | translate"
+                erpI18nPh="signup.adminPasswordPlaceholder"
                 [attr.aria-invalid]="!!fieldErrors.adminPassword"
                 [attr.aria-describedby]="fieldErrors.adminPassword ? 'su-err-adminPassword' : null"
                 autocomplete="new-password" />
@@ -152,7 +153,7 @@ const HERO_IMG =
                 [(ngModel)]="form.phone"
                 name="phone"
                 maxlength="40"
-                [placeholder]="'signup.phonePlaceholder' | translate"
+                erpI18nPh="signup.phonePlaceholder"
                 autocomplete="tel" />
             </div>
             <div class="erp-form-group">
@@ -166,7 +167,7 @@ const HERO_IMG =
                 name="address"
                 rows="3"
                 maxlength="500"
-                [placeholder]="'signup.addressPlaceholder' | translate"></textarea>
+                erpI18nPh="signup.addressPlaceholder"></textarea>
             </div>
             <button type="submit" class="btn-primary-erp" style="width: 100%; justify-content: center; padding: 12px;" [disabled]="loading">
               <span class="spinner" *ngIf="loading"></span>

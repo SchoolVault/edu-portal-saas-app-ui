@@ -138,7 +138,7 @@ import {
             <label class="erp-label">{{ 'parentPortal.labelAttendanceMonth' | translate }}</label>
             <app-erp-month-picker
               class="w-100"
-              [placeholder]="'parentPortal.attendanceMonthPlaceholder' | translate"
+              placeholderI18nKey="parentPortal.attendanceMonthPlaceholder"
               [(ngModel)]="attendanceMonthYm"
               (ngModelChange)="onAttendanceMonthChange()"
               [maxYm]="maxAttendanceMonthYm"
@@ -315,11 +315,11 @@ import {
                 <div class="row g-2 mb-3">
                   <div class="col-sm-6">
                     <label class="erp-label small mb-1">{{ 'parentPortal.receiptsFrom' | translate }}</label>
-                    <app-erp-date-picker [(ngModel)]="receiptFrom" (ngModelChange)="reloadReceiptHistory()" [placeholder]="'parentPortal.phFrom' | translate" />
+                    <app-erp-date-picker [(ngModel)]="receiptFrom" (ngModelChange)="reloadReceiptHistory()" placeholderI18nKey="parentPortal.phFrom" />
                   </div>
                   <div class="col-sm-6">
                     <label class="erp-label small mb-1">{{ 'parentPortal.receiptsTo' | translate }}</label>
-                    <app-erp-date-picker [(ngModel)]="receiptTo" (ngModelChange)="reloadReceiptHistory()" [placeholder]="'parentPortal.phTo' | translate" />
+                    <app-erp-date-picker [(ngModel)]="receiptTo" (ngModelChange)="reloadReceiptHistory()" placeholderI18nKey="parentPortal.phTo" />
                   </div>
                   <div class="col-12 d-flex flex-wrap gap-1">
                     <button type="button" class="btn-outline-erp btn-xs" (click)="setReceiptPreset(30)">{{ 'parentPortal.preset30' | translate }}</button>

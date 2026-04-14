@@ -8,7 +8,9 @@ import {
   MOCK_PLATFORM_SUBSCRIPTION_PLANS_SEED,
 } from '../mocks/platform.mock-data';
 import { runtimeConfig } from '../config/runtime-config';
-import { ApiService } from './api.service';
+import { ApiService, PageResp } from './api.service';
+import { DEFAULT_ERP_PAGE_SIZE } from '../constants/pagination.constants';
+import { sliceToPage } from '../utils/paginate';
 import {
   PlatformBroadcastResult,
   PlatformDashboardData,
@@ -55,6 +57,34 @@ export class PlatformService {
       return of(this.mockSchools.map(school => ({ ...school }))).pipe(delay(200));
     }
     return this.api.get<PlatformSchoolSummary[]>('/platform/schools');
+  }
+
+  getSchoolsPage(
+    page = 0,
+    size = DEFAULT_ERP_PAGE_SIZE,
+    q?: string
+  ): Observable<PageResp<PlatformSchoolSummary>> {
+    if (!runtimeConfig.useMocks) {
+      return this.api.getPageParams<PlatformSchoolSummary>('/platform/schools/paged', {
+        page,
+        size,
+        q: q?.trim() || undefined,
+      });
+    }
+    return this.getSchools().pipe(
+      map(all => {
+        let rows = [...all];
+        const qq = q?.trim().toLowerCase();
+        if (qq) {
+          rows = rows.filter(
+            s =>
+              (s.schoolName || '').toLowerCase().includes(qq) ||
+              (s.schoolCode || '').toLowerCase().includes(qq)
+          );
+        }
+        return sliceToPage(rows, page, size);
+      })
+    );
   }
 
   /** Super-admin inbox: search campus admins with school context (same contract as backend). */

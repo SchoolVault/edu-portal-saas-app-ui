@@ -8,6 +8,7 @@ import { ExamService } from '../../core/services/exam.service';
 import { ParentService } from '../../core/services/parent.service';
 import { StudentService } from '../../core/services/student.service';
 import { AuthService } from '../../core/services/auth.service';
+import { runtimeConfig } from '../../core/config/runtime-config';
 import { examAppliesToStudent } from '../../core/utils/exam-scope';
 import { forkJoin } from 'rxjs';
 import { skip } from 'rxjs/operators';
@@ -25,13 +26,47 @@ import {
   Student
 } from '../../core/models/models';
 import { ErpDatePickerComponent } from '../../shared/erp-date-picker/erp-date-picker.component';
+import { ErpPaginationComponent } from '../../shared/erp-pagination/erp-pagination.component';
+import { ErpI18nPhDirective, ErpI18nTextDirective } from '../../shared/erp-i18n/erp-i18n-host.directives';
+import { sliceToPage } from '../../core/utils/paginate';
+import { DEFAULT_ERP_PAGE_SIZE } from '../../core/constants/pagination.constants';
 
 type ExamDetailTab = 'marks' | 'timetable';
+
+/** Grid order: completed → ongoing → upcoming → cancelled (parents/staff see finished work first). */
+function examGridStatusSortRank(status: string | undefined): number {
+  const s = (status ?? '').toLowerCase();
+  if (s === 'completed') return 0;
+  if (s === 'ongoing') return 1;
+  if (s === 'upcoming') return 2;
+  if (s === 'cancelled') return 3;
+  return 4;
+}
+
+function compareExamsForGrid(a: Exam, b: Exam): number {
+  const ra = examGridStatusSortRank(a.status);
+  const rb = examGridStatusSortRank(b.status);
+  if (ra !== rb) return ra - rb;
+  const st = (a.status ?? '').toLowerCase();
+  if (st === 'upcoming') {
+    return (a.startDate || '').localeCompare(b.startDate || '') || (a.name || '').localeCompare(b.name || '');
+  }
+  return (b.endDate || '').localeCompare(a.endDate || '') || (a.name || '').localeCompare(b.name || '');
+}
 
 @Component({
   selector: 'app-exams',
   standalone: true,
-  imports: [CommonModule, FormsModule, ErpDatePickerComponent, TranslateModule, SchoolClassNamePipe],
+  imports: [
+    CommonModule,
+    FormsModule,
+    ErpDatePickerComponent,
+    ErpPaginationComponent,
+    TranslateModule,
+    SchoolClassNamePipe,
+    ErpI18nPhDirective,
+    ErpI18nTextDirective,
+  ],
   template: `
     <div data-testid="exams-page">
       <div class="d-flex justify-content-between align-items-center mb-4 animate-in flex-wrap gap-2">
@@ -83,6 +118,21 @@ type ExamDetailTab = 'marks' | 'timetable';
         </div>
       </div>
 
+      <div class="erp-card mb-3 animate-in animate-in-delay-1" *ngIf="role !== 'parent' && staffUsesServerPaging">
+        <div class="row g-2 align-items-end">
+          <div class="col-md-5 col-lg-4">
+            <label class="erp-label">{{ 'exams.listSearch' | translate }}</label>
+            <input
+              type="search"
+              class="erp-input"
+              [(ngModel)]="staffExamSearch"
+              (ngModelChange)="onStaffExamSearchChange()"
+              [attr.placeholder]="'exams.listSearchPh' | translate"
+            />
+          </div>
+        </div>
+      </div>
+
       <div class="row g-4 mb-4 animate-in animate-in-delay-1" *ngIf="role !== 'parent' || selectedParentChildId != null">
         <div class="col-md-6 col-lg-3" *ngFor="let exam of examGridList">
           <div
@@ -102,6 +152,16 @@ type ExamDetailTab = 'marks' | 'timetable';
           </div>
         </div>
       </div>
+
+      <app-erp-pagination
+        *ngIf="role !== 'parent' && staffUsesServerPaging && staffExamTotal > 0"
+        class="d-block mb-4"
+        [totalElements]="staffExamTotal"
+        [pageIndex]="staffExamPageIndex"
+        [pageSize]="staffExamPageSize"
+        (pageIndexChange)="onStaffExamPageIndexChange($event)"
+        (pageSizeChange)="onStaffExamPageSizeChange($event)"
+      />
 
       <div *ngIf="role === 'parent' && parentChildren.length && selectedParentChildId == null" class="erp-card mb-4 animate-in text-muted small">
         {{ 'exams.pickChildPrompt' | translate }}
@@ -139,26 +199,44 @@ type ExamDetailTab = 'marks' | 'timetable';
 
         <ng-container *ngIf="role === 'parent' && selectedExam && parentDetailTab === 'results'">
           <p *ngIf="!selectedExam.resultsPublished" class="text-muted small">{{ 'exams.resultsNotPublished' | translate }}</p>
-          <table class="erp-table" *ngIf="selectedExam.resultsPublished && marks.length">
-            <thead
-              ><tr
-                ><th>{{ 'exams.thSubject' | translate }}</th
-                ><th>{{ 'exams.thMarks' | translate }}</th
-                ><th>{{ 'exams.thMax' | translate }}</th
-                ><th>{{ 'exams.thPct' | translate }}</th
-                ><th>{{ 'exams.thGrade' | translate }}</th></tr
-              ></thead
-            >
-            <tbody>
-              <tr *ngFor="let mark of marks">
-                <td><strong>{{ mark.subjectName }}</strong></td>
-                <td>{{ mark.marksObtained }}</td>
-                <td>{{ mark.maxMarks }}</td>
-                <td>{{ ((mark.marksObtained / Math.max(mark.maxMarks, 1)) * 100).toFixed(1) }}%</td>
-                <td><span class="badge-erp" [ngClass]="getGradeBadge(mark.grade)">{{ mark.grade }}</span></td>
-              </tr>
-            </tbody>
-          </table>
+          <ng-container *ngIf="selectedExam.resultsPublished && marks.length">
+            <div class="row g-2 align-items-end mb-2">
+              <div class="col-md-6">
+                <label class="erp-label small mb-1" erpI18nText="exams.searchParentResults"></label>
+                <input type="search" class="erp-input" erpI18nPh="exams.searchParentResultsPh" [(ngModel)]="parentResultsSearch" (ngModelChange)="onParentResultsSearchChange()" />
+              </div>
+            </div>
+            <p *ngIf="!parentResultsFilteredTotal" class="text-muted small mb-2">{{ 'exams.noMatches' | translate }}</p>
+            <table class="erp-table" *ngIf="parentResultsFilteredTotal">
+              <thead
+                ><tr
+                  ><th>{{ 'exams.thSubject' | translate }}</th
+                  ><th>{{ 'exams.thMarks' | translate }}</th
+                  ><th>{{ 'exams.thMax' | translate }}</th
+                  ><th>{{ 'exams.thPct' | translate }}</th
+                  ><th>{{ 'exams.thGrade' | translate }}</th></tr
+                ></thead
+              >
+              <tbody>
+                <tr *ngFor="let mark of pagedParentMarks">
+                  <td><strong>{{ mark.subjectName }}</strong></td>
+                  <td>{{ mark.marksObtained }}</td>
+                  <td>{{ mark.maxMarks }}</td>
+                  <td>{{ ((mark.marksObtained / Math.max(mark.maxMarks, 1)) * 100).toFixed(1) }}%</td>
+                  <td><span class="badge-erp" [ngClass]="getGradeBadge(mark.grade)">{{ mark.grade }}</span></td>
+                </tr>
+              </tbody>
+            </table>
+            <app-erp-pagination
+              *ngIf="parentResultsFilteredTotal > parentResultsPageSize"
+              class="d-block mt-2"
+              [totalElements]="parentResultsFilteredTotal"
+              [pageIndex]="parentResultsPageIndex"
+              [pageSize]="parentResultsPageSize"
+              (pageIndexChange)="onParentResultsPageIndex($event)"
+              (pageSizeChange)="onParentResultsPageSize($event)"
+            />
+          </ng-container>
           <p *ngIf="selectedExam.resultsPublished && !marks.length" class="text-muted small mb-0">{{ 'exams.noMarkRows' | translate }}</p>
         </ng-container>
 
@@ -187,8 +265,8 @@ type ExamDetailTab = 'marks' | 'timetable';
               <input
                 *ngIf="!teacherMarksScopeActive || !subjectSelectOptions.length"
                 class="erp-input"
+                erpI18nPh="exams.subjectPlaceholder"
                 [(ngModel)]="marksSubject"
-                [placeholder]="'exams.subjectPlaceholder' | translate"
               />
             </div>
             <div class="col-md-4">
@@ -208,7 +286,14 @@ type ExamDetailTab = 'marks' | 'timetable';
           <p *ngIf="marksScopeError" class="small text-warning mb-2">{{ marksScopeError }}</p>
 
           <div *ngIf="marksEntryStudents.length > 0" class="mb-4">
-            <table class="erp-table">
+            <div class="row g-2 align-items-end mb-2">
+              <div class="col-md-6">
+                <label class="erp-label small mb-1" erpI18nText="exams.searchMarksEntry"></label>
+                <input type="search" class="erp-input" erpI18nPh="exams.searchMarksEntryPh" [(ngModel)]="entrySearch" (ngModelChange)="onEntrySearchChange()" />
+              </div>
+            </div>
+            <p *ngIf="!entryFilteredTotal" class="text-muted small mb-2">{{ 'exams.noMatches' | translate }}</p>
+            <table class="erp-table" *ngIf="entryFilteredTotal">
               <thead
                 ><tr
                   ><th>{{ 'exams.thStudent' | translate }}</th
@@ -218,7 +303,7 @@ type ExamDetailTab = 'marks' | 'timetable';
                 ></thead
               >
               <tbody>
-                <tr *ngFor="let student of marksEntryStudents">
+                <tr *ngFor="let student of pagedMarksEntryStudents">
                   <td><strong>{{ student.firstName }} {{ student.lastName }}</strong></td>
                   <td>{{ student.rollNumber }}</td>
                   <td><input class="erp-input" type="number" min="0" [max]="maxMarks" [(ngModel)]="marksByStudent[student.id]" /></td>
@@ -226,6 +311,15 @@ type ExamDetailTab = 'marks' | 'timetable';
                 </tr>
               </tbody>
             </table>
+            <app-erp-pagination
+              *ngIf="entryFilteredTotal > entryPageSize"
+              class="d-block mt-2"
+              [totalElements]="entryFilteredTotal"
+              [pageIndex]="entryPageIndex"
+              [pageSize]="entryPageSize"
+              (pageIndexChange)="onEntryPageIndex($event)"
+              (pageSizeChange)="onEntryPageSize($event)"
+            />
             <div class="d-flex justify-content-end mt-3">
               <button type="button" class="btn-primary-erp" (click)="saveMarks()" [disabled]="!marksSubject || selectedClassId == null || marksSaving">
                 {{ marksSaving ? ('exams.marksSaving' | translate) : ('exams.saveMarks' | translate) }}
@@ -235,7 +329,14 @@ type ExamDetailTab = 'marks' | 'timetable';
 
           <div *ngIf="marks.length > 0">
             <h4 style="font-size: 16px; font-weight: 700; margin-bottom: 12px;">{{ 'exams.recordedResults' | translate }}</h4>
-            <table class="erp-table">
+            <div class="row g-2 align-items-end mb-2">
+              <div class="col-md-6">
+                <label class="erp-label small mb-1" erpI18nText="exams.searchRecorded"></label>
+                <input type="search" class="erp-input" erpI18nPh="exams.searchRecordedPh" [(ngModel)]="recordedSearch" (ngModelChange)="onRecordedSearchChange()" />
+              </div>
+            </div>
+            <p *ngIf="!recordedFilteredTotal" class="text-muted small mb-2">{{ 'exams.noMatches' | translate }}</p>
+            <table class="erp-table" *ngIf="recordedFilteredTotal">
               <thead
                 ><tr
                   ><th>{{ 'exams.thStudent' | translate }}</th
@@ -247,7 +348,7 @@ type ExamDetailTab = 'marks' | 'timetable';
                 ></thead
               >
               <tbody>
-                <tr *ngFor="let mark of marks">
+                <tr *ngFor="let mark of pagedRecordedMarks">
                   <td><strong>{{ mark.studentName }}</strong></td>
                   <td>{{ mark.subjectName }}</td>
                   <td>{{ mark.marksObtained }}</td>
@@ -257,6 +358,15 @@ type ExamDetailTab = 'marks' | 'timetable';
                 </tr>
               </tbody>
             </table>
+            <app-erp-pagination
+              *ngIf="recordedFilteredTotal > recordedPageSize"
+              class="d-block mt-2"
+              [totalElements]="recordedFilteredTotal"
+              [pageIndex]="recordedPageIndex"
+              [pageSize]="recordedPageSize"
+              (pageIndexChange)="onRecordedPageIndex($event)"
+              (pageSizeChange)="onRecordedPageSize($event)"
+            />
           </div>
         </ng-container>
 
@@ -277,7 +387,7 @@ type ExamDetailTab = 'marks' | 'timetable';
                 </tr>
               </thead>
               <tbody>
-                <tr *ngFor="let row of scheduleDraft">
+                <tr *ngFor="let row of pagedScheduleDraft">
                   <td>{{ row.examDate }}</td>
                   <td>{{ formatSlotTime(row.startTime) }}</td>
                   <td>{{ formatSlotTime(row.endTime) }}</td>
@@ -289,6 +399,15 @@ type ExamDetailTab = 'marks' | 'timetable';
                 </tr>
               </tbody>
             </table>
+            <app-erp-pagination
+              *ngIf="scheduleListTotal > schedulePageSize"
+              class="d-block mt-2"
+              [totalElements]="scheduleListTotal"
+              [pageIndex]="schedulePageIndex"
+              [pageSize]="schedulePageSize"
+              (pageIndexChange)="onSchedulePageIndex($event)"
+              (pageSizeChange)="onSchedulePageSize($event)"
+            />
           </div>
           <p *ngIf="scheduleUiMessage && scheduleDraft.length === 0" class="small mb-2" [class.text-danger]="scheduleUiError">{{ scheduleUiMessage }}</p>
           <p *ngIf="!scheduleDraft.length" class="text-muted small mb-0">{{ 'exams.noTimetableYet' | translate }}</p>
@@ -312,13 +431,13 @@ type ExamDetailTab = 'marks' | 'timetable';
                 </tr>
               </thead>
               <tbody>
-                <tr *ngFor="let row of scheduleDraft; let i = index">
+                <tr *ngFor="let row of pagedScheduleDraft; let i = index">
                   <td
                     ><app-erp-date-picker
                       [(ngModel)]="row.examDate"
                       [ngModelOptions]="{ standalone: true }"
                       [disabled]="!canEditSchedule"
-                      [placeholder]="'exams.examDatePh' | translate"
+                      placeholderI18nKey="exams.examDatePh"
                   /></td>
                   <td><input type="time" class="erp-input" [(ngModel)]="row.startTime" [disabled]="!canEditSchedule" /></td>
                   <td><input type="time" class="erp-input" [(ngModel)]="row.endTime" [disabled]="!canEditSchedule" /></td>
@@ -337,11 +456,20 @@ type ExamDetailTab = 'marks' | 'timetable';
                   <td><input class="erp-input" [(ngModel)]="row.room" [disabled]="!canEditSchedule" /></td>
                   <td><input class="erp-input" [(ngModel)]="row.notes" [disabled]="!canEditSchedule" /></td>
                   <td *ngIf="canEditSchedule">
-                    <button type="button" class="btn-icon" (click)="removeScheduleRow(i)" [title]="'exams.removeRowTitle' | translate"><i class="bi bi-x-lg"></i></button>
+                    <button type="button" class="btn-icon" (click)="removeScheduleRowPaged(i)" [title]="'exams.removeRowTitle' | translate"><i class="bi bi-x-lg"></i></button>
                   </td>
                 </tr>
               </tbody>
             </table>
+            <app-erp-pagination
+              *ngIf="scheduleListTotal > schedulePageSize"
+              class="d-block mt-2"
+              [totalElements]="scheduleListTotal"
+              [pageIndex]="schedulePageIndex"
+              [pageSize]="schedulePageSize"
+              (pageIndexChange)="onSchedulePageIndex($event)"
+              (pageSizeChange)="onSchedulePageSize($event)"
+            />
           </div>
           <div class="d-flex gap-2 flex-wrap" *ngIf="canEditSchedule">
             <button type="button" class="btn-outline-erp btn-sm" (click)="addScheduleRow()"><i class="bi bi-plus-lg"></i> {{ 'exams.addSlot' | translate }}</button>
@@ -374,13 +502,13 @@ type ExamDetailTab = 'marks' | 'timetable';
             <div class="col-md-6">
               <div class="erp-form-group">
                 <label class="erp-label">{{ 'exams.labelStart' | translate }}</label
-                ><app-erp-date-picker [(ngModel)]="newExam.startDate" [placeholder]="'exams.labelStart' | translate" />
+                ><app-erp-date-picker [(ngModel)]="newExam.startDate" placeholderI18nKey="exams.labelStart" />
               </div>
             </div>
             <div class="col-md-6">
               <div class="erp-form-group">
                 <label class="erp-label">{{ 'exams.labelEnd' | translate }}</label
-                ><app-erp-date-picker [(ngModel)]="newExam.endDate" [placeholder]="'exams.labelEnd' | translate" />
+                ><app-erp-date-picker [(ngModel)]="newExam.endDate" placeholderI18nKey="exams.labelEnd" />
               </div>
             </div>
           </div>
@@ -451,6 +579,36 @@ export class ExamsComponent implements OnInit {
   selectedParentChildId: number | null = null;
   parentDetailTab: 'timetable' | 'results' = 'timetable';
 
+  recordedSearch = '';
+  recordedPageIndex = 0;
+  recordedPageSize = DEFAULT_ERP_PAGE_SIZE;
+  pagedRecordedMarks: MarkRecord[] = [];
+  recordedFilteredTotal = 0;
+
+  entrySearch = '';
+  entryPageIndex = 0;
+  entryPageSize = DEFAULT_ERP_PAGE_SIZE;
+  pagedMarksEntryStudents: Student[] = [];
+  entryFilteredTotal = 0;
+
+  parentResultsSearch = '';
+  parentResultsPageIndex = 0;
+  parentResultsPageSize = DEFAULT_ERP_PAGE_SIZE;
+  pagedParentMarks: MarkRecord[] = [];
+  parentResultsFilteredTotal = 0;
+
+  schedulePageIndex = 0;
+  schedulePageSize = DEFAULT_ERP_PAGE_SIZE;
+  pagedScheduleDraft: ExamScheduleSlot[] = [];
+  scheduleListTotal = 0;
+
+  staffExamPageIndex = 0;
+  staffExamPageSize = DEFAULT_ERP_PAGE_SIZE;
+  staffExamTotal = 0;
+  staffExamSearch = '';
+  private staffExamSeq = 0;
+  private staffExamSearchTimer: ReturnType<typeof setTimeout> | null = null;
+
   private readonly destroyRef = inject(DestroyRef);
 
   constructor(
@@ -466,6 +624,10 @@ export class ExamsComponent implements OnInit {
 
   get role(): string {
     return (this.auth.getRole() || '').toLowerCase();
+  }
+
+  get staffUsesServerPaging(): boolean {
+    return !runtimeConfig.useMocks && this.role !== 'parent';
   }
 
   get canCreateExam(): boolean {
@@ -487,10 +649,8 @@ export class ExamsComponent implements OnInit {
 
   /** Staff: all exams. Parent: exams whose scope includes the selected child’s class/section. */
   get examGridList(): Exam[] {
-    if (this.role !== 'parent') {
-      return this.exams;
-    }
-    return this.parentFilteredExams;
+    const base = this.role !== 'parent' ? this.exams : this.parentFilteredExams;
+    return [...base].sort(compareExamsForGrid);
   }
 
   get parentFilteredExams(): Exam[] {
@@ -613,6 +773,8 @@ export class ExamsComponent implements OnInit {
       this.selectedExam = null;
       this.scheduleDraft = [];
       this.marks = [];
+      this.afterMarksLoaded();
+      this.rebuildSchedulePaging();
       return;
     }
     this.clearParentSelectionIfExamInvisible();
@@ -631,6 +793,8 @@ export class ExamsComponent implements OnInit {
       this.selectedExam = null;
       this.scheduleDraft = [];
       this.marks = [];
+      this.afterMarksLoaded();
+      this.rebuildSchedulePaging();
     }
   }
 
@@ -743,6 +907,13 @@ export class ExamsComponent implements OnInit {
     this.marksScopeError = '';
     this.scheduleUiMessage = '';
     this.scheduleUiError = false;
+    this.recordedSearch = '';
+    this.entrySearch = '';
+    this.parentResultsSearch = '';
+    this.recordedPageIndex = 0;
+    this.entryPageIndex = 0;
+    this.parentResultsPageIndex = 0;
+    this.schedulePageIndex = 0;
     this.detailTab = this.canEnterMarks ? 'marks' : 'timetable';
     if (this.role === 'parent') {
       this.parentDetailTab =
@@ -751,9 +922,14 @@ export class ExamsComponent implements OnInit {
       if (sid == null) {
         this.marks = [];
         this.scheduleDraft = (exam.scheduleSlots ?? []).map(s => ({ ...s, sectionId: s.sectionId ?? null }));
+        this.afterMarksLoaded();
+        this.rebuildSchedulePaging();
         return;
       }
-      this.parentService.getChildExamMarks(sid, exam.id).subscribe(m => (this.marks = m));
+      this.parentService.getChildExamMarks(sid, exam.id).subscribe(m => {
+        this.marks = m;
+        this.afterMarksLoaded();
+      });
       this.parentService.getChildExamSchedule(sid, exam.id).subscribe({
         next: slots => {
           const list = slots.length ? slots : (exam.scheduleSlots ?? []);
@@ -761,17 +937,24 @@ export class ExamsComponent implements OnInit {
           if (this.selectedExam && this.selectedExam.id === exam.id) {
             this.selectedExam.scheduleSlots = [...list];
           }
+          this.schedulePageIndex = 0;
+          this.rebuildSchedulePaging();
         },
         error: () => {
           const list = exam.scheduleSlots ?? [];
           this.scheduleDraft = list.map(s => ({ ...s, sectionId: s.sectionId ?? null }));
           this.scheduleUiMessage = this.translate.instant('exams.scheduleLoadErrorParent');
           this.scheduleUiError = true;
+          this.schedulePageIndex = 0;
+          this.rebuildSchedulePaging();
         }
       });
       return;
     }
-    this.examService.getMarksByExam(exam.id).subscribe(m => (this.marks = m));
+    this.examService.getMarksByExam(exam.id).subscribe(m => {
+      this.marks = m;
+      this.afterMarksLoaded();
+    });
     this.examService.getSchedule(exam.id).subscribe({
       next: slots => {
         const list = slots.length ? slots : (exam.scheduleSlots ?? []);
@@ -779,12 +962,16 @@ export class ExamsComponent implements OnInit {
         if (this.selectedExam && this.selectedExam.id === exam.id) {
           this.selectedExam.scheduleSlots = [...list];
         }
+        this.schedulePageIndex = 0;
+        this.rebuildSchedulePaging();
       },
       error: () => {
         const list = exam.scheduleSlots ?? [];
         this.scheduleDraft = list.map(s => ({ ...s, sectionId: s.sectionId ?? null }));
         this.scheduleUiMessage = this.translate.instant('exams.scheduleLoadErrorBundled');
         this.scheduleUiError = true;
+        this.schedulePageIndex = 0;
+        this.rebuildSchedulePaging();
       }
     });
     if (this.canEnterMarks) {
@@ -861,9 +1048,13 @@ export class ExamsComponent implements OnInit {
         next: slots => {
           const list = slots.length ? slots : (ex.scheduleSlots ?? []);
           this.scheduleDraft = list.map(s => ({ ...s, sectionId: s.sectionId ?? null }));
+          this.schedulePageIndex = 0;
+          this.rebuildSchedulePaging();
         },
         error: () => {
           this.scheduleDraft = (ex.scheduleSlots ?? []).map(s => ({ ...s, sectionId: s.sectionId ?? null }));
+          this.schedulePageIndex = 0;
+          this.rebuildSchedulePaging();
         }
       });
       return;
@@ -872,9 +1063,13 @@ export class ExamsComponent implements OnInit {
       next: slots => {
         const list = slots.length ? slots : (ex.scheduleSlots ?? []);
         this.scheduleDraft = list.map(s => ({ ...s, sectionId: s.sectionId ?? null }));
+        this.schedulePageIndex = 0;
+        this.rebuildSchedulePaging();
       },
       error: () => {
         this.scheduleDraft = (ex.scheduleSlots ?? []).map(s => ({ ...s, sectionId: s.sectionId ?? null }));
+        this.schedulePageIndex = 0;
+        this.rebuildSchedulePaging();
       }
     });
   }
@@ -886,6 +1081,8 @@ export class ExamsComponent implements OnInit {
   loadMarksEntryStudents(): void {
     if (this.selectedClassId == null) {
       this.marksEntryStudents = [];
+      this.entryPageIndex = 0;
+      this.rebuildEntryPaging();
       return;
     }
     const req$ =
@@ -895,6 +1092,8 @@ export class ExamsComponent implements OnInit {
     req$.subscribe(students => {
       this.marksEntryStudents = students;
       this.marksByStudent = {};
+      this.entryPageIndex = 0;
+      this.rebuildEntryPaging();
     });
   }
 
@@ -917,10 +1116,16 @@ export class ExamsComponent implements OnInit {
       room: '',
       notes: ''
     });
+    this.rebuildSchedulePaging();
   }
 
-  removeScheduleRow(i: number): void {
-    this.scheduleDraft.splice(i, 1);
+  removeScheduleRowPaged(uiIndex: number): void {
+    const gi = this.schedulePageIndex * this.schedulePageSize + uiIndex;
+    if (gi < 0 || gi >= this.scheduleDraft.length) {
+      return;
+    }
+    this.scheduleDraft.splice(gi, 1);
+    this.rebuildSchedulePaging();
   }
 
   saveSchedule(): void {
@@ -971,6 +1176,8 @@ export class ExamsComponent implements OnInit {
         this.scheduleSaving = false;
         this.scheduleUiMessage = this.translate.instant('exams.timetableSaved');
         this.scheduleUiError = false;
+        this.schedulePageIndex = 0;
+        this.rebuildSchedulePaging();
       },
       error: (err: unknown) => {
         this.scheduleSaving = false;
@@ -1015,8 +1222,31 @@ export class ExamsComponent implements OnInit {
       tenantId: ''
     };
     this.examService.addExam(exam, classScopes).subscribe(createdExam => {
-      this.exams = [createdExam, ...this.exams];
       this.showCreateModal = false;
+      if (this.staffUsesServerPaging) {
+        this.staffExamPageIndex = 0;
+        const cid = createdExam.id;
+        const seq = ++this.staffExamSeq;
+        this.examService
+          .getExamsPage({
+            page: 0,
+            size: this.staffExamPageSize,
+            q: this.staffExamSearch.trim() || undefined,
+          })
+          .subscribe(p => {
+            if (seq !== this.staffExamSeq) {
+              return;
+            }
+            this.exams = p.content;
+            this.staffExamTotal = p.totalElements;
+            this.staffExamPageIndex = p.page;
+            this.staffExamPageSize = p.size;
+            this.selectExam(this.exams.find(e => e.id === cid) ?? createdExam);
+            this.cdr.markForCheck();
+          });
+        return;
+      }
+      this.exams = [createdExam, ...this.exams];
       this.selectExam(createdExam);
     });
   }
@@ -1048,11 +1278,139 @@ export class ExamsComponent implements OnInit {
         this.marksSaving = false;
         this.marks = [...this.marks.filter(m => !(m.subjectName === this.marksSubject && m.classId === classId)), ...savedMarks];
         this.marksByStudent = {};
+        this.rebuildRecordedPaging();
+        this.rebuildParentResultsPaging();
+        this.rebuildEntryPaging();
       },
       error: () => {
         this.marksSaving = false;
       }
     });
+  }
+
+  private afterMarksLoaded(): void {
+    this.recordedPageIndex = 0;
+    this.parentResultsPageIndex = 0;
+    this.rebuildRecordedPaging();
+    this.rebuildParentResultsPaging();
+  }
+
+  private filterRecordedMarks(): MarkRecord[] {
+    const q = this.recordedSearch.trim().toLowerCase();
+    if (!q) {
+      return this.marks;
+    }
+    return this.marks.filter(
+      m =>
+        (m.studentName || '').toLowerCase().includes(q) || (m.subjectName || '').toLowerCase().includes(q)
+    );
+  }
+
+  rebuildRecordedPaging(): void {
+    const pg = sliceToPage(this.filterRecordedMarks(), this.recordedPageIndex, this.recordedPageSize);
+    this.pagedRecordedMarks = pg.content;
+    this.recordedPageIndex = pg.page;
+    this.recordedFilteredTotal = pg.totalElements;
+  }
+
+  onRecordedSearchChange(): void {
+    this.recordedPageIndex = 0;
+    this.rebuildRecordedPaging();
+  }
+
+  onRecordedPageIndex(i: number): void {
+    this.recordedPageIndex = i;
+    this.rebuildRecordedPaging();
+  }
+
+  onRecordedPageSize(s: number): void {
+    this.recordedPageSize = s;
+    this.recordedPageIndex = 0;
+    this.rebuildRecordedPaging();
+  }
+
+  private filterEntryStudents(): Student[] {
+    const q = this.entrySearch.trim().toLowerCase();
+    if (!q) {
+      return this.marksEntryStudents;
+    }
+    return this.marksEntryStudents.filter(s => {
+      const name = `${s.firstName} ${s.lastName}`.trim().toLowerCase();
+      const roll = String(s.rollNumber ?? '').toLowerCase();
+      return name.includes(q) || roll.includes(q);
+    });
+  }
+
+  rebuildEntryPaging(): void {
+    const pg = sliceToPage(this.filterEntryStudents(), this.entryPageIndex, this.entryPageSize);
+    this.pagedMarksEntryStudents = pg.content;
+    this.entryPageIndex = pg.page;
+    this.entryFilteredTotal = pg.totalElements;
+  }
+
+  onEntrySearchChange(): void {
+    this.entryPageIndex = 0;
+    this.rebuildEntryPaging();
+  }
+
+  onEntryPageIndex(i: number): void {
+    this.entryPageIndex = i;
+    this.rebuildEntryPaging();
+  }
+
+  onEntryPageSize(s: number): void {
+    this.entryPageSize = s;
+    this.entryPageIndex = 0;
+    this.rebuildEntryPaging();
+  }
+
+  private filterParentMarks(): MarkRecord[] {
+    const q = this.parentResultsSearch.trim().toLowerCase();
+    if (!q) {
+      return this.marks;
+    }
+    return this.marks.filter(m => (m.subjectName || '').toLowerCase().includes(q));
+  }
+
+  rebuildParentResultsPaging(): void {
+    const pg = sliceToPage(this.filterParentMarks(), this.parentResultsPageIndex, this.parentResultsPageSize);
+    this.pagedParentMarks = pg.content;
+    this.parentResultsPageIndex = pg.page;
+    this.parentResultsFilteredTotal = pg.totalElements;
+  }
+
+  onParentResultsSearchChange(): void {
+    this.parentResultsPageIndex = 0;
+    this.rebuildParentResultsPaging();
+  }
+
+  onParentResultsPageIndex(i: number): void {
+    this.parentResultsPageIndex = i;
+    this.rebuildParentResultsPaging();
+  }
+
+  onParentResultsPageSize(s: number): void {
+    this.parentResultsPageSize = s;
+    this.parentResultsPageIndex = 0;
+    this.rebuildParentResultsPaging();
+  }
+
+  rebuildSchedulePaging(): void {
+    const pg = sliceToPage(this.scheduleDraft, this.schedulePageIndex, this.schedulePageSize);
+    this.pagedScheduleDraft = pg.content;
+    this.schedulePageIndex = pg.page;
+    this.scheduleListTotal = pg.totalElements;
+  }
+
+  onSchedulePageIndex(i: number): void {
+    this.schedulePageIndex = i;
+    this.rebuildSchedulePaging();
+  }
+
+  onSchedulePageSize(s: number): void {
+    this.schedulePageSize = s;
+    this.schedulePageIndex = 0;
+    this.rebuildSchedulePaging();
   }
 
   getExamBadge(status: string): string {
@@ -1081,6 +1439,61 @@ export class ExamsComponent implements OnInit {
 
   getDraftMark(studentId: number): number {
     return Number(this.marksByStudent[studentId] ?? 0);
+  }
+
+  private fetchStaffExamsPage(): void {
+    if (!this.staffUsesServerPaging) {
+      return;
+    }
+    const seq = ++this.staffExamSeq;
+    this.examService
+      .getExamsPage({
+        page: this.staffExamPageIndex,
+        size: this.staffExamPageSize,
+        q: this.staffExamSearch.trim() || undefined,
+      })
+      .subscribe(p => {
+        if (seq !== this.staffExamSeq) {
+          return;
+        }
+        this.exams = p.content;
+        this.staffExamTotal = p.totalElements;
+        this.staffExamPageIndex = p.page;
+        this.staffExamPageSize = p.size;
+        if (this.selectedExam) {
+          const sid = this.selectedExam.id;
+          const next = this.exams.find(e => e.id === sid);
+          if (next) {
+            this.selectExam(next);
+          }
+        }
+        this.cdr.markForCheck();
+      });
+  }
+
+  onStaffExamSearchChange(): void {
+    if (!this.staffUsesServerPaging) {
+      return;
+    }
+    if (this.staffExamSearchTimer) {
+      clearTimeout(this.staffExamSearchTimer);
+    }
+    this.staffExamSearchTimer = setTimeout(() => {
+      this.staffExamSearchTimer = null;
+      this.staffExamPageIndex = 0;
+      this.fetchStaffExamsPage();
+    }, 350);
+  }
+
+  onStaffExamPageIndexChange(idx: number): void {
+    this.staffExamPageIndex = idx;
+    this.fetchStaffExamsPage();
+  }
+
+  onStaffExamPageSizeChange(size: number): void {
+    this.staffExamPageSize = size;
+    this.staffExamPageIndex = 0;
+    this.fetchStaffExamsPage();
   }
 
   refreshExams(): void {
@@ -1112,6 +1525,10 @@ export class ExamsComponent implements OnInit {
     }
     this.academicService.getAcademicYears().subscribe(years => (this.academicYears = years));
     this.academicService.getClasses().subscribe(classes => (this.classes = classes));
+    if (this.staffUsesServerPaging) {
+      this.fetchStaffExamsPage();
+      return;
+    }
     this.examService.getExams().subscribe(exams => {
       this.exams = exams;
       if (this.selectedExam) {
@@ -1128,6 +1545,10 @@ export class ExamsComponent implements OnInit {
   }
 
   private loadExams(): void {
+    if (this.staffUsesServerPaging) {
+      this.fetchStaffExamsPage();
+      return;
+    }
     this.examService.getExams().subscribe(exams => (this.exams = exams));
   }
 }

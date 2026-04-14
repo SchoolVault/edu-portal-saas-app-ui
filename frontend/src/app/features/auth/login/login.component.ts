@@ -9,11 +9,12 @@ import { UserLocaleService, type UiLanguage } from '../../../core/i18n/user-loca
 import type { FieldErrors } from '../../../core/validation';
 import { type LoginField, validateLoginForm } from '../../../core/validation';
 import { AuthMarketingBandComponent } from '../auth-marketing/auth-marketing-band.component';
+import { ErpI18nPhDirective } from '../../../shared/erp-i18n/erp-i18n-host.directives';
 
 @Component({
   selector: 'app-login',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterModule, TranslateModule, AuthMarketingBandComponent],
+  imports: [CommonModule, FormsModule, RouterModule, TranslateModule, AuthMarketingBandComponent, ErpI18nPhDirective],
   template: `
     <div class="login-container" data-testid="login-page">
       <div class="login-left">
@@ -42,7 +43,7 @@ import { AuthMarketingBandComponent } from '../auth-marketing/auth-marketing-ban
                 (ngModelChange)="clearField('schoolCode')"
                 name="schoolCode"
                 maxlength="64"
-                [placeholder]="'login.schoolCodePlaceholder' | translate"
+                erpI18nPh="login.schoolCodePlaceholder"
                 [attr.aria-invalid]="!!fieldErrors.schoolCode"
                 [attr.aria-describedby]="fieldErrors.schoolCode ? 'lg-err-schoolCode' : null"
                 data-testid="login-school-code"
@@ -60,7 +61,7 @@ import { AuthMarketingBandComponent } from '../auth-marketing/auth-marketing-ban
                 (ngModelChange)="clearField('email')"
                 name="email"
                 maxlength="254"
-                [placeholder]="'login.emailPlaceholder' | translate"
+                erpI18nPh="login.emailPlaceholder"
                 [attr.aria-invalid]="!!fieldErrors.email"
                 [attr.aria-describedby]="fieldErrors.email ? 'lg-err-email' : null"
                 data-testid="login-email"
@@ -78,7 +79,7 @@ import { AuthMarketingBandComponent } from '../auth-marketing/auth-marketing-ban
                   [(ngModel)]="password"
                   (ngModelChange)="clearField('password')"
                   name="password"
-                  [placeholder]="'login.passwordPlaceholder' | translate"
+                  erpI18nPh="login.passwordPlaceholder"
                   style="padding-right: 44px;"
                   [attr.aria-invalid]="!!fieldErrors.password"
                   [attr.aria-describedby]="fieldErrors.password ? 'lg-err-password' : null"

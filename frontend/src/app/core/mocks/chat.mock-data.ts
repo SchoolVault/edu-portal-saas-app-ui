@@ -1,5 +1,18 @@
 import type { ChatDirectoryResponse, ChatInboxConversation, ChatMessage } from '../models/models';
+import { classShortFromRoster } from '../chat/chat-counterpart.resolve';
 import { MOCK_PARENT_CHILDREN } from './parent.mock-data';
+
+const MICHAEL_LINKED = MOCK_PARENT_CHILDREN.map(s => ({
+  studentId: s.id,
+  studentName: `${s.firstName} ${s.lastName}`,
+  classShort: classShortFromRoster({
+    classId: s.classId,
+    className: s.className ?? undefined,
+    sectionId: s.sectionId,
+    sectionName: s.sectionName,
+    students: [],
+  }),
+}));
 
 export const MOCK_CHAT_DIRECTORY_TEACHER: ChatDirectoryResponse = {
   myClassRosters: [
@@ -8,7 +21,11 @@ export const MOCK_CHAT_DIRECTORY_TEACHER: ChatDirectoryResponse = {
       className: 'Class 8',
       sectionId: 801,
       sectionName: 'A',
-      students: [{ studentId: 12, studentName: 'Emma Chen', parent: { userId: 3, name: 'Michael Chen', role: 'PARENT' } }],
+      students: [
+        { studentId: 12, studentName: 'Emma Chen', parent: { userId: 3, name: 'Michael Chen', role: 'PARENT' } },
+        { studentId: 24, studentName: 'Jordan Lee', parent: { userId: 3, name: 'Michael Chen', role: 'PARENT' } },
+        { studentId: 25, studentName: 'Nina Park', parent: { userId: 3, name: 'Michael Chen', role: 'PARENT' } },
+      ],
     },
   ],
 };
@@ -31,7 +48,25 @@ export const MOCK_CHAT_DIRECTORY_PARENT: ChatDirectoryResponse = {
 
 export const MOCK_CHAT_DIRECTORY_ADMIN: ChatDirectoryResponse = {
   teachers: [{ userId: 2, name: 'Sarah Mitchell', role: 'TEACHER' }],
-  parents: [{ userId: 3, name: 'Michael Chen', role: 'PARENT' }],
+  parents: [
+    {
+      userId: 3,
+      name: 'Michael Chen',
+      role: 'PARENT',
+      linkedStudents: MICHAEL_LINKED,
+      linkedStudentTotal: MICHAEL_LINKED.length,
+    },
+    {
+      userId: 304,
+      name: 'Aditi Chatterjee',
+      role: 'PARENT',
+      linkedStudents: [
+        { studentId: 401, studentName: 'Aarav Mehta', classShort: '5A' },
+        { studentId: 402, studentName: 'Zara Mehta', classShort: '3B' },
+      ],
+      linkedStudentTotal: 4,
+    },
+  ],
 };
 
 const ADMIN_USER_ID = 1;
@@ -59,6 +94,7 @@ export function buildMockChatInboxSeed(
         { userId: meUserId, userRole: 'PARENT', displayName: 'You' },
         { userId: 2, userRole: 'TEACHER', displayName: 'Sarah Mitchell' },
       ],
+      counterpartInsight: { roleCode: 'TEACHER' },
       unreadCount: 1,
     };
     const messages: ChatMessage[] = [
@@ -135,7 +171,7 @@ export function buildMockChatInboxSeed(
     return { conversations: [conv], messages: { 'c-teacher-parent': messages } };
   }
 
-  const conv: ChatInboxConversation = {
+  const convMichael: ChatInboxConversation = {
     conversationId: 'c-admin-parent',
     type: 'direct',
     lastMessageAt: new Date(now - 1000 * 60 * 6).toISOString(),
@@ -146,7 +182,26 @@ export function buildMockChatInboxSeed(
     ],
     unreadCount: 0,
   };
-  const messages: ChatMessage[] = [
+  const convAditi: ChatInboxConversation = {
+    conversationId: 'c-admin-aditi',
+    type: 'direct',
+    lastMessageAt: new Date(now - 1000 * 60 * 3).toISOString(),
+    lastMessagePreview: 'Thursday 4pm works — I have shared a calendar invite.',
+    participants: [
+      { userId: meUserId, userRole: roleUpper, displayName: 'You' },
+      { userId: 304, userRole: 'PARENT', displayName: 'Aditi Chatterjee' },
+    ],
+    counterpartInsight: {
+      roleCode: 'PARENT',
+      linkedStudents: [
+        { studentId: 401, studentName: 'Aarav Mehta', classShort: '5A' },
+        { studentId: 402, studentName: 'Zara Mehta', classShort: '3B' },
+      ],
+      linkedStudentTotal: 4,
+    },
+    unreadCount: 1,
+  };
+  const messagesMichael: ChatMessage[] = [
     {
       id: '3001',
       conversationId: 'c-admin-parent',
@@ -168,5 +223,30 @@ export function buildMockChatInboxSeed(
       createdAt: new Date(now - 1000 * 60 * 6).toISOString(),
     },
   ];
-  return { conversations: [conv], messages: { 'c-admin-parent': messages } };
+  const messagesAditi: ChatMessage[] = [
+    {
+      id: '3101',
+      conversationId: 'c-admin-aditi',
+      senderUserId: 304,
+      senderRole: 'PARENT',
+      senderName: 'Aditi Chatterjee',
+      body: 'Could you confirm the PT meeting slot for next week?',
+      bodyType: 'text',
+      createdAt: new Date(now - 1000 * 60 * 40).toISOString(),
+    },
+    {
+      id: '3102',
+      conversationId: 'c-admin-aditi',
+      senderUserId: meUserId,
+      senderRole: 'ADMIN',
+      senderName: 'John Anderson',
+      body: 'Thursday 4pm works — I have shared a calendar invite.',
+      bodyType: 'text',
+      createdAt: new Date(now - 1000 * 60 * 3).toISOString(),
+    },
+  ];
+  return {
+    conversations: [convAditi, convMichael],
+    messages: { 'c-admin-parent': messagesMichael, 'c-admin-aditi': messagesAditi },
+  };
 }
