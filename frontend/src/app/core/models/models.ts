@@ -698,6 +698,27 @@ export interface ChatParticipantSummary {
   displayName?: string;
 }
 
+/**
+ * Student line for chat identity (GET /chat/inbox may include under counterpartInsight).
+ * Backend mirrors: {@code linkedStudents[]} + {@code linkedStudentTotal} when truncated.
+ */
+export interface ChatLinkedStudentBrief {
+  studentId: number;
+  studentName: string;
+  /** Short class label, e.g. "5A" or "8-A" — server may pre-format for locale. */
+  classShort?: string;
+}
+
+/**
+ * Who the other party is in a direct thread — from API or derived client-side from directory/rosters.
+ */
+export interface ChatCounterpartInsight {
+  roleCode: string;
+  linkedStudents?: ChatLinkedStudentBrief[];
+  /** When {@link linkedStudents} shows fewer than total linked children. */
+  linkedStudentTotal?: number;
+}
+
 export interface ChatInboxConversation {
   conversationId: string;
   type: 'direct' | 'group' | 'system';
@@ -708,6 +729,8 @@ export interface ChatInboxConversation {
   lastMessagePreview?: string;
   participants: ChatParticipantSummary[];
   unreadCount: number;
+  /** Optional; same shape as backend DTO on inbox rows. */
+  counterpartInsight?: ChatCounterpartInsight;
 }
 
 export interface ChatCreateConversationRequest {
@@ -734,6 +757,9 @@ export interface ChatDirectoryUserCard {
   userId: number;
   name: string;
   role: string;
+  /** When present (e.g. admin directory), used to render parent identity in chat without extra API. */
+  linkedStudents?: ChatLinkedStudentBrief[];
+  linkedStudentTotal?: number;
 }
 
 export interface ChatDirectoryStudentCard {

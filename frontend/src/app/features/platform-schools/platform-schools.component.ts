@@ -1,27 +1,30 @@
-import { Component, OnInit } from '@angular/core';
+import { ChangeDetectorRef, Component, DestroyRef, OnInit, inject } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { PlatformService } from '../../core/services/platform.service';
 import { PlatformPurgeJob, PlatformSchoolDetail, PlatformSchoolSummary } from '../../core/models/models';
-import { forkJoin } from 'rxjs';
+import { forkJoin, Subject } from 'rxjs';
+import { debounceTime, distinctUntilChanged } from 'rxjs/operators';
+import { ErpPaginationComponent } from '../../shared/erp-pagination/erp-pagination.component';
+import { DEFAULT_ERP_PAGE_SIZE } from '../../core/constants/pagination.constants';
 
 @Component({
   selector: 'app-platform-schools',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink],
+  imports: [CommonModule, FormsModule, RouterLink, TranslateModule, ErpPaginationComponent],
   template: `
     <div class="platform-schools-root" data-testid="platform-schools-page">
       <div class="platform-page-inner animate-in">
         <div class="d-flex justify-content-between align-items-end mb-4 flex-wrap gap-3">
           <div>
-            <div class="badge-erp badge-info mb-2">Platform</div>
-            <h2 class="platform-page-title">School directory</h2>
-            <p class="text-muted mb-0 platform-page-lead">
-              Operate each workspace: metrics, campus admins, suspension, and irreversible tenant data removal (async job).
-            </p>
+            <div class="badge-erp badge-info mb-2">{{ 'platformSchools.badge' | translate }}</div>
+            <h2 class="platform-page-title">{{ 'platformSchools.pageTitle' | translate }}</h2>
+            <p class="text-muted mb-0 platform-page-lead">{{ 'platformSchools.lead' | translate }}</p>
           </div>
-          <a routerLink="/app/super-admin" class="btn-outline-erp btn-sm"><i class="bi bi-arrow-left me-1"></i>Platform overview</a>
+          <a routerLink="/app/super-admin" class="btn-outline-erp btn-sm"><i class="bi bi-arrow-left me-1"></i>{{ 'platformSchools.backOverview' | translate }}</a>
         </div>
 
         <div *ngIf="loadError" class="alert alert-danger py-2 mb-3">{{ loadError }}</div>
@@ -31,14 +34,20 @@ import { forkJoin } from 'rxjs';
         <div class="row g-4 align-items-start">
           <div class="col-lg-5">
             <div class="erp-card platform-card">
-              <div class="erp-card-header platform-card-header">
-                <h3 class="erp-card-title mb-0">Workspaces</h3>
-                <span class="text-muted" style="font-size: 12px;">{{ schools.length }} schools</span>
+              <div class="erp-card-header platform-card-header flex-wrap gap-2">
+                <div>
+                  <h3 class="erp-card-title mb-0">{{ 'platformSchools.workspaces' | translate }}</h3>
+                  <span class="text-muted" style="font-size: 12px;">{{ 'platformSchools.schoolsCount' | translate: { count: schoolsTotal } }}</span>
+                </div>
+              </div>
+              <div class="px-3 pt-2 pb-0">
+                <label class="erp-label small mb-1">{{ 'platformSchools.search' | translate }}</label>
+                <input type="search" class="erp-input" [(ngModel)]="schoolSearchInput" (ngModelChange)="schoolSearch$.next($event)" [placeholder]="'platformSchools.searchPh' | translate" />
               </div>
               <div class="platform-table-wrap">
                 <table class="erp-table platform-table mb-0">
                   <thead>
-                    <tr><th>School</th><th>Roll-up</th><th>Status</th></tr>
+                    <tr><th>{{ 'platformSchools.thSchool' | translate }}</th><th>{{ 'platformSchools.thRollup' | translate }}</th><th>{{ 'platformSchools.thStatus' | translate }}</th></tr>
                   </thead>
                   <tbody>
                     <tr *ngFor="let s of schools"
@@ -50,17 +59,26 @@ import { forkJoin } from 'rxjs';
                         <div class="platform-muted-xs">{{ s.schoolCode }}</div>
                       </td>
                       <td class="platform-muted-sm">
-                        {{ s.studentCount | number }} stu · {{ s.teacherCount }} tch · {{ s.adminCount }} adm
+                        {{ 'platformSchools.rollup' | translate: { stu: (s.studentCount | number), tch: s.teacherCount, adm: s.adminCount } }}
                       </td>
                       <td>
                         <span class="badge-erp" [ngClass]="s.active ? 'badge-success' : 'badge-warning'">
-                          {{ s.active ? 'Active' : 'Suspended' }}
+                          {{ s.active ? ('platformSchools.active' | translate) : ('platformSchools.suspended' | translate) }}
                         </span>
                       </td>
                     </tr>
                   </tbody>
                 </table>
               </div>
+              <app-erp-pagination
+                *ngIf="schoolsTotal > 0"
+                class="d-block px-3 pb-3"
+                [totalElements]="schoolsTotal"
+                [pageIndex]="schoolPageIndex"
+                [pageSize]="schoolPageSize"
+                (pageIndexChange)="onSchoolPageIndex($event)"
+                (pageSizeChange)="onSchoolPageSize($event)"
+              />
             </div>
           </div>
 
@@ -343,6 +361,12 @@ import { forkJoin } from 'rxjs';
 })
 export class PlatformSchoolsComponent implements OnInit {
   schools: PlatformSchoolSummary[] = [];
+  schoolsTotal = 0;
+  schoolPageIndex = 0;
+  schoolPageSize = DEFAULT_ERP_PAGE_SIZE;
+  schoolQuery = '';
+  schoolSearchInput = '';
+  readonly schoolSearch$ = new Subject<string>();
   selected: PlatformSchoolSummary | null = null;
   detail: PlatformSchoolDetail | null = null;
   detailLoading = false;
@@ -359,13 +383,51 @@ export class PlatformSchoolsComponent implements OnInit {
   purgeUnderstand = false;
   purgeModalError = '';
 
-  constructor(private platform: PlatformService) {}
+  private readonly destroyRef = inject(DestroyRef);
+
+  constructor(
+    private platform: PlatformService,
+    private translate: TranslateService,
+    private cdr: ChangeDetectorRef
+  ) {}
 
   ngOnInit(): void {
-    this.platform.getSchools().subscribe({
-      next: list => { this.schools = list; },
-      error: e => { this.loadError = e?.message || 'Could not load schools.'; }
+    this.translate.onLangChange.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => this.cdr.markForCheck());
+    this.schoolSearch$
+      .pipe(debounceTime(300), distinctUntilChanged(), takeUntilDestroyed(this.destroyRef))
+      .subscribe(q => {
+        this.schoolQuery = (q || '').trim();
+        this.schoolPageIndex = 0;
+        this.loadSchoolsPage();
+      });
+    this.loadSchoolsPage();
+  }
+
+  loadSchoolsPage(): void {
+    this.loadError = '';
+    this.platform.getSchoolsPage(this.schoolPageIndex, this.schoolPageSize, this.schoolQuery || undefined).subscribe({
+      next: p => {
+        this.schools = p.content;
+        this.schoolsTotal = p.totalElements;
+        this.schoolPageIndex = p.page;
+      },
+      error: e => {
+        this.loadError = e?.message || this.translate.instant('platformSchools.loadError');
+        this.schools = [];
+        this.schoolsTotal = 0;
+      },
     });
+  }
+
+  onSchoolPageIndex(i: number): void {
+    this.schoolPageIndex = i;
+    this.loadSchoolsPage();
+  }
+
+  onSchoolPageSize(s: number): void {
+    this.schoolPageSize = s;
+    this.schoolPageIndex = 0;
+    this.loadSchoolsPage();
   }
 
   select(s: PlatformSchoolSummary): void {

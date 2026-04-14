@@ -2,7 +2,9 @@ import { Injectable } from '@angular/core';
 import { Observable, of, throwError } from 'rxjs';
 import { delay, map } from 'rxjs/operators';
 import { MOCK_OPERATIONS_INVENTORY_SEED, MOCK_OPERATIONS_STAFF_SEED, mockPayrollAccrualSummary } from '../mocks/operations.mock-data';
-import { ApiService } from './api.service';
+import { ApiService, PageResp } from './api.service';
+import { DEFAULT_ERP_PAGE_SIZE } from '../constants/pagination.constants';
+import { sliceToPage } from '../utils/paginate';
 import { runtimeConfig } from '../config/runtime-config';
 import {
   AttendanceCoverRow,
@@ -52,6 +54,15 @@ export class OperationsService {
       .pipe(map(rows => (rows ?? []).map(r => this.normalizeStaffRow(r))));
   }
 
+  listStaffPage(page = 0, size = DEFAULT_ERP_PAGE_SIZE): Observable<PageResp<OperationalStaffRow>> {
+    if (!runtimeConfig.useMocks) {
+      return this.api
+        .getPageParams<OperationalStaffRow>('/operations/staff/paged', { page, size })
+        .pipe(map(p => ({ ...p, content: p.content.map(r => this.normalizeStaffRow(r)) })));
+    }
+    return this.listStaff().pipe(map(all => sliceToPage(all, page, size)));
+  }
+
   deleteStaff(id: string, permanent = false): Observable<void> {
     if (runtimeConfig.useMocks) {
       const row = this.mockStaff.find(s => s.id === id);
@@ -91,6 +102,13 @@ export class OperationsService {
     return this.api.get<VisitorLogRow[]>('/operations/visitors');
   }
 
+  listVisitorsPage(page = 0, size = DEFAULT_ERP_PAGE_SIZE): Observable<PageResp<VisitorLogRow>> {
+    if (!runtimeConfig.useMocks) {
+      return this.api.getPageParams<VisitorLogRow>('/operations/visitors/paged', { page, size });
+    }
+    return this.listVisitors().pipe(map(all => sliceToPage(all, page, size)));
+  }
+
   checkInVisitor(body: { visitorName: string; phone?: string; purpose?: string; hostName?: string }): Observable<VisitorLogRow> {
     if (runtimeConfig.useMocks) {
       const row: VisitorLogRow = {
@@ -125,6 +143,13 @@ export class OperationsService {
     return this.api.get<GatePassRow[]>('/operations/gate-passes');
   }
 
+  listGatePassesPage(page = 0, size = DEFAULT_ERP_PAGE_SIZE): Observable<PageResp<GatePassRow>> {
+    if (!runtimeConfig.useMocks) {
+      return this.api.getPageParams<GatePassRow>('/operations/gate-passes/paged', { page, size });
+    }
+    return this.listGatePasses().pipe(map(all => sliceToPage(all, page, size)));
+  }
+
   createGatePass(body: Partial<GatePassRow> & { validFrom: string; validTo: string; issuedToName: string }): Observable<GatePassRow> {
     if (runtimeConfig.useMocks) {
       const row: GatePassRow = {
@@ -155,6 +180,15 @@ export class OperationsService {
     return this.api
       .get<InventoryRow[]>('/operations/inventory')
       .pipe(map(rows => (rows ?? []).map(r => this.normalizeInventoryRow(r))));
+  }
+
+  listInventoryPage(page = 0, size = DEFAULT_ERP_PAGE_SIZE): Observable<PageResp<InventoryRow>> {
+    if (!runtimeConfig.useMocks) {
+      return this.api.getPageParams<InventoryRow>('/operations/inventory/paged', { page, size }).pipe(
+        map(p => ({ ...p, content: p.content.map(r => this.normalizeInventoryRow(r)) }))
+      );
+    }
+    return this.listInventory().pipe(map(all => sliceToPage(all, page, size)));
   }
 
   upsertInventory(body: Partial<InventoryRow> & { sku: string; name: string }): Observable<InventoryRow> {
@@ -188,6 +222,21 @@ export class OperationsService {
     if (runtimeConfig.useMocks) return of([...this.mockRem]).pipe(delay(150));
     const q = status ? `?status=${encodeURIComponent(status)}` : '';
     return this.api.get<FeeReminderRow[]>(`/operations/fee-reminders${q}`);
+  }
+
+  listFeeRemindersPage(
+    page = 0,
+    size = DEFAULT_ERP_PAGE_SIZE,
+    status?: string
+  ): Observable<PageResp<FeeReminderRow>> {
+    if (!runtimeConfig.useMocks) {
+      return this.api.getPageParams<FeeReminderRow>('/operations/fee-reminders/paged', {
+        page,
+        size,
+        status: status?.trim() || undefined,
+      });
+    }
+    return this.listFeeReminders(status).pipe(map(all => sliceToPage(all, page, size)));
   }
 
   enqueueFeeReminder(body: { studentId: number; feePaymentId?: number; dueDate?: string; channel?: string }): Observable<FeeReminderRow> {

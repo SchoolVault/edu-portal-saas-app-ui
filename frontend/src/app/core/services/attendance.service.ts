@@ -3,7 +3,9 @@ import { Observable, of } from 'rxjs';
 import { delay, map } from 'rxjs/operators';
 import { seedInitialMockAttendanceRecords } from '../mocks/attendance.mock-data';
 import { AttendanceRecord, AttendanceStats } from '../models/models';
-import { ApiService } from './api.service';
+import { ApiService, PageResp } from './api.service';
+import { DEFAULT_ERP_PAGE_SIZE } from '../constants/pagination.constants';
+import { sliceToPage } from '../utils/paginate';
 import { runtimeConfig } from '../config/runtime-config';
 
 @Injectable({ providedIn: 'root' })
@@ -22,6 +24,23 @@ export class AttendanceService {
     }
     const filtered = this.records.filter(r => r.classId === classId && r.sectionId === sectionId && r.date === date);
     return of(filtered).pipe(delay(400));
+  }
+
+  getAttendanceByClassAndDatePage(
+    classId: number,
+    sectionId: number,
+    date: string,
+    page = 0,
+    size = DEFAULT_ERP_PAGE_SIZE
+  ): Observable<PageResp<AttendanceRecord>> {
+    if (!runtimeConfig.useMocks) {
+      return this.api
+        .getPageParams<any>('/attendance/paged', { classId, sectionId, date, page, size })
+        .pipe(map(p => ({ ...p, content: p.content.map(record => this.normalizeRecord(record)) })));
+    }
+    return this.getAttendanceByClassAndDate(classId, sectionId, date).pipe(
+      map(all => sliceToPage(all, page, size))
+    );
   }
 
   saveAttendance(records: AttendanceRecord[]): Observable<boolean> {

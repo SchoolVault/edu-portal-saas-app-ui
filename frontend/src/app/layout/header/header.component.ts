@@ -1,4 +1,4 @@
-import { Component, Input, Output, EventEmitter, OnInit, OnDestroy, HostListener } from '@angular/core';
+import { ChangeDetectorRef, Component, Input, Output, EventEmitter, OnInit, OnDestroy, HostListener } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router, NavigationEnd, RouterLink } from '@angular/router';
 import { Subject, merge, of } from 'rxjs';
@@ -238,7 +238,8 @@ export class HeaderComponent implements OnInit, OnDestroy {
     private platformHealthService: PlatformHealthService,
     private router: Router,
     private themeService: ThemeService,
-    private translate: TranslateService
+    private translate: TranslateService,
+    private cdr: ChangeDetectorRef
   ) {}
 
   ngOnInit(): void {
@@ -252,9 +253,16 @@ export class HeaderComponent implements OnInit, OnDestroy {
       this.themeService.applyStoredConsolePaletteIfSuperAdmin();
     }
 
-    this.notificationService.notifications$.subscribe(notifs => {
+    this.notificationService.notifications$.pipe(takeUntil(this.destroy$)).subscribe(notifs => {
       this.notifications = notifs;
-      this.unreadCount = notifs.filter(n => !n.read).length;
+      if (runtimeConfig.useMocks) {
+        this.unreadCount = notifs.filter(n => !n.read).length;
+      }
+    });
+    this.notificationService.unreadInboxTotal$.pipe(takeUntil(this.destroy$)).subscribe(total => {
+      if (!runtimeConfig.useMocks) {
+        this.unreadCount = total;
+      }
     });
     if (!runtimeConfig.useMocks) {
       this.notificationService.refreshFromServer().subscribe({ error: () => { /* not logged in or API down */ } });
@@ -330,6 +338,8 @@ export class HeaderComponent implements OnInit, OnDestroy {
       });
 
     this.pageTitleKey = this.getTitleKeyFromUrl(this.router.url);
+
+    this.translate.onLangChange.pipe(takeUntil(this.destroy$)).subscribe(() => this.cdr.markForCheck());
   }
 
   ngOnDestroy(): void {
@@ -399,6 +409,9 @@ export class HeaderComponent implements OnInit, OnDestroy {
   toggleNotifications(): void {
     this.showNotifications = !this.showNotifications;
     this.showProfile = false;
+    if (this.showNotifications && !runtimeConfig.useMocks) {
+      this.notificationService.refreshFromServer().subscribe({ error: () => {} });
+    }
   }
 
   toggleProfile(): void {

@@ -12,6 +12,7 @@ import { ProfilePhotoPickerComponent, ProfilePhotoPickEvent } from '../../shared
 import { ErpDatePickerComponent } from '../../shared/erp-date-picker/erp-date-picker.component';
 import { SubjectCatalogChipsComponent } from '../../shared/subject-catalog-chips/subject-catalog-chips.component';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
+import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directives';
 @Component({
   selector: 'app-teacher-form',
   standalone: true,
@@ -22,6 +23,7 @@ import { TranslateModule, TranslateService } from '@ngx-translate/core';
     ErpDatePickerComponent,
     SubjectCatalogChipsComponent,
     TranslateModule,
+    ErpI18nPhDirective,
   ],
   styles: [
     `
@@ -65,7 +67,7 @@ import { TranslateModule, TranslateService } from '@ngx-translate/core';
             <div class="col-md-4"><div class="erp-form-group"><label class="erp-label">{{ 'teachers.form.phone' | translate }}</label><input type="text" class="erp-input" [(ngModel)]="teacher.phone" name="phone"></div></div>
             <div class="col-md-4"><div class="erp-form-group"><label class="erp-label">{{ 'teachers.form.qualification' | translate }}</label><input type="text" class="erp-input" [(ngModel)]="teacher.qualification" name="qualification"></div></div>
             <div class="col-md-4"><div class="erp-form-group"><label class="erp-label">{{ 'teachers.form.specialization' | translate }}</label><input type="text" class="erp-input" [(ngModel)]="teacher.specialization" name="specialization"></div></div>
-            <div class="col-md-4"><div class="erp-form-group"><label class="erp-label">{{ 'teachers.form.joinDate' | translate }}</label><app-erp-date-picker [(ngModel)]="teacher.joinDate" name="joinDate" [placeholder]="'teachers.form.joinDatePh' | translate" /></div></div>
+            <div class="col-md-4"><div class="erp-form-group"><label class="erp-label">{{ 'teachers.form.joinDate' | translate }}</label><app-erp-date-picker [(ngModel)]="teacher.joinDate" name="joinDate" placeholderI18nKey="teachers.form.joinDatePh" /></div></div>
             <div class="col-md-4"><div class="erp-form-group"><label class="erp-label">{{ 'teachers.form.salary' | translate }}</label><input type="number" class="erp-input" [(ngModel)]="teacher.salary" name="salary"></div></div>
             <div class="col-12">
               <div class="erp-form-group">
@@ -87,7 +89,7 @@ import { TranslateModule, TranslateService } from '@ngx-translate/core';
             <div class="col-12">
               <div class="erp-form-group">
                 <label class="erp-label">{{ 'teachers.form.additionalSubjects' | translate }}</label>
-                <input type="text" class="erp-input" [(ngModel)]="additionalSubjectsRaw" name="additionalSubjects" [placeholder]="'teachers.form.additionalSubjectsPh' | translate">
+                <input type="text" class="erp-input" [(ngModel)]="additionalSubjectsRaw" name="additionalSubjects" erpI18nPh="teachers.form.additionalSubjectsPh">
                 <div class="small text-muted mt-1">{{ 'teachers.form.additionalSubjectsHelp' | translate }}</div>
               </div>
             </div>

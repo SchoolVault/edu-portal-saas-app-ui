@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { map } from 'rxjs/operators';
 import { runtimeConfig } from '../config/runtime-config';
@@ -44,6 +44,21 @@ export class ApiService {
 
   getPage<T>(path: string): Observable<PageResp<T>> {
     return this.http.get<ApiResp<PageResp<T>>>(`${this.baseUrl}${path}`).pipe(
+      map(res => {
+        if (!res.success) throw new Error(res.message);
+        return res.data;
+      })
+    );
+  }
+
+  /** Paged GET with query params (Spring {@code PageResponse} in {@code data}). */
+  getPageParams<T>(path: string, query: Record<string, string | number | boolean | undefined | null>): Observable<PageResp<T>> {
+    let params = new HttpParams();
+    for (const [key, value] of Object.entries(query)) {
+      if (value === undefined || value === null || value === '') continue;
+      params = params.set(key, String(value));
+    }
+    return this.http.get<ApiResp<PageResp<T>>>(`${this.baseUrl}${path}`, { params }).pipe(
       map(res => {
         if (!res.success) throw new Error(res.message);
         return res.data;

@@ -9,11 +9,27 @@ import { AuthService } from '../../core/services/auth.service';
 import { AcademicService } from '../../core/services/academic.service';
 import { Announcement, SchoolClass } from '../../core/models/models';
 import { SchoolClassNamePipe } from '../../core/i18n/school-class-name.pipe';
+import { ErpPaginationComponent } from '../../shared/erp-pagination/erp-pagination.component';
+import { ErpI18nPhDirective, ErpI18nTextDirective } from '../../shared/erp-i18n/erp-i18n-host.directives';
+import { debounceTime } from 'rxjs/operators';
+import { Subject, Subscription } from 'rxjs';
+import { sliceToPage } from '../../core/utils/paginate';
+import { DEFAULT_ERP_PAGE_SIZE } from '../../core/constants/pagination.constants';
+import { runtimeConfig } from '../../core/config/runtime-config';
 
 @Component({
   selector: 'app-communication',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterModule, TranslateModule, SchoolClassNamePipe],
+  imports: [
+    CommonModule,
+    FormsModule,
+    RouterModule,
+    TranslateModule,
+    SchoolClassNamePipe,
+    ErpPaginationComponent,
+    ErpI18nPhDirective,
+    ErpI18nTextDirective,
+  ],
   template: `
     <!-- Modal outside .animate-in: transform on parent breaks position:fixed (backdrop confined to box) -->
     <div data-testid="communication-page" class="communication-page-root">
@@ -36,11 +52,18 @@ import { SchoolClassNamePipe } from '../../core/i18n/school-class-name.pipe';
       </div>
 
       <div class="animate-in animate-in-delay-1">
-        <div *ngIf="announcements.length === 0" class="erp-card empty-inbox text-center py-5 text-muted">
+        <div *ngIf="annFilteredTotal === 0 && !annSearch" class="erp-card empty-inbox text-center py-5 text-muted">
           <i class="bi bi-megaphone" style="font-size: 2rem"></i>
           <p class="mt-2 mb-0">{{ 'inbox.empty' | translate }}</p>
         </div>
-        <div *ngFor="let a of announcements" class="erp-card mb-3 inbox-card" [attr.data-testid]="'announcement-' + a.id">
+        <div class="row g-2 align-items-end mb-3" *ngIf="annFilteredTotal > 0 || annSearch">
+          <div class="col-md-6">
+            <label class="erp-label small mb-1" erpI18nText="inbox.searchAnnouncements"></label>
+            <input type="search" class="erp-input" erpI18nPh="inbox.searchAnnouncementsPh" [(ngModel)]="annSearch" (ngModelChange)="onAnnSearchChange()" />
+          </div>
+        </div>
+        <p *ngIf="annFilteredTotal === 0 && annSearch" class="text-muted small mb-3">{{ 'inbox.noSearchMatches' | translate }}</p>
+        <div *ngFor="let a of pagedAnnouncements" class="erp-card mb-3 inbox-card" [attr.data-testid]="'announcement-' + a.id">
           <div class="d-flex justify-content-between align-items-start gap-2 mb-2">
             <h3 style="font-size: 16px; font-weight: 700; margin: 0;">{{ a.title }}</h3>
             <span class="badge-erp badge-info text-uppercase" style="font-size: 10px">{{ audienceLabel(a) }}</span>
@@ -56,6 +79,15 @@ import { SchoolClassNamePipe } from '../../core/i18n/school-class-name.pipe';
             </div>
           </div>
         </div>
+        <app-erp-pagination
+          *ngIf="annFilteredTotal > 0"
+          class="d-block"
+          [totalElements]="annFilteredTotal"
+          [pageIndex]="annPageIndex"
+          [pageSize]="annPageSize"
+          (pageIndexChange)="onAnnPageIndex($event)"
+          (pageSizeChange)="onAnnPageSize($event)"
+        />
       </div>
       </div>
 
@@ -124,7 +156,14 @@ import { SchoolClassNamePipe } from '../../core/i18n/school-class-name.pipe';
   ]
 })
 export class CommunicationComponent implements OnInit {
+  readonly useServerPaging = !runtimeConfig.useMocks;
+
   announcements: Announcement[] = [];
+  annSearch = '';
+  annPageIndex = 0;
+  annPageSize = DEFAULT_ERP_PAGE_SIZE;
+  pagedAnnouncements: Announcement[] = [];
+  annFilteredTotal = 0;
   showAnnouncementModal = false;
   annClasses: SchoolClass[] = [];
   annSections: { id: number; name: string }[] = [];
@@ -139,6 +178,9 @@ export class CommunicationComponent implements OnInit {
   private readonly translate = inject(TranslateService);
   private readonly cdr = inject(ChangeDetectorRef);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly annSearch$ = new Subject<void>();
+  private readonly subs = new Subscription();
+  private annReqSeq = 0;
 
   constructor(
     private comm: CommunicationService,
@@ -153,14 +195,89 @@ export class CommunicationComponent implements OnInit {
 
   ngOnInit(): void {
     this.translate.onLangChange.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => this.cdr.markForCheck());
+    this.subs.add(
+      this.annSearch$.pipe(debounceTime(300)).subscribe(() => {
+        if (!this.useServerPaging) return;
+        this.annPageIndex = 0;
+        this.fetchAnnPage();
+      })
+    );
+    this.destroyRef.onDestroy(() => this.subs.unsubscribe());
     this.loadAnnouncements();
     this.academic.getClasses().subscribe(list => (this.annClasses = list || []));
   }
 
   loadAnnouncements(): void {
+    if (this.useServerPaging) {
+      this.annPageIndex = 0;
+      this.fetchAnnPage();
+      return;
+    }
     this.comm.getAnnouncements().subscribe(list => {
       this.announcements = (list || []).map(a => this.normalizeAnnouncement(a));
+      this.annPageIndex = 0;
+      this.applyAnnPaging();
     });
+  }
+
+  private fetchAnnPage(): void {
+    const seq = ++this.annReqSeq;
+    this.comm
+      .getAnnouncementsPage({
+        page: this.annPageIndex,
+        size: this.annPageSize,
+        q: this.annSearch.trim() || undefined,
+      })
+      .subscribe(p => {
+        if (seq !== this.annReqSeq) return;
+        this.pagedAnnouncements = p.content;
+        this.annFilteredTotal = p.totalElements;
+        this.annPageIndex = p.page;
+        this.annPageSize = p.size;
+        this.cdr.markForCheck();
+      });
+  }
+
+  private filterAnnouncements(): Announcement[] {
+    const q = this.annSearch.trim().toLowerCase();
+    if (!q) {
+      return this.announcements;
+    }
+    return this.announcements.filter(
+      a =>
+        a.title.toLowerCase().includes(q) ||
+        (a.content || '').toLowerCase().includes(q) ||
+        (a.author || '').toLowerCase().includes(q)
+    );
+  }
+
+  applyAnnPaging(): void {
+    const pg = sliceToPage(this.filterAnnouncements(), this.annPageIndex, this.annPageSize);
+    this.pagedAnnouncements = pg.content;
+    this.annPageIndex = pg.page;
+    this.annFilteredTotal = pg.totalElements;
+  }
+
+  onAnnSearchChange(): void {
+    if (this.useServerPaging) {
+      this.annSearch$.next();
+    } else {
+      this.annPageIndex = 0;
+      this.applyAnnPaging();
+    }
+  }
+
+  onAnnPageIndex(i: number): void {
+    this.annPageIndex = i;
+    if (this.useServerPaging) this.fetchAnnPage();
+    else this.applyAnnPaging();
+  }
+
+  onAnnPageSize(s: number): void {
+    this.annPageSize = s;
+    this.annPageIndex = 0;
+    if (this.useServerPaging) this.fetchAnnPage();
+    else this.applyAnnPaging();
   }
 
   private normalizeAnnouncement(a: any): Announcement {

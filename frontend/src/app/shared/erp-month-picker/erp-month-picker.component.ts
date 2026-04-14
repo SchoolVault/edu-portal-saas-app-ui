@@ -1,13 +1,20 @@
 import {
   AfterViewInit,
+  ChangeDetectorRef,
   Component,
   ElementRef,
   forwardRef,
   Input,
+  OnChanges,
   OnDestroy,
+  OnInit,
+  SimpleChanges,
   ViewChild,
+  inject,
 } from '@angular/core';
 import { ControlValueAccessor, NG_VALUE_ACCESSOR } from '@angular/forms';
+import { TranslateService } from '@ngx-translate/core';
+import { Subscription } from 'rxjs';
 import flatpickr from 'flatpickr';
 import type { Instance as FlatpickrInstance } from 'flatpickr/dist/types/instance';
 import type { Options as FlatpickrOptions } from 'flatpickr/dist/types/options';
@@ -28,7 +35,7 @@ import monthSelectPlugin from 'flatpickr/dist/plugins/monthSelect/index.js';
       [attr.id]="inputId || null"
       [attr.name]="nameAttr || null"
       [attr.data-testid]="dataTestId || null"
-      [placeholder]="placeholder"
+      [placeholder]="displayPlaceholder"
       [disabled]="isDisabled"
       readonly
       autocomplete="off"
@@ -51,11 +58,15 @@ import monthSelectPlugin from 'flatpickr/dist/plugins/monthSelect/index.js';
     },
   ],
 })
-export class ErpMonthPickerComponent implements ControlValueAccessor, AfterViewInit, OnDestroy {
+export class ErpMonthPickerComponent
+  implements ControlValueAccessor, AfterViewInit, OnDestroy, OnInit, OnChanges
+{
   @Input() inputId = '';
   @Input() nameAttr = '';
   @Input() dataTestId = '';
   @Input() placeholder = '';
+  /** When set, resolved with TranslateService and kept in sync on lang / bundle changes. */
+  @Input() placeholderI18nKey = '';
   /** Inclusive max month `YYYY-MM` (e.g. current month). */
   @Input() maxYm: string | undefined;
   /** Inclusive min month `YYYY-MM` (optional). */
@@ -63,11 +74,29 @@ export class ErpMonthPickerComponent implements ControlValueAccessor, AfterViewI
 
   @ViewChild('host', { static: true }) hostRef!: ElementRef<HTMLInputElement>;
 
+  displayPlaceholder = '';
+
   isDisabled = false;
   private fp: FlatpickrInstance | null = null;
   private value = '';
   private onChange: (v: string) => void = () => void 0;
   private onTouched: () => void = () => void 0;
+
+  private readonly translate = inject(TranslateService);
+  private readonly cdr = inject(ChangeDetectorRef);
+  private langSubs = new Subscription();
+
+  ngOnInit(): void {
+    this.refreshDisplayPlaceholder();
+    this.langSubs.add(this.translate.onLangChange.subscribe(() => this.refreshDisplayPlaceholder()));
+    this.langSubs.add(this.translate.onTranslationChange.subscribe(() => this.refreshDisplayPlaceholder()));
+  }
+
+  ngOnChanges(changes: SimpleChanges): void {
+    if (changes['placeholder'] || changes['placeholderI18nKey']) {
+      this.refreshDisplayPlaceholder();
+    }
+  }
 
   ngAfterViewInit(): void {
     const el = this.hostRef.nativeElement;
@@ -103,9 +132,11 @@ export class ErpMonthPickerComponent implements ControlValueAccessor, AfterViewI
       },
     };
     this.fp = flatpickr(el, opts);
+    this.syncFlatpickrPlaceholders();
   }
 
   ngOnDestroy(): void {
+    this.langSubs.unsubscribe();
     this.fp?.destroy();
     this.fp = null;
   }
@@ -149,6 +180,22 @@ export class ErpMonthPickerComponent implements ControlValueAccessor, AfterViewI
       alt.toggleAttribute('disabled', isDisabled);
       alt.classList.toggle('erp-month-picker--disabled', isDisabled);
     }
+  }
+
+  private refreshDisplayPlaceholder(): void {
+    const k = (this.placeholderI18nKey || '').trim();
+    this.displayPlaceholder = k ? this.translate.instant(k) : this.placeholder;
+    this.cdr.markForCheck();
+    this.syncFlatpickrPlaceholders();
+  }
+
+  private syncFlatpickrPlaceholders(): void {
+    if (!this.fp) return;
+    const ph = this.displayPlaceholder;
+    const main = this.fp.input;
+    if (main) main.setAttribute('placeholder', ph);
+    const alt = this.fp.altInput;
+    if (alt) alt.setAttribute('placeholder', ph);
   }
 
   private parseYmToDate(ym: string): Date | null {

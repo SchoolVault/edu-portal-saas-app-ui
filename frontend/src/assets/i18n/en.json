@@ -4,6 +4,91 @@
     "en": "English",
     "hi": "हिन्दी"
   },
+  "pagination": {
+    "showing": "Showing {{from}}–{{to}} of {{total}}",
+    "perPage": "Rows",
+    "prev": "Previous page",
+    "next": "Next page",
+    "navAria": "Table pagination"
+  },
+  "platformSchools": {
+    "badge": "Platform",
+    "pageTitle": "School directory",
+    "lead": "Operate each workspace: metrics, campus admins, suspension, and irreversible tenant data removal (async job).",
+    "backOverview": "Platform overview",
+    "workspaces": "Workspaces",
+    "schoolsCount": "{{count}} schools",
+    "search": "Search workspaces",
+    "searchPh": "Filter by name or code",
+    "thSchool": "School",
+    "thRollup": "Roll-up",
+    "thStatus": "Status",
+    "rollup": "{{stu}} stu · {{tch}} tch · {{adm}} adm",
+    "active": "Active",
+    "suspended": "Suspended",
+    "loadError": "Could not load schools."
+  },
+  "notificationDetail": {
+    "back": "← Back to dashboard",
+    "openLink": "Open link",
+    "notFound": "Notification not found or you do not have access.",
+    "loading": "Loading…"
+  },
+  "superAdmin": {
+    "badge": "Platform Control Plane",
+    "title": "Super Admin Console",
+    "lead": "Portfolio-wide visibility across schools, admins, and platform health.",
+    "schoolDirectory": "School directory",
+    "refresh": "Refresh",
+    "refreshing": "Refreshing…",
+    "cards": {
+      "totalSchools": "Total Schools",
+      "totalSchoolsSub": "{{count}} active workspaces",
+      "students": "Students Managed",
+      "studentsSub": "Cross-tenant enrolment footprint",
+      "teachers": "Teachers Managed",
+      "teachersSub": "Faculty accounts under platform governance",
+      "admins": "Campus Admins",
+      "adminsSub": "Operational admins across tenants"
+    },
+    "charts": {
+      "schoolGrowth": "School Growth",
+      "revenueTrend": "Revenue Trend",
+      "datasetNewSchools": "New Schools",
+      "datasetMrr": "MRR"
+    },
+    "portfolio": {
+      "title": "School Portfolio",
+      "subtitle": "Operational view across all school workspaces (server-paged)",
+      "search": "Search schools",
+      "searchPh": "Filter by name or code",
+      "thSchool": "School",
+      "thStudents": "Students",
+      "thTeachers": "Teachers",
+      "thAdmins": "Admins",
+      "thStatus": "Status"
+    },
+    "noAddress": "No address",
+    "status": {
+      "active": "Active",
+      "attention": "Attention"
+    },
+    "admins": {
+      "title": "School Admins",
+      "selectPrompt": "Select a school",
+      "emptyTitle": "Select a school",
+      "emptyLead": "Admin access and operational context will appear here.",
+      "snapshotLabel": "Operational Snapshot",
+      "snapshotStudents": "{{count}} students",
+      "snapshotSub": "{{teachers}} teachers · {{admins}} admins · {{phone}}",
+      "noPhone": "No phone",
+      "suspend": "Suspend",
+      "activate": "Activate"
+    },
+    "activity": {
+      "title": "Recent Platform Activity"
+    }
+  },
   "nav": {
     "footerTagline": "Multi-tenant SaaS ERP",
     "section": {
@@ -813,6 +898,9 @@
     "countPresent": "Present: {{count}}",
     "countAbsent": "Absent: {{count}}",
     "countLate": "Late: {{count}}",
+    "searchStudent": "Find a student in this list",
+    "searchStudentPh": "Start typing a student name to jump to them…",
+    "noSearchMatches": "No students match your search.",
     "thNum": "#",
     "thStudent": "Student",
     "thStatus": "Status",
@@ -971,6 +1059,8 @@
     "leadParentStrong5": "Upcoming",
     "leadParentTail": " exams are listed but stay closed until the cycle starts.",
     "refresh": "Refresh",
+    "listSearch": "Search exams",
+    "listSearchPh": "Exam name…",
     "createExam": "Create exam",
     "labelChild": "Child",
     "selectChild": "Select a child…",
@@ -1006,6 +1096,13 @@
     "marksSaving": "Saving…",
     "saveMarks": "Save marks",
     "recordedResults": "Recorded results",
+    "searchRecorded": "Filter recorded marks",
+    "searchRecordedPh": "Student name or subject…",
+    "searchMarksEntry": "Find students to enter marks",
+    "searchMarksEntryPh": "Name or roll number…",
+    "searchParentResults": "Find a subject in results",
+    "searchParentResultsPh": "Subject name…",
+    "noMatches": "No rows match your search.",
     "parentTimetableLead": "Published papers for this exam (read-only).",
     "thDate": "Date",
     "thStart": "Start",
@@ -1084,6 +1181,8 @@
     "thDueDate": "Due date",
     "thStatus": "Status",
     "thReceipt": "Receipt",
+    "searchPaymentsPlaceholder": "Search by student name…",
+    "emptyPayments": "No payments match your filters.",
     "yearPrefix": "Year",
     "modalEditTitle": "Edit fee structure",
     "modalNewTitle": "New fee structure",
@@ -1162,6 +1261,9 @@
     "refresh": "Refresh",
     "newAnnouncement": "New announcement",
     "empty": "No announcements yet.",
+    "searchAnnouncements": "Search notices",
+    "searchAnnouncementsPh": "Title, message, or author name…",
+    "noSearchMatches": "No announcements match your search.",
     "openFullNotice": "Open full notice",
     "modalTitle": "Publish announcement",
     "labelTitle": "Title",
@@ -1247,7 +1349,17 @@
     "parentDirectoryLabel": "Parent · {{name}}",
     "typeDirect": "Direct",
     "typeGroup": "Group",
-    "threadSep": " · "
+    "threadSep": " · ",
+    "counterpartRoleParent": "Parent",
+    "counterpartRoleTeacher": "Teacher",
+    "counterpartRoleAdmin": "Administrator",
+    "counterpartRoleSuperAdmin": "Platform admin",
+    "counterpartRoleLibraryStaff": "Library staff",
+    "counterpartRoleStudent": "Student",
+    "counterpartRoleGeneric": "{{role}}",
+    "threadChildWithClass": "{{name}} ({{cls}})",
+    "threadListSep": ", ",
+    "threadMoreChildren": "+{{n}} more"
   },
   "leave": {
     "pageTitle": "Leave",
@@ -1296,6 +1408,11 @@
     "placeholderTo": "To",
     "submitRequest": "Submit request",
     "myRequests": "My requests",
+    "searchMine": "Filter my requests",
+    "searchMinePh": "Leave type, dates, or words from your reason…",
+    "searchTeam": "Filter team requests",
+    "searchTeamPh": "Applicant id, role, type, status, or dates…",
+    "noMatches": "No requests match your search.",
     "emptyMine": "No requests yet.",
     "teamTitle": "All requests (team)",
     "emptyAll": "No requests in the system.",
@@ -1399,6 +1516,31 @@
   "reports": {
     "pageTitle": "Reports & Analytics",
     "lead": "Live operational reporting across performance, attendance, fees, classes, teachers, and report cards",
+    "searchRows": "Search table",
+    "searchStudentPh": "Student name…",
+    "searchFeePh": "Student, class, or status…",
+    "searchClassPh": "Class or teacher…",
+    "searchSectionPh": "Class or section…",
+    "searchTeacherPh": "Teacher, subject, or specialization…",
+    "searchSubjects": "Search subjects",
+    "searchSubjectsPh": "Subject name…",
+    "noMatches": "No rows match your search.",
+    "filter": {
+      "performance": "Find a student in this list",
+      "performancePh": "Start typing a student name to filter rows…",
+      "attendance": "Find a student in this summary",
+      "attendancePh": "Start typing a student name to filter rows…",
+      "fees": "Filter fee payments",
+      "feesPh": "Student name, class, or status (e.g. unpaid)…",
+      "class": "Filter class rows",
+      "classPh": "Class name or class teacher…",
+      "section": "Filter sections",
+      "sectionPh": "Class or section name…",
+      "teacher": "Filter teachers",
+      "teacherPh": "Teacher name, subject, or specialization…",
+      "reportCardSubjects": "Find a subject on this card",
+      "reportCardSubjectsPh": "Start typing a subject name…"
+    },
     "refresh": "Refresh",
     "tab": {
       "performance": "Student performance",
@@ -1558,6 +1700,7 @@
     "lead": "Track all system actions",
     "refresh": "Refresh",
     "export": "Export",
+    "searchPlaceholder": "Search description, user, or module…",
     "filterAllActions": "All actions",
     "filterAllModules": "All modules",
     "action": {
@@ -1725,7 +1868,13 @@
       "thChannel": "Channel",
       "thScheduled": "Scheduled",
       "emptyPending": "No pending fee balances in the current fee ledger.",
-      "emptyQueue": "No rows in the queue yet. Open this tab again to run the mock auto-scheduler for dues within 14 days."
+      "emptyQueue": "No rows in the queue yet. Open this tab again to run the mock auto-scheduler for dues within 14 days.",
+      "searchOutstanding": "Filter outstanding balances",
+      "searchOutstandingPh": "Student name, id, or status…",
+      "searchQueue": "Filter reminder queue",
+      "searchQueuePh": "Student name, id, channel, or status…",
+      "noOutstandingMatches": "No balances match your search.",
+      "noQueueMatches": "No reminders match your search."
     },
     "payroll": {
       "title": "Payroll accrual (stub)",
@@ -1815,6 +1964,8 @@
   "transport": {
     "pageTitle": "Transport",
     "lead": "Routes, fleet, drivers, ordered stops, assignments, and live map",
+    "listSearch": "Search routes",
+    "listSearchPh": "Filter by route name",
     "refresh": "Refresh",
     "addRoute": "Add route",
     "liveVehicles": "Live vehicles",

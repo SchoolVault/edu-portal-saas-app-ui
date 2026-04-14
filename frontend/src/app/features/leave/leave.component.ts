@@ -3,6 +3,8 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
+import { debounceTime } from 'rxjs/operators';
+import { Subject, Subscription } from 'rxjs';
 import { LeaveBalanceSummary, LeaveDayUnit, LeaveRequestRow, LeaveService } from '../../core/services/leave.service';
 import {
   LEAVE_OTHER_REASON_MIN_LEN,
@@ -13,11 +15,24 @@ import {
 import { resolveLeaveSubmitError } from '../../core/leave/leave-api.error';
 import { AuthService } from '../../core/services/auth.service';
 import { ErpDatePickerComponent } from '../../shared/erp-date-picker/erp-date-picker.component';
+import { ErpPaginationComponent } from '../../shared/erp-pagination/erp-pagination.component';
+import { ErpI18nPhDirective, ErpI18nTextDirective } from '../../shared/erp-i18n/erp-i18n-host.directives';
+import { sliceToPage } from '../../core/utils/paginate';
+import { DEFAULT_ERP_PAGE_SIZE } from '../../core/constants/pagination.constants';
+import { runtimeConfig } from '../../core/config/runtime-config';
 
 @Component({
   selector: 'app-leave',
   standalone: true,
-  imports: [CommonModule, FormsModule, ErpDatePickerComponent, TranslateModule],
+  imports: [
+    CommonModule,
+    FormsModule,
+    ErpDatePickerComponent,
+    ErpPaginationComponent,
+    TranslateModule,
+    ErpI18nPhDirective,
+    ErpI18nTextDirective,
+  ],
   template: `
     <div class="animate-in leave-page">
       <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-1">
@@ -78,11 +93,11 @@ import { ErpDatePickerComponent } from '../../shared/erp-date-picker/erp-date-pi
           </div>
           <div class="col-md-4">
             <label class="erp-label">{{ 'leave.labelFrom' | translate }}</label>
-            <app-erp-date-picker [(ngModel)]="form.startDate" [placeholder]="'leave.placeholderFrom' | translate" />
+            <app-erp-date-picker [(ngModel)]="form.startDate" placeholderI18nKey="leave.placeholderFrom" />
           </div>
           <div class="col-md-4">
             <label class="erp-label">{{ 'leave.labelTo' | translate }}</label>
-            <app-erp-date-picker [(ngModel)]="form.endDate" [placeholder]="'leave.placeholderTo' | translate" />
+            <app-erp-date-picker [(ngModel)]="form.endDate" placeholderI18nKey="leave.placeholderTo" />
           </div>
           <div class="col-12">
             <label class="erp-label">{{ 'leave.labelReason' | translate }}</label>
@@ -99,8 +114,15 @@ import { ErpDatePickerComponent } from '../../shared/erp-date-picker/erp-date-pi
       </div>
 
       <h3 style="font-size: 16px; font-weight: 700;">{{ 'leave.myRequests' | translate }}</h3>
-      <p *ngIf="!mine.length" class="text-muted small">{{ 'leave.emptyMine' | translate }}</p>
-      <div *ngFor="let r of mine" class="erp-card mb-2">
+      <div class="row g-2 align-items-end mb-2" *ngIf="mineFilteredTotal > 0 || mineSearch">
+        <div class="col-md-6">
+          <label class="erp-label small mb-1" erpI18nText="leave.searchMine"></label>
+          <input type="search" class="erp-input" erpI18nPh="leave.searchMinePh" [(ngModel)]="mineSearch" (ngModelChange)="onMineSearchChange()" />
+        </div>
+      </div>
+      <p *ngIf="mineFilteredTotal === 0 && !mineSearch" class="text-muted small">{{ 'leave.emptyMine' | translate }}</p>
+      <p *ngIf="mineFilteredTotal === 0 && mineSearch" class="text-muted small">{{ 'leave.noMatches' | translate }}</p>
+      <div *ngFor="let r of pagedMine" class="erp-card mb-2">
         <div class="d-flex justify-content-between flex-wrap gap-2">
           <span class="fw-semibold">{{ leaveTypeLabel(r.leaveType) }}</span>
           <span class="badge-erp" [class.badge-info]="r.status === 'PENDING'" [class.badge-success]="r.status === 'APPROVED'" [class.badge-danger]="r.status === 'REJECTED'" [class.badge-neutral]="r.status === 'CANCELLED'">{{ leaveStatusLabel(r.status) }}</span>
@@ -109,11 +131,27 @@ import { ErpDatePickerComponent } from '../../shared/erp-date-picker/erp-date-pi
         <div *ngIf="r.reason" class="small mt-1">{{ r.reason }}</div>
         <div *ngIf="r.approverRemarks" class="small text-muted mt-1">{{ 'leave.approverLabel' | translate }}: {{ r.approverRemarks }}</div>
       </div>
+      <app-erp-pagination
+        *ngIf="mineFilteredTotal > 0"
+        class="d-block mt-2"
+        [totalElements]="mineFilteredTotal"
+        [pageIndex]="minePageIndex"
+        [pageSize]="minePageSize"
+        (pageIndexChange)="onMinePageIndex($event)"
+        (pageSizeChange)="onMinePageSize($event)"
+      />
 
       <ng-container *ngIf="canSeeDirectory">
         <h3 class="mt-4" style="font-size: 16px; font-weight: 700;">{{ 'leave.teamTitle' | translate }}</h3>
-        <p *ngIf="!all.length" class="text-muted small">{{ 'leave.emptyAll' | translate }}</p>
-        <div *ngFor="let r of all" class="erp-card mb-2">
+        <div class="row g-2 align-items-end mb-2" *ngIf="allFilteredTotal > 0 || allSearch">
+          <div class="col-md-6">
+            <label class="erp-label small mb-1" erpI18nText="leave.searchTeam"></label>
+            <input type="search" class="erp-input" erpI18nPh="leave.searchTeamPh" [(ngModel)]="allSearch" (ngModelChange)="onAllSearchChange()" />
+          </div>
+        </div>
+        <p *ngIf="allFilteredTotal === 0 && !allSearch" class="text-muted small">{{ 'leave.emptyAll' | translate }}</p>
+        <p *ngIf="allFilteredTotal === 0 && allSearch" class="text-muted small">{{ 'leave.noMatches' | translate }}</p>
+        <div *ngFor="let r of pagedAll" class="erp-card mb-2">
           <div class="d-flex justify-content-between flex-wrap gap-2">
             <div>
               <span class="fw-semibold">{{ leaveTypeLabel(r.leaveType) }}</span>
@@ -127,6 +165,15 @@ import { ErpDatePickerComponent } from '../../shared/erp-date-picker/erp-date-pi
             <button type="button" class="btn-outline-erp btn-sm" (click)="decide(r, false)">{{ 'leave.reject' | translate }}</button>
           </div>
         </div>
+        <app-erp-pagination
+          *ngIf="allFilteredTotal > 0"
+          class="d-block mt-2"
+          [totalElements]="allFilteredTotal"
+          [pageIndex]="allPageIndex"
+          [pageSize]="allPageSize"
+          (pageIndexChange)="onAllPageIndex($event)"
+          (pageSizeChange)="onAllPageSize($event)"
+        />
       </ng-container>
     </div>
   `,
@@ -144,6 +191,8 @@ import { ErpDatePickerComponent } from '../../shared/erp-date-picker/erp-date-pi
   ]
 })
 export class LeaveComponent implements OnInit {
+  readonly useServerPaging = !runtimeConfig.useMocks;
+
   form = {
     leaveType: '',
     startDate: '',
@@ -153,6 +202,16 @@ export class LeaveComponent implements OnInit {
   };
   mine: LeaveRequestRow[] = [];
   all: LeaveRequestRow[] = [];
+  mineSearch = '';
+  allSearch = '';
+  minePageIndex = 0;
+  minePageSize = DEFAULT_ERP_PAGE_SIZE;
+  allPageIndex = 0;
+  allPageSize = DEFAULT_ERP_PAGE_SIZE;
+  pagedMine: LeaveRequestRow[] = [];
+  pagedAll: LeaveRequestRow[] = [];
+  mineFilteredTotal = 0;
+  allFilteredTotal = 0;
   balance: LeaveBalanceSummary | null = null;
   submitError = '';
   readonly otherReasonMin = LEAVE_OTHER_REASON_MIN_LEN;
@@ -160,6 +219,11 @@ export class LeaveComponent implements OnInit {
   private readonly translate = inject(TranslateService);
   private readonly cdr = inject(ChangeDetectorRef);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly mineSearch$ = new Subject<void>();
+  private readonly allSearch$ = new Subject<void>();
+  private readonly subs = new Subscription();
+  private mineReqSeq = 0;
+  private allReqSeq = 0;
 
   constructor(
     private leave: LeaveService,
@@ -187,6 +251,21 @@ export class LeaveComponent implements OnInit {
 
   ngOnInit(): void {
     this.translate.onLangChange.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => this.cdr.markForCheck());
+    this.subs.add(
+      this.mineSearch$.pipe(debounceTime(300)).subscribe(() => {
+        if (!this.useServerPaging) return;
+        this.minePageIndex = 0;
+        this.fetchMinePage();
+      })
+    );
+    this.subs.add(
+      this.allSearch$.pipe(debounceTime(300)).subscribe(() => {
+        if (!this.useServerPaging) return;
+        this.allPageIndex = 0;
+        this.fetchAllPage();
+      })
+    );
+    this.destroyRef.onDestroy(() => this.subs.unsubscribe());
     this.refresh();
   }
 
@@ -213,13 +292,152 @@ export class LeaveComponent implements OnInit {
   }
 
   refresh(): void {
-    this.leave.listMine().subscribe(x => (this.mine = x || []));
     this.leave.getBalance().subscribe(b => (this.balance = b));
+    if (this.useServerPaging) {
+      this.minePageIndex = 0;
+      this.fetchMinePage();
+      if (this.canSeeDirectory) {
+        this.allPageIndex = 0;
+        this.fetchAllPage();
+      } else {
+        this.pagedAll = [];
+        this.allFilteredTotal = 0;
+      }
+      return;
+    }
+    this.leave.listMine().subscribe(x => {
+      this.mine = x || [];
+      this.minePageIndex = 0;
+      this.applyMinePaging();
+    });
     if (this.canSeeDirectory) {
-      this.leave.listAll().subscribe(x => (this.all = x || []));
+      this.leave.listAll().subscribe(x => {
+        this.all = x || [];
+        this.allPageIndex = 0;
+        this.applyAllPaging();
+      });
     } else {
       this.all = [];
+      this.pagedAll = [];
+      this.allFilteredTotal = 0;
     }
+  }
+
+  private fetchMinePage(): void {
+    const seq = ++this.mineReqSeq;
+    this.leave
+      .listMinePaged({ page: this.minePageIndex, size: this.minePageSize, q: this.mineSearch.trim() || undefined })
+      .subscribe(p => {
+        if (seq !== this.mineReqSeq) return;
+        this.pagedMine = p.content;
+        this.mineFilteredTotal = p.totalElements;
+        this.minePageIndex = p.page;
+        this.minePageSize = p.size;
+        this.cdr.markForCheck();
+      });
+  }
+
+  private fetchAllPage(): void {
+    const seq = ++this.allReqSeq;
+    this.leave
+      .listAllPaged({ page: this.allPageIndex, size: this.allPageSize, q: this.allSearch.trim() || undefined })
+      .subscribe(p => {
+        if (seq !== this.allReqSeq) return;
+        this.pagedAll = p.content;
+        this.allFilteredTotal = p.totalElements;
+        this.allPageIndex = p.page;
+        this.allPageSize = p.size;
+        this.cdr.markForCheck();
+      });
+  }
+
+  private leaveRowHaystack(r: LeaveRequestRow): string {
+    return [
+      r.leaveType,
+      r.reason,
+      r.startDate,
+      r.endDate,
+      r.status,
+      String(r.applicantUserId),
+      r.applicantRole,
+    ]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase();
+  }
+
+  private filterMine(): LeaveRequestRow[] {
+    const q = this.mineSearch.trim().toLowerCase();
+    if (!q) {
+      return this.mine;
+    }
+    return this.mine.filter(r => this.leaveRowHaystack(r).includes(q));
+  }
+
+  private filterAll(): LeaveRequestRow[] {
+    const q = this.allSearch.trim().toLowerCase();
+    if (!q) {
+      return this.all;
+    }
+    return this.all.filter(r => this.leaveRowHaystack(r).includes(q));
+  }
+
+  applyMinePaging(): void {
+    const pg = sliceToPage(this.filterMine(), this.minePageIndex, this.minePageSize);
+    this.pagedMine = pg.content;
+    this.minePageIndex = pg.page;
+    this.mineFilteredTotal = pg.totalElements;
+  }
+
+  applyAllPaging(): void {
+    const pg = sliceToPage(this.filterAll(), this.allPageIndex, this.allPageSize);
+    this.pagedAll = pg.content;
+    this.allPageIndex = pg.page;
+    this.allFilteredTotal = pg.totalElements;
+  }
+
+  onMineSearchChange(): void {
+    if (this.useServerPaging) {
+      this.mineSearch$.next();
+    } else {
+      this.minePageIndex = 0;
+      this.applyMinePaging();
+    }
+  }
+
+  onAllSearchChange(): void {
+    if (this.useServerPaging) {
+      this.allSearch$.next();
+    } else {
+      this.allPageIndex = 0;
+      this.applyAllPaging();
+    }
+  }
+
+  onMinePageIndex(i: number): void {
+    this.minePageIndex = i;
+    if (this.useServerPaging) this.fetchMinePage();
+    else this.applyMinePaging();
+  }
+
+  onMinePageSize(s: number): void {
+    this.minePageSize = s;
+    this.minePageIndex = 0;
+    if (this.useServerPaging) this.fetchMinePage();
+    else this.applyMinePaging();
+  }
+
+  onAllPageIndex(i: number): void {
+    this.allPageIndex = i;
+    if (this.useServerPaging) this.fetchAllPage();
+    else this.applyAllPaging();
+  }
+
+  onAllPageSize(s: number): void {
+    this.allPageSize = s;
+    this.allPageIndex = 0;
+    if (this.useServerPaging) this.fetchAllPage();
+    else this.applyAllPaging();
   }
 
   submit(): void {

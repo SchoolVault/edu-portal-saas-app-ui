@@ -11,7 +11,62 @@ import {
 import { ApiService } from './api.service';
 import { getStompBrokerUrl, runtimeConfig } from '../config/runtime-config';
 import { AuthService } from './auth.service';
-import { ChatCreateConversationRequest, ChatDirectoryResponse, ChatInboxConversation, ChatMessage } from '../models/models';
+import {
+  ChatCounterpartInsight,
+  ChatCreateConversationRequest,
+  ChatDirectoryResponse,
+  ChatInboxConversation,
+  ChatMessage,
+} from '../models/models';
+
+function mapCounterpartInsight(raw: any): ChatCounterpartInsight | undefined {
+  if (!raw || typeof raw !== 'object') {
+    return undefined;
+  }
+  const students = Array.isArray(raw.linkedStudents)
+    ? raw.linkedStudents.map((s: any) => ({
+        studentId: Number(s.studentId),
+        studentName: String(s.studentName ?? ''),
+        classShort: s.classShort != null ? String(s.classShort) : undefined,
+      }))
+    : undefined;
+  let roleCode = String(raw.roleCode ?? '').trim().toUpperCase();
+  if (!roleCode && students?.length) {
+    roleCode = 'PARENT';
+  }
+  if (!roleCode) {
+    return undefined;
+  }
+  const out: ChatCounterpartInsight = {
+    roleCode,
+  };
+  if (students?.length) {
+    out.linkedStudents = students;
+  }
+  if (raw.linkedStudentTotal != null) {
+    out.linkedStudentTotal = Number(raw.linkedStudentTotal);
+  }
+  return out;
+}
+
+function mapChatInboxFromApi(item: any): ChatInboxConversation {
+  return {
+    conversationId: String(item.conversationId),
+    type: item.type,
+    subject: item.subject ?? undefined,
+    contextType: item.contextType ?? undefined,
+    contextId: item.contextId != null ? String(item.contextId) : undefined,
+    lastMessageAt: item.lastMessageAt ?? undefined,
+    lastMessagePreview: item.lastMessagePreview ?? undefined,
+    participants: (item.participants ?? []).map((p: any) => ({
+      userId: Number(p.userId),
+      userRole: p.userRole,
+      displayName: p.displayName ?? undefined,
+    })),
+    unreadCount: Number(item.unreadCount ?? 0),
+    counterpartInsight: mapCounterpartInsight(item.counterpartInsight),
+  };
+}
 
 @Injectable({ providedIn: 'root' })
 export class ChatService implements OnDestroy {
@@ -45,23 +100,7 @@ export class ChatService implements OnDestroy {
       return of(this.mockConversations).pipe(delay(150), tap(items => this.inboxSubject.next(items)));
     }
     return this.api.get<any[]>('/chat/inbox').pipe(
-      map(items =>
-        (items ?? []).map(item => ({
-          conversationId: String(item.conversationId),
-          type: item.type,
-          subject: item.subject ?? undefined,
-          contextType: item.contextType ?? undefined,
-          contextId: item.contextId != null ? String(item.contextId) : undefined,
-          lastMessageAt: item.lastMessageAt ?? undefined,
-          lastMessagePreview: item.lastMessagePreview ?? undefined,
-          participants: (item.participants ?? []).map((p: any) => ({
-            userId: Number(p.userId),
-            userRole: p.userRole,
-            displayName: p.displayName ?? undefined
-          })),
-          unreadCount: Number(item.unreadCount ?? 0)
-        })) as ChatInboxConversation[]
-      ),
+      map(items => (items ?? []).map(item => mapChatInboxFromApi(item))),
       tap(items => this.inboxSubject.next(items))
     );
   }
@@ -124,7 +163,19 @@ export class ChatService implements OnDestroy {
             : undefined
         })),
         teachers: (item.teachers ?? []).map((u: any) => ({ userId: Number(u.userId), name: u.name, role: u.role })),
-        parents: (item.parents ?? []).map((u: any) => ({ userId: Number(u.userId), name: u.name, role: u.role }))
+        parents: (item.parents ?? []).map((u: any) => ({
+          userId: Number(u.userId),
+          name: u.name,
+          role: u.role,
+          linkedStudents: Array.isArray(u.linkedStudents)
+            ? u.linkedStudents.map((s: any) => ({
+                studentId: Number(s.studentId),
+                studentName: String(s.studentName ?? ''),
+                classShort: s.classShort != null ? String(s.classShort) : undefined,
+              }))
+            : undefined,
+          linkedStudentTotal: u.linkedStudentTotal != null ? Number(u.linkedStudentTotal) : undefined,
+        }))
       }) as ChatDirectoryResponse)
     );
   }
@@ -164,20 +215,7 @@ export class ChatService implements OnDestroy {
       contextType: req.contextType,
       contextId: req.contextId != null ? Number(req.contextId) : null,
       participants: req.participants.map(p => ({ userId: Number(p.userId), userRole: p.userRole, displayName: p.displayName }))
-    }).pipe(
-      map(item => ({
-        conversationId: String(item.conversationId),
-        type: item.type,
-        subject: item.subject ?? undefined,
-        contextType: item.contextType ?? undefined,
-        contextId: item.contextId != null ? String(item.contextId) : undefined,
-        lastMessageAt: item.lastMessageAt ?? undefined,
-        lastMessagePreview: item.lastMessagePreview ?? undefined,
-        participants: (item.participants ?? []).map((p: any) => ({ userId: Number(p.userId), userRole: p.userRole, displayName: p.displayName ?? undefined })),
-        unreadCount: Number(item.unreadCount ?? 0)
-      }) as ChatInboxConversation
-      )
-    );
+    }).pipe(map(item => mapChatInboxFromApi(item)));
   }
 
   loadMessages(conversationId: string, page = 0, size = 50): Observable<ChatMessage[]> {
@@ -279,17 +317,7 @@ export class ChatService implements OnDestroy {
         client.subscribe('/user/queue/chat.inbox', (msg: IMessage) => {
           try {
             const item = JSON.parse(msg.body);
-            const conv: ChatInboxConversation = {
-              conversationId: String(item.conversationId),
-              type: item.type,
-              subject: item.subject ?? undefined,
-              contextType: item.contextType ?? undefined,
-              contextId: item.contextId != null ? String(item.contextId) : undefined,
-              lastMessageAt: item.lastMessageAt ?? undefined,
-              lastMessagePreview: item.lastMessagePreview ?? undefined,
-              participants: (item.participants ?? []).map((p: any) => ({ userId: Number(p.userId), userRole: p.userRole, displayName: p.displayName ?? undefined })),
-              unreadCount: Number(item.unreadCount ?? 0)
-            };
+            const conv = mapChatInboxFromApi(item);
             const current = this.inboxSubject.getValue();
             const merged = [conv, ...current.filter(c => c.conversationId !== conv.conversationId)];
             this.inboxSubject.next(merged);

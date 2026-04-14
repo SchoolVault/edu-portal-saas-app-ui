@@ -1,10 +1,12 @@
 import { Injectable } from '@angular/core';
 import { Observable, of } from 'rxjs';
-import { map } from 'rxjs/operators';
+import { delay, map } from 'rxjs/operators';
 import { MOCK_DOCUMENTS_LIST } from '../mocks/documents.mock-data';
 import { DocumentRecord } from '../models/models';
-import { ApiService } from './api.service';
+import { ApiService, PageResp } from './api.service';
 import { runtimeConfig } from '../config/runtime-config';
+import { DEFAULT_ERP_PAGE_SIZE } from '../constants/pagination.constants';
+import { sliceToPage } from '../utils/paginate';
 
 @Injectable({ providedIn: 'root' })
 export class DocumentsService {
@@ -16,6 +18,31 @@ export class DocumentsService {
     }
     const q = category ? `?category=${encodeURIComponent(category)}` : '';
     return this.api.get<any[]>(`/documents${q}`).pipe(map(list => list.map(d => this.normalizeDoc(d))));
+  }
+
+  listPaged(opts: { page?: number; size?: number; category?: string; q?: string }): Observable<PageResp<DocumentRecord>> {
+    const page = opts.page ?? 0;
+    const size = opts.size ?? DEFAULT_ERP_PAGE_SIZE;
+    if (!runtimeConfig.useMocks) {
+      return this.api
+        .getPageParams<any>('/documents/paged', {
+          page,
+          size,
+          category: opts.category?.trim() || undefined,
+          q: opts.q?.trim() || undefined,
+        })
+        .pipe(map(p => ({ ...p, content: p.content.map((d: any) => this.normalizeDoc(d)) })));
+    }
+    let rows = MOCK_DOCUMENTS_LIST.map(d => ({ ...d }));
+    if (opts.category?.trim()) {
+      const c = opts.category.trim().toLowerCase();
+      rows = rows.filter(d => d.category.toLowerCase() === c);
+    }
+    const tq = (opts.q ?? '').trim().toLowerCase();
+    if (tq) {
+      rows = rows.filter(d => d.name.toLowerCase().includes(tq) || d.category.toLowerCase().includes(tq));
+    }
+    return of(sliceToPage(rows, page, size)).pipe(delay(200));
   }
 
   uploadMeta(body: { name: string; fileType: string; category: string; fileSize?: string; fileUrl?: string }): Observable<DocumentRecord> {

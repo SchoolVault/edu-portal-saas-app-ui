@@ -3,8 +3,10 @@ import { Observable, of, throwError } from 'rxjs';
 import { delay, map } from 'rxjs/operators';
 import { MOCK_ANNOUNCEMENTS_SEED } from '../mocks/communication.mock-data';
 import { Announcement, AnnouncementPreview } from '../models/models';
-import { ApiService } from './api.service';
+import { ApiService, PageResp } from './api.service';
 import { runtimeConfig } from '../config/runtime-config';
+import { DEFAULT_ERP_PAGE_SIZE } from '../constants/pagination.constants';
+import { sliceToPage } from '../utils/paginate';
 
 /** Payload for POST /communication/announcements (matches backend CreateAnnouncementRequest). */
 export interface CreateAnnouncementPayload {
@@ -22,6 +24,31 @@ export class CommunicationService {
   getAnnouncements(): Observable<Announcement[]> {
     if (!runtimeConfig.useMocks) { return this.api.get<Announcement[]>('/communication/announcements'); }
     return of([...this.announcements]).pipe(delay(400));
+  }
+
+  getAnnouncementsPage(opts: { page?: number; size?: number; q?: string }): Observable<PageResp<Announcement>> {
+    const page = opts.page ?? 0;
+    const size = opts.size ?? DEFAULT_ERP_PAGE_SIZE;
+    if (!runtimeConfig.useMocks) {
+      return this.api
+        .getPageParams<any>('/communication/announcements/paged', {
+          page,
+          size,
+          q: opts.q?.trim() || undefined,
+        })
+        .pipe(map(p => ({ ...p, content: p.content.map((a: any) => this.normalizeAnnouncement(a)) })));
+    }
+    let rows = [...this.announcements].map(a => this.normalizeAnnouncement(a));
+    const tq = (opts.q ?? '').trim().toLowerCase();
+    if (tq) {
+      rows = rows.filter(
+        a =>
+          a.title.toLowerCase().includes(tq) ||
+          (a.content || '').toLowerCase().includes(tq) ||
+          (a.author || '').toLowerCase().includes(tq)
+      );
+    }
+    return of(sliceToPage(rows, page, size)).pipe(delay(250));
   }
 
   getAnnouncement(id: string): Observable<Announcement> {
@@ -75,6 +102,19 @@ export class CommunicationService {
   }
 
   constructor(private api: ApiService) {}
+
+  private normalizeAnnouncement(a: any): Announcement {
+    return {
+      id: String(a.id ?? ''),
+      title: a.title ?? '',
+      content: a.content ?? '',
+      author: a.author ?? '',
+      authorRole: a.authorRole ?? '',
+      targetAudience: (a.targetAudience ?? 'ALL').toString().toLowerCase(),
+      createdAt: a.createdAt ?? a.created_at ?? new Date().toISOString(),
+      tenantId: String(a.tenantId ?? a.tenant_id ?? '')
+    };
+  }
 
   addAnnouncement(announcement: Announcement): Observable<Announcement> {
     if (!runtimeConfig.useMocks) { return this.api.post<Announcement>('/communication/announcements', announcement); }

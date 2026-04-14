@@ -4,8 +4,10 @@ import { delay, map } from 'rxjs/operators';
 import { MOCK_EXAM_MARKS_SEED, MOCK_EXAMS_SEED, MOCK_EXAM_SCHEDULE_SEED } from '../mocks/exam.mock-data';
 import { mockParentPortalExams } from '../mocks/parent.mock-data';
 import { Exam, ExamClassScope, ExamScheduleSlot, MarkRecord, MarksEntryScopeRow } from '../models/models';
-import { ApiService } from './api.service';
+import { ApiService, PageResp } from './api.service';
 import { runtimeConfig } from '../config/runtime-config';
+import { DEFAULT_ERP_PAGE_SIZE } from '../constants/pagination.constants';
+import { sliceToPage } from '../utils/paginate';
 
 @Injectable({ providedIn: 'root' })
 export class ExamService {
@@ -37,6 +39,38 @@ export class ExamService {
         return copy;
       })
     ).pipe(delay(400));
+  }
+
+  /**
+   * Staff exam grid: same {@link PageResp} as {@code GET /api/v1/exams/paged}.
+   */
+  getExamsPage(opts: { page?: number; size?: number; q?: string; status?: string }): Observable<PageResp<Exam>> {
+    const page = opts.page ?? 0;
+    const size = opts.size ?? DEFAULT_ERP_PAGE_SIZE;
+    if (!runtimeConfig.useMocks) {
+      return this.api
+        .getPageParams<any>('/exams/paged', {
+          page,
+          size,
+          q: opts.q?.trim() || undefined,
+          status: opts.status?.trim() || undefined,
+        })
+        .pipe(map(p => ({ ...p, content: p.content.map(exam => this.normalizeExam(exam)) })));
+    }
+    return this.getExams().pipe(
+      map(all => {
+        let rows = [...all];
+        const qq = opts.q?.trim().toLowerCase();
+        if (qq) {
+          rows = rows.filter(e => (e.name || '').toLowerCase().includes(qq));
+        }
+        const st = opts.status?.trim().toLowerCase();
+        if (st) {
+          rows = rows.filter(e => (e.status || '').toLowerCase() === st);
+        }
+        return sliceToPage(rows, page, size);
+      })
+    );
   }
 
   /** Parent role: server-scoped list (GET /parent/exams). Staff should use {@link #getExams}. */

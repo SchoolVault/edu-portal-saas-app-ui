@@ -2,8 +2,10 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { Injectable } from '@angular/core';
 import { Observable, of, throwError } from 'rxjs';
 import { delay, map } from 'rxjs/operators';
-import { ApiService } from './api.service';
+import { ApiService, PageResp } from './api.service';
 import { runtimeConfig } from '../config/runtime-config';
+import { DEFAULT_ERP_PAGE_SIZE } from '../constants/pagination.constants';
+import { sliceToPage } from '../utils/paginate';
 import { AuthService } from './auth.service';
 import { MOCK_LEAVE_REQUESTS_SEED, MOCK_LEAVE_SEQ_START } from '../mocks/leave.mock-data';
 import { LEAVE_OTHER_REASON_MIN_LEN, normalizeLeaveRequestRow } from '../leave/leave-api.contract';
@@ -118,6 +120,48 @@ export class LeaveService {
       return this.api.get<LeaveRequestRow[]>('/leave/requests').pipe(map(rows => (rows || []).map(normalizeLeaveRequestRow)));
     }
     return of([...MOCK_REQUESTS].map(normalizeLeaveRequestRow)).pipe(delay(200));
+  }
+
+  /** Paged list; mock mirrors {@link PageResp} shape. */
+  listMinePaged(opts: { page?: number; size?: number; q?: string }): Observable<PageResp<LeaveRequestRow>> {
+    const page = opts.page ?? 0;
+    const size = opts.size ?? DEFAULT_ERP_PAGE_SIZE;
+    const q = (opts.q ?? '').trim().toLowerCase();
+    if (!runtimeConfig.useMocks) {
+      return this.api
+        .getPageParams<LeaveRequestRow>('/leave/requests/mine/paged', { page, size, q: opts.q?.trim() || undefined })
+        .pipe(map(p => ({ ...p, content: p.content.map(normalizeLeaveRequestRow) })));
+    }
+    const uid = this.mockUserNumId();
+    let rows = MOCK_REQUESTS.filter(r => r.applicantUserId === uid).map(normalizeLeaveRequestRow);
+    if (q) {
+      rows = rows.filter(r =>
+        [r.leaveType, r.reason, r.startDate, r.endDate, r.status].filter(Boolean).join(' ').toLowerCase().includes(q)
+      );
+    }
+    return of(sliceToPage(rows, page, size)).pipe(delay(200));
+  }
+
+  listAllPaged(opts: { page?: number; size?: number; q?: string }): Observable<PageResp<LeaveRequestRow>> {
+    const page = opts.page ?? 0;
+    const size = opts.size ?? DEFAULT_ERP_PAGE_SIZE;
+    const q = (opts.q ?? '').trim().toLowerCase();
+    if (!runtimeConfig.useMocks) {
+      return this.api
+        .getPageParams<LeaveRequestRow>('/leave/requests/paged', { page, size, q: opts.q?.trim() || undefined })
+        .pipe(map(p => ({ ...p, content: p.content.map(normalizeLeaveRequestRow) })));
+    }
+    let rows = [...MOCK_REQUESTS].map(normalizeLeaveRequestRow);
+    if (q) {
+      rows = rows.filter(r =>
+        [r.leaveType, r.reason, r.startDate, r.endDate, r.status, String(r.applicantUserId), r.applicantRole]
+          .filter(Boolean)
+          .join(' ')
+          .toLowerCase()
+          .includes(q)
+      );
+    }
+    return of(sliceToPage(rows, page, size)).pipe(delay(200));
   }
 
   decide(id: number, approve: boolean, approverRemarks?: string): Observable<LeaveRequestRow> {

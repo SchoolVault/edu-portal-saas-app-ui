@@ -10,11 +10,12 @@ import { filter } from 'rxjs/operators';
 import { ErpDatePickerComponent } from '../../shared/erp-date-picker/erp-date-picker.component';
 import { ConfirmDialogService } from '../../shared/confirm-dialog/confirm-dialog.service';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
+import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directives';
 
 @Component({
   selector: 'app-academic',
   standalone: true,
-  imports: [CommonModule, FormsModule, ErpDatePickerComponent, RouterLink, TranslateModule],
+  imports: [CommonModule, FormsModule, ErpDatePickerComponent, RouterLink, TranslateModule, ErpI18nPhDirective],
   styles: [
     `
       .academic-help-text {
@@ -315,10 +316,10 @@ import { TranslateModule, TranslateService } from '@ngx-translate/core';
         <div class="modal-content-erp" (click)="$event.stopPropagation()">
           <div class="modal-header-erp"><h3>{{ 'academic.modal.newYearTitle' | translate }}</h3><button class="btn-icon" (click)="showAddYear = false"><i class="bi bi-x-lg"></i></button></div>
           <div class="modal-body-erp">
-            <div class="erp-form-group"><label class="erp-label">{{ 'academic.modal.yearName' | translate }}</label><input type="text" class="erp-input" [(ngModel)]="newYear.name" [placeholder]="'academic.modal.yearNamePh' | translate"></div>
+            <div class="erp-form-group"><label class="erp-label">{{ 'academic.modal.yearName' | translate }}</label><input type="text" class="erp-input" [(ngModel)]="newYear.name" erpI18nPh="academic.modal.yearNamePh"></div>
             <div class="row g-3">
-              <div class="col-md-6"><div class="erp-form-group"><label class="erp-label">{{ 'academic.modal.startDate' | translate }}</label><app-erp-date-picker [(ngModel)]="newYear.startDate" [placeholder]="'academic.modal.phStart' | translate" /></div></div>
-              <div class="col-md-6"><div class="erp-form-group"><label class="erp-label">{{ 'academic.modal.endDate' | translate }}</label><app-erp-date-picker [(ngModel)]="newYear.endDate" [placeholder]="'academic.modal.phEnd' | translate" /></div></div>
+              <div class="col-md-6"><div class="erp-form-group"><label class="erp-label">{{ 'academic.modal.startDate' | translate }}</label><app-erp-date-picker [(ngModel)]="newYear.startDate" placeholderI18nKey="academic.modal.phStart" /></div></div>
+              <div class="col-md-6"><div class="erp-form-group"><label class="erp-label">{{ 'academic.modal.endDate' | translate }}</label><app-erp-date-picker [(ngModel)]="newYear.endDate" placeholderI18nKey="academic.modal.phEnd" /></div></div>
             </div>
           </div>
           <div class="modal-footer-erp">
@@ -335,11 +336,11 @@ import { TranslateModule, TranslateService } from '@ngx-translate/core';
             <div class="erp-form-group"><label class="erp-label">{{ 'academic.modal.academicYearReq' | translate }}</label>
               <select class="erp-select" [(ngModel)]="newClass.academicYearId"><option *ngFor="let ay of academicYears" [ngValue]="ay.id">{{ ay.name }}</option></select></div>
             <div class="erp-form-group"><label class="erp-label">{{ 'academic.modal.displayNameReq' | translate }}</label>
-              <input type="text" class="erp-input" [(ngModel)]="newClass.name" [placeholder]="'academic.modal.displayNamePh' | translate"></div>
+              <input type="text" class="erp-input" [(ngModel)]="newClass.name" erpI18nPh="academic.modal.displayNamePh"></div>
             <div class="erp-form-group"><label class="erp-label">{{ 'academic.modal.gradeReq' | translate }}</label>
               <input type="number" class="erp-input" [(ngModel)]="newClass.grade" min="0" max="20"></div>
             <div class="erp-form-group"><label class="erp-label">{{ 'academic.modal.initialSections' | translate }}</label>
-              <input type="text" class="erp-input" [(ngModel)]="newClass.sectionNamesText" [placeholder]="'academic.modal.initialSectionsPh' | translate"></div>
+              <input type="text" class="erp-input" [(ngModel)]="newClass.sectionNamesText" erpI18nPh="academic.modal.initialSectionsPh"></div>
             <div class="erp-form-group"><label class="erp-label">{{ 'academic.modal.defaultCapacity' | translate }}</label>
               <input type="number" class="erp-input" [(ngModel)]="newClass.sectionCapacity" min="1"></div>
             <div class="erp-form-group"><label class="erp-label">{{ 'academic.modal.classTeacherOpt' | translate }}</label>
@@ -370,7 +371,7 @@ import { TranslateModule, TranslateService } from '@ngx-translate/core';
         <div class="modal-content-erp" (click)="$event.stopPropagation()">
           <div class="modal-header-erp"><h3>{{ 'academic.modal.addSectionTitle' | translate }}</h3><button type="button" class="btn-icon" (click)="showAddSection = false"><i class="bi bi-x-lg"></i></button></div>
           <div class="modal-body-erp">
-            <div class="erp-form-group"><label class="erp-label">{{ 'academic.modal.sectionNameReq' | translate }}</label><input type="text" class="erp-input" [(ngModel)]="newSection.name" [placeholder]="'academic.modal.sectionNamePh' | translate"></div>
+            <div class="erp-form-group"><label class="erp-label">{{ 'academic.modal.sectionNameReq' | translate }}</label><input type="text" class="erp-input" [(ngModel)]="newSection.name" erpI18nPh="academic.modal.sectionNamePh"></div>
             <div class="erp-form-group"><label class="erp-label">{{ 'academic.modal.capacity' | translate }}</label><input type="number" class="erp-input" [(ngModel)]="newSection.capacity" min="1"></div>
           </div>
           <div class="modal-footer-erp">

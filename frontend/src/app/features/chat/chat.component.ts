@@ -10,6 +10,7 @@ import { AuthService } from '../../core/services/auth.service';
 import { DirectoryEntry, DirectoryService } from '../../core/services/directory.service';
 import { PlatformService } from '../../core/services/platform.service';
 import {
+  ChatCounterpartInsight,
   ChatDirectoryClassRoster,
   ChatDirectoryParentChildRoster,
   ChatDirectoryResponse,
@@ -17,13 +18,15 @@ import {
   ChatMessage,
   PlatformSchoolAdminChatHit,
 } from '../../core/models/models';
+import { resolveCounterpartInsight } from '../../core/chat/chat-counterpart.resolve';
 import { runtimeConfig } from '../../core/config/runtime-config';
 import { formatSchoolClassDisplayName, formatSchoolClassName } from '../../core/i18n/school-class-display';
+import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directives';
 
 @Component({
   selector: 'app-chat',
   standalone: true,
-  imports: [CommonModule, FormsModule, TranslateModule],
+  imports: [CommonModule, FormsModule, TranslateModule, ErpI18nPhDirective],
   styles: [
     `
       .chat-shell {
@@ -192,7 +195,7 @@ import { formatSchoolClassDisplayName, formatSchoolClassName } from '../../core/
           <div class="col-lg-4 chat-sidebar">
             <div style="padding: 12px;">
               <div class="d-flex gap-2">
-                <input class="erp-input flex-grow-1" [placeholder]="'chat.searchPlaceholder' | translate" [(ngModel)]="query" />
+                <input class="erp-input flex-grow-1" erpI18nPh="chat.searchPlaceholder" [(ngModel)]="query" />
                 <button class="btn-outline-erp btn-sm flex-shrink-0" type="button" (click)="openDirectory = !openDirectory">
                   {{ openDirectory ? ('chat.close' | translate) : ('chat.newChat' | translate) }}
                 </button>
@@ -211,7 +214,7 @@ import { formatSchoolClassDisplayName, formatSchoolClassName } from '../../core/
                 <label class="erp-label">{{ 'chat.labelSchoolAdmins' | translate }}</label>
                 <input
                   class="erp-input"
-                  [placeholder]="'chat.plaSearchPh' | translate"
+                  erpI18nPh="chat.plaSearchPh"
                   [(ngModel)]="platformAdminQuery"
                   (ngModelChange)="onPlatformAdminQueryChange()"
                 />
@@ -237,7 +240,7 @@ import { formatSchoolClassDisplayName, formatSchoolClassName } from '../../core/
                 <label class="erp-label">{{ 'chat.labelDirSearch' | translate }}</label>
                 <input
                   class="erp-input"
-                  [placeholder]="'chat.dirSearchPh' | translate"
+                  erpI18nPh="chat.dirSearchPh"
                   [(ngModel)]="directorySearchQuery"
                   (ngModelChange)="onDirectoryQueryChange()"
                 />
@@ -332,6 +335,14 @@ import { formatSchoolClassDisplayName, formatSchoolClassName } from '../../core/
                       <div style="font-weight: 800; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
                         {{ conversationTitle(conv) }}
                       </div>
+                      <div
+                        *ngIf="conversationIdentityHint(conv) as hint"
+                        class="text-muted"
+                        style="font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
+                        [attr.title]="hint"
+                      >
+                        {{ hint }}
+                      </div>
                       <div class="text-muted" style="font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
                         {{ conv.lastMessagePreview || ('chat.noMessagesPreview' | translate) }}
                       </div>
@@ -360,7 +371,7 @@ import { formatSchoolClassDisplayName, formatSchoolClassName } from '../../core/
                   </div>
                   <div class="min-w-0">
                     <div style="font-weight: 900; font-size: 15px;">{{ conversationTitle(selectedConversation) }}</div>
-                    <div class="text-muted" style="font-size: 12px;">
+                    <div class="text-muted chat-thread-meta" style="font-size: 12px; line-height: 1.45;">
                       {{ threadSubtitle(selectedConversation) }}
                     </div>
                   </div>
@@ -413,7 +424,7 @@ import { formatSchoolClassDisplayName, formatSchoolClassName } from '../../core/
               <div class="d-flex gap-2 align-items-stretch">
                 <input class="erp-input flex-grow-1"
                        [disabled]="!selectedConversation || sending"
-                       [placeholder]="'chat.composePlaceholder' | translate"
+                       erpI18nPh="chat.composePlaceholder"
                        [(ngModel)]="draft"
                        (keydown.enter)="onEnter($event)" />
                 <button class="btn-primary-erp flex-shrink-0"
@@ -693,7 +704,12 @@ export class ChatComponent implements OnInit, OnDestroy {
   filteredInbox(): ChatInboxConversation[] {
     const q = this.query.trim().toLowerCase();
     if (!q) return this.inbox;
-    return this.inbox.filter(c => this.conversationTitle(c).toLowerCase().includes(q) || (c.lastMessagePreview || '').toLowerCase().includes(q));
+    return this.inbox.filter(c => {
+      const title = this.conversationTitle(c).toLowerCase();
+      const hint = (this.conversationIdentityHint(c) || '').toLowerCase();
+      const preview = (c.lastMessagePreview || '').toLowerCase();
+      return title.includes(q) || hint.includes(q) || preview.includes(q);
+    });
   }
 
   selectConversation(conv: ChatInboxConversation): void {
@@ -765,8 +781,62 @@ export class ChatComponent implements OnInit, OnDestroy {
   }
 
   threadSubtitle(conv: ChatInboxConversation): string {
-    const ctx = this.describeContext(conv);
-    return this.convTypeLabel(conv.type) + this.translate.instant('chat.threadSep') + ctx;
+    const type = this.convTypeLabel(conv.type);
+    const sep = this.translate.instant('chat.threadSep');
+    const insight = resolveCounterpartInsight(conv, { myUserId: this.myUserId, directory: this.directory });
+    const identity = this.formatCounterpartIdentity(insight);
+    if (identity) {
+      return type + sep + identity;
+    }
+    return type + sep + this.describeContext(conv);
+  }
+
+  /** Sidebar / screen reader: one-line identity under the name (truncation handled by CSS). */
+  conversationIdentityHint(conv: ChatInboxConversation): string {
+    const insight = resolveCounterpartInsight(conv, { myUserId: this.myUserId, directory: this.directory });
+    return this.formatCounterpartIdentity(insight);
+  }
+
+  private formatCounterpartIdentity(insight: ChatCounterpartInsight | null): string {
+    if (!insight?.roleCode) {
+      return '';
+    }
+    const roleLabel = this.counterpartRoleLabel(insight.roleCode);
+    const maxKids = 2;
+    const kids = insight.linkedStudents || [];
+    const total = insight.linkedStudentTotal ?? kids.length;
+
+    if (insight.roleCode === 'PARENT' && kids.length > 0) {
+      const shown = kids.slice(0, maxKids);
+      const pairSep = this.translate.instant('chat.threadListSep');
+      const parts = shown.map(s =>
+        s.classShort
+          ? this.translate.instant('chat.threadChildWithClass', { name: s.studentName, cls: s.classShort })
+          : s.studentName
+      );
+      let line = `${roleLabel}${this.translate.instant('chat.threadSep')}${parts.join(pairSep)}`;
+      const more = total > shown.length ? total - shown.length : 0;
+      if (more > 0) {
+        line += `${this.translate.instant('chat.threadSep')}${this.translate.instant('chat.threadMoreChildren', { n: more })}`;
+      }
+      return line;
+    }
+
+    return roleLabel;
+  }
+
+  private counterpartRoleLabel(code: string): string {
+    const c = (code || '').toUpperCase();
+    const map: Record<string, string> = {
+      PARENT: 'chat.counterpartRoleParent',
+      TEACHER: 'chat.counterpartRoleTeacher',
+      ADMIN: 'chat.counterpartRoleAdmin',
+      SUPER_ADMIN: 'chat.counterpartRoleSuperAdmin',
+      LIBRARY_STAFF: 'chat.counterpartRoleLibraryStaff',
+      STUDENT: 'chat.counterpartRoleStudent',
+    };
+    const key = map[c] ?? 'chat.counterpartRoleGeneric';
+    return this.translate.instant(key, { role: c.replace(/_/g, ' ') });
   }
 
   rosterOptgroupLabel(roster: ChatDirectoryClassRoster): string {

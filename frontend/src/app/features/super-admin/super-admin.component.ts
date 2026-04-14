@@ -1,30 +1,46 @@
-import { AfterViewInit, Component, ElementRef, OnDestroy, OnInit, ViewChild } from '@angular/core';
+import {
+  AfterViewInit,
+  ChangeDetectorRef,
+  Component,
+  DestroyRef,
+  ElementRef,
+  OnDestroy,
+  OnInit,
+  ViewChild,
+  inject,
+} from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { Chart, registerables } from 'chart.js';
+import { TranslateModule, TranslateService } from '@ngx-translate/core';
+import { forkJoin, Subject } from 'rxjs';
+import { debounceTime, distinctUntilChanged } from 'rxjs/operators';
 import { PlatformDashboardData, PlatformSchoolAdmin, PlatformSchoolSummary } from '../../core/models/models';
 import { PlatformService } from '../../core/services/platform.service';
-import { forkJoin } from 'rxjs';
+import { ErpPaginationComponent } from '../../shared/erp-pagination/erp-pagination.component';
+import { DEFAULT_ERP_PAGE_SIZE } from '../../core/constants/pagination.constants';
 
 Chart.register(...registerables);
 
 @Component({
   selector: 'app-super-admin',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink],
+  imports: [CommonModule, FormsModule, RouterLink, ErpPaginationComponent, TranslateModule],
   template: `
     <div data-testid="super-admin-page">
       <div class="d-flex justify-content-between align-items-end mb-4 animate-in flex-wrap gap-2">
         <div>
-          <div class="badge-erp badge-info mb-2">Platform Control Plane</div>
-          <h2 style="font-size: 28px; font-weight: 800;">Super Admin Console</h2>
-          <p class="text-muted mb-0" style="font-size: 13px;">Portfolio-wide visibility across schools, admins, and platform health.</p>
+          <div class="badge-erp badge-info mb-2">{{ 'superAdmin.badge' | translate }}</div>
+          <h2 style="font-size: 28px; font-weight: 800;">{{ 'superAdmin.title' | translate }}</h2>
+          <p class="text-muted mb-0" style="font-size: 13px;">{{ 'superAdmin.lead' | translate }}</p>
         </div>
         <div class="d-flex gap-2 align-self-center flex-wrap">
-          <a routerLink="/app/platform-schools" class="btn-outline-erp btn-sm">School directory</a>
+          <a routerLink="/app/platform-schools" class="btn-outline-erp btn-sm">{{ 'superAdmin.schoolDirectory' | translate }}</a>
           <button type="button" class="btn-outline-erp btn-sm" (click)="refreshPlatform()" [disabled]="refreshing">
-            <i class="bi bi-arrow-clockwise"></i> {{ refreshing ? 'Refreshing…' : 'Refresh' }}
+            <i class="bi bi-arrow-clockwise"></i>
+            {{ refreshing ? ('superAdmin.refreshing' | translate) : ('superAdmin.refresh' | translate) }}
           </button>
         </div>
       </div>
@@ -34,8 +50,8 @@ Chart.register(...registerables);
           <div class="stat-card">
             <div class="stat-icon" [style.background]="card.bg" [style.color]="card.color"><i class="bi" [ngClass]="card.icon"></i></div>
             <div class="stat-value">{{ card.value }}</div>
-            <div class="stat-label">{{ card.label }}</div>
-            <div class="stat-change positive">{{ card.subtext }}</div>
+            <div class="stat-label">{{ card.labelKey | translate }}</div>
+            <div class="stat-change positive">{{ card.subtextKey | translate: card.subtextParams }}</div>
           </div>
         </div>
       </div>
@@ -43,13 +59,13 @@ Chart.register(...registerables);
       <div class="row g-4 mb-4">
         <div class="col-lg-7">
           <div class="erp-card">
-            <div class="erp-card-header"><h3 class="erp-card-title">School Growth</h3></div>
+            <div class="erp-card-header"><h3 class="erp-card-title">{{ 'superAdmin.charts.schoolGrowth' | translate }}</h3></div>
             <div class="chart-container" style="height: 280px;"><canvas #growthChart></canvas></div>
           </div>
         </div>
         <div class="col-lg-5">
           <div class="erp-card" style="height: 100%;">
-            <div class="erp-card-header"><h3 class="erp-card-title">Revenue Trend</h3></div>
+            <div class="erp-card-header"><h3 class="erp-card-title">{{ 'superAdmin.charts.revenueTrend' | translate }}</h3></div>
             <div class="chart-container" style="height: 280px;"><canvas #revenueChart></canvas></div>
           </div>
         </div>
@@ -60,62 +76,111 @@ Chart.register(...registerables);
           <div class="erp-card">
             <div class="erp-card-header">
               <div>
-                <h3 class="erp-card-title">School Portfolio</h3>
-                <p class="text-muted mb-0" style="font-size: 12px;">Operational view across all school workspaces</p>
+                <h3 class="erp-card-title">{{ 'superAdmin.portfolio.title' | translate }}</h3>
+                <p class="text-muted mb-0" style="font-size: 12px;">{{ 'superAdmin.portfolio.subtitle' | translate }}</p>
               </div>
+            </div>
+            <div class="px-3 pt-3 pb-0">
+              <label class="erp-label small mb-1">{{ 'superAdmin.portfolio.search' | translate }}</label>
+              <input
+                type="search"
+                class="erp-input"
+                [(ngModel)]="schoolSearchInput"
+                (ngModelChange)="schoolSearch$.next($event)"
+                [placeholder]="'superAdmin.portfolio.searchPh' | translate"
+              />
             </div>
             <table class="erp-table">
               <thead>
-                <tr><th>School</th><th>Students</th><th>Teachers</th><th>Admins</th><th>Status</th></tr>
+                <tr>
+                  <th>{{ 'superAdmin.portfolio.thSchool' | translate }}</th>
+                  <th>{{ 'superAdmin.portfolio.thStudents' | translate }}</th>
+                  <th>{{ 'superAdmin.portfolio.thTeachers' | translate }}</th>
+                  <th>{{ 'superAdmin.portfolio.thAdmins' | translate }}</th>
+                  <th>{{ 'superAdmin.portfolio.thStatus' | translate }}</th>
+                </tr>
               </thead>
               <tbody>
-                <tr *ngFor="let school of schools" (click)="selectSchool(school)" style="cursor: pointer;" [style.background]="selectedSchool?.tenantId === school.tenantId ? 'var(--clr-surface-alt)' : ''">
+                <tr
+                  *ngFor="let school of schools"
+                  (click)="selectSchool(school)"
+                  style="cursor: pointer;"
+                  [style.background]="selectedSchool?.tenantId === school.tenantId ? 'var(--clr-surface-alt)' : ''"
+                >
                   <td>
                     <div style="font-weight: 700;">{{ school.schoolName }}</div>
-                    <div style="font-size: 12px; color: var(--clr-text-muted);">{{ school.schoolCode }} · {{ school.address || 'No address' }}</div>
+                    <div style="font-size: 12px; color: var(--clr-text-muted);">
+                      {{ school.schoolCode }} · {{ school.address || ('superAdmin.noAddress' | translate) }}
+                    </div>
                   </td>
                   <td>{{ school.studentCount }}</td>
                   <td>{{ school.teacherCount }}</td>
                   <td>{{ school.adminCount }}</td>
                   <td>
                     <span class="badge-erp" [ngClass]="school.active ? 'badge-success' : 'badge-warning'">
-                      {{ school.active ? 'Active' : 'Attention' }}
+                      {{ school.active ? ('superAdmin.status.active' | translate) : ('superAdmin.status.attention' | translate) }}
                     </span>
                   </td>
                 </tr>
               </tbody>
             </table>
+            <app-erp-pagination
+              *ngIf="schoolsTotal > 0"
+              [totalElements]="schoolsTotal"
+              [pageIndex]="schoolsPageIndex"
+              [pageSize]="schoolsPageSize"
+              (pageIndexChange)="onSchoolsPageIndexChange($event)"
+              (pageSizeChange)="onSchoolsPageSizeChange($event)"
+            />
           </div>
         </div>
         <div class="col-lg-5">
           <div class="erp-card" style="height: 100%;">
             <div class="erp-card-header">
               <div>
-                <h3 class="erp-card-title">School Admins</h3>
-                <p class="text-muted mb-0" style="font-size: 12px;">{{ selectedSchool?.schoolName || 'Select a school' }}</p>
+                <h3 class="erp-card-title">{{ 'superAdmin.admins.title' | translate }}</h3>
+                <p class="text-muted mb-0" style="font-size: 12px;">
+                  {{ selectedSchool?.schoolName || ('superAdmin.admins.selectPrompt' | translate) }}
+                </p>
               </div>
             </div>
             <div *ngIf="!selectedSchool" class="empty-state" style="padding: 48px 16px;">
               <i class="bi bi-building"></i>
-              <h3>Select a school</h3>
-              <p>Admin access and operational context will appear here.</p>
+              <h3>{{ 'superAdmin.admins.emptyTitle' | translate }}</h3>
+              <p>{{ 'superAdmin.admins.emptyLead' | translate }}</p>
             </div>
             <div *ngIf="selectedSchool">
               <div class="insight-card mb-3" [style.border-left]="'4px solid ' + (selectedSchool.primaryColor || 'var(--clr-primary)')">
-                <div class="insight-label">Operational Snapshot</div>
-                <div class="insight-value">{{ selectedSchool.studentCount }} students</div>
-                <div class="insight-subtext">{{ selectedSchool.teacherCount }} teachers · {{ selectedSchool.adminCount }} admins · {{ selectedSchool.phone || 'No phone' }}</div>
+                <div class="insight-label">{{ 'superAdmin.admins.snapshotLabel' | translate }}</div>
+                <div class="insight-value">
+                  {{ 'superAdmin.admins.snapshotStudents' | translate: { count: selectedSchool.studentCount } }}
+                </div>
+                <div class="insight-subtext">
+                  {{
+                    'superAdmin.admins.snapshotSub'
+                      | translate
+                        : {
+                            teachers: selectedSchool.teacherCount,
+                            admins: selectedSchool.adminCount,
+                            phone: selectedSchool.phone || ('superAdmin.admins.noPhone' | translate),
+                          }
+                  }}
+                </div>
               </div>
               <div *ngFor="let admin of schoolAdmins" class="activity-item">
-                <div class="activity-icon" [style.background]="admin.active ? 'rgba(5,150,105,0.12)' : 'rgba(217,119,6,0.12)'" [style.color]="admin.active ? 'var(--clr-success)' : 'var(--clr-warning)'">
+                <div
+                  class="activity-icon"
+                  [style.background]="admin.active ? 'rgba(5,150,105,0.12)' : 'rgba(217,119,6,0.12)'"
+                  [style.color]="admin.active ? 'var(--clr-success)' : 'var(--clr-warning)'"
+                >
                   <i class="bi" [ngClass]="admin.active ? 'bi-person-check-fill' : 'bi-person-dash-fill'"></i>
                 </div>
                 <div class="activity-content">
                   <h5>{{ admin.name }}</h5>
-                  <p>{{ admin.email }} · {{ admin.phone || 'No phone' }}</p>
+                  <p>{{ admin.email }} · {{ admin.phone || ('superAdmin.admins.noPhone' | translate) }}</p>
                 </div>
                 <button class="btn-outline-erp btn-sm" (click)="toggleAdmin(admin); $event.stopPropagation()">
-                  {{ admin.active ? 'Suspend' : 'Activate' }}
+                  {{ admin.active ? ('superAdmin.admins.suspend' | translate) : ('superAdmin.admins.activate' | translate) }}
                 </button>
               </div>
             </div>
@@ -124,7 +189,7 @@ Chart.register(...registerables);
       </div>
 
       <div class="erp-card">
-        <div class="erp-card-header"><h3 class="erp-card-title">Recent Platform Activity</h3></div>
+        <div class="erp-card-header"><h3 class="erp-card-title">{{ 'superAdmin.activity.title' | translate }}</h3></div>
         <div *ngFor="let item of dashboard?.recentActivities" class="activity-item">
           <div class="activity-icon" [style.background]="toneBg(item.tone)" [style.color]="toneColor(item.tone)">
             <i class="bi" [ngClass]="toneIcon(item.tone)"></i>
@@ -137,7 +202,7 @@ Chart.register(...registerables);
         </div>
       </div>
     </div>
-  `
+  `,
 })
 export class SuperAdminComponent implements OnInit, AfterViewInit, OnDestroy {
   @ViewChild('growthChart') growthChartRef?: ElementRef<HTMLCanvasElement>;
@@ -145,16 +210,47 @@ export class SuperAdminComponent implements OnInit, AfterViewInit, OnDestroy {
 
   dashboard: PlatformDashboardData | null = null;
   schools: PlatformSchoolSummary[] = [];
+  schoolsTotal = 0;
+  schoolsPageIndex = 0;
+  schoolsPageSize = DEFAULT_ERP_PAGE_SIZE;
+  schoolQuery = '';
+  schoolSearchInput = '';
+  readonly schoolSearch$ = new Subject<string>();
   schoolAdmins: PlatformSchoolAdmin[] = [];
   selectedSchool: PlatformSchoolSummary | null = null;
-  summaryCards: Array<{ label: string; value: string; subtext: string; icon: string; bg: string; color: string }> = [];
+  summaryCards: Array<{
+    labelKey: string;
+    value: string;
+    subtextKey: string;
+    subtextParams?: Record<string, string | number>;
+    icon: string;
+    bg: string;
+    color: string;
+  }> = [];
   refreshing = false;
   private growthChart?: Chart;
   private revenueChart?: Chart;
 
-  constructor(private platformService: PlatformService) {}
+  private readonly destroyRef = inject(DestroyRef);
+
+  constructor(
+    private platformService: PlatformService,
+    private translate: TranslateService,
+    private cdr: ChangeDetectorRef
+  ) {}
 
   ngOnInit(): void {
+    this.translate.onLangChange.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
+      this.cdr.markForCheck();
+      setTimeout(() => this.initCharts(), 0);
+    });
+    this.schoolSearch$
+      .pipe(debounceTime(300), distinctUntilChanged(), takeUntilDestroyed(this.destroyRef))
+      .subscribe(q => {
+        this.schoolQuery = (q || '').trim();
+        this.schoolsPageIndex = 0;
+        this.loadSchoolsPage();
+      });
     this.refreshPlatform();
   }
 
@@ -164,16 +260,19 @@ export class SuperAdminComponent implements OnInit, AfterViewInit, OnDestroy {
     }
     this.refreshing = true;
     const prevTenant = this.selectedSchool?.tenantId;
+    this.schoolsPageIndex = 0;
     forkJoin({
       dashboard: this.platformService.getDashboard(),
-      schools: this.platformService.getSchools()
+      page: this.platformService.getSchoolsPage(0, this.schoolsPageSize, this.schoolQuery || undefined),
     }).subscribe({
-      next: ({ dashboard, schools }) => {
+      next: ({ dashboard, page }) => {
         this.applyDashboard(dashboard);
-        this.schools = schools;
-        if (schools.length) {
-          const keep = prevTenant && schools.some(s => s.tenantId === prevTenant);
-          this.selectSchool((keep ? schools.find(s => s.tenantId === prevTenant) : null) ?? schools[0]);
+        this.schools = page.content;
+        this.schoolsTotal = page.totalElements;
+        this.schoolsPageIndex = page.page;
+        if (page.content.length) {
+          const onPage = prevTenant ? page.content.find(s => s.tenantId === prevTenant) : undefined;
+          this.selectSchool(onPage ?? page.content[0]);
         } else {
           this.selectedSchool = null;
           this.schoolAdmins = [];
@@ -183,17 +282,59 @@ export class SuperAdminComponent implements OnInit, AfterViewInit, OnDestroy {
       },
       error: () => {
         this.refreshing = false;
-      }
+      },
+    });
+  }
+
+  private loadSchoolsPage(): void {
+    this.platformService.getSchoolsPage(this.schoolsPageIndex, this.schoolsPageSize, this.schoolQuery || undefined).subscribe({
+      next: page => {
+        this.schools = page.content;
+        this.schoolsTotal = page.totalElements;
+        this.schoolsPageIndex = page.page;
+        if (this.selectedSchool && !page.content.some(s => s.tenantId === this.selectedSchool?.tenantId)) {
+          /* selection may refer to a row on another page — keep admins panel as-is */
+        }
+      },
     });
   }
 
   private applyDashboard(dashboard: PlatformDashboardData): void {
     this.dashboard = dashboard;
     this.summaryCards = [
-      { label: 'Total Schools', value: String(dashboard.totalSchools), subtext: `${dashboard.activeSchools} active workspaces`, icon: 'bi-buildings-fill', bg: 'rgba(15,23,42,0.08)', color: '#0F172A' },
-      { label: 'Students Managed', value: String(dashboard.totalStudents), subtext: 'Cross-tenant enrolment footprint', icon: 'bi-people-fill', bg: 'rgba(14,165,233,0.10)', color: '#0284C7' },
-      { label: 'Teachers Managed', value: String(dashboard.totalTeachers), subtext: 'Faculty accounts under platform governance', icon: 'bi-person-badge-fill', bg: 'rgba(192,92,61,0.10)', color: '#C05C3D' },
-      { label: 'Campus Admins', value: String(dashboard.totalAdmins), subtext: 'Operational admins across tenants', icon: 'bi-shield-lock-fill', bg: 'rgba(5,150,105,0.10)', color: '#059669' }
+      {
+        labelKey: 'superAdmin.cards.totalSchools',
+        value: String(dashboard.totalSchools),
+        subtextKey: 'superAdmin.cards.totalSchoolsSub',
+        subtextParams: { count: dashboard.activeSchools },
+        icon: 'bi-buildings-fill',
+        bg: 'rgba(15,23,42,0.08)',
+        color: '#0F172A',
+      },
+      {
+        labelKey: 'superAdmin.cards.students',
+        value: String(dashboard.totalStudents),
+        subtextKey: 'superAdmin.cards.studentsSub',
+        icon: 'bi-people-fill',
+        bg: 'rgba(14,165,233,0.10)',
+        color: '#0284C7',
+      },
+      {
+        labelKey: 'superAdmin.cards.teachers',
+        value: String(dashboard.totalTeachers),
+        subtextKey: 'superAdmin.cards.teachersSub',
+        icon: 'bi-person-badge-fill',
+        bg: 'rgba(192,92,61,0.10)',
+        color: '#C05C3D',
+      },
+      {
+        labelKey: 'superAdmin.cards.admins',
+        value: String(dashboard.totalAdmins),
+        subtextKey: 'superAdmin.cards.adminsSub',
+        icon: 'bi-shield-lock-fill',
+        bg: 'rgba(5,150,105,0.10)',
+        color: '#059669',
+      },
     ];
   }
 
@@ -206,9 +347,20 @@ export class SuperAdminComponent implements OnInit, AfterViewInit, OnDestroy {
     this.revenueChart?.destroy();
   }
 
+  onSchoolsPageIndexChange(idx: number): void {
+    this.schoolsPageIndex = idx;
+    this.loadSchoolsPage();
+  }
+
+  onSchoolsPageSizeChange(size: number): void {
+    this.schoolsPageSize = size;
+    this.schoolsPageIndex = 0;
+    this.loadSchoolsPage();
+  }
+
   selectSchool(school: PlatformSchoolSummary): void {
     this.selectedSchool = school;
-    this.platformService.getSchoolAdmins(school.tenantId).subscribe(admins => this.schoolAdmins = admins);
+    this.platformService.getSchoolAdmins(school.tenantId).subscribe(admins => (this.schoolAdmins = admins));
   }
 
   toggleAdmin(admin: PlatformSchoolAdmin): void {
@@ -216,7 +368,7 @@ export class SuperAdminComponent implements OnInit, AfterViewInit, OnDestroy {
       return;
     }
     this.platformService.toggleSchoolAdminStatus(this.selectedSchool.tenantId, admin.id, !admin.active).subscribe(updated => {
-      this.schoolAdmins = this.schoolAdmins.map(current => current.id === updated.id ? updated : current);
+      this.schoolAdmins = this.schoolAdmins.map(current => (current.id === updated.id ? updated : current));
     });
   }
 
@@ -246,45 +398,52 @@ export class SuperAdminComponent implements OnInit, AfterViewInit, OnDestroy {
     this.growthChart?.destroy();
     this.revenueChart?.destroy();
 
+    const newSchoolsLabel = this.translate.instant('superAdmin.charts.datasetNewSchools');
+    const mrrLabel = this.translate.instant('superAdmin.charts.datasetMrr');
+
     this.growthChart = new Chart(this.growthChartRef.nativeElement, {
       type: 'line',
       data: {
         labels: this.dashboard.schoolGrowth.map(point => point.label),
-        datasets: [{
-          label: 'New Schools',
-          data: this.dashboard.schoolGrowth.map(point => point.value),
-          borderColor: '#0F172A',
-          backgroundColor: 'rgba(15,23,42,0.10)',
-          fill: true,
-          tension: 0.3,
-          pointRadius: 4
-        }]
+        datasets: [
+          {
+            label: newSchoolsLabel,
+            data: this.dashboard.schoolGrowth.map(point => point.value),
+            borderColor: '#0F172A',
+            backgroundColor: 'rgba(15,23,42,0.10)',
+            fill: true,
+            tension: 0.3,
+            pointRadius: 4,
+          },
+        ],
       },
       options: {
         responsive: true,
         maintainAspectRatio: false,
         plugins: { legend: { display: false } },
-        scales: { x: { grid: { display: false } }, y: { beginAtZero: true, ticks: { precision: 0 } } }
-      }
+        scales: { x: { grid: { display: false } }, y: { beginAtZero: true, ticks: { precision: 0 } } },
+      },
     });
 
     this.revenueChart = new Chart(this.revenueChartRef.nativeElement, {
       type: 'bar',
       data: {
         labels: this.dashboard.revenueTrend.map(point => point.label),
-        datasets: [{
-          label: 'MRR',
-          data: this.dashboard.revenueTrend.map(point => point.value),
-          backgroundColor: 'rgba(14,165,233,0.85)',
-          borderRadius: 8
-        }]
+        datasets: [
+          {
+            label: mrrLabel,
+            data: this.dashboard.revenueTrend.map(point => point.value),
+            backgroundColor: 'rgba(14,165,233,0.85)',
+            borderRadius: 8,
+          },
+        ],
       },
       options: {
         responsive: true,
         maintainAspectRatio: false,
         plugins: { legend: { display: false } },
-        scales: { x: { grid: { display: false } }, y: { beginAtZero: true } }
-      }
+        scales: { x: { grid: { display: false } }, y: { beginAtZero: true } },
+      },
     });
   }
 }

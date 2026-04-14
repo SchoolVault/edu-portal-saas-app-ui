@@ -18,7 +18,9 @@ import {
   buildMockStudentPerformance,
   buildMockTeacherWorkload,
 } from '../mocks/report.mock-data';
-import { ApiService } from './api.service';
+import { ApiService, PageResp } from './api.service';
+import { DEFAULT_ERP_PAGE_SIZE } from '../constants/pagination.constants';
+import { sliceToPage } from '../utils/paginate';
 import { runtimeConfig } from '../config/runtime-config';
 
 @Injectable({ providedIn: 'root' })
@@ -91,6 +93,28 @@ export class ReportService {
     );
   }
 
+  getClassSummaryPage(page = 0, size = DEFAULT_ERP_PAGE_SIZE): Observable<PageResp<ClassSummaryRow>> {
+    if (!runtimeConfig.useMocks) {
+      return this.api.getPageParams<any>('/reports/class-summary/paged', { page, size }).pipe(
+        map(p => ({
+          ...p,
+          content: p.content.map(row => ({
+            classId: Number(row.classId),
+            className: row.className,
+            grade: Number(row.grade ?? 0),
+            sections: Number(row.sections ?? 0),
+            totalStudents: Number(row.totalStudents ?? 0),
+            attendancePercentage: Number(row.attendancePercentage ?? 0),
+            performancePercentage: Number(row.performancePercentage ?? 0),
+            feeCollectionPercentage: Number(row.feeCollectionPercentage ?? 0),
+            classTeacherName: row.classTeacherName ?? '',
+          })),
+        }))
+      );
+    }
+    return this.getClassSummary().pipe(map(all => sliceToPage(all, page, size)));
+  }
+
   getSectionSummary(): Observable<SectionSummaryRow[]> {
     if (runtimeConfig.useMocks) {
       return of(buildMockSectionSummary().map(r => ({ ...r }))).pipe();
@@ -108,6 +132,24 @@ export class ReportService {
     );
   }
 
+  getSectionSummaryPage(page = 0, size = DEFAULT_ERP_PAGE_SIZE): Observable<PageResp<SectionSummaryRow>> {
+    if (!runtimeConfig.useMocks) {
+      return this.api.getPageParams<any>('/reports/section-summary/paged', { page, size }).pipe(
+        map(p => ({
+          ...p,
+          content: p.content.map(row => ({
+            sectionId: Number(row.sectionId),
+            sectionName: row.sectionName ?? '',
+            classId: Number(row.classId),
+            className: row.className ?? '',
+            studentCount: Number(row.studentCount ?? 0),
+          })),
+        }))
+      );
+    }
+    return this.getSectionSummary().pipe(map(all => sliceToPage(all, page, size)));
+  }
+
   getTeacherWorkload(): Observable<TeacherWorkloadRow[]> {
     if (runtimeConfig.useMocks) {
       return of(buildMockTeacherWorkload().map(r => ({ ...r, subjects: [...r.subjects] }))).pipe();
@@ -123,6 +165,24 @@ export class ReportService {
         }))
       )
     );
+  }
+
+  getTeacherWorkloadPage(page = 0, size = DEFAULT_ERP_PAGE_SIZE): Observable<PageResp<TeacherWorkloadRow>> {
+    if (!runtimeConfig.useMocks) {
+      return this.api.getPageParams<any>('/reports/teacher-workload/paged', { page, size }).pipe(
+        map(p => ({
+          ...p,
+          content: p.content.map(row => ({
+            teacherId: Number(row.teacherId),
+            teacherName: row.teacherName,
+            specialization: row.specialization ?? '',
+            subjects: row.subjects ?? [],
+            status: row.status ?? '',
+          })),
+        }))
+      );
+    }
+    return this.getTeacherWorkload().pipe(map(all => sliceToPage(all, page, size)));
   }
 
   getFeeCollectionSummary(classId?: number): Observable<{

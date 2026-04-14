@@ -4,8 +4,10 @@ import { delay, map } from 'rxjs/operators';
 import { MOCK_FEE_PAYMENTS_SEED, MOCK_FEE_STRUCTURES_SEED } from '../mocks/fee.mock-data';
 import { MOCK_STUDENTS } from '../mocks/students.mock-data';
 import { BulkAssignFeesRequest, BulkAssignFeesResponse, FeeStructure, FeePayment } from '../models/models';
-import { ApiService } from './api.service';
+import { ApiService, PageResp } from './api.service';
 import { runtimeConfig } from '../config/runtime-config';
+import { DEFAULT_ERP_PAGE_SIZE } from '../constants/pagination.constants';
+import { sliceToPage } from '../utils/paginate';
 
 let MOCK_FEE_STRUCTURES: FeeStructure[] = MOCK_FEE_STRUCTURES_SEED.map(s => ({
   ...s,
@@ -34,6 +36,38 @@ export class FeeService {
       return this.api.get<any[]>('/fees/payments').pipe(map(payments => payments.map(item => this.normalizePayment(item))));
     }
     return of([...this.payments]).pipe(delay(400));
+  }
+
+  /**
+   * Paged payments for admin UI. Mock path mirrors backend {@code GET /fees/payments/paged} (PageResponse shape).
+   */
+  getPaymentsPage(opts: { page?: number; size?: number; status?: string; q?: string }): Observable<PageResp<FeePayment>> {
+    const page = opts.page ?? 0;
+    const size = opts.size ?? DEFAULT_ERP_PAGE_SIZE;
+    const q = opts.q?.trim().toLowerCase() || '';
+    const status = opts.status?.trim() || '';
+
+    if (!runtimeConfig.useMocks) {
+      const statusParam = status ? status.toUpperCase() : undefined;
+      return this.api
+        .getPageParams<FeePayment>('/fees/payments/paged', {
+          page,
+          size,
+          status: statusParam,
+          q: opts.q?.trim() || undefined,
+        })
+        .pipe(map(pr => ({ ...pr, content: pr.content.map(item => this.normalizePayment(item as any)) })));
+    }
+
+    let rows = [...this.payments];
+    if (status) {
+      rows = rows.filter(p => p.status === status);
+    }
+    if (q) {
+      rows = rows.filter(p => (p.studentName || '').toLowerCase().includes(q));
+    }
+    rows.sort((a, b) => b.id - a.id);
+    return of(sliceToPage(rows, page, size)).pipe(delay(250));
   }
 
   getStudentPayments(studentId: number): Observable<FeePayment[]> {

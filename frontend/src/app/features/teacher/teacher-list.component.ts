@@ -2,19 +2,24 @@ import { ChangeDetectorRef, Component, OnDestroy, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterModule } from '@angular/router';
-import { filter } from 'rxjs/operators';
+import { debounceTime, filter } from 'rxjs/operators';
 import { TeacherService } from '../../core/services/teacher.service';
 import { AuthService } from '../../core/services/auth.service';
 import { Teacher } from '../../core/models/models';
 import { ConfirmDialogService } from '../../shared/confirm-dialog/confirm-dialog.service';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
-import { Subscription } from 'rxjs';
+import { Subject, Subscription } from 'rxjs';
 import { formatSchoolClassName } from '../../core/i18n/school-class-display';
+import { ErpPaginationComponent } from '../../shared/erp-pagination/erp-pagination.component';
+import { DEFAULT_ERP_PAGE_SIZE } from '../../core/constants/pagination.constants';
+import { sliceToPage } from '../../core/utils/paginate';
+import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directives';
+import { runtimeConfig } from '../../core/config/runtime-config';
 
 @Component({
   selector: 'app-teacher-list',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterModule, TranslateModule],
+  imports: [CommonModule, FormsModule, RouterModule, TranslateModule, ErpPaginationComponent, ErpI18nPhDirective],
   template: `
     <div data-testid="teacher-list-page">
       <header class="erp-page-header animate-in">
@@ -33,7 +38,7 @@ import { formatSchoolClassName } from '../../core/i18n/school-class-display';
         <div class="d-flex justify-content-between align-items-center mb-3">
           <div class="search-input-wrapper" style="min-width: 300px;">
             <i class="bi bi-search"></i>
-            <input type="text" class="erp-input" [placeholder]="'teachers.list.searchPlaceholder' | translate" [(ngModel)]="searchTerm" (input)="filter()" data-testid="teacher-search">
+            <input type="text" class="erp-input" erpI18nPh="teachers.list.searchPlaceholder" [(ngModel)]="searchTerm" (input)="onSearchInput()" data-testid="teacher-search">
           </div>
         </div>
         <div style="overflow-x: auto;" dir="ltr">
@@ -42,7 +47,7 @@ import { formatSchoolClassName } from '../../core/i18n/school-class-display';
               <tr><th>{{ 'teachers.list.thTeacher' | translate }}</th><th>{{ 'teachers.list.thSpecialization' | translate }}</th><th>{{ 'teachers.list.thSubjects' | translate }}</th><th>{{ 'teachers.list.thHomeroom' | translate }}</th><th>{{ 'teachers.list.thJoinDate' | translate }}</th><th>{{ 'teachers.list.thStatus' | translate }}</th><th>{{ 'teachers.list.thActions' | translate }}</th></tr>
             </thead>
             <tbody>
-              <tr *ngFor="let t of filtered" [attr.data-testid]="'teacher-row-' + t.id">
+              <tr *ngFor="let t of pagedTeachers" [attr.data-testid]="'teacher-row-' + t.id">
                 <td>
                   <div class="d-flex align-items-center">
                     <img
@@ -88,15 +93,31 @@ import { formatSchoolClassName } from '../../core/i18n/school-class-display';
             </tbody>
           </table>
         </div>
+        <app-erp-pagination
+          *ngIf="paginationTotal > 0"
+          [totalElements]="paginationTotal"
+          [pageIndex]="pageIndex"
+          [pageSize]="pageSize"
+          (pageIndexChange)="onPageIndexChange($event)"
+          (pageSizeChange)="onPageSizeChange($event)"
+        />
       </div>
     </div>
   `
 })
 export class TeacherListComponent implements OnInit, OnDestroy {
+  readonly useServerPaging = !runtimeConfig.useMocks;
+
   teachers: Teacher[] = [];
   filtered: Teacher[] = [];
+  pagedTeachers: Teacher[] = [];
+  serverTotal = 0;
   searchTerm = '';
-  private langSub?: Subscription;
+  pageIndex = 0;
+  pageSize = DEFAULT_ERP_PAGE_SIZE;
+  private readonly subs = new Subscription();
+  private readonly searchDebounced$ = new Subject<void>();
+  private teachersListRequestSeq = 0;
 
   constructor(
     private teacherService: TeacherService,
@@ -114,8 +135,12 @@ export class TeacherListComponent implements OnInit, OnDestroy {
     return names.map(n => formatSchoolClassName(n, this.translate)).join(sep);
   }
 
+  get paginationTotal(): number {
+    return this.useServerPaging ? this.serverTotal : this.filtered.length;
+  }
+
   ngOnDestroy(): void {
-    this.langSub?.unsubscribe();
+    this.subs.unsubscribe();
   }
 
   statusLabel(status: string): string {
@@ -129,15 +154,55 @@ export class TeacherListComponent implements OnInit, OnDestroy {
   }
 
   ngOnInit(): void {
-    this.langSub = this.translate.onLangChange.subscribe(() => this.cdr.markForCheck());
+    this.subs.add(this.translate.onLangChange.subscribe(() => this.cdr.markForCheck()));
+    this.subs.add(
+      this.searchDebounced$.pipe(debounceTime(300)).subscribe(() => {
+        if (!this.useServerPaging) return;
+        this.pageIndex = 0;
+        this.fetchTeachersPage();
+      })
+    );
     this.reloadTeachers();
   }
 
+  onSearchInput(): void {
+    if (this.useServerPaging) {
+      this.searchDebounced$.next();
+    } else {
+      this.filter();
+    }
+  }
+
   reloadTeachers(): void {
+    if (this.useServerPaging) {
+      this.pageIndex = 0;
+      this.fetchTeachersPage();
+      return;
+    }
     this.teacherService.getTeachers().subscribe(t => {
       this.teachers = t;
-      this.filtered = t;
+      this.filter();
     });
+  }
+
+  private fetchTeachersPage(): void {
+    const seq = ++this.teachersListRequestSeq;
+    this.subs.add(
+      this.teacherService
+        .getTeachersPage({
+          page: this.pageIndex,
+          size: this.pageSize,
+          search: this.searchTerm.trim() || undefined,
+        })
+        .subscribe(page => {
+          if (seq !== this.teachersListRequestSeq) return;
+          this.serverTotal = page.totalElements;
+          this.pagedTeachers = page.content;
+          this.pageIndex = page.page;
+          this.pageSize = page.size;
+          this.cdr.markForCheck();
+        })
+    );
   }
 
   filter(): void {
@@ -145,6 +210,33 @@ export class TeacherListComponent implements OnInit, OnDestroy {
     this.filtered = this.teachers.filter(t =>
       (t.firstName + ' ' + t.lastName).toLowerCase().includes(term) || (t.specialization || '').toLowerCase().includes(term)
     );
+    this.pageIndex = 0;
+    this.applyPage();
+  }
+
+  private applyPage(): void {
+    const slice = sliceToPage(this.filtered, this.pageIndex, this.pageSize);
+    this.pagedTeachers = slice.content;
+    this.pageIndex = slice.page;
+  }
+
+  onPageIndexChange(idx: number): void {
+    this.pageIndex = idx;
+    if (this.useServerPaging) {
+      this.fetchTeachersPage();
+    } else {
+      this.applyPage();
+    }
+  }
+
+  onPageSizeChange(size: number): void {
+    this.pageSize = size;
+    this.pageIndex = 0;
+    if (this.useServerPaging) {
+      this.fetchTeachersPage();
+    } else {
+      this.applyPage();
+    }
   }
 
   deleteTeacher(id: number): void {
@@ -169,8 +261,12 @@ export class TeacherListComponent implements OnInit, OnDestroy {
       .pipe(filter(Boolean))
       .subscribe(() => {
         this.teacherService.deleteTeacher(id).subscribe(() => {
-          this.teachers = this.teachers.filter(x => x.id !== id);
-          this.filter();
+          if (this.useServerPaging) {
+            this.fetchTeachersPage();
+          } else {
+            this.teachers = this.teachers.filter(x => x.id !== id);
+            this.filter();
+          }
         });
       });
   }

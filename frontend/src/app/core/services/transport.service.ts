@@ -7,7 +7,9 @@ import {
   MOCK_TRANSPORT_VEHICLES_SEED,
 } from '../mocks/transport.mock-data';
 import { TransportDriver, TransportRoute, TransportVehicle } from '../models/models';
-import { ApiService } from './api.service';
+import { ApiService, PageResp } from './api.service';
+import { DEFAULT_ERP_PAGE_SIZE } from '../constants/pagination.constants';
+import { sliceToPage } from '../utils/paginate';
 import { runtimeConfig } from '../config/runtime-config';
 
 /** Mutable mock fleet (same response shape as API). */
@@ -28,6 +30,32 @@ export class TransportService {
       return of(MOCK_ROUTES.map(r => ({ ...r, stops: r.stops.map(s => ({ ...s })) })));
     }
     return this.api.get<any[]>('/transport/routes').pipe(map(list => list.map(r => this.normalizeRoute(r))));
+  }
+
+  listRoutesPage(
+    page = 0,
+    size = DEFAULT_ERP_PAGE_SIZE,
+    q?: string
+  ): Observable<PageResp<TransportRoute>> {
+    if (!runtimeConfig.useMocks) {
+      return this.api
+        .getPageParams<TransportRoute>('/transport/routes/paged', {
+          page,
+          size,
+          q: q?.trim() || undefined,
+        })
+        .pipe(map(p => ({ ...p, content: p.content.map(r => this.normalizeRoute(r)) })));
+    }
+    return this.listRoutes().pipe(
+      map(all => {
+        let rows = all;
+        const qq = q?.trim().toLowerCase();
+        if (qq) {
+          rows = rows.filter(r => (r.name || '').toLowerCase().includes(qq));
+        }
+        return sliceToPage(rows, page, size);
+      })
+    );
   }
 
   listVehicles(): Observable<TransportVehicle[]> {

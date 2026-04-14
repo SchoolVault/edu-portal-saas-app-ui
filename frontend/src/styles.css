@@ -1082,6 +1082,38 @@ img.table-avatar {
 }
 
 /* === PAGINATION === */
+.erp-pagination-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 0 4px;
+  margin-top: 8px;
+  border-top: 1px solid var(--clr-border-light);
+  font-size: 13px;
+  color: var(--clr-text-muted);
+}
+
+.erp-pagination-bar__controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+.erp-pagination-bar__size {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.erp-pagination-bar__select {
+  min-width: 72px;
+  padding: 6px 10px;
+  font-size: 13px;
+}
+
 .pagination-wrapper {
   display: flex;
   align-items: center;
@@ -1091,7 +1123,7 @@ img.table-avatar {
   color: var(--clr-text-muted);
 }
 
-.pagination-controls { display: flex; align-items: center; gap: 4px; }
+.pagination-controls { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
 
 .page-btn {
   min-width: 36px;
