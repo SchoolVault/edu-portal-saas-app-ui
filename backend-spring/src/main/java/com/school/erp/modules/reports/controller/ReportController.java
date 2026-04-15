@@ -2,6 +2,7 @@ package com.school.erp.modules.reports.controller;
 
 import com.school.erp.common.dto.ApiResponse;
 import com.school.erp.common.dto.PageResponse;
+import com.school.erp.modules.reports.dto.ParentDashboardDtos;
 import com.school.erp.modules.reports.dto.ReportDashboardDTOs;
 import com.school.erp.tenant.TenantContext;
 import io.swagger.v3.oas.annotations.Operation;
@@ -36,6 +37,16 @@ public class ReportController {
     @Operation(summary = "Get teacher dashboard", description = "Returns schedule and workload summaries for the current teacher")
     public ResponseEntity<ApiResponse<ReportDashboardDTOs.TeacherDashboardResponse>> getTeacherDashboard() {
         return ResponseEntity.ok(ApiResponse.ok(reportService.getTeacherDashboard()));
+    }
+
+    @GetMapping("/dashboard/parent")
+    @PreAuthorize("hasRole(\'PARENT\')")
+    @Operation(summary = "Get parent dashboard", description = "Aggregated KPIs, metric context, and activity feed for the guardian dashboard (same contract as frontend ParentDashboardData).")
+    public ResponseEntity<ApiResponse<ParentDashboardDtos.Response>> getParentDashboard(
+            @RequestParam String from,
+            @RequestParam String to,
+            @RequestParam(required = false) Long childId) {
+        return ResponseEntity.ok(ApiResponse.ok(reportService.getParentDashboard(from, to, childId)));
     }
 
     @GetMapping("/student-performance")

@@ -419,6 +419,7 @@
     },
     "parent": {
       "pageTitle": "Parent Dashboard",
+      "recentActivityTitle": "Recent activity",
       "child": "Child",
       "inbox": "Inbox",
       "announcements": "Announcements",
@@ -450,9 +451,56 @@
       },
       "kpi": {
         "childrenLinked": "Children linked",
+        "childrenLinkedContext": "{{count}} linked — switch above to refresh metrics for each child.",
         "attendance": "Attendance",
         "overallGrade": "Overall grade",
-        "feeDue": "Fee due"
+        "feeDue": "Outstanding fees"
+      },
+      "metric": {
+        "attendance": {
+          "band": {
+            "excellent": "Excellent — well above the school’s {{threshold}}% attendance expectation.",
+            "good": "On track — meets or exceeds the school target ({{threshold}}%).",
+            "fair": "Fair — slightly below {{threshold}}%; check announcements for support.",
+            "needs_attention": "Needs attention — below {{threshold}}%; please follow up with the class teacher.",
+            "critical": "Critical — far below {{threshold}}%; contact the school for a review."
+          }
+        },
+        "result": {
+          "band": {
+            "excellent": "Strong performance — average about {{pct}}% across subjects.",
+            "good": "Good standing — average about {{pct}}% across subjects.",
+            "fair": "Satisfactory — average about {{pct}}%; room to improve with steady effort.",
+            "needs_attention": "Below target — average about {{pct}}%; consider extra support.",
+            "critical": "At risk — average about {{pct}}%; please discuss with teachers."
+          }
+        },
+        "fee": {
+          "urgency": {
+            "none": "No outstanding balance for this period.",
+            "low": "Balance due — next due date {{date}} ({{days}} days).",
+            "medium": "Due soon — {{date}}. Pay from Fees to avoid late charges.",
+            "high": "Urgent — due {{date}} ({{days}} days). Please pay or contact the office."
+          }
+        }
+      },
+      "activity": {
+        "ATTENDANCE_MARKED": {
+          "title": "Attendance recorded",
+          "desc": "Latest roster update for {{child}} ({{classLabel}})."
+        },
+        "FEE_PAYMENT_RECORDED": {
+          "title": "Fee payment posted",
+          "desc": "A payment was recorded on the ledger for {{child}}."
+        },
+        "RESULT_PUBLISHED": {
+          "title": "Results published",
+          "desc": "New marks are available for {{child}} under Examinations."
+        },
+        "ANNOUNCEMENT_POSTED": {
+          "title": "School announcement",
+          "desc": "Check Inbox for the latest notices from the school."
+        }
       }
     },
     "enums": {
@@ -2391,6 +2439,9 @@
   "parentPortal": {
     "pageTitle": "Your Children ",
     "childrenPageSubtitle": "Select a child and month for attendance; fees and receipts stay per child. Overview and guidance are on your Dashboard.",
+    "detailLead": "This page focuses on month-by-month attendance, fee obligations, and receipts for the selected child. High-level KPIs, context, and recent activity are on your Dashboard.",
+    "openDashboardSummary": "Open dashboard summary",
+    "homeroomLabel": "Class teacher:",
     "leadBefore": "Track attendance, fees, and performance. Exams, timetables, and published grades live under",
     "leadExams": "Examinations",
     "leadAfter": "in the sidebar. Fee payments are per selected child.",

@@ -1,5 +1,6 @@
 package com.school.erp.modules.reports.adapter;
 
+import com.school.erp.modules.reports.dto.ParentDashboardDtos;
 import com.school.erp.modules.reports.dto.ReportDashboardDTOs;
 import com.school.erp.modules.reports.port.ReportQueryPort;
 import org.slf4j.Logger;
@@ -44,6 +45,11 @@ public class WarehouseReportQueryAdapter implements ReportQueryPort {
     public ReportDashboardDTOs.TeacherDashboardResponse getTeacherDashboard() {
         log.trace("warehouse report path: delegating getTeacherDashboard to OLTP");
         return oltp.getTeacherDashboard();
+    }
+
+    @Override
+    public ParentDashboardDtos.Response getParentDashboard(String from, String to, Long childId) {
+        return oltp.getParentDashboard(from, to, childId);
     }
 
     @Override

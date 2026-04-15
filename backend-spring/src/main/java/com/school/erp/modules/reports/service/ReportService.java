@@ -2,6 +2,7 @@ package com.school.erp.modules.reports.service;
 
 import com.school.erp.common.dto.PageResponse;
 import com.school.erp.config.CacheConfig;
+import com.school.erp.modules.reports.dto.ParentDashboardDtos;
 import com.school.erp.modules.reports.dto.ReportDashboardDTOs;
 import com.school.erp.modules.reports.port.ReportQueryPort;
 import org.springframework.cache.annotation.Cacheable;
@@ -48,6 +49,12 @@ public class ReportService {
     @Transactional(readOnly = true)
     public ReportDashboardDTOs.TeacherDashboardResponse getTeacherDashboard() {
         return reportQueryPort.getTeacherDashboard();
+    }
+
+    @Cacheable(cacheNames = CacheConfig.DASHBOARD_SNAPSHOTS, keyGenerator = "tenantMethodParamsKeyGenerator", unless = "#result == null")
+    @Transactional(readOnly = true)
+    public ParentDashboardDtos.Response getParentDashboard(String from, String to, Long childId) {
+        return reportQueryPort.getParentDashboard(from, to, childId);
     }
 
     @Cacheable(cacheNames = CacheConfig.REPORT_RESULTS, keyGenerator = "tenantMethodParamsKeyGenerator", unless = "#result == null")

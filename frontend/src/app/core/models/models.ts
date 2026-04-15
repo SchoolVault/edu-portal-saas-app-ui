@@ -533,6 +533,45 @@ export interface TeacherDashboardData {
   quickActions?: { label: string; route: string; icon: string }[];
 }
 
+/** Mirrors backend policy field {@code schoolThresholdPercent} when wired. */
+export type ParentMetricBand = 'excellent' | 'good' | 'fair' | 'needs_attention' | 'critical';
+
+export interface ParentAttendanceMetricContext {
+  band: ParentMetricBand;
+  /** i18n: dashboard.parent.metric.attendance.band.* */
+  labelKey: string;
+  schoolThresholdPct: number;
+}
+
+export interface ParentResultMetricContext {
+  band: ParentMetricBand;
+  labelKey: string;
+  averagePercent?: number;
+}
+
+export type ParentFeeUrgencyLevel = 'none' | 'low' | 'medium' | 'high';
+
+export interface ParentFeeMetricContext {
+  urgency: ParentFeeUrgencyLevel;
+  labelKey: string;
+  nextDueDate?: string;
+  daysUntilDue?: number | null;
+}
+
+export type ParentDashboardActivityCode =
+  | 'ATTENDANCE_MARKED'
+  | 'FEE_PAYMENT_RECORDED'
+  | 'RESULT_PUBLISHED'
+  | 'ANNOUNCEMENT_POSTED';
+
+/** Coded activity row — UI maps {@link code} to i18n keys (works with app language switch). */
+export interface ParentDashboardActivityItem {
+  code: ParentDashboardActivityCode;
+  type: 'info' | 'success' | 'warning';
+  timestamp: string;
+  params?: Record<string, string | number>;
+}
+
 export interface ParentDashboardData {
   childCount: number;
   children?: Student[];
@@ -543,6 +582,14 @@ export interface ParentDashboardData {
   feeDue: number;
   childPerformance: MarkRecord[];
   feeStatus: FeePayment[];
+  /** Explains attendance vs school threshold (QA: raw % without context). */
+  attendanceMetric?: ParentAttendanceMetricContext;
+  /** Explains grade / performance band (QA: result without context). */
+  resultMetric?: ParentResultMetricContext;
+  /** Fee urgency + next due (QA: fee tile lacks urgency). */
+  feeMetric?: ParentFeeMetricContext;
+  /** Parent dashboard feed (QA: missing recent activity). */
+  recentActivities?: ParentDashboardActivityItem[];
   alerts?: {
     type: 'info' | 'warning' | 'success' | 'error';
     /** Plain text (e.g. API). */

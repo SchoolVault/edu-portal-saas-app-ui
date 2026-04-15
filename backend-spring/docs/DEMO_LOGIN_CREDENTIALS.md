@@ -42,6 +42,7 @@ Full tables, parent email pattern, and SQL helpers: **[DEMO_CREDENTIALS.md](../.
 | TEACHER | `aarav.sharma@dps-dlh.edu.in` | Librarian flag (1 of 10 teachers) |
 | TEACHER | `ananya.verma@dps-dlh.edu.in` | Library assistant flag |
 | PARENT | *(see root `DEMO_CREDENTIALS.md`)* | Pattern `{name}.father.{token}@parent.dps-dlh.edu.in` etc. |
+| PARENT (QA, multi-child) | `qa.multichild.parent@parent.dps-dlh.edu.in` | Same password `admin123`; see [DEMO_QA_MULTI_CHILD_PARENT.md](../../docs/DEMO_QA_MULTI_CHILD_PARENT.md) |
 
 ### School 2 — Kendriya Vidyalaya (KV-MUM)
 
@@ -54,6 +55,7 @@ Full tables, parent email pattern, and SQL helpers: **[DEMO_CREDENTIALS.md](../.
 | ADMIN | `admin@kvmumbai1.gmail.com` | Domain from `kvmumbai1@gmail.com` in seeder |
 | TEACHER | `aarav.sharma@kv-mum.edu.in` | Same 10-name pattern as DPS, different domain |
 | PARENT | *(see root `DEMO_CREDENTIALS.md`)* | `@parent.kv-mum.edu.in` + admission token |
+| PARENT (QA, multi-child) | `qa.multichild.parent@parent.kv-mum.edu.in` | Same password `admin123`; see [DEMO_QA_MULTI_CHILD_PARENT.md](../../docs/DEMO_QA_MULTI_CHILD_PARENT.md) |
 
 **Library:** use teacher emails above (library flags on teacher **#1** and **#2**); there is no separate `LIBRARY_STAFF` user in this seed.
 

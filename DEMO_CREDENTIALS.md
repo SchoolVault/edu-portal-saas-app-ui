@@ -19,8 +19,11 @@ Phone OTP (if enabled on the UI) uses the **mobile number** stored on the user r
 | **TEACHER** | `aarav.sharma@kv-mum.edu.in` | `KV-MUM` | `tenant_kv_mumbai_7p5n3x8q` |
 | **TEACHER (+ library)** | `aarav.sharma@dps-dlh.edu.in` (librarian), `ananya.verma@dps-dlh.edu.in` (assistant) | `DPS-DLH` | `tenant_dps_delhi_9x4k7m2p` |
 | **PARENT** | Any row with `role = PARENT` for that tenant (pattern below); example query in [Sample Parents](#sample-parents) | `DPS-DLH` / `KV-MUM` | (same as admin for that school) |
+| **PARENT (QA, 4+ children)** | `qa.multichild.parent@parent.dps-dlh.edu.in` / `qa.multichild.parent@parent.kv-mum.edu.in` | `DPS-DLH` / `KV-MUM` | same tenants as admins for those schools |
 
 **Password for every row above:** `admin123`
+
+**QA multi-child parent:** details and usage are in [docs/DEMO_QA_MULTI_CHILD_PARENT.md](docs/DEMO_QA_MULTI_CHILD_PARENT.md).
 
 ### Login flow (Angular `/login`)
 
