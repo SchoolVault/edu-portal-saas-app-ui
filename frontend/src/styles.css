@@ -1042,7 +1042,17 @@ img.table-avatar {
 .btn-danger-erp:hover { background: #B91C1C; }
 
 /* === BADGES === */
-.badge-erp { display: inline-flex; align-items: center; padding: 4px 11px; border-radius: var(--radius-full); font-size: 12px; font-weight: 600; }
+.badge-erp {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 11px;
+  border-radius: var(--radius-full);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.25;
+  box-sizing: border-box;
+}
 .badge-success {
   background: color-mix(in srgb, var(--clr-success) 16%, var(--clr-surface));
   color: var(--clr-success);

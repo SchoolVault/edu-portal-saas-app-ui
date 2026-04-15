@@ -3,10 +3,10 @@ package com.school.erp.modules.reminder.service;
 import com.school.erp.common.enums.Enums;
 import com.school.erp.modules.fees.entity.FeePayment;
 import com.school.erp.modules.fees.repository.FeePaymentRepository;
-import com.school.erp.modules.notification.service.NotificationOutboxService;
 import com.school.erp.modules.settings.service.TenantFeatureFlagsService;
 import com.school.erp.modules.student.entity.Student;
-import com.school.erp.modules.student.repository.StudentRepository;
+import com.school.erp.modules.student.port.StudentPersistencePort;
+import com.school.erp.platform.port.NotificationDispatchPort;
 import java.math.BigDecimal;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
@@ -29,18 +29,18 @@ public class FeeReminderAutomationService {
     private static final int[] PRE_DUE_MARK_DAYS = {10, 7, 4, 1, 0};
 
     private final FeePaymentRepository feePaymentRepository;
-    private final StudentRepository studentRepository;
-    private final NotificationOutboxService outboxService;
+    private final StudentPersistencePort studentPersistence;
+    private final NotificationDispatchPort notificationDispatchPort;
     private final TenantFeatureFlagsService featureFlagsService;
 
     public FeeReminderAutomationService(
             FeePaymentRepository feePaymentRepository,
-            StudentRepository studentRepository,
-            NotificationOutboxService outboxService,
+            StudentPersistencePort studentPersistence,
+            NotificationDispatchPort notificationDispatchPort,
             TenantFeatureFlagsService featureFlagsService) {
         this.feePaymentRepository = feePaymentRepository;
-        this.studentRepository = studentRepository;
-        this.outboxService = outboxService;
+        this.studentPersistence = studentPersistence;
+        this.notificationDispatchPort = notificationDispatchPort;
         this.featureFlagsService = featureFlagsService;
     }
 
@@ -54,7 +54,7 @@ public class FeeReminderAutomationService {
                 || payment.getDueAmount().compareTo(BigDecimal.ZERO) <= 0) {
             return;
         }
-        Student st = studentRepository
+        Student st = studentPersistence
                 .findByIdAndTenantIdAndIsDeletedFalse(payment.getStudentId(), tenantId)
                 .orElse(null);
         if (st == null || st.getParentId() == null) {
@@ -98,7 +98,7 @@ public class FeeReminderAutomationService {
             if (!hasOutstanding(p)) {
                 continue;
             }
-            Student st = studentRepository.findByIdAndTenantIdAndIsDeletedFalse(p.getStudentId(), tenantId).orElse(null);
+            Student st = studentPersistence.findByIdAndTenantIdAndIsDeletedFalse(p.getStudentId(), tenantId).orElse(null);
             if (st == null || st.getParentId() == null) {
                 continue;
             }
@@ -172,7 +172,7 @@ public class FeeReminderAutomationService {
     private int enqueueParentChannels(
             String tenantId, Long parentUserId, String eventType, String subject, String body, String baseDedupe) {
         int n = 0;
-        outboxService.enqueue(
+        notificationDispatchPort.enqueue(
                 tenantId,
                 eventType,
                 "IN_APP",
@@ -183,7 +183,7 @@ public class FeeReminderAutomationService {
                 baseDedupe + ":IN_APP",
                 "fee-auto");
         n++;
-        outboxService.enqueue(
+        notificationDispatchPort.enqueue(
                 tenantId,
                 eventType,
                 "SMS",

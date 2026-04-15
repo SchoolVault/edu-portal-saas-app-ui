@@ -6,23 +6,23 @@ import com.school.erp.common.exception.BusinessException;
 import com.school.erp.common.exception.UnauthorizedException;
 import com.school.erp.modules.attendance.dto.AttendanceDTOs;
 import com.school.erp.modules.attendance.entity.AttendanceRecord;
-import com.school.erp.modules.attendance.repository.AttendanceRepository;
+import com.school.erp.modules.attendance.port.AttendancePersistencePort;
 import com.school.erp.modules.student.service.TeacherRosterScopeService;
 import com.school.erp.tenant.TenantContext;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 import java.util.stream.Collectors;
 
 @Service
 public class AttendanceService {
     private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(AttendanceService.class);
-    private final AttendanceRepository repo;
+    private final AttendancePersistencePort attendancePersistence;
     private final TeacherRosterScopeService teacherRosterScopeService;
 
     private void assertTeacherAttendanceScope(Long classId, Long sectionId, LocalDate date) {
@@ -34,16 +34,25 @@ public class AttendanceService {
     @Transactional(readOnly = true)
     public List<AttendanceDTOs.AttendanceResponse> getByClassSectionDate(Long classId, Long sectionId, LocalDate date) {
         assertTeacherAttendanceScope(classId, sectionId, date);
-        return repo.findByTenantIdAndClassIdAndSectionIdAndDate(TenantContext.getTenantId(), classId, sectionId, date).stream().map(this::toResponse).collect(Collectors.toList());
+        return attendancePersistence.findByTenantIdAndClassIdAndSectionIdAndDate(TenantContext.getTenantId(), classId, sectionId, date).stream().map(this::toResponse).collect(Collectors.toList());
     }
 
     @Transactional(readOnly = true)
     public PageResponse<AttendanceDTOs.AttendanceResponse> getByClassSectionDatePaged(Long classId, Long sectionId, LocalDate date, int page, int size) {
         assertTeacherAttendanceScope(classId, sectionId, date);
-        Pageable pageable = PageRequest.of(page, size, Sort.by("studentId"));
-        Page<AttendanceRecord> pg = repo.findByTenantIdAndClassIdAndSectionIdAndDateAndIsDeletedFalseOrderByStudentIdAsc(
-                TenantContext.getTenantId(), classId, sectionId, date, pageable);
-        return PageResponse.fromSpringPage(pg.map(this::toResponse));
+        List<AttendanceRecord> all = new ArrayList<>(attendancePersistence.findByTenantIdAndClassIdAndSectionIdAndDate(
+                TenantContext.getTenantId(), classId, sectionId, date));
+        all.sort(Comparator.comparing(AttendanceRecord::getStudentId, Comparator.nullsLast(Comparator.naturalOrder())));
+        long total = all.size();
+        int from = page * size;
+        if (from >= all.size()) {
+            return PageResponse.of(List.of(), page, size, total);
+        }
+        int to = Math.min(from + size, all.size());
+        List<AttendanceDTOs.AttendanceResponse> slice = all.subList(from, to).stream()
+                .map(this::toResponse)
+                .collect(Collectors.toList());
+        return PageResponse.of(slice, page, size, total);
     }
 
     @Transactional
@@ -61,7 +70,7 @@ public class AttendanceService {
         List<AttendanceRecord> records = 
         // Check if record exists for this student+date - update or create
         request.getRecords().stream().map(r -> {
-            List<AttendanceRecord> existing = repo.findByTenantIdAndClassIdAndSectionIdAndDate(t, request.getClassId(), request.getSectionId(), date);
+            List<AttendanceRecord> existing = attendancePersistence.findByTenantIdAndClassIdAndSectionIdAndDate(t, request.getClassId(), request.getSectionId(), date);
             AttendanceRecord existingRec = existing.stream().filter(e -> e.getStudentId().equals(r.getStudentId())).findFirst().orElse(null);
             if (existingRec != null) {
                 existingRec.setStatus(Enums.AttendanceStatus.valueOf(r.getStatus().toUpperCase()));
@@ -74,14 +83,14 @@ public class AttendanceService {
                 return rec;
             }
         }).collect(Collectors.toList());
-        repo.saveAll(records);
+        attendancePersistence.saveAll(records);
         log.info("Attendance marked for class={} section={} date={} students={}", request.getClassId(), request.getSectionId(), date, records.size());
         return records.stream().map(this::toResponse).collect(Collectors.toList());
     }
 
     @Transactional(readOnly = true)
     public AttendanceDTOs.AttendanceStatsResponse getStudentStats(Long studentId, LocalDate from, LocalDate to) {
-        List<AttendanceRecord> records = repo.findByTenantIdAndStudentIdAndDateBetween(TenantContext.getTenantId(), studentId, from, to);
+        List<AttendanceRecord> records = attendancePersistence.findByTenantIdAndStudentIdAndDateBetween(TenantContext.getTenantId(), studentId, from, to);
         long present = records.stream().filter(r -> r.getStatus() == Enums.AttendanceStatus.PRESENT).count();
         long absent = records.stream().filter(r -> r.getStatus() == Enums.AttendanceStatus.ABSENT).count();
         long late = records.stream().filter(r -> r.getStatus() == Enums.AttendanceStatus.LATE).count();
@@ -94,7 +103,7 @@ public class AttendanceService {
     @Transactional(readOnly = true)
     public AttendanceDTOs.ClassAttendanceStatsResponse getClassStats(Long classId, Long sectionId, LocalDate date) {
         assertTeacherAttendanceScope(classId, sectionId, date);
-        List<AttendanceRecord> records = repo.findByTenantIdAndClassIdAndSectionIdAndDate(TenantContext.getTenantId(), classId, sectionId, date);
+        List<AttendanceRecord> records = attendancePersistence.findByTenantIdAndClassIdAndSectionIdAndDate(TenantContext.getTenantId(), classId, sectionId, date);
         long present = records.stream().filter(r -> r.getStatus() == Enums.AttendanceStatus.PRESENT).count();
         long absent = records.stream().filter(r -> r.getStatus() == Enums.AttendanceStatus.ABSENT).count();
         long late = records.stream().filter(r -> r.getStatus() == Enums.AttendanceStatus.LATE).count();
@@ -113,7 +122,7 @@ public class AttendanceService {
         for (LocalDate d = from; !d.isAfter(to); d = d.plusDays(1)) {
             if (d.getDayOfWeek().getValue() <= 6) {
                 // Mon-Sat working days
-                allRecords.addAll(repo.findByTenantIdAndClassIdAndSectionIdAndDate(t, classId, sectionId, d));
+                allRecords.addAll(attendancePersistence.findByTenantIdAndClassIdAndSectionIdAndDate(t, classId, sectionId, d));
             }
         }
         // Group by student
@@ -133,8 +142,8 @@ public class AttendanceService {
         return AttendanceDTOs.AttendanceResponse.builder().id(r.getId()).studentId(r.getStudentId()).studentName(r.getStudentName()).classId(r.getClassId()).sectionId(r.getSectionId()).date(r.getDate().toString()).status(r.getStatus().name().toLowerCase()).markedBy(r.getMarkedBy()).remarks(r.getRemarks()).build();
     }
 
-    public AttendanceService(final AttendanceRepository repo, final TeacherRosterScopeService teacherRosterScopeService) {
-        this.repo = repo;
+    public AttendanceService(final AttendancePersistencePort attendancePersistence, final TeacherRosterScopeService teacherRosterScopeService) {
+        this.attendancePersistence = attendancePersistence;
         this.teacherRosterScopeService = teacherRosterScopeService;
     }
 }

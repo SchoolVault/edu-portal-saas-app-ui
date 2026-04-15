@@ -2,6 +2,7 @@ package com.school.erp.modules.notification.service;
 
 import com.school.erp.common.enums.Enums;
 import com.school.erp.modules.communication.entity.Announcement;
+import com.school.erp.platform.port.NotificationDispatchPort;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -15,15 +16,15 @@ public class AnnouncementNotificationFanoutService {
     private static final Logger log = LoggerFactory.getLogger(AnnouncementNotificationFanoutService.class);
     private final AnnouncementAudienceResolver audienceResolver;
     private final NotificationService notificationService;
-    private final NotificationOutboxService outboxService;
+    private final NotificationDispatchPort notificationDispatchPort;
 
     public AnnouncementNotificationFanoutService(
             AnnouncementAudienceResolver audienceResolver,
             NotificationService notificationService,
-            NotificationOutboxService outboxService) {
+            NotificationDispatchPort notificationDispatchPort) {
         this.audienceResolver = audienceResolver;
         this.notificationService = notificationService;
-        this.outboxService = outboxService;
+        this.notificationDispatchPort = notificationDispatchPort;
     }
 
     @Transactional
@@ -43,7 +44,7 @@ public class AnnouncementNotificationFanoutService {
                     Enums.NotificationType.INFO,
                     link);
             String dedupeSms = "ANN:" + ann.getId() + ":SMS:" + m.userId();
-            outboxService.enqueue(
+            notificationDispatchPort.enqueue(
                     tenantId,
                     "ANNOUNCEMENT_SMS",
                     "SMS",
@@ -54,7 +55,7 @@ public class AnnouncementNotificationFanoutService {
                     dedupeSms,
                     "ann-" + ann.getId());
             String dedupeWa = "ANN:" + ann.getId() + ":WA:" + m.userId();
-            outboxService.enqueue(
+            notificationDispatchPort.enqueue(
                     tenantId,
                     "ANNOUNCEMENT_WHATSAPP",
                     "WHATSAPP",

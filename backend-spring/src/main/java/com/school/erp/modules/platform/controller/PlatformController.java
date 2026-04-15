@@ -76,7 +76,7 @@ public class PlatformController {
     }
 
     @PostMapping("/schools/{tenantId}/purge-data")
-    @Operation(summary = "Queue async hard-delete of all data for this tenant (workspace must be suspended; confirm school code)")
+    @Operation(summary = "After suspend: queue full DB wipe for this tenant only (school code confirmation). Not the scheduled soft-delete job.")
     public ResponseEntity<ApiResponse<PlatformDTOs.PurgeJobSummary>> requestPurge(
             @PathVariable String tenantId,
             @Valid @RequestBody PlatformDTOs.PurgeSchoolDataRequest request

@@ -20,6 +20,7 @@ export const runtimeConfig: DeployedApiConfig & {
   /**
    * Dev: true = in-memory parent data; fee pay uses in-browser settlement only for {@code mockpay} (see {@link ParentService.usesLocalPortalFeeSimulation}).
    * Prod: false = all parent calls and fee checkout use the API with a real JWT.
+   * Backend contract alignment: repo root {@code docs/README_PHASES.md} (pagination {@code PageResponse}, {@code ApiResponse}).
    */
   useMocks: boolean;
 } = {

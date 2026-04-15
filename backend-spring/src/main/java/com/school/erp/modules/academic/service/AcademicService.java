@@ -13,8 +13,13 @@ import com.school.erp.modules.student.entity.Student;
 import com.school.erp.modules.student.repository.StudentRepository;
 import com.school.erp.modules.teacher.entity.Teacher;
 import com.school.erp.modules.teacher.repository.TeacherRepository;
+import com.school.erp.cache.CacheService;
+import com.school.erp.cache.CacheService.CacheRegion;
+import com.school.erp.config.CacheConfig;
 import com.school.erp.tenant.TenantContext;
 import com.school.erp.tenant.TenantQueryPolicy;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
@@ -49,8 +54,10 @@ public class AcademicService {
     private final TeacherAssignmentService teacherAssignmentService;
     private final AcademicSubjectRepository academicSubjectRepo;
     private final TeacherRepository teacherRepository;
+    private final ObjectProvider<CacheService> cacheService;
 
     // ========== SUBJECT CATALOG ==========
+    @Cacheable(cacheNames = CacheConfig.ACADEMIC_CATALOG, keyGenerator = "tenantMethodNameKeyGenerator", unless = "#result == null")
     @Transactional(readOnly = true)
     public List<AcademicDTOs.SubjectCatalogItem> getSubjectCatalog() {
         String tenantId = TenantContext.getTenantId();
@@ -69,6 +76,7 @@ public class AcademicService {
     }
 
     // ========== ACADEMIC YEARS ==========
+    @Cacheable(cacheNames = CacheConfig.ACADEMIC_CATALOG, keyGenerator = "tenantMethodNameKeyGenerator", unless = "#result == null")
     @Transactional(readOnly = true)
     public List<AcademicYear> getYears() {
         String t = TenantContext.getTenantId();
@@ -116,6 +124,7 @@ public class AcademicService {
     }
 
     // ========== CLASSES ==========
+    @Cacheable(cacheNames = CacheConfig.ACADEMIC_CATALOG, keyGenerator = "tenantMethodNameKeyGenerator", unless = "#result == null")
     @Transactional(readOnly = true)
     public List<AcademicDTOs.ClassWithSectionsResponse> getClassesWithSections() {
         String t = TenantContext.getTenantId();
@@ -130,6 +139,7 @@ public class AcademicService {
     /**
      * Single-class view for UI ({@code GET /academic/classes/{id}}) — same DTO shape as list entries.
      */
+    @Cacheable(cacheNames = CacheConfig.ACADEMIC_CATALOG, keyGenerator = "tenantMethodFirstParamKeyGenerator", unless = "#result == null")
     @Transactional(readOnly = true)
     public AcademicDTOs.ClassWithSectionsResponse getClassWithSectionsById(Long classId) {
         String t = TenantContext.getTenantId();
@@ -194,6 +204,7 @@ public class AcademicService {
             teacherAssignmentService.recordClassTeacherAssignment(
                     cls.getId(), null, req.getClassTeacherId(), cls.getAcademicYearId(), LocalDate.now());
         }
+        evictAcademicClassCaches(cls.getId(), true);
         return cls;
     }
 
@@ -204,6 +215,7 @@ public class AcademicService {
                 other.setClassTeacherName(null);
                 classRepo.save(other);
                 log.info("Cleared homeroom teacher from classId={} (single-class rule; keepClassId={})", other.getId(), keepClassId);
+                evictAcademicClassCaches(other.getId(), false);
             }
         }
     }
@@ -217,6 +229,7 @@ public class AcademicService {
         sec.setTenantId(t);
         Section saved = sectionRepo.save(sec);
         log.info("Section created id={} classId={}", saved.getId(), classId);
+        evictAcademicClassCaches(classId, true);
         return saved;
     }
 
@@ -247,9 +260,11 @@ public class AcademicService {
                     classId, null, teacherId, cls.getAcademicYearId(), LocalDate.now());
         }
         log.info("Class teacher assigned classId={}", classId);
+        evictAcademicClassCaches(classId, true);
         return getClassWithSectionsById(classId);
     }
 
+    @Cacheable(cacheNames = CacheConfig.ACADEMIC_CATALOG, keyGenerator = "tenantMethodFirstParamKeyGenerator", unless = "#result == null")
     @Transactional(readOnly = true)
     public List<Section> getSectionsByClass(Long classId) {
         String t = TenantContext.getTenantId();
@@ -267,6 +282,7 @@ public class AcademicService {
         cls.setGrade(req.getGrade());
         classRepo.save(cls);
         log.info("Class updated id={} name={}", classId, req.getName());
+        evictAcademicClassCaches(classId, true);
         return getClassWithSectionsById(classId);
     }
 
@@ -278,6 +294,7 @@ public class AcademicService {
         sec.setCapacity(req.getCapacity());
         Section saved = sectionRepo.save(sec);
         log.info("Section updated id={}", sectionId);
+        evictAcademicClassCaches(saved.getClassId(), true);
         return saved;
     }
 
@@ -289,9 +306,11 @@ public class AcademicService {
         if (enrolled > 0) {
             throw new BusinessException("Cannot delete a section that still has students. Reassign students first.");
         }
+        Long classId = sec.getClassId();
         sec.setIsDeleted(true);
         sectionRepo.save(sec);
         log.info("Section soft-deleted id={}", sectionId);
+        evictAcademicClassCaches(classId, true);
     }
 
     @Transactional(readOnly = true)
@@ -436,6 +455,8 @@ public class AcademicService {
             affectedSectionIds.add(targetSection.getId());
         }
         refreshSectionCounts(tenantId, affectedSectionIds);
+        evictAcademicClassCaches(req.getSourceClassId(), true);
+        evictAcademicClassCaches(targetClass.getId(), true);
 
         AcademicWorkflowDTOs.PromotionResultResponse response = new AcademicWorkflowDTOs.PromotionResultResponse();
         response.setPromotedCount(students.size());
@@ -460,6 +481,26 @@ public class AcademicService {
                         }));
     }
 
+    /**
+     * Evicts class/section list caches (keys must match {@code tenantMethodNameKeyGenerator} /
+     * {@code tenantMethodFirstParamKeyGenerator}).
+     */
+    private void evictAcademicClassCaches(Long classId, boolean evictFullClassList) {
+        cacheService.ifAvailable(cs -> {
+            String tid = TenantContext.getTenantId();
+            if (tid == null || tid.isBlank()) {
+                tid = "_no_tenant_";
+            }
+            if (evictFullClassList) {
+                cs.evict(CacheRegion.ACADEMIC_CATALOG, tid + ":getClassesWithSections");
+            }
+            if (classId != null) {
+                cs.evict(CacheRegion.ACADEMIC_CATALOG, tid + ":getClassWithSectionsById:" + classId);
+                cs.evict(CacheRegion.ACADEMIC_CATALOG, tid + ":getSectionsByClass:" + classId);
+            }
+        });
+    }
+
     public AcademicService(
             final AcademicYearRepository yearRepo,
             final SchoolClassRepository classRepo,
@@ -468,7 +509,8 @@ public class AcademicService {
             final MarkRecordRepository markRepo,
             final TeacherAssignmentService teacherAssignmentService,
             final AcademicSubjectRepository academicSubjectRepo,
-            final TeacherRepository teacherRepository) {
+            final TeacherRepository teacherRepository,
+            ObjectProvider<CacheService> cacheService) {
         this.yearRepo = yearRepo;
         this.classRepo = classRepo;
         this.sectionRepo = sectionRepo;
@@ -477,5 +519,6 @@ public class AcademicService {
         this.teacherAssignmentService = teacherAssignmentService;
         this.academicSubjectRepo = academicSubjectRepo;
         this.teacherRepository = teacherRepository;
+        this.cacheService = cacheService;
     }
 }

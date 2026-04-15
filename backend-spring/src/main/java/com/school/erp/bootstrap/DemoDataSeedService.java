@@ -37,6 +37,24 @@ import com.school.erp.modules.library.entity.Book;
 import com.school.erp.modules.library.entity.BookIssue;
 import com.school.erp.modules.library.repository.BookIssueRepository;
 import com.school.erp.modules.library.repository.BookRepository;
+import com.school.erp.bootstrap.demo.DemoExtendedTablesSeed;
+import com.school.erp.modules.chat.repository.ChatConversationRepository;
+import com.school.erp.modules.chat.repository.ChatMessageRepository;
+import com.school.erp.modules.chat.repository.ChatParticipantRepository;
+import com.school.erp.modules.fees.entity.PaymentWebhookEvent;
+import com.school.erp.modules.fees.repository.PaymentWebhookEventRepository;
+import com.school.erp.modules.importexport.ImportJobConstants;
+import com.school.erp.modules.importexport.entity.ImportJob;
+import com.school.erp.modules.importexport.entity.ImportJobLine;
+import com.school.erp.modules.importexport.repository.ImportJobLineRepository;
+import com.school.erp.modules.importexport.repository.ImportJobRepository;
+import com.school.erp.modules.notification.entity.Notification;
+import com.school.erp.modules.notification.entity.NotificationOutbox;
+import com.school.erp.modules.notification.repository.NotificationOutboxRepository;
+import com.school.erp.modules.notification.repository.NotificationRepository;
+import com.school.erp.modules.payroll.repository.SalaryDisbursementAttemptRepository;
+import com.school.erp.platform.port.NotificationDispatchPort;
+import com.school.erp.modules.payroll.entity.SalaryDisbursementAttempt;
 import com.school.erp.modules.payroll.entity.Payslip;
 import com.school.erp.modules.payroll.entity.SalaryComponent;
 import com.school.erp.modules.payroll.entity.SalaryStructure;
@@ -61,9 +79,12 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.YearMonth;
+import java.util.Locale;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -198,6 +219,17 @@ public class DemoDataSeedService {
     private final MessageRepository messageRepository;
     private final DocumentRepository documentRepository;
     private final LeaveRequestRepository leaveRequestRepository;
+    private final NotificationRepository notificationRepository;
+    private final ChatConversationRepository chatConversationRepository;
+    private final ChatParticipantRepository chatParticipantRepository;
+    private final ChatMessageRepository chatMessageRepository;
+    private final ImportJobRepository importJobRepository;
+    private final ImportJobLineRepository importJobLineRepository;
+    private final NotificationOutboxRepository notificationOutboxRepository;
+    private final NotificationDispatchPort notificationDispatchPort;
+    private final SalaryDisbursementAttemptRepository salaryDisbursementAttemptRepository;
+    private final PaymentWebhookEventRepository paymentWebhookEventRepository;
+    private final DemoExtendedTablesSeed demoExtendedTablesSeed;
     private final EntityManager entityManager;
 
     /** Pause duration between major steps (in milliseconds) to avoid overwhelming Render free tier */
@@ -245,7 +277,18 @@ public class DemoDataSeedService {
             MessageRepository messageRepository,
             DocumentRepository documentRepository,
             LeaveRequestRepository leaveRequestRepository,
-            EntityManager entityManager) {
+            NotificationRepository notificationRepository,
+            ChatConversationRepository chatConversationRepository,
+            ChatParticipantRepository chatParticipantRepository,
+            ChatMessageRepository chatMessageRepository,
+            ImportJobRepository importJobRepository,
+            ImportJobLineRepository importJobLineRepository,
+            NotificationOutboxRepository notificationOutboxRepository,
+            NotificationDispatchPort notificationDispatchPort,
+            SalaryDisbursementAttemptRepository salaryDisbursementAttemptRepository,
+            PaymentWebhookEventRepository paymentWebhookEventRepository,
+            EntityManager entityManager,
+            DemoExtendedTablesSeed demoExtendedTablesSeed) {
         this.tenantConfigRepository = tenantConfigRepository;
         this.userRepository = userRepository;
         this.academicYearRepository = academicYearRepository;
@@ -284,6 +327,17 @@ public class DemoDataSeedService {
         this.messageRepository = messageRepository;
         this.documentRepository = documentRepository;
         this.leaveRequestRepository = leaveRequestRepository;
+        this.notificationRepository = notificationRepository;
+        this.chatConversationRepository = chatConversationRepository;
+        this.chatParticipantRepository = chatParticipantRepository;
+        this.chatMessageRepository = chatMessageRepository;
+        this.importJobRepository = importJobRepository;
+        this.importJobLineRepository = importJobLineRepository;
+        this.notificationOutboxRepository = notificationOutboxRepository;
+        this.notificationDispatchPort = notificationDispatchPort;
+        this.salaryDisbursementAttemptRepository = salaryDisbursementAttemptRepository;
+        this.paymentWebhookEventRepository = paymentWebhookEventRepository;
+        this.demoExtendedTablesSeed = demoExtendedTablesSeed;
         this.entityManager = entityManager;
     }
 
@@ -533,10 +587,292 @@ public class DemoDataSeedService {
     /**
      * Flushes and clears entity manager to free up memory
      */
+    private void seedShowcaseSupplementaryRows(String tenantId, String schoolCode) {
+        seedAcademicSubjectCatalogIfMissing(tenantId);
+        seedNotificationOutboxShowcase(tenantId, schoolCode);
+        seedPayslipAndSalaryDisbursementDemo(tenantId, schoolCode);
+        seedPaymentWebhookDemoRow(tenantId, schoolCode);
+    }
+
+    private void seedAcademicSubjectCatalogIfMissing(String tenantId) {
+        record SubRow(String code, String name, String category, int sort) {}
+        List<SubRow> rows = List.of(
+                new SubRow("MATH", "Mathematics", "STEM", 10),
+                new SubRow("PHY", "Physics", "STEM", 20),
+                new SubRow("CHEM", "Chemistry", "STEM", 30),
+                new SubRow("BIO", "Biology", "STEM", 35),
+                new SubRow("CS", "Computer Science", "STEM", 50),
+                new SubRow("ENG", "English", "Languages", 60),
+                new SubRow("HIN", "Hindi", "Languages", 65),
+                new SubRow("HIST", "History", "Social", 70),
+                new SubRow("PE", "Physical Education", "Arts", 80));
+        for (SubRow s : rows) {
+            if (academicSubjectRepository.existsByTenantIdAndNameAndIsDeletedFalse(tenantId, s.name())) {
+                continue;
+            }
+            AcademicSubject a = new AcademicSubject();
+            a.setTenantId(tenantId);
+            a.setCode(s.code());
+            a.setName(s.name());
+            a.setCategory(s.category());
+            a.setSortOrder(s.sort());
+            a.setIsDeleted(false);
+            academicSubjectRepository.save(a);
+        }
+    }
+
+    private void seedNotificationOutboxShowcase(String tenantId, String schoolCode) {
+        String parentEmail =
+                "STXHER-KOL".equals(schoolCode) ? "s.banerjee.parent@stxheritage.edu" : "k.deshmukh.parent@meridianridge.edu";
+        User parent = userRepository.findByEmailAndTenantIdAndIsDeletedFalse(parentEmail, tenantId).orElse(null);
+        if (parent == null) {
+            return;
+        }
+        notificationDispatchPort.enqueue(
+                tenantId,
+                "FEE_REMINDER",
+                "EMAIL",
+                parent.getId(),
+                null,
+                "Fee balance — gentle reminder",
+                "Demo: term fee balance can be cleared via the parent portal.",
+                "demo:v3:fee_email:" + schoolCode,
+                "seed-fee-email");
+        notificationDispatchPort.enqueue(
+                tenantId,
+                "FEE_REMINDER",
+                "WHATSAPP",
+                parent.getId(),
+                null,
+                "Fee reminder",
+                "Demo: pay online or visit the accounts office.",
+                "demo:v3:fee_wa:" + schoolCode,
+                "seed-fee-wa");
+        notificationDispatchPort.enqueue(
+                tenantId,
+                "FEE_REMINDER",
+                "IN_APP",
+                parent.getId(),
+                null,
+                "In-app: fee due",
+                "Demo notification delivered via outbox (IN_APP channel).",
+                "demo:v3:fee_inapp:" + schoolCode,
+                "seed-fee-inapp");
+
+        String dedupeSent = "demo:v3:sent_sms:" + schoolCode;
+        if (!notificationOutboxRepository.existsByTenantIdAndDedupeKeyAndIsDeletedFalse(tenantId, dedupeSent)) {
+            NotificationOutbox row = new NotificationOutbox();
+            row.setTenantId(tenantId);
+            row.setEventType("ANNOUNCEMENT_SMS");
+            row.setChannel("SMS");
+            row.setRecipientUserId(parent.getId());
+            row.setRecipientPhoneE164(parent.getPhone() != null ? parent.getPhone().trim() : null);
+            row.setSubject("Holiday — Republic Day");
+            row.setBodyText("Demo: school closed 26 Jan; transport runs per circular.");
+            row.setDedupeKey(dedupeSent);
+            row.setStatus("SENT");
+            row.setAttempts(1);
+            row.setProcessedAt(LocalDateTime.now().minusHours(2));
+            row.setCorrelationId("seed-holiday-sms");
+            row.setIsDeleted(false);
+            notificationOutboxRepository.save(row);
+        }
+    }
+
+    private void seedPayslipAndSalaryDisbursementDemo(String tenantId, String schoolCode) {
+        if ("MRIDGE-PN".equals(schoolCode)) {
+            if (!payslipRepository.existsByTenantIdAndPayrollMonthAndIsDeletedFalse(tenantId, "2026-10")) {
+                teacherRepository.findByTenantIdAndIsDeletedFalse(tenantId).stream()
+                        .filter(t -> "s.patil@meridianridge.edu".equalsIgnoreCase(t.getEmail()))
+                        .findFirst()
+                        .ifPresent(tr -> {
+                            Payslip p = Payslip.builder()
+                                    .teacherId(tr.getId())
+                                    .teacherName(tr.getFirstName() + " " + tr.getLastName())
+                                    .month("October")
+                                    .year(2026)
+                                    .basicSalary(new BigDecimal("48000"))
+                                    .totalAllowances(new BigDecimal("3000"))
+                                    .totalDeductions(new BigDecimal("7800"))
+                                    .netSalary(new BigDecimal("43200"))
+                                    .status(Enums.PayslipStatus.GENERATED)
+                                    .build();
+                            p.setTenantId(tenantId);
+                            p.setPayrollMonth("2026-10");
+                            p.setIsDeleted(false);
+                            payslipRepository.save(p);
+                            flushAndClear();
+                        });
+            }
+            payslipRepository.findByTenantIdAndIsDeletedFalse(tenantId).stream()
+                    .filter(ps -> "2026-10".equals(ps.getPayrollMonth()))
+                    .findFirst()
+                    .ifPresent(ps -> {
+                        if (!salaryDisbursementAttemptRepository.existsByTenantIdAndReferenceIdAndIsDeletedFalse(
+                                tenantId, "DEMO-MR-SAL-PENDING")) {
+                            SalaryDisbursementAttempt a = new SalaryDisbursementAttempt();
+                            a.setTenantId(tenantId);
+                            a.setPayslipId(ps.getId());
+                            a.setTeacherId(ps.getTeacherId());
+                            a.setAmount(ps.getNetSalary());
+                            a.setPaymentMethod("NEFT");
+                            a.setReferenceId("DEMO-MR-SAL-PENDING");
+                            a.setStatus("SUBMITTED");
+                            a.setGatewayPayload("{\"demo\":true,\"seed\":\"meridian\"}");
+                            a.setIsDeleted(false);
+                            salaryDisbursementAttemptRepository.save(a);
+                        }
+                    });
+        }
+        if ("STXHER-KOL".equals(schoolCode)) {
+            payslipRepository.findByTenantIdAndIsDeletedFalse(tenantId).stream()
+                    .filter(ps -> ps.getTeacherId() != null && Enums.PayslipStatus.PAID.equals(ps.getStatus()))
+                    .findFirst()
+                    .ifPresent(ps -> {
+                        if (!salaryDisbursementAttemptRepository.existsByTenantIdAndReferenceIdAndIsDeletedFalse(
+                                tenantId, "DEMO-STX-SAL-COMPLETE")) {
+                            SalaryDisbursementAttempt a = new SalaryDisbursementAttempt();
+                            a.setTenantId(tenantId);
+                            a.setPayslipId(ps.getId());
+                            a.setTeacherId(ps.getTeacherId());
+                            a.setAmount(ps.getNetSalary());
+                            a.setPaymentMethod("NEFT");
+                            a.setReferenceId("DEMO-STX-SAL-COMPLETE");
+                            a.setStatus("COMPLETED");
+                            a.setCompletedAt(LocalDateTime.now().minusDays(14));
+                            a.setGatewayPayload("{\"demo\":true,\"seed\":\"stx-archived\"}");
+                            a.setIsDeleted(false);
+                            salaryDisbursementAttemptRepository.save(a);
+                        }
+                    });
+        }
+    }
+
+    private void seedPaymentWebhookDemoRow(String tenantId, String schoolCode) {
+        String shaHex = "STXHER-KOL".equals(schoolCode)
+                ? "1".repeat(64)
+                : "2".repeat(64);
+        if (paymentWebhookEventRepository.findByProviderAndPayloadSha256("razorpay", shaHex).isPresent()) {
+            return;
+        }
+        PaymentWebhookEvent e = new PaymentWebhookEvent();
+        e.setTenantId(tenantId);
+        e.setProvider("razorpay");
+        e.setPayloadSha256(shaHex);
+        e.setExternalEventId("evt_demo_" + schoolCode.replace('-', '_'));
+        e.setStatus("PROCESSED");
+        e.setHttpStatus(200);
+        e.setDetail("Demo webhook ingested (Java seed)");
+        e.setProcessedAt(Instant.now().minusSeconds(7200));
+        paymentWebhookEventRepository.save(e);
+    }
+
+    /**
+     * Sample {@code import_jobs} rows for Java-seeded showcase schools. Flyway {@code t1} tenant is covered by V31;
+     * St. Xavier / Meridian are created after migrations, so the same UI data is applied here idempotently.
+     */
+    private void ensureImportExportDemoJobsForShowcaseTenants() {
+        tenantConfigRepository.findBySchoolCode("STXHER-KOL").ifPresent(c -> seedStXImportExportDemo(c.getTenantId()));
+        tenantConfigRepository.findBySchoolCode("MRIDGE-PN").ifPresent(c -> seedMeridianImportExportDemo(c.getTenantId()));
+    }
+
+    private void seedStXImportExportDemo(String tenantId) {
+        if (importJobRepository.existsByTenantIdAndOriginalFilenameAndIsDeletedFalse(tenantId, "admissions-batch-2026-demo.zip")) {
+            return;
+        }
+        User admin = userRepository.findByEmailAndTenantIdAndIsDeletedFalse("principal@stxheritage.edu", tenantId).orElse(null);
+        long classId = schoolClassRepository.findByTenantIdAndIsDeletedFalseOrderByGrade(tenantId).stream()
+                .findFirst()
+                .map(SchoolClass::getId)
+                .orElse(1L);
+        String cid = String.valueOf(classId);
+
+        ImportJob job = new ImportJob();
+        job.setTenantId(tenantId);
+        if (admin != null) {
+            job.setCreatedByUserId(admin.getId());
+            job.setCreatedBy(String.valueOf(admin.getId()));
+        }
+        job.setJobType("STUDENTS");
+        job.setStatus(ImportJobConstants.JOB_COMPLETED);
+        job.setOriginalFilename("admissions-batch-2026-demo.zip");
+        job.setTotalRows(3);
+        job.setSuccessCount(2);
+        job.setFailCount(1);
+        job.setStartedAt(LocalDateTime.now().minusHours(2));
+        job.setFinishedAt(LocalDateTime.now().minusHours(2).plusMinutes(3));
+        job.setSummaryMessage("Processed 3 row(s): 2 succeeded, 1 failed.");
+        importJobRepository.save(job);
+
+        ImportJobLine l0 = importDemoLine(tenantId, job.getId(), 0, ImportJobConstants.LINE_SUCCESS,
+                String.format(Locale.ROOT,
+                        "{\"firstname\":\"Aarav\",\"lastname\":\"Mehta\",\"classid\":\"%s\",\"sectionid\":\"\",\"admissionnumber\":\"DEMO-IMP-001\",\"parentemail\":\"demo.parent1@example.com\"}",
+                        cid),
+                null, "STUDENT", null);
+        ImportJobLine l1 = importDemoLine(tenantId, job.getId(), 1, ImportJobConstants.LINE_FAILED,
+                String.format(Locale.ROOT, "{\"firstname\":\"\",\"lastname\":\"BrokenRow\",\"classid\":\"%s\"}", cid),
+                "Missing required column: firstname", null, null);
+        ImportJobLine l2 = importDemoLine(tenantId, job.getId(), 2, ImportJobConstants.LINE_SUCCESS,
+                String.format(Locale.ROOT,
+                        "{\"firstname\":\"Diya\",\"lastname\":\"Ghosh\",\"classid\":\"%s\",\"admissionnumber\":\"DEMO-IMP-002\",\"parentemail\":\"demo.parent2@example.com\"}",
+                        cid),
+                null, "STUDENT", null);
+        importJobLineRepository.saveAll(List.of(l0, l1, l2));
+        log.info("Seeded import/export demo job (students) for tenant {}", tenantId);
+    }
+
+    private void seedMeridianImportExportDemo(String tenantId) {
+        if (importJobRepository.existsByTenantIdAndOriginalFilenameAndIsDeletedFalse(tenantId, "mridge-faculty-import-demo.zip")) {
+            return;
+        }
+        User admin = userRepository.findByEmailAndTenantIdAndIsDeletedFalse("principal@meridianridge.edu", tenantId).orElse(null);
+        ImportJob job = new ImportJob();
+        job.setTenantId(tenantId);
+        if (admin != null) {
+            job.setCreatedByUserId(admin.getId());
+            job.setCreatedBy(String.valueOf(admin.getId()));
+        }
+        job.setJobType("TEACHERS");
+        job.setStatus(ImportJobConstants.JOB_COMPLETED);
+        job.setOriginalFilename("mridge-faculty-import-demo.zip");
+        job.setTotalRows(2);
+        job.setSuccessCount(2);
+        job.setFailCount(0);
+        job.setStartedAt(LocalDateTime.now().minusDays(1));
+        job.setFinishedAt(LocalDateTime.now().minusDays(1).plusMinutes(2));
+        job.setSummaryMessage("Processed 2 row(s): 2 succeeded, 0 failed.");
+        importJobRepository.save(job);
+
+        ImportJobLine a = importDemoLine(tenantId, job.getId(), 0, ImportJobConstants.LINE_SUCCESS,
+                "{\"firstname\":\"Neha\",\"lastname\":\"Kapoor\",\"email\":\"n.kapoor.demo@meridianridge.edu\",\"createportal\":\"Y\",\"portalrole\":\"TEACHER\"}",
+                null, "TEACHER", null);
+        ImportJobLine b = importDemoLine(tenantId, job.getId(), 1, ImportJobConstants.LINE_SUCCESS,
+                "{\"firstname\":\"Rahul\",\"lastname\":\"Menon\",\"email\":\"r.menon.demo@meridianridge.edu\",\"createportal\":\"N\",\"portalrole\":\"TEACHER\"}",
+                null, "TEACHER", null);
+        importJobLineRepository.saveAll(List.of(a, b));
+        log.info("Seeded import/export demo job (teachers) for tenant {}", tenantId);
+    }
+
+    private static ImportJobLine importDemoLine(String tenantId, Long jobId, int lineIndex, String status, String payloadJson,
+                                                String errorMessage, String entityType, Long entityId) {
+        ImportJobLine line = new ImportJobLine();
+        line.setTenantId(tenantId);
+        line.setJobId(jobId);
+        line.setLineIndex(lineIndex);
+        line.setStatus(status);
+        line.setPayloadJson(payloadJson);
+        line.setErrorMessage(errorMessage);
+        line.setEntityType(entityType);
+        line.setEntityId(entityId);
+        return line;
+    }
+
+
     private void flushAndClear() {
         entityManager.flush();
         entityManager.clear();
     }
+
 
     // ═══════════════════════════════════════════════════════════════════════════════════════════
     // HELPER CLASSES

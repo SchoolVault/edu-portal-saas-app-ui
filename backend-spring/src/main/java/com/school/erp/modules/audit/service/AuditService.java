@@ -4,6 +4,7 @@ import com.school.erp.common.enums.Enums;
 import com.school.erp.config.RabbitMQConfig;
 import com.school.erp.modules.audit.entity.AuditLog;
 import com.school.erp.modules.audit.repository.AuditLogRepository;
+import com.school.erp.platform.port.AuditTrailPort;
 import com.school.erp.tenant.TenantContext;
 import jakarta.annotation.Nullable;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
@@ -16,7 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.Map;
 
 @Service
-public class AuditService {
+public class AuditService implements AuditTrailPort {
     private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(AuditService.class);
     private final AuditLogRepository repo;
     @Nullable
@@ -37,6 +38,7 @@ public class AuditService {
     /**
      * Log an action - can be called from any service
      */
+    @Override
     @Transactional
     public void logAction(Enums.AuditAction action, String module, String description, Long entityId, String entityType, String oldValue, String newValue) {
         String t = TenantContext.getTenantId();
@@ -70,6 +72,7 @@ public class AuditService {
         logAction(Enums.AuditAction.DELETE, module, description, entityId, module, null, null);
     }
 
+    @Override
     public void logLogin(String email) {
         logAction(Enums.AuditAction.LOGIN, "Auth", "User logged in: " + email, null, "User", null, null);
     }

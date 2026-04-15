@@ -3,6 +3,7 @@ package com.school.erp.modules.platform.service;
 import com.school.erp.modules.platform.entity.PlatformTenantPurgeJob;
 import com.school.erp.modules.platform.purge.TenantDataPurgeExecutor;
 import com.school.erp.modules.platform.repository.PlatformTenantPurgeJobRepository;
+import com.school.erp.tenant.TenantContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Async;
@@ -28,10 +29,11 @@ public class TenantPurgeJobProcessor {
         if (job == null) {
             return;
         }
-        job.setStatus("RUNNING");
-        job.setStartedAt(LocalDateTime.now());
-        jobRepository.save(job);
         try {
+            TenantContext.setTenantId(job.getTenantId());
+            job.setStatus("RUNNING");
+            job.setStartedAt(LocalDateTime.now());
+            jobRepository.save(job);
             int deleted = purgeExecutor.purgeTenantData(job.getTenantId());
             PlatformTenantPurgeJob updated = jobRepository.findById(jobId).orElse(job);
             updated.setStatus("COMPLETED");
@@ -45,6 +47,8 @@ public class TenantPurgeJobProcessor {
             updated.setErrorMessage(e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName());
             updated.setCompletedAt(LocalDateTime.now());
             jobRepository.save(updated);
+        } finally {
+            TenantContext.clear();
         }
     }
 }

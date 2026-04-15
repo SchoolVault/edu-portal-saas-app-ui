@@ -16,6 +16,12 @@ import com.school.erp.modules.timetable.dto.TimetableDTOs;
 import com.school.erp.modules.timetable.entity.TimetableEntry;
 import com.school.erp.modules.timetable.repository.TimetableRepository;
 import com.school.erp.tenant.TenantContext;
+import com.school.erp.cache.CacheService;
+import com.school.erp.cache.CacheService.CacheRegion;
+import com.school.erp.config.CacheConfig;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -34,7 +40,10 @@ public class TimetableService {
     private final SchoolClassRepository schoolClassRepository;
     private final SectionRepository sectionRepository;
     private final TeacherRepository teacherRepository;
+    private final TimetableService self;
+    private final ObjectProvider<CacheService> cacheService;
 
+    @Cacheable(cacheNames = CacheConfig.TIMETABLE_GRID, keyGenerator = "tenantMethodParamsSchoolKeyGenerator", unless = "#result == null")
     @Transactional(readOnly = true)
     public List<TimetableEntry> getByClassAndSection(Long classId, Long sectionId) {
         String t = TenantContext.getTenantId();
@@ -44,6 +53,7 @@ public class TimetableService {
         return list;
     }
 
+    @Cacheable(cacheNames = CacheConfig.TIMETABLE_GRID, keyGenerator = "tenantMethodParamsSchoolKeyGenerator", unless = "#result == null")
     @Transactional(readOnly = true)
     public List<TimetableEntry> getByTeacher(Long teacherId) {
         String t = TenantContext.getTenantId();
@@ -60,11 +70,11 @@ public class TimetableService {
     @Transactional(readOnly = true)
     public List<TeacherScheduleSlot> getTeacherSchedule(Long teacherId, LocalDate forDate) {
         if (forDate == null) {
-            return getByTeacher(teacherId).stream().map(this::toRecurringSlot).collect(Collectors.toList());
+            return self.getByTeacher(teacherId).stream().map(this::toRecurringSlot).collect(Collectors.toList());
         }
         String tenantId = TenantContext.getTenantId();
         Enums.DayOfWeek dow = Enums.DayOfWeek.valueOf(forDate.getDayOfWeek().name());
-        List<TeacherScheduleSlot> recurring = getByTeacher(teacherId).stream().map(this::toRecurringSlot).collect(Collectors.toList());
+        List<TeacherScheduleSlot> recurring = self.getByTeacher(teacherId).stream().map(this::toRecurringSlot).collect(Collectors.toList());
 
         String coveringName = teacherRepository.findByIdAndTenantIdAndIsDeletedFalse(teacherId, tenantId)
                 .map(te -> (te.getFirstName() + " " + te.getLastName()).trim())
@@ -196,7 +206,7 @@ public class TimetableService {
     @Transactional(readOnly = true)
     public TimetableDTOs.TimetableGridResponse getGrid(Long classId, Long sectionId) {
         log.debug("Building timetable grid classId={} sectionId={}", classId, sectionId);
-        List<TimetableEntry> entries = getByClassAndSection(classId, sectionId);
+        List<TimetableEntry> entries = self.getByClassAndSection(classId, sectionId);
         List<String> days = entries.stream().map(e -> e.getDay().name()).distinct()
                 .sorted(Comparator.comparingInt(d -> DEFAULT_DAYS.indexOf(d) >= 0 ? DEFAULT_DAYS.indexOf(d) : 99))
                 .collect(Collectors.toList());
@@ -251,6 +261,7 @@ public class TimetableService {
         entry.setTenantId(t);
         TimetableEntry saved = repo.save(entry);
         log.info("Timetable entry created id={}", saved.getId());
+        evictTimetableEntryCaches(saved, null);
         return saved;
     }
 
@@ -261,6 +272,9 @@ public class TimetableService {
         entries.forEach(e -> e.setTenantId(t));
         List<TimetableEntry> saved = repo.saveAll(entries);
         log.info("Batch timetable save completed count={}", saved.size());
+        for (TimetableEntry e : saved) {
+            evictTimetableEntryCaches(e, null);
+        }
         return saved;
     }
 
@@ -269,6 +283,7 @@ public class TimetableService {
         String t = TenantContext.getTenantId();
         log.info("Soft-deleting timetable entry id={}", id);
         TimetableEntry e = repo.findByIdAndTenantIdAndIsDeletedFalse(id, t).orElseThrow(() -> new ResourceNotFoundException("TimetableEntry", id));
+        evictTimetableEntryCaches(e, null);
         e.setIsDeleted(true);
         repo.save(e);
     }
@@ -278,6 +293,7 @@ public class TimetableService {
         String t = TenantContext.getTenantId();
         log.info("Updating timetable entry id={}", id);
         TimetableEntry entry = repo.findByIdAndTenantIdAndIsDeletedFalse(id, t).orElseThrow(() -> new ResourceNotFoundException("TimetableEntry", id));
+        TimetableEntry before = snapshotEntry(entry);
         if (update.getSubjectName() != null) entry.setSubjectName(update.getSubjectName());
         if (update.getTeacherId() != null) entry.setTeacherId(update.getTeacherId());
         if (update.getTeacherName() != null) entry.setTeacherName(update.getTeacherName());
@@ -286,7 +302,38 @@ public class TimetableService {
         if (update.getEndTime() != null) entry.setEndTime(update.getEndTime());
         TimetableEntry saved = repo.save(entry);
         log.info("Timetable entry updated id={}", id);
+        evictTimetableEntryCaches(saved, before);
         return saved;
+    }
+
+    private static TimetableEntry snapshotEntry(TimetableEntry entry) {
+        TimetableEntry s = new TimetableEntry();
+        s.setClassId(entry.getClassId());
+        s.setSectionId(entry.getSectionId());
+        s.setTeacherId(entry.getTeacherId());
+        return s;
+    }
+
+    private void evictTimetableEntryCaches(TimetableEntry current, TimetableEntry beforeOrNull) {
+        cacheService.ifAvailable(cs -> {
+            String tid = TenantContext.getTenantId();
+            if (tid == null || tid.isBlank()) {
+                tid = "_no_tenant_";
+            }
+            evictOne(cs, tid, current);
+            if (beforeOrNull != null) {
+                evictOne(cs, tid, beforeOrNull);
+            }
+        });
+    }
+
+    private static void evictOne(CacheService cs, String tid, TimetableEntry e) {
+        Long classId = e.getClassId();
+        Long sectionId = e.getSectionId();
+        cs.evict(CacheRegion.TIMETABLE_GRID, tid + ":getByClassAndSection:" + classId + ":" + (sectionId == null ? "_" : sectionId));
+        if (e.getTeacherId() != null) {
+            cs.evict(CacheRegion.TIMETABLE_GRID, tid + ":getByTeacher:" + e.getTeacherId());
+        }
     }
 
     public TimetableService(
@@ -294,11 +341,15 @@ public class TimetableService {
             AttendanceCoverAssignmentRepository coverRepo,
             SchoolClassRepository schoolClassRepository,
             SectionRepository sectionRepository,
-            TeacherRepository teacherRepository) {
+            TeacherRepository teacherRepository,
+            @Lazy TimetableService self,
+            ObjectProvider<CacheService> cacheService) {
         this.repo = repo;
         this.coverRepo = coverRepo;
         this.schoolClassRepository = schoolClassRepository;
         this.sectionRepository = sectionRepository;
         this.teacherRepository = teacherRepository;
+        this.self = self;
+        this.cacheService = cacheService;
     }
 }

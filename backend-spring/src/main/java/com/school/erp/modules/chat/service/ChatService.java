@@ -11,7 +11,7 @@ import com.school.erp.modules.chat.entity.ChatConversation;
 import com.school.erp.modules.chat.entity.ChatMessage;
 import com.school.erp.modules.chat.entity.ChatParticipant;
 import com.school.erp.modules.chat.repository.ChatConversationRepository;
-import com.school.erp.modules.chat.repository.ChatMessageRepository;
+import com.school.erp.modules.chat.port.ChatMessageStorePort;
 import com.school.erp.modules.chat.repository.ChatParticipantRepository;
 import com.school.erp.common.enums.Enums;
 import com.school.erp.tenant.TenantContext;
@@ -36,7 +36,7 @@ public class ChatService {
     private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(ChatService.class);
     private final ChatConversationRepository conversationRepo;
     private final ChatParticipantRepository participantRepo;
-    private final ChatMessageRepository messageRepo;
+    private final ChatMessageStorePort chatMessageStore;
     private final SimpMessagingTemplate messagingTemplate;
     private final ChatPolicyService policy = new ChatPolicyService();
     private final ChatDirectoryService chatDirectoryService;
@@ -176,7 +176,7 @@ public class ChatService {
                 .orElseThrow(() -> new ResourceNotFoundException("Conversation", conversationId));
         assertParticipant(conv.getTenantId(), conversationId, userId);
 
-        Page<ChatMessage> messages = messageRepo.findByTenantIdAndConversationIdAndIsDeletedFalseOrderByIdDesc(
+        Page<ChatMessage> messages = chatMessageStore.pageByConversation(
                 conv.getTenantId(), conversationId, PageRequest.of(Math.max(page, 0), Math.min(Math.max(size, 1), 200))
         );
         log.info("Chat messages page conversationId={} returned={} total={}", conversationId, messages.getNumberOfElements(), messages.getTotalElements());
@@ -210,7 +210,7 @@ public class ChatService {
         msg.setClientMessageId(request.getClientMessageId());
         msg.setIsActive(true);
         msg.setIsDeleted(false);
-        messageRepo.save(msg);
+        chatMessageStore.save(msg);
 
         conv.setLastMessageAt(LocalDateTime.now());
         conv.setLastMessagePreview(compactPreview(request.getBody()));
@@ -307,8 +307,7 @@ public class ChatService {
         if (me != null && me.getLastReadMessageId() != null) {
             afterId = me.getLastReadMessageId();
         }
-        long unread = messageRepo.countByTenantIdAndConversationIdAndIsDeletedFalseAndIdGreaterThanAndSenderUserIdNot(
-                tenantId, c.getId(), afterId, currentUserId);
+        long unread = chatMessageStore.countUnreadAfter(tenantId, c.getId(), afterId, currentUserId);
         r.setUnreadCount(unread);
         return r;
     }
@@ -366,13 +365,13 @@ public class ChatService {
 
     public ChatService(ChatConversationRepository conversationRepo,
                        ChatParticipantRepository participantRepo,
-                       ChatMessageRepository messageRepo,
+                       ChatMessageStorePort chatMessageStore,
                        SimpMessagingTemplate messagingTemplate,
                        ChatDirectoryService chatDirectoryService,
                        UserRepository userRepository) {
         this.conversationRepo = conversationRepo;
         this.participantRepo = participantRepo;
-        this.messageRepo = messageRepo;
+        this.chatMessageStore = chatMessageStore;
         this.messagingTemplate = messagingTemplate;
         this.chatDirectoryService = chatDirectoryService;
         this.userRepository = userRepository;

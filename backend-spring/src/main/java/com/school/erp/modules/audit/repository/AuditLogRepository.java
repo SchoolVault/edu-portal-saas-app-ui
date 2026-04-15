@@ -5,8 +5,11 @@ import com.school.erp.modules.audit.entity.AuditLog;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+
+import java.time.LocalDateTime;
 
 public interface AuditLogRepository extends JpaRepository<AuditLog, Long> {
     Page<AuditLog> findByTenantIdAndIsDeletedFalse(String tenantId, Pageable pageable);
@@ -33,4 +36,8 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, Long> {
             """)
     Page<AuditLog> searchPage(@Param("t") String t, @Param("action") Enums.AuditAction action,
                              @Param("module") String module, @Param("q") String q, Pageable pageable);
+
+    @Modifying
+    @Query("DELETE FROM AuditLog a WHERE a.tenantId = :tenantId AND a.isDeleted = true AND a.deletedAt IS NOT NULL AND a.deletedAt < :cutoff")
+    int deleteSoftDeletedBeforeForTenant(@Param("tenantId") String tenantId, @Param("cutoff") LocalDateTime cutoff);
 }
