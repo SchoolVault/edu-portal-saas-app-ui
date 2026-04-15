@@ -1,8 +1,9 @@
+import { ONBOARD_ADMIN_PASSWORD_MAX, ONBOARD_ADMIN_PASSWORD_MIN } from './auth-forms.constants';
 import { isValidEmail } from './email.validation';
 import type { FieldErrors } from './onboard-school-form.validation';
 import { isValidLoginPhone } from './phone.validation';
 
-export type LoginField = 'email' | 'password' | 'schoolCode' | 'phone' | 'otp';
+export type LoginField = 'email' | 'password' | 'schoolCode' | 'phone' | 'otp' | 'confirmPassword';
 
 export interface LoginFormValues {
   email: string;
@@ -64,6 +65,39 @@ export function validatePhoneOtpVerify(values: PhoneOtpVerifyValues): FieldError
     errors.otp = 'login.validation.otpRequired';
   } else if (otp.length < 4 || otp.length > 6 || !/^\d+$/.test(otp)) {
     errors.otp = 'login.validation.otpInvalid';
+  }
+  return errors;
+}
+
+export interface PasswordResetValues {
+  schoolCode: string;
+  phone: string;
+  otp?: string;
+  password?: string;
+  confirmPassword?: string;
+}
+
+export function validatePasswordResetStart(values: PasswordResetValues): FieldErrors<LoginField> {
+  return validatePhoneOtpSend({ schoolCode: values.schoolCode, phone: values.phone });
+}
+
+export function validatePasswordResetVerify(values: PasswordResetValues): FieldErrors<LoginField> {
+  return validatePhoneOtpVerify({ schoolCode: values.schoolCode, phone: values.phone, otp: values.otp ?? '' });
+}
+
+export function validatePasswordResetComplete(values: PasswordResetValues): FieldErrors<LoginField> {
+  const errors = validatePasswordResetVerify(values);
+  const password = values.password ?? '';
+  const confirmPassword = values.confirmPassword ?? '';
+  if (!password.trim()) {
+    errors.password = 'forgotPassword.validation.passwordRequired';
+  } else if (password.length < ONBOARD_ADMIN_PASSWORD_MIN || password.length > ONBOARD_ADMIN_PASSWORD_MAX) {
+    errors.password = 'forgotPassword.validation.passwordLength';
+  }
+  if (!confirmPassword.trim()) {
+    errors.confirmPassword = 'forgotPassword.validation.confirmRequired';
+  } else if (password !== confirmPassword) {
+    errors.confirmPassword = 'forgotPassword.validation.passwordMismatch';
   }
   return errors;
 }

@@ -132,16 +132,18 @@ interface DashboardAdmissionInsight {
                   <p class="erp-card-subtitle mb-0">{{ 'dashboard.admin.admissionsSnapshotLead' | translate }}</p>
                 </div>
               </div>
-              <div class="admissions-snapshot-grid">
-                <div *ngFor="let insight of admissionInsights" class="admission-snapshot-tile">
-                  <div class="admission-snapshot-tile__icon" [style.background]="insight.iconBg" [style.color]="insight.iconColor">
+              <div class="admissions-snapshot-list" role="list">
+                <div *ngFor="let insight of admissionInsights" class="admission-snapshot-row" role="listitem">
+                  <div class="admission-snapshot-row__icon" [style.background]="insight.iconBg" [style.color]="insight.iconColor">
                     <i class="bi" [ngClass]="insight.icon"></i>
                   </div>
-                  <div class="admission-snapshot-tile__body">
-                    <div class="admission-snapshot-tile__label">{{ insight.labelKey | translate }}</div>
-                    <div class="admission-snapshot-tile__value">{{ insight.value }}</div>
-                    <div class="admission-snapshot-tile__sub">{{ insight.subtextKey | translate: insight.subtextParams }}</div>
-                    <div class="admission-snapshot-tile__footer" *ngIf="insight.badgeKey">
+                  <div class="admission-snapshot-row__body">
+                    <div class="admission-snapshot-row__label">{{ insight.labelKey | translate }}</div>
+                    <div class="admission-snapshot-row__sub">{{ insight.subtextKey | translate: insight.subtextParams }}</div>
+                  </div>
+                  <div class="admission-snapshot-row__meta">
+                    <div class="admission-snapshot-row__value">{{ insight.value }}</div>
+                    <div class="admission-snapshot-row__footer" *ngIf="insight.badgeKey">
                       <span
                         class="stat-change"
                         [class.positive]="insight.badgeVariant === 'positive'"

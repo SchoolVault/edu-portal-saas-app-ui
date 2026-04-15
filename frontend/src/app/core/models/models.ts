@@ -37,6 +37,18 @@ export interface LoginResponse {
   user: User;
 }
 
+export interface PasswordResetRequest {
+  phone: string;
+  schoolCode: string;
+  verificationToken: string;
+  newPassword: string;
+}
+
+export interface PasswordResetResponse {
+  success: boolean;
+  message: string;
+}
+
 /** Same shape as Spring {@code AuthDTOs.TokenResponse} (refresh endpoint). */
 export interface TokenResponse {
   token: string;

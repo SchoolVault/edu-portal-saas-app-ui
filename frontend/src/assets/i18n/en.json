@@ -290,7 +290,8 @@
       "otpRequired": "Enter the code we sent",
       "otpInvalid": "Code must be 4–6 digits",
       "otpMismatch": "That code is not valid. Try again or request a new code."
-    }
+    },
+    "forgotPassword": "Forgot password?"
   },
   "signup": {
     "title": "Create your school workspace",
@@ -2535,6 +2536,41 @@
       "confirmFailed": "Confirmation failed. If your account was debited, contact the school with your bank reference.",
       "paymentConfirmFailed": "Payment confirmation failed.",
       "sessionStartFailed": "Could not start payment session."
+    }
+  },
+  "forgotPassword": {
+    "backToLogin": "Back to login",
+    "kicker": "Secure recovery",
+    "title": "Reset your password",
+    "subtitle": "Enter your school code and registered mobile number. We will send an OTP so you can set a new password safely.",
+    "mobile": "Registered mobile number",
+    "mobilePlaceholder": "Enter registered mobile number",
+    "sendResetOtp": "Send reset OTP",
+    "verifyOtp": "Verify OTP",
+    "newPassword": "New password",
+    "newPasswordPlaceholder": "Create a new password",
+    "confirmPassword": "Confirm password",
+    "confirmPasswordPlaceholder": "Re-enter new password",
+    "showPassword": "Show password",
+    "hidePassword": "Hide password",
+    "resetPassword": "Reset password",
+    "resetting": "Resetting password",
+    "changeMobile": "Change mobile number",
+    "otpSent": "OTP sent. Please check your mobile number.",
+    "otpVerified": "OTP verified. Set your new password.",
+    "doneTitle": "Password reset complete",
+    "doneLead": "Your password has been updated. Redirecting you back to login.",
+    "loginNow": "Go to login",
+    "heroTitle": "Recover Access Smoothly",
+    "heroSubtitle": "A simple OTP-first reset flow keeps school accounts secure without making families or staff wait.",
+    "errorSend": "Could not send reset OTP. Check school code and mobile number, then try again.",
+    "errorVerify": "Could not verify OTP. Try again or request a new code.",
+    "errorReset": "Could not reset the password. Please request a fresh OTP and try again.",
+    "validation": {
+      "passwordRequired": "New password is required",
+      "passwordLength": "Password must be {{min}}–{{max}} characters",
+      "confirmRequired": "Please confirm the password",
+      "passwordMismatch": "Passwords do not match"
     }
   }
 }

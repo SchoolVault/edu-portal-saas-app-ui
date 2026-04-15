@@ -100,7 +100,10 @@ type PhoneFlowStep = 'idle' | 'otp_sent';
                 <div id="lg-err-email" class="field-error" *ngIf="fieldErrors.email" role="alert">{{ fieldErrors.email | translate }}</div>
               </div>
               <div class="erp-form-group">
-                <label class="erp-label" for="lg-password">{{ 'login.password' | translate }}</label>
+                <div class="login-password-label-row">
+                  <label class="erp-label mb-0" for="lg-password">{{ 'login.password' | translate }}</label>
+                  <a routerLink="/forgot-password" class="login-forgot-link">{{ 'login.forgotPassword' | translate }}</a>
+                </div>
                 <div style="position: relative;">
                   <input
                     id="lg-password"
@@ -285,6 +288,22 @@ type PhoneFlowStep = 'idle' | 'otp_sent';
         opacity: 0.45;
         cursor: not-allowed;
         text-decoration: none;
+      }
+      .login-password-label-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 8px;
+      }
+      .login-forgot-link {
+        color: var(--clr-primary, #1b3a30);
+        font-size: 12px;
+        font-weight: 700;
+        text-decoration: none;
+      }
+      .login-forgot-link:hover {
+        text-decoration: underline;
       }
       .login-lang-row {
         margin-top: 0.25rem;
