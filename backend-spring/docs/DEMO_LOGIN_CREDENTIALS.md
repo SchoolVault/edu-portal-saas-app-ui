@@ -4,7 +4,7 @@ Use this sheet when testing against **seeded databases** or the **Angular mock**
 
 ---
 
-## Which set applies?
+## Which set applies on what?
 
 | Scenario | Use section |
 |----------|-------------|

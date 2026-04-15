@@ -2,7 +2,7 @@
 
 ## Enterprise Multi-Tenant School ERP System
 
-### Tech Stack
+### Tech Stack Analysis
 - Angular 18 (Standalone Components, Lazy-Loaded Routes)
 - Bootstrap 5 + Custom CSS (Earthy Theme)
 - Chart.js for Dashboard Visualizations
