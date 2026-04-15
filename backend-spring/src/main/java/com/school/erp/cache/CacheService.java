@@ -25,7 +25,16 @@ public class CacheService {
         REPORT_RESULTS(CacheConfig.REPORT_RESULTS),
         TRANSPORT_ROUTES(CacheConfig.TRANSPORT_ROUTES),
         ANNOUNCEMENT_PREVIEWS(CacheConfig.ANNOUNCEMENT_PREVIEWS),
-        PAYROLL_STRUCTURES(CacheConfig.PAYROLL_STRUCTURES);
+        PAYROLL_STRUCTURES(CacheConfig.PAYROLL_STRUCTURES),
+        DASHBOARD_SNAPSHOTS(CacheConfig.DASHBOARD_SNAPSHOTS),
+        STUDENT_DIRECTORY(CacheConfig.STUDENT_DIRECTORY),
+        TEACHER_DIRECTORY(CacheConfig.TEACHER_DIRECTORY),
+        ACADEMIC_CATALOG(CacheConfig.ACADEMIC_CATALOG),
+        SETTINGS_SNAPSHOT(CacheConfig.SETTINGS_SNAPSHOT),
+        LIBRARY_CATALOG(CacheConfig.LIBRARY_CATALOG),
+        LIBRARY_ISSUES(CacheConfig.LIBRARY_ISSUES),
+        FEES_CATALOG(CacheConfig.FEES_CATALOG),
+        TIMETABLE_GRID(CacheConfig.TIMETABLE_GRID);
 
         private final String cacheName;
 
@@ -78,6 +87,10 @@ public class CacheService {
         Optional.ofNullable(cacheManager.getCache(region.cacheName())).ifPresent(c -> c.evict(key));
     }
 
+    /**
+     * Clears every entry in the named Redis cache region (all tenants). Prefer {@link #evict} with a concrete key
+     * for tenant-scoped data; use this only for truly global regions or maintenance.
+     */
     public void clearRegion(CacheRegion region) {
         Optional.ofNullable(cacheManager.getCache(region.cacheName())).ifPresent(Cache::clear);
     }

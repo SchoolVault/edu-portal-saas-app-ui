@@ -15,12 +15,14 @@
 
 Use one dedicated tenant in the **live** database for prospects (admin / teacher / parent logins). The UI is identical to customer schools; only data and credentials differ. Seed that tenant with realistic, rich records (classes, students, fees, etc.) via Flyway SQL or a controlled admin import — keep it isolated by `tenant_id` / school code so it never mixes with paying customers’ data.
 
-### Local development (two profiles)
+### Profiles (dev, prod-shaped staging, production)
 
 | Profile | When to use | Infra | Notes |
 |--------|-------------|--------|--------|
-| **`dev`** (default) | Fastest IDE debugging | **MySQL only** | Redis & Rabbit autoconfig **off** — no Docker for cache/broker. Set `DB_URL` / `DB_USERNAME` / `DB_PASSWORD` (local or Aiven). |
-| **`local`** | Full stack like prod, on your machine | **Docker Desktop** | Start DB + Redis + Rabbit, then run the JVM on the host with defaults that match `docker-compose.yml`. |
+| **`dev`** (default) | Fastest IDE debugging | **MySQL only** | Redis & Rabbit autoconfig **off**. Set `DEV_DB_*` or cloud `DB_*` per `application.yml` / `application-dev.yml`. |
+| **`ml`** | Dev / integration testing (e.g. Render “ml”, Docker full stack) | **MySQL + Redis + RabbitMQ** | Same **shape** as `prod`: `DB_URL`, `DB_USERNAME`, `DB_PASSWORD`, Valkey/Redis (`REDIS_SSL` as appropriate), Flyway `clean-disabled`, Swagger/actuator locked down by default. Optional demo seed: `ml-with-demo-seed` or `ml,demo-seed`. |
+| **`rel`** | QA sign-off / pre-prod (e.g. Render “rel”) | **Same as `ml`** | Identical YAML to `ml`; use a **separate** DB/Redis/CORS/JWT secret namespace in env so QA never collides with `ml`. Optional demo seed: `rel-with-demo-seed` or `rel,demo-seed`. |
+| **`prod`** | Live customers | **Managed MySQL + Valkey + RabbitMQ** | `SPRING_PROFILES_ACTIVE=prod`. Demo seed: `prod-with-demo-seed` or `prod,demo-seed` (one-time), then `prod` only. |
 
 **Option A — minimal (profile `dev`, default)**
 
@@ -29,15 +31,21 @@ Use one dedicated tenant in the **live** database for prospects (admin / teacher
 mvn spring-boot:run -Dspring-boot.run.profiles=dev
 ```
 
-**Option B — Docker Desktop parity (profile `local`)**
+**Option B — Docker Desktop parity (profile `ml`, prod-shaped)**
 
 ```bash
 cd backend-spring
 ./scripts/run-local-with-docker-infra.sh   # or: docker compose up -d mysql redis rabbitmq
-mvn spring-boot:run -Dspring-boot.run.profiles=local
+export DB_URL='jdbc:mysql://localhost:3306/school_erp?useSSL=false&serverTimezone=UTC&createDatabaseIfNotExist=true'
+export DB_USERNAME=root
+export DB_PASSWORD=rootpassword
+export REDIS_HOST=localhost
+export REDIS_SSL=false
+export RABBITMQ_HOST=localhost
+mvn spring-boot:run -Dspring-boot.run.profiles=ml
 ```
 
-Defaults for `local`: `school_erp` @ `localhost:3306`, `root` / `rootpassword`, Redis `localhost:6379`, RabbitMQ `localhost:5672` (`guest`/`guest`). Override with `DB_*`, `REDIS_*`, `RABBITMQ_*` if needed.
+Compose `app` service sets `SPRING_PROFILES_ACTIVE=ml`, `REDIS_SSL=false`, and service hostnames for Redis/Rabbit. Override `DB_*`, `REDIS_*`, `RABBITMQ_*`, `JWT_SECRET`, `CORS_ORIGINS` in Render for **`ml`** / **`rel`** services.
 
 **Run everything in containers (no local JVM)**
 
@@ -45,7 +53,7 @@ Defaults for `local`: `school_erp` @ `localhost:3306`, `root` / `rootpassword`, 
 docker compose up --build
 ```
 
-**Production** uses `SPRING_PROFILES_ACTIVE=prod` and Aiven (or any) MySQL / Valkey / Rabbit — see `deploy/render.env.example`.
+**Production** uses `SPRING_PROFILES_ACTIVE=prod` and managed MySQL / Valkey / Rabbit. **Render / staging:** set `SPRING_PROFILES_ACTIVE=ml` or `=rel` with the same env contract as prod (`DB_URL`, `DB_USERNAME`, `DB_PASSWORD`, Redis, Rabbit, `JWT_SECRET`, `CORS_ORIGINS`, etc.).
 
 ### Redis cache (tenant isolation + TTL)
 

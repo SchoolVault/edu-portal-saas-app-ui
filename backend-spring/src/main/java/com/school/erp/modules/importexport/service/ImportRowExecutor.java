@@ -11,7 +11,7 @@ import com.school.erp.modules.auth.service.PortalUserProvisioningService;
 import com.school.erp.modules.importexport.ImportJobType;
 import com.school.erp.modules.importexport.entity.ImportJob;
 import com.school.erp.modules.importexport.entity.ImportJobLine;
-import com.school.erp.modules.notification.service.NotificationOutboxService;
+import com.school.erp.platform.port.NotificationDispatchPort;
 import com.school.erp.modules.notification.service.NotificationService;
 import com.school.erp.modules.settings.repository.TenantConfigRepository;
 import com.school.erp.modules.student.dto.StudentDTOs;
@@ -40,7 +40,7 @@ public class ImportRowExecutor {
     private final AcademicService academicService;
     private final PortalUserProvisioningService portalUserProvisioningService;
     private final NotificationService notificationService;
-    private final NotificationOutboxService notificationOutboxService;
+    private final NotificationDispatchPort notificationDispatchPort;
     private final TenantConfigRepository tenantConfigRepository;
 
     public ImportRowExecutor(ObjectMapper objectMapper,
@@ -49,7 +49,7 @@ public class ImportRowExecutor {
                            AcademicService academicService,
                            PortalUserProvisioningService portalUserProvisioningService,
                            NotificationService notificationService,
-                           NotificationOutboxService notificationOutboxService,
+                           NotificationDispatchPort notificationDispatchPort,
                            TenantConfigRepository tenantConfigRepository) {
         this.objectMapper = objectMapper;
         this.studentService = studentService;
@@ -57,7 +57,7 @@ public class ImportRowExecutor {
         this.academicService = academicService;
         this.portalUserProvisioningService = portalUserProvisioningService;
         this.notificationService = notificationService;
-        this.notificationOutboxService = notificationOutboxService;
+        this.notificationDispatchPort = notificationDispatchPort;
         this.tenantConfigRepository = tenantConfigRepository;
     }
 
@@ -118,7 +118,7 @@ public class ImportRowExecutor {
             notificationService.createNotification(tenantId, parentProvision.userId(), "Parent portal access",
                     body, Enums.NotificationType.INFO, "/app/parent/children");
             String phone = blankToNull(row.get("parentphone"));
-            notificationOutboxService.enqueue(tenantId, "PARENT_PORTAL_CREDENTIALS", "SMS",
+            notificationDispatchPort.enqueue(tenantId, "PARENT_PORTAL_CREDENTIALS", "SMS",
                     parentProvision.userId(), phone, "Parent portal access", body,
                     "import-job-" + job.getId() + "-line-" + line.getId(), "import-" + job.getId());
         }
@@ -165,7 +165,7 @@ public class ImportRowExecutor {
             if (created.getUserId() != null) {
                 notificationService.createNotification(tenantId, created.getUserId(), "Staff portal access",
                         body, Enums.NotificationType.INFO, "/app/dashboard");
-                notificationOutboxService.enqueue(tenantId, "STAFF_PORTAL_CREDENTIALS", "SMS", created.getUserId(),
+                notificationDispatchPort.enqueue(tenantId, "STAFF_PORTAL_CREDENTIALS", "SMS", created.getUserId(),
                         request.getPhone(), "Staff portal access", body,
                         "import-job-" + job.getId() + "-line-" + line.getId(), "import-" + job.getId());
             }

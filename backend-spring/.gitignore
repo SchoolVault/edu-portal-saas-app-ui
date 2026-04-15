@@ -25,4 +25,3 @@ Thumbs.db
 *.swo
 *~
 .env
-application-local.yml

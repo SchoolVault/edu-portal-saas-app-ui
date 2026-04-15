@@ -73,6 +73,8 @@ public class ChatDTOs {
         private Long userId;
         private String userRole;
         private String displayName;
+        /** Optional professional caption (e.g. Principal) for inbox headings — may be null; UI can fall back to role. */
+        private String jobTitle;
 
         public ParticipantSummary() {}
         public ParticipantSummary(Long userId, String userRole, String displayName) {
@@ -81,12 +83,21 @@ public class ChatDTOs {
             this.displayName = displayName;
         }
 
+        public ParticipantSummary(Long userId, String userRole, String displayName, String jobTitle) {
+            this.userId = userId;
+            this.userRole = userRole;
+            this.displayName = displayName;
+            this.jobTitle = jobTitle;
+        }
+
         public Long getUserId() { return userId; }
         public void setUserId(Long userId) { this.userId = userId; }
         public String getUserRole() { return userRole; }
         public void setUserRole(String userRole) { this.userRole = userRole; }
         public String getDisplayName() { return displayName; }
         public void setDisplayName(String displayName) { this.displayName = displayName; }
+        public String getJobTitle() { return jobTitle; }
+        public void setJobTitle(String jobTitle) { this.jobTitle = jobTitle; }
     }
 
     public static class CreateConversationRequest {
@@ -146,6 +157,8 @@ public class ChatDTOs {
         private Long senderUserId;
         private String senderRole;
         private String senderName;
+        /** Optional caption for message bubbles (e.g. job title); UI may derive from role when absent. */
+        private String senderJobTitle;
         private String body;
         private String bodyType;
         private String clientMessageId;
@@ -161,6 +174,8 @@ public class ChatDTOs {
         public void setSenderRole(String senderRole) { this.senderRole = senderRole; }
         public String getSenderName() { return senderName; }
         public void setSenderName(String senderName) { this.senderName = senderName; }
+        public String getSenderJobTitle() { return senderJobTitle; }
+        public void setSenderJobTitle(String senderJobTitle) { this.senderJobTitle = senderJobTitle; }
         public String getBody() { return body; }
         public void setBody(String body) { this.body = body; }
         public String getBodyType() { return bodyType; }

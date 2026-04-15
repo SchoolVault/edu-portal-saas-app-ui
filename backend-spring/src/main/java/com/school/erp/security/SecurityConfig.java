@@ -50,6 +50,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> {
                     // Public auth surface only — profile, preferences, register (admin), etc. require JWT.
                     auth.requestMatchers(HttpMethod.POST, "/api/v1/auth/login").permitAll();
+                    auth.requestMatchers(HttpMethod.POST, "/api/v1/auth/phone/**").permitAll();
                     auth.requestMatchers(HttpMethod.POST, "/api/v1/auth/onboard-tenant").permitAll();
                     auth.requestMatchers(HttpMethod.POST, "/api/v1/auth/refresh-token").permitAll();
                     auth.requestMatchers(HttpMethod.POST, "/api/v1/auth/logout").permitAll();

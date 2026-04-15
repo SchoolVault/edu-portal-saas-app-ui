@@ -21,4 +21,8 @@ public interface TenantConfigRepository extends JpaRepository<TenantConfig, Long
             + "(:q IS NULL OR :q = '' OR LOWER(t.schoolName) LIKE LOWER(CONCAT('%', :q, '%')) "
             + "OR LOWER(t.schoolCode) LIKE LOWER(CONCAT('%', :q, '%')))")
     Page<TenantConfig> pageActiveSchools(@Param("q") String q, Pageable pageable);
+
+    /** Distinct school tenants (one row per tenant in {@code tenant_configs}). */
+    @Query("SELECT c.tenantId FROM TenantConfig c")
+    List<String> findAllTenantIds();
 }

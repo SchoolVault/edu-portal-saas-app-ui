@@ -1,0 +1,53 @@
+# Profile "local": run the JVM on the host against Docker Desktop infra (see docker-compose.yml).
+# Usage:
+#   docker compose up -d mysql redis rabbitmq
+#   mvn spring-boot:run -Dspring-boot.run.profiles=local
+# Override any value with DB_URL, DB_PASSWORD, REDIS_*, RABBITMQ_* if your compose ports differ.
+#
+# Contrast: profile "dev" = MySQL only, no Redis/Rabbit (fastest IDE debugging).
+
+app:
+  demo-seed:
+    enabled: true
+  # Optional: short access JWT for local session testing (uncomment). Default is in application.yml (e.g. 24h).
+  # jwt:
+  #   expiration-ms: 60000
+
+spring:
+  datasource:
+    url: ${DB_URL:jdbc:mysql://localhost:3306/school_erp?useSSL=false&serverTimezone=UTC&createDatabaseIfNotExist=true}
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD:Arif@#123}
+
+  cache:
+    type: redis
+
+  jpa:
+    show-sql: true
+  flyway:
+    clean-disabled: false
+
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      ssl:
+        enabled: ${REDIS_SSL:false}
+
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USERNAME:guest}
+    password: ${RABBITMQ_PASSWORD:guest}
+
+management:
+  health:
+    redis:
+      enabled: true
+    rabbit:
+      enabled: true
+
+logging:
+  level:
+    com.school.erp: DEBUG
+    org.hibernate.SQL: DEBUG

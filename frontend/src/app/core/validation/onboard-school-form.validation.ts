@@ -6,6 +6,7 @@ import {
   ONBOARD_SCHOOL_CODE_MIN,
 } from './auth-forms.constants';
 import { isValidEmail } from './email.validation';
+import { isValidCanonicalIntlPhone } from './phone.validation';
 
 export type OnboardSchoolField = keyof OnboardSchoolRequest;
 
@@ -35,10 +36,15 @@ export function validateOnboardSchoolForm(form: OnboardSchoolRequest): FieldErro
   }
 
   const adminEmail = (form.adminEmail ?? '').trim();
-  if (!adminEmail) {
-    errors.adminEmail = 'signup.validation.adminEmailRequired';
-  } else if (!isValidEmail(adminEmail)) {
+  if (adminEmail && !isValidEmail(adminEmail)) {
     errors.adminEmail = 'signup.validation.adminEmailInvalid';
+  }
+
+  const phone = (form.phone ?? '').trim();
+  if (!phone) {
+    errors.phone = 'signup.validation.phoneRequired';
+  } else if (!isValidCanonicalIntlPhone(phone)) {
+    errors.phone = 'signup.validation.phoneInvalid';
   }
 
   const adminPassword = form.adminPassword ?? '';

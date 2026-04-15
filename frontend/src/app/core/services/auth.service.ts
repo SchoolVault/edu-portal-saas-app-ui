@@ -6,15 +6,22 @@ import {
   LoginRequest,
   LoginResponse,
   OnboardSchoolRequest,
+  PasswordResetRequest,
+  PasswordResetResponse,
+  PhoneLoginRequest,
   ProfileSummary,
+  SendOtpRequest,
+  SendOtpResponse,
   TokenResponse,
   UpdateAccountProfileRequest,
+  VerifyOtpRequest,
+  VerifyOtpResponse,
 } from '../models/models';
 import { ApiService } from './api.service';
 import { runtimeConfig } from '../config/runtime-config';
 import { environment } from '../../../environments/environment';
 import { isAccessExpiredByClock, isLikelyJwt } from '../auth/access-token';
-import { buildMockProfileSummary, findMockLoginUser } from '../mocks/auth.mock-data';
+import { MOCK_LOGIN_USERS, buildMockProfileSummary, findMockLoginUser, phonesMatch } from '../mocks/auth.mock-data';
 import { ERP_ACCESS_TOKEN_KEY, ERP_REFRESH_TOKEN_KEY, ERP_USER_KEY } from '../auth/client-session-keys';
 import { UserLocaleService, type UiLanguage } from '../i18n/user-locale.service';
 
@@ -225,7 +232,7 @@ export class AuthService {
         })
       );
     }
-    const found = findMockLoginUser(request);
+    const found = findMockLoginUser(request) ?? this.findMockPasswordLogin(request);
     if (found) {
       const lang: UiLanguage = request.interfaceLocale === 'hi' ? 'hi' : 'en';
       const user = { ...found.user, interfaceLocale: lang };
@@ -265,7 +272,7 @@ export class AuthService {
         refreshToken: 'mock-onboard-refresh-' + Date.now(),
         user: {
           id: 999001,
-          email: request.adminEmail,
+          email: request.adminEmail ?? `admin+${(request.phone ?? '').replace(/\D/g, '')}@${request.schoolCode.toLowerCase()}.local`,
           name: request.adminName,
           role: 'admin',
           tenantId: 'tenant_' + request.schoolCode.toLowerCase(),
@@ -590,5 +597,146 @@ export class AuthService {
 
   getProfileSummarySnapshot(): ProfileSummary | null {
     return this.profileSummarySubject.value;
+  }
+
+  // ========================================
+  // PHONE AUTHENTICATION METHODS
+  // ========================================
+
+  private mockPasswordOverrideKey(schoolCode: string, userId: number): string {
+    return `erp_mock_password_${schoolCode.trim().toUpperCase()}_${userId}`;
+  }
+
+  private findMockUserByPhoneAndSchool(phone: string, schoolCode: string) {
+    const sc = (schoolCode ?? '').trim().toUpperCase();
+    return MOCK_LOGIN_USERS.find(u => phonesMatch(u.user.phone, phone) && u.schoolCode === sc);
+  }
+
+  private findMockPasswordLogin(request: LoginRequest) {
+    const sc = (request.schoolCode ?? '').trim().toUpperCase();
+    const email = (request.email ?? '').trim();
+    const row = MOCK_LOGIN_USERS.find(u => u.schoolCode === sc && (request.phone?.trim() ? phonesMatch(u.user.phone, request.phone) : u.email === email));
+    if (!row) {
+      return undefined;
+    }
+    const override = localStorage.getItem(this.mockPasswordOverrideKey(sc, row.user.id));
+    const acceptedPassword = override ?? row.password;
+    return acceptedPassword === request.password ? row : undefined;
+  }
+
+  /**
+   * Send OTP to phone number for login.
+   */
+  sendLoginOtp(request: SendOtpRequest): Observable<SendOtpResponse> {
+    if (runtimeConfig.useMocks) {
+      // Mock OTP: always "123456" for testing
+      const response: SendOtpResponse = {
+        success: true,
+        message: 'OTP sent successfully to ' + request.phone,
+        requestId: 'mock-' + Date.now(),
+        expiresInSeconds: 300,
+        canRetryAfterSeconds: 60,
+        devOtpCode: '123456' // Always show OTP in dev mode
+      };
+      return of(response).pipe(delay(800));
+    }
+
+    return this.api.post<SendOtpResponse>('/auth/phone/send-otp', request);
+  }
+
+  /**
+   * Verify OTP entered by user.
+   */
+  verifyLoginOtp(request: VerifyOtpRequest): Observable<VerifyOtpResponse> {
+    if (runtimeConfig.useMocks) {
+      // Mock verification: accept "123456"
+      const verified = request.otpCode === '123456';
+      const response: VerifyOtpResponse = {
+        verified,
+        message: verified ? 'OTP verified successfully' : 'Invalid OTP. Please try again.',
+        remainingAttempts: verified ? 3 : 2,
+        verificationToken: verified ? 'MOCK-VERIFY-TOKEN-' + Date.now() : undefined
+      };
+      return of(response).pipe(delay(500));
+    }
+
+    return this.api.post<VerifyOtpResponse>('/auth/phone/verify-otp', request);
+  }
+
+  /**
+   * Complete phone login after OTP verification.
+   */
+  phoneLogin(request: PhoneLoginRequest): Observable<LoginResponse> {
+    const iface: UiLanguage = request.interfaceLocale === 'hi' ? 'hi' : 'en';
+
+    if (runtimeConfig.useMocks) {
+      const sc = (request.schoolCode ?? '').trim().toUpperCase();
+      const row = MOCK_LOGIN_USERS.find(
+        u => phonesMatch(u.user.phone, request.phone) && u.schoolCode === sc
+      );
+      if (!row || !request.verificationToken.startsWith('MOCK-VERIFY')) {
+        return throwError(() => new Error('Invalid phone verification or school code')).pipe(delay(400));
+      }
+      const user = { ...row.user, interfaceLocale: iface };
+      const response: LoginResponse = {
+        token: 'mock-phone-token-' + Date.now(),
+        refreshToken: 'mock-refresh-' + Date.now(),
+        user,
+      };
+
+      return of(response).pipe(
+        delay(600),
+        tap(res => {
+          this.applyTokenPair(res.token, res.refreshToken);
+          localStorage.setItem(ERP_USER_KEY, JSON.stringify(res.user));
+          this.currentUserSubject.next(res.user);
+          this.persistMockSessionFromNow();
+          this.userLocale.useUiLanguage(iface).subscribe({ error: () => void 0 });
+        })
+      );
+    }
+
+    return this.api.post<LoginResponse>('/auth/phone/login', request).pipe(
+      tap(res => {
+        this.applyTokenPair(res.token, res.refreshToken);
+        localStorage.setItem(ERP_USER_KEY, JSON.stringify(res.user));
+        this.currentUserSubject.next(res.user);
+        const lang: UiLanguage = res.user.interfaceLocale === 'hi' ? 'hi' : 'en';
+        this.userLocale.useUiLanguage(lang).subscribe({ error: () => void 0 });
+      })
+    );
+  }
+
+  /**
+   * Resend OTP to phone number.
+   */
+  resendLoginOtp(request: SendOtpRequest): Observable<SendOtpResponse> {
+    const sendRequest: SendOtpRequest = {
+      phone: request.phone,
+      schoolCode: request.schoolCode,
+      purpose: request.purpose,
+      channel: request.channel
+    };
+    return this.sendLoginOtp(sendRequest);
+  }
+
+  sendPasswordResetOtp(request: SendOtpRequest): Observable<SendOtpResponse> {
+    return this.sendLoginOtp({ ...request, purpose: 'PASSWORD_RESET' });
+  }
+
+  verifyPasswordResetOtp(request: VerifyOtpRequest): Observable<VerifyOtpResponse> {
+    return this.verifyLoginOtp({ ...request, purpose: 'PASSWORD_RESET' });
+  }
+
+  resetPassword(request: PasswordResetRequest): Observable<PasswordResetResponse> {
+    if (runtimeConfig.useMocks) {
+      const row = this.findMockUserByPhoneAndSchool(request.phone, request.schoolCode);
+      if (!row || !request.verificationToken.startsWith('MOCK-VERIFY')) {
+        return throwError(() => new Error('Invalid reset verification')).pipe(delay(400));
+      }
+      localStorage.setItem(this.mockPasswordOverrideKey(row.schoolCode, row.user.id), request.newPassword);
+      return of({ success: true, message: 'Password reset successfully' }).pipe(delay(700));
+    }
+    return this.api.post<PasswordResetResponse>('/auth/phone/reset-password', request);
   }
 }

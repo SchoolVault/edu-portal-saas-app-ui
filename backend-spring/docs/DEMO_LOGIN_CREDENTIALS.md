@@ -4,7 +4,7 @@ Use this sheet when testing against **seeded databases** or the **Angular mock**
 
 ---
 
-## Which set applies?
+## Which set applies on what?
 
 | Scenario | Use section |
 |----------|-------------|
@@ -20,44 +20,42 @@ Related: [DEMO_SHOWCASE_TENANT.md](./DEMO_SHOWCASE_TENANT.md) (how to run the se
 
 **Password for every user below:** `admin123`
 
-Seeding fills **most** domain tables used by the ERP (academics, fees, transport, hostel, library, payroll, chat, import jobs, operations extensions, etc.). It does **not** pre-populate purely **runtime** tables (e.g. **`refresh_tokens`**) or **platform purge** jobs. After each deploy, run the **one-time** profile described in [DEMO_SHOWCASE_TENANT.md](./DEMO_SHOWCASE_TENANT.md), then return to **`prod`** only.
+Seeding is implemented by **`DemoDataSeedService`** (profiles `dev` / `demo-seed` with `app.demo-seed.enabled=true`). It creates **DPS-DLH** and **KV-MUM** plus related academics, fees, transport, etc. It does **not** pre-populate purely **runtime** tables (e.g. **`refresh_tokens`**). After each deploy, run the **one-time** profile described in [DEMO_SHOWCASE_TENANT.md](./DEMO_SHOWCASE_TENANT.md), then return to **`prod`** only.
+
+Full tables, parent email pattern, and SQL helpers: **[DEMO_CREDENTIALS.md](../../DEMO_CREDENTIALS.md)** (repo root).
 
 ### Platform
 
-| Role | Email | School code |
-|------|-------|-------------|
-| SUPER_ADMIN | `super.ops@schoolvault.edu` | `PLATFORM` |
+| Role | Email | School code | Tenant ID |
+|------|-------|-------------|-----------|
+| SUPER_ADMIN | `superadmin@schoolerp.com` | `PLATFORM` | `PLATFORM` |
 
-### St. Xavier’s Heritage School
+### School 1 — Delhi Public School (DPS-DLH)
 
-| Tenant ID | `tenant_stxaviers_heritage_k7m2n9p4` |
-|-----------|--------------------------------------|
-| School code | `STXHER-KOL` |
+| Tenant ID | `tenant_dps_delhi_9x4k7m2p` |
+|-----------|-----------------------------|
+| School code | `DPS-DLH` |
 
-| Role | Email |
-|------|-------|
-| ADMIN | `principal@stxheritage.edu` |
-| TEACHER | `d.sen@stxheritage.edu` |
-| TEACHER | `m.iyer@stxheritage.edu` |
-| TEACHER | `k.bose@stxheritage.edu` |
-| PARENT | `s.banerjee.parent@stxheritage.edu` |
-| PARENT | `a.khanna.parent@stxheritage.edu` |
-| LIBRARY_STAFF | `library@stxheritage.edu` |
-| STUDENT (preview JWT) | `student.preview@stxheritage.edu` |
+| Role | Email | Notes |
+|------|-------|--------|
+| ADMIN | `admin@dpsdel.edu.in` | From office email `office@dpsdel.edu.in` |
+| TEACHER | `aarav.sharma@dps-dlh.edu.in` | Librarian flag (1 of 10 teachers) |
+| TEACHER | `ananya.verma@dps-dlh.edu.in` | Library assistant flag |
+| PARENT | *(see root `DEMO_CREDENTIALS.md`)* | Pattern `{name}.father.{token}@parent.dps-dlh.edu.in` etc. |
 
-### Meridian Ridge Academy
+### School 2 — Kendriya Vidyalaya (KV-MUM)
 
-| Tenant ID | `tenant_meridian_ridge_pn_3q8w5r1x` |
-|-----------|---------------------------------------|
-| School code | `MRIDGE-PN` |
+| Tenant ID | `tenant_kv_mumbai_7p5n3x8q` |
+|-----------|-----------------------------|
+| School code | `KV-MUM` |
 
-| Role | Email |
-|------|-------|
-| ADMIN | `principal@meridianridge.edu` |
-| TEACHER | `s.patil@meridianridge.edu` |
-| TEACHER | `d.fernandes@meridianridge.edu` |
-| PARENT | `k.deshmukh.parent@meridianridge.edu` |
-| STUDENT (preview JWT) | `student.preview@meridianridge.edu` |
+| Role | Email | Notes |
+|------|-------|--------|
+| ADMIN | `admin@kvmumbai1.gmail.com` | Domain from `kvmumbai1@gmail.com` in seeder |
+| TEACHER | `aarav.sharma@kv-mum.edu.in` | Same 10-name pattern as DPS, different domain |
+| PARENT | *(see root `DEMO_CREDENTIALS.md`)* | `@parent.kv-mum.edu.in` + admission token |
+
+**Library:** use teacher emails above (library flags on teacher **#1** and **#2**); there is no separate `LIBRARY_STAFF` user in this seed.
 
 ---
 
@@ -73,7 +71,7 @@ Inserted by **`V1__core_init_seed.sql`** (users + `tenant_configs` + default adm
 
 Extra **`t1`** academics (classes, Emma Chen, timetable samples, etc.) come from later baseline scripts (e.g. **`V8__outbox_import_demo_jobs.sql`** and related demo inserts), not from the showcase Java seed.
 
-**Showcase vs `t1`:** St. Xavier / Meridian are **only** created when you run the app with **`demo-seed`** (or **`prod-with-demo-seed`**) and **`app.demo-seed.enabled=true`**. Flyway alone does **not** insert those orgs.
+**Showcase vs `t1`:** DPS-DLH / KV-MUM are **only** created when you run the app with **`demo-seed`** (or equivalent) and **`app.demo-seed.enabled=true`**. Flyway alone does **not** insert those orgs.
 
 ---
 
@@ -92,13 +90,15 @@ Configured in `frontend/src/app/core/services/auth.service.ts`. **Not used** whe
 
 ---
 
-## Quick copy — showcase (most complete demo)
+## Quick copy — showcase seed (`DemoDataSeedService`)
 
 ```
-SUPER_ADMIN   super.ops@schoolvault.edu     / admin123  / PLATFORM
-ADMIN         principal@stxheritage.edu     / admin123  / STXHER-KOL
-TEACHER       d.sen@stxheritage.edu        / admin123  / STXHER-KOL
-PARENT        s.banerjee.parent@stxheritage.edu / admin123 / STXHER-KOL
+SUPER_ADMIN   superadmin@schoolerp.com           / admin123  / PLATFORM
+ADMIN         admin@dpsdel.edu.in                / admin123  / DPS-DLH
+TEACHER       aarav.sharma@dps-dlh.edu.in        / admin123  / DPS-DLH
+ADMIN         admin@kvmumbai1.gmail.com          / admin123  / KV-MUM
+TEACHER       aarav.sharma@kv-mum.edu.in         / admin123  / KV-MUM
+PARENT        (run SQL in DEMO_CREDENTIALS.md)   / admin123  / DPS-DLH or KV-MUM
 ```
 
 ---

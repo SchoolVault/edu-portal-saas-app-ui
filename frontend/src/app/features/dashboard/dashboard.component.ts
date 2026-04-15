@@ -42,7 +42,13 @@ interface DashboardAdmissionInsight {
   value: string;
   subtextKey: string;
   subtextParams?: Record<string, string | number>;
-  tone: string;
+  icon: string;
+  iconBg: string;
+  iconColor: string;
+  /** Optional trend pill (e.g. vs previous month). */
+  badgeKey?: string;
+  badgeParams?: Record<string, string | number>;
+  badgeVariant?: 'positive' | 'negative' | 'neutral';
 }
 
 @Component({
@@ -119,13 +125,33 @@ interface DashboardAdmissionInsight {
         </div>
         <div class="row g-4 mb-4">
           <div class="col-lg-5">
-            <div class="erp-card" style="height: 100%;">
-              <div class="erp-card-header"><h3 class="erp-card-title">{{ 'dashboard.admin.admissionsSnapshot' | translate }}</h3></div>
-              <div class="insight-list">
-                <div *ngFor="let insight of admissionInsights" class="insight-card">
-                  <div class="insight-label">{{ insight.labelKey | translate }}</div>
-                  <div class="insight-value" [style.color]="insight.tone">{{ insight.value }}</div>
-                  <div class="insight-subtext">{{ insight.subtextKey | translate: insight.subtextParams }}</div>
+            <div class="erp-card erp-card--admissions-snapshot" style="height: 100%;">
+              <div class="erp-card-header erp-card-header--stack">
+                <div>
+                  <h3 class="erp-card-title mb-0">{{ 'dashboard.admin.admissionsSnapshot' | translate }}</h3>
+                  <p class="erp-card-subtitle mb-0">{{ 'dashboard.admin.admissionsSnapshotLead' | translate }}</p>
+                </div>
+              </div>
+              <div class="admissions-snapshot-list" role="list">
+                <div *ngFor="let insight of admissionInsights" class="admission-snapshot-row" role="listitem">
+                  <div class="admission-snapshot-row__icon" [style.background]="insight.iconBg" [style.color]="insight.iconColor">
+                    <i class="bi" [ngClass]="insight.icon"></i>
+                  </div>
+                  <div class="admission-snapshot-row__body">
+                    <div class="admission-snapshot-row__label">{{ insight.labelKey | translate }}</div>
+                    <div class="admission-snapshot-row__sub">{{ insight.subtextKey | translate: insight.subtextParams }}</div>
+                  </div>
+                  <div class="admission-snapshot-row__meta">
+                    <div class="admission-snapshot-row__value">{{ insight.value }}</div>
+                    <div class="admission-snapshot-row__footer" *ngIf="insight.badgeKey">
+                      <span
+                        class="stat-change"
+                        [class.positive]="insight.badgeVariant === 'positive'"
+                        [class.negative]="insight.badgeVariant === 'negative'"
+                        [class.neutral]="insight.badgeVariant === 'neutral'"
+                      >{{ insight.badgeKey | translate: insight.badgeParams }}</span>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -734,20 +760,28 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
         labelKey: 'dashboard.admin.insight.sixMonth',
         value: String(total),
         subtextKey: 'dashboard.admin.insight.sixMonthSub',
-        tone: 'var(--clr-primary)',
+        icon: 'bi-graph-up-arrow',
+        iconBg: 'rgba(27,58,48,0.12)',
+        iconColor: 'var(--clr-primary)',
       },
       {
         labelKey: 'dashboard.admin.insight.peakMonth',
         value: `${peakMonth} · ${peakValue}`,
         subtextKey: 'dashboard.admin.insight.peakMonthSub',
-        tone: 'var(--clr-accent)',
+        icon: 'bi-calendar2-week-fill',
+        iconBg: 'rgba(192,92,61,0.12)',
+        iconColor: 'var(--clr-accent)',
       },
       {
         labelKey: 'dashboard.admin.insight.monthlyAvg',
         value: average.toFixed(1),
-        subtextKey: 'dashboard.admin.insight.monthlyAvgSub',
-        subtextParams: { signed, pct: trend.toFixed(1) },
-        tone: trend >= 0 ? 'var(--clr-success)' : 'var(--clr-danger)',
+        subtextKey: 'dashboard.admin.insight.monthlyAvgLead',
+        icon: 'bi-activity',
+        iconBg: 'rgba(2,132,199,0.12)',
+        iconColor: 'var(--clr-info)',
+        badgeKey: 'dashboard.admin.insight.vsPrevMonth',
+        badgeParams: { signed, pct: trend.toFixed(1) },
+        badgeVariant: trend > 0 ? 'positive' : trend < 0 ? 'negative' : 'neutral',
       },
     ];
   }

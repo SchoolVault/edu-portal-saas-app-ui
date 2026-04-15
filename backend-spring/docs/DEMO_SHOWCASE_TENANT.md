@@ -14,9 +14,10 @@ New or rarely used domain tables can follow the same pattern: add a small `@Serv
 | Piece | Purpose |
 |--------|--------|
 | `dev` | Local development; `application-dev.yml` sets `app.demo-seed.enabled=true`. |
+| `ml` / `rel` | Staging (Render or other); same prod-shaped YAML as `prod`. Use `ml-with-demo-seed` / `rel-with-demo-seed` or `ml,demo-seed` / `rel,demo-seed` for the same one-time seed flow as prod. |
 | `showcase-seed` | Legacy alias for enabling the same beans as `demo-seed`. |
 | `demo-seed` | Enables `DemoDataSeedService`, `DemoExtendedTablesSeed`, `DemoDataSeedRunner` (with `enabled=true`). |
-| `app.demo-seed.enabled` | Must be `true` for the runner to execute; default `false` in root `application.yml`, forced `false` in `prod`. |
+| `app.demo-seed.enabled` | Must be `true` for the runner to execute; default `false` in root `application.yml`, forced `false` in `prod` / `ml` / `rel`. |
 
 **Production-style DB, one-time load**
 
@@ -34,6 +35,8 @@ New or rarely used domain tables can follow the same pattern: add a small `@Serv
    ```bash
    export SPRING_PROFILES_ACTIVE=prod-with-demo-seed
    ```
+
+   On **ml** or **rel** databases, use `SPRING_PROFILES_ACTIVE=ml-with-demo-seed` or `rel-with-demo-seed` (same ordering: prod-style profile first, then `demo-seed`).
 
 3. Wait for log: `Demo data seed complete ...`
 4. Redeploy or restart with **`prod` only** (`demo-seed` off, `app.demo-seed.enabled=false`). Data stays in the database; seed beans are not loaded, so nothing re-inserts.

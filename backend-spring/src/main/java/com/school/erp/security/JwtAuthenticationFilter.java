@@ -69,6 +69,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             return false;
         }
         return uri.contains("/api/v1/auth/login")
+                || uri.contains("/api/v1/auth/phone/")
                 || uri.contains("/api/v1/auth/onboard-tenant")
                 || uri.contains("/api/v1/auth/refresh-token")
                 || uri.contains("/api/v1/auth/logout");

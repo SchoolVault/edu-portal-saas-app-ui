@@ -5,8 +5,12 @@ import com.school.erp.modules.settings.dto.SchoolBranchDTO;
 import com.school.erp.modules.settings.entity.TenantConfig;
 import com.school.erp.modules.settings.repository.TenantConfigRepository;
 import com.school.erp.tenant.TenantContext;
+import com.school.erp.config.CacheConfig;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.Caching;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.util.HashMap;
@@ -20,11 +24,22 @@ public class SettingsService {
     private final TenantConfigRepository repo;
     private final ObjectMapper objectMapper;
 
+    /** Matches {@code tenantMethodNameKeyGenerator} root for explicit {@link CacheEvict} keys. */
+    public static String tenantCacheRoot() {
+        String tid = TenantContext.getTenantId();
+        return (tid == null || tid.isBlank()) ? "_no_tenant_" : tid;
+    }
+
+    @Cacheable(cacheNames = CacheConfig.SETTINGS_SNAPSHOT, keyGenerator = "tenantMethodNameKeyGenerator")
     @Transactional(readOnly = true)
     public TenantConfig getSettings() {
         return repo.findByTenantId(TenantContext.getTenantId()).orElseThrow(() -> new ResourceNotFoundException("Tenant settings not configured"));
     }
 
+    @Caching(evict = {
+            @CacheEvict(cacheNames = CacheConfig.SETTINGS_SNAPSHOT, key = "T(com.school.erp.modules.settings.service.SettingsService).tenantCacheRoot() + ':getSettings'"),
+            @CacheEvict(cacheNames = CacheConfig.SETTINGS_SNAPSHOT, key = "T(com.school.erp.modules.settings.service.SettingsService).tenantCacheRoot() + ':getFeatureFlags'")
+    })
     @Transactional
     public TenantConfig updateSettings(TenantConfig update) {
         String t = TenantContext.getTenantId();
@@ -42,9 +57,15 @@ public class SettingsService {
         return repo.save(config);
     }
 
+    @Cacheable(cacheNames = CacheConfig.SETTINGS_SNAPSHOT, keyGenerator = "tenantMethodNameKeyGenerator")
     @Transactional(readOnly = true)
     public Map<String, Boolean> getFeatureFlags() {
-        TenantConfig config = getSettings();
+        TenantConfig config = repo.findByTenantId(TenantContext.getTenantId())
+                .orElseThrow(() -> new ResourceNotFoundException("Tenant settings not configured"));
+        return parseFeatureFlags(config);
+    }
+
+    private Map<String, Boolean> parseFeatureFlags(TenantConfig config) {
         try {
             if (config.getFeaturesJson() != null) {
                 return objectMapper.readValue(config.getFeaturesJson(), new TypeReference<>() {
@@ -56,11 +77,16 @@ public class SettingsService {
         return Map.of();
     }
 
+    @Caching(evict = {
+            @CacheEvict(cacheNames = CacheConfig.SETTINGS_SNAPSHOT, key = "T(com.school.erp.modules.settings.service.SettingsService).tenantCacheRoot() + ':getSettings'"),
+            @CacheEvict(cacheNames = CacheConfig.SETTINGS_SNAPSHOT, key = "T(com.school.erp.modules.settings.service.SettingsService).tenantCacheRoot() + ':getFeatureFlags'")
+    })
     @Transactional
     public Map<String, Boolean> updateFeatureFlags(Map<String, Boolean> flags) {
-        TenantConfig config = getSettings();
+        TenantConfig config = repo.findByTenantId(TenantContext.getTenantId())
+                .orElseThrow(() -> new ResourceNotFoundException("Tenant settings not configured"));
         try {
-            Map<String, Boolean> merged = new HashMap<>(getFeatureFlags());
+            Map<String, Boolean> merged = new HashMap<>(parseFeatureFlags(config));
             merged.putAll(flags);
             config.setFeaturesJson(objectMapper.writeValueAsString(merged));
             repo.save(config);
@@ -68,7 +94,7 @@ public class SettingsService {
         } catch (Exception e) {
             log.error("Failed to save features JSON", e);
         }
-        return getFeatureFlags();
+        return parseFeatureFlags(config);
     }
 
     /**

@@ -1,5 +1,5 @@
-# Active when spring.profiles.active includes dev (default in application.yml for local work).
-# For Docker Desktop + Redis + RabbitMQ with zero extra env, use profile "local" (application-local.yml).
+# Active when spring.profiles.active includes dev (default in application.yml for IDE work).
+# For Docker Desktop + Redis + RabbitMQ parity with prod, use profile ml (application-ml.yml) and set DB_URL / REDIS_* / RABBITMQ_*.
 #
 # Local IDE → Aiven MySQL: set DB_URL, DB_USERNAME, DB_PASSWORD on THIS run configuration (not only system env).
 # 1) Aiven → your service → Networking / trusted sources: add your public IP (/32) or temporarily 0.0.0.0/0 to test.
@@ -8,6 +8,8 @@
 app:
   demo-seed:
     enabled: true
+  dev:
+    mode: true
   datasource:
     slow-query:
       enabled: true

@@ -448,6 +448,114 @@ a:hover {
 
 .erp-card-title { font-size: 16px; font-weight: 700; font-family: var(--font-heading); }
 
+.erp-card-subtitle {
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--clr-text-secondary);
+  font-weight: 500;
+  margin-top: 6px;
+  max-width: 36rem;
+}
+
+.erp-card-header--stack {
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: flex-start;
+  gap: 2px;
+}
+
+/* Admin dashboard — admissions snapshot list (compact, scrollable, aligned with ERP cards) */
+.admissions-snapshot-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 260px;
+  overflow-y: auto;
+  padding-right: 4px;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--clr-primary) 32%, var(--clr-border)) transparent;
+}
+
+.admissions-snapshot-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.admissions-snapshot-list::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--clr-primary) 28%, var(--clr-border));
+}
+
+.admission-snapshot-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 13px 4px;
+  border-bottom: 1px solid var(--clr-border-light);
+}
+
+.admission-snapshot-row:last-child {
+  border-bottom: none;
+}
+
+.admission-snapshot-row__icon {
+  width: 38px;
+  height: 38px;
+  border-radius: 14px;
+  display: grid;
+  place-items: center;
+  font-size: 17px;
+  flex-shrink: 0;
+}
+
+.admission-snapshot-row__body {
+  min-width: 0;
+  flex: 1;
+}
+
+.admission-snapshot-row__label {
+  color: var(--clr-text);
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.3;
+}
+
+.admission-snapshot-row__value {
+  color: var(--clr-text);
+  font-family: var(--font-heading);
+  font-size: 1.15rem;
+  font-weight: 800;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.admission-snapshot-row__meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  min-width: 96px;
+}
+
+.admission-snapshot-row__sub {
+  color: var(--clr-text-secondary);
+  font-size: 12px;
+  line-height: 1.45;
+  margin-top: 3px;
+}
+
+.admission-snapshot-row__footer {
+  line-height: 1;
+}
+
+@media (max-width: 420px) {
+  .admission-snapshot-row {
+    align-items: flex-start;
+  }
+  .admission-snapshot-row__meta {
+    min-width: 72px;
+  }
+}
+
 /* List / feature page chrome — keeps title, lead, and CTAs aligned on all viewports */
 .erp-page-header {
   display: flex;
@@ -536,6 +644,7 @@ a:hover {
 
 .stat-change.positive { color: var(--clr-success); background: rgba(5,150,105,0.08); }
 .stat-change.negative { color: var(--clr-danger); background: rgba(220,38,38,0.08); }
+.stat-change.neutral { color: var(--clr-text-secondary); background: rgba(100,116,139,0.1); }
 
 /* === TABLES === */
 .erp-table {
@@ -798,6 +907,12 @@ img.table-avatar {
   white-space: nowrap;
 }
 
+.btn-outline-erp:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
 /* Hover styles consolidated below with .btn-outline-erp:hover (accent-aware). */
 .btn-outline-erp:active,
 .btn-outline-erp:focus-visible {
@@ -805,6 +920,82 @@ img.table-avatar {
 }
 .btn-sm { padding: 6px 16px; font-size: 13px; }
 .btn-xs { padding: 4px 12px; font-size: 12px; }
+
+/* Auth flows (login, forgot password, etc.) — secondary actions */
+.login-phone-actions,
+.auth-secondary-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  margin-top: 12px;
+}
+
+.auth-secondary-row--tight {
+  margin-top: 8px;
+}
+
+.auth-secondary-row .btn-outline-erp.btn-sm,
+.login-phone-actions .btn-outline-erp.btn-sm {
+  white-space: normal;
+  text-align: center;
+  line-height: 1.3;
+  min-height: 36px;
+}
+
+.btn-link-erp {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--clr-primary);
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.btn-link-erp:hover {
+  color: color-mix(in srgb, var(--clr-primary) 78%, #000);
+}
+
+.btn-link-erp:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  text-decoration: none;
+}
+
+/* Password field: label + inline visibility toggle (login / reset) */
+.auth-field-head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px 12px;
+  margin-bottom: 8px;
+}
+
+.login-password-label-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px 12px;
+  margin-bottom: 8px;
+}
+
+.login-forgot-link {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--clr-primary);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.login-forgot-link:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
 
 .btn-icon {
   padding: 8px;
@@ -851,7 +1042,17 @@ img.table-avatar {
 .btn-danger-erp:hover { background: #B91C1C; }
 
 /* === BADGES === */
-.badge-erp { display: inline-flex; align-items: center; padding: 4px 11px; border-radius: var(--radius-full); font-size: 12px; font-weight: 600; }
+.badge-erp {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 11px;
+  border-radius: var(--radius-full);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.25;
+  box-sizing: border-box;
+}
 .badge-success {
   background: color-mix(in srgb, var(--clr-success) 16%, var(--clr-surface));
   color: var(--clr-success);

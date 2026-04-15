@@ -21,6 +21,7 @@ import { runtimeConfig } from '../../core/config/runtime-config';
   selector: 'app-library',
   standalone: true,
   imports: [CommonModule, FormsModule, ErpDatePickerComponent, TranslateModule, ErpPaginationComponent, ErpI18nPhDirective],
+  styleUrl: './library.component.css',
   template: `
     <div data-testid="library-page">
       <div class="d-flex justify-content-between align-items-center mb-4 animate-in flex-wrap gap-2">
@@ -69,10 +70,10 @@ import { runtimeConfig } from '../../core/config/runtime-config';
               </div>
             </div>
           </div>
-          <table class="erp-table" data-testid="books-table">
+          <table class="erp-table library-books-table" data-testid="books-table">
             <thead>
               <tr>
-                <th>{{ 'library.thTitle' | translate }}</th><th>{{ 'library.thAuthor' | translate }}</th><th>{{ 'library.thIsbn' | translate }}</th><th>{{ 'library.thCategory' | translate }}</th><th>{{ 'library.thCopies' | translate }}</th><th>{{ 'library.thOnLoan' | translate }}</th><th>{{ 'library.thStatus' | translate }}</th><th>{{ 'library.thShelf' | translate }}</th>
+                <th>{{ 'library.thTitle' | translate }}</th><th>{{ 'library.thAuthor' | translate }}</th><th>{{ 'library.thIsbn' | translate }}</th><th class="library-category-cell">{{ 'library.thCategory' | translate }}</th><th>{{ 'library.thCopies' | translate }}</th><th>{{ 'library.thOnLoan' | translate }}</th><th class="library-status-cell">{{ 'library.thStatus' | translate }}</th><th>{{ 'library.thShelf' | translate }}</th>
                 <th *ngIf="canManageLibrary">{{ 'library.thActions' | translate }}</th>
               </tr>
             </thead>
@@ -81,16 +82,23 @@ import { runtimeConfig } from '../../core/config/runtime-config';
                 <td><strong>{{ b.title }}</strong></td>
                 <td>{{ b.author }}</td>
                 <td style="font-family: monospace; font-size: 12px;">{{ b.isbn }}</td>
-                <td><span class="badge-erp badge-neutral">{{ b.category }}</span></td>
+                <td class="library-category-cell">
+                  <span
+                    class="badge-erp badge-subject-pill library-category-pill"
+                    [attr.title]="(b.category || '').trim() || null"
+                  >{{ (b.category || '').trim() || '—' }}</span>
+                </td>
                 <td>
                   <span [style.color]="b.availableCopies > 0 ? 'var(--clr-success)' : 'var(--clr-danger)'">{{ b.availableCopies }}/{{ b.totalCopies }}</span>
                   {{ 'library.availableSuffix' | translate }}
                 </td>
                 <td>{{ onLoan(b) }}</td>
-                <td>
-                  <span *ngIf="b.catalogActive === false" class="badge-erp badge-warning">{{ 'library.statusInactive' | translate }}</span>
-                  <span *ngIf="b.catalogActive !== false && b.availableCopies <= 0" class="badge-erp badge-danger">{{ 'library.statusOutOfStock' | translate }}</span>
-                  <span *ngIf="b.catalogActive !== false && b.availableCopies > 0" class="badge-erp badge-success">{{ 'library.statusInStock' | translate }}</span>
+                <td class="library-status-cell">
+                  <div class="library-status-wrap">
+                    <span *ngIf="b.catalogActive === false" class="badge-erp badge-warning library-status-pill">{{ 'library.statusInactive' | translate }}</span>
+                    <span *ngIf="b.catalogActive !== false && b.availableCopies <= 0" class="badge-erp badge-danger library-status-pill">{{ 'library.statusOutOfStock' | translate }}</span>
+                    <span *ngIf="b.catalogActive !== false && b.availableCopies > 0" class="badge-erp badge-success library-status-pill">{{ 'library.statusInStock' | translate }}</span>
+                  </div>
                 </td>
                 <td>{{ b.shelfLocation }}</td>
                 <td *ngIf="canManageLibrary" class="text-nowrap">
@@ -141,15 +149,15 @@ import { runtimeConfig } from '../../core/config/runtime-config';
             </div>
             <button type="button" class="btn-outline-erp btn-sm" (click)="loadIssues()"><i class="bi bi-arrow-clockwise"></i> {{ 'library.refresh' | translate }}</button>
           </div>
-          <table class="erp-table" data-testid="issued-books-table">
-            <thead><tr><th>{{ 'library.thBook' | translate }}</th><th>{{ 'library.thStudent' | translate }}</th><th>{{ 'library.thIssue' | translate }}</th><th>{{ 'library.thDue' | translate }}</th><th>{{ 'library.thStatus' | translate }}</th><th>{{ 'library.thFine' | translate }}</th><th *ngIf="canManageLibrary">{{ 'library.thReturn' | translate }}</th></tr></thead>
+          <table class="erp-table library-issues-table" data-testid="issued-books-table">
+            <thead><tr><th>{{ 'library.thBook' | translate }}</th><th>{{ 'library.thStudent' | translate }}</th><th>{{ 'library.thIssue' | translate }}</th><th>{{ 'library.thDue' | translate }}</th><th class="library-issue-status-cell">{{ 'library.thStatus' | translate }}</th><th>{{ 'library.thFine' | translate }}</th><th *ngIf="canManageLibrary">{{ 'library.thReturn' | translate }}</th></tr></thead>
             <tbody>
               <tr *ngFor="let issue of issues">
                 <td><strong>{{ issue.bookTitle }}</strong></td>
                 <td>{{ issue.studentName }}</td>
                 <td>{{ issue.issueDate }}</td>
                 <td>{{ issue.dueDate }}</td>
-                <td><span class="badge-erp" [ngClass]="{'badge-success': issue.status === 'returned', 'badge-info': issue.status === 'issued', 'badge-danger': issue.status === 'overdue'}">{{ issueStatusLabel(issue.status) }}</span></td>
+                <td class="library-issue-status-cell"><span class="badge-erp library-status-pill" [ngClass]="{'badge-success': issue.status === 'returned', 'badge-info': issue.status === 'issued', 'badge-danger': issue.status === 'overdue'}">{{ issueStatusLabel(issue.status) }}</span></td>
                 <td [style.color]="issue.fine > 0 ? 'var(--clr-danger)' : ''">₹{{ issue.fine | number:'1.2-2':'en-IN' }}</td>
                 <td *ngIf="canManageLibrary">
                   <button *ngIf="issue.status === 'issued' || issue.status === 'overdue'" type="button" class="btn-outline-erp btn-xs" (click)="openReturnModal(issue)">{{ 'library.return' | translate }}</button>
