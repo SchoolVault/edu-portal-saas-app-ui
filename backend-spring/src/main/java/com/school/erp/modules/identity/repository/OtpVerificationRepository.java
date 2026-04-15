@@ -23,7 +23,7 @@ public interface OtpVerificationRepository extends JpaRepository<OtpVerification
            "WHERE o.phone = :phone AND o.tenantId = :tenantId " +
            "AND o.purpose = :purpose AND o.status = :status " +
            "AND o.expiresAt > :now AND o.isDeleted = false " +
-           "ORDER BY o.createdAt DESC")
+           "ORDER BY o.createdAt DESC LIMIT 1")
     Optional<OtpVerification> findLatestPendingOtp(
         @Param("phone") String phone,
         @Param("tenantId") String tenantId,

@@ -2,7 +2,6 @@ package com.school.erp.modules.identity.dto;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -24,7 +23,7 @@ public class PhoneAuthDTOs {
     @Builder
     public static class SendOtpRequest {
         @NotBlank(message = "Phone number is required")
-        @Pattern(regexp = "^[+]?[0-9\\s\\-]{10,22}$", message = "Invalid phone number format")
+        @Size(min = 8, max = 32, message = "Phone number is invalid")
         private String phone;
 
         @NotBlank(message = "School code is required")
@@ -69,7 +68,7 @@ public class PhoneAuthDTOs {
     @Builder
     public static class VerifyOtpRequest {
         @NotBlank(message = "Phone number is required")
-        @Pattern(regexp = "^[+]?[0-9\\s\\-]{10,22}$", message = "Invalid phone number format")
+        @Size(min = 8, max = 32, message = "Phone number is invalid")
         private String phone;
 
         @NotBlank(message = "School code is required")
@@ -108,7 +107,7 @@ public class PhoneAuthDTOs {
     @Builder
     public static class PhoneLoginRequest {
         @NotBlank(message = "Phone number is required")
-        @Pattern(regexp = "^[+]?[0-9\\s\\-]{10,22}$", message = "Invalid phone number format")
+        @Size(min = 8, max = 32, message = "Phone number is invalid")
         private String phone;
 
         @NotBlank(message = "School code is required")
@@ -129,7 +128,7 @@ public class PhoneAuthDTOs {
     @Builder
     public static class PasswordResetRequest {
         @NotBlank(message = "Phone number is required")
-        @Pattern(regexp = "^[+]?[0-9\\s\\-]{10,22}$", message = "Invalid phone number format")
+        @Size(min = 8, max = 32, message = "Phone number is invalid")
         private String phone;
 
         @NotBlank(message = "School code is required")
@@ -192,6 +191,7 @@ public class PhoneAuthDTOs {
     @Builder
     public static class ResendOtpRequest {
         @NotBlank(message = "Phone number is required")
+        @Size(min = 8, max = 32, message = "Phone number is invalid")
         private String phone;
 
         @NotBlank(message = "School code is required")

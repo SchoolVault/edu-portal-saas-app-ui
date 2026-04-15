@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -17,6 +18,12 @@ public interface UserRepository extends JpaRepository<User, Long> {
     Optional<User> findByEmailAndSchoolCodeAndIsDeletedFalse(String email, String schoolCode);
 
     Optional<User> findByPhoneAndSchoolCodeAndIsDeletedFalse(String phone, String schoolCode);
+
+    /**
+     * Resolves a user when {@code phones} contains legacy variants of the same handset
+     * (see {@link com.school.erp.common.util.InternationalPhone#compatibleLookupKeys}).
+     */
+    Optional<User> findFirstBySchoolCodeAndPhoneInAndIsDeletedFalseOrderByIdAsc(String schoolCode, Collection<String> phones);
 
     Optional<User> findByPhoneAndTenantIdAndIsDeletedFalse(String phone, String tenantId);
 

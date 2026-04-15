@@ -2,6 +2,7 @@ package com.school.erp.modules.auth.service;
 
 import com.school.erp.common.enums.Enums;
 import com.school.erp.common.locale.InterfaceLocale;
+import com.school.erp.common.util.InternationalPhone;
 import com.school.erp.common.util.PhoneNormalization;
 import com.school.erp.common.exception.BusinessException;
 import com.school.erp.common.exception.DuplicateResourceException;
@@ -53,7 +54,13 @@ public class AuthService {
         log.debug("Login attempt schoolCode={}", schoolCode);
         User user;
         if (request.getPhone() != null && !request.getPhone().isBlank()) {
-            user = userRepository.findByPhoneAndSchoolCodeAndIsDeletedFalse(request.getPhone().trim(), schoolCode)
+            String canonicalPhone = InternationalPhone.canonical(request.getPhone().trim());
+            if (canonicalPhone == null) {
+                throw new BusinessException(InternationalPhone.invalidMessage());
+            }
+            user = userRepository
+                    .findFirstBySchoolCodeAndPhoneInAndIsDeletedFalseOrderByIdAsc(
+                            schoolCode, InternationalPhone.compatibleLookupKeys(canonicalPhone))
                     .orElseThrow(() -> new UnauthorizedException("Invalid credentials or school code"));
         } else {
             user = userRepository.findByEmailAndSchoolCodeAndIsDeletedFalse(request.getEmail().trim().toLowerCase(Locale.ROOT), schoolCode)
@@ -103,9 +110,18 @@ public class AuthService {
         String tenantId = TenantContext.getTenantId();
         if (tenantId == null) throw new UnauthorizedException("Tenant context not found");
         if (userRepository.existsByEmailAndTenantId(request.getEmail(), tenantId)) throw new DuplicateResourceException("Email already registered in this school");
-        String regPhone = PhoneNormalization.trimToNull(request.getPhone());
-        if (regPhone != null && userRepository.existsByPhoneAndTenantIdAndIsDeletedFalse(regPhone, tenantId)) {
-            throw new DuplicateResourceException("This mobile number is already registered in this school");
+        String regPhone = request.getPhone() == null || request.getPhone().isBlank()
+                ? null
+                : InternationalPhone.canonical(request.getPhone().trim());
+        if (request.getPhone() != null && !request.getPhone().isBlank() && regPhone == null) {
+            throw new BusinessException(InternationalPhone.invalidMessage());
+        }
+        if (regPhone != null) {
+            for (String key : InternationalPhone.compatibleLookupKeys(regPhone)) {
+                if (userRepository.existsByPhoneAndTenantIdAndIsDeletedFalse(key, tenantId)) {
+                    throw new DuplicateResourceException("This mobile number is already registered in this school");
+                }
+            }
         }
         TenantConfig tenantConfig = tenantConfigRepository.findByTenantId(tenantId).orElseThrow(() -> new ResourceNotFoundException("Tenant settings not configured"));
         User user = User.builder().name(request.getName()).email(request.getEmail()).password(passwordEncoder.encode(request.getPassword())).phone(regPhone).role(request.getRole() != null ? request.getRole() : com.school.erp.common.enums.Enums.Role.PARENT).schoolCode(tenantConfig.getSchoolCode()).build();
@@ -127,12 +143,22 @@ public class AuthService {
         }
         String tenantId = buildTenantId(normalizedSchoolCode);
 
+        String adminPhone = InternationalPhone.canonical(request.getPhone().trim());
+        if (adminPhone == null) {
+            throw new BusinessException(InternationalPhone.invalidMessage());
+        }
+        for (String key : InternationalPhone.compatibleLookupKeys(adminPhone)) {
+            if (userRepository.existsByPhoneAndTenantIdAndIsDeletedFalse(key, tenantId)) {
+                throw new DuplicateResourceException("This mobile number is already registered in this school");
+            }
+        }
+
         TenantConfig config = new TenantConfig();
         config.setTenantId(tenantId);
         config.setSchoolName(request.getSchoolName().trim());
         config.setSchoolCode(normalizedSchoolCode);
         config.setAddress(request.getAddress());
-        config.setPhone(request.getPhone());
+        config.setPhone(adminPhone);
         config.setEmail(request.getAdminEmail());
         config.setPrimaryColor("#1B3A30");
         config.setSecondaryColor("#C05C3D");
@@ -140,13 +166,9 @@ public class AuthService {
         tenantConfigRepository.save(config);
 
         String adminEmailRaw = request.getAdminEmail() == null ? "" : request.getAdminEmail().trim();
-        String adminEmail = adminEmailRaw.isEmpty() ? syntheticAdminEmail(normalizedSchoolCode, request.getPhone()) : adminEmailRaw.toLowerCase(Locale.ROOT);
+        String adminEmail = adminEmailRaw.isEmpty() ? syntheticAdminEmail(normalizedSchoolCode, adminPhone) : adminEmailRaw.toLowerCase(Locale.ROOT);
         if (userRepository.existsByEmailAndTenantId(adminEmail, tenantId)) {
             throw new DuplicateResourceException("Email already registered in this school");
-        }
-        String adminPhone = PhoneNormalization.trimToNull(request.getPhone());
-        if (userRepository.existsByPhoneAndTenantIdAndIsDeletedFalse(adminPhone, tenantId)) {
-            throw new DuplicateResourceException("This mobile number is already registered in this school");
         }
 
         User admin = User.builder()

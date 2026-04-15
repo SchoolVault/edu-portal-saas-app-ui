@@ -1,5 +1,6 @@
 package com.school.erp.modules.identity.service;
 
+import com.school.erp.common.util.InternationalPhone;
 import com.school.erp.modules.identity.dto.PhoneAuthDTOs;
 import com.school.erp.modules.identity.entity.OtpVerification;
 import com.school.erp.modules.identity.enums.OtpChannel;
@@ -63,7 +64,16 @@ public class OtpService {
     public PhoneAuthDTOs.SendOtpResponse sendOtp(PhoneAuthDTOs.SendOtpRequest request) {
         String tenantId = schoolCodeTenantResolver.resolveTenantId(request.getSchoolCode());
         String requestId = request.getRequestId() != null ? request.getRequestId() : UUID.randomUUID().toString();
-        String phone = request.getPhone().trim();
+        String phone = InternationalPhone.canonical(request.getPhone().trim());
+        if (phone == null) {
+            log.warn("OTP send rejected: invalid phone raw={}", request.getPhone());
+            return PhoneAuthDTOs.SendOtpResponse.builder()
+                    .success(false)
+                    .message(InternationalPhone.invalidMessage())
+                    .requestId(requestId)
+                    .canRetryAfterSeconds(0L)
+                    .build();
+        }
 
         log.info("OTP send phone={} purpose={} tenantId={} requestId={}", phone, request.getPurpose(), tenantId, requestId);
 
@@ -105,7 +115,7 @@ public class OtpService {
         OtpVerification otpVerification = OtpVerification.builder()
                 .tenantId(tenantId)
                 .phone(phone)
-                .otpCode(devMode ? otpCode : "")
+                .otpCode(otpCode)
                 .otpHash(otpHash)
                 .purpose(OtpPurpose.valueOf(request.getPurpose().toUpperCase()))
                 .channel(request.getChannel() != null ? OtpChannel.valueOf(request.getChannel().toUpperCase()) : OtpChannel.SMS)
@@ -127,7 +137,7 @@ public class OtpService {
         );
 
 SmsRequest smsRequest = SmsRequest.builder()
-                .to(phone)
+                .to(InternationalPhone.toSmsAddress(phone))
                 .message(message)
                 .tenantId(tenantId)
                 .correlationId(requestId)
@@ -164,7 +174,15 @@ SmsResponse smsResponse = smsService.sendSms(smsRequest);
     @Transactional
     public PhoneAuthDTOs.VerifyOtpResponse verifyOtp(PhoneAuthDTOs.VerifyOtpRequest request) {
         String tenantId = schoolCodeTenantResolver.resolveTenantId(request.getSchoolCode());
-        String phone = request.getPhone().trim();
+        String phone = InternationalPhone.canonical(request.getPhone().trim());
+        if (phone == null) {
+            log.warn("OTP verify rejected: invalid phone");
+            return PhoneAuthDTOs.VerifyOtpResponse.builder()
+                    .verified(false)
+                    .message(InternationalPhone.invalidMessage())
+                    .remainingAttempts(0)
+                    .build();
+        }
 
         log.info("OTP verify phone={} purpose={} tenantId={}", phone, request.getPurpose(), tenantId);
 

@@ -2,6 +2,7 @@ package com.school.erp.modules.identity.service;
 
 import com.school.erp.common.exception.BusinessException;
 import com.school.erp.common.exception.UnauthorizedException;
+import com.school.erp.common.util.InternationalPhone;
 import com.school.erp.common.locale.InterfaceLocale;
 import com.school.erp.modules.auth.dto.AuthDTOs;
 import com.school.erp.modules.auth.entity.RefreshToken;
@@ -45,7 +46,10 @@ public class PhoneAuthService {
     @Transactional
     public AuthDTOs.LoginResponse loginWithOtpExchange(PhoneAuthDTOs.PhoneLoginRequest request) {
         String schoolCode = request.getSchoolCode().trim().toUpperCase(Locale.ROOT);
-        String phone = request.getPhone().trim();
+        String phone = InternationalPhone.canonical(request.getPhone().trim());
+        if (phone == null) {
+            throw new BusinessException(InternationalPhone.invalidMessage());
+        }
         String token = request.getVerificationToken().trim();
 
         String tenantId = schoolCodeTenantResolver.resolveTenantId(schoolCode);
@@ -66,14 +70,7 @@ public class PhoneAuthService {
             throw new UnauthorizedException("Verification expired. Request a new OTP.");
         }
 
-        User user = userRepository.findByPhoneAndSchoolCodeAndIsDeletedFalse(phone, schoolCode)
-                .orElseThrow(() -> new UnauthorizedException("No account for this phone and school code"));
-        if (!user.getTenantId().equals(tenantId)) {
-            throw new UnauthorizedException("No account for this phone and school code");
-        }
-        if (!Boolean.TRUE.equals(user.getIsActive())) {
-            throw new BusinessException("Account is deactivated. Contact admin.");
-        }
+        User user = loadUserForPhoneAndSchoolOrThrow(schoolCode, phone, tenantId);
 
         otp.setExchangeToken(null);
         otpVerificationRepository.save(otp);
@@ -85,7 +82,10 @@ public class PhoneAuthService {
     @Transactional
     public PhoneAuthDTOs.PasswordResetResponse resetPasswordWithOtpExchange(PhoneAuthDTOs.PasswordResetRequest request) {
         String schoolCode = request.getSchoolCode().trim().toUpperCase(Locale.ROOT);
-        String phone = request.getPhone().trim();
+        String phone = InternationalPhone.canonical(request.getPhone().trim());
+        if (phone == null) {
+            throw new BusinessException(InternationalPhone.invalidMessage());
+        }
         String token = request.getVerificationToken().trim();
 
         String tenantId = schoolCodeTenantResolver.resolveTenantId(schoolCode);
@@ -100,14 +100,7 @@ public class PhoneAuthService {
             throw new UnauthorizedException("Verification expired. Request a new OTP.");
         }
 
-        User user = userRepository.findByPhoneAndSchoolCodeAndIsDeletedFalse(phone, schoolCode)
-                .orElseThrow(() -> new UnauthorizedException("No account for this phone and school code"));
-        if (!user.getTenantId().equals(tenantId)) {
-            throw new UnauthorizedException("No account for this phone and school code");
-        }
-        if (!Boolean.TRUE.equals(user.getIsActive())) {
-            throw new BusinessException("Account is deactivated. Contact admin.");
-        }
+        User user = loadUserForPhoneAndSchoolOrThrow(schoolCode, phone, tenantId);
 
         user.setPassword(passwordEncoder.encode(request.getNewPassword()));
         userRepository.save(user);
@@ -127,5 +120,19 @@ public class PhoneAuthService {
         token.setIsActive(false);
         token.setIsDeleted(true);
         refreshTokenRepository.save(token);
+    }
+
+    private User loadUserForPhoneAndSchoolOrThrow(String schoolCode, String canonicalPhone, String tenantId) {
+        User user = userRepository
+                .findFirstBySchoolCodeAndPhoneInAndIsDeletedFalseOrderByIdAsc(
+                        schoolCode, InternationalPhone.compatibleLookupKeys(canonicalPhone))
+                .orElseThrow(() -> new UnauthorizedException("No account for this phone and school code"));
+        if (!user.getTenantId().equals(tenantId)) {
+            throw new UnauthorizedException("No account for this phone and school code");
+        }
+        if (!Boolean.TRUE.equals(user.getIsActive())) {
+            throw new BusinessException("Account is deactivated. Contact admin.");
+        }
+        return user;
     }
 }
