@@ -1,15 +1,16 @@
 package com.school.erp.modules.auth.dto;
 
 import com.school.erp.common.enums.Enums;
+import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 
 public class AuthDTOs {
 
     public static class LoginRequest {
-        @NotBlank(message = "Email is required")
-        @Email
+        @Email(message = "Invalid email")
         private String email;
+        private String phone;
         @NotBlank(message = "Password is required")
         private String password;
         @NotBlank(message = "School code is required")
@@ -17,8 +18,16 @@ public class AuthDTOs {
         /** Optional UI language (e.g. en, hi). When valid, persisted on successful login. */
         private String interfaceLocale;
 
+        @AssertTrue(message = "Either email or phone is required")
+        public boolean isLoginIdentifierPresent() {
+            boolean hasEmail = email != null && !email.isBlank();
+            boolean hasPhone = phone != null && !phone.isBlank();
+            return hasEmail || hasPhone;
+        }
+
         public static class LoginRequestBuilder {
             private String email;
+            private String phone;
             private String password;
             private String schoolCode;
             private String interfaceLocale;
@@ -31,6 +40,11 @@ public class AuthDTOs {
              */
             public AuthDTOs.LoginRequest.LoginRequestBuilder email(final String email) {
                 this.email = email;
+                return this;
+            }
+
+            public AuthDTOs.LoginRequest.LoginRequestBuilder phone(final String phone) {
+                this.phone = phone;
                 return this;
             }
 
@@ -56,12 +70,12 @@ public class AuthDTOs {
             }
 
             public AuthDTOs.LoginRequest build() {
-                return new AuthDTOs.LoginRequest(this.email, this.password, this.schoolCode, this.interfaceLocale);
+                return new AuthDTOs.LoginRequest(this.email, this.phone, this.password, this.schoolCode, this.interfaceLocale);
             }
 
             @Override
             public String toString() {
-                return "AuthDTOs.LoginRequest.LoginRequestBuilder(email=" + this.email + ", password=" + this.password + ", schoolCode=" + this.schoolCode + ", interfaceLocale=" + this.interfaceLocale + ")";
+                return "AuthDTOs.LoginRequest.LoginRequestBuilder(email=" + this.email + ", phone=" + this.phone + ", password=" + this.password + ", schoolCode=" + this.schoolCode + ", interfaceLocale=" + this.interfaceLocale + ")";
             }
         }
 
@@ -71,6 +85,10 @@ public class AuthDTOs {
 
         public String getEmail() {
             return this.email;
+        }
+
+        public String getPhone() {
+            return this.phone;
         }
 
         public String getPassword() {
@@ -87,6 +105,10 @@ public class AuthDTOs {
 
         public void setEmail(final String email) {
             this.email = email;
+        }
+
+        public void setPhone(final String phone) {
+            this.phone = phone;
         }
 
         public void setPassword(final String password) {
@@ -110,6 +132,9 @@ public class AuthDTOs {
             final Object this$email = this.getEmail();
             final Object other$email = other.getEmail();
             if (this$email == null ? other$email != null : !this$email.equals(other$email)) return false;
+            final Object this$phone = this.getPhone();
+            final Object other$phone = other.getPhone();
+            if (this$phone == null ? other$phone != null : !this$phone.equals(other$phone)) return false;
             final Object this$password = this.getPassword();
             final Object other$password = other.getPassword();
             if (this$password == null ? other$password != null : !this$password.equals(other$password)) return false;
@@ -132,6 +157,8 @@ public class AuthDTOs {
             int result = 1;
             final Object $email = this.getEmail();
             result = result * PRIME + ($email == null ? 43 : $email.hashCode());
+            final Object $phone = this.getPhone();
+            result = result * PRIME + ($phone == null ? 43 : $phone.hashCode());
             final Object $password = this.getPassword();
             result = result * PRIME + ($password == null ? 43 : $password.hashCode());
             final Object $schoolCode = this.getSchoolCode();
@@ -143,14 +170,15 @@ public class AuthDTOs {
 
         @Override
         public String toString() {
-            return "AuthDTOs.LoginRequest(email=" + this.getEmail() + ", password=" + this.getPassword() + ", schoolCode=" + this.getSchoolCode() + ", interfaceLocale=" + this.getInterfaceLocale() + ")";
+            return "AuthDTOs.LoginRequest(email=" + this.getEmail() + ", phone=" + this.getPhone() + ", password=" + this.getPassword() + ", schoolCode=" + this.getSchoolCode() + ", interfaceLocale=" + this.getInterfaceLocale() + ")";
         }
 
         public LoginRequest() {
         }
 
-        public LoginRequest(final String email, final String password, final String schoolCode, final String interfaceLocale) {
+        public LoginRequest(final String email, final String phone, final String password, final String schoolCode, final String interfaceLocale) {
             this.email = email;
+            this.phone = phone;
             this.password = password;
             this.schoolCode = schoolCode;
             this.interfaceLocale = interfaceLocale;

@@ -14,6 +14,11 @@ public class TenantContext {
         return TENANT_ID.get();
     }
 
+    /** Alias for legacy call sites (same as {@link #getTenantId()}). */
+    public static String getCurrentTenantId() {
+        return getTenantId();
+    }
+
     public static void setUserId(Long userId) {
         USER_ID.set(userId);
     }

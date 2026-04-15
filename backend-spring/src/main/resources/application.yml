@@ -173,6 +173,32 @@ app:
     expiration-ms: ${JWT_EXPIRATION_MS:86400000}
     refresh-expiration-ms: ${JWT_REFRESH_EXPIRATION_MS:604800000}
 
+  dev:
+    mode: ${APP_DEV_MODE:false}
+
+  sms:
+    provider: ${APP_SMS_PROVIDER:MOCK}
+    msg91:
+      auth-key: ${APP_SMS_MSG91_AUTH_KEY:}
+      sender-id: ${APP_SMS_MSG91_SENDER_ID:}
+
+  otp:
+    length: ${APP_OTP_LENGTH:6}
+    ttl:
+      seconds: ${APP_OTP_TTL_SECONDS:300}
+    max:
+      attempts: ${APP_OTP_MAX_ATTEMPTS:3}
+    resend:
+      cooldown:
+        seconds: ${APP_OTP_RESEND_COOLDOWN_SECONDS:60}
+    rate-limit:
+      window:
+        minutes: ${APP_OTP_RATE_WINDOW_MINUTES:60}
+      max-requests: ${APP_OTP_RATE_MAX_REQUESTS:5}
+    exchange:
+      ttl:
+        seconds: ${APP_OTP_EXCHANGE_TTL_SECONDS:600}
+
   cors:
     allowed-origins: ${CORS_ORIGINS:http://localhost:3000,http://localhost:4200}
     allowed-methods: ${CORS_ALLOWED_METHODS:GET,POST,PUT,DELETE,PATCH,OPTIONS}

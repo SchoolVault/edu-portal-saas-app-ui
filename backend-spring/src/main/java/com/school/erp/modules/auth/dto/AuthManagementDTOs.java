@@ -1,7 +1,7 @@
 package com.school.erp.modules.auth.dto;
 
-import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
 public class AuthManagementDTOs {
@@ -14,12 +14,13 @@ public class AuthManagementDTOs {
         private String schoolCode;
         @NotBlank
         private String adminName;
-        @NotBlank
-        @Email
+        /** Optional; when absent a stable synthetic address is generated from {@link #phone}. */
         private String adminEmail;
         @NotBlank
         @Size(min = 8, max = 128)
         private String adminPassword;
+        @NotBlank
+        @Pattern(regexp = "^[+]?[\\d\\s\\-]{10,20}$", message = "Admin phone must be 10–20 digits (optional leading +)")
         private String phone;
         private String address;
         /** Optional UI language for the first admin (en | hi); defaults server-side if absent or invalid. */

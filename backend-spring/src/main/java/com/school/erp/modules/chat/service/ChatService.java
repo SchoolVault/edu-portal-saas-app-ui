@@ -199,7 +199,12 @@ public class ChatService {
         msg.setConversationId(conv.getId());
         msg.setSenderUserId(userId);
         msg.setSenderRole(role != null ? role.trim().toUpperCase(Locale.ROOT) : "UNKNOWN");
-        msg.setSenderName(null);
+        String senderLabel = userRepository.findByIdAndIsDeletedFalse(userId)
+                .map(User::getName)
+                .map(String::trim)
+                .filter(s -> !s.isEmpty())
+                .orElse(null);
+        msg.setSenderName(senderLabel);
         msg.setBody(request.getBody());
         msg.setBodyType("text");
         msg.setClientMessageId(request.getClientMessageId());
@@ -284,7 +289,17 @@ public class ChatService {
         r.setLastMessagePreview(c.getLastMessagePreview());
         r.setParticipants(participants.stream()
                 .sorted(Comparator.comparing(ChatParticipant::getUserId))
-                .map(p -> new ChatDTOs.ParticipantSummary(p.getUserId(), p.getUserRole(), p.getDisplayName()))
+                .map(p -> {
+                    String displayName = p.getDisplayName();
+                    if (displayName == null || displayName.isBlank()) {
+                        displayName = userRepository.findByIdAndIsDeletedFalse(p.getUserId())
+                                .map(User::getName)
+                                .map(String::trim)
+                                .filter(s -> !s.isEmpty())
+                                .orElse(null);
+                    }
+                    return new ChatDTOs.ParticipantSummary(p.getUserId(), p.getUserRole(), displayName, null);
+                })
                 .collect(Collectors.toList()));
 
         long afterId = 0L;
@@ -304,7 +319,16 @@ public class ChatService {
         r.setConversationId(m.getConversationId());
         r.setSenderUserId(m.getSenderUserId());
         r.setSenderRole(m.getSenderRole());
-        r.setSenderName(m.getSenderName());
+        String senderName = m.getSenderName();
+        if (senderName == null || senderName.isBlank()) {
+            senderName = userRepository.findByIdAndIsDeletedFalse(m.getSenderUserId())
+                    .map(User::getName)
+                    .map(String::trim)
+                    .filter(s -> !s.isEmpty())
+                    .orElse(null);
+        }
+        r.setSenderName(senderName);
+        r.setSenderJobTitle(null);
         r.setBody(m.getBody());
         r.setBodyType(m.getBodyType());
         r.setClientMessageId(m.getClientMessageId());

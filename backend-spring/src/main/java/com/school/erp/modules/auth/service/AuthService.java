@@ -2,6 +2,7 @@ package com.school.erp.modules.auth.service;
 
 import com.school.erp.common.enums.Enums;
 import com.school.erp.common.locale.InterfaceLocale;
+import com.school.erp.common.util.PhoneNormalization;
 import com.school.erp.common.exception.BusinessException;
 import com.school.erp.common.exception.DuplicateResourceException;
 import com.school.erp.common.exception.ResourceNotFoundException;
@@ -48,10 +49,22 @@ public class AuthService {
 
     @Transactional
     public AuthDTOs.LoginResponse login(AuthDTOs.LoginRequest request) {
-        log.debug("Login attempt schoolCode={}", request.getSchoolCode());
-        User user = userRepository.findByEmailAndSchoolCodeAndIsDeletedFalse(request.getEmail(), request.getSchoolCode()).orElseThrow(() -> new UnauthorizedException("Invalid credentials or school code"));
-        if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) throw new UnauthorizedException("Invalid credentials or school code");
-        if (!user.getIsActive()) throw new BusinessException("Account is deactivated. Contact admin.");
+        String schoolCode = request.getSchoolCode().trim().toUpperCase(Locale.ROOT);
+        log.debug("Login attempt schoolCode={}", schoolCode);
+        User user;
+        if (request.getPhone() != null && !request.getPhone().isBlank()) {
+            user = userRepository.findByPhoneAndSchoolCodeAndIsDeletedFalse(request.getPhone().trim(), schoolCode)
+                    .orElseThrow(() -> new UnauthorizedException("Invalid credentials or school code"));
+        } else {
+            user = userRepository.findByEmailAndSchoolCodeAndIsDeletedFalse(request.getEmail().trim().toLowerCase(Locale.ROOT), schoolCode)
+                    .orElseThrow(() -> new UnauthorizedException("Invalid credentials or school code"));
+        }
+        if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
+            throw new UnauthorizedException("Invalid credentials or school code");
+        }
+        if (!user.getIsActive()) {
+            throw new BusinessException("Account is deactivated. Contact admin.");
+        }
         if (user.getRole() != Enums.Role.SUPER_ADMIN) {
             TenantConfig workspace = tenantConfigRepository.findByTenantId(user.getTenantId())
                     .orElseThrow(() -> new BusinessException("School workspace is not available."));
@@ -59,20 +72,27 @@ public class AuthService {
                 throw new BusinessException("This school workspace is suspended or closed. Contact support.");
             }
         }
-        String token = jwtUtil.generateToken(user.getId(), user.getTenantId(), user.getEmail(), user.getRole().name(), user.getName(), resolveJwtPermissions(user));
+        return issueSessionAfterSuccessfulAuth(user, InterfaceLocale.normalize(request.getInterfaceLocale()));
+    }
+
+    /**
+     * Issues JWT + refresh and profile after password or OTP verification (shared by {@link #login} and phone OTP flow).
+     */
+    @Transactional
+    public AuthDTOs.LoginResponse issueSessionAfterSuccessfulAuth(User user, String interfaceLocaleFromClient) {
+        String subject = JwtUtil.principalSubject(user.getEmail(), user.getPhone(), user.getId());
+        String token = jwtUtil.generateToken(user.getId(), user.getTenantId(), subject, user.getRole().name(), user.getName(), resolveJwtPermissions(user));
         String refreshToken = issueRefreshToken(user);
-        // Log login
         try {
             TenantContext.setTenantId(user.getTenantId());
             TenantContext.setUserId(user.getId());
-            auditService.logLogin(user.getEmail());
+            auditService.logLogin(subject);
         } catch (Exception e) {
             log.debug("Audit log skipped: {}", e.getMessage());
         }
         log.info("Login successful userId={} tenantId={} role={}", user.getId(), user.getTenantId(), user.getRole());
-        String fromClient = InterfaceLocale.normalize(request.getInterfaceLocale());
-        if (fromClient != null) {
-            user.setPreferredLocale(fromClient);
+        if (interfaceLocaleFromClient != null) {
+            user.setPreferredLocale(interfaceLocaleFromClient);
             userRepository.save(user);
         }
         return AuthDTOs.LoginResponse.builder().token(token).refreshToken(refreshToken).user(toProfile(user)).build();
@@ -83,8 +103,12 @@ public class AuthService {
         String tenantId = TenantContext.getTenantId();
         if (tenantId == null) throw new UnauthorizedException("Tenant context not found");
         if (userRepository.existsByEmailAndTenantId(request.getEmail(), tenantId)) throw new DuplicateResourceException("Email already registered in this school");
+        String regPhone = PhoneNormalization.trimToNull(request.getPhone());
+        if (regPhone != null && userRepository.existsByPhoneAndTenantIdAndIsDeletedFalse(regPhone, tenantId)) {
+            throw new DuplicateResourceException("This mobile number is already registered in this school");
+        }
         TenantConfig tenantConfig = tenantConfigRepository.findByTenantId(tenantId).orElseThrow(() -> new ResourceNotFoundException("Tenant settings not configured"));
-        User user = User.builder().name(request.getName()).email(request.getEmail()).password(passwordEncoder.encode(request.getPassword())).phone(request.getPhone()).role(request.getRole() != null ? request.getRole() : com.school.erp.common.enums.Enums.Role.PARENT).schoolCode(tenantConfig.getSchoolCode()).build();
+        User user = User.builder().name(request.getName()).email(request.getEmail()).password(passwordEncoder.encode(request.getPassword())).phone(regPhone).role(request.getRole() != null ? request.getRole() : com.school.erp.common.enums.Enums.Role.PARENT).schoolCode(tenantConfig.getSchoolCode()).build();
         user.setTenantId(tenantId);
         user.setIsActive(true);
         user.setIsDeleted(false);
@@ -115,11 +139,21 @@ public class AuthService {
         config.setFeaturesJson("{\"student\":true,\"teacher\":true,\"attendance\":true,\"fees\":true}");
         tenantConfigRepository.save(config);
 
+        String adminEmailRaw = request.getAdminEmail() == null ? "" : request.getAdminEmail().trim();
+        String adminEmail = adminEmailRaw.isEmpty() ? syntheticAdminEmail(normalizedSchoolCode, request.getPhone()) : adminEmailRaw.toLowerCase(Locale.ROOT);
+        if (userRepository.existsByEmailAndTenantId(adminEmail, tenantId)) {
+            throw new DuplicateResourceException("Email already registered in this school");
+        }
+        String adminPhone = PhoneNormalization.trimToNull(request.getPhone());
+        if (userRepository.existsByPhoneAndTenantIdAndIsDeletedFalse(adminPhone, tenantId)) {
+            throw new DuplicateResourceException("This mobile number is already registered in this school");
+        }
+
         User admin = User.builder()
                 .name(request.getAdminName().trim())
-                .email(request.getAdminEmail().trim().toLowerCase(Locale.ROOT))
+                .email(adminEmail)
                 .password(passwordEncoder.encode(request.getAdminPassword()))
-                .phone(request.getPhone())
+                .phone(adminPhone)
                 .role(com.school.erp.common.enums.Enums.Role.ADMIN)
                 .schoolCode(normalizedSchoolCode)
                 .preferredLocale(com.school.erp.common.locale.InterfaceLocale.orDefault(request.getInterfaceLocale()))
@@ -127,9 +161,11 @@ public class AuthService {
         admin.setTenantId(tenantId);
         admin.setIsActive(true);
         admin.setIsDeleted(false);
+        admin.setAuthProvider("PHONE");
         userRepository.save(admin);
 
-        String token = jwtUtil.generateToken(admin.getId(), admin.getTenantId(), admin.getEmail(), admin.getRole().name(), admin.getName(), jwtPermissionsCsv(admin.getRole()));
+        String subject = JwtUtil.principalSubject(admin.getEmail(), admin.getPhone(), admin.getId());
+        String token = jwtUtil.generateToken(admin.getId(), admin.getTenantId(), subject, admin.getRole().name(), admin.getName(), jwtPermissionsCsv(admin.getRole()));
         String refreshToken = issueRefreshToken(admin);
         log.info("Tenant onboarded tenantId={} schoolCode={} adminUserId={}", tenantId, normalizedSchoolCode, admin.getId());
         return AuthDTOs.LoginResponse.builder().token(token).refreshToken(refreshToken).user(toProfile(admin)).build();
@@ -256,7 +292,8 @@ public class AuthService {
         if (!refreshToken.isActive()) throw new UnauthorizedException("Refresh token expired or revoked");
         User user = userRepository.findByIdAndTenantIdAndIsDeletedFalse(refreshToken.getUserId(), refreshToken.getTenantId()).orElseThrow(() -> new UnauthorizedException("Invalid refresh token"));
         revokeToken(refreshToken);
-        String newToken = jwtUtil.generateToken(user.getId(), user.getTenantId(), user.getEmail(), user.getRole().name(), user.getName(), resolveJwtPermissions(user));
+        String subject = JwtUtil.principalSubject(user.getEmail(), user.getPhone(), user.getId());
+        String newToken = jwtUtil.generateToken(user.getId(), user.getTenantId(), subject, user.getRole().name(), user.getName(), resolveJwtPermissions(user));
         String newRefreshToken = issueRefreshToken(user);
         return AuthDTOs.TokenResponse.builder().token(newToken).refreshToken(newRefreshToken).build();
     }
@@ -334,6 +371,14 @@ public class AuthService {
 
     private String buildTenantId(String schoolCode) {
         return "tenant_" + schoolCode.toLowerCase(Locale.ROOT) + "_" + UUID.randomUUID().toString().substring(0, 8);
+    }
+
+    private static String syntheticAdminEmail(String schoolCode, String phoneRaw) {
+        String digits = phoneRaw == null ? "" : phoneRaw.replaceAll("\\D+", "");
+        if (digits.isEmpty()) {
+            digits = "nophone";
+        }
+        return digits + "." + schoolCode.toLowerCase(Locale.ROOT) + "@phone.schoolvault.local";
     }
 
     public AuthService(final UserRepository userRepository, final RefreshTokenRepository refreshTokenRepository, final TenantConfigRepository tenantConfigRepository, final StudentRepository studentRepository, final TeacherRepository teacherRepository, final SchoolClassRepository schoolClassRepository, final PasswordEncoder passwordEncoder, final JwtUtil jwtUtil, final AuditService auditService) {

@@ -1,5 +1,6 @@
 package com.school.erp.modules.guardian.service;
 
+import com.school.erp.common.exception.DuplicateResourceException;
 import com.school.erp.common.exception.ResourceNotFoundException;
 import com.school.erp.modules.guardian.dto.GuardianDTOs;
 import com.school.erp.modules.guardian.entity.Guardian;
@@ -148,6 +149,10 @@ public class GuardianService {
         log.info("Adding guardian mapping studentId={} guardianId={}", studentId, req.getGuardianId());
         studentRepository.findByIdAndTenantIdAndIsDeletedFalse(studentId, t).orElseThrow(() -> new ResourceNotFoundException("Student", studentId));
         guardianRepository.findByIdAndTenantIdAndIsDeletedFalse(req.getGuardianId(), t).orElseThrow(() -> new ResourceNotFoundException("Guardian", req.getGuardianId()));
+
+        if (mappingRepository.existsByTenantIdAndStudentIdAndGuardianIdAndIsDeletedFalse(t, studentId, req.getGuardianId())) {
+            throw new DuplicateResourceException("This guardian is already linked to this student");
+        }
 
         StudentGuardianMapping m = new StudentGuardianMapping();
         m.setTenantId(t);

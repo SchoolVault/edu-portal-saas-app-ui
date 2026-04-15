@@ -1,6 +1,8 @@
 package com.school.erp.modules.auth.service;
 
 import com.school.erp.common.enums.Enums;
+import com.school.erp.common.exception.DuplicateResourceException;
+import com.school.erp.common.util.PhoneNormalization;
 import com.school.erp.modules.auth.entity.User;
 import com.school.erp.modules.auth.repository.UserRepository;
 import com.school.erp.modules.settings.repository.TenantConfigRepository;
@@ -62,12 +64,16 @@ public class PortalUserProvisioningService {
         String schoolCode = tenantConfigRepository.findByTenantId(tenantId)
                 .map(c -> c.getSchoolCode())
                 .orElseThrow(() -> new com.school.erp.common.exception.ResourceNotFoundException("Tenant settings not found"));
+        String normPhone = PhoneNormalization.trimToNull(phone);
+        if (normPhone != null && userRepository.existsByPhoneAndTenantIdAndIsDeletedFalse(normPhone, tenantId)) {
+            throw new DuplicateResourceException("This mobile number is already registered for this school workspace");
+        }
         String plain = randomPassword(12);
         User user = User.builder()
                 .name(name != null && !name.isBlank() ? name.trim() : normalizedEmail)
                 .email(normalizedEmail)
                 .password(passwordEncoder.encode(plain))
-                .phone(phone != null ? phone.trim() : null)
+                .phone(normPhone)
                 .role(role)
                 .schoolCode(schoolCode)
                 .build();

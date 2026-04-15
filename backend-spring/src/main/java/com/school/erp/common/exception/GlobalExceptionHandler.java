@@ -11,6 +11,7 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.RequestContextHolder;
@@ -33,6 +34,23 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiResponse<Void>> handleDuplicate(DuplicateResourceException ex) {
         log.warn("Duplicate resource: {}", ex.getMessage());
         return ResponseEntity.status(HttpStatus.CONFLICT).body(err(ex.getMessage(), ApiErrorCode.DUPLICATE_RESOURCE));
+    }
+
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<ApiResponse<Void>> handleDataIntegrity(DataIntegrityViolationException ex) {
+        String root = ex.getMostSpecificCause() != null ? ex.getMostSpecificCause().getMessage() : ex.getMessage();
+        log.warn("Data integrity violation: {}", root);
+        String msg = "This record conflicts with existing data (duplicate or invalid reference).";
+        if (root != null) {
+            if (root.contains("uk_users_tenant_phone_active")) {
+                msg = "This mobile number is already registered for this school workspace.";
+            } else if (root.contains("uk_guardians_tenant_user_active")) {
+                msg = "A guardian profile is already linked to this portal user.";
+            } else if (root.contains("uk_sgm_student_guardian_active")) {
+                msg = "This guardian is already linked to this student.";
+            }
+        }
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(err(msg, ApiErrorCode.DUPLICATE_RESOURCE));
     }
 
     @ExceptionHandler(BadCredentialsException.class)
