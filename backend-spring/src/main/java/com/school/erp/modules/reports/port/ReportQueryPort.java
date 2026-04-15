@@ -1,5 +1,6 @@
 package com.school.erp.modules.reports.port;
 
+import com.school.erp.modules.reports.dto.ParentDashboardDtos;
 import com.school.erp.modules.reports.dto.ReportDashboardDTOs;
 
 import java.util.List;
@@ -19,6 +20,8 @@ public interface ReportQueryPort {
     ReportDashboardDTOs.AdminDashboardResponse getAdminDashboard();
 
     ReportDashboardDTOs.TeacherDashboardResponse getTeacherDashboard();
+
+    ParentDashboardDtos.Response getParentDashboard(String from, String to, Long childId);
 
     List<Map<String, Object>> getStudentPerformanceReport(Long classId, Long examId);
 

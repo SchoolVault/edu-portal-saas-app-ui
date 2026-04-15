@@ -111,6 +111,8 @@ import java.util.stream.Collectors;
  * ├── Students: ~7-8 per section (~100 students total per school)
  * ├── Teachers: 10 teachers with proper subject assignments
  * ├── Guardians: Father + Mother for each student (proper mapping)
+ * ├── QA parent: one dedicated {@code qa.multichild.parent@parent.<schoolCode>.edu.in} with four linked
+ * │   active students (different classes where possible) for multi-child E2E / parent-portal QA
  * ├── Users: ADMIN, TEACHERS, PARENTS, LIBRARY_STAFF with login credentials
  * ├── Academic: Subjects, Teacher Assignments (Class + Subject)
  * ├── Fees: Fee structures, components, payments (PAID, PARTIAL, UNPAID examples)
@@ -127,7 +129,7 @@ import java.util.stream.Collectors;
  *
  * PASSWORD FOR ALL USERS: admin123
  *
- * See DEMO_CREDENTIALS.md for complete list of login credentials
+ * See {@code docs/DEMO_QA_MULTI_CHILD_PARENT.md} for QA multi-child logins; other patterns in repo docs.
  * ═══════════════════════════════════════════════════════════════════════════════════════════════
  */
 @Service
@@ -138,6 +140,11 @@ public class DemoDataSeedService {
 
     /** BCrypt hash for "admin123" - all demo users use this password */
     private static final String BCRYPT_ADMIN123 = "$2a$10$OF9wtmX3lDzBIYsrZlAe8Ou2829Ih6l6WTe2TxSVRacFh1fAr2mBy";
+
+    /** Minimum linked students for QA multi-child scenarios (QA requested &gt;2; we use 4 for breadth). */
+    private static final int QA_MULTICHILD_STUDENT_COUNT = 4;
+
+    private static final String QA_MULTICHILD_EMAIL_LOCAL = "qa.multichild.parent";
 
     private static final String FEATURES_JSON = "{\"transport\":true,\"library\":true,\"hostel\":true,\"payroll\":true,"
             + "\"documents\":true,\"audit\":true,\"communication\":true,\"reports\":true,\"student\":true,\"teacher\":true,"
@@ -489,6 +496,7 @@ public class DemoDataSeedService {
         log.info("  [7/15] Students & Guardians...");
         List<Student> allStudents = createStudentsWithGuardians(tenantId, schoolCode, classesMap, random);
         log.info("  [7/15] ✓ Created {} students with guardians", allStudents.size());
+        attachQaMultiChildDemoParent(tenantId, schoolCode, allStudents);
         flushAndClear(); // Critical: Clear memory after large student creation
         pauseForResourceManagement();
 
@@ -1254,6 +1262,85 @@ public class DemoDataSeedService {
         mapping.setEffectiveFrom(LocalDate.of(2025, 4, 1));
         mapping.setIsDeleted(false);
         studentGuardianMappingRepository.save(mapping);
+    }
+
+    /**
+     * One stable PARENT login per school with {@value #QA_MULTICHILD_STUDENT_COUNT} active students linked via
+     * {@code students.parent_id} and a primary {@link StudentGuardianMapping} so {@link com.school.erp.modules.guardian.service.GuardianService#findStudentsForParentUser} returns a list larger than two (QA requirement).
+     * Idempotent: skips if the QA email already exists for the tenant.
+     */
+    private void attachQaMultiChildDemoParent(String tenantId, String schoolCode, List<Student> allStudents) {
+        String schoolLower = schoolCode.toLowerCase(Locale.ROOT);
+        String email = QA_MULTICHILD_EMAIL_LOCAL + "@parent." + schoolLower + ".edu.in";
+        if (userRepository.existsByEmailAndTenantIdAndIsDeletedFalse(email, tenantId)) {
+            log.info("  [QA] Multi-child parent already present ({}), skipping re-link", email);
+            return;
+        }
+        List<Student> picks = pickStudentsForQaMultiChildParent(allStudents, QA_MULTICHILD_STUDENT_COUNT);
+        if (picks.size() < 3) {
+            log.warn("  [QA] Not enough students to attach multi-child parent (need >=3, got {})", picks.size());
+            return;
+        }
+        String phoneHint = stableDemoParentPhone(tenantId, schoolCode, "qa-multichild");
+        User qaUser = createUser(
+                tenantId,
+                schoolCode,
+                "QA Multi-Child Parent",
+                email,
+                Enums.Role.PARENT,
+                phoneHint);
+        Guardian qaGuardian = ensureGuardianProfile(tenantId, qaUser, "QA Multi-Child Parent", "QA / Testing");
+
+        StringBuilder detail = new StringBuilder();
+        for (Student st : picks) {
+            softDeleteGuardianMappingsForStudent(tenantId, st.getId());
+            st.setParentId(qaUser.getId());
+            st.setParentName(qaGuardian.getFullName());
+            studentRepository.save(st);
+            mapGuardianToStudent(tenantId, st.getId(), qaGuardian.getId(), Enums.GuardianRelationType.GUARDIAN, true);
+            if (detail.length() > 0) {
+                detail.append("; ");
+            }
+            detail.append(st.getFirstName()).append(' ').append(st.getLastName())
+                    .append(" (id=").append(st.getId()).append(", classId=").append(st.getClassId()).append(')');
+        }
+        log.info("  [QA] Multi-child parent {} → {} students: {}", email, picks.size(), detail);
+    }
+
+    /**
+     * Prefer distinct {@code classId} values (breadth across timetable/fees), then fill up to {@code n}.
+     */
+    private static List<Student> pickStudentsForQaMultiChildParent(List<Student> allStudents, int n) {
+        List<Student> sorted = allStudents.stream()
+                .sorted(Comparator.comparing(Student::getId))
+                .collect(Collectors.toList());
+        List<Student> out = new ArrayList<>();
+        Set<Long> seenClasses = new LinkedHashSet<>();
+        for (Student s : sorted) {
+            if (out.size() >= n) {
+                break;
+            }
+            if (seenClasses.add(s.getClassId())) {
+                out.add(s);
+            }
+        }
+        for (Student s : sorted) {
+            if (out.size() >= n) {
+                break;
+            }
+            if (!out.contains(s)) {
+                out.add(s);
+            }
+        }
+        return out;
+    }
+
+    private void softDeleteGuardianMappingsForStudent(String tenantId, Long studentId) {
+        List<StudentGuardianMapping> rows = studentGuardianMappingRepository.findByTenantIdAndStudentIdAndIsDeletedFalse(tenantId, studentId);
+        for (StudentGuardianMapping m : rows) {
+            m.setIsDeleted(true);
+            studentGuardianMappingRepository.save(m);
+        }
     }
 
     private void assignTeachersToClasses(String tenantId, Long academicYearId,
@@ -2057,13 +2144,16 @@ public class DemoDataSeedService {
         log.info("  Teachers (10, password admin123): aarav.sharma / ananya.verma / aditya.singh / pari.kumar /");
         log.info("    vihaan.gupta / anika.agarwal / arjun.reddy / sara.patel / sai.mehta / myra.joshi @dps-dlh.edu.in");
         log.info("  Parents: see DEMO_CREDENTIALS.md (emails include .father./.mother. + admission token)");
+        log.info("  QA multi-child parent (4+ children, same password admin123): qa.multichild.parent@parent.dps-dlh.edu.in");
         log.info("");
         log.info("SCHOOL 2: Kendriya Vidyalaya (KV-MUM)");
         log.info("  School Code: KV-MUM  |  Tenant: tenant_kv_mumbai_7p5n3x8q");
         log.info("  Admin: admin@kvmumbai1.gmail.com");
         log.info("  Teachers: same local-parts as DPS-DLH with @kv-mum.edu.in");
         log.info("  Parents: same pattern with @parent.kv-mum.edu.in (see DEMO_CREDENTIALS.md)");
+        log.info("  QA multi-child parent: qa.multichild.parent@parent.kv-mum.edu.in");
         log.info("");
+        log.info("QA multi-child E2E: see docs/DEMO_QA_MULTI_CHILD_PARENT.md");
         log.info("For complete list of all credentials, see DEMO_CREDENTIALS.md file");
         log.info("══════════════════════════════════════════════════════════════════════════════════");
     }
