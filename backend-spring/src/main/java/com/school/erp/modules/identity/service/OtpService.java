@@ -136,14 +136,14 @@ public class OtpService {
                 otpTtlSeconds / 60
         );
 
-SmsRequest smsRequest = SmsRequest.builder()
+        SmsRequest smsRequest = SmsRequest.builder()
                 .to(InternationalPhone.toSmsAddress(phone))
                 .message(message)
                 .tenantId(tenantId)
                 .correlationId(requestId)
                 .build();
 
-SmsResponse smsResponse = smsService.sendSms(smsRequest);
+        SmsResponse smsResponse = smsService.sendSms(smsRequest);
 
         otpVerification.setProviderMessageId(smsResponse.getMessageId());
         otpVerification.setProviderStatus(smsResponse.getProviderStatus());

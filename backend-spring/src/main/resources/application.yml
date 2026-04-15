@@ -12,9 +12,15 @@ spring:
   profiles:
     active: ${SPRING_PROFILES_ACTIVE:dev}
     group:
-      # Ordered: prod first, then demo-seed so application-demo-seed.yml overrides app.demo-seed.enabled.
+      # Ordered: prod-style profile first, then demo-seed so application-demo-seed.yml overrides app.demo-seed.enabled.
       prod-with-demo-seed:
         - prod
+        - demo-seed
+      ml-with-demo-seed:
+        - ml
+        - demo-seed
+      rel-with-demo-seed:
+        - rel
         - demo-seed
 
   # MySQL 8.x (InnoDB, utf8mb4). Schema = Flyway migrations under db/migration; Hibernate only validates mapping vs DB.

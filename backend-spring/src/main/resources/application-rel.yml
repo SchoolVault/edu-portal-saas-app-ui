@@ -1,6 +1,6 @@
-# Production. Demo org bootstrap (one-time): profile group prod-with-demo-seed or SPRING_PROFILES_ACTIVE=prod,demo-seed
-# with demo-seed last, then redeploy with prod only. See docs/DEMO_SHOWCASE_TENANT.md.
-# Staging-style profiles with the same file shape: ml (dev test), rel (QA sign-off) — see application-ml.yml / application-rel.yml.
+# REL (release / QA sign-off) — same shape as prod: full Redis + Rabbit + strict security flags.
+# Render / K8s: set SPRING_PROFILES_ACTIVE=rel (or rel-with-demo-seed for one-time demo seed).
+# One-time demo tenant: SPRING_PROFILES_ACTIVE=rel,demo-seed (demo-seed last) or profile group rel-with-demo-seed.
 app:
   demo-seed:
     enabled: false
