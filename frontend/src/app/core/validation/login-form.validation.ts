@@ -1,7 +1,7 @@
 import { ONBOARD_ADMIN_PASSWORD_MAX, ONBOARD_ADMIN_PASSWORD_MIN } from './auth-forms.constants';
 import { isValidEmail } from './email.validation';
 import type { FieldErrors } from './onboard-school-form.validation';
-import { isValidLoginPhone } from './phone.validation';
+import { isValidCanonicalIntlPhone } from './phone.validation';
 
 export type LoginField = 'email' | 'password' | 'schoolCode' | 'phone' | 'otp' | 'confirmPassword';
 
@@ -46,7 +46,7 @@ export function validatePhoneOtpSend(values: PhoneOtpSendValues): FieldErrors<Lo
   const phone = (values.phone ?? '').trim();
   if (!phone) {
     errors.phone = 'login.validation.phoneRequired';
-  } else if (!isValidLoginPhone(phone)) {
+  } else if (!isValidCanonicalIntlPhone(phone)) {
     errors.phone = 'login.validation.phoneInvalid';
   }
   return errors;

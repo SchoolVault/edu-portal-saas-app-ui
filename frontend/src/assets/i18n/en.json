@@ -286,7 +286,7 @@
       "passwordRequired": "Password is required",
       "schoolCodeRequired": "School code is required",
       "phoneRequired": "Mobile number is required",
-      "phoneInvalid": "Enter a valid mobile number (10–22 digits, optional +)",
+      "phoneInvalid": "Choose country code and enter digits only. Stored format is +country-mobile (e.g. +91-9876543210).",
       "otpRequired": "Enter the code we sent",
       "otpInvalid": "Code must be 4–6 digits",
       "otpMismatch": "That code is not valid. Try again or request a new code."
@@ -337,7 +337,7 @@
       "adminNameRequired": "Admin name is required",
       "adminEmailInvalid": "Enter a valid email address",
       "phoneRequired": "Admin mobile number is required",
-      "phoneInvalid": "Enter a valid mobile number (10–22 digits, optional +)",
+      "phoneInvalid": "Choose country code and enter digits only. Stored format is +country-mobile (e.g. +91-9876543210).",
       "adminPasswordRequired": "Password is required",
       "adminPasswordLength": "Password must be {{min}}–{{max}} characters"
     }
@@ -2538,6 +2538,16 @@
       "sessionStartFailed": "Could not start payment session."
     }
   },
+  "phoneIntl": {
+    "countryCode": "Country code",
+    "mobileNumber": "Mobile number",
+    "mobilePlaceholder": "Digits only (no country prefix)",
+    "willSendAs": "Will be sent as",
+    "country": {
+      "in": "India (+91)",
+      "us": "United States (+1)"
+    }
+  },
   "forgotPassword": {
     "backToLogin": "Back to login",
     "kicker": "Secure recovery",
@@ -2559,8 +2569,11 @@
     "otpSent": "OTP sent. Please check your mobile number.",
     "otpVerified": "OTP verified. Set your new password.",
     "doneTitle": "Password reset complete",
-    "doneLead": "Your password has been updated. Redirecting you back to login.",
-    "loginNow": "Go to login",
+    "doneLead": "Your password has been updated. You can sign in with your new password.",
+    "doneBanner": "Password reset complete",
+    "doneRedirectCountdown": "Redirecting to login in {{seconds}}…",
+    "doneRedirectingNow": "Taking you to login…",
+    "loginNow": "Go to login now",
     "heroTitle": "Recover Access Smoothly",
     "heroSubtitle": "A simple OTP-first reset flow keeps school accounts secure without making families or staff wait.",
     "errorSend": "Could not send reset OTP. Check school code and mobile number, then try again.",

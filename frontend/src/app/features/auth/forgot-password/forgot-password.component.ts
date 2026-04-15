@@ -13,13 +13,14 @@ import {
   validatePasswordResetVerify,
 } from '../../../core/validation';
 import { ErpI18nPhDirective } from '../../../shared/erp-i18n/erp-i18n-host.directives';
+import { ErpIntlPhoneRowComponent } from '../../../shared/erp-phone-intl/erp-intl-phone-row.component';
 
 type ResetStep = 'identify' | 'verify' | 'new_password' | 'done';
 
 @Component({
   selector: 'app-forgot-password',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterModule, TranslateModule, ErpI18nPhDirective],
+  imports: [CommonModule, FormsModule, RouterModule, TranslateModule, ErpI18nPhDirective, ErpIntlPhoneRowComponent],
   template: `
     <div class="login-container" data-testid="forgot-password-page">
       <div class="login-left">
@@ -69,20 +70,15 @@ type ResetStep = 'identify' | 'verify' | 'new_password' | 'done';
             </div>
 
             <div class="erp-form-group">
-              <label class="erp-label" for="fp-phone">{{ 'forgotPassword.mobile' | translate }}</label>
-              <input
-                id="fp-phone"
-                type="tel"
-                class="erp-input"
-                [class.erp-input--error]="!!fieldErrors.phone"
-                [(ngModel)]="phone"
-                (ngModelChange)="clearField('phone')"
-                name="phone"
-                maxlength="40"
-                erpI18nPh="forgotPassword.mobilePlaceholder"
+              <label class="erp-label">{{ 'forgotPassword.mobile' | translate }}</label>
+              <erp-intl-phone-row
+                idPrefix="fp-phone"
+                namePrefix="forgotPhone"
+                testIdPrefix="forgot-phone"
+                [canonicalPhone]="phone"
+                (canonicalPhoneChange)="onForgotCanonicalPhone($event)"
                 [disabled]="step !== 'identify'"
-                autocomplete="tel"
-                data-testid="forgot-phone" />
+              />
               <div class="field-error" *ngIf="fieldErrors.phone" role="alert">{{ fieldErrors.phone | translate }}</div>
             </div>
 
@@ -106,9 +102,13 @@ type ResetStep = 'identify' | 'verify' | 'new_password' | 'done';
                   data-testid="forgot-otp" />
                 <div class="field-error" *ngIf="fieldErrors.otp" role="alert">{{ fieldErrors.otp | translate }}</div>
                 <p class="text-muted small mb-0 mt-2" *ngIf="devOtpHint">{{ 'login.devOtpHint' | translate: { code: devOtpHint } }}</p>
-                <div class="login-phone-actions">
-                  <button type="button" class="btn-link-erp" (click)="restart()">{{ 'forgotPassword.changeMobile' | translate }}</button>
-                  <button type="button" class="btn-link-erp" (click)="resendOtp()" [disabled]="resendCountdown > 0 || loading">
+                <div class="auth-secondary-row">
+                  <button type="button" class="btn-outline-erp btn-sm" (click)="restart()">
+                    <i class="bi bi-arrow-left-circle" aria-hidden="true"></i>
+                    {{ 'forgotPassword.changeMobile' | translate }}
+                  </button>
+                  <button type="button" class="btn-outline-erp btn-sm" (click)="resendOtp()" [disabled]="resendCountdown > 0 || loading">
+                    <i class="bi bi-arrow-repeat" aria-hidden="true"></i>
                     {{ resendCountdown > 0 ? ('login.resendIn' | translate: { seconds: resendCountdown }) : ('login.resendOtp' | translate) }}
                   </button>
                 </div>
@@ -117,7 +117,13 @@ type ResetStep = 'identify' | 'verify' | 'new_password' | 'done';
 
             <ng-container *ngIf="step === 'new_password'">
               <div class="erp-form-group">
-                <label class="erp-label" for="fp-password">{{ 'forgotPassword.newPassword' | translate }}</label>
+                <div class="auth-field-head">
+                  <label class="erp-label mb-0" for="fp-password">{{ 'forgotPassword.newPassword' | translate }}</label>
+                  <button type="button" class="btn-outline-erp btn-xs" (click)="showPassword = !showPassword">
+                    <i class="bi" [ngClass]="showPassword ? 'bi-eye-slash' : 'bi-eye'" aria-hidden="true"></i>
+                    <span>{{ (showPassword ? 'forgotPassword.hidePassword' : 'forgotPassword.showPassword') | translate }}</span>
+                  </button>
+                </div>
                 <input
                   id="fp-password"
                   [type]="showPassword ? 'text' : 'password'"
@@ -145,9 +151,6 @@ type ResetStep = 'identify' | 'verify' | 'new_password' | 'done';
                   autocomplete="new-password"
                   data-testid="forgot-confirm-password" />
                 <div class="field-error" *ngIf="fieldErrors.confirmPassword" role="alert">{{ fieldErrors.confirmPassword | translate }}</div>
-                <button type="button" class="btn-link-erp mt-2" (click)="showPassword = !showPassword">
-                  {{ (showPassword ? 'forgotPassword.hidePassword' : 'forgotPassword.showPassword') | translate }}
-                </button>
               </div>
             </ng-container>
 
@@ -165,10 +168,16 @@ type ResetStep = 'identify' | 'verify' | 'new_password' | 'done';
           </form>
 
           <div *ngIf="step === 'done'" class="reset-done" data-testid="forgot-done">
+            <div class="login-error reset-success reset-done__banner">
+              <i class="bi bi-check-circle"></i>
+              {{ 'forgotPassword.doneBanner' | translate }}
+            </div>
             <div class="reset-done__icon"><i class="bi bi-shield-check"></i></div>
             <h3>{{ 'forgotPassword.doneTitle' | translate }}</h3>
             <p>{{ 'forgotPassword.doneLead' | translate }}</p>
-            <a routerLink="/login" class="btn-primary-erp reset-primary">{{ 'forgotPassword.loginNow' | translate }}</a>
+            <p class="reset-done__countdown text-muted" *ngIf="redirectSeconds > 0">{{ 'forgotPassword.doneRedirectCountdown' | translate: { seconds: redirectSeconds } }}</p>
+            <p class="reset-done__countdown text-muted" *ngIf="redirectSeconds <= 0">{{ 'forgotPassword.doneRedirectingNow' | translate }}</p>
+            <button type="button" class="btn-primary-erp reset-primary" (click)="goToLoginNow()">{{ 'forgotPassword.loginNow' | translate }}</button>
           </div>
         </div>
       </div>
@@ -198,6 +207,8 @@ type ResetStep = 'identify' | 'verify' | 'new_password' | 'done';
     .reset-done__icon { width: 64px; height: 64px; border-radius: 22px; margin: 0 auto 18px; display: grid; place-items: center; color: var(--clr-primary); background: color-mix(in srgb, var(--clr-primary) 10%, var(--clr-surface)); font-size: 30px; }
     .reset-done h3 { font-family: var(--font-heading); font-weight: 800; font-size: 20px; margin-bottom: 8px; }
     .reset-done p { color: var(--clr-text-secondary); line-height: 1.6; margin-bottom: 20px; }
+    .reset-done__banner { margin-bottom: 16px; text-align: left; }
+    .reset-done__countdown { margin-bottom: 20px; }
     .login-lang-select { width: 100%; font-weight: 600; }
   `]
 })
@@ -219,6 +230,10 @@ export class ForgotPasswordComponent implements OnInit, OnDestroy {
   resendCountdown = 0;
   private resendTimer: ReturnType<typeof setInterval> | null = null;
 
+  /** Seconds until auto-redirect to login after successful reset. */
+  redirectSeconds = 0;
+  private redirectTimer: ReturnType<typeof setInterval> | null = null;
+
   constructor(private authService: AuthService, private router: Router, readonly userLocale: UserLocaleService) {}
 
   get stepIndex(): number {
@@ -237,6 +252,17 @@ export class ForgotPasswordComponent implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.clearResendTimer();
+    this.clearRedirectTimer();
+  }
+
+  onForgotCanonicalPhone(value: string): void {
+    this.phone = value;
+    this.clearField('phone');
+  }
+
+  goToLoginNow(): void {
+    this.clearRedirectTimer();
+    void this.router.navigate(['/login']);
   }
 
   onLangPreview(code: string): void {
@@ -337,8 +363,10 @@ export class ForgotPasswordComponent implements OnInit, OnDestroy {
       next: () => {
         this.loading = false;
         this.clearResendTimer();
+        this.successKey = '';
+        this.bannerKey = '';
         this.step = 'done';
-        setTimeout(() => this.router.navigate(['/login']), 1800);
+        this.startPostResetRedirectCountdown();
       },
       error: () => {
         this.loading = false;
@@ -363,6 +391,8 @@ export class ForgotPasswordComponent implements OnInit, OnDestroy {
     this.successKey = '';
     this.fieldErrors = {};
     this.clearResendTimer();
+    this.clearRedirectTimer();
+    this.redirectSeconds = 0;
     this.resendCountdown = 0;
   }
 
@@ -380,6 +410,25 @@ export class ForgotPasswordComponent implements OnInit, OnDestroy {
     if (this.resendTimer != null) {
       clearInterval(this.resendTimer);
       this.resendTimer = null;
+    }
+  }
+
+  private startPostResetRedirectCountdown(): void {
+    this.clearRedirectTimer();
+    this.redirectSeconds = 10;
+    this.redirectTimer = setInterval(() => {
+      this.redirectSeconds -= 1;
+      if (this.redirectSeconds <= 0) {
+        this.clearRedirectTimer();
+        void this.router.navigate(['/login']);
+      }
+    }, 1000);
+  }
+
+  private clearRedirectTimer(): void {
+    if (this.redirectTimer != null) {
+      clearInterval(this.redirectTimer);
+      this.redirectTimer = null;
     }
   }
 }

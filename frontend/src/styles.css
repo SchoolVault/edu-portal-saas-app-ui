@@ -907,6 +907,12 @@ img.table-avatar {
   white-space: nowrap;
 }
 
+.btn-outline-erp:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
 /* Hover styles consolidated below with .btn-outline-erp:hover (accent-aware). */
 .btn-outline-erp:active,
 .btn-outline-erp:focus-visible {
@@ -914,6 +920,82 @@ img.table-avatar {
 }
 .btn-sm { padding: 6px 16px; font-size: 13px; }
 .btn-xs { padding: 4px 12px; font-size: 12px; }
+
+/* Auth flows (login, forgot password, etc.) — secondary actions */
+.login-phone-actions,
+.auth-secondary-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  margin-top: 12px;
+}
+
+.auth-secondary-row--tight {
+  margin-top: 8px;
+}
+
+.auth-secondary-row .btn-outline-erp.btn-sm,
+.login-phone-actions .btn-outline-erp.btn-sm {
+  white-space: normal;
+  text-align: center;
+  line-height: 1.3;
+  min-height: 36px;
+}
+
+.btn-link-erp {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--clr-primary);
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.btn-link-erp:hover {
+  color: color-mix(in srgb, var(--clr-primary) 78%, #000);
+}
+
+.btn-link-erp:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  text-decoration: none;
+}
+
+/* Password field: label + inline visibility toggle (login / reset) */
+.auth-field-head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px 12px;
+  margin-bottom: 8px;
+}
+
+.login-password-label-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px 12px;
+  margin-bottom: 8px;
+}
+
+.login-forgot-link {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--clr-primary);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.login-forgot-link:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
 
 .btn-icon {
   padding: 8px;
