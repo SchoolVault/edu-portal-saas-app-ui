@@ -929,17 +929,42 @@ public class DemoDataSeedService {
             return userRepository.findByEmailAndTenantIdAndIsDeletedFalse(email, tenantId).get();
         }
 
+        String uniquePhone = allocateUniquePhoneForTenant(tenantId, phone, email);
+
         User u = new User();
         u.setTenantId(tenantId);
         u.setName(name);
         u.setEmail(email);
         u.setPassword(BCRYPT_ADMIN123);
-        u.setPhone(phone);
+        u.setPhone(uniquePhone);
         u.setRole(role);
         u.setSchoolCode(schoolCode);
         u.setIsActive(true);
         u.setIsDeleted(false);
         return userRepository.save(u);
+    }
+
+    /**
+     * Enforces {@code uk_users_tenant_phone_active}: at most one active user per tenant + trimmed phone.
+     * Teachers use +91-8… and parents +91-9… in this seeder to avoid cross-role collisions; this still
+     * allocates a free number if a collision exists (re-runs, imports, or RNG overlap).
+     */
+    private String allocateUniquePhoneForTenant(String tenantId, String preferredPhone, String uniquenessSalt) {
+        if (preferredPhone == null || preferredPhone.isBlank()) {
+            return null;
+        }
+        String candidate = preferredPhone.trim();
+        if (!userRepository.existsByPhoneAndTenantIdAndIsDeletedFalse(candidate, tenantId)) {
+            return candidate;
+        }
+        long h = Objects.hash(tenantId, uniquenessSalt);
+        for (int i = 0; i < 2000; i++) {
+            String next = "+91-9" + String.format("%09d", Math.floorMod(h + (long) i * 7919L, 1_000_000_000L));
+            if (!userRepository.existsByPhoneAndTenantIdAndIsDeletedFalse(next, tenantId)) {
+                return next;
+            }
+        }
+        throw new IllegalStateException("Could not allocate unique phone for tenant " + tenantId);
     }
 
     /**
@@ -1023,7 +1048,8 @@ public class DemoDataSeedService {
                                             : FEMALE_FIRST_NAMES[i % FEMALE_FIRST_NAMES.length];
             String lastName = LAST_NAMES[i % LAST_NAMES.length];
             String email = firstName.toLowerCase() + "." + lastName.toLowerCase() + "@" + schoolCode.toLowerCase() + ".edu.in";
-            String phone = "+91-" + (9000000000L + random.nextInt(1000000000));
+            // +91-8… space: avoids clashing with parent phones (+91-9…) used in stableDemoParentPhone / V15 index
+            String phone = "+91-8" + String.format("%09d", Math.floorMod(Objects.hash(tenantId, email), 1_000_000_000L));
 
             // Assign 1-2 subjects per teacher
             List<String> subjects = new ArrayList<>();
@@ -1215,6 +1241,9 @@ public class DemoDataSeedService {
 
     private void mapGuardianToStudent(String tenantId, Long studentId, Long guardianId,
                                      Enums.GuardianRelationType relationType, boolean isPrimary) {
+        if (studentGuardianMappingRepository.existsByTenantIdAndStudentIdAndGuardianIdAndIsDeletedFalse(tenantId, studentId, guardianId)) {
+            return;
+        }
         StudentGuardianMapping mapping = new StudentGuardianMapping();
         mapping.setTenantId(tenantId);
         mapping.setStudentId(studentId);
