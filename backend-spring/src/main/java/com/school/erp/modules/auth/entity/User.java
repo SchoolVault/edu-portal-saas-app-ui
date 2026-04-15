@@ -6,16 +6,18 @@ import jakarta.persistence.*;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
+import java.time.LocalDateTime;
+
 @Entity
 @Table(name = "users", uniqueConstraints = {@UniqueConstraint(columnNames = {"tenant_id", "email"})}, indexes = {@Index(name = "idx_user_tenant", columnList = "tenant_id"), @Index(name = "idx_user_email", columnList = "tenant_id, email")})
 public class User extends BaseEntity {
     @Column(nullable = false, length = 100)
     private String name;
-    @Column(nullable = false, length = 150)
+    @Column(nullable = true, length = 150)
     private String email;
     @Column(nullable = false)
     private String password;
-    @Column(length = 20)
+    @Column(length = 32)
     private String phone;
     @Enumerated(EnumType.STRING)
     @JdbcTypeCode(SqlTypes.VARCHAR)
@@ -27,6 +29,27 @@ public class User extends BaseEntity {
     private String avatar;
     @Column(name = "preferred_locale", nullable = false, length = 16)
     private String preferredLocale = "en";
+
+    @Column(name = "phone_verified")
+    private Boolean phoneVerified = false;
+
+    @Column(name = "email_verified")
+    private Boolean emailVerified = false;
+
+    @Column(name = "auth_provider", length = 20)
+    private String authProvider = "EMAIL";
+
+    @Column(name = "account_locked")
+    private Boolean accountLocked = false;
+
+    @Column(name = "failed_login_attempts")
+    private Integer failedLoginAttempts = 0;
+
+    @Column(name = "last_login_at")
+    private LocalDateTime lastLoginAt;
+
+    @Column(name = "password_changed_at")
+    private LocalDateTime passwordChangedAt;
 
     public static class UserBuilder {
         private String name;
@@ -182,6 +205,14 @@ public class User extends BaseEntity {
 
     public void setPreferredLocale(final String preferredLocale) {
         this.preferredLocale = preferredLocale != null && !preferredLocale.isBlank() ? preferredLocale : "en";
+    }
+
+    public String getAuthProvider() {
+        return authProvider;
+    }
+
+    public void setAuthProvider(final String authProvider) {
+        this.authProvider = authProvider != null && !authProvider.isBlank() ? authProvider : "EMAIL";
     }
 
     public User() {

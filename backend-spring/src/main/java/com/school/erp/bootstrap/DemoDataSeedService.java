@@ -606,6 +606,31 @@ public class DemoDataSeedService {
         return userRepository.save(u);
     }
 
+    /**
+     * Reuses an existing guardian row when {@link #createUser} returns the same portal user again
+     * (e.g. duplicate email), satisfying {@code uk_guardians_tenant_user_active}.
+     */
+    private Guardian ensureGuardianProfile(String tenantId, User portalUser, String fullName, String occupation) {
+        return guardianRepository.findFirstByTenantIdAndUserIdAndIsDeletedFalse(tenantId, portalUser.getId())
+                .orElseGet(() -> {
+                    Guardian g = new Guardian();
+                    g.setTenantId(tenantId);
+                    g.setFullName(fullName);
+                    g.setPrimaryPhone(portalUser.getPhone());
+                    g.setOccupation(occupation);
+                    g.setUserId(portalUser.getId());
+                    g.setIsDeleted(false);
+                    return guardianRepository.save(g);
+                });
+    }
+
+    /** Deterministic +91 mobile per student so {@code uk_users_tenant_phone_active} is not violated by RNG. */
+    private static String stableDemoParentPhone(String tenantId, String admissionNumber, String slot) {
+        long h = Objects.hash(tenantId, admissionNumber, slot);
+        long suffix = Math.floorMod(h, 1_000_000_000L);
+        return "+91-9" + String.format("%09d", suffix);
+    }
+
     private AcademicYear createAcademicYear(String tenantId, String name, LocalDate start,
                                            LocalDate end, boolean isCurrent) {
         AcademicYear ay = new AcademicYear();
@@ -767,6 +792,8 @@ public class DemoDataSeedService {
                     String admissionNumber = schoolCode + "-2025-" + String.format("%04d", admissionCounter++);
                     String email = firstName.toLowerCase() + "." + lastName.toLowerCase() +
                                    "@student." + schoolCode.toLowerCase() + ".edu.in";
+                    String schoolCodeLower = schoolCode.toLowerCase();
+                    String admToken = admissionNumber.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]", "");
 
                     // Calculate age-appropriate birth year
                     int birthYear = 2026 - grade - 6; // Rough age calculation
@@ -775,44 +802,36 @@ public class DemoDataSeedService {
                     // Create guardians (Father + Mother)
                     String fatherFirstName = FATHER_NAMES[random.nextInt(FATHER_NAMES.length)];
                     String motherFirstName = MOTHER_NAMES[random.nextInt(MOTHER_NAMES.length)];
-                    String fatherEmail = fatherFirstName.toLowerCase() + "." + lastName.toLowerCase() +
-                                        "@parent." + schoolCode.toLowerCase() + ".edu.in";
-                    String motherEmail = motherFirstName.toLowerCase() + "." + lastName.toLowerCase() +
-                                        "@parent." + schoolCode.toLowerCase() + ".edu.in";
+                    // Unique per student so createUser() does not return a shared parent user across unrelated rows
+                    // (would violate uk_guardians_tenant_user_active when inserting a second guardian for same user_id).
+                    String fatherEmail = fatherFirstName.toLowerCase(Locale.ROOT) + "." + lastName.toLowerCase(Locale.ROOT)
+                            + ".father." + admToken + "@parent." + schoolCodeLower + ".edu.in";
+                    String motherEmail = motherFirstName.toLowerCase(Locale.ROOT) + "." + lastName.toLowerCase(Locale.ROOT)
+                            + ".mother." + admToken + "@parent." + schoolCodeLower + ".edu.in";
+                    String fatherPhone = stableDemoParentPhone(tenantId, admissionNumber, "father");
+                    String motherPhone = stableDemoParentPhone(tenantId, admissionNumber, "mother");
 
                     // Father user
                     User fatherUser = createUser(tenantId, schoolCode,
                                                 fatherFirstName + " " + lastName,
                                                 fatherEmail,
                                                 Enums.Role.PARENT,
-                                                "+91-" + (9000000000L + random.nextInt(1000000000)));
+                                                fatherPhone);
 
-                    // Father guardian
-                    Guardian father = new Guardian();
-                    father.setTenantId(tenantId);
-                    father.setFullName(fatherFirstName + " " + lastName);
-                    father.setPrimaryPhone(fatherUser.getPhone());
-                    father.setOccupation(random.nextBoolean() ? "Business" : "Professional");
-                    father.setUserId(fatherUser.getId());
-                    father.setIsDeleted(false);
-                    father = guardianRepository.save(father);
+                    Guardian father = ensureGuardianProfile(tenantId, fatherUser,
+                            fatherFirstName + " " + lastName,
+                            random.nextBoolean() ? "Business" : "Professional");
 
                     // Mother user
                     User motherUser = createUser(tenantId, schoolCode,
                                                 motherFirstName + " " + lastName,
                                                 motherEmail,
                                                 Enums.Role.PARENT,
-                                                "+91-" + (9000000000L + random.nextInt(1000000000)));
+                                                motherPhone);
 
-                    // Mother guardian
-                    Guardian mother = new Guardian();
-                    mother.setTenantId(tenantId);
-                    mother.setFullName(motherFirstName + " " + lastName);
-                    mother.setPrimaryPhone(motherUser.getPhone());
-                    mother.setOccupation(random.nextBoolean() ? "Homemaker" : "Professional");
-                    mother.setUserId(motherUser.getId());
-                    mother.setIsDeleted(false);
-                    mother = guardianRepository.save(mother);
+                    Guardian mother = ensureGuardianProfile(tenantId, motherUser,
+                            motherFirstName + " " + lastName,
+                            random.nextBoolean() ? "Homemaker" : "Professional");
 
                     // Create student
                     Student student = new Student();
@@ -1668,16 +1687,17 @@ public class DemoDataSeedService {
         log.info("  Email: superadmin@schoolerp.com");
         log.info("");
         log.info("SCHOOL 1: Delhi Public School (DPS-DLH)");
-        log.info("  School Code: DPS-DLH");
+        log.info("  School Code: DPS-DLH  |  Tenant: tenant_dps_delhi_9x4k7m2p");
         log.info("  Admin: admin@dpsdel.edu.in");
-        log.info("  Sample Teacher: Check database for teacher emails (e.g., aarav.sharma@dps-dlh.edu.in)");
-        log.info("  Sample Parent: Check database for parent emails (e.g., rajesh.sharma@parent.dps-dlh.edu.in)");
+        log.info("  Teachers (10, password admin123): aarav.sharma / ananya.verma / aditya.singh / pari.kumar /");
+        log.info("    vihaan.gupta / anika.agarwal / arjun.reddy / sara.patel / sai.mehta / myra.joshi @dps-dlh.edu.in");
+        log.info("  Parents: see DEMO_CREDENTIALS.md (emails include .father./.mother. + admission token)");
         log.info("");
         log.info("SCHOOL 2: Kendriya Vidyalaya (KV-MUM)");
-        log.info("  School Code: KV-MUM");
-        log.info("  Admin: admin@kvmumbai1@gmail.com");
-        log.info("  Sample Teacher: Check database for teacher emails (e.g., vivaan.verma@kv-mum.edu.in)");
-        log.info("  Sample Parent: Check database for parent emails (e.g., amit.verma@parent.kv-mum.edu.in)");
+        log.info("  School Code: KV-MUM  |  Tenant: tenant_kv_mumbai_7p5n3x8q");
+        log.info("  Admin: admin@kvmumbai1.gmail.com");
+        log.info("  Teachers: same local-parts as DPS-DLH with @kv-mum.edu.in");
+        log.info("  Parents: same pattern with @parent.kv-mum.edu.in (see DEMO_CREDENTIALS.md)");
         log.info("");
         log.info("For complete list of all credentials, see DEMO_CREDENTIALS.md file");
         log.info("══════════════════════════════════════════════════════════════════════════════════");

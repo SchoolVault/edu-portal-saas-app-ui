@@ -42,7 +42,10 @@ function isAuthPublicEndpoint(url: string | undefined): boolean {
   return (
     url.includes('/auth/login') ||
     url.includes('/auth/onboard-tenant') ||
-    url.includes('/auth/refresh-token')
+    url.includes('/auth/refresh-token') ||
+    url.includes('/auth/logout') ||
+    url.includes('/auth/register') ||
+    url.includes('/auth/phone/')
   );
 }
 

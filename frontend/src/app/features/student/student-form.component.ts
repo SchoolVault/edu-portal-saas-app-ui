@@ -16,6 +16,7 @@ import { ErpDatePickerComponent } from '../../shared/erp-date-picker/erp-date-pi
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { formatSchoolClassName } from '../../core/i18n/school-class-display';
 import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directives';
+import { UserFacingHttpError } from '../../core/http/user-facing-http-error';
 
 @Component({
   selector: 'app-student-form',
@@ -31,6 +32,11 @@ import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directiv
         </div>
       </div>
       <div class="erp-card">
+        <div class="login-error mb-3" *ngIf="submitErrorKey || saveApiMessage" role="alert" data-testid="student-form-error">
+          <i class="bi bi-exclamation-circle"></i>
+          <span *ngIf="submitErrorKey">{{ submitErrorKey | translate }}</span>
+          <span *ngIf="saveApiMessage">{{ saveApiMessage }}</span>
+        </div>
         <form (ngSubmit)="onSubmit()" data-testid="student-form">
           <h4 style="font-size: 15px; font-weight: 700; margin-bottom: 20px; color: var(--clr-primary);">{{ 'students.form.sectionPersonal' | translate }}</h4>
           <div class="row g-3 mb-4">
@@ -218,6 +224,10 @@ export class StudentFormComponent implements OnInit, OnDestroy {
   studentStatuses = [...STUDENT_STATUS];
   isEdit = false;
   saving = false;
+  /** i18n key for client-side validation (guardians). */
+  submitErrorKey: string | null = null;
+  /** Server-safe message from API (already user-facing). */
+  saveApiMessage: string | null = null;
   studentDirectoryPreview: string | null = null;
   g1 = { fullName: '', primaryPhone: '', occupation: '', relationType: 'FATHER' as const };
   g2 = { fullName: '', primaryPhone: '', occupation: '', relationType: 'MOTHER' as const };
@@ -328,10 +338,15 @@ export class StudentFormComponent implements OnInit, OnDestroy {
   }
 
   onSubmit(): void {
+    this.submitErrorKey = null;
+    this.saveApiMessage = null;
     if (!this.student.firstName || !this.student.lastName || this.student.classId == null || this.student.classId === 0) {
       return;
     }
     if (this.sectionRequired && (this.student.sectionId == null || this.student.sectionId === 0)) return;
+    if (!this.isEdit && !this.validateGuardianPairs()) {
+      return;
+    }
     this.saving = true;
     if (!this.sectionRequired) {
       this.student.sectionId = 0;
@@ -347,9 +362,19 @@ export class StudentFormComponent implements OnInit, OnDestroy {
     };
 
     if (this.isEdit && this.student.id) {
-      this.studentService.updateStudent(this.student.id, this.student).subscribe(() => {
-        this.saving = false;
-        this.router.navigate(['/app/students']);
+      this.studentService.updateStudent(this.student.id, this.student).subscribe({
+        next: () => {
+          this.saving = false;
+          this.router.navigate(['/app/students']);
+        },
+        error: (err: unknown) => {
+          this.saving = false;
+          if (err instanceof UserFacingHttpError) {
+            this.saveApiMessage = err.message;
+          } else {
+            this.submitErrorKey = 'students.form.saveError';
+          }
+        }
       });
     } else {
       fillLegacyParentName();
@@ -380,9 +405,35 @@ export class StudentFormComponent implements OnInit, OnDestroy {
           this.saving = false;
           this.router.navigate(['/app/students']);
         },
-        error: () => { this.saving = false; }
+        error: (err: unknown) => {
+          this.saving = false;
+          if (err instanceof UserFacingHttpError) {
+            this.saveApiMessage = err.message;
+          } else {
+            this.submitErrorKey = 'students.form.saveError';
+          }
+        }
       });
     }
+  }
+
+  private validateGuardianPairs(): boolean {
+    const rows = [this.g1, this.g2];
+    for (const g of rows) {
+      const hasName = g.fullName.trim().length > 0;
+      const hasPhone = (g.primaryPhone ?? '').trim().length > 0;
+      if (hasName !== hasPhone) {
+        this.submitErrorKey = 'students.form.guardianNamePhonePair';
+        return false;
+      }
+    }
+    const p1 = (this.g1.primaryPhone ?? '').trim();
+    const p2 = (this.g2.primaryPhone ?? '').trim();
+    if (this.g1.fullName.trim() && this.g2.fullName.trim() && p1 && p2 && p1 === p2) {
+      this.submitErrorKey = 'students.form.guardianDuplicatePhone';
+      return false;
+    }
+    return true;
   }
 
   goBack(): void { this.router.navigate(['/app/students']); }

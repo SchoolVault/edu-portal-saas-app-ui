@@ -61,18 +61,35 @@ public class JwtUtil {
         }
     }
 
-    public String generateToken(Long userId, String tenantId, String email, String role, String name) {
-        return generateToken(userId, tenantId, email, role, name, "");
+    public String generateToken(Long userId, String tenantId, String subject, String role, String name) {
+        return generateToken(userId, tenantId, subject, role, name, "");
     }
 
-    public String generateToken(Long userId, String tenantId, String email, String role, String name, String permissionsCsv) {
+    /**
+     * @param subject JWT subject: typically normalized email, or {@code phone:…} when email absent.
+     */
+    public String generateToken(Long userId, String tenantId, String subject, String role, String name, String permissionsCsv) {
         Map<String, Object> claims = new LinkedHashMap<>();
         claims.put("userId", userId);
         claims.put("tenantId", tenantId);
         claims.put("role", role);
         claims.put("name", name);
         claims.put("permissions", permissionsCsv != null ? permissionsCsv : "");
-        return Jwts.builder().subject(email).claims(claims).issuedAt(new Date()).expiration(new Date(System.currentTimeMillis() + expirationMs)).signWith(key).compact();
+        return Jwts.builder().subject(subject).claims(claims).issuedAt(new Date()).expiration(new Date(System.currentTimeMillis() + expirationMs)).signWith(key).compact();
+    }
+
+    /** Stable principal string for JWT subject and audit (email preferred; else phone; else user id). */
+    public static String principalSubject(String email, String phone, Long userId) {
+        if (email != null && !email.isBlank()) {
+            return email.trim().toLowerCase(java.util.Locale.ROOT);
+        }
+        if (phone != null && !phone.isBlank()) {
+            return "phone:" + phone.trim();
+        }
+        if (userId != null) {
+            return "user:" + userId;
+        }
+        return "unknown";
     }
 
     public Claims parseToken(String token) {

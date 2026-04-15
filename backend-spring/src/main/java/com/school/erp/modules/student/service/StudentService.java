@@ -15,6 +15,7 @@ import com.school.erp.events.domain.StudentAdmittedEvent;
 import com.school.erp.events.domain.StudentEnrollmentChangedEvent;
 import com.school.erp.modules.student.dto.StudentDTOs;
 import com.school.erp.modules.student.entity.Student;
+import com.school.erp.modules.guardian.service.GuardianLinkSyncService;
 import com.school.erp.modules.student.repository.StudentRepository;
 import com.school.erp.platform.port.DomainEventPublisher;
 import com.school.erp.tenant.TenantContext;
@@ -43,6 +44,7 @@ public class StudentService {
     private final SectionRepository sectionRepository;
     private final TeacherRosterScopeService teacherRosterScopeService;
     private final DomainEventPublisher domainEventPublisher;
+    private final GuardianLinkSyncService guardianLinkSyncService;
 
     @Transactional(readOnly = true)
     public PageResponse<StudentDTOs.Response> getStudents(int page, int size, Long classId, Enums.StudentStatus status, String search, String sortBy, String direction) {
@@ -156,6 +158,7 @@ public class StudentService {
         student.setCreatedBy(TenantContext.getUserId() != null ? TenantContext.getUserId().toString() : null);
         studentRepository.save(student);
         log.info("Student created: {} {} [{}]", student.getFirstName(), student.getLastName(), student.getAdmissionNumber());
+        guardianLinkSyncService.syncForStudent(student);
         domainEventPublisher.publish(new StudentAdmittedEvent(
                 tenantId,
                 student.getId(),
@@ -188,6 +191,7 @@ public class StudentService {
         if (request.getStatus() != null) student.setStatus(request.getStatus());
         student.setUpdatedBy(TenantContext.getUserId() != null ? TenantContext.getUserId().toString() : null);
         studentRepository.save(student);
+        guardianLinkSyncService.syncForStudent(student);
         boolean classChanged = request.getClassId() != null && !java.util.Objects.equals(priorClassId, student.getClassId());
         boolean sectionChanged = request.getSectionId() != null && !java.util.Objects.equals(priorSectionId, student.getSectionId());
         if (classChanged || sectionChanged) {
@@ -388,12 +392,14 @@ public class StudentService {
                           final SchoolClassRepository schoolClassRepository,
                           final SectionRepository sectionRepository,
                           final TeacherRosterScopeService teacherRosterScopeService,
-                          final DomainEventPublisher domainEventPublisher) {
+                          final DomainEventPublisher domainEventPublisher,
+                          final GuardianLinkSyncService guardianLinkSyncService) {
         this.studentRepository = studentRepository;
         this.schoolClassRepository = schoolClassRepository;
         this.sectionRepository = sectionRepository;
         this.teacherRosterScopeService = teacherRosterScopeService;
         this.domainEventPublisher = domainEventPublisher;
+        this.guardianLinkSyncService = guardianLinkSyncService;
     }
 
     private String required(Map<String, String> row, String key) {

@@ -4,6 +4,34 @@ This file contains all login credentials for the comprehensive demo data seeded 
 
 **ALL USERS PASSWORD: `admin123`**
 
+Phone OTP (if enabled on the UI) uses the **mobile number** stored on the user row; seeded parents use deterministic `+91-9…` numbers derived from tenant + admission number (see `DemoDataSeedService.stableDemoParentPhone`). For quickest UI testing, use **email + password** below.
+
+---
+
+## Quick copy — sample logins per role (`DemoDataSeedService`)
+
+| Role | Email | School code | Tenant ID (DB) |
+|------|-------|-------------|----------------|
+| **SUPER_ADMIN** | `superadmin@schoolerp.com` | `PLATFORM` | `PLATFORM` |
+| **ADMIN** | `admin@dpsdel.edu.in` | `DPS-DLH` | `tenant_dps_delhi_9x4k7m2p` |
+| **ADMIN** | `admin@kvmumbai1.gmail.com` | `KV-MUM` | `tenant_kv_mumbai_7p5n3x8q` |
+| **TEACHER** | `aarav.sharma@dps-dlh.edu.in` | `DPS-DLH` | `tenant_dps_delhi_9x4k7m2p` |
+| **TEACHER** | `aarav.sharma@kv-mum.edu.in` | `KV-MUM` | `tenant_kv_mumbai_7p5n3x8q` |
+| **TEACHER (+ library)** | `aarav.sharma@dps-dlh.edu.in` (librarian), `ananya.verma@dps-dlh.edu.in` (assistant) | `DPS-DLH` | `tenant_dps_delhi_9x4k7m2p` |
+| **PARENT** | Any row with `role = PARENT` for that tenant (pattern below); example query in [Sample Parents](#sample-parents) | `DPS-DLH` / `KV-MUM` | (same as admin for that school) |
+
+**Password for every row above:** `admin123`
+
+### Login flow (Angular `/login`)
+
+1. **School code** — Always enter the workspace identifier (`DPS-DLH`, `KV-MUM`, `SCH001`, or `PLATFORM` for super admin). It is sent with the auth request so the API resolves the correct tenant.
+2. **Email & password** — Tab for traditional login: email + password + school code. Matches the rows in the table above when using the seeded database.
+3. **Phone & code** — Tab for OTP: same school code, then mobile number; submit sends OTP; second step verifies the code. Parent users created by the demo seed have deterministic `+91-9…` phones (`stableDemoParentPhone` in `DemoDataSeedService`). For **mock** auth, follow whatever `auth.service.ts` / your environment documents for sample numbers and OTP.
+4. **App language** — The selector on the login page previews UI language (en/hi); strings for this panel live under `login.demo*` in `en.json` / `hi.json`.
+5. **Future OTP-only UX** — The email/password tab can be hidden or removed once phone-first login is mandatory; the API contract already separates **send OTP** and **verify OTP** from password login, so the same school-code + tenant resolution stays in place.
+
+The login screen’s **Demo sign-in** panel mirrors this file; keep both in sync when credentials change.
+
 ---
 
 ## Platform Level
@@ -32,41 +60,42 @@ This file contains all login credentials for the comprehensive demo data seeded 
 - **Access:** Full school administration, can manage all users, classes, students, fees, exams, etc.
 
 ### Sample Teachers
-The system creates 30 teachers for DPS-DLH. Email format: `{firstname}.{lastname}@dps-dlh.edu.in`
+The seed creates **10** teachers per school. Email format: `{firstname}.{lastname}@{schoolCode.lower}.edu.in` (e.g. `@dps-dlh.edu.in`).
 
-**Sample teacher emails (you can use any of these):**
-- Mathematics Teachers
-- Science Teachers  
-- English Teachers
-- Hindi Teachers
-- Social Studies Teachers
-- Physics/Chemistry/Biology Teachers (for higher classes)
-- Computer Science Teachers
-- Physical Education Teachers
+**DPS-DLH — use any of these (password `admin123`):**
 
-**To find all teacher emails:**
-Query the database: `SELECT email FROM users WHERE tenant_id='tenant_dps_delhi_9x4k7m2p' AND role='TEACHER'`
+| # | Email |
+|---|--------|
+| 1 | `aarav.sharma@dps-dlh.edu.in` |
+| 2 | `ananya.verma@dps-dlh.edu.in` |
+| 3 | `aditya.singh@dps-dlh.edu.in` |
+| 4 | `pari.kumar@dps-dlh.edu.in` |
+| 5 | `vihaan.gupta@dps-dlh.edu.in` |
+| 6 | `anika.agarwal@dps-dlh.edu.in` |
+| 7 | `arjun.reddy@dps-dlh.edu.in` |
+| 8 | `sara.patel@dps-dlh.edu.in` |
+| 9 | `sai.mehta@dps-dlh.edu.in` |
+| 10 | `myra.joshi@dps-dlh.edu.in` |
 
-**Example teachers:**
-- First few teachers will have emails like:
-  - `aarav.sharma@dps-dlh.edu.in`
-  - `ananya.verma@dps-dlh.edu.in`
-  - `vivaan.singh@dps-dlh.edu.in`
-  - etc.
+Teachers **#1** and **#2** also have library staff flags (librarian / assistant) on the `teachers` row; they still log in with the same **TEACHER** user as above (no separate library login unless your product adds one).
+
+**List from DB:** `SELECT email, name FROM users WHERE tenant_id='tenant_dps_delhi_9x4k7m2p' AND role='TEACHER' AND is_deleted=FALSE ORDER BY id;`
 
 ### Sample Parents
-The system creates parent accounts for all students. Email format: `{firstname}.{lastname}@parent.dps-dlh.edu.in`
+Each student gets **two** portal users (father + mother). Emails are **unique per student** to satisfy guardian uniqueness constraints:
 
-**Sample parent emails:**
-- `rajesh.sharma@parent.dps-dlh.edu.in`
-- `amit.verma@parent.dps-dlh.edu.in`
-- `suresh.singh@parent.dps-dlh.edu.in`
-- `sunita.sharma@parent.dps-dlh.edu.in`
-- `kavita.verma@parent.dps-dlh.edu.in`
-- etc.
+`{fatherFirst}.{studentLastName}.father.{admissionToken}@parent.{schoolcode}.edu.in`  
+`{motherFirst}.{studentLastName}.mother.{admissionToken}@parent.{schoolcode}.edu.in`
 
-**To find all parent emails:**
-Query: `SELECT email FROM users WHERE tenant_id='tenant_dps_delhi_9x4k7m2p' AND role='PARENT'`
+Where `{admissionToken}` is the admission number lowercased with non-alphanumerics removed (e.g. `DPS-DLH-2025-1000` → `dpsdlh20251000`).
+
+**To list parent emails (recommended):**
+
+```sql
+SELECT email, name, phone FROM users
+WHERE tenant_id='tenant_dps_delhi_9x4k7m2p' AND role='PARENT' AND is_deleted=FALSE
+ORDER BY id LIMIT 20;
+```
 
 **Parent Access:**
 - Can view their children's details
@@ -79,12 +108,8 @@ Query: `SELECT email FROM users WHERE tenant_id='tenant_dps_delhi_9x4k7m2p' AND 
 Students don't have login credentials by default, but can be enabled if needed.
 Email format: `{firstname}.{lastname}@student.dps-dlh.edu.in`
 
-### Library Staff
-One or two teachers are assigned library staff roles.
-**Access same as teacher**, plus:
-- Can manage library books
-- Can issue/return books
-- Can calculate fines
+### Library staff (same login as teacher)
+Teachers **#1** and **#2** in the table above have librarian / assistant flags. Log in with those emails; library features use the same teacher session.
 
 ---
 
@@ -98,25 +123,40 @@ One or two teachers are assigned library staff roles.
 - **Email:** kvmumbai1@gmail.com
 
 ### Administrator
-- **Email:** `admin@kvmumbai1.gmail.com`
+- **Email:** `admin@kvmumbai1.gmail.com` (domain comes from office email `kvmumbai1@gmail.com` in the seeder)
 - **Password:** `admin123`
 - **Role:** ADMIN
 - **Access:** Full school administration
 
 ### Sample Teachers
-30 teachers with email format: `{firstname}.{lastname}@kv-mum.edu.in`
+Same naming pattern as DPS-DLH, with **`@kv-mum.edu.in`**. Ten teachers; first two are also marked librarian / assistant on the teacher record.
 
-**To find all teacher emails:**
-Query: `SELECT email FROM users WHERE tenant_id='tenant_kv_mumbai_7p5n3x8q' AND role='TEACHER'`
+| # | Email |
+|---|--------|
+| 1 | `aarav.sharma@kv-mum.edu.in` |
+| 2 | `ananya.verma@kv-mum.edu.in` |
+| 3 | `aditya.singh@kv-mum.edu.in` |
+| 4 | `pari.kumar@kv-mum.edu.in` |
+| 5 | `vihaan.gupta@kv-mum.edu.in` |
+| 6 | `anika.agarwal@kv-mum.edu.in` |
+| 7 | `arjun.reddy@kv-mum.edu.in` |
+| 8 | `sara.patel@kv-mum.edu.in` |
+| 9 | `sai.mehta@kv-mum.edu.in` |
+| 10 | `myra.joshi@kv-mum.edu.in` |
+
+**List from DB:** `SELECT email, name FROM users WHERE tenant_id='tenant_kv_mumbai_7p5n3x8q' AND role='TEACHER' AND is_deleted=FALSE ORDER BY id;`
 
 ### Sample Parents
-Parent accounts with email format: `{firstname}.{lastname}@parent.kv-mum.edu.in`
+Same **father./mother.** + **admission token** pattern as DPS-DLH, with `@parent.kv-mum.edu.in`.
 
-**To find all parent emails:**
-Query: `SELECT email FROM users WHERE tenant_id='tenant_kv_mumbai_7p5n3x8q' AND role='PARENT'`
+```sql
+SELECT email, name, phone FROM users
+WHERE tenant_id='tenant_kv_mumbai_7p5n3x8q' AND role='PARENT' AND is_deleted=FALSE
+ORDER BY id LIMIT 20;
+```
 
 ### Library Staff
-One or two teachers assigned library roles.
+Use teacher logins **#1** and **#2** above; library capability is stored on the teacher profile, not a separate user role.
 
 ---
 
@@ -127,7 +167,7 @@ Both schools have:
 - **Classes:** 6, 7, 8, 9, 10, 11, 12 (7 classes)
 - **Sections:** A, B per class (14 sections total)
 - **Students:** 7-8 per section (~100 students per school)
-- **Teachers:** 10 teachers per school
+- **Teachers:** 10 teachers per school (deterministic emails; see tables above)
 
 ⚠️ **OPTIMIZED FOR RENDER FREE TIER** (0.1 CPU, 512MB RAM) - Reduced data volume by ~90%
 
@@ -402,13 +442,9 @@ GROUP BY status;
    - Email: `admin@dpsdel.edu.in`
    - Password: `admin123`
 
-4. **Login as Teacher:**
-   - Query database for teacher emails
-   - Password: `admin123`
+4. **Login as Teacher:** e.g. `aarav.sharma@dps-dlh.edu.in` + school code `DPS-DLH` + password `admin123`
 
-5. **Login as Parent:**
-   - Query database for parent emails
-   - Password: `admin123`
+5. **Login as Parent:** pick any email from the `PARENT` query in [Sample Parents](#sample-parents) + matching school code + `admin123`
 
 6. **Verify data consistency:**
    - Parents should see only their children
@@ -454,7 +490,7 @@ The seed service creates data in stages. If it fails partway through, you may ha
 
 ### Performance is slow
 
-Creating ~900 students per school with all relationships takes time (typically 30-60 seconds per school). This is normal. Watch the logs for progress.
+Creating ~100 students per school plus related rows may take on the order of a minute depending on hardware. Watch the logs for progress.
 
 ---
 
@@ -473,5 +509,5 @@ Creating ~900 students per school with all relationships takes time (typically 3
 ---
 
 **Generated by:** DemoDataSeedService.java
-**Last Updated:** 2026-04-14
+**Last Updated:** 2026-04-15
 **Password for all users:** admin123

@@ -103,6 +103,25 @@ const HERO_IMG =
               </div>
             </div>
             <div class="erp-form-group">
+              <label class="erp-label" for="su-phone">{{ 'signup.phone' | translate }}</label>
+              <input
+                id="su-phone"
+                class="erp-input"
+                [class.erp-input--error]="!!fieldErrors.phone"
+                [(ngModel)]="form.phone"
+                (ngModelChange)="clearField('phone')"
+                name="phone"
+                maxlength="40"
+                erpI18nPh="signup.phonePlaceholder"
+                [attr.aria-invalid]="!!fieldErrors.phone"
+                [attr.aria-describedby]="fieldErrors.phone ? 'su-err-phone' : null"
+                autocomplete="tel" />
+              <div id="su-err-phone" class="field-error" *ngIf="fieldErrors.phone" role="alert">
+                {{ fieldErrors.phone | translate: interp('phone') }}
+              </div>
+              <p class="text-muted small mb-0 mt-1">{{ 'signup.phoneHintAdmin' | translate }}</p>
+            </div>
+            <div class="erp-form-group">
               <label class="erp-label" for="su-adminEmail">{{ 'signup.adminEmail' | translate }}</label>
               <input
                 id="su-adminEmail"
@@ -116,6 +135,7 @@ const HERO_IMG =
                 [attr.aria-invalid]="!!fieldErrors.adminEmail"
                 [attr.aria-describedby]="fieldErrors.adminEmail ? 'su-err-adminEmail' : null"
                 autocomplete="email" />
+              <p class="text-muted small mb-0 mt-1">{{ 'signup.adminEmailHint' | translate }}</p>
               <div id="su-err-adminEmail" class="field-error" *ngIf="fieldErrors.adminEmail" role="alert">
                 {{ fieldErrors.adminEmail | translate: interp('adminEmail') }}
               </div>
@@ -142,20 +162,6 @@ const HERO_IMG =
               <div id="su-err-adminPassword" class="field-error" *ngIf="fieldErrors.adminPassword" role="alert">
                 {{ fieldErrors.adminPassword | translate: interp('adminPassword') }}
               </div>
-            </div>
-            <div class="erp-form-group">
-              <label class="erp-label" for="su-phone">
-                {{ 'signup.phone' | translate }} <span class="erp-label-hint">{{ 'signup.optional' | translate }}</span>
-              </label>
-              <input
-                id="su-phone"
-                class="erp-input"
-                [(ngModel)]="form.phone"
-                name="phone"
-                maxlength="40"
-                erpI18nPh="signup.phonePlaceholder"
-                autocomplete="tel" />
-              <p class="text-muted small mb-0 mt-1">{{ 'signup.phoneHintAdmin' | translate }}</p>
             </div>
             <div class="erp-form-group">
               <label class="erp-label" for="su-address">
@@ -278,8 +284,11 @@ export class SignupComponent {
       return;
     }
     this.loading = true;
+    const emailTrim = (this.form.adminEmail ?? '').trim();
     const payload: OnboardSchoolRequest = {
       ...this.form,
+      adminEmail: emailTrim || undefined,
+      phone: (this.form.phone ?? '').trim(),
       /** Language is chosen at login only; use stored UI locale (default en). */
       interfaceLocale: this.userLocale.currentLang(),
     };

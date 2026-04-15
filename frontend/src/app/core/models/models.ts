@@ -12,7 +12,8 @@ export interface UpdateAccountProfileRequest {
 export interface User {
   /** ERP user id (Java Long → JSON number). */
   id: number;
-  email: string;
+  /** Optional when phone-only accounts use a synthetic server-side address. */
+  email?: string;
   name: string;
   role: AppRole;
   tenantId: string;
@@ -23,7 +24,8 @@ export interface User {
 }
 
 export interface LoginRequest {
-  email: string;
+  email?: string;
+  phone?: string;
   password: string;
   schoolCode: string;
   interfaceLocale?: string;
@@ -45,9 +47,10 @@ export interface OnboardSchoolRequest {
   schoolName: string;
   schoolCode: string;
   adminName: string;
-  adminEmail: string;
+  /** Optional; server generates a stable synthetic email from {@link phone} when omitted. */
+  adminEmail?: string;
   adminPassword: string;
-  phone?: string;
+  phone: string;
   address?: string;
   /** Optional UI locale for first admin; mirrors backend when enabled. */
   interfaceLocale?: string;
@@ -1022,4 +1025,243 @@ export interface SchoolBranch {
   phone?: string;
   email?: string;
   currentTenant: boolean;
+}
+
+// ============================================================
+// PHONE AUTHENTICATION & GUARDIAN SYSTEM
+// ============================================================
+
+export type RelationType = 'FATHER' | 'MOTHER' | 'GUARDIAN' | 'GRANDFATHER' | 'GRANDMOTHER' | 'UNCLE' | 'AUNT' | 'SIBLING' | 'OTHER';
+
+export type OtpPurpose = 'LOGIN' | 'SIGNUP' | 'PASSWORD_RESET' | 'PHONE_VERIFY';
+
+export type OtpChannel = 'SMS' | 'WHATSAPP' | 'VOICE' | 'EMAIL';
+
+/** Guardian (Parent/Legal Guardian) */
+export interface Guardian {
+  id: number;
+  firstName: string;
+  lastName: string;
+  fullName: string;
+  phone: string;
+  email?: string;
+  relationType: RelationType;
+  occupation?: string;
+  annualIncome?: number;
+  educationLevel?: string;
+  addressLine1?: string;
+  addressLine2?: string;
+  city?: string;
+  state?: string;
+  postalCode?: string;
+  country?: string;
+  alternatePhone?: string;
+  userId?: number;
+  hasPortalAccess: boolean;
+  isPrimaryContact: boolean;
+  canPickupStudent: boolean;
+  emergencyContact: boolean;
+  linkedStudentCount: number;
+  linkedStudents?: LinkedStudentSummary[];
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface LinkedStudentSummary {
+  studentId: number;
+  studentName: string;
+  className?: string;
+  sectionName?: string;
+  relationType: string;
+  isPrimary: boolean;
+  admissionNumber: string;
+}
+
+export interface CreateGuardianRequest {
+  firstName: string;
+  lastName: string;
+  phone: string;
+  email?: string;
+  relationType: RelationType;
+  occupation?: string;
+  annualIncome?: number;
+  educationLevel?: string;
+  addressLine1?: string;
+  addressLine2?: string;
+  city?: string;
+  state?: string;
+  postalCode?: string;
+  country?: string;
+  alternatePhone?: string;
+  provisionPortalAccess?: boolean;
+  portalPassword?: string;
+  isPrimaryContact?: boolean;
+  canPickupStudent?: boolean;
+  emergencyContact?: boolean;
+}
+
+export interface UpdateGuardianRequest {
+  firstName?: string;
+  lastName?: string;
+  phone?: string;
+  email?: string;
+  relationType?: RelationType;
+  occupation?: string;
+  city?: string;
+  isPrimaryContact?: boolean;
+  canPickupStudent?: boolean;
+  emergencyContact?: boolean;
+}
+
+export interface GuardianPageResponse {
+  guardians: Guardian[];
+  totalElements: number;
+  totalPages: number;
+  currentPage: number;
+  pageSize: number;
+}
+
+export interface SendOtpRequest {
+  phone: string;
+  schoolCode: string;
+  purpose: OtpPurpose;
+  channel?: OtpChannel;
+  requestId?: string;
+}
+
+export interface SendOtpResponse {
+  success: boolean;
+  message: string;
+  requestId: string;
+  expiresInSeconds: number;
+  canRetryAfterSeconds: number;
+  devOtpCode?: string; // For development only
+}
+
+export interface VerifyOtpRequest {
+  phone: string;
+  schoolCode: string;
+  otpCode: string;
+  purpose: OtpPurpose;
+  requestId?: string;
+}
+
+export interface VerifyOtpResponse {
+  verified: boolean;
+  message: string;
+  remainingAttempts: number;
+  verificationToken?: string;
+}
+
+export interface PhoneLoginRequest {
+  phone: string;
+  schoolCode: string;
+  verificationToken: string;
+  interfaceLocale?: string;
+}
+
+export interface ResendOtpRequest {
+  phone: string;
+  schoolCode: string;
+  purpose: OtpPurpose;
+  channel?: OtpChannel;
+}
+
+export interface StudentWithGuardians {
+  student: Student;
+  guardians: Guardian[];
+}
+
+export interface GuardianDetail {
+  firstName: string;
+  lastName: string;
+  phone: string;
+  email?: string;
+  relationType: RelationType;
+  occupation?: string;
+  addressLine1?: string;
+  city?: string;
+  isPrimary: boolean;
+  isFinancialResponsible: boolean;
+  provisionPortalAccess: boolean;
+}
+
+export interface CreateStudentWithGuardiansRequest {
+  firstName: string;
+  lastName: string;
+  email?: string;
+  phone?: string;
+  dateOfBirth: string;
+  gender: string;
+  classId: number;
+  sectionId: number;
+  rollNumber?: string;
+  admissionNumber: string;
+  admissionDate?: string;
+  address?: string;
+  bloodGroup?: string;
+  guardians: GuardianDetail[];
+}
+
+export interface BulkStudentImportRequest {
+  students: StudentImportRow[];
+  skipDuplicates?: boolean;
+  validateOnly?: boolean;
+  correlationId?: string;
+}
+
+export interface StudentImportRow {
+  firstName: string;
+  lastName: string;
+  email?: string;
+  phone?: string;
+  dateOfBirth?: string;
+  gender?: string;
+  className: string;
+  sectionName: string;
+  rollNumber?: string;
+  admissionNumber: string;
+  admissionDate?: string;
+  address?: string;
+  bloodGroup?: string;
+  guardian1FirstName: string;
+  guardian1LastName: string;
+  guardian1Phone: string;
+  guardian1Email?: string;
+  guardian1Relation: RelationType;
+  guardian1Occupation?: string;
+  guardian2FirstName?: string;
+  guardian2LastName?: string;
+  guardian2Phone?: string;
+  guardian2Email?: string;
+  guardian2Relation?: RelationType;
+  rowNumber?: number;
+}
+
+export interface BulkStudentImportResponse {
+  totalRows: number;
+  successCount: number;
+  failedCount: number;
+  skippedCount: number;
+  errors: ImportError[];
+  results: StudentImportResult[];
+  correlationId?: string;
+  jobId?: number;
+}
+
+export interface ImportError {
+  rowNumber: number;
+  field: string;
+  errorCode: string;
+  errorMessage: string;
+  rejectedValue?: string;
+}
+
+export interface StudentImportResult {
+  rowNumber: number;
+  admissionNumber: string;
+  studentId?: number;
+  status: 'SUCCESS' | 'FAILED' | 'SKIPPED';
+  message: string;
+  guardianIds?: number[];
 }

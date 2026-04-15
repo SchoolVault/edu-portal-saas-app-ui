@@ -61,7 +61,18 @@ public class TeacherService {
     @Transactional
     public TeacherDTOs.Response create(TeacherDTOs.CreateRequest req) {
         log.info("Creating teacher email={}", req.getEmail());
-        Teacher t = Teacher.builder().firstName(req.getFirstName()).lastName(req.getLastName()).email(req.getEmail()).phone(req.getPhone()).qualification(req.getQualification()).specialization(req.getSpecialization()).joinDate(req.getJoinDate()).salary(req.getSalary()).subjects(req.getSubjects()).status(Enums.TeacherStatus.ACTIVE).build();
+        Teacher t = Teacher.builder()
+                .firstName(req.getFirstName())
+                .lastName(req.getLastName())
+                .email(req.getEmail())
+                .phone(req.getPhone())
+                .qualification(req.getQualification())
+                .specialization(req.getSpecialization())
+                .joinDate(req.getJoinDate())
+                .salary(req.getSalary())
+                .subjects(req.getSubjects())
+                .status(Enums.TeacherStatus.ACTIVE)
+                .build();
         t.setTenantId(TenantContext.getTenantId());
         repo.save(t);
         log.info("Teacher created id={}", t.getId());

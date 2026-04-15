@@ -20,7 +20,7 @@ public class AuthController {
     private final AuthService authService;
 
     @PostMapping("/login")
-    @Operation(summary = "Login", description = "Authenticate with email, password, school code. Returns JWT + refresh token.")
+    @Operation(summary = "Login", description = "Authenticate with school code + password and either email or phone. Returns JWT + refresh token.")
     public ResponseEntity<ApiResponse<AuthDTOs.LoginResponse>> login(@Valid @RequestBody AuthDTOs.LoginRequest request) {
         return ResponseEntity.ok(ApiResponse.ok(authService.login(request)));
     }
