@@ -44,6 +44,13 @@ public class PhoneAuthController {
         return ResponseEntity.ok(ApiResponse.ok(phoneAuthService.loginWithOtpExchange(request)));
     }
 
+    @PostMapping("/reset-password")
+    @Operation(summary = "Reset password using verified phone OTP")
+    public ResponseEntity<ApiResponse<PhoneAuthDTOs.PasswordResetResponse>> resetPassword(@Valid @RequestBody PhoneAuthDTOs.PasswordResetRequest request) {
+        log.debug("phone-reset-password phone={} schoolCode={}", request.getPhone(), request.getSchoolCode());
+        return ResponseEntity.ok(ApiResponse.ok(phoneAuthService.resetPasswordWithOtpExchange(request)));
+    }
+
     @PostMapping("/resend-otp")
     @Operation(summary = "Resend OTP")
     public ResponseEntity<ApiResponse<PhoneAuthDTOs.SendOtpResponse>> resendOtp(@Valid @RequestBody PhoneAuthDTOs.ResendOtpRequest request) {

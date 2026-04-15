@@ -121,6 +121,38 @@ public class PhoneAuthDTOs {
     }
 
     /**
+     * Reset password after a PASSWORD_RESET OTP has been verified.
+     */
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder
+    public static class PasswordResetRequest {
+        @NotBlank(message = "Phone number is required")
+        @Pattern(regexp = "^[+]?[0-9\\s\\-]{10,22}$", message = "Invalid phone number format")
+        private String phone;
+
+        @NotBlank(message = "School code is required")
+        private String schoolCode;
+
+        @NotBlank(message = "Verification token is required")
+        private String verificationToken;
+
+        @NotBlank(message = "New password is required")
+        @Size(min = 8, max = 128, message = "Password must be between 8 and 128 characters")
+        private String newPassword;
+    }
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder
+    public static class PasswordResetResponse {
+        private boolean success;
+        private String message;
+    }
+
+    /**
      * Phone login response (same structure as email login).
      */
     @Data

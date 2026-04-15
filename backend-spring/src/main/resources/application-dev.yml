@@ -8,6 +8,8 @@
 app:
   demo-seed:
     enabled: true
+  dev:
+    mode: true
   datasource:
     slow-query:
       enabled: true
