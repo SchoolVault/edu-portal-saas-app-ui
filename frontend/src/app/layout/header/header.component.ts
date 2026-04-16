@@ -129,7 +129,11 @@ import { runtimeConfig } from '../../core/config/runtime-config';
             <div class="profile-summary-card" *ngIf="profileSummary && !isSuperAdmin">
               <div class="profile-summary-school">{{ profileSummary.schoolName }}</div>
               <div class="profile-summary-title">{{ profileSummary.userTitle || (roleDisplayLabelKey | translate) }}</div>
-              <div class="profile-summary-meta">{{ profileSummary.schoolCode }} · {{ profileSummary.email }}</div>
+              <div class="profile-summary-meta profile-summary-meta-row" [attr.title]="profileSummary.schoolCode + ' · ' + profileSummary.email">
+                <span class="profile-summary-code">{{ profileSummary.schoolCode }}</span>
+                <span class="profile-summary-sep" aria-hidden="true">·</span>
+                <span class="profile-summary-email">{{ profileSummary.email }}</span>
+              </div>
               <div class="profile-summary-stats">
                 <span *ngIf="profileSummary.managedStudentCount != null">
                   {{ 'header.stats.students' | translate: { count: profileSummary.managedStudentCount } }}
@@ -153,7 +157,9 @@ import { runtimeConfig } from '../../core/config/runtime-config';
               <div class="profile-summary-meta">
                 {{ profileSummary.userTitle || ('header.super.defaultTitle' | translate) }}
               </div>
-              <div class="profile-summary-meta mt-1" style="font-size: 12px;">{{ profileSummary.email }}</div>
+              <div class="profile-summary-meta profile-summary-email-block mt-1" style="font-size: 12px;" [attr.title]="profileSummary.email">
+                {{ profileSummary.email }}
+              </div>
               <div class="profile-summary-stats mt-2" *ngIf="profileSummary.platformWorkspaceCount != null">
                 <span>{{ 'header.super.activeWorkspaces' | translate: { count: profileSummary.platformWorkspaceCount } }}</span>
               </div>

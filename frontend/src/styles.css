@@ -402,6 +402,43 @@ a:hover {
   margin-top: 6px;
 }
 
+.profile-summary-meta-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.profile-summary-code {
+  flex-shrink: 0;
+  font-weight: 600;
+  color: var(--clr-text-secondary);
+}
+
+.profile-summary-sep {
+  flex-shrink: 0;
+  opacity: 0.55;
+}
+
+.profile-summary-email {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.profile-summary-email-block {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.parent-kpi-context {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  max-width: 100%;
+}
+
 .profile-summary-stats {
   display: flex;
   flex-wrap: wrap;
@@ -1469,7 +1506,8 @@ img.table-avatar {
   position: absolute;
   top: calc(100% + 8px);
   right: 0;
-  width: 220px;
+  width: min(320px, calc(100vw - 24px));
+  max-width: calc(100vw - 16px);
   background: var(--clr-surface);
   border: 1px solid var(--clr-border);
   border-radius: var(--radius-xl);

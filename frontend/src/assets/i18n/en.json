@@ -524,8 +524,8 @@
         "fee": {
           "urgency": {
             "none": "No outstanding balance for this period.",
-            "low": "Balance due — next due date {{date}} ({{days}} days).",
-            "medium": "Due soon — {{date}}. Pay from Fees to avoid late charges.",
+            "low": "Balance due — next due date {{date}} (in {{days}} days).",
+            "medium": "Due soon — {{date}}. Pay fees on time to avoid late charges.",
             "high": "Urgent — due {{date}} ({{days}} days). Please pay or contact the office."
           }
         }

@@ -38,6 +38,8 @@ interface DashboardParentKpi {
   /** Secondary line under the label (i18n). */
   contextKey?: string;
   contextParams?: Record<string, string | number>;
+  /** When set, shown as plain text (already passed through {@link TranslateService#instant}). */
+  resolvedContext?: string;
   tile?: 'children' | 'attendance' | 'result' | 'fee';
   feeUrgency?: 'none' | 'low' | 'medium' | 'high';
 }
@@ -354,8 +356,12 @@ interface DashboardAdmissionInsight {
               <div class="stat-icon" [style.background]="kpi.bgColor" [style.color]="kpi.color"><i class="bi" [ngClass]="kpi.icon"></i></div>
               <div class="stat-value">{{ kpi.value }}</div>
               <div class="stat-label">{{ kpi.labelKey | translate }}</div>
-              <p class="small text-muted mb-0 mt-1 lh-sm" *ngIf="kpi.contextKey" style="font-size: 12px;">
-                {{ kpi.contextKey | translate: (kpi.contextParams || {}) }}
+              <p
+                class="small text-muted mb-0 mt-1 lh-sm parent-kpi-context"
+                *ngIf="kpi.resolvedContext || kpi.contextKey"
+                style="font-size: 12px;"
+              >
+                {{ kpi.resolvedContext || ((kpi.contextKey ?? '') | translate: (kpi.contextParams || {})) }}
               </p>
             </div>
           </div>
@@ -450,6 +456,10 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
       if (this.role === 'admin' && this.adminDashboard) {
         this.cdr.detectChanges();
         queueMicrotask(() => this.initAdminCharts());
+      }
+      if (this.role === 'parent' && this.parentDashboard) {
+        this.parentKPIs = this.buildParentKpis(this.parentDashboard);
+        this.cdr.markForCheck();
       }
     });
     this.loadDashboard();
@@ -706,9 +716,10 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
         color: '#DC2626',
         contextKey: dashboard.feeMetric?.labelKey,
         contextParams: {
-          date: dashboard.feeMetric?.nextDueDate ?? '—',
+          date: this.formatParentFeeDueDate(dashboard.feeMetric?.nextDueDate),
           days: dashboard.feeMetric?.daysUntilDue ?? '—',
         },
+        resolvedContext: this.resolveParentFeeContext(dashboard),
         tile: 'fee',
         feeUrgency: feeU,
       },
@@ -866,6 +877,37 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
         badgeVariant: trend > 0 ? 'positive' : trend < 0 ? 'negative' : 'neutral',
       },
     ];
+  }
+
+  /** Locale-aware due date for parent fee KPI (ISO yyyy-MM-dd or yyyy-MM-ddTHH:mm:ss). */
+  private formatParentFeeDueDate(raw: string | null | undefined): string {
+    if (!raw || raw === '—') {
+      return '—';
+    }
+    const head = raw.slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(head)) {
+      return raw;
+    }
+    const d = new Date(raw.includes('T') ? raw : `${head}T12:00:00`);
+    if (Number.isNaN(d.getTime())) {
+      return raw;
+    }
+    const loc = this.translate.currentLang?.toLowerCase().startsWith('hi') ? 'hi-IN' : 'en-IN';
+    return d.toLocaleDateString(loc, { year: 'numeric', month: 'short', day: 'numeric' });
+  }
+
+  /**
+   * Pre-resolve fee urgency line so placeholders always interpolate (ngx-translate pipe edge cases on nested KPI rows).
+   */
+  private resolveParentFeeContext(dashboard: ParentDashboardData): string | undefined {
+    const key = dashboard.feeMetric?.labelKey;
+    if (!key || !dashboard.feeDue || dashboard.feeDue <= 0) {
+      return undefined;
+    }
+    const date = this.formatParentFeeDueDate(dashboard.feeMetric?.nextDueDate);
+    const du = dashboard.feeMetric?.daysUntilDue;
+    const days = du === null || du === undefined ? '—' : du;
+    return this.translate.instant(key, { date, days });
   }
 
   private asCurrency(value: number): string {
