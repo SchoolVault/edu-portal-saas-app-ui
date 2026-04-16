@@ -240,6 +240,22 @@ export interface TimetableEntry {
   coverForDate?: string;
 }
 
+export type TimetableConflictKind = 'CLASS_PERIOD_OCCUPIED' | 'TEACHER_DOUBLE_BOOKED';
+
+/** Mirrors {@code TimetableDTOs.TimetableConflictPayload} for HTTP 409 responses. */
+export interface TimetableConflictPayload {
+  conflictType: TimetableConflictKind | string;
+  existingEntryId: number;
+  day: string;
+  period: number;
+  subjectName?: string;
+  teacherName?: string;
+  classId?: number;
+  sectionId?: number | null;
+  conflictingClassId?: number;
+  conflictingSectionId?: number | null;
+}
+
 export interface TimetableGridSlot {
   subject: string;
   teacher: string;

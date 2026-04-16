@@ -3,7 +3,7 @@
 ## ✅ What's Been Implemented (Complete & Production-Ready)
 
 ### 1. Database Layer ✅
-**File**: `V14__phone_auth_identity_system.sql`
+**File**: `V9__query_indexes_locale_phone_guardian_analytics.sql` (legacy block `V14__phone_auth_identity_system.sql`)
 - ✅ Users table extensions (phone_verified, auth_provider, account_locked, etc.)
 - ✅ Guardians table with comprehensive demographics
 - ✅ Student-Guardian mapping with granular permissions

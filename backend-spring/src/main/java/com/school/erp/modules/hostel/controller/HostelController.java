@@ -1,6 +1,7 @@
 package com.school.erp.modules.hostel.controller;
 
 import com.school.erp.common.dto.ApiResponse;
+import com.school.erp.security.RequireTenantFeature;
 import com.school.erp.common.dto.PageResponse;
 import com.school.erp.modules.hostel.dto.HostelDTOs;
 import com.school.erp.modules.hostel.entity.Hostel;
@@ -18,6 +19,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/v1/hostel")
 @Tag(name = "Hostel", description = "Room Management, Student Allocation & Vacancy")
+@RequireTenantFeature("hostel")
 public class HostelController {
     private final HostelService service;
 

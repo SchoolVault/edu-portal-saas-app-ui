@@ -9,7 +9,17 @@ export const MOCK_TENANT_CONFIG_DEFAULT: TenantConfig = {
   email: 'schoolvault@gmail.com',
   primaryColor: '#1B3A30',
   secondaryColor: '#C05C3D',
-  features: { feeReminderAutomation: false },
+  features: {
+    feeReminderAutomation: false,
+    chat: true,
+    transport: true,
+    hostel: true,
+    library: true,
+    audit: true,
+    operationsHub: true,
+    importExport: true,
+    directory: true,
+  },
   tenantId: 't1',
 };
 

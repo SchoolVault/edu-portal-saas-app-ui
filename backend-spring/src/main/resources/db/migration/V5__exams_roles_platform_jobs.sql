@@ -1,5 +1,13 @@
--- Flyway baseline (part 5/10): exams_roles_platform_jobs
--- Regenerate from legacy scripts: backend-spring/scripts/build_squashed_flyway_migrations.py
+-- =============================================================================
+-- Flyway V5 — Exam scheduling, roles, platform jobs, and related indexes
+--
+-- Exam slots, role assignments, platform maintenance jobs.
+-- =============================================================================
+
+-- -------------------------------------------------------------------------
+-- Legacy source: V5__exams_roles_platform_jobs.sql
+-- Exams, roles, platform jobs (old V5).
+-- -------------------------------------------------------------------------
 
 -- >>> Legacy V17: V17__transport_fleet_and_live_location.sql
 CREATE TABLE transport_vehicles (

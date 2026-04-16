@@ -8,7 +8,7 @@ Rules:
 - Merges V35+V36 into V33: payment_webhook_events uses VARCHAR(64) payload_sha256 and INT http_status.
 - Does not copy standalone V35/V36 files into the squashed output.
 
-Output: ./generated/squashed_migrations/V1__core_init_seed.sql … V10__….sql (not on classpath — safe to review before copy)
+Output: ./generated/squashed_migrations/… (legacy tool; canonical migrations live as V1–V10 under src/main/resources/db/migration/)
 
 Run from backend-spring/scripts/:  python3 build_squashed_flyway_migrations.py
 Then: cp generated/squashed_migrations/V*.sql ../src/main/resources/db/migration/

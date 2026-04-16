@@ -1,5 +1,14 @@
--- Flyway baseline (part 1/10): core_init_seed
--- Regenerate from legacy scripts: backend-spring/scripts/build_squashed_flyway_migrations.py
+-- =============================================================================
+-- Flyway V1 — Core schema, multi-tenant base tables, and reference seed (tenant t1)
+--
+-- Creates users, tenant config, academic structure, timetable/exam/attendance core
+-- tables, fees, chat, and baseline INSERTs for the default demo tenant.
+-- =============================================================================
+
+-- -------------------------------------------------------------------------
+-- Legacy source: V1__core_init_seed.sql
+-- Complete core DDL + seed for School ERP (replaces old V1).
+-- -------------------------------------------------------------------------
 
 -- >>> Legacy V1: V1__init_schema.sql
 -- V1__init_schema.sql - SchoolVault ERP Complete Database Schema

@@ -4,6 +4,7 @@ import com.school.erp.common.dto.ApiResponse;
 import com.school.erp.common.dto.PageResponse;
 import com.school.erp.modules.platform.dto.PlatformDTOs;
 import com.school.erp.modules.platform.service.PlatformService;
+import com.school.erp.modules.settings.service.TenantFeatureRolloutService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -12,6 +13,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/v1/platform")
@@ -19,6 +21,7 @@ import java.util.List;
 @Tag(name = "Platform", description = "Super admin control plane for managing all schools")
 public class PlatformController {
     private final PlatformService platformService;
+    private final TenantFeatureRolloutService tenantFeatureRolloutService;
 
     @GetMapping("/dashboard")
     @Operation(summary = "Get platform dashboard")
@@ -119,6 +122,21 @@ public class PlatformController {
         return ResponseEntity.ok(ApiResponse.ok(platformService.getSchoolAdmins(tenantId)));
     }
 
+    @GetMapping("/schools/{tenantId}/features")
+    @Operation(summary = "Feature flags for a school workspace", description = "Reads merged module toggles from tenant_configs.features_json")
+    public ResponseEntity<ApiResponse<Map<String, Boolean>>> getSchoolFeatures(@PathVariable String tenantId) {
+        return ResponseEntity.ok(ApiResponse.ok(tenantFeatureRolloutService.readFeatures(tenantId)));
+    }
+
+    @PutMapping("/schools/{tenantId}/features")
+    @Operation(summary = "Merge feature flags for a school", description = "Super-admin rollout: merges keys into features_json and evicts settings cache for that tenant.")
+    public ResponseEntity<ApiResponse<Map<String, Boolean>>> patchSchoolFeatures(
+            @PathVariable String tenantId,
+            @RequestBody Map<String, Boolean> patch
+    ) {
+        return ResponseEntity.ok(ApiResponse.ok(tenantFeatureRolloutService.mergeFeatures(tenantId, patch), "School features updated"));
+    }
+
     @PutMapping("/schools/{tenantId}/admins/{userId}/status")
     @Operation(summary = "Activate or deactivate a school admin")
     public ResponseEntity<ApiResponse<PlatformDTOs.SchoolAdminSummary>> updateSchoolAdminStatus(
@@ -129,7 +147,8 @@ public class PlatformController {
         return ResponseEntity.ok(ApiResponse.ok(platformService.updateSchoolAdminStatus(tenantId, userId, request), "School admin status updated"));
     }
 
-    public PlatformController(PlatformService platformService) {
+    public PlatformController(PlatformService platformService, TenantFeatureRolloutService tenantFeatureRolloutService) {
         this.platformService = platformService;
+        this.tenantFeatureRolloutService = tenantFeatureRolloutService;
     }
 }

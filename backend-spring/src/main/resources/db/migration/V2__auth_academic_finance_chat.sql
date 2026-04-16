@@ -1,5 +1,13 @@
--- Flyway baseline (part 2/10): auth_exams_fees_chat
--- Regenerate from legacy scripts: backend-spring/scripts/build_squashed_flyway_migrations.py
+-- =============================================================================
+-- Flyway V2 — Auth extensions, exams, fees, and chat foundations
+--
+-- Expands users/roles, exam lifecycle, fee structures/payments, chat rooms/messages.
+-- =============================================================================
+
+-- -------------------------------------------------------------------------
+-- Legacy source: V2__auth_exams_fees_chat.sql
+-- Auth, exams, fees, chat (old V2).
+-- -------------------------------------------------------------------------
 
 -- >>> Legacy V5: V5__exam_class_scope.sql
 CREATE TABLE IF NOT EXISTS exam_classes (

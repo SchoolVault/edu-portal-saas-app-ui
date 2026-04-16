@@ -1,6 +1,7 @@
 package com.school.erp.modules.chat.controller;
 
 import com.school.erp.common.dto.ApiResponse;
+import com.school.erp.security.RequireTenantFeature;
 import com.school.erp.modules.chat.dto.ChatDirectoryDTOs;
 import com.school.erp.modules.chat.service.ChatDirectoryService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -15,6 +16,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/v1/chat")
 @Tag(name = "Chat Directory", description = "Role-aware directory for starting chats (teacher<->parent via students/classes)")
 @PreAuthorize("hasAnyRole('ADMIN','TEACHER','PARENT','STUDENT','SUPER_ADMIN')")
+@RequireTenantFeature("chat")
 public class ChatDirectoryController {
     private final ChatDirectoryService directoryService;
 

@@ -12,6 +12,9 @@ public interface AttendanceCoverAssignmentRepository extends JpaRepository<Atten
 
     List<AttendanceCoverAssignment> findByTenantIdAndCoverDateAndIsDeletedFalseOrderByIdAsc(String tenantId, LocalDate coverDate);
 
+    List<AttendanceCoverAssignment> findByTenantIdAndCoverDateAndClassIdAndIsDeletedFalseOrderByIdAsc(
+            String tenantId, LocalDate coverDate, Long classId);
+
     List<AttendanceCoverAssignment> findByTenantIdAndCoverDateAndCoveringTeacherIdAndStatusAndIsDeletedFalse(
             String tenantId, LocalDate coverDate, Long coveringTeacherId, String status);
 

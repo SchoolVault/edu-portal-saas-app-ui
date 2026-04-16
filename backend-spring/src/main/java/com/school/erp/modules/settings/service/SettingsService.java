@@ -3,6 +3,7 @@ package com.school.erp.modules.settings.service;
 import com.school.erp.common.exception.ResourceNotFoundException;
 import com.school.erp.modules.settings.dto.SchoolBranchDTO;
 import com.school.erp.modules.settings.entity.TenantConfig;
+import com.school.erp.modules.settings.policy.TenantModuleFeaturePolicy;
 import com.school.erp.modules.settings.repository.TenantConfigRepository;
 import com.school.erp.tenant.TenantContext;
 import com.school.erp.config.CacheConfig;
@@ -87,7 +88,9 @@ public class SettingsService {
                 .orElseThrow(() -> new ResourceNotFoundException("Tenant settings not configured"));
         try {
             Map<String, Boolean> merged = new HashMap<>(parseFeatureFlags(config));
-            merged.putAll(flags);
+            Map<String, Boolean> safe = flags != null ? new HashMap<>(flags) : new HashMap<>();
+            safe.keySet().removeIf(TenantModuleFeaturePolicy::isPlatformManaged);
+            merged.putAll(safe);
             config.setFeaturesJson(objectMapper.writeValueAsString(merged));
             repo.save(config);
             return merged;

@@ -109,7 +109,7 @@ import java.util.stream.Collectors;
  * ├── Classes: 6, 7, 8, 9, 10, 11, 12 (7 classes)
  * ├── Sections: A, B per class (2 sections × 7 classes = 14 sections)
  * ├── Students: ~7-8 per section (~100 students total per school)
- * ├── Teachers: 10 teachers with proper subject assignments
+ * ├── Teachers: 36 teachers (enough breadth for demo timetables without teacher double-booking per slot)
  * ├── Guardians: Father + Mother for each student (proper mapping)
  * ├── QA parent: one dedicated {@code qa.multichild.parent@parent.<schoolCode>.edu.in} with four linked
  * │   active students (different classes where possible) for multi-child E2E / parent-portal QA
@@ -146,8 +146,9 @@ public class DemoDataSeedService {
 
     private static final String QA_MULTICHILD_EMAIL_LOCAL = "qa.multichild.parent";
 
-    private static final String FEATURES_JSON = "{\"transport\":true,\"library\":true,\"hostel\":true,\"payroll\":true,"
-            + "\"documents\":true,\"audit\":true,\"communication\":true,\"reports\":true,\"student\":true,\"teacher\":true,"
+    private static final String FEATURES_JSON = "{\"chat\":true,\"transport\":true,\"library\":true,\"hostel\":true,"
+            + "\"operationsHub\":true,\"importExport\":true,\"directory\":true,"
+            + "\"payroll\":true,\"documents\":true,\"audit\":true,\"communication\":true,\"reports\":true,\"student\":true,\"teacher\":true,"
             + "\"attendance\":true,\"fees\":true}";
 
     // Realistic Indian name pools for data generation
@@ -417,11 +418,12 @@ public class DemoDataSeedService {
 
     private void seedPlatformSuperAdmin() {
         String email = "superadmin@schoolerp.com";
-        String platformTenant = "PLATFORM";
+        String platformTenant = "SUPER_ADMIN_PLATFORM";
         if (userRepository.existsByEmailAndTenantIdAndIsDeletedFalse(email, platformTenant)) {
             return;
         }
-
+        log.info("→ Seeding Platform Super Admin...");
+        String schoolCode = "PLATFORM";
         User superAdmin = new User();
         superAdmin.setTenantId(platformTenant);
         superAdmin.setName("Platform Super Admin");
@@ -429,7 +431,7 @@ public class DemoDataSeedService {
         superAdmin.setPassword(BCRYPT_ADMIN123);
         superAdmin.setPhone("+91-11-2800-0000");
         superAdmin.setRole(Enums.Role.SUPER_ADMIN);
-        superAdmin.setSchoolCode(null);
+        superAdmin.setSchoolCode(schoolCode);
         superAdmin.setIsActive(true);
         superAdmin.setIsDeleted(false);
         userRepository.save(superAdmin);
@@ -480,9 +482,10 @@ public class DemoDataSeedService {
         flushAndClear(); // Clear memory after creating subjects
         pauseForResourceManagement();
 
-        // STEP 5: Teachers (10 teachers - optimized for Render free tier)
+        // STEP 5: Teachers — 36 so Mon–Sat × 6 periods can assign distinct teachers across ~14 sections
+        // (one teacher per (day,period) tenant-wide while teacher_id is set; see uq_tt_active_teacher_slot / V20).
         log.info("  [5/15] Teachers...");
-        List<Teacher> teachers = createTeachers(tenantId, schoolCode, 10, random);
+        List<Teacher> teachers = createTeachers(tenantId, schoolCode, 36, random);
         flushAndClear(); // Clear memory after creating teachers
         pauseForResourceManagement();
 
@@ -776,7 +779,8 @@ public class DemoDataSeedService {
     }
 
     /**
-     * Sample {@code import_jobs} rows for Java-seeded showcase schools. Flyway {@code t1} tenant is covered by V31;
+     * Sample {@code import_jobs} rows for Java-seeded showcase schools. Flyway {@code t1} tenant is covered by
+     * {@code V7__demo_academic_outbox_import_jobs.sql};
      * St. Xavier / Meridian are created after migrations, so the same UI data is applied here idempotently.
      */
     private void ensureImportExportDemoJobsForShowcaseTenants() {
@@ -1638,11 +1642,15 @@ public class DemoDataSeedService {
                                  Enums.DayOfWeek.WEDNESDAY, Enums.DayOfWeek.THURSDAY,
                                  Enums.DayOfWeek.FRIDAY, Enums.DayOfWeek.SATURDAY};
 
-        int teacherIdx = 0;
+        /** One teacher at most per (weekday, period) tenant-wide — matches {@code uq_tt_active_teacher_slot}. */
+        Map<String, Set<Long>> teacherBusyBySlotKey = new HashMap<>();
         int timetableCounter = 0; // For batch processing
 
         for (int grade = 6; grade <= 12; grade++) {
             List<ClassSectionPair> sections = classesMap.get(grade);
+            if (sections == null) {
+                continue;
+            }
 
             for (ClassSectionPair pair : sections) {
                 int subjectIdx = 0;
@@ -1654,7 +1662,9 @@ public class DemoDataSeedService {
                         LocalTime endTime = startTime.plusMinutes(45);
 
                         String subject = subjects[subjectIdx % subjects.length];
-                        Teacher teacher = teachers.get((teacherIdx++) % teachers.size());
+                        String slotKey = day.name() + "|" + period;
+                        Set<Long> busyThisSlot = teacherBusyBySlotKey.computeIfAbsent(slotKey, k -> new HashSet<>());
+                        Teacher teacher = pickTeacherFreeForTimetableSlot(teachers, busyThisSlot, random);
 
                         TimetableEntry tte = new TimetableEntry();
                         tte.setTenantId(tenantId);
@@ -1666,8 +1676,20 @@ public class DemoDataSeedService {
                         tte.setStartTime(startTime);
                         tte.setEndTime(endTime);
                         tte.setSubjectName(subject);
-                        tte.setTeacherId(teacher.getId());
-                        tte.setTeacherName(teacher.getFirstName() + " " + teacher.getLastName());
+                        if (teacher != null) {
+                            busyThisSlot.add(teacher.getId());
+                            tte.setTeacherId(teacher.getId());
+                            tte.setTeacherName(teacher.getFirstName() + " " + teacher.getLastName());
+                        } else {
+                            tte.setTeacherId(null);
+                            tte.setTeacherName("Unassigned (no free teacher for slot)");
+                            log.warn(
+                                    "Demo seed: no unused teacher for slot {} (class {} section {}); "
+                                            + "left teacher unset to satisfy uq_tt_active_teacher_slot",
+                                    slotKey,
+                                    pair.schoolClass.getId(),
+                                    pair.section.getId());
+                        }
                         tte.setRoom("Room " + (100 + grade * 10 + period));
                         tte.setIsDeleted(false);
                         timetableRepository.save(tte);
@@ -1684,6 +1706,20 @@ public class DemoDataSeedService {
                 }
             }
         }
+    }
+
+    /**
+     * Picks a teacher not yet used for the same (day, period) elsewhere in this seed run — matches
+     * {@code uq_tt_active_teacher_slot} (one active row per teacher per slot). Returns {@code null} when every
+     * teacher is already booked for that slot; callers must leave {@code teacher_id} unset rather than reusing a
+     * teacher (which would violate the DB unique index).
+     */
+    private Teacher pickTeacherFreeForTimetableSlot(List<Teacher> teachers, Set<Long> busyThisSlot, Random random) {
+        List<Teacher> free = teachers.stream().filter(t -> !busyThisSlot.contains(t.getId())).collect(Collectors.toList());
+        if (free.isEmpty()) {
+            return null;
+        }
+        return free.get(random.nextInt(free.size()));
     }
 
     private void createTransport(String tenantId, List<Student> allStudents, Random random) {

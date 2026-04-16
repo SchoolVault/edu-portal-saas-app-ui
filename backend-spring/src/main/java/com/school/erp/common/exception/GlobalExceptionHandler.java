@@ -36,6 +36,14 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.CONFLICT).body(err(ex.getMessage(), ApiErrorCode.DUPLICATE_RESOURCE));
     }
 
+    @ExceptionHandler(SchedulingConflictException.class)
+    public ResponseEntity<ApiResponse<Object>> handleSchedulingConflict(SchedulingConflictException ex) {
+        log.warn("Scheduling conflict: {}", ex.getMessage());
+        ApiErrorCode code = ex.getApiErrorCode() != null ? ex.getApiErrorCode() : ApiErrorCode.SCHEDULING_CONFLICT;
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(ApiResponse.errorWithPayload(ex.getMessage(), code.name(), traceId(), ex.getPayload()));
+    }
+
     @ExceptionHandler(DataIntegrityViolationException.class)
     public ResponseEntity<ApiResponse<Void>> handleDataIntegrity(DataIntegrityViolationException ex) {
         String root = ex.getMostSpecificCause() != null ? ex.getMostSpecificCause().getMessage() : ex.getMessage();
@@ -48,6 +56,12 @@ public class GlobalExceptionHandler {
                 msg = "A guardian profile is already linked to this portal user.";
             } else if (root.contains("uk_sgm_student_guardian_active")) {
                 msg = "This guardian is already linked to this student.";
+            } else if (root.contains("uq_attendance_cover_active_slot")) {
+                msg = "An active cover already exists for this class, section scope, and period on the selected date.";
+            } else if (root.contains("uq_tt_active_class_slot")) {
+                msg = "This class already has a timetable slot for that weekday and period.";
+            } else if (root.contains("uq_tt_active_teacher_slot")) {
+                msg = "This teacher is already assigned to another class for that weekday and period.";
             }
         }
         return ResponseEntity.status(HttpStatus.CONFLICT).body(err(msg, ApiErrorCode.DUPLICATE_RESOURCE));

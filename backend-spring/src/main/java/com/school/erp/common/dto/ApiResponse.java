@@ -44,6 +44,20 @@ public class ApiResponse<T> {
         return ApiResponse.<T>builder().success(false).message(message).errorCode(errorCode).traceId(traceId).errors(errors).timestamp(LocalDateTime.now()).build();
     }
 
+    /**
+     * Error envelope with structured {@code data} (e.g. conflict metadata). HTTP status is chosen by the controller advice.
+     */
+    public static <T> ApiResponse<T> errorWithPayload(String message, String errorCode, String traceId, T payload) {
+        return ApiResponse.<T>builder()
+                .success(false)
+                .message(message)
+                .errorCode(errorCode)
+                .traceId(traceId)
+                .data(payload)
+                .timestamp(LocalDateTime.now())
+                .build();
+    }
+
 
     public static class ApiResponseBuilder<T> {
         private boolean success;

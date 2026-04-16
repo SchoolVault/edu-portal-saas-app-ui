@@ -76,8 +76,30 @@ export interface AttendanceCoverRow {
   status: string;
 }
 
+/** Mirrors {@code AttendanceCoverDTOs.ConflictPayload} from the API for 409 scheduling conflicts. */
+export interface AttendanceCoverConflictPayload {
+  existingCoverAssignmentId: number;
+  existingCoveringTeacherId: number;
+  existingCoveringTeacherName?: string;
+  coverDate?: string;
+  classId?: number;
+  sectionId?: number | null;
+  periodNumber?: number | null;
+}
+
+export interface CreateAttendanceCoverRequest {
+  coverDate: string;
+  classId: number;
+  sectionId?: number;
+  regularTeacherId?: number;
+  coveringTeacherId: number;
+  reason?: string;
+  periodNumber?: number;
+  /** Must match the conflicting row id returned in {@link AttendanceCoverConflictPayload}. */
+  replaceCoverAssignmentId?: number;
+}
+
 export type OperationsTab =
-  | 'covers'
   | 'staff'
   | 'visitors'
   | 'gate'

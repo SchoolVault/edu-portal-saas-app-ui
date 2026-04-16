@@ -1,5 +1,14 @@
--- Flyway baseline (part 3/10): assignments_docs_transport
--- Regenerate from legacy scripts: backend-spring/scripts/build_squashed_flyway_migrations.py
+-- =============================================================================
+-- Flyway V3 — Assignments, documents, transport, and timetable academic columns
+--
+-- Assignment workflow, document storage metadata, transport routes/vehicles,
+-- hostel/payslip-related columns, and timetable academic_year / version fields.
+-- =============================================================================
+
+-- -------------------------------------------------------------------------
+-- Legacy source: V3__assignments_docs_transport.sql
+-- Assignments, docs, transport, timetable academic columns (old V3).
+-- -------------------------------------------------------------------------
 
 -- >>> Legacy V9: V9__student_guardian_flexibility.sql
 -- Flexible parent/guardian model: many-to-many with role metadata; student extensions for primary contact + dynamic attributes

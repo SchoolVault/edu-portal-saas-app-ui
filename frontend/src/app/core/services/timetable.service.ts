@@ -1,12 +1,15 @@
 import { Injectable } from '@angular/core';
-import { Observable, of } from 'rxjs';
-import { delay, map, switchMap } from 'rxjs/operators';
-import { TimetableEntry, TimetableGrid, TimetableGridSlot } from '../models/models';
+import { HttpClient, HttpParams } from '@angular/common/http';
+import { Observable, of, throwError, timer } from 'rxjs';
+import { catchError, delay, map, switchMap } from 'rxjs/operators';
+import { TimetableConflictPayload, TimetableEntry, TimetableGrid, TimetableGridSlot } from '../models/models';
 import { AttendanceCoverRow } from '../models/operations.models';
-import { ApiService } from './api.service';
+import { ApiResp, ApiService } from './api.service';
 import { OperationsService } from './operations.service';
 import { runtimeConfig } from '../config/runtime-config';
 import { MOCK_TIMETABLE_ENTRIES } from '../mocks/timetable.mock-data';
+import { TimetableConflictError } from '../errors/timetable-conflict.error';
+import { UserFacingHttpError } from '../http/user-facing-http-error';
 
 @Injectable({ providedIn: 'root' })
 export class TimetableService {
@@ -178,28 +181,169 @@ export class TimetableService {
     return of([...this.entries]).pipe(delay(400));
   }
 
-  addEntry(entry: TimetableEntry): Observable<TimetableEntry> {
+  /**
+   * Creates a recurring slot. Optional {@code replaceTimetableEntryId} matches the blocking row from a prior {@link TimetableConflictError}.
+   */
+  addEntry(entry: TimetableEntry, replaceTimetableEntryId?: number): Observable<TimetableEntry> {
     if (!runtimeConfig.useMocks) {
-      return this.api.post<any>('/timetable', this.toPayload(entry)).pipe(map(created => this.normalizeEntry(created)));
+      let params = new HttpParams();
+      if (replaceTimetableEntryId != null) {
+        params = params.set('replaceTimetableEntryId', String(replaceTimetableEntryId));
+      }
+      return this.pipeTimetableConflict(
+        this.http.post<ApiResp<TimetableEntry>>(`${this.api.getBaseUrl()}/timetable`, this.toPayload(entry), { params }).pipe(
+          map(res => {
+            if (!res.success || res.data == null) {
+              throw new Error(res.message || 'Failed to create timetable slot');
+            }
+            return this.normalizeEntry(res.data);
+          })
+        )
+      );
     }
-    const nextId = this.entries.reduce((m, e) => Math.max(m, e.id), 0) + 1;
-    const id = entry.id > 0 ? entry.id : nextId;
-    const row: TimetableEntry = { ...entry, id, tenantId: entry.tenantId || 't1' };
-    this.entries = [...this.entries, row];
-    return of(row).pipe(delay(400));
+    return timer(300).pipe(switchMap(() => this.mockMutateSlot(entry, null, replaceTimetableEntryId)));
   }
 
-  updateEntry(id: number, entry: Partial<TimetableEntry>): Observable<TimetableEntry> {
+  updateEntry(id: number, entry: Partial<TimetableEntry>, replaceTimetableEntryId?: number): Observable<TimetableEntry> {
     if (!runtimeConfig.useMocks) {
-      return this.api.put<any>(`/timetable/${id}`, this.toPayload(entry)).pipe(map(updated => this.normalizeEntry(updated)));
+      let params = new HttpParams();
+      if (replaceTimetableEntryId != null) {
+        params = params.set('replaceTimetableEntryId', String(replaceTimetableEntryId));
+      }
+      return this.pipeTimetableConflict(
+        this.http.put<ApiResp<TimetableEntry>>(`${this.api.getBaseUrl()}/timetable/${id}`, this.toPayload(entry), { params }).pipe(
+          map(res => {
+            if (!res.success || res.data == null) {
+              throw new Error(res.message || 'Failed to update timetable slot');
+            }
+            return this.normalizeEntry(res.data);
+          })
+        )
+      );
     }
-    const idx = this.entries.findIndex(e => e.id === id);
-    if (idx === -1) {
-      return of({} as TimetableEntry).pipe(delay(200));
+    return timer(300).pipe(
+      switchMap(() => {
+        const idx = this.entries.findIndex(e => e.id === id);
+        if (idx === -1) {
+          return throwError(() => new Error('Timetable entry not found'));
+        }
+        const merged = { ...this.entries[idx], ...entry, id } as TimetableEntry;
+        return this.mockMutateSlot(merged, id, replaceTimetableEntryId);
+      })
+    );
+  }
+
+  private pipeTimetableConflict<T>(source: Observable<T>): Observable<T> {
+    return source.pipe(
+      catchError((err: unknown) => {
+        if (
+          err instanceof UserFacingHttpError &&
+          err.httpStatus === 409 &&
+          err.apiErrorCode === 'TIMETABLE_SLOT_CONFLICT' &&
+          err.apiData &&
+          typeof err.apiData === 'object'
+        ) {
+          return throwError(
+            () => new TimetableConflictError(err.message || 'Timetable conflict', err.apiData as TimetableConflictPayload)
+          );
+        }
+        return throwError(() => err);
+      })
+    );
+  }
+
+  private mockMutateSlot(
+    candidate: TimetableEntry,
+    excludeId: number | null,
+    replaceTimetableEntryId?: number
+  ): Observable<TimetableEntry> {
+    const block = this.mockFindBlocking(candidate, excludeId);
+    if (replaceTimetableEntryId != null) {
+      if (!block) {
+        return throwError(() => new Error('No timetable conflict to replace.'));
+      }
+      if (block.existingEntryId !== replaceTimetableEntryId) {
+        return throwError(() => new Error('Replace id does not match the conflicting timetable row.'));
+      }
+      this.entries = this.entries.filter(e => e.id !== replaceTimetableEntryId);
+      const again = this.mockFindBlocking(candidate, excludeId);
+      if (again) {
+        return throwError(() => new Error('After removing the selected slot, another conflict still exists.'));
+      }
+    } else if (block) {
+      return throwError(() => new TimetableConflictError(this.mockHumanMessage(String(block.conflictType)), block));
     }
-    const merged = { ...this.entries[idx], ...entry, id };
+    if (excludeId == null) {
+      const nextId = this.entries.reduce((m, e) => Math.max(m, e.id), 0) + 1;
+      const row: TimetableEntry = {
+        ...candidate,
+        id: candidate.id > 0 ? candidate.id : nextId,
+        tenantId: candidate.tenantId || 't1',
+      };
+      this.entries = [...this.entries, row];
+      return of(row);
+    }
+    const idx = this.entries.findIndex(e => e.id === excludeId);
+    const merged = { ...this.entries[idx], ...candidate, id: excludeId } as TimetableEntry;
     this.entries = [...this.entries.slice(0, idx), merged, ...this.entries.slice(idx + 1)];
-    return of(merged).pipe(delay(300));
+    return of(merged);
+  }
+
+  private mockHumanMessage(kind: string): string {
+    if (kind === 'CLASS_PERIOD_OCCUPIED') {
+      return 'This class already has a subject scheduled for that weekday and period.';
+    }
+    return 'This teacher is already scheduled in another class for that weekday and period.';
+  }
+
+  private mockFindBlocking(candidate: TimetableEntry, excludeId: number | null): TimetableConflictPayload | null {
+    const sec = (x: number) => (x == null || x === 0 ? 0 : x);
+    const classRows = this.entries.filter(
+      e => e.classId === candidate.classId && sec(e.sectionId) === sec(candidate.sectionId) && !this.isSyntheticCoverRow(e)
+    );
+    const classHit = classRows.find(
+      e => e.day === candidate.day && e.period === candidate.period && e.id !== excludeId
+    );
+    if (classHit) {
+      return this.toConflictPayload('CLASS_PERIOD_OCCUPIED', classHit);
+    }
+    if (candidate.teacherId > 0) {
+      const tHit = this.entries.find(
+        e =>
+          !this.isSyntheticCoverRow(e) &&
+          e.teacherId === candidate.teacherId &&
+          e.day === candidate.day &&
+          e.period === candidate.period &&
+          e.id !== excludeId
+      );
+      if (tHit) {
+        return this.toConflictPayload('TEACHER_DOUBLE_BOOKED', tHit);
+      }
+    }
+    return null;
+  }
+
+  /** Cover-derived mock rows use high ids — do not treat them as recurring master-timetable conflicts. */
+  private isSyntheticCoverRow(e: TimetableEntry): boolean {
+    return (e.id ?? 0) >= 880_000_000 || e.scheduleSource === 'COVER';
+  }
+
+  private toConflictPayload(kind: string, b: TimetableEntry): TimetableConflictPayload {
+    const p: TimetableConflictPayload = {
+      conflictType: kind,
+      existingEntryId: b.id,
+      day: b.day,
+      period: b.period,
+      subjectName: b.subjectName,
+      teacherName: b.teacherName,
+      classId: b.classId,
+      sectionId: b.sectionId,
+    };
+    if (kind === 'TEACHER_DOUBLE_BOOKED') {
+      p.conflictingClassId = b.classId;
+      p.conflictingSectionId = b.sectionId;
+    }
+    return p;
   }
 
   deleteEntry(id: number): Observable<void> {
@@ -212,6 +356,7 @@ export class TimetableService {
 
   constructor(
     private api: ApiService,
+    private http: HttpClient,
     private operations: OperationsService
   ) {}
 

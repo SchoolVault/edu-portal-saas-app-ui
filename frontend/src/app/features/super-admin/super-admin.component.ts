@@ -16,11 +16,12 @@ import { RouterLink } from '@angular/router';
 import { Chart, registerables } from 'chart.js';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { forkJoin, Subject } from 'rxjs';
-import { debounceTime, distinctUntilChanged } from 'rxjs/operators';
+import { debounceTime, distinctUntilChanged, filter, take } from 'rxjs/operators';
 import { PlatformDashboardData, PlatformSchoolAdmin, PlatformSchoolSummary } from '../../core/models/models';
 import { PlatformService } from '../../core/services/platform.service';
 import { ErpPaginationComponent } from '../../shared/erp-pagination/erp-pagination.component';
 import { DEFAULT_ERP_PAGE_SIZE } from '../../core/constants/pagination.constants';
+import { ConfirmDialogService } from '../../shared/confirm-dialog/confirm-dialog.service';
 
 Chart.register(...registerables);
 
@@ -28,6 +29,92 @@ Chart.register(...registerables);
   selector: 'app-super-admin',
   standalone: true,
   imports: [CommonModule, FormsModule, RouterLink, ErpPaginationComponent, TranslateModule],
+  styles: [
+    `
+      .sa-detail-shell {
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+        height: 100%;
+      }
+      .sa-hero {
+        border-radius: var(--radius-lg, 12px);
+        border: 1px solid var(--clr-border-light, #e8eef0);
+        background: linear-gradient(
+          135deg,
+          color-mix(in srgb, var(--clr-primary, #1b3a30) 12%, var(--clr-surface, #fff)) 0%,
+          var(--clr-surface, #fff) 55%
+        );
+        padding: 1rem 1.1rem;
+        box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+      }
+      .sa-hero__title {
+        font-size: 1.05rem;
+        font-weight: 800;
+        margin: 0 0 0.25rem;
+        color: var(--clr-text-primary, #0f172a);
+      }
+      .sa-hero__meta {
+        font-size: 12px;
+        color: var(--clr-text-muted, #64748b);
+        margin-bottom: 0.75rem;
+      }
+      .sa-stat-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 0.5rem;
+      }
+      .sa-stat-pill {
+        border-radius: var(--radius-md, 10px);
+        background: var(--clr-surface, #fff);
+        border: 1px solid var(--clr-border-light, #e8eef0);
+        padding: 0.55rem 0.65rem;
+        text-align: center;
+      }
+      .sa-stat-pill__value {
+        font-weight: 800;
+        font-size: 1.1rem;
+        color: var(--clr-text-primary, #0f172a);
+        line-height: 1.1;
+      }
+      .sa-stat-pill__label {
+        font-size: 10px;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        color: var(--clr-text-muted, #64748b);
+        margin-top: 0.15rem;
+      }
+      .sa-admin-card {
+        display: flex;
+        align-items: flex-start;
+        gap: 0.75rem;
+        padding: 0.85rem 0.9rem;
+        border-radius: var(--radius-md, 10px);
+        border: 1px solid var(--clr-border-light, #e8eef0);
+        background: var(--clr-surface, #fff);
+        margin-bottom: 0.6rem;
+      }
+      .sa-admin-card:last-child {
+        margin-bottom: 0;
+      }
+      .sa-admin-card__body {
+        flex: 1;
+        min-width: 0;
+      }
+      .sa-admin-card__name {
+        font-weight: 700;
+        font-size: 0.95rem;
+        margin: 0 0 0.15rem;
+        color: var(--clr-text-primary, #0f172a);
+      }
+      .sa-admin-card__sub {
+        font-size: 12px;
+        color: var(--clr-text-muted, #64748b);
+        margin: 0;
+        word-break: break-word;
+      }
+    `,
+  ],
   template: `
     <div data-testid="super-admin-page">
       <div class="d-flex justify-content-between align-items-end mb-4 animate-in flex-wrap gap-2">
@@ -38,6 +125,12 @@ Chart.register(...registerables);
         </div>
         <div class="d-flex gap-2 align-self-center flex-wrap">
           <a routerLink="/app/platform-schools" class="btn-outline-erp btn-sm">{{ 'superAdmin.schoolDirectory' | translate }}</a>
+          <a
+            routerLink="/app/platform-feature-rollout"
+            [queryParams]="selectedSchool ? { tenantId: selectedSchool.tenantId } : {}"
+            class="btn-outline-erp btn-sm">
+            {{ 'nav.featureRollout' | translate }}
+          </a>
           <button type="button" class="btn-outline-erp btn-sm" (click)="refreshPlatform()" [disabled]="refreshing">
             <i class="bi bi-arrow-clockwise"></i>
             {{ refreshing ? ('superAdmin.refreshing' | translate) : ('superAdmin.refresh' | translate) }}
@@ -135,8 +228,8 @@ Chart.register(...registerables);
           </div>
         </div>
         <div class="col-lg-5">
-          <div class="erp-card" style="height: 100%;">
-            <div class="erp-card-header">
+          <div class="erp-card sa-detail-shell">
+            <div class="erp-card-header pb-0">
               <div>
                 <h3 class="erp-card-title">{{ 'superAdmin.admins.title' | translate }}</h3>
                 <p class="text-muted mb-0" style="font-size: 12px;">
@@ -144,45 +237,63 @@ Chart.register(...registerables);
                 </p>
               </div>
             </div>
-            <div *ngIf="!selectedSchool" class="empty-state" style="padding: 48px 16px;">
-              <i class="bi bi-building"></i>
-              <h3>{{ 'superAdmin.admins.emptyTitle' | translate }}</h3>
-              <p>{{ 'superAdmin.admins.emptyLead' | translate }}</p>
-            </div>
-            <div *ngIf="selectedSchool">
-              <div class="insight-card mb-3" [style.border-left]="'4px solid ' + (selectedSchool.primaryColor || 'var(--clr-primary)')">
-                <div class="insight-label">{{ 'superAdmin.admins.snapshotLabel' | translate }}</div>
-                <div class="insight-value">
-                  {{ 'superAdmin.admins.snapshotStudents' | translate: { count: selectedSchool.studentCount } }}
-                </div>
-                <div class="insight-subtext">
-                  {{
-                    'superAdmin.admins.snapshotSub'
-                      | translate
-                        : {
-                            teachers: selectedSchool.teacherCount,
-                            admins: selectedSchool.adminCount,
-                            phone: selectedSchool.phone || ('superAdmin.admins.noPhone' | translate),
-                          }
-                  }}
-                </div>
+            <div class="px-3 pb-3 flex-grow-1 d-flex flex-column">
+              <div *ngIf="!selectedSchool" class="empty-state" style="padding: 40px 12px;">
+                <i class="bi bi-building"></i>
+                <h3>{{ 'superAdmin.admins.emptyTitle' | translate }}</h3>
+                <p>{{ 'superAdmin.admins.emptyLead' | translate }}</p>
               </div>
-              <div *ngFor="let admin of schoolAdmins" class="activity-item">
-                <div
-                  class="activity-icon"
-                  [style.background]="admin.active ? 'rgba(5,150,105,0.12)' : 'rgba(217,119,6,0.12)'"
-                  [style.color]="admin.active ? 'var(--clr-success)' : 'var(--clr-warning)'"
-                >
-                  <i class="bi" [ngClass]="admin.active ? 'bi-person-check-fill' : 'bi-person-dash-fill'"></i>
+              <ng-container *ngIf="selectedSchool as sch">
+                <div class="sa-hero mb-2">
+                  <div class="sa-hero__title">{{ sch.schoolName }}</div>
+                  <div class="sa-hero__meta">
+                    <span class="me-2"><i class="bi bi-hash me-1"></i>{{ sch.schoolCode }}</span>
+                    <span class="d-block mt-1"><i class="bi bi-hdd-network me-1"></i>{{ 'superAdmin.admins.tenantId' | translate }}: {{ sch.tenantId }}</span>
+                  </div>
+                  <div class="sa-stat-grid">
+                    <div class="sa-stat-pill">
+                      <div class="sa-stat-pill__value">{{ sch.studentCount }}</div>
+                      <div class="sa-stat-pill__label">{{ 'superAdmin.portfolio.thStudents' | translate }}</div>
+                    </div>
+                    <div class="sa-stat-pill">
+                      <div class="sa-stat-pill__value">{{ sch.teacherCount }}</div>
+                      <div class="sa-stat-pill__label">{{ 'superAdmin.portfolio.thTeachers' | translate }}</div>
+                    </div>
+                    <div class="sa-stat-pill">
+                      <div class="sa-stat-pill__value">{{ sch.adminCount }}</div>
+                      <div class="sa-stat-pill__label">{{ 'superAdmin.portfolio.thAdmins' | translate }}</div>
+                    </div>
+                  </div>
+                  <div class="mt-2 small text-muted">
+                    <i class="bi bi-telephone me-1"></i>{{ 'superAdmin.admins.contactStrip' | translate }}:
+                    {{ sch.phone || ('superAdmin.admins.noPhone' | translate) }}
+                  </div>
                 </div>
-                <div class="activity-content">
-                  <h5>{{ admin.name }}</h5>
-                  <p>{{ admin.email }} · {{ admin.phone || ('superAdmin.admins.noPhone' | translate) }}</p>
+                <div class="mb-2" style="font-size: 12px; font-weight: 700; color: var(--clr-text-muted); text-transform: uppercase; letter-spacing: 0.04em;">
+                  {{ 'superAdmin.admins.adminCardTitle' | translate }}
                 </div>
-                <button class="btn-outline-erp btn-sm" (click)="toggleAdmin(admin); $event.stopPropagation()">
-                  {{ admin.active ? ('superAdmin.admins.suspend' | translate) : ('superAdmin.admins.activate' | translate) }}
-                </button>
-              </div>
+                <div *ngFor="let admin of schoolAdmins" class="sa-admin-card">
+                  <div
+                    class="activity-icon flex-shrink-0"
+                    style="width: 40px; height: 40px; border-radius: 12px; display: flex; align-items: center; justify-content: center;"
+                    [style.background]="admin.active ? 'rgba(5,150,105,0.12)' : 'rgba(217,119,6,0.12)'"
+                    [style.color]="admin.active ? 'var(--clr-success)' : 'var(--clr-warning)'"
+                  >
+                    <i class="bi" [ngClass]="admin.active ? 'bi-person-check-fill' : 'bi-person-dash-fill'"></i>
+                  </div>
+                  <div class="sa-admin-card__body">
+                    <p class="sa-admin-card__name">{{ admin.name }}</p>
+                    <p class="sa-admin-card__sub">{{ admin.email }}</p>
+                    <p class="sa-admin-card__sub mb-0">{{ admin.phone || ('superAdmin.admins.noPhone' | translate) }}</p>
+                    <span class="badge-erp mt-1" [ngClass]="admin.active ? 'badge-success' : 'badge-warning'" style="font-size: 10px;">
+                      {{ admin.active ? ('superAdmin.admins.adminActive' | translate) : ('superAdmin.admins.adminSuspended' | translate) }}
+                    </span>
+                  </div>
+                  <button type="button" class="btn-outline-erp btn-sm align-self-center" (click)="toggleAdmin(admin); $event.stopPropagation()">
+                    {{ admin.active ? ('superAdmin.admins.suspend' | translate) : ('superAdmin.admins.activate' | translate) }}
+                  </button>
+                </div>
+              </ng-container>
             </div>
           </div>
         </div>
@@ -236,6 +347,7 @@ export class SuperAdminComponent implements OnInit, AfterViewInit, OnDestroy {
   constructor(
     private platformService: PlatformService,
     private translate: TranslateService,
+    private confirmDialog: ConfirmDialogService,
     private cdr: ChangeDetectorRef
   ) {}
 
@@ -367,9 +479,30 @@ export class SuperAdminComponent implements OnInit, AfterViewInit, OnDestroy {
     if (!this.selectedSchool) {
       return;
     }
-    this.platformService.toggleSchoolAdminStatus(this.selectedSchool.tenantId, admin.id, !admin.active).subscribe(updated => {
-      this.schoolAdmins = this.schoolAdmins.map(current => (current.id === updated.id ? updated : current));
-    });
+    const activating = !admin.active;
+    this.confirmDialog
+      .confirm({
+        title: this.translate.instant(
+          activating ? 'superAdmin.confirm.toggleActivateTitle' : 'superAdmin.confirm.toggleSuspendTitle'
+        ),
+        message: this.translate.instant(
+          activating ? 'superAdmin.confirm.toggleActivateMessage' : 'superAdmin.confirm.toggleSuspendMessage',
+          { name: admin.name }
+        ),
+        details: activating
+          ? undefined
+          : [this.translate.instant('superAdmin.confirm.toggleSuspendDetail')],
+        variant: activating ? 'primary' : 'warning',
+        confirmLabel: activating
+          ? this.translate.instant('superAdmin.admins.activate')
+          : this.translate.instant('superAdmin.admins.suspend'),
+      })
+      .pipe(filter(Boolean), take(1))
+      .subscribe(() => {
+        this.platformService.toggleSchoolAdminStatus(this.selectedSchool!.tenantId, admin.id, activating).subscribe(updated => {
+          this.schoolAdmins = this.schoolAdmins.map(current => (current.id === updated.id ? updated : current));
+        });
+      });
   }
 
   toneBg(tone: string): string {

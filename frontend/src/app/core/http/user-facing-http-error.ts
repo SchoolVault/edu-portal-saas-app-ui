@@ -8,7 +8,9 @@ export class UserFacingHttpError extends Error {
     message: string,
     readonly httpStatus: number,
     readonly apiErrorCode?: string,
-    readonly apiTraceId?: string
+    readonly apiTraceId?: string,
+    /** Optional structured {@code data} from Spring {@code ApiResponse} (e.g. scheduling conflict payload). */
+    readonly apiData?: unknown
   ) {
     super(message);
     Object.setPrototypeOf(this, new.target.prototype);
@@ -70,7 +72,7 @@ function isSafeUserFacingText(text: string): boolean {
   return true;
 }
 
-function parseApiBody(raw: unknown): { message?: string; errors: string[]; errorCode?: string; traceId?: string } {
+function parseApiBody(raw: unknown): { message?: string; errors: string[]; errorCode?: string; traceId?: string; data?: unknown } {
   let body: unknown = raw;
   if (typeof body === 'string') {
     const s = body.trim();
@@ -98,7 +100,9 @@ function parseApiBody(raw: unknown): { message?: string; errors: string[]; error
   const errorCode = typeof ec === 'string' && ec.length <= 80 ? ec : undefined;
   const tid = o['traceId'];
   const traceId = typeof tid === 'string' && tid.length <= 80 && /^[\w-]+$/.test(tid) ? tid : undefined;
-  return { message, errors, errorCode, traceId };
+  const hasData = Object.prototype.hasOwnProperty.call(o, 'data');
+  const data = hasData ? o['data'] : undefined;
+  return { message, errors, errorCode, traceId, data };
 }
 
 /**
@@ -109,44 +113,45 @@ export function mapHttpErrorResponseToUserMessage(error: HttpErrorResponse): {
   message: string;
   errorCode?: string;
   traceId?: string;
+  data?: unknown;
 } {
   if (error.status === 0) {
-    return { message: MSG_CONNECTIVITY };
+    return { message: MSG_CONNECTIVITY, data: undefined };
   }
 
-  const { message, errors, errorCode, traceId } = parseApiBody(error.error);
+  const { message, errors, errorCode, traceId, data } = parseApiBody(error.error);
   if (errors.length > 0) {
-    return { message: errors[0], errorCode, traceId };
+    return { message: errors[0], errorCode, traceId, data };
   }
   if (message) {
-    return { message, errorCode, traceId };
+    return { message, errorCode, traceId, data };
   }
 
   const authPublic = isAuthPublicEndpoint(error.url ?? undefined);
 
   switch (error.status) {
     case 400:
-      return { message: MSG_BAD_REQUEST, errorCode, traceId };
+      return { message: MSG_BAD_REQUEST, errorCode, traceId, data };
     case 401:
-      return { message: authPublic ? MSG_LOGIN_CONTEXT : MSG_SESSION, errorCode, traceId };
+      return { message: authPublic ? MSG_LOGIN_CONTEXT : MSG_SESSION, errorCode, traceId, data };
     case 403:
-      return { message: MSG_FORBIDDEN, errorCode, traceId };
+      return { message: MSG_FORBIDDEN, errorCode, traceId, data };
     case 404:
-      return { message: MSG_NOT_FOUND, errorCode, traceId };
+      return { message: MSG_NOT_FOUND, errorCode, traceId, data };
     case 409:
-      return { message: MSG_CONFLICT, errorCode, traceId };
+      return { message: MSG_CONFLICT, errorCode, traceId, data };
     case 408:
     case 504:
-      return { message: MSG_SERVER_UNAVAILABLE, errorCode, traceId };
+      return { message: MSG_SERVER_UNAVAILABLE, errorCode, traceId, data };
     case 429:
-      return { message: MSG_RATE_LIMIT, errorCode, traceId };
+      return { message: MSG_RATE_LIMIT, errorCode, traceId, data };
     case 502:
     case 503:
-      return { message: MSG_SERVER_UNAVAILABLE, errorCode, traceId };
+      return { message: MSG_SERVER_UNAVAILABLE, errorCode, traceId, data };
     default:
       if (error.status >= 500) {
-        return { message: MSG_TRY_AGAIN, errorCode, traceId };
+        return { message: MSG_TRY_AGAIN, errorCode, traceId, data };
       }
-      return { message: MSG_TRY_AGAIN, errorCode, traceId };
+      return { message: MSG_TRY_AGAIN, errorCode, traceId, data };
   }
 }

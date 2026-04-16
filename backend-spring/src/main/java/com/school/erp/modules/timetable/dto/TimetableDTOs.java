@@ -353,4 +353,102 @@ public class TimetableDTOs {
             this.endTime = endTime;
         }
     }
+
+    /**
+     * Returned with HTTP 409 when a new or updated slot collides with an existing non-deleted row.
+     */
+    public static class TimetableConflictPayload {
+        /** {@code CLASS_PERIOD_OCCUPIED} or {@code TEACHER_DOUBLE_BOOKED}. */
+        private String conflictType;
+        private Long existingEntryId;
+        private String day;
+        private Integer period;
+        private String subjectName;
+        private String teacherName;
+        private Long classId;
+        private Long sectionId;
+        /** For {@code TEACHER_DOUBLE_BOOKED}: where the teacher is already booked. */
+        private Long conflictingClassId;
+        private Long conflictingSectionId;
+
+        public String getConflictType() {
+            return conflictType;
+        }
+
+        public void setConflictType(String conflictType) {
+            this.conflictType = conflictType;
+        }
+
+        public Long getExistingEntryId() {
+            return existingEntryId;
+        }
+
+        public void setExistingEntryId(Long existingEntryId) {
+            this.existingEntryId = existingEntryId;
+        }
+
+        public String getDay() {
+            return day;
+        }
+
+        public void setDay(String day) {
+            this.day = day;
+        }
+
+        public Integer getPeriod() {
+            return period;
+        }
+
+        public void setPeriod(Integer period) {
+            this.period = period;
+        }
+
+        public String getSubjectName() {
+            return subjectName;
+        }
+
+        public void setSubjectName(String subjectName) {
+            this.subjectName = subjectName;
+        }
+
+        public String getTeacherName() {
+            return teacherName;
+        }
+
+        public void setTeacherName(String teacherName) {
+            this.teacherName = teacherName;
+        }
+
+        public Long getClassId() {
+            return classId;
+        }
+
+        public void setClassId(Long classId) {
+            this.classId = classId;
+        }
+
+        public Long getSectionId() {
+            return sectionId;
+        }
+
+        public void setSectionId(Long sectionId) {
+            this.sectionId = sectionId;
+        }
+
+        public Long getConflictingClassId() {
+            return conflictingClassId;
+        }
+
+        public void setConflictingClassId(Long conflictingClassId) {
+            this.conflictingClassId = conflictingClassId;
+        }
+
+        public Long getConflictingSectionId() {
+            return conflictingSectionId;
+        }
+
+        public void setConflictingSectionId(Long conflictingSectionId) {
+            this.conflictingSectionId = conflictingSectionId;
+        }
+    }
 }

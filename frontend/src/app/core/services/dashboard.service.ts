@@ -138,17 +138,21 @@ export class DashboardService {
             labelKey: `dashboard.parent.metric.result.band.${raw.resultMetric.band}`,
           }
         : buildResultMetricContext(overallGrade, marks),
-      feeMetric: raw.feeMetric?.urgency
-        ? {
-            urgency: raw.feeMetric.urgency,
-            labelKey: `dashboard.parent.metric.fee.urgency.${raw.feeMetric.urgency}`,
-            nextDueDate: raw.feeMetric.nextDueDate,
-            daysUntilDue:
-              raw.feeMetric.daysUntilDue !== undefined && raw.feeMetric.daysUntilDue !== null
-                ? Number(raw.feeMetric.daysUntilDue)
-                : null,
-          }
-        : buildFeeMetricContext(Number(raw.feeDue ?? 0), feeStatus ?? []),
+      feeMetric: (() => {
+        const computed = buildFeeMetricContext(Number(raw.feeDue ?? 0), feeStatus ?? []);
+        const fm = raw.feeMetric;
+        if (!fm?.urgency) {
+          return computed;
+        }
+        // Server may send urgency without dates when ledger rows lack due_date; merge from fee rows (same rules as UI util).
+        return {
+          urgency: fm.urgency,
+          labelKey: `dashboard.parent.metric.fee.urgency.${fm.urgency}`,
+          nextDueDate: fm.nextDueDate ?? computed.nextDueDate,
+          daysUntilDue:
+            fm.daysUntilDue !== undefined && fm.daysUntilDue !== null ? Number(fm.daysUntilDue) : computed.daysUntilDue,
+        };
+      })(),
       recentActivities: (raw.recentActivities ?? []).map((a: any) => ({
         code: a.code,
         type: a.type ?? 'info',
