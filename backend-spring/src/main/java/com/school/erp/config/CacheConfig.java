@@ -1,6 +1,5 @@
 package com.school.erp.config;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.school.erp.tenant.TenantContext;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -27,6 +26,11 @@ import java.util.Map;
 /**
  * Redis-backed Spring Cache with <strong>tenant-scoped keys</strong> only.
  * Disable via {@code spring.cache.type=none} or env {@code CACHE_TYPE=none} when Redis is unavailable.
+ * <p>
+ * Value serialization uses {@link GenericJackson2JsonRedisSerializer}'s default constructor so Jackson
+ * embeds type metadata ({@code @class}) on write. Passing the app's primary {@code ObjectMapper} here
+ * without default typing causes cache hits to deserialize as {@link java.util.LinkedHashMap} and
+ * {@code ClassCastException} on {@code @Cacheable} return types (e.g. dashboard DTOs).
  */
 @Configuration
 @EnableCaching
@@ -70,10 +74,9 @@ public class CacheConfig {
     @Bean
     public CacheManager cacheManager(
             RedisConnectionFactory connectionFactory,
-            ObjectMapper objectMapper,
             AppCacheTtlProperties ttlProps,
             Environment environment) {
-        GenericJackson2JsonRedisSerializer json = new GenericJackson2JsonRedisSerializer(objectMapper);
+        GenericJackson2JsonRedisSerializer json = new GenericJackson2JsonRedisSerializer();
 
         RedisCacheConfiguration base = RedisCacheConfiguration.defaultCacheConfig()
                 .serializeKeysWith(RedisSerializationContext.SerializationPair.fromSerializer(new StringRedisSerializer()))
