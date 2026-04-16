@@ -1,5 +1,13 @@
--- Flyway baseline (part 6/10): timetable_vehicle_password_catalog_ops
--- Regenerate from legacy scripts: backend-spring/scripts/build_squashed_flyway_migrations.py
+-- =============================================================================
+-- Flyway V6 — Timetable section nullability, vehicle audit, password policy, catalog ops
+--
+-- Section-level timetables, vehicle live location audit columns, password/catalog tweaks.
+-- =============================================================================
+
+-- -------------------------------------------------------------------------
+-- Legacy source: V6__timetable_vehicle_password_catalog_ops.sql
+-- Timetable nullable section, vehicle audit, catalog (old V6).
+-- -------------------------------------------------------------------------
 
 -- >>> Legacy V20: V20__platform_purge_jobs.sql
 CREATE TABLE platform_tenant_purge_jobs (

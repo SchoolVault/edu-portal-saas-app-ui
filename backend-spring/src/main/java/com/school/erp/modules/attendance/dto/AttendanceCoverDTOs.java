@@ -19,6 +19,12 @@ public class AttendanceCoverDTOs {
         private String reason;
         private Long timetableEntryId;
 
+        /**
+         * When the server detects an active cover already occupying the same class / section / period / day slice,
+         * the client must resubmit with this id set to that row's id to confirm cancelling the prior cover atomically.
+         */
+        private Long replaceCoverAssignmentId;
+
         public LocalDate getCoverDate() {
             return coverDate;
         }
@@ -81,6 +87,14 @@ public class AttendanceCoverDTOs {
 
         public void setTimetableEntryId(Long timetableEntryId) {
             this.timetableEntryId = timetableEntryId;
+        }
+
+        public Long getReplaceCoverAssignmentId() {
+            return replaceCoverAssignmentId;
+        }
+
+        public void setReplaceCoverAssignmentId(Long replaceCoverAssignmentId) {
+            this.replaceCoverAssignmentId = replaceCoverAssignmentId;
         }
     }
 
@@ -174,6 +188,75 @@ public class AttendanceCoverDTOs {
 
         public void setTimetableEntryId(Long timetableEntryId) {
             this.timetableEntryId = timetableEntryId;
+        }
+    }
+
+    /**
+     * Returned with HTTP 409 when an active cover already occupies the requested slot for another teacher.
+     */
+    public static class ConflictPayload {
+        private Long existingCoverAssignmentId;
+        private Long existingCoveringTeacherId;
+        private String existingCoveringTeacherName;
+        private String coverDate;
+        private Long classId;
+        private Long sectionId;
+        private Integer periodNumber;
+
+        public Long getExistingCoverAssignmentId() {
+            return existingCoverAssignmentId;
+        }
+
+        public void setExistingCoverAssignmentId(Long existingCoverAssignmentId) {
+            this.existingCoverAssignmentId = existingCoverAssignmentId;
+        }
+
+        public Long getExistingCoveringTeacherId() {
+            return existingCoveringTeacherId;
+        }
+
+        public void setExistingCoveringTeacherId(Long existingCoveringTeacherId) {
+            this.existingCoveringTeacherId = existingCoveringTeacherId;
+        }
+
+        public String getExistingCoveringTeacherName() {
+            return existingCoveringTeacherName;
+        }
+
+        public void setExistingCoveringTeacherName(String existingCoveringTeacherName) {
+            this.existingCoveringTeacherName = existingCoveringTeacherName;
+        }
+
+        public String getCoverDate() {
+            return coverDate;
+        }
+
+        public void setCoverDate(String coverDate) {
+            this.coverDate = coverDate;
+        }
+
+        public Long getClassId() {
+            return classId;
+        }
+
+        public void setClassId(Long classId) {
+            this.classId = classId;
+        }
+
+        public Long getSectionId() {
+            return sectionId;
+        }
+
+        public void setSectionId(Long sectionId) {
+            this.sectionId = sectionId;
+        }
+
+        public Integer getPeriodNumber() {
+            return periodNumber;
+        }
+
+        public void setPeriodNumber(Integer periodNumber) {
+            this.periodNumber = periodNumber;
         }
     }
 }

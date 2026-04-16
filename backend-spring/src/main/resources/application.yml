@@ -24,9 +24,9 @@ spring:
         - demo-seed
 
   # MySQL 8.x (InnoDB, utf8mb4). Schema = Flyway migrations under db/migration; Hibernate only validates mapping vs DB.
-  # Suggested cloud URL params (add as needed): &allowPublicKeyRetrieval=true
+  # allowPublicKeyRetrieval: required for default caching_sha2_password when client cannot use server RSA over TLS.
   datasource:
-    url: ${DEV_DB_URL:jdbc:mysql://localhost:3306/school_erp?useSSL=true&serverTimezone=UTC&createDatabaseIfNotExist=true}
+    url: ${DEV_DB_URL:jdbc:mysql://localhost:3306/school_erp?useSSL=true&serverTimezone=UTC&createDatabaseIfNotExist=true&allowPublicKeyRetrieval=true}
     username: ${DEV_DB_USERNAME:root}
     password: ${DEV_DB_PASSWORD:Arif@#123}
     driver-class-name: ${DB_DRIVER:com.mysql.cj.jdbc.Driver}

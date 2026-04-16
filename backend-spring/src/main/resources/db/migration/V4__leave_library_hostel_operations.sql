@@ -1,5 +1,13 @@
--- Flyway baseline (part 4/10): leave_library_hostel_transport_fleet
--- Regenerate from legacy scripts: backend-spring/scripts/build_squashed_flyway_migrations.py
+-- =============================================================================
+-- Flyway V4 — Leave, library, hostel, and transport fleet operations
+--
+-- Staff/student leave, library loans, hostel rooms, fleet and driver entities.
+-- =============================================================================
+
+-- -------------------------------------------------------------------------
+-- Legacy source: V4__leave_library_hostel_transport_fleet.sql
+-- Leave, library, hostel, transport fleet (old V4).
+-- -------------------------------------------------------------------------
 
 -- >>> Legacy V13: V13__leave_requests.sql
 CREATE TABLE leave_requests (

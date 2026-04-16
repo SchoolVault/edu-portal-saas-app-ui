@@ -1,5 +1,13 @@
--- Flyway baseline (part 9/10): salary_outbox_payment_webhook
--- Regenerate from legacy scripts: backend-spring/scripts/build_squashed_flyway_migrations.py
+-- =============================================================================
+-- Flyway V8 — Salary disbursement, payment webhooks, and fee attempt indexes
+--
+-- Salary/outbox/payment audit tables and fee payment attempt indexing (old V9 + V10).
+-- =============================================================================
+
+-- -------------------------------------------------------------------------
+-- Legacy source: V9__salary_outbox_payment_webhook.sql
+-- Salary, outbox, payment webhook (old V9).
+-- -------------------------------------------------------------------------
 
 -- >>> Legacy V29: V29__import_export_jobs.sql
 -- Async bulk import jobs (ZIP/CSV) with per-row outcomes for admin retry and auditing.
@@ -119,3 +127,44 @@ SELECT @t1, (SELECT id FROM users WHERE tenant_id = @t1 AND email = 'admin@schoo
        NULL, NULL, NULL, TRUE, FALSE, NOW(), NOW()
 WHERE EXISTS (SELECT 1 FROM tenant_configs tc WHERE tc.tenant_id = @t1)
   AND NOT EXISTS (SELECT 1 FROM import_jobs j WHERE j.tenant_id = @t1 AND j.original_filename = 't1-faculty-pending-demo.zip');
+
+-- -------------------------------------------------------------------------
+-- Legacy source: V10__fee_attempt_indexes.sql
+-- Fee attempt indexes (old V10).
+-- -------------------------------------------------------------------------
+
+-- >>> Legacy V32: V32__outbox_salary_audit_columns.sql
+-- Align notification_outbox and salary_disbursement_attempts with BaseEntity (created_by, updated_by).
+-- V28 created these tables without audit user columns; Hibernate schema validation in prod requires them.
+
+ALTER TABLE notification_outbox
+    ADD COLUMN created_by VARCHAR(100) NULL AFTER updated_at,
+    ADD COLUMN updated_by VARCHAR(100) NULL AFTER created_by;
+
+ALTER TABLE salary_disbursement_attempts
+    ADD COLUMN created_by VARCHAR(100) NULL AFTER updated_at,
+    ADD COLUMN updated_by VARCHAR(100) NULL AFTER created_by;
+
+-- >>> Legacy V33: V33__payment_webhook_events.sql
+-- Idempotent storage for payment provider webhooks (Razorpay, etc.)
+
+CREATE TABLE payment_webhook_events (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    tenant_id VARCHAR(64),
+    provider VARCHAR(32) NOT NULL,
+    payload_sha256 VARCHAR(64) NOT NULL,
+    external_event_id VARCHAR(255),
+    status VARCHAR(32) NOT NULL,
+    http_status INT,
+    detail VARCHAR(512),
+    raw_body MEDIUMTEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    processed_at TIMESTAMP NULL,
+    UNIQUE KEY uk_provider_payload_hash (provider, payload_sha256),
+    INDEX idx_pwe_tenant_created (tenant_id, created_at),
+    INDEX idx_pwe_provider_event (provider, external_event_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- >>> Legacy V34: V34__fee_payment_attempt_provider_order_index.sql
+-- Speed webhook + reconciliation lookups by gateway order id
+CREATE INDEX idx_fpa_provider_order ON fee_payment_attempts (provider, provider_order_id);

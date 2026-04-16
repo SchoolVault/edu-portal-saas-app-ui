@@ -1,6 +1,7 @@
 package com.school.erp.modules.parent.controller;
 
 import com.school.erp.common.dto.ApiResponse;
+import com.school.erp.common.dto.PageResponse;
 import com.school.erp.common.exception.UnauthorizedException;
 import com.school.erp.modules.attendance.dto.AttendanceDTOs;
 import com.school.erp.modules.attendance.entity.AttendanceRecord;
@@ -61,6 +62,17 @@ public class ParentController {
                     + "Same JSON shape as GET /exams (staff-only). Parents must not call GET /exams.")
     public ResponseEntity<ApiResponse<List<ExamDTOs.ExamResponse>>> listExamsForMyChildren() {
         return ResponseEntity.ok(ApiResponse.ok(parentPortalReadFacade.listExamsForCurrentParentUser()));
+    }
+
+    @GetMapping("/exams/paged")
+    @Operation(summary = "Exams for your children (paged)",
+            description = "Same payload as GET /parent/exams with server-side paging and a short-lived cache. "
+                    + "Prefer this for large exam catalogs; max size 50.")
+    public ResponseEntity<ApiResponse<PageResponse<ExamDTOs.ExamResponse>>> listExamsForMyChildrenPaged(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        int capped = Math.min(Math.max(size, 1), 50);
+        return ResponseEntity.ok(ApiResponse.ok(parentPortalReadFacade.listExamsForCurrentParentUserPaged(page, capped)));
     }
 
     @GetMapping("/children")

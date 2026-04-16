@@ -1,6 +1,7 @@
 package com.school.erp.modules.communication.controller;
 
 import com.school.erp.common.dto.ApiResponse;
+import com.school.erp.security.RequireTenantFeature;
 import com.school.erp.common.dto.PageResponse;
 import com.school.erp.modules.communication.dto.CommunicationDTOs;
 import com.school.erp.modules.communication.dto.AnnouncementDTOs;
@@ -18,6 +19,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/v1/communication")
 @Tag(name = "Communication", description = "Announcements & Teacher-Parent Messaging")
+@RequireTenantFeature("communication")
 public class CommunicationController {
     private final CommunicationService service;
 

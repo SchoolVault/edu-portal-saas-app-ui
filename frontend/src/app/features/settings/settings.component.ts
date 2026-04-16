@@ -2,6 +2,7 @@ import { ChangeDetectorRef, Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
+import { TenantModuleGateService } from '../../core/services/tenant-module-gate.service';
 import { SettingsService } from '../../core/services/settings.service';
 import { ThemeService } from '../../core/services/theme.service';
 import { AuthService } from '../../core/services/auth.service';
@@ -433,9 +434,22 @@ import { UserLocaleService, type UiLanguage } from '../../core/i18n/user-locale.
       </div>
 
       <div *ngIf="tab === 'features'" class="erp-card animate-in">
-        <h4 style="font-size: 15px; font-weight: 700; margin-bottom: 20px;">{{ 'settings.featureTogglesHeading' | translate }}</h4>
+        <h4 style="font-size: 15px; font-weight: 700; margin-bottom: 12px;">{{ 'settings.featureTogglesHeading' | translate }}</h4>
         <p class="text-muted small mb-3" style="font-size: 13px;" [innerHTML]="'settings.featureTogglesLeadHtml' | translate"></p>
-        <div *ngFor="let feat of features" class="d-flex justify-content-between align-items-center py-3" style="border-bottom: 1px solid var(--clr-border-light);">
+        <div *ngIf="platformManagedFeatures.length" class="mb-4 pb-3" style="border-bottom: 1px solid var(--clr-border-light);">
+          <h5 style="font-size: 13px; font-weight: 700; margin-bottom: 6px;">{{ 'settings.platformModulesHeading' | translate }}</h5>
+          <p class="text-muted small mb-2">{{ 'settings.platformModulesLead' | translate }}</p>
+          <div *ngFor="let feat of platformManagedFeatures" class="d-flex justify-content-between align-items-center py-2">
+            <div>
+              <div style="font-weight: 600;">{{ featureToggleName(feat) }}</div>
+              <div style="font-size: 12px; color: var(--clr-text-muted);">{{ featureToggleDescription(feat) }}</div>
+            </div>
+            <span class="badge-erp" [ngClass]="feat.enabled ? 'badge-success' : 'badge-info'">
+              {{ feat.enabled ? ('settings.readonlyOn' | translate) : ('settings.readonlyOff' | translate) }}
+            </span>
+          </div>
+        </div>
+        <div *ngFor="let feat of tenantAdminFeatures" class="d-flex justify-content-between align-items-center py-3" style="border-bottom: 1px solid var(--clr-border-light);">
           <div>
             <div style="font-weight: 600;">{{ featureToggleName(feat) }}</div>
             <div style="font-size: 12px; color: var(--clr-text-muted);">{{ featureToggleDescription(feat) }}</div>
@@ -448,7 +462,7 @@ import { UserLocaleService, type UiLanguage } from '../../core/i18n/user-locale.
           </label>
         </div>
         <div class="d-flex flex-wrap gap-2 align-items-center mt-3 pt-2" style="border-top: 1px solid var(--clr-border-light);">
-          <button type="button" class="btn-primary-erp" (click)="saveFeatureFlags()" [disabled]="featureFlagsSaving">{{ featureFlagsSaving ? ('settings.savingEllipsis' | translate) : ('settings.saveFeatureToggles' | translate) }}</button>
+          <button type="button" class="btn-primary-erp" *ngIf="isTenantAdmin" (click)="saveFeatureFlags()" [disabled]="featureFlagsSaving">{{ featureFlagsSaving ? ('settings.savingEllipsis' | translate) : ('settings.saveFeatureToggles' | translate) }}</button>
           <span *ngIf="featureFlagsMsg" class="text-success small">{{ featureFlagsMsg }}</span>
           <span *ngIf="featureFlagsErr" class="text-danger small">{{ featureFlagsErr }}</span>
         </div>
@@ -841,17 +855,29 @@ export class SettingsComponent implements OnInit {
   profileAccountErr = '';
 
   /** Feature toggles: labels come from `settings.features.<persistKey>.{name,description}` for i18n. */
-  features: Array<{ enabled: boolean; persistKey: string }> = [
+  features: Array<{ enabled: boolean; persistKey: string; platformOnly?: boolean }> = [
+    { enabled: true, persistKey: 'chat', platformOnly: true },
+    { enabled: true, persistKey: 'transport', platformOnly: true },
+    { enabled: true, persistKey: 'library', platformOnly: true },
+    { enabled: true, persistKey: 'hostel', platformOnly: true },
+    { enabled: true, persistKey: 'audit', platformOnly: true },
+    { enabled: true, persistKey: 'operationsHub', platformOnly: true },
+    { enabled: true, persistKey: 'importExport', platformOnly: true },
+    { enabled: true, persistKey: 'directory', platformOnly: true },
     { enabled: false, persistKey: 'feeReminderAutomation' },
-    { enabled: true, persistKey: 'transport' },
-    { enabled: true, persistKey: 'library' },
-    { enabled: true, persistKey: 'hostel' },
     { enabled: true, persistKey: 'payroll' },
     { enabled: true, persistKey: 'documents' },
-    { enabled: true, persistKey: 'audit' },
     { enabled: false, persistKey: 'smsNotifications' },
     { enabled: false, persistKey: 'onlinePayments' },
   ];
+
+  get platformManagedFeatures(): Array<{ enabled: boolean; persistKey: string; platformOnly?: boolean }> {
+    return this.features.filter(f => f.platformOnly);
+  }
+
+  get tenantAdminFeatures(): Array<{ enabled: boolean; persistKey: string; platformOnly?: boolean }> {
+    return this.features.filter(f => !f.platformOnly);
+  }
 
   constructor(
     private settingsService: SettingsService,
@@ -860,7 +886,8 @@ export class SettingsComponent implements OnInit {
     private parentService: ParentService,
     private cdr: ChangeDetectorRef,
     readonly userLocale: UserLocaleService,
-    private translate: TranslateService
+    private translate: TranslateService,
+    private tenantModuleGate: TenantModuleGateService
   ) {}
 
   /** School tenant administrator — only this role may change tenant config, branding, roles, and feature toggles. */
@@ -1044,7 +1071,7 @@ export class SettingsComponent implements OnInit {
     this.settingsService.getFeatures().subscribe({
       next: flags => {
         const merged = { ...flags };
-        for (const f of this.features) {
+        for (const f of this.tenantAdminFeatures) {
           if (f.persistKey) {
             merged[f.persistKey] = f.enabled;
           }
@@ -1055,6 +1082,7 @@ export class SettingsComponent implements OnInit {
             this.featureFlagsMsg = this.translate.instant(
               runtimeConfig.useMocks ? 'settings.featureFlagsSavedMock' : 'settings.featureFlagsSaved'
             );
+            this.tenantModuleGate.refresh().subscribe({ error: () => void 0 });
             this.cdr.markForCheck();
           },
           error: () => {

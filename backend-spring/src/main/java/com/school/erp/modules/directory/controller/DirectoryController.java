@@ -2,6 +2,7 @@ package com.school.erp.modules.directory.controller;
 
 import com.school.erp.common.dto.ApiResponse;
 import com.school.erp.common.dto.PageResponse;
+import com.school.erp.security.RequireTenantFeature;
 import com.school.erp.modules.directory.dto.DirectoryDTOs;
 import com.school.erp.modules.directory.service.DirectoryService;
 import org.springframework.http.ResponseEntity;
@@ -18,6 +19,7 @@ import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/v1/directory")
+@RequireTenantFeature("directory")
 public class DirectoryController {
 
     private final DirectoryService directoryService;

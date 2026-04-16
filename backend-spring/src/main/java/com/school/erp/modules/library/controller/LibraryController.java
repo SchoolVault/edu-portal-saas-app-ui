@@ -1,6 +1,7 @@
 package com.school.erp.modules.library.controller;
 
 import com.school.erp.common.dto.ApiResponse;
+import com.school.erp.security.RequireTenantFeature;
 import com.school.erp.common.dto.PageResponse;
 import com.school.erp.common.enums.Enums;
 import com.school.erp.modules.library.dto.LibraryDTOs;
@@ -18,6 +19,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/v1/library")
 @Tag(name = "Library", description = "Book Catalog, Issue/Return, Fine Calculation")
+@RequireTenantFeature("library")
 public class LibraryController {
     private final LibraryService service;
 

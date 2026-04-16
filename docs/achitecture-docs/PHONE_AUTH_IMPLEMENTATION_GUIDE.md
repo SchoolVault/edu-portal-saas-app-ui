@@ -6,8 +6,8 @@ This document tracks the complete end-to-end implementation of the phone-based a
 
 ## ✅ Completed Components
 
-### 1. Database Layer (V14 Migration) ✅
-- **File**: `V14__phone_auth_identity_system.sql`
+### 1. Database Layer (Flyway V9) ✅
+- **File**: `V9__query_indexes_locale_phone_guardian_analytics.sql` (section *Legacy source: V14__phone_auth_identity_system.sql*)
 - Users table extensions (phone_verified, auth_provider, etc.)
 - Guardians table with full demographics
 - Student-Guardian mapping with permissions

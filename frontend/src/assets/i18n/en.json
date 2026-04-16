@@ -83,11 +83,55 @@
       "snapshotSub": "{{teachers}} teachers · {{admins}} admins · {{phone}}",
       "noPhone": "No phone",
       "suspend": "Suspend",
-      "activate": "Activate"
+      "activate": "Activate",
+      "tenantId": "Workspace",
+      "schoolCode": "Code",
+      "contactStrip": "Contact",
+      "adminCardTitle": "Primary contacts",
+      "adminActive": "Active",
+      "adminSuspended": "Suspended"
+    },
+    "features": {
+      "panelTitle": "Feature management",
+      "panelLead": "Roll optional modules on or off for the selected school. Campus admins see enabled items under Settings → Features (read-only).",
+      "save": "Save school features",
+      "saving": "Saving…",
+      "saved": "School feature flags saved.",
+      "saveErr": "Could not save feature flags.",
+      "loadErr": "Could not load feature flags.",
+      "modules": {
+        "chat": { "name": "Chat", "description": "Real-time messaging" },
+        "transport": { "name": "Transport", "description": "Fleet & route tracking" },
+        "hostel": { "name": "Hostel", "description": "Residential operations" },
+        "library": { "name": "Library", "description": "Catalog & circulation" },
+        "audit": { "name": "Audit", "description": "Compliance audit trail" },
+        "operationsHub": { "name": "Operations hub", "description": "Staff, visitors, gate passes, inventory, fee reminders, payroll accrual (stub)" },
+        "importExport": { "name": "Import / export", "description": "Bulk data jobs and CSV exports" },
+        "directory": { "name": "Directory", "description": "Unified staff & student search for administrators" }
+      }
     },
     "activity": {
       "title": "Recent Platform Activity"
+    },
+    "confirm": {
+      "toggleSuspendTitle": "Suspend campus admin?",
+      "toggleSuspendMessage": "You are about to suspend {{name}}. They will lose portal access for this school until you activate them again.",
+      "toggleSuspendDetail": "Students and teachers are not affected — only this administrator account for the selected workspace.",
+      "toggleActivateTitle": "Activate campus admin?",
+      "toggleActivateMessage": "You are about to activate {{name}} so they can sign in again for this school (subject to other platform checks)."
     }
+  },
+  "featureRollout": {
+    "badge": "Platform",
+    "title": "Feature management",
+    "lead": "Choose a school, then roll optional modules on or off. The same flags gate backend APIs and the campus Settings → Features view (read-only for admins).",
+    "backPlatform": "Platform overview",
+    "refresh": "Refresh",
+    "refreshing": "Refreshing…",
+    "schoolsHint": "Select a row to manage module flags for that workspace.",
+    "noSchools": "No schools match the current filters.",
+    "pickSchoolTitle": "Select a school",
+    "pickSchoolLead": "Pick a school from the list on the left to load and edit its module toggles."
   },
   "nav": {
     "footerTagline": "Multi-tenant SaaS ERP",
@@ -105,6 +149,7 @@
     "dashboard": "Dashboard",
     "platform": "Platform",
     "schools": "Schools",
+    "featureRollout": "Feature management",
     "subscriptions": "Subscriptions",
     "broadcasts": "Broadcasts",
     "systemHealth": "System health",
@@ -159,6 +204,7 @@
       "superAdmin": "Super admin",
       "systemHealth": "System health",
       "schoolDirectory": "School directory",
+      "featureRollout": "Feature management",
       "subscriptionPlans": "Subscription plans",
       "adminBroadcasts": "Admin broadcasts",
       "platformSettings": "Platform settings",
@@ -1038,6 +1084,11 @@
   },
   "timetable": {
     "pageTitle": "Timetable",
+    "tab": {
+      "schedule": "Schedule",
+      "coversAdmin": "Attendance cover"
+    },
+    "coversAdminLead": "Assign substitute teachers for specific dates and periods. Cover rows also appear in teacher timetable views for the selected session date.",
     "leadAdmin": "Manage class schedules, teachers, rooms, and period allocations",
     "leadParent": "View your children’s class timetable (read-only).",
     "scopeClass": "By class",
@@ -1045,6 +1096,17 @@
     "layoutClassic": "Classic grid",
     "layoutWeek": "Week matrix",
     "refresh": "Refresh",
+    "confirmDeleteTitle": "Delete this timetable slot?",
+    "confirmDeleteMessage": "This removes the period assignment from the master timetable. You can add a slot again later if needed.",
+    "confirmDelete": "Delete slot",
+    "conflictClassTitle": "This period is already scheduled",
+    "conflictClassMessage": "{{subject}} with {{teacher}} is already on this class’s timetable for {{day}}, period {{period}}. You can remove that slot and save this one instead.",
+    "conflictTeacherTitle": "Teacher is already booked",
+    "conflictTeacherMessage": "{{teacher}} is already assigned to {{subject}} (class {{clazz}}, section {{section}}) for {{day}}, period {{period}}.",
+    "conflictDetailPeriod": "{{day}} · Period {{period}}",
+    "conflictDetailOtherClass": "Conflicting assignment: class {{clazz}}, section {{section}}",
+    "conflictReplace": "Remove conflicting slot & save",
+    "conflictKeep": "Go back and adjust",
     "addSlot": "Add Slot",
     "labelChild": "Child",
     "selectChild": "Select child",
@@ -1828,9 +1890,8 @@
   },
   "operations": {
     "pageTitle": "School operations",
-    "lead": "Covers, non-teaching staff, visitors, gate passes, inventory, fee reminders, payroll accrual (stub)",
+    "lead": "Non-teaching staff, visitors, gate passes, inventory, fee reminders, payroll accrual (stub). Attendance cover assignments are under Timetable → Attendance cover.",
     "tab": {
-      "covers": "Covers",
       "staff": "Staff",
       "visitors": "Visitors",
       "gate": "Gate pass",
@@ -1859,7 +1920,16 @@
       "thSection": "Section",
       "thCovering": "Covering",
       "thStatus": "Status",
-      "cancel": "Cancel"
+      "cancel": "Cancel",
+      "conflictTitle": "Another teacher is already covering this slot",
+      "conflictMessage": "{{name}} is currently assigned as cover for the same class, section scope, and period on this date.",
+      "conflictDetailDate": "Date: {{date}}",
+      "conflictDetailClass": "Class id: {{id}}",
+      "conflictConfirmReplace": "Cancel previous cover & assign this teacher",
+      "conflictKeep": "Keep existing cover",
+      "cancelConfirmTitle": "Cancel this cover assignment?",
+      "cancelConfirmMessage": "The covering teacher will no longer see this session on their timetable for that date.",
+      "cancelConfirm": "Cancel cover"
     },
     "staff": {
       "title": "Operational staff",
@@ -2389,6 +2459,10 @@
     "statusActive": "Active",
     "featureTogglesHeading": "Feature toggles",
     "featureTogglesLeadHtml": "Turn modules on or off for your school. Use <strong>Save feature toggles</strong> so changes apply on the server (or local mock store).",
+    "platformModulesHeading": "Platform-managed modules",
+    "platformModulesLead": "These switches are controlled by your platform operator (super admin). They define which optional modules appear in the sidebar for your school.",
+    "readonlyOn": "Enabled",
+    "readonlyOff": "Disabled",
     "saveChanges": "Save changes",
     "savingEllipsis": "Saving…",
     "saveFeatureToggles": "Save feature toggles",
@@ -2425,6 +2499,22 @@
       "audit": {
         "name": "Audit trail",
         "description": "Track all system actions and changes."
+      },
+      "chat": {
+        "name": "Chat",
+        "description": "Real-time messaging between staff and parents."
+      },
+      "operationsHub": {
+        "name": "Operations hub",
+        "description": "Staff, visitors, gate passes, inventory, fee reminders, and payroll accrual stub."
+      },
+      "importExport": {
+        "name": "Import / export",
+        "description": "Bulk ZIP+CSV jobs and exports."
+      },
+      "directory": {
+        "name": "Directory",
+        "description": "Unified admin search across students and staff."
       },
       "smsNotifications": {
         "name": "SMS notifications",

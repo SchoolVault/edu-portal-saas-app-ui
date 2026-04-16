@@ -375,6 +375,7 @@ export class HeaderComponent implements OnInit, OnDestroy {
       'super-admin': 'header.title.superAdmin',
       'platform-health': 'header.title.systemHealth',
       'platform-schools': 'header.title.schoolDirectory',
+      'platform-feature-rollout': 'header.title.featureRollout',
       'platform-subscriptions': 'header.title.subscriptionPlans',
       'platform-broadcasts': 'header.title.adminBroadcasts',
       'platform-settings': 'header.title.platformSettings',

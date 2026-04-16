@@ -1,6 +1,7 @@
 package com.school.erp.modules.chat.controller;
 
 import com.school.erp.common.dto.ApiResponse;
+import com.school.erp.security.RequireTenantFeature;
 import com.school.erp.modules.chat.dto.ChatDTOs;
 import com.school.erp.modules.chat.service.ChatService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -18,6 +19,7 @@ import java.util.List;
 @RequestMapping("/api/v1/chat")
 @Tag(name = "Chat", description = "Conversation-centric chat (inbox, conversations, messages) with realtime delivery")
 @PreAuthorize("hasAnyRole('ADMIN','TEACHER','PARENT','STUDENT','SUPER_ADMIN')")
+@RequireTenantFeature("chat")
 public class ChatController {
     private final ChatService chatService;
 

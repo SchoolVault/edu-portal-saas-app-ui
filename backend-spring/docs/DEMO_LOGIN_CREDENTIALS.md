@@ -63,7 +63,7 @@ Full tables, parent email pattern, and SQL helpers: **[DEMO_CREDENTIALS.md](../.
 
 ## Default tenant `t1` (Flyway baseline seed)
 
-Inserted by **`V1__core_init_seed.sql`** (users + `tenant_configs` + default admin rows). **Password for all:** `admin123`
+Inserted by **`V1__core_schema_reference_seed.sql`** (users + `tenant_configs` + default admin rows). **Password for all:** `admin123`
 
 | Role | Email | School code | Tenant ID (DB) |
 |------|-------|-------------|----------------|
@@ -71,7 +71,7 @@ Inserted by **`V1__core_init_seed.sql`** (users + `tenant_configs` + default adm
 | TEACHER | `teacher@school.com` | `SCH001` | `t1` |
 | PARENT | `parent@school.com` | `SCH001` | `t1` |
 
-Extra **`t1`** academics (classes, Emma Chen, timetable samples, etc.) come from later baseline scripts (e.g. **`V8__outbox_import_demo_jobs.sql`** and related demo inserts), not from the showcase Java seed.
+Extra **`t1`** academics (classes, Emma Chen, timetable samples, etc.) come from **`V7__demo_academic_outbox_import_jobs.sql`** (merged former V7 + V8 demo/outbox SQL), not from the showcase Java seed.
 
 **Showcase vs `t1`:** DPS-DLH / KV-MUM are **only** created when you run the app with **`demo-seed`** (or equivalent) and **`app.demo-seed.enabled=true`**. Flyway alone does **not** insert those orgs.
 

@@ -30,11 +30,11 @@ export const httpErrorInterceptor: HttpInterceptorFn = (req, next) => {
             injector.get(Router).navigate(['/login'], { replaceUrl: true });
           }
         }
-        const { message, errorCode, traceId } = mapHttpErrorResponseToUserMessage(err);
+        const { message, errorCode, traceId, data } = mapHttpErrorResponseToUserMessage(err);
         if (traceId) {
           support.recordTraceId(traceId);
         }
-        return throwError(() => new UserFacingHttpError(message, err.status, errorCode, traceId));
+        return throwError(() => new UserFacingHttpError(message, err.status, errorCode, traceId, data));
       }
       return throwError(() => err);
     })

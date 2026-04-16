@@ -4,10 +4,11 @@ import { Observable } from 'rxjs';
 import { map } from 'rxjs/operators';
 import { runtimeConfig } from '../config/runtime-config';
 
-export interface ApiResp<T> {
+export interface ApiResp<T = unknown> {
   success: boolean;
   message: string;
-  data: T;
+  /** On success this is the payload; on some errors (e.g. 409 scheduling) the server may still attach structured data. */
+  data?: T;
   timestamp: string;
   errors?: string[];
   /** Stable code from Spring {@code ApiResponse} for client-side i18n (e.g. {@code LEAVE_OTHER_REASON_REQUIRED}). */
@@ -27,6 +28,11 @@ export interface PageResp<T> {
 @Injectable({ providedIn: 'root' })
 export class ApiService {
 
+  /** Exposed for callers that need custom HTTP handling (e.g. structured 409 conflict bodies). */
+  getBaseUrl(): string {
+    return runtimeConfig.apiUrl ?? '';
+  }
+
   private get baseUrl(): string {
     return runtimeConfig.apiUrl ?? '';
   }
@@ -37,7 +43,7 @@ export class ApiService {
     return this.http.get<ApiResp<T>>(`${this.baseUrl}${path}`).pipe(
       map(res => {
         if (!res.success) throw new Error(res.message);
-        return res.data;
+        return res.data as T;
       })
     );
   }
@@ -46,7 +52,7 @@ export class ApiService {
     return this.http.get<ApiResp<PageResp<T>>>(`${this.baseUrl}${path}`).pipe(
       map(res => {
         if (!res.success) throw new Error(res.message);
-        return res.data;
+        return res.data as PageResp<T>;
       })
     );
   }
@@ -61,7 +67,7 @@ export class ApiService {
     return this.http.get<ApiResp<PageResp<T>>>(`${this.baseUrl}${path}`, { params }).pipe(
       map(res => {
         if (!res.success) throw new Error(res.message);
-        return res.data;
+        return res.data as PageResp<T>;
       })
     );
   }
@@ -70,7 +76,7 @@ export class ApiService {
     return this.http.post<ApiResp<T>>(`${this.baseUrl}${path}`, body).pipe(
       map(res => {
         if (!res.success) throw new Error(res.message);
-        return res.data;
+        return res.data as T;
       })
     );
   }
@@ -79,7 +85,7 @@ export class ApiService {
     return this.http.post<ApiResp<T>>(`${this.baseUrl}${path}`, body).pipe(
       map(res => {
         if (!res.success) throw new Error(res.message);
-        return res.data;
+        return res.data as T;
       })
     );
   }
@@ -88,7 +94,7 @@ export class ApiService {
     return this.http.put<ApiResp<T>>(`${this.baseUrl}${path}`, body).pipe(
       map(res => {
         if (!res.success) throw new Error(res.message);
-        return res.data;
+        return res.data as T;
       })
     );
   }
@@ -97,7 +103,7 @@ export class ApiService {
     return this.http.delete<ApiResp<T>>(`${this.baseUrl}${path}`).pipe(
       map(res => {
         if (!res.success) throw new Error(res.message);
-        return res.data;
+        return res.data as T;
       })
     );
   }

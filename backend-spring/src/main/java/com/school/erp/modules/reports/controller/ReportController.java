@@ -4,7 +4,7 @@ import com.school.erp.common.dto.ApiResponse;
 import com.school.erp.common.dto.PageResponse;
 import com.school.erp.modules.reports.dto.ParentDashboardDtos;
 import com.school.erp.modules.reports.dto.ReportDashboardDTOs;
-import com.school.erp.tenant.TenantContext;
+import com.school.erp.security.RequireTenantFeature;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.ResponseEntity;
@@ -50,6 +50,7 @@ public class ReportController {
     }
 
     @GetMapping("/student-performance")
+    @RequireTenantFeature("reports")
     @PreAuthorize("hasAnyRole(\'ADMIN\',\'TEACHER\')")
     @Operation(summary = "Student performance report", description = "Class-wise student performance with marks, grades, and rankings")
     public ResponseEntity<ApiResponse<List<Map<String, Object>>>> studentPerformance(@RequestParam Long classId, @RequestParam Long examId) {
@@ -57,6 +58,7 @@ public class ReportController {
     }
 
     @GetMapping("/attendance-summary")
+    @RequireTenantFeature("reports")
     @PreAuthorize("hasAnyRole(\'ADMIN\',\'TEACHER\')")
     @Operation(summary = "Attendance summary report", description = "Monthly attendance summary by class")
     public ResponseEntity<ApiResponse<List<Map<String, Object>>>> attendanceSummary(@RequestParam Long classId, @RequestParam String month) {
@@ -64,6 +66,7 @@ public class ReportController {
     }
 
     @GetMapping("/fee-collection")
+    @RequireTenantFeature("reports")
     @PreAuthorize("hasRole(\'ADMIN\')")
     @Operation(summary = "Fee collection report", description = "Fee collection status with pending and collected amounts")
     public ResponseEntity<ApiResponse<Map<String, Object>>> feeCollection(@RequestParam(required = false) Long classId) {
@@ -71,6 +74,7 @@ public class ReportController {
     }
 
     @GetMapping("/class-summary")
+    @RequireTenantFeature("reports")
     @PreAuthorize("hasRole(\'ADMIN\')")
     @Operation(summary = "Class summary report", description = "Overview of all classes with statistics")
     public ResponseEntity<ApiResponse<List<Map<String, Object>>>> classSummary() {
@@ -78,6 +82,7 @@ public class ReportController {
     }
 
     @GetMapping("/class-summary/paged")
+    @RequireTenantFeature("reports")
     @PreAuthorize("hasRole(\'ADMIN\')")
     @Operation(summary = "Class summary report (paged)", description = "Same aggregates as class-summary; windowed for large tenants")
     public ResponseEntity<ApiResponse<PageResponse<Map<String, Object>>>> classSummaryPaged(
@@ -87,6 +92,7 @@ public class ReportController {
     }
 
     @GetMapping("/section-summary")
+    @RequireTenantFeature("reports")
     @PreAuthorize("hasRole(\'ADMIN\')")
     @Operation(summary = "Section summary report", description = "Per-section student counts by class")
     public ResponseEntity<ApiResponse<List<Map<String, Object>>>> sectionSummary() {
@@ -94,6 +100,7 @@ public class ReportController {
     }
 
     @GetMapping("/section-summary/paged")
+    @RequireTenantFeature("reports")
     @PreAuthorize("hasRole(\'ADMIN\')")
     @Operation(summary = "Section summary report (paged)")
     public ResponseEntity<ApiResponse<PageResponse<Map<String, Object>>>> sectionSummaryPaged(
@@ -103,6 +110,7 @@ public class ReportController {
     }
 
     @GetMapping("/teacher-workload")
+    @RequireTenantFeature("reports")
     @PreAuthorize("hasRole(\'ADMIN\')")
     @Operation(summary = "Teacher workload report", description = "Teacher teaching hours and class assignments")
     public ResponseEntity<ApiResponse<List<Map<String, Object>>>> teacherWorkload() {
@@ -110,6 +118,7 @@ public class ReportController {
     }
 
     @GetMapping("/teacher-workload/paged")
+    @RequireTenantFeature("reports")
     @PreAuthorize("hasRole(\'ADMIN\')")
     @Operation(summary = "Teacher workload report (paged)")
     public ResponseEntity<ApiResponse<PageResponse<Map<String, Object>>>> teacherWorkloadPaged(

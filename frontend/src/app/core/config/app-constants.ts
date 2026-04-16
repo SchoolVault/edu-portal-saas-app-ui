@@ -6,12 +6,24 @@ export interface NavItem {
   roles: string[];
   /** Section group key, e.g. {@code nav.section.main}. */
   sectionKey: string;
+  /**
+   * Optional tenant feature flag (features_json). When the flag is false, the item is hidden for that school.
+   * Keys match platform rollout: chat, transport, hostel, library, audit, operationsHub, importExport, directory.
+   */
+  moduleGate?: string;
 }
 
 export const NAV_ITEMS: NavItem[] = [
   { labelKey: 'nav.dashboard', icon: 'bi-grid-1x2-fill', route: '/app/dashboard', roles: ['admin', 'teacher', 'parent'], sectionKey: 'nav.section.main' },
   { labelKey: 'nav.platform', icon: 'bi-buildings-fill', route: '/app/super-admin', roles: ['super_admin'], sectionKey: 'nav.section.main' },
   { labelKey: 'nav.schools', icon: 'bi-bank2', route: '/app/platform-schools', roles: ['super_admin'], sectionKey: 'nav.section.platform' },
+  {
+    labelKey: 'nav.featureRollout',
+    icon: 'bi-sliders',
+    route: '/app/platform-feature-rollout',
+    roles: ['super_admin'],
+    sectionKey: 'nav.section.platform',
+  },
   { labelKey: 'nav.subscriptions', icon: 'bi-receipt', route: '/app/platform-subscriptions', roles: ['super_admin'], sectionKey: 'nav.section.platform' },
   { labelKey: 'nav.broadcasts', icon: 'bi-megaphone-fill', route: '/app/platform-broadcasts', roles: ['super_admin'], sectionKey: 'nav.section.platform' },
   { labelKey: 'nav.systemHealth', icon: 'bi-heart-pulse', route: '/app/platform-health', roles: ['super_admin'], sectionKey: 'nav.section.platform' },
@@ -19,7 +31,14 @@ export const NAV_ITEMS: NavItem[] = [
   { labelKey: 'nav.myChildren', icon: 'bi-person-vcard-fill', route: '/app/parent/children', roles: ['parent'], sectionKey: 'nav.section.main' },
   { labelKey: 'nav.academic', icon: 'bi-mortarboard-fill', route: '/app/academic', roles: ['admin', 'teacher'], sectionKey: 'nav.section.main' },
   { labelKey: 'nav.students', icon: 'bi-people-fill', route: '/app/students', roles: ['admin', 'teacher'], sectionKey: 'nav.section.people' },
-  { labelKey: 'nav.directory', icon: 'bi-search-heart', route: '/app/directory', roles: ['admin'], sectionKey: 'nav.section.people' },
+  {
+    labelKey: 'nav.directory',
+    icon: 'bi-search-heart',
+    route: '/app/directory',
+    roles: ['admin'],
+    sectionKey: 'nav.section.people',
+    moduleGate: 'directory',
+  },
   { labelKey: 'nav.teachers', icon: 'bi-person-badge-fill', route: '/app/teachers', roles: ['admin'], sectionKey: 'nav.section.people' },
   { labelKey: 'nav.attendance', icon: 'bi-calendar-check-fill', route: '/app/attendance', roles: ['admin', 'teacher'], sectionKey: 'nav.section.academics' },
   { labelKey: 'nav.timetable', icon: 'bi-clock-fill', route: '/app/timetable', roles: ['admin', 'teacher', 'parent'], sectionKey: 'nav.section.academics' },
@@ -27,16 +46,30 @@ export const NAV_ITEMS: NavItem[] = [
   { labelKey: 'nav.fees', icon: 'bi-credit-card-fill', route: '/app/fees', roles: ['admin'], sectionKey: 'nav.section.finance' },
   { labelKey: 'nav.payroll', icon: 'bi-wallet-fill', route: '/app/payroll', roles: ['admin'], sectionKey: 'nav.section.finance' },
   { labelKey: 'nav.inbox', icon: 'bi-inbox-fill', route: '/app/inbox', roles: ['admin', 'teacher', 'parent', 'student'], sectionKey: 'nav.section.connect' },
-  { labelKey: 'nav.chat', icon: 'bi-chat-dots-fill', route: '/app/chat', roles: ['admin', 'teacher', 'parent', 'super_admin'], sectionKey: 'nav.section.connect' },
+  { labelKey: 'nav.chat', icon: 'bi-chat-dots-fill', route: '/app/chat', roles: ['admin', 'teacher', 'parent', 'super_admin'], sectionKey: 'nav.section.connect', moduleGate: 'chat' },
   { labelKey: 'nav.leave', icon: 'bi-calendar-x', route: '/app/leave', roles: ['admin', 'teacher'], sectionKey: 'nav.section.connect' },
   { labelKey: 'nav.reports', icon: 'bi-graph-up', route: '/app/reports', roles: ['admin'], sectionKey: 'nav.section.analytics' },
-  { labelKey: 'nav.operationsHub', icon: 'bi-building-gear', route: '/app/operations', roles: ['admin'], sectionKey: 'nav.section.operations' },
-  { labelKey: 'nav.importExport', icon: 'bi-file-earmark-zip-fill', route: '/app/import-export', roles: ['admin', 'super_admin'], sectionKey: 'nav.section.operations' },
-  { labelKey: 'nav.transport', icon: 'bi-bus-front-fill', route: '/app/transport', roles: ['admin'], sectionKey: 'nav.section.operations' },
-  { labelKey: 'nav.library', icon: 'bi-book-fill', route: '/app/library', roles: ['admin', 'teacher'], sectionKey: 'nav.section.operations' },
-  { labelKey: 'nav.hostel', icon: 'bi-house-fill', route: '/app/hostel', roles: ['admin'], sectionKey: 'nav.section.operations' },
+  {
+    labelKey: 'nav.operationsHub',
+    icon: 'bi-building-gear',
+    route: '/app/operations',
+    roles: ['admin'],
+    sectionKey: 'nav.section.operations',
+    moduleGate: 'operationsHub',
+  },
+  {
+    labelKey: 'nav.importExport',
+    icon: 'bi-file-earmark-zip-fill',
+    route: '/app/import-export',
+    roles: ['admin', 'super_admin'],
+    sectionKey: 'nav.section.operations',
+    moduleGate: 'importExport',
+  },
+  { labelKey: 'nav.transport', icon: 'bi-bus-front-fill', route: '/app/transport', roles: ['admin'], sectionKey: 'nav.section.operations', moduleGate: 'transport' },
+  { labelKey: 'nav.library', icon: 'bi-book-fill', route: '/app/library', roles: ['admin', 'teacher'], sectionKey: 'nav.section.operations', moduleGate: 'library' },
+  { labelKey: 'nav.hostel', icon: 'bi-house-fill', route: '/app/hostel', roles: ['admin'], sectionKey: 'nav.section.operations', moduleGate: 'hostel' },
   { labelKey: 'nav.documents', icon: 'bi-folder2-open', route: '/app/documents', roles: ['admin', 'teacher'], sectionKey: 'nav.section.system' },
-  { labelKey: 'nav.auditLog', icon: 'bi-shield-check', route: '/app/audit', roles: ['admin'], sectionKey: 'nav.section.system' },
+  { labelKey: 'nav.auditLog', icon: 'bi-shield-check', route: '/app/audit', roles: ['admin'], sectionKey: 'nav.section.system', moduleGate: 'audit' },
   { labelKey: 'nav.settings', icon: 'bi-gear-fill', route: '/app/settings', roles: ['admin', 'teacher', 'parent'], sectionKey: 'nav.section.system' },
 ];
 
@@ -71,4 +104,7 @@ export const DEFAULT_FEATURES: Record<string, boolean> = {
   audit: true,
   communication: true,
   reports: true,
+  operationsHub: true,
+  importExport: true,
+  directory: true,
 };

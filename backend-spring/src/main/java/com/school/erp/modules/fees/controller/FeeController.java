@@ -1,6 +1,7 @@
 package com.school.erp.modules.fees.controller;
 
 import com.school.erp.common.dto.ApiResponse;
+import com.school.erp.security.RequireTenantFeature;
 import com.school.erp.common.dto.PageResponse;
 import com.school.erp.common.enums.Enums;
 import com.school.erp.modules.fees.dto.FeeDTOs;
@@ -17,6 +18,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/v1/fees")
 @Tag(name = "Fees", description = "Fee Structure, Payments, Receipts & Collection Reports")
+@RequireTenantFeature("fees")
 public class FeeController {
     private final FeeService service;
 

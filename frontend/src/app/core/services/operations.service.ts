@@ -1,13 +1,16 @@
 import { Injectable } from '@angular/core';
-import { Observable, of, throwError } from 'rxjs';
-import { delay, map } from 'rxjs/operators';
+import { HttpClient } from '@angular/common/http';
+import { Observable, of, throwError, timer } from 'rxjs';
+import { catchError, delay, map, switchMap } from 'rxjs/operators';
 import { MOCK_OPERATIONS_INVENTORY_SEED, MOCK_OPERATIONS_STAFF_SEED, mockPayrollAccrualSummary } from '../mocks/operations.mock-data';
-import { ApiService, PageResp } from './api.service';
+import { ApiResp, ApiService, PageResp } from './api.service';
 import { DEFAULT_ERP_PAGE_SIZE } from '../constants/pagination.constants';
 import { sliceToPage } from '../utils/paginate';
 import { runtimeConfig } from '../config/runtime-config';
 import {
+  AttendanceCoverConflictPayload,
   AttendanceCoverRow,
+  CreateAttendanceCoverRequest,
   FeeReminderRow,
   GatePassRow,
   InventoryRow,
@@ -15,6 +18,8 @@ import {
   PayrollAccrualSummary,
   VisitorLogRow,
 } from '../models/operations.models';
+import { SchedulingConflictError } from '../errors/scheduling-conflict.error';
+import { UserFacingHttpError } from '../http/user-facing-http-error';
 
 @Injectable({ providedIn: 'root' })
 export class OperationsService {
@@ -26,7 +31,10 @@ export class OperationsService {
   private mockCovers: AttendanceCoverRow[] = [];
   private nextId = 100;
 
-  constructor(private api: ApiService) {}
+  constructor(
+    private api: ApiService,
+    private http: HttpClient
+  ) {}
 
   /** Align API numeric ids with UI string ids (strict templates). */
   private normalizeStaffRow(raw: OperationalStaffRow): OperationalStaffRow {
@@ -319,31 +327,63 @@ export class OperationsService {
     return this.api.get<AttendanceCoverRow[]>(`/attendance/covers/all-active?date=${encodeURIComponent(date)}`);
   }
 
-  createAttendanceCover(body: {
-    coverDate: string;
-    classId: number;
-    sectionId?: number;
-    regularTeacherId?: number;
-    coveringTeacherId: number;
-    reason?: string;
-    periodNumber?: number;
-  }): Observable<AttendanceCoverRow> {
+  createAttendanceCover(body: CreateAttendanceCoverRequest): Observable<AttendanceCoverRow> {
     if (runtimeConfig.useMocks) {
-      const row: AttendanceCoverRow = {
-        id: this.nextId++,
-        coverDate: body.coverDate,
-        periodNumber: body.periodNumber,
-        classId: body.classId,
-        sectionId: body.sectionId,
-        regularTeacherId: body.regularTeacherId,
-        coveringTeacherId: body.coveringTeacherId,
-        reason: body.reason,
-        status: 'ACTIVE',
-      };
-      this.mockCovers = [...this.mockCovers, row];
-      return of(row).pipe(delay(200));
+      return timer(200).pipe(
+        switchMap(() => {
+          const sameDayClass = this.mockCovers.filter(
+            c => c.coverDate === body.coverDate && c.classId === body.classId && c.status === 'ACTIVE'
+          );
+          const identical = sameDayClass.find(
+            c =>
+              this.slotEquals(c.sectionId, body.sectionId) &&
+              this.slotEquals(c.periodNumber, body.periodNumber) &&
+              c.coveringTeacherId === body.coveringTeacherId
+          );
+          if (identical) {
+            return of({ ...identical });
+          }
+          const blocking = sameDayClass.find(
+            c =>
+              this.sectionsOverlap(c.sectionId, body.sectionId) &&
+              this.periodsOverlap(c.periodNumber, body.periodNumber) &&
+              c.coveringTeacherId !== body.coveringTeacherId
+          );
+          if (blocking) {
+            if (body.replaceCoverAssignmentId == null) {
+              const t = this.teachersNameFromMock(blocking.coveringTeacherId);
+              return throwError(
+                () =>
+                  new SchedulingConflictError(
+                    'Another teacher is already assigned as cover for this slot.',
+                    this.toMockConflictPayload(blocking, body.coverDate, t)
+                  )
+              );
+            }
+            if (body.replaceCoverAssignmentId !== blocking.id) {
+              return throwError(() => new Error('Replace id does not match the active conflicting cover.'));
+            }
+            this.mockCovers = this.mockCovers.map(c => (c.id === blocking.id ? { ...c, status: 'CANCELLED' } : c));
+          } else if (body.replaceCoverAssignmentId != null) {
+            return throwError(() => new Error('No active conflicting cover to replace.'));
+          }
+          const row: AttendanceCoverRow = {
+            id: this.nextId++,
+            coverDate: body.coverDate,
+            periodNumber: body.periodNumber,
+            classId: body.classId,
+            sectionId: body.sectionId,
+            regularTeacherId: body.regularTeacherId,
+            coveringTeacherId: body.coveringTeacherId,
+            reason: body.reason,
+            status: 'ACTIVE',
+          };
+          this.mockCovers = [...this.mockCovers, row];
+          return of(row);
+        })
+      );
     }
-    return this.api.post<AttendanceCoverRow>('/attendance/covers', {
+    const payload = {
       coverDate: body.coverDate,
       classId: body.classId,
       sectionId: body.sectionId ?? null,
@@ -351,7 +391,65 @@ export class OperationsService {
       coveringTeacherId: body.coveringTeacherId,
       reason: body.reason,
       periodNumber: body.periodNumber ?? null,
-    });
+      replaceCoverAssignmentId: body.replaceCoverAssignmentId ?? null,
+    };
+    return this.http.post<ApiResp<AttendanceCoverRow>>(`${this.api.getBaseUrl()}/attendance/covers`, payload).pipe(
+      map(res => {
+        if (res.success && res.data != null) {
+          return res.data;
+        }
+        throw new Error(res.message || 'Request failed');
+      }),
+      catchError((err: unknown) => {
+        if (
+          err instanceof UserFacingHttpError &&
+          err.httpStatus === 409 &&
+          err.apiErrorCode === 'SCHEDULING_CONFLICT' &&
+          err.apiData &&
+          typeof err.apiData === 'object'
+        ) {
+          return throwError(
+            () => new SchedulingConflictError(err.message || 'Scheduling conflict', err.apiData as AttendanceCoverConflictPayload)
+          );
+        }
+        return throwError(() => (err instanceof Error ? err : new Error(String(err))));
+      })
+    );
+  }
+
+  private toMockConflictPayload(row: AttendanceCoverRow, coverDate: string, nameHint: string): AttendanceCoverConflictPayload {
+    return {
+      existingCoverAssignmentId: row.id,
+      existingCoveringTeacherId: row.coveringTeacherId,
+      existingCoveringTeacherName: nameHint,
+      coverDate,
+      classId: row.classId,
+      sectionId: row.sectionId,
+      periodNumber: row.periodNumber,
+    };
+  }
+
+  /** Mock-only: resolve teacher display name from id when mock teacher list is not wired here. */
+  private teachersNameFromMock(teacherId: number): string {
+    return `Teacher #${teacherId}`;
+  }
+
+  private slotEquals(a: number | null | undefined, b: number | null | undefined): boolean {
+    return (a ?? null) === (b ?? null);
+  }
+
+  private sectionsOverlap(existing?: number | null, requested?: number | null): boolean {
+    if (existing == null || requested == null) {
+      return true;
+    }
+    return existing === requested;
+  }
+
+  private periodsOverlap(existing?: number | null, requested?: number | null): boolean {
+    if (existing == null || requested == null) {
+      return true;
+    }
+    return existing === requested;
   }
 
   cancelAttendanceCover(id: number): Observable<void> {

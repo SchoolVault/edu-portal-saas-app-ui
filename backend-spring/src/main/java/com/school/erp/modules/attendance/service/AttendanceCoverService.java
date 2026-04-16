@@ -1,9 +1,14 @@
 package com.school.erp.modules.attendance.service;
 
+import com.school.erp.common.exception.ApiErrorCode;
+import com.school.erp.common.exception.BusinessException;
 import com.school.erp.common.exception.ResourceNotFoundException;
+import com.school.erp.common.exception.SchedulingConflictException;
 import com.school.erp.modules.attendance.dto.AttendanceCoverDTOs;
 import com.school.erp.modules.attendance.entity.AttendanceCoverAssignment;
+import com.school.erp.modules.attendance.policy.AttendanceCoverSlotOverlapPolicy;
 import com.school.erp.modules.attendance.repository.AttendanceCoverAssignmentRepository;
+import com.school.erp.modules.teacher.entity.Teacher;
 import com.school.erp.modules.teacher.repository.TeacherRepository;
 import com.school.erp.tenant.TenantContext;
 import org.springframework.stereotype.Service;
@@ -11,6 +16,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Service
@@ -51,9 +58,46 @@ public class AttendanceCoverService {
                 .collect(Collectors.toList());
     }
 
+    /**
+     * Creates an active cover row. Enforces at most one <em>logically overlapping</em> active cover per class slice
+     * (date + class + section scope + period scope) for different covering teachers. Callers may pass
+     * {@link AttendanceCoverDTOs.CreateRequest#getReplaceCoverAssignmentId()} to atomically cancel the blocking row.
+     */
     @Transactional
     public AttendanceCoverDTOs.Response create(AttendanceCoverDTOs.CreateRequest req) {
         String t = TenantContext.getTenantId();
+        List<AttendanceCoverAssignment> sameClassDay = coverRepo.findByTenantIdAndCoverDateAndClassIdAndIsDeletedFalseOrderByIdAsc(
+                t, req.getCoverDate(), req.getClassId());
+
+        Optional<AttendanceCoverAssignment> identical = AttendanceCoverSlotOverlapPolicy.findIdenticalActiveCover(
+                sameClassDay, req.getSectionId(), req.getPeriodNumber(), req.getCoveringTeacherId());
+        if (identical.isPresent()) {
+            return toResponse(identical.get());
+        }
+
+        Optional<AttendanceCoverAssignment> blocking = AttendanceCoverSlotOverlapPolicy.findBlockingActiveCover(
+                sameClassDay, req.getSectionId(), req.getPeriodNumber(), req.getCoveringTeacherId());
+
+        if (req.getReplaceCoverAssignmentId() != null && blocking.isEmpty()) {
+            throw new BusinessException("No active conflicting cover to replace — refresh the cover list and try again.");
+        }
+
+        if (blocking.isPresent()) {
+            AttendanceCoverAssignment block = blocking.get();
+            if (req.getReplaceCoverAssignmentId() == null) {
+                throw new SchedulingConflictException(
+                        "Another teacher is already assigned as cover for this class, section scope, and period on the selected date.",
+                        ApiErrorCode.SCHEDULING_CONFLICT,
+                        buildConflictPayload(t, block, req.getCoverDate()));
+            }
+            if (!Objects.equals(req.getReplaceCoverAssignmentId(), block.getId())) {
+                throw new BusinessException(
+                        "The replace confirmation does not match the active conflicting cover. Refresh and try again.");
+            }
+            block.setStatus("CANCELLED");
+            coverRepo.save(block);
+        }
+
         AttendanceCoverAssignment e = new AttendanceCoverAssignment();
         e.setTenantId(t);
         e.setCoverDate(req.getCoverDate());
@@ -78,6 +122,24 @@ public class AttendanceCoverService {
                 .orElseThrow(() -> new ResourceNotFoundException("Attendance cover", id));
         e.setStatus("CANCELLED");
         coverRepo.save(e);
+    }
+
+    private AttendanceCoverDTOs.ConflictPayload buildConflictPayload(String tenantId, AttendanceCoverAssignment block, LocalDate coverDate) {
+        AttendanceCoverDTOs.ConflictPayload p = new AttendanceCoverDTOs.ConflictPayload();
+        p.setExistingCoverAssignmentId(block.getId());
+        p.setExistingCoveringTeacherId(block.getCoveringTeacherId());
+        p.setCoverDate(coverDate != null ? coverDate.toString() : null);
+        p.setClassId(block.getClassId());
+        p.setSectionId(block.getSectionId());
+        p.setPeriodNumber(block.getPeriodNumber());
+        teacherRepository.findByIdAndTenantIdAndIsDeletedFalse(block.getCoveringTeacherId(), tenantId)
+                .map(this::teacherDisplayName)
+                .ifPresent(p::setExistingCoveringTeacherName);
+        return p;
+    }
+
+    private String teacherDisplayName(Teacher te) {
+        return (te.getFirstName() + " " + te.getLastName()).trim();
     }
 
     private AttendanceCoverDTOs.Response toResponse(AttendanceCoverAssignment e) {

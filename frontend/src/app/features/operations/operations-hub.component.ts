@@ -1,4 +1,5 @@
 import { ChangeDetectorRef, Component, DestroyRef, OnInit, inject } from '@angular/core';
+import { ActivatedRoute, Router } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -9,7 +10,6 @@ import { TeacherService } from '../../core/services/teacher.service';
 import { FeeService } from '../../core/services/fee.service';
 import { FeePayment, SchoolClass, Teacher } from '../../core/models/models';
 import {
-  AttendanceCoverRow,
   FeeReminderRow,
   GatePassRow,
   InventoryRow,
@@ -18,7 +18,6 @@ import {
   PayrollAccrualSummary,
   VisitorLogRow,
 } from '../../core/models/operations.models';
-import { ErpDatePickerComponent } from '../../shared/erp-date-picker/erp-date-picker.component';
 import { ErpPaginationComponent } from '../../shared/erp-pagination/erp-pagination.component';
 import { ConfirmDialogService } from '../../shared/confirm-dialog/confirm-dialog.service';
 import { filter } from 'rxjs/operators';
@@ -26,6 +25,7 @@ import { sliceToPage } from '../../core/utils/paginate';
 import { DEFAULT_ERP_PAGE_SIZE } from '../../core/constants/pagination.constants';
 import { ErpI18nPhDirective, ErpI18nTextDirective } from '../../shared/erp-i18n/erp-i18n-host.directives';
 import { runtimeConfig } from '../../core/config/runtime-config';
+import { SettingsService } from '../../core/services/settings.service';
 
 @Component({
   selector: 'app-operations-hub',
@@ -33,7 +33,6 @@ import { runtimeConfig } from '../../core/config/runtime-config';
   imports: [
     CommonModule,
     FormsModule,
-    ErpDatePickerComponent,
     ErpPaginationComponent,
     TranslateModule,
     ErpI18nPhDirective,
@@ -47,60 +46,6 @@ import { runtimeConfig } from '../../core/config/runtime-config';
       </div>
       <div class="erp-tabs mb-4">
         <button type="button" class="erp-tab" *ngFor="let t of tabs" [class.active]="tab === t.id" (click)="selectTab(t.id)">{{ ('operations.tab.' + t.id) | translate }}</button>
-      </div>
-
-      <div class="erp-card mb-4" *ngIf="tab === 'covers'">
-        <h4 class="erp-card-title mb-3">{{ 'operations.covers.title' | translate }}</h4>
-        <div class="row g-3 align-items-end mb-3">
-          <div class="col-md-2">
-            <label class="erp-label">{{ 'operations.covers.labelDate' | translate }}</label>
-            <app-erp-date-picker [(ngModel)]="coverDate" placeholderI18nKey="operations.covers.phCoverDate" />
-          </div>
-          <div class="col-md-2">
-            <label class="erp-label">{{ 'operations.covers.labelClass' | translate }}</label>
-            <select class="erp-select" [(ngModel)]="coverForm.classId" (change)="coverForm.sectionId = null">
-              <option [ngValue]="null">{{ 'operations.covers.select' | translate }}</option>
-              <option *ngFor="let c of classes" [ngValue]="c.id">{{ c.name }}</option>
-            </select>
-          </div>
-          <div class="col-md-2">
-            <label class="erp-label">{{ 'operations.covers.labelSection' | translate }}</label>
-            <select class="erp-select" [(ngModel)]="coverForm.sectionId">
-              <option [ngValue]="null">{{ 'operations.covers.allSections' | translate }}</option>
-              <option *ngFor="let s of coverSections" [ngValue]="s.id">{{ s.name }}</option>
-            </select>
-          </div>
-          <div class="col-md-2">
-            <label class="erp-label">{{ 'operations.covers.labelPeriod' | translate }}</label>
-            <input type="number" min="1" max="12" class="erp-input" [(ngModel)]="coverForm.periodNumber" erpI18nPh="operations.covers.phPeriod" [title]="'operations.covers.periodTitle' | translate" />
-          </div>
-          <div class="col-md-4">
-            <label class="erp-label">{{ 'operations.covers.labelCoveringTeacher' | translate }}</label>
-            <select class="erp-select" [(ngModel)]="coverForm.coveringTeacherId">
-              <option [ngValue]="null">{{ 'operations.covers.select' | translate }}</option>
-              <option *ngFor="let te of teachers" [ngValue]="te.id">{{ te.firstName }} {{ te.lastName }}</option>
-            </select>
-          </div>
-        </div>
-        <div class="erp-form-group mb-3">
-          <label class="erp-label">{{ 'operations.covers.labelReason' | translate }}</label>
-          <input type="text" class="erp-input" [(ngModel)]="coverForm.reason" erpI18nPh="operations.covers.phReason" />
-        </div>
-        <button type="button" class="btn-primary-erp btn-sm me-2" (click)="submitCover()">{{ 'operations.covers.addCover' | translate }}</button>
-        <button type="button" class="btn-outline-erp btn-sm" (click)="reloadCovers()">{{ 'operations.covers.refreshList' | translate }}</button>
-        <table class="erp-table mt-3 mb-0">
-          <thead><tr><th>{{ 'operations.covers.thDate' | translate }}</th><th>{{ 'operations.covers.thClass' | translate }}</th><th>{{ 'operations.covers.thSection' | translate }}</th><th>{{ 'operations.covers.thCovering' | translate }}</th><th>{{ 'operations.covers.thStatus' | translate }}</th><th></th></tr></thead>
-          <tbody>
-            <tr *ngFor="let c of covers">
-              <td>{{ c.coverDate }}</td>
-              <td>{{ c.classId }}</td>
-              <td>{{ c.sectionId || ('transport.dash' | translate) }}</td>
-              <td>{{ c.coveringTeacherId }}</td>
-              <td>{{ c.status }}</td>
-              <td><button *ngIf="c.status === 'ACTIVE'" type="button" class="btn-outline-erp btn-xs" (click)="cancelCover(c)">{{ 'operations.covers.cancel' | translate }}</button></td>
-            </tr>
-          </tbody>
-        </table>
       </div>
 
       <div class="erp-card mb-4" *ngIf="tab === 'staff'">
@@ -358,9 +303,7 @@ import { runtimeConfig } from '../../core/config/runtime-config';
   `,
 })
 export class OperationsHubComponent implements OnInit {
-  tab: OperationsTab = 'covers';
-  tabs: { id: OperationsTab }[] = [
-    { id: 'covers' },
+  private static readonly ALL_TABS: { id: OperationsTab }[] = [
     { id: 'staff' },
     { id: 'visitors' },
     { id: 'gate' },
@@ -369,9 +312,11 @@ export class OperationsHubComponent implements OnInit {
     { id: 'payroll' },
   ];
 
+  tab: OperationsTab = 'staff';
+  tabs: { id: OperationsTab }[] = [...OperationsHubComponent.ALL_TABS];
+
   classes: SchoolClass[] = [];
   teachers: Teacher[] = [];
-  covers: AttendanceCoverRow[] = [];
   staff: OperationalStaffRow[] = [];
   staffTotal = 0;
   staffPageIndex = 0;
@@ -404,14 +349,6 @@ export class OperationsHubComponent implements OnInit {
   remindersFilteredTotal = 0;
   payroll: PayrollAccrualSummary | null = null;
 
-  coverDate = new Date().toISOString().split('T')[0];
-  coverForm = {
-    classId: null as number | null,
-    sectionId: null as number | null,
-    coveringTeacherId: null as number | null,
-    reason: '',
-    periodNumber: null as number | null,
-  };
   staffRoles = ['DRIVER', 'SECURITY', 'OFFICE', 'NURSE', 'MAINTENANCE', 'LAB_ASSISTANT', 'OTHER'];
   staffForm = { staffRole: 'DRIVER', fullName: '', phone: '', employeeCode: '' };
   visitorForm = { visitorName: '', phone: '', hostName: '', purpose: '' };
@@ -434,7 +371,10 @@ export class OperationsHubComponent implements OnInit {
     private feeService: FeeService,
     private confirmDialog: ConfirmDialogService,
     private translate: TranslateService,
-    private cdr: ChangeDetectorRef
+    private cdr: ChangeDetectorRef,
+    private settings: SettingsService,
+    private route: ActivatedRoute,
+    private router: Router
   ) {}
 
   staffRoleLabel(code: string): string {
@@ -445,19 +385,30 @@ export class OperationsHubComponent implements OnInit {
 
   ngOnInit(): void {
     this.translate.onLangChange.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => this.cdr.markForCheck());
+    const tabSnap = this.route.snapshot.queryParamMap.get('tab');
+    if (tabSnap === 'covers') {
+      void this.router.navigate(['/app/timetable'], { queryParams: { section: 'covers' }, replaceUrl: true });
+    }
     this.academic.getClasses().subscribe(c => (this.classes = c));
     this.teacherService.getTeachers().subscribe(t => (this.teachers = t));
-    this.reloadCovers();
-  }
-
-  get coverSections(): { id: number; name: string }[] {
-    const cls = this.classes.find(c => c.id === this.coverForm.classId);
-    return cls?.sections?.map(s => ({ id: s.id, name: s.name })) ?? [];
+    this.settings.getFeatures().subscribe(() => {
+      this.tabs = [...OperationsHubComponent.ALL_TABS];
+      this.cdr.markForCheck();
+    });
+    this.route.queryParams.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(q => {
+      const raw = (q['tab'] || '').toString();
+      if (!raw) {
+        return;
+      }
+      const allowed = new Set(OperationsHubComponent.ALL_TABS.map(x => x.id));
+      if (allowed.has(raw as OperationsTab)) {
+        this.selectTab(raw as OperationsTab);
+      }
+    });
   }
 
   selectTab(t: OperationsTab): void {
     this.tab = t;
-    if (t === 'covers') this.reloadCovers();
     if (t === 'staff') {
       this.staffTabError = '';
       this.staffPageIndex = 0;
@@ -563,28 +514,6 @@ export class OperationsHubComponent implements OnInit {
       this.remindersFilteredTotal = p.totalElements;
       this.remindersPageIndex = p.page;
     });
-  }
-
-  reloadCovers(): void {
-    this.operations.listAttendanceCoversAdmin(this.coverDate).subscribe(s => (this.covers = s));
-  }
-
-  submitCover(): void {
-    if (this.coverForm.classId == null || this.coverForm.coveringTeacherId == null) return;
-    this.operations
-      .createAttendanceCover({
-        coverDate: this.coverDate,
-        classId: this.coverForm.classId,
-        sectionId: this.coverForm.sectionId ?? undefined,
-        coveringTeacherId: this.coverForm.coveringTeacherId,
-        reason: this.coverForm.reason,
-        periodNumber: this.coverForm.periodNumber != null && this.coverForm.periodNumber > 0 ? this.coverForm.periodNumber : undefined,
-      })
-      .subscribe(() => this.reloadCovers());
-  }
-
-  cancelCover(c: AttendanceCoverRow): void {
-    this.operations.cancelAttendanceCover(c.id).subscribe(() => this.reloadCovers());
   }
 
   addStaff(): void {

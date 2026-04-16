@@ -7,7 +7,7 @@ services:
       - "8080:8080"
     environment:
       - SPRING_PROFILES_ACTIVE=ml
-      - DB_URL=jdbc:mysql://mysql:3306/school_erp?useSSL=false&serverTimezone=UTC&createDatabaseIfNotExist=true
+      - DB_URL=jdbc:mysql://mysql:3306/school_erp?useSSL=false&serverTimezone=UTC&createDatabaseIfNotExist=true&allowPublicKeyRetrieval=true
       - DB_USERNAME=root
       - DB_PASSWORD=rootpassword
       - REDIS_HOST=redis
