@@ -82,6 +82,9 @@ public class TenantFeatureRolloutService {
             return;
         }
         cache.evict(tenantId + ":getSettings");
-        cache.evict(tenantId + ":getFeatureFlags");
+        var flagsCache = cacheManager.getCache(CacheConfig.TENANT_FEATURE_FLAGS);
+        if (flagsCache != null) {
+            flagsCache.evict(tenantId + ":getFeatureFlags");
+        }
     }
 }

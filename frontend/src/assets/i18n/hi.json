@@ -107,7 +107,15 @@
         "audit": { "name": "ऑडिट", "description": "अनुपालन ऑडिट ट्रेल" },
         "operationsHub": { "name": "संचालन केंद्र", "description": "कर्मी, आगंतुक, गेट पास, इन्वेंटरी, फीस अनुस्मारक, पेरोल संचय (प्रारूप)" },
         "importExport": { "name": "आयात / निर्यात", "description": "बल्क डेटा जॉब और CSV निर्यात" },
-        "directory": { "name": "निर्देशिका", "description": "प्रशासकों के लिए एकीकृत खोज" }
+        "directory": { "name": "निर्देशिका", "description": "प्रशासकों के लिए एकीकृत खोज" },
+        "fees": { "name": "फीस", "description": "संरचना, चालान, वसूली और अनुस्मारक" },
+        "payroll": { "name": "पेरोल", "description": "वेतन संरचना, भुगतान चक्र और पेस्लिप" },
+        "documents": { "name": "दस्तावेज़", "description": "स्कूल दस्तावेज़ भंडार और स्टाफ साझाकरण" },
+        "communication": { "name": "संचार", "description": "घोषणाएँ, इनबॉक्स और स्कूल-व्यापी संदेश" },
+        "reports": { "name": "रिपोर्ट", "description": "प्रशासकों के लिए विश्लेषण और डैशबोर्ड" },
+        "student": { "name": "छात्र मॉड्यूल", "description": "रोस्टर, प्रोफ़ाइल और अभिभावक-जुड़े रिकॉर्ड" },
+        "teacher": { "name": "शिक्षक मॉड्यूल", "description": "फैकल्टी रोस्टर, असाइनमेंट और कक्षा संदर्भ" },
+        "attendance": { "name": "उपस्थिति", "description": "दैनिक उपस्थिति, सारांश और अनुपालन दृश्य" }
       }
     },
     "activity": {
@@ -200,6 +208,8 @@
       "documents": "दस्तावेज़",
       "auditLog": "ऑडिट लॉग",
       "settings": "सेटिंग्स",
+      "preferences": "प्राथमिकताएँ",
+      "myAccountProfile": "प्रोफ़ाइल और स्कूल",
       "parentPortal": "अभिभावक पोर्टल",
       "superAdmin": "सुपर प्रशासक",
       "systemHealth": "सिस्टम स्वास्थ्य",
@@ -259,7 +269,8 @@
     "time": {
       "minutesAgo": "{{n}} मि पहले",
       "hoursAgo": "{{n}} घं पहले",
-      "daysAgo": "{{n}} दि पहले"
+      "daysAgo": "{{n}} दि पहले",
+      "unknown": "—"
     }
   },
   "login": {
@@ -1441,7 +1452,11 @@
     "badgeTEACHERS": "शिक्षक",
     "badgePARENTS": "अभिभावक",
     "badgeCLASS": "कक्षा",
-    "badgeSECTION": "खंड"
+    "badgeSECTION": "खंड",
+    "parentSchoolWideHeading": "स्कूल-व्यापी सूचनाएँ",
+    "parentSchoolWideLead": "सभी परिवारों और स्टाफ़ के लिए आधिकारिक बुलेटिन।",
+    "parentTargetedHeading": "आपके और आपके बच्चों के लिए",
+    "parentTargetedLead": "दर्शक-विशिष्ट सूचनाएँ चेतावनियों → आपकी सूचनाओं में भी दिखती हैं।"
   },
   "chat": {
     "pageTitle": "संदेश",
@@ -1453,6 +1468,8 @@
     "statusConnecting": "जुड़ रहा है…",
     "refresh": "रीफ़्रेश",
     "searchPlaceholder": "वार्ताएँ खोजें…",
+    "quickSearch": "संदेश के लिए लोग खोजें",
+    "toolbarNoMatches": "कोई मेल नहीं। दूसरी वर्तनी आज़माएँ या और विकल्पों के लिए 'नया' खोलें।",
     "newChat": "नया",
     "close": "बंद करें",
     "startConversationTitle": "वार्ता शुरू करें",
@@ -2365,6 +2382,7 @@
   },
   "settings": {
     "pageTitle": "सेटिंग्स",
+    "pageTitleUserShell": "आपका खाता और प्राथमिकताएँ",
     "leadAdmin": "स्कूल कॉन्फ़िगरेशन और प्राथमिकताएँ।",
     "leadUser": "आपकी प्रोफ़ाइल और केवल पढ़ने योग्य स्कूल जानकारी।",
     "refresh": "रीफ़्रेश",
@@ -2379,6 +2397,9 @@
     "profileLead": "आपका चित्र और खाता विवरण — हेडर और मेनू में वही पहचान।",
     "labelContactPhone": "आपका संपर्क",
     "accountDetailsTitle": "खाता विवरण",
+    "editAccountDetails": "संपादित करें",
+    "cancelAccountEdit": "रद्द करें",
+    "accountDetailsViewLead": "अपनी साइन-इन पहचान देखें। नाम या फ़ोन बदलने के लिए संपादित करें चुनें।",
     "accountDetailsLead": "प्रदर्शन नाम और फ़ोन आपकी उपयोगकर्ता रिकॉर्ड पर संग्रहीत हैं (साइन-इन वाली पहचान)। ईमेल सुरक्षा के लिए स्थिर रहता है; बदलाव के लिए IT या स्वामी से संपर्क करें।",
     "profileFullNameLabel": "पूरा नाम",
     "profileContactPhoneLabel": "संपर्क फ़ोन",
@@ -2409,7 +2430,7 @@
     "labelSchoolCode": "स्कूल कोड",
     "schoolCodeTitle": "बहु-परिसर सेटअप में शाखाएँ जोड़ने हेतु उपयोग में",
     "branchesLead": "आपके स्कूल कोड वाले स्कूल यहाँ दिखते हैं (केवल पढ़ने योग्य)। प्रत्येक शाखा अपने टेनेंट से लॉग इन करती है।",
-    "schoolRecordTitle": "स्कूल रिकॉर्ड (केवल पढ़ने योग्य)",
+    "schoolRecordTitle": "स्कूल रिकॉर्ड (स्कूल द्वारा प्रबंधित)",
     "labelSchoolEmail": "स्कूल ईमेल",
     "photoHintMock": "हेडर और मेनू में दिखता है। क्लाउड फोटो जुड़ने तक केवल इस ब्राउज़र में सहेजा जाता है।",
     "photoHintLive": "हेडर और मेनू में दिखता है। सहेजने पर खाते के साथ संग्रहीत; पूर्ण मीडिया सिंक बाद में हो सकता है।",
@@ -2422,7 +2443,7 @@
     "selectChildOption": "बच्चा चुनें",
     "dtClassSection": "कक्षा और अनुभाग",
     "sectionLabel": "अनुभाग {{name}}",
-    "dtRollAdmission": "रोल / प्रवेश",
+    "dtRollAdmission": "रोल नं. और प्रवेश",
     "dtAdmissionDate": "प्रवेश तिथि",
     "dtStatus": "स्थिति",
     "dtHomeroomTeacher": "कक्षा अध्यापक",

@@ -63,22 +63,66 @@ import { runtimeConfig } from '../../core/config/runtime-config';
           </div>
         </div>
         <p *ngIf="annFilteredTotal === 0 && annSearch" class="text-muted small mb-3">{{ 'inbox.noSearchMatches' | translate }}</p>
-        <div *ngFor="let a of pagedAnnouncements" class="erp-card mb-3 inbox-card" [attr.data-testid]="'announcement-' + a.id">
-          <div class="d-flex justify-content-between align-items-start gap-2 mb-2">
-            <h3 style="font-size: 16px; font-weight: 700; margin: 0;">{{ a.title }}</h3>
-            <span class="badge-erp badge-info text-uppercase" style="font-size: 10px">{{ audienceLabel(a) }}</span>
-          </div>
-          <p class="announcement-preview text-muted" style="font-size: 14px; line-height: 1.6; margin-bottom: 12px;">
-            {{ previewBody(a.content) }}
-          </p>
-          <div class="d-flex flex-wrap justify-content-between align-items-center gap-2" style="font-size: 12px; color: var(--clr-text-muted);">
-            <span><i class="bi bi-person me-1"></i>{{ a.author || ('inbox.authorFallback' | translate) }} <span *ngIf="a.authorRole">({{ a.authorRole }})</span></span>
-            <div class="d-flex gap-2 align-items-center">
-              <span><i class="bi bi-clock me-1"></i>{{ formatDate(a.createdAt) }}</span>
-              <a class="btn-outline-erp btn-xs" [routerLink]="['/app/announcement', a.id]">{{ 'inbox.openFullNotice' | translate }}</a>
+        <ng-container *ngIf="parentAudienceSplit">
+          <div *ngIf="parentSchoolWideAnnouncements.length" class="mb-3">
+            <h3 class="h6 text-uppercase small mb-1" style="letter-spacing: 0.04em; color: var(--clr-text-muted);">{{ 'inbox.parentSchoolWideHeading' | translate }}</h3>
+            <p class="text-muted small mb-3">{{ 'inbox.parentSchoolWideLead' | translate }}</p>
+            <div *ngFor="let a of parentSchoolWideAnnouncements" class="erp-card mb-3 inbox-card" [attr.data-testid]="'announcement-' + a.id">
+              <div class="d-flex justify-content-between align-items-start gap-2 mb-2">
+                <h3 style="font-size: 16px; font-weight: 700; margin: 0;">{{ a.title }}</h3>
+                <span class="badge-erp badge-info text-uppercase" style="font-size: 10px">{{ audienceLabel(a) }}</span>
+              </div>
+              <p class="announcement-preview text-muted" style="font-size: 14px; line-height: 1.6; margin-bottom: 12px;">
+                {{ previewBody(a.content) }}
+              </p>
+              <div class="d-flex flex-wrap justify-content-between align-items-center gap-2" style="font-size: 12px; color: var(--clr-text-muted);">
+                <span><i class="bi bi-person me-1"></i>{{ a.author || ('inbox.authorFallback' | translate) }} <span *ngIf="a.authorRole">({{ a.authorRole }})</span></span>
+                <div class="d-flex gap-2 align-items-center">
+                  <span><i class="bi bi-clock me-1"></i>{{ formatDate(a.createdAt) }}</span>
+                  <a class="btn-outline-erp btn-xs" [routerLink]="['/app/announcement', a.id]">{{ 'inbox.openFullNotice' | translate }}</a>
+                </div>
+              </div>
             </div>
           </div>
-        </div>
+          <div *ngIf="parentTargetedAnnouncements.length" class="mb-3">
+            <h3 class="h6 text-uppercase small mb-1" style="letter-spacing: 0.04em; color: var(--clr-text-muted);">{{ 'inbox.parentTargetedHeading' | translate }}</h3>
+            <p class="text-muted small mb-3">{{ 'inbox.parentTargetedLead' | translate }}</p>
+            <div *ngFor="let a of parentTargetedAnnouncements" class="erp-card mb-3 inbox-card" [attr.data-testid]="'announcement-targeted-' + a.id">
+              <div class="d-flex justify-content-between align-items-start gap-2 mb-2">
+                <h3 style="font-size: 16px; font-weight: 700; margin: 0;">{{ a.title }}</h3>
+                <span class="badge-erp badge-info text-uppercase" style="font-size: 10px">{{ audienceLabel(a) }}</span>
+              </div>
+              <p class="announcement-preview text-muted" style="font-size: 14px; line-height: 1.6; margin-bottom: 12px;">
+                {{ previewBody(a.content) }}
+              </p>
+              <div class="d-flex flex-wrap justify-content-between align-items-center gap-2" style="font-size: 12px; color: var(--clr-text-muted);">
+                <span><i class="bi bi-person me-1"></i>{{ a.author || ('inbox.authorFallback' | translate) }} <span *ngIf="a.authorRole">({{ a.authorRole }})</span></span>
+                <div class="d-flex gap-2 align-items-center">
+                  <span><i class="bi bi-clock me-1"></i>{{ formatDate(a.createdAt) }}</span>
+                  <a class="btn-outline-erp btn-xs" [routerLink]="['/app/announcement', a.id]">{{ 'inbox.openFullNotice' | translate }}</a>
+                </div>
+              </div>
+            </div>
+          </div>
+        </ng-container>
+        <ng-container *ngIf="!parentAudienceSplit">
+          <div *ngFor="let a of pagedAnnouncements" class="erp-card mb-3 inbox-card" [attr.data-testid]="'announcement-' + a.id">
+            <div class="d-flex justify-content-between align-items-start gap-2 mb-2">
+              <h3 style="font-size: 16px; font-weight: 700; margin: 0;">{{ a.title }}</h3>
+              <span class="badge-erp badge-info text-uppercase" style="font-size: 10px">{{ audienceLabel(a) }}</span>
+            </div>
+            <p class="announcement-preview text-muted" style="font-size: 14px; line-height: 1.6; margin-bottom: 12px;">
+              {{ previewBody(a.content) }}
+            </p>
+            <div class="d-flex flex-wrap justify-content-between align-items-center gap-2" style="font-size: 12px; color: var(--clr-text-muted);">
+              <span><i class="bi bi-person me-1"></i>{{ a.author || ('inbox.authorFallback' | translate) }} <span *ngIf="a.authorRole">({{ a.authorRole }})</span></span>
+              <div class="d-flex gap-2 align-items-center">
+                <span><i class="bi bi-clock me-1"></i>{{ formatDate(a.createdAt) }}</span>
+                <a class="btn-outline-erp btn-xs" [routerLink]="['/app/announcement', a.id]">{{ 'inbox.openFullNotice' | translate }}</a>
+              </div>
+            </div>
+          </div>
+        </ng-container>
         <app-erp-pagination
           *ngIf="annFilteredTotal > 0"
           class="d-block"
@@ -193,6 +237,29 @@ export class CommunicationComponent implements OnInit {
     return r === 'admin' || r === 'teacher';
   }
 
+  get isParentViewer(): boolean {
+    return this.auth.getRole() === 'parent';
+  }
+
+  /** Split school-wide vs targeted notices for parents (mock / full client list). Server-paged mode keeps a single list until API adds audience filters. */
+  get parentAudienceSplit(): boolean {
+    return this.isParentViewer && !this.useServerPaging;
+  }
+
+  get parentSchoolWideAnnouncements(): Announcement[] {
+    if (!this.parentAudienceSplit) {
+      return [];
+    }
+    return this.pagedAnnouncements.filter(a => (a.targetAudience || 'all').toLowerCase() === 'all');
+  }
+
+  get parentTargetedAnnouncements(): Announcement[] {
+    if (!this.parentAudienceSplit) {
+      return [];
+    }
+    return this.pagedAnnouncements.filter(a => (a.targetAudience || 'all').toLowerCase() !== 'all');
+  }
+
   ngOnInit(): void {
     this.translate.onLangChange.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => this.cdr.markForCheck());
     this.subs.add(
@@ -228,27 +295,36 @@ export class CommunicationComponent implements OnInit {
         size: this.annPageSize,
         q: this.annSearch.trim() || undefined,
       })
-      .subscribe(p => {
-        if (seq !== this.annReqSeq) return;
-        this.pagedAnnouncements = p.content;
-        this.annFilteredTotal = p.totalElements;
-        this.annPageIndex = p.page;
-        this.annPageSize = p.size;
-        this.cdr.markForCheck();
+      .subscribe({
+        next: p => {
+          if (seq !== this.annReqSeq) return;
+          this.pagedAnnouncements = p.content;
+          this.annFilteredTotal = p.totalElements;
+          this.annPageIndex = p.page;
+          this.annPageSize = p.size;
+          this.cdr.markForCheck();
+        },
+        error: () => {
+          if (seq !== this.annReqSeq) return;
+          this.pagedAnnouncements = [];
+          this.annFilteredTotal = 0;
+          this.cdr.markForCheck();
+        },
       });
   }
 
   private filterAnnouncements(): Announcement[] {
     const q = this.annSearch.trim().toLowerCase();
-    if (!q) {
-      return this.announcements;
-    }
-    return this.announcements.filter(
-      a =>
-        a.title.toLowerCase().includes(q) ||
-        (a.content || '').toLowerCase().includes(q) ||
-        (a.author || '').toLowerCase().includes(q)
-    );
+    const base = !q
+      ? [...this.announcements]
+      : this.announcements.filter(
+          a =>
+            a.title.toLowerCase().includes(q) ||
+            (a.content || '').toLowerCase().includes(q) ||
+            (a.author || '').toLowerCase().includes(q)
+        );
+    base.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+    return base;
   }
 
   applyAnnPaging(): void {

@@ -107,7 +107,15 @@
         "audit": { "name": "Audit", "description": "Compliance audit trail" },
         "operationsHub": { "name": "Operations hub", "description": "Staff, visitors, gate passes, inventory, fee reminders, payroll accrual (stub)" },
         "importExport": { "name": "Import / export", "description": "Bulk data jobs and CSV exports" },
-        "directory": { "name": "Directory", "description": "Unified staff & student search for administrators" }
+        "directory": { "name": "Directory", "description": "Unified staff & student search for administrators" },
+        "fees": { "name": "Fees", "description": "Fee structures, invoices, collections, and reminders for the campus" },
+        "payroll": { "name": "Payroll", "description": "Salary structures, pay runs, and payslips for staff" },
+        "documents": { "name": "Documents", "description": "School document vault and controlled sharing with staff" },
+        "communication": { "name": "Communication", "description": "Announcements, inbox, and school-wide messaging channels" },
+        "reports": { "name": "Reports", "description": "Operational and academic analytics dashboards for administrators" },
+        "student": { "name": "Student module", "description": "Student roster, profiles, and guardian-linked records in the portal" },
+        "teacher": { "name": "Teacher module", "description": "Faculty roster, assignments, and class-linked teaching context" },
+        "attendance": { "name": "Attendance", "description": "Daily attendance capture, summaries, and compliance views" }
       }
     },
     "activity": {
@@ -200,6 +208,8 @@
       "documents": "Documents",
       "auditLog": "Audit log",
       "settings": "Settings",
+      "preferences": "Preferences",
+      "myAccountProfile": "Profile & school",
       "parentPortal": "Parent portal",
       "superAdmin": "Super admin",
       "systemHealth": "System health",
@@ -259,7 +269,8 @@
     "time": {
       "minutesAgo": "{{n}}m ago",
       "hoursAgo": "{{n}}h ago",
-      "daysAgo": "{{n}}d ago"
+      "daysAgo": "{{n}}d ago",
+      "unknown": "—"
     }
   },
   "login": {
@@ -1441,7 +1452,11 @@
     "badgeTEACHERS": "Teachers",
     "badgePARENTS": "Parents",
     "badgeCLASS": "Class",
-    "badgeSECTION": "Section"
+    "badgeSECTION": "Section",
+    "parentSchoolWideHeading": "School-wide notices",
+    "parentSchoolWideLead": "Official bulletins for all families and staff.",
+    "parentTargetedHeading": "For you & your children",
+    "parentTargetedLead": "Audience-specific notices also appear under Alerts → Your notifications."
   },
   "chat": {
     "pageTitle": "Messages",
@@ -1453,6 +1468,8 @@
     "statusConnecting": "Connecting…",
     "refresh": "Refresh",
     "searchPlaceholder": "Search conversations…",
+    "quickSearch": "Find people to message",
+    "toolbarNoMatches": "No people matched. Try another spelling or use New for more options.",
     "newChat": "New",
     "close": "Close",
     "startConversationTitle": "Start a conversation",
@@ -2365,6 +2382,7 @@
   },
   "settings": {
     "pageTitle": "Settings",
+    "pageTitleUserShell": "Your account & preferences",
     "leadAdmin": "School configuration and preferences.",
     "leadUser": "Your profile and read-only school information. Tenant changes are limited to school administrators.",
     "refresh": "Refresh",
@@ -2379,6 +2397,9 @@
     "profileLead": "Your portrait and account details — the same identity shown in the header and menus.",
     "labelContactPhone": "Your contact",
     "accountDetailsTitle": "Account details",
+    "editAccountDetails": "Edit",
+    "cancelAccountEdit": "Cancel",
+    "accountDetailsViewLead": "Review your sign-in identity. Select Edit to change your display name or contact phone.",
     "accountDetailsLead": "Your display name and phone are stored on your user record (same identity as sign-in). Email stays fixed for security; contact the platform or school owner if it must change.",
     "profileFullNameLabel": "Full name",
     "profileContactPhoneLabel": "Contact phone",
@@ -2409,7 +2430,7 @@
     "labelSchoolCode": "School code",
     "schoolCodeTitle": "Used to link branches in multi-campus setups",
     "branchesLead": "Schools that share your school code appear here (read-only directory). Each branch logs in as its own tenant.",
-    "schoolRecordTitle": "School record (read-only)",
+    "schoolRecordTitle": "School record (managed by school)",
     "labelSchoolEmail": "School email",
     "photoHintMock": "Shown in the header and menus. Saved on this browser only until your school connects cloud photos.",
     "photoHintLive": "Shown in the header and menus. Stored with your account when you save; full media sync may follow.",
@@ -2417,15 +2438,15 @@
     "directoryPhotoBullet1": "Admins and class teachers update official photos where your role allows.",
     "directoryPhotoBullet2": "Contact the office if you need a change.",
     "linkedChildrenHeading": "Linked children",
-    "linkedChildrenHintLong": "Pick a child to see their class, section, and homeroom teacher from the school roster. Optional photo below is only for your parent portal view — not the official record.",
+    "linkedChildrenHintLong": "Pick a child to see their class, section, and class teacher from the school roster. Optional photo below is only for your parent portal view — not the official record.",
     "labelChildSelect": "Child",
     "selectChildOption": "Select child",
     "dtClassSection": "Class & section",
     "sectionLabel": "Section {{name}}",
-    "dtRollAdmission": "Roll / admission",
+    "dtRollAdmission": "Roll no. & admission",
     "dtAdmissionDate": "Admission date",
     "dtStatus": "Status",
-    "dtHomeroomTeacher": "Homeroom teacher",
+    "dtHomeroomTeacher": "Class teacher",
     "selectChildForDetails": "Select a child to view their school details.",
     "optionalPortalPhoto": "Optional portal photo",
     "optionalPortalPhotoHint": "Only shown to you in the app until the school enables cloud photos.",

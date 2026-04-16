@@ -5,6 +5,7 @@ import { ActivatedRoute, ParamMap, RouterModule } from '@angular/router';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { Subject, takeUntil } from 'rxjs';
 import { ParentService } from '../../core/services/parent.service';
+import { ParentSelectionService } from '../../core/services/parent-selection.service';
 import { openRazorpaySchoolFeeCheckout, PAYMENT_PROVIDER_IDS } from '../../core/payment';
 import { runtimeConfig } from '../../core/config/runtime-config';
 import {
@@ -120,6 +121,7 @@ import {
             <app-erp-month-picker
               class="w-100"
               placeholderI18nKey="parentPortal.attendanceMonthPlaceholder"
+              yearNavMode="plain"
               [(ngModel)]="attendanceMonthYm"
               (ngModelChange)="onAttendanceMonthChange()"
               [maxYm]="maxAttendanceMonthYm"
@@ -530,6 +532,7 @@ export class ParentPortalComponent implements OnInit, OnDestroy {
 
   constructor(
     private parentService: ParentService,
+    private parentSelection: ParentSelectionService,
     private translate: TranslateService,
     private cdr: ChangeDetectorRef,
     private route: ActivatedRoute,
@@ -685,7 +688,7 @@ export class ParentPortalComponent implements OnInit, OnDestroy {
     } else if (tab === 'attendance') {
       this.tab = 'attendance';
     }
-    const child = qp.get('child');
+    const child = qp.get('child') || qp.get('childId');
     if (child && /^\d+$/.test(child)) {
       this.selectedStudentId = Number(child);
     }
@@ -702,8 +705,13 @@ export class ParentPortalComponent implements OnInit, OnDestroy {
       if (this.selectedStudentId != null && !children.some(c => c.id === this.selectedStudentId)) {
         this.selectedStudentId = children.length ? children[0].id : null;
       }
-      if (this.selectedStudentId == null && children.length) {
-        this.selectedStudentId = children[0].id;
+      if (this.selectedStudentId == null) {
+        const stored = this.parentSelection.readPreferredChildId();
+        if (stored != null && children.some(c => c.id === stored)) {
+          this.selectedStudentId = stored;
+        } else if (children.length) {
+          this.selectedStudentId = children[0].id;
+        }
       }
       if (this.selectedStudentId != null) {
         this.onStudentChange();
@@ -713,6 +721,7 @@ export class ParentPortalComponent implements OnInit, OnDestroy {
 
   onStudentChange(): void {
     this.selectedChild = this.children.find(child => child.id === this.selectedStudentId) ?? null;
+    this.parentSelection.rememberSelectedChild(this.selectedStudentId);
     this.attendancePage = 1;
     this.reloadSelectedChild();
   }

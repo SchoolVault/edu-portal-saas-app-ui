@@ -2023,14 +2023,70 @@ span.flatpickr-weekday {
   color: var(--clr-text);
 }
 .flatpickr-calendar.erp-flatpickr-month .flatpickr-current-month .numInputWrapper {
+  position: relative;
   flex: 0 0 auto;
   margin: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2.85rem;
+  padding: 0.55rem 0.65rem 0.55rem;
+  box-sizing: border-box;
+  border: 1px solid var(--clr-border);
+  background: var(--clr-surface-muted);
+  border-radius: 999px;
+}
+.flatpickr-calendar.erp-flatpickr-month .flatpickr-current-month .numInputWrapper .arrowUp,
+.flatpickr-calendar.erp-flatpickr-month .flatpickr-current-month .numInputWrapper .arrowDown {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  right: auto;
+  width: 0;
+  height: 0;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  opacity: 0.55;
+  pointer-events: auto;
+}
+.flatpickr-calendar.erp-flatpickr-month .flatpickr-current-month .numInputWrapper .arrowUp {
+  top: 6px;
+  border-bottom: 5px solid var(--clr-text-muted);
+  border-top: 0;
+}
+.flatpickr-calendar.erp-flatpickr-month .flatpickr-current-month .numInputWrapper .arrowDown {
+  bottom: 6px;
+  border-top: 5px solid var(--clr-text-muted);
+  border-bottom: 0;
+}
+/* Parent portal: year changes via ‹ › only (see ErpMonthPickerComponent yearNavMode). */
+.flatpickr-calendar.erp-flatpickr-month--year-chevrons .flatpickr-current-month .numInputWrapper .arrowUp,
+.flatpickr-calendar.erp-flatpickr-month--year-chevrons .flatpickr-current-month .numInputWrapper .arrowDown {
+  display: none !important;
+  pointer-events: none;
+}
+/* Parent attendance: year is display-only (no steppers, no chevrons). */
+.flatpickr-calendar.erp-flatpickr-month--year-plain .flatpickr-current-month .numInputWrapper .arrowUp,
+.flatpickr-calendar.erp-flatpickr-month--year-plain .flatpickr-current-month .numInputWrapper .arrowDown {
+  display: none !important;
+  pointer-events: none;
+}
+.flatpickr-calendar.erp-flatpickr-month--year-plain .flatpickr-current-month .numInput.cur-year {
+  pointer-events: none;
+  cursor: default;
 }
 .flatpickr-calendar.erp-flatpickr-month .flatpickr-current-month .numInput.cur-year {
-  width: 4.5rem;
+  width: 4.75rem;
+  margin: 0;
+  padding: 0.35rem 0.25rem;
+  height: auto;
+  line-height: 1.25;
   text-align: center;
   font-variant-numeric: tabular-nums;
   font-weight: 700;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
 }
 .flatpickr-calendar.erp-flatpickr-month .flatpickr-months .flatpickr-prev-month,
 .flatpickr-calendar.erp-flatpickr-month .flatpickr-months .flatpickr-next-month {

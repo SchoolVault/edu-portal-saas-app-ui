@@ -159,8 +159,27 @@ public class NotificationService {
      */
     @Transactional
     public Notification createNotification(String tenantId, Long userId, String title, String message, Enums.NotificationType type, String link) {
+        return createNotification(tenantId, userId, title, message, type, link, null);
+    }
+
+    /**
+     * Same as {@link #createNotification(String, Long, String, String, Enums.NotificationType, String)} but allows
+     * anchoring {@code createdAt} (e.g. announcement fan-out uses the notice timestamp so relative times stay faithful).
+     */
+    @Transactional
+    public Notification createNotification(
+            String tenantId,
+            Long userId,
+            String title,
+            String message,
+            Enums.NotificationType type,
+            String link,
+            @Nullable LocalDateTime createdAtOverride) {
         Notification n = Notification.builder().title(title).message(message).type(type).userId(userId).isRead(false).link(link).build();
         n.setTenantId(tenantId);
+        if (createdAtOverride != null) {
+            n.setCreatedAt(createdAtOverride);
+        }
         repo.save(n);
         if (rabbitTemplate != null) {
             try {

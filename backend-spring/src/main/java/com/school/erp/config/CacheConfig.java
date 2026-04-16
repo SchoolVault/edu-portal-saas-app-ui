@@ -15,6 +15,7 @@ import org.springframework.data.redis.cache.RedisCacheManager;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.serializer.GenericJackson2JsonRedisSerializer;
 import org.springframework.data.redis.serializer.RedisSerializationContext;
+import org.springframework.data.redis.serializer.RedisSerializer;
 import org.springframework.data.redis.serializer.StringRedisSerializer;
 
 import org.springframework.util.StringUtils;
@@ -55,6 +56,11 @@ public class CacheConfig {
     public static final String PERMISSIONS = "permissions";
     /** Feature flags, theme, school branding JSON. */
     public static final String TENANT_CONFIG = "tenantConfig";
+    /**
+     * Tenant feature flag map ({@code Map<String,Boolean>}) — serialized as plain JSON without Jackson default typing.
+     * Kept separate from {@link #SETTINGS_SNAPSHOT} so legacy Redis entries (no {@code @class}) and new typed snapshots coexist safely.
+     */
+    public static final String TENANT_FEATURE_FLAGS = "tenantFeatureFlags";
     /** Heavy report snapshots (optional L1 Caffeine in front later). */
     public static final String REPORT_RESULTS = "reportResults";
     /** KPI + role-specific dashboard payloads (hourly refresh typical for Aiven 1GB tier). */
@@ -77,6 +83,8 @@ public class CacheConfig {
             AppCacheTtlProperties ttlProps,
             Environment environment) {
         GenericJackson2JsonRedisSerializer json = new GenericJackson2JsonRedisSerializer();
+        RedisSerializationContext.SerializationPair<Object> plainJsonValues =
+                RedisSerializationContext.SerializationPair.fromSerializer(RedisSerializer.json());
 
         RedisCacheConfiguration base = RedisCacheConfiguration.defaultCacheConfig()
                 .serializeKeysWith(RedisSerializationContext.SerializationPair.fromSerializer(new StringRedisSerializer()))
@@ -102,6 +110,8 @@ public class CacheConfig {
         perCache.put(TEACHER_DIRECTORY, base.entryTtl(ttlProps.getTeacherDirectory()));
         perCache.put(ACADEMIC_CATALOG, base.entryTtl(ttlProps.getAcademicCatalog()));
         perCache.put(SETTINGS_SNAPSHOT, base.entryTtl(ttlProps.getSettingsSnapshot()));
+        /* Same key prefix / TTL as settings snapshot; only value serialization differs (plain JSON map). */
+        perCache.put(TENANT_FEATURE_FLAGS, base.serializeValuesWith(plainJsonValues).entryTtl(ttlProps.getSettingsSnapshot()));
         perCache.put(LIBRARY_CATALOG, base.entryTtl(ttlProps.getLibraryCatalog()));
         perCache.put(LIBRARY_ISSUES, base.entryTtl(ttlProps.getLibraryIssues()));
         perCache.put(FEES_CATALOG, base.entryTtl(ttlProps.getFeesCatalog()));

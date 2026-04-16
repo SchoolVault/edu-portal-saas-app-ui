@@ -898,6 +898,8 @@ export interface AnnouncementPreview {
   title: string;
   preview: string;
   createdAt: string;
+  /** Backend / mock: {@code ALL}, {@code PARENTS}, {@code TEACHERS}, … — drives shell audience split. */
+  targetAudience?: string;
 }
 
 export interface AppNotification {
