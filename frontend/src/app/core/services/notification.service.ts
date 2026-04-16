@@ -36,12 +36,14 @@ export class NotificationService {
   /** Call after session is known (e.g. from header) so mocks match role. */
   usePlatformOperatorFeed(): void {
     this.notifications = this.platformOperatorMocks.map(n => ({ ...n }));
+    this.sortNotificationsNewestFirst();
     this.notificationsSubject.next([...this.notifications]);
     this.syncUnreadFromLoadedNotifications();
   }
 
   useSchoolNotificationFeed(): void {
     this.notifications = this.schoolNotifications.map(n => ({ ...n }));
+    this.sortNotificationsNewestFirst();
     this.notificationsSubject.next([...this.notifications]);
     this.syncUnreadFromLoadedNotifications();
   }
@@ -73,7 +75,8 @@ export class NotificationService {
         }),
         tap(({ list, unread }) => {
           this.notifications = list;
-          this.notificationsSubject.next([...list]);
+          this.sortNotificationsNewestFirst();
+          this.notificationsSubject.next([...this.notifications]);
           this.unreadInboxSubject.next(unread);
         }),
         map(({ list }) => list)
@@ -81,6 +84,7 @@ export class NotificationService {
     }
     if (runtimeConfig.useMocks) {
       this.useSchoolNotificationFeed();
+      this.sortNotificationsNewestFirst();
       return of(this.notifications).pipe(delay(200));
     }
     return forkJoin({
@@ -96,7 +100,8 @@ export class NotificationService {
       }),
       tap(({ list, unread }) => {
         this.notifications = list;
-        this.notificationsSubject.next([...list]);
+        this.sortNotificationsNewestFirst();
+        this.notificationsSubject.next([...this.notifications]);
         this.unreadInboxSubject.next(unread);
       }),
       map(({ list }) => list)
@@ -112,7 +117,8 @@ export class NotificationService {
       map(list => (list || []).map(n => this.normalizeApi(n))),
       tap(list => {
         this.notifications = list;
-        this.notificationsSubject.next([...list]);
+        this.sortNotificationsNewestFirst();
+        this.notificationsSubject.next([...this.notifications]);
         this.unreadInboxSubject.next(list.filter(n => !n.read).length);
       })
     );
@@ -199,10 +205,19 @@ export class NotificationService {
     }
   }
 
+  private sortNotificationsNewestFirst(): void {
+    this.notifications.sort((a, b) => {
+      const ta = new Date(a.createdAt || 0).getTime();
+      const tb = new Date(b.createdAt || 0).getTime();
+      return tb - ta;
+    });
+  }
+
   private normalizeApi(n: any): AppNotification {
     const t = String(n.type ?? 'INFO').toLowerCase();
     const type: AppNotification['type'] =
       t === 'warning' ? 'warning' : t === 'success' ? 'success' : t === 'error' ? 'error' : 'info';
+    const linkRaw = n.link ?? n.deepLink ?? n.actionUrl ?? n.href ?? n.targetUrl;
     return {
       id: String(n.id),
       title: n.title ?? '',
@@ -210,8 +225,38 @@ export class NotificationService {
       type,
       read: !!n.isRead || !!n.read,
       userId: Number(n.userId ?? 0),
-      createdAt: n.createdAt ?? new Date().toISOString(),
-      link: n.link,
+      createdAt: NotificationService.coerceCreatedAtIso(n),
+      link: typeof linkRaw === 'string' ? linkRaw : linkRaw != null ? String(linkRaw) : undefined,
     };
+  }
+
+  /** Accepts ISO strings or Jackson {@code LocalDateTime} array shapes — never fabricates “now” for missing data. */
+  private static coerceCreatedAtIso(n: Record<string, unknown>): string {
+    const raw = n['createdAt'] ?? n['created_at'];
+    const s = NotificationService.stringifyTemporal(raw);
+    return s || '';
+  }
+
+  private static stringifyTemporal(raw: unknown): string {
+    if (raw == null) {
+      return '';
+    }
+    if (typeof raw === 'string' && raw.length) {
+      return raw;
+    }
+    if (Array.isArray(raw) && raw.length >= 3) {
+      const y = Number(raw[0]);
+      const mo = Number(raw[1]);
+      const d = Number(raw[2]);
+      const h = raw.length > 3 ? Number(raw[3]) : 0;
+      const mi = raw.length > 4 ? Number(raw[4]) : 0;
+      const sec = raw.length > 5 ? Number(raw[5]) : 0;
+      if (![y, mo, d].every(x => Number.isFinite(x))) {
+        return '';
+      }
+      const dt = new Date(y, mo - 1, d, h, mi, sec);
+      return Number.isNaN(dt.getTime()) ? '' : dt.toISOString();
+    }
+    return '';
   }
 }

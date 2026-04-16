@@ -47,6 +47,9 @@ import { ErpPaginationComponent } from '../../shared/erp-pagination/erp-paginati
         padding: 0.65rem 0;
         border-bottom: 1px solid var(--clr-border-light, #e8eef0);
       }
+      .fr-feature-rows {
+        min-height: 280px;
+      }
       .fr-feature-row:last-of-type {
         border-bottom: none;
       }
@@ -186,18 +189,29 @@ import { ErpPaginationComponent } from '../../shared/erp-pagination/erp-paginati
                     <span class="d-block mt-1"><i class="bi bi-hdd-network me-1"></i>{{ sch.tenantId }}</span>
                   </div>
                 </div>
-                <div *ngFor="let key of platformModuleKeys" class="fr-feature-row">
-                  <div>
-                    <div style="font-weight: 600;">{{ ('superAdmin.features.modules.' + key + '.name') | translate }}</div>
-                    <div style="font-size: 12px; color: var(--clr-text-muted);">
-                      {{ ('superAdmin.features.modules.' + key + '.description') | translate }}
+                <div class="fr-feature-rows">
+                  <div *ngFor="let key of pagedModuleKeys" class="fr-feature-row">
+                    <div>
+                      <div style="font-weight: 600;">{{ ('superAdmin.features.modules.' + key + '.name') | translate }}</div>
+                      <div style="font-size: 12px; color: var(--clr-text-muted);">
+                        {{ ('superAdmin.features.modules.' + key + '.description') | translate }}
+                      </div>
                     </div>
+                    <label class="fr-toggle mb-0">
+                      <input type="checkbox" [ngModel]="schoolFeatureDraft[key]" (ngModelChange)="setSchoolFeature(key, $event)" />
+                      <span class="fr-toggle__ui"><span class="fr-toggle__knob"></span></span>
+                    </label>
                   </div>
-                  <label class="fr-toggle mb-0">
-                    <input type="checkbox" [ngModel]="schoolFeatureDraft[key]" (ngModelChange)="setSchoolFeature(key, $event)" />
-                    <span class="fr-toggle__ui"><span class="fr-toggle__knob"></span></span>
-                  </label>
                 </div>
+                <app-erp-pagination
+                  *ngIf="featureModuleCount > featuresPageSize"
+                  [totalElements]="featureModuleCount"
+                  [pageIndex]="featuresPageIndex"
+                  [pageSize]="featuresPageSize"
+                  [showSizeChanger]="false"
+                  [maxPageButtons]="5"
+                  (pageIndexChange)="onFeaturesPageIndexChange($event)"
+                />
                 <div class="d-flex flex-wrap gap-2 align-items-center mt-3 pt-2" style="border-top: 1px solid var(--clr-border-light);">
                   <button type="button" class="btn-primary-erp" (click)="saveSchoolFeatures()" [disabled]="schoolFeatureSaving">
                     {{ schoolFeatureSaving ? ('superAdmin.features.saving' | translate) : ('superAdmin.features.save' | translate) }}
@@ -223,6 +237,9 @@ export class PlatformFeatureRolloutComponent implements OnInit {
   readonly schoolSearch$ = new Subject<string>();
   selectedSchool: PlatformSchoolSummary | null = null;
   readonly platformModuleKeys: readonly string[] = PLATFORM_TENANT_FEATURE_KEYS;
+  /** Fixed page size for module toggles (keeps the right panel compact). */
+  readonly featuresPageSize = 6;
+  featuresPageIndex = 0;
   schoolFeatureDraft: Record<string, boolean> = {};
   schoolFeatureSaving = false;
   schoolFeatureMsg = '';
@@ -231,6 +248,21 @@ export class PlatformFeatureRolloutComponent implements OnInit {
   private pendingTenantId: string | null = null;
 
   private readonly destroyRef = inject(DestroyRef);
+
+  get featureModuleCount(): number {
+    return this.platformModuleKeys.length;
+  }
+
+  /** Keys for the current page of the feature matrix (stable order from {@link PLATFORM_TENANT_FEATURE_KEYS}). */
+  get pagedModuleKeys(): string[] {
+    const start = this.featuresPageIndex * this.featuresPageSize;
+    return this.platformModuleKeys.slice(start, start + this.featuresPageSize);
+  }
+
+  onFeaturesPageIndexChange(idx: number): void {
+    this.featuresPageIndex = Math.max(0, idx);
+    this.cdr.markForCheck();
+  }
 
   constructor(
     private platformService: PlatformService,
@@ -318,6 +350,7 @@ export class PlatformFeatureRolloutComponent implements OnInit {
 
   selectSchool(school: PlatformSchoolSummary): void {
     this.selectedSchool = school;
+    this.featuresPageIndex = 0;
     this.schoolFeatureMsg = '';
     this.schoolFeatureErr = '';
     const cur = this.route.snapshot.queryParamMap.get('tenantId');

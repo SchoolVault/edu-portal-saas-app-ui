@@ -108,7 +108,12 @@ export const routes: Routes = [
         canActivate: [featureModuleGuard],
         data: { requireFeatures: ['communication'], requireAnyRole: ['admin', 'teacher', 'parent', 'student'] },
       },
-      { path: 'announcement/:id', loadComponent: () => import('./features/announcement-detail/announcement-detail.component').then(m => m.AnnouncementDetailComponent) },
+      {
+        path: 'announcement/:id',
+        loadComponent: () => import('./features/announcement-detail/announcement-detail.component').then(m => m.AnnouncementDetailComponent),
+        canActivate: [featureModuleGuard],
+        data: { requireFeatures: ['communication'], requireAnyRole: ['admin', 'teacher', 'parent', 'student'] },
+      },
       { path: 'leave', loadComponent: () => import('./features/leave/leave.component').then(m => m.LeaveComponent), canActivate: [leaveStaffGuard] },
       {
         path: 'reports',

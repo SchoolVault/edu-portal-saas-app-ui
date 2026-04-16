@@ -39,7 +39,7 @@ public class SettingsService {
 
     @Caching(evict = {
             @CacheEvict(cacheNames = CacheConfig.SETTINGS_SNAPSHOT, key = "T(com.school.erp.modules.settings.service.SettingsService).tenantCacheRoot() + ':getSettings'"),
-            @CacheEvict(cacheNames = CacheConfig.SETTINGS_SNAPSHOT, key = "T(com.school.erp.modules.settings.service.SettingsService).tenantCacheRoot() + ':getFeatureFlags'")
+            @CacheEvict(cacheNames = CacheConfig.TENANT_FEATURE_FLAGS, key = "T(com.school.erp.modules.settings.service.SettingsService).tenantCacheRoot() + ':getFeatureFlags'")
     })
     @Transactional
     public TenantConfig updateSettings(TenantConfig update) {
@@ -58,7 +58,7 @@ public class SettingsService {
         return repo.save(config);
     }
 
-    @Cacheable(cacheNames = CacheConfig.SETTINGS_SNAPSHOT, keyGenerator = "tenantMethodNameKeyGenerator")
+    @Cacheable(cacheNames = CacheConfig.TENANT_FEATURE_FLAGS, keyGenerator = "tenantMethodNameKeyGenerator")
     @Transactional(readOnly = true)
     public Map<String, Boolean> getFeatureFlags() {
         TenantConfig config = repo.findByTenantId(TenantContext.getTenantId())
@@ -80,7 +80,7 @@ public class SettingsService {
 
     @Caching(evict = {
             @CacheEvict(cacheNames = CacheConfig.SETTINGS_SNAPSHOT, key = "T(com.school.erp.modules.settings.service.SettingsService).tenantCacheRoot() + ':getSettings'"),
-            @CacheEvict(cacheNames = CacheConfig.SETTINGS_SNAPSHOT, key = "T(com.school.erp.modules.settings.service.SettingsService).tenantCacheRoot() + ':getFeatureFlags'")
+            @CacheEvict(cacheNames = CacheConfig.TENANT_FEATURE_FLAGS, key = "T(com.school.erp.modules.settings.service.SettingsService).tenantCacheRoot() + ':getFeatureFlags'")
     })
     @Transactional
     public Map<String, Boolean> updateFeatureFlags(Map<String, Boolean> flags) {

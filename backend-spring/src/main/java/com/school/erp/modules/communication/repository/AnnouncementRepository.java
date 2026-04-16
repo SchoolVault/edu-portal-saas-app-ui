@@ -29,8 +29,8 @@ public interface AnnouncementRepository extends JpaRepository<Announcement, Long
             where a.tenantId = :tenantId and a.isDeleted = false
               and (
                 a.targetAudience = 'ALL'
-                or (a.targetAudience = 'TEACHERS' and :role = 'TEACHER')
-                or (a.targetAudience = 'PARENTS' and :role = 'PARENT')
+                or (a.targetAudience = 'TEACHERS' and (:role = 'TEACHER' or :role = 'ADMIN' or :role = 'LIBRARY_STAFF' or :role = 'SUPER_ADMIN'))
+                or (a.targetAudience = 'PARENTS' and (:role = 'PARENT' or :role = 'ADMIN' or :role = 'LIBRARY_STAFF' or :role = 'SUPER_ADMIN'))
                 or (a.targetAudience = 'CLASS' and a.targetClassId in :classIds)
                 or (a.targetAudience = 'SECTION' and a.targetSectionId in :sectionIds)
               )
@@ -46,8 +46,8 @@ public interface AnnouncementRepository extends JpaRepository<Announcement, Long
             where a.tenantId = :tenantId and a.isDeleted = false
               and (
                 a.targetAudience = 'ALL'
-                or (a.targetAudience = 'TEACHERS' and :role = 'TEACHER')
-                or (a.targetAudience = 'PARENTS' and :role = 'PARENT')
+                or (a.targetAudience = 'TEACHERS' and (:role = 'TEACHER' or :role = 'ADMIN' or :role = 'LIBRARY_STAFF' or :role = 'SUPER_ADMIN'))
+                or (a.targetAudience = 'PARENTS' and (:role = 'PARENT' or :role = 'ADMIN' or :role = 'LIBRARY_STAFF' or :role = 'SUPER_ADMIN'))
                 or (a.targetAudience = 'CLASS' and a.targetClassId in :classIds)
                 or (a.targetAudience = 'SECTION' and a.targetSectionId in :sectionIds)
               )
@@ -59,8 +59,8 @@ public interface AnnouncementRepository extends JpaRepository<Announcement, Long
             where a.tenantId = :tenantId and a.isDeleted = false
               and (
                 a.targetAudience = 'ALL'
-                or (a.targetAudience = 'TEACHERS' and :role = 'TEACHER')
-                or (a.targetAudience = 'PARENTS' and :role = 'PARENT')
+                or (a.targetAudience = 'TEACHERS' and (:role = 'TEACHER' or :role = 'ADMIN' or :role = 'LIBRARY_STAFF' or :role = 'SUPER_ADMIN'))
+                or (a.targetAudience = 'PARENTS' and (:role = 'PARENT' or :role = 'ADMIN' or :role = 'LIBRARY_STAFF' or :role = 'SUPER_ADMIN'))
                 or (a.targetAudience = 'CLASS' and a.targetClassId in :classIds)
                 or (a.targetAudience = 'SECTION' and a.targetSectionId in :sectionIds)
               )

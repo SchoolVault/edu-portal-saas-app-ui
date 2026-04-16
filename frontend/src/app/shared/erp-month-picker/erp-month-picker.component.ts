@@ -48,6 +48,28 @@ import monthSelectPlugin from 'flatpickr/dist/plugins/monthSelect/index.js';
         display: block;
         width: 100%;
       }
+      :host ::ng-deep .flatpickr-calendar.erp-flatpickr-month--year-chevrons .flatpickr-current-month {
+        gap: 6px;
+      }
+      :host ::ng-deep .flatpickr-calendar.erp-flatpickr-month--year-chevrons .erp-fp-year-chev {
+        flex: 0 0 auto;
+        width: 32px;
+        height: 32px;
+        border-radius: 999px;
+        border: 1px solid var(--clr-border, #cbd5e1);
+        background: var(--clr-surface, #fff);
+        color: var(--clr-text, #0f172a);
+        font-size: 18px;
+        line-height: 1;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0;
+        cursor: pointer;
+      }
+      :host ::ng-deep .flatpickr-calendar.erp-flatpickr-month--year-chevrons .erp-fp-year-chev:hover {
+        background: var(--clr-hover, #f1f5f9);
+      }
     `,
   ],
   providers: [
@@ -71,6 +93,12 @@ export class ErpMonthPickerComponent
   @Input() maxYm: string | undefined;
   /** Inclusive min month `YYYY-MM` (optional). */
   @Input() minYm: string | undefined;
+  /**
+   * {@code spinner}: Flatpickr default year steppers.
+   * {@code chevrons}: hide up/down steppers and place ‹ › beside the year.
+   * {@code plain}: show year as read-only text (no steppers, no chevrons); month grid / month arrows still change year when crossing boundaries.
+   */
+  @Input() yearNavMode: 'spinner' | 'chevrons' | 'plain' = 'spinner';
 
   @ViewChild('host', { static: true }) hostRef!: ElementRef<HTMLInputElement>;
 
@@ -125,9 +153,26 @@ export class ErpMonthPickerComponent
         this.value = dateStr ?? '';
         this.onChange(this.value);
       },
-      onOpen: () => this.onTouched(),
+      onOpen: (_d, _s, inst) => {
+        this.onTouched();
+        if (this.yearNavMode === 'chevrons') {
+          setTimeout(() => this.attachYearChevronsIfNeeded(inst), 0);
+        }
+        if (this.yearNavMode === 'plain') {
+          setTimeout(() => this.applyPlainYearReadonly(inst), 0);
+        }
+      },
       onReady: (_d, _s, inst) => {
-        inst.calendarContainer?.classList.add('erp-flatpickr-month');
+        const cal = inst.calendarContainer;
+        cal?.classList.add('erp-flatpickr-month');
+        if (this.yearNavMode === 'chevrons') {
+          cal?.classList.add('erp-flatpickr-month--year-chevrons');
+          this.attachYearChevronsIfNeeded(inst);
+        }
+        if (this.yearNavMode === 'plain') {
+          cal?.classList.add('erp-flatpickr-month--year-plain');
+          this.applyPlainYearReadonly(inst);
+        }
         this.attachFooter(inst);
       },
     };
@@ -222,6 +267,57 @@ export class ErpMonthPickerComponent
     }
     const [y, m] = ym.split('-').map(Number);
     return new Date(y, m, 0);
+  }
+
+  private applyPlainYearReadonly(inst: FlatpickrInstance): void {
+    if (this.yearNavMode !== 'plain') {
+      return;
+    }
+    const y = inst.calendarContainer?.querySelector('.flatpickr-current-month input.cur-year') as HTMLInputElement | null;
+    if (y) {
+      y.readOnly = true;
+      y.tabIndex = -1;
+      y.setAttribute('inputmode', 'none');
+    }
+  }
+
+  private attachYearChevronsIfNeeded(inst: FlatpickrInstance): void {
+    if (this.yearNavMode !== 'chevrons') {
+      return;
+    }
+    const cal = inst.calendarContainer;
+    if (!cal) {
+      return;
+    }
+    const host = cal.querySelector('.flatpickr-current-month') as HTMLElement | null;
+    if (!host || host.querySelector('.erp-fp-year-chev')) {
+      return;
+    }
+    const wrap = host.querySelector('.numInputWrapper');
+    if (!wrap) {
+      return;
+    }
+    const mk = (delta: number) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = `erp-fp-year-chev erp-fp-year-chev--${delta < 0 ? 'prev' : 'next'}`;
+      b.setAttribute('aria-label', delta < 0 ? 'Previous year' : 'Next year');
+      b.textContent = delta < 0 ? '\u2039' : '\u203a';
+      b.addEventListener('click', ev => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        this.bumpCalendarYear(inst, delta);
+      });
+      return b;
+    };
+    wrap.before(mk(-1));
+    wrap.after(mk(1));
+  }
+
+  private bumpCalendarYear(inst: FlatpickrInstance, delta: number): void {
+    const base = inst.selectedDates[0] ?? new Date(inst.currentYear, inst.currentMonth, 1);
+    const nd = new Date(base.getFullYear() + delta, base.getMonth(), 1);
+    inst.setDate(nd, true);
   }
 
   private attachFooter(inst: FlatpickrInstance): void {

@@ -236,8 +236,6 @@ public class AuthService {
                 response.setSchoolEmail("platform@schoolvault.edu");
                 response.setPrimaryColor("#0F172A");
                 response.setSecondaryColor("#0EA5E9");
-                response.setManagedStudentCount(0);
-                response.setManagedTeacherCount(0);
                 response.setPlatformWorkspaceCount((int) tenantConfigRepository.findAll().stream()
                         .filter(c -> !Boolean.TRUE.equals(c.getIsDeleted()))
                         .count());
@@ -251,7 +249,7 @@ public class AuthService {
                 response.setUserTitle("Faculty Member");
                 response.setQualification(teacher.getQualification());
                 response.setSpecialization(teacher.getSpecialization());
-                response.setSubjectCount(teacher.getSubjects() != null ? teacher.getSubjects().size() : 0);
+                response.setSubjectCount(teacher.getSubjects() != null ? (long) teacher.getSubjects().size() : 0L);
                 List<SchoolClass> ctClasses = schoolClassRepository.findByTenantIdAndClassTeacherIdAndIsDeletedFalse(tenantId, teacher.getId());
                 if (!ctClasses.isEmpty()) {
                     List<AuthProfileDTOs.ClassTeacherAssignment> rows = new ArrayList<>();

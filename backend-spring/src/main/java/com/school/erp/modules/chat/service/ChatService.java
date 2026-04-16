@@ -15,6 +15,11 @@ import com.school.erp.modules.chat.port.ChatMessageStorePort;
 import com.school.erp.modules.chat.repository.ChatParticipantRepository;
 import com.school.erp.common.enums.Enums;
 import com.school.erp.tenant.TenantContext;
+import com.school.erp.tenant.hibernate.TenantHibernateFilterSupport;
+import com.school.erp.tenant.hibernate.TenantScopedFilter;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
+import org.hibernate.Session;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
@@ -29,6 +34,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 @Service
@@ -42,42 +48,73 @@ public class ChatService {
     private final ChatDirectoryService chatDirectoryService;
     private final UserRepository userRepository;
 
+    @PersistenceContext
+    private EntityManager entityManager;
+
+    /**
+     * Super-admin ↔ campus threads use {@link ChatTenantConstants#PLATFORM_BRIDGE_TENANT}. Hibernate's tenant filter
+     * otherwise hides those rows from school-scoped transactions, which breaks inbox, message paging, and participant checks.
+     */
+    private <T> T withCrossTenantChatVisibility(Supplier<T> action) {
+        Session session = entityManager.unwrap(Session.class);
+        boolean hadFilter = session.getEnabledFilter(TenantScopedFilter.NAME) != null;
+        try {
+            if (hadFilter) {
+                session.disableFilter(TenantScopedFilter.NAME);
+            }
+            return action.get();
+        } finally {
+            if (hadFilter) {
+                TenantHibernateFilterSupport.enableTenantFilterIfNeeded(session);
+            }
+        }
+    }
+
+    private void withCrossTenantChatVisibility(Runnable action) {
+        withCrossTenantChatVisibility(() -> {
+            action.run();
+            return null;
+        });
+    }
+
     @Transactional(readOnly = true)
     public List<ChatDTOs.InboxConversationResponse> inbox() {
-        String tenantId = TenantContext.getTenantId();
-        Long userId = TenantContext.getUserId();
-        String role = TenantContext.getUserRole() != null ? TenantContext.getUserRole().trim().toUpperCase(Locale.ROOT) : "";
+        return withCrossTenantChatVisibility(() -> {
+            String tenantId = TenantContext.getTenantId();
+            Long userId = TenantContext.getUserId();
+            String role = TenantContext.getUserRole() != null ? TenantContext.getUserRole().trim().toUpperCase(Locale.ROOT) : "";
 
-        LinkedHashMap<Long, ChatConversation> byId = new LinkedHashMap<>();
+            LinkedHashMap<Long, ChatConversation> byId = new LinkedHashMap<>();
 
-        if (Enums.Role.SUPER_ADMIN.name().equals(role)) {
-            for (ChatConversation c : conversationRepo.findInbox(ChatTenantConstants.PLATFORM_BRIDGE_TENANT, userId)) {
-                byId.putIfAbsent(c.getId(), c);
+            if (Enums.Role.SUPER_ADMIN.name().equals(role)) {
+                for (ChatConversation c : conversationRepo.findInbox(ChatTenantConstants.PLATFORM_BRIDGE_TENANT, userId)) {
+                    byId.putIfAbsent(c.getId(), c);
+                }
+            } else {
+                for (ChatConversation c : conversationRepo.findInbox(tenantId, userId)) {
+                    byId.putIfAbsent(c.getId(), c);
+                }
+                for (ChatConversation c : conversationRepo.findInbox(ChatTenantConstants.PLATFORM_BRIDGE_TENANT, userId)) {
+                    byId.putIfAbsent(c.getId(), c);
+                }
             }
-        } else {
-            for (ChatConversation c : conversationRepo.findInbox(tenantId, userId)) {
-                byId.putIfAbsent(c.getId(), c);
-            }
-            for (ChatConversation c : conversationRepo.findInbox(ChatTenantConstants.PLATFORM_BRIDGE_TENANT, userId)) {
-                byId.putIfAbsent(c.getId(), c);
-            }
-        }
 
-        List<ChatConversation> conversations = byId.values().stream()
-                .sorted(Comparator
-                        .comparing((ChatConversation c) -> c.getLastMessageAt(), Comparator.nullsLast(Comparator.naturalOrder()))
-                        .reversed()
-                        .thenComparing(ChatConversation::getId, Comparator.reverseOrder()))
-                .collect(Collectors.toList());
+            List<ChatConversation> conversations = byId.values().stream()
+                    .sorted(Comparator
+                            .comparing((ChatConversation c) -> c.getLastMessageAt(), Comparator.nullsLast(Comparator.naturalOrder()))
+                            .reversed()
+                            .thenComparing(ChatConversation::getId, Comparator.reverseOrder()))
+                    .collect(Collectors.toList());
 
-        List<ChatDTOs.InboxConversationResponse> rows = new ArrayList<>();
-        for (ChatConversation c : conversations) {
-            String convTenant = c.getTenantId();
-            List<ChatParticipant> parts = participantRepo.findByTenantIdAndConversationIdAndIsDeletedFalse(convTenant, c.getId());
-            rows.add(toInboxResponse(convTenant, userId, c, parts));
-        }
-        log.info("Chat inbox returned {} conversation(s)", rows.size());
-        return rows;
+            List<ChatDTOs.InboxConversationResponse> rows = new ArrayList<>();
+            for (ChatConversation c : conversations) {
+                String convTenant = c.getTenantId();
+                List<ChatParticipant> parts = participantRepo.findByTenantIdAndConversationIdAndIsDeletedFalse(convTenant, c.getId());
+                rows.add(toInboxResponse(convTenant, userId, c, parts));
+            }
+            log.info("Chat inbox returned {} conversation(s)", rows.size());
+            return rows;
+        });
     }
 
     @Transactional
@@ -127,13 +164,18 @@ public class ChatService {
                 convTenant = ChatTenantConstants.PLATFORM_BRIDGE_TENANT;
             }
 
-            Optional<ChatConversation> reuse = findReusableDirectConversation(convTenant, initiatorId, other.getUserId());
+            final String reuseTenantId = convTenant;
+            Optional<ChatConversation> reuse = ChatTenantConstants.PLATFORM_BRIDGE_TENANT.equals(reuseTenantId)
+                    ? withCrossTenantChatVisibility(() -> findReusableDirectConversation(reuseTenantId, initiatorId, other.getUserId()))
+                    : findReusableDirectConversation(reuseTenantId, initiatorId, other.getUserId());
             if (reuse.isPresent()) {
                 ChatConversation existing = reuse.get();
-                List<ChatParticipant> existingParts =
-                        participantRepo.findByTenantIdAndConversationIdAndIsDeletedFalse(convTenant, existing.getId());
-                log.info("Reusing existing direct conversation id={} tenant={}", existing.getId(), convTenant);
-                return toInboxResponse(convTenant, initiatorId, existing, existingParts);
+                List<ChatParticipant> existingParts = ChatTenantConstants.PLATFORM_BRIDGE_TENANT.equals(reuseTenantId)
+                        ? withCrossTenantChatVisibility(() ->
+                        participantRepo.findByTenantIdAndConversationIdAndIsDeletedFalse(reuseTenantId, existing.getId()))
+                        : participantRepo.findByTenantIdAndConversationIdAndIsDeletedFalse(reuseTenantId, existing.getId());
+                log.info("Reusing existing direct conversation id={} tenant={}", existing.getId(), reuseTenantId);
+                return toInboxResponse(reuseTenantId, initiatorId, existing, existingParts);
             }
         }
 
@@ -172,15 +214,17 @@ public class ChatService {
     public Page<ChatDTOs.MessageResponse> getMessages(Long conversationId, int page, int size) {
         Long userId = TenantContext.getUserId();
         log.debug("Loading chat messages conversationId={} page={} size={}", conversationId, page, size);
-        ChatConversation conv = conversationRepo.findByIdAndIsDeletedFalse(conversationId)
-                .orElseThrow(() -> new ResourceNotFoundException("Conversation", conversationId));
-        assertParticipant(conv.getTenantId(), conversationId, userId);
+        return withCrossTenantChatVisibility(() -> {
+            ChatConversation conv = conversationRepo.findByIdAndIsDeletedFalse(conversationId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Conversation", conversationId));
+            assertParticipant(conv.getTenantId(), conversationId, userId);
 
-        Page<ChatMessage> messages = chatMessageStore.pageByConversation(
-                conv.getTenantId(), conversationId, PageRequest.of(Math.max(page, 0), Math.min(Math.max(size, 1), 200))
-        );
-        log.info("Chat messages page conversationId={} returned={} total={}", conversationId, messages.getNumberOfElements(), messages.getTotalElements());
-        return messages.map(this::toMessageResponse);
+            Page<ChatMessage> messages = chatMessageStore.pageByConversation(
+                    conv.getTenantId(), conversationId, PageRequest.of(Math.max(page, 0), Math.min(Math.max(size, 1), 200))
+            );
+            log.info("Chat messages page conversationId={} returned={} total={}", conversationId, messages.getNumberOfElements(), messages.getTotalElements());
+            return messages.map(this::toMessageResponse);
+        });
     }
 
     @Transactional
@@ -189,59 +233,63 @@ public class ChatService {
         String role = TenantContext.getUserRole();
         log.debug("Sending chat message conversationId={} userId={}", request.getConversationId(), userId);
 
-        ChatConversation conv = conversationRepo.findByIdAndIsDeletedFalse(request.getConversationId())
-                .orElseThrow(() -> new ResourceNotFoundException("Conversation", request.getConversationId()));
-        String convTenant = conv.getTenantId();
-        assertParticipant(convTenant, request.getConversationId(), userId);
+        return withCrossTenantChatVisibility(() -> {
+            ChatConversation conv = conversationRepo.findByIdAndIsDeletedFalse(request.getConversationId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Conversation", request.getConversationId()));
+            String convTenant = conv.getTenantId();
+            assertParticipant(convTenant, request.getConversationId(), userId);
 
-        ChatMessage msg = new ChatMessage();
-        msg.setTenantId(convTenant);
-        msg.setConversationId(conv.getId());
-        msg.setSenderUserId(userId);
-        msg.setSenderRole(role != null ? role.trim().toUpperCase(Locale.ROOT) : "UNKNOWN");
-        String senderLabel = userRepository.findByIdAndIsDeletedFalse(userId)
-                .map(User::getName)
-                .map(String::trim)
-                .filter(s -> !s.isEmpty())
-                .orElse(null);
-        msg.setSenderName(senderLabel);
-        msg.setBody(request.getBody());
-        msg.setBodyType("text");
-        msg.setClientMessageId(request.getClientMessageId());
-        msg.setIsActive(true);
-        msg.setIsDeleted(false);
-        chatMessageStore.save(msg);
+            ChatMessage msg = new ChatMessage();
+            msg.setTenantId(convTenant);
+            msg.setConversationId(conv.getId());
+            msg.setSenderUserId(userId);
+            msg.setSenderRole(role != null ? role.trim().toUpperCase(Locale.ROOT) : "UNKNOWN");
+            String senderLabel = userRepository.findByIdAndIsDeletedFalse(userId)
+                    .map(User::getName)
+                    .map(String::trim)
+                    .filter(s -> !s.isEmpty())
+                    .orElse(null);
+            msg.setSenderName(senderLabel);
+            msg.setBody(request.getBody());
+            msg.setBodyType("text");
+            msg.setClientMessageId(request.getClientMessageId());
+            msg.setIsActive(true);
+            msg.setIsDeleted(false);
+            chatMessageStore.save(msg);
 
-        conv.setLastMessageAt(LocalDateTime.now());
-        conv.setLastMessagePreview(compactPreview(request.getBody()));
-        conversationRepo.save(conv);
+            conv.setLastMessageAt(LocalDateTime.now());
+            conv.setLastMessagePreview(compactPreview(request.getBody()));
+            conversationRepo.save(conv);
 
-        ChatDTOs.MessageResponse response = toMessageResponse(msg);
-        messagingTemplate.convertAndSend("/topic/chat.conversation." + conv.getId(), response);
+            ChatDTOs.MessageResponse response = toMessageResponse(msg);
+            messagingTemplate.convertAndSend("/topic/chat.conversation." + conv.getId(), response);
 
-        List<ChatParticipant> participants = participantRepo.findByTenantIdAndConversationIdAndIsDeletedFalse(convTenant, conv.getId());
-        broadcastInboxUpdate(conv.getId(), participants);
+            List<ChatParticipant> participants = participantRepo.findByTenantIdAndConversationIdAndIsDeletedFalse(convTenant, conv.getId());
+            broadcastInboxUpdate(conv.getId(), participants);
 
-        log.info("Chat message sent id={} conversationId={}", msg.getId(), conv.getId());
-        return response;
+            log.info("Chat message sent id={} conversationId={}", msg.getId(), conv.getId());
+            return response;
+        });
     }
 
     @Transactional
     public void markRead(ChatDTOs.MarkReadRequest request) {
         Long userId = TenantContext.getUserId();
         log.debug("Mark chat read conversationId={} userId={} upToMessageId={}", request.getConversationId(), userId, request.getLastReadMessageId());
-        ChatConversation conv = conversationRepo.findByIdAndIsDeletedFalse(request.getConversationId())
-                .orElseThrow(() -> new ResourceNotFoundException("Conversation", request.getConversationId()));
-        String convTenant = conv.getTenantId();
-        ChatParticipant p = participantRepo.findByTenantIdAndConversationIdAndUserIdAndIsDeletedFalse(convTenant, request.getConversationId(), userId)
-                .orElseThrow(() -> new UnauthorizedException("Not a participant"));
-        p.setLastReadMessageId(request.getLastReadMessageId());
-        p.setLastReadAt(LocalDateTime.now());
-        participantRepo.save(p);
+        withCrossTenantChatVisibility(() -> {
+            ChatConversation conv = conversationRepo.findByIdAndIsDeletedFalse(request.getConversationId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Conversation", request.getConversationId()));
+            String convTenant = conv.getTenantId();
+            ChatParticipant p = participantRepo.findByTenantIdAndConversationIdAndUserIdAndIsDeletedFalse(convTenant, request.getConversationId(), userId)
+                    .orElseThrow(() -> new UnauthorizedException("Not a participant"));
+            p.setLastReadMessageId(request.getLastReadMessageId());
+            p.setLastReadAt(LocalDateTime.now());
+            participantRepo.save(p);
 
-        List<ChatParticipant> participants = participantRepo.findByTenantIdAndConversationIdAndIsDeletedFalse(convTenant, request.getConversationId());
-        broadcastInboxUpdate(request.getConversationId(), participants);
-        log.info("Chat read marked conversationId={} userId={}", request.getConversationId(), userId);
+            List<ChatParticipant> participants = participantRepo.findByTenantIdAndConversationIdAndIsDeletedFalse(convTenant, request.getConversationId());
+            broadcastInboxUpdate(request.getConversationId(), participants);
+            log.info("Chat read marked conversationId={} userId={}", request.getConversationId(), userId);
+        });
     }
 
     private static boolean isPlatformAdminBridge(String roleA, String roleB) {
@@ -336,20 +384,22 @@ public class ChatService {
     }
 
     private void broadcastInboxUpdate(Long conversationId, List<ChatParticipant> participants) {
-        ChatConversation conv = conversationRepo.findByIdAndIsDeletedFalse(conversationId).orElse(null);
-        if (conv == null) {
-            return;
-        }
-        String convTenant = conv.getTenantId();
-
-        for (ChatParticipant p : participants) {
-            try {
-                ChatDTOs.InboxConversationResponse payload = toInboxResponse(convTenant, p.getUserId(), conv, participants);
-                messagingTemplate.convertAndSendToUser(String.valueOf(p.getUserId()), "/queue/chat.inbox", payload);
-            } catch (Exception e) {
-                log.warn("Failed to push inbox update conv={} user={}", conversationId, p.getUserId(), e);
+        withCrossTenantChatVisibility(() -> {
+            ChatConversation conv = conversationRepo.findByIdAndIsDeletedFalse(conversationId).orElse(null);
+            if (conv == null) {
+                return;
             }
-        }
+            String convTenant = conv.getTenantId();
+
+            for (ChatParticipant p : participants) {
+                try {
+                    ChatDTOs.InboxConversationResponse payload = toInboxResponse(convTenant, p.getUserId(), conv, participants);
+                    messagingTemplate.convertAndSendToUser(String.valueOf(p.getUserId()), "/queue/chat.inbox", payload);
+                } catch (Exception e) {
+                    log.warn("Failed to push inbox update conv={} user={}", conversationId, p.getUserId(), e);
+                }
+            }
+        });
     }
 
     private String compactPreview(String text) {

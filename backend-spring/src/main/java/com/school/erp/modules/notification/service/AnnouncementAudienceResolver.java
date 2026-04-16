@@ -53,13 +53,12 @@ public class AnnouncementAudienceResolver {
         Set<Long> userIds = new LinkedHashSet<>();
         switch (aud) {
             case ALL -> {
+                /* In-app notifications must reach every active user; SMS/WhatsApp queues may still skip empty phones downstream. */
                 for (User u : userRepository.findByTenantIdAndIsDeletedFalseOrderByNameAsc(tenantId)) {
                     if (userIds.size() >= CAP) {
                         break;
                     }
-                    if (hasPhone(u)) {
-                        userIds.add(u.getId());
-                    }
+                    userIds.add(u.getId());
                 }
             }
             case TEACHERS -> addUsersByRole(tenantId, Enums.Role.TEACHER, userIds);
@@ -86,11 +85,8 @@ public class AnnouncementAudienceResolver {
         }
         List<AudienceMember> out = new ArrayList<>();
         for (Long uid : userIds) {
-            userRepository.findByIdAndTenantIdAndIsDeletedFalse(uid, tenantId).ifPresent(u -> {
-                if (hasPhone(u)) {
-                    out.add(new AudienceMember(u.getId(), normalizePhone(u.getPhone()), u.getRole() != null ? u.getRole().name() : ""));
-                }
-            });
+            userRepository.findByIdAndTenantIdAndIsDeletedFalse(uid, tenantId).ifPresent(u ->
+                    out.add(new AudienceMember(u.getId(), normalizePhone(u.getPhone()), u.getRole() != null ? u.getRole().name() : "")));
         }
         return out;
     }
@@ -100,9 +96,7 @@ public class AnnouncementAudienceResolver {
             if (userIds.size() >= CAP) {
                 break;
             }
-            if (hasPhone(u)) {
-                userIds.add(u.getId());
-            }
+            userIds.add(u.getId());
         }
     }
 
@@ -121,10 +115,6 @@ public class AnnouncementAudienceResolver {
                 }
             }
         }
-    }
-
-    private static boolean hasPhone(User u) {
-        return u.getPhone() != null && !u.getPhone().isBlank();
     }
 
     private static String normalizePhone(String p) {

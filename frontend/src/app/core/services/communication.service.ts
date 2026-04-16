@@ -88,14 +88,28 @@ export class CommunicationService {
 
   getAnnouncementPreviews(): Observable<AnnouncementPreview[]> {
     if (!runtimeConfig.useMocks) {
-      return this.api.get<AnnouncementPreview[]>('/communication/announcements/previews');
+      return this.api.get<AnnouncementPreview[]>('/communication/announcements/previews').pipe(
+        map(rows =>
+          (rows || []).map(p => ({
+            ...p,
+            id: String(p.id),
+            targetAudience: (p as { targetAudience?: string }).targetAudience?.toLowerCase(),
+          }))
+        )
+      );
     }
     return this.getAnnouncements().pipe(
       map(list =>
         (list || []).slice(0, 5).map(a => {
           const t = (a.content || '').replace(/\s+/g, ' ').trim();
           const preview = t.length > 140 ? t.slice(0, 139) + '…' : t;
-          return { id: String(a.id), title: a.title, preview, createdAt: a.createdAt };
+          return {
+            id: String(a.id),
+            title: a.title,
+            preview,
+            createdAt: a.createdAt,
+            targetAudience: (a.targetAudience || 'all').toString().toLowerCase(),
+          };
         })
       )
     );

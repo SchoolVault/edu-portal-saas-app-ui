@@ -6,6 +6,7 @@ import { Chart, registerables } from 'chart.js';
 import { Subscription } from 'rxjs';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { AuthService } from '../../core/services/auth.service';
+import { ParentSelectionService } from '../../core/services/parent-selection.service';
 import { DashboardService } from '../../core/services/dashboard.service';
 import { AdminDashboardData, ParentDashboardData, TeacherDashboardData } from '../../core/models/models';
 
@@ -341,7 +342,7 @@ interface DashboardAdmissionInsight {
             </div>
             <div class="col-md-6 d-flex justify-content-end gap-2">
               <a class="btn-outline-erp btn-sm" [routerLink]="['/app/inbox']"><i class="bi bi-inbox-fill me-1"></i> {{ 'dashboard.parent.inbox' | translate }}</a>
-              <a class="btn-primary-erp btn-sm" [routerLink]="['/app/parent/children']" [queryParams]="{ tab: 'fees' }"><i class="bi bi-credit-card-fill me-1"></i> {{ 'dashboard.parent.fees' | translate }}</a>
+              <a class="btn-primary-erp btn-sm" [routerLink]="['/app/parent/children']" [queryParams]="parentFeesDeepLink"><i class="bi bi-credit-card-fill me-1"></i> {{ 'dashboard.parent.fees' | translate }}</a>
             </div>
           </div>
         </div>
@@ -446,9 +447,20 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
   constructor(
     private authService: AuthService,
     private dashboardService: DashboardService,
+    private parentSelection: ParentSelectionService,
     private cdr: ChangeDetectorRef,
     private translate: TranslateService
   ) {}
+
+  /** Keeps dashboard child selection aligned with Parent portal / fees deep links. */
+  get parentFeesDeepLink(): Record<string, string | number> {
+    const qp: Record<string, string | number> = { tab: 'fees' };
+    if (this.selectedParentChildId != null) {
+      qp['child'] = this.selectedParentChildId;
+      qp['childId'] = this.selectedParentChildId;
+    }
+    return qp;
+  }
 
   ngOnInit(): void {
     this.role = this.authService.getRole() || 'admin';
@@ -505,6 +517,7 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
       next: dashboard => {
         this.parentDashboard = dashboard;
         this.selectedParentChildId = dashboard.selectedChildId ?? dashboard.selectedChild?.id ?? null;
+        this.parentSelection.rememberSelectedChild(this.selectedParentChildId);
         this.parentKPIs = this.buildParentKpis(dashboard);
         finish();
       },
@@ -550,6 +563,7 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
       next: dashboard => {
         this.parentDashboard = dashboard;
         this.selectedParentChildId = dashboard.selectedChildId ?? dashboard.selectedChild?.id ?? null;
+        this.parentSelection.rememberSelectedChild(this.selectedParentChildId);
         this.parentKPIs = this.buildParentKpis(dashboard);
         this.loading = false;
       },
@@ -563,6 +577,7 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
     if (!this.parentDashboard?.children?.length || this.selectedParentChildId == null) return;
     const selected = this.parentDashboard.children.find(c => c.id === this.selectedParentChildId);
     if (!selected) return;
+    this.parentSelection.rememberSelectedChild(this.selectedParentChildId);
     if (this.loading || this.refreshing) return;
     this.refreshing = true;
     const today = new Date();
@@ -572,6 +587,7 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
       next: dashboard => {
         this.parentDashboard = dashboard;
         this.selectedParentChildId = dashboard.selectedChildId ?? dashboard.selectedChild?.id ?? null;
+        this.parentSelection.rememberSelectedChild(this.selectedParentChildId);
         this.parentKPIs = this.buildParentKpis(dashboard);
         this.refreshing = false;
         this.cdr.markForCheck();

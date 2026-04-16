@@ -82,6 +82,44 @@ import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directiv
         padding: 14px 14px 12px;
         border-bottom: 1px solid var(--clr-border-light);
         background: color-mix(in srgb, var(--clr-surface-alt) 65%, var(--clr-surface));
+        position: relative;
+      }
+      .chat-toolbar-suggestions {
+        position: absolute;
+        left: 14px;
+        right: 14px;
+        top: calc(100% - 2px);
+        z-index: 20;
+        max-height: min(320px, 52vh);
+        overflow-y: auto;
+        border-radius: var(--radius-md);
+        border: 1px solid var(--clr-border);
+        background: var(--clr-surface);
+        box-shadow:
+          0 10px 28px color-mix(in srgb, var(--clr-text) 12%, transparent),
+          0 2px 8px color-mix(in srgb, var(--clr-text) 6%, transparent);
+      }
+      .chat-toolbar-suggestions .chat-suggest-row {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        width: 100%;
+        text-align: left;
+        padding: 10px 12px;
+        border: 0;
+        border-bottom: 1px solid var(--clr-border-light);
+        background: transparent;
+        cursor: pointer;
+      }
+      .chat-toolbar-suggestions .chat-suggest-row:last-child {
+        border-bottom: 0;
+      }
+      .chat-toolbar-suggestions .chat-suggest-row:hover {
+        background: var(--clr-hover);
+      }
+      .chat-toolbar-suggestions .chat-suggest-meta {
+        min-width: 0;
+        flex: 1 1 auto;
       }
       .chat-search-field {
         position: relative;
@@ -447,11 +485,63 @@ import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directiv
               <div class="d-flex gap-2 align-items-center">
                 <div class="chat-search-field">
                   <i class="bi bi-search" aria-hidden="true"></i>
-                  <input class="erp-input w-100" erpI18nPh="chat.searchPlaceholder" [(ngModel)]="query" />
+                  <input
+                    class="erp-input w-100"
+                    erpI18nPh="chat.searchPlaceholder"
+                    [(ngModel)]="query"
+                    (ngModelChange)="onToolbarQueryChange()"
+                  />
                 </div>
                 <button class="btn-outline-erp btn-sm flex-shrink-0" type="button" (click)="openDirectory = !openDirectory">
                   {{ openDirectory ? ('chat.close' | translate) : ('chat.newChat' | translate) }}
                 </button>
+              </div>
+              <div
+                *ngIf="toolbarSuggestOpen()"
+                class="chat-toolbar-suggestions"
+                role="listbox"
+                [attr.aria-label]="'chat.quickSearch' | translate"
+              >
+                <div *ngIf="toolbarSearchLoading" class="px-3 py-2 text-muted" style="font-size: 12px;">{{ 'chat.searching' | translate }}</div>
+                <button
+                  type="button"
+                  class="chat-suggest-row"
+                  *ngFor="let hit of toolbarPlatHits"
+                  (click)="pickToolbarPlatformAdmin(hit)"
+                  role="option"
+                >
+                  <div class="chat-avatar" style="width: 36px; height: 36px; font-size: 12px;" [style.background]="avatarColor(hit.name)">
+                    {{ initials(hit.name) }}
+                  </div>
+                  <div class="chat-suggest-meta">
+                    <div style="font-weight: 800; font-size: 13px;">{{ hit.name }}</div>
+                    <div class="text-muted" style="font-size: 11px;">{{ hit.schoolName }} · {{ hit.schoolCode }}</div>
+                  </div>
+                </button>
+                <button
+                  type="button"
+                  class="chat-suggest-row"
+                  *ngFor="let hit of toolbarDirHits"
+                  (click)="pickToolbarDirectoryHit(hit)"
+                  role="option"
+                >
+                  <div class="chat-avatar" style="width: 36px; height: 36px; font-size: 12px;" [style.background]="avatarColor(hit.displayName)">
+                    {{ initials(hit.displayName) }}
+                  </div>
+                  <div class="chat-suggest-meta">
+                    <div style="font-weight: 800; font-size: 13px;">{{ hit.displayName }}</div>
+                    <div class="text-muted" style="font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                      {{ hit.subtitle || hit.kind }}
+                    </div>
+                  </div>
+                </button>
+                <div
+                  *ngIf="!toolbarSearchLoading && !toolbarPlatHits.length && !toolbarDirHits.length && query.trim().length >= 2"
+                  class="px-3 py-2 text-muted"
+                  style="font-size: 12px;"
+                >
+                  {{ 'chat.toolbarNoMatches' | translate }}
+                </div>
               </div>
             </div>
 
@@ -722,6 +812,13 @@ export class ChatComponent implements OnInit, OnDestroy {
   platformAdminSearchLoading = false;
   private platformAdminSearchTimer: ReturnType<typeof setTimeout> | null = null;
 
+  /** WhatsApp-style quick picks from the main search field (admin / teacher / super-admin). */
+  toolbarDirHits: DirectoryEntry[] = [];
+  toolbarPlatHits: PlatformSchoolAdminChatHit[] = [];
+  toolbarSearchLoading = false;
+  private toolbarSuggestScanned = false;
+  private toolbarSearchTimer: ReturnType<typeof setTimeout> | null = null;
+
   private myUserId: number | null = null;
   private rtSub?: Subscription;
 
@@ -760,6 +857,112 @@ export class ChatComponent implements OnInit, OnDestroy {
   ngOnDestroy(): void {
     this.rtSub?.unsubscribe();
     this.chat.disconnectRealtime();
+  }
+
+  onToolbarQueryChange(): void {
+    if (this.toolbarSearchTimer) {
+      clearTimeout(this.toolbarSearchTimer);
+    }
+    const q = this.query.trim();
+    if (q.length < 2) {
+      this.clearToolbarSuggest();
+      return;
+    }
+    if (this.role === 'parent') {
+      return;
+    }
+    if (!['admin', 'teacher', 'super_admin'].includes(this.role)) {
+      return;
+    }
+    this.toolbarSearchTimer = setTimeout(() => this.runToolbarSuggest(), 280);
+  }
+
+  toolbarSuggestOpen(): boolean {
+    const q = this.query.trim();
+    if (q.length < 2) {
+      return false;
+    }
+    if (this.role === 'parent') {
+      return false;
+    }
+    if (!['admin', 'teacher', 'super_admin'].includes(this.role)) {
+      return false;
+    }
+    return this.toolbarSearchLoading || this.toolbarDirHits.length > 0 || this.toolbarPlatHits.length > 0 || this.toolbarSuggestScanned;
+  }
+
+  pickToolbarPlatformAdmin(hit: PlatformSchoolAdminChatHit): void {
+    this.pickPlatformAdmin(hit);
+    this.afterToolbarPick();
+  }
+
+  pickToolbarDirectoryHit(hit: DirectoryEntry): void {
+    this.pickDirectoryEntry(hit);
+    this.afterToolbarPick();
+  }
+
+  private afterToolbarPick(): void {
+    this.query = '';
+    this.clearToolbarSuggest();
+  }
+
+  private clearToolbarSuggest(): void {
+    this.toolbarDirHits = [];
+    this.toolbarPlatHits = [];
+    this.toolbarSearchLoading = false;
+    this.toolbarSuggestScanned = false;
+  }
+
+  private runToolbarSuggest(): void {
+    const q = this.query.trim();
+    if (q.length < 2) {
+      this.clearToolbarSuggest();
+      return;
+    }
+    this.toolbarSuggestScanned = false;
+    this.toolbarDirHits = [];
+    this.toolbarPlatHits = [];
+    if (this.role === 'super_admin') {
+      this.toolbarSearchLoading = true;
+      this.platform.searchSchoolAdminsForChat(q).subscribe({
+        next: rows => {
+          this.toolbarPlatHits = rows;
+          this.toolbarSearchLoading = false;
+          this.toolbarSuggestScanned = true;
+          this.cdr.markForCheck();
+        },
+        error: () => {
+          this.toolbarPlatHits = [];
+          this.toolbarSearchLoading = false;
+          this.toolbarSuggestScanned = true;
+          this.cdr.markForCheck();
+        },
+      });
+      return;
+    }
+    if (this.role !== 'admin' && this.role !== 'teacher') {
+      this.clearToolbarSuggest();
+      return;
+    }
+    this.toolbarSearchLoading = true;
+    this.directoryService.search(q).subscribe({
+      next: res => {
+        let rows = res.results || [];
+        if (this.role === 'parent') {
+          rows = rows.filter(hit => this.isParentAllowedDirectoryHit(hit));
+        }
+        this.toolbarDirHits = rows;
+        this.toolbarSearchLoading = false;
+        this.toolbarSuggestScanned = true;
+        this.cdr.markForCheck();
+      },
+      error: () => {
+        this.toolbarDirHits = [];
+        this.toolbarSearchLoading = false;
+        this.toolbarSuggestScanned = true;
+        this.cdr.markForCheck();
+      },
+    });
   }
 
   refresh(): void {
@@ -964,6 +1167,7 @@ export class ChatComponent implements OnInit, OnDestroy {
   }
 
   selectConversation(conv: ChatInboxConversation): void {
+    this.clearToolbarSuggest();
     this.selectedConversation = conv;
     this.messages = [];
     this.loadingMessages = true;

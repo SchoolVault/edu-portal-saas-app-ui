@@ -1,7 +1,9 @@
-import { ChangeDetectorRef, Component, OnInit } from '@angular/core';
+import { ChangeDetectorRef, Component, OnDestroy, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { ActivatedRoute, ParamMap, Router } from '@angular/router';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
+import { Subject, takeUntil } from 'rxjs';
 import { TenantModuleGateService } from '../../core/services/tenant-module-gate.service';
 import { SettingsService } from '../../core/services/settings.service';
 import { ThemeService } from '../../core/services/theme.service';
@@ -11,6 +13,7 @@ import { SchoolBranch, Student } from '../../core/models/models';
 import { runtimeConfig } from '../../core/config/runtime-config';
 import { ProfilePhotoPickerComponent, ProfilePhotoPickEvent } from '../../shared/profile-photo-picker/profile-photo-picker.component';
 import { UserLocaleService, type UiLanguage } from '../../core/i18n/user-locale.service';
+import { ParentSelectionService } from '../../core/services/parent-selection.service';
 
 @Component({
   selector: 'app-settings',
@@ -20,7 +23,7 @@ import { UserLocaleService, type UiLanguage } from '../../core/i18n/user-locale.
     <div data-testid="settings-page">
       <div class="mb-4 animate-in d-flex flex-wrap justify-content-between align-items-start gap-2">
         <div>
-          <h2 style="font-size: 24px; font-weight: 800;">{{ 'settings.pageTitle' | translate }}</h2>
+          <h2 style="font-size: 24px; font-weight: 800;">{{ (isTenantAdmin ? 'settings.pageTitle' : 'settings.pageTitleUserShell') | translate }}</h2>
           <p class="text-muted mb-0" style="font-size: 13px;">
             <ng-container *ngIf="isTenantAdmin">{{ 'settings.leadAdmin' | translate }}</ng-container>
             <ng-container *ngIf="!isTenantAdmin">{{ 'settings.leadUser' | translate }}</ng-container>
@@ -31,12 +34,12 @@ import { UserLocaleService, type UiLanguage } from '../../core/i18n/user-locale.
         </button>
       </div>
       <div class="erp-tabs animate-in">
-        <button type="button" class="erp-tab" [class.active]="tab === 'general'" (click)="tab = 'general'">{{ isTenantAdmin ? ('settings.tabGeneralAdmin' | translate) : ('settings.tabGeneralUser' | translate) }}</button>
-        <button type="button" class="erp-tab" [class.active]="tab === 'preferences'" (click)="tab = 'preferences'">{{ 'prefs.tab' | translate }}</button>
+        <button type="button" class="erp-tab" [class.active]="tab === 'general'" (click)="selectSettingsTab('general')">{{ isTenantAdmin ? ('settings.tabGeneralAdmin' | translate) : ('settings.tabGeneralUser' | translate) }}</button>
+        <button type="button" class="erp-tab" [class.active]="tab === 'preferences'" (click)="selectSettingsTab('preferences')">{{ 'prefs.tab' | translate }}</button>
         <button type="button" *ngIf="isTenantAdmin" class="erp-tab" [class.active]="tab === 'branding'" (click)="tab = 'branding'">{{ 'settings.tabBranding' | translate }}</button>
         <button type="button" *ngIf="isTenantAdmin" class="erp-tab" [class.active]="tab === 'roles'" (click)="tab = 'roles'">{{ 'settings.tabRoles' | translate }}</button>
         <button type="button" *ngIf="isTenantAdmin" class="erp-tab" [class.active]="tab === 'features'" (click)="tab = 'features'">{{ 'settings.tabFeatures' | translate }}</button>
-        <button type="button" class="erp-tab" [class.active]="tab === 'profile'" (click)="openProfileTab()">{{ 'settings.tabProfile' | translate }}</button>
+        <button type="button" class="erp-tab" [class.active]="tab === 'profile'" (click)="selectSettingsTab('profile')">{{ 'settings.tabProfile' | translate }}</button>
       </div>
 
       <div *ngIf="tab === 'preferences'" class="erp-card animate-in settings-prefs-card">
@@ -277,13 +280,30 @@ import { UserLocaleService, type UiLanguage } from '../../core/i18n/user-locale.
             class="settings-profile-panel settings-profile-follow"
             aria-labelledby="settings-profile-account-h"
           >
-            <div class="settings-profile-panel__head" id="settings-profile-account-h">
-              <span class="settings-profile-panel__icon"><i class="bi bi-person-badge"></i></span>
-              <span class="settings-profile-panel__head-text">{{ 'settings.accountDetailsTitle' | translate }}</span>
+            <div class="settings-profile-panel__head d-flex flex-wrap justify-content-between align-items-center gap-2" id="settings-profile-account-h">
+              <div class="d-flex align-items-center gap-2 min-w-0">
+                <span class="settings-profile-panel__icon"><i class="bi bi-person-badge"></i></span>
+                <span class="settings-profile-panel__head-text">{{ 'settings.accountDetailsTitle' | translate }}</span>
+              </div>
+              <div class="d-flex flex-wrap gap-2 flex-shrink-0" *ngIf="!accountDetailsEditing">
+                <button type="button" class="btn-outline-erp btn-sm" (click)="beginAccountDetailsEdit()">{{ 'settings.editAccountDetails' | translate }}</button>
+              </div>
+              <div class="d-flex flex-wrap gap-2 flex-shrink-0" *ngIf="accountDetailsEditing">
+                <button type="button" class="btn-outline-erp btn-sm" (click)="cancelAccountDetailsEdit()">{{ 'settings.cancelAccountEdit' | translate }}</button>
+              </div>
             </div>
             <div class="settings-profile-panel__body">
-              <p class="settings-profile-hint mb-3">{{ 'settings.accountDetailsLead' | translate }}</p>
-              <div class="row g-3">
+              <p class="settings-profile-hint mb-3" *ngIf="!accountDetailsEditing">{{ 'settings.accountDetailsViewLead' | translate }}</p>
+              <p class="settings-profile-hint mb-3" *ngIf="accountDetailsEditing">{{ 'settings.accountDetailsLead' | translate }}</p>
+              <div class="row g-3 mb-1" *ngIf="!accountDetailsEditing">
+                <div class="col-12">
+                  <p class="mb-1"><strong>{{ 'settings.profileFullNameLabel' | translate }}:</strong> {{ account.name }}</p>
+                  <p class="mb-1"><strong>{{ 'settings.profileContactPhoneLabel' | translate }}:</strong> {{ account.phone || ('exams.dash' | translate) }}</p>
+                  <p class="mb-1"><strong>{{ 'settings.labelEmail' | translate }}:</strong> {{ account.email }}</p>
+                  <p class="text-muted small mb-0">{{ 'settings.profileEmailReadonlyHint' | translate }}</p>
+                </div>
+              </div>
+              <div class="row g-3" *ngIf="accountDetailsEditing">
                 <div class="col-md-6">
                   <div class="erp-form-group">
                     <label class="erp-label" for="settings-acct-name">{{ 'settings.profileFullNameLabel' | translate }}</label>
@@ -326,7 +346,7 @@ import { UserLocaleService, type UiLanguage } from '../../core/i18n/user-locale.
                   </div>
                 </div>
               </div>
-              <div class="d-flex flex-wrap align-items-center gap-2 mt-3">
+              <div class="d-flex flex-wrap align-items-center gap-2 mt-3" *ngIf="accountDetailsEditing">
                 <button type="button" class="btn-primary-erp" (click)="saveProfileAccount()" [disabled]="profileAccountSaving">
                   {{ profileAccountSaving ? ('settings.profileSaving' | translate) : ('settings.saveProfileDetails' | translate) }}
                 </button>
@@ -814,7 +834,9 @@ import { UserLocaleService, type UiLanguage } from '../../core/i18n/user-locale.
     `,
   ],
 })
-export class SettingsComponent implements OnInit {
+export class SettingsComponent implements OnInit, OnDestroy {
+  private readonly destroy$ = new Subject<void>();
+
   tab = 'general';
   schoolName = 'SchoolVault Academy';
   schoolCode = 'SCH001';
@@ -853,6 +875,8 @@ export class SettingsComponent implements OnInit {
   profileAccountSaving = false;
   profileAccountMsg = '';
   profileAccountErr = '';
+  /** View vs edit for account fields — reduces confusion with read-only profile hero above. */
+  accountDetailsEditing = false;
 
   /** Feature toggles: labels come from `settings.features.<persistKey>.{name,description}` for i18n. */
   features: Array<{ enabled: boolean; persistKey: string; platformOnly?: boolean }> = [
@@ -884,6 +908,9 @@ export class SettingsComponent implements OnInit {
     private themeService: ThemeService,
     private auth: AuthService,
     private parentService: ParentService,
+    private parentSelection: ParentSelectionService,
+    private router: Router,
+    private route: ActivatedRoute,
     private cdr: ChangeDetectorRef,
     readonly userLocale: UserLocaleService,
     private translate: TranslateService,
@@ -964,9 +991,11 @@ export class SettingsComponent implements OnInit {
   }
 
   ngOnInit(): void {
-    if (!this.isTenantAdmin) {
-      this.tab = 'profile';
-    }
+    this.applySettingsTabFromQuery(this.route.snapshot.queryParamMap);
+    this.route.queryParamMap.pipe(takeUntil(this.destroy$)).subscribe(q => {
+      this.applySettingsTabFromQuery(q);
+      this.cdr.markForCheck();
+    });
     this.prefsLang = this.userLocale.readStored();
     const u = this.auth.getCurrentUser();
     if (u?.interfaceLocale === 'hi' || u?.interfaceLocale === 'en') {
@@ -977,11 +1006,60 @@ export class SettingsComponent implements OnInit {
     this.reloadSettings();
   }
 
-  openProfileTab(): void {
-    this.tab = 'profile';
+  ngOnDestroy(): void {
+    this.destroy$.next();
+    this.destroy$.complete();
+  }
+
+  /** Syncs visible tab with {@code ?settingsTab=school|preferences|profile} for deep links from the header. */
+  selectSettingsTab(next: 'general' | 'preferences' | 'profile'): void {
+    this.tab = next;
     this.profileAccountMsg = '';
     this.profileAccountErr = '';
+    if (next === 'profile') {
+      this.syncAccountDrafts();
+    }
+    const settingsTab = next === 'general' ? 'school' : next === 'preferences' ? 'preferences' : 'profile';
+    void this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: { settingsTab },
+      queryParamsHandling: 'merge',
+      replaceUrl: true,
+    });
+  }
+
+  private applySettingsTabFromQuery(q: ParamMap): void {
+    const raw = (q.get('settingsTab') || '').toLowerCase();
+    if (raw === 'preferences') {
+      this.tab = 'preferences';
+      return;
+    }
+    if (raw === 'profile') {
+      this.tab = 'profile';
+      this.syncAccountDrafts();
+      return;
+    }
+    if (raw === 'school') {
+      this.tab = 'general';
+      return;
+    }
+    if (!this.isTenantAdmin && !raw) {
+      this.tab = 'profile';
+    }
+  }
+
+  beginAccountDetailsEdit(): void {
     this.syncAccountDrafts();
+    this.accountDetailsEditing = true;
+    this.profileAccountMsg = '';
+    this.profileAccountErr = '';
+  }
+
+  cancelAccountDetailsEdit(): void {
+    this.syncAccountDrafts();
+    this.accountDetailsEditing = false;
+    this.profileAccountMsg = '';
+    this.profileAccountErr = '';
   }
 
   private syncAccountDrafts(): void {
@@ -1003,6 +1081,7 @@ export class SettingsComponent implements OnInit {
     this.auth.updateAccountProfile({ name, phone: this.profileDraftPhone ?? '' }).subscribe({
       next: () => {
         this.profileAccountSaving = false;
+        this.accountDetailsEditing = false;
         this.profileAccountMsg = this.translate.instant(
           runtimeConfig.useMocks ? 'settings.profileSavedMock' : 'settings.profileSaved'
         );
@@ -1105,6 +1184,10 @@ export class SettingsComponent implements OnInit {
     if (this.isParentOnlyChildren) {
       this.parentService.getChildren().subscribe(list => {
         this.myChildren = list ?? [];
+        const pref = this.parentSelection.readPreferredChildId();
+        if (pref != null && this.myChildren.some(s => s.id === pref)) {
+          this.childPhotoTargetId = pref;
+        }
         this.syncChildPhotoPreview();
         this.cdr.markForCheck();
       });
