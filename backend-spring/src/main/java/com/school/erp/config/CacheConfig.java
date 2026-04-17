@@ -1,5 +1,8 @@
 package com.school.erp.config;
 
+import com.school.erp.cache.CacheService;
+import com.school.erp.modules.audit.service.AuditService;
+import com.school.erp.modules.platform.service.CacheManagementService;
 import com.school.erp.tenant.TenantContext;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -122,6 +125,24 @@ public class CacheConfig {
                 .withInitialCacheConfigurations(perCache)
                 .transactionAware()
                 .build();
+    }
+
+    /**
+     * Facade + platform cache admin — registered here (not {@code @Service}) so they are created in the same
+     * configuration slice as {@link #cacheManager}, avoiding component-scan order where {@code CacheManagementService}
+     * could wire before {@code CacheService}.
+     */
+    @Bean
+    public CacheService cacheService(CacheManager cacheManager) {
+        return new CacheService(cacheManager);
+    }
+
+    @Bean
+    public CacheManagementService cacheManagementService(
+            CacheService cacheService,
+            AuditService auditService,
+            CacheManager cacheManager) {
+        return new CacheManagementService(cacheService, auditService, cacheManager);
     }
 
     /** Cache key = current tenant id (never share across schools). */
