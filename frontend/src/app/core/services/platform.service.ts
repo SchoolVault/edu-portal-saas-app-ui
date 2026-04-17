@@ -31,6 +31,9 @@ import {
   PlatformSchoolDetail,
   PlatformSchoolSummary,
   PlatformSubscriptionPlan,
+  CacheClearResponse,
+  CacheClearRequest,
+  CacheRegionOption,
 } from '../models/models';
 
 @Injectable({ providedIn: 'root' })
@@ -330,5 +333,71 @@ export class PlatformService {
         id: String(admin.id)
       }))
     );
+  }
+
+  /** Clear cache - supports tenant-scoped and region-filtered clearing. */
+  clearCache(request: CacheClearRequest): Observable<CacheClearResponse> {
+    if (runtimeConfig.useMocks) {
+      const isTenantScoped = !!request.tenantId;
+      const isRegionFiltered = request.regions && request.regions.length > 0;
+
+      const allRegions = [
+        'transportRoutes', 'announcementPreviews', 'payrollStructures',
+        'referenceData', 'permissions', 'tenantConfig', 'reportResults',
+        'dashboardSnapshots', 'studentDirectory', 'teacherDirectory',
+        'academicCatalog', 'settingsSnapshot', 'libraryCatalog',
+        'libraryIssues', 'feesCatalog', 'timetableGrid', 'tenantFeatureFlags'
+      ];
+
+      const targetRegions = isRegionFiltered ? request.regions! : allRegions;
+      const school = isTenantScoped ? this.mockSchools.find(s => s.tenantId === request.tenantId) : null;
+
+      const mockResponse: CacheClearResponse = {
+        success: true,
+        message: isTenantScoped
+          ? `Successfully cleared ${targetRegions.length} cache regions for selected school`
+          : `Successfully cleared ${targetRegions.length} cache regions globally`,
+        statistics: {
+          regionsCleared: targetRegions.length,
+          clearedRegions: targetRegions,
+          clearedAt: new Date().toISOString(),
+          clearedBy: 'SUPER_ADMIN (Mock)',
+          targetTenantId: request.tenantId || null,
+          targetSchoolName: school?.schoolName || null
+        }
+      };
+      return of(mockResponse).pipe(delay(800));
+    }
+    return this.api.post<CacheClearResponse>('/platform/cache/clear', request);
+  }
+
+  /** Get available cache regions with metadata for UI. */
+  getCacheRegions(): CacheRegionOption[] {
+    return [
+      { name: 'referenceData', label: 'Reference Data', description: 'Countries, static lookups, master data', category: 'core' },
+      { name: 'permissions', label: 'Permissions', description: 'Role matrices and access control', category: 'core' },
+      { name: 'tenantConfig', label: 'Tenant Config', description: 'School settings and branding', category: 'core' },
+      { name: 'settingsSnapshot', label: 'Settings Snapshot', description: 'Cached configuration snapshots', category: 'core' },
+
+      { name: 'academicCatalog', label: 'Academic Catalog', description: 'Subjects, classes, academic year data', category: 'academic' },
+      { name: 'studentDirectory', label: 'Student Directory', description: 'Student roster and profiles', category: 'academic' },
+      { name: 'teacherDirectory', label: 'Teacher Directory', description: 'Teacher roster and profiles', category: 'academic' },
+      { name: 'timetableGrid', label: 'Timetable', description: 'Class schedules and periods', category: 'academic' },
+
+      { name: 'transportRoutes', label: 'Transport Routes', description: 'Bus routes and live tracking', category: 'operations' },
+      { name: 'announcementPreviews', label: 'Announcements', description: 'Announcement headers and previews', category: 'operations' },
+      { name: 'libraryCatalog', label: 'Library Catalog', description: 'Book inventory and metadata', category: 'operations' },
+      { name: 'libraryIssues', label: 'Library Issues', description: 'Book issue/return records', category: 'operations' },
+      { name: 'feesCatalog', label: 'Fees Catalog', description: 'Fee structures and categories', category: 'operations' },
+
+      { name: 'reportResults', label: 'Report Results', description: 'Heavy report snapshots', category: 'reports' },
+      { name: 'dashboardSnapshots', label: 'Dashboard Snapshots', description: 'KPI and dashboard data', category: 'reports' },
+      { name: 'payrollStructures', label: 'Payroll Structures', description: 'Salary grids and structures', category: 'reports' },
+    ];
+  }
+
+  /** Legacy method - use clearCache() instead. */
+  clearAllCaches(): Observable<CacheClearResponse> {
+    return this.clearCache({ tenantId: null, regions: null });
   }
 }

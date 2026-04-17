@@ -66,7 +66,7 @@ public class Enums {
     }
 
     public enum AuditAction {
-        CREATE, UPDATE, DELETE, LOGIN, LOGOUT
+        CREATE, UPDATE, DELETE, LOGIN, LOGOUT, CACHE_CLEARED
     }
 
     public enum NotificationType {

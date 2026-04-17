@@ -4,6 +4,7 @@ import { delay, map } from 'rxjs/operators';
 import { MOCK_ANNOUNCEMENTS_SEED } from '../mocks/communication.mock-data';
 import { Announcement, AnnouncementPreview } from '../models/models';
 import { ApiService, PageResp } from './api.service';
+import { AuthService } from './auth.service';
 import { runtimeConfig } from '../config/runtime-config';
 import { DEFAULT_ERP_PAGE_SIZE } from '../constants/pagination.constants';
 import { sliceToPage } from '../utils/paginate';
@@ -23,7 +24,7 @@ export class CommunicationService {
 
   getAnnouncements(): Observable<Announcement[]> {
     if (!runtimeConfig.useMocks) { return this.api.get<Announcement[]>('/communication/announcements'); }
-    return of([...this.announcements]).pipe(delay(400));
+    return of([...this.visibleMockAnnouncements()]).pipe(delay(400));
   }
 
   getAnnouncementsPage(opts: { page?: number; size?: number; q?: string }): Observable<PageResp<Announcement>> {
@@ -38,7 +39,7 @@ export class CommunicationService {
         })
         .pipe(map(p => ({ ...p, content: p.content.map((a: any) => this.normalizeAnnouncement(a)) })));
     }
-    let rows = [...this.announcements].map(a => this.normalizeAnnouncement(a));
+    let rows = [...this.visibleMockAnnouncements()].map(a => this.normalizeAnnouncement(a));
     const tq = (opts.q ?? '').trim().toLowerCase();
     if (tq) {
       rows = rows.filter(
@@ -55,7 +56,7 @@ export class CommunicationService {
     if (!runtimeConfig.useMocks) {
       return this.api.get<Announcement>(`/communication/announcements/${encodeURIComponent(id)}`);
     }
-    const found = this.announcements.find(a => String(a.id) === String(id));
+    const found = this.visibleMockAnnouncements().find(a => String(a.id) === String(id));
     if (!found) {
       return throwError(() => new Error('Announcement not found'));
     }
@@ -115,7 +116,36 @@ export class CommunicationService {
     );
   }
 
-  constructor(private api: ApiService) {}
+  constructor(
+    private api: ApiService,
+    private auth: AuthService
+  ) {}
+
+  /** Mirrors backend {@code findForAudience} audience tokens for local-only demos. */
+  private visibleMockAnnouncements(): Announcement[] {
+    if (!runtimeConfig.useMocks) {
+      return this.announcements;
+    }
+    const r = (this.auth.getCurrentUser()?.role || '').toLowerCase().replace(/^role_/, '');
+    return this.announcements.filter(a => CommunicationService.mockAnnouncementVisibleToRole(r, a));
+  }
+
+  private static mockAnnouncementVisibleToRole(role: string, a: Announcement): boolean {
+    const aud = (a.targetAudience || 'all').toLowerCase();
+    if (aud === 'all') {
+      return true;
+    }
+    if (role === 'parent') {
+      return aud === 'parents' || aud === 'class' || aud === 'section';
+    }
+    if (role === 'teacher') {
+      return aud === 'teachers' || aud === 'class' || aud === 'section';
+    }
+    if (role === 'student') {
+      return false;
+    }
+    return true;
+  }
 
   private normalizeAnnouncement(a: any): Announcement {
     return {
