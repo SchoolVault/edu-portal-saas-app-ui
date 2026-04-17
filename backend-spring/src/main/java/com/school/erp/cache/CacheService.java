@@ -13,7 +13,6 @@ import java.util.concurrent.Callable;
  * Use {@link CacheRegion} names aligned with {@link CacheConfig} cache names.
  * <p>Bean: {@link CacheConfig#cacheService(CacheManager)} (not component-scanned) so it always wires after the Redis {@link CacheManager}.
  */
-@Ord
 public class CacheService {
 
     public enum CacheRegion {
