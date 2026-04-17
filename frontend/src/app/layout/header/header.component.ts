@@ -11,7 +11,7 @@ import { PlatformHealthService } from '../../core/services/platform-health.servi
 import { AppNotification, AnnouncementPreview, ProfileSummary } from '../../core/models/models';
 import { ThemeService } from '../../core/services/theme.service';
 import { runtimeConfig } from '../../core/config/runtime-config';
-import { resolveNotificationNavigationTarget } from '../../core/utils/notification-link.util';
+import { notificationListRowNavigation } from '../../core/utils/notification-link.util';
 
 @Component({
   selector: 'app-header',
@@ -427,7 +427,7 @@ export class HeaderComponent implements OnInit, OnDestroy {
     const appIdx = parts.indexOf('app');
     const first = appIdx >= 0 ? parts[appIdx + 1] : parts[0];
     if (first === 'announcement') return 'header.title.notice';
-    if (first === 'notification') return 'header.title.notificationDetail';
+    if (first === 'notification' || first === 'notifications') return 'header.title.notificationDetail';
     const seg = first || 'dashboard';
     if (seg === 'settings') {
       if (url.includes('settingsTab=preferences')) {
@@ -538,20 +538,12 @@ export class HeaderComponent implements OnInit, OnDestroy {
     event.stopPropagation();
     this.notificationService.markAsRead(n.id);
     this.showNotifications = false;
-    const target = resolveNotificationNavigationTarget(n.link, n.id);
-    switch (target.kind) {
-      case 'announcement':
-        void this.router.navigate(['/app/announcement', target.id]);
-        return;
-      case 'internal':
-        void this.router.navigateByUrl(target.path);
-        return;
-      case 'external':
-        window.open(target.url, '_blank', 'noopener');
-        return;
-      default:
-        void this.router.navigate(['/app/notification', target.id]);
+    const target = notificationListRowNavigation(n.link, n.id);
+    if (target.kind === 'announcement') {
+      void this.router.navigate(['/app/announcement', target.id]);
+      return;
     }
+    void this.router.navigate(['/app/notifications', target.id]);
   }
 
   getNotifIcon(type: string): string {

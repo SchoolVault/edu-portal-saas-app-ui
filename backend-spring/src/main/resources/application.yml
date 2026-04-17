@@ -235,6 +235,16 @@ app:
       enabled: ${APP_JOBS_REMINDERS_ENABLED:true}
       external-scheduler-only: ${APP_JOBS_REMINDERS_EXTERNAL_ONLY:false}
 
+  communication:
+    retention:
+      # Soft-delete announcements + tenant notifications older than N months (per-tenant). Safe defaults: off + dry-run.
+      enabled: ${APP_COMM_RETENTION_ENABLED:false}
+      dry-run: ${APP_COMM_RETENTION_DRY_RUN:true}
+      months: ${APP_COMM_RETENTION_MONTHS:8}
+      cron: ${APP_COMM_RETENTION_CRON:0 20 3 * * SUN}
+      tenant-ids: ${APP_COMM_RETENTION_TENANT_IDS:}
+      allow-all-tenants: ${APP_COMM_RETENTION_ALLOW_ALL_TENANTS:false}
+
   internal-jobs:
     # Set APP_INTERNAL_JOB_KEY for POST /api/v1/internal/jobs/reminders/run (Render Cron). Empty = endpoint hidden (404).
     key: ${APP_INTERNAL_JOB_KEY:}
