@@ -1,11 +1,9 @@
 package com.school.erp.cache;
 
 import com.school.erp.config.CacheConfig;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.cache.Cache;
 import org.springframework.cache.CacheManager;
 import org.springframework.lang.Nullable;
-import org.springframework.stereotype.Service;
 
 import java.util.Optional;
 import java.util.concurrent.Callable;
@@ -13,9 +11,9 @@ import java.util.concurrent.Callable;
 /**
  * Tenant-aware cache façade over Spring {@link CacheManager} (Redis today; same API if you add Caffeine L1).
  * Use {@link CacheRegion} names aligned with {@link CacheConfig} cache names.
+ * <p>Bean: {@link CacheConfig#cacheService(CacheManager)} (not component-scanned) so it always wires after the Redis {@link CacheManager}.
  */
-@Service
-@ConditionalOnBean(CacheManager.class)
+@Ord
 public class CacheService {
 
     public enum CacheRegion {

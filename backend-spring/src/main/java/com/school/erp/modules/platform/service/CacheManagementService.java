@@ -4,13 +4,12 @@ import com.school.erp.cache.CacheService;
 import com.school.erp.common.enums.Enums;
 import com.school.erp.modules.audit.service.AuditService;
 import com.school.erp.modules.platform.dto.PlatformDTOs;
+import com.school.erp.config.CacheConfig;
 import com.school.erp.tenant.TenantContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.cache.Cache;
 import org.springframework.cache.CacheManager;
-import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
@@ -24,9 +23,8 @@ import java.util.stream.Collectors;
 /**
  * Cache management service for platform operators.
  * Provides cache clearing operations with audit logging and statistics.
+ * <p>Bean: {@link CacheConfig#cacheManagementService(CacheService, AuditService, CacheManager)} (not component-scanned).
  */
-@Service
-@ConditionalOnBean(CacheService.class)
 public class CacheManagementService {
     private static final Logger log = LoggerFactory.getLogger(CacheManagementService.class);
     private static final DateTimeFormatter FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");

@@ -22,6 +22,8 @@ spring:
     show-sql: false
 
   cache:
+    # Explicit for Aiven/managed Redis: do not rely on env alone (empty CACHE_TYPE disables CacheConfig and breaks CacheService).
+    type: redis
     redis:
       key-prefix: ${CACHE_REDIS_KEY_PREFIX:sv::}
 

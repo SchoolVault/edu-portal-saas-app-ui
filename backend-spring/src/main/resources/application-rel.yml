@@ -22,6 +22,7 @@ spring:
     show-sql: false
 
   cache:
+    type: redis
     redis:
       key-prefix: ${CACHE_REDIS_KEY_PREFIX:sv::}
 
