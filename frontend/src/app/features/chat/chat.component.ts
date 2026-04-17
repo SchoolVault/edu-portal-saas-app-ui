@@ -54,6 +54,7 @@ import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directiv
         display: flex;
         flex-direction: column;
         min-height: 0;
+        min-width: 0;
         max-height: 100%;
         overflow: hidden;
         background: var(--clr-surface);
@@ -162,6 +163,7 @@ import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directiv
       }
       .chat-thread-header {
         flex-shrink: 0;
+        min-width: 0;
         padding: 14px 16px;
         background: linear-gradient(
           180deg,
@@ -176,6 +178,29 @@ import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directiv
         font-size: 16px;
         letter-spacing: -0.02em;
         color: var(--clr-text);
+        line-height: 1.35;
+        min-width: 0;
+        overflow: hidden;
+        display: -webkit-box;
+        -webkit-box-orient: vertical;
+        -webkit-line-clamp: 2;
+        word-break: break-word;
+        overflow-wrap: anywhere;
+      }
+      .chat-thread-meta {
+        font-size: 12px;
+        line-height: 1.45;
+        color: var(--clr-text-muted);
+        margin-top: 4px;
+        min-width: 0;
+        overflow: hidden;
+        white-space: nowrap;
+        text-overflow: ellipsis;
+      }
+      .chat-thread-titles-wrap {
+        min-width: 0;
+        flex: 1 1 auto;
+        overflow: hidden;
       }
       .chat-thread-placeholder-title {
         font-weight: 800;
@@ -253,6 +278,7 @@ import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directiv
         border-bottom: 1px solid var(--clr-border-light);
         cursor: pointer;
         transition: background 0.15s ease, box-shadow 0.15s ease;
+        min-width: 0;
       }
       .chat-row:hover {
         background: color-mix(in srgb, var(--clr-primary) 6%, var(--clr-surface));
@@ -261,20 +287,46 @@ import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directiv
         background: color-mix(in srgb, var(--clr-primary) 11%, var(--clr-surface));
         box-shadow: inset 3px 0 0 var(--clr-accent);
       }
+      .chat-inbox-text {
+        flex: 1 1 0;
+        min-width: 0;
+        overflow: hidden;
+      }
       .chat-inbox-name {
         font-weight: 800;
         font-size: 14px;
         letter-spacing: -0.01em;
-        white-space: nowrap;
+        color: var(--clr-text);
+        line-height: 1.35;
+        min-width: 0;
         overflow: hidden;
-        text-overflow: ellipsis;
+        display: -webkit-box;
+        -webkit-box-orient: vertical;
+        -webkit-line-clamp: 2;
+        word-break: break-word;
+        overflow-wrap: anywhere;
+      }
+      .chat-inbox-hint {
+        font-size: 11px;
+        color: var(--clr-text-muted);
+        line-height: 1.35;
+        margin-top: 2px;
+        min-width: 0;
+        overflow: hidden;
+        display: -webkit-box;
+        -webkit-box-orient: vertical;
+        -webkit-line-clamp: 1;
+        word-break: break-word;
+        overflow-wrap: anywhere;
       }
       .chat-inbox-preview {
         font-size: 13px;
         line-height: 1.35;
         color: var(--clr-text-secondary);
-        white-space: nowrap;
+        margin-top: 4px;
+        min-width: 0;
         overflow: hidden;
+        white-space: nowrap;
         text-overflow: ellipsis;
       }
       .chat-inbox-time {
@@ -669,22 +721,23 @@ import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directiv
                    (click)="selectConversation(conv)"
                    class="chat-row"
                    [class.active]="selectedConversation?.conversationId === conv.conversationId">
-                <div class="d-flex align-items-start gap-3">
+                <div class="d-flex align-items-start gap-3 min-w-0">
                   <div class="chat-avatar" [style.background]="avatarColor(conversationTitle(conv))">
                     {{ initials(conversationTitle(conv)) }}
                   </div>
                   <div class="d-flex justify-content-between align-items-start gap-2 flex-grow-1 min-w-0">
-                    <div class="min-w-0">
-                      <div class="chat-inbox-name">{{ conversationTitle(conv) }}</div>
+                    <div class="chat-inbox-text min-w-0">
+                      <div class="chat-inbox-name" [attr.title]="conversationTitle(conv)">{{ conversationTitle(conv) }}</div>
                       <div
                         *ngIf="conversationIdentityHint(conv) as hint"
-                        class="text-muted"
-                        style="font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
+                        class="chat-inbox-hint"
                         [attr.title]="hint"
                       >
                         {{ hint }}
                       </div>
-                      <div class="chat-inbox-preview">{{ conv.lastMessagePreview || ('chat.noMessagesPreview' | translate) }}</div>
+                      <div class="chat-inbox-preview" [attr.title]="conv.lastMessagePreview || ''">
+                        {{ conv.lastMessagePreview || ('chat.noMessagesPreview' | translate) }}
+                      </div>
                     </div>
                     <div class="text-end flex-shrink-0">
                       <div class="chat-inbox-time">{{ asTime(conv.lastMessageAt) }}</div>
@@ -703,14 +756,16 @@ import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directiv
 
           <div class="col-lg-8 chat-thread-column">
             <div class="chat-thread-header">
-              <div *ngIf="selectedConversation; else noSelection" class="d-flex align-items-start justify-content-between gap-3">
-                <div class="d-flex align-items-start gap-3 min-w-0">
+              <div *ngIf="selectedConversation; else noSelection" class="d-flex align-items-start justify-content-between gap-3 min-w-0">
+                <div class="d-flex align-items-start gap-3 min-w-0 flex-grow-1">
                   <div class="chat-avatar d-none d-sm-flex" [style.background]="avatarColor(conversationTitle(selectedConversation))">
                     {{ initials(conversationTitle(selectedConversation)) }}
                   </div>
-                  <div class="min-w-0">
-                    <div class="chat-thread-title">{{ conversationTitle(selectedConversation) }}</div>
-                    <div class="text-muted chat-thread-meta" style="font-size: 12px; line-height: 1.45;">
+                  <div class="chat-thread-titles-wrap min-w-0">
+                    <div class="chat-thread-title" [attr.title]="conversationTitle(selectedConversation)">
+                      {{ conversationTitle(selectedConversation) }}
+                    </div>
+                    <div class="chat-thread-meta" [attr.title]="threadSubtitle(selectedConversation)">
                       {{ threadSubtitle(selectedConversation) }}
                     </div>
                   </div>

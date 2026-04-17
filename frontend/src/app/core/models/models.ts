@@ -525,6 +525,33 @@ export interface PlatformSubscriptionPlan {
   integrationPriceKey?: string;
 }
 
+export interface CacheClearRequest {
+  tenantId?: string | null;
+  regions?: string[] | null;
+}
+
+export interface CacheStatistics {
+  regionsCleared: number;
+  clearedRegions: string[];
+  clearedAt: string;
+  clearedBy: string;
+  targetTenantId?: string | null;
+  targetSchoolName?: string | null;
+}
+
+export interface CacheClearResponse {
+  success: boolean;
+  message: string;
+  statistics: CacheStatistics | null;
+}
+
+export interface CacheRegionOption {
+  name: string;
+  label: string;
+  description: string;
+  category: 'core' | 'academic' | 'operations' | 'reports';
+}
+
 export interface TeacherScheduleItem {
   classId: number;
   sectionId: number;

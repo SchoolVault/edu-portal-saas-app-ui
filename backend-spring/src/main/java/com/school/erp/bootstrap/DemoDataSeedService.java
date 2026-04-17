@@ -123,7 +123,8 @@ import java.util.stream.Collectors;
  * ├── Library: 30 books, 10 book issues
  * ├── Hostel: 2 hostels, 8 rooms per hostel, student allocations
  * ├── Payroll: Teacher salary structures, components, payslips (last 3 months)
- * ├── Communication: 3 announcements, 5 direct messages
+ * ├── Communication: audience-scoped announcements (ALL / PARENTS / TEACHERS / CLASS / SECTION), homeroom-only
+ * │   direct messages, and [DEMO] in-app notifications on QA parent + one homeroom teacher
  * ├── Documents: 5 sample documents for testing
  * └── Leave: Leave requests (5 teacher + 10 student examples)
  *
@@ -559,7 +560,7 @@ public class DemoDataSeedService {
         flushAndClear();
         pauseForResourceManagement();
 
-        createCommunication(tenantId, adminUser, teachers, allStudents, random);
+        createCommunication(tenantId, schoolCode, adminUser, teachers, random);
         flushAndClear();
         pauseForResourceManagement();
 
@@ -2022,48 +2023,194 @@ public class DemoDataSeedService {
         salaryComponentRepository.save(sc);
     }
 
-    private void createCommunication(String tenantId, User adminUser, List<Teacher> teachers,
-                                    List<Student> allStudents, Random random) {
-        // Create 3 announcements (optimized for Render free tier)
-        String[][] announcementData = {
-            {"School Reopening Notice", "School will reopen on April 1st, 2025. All students must report by 8:00 AM."},
-            {"Parent-Teacher Meeting", "Parent-Teacher Meeting scheduled for May 15th. Parents are requested to attend."},
-            {"Mid-Term Exam Schedule", "Mid-Term Examinations will commence from August 20th. Exam schedule attached."}
-        };
+    private void createCommunication(String tenantId, String schoolCode, User adminUser, List<Teacher> teachers,
+                                    Random random) {
+        /*
+         * Announcements: match production audience rules (see CommunicationService / findForAudience).
+         * - ALL / TEACHERS / PARENTS / CLASS / SECTION rows so teacher vs parent regression sees correct boards.
+         * Repository save does not run CommunicationService fan-out — no stray in-app rows from seed.
+         */
+        saveSeedAnnouncement(tenantId, adminUser,
+                "School reopening — April 2026",
+                "School reopens Monday 6 April 2026. All students must report by 8:00 AM. Transport routes are unchanged unless notified separately.",
+                Enums.TargetAudience.ALL, null, null);
+        saveSeedAnnouncement(tenantId, adminUser,
+                "Parent–Teacher Meeting — May 2026",
+                "Quarterly PTM is scheduled for Saturday 16 May 2026. Slots will open in the parent portal two weeks prior.",
+                Enums.TargetAudience.ALL, null, null);
+        saveSeedAnnouncement(tenantId, adminUser,
+                "Mid-term examination schedule",
+                "Mid-term examinations for the current academic year begin 18 August 2026. Detailed timetables are published under Exams.",
+                Enums.TargetAudience.ALL, null, null);
 
-        for (String[] data : announcementData) {
-            Announcement announcement = new Announcement();
-            announcement.setTenantId(tenantId);
-            announcement.setTitle(data[0]);
-            announcement.setContent(data[1]);
-            announcement.setAuthor(adminUser.getName());
-            announcement.setAuthorRole(adminUser.getRole().toString());
-            announcement.setTargetAudience(Enums.TargetAudience.ALL);
-            announcement.setIsDeleted(false);
-            announcementRepository.save(announcement);
+        saveSeedAnnouncement(tenantId, adminUser,
+                "[Parents] Term fee — payment window",
+                "This notice is for parents and guardians only: the online fee window for Term II opens 1 May 2026. Staff do not need to take action.",
+                Enums.TargetAudience.PARENTS, null, null);
+        saveSeedAnnouncement(tenantId, adminUser,
+                "[Parents] Student well-being survey",
+                "Parents only: please complete the anonymous well-being survey linked from the parent portal by 30 June 2026.",
+                Enums.TargetAudience.PARENTS, null, null);
+
+        saveSeedAnnouncement(tenantId, adminUser,
+                "[Faculty] Fire drill briefing — mandatory",
+                "All teaching staff: mandatory 20-minute briefing on updated evacuation routes. Attendance will be recorded.",
+                Enums.TargetAudience.TEACHERS, null, null);
+        saveSeedAnnouncement(tenantId, adminUser,
+                "[Faculty] Exam invigilation — sign-up",
+                "Teachers: invigilation slots for mid-terms are open. Please confirm at least two slots via the academic office.",
+                Enums.TargetAudience.TEACHERS, null, null);
+
+        List<SchoolClass> classes = schoolClassRepository.findByTenantIdAndIsDeletedFalseOrderByGrade(tenantId);
+        SchoolClass classForBroadcast = classes.stream()
+                .filter(c -> c.getGrade() != null && c.getGrade() == 9)
+                .findFirst()
+                .orElseGet(() -> classes.stream().findFirst().orElse(null));
+        if (classForBroadcast != null) {
+            saveSeedAnnouncement(tenantId, adminUser,
+                    "[Class " + classForBroadcast.getGrade() + "] Field trip — consent required",
+                    "This announcement targets one class only. Parents of students in this class should submit consent in the portal by the date stated in the circular.",
+                    Enums.TargetAudience.CLASS, classForBroadcast.getId(), null);
+            List<Section> secs = sectionRepository.findByTenantIdAndClassIdAndIsDeletedFalse(tenantId, classForBroadcast.getId());
+            if (!secs.isEmpty()) {
+                Section sec = secs.get(0);
+                saveSeedAnnouncement(tenantId, adminUser,
+                        "[Section " + sec.getName() + "] Lab safety reminder",
+                        "Students in this section: lab coats are mandatory from next week. Class teachers please reinforce before practicals.",
+                        Enums.TargetAudience.SECTION, classForBroadcast.getId(), sec.getId());
+            }
+        } else {
+            log.warn("  [Communication] No school class rows — skipping CLASS/SECTION demo announcements");
         }
 
-        // Create 5 direct messages (teacher to parent - optimized for Render)
-        for (int i = 0; i < 5; i++) {
-            Student student = allStudents.get(random.nextInt(allStudents.size()));
-            Teacher teacher = teachers.get(random.nextInt(teachers.size()));
+        seedDemoInAppNotifications(tenantId, schoolCode);
 
-            // Get parent user
-            User parentUser = userRepository.findByIdAndTenantIdAndIsDeletedFalse(student.getParentId(), tenantId).orElse(null);
-            if (parentUser == null) continue;
-
+        /*
+         * Direct messages: only homeroom teacher → parent of a student in that class (matches ChatDirectory / messaging policy).
+         * Random teacher/parent pairs would fail authorization in production.
+         */
+        SchoolClass homeroomClass = classes.stream()
+                .filter(c -> c.getClassTeacherId() != null)
+                .findFirst()
+                .orElse(null);
+        if (homeroomClass == null) {
+            log.warn("  [Communication] No class with homeroom teacher — skipping demo direct messages");
+            return;
+        }
+        Optional<Teacher> homeroomTeacherOpt = teacherRepository.findByIdAndTenantIdAndIsDeletedFalse(
+                homeroomClass.getClassTeacherId(), tenantId);
+        if (homeroomTeacherOpt.isEmpty()) {
+            log.warn("  [Communication] Homeroom teacher id {} not found — skipping demo direct messages",
+                    homeroomClass.getClassTeacherId());
+            return;
+        }
+        Teacher homeroomTeacher = homeroomTeacherOpt.get();
+        List<Student> inClass = studentRepository.findByTenantIdAndClassIdAndIsDeletedFalse(tenantId, homeroomClass.getId());
+        LinkedHashSet<Long> distinctParentIds = new LinkedHashSet<>();
+        for (Student st : inClass) {
+            if (st.getParentId() != null) {
+                distinctParentIds.add(st.getParentId());
+            }
+        }
+        int n = 0;
+        for (Long parentId : distinctParentIds) {
+            if (n >= 5) {
+                break;
+            }
+            User parentUser = userRepository.findByIdAndTenantIdAndIsDeletedFalse(parentId, tenantId).orElse(null);
+            if (parentUser == null) {
+                continue;
+            }
+            Student anyChild = inClass.stream().filter(s -> parentId.equals(s.getParentId())).findFirst().orElse(null);
+            String childFirst = anyChild != null ? anyChild.getFirstName() : "your child";
             Message message = new Message();
             message.setTenantId(tenantId);
-            message.setSenderId(teacher.getUserId());
-            message.setSenderName(teacher.getFirstName() + " " + teacher.getLastName());
+            message.setSenderId(homeroomTeacher.getUserId());
+            message.setSenderName(homeroomTeacher.getFirstName() + " " + homeroomTeacher.getLastName());
             message.setSenderRole(Enums.Role.TEACHER.toString());
             message.setReceiverId(parentUser.getId());
             message.setReceiverName(parentUser.getName());
-            message.setContent("Dear Parent, Your child " + student.getFirstName() + " is doing well in class. Please encourage regular attendance.");
+            message.setContent("Dear Parent, " + childFirst + " is progressing well in "
+                    + homeroomClass.getName() + ". Please encourage regular attendance and punctuality.");
             message.setIsRead(random.nextBoolean());
             message.setIsDeleted(false);
             messageRepository.save(message);
+            n++;
         }
+    }
+
+    private void saveSeedAnnouncement(
+            String tenantId,
+            User adminUser,
+            String title,
+            String content,
+            Enums.TargetAudience audience,
+            Long targetClassId,
+            Long targetSectionId) {
+        Announcement announcement = new Announcement();
+        announcement.setTenantId(tenantId);
+        announcement.setTitle(title);
+        announcement.setContent(content);
+        announcement.setAuthor(adminUser.getName());
+        announcement.setAuthorRole(adminUser.getRole().toString());
+        announcement.setTargetAudience(audience);
+        announcement.setTargetClassId(targetClassId);
+        announcement.setTargetSectionId(targetSectionId);
+        announcement.setIsDeleted(false);
+        announcementRepository.save(announcement);
+    }
+
+    /**
+     * In-app rows are always per {@code user_id}; keep parent-only copy on parents and staff copy on a homeroom teacher.
+     */
+    private void seedDemoInAppNotifications(String tenantId, String schoolCode) {
+        String qaEmail = QA_MULTICHILD_EMAIL_LOCAL + "@parent." + schoolCode.toLowerCase(Locale.ROOT) + ".edu.in";
+        userRepository.findByEmailAndTenantIdAndIsDeletedFalse(qaEmail, tenantId).ifPresent(parentUser -> {
+            persistDemoInAppNotification(tenantId, parentUser.getId(),
+                    "[DEMO] Parent: fee statement",
+                    "Sample in-app row for parents only (not a teacher inbox). Clear dues via Fees → Payments.",
+                    Enums.NotificationType.INFO, false, "/app/parent/children");
+            persistDemoInAppNotification(tenantId, parentUser.getId(),
+                    "[DEMO] Parent: transport circular",
+                    "Sample read notification for unread-count regression.",
+                    Enums.NotificationType.INFO, true, "/app/inbox");
+        });
+
+        schoolClassRepository.findByTenantIdAndIsDeletedFalseOrderByGrade(tenantId).stream()
+                .filter(c -> c.getClassTeacherId() != null)
+                .findFirst()
+                .flatMap(c -> teacherRepository.findByIdAndTenantIdAndIsDeletedFalse(c.getClassTeacherId(), tenantId))
+                .ifPresent(t -> {
+                    persistDemoInAppNotification(tenantId, t.getUserId(),
+                            "[DEMO] Teacher: invigilation reminder",
+                            "Sample unread staff notification (homeroom teacher).",
+                            Enums.NotificationType.WARNING, false, "/app/inbox");
+                    persistDemoInAppNotification(tenantId, t.getUserId(),
+                            "[DEMO] Teacher: timetable published",
+                            "Sample read staff notification for bell badge math.",
+                            Enums.NotificationType.SUCCESS, true, "/app/timetable");
+                });
+    }
+
+    private void persistDemoInAppNotification(
+            String tenantId,
+            Long userId,
+            String title,
+            String message,
+            Enums.NotificationType type,
+            boolean read,
+            String link) {
+        Notification n = Notification.builder()
+                .title(title)
+                .message(message)
+                .type(type)
+                .userId(userId)
+                .isRead(read)
+                .link(link)
+                .build();
+        n.setTenantId(tenantId);
+        n.setIsDeleted(false);
+        notificationRepository.save(n);
     }
 
     private void createDocuments(String tenantId, List<Student> allStudents,

@@ -437,7 +437,7 @@ CREATE TABLE documents (
 CREATE TABLE audit_logs (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     tenant_id VARCHAR(50) NOT NULL,
-    action VARCHAR(10) NOT NULL,
+    action VARCHAR(30) NOT NULL,
     module VARCHAR(50) NOT NULL,
     description VARCHAR(500) NOT NULL,
     user_id BIGINT,

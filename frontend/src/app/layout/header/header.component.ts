@@ -307,7 +307,7 @@ export class HeaderComponent implements OnInit, OnDestroy {
       this.recomputeUnreadBadge();
     });
     this.bellReadState.changed$.pipe(takeUntil(this.destroy$)).subscribe(() => this.recomputeUnreadBadge());
-    if (!runtimeConfig.useMocks) {
+    if (!this.isSuperAdmin) {
       this.notificationService.refreshFromServer().subscribe({ error: () => { /* not logged in or API down */ } });
     }
     const syncHeaderIdentity = (): void => {
@@ -471,7 +471,7 @@ export class HeaderComponent implements OnInit, OnDestroy {
   toggleNotifications(): void {
     this.showNotifications = !this.showNotifications;
     this.showProfile = false;
-    if (this.showNotifications && !runtimeConfig.useMocks) {
+    if (this.showNotifications && !this.isSuperAdmin) {
       this.notificationService.refreshFromServer().subscribe({ error: () => {} });
     }
   }

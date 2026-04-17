@@ -8,6 +8,7 @@ import com.school.erp.modules.settings.service.TenantFeatureRolloutService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
@@ -22,6 +23,9 @@ import java.util.Map;
 public class PlatformController {
     private final PlatformService platformService;
     private final TenantFeatureRolloutService tenantFeatureRolloutService;
+
+    @Autowired(required = false)
+    private com.school.erp.modules.platform.service.CacheManagementService cacheManagementService;
 
     @GetMapping("/dashboard")
     @Operation(summary = "Get platform dashboard")
@@ -145,6 +149,38 @@ public class PlatformController {
             @Valid @RequestBody PlatformDTOs.ToggleAdminStatusRequest request
     ) {
         return ResponseEntity.ok(ApiResponse.ok(platformService.updateSchoolAdminStatus(tenantId, userId, request), "School admin status updated"));
+    }
+
+    @PostMapping("/cache/clear")
+    @Operation(summary = "Clear cache (tenant-scoped or global)", description = "Supports: (1) Specific tenant + regions, (2) Specific tenant (all regions), (3) Global (all tenants/regions). Use global with caution.")
+    public ResponseEntity<ApiResponse<PlatformDTOs.CacheClearResponse>> clearCache(
+            @Valid @RequestBody PlatformDTOs.CacheClearRequest request) {
+        if (cacheManagementService == null) {
+            PlatformDTOs.CacheClearResponse response = new PlatformDTOs.CacheClearResponse(
+                false,
+                "Cache management unavailable: caching is disabled (set spring.cache.type=redis to enable)",
+                null
+            );
+            return ResponseEntity.ok(ApiResponse.ok(response, response.getMessage()));
+        }
+        PlatformDTOs.CacheClearResponse response = cacheManagementService.clearCaches(request);
+        return ResponseEntity.ok(ApiResponse.ok(response, response.getMessage()));
+    }
+
+    @PostMapping("/cache/clear-all")
+    @Operation(summary = "Clear all cache entries (DEPRECATED)", description = "Legacy endpoint - use POST /cache/clear with empty body instead. Evicts all entries from all Redis cache regions (all tenants).")
+    @Deprecated
+    public ResponseEntity<ApiResponse<PlatformDTOs.CacheClearResponse>> clearAllCaches() {
+        if (cacheManagementService == null) {
+            PlatformDTOs.CacheClearResponse response = new PlatformDTOs.CacheClearResponse(
+                false,
+                "Cache management unavailable: caching is disabled (set spring.cache.type=redis to enable)",
+                null
+            );
+            return ResponseEntity.ok(ApiResponse.ok(response, response.getMessage()));
+        }
+        PlatformDTOs.CacheClearResponse response = cacheManagementService.clearAllCaches();
+        return ResponseEntity.ok(ApiResponse.ok(response, response.getMessage()));
     }
 
     public PlatformController(PlatformService platformService, TenantFeatureRolloutService tenantFeatureRolloutService) {

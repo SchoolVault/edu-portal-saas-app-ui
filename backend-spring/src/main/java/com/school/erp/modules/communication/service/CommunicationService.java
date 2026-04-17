@@ -13,6 +13,7 @@ import com.school.erp.modules.communication.entity.*;
 import com.school.erp.modules.communication.repository.*;
 import com.school.erp.modules.guardian.service.GuardianService;
 import com.school.erp.modules.notification.service.AnnouncementNotificationFanoutService;
+import com.school.erp.modules.student.service.TeacherRosterScopeService;
 import com.school.erp.config.CacheConfig;
 import com.school.erp.tenant.TenantContext;
 import com.school.erp.tenant.TenantQueryPolicy;
@@ -38,6 +39,9 @@ public class CommunicationService {
     private final AnnouncementNotificationFanoutService announcementFanout;
     private final UserRepository userRepository;
     private final ChatDirectoryService chatDirectoryService;
+    private final TeacherRosterScopeService teacherRosterScopeService;
+
+    private record AudienceLists(List<Long> classIds, List<Long> sectionIds) {}
 
     @Transactional(readOnly = true)
     public List<Announcement> getAnnouncements() {
@@ -59,18 +63,8 @@ public class CommunicationService {
             Page<Announcement> pg = annRepo.pageTenantSearch(tenantId, qq, p);
             return PageResponse.fromSpringPage(pg);
         }
-        List<Long> classIds = new ArrayList<>();
-        List<Long> sectionIds = new ArrayList<>();
-        if ("PARENT".equals(role)) {
-            Long parentId = TenantContext.getUserId();
-            for (var s : guardianService.findStudentsForParentUser(tenantId, parentId)) {
-                if (s.getClassId() != null) classIds.add(s.getClassId());
-                if (s.getSectionId() != null) sectionIds.add(s.getSectionId());
-            }
-        }
-        if (classIds.isEmpty()) classIds = List.of(-1L);
-        if (sectionIds.isEmpty()) sectionIds = List.of(-1L);
-        Page<Announcement> pg = annRepo.findForAudiencePaged(tenantId, role, classIds, sectionIds, qq, p);
+        AudienceLists lists = resolveAnnouncementAudienceLists();
+        Page<Announcement> pg = annRepo.findForAudiencePaged(tenantId, role, lists.classIds(), lists.sectionIds(), qq, p);
         return PageResponse.fromSpringPage(pg);
     }
 
@@ -92,34 +86,66 @@ public class CommunicationService {
 
     @Transactional(readOnly = true)
     public Announcement getAnnouncement(Long id) {
-        return annRepo.findByIdAndTenantIdAndIsDeletedFalse(id, TenantContext.getTenantId())
+        Announcement a = annRepo.findByIdAndTenantIdAndIsDeletedFalse(id, TenantContext.getTenantId())
                 .orElseThrow(() -> new ResourceNotFoundException("Announcement", id));
+        assertCurrentUserMayViewAnnouncement(a);
+        return a;
     }
 
     @Transactional(readOnly = true)
     public List<Announcement> getAnnouncementsForMe() {
         String tenantId = TenantContext.getTenantId();
         String role = normalizedRole();
+        AudienceLists lists = resolveAnnouncementAudienceLists();
+        return annRepo.findForAudience(tenantId, role, lists.classIds(), lists.sectionIds());
+    }
 
+    private AudienceLists resolveAnnouncementAudienceLists() {
+        String tenantId = TenantContext.getTenantId();
+        String role = normalizedRole();
         List<Long> classIds = new ArrayList<>();
         List<Long> sectionIds = new ArrayList<>();
 
         if ("PARENT".equals(role)) {
             Long parentId = TenantContext.getUserId();
             for (var s : guardianService.findStudentsForParentUser(tenantId, parentId)) {
-                if (s.getClassId() != null) classIds.add(s.getClassId());
-                if (s.getSectionId() != null) sectionIds.add(s.getSectionId());
+                if (s.getClassId() != null) {
+                    classIds.add(s.getClassId());
+                }
+                if (s.getSectionId() != null) {
+                    sectionIds.add(s.getSectionId());
+                }
             }
+        } else if ("TEACHER".equals(role)) {
+            teacherRosterScopeService.communicationAudienceScopeForCurrentUser().ifPresent(scope -> {
+                classIds.addAll(scope.classIds());
+                sectionIds.addAll(scope.sectionIds());
+            });
         }
 
         if ("STUDENT".equals(role)) {
             // Conservative until student-user mapping exists
         }
 
-        if (classIds.isEmpty()) classIds = List.of(-1L);
-        if (sectionIds.isEmpty()) sectionIds = List.of(-1L);
+        if (classIds.isEmpty()) {
+            classIds.add(-1L);
+        }
+        if (sectionIds.isEmpty()) {
+            sectionIds.add(-1L);
+        }
+        return new AudienceLists(classIds, sectionIds);
+    }
 
-        return annRepo.findForAudience(tenantId, role, classIds, sectionIds);
+    private void assertCurrentUserMayViewAnnouncement(Announcement a) {
+        String role = normalizedRole();
+        if (seesFullSchoolAnnouncementBoard(role)) {
+            return;
+        }
+        List<Announcement> allowed = getAnnouncementsForMe();
+        boolean ok = allowed.stream().anyMatch(x -> x.getId().equals(a.getId()));
+        if (!ok) {
+            throw new ResourceNotFoundException("Announcement", a.getId());
+        }
     }
 
     @CacheEvict(cacheNames = CacheConfig.ANNOUNCEMENT_PREVIEWS, allEntries = true)
@@ -260,9 +286,11 @@ public class CommunicationService {
         return r;
     }
 
+    /**
+     * Teachers use audience-scoped queries (same JPQL as parents) so parent-only bulletins never appear on the staff board.
+     */
     private static boolean seesFullSchoolAnnouncementBoard(String roleNorm) {
         return "ADMIN".equals(roleNorm)
-                || "TEACHER".equals(roleNorm)
                 || "SUPER_ADMIN".equals(roleNorm)
                 || "LIBRARY_STAFF".equals(roleNorm);
     }
@@ -284,12 +312,14 @@ public class CommunicationService {
             final GuardianService guardianService,
             final AnnouncementNotificationFanoutService announcementFanout,
             final UserRepository userRepository,
-            final ChatDirectoryService chatDirectoryService) {
+            final ChatDirectoryService chatDirectoryService,
+            final TeacherRosterScopeService teacherRosterScopeService) {
         this.annRepo = annRepo;
         this.msgRepo = msgRepo;
         this.guardianService = guardianService;
         this.announcementFanout = announcementFanout;
         this.userRepository = userRepository;
         this.chatDirectoryService = chatDirectoryService;
+        this.teacherRosterScopeService = teacherRosterScopeService;
     }
 }

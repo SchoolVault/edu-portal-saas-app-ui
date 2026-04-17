@@ -388,4 +388,78 @@ public class PlatformDTOs {
         public String getIntegrationPriceKey() { return integrationPriceKey; }
         public void setIntegrationPriceKey(String integrationPriceKey) { this.integrationPriceKey = integrationPriceKey; }
     }
+
+    /** Request to clear cache - supports both global and tenant-scoped operations. */
+    public static class CacheClearRequest {
+        /** Optional tenant ID - if null, clears globally (all tenants). */
+        private String tenantId;
+        /** Optional region names - if null/empty, clears all regions. */
+        private List<String> regions;
+
+        public CacheClearRequest() {}
+
+        public CacheClearRequest(String tenantId, List<String> regions) {
+            this.tenantId = tenantId;
+            this.regions = regions;
+        }
+
+        public String getTenantId() { return tenantId; }
+        public void setTenantId(String tenantId) { this.tenantId = tenantId; }
+        public List<String> getRegions() { return regions; }
+        public void setRegions(List<String> regions) { this.regions = regions; }
+    }
+
+    public static class CacheClearResponse {
+        private boolean success;
+        private String message;
+        private CacheStatistics statistics;
+
+        public CacheClearResponse() {}
+
+        public CacheClearResponse(boolean success, String message, CacheStatistics statistics) {
+            this.success = success;
+            this.message = message;
+            this.statistics = statistics;
+        }
+
+        public boolean isSuccess() { return success; }
+        public void setSuccess(boolean success) { this.success = success; }
+        public String getMessage() { return message; }
+        public void setMessage(String message) { this.message = message; }
+        public CacheStatistics getStatistics() { return statistics; }
+        public void setStatistics(CacheStatistics statistics) { this.statistics = statistics; }
+    }
+
+    public static class CacheStatistics {
+        private int regionsCleared;
+        private List<String> clearedRegions;
+        private String clearedAt;
+        private String clearedBy;
+        /** Tenant ID if scoped to one school, null if global. */
+        private String targetTenantId;
+        /** School name for UI display when tenant-scoped. */
+        private String targetSchoolName;
+
+        public CacheStatistics() {}
+
+        public CacheStatistics(int regionsCleared, List<String> clearedRegions, String clearedAt, String clearedBy) {
+            this.regionsCleared = regionsCleared;
+            this.clearedRegions = clearedRegions;
+            this.clearedAt = clearedAt;
+            this.clearedBy = clearedBy;
+        }
+
+        public int getRegionsCleared() { return regionsCleared; }
+        public void setRegionsCleared(int regionsCleared) { this.regionsCleared = regionsCleared; }
+        public List<String> getClearedRegions() { return clearedRegions; }
+        public void setClearedRegions(List<String> clearedRegions) { this.clearedRegions = clearedRegions; }
+        public String getClearedAt() { return clearedAt; }
+        public void setClearedAt(String clearedAt) { this.clearedAt = clearedAt; }
+        public String getClearedBy() { return clearedBy; }
+        public void setClearedBy(String clearedBy) { this.clearedBy = clearedBy; }
+        public String getTargetTenantId() { return targetTenantId; }
+        public void setTargetTenantId(String targetTenantId) { this.targetTenantId = targetTenantId; }
+        public String getTargetSchoolName() { return targetSchoolName; }
+        public void setTargetSchoolName(String targetSchoolName) { this.targetSchoolName = targetSchoolName; }
+    }
 }
