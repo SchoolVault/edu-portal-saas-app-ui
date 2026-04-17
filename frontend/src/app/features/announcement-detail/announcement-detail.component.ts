@@ -2,6 +2,7 @@ import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { CommunicationService } from '../../core/services/communication.service';
+import { BellReadStateService } from '../../core/services/bell-read-state.service';
 import { Announcement } from '../../core/models/models';
 
 @Component({
@@ -35,7 +36,8 @@ export class AnnouncementDetailComponent implements OnInit {
 
   constructor(
     private route: ActivatedRoute,
-    private comm: CommunicationService
+    private comm: CommunicationService,
+    private bellRead: BellReadStateService
   ) {}
 
   ngOnInit(): void {
@@ -48,6 +50,9 @@ export class AnnouncementDetailComponent implements OnInit {
       next: a => {
         this.ann = a ? this.normalize(a) : null;
         this.loading = false;
+        if (this.ann?.id) {
+          this.bellRead.markAnnouncementRead(this.ann.id);
+        }
       },
       error: () => {
         this.ann = null;

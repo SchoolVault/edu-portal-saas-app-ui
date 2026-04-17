@@ -5,6 +5,7 @@ import { Subject, merge, of } from 'rxjs';
 import { debounceTime, filter, switchMap, takeUntil } from 'rxjs/operators';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { AuthService } from '../../core/services/auth.service';
+import { BellReadStateService } from '../../core/services/bell-read-state.service';
 import { NotificationService } from '../../core/services/notification.service';
 import { CommunicationService } from '../../core/services/communication.service';
 import { PlatformHealthService } from '../../core/services/platform-health.service';
@@ -73,10 +74,13 @@ import { notificationListRowNavigation } from '../../core/utils/notification-lin
               <div *ngIf="!isSuperAdmin && schoolNoticePreviews.length" class="notification-section-label">
                 {{ 'header.bell.schoolNotices' | translate }}
               </div>
-              <div *ngFor="let ann of schoolNoticePreviews"
-                   class="notification-item notification-item-announcement"
-                   (click)="openAnnouncementFromBell(ann, $event)"
-                   [attr.data-testid]="'header-notice-' + ann.id">
+              <div
+                *ngFor="let ann of schoolNoticePreviews"
+                class="notification-item notification-item-announcement has-read-status-dot"
+                [class.is-unread]="bellReadState.isAnnouncementUnread(ann.id)"
+                [class.is-read]="!bellReadState.isAnnouncementUnread(ann.id)"
+                (click)="openAnnouncementFromBell(ann, $event)"
+                [attr.data-testid]="'header-notice-' + ann.id">
                 <h5>
                   <i class="bi bi-megaphone-fill" style="margin-right: 6px; color: var(--clr-primary);"></i>
                   {{ ann.title }}
@@ -94,11 +98,13 @@ import { notificationListRowNavigation } from '../../core/utils/notification-lin
               <div *ngIf="notifications.length && !isSuperAdmin" class="notification-section-label">
                 {{ 'header.bell.yourNotifications' | translate }}
               </div>
-              <div *ngFor="let n of notifications"
-                   class="notification-item"
-                   [class.unread]="!n.read"
-                   (click)="openNotificationDetail(n, $event)"
-                   [attr.data-testid]="'notification-' + n.id">
+              <div
+                *ngFor="let n of notifications"
+                class="notification-item has-read-status-dot"
+                [class.is-unread]="!n.read"
+                [class.is-read]="n.read"
+                (click)="openNotificationDetail(n, $event)"
+                [attr.data-testid]="'notification-' + n.id">
                 <h5>
                   <i class="bi" [ngClass]="getNotifIcon(n.type)" style="margin-right: 6px;"
                      [style.color]="getNotifColor(n.type)"></i>
@@ -190,6 +196,8 @@ export class HeaderComponent implements OnInit, OnDestroy {
   userRole = '';
   initials = '';
   unreadCount = 0;
+  /** Server unread total (notifications only); combined with local announcement read state in {@link #recomputeUnreadBadge}. */
+  private serverUnreadNotifications = 0;
   notifications: AppNotification[] = [];
   /** School-wide bulletin previews (ALL audience) — parents no longer see targeted notices duplicated here. */
   schoolNoticePreviews: AnnouncementPreview[] = [];
@@ -268,6 +276,7 @@ export class HeaderComponent implements OnInit, OnDestroy {
   constructor(
     private authService: AuthService,
     public notificationService: NotificationService,
+    readonly bellReadState: BellReadStateService,
     private communicationService: CommunicationService,
     private platformHealthService: PlatformHealthService,
     private router: Router,
@@ -291,15 +300,13 @@ export class HeaderComponent implements OnInit, OnDestroy {
       this.notifications = [...(notifs || [])].sort(
         (a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
       );
-      if (runtimeConfig.useMocks) {
-        this.unreadCount = this.notifications.filter(n => !n.read).length;
-      }
+      this.recomputeUnreadBadge();
     });
     this.notificationService.unreadInboxTotal$.pipe(takeUntil(this.destroy$)).subscribe(total => {
-      if (!runtimeConfig.useMocks) {
-        this.unreadCount = total;
-      }
+      this.serverUnreadNotifications = Number(total ?? 0);
+      this.recomputeUnreadBadge();
     });
+    this.bellReadState.changed$.pipe(takeUntil(this.destroy$)).subscribe(() => this.recomputeUnreadBadge());
     if (!runtimeConfig.useMocks) {
       this.notificationService.refreshFromServer().subscribe({ error: () => { /* not logged in or API down */ } });
     }
@@ -342,10 +349,12 @@ export class HeaderComponent implements OnInit, OnDestroy {
           next: snap => {
             this.platformHealthItems = (snap?.components || []).slice(0, 6);
             this.schoolNoticePreviews = [];
+            this.recomputeUnreadBadge();
           },
           error: () => {
             this.platformHealthItems = [];
             this.schoolNoticePreviews = [];
+            this.recomputeUnreadBadge();
           }
         });
     } else {
@@ -367,6 +376,7 @@ export class HeaderComponent implements OnInit, OnDestroy {
                   new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
               );
             this.applySchoolNoticePreviewsForRole(normalized);
+            this.recomputeUnreadBadge();
           },
           error: () => (this.schoolNoticePreviews = [])
         });
@@ -382,6 +392,7 @@ export class HeaderComponent implements OnInit, OnDestroy {
     this.pageTitleKey = this.getTitleKeyFromUrl(this.router.url);
 
     this.translate.onLangChange.pipe(takeUntil(this.destroy$)).subscribe(() => this.cdr.markForCheck());
+    this.recomputeUnreadBadge();
   }
 
   ngOnDestroy(): void {
@@ -483,6 +494,26 @@ export class HeaderComponent implements OnInit, OnDestroy {
 
   markAllRead(): void {
     this.notificationService.markAllAsRead();
+    this.bellReadState.markAnnouncementsRead(this.schoolNoticePreviews.map(p => p.id));
+    this.recomputeUnreadBadge();
+  }
+
+  private recomputeUnreadBadge(): void {
+    if (this.isSuperAdmin) {
+      if (runtimeConfig.useMocks) {
+        this.unreadCount = this.notifications.filter(n => !n.read).length;
+      } else {
+        this.unreadCount = this.serverUnreadNotifications;
+      }
+      return;
+    }
+    const annUnread = this.schoolNoticePreviews.filter(p => this.bellReadState.isAnnouncementUnread(p.id)).length;
+    if (runtimeConfig.useMocks) {
+      const nu = this.notifications.filter(n => !n.read).length;
+      this.unreadCount = nu + annUnread;
+    } else {
+      this.unreadCount = this.serverUnreadNotifications + annUnread;
+    }
   }
 
   logout(): void {
@@ -530,6 +561,7 @@ export class HeaderComponent implements OnInit, OnDestroy {
 
   openAnnouncementFromBell(ann: AnnouncementPreview, event: MouseEvent): void {
     event.stopPropagation();
+    this.bellReadState.markAnnouncementRead(ann.id);
     this.showNotifications = false;
     this.router.navigate(['/app/announcement', ann.id]);
   }
