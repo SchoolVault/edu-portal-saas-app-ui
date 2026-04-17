@@ -1571,7 +1571,59 @@ img.table-avatar {
 }
 
 .notification-item:hover { background: var(--clr-hover); }
-.notification-item.unread { background: rgba(5,150,105,0.03); }
+/* Bell + inbox: read / unread status dot (red = new, green = opened) — top-right, CSS only */
+.has-read-status-dot {
+  position: relative;
+  box-sizing: border-box;
+}
+.notification-item.has-read-status-dot {
+  padding: 14px 28px 14px 16px;
+}
+.erp-card.has-read-status-dot {
+  padding: 24px 40px 24px 24px;
+}
+.has-read-status-dot.is-unread::before {
+  content: '';
+  position: absolute;
+  right: 12px;
+  top: 12px;
+  left: auto;
+  transform: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--clr-danger);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--clr-danger) 22%, transparent);
+}
+.has-read-status-dot.is-read:not(.is-unread)::before {
+  content: '';
+  position: absolute;
+  right: 12px;
+  top: 12px;
+  left: auto;
+  transform: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--clr-success);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--clr-success) 22%, transparent);
+}
+/* Inbox cards: match {@code .erp-card} inner padding on the right */
+.erp-card.has-read-status-dot.is-unread::before,
+.erp-card.has-read-status-dot.is-read:not(.is-unread)::before {
+  right: 18px;
+  top: 18px;
+}
+@media (max-width: 768px) {
+  .erp-card.has-read-status-dot {
+    padding: 16px 36px 16px 16px;
+  }
+  .erp-card.has-read-status-dot.is-unread::before,
+  .erp-card.has-read-status-dot.is-read:not(.is-unread)::before {
+    right: 14px;
+    top: 14px;
+  }
+}
 .notification-item h5 { font-size: 13px; font-weight: 600; margin-bottom: 4px; }
 .notification-item p { font-size: 12px; color: var(--clr-text-muted); margin: 0; }
 .notification-item .time { font-size: 11px; color: var(--clr-text-muted); margin-top: 4px; }

@@ -121,6 +121,7 @@ export class NotificationDetailComponent implements OnInit {
           this.icon = this.pickIcon(state.row.type);
           this.color = this.pickColor(state.row.type);
           this.applyRelatedActions(state.row);
+          this.notificationService.markAsRead(state.row.id);
         } else {
           this.loading = false;
           this.n = undefined;

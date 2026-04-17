@@ -8,6 +8,7 @@ import { CommunicationService, CreateAnnouncementPayload } from '../../core/serv
 import { AuthService } from '../../core/services/auth.service';
 import { AcademicService } from '../../core/services/academic.service';
 import { InboxUnifiedItem, SchoolClass } from '../../core/models/models';
+import { BellReadStateService } from '../../core/services/bell-read-state.service';
 import { NotificationService } from '../../core/services/notification.service';
 import { InboxUnifiedFeedService } from '../../core/services/inbox-unified-feed.service';
 import { DEFAULT_INBOX_FILTER_STATE, InboxFilterState } from '../../core/models/inbox-filter.model';
@@ -85,7 +86,9 @@ import { DEFAULT_ERP_PAGE_SIZE } from '../../core/constants/pagination.constants
 
           <div
             *ngFor="let row of inboxRows; trackBy: trackInboxRow"
-            class="erp-card mb-3 inbox-card inbox-row"
+            class="erp-card mb-3 inbox-card inbox-row has-read-status-dot"
+            [class.is-unread]="inboxRowReadDotUnread(row)"
+            [class.is-read]="!inboxRowReadDotUnread(row)"
             [routerLink]="inboxRowLink(row)"
             [attr.data-testid]="inboxRowTestId(row)"
             (click)="onInboxRowActivate(row)">
@@ -255,6 +258,7 @@ export class CommunicationComponent implements OnInit {
   private readonly translate = inject(TranslateService);
   private readonly cdr = inject(ChangeDetectorRef);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly bellRead = inject(BellReadStateService);
   private readonly inboxSearch$ = new Subject<void>();
   private readonly subs = new Subscription();
   private inboxReqSeq = 0;
@@ -294,6 +298,7 @@ export class CommunicationComponent implements OnInit {
 
   ngOnInit(): void {
     this.translate.onLangChange.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => this.cdr.markForCheck());
+    this.bellRead.changed$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => this.cdr.markForCheck());
     this.subs.add(
       this.inboxSearch$.pipe(debounceTime(300)).subscribe(() => {
         this.inboxPageIndex = 0;
@@ -323,9 +328,19 @@ export class CommunicationComponent implements OnInit {
   }
 
   onInboxRowActivate(row: InboxUnifiedItem): void {
-    if (row.kind === 'notification') {
-      this.notificationService.markAsRead(row.id);
+    if (row.kind === 'announcement') {
+      this.bellRead.markAnnouncementRead(row.id);
+      return;
     }
+    this.notificationService.markAsRead(row.id);
+  }
+
+  /** Unread = announcement not in local read set, or notification with {@code read === false}. */
+  inboxRowReadDotUnread(row: InboxUnifiedItem): boolean {
+    if (row.kind === 'announcement') {
+      return this.bellRead.isAnnouncementUnread(row.id);
+    }
+    return row.read === false;
   }
 
   inboxNotifIcon(type: string | undefined): string {
