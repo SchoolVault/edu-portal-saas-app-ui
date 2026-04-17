@@ -18,6 +18,7 @@ import { ErpI18nPhDirective, ErpI18nTextDirective } from '../../shared/erp-i18n/
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { sliceToPage } from '../../core/utils/paginate';
 import { DEFAULT_ERP_PAGE_SIZE } from '../../core/constants/pagination.constants';
+import { mergeClassesForAttendanceCatalog } from '../../core/utils/parent-dashboard-metrics';
 
 @Component({
   selector: 'app-attendance',
@@ -254,7 +255,7 @@ export class AttendanceComponent implements OnInit {
   ngOnInit(): void {
     this.translate.onLangChange.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => this.cdr.markForCheck());
 
-    this.academicService.getClasses().subscribe(c => (this.classes = c));
+    this.loadClassesMerged();
     if (this.isTeacher || this.isAdmin) {
       const me = this.auth.getCurrentUser();
       this.teacherService.getTeachers().subscribe({
@@ -291,11 +292,33 @@ export class AttendanceComponent implements OnInit {
   }
 
   refreshAttendance(): void {
-    this.academicService.getClasses().subscribe(c => (this.classes = c));
+    this.loadClassesMerged();
     if (this.isTeacher) {
       this.loadMyCovers();
     }
     this.loadAttendance();
+  }
+
+  /**
+   * Ensures every class/section that has enrolled students appears in the picker (parent and admin stay aligned).
+   */
+  private loadClassesMerged(): void {
+    this.academicService.getClasses().subscribe(c => {
+      if (this.isAdmin || this.isTeacher) {
+        this.studentService.getStudents().subscribe({
+          next: students => {
+            this.classes = mergeClassesForAttendanceCatalog(c, students || []);
+            this.cdr.markForCheck();
+          },
+          error: () => {
+            this.classes = c;
+            this.cdr.markForCheck();
+          },
+        });
+      } else {
+        this.classes = c;
+      }
+    });
   }
 
   get isPastSession(): boolean {

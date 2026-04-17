@@ -2,7 +2,17 @@ import type { AppNotification } from '../models/models';
 
 export const MOCK_SCHOOL_NOTIFICATIONS_SEED: AppNotification[] = [
   { id: 'n1', title: 'New Admission', message: 'Arjun Patel has been admitted to Class 5-A', type: 'success', read: false, userId: 1, createdAt: '2026-02-05T10:30:00Z' },
-  { id: 'n2', title: 'Fee Payment Received', message: 'Fee payment received from Emily Watson', type: 'info', read: false, userId: 1, createdAt: '2026-02-05T09:15:00Z' },
+  {
+    id: 'n2',
+    title: 'Fee Payment Received',
+    message: 'Fee payment received from Emily Watson',
+    type: 'info',
+    read: false,
+    userId: 1,
+    createdAt: '2026-02-05T09:15:00Z',
+    link: '/app/dashboard',
+    senderLabel: 'Fees desk',
+  },
   { id: 'n3', title: 'Exam Schedule Updated', message: 'Midterm exam schedule has been updated for Class 8', type: 'warning', read: false, userId: 1, createdAt: '2026-02-04T16:45:00Z' },
   { id: 'n4', title: 'Attendance Alert', message: 'Class 3-B has below 80% attendance today', type: 'error', read: true, userId: 1, createdAt: '2026-02-04T11:00:00Z' },
   { id: 'n5', title: 'Parent Meeting', message: 'Parent-teacher meeting scheduled for Feb 15', type: 'info', read: true, userId: 1, createdAt: '2026-02-03T14:20:00Z' },

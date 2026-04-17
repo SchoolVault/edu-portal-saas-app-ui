@@ -1,6 +1,7 @@
 package com.school.erp.modules.payroll.controller;
 
 import com.school.erp.common.dto.ApiResponse;
+import com.school.erp.security.RequireTenantFeature;
 import com.school.erp.common.dto.PageResponse;
 import com.school.erp.modules.payroll.dto.PayrollDTOs;
 import com.school.erp.modules.payroll.entity.Payslip;
@@ -20,6 +21,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/v1/payroll")
 @Tag(name = "Payroll", description = "Salary Structure, Payslip Generation & Management")
+@RequireTenantFeature("payroll")
 public class PayrollController {
     private final PayrollService service;
 

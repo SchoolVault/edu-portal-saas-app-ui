@@ -1,6 +1,5 @@
 package com.school.erp.config;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.school.erp.tenant.TenantContext;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -16,6 +15,7 @@ import org.springframework.data.redis.cache.RedisCacheManager;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.serializer.GenericJackson2JsonRedisSerializer;
 import org.springframework.data.redis.serializer.RedisSerializationContext;
+import org.springframework.data.redis.serializer.RedisSerializer;
 import org.springframework.data.redis.serializer.StringRedisSerializer;
 
 import org.springframework.util.StringUtils;
@@ -27,6 +27,11 @@ import java.util.Map;
 /**
  * Redis-backed Spring Cache with <strong>tenant-scoped keys</strong> only.
  * Disable via {@code spring.cache.type=none} or env {@code CACHE_TYPE=none} when Redis is unavailable.
+ * <p>
+ * Value serialization uses {@link GenericJackson2JsonRedisSerializer}'s default constructor so Jackson
+ * embeds type metadata ({@code @class}) on write. Passing the app's primary {@code ObjectMapper} here
+ * without default typing causes cache hits to deserialize as {@link java.util.LinkedHashMap} and
+ * {@code ClassCastException} on {@code @Cacheable} return types (e.g. dashboard DTOs).
  */
 @Configuration
 @EnableCaching
@@ -51,16 +56,35 @@ public class CacheConfig {
     public static final String PERMISSIONS = "permissions";
     /** Feature flags, theme, school branding JSON. */
     public static final String TENANT_CONFIG = "tenantConfig";
+    /**
+     * Tenant feature flag map ({@code Map<String,Boolean>}) — serialized as plain JSON without Jackson default typing.
+     * Kept separate from {@link #SETTINGS_SNAPSHOT} so legacy Redis entries (no {@code @class}) and new typed snapshots coexist safely.
+     */
+    public static final String TENANT_FEATURE_FLAGS = "tenantFeatureFlags";
     /** Heavy report snapshots (optional L1 Caffeine in front later). */
     public static final String REPORT_RESULTS = "reportResults";
+    /** KPI + role-specific dashboard payloads (hourly refresh typical for Aiven 1GB tier). */
+    public static final String DASHBOARD_SNAPSHOTS = "dashboardSnapshots";
+    /** Student list / roster reads (tenant + user + query params in key). */
+    public static final String STUDENT_DIRECTORY = "studentDirectory";
+    /** Teacher grid reads. */
+    public static final String TEACHER_DIRECTORY = "teacherDirectory";
+    /** Academic subject catalog, years, class tree — low churn. */
+    public static final String ACADEMIC_CATALOG = "academicCatalog";
+    public static final String SETTINGS_SNAPSHOT = "settingsSnapshot";
+    public static final String LIBRARY_CATALOG = "libraryCatalog";
+    public static final String LIBRARY_ISSUES = "libraryIssues";
+    public static final String FEES_CATALOG = "feesCatalog";
+    public static final String TIMETABLE_GRID = "timetableGrid";
 
     @Bean
     public CacheManager cacheManager(
             RedisConnectionFactory connectionFactory,
-            ObjectMapper objectMapper,
             AppCacheTtlProperties ttlProps,
             Environment environment) {
-        GenericJackson2JsonRedisSerializer json = new GenericJackson2JsonRedisSerializer(objectMapper);
+        GenericJackson2JsonRedisSerializer json = new GenericJackson2JsonRedisSerializer();
+        RedisSerializationContext.SerializationPair<Object> plainJsonValues =
+                RedisSerializationContext.SerializationPair.fromSerializer(RedisSerializer.json());
 
         RedisCacheConfiguration base = RedisCacheConfiguration.defaultCacheConfig()
                 .serializeKeysWith(RedisSerializationContext.SerializationPair.fromSerializer(new StringRedisSerializer()))
@@ -81,6 +105,17 @@ public class CacheConfig {
         perCache.put(PERMISSIONS, base.entryTtl(ttlProps.getPermissions()));
         perCache.put(TENANT_CONFIG, base.entryTtl(ttlProps.getTenantConfig()));
         perCache.put(REPORT_RESULTS, base.entryTtl(ttlProps.getReportResults()));
+        perCache.put(DASHBOARD_SNAPSHOTS, base.entryTtl(ttlProps.getDashboardSnapshots()));
+        perCache.put(STUDENT_DIRECTORY, base.entryTtl(ttlProps.getStudentDirectory()));
+        perCache.put(TEACHER_DIRECTORY, base.entryTtl(ttlProps.getTeacherDirectory()));
+        perCache.put(ACADEMIC_CATALOG, base.entryTtl(ttlProps.getAcademicCatalog()));
+        perCache.put(SETTINGS_SNAPSHOT, base.entryTtl(ttlProps.getSettingsSnapshot()));
+        /* Same key prefix / TTL as settings snapshot; only value serialization differs (plain JSON map). */
+        perCache.put(TENANT_FEATURE_FLAGS, base.serializeValuesWith(plainJsonValues).entryTtl(ttlProps.getSettingsSnapshot()));
+        perCache.put(LIBRARY_CATALOG, base.entryTtl(ttlProps.getLibraryCatalog()));
+        perCache.put(LIBRARY_ISSUES, base.entryTtl(ttlProps.getLibraryIssues()));
+        perCache.put(FEES_CATALOG, base.entryTtl(ttlProps.getFeesCatalog()));
+        perCache.put(TIMETABLE_GRID, base.entryTtl(ttlProps.getTimetableGrid()));
 
         return RedisCacheManager.builder(connectionFactory)
                 .cacheDefaults(base.entryTtl(ttlProps.getDefaultTtl()))
@@ -107,6 +142,79 @@ public class CacheConfig {
             String uid = TenantContext.getUserId() != null ? TenantContext.getUserId().toString() : "anon";
             String role = TenantContext.getUserRole() != null ? TenantContext.getUserRole() : "";
             return tid + ":" + uid + ":" + role;
+        };
+    }
+
+    /**
+     * Tenant + authenticated user + role + method name + all method parameters (stable string form).
+     * Use for paged rosters so teachers and admins do not share entries.
+     */
+    @Bean("tenantMethodParamsKeyGenerator")
+    public KeyGenerator tenantMethodParamsKeyGenerator() {
+        return (target, method, params) -> {
+            String tid = TenantContext.getTenantId();
+            tid = (tid == null || tid.isBlank()) ? "_no_tenant_" : tid;
+            String uid = TenantContext.getUserId() != null ? TenantContext.getUserId().toString() : "anon";
+            String role = TenantContext.getUserRole() != null ? TenantContext.getUserRole() : "";
+            StringBuilder sb = new StringBuilder(tid)
+                    .append(':').append(uid)
+                    .append(':').append(role)
+                    .append(':').append(method.getName());
+            for (Object p : params) {
+                if (p == null) {
+                    sb.append(":_");
+                } else if (p instanceof Enum<?> e) {
+                    sb.append(':').append(e.name());
+                } else {
+                    sb.append(':').append(p);
+                }
+            }
+            return sb.toString();
+        };
+    }
+
+    /** Tenant + method name (no params) — shared for all users in the school (e.g. academic catalog). */
+    @Bean("tenantMethodNameKeyGenerator")
+    public KeyGenerator tenantMethodNameKeyGenerator() {
+        return (target, method, params) -> {
+            String tid = TenantContext.getTenantId();
+            tid = (tid == null || tid.isBlank()) ? "_no_tenant_" : tid;
+            return tid + ":" + method.getName();
+        };
+    }
+
+    /** Tenant + method name + first parameter (e.g. class id). */
+    @Bean("tenantMethodFirstParamKeyGenerator")
+    public KeyGenerator tenantMethodFirstParamKeyGenerator() {
+        return (target, method, params) -> {
+            String tid = TenantContext.getTenantId();
+            tid = (tid == null || tid.isBlank()) ? "_no_tenant_" : tid;
+            Object first = params != null && params.length > 0 ? params[0] : "_";
+            return tid + ":" + method.getName() + ":" + first;
+        };
+    }
+
+    /**
+     * Tenant + method + all parameters (no user/role) — shared within a school for timetables, library catalog, etc.
+     */
+    @Bean("tenantMethodParamsSchoolKeyGenerator")
+    public KeyGenerator tenantMethodParamsSchoolKeyGenerator() {
+        return (target, method, params) -> {
+            String tid = TenantContext.getTenantId();
+            tid = (tid == null || tid.isBlank()) ? "_no_tenant_" : tid;
+            StringBuilder sb = new StringBuilder(tid).append(':').append(method.getName());
+            if (params != null) {
+                for (Object p : params) {
+                    if (p == null) {
+                        sb.append(":_");
+                    } else if (p instanceof Enum<?> e) {
+                        sb.append(':').append(e.name());
+                    } else {
+                        sb.append(':').append(p);
+                    }
+                }
+            }
+            return sb.toString();
         };
     }
 }

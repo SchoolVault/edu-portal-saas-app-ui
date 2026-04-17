@@ -47,9 +47,11 @@ public class TimetableController {
 
     @PostMapping
     @PreAuthorize("hasRole(\'ADMIN\')")
-    @Operation(summary = "Create timetable entry", description = "Auto-checks for class and teacher conflicts")
-    public ResponseEntity<ApiResponse<TimetableEntry>> create(@RequestBody TimetableEntry entry) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.created(service.createEntry(entry)));
+    @Operation(summary = "Create timetable entry", description = "Detects class-period and teacher double-booking conflicts (HTTP 409 + payload). Optional replaceTimetableEntryId soft-deletes the blocking row first.")
+    public ResponseEntity<ApiResponse<TimetableEntry>> create(
+            @RequestBody TimetableEntry entry,
+            @RequestParam(required = false) Long replaceTimetableEntryId) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.created(service.createEntry(entry, replaceTimetableEntryId)));
     }
 
     @PostMapping("/batch")
@@ -61,9 +63,12 @@ public class TimetableController {
 
     @PutMapping("/{id}")
     @PreAuthorize("hasRole(\'ADMIN\')")
-    @Operation(summary = "Update timetable entry")
-    public ResponseEntity<ApiResponse<TimetableEntry>> update(@PathVariable Long id, @RequestBody TimetableEntry entry) {
-        return ResponseEntity.ok(ApiResponse.ok(service.updateEntry(id, entry)));
+    @Operation(summary = "Update timetable entry", description = "Same conflict rules as create; optional replaceTimetableEntryId removes another row after explicit user confirmation.")
+    public ResponseEntity<ApiResponse<TimetableEntry>> update(
+            @PathVariable Long id,
+            @RequestBody TimetableEntry entry,
+            @RequestParam(required = false) Long replaceTimetableEntryId) {
+        return ResponseEntity.ok(ApiResponse.ok(service.updateEntry(id, entry, replaceTimetableEntryId)));
     }
 
     @DeleteMapping("/{id}")

@@ -1,6 +1,7 @@
 package com.school.erp.modules.audit.controller;
 
 import com.school.erp.common.dto.ApiResponse;
+import com.school.erp.security.RequireTenantFeature;
 import com.school.erp.common.dto.PageResponse;
 import com.school.erp.common.enums.Enums;
 import com.school.erp.modules.audit.entity.AuditLog;
@@ -15,6 +16,7 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequestMapping("/api/v1/audit")
 @Tag(name = "Audit", description = "Audit Trail APIs - Track all system actions")
+@RequireTenantFeature("audit")
 public class AuditController {
     private final AuditService service;
 

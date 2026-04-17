@@ -29,6 +29,9 @@ public abstract class BaseEntity {
     private Boolean isActive = true;
     @Column(name = "is_deleted")
     private Boolean isDeleted = false;
+    /** When {@link #isDeleted} was set; used for retention / hard-delete jobs. */
+    @Column(name = "deleted_at")
+    private LocalDateTime deletedAt;
     @CreatedDate
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
@@ -54,6 +57,10 @@ public abstract class BaseEntity {
 
     public Boolean getIsDeleted() {
         return this.isDeleted;
+    }
+
+    public LocalDateTime getDeletedAt() {
+        return this.deletedAt;
     }
 
     public LocalDateTime getCreatedAt() {
@@ -86,6 +93,20 @@ public abstract class BaseEntity {
 
     public void setIsDeleted(final Boolean isDeleted) {
         this.isDeleted = isDeleted;
+    }
+
+    public void setDeletedAt(final LocalDateTime deletedAt) {
+        this.deletedAt = deletedAt;
+    }
+
+    /**
+     * Prefer this over ad-hoc {@code setIsDeleted(true)} so {@link #deletedAt} is always consistent for lifecycle jobs.
+     */
+    public void markSoftDeleted() {
+        this.isDeleted = true;
+        if (this.deletedAt == null) {
+            this.deletedAt = LocalDateTime.now();
+        }
     }
 
     public void setCreatedAt(final LocalDateTime createdAt) {

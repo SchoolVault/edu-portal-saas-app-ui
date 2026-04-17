@@ -1,6 +1,7 @@
 package com.school.erp.modules.transport.controller;
 
 import com.school.erp.common.dto.ApiResponse;
+import com.school.erp.security.RequireTenantFeature;
 import com.school.erp.common.dto.PageResponse;
 import com.school.erp.modules.transport.dto.TransportDTOs;
 import com.school.erp.modules.transport.entity.*;
@@ -19,6 +20,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/v1/transport")
 @Tag(name = "Transport", description = "Route Management, Student Assignment, Stops")
+@RequireTenantFeature("transport")
 public class TransportController {
     private final TransportService service;
 

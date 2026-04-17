@@ -2,6 +2,7 @@ package com.school.erp.modules.importexport.controller;
 
 import com.school.erp.common.dto.ApiResponse;
 import com.school.erp.common.dto.PageResponse;
+import com.school.erp.security.RequireTenantFeature;
 import com.school.erp.modules.importexport.dto.ImportExportDTOs;
 import com.school.erp.modules.importexport.service.ImportJobService;
 import com.school.erp.modules.student.service.StudentService;
@@ -21,6 +22,7 @@ import java.nio.charset.StandardCharsets;
 @RestController
 @RequestMapping("/api/v1/import-export")
 @Tag(name = "Import / Export", description = "Async bulk ZIP+CSV jobs and CSV exports")
+@RequireTenantFeature("importExport")
 public class ImportExportController {
     private final ImportJobService importJobService;
     private final StudentService studentService;

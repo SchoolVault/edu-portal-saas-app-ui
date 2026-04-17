@@ -15,6 +15,7 @@ import {
 } from '../../../core/validation';
 import { AuthMarketingBandComponent } from '../auth-marketing/auth-marketing-band.component';
 import { ErpI18nPhDirective } from '../../../shared/erp-i18n/erp-i18n-host.directives';
+import { ErpIntlPhoneRowComponent } from '../../../shared/erp-phone-intl/erp-intl-phone-row.component';
 
 type LoginAuthMode = 'email_password' | 'phone_otp';
 type PhoneFlowStep = 'idle' | 'otp_sent';
@@ -22,7 +23,7 @@ type PhoneFlowStep = 'idle' | 'otp_sent';
 @Component({
   selector: 'app-login',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterModule, TranslateModule, AuthMarketingBandComponent, ErpI18nPhDirective],
+  imports: [CommonModule, FormsModule, RouterModule, TranslateModule, AuthMarketingBandComponent, ErpI18nPhDirective, ErpIntlPhoneRowComponent],
   template: `
     <div class="login-container" data-testid="login-page">
       <div class="login-left">
@@ -100,7 +101,10 @@ type PhoneFlowStep = 'idle' | 'otp_sent';
                 <div id="lg-err-email" class="field-error" *ngIf="fieldErrors.email" role="alert">{{ fieldErrors.email | translate }}</div>
               </div>
               <div class="erp-form-group">
-                <label class="erp-label" for="lg-password">{{ 'login.password' | translate }}</label>
+                <div class="login-password-label-row">
+                  <label class="erp-label mb-0" for="lg-password">{{ 'login.password' | translate }}</label>
+                  <a routerLink="/forgot-password" class="login-forgot-link">{{ 'login.forgotPassword' | translate }}</a>
+                </div>
                 <div style="position: relative;">
                   <input
                     id="lg-password"
@@ -127,21 +131,14 @@ type PhoneFlowStep = 'idle' | 'otp_sent';
 
             <ng-container *ngIf="authMode === 'phone_otp'">
               <div class="erp-form-group" *ngIf="phoneFlowStep === 'idle'">
-                <label class="erp-label" for="lg-phone">{{ 'login.phone' | translate }}</label>
-                <input
-                  id="lg-phone"
-                  type="tel"
-                  class="erp-input"
-                  [class.erp-input--error]="!!fieldErrors.phone"
-                  [(ngModel)]="phone"
-                  (ngModelChange)="clearField('phone')"
-                  name="phone"
-                  maxlength="40"
-                  erpI18nPh="login.phonePlaceholder"
-                  [attr.aria-invalid]="!!fieldErrors.phone"
-                  [attr.aria-describedby]="fieldErrors.phone ? 'lg-err-phone' : null"
-                  data-testid="login-phone"
-                  autocomplete="tel" />
+                <label class="erp-label">{{ 'login.phone' | translate }}</label>
+                <erp-intl-phone-row
+                  idPrefix="lg-phone"
+                  namePrefix="loginPhone"
+                  testIdPrefix="login-phone"
+                  [canonicalPhone]="phone"
+                  (canonicalPhoneChange)="onLoginCanonicalPhone($event)"
+                />
                 <div id="lg-err-phone" class="field-error" *ngIf="fieldErrors.phone" role="alert">{{ fieldErrors.phone | translate }}</div>
               </div>
               <div class="erp-form-group" *ngIf="phoneFlowStep === 'otp_sent'">
@@ -165,12 +162,16 @@ type PhoneFlowStep = 'idle' | 'otp_sent';
                 <div id="lg-err-otp" class="field-error" *ngIf="fieldErrors.otp" role="alert">{{ fieldErrors.otp | translate }}</div>
                 <p class="text-muted small mb-0 mt-2" *ngIf="devOtpHint">{{ 'login.devOtpHint' | translate: { code: devOtpHint } }}</p>
                 <div class="login-phone-actions">
-                  <button type="button" class="btn-link-erp" (click)="onChangePhone()">{{ 'login.changePhone' | translate }}</button>
+                  <button type="button" class="btn-outline-erp btn-sm" (click)="onChangePhone()">
+                    <i class="bi bi-pencil-square" aria-hidden="true"></i>
+                    {{ 'login.changePhone' | translate }}
+                  </button>
                   <button
                     type="button"
-                    class="btn-link-erp"
+                    class="btn-outline-erp btn-sm"
                     (click)="onResendOtp()"
                     [disabled]="resendCountdown > 0 || sendOtpLoading">
+                    <i class="bi bi-arrow-repeat" aria-hidden="true"></i>
                     {{ resendCountdown > 0 ? ('login.resendIn' | translate: { seconds: resendCountdown }) : ('login.resendOtp' | translate) }}
                   </button>
                 </div>
@@ -264,27 +265,6 @@ type PhoneFlowStep = 'idle' | 'otp_sent';
       .login-mode-btn--active {
         background: var(--clr-primary, #1b3a30);
         color: #fff;
-      }
-      .login-phone-actions {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 12px 16px;
-        margin-top: 10px;
-      }
-      .btn-link-erp {
-        background: none;
-        border: none;
-        padding: 0;
-        font-size: 13px;
-        font-weight: 600;
-        color: var(--clr-primary, #1b3a30);
-        cursor: pointer;
-        text-decoration: underline;
-      }
-      .btn-link-erp:disabled {
-        opacity: 0.45;
-        cursor: not-allowed;
-        text-decoration: none;
       }
       .login-lang-row {
         margin-top: 0.25rem;
@@ -452,6 +432,11 @@ export class LoginComponent implements OnInit, OnDestroy {
     if (mode === 'email_password') {
       this.phoneFlowStep = 'idle';
     }
+  }
+
+  onLoginCanonicalPhone(value: string): void {
+    this.phone = value;
+    this.clearField('phone');
   }
 
   clearField(field: LoginField): void {

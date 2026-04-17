@@ -1,5 +1,6 @@
 package com.school.erp.modules.auth.dto;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import java.util.List;
 
 public class AuthProfileDTOs {
@@ -21,6 +22,8 @@ public class AuthProfileDTOs {
         public void setTotalStudents(long totalStudents) { this.totalStudents = totalStudents; }
     }
 
+    /** Role-scoped stats use {@link Long} so unset fields are omitted from JSON (avoids misleading zeros for parents). */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
     public static class ProfileSummaryResponse {
         private Long id;
         private String name;
@@ -40,11 +43,11 @@ public class AuthProfileDTOs {
         private String userTitle;
         private String qualification;
         private String specialization;
-        private long childCount;
-        private long assignedClassCount;
-        private long subjectCount;
-        private long managedStudentCount;
-        private long managedTeacherCount;
+        private Long childCount;
+        private Long assignedClassCount;
+        private Long subjectCount;
+        private Long managedStudentCount;
+        private Long managedTeacherCount;
         /** Populated for SUPER_ADMIN: active (non-deleted) school workspaces. */
         private int platformWorkspaceCount;
         /** Populated for TEACHER: classes where this teacher is the class teacher. */
@@ -86,16 +89,16 @@ public class AuthProfileDTOs {
         public void setQualification(String qualification) { this.qualification = qualification; }
         public String getSpecialization() { return specialization; }
         public void setSpecialization(String specialization) { this.specialization = specialization; }
-        public long getChildCount() { return childCount; }
-        public void setChildCount(long childCount) { this.childCount = childCount; }
-        public long getAssignedClassCount() { return assignedClassCount; }
-        public void setAssignedClassCount(long assignedClassCount) { this.assignedClassCount = assignedClassCount; }
-        public long getSubjectCount() { return subjectCount; }
-        public void setSubjectCount(long subjectCount) { this.subjectCount = subjectCount; }
-        public long getManagedStudentCount() { return managedStudentCount; }
-        public void setManagedStudentCount(long managedStudentCount) { this.managedStudentCount = managedStudentCount; }
-        public long getManagedTeacherCount() { return managedTeacherCount; }
-        public void setManagedTeacherCount(long managedTeacherCount) { this.managedTeacherCount = managedTeacherCount; }
+        public Long getChildCount() { return childCount; }
+        public void setChildCount(Long childCount) { this.childCount = childCount; }
+        public Long getAssignedClassCount() { return assignedClassCount; }
+        public void setAssignedClassCount(Long assignedClassCount) { this.assignedClassCount = assignedClassCount; }
+        public Long getSubjectCount() { return subjectCount; }
+        public void setSubjectCount(Long subjectCount) { this.subjectCount = subjectCount; }
+        public Long getManagedStudentCount() { return managedStudentCount; }
+        public void setManagedStudentCount(Long managedStudentCount) { this.managedStudentCount = managedStudentCount; }
+        public Long getManagedTeacherCount() { return managedTeacherCount; }
+        public void setManagedTeacherCount(Long managedTeacherCount) { this.managedTeacherCount = managedTeacherCount; }
         public int getPlatformWorkspaceCount() { return platformWorkspaceCount; }
         public void setPlatformWorkspaceCount(int platformWorkspaceCount) { this.platformWorkspaceCount = platformWorkspaceCount; }
         public List<ClassTeacherAssignment> getClassTeacherOf() { return classTeacherOf; }

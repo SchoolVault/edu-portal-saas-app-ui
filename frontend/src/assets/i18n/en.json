@@ -30,7 +30,12 @@
   },
   "notificationDetail": {
     "back": "← Back to dashboard",
+    "backInbox": "← Back to inbox",
+    "backDashboard": "← Back to dashboard",
     "openLink": "Open link",
+    "openRelated": "Open related page",
+    "viewAnnouncement": "View announcement",
+    "sender": "From",
     "notFound": "Notification not found or you do not have access.",
     "loading": "Loading…"
   },
@@ -83,11 +88,63 @@
       "snapshotSub": "{{teachers}} teachers · {{admins}} admins · {{phone}}",
       "noPhone": "No phone",
       "suspend": "Suspend",
-      "activate": "Activate"
+      "activate": "Activate",
+      "tenantId": "Workspace",
+      "schoolCode": "Code",
+      "contactStrip": "Contact",
+      "adminCardTitle": "Primary contacts",
+      "adminActive": "Active",
+      "adminSuspended": "Suspended"
+    },
+    "features": {
+      "panelTitle": "Feature management",
+      "panelLead": "Roll optional modules on or off for the selected school. Campus admins see enabled items under Settings → Features (read-only).",
+      "save": "Save school features",
+      "saving": "Saving…",
+      "saved": "School feature flags saved.",
+      "saveErr": "Could not save feature flags.",
+      "loadErr": "Could not load feature flags.",
+      "modules": {
+        "chat": { "name": "Chat", "description": "Real-time messaging" },
+        "transport": { "name": "Transport", "description": "Fleet & route tracking" },
+        "hostel": { "name": "Hostel", "description": "Residential operations" },
+        "library": { "name": "Library", "description": "Catalog & circulation" },
+        "audit": { "name": "Audit", "description": "Compliance audit trail" },
+        "operationsHub": { "name": "Operations hub", "description": "Staff, visitors, gate passes, inventory, fee reminders, payroll accrual (stub)" },
+        "importExport": { "name": "Import / export", "description": "Bulk data jobs and CSV exports" },
+        "directory": { "name": "Directory", "description": "Unified staff & student search for administrators" },
+        "fees": { "name": "Fees", "description": "Fee structures, invoices, collections, and reminders for the campus" },
+        "payroll": { "name": "Payroll", "description": "Salary structures, pay runs, and payslips for staff" },
+        "documents": { "name": "Documents", "description": "School document vault and controlled sharing with staff" },
+        "communication": { "name": "Communication", "description": "Announcements, inbox, and school-wide messaging channels" },
+        "reports": { "name": "Reports", "description": "Operational and academic analytics dashboards for administrators" },
+        "student": { "name": "Student module", "description": "Student roster, profiles, and guardian-linked records in the portal" },
+        "teacher": { "name": "Teacher module", "description": "Faculty roster, assignments, and class-linked teaching context" },
+        "attendance": { "name": "Attendance", "description": "Daily attendance capture, summaries, and compliance views" }
+      }
     },
     "activity": {
       "title": "Recent Platform Activity"
+    },
+    "confirm": {
+      "toggleSuspendTitle": "Suspend campus admin?",
+      "toggleSuspendMessage": "You are about to suspend {{name}}. They will lose portal access for this school until you activate them again.",
+      "toggleSuspendDetail": "Students and teachers are not affected — only this administrator account for the selected workspace.",
+      "toggleActivateTitle": "Activate campus admin?",
+      "toggleActivateMessage": "You are about to activate {{name}} so they can sign in again for this school (subject to other platform checks)."
     }
+  },
+  "featureRollout": {
+    "badge": "Platform",
+    "title": "Feature management",
+    "lead": "Choose a school, then roll optional modules on or off. The same flags gate backend APIs and the campus Settings → Features view (read-only for admins).",
+    "backPlatform": "Platform overview",
+    "refresh": "Refresh",
+    "refreshing": "Refreshing…",
+    "schoolsHint": "Select a row to manage module flags for that workspace.",
+    "noSchools": "No schools match the current filters.",
+    "pickSchoolTitle": "Select a school",
+    "pickSchoolLead": "Pick a school from the list on the left to load and edit its module toggles."
   },
   "nav": {
     "footerTagline": "Multi-tenant SaaS ERP",
@@ -105,6 +162,7 @@
     "dashboard": "Dashboard",
     "platform": "Platform",
     "schools": "Schools",
+    "featureRollout": "Feature management",
     "subscriptions": "Subscriptions",
     "broadcasts": "Broadcasts",
     "systemHealth": "System health",
@@ -155,10 +213,13 @@
       "documents": "Documents",
       "auditLog": "Audit log",
       "settings": "Settings",
+      "preferences": "Preferences",
+      "myAccountProfile": "Profile & school",
       "parentPortal": "Parent portal",
       "superAdmin": "Super admin",
       "systemHealth": "System health",
       "schoolDirectory": "School directory",
+      "featureRollout": "Feature management",
       "subscriptionPlans": "Subscription plans",
       "adminBroadcasts": "Admin broadcasts",
       "platformSettings": "Platform settings",
@@ -213,7 +274,8 @@
     "time": {
       "minutesAgo": "{{n}}m ago",
       "hoursAgo": "{{n}}h ago",
-      "daysAgo": "{{n}}d ago"
+      "daysAgo": "{{n}}d ago",
+      "unknown": "—"
     }
   },
   "login": {
@@ -286,11 +348,12 @@
       "passwordRequired": "Password is required",
       "schoolCodeRequired": "School code is required",
       "phoneRequired": "Mobile number is required",
-      "phoneInvalid": "Enter a valid mobile number (10–22 digits, optional +)",
+      "phoneInvalid": "Choose country code and enter digits only. Stored format is +country-mobile (e.g. +91-9876543210).",
       "otpRequired": "Enter the code we sent",
       "otpInvalid": "Code must be 4–6 digits",
       "otpMismatch": "That code is not valid. Try again or request a new code."
-    }
+    },
+    "forgotPassword": "Forgot password?"
   },
   "signup": {
     "title": "Create your school workspace",
@@ -336,7 +399,7 @@
       "adminNameRequired": "Admin name is required",
       "adminEmailInvalid": "Enter a valid email address",
       "phoneRequired": "Admin mobile number is required",
-      "phoneInvalid": "Enter a valid mobile number (10–22 digits, optional +)",
+      "phoneInvalid": "Choose country code and enter digits only. Stored format is +country-mobile (e.g. +91-9876543210).",
       "adminPasswordRequired": "Password is required",
       "adminPasswordLength": "Password must be {{min}}–{{max}} characters"
     }
@@ -418,6 +481,7 @@
     },
     "parent": {
       "pageTitle": "Parent Dashboard",
+      "recentActivityTitle": "Recent activity",
       "child": "Child",
       "inbox": "Inbox",
       "announcements": "Announcements",
@@ -449,9 +513,56 @@
       },
       "kpi": {
         "childrenLinked": "Children linked",
+        "childrenLinkedContext": "{{count}} linked — switch above to refresh metrics for each child.",
         "attendance": "Attendance",
         "overallGrade": "Overall grade",
-        "feeDue": "Fee due"
+        "feeDue": "Outstanding fees"
+      },
+      "metric": {
+        "attendance": {
+          "band": {
+            "excellent": "Excellent — well above the school’s {{threshold}}% attendance expectation.",
+            "good": "On track — meets or exceeds the school target ({{threshold}}%).",
+            "fair": "Fair — slightly below {{threshold}}%; check announcements for support.",
+            "needs_attention": "Needs attention — below {{threshold}}%; please follow up with the class teacher.",
+            "critical": "Critical — far below {{threshold}}%; contact the school for a review."
+          }
+        },
+        "result": {
+          "band": {
+            "excellent": "Strong performance — average about {{pct}}% across subjects.",
+            "good": "Good standing — average about {{pct}}% across subjects.",
+            "fair": "Satisfactory — average about {{pct}}%; room to improve with steady effort.",
+            "needs_attention": "Below target — average about {{pct}}%; consider extra support.",
+            "critical": "At risk — average about {{pct}}%; please discuss with teachers."
+          }
+        },
+        "fee": {
+          "urgency": {
+            "none": "No outstanding balance for this period.",
+            "low": "Balance due — next due date {{date}} (in {{days}} days).",
+            "medium": "Due soon — {{date}}. Pay fees on time to avoid late charges.",
+            "high": "Urgent — due {{date}} ({{days}} days). Please pay or contact the office."
+          }
+        }
+      },
+      "activity": {
+        "ATTENDANCE_MARKED": {
+          "title": "Attendance recorded",
+          "desc": "Latest roster update for {{child}} ({{classLabel}})."
+        },
+        "FEE_PAYMENT_RECORDED": {
+          "title": "Fee payment posted",
+          "desc": "A payment was recorded on the ledger for {{child}}."
+        },
+        "RESULT_PUBLISHED": {
+          "title": "Results published",
+          "desc": "New marks are available for {{child}} under Examinations."
+        },
+        "ANNOUNCEMENT_POSTED": {
+          "title": "School announcement",
+          "desc": "Check Inbox for the latest notices from the school."
+        }
       }
     },
     "enums": {
@@ -989,6 +1100,11 @@
   },
   "timetable": {
     "pageTitle": "Timetable",
+    "tab": {
+      "schedule": "Schedule",
+      "coversAdmin": "Attendance cover"
+    },
+    "coversAdminLead": "Assign substitute teachers for specific dates and periods. Cover rows also appear in teacher timetable views for the selected session date.",
     "leadAdmin": "Manage class schedules, teachers, rooms, and period allocations",
     "leadParent": "View your children’s class timetable (read-only).",
     "scopeClass": "By class",
@@ -996,6 +1112,17 @@
     "layoutClassic": "Classic grid",
     "layoutWeek": "Week matrix",
     "refresh": "Refresh",
+    "confirmDeleteTitle": "Delete this timetable slot?",
+    "confirmDeleteMessage": "This removes the period assignment from the master timetable. You can add a slot again later if needed.",
+    "confirmDelete": "Delete slot",
+    "conflictClassTitle": "This period is already scheduled",
+    "conflictClassMessage": "{{subject}} with {{teacher}} is already on this class’s timetable for {{day}}, period {{period}}. You can remove that slot and save this one instead.",
+    "conflictTeacherTitle": "Teacher is already booked",
+    "conflictTeacherMessage": "{{teacher}} is already assigned to {{subject}} (class {{clazz}}, section {{section}}) for {{day}}, period {{period}}.",
+    "conflictDetailPeriod": "{{day}} · Period {{period}}",
+    "conflictDetailOtherClass": "Conflicting assignment: class {{clazz}}, section {{section}}",
+    "conflictReplace": "Remove conflicting slot & save",
+    "conflictKeep": "Go back and adjust",
     "addSlot": "Add Slot",
     "labelChild": "Child",
     "selectChild": "Select child",
@@ -1303,14 +1430,21 @@
   },
   "inbox": {
     "pageTitle": "Announcements",
-    "lead": "Official school notices. For chats, open Messages from the sidebar.",
+    "lead": "Official notices and your alerts in one feed (newest first). For chats, open Messages from the sidebar.",
     "refresh": "Refresh",
     "newAnnouncement": "New announcement",
     "empty": "No announcements yet.",
+    "emptyUnified": "No notices or notifications yet.",
+    "emptyFiltered": "Nothing matches these filters. Try Reset or a different month.",
+    "loading": "Loading inbox…",
+    "searchInbox": "Search inbox",
+    "searchInboxPh": "Title, message, author, or alert text…",
     "searchAnnouncements": "Search notices",
     "searchAnnouncementsPh": "Title, message, or author name…",
     "noSearchMatches": "No announcements match your search.",
     "openFullNotice": "Open full notice",
+    "openItem": "Open",
+    "kindNotification": "Alert",
     "modalTitle": "Publish announcement",
     "labelTitle": "Title",
     "labelMessage": "Message",
@@ -1330,7 +1464,39 @@
     "badgeTEACHERS": "Teachers",
     "badgePARENTS": "Parents",
     "badgeCLASS": "Class",
-    "badgeSECTION": "Section"
+    "badgeSECTION": "Section",
+    "parentSchoolWideHeading": "School-wide notices",
+    "parentSchoolWideLead": "Official bulletins for all families and staff.",
+    "parentTargetedHeading": "For you & your children",
+    "parentTargetedLead": "Audience-specific notices also appear under Alerts → Your notifications.",
+    "notifUnread": "Unread",
+    "filters": {
+      "title": "Filters",
+      "lead": "Refine by type, audience, and published month. Apply to reload the feed.",
+      "toolbarType": "Type",
+      "toolbarMonth": "Month",
+      "toolbarAudience": "Audience",
+      "monthAny": "Any month",
+      "audAny": "Any audience",
+      "audAllAndAlerts": "Everyone + alerts",
+      "clearShort": "Clear",
+      "typeLabel": "Show",
+      "typeAll": "All",
+      "typeNotices": "Notices",
+      "typeAlerts": "Alerts",
+      "audienceLabel": "Notice audience & alerts",
+      "audienceHint": "Optional. Pick any combination. “Alerts” = bell-style system messages. Leave empty for all audiences (within the type above).",
+      "audALL": "Everyone",
+      "audTEACHERS": "Teachers",
+      "audPARENTS": "Parents",
+      "audCLASS": "Class",
+      "audSECTION": "Section",
+      "audALERT": "Alerts",
+      "monthLabel": "Published in month",
+      "clearMonth": "Clear month",
+      "apply": "Apply filters",
+      "reset": "Reset"
+    }
   },
   "chat": {
     "pageTitle": "Messages",
@@ -1342,6 +1508,8 @@
     "statusConnecting": "Connecting…",
     "refresh": "Refresh",
     "searchPlaceholder": "Search conversations…",
+    "quickSearch": "Find people to message",
+    "toolbarNoMatches": "No people matched. Try another spelling or use New for more options.",
     "newChat": "New",
     "close": "Close",
     "startConversationTitle": "Start a conversation",
@@ -1779,9 +1947,8 @@
   },
   "operations": {
     "pageTitle": "School operations",
-    "lead": "Covers, non-teaching staff, visitors, gate passes, inventory, fee reminders, payroll accrual (stub)",
+    "lead": "Non-teaching staff, visitors, gate passes, inventory, fee reminders, payroll accrual (stub). Attendance cover assignments are under Timetable → Attendance cover.",
     "tab": {
-      "covers": "Covers",
       "staff": "Staff",
       "visitors": "Visitors",
       "gate": "Gate pass",
@@ -1810,7 +1977,16 @@
       "thSection": "Section",
       "thCovering": "Covering",
       "thStatus": "Status",
-      "cancel": "Cancel"
+      "cancel": "Cancel",
+      "conflictTitle": "Another teacher is already covering this slot",
+      "conflictMessage": "{{name}} is currently assigned as cover for the same class, section scope, and period on this date.",
+      "conflictDetailDate": "Date: {{date}}",
+      "conflictDetailClass": "Class id: {{id}}",
+      "conflictConfirmReplace": "Cancel previous cover & assign this teacher",
+      "conflictKeep": "Keep existing cover",
+      "cancelConfirmTitle": "Cancel this cover assignment?",
+      "cancelConfirmMessage": "The covering teacher will no longer see this session on their timetable for that date.",
+      "cancelConfirm": "Cancel cover"
     },
     "staff": {
       "title": "Operational staff",
@@ -2246,6 +2422,7 @@
   },
   "settings": {
     "pageTitle": "Settings",
+    "pageTitleUserShell": "Your account & preferences",
     "leadAdmin": "School configuration and preferences.",
     "leadUser": "Your profile and read-only school information. Tenant changes are limited to school administrators.",
     "refresh": "Refresh",
@@ -2260,6 +2437,9 @@
     "profileLead": "Your portrait and account details — the same identity shown in the header and menus.",
     "labelContactPhone": "Your contact",
     "accountDetailsTitle": "Account details",
+    "editAccountDetails": "Edit",
+    "cancelAccountEdit": "Cancel",
+    "accountDetailsViewLead": "Review your sign-in identity. Select Edit to change your display name or contact phone.",
     "accountDetailsLead": "Your display name and phone are stored on your user record (same identity as sign-in). Email stays fixed for security; contact the platform or school owner if it must change.",
     "profileFullNameLabel": "Full name",
     "profileContactPhoneLabel": "Contact phone",
@@ -2290,7 +2470,7 @@
     "labelSchoolCode": "School code",
     "schoolCodeTitle": "Used to link branches in multi-campus setups",
     "branchesLead": "Schools that share your school code appear here (read-only directory). Each branch logs in as its own tenant.",
-    "schoolRecordTitle": "School record (read-only)",
+    "schoolRecordTitle": "School record (managed by school)",
     "labelSchoolEmail": "School email",
     "photoHintMock": "Shown in the header and menus. Saved on this browser only until your school connects cloud photos.",
     "photoHintLive": "Shown in the header and menus. Stored with your account when you save; full media sync may follow.",
@@ -2298,15 +2478,15 @@
     "directoryPhotoBullet1": "Admins and class teachers update official photos where your role allows.",
     "directoryPhotoBullet2": "Contact the office if you need a change.",
     "linkedChildrenHeading": "Linked children",
-    "linkedChildrenHintLong": "Pick a child to see their class, section, and homeroom teacher from the school roster. Optional photo below is only for your parent portal view — not the official record.",
+    "linkedChildrenHintLong": "Pick a child to see their class, section, and class teacher from the school roster. Optional photo below is only for your parent portal view — not the official record.",
     "labelChildSelect": "Child",
     "selectChildOption": "Select child",
     "dtClassSection": "Class & section",
     "sectionLabel": "Section {{name}}",
-    "dtRollAdmission": "Roll / admission",
+    "dtRollAdmission": "Roll no. & admission",
     "dtAdmissionDate": "Admission date",
     "dtStatus": "Status",
-    "dtHomeroomTeacher": "Homeroom teacher",
+    "dtHomeroomTeacher": "Class teacher",
     "selectChildForDetails": "Select a child to view their school details.",
     "optionalPortalPhoto": "Optional portal photo",
     "optionalPortalPhotoHint": "Only shown to you in the app until the school enables cloud photos.",
@@ -2340,6 +2520,10 @@
     "statusActive": "Active",
     "featureTogglesHeading": "Feature toggles",
     "featureTogglesLeadHtml": "Turn modules on or off for your school. Use <strong>Save feature toggles</strong> so changes apply on the server (or local mock store).",
+    "platformModulesHeading": "Platform-managed modules",
+    "platformModulesLead": "These switches are controlled by your platform operator (super admin). They define which optional modules appear in the sidebar for your school.",
+    "readonlyOn": "Enabled",
+    "readonlyOff": "Disabled",
     "saveChanges": "Save changes",
     "savingEllipsis": "Saving…",
     "saveFeatureToggles": "Save feature toggles",
@@ -2377,6 +2561,22 @@
         "name": "Audit trail",
         "description": "Track all system actions and changes."
       },
+      "chat": {
+        "name": "Chat",
+        "description": "Real-time messaging between staff and parents."
+      },
+      "operationsHub": {
+        "name": "Operations hub",
+        "description": "Staff, visitors, gate passes, inventory, fee reminders, and payroll accrual stub."
+      },
+      "importExport": {
+        "name": "Import / export",
+        "description": "Bulk ZIP+CSV jobs and exports."
+      },
+      "directory": {
+        "name": "Directory",
+        "description": "Unified admin search across students and staff."
+      },
       "smsNotifications": {
         "name": "SMS notifications",
         "description": "Send SMS alerts to parents."
@@ -2390,6 +2590,9 @@
   "parentPortal": {
     "pageTitle": "Your Children ",
     "childrenPageSubtitle": "Select a child and month for attendance; fees and receipts stay per child. Overview and guidance are on your Dashboard.",
+    "detailLead": "This page focuses on month-by-month attendance, fee obligations, and receipts for the selected child. High-level KPIs, context, and recent activity are on your Dashboard.",
+    "openDashboardSummary": "Open dashboard summary",
+    "homeroomLabel": "Class teacher:",
     "leadBefore": "Track attendance, fees, and performance. Exams, timetables, and published grades live under",
     "leadExams": "Examinations",
     "leadAfter": "in the sidebar. Fee payments are per selected child.",
@@ -2535,6 +2738,54 @@
       "confirmFailed": "Confirmation failed. If your account was debited, contact the school with your bank reference.",
       "paymentConfirmFailed": "Payment confirmation failed.",
       "sessionStartFailed": "Could not start payment session."
+    }
+  },
+  "phoneIntl": {
+    "countryCode": "Country code",
+    "mobileNumber": "Mobile number",
+    "mobilePlaceholder": "Digits only (no country prefix)",
+    "willSendAs": "Will be sent as",
+    "country": {
+      "in": "India (+91)",
+      "us": "United States (+1)"
+    }
+  },
+  "forgotPassword": {
+    "backToLogin": "Back to login",
+    "kicker": "Secure recovery",
+    "title": "Reset your password",
+    "subtitle": "Enter your school code and registered mobile number. We will send an OTP so you can set a new password safely.",
+    "mobile": "Registered mobile number",
+    "mobilePlaceholder": "Enter registered mobile number",
+    "sendResetOtp": "Send reset OTP",
+    "verifyOtp": "Verify OTP",
+    "newPassword": "New password",
+    "newPasswordPlaceholder": "Create a new password",
+    "confirmPassword": "Confirm password",
+    "confirmPasswordPlaceholder": "Re-enter new password",
+    "showPassword": "Show password",
+    "hidePassword": "Hide password",
+    "resetPassword": "Reset password",
+    "resetting": "Resetting password",
+    "changeMobile": "Change mobile number",
+    "otpSent": "OTP sent. Please check your mobile number.",
+    "otpVerified": "OTP verified. Set your new password.",
+    "doneTitle": "Password reset complete",
+    "doneLead": "Your password has been updated. You can sign in with your new password.",
+    "doneBanner": "Password reset complete",
+    "doneRedirectCountdown": "Redirecting to login in {{seconds}}…",
+    "doneRedirectingNow": "Taking you to login…",
+    "loginNow": "Go to login now",
+    "heroTitle": "Recover Access Smoothly",
+    "heroSubtitle": "A simple OTP-first reset flow keeps school accounts secure without making families or staff wait.",
+    "errorSend": "Could not send reset OTP. Check school code and mobile number, then try again.",
+    "errorVerify": "Could not verify OTP. Try again or request a new code.",
+    "errorReset": "Could not reset the password. Please request a fresh OTP and try again.",
+    "validation": {
+      "passwordRequired": "New password is required",
+      "passwordLength": "Password must be {{min}}–{{max}} characters",
+      "confirmRequired": "Please confirm the password",
+      "passwordMismatch": "Passwords do not match"
     }
   }
 }

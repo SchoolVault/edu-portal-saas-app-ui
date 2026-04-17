@@ -16,11 +16,11 @@ import com.school.erp.modules.notification.service.AnnouncementNotificationFanou
 import com.school.erp.config.CacheConfig;
 import com.school.erp.tenant.TenantContext;
 import com.school.erp.tenant.TenantQueryPolicy;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -41,8 +41,8 @@ public class CommunicationService {
 
     @Transactional(readOnly = true)
     public List<Announcement> getAnnouncements() {
-        String role = TenantContext.getUserRole() != null ? TenantContext.getUserRole().trim().toUpperCase(Locale.ROOT) : "";
-        if ("ADMIN".equals(role) || "TEACHER".equals(role) || "SUPER_ADMIN".equals(role) || "LIBRARY_STAFF".equals(role)) {
+        String role = normalizedRole();
+        if (seesFullSchoolAnnouncementBoard(role)) {
             return annRepo.findByTenantIdAndIsDeletedFalseOrderByCreatedAtDesc(TenantContext.getTenantId());
         }
         return getAnnouncementsForMe();
@@ -50,17 +50,18 @@ public class CommunicationService {
 
     @Transactional(readOnly = true)
     public PageResponse<Announcement> getAnnouncementsPaged(int page, int size, String q) {
-        String role = TenantContext.getUserRole() != null ? TenantContext.getUserRole().trim().toUpperCase(Locale.ROOT) : "";
+        String role = normalizedRole();
         String tenantId = TenantContext.getTenantId();
         String qq = q == null ? "" : q.trim();
-        Pageable p = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
-        if ("ADMIN".equals(role) || "TEACHER".equals(role) || "SUPER_ADMIN".equals(role) || "LIBRARY_STAFF".equals(role)) {
+        /* Custom @Query already orders by createdAt; avoid duplicate ORDER BY with Pageable Sort (driver-specific issues). */
+        Pageable p = PageRequest.of(page, size);
+        if (seesFullSchoolAnnouncementBoard(role)) {
             Page<Announcement> pg = annRepo.pageTenantSearch(tenantId, qq, p);
-            return PageResponse.of(pg.getContent(), page, size, pg.getTotalElements());
+            return PageResponse.fromSpringPage(pg);
         }
         List<Long> classIds = new ArrayList<>();
         List<Long> sectionIds = new ArrayList<>();
-        if ("PARENT".equals(role) || "ADMIN".equals(role)) {
+        if ("PARENT".equals(role)) {
             Long parentId = TenantContext.getUserId();
             for (var s : guardianService.findStudentsForParentUser(tenantId, parentId)) {
                 if (s.getClassId() != null) classIds.add(s.getClassId());
@@ -70,7 +71,7 @@ public class CommunicationService {
         if (classIds.isEmpty()) classIds = List.of(-1L);
         if (sectionIds.isEmpty()) sectionIds = List.of(-1L);
         Page<Announcement> pg = annRepo.findForAudiencePaged(tenantId, role, classIds, sectionIds, qq, p);
-        return PageResponse.of(pg.getContent(), page, size, pg.getTotalElements());
+        return PageResponse.fromSpringPage(pg);
     }
 
     @Cacheable(cacheNames = CacheConfig.ANNOUNCEMENT_PREVIEWS, keyGenerator = "tenantUserRoleKeyGenerator", unless = "#result == null")
@@ -82,6 +83,9 @@ public class CommunicationService {
             p.setTitle(a.getTitle());
             p.setPreview(previewText(a.getContent()));
             p.setCreatedAt(a.getCreatedAt() != null ? a.getCreatedAt().toString() : null);
+            if (a.getTargetAudience() != null) {
+                p.setTargetAudience(a.getTargetAudience().name());
+            }
             return p;
         }).collect(Collectors.toList());
     }
@@ -95,12 +99,12 @@ public class CommunicationService {
     @Transactional(readOnly = true)
     public List<Announcement> getAnnouncementsForMe() {
         String tenantId = TenantContext.getTenantId();
-        String role = TenantContext.getUserRole() != null ? TenantContext.getUserRole().trim().toUpperCase(Locale.ROOT) : "";
+        String role = normalizedRole();
 
         List<Long> classIds = new ArrayList<>();
         List<Long> sectionIds = new ArrayList<>();
 
-        if ("PARENT".equals(role) || "ADMIN".equals(role)) {
+        if ("PARENT".equals(role)) {
             Long parentId = TenantContext.getUserId();
             for (var s : guardianService.findStudentsForParentUser(tenantId, parentId)) {
                 if (s.getClassId() != null) classIds.add(s.getClassId());
@@ -118,6 +122,7 @@ public class CommunicationService {
         return annRepo.findForAudience(tenantId, role, classIds, sectionIds);
     }
 
+    @CacheEvict(cacheNames = CacheConfig.ANNOUNCEMENT_PREVIEWS, allEntries = true)
     @Transactional
     public Announcement createAnnouncement(AnnouncementDTOs.CreateAnnouncementRequest req) {
         Announcement ann = new Announcement();
@@ -138,6 +143,7 @@ public class CommunicationService {
         return saved;
     }
 
+    @CacheEvict(cacheNames = CacheConfig.ANNOUNCEMENT_PREVIEWS, allEntries = true)
     @Transactional
     public Announcement updateAnnouncement(Long id, Announcement update) {
         Announcement ann = annRepo.findByIdAndTenantIdAndIsDeletedFalse(id, TenantContext.getTenantId())
@@ -148,6 +154,7 @@ public class CommunicationService {
         return annRepo.save(ann);
     }
 
+    @CacheEvict(cacheNames = CacheConfig.ANNOUNCEMENT_PREVIEWS, allEntries = true)
     @Transactional
     public void deleteAnnouncement(Long id) {
         Announcement a = annRepo.findByIdAndTenantIdAndIsDeletedFalse(id, TenantContext.getTenantId())
@@ -238,6 +245,26 @@ public class CommunicationService {
             return;
         }
         throw new UnauthorizedException("Direct messaging is not enabled for this recipient.");
+    }
+
+    /** Spring Security uses {@code ROLE_ADMIN}; JWT / legacy callers may omit the prefix — normalize for announcement visibility. */
+    private static String normalizedRole() {
+        String raw = TenantContext.getUserRole();
+        if (raw == null) {
+            return "";
+        }
+        String r = raw.trim().toUpperCase(Locale.ROOT);
+        if (r.startsWith("ROLE_")) {
+            r = r.substring(5);
+        }
+        return r;
+    }
+
+    private static boolean seesFullSchoolAnnouncementBoard(String roleNorm) {
+        return "ADMIN".equals(roleNorm)
+                || "TEACHER".equals(roleNorm)
+                || "SUPER_ADMIN".equals(roleNorm)
+                || "LIBRARY_STAFF".equals(roleNorm);
     }
 
     private static String previewText(String content) {

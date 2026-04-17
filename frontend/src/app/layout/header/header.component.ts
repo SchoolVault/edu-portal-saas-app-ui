@@ -5,12 +5,14 @@ import { Subject, merge, of } from 'rxjs';
 import { debounceTime, filter, switchMap, takeUntil } from 'rxjs/operators';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { AuthService } from '../../core/services/auth.service';
+import { BellReadStateService } from '../../core/services/bell-read-state.service';
 import { NotificationService } from '../../core/services/notification.service';
 import { CommunicationService } from '../../core/services/communication.service';
 import { PlatformHealthService } from '../../core/services/platform-health.service';
 import { AppNotification, AnnouncementPreview, ProfileSummary } from '../../core/models/models';
 import { ThemeService } from '../../core/services/theme.service';
 import { runtimeConfig } from '../../core/config/runtime-config';
+import { notificationListRowNavigation } from '../../core/utils/notification-link.util';
 
 @Component({
   selector: 'app-header',
@@ -69,13 +71,16 @@ import { runtimeConfig } from '../../core/config/runtime-config';
                 <p>{{ h.detail || ('header.bell.emptyDetail' | translate) }}</p>
               </div>
 
-              <div *ngIf="!isSuperAdmin && announcementPreviews.length" class="notification-section-label">
+              <div *ngIf="!isSuperAdmin && schoolNoticePreviews.length" class="notification-section-label">
                 {{ 'header.bell.schoolNotices' | translate }}
               </div>
-              <div *ngFor="let ann of announcementPreviews"
-                   class="notification-item notification-item-announcement"
-                   (click)="openAnnouncementFromBell(ann, $event)"
-                   [attr.data-testid]="'header-notice-' + ann.id">
+              <div
+                *ngFor="let ann of schoolNoticePreviews"
+                class="notification-item notification-item-announcement has-read-status-dot"
+                [class.is-unread]="bellReadState.isAnnouncementUnread(ann.id)"
+                [class.is-read]="!bellReadState.isAnnouncementUnread(ann.id)"
+                (click)="openAnnouncementFromBell(ann, $event)"
+                [attr.data-testid]="'header-notice-' + ann.id">
                 <h5>
                   <i class="bi bi-megaphone-fill" style="margin-right: 6px; color: var(--clr-primary);"></i>
                   {{ ann.title }}
@@ -83,7 +88,7 @@ import { runtimeConfig } from '../../core/config/runtime-config';
                 <p>{{ ann.preview }}</p>
                 <div class="time">{{ timeAgo(ann.createdAt || '') }}</div>
               </div>
-              <a *ngIf="!isSuperAdmin && announcementPreviews.length" routerLink="/app/inbox" class="notification-see-all" (click)="showNotifications = false">
+              <a *ngIf="!isSuperAdmin && schoolNoticePreviews.length" routerLink="/app/inbox" class="notification-see-all" (click)="showNotifications = false">
                 {{ 'header.bell.allAnnouncements' | translate }}
               </a>
 
@@ -93,11 +98,13 @@ import { runtimeConfig } from '../../core/config/runtime-config';
               <div *ngIf="notifications.length && !isSuperAdmin" class="notification-section-label">
                 {{ 'header.bell.yourNotifications' | translate }}
               </div>
-              <div *ngFor="let n of notifications"
-                   class="notification-item"
-                   [class.unread]="!n.read"
-                   (click)="openNotificationDetail(n, $event)"
-                   [attr.data-testid]="'notification-' + n.id">
+              <div
+                *ngFor="let n of notifications"
+                class="notification-item has-read-status-dot"
+                [class.is-unread]="!n.read"
+                [class.is-read]="n.read"
+                (click)="openNotificationDetail(n, $event)"
+                [attr.data-testid]="'notification-' + n.id">
                 <h5>
                   <i class="bi" [ngClass]="getNotifIcon(n.type)" style="margin-right: 6px;"
                      [style.color]="getNotifColor(n.type)"></i>
@@ -129,19 +136,14 @@ import { runtimeConfig } from '../../core/config/runtime-config';
             <div class="profile-summary-card" *ngIf="profileSummary && !isSuperAdmin">
               <div class="profile-summary-school">{{ profileSummary.schoolName }}</div>
               <div class="profile-summary-title">{{ profileSummary.userTitle || (roleDisplayLabelKey | translate) }}</div>
-              <div class="profile-summary-meta">{{ profileSummary.schoolCode }} · {{ profileSummary.email }}</div>
+              <div class="profile-summary-meta profile-summary-meta-row" [attr.title]="profileSummary.schoolCode + ' · ' + profileSummary.email">
+                <span class="profile-summary-code">{{ profileSummary.schoolCode }}</span>
+                <span class="profile-summary-sep" aria-hidden="true">·</span>
+                <span class="profile-summary-email">{{ profileSummary.email }}</span>
+              </div>
               <div class="profile-summary-stats">
-                <span *ngIf="profileSummary.managedStudentCount != null">
-                  {{ 'header.stats.students' | translate: { count: profileSummary.managedStudentCount } }}
-                </span>
-                <span *ngIf="profileSummary.managedTeacherCount != null">
-                  {{ 'header.stats.teachers' | translate: { count: profileSummary.managedTeacherCount } }}
-                </span>
-                <span *ngIf="profileSummary.childCount != null">
-                  {{ 'header.stats.children' | translate: { count: profileSummary.childCount } }}
-                </span>
-                <span *ngIf="profileSummary.subjectCount != null">
-                  {{ 'header.stats.subjects' | translate: { count: profileSummary.subjectCount } }}
+                <span *ngFor="let chip of profileStatChips">
+                  {{ chip.translateKey | translate: chip.params }}
                 </span>
               </div>
             </div>
@@ -153,7 +155,9 @@ import { runtimeConfig } from '../../core/config/runtime-config';
               <div class="profile-summary-meta">
                 {{ profileSummary.userTitle || ('header.super.defaultTitle' | translate) }}
               </div>
-              <div class="profile-summary-meta mt-1" style="font-size: 12px;">{{ profileSummary.email }}</div>
+              <div class="profile-summary-meta profile-summary-email-block mt-1" style="font-size: 12px;" [attr.title]="profileSummary.email">
+                {{ profileSummary.email }}
+              </div>
               <div class="profile-summary-stats mt-2" *ngIf="profileSummary.platformWorkspaceCount != null">
                 <span>{{ 'header.super.activeWorkspaces' | translate: { count: profileSummary.platformWorkspaceCount } }}</span>
               </div>
@@ -161,11 +165,11 @@ import { runtimeConfig } from '../../core/config/runtime-config';
                 {{ 'header.super.scopedHint' | translate }}
               </p>
             </div>
-            <button class="profile-dropdown-item" data-testid="profile-view-btn" (click)="goToSettings()">
+            <button class="profile-dropdown-item" data-testid="profile-view-btn" (click)="goToMyAccountProfile()">
               <i class="bi bi-person"></i>
               {{ (isSuperAdmin ? 'header.menu.platformProfile' : 'header.menu.myProfile') | translate }}
             </button>
-            <button class="profile-dropdown-item" (click)="goToSettings()">
+            <button class="profile-dropdown-item" (click)="goToPreferencesOnly()">
               <i class="bi bi-gear"></i>
               {{ (isSuperAdmin ? 'header.menu.platformSettings' : 'header.menu.settings') | translate }}
             </button>
@@ -192,8 +196,11 @@ export class HeaderComponent implements OnInit, OnDestroy {
   userRole = '';
   initials = '';
   unreadCount = 0;
+  /** Server unread total (notifications only); combined with local announcement read state in {@link #recomputeUnreadBadge}. */
+  private serverUnreadNotifications = 0;
   notifications: AppNotification[] = [];
-  announcementPreviews: AnnouncementPreview[] = [];
+  /** School-wide bulletin previews (ALL audience) — parents no longer see targeted notices duplicated here. */
+  schoolNoticePreviews: AnnouncementPreview[] = [];
   isSuperAdmin = false;
   platformHealthItems: { name: string; status: string; detail?: string }[] = [];
   profileSummary: ProfileSummary | null = null;
@@ -228,12 +235,48 @@ export class HeaderComponent implements OnInit, OnDestroy {
     if (this.isSuperAdmin) {
       return this.notifications.length === 0 && this.platformHealthItems.length === 0;
     }
-    return this.notifications.length === 0 && this.announcementPreviews.length === 0;
+    return this.notifications.length === 0 && this.schoolNoticePreviews.length === 0;
+  }
+
+  /** Role-aware KPI chips for the profile card (parents never see student/teacher/subject admin stats). */
+  get profileStatChips(): Array<{ translateKey: string; params: Record<string, number> }> {
+    const s = this.profileSummary;
+    if (!s || this.isSuperAdmin) {
+      return [];
+    }
+    const role = (this.userRole || '').toLowerCase().replace(/^role_/, '');
+    if (role === 'parent') {
+      if (s.childCount == null) {
+        return [];
+      }
+      return [{ translateKey: 'header.stats.children', params: { count: Number(s.childCount) } }];
+    }
+    if (role === 'admin') {
+      const out: Array<{ translateKey: string; params: Record<string, number> }> = [];
+      if (s.managedStudentCount != null) {
+        out.push({ translateKey: 'header.stats.students', params: { count: Number(s.managedStudentCount) } });
+      }
+      if (s.managedTeacherCount != null) {
+        out.push({ translateKey: 'header.stats.teachers', params: { count: Number(s.managedTeacherCount) } });
+      }
+      return out;
+    }
+    if (role === 'teacher') {
+      if (s.subjectCount == null) {
+        return [];
+      }
+      return [{ translateKey: 'header.stats.subjects', params: { count: Number(s.subjectCount) } }];
+    }
+    if (s.childCount != null) {
+      return [{ translateKey: 'header.stats.children', params: { count: Number(s.childCount) } }];
+    }
+    return [];
   }
 
   constructor(
     private authService: AuthService,
     public notificationService: NotificationService,
+    readonly bellReadState: BellReadStateService,
     private communicationService: CommunicationService,
     private platformHealthService: PlatformHealthService,
     private router: Router,
@@ -254,16 +297,16 @@ export class HeaderComponent implements OnInit, OnDestroy {
     }
 
     this.notificationService.notifications$.pipe(takeUntil(this.destroy$)).subscribe(notifs => {
-      this.notifications = notifs;
-      if (runtimeConfig.useMocks) {
-        this.unreadCount = notifs.filter(n => !n.read).length;
-      }
+      this.notifications = [...(notifs || [])].sort(
+        (a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
+      );
+      this.recomputeUnreadBadge();
     });
     this.notificationService.unreadInboxTotal$.pipe(takeUntil(this.destroy$)).subscribe(total => {
-      if (!runtimeConfig.useMocks) {
-        this.unreadCount = total;
-      }
+      this.serverUnreadNotifications = Number(total ?? 0);
+      this.recomputeUnreadBadge();
     });
+    this.bellReadState.changed$.pipe(takeUntil(this.destroy$)).subscribe(() => this.recomputeUnreadBadge());
     if (!runtimeConfig.useMocks) {
       this.notificationService.refreshFromServer().subscribe({ error: () => { /* not logged in or API down */ } });
     }
@@ -305,11 +348,13 @@ export class HeaderComponent implements OnInit, OnDestroy {
         .subscribe({
           next: snap => {
             this.platformHealthItems = (snap?.components || []).slice(0, 6);
-            this.announcementPreviews = [];
+            this.schoolNoticePreviews = [];
+            this.recomputeUnreadBadge();
           },
           error: () => {
             this.platformHealthItems = [];
-            this.announcementPreviews = [];
+            this.schoolNoticePreviews = [];
+            this.recomputeUnreadBadge();
           }
         });
     } else {
@@ -321,12 +366,19 @@ export class HeaderComponent implements OnInit, OnDestroy {
         )
         .subscribe({
           next: (rows: AnnouncementPreview[]) => {
-            this.announcementPreviews = (rows || []).map((p: AnnouncementPreview) => ({
-              ...p,
-              id: String(p.id)
-            }));
+            const normalized = (rows || [])
+              .map((p: AnnouncementPreview) => ({
+                ...p,
+                id: String(p.id),
+              }))
+              .sort(
+                (a, b) =>
+                  new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
+              );
+            this.applySchoolNoticePreviewsForRole(normalized);
+            this.recomputeUnreadBadge();
           },
-          error: () => (this.announcementPreviews = [])
+          error: () => (this.schoolNoticePreviews = [])
         });
     }
 
@@ -340,6 +392,7 @@ export class HeaderComponent implements OnInit, OnDestroy {
     this.pageTitleKey = this.getTitleKeyFromUrl(this.router.url);
 
     this.translate.onLangChange.pipe(takeUntil(this.destroy$)).subscribe(() => this.cdr.markForCheck());
+    this.recomputeUnreadBadge();
   }
 
   ngOnDestroy(): void {
@@ -375,6 +428,7 @@ export class HeaderComponent implements OnInit, OnDestroy {
       'super-admin': 'header.title.superAdmin',
       'platform-health': 'header.title.systemHealth',
       'platform-schools': 'header.title.schoolDirectory',
+      'platform-feature-rollout': 'header.title.featureRollout',
       'platform-subscriptions': 'header.title.subscriptionPlans',
       'platform-broadcasts': 'header.title.adminBroadcasts',
       'platform-settings': 'header.title.platformSettings',
@@ -384,15 +438,23 @@ export class HeaderComponent implements OnInit, OnDestroy {
     const appIdx = parts.indexOf('app');
     const first = appIdx >= 0 ? parts[appIdx + 1] : parts[0];
     if (first === 'announcement') return 'header.title.notice';
-    if (first === 'notification') return 'header.title.notificationDetail';
+    if (first === 'notification' || first === 'notifications') return 'header.title.notificationDetail';
     const seg = first || 'dashboard';
+    if (seg === 'settings') {
+      if (url.includes('settingsTab=preferences')) {
+        return 'header.title.preferences';
+      }
+      if (url.includes('settingsTab=profile')) {
+        return 'header.title.myAccountProfile';
+      }
+    }
     return map[seg] || 'header.title.fallback';
   }
 
   timeAgo(dateStr: string): string {
     const t = new Date(dateStr).getTime();
-    if (Number.isNaN(t)) {
-      return '';
+    if (!dateStr || Number.isNaN(t)) {
+      return this.translate.instant('header.time.unknown');
     }
     const diff = Date.now() - t;
     const mins = Math.floor(diff / 60000);
@@ -432,6 +494,26 @@ export class HeaderComponent implements OnInit, OnDestroy {
 
   markAllRead(): void {
     this.notificationService.markAllAsRead();
+    this.bellReadState.markAnnouncementsRead(this.schoolNoticePreviews.map(p => p.id));
+    this.recomputeUnreadBadge();
+  }
+
+  private recomputeUnreadBadge(): void {
+    if (this.isSuperAdmin) {
+      if (runtimeConfig.useMocks) {
+        this.unreadCount = this.notifications.filter(n => !n.read).length;
+      } else {
+        this.unreadCount = this.serverUnreadNotifications;
+      }
+      return;
+    }
+    const annUnread = this.schoolNoticePreviews.filter(p => this.bellReadState.isAnnouncementUnread(p.id)).length;
+    if (runtimeConfig.useMocks) {
+      const nu = this.notifications.filter(n => !n.read).length;
+      this.unreadCount = nu + annUnread;
+    } else {
+      this.unreadCount = this.serverUnreadNotifications + annUnread;
+    }
   }
 
   logout(): void {
@@ -443,13 +525,43 @@ export class HeaderComponent implements OnInit, OnDestroy {
     this.themeService.toggleTheme();
   }
 
-  goToSettings(): void {
+  goToMyAccountProfile(): void {
     this.showProfile = false;
-    this.router.navigate([this.isSuperAdmin ? '/app/platform-settings' : '/app/settings']);
+    if (this.isSuperAdmin) {
+      this.router.navigate(['/app/platform-settings']);
+      return;
+    }
+    this.router.navigate(['/app/settings'], { queryParams: { settingsTab: 'profile' } });
+  }
+
+  goToPreferencesOnly(): void {
+    this.showProfile = false;
+    if (this.isSuperAdmin) {
+      this.router.navigate(['/app/platform-settings']);
+      return;
+    }
+    this.router.navigate(['/app/settings'], { queryParams: { settingsTab: 'preferences' } });
+  }
+
+  /** Parents only see ALL-audience notices in the “School notices” strip; targeted items stay in notifications. */
+  private applySchoolNoticePreviewsForRole(rows: AnnouncementPreview[]): void {
+    const role = (
+      (this.profileSummary?.role as string | undefined) ||
+      this.userRole ||
+      ''
+    )
+      .toLowerCase()
+      .replace(/^role_/, '');
+    if (role === 'parent') {
+      this.schoolNoticePreviews = rows.filter(r => (r.targetAudience || 'all').toLowerCase() === 'all');
+    } else {
+      this.schoolNoticePreviews = rows;
+    }
   }
 
   openAnnouncementFromBell(ann: AnnouncementPreview, event: MouseEvent): void {
     event.stopPropagation();
+    this.bellReadState.markAnnouncementRead(ann.id);
     this.showNotifications = false;
     this.router.navigate(['/app/announcement', ann.id]);
   }
@@ -458,15 +570,12 @@ export class HeaderComponent implements OnInit, OnDestroy {
     event.stopPropagation();
     this.notificationService.markAsRead(n.id);
     this.showNotifications = false;
-    if (n.link) {
-      if (n.link.startsWith('http://') || n.link.startsWith('https://')) {
-        window.open(n.link, '_blank', 'noopener');
-        return;
-      }
-      this.router.navigateByUrl(n.link);
+    const target = notificationListRowNavigation(n.link, n.id);
+    if (target.kind === 'announcement') {
+      void this.router.navigate(['/app/announcement', target.id]);
       return;
     }
-    this.router.navigate(['/app/notification', n.id]);
+    void this.router.navigate(['/app/notifications', target.id]);
   }
 
   getNotifIcon(type: string): string {

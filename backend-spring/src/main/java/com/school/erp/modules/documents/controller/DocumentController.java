@@ -1,6 +1,7 @@
 package com.school.erp.modules.documents.controller;
 
 import com.school.erp.common.dto.ApiResponse;
+import com.school.erp.security.RequireTenantFeature;
 import com.school.erp.common.dto.PageResponse;
 import com.school.erp.modules.documents.entity.Document;
 import com.school.erp.modules.documents.service.DocumentService;
@@ -15,6 +16,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/v1/documents")
 @Tag(name = "Documents", description = "Document Upload, Management & Retrieval")
+@RequireTenantFeature("documents")
 public class DocumentController {
     private final DocumentService service;
 

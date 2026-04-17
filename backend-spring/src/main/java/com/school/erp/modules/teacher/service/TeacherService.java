@@ -11,7 +11,9 @@ import com.school.erp.modules.academic.repository.SchoolClassRepository;
 import com.school.erp.modules.teacher.dto.TeacherDTOs;
 import com.school.erp.modules.teacher.entity.Teacher;
 import com.school.erp.modules.teacher.repository.TeacherRepository;
+import com.school.erp.config.CacheConfig;
 import com.school.erp.tenant.TenantContext;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -35,6 +37,7 @@ public class TeacherService {
     private final SchoolClassRepository schoolClassRepository;
     private final PortalUserProvisioningService portalUserProvisioningService;
 
+    @Cacheable(cacheNames = CacheConfig.TEACHER_DIRECTORY, keyGenerator = "tenantMethodParamsKeyGenerator", unless = "#result == null")
     @Transactional(readOnly = true)
     public PageResponse<TeacherDTOs.Response> getTeachers(int page, int size, String search) {
         String tenantId = TenantContext.getTenantId();

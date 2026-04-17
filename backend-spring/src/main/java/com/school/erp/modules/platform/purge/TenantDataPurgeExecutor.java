@@ -8,8 +8,12 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 
 /**
- * Hard-delete all rows for one tenant. Uses {@code FOREIGN_KEY_CHECKS=0} for a single connection
- * so order is forgiving; still deletes join tables without {@code tenant_id} explicitly first.
+ * Hard-delete <strong>all</strong> application data for <strong>one</strong> {@code tenant_id} (platform / GDPR offboarding).
+ * Every {@code DELETE} includes {@code WHERE tenant_id = ?} — other schools are never touched.
+ * <p>
+ * Uses MySQL {@code SET FOREIGN_KEY_CHECKS=0} on the pooled connection for the duration of the purge so child/parent
+ * order does not cause constraint errors; checks are re-enabled in {@code finally}. Join tables without {@code tenant_id}
+ * are cleared via subqueries scoped to that tenant first.
  * <p>
  * When new tenant-scoped tables are added, append them here (and add a migration) — this list is the contract.
  */

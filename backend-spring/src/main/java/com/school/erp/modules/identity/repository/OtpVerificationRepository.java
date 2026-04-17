@@ -23,7 +23,7 @@ public interface OtpVerificationRepository extends JpaRepository<OtpVerification
            "WHERE o.phone = :phone AND o.tenantId = :tenantId " +
            "AND o.purpose = :purpose AND o.status = :status " +
            "AND o.expiresAt > :now AND o.isDeleted = false " +
-           "ORDER BY o.createdAt DESC")
+           "ORDER BY o.createdAt DESC LIMIT 1")
     Optional<OtpVerification> findLatestPendingOtp(
         @Param("phone") String phone,
         @Param("tenantId") String tenantId,
@@ -61,6 +61,22 @@ public interface OtpVerificationRepository extends JpaRepository<OtpVerification
     @Query("UPDATE OtpVerification o SET o.isDeleted = true " +
            "WHERE o.createdAt < :cutoffDate")
     int cleanupOldOtps(@Param("cutoffDate") LocalDateTime cutoffDate);
+
+    /**
+     * Soft-delete rows that can no longer be used for verification:
+     * <ul>
+     *   <li>{@code PENDING} where {@code expiresAt} is in the past (expired)</li>
+     *   <li>Terminal statuses ({@code VERIFIED}, {@code FAILED}, {@code EXPIRED}) older than {@code terminalCutoff}</li>
+     * </ul>
+     * Active {@code PENDING} OTPs (not yet expired) are never touched.
+     */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("UPDATE OtpVerification o SET o.isDeleted = true, o.updatedAt = :now WHERE o.isDeleted = false AND ("
+            + "(o.status = com.school.erp.modules.identity.enums.OtpStatus.PENDING AND o.expiresAt < :now) OR "
+            + "(o.status IN (com.school.erp.modules.identity.enums.OtpStatus.VERIFIED, "
+            + "com.school.erp.modules.identity.enums.OtpStatus.FAILED, "
+            + "com.school.erp.modules.identity.enums.OtpStatus.EXPIRED) AND o.updatedAt < :terminalCutoff))")
+    int softDeleteNonActionable(@Param("now") LocalDateTime now, @Param("terminalCutoff") LocalDateTime terminalCutoff);
 
     /**
      * Count OTPs by status for monitoring.

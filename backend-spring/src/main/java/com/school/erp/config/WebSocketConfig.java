@@ -1,10 +1,12 @@
 package com.school.erp.config;
 
+import com.school.erp.common.logging.MdcKeys;
 import com.school.erp.security.JwtUtil;
 import com.school.erp.tenant.TenantContext;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpHeaders;
+import org.springframework.messaging.Message;
 import org.springframework.messaging.Message;
 import org.springframework.messaging.MessageChannel;
 import org.springframework.messaging.simp.config.ChannelRegistration;
@@ -83,6 +85,15 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
                 }
 
                 return message;
+            }
+
+            @Override
+            public void afterSendCompletion(Message<?> message, MessageChannel channel, boolean sent, Exception ex) {
+                StompHeaderAccessor accessor = MessageHeaderAccessor.getAccessor(message, StompHeaderAccessor.class);
+                if (accessor != null && StompCommand.CONNECT.equals(accessor.getCommand())) {
+                    TenantContext.clear();
+                    MdcKeys.clearTenantUser();
+                }
             }
         });
     }

@@ -10,12 +10,14 @@ import com.school.erp.modules.library.repository.*;
 import com.school.erp.modules.settings.repository.TenantConfigRepository;
 import com.school.erp.tenant.TenantContext;
 import com.school.erp.tenant.TenantQueryPolicy;
+import com.school.erp.config.CacheConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -38,6 +40,7 @@ public class LibraryService {
         this.tenantConfigRepository = tenantConfigRepository;
     }
 
+    @Cacheable(cacheNames = CacheConfig.LIBRARY_CATALOG, keyGenerator = "tenantMethodParamsSchoolKeyGenerator", unless = "#result == null")
     @Transactional(readOnly = true)
     public List<Book> getBooks(String search, boolean includeInactive) {
         List<Book> books = bookRepo.findByTenantIdAndIsDeletedFalse(TenantContext.getTenantId());
@@ -53,6 +56,7 @@ public class LibraryService {
         return books;
     }
 
+    @Cacheable(cacheNames = CacheConfig.LIBRARY_CATALOG, keyGenerator = "tenantMethodParamsSchoolKeyGenerator", unless = "#result == null")
     @Transactional(readOnly = true)
     public PageResponse<Book> getBooksPaged(int page, int size, String search, String category, String catalogScope) {
         String t = TenantContext.getTenantId();
@@ -68,6 +72,7 @@ public class LibraryService {
         return PageResponse.of(pg.getContent(), page, size, pg.getTotalElements());
     }
 
+    @Cacheable(cacheNames = CacheConfig.LIBRARY_ISSUES, keyGenerator = "tenantMethodParamsSchoolKeyGenerator", unless = "#result == null")
     @Transactional(readOnly = true)
     public PageResponse<LibraryDTOs.BookIssueResponse> getIssuesPaged(int page, int size, Enums.BookIssueStatus status) {
         String t = TenantContext.getTenantId();
@@ -190,6 +195,7 @@ public class LibraryService {
                 .orElse(BigDecimal.TEN);
     }
 
+    @Cacheable(cacheNames = CacheConfig.LIBRARY_ISSUES, keyGenerator = "tenantMethodParamsSchoolKeyGenerator", unless = "#result == null")
     @Transactional(readOnly = true)
     public List<LibraryDTOs.BookIssueResponse> getIssues(Enums.BookIssueStatus status) {
         List<BookIssue> issues = issueRepo.findByTenantIdAndIsDeletedFalse(TenantContext.getTenantId());

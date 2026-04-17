@@ -13,5 +13,11 @@ public enum ApiErrorCode {
     VALIDATION_FAILED,
     /** Leave type {@code OTHER} submitted without a sufficient free-text reason. */
     LEAVE_OTHER_REASON_REQUIRED,
+    /**
+     * Timetable / cover / slot overlap — client may retry with an explicit replace token when the domain allows it.
+     */
+    SCHEDULING_CONFLICT,
+    /** Recurring timetable: class period taken or teacher double-booked; client may pass replaceTimetableEntryId. */
+    TIMETABLE_SLOT_CONFLICT,
     INTERNAL_ERROR
 }

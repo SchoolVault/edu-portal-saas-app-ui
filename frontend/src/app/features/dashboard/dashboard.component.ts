@@ -6,6 +6,7 @@ import { Chart, registerables } from 'chart.js';
 import { Subscription } from 'rxjs';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { AuthService } from '../../core/services/auth.service';
+import { ParentSelectionService } from '../../core/services/parent-selection.service';
 import { DashboardService } from '../../core/services/dashboard.service';
 import { AdminDashboardData, ParentDashboardData, TeacherDashboardData } from '../../core/models/models';
 
@@ -35,6 +36,13 @@ interface DashboardParentKpi {
   icon: string;
   bgColor: string;
   color: string;
+  /** Secondary line under the label (i18n). */
+  contextKey?: string;
+  contextParams?: Record<string, string | number>;
+  /** When set, shown as plain text (already passed through {@link TranslateService#instant}). */
+  resolvedContext?: string;
+  tile?: 'children' | 'attendance' | 'result' | 'fee';
+  feeUrgency?: 'none' | 'low' | 'medium' | 'high';
 }
 
 interface DashboardAdmissionInsight {
@@ -55,6 +63,17 @@ interface DashboardAdmissionInsight {
   selector: 'app-dashboard',
   standalone: true,
   imports: [CommonModule, RouterModule, FormsModule, TranslateModule],
+  styles: [
+    `
+      .parent-fee-urgency--high {
+        border-color: color-mix(in srgb, var(--clr-danger) 45%, var(--clr-border-light)) !important;
+        box-shadow: 0 0 0 1px color-mix(in srgb, var(--clr-danger) 28%, transparent), var(--shadow-sm);
+      }
+      .parent-fee-urgency--low {
+        border-color: color-mix(in srgb, var(--clr-warning) 35%, var(--clr-border-light)) !important;
+      }
+    `,
+  ],
   template: `
     <div data-testid="dashboard-page">
       <div class="d-flex justify-content-end mb-2" *ngIf="role !== 'parent' || loading">
@@ -132,16 +151,18 @@ interface DashboardAdmissionInsight {
                   <p class="erp-card-subtitle mb-0">{{ 'dashboard.admin.admissionsSnapshotLead' | translate }}</p>
                 </div>
               </div>
-              <div class="admissions-snapshot-grid">
-                <div *ngFor="let insight of admissionInsights" class="admission-snapshot-tile">
-                  <div class="admission-snapshot-tile__icon" [style.background]="insight.iconBg" [style.color]="insight.iconColor">
+              <div class="admissions-snapshot-list" role="list">
+                <div *ngFor="let insight of admissionInsights" class="admission-snapshot-row" role="listitem">
+                  <div class="admission-snapshot-row__icon" [style.background]="insight.iconBg" [style.color]="insight.iconColor">
                     <i class="bi" [ngClass]="insight.icon"></i>
                   </div>
-                  <div class="admission-snapshot-tile__body">
-                    <div class="admission-snapshot-tile__label">{{ insight.labelKey | translate }}</div>
-                    <div class="admission-snapshot-tile__value">{{ insight.value }}</div>
-                    <div class="admission-snapshot-tile__sub">{{ insight.subtextKey | translate: insight.subtextParams }}</div>
-                    <div class="admission-snapshot-tile__footer" *ngIf="insight.badgeKey">
+                  <div class="admission-snapshot-row__body">
+                    <div class="admission-snapshot-row__label">{{ insight.labelKey | translate }}</div>
+                    <div class="admission-snapshot-row__sub">{{ insight.subtextKey | translate: insight.subtextParams }}</div>
+                  </div>
+                  <div class="admission-snapshot-row__meta">
+                    <div class="admission-snapshot-row__value">{{ insight.value }}</div>
+                    <div class="admission-snapshot-row__footer" *ngIf="insight.badgeKey">
                       <span
                         class="stat-change"
                         [class.positive]="insight.badgeVariant === 'positive'"
@@ -321,17 +342,52 @@ interface DashboardAdmissionInsight {
             </div>
             <div class="col-md-6 d-flex justify-content-end gap-2">
               <a class="btn-outline-erp btn-sm" [routerLink]="['/app/inbox']"><i class="bi bi-inbox-fill me-1"></i> {{ 'dashboard.parent.inbox' | translate }}</a>
-              <a class="btn-primary-erp btn-sm" [routerLink]="['/app/parent/children']" [queryParams]="{ tab: 'fees' }"><i class="bi bi-credit-card-fill me-1"></i> {{ 'dashboard.parent.fees' | translate }}</a>
+              <a class="btn-primary-erp btn-sm" [routerLink]="['/app/parent/children']" [queryParams]="parentFeesDeepLink"><i class="bi bi-credit-card-fill me-1"></i> {{ 'dashboard.parent.fees' | translate }}</a>
             </div>
           </div>
         </div>
 
         <div class="row g-4 mb-4">
           <div class="col-sm-6 col-lg-3" *ngFor="let kpi of parentKPIs">
-            <div class="stat-card">
+            <div
+              class="stat-card h-100"
+              [class.parent-fee-urgency--high]="kpi.tile === 'fee' && (kpi.feeUrgency === 'high' || kpi.feeUrgency === 'medium')"
+              [class.parent-fee-urgency--low]="kpi.tile === 'fee' && kpi.feeUrgency === 'low'"
+            >
               <div class="stat-icon" [style.background]="kpi.bgColor" [style.color]="kpi.color"><i class="bi" [ngClass]="kpi.icon"></i></div>
               <div class="stat-value">{{ kpi.value }}</div>
               <div class="stat-label">{{ kpi.labelKey | translate }}</div>
+              <p
+                class="small text-muted mb-0 mt-1 lh-sm parent-kpi-context"
+                *ngIf="kpi.resolvedContext || kpi.contextKey"
+                style="font-size: 12px;"
+              >
+                {{ kpi.resolvedContext || ((kpi.contextKey ?? '') | translate: (kpi.contextParams || {})) }}
+              </p>
+            </div>
+          </div>
+        </div>
+        <div class="row g-4 mb-4" *ngIf="(parentDashboard?.recentActivities || []).length">
+          <div class="col-lg-12">
+            <div class="erp-card">
+              <div class="erp-card-header"><h3 class="erp-card-title">{{ 'dashboard.parent.recentActivityTitle' | translate }}</h3></div>
+              <div *ngFor="let act of parentDashboard?.recentActivities" class="activity-item">
+                <div
+                  class="activity-icon"
+                  [style.background]="act.type === 'success' ? 'rgba(5,150,105,0.12)' : act.type === 'warning' ? 'rgba(217,119,6,0.12)' : 'rgba(2,132,199,0.12)'"
+                  [style.color]="act.type === 'success' ? 'var(--clr-success)' : act.type === 'warning' ? 'var(--clr-warning)' : 'var(--clr-info)'"
+                >
+                  <i
+                    class="bi"
+                    [ngClass]="act.code === 'FEE_PAYMENT_RECORDED' ? 'bi-credit-card-2-front' : act.code === 'RESULT_PUBLISHED' ? 'bi-journal-check' : act.code === 'ATTENDANCE_MARKED' ? 'bi-calendar-check' : 'bi-megaphone'"
+                  ></i>
+                </div>
+                <div class="activity-content">
+                  <h5>{{ ('dashboard.parent.activity.' + act.code + '.title') | translate: (act.params || {}) }}</h5>
+                  <p class="mb-0">{{ ('dashboard.parent.activity.' + act.code + '.desc') | translate: (act.params || {}) }}</p>
+                  <span class="text-muted small">{{ act.timestamp | date: 'medium' }}</span>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -391,9 +447,20 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
   constructor(
     private authService: AuthService,
     private dashboardService: DashboardService,
+    private parentSelection: ParentSelectionService,
     private cdr: ChangeDetectorRef,
     private translate: TranslateService
   ) {}
+
+  /** Keeps dashboard child selection aligned with Parent portal / fees deep links. */
+  get parentFeesDeepLink(): Record<string, string | number> {
+    const qp: Record<string, string | number> = { tab: 'fees' };
+    if (this.selectedParentChildId != null) {
+      qp['child'] = this.selectedParentChildId;
+      qp['childId'] = this.selectedParentChildId;
+    }
+    return qp;
+  }
 
   ngOnInit(): void {
     this.role = this.authService.getRole() || 'admin';
@@ -401,6 +468,10 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
       if (this.role === 'admin' && this.adminDashboard) {
         this.cdr.detectChanges();
         queueMicrotask(() => this.initAdminCharts());
+      }
+      if (this.role === 'parent' && this.parentDashboard) {
+        this.parentKPIs = this.buildParentKpis(this.parentDashboard);
+        this.cdr.markForCheck();
       }
     });
     this.loadDashboard();
@@ -442,10 +513,11 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
     const today = new Date();
     const from = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().slice(0, 10);
     const to = today.toISOString().slice(0, 10);
-    this.dashboardService.getParentDashboard(from, to).subscribe({
+    this.dashboardService.getParentDashboard(from, to, this.selectedParentChildId).subscribe({
       next: dashboard => {
         this.parentDashboard = dashboard;
         this.selectedParentChildId = dashboard.selectedChildId ?? dashboard.selectedChild?.id ?? null;
+        this.parentSelection.rememberSelectedChild(this.selectedParentChildId);
         this.parentKPIs = this.buildParentKpis(dashboard);
         finish();
       },
@@ -487,10 +559,11 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
     const today = new Date();
     const from = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().slice(0, 10);
     const to = today.toISOString().slice(0, 10);
-    this.dashboardService.getParentDashboard(from, to).subscribe({
+    this.dashboardService.getParentDashboard(from, to, this.selectedParentChildId).subscribe({
       next: dashboard => {
         this.parentDashboard = dashboard;
         this.selectedParentChildId = dashboard.selectedChildId ?? dashboard.selectedChild?.id ?? null;
+        this.parentSelection.rememberSelectedChild(this.selectedParentChildId);
         this.parentKPIs = this.buildParentKpis(dashboard);
         this.loading = false;
       },
@@ -501,11 +574,28 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   onParentChildChange(): void {
-    if (!this.parentDashboard?.children?.length) return;
+    if (!this.parentDashboard?.children?.length || this.selectedParentChildId == null) return;
     const selected = this.parentDashboard.children.find(c => c.id === this.selectedParentChildId);
     if (!selected) return;
-    // MVP: swap selectedChild locally; backend-backed version will re-fetch per-child
-    this.parentDashboard = { ...this.parentDashboard, selectedChild: selected, selectedChildId: selected.id };
+    this.parentSelection.rememberSelectedChild(this.selectedParentChildId);
+    if (this.loading || this.refreshing) return;
+    this.refreshing = true;
+    const today = new Date();
+    const from = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().slice(0, 10);
+    const to = today.toISOString().slice(0, 10);
+    this.dashboardService.getParentDashboard(from, to, this.selectedParentChildId).subscribe({
+      next: dashboard => {
+        this.parentDashboard = dashboard;
+        this.selectedParentChildId = dashboard.selectedChildId ?? dashboard.selectedChild?.id ?? null;
+        this.parentSelection.rememberSelectedChild(this.selectedParentChildId);
+        this.parentKPIs = this.buildParentKpis(dashboard);
+        this.refreshing = false;
+        this.cdr.markForCheck();
+      },
+      error: () => {
+        this.refreshing = false;
+      },
+    });
   }
 
   ngAfterViewInit(): void {
@@ -599,6 +689,8 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   private buildParentKpis(dashboard: ParentDashboardData): DashboardParentKpi[] {
+    const th = dashboard.attendanceMetric?.schoolThresholdPct ?? 85;
+    const feeU = dashboard.feeMetric?.urgency ?? 'none';
     return [
       {
         labelKey: 'dashboard.parent.kpi.childrenLinked',
@@ -606,6 +698,9 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
         icon: 'bi-person-heart',
         bgColor: 'rgba(27,58,48,0.1)',
         color: '#1B3A30',
+        contextKey: 'dashboard.parent.kpi.childrenLinkedContext',
+        contextParams: { count: dashboard.childCount },
+        tile: 'children',
       },
       {
         labelKey: 'dashboard.parent.kpi.attendance',
@@ -613,6 +708,9 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
         icon: 'bi-calendar-check-fill',
         bgColor: 'rgba(5,150,105,0.1)',
         color: '#059669',
+        contextKey: dashboard.attendanceMetric?.labelKey,
+        contextParams: { threshold: th },
+        tile: 'attendance',
       },
       {
         labelKey: 'dashboard.parent.kpi.overallGrade',
@@ -620,6 +718,11 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
         icon: 'bi-trophy-fill',
         bgColor: 'rgba(217,119,6,0.1)',
         color: '#D97706',
+        contextKey: dashboard.resultMetric?.labelKey,
+        contextParams: {
+          pct: dashboard.resultMetric?.averagePercent != null ? dashboard.resultMetric.averagePercent : '—',
+        },
+        tile: 'result',
       },
       {
         labelKey: 'dashboard.parent.kpi.feeDue',
@@ -627,6 +730,14 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
         icon: 'bi-credit-card-fill',
         bgColor: 'rgba(220,38,38,0.1)',
         color: '#DC2626',
+        contextKey: dashboard.feeMetric?.labelKey,
+        contextParams: {
+          date: this.formatParentFeeDueDate(dashboard.feeMetric?.nextDueDate),
+          days: dashboard.feeMetric?.daysUntilDue ?? '—',
+        },
+        resolvedContext: this.resolveParentFeeContext(dashboard),
+        tile: 'fee',
+        feeUrgency: feeU,
       },
     ];
   }
@@ -782,6 +893,37 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
         badgeVariant: trend > 0 ? 'positive' : trend < 0 ? 'negative' : 'neutral',
       },
     ];
+  }
+
+  /** Locale-aware due date for parent fee KPI (ISO yyyy-MM-dd or yyyy-MM-ddTHH:mm:ss). */
+  private formatParentFeeDueDate(raw: string | null | undefined): string {
+    if (!raw || raw === '—') {
+      return '—';
+    }
+    const head = raw.slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(head)) {
+      return raw;
+    }
+    const d = new Date(raw.includes('T') ? raw : `${head}T12:00:00`);
+    if (Number.isNaN(d.getTime())) {
+      return raw;
+    }
+    const loc = this.translate.currentLang?.toLowerCase().startsWith('hi') ? 'hi-IN' : 'en-IN';
+    return d.toLocaleDateString(loc, { year: 'numeric', month: 'short', day: 'numeric' });
+  }
+
+  /**
+   * Pre-resolve fee urgency line so placeholders always interpolate (ngx-translate pipe edge cases on nested KPI rows).
+   */
+  private resolveParentFeeContext(dashboard: ParentDashboardData): string | undefined {
+    const key = dashboard.feeMetric?.labelKey;
+    if (!key || !dashboard.feeDue || dashboard.feeDue <= 0) {
+      return undefined;
+    }
+    const date = this.formatParentFeeDueDate(dashboard.feeMetric?.nextDueDate);
+    const du = dashboard.feeMetric?.daysUntilDue;
+    const days = du === null || du === undefined ? '—' : du;
+    return this.translate.instant(key, { date, days });
   }
 
   private asCurrency(value: number): string {

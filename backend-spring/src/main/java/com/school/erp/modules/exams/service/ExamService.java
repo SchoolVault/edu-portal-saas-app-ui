@@ -1,6 +1,7 @@
 package com.school.erp.modules.exams.service;
 
 import com.school.erp.common.dto.PageResponse;
+import com.school.erp.modules.parent.cache.ParentPortalExamPageCache;
 import com.school.erp.common.enums.Enums;
 import com.school.erp.common.exception.BusinessException;
 import com.school.erp.common.exception.ResourceNotFoundException;
@@ -41,6 +42,7 @@ public class ExamService {
     private final SectionRepository sectionRepo;
     private final ExamMarkingAccessPolicy markingAccessPolicy;
     private final StudentRepository studentRepository;
+    private final ParentPortalExamPageCache parentPortalExamPageCache;
 
     @Transactional(readOnly = true)
     public List<ExamDTOs.ExamResponse> getExams() {
@@ -93,6 +95,7 @@ public class ExamService {
         examRepo.save(exam);
         persistClassScopes(tenant, exam.getId(), req, classIds);
         log.info("Exam created: {}", exam.getName());
+        parentPortalExamPageCache.invalidateTenant(tenant);
         return toExamResponse(exam);
     }
 
@@ -101,6 +104,7 @@ public class ExamService {
         Exam exam = requireExam(examId);
         exam.setStatus(Enums.ExamStatus.valueOf(status.toUpperCase()));
         examRepo.save(exam);
+        parentPortalExamPageCache.invalidateTenant(exam.getTenantId());
         return toExamResponse(exam);
     }
 
@@ -109,6 +113,7 @@ public class ExamService {
         Exam exam = requireExam(examId);
         exam.setResultsPublished(published);
         examRepo.save(exam);
+        parentPortalExamPageCache.invalidateTenant(exam.getTenantId());
         return toExamResponse(exam);
     }
 
@@ -161,6 +166,7 @@ public class ExamService {
         }
         scheduleRepo.saveAll(created);
         log.info("Exam schedule replaced: exam={} rows={}", examId, created.size());
+        parentPortalExamPageCache.invalidateTenant(t);
         return created.stream().map(this::toScheduleOut).collect(Collectors.toList());
     }
 
@@ -208,21 +214,56 @@ public class ExamService {
      */
     @Transactional(readOnly = true)
     public List<ExamDTOs.ExamResponse> listExamsForLinkedStudents(String tenantId, List<Student> linkedChildren) {
+        return listExamsForLinkedStudentsPaged(tenantId, linkedChildren, 0, Integer.MAX_VALUE).getContent();
+    }
+
+    /**
+     * Paged parent portal exam list (same DTO shape as full list). Uses batched scope/schedule queries per slice.
+     */
+    @Transactional(readOnly = true)
+    public PageResponse<ExamDTOs.ExamResponse> listExamsForLinkedStudentsPaged(String tenantId, List<Student> linkedChildren, int page, int size) {
         if (linkedChildren == null || linkedChildren.isEmpty()) {
-            return List.of();
+            return PageResponse.of(List.of(), page, size, 0);
         }
-        List<ExamDTOs.ExamResponse> out = examRepo.findByTenantIdAndIsDeletedFalse(tenantId).stream()
+        List<Exam> all = examRepo.findByTenantIdAndIsDeletedFalse(tenantId);
+        if (all.isEmpty()) {
+            return PageResponse.of(List.of(), page, size, 0);
+        }
+        List<Long> allIds = all.stream().map(Exam::getId).collect(Collectors.toList());
+        Map<Long, List<ExamClassScope>> scopesByExam = scopeRepo.findByTenantIdAndExamIdInAndIsDeletedFalse(tenantId, allIds).stream()
+                .collect(Collectors.groupingBy(ExamClassScope::getExamId));
+
+        List<Exam> visible = all.stream()
                 .filter(e -> e.getStatus() != Enums.ExamStatus.CANCELLED)
                 .filter(e -> linkedChildren.stream().anyMatch(st ->
-                        st.getClassId() != null && studentMatchesExamScope(tenantId, e, st.getClassId(), st.getSectionId())))
+                        st.getClassId() != null && studentMatchesExamScope(tenantId, e, st.getClassId(), st.getSectionId(), scopesByExam)))
                 .sorted(Comparator
                         .comparing((Exam e) -> e.getStartDate(), Comparator.nullsLast(Comparator.naturalOrder()))
                         .reversed()
                         .thenComparing(Exam::getId, Comparator.reverseOrder()))
-                .map(e -> toExamResponseForParentPortal(e, tenantId, linkedChildren))
                 .collect(Collectors.toList());
-        log.debug("Parent portal exam list tenant={} linkedChildren={} visibleExams={}", tenantId, linkedChildren.size(), out.size());
-        return out;
+
+        long total = visible.size();
+        if (size <= 0) {
+            size = 20;
+        }
+        int from = Math.max(0, page) * size;
+        if (from >= visible.size()) {
+            return PageResponse.of(List.of(), page, size, total);
+        }
+        int to = Math.min(from + size, visible.size());
+        List<Exam> slice = visible.subList(from, to);
+        List<Long> sliceIds = slice.stream().map(Exam::getId).collect(Collectors.toList());
+        Map<Long, List<ExamScheduleSlot>> slotsByExam = sliceIds.isEmpty()
+                ? Map.of()
+                : scheduleRepo.findByTenantIdAndExamIdInAndIsDeletedFalseOrderByExamDateAscStartTimeAsc(tenantId, sliceIds).stream()
+                .collect(Collectors.groupingBy(ExamScheduleSlot::getExamId));
+
+        List<ExamDTOs.ExamResponse> content = slice.stream()
+                .map(e -> toExamResponseForParentPortal(e, tenantId, linkedChildren, scopesByExam, slotsByExam.getOrDefault(e.getId(), List.of())))
+                .collect(Collectors.toList());
+        log.debug("Parent portal exam page tenant={} linkedChildren={} page={} size={} total={}", tenantId, linkedChildren.size(), page, size, total);
+        return PageResponse.of(content, page, size, total);
     }
 
     /**
@@ -284,10 +325,16 @@ public class ExamService {
     }
 
     private boolean studentMatchesExamScope(String tenantId, Exam exam, Long classId, Long sectionId) {
+        List<ExamClassScope> scopes = scopeRepo.findByTenantIdAndExamIdAndIsDeletedFalse(tenantId, exam.getId());
+        Map<Long, List<ExamClassScope>> map = Map.of(exam.getId(), scopes);
+        return studentMatchesExamScope(tenantId, exam, classId, sectionId, map);
+    }
+
+    private boolean studentMatchesExamScope(String tenantId, Exam exam, Long classId, Long sectionId, Map<Long, List<ExamClassScope>> scopesByExam) {
         if (classId == null) {
             return false;
         }
-        List<ExamClassScope> scopes = scopeRepo.findByTenantIdAndExamIdAndIsDeletedFalse(tenantId, exam.getId());
+        List<ExamClassScope> scopes = scopesByExam.getOrDefault(exam.getId(), List.of());
         if (!scopes.isEmpty()) {
             return scopes.stream().anyMatch(sc ->
                     classId.equals(sc.getClassId())
@@ -342,6 +389,7 @@ public class ExamService {
         }).collect(Collectors.toList());
         markRepo.saveAll(records);
         log.info("Marks saved: exam={} count={}", req.getExamId(), records.size());
+        parentPortalExamPageCache.invalidateTenant(t);
         return records.stream().map(this::toMarkResponse).collect(Collectors.toList());
     }
 
@@ -467,18 +515,31 @@ public class ExamService {
      * and {@code scheduleSlots} are trimmed to linked children only (no other classes’ timetable rows).
      */
     private ExamDTOs.ExamResponse toExamResponseForParentPortal(Exam e, String tenantId, List<Student> linkedChildren) {
+        List<ExamClassScope> scopes = scopeRepo.findByTenantIdAndExamIdAndIsDeletedFalse(tenantId, e.getId());
+        Map<Long, List<ExamClassScope>> scopesByExam = Map.of(e.getId(), scopes);
+        List<ExamScheduleSlot> slots = scheduleRepo.findByTenantIdAndExamIdAndIsDeletedFalseOrderByExamDateAscStartTimeAsc(tenantId, e.getId());
+        return toExamResponseForParentPortal(e, tenantId, linkedChildren, scopesByExam, slots);
+    }
+
+    private ExamDTOs.ExamResponse toExamResponseForParentPortal(
+            Exam e,
+            String tenantId,
+            List<Student> linkedChildren,
+            Map<Long, List<ExamClassScope>> scopesByExam,
+            List<ExamScheduleSlot> scheduleRows
+    ) {
         ExamDTOs.ExamResponse r = ExamDTOs.ExamResponse.builder()
                 .id(e.getId())
                 .name(e.getName())
                 .academicYearId(e.getAcademicYearId())
                 .startDate(e.getStartDate() != null ? e.getStartDate().toString() : null)
                 .endDate(e.getEndDate() != null ? e.getEndDate().toString() : null)
-                .classIds(filterExamClassIdsForLinkedChildren(tenantId, e, linkedChildren))
+                .classIds(filterExamClassIdsForLinkedChildren(tenantId, e, linkedChildren, scopesByExam))
                 .status(e.getStatus() != null ? e.getStatus().name().toLowerCase() : null)
                 .build();
         r.setResultsPublished(Boolean.TRUE.equals(e.getResultsPublished()));
-        r.setClassScopes(filterClassScopesForLinkedChildren(tenantId, e, linkedChildren));
-        r.setScheduleSlots(scheduleRepo.findByTenantIdAndExamIdAndIsDeletedFalseOrderByExamDateAscStartTimeAsc(tenantId, e.getId()).stream()
+        r.setClassScopes(filterClassScopesForLinkedChildren(tenantId, e, linkedChildren, scopesByExam));
+        r.setScheduleSlots(scheduleRows.stream()
                 .map(this::toScheduleOut)
                 .filter(slot -> linkedChildren.stream().anyMatch(st ->
                         scheduleRowVisibleToStudent(slot, st.getClassId(), st.getSectionId())))
@@ -486,16 +547,16 @@ public class ExamService {
         return r;
     }
 
-    private List<Long> filterExamClassIdsForLinkedChildren(String tenantId, Exam e, List<Student> linkedChildren) {
+    private List<Long> filterExamClassIdsForLinkedChildren(String tenantId, Exam e, List<Student> linkedChildren, Map<Long, List<ExamClassScope>> scopesByExam) {
         return linkedChildren.stream()
-                .filter(st -> st.getClassId() != null && studentMatchesExamScope(tenantId, e, st.getClassId(), st.getSectionId()))
+                .filter(st -> st.getClassId() != null && studentMatchesExamScope(tenantId, e, st.getClassId(), st.getSectionId(), scopesByExam))
                 .map(Student::getClassId)
                 .distinct()
                 .collect(Collectors.toList());
     }
 
-    private List<ExamScopeDtos.ClassScopeOut> filterClassScopesForLinkedChildren(String tenantId, Exam e, List<Student> linkedChildren) {
-        return buildScopeOut(tenantId, e).stream()
+    private List<ExamScopeDtos.ClassScopeOut> filterClassScopesForLinkedChildren(String tenantId, Exam e, List<Student> linkedChildren, Map<Long, List<ExamClassScope>> scopesByExam) {
+        return buildScopeOut(tenantId, e, scopesByExam).stream()
                 .filter(scope -> linkedChildren.stream().anyMatch(st ->
                         st.getClassId() != null
                                 && Objects.equals(scope.getClassId(), st.getClassId())
@@ -506,6 +567,11 @@ public class ExamService {
 
     private List<ExamScopeDtos.ClassScopeOut> buildScopeOut(String examTenant, Exam exam) {
         List<ExamClassScope> rows = scopeRepo.findByTenantIdAndExamIdAndIsDeletedFalse(examTenant, exam.getId());
+        return buildScopeOut(examTenant, exam, Map.of(exam.getId(), rows));
+    }
+
+    private List<ExamScopeDtos.ClassScopeOut> buildScopeOut(String examTenant, Exam exam, Map<Long, List<ExamClassScope>> scopesByExam) {
+        List<ExamClassScope> rows = scopesByExam.getOrDefault(exam.getId(), List.of());
         if (!rows.isEmpty()) {
             return rows.stream().map(row -> {
                 String cn = classRepo.findByIdAndTenantIdAndIsDeletedFalse(row.getClassId(), examTenant).map(SchoolClass::getName).orElse(null);
@@ -552,7 +618,8 @@ public class ExamService {
             final SchoolClassRepository classRepo,
             final SectionRepository sectionRepo,
             final ExamMarkingAccessPolicy markingAccessPolicy,
-            final StudentRepository studentRepository) {
+            final StudentRepository studentRepository,
+            final ParentPortalExamPageCache parentPortalExamPageCache) {
         this.examRepo = examRepo;
         this.markRepo = markRepo;
         this.scopeRepo = scopeRepo;
@@ -561,5 +628,6 @@ public class ExamService {
         this.sectionRepo = sectionRepo;
         this.markingAccessPolicy = markingAccessPolicy;
         this.studentRepository = studentRepository;
+        this.parentPortalExamPageCache = parentPortalExamPageCache;
     }
 }

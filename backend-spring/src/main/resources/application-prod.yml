@@ -1,5 +1,6 @@
-# Demo org bootstrap (one-time): use profile group prod-with-demo-seed or SPRING_PROFILES_ACTIVE=prod,demo-seed
+# Production. Demo org bootstrap (one-time): profile group prod-with-demo-seed or SPRING_PROFILES_ACTIVE=prod,demo-seed
 # with demo-seed last, then redeploy with prod only. See docs/DEMO_SHOWCASE_TENANT.md.
+# Staging-style profiles with the same file shape: ml (dev test), rel (QA sign-off) — see application-ml.yml / application-rel.yml.
 app:
   demo-seed:
     enabled: false

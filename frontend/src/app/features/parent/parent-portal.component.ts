@@ -5,6 +5,7 @@ import { ActivatedRoute, ParamMap, RouterModule } from '@angular/router';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { Subject, takeUntil } from 'rxjs';
 import { ParentService } from '../../core/services/parent.service';
+import { ParentSelectionService } from '../../core/services/parent-selection.service';
 import { openRazorpaySchoolFeeCheckout, PAYMENT_PROVIDER_IDS } from '../../core/payment';
 import { runtimeConfig } from '../../core/config/runtime-config';
 import {
@@ -24,13 +25,6 @@ import {
   parentFeePaymentMethodOptions,
   type ParentFeePaymentMethodOption,
 } from './parent-fee-payment.providers';
-import {
-  cssClassForTone,
-  toneClassForAmountHigherWorse,
-  toneClassForCountHigherBetter,
-  toneClassForPercent,
-} from '../../core/ui/metric-tone';
-
 @Component({
   selector: 'app-parent-portal',
   standalone: true,
@@ -95,18 +89,6 @@ import {
       .erp-input--invalid {
         border-color: var(--clr-danger) !important;
       }
-      .stat-card.metric-tone--danger .stat-value {
-        color: var(--clr-danger);
-        font-weight: 800;
-      }
-      .stat-card.metric-tone--warn .stat-value {
-        color: var(--clr-warning);
-        font-weight: 800;
-      }
-      .stat-card.metric-tone--ok .stat-value {
-        color: var(--clr-success);
-        font-weight: 800;
-      }
       a.stat-card.stat-card--clickable:hover {
         border-color: color-mix(in srgb, var(--clr-accent) 35%, var(--clr-border-light));
         box-shadow: var(--shadow-md);
@@ -139,6 +121,7 @@ import {
             <app-erp-month-picker
               class="w-100"
               placeholderI18nKey="parentPortal.attendanceMonthPlaceholder"
+              yearNavMode="plain"
               [(ngModel)]="attendanceMonthYm"
               (ngModelChange)="onAttendanceMonthChange()"
               [maxYm]="maxAttendanceMonthYm"
@@ -148,36 +131,24 @@ import {
       </div>
 
       <div *ngIf="selectedChild" class="animate-in animate-in-delay-2">
-        <div class="row g-4 mb-4">
-          <div class="col-md-3">
-            <div class="stat-card" [ngClass]="attendancePctToneClass()">
-              <div class="stat-value">{{ attendanceStats.attendancePercentage | number:'1.0-1' }}%</div>
-              <div class="stat-label">{{ 'parentPortal.statAttendanceRate' | translate }}</div>
+        <div class="erp-card mb-4">
+          <div class="d-flex flex-wrap justify-content-between align-items-start gap-3">
+            <div class="flex-grow-1 min-w-0">
+              <h3 class="erp-card-title mb-1" style="font-size: 18px;">
+                {{ selectedChild.firstName }} {{ selectedChild.lastName }}
+              </h3>
+              <p class="text-muted small mb-2">
+                {{ selectedChild.className || ('parentPortal.classFallback' | translate: { id: selectedChild.classId }) }}
+                <span *ngIf="selectedChild.sectionName"> · {{ selectedChild.sectionName }}</span>
+                <span *ngIf="selectedChild.homeroomTeacherName">
+                  · {{ 'parentPortal.homeroomLabel' | translate }} {{ selectedChild.homeroomTeacherName }}
+                </span>
+              </p>
+              <p class="small mb-0 text-muted" style="max-width: 42rem; line-height: 1.45;">
+                {{ 'parentPortal.detailLead' | translate }}
+              </p>
             </div>
-          </div>
-          <div class="col-md-3">
-            <div class="stat-card" [ngClass]="presentDaysToneClass()">
-              <div class="stat-value">{{ attendanceStats.present }}</div>
-              <div class="stat-label">{{ 'parentPortal.statDaysPresent' | translate }}</div>
-            </div>
-          </div>
-          <div class="col-md-3">
-            <div class="stat-card" [ngClass]="feesPendingToneClass()">
-              <div class="stat-value">{{ totalPending | number:'1.0-0' }}</div>
-              <div class="stat-label">{{ 'parentPortal.statFeesPending' | translate }}</div>
-            </div>
-          </div>
-          <div class="col-md-3">
-            <a
-              class="stat-card stat-card--clickable text-decoration-none text-reset d-block h-100"
-              [ngClass]="publishedResultsToneClass()"
-              [routerLink]="['/app/exams']"
-              [queryParams]="examsDeepLinkParams"
-              [attr.aria-label]="'parentPortal.resultsTileAria' | translate"
-            >
-              <div class="stat-value">{{ marks.length }}</div>
-              <div class="stat-label">{{ 'parentPortal.resultsTitle' | translate }}</div>
-            </a>
+            <a class="btn-outline-erp btn-sm flex-shrink-0" routerLink="/app/dashboard">{{ 'parentPortal.openDashboardSummary' | translate }}</a>
           </div>
         </div>
 
@@ -539,24 +510,6 @@ export class ParentPortalComponent implements OnInit, OnDestroy {
     return { studentId: String(sid), tab: 'results' };
   }
 
-  attendancePctToneClass(): string {
-    return cssClassForTone(toneClassForPercent(this.attendanceStats.attendancePercentage));
-  }
-
-  presentDaysToneClass(): string {
-    const max = Math.max(1, this.attendanceStats.totalDays || 0);
-    return cssClassForTone(toneClassForCountHigherBetter(this.attendanceStats.present, max));
-  }
-
-  feesPendingToneClass(): string {
-    return cssClassForTone(toneClassForAmountHigherWorse(this.totalPending));
-  }
-
-  publishedResultsToneClass(): string {
-    const n = this.marks.length;
-    return cssClassForTone(n > 0 ? 'ok' : 'neutral');
-  }
-
   get maxAttendanceMonthYm(): string {
     return ParentPortalComponent.currentCalendarYm();
   }
@@ -579,6 +532,7 @@ export class ParentPortalComponent implements OnInit, OnDestroy {
 
   constructor(
     private parentService: ParentService,
+    private parentSelection: ParentSelectionService,
     private translate: TranslateService,
     private cdr: ChangeDetectorRef,
     private route: ActivatedRoute,
@@ -734,7 +688,7 @@ export class ParentPortalComponent implements OnInit, OnDestroy {
     } else if (tab === 'attendance') {
       this.tab = 'attendance';
     }
-    const child = qp.get('child');
+    const child = qp.get('child') || qp.get('childId');
     if (child && /^\d+$/.test(child)) {
       this.selectedStudentId = Number(child);
     }
@@ -751,8 +705,13 @@ export class ParentPortalComponent implements OnInit, OnDestroy {
       if (this.selectedStudentId != null && !children.some(c => c.id === this.selectedStudentId)) {
         this.selectedStudentId = children.length ? children[0].id : null;
       }
-      if (this.selectedStudentId == null && children.length) {
-        this.selectedStudentId = children[0].id;
+      if (this.selectedStudentId == null) {
+        const stored = this.parentSelection.readPreferredChildId();
+        if (stored != null && children.some(c => c.id === stored)) {
+          this.selectedStudentId = stored;
+        } else if (children.length) {
+          this.selectedStudentId = children[0].id;
+        }
       }
       if (this.selectedStudentId != null) {
         this.onStudentChange();
@@ -762,6 +721,7 @@ export class ParentPortalComponent implements OnInit, OnDestroy {
 
   onStudentChange(): void {
     this.selectedChild = this.children.find(child => child.id === this.selectedStudentId) ?? null;
+    this.parentSelection.rememberSelectedChild(this.selectedStudentId);
     this.attendancePage = 1;
     this.reloadSelectedChild();
   }

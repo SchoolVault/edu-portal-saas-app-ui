@@ -2,6 +2,7 @@ package com.school.erp.modules.auth.service;
 
 import com.school.erp.common.enums.Enums;
 import com.school.erp.common.locale.InterfaceLocale;
+import com.school.erp.common.util.InternationalPhone;
 import com.school.erp.common.util.PhoneNormalization;
 import com.school.erp.common.exception.BusinessException;
 import com.school.erp.common.exception.DuplicateResourceException;
@@ -15,7 +16,7 @@ import com.school.erp.modules.auth.entity.RefreshToken;
 import com.school.erp.modules.auth.entity.User;
 import com.school.erp.modules.auth.repository.RefreshTokenRepository;
 import com.school.erp.modules.auth.repository.UserRepository;
-import com.school.erp.modules.audit.service.AuditService;
+import com.school.erp.platform.port.AuditTrailPort;
 import com.school.erp.modules.academic.entity.SchoolClass;
 import com.school.erp.modules.academic.repository.SchoolClassRepository;
 import com.school.erp.modules.settings.entity.TenantConfig;
@@ -45,7 +46,7 @@ public class AuthService {
     private final SchoolClassRepository schoolClassRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
-    private final AuditService auditService;
+    private final AuditTrailPort auditTrailPort;
 
     @Transactional
     public AuthDTOs.LoginResponse login(AuthDTOs.LoginRequest request) {
@@ -53,7 +54,13 @@ public class AuthService {
         log.debug("Login attempt schoolCode={}", schoolCode);
         User user;
         if (request.getPhone() != null && !request.getPhone().isBlank()) {
-            user = userRepository.findByPhoneAndSchoolCodeAndIsDeletedFalse(request.getPhone().trim(), schoolCode)
+            String canonicalPhone = InternationalPhone.canonical(request.getPhone().trim());
+            if (canonicalPhone == null) {
+                throw new BusinessException(InternationalPhone.invalidMessage());
+            }
+            user = userRepository
+                    .findFirstBySchoolCodeAndPhoneInAndIsDeletedFalseOrderByIdAsc(
+                            schoolCode, InternationalPhone.compatibleLookupKeys(canonicalPhone))
                     .orElseThrow(() -> new UnauthorizedException("Invalid credentials or school code"));
         } else {
             user = userRepository.findByEmailAndSchoolCodeAndIsDeletedFalse(request.getEmail().trim().toLowerCase(Locale.ROOT), schoolCode)
@@ -86,7 +93,8 @@ public class AuthService {
         try {
             TenantContext.setTenantId(user.getTenantId());
             TenantContext.setUserId(user.getId());
-            auditService.logLogin(subject);
+            String auditLoginKey = user.getEmail() != null && !user.getEmail().isBlank() ? user.getEmail() : subject;
+            auditTrailPort.logLogin(auditLoginKey);
         } catch (Exception e) {
             log.debug("Audit log skipped: {}", e.getMessage());
         }
@@ -103,9 +111,18 @@ public class AuthService {
         String tenantId = TenantContext.getTenantId();
         if (tenantId == null) throw new UnauthorizedException("Tenant context not found");
         if (userRepository.existsByEmailAndTenantId(request.getEmail(), tenantId)) throw new DuplicateResourceException("Email already registered in this school");
-        String regPhone = PhoneNormalization.trimToNull(request.getPhone());
-        if (regPhone != null && userRepository.existsByPhoneAndTenantIdAndIsDeletedFalse(regPhone, tenantId)) {
-            throw new DuplicateResourceException("This mobile number is already registered in this school");
+        String regPhone = request.getPhone() == null || request.getPhone().isBlank()
+                ? null
+                : InternationalPhone.canonical(request.getPhone().trim());
+        if (request.getPhone() != null && !request.getPhone().isBlank() && regPhone == null) {
+            throw new BusinessException(InternationalPhone.invalidMessage());
+        }
+        if (regPhone != null) {
+            for (String key : InternationalPhone.compatibleLookupKeys(regPhone)) {
+                if (userRepository.existsByPhoneAndTenantIdAndIsDeletedFalse(key, tenantId)) {
+                    throw new DuplicateResourceException("This mobile number is already registered in this school");
+                }
+            }
         }
         TenantConfig tenantConfig = tenantConfigRepository.findByTenantId(tenantId).orElseThrow(() -> new ResourceNotFoundException("Tenant settings not configured"));
         User user = User.builder().name(request.getName()).email(request.getEmail()).password(passwordEncoder.encode(request.getPassword())).phone(regPhone).role(request.getRole() != null ? request.getRole() : com.school.erp.common.enums.Enums.Role.PARENT).schoolCode(tenantConfig.getSchoolCode()).build();
@@ -127,12 +144,22 @@ public class AuthService {
         }
         String tenantId = buildTenantId(normalizedSchoolCode);
 
+        String adminPhone = InternationalPhone.canonical(request.getPhone().trim());
+        if (adminPhone == null) {
+            throw new BusinessException(InternationalPhone.invalidMessage());
+        }
+        for (String key : InternationalPhone.compatibleLookupKeys(adminPhone)) {
+            if (userRepository.existsByPhoneAndTenantIdAndIsDeletedFalse(key, tenantId)) {
+                throw new DuplicateResourceException("This mobile number is already registered in this school");
+            }
+        }
+
         TenantConfig config = new TenantConfig();
         config.setTenantId(tenantId);
         config.setSchoolName(request.getSchoolName().trim());
         config.setSchoolCode(normalizedSchoolCode);
         config.setAddress(request.getAddress());
-        config.setPhone(request.getPhone());
+        config.setPhone(adminPhone);
         config.setEmail(request.getAdminEmail());
         config.setPrimaryColor("#1B3A30");
         config.setSecondaryColor("#C05C3D");
@@ -140,13 +167,9 @@ public class AuthService {
         tenantConfigRepository.save(config);
 
         String adminEmailRaw = request.getAdminEmail() == null ? "" : request.getAdminEmail().trim();
-        String adminEmail = adminEmailRaw.isEmpty() ? syntheticAdminEmail(normalizedSchoolCode, request.getPhone()) : adminEmailRaw.toLowerCase(Locale.ROOT);
+        String adminEmail = adminEmailRaw.isEmpty() ? syntheticAdminEmail(normalizedSchoolCode, adminPhone) : adminEmailRaw.toLowerCase(Locale.ROOT);
         if (userRepository.existsByEmailAndTenantId(adminEmail, tenantId)) {
             throw new DuplicateResourceException("Email already registered in this school");
-        }
-        String adminPhone = PhoneNormalization.trimToNull(request.getPhone());
-        if (userRepository.existsByPhoneAndTenantIdAndIsDeletedFalse(adminPhone, tenantId)) {
-            throw new DuplicateResourceException("This mobile number is already registered in this school");
         }
 
         User admin = User.builder()
@@ -213,8 +236,6 @@ public class AuthService {
                 response.setSchoolEmail("platform@schoolvault.edu");
                 response.setPrimaryColor("#0F172A");
                 response.setSecondaryColor("#0EA5E9");
-                response.setManagedStudentCount(0);
-                response.setManagedTeacherCount(0);
                 response.setPlatformWorkspaceCount((int) tenantConfigRepository.findAll().stream()
                         .filter(c -> !Boolean.TRUE.equals(c.getIsDeleted()))
                         .count());
@@ -228,7 +249,7 @@ public class AuthService {
                 response.setUserTitle("Faculty Member");
                 response.setQualification(teacher.getQualification());
                 response.setSpecialization(teacher.getSpecialization());
-                response.setSubjectCount(teacher.getSubjects() != null ? teacher.getSubjects().size() : 0);
+                response.setSubjectCount(teacher.getSubjects() != null ? (long) teacher.getSubjects().size() : 0L);
                 List<SchoolClass> ctClasses = schoolClassRepository.findByTenantIdAndClassTeacherIdAndIsDeletedFalse(tenantId, teacher.getId());
                 if (!ctClasses.isEmpty()) {
                     List<AuthProfileDTOs.ClassTeacherAssignment> rows = new ArrayList<>();
@@ -381,7 +402,7 @@ public class AuthService {
         return digits + "." + schoolCode.toLowerCase(Locale.ROOT) + "@phone.schoolvault.local";
     }
 
-    public AuthService(final UserRepository userRepository, final RefreshTokenRepository refreshTokenRepository, final TenantConfigRepository tenantConfigRepository, final StudentRepository studentRepository, final TeacherRepository teacherRepository, final SchoolClassRepository schoolClassRepository, final PasswordEncoder passwordEncoder, final JwtUtil jwtUtil, final AuditService auditService) {
+    public AuthService(final UserRepository userRepository, final RefreshTokenRepository refreshTokenRepository, final TenantConfigRepository tenantConfigRepository, final StudentRepository studentRepository, final TeacherRepository teacherRepository, final SchoolClassRepository schoolClassRepository, final PasswordEncoder passwordEncoder, final JwtUtil jwtUtil, final AuditTrailPort auditTrailPort) {
         this.userRepository = userRepository;
         this.refreshTokenRepository = refreshTokenRepository;
         this.tenantConfigRepository = tenantConfigRepository;
@@ -390,6 +411,6 @@ public class AuthService {
         this.schoolClassRepository = schoolClassRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtUtil = jwtUtil;
-        this.auditService = auditService;
+        this.auditTrailPort = auditTrailPort;
     }
 }

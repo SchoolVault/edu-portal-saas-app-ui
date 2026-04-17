@@ -749,7 +749,7 @@ export class ExamsComponent implements OnInit {
       this.detailTab = 'timetable';
       forkJoin({
         children: this.parentService.getChildren(),
-        exams: this.examService.getParentPortalExams()
+        exams: this.examService.getParentPortalExamsAggregated()
       }).subscribe(({ children, exams }) => {
         this.parentChildren = children ?? [];
         this.classes = this.buildSyntheticClassesFromChildren(this.parentChildren);
@@ -1500,7 +1500,7 @@ export class ExamsComponent implements OnInit {
     if (this.role === 'parent') {
       forkJoin({
         children: this.parentService.getChildren(),
-        exams: this.examService.getParentPortalExams()
+        exams: this.examService.getParentPortalExamsAggregated()
       }).subscribe(({ children, exams }) => {
         this.parentChildren = children ?? [];
         this.classes = this.buildSyntheticClassesFromChildren(this.parentChildren);

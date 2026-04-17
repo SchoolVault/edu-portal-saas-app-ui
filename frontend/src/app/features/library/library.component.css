@@ -1,0 +1,63 @@
+/* Book catalog: category + status columns — stable pill layout, truncation, theme-aligned chips */
+.library-books-table th.library-category-cell,
+.library-books-table td.library-category-cell {
+  min-width: 6.5rem;
+  max-width: 12rem;
+  vertical-align: middle;
+}
+
+.library-books-table th.library-status-cell,
+.library-books-table td.library-status-cell {
+  min-width: 7.5rem;
+  vertical-align: middle;
+}
+
+.library-books-table .library-category-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  max-width: 100%;
+  min-height: 28px;
+  padding: 5px 12px;
+  line-height: 1.25;
+  box-sizing: border-box;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.library-books-table .library-status-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  min-height: 30px;
+}
+
+.library-books-table .library-status-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 28px;
+  padding: 5px 12px;
+  line-height: 1.25;
+  white-space: nowrap;
+  box-sizing: border-box;
+  max-width: 100%;
+}
+
+/* Circulation tab — same pill treatment */
+.library-issues-table td.library-issue-status-cell {
+  min-width: 6.5rem;
+  vertical-align: middle;
+}
+
+.library-issues-table .library-status-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 28px;
+  padding: 5px 12px;
+  line-height: 1.25;
+  white-space: nowrap;
+  box-sizing: border-box;
+}

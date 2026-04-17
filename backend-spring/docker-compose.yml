@@ -1,16 +1,18 @@
 # Infra for local debugging: docker compose up -d mysql redis rabbitmq
-# Then run the app on the host with profile "local" (see application-local.yml + README).
+# Full-stack app container uses profile ml (application-ml.yml, same shape as prod). Host JVM: same profile + DB_* / REDIS_* / RABBITMQ_*.
 services:
   app:
     build: .
     ports:
       - "8080:8080"
     environment:
-      - DB_URL=jdbc:mysql://mysql:3306/school_erp?useSSL=false&serverTimezone=UTC&createDatabaseIfNotExist=true
+      - SPRING_PROFILES_ACTIVE=ml
+      - DB_URL=jdbc:mysql://mysql:3306/school_erp?useSSL=false&serverTimezone=UTC&createDatabaseIfNotExist=true&allowPublicKeyRetrieval=true
       - DB_USERNAME=root
       - DB_PASSWORD=rootpassword
       - REDIS_HOST=redis
       - REDIS_PORT=6379
+      - REDIS_SSL=false
       - RABBITMQ_HOST=rabbitmq
       - RABBITMQ_PORT=5672
       - JWT_SECRET=c2Nob29sLWVycC1zZWNyZXQta2V5LWZvci1qd3QtdG9rZW4tZ2VuZXJhdGlvbi0yMDI2

@@ -1,4 +1,9 @@
-import type { AdminDashboardData, MarkRecord, ParentDashboardData, TeacherDashboardData } from '../models/models';
+import type { AdminDashboardData, MarkRecord, ParentDashboardActivityItem, ParentDashboardData, TeacherDashboardData } from '../models/models';
+import {
+  buildAttendanceMetricContext,
+  buildFeeMetricContext,
+  buildResultMetricContext,
+} from '../utils/parent-dashboard-metrics';
 import { MOCK_SCHOOL_CLASSES } from './academic.mock-data';
 import { MOCK_EXAMS_SEED } from './exam.mock-data';
 import { MOCK_PARENT_CHILDREN, MOCK_PARENT_SEED_FEE_PAYMENTS, mockParentMarkRows } from './parent.mock-data';
@@ -221,9 +226,40 @@ export const MOCK_ADMIN_DASHBOARD: AdminDashboardData = (() => {
   };
 })();
 
-export function buildMockParentDashboardData(fromIso: string, toIso: string): ParentDashboardData {
+/** Exported for API fallback path in {@link DashboardService} (metrics + feed stay consistent). */
+export function buildMockParentActivities(childFirstName: string, classLabel: string): ParentDashboardActivityItem[] {
+  return [
+    {
+      code: 'RESULT_PUBLISHED',
+      type: 'success',
+      timestamp: '2026-04-14T14:20:00',
+      params: { child: childFirstName },
+    },
+    {
+      code: 'ATTENDANCE_MARKED',
+      type: 'info',
+      timestamp: '2026-04-15T08:05:00',
+      params: { child: childFirstName, classLabel },
+    },
+    {
+      code: 'FEE_PAYMENT_RECORDED',
+      type: 'info',
+      timestamp: '2026-04-10T11:40:00',
+      params: { child: childFirstName },
+    },
+    {
+      code: 'ANNOUNCEMENT_POSTED',
+      type: 'warning',
+      timestamp: '2026-04-12T09:00:00',
+      params: {},
+    },
+  ];
+}
+
+export function buildMockParentDashboardData(fromIso: string, toIso: string, preferredChildId?: number): ParentDashboardData {
   const children = MOCK_PARENT_CHILDREN.map(c => ({ ...c }));
-  const selected = children[0];
+  const selected =
+    preferredChildId != null ? children.find(c => c.id === preferredChildId) ?? children[0] : children[0];
   const marks = selected ? mockParentMarkRows(selected.id, `${selected.firstName} ${selected.lastName}`).map(m => ({ ...m })) : [];
   const stats = selected
     ? (() => {
@@ -316,13 +352,18 @@ export function buildMockParentDashboardData(fromIso: string, toIso: string): Pa
     upcoming.sort((a, b) => (a.date || '').localeCompare(b.date || ''));
   }
 
+  const overallGrade = overallGradeFromMarks(marks);
+  const classLabel = selected
+    ? `${selected.className || ''}${selected.sectionName ? ' · ' + selected.sectionName : ''}`.trim()
+    : '';
+
   return {
     childCount: children.length,
     children,
     selectedChild: selected,
     selectedChildId: selected?.id,
     attendancePercentage: stats.pct,
-    overallGrade: overallGradeFromMarks(marks),
+    overallGrade,
     feeDue,
     attendanceSnapshot: {
       totalDays: stats.total,
@@ -331,6 +372,10 @@ export function buildMockParentDashboardData(fromIso: string, toIso: string): Pa
       late: stats.late,
       excused: stats.excused,
     },
+    attendanceMetric: buildAttendanceMetricContext(stats.pct),
+    resultMetric: buildResultMetricContext(overallGrade, marks),
+    feeMetric: buildFeeMetricContext(feeDue, feeRows),
+    recentActivities: selected ? buildMockParentActivities(selected.firstName, classLabel || selected.className) : [],
     alerts,
     upcoming,
     childPerformance: marks,

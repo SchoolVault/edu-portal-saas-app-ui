@@ -7,15 +7,18 @@ import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { CommunicationService, CreateAnnouncementPayload } from '../../core/services/communication.service';
 import { AuthService } from '../../core/services/auth.service';
 import { AcademicService } from '../../core/services/academic.service';
-import { Announcement, SchoolClass } from '../../core/models/models';
+import { InboxUnifiedItem, SchoolClass } from '../../core/models/models';
+import { BellReadStateService } from '../../core/services/bell-read-state.service';
+import { NotificationService } from '../../core/services/notification.service';
+import { InboxUnifiedFeedService } from '../../core/services/inbox-unified-feed.service';
+import { DEFAULT_INBOX_FILTER_STATE, InboxFilterState } from '../../core/models/inbox-filter.model';
+import { InboxFiltersPanelComponent } from './inbox-filters-panel.component';
 import { SchoolClassNamePipe } from '../../core/i18n/school-class-name.pipe';
 import { ErpPaginationComponent } from '../../shared/erp-pagination/erp-pagination.component';
 import { ErpI18nPhDirective, ErpI18nTextDirective } from '../../shared/erp-i18n/erp-i18n-host.directives';
 import { debounceTime } from 'rxjs/operators';
 import { Subject, Subscription } from 'rxjs';
-import { sliceToPage } from '../../core/utils/paginate';
 import { DEFAULT_ERP_PAGE_SIZE } from '../../core/constants/pagination.constants';
-import { runtimeConfig } from '../../core/config/runtime-config';
 
 @Component({
   selector: 'app-communication',
@@ -29,72 +32,110 @@ import { runtimeConfig } from '../../core/config/runtime-config';
     ErpPaginationComponent,
     ErpI18nPhDirective,
     ErpI18nTextDirective,
+    InboxFiltersPanelComponent,
   ],
   template: `
-    <!-- Modal outside .animate-in: transform on parent breaks position:fixed (backdrop confined to box) -->
     <div data-testid="communication-page" class="communication-page-root">
       <div class="inbox-layout animate-in">
-      <div class="inbox-header mb-4 d-flex flex-wrap justify-content-between align-items-start gap-2">
-        <div>
-          <h2 style="font-size: 24px; font-weight: 800;">{{ 'inbox.pageTitle' | translate }}</h2>
-          <p class="text-muted mb-0" style="font-size: 13px;">{{ 'inbox.lead' | translate }}</p>
-        </div>
-        <div class="d-flex gap-2 flex-wrap">
-          <button type="button" class="btn-outline-erp btn-sm" (click)="loadAnnouncements()"><i class="bi bi-arrow-clockwise"></i> {{ 'inbox.refresh' | translate }}</button>
-          <button
-            *ngIf="canPublish"
-            type="button"
-            class="btn-primary-erp btn-sm"
-            (click)="openAnnouncementModal()">
-            <i class="bi bi-plus-lg"></i> {{ 'inbox.newAnnouncement' | translate }}
-          </button>
-        </div>
-      </div>
+        <header class="erp-page-header mb-3">
+          <div>
+            <h1 class="erp-page-header__title">{{ 'inbox.pageTitle' | translate }}</h1>
+            <p class="erp-page-header__lead">{{ 'inbox.lead' | translate }}</p>
+          </div>
+          <div class="erp-page-header__actions">
+            <button type="button" class="btn-outline-erp btn-sm" (click)="refreshInbox()">
+              <i class="bi bi-arrow-clockwise" aria-hidden="true"></i> {{ 'inbox.refresh' | translate }}
+            </button>
+            <button *ngIf="canPublish" type="button" class="btn-primary-erp btn-sm" (click)="openAnnouncementModal()">
+              <i class="bi bi-plus-lg" aria-hidden="true"></i> {{ 'inbox.newAnnouncement' | translate }}
+            </button>
+          </div>
+        </header>
 
-      <div class="animate-in animate-in-delay-1">
-        <div *ngIf="annFilteredTotal === 0 && !annSearch" class="erp-card empty-inbox text-center py-5 text-muted">
-          <i class="bi bi-megaphone" style="font-size: 2rem"></i>
-          <p class="mt-2 mb-0">{{ 'inbox.empty' | translate }}</p>
-        </div>
-        <div class="row g-2 align-items-end mb-3" *ngIf="annFilteredTotal > 0 || annSearch">
-          <div class="col-md-6">
-            <label class="erp-label small mb-1" erpI18nText="inbox.searchAnnouncements"></label>
-            <input type="search" class="erp-input" erpI18nPh="inbox.searchAnnouncementsPh" [(ngModel)]="annSearch" (ngModelChange)="onAnnSearchChange()" />
+        <div class="erp-card animate-in animate-in-delay-1 inbox-card-shell">
+          <div class="d-flex justify-content-between align-items-end flex-wrap gap-2 mb-3 inbox-toolbar">
+            <div class="search-input-wrapper inbox-toolbar-search" style="flex: 1 1 220px; min-width: 200px; max-width: 520px;">
+              <i class="bi bi-search" aria-hidden="true"></i>
+              <input
+                type="search"
+                class="erp-input"
+                erpI18nPh="inbox.searchInboxPh"
+                [(ngModel)]="inboxSearch"
+                (ngModelChange)="onInboxSearchChange()"
+                [attr.data-testid]="'inbox-search-input'"
+              />
+            </div>
+            <app-inbox-filters-panel (apply)="onFiltersApply($event)" (clear)="onFiltersClear()"></app-inbox-filters-panel>
           </div>
-        </div>
-        <p *ngIf="annFilteredTotal === 0 && annSearch" class="text-muted small mb-3">{{ 'inbox.noSearchMatches' | translate }}</p>
-        <div *ngFor="let a of pagedAnnouncements" class="erp-card mb-3 inbox-card" [attr.data-testid]="'announcement-' + a.id">
-          <div class="d-flex justify-content-between align-items-start gap-2 mb-2">
-            <h3 style="font-size: 16px; font-weight: 700; margin: 0;">{{ a.title }}</h3>
-            <span class="badge-erp badge-info text-uppercase" style="font-size: 10px">{{ audienceLabel(a) }}</span>
+
+          <div *ngIf="inboxTotal === 0 && !inboxSearch && !inboxLoading && !hasActiveFilters" class="empty-inbox text-center py-5 text-muted">
+            <i class="bi bi-inboxes" style="font-size: 2rem" aria-hidden="true"></i>
+            <p class="mt-2 mb-0">{{ 'inbox.emptyUnified' | translate }}</p>
           </div>
-          <p class="announcement-preview text-muted" style="font-size: 14px; line-height: 1.6; margin-bottom: 12px;">
-            {{ previewBody(a.content) }}
+
+          <div *ngIf="inboxTotal === 0 && !inboxLoading && hasActiveFilters" class="empty-inbox text-center py-5 text-muted">
+            <i class="bi bi-funnel" style="font-size: 2rem" aria-hidden="true"></i>
+            <p class="mt-2 mb-0">{{ 'inbox.emptyFiltered' | translate }}</p>
+          </div>
+
+          <p *ngIf="inboxTotal === 0 && inboxSearch.trim() && !inboxLoading" class="text-muted small mb-3">
+            {{ 'inbox.noSearchMatches' | translate }}
           </p>
-          <div class="d-flex flex-wrap justify-content-between align-items-center gap-2" style="font-size: 12px; color: var(--clr-text-muted);">
-            <span><i class="bi bi-person me-1"></i>{{ a.author || ('inbox.authorFallback' | translate) }} <span *ngIf="a.authorRole">({{ a.authorRole }})</span></span>
-            <div class="d-flex gap-2 align-items-center">
-              <span><i class="bi bi-clock me-1"></i>{{ formatDate(a.createdAt) }}</span>
-              <a class="btn-outline-erp btn-xs" [routerLink]="['/app/announcement', a.id]">{{ 'inbox.openFullNotice' | translate }}</a>
+
+          <div *ngIf="inboxLoading" class="text-muted py-4 text-center">{{ 'inbox.loading' | translate }}</div>
+
+          <div
+            *ngFor="let row of inboxRows; trackBy: trackInboxRow"
+            class="erp-card mb-3 inbox-card inbox-row has-read-status-dot"
+            [class.is-unread]="inboxRowReadDotUnread(row)"
+            [class.is-read]="!inboxRowReadDotUnread(row)"
+            [routerLink]="inboxRowLink(row)"
+            [attr.data-testid]="inboxRowTestId(row)"
+            (click)="onInboxRowActivate(row)">
+            <div class="d-flex justify-content-between align-items-start gap-2 mb-2">
+              <h3 style="font-size: 16px; font-weight: 700; margin: 0;" class="d-flex align-items-center gap-2 flex-wrap">
+                <i
+                  *ngIf="row.kind === 'notification'"
+                  class="bi"
+                  [ngClass]="inboxNotifIcon(row.notificationType)"
+                  [style.color]="inboxNotifColor(row.notificationType)"></i>
+                <i *ngIf="row.kind === 'announcement'" class="bi bi-megaphone-fill" style="color: var(--clr-primary)"></i>
+                {{ row.title }}
+                <span *ngIf="row.kind === 'announcement'" class="badge-erp badge-info text-uppercase" style="font-size: 10px">{{
+                  audienceBadgeFromKey(row.audienceKey)
+                }}</span>
+                <span *ngIf="row.kind === 'notification'" class="badge-erp badge-neutral text-uppercase" style="font-size: 10px">{{
+                  'inbox.kindNotification' | translate
+                }}</span>
+                <span *ngIf="row.kind === 'notification' && row.read === false" class="badge-erp badge-info text-uppercase" style="font-size: 9px">{{
+                  'inbox.notifUnread' | translate
+                }}</span>
+              </h3>
+            </div>
+            <p class="announcement-preview text-muted" style="font-size: 14px; line-height: 1.6; margin-bottom: 12px;">{{ row.preview }}</p>
+            <div class="d-flex flex-wrap justify-content-between align-items-center gap-2" style="font-size: 12px; color: var(--clr-text-muted);">
+              <span *ngIf="row.authorLine"><i class="bi bi-person me-1"></i>{{ row.authorLine }}</span>
+              <span *ngIf="row.kind === 'announcement' && !row.authorLine"><i class="bi bi-person me-1"></i>{{ 'inbox.authorFallback' | translate }}</span>
+              <div class="d-flex gap-2 align-items-center">
+                <span><i class="bi bi-clock me-1"></i>{{ formatDate(row.createdAt) }}</span>
+                <span class="small text-muted">{{ 'inbox.openItem' | translate }}</span>
+              </div>
             </div>
           </div>
+
+          <app-erp-pagination
+            *ngIf="inboxTotal > 0"
+            class="d-block mt-1"
+            [totalElements]="inboxTotal"
+            [pageIndex]="inboxPageIndex"
+            [pageSize]="inboxPageSize"
+            (pageIndexChange)="onInboxPageIndex($event)"
+            (pageSizeChange)="onInboxPageSize($event)"
+          />
         </div>
-        <app-erp-pagination
-          *ngIf="annFilteredTotal > 0"
-          class="d-block"
-          [totalElements]="annFilteredTotal"
-          [pageIndex]="annPageIndex"
-          [pageSize]="annPageSize"
-          (pageIndexChange)="onAnnPageIndex($event)"
-          (pageSizeChange)="onAnnPageSize($event)"
-        />
-      </div>
       </div>
 
-      <div
-        class="modal-overlay modal-overlay-viewport"
-        *ngIf="showAnnouncementModal"
-        (click)="showAnnouncementModal = false">
+      <div class="modal-overlay modal-overlay-viewport" *ngIf="showAnnouncementModal" (click)="showAnnouncementModal = false">
         <div class="modal-content-erp modal-wide" (click)="$event.stopPropagation()">
           <div class="modal-header-erp">
             <h3>{{ 'inbox.modalTitle' | translate }}</h3>
@@ -144,26 +185,65 @@ import { runtimeConfig } from '../../core/config/runtime-config';
   `,
   styles: [
     `
-      :host { display: block; }
-      .communication-page-root { position: relative; }
-      .inbox-layout { max-width: 1100px; margin: 0 auto; }
-      .inbox-header { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; }
-      .stat-pill { display: inline-flex; align-items: center; padding: 8px 14px; border-radius: 999px; }
-      .inbox-card { border-radius: 12px; }
-      .announcement-preview { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
-      .modal-wide { max-width: 520px; width: 100%; }
-    `
-  ]
+      :host {
+        display: block;
+      }
+      .communication-page-root {
+        position: relative;
+      }
+      .inbox-layout {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 0 4px;
+      }
+      @media (min-width: 576px) {
+        .inbox-layout {
+          padding: 0 8px;
+        }
+      }
+      .inbox-card-shell {
+        padding: 16px 18px 20px;
+      }
+      .inbox-toolbar {
+        gap: 10px !important;
+      }
+      .inbox-toolbar-search input {
+        width: 100%;
+      }
+      .inbox-card {
+        border-radius: 12px;
+      }
+      .announcement-preview {
+        display: -webkit-box;
+        -webkit-line-clamp: 3;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+      }
+      .modal-wide {
+        max-width: 520px;
+        width: 100%;
+      }
+      .inbox-row {
+        cursor: pointer;
+        color: inherit;
+        text-decoration: none;
+        display: block;
+      }
+      .inbox-row:hover {
+        box-shadow: 0 4px 18px rgba(0, 0, 0, 0.06);
+      }
+    `,
+  ],
 })
 export class CommunicationComponent implements OnInit {
-  readonly useServerPaging = !runtimeConfig.useMocks;
+  inboxRows: InboxUnifiedItem[] = [];
+  inboxTotal = 0;
+  inboxPageIndex = 0;
+  inboxPageSize = DEFAULT_ERP_PAGE_SIZE;
+  inboxLoading = false;
+  inboxSearch = '';
+  appliedFilters: InboxFilterState = cloneInboxFilters(DEFAULT_INBOX_FILTER_STATE);
 
-  announcements: Announcement[] = [];
-  annSearch = '';
-  annPageIndex = 0;
-  annPageSize = DEFAULT_ERP_PAGE_SIZE;
-  pagedAnnouncements: Announcement[] = [];
-  annFilteredTotal = 0;
   showAnnouncementModal = false;
   annClasses: SchoolClass[] = [];
   annSections: { id: number; name: string }[] = [];
@@ -172,20 +252,23 @@ export class CommunicationComponent implements OnInit {
   annForm: CreateAnnouncementPayload = {
     title: '',
     content: '',
-    targetAudience: 'ALL'
+    targetAudience: 'ALL',
   };
 
   private readonly translate = inject(TranslateService);
   private readonly cdr = inject(ChangeDetectorRef);
   private readonly destroyRef = inject(DestroyRef);
-  private readonly annSearch$ = new Subject<void>();
+  private readonly bellRead = inject(BellReadStateService);
+  private readonly inboxSearch$ = new Subject<void>();
   private readonly subs = new Subscription();
-  private annReqSeq = 0;
+  private inboxReqSeq = 0;
 
   constructor(
     private comm: CommunicationService,
     private auth: AuthService,
-    private academic: AcademicService
+    private academic: AcademicService,
+    private notificationService: NotificationService,
+    private inboxFeed: InboxUnifiedFeedService
   ) {}
 
   get canPublish(): boolean {
@@ -193,115 +276,121 @@ export class CommunicationComponent implements OnInit {
     return r === 'admin' || r === 'teacher';
   }
 
+  get hasActiveFilters(): boolean {
+    return (
+      this.appliedFilters.feedKind !== 'ALL' ||
+      this.appliedFilters.audienceTokens.length > 0 ||
+      !!this.appliedFilters.yearMonth?.trim()
+    );
+  }
+
+  onFiltersApply(state: InboxFilterState): void {
+    this.appliedFilters = cloneInboxFilters(state);
+    this.inboxPageIndex = 0;
+    this.fetchInboxPage();
+  }
+
+  onFiltersClear(): void {
+    this.appliedFilters = cloneInboxFilters(DEFAULT_INBOX_FILTER_STATE);
+    this.inboxPageIndex = 0;
+    this.fetchInboxPage();
+  }
+
   ngOnInit(): void {
     this.translate.onLangChange.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => this.cdr.markForCheck());
+    this.bellRead.changed$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => this.cdr.markForCheck());
     this.subs.add(
-      this.annSearch$.pipe(debounceTime(300)).subscribe(() => {
-        if (!this.useServerPaging) return;
-        this.annPageIndex = 0;
-        this.fetchAnnPage();
+      this.inboxSearch$.pipe(debounceTime(300)).subscribe(() => {
+        this.inboxPageIndex = 0;
+        this.fetchInboxPage();
       })
     );
     this.destroyRef.onDestroy(() => this.subs.unsubscribe());
-    this.loadAnnouncements();
+    this.refreshInbox();
     this.academic.getClasses().subscribe(list => (this.annClasses = list || []));
   }
 
-  loadAnnouncements(): void {
-    if (this.useServerPaging) {
-      this.annPageIndex = 0;
-      this.fetchAnnPage();
+  refreshInbox(): void {
+    this.inboxPageIndex = 0;
+    this.fetchInboxPage();
+  }
+
+  trackInboxRow(_index: number, row: InboxUnifiedItem): string {
+    return `${row.kind}-${row.id}`;
+  }
+
+  inboxRowLink(row: InboxUnifiedItem): string[] {
+    return row.kind === 'announcement' ? ['/app/announcement', row.id] : ['/app/notifications', row.id];
+  }
+
+  inboxRowTestId(row: InboxUnifiedItem): string {
+    return `inbox-row-${row.kind}-${row.id}`;
+  }
+
+  onInboxRowActivate(row: InboxUnifiedItem): void {
+    if (row.kind === 'announcement') {
+      this.bellRead.markAnnouncementRead(row.id);
       return;
     }
-    this.comm.getAnnouncements().subscribe(list => {
-      this.announcements = (list || []).map(a => this.normalizeAnnouncement(a));
-      this.annPageIndex = 0;
-      this.applyAnnPaging();
-    });
+    this.notificationService.markAsRead(row.id);
   }
 
-  private fetchAnnPage(): void {
-    const seq = ++this.annReqSeq;
-    this.comm
-      .getAnnouncementsPage({
-        page: this.annPageIndex,
-        size: this.annPageSize,
-        q: this.annSearch.trim() || undefined,
-      })
-      .subscribe(p => {
-        if (seq !== this.annReqSeq) return;
-        this.pagedAnnouncements = p.content;
-        this.annFilteredTotal = p.totalElements;
-        this.annPageIndex = p.page;
-        this.annPageSize = p.size;
-        this.cdr.markForCheck();
-      });
-  }
-
-  private filterAnnouncements(): Announcement[] {
-    const q = this.annSearch.trim().toLowerCase();
-    if (!q) {
-      return this.announcements;
+  /** Unread = announcement not in local read set, or notification with {@code read === false}. */
+  inboxRowReadDotUnread(row: InboxUnifiedItem): boolean {
+    if (row.kind === 'announcement') {
+      return this.bellRead.isAnnouncementUnread(row.id);
     }
-    return this.announcements.filter(
-      a =>
-        a.title.toLowerCase().includes(q) ||
-        (a.content || '').toLowerCase().includes(q) ||
-        (a.author || '').toLowerCase().includes(q)
-    );
+    return row.read === false;
   }
 
-  applyAnnPaging(): void {
-    const pg = sliceToPage(this.filterAnnouncements(), this.annPageIndex, this.annPageSize);
-    this.pagedAnnouncements = pg.content;
-    this.annPageIndex = pg.page;
-    this.annFilteredTotal = pg.totalElements;
-  }
-
-  onAnnSearchChange(): void {
-    if (this.useServerPaging) {
-      this.annSearch$.next();
-    } else {
-      this.annPageIndex = 0;
-      this.applyAnnPaging();
-    }
-  }
-
-  onAnnPageIndex(i: number): void {
-    this.annPageIndex = i;
-    if (this.useServerPaging) this.fetchAnnPage();
-    else this.applyAnnPaging();
-  }
-
-  onAnnPageSize(s: number): void {
-    this.annPageSize = s;
-    this.annPageIndex = 0;
-    if (this.useServerPaging) this.fetchAnnPage();
-    else this.applyAnnPaging();
-  }
-
-  private normalizeAnnouncement(a: any): Announcement {
-    return {
-      id: String(a.id ?? ''),
-      title: a.title ?? '',
-      content: a.content ?? '',
-      author: a.author ?? '',
-      authorRole: a.authorRole ?? '',
-      targetAudience: (a.targetAudience ?? 'ALL').toString().toLowerCase(),
-      createdAt: a.createdAt ?? a.created_at ?? new Date().toISOString(),
-      tenantId: String(a.tenantId ?? a.tenant_id ?? '')
+  inboxNotifIcon(type: string | undefined): string {
+    const icons: Record<string, string> = {
+      info: 'bi-info-circle-fill',
+      warning: 'bi-exclamation-triangle-fill',
+      success: 'bi-check-circle-fill',
+      error: 'bi-x-circle-fill',
     };
+    return icons[type || 'info'] || 'bi-info-circle-fill';
   }
 
-  previewBody(content: string): string {
-    if (!content) return '';
-    const t = content.replace(/\s+/g, ' ').trim();
-    return t.length > 220 ? t.slice(0, 217) + '…' : t;
+  inboxNotifColor(type: string | undefined): string {
+    const colors: Record<string, string> = {
+      info: 'var(--clr-info)',
+      warning: 'var(--clr-warning)',
+      success: 'var(--clr-success)',
+      error: 'var(--clr-danger)',
+    };
+    return colors[type || 'info'] || 'var(--clr-info)';
+  }
+
+  audienceBadgeFromKey(key: string | undefined): string {
+    if (!key) {
+      return '';
+    }
+    const v = key.toUpperCase();
+    const trKey = `inbox.badge${v}`;
+    const t = this.translate.instant(trKey);
+    return t !== trKey ? t : v;
+  }
+
+  onInboxSearchChange(): void {
+    this.inboxSearch$.next();
+  }
+
+  onInboxPageIndex(i: number): void {
+    this.inboxPageIndex = i;
+    this.fetchInboxPage();
+  }
+
+  onInboxPageSize(s: number): void {
+    this.inboxPageSize = s;
+    this.inboxPageIndex = 0;
+    this.fetchInboxPage();
   }
 
   onAnnClassChange(): void {
     const cls = this.annClasses.find(c => c.id === this.annSelectedClassId);
-    this.annSections = cls ? cls.sections.map(s => ({ id: s.id, name: s.name })) : [];
+    this.annSections = cls ? cls.sections.map(se => ({ id: se.id, name: se.name })) : [];
     this.annSelectedSectionId = null;
   }
 
@@ -309,7 +398,7 @@ export class CommunicationComponent implements OnInit {
     this.annForm = {
       title: '',
       content: '',
-      targetAudience: 'ALL'
+      targetAudience: 'ALL',
     };
     this.annSelectedClassId = null;
     this.annSelectedSectionId = null;
@@ -331,28 +420,64 @@ export class CommunicationComponent implements OnInit {
       content: this.annForm.content,
       targetAudience: this.annForm.targetAudience,
       targetClassId,
-      targetSectionId
+      targetSectionId,
     };
     this.comm.createAnnouncement(payload).subscribe(() => {
       this.showAnnouncementModal = false;
-      this.loadAnnouncements();
+      this.refreshInbox();
     });
   }
 
-  audienceLabel(a: Announcement): string {
-    const v = (a.targetAudience || 'all').toUpperCase();
-    const key = `inbox.badge${v}`;
-    const t = this.translate.instant(key);
-    return t !== key ? t : v;
-  }
-
   formatDate(dateStr: string): string {
-    if (!dateStr) return '';
+    if (!dateStr) {
+      return '';
+    }
     const lang = this.translate.currentLang || 'en';
     return new Date(dateStr).toLocaleDateString(lang === 'hi' ? 'hi-IN' : 'en-IN', {
       month: 'short',
       day: 'numeric',
-      year: 'numeric'
+      year: 'numeric',
     });
   }
+
+  private fetchInboxPage(): void {
+    const seq = ++this.inboxReqSeq;
+    this.inboxLoading = true;
+    this.inboxFeed
+      .getPage({
+        page: this.inboxPageIndex,
+        size: this.inboxPageSize,
+        q: this.inboxSearch.trim() || undefined,
+        filters: cloneInboxFilters(this.appliedFilters),
+      })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: p => {
+          if (seq !== this.inboxReqSeq) {
+            return;
+          }
+          this.inboxRows = p.content;
+          this.inboxTotal = p.totalElements;
+          this.inboxLoading = false;
+          this.cdr.markForCheck();
+        },
+        error: () => {
+          if (seq !== this.inboxReqSeq) {
+            return;
+          }
+          this.inboxRows = [];
+          this.inboxTotal = 0;
+          this.inboxLoading = false;
+          this.cdr.markForCheck();
+        },
+      });
+  }
+}
+
+function cloneInboxFilters(f: InboxFilterState): InboxFilterState {
+  return {
+    feedKind: f.feedKind,
+    audienceTokens: [...f.audienceTokens],
+    yearMonth: f.yearMonth ?? '',
+  };
 }

@@ -1,0 +1,47 @@
+# REL (release / QA sign-off) — same shape as prod: full Redis + Rabbit + strict security flags.
+# Render / K8s: set SPRING_PROFILES_ACTIVE=rel (or rel-with-demo-seed for one-time demo seed).
+# One-time demo tenant: SPRING_PROFILES_ACTIVE=rel,demo-seed (demo-seed last) or profile group rel-with-demo-seed.
+app:
+  demo-seed:
+    enabled: false
+  security:
+    permit-swagger-anonymous: ${APP_SECURITY_PERMIT_SWAGGER_ANONYMOUS:false}
+    permit-actuator-anonymous: ${APP_SECURITY_PERMIT_ACTUATOR_ANONYMOUS:false}
+    websocket-allowed-origins: ${APP_WEBSOCKET_ALLOWED_ORIGINS:}
+
+spring:
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+    hikari:
+      maximum-pool-size: 30
+      minimum-idle: 10
+
+  jpa:
+    show-sql: false
+
+  cache:
+    redis:
+      key-prefix: ${CACHE_REDIS_KEY_PREFIX:sv::}
+
+  data:
+    redis:
+      # Prefer env SPRING_DATA_REDIS_URL=rediss://... (Aiven). Host/password below are fallbacks when URL is unset.
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      username: ${REDIS_USERNAME:}
+      password: ${REDIS_PASSWORD:}
+      ssl:
+        enabled: ${REDIS_SSL:true}
+
+  flyway:
+    clean-disabled: true
+
+logging:
+  # Override any of these in Render: LOG_LEVEL_ROOT, LOG_LEVEL_APP, LOG_LEVEL_APP_HTTP, etc. (see application.yml).
+  level:
+    root: ${LOG_LEVEL_ROOT:INFO}
+    com.school.erp: ${LOG_LEVEL_APP:INFO}
+    com.school.erp.common.logging: ${LOG_LEVEL_APP_HTTP:INFO}
+    org.hibernate.SQL: ${LOG_LEVEL_HIBERNATE_SQL:WARN}

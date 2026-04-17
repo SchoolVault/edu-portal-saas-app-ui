@@ -11,6 +11,17 @@ import { runtimeConfig } from '../config/runtime-config';
 import { ApiService, PageResp } from './api.service';
 import { DEFAULT_ERP_PAGE_SIZE } from '../constants/pagination.constants';
 import { sliceToPage } from '../utils/paginate';
+
+const DEFAULT_MOCK_TENANT_FEATURES: Record<string, boolean> = {
+  chat: true,
+  transport: true,
+  hostel: true,
+  library: true,
+  audit: true,
+  operationsHub: true,
+  importExport: true,
+  directory: true,
+};
 import {
   PlatformBroadcastResult,
   PlatformDashboardData,
@@ -29,6 +40,7 @@ export class PlatformService {
   private mockPurgeJobs: Record<string, PlatformPurgeJob[]> = {};
   private purgeJobSeq = 1;
   private mockPlans: PlatformSubscriptionPlan[];
+  private readonly mockTenantFeatures: Record<string, Record<string, boolean>> = {};
 
   constructor(private api: ApiService) {
     this.mockSchools = MOCK_PLATFORM_SCHOOLS_SEED.map(s => ({ ...s }));
@@ -40,6 +52,31 @@ export class PlatformService {
       highlights: [...p.highlights],
       modules: [...(p.modules || [])],
     }));
+    for (const s of this.mockSchools) {
+      this.mockTenantFeatures[s.tenantId] = { ...DEFAULT_MOCK_TENANT_FEATURES };
+    }
+  }
+
+  /** Super-admin: read merged tenant feature flags (same contract as GET /platform/schools/{tenantId}/features). */
+  getSchoolTenantFeatures(tenantId: string): Observable<Record<string, boolean>> {
+    if (!runtimeConfig.useMocks) {
+      return this.api.get<Record<string, boolean>>(`/platform/schools/${encodeURIComponent(tenantId)}/features`);
+    }
+    return of({ ...(this.mockTenantFeatures[tenantId] ?? { ...DEFAULT_MOCK_TENANT_FEATURES }) }).pipe(delay(100));
+  }
+
+  /** Super-admin: merge feature flags for one school workspace. */
+  patchSchoolTenantFeatures(tenantId: string, patch: Record<string, boolean>): Observable<Record<string, boolean>> {
+    if (!runtimeConfig.useMocks) {
+      return this.api.put<Record<string, boolean>>(
+        `/platform/schools/${encodeURIComponent(tenantId)}/features`,
+        patch
+      );
+    }
+    const prev = { ...(this.mockTenantFeatures[tenantId] ?? { ...DEFAULT_MOCK_TENANT_FEATURES }) };
+    const merged = { ...prev, ...patch };
+    this.mockTenantFeatures[tenantId] = merged;
+    return of({ ...merged }).pipe(delay(150));
   }
 
   getDashboard(): Observable<PlatformDashboardData> {

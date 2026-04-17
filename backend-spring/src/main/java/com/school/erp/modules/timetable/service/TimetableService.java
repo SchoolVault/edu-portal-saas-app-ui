@@ -1,8 +1,10 @@
 package com.school.erp.modules.timetable.service;
 
 import com.school.erp.common.enums.Enums;
+import com.school.erp.common.exception.ApiErrorCode;
 import com.school.erp.common.exception.BusinessException;
 import com.school.erp.common.exception.ResourceNotFoundException;
+import com.school.erp.common.exception.SchedulingConflictException;
 import com.school.erp.modules.academic.entity.SchoolClass;
 import com.school.erp.modules.academic.entity.Section;
 import com.school.erp.modules.academic.repository.SchoolClassRepository;
@@ -14,8 +16,16 @@ import com.school.erp.modules.teacher.repository.TeacherRepository;
 import com.school.erp.modules.timetable.dto.TeacherScheduleSlot;
 import com.school.erp.modules.timetable.dto.TimetableDTOs;
 import com.school.erp.modules.timetable.entity.TimetableEntry;
+import com.school.erp.modules.timetable.policy.TimetableSlotConflictResolver;
+import com.school.erp.modules.timetable.policy.TimetableSlotConflictResolver.Conflict;
 import com.school.erp.modules.timetable.repository.TimetableRepository;
 import com.school.erp.tenant.TenantContext;
+import com.school.erp.cache.CacheService;
+import com.school.erp.cache.CacheService.CacheRegion;
+import com.school.erp.config.CacheConfig;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -34,7 +44,10 @@ public class TimetableService {
     private final SchoolClassRepository schoolClassRepository;
     private final SectionRepository sectionRepository;
     private final TeacherRepository teacherRepository;
+    private final TimetableService self;
+    private final ObjectProvider<CacheService> cacheService;
 
+    @Cacheable(cacheNames = CacheConfig.TIMETABLE_GRID, keyGenerator = "tenantMethodParamsSchoolKeyGenerator", unless = "#result == null")
     @Transactional(readOnly = true)
     public List<TimetableEntry> getByClassAndSection(Long classId, Long sectionId) {
         String t = TenantContext.getTenantId();
@@ -44,6 +57,7 @@ public class TimetableService {
         return list;
     }
 
+    @Cacheable(cacheNames = CacheConfig.TIMETABLE_GRID, keyGenerator = "tenantMethodParamsSchoolKeyGenerator", unless = "#result == null")
     @Transactional(readOnly = true)
     public List<TimetableEntry> getByTeacher(Long teacherId) {
         String t = TenantContext.getTenantId();
@@ -60,11 +74,11 @@ public class TimetableService {
     @Transactional(readOnly = true)
     public List<TeacherScheduleSlot> getTeacherSchedule(Long teacherId, LocalDate forDate) {
         if (forDate == null) {
-            return getByTeacher(teacherId).stream().map(this::toRecurringSlot).collect(Collectors.toList());
+            return self.getByTeacher(teacherId).stream().map(this::toRecurringSlot).collect(Collectors.toList());
         }
         String tenantId = TenantContext.getTenantId();
         Enums.DayOfWeek dow = Enums.DayOfWeek.valueOf(forDate.getDayOfWeek().name());
-        List<TeacherScheduleSlot> recurring = getByTeacher(teacherId).stream().map(this::toRecurringSlot).collect(Collectors.toList());
+        List<TeacherScheduleSlot> recurring = self.getByTeacher(teacherId).stream().map(this::toRecurringSlot).collect(Collectors.toList());
 
         String coveringName = teacherRepository.findByIdAndTenantIdAndIsDeletedFalse(teacherId, tenantId)
                 .map(te -> (te.getFirstName() + " " + te.getLastName()).trim())
@@ -196,7 +210,7 @@ public class TimetableService {
     @Transactional(readOnly = true)
     public TimetableDTOs.TimetableGridResponse getGrid(Long classId, Long sectionId) {
         log.debug("Building timetable grid classId={} sectionId={}", classId, sectionId);
-        List<TimetableEntry> entries = getByClassAndSection(classId, sectionId);
+        List<TimetableEntry> entries = self.getByClassAndSection(classId, sectionId);
         List<String> days = entries.stream().map(e -> e.getDay().name()).distinct()
                 .sorted(Comparator.comparingInt(d -> DEFAULT_DAYS.indexOf(d) >= 0 ? DEFAULT_DAYS.indexOf(d) : 99))
                 .collect(Collectors.toList());
@@ -230,27 +244,19 @@ public class TimetableService {
         return TimetableDTOs.TimetableGridResponse.builder().classId(classId).sectionId(sectionId).days(days).periods(periods).grid(grid).build();
     }
 
+    /**
+     * Creates a recurring timetable slot. When {@code replaceTimetableEntryId} matches the blocking row returned in a
+     * prior 409, that row is soft-deleted first (explicit replace — same contract as attendance cover replace).
+     */
     @Transactional
-    public TimetableEntry createEntry(TimetableEntry entry) {
+    public TimetableEntry createEntry(TimetableEntry entry, Long replaceTimetableEntryId) {
         String t = TenantContext.getTenantId();
-        log.info("Creating timetable slot classId={} day={} period={}", entry.getClassId(), entry.getDay(), entry.getPeriod());
-        List<TimetableEntry> existing = repo.findForTenantClassAndOptionalSection(t, entry.getClassId(), entry.getSectionId());
-        boolean conflict = existing.stream().anyMatch(e -> e.getDay() == entry.getDay() && e.getPeriod().equals(entry.getPeriod()));
-        if (conflict) {
-            log.warn("Timetable slot conflict classId={} day={} period={}", entry.getClassId(), entry.getDay(), entry.getPeriod());
-            throw new BusinessException("Timetable conflict: " + entry.getDay() + " period " + entry.getPeriod() + " already assigned");
-        }
-        if (entry.getTeacherId() != null) {
-            List<TimetableEntry> teacherSchedule = repo.findByTenantIdAndTeacherIdAndIsDeletedFalse(t, entry.getTeacherId());
-            boolean teacherConflict = teacherSchedule.stream().anyMatch(e -> e.getDay() == entry.getDay() && e.getPeriod().equals(entry.getPeriod()));
-            if (teacherConflict) {
-                log.warn("Teacher double-booking teacherId={} day={} period={}", entry.getTeacherId(), entry.getDay(), entry.getPeriod());
-                throw new BusinessException("Teacher conflict: already assigned for " + entry.getDay() + " period " + entry.getPeriod());
-            }
-        }
+        log.info("Creating timetable slot classId={} day={} period={} replaceId={}", entry.getClassId(), entry.getDay(), entry.getPeriod(), replaceTimetableEntryId);
+        assertNoTimetableConflictOrReplace(t, entry, null, replaceTimetableEntryId);
         entry.setTenantId(t);
         TimetableEntry saved = repo.save(entry);
         log.info("Timetable entry created id={}", saved.getId());
+        evictTimetableEntryCaches(saved, null);
         return saved;
     }
 
@@ -259,8 +265,14 @@ public class TimetableService {
         String t = TenantContext.getTenantId();
         log.info("Batch creating timetable rows count={}", entries.size());
         entries.forEach(e -> e.setTenantId(t));
+        for (TimetableEntry e : entries) {
+            assertNoTimetableConflictOrReplace(t, e, null, null);
+        }
         List<TimetableEntry> saved = repo.saveAll(entries);
         log.info("Batch timetable save completed count={}", saved.size());
+        for (TimetableEntry e : saved) {
+            evictTimetableEntryCaches(e, null);
+        }
         return saved;
     }
 
@@ -269,24 +281,143 @@ public class TimetableService {
         String t = TenantContext.getTenantId();
         log.info("Soft-deleting timetable entry id={}", id);
         TimetableEntry e = repo.findByIdAndTenantIdAndIsDeletedFalse(id, t).orElseThrow(() -> new ResourceNotFoundException("TimetableEntry", id));
+        evictTimetableEntryCaches(e, null);
         e.setIsDeleted(true);
         repo.save(e);
     }
 
     @Transactional
-    public TimetableEntry updateEntry(Long id, TimetableEntry update) {
+    public TimetableEntry updateEntry(Long id, TimetableEntry update, Long replaceTimetableEntryId) {
         String t = TenantContext.getTenantId();
-        log.info("Updating timetable entry id={}", id);
+        log.info("Updating timetable entry id={} replaceId={}", id, replaceTimetableEntryId);
         TimetableEntry entry = repo.findByIdAndTenantIdAndIsDeletedFalse(id, t).orElseThrow(() -> new ResourceNotFoundException("TimetableEntry", id));
+        TimetableEntry before = snapshotEntry(entry);
         if (update.getSubjectName() != null) entry.setSubjectName(update.getSubjectName());
         if (update.getTeacherId() != null) entry.setTeacherId(update.getTeacherId());
         if (update.getTeacherName() != null) entry.setTeacherName(update.getTeacherName());
         if (update.getRoom() != null) entry.setRoom(update.getRoom());
         if (update.getStartTime() != null) entry.setStartTime(update.getStartTime());
         if (update.getEndTime() != null) entry.setEndTime(update.getEndTime());
+        assertNoTimetableConflictOrReplace(t, entry, id, replaceTimetableEntryId);
         TimetableEntry saved = repo.save(entry);
         log.info("Timetable entry updated id={}", id);
+        evictTimetableEntryCaches(saved, before);
         return saved;
+    }
+
+    /**
+     * Loads current rows for the candidate class/section and teacher, applies {@link TimetableSlotConflictResolver},
+     * and either throws {@link SchedulingConflictException} (409 + payload) or soft-deletes the confirmed blocking row.
+     */
+    private void assertNoTimetableConflictOrReplace(
+            String tenantId, TimetableEntry candidate, Long excludeEntryId, Long replaceTimetableEntryId) {
+        List<TimetableEntry> classRows = repo.findForTenantClassAndOptionalSection(tenantId, candidate.getClassId(), candidate.getSectionId());
+        List<TimetableEntry> teacherRows = candidate.getTeacherId() != null
+                ? repo.findByTenantIdAndTeacherIdAndIsDeletedFalse(tenantId, candidate.getTeacherId())
+                : List.of();
+
+        Optional<Conflict> conflict = TimetableSlotConflictResolver.resolve(
+                classRows,
+                teacherRows,
+                candidate.getDay(),
+                candidate.getPeriod(),
+                candidate.getTeacherId(),
+                excludeEntryId);
+
+        if (replaceTimetableEntryId != null) {
+            if (conflict.isEmpty()) {
+                throw new BusinessException("No timetable conflict to replace — refresh the schedule and try again.");
+            }
+            if (!replaceTimetableEntryId.equals(conflict.get().blockingEntry().getId())) {
+                throw new BusinessException("Replace id does not match the conflicting timetable row.");
+            }
+            softDeleteBlockingEntry(tenantId, replaceTimetableEntryId);
+            Optional<Conflict> again = TimetableSlotConflictResolver.resolve(
+                    repo.findForTenantClassAndOptionalSection(tenantId, candidate.getClassId(), candidate.getSectionId()),
+                    candidate.getTeacherId() != null
+                            ? repo.findByTenantIdAndTeacherIdAndIsDeletedFalse(tenantId, candidate.getTeacherId())
+                            : List.of(),
+                    candidate.getDay(),
+                    candidate.getPeriod(),
+                    candidate.getTeacherId(),
+                    excludeEntryId);
+            if (again.isPresent()) {
+                throw new BusinessException("After removing the selected slot, another conflict still exists. Refresh and review the grid.");
+            }
+            return;
+        }
+
+        if (conflict.isPresent()) {
+            Conflict c = conflict.get();
+            log.warn("Timetable conflict kind={} blockingId={}", c.kind(), c.blockingEntry().getId());
+            throw new SchedulingConflictException(
+                    humanTimetableConflictMessage(c.kind()),
+                    ApiErrorCode.TIMETABLE_SLOT_CONFLICT,
+                    buildTimetableConflictPayload(c));
+        }
+    }
+
+    private static String humanTimetableConflictMessage(TimetableSlotConflictResolver.Kind kind) {
+        if (kind == TimetableSlotConflictResolver.Kind.CLASS_PERIOD_OCCUPIED) {
+            return "This class already has a subject scheduled for that weekday and period.";
+        }
+        return "This teacher is already scheduled in another class for that weekday and period.";
+    }
+
+    private void softDeleteBlockingEntry(String tenantId, Long id) {
+        TimetableEntry victim = repo.findByIdAndTenantIdAndIsDeletedFalse(id, tenantId)
+                .orElseThrow(() -> new BusinessException("The timetable row to remove is no longer available."));
+        evictTimetableEntryCaches(victim, null);
+        victim.setIsDeleted(true);
+        repo.save(victim);
+    }
+
+    private static TimetableDTOs.TimetableConflictPayload buildTimetableConflictPayload(Conflict c) {
+        TimetableEntry b = c.blockingEntry();
+        TimetableDTOs.TimetableConflictPayload p = new TimetableDTOs.TimetableConflictPayload();
+        p.setConflictType(c.kind().name());
+        p.setExistingEntryId(b.getId());
+        p.setDay(b.getDay() != null ? b.getDay().name() : null);
+        p.setPeriod(b.getPeriod());
+        p.setSubjectName(b.getSubjectName());
+        p.setTeacherName(b.getTeacherName());
+        p.setClassId(b.getClassId());
+        p.setSectionId(b.getSectionId());
+        if (c.kind() == TimetableSlotConflictResolver.Kind.TEACHER_DOUBLE_BOOKED) {
+            p.setConflictingClassId(b.getClassId());
+            p.setConflictingSectionId(b.getSectionId());
+        }
+        return p;
+    }
+
+    private static TimetableEntry snapshotEntry(TimetableEntry entry) {
+        TimetableEntry s = new TimetableEntry();
+        s.setClassId(entry.getClassId());
+        s.setSectionId(entry.getSectionId());
+        s.setTeacherId(entry.getTeacherId());
+        return s;
+    }
+
+    private void evictTimetableEntryCaches(TimetableEntry current, TimetableEntry beforeOrNull) {
+        cacheService.ifAvailable(cs -> {
+            String tid = TenantContext.getTenantId();
+            if (tid == null || tid.isBlank()) {
+                tid = "_no_tenant_";
+            }
+            evictOne(cs, tid, current);
+            if (beforeOrNull != null) {
+                evictOne(cs, tid, beforeOrNull);
+            }
+        });
+    }
+
+    private static void evictOne(CacheService cs, String tid, TimetableEntry e) {
+        Long classId = e.getClassId();
+        Long sectionId = e.getSectionId();
+        cs.evict(CacheRegion.TIMETABLE_GRID, tid + ":getByClassAndSection:" + classId + ":" + (sectionId == null ? "_" : sectionId));
+        if (e.getTeacherId() != null) {
+            cs.evict(CacheRegion.TIMETABLE_GRID, tid + ":getByTeacher:" + e.getTeacherId());
+        }
     }
 
     public TimetableService(
@@ -294,11 +425,15 @@ public class TimetableService {
             AttendanceCoverAssignmentRepository coverRepo,
             SchoolClassRepository schoolClassRepository,
             SectionRepository sectionRepository,
-            TeacherRepository teacherRepository) {
+            TeacherRepository teacherRepository,
+            @Lazy TimetableService self,
+            ObjectProvider<CacheService> cacheService) {
         this.repo = repo;
         this.coverRepo = coverRepo;
         this.schoolClassRepository = schoolClassRepository;
         this.sectionRepository = sectionRepository;
         this.teacherRepository = teacherRepository;
+        this.self = self;
+        this.cacheService = cacheService;
     }
 }

@@ -32,6 +32,8 @@ public class AnnouncementDTOs {
         private String title;
         private String preview;
         private String createdAt;
+        /** {@link com.school.erp.common.enums.Enums.TargetAudience} name — drives shell split (school-wide vs personal). */
+        private String targetAudience;
 
         public Long getId() {
             return id;
@@ -63,6 +65,14 @@ public class AnnouncementDTOs {
 
         public void setCreatedAt(String createdAt) {
             this.createdAt = createdAt;
+        }
+
+        public String getTargetAudience() {
+            return targetAudience;
+        }
+
+        public void setTargetAudience(String targetAudience) {
+            this.targetAudience = targetAudience;
         }
     }
 }

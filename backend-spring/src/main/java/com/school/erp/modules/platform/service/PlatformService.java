@@ -10,6 +10,7 @@ import com.school.erp.modules.notification.entity.Notification;
 import com.school.erp.modules.notification.repository.NotificationRepository;
 import com.school.erp.modules.platform.dto.PlatformDTOs;
 import com.school.erp.modules.platform.entity.PlatformTenantPurgeJob;
+import com.school.erp.modules.messaging.OutboundNotificationFanout;
 import com.school.erp.modules.platform.repository.PlatformTenantPurgeJobRepository;
 import com.school.erp.modules.settings.entity.TenantConfig;
 import com.school.erp.modules.settings.repository.TenantConfigRepository;
@@ -53,6 +54,7 @@ public class PlatformService {
     private final PlatformTenantPurgeJobRepository purgeJobRepository;
     private final TenantPurgeJobProcessor tenantPurgeJobProcessor;
     private final NotificationRepository notificationRepository;
+    private final OutboundNotificationFanout outboundNotificationFanout;
 
     /** Mutable in-process catalog (replace with persistence + audit when billing service is integrated). */
     private final List<PlatformDTOs.SubscriptionPlanRow> subscriptionPlanCatalog = new CopyOnWriteArrayList<>();
@@ -404,6 +406,13 @@ public class PlatformService {
             }
         }
         log.info("Platform broadcast done notificationsCreated={} workspacesTouched={}", rows, targets.size());
+        outboundNotificationFanout.publishAfterBroadcast(
+                "PLATFORM_BROADCAST",
+                targets.stream().map(TenantConfig::getTenantId).toList(),
+                request.getTitle(),
+                request.getMessage(),
+                rows
+        );
         return new PlatformDTOs.PlatformBroadcastResult(rows, targets.size());
     }
 
@@ -537,7 +546,8 @@ public class PlatformService {
             TeacherRepository teacherRepository,
             PlatformTenantPurgeJobRepository purgeJobRepository,
             TenantPurgeJobProcessor tenantPurgeJobProcessor,
-            NotificationRepository notificationRepository
+            NotificationRepository notificationRepository,
+            OutboundNotificationFanout outboundNotificationFanout
     ) {
         this.tenantConfigRepository = tenantConfigRepository;
         this.userRepository = userRepository;
@@ -546,5 +556,6 @@ public class PlatformService {
         this.purgeJobRepository = purgeJobRepository;
         this.tenantPurgeJobProcessor = tenantPurgeJobProcessor;
         this.notificationRepository = notificationRepository;
+        this.outboundNotificationFanout = outboundNotificationFanout;
     }
 }

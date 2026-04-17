@@ -37,6 +37,18 @@ export interface LoginResponse {
   user: User;
 }
 
+export interface PasswordResetRequest {
+  phone: string;
+  schoolCode: string;
+  verificationToken: string;
+  newPassword: string;
+}
+
+export interface PasswordResetResponse {
+  success: boolean;
+  message: string;
+}
+
 /** Same shape as Spring {@code AuthDTOs.TokenResponse} (refresh endpoint). */
 export interface TokenResponse {
   token: string;
@@ -226,6 +238,22 @@ export interface TimetableEntry {
   scheduleSource?: 'RECURRING' | 'COVER';
   /** ISO date when this row is a cover overlay */
   coverForDate?: string;
+}
+
+export type TimetableConflictKind = 'CLASS_PERIOD_OCCUPIED' | 'TEACHER_DOUBLE_BOOKED';
+
+/** Mirrors {@code TimetableDTOs.TimetableConflictPayload} for HTTP 409 responses. */
+export interface TimetableConflictPayload {
+  conflictType: TimetableConflictKind | string;
+  existingEntryId: number;
+  day: string;
+  period: number;
+  subjectName?: string;
+  teacherName?: string;
+  classId?: number;
+  sectionId?: number | null;
+  conflictingClassId?: number;
+  conflictingSectionId?: number | null;
 }
 
 export interface TimetableGridSlot {
@@ -521,6 +549,45 @@ export interface TeacherDashboardData {
   quickActions?: { label: string; route: string; icon: string }[];
 }
 
+/** Mirrors backend policy field {@code schoolThresholdPercent} when wired. */
+export type ParentMetricBand = 'excellent' | 'good' | 'fair' | 'needs_attention' | 'critical';
+
+export interface ParentAttendanceMetricContext {
+  band: ParentMetricBand;
+  /** i18n: dashboard.parent.metric.attendance.band.* */
+  labelKey: string;
+  schoolThresholdPct: number;
+}
+
+export interface ParentResultMetricContext {
+  band: ParentMetricBand;
+  labelKey: string;
+  averagePercent?: number;
+}
+
+export type ParentFeeUrgencyLevel = 'none' | 'low' | 'medium' | 'high';
+
+export interface ParentFeeMetricContext {
+  urgency: ParentFeeUrgencyLevel;
+  labelKey: string;
+  nextDueDate?: string;
+  daysUntilDue?: number | null;
+}
+
+export type ParentDashboardActivityCode =
+  | 'ATTENDANCE_MARKED'
+  | 'FEE_PAYMENT_RECORDED'
+  | 'RESULT_PUBLISHED'
+  | 'ANNOUNCEMENT_POSTED';
+
+/** Coded activity row — UI maps {@link code} to i18n keys (works with app language switch). */
+export interface ParentDashboardActivityItem {
+  code: ParentDashboardActivityCode;
+  type: 'info' | 'success' | 'warning';
+  timestamp: string;
+  params?: Record<string, string | number>;
+}
+
 export interface ParentDashboardData {
   childCount: number;
   children?: Student[];
@@ -531,6 +598,14 @@ export interface ParentDashboardData {
   feeDue: number;
   childPerformance: MarkRecord[];
   feeStatus: FeePayment[];
+  /** Explains attendance vs school threshold (QA: raw % without context). */
+  attendanceMetric?: ParentAttendanceMetricContext;
+  /** Explains grade / performance band (QA: result without context). */
+  resultMetric?: ParentResultMetricContext;
+  /** Fee urgency + next due (QA: fee tile lacks urgency). */
+  feeMetric?: ParentFeeMetricContext;
+  /** Parent dashboard feed (QA: missing recent activity). */
+  recentActivities?: ParentDashboardActivityItem[];
   alerts?: {
     type: 'info' | 'warning' | 'success' | 'error';
     /** Plain text (e.g. API). */
@@ -823,6 +898,8 @@ export interface AnnouncementPreview {
   title: string;
   preview: string;
   createdAt: string;
+  /** Backend / mock: {@code ALL}, {@code PARENTS}, {@code TEACHERS}, … — drives shell audience split. */
+  targetAudience?: string;
 }
 
 export interface AppNotification {
@@ -834,6 +911,22 @@ export interface AppNotification {
   userId: number;
   createdAt: string;
   link?: string;
+  /** Optional sender / source label when the API provides it (forward-compatible). */
+  senderLabel?: string;
+}
+
+/** One row in the merged inbox (announcements + notifications), sorted by {@code createdAt} desc. */
+export interface InboxUnifiedItem {
+  kind: 'announcement' | 'notification';
+  id: string;
+  title: string;
+  preview: string;
+  createdAt: string;
+  /** Announcement audience enum name from API (e.g. ALL). */
+  audienceKey?: string;
+  authorLine?: string;
+  notificationType?: AppNotification['type'];
+  read?: boolean;
 }
 
 export interface TransportVehicle {
