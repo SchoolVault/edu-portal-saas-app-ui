@@ -170,7 +170,15 @@ export const routes: Routes = [
         data: { requireFeatures: ['audit'], requireAnyRole: ['admin', 'super_admin'] },
       },
       { path: 'settings', loadComponent: () => import('./features/settings/settings.component').then(m => m.SettingsComponent), canActivate: [schoolSettingsGuard] },
-      { path: 'notification/:id', loadComponent: () => import('./features/notification-detail/notification-detail.component').then(m => m.NotificationDetailComponent) },
+      {
+        path: 'notifications/:id',
+        loadComponent: () => import('./features/notification-detail/notification-detail.component').then(m => m.NotificationDetailComponent),
+      },
+      /** Legacy singular segment — same component as {@code notifications/:id}. */
+      {
+        path: 'notification/:id',
+        loadComponent: () => import('./features/notification-detail/notification-detail.component').then(m => m.NotificationDetailComponent),
+      },
     ]
   },
   { path: '**', redirectTo: 'login' }

@@ -5,8 +5,10 @@ import com.school.erp.security.RequireTenantFeature;
 import com.school.erp.common.dto.PageResponse;
 import com.school.erp.modules.communication.dto.CommunicationDTOs;
 import com.school.erp.modules.communication.dto.AnnouncementDTOs;
+import com.school.erp.modules.communication.dto.InboxTimelineDTOs;
 import com.school.erp.modules.communication.entity.Announcement;
 import com.school.erp.modules.communication.service.CommunicationService;
+import com.school.erp.modules.communication.service.InboxTimelineService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -22,6 +24,7 @@ import java.util.List;
 @RequireTenantFeature("communication")
 public class CommunicationController {
     private final CommunicationService service;
+    private final InboxTimelineService inboxTimelineService;
 
     // --- Announcements ---
     @GetMapping("/announcements")
@@ -37,6 +40,20 @@ public class CommunicationController {
             @RequestParam(defaultValue = "20") int size,
             @RequestParam(required = false) String q) {
         return ResponseEntity.ok(ApiResponse.ok(service.getAnnouncementsPaged(page, size, q)));
+    }
+
+    @GetMapping("/inbox/timeline")
+    @Operation(summary = "Unified inbox timeline", description = "Announcements and user notifications merged, newest first. "
+            + "Optional filters: feedKind=ANNOUNCEMENT|NOTIFICATION, audiences=ALL,TEACHERS,...,ALERT, yearMonth=yyyy-MM. "
+            + "Audience tokens are sanitized to the signed-in role (parents cannot apply TEACHERS/PARENTS filters, etc.).")
+    public ResponseEntity<ApiResponse<PageResponse<InboxTimelineDTOs.InboxItemResponse>>> inboxTimeline(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(required = false) String q,
+            @RequestParam(required = false) String feedKind,
+            @RequestParam(required = false) String audiences,
+            @RequestParam(required = false) String yearMonth) {
+        return ResponseEntity.ok(ApiResponse.ok(inboxTimelineService.getTimeline(page, size, q, feedKind, audiences, yearMonth)));
     }
 
     @GetMapping("/announcements/previews")
@@ -105,7 +122,8 @@ public class CommunicationController {
         return ResponseEntity.ok(ApiResponse.ok(service.getUnreadMessageCount()));
     }
 
-    public CommunicationController(final CommunicationService service) {
+    public CommunicationController(final CommunicationService service, final InboxTimelineService inboxTimelineService) {
         this.service = service;
+        this.inboxTimelineService = inboxTimelineService;
     }
 }

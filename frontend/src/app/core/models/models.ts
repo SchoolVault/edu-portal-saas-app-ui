@@ -911,6 +911,22 @@ export interface AppNotification {
   userId: number;
   createdAt: string;
   link?: string;
+  /** Optional sender / source label when the API provides it (forward-compatible). */
+  senderLabel?: string;
+}
+
+/** One row in the merged inbox (announcements + notifications), sorted by {@code createdAt} desc. */
+export interface InboxUnifiedItem {
+  kind: 'announcement' | 'notification';
+  id: string;
+  title: string;
+  preview: string;
+  createdAt: string;
+  /** Announcement audience enum name from API (e.g. ALL). */
+  audienceKey?: string;
+  authorLine?: string;
+  notificationType?: AppNotification['type'];
+  read?: boolean;
 }
 
 export interface TransportVehicle {

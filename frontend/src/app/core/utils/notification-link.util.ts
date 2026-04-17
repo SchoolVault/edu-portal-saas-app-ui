@@ -52,6 +52,27 @@ export function extractAnnouncementIdFromLink(link: string): string | null {
   }
 }
 
+/**
+ * Header bell + inbox list rows: open the notice editor only when the stored link clearly targets an announcement.
+ * Otherwise always open the notification detail route so generic deep links (e.g. {@code /app/dashboard}) do not hijack the UX.
+ */
+export function notificationListRowNavigation(
+  link: string | null | undefined,
+  notificationId: string
+): { kind: 'announcement'; id: string } | { kind: 'detail'; id: string } {
+  const annId = extractAnnouncementIdFromLink(link ?? '');
+  if (annId) {
+    return { kind: 'announcement', id: annId };
+  }
+  return { kind: 'detail', id: notificationId };
+}
+
+/** Internal paths that should not be promoted as a primary “related” action from the detail screen. */
+export function isNonActionableInternalNotificationPath(path: string): boolean {
+  const pathname = path.split('?')[0].replace(/\/+$/, '') || '/';
+  return pathname === '/app' || pathname === '/app/dashboard';
+}
+
 export function resolveNotificationNavigationTarget(
   link: string | null | undefined,
   notificationId: string

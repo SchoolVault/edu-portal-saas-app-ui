@@ -23,4 +23,14 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
     @Modifying
     @Query("DELETE FROM Notification n WHERE n.tenantId = :tenantId AND n.isDeleted = true AND n.deletedAt IS NOT NULL AND n.deletedAt < :cutoff")
     int deleteSoftDeletedBeforeForTenant(@Param("tenantId") String tenantId, @Param("cutoff") LocalDateTime cutoff);
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("""
+            UPDATE Notification n SET n.isDeleted = true, n.deletedAt = :now
+            WHERE n.tenantId = :tenantId AND n.isDeleted = false AND n.createdAt < :cutoff
+            """)
+    int softDeleteTenantNotificationsOlderThan(
+            @Param("tenantId") String tenantId,
+            @Param("cutoff") LocalDateTime cutoff,
+            @Param("now") LocalDateTime now);
 }

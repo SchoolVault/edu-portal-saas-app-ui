@@ -234,7 +234,7 @@ public class OltpReportQueryAdapter implements ReportQueryPort {
     }
 
     @Transactional(readOnly = true)
-    public ParentDashboardDtos.Response getParentDashboard(String fromIso, String toIso, Long requestedChildId) {
+    public ParentDashboardDtos.Response     getParentDashboard(String fromIso, String toIso, Long requestedChildId) {
         String tenantId = TenantContext.getTenantId();
         Long uid = TenantContext.getUserId();
         log.debug("Building parent dashboard tenantId={} userId={} childId={}", tenantId, uid, requestedChildId);

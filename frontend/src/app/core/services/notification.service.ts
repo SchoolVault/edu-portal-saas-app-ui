@@ -218,6 +218,7 @@ export class NotificationService {
     const type: AppNotification['type'] =
       t === 'warning' ? 'warning' : t === 'success' ? 'success' : t === 'error' ? 'error' : 'info';
     const linkRaw = n.link ?? n.deepLink ?? n.actionUrl ?? n.href ?? n.targetUrl;
+    const senderLabel = NotificationService.pickSenderLabel(n);
     return {
       id: String(n.id),
       title: n.title ?? '',
@@ -227,7 +228,26 @@ export class NotificationService {
       userId: Number(n.userId ?? 0),
       createdAt: NotificationService.coerceCreatedAtIso(n),
       link: typeof linkRaw === 'string' ? linkRaw : linkRaw != null ? String(linkRaw) : undefined,
+      ...(senderLabel ? { senderLabel } : {}),
     };
+  }
+
+  private static pickSenderLabel(n: Record<string, unknown>): string | undefined {
+    const nameKeys = ['senderName', 'sender', 'author', 'actorName', 'createdByName', 'originLabel', 'source'] as const;
+    for (const k of nameKeys) {
+      const v = n[k];
+      if (typeof v === 'string' && v.trim()) {
+        return v.trim();
+      }
+    }
+    const roleKeys = ['senderRole', 'actorRole', 'authorRole', 'originRole'] as const;
+    for (const k of roleKeys) {
+      const v = n[k];
+      if (typeof v === 'string' && v.trim()) {
+        return v.trim();
+      }
+    }
+    return undefined;
   }
 
   /** Accepts ISO strings or Jackson {@code LocalDateTime} array shapes — never fabricates “now” for missing data. */
