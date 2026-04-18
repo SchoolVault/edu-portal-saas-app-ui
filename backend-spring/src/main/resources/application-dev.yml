@@ -19,26 +19,34 @@ spring:
   # Datasource URL/user/password come from application.yml (${DB_URL}, ${DB_USERNAME}, ${DB_PASSWORD}).
   # Do not default DB_PASSWORD here: a forgotten env var would send a wrong password (e.g. to Aiven) and cause MySQL 1045.
 
-  # Local IDE: no Redis/Valkey or RabbitMQ required — only MySQL (see docker-compose or Aiven).
+  # Local IDE: no Redis required — only MySQL (see docker-compose or Aiven). RabbitMQ is optional: if the
+  # broker is not running, set SPRING_RABBITMQ_LISTENER_SIMPLE_AUTO_STARTUP=false or start Rabbit (compose).
   cache:
     type: none
   autoconfigure:
     exclude:
       - org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration
       - org.springframework.boot.autoconfigure.data.redis.RedisRepositoriesAutoConfiguration
-      - org.springframework.boot.autoconfigure.amqp.RabbitAutoConfiguration
+
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USERNAME:guest}
+    password: ${RABBITMQ_PASSWORD:guest}
+    listener:
+      simple:
+        # Avoid startup failure when dev runs without a local broker; set true when Rabbit is up.
+        auto-startup: ${SPRING_RABBITMQ_LISTENER_SIMPLE_AUTO_STARTUP:false}
 
   jpa:
     show-sql: true
   flyway:
     clean-disabled: false
 
-# Local dev often runs without Redis/RabbitMQ; keep actuator health usable.
+# Local dev: Redis off; Rabbit health follows broker availability.
 management:
   health:
     redis:
-      enabled: false
-    rabbit:
       enabled: false
 
 logging:

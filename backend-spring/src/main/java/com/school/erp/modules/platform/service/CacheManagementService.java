@@ -1,14 +1,16 @@
 package com.school.erp.modules.platform.service;
 
 import com.school.erp.cache.CacheService;
+import com.school.erp.cache.RedisTenantCacheEvictor;
 import com.school.erp.common.enums.Enums;
+import com.school.erp.config.CacheConfig;
 import com.school.erp.modules.audit.service.AuditService;
 import com.school.erp.modules.platform.dto.PlatformDTOs;
-import com.school.erp.config.CacheConfig;
+import com.school.erp.modules.settings.entity.TenantConfig;
+import com.school.erp.modules.settings.repository.TenantConfigRepository;
 import com.school.erp.tenant.TenantContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.cache.Cache;
 import org.springframework.cache.CacheManager;
 import org.springframework.util.StringUtils;
 
@@ -21,9 +23,9 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
- * Cache management service for platform operators.
- * Provides cache clearing operations with audit logging and statistics.
- * <p>Bean: {@link CacheConfig#cacheManagementService(CacheService, AuditService, CacheManager)} (not component-scanned).
+ * Cache management for platform operators: global region flush or tenant-scoped key eviction via
+ * {@link RedisTenantCacheEvictor} (Redis SCAN + unlink).
+ * <p>Bean: {@link CacheConfig#cacheManagementService(...)} (not component-scanned).
  */
 public class CacheManagementService {
     private static final Logger log = LoggerFactory.getLogger(CacheManagementService.class);
@@ -32,21 +34,28 @@ public class CacheManagementService {
     private final CacheService cacheService;
     private final AuditService auditService;
     private final CacheManager cacheManager;
+    private final RedisTenantCacheEvictor redisTenantCacheEvictor;
+    private final TenantConfigRepository tenantConfigRepository;
 
-    public CacheManagementService(CacheService cacheService, AuditService auditService, CacheManager cacheManager) {
+    public CacheManagementService(
+            CacheService cacheService,
+            AuditService auditService,
+            CacheManager cacheManager,
+            RedisTenantCacheEvictor redisTenantCacheEvictor,
+            TenantConfigRepository tenantConfigRepository) {
         this.cacheService = cacheService;
         this.auditService = auditService;
         this.cacheManager = cacheManager;
+        this.redisTenantCacheEvictor = redisTenantCacheEvictor;
+        this.tenantConfigRepository = tenantConfigRepository;
     }
 
     /**
-     * Clears cache based on request scope:
-     * - If tenantId specified: clears only that tenant's cache keys
-     * - If regions specified: clears only those regions
-     * - Otherwise: clears all regions for all tenants (global)
-     *
-     * @param request CacheClearRequest with optional tenantId and regions
-     * @return CacheClearResponse with statistics
+     * <ul>
+     *   <li>No {@code tenantId}: clears entire region(s) for <strong>all</strong> tenants ({@link CacheService#clearRegion}).</li>
+     *   <li>With {@code tenantId}: removes only keys whose cache suffix is {@code tenantId} or {@code tenantId:...}
+     *       (aligned with tenant key generators).</li>
+     * </ul>
      */
     public PlatformDTOs.CacheClearResponse clearCaches(PlatformDTOs.CacheClearRequest request) {
         String targetTenant = request.getTenantId();
@@ -56,42 +65,50 @@ public class CacheManagementService {
         boolean isRegionFiltered = targetRegions != null && !targetRegions.isEmpty();
 
         log.info("Cache clear initiated by user: {} | Tenant: {} | Regions: {}",
-            TenantContext.getUserId(),
-            isTenantScoped ? targetTenant : "ALL",
-            isRegionFiltered ? targetRegions : "ALL");
+                TenantContext.getUserId(),
+                isTenantScoped ? targetTenant : "ALL",
+                isRegionFiltered ? targetRegions : "ALL");
 
         List<String> clearedRegions = new ArrayList<>();
         int successCount = 0;
+        long totalKeysEvicted = 0;
         String targetSchoolName = null;
 
         try {
-            // Determine which regions to clear
+            if (isTenantScoped) {
+                targetSchoolName = tenantConfigRepository.findByTenantId(targetTenant.trim())
+                        .map(TenantConfig::getSchoolName)
+                        .orElse(null);
+            }
+
             List<CacheService.CacheRegion> regionsToProcess;
             if (isRegionFiltered) {
                 Set<String> requestedNames = targetRegions.stream()
-                    .map(String::toLowerCase)
-                    .collect(Collectors.toSet());
+                        .map(String::toLowerCase)
+                        .collect(Collectors.toSet());
                 regionsToProcess = Arrays.stream(CacheService.CacheRegion.values())
-                    .filter(r -> requestedNames.contains(r.cacheName().toLowerCase()))
-                    .collect(Collectors.toList());
+                        .filter(r -> requestedNames.contains(r.cacheName().toLowerCase()))
+                        .collect(Collectors.toList());
             } else {
                 regionsToProcess = Arrays.asList(CacheService.CacheRegion.values());
             }
 
-            // Clear cache regions
             for (CacheService.CacheRegion region : regionsToProcess) {
                 try {
+                    if (cacheManager.getCache(region.cacheName()) == null) {
+                        log.warn("Cache region not registered: {}", region.cacheName());
+                        continue;
+                    }
                     if (isTenantScoped) {
-                        // Tenant-scoped: evict keys prefixed with tenantId
-                        evictTenantKeys(region, targetTenant);
+                        long n = redisTenantCacheEvictor.evictTenantEntriesInRegion(region.cacheName(), targetTenant.trim());
+                        totalKeysEvicted += n;
+                        log.debug("Evicted {} keys in region {} for tenant {}", n, region.cacheName(), targetTenant);
                     } else {
-                        // Global: clear entire region
                         cacheService.clearRegion(region);
+                        log.debug("Cleared entire region {} (global)", region.cacheName());
                     }
                     clearedRegions.add(region.cacheName());
                     successCount++;
-                    log.debug("Cleared cache region: {} {}", region.cacheName(),
-                        isTenantScoped ? "(tenant: " + targetTenant + ")" : "(global)");
                 } catch (Exception e) {
                     log.error("Failed to clear cache region: {}", region.cacheName(), e);
                 }
@@ -100,80 +117,62 @@ public class CacheManagementService {
             String clearedAt = LocalDateTime.now().format(FORMATTER);
             String clearedBy = getUserIdentifier();
 
-            // Log audit event
             String auditMessage = isTenantScoped
-                ? String.format("Cache cleared for tenant %s (%d regions)", targetTenant, successCount)
-                : String.format("Global cache clear (%d regions)", successCount);
+                    ? String.format("Cache cleared for tenant %s (%d regions, ~%d keys)", targetTenant, successCount, totalKeysEvicted)
+                    : String.format("Global cache clear (%d regions)", successCount);
 
             auditService.logAction(
-                Enums.AuditAction.CACHE_CLEARED,
-                "Platform",
-                auditMessage,
-                null,
-                "Cache",
-                null,
-                String.join(", ", clearedRegions)
+                    Enums.AuditAction.CACHE_CLEARED,
+                    "Platform",
+                    auditMessage,
+                    null,
+                    "Cache",
+                    null,
+                    String.join(", ", clearedRegions)
             );
 
             PlatformDTOs.CacheStatistics stats = new PlatformDTOs.CacheStatistics(
-                successCount,
-                clearedRegions,
-                clearedAt,
-                clearedBy
+                    successCount,
+                    clearedRegions,
+                    clearedAt,
+                    clearedBy
             );
-            stats.setTargetTenantId(targetTenant);
+            stats.setTargetTenantId(isTenantScoped ? targetTenant.trim() : null);
             stats.setTargetSchoolName(targetSchoolName);
+            stats.setKeysEvicted(isTenantScoped ? totalKeysEvicted : null);
 
-            log.info("Cache clear completed. Regions: {} | Tenant: {}", successCount,
-                isTenantScoped ? targetTenant : "ALL");
+            log.info("Cache clear completed. Regions: {} | Tenant: {} | keysEvicted: {}",
+                    successCount,
+                    isTenantScoped ? targetTenant : "ALL",
+                    isTenantScoped ? totalKeysEvicted : "n/a");
 
-            String message = isTenantScoped
-                ? String.format("Successfully cleared %d cache regions for selected school", successCount)
-                : String.format("Successfully cleared %d cache regions globally", successCount);
+            String message;
+            if (isTenantScoped) {
+                message = String.format(
+                        "Cleared %d cache region(s) for the selected school; removed ~%d Redis key(s). Next reads load fresh data.",
+                        successCount, totalKeysEvicted);
+            } else {
+                message = String.format(
+                        "Cleared %d cache region(s) for all schools; next reads will reload from source.",
+                        successCount);
+            }
 
             return new PlatformDTOs.CacheClearResponse(true, message, stats);
 
         } catch (Exception e) {
             log.error("Cache clear operation failed", e);
             return new PlatformDTOs.CacheClearResponse(
-                false,
-                "Failed to clear caches: " + e.getMessage(),
-                null
+                    false,
+                    "Failed to clear caches: " + e.getMessage(),
+                    null
             );
         }
     }
 
-    /**
-     * Evicts cache entries for a specific tenant.
-     * Redis keys are prefixed with tenant ID by key generators, so we evict matching keys.
-     * Note: Spring Cache abstraction doesn't expose key iteration, so this is a best-effort
-     * implementation. For complete tenant eviction, consider using Spring Data Redis directly.
-     */
-    private void evictTenantKeys(CacheService.CacheRegion region, String tenantId) {
-        Cache cache = cacheManager.getCache(region.cacheName());
-        if (cache == null) {
-            return;
-        }
-
-        // Spring Cache API limitation: no built-in way to iterate keys
-        // For Redis-backed caches with tenant prefix, clearing the entire region is safest
-        // TODO: If strict tenant isolation is required, use RedisTemplate to scan and delete by pattern
-        log.warn("Tenant-scoped cache eviction for region {} falling back to full region clear " +
-            "(Spring Cache API limitation - consider RedisTemplate for key-pattern eviction)",
-            region.cacheName());
-        cacheService.clearRegion(region);
-    }
-
-    /**
-     * Legacy method for backward compatibility - clears all regions globally.
-     */
     public PlatformDTOs.CacheClearResponse clearAllCaches() {
         return clearCaches(new PlatformDTOs.CacheClearRequest(null, null));
     }
 
-    /**
-     * Gets user identifier for audit logging
-     */
     private String getUserIdentifier() {
         Long userId = TenantContext.getUserId();
         String userRole = TenantContext.getUserRole();

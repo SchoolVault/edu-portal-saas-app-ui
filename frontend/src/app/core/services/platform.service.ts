@@ -363,7 +363,8 @@ export class PlatformService {
           clearedAt: new Date().toISOString(),
           clearedBy: 'SUPER_ADMIN (Mock)',
           targetTenantId: request.tenantId || null,
-          targetSchoolName: school?.schoolName || null
+          targetSchoolName: school?.schoolName || null,
+          keysEvicted: isTenantScoped ? Math.floor(12 + targetRegions.length * 7 + Math.random() * 20) : null
         }
       };
       return of(mockResponse).pipe(delay(800));
@@ -378,6 +379,7 @@ export class PlatformService {
       { name: 'permissions', label: 'Permissions', description: 'Role matrices and access control', category: 'core' },
       { name: 'tenantConfig', label: 'Tenant Config', description: 'School settings and branding', category: 'core' },
       { name: 'settingsSnapshot', label: 'Settings Snapshot', description: 'Cached configuration snapshots', category: 'core' },
+      { name: 'tenantFeatureFlags', label: 'Feature Flags', description: 'Module toggles cache (per school)', category: 'core' },
 
       { name: 'academicCatalog', label: 'Academic Catalog', description: 'Subjects, classes, academic year data', category: 'academic' },
       { name: 'studentDirectory', label: 'Student Directory', description: 'Student roster and profiles', category: 'academic' },

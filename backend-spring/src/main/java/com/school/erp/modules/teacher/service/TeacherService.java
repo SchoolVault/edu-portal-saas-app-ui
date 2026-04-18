@@ -8,6 +8,7 @@ import com.school.erp.common.exception.ResourceNotFoundException;
 import com.school.erp.modules.auth.service.PortalUserProvisioningService;
 import com.school.erp.modules.academic.entity.SchoolClass;
 import com.school.erp.modules.academic.repository.SchoolClassRepository;
+import com.school.erp.common.jpa.EntitySnapshotCollections;
 import com.school.erp.modules.teacher.dto.TeacherDTOs;
 import com.school.erp.modules.teacher.entity.Teacher;
 import com.school.erp.modules.teacher.repository.TeacherRepository;
@@ -238,7 +239,7 @@ public class TeacherService {
     }
 
     private TeacherDTOs.Response toRes(Teacher t, List<String> homeroomClassNames) {
-        TeacherDTOs.Response r = TeacherDTOs.Response.builder().id(t.getId()).firstName(t.getFirstName()).lastName(t.getLastName()).email(t.getEmail()).phone(t.getPhone()).qualification(t.getQualification()).specialization(t.getSpecialization()).joinDate(t.getJoinDate()).salary(t.getSalary()).status(t.getStatus() != null ? t.getStatus().name().toLowerCase() : "active").subjects(t.getSubjects()).avatar(t.getAvatar()).tenantId(t.getTenantId()).build();
+        TeacherDTOs.Response r = TeacherDTOs.Response.builder().id(t.getId()).firstName(t.getFirstName()).lastName(t.getLastName()).email(t.getEmail()).phone(t.getPhone()).qualification(t.getQualification()).specialization(t.getSpecialization()).joinDate(t.getJoinDate()).salary(t.getSalary()).status(t.getStatus() != null ? t.getStatus().name().toLowerCase() : "active").subjects(EntitySnapshotCollections.detachList(t.getSubjects())).avatar(t.getAvatar()).tenantId(t.getTenantId()).build();
         r.setUserId(t.getUserId());
         if (t.getLibraryStaffRole() != null) {
             r.setLibraryStaffRole(t.getLibraryStaffRole().name().toLowerCase());
