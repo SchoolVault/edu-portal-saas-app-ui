@@ -19,6 +19,8 @@ public class CacheService {
         REFERENCE_DATA(CacheConfig.REFERENCE_DATA),
         PERMISSIONS(CacheConfig.PERMISSIONS),
         TENANT_CONFIG(CacheConfig.TENANT_CONFIG),
+        /** Feature-flag map per tenant (separate Redis value serializer from {@link #SETTINGS_SNAPSHOT}). */
+        TENANT_FEATURE_FLAGS(CacheConfig.TENANT_FEATURE_FLAGS),
         REPORT_RESULTS(CacheConfig.REPORT_RESULTS),
         TRANSPORT_ROUTES(CacheConfig.TRANSPORT_ROUTES),
         ANNOUNCEMENT_PREVIEWS(CacheConfig.ANNOUNCEMENT_PREVIEWS),

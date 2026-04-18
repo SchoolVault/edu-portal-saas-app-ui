@@ -2,14 +2,18 @@ package com.school.erp.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.school.erp.cache.CacheService;
+import com.school.erp.cache.RedisTenantCacheEvictor;
+import com.school.erp.cache.logging.LoggingCacheManager;
 import com.school.erp.modules.audit.service.AuditService;
 import com.school.erp.modules.platform.service.CacheManagementService;
+import com.school.erp.modules.settings.repository.TenantConfigRepository;
 import com.school.erp.tenant.TenantContext;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.cache.CacheManager;
 import org.springframework.cache.annotation.EnableCaching;
 import org.springframework.cache.interceptor.KeyGenerator;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.env.Environment;
@@ -21,6 +25,7 @@ import org.springframework.data.redis.serializer.GenericJackson2JsonRedisSeriali
 import org.springframework.data.redis.serializer.RedisSerializationContext;
 import org.springframework.data.redis.serializer.RedisSerializer;
 import org.springframework.data.redis.serializer.StringRedisSerializer;
+import org.springframework.data.redis.core.StringRedisTemplate;
 
 import org.springframework.util.StringUtils;
 
@@ -32,14 +37,13 @@ import java.util.Map;
  * Redis-backed Spring Cache with <strong>tenant-scoped keys</strong> only.
  * Disable via {@code spring.cache.type=none} or env {@code CACHE_TYPE=none} when Redis is unavailable.
  * <p>
- * Value serialization uses {@link GenericJackson2JsonRedisSerializer}'s default constructor so Jackson
- * embeds type metadata ({@code @class}) on write. Passing the app's primary {@code ObjectMapper} here
- * without default typing causes cache hits to deserialize as {@link java.util.LinkedHashMap} and
- * {@code ClassCastException} on {@code @Cacheable} return types (e.g. dashboard DTOs).
+ * Value serialization uses {@link GenericJackson2JsonRedisSerializer} with {@link JacksonConfig#REDIS_OBJECT_MAPPER}
+ * so Jackson embeds type metadata ({@code @class}) for Redis only. The HTTP {@code @Primary} mapper stays
+ * untyped for normal REST JSON.
  */
 @Configuration
 @EnableCaching
-@EnableConfigurationProperties(AppCacheTtlProperties.class)
+@EnableConfigurationProperties({AppCacheTtlProperties.class, AppCacheAccessLogProperties.class})
 @ConditionalOnProperty(prefix = "spring.cache", name = "type", havingValue = "redis")
 public class CacheConfig {
 
@@ -85,9 +89,10 @@ public class CacheConfig {
     public CacheManager cacheManager(
             RedisConnectionFactory connectionFactory,
             AppCacheTtlProperties ttlProps,
+            AppCacheAccessLogProperties accessLogProps,
             Environment environment,
-            ObjectMapper objectMapper) {
-        GenericJackson2JsonRedisSerializer json = new GenericJackson2JsonRedisSerializer(objectMapper);
+            @Qualifier("redisObjectMapper") ObjectMapper redisObjectMapper) {
+        GenericJackson2JsonRedisSerializer json = new GenericJackson2JsonRedisSerializer(redisObjectMapper);
         RedisSerializationContext.SerializationPair<Object> plainJsonValues =
                 RedisSerializationContext.SerializationPair.fromSerializer(RedisSerializer.json());
 
@@ -122,11 +127,12 @@ public class CacheConfig {
         perCache.put(FEES_CATALOG, base.entryTtl(ttlProps.getFeesCatalog()));
         perCache.put(TIMETABLE_GRID, base.entryTtl(ttlProps.getTimetableGrid()));
 
-        return RedisCacheManager.builder(connectionFactory)
+        RedisCacheManager redis = RedisCacheManager.builder(connectionFactory)
                 .cacheDefaults(base.entryTtl(ttlProps.getDefaultTtl()))
                 .withInitialCacheConfigurations(perCache)
                 .transactionAware()
                 .build();
+        return new LoggingCacheManager(redis, accessLogProps);
     }
 
     /**
@@ -140,11 +146,21 @@ public class CacheConfig {
     }
 
     @Bean
+    public RedisTenantCacheEvictor redisTenantCacheEvictor(
+            StringRedisTemplate stringRedisTemplate,
+            Environment environment) {
+        return new RedisTenantCacheEvictor(stringRedisTemplate, environment);
+    }
+
+    @Bean
     public CacheManagementService cacheManagementService(
             CacheService cacheService,
             AuditService auditService,
-            CacheManager cacheManager) {
-        return new CacheManagementService(cacheService, auditService, cacheManager);
+            CacheManager cacheManager,
+            RedisTenantCacheEvictor redisTenantCacheEvictor,
+            TenantConfigRepository tenantConfigRepository) {
+        return new CacheManagementService(
+                cacheService, auditService, cacheManager, redisTenantCacheEvictor, tenantConfigRepository);
     }
 
     /** Cache key = current tenant id (never share across schools). */

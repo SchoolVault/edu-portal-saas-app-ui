@@ -7,9 +7,12 @@ import com.school.erp.modules.notification.dto.SimpleNotificationRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
+import org.springframework.amqp.rabbit.connection.ConnectionFactory;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.stereotype.Component;
 
 @Component
+@ConditionalOnBean(ConnectionFactory.class)
 @RequiredArgsConstructor
 @Slf4j
 public class NotificationConsumer {

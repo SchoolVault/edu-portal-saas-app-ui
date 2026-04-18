@@ -361,6 +361,10 @@ import { UserLocaleService, type UiLanguage } from '../../core/i18n/user-locale.
                 <span class="ps-cache-info__label">{{ 'platformSettingsPage.regionsClearedLabel' | translate }}</span>
                 <span class="ps-cache-info__value">{{ lastCacheCleared.regionsCleared }}</span>
               </div>
+              <div class="ps-cache-info__item" *ngIf="lastCacheCleared.keysEvicted != null">
+                <span class="ps-cache-info__label">{{ 'platformSettingsPage.keysEvictedLabel' | translate }}</span>
+                <span class="ps-cache-info__value">{{ lastCacheCleared.keysEvicted }}</span>
+              </div>
               <div class="ps-cache-info__item">
                 <span class="ps-cache-info__label">{{ 'platformSettingsPage.clearedBy' | translate }}</span>
                 <span class="ps-cache-info__value">{{ lastCacheCleared.clearedBy }}</span>
@@ -1412,7 +1416,13 @@ export class PlatformSettingsComponent implements OnInit, OnDestroy {
   cacheClearing = false;
   cacheSuccessMsg = '';
   cacheErrorMsg = '';
-  lastCacheCleared: { regionsCleared: number; clearedAt: string; clearedBy: string; targetSchoolName?: string | null } | null = null;
+  lastCacheCleared: {
+    regionsCleared: number;
+    clearedAt: string;
+    clearedBy: string;
+    targetSchoolName?: string | null;
+    keysEvicted?: number | null;
+  } | null = null;
 
   // Cache school selector
   cacheSchoolSearch = '';
@@ -1716,6 +1726,7 @@ export class PlatformSettingsComponent implements OnInit, OnDestroy {
       permissions: 'bi-shield-lock-fill',
       tenantConfig: 'bi-sliders',
       settingsSnapshot: 'bi-camera-fill',
+      tenantFeatureFlags: 'bi-toggle2-on',
       academicCatalog: 'bi-journal-text',
       studentDirectory: 'bi-people-fill',
       teacherDirectory: 'bi-person-badge-fill',
@@ -1844,7 +1855,8 @@ export class PlatformSettingsComponent implements OnInit, OnDestroy {
             regionsCleared: response.statistics.regionsCleared,
             clearedAt: response.statistics.clearedAt,
             clearedBy: response.statistics.clearedBy,
-            targetSchoolName: response.statistics.targetSchoolName
+            targetSchoolName: response.statistics.targetSchoolName,
+            keysEvicted: response.statistics.keysEvicted ?? null
           };
         }
 

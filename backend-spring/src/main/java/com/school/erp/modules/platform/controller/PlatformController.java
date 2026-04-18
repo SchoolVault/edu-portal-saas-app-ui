@@ -152,7 +152,12 @@ public class PlatformController {
     }
 
     @PostMapping("/cache/clear")
-    @Operation(summary = "Clear cache (tenant-scoped or global)", description = "Supports: (1) Specific tenant + regions, (2) Specific tenant (all regions), (3) Global (all tenants/regions). Use global with caution.")
+    @Operation(
+            summary = "Clear cache regions",
+            description = "Without `tenantId`: clears entire named region(s) for all schools. "
+                    + "With `tenantId`: removes only that school's cache keys in those region(s) (Redis SCAN + unlink). "
+                    + "Empty `regions` applies to every CacheService.CacheRegion (including tenantFeatureFlags)."
+    )
     public ResponseEntity<ApiResponse<PlatformDTOs.CacheClearResponse>> clearCache(
             @Valid @RequestBody PlatformDTOs.CacheClearRequest request) {
         if (cacheManagementService == null) {

@@ -389,11 +389,16 @@ public class PlatformDTOs {
         public void setIntegrationPriceKey(String integrationPriceKey) { this.integrationPriceKey = integrationPriceKey; }
     }
 
-    /** Request to clear cache - supports both global and tenant-scoped operations. */
+    /**
+     * Request to clear cache. When {@code regions} is empty, every {@link com.school.erp.cache.CacheService.CacheRegion}
+     * is cleared (including {@code tenantFeatureFlags}).
+     * <p><strong>Tenant id caveat:</strong> Spring Cache does not expose key iteration; when {@code tenantId} is set,
+     * With {@code tenantId}: only that school's cache entries are removed (Redis key pattern per tenant).
+     */
     public static class CacheClearRequest {
-        /** Optional tenant ID - if null, clears globally (all tenants). */
+        /** Optional tenant ID — when set, only this school's keys are evicted in the chosen region(s). */
         private String tenantId;
-        /** Optional region names - if null/empty, clears all regions. */
+        /** Optional region names (e.g. {@code dashboardSnapshots}) — if null/empty, clears all regions. */
         private List<String> regions;
 
         public CacheClearRequest() {}
@@ -439,6 +444,8 @@ public class PlatformDTOs {
         private String targetTenantId;
         /** School name for UI display when tenant-scoped. */
         private String targetSchoolName;
+        /** Approximate Redis keys removed (tenant-scoped clears only; null for global region clears). */
+        private Long keysEvicted;
 
         public CacheStatistics() {}
 
@@ -461,5 +468,7 @@ public class PlatformDTOs {
         public void setTargetTenantId(String targetTenantId) { this.targetTenantId = targetTenantId; }
         public String getTargetSchoolName() { return targetSchoolName; }
         public void setTargetSchoolName(String targetSchoolName) { this.targetSchoolName = targetSchoolName; }
+        public Long getKeysEvicted() { return keysEvicted; }
+        public void setKeysEvicted(Long keysEvicted) { this.keysEvicted = keysEvicted; }
     }
 }

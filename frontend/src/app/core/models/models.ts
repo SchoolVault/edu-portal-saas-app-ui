@@ -537,6 +537,8 @@ export interface CacheStatistics {
   clearedBy: string;
   targetTenantId?: string | null;
   targetSchoolName?: string | null;
+  /** Tenant-scoped clears only — approximate Redis keys removed */
+  keysEvicted?: number | null;
 }
 
 export interface CacheClearResponse {

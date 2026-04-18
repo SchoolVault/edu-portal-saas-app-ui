@@ -85,7 +85,11 @@ spring:
 
 
   rabbitmq:
-    uri: ${RABBITMQ_URI}
+    # Defaults suit local Docker / compose. Override with RABBITMQ_* or SPRING_RABBITMQ_URI for managed brokers.
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USERNAME:guest}
+    password: ${RABBITMQ_PASSWORD:guest}
 
   jackson:
     serialization:
@@ -183,6 +187,14 @@ app:
       library-issues: ${CACHE_TTL_LIBRARY_ISSUES:4m}
       fees-catalog: ${CACHE_TTL_FEES_CATALOG:45m}
       timetable-grid: ${CACHE_TTL_TIMETABLE_GRID:20m}
+    # Cache observability: INFO logs CACHE source=loader (miss → DB/compute); DEBUG logs source=redis (hit).
+    # Set LOG_LEVEL_CACHE_ACCESS=DEBUG to include hits in prod; default INFO shows misses only.
+    access-log:
+      enabled: ${APP_CACHE_ACCESS_LOG_ENABLED:true}
+      log-hits: ${APP_CACHE_ACCESS_LOG_HITS:true}
+      log-miss-loads: ${APP_CACHE_ACCESS_LOG_MISS_LOADS:true}
+      key-privacy: ${APP_CACHE_ACCESS_LOG_KEY_PRIVACY:HASH}
+      truncate-length: ${APP_CACHE_ACCESS_LOG_TRUNCATE_LEN:48}
   jwt:
     secret: ${JWT_SECRET:c2Nob29sLWVycC1zZWNyZXQta2V5LWZvci1qd3QtdG9rZW4tZ2VuZXJhdGlvbi0yMDI2}
     expiration-ms: ${JWT_EXPIRATION_MS:86400000}
@@ -324,6 +336,7 @@ logging:
     console: "%d{yyyy-MM-dd'T'HH:mm:ss.SSSXXX} %-5level [${spring.application.name}] [%thread] [corr:%X{correlationId:-}] [trace:%X{traceId:-}] [tenant:%X{tenantId:-}] [user:%X{userId:-}] [role:%X{userRole:-}] %logger{40} : %msg%n%wEx"
   level:
     com.school.erp: ${LOG_LEVEL_APP:INFO}
+    com.school.erp.cache.access: ${LOG_LEVEL_CACHE_ACCESS:INFO}
     com.school.erp.common.logging: ${LOG_LEVEL_APP_HTTP:INFO}
     org.hibernate.SQL: ${LOG_LEVEL_HIBERNATE_SQL:WARN}
     org.hibernate.orm.jdbc.bind: ${LOG_LEVEL_HIBERNATE_BIND:WARN}
