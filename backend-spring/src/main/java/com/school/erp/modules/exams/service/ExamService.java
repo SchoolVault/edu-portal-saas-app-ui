@@ -1,6 +1,7 @@
 package com.school.erp.modules.exams.service;
 
 import com.school.erp.common.dto.PageResponse;
+import com.school.erp.common.jpa.EntitySnapshotCollections;
 import com.school.erp.modules.parent.cache.ParentPortalExamPageCache;
 import com.school.erp.common.enums.Enums;
 import com.school.erp.common.exception.BusinessException;
@@ -501,7 +502,7 @@ public class ExamService {
                 .academicYearId(e.getAcademicYearId())
                 .startDate(e.getStartDate() != null ? e.getStartDate().toString() : null)
                 .endDate(e.getEndDate() != null ? e.getEndDate().toString() : null)
-                .classIds(e.getClassIds())
+                .classIds(EntitySnapshotCollections.detachList(e.getClassIds()))
                 .status(e.getStatus() != null ? e.getStatus().name().toLowerCase() : null)
                 .build();
         r.setResultsPublished(Boolean.TRUE.equals(e.getResultsPublished()));

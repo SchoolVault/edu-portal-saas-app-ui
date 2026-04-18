@@ -1,5 +1,6 @@
 package com.school.erp.modules.reports.adapter;
 
+import com.school.erp.common.jpa.EntitySnapshotCollections;
 import com.school.erp.modules.student.repository.StudentRepository;
 import com.school.erp.modules.teacher.repository.TeacherRepository;
 import com.school.erp.modules.exams.repository.MarkRecordRepository;
@@ -673,7 +674,12 @@ public class OltpReportQueryAdapter implements ReportQueryPort {
         var teachers = teacherRepo.findByTenantIdAndIsDeletedFalse(tenantId);
         List<Map<String, Object>> result = new ArrayList<>();
         for (var t : teachers) {
-            result.add(Map.of("teacherId", t.getId(), "teacherName", t.getFirstName() + " " + t.getLastName(), "specialization", t.getSpecialization() != null ? t.getSpecialization() : "", "subjects", t.getSubjects() != null ? t.getSubjects() : List.of(), "status", t.getStatus() != null ? t.getStatus().name() : "ACTIVE"));
+            result.add(Map.of(
+                    "teacherId", t.getId(),
+                    "teacherName", t.getFirstName() + " " + t.getLastName(),
+                    "specialization", t.getSpecialization() != null ? t.getSpecialization() : "",
+                    "subjects", EntitySnapshotCollections.detachList(t.getSubjects()),
+                    "status", t.getStatus() != null ? t.getStatus().name() : "ACTIVE"));
         }
         log.info("Teacher workload rows={} tenantId={}", result.size(), tenantId);
         return result;

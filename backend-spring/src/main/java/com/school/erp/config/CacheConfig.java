@@ -88,7 +88,7 @@ public class CacheConfig {
     @Bean
     public CacheManager cacheManager(
             RedisConnectionFactory connectionFactory,
-            AppCacheTtlProperties ttlProps,
+            AppCacheTtlProperties ttlProps  ,
             AppCacheAccessLogProperties accessLogProps,
             Environment environment,
             @Qualifier("redisObjectMapper") ObjectMapper redisObjectMapper) {
