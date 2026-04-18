@@ -85,10 +85,7 @@ spring:
 
 
   rabbitmq:
-    host: ${RABBITMQ_HOST:localhost}
-    port: ${RABBITMQ_PORT:5672}
-    username: ${RABBITMQ_USERNAME:guest}
-    password: ${RABBITMQ_PASSWORD:guest}
+    uri: ${RABBITMQ_URI}
 
   jackson:
     serialization:

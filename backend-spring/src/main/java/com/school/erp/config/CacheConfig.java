@@ -1,5 +1,6 @@
 package com.school.erp.config;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.school.erp.cache.CacheService;
 import com.school.erp.modules.audit.service.AuditService;
 import com.school.erp.modules.platform.service.CacheManagementService;
@@ -84,8 +85,9 @@ public class CacheConfig {
     public CacheManager cacheManager(
             RedisConnectionFactory connectionFactory,
             AppCacheTtlProperties ttlProps,
-            Environment environment) {
-        GenericJackson2JsonRedisSerializer json = new GenericJackson2JsonRedisSerializer();
+            Environment environment,
+            ObjectMapper objectMapper) {
+        GenericJackson2JsonRedisSerializer json = new GenericJackson2JsonRedisSerializer(objectMapper);
         RedisSerializationContext.SerializationPair<Object> plainJsonValues =
                 RedisSerializationContext.SerializationPair.fromSerializer(RedisSerializer.json());
 
