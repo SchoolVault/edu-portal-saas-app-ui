@@ -1044,7 +1044,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
       return;
     }
     if (!this.isTenantAdmin && !raw) {
-      this.tab = 'profile';
+      this.tab = 'preferences';
     }
   }
 
