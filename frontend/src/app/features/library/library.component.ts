@@ -70,6 +70,7 @@ import { runtimeConfig } from '../../core/config/runtime-config';
               </div>
             </div>
           </div>
+          <div class="erp-table-scroll">
           <table class="erp-table library-books-table" data-testid="books-table">
             <thead>
               <tr>
@@ -124,6 +125,7 @@ import { runtimeConfig } from '../../core/config/runtime-config';
               </tr>
             </tbody>
           </table>
+          </div>
           <p *ngIf="!books.length" class="text-muted small mb-0">{{ 'library.emptyFilters' | translate }}</p>
           <app-erp-pagination
             *ngIf="booksTotal > 0"
@@ -149,6 +151,7 @@ import { runtimeConfig } from '../../core/config/runtime-config';
             </div>
             <button type="button" class="btn-outline-erp btn-sm" (click)="loadIssues()"><i class="bi bi-arrow-clockwise"></i> {{ 'library.refresh' | translate }}</button>
           </div>
+          <div class="erp-table-scroll">
           <table class="erp-table library-issues-table" data-testid="issued-books-table">
             <thead><tr><th>{{ 'library.thBook' | translate }}</th><th>{{ 'library.thStudent' | translate }}</th><th>{{ 'library.thIssue' | translate }}</th><th>{{ 'library.thDue' | translate }}</th><th class="library-issue-status-cell">{{ 'library.thStatus' | translate }}</th><th>{{ 'library.thFine' | translate }}</th><th *ngIf="canCirculateBooks">{{ 'library.thReturn' | translate }}</th></tr></thead>
             <tbody>
@@ -165,6 +168,7 @@ import { runtimeConfig } from '../../core/config/runtime-config';
               </tr>
             </tbody>
           </table>
+          </div>
           <app-erp-pagination
             *ngIf="issuesTotal > 0"
             [totalElements]="issuesTotal"

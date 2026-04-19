@@ -20,6 +20,7 @@ import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { sliceToPage } from '../../core/utils/paginate';
 import { DEFAULT_ERP_PAGE_SIZE } from '../../core/constants/pagination.constants';
 import { mergeClassesForAttendanceCatalog } from '../../core/utils/parent-dashboard-metrics';
+import { localIsoDateString } from '../../core/utils/local-date';
 
 @Component({
   selector: 'app-attendance',
@@ -210,7 +211,7 @@ export class AttendanceComponent implements OnInit {
   sections: { id: number; name: string }[] = [];
   selectedClassId: number | null = null;
   selectedSectionId: number | null = null;
-  selectedDate = new Date().toISOString().split('T')[0];
+  selectedDate = localIsoDateString();
   records: AttendanceRecord[] = [];
   attStudentSearch = '';
   attPageIndex = 0;
@@ -256,10 +257,15 @@ export class AttendanceComponent implements OnInit {
     this.translate.onLangChange.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => this.cdr.markForCheck());
 
     this.route.queryParamMap.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
+      const qd = this.route.snapshot.queryParamMap.get('date');
+      if (qd && /^\d{4}-\d{2}-\d{2}$/.test(qd)) {
+        this.selectedDate = qd;
+      }
       if (this.isTeacher) {
         this.homeroomScopeApplied = false;
         this.maybeApplyTeacherHomeroomScope();
       }
+      this.cdr.markForCheck();
     });
 
     this.loadClassesMerged();
@@ -287,17 +293,17 @@ export class AttendanceComponent implements OnInit {
 
   /** Short label for homeroom scope banner (e.g. "Class 8 · Section A"). */
   get teacherHomeroomHint(): string {
-    if (!this.isTeacher || this.linkedTeacherId == null) {
+    if (!this.isTeacher || this.linkedTeacherId == null || this.selectedClassId == null) {
       return '';
     }
-    const cls = this.classes.find(c => c.classTeacherId === this.linkedTeacherId);
+    const cls = this.classes.find(c => c.id === this.selectedClassId);
     if (!cls) {
       return '';
     }
-    const sec =
-      this.selectedSectionId != null && this.selectedSectionId !== 0
-        ? cls.sections?.find(s => s.id === this.selectedSectionId)
-        : cls.sections?.[0];
+    if (!cls.sections?.length) {
+      return this.translate.instant('attendance.scopeHomeroomLine', { class: cls.name, section: '—' });
+    }
+    const sec = cls.sections.find(s => s.id === this.selectedSectionId);
     const sn = sec?.name?.trim() || '—';
     return this.translate.instant('attendance.scopeHomeroomLine', { class: cls.name, section: sn });
   }
@@ -352,23 +358,57 @@ export class AttendanceComponent implements OnInit {
       }
     }
     if (this.linkedTeacherId == null) {
+      this.homeroomScopeApplied = true;
       return;
     }
-    const hm = this.classes.find(c => c.classTeacherId === this.linkedTeacherId);
+    const fromCatalog = this.findHomeroomClassSectionForTeacher(this.linkedTeacherId);
+    const fromProfile = this.auth.getProfileSummarySnapshot()?.classTeacherOf?.[0];
+    const hm =
+      fromCatalog ??
+      (fromProfile?.classId != null
+        ? {
+            classId: fromProfile.classId,
+            sectionId: fromProfile.sectionId != null ? fromProfile.sectionId : null,
+          }
+        : null);
     if (!hm) {
       this.homeroomScopeApplied = true;
       return;
     }
-    this.selectedClassId = hm.id;
-    if (hm.sections.length === 0) {
+    const cls = this.classes.find(c => c.id === hm.classId);
+    if (!cls) {
+      this.homeroomScopeApplied = true;
+      return;
+    }
+    this.selectedClassId = cls.id;
+    if (cls.sections.length === 0) {
       this.sections = [{ id: 0, name: 'Whole class' }];
       this.selectedSectionId = 0;
     } else {
-      this.sections = hm.sections.map(s => ({ id: s.id, name: s.name }));
-      this.selectedSectionId = hm.sections[0].id;
+      this.sections = cls.sections.map(s => ({ id: s.id, name: s.name }));
+      const want = hm.sectionId != null ? cls.sections.find(s => s.id === hm.sectionId) : undefined;
+      this.selectedSectionId = want?.id ?? cls.sections[0].id;
     }
     this.homeroomScopeApplied = true;
     this.loadAttendance();
+  }
+
+  /** Resolves homeroom from section-level (or whole-class) class teacher — not {@link SchoolClass.classTeacherId} alone. */
+  private findHomeroomClassSectionForTeacher(teacherRecordId: number): { classId: number; sectionId: number | null } | null {
+    for (const c of this.classes) {
+      if (!c.sections?.length) {
+        if (c.classTeacherId === teacherRecordId) {
+          return { classId: c.id, sectionId: null };
+        }
+      } else {
+        for (const s of c.sections) {
+          if (s.classTeacherId === teacherRecordId) {
+            return { classId: c.id, sectionId: s.id };
+          }
+        }
+      }
+    }
+    return null;
   }
 
   onDateChange(): void {
@@ -567,10 +607,21 @@ export class AttendanceComponent implements OnInit {
 
   private isClassTeacherForCurrentClass(): boolean {
     const cls = this.classes.find(c => c.id === this.selectedClassId);
-    if (cls?.classTeacherId == null || this.linkedTeacherId == null) {
+    if (cls == null || this.linkedTeacherId == null) {
       return false;
     }
-    return cls.classTeacherId === this.linkedTeacherId;
+    const secId =
+      this.selectedSectionId != null && this.selectedSectionId !== 0 ? this.selectedSectionId : null;
+    if (secId != null) {
+      const sec = cls.sections?.find(s => s.id === secId);
+      if (sec?.classTeacherId != null) {
+        return sec.classTeacherId === this.linkedTeacherId;
+      }
+    }
+    if (!cls.sections?.length) {
+      return cls.classTeacherId === this.linkedTeacherId;
+    }
+    return false;
   }
 
   private hasActiveCoverForSelection(): boolean {

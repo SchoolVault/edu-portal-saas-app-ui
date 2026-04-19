@@ -83,6 +83,12 @@ export const routes: Routes = [
       { path: 'academic', loadComponent: () => import('./features/academic/academic.component').then(m => m.AcademicComponent), canActivate: [schoolStaffGuard] },
       { path: 'attendance', loadComponent: () => import('./features/attendance/attendance.component').then(m => m.AttendanceComponent), canActivate: [schoolStaffGuard] },
       { path: 'timetable', loadComponent: () => import('./features/timetable/timetable.component').then(m => m.TimetableComponent) },
+      {
+        path: 'timetable/onboarding',
+        loadComponent: () =>
+          import('./features/timetable/teacher-schedule-onboarding.component').then(m => m.TeacherScheduleOnboardingComponent),
+        canActivate: [adminOnlyGuard],
+      },
       { path: 'exams', loadComponent: () => import('./features/exams/exams.component').then(m => m.ExamsComponent) },
       {
         path: 'fees',

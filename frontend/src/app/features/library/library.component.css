@@ -1,3 +1,22 @@
+/* Horizontal scroll on narrow viewports — prevents catalog / circulation tables from breaking layout */
+.erp-table-scroll {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.erp-table-scroll .erp-table {
+  min-width: 720px;
+}
+
+@media (max-width: 576px) {
+  .erp-table-scroll .erp-table {
+    min-width: 640px;
+  }
+}
+
 /* Book catalog: category + status columns — stable pill layout, truncation, theme-aligned chips */
 .library-books-table th.library-category-cell,
 .library-books-table td.library-category-cell {

@@ -7,7 +7,9 @@ import com.school.erp.common.exception.BusinessException;
 import com.school.erp.common.exception.ResourceNotFoundException;
 import com.school.erp.modules.auth.repository.UserRepository;
 import com.school.erp.modules.leave.dto.LeaveDTOs;
+import com.school.erp.modules.leave.entity.LeaveEntitlementPolicy;
 import com.school.erp.modules.leave.entity.LeaveRequest;
+import com.school.erp.modules.leave.repository.LeaveEntitlementPolicyRepository;
 import com.school.erp.modules.leave.repository.LeaveRequestRepository;
 import com.school.erp.tenant.TenantContext;
 import org.slf4j.Logger;
@@ -32,10 +34,15 @@ public class LeaveService {
     public static final int MIN_REASON_LENGTH_FOR_OTHER = 10;
 
     private final LeaveRequestRepository repo;
+    private final LeaveEntitlementPolicyRepository policyRepo;
     private final UserRepository userRepository;
 
-    public LeaveService(LeaveRequestRepository repo, UserRepository userRepository) {
+    public LeaveService(
+            LeaveRequestRepository repo,
+            LeaveEntitlementPolicyRepository policyRepo,
+            UserRepository userRepository) {
         this.repo = repo;
+        this.policyRepo = policyRepo;
         this.userRepository = userRepository;
     }
 
@@ -113,11 +120,69 @@ public class LeaveService {
         log.debug("Computing leave balance snapshot userId={}", uid);
         List<LeaveRequest> mine = repo.findByTenantIdAndApplicantUserIdAndIsDeletedFalseOrderByCreatedAtDesc(t, uid);
         LeaveDTOs.LeaveBalanceSummary s = new LeaveDTOs.LeaveBalanceSummary();
+        LeaveDTOs.LeaveEntitlementPolicy pol = toPolicyDto(resolvePolicyEntityOrNull(t));
+        s.setAnnualEntitled(pol.getAnnualEntitled());
+        s.setSickEntitled(pol.getSickEntitled());
+        s.setCasualEntitled(pol.getCasualEntitled());
         s.setAnnualUsed(sumApprovedUnits(mine, "annual"));
         s.setSickUsed(sumApprovedUnits(mine, "sick"));
         s.setCasualUsed(sumApprovedUnits(mine, "casual"));
         log.info("Leave balance for userId={} annualUsed={} sickUsed={} casualUsed={}", uid, s.getAnnualUsed(), s.getSickUsed(), s.getCasualUsed());
         return s;
+    }
+
+    @Transactional(readOnly = true)
+    public LeaveDTOs.LeaveEntitlementPolicy getLeavePolicy() {
+        return toPolicyDto(resolvePolicyEntityOrNull(TenantContext.getTenantId()));
+    }
+
+    @Transactional
+    public LeaveDTOs.LeaveEntitlementPolicy updateLeavePolicy(LeaveDTOs.LeaveEntitlementPolicy req) {
+        String t = TenantContext.getTenantId();
+        LeaveEntitlementPolicy e = policyRepo.findByTenantIdAndIsDeletedFalse(t).orElseGet(() -> {
+            LeaveEntitlementPolicy p = new LeaveEntitlementPolicy();
+            p.setTenantId(t);
+            p.setIsActive(true);
+            p.setIsDeleted(false);
+            return p;
+        });
+        e.setAnnualEntitled(clampEntitled(req.getAnnualEntitled()));
+        e.setSickEntitled(clampEntitled(req.getSickEntitled()));
+        e.setCasualEntitled(clampEntitled(req.getCasualEntitled()));
+        String label = req.getPolicyYearLabel();
+        e.setPolicyYearLabel(label != null && !label.isBlank() ? label.trim() : null);
+        LeaveEntitlementPolicy saved = policyRepo.save(e);
+        log.info("Updated leave entitlement policy tenant={} annual={} sick={} casual={}", t, saved.getAnnualEntitled(), saved.getSickEntitled(), saved.getCasualEntitled());
+        return toPolicyDto(saved);
+    }
+
+    private static int clampEntitled(int v) {
+        return Math.max(0, Math.min(366, v));
+    }
+
+    private LeaveEntitlementPolicy resolvePolicyEntityOrNull(String tenantId) {
+        return policyRepo.findByTenantIdAndIsDeletedFalse(tenantId).orElse(null);
+    }
+
+    private static LeaveDTOs.LeaveEntitlementPolicy defaultPolicyDto() {
+        LeaveDTOs.LeaveEntitlementPolicy d = new LeaveDTOs.LeaveEntitlementPolicy();
+        d.setAnnualEntitled(24);
+        d.setSickEntitled(12);
+        d.setCasualEntitled(12);
+        d.setPolicyYearLabel("2025-2026");
+        return d;
+    }
+
+    private static LeaveDTOs.LeaveEntitlementPolicy toPolicyDto(LeaveEntitlementPolicy e) {
+        if (e == null) {
+            return defaultPolicyDto();
+        }
+        LeaveDTOs.LeaveEntitlementPolicy d = new LeaveDTOs.LeaveEntitlementPolicy();
+        d.setAnnualEntitled(e.getAnnualEntitled());
+        d.setSickEntitled(e.getSickEntitled());
+        d.setCasualEntitled(e.getCasualEntitled());
+        d.setPolicyYearLabel(e.getPolicyYearLabel());
+        return d;
     }
 
     private int sumApprovedUnits(List<LeaveRequest> mine, String typeKeyword) {

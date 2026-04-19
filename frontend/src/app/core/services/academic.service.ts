@@ -1,7 +1,15 @@
 import { Injectable } from '@angular/core';
 import { Observable, of } from 'rxjs';
 import { delay, map, switchMap } from 'rxjs/operators';
-import { AcademicYear, PromotionPreview, PromotionResult, PromotionSplitPreview, SchoolClass, SubjectCatalogItem } from '../models/models';
+import {
+  AcademicYear,
+  PromotionPreview,
+  PromotionResult,
+  PromotionSplitPreview,
+  SchoolClass,
+  Section,
+  SubjectCatalogItem,
+} from '../models/models';
 import { MOCK_ACADEMIC_YEARS, MOCK_SCHOOL_CLASSES, MOCK_SUBJECT_CATALOG } from '../mocks/academic.mock-data';
 import { ApiService } from './api.service';
 import { StudentService } from './student.service';
@@ -90,26 +98,22 @@ export class AcademicService {
     const nextClassId = this.classes.reduce((m, c) => Math.max(m, c.id), 0) + 1;
     const cap = payload.sectionCapacity ?? 40;
     const names = (payload.sectionNames ?? []).map(s => s.trim()).filter(Boolean);
+    const multi = names.length > 1;
+    const tch = payload.classTeacherId;
+    const tnm = payload.classTeacherName?.trim();
+    if (tch != null) {
+      this.releaseTeacherFromAllHomeroomSlotsInMemory(tch, nextClassId, null);
+    }
     const sections = names.map((n, i) => ({
       id: nextClassId * 1000 + i + 1,
       name: n,
       classId: nextClassId,
       capacity: cap,
       studentCount: 0,
+      ...(tch != null && !multi && names.length === 1
+        ? { classTeacherId: tch, classTeacherName: tnm }
+        : {}),
     }));
-    if (payload.classTeacherId != null) {
-      this.classes = this.classes.map(c =>
-        c.classTeacherId === payload.classTeacherId
-          ? { ...c, classTeacherId: undefined, classTeacherName: undefined }
-          : c
-      );
-    }
-    const t = payload.classTeacherId
-      ? {
-          classTeacherId: payload.classTeacherId,
-          classTeacherName: payload.classTeacherName ?? undefined,
-        }
-      : {};
     const cls: SchoolClass = {
       id: nextClassId,
       name: payload.name,
@@ -117,10 +121,30 @@ export class AcademicService {
       sections,
       academicYearId: payload.academicYearId,
       tenantId: 't1',
-      ...t,
+      ...(tch != null && names.length === 0 ? { classTeacherId: tch, classTeacherName: tnm } : {}),
     };
     this.classes = [...this.classes, cls].sort((a, b) => a.grade - b.grade);
-    return of({ ...cls }).pipe(delay(350));
+    return of({ ...cls, sections: cls.sections.map(s => ({ ...s })) }).pipe(delay(350));
+  }
+
+  /** Mock: one homeroom slot per teacher — clear other classes/sections when assigning. */
+  private releaseTeacherFromAllHomeroomSlotsInMemory(teacherId: number, keepClassId: number, keepSectionId: number | null): void {
+    this.classes = this.classes.map(c => {
+      let next = { ...c, sections: c.sections.map(s => ({ ...s })) };
+      if (c.id !== keepClassId && c.classTeacherId === teacherId) {
+        next = { ...next, classTeacherId: undefined, classTeacherName: undefined };
+      }
+      next.sections = next.sections.map(s => {
+        if (c.id === keepClassId && keepSectionId != null && s.id === keepSectionId) {
+          return s;
+        }
+        if (s.classTeacherId === teacherId) {
+          return { ...s, classTeacherId: undefined, classTeacherName: undefined };
+        }
+        return s;
+      });
+      return next;
+    });
   }
 
   updateClass(classId: number, name: string, grade: number): Observable<SchoolClass> {
@@ -143,10 +167,26 @@ export class AcademicService {
     }
     const ci = this.classes.findIndex(c => c.id === classId);
     if (ci === -1) return of(this.classes[0]).pipe(delay(200));
+    const cur = this.classes[ci];
     const secId = Date.now();
-    const sec = { id: secId, name: name.trim(), classId, capacity, studentCount: 0 };
-    this.classes[ci] = { ...this.classes[ci], sections: [...this.classes[ci].sections, sec] };
-    return of({ ...this.classes[ci] }).pipe(delay(300));
+    let sec: Section = {
+      id: secId,
+      name: name.trim(),
+      classId,
+      capacity,
+      studentCount: 0,
+    };
+    let nextClass = { ...cur };
+    if (cur.sections.length === 0 && cur.classTeacherId != null) {
+      sec = {
+        ...sec,
+        classTeacherId: cur.classTeacherId,
+        classTeacherName: cur.classTeacherName,
+      };
+      nextClass = { ...nextClass, classTeacherId: undefined, classTeacherName: undefined };
+    }
+    this.classes[ci] = { ...nextClass, sections: [...nextClass.sections, sec] };
+    return of({ ...this.classes[ci], sections: this.classes[ci].sections.map(s => ({ ...s })) }).pipe(delay(300));
   }
 
   updateSection(classId: number, sectionId: number, name: string, capacity: number): Observable<SchoolClass> {
@@ -360,37 +400,72 @@ export class AcademicService {
    * Real API: teacher list includes {@code homeroomClassNames} from the server.
    */
   homeroomClassNamesForTeacher(teacherId: number): string[] {
-    return this.classes
-      .filter(c => c.classTeacherId === teacherId)
-      .map(c => c.name)
-      .sort((a, b) => a.localeCompare(b));
+    const labels: string[] = [];
+    for (const c of this.classes) {
+      if (!c.sections?.length && c.classTeacherId === teacherId) {
+        labels.push(c.name);
+      }
+      for (const s of c.sections ?? []) {
+        if (s.classTeacherId === teacherId) {
+          labels.push(`${c.name}-${s.name}`);
+        }
+      }
+    }
+    return labels.sort((a, b) => a.localeCompare(b));
   }
 
-  assignClassTeacher(classId: number, teacherId: number | null, teacherName?: string): Observable<SchoolClass> {
+  assignClassTeacher(
+    classId: number,
+    teacherId: number | null,
+    teacherName?: string,
+    sectionId?: number | null
+  ): Observable<SchoolClass> {
     if (!runtimeConfig.useMocks) {
       return this.api
         .put<any>(`/academic/classes/${classId}/teacher`, {
           teacherId: teacherId ?? null,
           teacherName: teacherName ?? null,
+          sectionId: sectionId ?? null,
         })
         .pipe(map((cls: any) => this.normalizeClass(cls)));
     }
     const idx = this.classes.findIndex(c => c.id === classId);
     if (idx === -1) return of(this.classes[0]).pipe(delay(200));
+    const cls = this.classes[idx];
+    const hasSecs = (cls.sections?.length ?? 0) > 0;
     if (teacherId != null) {
-      this.classes = this.classes.map(c =>
-        c.id !== classId && c.classTeacherId === teacherId
-          ? { ...c, classTeacherId: undefined, classTeacherName: undefined }
-          : c
-      );
+      this.releaseTeacherFromAllHomeroomSlotsInMemory(teacherId, classId, hasSecs ? sectionId ?? null : null);
     }
     const i = this.classes.findIndex(c => c.id === classId);
     if (i === -1) return of(this.classes[0]).pipe(delay(200));
-    this.classes[i] = {
-      ...this.classes[i],
-      classTeacherId: teacherId ?? undefined,
-      classTeacherName: teacherId != null ? teacherName?.trim() || undefined : undefined,
-    };
+    const resolvedName = teacherId != null ? teacherName?.trim() || undefined : undefined;
+    if (!hasSecs) {
+      this.classes[i] = {
+        ...this.classes[i],
+        classTeacherId: teacherId ?? undefined,
+        classTeacherName: resolvedName,
+        sections: this.classes[i].sections.map(s => ({ ...s })),
+      };
+    } else {
+      const sid = sectionId;
+      if (sid == null) {
+        return of(this.classes[i]).pipe(delay(200));
+      }
+      this.classes[i] = {
+        ...this.classes[i],
+        classTeacherId: undefined,
+        classTeacherName: undefined,
+        sections: this.classes[i].sections.map(s =>
+          s.id === sid
+            ? {
+                ...s,
+                classTeacherId: teacherId ?? undefined,
+                classTeacherName: resolvedName,
+              }
+            : { ...s }
+        ),
+      };
+    }
     return of({ ...this.classes[i], sections: this.classes[i].sections.map(s => ({ ...s })) }).pipe(delay(300));
   }
 
@@ -401,6 +476,9 @@ export class AcademicService {
       classId: Number(section.classId ?? raw.id),
       capacity: section.capacity,
       studentCount: section.studentCount ?? 0,
+      classTeacherId:
+        section.classTeacherId != null ? Number(section.classTeacherId) : undefined,
+      classTeacherName: section.classTeacherName ?? undefined,
     }));
     const sum = sections.reduce((s: number, x: { studentCount: number }) => s + (x.studentCount ?? 0), 0);
     const total = raw.totalStudents != null ? Number(raw.totalStudents) : sum;

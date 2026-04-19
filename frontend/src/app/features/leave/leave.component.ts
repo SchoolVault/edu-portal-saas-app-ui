@@ -13,6 +13,7 @@ import {
   translateLeaveLookup,
 } from '../../core/leave/leave-api.contract';
 import { resolveLeaveSubmitError } from '../../core/leave/leave-api.error';
+import { readLeaveEntitlementPolicy, writeLeaveEntitlementPolicy, type LeaveEntitlementPolicy } from '../../core/leave/leave-policy.storage';
 import { AuthService } from '../../core/services/auth.service';
 import { ErpDatePickerComponent } from '../../shared/erp-date-picker/erp-date-picker.component';
 import { ErpPaginationComponent } from '../../shared/erp-pagination/erp-pagination.component';
@@ -41,8 +42,34 @@ import { runtimeConfig } from '../../core/config/runtime-config';
       </div>
       <p class="text-muted" style="font-size: 13px;">{{ 'leave.lead' | translate }}</p>
 
+      <div class="erp-card mt-3 mb-4" *ngIf="isApprover">
+        <h3 style="font-size: 15px; font-weight: 700;">{{ 'leave.policyCardTitle' | translate }}</h3>
+        <p class="small text-muted mb-2">{{ 'leave.policyCardHint' | translate }}</p>
+        <div class="row g-2 align-items-end">
+          <div class="col-6 col-md-3">
+            <label class="erp-label">{{ 'leave.policyAnnual' | translate }}</label>
+            <input type="number" min="0" class="erp-input" [(ngModel)]="policyDraft.annualEntitled" />
+          </div>
+          <div class="col-6 col-md-3">
+            <label class="erp-label">{{ 'leave.policySick' | translate }}</label>
+            <input type="number" min="0" class="erp-input" [(ngModel)]="policyDraft.sickEntitled" />
+          </div>
+          <div class="col-6 col-md-3">
+            <label class="erp-label">{{ 'leave.policyCasual' | translate }}</label>
+            <input type="number" min="0" class="erp-input" [(ngModel)]="policyDraft.casualEntitled" />
+          </div>
+          <div class="col-12 col-md-3">
+            <label class="erp-label">{{ 'leave.policyYearLabel' | translate }}</label>
+            <input type="text" class="erp-input" [(ngModel)]="policyDraft.policyYearLabel" />
+          </div>
+        </div>
+        <p *ngIf="policySaveError" class="text-danger small mb-0 mt-2">{{ policySaveError }}</p>
+        <button type="button" class="btn-primary-erp mt-3" (click)="saveLeavePolicy()">{{ 'leave.policySave' | translate }}</button>
+      </div>
+
       <div class="erp-card mt-3 mb-4" *ngIf="balance as b">
         <h3 style="font-size: 15px; font-weight: 700;">{{ 'leave.balanceTitle' | translate }}</h3>
+        <p *ngIf="policyPeriodLine" class="small text-muted mb-2">{{ policyPeriodLine }}</p>
         <div class="row g-3 mt-1">
           <div class="col-md-4">
             <div class="balance-pill">
@@ -213,6 +240,8 @@ export class LeaveComponent implements OnInit {
   mineFilteredTotal = 0;
   allFilteredTotal = 0;
   balance: LeaveBalanceSummary | null = null;
+  policyDraft: LeaveEntitlementPolicy = readLeaveEntitlementPolicy();
+  policySaveError = '';
   submitError = '';
   readonly otherReasonMin = LEAVE_OTHER_REASON_MIN_LEN;
 
@@ -232,6 +261,15 @@ export class LeaveComponent implements OnInit {
 
   get isApprover(): boolean {
     return this.auth.getNormalizedRole() === 'admin';
+  }
+
+  /** Shown under balance title when a policy year label is configured (mock or API). */
+  get policyPeriodLine(): string {
+    const y = this.policyDraft?.policyYearLabel?.trim();
+    if (!y) {
+      return '';
+    }
+    return this.translate.instant('leave.policyPeriodLine', { y });
   }
 
   /** Team queue is for school admins only; teachers use “My requests”. */
@@ -277,6 +315,29 @@ export class LeaveComponent implements OnInit {
     this.refresh();
   }
 
+  saveLeavePolicy(): void {
+    this.policySaveError = '';
+    const payload: LeaveEntitlementPolicy = {
+      annualEntitled: Math.max(0, Math.floor(Number(this.policyDraft.annualEntitled) || 0)),
+      sickEntitled: Math.max(0, Math.floor(Number(this.policyDraft.sickEntitled) || 0)),
+      casualEntitled: Math.max(0, Math.floor(Number(this.policyDraft.casualEntitled) || 0)),
+      policyYearLabel: (this.policyDraft.policyYearLabel ?? '').trim() || undefined,
+    };
+    if (runtimeConfig.useMocks) {
+      writeLeaveEntitlementPolicy(payload);
+      this.policyDraft = { ...readLeaveEntitlementPolicy() };
+      this.refresh();
+      return;
+    }
+    this.leave.updateEntitlementPolicy(payload).subscribe({
+      next: () => this.refresh(),
+      error: (e: unknown) => {
+        this.policySaveError = resolveLeaveSubmitError(e, this.translate);
+        this.cdr.markForCheck();
+      },
+    });
+  }
+
   dayUnitLabel(u?: LeaveDayUnit): string {
     const unit = u ?? 'FULL_DAY';
     const shortKey = `leave.dayUnit._short_${unit}`;
@@ -300,7 +361,19 @@ export class LeaveComponent implements OnInit {
   }
 
   refresh(): void {
-    this.leave.getBalance().subscribe(b => (this.balance = b));
+    this.leave.getEntitlementPolicy().subscribe(p => {
+      this.policyDraft = {
+        annualEntitled: p.annualEntitled,
+        sickEntitled: p.sickEntitled,
+        casualEntitled: p.casualEntitled,
+        policyYearLabel: p.policyYearLabel,
+      };
+      this.cdr.markForCheck();
+    });
+    this.leave.getBalance().subscribe(b => {
+      this.balance = b;
+      this.cdr.markForCheck();
+    });
     if (this.useServerPaging) {
       this.minePageIndex = 0;
       this.fetchMinePage();

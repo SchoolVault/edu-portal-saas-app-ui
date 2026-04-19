@@ -33,11 +33,15 @@ import { eachDateInclusive, mockAttendanceStatusFor, mockTenantAttendanceOvervie
 
 const DEMO_TEACHER_RECORD_ID = 1;
 
-const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'] as const;
+/** Matches {@link timetable-mock.generator} — no Sunday rows; map weekend to nearest school day for demo. */
+const TIMETABLE_WEEKDAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'] as const;
 
 function mockCalendarWeekday(): string {
-  const name = WEEKDAYS[new Date().getDay()];
-  return name.charAt(0) + name.slice(1).toLowerCase();
+  const js = new Date().getDay();
+  if (js === 0) {
+    return 'Monday';
+  }
+  return TIMETABLE_WEEKDAYS[js - 1] ?? 'Monday';
 }
 
 function sectionNameFor(classId: number, sectionId: number): string {
@@ -51,19 +55,29 @@ function classNameFor(classId: number): string {
 
 function buildTeacherTodaySchedule(teacherRecordId: number): TeacherDashboardData['todaySchedule'] {
   const day = mockCalendarWeekday();
-  return MOCK_TIMETABLE_ENTRIES.filter(e => e.teacherId === teacherRecordId && e.day === day)
-    .sort((a, b) => a.period - b.period)
-    .map(e => ({
-      classId: e.classId,
-      sectionId: e.sectionId,
-      period: e.period,
-      subject: e.subjectName,
-      className: classNameFor(e.classId),
-      sectionName: sectionNameFor(e.classId, e.sectionId),
-      room: e.room ?? '',
-      startTime: e.startTime,
-      endTime: e.endTime,
-    }));
+  const forDay = MOCK_TIMETABLE_ENTRIES.filter(e => e.teacherId === teacherRecordId && e.day === day).sort(
+    (a, b) => a.period - b.period,
+  );
+  /** At most one row per period (seed guarantees no double-booking; this keeps UI safe if data drifts). */
+  const byPeriod = new Map<number, (typeof forDay)[0]>();
+  for (const e of forDay) {
+    if (!byPeriod.has(e.period)) {
+      byPeriod.set(e.period, e);
+    }
+  }
+  const teacher = MOCK_TEACHERS.find(t => t.id === teacherRecordId);
+  const primarySubject = (teacher?.specialization ?? '').trim();
+  return [...byPeriod.values()].map(e => ({
+    classId: e.classId,
+    sectionId: e.sectionId,
+    period: e.period,
+    subject: primarySubject || e.subjectName,
+    className: classNameFor(e.classId),
+    sectionName: sectionNameFor(e.classId, e.sectionId),
+    room: e.room ?? '',
+    startTime: e.startTime,
+    endTime: e.endTime,
+  }));
 }
 
 function upcomingExamCount(): number {

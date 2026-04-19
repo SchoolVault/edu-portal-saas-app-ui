@@ -12,6 +12,12 @@ import { sanitizeTeacherForColleaguePeerView, shouldApplyTeacherColleagueVisibil
 import { sliceToPage } from '../utils/paginate';
 
 function normalizeStringList(raw: unknown): string[] {
+  if (typeof raw === 'string') {
+    return raw
+      .split(/[,;]/)
+      .map(s => s.trim())
+      .filter(s => s.length > 0);
+  }
   if (!Array.isArray(raw)) return [];
   return raw.map((x: unknown) => String(x).trim()).filter(s => s.length > 0);
 }

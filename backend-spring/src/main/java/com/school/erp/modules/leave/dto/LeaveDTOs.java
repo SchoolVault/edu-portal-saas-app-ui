@@ -2,8 +2,11 @@ package com.school.erp.modules.leave.dto;
 
 import com.school.erp.common.enums.Enums;
 import io.swagger.v3.oas.annotations.media.Schema;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 
 import java.time.LocalDate;
 
@@ -311,6 +314,59 @@ public final class LeaveDTOs {
 
         public void setCasualUsed(int casualUsed) {
             this.casualUsed = casualUsed;
+        }
+    }
+
+    /**
+     * Tenant leave policy — same JSON shape as Angular {@code LeaveEntitlementPolicy} ({@code annualEntitled}, etc.).
+     */
+    public static class LeaveEntitlementPolicy {
+        @Min(0)
+        @Max(366)
+        @Schema(description = "Annual leave days per policy cycle", example = "24")
+        private int annualEntitled = 24;
+        @Min(0)
+        @Max(366)
+        @Schema(description = "Sick leave days per policy cycle", example = "12")
+        private int sickEntitled = 12;
+        @Min(0)
+        @Max(366)
+        @Schema(description = "Casual leave days per policy cycle", example = "12")
+        private int casualEntitled = 12;
+        @Size(max = 120)
+        @Schema(description = "Display label only, e.g. academic year", example = "2025–2026")
+        private String policyYearLabel;
+
+        public int getAnnualEntitled() {
+            return annualEntitled;
+        }
+
+        public void setAnnualEntitled(int annualEntitled) {
+            this.annualEntitled = annualEntitled;
+        }
+
+        public int getSickEntitled() {
+            return sickEntitled;
+        }
+
+        public void setSickEntitled(int sickEntitled) {
+            this.sickEntitled = sickEntitled;
+        }
+
+        public int getCasualEntitled() {
+            return casualEntitled;
+        }
+
+        public void setCasualEntitled(int casualEntitled) {
+            this.casualEntitled = casualEntitled;
+        }
+
+        public String getPolicyYearLabel() {
+            return policyYearLabel;
+        }
+
+        public void setPolicyYearLabel(String policyYearLabel) {
+            this.policyYearLabel = policyYearLabel;
         }
     }
 }

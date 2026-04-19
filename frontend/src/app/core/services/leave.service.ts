@@ -9,6 +9,9 @@ import { sliceToPage } from '../utils/paginate';
 import { AuthService } from './auth.service';
 import { MOCK_LEAVE_REQUESTS_SEED, MOCK_LEAVE_SEQ_START } from '../mocks/leave.mock-data';
 import { LEAVE_OTHER_REASON_MIN_LEN, normalizeLeaveRequestRow } from '../leave/leave-api.contract';
+import { readLeaveEntitlementPolicy, writeLeaveEntitlementPolicy, type LeaveEntitlementPolicy } from '../leave/leave-policy.storage';
+
+export type { LeaveEntitlementPolicy };
 
 export type LeaveDayUnit = 'FULL_DAY' | 'FIRST_HALF' | 'SECOND_HALF';
 
@@ -197,6 +200,24 @@ export class LeaveService {
     return of(row ? normalizeLeaveRequestRow(row) : ({} as LeaveRequestRow)).pipe(delay(300));
   }
 
+  /** Tenant policy (same shape as localStorage mock); teachers and admins may GET. */
+  getEntitlementPolicy(): Observable<LeaveEntitlementPolicy> {
+    if (!runtimeConfig.useMocks) {
+      return this.api.get<LeaveEntitlementPolicy>('/leave/policy').pipe(map(normalizeEntitlementPolicy));
+    }
+    return of(readLeaveEntitlementPolicy()).pipe(delay(120));
+  }
+
+  /** School admin updates tenant entitlements (persisted server-side when not in mock mode). */
+  updateEntitlementPolicy(p: LeaveEntitlementPolicy): Observable<LeaveEntitlementPolicy> {
+    const body = normalizeEntitlementPolicy(p);
+    if (!runtimeConfig.useMocks) {
+      return this.api.put<LeaveEntitlementPolicy>('/leave/policy', body).pipe(map(normalizeEntitlementPolicy));
+    }
+    writeLeaveEntitlementPolicy(body);
+    return of(readLeaveEntitlementPolicy()).pipe(delay(200));
+  }
+
   getBalance(): Observable<LeaveBalanceSummary> {
     if (!runtimeConfig.useMocks) {
       return this.api.get<LeaveBalanceSummary>('/leave/balance').pipe(
@@ -214,15 +235,26 @@ export class LeaveService {
     const mine = MOCK_REQUESTS.filter(r => r.applicantUserId === uid && r.status === 'APPROVED');
     const sum = (kw: string) =>
       mine.filter(r => r.leaveType.toLowerCase().includes(kw)).reduce((s, r) => s + countMockUnits(r), 0);
+    const policy = readLeaveEntitlementPolicy();
     return of({
-      annualEntitled: 24,
+      annualEntitled: policy.annualEntitled,
       annualUsed: sum('annual'),
-      sickEntitled: 12,
+      sickEntitled: policy.sickEntitled,
       sickUsed: sum('sick'),
-      casualEntitled: 12,
-      casualUsed: sum('casual')
+      casualEntitled: policy.casualEntitled,
+      casualUsed: sum('casual'),
     }).pipe(delay(180));
   }
+}
+
+function normalizeEntitlementPolicy(p: LeaveEntitlementPolicy): LeaveEntitlementPolicy {
+  const y = p.policyYearLabel?.trim();
+  return {
+    annualEntitled: Math.max(0, Math.min(366, Math.floor(Number(p.annualEntitled) || 0))),
+    sickEntitled: Math.max(0, Math.min(366, Math.floor(Number(p.sickEntitled) || 0))),
+    casualEntitled: Math.max(0, Math.min(366, Math.floor(Number(p.casualEntitled) || 0))),
+    policyYearLabel: y || undefined,
+  };
 }
 
 function countMockUnits(r: LeaveRequestRow): number {

@@ -15,6 +15,7 @@ import {
   TeacherDashboardData,
   TeacherHomeroomDailyPoint,
 } from '../../core/models/models';
+import { localIsoDateString } from '../../core/utils/local-date';
 
 Chart.register(...registerables);
 
@@ -808,12 +809,14 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
     const homeroomDisplay =
       hmLabel ||
       (ct ? `${ct.className?.trim() || ''}${ct.sectionName ? ' · ' + ct.sectionName : ''}`.trim() : '');
-    const homeroomQuery: Record<string, string> | undefined =
+    const todayIso = localIsoDateString();
+    const homeroomScopeParams: Record<string, string> | undefined =
       ct?.classId != null && ct.sectionId != null
         ? { classId: String(ct.classId), sectionId: String(ct.sectionId) }
         : ct?.classId != null
           ? { classId: String(ct.classId) }
           : undefined;
+    const attendanceQuery: Record<string, string> = { ...(homeroomScopeParams ?? {}), date: todayIso };
     const rosterStrength =
       ct != null && ct.totalStudents != null && ct.totalStudents > 0 ? ct.totalStudents : dashboard.studentsAssigned;
     const attendanceDone = Boolean(dashboard.homeroomTodayAttendanceComplete);
@@ -825,7 +828,7 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
         bgColor: 'rgba(27,58,48,0.1)',
         color: '#1B3A30',
         link: '/app/students',
-        queryParams: homeroomQuery,
+        queryParams: homeroomScopeParams,
         // subtextKey: homeroomDisplay ? 'dashboard.teacher.kpi.homeroomSubStudents' : 'dashboard.teacher.kpi.homeroomEmpty',
       },
       {
@@ -835,7 +838,7 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
         bgColor: 'rgba(192,92,61,0.1)',
         color: '#C05C3D',
         link: '/app/students',
-        queryParams: homeroomQuery,
+        queryParams: homeroomScopeParams,
         // subtextKey: ct ? 'dashboard.teacher.kpi.studentsAssignedHomeroomHint' : 'dashboard.teacher.kpi.studentsAssignedFallbackHint',
       },
       {
@@ -856,8 +859,7 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
         bgColor: attendanceDone ? 'rgba(5,150,105,0.12)' : 'rgba(217,119,6,0.12)',
         color: attendanceDone ? '#059669' : '#D97706',
         link: '/app/attendance',
-        queryParams: homeroomQuery,
-        // subtextKey: attendanceDone ? 'dashboard.teacher.kpi.homeAttendanceHintDone' : 'dashboard.teacher.kpi.homeAttendanceHintPending',
+        queryParams: attendanceQuery,
         kpiVariant: attendanceDone ? 'attendance-done' : 'attendance-pending',
       },
     ];

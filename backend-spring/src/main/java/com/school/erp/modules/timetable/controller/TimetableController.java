@@ -1,9 +1,11 @@
 package com.school.erp.modules.timetable.controller;
 
 import com.school.erp.common.dto.ApiResponse;
+import com.school.erp.modules.timetable.dto.TeacherScheduleOnboardingDTOs;
 import com.school.erp.modules.timetable.dto.TeacherScheduleSlot;
 import com.school.erp.modules.timetable.dto.TimetableDTOs;
 import com.school.erp.modules.timetable.entity.TimetableEntry;
+import com.school.erp.modules.timetable.service.TeacherScheduleOnboardingService;
 import com.school.erp.modules.timetable.service.TimetableService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -21,6 +23,7 @@ import java.util.List;
 @Tag(name = "Timetable", description = "Schedule Management with Conflict Detection")
 public class TimetableController {
     private final TimetableService service;
+    private final TeacherScheduleOnboardingService onboardingService;
 
     @GetMapping
     @PreAuthorize("hasAnyRole('ADMIN','TEACHER','SUPER_ADMIN')")
@@ -79,7 +82,20 @@ public class TimetableController {
         return ResponseEntity.ok(ApiResponse.ok(null, "Deleted"));
     }
 
-    public TimetableController(final TimetableService service) {
+    @PostMapping("/onboarding/apply")
+    @PreAuthorize("hasRole(\'ADMIN\')")
+    @Operation(
+            summary = "Apply teacher schedule onboarding",
+            description = "Single transaction: optional homeroom (class teacher) assignment plus recurring weekly slots. "
+                    + "Use removeEntryIds to drop old rows before creating replacements. "
+                    + "Homeroom authority is delegated to AcademicService (one homeroom slot per teacher).")
+    public ResponseEntity<ApiResponse<TeacherScheduleOnboardingDTOs.ApplyResponse>> applyOnboarding(
+            @RequestBody TeacherScheduleOnboardingDTOs.ApplyRequest body) {
+        return ResponseEntity.ok(ApiResponse.ok(onboardingService.apply(body)));
+    }
+
+    public TimetableController(final TimetableService service, final TeacherScheduleOnboardingService onboardingService) {
         this.service = service;
+        this.onboardingService = onboardingService;
     }
 }

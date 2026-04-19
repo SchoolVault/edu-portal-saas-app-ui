@@ -5,7 +5,14 @@ import { RouterLink } from '@angular/router';
 import { AcademicService } from '../../core/services/academic.service';
 import { TeacherService } from '../../core/services/teacher.service';
 import { AuthService } from '../../core/services/auth.service';
-import { AcademicYear, PromotionPreview, PromotionSplitPreview, SchoolClass, Teacher } from '../../core/models/models';
+import {
+  AcademicYear,
+  PromotionPreview,
+  PromotionSplitPreview,
+  SchoolClass,
+  Section,
+  Teacher,
+} from '../../core/models/models';
 import { filter } from 'rxjs/operators';
 import { ErpDatePickerComponent } from '../../shared/erp-date-picker/erp-date-picker.component';
 import { ConfirmDialogService } from '../../shared/confirm-dialog/confirm-dialog.service';
@@ -45,6 +52,140 @@ import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directiv
         border-radius: var(--radius-md);
         padding: 10px 12px;
         margin-bottom: 10px;
+      }
+      /* Section tiles: same slot language as teacher timetable (see timetable.component). */
+      .timetable-slot-cell {
+        --tt-accent: var(--clr-primary);
+        position: relative;
+        border-radius: var(--radius-md);
+        padding: 10px 10px 10px 12px;
+        min-height: 72px;
+        border: 1px solid color-mix(in srgb, var(--tt-accent) 22%, var(--clr-border));
+        background: color-mix(in srgb, var(--tt-accent) 7%, var(--clr-surface));
+        box-shadow: 0 1px 0 color-mix(in srgb, var(--clr-border) 65%, transparent);
+        transition: box-shadow 0.2s ease, border-color 0.2s ease, transform 0.15s ease;
+        overflow: hidden;
+      }
+      .timetable-slot-cell::before {
+        content: '';
+        position: absolute;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        width: 3px;
+        border-radius: var(--radius-md) 0 0 var(--radius-md);
+        background: linear-gradient(180deg, color-mix(in srgb, var(--tt-accent) 92%, #fff 8%), var(--tt-accent));
+        opacity: 0.95;
+      }
+      .timetable-slot-cell:hover {
+        border-color: color-mix(in srgb, var(--tt-accent) 38%, var(--clr-border));
+        box-shadow: 0 6px 18px color-mix(in srgb, var(--clr-text) 12%, transparent);
+        transform: translateY(-1px);
+      }
+      .timetable-slot--tone-0 {
+        --tt-accent: var(--clr-primary);
+      }
+      .timetable-slot--tone-1 {
+        --tt-accent: var(--clr-info);
+      }
+      .timetable-slot--tone-2 {
+        --tt-accent: var(--clr-success);
+      }
+      .timetable-slot--tone-3 {
+        --tt-accent: color-mix(in srgb, var(--clr-accent) 85%, var(--clr-primary) 15%);
+      }
+      .timetable-slot-subject {
+        font-weight: 700;
+        color: var(--clr-text);
+        font-size: 13px;
+        line-height: 1.3;
+        letter-spacing: -0.01em;
+      }
+      .timetable-slot-class {
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--clr-primary);
+        margin-top: 2px;
+      }
+      .timetable-slot-teacher {
+        font-size: 12px;
+        color: var(--clr-text-secondary);
+        margin-top: 2px;
+      }
+      .academic-section-slot--mine {
+        --tt-accent: var(--clr-primary);
+        padding-top: 30px;
+        border-color: color-mix(in srgb, var(--clr-primary) 38%, var(--clr-border));
+        background: linear-gradient(
+          165deg,
+          color-mix(in srgb, var(--clr-primary) 11%, var(--clr-surface)) 0%,
+          var(--clr-surface) 55%
+        );
+        box-shadow:
+          0 0 0 1px color-mix(in srgb, var(--clr-primary) 22%, transparent),
+          0 10px 28px color-mix(in srgb, var(--clr-primary) 14%, transparent);
+      }
+      .academic-section-slot--mine::before {
+        width: 4px;
+        opacity: 1;
+        background: linear-gradient(
+          180deg,
+          color-mix(in srgb, var(--clr-primary) 92%, #fff 8%),
+          color-mix(in srgb, var(--clr-accent) 40%, var(--clr-primary) 60%)
+        );
+      }
+      .academic-section-slot--mine:hover {
+        border-color: color-mix(in srgb, var(--clr-primary) 48%, var(--clr-border));
+        box-shadow:
+          0 0 0 1px color-mix(in srgb, var(--clr-primary) 30%, transparent),
+          0 12px 32px color-mix(in srgb, var(--clr-primary) 18%, transparent);
+      }
+      .academic-homeroom-you-pill {
+        position: absolute;
+        top: 7px;
+        left: 10px;
+        z-index: 2;
+        font-size: 10px;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        padding: 4px 9px;
+        border-radius: 999px;
+        line-height: 1;
+        color: var(--clr-primary);
+        background: color-mix(in srgb, var(--clr-primary) 14%, var(--clr-surface));
+        border: 1px solid color-mix(in srgb, var(--clr-primary) 38%, transparent);
+        box-shadow: 0 1px 2px color-mix(in srgb, var(--clr-text) 6%, transparent);
+        pointer-events: none;
+      }
+      .academic-homeroom-you-pill--inline {
+        position: static;
+        display: inline-flex;
+        vertical-align: middle;
+        margin-inline-start: 8px;
+        transform: none;
+        pointer-events: none;
+      }
+      .academic-class-card--my-homeroom {
+        border: 2px solid color-mix(in srgb, var(--clr-primary) 42%, var(--clr-border));
+        box-shadow:
+          0 0 0 1px color-mix(in srgb, var(--clr-primary) 12%, transparent),
+          0 12px 32px color-mix(in srgb, var(--clr-primary) 10%, transparent);
+        background: linear-gradient(
+          180deg,
+          color-mix(in srgb, var(--clr-primary) 6%, var(--clr-surface)) 0%,
+          var(--clr-surface) 42%
+        );
+      }
+      .academic-section-ct {
+        font-size: 12px;
+        color: var(--clr-text-secondary);
+        margin-top: 6px;
+        line-height: 1.35;
+      }
+      .academic-section-ct strong {
+        color: var(--clr-text);
+        font-weight: 600;
       }
     `,
   ],
@@ -97,9 +238,17 @@ import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directiv
               </select>
             </div>
             <a routerLink="/app/students" class="btn-outline-erp btn-sm" style="text-decoration: none;"><i class="bi bi-people me-1"></i> {{ 'academic.classes.studentsLink' | translate }}</a>
+            <a *ngIf="canManageAcademic" routerLink="/app/timetable" class="btn-outline-erp btn-sm" style="text-decoration: none;"><i class="bi bi-calendar-week me-1"></i> {{ 'academic.classes.timetableLink' | translate }}</a>
           </div>
           <button *ngIf="canManageAcademic" type="button" class="btn-primary-erp btn-sm" (click)="openCreateClassModal()"><i class="bi bi-plus-lg"></i> {{ 'academic.classes.create' | translate }}</button>
         </div>
+        <p *ngIf="canManageAcademic" class="mb-3" style="font-size: 12px; color: var(--clr-text-secondary); max-width: 920px;">
+          {{ 'academic.classes.timetableLinkLead' | translate }}
+        </p>
+        <p *ngIf="showHomeroomOwnerHint" class="mb-3 d-flex align-items-start gap-2" style="font-size: 13px; color: var(--clr-text-secondary); max-width: 720px;">
+          <i class="bi bi-bookmark-star-fill flex-shrink-0 mt-1" style="color: var(--clr-primary);" aria-hidden="true"></i>
+          <span>{{ 'academic.classes.homeroomYouHint' | translate }}</span>
+        </p>
 
         <div *ngIf="canManageAcademic && classesMissingHomeroom.length" class="erp-card mb-3 academic-homeroom-strip">
           <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
@@ -117,29 +266,36 @@ import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directiv
             <div>
               <h4 class="erp-card-title mb-1">{{ 'academic.assign.title' | translate }}</h4>
               <p class="academic-help-text mb-0" style="font-size: 12px;">{{ 'academic.assign.help' | translate }}</p>
-              <p class="academic-help-text mb-0 mt-1" style="font-size: 11px;">{{ 'academic.assign.rules' | translate }}</p>
+              <p class="academic-help-text mb-0 mt-1" style="font-size: 11px;">{{ 'academic.assign.rulesSection' | translate }}</p>
             </div>
           </div>
           <p *ngIf="assignConflictClass as prev" class="small mt-2 mb-0" style="color: var(--clr-warning);">
             <i class="bi bi-info-circle me-1"></i>{{ 'academic.assign.willMoveFrom' | translate: { class: prev.name } }}
           </p>
           <div class="row g-3 align-items-end mt-2">
-            <div class="col-md-5">
+            <div class="col-md-4">
               <label class="erp-label">{{ 'academic.assign.class' | translate }}</label>
-              <select class="erp-select" [(ngModel)]="assignClassId">
+              <select class="erp-select" [(ngModel)]="assignClassId" (ngModelChange)="onAssignClassChange()">
                 <option [ngValue]="null">{{ 'academic.assign.selectClass' | translate }}</option>
                 <option *ngFor="let cls of classes" [ngValue]="cls.id">{{ cls.name }}</option>
               </select>
             </div>
-            <div class="col-md-5">
+            <div class="col-md-4" *ngIf="assignClassHasSections">
+              <label class="erp-label">{{ 'academic.assign.section' | translate }}</label>
+              <select class="erp-select" [(ngModel)]="assignSectionId">
+                <option [ngValue]="null">{{ 'academic.assign.selectSection' | translate }}</option>
+                <option *ngFor="let sec of assignClassSections" [ngValue]="sec.id">{{ sec.name }}</option>
+              </select>
+            </div>
+            <div class="col-md-4">
               <label class="erp-label">{{ 'academic.assign.teacher' | translate }}</label>
               <select class="erp-select" [(ngModel)]="assignTeacherId">
                 <option [ngValue]="null">{{ 'academic.assign.unassigned' | translate }}</option>
                 <option *ngFor="let t of teachersForHomeroom" [ngValue]="t.id">{{ t.firstName }} {{ t.lastName }}</option>
               </select>
             </div>
-            <div class="col-md-2">
-              <button type="button" class="btn-primary-erp" style="width: 100%;" [disabled]="assignClassId == null || assigningTeacher" (click)="saveClassTeacher()">
+            <div class="col-md-12 col-lg-4">
+              <button type="button" class="btn-primary-erp" style="width: 100%;" [disabled]="assignSaveDisabled || assigningTeacher" (click)="saveClassTeacher()">
                 <span class="spinner" *ngIf="assigningTeacher"></span>
                 {{ assigningTeacher ? ('academic.assign.saving' | translate) : ('academic.assign.save' | translate) }}
               </button>
@@ -149,37 +305,70 @@ import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directiv
 
         <div class="row g-4">
           <div class="col-md-6 col-lg-4" *ngFor="let cls of filteredClasses">
-            <div class="erp-card academic-class-card" [class.academic-class-card--needs-homeroom]="canManageAcademic && !cls.classTeacherId">
+            <div
+              class="erp-card academic-class-card"
+              [class.academic-class-card--needs-homeroom]="canManageAcademic && classNeedsHomeroom(cls)"
+              [class.academic-class-card--my-homeroom]="isMyHomeroomWholeClass(cls)"
+            >
               <div class="d-flex justify-content-between align-items-start mb-2 gap-2">
                 <div>
-                  <h4 style="font-size: 16px; font-weight: 700; margin-bottom: 2px;">{{ cls.name }}</h4>
+                  <h4 style="font-size: 16px; font-weight: 700; margin-bottom: 2px; display: flex; flex-wrap: wrap; align-items: center; column-gap: 8px; row-gap: 4px;">
+                    {{ cls.name }}
+                    <span *ngIf="isMyHomeroomWholeClass(cls)" class="academic-homeroom-you-pill academic-homeroom-you-pill--inline">{{ 'academic.homeroom.you' | translate }}</span>
+                  </h4>
                   <span class="academic-help-text" style="font-size: 12px;">{{ 'academic.card.grade' | translate: { grade: cls.grade } }}</span>
                 </div>
                 <div class="d-flex flex-column align-items-end gap-1">
                   <span class="badge-erp" [ngClass]="cls.sections.length ? 'badge-info' : 'badge-neutral'">{{ cls.sections.length ? ('academic.card.sectionsCount' | translate: { count: cls.sections.length }) : ('academic.card.wholeClass' | translate) }}</span>
-                  <span *ngIf="canManageAcademic && !cls.classTeacherId" class="badge-erp" style="background: color-mix(in srgb, var(--clr-warning) 22%, transparent); color: var(--clr-warning); border: 1px solid color-mix(in srgb, var(--clr-warning) 45%, transparent);">{{ 'academic.card.homeroomTbd' | translate }}</span>
+                  <span *ngIf="canManageAcademic && classNeedsHomeroom(cls)" class="badge-erp" style="background: color-mix(in srgb, var(--clr-warning) 22%, transparent); color: var(--clr-warning); border: 1px solid color-mix(in srgb, var(--clr-warning) 45%, transparent);">{{ 'academic.card.homeroomTbd' | translate }}</span>
                   <button *ngIf="canManageAcademic" type="button" class="btn-outline-erp btn-xs" (click)="openEditClassModal(cls)">{{ 'academic.card.editClass' | translate }}</button>
                 </div>
               </div>
-              <div *ngIf="cls.classTeacherName" style="font-size: 13px; color: var(--clr-text-secondary); margin-bottom: 10px;">
+              <div *ngIf="cls.sections.length === 0 && cls.classTeacherName" style="font-size: 13px; color: var(--clr-text-secondary); margin-bottom: 10px;">
                 <i class="bi bi-person-badge me-1"></i> {{ 'academic.card.classTeacher' | translate }} <strong>{{ cls.classTeacherName }}</strong>
                 <button *ngIf="canManageAcademic" type="button" class="btn-outline-erp btn-xs ms-2" (click)="prefillAssignClassTeacher(cls)">{{ 'academic.card.changeHomeroom' | translate }}</button>
               </div>
-              <div *ngIf="!cls.classTeacherName" class="academic-homeroom-missing-callout">
+              <div *ngIf="cls.sections.length === 0 && !cls.classTeacherName" class="academic-homeroom-missing-callout">
                 <i class="bi bi-person-x me-1"></i>
                 <span><strong>{{ 'academic.card.noTeacherTitle' | translate }}</strong> — {{ 'academic.card.noTeacherBody' | translate }}</span>
                 <button *ngIf="canManageAcademic" type="button" class="btn-primary-erp btn-xs mt-2" (click)="prefillAssignClassTeacher(cls)">{{ 'academic.card.assignTeacher' | translate }}</button>
               </div>
               <div *ngIf="cls.sections.length === 0" class="text-muted mb-2" style="font-size: 12px;">{{ 'academic.card.noSections' | translate }}</div>
               <div class="d-flex flex-wrap gap-2">
-                <div *ngFor="let sec of cls.sections" class="d-flex align-items-center gap-1" style="flex: 1; min-width: 100px; background: var(--clr-surface-muted); border: 1px solid var(--clr-border-light); border-radius: var(--radius-md); padding: 8px 10px;">
-                  <div style="flex: 1; text-align: center;">
-                    <div style="font-weight: 700; font-size: 15px;">{{ sec.name }}</div>
-                    <div style="font-size: 12px; color: var(--clr-text-muted);">{{ sec.studentCount }}/{{ sec.capacity }}</div>
+                <div
+                  *ngFor="let sec of cls.sections; let secIdx = index"
+                  class="d-flex flex-column timetable-slot-cell"
+                  [ngClass]="
+                    isMyHomeroomSection(cls, sec)
+                      ? 'academic-section-slot--mine'
+                      : 'timetable-slot--tone-' + (secIdx % 4)
+                  "
+                  style="flex: 1; min-width: min(100%, 140px);"
+                >
+                  <span
+                    *ngIf="isMyHomeroomSection(cls, sec)"
+                    class="academic-homeroom-you-pill"
+                    [attr.aria-label]="'academic.homeroom.yourSectionAria' | translate"
+                  >{{ 'academic.homeroom.you' | translate }}</span>
+                  <div class="d-flex align-items-start justify-content-between gap-1">
+                    <div style="flex: 1; text-align: center;">
+                      <div class="timetable-slot-subject">{{ sec.name }}</div>
+                      <div class="timetable-slot-teacher">{{ sec.studentCount }}/{{ sec.capacity }}</div>
+                    </div>
+                    <div *ngIf="canManageAcademic" class="d-flex flex-column gap-1">
+                      <button type="button" class="btn-icon btn-xs p-0" style="font-size: 14px;" (click)="openEditSectionModal(cls, sec)" [attr.title]="'academic.card.editTitle' | translate"><i class="bi bi-pencil"></i></button>
+                      <button type="button" class="btn-icon btn-xs p-0" style="font-size: 14px; color: var(--clr-danger);" [disabled]="sec.studentCount > 0 || sectionBusy" (click)="removeSection(cls, sec)" [attr.title]="'academic.card.removeTitle' | translate"><i class="bi bi-trash"></i></button>
+                    </div>
                   </div>
-                  <div *ngIf="canManageAcademic" class="d-flex flex-column gap-1">
-                    <button type="button" class="btn-icon btn-xs p-0" style="font-size: 14px;" (click)="openEditSectionModal(cls, sec)" [attr.title]="'academic.card.editTitle' | translate"><i class="bi bi-pencil"></i></button>
-                    <button type="button" class="btn-icon btn-xs p-0" style="font-size: 14px; color: var(--clr-danger);" [disabled]="sec.studentCount > 0 || sectionBusy" (click)="removeSection(cls, sec)" [attr.title]="'academic.card.removeTitle' | translate"><i class="bi bi-trash"></i></button>
+                  <div class="academic-section-ct">
+                    <ng-container *ngIf="sec.classTeacherName; else secNoCt">
+                      <i class="bi bi-person-badge me-1"></i>{{ 'academic.card.sectionClassTeacher' | translate }} <strong>{{ sec.classTeacherName }}</strong>
+                      <button *ngIf="canManageAcademic" type="button" class="btn-outline-erp btn-xs ms-1" (click)="prefillAssignClassTeacher(cls, sec)">{{ 'academic.card.changeHomeroom' | translate }}</button>
+                    </ng-container>
+                    <ng-template #secNoCt>
+                      <span *ngIf="canManageAcademic"><i class="bi bi-person-x me-1"></i>{{ 'academic.card.sectionNoTeacher' | translate }}</span>
+                      <button *ngIf="canManageAcademic" type="button" class="btn-primary-erp btn-xs mt-1" (click)="prefillAssignClassTeacher(cls, sec)">{{ 'academic.card.assignTeacher' | translate }}</button>
+                    </ng-template>
                   </div>
                 </div>
               </div>
@@ -405,8 +594,12 @@ export class AcademicComponent implements OnInit {
   canManageAcademic = false;
   filterYearId: number | null = null;
   assignClassId: number | null = null;
+  /** When the selected class has sections — required for save. */
+  assignSectionId: number | null = null;
   assignTeacherId: number | null = null;
   assigningTeacher = false;
+  /** Teacher record id for logged-in teacher (highlights homeroom sections). */
+  linkedTeacherRecordId: number | null = null;
   showAddYear = false;
   showCreateClass = false;
   showEditClass = false;
@@ -456,7 +649,13 @@ export class AcademicComponent implements OnInit {
       this.tab = 'classes';
     }
     this.reloadData();
-    this.teacherService.getTeachers().subscribe(list => (this.teachers = list));
+    this.teacherService.getTeachers().subscribe(list => {
+      this.teachers = list;
+      const uid = this.auth.getCurrentUser()?.id;
+      const row = uid != null ? list.find(t => t.userId === uid) : undefined;
+      this.linkedTeacherRecordId = row?.id ?? null;
+    });
+    this.auth.fetchProfileSummary().subscribe({ error: () => void 0 });
   }
 
   get filteredClasses(): SchoolClass[] {
@@ -465,22 +664,115 @@ export class AcademicComponent implements OnInit {
   }
 
   get classesMissingHomeroom(): SchoolClass[] {
-    return this.filteredClasses.filter(c => !c.classTeacherId);
+    return this.filteredClasses.filter(c => this.classNeedsHomeroom(c));
   }
 
-  /** Teacher is already homeroom on another class (backend/mock will clear the other class when saving). */
+  classNeedsHomeroom(cls: SchoolClass): boolean {
+    if (!cls.sections?.length) {
+      return !cls.classTeacherId;
+    }
+    return cls.sections.some(s => !s.classTeacherId);
+  }
+
+  get assignClassHasSections(): boolean {
+    const cls = this.classes.find(c => c.id === this.assignClassId);
+    return (cls?.sections?.length ?? 0) > 0;
+  }
+
+  get assignClassSections(): Section[] {
+    return this.classes.find(c => c.id === this.assignClassId)?.sections ?? [];
+  }
+
+  get assignSaveDisabled(): boolean {
+    if (this.assignClassId == null) {
+      return true;
+    }
+    if (this.assignClassHasSections && this.assignSectionId == null) {
+      return true;
+    }
+    return false;
+  }
+
+  /** Teacher is already homeroom on another slot (backend/mock will reassign when saving). */
   get assignConflictClass(): SchoolClass | null {
-    if (this.assignClassId == null || this.assignTeacherId == null) return null;
-    return this.classes.find(c => c.classTeacherId === this.assignTeacherId && c.id !== this.assignClassId) ?? null;
+    if (this.assignClassId == null || this.assignTeacherId == null) {
+      return null;
+    }
+    const cls = this.classes.find(c => c.id === this.assignClassId);
+    if (!cls) {
+      return null;
+    }
+    const secId = cls.sections?.length ? this.assignSectionId : null;
+    for (const c of this.classes) {
+      if (!c.sections?.length) {
+        if (c.classTeacherId === this.assignTeacherId) {
+          if (c.id === this.assignClassId && secId == null) {
+            continue;
+          }
+          return c;
+        }
+        continue;
+      }
+      for (const s of c.sections) {
+        if (s.classTeacherId !== this.assignTeacherId) {
+          continue;
+        }
+        if (c.id === this.assignClassId && s.id === secId) {
+          continue;
+        }
+        return c;
+      }
+    }
+    return null;
+  }
+
+  onAssignClassChange(): void {
+    const cls = this.classes.find(c => c.id === this.assignClassId);
+    if (!cls?.sections?.length) {
+      this.assignSectionId = null;
+      return;
+    }
+    const sorted = [...cls.sections].sort((a, b) => a.name.localeCompare(b.name));
+    this.assignSectionId = sorted[0]?.id ?? null;
+  }
+
+  isMyHomeroomSection(cls: SchoolClass, sec: Section): boolean {
+    if (this.linkedTeacherRecordId == null) {
+      return false;
+    }
+    return sec.classTeacherId === this.linkedTeacherRecordId;
+  }
+
+  /** Whole-class (no section rows) homeroom — same teacher identity as section homeroom. */
+  isMyHomeroomWholeClass(cls: SchoolClass): boolean {
+    if (this.linkedTeacherRecordId == null) {
+      return false;
+    }
+    if ((cls.sections?.length ?? 0) > 0) {
+      return false;
+    }
+    return cls.classTeacherId === this.linkedTeacherRecordId;
+  }
+
+  /** Shown to signed-in teachers so they know only their homeroom tile is emphasized. */
+  get showHomeroomOwnerHint(): boolean {
+    const r = (this.auth.getRole() ?? '').toLowerCase();
+    return r === 'teacher' && this.linkedTeacherRecordId != null;
   }
 
   get teachersForHomeroom(): Teacher[] {
     return this.teachers.filter(t => t.status === 'active');
   }
 
-  prefillAssignClassTeacher(cls: SchoolClass): void {
+  prefillAssignClassTeacher(cls: SchoolClass, sec?: Section): void {
     this.assignClassId = cls.id;
-    this.assignTeacherId = cls.classTeacherId ?? null;
+    if (cls.sections?.length) {
+      this.assignSectionId = sec?.id ?? [...cls.sections].sort((a, b) => a.name.localeCompare(b.name))[0]?.id ?? null;
+      this.assignTeacherId = sec ? sec.classTeacherId ?? null : null;
+    } else {
+      this.assignSectionId = null;
+      this.assignTeacherId = cls.classTeacherId ?? null;
+    }
     setTimeout(() => {
       document.getElementById('academic-assign-class-teacher-panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }, 0);
@@ -660,17 +952,21 @@ export class AcademicComponent implements OnInit {
   }
 
   saveClassTeacher(): void {
-    if (!this.canManageAcademic || this.assignClassId == null) return;
+    if (!this.canManageAcademic || this.assignClassId == null || this.assignSaveDisabled) return;
     const cls = this.classes.find(c => c.id === this.assignClassId);
     if (!cls) return;
-    const currentId = cls.classTeacherId ?? null;
+    const sec =
+      cls.sections?.length && this.assignSectionId != null
+        ? cls.sections.find(s => s.id === this.assignSectionId)
+        : undefined;
+    const currentId = sec ? sec.classTeacherId ?? null : cls.classTeacherId ?? null;
     const nextId = this.assignTeacherId ?? null;
     if (currentId === nextId) return;
 
     const t = nextId != null ? this.teachers.find(x => x.id === nextId) : undefined;
     const nextName = t ? `${t.firstName} ${t.lastName}` : '';
     const currentName =
-      cls.classTeacherName?.trim() ||
+      (sec ? sec.classTeacherName : cls.classTeacherName)?.trim() ||
       this.translate.instant('academic.confirm.classTeacher.unknownTeacher');
 
     const conflict = this.assignConflictClass;
@@ -690,25 +986,43 @@ export class AcademicComponent implements OnInit {
 
     if (nextId == null) {
       title = this.translate.instant('academic.confirm.classTeacher.removeTitle');
-      message = this.translate.instant('academic.confirm.classTeacher.removeMessage', { class: cls.name });
+      message = sec
+        ? this.translate.instant('academic.confirm.classTeacher.removeMessageSection', {
+            class: cls.name,
+            section: sec.name,
+          })
+        : this.translate.instant('academic.confirm.classTeacher.removeMessage', { class: cls.name });
       details.unshift(
         this.translate.instant('academic.confirm.classTeacher.removeDetailCurrent', { name: currentName })
       );
       variant = 'warning';
     } else if (currentId == null) {
       title = this.translate.instant('academic.confirm.classTeacher.assignTitle');
-      message = this.translate.instant('academic.confirm.classTeacher.assignMessage', {
-        teacher: nextName,
-        class: cls.name,
-      });
+      message = sec
+        ? this.translate.instant('academic.confirm.classTeacher.assignMessageSection', {
+            teacher: nextName,
+            class: cls.name,
+            section: sec.name,
+          })
+        : this.translate.instant('academic.confirm.classTeacher.assignMessage', {
+            teacher: nextName,
+            class: cls.name,
+          });
       variant = 'primary';
     } else {
       title = this.translate.instant('academic.confirm.classTeacher.changeTitle');
-      message = this.translate.instant('academic.confirm.classTeacher.changeMessage', {
-        class: cls.name,
-        current: currentName,
-        next: nextName,
-      });
+      message = sec
+        ? this.translate.instant('academic.confirm.classTeacher.changeMessageSection', {
+            class: cls.name,
+            section: sec.name,
+            current: currentName,
+            next: nextName,
+          })
+        : this.translate.instant('academic.confirm.classTeacher.changeMessage', {
+            class: cls.name,
+            current: currentName,
+            next: nextName,
+          });
       variant = 'warning';
     }
 
@@ -730,11 +1044,15 @@ export class AcademicComponent implements OnInit {
     const t =
       this.assignTeacherId != null ? this.teachers.find(x => x.id === this.assignTeacherId) : undefined;
     this.assigningTeacher = true;
+    const clsNow = this.classes.find(c => c.id === this.assignClassId);
+    const secId =
+      clsNow?.sections?.length && this.assignSectionId != null ? this.assignSectionId : undefined;
     this.academicService
       .assignClassTeacher(
         this.assignClassId,
         this.assignTeacherId ?? null,
-        t ? `${t.firstName} ${t.lastName}` : undefined
+        t ? `${t.firstName} ${t.lastName}` : undefined,
+        secId ?? null
       )
       .subscribe({
         next: () => {

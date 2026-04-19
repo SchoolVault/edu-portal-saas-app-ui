@@ -80,4 +80,19 @@ public class LeaveController {
     public ResponseEntity<ApiResponse<LeaveDTOs.LeaveBalanceSummary>> balance() {
         return ResponseEntity.ok(ApiResponse.ok(leaveService.balanceForCurrentUser()));
     }
+
+    @GetMapping("/policy")
+    @PreAuthorize("hasAnyRole('ADMIN','TEACHER')")
+    @Operation(summary = "Tenant leave policy (entitled days per bucket + optional policy year label)")
+    public ResponseEntity<ApiResponse<LeaveDTOs.LeaveEntitlementPolicy>> getPolicy() {
+        return ResponseEntity.ok(ApiResponse.ok(leaveService.getLeavePolicy()));
+    }
+
+    @PutMapping("/policy")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Update tenant leave policy (school admin)")
+    public ResponseEntity<ApiResponse<LeaveDTOs.LeaveEntitlementPolicy>> updatePolicy(
+            @Valid @RequestBody LeaveDTOs.LeaveEntitlementPolicy body) {
+        return ResponseEntity.ok(ApiResponse.ok(leaveService.updateLeavePolicy(body)));
+    }
 }

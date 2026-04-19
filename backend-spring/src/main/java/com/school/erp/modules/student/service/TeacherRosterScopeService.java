@@ -25,7 +25,7 @@ import java.util.Set;
  * <p>
  * Student directory (paged list): school-wide read for linked teachers — {@link #allowedClassIdsForTeacherOnDate}
  * returns empty optional so {@link com.school.erp.modules.student.service.StudentService} does not apply class-id
- * scoping (same visibility as admin for read). Section-level class teacher (per-section homeroom) is a future phase.
+ * scoping (same visibility as admin for read). Homeroom may be whole-class or per-section ({@code sections.class_teacher_id}).
  * </p>
  */
 @Service
@@ -115,10 +115,8 @@ public class TeacherRosterScopeService {
         LocalDate asOfDate = LocalDate.now();
         Set<Long> classIds = collectAllowedClassIds(tenantId, teacherPk, asOfDate);
         Set<Long> sectionIds = new HashSet<>();
-        for (SchoolClass c : schoolClassRepository.findByTenantIdAndClassTeacherIdAndIsDeletedFalse(tenantId, teacherPk)) {
-            for (Section sec : sectionRepository.findByTenantIdAndClassIdAndIsDeletedFalse(tenantId, c.getId())) {
-                sectionIds.add(sec.getId());
-            }
+        for (Section sec : sectionRepository.findByTenantIdAndClassTeacherIdAndIsDeletedFalse(tenantId, teacherPk)) {
+            sectionIds.add(sec.getId());
         }
         for (SubjectTeacherAssignment a : subjectTeacherAssignmentRepository.findActiveForTeacher(tenantId, teacherPk, asOfDate)) {
             if (a.getSectionId() != null) {
@@ -137,7 +135,12 @@ public class TeacherRosterScopeService {
     private Set<Long> collectAllowedClassIds(String tenantId, Long teacherPk, LocalDate asOfDate) {
         Set<Long> ids = new HashSet<>();
         for (SchoolClass c : schoolClassRepository.findByTenantIdAndClassTeacherIdAndIsDeletedFalse(tenantId, teacherPk)) {
-            ids.add(c.getId());
+            if (sectionRepository.findByTenantIdAndClassIdAndIsDeletedFalse(tenantId, c.getId()).isEmpty()) {
+                ids.add(c.getId());
+            }
+        }
+        for (Section sec : sectionRepository.findByTenantIdAndClassTeacherIdAndIsDeletedFalse(tenantId, teacherPk)) {
+            ids.add(sec.getClassId());
         }
         for (SubjectTeacherAssignment a : subjectTeacherAssignmentRepository.findActiveForTeacher(tenantId, teacherPk, asOfDate)) {
             if (a.getClassId() != null) {

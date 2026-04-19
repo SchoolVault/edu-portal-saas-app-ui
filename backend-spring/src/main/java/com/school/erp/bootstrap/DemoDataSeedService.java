@@ -31,7 +31,9 @@ import com.school.erp.modules.hostel.entity.HostelRoom;
 import com.school.erp.modules.hostel.repository.HostelAllocationRepository;
 import com.school.erp.modules.hostel.repository.HostelRepository;
 import com.school.erp.modules.hostel.repository.HostelRoomRepository;
+import com.school.erp.modules.leave.entity.LeaveEntitlementPolicy;
 import com.school.erp.modules.leave.entity.LeaveRequest;
+import com.school.erp.modules.leave.repository.LeaveEntitlementPolicyRepository;
 import com.school.erp.modules.leave.repository.LeaveRequestRepository;
 import com.school.erp.modules.library.entity.Book;
 import com.school.erp.modules.library.entity.BookIssue;
@@ -228,6 +230,7 @@ public class DemoDataSeedService {
     private final MessageRepository messageRepository;
     private final DocumentRepository documentRepository;
     private final LeaveRequestRepository leaveRequestRepository;
+    private final LeaveEntitlementPolicyRepository leaveEntitlementPolicyRepository;
     private final NotificationRepository notificationRepository;
     private final ChatConversationRepository chatConversationRepository;
     private final ChatParticipantRepository chatParticipantRepository;
@@ -286,6 +289,7 @@ public class DemoDataSeedService {
             MessageRepository messageRepository,
             DocumentRepository documentRepository,
             LeaveRequestRepository leaveRequestRepository,
+            LeaveEntitlementPolicyRepository leaveEntitlementPolicyRepository,
             NotificationRepository notificationRepository,
             ChatConversationRepository chatConversationRepository,
             ChatParticipantRepository chatParticipantRepository,
@@ -336,6 +340,7 @@ public class DemoDataSeedService {
         this.messageRepository = messageRepository;
         this.documentRepository = documentRepository;
         this.leaveRequestRepository = leaveRequestRepository;
+        this.leaveEntitlementPolicyRepository = leaveEntitlementPolicyRepository;
         this.notificationRepository = notificationRepository;
         this.chatConversationRepository = chatConversationRepository;
         this.chatParticipantRepository = chatParticipantRepository;
@@ -480,6 +485,7 @@ public class DemoDataSeedService {
         // STEP 1: Tenant Config
         log.info("  [1/15] Tenant Config...");
         TenantConfig config = createTenantConfig(tenantId, schoolCode, schoolName, address, phone, email);
+        createLeaveEntitlementPolicy(tenantId);
         pauseForResourceManagement();
 
         // STEP 2: Admin User
@@ -955,6 +961,21 @@ public class DemoDataSeedService {
         return tenantConfigRepository.save(cfg);
     }
 
+    private void createLeaveEntitlementPolicy(String tenantId) {
+        if (leaveEntitlementPolicyRepository.findByTenantIdAndIsDeletedFalse(tenantId).isPresent()) {
+            return;
+        }
+        LeaveEntitlementPolicy p = new LeaveEntitlementPolicy();
+        p.setTenantId(tenantId);
+        p.setAnnualEntitled(24);
+        p.setSickEntitled(12);
+        p.setCasualEntitled(12);
+        p.setPolicyYearLabel("2025-2026");
+        p.setIsActive(true);
+        p.setIsDeleted(false);
+        leaveEntitlementPolicyRepository.save(p);
+    }
+
     private User createUser(String tenantId, String schoolCode, String name, String email,
                            Enums.Role role, String phone) {
         if (userRepository.existsByEmailAndTenantIdAndIsDeletedFalse(email, tenantId)) {
@@ -1103,7 +1124,7 @@ public class DemoDataSeedService {
     private List<Teacher> createTeachers(String tenantId, String schoolCode, int count, Random random) {
         List<Teacher> teachers = new ArrayList<>();
         String[] teacherSubjects = {"Mathematics", "Science", "English", "Hindi", "Social Studies",
-                                    "Physics", "Chemistry", "Biology", "Computer Science", "Physical Education"};
+                                    "Physics", "Chemistry", "Biology", "Computer Science", "Physical Education", "Art"};
 
         for (int i = 0; i < count; i++) {
             String firstName = (i % 2 == 0) ? MALE_FIRST_NAMES[i % MALE_FIRST_NAMES.length]
@@ -1113,11 +1134,12 @@ public class DemoDataSeedService {
             // +91-8… space: avoids clashing with parent phones (+91-9…) used in stableDemoParentPhone / V15 index
             String phone = "+91-8" + String.format("%09d", Math.floorMod(Objects.hash(tenantId, email), 1_000_000_000L));
 
-            // Assign 1-2 subjects per teacher
+            // One teaching subject per classroom teacher (Indian school); library staff teach Library only.
             List<String> subjects = new ArrayList<>();
-            subjects.add(teacherSubjects[i % teacherSubjects.length]);
-            if (random.nextBoolean()) {
-                subjects.add(teacherSubjects[(i + 1) % teacherSubjects.length]);
+            if (i == count - 2 || i == count - 1) {
+                subjects.add("Library");
+            } else {
+                subjects.add(teacherSubjects[i % teacherSubjects.length]);
             }
 
             // Create user for teacher
@@ -1164,31 +1186,35 @@ public class DemoDataSeedService {
         Map<Integer, List<ClassSectionPair>> classesMap = new HashMap<>();
 
         // Create classes 6-12 (optimized for Render free tier - 7 classes instead of 9)
+        /** One distinct homeroom teacher per section (matches product rule: one class-teacher slot per teacher). */
+        int homeroomOrdinal = 0;
         for (int grade = 6; grade <= 12; grade++) {
             List<ClassSectionPair> sectionsForGrade = new ArrayList<>();
-
-            // Assign a class teacher (homeroom) for each grade
-            Teacher classTeacher = teachers.get((grade - 6) % teachers.size());
 
             SchoolClass schoolClass = new SchoolClass();
             schoolClass.setTenantId(tenantId);
             schoolClass.setName("Class " + grade);
             schoolClass.setGrade(grade);
             schoolClass.setAcademicYearId(academicYearId);
-            schoolClass.setClassTeacherId(classTeacher.getId());
-            schoolClass.setClassTeacherName(classTeacher.getFirstName() + " " + classTeacher.getLastName());
             schoolClass.setIsDeleted(false);
             schoolClass = schoolClassRepository.save(schoolClass);
 
-            // Create sections A, B only (optimized for Render - 2 sections instead of 3)
-            for (String sectionName : new String[]{"A", "B"}) {
+            // Create sections A, B — homeroom per section (Indian school model); distinct teachers per section.
+            String[] sectionLetters = new String[]{"A", "B"};
+            for (int si = 0; si < sectionLetters.length; si++) {
+                String sectionName = sectionLetters[si];
+                if (homeroomOrdinal >= teachers.size()) {
+                    throw new IllegalStateException("Demo seed: not enough teachers for unique homeroom per section");
+                }
+                Teacher sectionTeacher = teachers.get(homeroomOrdinal++);
                 Section section = new Section();
                 section.setTenantId(tenantId);
                 section.setName(sectionName);
                 section.setClassId(schoolClass.getId());
                 section.setCapacity(30);
-                // Fixed headcount per section so every class/section has a full roster for directory & library QA.
                 section.setStudentCount(15);
+                section.setClassTeacherId(sectionTeacher.getId());
+                section.setClassTeacherName(sectionTeacher.getFirstName() + " " + sectionTeacher.getLastName());
                 section.setIsDeleted(false);
                 section = sectionRepository.save(section);
 
@@ -1421,7 +1447,7 @@ public class DemoDataSeedService {
                 cta.setAcademicYearId(academicYearId);
                 cta.setClassId(pair.schoolClass.getId());
                 cta.setSectionId(pair.section.getId());
-                cta.setTeacherId(pair.schoolClass.getClassTeacherId());
+                cta.setTeacherId(pair.section.getClassTeacherId());
                 cta.setEffectiveFrom(LocalDate.of(2025, 4, 1));
                 cta.setIsDeleted(false);
                 classTeacherAssignmentRepository.save(cta);
@@ -1697,13 +1723,18 @@ public class DemoDataSeedService {
      */
     private static final int DEMO_TIMETABLE_PERIODS_PER_DAY = 8;
 
+    /**
+     * Rotating subject labels — must match {@link #createTeachers} specialization pool (one subject per teacher).
+     * Excludes Library (assigned only on the dedicated library slot).
+     */
+    private static final String[] DEMO_TIMETABLE_SUBJECTS = {
+            "Mathematics", "Science", "English", "Hindi", "Social Studies",
+            "Physics", "Chemistry", "Biology", "Computer Science", "Physical Education", "Art"
+    };
+
     private void createTimetables(String tenantId, Long academicYearId,
                                  Map<Integer, List<ClassSectionPair>> classesMap,
                                  List<Teacher> teachers, Random random) {
-        String[] subjects = {
-                "Mathematics", "Science", "English", "Hindi", "Social Studies",
-                "Physical Education", "Computer Science", "Art", "Value Education", "Library"
-        };
         Enums.DayOfWeek[] days = {
                 Enums.DayOfWeek.MONDAY, Enums.DayOfWeek.TUESDAY, Enums.DayOfWeek.WEDNESDAY,
                 Enums.DayOfWeek.THURSDAY, Enums.DayOfWeek.FRIDAY, Enums.DayOfWeek.SATURDAY
@@ -1714,6 +1745,16 @@ public class DemoDataSeedService {
             List<ClassSectionPair> sections = classesMap.get(grade);
             if (sections != null) {
                 allPairs.addAll(sections);
+            }
+        }
+
+        int libraryPairIndex = 0;
+        for (int si = 0; si < allPairs.size(); si++) {
+            ClassSectionPair p = allPairs.get(si);
+            int g = p.schoolClass.getGrade() != null ? p.schoolClass.getGrade() : 0;
+            if (g == 8 && p.section.getName() != null && "A".equalsIgnoreCase(p.section.getName().trim())) {
+                libraryPairIndex = si;
+                break;
             }
         }
 
@@ -1732,8 +1773,33 @@ public class DemoDataSeedService {
                     LocalTime startTime = LocalTime.of(8, 0).plusMinutes((long) (period - 1) * 45);
                     LocalTime endTime = startTime.plusMinutes(45);
 
-                    String subject = subjects[(globalCellOrdinal + sectionOrdinal) % subjects.length];
-                    Teacher teacher = pickTeacherFreeForTimetableSlot(teachers, busyThisSlot, random);
+                    boolean librarySlot =
+                            period == DEMO_TIMETABLE_PERIODS_PER_DAY && sectionOrdinal == libraryPairIndex;
+                    String subject;
+                    Teacher teacher;
+                    if (librarySlot) {
+                        subject = "Library";
+                        teacher = pickTeacherForTimetableSubject(teachers, subject, busyThisSlot, random);
+                    } else if (day == Enums.DayOfWeek.MONDAY
+                            && period == 1
+                            && pair.section.getClassTeacherId() != null) {
+                        Teacher hm = teachers.stream()
+                                .filter(t -> pair.section.getClassTeacherId().equals(t.getId()))
+                                .findFirst()
+                                .orElse(null);
+                        if (hm != null && !busyThisSlot.contains(hm.getId())) {
+                            teacher = hm;
+                            subject = primaryTimetableSubjectForHomeroom(hm);
+                        } else {
+                            subject = DEMO_TIMETABLE_SUBJECTS[
+                                    Math.floorMod(globalCellOrdinal + sectionOrdinal, DEMO_TIMETABLE_SUBJECTS.length)];
+                            teacher = pickTeacherForTimetableSubject(teachers, subject, busyThisSlot, random);
+                        }
+                    } else {
+                        subject = DEMO_TIMETABLE_SUBJECTS[
+                                Math.floorMod(globalCellOrdinal + sectionOrdinal, DEMO_TIMETABLE_SUBJECTS.length)];
+                        teacher = pickTeacherForTimetableSubject(teachers, subject, busyThisSlot, random);
+                    }
 
                     TimetableEntry tte = new TimetableEntry();
                     tte.setTenantId(tenantId);
@@ -1753,13 +1819,18 @@ public class DemoDataSeedService {
                         tte.setTeacherId(null);
                         tte.setTeacherName("Unassigned (no free teacher for slot)");
                         log.warn(
-                                "Demo seed: no unused teacher for slot {} (class {} section {}); "
+                                "Demo seed: no matching free teacher for subject {} slot {} (class {} section {}); "
                                         + "left teacher unset to satisfy uq_tt_active_teacher_slot",
+                                subject,
                                 slotKey,
                                 pair.schoolClass.getId(),
                                 pair.section.getId());
                     }
-                    tte.setRoom("Room " + (100 + grade * 10 + period));
+                    if (librarySlot) {
+                        tte.setRoom("Library");
+                    } else {
+                        tte.setRoom("Room " + (100 + grade * 10 + period));
+                    }
                     tte.setIsDeleted(false);
                     timetableRepository.save(tte);
 
@@ -1773,22 +1844,62 @@ public class DemoDataSeedService {
                 globalCellOrdinal += allPairs.size();
             }
         }
-        log.info("  Timetable seed: {} rows ({} sections × {} days × {} periods), Mon–Sat, 08:00 start",
+        log.info("  Timetable seed: {} rows ({} sections × {} days × {} periods), Mon–Sat, 08:00 start; "
+                        + "Mon P1 uses each section's homeroom teacher where possible",
                 timetableCounter, allPairs.size(), days.length, DEMO_TIMETABLE_PERIODS_PER_DAY);
     }
 
     /**
-     * Picks a teacher not yet used for the same (day, period) elsewhere in this seed run — matches
-     * {@code uq_tt_active_teacher_slot} (one active row per teacher per slot). Returns {@code null} when every
-     * teacher is already booked for that slot; callers must leave {@code teacher_id} unset rather than reusing a
-     * teacher (which would violate the DB unique index).
+     * First-period Monday anchor for class-teacher sections: subject label for demo timetables.
      */
-    private Teacher pickTeacherFreeForTimetableSlot(List<Teacher> teachers, Set<Long> busyThisSlot, Random random) {
-        List<Teacher> free = teachers.stream().filter(t -> !busyThisSlot.contains(t.getId())).collect(Collectors.toList());
-        if (free.isEmpty()) {
-            return null;
+    private String primaryTimetableSubjectForHomeroom(Teacher hm) {
+        String spec = Optional.ofNullable(hm.getSpecialization()).orElse("").trim();
+        if (!spec.isEmpty()) {
+            return spec;
         }
-        return free.get(random.nextInt(free.size()));
+        if (hm.getSubjects() != null) {
+            for (String s : hm.getSubjects()) {
+                if (s != null && !s.isBlank()) {
+                    return s.trim();
+                }
+            }
+        }
+        return "Value Education";
+    }
+
+    /**
+     * Picks a teacher who can teach {@code subjectName}, not yet used for the same (day, period) — matches
+     * {@code uq_tt_active_teacher_slot}. Library staff only appear on Library; classroom teachers never on Library.
+     */
+    private Teacher pickTeacherForTimetableSubject(
+            List<Teacher> teachers, String subjectName, Set<Long> busyThisSlot, Random random) {
+        List<Teacher> eligible = teachers.stream()
+                .filter(t -> !busyThisSlot.contains(t.getId()))
+                .filter(t -> teacherMatchesTimetableSubject(t, subjectName))
+                .collect(Collectors.toList());
+        if (!eligible.isEmpty()) {
+            return eligible.get(random.nextInt(eligible.size()));
+        }
+        return null;
+    }
+
+    /**
+     * Strict match: classroom teachers are assigned only to slots whose label equals their {@link Teacher#getSpecialization()}.
+     * Library staff only for Library. No fallback to random teachers — avoids wrong subject on a teacher’s row.
+     */
+    private boolean teacherMatchesTimetableSubject(Teacher t, String subjectName) {
+        if (subjectName == null || subjectName.isBlank()) {
+            return false;
+        }
+        if ("Library".equalsIgnoreCase(subjectName.trim())) {
+            return t.getLibraryStaffRole() != null;
+        }
+        if (t.getLibraryStaffRole() != null) {
+            return false;
+        }
+        String want = subjectName.trim();
+        String spec = Optional.ofNullable(t.getSpecialization()).orElse("").trim();
+        return spec.equalsIgnoreCase(want);
     }
 
     private void createTransport(String tenantId, List<Student> allStudents, Random random) {
@@ -2157,23 +2268,35 @@ public class DemoDataSeedService {
          * Direct messages: only homeroom teacher → parent of a student in that class (matches ChatDirectory / messaging policy).
          * Random teacher/parent pairs would fail authorization in production.
          */
-        SchoolClass homeroomClass = classes.stream()
-                .filter(c -> c.getClassTeacherId() != null)
-                .findFirst()
-                .orElse(null);
+        SchoolClass homeroomClass = null;
+        Section homeroomSection = null;
+        outer:
+        for (SchoolClass c : classes) {
+            for (Section sec : sectionRepository.findByTenantIdAndClassIdAndIsDeletedFalse(tenantId, c.getId())) {
+                if (sec.getClassTeacherId() != null) {
+                    homeroomClass = c;
+                    homeroomSection = sec;
+                    break outer;
+                }
+            }
+        }
         if (homeroomClass == null) {
-            log.warn("  [Communication] No class with homeroom teacher — skipping demo direct messages");
+            homeroomClass = classes.stream().filter(cl -> cl.getClassTeacherId() != null).findFirst().orElse(null);
+        }
+        if (homeroomClass == null) {
+            log.warn("  [Communication] No class/section with homeroom teacher — skipping demo direct messages");
             return;
         }
-        Optional<Teacher> homeroomTeacherOpt = teacherRepository.findByIdAndTenantIdAndIsDeletedFalse(
-                homeroomClass.getClassTeacherId(), tenantId);
+        Long homeroomTeacherPk = homeroomSection != null ? homeroomSection.getClassTeacherId() : homeroomClass.getClassTeacherId();
+        Optional<Teacher> homeroomTeacherOpt = teacherRepository.findByIdAndTenantIdAndIsDeletedFalse(homeroomTeacherPk, tenantId);
         if (homeroomTeacherOpt.isEmpty()) {
-            log.warn("  [Communication] Homeroom teacher id {} not found — skipping demo direct messages",
-                    homeroomClass.getClassTeacherId());
+            log.warn("  [Communication] Homeroom teacher id {} not found — skipping demo direct messages", homeroomTeacherPk);
             return;
         }
         Teacher homeroomTeacher = homeroomTeacherOpt.get();
-        List<Student> inClass = studentRepository.findByTenantIdAndClassIdAndIsDeletedFalse(tenantId, homeroomClass.getId());
+        List<Student> inClass = homeroomSection != null
+                ? studentRepository.findByTenantIdAndClassIdAndSectionIdAndIsDeletedFalse(tenantId, homeroomClass.getId(), homeroomSection.getId())
+                : studentRepository.findByTenantIdAndClassIdAndIsDeletedFalse(tenantId, homeroomClass.getId());
         LinkedHashSet<Long> distinctParentIds = new LinkedHashSet<>();
         for (Student st : inClass) {
             if (st.getParentId() != null) {
@@ -2244,11 +2367,27 @@ public class DemoDataSeedService {
                     Enums.NotificationType.INFO, true, "/app/inbox");
         });
 
-        schoolClassRepository.findByTenantIdAndIsDeletedFalseOrderByGrade(tenantId).stream()
-                .filter(c -> c.getClassTeacherId() != null)
-                .findFirst()
-                .flatMap(c -> teacherRepository.findByIdAndTenantIdAndIsDeletedFalse(c.getClassTeacherId(), tenantId))
-                .ifPresent(t -> {
+        java.util.Optional<Teacher> anyHomeroomTeacher = java.util.Optional.empty();
+        for (SchoolClass c : schoolClassRepository.findByTenantIdAndIsDeletedFalseOrderByGrade(tenantId)) {
+            for (Section sec : sectionRepository.findByTenantIdAndClassIdAndIsDeletedFalse(tenantId, c.getId())) {
+                if (sec.getClassTeacherId() != null) {
+                    anyHomeroomTeacher = teacherRepository.findByIdAndTenantIdAndIsDeletedFalse(sec.getClassTeacherId(), tenantId);
+                    if (anyHomeroomTeacher.isPresent()) {
+                        break;
+                    }
+                }
+            }
+            if (anyHomeroomTeacher.isPresent()) {
+                break;
+            }
+        }
+        if (anyHomeroomTeacher.isEmpty()) {
+            anyHomeroomTeacher = schoolClassRepository.findByTenantIdAndIsDeletedFalseOrderByGrade(tenantId).stream()
+                    .filter(c -> c.getClassTeacherId() != null)
+                    .findFirst()
+                    .flatMap(c -> teacherRepository.findByIdAndTenantIdAndIsDeletedFalse(c.getClassTeacherId(), tenantId));
+        }
+        anyHomeroomTeacher.ifPresent(t -> {
                     persistDemoInAppNotification(tenantId, t.getUserId(),
                             "[DEMO] Teacher: invigilation reminder",
                             "Sample unread staff notification (homeroom teacher).",
@@ -2257,7 +2396,7 @@ public class DemoDataSeedService {
                             "[DEMO] Teacher: timetable published",
                             "Sample read staff notification for bell badge math.",
                             Enums.NotificationType.SUCCESS, true, "/app/timetable");
-                });
+        });
     }
 
     private void persistDemoInAppNotification(

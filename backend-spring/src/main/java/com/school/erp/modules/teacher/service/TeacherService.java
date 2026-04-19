@@ -6,12 +6,17 @@ import com.school.erp.common.exception.DuplicateResourceException;
 import com.school.erp.common.importer.ZipCsvImportUtil;
 import com.school.erp.common.exception.ResourceNotFoundException;
 import com.school.erp.modules.auth.service.PortalUserProvisioningService;
+import com.school.erp.modules.academic.entity.ClassTeacherAssignment;
 import com.school.erp.modules.academic.entity.SchoolClass;
+import com.school.erp.modules.academic.entity.Section;
+import com.school.erp.modules.academic.repository.ClassTeacherAssignmentRepository;
 import com.school.erp.modules.academic.repository.SchoolClassRepository;
+import com.school.erp.modules.academic.repository.SectionRepository;
 import com.school.erp.common.jpa.EntitySnapshotCollections;
 import com.school.erp.modules.teacher.dto.TeacherDTOs;
 import com.school.erp.modules.teacher.entity.Teacher;
 import com.school.erp.modules.teacher.repository.TeacherRepository;
+import com.school.erp.cache.CacheService;
 import com.school.erp.config.CacheConfig;
 import com.school.erp.tenant.TenantContext;
 import org.springframework.security.core.Authentication;
@@ -21,17 +26,21 @@ import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Service
@@ -39,7 +48,10 @@ public class TeacherService {
     private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(TeacherService.class);
     private final TeacherRepository repo;
     private final SchoolClassRepository schoolClassRepository;
+    private final SectionRepository sectionRepository;
+    private final ClassTeacherAssignmentRepository classTeacherAssignmentRepository;
     private final PortalUserProvisioningService portalUserProvisioningService;
+    private final ObjectProvider<CacheService> cacheService;
 
     @Cacheable(cacheNames = CacheConfig.TEACHER_DIRECTORY, keyGenerator = "tenantMethodParamsKeyGenerator", unless = "#result == null")
     @Transactional(readOnly = true)
@@ -83,6 +95,7 @@ public class TeacherService {
         t.setTenantId(TenantContext.getTenantId());
         repo.save(t);
         log.info("Teacher created id={}", t.getId());
+        evictTeacherDirectoryCache();
         return toRes(t, List.of());
     }
 
@@ -125,6 +138,7 @@ public class TeacherService {
             repo.save(t);
         }
         log.info("Teacher bulk row created id={} portalLinked={}", t.getId(), createPortal);
+        evictTeacherDirectoryCache();
         return toRes(t, List.of());
     }
 
@@ -153,6 +167,7 @@ public class TeacherService {
         }
         repo.save(t);
         log.info("Teacher updated id={}", id);
+        evictTeacherDirectoryCache();
         return toRes(t, homeroomClassNamesForTeacher(TenantContext.getTenantId(), t.getId()));
     }
 
@@ -165,6 +180,7 @@ public class TeacherService {
         t.setIsDeleted(true);
         repo.save(t);
         log.info("Teacher soft-deleted id={}", id);
+        evictTeacherDirectoryCache();
     }
 
     private void clearHomeroomForTeacher(Long teacherPk, String tenantId) {
@@ -173,6 +189,12 @@ public class TeacherService {
             c.setClassTeacherName(null);
             schoolClassRepository.save(c);
             log.info("Cleared homeroom for classId={} after teacher change teacherPk={}", c.getId(), teacherPk);
+        }
+        for (Section sec : sectionRepository.findByTenantIdAndClassTeacherIdAndIsDeletedFalse(tenantId, teacherPk)) {
+            sec.setClassTeacherId(null);
+            sec.setClassTeacherName(null);
+            sectionRepository.save(sec);
+            log.info("Cleared section homeroom sectionId={} after teacher delete teacherPk={}", sec.getId(), teacherPk);
         }
     }
 
@@ -283,6 +305,11 @@ public class TeacherService {
         return false;
     }
 
+    /** {@link #getTeachers} is cached; invalidate on any teacher mutation so list rows stay aligned with detail. */
+    private void evictTeacherDirectoryCache() {
+        cacheService.ifAvailable(cs -> cs.clearRegion(CacheService.CacheRegion.TEACHER_DIRECTORY));
+    }
+
     private TeacherDTOs.Response toRes(Teacher t, List<String> homeroomClassNames) {
         TeacherDTOs.Response r = TeacherDTOs.Response.builder().id(t.getId()).firstName(t.getFirstName()).lastName(t.getLastName()).email(t.getEmail()).phone(t.getPhone()).qualification(t.getQualification()).specialization(t.getSpecialization()).joinDate(t.getJoinDate()).salary(t.getSalary()).status(t.getStatus() != null ? t.getStatus().name().toLowerCase() : "active").subjects(EntitySnapshotCollections.detachList(t.getSubjects())).avatar(t.getAvatar()).tenantId(t.getTenantId()).build();
         r.setUserId(t.getUserId());
@@ -293,35 +320,96 @@ public class TeacherService {
         return r;
     }
 
-    /** Homeroom class names per teacher primary key (one query for list pages). */
+    /**
+     * Homeroom labels per teacher: merge {@code school_classes}/{@code sections} class-teacher columns
+     * with active {@link ClassTeacherAssignment} rows so directory UI stays aligned with academic year assignments.
+     */
     private Map<Long, List<String>> homeroomClassNamesByTeacherId(String tenantId) {
+        Map<Long, LinkedHashSet<String>> acc = new HashMap<>();
+        LocalDate today = LocalDate.now();
+
         List<SchoolClass> classes = schoolClassRepository.findByTenantIdAndIsDeletedFalseOrderByGrade(tenantId);
-        Map<Long, List<String>> map = new HashMap<>();
         for (SchoolClass c : classes) {
-            Long tid = c.getClassTeacherId();
-            if (tid != null) {
-                map.computeIfAbsent(tid, k -> new ArrayList<>()).add(c.getName());
+            List<Section> secs = sectionRepository.findByTenantIdAndClassIdAndIsDeletedFalse(tenantId, c.getId());
+            if (secs.isEmpty()) {
+                Long tid = c.getClassTeacherId();
+                if (tid != null) {
+                    acc.computeIfAbsent(tid, k -> new LinkedHashSet<>()).add(c.getName());
+                }
+            } else {
+                for (Section sec : secs) {
+                    if (sec.getClassTeacherId() != null) {
+                        acc.computeIfAbsent(sec.getClassTeacherId(), k -> new LinkedHashSet<>()).add(c.getName() + "-" + sec.getName());
+                    }
+                }
             }
         }
-        for (List<String> names : map.values()) {
-            Collections.sort(names);
+
+        for (ClassTeacherAssignment a : classTeacherAssignmentRepository.findAllActiveOnOrAfter(tenantId, today)) {
+            homeroomLabelForAssignment(tenantId, a).ifPresent(label ->
+                    acc.computeIfAbsent(a.getTeacherId(), k -> new LinkedHashSet<>()).add(label));
+        }
+
+        Map<Long, List<String>> map = new HashMap<>();
+        for (Map.Entry<Long, LinkedHashSet<String>> e : acc.entrySet()) {
+            ArrayList<String> sorted = new ArrayList<>(e.getValue());
+            Collections.sort(sorted);
+            map.put(e.getKey(), sorted);
         }
         return map;
     }
 
     private List<String> homeroomClassNamesForTeacher(String tenantId, Long teacherPk) {
-        return schoolClassRepository.findByTenantIdAndClassTeacherIdAndIsDeletedFalse(tenantId, teacherPk).stream()
-                .map(SchoolClass::getName)
-                .sorted()
-                .collect(Collectors.toList());
+        LinkedHashSet<String> acc = new LinkedHashSet<>();
+        homeroomClassNamesForTeacherFromSectionColumns(tenantId, teacherPk).forEach(acc::add);
+        for (ClassTeacherAssignment a : classTeacherAssignmentRepository.findActiveForTeacher(tenantId, teacherPk, LocalDate.now())) {
+            homeroomLabelForAssignment(tenantId, a).ifPresent(acc::add);
+        }
+        ArrayList<String> out = new ArrayList<>(acc);
+        Collections.sort(out);
+        return out;
+    }
+
+    /** Labels from {@code school_classes.class_teacher_id} / {@code sections.class_teacher_id} only. */
+    private List<String> homeroomClassNamesForTeacherFromSectionColumns(String tenantId, Long teacherPk) {
+        List<String> out = new ArrayList<>();
+        for (SchoolClass c : schoolClassRepository.findByTenantIdAndClassTeacherIdAndIsDeletedFalse(tenantId, teacherPk)) {
+            if (sectionRepository.findByTenantIdAndClassIdAndIsDeletedFalse(tenantId, c.getId()).isEmpty()) {
+                out.add(c.getName());
+            }
+        }
+        for (Section sec : sectionRepository.findByTenantIdAndClassTeacherIdAndIsDeletedFalse(tenantId, teacherPk)) {
+            schoolClassRepository.findByIdAndTenantIdAndIsDeletedFalse(sec.getClassId(), tenantId)
+                    .ifPresent(c -> out.add(c.getName() + "-" + sec.getName()));
+        }
+        return out;
+    }
+
+    private Optional<String> homeroomLabelForAssignment(String tenantId, ClassTeacherAssignment a) {
+        Optional<SchoolClass> oc = schoolClassRepository.findByIdAndTenantIdAndIsDeletedFalse(a.getClassId(), tenantId);
+        if (oc.isEmpty()) {
+            return Optional.empty();
+        }
+        SchoolClass c = oc.get();
+        if (a.getSectionId() == null) {
+            return Optional.of(c.getName());
+        }
+        return sectionRepository.findByIdAndTenantIdAndIsDeletedFalse(a.getSectionId(), tenantId)
+                .map(sec -> c.getName() + "-" + sec.getName());
     }
 
     public TeacherService(final TeacherRepository repo,
                           final SchoolClassRepository schoolClassRepository,
-                          final PortalUserProvisioningService portalUserProvisioningService) {
+                          final SectionRepository sectionRepository,
+                          final ClassTeacherAssignmentRepository classTeacherAssignmentRepository,
+                          final PortalUserProvisioningService portalUserProvisioningService,
+                          final ObjectProvider<CacheService> cacheService) {
         this.repo = repo;
         this.schoolClassRepository = schoolClassRepository;
+        this.sectionRepository = sectionRepository;
+        this.classTeacherAssignmentRepository = classTeacherAssignmentRepository;
         this.portalUserProvisioningService = portalUserProvisioningService;
+        this.cacheService = cacheService;
     }
 
     private String required(Map<String, String> row, String key) {

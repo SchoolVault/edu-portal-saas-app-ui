@@ -98,7 +98,13 @@ export interface ProfileSummary {
   /** SUPER_ADMIN: count of active school workspaces (non-deleted tenants). */
   platformWorkspaceCount?: number;
   /** TEACHER: classes where this user is the assigned class teacher (photo / roster policy). */
-  classTeacherOf?: { classId: number; className?: string; sectionName?: string; totalStudents?: number }[];
+  classTeacherOf?: {
+    classId: number;
+    className?: string;
+    sectionId?: number;
+    sectionName?: string;
+    totalStudents?: number;
+  }[];
   /** SUPER_ADMIN: console operator metadata (API or mock). */
   platformOperatorSince?: string;
   platformLastLoginDisplay?: string;
@@ -233,6 +239,9 @@ export interface Section {
   classId: number;
   capacity: number;
   studentCount: number;
+  /** Homeroom when the class is split into sections (Indian school model). */
+  classTeacherId?: number;
+  classTeacherName?: string;
 }
 
 export interface AttendanceRecord {
@@ -283,6 +292,46 @@ export interface TimetableConflictPayload {
   sectionId?: number | null;
   conflictingClassId?: number;
   conflictingSectionId?: number | null;
+}
+
+/** Mirrors {@code TeacherScheduleOnboardingDTOs} — admin onboarding (homeroom + weekly slots). */
+export interface TeacherScheduleHomeroomPayload {
+  classId: number;
+  sectionId?: number | null;
+}
+
+export interface TeacherScheduleOnboardingSlot {
+  existingEntryId?: number | null;
+  /** Backend expects {@code MONDAY} … {@code SATURDAY}. */
+  day: string;
+  period: number;
+  classId: number;
+  sectionId?: number | null;
+  subjectName: string;
+  room?: string | null;
+  replaceTimetableEntryId?: number | null;
+}
+
+export interface TeacherScheduleOnboardingOptions {
+  /** Default true — align Mon P1 for homeroom class/section with this teacher. */
+  anchorMondayFirstPeriod?: boolean;
+}
+
+export interface ApplyTeacherScheduleOnboardingRequest {
+  teacherId: number;
+  homeroom?: TeacherScheduleHomeroomPayload | null;
+  removeEntryIds?: number[];
+  slots: TeacherScheduleOnboardingSlot[];
+  options?: TeacherScheduleOnboardingOptions;
+}
+
+export interface ApplyTeacherScheduleOnboardingResponse {
+  teacherId: number;
+  teacherName: string;
+  createdEntryIds: number[];
+  updatedEntryIds: number[];
+  removedEntryIds: number[];
+  anchoredEntryId?: number | null;
 }
 
 export interface TimetableGridSlot {

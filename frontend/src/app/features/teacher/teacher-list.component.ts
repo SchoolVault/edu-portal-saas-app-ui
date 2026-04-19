@@ -2,10 +2,12 @@ import { ChangeDetectorRef, Component, OnDestroy, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterModule } from '@angular/router';
-import { debounceTime, filter } from 'rxjs/operators';
+import { catchError, debounceTime, filter, map, switchMap } from 'rxjs/operators';
+import { of } from 'rxjs';
 import { TeacherService } from '../../core/services/teacher.service';
+import { AcademicService } from '../../core/services/academic.service';
 import { AuthService } from '../../core/services/auth.service';
-import { Teacher } from '../../core/models/models';
+import { SchoolClass, Teacher } from '../../core/models/models';
 import { ConfirmDialogService } from '../../shared/confirm-dialog/confirm-dialog.service';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { Subject, Subscription } from 'rxjs';
@@ -20,6 +22,25 @@ import { runtimeConfig } from '../../core/config/runtime-config';
   selector: 'app-teacher-list',
   standalone: true,
   imports: [CommonModule, FormsModule, RouterModule, TranslateModule, ErpPaginationComponent, ErpI18nPhDirective],
+  styles: [
+    `
+      .teacher-list-table-wrap {
+        width: 100%;
+        max-width: 100%;
+        min-width: 0;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+      }
+      .teacher-list-table-wrap .erp-table {
+        min-width: 720px;
+      }
+      @media (max-width: 576px) {
+        .teacher-list-table-wrap .erp-table {
+          min-width: 640px;
+        }
+      }
+    `,
+  ],
   template: `
     <div data-testid="teacher-list-page">
       <header class="erp-page-header animate-in">
@@ -43,7 +64,7 @@ import { runtimeConfig } from '../../core/config/runtime-config';
             <input type="text" class="erp-input" erpI18nPh="teachers.list.searchPlaceholder" [(ngModel)]="searchTerm" (input)="onSearchInput()" data-testid="teacher-search">
           </div>
         </div>
-        <div style="overflow-x: auto;" dir="ltr">
+        <div class="teacher-list-table-wrap" dir="ltr">
           <table class="erp-table" data-testid="teacher-table">
             <thead>
               <tr><th>{{ 'teachers.list.thTeacher' | translate }}</th><th>{{ 'teachers.list.thSpecialization' | translate }}</th><th>{{ 'teachers.list.thSubjects' | translate }}</th><th>{{ 'teachers.list.thHomeroom' | translate }}</th><th>{{ 'teachers.list.thJoinDate' | translate }}</th><th>{{ 'teachers.list.thStatus' | translate }}</th><th>{{ 'teachers.list.thActions' | translate }}</th></tr>
@@ -81,8 +102,8 @@ import { runtimeConfig } from '../../core/config/runtime-config';
                   <ng-template #noSubjectsCell><span class="text-muted small">—</span></ng-template>
                 </td>
                 <td>
-                  <ng-container *ngIf="t.homeroomClassNames?.length; else noHomeroom">
-                    <span class="text-body">{{ homeroomLine(t) }}</span>
+                  <ng-container *ngIf="homeroomLine(t) as line; else noHomeroom">
+                    <span>{{ line }}</span>
                   </ng-container>
                   <ng-template #noHomeroom><span class="text-muted small">{{ 'teachers.list.homeroomNone' | translate }}</span></ng-template>
                 </td>
@@ -129,6 +150,7 @@ export class TeacherListComponent implements OnInit, OnDestroy {
 
   constructor(
     private teacherService: TeacherService,
+    private academicService: AcademicService,
     private auth: AuthService,
     private confirmDialog: ConfirmDialogService,
     private translate: TranslateService,
@@ -207,6 +229,22 @@ export class TeacherListComponent implements OnInit, OnDestroy {
           size: this.pageSize,
           search: this.searchTerm.trim() || undefined,
         })
+        .pipe(
+          switchMap(page => {
+            const needsCatalog =
+              this.useServerPaging && page.content.some(t => !(t.homeroomClassNames?.length));
+            if (!needsCatalog) {
+              return of(page);
+            }
+            return this.academicService.getClasses().pipe(
+              map(classes => ({
+                ...page,
+                content: this.fillHomeroomFromCatalog(page.content, classes),
+              })),
+              catchError(() => of(page))
+            );
+          })
+        )
         .subscribe(page => {
           if (seq !== this.teachersListRequestSeq) return;
           this.serverTotal = page.totalElements;
@@ -216,6 +254,51 @@ export class TeacherListComponent implements OnInit, OnDestroy {
           this.cdr.markForCheck();
         })
     );
+  }
+
+  /**
+   * When the paged teacher API omits homeroom labels (e.g. stale Redis cache), derive the same
+   * section-aware labels as the profile fallback from {@link AcademicService#getClasses}.
+   */
+  private fillHomeroomFromCatalog(rows: Teacher[], classes: SchoolClass[]): Teacher[] {
+    const byTeacher = TeacherListComponent.homeroomLabelsByTeacherId(classes);
+    return rows.map(t => {
+      if (t.homeroomClassNames?.length) {
+        return t;
+      }
+      const labels = byTeacher.get(t.id);
+      if (!labels?.length) {
+        return t;
+      }
+      return { ...t, homeroomClassNames: labels };
+    });
+  }
+
+  private static homeroomLabelsByTeacherId(classes: SchoolClass[]): Map<number, string[]> {
+    const raw = new Map<number, Set<string>>();
+    const add = (teacherId: number, label: string) => {
+      let set = raw.get(teacherId);
+      if (!set) {
+        set = new Set<string>();
+        raw.set(teacherId, set);
+      }
+      set.add(label);
+    };
+    for (const c of classes) {
+      if (!c.sections?.length && c.classTeacherId != null) {
+        add(c.classTeacherId, c.name);
+      }
+      for (const s of c.sections ?? []) {
+        if (s.classTeacherId != null) {
+          add(s.classTeacherId, `${c.name}-${s.name}`);
+        }
+      }
+    }
+    const out = new Map<number, string[]>();
+    for (const [id, set] of raw) {
+      out.set(id, Array.from(set).sort((a, b) => a.localeCompare(b)));
+    }
+    return out;
   }
 
   filter(): void {

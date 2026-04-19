@@ -2,7 +2,7 @@ import { Component, OnInit, ChangeDetectorRef, DestroyRef, inject } from '@angul
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { ActivatedRoute, Router } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { AcademicService } from '../../core/services/academic.service';
 import { TeacherService } from '../../core/services/teacher.service';
 import { TimetableService } from '../../core/services/timetable.service';
@@ -29,7 +29,7 @@ type TimetableEntryForm = Omit<Partial<TimetableEntry>, 'teacherId' | 'classId' 
 @Component({
   selector: 'app-timetable',
   standalone: true,
-  imports: [CommonModule, FormsModule, ErpDatePickerComponent, ErpI18nPhDirective, TranslateModule, SchoolClassNamePipe],
+  imports: [CommonModule, FormsModule, RouterLink, ErpDatePickerComponent, ErpI18nPhDirective, TranslateModule, SchoolClassNamePipe],
   styles: [
     `
       /* Slot tiles: soft tints + left accent using app tokens (light + dark themes). */
@@ -214,6 +214,14 @@ type TimetableEntryForm = Omit<Partial<TimetableEntry>, 'teacherId' | 'classId' 
           <h2 class="timetable-page-title">{{ 'timetable.pageTitle' | translate }}</h2>
           <p class="text-muted mb-0" style="font-size: 13px;" *ngIf="!isParent">{{ 'timetable.leadAdmin' | translate }}</p>
           <p class="text-muted mb-0" style="font-size: 13px;" *ngIf="isParent">{{ 'timetable.leadParent' | translate }}</p>
+          <div *ngIf="isAdmin && !isParent" class="d-flex flex-wrap gap-2 align-items-center mt-2">
+            <a routerLink="/app/timetable/onboarding" class="btn-outline-erp btn-xs" style="text-decoration: none;">
+              <i class="bi bi-person-badge me-1"></i>{{ 'timetable.linkOnboarding' | translate }}
+            </a>
+            <a routerLink="/app/timetable" [queryParams]="{ section: 'covers' }" class="btn-outline-erp btn-xs" style="text-decoration: none;">
+              <i class="bi bi-calendar2-event me-1"></i>{{ 'timetable.linkCoversHub' | translate }}
+            </a>
+          </div>
         </div>
         <div class="timetable-toolbar-wrap flex-shrink-0" *ngIf="!isAdmin || timetableSection === 'schedule'">
           <div class="d-flex flex-wrap gap-2 align-items-center timetable-toolbar-actions justify-content-start justify-content-lg-end">
