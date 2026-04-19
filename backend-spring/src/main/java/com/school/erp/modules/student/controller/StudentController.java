@@ -29,8 +29,8 @@ public class StudentController {
     @GetMapping
     @PreAuthorize("hasAnyRole('ADMIN','TEACHER','SUPER_ADMIN')")
     @Operation(summary = "List students", description = "Get paginated list of students with optional filters")
-    public ResponseEntity<ApiResponse<PageResponse<StudentDTOs.Response>>> list(@RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "20") int size, @RequestParam(required = false) Long classId, @RequestParam(required = false) Enums.StudentStatus status, @RequestParam(required = false) String search, @RequestParam(defaultValue = "firstName") String sortBy, @RequestParam(defaultValue = "asc") String direction) {
-        return ResponseEntity.ok(ApiResponse.ok(studentService.getStudents(page, size, classId, status, search, sortBy, direction)));
+    public ResponseEntity<ApiResponse<PageResponse<StudentDTOs.Response>>> list(@RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "20") int size, @RequestParam(required = false) Long classId, @RequestParam(required = false) Long sectionId, @RequestParam(required = false) Enums.StudentStatus status, @RequestParam(required = false) String search, @RequestParam(defaultValue = "firstName") String sortBy, @RequestParam(defaultValue = "asc") String direction) {
+        return ResponseEntity.ok(ApiResponse.ok(studentService.getStudents(page, size, classId, sectionId, status, search, sortBy, direction)));
     }
 
     @GetMapping("/{id}")

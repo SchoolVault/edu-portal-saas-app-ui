@@ -40,8 +40,8 @@ public class LeaveController {
     }
 
     @GetMapping("/requests")
-    @PreAuthorize("hasAnyRole('ADMIN','TEACHER')")
-    @Operation(summary = "All leave requests (admin/teacher)")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "All leave requests (school admin approver queue)")
     public ResponseEntity<ApiResponse<List<LeaveDTOs.LeaveResponse>>> list() {
         return ResponseEntity.ok(ApiResponse.ok(leaveService.listAll()));
     }
@@ -57,8 +57,8 @@ public class LeaveController {
     }
 
     @GetMapping("/requests/paged")
-    @PreAuthorize("hasAnyRole('ADMIN','TEACHER')")
-    @Operation(summary = "All leave requests (paged)")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "All leave requests (paged, school admin approver queue)")
     public ResponseEntity<ApiResponse<PageResponse<LeaveDTOs.LeaveResponse>>> listPaged(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,

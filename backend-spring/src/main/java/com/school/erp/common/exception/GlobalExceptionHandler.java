@@ -79,6 +79,12 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.FORBIDDEN).body(err("Access denied", ApiErrorCode.FORBIDDEN));
     }
 
+    @ExceptionHandler(ForbiddenException.class)
+    public ResponseEntity<ApiResponse<Void>> handleForbidden(ForbiddenException ex) {
+        log.warn("Forbidden uri={} msg={}", currentRequestUri(), ex.getMessage());
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(err(ex.getMessage(), ApiErrorCode.FORBIDDEN));
+    }
+
     @ExceptionHandler(UnauthorizedException.class)
     public ResponseEntity<ApiResponse<Void>> handleUnauthorized(UnauthorizedException ex) {
         log.warn("Unauthorized uri={} msg={}", currentRequestUri(), ex.getMessage());

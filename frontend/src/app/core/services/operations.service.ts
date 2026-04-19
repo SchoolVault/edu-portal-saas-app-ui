@@ -10,6 +10,7 @@ import { runtimeConfig } from '../config/runtime-config';
 import {
   AttendanceCoverConflictPayload,
   AttendanceCoverRow,
+  AttendanceProxyAuditRow,
   CreateAttendanceCoverRequest,
   FeeReminderRow,
   GatePassRow,
@@ -29,6 +30,7 @@ export class OperationsService {
   private mockInv: InventoryRow[] = MOCK_OPERATIONS_INVENTORY_SEED.map(r => ({ ...r }));
   private mockRem: FeeReminderRow[] = [];
   private mockCovers: AttendanceCoverRow[] = [];
+  private mockAttendanceProxyAudit: AttendanceProxyAuditRow[] = [];
   private nextId = 100;
 
   constructor(
@@ -458,5 +460,21 @@ export class OperationsService {
       return of(undefined).pipe(delay(120));
     }
     return this.api.post<void>(`/attendance/covers/${id}/cancel`, {});
+  }
+
+  /**
+   * Records a proxy/substitute attendance submission for admin audit (mock store or POST /operations/audit/attendance-proxy).
+   */
+  recordAttendanceProxyAudit(row: Omit<AttendanceProxyAuditRow, 'id' | 'at'>): Observable<void> {
+    const entry: AttendanceProxyAuditRow = {
+      ...row,
+      id: `aa-${++this.nextId}`,
+      at: new Date().toISOString(),
+    };
+    if (runtimeConfig.useMocks) {
+      this.mockAttendanceProxyAudit = [entry, ...this.mockAttendanceProxyAudit].slice(0, 200);
+      return of(undefined).pipe(delay(60));
+    }
+    return this.api.post<void>('/operations/audit/attendance-proxy', entry);
   }
 }

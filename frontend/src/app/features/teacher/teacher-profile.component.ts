@@ -17,22 +17,29 @@ import { formatSchoolClassName } from '../../core/i18n/school-class-display';
   imports: [CommonModule, RouterModule, TranslateModule],
   template: `
     <div data-testid="teacher-profile-page" class="animate-in" *ngIf="teacher">
+      <div *ngIf="!isSchoolAdmin" class="erp-card mb-4" style="border-left: 4px solid var(--clr-primary); padding: 14px 18px;">
+        <div class="d-flex align-items-start gap-2 mb-0">
+          <i class="bi bi-info-circle" style="color: var(--clr-primary); margin-top: 2px;"></i>
+          <p class="mb-0 small" style="color: var(--clr-text-secondary); line-height: 1.5;">{{ 'teachers.profile.colleagueReadOnlyHint' | translate }}</p>
+        </div>
+      </div>
       <div class="d-flex align-items-center gap-3 mb-4">
         <button type="button" class="btn-icon" (click)="router.navigate(['/app/teachers'])" data-testid="back-teachers">
           <i class="bi bi-arrow-left" style="font-size: 20px;"></i>
         </button>
         <div class="flex-grow-1">
           <h2 style="font-size: 24px; font-weight: 800;">{{ 'teachers.profile.title' | translate }}</h2>
+          <p *ngIf="!isSchoolAdmin" class="text-muted small mb-0" style="max-width: 640px;">{{ 'teachers.profile.leadColleague' | translate }}</p>
         </div>
         <div class="d-flex gap-2 flex-wrap">
           <button type="button" class="btn-outline-erp btn-sm" (click)="reload()">
             <i class="bi bi-arrow-clockwise"></i> {{ 'teachers.profile.refresh' | translate }}
           </button>
-          <a *ngIf="isAdmin" [routerLink]="['/app/teachers', teacher.id, 'edit']" class="btn-primary-erp btn-sm">
+          <a *ngIf="isSchoolAdmin" [routerLink]="['/app/teachers', teacher.id, 'edit']" class="btn-primary-erp btn-sm" data-testid="teacher-edit-btn">
             <i class="bi bi-pencil"></i> {{ 'teachers.profile.edit' | translate }}
           </a>
           <button
-            *ngIf="isAdmin && teacher.status === 'active'"
+            *ngIf="isSchoolAdmin && teacher.status === 'active'"
             type="button"
             class="btn-outline-erp btn-sm"
             style="border-color: var(--clr-danger); color: var(--clr-danger);"
@@ -66,15 +73,15 @@ import { formatSchoolClassName } from '../../core/i18n/school-class-display';
             <span class="badge-erp" [ngClass]="teacher.status === 'active' ? 'badge-success' : 'badge-neutral'">{{ statusLabel(teacher.status) }}</span>
             <hr style="border-color: var(--clr-border); margin: 20px 0;" />
             <div style="text-align: left;">
-              <div class="mb-3">
+              <div class="mb-3" *ngIf="isSchoolAdmin && teacher.email">
                 <span style="font-size: 12px; color: var(--clr-text-muted); display: block;">{{ 'teachers.profile.email' | translate }}</span>
                 <strong>{{ teacher.email }}</strong>
               </div>
-              <div class="mb-3">
+              <div class="mb-3" *ngIf="isSchoolAdmin && teacher.phone">
                 <span style="font-size: 12px; color: var(--clr-text-muted); display: block;">{{ 'teachers.profile.phone' | translate }}</span>
                 <strong>{{ teacher.phone }}</strong>
               </div>
-              <div class="mb-3">
+              <div class="mb-3" *ngIf="isSchoolAdmin && teacher.qualification">
                 <span style="font-size: 12px; color: var(--clr-text-muted); display: block;">{{ 'teachers.form.qualification' | translate }}</span>
                 <strong>{{ teacher.qualification }}</strong>
               </div>
@@ -82,7 +89,7 @@ import { formatSchoolClassName } from '../../core/i18n/school-class-display';
                 <span style="font-size: 12px; color: var(--clr-text-muted); display: block;">{{ 'teachers.profile.joined' | translate }}</span>
                 <strong>{{ teacher.joinDate }}</strong>
               </div>
-              <div *ngIf="teacher.userId">
+              <div *ngIf="isSchoolAdmin && teacher.userId">
                 <span style="font-size: 12px; color: var(--clr-text-muted); display: block;">{{ 'teachers.profile.linkedLogin' | translate }}</span>
                 <strong>{{ 'teachers.profile.linkedYes' | translate }}</strong>
               </div>
@@ -92,11 +99,13 @@ import { formatSchoolClassName } from '../../core/i18n/school-class-display';
         <div class="col-lg-8">
           <div class="erp-card mb-4">
             <h4 class="erp-card-title mb-3">{{ 'teachers.profile.teaching' | translate }}</h4>
+            <p class="text-muted small mb-3" style="line-height: 1.55;">{{ 'teachers.profile.teachingLead' | translate }}</p>
             <div class="row g-3">
               <div class="col-md-6">
                 <span style="font-size: 12px; color: var(--clr-text-muted); display: block;">{{ 'teachers.profile.subjects' | translate }}</span>
                 <div class="d-flex flex-wrap gap-1 mt-1">
                   <span class="badge-erp badge-subject-pill" *ngFor="let s of teacher.subjects">{{ s }}</span>
+                  <span *ngIf="!teacher.subjects.length" class="text-muted small">{{ 'directory.emDash' | translate }}</span>
                 </div>
               </div>
               <div class="col-md-6">
@@ -156,8 +165,8 @@ export class TeacherProfileComponent implements OnInit, OnDestroy {
     return t !== key ? t : status;
   }
 
-  get isAdmin(): boolean {
-    const r = (this.auth.getRole() || '').toLowerCase();
+  get isSchoolAdmin(): boolean {
+    const r = this.auth.getNormalizedRole();
     return r === 'admin' || r === 'super_admin';
   }
 
@@ -214,7 +223,7 @@ export class TeacherProfileComponent implements OnInit, OnDestroy {
   }
 
   deactivateTeacher(): void {
-    if (!this.teacher) return;
+    if (!this.isSchoolAdmin || !this.teacher) return;
     const name = `${this.teacher.firstName} ${this.teacher.lastName}`;
     this.confirmDialog
       .confirm({

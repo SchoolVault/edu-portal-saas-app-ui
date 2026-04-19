@@ -5,7 +5,7 @@ import com.school.erp.common.enums.Enums;
 import com.school.erp.common.exception.BusinessException;
 import com.school.erp.common.exception.DuplicateResourceException;
 import com.school.erp.common.exception.ResourceNotFoundException;
-import com.school.erp.common.exception.UnauthorizedException;
+import com.school.erp.common.exception.ForbiddenException;
 import com.school.erp.common.importer.ZipCsvImportUtil;
 import com.school.erp.modules.academic.entity.Section;
 import com.school.erp.modules.academic.repository.SchoolClassRepository;
@@ -50,9 +50,9 @@ public class StudentService {
 
     @Cacheable(cacheNames = CacheConfig.STUDENT_DIRECTORY, keyGenerator = "tenantMethodParamsKeyGenerator", unless = "#result == null")
     @Transactional(readOnly = true)
-    public PageResponse<StudentDTOs.Response> getStudents(int page, int size, Long classId, Enums.StudentStatus status, String search, String sortBy, String direction) {
+    public PageResponse<StudentDTOs.Response> getStudents(int page, int size, Long classId, Long sectionId, Enums.StudentStatus status, String search, String sortBy, String direction) {
         String tenantId = TenantContext.getTenantId();
-        log.debug("Listing students page={} classId={} status={} searchPresent={}", page, classId, status, search != null && !search.isBlank());
+        log.debug("Listing students page={} classId={} sectionId={} status={} searchPresent={}", page, classId, sectionId, status, search != null && !search.isBlank());
         Sort sort = Sort.by(Sort.Direction.fromString(direction != null ? direction : "asc"), sortBy != null ? sortBy : "firstName");
         Optional<Set<Long>> teacherScope = teacherRosterScopeService.allowedClassIdsForCurrentUser();
         Page<Student> result;
@@ -64,9 +64,9 @@ public class StudentService {
             if (classId != null && !classIds.contains(classId)) {
                 return PageResponse.of(List.of(), page, size, 0);
             }
-            result = studentPersistence.findByFiltersClassScope(tenantId, classIds, classId, status, search, PageRequest.of(page, size, sort));
+            result = studentPersistence.findByFiltersClassScope(tenantId, classIds, classId, sectionId, status, search, PageRequest.of(page, size, sort));
         } else {
-            result = studentPersistence.findByFilters(tenantId, classId, status, search, PageRequest.of(page, size, sort));
+            result = studentPersistence.findByFilters(tenantId, classId, sectionId, status, search, PageRequest.of(page, size, sort));
         }
         Map<Long, String> classNames = new HashMap<>();
         Map<Long, String> sectionNames = new HashMap<>();
@@ -82,7 +82,7 @@ public class StudentService {
         log.debug("Fetching student id={}", id);
         Student student = studentPersistence.findByIdAndTenantIdAndIsDeletedFalse(id, TenantContext.getTenantId()).orElseThrow(() -> new ResourceNotFoundException("Student", id));
         if (!teacherRosterScopeService.teacherMayAccessStudentClass(student.getClassId())) {
-            throw new UnauthorizedException("You are not allowed to view this student");
+            throw new ForbiddenException("You are not allowed to view this student");
         }
         log.info("Student loaded id={} admissionNumber={}", id, student.getAdmissionNumber());
         return toResponse(student);
@@ -93,7 +93,7 @@ public class StudentService {
     public List<StudentDTOs.Response> getStudentsByClass(Long classId) {
         log.debug("Listing students by classId={}", classId);
         if (!teacherRosterScopeService.teacherMayAccessStudentClass(classId)) {
-            throw new UnauthorizedException("You are not allowed to view this class roster");
+            throw new ForbiddenException("You are not allowed to view this class roster");
         }
         List<StudentDTOs.Response> list = studentPersistence.findByTenantIdAndClassIdAndIsDeletedFalse(TenantContext.getTenantId(), classId).stream()
                 .filter(s -> s.getStatus() == Enums.StudentStatus.ACTIVE)
@@ -108,7 +108,7 @@ public class StudentService {
     public List<StudentDTOs.Response> getStudentsByClassAndSection(Long classId, Long sectionId) {
         log.debug("Listing students classId={} sectionId={}", classId, sectionId);
         if (!teacherRosterScopeService.teacherMayAccessStudentClass(classId)) {
-            throw new UnauthorizedException("You are not allowed to view this class roster");
+            throw new ForbiddenException("You are not allowed to view this class roster");
         }
         String tenantId = TenantContext.getTenantId();
         List<Student> rows;

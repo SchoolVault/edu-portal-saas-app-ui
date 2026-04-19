@@ -125,6 +125,8 @@ public final class LeaveDTOs {
         private Long id;
         private Long applicantUserId;
         private String applicantRole;
+        @Schema(description = "Resolved directory name for the applicant user (tenant-scoped).")
+        private String applicantDisplayName;
         private Long studentId;
         private Long teacherId;
         @Schema(
@@ -163,6 +165,14 @@ public final class LeaveDTOs {
 
         public void setApplicantRole(String applicantRole) {
             this.applicantRole = applicantRole;
+        }
+
+        public String getApplicantDisplayName() {
+            return applicantDisplayName;
+        }
+
+        public void setApplicantDisplayName(String applicantDisplayName) {
+            this.applicantDisplayName = applicantDisplayName;
         }
 
         public Long getStudentId() {

@@ -21,7 +21,12 @@ import java.util.Optional;
 import java.util.Set;
 
 /**
- * Class scope for teachers: homeroom, active subject assignments, and optional substitute cover for a given date.
+ * Roster and attendance policy for teachers within a tenant.
+ * <p>
+ * Student directory (paged list): school-wide read for linked teachers — {@link #allowedClassIdsForTeacherOnDate}
+ * returns empty optional so {@link com.school.erp.modules.student.service.StudentService} does not apply class-id
+ * scoping (same visibility as admin for read). Section-level class teacher (per-section homeroom) is a future phase.
+ * </p>
  */
 @Service
 public class TeacherRosterScopeService {
@@ -51,8 +56,11 @@ public class TeacherRosterScopeService {
     }
 
     /**
-     * @return empty = caller is not a school teacher (no roster restriction);
-     * non-empty set = allowed class IDs for {@code asOfDate}; empty set = teacher with no assignments/covers.
+     * Used only by {@link com.school.erp.modules.student.service.StudentService#getStudents} to optionally narrow
+     * by class for teachers. Returning {@link Optional#empty()} means “no extra class filter” (school-wide roster read).
+     *
+     * @return {@link Optional#empty()} for non-teachers and for linked teachers (full tenant roster read);
+     * {@link Optional#of} an empty set when the account is TEACHER but no teacher profile exists (safe deny).
      */
     @Transactional(readOnly = true)
     public Optional<Set<Long>> allowedClassIdsForTeacherOnDate(LocalDate asOfDate) {
@@ -69,8 +77,7 @@ public class TeacherRosterScopeService {
         if (t.isEmpty()) {
             return Optional.of(Set.of());
         }
-        Long teacherPk = t.get().getId();
-        return Optional.of(collectAllowedClassIds(tenantId, teacherPk, asOfDate));
+        return Optional.empty();
     }
 
     @Transactional(readOnly = true)
@@ -149,15 +156,17 @@ public class TeacherRosterScopeService {
         if (studentClassId == null) {
             return false;
         }
-        Optional<Set<Long>> scope = allowedClassIdsForCurrentUser();
-        if (scope.isEmpty()) {
+        String role = TenantContext.getUserRole();
+        if (role == null || !role.trim().equalsIgnoreCase("TEACHER")) {
             return true;
         }
-        return scope.get().contains(studentClassId);
+        String tenantId = TenantContext.getTenantId();
+        return schoolClassRepository.findByIdAndTenantIdAndIsDeletedFalse(studentClassId, tenantId).isPresent();
     }
 
     /**
-     * Attendance: homeroom/subject for that date, or an active cover row that matches class/section.
+     * Teachers may view and mark attendance for any class/section in their school (tenant), validated against
+     * persisted class/section rows. UI may warn when acting outside homeroom; audit of “on behalf” marks is a future enhancement.
      */
     @Transactional(readOnly = true)
     public boolean teacherMayMarkAttendance(Long classId, Long sectionId, LocalDate date) {
@@ -170,30 +179,16 @@ public class TeacherRosterScopeService {
         if (userId == null) {
             return false;
         }
-        Optional<Teacher> t = teacherRepository.findByTenantIdAndUserIdAndIsDeletedFalse(tenantId, userId);
-        if (t.isEmpty()) {
+        if (teacherRepository.findByTenantIdAndUserIdAndIsDeletedFalse(tenantId, userId).isEmpty()) {
             return false;
         }
-        Long teacherPk = t.get().getId();
-        if (teacherHasBaseAccessToClass(tenantId, teacherPk, classId, date)) {
-            return true;
+        if (classId == null || schoolClassRepository.findByIdAndTenantIdAndIsDeletedFalse(classId, tenantId).isEmpty()) {
+            return false;
         }
-        return !attendanceCoverAssignmentRepository
-                .findActiveCoversForMarking(tenantId, date, teacherPk, classId, sectionId)
-                .isEmpty();
-    }
-
-    private boolean teacherHasBaseAccessToClass(String tenantId, Long teacherPk, Long classId, LocalDate date) {
-        for (SchoolClass c : schoolClassRepository.findByTenantIdAndClassTeacherIdAndIsDeletedFalse(tenantId, teacherPk)) {
-            if (classId.equals(c.getId())) {
-                return true;
-            }
+        if (sectionId != null && sectionId != 0L) {
+            Optional<Section> sec = sectionRepository.findByIdAndTenantIdAndIsDeletedFalse(sectionId, tenantId);
+            return sec.map(s -> classId.equals(s.getClassId())).orElse(false);
         }
-        for (SubjectTeacherAssignment a : subjectTeacherAssignmentRepository.findActiveForTeacher(tenantId, teacherPk, date)) {
-            if (classId.equals(a.getClassId())) {
-                return true;
-            }
-        }
-        return false;
+        return true;
     }
 }

@@ -14,6 +14,9 @@ import com.school.erp.modules.teacher.entity.Teacher;
 import com.school.erp.modules.teacher.repository.TeacherRepository;
 import com.school.erp.config.CacheConfig;
 import com.school.erp.tenant.TenantContext;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -48,7 +51,7 @@ public class TeacherService {
         log.info("Teachers page loaded page={} returned={} total={}", page, result.getNumberOfElements(), result.getTotalElements());
         Map<Long, List<String>> homeroomByTeacher = homeroomClassNamesByTeacherId(tenantId);
         return PageResponse.of(result.getContent().stream()
-                .map(t -> toRes(t, homeroomByTeacher.getOrDefault(t.getId(), List.of())))
+                .map(t -> applyAudienceVisibility(toRes(t, homeroomByTeacher.getOrDefault(t.getId(), List.of()))))
                 .collect(Collectors.toList()), page, size, result.getTotalElements());
     }
 
@@ -57,7 +60,7 @@ public class TeacherService {
         log.debug("Fetching teacher id={}", id);
         String tenantId = TenantContext.getTenantId();
         Teacher t = repo.findByIdAndTenantIdAndIsDeletedFalse(id, tenantId).orElseThrow(() -> new ResourceNotFoundException("Teacher", id));
-        TeacherDTOs.Response r = toRes(t, homeroomClassNamesForTeacher(tenantId, t.getId()));
+        TeacherDTOs.Response r = applyAudienceVisibility(toRes(t, homeroomClassNamesForTeacher(tenantId, t.getId())));
         log.info("Teacher loaded id={}", id);
         return r;
     }
@@ -236,6 +239,48 @@ public class TeacherService {
             return "\"" + x + "\"";
         }
         return x;
+    }
+
+    /**
+     * Teachers browsing the staff directory see professional context (name, subjects, homeroom) without
+     * HR / PII fields. Admins and non-teacher roles receive the full response.
+     *
+     * <p>The signed-in teacher’s own row keeps {@code userId} so the client can resolve portal user → teacher
+     * primary key (timetable, roster scope) without exposing colleagues’ user ids.</p>
+     */
+    private TeacherDTOs.Response applyAudienceVisibility(TeacherDTOs.Response r) {
+        if (!isCurrentCallerSchoolTeacher()) {
+            return r;
+        }
+        Long viewerPortalUserId = TenantContext.getUserId();
+        boolean isSelf = viewerPortalUserId != null && r.getUserId() != null && r.getUserId().equals(viewerPortalUserId);
+        r.setSalary(null);
+        r.setPhone(null);
+        r.setEmail(null);
+        r.setQualification(null);
+        if (!isSelf) {
+            r.setUserId(null);
+        }
+        r.setTenantId(null);
+        return r;
+    }
+
+    private static boolean isCurrentCallerSchoolTeacher() {
+        String fromCtx = TenantContext.getUserRole();
+        if (fromCtx != null && "teacher".equalsIgnoreCase(fromCtx.trim())) {
+            return true;
+        }
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null) {
+            return false;
+        }
+        for (GrantedAuthority a : auth.getAuthorities()) {
+            String authz = a.getAuthority();
+            if (authz != null && "ROLE_TEACHER".equalsIgnoreCase(authz.trim())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private TeacherDTOs.Response toRes(Teacher t, List<String> homeroomClassNames) {

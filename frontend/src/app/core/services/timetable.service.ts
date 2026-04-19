@@ -11,6 +11,16 @@ import { MOCK_TIMETABLE_ENTRIES } from '../mocks/timetable.mock-data';
 import { TimetableConflictError } from '../errors/timetable-conflict.error';
 import { UserFacingHttpError } from '../http/user-facing-http-error';
 
+/** Mon–Sat working week (typical Indian school). Sunday is not a teaching day in this product model. */
+export const INDIAN_SCHOOL_WEEK_DAYS: readonly string[] = [
+  'Monday',
+  'Tuesday',
+  'Wednesday',
+  'Thursday',
+  'Friday',
+  'Saturday',
+];
+
 @Injectable({ providedIn: 'root' })
 export class TimetableService {
   private entries: TimetableEntry[] = MOCK_TIMETABLE_ENTRIES.map(e => ({ ...e }));
@@ -50,10 +60,60 @@ export class TimetableService {
     );
   }
 
+  /** Title-case English weekday for stable grid keys (API may send MONDAY / Monday). */
+  normalizeWeekdayTitle(day: string): string {
+    const t = (day ?? '').trim();
+    if (!t) {
+      return '';
+    }
+    return t.charAt(0).toUpperCase() + t.slice(1).toLowerCase();
+  }
+
+  /** True when {@code day} is Mon–Sat (Indian school week); excludes Sunday. */
+  isIndianSchoolTeachingDayName(day: string): boolean {
+    const d = this.normalizeWeekdayTitle(day);
+    return INDIAN_SCHOOL_WEEK_DAYS.includes(d);
+  }
+
+  /**
+   * Teacher “week matrix”: columns are always Monday → Saturday in order, even if the first populated
+   * slot is mid-week (fixes Tuesday-first columns when Monday has no row for that teacher).
+   */
+  toSchoolWeekMatrixGrid(entries: TimetableEntry[]): TimetableGrid {
+    const monSatOnly = entries.filter(e => this.isIndianSchoolTeachingDayName(e.day));
+    const classId = monSatOnly[0]?.classId ?? entries[0]?.classId ?? 0;
+    const sectionId = monSatOnly[0]?.sectionId ?? entries[0]?.sectionId ?? 0;
+    const periodNums = monSatOnly.map(e => e.period).filter(p => p > 0);
+    const hi = periodNums.length ? Math.min(8, Math.max(6, Math.max(...periodNums))) : 6;
+    const usePeriods = Array.from({ length: hi }, (_, i) => i + 1);
+    const useDays = [...INDIAN_SCHOOL_WEEK_DAYS];
+    const grid: Record<string, Record<number, TimetableGridSlot>> = {};
+    for (const d of useDays) {
+      grid[d] = {};
+      for (const p of usePeriods) {
+        const en = monSatOnly.find(
+          x => this.normalizeWeekdayTitle(x.day) === d && x.period === p
+        );
+        if (en) {
+          grid[d][p] = {
+            subject: en.subjectName,
+            teacher: en.teacherName,
+            room: en.room,
+            startTime: en.startTime,
+            endTime: en.endTime
+          };
+        }
+      }
+    }
+    return { classId, sectionId: sectionId ?? 0, days: useDays, periods: usePeriods, grid };
+  }
+
   private buildGridFromEntries(classId: number, sectionId: number | undefined, entries: TimetableEntry[]): TimetableGrid {
-    const dayOrder = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const dayOrder = [...INDIAN_SCHOOL_WEEK_DAYS];
     const defaultPeriods = [1, 2, 3, 4, 5, 6, 7, 8];
-    const days = [...new Set(entries.map(e => e.day))].sort((a, b) => dayOrder.indexOf(a) - dayOrder.indexOf(b));
+    const days = [...new Set(entries.map(e => this.normalizeWeekdayTitle(e.day)))].sort(
+      (a, b) => dayOrder.indexOf(a) - dayOrder.indexOf(b)
+    );
     const periods = [...new Set(entries.map(e => e.period))].sort((a, b) => a - b);
     const useDays = days.length ? days : dayOrder;
     const usePeriods = periods.length ? periods : defaultPeriods;
@@ -61,7 +121,9 @@ export class TimetableService {
     for (const d of useDays) {
       grid[d] = {};
       for (const p of usePeriods) {
-        const en = entries.find(x => x.day === d && x.period === p);
+        const en = entries.find(
+          x => this.normalizeWeekdayTitle(x.day) === this.normalizeWeekdayTitle(d) && x.period === p
+        );
         if (en) {
           grid[d][p] = {
             subject: en.subjectName,

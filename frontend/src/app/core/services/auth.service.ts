@@ -20,7 +20,7 @@ import {
 import { ApiService } from './api.service';
 import { runtimeConfig } from '../config/runtime-config';
 import { environment } from '../../../environments/environment';
-import { isAccessExpiredByClock, isLikelyJwt } from '../auth/access-token';
+import { decodeJwtPermissions, isAccessExpiredByClock, isLikelyJwt } from '../auth/access-token';
 import { MOCK_LOGIN_USERS, buildMockProfileSummary, findMockLoginUser, phonesMatch } from '../mocks/auth.mock-data';
 import { ERP_ACCESS_TOKEN_KEY, ERP_REFRESH_TOKEN_KEY, ERP_USER_KEY } from '../auth/client-session-keys';
 import { UserLocaleService, type UiLanguage } from '../i18n/user-locale.service';
@@ -335,6 +335,18 @@ export class AuthService {
     return raw.startsWith('role_') ? raw.slice(5) : raw;
   }
 
+  /**
+   * Fine-grained authorities from the access JWT `permissions` claim (e.g. LIBRARY_MANAGE).
+   * Empty for mock tokens — features that need this should fall back to profile/API hints.
+   */
+  getJwtPermissionAuthorities(): Set<string> {
+    const token = this.getToken();
+    if (!token) {
+      return new Set();
+    }
+    return new Set(decodeJwtPermissions(token));
+  }
+
   getTenantId(): string | null {
     return this.currentUserSubject.value?.tenantId || null;
   }
@@ -454,7 +466,21 @@ export class AuthService {
           id: Number(summary.id),
           role: summary.role,
           platformWorkspaceCount: summary.platformWorkspaceCount ?? undefined,
-          classTeacherOf: summary.classTeacherOf ?? undefined,
+          primaryTeachingSubject:
+            summary.primaryTeachingSubject != null && String(summary.primaryTeachingSubject).trim() !== ''
+              ? String(summary.primaryTeachingSubject).trim()
+              : undefined,
+          classTeacherOf: Array.isArray(summary.classTeacherOf)
+            ? summary.classTeacherOf.map((r: Record<string, unknown>) => ({
+                classId: Number(r['classId']),
+                className: r['className'] != null ? String(r['className']) : undefined,
+                sectionName: r['sectionName'] != null ? String(r['sectionName']) : undefined,
+                totalStudents: r['totalStudents'] != null ? Number(r['totalStudents']) : undefined,
+              }))
+            : undefined,
+          assignedClassCount: summary.assignedClassCount != null ? Number(summary.assignedClassCount) : undefined,
+          assignedStudentCount: summary.assignedStudentCount != null ? Number(summary.assignedStudentCount) : undefined,
+          subjectCount: summary.subjectCount != null ? Number(summary.subjectCount) : undefined,
         };
         this.profileSummarySubject.next(normalized);
         if (summary.interfaceLocale) {

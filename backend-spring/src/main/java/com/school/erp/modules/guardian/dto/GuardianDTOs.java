@@ -5,6 +5,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 
 import java.time.LocalDate;
+import java.util.List;
 
 public final class GuardianDTOs {
 
@@ -307,6 +308,15 @@ public final class GuardianDTOs {
         private String custodyType;
         private LocalDate effectiveFrom;
         private LocalDate effectiveTo;
+        /** From linked {@code Guardian} row when listing — not persisted on the mapping entity. */
+        private String primaryPhone;
+        private String occupation;
+        /** First email from {@code guardians.emails_json} when present. */
+        private String email;
+        /** Extra lines from {@code guardians.phones_json} excluding the primary column value. */
+        private List<String> additionalPhones;
+        /** True when this guardian is linked to a parent portal login ({@code guardians.user_id}). */
+        private Boolean parentPortalLinked;
 
         public Long getId() {
             return id;
@@ -386,6 +396,46 @@ public final class GuardianDTOs {
 
         public void setEffectiveTo(LocalDate effectiveTo) {
             this.effectiveTo = effectiveTo;
+        }
+
+        public String getPrimaryPhone() {
+            return primaryPhone;
+        }
+
+        public void setPrimaryPhone(String primaryPhone) {
+            this.primaryPhone = primaryPhone;
+        }
+
+        public String getOccupation() {
+            return occupation;
+        }
+
+        public void setOccupation(String occupation) {
+            this.occupation = occupation;
+        }
+
+        public String getEmail() {
+            return email;
+        }
+
+        public void setEmail(String email) {
+            this.email = email;
+        }
+
+        public List<String> getAdditionalPhones() {
+            return additionalPhones;
+        }
+
+        public void setAdditionalPhones(List<String> additionalPhones) {
+            this.additionalPhones = additionalPhones;
+        }
+
+        public Boolean getParentPortalLinked() {
+            return parentPortalLinked;
+        }
+
+        public void setParentPortalLinked(Boolean parentPortalLinked) {
+            this.parentPortalLinked = parentPortalLinked;
         }
     }
 }

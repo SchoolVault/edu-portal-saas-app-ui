@@ -45,6 +45,8 @@ public class AuthProfileDTOs {
         private String specialization;
         private Long childCount;
         private Long assignedClassCount;
+        /** Distinct students across timetable-linked classes (timetable scope). */
+        private Long assignedStudentCount;
         private Long subjectCount;
         private Long managedStudentCount;
         private Long managedTeacherCount;
@@ -52,6 +54,8 @@ public class AuthProfileDTOs {
         private int platformWorkspaceCount;
         /** Populated for TEACHER: classes where this teacher is the class teacher. */
         private List<ClassTeacherAssignment> classTeacherOf;
+        /** TEACHER: primary subject line for shell (first listed subject, else specialization). */
+        private String primaryTeachingSubject;
 
         public Long getId() { return id; }
         public void setId(Long id) { this.id = id; }
@@ -93,6 +97,8 @@ public class AuthProfileDTOs {
         public void setChildCount(Long childCount) { this.childCount = childCount; }
         public Long getAssignedClassCount() { return assignedClassCount; }
         public void setAssignedClassCount(Long assignedClassCount) { this.assignedClassCount = assignedClassCount; }
+        public Long getAssignedStudentCount() { return assignedStudentCount; }
+        public void setAssignedStudentCount(Long assignedStudentCount) { this.assignedStudentCount = assignedStudentCount; }
         public Long getSubjectCount() { return subjectCount; }
         public void setSubjectCount(Long subjectCount) { this.subjectCount = subjectCount; }
         public Long getManagedStudentCount() { return managedStudentCount; }
@@ -103,5 +109,8 @@ public class AuthProfileDTOs {
         public void setPlatformWorkspaceCount(int platformWorkspaceCount) { this.platformWorkspaceCount = platformWorkspaceCount; }
         public List<ClassTeacherAssignment> getClassTeacherOf() { return classTeacherOf; }
         public void setClassTeacherOf(List<ClassTeacherAssignment> classTeacherOf) { this.classTeacherOf = classTeacherOf; }
+
+        public String getPrimaryTeachingSubject() { return primaryTeachingSubject; }
+        public void setPrimaryTeachingSubject(String primaryTeachingSubject) { this.primaryTeachingSubject = primaryTeachingSubject; }
     }
 }

@@ -45,10 +45,10 @@ public class ReportService {
         return reportQueryPort.getAdminDashboard();
     }
 
-    @Cacheable(cacheNames = CacheConfig.DASHBOARD_SNAPSHOTS, keyGenerator = "tenantUserRoleKeyGenerator", unless = "#result == null")
+    @Cacheable(cacheNames = CacheConfig.DASHBOARD_SNAPSHOTS, keyGenerator = "tenantMethodParamsKeyGenerator", unless = "#result == null")
     @Transactional(readOnly = true)
-    public ReportDashboardDTOs.TeacherDashboardResponse getTeacherDashboard() {
-        return reportQueryPort.getTeacherDashboard();
+    public ReportDashboardDTOs.TeacherDashboardResponse getTeacherDashboard(String month) {
+        return reportQueryPort.getTeacherDashboard(month);
     }
 
     @Cacheable(cacheNames = CacheConfig.DASHBOARD_SNAPSHOTS, keyGenerator = "tenantMethodParamsKeyGenerator", unless = "#result == null")

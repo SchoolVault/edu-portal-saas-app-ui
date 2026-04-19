@@ -233,6 +233,8 @@ a:hover {
   display: flex;
   flex-direction: column;
   min-height: 100vh;
+  /* Prevents wide child pages (e.g. wide tables) from stretching the shell and misaligning the header. */
+  min-width: 0;
 }
 
 .main-wrapper.collapsed { margin-left: var(--sidebar-w-collapsed); }
@@ -252,6 +254,9 @@ a:hover {
   position: sticky;
   top: 0;
   z-index: 100;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 .header-left { display: flex; align-items: center; gap: 16px; flex-shrink: 0; }
@@ -374,7 +379,11 @@ a:hover {
 .profile-name { font-size: 13px; font-weight: 600; color: var(--clr-text); }
 .profile-role { font-size: 11px; color: var(--clr-text-muted); text-transform: capitalize; }
 
-.main-content { flex: 1; padding: 24px; }
+.main-content {
+  flex: 1;
+  padding: 24px;
+  min-width: 0;
+}
 
 .profile-summary-card {
   padding: 12px 14px;
@@ -2111,7 +2120,7 @@ span.flatpickr-weekday {
   border-top: 5px solid var(--clr-text-muted);
   border-bottom: 0;
 }
-/* Parent portal: year changes via ‹ › only (see ErpMonthPickerComponent yearNavMode). */
+/* yearNavMode chevrons: hide inner steppers; use custom ‹ › in component (rare). */
 .flatpickr-calendar.erp-flatpickr-month--year-chevrons .flatpickr-current-month .numInputWrapper .arrowUp,
 .flatpickr-calendar.erp-flatpickr-month--year-chevrons .flatpickr-current-month .numInputWrapper .arrowDown {
   display: none !important;

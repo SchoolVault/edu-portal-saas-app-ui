@@ -5,6 +5,7 @@ import { FormsModule } from '@angular/forms';
 import { Chart, registerables } from 'chart.js';
 import { Subscription } from 'rxjs';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
+import { ErpMonthPickerComponent } from '../../shared/erp-month-picker/erp-month-picker.component';
 import { AuthService } from '../../core/services/auth.service';
 import { ParentSelectionService } from '../../core/services/parent-selection.service';
 import { DashboardService } from '../../core/services/dashboard.service';
@@ -25,9 +26,17 @@ interface DashboardAdminKpi {
 interface DashboardTeacherKpi {
   labelKey: string;
   value: string;
+  /** When set, stat-value shows this i18n key instead of {@link value}. */
+  valueLabelKey?: string;
   icon: string;
   bgColor: string;
   color: string;
+  link: string;
+  queryParams?: Record<string, string>;
+  /** Secondary line under the title (i18n), e.g. homeroom context. */
+  subtextKey?: string;
+  /** Optional accent for attendance status tiles. */
+  kpiVariant?: 'attendance-pending' | 'attendance-done';
 }
 
 interface DashboardParentKpi {
@@ -62,7 +71,7 @@ interface DashboardAdmissionInsight {
 @Component({
   selector: 'app-dashboard',
   standalone: true,
-  imports: [CommonModule, RouterModule, FormsModule, TranslateModule],
+  imports: [CommonModule, RouterModule, FormsModule, TranslateModule, ErpMonthPickerComponent],
   styles: [
     `
       .parent-fee-urgency--high {
@@ -71,6 +80,43 @@ interface DashboardAdmissionInsight {
       }
       .parent-fee-urgency--low {
         border-color: color-mix(in srgb, var(--clr-warning) 35%, var(--clr-border-light)) !important;
+      }
+      a.teacher-kpi-link {
+        color: inherit;
+        display: block;
+        border-radius: var(--radius-md, 12px);
+        outline: none;
+      }
+      a.teacher-kpi-link:focus-visible {
+        box-shadow: 0 0 0 2px color-mix(in srgb, var(--clr-primary) 45%, transparent);
+      }
+      a.teacher-kpi-link .stat-card {
+        transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+        height: 100%;
+      }
+      a.teacher-kpi-link:hover .stat-card {
+        transform: translateY(-2px);
+        box-shadow: var(--shadow-md, 0 8px 24px rgba(0, 0, 0, 0.08));
+        border-color: color-mix(in srgb, var(--clr-primary) 28%, var(--clr-border-light));
+      }
+      a.teacher-kpi--att-pending .stat-card {
+        border-color: color-mix(in srgb, var(--clr-warning) 35%, var(--clr-border-light));
+      }
+      a.teacher-kpi--att-done .stat-card {
+        border-color: color-mix(in srgb, var(--clr-success) 35%, var(--clr-border-light));
+      }
+      .teacher-homeroom-legend__swatch {
+        width: 12px;
+        height: 12px;
+        border-radius: 3px;
+        flex-shrink: 0;
+      }
+      .teacher-homeroom-legend__line {
+        width: 18px;
+        border-top-width: 3px;
+        border-top-style: solid;
+        display: inline-block;
+        vertical-align: middle;
       }
     `,
   ],
@@ -213,72 +259,84 @@ interface DashboardAdmissionInsight {
       <ng-container *ngIf="!loading && role === 'teacher'">
         <div class="row g-4 mb-4">
           <div class="col-sm-6 col-lg-3" *ngFor="let kpi of teacherKPIs">
-            <div class="stat-card">
-              <div class="stat-icon" [style.background]="kpi.bgColor" [style.color]="kpi.color"><i class="bi" [ngClass]="kpi.icon"></i></div>
-              <div class="stat-value">{{ kpi.value }}</div>
-              <div class="stat-label">{{ kpi.labelKey | translate }}</div>
-            </div>
+            <a
+              class="teacher-kpi-link"
+              [routerLink]="kpi.link"
+              [queryParams]="kpi.queryParams || null"
+              [attr.aria-label]="kpi.labelKey | translate"
+              [ngClass]="{
+                'teacher-kpi--att-pending': kpi.kpiVariant === 'attendance-pending',
+                'teacher-kpi--att-done': kpi.kpiVariant === 'attendance-done'
+              }"
+            >
+              <div class="stat-card">
+                <div class="stat-icon" [style.background]="kpi.bgColor" [style.color]="kpi.color"><i class="bi" [ngClass]="kpi.icon"></i></div>
+                <div
+                  class="stat-value"
+                  [class.text-success]="kpi.kpiVariant === 'attendance-done'"
+                  [style.color]="kpi.kpiVariant === 'attendance-pending' ? '#B45309' : null"
+                >
+                  {{ kpi.valueLabelKey ? (kpi.valueLabelKey | translate) : kpi.value }}
+                </div>
+                <div class="stat-label">{{ kpi.labelKey | translate }}</div>
+                <p class="text-muted small mb-0 mt-1 teacher-kpi-sub" *ngIf="kpi.subtextKey" style="font-size: 11px; line-height: 1.35;">{{ kpi.subtextKey | translate }}</p>
+              </div>
+            </a>
           </div>
         </div>
-        <div class="row g-4 mb-4">
-          <div class="col-lg-5">
-            <div class="erp-card" style="height: 100%;">
-              <div class="erp-card-header"><h3 class="erp-card-title">{{ 'dashboard.teacher.messageQueue' | translate }}</h3></div>
-              <div *ngIf="(teacherDashboard?.messageQueue || []).length; else noMsgQueue">
-                <div *ngFor="let item of teacherDashboard?.messageQueue" class="activity-item" [routerLink]="['/app/chat']" style="cursor: pointer;">
-                  <div class="activity-icon" style="background: rgba(2,132,199,0.1); color: var(--clr-info);">
-                    <i class="bi bi-chat-left-dots"></i>
-                  </div>
-                  <div class="activity-content">
-                    <h5>
-                      {{ item.fromName }}
-                      <span *ngIf="item.studentName" class="text-muted" style="font-weight: 600;">· {{ item.studentName }}</span>
-                    </h5>
-                    <p>{{ item.preview }} · {{ item.timestamp }}</p>
-                  </div>
-                  <span class="badge-erp" [ngClass]="item.priority === 'high' ? 'badge-danger' : 'badge-neutral'">{{ priorityLabel(item.priority) }}</span>
+
+        <div class="row g-4 mb-4" *ngIf="teacherDashboard?.homeroomAttendance?.daily?.length">
+          <div class="col-lg-8">
+            <div class="erp-card">
+              <div class="erp-card-header d-flex flex-wrap justify-content-between align-items-start gap-3">
+                <div>
+                  <h3 class="erp-card-title mb-0">{{ 'dashboard.teacher.homeroomDailyTitle' | translate }}</h3>
+                  <p class="text-muted small mb-0 mt-1" *ngIf="teacherDashboard?.homeroomAttendance?.classLabel">{{ teacherDashboard?.homeroomAttendance?.classLabel }}</p>
+                </div>
+                <div class="teacher-dash-month-field" style="min-width: 200px; max-width: 280px;">
+                  <label class="erp-label mb-1" for="teacher-homeroom-month">{{ 'dashboard.teacher.attendanceMonth' | translate }}</label>
+                  <app-erp-month-picker
+                    inputId="teacher-homeroom-month"
+                    dataTestId="teacher-homeroom-month"
+                    [(ngModel)]="teacherTrendMonth"
+                    (ngModelChange)="onTeacherTrendMonthChange()"
+                    placeholderI18nKey="dashboard.teacher.attendanceMonthPh"
+                    [maxYm]="teacherHomeroomMaxYm"
+                    yearNavMode="plain"
+                  />
                 </div>
               </div>
-              <ng-template #noMsgQueue>
-                <div class="empty-state" style="padding: 20px 12px;">
-                  <i class="bi bi-inbox"></i>
-                  <h3>{{ 'dashboard.teacher.noMessagesTitle' | translate }}</h3>
-                  <p>{{ 'dashboard.teacher.noMessagesLead' | translate }}</p>
-                </div>
-              </ng-template>
+              <div class="chart-container" style="height: 300px;"><canvas #teacherHomeroomDailyChart></canvas></div>
+              <div class="d-flex flex-wrap gap-3 mt-2 px-1 small align-items-center teacher-homeroom-legend">
+                <span class="d-inline-flex align-items-center gap-2 text-muted mb-0">
+                  <span class="teacher-homeroom-legend__swatch" style="background: rgba(27, 58, 48, 0.85);"></span>
+                  {{ 'dashboard.teacher.homeroomSeriesPresent' | translate }}
+                </span>
+                <span class="d-inline-flex align-items-center gap-2 text-muted mb-0">
+                  <span class="teacher-homeroom-legend__line" style="border-color: #C05C3D;"></span>
+                  {{ 'dashboard.teacher.homeroomSeriesAbsent' | translate }}
+                </span>
+                <span class="d-inline-flex align-items-center gap-2 text-muted mb-0">
+                  <span class="teacher-homeroom-legend__line" style="border-color: #D97706;"></span>
+                  {{ 'dashboard.teacher.homeroomSeriesLate' | translate }}
+                </span>
+              </div>
             </div>
           </div>
-          <div class="col-lg-7">
-            <div class="erp-card" style="height: 100%;">
-              <div class="erp-card-header"><h3 class="erp-card-title">{{ 'dashboard.teacher.classOverview' | translate }}</h3></div>
-              <div *ngIf="(teacherDashboard?.classTeacherOf || []).length; else noClassTeacher">
-                <div *ngFor="let cls of teacherDashboard?.classTeacherOf" class="insight-card" style="margin-bottom: 10px;">
-                  <div class="d-flex justify-content-between align-items-center">
-                    <div>
-                      <div class="insight-label">{{ 'dashboard.teacher.classTeacherLabel' | translate }}</div>
-                      <div class="insight-value">{{ cls.className }}{{ cls.sectionName ? ' - ' + cls.sectionName : '' }}</div>
-                      <div class="insight-subtext">{{ 'dashboard.teacher.classTeacherSub' | translate: { count: cls.totalStudents } }}</div>
-                    </div>
-                    <div class="d-flex gap-2">
-                      <a class="btn-outline-erp btn-sm" [routerLink]="['/app/attendance']">{{ 'dashboard.teacher.btnAttendance' | translate }}</a>
-                      <a class="btn-outline-erp btn-sm" [routerLink]="['/app/chat']">{{ 'dashboard.teacher.btnInbox' | translate }}</a>
-                    </div>
-                  </div>
-                </div>
+          <div class="col-lg-4">
+            <div class="erp-card h-100 d-flex flex-column">
+              <h4 class="erp-card-title" style="font-size: 15px;">{{ 'dashboard.teacher.homeroomRingTitle' | translate }}</h4>
+              <div class="chart-container flex-grow-1" style="min-height: 200px;"><canvas #teacherHomeroomRingChart></canvas></div>
+              <div class="text-center mt-2">
+                <div style="font-size: 32px; font-weight: 800; color: var(--clr-primary); line-height: 1.1;">{{ teacherHomeroomPresentSnapshot }}%</div>
+                <p class="text-muted small mb-0">{{ 'dashboard.teacher.homeroomPresentRate' | translate }}</p>
               </div>
-              <ng-template #noClassTeacher>
-                <div class="empty-state" style="padding: 20px 12px;">
-                  <i class="bi bi-person-badge"></i>
-                  <h3>{{ 'dashboard.teacher.noClassTitle' | translate }}</h3>
-                  <p>{{ 'dashboard.teacher.noClassLead' | translate }}</p>
-                </div>
-              </ng-template>
             </div>
           </div>
         </div>
 
         <div class="row g-4">
-          <div class="col-lg-8">
+          <div [ngClass]="(teacherDashboard?.recentActivities || []).length ? 'col-lg-8' : 'col-12'">
             <div class="erp-card">
               <div class="erp-card-header"><h3 class="erp-card-title">{{ 'dashboard.teacher.todayTimetable' | translate }}</h3></div>
               <table class="erp-table">
@@ -295,15 +353,44 @@ interface DashboardAdmissionInsight {
               </table>
             </div>
           </div>
-          <div class="col-lg-4">
-            <div class="erp-card">
-              <div class="erp-card-header"><h3 class="erp-card-title">{{ 'dashboard.teacher.pendingTasks' | translate }}</h3></div>
-              <div *ngFor="let task of teacherDashboard?.pendingTasks" class="activity-item">
-                <div class="activity-icon" style="background: rgba(217,119,6,0.1); color: var(--clr-warning);"><i class="bi bi-list-task"></i></div>
-                <div class="activity-content">
-                  <h5>{{ task.title }}</h5>
-                  <p>{{ task.description || task.timestamp }}</p>
-                </div>
+          <div class="col-lg-4" *ngIf="(teacherDashboard?.recentActivities || []).length">
+            <div class="erp-card h-100 d-flex flex-column">
+              <div class="erp-card-header"><h3 class="erp-card-title">{{ 'dashboard.teacher.recentActivity' | translate }}</h3></div>
+              <div class="flex-grow-1 overflow-auto" style="max-height: 420px;">
+                <a
+                  *ngFor="let act of teacherDashboard?.recentActivities"
+                  class="activity-item text-decoration-none"
+                  style="cursor: pointer; color: inherit; display: flex;"
+                  [routerLink]="act.linkRoute"
+                  [queryParams]="act.linkQueryParams || null"
+                >
+                  <div
+                    class="activity-icon"
+                    [style.background]="act.type === 'success' ? 'rgba(5,150,105,0.12)' : act.type === 'warning' ? 'rgba(217,119,6,0.12)' : 'rgba(2,132,199,0.12)'"
+                    [style.color]="act.type === 'success' ? 'var(--clr-success)' : act.type === 'warning' ? 'var(--clr-warning)' : 'var(--clr-info)'"
+                  >
+                    <i
+                      class="bi"
+                      [ngClass]="
+                        act.code === 'EXAM_SCHEDULED'
+                          ? 'bi-journal-text'
+                          : act.code === 'ADMIN_ANNOUNCEMENT'
+                            ? 'bi-megaphone'
+                            : act.code === 'TIMETABLE_UPDATED'
+                              ? 'bi-calendar-week'
+                              : act.code === 'ATTENDANCE_PENDING'
+                                ? 'bi-calendar-check'
+                                : 'bi-people'
+                      "
+                    ></i>
+                  </div>
+                  <div class="activity-content flex-grow-1">
+                    <h5>{{ ('dashboard.teacher.activity.' + act.code + '.title') | translate: (act.params || {}) }}</h5>
+                    <p class="mb-0">{{ ('dashboard.teacher.activity.' + act.code + '.desc') | translate: (act.params || {}) }}</p>
+                    <span class="text-muted small">{{ act.timestamp | date: 'medium' }}</span>
+                  </div>
+                  <span class="text-muted small align-self-center"><i class="bi bi-chevron-right"></i></span>
+                </a>
               </div>
             </div>
           </div>
@@ -421,6 +508,8 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
   @ViewChild('combinedTrendChart') combinedTrendChartRef?: ElementRef<HTMLCanvasElement>;
   @ViewChild('attendanceChart') attendanceChartRef?: ElementRef<HTMLCanvasElement>;
   @ViewChild('admissionsTrendChart') admissionsTrendChartRef?: ElementRef<HTMLCanvasElement>;
+  @ViewChild('teacherHomeroomDailyChart') teacherHomeroomDailyChartRef?: ElementRef<HTMLCanvasElement>;
+  @ViewChild('teacherHomeroomRingChart') teacherHomeroomRingChartRef?: ElementRef<HTMLCanvasElement>;
 
   role = 'admin';
   loading = true;
@@ -443,6 +532,15 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
   private combinedTrendChart?: Chart;
   private attendanceChart?: Chart;
   private admissionsTrendChart?: Chart;
+  private teacherHomeroomDailyChart?: Chart;
+  private teacherHomeroomRingChart?: Chart;
+  /** Local month filter for teacher attendance chart (YYYY-MM). */
+  teacherTrendMonth = new Date().toISOString().slice(0, 7);
+
+  /** Max selectable month for homeroom picker (current calendar month). */
+  get teacherHomeroomMaxYm(): string {
+    return new Date().toISOString().slice(0, 7);
+  }
 
   constructor(
     private authService: AuthService,
@@ -468,6 +566,10 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
       if (this.role === 'admin' && this.adminDashboard) {
         this.cdr.detectChanges();
         queueMicrotask(() => this.initAdminCharts());
+      }
+      if (this.role === 'teacher' && this.teacherDashboard) {
+        this.cdr.detectChanges();
+        queueMicrotask(() => this.initTeacherCharts());
       }
       if (this.role === 'parent' && this.parentDashboard) {
         this.parentKPIs = this.buildParentKpis(this.parentDashboard);
@@ -500,10 +602,12 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
       return;
     }
     if (this.role === 'teacher') {
-      this.dashboardService.getTeacherDashboard().subscribe({
+      this.dashboardService.getTeacherDashboard(this.teacherTrendMonth).subscribe({
         next: dashboard => {
           this.teacherDashboard = dashboard;
           this.teacherKPIs = this.buildTeacherKpis(dashboard);
+          this.cdr.detectChanges();
+          queueMicrotask(() => this.initTeacherCharts());
           finish();
         },
         error: () => finish()
@@ -544,11 +648,13 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
       return;
     }
     if (this.role === 'teacher') {
-      this.dashboardService.getTeacherDashboard().subscribe({
+      this.dashboardService.getTeacherDashboard(this.teacherTrendMonth).subscribe({
         next: dashboard => {
           this.teacherDashboard = dashboard;
           this.teacherKPIs = this.buildTeacherKpis(dashboard);
           this.loading = false;
+          this.cdr.detectChanges();
+          queueMicrotask(() => this.initTeacherCharts());
         },
         error: () => {
           this.loading = false;
@@ -609,12 +715,41 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
     this.combinedTrendChart?.destroy();
     this.attendanceChart?.destroy();
     this.admissionsTrendChart?.destroy();
+    this.teacherHomeroomDailyChart?.destroy();
+    this.teacherHomeroomRingChart?.destroy();
   }
 
-  priorityLabel(p: string | undefined): string {
-    const key = 'dashboard.enums.priority.' + String(p || '').toLowerCase();
-    const t = this.translate.instant(key);
-    return t !== key ? t : (p || '');
+  /** Homeroom present % from monthly breakdown (matches ring chart). */
+  get teacherHomeroomPresentSnapshot(): string {
+    const b = this.teacherDashboard?.homeroomAttendance?.breakdown;
+    if (!b) {
+      return '0';
+    }
+    const t = b.present + b.absent + b.late + b.excused;
+    if (t <= 0) {
+      return '0';
+    }
+    return ((100 * b.present) / t).toFixed(1);
+  }
+
+  onTeacherTrendMonthChange(): void {
+    this.refreshing = true;
+    this.dashboardService.getTeacherDashboard(this.teacherTrendMonth).subscribe({
+      next: dashboard => {
+        this.teacherDashboard = dashboard;
+        this.teacherKPIs = this.buildTeacherKpis(dashboard);
+        this.refreshing = false;
+        this.cdr.detectChanges();
+        queueMicrotask(() => this.initTeacherCharts());
+      },
+      error: () => {
+        this.refreshing = false;
+      },
+    });
+  }
+
+  private initTeacherCharts(): void {
+    this.initTeacherHomeroomCharts();
   }
 
   private buildAdminKpis(dashboard: AdminDashboardData): DashboardAdminKpi[] {
@@ -656,20 +791,40 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   private buildTeacherKpis(dashboard: TeacherDashboardData): DashboardTeacherKpi[] {
+    const ct = dashboard.classTeacherOf?.[0];
+    const hmLabel = dashboard.homeroomAttendance?.classLabel?.trim();
+    const homeroomDisplay =
+      hmLabel ||
+      (ct ? `${ct.className?.trim() || ''}${ct.sectionName ? ' · ' + ct.sectionName : ''}`.trim() : '');
+    const homeroomQuery: Record<string, string> | undefined =
+      ct?.classId != null && ct.sectionId != null
+        ? { classId: String(ct.classId), sectionId: String(ct.sectionId) }
+        : ct?.classId != null
+          ? { classId: String(ct.classId) }
+          : undefined;
+    const rosterStrength =
+      ct != null && ct.totalStudents != null && ct.totalStudents > 0 ? ct.totalStudents : dashboard.studentsAssigned;
+    const attendanceDone = Boolean(dashboard.homeroomTodayAttendanceComplete);
     return [
       {
-        labelKey: 'dashboard.teacher.kpi.myClasses',
-        value: String(dashboard.assignedClasses),
-        icon: 'bi-journal-bookmark-fill',
+        labelKey: 'dashboard.teacher.kpi.homeroomLabel',
+        value: homeroomDisplay || '—',
+        icon: 'bi-mortarboard-fill',
         bgColor: 'rgba(27,58,48,0.1)',
         color: '#1B3A30',
+        link: '/app/students',
+        queryParams: homeroomQuery,
+        // subtextKey: homeroomDisplay ? 'dashboard.teacher.kpi.homeroomSubStudents' : 'dashboard.teacher.kpi.homeroomEmpty',
       },
       {
         labelKey: 'dashboard.teacher.kpi.studentsAssigned',
-        value: String(dashboard.studentsAssigned),
+        value: String(rosterStrength),
         icon: 'bi-people-fill',
         bgColor: 'rgba(192,92,61,0.1)',
         color: '#C05C3D',
+        link: '/app/students',
+        queryParams: homeroomQuery,
+        // subtextKey: ct ? 'dashboard.teacher.kpi.studentsAssignedHomeroomHint' : 'dashboard.teacher.kpi.studentsAssignedFallbackHint',
       },
       {
         labelKey: 'dashboard.teacher.kpi.upcomingExams',
@@ -677,13 +832,21 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
         icon: 'bi-file-earmark-text',
         bgColor: 'rgba(217,119,6,0.1)',
         color: '#D97706',
+        link: '/app/exams',
       },
       {
-        labelKey: 'dashboard.teacher.kpi.unreadAlerts',
-        value: String(dashboard.unreadNotifications),
-        icon: 'bi-bell-fill',
-        bgColor: 'rgba(5,150,105,0.1)',
-        color: '#059669',
+        labelKey: attendanceDone ? 'dashboard.teacher.kpi.homeAttendanceTitleDone' : 'dashboard.teacher.kpi.homeAttendanceTitlePending',
+        value: '',
+        valueLabelKey: attendanceDone
+          ? 'dashboard.teacher.kpi.homeAttendanceValueMarked'
+          : 'dashboard.teacher.kpi.homeAttendanceValuePending',
+        icon: attendanceDone ? 'bi-check2-circle' : 'bi-calendar2-event',
+        bgColor: attendanceDone ? 'rgba(5,150,105,0.12)' : 'rgba(217,119,6,0.12)',
+        color: attendanceDone ? '#059669' : '#D97706',
+        link: '/app/attendance',
+        queryParams: homeroomQuery,
+        // subtextKey: attendanceDone ? 'dashboard.teacher.kpi.homeAttendanceHintDone' : 'dashboard.teacher.kpi.homeAttendanceHintPending',
+        kpiVariant: attendanceDone ? 'attendance-done' : 'attendance-pending',
       },
     ];
   }
@@ -929,4 +1092,146 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
   private asCurrency(value: number): string {
     return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(value || 0);
   }
+
+  private initTeacherHomeroomCharts(): void {
+    const h = this.teacherDashboard?.homeroomAttendance;
+    const dailyCanvas = this.teacherHomeroomDailyChartRef?.nativeElement;
+    const ringCanvas = this.teacherHomeroomRingChartRef?.nativeElement;
+    if (!h?.daily?.length || !dailyCanvas || !ringCanvas) {
+      return;
+    }
+    this.teacherHomeroomDailyChart?.destroy();
+    this.teacherHomeroomRingChart?.destroy();
+    const loc = this.translate.currentLang?.toLowerCase().startsWith('hi') ? 'hi-IN' : 'en-IN';
+    const dayLabels = h.daily.map(row => {
+      const head = row.date.slice(0, 10);
+      const d = new Date(head.includes('T') ? head : `${head}T12:00:00`);
+      return Number.isNaN(d.getTime()) ? row.date : d.toLocaleDateString(loc, { day: 'numeric' });
+    });
+    const dailyData = h.daily.map(row => row.presentPercent);
+    const absentData = h.daily.map(row => (typeof row.absentCount === 'number' ? row.absentCount : 0));
+    const lateData = h.daily.map(row => (typeof row.lateCount === 'number' ? row.lateCount : 0));
+    const t = this.translate;
+    const gridColor = 'color-mix(in srgb, var(--clr-border) 65%, transparent)';
+    this.teacherHomeroomDailyChart = new Chart(dailyCanvas, {
+      type: 'bar',
+      data: {
+        labels: dayLabels,
+        datasets: [
+          {
+            type: 'bar',
+            label: t.instant('dashboard.teacher.homeroomSeriesPresent'),
+            data: dailyData,
+            backgroundColor: 'rgba(27, 58, 48, 0.85)',
+            borderRadius: 6,
+            maxBarThickness: 14,
+            yAxisID: 'y',
+          },
+          {
+            type: 'line',
+            label: t.instant('dashboard.teacher.homeroomSeriesAbsent'),
+            data: absentData,
+            borderColor: '#C05C3D',
+            backgroundColor: 'rgba(192, 92, 61, 0.08)',
+            borderWidth: 2,
+            pointRadius: 2,
+            pointHoverRadius: 4,
+            tension: 0.25,
+            yAxisID: 'y1',
+            spanGaps: true,
+          },
+          {
+            type: 'line',
+            label: t.instant('dashboard.teacher.homeroomSeriesLate'),
+            data: lateData,
+            borderColor: '#D97706',
+            backgroundColor: 'rgba(217, 119, 6, 0.08)',
+            borderWidth: 2,
+            pointRadius: 2,
+            pointHoverRadius: 4,
+            tension: 0.25,
+            yAxisID: 'y1',
+            spanGaps: true,
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: { mode: 'index', intersect: false },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: ctx => {
+                const dsLabel = ctx.dataset.label || '';
+                const y = ctx.parsed.y;
+                if (ctx.dataset.type === 'bar' || ctx.dataset.yAxisID === 'y') {
+                  return `${dsLabel}: ${typeof y === 'number' ? y.toFixed(1) : y}%`;
+                }
+                return `${dsLabel}: ${y ?? '—'}`;
+              },
+            },
+          },
+        },
+        scales: {
+          x: { grid: { display: false }, ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 16 } },
+          y: {
+            position: 'left',
+            min: 0,
+            max: 100,
+            ticks: { callback: v => `${v}%` },
+            grid: { color: gridColor },
+            title: {
+              display: true,
+              text: t.instant('dashboard.teacher.homeroomAxisPresent'),
+              color: 'color-mix(in srgb, var(--clr-text) 75%, transparent)',
+              font: { size: 11, weight: 600 },
+            },
+          },
+          y1: {
+            position: 'right',
+            min: 0,
+            suggestedMax: 12,
+            grid: { drawOnChartArea: false },
+            ticks: { stepSize: 1 },
+            title: {
+              display: true,
+              text: t.instant('dashboard.teacher.homeroomAxisHeadcount'),
+              color: 'color-mix(in srgb, var(--clr-text) 75%, transparent)',
+              font: { size: 11, weight: 600 },
+            },
+          },
+        },
+      },
+    });
+    const b = h.breakdown;
+    this.teacherHomeroomRingChart = new Chart(ringCanvas, {
+      type: 'doughnut',
+      data: {
+        labels: [
+          t.instant('dashboard.chart.present'),
+          t.instant('dashboard.chart.absent'),
+          t.instant('dashboard.chart.late'),
+          t.instant('dashboard.chart.excused'),
+        ],
+        datasets: [
+          {
+            data: [b.present, b.absent, b.late, b.excused],
+            backgroundColor: ['#1B3A30', '#C05C3D', '#D97706', '#0284C7'],
+            borderWidth: 0,
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        cutout: '68%',
+        plugins: {
+          legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } },
+        },
+      },
+    });
+  }
+
 }

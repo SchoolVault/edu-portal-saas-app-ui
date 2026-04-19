@@ -155,7 +155,7 @@ import { runtimeConfig } from '../../core/config/runtime-config';
           <div class="d-flex justify-content-between flex-wrap gap-2">
             <div>
               <span class="fw-semibold">{{ leaveTypeLabel(r.leaveType) }}</span>
-              <span class="text-muted small ms-2">{{ 'leave.applicantMeta' | translate: { id: r.applicantUserId, role: r.applicantRole } }}</span>
+              <span class="text-muted small ms-2">{{ applicantLine(r) }}</span>
             </div>
             <span class="badge-erp" [class.badge-info]="r.status === 'PENDING'" [class.badge-success]="r.status === 'APPROVED'" [class.badge-danger]="r.status === 'REJECTED'" [class.badge-neutral]="r.status === 'CANCELLED'">{{ leaveStatusLabel(r.status) }}</span>
           </div>
@@ -231,12 +231,20 @@ export class LeaveComponent implements OnInit {
   ) {}
 
   get isApprover(): boolean {
-    return this.auth.getRole() === 'admin';
+    return this.auth.getNormalizedRole() === 'admin';
   }
 
+  /** Team queue is for school admins only; teachers use “My requests”. */
   get canSeeDirectory(): boolean {
-    const r = this.auth.getRole();
-    return r === 'admin' || r === 'teacher';
+    return this.auth.getNormalizedRole() === 'admin';
+  }
+
+  applicantLine(r: LeaveRequestRow): string {
+    const name = (r.applicantDisplayName || '').trim();
+    if (name) {
+      return this.translate.instant('leave.applicantMetaName', { name, role: r.applicantRole });
+    }
+    return this.translate.instant('leave.applicantMeta', { id: r.applicantUserId, role: r.applicantRole });
   }
 
   get canSubmit(): boolean {
@@ -360,6 +368,7 @@ export class LeaveComponent implements OnInit {
       r.status,
       String(r.applicantUserId),
       r.applicantRole,
+      r.applicantDisplayName,
     ]
       .filter(Boolean)
       .join(' ')

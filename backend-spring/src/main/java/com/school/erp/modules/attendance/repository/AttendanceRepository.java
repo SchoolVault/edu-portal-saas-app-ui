@@ -25,4 +25,9 @@ public interface AttendanceRepository extends JpaRepository<AttendanceRecord, Lo
     List<Object[]> getStudentAttendanceStats(String tenantId, Long studentId, LocalDate from, LocalDate to);
 
     long countByTenantIdAndClassIdAndDateAndStatus(String tenantId, Long classId, LocalDate date, com.school.erp.common.enums.Enums.AttendanceStatus status);
+
+    List<AttendanceRecord> findByTenantIdAndClassIdAndDateBetweenAndIsDeletedFalse(String tenantId, Long classId, LocalDate from, LocalDate to);
+
+    List<AttendanceRecord> findByTenantIdAndClassIdAndSectionIdAndDateBetweenAndIsDeletedFalse(
+            String tenantId, Long classId, Long sectionId, LocalDate from, LocalDate to);
 }

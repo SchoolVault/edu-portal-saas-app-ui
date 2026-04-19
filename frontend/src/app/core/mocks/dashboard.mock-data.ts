@@ -1,4 +1,12 @@
-import type { AdminDashboardData, MarkRecord, ParentDashboardActivityItem, ParentDashboardData, TeacherDashboardData } from '../models/models';
+import type {
+  AdminDashboardData,
+  MarkRecord,
+  ParentDashboardActivityItem,
+  ParentDashboardData,
+  TeacherAttendanceTrendPoint,
+  TeacherDashboardData,
+  TeacherHomeroomAttendanceDetail,
+} from '../models/models';
 import {
   buildAttendanceMetricContext,
   buildFeeMetricContext,
@@ -13,9 +21,14 @@ import { examAppliesToStudent } from '../utils/exam-scope';
 import {
   mockActiveStudentCount,
   mockClassesWithoutHomeroomTeacher,
-  mockHomeroomRowsForTeacherRecordId,
   mockStudentsInSection,
+  mockTeacherAssignedSlots,
 } from './mock-aggregates';
+
+/** Demo homeroom Class 8-A — roster size matches {@link MOCK_STUDENTS} for that section. */
+const DEMO_HOMEROOM_CLASS_ID = 8;
+const DEMO_HOMEROOM_SECTION_ID = 801;
+const DEMO_HOMEROOM_STUDENT_COUNT = mockStudentsInSection(DEMO_HOMEROOM_CLASS_ID, DEMO_HOMEROOM_SECTION_ID).length;
 import { eachDateInclusive, mockAttendanceStatusFor, mockTenantAttendanceOverviewForMonth } from './attendance.mock-data';
 
 const DEMO_TEACHER_RECORD_ID = 1;
@@ -34,27 +47,6 @@ function sectionNameFor(classId: number, sectionId: number): string {
 
 function classNameFor(classId: number): string {
   return MOCK_SCHOOL_CLASSES.find(x => x.id === classId)?.name ?? `Class ${classId}`;
-}
-
-function teacherAssignedSlots(teacherRecordId: number) {
-  const keys = new Set<string>();
-  for (const e of MOCK_TIMETABLE_ENTRIES) {
-    if (e.teacherId === teacherRecordId) {
-      keys.add(`${e.classId}|${e.sectionId}`);
-    }
-  }
-  return [...keys].map(k => {
-    const [classId, sectionId] = k.split('|').map(Number);
-    return { classId, sectionId };
-  });
-}
-
-function teacherAssignedStudentCount(teacherRecordId: number): number {
-  const ids = new Set<number>();
-  for (const { classId, sectionId } of teacherAssignedSlots(teacherRecordId)) {
-    mockStudentsInSection(classId, sectionId).forEach(s => ids.add(s.id));
-  }
-  return ids.size;
 }
 
 function buildTeacherTodaySchedule(teacherRecordId: number): TeacherDashboardData['todaySchedule'] {
@@ -76,6 +68,40 @@ function buildTeacherTodaySchedule(teacherRecordId: number): TeacherDashboardDat
 
 function upcomingExamCount(): number {
   return MOCK_EXAMS_SEED.filter(e => e.status === 'upcoming' || e.status === 'ongoing').length;
+}
+
+/** Six-month rolling series for the teacher attendance chart (deterministic demo curve). */
+/** Homeroom daily % + ring breakdown for teacher dashboard (mock; mirrors API shape). */
+export function buildMockTeacherHomeroom(monthYm: string): TeacherHomeroomAttendanceDetail {
+  const [y, m] = monthYm.split('-').map(Number);
+  const daysInMonth = new Date(y, m, 0).getDate();
+  const daily: { date: string; presentPercent: number; absentCount: number; lateCount: number }[] = [];
+  for (let d = 1; d <= daysInMonth; d++) {
+    const date = `${monthYm}-${String(d).padStart(2, '0')}`;
+    const wave = 82 + (d % 7) + (monthYm.length % 3);
+    const presentPercent = Math.min(100, Math.max(68, wave + (d % 5)));
+    const lateCount = d % 4;
+    const absentCount = Math.min(10, Math.max(0, Math.floor((100 - presentPercent) / 6)));
+    daily.push({ date, presentPercent, lateCount, absentCount });
+  }
+  return {
+    month: monthYm,
+    classLabel: 'Class 8 · A',
+    daily,
+    breakdown: { present: 142, absent: 12, late: 8, excused: 3 },
+  };
+}
+
+function buildTeacherAttendanceTrend(): TeacherAttendanceTrendPoint[] {
+  const out: TeacherAttendanceTrendPoint[] = [];
+  const now = new Date();
+  for (let i = 5; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const month = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    const wave = 86 + ((i + now.getMonth()) % 5) * 2;
+    out.push({ month, presentPercent: Math.min(98, wave) });
+  }
+  return out;
 }
 
 function currentMonthYm(): string {
@@ -107,35 +133,70 @@ function overallGradeFromMarks(marks: MarkRecord[]): string {
 }
 
 export const MOCK_TEACHER_DASHBOARD: TeacherDashboardData = {
-  assignedClasses: teacherAssignedSlots(DEMO_TEACHER_RECORD_ID).length,
-  studentsAssigned: teacherAssignedStudentCount(DEMO_TEACHER_RECORD_ID),
+  assignedClasses: mockTeacherAssignedSlots(DEMO_TEACHER_RECORD_ID).length,
+  /** Homeroom roster size (matches {@link classTeacherOf}[0].totalStudents); not timetable-wide student union. */
+  studentsAssigned: DEMO_HOMEROOM_STUDENT_COUNT,
   upcomingExams: upcomingExamCount(),
-  unreadNotifications: 5,
-  classTeacherOf: mockHomeroomRowsForTeacherRecordId(DEMO_TEACHER_RECORD_ID),
-  messageQueue: [
+  pendingAttendanceSessions: 4,
+  unreadNotifications: 0,
+  /** Homeroom for demo teacher (Sarah Mitchell, record id 1) — Class 8-A. */
+  homeroomTodayAttendanceComplete: false,
+  classTeacherOf: [
     {
-      conversationId: 'c-101',
-      fromName: 'Michael Chen',
-      studentName: 'Emma Chen',
-      preview: 'Can we discuss her math progress?',
-      timestamp: 'Today · 10:12',
-      priority: 'high',
-    },
-    {
-      conversationId: 'c-102',
-      fromName: 'Lan Nguyen',
-      studentName: 'Chris Nguyen',
-      preview: 'Requesting clarification on science project rubric.',
-      timestamp: 'Yesterday · 17:40',
-      priority: 'normal',
+      classId: DEMO_HOMEROOM_CLASS_ID,
+      className: 'Class 8',
+      sectionName: 'A',
+      sectionId: DEMO_HOMEROOM_SECTION_ID,
+      totalStudents: DEMO_HOMEROOM_STUDENT_COUNT,
     },
   ],
+  messageQueue: [],
   quickActions: [
     { label: 'Inbox', route: '/app/chat', icon: 'bi-inbox-fill' },
     { label: 'Attendance', route: '/app/attendance', icon: 'bi-calendar-check-fill' },
     { label: 'Exams', route: '/app/exams', icon: 'bi-journal-text' },
   ],
   todaySchedule: buildTeacherTodaySchedule(DEMO_TEACHER_RECORD_ID),
+  recentActivities: [
+    {
+      code: 'EXAM_SCHEDULED',
+      type: 'warning',
+      timestamp: new Date(Date.now() - 3600_000).toISOString(),
+      params: { title: 'Unit Test 2 — Mathematics' },
+      linkRoute: '/app/exams',
+    },
+    {
+      code: 'ADMIN_ANNOUNCEMENT',
+      type: 'info',
+      timestamp: new Date(Date.now() - 7200_000).toISOString(),
+      params: {},
+      linkRoute: '/app/inbox',
+    },
+    {
+      code: 'TIMETABLE_UPDATED',
+      type: 'info',
+      timestamp: new Date(Date.now() - 86400_000).toISOString(),
+      params: { detail: 'Class 10-B · Period 4' },
+      linkRoute: '/app/timetable',
+    },
+    {
+      code: 'ATTENDANCE_PENDING',
+      type: 'warning',
+      timestamp: new Date(Date.now() - 900_000).toISOString(),
+      params: { count: 4 },
+      linkRoute: '/app/attendance',
+      linkQueryParams: { focus: 'pending' },
+    },
+    {
+      code: 'STUDENT_ROSTER_CHANGE',
+      type: 'success',
+      timestamp: new Date(Date.now() - 172800_000).toISOString(),
+      params: { name: 'Class 8-A' },
+      linkRoute: '/app/students',
+    },
+  ],
+  attendanceTrend: buildTeacherAttendanceTrend(),
+  homeroomAttendance: buildMockTeacherHomeroom(currentMonthYm()),
   pendingTasks: [
     {
       title: 'Submit Class 9-B attendance',
@@ -150,8 +211,8 @@ export const MOCK_TEACHER_DASHBOARD: TeacherDashboardData = {
       timestamp: 'Today',
     },
     {
-      title: 'Parent message',
-      description: 'One guardian requested a callback about term grades.',
+      title: 'Library period swap',
+      description: 'Confirm cover for period 6 if you are unavailable Thursday.',
       type: 'info',
       timestamp: '1 hour ago',
     },

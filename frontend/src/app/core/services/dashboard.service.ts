@@ -5,6 +5,7 @@ import { AdminDashboardData, MarkRecord, ParentDashboardData, TeacherDashboardDa
 import {
   buildMockParentActivities,
   buildMockParentDashboardData,
+  buildMockTeacherHomeroom,
   MOCK_ADMIN_DASHBOARD,
   MOCK_TEACHER_DASHBOARD,
 } from '../mocks/dashboard.mock-data';
@@ -28,7 +29,8 @@ export class DashboardService {
     return this.api.get<AdminDashboardData>('/reports/dashboard/admin');
   }
 
-  getTeacherDashboard(): Observable<TeacherDashboardData> {
+  getTeacherDashboard(monthYm?: string | null): Observable<TeacherDashboardData> {
+    const ym = (monthYm ?? new Date().toISOString().slice(0, 7)).slice(0, 7);
     if (runtimeConfig.useMocks) {
       return of({
         ...MOCK_TEACHER_DASHBOARD,
@@ -37,26 +39,74 @@ export class DashboardService {
         quickActions: (MOCK_TEACHER_DASHBOARD.quickActions ?? []).map(a => ({ ...a })),
         todaySchedule: (MOCK_TEACHER_DASHBOARD.todaySchedule ?? []).map(s => ({ ...s })),
         pendingTasks: (MOCK_TEACHER_DASHBOARD.pendingTasks ?? []).map(t => ({ ...t })),
+        recentActivities: (MOCK_TEACHER_DASHBOARD.recentActivities ?? []).map(a => ({ ...a })),
+        attendanceTrend: (MOCK_TEACHER_DASHBOARD.attendanceTrend ?? []).map(p => ({ ...p })),
+        homeroomAttendance: buildMockTeacherHomeroom(ym),
+        homeroomTodayAttendanceComplete: MOCK_TEACHER_DASHBOARD.homeroomTodayAttendanceComplete ?? false,
       }).pipe(delay(200));
     }
-    return this.api.get<any>('/reports/dashboard/teacher').pipe(
-      map(dashboard => ({
-        ...dashboard,
-        classTeacherOf: (dashboard.classTeacherOf ?? []).map((row: any) => ({
-          ...row,
-          classId: row.classId != null ? String(row.classId) : ''
-        })),
-        messageQueue: (dashboard.messageQueue ?? []).map((m: any) => ({
-          ...m,
-          conversationId: String(m.conversationId ?? '')
-        })),
-        quickActions: dashboard.quickActions ?? [],
-        todaySchedule: (dashboard.todaySchedule ?? []).map((item: any) => ({
-          ...item,
-          classId: item.classId != null ? String(item.classId) : '',
-          sectionId: item.sectionId != null ? String(item.sectionId) : ''
-        }))
-      }))
+    return this.api.getParams<any>('/reports/dashboard/teacher', { month: ym }).pipe(
+      map(dashboard => {
+        const pending =
+          dashboard.pendingAttendanceSessions != null
+            ? Number(dashboard.pendingAttendanceSessions)
+            : dashboard.unreadNotifications != null
+              ? Number(dashboard.unreadNotifications)
+              : 0;
+        const homeroom = dashboard.homeroomAttendance;
+        return {
+          ...dashboard,
+          pendingAttendanceSessions: pending,
+          homeroomTodayAttendanceComplete: Boolean(dashboard.homeroomTodayAttendanceComplete),
+          classTeacherOf: (dashboard.classTeacherOf ?? []).map((row: any) => ({
+            ...row,
+            classId: row.classId != null ? Number(row.classId) : 0,
+            sectionId: row.sectionId != null ? Number(row.sectionId) : undefined,
+            totalStudents: row.totalStudents != null ? Number(row.totalStudents) : 0,
+          })),
+          messageQueue: (dashboard.messageQueue ?? []).map((m: any) => ({
+            ...m,
+            conversationId: String(m.conversationId ?? ''),
+          })),
+          quickActions: dashboard.quickActions ?? [],
+          todaySchedule: (dashboard.todaySchedule ?? []).map((item: any) => ({
+            ...item,
+            classId: item.classId != null ? Number(item.classId) : 0,
+            sectionId: item.sectionId != null ? Number(item.sectionId) : 0,
+          })),
+          recentActivities: (dashboard.recentActivities ?? []).map((a: any) => ({
+            code: a.code,
+            type: a.type ?? 'info',
+            timestamp: String(a.timestamp ?? ''),
+            params: a.params ?? {},
+            linkRoute: String(a.linkRoute ?? '/app/dashboard'),
+            linkQueryParams: a.linkQueryParams ?? undefined,
+          })),
+          pendingTasks: dashboard.pendingTasks ?? [],
+          attendanceTrend: (dashboard.attendanceTrend ?? []).map((p: any) => ({
+            month: String(p.month ?? ''),
+            presentPercent: Number(p.presentPercent ?? 0),
+          })),
+          homeroomAttendance: homeroom
+            ? {
+                month: String(homeroom.month ?? ym),
+                classLabel: homeroom.classLabel ?? undefined,
+                daily: (homeroom.daily ?? []).map((d: any) => ({
+                  date: String(d.date ?? ''),
+                  presentPercent: Number(d.presentPercent ?? 0),
+                  absentCount: d.absentCount != null ? Number(d.absentCount) : undefined,
+                  lateCount: d.lateCount != null ? Number(d.lateCount) : undefined,
+                })),
+                breakdown: {
+                  present: Number(homeroom.breakdown?.present ?? 0),
+                  absent: Number(homeroom.breakdown?.absent ?? 0),
+                  late: Number(homeroom.breakdown?.late ?? 0),
+                  excused: Number(homeroom.breakdown?.excused ?? 0),
+                },
+              }
+            : null,
+        } as TeacherDashboardData;
+      })
     );
   }
 

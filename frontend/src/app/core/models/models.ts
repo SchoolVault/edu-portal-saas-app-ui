@@ -88,6 +88,10 @@ export interface ProfileSummary {
   specialization?: string;
   childCount?: number;
   assignedClassCount?: number;
+  /** TEACHER: roster headcount across assigned classes (GET /auth/profile-summary). */
+  assignedStudentCount?: number;
+  /** TEACHER: primary subject for shell (first listed subject, else specialization). */
+  primaryTeachingSubject?: string;
   subjectCount?: number;
   managedStudentCount?: number;
   managedTeacherCount?: number;
@@ -132,6 +136,28 @@ export interface Student {
   homeroomTeacherUserId?: number;
   status: 'active' | 'inactive' | 'graduated' | 'transferred' | 'alumni';
   tenantId: string;
+}
+
+/** Row from {@code GET /students/{id}/guardian-mappings} — mirrors Spring {@code GuardianDTOs.MappingResponse}. */
+export interface StudentGuardianMapping {
+  id: number;
+  studentId: number;
+  guardianId: number;
+  guardianName: string;
+  relationType: string | null;
+  isPrimary: boolean | null;
+  isEmergencyContact: boolean | null;
+  custodyType: string | null;
+  effectiveFrom: string | null;
+  effectiveTo: string | null;
+  primaryPhone?: string | null;
+  occupation?: string | null;
+  /** From guardian emails_json (first email). */
+  email?: string | null;
+  /** Extra numbers from guardian phones_json (not the primary column). */
+  additionalPhones?: string[] | null;
+  /** Guardian linked to a parent portal login. */
+  parentPortalLinked?: boolean | null;
 }
 
 export interface AttendanceStats {
@@ -232,6 +258,9 @@ export interface TimetableEntry {
   subjectName: string;
   teacherId: number;
   teacherName: string;
+  /** Optional denormalized labels when API sends them; UI can also resolve from {@link SchoolClass} catalog. */
+  className?: string;
+  sectionName?: string;
   room: string;
   tenantId: string;
   /** {@code RECURRING} weekly slot vs one-day {@code COVER} from attendance cover assignments */
@@ -566,16 +595,77 @@ export interface TeacherScheduleItem {
   endTime: string;
 }
 
+/** Coded feed row for teacher home — UI maps {@link code} to i18n (language switch safe). */
+export type TeacherDashboardActivityCode =
+  | 'EXAM_SCHEDULED'
+  | 'ADMIN_ANNOUNCEMENT'
+  | 'TIMETABLE_UPDATED'
+  | 'ATTENDANCE_PENDING'
+  | 'STUDENT_ROSTER_CHANGE';
+
+export interface TeacherDashboardActivityItem {
+  code: TeacherDashboardActivityCode;
+  type: 'info' | 'success' | 'warning';
+  timestamp: string;
+  params?: Record<string, string | number>;
+  linkRoute: string;
+  linkQueryParams?: Record<string, string>;
+}
+
+/** Month key {@code YYYY-MM}; presentPercent is 0–100 for the teacher’s scoped classes. */
+export interface TeacherAttendanceTrendPoint {
+  month: string;
+  presentPercent: number;
+}
+
+/** Homeroom / class-teacher section — daily points + ring breakdown (GET /reports/dashboard/teacher?month=). */
+export interface TeacherHomeroomDailyPoint {
+  date: string;
+  presentPercent: number;
+  /** Optional headcounts for mixed chart (absent / late lines); API may omit. */
+  absentCount?: number;
+  lateCount?: number;
+}
+
+export interface TeacherHomeroomAttendanceDetail {
+  month: string;
+  classLabel?: string;
+  daily: TeacherHomeroomDailyPoint[];
+  breakdown: { present: number; absent: number; late: number; excused: number };
+}
+
 export interface TeacherDashboardData {
   assignedClasses: number;
   studentsAssigned: number;
   upcomingExams: number;
-  unreadNotifications: number;
+  /** Sessions/classes where attendance is still to be marked for the current window (actionable KPI). */
+  pendingAttendanceSessions: number;
+  /**
+   * @deprecated Prefer {@link pendingAttendanceSessions}. Kept for older mock/API payloads.
+   */
+  unreadNotifications?: number;
   todaySchedule: TeacherScheduleItem[];
   pendingTasks: DashboardActivityItem[];
-  classTeacherOf?: { classId: number; className: string; sectionName?: string; totalStudents: number }[];
+  /** Optional legacy widgets — hidden in UI when empty / phased out. */
+  classTeacherOf?: {
+    classId: number;
+    className: string;
+    sectionName?: string;
+    /** When set, deep-links to attendance / roster filters. */
+    sectionId?: number;
+    totalStudents: number;
+  }[];
   messageQueue?: { conversationId: string; fromName: string; studentName?: string; preview: string; timestamp: string; priority: 'low' | 'normal' | 'high' }[];
   quickActions?: { label: string; route: string; icon: string }[];
+  recentActivities?: TeacherDashboardActivityItem[];
+  /** Rolling attendance trend for charts (mock + future GET /reports/dashboard/teacher). */
+  attendanceTrend?: TeacherAttendanceTrendPoint[];
+  /** Class-teacher homeroom: day-wise % for {@code month} + doughnut breakdown (same API as monthly query). */
+  homeroomAttendance?: TeacherHomeroomAttendanceDetail | null;
+  /**
+   * When true, homeroom attendance rows exist for local today (server); drives teacher dashboard “attendance marked” tile.
+   */
+  homeroomTodayAttendanceComplete?: boolean;
 }
 
 /** Mirrors backend policy field {@code schoolThresholdPercent} when wired. */

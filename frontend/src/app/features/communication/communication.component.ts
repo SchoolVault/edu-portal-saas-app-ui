@@ -271,9 +271,10 @@ export class CommunicationComponent implements OnInit {
     private inboxFeed: InboxUnifiedFeedService
   ) {}
 
+  /** Only school / platform administrators publish announcements; teachers and parents read only. */
   get canPublish(): boolean {
-    const r = this.auth.getRole();
-    return r === 'admin' || r === 'teacher';
+    const r = this.auth.getNormalizedRole();
+    return r === 'admin' || r === 'super_admin';
   }
 
   get hasActiveFilters(): boolean {

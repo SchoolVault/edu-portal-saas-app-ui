@@ -4,9 +4,11 @@ import com.school.erp.common.jpa.EntitySnapshotCollections;
 import com.school.erp.modules.student.repository.StudentRepository;
 import com.school.erp.modules.teacher.repository.TeacherRepository;
 import com.school.erp.modules.exams.repository.MarkRecordRepository;
+import com.school.erp.modules.exams.entity.Exam;
 import com.school.erp.modules.exams.repository.ExamRepository;
 import com.school.erp.modules.fees.repository.FeePaymentRepository;
 import com.school.erp.modules.attendance.repository.AttendanceRepository;
+import com.school.erp.modules.academic.entity.ClassTeacherAssignment;
 import com.school.erp.modules.academic.repository.AcademicYearRepository;
 import com.school.erp.modules.academic.repository.ClassTeacherAssignmentRepository;
 import com.school.erp.modules.academic.repository.SchoolClassRepository;
@@ -24,6 +26,7 @@ import com.school.erp.modules.guardian.service.GuardianService;
 import com.school.erp.modules.exams.service.ExamService;
 import com.school.erp.modules.exams.dto.ExamDTOs;
 import com.school.erp.modules.student.entity.Student;
+import com.school.erp.common.enums.Enums;
 import com.school.erp.modules.attendance.entity.AttendanceRecord;
 import com.school.erp.modules.fees.entity.FeePayment;
 import com.school.erp.modules.timetable.repository.TimetableRepository;
@@ -134,11 +137,17 @@ public class OltpReportQueryAdapter implements ReportQueryPort {
     }
 
     @Transactional(readOnly = true)
-    public ReportDashboardDTOs.TeacherDashboardResponse getTeacherDashboard() {
+    public ReportDashboardDTOs.TeacherDashboardResponse getTeacherDashboard(String monthParam) {
         String tenantId = TenantContext.getTenantId();
-        log.debug("Building teacher dashboard tenantId={} userId={}", tenantId, TenantContext.getUserId());
+        log.debug("Building teacher dashboard tenantId={} userId={} month={}", tenantId, TenantContext.getUserId(), monthParam);
         LocalDate today = LocalDate.now();
         DayOfWeek dayOfWeek = today.getDayOfWeek();
+        YearMonth ym;
+        try {
+            ym = monthParam != null && !monthParam.isBlank() ? YearMonth.parse(monthParam) : YearMonth.from(today);
+        } catch (Exception e) {
+            ym = YearMonth.from(today);
+        }
         ReportDashboardDTOs.TeacherDashboardResponse response = new ReportDashboardDTOs.TeacherDashboardResponse();
         var teacherOpt = teacherRepo.findByTenantIdAndUserIdAndIsDeletedFalse(tenantId, TenantContext.getUserId());
         if (teacherOpt.isEmpty()) {
@@ -158,11 +167,11 @@ public class OltpReportQueryAdapter implements ReportQueryPort {
         classIds.forEach(classId -> studentRepo.findByTenantIdAndClassIdAndIsDeletedFalse(tenantId, classId).forEach(student -> studentIds.add(student.getId())));
 
         response.setAssignedClasses(classIds.size());
-        response.setStudentsAssigned(studentIds.size());
         response.setUpcomingExams(examRepo.findByTenantIdAndIsDeletedFalse(tenantId).stream()
-                .filter(exam -> exam.getStatus() != null && exam.getStatus() != com.school.erp.common.enums.Enums.ExamStatus.COMPLETED)
+                .filter(exam -> exam.getStatus() != null && exam.getStatus() != Enums.ExamStatus.COMPLETED)
                 .count());
-        response.setUnreadNotifications(notificationRepo.countByTenantIdAndUserIdAndIsReadFalse(tenantId, TenantContext.getUserId()));
+        long unread = notificationRepo.countByTenantIdAndUserIdAndIsReadFalse(tenantId, TenantContext.getUserId());
+        response.setUnreadNotifications(unread);
         List<ReportDashboardDTOs.TeacherScheduleItem> todaySlots = schedule.stream()
                 .filter(entry -> entry.getDay() != null && entry.getDay().name().equals(dayOfWeek.name()))
                 .sorted(Comparator.comparingInt(entry -> entry.getPeriod() != null ? entry.getPeriod() : 0))
@@ -177,6 +186,22 @@ public class OltpReportQueryAdapter implements ReportQueryPort {
                     .collect(Collectors.toList());
         }
         response.setTodaySchedule(todaySlots);
+
+        long pendingAtt = schedule.stream()
+                .filter(entry -> entry.getDay() != null && entry.getDay().name().equals(dayOfWeek.name()))
+                .filter(entry -> {
+                    Long cid = entry.getClassId();
+                    if (cid == null) {
+                        return false;
+                    }
+                    Long sid = entry.getSectionId();
+                    if (sid != null) {
+                        return attendanceRepo.findByTenantIdAndClassIdAndSectionIdAndDate(tenantId, cid, sid, today).isEmpty();
+                    }
+                    return attendanceRepo.findByTenantIdAndClassIdAndDateBetweenAndIsDeletedFalse(tenantId, cid, today, today).isEmpty();
+                })
+                .count();
+        response.setPendingAttendanceSessions(pendingAtt);
 
         Long currentAyId = academicYearRepo.findByTenantIdAndIsDeletedFalse(tenantId).stream()
                 .filter(y -> Boolean.TRUE.equals(y.getIsCurrent()))
@@ -193,29 +218,33 @@ public class OltpReportQueryAdapter implements ReportQueryPort {
                 int count = a.getSectionId() != null
                         ? studentRepo.findByTenantIdAndClassIdAndSectionIdAndIsDeletedFalse(tenantId, a.getClassId(), a.getSectionId()).size()
                         : studentRepo.findByTenantIdAndClassIdAndIsDeletedFalse(tenantId, a.getClassId()).size();
-                response.getClassTeacherOf().add(new ReportDashboardDTOs.TeacherClassTeacherRow(a.getClassId(), cname, sname, count));
+                response.getClassTeacherOf().add(new ReportDashboardDTOs.TeacherClassTeacherRow(a.getClassId(), cname, sname, a.getSectionId(), count));
             }
         }
 
-        List<ChatConversation> inbox = chatConversationRepo.findInbox(tenantId, TenantContext.getUserId());
-        for (ChatConversation conv : inbox.stream().limit(6).toList()) {
-            List<ChatParticipant> parts = chatParticipantRepo.findByTenantIdAndConversationIdAndIsDeletedFalse(tenantId, conv.getId());
-            Optional<ChatParticipant> parent = parts.stream()
-                    .filter(p -> "PARENT".equalsIgnoreCase(p.getUserRole()))
-                    .findFirst();
-            if (parent.isEmpty()) {
-                continue;
-            }
-            String preview = conv.getLastMessagePreview() != null ? conv.getLastMessagePreview() : "";
-            String ts = conv.getLastMessageAt() != null ? conv.getLastMessageAt().toString() : "";
-            response.getMessageQueue().add(new ReportDashboardDTOs.TeacherMessageQueueItem(
-                    conv.getId(),
-                    parent.get().getDisplayName() != null ? parent.get().getDisplayName() : "Parent",
-                    conv.getSubject(),
-                    preview,
-                    ts,
-                    "normal"));
+        if (!response.getClassTeacherOf().isEmpty()) {
+            response.setStudentsAssigned(response.getClassTeacherOf().get(0).getTotalStudents());
+        } else {
+            response.setStudentsAssigned(classIds.isEmpty() ? 0 : studentIds.size());
         }
+
+        boolean homeroomMarked = false;
+        if (!response.getClassTeacherOf().isEmpty()) {
+            ReportDashboardDTOs.TeacherClassTeacherRow row = response.getClassTeacherOf().get(0);
+            Long cid = row.getClassId();
+            Long sid = row.getSectionId();
+            if (cid != null && sid != null) {
+                homeroomMarked = !attendanceRepo.findByTenantIdAndClassIdAndSectionIdAndDate(tenantId, cid, sid, today).isEmpty();
+            } else if (cid != null) {
+                homeroomMarked = !attendanceRepo.findByTenantIdAndClassIdAndDateBetweenAndIsDeletedFalse(tenantId, cid, today, today).isEmpty();
+            }
+        }
+        response.setHomeroomTodayAttendanceComplete(homeroomMarked);
+
+        response.setMessageQueue(new ArrayList<>());
+        response.setAttendanceTrend(buildTeacherMonthlyAttendanceTrend(tenantId, classIds));
+        response.setHomeroomAttendance(buildTeacherHomeroomAttendance(tenantId, teacher.getId(), classNames, sectionNames, ym, currentAyId, today));
+        response.setRecentActivities(buildTeacherRecentActivityFeed(tenantId));
 
         List<ReportDashboardDTOs.ActivityItem> pendingTasks = notificationRepo.findByTenantIdAndUserIdOrderByCreatedAtDesc(tenantId, TenantContext.getUserId()).stream()
                 .filter(notification -> !Boolean.TRUE.equals(notification.getIsRead()))
@@ -224,7 +253,7 @@ public class OltpReportQueryAdapter implements ReportQueryPort {
                 .collect(Collectors.toList());
         if (pendingTasks.isEmpty()) {
             pendingTasks = examRepo.findByTenantIdAndIsDeletedFalse(tenantId).stream()
-                    .filter(exam -> exam.getStatus() != com.school.erp.common.enums.Enums.ExamStatus.COMPLETED)
+                    .filter(exam -> exam.getStatus() != Enums.ExamStatus.COMPLETED)
                     .limit(3)
                     .map(exam -> new ReportDashboardDTOs.ActivityItem("Prepare " + exam.getName(), "Review upcoming schedule and mark entry readiness", "info", exam.getStartDate() != null ? exam.getStartDate().toString() : ""))
                     .collect(Collectors.toList());
@@ -232,6 +261,125 @@ public class OltpReportQueryAdapter implements ReportQueryPort {
         response.setPendingTasks(pendingTasks);
         log.info("Teacher dashboard ready teacherId={} assignedClasses={}", teacher.getId(), response.getAssignedClasses());
         return response;
+    }
+
+    private List<ReportDashboardDTOs.TeacherAttendanceTrendPoint> buildTeacherMonthlyAttendanceTrend(String tenantId, Set<Long> classIds) {
+        List<ReportDashboardDTOs.TeacherAttendanceTrendPoint> out = new ArrayList<>();
+        YearMonth end = YearMonth.now();
+        YearMonth start = end.minusMonths(5);
+        for (YearMonth ym = start; !ym.isAfter(end); ym = ym.plusMonths(1)) {
+            LocalDate from = ym.atDay(1);
+            LocalDate to = ym.atEndOfMonth();
+            long present = 0;
+            long total = 0;
+            for (Long cid : classIds) {
+                List<AttendanceRecord> recs = attendanceRepo.findByTenantIdAndClassIdAndDateBetweenAndIsDeletedFalse(tenantId, cid, from, to);
+                for (AttendanceRecord a : recs) {
+                    total++;
+                    if (a.getStatus() == Enums.AttendanceStatus.PRESENT) {
+                        present++;
+                    }
+                }
+            }
+            ReportDashboardDTOs.TeacherAttendanceTrendPoint pt = new ReportDashboardDTOs.TeacherAttendanceTrendPoint();
+            pt.setMonth(ym.toString());
+            pt.setPresentPercent(total == 0 ? 0d : (100.0 * present / total));
+            out.add(pt);
+        }
+        return out;
+    }
+
+    private ReportDashboardDTOs.TeacherHomeroomAttendanceDetail buildTeacherHomeroomAttendance(
+            String tenantId,
+            Long teacherRecordId,
+            Map<Long, String> classNames,
+            Map<Long, String> sectionNames,
+            YearMonth ym,
+            Long currentAyId,
+            LocalDate today) {
+        if (currentAyId == null) {
+            return null;
+        }
+        Optional<ClassTeacherAssignment> pick = classTeacherAssignmentRepo
+                .findActiveForTeacher(tenantId, teacherRecordId, today)
+                .stream()
+                .filter(a -> currentAyId.equals(a.getAcademicYearId()))
+                .findFirst();
+        if (pick.isEmpty()) {
+            return null;
+        }
+        var a = pick.get();
+        Long classId = a.getClassId();
+        Long sectionId = a.getSectionId();
+        LocalDate from = ym.atDay(1);
+        LocalDate to = ym.atEndOfMonth();
+        List<AttendanceRecord> recs = sectionId != null
+                ? attendanceRepo.findByTenantIdAndClassIdAndSectionIdAndDateBetweenAndIsDeletedFalse(tenantId, classId, sectionId, from, to)
+                : attendanceRepo.findByTenantIdAndClassIdAndDateBetweenAndIsDeletedFalse(tenantId, classId, from, to);
+        ReportDashboardDTOs.TeacherHomeroomAttendanceDetail detail = new ReportDashboardDTOs.TeacherHomeroomAttendanceDetail();
+        detail.setMonth(ym.toString());
+        String cn = classNames.getOrDefault(classId, "Class");
+        String sn = sectionId != null ? sectionNames.getOrDefault(sectionId, "") : "";
+        detail.setClassLabel(sn == null || sn.isBlank() ? cn : cn + " · " + sn);
+        ReportDashboardDTOs.TeacherAttendanceBreakdown br = new ReportDashboardDTOs.TeacherAttendanceBreakdown();
+        for (AttendanceRecord r : recs) {
+            switch (r.getStatus()) {
+                case PRESENT -> br.setPresent(br.getPresent() + 1);
+                case ABSENT -> br.setAbsent(br.getAbsent() + 1);
+                case LATE -> br.setLate(br.getLate() + 1);
+                case EXCUSED -> br.setExcused(br.getExcused() + 1);
+                default -> {
+                }
+            }
+        }
+        detail.setBreakdown(br);
+        Map<LocalDate, List<AttendanceRecord>> byDate = recs.stream().collect(Collectors.groupingBy(AttendanceRecord::getDate));
+        List<ReportDashboardDTOs.TeacherHomeroomDayPoint> daily = new ArrayList<>();
+        for (LocalDate d = from; !d.isAfter(to); d = d.plusDays(1)) {
+            List<AttendanceRecord> day = byDate.getOrDefault(d, List.of());
+            long p = 0;
+            long t = 0;
+            for (AttendanceRecord x : day) {
+                t++;
+                if (x.getStatus() == Enums.AttendanceStatus.PRESENT) {
+                    p++;
+                }
+            }
+            ReportDashboardDTOs.TeacherHomeroomDayPoint dp = new ReportDashboardDTOs.TeacherHomeroomDayPoint();
+            dp.setDate(d.toString());
+            dp.setPresentPercent(t == 0 ? 0d : (100.0 * p / t));
+            daily.add(dp);
+        }
+        detail.setDaily(daily);
+        return detail;
+    }
+
+    private List<ReportDashboardDTOs.TeacherRecentActivityItem> buildTeacherRecentActivityFeed(String tenantId) {
+        List<ReportDashboardDTOs.TeacherRecentActivityItem> rows = new ArrayList<>();
+        List<Exam> examsForFeed = examRepo.findByTenantIdAndIsDeletedFalse(tenantId);
+        examsForFeed.stream()
+                .filter(ex -> ex.getStatus() != null && ex.getStatus() != Enums.ExamStatus.COMPLETED)
+                .sorted(Comparator.comparing((Exam ex) -> ex.getStartDate() != null ? ex.getStartDate() : LocalDate.MIN).reversed())
+                .limit(3)
+                .forEach((Exam ex) -> {
+                    ReportDashboardDTOs.TeacherRecentActivityItem it = new ReportDashboardDTOs.TeacherRecentActivityItem();
+                    it.setCode("EXAM_SCHEDULED");
+                    it.setType("warning");
+                    it.setTimestamp(ex.getStartDate() != null ? ex.getStartDate().atStartOfDay().toString() : LocalDate.now().atStartOfDay().toString());
+                    it.getParams().put("title", ex.getName());
+                    it.setLinkRoute("/app/exams");
+                    rows.add(it);
+                });
+        announcementRepo.findByTenantIdAndIsDeletedFalseOrderByCreatedAtDesc(tenantId).stream().limit(2).forEach(ann -> {
+            ReportDashboardDTOs.TeacherRecentActivityItem it = new ReportDashboardDTOs.TeacherRecentActivityItem();
+            it.setCode("ADMIN_ANNOUNCEMENT");
+            it.setType("info");
+            it.setTimestamp(ann.getCreatedAt() != null ? ann.getCreatedAt().toString() : LocalDate.now().toString());
+            it.setLinkRoute("/app/inbox");
+            rows.add(it);
+        });
+        rows.sort(Comparator.comparing((ReportDashboardDTOs.TeacherRecentActivityItem x) -> x.getTimestamp() != null ? x.getTimestamp() : "").reversed());
+        return rows.stream().limit(8).collect(Collectors.toList());
     }
 
     @Transactional(readOnly = true)

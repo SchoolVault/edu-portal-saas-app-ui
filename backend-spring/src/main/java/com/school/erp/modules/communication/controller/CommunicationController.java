@@ -69,21 +69,21 @@ public class CommunicationController {
     }
 
     @PostMapping("/announcements")
-    @PreAuthorize("hasAnyRole(\'ADMIN\',\'TEACHER\')")
-    @Operation(summary = "Create announcement")
+    @PreAuthorize("hasAnyRole('ADMIN','SUPER_ADMIN')")
+    @Operation(summary = "Create announcement", description = "Campus / platform administrators only; teachers and parents consume announcements read-only.")
     public ResponseEntity<ApiResponse<Announcement>> createAnnouncement(@Valid @RequestBody AnnouncementDTOs.CreateAnnouncementRequest req) {
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.created(service.createAnnouncement(req)));
     }
 
     @PutMapping("/announcements/{id}")
-    @PreAuthorize("hasAnyRole(\'ADMIN\',\'TEACHER\')")
+    @PreAuthorize("hasAnyRole('ADMIN','SUPER_ADMIN')")
     @Operation(summary = "Update announcement")
     public ResponseEntity<ApiResponse<Announcement>> updateAnnouncement(@PathVariable Long id, @RequestBody Announcement ann) {
         return ResponseEntity.ok(ApiResponse.ok(service.updateAnnouncement(id, ann)));
     }
 
     @DeleteMapping("/announcements/{id}")
-    @PreAuthorize("hasRole(\'ADMIN\')")
+    @PreAuthorize("hasAnyRole('ADMIN','SUPER_ADMIN')")
     @Operation(summary = "Delete announcement")
     public ResponseEntity<ApiResponse<Void>> deleteAnnouncement(@PathVariable Long id) {
         service.deleteAnnouncement(id);
