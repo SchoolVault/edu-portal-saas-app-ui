@@ -1,6 +1,7 @@
 import type { Student } from '../models/models';
 import { MOCK_SCHOOL_CLASSES } from './academic.mock-data';
 import { MOCK_STUDENTS } from './students.mock-data';
+import { MOCK_TIMETABLE_ENTRIES } from './timetable.mock-data';
 
 /** Active roster — same filter semantics as production list APIs. */
 export function mockActiveStudents(): Student[] {
@@ -44,4 +45,27 @@ export function mockClassesWithoutHomeroomTeacher() {
     className: c.name,
     grade: c.grade,
   }));
+}
+
+/** Distinct class/section pairs from recurring timetable for a teacher record ({@code TimetableEntry.teacherId}). */
+export function mockTeacherAssignedSlots(teacherRecordId: number): { classId: number; sectionId: number }[] {
+  const keys = new Set<string>();
+  for (const e of MOCK_TIMETABLE_ENTRIES) {
+    if (e.teacherId === teacherRecordId) {
+      keys.add(`${e.classId}|${e.sectionId}`);
+    }
+  }
+  return [...keys].map(k => {
+    const [classId, sectionId] = k.split('|').map(Number);
+    return { classId, sectionId };
+  });
+}
+
+/** Headcount of active students in those slots — aligns with teacher dashboard “Students assigned”. */
+export function mockTeacherAssignedStudentCountFromTimetable(teacherRecordId: number): number {
+  const ids = new Set<number>();
+  for (const { classId, sectionId } of mockTeacherAssignedSlots(teacherRecordId)) {
+    mockStudentsInSection(classId, sectionId).forEach(s => ids.add(s.id));
+  }
+  return ids.size;
 }

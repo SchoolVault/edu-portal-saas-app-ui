@@ -48,6 +48,21 @@ export class ApiService {
     );
   }
 
+  /** GET with query string (same unwrap as {@link #get}). */
+  getParams<T>(path: string, query: Record<string, string | number | boolean | undefined | null>): Observable<T> {
+    let params = new HttpParams();
+    for (const [key, value] of Object.entries(query)) {
+      if (value === undefined || value === null || value === '') continue;
+      params = params.set(key, String(value));
+    }
+    return this.http.get<ApiResp<T>>(`${this.baseUrl}${path}`, { params }).pipe(
+      map(res => {
+        if (!res.success) throw new Error(res.message);
+        return res.data as T;
+      })
+    );
+  }
+
   getPage<T>(path: string): Observable<PageResp<T>> {
     return this.http.get<ApiResp<PageResp<T>>>(`${this.baseUrl}${path}`).pipe(
       map(res => {

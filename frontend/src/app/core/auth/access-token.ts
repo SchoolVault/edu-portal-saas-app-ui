@@ -49,3 +49,26 @@ export function isAccessExpiredByClock(token: string, nowMs: number, clockSkewMs
   }
   return nowMs >= mockExpiresAtMs - clockSkewMs;
 }
+
+/**
+ * Reads the `permissions` claim from an access JWT (comma-separated), matching Spring {@code JwtUtil} / login token minting.
+ * Mock sessions use non-JWT tokens and return an empty list.
+ */
+export function decodeJwtPermissions(token: string): string[] {
+  if (!isLikelyJwt(token)) {
+    return [];
+  }
+  try {
+    const payload = JSON.parse(base64UrlToUtf8(token.split('.')[1])) as { permissions?: unknown };
+    const raw = payload.permissions;
+    if (typeof raw !== 'string' || !raw.trim()) {
+      return [];
+    }
+    return raw
+      .split(',')
+      .map(s => s.trim())
+      .filter(s => s.length > 0);
+  } catch {
+    return [];
+  }
+}

@@ -30,9 +30,9 @@ public interface StudentPersistencePort {
 
     List<Student> findByTenantIdAndIdInAndIsDeletedFalse(String tenantId, List<Long> ids);
 
-    Page<Student> findByFilters(String tenantId, Long classId, Enums.StudentStatus status, String search, Pageable pageable);
+    Page<Student> findByFilters(String tenantId, Long classId, Long sectionId, Enums.StudentStatus status, String search, Pageable pageable);
 
-    Page<Student> findByFiltersClassScope(String tenantId, Collection<Long> classIds, Long classId, Enums.StudentStatus status, String search, Pageable pageable);
+    Page<Student> findByFiltersClassScope(String tenantId, Collection<Long> classIds, Long classId, Long sectionId, Enums.StudentStatus status, String search, Pageable pageable);
 
     long countByTenantIdAndIsDeletedFalse(String tenantId);
 

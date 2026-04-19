@@ -1,7 +1,11 @@
 import type { LoginRequest } from '../models/models';
 import type { ProfileSummary } from '../models/models';
 import type { User } from '../models/models';
-import { mockHomeroomRowsForTeacherRecordId } from './mock-aggregates';
+import {
+  mockHomeroomRowsForTeacherRecordId,
+  mockTeacherAssignedSlots,
+  mockTeacherAssignedStudentCountFromTimetable,
+} from './mock-aggregates';
 
 /** Demo accounts — same shape as future `POST /auth/login` users; delete this file when mocks are off. */
 export interface MockLoginRecord {
@@ -95,10 +99,12 @@ export function buildMockProfileSummary(user: User | null): ProfileSummary {
       schoolAddress: '245 Learning Avenue, Austin, TX',
       primaryColor: '#1B3A30',
       secondaryColor: '#C05C3D',
-      userTitle: 'Senior Mathematics Teacher',
       qualification: 'M.Sc Mathematics',
       specialization: 'Mathematics',
+      primaryTeachingSubject: 'Mathematics',
       subjectCount: 3,
+      assignedClassCount: mockTeacherAssignedSlots(1).length,
+      assignedStudentCount: mockTeacherAssignedStudentCountFromTimetable(1),
       classTeacherOf: mockHomeroomRowsForTeacherRecordId(1),
     };
   }

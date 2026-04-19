@@ -3,7 +3,7 @@ package com.school.erp.modules.attendance.service;
 import com.school.erp.common.dto.PageResponse;
 import com.school.erp.common.enums.Enums;
 import com.school.erp.common.exception.BusinessException;
-import com.school.erp.common.exception.UnauthorizedException;
+import com.school.erp.common.exception.ForbiddenException;
 import com.school.erp.modules.attendance.dto.AttendanceDTOs;
 import com.school.erp.modules.attendance.entity.AttendanceRecord;
 import com.school.erp.modules.attendance.port.AttendancePersistencePort;
@@ -27,7 +27,7 @@ public class AttendanceService {
 
     private void assertTeacherAttendanceScope(Long classId, Long sectionId, LocalDate date) {
         if (!teacherRosterScopeService.teacherMayMarkAttendance(classId, sectionId, date)) {
-            throw new UnauthorizedException("Not allowed to access or mark attendance for this class/section");
+            throw new ForbiddenException("Not allowed to access or mark attendance for this class/section");
         }
     }
 

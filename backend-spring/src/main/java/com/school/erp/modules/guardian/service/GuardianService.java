@@ -2,11 +2,13 @@ package com.school.erp.modules.guardian.service;
 
 import com.school.erp.common.exception.DuplicateResourceException;
 import com.school.erp.common.exception.ResourceNotFoundException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.school.erp.modules.guardian.dto.GuardianDTOs;
 import com.school.erp.modules.guardian.entity.Guardian;
 import com.school.erp.modules.guardian.entity.StudentGuardianMapping;
 import com.school.erp.modules.guardian.repository.GuardianRepository;
 import com.school.erp.modules.guardian.repository.StudentGuardianMappingRepository;
+import com.school.erp.modules.guardian.support.GuardianContactExtractor;
 import com.school.erp.modules.student.entity.Student;
 import com.school.erp.modules.student.repository.StudentRepository;
 import com.school.erp.tenant.TenantContext;
@@ -29,14 +31,17 @@ public class GuardianService {
     private final GuardianRepository guardianRepository;
     private final StudentGuardianMappingRepository mappingRepository;
     private final StudentRepository studentRepository;
+    private final ObjectMapper objectMapper;
 
     public GuardianService(
             GuardianRepository guardianRepository,
             StudentGuardianMappingRepository mappingRepository,
-            StudentRepository studentRepository) {
+            StudentRepository studentRepository,
+            ObjectMapper objectMapper) {
         this.guardianRepository = guardianRepository;
         this.mappingRepository = mappingRepository;
         this.studentRepository = studentRepository;
+        this.objectMapper = objectMapper;
     }
 
     /**
@@ -136,7 +141,12 @@ public class GuardianService {
         List<GuardianDTOs.MappingResponse> out = new ArrayList<>();
         for (StudentGuardianMapping m : list) {
             GuardianDTOs.MappingResponse r = toMappingResponse(m);
-            guardianRepository.findByIdAndTenantIdAndIsDeletedFalse(m.getGuardianId(), t).ifPresent(g -> r.setGuardianName(g.getFullName()));
+            guardianRepository.findByIdAndTenantIdAndIsDeletedFalse(m.getGuardianId(), t).ifPresent(g -> {
+                r.setGuardianName(g.getFullName());
+                r.setPrimaryPhone(g.getPrimaryPhone());
+                r.setOccupation(g.getOccupation());
+                enrichMappingFromGuardianRow(r, g);
+            });
             out.add(r);
         }
         log.info("Listed {} guardian mapping(s) for studentId={}", out.size(), studentId);
@@ -174,7 +184,12 @@ public class GuardianService {
         }
 
         GuardianDTOs.MappingResponse r = toMappingResponse(saved);
-        guardianRepository.findByIdAndTenantIdAndIsDeletedFalse(saved.getGuardianId(), t).ifPresent(g -> r.setGuardianName(g.getFullName()));
+        guardianRepository.findByIdAndTenantIdAndIsDeletedFalse(saved.getGuardianId(), t).ifPresent(g -> {
+            r.setGuardianName(g.getFullName());
+            r.setPrimaryPhone(g.getPrimaryPhone());
+            r.setOccupation(g.getOccupation());
+            enrichMappingFromGuardianRow(r, g);
+        });
         log.info("Saved guardian mapping id={} studentId={}", saved.getId(), studentId);
         return r;
     }
@@ -215,5 +230,12 @@ public class GuardianService {
         r.setEffectiveFrom(m.getEffectiveFrom());
         r.setEffectiveTo(m.getEffectiveTo());
         return r;
+    }
+
+    private void enrichMappingFromGuardianRow(GuardianDTOs.MappingResponse r, Guardian g) {
+        boolean linked = g.getUserId() != null && g.getUserId() > 0;
+        r.setParentPortalLinked(linked);
+        r.setEmail(GuardianContactExtractor.firstEmail(g.getEmailsJson(), objectMapper));
+        r.setAdditionalPhones(GuardianContactExtractor.additionalPhones(g.getPhonesJson(), g.getPrimaryPhone(), objectMapper));
     }
 }

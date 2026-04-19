@@ -5,6 +5,7 @@ import { MOCK_FEE_PAYMENTS_SEED, MOCK_FEE_STRUCTURES_SEED } from '../mocks/fee.m
 import { MOCK_STUDENTS } from '../mocks/students.mock-data';
 import { BulkAssignFeesRequest, BulkAssignFeesResponse, FeeStructure, FeePayment } from '../models/models';
 import { ApiService, PageResp } from './api.service';
+import { AuthService } from './auth.service';
 import { runtimeConfig } from '../config/runtime-config';
 import { DEFAULT_ERP_PAGE_SIZE } from '../constants/pagination.constants';
 import { sliceToPage } from '../utils/paginate';
@@ -22,7 +23,10 @@ function sumComponents(components: { amount: number }[]): number {
 export class FeeService {
   private payments: FeePayment[] = MOCK_FEE_PAYMENTS_SEED.map(p => ({ ...p }));
 
-  constructor(private api: ApiService) {}
+  constructor(
+    private api: ApiService,
+    private auth: AuthService
+  ) {}
 
   getFeeStructures(): Observable<FeeStructure[]> {
     if (!runtimeConfig.useMocks) {
@@ -71,6 +75,9 @@ export class FeeService {
   }
 
   getStudentPayments(studentId: number): Observable<FeePayment[]> {
+    if (this.auth.getNormalizedRole() !== 'admin') {
+      return of([]).pipe(delay(0));
+    }
     if (!runtimeConfig.useMocks) {
       return this.api.get<any[]>(`/fees/payments/student/${studentId}`).pipe(map(payments => payments.map(item => this.normalizePayment(item))));
     }

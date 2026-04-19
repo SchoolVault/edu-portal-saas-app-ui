@@ -31,6 +31,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.time.DayOfWeek;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -68,16 +69,39 @@ public class TimetableService {
     }
 
     /**
+     * Maps a calendar day to {@link Enums.DayOfWeek} (Mon–Sat only). Sunday and any unmapped day are empty —
+     * the master timetable does not model weekend instruction days.
+     */
+    private static Optional<Enums.DayOfWeek> toSchoolDayOfWeek(LocalDate forDate) {
+        DayOfWeek j = forDate.getDayOfWeek();
+        if (j == DayOfWeek.SUNDAY) {
+            return Optional.empty();
+        }
+        try {
+            return Optional.of(Enums.DayOfWeek.valueOf(j.name()));
+        } catch (IllegalArgumentException ex) {
+            return Optional.empty();
+        }
+    }
+
+    /**
      * Teacher schedule: recurring weekly rows plus optional one-day {@code COVER} slots for {@code forDate}.
      * Cover rows override the same weekday/period recurring slot for that calendar day only (response is date-scoped).
+     * <p>When {@code forDate} is a non-school calendar day (e.g. Sunday), returns the recurring weekly pattern only
+     * — no {@code IllegalArgumentException} (school {@link Enums.DayOfWeek} has no {@code SUNDAY}).</p>
      */
     @Transactional(readOnly = true)
     public List<TeacherScheduleSlot> getTeacherSchedule(Long teacherId, LocalDate forDate) {
         if (forDate == null) {
             return self.getByTeacher(teacherId).stream().map(this::toRecurringSlot).collect(Collectors.toList());
         }
+        Optional<Enums.DayOfWeek> schoolDay = toSchoolDayOfWeek(forDate);
+        if (schoolDay.isEmpty()) {
+            log.debug("Teacher schedule for non-school calendar day {} — recurring pattern only (teacherId={})", forDate, teacherId);
+            return self.getByTeacher(teacherId).stream().map(this::toRecurringSlot).collect(Collectors.toList());
+        }
         String tenantId = TenantContext.getTenantId();
-        Enums.DayOfWeek dow = Enums.DayOfWeek.valueOf(forDate.getDayOfWeek().name());
+        Enums.DayOfWeek dow = schoolDay.get();
         List<TeacherScheduleSlot> recurring = self.getByTeacher(teacherId).stream().map(this::toRecurringSlot).collect(Collectors.toList());
 
         String coveringName = teacherRepository.findByIdAndTenantIdAndIsDeletedFalse(teacherId, tenantId)

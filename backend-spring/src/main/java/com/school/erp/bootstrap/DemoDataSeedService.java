@@ -108,7 +108,7 @@ import java.util.stream.Collectors;
  * Each school includes:
  * ├── Classes: 6, 7, 8, 9, 10, 11, 12 (7 classes)
  * ├── Sections: A, B per class (2 sections × 7 classes = 14 sections)
- * ├── Students: ~7-8 per section (~100 students total per school)
+ * ├── Students: 15 per section (14 sections → ~210 students total per school)
  * ├── Teachers: 36 teachers (enough breadth for demo timetables without teacher double-booking per slot)
  * ├── Guardians: Father + Mother for each student (proper mapping)
  * ├── QA parent: one dedicated {@code qa.multichild.parent@parent.<schoolCode>.edu.in} with four linked
@@ -398,6 +398,9 @@ public class DemoDataSeedService {
             // Print credentials summary
             printCredentialsSummary();
 
+            // Operations / inventory / gate / covers — idempotent per tenant (inventory marker SKU)
+            applyExtendedDemoSeedsForConfiguredSchools();
+
         } catch (Exception e) {
             log.error("══════════════════════════════════════════════════════════════");
             log.error("❌ DEMO DATA SEED FAILED!");
@@ -416,6 +419,22 @@ public class DemoDataSeedService {
     // ═══════════════════════════════════════════════════════════════════════════════════════════
     // PLATFORM SUPER ADMIN
     // ═══════════════════════════════════════════════════════════════════════════════════════════
+
+    /**
+     * Fills extended demo tables ({@link DemoExtendedTablesSeed}) for DPS-DLH and KV-MUM when those tenants exist.
+     * Safe on every startup: each tenant skips after a marker inventory row is present.
+     */
+    private void applyExtendedDemoSeedsForConfiguredSchools() {
+        for (String code : List.of("DPS-DLH", "KV-MUM")) {
+            tenantConfigRepository.findBySchoolCode(code).ifPresent(tc -> {
+                try {
+                    demoExtendedTablesSeed.seedExtendedModuleRows(tc.getTenantId(), code);
+                } catch (Exception e) {
+                    log.warn("Extended demo seed for {} skipped or failed: {}", code, e.getMessage());
+                }
+            });
+        }
+    }
 
     private void seedPlatformSuperAdmin() {
         String email = "superadmin@schoolerp.com";
@@ -496,7 +515,7 @@ public class DemoDataSeedService {
         flushAndClear(); // Clear memory after creating classes
         pauseForResourceManagement();
 
-        // STEP 7: Students with Guardians (7-8 per section = ~100 total - optimized for Render)
+        // STEP 7: Students with Guardians (8 per section — full section rosters for directory / module QA)
         log.info("  [7/15] Students & Guardians...");
         List<Student> allStudents = createStudentsWithGuardians(tenantId, schoolCode, classesMap, random);
         log.info("  [7/15] ✓ Created {} students with guardians", allStudents.size());
@@ -994,8 +1013,38 @@ public class DemoDataSeedService {
                     g.setOccupation(occupation);
                     g.setUserId(portalUser.getId());
                     g.setIsDeleted(false);
+                    if (portalUser.getEmail() != null && !portalUser.getEmail().isBlank()) {
+                        g.setEmailsJson("[" + jsonStringLiteral(portalUser.getEmail()) + "]");
+                    }
+                    String altLine = alternateDemoPhoneLine(portalUser.getPhone());
+                    if (altLine != null) {
+                        g.setPhonesJson("[" + jsonStringLiteral(altLine) + "]");
+                    }
                     return guardianRepository.save(g);
                 });
+    }
+
+    /** JSON string literal content (quoted) for simple one-field arrays in demo JSON columns. */
+    private static String jsonStringLiteral(String raw) {
+        if (raw == null) {
+            return "\"\"";
+        }
+        String esc = raw.replace("\\", "\\\\").replace("\"", "\\\"");
+        return "\"" + esc + "\"";
+    }
+
+    /** Second contact line for seed data — distinct from {@code primary_phone} so UI can show “alternate” numbers. */
+    private static String alternateDemoPhoneLine(String primary) {
+        if (primary == null || primary.length() < 2) {
+            return null;
+        }
+        char last = primary.charAt(primary.length() - 1);
+        if (Character.isDigit(last)) {
+            int d = Character.digit(last, 10);
+            char next = Character.forDigit((d + 1) % 10, 10);
+            return primary.substring(0, primary.length() - 1) + next;
+        }
+        return primary + "0";
     }
 
     /** Deterministic +91 mobile per student so {@code uk_users_tenant_phone_active} is not violated by RNG. */
@@ -1095,9 +1144,14 @@ public class DemoDataSeedService {
             t.setBankIfsc(random.nextBoolean() ? "HDFC0001234" : "ICIC0005678");
             t.setIsDeleted(false);
 
-            // Assign library role to 2 teachers
-            if (i == 0) t.setLibraryStaffRole(Enums.LibraryStaffRole.LIBRARIAN);
-            if (i == 1) t.setLibraryStaffRole(Enums.LibraryStaffRole.ASSISTANT);
+            // Library duty: attach to late-index teachers only. Early rows use predictable name pools
+            // (e.g. i==1 → "Ananya Verma"); those accounts must stay ordinary classroom teachers for UX demos.
+            if (i == count - 2) {
+                t.setLibraryStaffRole(Enums.LibraryStaffRole.LIBRARIAN);
+            }
+            if (i == count - 1) {
+                t.setLibraryStaffRole(Enums.LibraryStaffRole.ASSISTANT);
+            }
 
             teachers.add(teacherRepository.save(t));
         }
@@ -1133,7 +1187,8 @@ public class DemoDataSeedService {
                 section.setName(sectionName);
                 section.setClassId(schoolClass.getId());
                 section.setCapacity(30);
-                section.setStudentCount(7 + random.nextInt(2)); // 7-8 students per section (optimized for Render)
+                // Fixed headcount per section so every class/section has a full roster for directory & library QA.
+                section.setStudentCount(15);
                 section.setIsDeleted(false);
                 section = sectionRepository.save(section);
 
@@ -1263,7 +1318,7 @@ public class DemoDataSeedService {
         mapping.setGuardianId(guardianId);
         mapping.setRelationType(relationType);
         mapping.setIsPrimary(isPrimary);
-        mapping.setIsEmergencyContact(isPrimary);
+        mapping.setIsEmergencyContact(true);
         mapping.setEffectiveFrom(LocalDate.of(2025, 4, 1));
         mapping.setIsDeleted(false);
         studentGuardianMappingRepository.save(mapping);
@@ -1634,79 +1689,92 @@ public class DemoDataSeedService {
         }
     }
 
+    /**
+     * Seeds a full Mon–Sat timetable (Indian school week) with eight periods per day.
+     * <p>Iteration is <strong>slot-major</strong> (day → period → all class/sections): for each (day, period) we assign
+     * distinct teachers across sections, so with 36 teachers and 14 demo sections every slot stays fully staffed
+     * (no “Unassigned” rows from teacher pool exhaustion — the previous section-major loop starved later sections).</p>
+     */
+    private static final int DEMO_TIMETABLE_PERIODS_PER_DAY = 8;
+
     private void createTimetables(String tenantId, Long academicYearId,
                                  Map<Integer, List<ClassSectionPair>> classesMap,
                                  List<Teacher> teachers, Random random) {
-        String[] subjects = {"Mathematics", "Science", "English", "Hindi", "Social Studies",
-                            "Physical Education", "Computer Science", "Art"};
-        Enums.DayOfWeek[] days = {Enums.DayOfWeek.MONDAY, Enums.DayOfWeek.TUESDAY,
-                                 Enums.DayOfWeek.WEDNESDAY, Enums.DayOfWeek.THURSDAY,
-                                 Enums.DayOfWeek.FRIDAY, Enums.DayOfWeek.SATURDAY};
+        String[] subjects = {
+                "Mathematics", "Science", "English", "Hindi", "Social Studies",
+                "Physical Education", "Computer Science", "Art", "Value Education", "Library"
+        };
+        Enums.DayOfWeek[] days = {
+                Enums.DayOfWeek.MONDAY, Enums.DayOfWeek.TUESDAY, Enums.DayOfWeek.WEDNESDAY,
+                Enums.DayOfWeek.THURSDAY, Enums.DayOfWeek.FRIDAY, Enums.DayOfWeek.SATURDAY
+        };
+
+        List<ClassSectionPair> allPairs = new ArrayList<>();
+        for (int grade = 6; grade <= 12; grade++) {
+            List<ClassSectionPair> sections = classesMap.get(grade);
+            if (sections != null) {
+                allPairs.addAll(sections);
+            }
+        }
 
         /** One teacher at most per (weekday, period) tenant-wide — matches {@code uq_tt_active_teacher_slot}. */
         Map<String, Set<Long>> teacherBusyBySlotKey = new HashMap<>();
-        int timetableCounter = 0; // For batch processing
+        int timetableCounter = 0;
+        int globalCellOrdinal = 0;
 
-        for (int grade = 6; grade <= 12; grade++) {
-            List<ClassSectionPair> sections = classesMap.get(grade);
-            if (sections == null) {
-                continue;
-            }
+        for (Enums.DayOfWeek day : days) {
+            for (int period = 1; period <= DEMO_TIMETABLE_PERIODS_PER_DAY; period++) {
+                String slotKey = day.name() + "|" + period;
+                Set<Long> busyThisSlot = teacherBusyBySlotKey.computeIfAbsent(slotKey, k -> new HashSet<>());
+                int sectionOrdinal = 0;
+                for (ClassSectionPair pair : allPairs) {
+                    int grade = pair.schoolClass.getGrade() != null ? pair.schoolClass.getGrade() : 6;
+                    LocalTime startTime = LocalTime.of(8, 0).plusMinutes((long) (period - 1) * 45);
+                    LocalTime endTime = startTime.plusMinutes(45);
 
-            for (ClassSectionPair pair : sections) {
-                int subjectIdx = 0;
+                    String subject = subjects[(globalCellOrdinal + sectionOrdinal) % subjects.length];
+                    Teacher teacher = pickTeacherFreeForTimetableSlot(teachers, busyThisSlot, random);
 
-                // 6 periods per day, 6 days a week
-                for (Enums.DayOfWeek day : days) {
-                    for (int period = 1; period <= 6; period++) {
-                        LocalTime startTime = LocalTime.of(8, 30).plusMinutes((period - 1) * 50);
-                        LocalTime endTime = startTime.plusMinutes(45);
+                    TimetableEntry tte = new TimetableEntry();
+                    tte.setTenantId(tenantId);
+                    tte.setAcademicYearId(academicYearId);
+                    tte.setClassId(pair.schoolClass.getId());
+                    tte.setSectionId(pair.section.getId());
+                    tte.setDay(day);
+                    tte.setPeriod(period);
+                    tte.setStartTime(startTime);
+                    tte.setEndTime(endTime);
+                    tte.setSubjectName(subject);
+                    if (teacher != null) {
+                        busyThisSlot.add(teacher.getId());
+                        tte.setTeacherId(teacher.getId());
+                        tte.setTeacherName(teacher.getFirstName() + " " + teacher.getLastName());
+                    } else {
+                        tte.setTeacherId(null);
+                        tte.setTeacherName("Unassigned (no free teacher for slot)");
+                        log.warn(
+                                "Demo seed: no unused teacher for slot {} (class {} section {}); "
+                                        + "left teacher unset to satisfy uq_tt_active_teacher_slot",
+                                slotKey,
+                                pair.schoolClass.getId(),
+                                pair.section.getId());
+                    }
+                    tte.setRoom("Room " + (100 + grade * 10 + period));
+                    tte.setIsDeleted(false);
+                    timetableRepository.save(tte);
 
-                        String subject = subjects[subjectIdx % subjects.length];
-                        String slotKey = day.name() + "|" + period;
-                        Set<Long> busyThisSlot = teacherBusyBySlotKey.computeIfAbsent(slotKey, k -> new HashSet<>());
-                        Teacher teacher = pickTeacherFreeForTimetableSlot(teachers, busyThisSlot, random);
-
-                        TimetableEntry tte = new TimetableEntry();
-                        tte.setTenantId(tenantId);
-                        tte.setAcademicYearId(academicYearId);
-                        tte.setClassId(pair.schoolClass.getId());
-                        tte.setSectionId(pair.section.getId());
-                        tte.setDay(day);
-                        tte.setPeriod(period);
-                        tte.setStartTime(startTime);
-                        tte.setEndTime(endTime);
-                        tte.setSubjectName(subject);
-                        if (teacher != null) {
-                            busyThisSlot.add(teacher.getId());
-                            tte.setTeacherId(teacher.getId());
-                            tte.setTeacherName(teacher.getFirstName() + " " + teacher.getLastName());
-                        } else {
-                            tte.setTeacherId(null);
-                            tte.setTeacherName("Unassigned (no free teacher for slot)");
-                            log.warn(
-                                    "Demo seed: no unused teacher for slot {} (class {} section {}); "
-                                            + "left teacher unset to satisfy uq_tt_active_teacher_slot",
-                                    slotKey,
-                                    pair.schoolClass.getId(),
-                                    pair.section.getId());
-                        }
-                        tte.setRoom("Room " + (100 + grade * 10 + period));
-                        tte.setIsDeleted(false);
-                        timetableRepository.save(tte);
-
-                        // Batch processing: flush and clear every BATCH_SIZE entries to manage memory
-                        timetableCounter++;
-                        if (timetableCounter % BATCH_SIZE == 0) {
-                            flushAndClear();
-                            log.debug("  Processed {} timetable entries, flushed memory", timetableCounter);
-                        }
-
-                        subjectIdx++;
+                    timetableCounter++;
+                    sectionOrdinal++;
+                    if (timetableCounter % BATCH_SIZE == 0) {
+                        flushAndClear();
+                        log.debug("  Processed {} timetable entries, flushed memory", timetableCounter);
                     }
                 }
+                globalCellOrdinal += allPairs.size();
             }
         }
+        log.info("  Timetable seed: {} rows ({} sections × {} days × {} periods), Mon–Sat, 08:00 start",
+                timetableCounter, allPairs.size(), days.length, DEMO_TIMETABLE_PERIODS_PER_DAY);
     }
 
     /**

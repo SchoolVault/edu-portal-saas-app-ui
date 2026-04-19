@@ -19,7 +19,7 @@ public interface ReportQueryPort {
 
     ReportDashboardDTOs.AdminDashboardResponse getAdminDashboard();
 
-    ReportDashboardDTOs.TeacherDashboardResponse getTeacherDashboard();
+    ReportDashboardDTOs.TeacherDashboardResponse getTeacherDashboard(String month);
 
     ParentDashboardDtos.Response getParentDashboard(String from, String to, Long childId);
 

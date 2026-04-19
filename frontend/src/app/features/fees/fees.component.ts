@@ -344,8 +344,7 @@ export class FeesComponent implements OnInit {
   ngOnInit(): void {
     this.translate.onLangChange.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => this.cdr.markForCheck());
 
-    const r = (this.auth.getRole() ?? '').toLowerCase();
-    this.isAdmin = r === 'admin' || r === 'super_admin';
+    this.isAdmin = this.auth.getNormalizedRole() === 'admin';
     this.academicService.getClasses().subscribe(c => (this.classes = c || []));
     this.academicService.getAcademicYears().subscribe(y => (this.academicYears = y || []));
     this.loadStructures();

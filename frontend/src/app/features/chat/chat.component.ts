@@ -1083,7 +1083,11 @@ export class ChatComponent implements OnInit, OnDestroy {
     const all = this.directory.myClassRosters.flatMap(r => r.students || []);
     const student = all.find(s => s.studentId === this.selectedStudentForChat);
     if (!student?.parent) return;
-    this.startDirectChat(student.parent.userId, 'PARENT', this.translate.instant('chat.parentOf', { name: student.studentName }), {
+    const parentName = (student.parent.name || '').trim();
+    const peerLabel = parentName.length
+      ? this.translate.instant('chat.threadParentWithChild', { parent: parentName, child: student.studentName })
+      : this.translate.instant('chat.parentOf', { name: student.studentName });
+    this.startDirectChat(student.parent.userId, 'PARENT', peerLabel, {
       contextType: 'student',
       contextId: String(student.studentId),
     });

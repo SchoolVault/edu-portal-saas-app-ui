@@ -33,13 +33,13 @@ import { runtimeConfig } from '../../core/config/runtime-config';
           <button type="button" class="btn-outline-erp btn-sm" (click)="refreshAll()" [disabled]="refreshing">
             <i class="bi bi-arrow-clockwise"></i> {{ refreshing ? ('library.refreshing' | translate) : ('library.refresh' | translate) }}
           </button>
-          <button *ngIf="canManageLibrary" type="button" class="btn-primary-erp btn-sm" data-testid="add-book-btn" (click)="openBookModal()">
+          <button *ngIf="canManageCatalog" type="button" class="btn-primary-erp btn-sm" data-testid="add-book-btn" (click)="openBookModal()">
             <i class="bi bi-plus-lg"></i> {{ 'library.addBook' | translate }}
           </button>
         </div>
       </div>
       <div *ngIf="readOnlyHintVisible" class="alert alert-info py-2 small mb-3" style="border-radius: var(--radius-md);">
-        <i class="bi bi-info-circle me-1"></i>{{ 'library.readOnlyHint' | translate }}
+        <i class="bi bi-info-circle me-1"></i>{{ libraryReadOnlyKey | translate }}
       </div>
       <div class="erp-tabs animate-in">
         <button type="button" class="erp-tab" [class.active]="tab === 'catalog'" (click)="tab = 'catalog'; loadBooks()">{{ 'library.tabCatalog' | translate }}</button>
@@ -74,7 +74,7 @@ import { runtimeConfig } from '../../core/config/runtime-config';
             <thead>
               <tr>
                 <th>{{ 'library.thTitle' | translate }}</th><th>{{ 'library.thAuthor' | translate }}</th><th>{{ 'library.thIsbn' | translate }}</th><th class="library-category-cell">{{ 'library.thCategory' | translate }}</th><th>{{ 'library.thCopies' | translate }}</th><th>{{ 'library.thOnLoan' | translate }}</th><th class="library-status-cell">{{ 'library.thStatus' | translate }}</th><th>{{ 'library.thShelf' | translate }}</th>
-                <th *ngIf="canManageLibrary">{{ 'library.thActions' | translate }}</th>
+                <th *ngIf="canManageCatalog || canCirculateBooks">{{ 'library.thActions' | translate }}</th>
               </tr>
             </thead>
             <tbody>
@@ -101,21 +101,21 @@ import { runtimeConfig } from '../../core/config/runtime-config';
                   </div>
                 </td>
                 <td>{{ b.shelfLocation }}</td>
-                <td *ngIf="canManageLibrary" class="text-nowrap">
+                <td *ngIf="canManageCatalog || canCirculateBooks" class="text-nowrap">
                   <button
-                    *ngIf="b.catalogActive !== false && b.availableCopies > 0"
+                    *ngIf="canCirculateBooks && b.catalogActive !== false && b.availableCopies > 0"
                     type="button"
                     class="btn-outline-erp btn-xs"
                     (click)="openIssueModal(b)"
                   >{{ 'library.issue' | translate }}</button>
                   <button
-                    *ngIf="b.catalogActive !== false"
+                    *ngIf="canManageCatalog && b.catalogActive !== false"
                     type="button"
                     class="btn-outline-erp btn-xs ms-1"
                     (click)="deactivateBook(b)"
                   >{{ 'library.remove' | translate }}</button>
                   <button
-                    *ngIf="b.catalogActive === false"
+                    *ngIf="canManageCatalog && b.catalogActive === false"
                     type="button"
                     class="btn-outline-erp btn-xs"
                     (click)="reactivateBook(b)"
@@ -150,7 +150,7 @@ import { runtimeConfig } from '../../core/config/runtime-config';
             <button type="button" class="btn-outline-erp btn-sm" (click)="loadIssues()"><i class="bi bi-arrow-clockwise"></i> {{ 'library.refresh' | translate }}</button>
           </div>
           <table class="erp-table library-issues-table" data-testid="issued-books-table">
-            <thead><tr><th>{{ 'library.thBook' | translate }}</th><th>{{ 'library.thStudent' | translate }}</th><th>{{ 'library.thIssue' | translate }}</th><th>{{ 'library.thDue' | translate }}</th><th class="library-issue-status-cell">{{ 'library.thStatus' | translate }}</th><th>{{ 'library.thFine' | translate }}</th><th *ngIf="canManageLibrary">{{ 'library.thReturn' | translate }}</th></tr></thead>
+            <thead><tr><th>{{ 'library.thBook' | translate }}</th><th>{{ 'library.thStudent' | translate }}</th><th>{{ 'library.thIssue' | translate }}</th><th>{{ 'library.thDue' | translate }}</th><th class="library-issue-status-cell">{{ 'library.thStatus' | translate }}</th><th>{{ 'library.thFine' | translate }}</th><th *ngIf="canCirculateBooks">{{ 'library.thReturn' | translate }}</th></tr></thead>
             <tbody>
               <tr *ngFor="let issue of issues">
                 <td><strong>{{ issue.bookTitle }}</strong></td>
@@ -159,7 +159,7 @@ import { runtimeConfig } from '../../core/config/runtime-config';
                 <td>{{ issue.dueDate }}</td>
                 <td class="library-issue-status-cell"><span class="badge-erp library-status-pill" [ngClass]="{'badge-success': issue.status === 'returned', 'badge-info': issue.status === 'issued', 'badge-danger': issue.status === 'overdue'}">{{ issueStatusLabel(issue.status) }}</span></td>
                 <td [style.color]="issue.fine > 0 ? 'var(--clr-danger)' : ''">₹{{ issue.fine | number:'1.2-2':'en-IN' }}</td>
-                <td *ngIf="canManageLibrary">
+                <td *ngIf="canCirculateBooks">
                   <button *ngIf="issue.status === 'issued' || issue.status === 'overdue'" type="button" class="btn-outline-erp btn-xs" (click)="openReturnModal(issue)">{{ 'library.return' | translate }}</button>
                 </td>
               </tr>
@@ -262,7 +262,10 @@ export class LibraryComponent implements OnInit, OnDestroy {
   issuePageIndex = 0;
   issuePageSize = DEFAULT_ERP_PAGE_SIZE;
   students: Student[] = [];
-  canManageLibrary = false;
+  /** Add / remove / restore catalog rows — admin, library_staff login, or teacher with library duty / JWT LIBRARY_MANAGE. */
+  canManageCatalog = false;
+  /** Issue and return — same cohort as circulation on the API (LIBRARY_MANAGE or LIBRARY_CIRCULATION), not all teachers. */
+  canCirculateBooks = false;
   readOnlyHintVisible = false;
   refreshing = false;
   bookModal = false;
@@ -287,6 +290,10 @@ export class LibraryComponent implements OnInit, OnDestroy {
     private translate: TranslateService
   ) {}
 
+  get libraryReadOnlyKey(): string {
+    return this.authService.getNormalizedRole() === 'super_admin' ? 'library.readOnlyHintSuperAdmin' : 'library.readOnlyHintTeacher';
+  }
+
   issueStatusLabel(raw: string): string {
     const k = `library.issueStatus.${raw}`;
     const t = this.translate.instant(k);
@@ -305,23 +312,48 @@ export class LibraryComponent implements OnInit, OnDestroy {
         this.fetchBooksPage();
       })
     );
-    const r = (this.authService.getCurrentUser()?.role ?? '').toLowerCase();
+    const nr = this.authService.getNormalizedRole();
     this.readOnlyHintVisible = false;
-    if (r === 'admin' || r === 'super_admin') {
-      this.canManageLibrary = true;
-    } else if (r === 'teacher') {
-      const me = this.authService.getCurrentUser();
-      this.teacherService.getTeachers().subscribe(list => {
-        const row = (list || []).find(t => t.userId === me?.id);
-        this.canManageLibrary = !!row?.libraryStaffRole;
-        this.readOnlyHintVisible = !this.canManageLibrary;
-      });
+    if (nr === 'super_admin') {
+      this.canManageCatalog = false;
+      this.canCirculateBooks = false;
+      this.readOnlyHintVisible = true;
+    } else if (nr === 'admin' || nr === 'library_staff') {
+      this.canManageCatalog = true;
+      this.canCirculateBooks = true;
+    } else if (nr === 'teacher') {
+      this.applyTeacherLibraryAccess();
     } else {
-      this.canManageLibrary = false;
+      this.canManageCatalog = false;
+      this.canCirculateBooks = false;
     }
     this.rebuildCategories();
     this.loadBooks();
     this.studentService.getStudents().subscribe(s => (this.students = s || []));
+  }
+
+  /**
+   * Mirrors backend {@code AuthService.resolveJwtPermissions}: teachers get library actions only when
+   * JWT includes LIBRARY_* (real API) or mock teacher row has {@link Teacher.libraryStaffRole}.
+   */
+  private applyTeacherLibraryAccess(): void {
+    const jwt = this.authService.getJwtPermissionAuthorities();
+    const jwtManage = jwt.has('LIBRARY_MANAGE');
+    const jwtCirc = jwt.has('LIBRARY_CIRCULATION');
+    if (jwtManage || jwtCirc) {
+      this.canManageCatalog = jwtManage;
+      this.canCirculateBooks = jwtManage || jwtCirc;
+      this.readOnlyHintVisible = !this.canManageCatalog && !this.canCirculateBooks;
+      return;
+    }
+    const me = this.authService.getCurrentUser();
+    this.teacherService.getTeachers().subscribe(list => {
+      const row = (list || []).find(t => t.userId === me?.id);
+      const libStaff = !!row?.libraryStaffRole;
+      this.canManageCatalog = libStaff;
+      this.canCirculateBooks = libStaff;
+      this.readOnlyHintVisible = !libStaff;
+    });
   }
 
   onLoan(b: Book): number {

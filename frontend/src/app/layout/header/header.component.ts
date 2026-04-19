@@ -10,6 +10,10 @@ import { NotificationService } from '../../core/services/notification.service';
 import { CommunicationService } from '../../core/services/communication.service';
 import { PlatformHealthService } from '../../core/services/platform-health.service';
 import { AppNotification, AnnouncementPreview, ProfileSummary } from '../../core/models/models';
+import {
+  formatHomeroomClassSectionLabel,
+  pickPrimaryHomeroomAssignment,
+} from '../../core/profile/teacher-header-homeroom.util';
 import { ThemeService } from '../../core/services/theme.service';
 import { runtimeConfig } from '../../core/config/runtime-config';
 import { notificationListRowNavigation } from '../../core/utils/notification-link.util';
@@ -239,7 +243,7 @@ export class HeaderComponent implements OnInit, OnDestroy {
   }
 
   /** Role-aware KPI chips for the profile card (parents never see student/teacher/subject admin stats). */
-  get profileStatChips(): Array<{ translateKey: string; params: Record<string, number> }> {
+  get profileStatChips(): Array<{ translateKey: string; params: Record<string, string | number> }> {
     const s = this.profileSummary;
     if (!s || this.isSuperAdmin) {
       return [];
@@ -252,7 +256,7 @@ export class HeaderComponent implements OnInit, OnDestroy {
       return [{ translateKey: 'header.stats.children', params: { count: Number(s.childCount) } }];
     }
     if (role === 'admin') {
-      const out: Array<{ translateKey: string; params: Record<string, number> }> = [];
+      const out: Array<{ translateKey: string; params: Record<string, string | number> }> = [];
       if (s.managedStudentCount != null) {
         out.push({ translateKey: 'header.stats.students', params: { count: Number(s.managedStudentCount) } });
       }
@@ -262,10 +266,29 @@ export class HeaderComponent implements OnInit, OnDestroy {
       return out;
     }
     if (role === 'teacher') {
-      if (s.subjectCount == null) {
-        return [];
+      const homeroom = pickPrimaryHomeroomAssignment(s.classTeacherOf);
+      const out: Array<{ translateKey: string; params: Record<string, string | number> }> = [];
+      if (homeroom && homeroom.totalStudents != null) {
+        out.push({
+          translateKey: 'header.stats.homeroomStudentCount',
+          params: { count: Number(homeroom.totalStudents) },
+        });
       }
-      return [{ translateKey: 'header.stats.subjects', params: { count: Number(s.subjectCount) } }];
+      const classSectionLabel = homeroom ? formatHomeroomClassSectionLabel(homeroom) : '';
+      if (classSectionLabel) {
+        out.push({
+          translateKey: 'header.stats.classTeacherHomeroom',
+          params: { label: classSectionLabel },
+        });
+      }
+      const primarySubject = (s.primaryTeachingSubject ?? '').trim();
+      if (primarySubject) {
+        out.push({
+          translateKey: 'header.stats.primaryTeachingSubjectChip',
+          params: { subject: primarySubject },
+        });
+      }
+      return out;
     }
     if (s.childCount != null) {
       return [{ translateKey: 'header.stats.children', params: { count: Number(s.childCount) } }];
@@ -401,6 +424,12 @@ export class HeaderComponent implements OnInit, OnDestroy {
   }
 
   private getTitleKeyFromUrl(url: string): string {
+    const pathOnly = url.split(/[?#]/)[0];
+    const tree = this.router.parseUrl(url);
+    const settingsTab = String(tree.queryParams['settingsTab'] || '')
+      .trim()
+      .toLowerCase();
+
     const map: Record<string, string> = {
       dashboard: 'header.title.dashboard',
       students: 'header.title.students',
@@ -434,17 +463,18 @@ export class HeaderComponent implements OnInit, OnDestroy {
       'platform-settings': 'header.title.platformSettings',
       'import-export': 'header.title.importExport',
     };
-    const parts = url.split('/').filter(Boolean);
+    const parts = pathOnly.split('/').filter(Boolean);
     const appIdx = parts.indexOf('app');
-    const first = appIdx >= 0 ? parts[appIdx + 1] : parts[0];
+    const rawFirst = appIdx >= 0 ? parts[appIdx + 1] : parts[0];
+    const first = (rawFirst || '').split('?')[0];
     if (first === 'announcement') return 'header.title.notice';
     if (first === 'notification' || first === 'notifications') return 'header.title.notificationDetail';
     const seg = first || 'dashboard';
     if (seg === 'settings') {
-      if (url.includes('settingsTab=preferences')) {
+      if (settingsTab === 'preferences') {
         return 'header.title.preferences';
       }
-      if (url.includes('settingsTab=profile')) {
+      if (settingsTab === 'profile') {
         return 'header.title.myAccountProfile';
       }
     }

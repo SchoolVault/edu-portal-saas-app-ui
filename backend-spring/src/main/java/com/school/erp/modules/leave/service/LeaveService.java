@@ -5,6 +5,7 @@ import com.school.erp.common.enums.Enums;
 import com.school.erp.common.exception.ApiErrorCode;
 import com.school.erp.common.exception.BusinessException;
 import com.school.erp.common.exception.ResourceNotFoundException;
+import com.school.erp.modules.auth.repository.UserRepository;
 import com.school.erp.modules.leave.dto.LeaveDTOs;
 import com.school.erp.modules.leave.entity.LeaveRequest;
 import com.school.erp.modules.leave.repository.LeaveRequestRepository;
@@ -31,9 +32,11 @@ public class LeaveService {
     public static final int MIN_REASON_LENGTH_FOR_OTHER = 10;
 
     private final LeaveRequestRepository repo;
+    private final UserRepository userRepository;
 
-    public LeaveService(LeaveRequestRepository repo) {
+    public LeaveService(LeaveRequestRepository repo, UserRepository userRepository) {
         this.repo = repo;
+        this.userRepository = userRepository;
     }
 
     @Transactional
@@ -162,6 +165,11 @@ public class LeaveService {
         r.setApproverUserId(e.getApproverUserId());
         r.setApproverRemarks(e.getApproverRemarks());
         r.setDayUnit(e.getDayUnit());
+        if (e.getApplicantUserId() != null) {
+            userRepository
+                    .findByIdAndTenantIdAndIsDeletedFalse(e.getApplicantUserId(), TenantContext.getTenantId())
+                    .ifPresent(u -> r.setApplicantDisplayName(u.getName()));
+        }
         return r;
     }
 

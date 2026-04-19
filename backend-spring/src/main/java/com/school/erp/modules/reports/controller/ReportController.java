@@ -34,9 +34,10 @@ public class ReportController {
 
     @GetMapping("/dashboard/teacher")
     @PreAuthorize("hasRole(\'TEACHER\')")
-    @Operation(summary = "Get teacher dashboard", description = "Returns schedule and workload summaries for the current teacher")
-    public ResponseEntity<ApiResponse<ReportDashboardDTOs.TeacherDashboardResponse>> getTeacherDashboard() {
-        return ResponseEntity.ok(ApiResponse.ok(reportService.getTeacherDashboard()));
+    @Operation(summary = "Get teacher dashboard", description = "Returns schedule, workload, activity feed, and attendance charts for the current teacher. Optional month (YYYY-MM) scopes homeroom daily + ring breakdown.")
+    public ResponseEntity<ApiResponse<ReportDashboardDTOs.TeacherDashboardResponse>> getTeacherDashboard(
+            @RequestParam(required = false) String month) {
+        return ResponseEntity.ok(ApiResponse.ok(reportService.getTeacherDashboard(month)));
     }
 
     @GetMapping("/dashboard/parent")

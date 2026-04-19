@@ -5,8 +5,10 @@ import { Teacher } from '../models/models';
 import { MOCK_TEACHERS } from '../mocks/teachers.mock-data';
 import { ApiService, PageResp } from './api.service';
 import { AcademicService } from './academic.service';
+import { AuthService } from './auth.service';
 import { runtimeConfig } from '../config/runtime-config';
 import { DEFAULT_ERP_PAGE_SIZE } from '../constants/pagination.constants';
+import { sanitizeTeacherForColleaguePeerView, shouldApplyTeacherColleagueVisibility } from '../people/teacher-colleague-visibility';
 import { sliceToPage } from '../utils/paginate';
 
 function normalizeStringList(raw: unknown): string[] {
@@ -27,7 +29,8 @@ export class TeacherService {
 
   constructor(
     private api: ApiService,
-    private academic: AcademicService
+    private academic: AcademicService,
+    private auth: AuthService
   ) {}
 
   /**
@@ -40,7 +43,12 @@ export class TeacherService {
     if (!runtimeConfig.useMocks) {
       return this.api
         .getPageParams<any>('/teachers', { page, size, search: q || undefined })
-        .pipe(map(p => ({ ...p, content: p.content.map((t: any) => this.normalizeTeacher(t)) })));
+        .pipe(
+          map(p => ({
+            ...p,
+            content: p.content.map((t: any) => this.withAudienceVisibility(this.normalizeTeacher(t))),
+          }))
+        );
     }
     let rows = this.teachers.map(t => this.withHomeroomFromMockAcademic(t));
     if (q) {
@@ -51,7 +59,10 @@ export class TeacherService {
       );
     }
     rows.sort((a, b) => a.firstName.localeCompare(b.firstName));
-    return of(sliceToPage(rows, page, size)).pipe(delay(250));
+    return of(sliceToPage(rows, page, size)).pipe(
+      map(p => ({ ...p, content: p.content.map(t => this.withAudienceVisibility(t)) })),
+      delay(250)
+    );
   }
 
   /** Full list for dropdowns; real API loads all pages in sequence. */
@@ -59,7 +70,7 @@ export class TeacherService {
     if (!runtimeConfig.useMocks) {
       return this.fetchAllTeachersFromApi(100);
     }
-    return of(this.teachers.map(t => this.withHomeroomFromMockAcademic(t))).pipe(delay(400));
+    return of(this.teachers.map(t => this.withAudienceVisibility(this.withHomeroomFromMockAcademic(t)))).pipe(delay(400));
   }
 
   private fetchAllTeachersFromApi(chunkSize: number): Observable<Teacher[]> {
@@ -73,10 +84,12 @@ export class TeacherService {
 
   getTeacherById(id: number): Observable<Teacher | undefined> {
     if (!runtimeConfig.useMocks) {
-      return this.api.get<any>('/teachers/' + id).pipe(map(teacher => this.normalizeTeacher(teacher)));
+      return this.api
+        .get<any>('/teachers/' + id)
+        .pipe(map(teacher => this.withAudienceVisibility(this.normalizeTeacher(teacher))));
     }
     const t = this.teachers.find(x => x.id === id);
-    return of(t ? this.withHomeroomFromMockAcademic(t) : undefined).pipe(delay(300));
+    return of(t ? this.withAudienceVisibility(this.withHomeroomFromMockAcademic(t)) : undefined).pipe(delay(300));
   }
 
   addTeacher(teacher: Omit<Teacher, 'id'>): Observable<Teacher> {
@@ -140,6 +153,13 @@ export class TeacherService {
     this.teachers = this.teachers.filter(t => t.id !== id);
     this.teachersSubject.next(this.teachers);
     return of(true).pipe(delay(300));
+  }
+
+  private withAudienceVisibility(t: Teacher): Teacher {
+    if (shouldApplyTeacherColleagueVisibility(this.auth.getNormalizedRole())) {
+      return sanitizeTeacherForColleaguePeerView(t, this.auth.getCurrentUser()?.id);
+    }
+    return t;
   }
 
   /** Mock: homeroom labels always mirror in-memory school classes (class teacher assignment). */

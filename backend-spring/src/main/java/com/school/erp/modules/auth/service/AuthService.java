@@ -17,23 +17,34 @@ import com.school.erp.modules.auth.entity.User;
 import com.school.erp.modules.auth.repository.RefreshTokenRepository;
 import com.school.erp.modules.auth.repository.UserRepository;
 import com.school.erp.platform.port.AuditTrailPort;
+import com.school.erp.modules.academic.entity.ClassTeacherAssignment;
 import com.school.erp.modules.academic.entity.SchoolClass;
+import com.school.erp.modules.academic.repository.AcademicYearRepository;
+import com.school.erp.modules.academic.repository.ClassTeacherAssignmentRepository;
 import com.school.erp.modules.academic.repository.SchoolClassRepository;
+import com.school.erp.modules.academic.repository.SectionRepository;
 import com.school.erp.modules.settings.entity.TenantConfig;
 import com.school.erp.modules.settings.repository.TenantConfigRepository;
 import com.school.erp.modules.student.repository.StudentRepository;
 import com.school.erp.modules.teacher.repository.TeacherRepository;
+import com.school.erp.modules.timetable.repository.TimetableRepository;
 import com.school.erp.security.JwtUtil;
 import com.school.erp.tenant.TenantContext;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 public class AuthService {
@@ -44,6 +55,10 @@ public class AuthService {
     private final StudentRepository studentRepository;
     private final TeacherRepository teacherRepository;
     private final SchoolClassRepository schoolClassRepository;
+    private final SectionRepository sectionRepository;
+    private final AcademicYearRepository academicYearRepository;
+    private final ClassTeacherAssignmentRepository classTeacherAssignmentRepository;
+    private final TimetableRepository timetableRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
     private final AuditTrailPort auditTrailPort;
@@ -245,25 +260,8 @@ public class AuthService {
                 response.setManagedStudentCount(studentRepository.countByTenantIdAndIsDeletedFalse(tenantId));
                 response.setManagedTeacherCount(teacherRepository.countByTenantIdAndIsDeletedFalse(tenantId));
             }
-            case TEACHER -> teacherRepository.findByTenantIdAndUserIdAndIsDeletedFalse(tenantId, userId).ifPresent(teacher -> {
-                response.setUserTitle("Faculty Member");
-                response.setQualification(teacher.getQualification());
-                response.setSpecialization(teacher.getSpecialization());
-                response.setSubjectCount(teacher.getSubjects() != null ? (long) teacher.getSubjects().size() : 0L);
-                List<SchoolClass> ctClasses = schoolClassRepository.findByTenantIdAndClassTeacherIdAndIsDeletedFalse(tenantId, teacher.getId());
-                if (!ctClasses.isEmpty()) {
-                    List<AuthProfileDTOs.ClassTeacherAssignment> rows = new ArrayList<>();
-                    for (SchoolClass sc : ctClasses) {
-                        AuthProfileDTOs.ClassTeacherAssignment row = new AuthProfileDTOs.ClassTeacherAssignment();
-                        row.setClassId(sc.getId() != null ? String.valueOf(sc.getId()) : null);
-                        row.setClassName(sc.getName());
-                        row.setSectionName(null);
-                        row.setTotalStudents(0L);
-                        rows.add(row);
-                    }
-                    response.setClassTeacherOf(rows);
-                }
-            });
+            case TEACHER -> teacherRepository.findByTenantIdAndUserIdAndIsDeletedFalse(tenantId, userId)
+                    .ifPresent(teacher -> applyTeacherProfileShell(tenantId, teacher, response));
             case PARENT -> {
                 response.setUserTitle("Parent Account");
                 response.setChildCount(studentRepository.countByTenantIdAndParentIdAndIsDeletedFalse(tenantId, userId));
@@ -402,15 +400,107 @@ public class AuthService {
         return digits + "." + schoolCode.toLowerCase(Locale.ROOT) + "@phone.schoolvault.local";
     }
 
-    public AuthService(final UserRepository userRepository, final RefreshTokenRepository refreshTokenRepository, final TenantConfigRepository tenantConfigRepository, final StudentRepository studentRepository, final TeacherRepository teacherRepository, final SchoolClassRepository schoolClassRepository, final PasswordEncoder passwordEncoder, final JwtUtil jwtUtil, final AuditTrailPort auditTrailPort) {
+    public AuthService(
+            final UserRepository userRepository,
+            final RefreshTokenRepository refreshTokenRepository,
+            final TenantConfigRepository tenantConfigRepository,
+            final StudentRepository studentRepository,
+            final TeacherRepository teacherRepository,
+            final SchoolClassRepository schoolClassRepository,
+            final SectionRepository sectionRepository,
+            final AcademicYearRepository academicYearRepository,
+            final ClassTeacherAssignmentRepository classTeacherAssignmentRepository,
+            final TimetableRepository timetableRepository,
+            final PasswordEncoder passwordEncoder,
+            final JwtUtil jwtUtil,
+            final AuditTrailPort auditTrailPort) {
         this.userRepository = userRepository;
         this.refreshTokenRepository = refreshTokenRepository;
         this.tenantConfigRepository = tenantConfigRepository;
         this.studentRepository = studentRepository;
         this.teacherRepository = teacherRepository;
         this.schoolClassRepository = schoolClassRepository;
+        this.sectionRepository = sectionRepository;
+        this.academicYearRepository = academicYearRepository;
+        this.classTeacherAssignmentRepository = classTeacherAssignmentRepository;
+        this.timetableRepository = timetableRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtUtil = jwtUtil;
         this.auditTrailPort = auditTrailPort;
+    }
+
+    /**
+     * Teacher shell card: timetable breadth + homeroom rows from {@link ClassTeacherAssignment} (section-aware),
+     * aligned with dashboard / reports. Header UI uses {@link AuthProfileDTOs.ProfileSummaryResponse#getClassTeacherOf()}
+     * and {@link AuthProfileDTOs.ProfileSummaryResponse#getPrimaryTeachingSubject()}.
+     */
+    private void applyTeacherProfileShell(String tenantId, com.school.erp.modules.teacher.entity.Teacher teacher, AuthProfileDTOs.ProfileSummaryResponse response) {
+        response.setQualification(teacher.getQualification());
+        response.setSpecialization(teacher.getSpecialization());
+        if (teacher.getSubjects() != null && !teacher.getSubjects().isEmpty()) {
+            response.setPrimaryTeachingSubject(teacher.getSubjects().get(0));
+        } else if (teacher.getSpecialization() != null && !teacher.getSpecialization().isBlank()) {
+            response.setPrimaryTeachingSubject(teacher.getSpecialization());
+        }
+        response.setSubjectCount(teacher.getSubjects() != null ? (long) teacher.getSubjects().size() : 0L);
+
+        var schedule = timetableRepository.findByTenantIdAndTeacherIdAndIsDeletedFalse(tenantId, teacher.getId());
+        Set<Long> classIds = schedule.stream()
+                .map(e -> e.getClassId())
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        response.setAssignedClassCount((long) classIds.size());
+        Set<Long> studentIds = new HashSet<>();
+        for (Long cid : classIds) {
+            studentRepository.findByTenantIdAndClassIdAndIsDeletedFalse(tenantId, cid).forEach(s -> studentIds.add(s.getId()));
+        }
+        response.setAssignedStudentCount((long) studentIds.size());
+
+        LocalDate today = LocalDate.now();
+        Map<Long, String> classNames = schoolClassRepository.findByTenantIdAndIsDeletedFalseOrderByGrade(tenantId).stream()
+                .collect(Collectors.toMap(SchoolClass::getId, SchoolClass::getName, (a, b) -> a));
+        Map<Long, String> sectionNames = schoolClassRepository.findByTenantIdAndIsDeletedFalseOrderByGrade(tenantId).stream()
+                .flatMap(cls -> sectionRepository.findByTenantIdAndClassIdAndIsDeletedFalse(tenantId, cls.getId()).stream())
+                .collect(Collectors.toMap(s -> s.getId(), s -> s.getName(), (a, b) -> a));
+
+        Long currentAyId = academicYearRepository.findByTenantIdAndIsDeletedFalse(tenantId).stream()
+                .filter(y -> Boolean.TRUE.equals(y.getIsCurrent()))
+                .findFirst()
+                .map(y -> y.getId())
+                .orElse(null);
+
+        List<AuthProfileDTOs.ClassTeacherAssignment> rows = new ArrayList<>();
+        if (currentAyId != null) {
+            for (ClassTeacherAssignment a : classTeacherAssignmentRepository.findActiveForTeacher(tenantId, teacher.getId(), today)) {
+                if (!currentAyId.equals(a.getAcademicYearId())) {
+                    continue;
+                }
+                AuthProfileDTOs.ClassTeacherAssignment row = new AuthProfileDTOs.ClassTeacherAssignment();
+                row.setClassId(a.getClassId() != null ? String.valueOf(a.getClassId()) : null);
+                row.setClassName(classNames.getOrDefault(a.getClassId(), ""));
+                if (a.getSectionId() != null) {
+                    row.setSectionName(sectionNames.getOrDefault(a.getSectionId(), ""));
+                    long headcount = studentRepository.findByTenantIdAndClassIdAndSectionIdAndIsDeletedFalse(tenantId, a.getClassId(), a.getSectionId()).size();
+                    row.setTotalStudents(headcount);
+                } else {
+                    row.setSectionName(null);
+                    row.setTotalStudents(studentRepository.findByTenantIdAndClassIdAndIsDeletedFalse(tenantId, a.getClassId()).size());
+                }
+                rows.add(row);
+            }
+        }
+        if (rows.isEmpty()) {
+            for (SchoolClass sc : schoolClassRepository.findByTenantIdAndClassTeacherIdAndIsDeletedFalse(tenantId, teacher.getId())) {
+                AuthProfileDTOs.ClassTeacherAssignment row = new AuthProfileDTOs.ClassTeacherAssignment();
+                row.setClassId(sc.getId() != null ? String.valueOf(sc.getId()) : null);
+                row.setClassName(sc.getName());
+                row.setSectionName(null);
+                row.setTotalStudents(studentRepository.findByTenantIdAndClassIdAndIsDeletedFalse(tenantId, sc.getId()).size());
+                rows.add(row);
+            }
+        }
+        if (!rows.isEmpty()) {
+            response.setClassTeacherOf(rows);
+        }
     }
 }

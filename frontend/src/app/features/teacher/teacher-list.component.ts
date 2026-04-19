@@ -25,11 +25,13 @@ import { runtimeConfig } from '../../core/config/runtime-config';
       <header class="erp-page-header animate-in">
         <div>
           <h1 class="erp-page-header__title">{{ 'teachers.list.title' | translate }}</h1>
-          <p class="erp-page-header__lead">{{ 'teachers.list.lead' | translate }}</p>
+          <p class="erp-page-header__lead">
+            {{ isAdmin ? ('teachers.list.leadAdmin' | translate) : ('teachers.list.leadTeacher' | translate) }}
+          </p>
         </div>
         <div class="erp-page-header__actions">
           <button type="button" class="btn-outline-erp btn-sm" (click)="reloadTeachers()"><i class="bi bi-arrow-clockwise" aria-hidden="true"></i> {{ 'teachers.list.refresh' | translate }}</button>
-          <a routerLink="/app/teachers/new" class="btn-primary-erp btn-sm" data-testid="add-teacher-btn">
+          <a *ngIf="isAdmin" routerLink="/app/teachers/new" class="btn-primary-erp btn-sm" data-testid="add-teacher-btn">
             <i class="bi bi-plus-lg" aria-hidden="true"></i><span>{{ 'teachers.list.add' | translate }}</span>
           </a>
         </div>
@@ -47,6 +49,9 @@ import { runtimeConfig } from '../../core/config/runtime-config';
               <tr><th>{{ 'teachers.list.thTeacher' | translate }}</th><th>{{ 'teachers.list.thSpecialization' | translate }}</th><th>{{ 'teachers.list.thSubjects' | translate }}</th><th>{{ 'teachers.list.thHomeroom' | translate }}</th><th>{{ 'teachers.list.thJoinDate' | translate }}</th><th>{{ 'teachers.list.thStatus' | translate }}</th><th>{{ 'teachers.list.thActions' | translate }}</th></tr>
             </thead>
             <tbody>
+              <tr *ngIf="paginationTotal === 0">
+                <td colspan="7" class="text-center text-muted py-5">{{ 'teachers.list.noMatches' | translate }}</td>
+              </tr>
               <tr *ngFor="let t of pagedTeachers" [attr.data-testid]="'teacher-row-' + t.id">
                 <td>
                   <div class="d-flex align-items-center">
@@ -61,13 +66,16 @@ import { runtimeConfig } from '../../core/config/runtime-config';
                     <div *ngIf="!teacherPortraitUrl(t)" class="table-avatar">{{ t.firstName[0] }}{{ t.lastName[0] }}</div>
                     <div>
                       <div style="font-weight: 600; color: var(--clr-text);">{{ t.firstName }} {{ t.lastName }}</div>
-                      <div style="font-size: 12px; color: var(--clr-text-secondary);">{{ t.email }}</div>
+                      <div *ngIf="t.email" style="font-size: 12px; color: var(--clr-text-secondary);">{{ t.email }}</div>
+                      <div *ngIf="!t.email && !isAdmin" style="font-size: 12px; color: var(--clr-text-muted); font-style: italic;">
+                        {{ 'teachers.list.contactNotListed' | translate }}
+                      </div>
                     </div>
                   </div>
                 </td>
                 <td>{{ t.specialization }}</td>
                 <td>
-                  <ng-container *ngIf="t.subjects?.length; else noSubjectsCell">
+                  <ng-container *ngIf="t.subjects.length; else noSubjectsCell">
                     <span class="badge-erp badge-subject-pill me-1" *ngFor="let s of t.subjects!.slice(0, 2)">{{ s }}</span>
                   </ng-container>
                   <ng-template #noSubjectsCell><span class="text-muted small">—</span></ng-template>
@@ -85,8 +93,8 @@ import { runtimeConfig } from '../../core/config/runtime-config';
                     <a [routerLink]="['/app/teachers', t.id]" class="btn-icon" [attr.title]="'teachers.list.viewProfile' | translate" [attr.data-testid]="'view-teacher-' + t.id">
                       <i class="bi bi-eye"></i>
                     </a>
-                    <a [routerLink]="['/app/teachers', t.id, 'edit']" class="btn-icon" [attr.title]="'teachers.list.edit' | translate"><i class="bi bi-pencil"></i></a>
-                    <button type="button" class="btn-icon" (click)="deleteTeacher(t.id)" [attr.title]="'teachers.list.deactivate' | translate"><i class="bi bi-trash" style="color: var(--clr-danger);"></i></button>
+                    <a *ngIf="isAdmin" [routerLink]="['/app/teachers', t.id, 'edit']" class="btn-icon" [attr.title]="'teachers.list.edit' | translate" [attr.data-testid]="'edit-teacher-' + t.id"><i class="bi bi-pencil"></i></a>
+                    <button *ngIf="isAdmin" type="button" class="btn-icon" (click)="deleteTeacher(t.id)" [attr.title]="'teachers.list.deactivate' | translate" [attr.data-testid]="'delete-teacher-' + t.id"><i class="bi bi-trash" style="color: var(--clr-danger);"></i></button>
                   </div>
                 </td>
               </tr>
@@ -126,6 +134,11 @@ export class TeacherListComponent implements OnInit, OnDestroy {
     private translate: TranslateService,
     private cdr: ChangeDetectorRef
   ) {}
+
+  get isAdmin(): boolean {
+    const r = (this.auth.getRole() || '').toLowerCase();
+    return r === 'admin' || r === 'super_admin';
+  }
 
   /** Localized class names, comma-separated (homeroom / class teacher only). */
   homeroomLine(t: Teacher): string {
@@ -240,6 +253,9 @@ export class TeacherListComponent implements OnInit, OnDestroy {
   }
 
   deleteTeacher(id: number): void {
+    if (!this.isAdmin) {
+      return;
+    }
     const t = this.teachers.find(x => x.id === id);
     const name = t
       ? `${t.firstName} ${t.lastName}`

@@ -16,6 +16,8 @@ export interface LeaveRequestRow {
   id: number;
   applicantUserId: number;
   applicantRole: string;
+  /** Directory name for approvals (API + mocks). */
+  applicantDisplayName?: string | null;
   studentId?: number | null;
   teacherId?: number | null;
   leaveType: string;
@@ -90,10 +92,12 @@ export class LeaveService {
           })
       ).pipe(delay(200));
     }
+    const me = this.auth.getCurrentUser();
     const row: LeaveRequestRow = normalizeLeaveRequestRow({
       id: ++MOCK_SEQ,
       applicantUserId: this.mockUserNumId(),
       applicantRole: this.mockRoleUpper(),
+      applicantDisplayName: me?.name?.trim() || undefined,
       leaveType: body.leaveType,
       startDate: body.startDate,
       endDate: body.endDate,
@@ -118,6 +122,9 @@ export class LeaveService {
   listAll(): Observable<LeaveRequestRow[]> {
     if (!runtimeConfig.useMocks) {
       return this.api.get<LeaveRequestRow[]>('/leave/requests').pipe(map(rows => (rows || []).map(normalizeLeaveRequestRow)));
+    }
+    if (this.auth.getNormalizedRole() !== 'admin') {
+      return of([]).pipe(delay(120));
     }
     return of([...MOCK_REQUESTS].map(normalizeLeaveRequestRow)).pipe(delay(200));
   }
@@ -151,10 +158,21 @@ export class LeaveService {
         .getPageParams<LeaveRequestRow>('/leave/requests/paged', { page, size, q: opts.q?.trim() || undefined })
         .pipe(map(p => ({ ...p, content: p.content.map(normalizeLeaveRequestRow) })));
     }
+    if (this.auth.getNormalizedRole() !== 'admin') {
+      return of({
+        content: [],
+        page,
+        size,
+        totalElements: 0,
+        totalPages: 0,
+        last: true,
+        first: true,
+      }).pipe(delay(120));
+    }
     let rows = [...MOCK_REQUESTS].map(normalizeLeaveRequestRow);
     if (q) {
       rows = rows.filter(r =>
-        [r.leaveType, r.reason, r.startDate, r.endDate, r.status, String(r.applicantUserId), r.applicantRole]
+        [r.leaveType, r.reason, r.startDate, r.endDate, r.status, String(r.applicantUserId), r.applicantRole, r.applicantDisplayName]
           .filter(Boolean)
           .join(' ')
           .toLowerCase()

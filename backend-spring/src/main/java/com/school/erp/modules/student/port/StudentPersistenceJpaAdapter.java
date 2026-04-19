@@ -61,13 +61,13 @@ public class StudentPersistenceJpaAdapter implements StudentPersistencePort {
     }
 
     @Override
-    public Page<Student> findByFilters(String tenantId, Long classId, Enums.StudentStatus status, String search, Pageable pageable) {
-        return delegate.findByFilters(tenantId, classId, status, search, pageable);
+    public Page<Student> findByFilters(String tenantId, Long classId, Long sectionId, Enums.StudentStatus status, String search, Pageable pageable) {
+        return delegate.findByFilters(tenantId, classId, sectionId, status, search, pageable);
     }
 
     @Override
-    public Page<Student> findByFiltersClassScope(String tenantId, Collection<Long> classIds, Long classId, Enums.StudentStatus status, String search, Pageable pageable) {
-        return delegate.findByFiltersClassScope(tenantId, classIds, classId, status, search, pageable);
+    public Page<Student> findByFiltersClassScope(String tenantId, Collection<Long> classIds, Long classId, Long sectionId, Enums.StudentStatus status, String search, Pageable pageable) {
+        return delegate.findByFiltersClassScope(tenantId, classIds, classId, sectionId, status, search, pageable);
     }
 
     @Override

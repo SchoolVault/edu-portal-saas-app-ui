@@ -76,6 +76,19 @@ export interface AttendanceCoverRow {
   status: string;
 }
 
+/** Audit row when a teacher marks attendance outside their homeroom (proxy / substitute). */
+export interface AttendanceProxyAuditRow {
+  id?: string;
+  at: string;
+  actorUserId: number;
+  actorName?: string;
+  classId: number;
+  sectionId: number;
+  sessionDate: string;
+  studentCount: number;
+  context: 'PROXY_MARK' | 'SUBSTITUTE_COVER';
+}
+
 /** Mirrors {@code AttendanceCoverDTOs.ConflictPayload} from the API for 409 scheduling conflicts. */
 export interface AttendanceCoverConflictPayload {
   existingCoverAssignmentId: number;

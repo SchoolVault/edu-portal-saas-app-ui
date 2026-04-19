@@ -1,7 +1,7 @@
 import { ChangeDetectorRef, Component, OnDestroy, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { RouterModule } from '@angular/router';
+import { ActivatedRoute, RouterModule } from '@angular/router';
 import { debounceTime, filter } from 'rxjs/operators';
 import { StudentService } from '../../core/services/student.service';
 import { AcademicService } from '../../core/services/academic.service';
@@ -16,6 +16,7 @@ import { DEFAULT_ERP_PAGE_SIZE } from '../../core/constants/pagination.constants
 import { sliceToPage } from '../../core/utils/paginate';
 import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directives';
 import { runtimeConfig } from '../../core/config/runtime-config';
+import { sortSchoolClassesByGrade } from '../../core/utils/school-class-sort.util';
 
 @Component({
   selector: 'app-student-list',
@@ -39,6 +40,13 @@ import { runtimeConfig } from '../../core/config/runtime-config';
           </ng-container>
         </div>
       </header>
+
+      <div *ngIf="showHomeroomDeepLinkBanner" class="erp-card mb-3 animate-in" style="border-left: 4px solid var(--clr-primary); padding: 12px 16px;">
+        <div class="d-flex align-items-start gap-2 mb-0">
+          <i class="bi bi-funnel-fill" style="color: var(--clr-primary); margin-top: 2px;"></i>
+          <p class="mb-0 small" style="color: var(--clr-text-secondary); line-height: 1.45;">{{ 'students.list.homeroomFilterBanner' | translate }}</p>
+        </div>
+      </div>
 
       <div class="erp-card animate-in animate-in-delay-1">
         <div class="d-flex justify-content-between align-items-center mb-3">
@@ -76,6 +84,9 @@ import { runtimeConfig } from '../../core/config/runtime-config';
               </tr>
             </thead>
             <tbody>
+              <tr *ngIf="paginationTotal === 0 && !loadingStudents">
+                <td colspan="7" class="text-center text-muted py-5">{{ 'students.list.noMatches' | translate }}</td>
+              </tr>
               <tr *ngFor="let student of paginatedStudents" [attr.data-testid]="'student-row-' + student.id">
                 <td>
                   <div class="d-flex align-items-center">
@@ -149,13 +160,16 @@ export class StudentListComponent implements OnInit, OnDestroy {
   serverTotal = 0;
   searchTerm = '';
   classFilter = '';
+  /** Section PK when deep-linking from dashboard homeroom (?sectionId=). */
+  sectionFilter = '';
   statusFilter = 'active';
   sortField = '';
   sortAsc = true;
   pageIndex = 0;
   pageSize = DEFAULT_ERP_PAGE_SIZE;
-  /** value: className (mock) or class id string (API); label: display name */
+  /** value: class id string (canonical); label: display name */
   classOptions: { value: string; label: string }[] = [{ value: '', label: '' }];
+  loadingStudents = true;
   private readonly subs = new Subscription();
   private readonly searchDebounced$ = new Subject<void>();
   /** Ignores stale HTTP responses when a newer list request was started. */
@@ -167,8 +181,14 @@ export class StudentListComponent implements OnInit, OnDestroy {
     private auth: AuthService,
     private confirmDialog: ConfirmDialogService,
     private translate: TranslateService,
-    private cdr: ChangeDetectorRef
+    private cdr: ChangeDetectorRef,
+    private route: ActivatedRoute
   ) {}
+
+  /** True when URL carries homeroom filters from the teacher dashboard. */
+  get showHomeroomDeepLinkBanner(): boolean {
+    return !!this.classFilter && !!this.sectionFilter;
+  }
 
   get paginationTotal(): number {
     return this.useServerPaging ? this.serverTotal : this.filteredStudents.length;
@@ -202,7 +222,33 @@ export class StudentListComponent implements OnInit, OnDestroy {
         this.fetchStudentsPage();
       })
     );
+    this.subs.add(
+      this.route.queryParamMap.subscribe(() => {
+        this.applyHomeroomQueryFromRoute();
+        if (this.classOptions.length > 1 && !this.loadingStudents) {
+          this.pageIndex = 0;
+          if (this.useServerPaging) {
+            this.fetchStudentsPage();
+          } else {
+            this.filterStudents();
+          }
+        }
+      })
+    );
     this.reloadStudents();
+  }
+
+  /** Applies ?classId= & ?sectionId= from the route (e.g. teacher dashboard homeroom deep link). */
+  private applyHomeroomQueryFromRoute(): void {
+    const q = this.route.snapshot.queryParamMap;
+    const cid = q.get('classId');
+    const sid = q.get('sectionId');
+    if (cid && /^\d+$/.test(cid)) {
+      this.classFilter = cid;
+    } else {
+      this.classFilter = '';
+    }
+    this.sectionFilter = sid && /^\d+$/.test(sid) ? sid : '';
   }
 
   ngOnDestroy(): void {
@@ -218,6 +264,9 @@ export class StudentListComponent implements OnInit, OnDestroy {
   }
 
   onClassOrStatusChange(): void {
+    if (!this.classFilter) {
+      this.sectionFilter = '';
+    }
     if (this.useServerPaging) {
       this.pageIndex = 0;
       this.fetchStudentsPage();
@@ -227,33 +276,43 @@ export class StudentListComponent implements OnInit, OnDestroy {
   }
 
   reloadStudents(): void {
+    this.loadingStudents = true;
     if (this.useServerPaging) {
       this.subs.add(
         this.academic.getClasses().subscribe(classes => {
           this.classOptions = [
             { value: '', label: '' },
-            ...classes
-              .slice()
-              .sort((a, b) => (a.name || '').localeCompare(b.name || ''))
-              .map(c => ({ value: String(c.id), label: c.name || '' })),
+            ...sortSchoolClassesByGrade(classes.filter(c => c.id > 0)).map(c => ({ value: String(c.id), label: c.name || '' })),
           ];
+          this.applyHomeroomQueryFromRoute();
           this.pageIndex = 0;
+          this.loadingStudents = false;
           this.fetchStudentsPage();
         })
       );
       return;
     }
-    this.studentService.getStudents().subscribe(students => {
-      this.students = students;
-      const names = [...new Set(students.map(s => s.className).filter(Boolean))].sort() as string[];
-      this.classOptions = [{ value: '', label: '' }, ...names.map(n => ({ value: n, label: n }))];
-      this.filterStudents();
-    });
+    this.subs.add(
+      this.academic.getClasses().subscribe(classes => {
+        this.classOptions = [
+          { value: '', label: '' },
+          ...sortSchoolClassesByGrade(classes.filter(c => c.id > 0)).map(c => ({ value: String(c.id), label: c.name || '' })),
+        ];
+        this.applyHomeroomQueryFromRoute();
+        this.studentService.getStudents().subscribe(students => {
+          this.students = students;
+          this.loadingStudents = false;
+          this.filterStudents();
+        });
+      })
+    );
   }
 
   private fetchStudentsPage(): void {
     const classIdRaw = this.classFilter ? Number(this.classFilter) : NaN;
     const classId = Number.isFinite(classIdRaw) && classIdRaw > 0 ? classIdRaw : undefined;
+    const sectionIdRaw = this.sectionFilter ? Number(this.sectionFilter) : NaN;
+    const sectionId = Number.isFinite(sectionIdRaw) && sectionIdRaw > 0 ? sectionIdRaw : undefined;
     const seq = ++this.studentsListRequestSeq;
     this.subs.add(
       this.studentService
@@ -262,17 +321,26 @@ export class StudentListComponent implements OnInit, OnDestroy {
           size: this.pageSize,
           search: this.searchTerm.trim() || undefined,
           classId,
+          sectionId,
           status: this.statusFilter || undefined,
           sortBy: this.serverSortProperty(),
           direction: this.sortAsc ? 'asc' : 'desc',
         })
-        .subscribe(page => {
-          if (seq !== this.studentsListRequestSeq) return;
-          this.serverTotal = page.totalElements;
-          this.paginatedStudents = page.content;
-          this.pageIndex = page.page;
-          this.pageSize = page.size;
-          this.cdr.markForCheck();
+        .subscribe({
+          next: page => {
+            if (seq !== this.studentsListRequestSeq) return;
+            this.serverTotal = page.totalElements;
+            this.paginatedStudents = page.content;
+            this.pageIndex = page.page;
+            this.pageSize = page.size;
+            this.loadingStudents = false;
+            this.cdr.markForCheck();
+          },
+          error: () => {
+            if (seq !== this.studentsListRequestSeq) return;
+            this.loadingStudents = false;
+            this.cdr.markForCheck();
+          },
         })
     );
   }
@@ -293,7 +361,20 @@ export class StudentListComponent implements OnInit, OnDestroy {
         s.admissionNumber.toLowerCase().includes(term)
       );
     }
-    if (this.classFilter) filtered = filtered.filter(s => s.className === this.classFilter);
+    if (this.classFilter) {
+      const cid = Number(this.classFilter);
+      if (Number.isFinite(cid) && cid > 0) {
+        filtered = filtered.filter(s => s.classId === cid);
+      } else {
+        filtered = filtered.filter(s => s.className === this.classFilter);
+      }
+    }
+    if (this.sectionFilter) {
+      const sid = Number(this.sectionFilter);
+      if (Number.isFinite(sid) && sid > 0) {
+        filtered = filtered.filter(s => (s.sectionId ?? 0) === sid);
+      }
+    }
     if (this.statusFilter) filtered = filtered.filter(s => s.status === this.statusFilter);
     this.filteredStudents = filtered;
     this.pageIndex = 0;

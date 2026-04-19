@@ -39,7 +39,7 @@ export const NAV_ITEMS: NavItem[] = [
     sectionKey: 'nav.section.people',
     moduleGate: 'directory',
   },
-  { labelKey: 'nav.teachers', icon: 'bi-person-badge-fill', route: '/app/teachers', roles: ['admin'], sectionKey: 'nav.section.people', moduleGate: 'teacher' },
+  { labelKey: 'nav.teachers', icon: 'bi-person-badge-fill', route: '/app/teachers', roles: ['admin', 'teacher'], sectionKey: 'nav.section.people', moduleGate: 'teacher' },
   { labelKey: 'nav.attendance', icon: 'bi-calendar-check-fill', route: '/app/attendance', roles: ['admin', 'teacher'], sectionKey: 'nav.section.academics', moduleGate: 'attendance' },
   { labelKey: 'nav.timetable', icon: 'bi-clock-fill', route: '/app/timetable', roles: ['admin', 'teacher', 'parent'], sectionKey: 'nav.section.academics' },
   { labelKey: 'nav.exams', icon: 'bi-journal-text', route: '/app/exams', roles: ['admin', 'teacher', 'parent'], sectionKey: 'nav.section.academics' },

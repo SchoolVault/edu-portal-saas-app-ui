@@ -42,9 +42,9 @@ public class WarehouseReportQueryAdapter implements ReportQueryPort {
     }
 
     @Override
-    public ReportDashboardDTOs.TeacherDashboardResponse getTeacherDashboard() {
+    public ReportDashboardDTOs.TeacherDashboardResponse getTeacherDashboard(String month) {
         log.trace("warehouse report path: delegating getTeacherDashboard to OLTP");
-        return oltp.getTeacherDashboard();
+        return oltp.getTeacherDashboard(month);
     }
 
     @Override

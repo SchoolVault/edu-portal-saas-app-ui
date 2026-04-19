@@ -32,12 +32,81 @@ type TimetableEntryForm = Omit<Partial<TimetableEntry>, 'teacherId' | 'classId' 
   imports: [CommonModule, FormsModule, ErpDatePickerComponent, ErpI18nPhDirective, TranslateModule, SchoolClassNamePipe],
   styles: [
     `
+      /* Slot tiles: soft tints + left accent using app tokens (light + dark themes). */
       .timetable-slot-cell {
-        background: var(--clr-bg);
+        --tt-accent: var(--clr-primary);
+        position: relative;
         border-radius: var(--radius-md);
-        padding: 8px;
+        padding: 10px 10px 10px 12px;
         min-height: 72px;
-        border: 1px solid var(--clr-border-light);
+        border: 1px solid color-mix(in srgb, var(--tt-accent) 22%, var(--clr-border));
+        background: color-mix(in srgb, var(--tt-accent) 7%, var(--clr-surface));
+        box-shadow: 0 1px 0 color-mix(in srgb, var(--clr-border) 65%, transparent);
+        transition: box-shadow 0.2s ease, border-color 0.2s ease, transform 0.15s ease;
+        overflow: hidden;
+      }
+      .timetable-slot-cell::before {
+        content: '';
+        position: absolute;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        width: 3px;
+        border-radius: var(--radius-md) 0 0 var(--radius-md);
+        background: linear-gradient(180deg, color-mix(in srgb, var(--tt-accent) 92%, #fff 8%), var(--tt-accent));
+        opacity: 0.95;
+      }
+      .timetable-slot-cell:hover {
+        border-color: color-mix(in srgb, var(--tt-accent) 38%, var(--clr-border));
+        box-shadow: 0 6px 18px color-mix(in srgb, var(--clr-text) 12%, transparent);
+        transform: translateY(-1px);
+      }
+      .timetable-slot--tone-0 {
+        --tt-accent: var(--clr-primary);
+      }
+      .timetable-slot--tone-1 {
+        --tt-accent: var(--clr-info);
+      }
+      .timetable-slot--tone-2 {
+        --tt-accent: var(--clr-success);
+      }
+      .timetable-slot--tone-3 {
+        --tt-accent: color-mix(in srgb, var(--clr-accent) 85%, var(--clr-primary) 15%);
+      }
+      .timetable-slot-subject {
+        font-weight: 700;
+        color: var(--clr-text);
+        font-size: 13px;
+        line-height: 1.3;
+        letter-spacing: -0.01em;
+      }
+      .timetable-slot-class {
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--clr-primary);
+        margin-top: 2px;
+      }
+      .timetable-slot-teacher {
+        font-size: 12px;
+        color: var(--clr-text-secondary);
+        margin-top: 2px;
+      }
+      .timetable-slot-time {
+        font-size: 11px;
+        color: var(--clr-text-muted);
+        margin-top: 4px;
+      }
+      .timetable-slot-cell--week .timetable-slot-subject {
+        font-size: 13px;
+      }
+      .timetable-slot-cell--week .timetable-slot-class {
+        font-size: 11px;
+      }
+      .timetable-slot-cell--week .timetable-slot-teacher {
+        font-size: 11px;
+      }
+      .timetable-slot-cell--week .timetable-slot-time {
+        font-size: 10px;
       }
       .btn-group-erp .active-layout {
         background: var(--clr-primary);
@@ -48,49 +117,129 @@ type TimetableEntryForm = Omit<Partial<TimetableEntry>, 'teacherId' | 'classId' 
         vertical-align: top;
       }
       .timetable-calendar-week .timetable-slot-cell {
-        background: linear-gradient(145deg, var(--clr-surface-alt), var(--clr-bg));
         min-height: 88px;
       }
       .classic-wrap .timetable-slot-cell {
-        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+        box-shadow: 0 1px 2px color-mix(in srgb, var(--clr-text) 6%, transparent);
       }
       .timetable-slot--cover {
-        border-color: color-mix(in srgb, var(--clr-info) 35%, var(--clr-border-light));
-        background: color-mix(in srgb, var(--clr-info) 8%, var(--clr-bg));
+        --tt-accent: var(--clr-info);
+        border-color: color-mix(in srgb, var(--clr-info) 40%, var(--clr-border));
+        background: color-mix(in srgb, var(--clr-info) 12%, var(--clr-surface));
+      }
+      .timetable-slot--cover::before {
+        background: linear-gradient(180deg, color-mix(in srgb, var(--clr-info) 95%, #fff 5%), var(--clr-info));
+      }
+      .timetable-slot-empty {
+        display: inline-block;
+        min-height: 40px;
+        min-width: 100%;
+        padding: 8px;
+        border-radius: var(--radius-sm, 6px);
+        border: 1px dashed color-mix(in srgb, var(--clr-text-muted) 35%, var(--clr-border));
+        color: var(--clr-text-muted);
+        font-size: 12px;
+        background: color-mix(in srgb, var(--clr-surface-muted) 50%, transparent);
+      }
+      /* Page heading: keep actions aligned when title + toggles wrap (parent / narrow viewports). */
+      .timetable-page-heading .timetable-heading-text {
+        min-width: 0;
+      }
+      .timetable-page-title {
+        font-size: 24px;
+        font-weight: 800;
+        margin: 0;
+      }
+      .timetable-toolbar-actions {
+        row-gap: 8px;
+      }
+      /* Classic grid: fluid columns — avoid min-width:180px × N forcing horizontal page scroll. */
+      .timetable-classic-scroll {
+        width: 100%;
+        max-width: 100%;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+      }
+      .timetable-classic-table {
+        width: 100%;
+        table-layout: fixed;
+      }
+      .timetable-classic-table th,
+      .timetable-classic-table td {
+        vertical-align: top;
+        word-wrap: break-word;
+        overflow-wrap: anywhere;
+      }
+      .timetable-classic-table th:first-child,
+      .timetable-classic-table td:first-child {
+        width: 6.25rem;
+        white-space: nowrap;
+      }
+      .timetable-classic-table.erp-table thead th {
+        padding: 8px 6px;
+        font-size: 10px;
+        letter-spacing: 0.04em;
+      }
+      .timetable-classic-table.erp-table tbody td {
+        padding: 6px;
+      }
+      col.timetable-classic-col-day {
+        width: 6.25rem;
+      }
+      .classic-wrap .timetable-slot-cell {
+        min-height: 64px;
+        padding: 8px 8px 8px 11px;
+      }
+      .classic-wrap .timetable-slot-subject {
+        font-size: 12px;
+      }
+      .classic-wrap .timetable-slot-class {
+        font-size: 11px;
+      }
+      .classic-wrap .timetable-slot-teacher {
+        font-size: 11px;
+      }
+      .classic-wrap .timetable-slot-time {
+        font-size: 10px;
+        margin-top: 3px;
       }
     `,
   ],
   template: `
     <div data-testid="timetable-page">
-      <div class="d-flex justify-content-between align-items-center mb-4 animate-in">
-        <div>
-          <h2 style="font-size: 24px; font-weight: 800;">{{ 'timetable.pageTitle' | translate }}</h2>
+      <div
+        class="timetable-page-heading mb-4 animate-in d-flex flex-column flex-lg-row gap-3 align-items-stretch align-items-lg-center justify-content-lg-between"
+      >
+        <div class="timetable-heading-text flex-grow-1">
+          <h2 class="timetable-page-title">{{ 'timetable.pageTitle' | translate }}</h2>
           <p class="text-muted mb-0" style="font-size: 13px;" *ngIf="!isParent">{{ 'timetable.leadAdmin' | translate }}</p>
           <p class="text-muted mb-0" style="font-size: 13px;" *ngIf="isParent">{{ 'timetable.leadParent' | translate }}</p>
         </div>
-        <div class="d-flex gap-2 flex-wrap align-items-center" *ngIf="!isAdmin || timetableSection === 'schedule'">
-          <div class="btn-group-erp d-flex gap-1" *ngIf="isAdmin">
-            <button type="button" class="btn-outline-erp btn-sm" [class.active-layout]="scheduleScope === 'class'" (click)="setScheduleScope('class')">
-              {{ 'timetable.scopeClass' | translate }}
+        <div class="timetable-toolbar-wrap flex-shrink-0" *ngIf="!isAdmin || timetableSection === 'schedule'">
+          <div class="d-flex flex-wrap gap-2 align-items-center timetable-toolbar-actions justify-content-start justify-content-lg-end">
+            <div class="btn-group-erp d-flex gap-1" *ngIf="isAdmin">
+              <button type="button" class="btn-outline-erp btn-sm" [class.active-layout]="scheduleScope === 'class'" (click)="setScheduleScope('class')">
+                {{ 'timetable.scopeClass' | translate }}
+              </button>
+              <button type="button" class="btn-outline-erp btn-sm" [class.active-layout]="scheduleScope === 'teacher'" (click)="setScheduleScope('teacher')">
+                {{ 'timetable.scopeTeacher' | translate }}
+              </button>
+            </div>
+            <div class="btn-group-erp d-flex gap-1">
+              <button type="button" class="btn-outline-erp btn-sm" [class.active-layout]="layout === 'dayRows'" (click)="setTimetableLayout('dayRows')">
+                {{ 'timetable.layoutClassic' | translate }}
+              </button>
+              <button type="button" class="btn-outline-erp btn-sm" [class.active-layout]="layout === 'periodRows'" (click)="setTimetableLayout('periodRows')">
+                {{ 'timetable.layoutWeek' | translate }}
+              </button>
+            </div>
+            <button type="button" class="btn-outline-erp btn-sm" (click)="refreshTimetable()">
+              <i class="bi bi-arrow-clockwise"></i> {{ 'timetable.refresh' | translate }}
             </button>
-            <button type="button" class="btn-outline-erp btn-sm" [class.active-layout]="scheduleScope === 'teacher'" (click)="setScheduleScope('teacher')">
-              {{ 'timetable.scopeTeacher' | translate }}
+            <button *ngIf="canMutateTimetable" class="btn-primary-erp btn-sm" [disabled]="!canEditTimetable()" (click)="openCreateModal()">
+              <i class="bi bi-plus-lg"></i> {{ 'timetable.addSlot' | translate }}
             </button>
           </div>
-          <div class="btn-group-erp d-flex gap-1">
-            <button type="button" class="btn-outline-erp btn-sm" [class.active-layout]="layout === 'dayRows'" (click)="layout = 'dayRows'">
-              {{ 'timetable.layoutClassic' | translate }}
-            </button>
-            <button type="button" class="btn-outline-erp btn-sm" [class.active-layout]="layout === 'periodRows'" (click)="layout = 'periodRows'">
-              {{ 'timetable.layoutWeek' | translate }}
-            </button>
-          </div>
-          <button type="button" class="btn-outline-erp btn-sm" (click)="refreshTimetable()">
-            <i class="bi bi-arrow-clockwise"></i> {{ 'timetable.refresh' | translate }}
-          </button>
-          <button *ngIf="canMutateTimetable" class="btn-primary-erp btn-sm" [disabled]="!canEditTimetable()" (click)="openCreateModal()">
-            <i class="bi bi-plus-lg"></i> {{ 'timetable.addSlot' | translate }}
-          </button>
         </div>
       </div>
 
@@ -137,14 +286,14 @@ type TimetableEntryForm = Omit<Partial<TimetableEntry>, 'teacherId' | 'classId' 
           </div>
         </div>
         <div class="row g-3 align-items-end" *ngIf="scheduleScope === 'teacher'">
-          <div class="col-md-4">
+          <div class="col-md-4" *ngIf="!isTeacherViewer">
             <label class="erp-label">{{ 'timetable.labelTeacher' | translate }}</label>
-            <select class="erp-select" [(ngModel)]="selectedTeacherId" (change)="onTeacherChange()" [disabled]="isTeacherViewer">
+            <select class="erp-select" [(ngModel)]="selectedTeacherId" (change)="onTeacherChange()">
               <option [ngValue]="null">{{ 'timetable.selectTeacher' | translate }}</option>
               <option *ngFor="let t of teachers" [ngValue]="t.id">{{ t.firstName }} {{ t.lastName }}</option>
             </select>
           </div>
-          <div class="col-md-4">
+          <div [class.col-md-4]="!isTeacherViewer" [class.col-md-6]="isTeacherViewer">
             <label class="erp-label">{{ 'timetable.labelSessionDate' | translate }}</label>
             <app-erp-date-picker
               [(ngModel)]="teacherViewDate"
@@ -177,13 +326,21 @@ type TimetableEntryForm = Omit<Partial<TimetableEntry>, 'teacherId' | 'classId' 
         </p>
       </div>
 
+      <div class="erp-card mb-4 animate-in" *ngIf="showTeacherScheduleEmptyHint">
+        <p class="text-muted mb-0 small">{{ 'timetable.emptyTeacherSession' | translate }}</p>
+      </div>
+
       <div class="erp-card mb-4 classic-wrap animate-in" *ngIf="grid?.days?.length && layout === 'dayRows'">
-        <div style="overflow-x: auto;">
-          <table class="erp-table">
+        <div class="timetable-classic-scroll">
+          <table class="erp-table timetable-classic-table">
+            <colgroup>
+              <col class="timetable-classic-col-day" />
+              <col *ngFor="let p of grid?.periods" class="timetable-classic-col-slot" />
+            </colgroup>
             <thead>
               <tr>
-                <th style="min-width: 120px;">{{ 'timetable.gridDayPeriod' | translate }}</th>
-                <th *ngFor="let period of grid?.periods" style="min-width: 180px;">{{ 'timetable.gridPeriod' | translate: { n: period } }}</th>
+                <th>{{ 'timetable.gridDayPeriod' | translate }}</th>
+                <th *ngFor="let period of grid?.periods">{{ 'timetable.gridPeriod' | translate: { n: period } }}</th>
               </tr>
             </thead>
             <tbody>
@@ -193,16 +350,21 @@ type TimetableEntryForm = Omit<Partial<TimetableEntry>, 'teacherId' | 'classId' 
                 </td>
                 <td *ngFor="let period of grid?.periods">
                   <ng-container *ngIf="getEntry(day, period) as entry; else emptySlot">
-                    <div class="timetable-slot-cell" [class.timetable-slot--cover]="isCoverRow(entry)">
+                    <div
+                      class="timetable-slot-cell"
+                      [ngClass]="slotToneClass(period)"
+                      [class.timetable-slot--cover]="isCoverRow(entry)"
+                    >
                       <div class="d-flex align-items-center gap-1 flex-wrap mb-1">
                         <span *ngIf="isCoverRow(entry)" class="badge-erp badge-info" style="font-size: 9px; text-transform: uppercase;">{{
                           'timetable.coverBadge' | translate
                         }}</span>
                         <span *ngIf="isCoverRow(entry) && entry.coverForDate" class="text-muted" style="font-size: 10px;">{{ entry.coverForDate }}</span>
                       </div>
-                      <div style="font-weight: 700; color: var(--clr-text);">{{ entry.subjectName }}</div>
-                      <div style="font-size: 12px; color: var(--clr-text-secondary);">{{ entry.teacherName }}</div>
-                      <div style="font-size: 12px; color: var(--clr-text-muted);">{{ entry.startTime }} - {{ entry.endTime }} · {{ entry.room }}</div>
+                      <div class="timetable-slot-subject">{{ entry.subjectName }}</div>
+                      <div class="timetable-slot-class">{{ entryClassSectionLabel(entry) }}</div>
+                      <div *ngIf="!isTeacherViewer" class="timetable-slot-teacher">{{ entry.teacherName }}</div>
+                      <div class="timetable-slot-time">{{ entry.startTime }} - {{ entry.endTime }} · {{ entry.room }}</div>
                       <div class="d-flex gap-2 mt-2" *ngIf="canMutateTimetable && !isCoverRow(entry)">
                         <button class="btn-outline-erp btn-xs" (click)="openEditModal(entry)">{{ 'timetable.edit' | translate }}</button>
                         <button class="btn-outline-erp btn-xs" (click)="deleteEntry(entry.id)">{{ 'timetable.delete' | translate }}</button>
@@ -210,7 +372,7 @@ type TimetableEntryForm = Omit<Partial<TimetableEntry>, 'teacherId' | 'classId' 
                     </div>
                   </ng-container>
                   <ng-template #emptySlot>
-                    <span style="color: var(--clr-text-muted); font-size: 12px;">-</span>
+                    <span class="timetable-slot-empty">—</span>
                   </ng-template>
                 </td>
               </tr>
@@ -239,65 +401,27 @@ type TimetableEntryForm = Omit<Partial<TimetableEntry>, 'teacherId' | 'classId' 
                 </td>
                 <td *ngFor="let day of grid?.days">
                   <ng-container *ngIf="getEntry(day, period) as entry; else emptyCal">
-                    <div class="timetable-slot-cell" [class.timetable-slot--cover]="isCoverRow(entry)">
+                    <div
+                      class="timetable-slot-cell timetable-slot-cell--week"
+                      [ngClass]="slotToneClass(period)"
+                      [class.timetable-slot--cover]="isCoverRow(entry)"
+                    >
                       <div *ngIf="isCoverRow(entry)" class="mb-1">
                         <span class="badge-erp badge-info" style="font-size: 8px;">{{ 'timetable.coverBadge' | translate }}</span>
                       </div>
-                      <div style="font-weight: 700; font-size: 13px;">{{ entry.subjectName }}</div>
-                      <div style="font-size: 11px; color: var(--clr-text-secondary);">{{ entry.teacherName }}</div>
-                      <div style="font-size: 10px; color: var(--clr-text-muted);">{{ entry.startTime }}-{{ entry.endTime }} · {{ entry.room }}</div>
+                      <div class="timetable-slot-subject">{{ entry.subjectName }}</div>
+                      <div class="timetable-slot-class">{{ entryClassSectionLabel(entry) }}</div>
+                      <div *ngIf="!isTeacherViewer" class="timetable-slot-teacher">{{ entry.teacherName }}</div>
+                      <div class="timetable-slot-time">{{ entry.startTime }}-{{ entry.endTime }} · {{ entry.room }}</div>
                       <div class="d-flex gap-1 mt-1 flex-wrap" *ngIf="canMutateTimetable && !isCoverRow(entry)">
                         <button class="btn-outline-erp btn-xs" (click)="openEditModal(entry)">{{ 'timetable.edit' | translate }}</button>
                         <button class="btn-outline-erp btn-xs" (click)="deleteEntry(entry.id)">{{ 'timetable.deleteShort' | translate }}</button>
                       </div>
                     </div>
                   </ng-container>
-                  <ng-template #emptyCal><span class="text-muted" style="font-size: 11px;">{{ 'timetable.emptyCell' | translate }}</span></ng-template>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      <div class="erp-card animate-in py-2 px-3 mb-4" *ngIf="entries.length">
-        <button
-          type="button"
-          class="btn btn-link p-0 text-start w-100 erp-collapse-toggle"
-          (click)="showSlotList = !showSlotList"
-          [attr.aria-expanded]="showSlotList"
-        >
-          <span class="me-2"><i class="bi" [ngClass]="showSlotList ? 'bi-chevron-down' : 'bi-chevron-right'"></i></span>
-          <strong>{{ 'timetable.flatListTitle' | translate }}</strong>
-          <span class="text-muted small ms-2">{{ 'timetable.flatListHint' | translate }}</span>
-        </button>
-        <div *ngIf="showSlotList" class="mt-3">
-          <table class="erp-table mb-0">
-            <thead>
-              <tr>
-                <th>{{ 'timetable.thDay' | translate }}</th>
-                <th>{{ 'timetable.thPeriod' | translate }}</th>
-                <th>{{ 'timetable.thSubject' | translate }}</th>
-                <th>{{ 'timetable.thTeacher' | translate }}</th>
-                <th>{{ 'timetable.thTime' | translate }}</th>
-                <th>{{ 'timetable.thRoom' | translate }}</th>
-                <th *ngIf="canMutateTimetable">{{ 'timetable.thActions' | translate }}</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr *ngFor="let entry of entries">
-                <td>{{ weekdayLabel(entry.day) }}</td>
-                <td>{{ entry.period }}</td>
-                <td>{{ entry.subjectName }}</td>
-                <td>{{ entry.teacherName }}</td>
-                <td>{{ entry.startTime }} - {{ entry.endTime }}</td>
-                <td>{{ entry.room }}</td>
-                <td *ngIf="canMutateTimetable">
-                  <div class="d-flex gap-1" *ngIf="!isCoverRow(entry)">
-                    <button type="button" class="btn-icon" (click)="openEditModal(entry)"><i class="bi bi-pencil"></i></button>
-                    <button type="button" class="btn-icon" (click)="deleteEntry(entry.id)"><i class="bi bi-trash" style="color: var(--clr-danger);"></i></button>
-                  </div>
-                  <span *ngIf="isCoverRow(entry)" class="text-muted small">{{ 'timetable.coverRowLabel' | translate }}</span>
+                  <ng-template #emptyCal>
+                    <span class="timetable-slot-empty">{{ 'timetable.emptyCell' | translate }}</span>
+                  </ng-template>
                 </td>
               </tr>
             </tbody>
@@ -487,12 +611,14 @@ export class TimetableComponent implements OnInit {
     periodNumber: null as number | null,
   };
   coversAdmin: AttendanceCoverRow[] = [];
-  showSlotList = false;
   showModal = false;
   editingEntryId: number | null = null;
   dayOptions = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
   entryForm: TimetableEntryForm = this.defaultEntryForm();
-  teacherViewDate = new Date().toISOString().split('T')[0];
+  /** Local calendar date (YYYY-MM-DD); avoids UTC drift from `toISOString()` for “today”. */
+  teacherViewDate = '';
+  /** Raw API rows for “by teacher” scope (classic view may show one weekday; week matrix uses the full week). */
+  private teacherScheduleRows: TimetableEntry[] = [];
 
   constructor(
     private timetableService: TimetableService,
@@ -521,6 +647,8 @@ export class TimetableComponent implements OnInit {
 
   ngOnInit(): void {
     this.translate.onLangChange.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => this.cdr.markForCheck());
+
+    this.teacherViewDate = this.defaultTeacherSessionCalendarDate();
 
     const r = (this.auth.getRole() ?? '').toLowerCase();
     this.isAdmin = r === 'admin' || r === 'super_admin';
@@ -650,6 +778,59 @@ export class TimetableComponent implements OnInit {
     return (this.auth.getRole() ?? '').toLowerCase() === 'teacher';
   }
 
+  /** True when “by teacher” is selected but the grid has no cells (e.g. Sunday with no weekend school). */
+  get showTeacherScheduleEmptyHint(): boolean {
+    return (
+      this.scheduleScope === 'teacher' &&
+      this.selectedTeacherId != null &&
+      !this.isParent &&
+      (this.grid?.days?.length ?? 0) === 0
+    );
+  }
+
+  setTimetableLayout(next: 'dayRows' | 'periodRows'): void {
+    this.layout = next;
+    if (this.scheduleScope === 'teacher' && this.selectedTeacherId != null && this.teacherScheduleRows.length) {
+      this.applyTeacherScopeViewModel();
+    }
+  }
+
+  /** YYYY-MM-DD in the browser's local timezone (not UTC). */
+  private localCalendarDateString(date: Date = new Date()): string {
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }
+
+  /**
+   * Default session date: Mon–Sat → today; Sunday → previous Saturday (last school day in a typical Indian Mon–Sat week).
+   */
+  private defaultTeacherSessionCalendarDate(): string {
+    const d = new Date();
+    if (d.getDay() === 0) {
+      d.setDate(d.getDate() - 1);
+    }
+    return this.localCalendarDateString(d);
+  }
+
+  /** Class + section for grid cells (API may send {@link TimetableEntry.className} / {@link TimetableEntry.sectionName}). */
+  entryClassSectionLabel(entry: TimetableEntry): string {
+    const cn = entry.className?.trim();
+    const sn = entry.sectionName?.trim();
+    if (cn && sn) {
+      return `${cn} - ${sn}`;
+    }
+    if (cn) {
+      return cn;
+    }
+    const cls = this.classes.find(c => c.id === entry.classId);
+    const cname = cls?.name?.trim() || `Class ${entry.classId}`;
+    const sec = cls?.sections?.find(s => s.id === entry.sectionId);
+    const sname = sec?.name?.trim();
+    return sname ? `${cname} - ${sname}` : cname;
+  }
+
   /** Localized weekday label; API values stay English — display only. */
   weekdayLabel(day: string): string {
     const d = this.normalizeDay(day).toLowerCase();
@@ -660,6 +841,12 @@ export class TimetableComponent implements OnInit {
 
   isCoverRow(entry: TimetableEntry): boolean {
     return entry.scheduleSource === 'COVER';
+  }
+
+  /** Period-based accent so columns read as distinct but still on-brand (primary / info / success / accent blend). */
+  slotToneClass(period: number): string {
+    const n = Math.max(1, period | 0);
+    return `timetable-slot--tone-${(n - 1) % 4}`;
   }
 
   private loadParentTimetableContext(): void {
@@ -739,7 +926,7 @@ export class TimetableComponent implements OnInit {
       this.teachers = teachers;
       if (this.scheduleScope === 'teacher' && this.selectedTeacherId == null && this.isTeacherViewer) {
         const me = this.auth.getCurrentUser()?.id;
-        const row = teachers.find(t => t.userId === me);
+        const row = teachers.find(t => t.userId != null && Number(t.userId) === Number(me));
         if (row) {
           this.selectedTeacherId = row.id;
         }
@@ -761,6 +948,7 @@ export class TimetableComponent implements OnInit {
     this.scheduleScope = scope;
     this.entries = [];
     this.grid = null;
+    this.teacherScheduleRows = [];
     if (scope === 'class') {
       this.selectedTeacherId = null;
       if (this.selectedClassId != null && (this.sections.length === 0 || this.selectedSectionId != null)) {
@@ -779,6 +967,7 @@ export class TimetableComponent implements OnInit {
   onTeacherChange(): void {
     this.entries = [];
     this.grid = null;
+    this.teacherScheduleRows = [];
     if (this.selectedTeacherId == null) {
       return;
     }
@@ -795,10 +984,31 @@ export class TimetableComponent implements OnInit {
     if (this.selectedTeacherId == null) {
       return;
     }
-    this.timetableService.getByTeacher(this.selectedTeacherId, this.teacherViewDate).subscribe(entries => {
-      this.entries = entries;
-      this.grid = this.timetableService.toGridFromEntries(entries);
+    this.timetableService.getByTeacher(this.selectedTeacherId, this.teacherViewDate).subscribe(rows => {
+      this.teacherScheduleRows = rows ?? [];
+      this.applyTeacherScopeViewModel();
     });
+  }
+
+  /**
+   * Classic grid: one calendar school day (Mon–Sat). Week matrix: Mon–Sat columns in order, current school week pattern.
+   */
+  private applyTeacherScopeViewModel(): void {
+    const raw = this.teacherScheduleRows;
+    if (this.layout === 'periodRows') {
+      this.entries = raw.filter(e => this.timetableService.isIndianSchoolTeachingDayName(e.day));
+      this.grid = this.timetableService.toSchoolWeekMatrixGrid(this.entries);
+    } else {
+      const dow = this.weekdayEnglishFromIsoDate(this.teacherViewDate);
+      this.entries = raw.filter(e => this.normalizeDay(e.day) === this.normalizeDay(dow));
+      this.grid = this.timetableService.toGridFromEntries(this.entries);
+    }
+  }
+
+  private weekdayEnglishFromIsoDate(iso: string): string {
+    const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const d = new Date(iso + 'T12:00:00');
+    return days[d.getDay()];
   }
 
   onEntryFormClassChange(): void {
