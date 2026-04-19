@@ -621,10 +621,16 @@ export interface TeacherAttendanceTrendPoint {
 /** Homeroom / class-teacher section — daily points + ring breakdown (GET /reports/dashboard/teacher?month=). */
 export interface TeacherHomeroomDailyPoint {
   date: string;
+  /** Share of that day’s attendance marks (0–100); retained for other widgets / compatibility. */
   presentPercent: number;
-  /** Optional headcounts for mixed chart (absent / late lines); API may omit. */
+  absentPercent?: number;
+  latePercent?: number;
+  excusedPercent?: number;
+  /** Per-day headcounts (primary for day-by-day stacked bar). */
+  presentCount?: number;
   absentCount?: number;
   lateCount?: number;
+  excusedCount?: number;
 }
 
 export interface TeacherHomeroomAttendanceDetail {

@@ -9,7 +9,12 @@ import { ErpMonthPickerComponent } from '../../shared/erp-month-picker/erp-month
 import { AuthService } from '../../core/services/auth.service';
 import { ParentSelectionService } from '../../core/services/parent-selection.service';
 import { DashboardService } from '../../core/services/dashboard.service';
-import { AdminDashboardData, ParentDashboardData, TeacherDashboardData } from '../../core/models/models';
+import {
+  AdminDashboardData,
+  ParentDashboardData,
+  TeacherDashboardData,
+  TeacherHomeroomDailyPoint,
+} from '../../core/models/models';
 
 Chart.register(...registerables);
 
@@ -309,16 +314,20 @@ interface DashboardAdmissionInsight {
               <div class="chart-container" style="height: 300px;"><canvas #teacherHomeroomDailyChart></canvas></div>
               <div class="d-flex flex-wrap gap-3 mt-2 px-1 small align-items-center teacher-homeroom-legend">
                 <span class="d-inline-flex align-items-center gap-2 text-muted mb-0">
-                  <span class="teacher-homeroom-legend__swatch" style="background: rgba(27, 58, 48, 0.85);"></span>
-                  {{ 'dashboard.teacher.homeroomSeriesPresent' | translate }}
+                  <span class="teacher-homeroom-legend__swatch" style="background: #1b3a30;"></span>
+                  {{ 'dashboard.chart.present' | translate }}
                 </span>
                 <span class="d-inline-flex align-items-center gap-2 text-muted mb-0">
-                  <span class="teacher-homeroom-legend__line" style="border-color: #C05C3D;"></span>
-                  {{ 'dashboard.teacher.homeroomSeriesAbsent' | translate }}
+                  <span class="teacher-homeroom-legend__swatch" style="background: #c05c3d;"></span>
+                  {{ 'dashboard.chart.absent' | translate }}
                 </span>
                 <span class="d-inline-flex align-items-center gap-2 text-muted mb-0">
-                  <span class="teacher-homeroom-legend__line" style="border-color: #D97706;"></span>
-                  {{ 'dashboard.teacher.homeroomSeriesLate' | translate }}
+                  <span class="teacher-homeroom-legend__swatch" style="background: #d97706;"></span>
+                  {{ 'dashboard.chart.late' | translate }}
+                </span>
+                <span class="d-inline-flex align-items-center gap-2 text-muted mb-0">
+                  <span class="teacher-homeroom-legend__swatch" style="background: #0284c7;"></span>
+                  {{ 'dashboard.chart.excused' | translate }}
                 </span>
               </div>
             </div>
@@ -328,7 +337,7 @@ interface DashboardAdmissionInsight {
               <h4 class="erp-card-title" style="font-size: 15px;">{{ 'dashboard.teacher.homeroomRingTitle' | translate }}</h4>
               <div class="chart-container flex-grow-1" style="min-height: 200px;"><canvas #teacherHomeroomRingChart></canvas></div>
               <div class="text-center mt-2">
-                <div style="font-size: 32px; font-weight: 800; color: var(--clr-primary); line-height: 1.1;">{{ teacherHomeroomPresentSnapshot }}%</div>
+                <div style="font-size: 32px; font-weight: 800; color: var(--clr-primary); line-height: 1.1;">{{ teacherHomeroomMonthPresentPercentText }}%</div>
                 <p class="text-muted small mb-0">{{ 'dashboard.teacher.homeroomPresentRate' | translate }}</p>
               </div>
             </div>
@@ -719,8 +728,11 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
     this.teacherHomeroomRingChart?.destroy();
   }
 
-  /** Homeroom present % from monthly breakdown (matches ring chart). */
-  get teacherHomeroomPresentSnapshot(): string {
+  /**
+   * Present ÷ (Present+Absent+Late+Excused) for the selected month; matches the homeroom doughnut breakdown.
+   * Displayed beside the ring as the headline percentage.
+   */
+  get teacherHomeroomMonthPresentPercentText(): string {
     const b = this.teacherDashboard?.homeroomAttendance?.breakdown;
     if (!b) {
       return '0';
@@ -1093,6 +1105,69 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
     return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(value || 0);
   }
 
+  private homeroomRosterHintForChart(): number {
+    const ct = this.teacherDashboard?.classTeacherOf?.[0]?.totalStudents;
+    if (typeof ct === 'number' && ct > 0) {
+      return ct;
+    }
+    const sa = this.teacherDashboard?.studentsAssigned;
+    if (typeof sa === 'number' && sa > 0) {
+      return sa;
+    }
+    return 40;
+  }
+
+  /**
+   * Stacked day chart uses headcounts when API sends {@link TeacherHomeroomDailyPoint} counts; otherwise scales % × roster hint.
+   */
+  private homeroomStackCounts(row: TeacherHomeroomDailyPoint): { p: number; a: number; l: number; e: number } {
+    if (
+      row.presentCount != null ||
+      row.absentCount != null ||
+      row.lateCount != null ||
+      row.excusedCount != null
+    ) {
+      return {
+        p: Math.max(0, Math.round(row.presentCount ?? 0)),
+        a: Math.max(0, Math.round(row.absentCount ?? 0)),
+        l: Math.max(0, Math.round(row.lateCount ?? 0)),
+        e: Math.max(0, Math.round(row.excusedCount ?? 0)),
+      };
+    }
+    const roster = Math.max(1, this.homeroomRosterHintForChart());
+    const seg = this.homeroomPercentShares(row);
+    return {
+      p: Math.round((seg.p / 100) * roster),
+      a: Math.round((seg.a / 100) * roster),
+      l: Math.round((seg.l / 100) * roster),
+      e: Math.round((seg.e / 100) * roster),
+    };
+  }
+
+  /** Normalizes API percent fields to four shares summing to 100 when detail exists. */
+  private homeroomPercentShares(row: TeacherHomeroomDailyPoint): { p: number; a: number; l: number; e: number } {
+    const hasSplit =
+      row.absentPercent != null || row.latePercent != null || row.excusedPercent != null;
+    if (hasSplit) {
+      const p = Math.max(0, row.presentPercent ?? 0);
+      const a = Math.max(0, row.absentPercent ?? 0);
+      const l = Math.max(0, row.latePercent ?? 0);
+      const e = Math.max(0, row.excusedPercent ?? 0);
+      const s = p + a + l + e;
+      if (s <= 0) {
+        return { p: 0, a: 0, l: 0, e: 0 };
+      }
+      return {
+        p: (100 * p) / s,
+        a: (100 * a) / s,
+        l: (100 * l) / s,
+        e: (100 * e) / s,
+      };
+    }
+    const pOnly = Math.min(100, Math.max(0, row.presentPercent ?? 0));
+    return { p: pOnly, a: 0, l: 0, e: 0 };
+  }
+
   private initTeacherHomeroomCharts(): void {
     const h = this.teacherDashboard?.homeroomAttendance;
     const dailyCanvas = this.teacherHomeroomDailyChartRef?.nativeElement;
@@ -1108,50 +1183,53 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
       const d = new Date(head.includes('T') ? head : `${head}T12:00:00`);
       return Number.isNaN(d.getTime()) ? row.date : d.toLocaleDateString(loc, { day: 'numeric' });
     });
-    const dailyData = h.daily.map(row => row.presentPercent);
-    const absentData = h.daily.map(row => (typeof row.absentCount === 'number' ? row.absentCount : 0));
-    const lateData = h.daily.map(row => (typeof row.lateCount === 'number' ? row.lateCount : 0));
     const t = this.translate;
     const gridColor = 'color-mix(in srgb, var(--clr-border) 65%, transparent)';
+    const presentData: number[] = [];
+    const absentData: number[] = [];
+    const lateData: number[] = [];
+    const excusedData: number[] = [];
+    let maxDayTotal = 0;
+    for (const row of h.daily) {
+      const seg = this.homeroomStackCounts(row);
+      presentData.push(seg.p);
+      absentData.push(seg.a);
+      lateData.push(seg.l);
+      excusedData.push(seg.e);
+      maxDayTotal = Math.max(maxDayTotal, seg.p + seg.a + seg.l + seg.e);
+    }
     this.teacherHomeroomDailyChart = new Chart(dailyCanvas, {
       type: 'bar',
       data: {
         labels: dayLabels,
         datasets: [
           {
-            type: 'bar',
-            label: t.instant('dashboard.teacher.homeroomSeriesPresent'),
-            data: dailyData,
-            backgroundColor: 'rgba(27, 58, 48, 0.85)',
-            borderRadius: 6,
-            maxBarThickness: 14,
-            yAxisID: 'y',
+            label: t.instant('dashboard.chart.present'),
+            data: presentData,
+            backgroundColor: 'rgba(27, 58, 48, 0.92)',
+            borderRadius: 4,
+            stack: 'att',
           },
           {
-            type: 'line',
-            label: t.instant('dashboard.teacher.homeroomSeriesAbsent'),
+            label: t.instant('dashboard.chart.absent'),
             data: absentData,
-            borderColor: '#C05C3D',
-            backgroundColor: 'rgba(192, 92, 61, 0.08)',
-            borderWidth: 2,
-            pointRadius: 2,
-            pointHoverRadius: 4,
-            tension: 0.25,
-            yAxisID: 'y1',
-            spanGaps: true,
+            backgroundColor: 'rgba(192, 92, 61, 0.9)',
+            borderRadius: 4,
+            stack: 'att',
           },
           {
-            type: 'line',
-            label: t.instant('dashboard.teacher.homeroomSeriesLate'),
+            label: t.instant('dashboard.chart.late'),
             data: lateData,
-            borderColor: '#D97706',
-            backgroundColor: 'rgba(217, 119, 6, 0.08)',
-            borderWidth: 2,
-            pointRadius: 2,
-            pointHoverRadius: 4,
-            tension: 0.25,
-            yAxisID: 'y1',
-            spanGaps: true,
+            backgroundColor: 'rgba(217, 119, 6, 0.9)',
+            borderRadius: 4,
+            stack: 'att',
+          },
+          {
+            label: t.instant('dashboard.chart.excused'),
+            data: excusedData,
+            backgroundColor: 'rgba(2, 132, 199, 0.88)',
+            borderRadius: 4,
+            stack: 'att',
           },
         ],
       },
@@ -1166,38 +1244,30 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
               label: ctx => {
                 const dsLabel = ctx.dataset.label || '';
                 const y = ctx.parsed.y;
-                if (ctx.dataset.type === 'bar' || ctx.dataset.yAxisID === 'y') {
-                  return `${dsLabel}: ${typeof y === 'number' ? y.toFixed(1) : y}%`;
-                }
-                return `${dsLabel}: ${y ?? '—'}`;
+                const n = typeof y === 'number' ? Math.round(y) : y;
+                return `${dsLabel}: ${n}`;
               },
             },
           },
         },
         scales: {
-          x: { grid: { display: false }, ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 16 } },
+          x: { stacked: true, grid: { display: false }, ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 16 } },
           y: {
-            position: 'left',
+            stacked: true,
             min: 0,
-            max: 100,
-            ticks: { callback: v => `${v}%` },
+            suggestedMax: Math.max(6, maxDayTotal + 1),
+            grace: '12%',
+            ticks: {
+              precision: 0,
+              callback: (v: string | number) => {
+                const n = typeof v === 'number' ? v : parseFloat(String(v));
+                return Number.isFinite(n) ? String(Math.round(n)) : '';
+              },
+            },
             grid: { color: gridColor },
             title: {
               display: true,
-              text: t.instant('dashboard.teacher.homeroomAxisPresent'),
-              color: 'color-mix(in srgb, var(--clr-text) 75%, transparent)',
-              font: { size: 11, weight: 600 },
-            },
-          },
-          y1: {
-            position: 'right',
-            min: 0,
-            suggestedMax: 12,
-            grid: { drawOnChartArea: false },
-            ticks: { stepSize: 1 },
-            title: {
-              display: true,
-              text: t.instant('dashboard.teacher.homeroomAxisHeadcount'),
+              text: t.instant('dashboard.teacher.homeroomAxisDailyCounts'),
               color: 'color-mix(in srgb, var(--clr-text) 75%, transparent)',
               font: { size: 11, weight: 600 },
             },

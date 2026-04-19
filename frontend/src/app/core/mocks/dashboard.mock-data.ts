@@ -75,18 +75,40 @@ function upcomingExamCount(): number {
 export function buildMockTeacherHomeroom(monthYm: string): TeacherHomeroomAttendanceDetail {
   const [y, m] = monthYm.split('-').map(Number);
   const daysInMonth = new Date(y, m, 0).getDate();
-  const daily: { date: string; presentPercent: number; absentCount: number; lateCount: number }[] = [];
+  const daily: {
+    date: string;
+    presentCount: number;
+    absentCount: number;
+    lateCount: number;
+    excusedCount: number;
+    presentPercent: number;
+    absentPercent: number;
+    latePercent: number;
+    excusedPercent: number;
+  }[] = [];
   for (let d = 1; d <= daysInMonth; d++) {
     const date = `${monthYm}-${String(d).padStart(2, '0')}`;
-    const wave = 82 + (d % 7) + (monthYm.length % 3);
-    const presentPercent = Math.min(100, Math.max(68, wave + (d % 5)));
-    const lateCount = d % 4;
-    const absentCount = Math.min(10, Math.max(0, Math.floor((100 - presentPercent) / 6)));
-    daily.push({ date, presentPercent, lateCount, absentCount });
+    const present = Math.min(36, Math.max(30, 33 + (d % 4) - (d % 3)));
+    const late = Math.min(3, (d % 4) + (d % 2));
+    const absent = Math.min(4, Math.max(0, (d % 6) - 2));
+    const excused = d % 5 === 0 ? 2 : d % 11 === 0 ? 1 : 0;
+    const t = present + absent + late + excused;
+    const scale = t > 0 ? 100 / t : 1;
+    daily.push({
+      date,
+      presentCount: present,
+      absentCount: absent,
+      lateCount: late,
+      excusedCount: excused,
+      presentPercent: +(present * scale).toFixed(2),
+      absentPercent: +(absent * scale).toFixed(2),
+      latePercent: +(late * scale).toFixed(2),
+      excusedPercent: +(excused * scale).toFixed(2),
+    });
   }
   return {
     month: monthYm,
-    classLabel: 'Class 8 · A',
+    classLabel: 'Class 7 · A',
     daily,
     breakdown: { present: 142, absent: 12, late: 8, excused: 3 },
   };

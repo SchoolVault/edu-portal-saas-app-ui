@@ -337,17 +337,41 @@ public class OltpReportQueryAdapter implements ReportQueryPort {
         List<ReportDashboardDTOs.TeacherHomeroomDayPoint> daily = new ArrayList<>();
         for (LocalDate d = from; !d.isAfter(to); d = d.plusDays(1)) {
             List<AttendanceRecord> day = byDate.getOrDefault(d, List.of());
-            long p = 0;
-            long t = 0;
+            long pr = 0;
+            long ab = 0;
+            long la = 0;
+            long ex = 0;
             for (AttendanceRecord x : day) {
-                t++;
-                if (x.getStatus() == Enums.AttendanceStatus.PRESENT) {
-                    p++;
+                if (x.getStatus() == null) {
+                    continue;
+                }
+                switch (x.getStatus()) {
+                    case PRESENT -> pr++;
+                    case ABSENT -> ab++;
+                    case LATE -> la++;
+                    case EXCUSED -> ex++;
+                    default -> {
+                    }
                 }
             }
+            long tot = pr + ab + la + ex;
             ReportDashboardDTOs.TeacherHomeroomDayPoint dp = new ReportDashboardDTOs.TeacherHomeroomDayPoint();
             dp.setDate(d.toString());
-            dp.setPresentPercent(t == 0 ? 0d : (100.0 * p / t));
+            dp.setPresentCount(pr);
+            dp.setAbsentCount(ab);
+            dp.setLateCount(la);
+            dp.setExcusedCount(ex);
+            if (tot == 0) {
+                dp.setPresentPercent(0d);
+                dp.setAbsentPercent(0d);
+                dp.setLatePercent(0d);
+                dp.setExcusedPercent(0d);
+            } else {
+                dp.setPresentPercent(100.0 * pr / tot);
+                dp.setAbsentPercent(100.0 * ab / tot);
+                dp.setLatePercent(100.0 * la / tot);
+                dp.setExcusedPercent(100.0 * ex / tot);
+            }
             daily.add(dp);
         }
         detail.setDaily(daily);

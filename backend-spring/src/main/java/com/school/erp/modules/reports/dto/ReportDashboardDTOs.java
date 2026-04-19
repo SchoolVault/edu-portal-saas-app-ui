@@ -607,6 +607,15 @@ public class ReportDashboardDTOs {
     public static class TeacherHomeroomDayPoint {
         private String date;
         private double presentPercent;
+        /** Shares of the day’s attendance rows; sum to ~100 when the day has rows (stacked bar). */
+        private double absentPercent;
+        private double latePercent;
+        private double excusedPercent;
+        /** Headcounts for that calendar day (one mark per pupil); primary series for day-by-day stacked chart. */
+        private long presentCount;
+        private long absentCount;
+        private long lateCount;
+        private long excusedCount;
 
         public String getDate() {
             return date;
@@ -622,6 +631,62 @@ public class ReportDashboardDTOs {
 
         public void setPresentPercent(double presentPercent) {
             this.presentPercent = presentPercent;
+        }
+
+        public double getAbsentPercent() {
+            return absentPercent;
+        }
+
+        public void setAbsentPercent(double absentPercent) {
+            this.absentPercent = absentPercent;
+        }
+
+        public double getLatePercent() {
+            return latePercent;
+        }
+
+        public void setLatePercent(double latePercent) {
+            this.latePercent = latePercent;
+        }
+
+        public double getExcusedPercent() {
+            return excusedPercent;
+        }
+
+        public void setExcusedPercent(double excusedPercent) {
+            this.excusedPercent = excusedPercent;
+        }
+
+        public long getPresentCount() {
+            return presentCount;
+        }
+
+        public void setPresentCount(long presentCount) {
+            this.presentCount = presentCount;
+        }
+
+        public long getAbsentCount() {
+            return absentCount;
+        }
+
+        public void setAbsentCount(long absentCount) {
+            this.absentCount = absentCount;
+        }
+
+        public long getLateCount() {
+            return lateCount;
+        }
+
+        public void setLateCount(long lateCount) {
+            this.lateCount = lateCount;
+        }
+
+        public long getExcusedCount() {
+            return excusedCount;
+        }
+
+        public void setExcusedCount(long excusedCount) {
+            this.excusedCount = excusedCount;
         }
     }
 

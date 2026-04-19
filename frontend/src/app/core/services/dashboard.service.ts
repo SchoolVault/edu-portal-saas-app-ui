@@ -94,8 +94,13 @@ export class DashboardService {
                 daily: (homeroom.daily ?? []).map((d: any) => ({
                   date: String(d.date ?? ''),
                   presentPercent: Number(d.presentPercent ?? 0),
+                  absentPercent: d.absentPercent != null ? Number(d.absentPercent) : undefined,
+                  latePercent: d.latePercent != null ? Number(d.latePercent) : undefined,
+                  excusedPercent: d.excusedPercent != null ? Number(d.excusedPercent) : undefined,
+                  presentCount: d.presentCount != null ? Number(d.presentCount) : undefined,
                   absentCount: d.absentCount != null ? Number(d.absentCount) : undefined,
                   lateCount: d.lateCount != null ? Number(d.lateCount) : undefined,
+                  excusedCount: d.excusedCount != null ? Number(d.excusedCount) : undefined,
                 })),
                 breakdown: {
                   present: Number(homeroom.breakdown?.present ?? 0),
