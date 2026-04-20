@@ -9,7 +9,6 @@ public class AcademicDTOs {
     public static class CreateClassRequest {
         @NotBlank
         private String name;
-        @NotNull
         private Integer grade;
         private Long classTeacherId;
         private String classTeacherName;

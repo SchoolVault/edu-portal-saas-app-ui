@@ -80,6 +80,8 @@ export class CommunicationService {
       author: 'You',
       authorRole: 'Admin',
       targetAudience: (payload.targetAudience || 'ALL').toLowerCase(),
+      targetClassId: payload.targetClassId,
+      targetSectionId: payload.targetSectionId,
       createdAt: new Date().toISOString(),
       tenantId: 't1'
     };
@@ -95,6 +97,10 @@ export class CommunicationService {
             ...p,
             id: String(p.id),
             targetAudience: (p as { targetAudience?: string }).targetAudience?.toLowerCase(),
+            targetClassId: (p as { targetClassId?: number }).targetClassId,
+            targetSectionId: (p as { targetSectionId?: number }).targetSectionId,
+            targetClassName: (p as { targetClassName?: string }).targetClassName,
+            targetSectionName: (p as { targetSectionName?: string }).targetSectionName,
           }))
         )
       );
@@ -155,6 +161,8 @@ export class CommunicationService {
       author: a.author ?? '',
       authorRole: a.authorRole ?? '',
       targetAudience: (a.targetAudience ?? 'ALL').toString().toLowerCase(),
+      targetClassId: a.targetClassId != null ? Number(a.targetClassId) : undefined,
+      targetSectionId: a.targetSectionId != null ? Number(a.targetSectionId) : undefined,
       createdAt: a.createdAt ?? a.created_at ?? new Date().toISOString(),
       tenantId: String(a.tenantId ?? a.tenant_id ?? '')
     };

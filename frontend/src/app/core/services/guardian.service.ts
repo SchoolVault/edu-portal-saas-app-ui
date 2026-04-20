@@ -8,11 +8,27 @@ export interface CreateGuardianPayload {
   fullName: string;
   occupation?: string;
   primaryPhone?: string;
+  emailsJson?: string;
+  phonesJson?: string;
 }
 
 export interface CreateMappingPayload {
   guardianId: string;
   relationType: 'FATHER' | 'MOTHER' | 'GUARDIAN' | 'OTHER';
+  isPrimary?: boolean;
+  isEmergencyContact?: boolean;
+}
+
+export interface UpdateGuardianPayload {
+  fullName?: string;
+  occupation?: string;
+  primaryPhone?: string;
+  emailsJson?: string;
+  phonesJson?: string;
+}
+
+export interface UpdateMappingPayload {
+  relationType?: 'FATHER' | 'MOTHER' | 'GUARDIAN' | 'OTHER';
   isPrimary?: boolean;
   isEmergencyContact?: boolean;
 }
@@ -38,5 +54,19 @@ export class GuardianService {
       isPrimary: body.isPrimary ?? false,
       isEmergencyContact: body.isEmergencyContact ?? false
     });
+  }
+
+  updateGuardian(guardianId: number, body: UpdateGuardianPayload): Observable<void> {
+    if (runtimeConfig.useMocks) {
+      return throwError(() => new Error('Guardian API disabled in mock mode'));
+    }
+    return this.api.put<void>(`/guardians/${guardianId}`, body);
+  }
+
+  updateStudentMapping(studentId: number, mappingId: number, body: UpdateMappingPayload): Observable<void> {
+    if (runtimeConfig.useMocks) {
+      return throwError(() => new Error('Guardian API disabled in mock mode'));
+    }
+    return this.api.put<void>(`/students/${studentId}/guardian-mappings/${mappingId}`, body);
   }
 }

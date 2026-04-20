@@ -2,7 +2,7 @@ package com.school.erp.modules.platform.job;
 
 import com.school.erp.common.logging.MdcKeys;
 import com.school.erp.modules.settings.repository.TenantConfigRepository;
-import com.school.erp.tenant.TenantContext;
+import com.school.erp.tenant.TenantScopedExecution;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
@@ -92,9 +92,14 @@ public class SoftDeletedDataPurgeJob {
                 continue;
             }
             try {
-                TenantContext.setTenantId(tenantId);
-                MDC.put(MdcKeys.TENANT_ID, tenantId);
-                SoftDeletedPurgeTenantRunner.TenantPurgeResult r = perTenantRunner.purgeSoftDeletedForTenant(tenantId, cutoff);
+                SoftDeletedPurgeTenantRunner.TenantPurgeResult r = TenantScopedExecution.execute(
+                        tenantId,
+                        null,
+                        "SYSTEM",
+                        () -> {
+                            MDC.put(MdcKeys.TENANT_ID, tenantId);
+                            return perTenantRunner.purgeSoftDeletedForTenant(tenantId, cutoff);
+                        });
                 totalAudit += r.auditDeleted();
                 totalNotif += r.notificationsDeleted();
                 if (r.auditDeleted() > 0 || r.notificationsDeleted() > 0) {
@@ -104,7 +109,6 @@ public class SoftDeletedDataPurgeJob {
             } catch (Exception ex) {
                 log.error("lifecycle_purge failed tenant={} — other tenants unaffected", tenantId, ex);
             } finally {
-                TenantContext.clear();
                 MdcKeys.clearTenantUser();
             }
         }

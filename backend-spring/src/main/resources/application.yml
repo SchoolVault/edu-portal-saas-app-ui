@@ -254,6 +254,15 @@ app:
       tenant-ids: ${APP_COMM_RETENTION_TENANT_IDS:}
       allow-all-tenants: ${APP_COMM_RETENTION_ALLOW_ALL_TENANTS:false}
 
+  audit:
+    retention:
+      # Evict audit rows older than N months. Default keeps two months.
+      enabled: ${APP_AUDIT_RETENTION_ENABLED:true}
+      dry-run: ${APP_AUDIT_RETENTION_DRY_RUN:false}
+      months: ${APP_AUDIT_RETENTION_MONTHS:2}
+      # Every two months on day 1 at 02:05.
+      cron: ${APP_AUDIT_RETENTION_CRON:0 5 2 1 */2 *}
+
   internal-jobs:
     # Set APP_INTERNAL_JOB_KEY for POST /api/v1/internal/jobs/reminders/run (Render Cron). Empty = endpoint hidden (404).
     key: ${APP_INTERNAL_JOB_KEY:}

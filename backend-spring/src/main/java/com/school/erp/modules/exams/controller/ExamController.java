@@ -5,6 +5,7 @@ import com.school.erp.common.dto.PageResponse;
 import com.school.erp.modules.exams.dto.ExamDTOs;
 import com.school.erp.modules.exams.dto.ExamScopeDtos;
 import com.school.erp.modules.exams.service.ExamService;
+import com.school.erp.security.RequireTenantFeature;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -17,6 +18,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/v1/exams")
 @Tag(name = "Exams", description = "Exam Management, Marks Entry, Report Cards")
+@RequireTenantFeature("exams")
 public class ExamController {
     private final ExamService service;
 
@@ -39,10 +41,124 @@ public class ExamController {
     }
 
     @PostMapping
-    @PreAuthorize("hasRole(\'ADMIN\')")
+    @PreAuthorize("hasAnyRole('ADMIN','TEACHER','SUPER_ADMIN')")
     @Operation(summary = "Create exam")
     public ResponseEntity<ApiResponse<ExamDTOs.ExamResponse>> create(@Valid @RequestBody ExamDTOs.CreateExamRequest req) {
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.created(service.createExam(req)));
+    }
+
+    @GetMapping("/templates")
+    @PreAuthorize("hasAnyRole('ADMIN','TEACHER','SUPER_ADMIN')")
+    @Operation(summary = "List exam templates")
+    public ResponseEntity<ApiResponse<List<ExamDTOs.TemplateResponse>>> listTemplates() {
+        return ResponseEntity.ok(ApiResponse.ok(service.listTemplates()));
+    }
+
+    @PostMapping("/templates")
+    @PreAuthorize("hasAnyRole('ADMIN','SUPER_ADMIN')")
+    @Operation(summary = "Create/update exam template")
+    public ResponseEntity<ApiResponse<ExamDTOs.TemplateResponse>> upsertTemplate(@RequestBody ExamDTOs.UpsertTemplateRequest req) {
+        return ResponseEntity.ok(ApiResponse.ok(service.upsertTemplate(req)));
+    }
+
+    @PutMapping("/{id}/submit-approval")
+    @PreAuthorize("hasAnyRole('ADMIN','TEACHER','SUPER_ADMIN')")
+    @Operation(summary = "Submit exam for approval")
+    public ResponseEntity<ApiResponse<ExamDTOs.ExamResponse>> submitApproval(
+            @PathVariable Long id,
+            @RequestBody(required = false) ExamDTOs.WorkflowActionRequest req) {
+        return ResponseEntity.ok(ApiResponse.ok(service.submitExamForApproval(id, req)));
+    }
+
+    @PutMapping("/{id}/approve")
+    @PreAuthorize("hasAnyRole('ADMIN','SUPER_ADMIN')")
+    @Operation(summary = "Approve exam")
+    public ResponseEntity<ApiResponse<ExamDTOs.ExamResponse>> approve(
+            @PathVariable Long id,
+            @RequestBody(required = false) ExamDTOs.WorkflowActionRequest req) {
+        return ResponseEntity.ok(ApiResponse.ok(service.approveExam(id, req)));
+    }
+
+    @PutMapping("/{id}/reject")
+    @PreAuthorize("hasAnyRole('ADMIN','SUPER_ADMIN')")
+    @Operation(summary = "Reject exam")
+    public ResponseEntity<ApiResponse<ExamDTOs.ExamResponse>> reject(
+            @PathVariable Long id,
+            @RequestBody(required = false) ExamDTOs.WorkflowActionRequest req) {
+        return ResponseEntity.ok(ApiResponse.ok(service.rejectExam(id, req)));
+    }
+
+    @PutMapping("/{id}/publish")
+    @PreAuthorize("hasAnyRole('ADMIN','SUPER_ADMIN')")
+    @Operation(summary = "Publish / unpublish exam workflow")
+    public ResponseEntity<ApiResponse<ExamDTOs.ExamResponse>> publish(
+            @PathVariable Long id,
+            @RequestParam boolean published,
+            @RequestBody(required = false) ExamDTOs.WorkflowActionRequest req) {
+        return ResponseEntity.ok(ApiResponse.ok(service.setExamPublished(id, published, req)));
+    }
+
+    @GetMapping("/{id}/publications")
+    @PreAuthorize("hasAnyRole('ADMIN','TEACHER','SUPER_ADMIN')")
+    @Operation(summary = "List exam publication snapshots")
+    public ResponseEntity<ApiResponse<List<ExamDTOs.PublicationSnapshotResponse>>> listSnapshots(@PathVariable Long id) {
+        return ResponseEntity.ok(ApiResponse.ok(service.listPublicationSnapshots(id)));
+    }
+
+    @PutMapping("/{id}/rollback")
+    @PreAuthorize("hasAnyRole('ADMIN','SUPER_ADMIN')")
+    @Operation(summary = "Rollback exam config to snapshot version")
+    public ResponseEntity<ApiResponse<ExamDTOs.ExamResponse>> rollback(
+            @PathVariable Long id,
+            @Valid @RequestBody ExamDTOs.RollbackToVersionRequest req) {
+        return ResponseEntity.ok(ApiResponse.ok(service.rollbackToSnapshot(id, req)));
+    }
+
+    @GetMapping("/{id}/events")
+    @PreAuthorize("hasAnyRole('ADMIN','TEACHER','SUPER_ADMIN')")
+    @Operation(summary = "List exam event logs (paged)")
+    public ResponseEntity<ApiResponse<PageResponse<ExamDTOs.ExamEventLogResponse>>> listEvents(
+            @PathVariable Long id,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return ResponseEntity.ok(ApiResponse.ok(service.listExamEvents(id, page, size)));
+    }
+
+    @GetMapping("/{id}/notification-jobs")
+    @PreAuthorize("hasAnyRole('ADMIN','SUPER_ADMIN')")
+    @Operation(summary = "List exam notification jobs (paged)")
+    public ResponseEntity<ApiResponse<PageResponse<ExamDTOs.NotificationJobResponse>>> listNotificationJobs(
+            @PathVariable Long id,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return ResponseEntity.ok(ApiResponse.ok(service.listExamNotificationJobs(id, page, size)));
+    }
+
+    @GetMapping("/{id}/bulk-operations")
+    @PreAuthorize("hasAnyRole('ADMIN','SUPER_ADMIN')")
+    @Operation(summary = "List exam bulk operation logs (paged)")
+    public ResponseEntity<ApiResponse<PageResponse<ExamDTOs.BulkOperationLogResponse>>> listBulkOperations(
+            @PathVariable Long id,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return ResponseEntity.ok(ApiResponse.ok(service.listExamBulkOps(id, page, size)));
+    }
+
+    @PostMapping("/notification-jobs/process")
+    @PreAuthorize("hasAnyRole('ADMIN','SUPER_ADMIN')")
+    @Operation(summary = "Manually process pending exam notification jobs")
+    public ResponseEntity<ApiResponse<Integer>> processNotificationJobs(
+            @RequestParam(defaultValue = "25") int batchSize) {
+        return ResponseEntity.ok(ApiResponse.ok(service.processPendingNotificationJobs(batchSize)));
+    }
+
+    @PutMapping("/{id}/freeze")
+    @PreAuthorize("hasAnyRole('ADMIN','SUPER_ADMIN')")
+    @Operation(summary = "Freeze exam edits")
+    public ResponseEntity<ApiResponse<ExamDTOs.ExamResponse>> freeze(
+            @PathVariable Long id,
+            @RequestBody(required = false) ExamDTOs.WorkflowActionRequest req) {
+        return ResponseEntity.ok(ApiResponse.ok(service.freezeExam(id, req)));
     }
 
     @PutMapping("/{id}/status")

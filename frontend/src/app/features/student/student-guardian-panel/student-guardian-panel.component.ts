@@ -79,21 +79,23 @@ import { StudentGuardianMapping } from '../../../core/models/models';
   styles: [
     `
       .sgp__title {
-        font-size: 15px;
-        font-weight: 700;
+        font-size: 16px;
+        font-weight: 800;
         margin-bottom: 12px;
-        color: var(--clr-text);
+        color: color-mix(in srgb, var(--clr-text) 88%, var(--clr-primary) 12%);
+        letter-spacing: -0.01em;
       }
       .sgp__fallback {
         line-height: 1.5;
         font-size: 14px;
       }
       .sgp__card {
-        background: var(--clr-bg);
-        border: 1px solid var(--clr-border);
-        border-radius: var(--radius-lg);
+        background: color-mix(in srgb, var(--clr-surface) 95%, var(--clr-primary) 5%);
+        border: 1px solid color-mix(in srgb, var(--clr-border) 76%, var(--clr-primary) 24%);
+        border-radius: 12px;
         padding: 16px 18px;
         margin-bottom: 12px;
+        box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--clr-border) 25%, transparent);
       }
       .sgp__card:last-child {
         margin-bottom: 0;

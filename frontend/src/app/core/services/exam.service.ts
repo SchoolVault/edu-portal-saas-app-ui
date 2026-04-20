@@ -3,7 +3,17 @@ import { Observable, of, throwError } from 'rxjs';
 import { delay, map, mergeMap } from 'rxjs/operators';
 import { MOCK_EXAM_MARKS_SEED, MOCK_EXAMS_SEED, MOCK_EXAM_SCHEDULE_SEED } from '../mocks/exam.mock-data';
 import { mockParentPortalExams } from '../mocks/parent.mock-data';
-import { Exam, ExamClassScope, ExamScheduleSlot, MarkRecord, MarksEntryScopeRow } from '../models/models';
+import {
+  Exam,
+  ExamBulkOperationLog,
+  ExamClassScope,
+  ExamEventLog,
+  ExamNotificationJob,
+  ExamScheduleSlot,
+  ExamTemplate,
+  MarkRecord,
+  MarksEntryScopeRow
+} from '../models/models';
 import { ApiService, PageResp } from './api.service';
 import { runtimeConfig } from '../config/runtime-config';
 import { DEFAULT_ERP_PAGE_SIZE } from '../constants/pagination.constants';
@@ -154,6 +164,8 @@ export class ExamService {
             classId: s.classId,
             sectionId: s.sectionId ?? null,
             subjectName: (s.subjectName || '').trim(),
+            paperType: s.paperType?.trim() || null,
+            invigilatorName: s.invigilatorName?.trim() || null,
             examDate: (s.examDate || '').trim(),
             startTime: this.toApiTime(s.startTime, 'Start'),
             endTime: this.toApiTime(s.endTime, 'End'),
@@ -185,6 +197,9 @@ export class ExamService {
     if (!runtimeConfig.useMocks) {
       const payload: Record<string, unknown> = {
         name: exam.name,
+        examType: exam.examType?.trim() || null,
+        markingScheme: exam.markingScheme?.trim() || null,
+        gradingConfig: exam.gradingConfig ?? null,
         academicYearId: exam.academicYearId ?? null,
         startDate: exam.startDate || null,
         endDate: exam.endDate || null,
@@ -211,10 +226,12 @@ export class ExamService {
   }
 
   saveMarks(examId: number, marks: MarkRecord[]): Observable<MarkRecord[]> {
+    const requestId = `marks-${examId}-${Date.now()}`;
     if (!runtimeConfig.useMocks) {
       return this.api
         .post<any[]>('/exams/marks', {
           examId,
+          requestId,
           marks: marks.map(mark => ({
             studentId: mark.studentId,
             studentName: mark.studentName,
@@ -228,6 +245,81 @@ export class ExamService {
     }
     this.marks = [...this.marks, ...marks];
     return of(marks).pipe(delay(300));
+  }
+
+  getTemplates(): Observable<ExamTemplate[]> {
+    if (!runtimeConfig.useMocks) {
+      return this.api.get<ExamTemplate[]>('/exams/templates');
+    }
+    return of([
+      {
+        id: 1,
+        name: 'CBSE Comprehensive',
+        boardType: 'CBSE',
+        defaultMarkingScheme: 'hybrid',
+        rules: { formula: '(theory*0.7)+(practical*0.3)' },
+        components: [
+          { componentCode: 'THEORY', componentLabel: 'Theory', maxMarks: 70, weightagePct: 70 },
+          { componentCode: 'PRACTICAL', componentLabel: 'Practical', maxMarks: 30, weightagePct: 30 }
+        ]
+      }
+    ]).pipe(delay(120));
+  }
+
+  getEventLogsPage(examId: number, page = 0, size = DEFAULT_ERP_PAGE_SIZE): Observable<PageResp<ExamEventLog>> {
+    if (!runtimeConfig.useMocks) {
+      return this.api.getPageParams<ExamEventLog>(`/exams/${examId}/events`, { page, size });
+    }
+    return of(sliceToPage([], page, size)).pipe(delay(80));
+  }
+
+  getNotificationJobsPage(examId: number, page = 0, size = DEFAULT_ERP_PAGE_SIZE): Observable<PageResp<ExamNotificationJob>> {
+    if (!runtimeConfig.useMocks) {
+      return this.api.getPageParams<ExamNotificationJob>(`/exams/${examId}/notification-jobs`, { page, size });
+    }
+    return of(sliceToPage([], page, size)).pipe(delay(80));
+  }
+
+  getBulkOperationLogsPage(examId: number, page = 0, size = DEFAULT_ERP_PAGE_SIZE): Observable<PageResp<ExamBulkOperationLog>> {
+    if (!runtimeConfig.useMocks) {
+      return this.api.getPageParams<ExamBulkOperationLog>(`/exams/${examId}/bulk-operations`, { page, size });
+    }
+    return of(sliceToPage([], page, size)).pipe(delay(80));
+  }
+
+  processNotificationJobs(batchSize = 25): Observable<number> {
+    if (!runtimeConfig.useMocks) {
+      return this.api.post<number>(`/exams/notification-jobs/process?batchSize=${batchSize}`, {});
+    }
+    return of(0).pipe(delay(60));
+  }
+
+  submitForApproval(examId: number, note?: string): Observable<Exam> {
+    if (!runtimeConfig.useMocks) {
+      return this.api.put<any>(`/exams/${examId}/submit-approval`, { note: note?.trim() || null }).pipe(map(ex => this.normalizeExam(ex)));
+    }
+    return this.transitionMockWorkflow(examId, 'PENDING_APPROVAL', note);
+  }
+
+  approveExam(examId: number, publishNow = false, note?: string): Observable<Exam> {
+    if (!runtimeConfig.useMocks) {
+      return this.api.put<any>(`/exams/${examId}/approve`, { publishNow, note: note?.trim() || null }).pipe(map(ex => this.normalizeExam(ex)));
+    }
+    return this.transitionMockWorkflow(examId, publishNow ? 'PUBLISHED' : 'APPROVED', note);
+  }
+
+  rejectExam(examId: number, note?: string): Observable<Exam> {
+    if (!runtimeConfig.useMocks) {
+      return this.api.put<any>(`/exams/${examId}/reject`, { note: note?.trim() || null }).pipe(map(ex => this.normalizeExam(ex)));
+    }
+    return this.transitionMockWorkflow(examId, 'REJECTED', note);
+  }
+
+  freezeExam(examId: number, note?: string): Observable<Exam> {
+    if (!runtimeConfig.useMocks) {
+      return this.api.put<any>(`/exams/${examId}/freeze`, { note: note?.trim() || null }).pipe(map(ex => this.normalizeExam(ex)));
+    }
+    return this.transitionMockWorkflow(examId, 'FROZEN', note);
   }
 
   private copyExam(e: Exam): Exam {
@@ -246,6 +338,9 @@ export class ExamService {
     return {
       ...exam,
       id: eid,
+      examType: exam.examType ?? exam.exam_type ?? undefined,
+      markingScheme: exam.markingScheme ?? exam.marking_scheme ?? undefined,
+      gradingConfig: exam.gradingConfig ?? exam.grading_config ?? undefined,
       academicYearId: exam.academicYearId != null ? Number(exam.academicYearId) : 0,
       classIds: (exam.classIds ?? exam.class_ids ?? []).map((id: any) => Number(id)),
       classScopes: classScopes.length
@@ -264,6 +359,8 @@ export class ExamService {
       scheduleSlots: scheduleSlots.length ? scheduleSlots.map((s: any) => this.normalizeSlot(s, eid)) : undefined,
       status: (exam.status ?? 'upcoming') as Exam['status'],
       resultsPublished: !!exam.resultsPublished,
+      workflowState: exam.workflowState ?? exam.workflow_state ?? undefined,
+      workflowNote: exam.workflowNote ?? exam.workflow_note ?? undefined,
       tenantId: exam.tenantId ?? ''
     };
   }
@@ -286,6 +383,8 @@ export class ExamService {
       className: s.className ?? s.class_name,
       sectionName: s.sectionName ?? s.section_name,
       subjectName: s.subjectName ?? s.subject_name ?? '',
+      paperType: s.paperType ?? s.paper_type ?? undefined,
+      invigilatorName: s.invigilatorName ?? s.invigilator_name ?? undefined,
       examDate: String(s.examDate ?? s.exam_date ?? ''),
       startTime: this.fmtLocalTime(s.startTime ?? s.start_time),
       endTime: this.fmtLocalTime(s.endTime ?? s.end_time),
@@ -311,5 +410,18 @@ export class ExamService {
       classId: mark.classId != null ? Number(mark.classId) : 0,
       tenantId: mark.tenantId ?? ''
     };
+  }
+
+  private transitionMockWorkflow(examId: number, state: string, note?: string): Observable<Exam> {
+    const ex = this.exams.find(e => e.id === examId);
+    if (!ex) {
+      return throwError(() => new Error('Exam not found'));
+    }
+    ex.workflowState = state;
+    ex.workflowNote = note?.trim() || undefined;
+    if (state === 'PUBLISHED') {
+      ex.resultsPublished = true;
+    }
+    return of(this.copyExam(ex)).pipe(delay(200));
   }
 }

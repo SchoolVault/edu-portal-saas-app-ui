@@ -461,11 +461,16 @@ export class AuthService {
     }
     return this.api.get<any>('/auth/profile-summary').pipe(
       tap(summary => {
+        const normalizedRole = this.normalizeApiRole(summary.role);
         const normalized: ProfileSummary = {
           ...summary,
           id: Number(summary.id),
-          role: summary.role,
-          platformWorkspaceCount: summary.platformWorkspaceCount ?? undefined,
+          role: normalizedRole,
+          platformWorkspaceCount:
+            summary.platformWorkspaceCount != null ? Number(summary.platformWorkspaceCount) : undefined,
+          childCount: summary.childCount != null ? Number(summary.childCount) : undefined,
+          managedStudentCount: summary.managedStudentCount != null ? Number(summary.managedStudentCount) : undefined,
+          managedTeacherCount: summary.managedTeacherCount != null ? Number(summary.managedTeacherCount) : undefined,
           primaryTeachingSubject:
             summary.primaryTeachingSubject != null && String(summary.primaryTeachingSubject).trim() !== ''
               ? String(summary.primaryTeachingSubject).trim()
@@ -491,6 +496,22 @@ export class AuthService {
         }
       })
     );
+  }
+
+  private normalizeApiRole(rawRole: unknown): User['role'] {
+    const raw = String(rawRole ?? '').trim().toLowerCase();
+    const withoutSpringPrefix = raw.startsWith('role_') ? raw.slice(5) : raw;
+    switch (withoutSpringPrefix) {
+      case 'super_admin':
+      case 'admin':
+      case 'teacher':
+      case 'parent':
+      case 'student':
+      case 'library_staff':
+        return withoutSpringPrefix;
+      default:
+        return (this.getCurrentUser()?.role ?? 'parent') as User['role'];
+    }
   }
 
   /**

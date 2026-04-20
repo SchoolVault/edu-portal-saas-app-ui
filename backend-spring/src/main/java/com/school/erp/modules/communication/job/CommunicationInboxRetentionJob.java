@@ -3,7 +3,7 @@ package com.school.erp.modules.communication.job;
 import com.school.erp.common.logging.MdcKeys;
 import com.school.erp.modules.communication.service.CommunicationRetentionService;
 import com.school.erp.modules.settings.repository.TenantConfigRepository;
-import com.school.erp.tenant.TenantContext;
+import com.school.erp.tenant.TenantScopedExecution;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
@@ -78,10 +78,14 @@ public class CommunicationInboxRetentionJob {
                 continue;
             }
             try {
-                TenantContext.setTenantId(tenantId);
-                MDC.put(MdcKeys.TENANT_ID, tenantId);
-                CommunicationRetentionService.RetentionSweepResult r =
-                        retentionService.softDeleteOlderThanForTenant(tenantId, cutoff);
+                CommunicationRetentionService.RetentionSweepResult r = TenantScopedExecution.execute(
+                        tenantId,
+                        null,
+                        "SYSTEM",
+                        () -> {
+                            MDC.put(MdcKeys.TENANT_ID, tenantId);
+                            return retentionService.softDeleteOlderThanForTenant(tenantId, cutoff);
+                        });
                 totalA += r.announcementsSoftDeleted();
                 totalN += r.notificationsSoftDeleted();
                 if (r.announcementsSoftDeleted() > 0 || r.notificationsSoftDeleted() > 0) {
@@ -91,7 +95,6 @@ public class CommunicationInboxRetentionJob {
             } catch (Exception ex) {
                 log.error("communication_retention failed tenant={}", tenantId, ex);
             } finally {
-                TenantContext.clear();
                 MdcKeys.clearTenantUser();
             }
         }

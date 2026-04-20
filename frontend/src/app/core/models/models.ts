@@ -202,6 +202,11 @@ export interface Teacher {
   /** Class display names where this teacher is homeroom/class teacher (from {@code school_classes.class_teacher_id}). */
   homeroomClassNames?: string[];
   salary: number;
+  /** Admin-visible payroll metadata. Hidden for colleague peer view. */
+  bankAccountHolder?: string;
+  bankName?: string;
+  bankAccountNumber?: string;
+  bankIfsc?: string;
   status: 'active' | 'inactive';
   avatar?: string;
   /** Links to User.id when staff logs in with a teacher account. */
@@ -379,6 +384,8 @@ export interface ExamScheduleSlot {
   className?: string;
   sectionName?: string;
   subjectName: string;
+  paperType?: string;
+  invigilatorName?: string;
   examDate: string;
   startTime: string;
   endTime: string;
@@ -389,9 +396,15 @@ export interface ExamScheduleSlot {
 export interface Exam {
   id: number;
   name: string;
+  /** School-defined type slug/name (unit_test, practical, viva, etc). */
+  examType?: string;
   academicYearId: number;
   startDate: string;
   endDate: string;
+  /** marks | grades | hybrid | weightage | rubric */
+  markingScheme?: string;
+  /** Future-safe rules blob mirrored by backend gradingConfigJson. */
+  gradingConfig?: Record<string, unknown>;
   classIds: number[];
   /** When set, preferred over classIds for scoped exams (API + UI). */
   classScopes?: ExamClassScope[];
@@ -399,7 +412,64 @@ export interface Exam {
   status: 'upcoming' | 'ongoing' | 'completed' | 'cancelled';
   /** When false, parents do not see marks until school publishes. */
   resultsPublished?: boolean;
+  /** DRAFT | PENDING_APPROVAL | APPROVED | PUBLISHED | FROZEN | REJECTED */
+  workflowState?: string;
+  workflowNote?: string;
   tenantId: string;
+}
+
+export interface ExamTemplateComponent {
+  id?: number;
+  componentCode: string;
+  componentLabel: string;
+  maxMarks: number;
+  weightagePct: number;
+  optional?: boolean;
+  rule?: Record<string, unknown>;
+}
+
+export interface ExamTemplate {
+  id?: number;
+  name: string;
+  boardType: string;
+  classBand?: string;
+  defaultMarkingScheme?: string;
+  rules?: Record<string, unknown>;
+  components: ExamTemplateComponent[];
+}
+
+export interface ExamEventLog {
+  id: number;
+  eventType: string;
+  actorUserId?: number;
+  actorRole?: string;
+  payloadJson?: string;
+  createdAt?: string;
+}
+
+export interface ExamNotificationJob {
+  id: number;
+  examId: number;
+  eventType: string;
+  targetRole: string;
+  localeCode: string;
+  status: string;
+  attempts: number;
+  maxAttempts: number;
+  nextRetryAt?: string;
+  lastError?: string;
+  payloadJson?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface ExamBulkOperationLog {
+  id: number;
+  operationType: string;
+  requestId: string;
+  examId?: number;
+  status: string;
+  createdAt?: string;
 }
 
 export interface PromotionStudentPreview {
@@ -829,7 +899,7 @@ export interface ClassSummaryRow {
   attendancePercentage: number;
   performancePercentage: number;
   feeCollectionPercentage: number;
-  classTeacherName: string;
+  overdueAccounts: number;
 }
 
 export interface SectionSummaryRow {
@@ -838,6 +908,7 @@ export interface SectionSummaryRow {
   classId: number;
   className: string;
   studentCount: number;
+  classTeacherName: string;
 }
 
 export interface TeacherWorkloadRow {
@@ -845,6 +916,9 @@ export interface TeacherWorkloadRow {
   teacherName: string;
   specialization: string;
   subjects: string[];
+  homeroomClasses: string;
+  assignedClasses: number;
+  weeklyPeriods: number;
   status: string;
 }
 
@@ -856,6 +930,89 @@ export interface ReportCard {
   totalMaxMarks: number;
   overallPercentage: number;
   overallGrade: string;
+}
+
+export interface ReportTemplateDefinition {
+  id?: number;
+  templateCode: string;
+  name: string;
+  reportType: string;
+  defaultFormat: 'PDF' | 'CSV' | string;
+  packCode?: string;
+  layoutConfig?: Record<string, unknown>;
+  filterSchema?: Record<string, unknown>;
+  boardSections?: Array<Record<string, unknown>>;
+  remarksConfig?: Record<string, unknown>;
+  promotionConfig?: Record<string, unknown>;
+}
+
+export interface ReportGenerationJob {
+  id: number;
+  requestId: string;
+  reportType: string;
+  format: string;
+  status: string;
+  fileName?: string;
+  contentType?: string;
+  contentSizeBytes?: number;
+  generatedAt?: string;
+  createdAt?: string;
+  scheduleAt?: string;
+  nextRetryAt?: string;
+  attempts?: number;
+  maxAttempts?: number;
+  workflowState?: string;
+  workflowNote?: string;
+  approvedAt?: string;
+  publishedAt?: string;
+  updatedAt?: string;
+}
+
+export interface ReportPublicationSnapshot {
+  id: number;
+  versionNo: number;
+  snapshotType: string;
+  note?: string;
+  publishedAt?: string;
+}
+
+export interface ReportAnalyticsPack {
+  packCode: string;
+  trendBands: Array<Record<string, unknown>>;
+  laggingStudents: Array<Record<string, unknown>>;
+  promotionEligibility: Array<Record<string, unknown>>;
+  guardrails?: Record<string, unknown>;
+}
+
+export interface ReportAnalyticsPackConfig {
+  id?: number;
+  packCode: string;
+  config: Record<string, unknown>;
+  formulas: Record<string, unknown>;
+}
+
+export interface ReportWorkflowEventLog {
+  id: number;
+  eventCode: string;
+  fromState?: string;
+  toState?: string;
+  actorUserId?: number;
+  actorRole?: string;
+  note?: string;
+  occurredAt?: string;
+}
+
+export interface ReportShareDispatch {
+  id: number;
+  channel: string;
+  targetRole: string;
+  localeCode: string;
+  status: string;
+  attempts?: number;
+  deliveredCount?: number;
+  nextRetryAt?: string;
+  lastError?: string;
+  createdAt?: string;
 }
 
 export interface MarkRecord {
@@ -1063,6 +1220,8 @@ export interface Announcement {
   author: string;
   authorRole: string;
   targetAudience: string;
+  targetClassId?: number;
+  targetSectionId?: number;
   createdAt: string;
   tenantId: string;
 }
@@ -1074,6 +1233,10 @@ export interface AnnouncementPreview {
   createdAt: string;
   /** Backend / mock: {@code ALL}, {@code PARENTS}, {@code TEACHERS}, … — drives shell audience split. */
   targetAudience?: string;
+  targetClassId?: number;
+  targetSectionId?: number;
+  targetClassName?: string;
+  targetSectionName?: string;
 }
 
 export interface AppNotification {
@@ -1098,6 +1261,12 @@ export interface InboxUnifiedItem {
   createdAt: string;
   /** Announcement audience enum name from API (e.g. ALL). */
   audienceKey?: string;
+  /** Announcement class scope id (for CLASS/SECTION tags). */
+  targetClassId?: number;
+  /** Announcement section scope id (for SECTION tags). */
+  targetSectionId?: number;
+  targetClassName?: string;
+  targetSectionName?: string;
   authorLine?: string;
   notificationType?: AppNotification['type'];
   read?: boolean;

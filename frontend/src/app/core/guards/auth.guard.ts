@@ -1,8 +1,11 @@
 import { inject } from '@angular/core';
 import { CanActivateFn, Router } from '@angular/router';
+import { of } from 'rxjs';
 import { map, take } from 'rxjs/operators';
+import { switchMap } from 'rxjs/operators';
 import { schoolStaffRole } from '../policy/access-policy';
 import { AuthService } from '../services/auth.service';
+import { SettingsService } from '../services/settings.service';
 
 export const authGuard: CanActivateFn = () => {
   const authService = inject(AuthService);
@@ -72,18 +75,22 @@ export const importExportGuard: CanActivateFn = () => {
 /** Leave & HR workflows — school staff only (not parents). */
 export const leaveStaffGuard: CanActivateFn = () => {
   const auth = inject(AuthService);
+  const settings = inject(SettingsService);
   const router = inject(Router);
   return auth.ensureValidSession().pipe(
     take(1),
-    map(ok => {
+    switchMap(ok => {
       if (!ok) {
-        return router.createUrlTree(['/login']);
+        return of(router.createUrlTree(['/login']));
       }
-      const r = (auth.getRole() || '').toLowerCase();
+      const r = auth.getNormalizedRole();
       if (r === 'admin' || r === 'teacher') {
-        return true;
+        return settings.getFeatures().pipe(
+          take(1),
+          map(flags => (flags?.leave === false ? router.createUrlTree(['/app/dashboard']) : true))
+        );
       }
-      return router.createUrlTree(['/app/dashboard']);
+      return of(router.createUrlTree(['/app/dashboard']));
     })
   );
 };

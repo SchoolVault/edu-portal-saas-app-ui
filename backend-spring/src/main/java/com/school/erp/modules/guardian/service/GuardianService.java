@@ -194,6 +194,61 @@ public class GuardianService {
         return r;
     }
 
+    @Transactional
+    public GuardianDTOs.MappingResponse updateMapping(Long studentId, Long mappingId, GuardianDTOs.UpdateMappingRequest req) {
+        String t = TenantContext.getTenantId();
+        log.info("Updating guardian mapping id={} for studentId={}", mappingId, studentId);
+        studentRepository.findByIdAndTenantIdAndIsDeletedFalse(studentId, t)
+                .orElseThrow(() -> new ResourceNotFoundException("Student", studentId));
+        StudentGuardianMapping mapping = mappingRepository
+                .findByIdAndTenantIdAndStudentIdAndIsDeletedFalse(mappingId, t, studentId)
+                .orElseThrow(() -> new ResourceNotFoundException("StudentGuardianMapping", mappingId));
+
+        if (req.getRelationType() != null) {
+            mapping.setRelationType(req.getRelationType());
+        }
+        if (req.getIsPrimary() != null) {
+            mapping.setIsPrimary(req.getIsPrimary());
+        }
+        if (req.getIsEmergencyContact() != null) {
+            mapping.setIsEmergencyContact(req.getIsEmergencyContact());
+        }
+        if (req.getCustodyType() != null) {
+            mapping.setCustodyType(req.getCustodyType());
+        }
+        if (req.getEffectiveFrom() != null) {
+            mapping.setEffectiveFrom(req.getEffectiveFrom());
+        }
+        if (req.getEffectiveTo() != null) {
+            mapping.setEffectiveTo(req.getEffectiveTo());
+        }
+
+        StudentGuardianMapping saved = mappingRepository.save(mapping);
+        if (Boolean.TRUE.equals(saved.getIsPrimary())) {
+            List<StudentGuardianMapping> all = mappingRepository.findByTenantIdAndStudentIdAndIsDeletedFalse(t, studentId);
+            for (StudentGuardianMapping row : all) {
+                if (!row.getId().equals(saved.getId()) && Boolean.TRUE.equals(row.getIsPrimary())) {
+                    row.setIsPrimary(false);
+                    mappingRepository.save(row);
+                }
+            }
+            studentRepository.findByIdAndTenantIdAndIsDeletedFalse(studentId, t).ifPresent(st -> {
+                st.setPrimaryContactGuardianId(saved.getGuardianId());
+                studentRepository.save(st);
+            });
+        }
+
+        GuardianDTOs.MappingResponse r = toMappingResponse(saved);
+        guardianRepository.findByIdAndTenantIdAndIsDeletedFalse(saved.getGuardianId(), t).ifPresent(g -> {
+            r.setGuardianName(g.getFullName());
+            r.setPrimaryPhone(g.getPrimaryPhone());
+            r.setOccupation(g.getOccupation());
+            enrichMappingFromGuardianRow(r, g);
+        });
+        log.info("Updated guardian mapping id={} for studentId={}", mappingId, studentId);
+        return r;
+    }
+
     private void applyCreate(Guardian g, GuardianDTOs.CreateGuardianRequest req) {
         g.setFullName(req.getFullName());
         g.setOccupation(req.getOccupation());

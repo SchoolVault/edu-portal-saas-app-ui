@@ -1,6 +1,7 @@
 package com.school.erp.modules.student.repository;
 
 import com.school.erp.modules.student.entity.Student;
+import com.school.erp.common.enums.Enums;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -23,6 +24,12 @@ public interface StudentRepository extends JpaRepository<Student, Long> {
     List<Student> findByTenantIdAndClassIdAndIsDeletedFalse(String tenantId, Long classId);
 
     List<Student> findByTenantIdAndClassIdAndSectionIdAndIsDeletedFalse(String tenantId, Long classId, Long sectionId);
+    long countByTenantIdAndClassIdAndSectionIdAndIsDeletedFalseAndStatus(
+            String tenantId,
+            Long classId,
+            Long sectionId,
+            Enums.StudentStatus status);
+    long countByTenantIdAndClassIdAndIsDeletedFalseAndStatus(String tenantId, Long classId, Enums.StudentStatus status);
 
     List<Student> findByTenantIdAndParentIdAndIsDeletedFalse(String tenantId, Long parentId);
     long countByTenantIdAndParentIdAndIsDeletedFalse(String tenantId, Long parentId);
@@ -61,4 +68,13 @@ public interface StudentRepository extends JpaRepository<Student, Long> {
     long countByIsDeletedFalse();
 
     boolean existsByTenantIdAndAdmissionNumber(String tenantId, String admissionNumber);
+
+    @Query("SELECT s.sectionId, COUNT(s.id) FROM Student s " +
+           "WHERE s.tenantId = :tenantId AND s.classId = :classId " +
+           "AND s.sectionId IN :sectionIds AND s.isDeleted = false AND s.status = :status " +
+           "GROUP BY s.sectionId")
+    List<Object[]> countActiveBySectionIds(@Param("tenantId") String tenantId,
+                                           @Param("classId") Long classId,
+                                           @Param("sectionIds") List<Long> sectionIds,
+                                           @Param("status") Enums.StudentStatus status);
 }

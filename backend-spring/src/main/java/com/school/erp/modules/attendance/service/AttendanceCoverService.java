@@ -10,6 +10,8 @@ import com.school.erp.modules.attendance.policy.AttendanceCoverSlotOverlapPolicy
 import com.school.erp.modules.attendance.repository.AttendanceCoverAssignmentRepository;
 import com.school.erp.modules.teacher.entity.Teacher;
 import com.school.erp.modules.teacher.repository.TeacherRepository;
+import com.school.erp.common.enums.Enums;
+import com.school.erp.platform.port.AuditTrailPort;
 import com.school.erp.tenant.TenantContext;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -25,10 +27,14 @@ public class AttendanceCoverService {
 
     private final AttendanceCoverAssignmentRepository coverRepo;
     private final TeacherRepository teacherRepository;
+    private final AuditTrailPort auditTrailPort;
 
-    public AttendanceCoverService(AttendanceCoverAssignmentRepository coverRepo, TeacherRepository teacherRepository) {
+    public AttendanceCoverService(AttendanceCoverAssignmentRepository coverRepo,
+                                  TeacherRepository teacherRepository,
+                                  AuditTrailPort auditTrailPort) {
         this.coverRepo = coverRepo;
         this.teacherRepository = teacherRepository;
+        this.auditTrailPort = auditTrailPort;
     }
 
     @Transactional(readOnly = true)
@@ -96,6 +102,17 @@ public class AttendanceCoverService {
             }
             block.setStatus("CANCELLED");
             coverRepo.save(block);
+            auditTrailPort.logAction(
+                    Enums.AuditAction.UPDATE,
+                    "Attendance",
+                    resolveActorLabel() + " replaced existing cover assignment " + block.getId()
+                            + " for class " + block.getClassId()
+                            + (block.getSectionId() != null ? ", section " + block.getSectionId() : "")
+                            + " on " + req.getCoverDate() + ".",
+                    block.getId(),
+                    "AttendanceCoverAssignment",
+                    "status=ACTIVE",
+                    "status=CANCELLED");
         }
 
         AttendanceCoverAssignment e = new AttendanceCoverAssignment();
@@ -111,6 +128,23 @@ public class AttendanceCoverService {
         e.setStatus("ACTIVE");
         e.setCreatedBy(TenantContext.getUserId() != null ? TenantContext.getUserId().toString() : null);
         coverRepo.save(e);
+        String regularTeacher = teacherNameOrFallback(t, req.getRegularTeacherId());
+        String coveringTeacher = teacherNameOrFallback(t, req.getCoveringTeacherId());
+        String desc = resolveActorLabel()
+                + " assigned " + coveringTeacher
+                + " as attendance cover for " + regularTeacher
+                + " (class " + req.getClassId()
+                + (req.getSectionId() != null ? ", section " + req.getSectionId() : "")
+                + (req.getPeriodNumber() != null ? ", period " + req.getPeriodNumber() : ", all periods")
+                + ", date " + req.getCoverDate() + ").";
+        auditTrailPort.logAction(
+                Enums.AuditAction.CREATE,
+                "Attendance",
+                desc,
+                e.getId(),
+                "AttendanceCoverAssignment",
+                null,
+                "status=ACTIVE");
         return toResponse(e);
     }
 
@@ -122,6 +156,19 @@ public class AttendanceCoverService {
                 .orElseThrow(() -> new ResourceNotFoundException("Attendance cover", id));
         e.setStatus("CANCELLED");
         coverRepo.save(e);
+        String desc = resolveActorLabel()
+                + " cancelled attendance cover assignment " + e.getId()
+                + " (class " + e.getClassId()
+                + (e.getSectionId() != null ? ", section " + e.getSectionId() : "")
+                + ", date " + e.getCoverDate() + ").";
+        auditTrailPort.logAction(
+                Enums.AuditAction.UPDATE,
+                "Attendance",
+                desc,
+                e.getId(),
+                "AttendanceCoverAssignment",
+                "status=ACTIVE",
+                "status=CANCELLED");
     }
 
     private AttendanceCoverDTOs.ConflictPayload buildConflictPayload(String tenantId, AttendanceCoverAssignment block, LocalDate coverDate) {
@@ -139,7 +186,33 @@ public class AttendanceCoverService {
     }
 
     private String teacherDisplayName(Teacher te) {
-        return (te.getFirstName() + " " + te.getLastName()).trim();
+        String first = te.getFirstName() != null ? te.getFirstName().trim() : "";
+        String last = te.getLastName() != null ? te.getLastName().trim() : "";
+        String full = (first + " " + last).trim();
+        return full.isBlank() ? ("Teacher#" + te.getId()) : full;
+    }
+
+    private String teacherNameOrFallback(String tenantId, Long teacherId) {
+        if (teacherId == null) {
+            return "teacher";
+        }
+        return teacherRepository.findByIdAndTenantIdAndIsDeletedFalse(teacherId, tenantId)
+                .map(this::teacherDisplayName)
+                .filter(name -> !name.isBlank())
+                .orElse("teacher#" + teacherId);
+    }
+
+    private String resolveActorLabel() {
+        String display = TenantContext.getUserDisplayName();
+        if (display != null && !display.isBlank()) {
+            return display.trim();
+        }
+        String principal = TenantContext.getUserPrincipal();
+        if (principal != null && !principal.isBlank()) {
+            return principal.trim();
+        }
+        Long userId = TenantContext.getUserId();
+        return userId != null ? ("User " + userId) : "System";
     }
 
     private AttendanceCoverDTOs.Response toResponse(AttendanceCoverAssignment e) {

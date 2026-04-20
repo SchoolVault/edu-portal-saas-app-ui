@@ -7,6 +7,7 @@ import com.school.erp.common.exception.ForbiddenException;
 import com.school.erp.modules.attendance.dto.AttendanceDTOs;
 import com.school.erp.modules.attendance.entity.AttendanceRecord;
 import com.school.erp.modules.attendance.port.AttendancePersistencePort;
+import com.school.erp.platform.port.AuditTrailPort;
 import com.school.erp.modules.student.service.TeacherRosterScopeService;
 import com.school.erp.tenant.TenantContext;
 import org.springframework.stereotype.Service;
@@ -17,13 +18,13 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
-import java.util.stream.Collectors;
 
 @Service
 public class AttendanceService {
     private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(AttendanceService.class);
     private final AttendancePersistencePort attendancePersistence;
     private final TeacherRosterScopeService teacherRosterScopeService;
+    private final AuditTrailPort auditTrailPort;
 
     private void assertTeacherAttendanceScope(Long classId, Long sectionId, LocalDate date) {
         if (!teacherRosterScopeService.teacherMayMarkAttendance(classId, sectionId, date)) {
@@ -84,6 +85,26 @@ public class AttendanceService {
             }
         }).collect(Collectors.toList());
         attendancePersistence.saveAll(records);
+        boolean teacherMarking = role != null && "TEACHER".equalsIgnoreCase(role);
+        boolean homeroom = !teacherMarking || teacherRosterScopeService.isCurrentTeacherHomeroomFor(
+                request.getClassId(), request.getSectionId());
+        String actor = resolveActorLabel();
+        String attendanceScope = "class " + request.getClassId()
+                + (request.getSectionId() != null ? ", section " + request.getSectionId() : "")
+                + ", date " + date;
+        String description = teacherMarking
+                ? (homeroom
+                ? actor + " marked attendance for " + attendanceScope + "."
+                : actor + " marked attendance for " + attendanceScope + " on behalf of the class teacher.")
+                : actor + " updated attendance for " + attendanceScope + ".";
+        auditTrailPort.logAction(
+                Enums.AuditAction.UPDATE,
+                "Attendance",
+                description,
+                request.getClassId(),
+                "AttendanceRecord",
+                null,
+                "students=" + records.size());
         log.info("Attendance marked for class={} section={} date={} students={}", request.getClassId(), request.getSectionId(), date, records.size());
         return records.stream().map(this::toResponse).collect(Collectors.toList());
     }
@@ -142,8 +163,24 @@ public class AttendanceService {
         return AttendanceDTOs.AttendanceResponse.builder().id(r.getId()).studentId(r.getStudentId()).studentName(r.getStudentName()).classId(r.getClassId()).sectionId(r.getSectionId()).date(r.getDate().toString()).status(r.getStatus().name().toLowerCase()).markedBy(r.getMarkedBy()).remarks(r.getRemarks()).build();
     }
 
-    public AttendanceService(final AttendancePersistencePort attendancePersistence, final TeacherRosterScopeService teacherRosterScopeService) {
+    private String resolveActorLabel() {
+        String display = TenantContext.getUserDisplayName();
+        if (display != null && !display.isBlank()) {
+            return display.trim();
+        }
+        String principal = TenantContext.getUserPrincipal();
+        if (principal != null && !principal.isBlank()) {
+            return principal.trim();
+        }
+        Long userId = TenantContext.getUserId();
+        return userId != null ? ("User " + userId) : "System";
+    }
+
+    public AttendanceService(final AttendancePersistencePort attendancePersistence,
+                             final TeacherRosterScopeService teacherRosterScopeService,
+                             final AuditTrailPort auditTrailPort) {
         this.attendancePersistence = attendancePersistence;
         this.teacherRosterScopeService = teacherRosterScopeService;
+        this.auditTrailPort = auditTrailPort;
     }
 }

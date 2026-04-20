@@ -127,6 +127,16 @@ public class StudentController {
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.created(guardianService.addMapping(id, request)));
     }
 
+    @PutMapping("/{id}/guardian-mappings/{mappingId}")
+    @PreAuthorize("hasAnyRole('ADMIN','SUPER_ADMIN')")
+    @Operation(summary = "Update guardian mapping metadata for a student")
+    public ResponseEntity<ApiResponse<GuardianDTOs.MappingResponse>> updateGuardianMapping(
+            @PathVariable Long id,
+            @PathVariable Long mappingId,
+            @RequestBody GuardianDTOs.UpdateMappingRequest request) {
+        return ResponseEntity.ok(ApiResponse.ok(guardianService.updateMapping(id, mappingId, request), "Guardian mapping updated"));
+    }
+
     public StudentController(final StudentService studentService, final GuardianService guardianService) {
         this.studentService = studentService;
         this.guardianService = guardianService;

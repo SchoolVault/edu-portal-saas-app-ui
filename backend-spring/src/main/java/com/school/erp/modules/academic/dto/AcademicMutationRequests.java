@@ -14,7 +14,6 @@ public final class AcademicMutationRequests {
     public static class UpdateSchoolClassRequest {
         @NotBlank
         private String name;
-        @NotNull
         private Integer grade;
 
         public String getName() {

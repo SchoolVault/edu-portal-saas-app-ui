@@ -53,6 +53,78 @@ import { ErpPaginationComponent } from '../../shared/erp-pagination/erp-paginati
       .fr-feature-row:last-of-type {
         border-bottom: none;
       }
+      .fr-effective-card {
+        border: 1px solid var(--clr-border-light, #e8eef0);
+        border-radius: 12px;
+        background: color-mix(in srgb, var(--clr-primary, #1b3a30) 4%, var(--clr-surface, #fff));
+        padding: 0.75rem;
+        margin-bottom: 0.9rem;
+      }
+      .fr-effective-title {
+        font-size: 0.9rem;
+        font-weight: 700;
+        margin-bottom: 0.25rem;
+        color: var(--clr-text-primary, #0f172a);
+      }
+      .fr-effective-lead {
+        font-size: 12px;
+        color: var(--clr-text-muted, #64748b);
+        margin-bottom: 0.55rem;
+      }
+      .fr-chip-group {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.4rem;
+      }
+      .fr-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        font-size: 11px;
+        font-weight: 700;
+        border-radius: 999px;
+        padding: 0.22rem 0.55rem;
+        border: 1px solid transparent;
+      }
+      .fr-chip--enabled {
+        background: color-mix(in srgb, var(--clr-success, #059669) 14%, var(--clr-surface, #fff));
+        color: color-mix(in srgb, var(--clr-success, #059669) 80%, #0f172a 20%);
+        border-color: color-mix(in srgb, var(--clr-success, #059669) 42%, transparent);
+      }
+      .fr-chip--disabled {
+        background: color-mix(in srgb, var(--clr-warning, #d97706) 14%, var(--clr-surface, #fff));
+        color: color-mix(in srgb, var(--clr-warning, #d97706) 78%, #0f172a 22%);
+        border-color: color-mix(in srgb, var(--clr-warning, #d97706) 44%, transparent);
+      }
+      .fr-chip-count {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 18px;
+        height: 18px;
+        border-radius: 999px;
+        font-size: 10px;
+        font-weight: 800;
+        background: color-mix(in srgb, var(--clr-surface, #fff) 86%, var(--clr-text-muted, #64748b) 14%);
+        color: var(--clr-text-muted, #64748b);
+      }
+      .fr-section-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.4rem;
+        margin: 0.55rem 0 0.35rem;
+      }
+      .fr-section-head:first-of-type {
+        margin-top: 0;
+      }
+      .fr-section-label {
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.02em;
+        text-transform: uppercase;
+        color: var(--clr-text-muted, #64748b);
+      }
       .fr-toggle {
         position: relative;
         width: 44px;
@@ -189,6 +261,35 @@ import { ErpPaginationComponent } from '../../shared/erp-pagination/erp-paginati
                     <span class="d-block mt-1"><i class="bi bi-hdd-network me-1"></i>{{ sch.tenantId }}</span>
                   </div>
                 </div>
+                <div class="fr-effective-card">
+                  <div class="fr-effective-title">{{ 'featureRollout.effectiveTitle' | translate }}</div>
+                  <div class="fr-effective-lead">{{ 'featureRollout.effectiveLead' | translate }}</div>
+
+                  <div class="fr-section-head">
+                    <span class="fr-section-label">{{ 'featureRollout.enabledModules' | translate }}</span>
+                    <span class="fr-chip-count">{{ enabledModuleKeys.length }}</span>
+                  </div>
+                  <div class="fr-chip-group">
+                    <span class="fr-chip fr-chip--enabled" *ngFor="let key of enabledModuleKeys">
+                      <i class="bi bi-check-circle-fill"></i>
+                      {{ ('superAdmin.features.modules.' + key + '.name') | translate }}
+                    </span>
+                  </div>
+
+                  <div class="fr-section-head mt-2">
+                    <span class="fr-section-label">{{ 'featureRollout.disabledModules' | translate }}</span>
+                    <span class="fr-chip-count">{{ disabledModuleKeys.length }}</span>
+                  </div>
+                  <div class="fr-chip-group">
+                    <span class="fr-chip fr-chip--disabled" *ngFor="let key of disabledModuleKeys">
+                      <i class="bi bi-pause-circle-fill"></i>
+                      {{ ('superAdmin.features.modules.' + key + '.name') | translate }}
+                    </span>
+                    <span *ngIf="!disabledModuleKeys.length" class="text-muted small">
+                      {{ 'featureRollout.noneDisabled' | translate }}
+                    </span>
+                  </div>
+                </div>
                 <div class="fr-feature-rows">
                   <div *ngFor="let key of pagedModuleKeys" class="fr-feature-row">
                     <div>
@@ -216,6 +317,7 @@ import { ErpPaginationComponent } from '../../shared/erp-pagination/erp-paginati
                   <button type="button" class="btn-primary-erp" (click)="saveSchoolFeatures()" [disabled]="schoolFeatureSaving">
                     {{ schoolFeatureSaving ? ('superAdmin.features.saving' | translate) : ('superAdmin.features.save' | translate) }}
                   </button>
+                  <span *ngIf="hasUnsavedFeatureChanges" class="badge-erp badge-warning">{{ 'featureRollout.unsavedChanges' | translate }}</span>
                   <span *ngIf="schoolFeatureMsg" class="text-success small">{{ schoolFeatureMsg }}</span>
                   <span *ngIf="schoolFeatureErr" class="text-danger small">{{ schoolFeatureErr }}</span>
                 </div>
@@ -241,6 +343,7 @@ export class PlatformFeatureRolloutComponent implements OnInit {
   readonly featuresPageSize = 6;
   featuresPageIndex = 0;
   schoolFeatureDraft: Record<string, boolean> = {};
+  loadedSchoolFeatures: Record<string, boolean> = {};
   schoolFeatureSaving = false;
   schoolFeatureMsg = '';
   schoolFeatureErr = '';
@@ -257,6 +360,23 @@ export class PlatformFeatureRolloutComponent implements OnInit {
   get pagedModuleKeys(): string[] {
     const start = this.featuresPageIndex * this.featuresPageSize;
     return this.platformModuleKeys.slice(start, start + this.featuresPageSize);
+  }
+
+  get enabledModuleKeys(): string[] {
+    return this.platformModuleKeys.filter(k => this.schoolFeatureDraft[k] !== false);
+  }
+
+  get disabledModuleKeys(): string[] {
+    return this.platformModuleKeys.filter(k => this.schoolFeatureDraft[k] === false);
+  }
+
+  get hasUnsavedFeatureChanges(): boolean {
+    for (const k of this.platformModuleKeys) {
+      if (!!this.schoolFeatureDraft[k] !== !!this.loadedSchoolFeatures[k]) {
+        return true;
+      }
+    }
+    return false;
   }
 
   onFeaturesPageIndexChange(idx: number): void {
@@ -367,11 +487,13 @@ export class PlatformFeatureRolloutComponent implements OnInit {
 
   setSchoolFeature(key: string, enabled: boolean): void {
     this.schoolFeatureDraft = { ...this.schoolFeatureDraft, [key]: enabled };
+    this.schoolFeatureMsg = '';
   }
 
   private loadSchoolFeatures(): void {
     if (!this.selectedSchool) {
       this.schoolFeatureDraft = {};
+      this.loadedSchoolFeatures = {};
       return;
     }
     this.platformService.getSchoolTenantFeatures(this.selectedSchool.tenantId).subscribe({
@@ -383,6 +505,7 @@ export class PlatformFeatureRolloutComponent implements OnInit {
           }
         }
         this.schoolFeatureDraft = next;
+        this.loadedSchoolFeatures = { ...next };
         this.cdr.markForCheck();
       },
       error: () => {
@@ -406,6 +529,7 @@ export class PlatformFeatureRolloutComponent implements OnInit {
     this.platformService.patchSchoolTenantFeatures(this.selectedSchool.tenantId, patch).subscribe({
       next: () => {
         this.schoolFeatureSaving = false;
+        this.loadedSchoolFeatures = { ...this.schoolFeatureDraft };
         this.schoolFeatureMsg = this.translate.instant('superAdmin.features.saved');
         this.cdr.markForCheck();
       },

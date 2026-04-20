@@ -25,6 +25,7 @@ import {
   parentFeePaymentMethodOptions,
   type ParentFeePaymentMethodOption,
 } from './parent-fee-payment.providers';
+import { SchoolClassNamePipe } from '../../core/i18n/school-class-name.pipe';
 @Component({
   selector: 'app-parent-portal',
   standalone: true,
@@ -35,6 +36,7 @@ import {
     ErpDatePickerComponent,
     ErpMonthPickerComponent,
     TranslateModule,
+    SchoolClassNamePipe,
   ],
   styles: [
     `
@@ -141,7 +143,7 @@ import {
             <select class="erp-select" [(ngModel)]="selectedStudentId" (change)="onStudentChange()">
               <option [ngValue]="null">{{ 'parentPortal.selectChild' | translate }}</option>
               <option *ngFor="let child of children" [ngValue]="child.id">
-                {{ child.firstName }} {{ child.lastName }} - {{ child.className || (('parentPortal.classFallback' | translate: { id: child.classId })) }}
+                {{ child.firstName }} {{ child.lastName }} - {{ childClassSectionLabel(child) }}
               </option>
             </select>
           </div>
@@ -170,8 +172,7 @@ import {
                 {{ selectedChild.firstName }} {{ selectedChild.lastName }}
               </h3>
               <p class="text-muted small mb-2">
-                {{ selectedChild.className || ('parentPortal.classFallback' | translate: { id: selectedChild.classId }) }}
-                <span *ngIf="selectedChild.sectionName"> · {{ selectedChild.sectionName }}</span>
+                {{ childClassSectionLabel(selectedChild) }}
                 <span *ngIf="selectedChild.homeroomTeacherName">
                   · {{ 'parentPortal.homeroomLabel' | translate }} {{ selectedChild.homeroomTeacherName }}
                 </span>
@@ -244,7 +245,7 @@ import {
                   <div>
                     <h4 style="font-size: 16px; font-weight: 800; margin-bottom: 6px;">{{ obligation.feeStructureName }}</h4>
                     <p class="text-muted mb-0" style="font-size: 12px;">
-                      {{ obligation.className || ('exams.dash' | translate) }}
+                      {{ selectedChild ? childClassSectionLabel(selectedChild) : ((obligation.className | schoolClassName) || ('exams.dash' | translate)) }}
                       <ng-container *ngIf="obligation.dueDate">{{ 'parentPortal.obligationDuePrefix' | translate: { date: obligation.dueDate } }}</ng-container>
                       <ng-container *ngIf="obligation.daysUntilDue != null && obligation.daysUntilDue > 0 && obligation.status !== 'paid'">
                         · {{ 'parentPortal.dueInDays' | translate: { n: obligation.daysUntilDue } }}
@@ -381,7 +382,7 @@ import {
                 <div class="insight-card mb-3">
                   <div class="insight-label">{{ 'parentPortal.childFeePlan' | translate }}</div>
                   <div class="insight-value">{{ selectedChild?.firstName }} {{ selectedChild?.lastName }}</div>
-                  <div class="insight-subtext">{{ selectedObligation.studentName }} · {{ selectedObligation.feeStructureName }} · {{ selectedObligation.className }}</div>
+                  <div class="insight-subtext">{{ selectedObligation.studentName }} · {{ selectedObligation.feeStructureName }} · {{ selectedChild ? childClassSectionLabel(selectedChild) : (selectedObligation.className | schoolClassName) }}</div>
                 </div>
                 <div *ngFor="let line of selectedObligation.lineItems" class="d-flex justify-content-between align-items-center" style="padding: 8px 0; border-bottom: 1px solid var(--clr-border-light);">
                   <span>{{ line.name }}</span>
@@ -863,6 +864,19 @@ export class ParentPortalComponent implements OnInit, OnDestroy {
       return this.translate.instant('parentPortal.receiptStatus.partial');
     }
     return this.translate.instant('parentPortal.receiptStatus.posted');
+  }
+
+  childClassSectionLabel(child: Pick<Student, 'className' | 'classId' | 'sectionName'> | null | undefined): string {
+    if (!child) {
+      return this.translate.instant('exams.dash');
+    }
+    const classLabelRaw = (child.className || '').trim();
+    const classLabel = classLabelRaw || this.translate.instant('parentPortal.classFallback', { id: child.classId });
+    const sectionLabel = (child.sectionName || '').trim();
+    if (!sectionLabel) {
+      return classLabel;
+    }
+    return `${classLabel} - ${sectionLabel}`;
   }
 
   obligationStatusLabel(status: string): string {

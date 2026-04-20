@@ -22,8 +22,78 @@ import { sortSchoolClassesByGrade } from '../../core/utils/school-class-sort.uti
   selector: 'app-student-list',
   standalone: true,
   imports: [CommonModule, FormsModule, RouterModule, TranslateModule, ErpPaginationComponent, ErpI18nPhDirective],
+  styles: [
+    `
+      .student-list-page {
+        color: var(--clr-text);
+      }
+      .student-list-page .erp-card {
+        border: 1px solid color-mix(in srgb, var(--clr-border) 82%, var(--clr-primary) 18%);
+        border-radius: 14px;
+        box-shadow: 0 8px 22px color-mix(in srgb, var(--clr-primary) 8%, transparent);
+        background: linear-gradient(
+          180deg,
+          color-mix(in srgb, var(--clr-surface) 97%, var(--clr-primary) 3%) 0%,
+          var(--clr-surface) 100%
+        );
+      }
+      .student-list-filter-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-end;
+        gap: 10px;
+        flex-wrap: wrap;
+        margin-bottom: 12px;
+      }
+      .student-list-search {
+        min-width: 300px;
+        max-width: 360px;
+      }
+      .student-list-filter-group {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+      .student-list-table-wrap {
+        width: 100%;
+        max-width: 100%;
+        min-width: 0;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+      }
+      .student-list-table-wrap .erp-table {
+        border-radius: 12px;
+        overflow: hidden;
+        border: 1px solid color-mix(in srgb, var(--clr-border) 80%, var(--clr-primary) 20%);
+        min-width: 760px;
+      }
+      .student-list-table-wrap .erp-table thead th {
+        background: color-mix(in srgb, var(--clr-primary) 11%, var(--clr-surface));
+        color: color-mix(in srgb, var(--clr-text) 80%, var(--clr-primary) 20%);
+        font-weight: 700;
+        border-bottom-color: color-mix(in srgb, var(--clr-border) 68%, var(--clr-primary) 32%);
+      }
+      .student-list-table-wrap .erp-table tbody tr:nth-child(even) td {
+        background: color-mix(in srgb, var(--clr-surface) 95%, var(--clr-primary) 5%);
+      }
+      .student-list-table-wrap .erp-table tbody tr:hover td {
+        background: color-mix(in srgb, var(--clr-primary) 12%, var(--clr-surface));
+      }
+      @media (max-width: 768px) {
+        .student-list-search {
+          min-width: 100%;
+          max-width: 100%;
+        }
+      }
+      @media (max-width: 576px) {
+        .student-list-table-wrap .erp-table {
+          min-width: 700px;
+        }
+      }
+    `,
+  ],
   template: `
-    <div data-testid="student-list-page">
+    <div class="student-list-page" data-testid="student-list-page">
       <header class="erp-page-header animate-in">
         <div>
           <h1 class="erp-page-header__title">{{ 'students.list.title' | translate }}</h1>
@@ -49,13 +119,13 @@ import { sortSchoolClassesByGrade } from '../../core/utils/school-class-sort.uti
       </div>
 
       <div class="erp-card animate-in animate-in-delay-1">
-        <div class="d-flex justify-content-between align-items-center mb-3">
-          <div class="search-input-wrapper" style="min-width: 300px;">
+        <div class="student-list-filter-row">
+          <div class="search-input-wrapper student-list-search">
             <i class="bi bi-search"></i>
             <input type="text" class="erp-input" erpI18nPh="students.list.searchPlaceholder" [(ngModel)]="searchTerm"
                    (input)="onSearchInput()" data-testid="student-search-input">
           </div>
-          <div class="d-flex gap-2">
+          <div class="student-list-filter-group">
             <select class="erp-select" style="width: 160px;" [(ngModel)]="classFilter" (change)="onClassOrStatusChange()" data-testid="class-filter">
               <option *ngFor="let c of classOptions" [value]="c.value">{{ c.value === '' ? ('students.list.allClasses' | translate) : classDisplayName(c.label) }}</option>
             </select>
@@ -70,7 +140,7 @@ import { sortSchoolClassesByGrade } from '../../core/utils/school-class-sort.uti
           </div>
         </div>
 
-        <div style="overflow-x: auto;" dir="ltr">
+        <div class="student-list-table-wrap" dir="ltr">
           <table class="erp-table" data-testid="student-table">
             <thead>
               <tr>

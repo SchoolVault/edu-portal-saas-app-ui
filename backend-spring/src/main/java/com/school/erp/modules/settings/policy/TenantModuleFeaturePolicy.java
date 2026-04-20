@@ -16,9 +16,12 @@ public final class TenantModuleFeaturePolicy {
     public static final String OPERATIONS_HUB = "operationsHub";
     public static final String IMPORT_EXPORT = "importExport";
     public static final String DIRECTORY = "directory";
+    public static final String DOCUMENTS = "documents";
+    public static final String EXAMS = "exams";
+    public static final String LEAVE = "leave";
 
     private static final Set<String> PLATFORM_MANAGED = Set.of(
-            CHAT, TRANSPORT, HOSTEL, LIBRARY, AUDIT, OPERATIONS_HUB, IMPORT_EXPORT, DIRECTORY
+            CHAT, TRANSPORT, HOSTEL, LIBRARY, AUDIT, OPERATIONS_HUB, IMPORT_EXPORT, DIRECTORY, DOCUMENTS, EXAMS, LEAVE
     );
 
     private TenantModuleFeaturePolicy() {

@@ -8,7 +8,7 @@ export interface NavItem {
   sectionKey: string;
   /**
    * Optional tenant feature flag (features_json). When the flag is false, the item is hidden for that school.
-   * Keys match platform rollout: chat, transport, hostel, library, audit, operationsHub, importExport, directory.
+   * Keys match platform rollout: chat, transport, hostel, library, audit, operationsHub, importExport, exams, directory, documents.
    */
   moduleGate?: string;
 }
@@ -42,12 +42,12 @@ export const NAV_ITEMS: NavItem[] = [
   { labelKey: 'nav.teachers', icon: 'bi-person-badge-fill', route: '/app/teachers', roles: ['admin', 'teacher'], sectionKey: 'nav.section.people', moduleGate: 'teacher' },
   { labelKey: 'nav.attendance', icon: 'bi-calendar-check-fill', route: '/app/attendance', roles: ['admin', 'teacher'], sectionKey: 'nav.section.academics', moduleGate: 'attendance' },
   { labelKey: 'nav.timetable', icon: 'bi-clock-fill', route: '/app/timetable', roles: ['admin', 'teacher', 'parent'], sectionKey: 'nav.section.academics' },
-  { labelKey: 'nav.exams', icon: 'bi-journal-text', route: '/app/exams', roles: ['admin', 'teacher', 'parent'], sectionKey: 'nav.section.academics' },
+  { labelKey: 'nav.exams', icon: 'bi-journal-text', route: '/app/exams', roles: ['admin', 'teacher', 'parent'], sectionKey: 'nav.section.academics', moduleGate: 'exams' },
   { labelKey: 'nav.fees', icon: 'bi-credit-card-fill', route: '/app/fees', roles: ['admin'], sectionKey: 'nav.section.finance', moduleGate: 'fees' },
   { labelKey: 'nav.payroll', icon: 'bi-wallet-fill', route: '/app/payroll', roles: ['admin'], sectionKey: 'nav.section.finance', moduleGate: 'payroll' },
   { labelKey: 'nav.inbox', icon: 'bi-inbox-fill', route: '/app/inbox', roles: ['admin', 'teacher', 'parent', 'student'], sectionKey: 'nav.section.connect', moduleGate: 'communication' },
   { labelKey: 'nav.chat', icon: 'bi-chat-dots-fill', route: '/app/chat', roles: ['admin', 'teacher', 'parent', 'super_admin'], sectionKey: 'nav.section.connect', moduleGate: 'chat' },
-  { labelKey: 'nav.leave', icon: 'bi-calendar-x', route: '/app/leave', roles: ['admin', 'teacher'], sectionKey: 'nav.section.connect' },
+  { labelKey: 'nav.leave', icon: 'bi-calendar-x', route: '/app/leave', roles: ['admin', 'teacher'], sectionKey: 'nav.section.connect', moduleGate: 'leave' },
   { labelKey: 'nav.reports', icon: 'bi-graph-up', route: '/app/reports', roles: ['admin'], sectionKey: 'nav.section.analytics', moduleGate: 'reports' },
   {
     labelKey: 'nav.operationsHub',
@@ -106,5 +106,7 @@ export const DEFAULT_FEATURES: Record<string, boolean> = {
   reports: true,
   operationsHub: true,
   importExport: true,
+  exams: true,
   directory: true,
+  leave: true,
 };

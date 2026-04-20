@@ -10,8 +10,8 @@ import { DEFAULT_ERP_PAGE_SIZE } from '../../core/constants/pagination.constants
 import { sliceToPage } from '../../core/utils/paginate';
 import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directives';
 
-const AUDIT_ACTIONS = ['create', 'update', 'delete', 'login'] as const;
-const AUDIT_MODULES = ['Students', 'Teachers', 'Fees', 'Attendance', 'Exams', 'System'];
+const AUDIT_ACTIONS = ['create', 'update', 'delete', 'login', 'logout', 'cache_cleared'] as const;
+const AUDIT_MODULES = ['Students', 'Teachers', 'Fees', 'Attendance', 'Exams', 'Auth', 'System'];
 
 function buildAuditSeed(): AuditLog[] {
   const base: AuditLog[] = [
@@ -47,6 +47,33 @@ function buildAuditSeed(): AuditLog[] {
   selector: 'app-audit',
   standalone: true,
   imports: [CommonModule, FormsModule, TranslateModule, ErpPaginationComponent, ErpI18nPhDirective],
+  styles: [
+    `
+      .audit-table-wrap {
+        overflow-x: auto;
+      }
+      .audit-table-wrap .erp-table {
+        min-width: 880px;
+      }
+      .audit-user-cell {
+        min-width: 160px;
+      }
+      .audit-user-name {
+        font-weight: 700;
+        color: var(--clr-text);
+        line-height: 1.3;
+      }
+      .audit-user-meta {
+        font-size: 11px;
+        color: var(--clr-text-muted);
+      }
+      @media (max-width: 576px) {
+        .audit-table-wrap .erp-table {
+          min-width: 760px;
+        }
+      }
+    `,
+  ],
   template: `
     <div data-testid="audit-page">
       <div class="d-flex justify-content-between align-items-center mb-4 animate-in">
@@ -74,13 +101,15 @@ function buildAuditSeed(): AuditLog[] {
             <option value="update">{{ 'audit.action.update' | translate }}</option>
             <option value="delete">{{ 'audit.action.delete' | translate }}</option>
             <option value="login">{{ 'audit.action.login' | translate }}</option>
+            <option value="logout">{{ 'audit.action.logout' | translate }}</option>
+            <option value="cache_cleared">{{ 'audit.action.cache_cleared' | translate }}</option>
           </select>
           <select class="erp-select" style="width: 160px;" [(ngModel)]="moduleFilter" (ngModelChange)="onFilterDropdownChange()">
             <option value="">{{ 'audit.filterAllModules' | translate }}</option>
             <option *ngFor="let m of modules" [value]="m">{{ moduleLabel(m) }}</option>
           </select>
         </div>
-        <div style="overflow-x: auto;" dir="ltr">
+        <div class="audit-table-wrap" dir="ltr">
           <table class="erp-table" data-testid="audit-table">
             <thead><tr><th>{{ 'audit.thAction' | translate }}</th><th>{{ 'audit.thModule' | translate }}</th><th>{{ 'audit.thDescription' | translate }}</th><th>{{ 'audit.thUser' | translate }}</th><th>{{ 'audit.thTimestamp' | translate }}</th><th>{{ 'audit.thIp' | translate }}</th></tr></thead>
             <tbody>
@@ -88,9 +117,12 @@ function buildAuditSeed(): AuditLog[] {
                 <td><span class="badge-erp" [ngClass]="getActionBadge(log.action)">{{ actionLabel(log.action) }}</span></td>
                 <td>{{ moduleLabel(log.module) }}</td>
                 <td>{{ log.description }}</td>
-                <td>{{ log.userName }}</td>
+                <td class="audit-user-cell">
+                  <div class="audit-user-name">{{ displayUser(log) }}</div>
+                  <div class="audit-user-meta" *ngIf="log.userId">{{ 'audit.userIdLabel' | translate:{ id: log.userId } }}</div>
+                </td>
                 <td style="white-space: nowrap;">{{ formatDate(log.timestamp) }}</td>
-                <td style="font-family: monospace; font-size: 12px;">{{ log.ipAddress }}</td>
+                <td style="font-family: monospace; font-size: 12px;">{{ log.ipAddress || '-' }}</td>
               </tr>
             </tbody>
           </table>
@@ -253,8 +285,30 @@ export class AuditComponent implements OnInit {
   }
 
   getActionBadge(action: string): string {
-    const map: Record<string, string> = { create: 'badge-success', update: 'badge-info', delete: 'badge-danger', login: 'badge-neutral', logout: 'badge-neutral' };
+    const map: Record<string, string> = {
+      create: 'badge-success',
+      update: 'badge-info',
+      delete: 'badge-danger',
+      login: 'badge-neutral',
+      logout: 'badge-neutral',
+      cache_cleared: 'badge-warning',
+    };
     return map[action] || 'badge-neutral';
+  }
+
+  displayUser(log: AuditLog): string {
+    const raw = (log.userName || '').trim();
+    if (raw && raw.toLowerCase() !== 'system') {
+      return raw;
+    }
+    const m = /user logged in:\s*(.+)$/i.exec(log.description || '');
+    if (m && m[1]) {
+      return m[1].trim();
+    }
+    if (log.userId) {
+      return this.translate.instant('audit.userFallbackById', { id: log.userId });
+    }
+    return this.translate.instant('audit.systemActor');
   }
 
   formatDate(dateStr: string): string {

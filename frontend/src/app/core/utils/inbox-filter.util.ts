@@ -1,8 +1,6 @@
 import { InboxFilterState } from '../models/inbox-filter.model';
 import { InboxUnifiedItem } from '../models/models';
 
-const TOKEN_ALERT = 'ALERT';
-
 /** Mirrors server {@link com.school.erp.modules.communication.service.InboxTimelineService} filter semantics. */
 export function applyInboxFilters(rows: InboxUnifiedItem[], filters: InboxFilterState): InboxUnifiedItem[] {
   const fk = filters.feedKind;
@@ -51,12 +49,9 @@ function passesAudience(row: InboxUnifiedItem, tokens: string[]): boolean {
     return true;
   }
   if (row.kind === 'notification') {
-    return tokens.includes(TOKEN_ALERT);
-  }
-  if (tokens.length === 1 && tokens[0] === TOKEN_ALERT) {
     return false;
   }
-  const annTok = tokens.filter(t => t !== TOKEN_ALERT);
+  const annTok = tokens;
   if (!annTok.length) {
     return false;
   }

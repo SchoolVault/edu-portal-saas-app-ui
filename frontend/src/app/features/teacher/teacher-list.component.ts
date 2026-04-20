@@ -33,6 +33,37 @@ import { runtimeConfig } from '../../core/config/runtime-config';
       }
       .teacher-list-table-wrap .erp-table {
         min-width: 720px;
+        border-radius: 12px;
+        overflow: hidden;
+        border: 1px solid color-mix(in srgb, var(--clr-border) 80%, var(--clr-primary) 20%);
+      }
+      .teacher-list-page {
+        color: var(--clr-text);
+      }
+      .teacher-list-page .erp-card {
+        border: 1px solid color-mix(in srgb, var(--clr-border) 82%, var(--clr-primary) 18%);
+        border-radius: 14px;
+        box-shadow: 0 8px 22px color-mix(in srgb, var(--clr-primary) 8%, transparent);
+        background: linear-gradient(
+          180deg,
+          color-mix(in srgb, var(--clr-surface) 97%, var(--clr-primary) 3%) 0%,
+          var(--clr-surface) 100%
+        );
+      }
+      .teacher-list-table-wrap .erp-table thead th {
+        background: color-mix(in srgb, var(--clr-primary) 11%, var(--clr-surface));
+        color: color-mix(in srgb, var(--clr-text) 80%, var(--clr-primary) 20%);
+        font-weight: 700;
+        border-bottom-color: color-mix(in srgb, var(--clr-border) 68%, var(--clr-primary) 32%);
+      }
+      .teacher-list-table-wrap .erp-table tbody tr:nth-child(even) td {
+        background: color-mix(in srgb, var(--clr-surface) 95%, var(--clr-primary) 5%);
+      }
+      .teacher-list-table-wrap .erp-table tbody tr:hover td {
+        background: color-mix(in srgb, var(--clr-primary) 12%, var(--clr-surface));
+      }
+      .teacher-list-filter-toolbar {
+        align-items: flex-end !important;
       }
       @media (max-width: 576px) {
         .search-input-wrapper {
@@ -53,7 +84,7 @@ import { runtimeConfig } from '../../core/config/runtime-config';
     `,
   ],
   template: `
-    <div data-testid="teacher-list-page">
+    <div class="teacher-list-page" data-testid="teacher-list-page">
       <header class="erp-page-header animate-in">
         <div>
           <h1 class="erp-page-header__title">{{ 'teachers.list.title' | translate }}</h1>
@@ -69,7 +100,7 @@ import { runtimeConfig } from '../../core/config/runtime-config';
         </div>
       </header>
       <div class="erp-card animate-in animate-in-delay-1">
-        <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+        <div class="d-flex justify-content-between teacher-list-filter-toolbar mb-3 flex-wrap gap-2">
           <div class="search-input-wrapper" style="min-width: 300px;">
             <i class="bi bi-search"></i>
             <input type="text" class="erp-input" erpI18nPh="teachers.list.searchPlaceholder" [(ngModel)]="searchTerm" (input)="onSearchInput()" data-testid="teacher-search">

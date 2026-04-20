@@ -82,6 +82,10 @@ export class InboxUnifiedFeedService {
       preview: raw.preview ?? '',
       createdAt: raw.createdAt ?? '',
       audienceKey: raw.audienceKey != null ? String(raw.audienceKey) : undefined,
+      targetClassId: raw.targetClassId != null ? Number(raw.targetClassId) : undefined,
+      targetSectionId: raw.targetSectionId != null ? Number(raw.targetSectionId) : undefined,
+      targetClassName: raw.targetClassName != null ? String(raw.targetClassName) : undefined,
+      targetSectionName: raw.targetSectionName != null ? String(raw.targetSectionName) : undefined,
       authorLine: raw.authorLine != null ? String(raw.authorLine) : undefined,
       notificationType: kind === 'notification' ? notificationType : undefined,
       read: raw.read !== undefined && raw.read !== null ? !!raw.read : kind === 'announcement' ? true : undefined,
@@ -101,6 +105,10 @@ export class InboxUnifiedFeedService {
         preview: this.previewFromBody(a.content),
         createdAt: a.createdAt ?? '',
         audienceKey: (a.targetAudience ?? 'ALL').toString().toUpperCase(),
+        targetClassId: a.targetClassId,
+        targetSectionId: a.targetSectionId,
+        targetClassName: (a as Announcement & { targetClassName?: string }).targetClassName,
+        targetSectionName: (a as Announcement & { targetSectionName?: string }).targetSectionName,
         authorLine,
         read: true,
       };
@@ -109,6 +117,9 @@ export class InboxUnifiedFeedService {
       }
     }
     for (const n of notifications) {
+      if (this.isAnnouncementMirrorNotification(n)) {
+        continue;
+      }
       const authorLine = n.senderLabel?.trim() || undefined;
       const item: InboxUnifiedItem = {
         kind: 'notification',
@@ -126,6 +137,11 @@ export class InboxUnifiedFeedService {
     }
     rows.sort((x, y) => new Date(y.createdAt || 0).getTime() - new Date(x.createdAt || 0).getTime());
     return rows;
+  }
+
+  private isAnnouncementMirrorNotification(n: AppNotification): boolean {
+    const link = (n.link || '').trim().toLowerCase();
+    return link.startsWith('/app/announcement/');
   }
 
   private matchesSearch(item: InboxUnifiedItem, ql: string): boolean {

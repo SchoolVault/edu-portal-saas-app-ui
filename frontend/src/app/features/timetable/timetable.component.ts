@@ -14,8 +14,10 @@ import { AttendanceCoverConflictPayload, AttendanceCoverRow } from '../../core/m
 import { ErpDatePickerComponent } from '../../shared/erp-date-picker/erp-date-picker.component';
 import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directives';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
+import { forkJoin } from 'rxjs';
 import { filter, take } from 'rxjs/operators';
 import { SchoolClassNamePipe } from '../../core/i18n/school-class-name.pipe';
+import { formatSchoolClassDisplayName, formatSchoolClassName } from '../../core/i18n/school-class-display';
 import { ConfirmDialogService } from '../../shared/confirm-dialog/confirm-dialog.service';
 import { SchedulingConflictError } from '../../core/errors/scheduling-conflict.error';
 import { TimetableConflictError } from '../../core/errors/timetable-conflict.error';
@@ -688,7 +690,7 @@ export class TimetableComponent implements OnInit {
 
   /** Human-readable class name for cover admin list (falls back to id). */
   coverRowClassDisplay(row: AttendanceCoverRow): string {
-    return this.classes.find(x => x.id === row.classId)?.name ?? String(row.classId);
+    return formatSchoolClassDisplayName(row.classId, this.classes.find(x => x.id === row.classId)?.name, this.translate);
   }
 
   /** Human-readable section for cover list (whole-class / all-sections / section name). */
@@ -757,13 +759,7 @@ export class TimetableComponent implements OnInit {
         if (this.isAdmin && this.timetableSection === 'covers') {
           this.reloadCoversAdmin();
         }
-        if (this.scheduleScope === 'teacher' && this.selectedTeacherId != null) {
-          this.loadTeacherTimetable();
-        } else if (this.scheduleScope === 'class' && this.selectedClassId != null) {
-          this.loadTimetable();
-        } else if (this.isParent && this.selectedChildId != null) {
-          this.loadTimetable();
-        }
+        this.reloadCurrentScheduleView();
       }
     });
     if (this.isParent) {
@@ -950,7 +946,7 @@ export class TimetableComponent implements OnInit {
 
   /** Class + section for grid cells (API may send {@link TimetableEntry.className} / {@link TimetableEntry.sectionName}). */
   entryClassSectionLabel(entry: TimetableEntry): string {
-    const cn = entry.className?.trim();
+    const cn = formatSchoolClassName(entry.className?.trim(), this.translate);
     const sn = entry.sectionName?.trim();
     if (cn && sn) {
       return `${cn} - ${sn}`;
@@ -959,7 +955,7 @@ export class TimetableComponent implements OnInit {
       return cn;
     }
     const cls = this.classes.find(c => c.id === entry.classId);
-    const cname = cls?.name?.trim() || `Class ${entry.classId}`;
+    const cname = formatSchoolClassDisplayName(entry.classId, cls?.name?.trim(), this.translate);
     const sec = cls?.sections?.find(s => s.id === entry.sectionId);
     const sname = sec?.name?.trim();
     return sname ? `${cname} - ${sname}` : cname;
@@ -1005,7 +1001,7 @@ export class TimetableComponent implements OnInit {
     for (const ch of children) {
       const cid = ch.classId;
       if (!byClass.has(cid)) {
-        byClass.set(cid, { name: ch.className?.trim() || `Class ${cid}`, sections: new Map() });
+        byClass.set(cid, { name: formatSchoolClassDisplayName(cid, ch.className?.trim(), this.translate), sections: new Map() });
       }
       if (ch.sectionId > 0) {
         byClass.get(cid)!.sections.set(ch.sectionId, {
@@ -1056,25 +1052,28 @@ export class TimetableComponent implements OnInit {
       this.loadParentTimetableContext();
       return;
     }
-    this.teacherService.getTeachers().subscribe(teachers => {
-      this.teachers = teachers;
-      if (this.scheduleScope === 'teacher' && this.selectedTeacherId == null && this.isTeacherViewer) {
-        const me = this.auth.getCurrentUser()?.id;
-        const row = teachers.find(t => t.userId != null && Number(t.userId) === Number(me));
-        if (row) {
-          this.selectedTeacherId = row.id;
-        }
-      }
-      this.academicService.getClasses().subscribe(classes => {
+    forkJoin({
+      teachers: this.teacherService.getTeachers(),
+      classes: this.academicService.getClasses(),
+    }).subscribe({
+      next: ({ teachers, classes }) => {
+        this.teachers = teachers;
         this.classes = classes;
+        if (this.scheduleScope === 'teacher' && this.selectedTeacherId == null && this.isTeacherViewer) {
+          const me = this.auth.getCurrentUser()?.id;
+          const row = teachers.find(t => t.userId != null && Number(t.userId) === Number(me));
+          if (row) {
+            this.selectedTeacherId = row.id;
+          }
+        }
         const sel = this.classes.find(c => c.id === this.selectedClassId);
         this.sections = sel ? sel.sections.map(s => ({ id: s.id, name: s.name })) : [];
-        if (this.scheduleScope === 'class') {
-          this.loadTimetable();
-        } else if (this.selectedTeacherId != null) {
-          this.loadTeacherTimetable();
-        }
-      });
+        this.reloadCurrentScheduleView();
+      },
+      error: () => {
+        this.entries = [];
+        this.grid = null;
+      },
     });
   }
 
@@ -1118,9 +1117,16 @@ export class TimetableComponent implements OnInit {
     if (this.selectedTeacherId == null) {
       return;
     }
-    this.timetableService.getByTeacher(this.selectedTeacherId, this.teacherViewDate).subscribe(rows => {
-      this.teacherScheduleRows = rows ?? [];
-      this.applyTeacherScopeViewModel();
+    this.timetableService.getByTeacher(this.selectedTeacherId, this.teacherViewDate).subscribe({
+      next: rows => {
+        this.teacherScheduleRows = rows ?? [];
+        this.applyTeacherScopeViewModel();
+      },
+      error: () => {
+        this.teacherScheduleRows = [];
+        this.entries = [];
+        this.grid = null;
+      },
     });
   }
 
@@ -1184,17 +1190,37 @@ export class TimetableComponent implements OnInit {
         return;
       }
       const parentTimetable = this.parentService as ParentService & ParentTimetableContract;
-      parentTimetable
-        .getChildTimetableEntries(this.selectedChildId)
-        .subscribe((entries: TimetableEntry[]) => (this.entries = entries));
-      parentTimetable.getChildTimetableGrid(this.selectedChildId).subscribe((grid: TimetableGrid) => (this.grid = grid));
+      forkJoin({
+        entries: parentTimetable.getChildTimetableEntries(this.selectedChildId),
+        grid: parentTimetable.getChildTimetableGrid(this.selectedChildId),
+      }).subscribe({
+        next: ({ entries, grid }) => {
+          this.entries = entries ?? [];
+          this.grid = grid ?? null;
+        },
+        error: () => {
+          this.entries = [];
+          this.grid = null;
+        },
+      });
       return;
     }
     if (this.selectedClassId == null) return;
     if (this.sections.length > 0 && this.selectedSectionId == null) return;
     const sectionArg = this.sections.length > 0 ? this.selectedSectionId! : undefined;
-    this.timetableService.getByClassAndSection(this.selectedClassId, sectionArg).subscribe(entries => (this.entries = entries));
-    this.timetableService.getGrid(this.selectedClassId, sectionArg).subscribe(grid => (this.grid = grid));
+    forkJoin({
+      entries: this.timetableService.getByClassAndSection(this.selectedClassId, sectionArg),
+      grid: this.timetableService.getGrid(this.selectedClassId, sectionArg),
+    }).subscribe({
+      next: ({ entries, grid }) => {
+        this.entries = entries ?? [];
+        this.grid = grid ?? null;
+      },
+      error: () => {
+        this.entries = [];
+        this.grid = null;
+      },
+    });
   }
 
   getEntry(day: string, period: number): TimetableEntry | undefined {
@@ -1358,11 +1384,7 @@ export class TimetableComponent implements OnInit {
     request$.subscribe({
       next: () => {
         this.closeModal();
-        if (this.scheduleScope === 'class') {
-          this.loadTimetable();
-        } else {
-          this.loadTeacherTimetable();
-        }
+        this.reloadCurrentScheduleView();
       },
       error: (e: unknown) => {
         if (e instanceof TimetableConflictError) {
@@ -1407,13 +1429,26 @@ export class TimetableComponent implements OnInit {
       .pipe(filter(Boolean), take(1))
       .subscribe(() => {
         this.timetableService.deleteEntry(id).subscribe(() => {
-          if (this.scheduleScope === 'class') {
-            this.loadTimetable();
-          } else {
-            this.loadTeacherTimetable();
-          }
+          this.reloadCurrentScheduleView();
         });
       });
+  }
+
+  private reloadCurrentScheduleView(): void {
+    if (this.isParent) {
+      this.loadTimetable();
+      return;
+    }
+    if (this.scheduleScope === 'teacher') {
+      if (this.selectedTeacherId != null) {
+        this.loadTeacherTimetable();
+      } else {
+        this.entries = [];
+        this.grid = null;
+      }
+      return;
+    }
+    this.loadTimetable();
   }
 
   private defaultEntryForm(): TimetableEntryForm {

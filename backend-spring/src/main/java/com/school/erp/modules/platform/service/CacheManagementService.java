@@ -18,6 +18,7 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -58,8 +59,11 @@ public class CacheManagementService {
      * </ul>
      */
     public PlatformDTOs.CacheClearResponse clearCaches(PlatformDTOs.CacheClearRequest request) {
-        String targetTenant = request.getTenantId();
-        List<String> targetRegions = request.getRegions();
+        String targetTenant = request != null && request.getTenantId() != null ? request.getTenantId().trim() : null;
+        if (targetTenant != null && targetTenant.isBlank()) {
+            targetTenant = null;
+        }
+        List<String> targetRegions = sanitizeRegions(request != null ? request.getRegions() : null);
 
         boolean isTenantScoped = StringUtils.hasText(targetTenant);
         boolean isRegionFiltered = targetRegions != null && !targetRegions.isEmpty();
@@ -76,9 +80,11 @@ public class CacheManagementService {
 
         try {
             if (isTenantScoped) {
-                targetSchoolName = tenantConfigRepository.findByTenantId(targetTenant.trim())
-                        .map(TenantConfig::getSchoolName)
-                        .orElse(null);
+                final String normalizedTenantId = targetTenant;
+                TenantConfig workspace = tenantConfigRepository.findByTenantId(normalizedTenantId)
+                        .filter(c -> !Boolean.TRUE.equals(c.getIsDeleted()))
+                        .orElseThrow(() -> new IllegalArgumentException("Unknown or inactive tenant workspace for cache clear"));
+                targetSchoolName = workspace.getSchoolName();
             }
 
             List<CacheService.CacheRegion> regionsToProcess;
@@ -89,6 +95,18 @@ public class CacheManagementService {
                 regionsToProcess = Arrays.stream(CacheService.CacheRegion.values())
                         .filter(r -> requestedNames.contains(r.cacheName().toLowerCase()))
                         .collect(Collectors.toList());
+                if (regionsToProcess.isEmpty()) {
+                    throw new IllegalArgumentException("No valid cache regions were provided");
+                }
+                Set<String> validNames = Arrays.stream(CacheService.CacheRegion.values())
+                        .map(r -> r.cacheName().toLowerCase())
+                        .collect(Collectors.toSet());
+                List<String> unknownRegions = targetRegions.stream()
+                        .filter(name -> !validNames.contains(name.toLowerCase()))
+                        .toList();
+                if (!unknownRegions.isEmpty()) {
+                    throw new IllegalArgumentException("Unknown cache region(s): " + String.join(", ", unknownRegions));
+                }
             } else {
                 regionsToProcess = Arrays.asList(CacheService.CacheRegion.values());
             }
@@ -186,5 +204,16 @@ public class CacheManagementService {
         }
 
         return "SYSTEM";
+    }
+
+    private static List<String> sanitizeRegions(List<String> regions) {
+        if (regions == null || regions.isEmpty()) {
+            return null;
+        }
+        LinkedHashSet<String> cleaned = regions.stream()
+                .filter(StringUtils::hasText)
+                .map(String::trim)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+        return cleaned.isEmpty() ? null : new ArrayList<>(cleaned);
     }
 }

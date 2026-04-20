@@ -35,10 +35,13 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 String tenantId = jwtUtil.getTenantId(token);
                 Long userId = jwtUtil.getUserId(token);
                 String role = jwtUtil.getRole(token);
+                String displayName = jwtUtil.getName(token);
                 // Set tenant context
                 TenantContext.setTenantId(tenantId);
                 TenantContext.setUserId(userId);
                 TenantContext.setUserRole(role);
+                TenantContext.setUserDisplayName(displayName);
+                TenantContext.setUserPrincipal(email);
                 List<SimpleGrantedAuthority> authorities = new ArrayList<>();
                 authorities.add(new SimpleGrantedAuthority("ROLE_" + role));
                 for (String p : jwtUtil.getPermissionAuthorities(token)) {

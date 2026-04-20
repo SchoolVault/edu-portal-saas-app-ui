@@ -1,10 +1,11 @@
 package com.school.erp.tenant;
 
 public class TenantContext {
-    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(TenantContext.class);
     private static final ThreadLocal<String> TENANT_ID = new ThreadLocal<>();
     private static final ThreadLocal<Long> USER_ID = new ThreadLocal<>();
     private static final ThreadLocal<String> USER_ROLE = new ThreadLocal<>();
+    private static final ThreadLocal<String> USER_DISPLAY_NAME = new ThreadLocal<>();
+    private static final ThreadLocal<String> USER_PRINCIPAL = new ThreadLocal<>();
 
     public static void setTenantId(String tenantId) {
         TENANT_ID.set(tenantId);
@@ -35,9 +36,27 @@ public class TenantContext {
         return USER_ROLE.get();
     }
 
+    public static void setUserDisplayName(String displayName) {
+        USER_DISPLAY_NAME.set(displayName);
+    }
+
+    public static String getUserDisplayName() {
+        return USER_DISPLAY_NAME.get();
+    }
+
+    public static void setUserPrincipal(String principal) {
+        USER_PRINCIPAL.set(principal);
+    }
+
+    public static String getUserPrincipal() {
+        return USER_PRINCIPAL.get();
+    }
+
     public static void clear() {
         TENANT_ID.remove();
         USER_ID.remove();
         USER_ROLE.remove();
+        USER_DISPLAY_NAME.remove();
+        USER_PRINCIPAL.remove();
     }
 }

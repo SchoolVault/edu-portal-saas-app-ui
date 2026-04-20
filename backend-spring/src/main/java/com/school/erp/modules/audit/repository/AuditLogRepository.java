@@ -40,4 +40,10 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, Long> {
     @Modifying
     @Query("DELETE FROM AuditLog a WHERE a.tenantId = :tenantId AND a.isDeleted = true AND a.deletedAt IS NOT NULL AND a.deletedAt < :cutoff")
     int deleteSoftDeletedBeforeForTenant(@Param("tenantId") String tenantId, @Param("cutoff") LocalDateTime cutoff);
+
+    long countByCreatedAtBefore(LocalDateTime cutoff);
+
+    @Modifying
+    @Query("DELETE FROM AuditLog a WHERE a.createdAt < :cutoff")
+    int deleteByCreatedAtBefore(@Param("cutoff") LocalDateTime cutoff);
 }

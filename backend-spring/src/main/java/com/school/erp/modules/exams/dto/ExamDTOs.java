@@ -4,12 +4,16 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 
 public class ExamDTOs {
 
     public static class CreateExamRequest {
         @NotBlank
         private String name;
+        private String examType;
+        private String markingScheme;
+        private Map<String, Object> gradingConfig;
         private Long academicYearId;
         private LocalDate startDate;
         private LocalDate endDate;
@@ -84,6 +88,30 @@ public class ExamDTOs {
 
         public String getName() {
             return this.name;
+        }
+
+        public String getExamType() {
+            return examType;
+        }
+
+        public void setExamType(String examType) {
+            this.examType = examType;
+        }
+
+        public String getMarkingScheme() {
+            return markingScheme;
+        }
+
+        public void setMarkingScheme(String markingScheme) {
+            this.markingScheme = markingScheme;
+        }
+
+        public Map<String, Object> getGradingConfig() {
+            return gradingConfig;
+        }
+
+        public void setGradingConfig(Map<String, Object> gradingConfig) {
+            this.gradingConfig = gradingConfig;
         }
 
         public Long getAcademicYearId() {
@@ -196,6 +224,9 @@ public class ExamDTOs {
     public static class ExamResponse {
         private Long id;
         private String name;
+        private String examType;
+        private String markingScheme;
+        private Map<String, Object> gradingConfig;
         private Long academicYearId;
         private String startDate;
         private String endDate;
@@ -204,6 +235,8 @@ public class ExamDTOs {
         private Boolean resultsPublished;
         private List<ExamScopeDtos.ClassScopeOut> classScopes;
         private List<ExamScopeDtos.ScheduleSlotOut> scheduleSlots;
+        private String workflowState;
+        private String workflowNote;
 
 
         public static class ExamResponseBuilder {
@@ -293,6 +326,30 @@ public class ExamDTOs {
             return this.name;
         }
 
+        public String getExamType() {
+            return examType;
+        }
+
+        public void setExamType(String examType) {
+            this.examType = examType;
+        }
+
+        public String getMarkingScheme() {
+            return markingScheme;
+        }
+
+        public void setMarkingScheme(String markingScheme) {
+            this.markingScheme = markingScheme;
+        }
+
+        public Map<String, Object> getGradingConfig() {
+            return gradingConfig;
+        }
+
+        public void setGradingConfig(Map<String, Object> gradingConfig) {
+            this.gradingConfig = gradingConfig;
+        }
+
         public Long getAcademicYearId() {
             return this.academicYearId;
         }
@@ -335,6 +392,22 @@ public class ExamDTOs {
 
         public void setScheduleSlots(List<ExamScopeDtos.ScheduleSlotOut> scheduleSlots) {
             this.scheduleSlots = scheduleSlots;
+        }
+
+        public String getWorkflowState() {
+            return workflowState;
+        }
+
+        public void setWorkflowState(String workflowState) {
+            this.workflowState = workflowState;
+        }
+
+        public String getWorkflowNote() {
+            return workflowNote;
+        }
+
+        public void setWorkflowNote(String workflowNote) {
+            this.workflowNote = workflowNote;
         }
 
         public void setId(final Long id) {
@@ -434,10 +507,32 @@ public class ExamDTOs {
         }
     }
 
+    public static class WorkflowActionRequest {
+        private String note;
+        private Boolean publishNow;
+
+        public String getNote() {
+            return note;
+        }
+
+        public void setNote(String note) {
+            this.note = note;
+        }
+
+        public Boolean getPublishNow() {
+            return publishNow;
+        }
+
+        public void setPublishNow(Boolean publishNow) {
+            this.publishNow = publishNow;
+        }
+    }
+
 
     public static class BulkMarksRequest {
         @NotNull
         private Long examId;
+        private String requestId;
         @NotNull
         private List<MarkEntry> marks;
 
@@ -481,6 +576,14 @@ public class ExamDTOs {
 
         public Long getExamId() {
             return this.examId;
+        }
+
+        public String getRequestId() {
+            return requestId;
+        }
+
+        public void setRequestId(String requestId) {
+            this.requestId = requestId;
         }
 
         public List<MarkEntry> getMarks() {
@@ -1317,5 +1420,215 @@ public class ExamDTOs {
         public void setResultsPublished(final boolean resultsPublished) {
             this.resultsPublished = resultsPublished;
         }
+    }
+
+    public static class TemplateComponentIn {
+        private String componentCode;
+        private String componentLabel;
+        private Double maxMarks;
+        private Double weightagePct;
+        private Boolean optional;
+        private Map<String, Object> rule;
+
+        public String getComponentCode() { return componentCode; }
+        public void setComponentCode(String componentCode) { this.componentCode = componentCode; }
+        public String getComponentLabel() { return componentLabel; }
+        public void setComponentLabel(String componentLabel) { this.componentLabel = componentLabel; }
+        public Double getMaxMarks() { return maxMarks; }
+        public void setMaxMarks(Double maxMarks) { this.maxMarks = maxMarks; }
+        public Double getWeightagePct() { return weightagePct; }
+        public void setWeightagePct(Double weightagePct) { this.weightagePct = weightagePct; }
+        public Boolean getOptional() { return optional; }
+        public void setOptional(Boolean optional) { this.optional = optional; }
+        public Map<String, Object> getRule() { return rule; }
+        public void setRule(Map<String, Object> rule) { this.rule = rule; }
+    }
+
+    public static class UpsertTemplateRequest {
+        private Long id;
+        private String name;
+        private String boardType;
+        private String classBand;
+        private String defaultMarkingScheme;
+        private Map<String, Object> rules;
+        private List<TemplateComponentIn> components;
+
+        public Long getId() { return id; }
+        public void setId(Long id) { this.id = id; }
+        public String getName() { return name; }
+        public void setName(String name) { this.name = name; }
+        public String getBoardType() { return boardType; }
+        public void setBoardType(String boardType) { this.boardType = boardType; }
+        public String getClassBand() { return classBand; }
+        public void setClassBand(String classBand) { this.classBand = classBand; }
+        public String getDefaultMarkingScheme() { return defaultMarkingScheme; }
+        public void setDefaultMarkingScheme(String defaultMarkingScheme) { this.defaultMarkingScheme = defaultMarkingScheme; }
+        public Map<String, Object> getRules() { return rules; }
+        public void setRules(Map<String, Object> rules) { this.rules = rules; }
+        public List<TemplateComponentIn> getComponents() { return components; }
+        public void setComponents(List<TemplateComponentIn> components) { this.components = components; }
+    }
+
+    public static class TemplateComponentOut {
+        private Long id;
+        private String componentCode;
+        private String componentLabel;
+        private Double maxMarks;
+        private Double weightagePct;
+        private Boolean optional;
+        private Map<String, Object> rule;
+        public Long getId() { return id; }
+        public void setId(Long id) { this.id = id; }
+        public String getComponentCode() { return componentCode; }
+        public void setComponentCode(String componentCode) { this.componentCode = componentCode; }
+        public String getComponentLabel() { return componentLabel; }
+        public void setComponentLabel(String componentLabel) { this.componentLabel = componentLabel; }
+        public Double getMaxMarks() { return maxMarks; }
+        public void setMaxMarks(Double maxMarks) { this.maxMarks = maxMarks; }
+        public Double getWeightagePct() { return weightagePct; }
+        public void setWeightagePct(Double weightagePct) { this.weightagePct = weightagePct; }
+        public Boolean getOptional() { return optional; }
+        public void setOptional(Boolean optional) { this.optional = optional; }
+        public Map<String, Object> getRule() { return rule; }
+        public void setRule(Map<String, Object> rule) { this.rule = rule; }
+    }
+
+    public static class TemplateResponse {
+        private Long id;
+        private String name;
+        private String boardType;
+        private String classBand;
+        private String defaultMarkingScheme;
+        private Map<String, Object> rules;
+        private List<TemplateComponentOut> components;
+        public Long getId() { return id; }
+        public void setId(Long id) { this.id = id; }
+        public String getName() { return name; }
+        public void setName(String name) { this.name = name; }
+        public String getBoardType() { return boardType; }
+        public void setBoardType(String boardType) { this.boardType = boardType; }
+        public String getClassBand() { return classBand; }
+        public void setClassBand(String classBand) { this.classBand = classBand; }
+        public String getDefaultMarkingScheme() { return defaultMarkingScheme; }
+        public void setDefaultMarkingScheme(String defaultMarkingScheme) { this.defaultMarkingScheme = defaultMarkingScheme; }
+        public Map<String, Object> getRules() { return rules; }
+        public void setRules(Map<String, Object> rules) { this.rules = rules; }
+        public List<TemplateComponentOut> getComponents() { return components; }
+        public void setComponents(List<TemplateComponentOut> components) { this.components = components; }
+    }
+
+    public static class PublicationSnapshotResponse {
+        private Long id;
+        private Integer versionNo;
+        private String snapshotType;
+        private String note;
+        private String publishedAt;
+        public Long getId() { return id; }
+        public void setId(Long id) { this.id = id; }
+        public Integer getVersionNo() { return versionNo; }
+        public void setVersionNo(Integer versionNo) { this.versionNo = versionNo; }
+        public String getSnapshotType() { return snapshotType; }
+        public void setSnapshotType(String snapshotType) { this.snapshotType = snapshotType; }
+        public String getNote() { return note; }
+        public void setNote(String note) { this.note = note; }
+        public String getPublishedAt() { return publishedAt; }
+        public void setPublishedAt(String publishedAt) { this.publishedAt = publishedAt; }
+    }
+
+    public static class ExamEventLogResponse {
+        private Long id;
+        private String eventType;
+        private Long actorUserId;
+        private String actorRole;
+        private String payloadJson;
+        private String createdAt;
+
+        public Long getId() { return id; }
+        public void setId(Long id) { this.id = id; }
+        public String getEventType() { return eventType; }
+        public void setEventType(String eventType) { this.eventType = eventType; }
+        public Long getActorUserId() { return actorUserId; }
+        public void setActorUserId(Long actorUserId) { this.actorUserId = actorUserId; }
+        public String getActorRole() { return actorRole; }
+        public void setActorRole(String actorRole) { this.actorRole = actorRole; }
+        public String getPayloadJson() { return payloadJson; }
+        public void setPayloadJson(String payloadJson) { this.payloadJson = payloadJson; }
+        public String getCreatedAt() { return createdAt; }
+        public void setCreatedAt(String createdAt) { this.createdAt = createdAt; }
+    }
+
+    public static class NotificationJobResponse {
+        private Long id;
+        private Long examId;
+        private String eventType;
+        private String targetRole;
+        private String localeCode;
+        private String status;
+        private Integer attempts;
+        private Integer maxAttempts;
+        private String nextRetryAt;
+        private String lastError;
+        private String payloadJson;
+        private String createdAt;
+        private String updatedAt;
+
+        public Long getId() { return id; }
+        public void setId(Long id) { this.id = id; }
+        public Long getExamId() { return examId; }
+        public void setExamId(Long examId) { this.examId = examId; }
+        public String getEventType() { return eventType; }
+        public void setEventType(String eventType) { this.eventType = eventType; }
+        public String getTargetRole() { return targetRole; }
+        public void setTargetRole(String targetRole) { this.targetRole = targetRole; }
+        public String getLocaleCode() { return localeCode; }
+        public void setLocaleCode(String localeCode) { this.localeCode = localeCode; }
+        public String getStatus() { return status; }
+        public void setStatus(String status) { this.status = status; }
+        public Integer getAttempts() { return attempts; }
+        public void setAttempts(Integer attempts) { this.attempts = attempts; }
+        public Integer getMaxAttempts() { return maxAttempts; }
+        public void setMaxAttempts(Integer maxAttempts) { this.maxAttempts = maxAttempts; }
+        public String getNextRetryAt() { return nextRetryAt; }
+        public void setNextRetryAt(String nextRetryAt) { this.nextRetryAt = nextRetryAt; }
+        public String getLastError() { return lastError; }
+        public void setLastError(String lastError) { this.lastError = lastError; }
+        public String getPayloadJson() { return payloadJson; }
+        public void setPayloadJson(String payloadJson) { this.payloadJson = payloadJson; }
+        public String getCreatedAt() { return createdAt; }
+        public void setCreatedAt(String createdAt) { this.createdAt = createdAt; }
+        public String getUpdatedAt() { return updatedAt; }
+        public void setUpdatedAt(String updatedAt) { this.updatedAt = updatedAt; }
+    }
+
+    public static class BulkOperationLogResponse {
+        private Long id;
+        private String operationType;
+        private String requestId;
+        private Long examId;
+        private String status;
+        private String createdAt;
+
+        public Long getId() { return id; }
+        public void setId(Long id) { this.id = id; }
+        public String getOperationType() { return operationType; }
+        public void setOperationType(String operationType) { this.operationType = operationType; }
+        public String getRequestId() { return requestId; }
+        public void setRequestId(String requestId) { this.requestId = requestId; }
+        public Long getExamId() { return examId; }
+        public void setExamId(Long examId) { this.examId = examId; }
+        public String getStatus() { return status; }
+        public void setStatus(String status) { this.status = status; }
+        public String getCreatedAt() { return createdAt; }
+        public void setCreatedAt(String createdAt) { this.createdAt = createdAt; }
+    }
+
+    public static class RollbackToVersionRequest {
+        @NotNull
+        private Integer versionNo;
+        private String note;
+        public Integer getVersionNo() { return versionNo; }
+        public void setVersionNo(Integer versionNo) { this.versionNo = versionNo; }
+        public String getNote() { return note; }
+        public void setNote(String note) { this.note = note; }
     }
 }

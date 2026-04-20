@@ -3,7 +3,6 @@ package com.school.erp.modules.auth.service;
 import com.school.erp.common.enums.Enums;
 import com.school.erp.common.locale.InterfaceLocale;
 import com.school.erp.common.util.InternationalPhone;
-import com.school.erp.common.util.PhoneNormalization;
 import com.school.erp.common.exception.BusinessException;
 import com.school.erp.common.exception.DuplicateResourceException;
 import com.school.erp.common.exception.ResourceNotFoundException;
@@ -26,6 +25,7 @@ import com.school.erp.modules.academic.repository.SchoolClassRepository;
 import com.school.erp.modules.academic.repository.SectionRepository;
 import com.school.erp.modules.settings.entity.TenantConfig;
 import com.school.erp.modules.settings.repository.TenantConfigRepository;
+import com.school.erp.modules.guardian.service.GuardianService;
 import com.school.erp.modules.student.repository.StudentRepository;
 import com.school.erp.modules.teacher.repository.TeacherRepository;
 import com.school.erp.modules.timetable.repository.TimetableRepository;
@@ -53,6 +53,7 @@ public class AuthService {
     private final UserRepository userRepository;
     private final RefreshTokenRepository refreshTokenRepository;
     private final TenantConfigRepository tenantConfigRepository;
+    private final GuardianService guardianService;
     private final StudentRepository studentRepository;
     private final TeacherRepository teacherRepository;
     private final SchoolClassRepository schoolClassRepository;
@@ -109,7 +110,10 @@ public class AuthService {
         try {
             TenantContext.setTenantId(user.getTenantId());
             TenantContext.setUserId(user.getId());
+            TenantContext.setUserRole(user.getRole() != null ? user.getRole().name() : null);
+            TenantContext.setUserDisplayName(user.getName());
             String auditLoginKey = user.getEmail() != null && !user.getEmail().isBlank() ? user.getEmail() : subject;
+            TenantContext.setUserPrincipal(auditLoginKey);
             auditTrailPort.logLogin(auditLoginKey);
         } catch (Exception e) {
             log.debug("Audit log skipped: {}", e.getMessage());
@@ -179,7 +183,7 @@ public class AuthService {
         config.setEmail(request.getAdminEmail());
         config.setPrimaryColor("#1B3A30");
         config.setSecondaryColor("#C05C3D");
-        config.setFeaturesJson("{\"student\":true,\"teacher\":true,\"attendance\":true,\"fees\":true}");
+        config.setFeaturesJson("{\"student\":true,\"teacher\":true,\"attendance\":true,\"fees\":true,\"leave\":true}");
         tenantConfigRepository.save(config);
 
         String adminEmailRaw = request.getAdminEmail() == null ? "" : request.getAdminEmail().trim();
@@ -265,7 +269,10 @@ public class AuthService {
                     .ifPresent(teacher -> applyTeacherProfileShell(tenantId, teacher, response));
             case PARENT -> {
                 response.setUserTitle("Parent Account");
-                response.setChildCount(studentRepository.countByTenantIdAndParentIdAndIsDeletedFalse(tenantId, userId));
+                long linkedChildren = guardianService.findStudentsForParentUser(tenantId, userId).stream()
+                        .filter(s -> s.getStatus() == Enums.StudentStatus.ACTIVE)
+                        .count();
+                response.setChildCount(linkedChildren);
             }
             case LIBRARY_STAFF -> response.setUserTitle("Library Staff");
             default -> response.setUserTitle("School User");
@@ -405,6 +412,7 @@ public class AuthService {
             final UserRepository userRepository,
             final RefreshTokenRepository refreshTokenRepository,
             final TenantConfigRepository tenantConfigRepository,
+            final GuardianService guardianService,
             final StudentRepository studentRepository,
             final TeacherRepository teacherRepository,
             final SchoolClassRepository schoolClassRepository,
@@ -418,6 +426,7 @@ public class AuthService {
         this.userRepository = userRepository;
         this.refreshTokenRepository = refreshTokenRepository;
         this.tenantConfigRepository = tenantConfigRepository;
+        this.guardianService = guardianService;
         this.studentRepository = studentRepository;
         this.teacherRepository = teacherRepository;
         this.schoolClassRepository = schoolClassRepository;

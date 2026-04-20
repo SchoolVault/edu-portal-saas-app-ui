@@ -4,7 +4,14 @@ import { map } from 'rxjs/operators';
 import {
   AttendanceSummaryRow,
   ClassSummaryRow,
+  ReportGenerationJob,
   ReportCard,
+  ReportPublicationSnapshot,
+  ReportAnalyticsPack,
+  ReportAnalyticsPackConfig,
+  ReportShareDispatch,
+  ReportWorkflowEventLog,
+  ReportTemplateDefinition,
   SectionSummaryRow,
   StudentPerformanceRow,
   TeacherWorkloadRow
@@ -27,7 +34,7 @@ import { runtimeConfig } from '../config/runtime-config';
 export class ReportService {
   constructor(private api: ApiService) {}
 
-  getStudentPerformance(classId: number, examId: number): Observable<StudentPerformanceRow[]> {
+  getStudentPerformance(classId: number, examId: number, sectionId?: number | null): Observable<StudentPerformanceRow[]> {
     if (runtimeConfig.useMocks) {
       return of(
         buildMockStudentPerformance(classId, examId).map(r => ({
@@ -36,7 +43,13 @@ export class ReportService {
         }))
       ).pipe();
     }
-    return this.api.get<any[]>(`/reports/student-performance?classId=${classId}&examId=${examId}`).pipe(
+    const query = new URLSearchParams();
+    query.set('classId', String(classId));
+    query.set('examId', String(examId));
+    if (sectionId != null) {
+      query.set('sectionId', String(sectionId));
+    }
+    return this.api.get<any[]>(`/reports/student-performance?${query.toString()}`).pipe(
       map(rows =>
         rows.map(row => ({
           studentId: Number(row.studentId),
@@ -52,11 +65,17 @@ export class ReportService {
     );
   }
 
-  getAttendanceSummary(classId: number, month: string): Observable<AttendanceSummaryRow[]> {
+  getAttendanceSummary(classId: number, month: string, sectionId?: number | null): Observable<AttendanceSummaryRow[]> {
     if (runtimeConfig.useMocks) {
       return of(buildMockReportAttendanceSummary(classId, month).map(r => ({ ...r }))).pipe();
     }
-    return this.api.get<any[]>(`/reports/attendance-summary?classId=${classId}&month=${month}`).pipe(
+    const query = new URLSearchParams();
+    query.set('classId', String(classId));
+    query.set('month', month);
+    if (sectionId != null) {
+      query.set('sectionId', String(sectionId));
+    }
+    return this.api.get<any[]>(`/reports/attendance-summary?${query.toString()}`).pipe(
       map(rows =>
         rows.map(row => ({
           studentId: Number(row.studentId),
@@ -87,7 +106,7 @@ export class ReportService {
           attendancePercentage: Number(row.attendancePercentage ?? 0),
           performancePercentage: Number(row.performancePercentage ?? 0),
           feeCollectionPercentage: Number(row.feeCollectionPercentage ?? 0),
-          classTeacherName: row.classTeacherName ?? ''
+          overdueAccounts: Number(row.overdueAccounts ?? 0)
         }))
       )
     );
@@ -107,7 +126,7 @@ export class ReportService {
             attendancePercentage: Number(row.attendancePercentage ?? 0),
             performancePercentage: Number(row.performancePercentage ?? 0),
             feeCollectionPercentage: Number(row.feeCollectionPercentage ?? 0),
-            classTeacherName: row.classTeacherName ?? '',
+            overdueAccounts: Number(row.overdueAccounts ?? 0),
           })),
         }))
       );
@@ -126,7 +145,8 @@ export class ReportService {
           sectionName: row.sectionName ?? '',
           classId: Number(row.classId),
           className: row.className ?? '',
-          studentCount: Number(row.studentCount ?? 0)
+          studentCount: Number(row.studentCount ?? 0),
+          classTeacherName: row.classTeacherName ?? '-'
         }))
       )
     );
@@ -143,6 +163,7 @@ export class ReportService {
             classId: Number(row.classId),
             className: row.className ?? '',
             studentCount: Number(row.studentCount ?? 0),
+            classTeacherName: row.classTeacherName ?? '-',
           })),
         }))
       );
@@ -161,6 +182,9 @@ export class ReportService {
           teacherName: row.teacherName,
           specialization: row.specialization ?? '',
           subjects: row.subjects ?? [],
+          homeroomClasses: row.homeroomClasses ?? '-',
+          assignedClasses: Number(row.assignedClasses ?? 0),
+          weeklyPeriods: Number(row.weeklyPeriods ?? 0),
           status: row.status ?? ''
         }))
       )
@@ -177,6 +201,9 @@ export class ReportService {
             teacherName: row.teacherName,
             specialization: row.specialization ?? '',
             subjects: row.subjects ?? [],
+            homeroomClasses: row.homeroomClasses ?? '-',
+            assignedClasses: Number(row.assignedClasses ?? 0),
+            weeklyPeriods: Number(row.weeklyPeriods ?? 0),
             status: row.status ?? '',
           })),
         }))
@@ -185,7 +212,7 @@ export class ReportService {
     return this.getTeacherWorkload().pipe(map(all => sliceToPage(all, page, size)));
   }
 
-  getFeeCollectionSummary(classId?: number): Observable<{
+  getFeeCollectionSummary(classId?: number, sectionId?: number | null): Observable<{
     totalCollected: number;
     totalPending: number;
     overdueCount: number;
@@ -195,7 +222,11 @@ export class ReportService {
     if (runtimeConfig.useMocks) {
       return of({ ...buildMockFeeCollectionSummary() });
     }
-    return this.api.get(`/reports/fee-collection${classId != null ? `?classId=${classId}` : ''}`);
+    const query = new URLSearchParams();
+    if (classId != null) query.set('classId', String(classId));
+    if (sectionId != null) query.set('sectionId', String(sectionId));
+    const qs = query.toString();
+    return this.api.get(`/reports/fee-collection${qs ? `?${qs}` : ''}`);
   }
 
   getReportCard(studentId: number, examId?: number): Observable<ReportCard> {
@@ -224,5 +255,161 @@ export class ReportService {
         overallGrade: card.overallGrade ?? ''
       }))
     );
+  }
+
+  listTemplates(): Observable<ReportTemplateDefinition[]> {
+    if (runtimeConfig.useMocks) {
+      return of([
+        {
+          id: 1,
+          templateCode: 'CBSE_PERFORMANCE',
+          name: 'CBSE Student Performance',
+          reportType: 'STUDENT_PERFORMANCE',
+          defaultFormat: 'PDF',
+        },
+      ]);
+    }
+    return this.api.get<ReportTemplateDefinition[]>('/reports/templates');
+  }
+
+  upsertTemplate(payload: ReportTemplateDefinition): Observable<ReportTemplateDefinition> {
+    if (runtimeConfig.useMocks) {
+      return of({ ...payload, id: payload.id ?? Date.now() });
+    }
+    return this.api.post<ReportTemplateDefinition>('/reports/templates', payload);
+  }
+
+  generateReport(payload: {
+    templateId?: number | null;
+    reportType: string;
+    format: 'PDF' | 'CSV';
+    requestId?: string;
+    scheduleAt?: string;
+    async?: boolean;
+    shareConfig?: {
+      channels?: string[];
+      targetRoles?: string[];
+      locales?: string[];
+      templateCode?: string;
+    };
+    filters: Record<string, unknown>;
+  }): Observable<ReportGenerationJob> {
+    if (runtimeConfig.useMocks) {
+      return of({
+        id: Date.now(),
+        requestId: payload.requestId || `mock-${Date.now()}`,
+        reportType: payload.reportType,
+        format: payload.format,
+        status: 'COMPLETED',
+        fileName: `report.${payload.format.toLowerCase()}`,
+        contentType: payload.format === 'PDF' ? 'application/pdf' : 'text/csv',
+        createdAt: new Date().toISOString(),
+        generatedAt: new Date().toISOString(),
+        workflowState: 'DRAFT',
+      });
+    }
+    return this.api.post<ReportGenerationJob>('/reports/generate', payload);
+  }
+
+  listGeneratedReports(page = 0, size = DEFAULT_ERP_PAGE_SIZE): Observable<PageResp<ReportGenerationJob>> {
+    if (runtimeConfig.useMocks) {
+      return of(sliceToPage([], page, size));
+    }
+    return this.api.getPageParams<ReportGenerationJob>('/reports/jobs', { page, size });
+  }
+
+  downloadGeneratedReport(jobId: number): Observable<Blob> {
+    return this.api.getBlob(`/reports/jobs/${jobId}/download`);
+  }
+
+  retryReportJob(jobId: number): Observable<ReportGenerationJob> {
+    if (runtimeConfig.useMocks) {
+      return of({
+        id: jobId,
+        requestId: `retry-${Date.now()}`,
+        reportType: 'STUDENT_PERFORMANCE',
+        format: 'PDF',
+        status: 'QUEUED',
+        createdAt: new Date().toISOString(),
+        workflowState: 'DRAFT',
+      });
+    }
+    return this.api.put<ReportGenerationJob>(`/reports/jobs/${jobId}/retry`, {});
+  }
+
+  listDispatches(jobId: number, page = 0, size = DEFAULT_ERP_PAGE_SIZE): Observable<PageResp<ReportShareDispatch>> {
+    if (runtimeConfig.useMocks) {
+      return of(sliceToPage([], page, size));
+    }
+    return this.api.getPageParams<ReportShareDispatch>(`/reports/jobs/${jobId}/dispatches`, { page, size });
+  }
+
+  listWorkflowEvents(jobId: number, page = 0, size = DEFAULT_ERP_PAGE_SIZE): Observable<PageResp<ReportWorkflowEventLog>> {
+    if (runtimeConfig.useMocks) {
+      return of(sliceToPage([], page, size));
+    }
+    return this.api.getPageParams<ReportWorkflowEventLog>(`/reports/jobs/${jobId}/events`, { page, size });
+  }
+
+  seedDefaultReportPacks(): Observable<number> {
+    if (runtimeConfig.useMocks) {
+      return of(3);
+    }
+    return this.api.post<number>('/reports/templates/seed-defaults', {});
+  }
+
+  approveReportJob(jobId: number, payload: { note?: string; idempotencyKey?: string; expectedUpdatedAt?: string }): Observable<ReportGenerationJob> {
+    if (runtimeConfig.useMocks) {
+      return of({ id: jobId, requestId: `approve-${jobId}`, reportType: 'STUDENT_PERFORMANCE', format: 'PDF', status: 'COMPLETED', workflowState: 'APPROVED', workflowNote: payload.note, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
+    }
+    return this.api.put<ReportGenerationJob>(`/reports/jobs/${jobId}/approve`, payload);
+  }
+
+  publishReportJob(jobId: number, payload: { note?: string; idempotencyKey?: string; expectedUpdatedAt?: string }): Observable<ReportGenerationJob> {
+    if (runtimeConfig.useMocks) {
+      return of({ id: jobId, requestId: `publish-${jobId}`, reportType: 'STUDENT_PERFORMANCE', format: 'PDF', status: 'COMPLETED', workflowState: 'PUBLISHED', workflowNote: payload.note, publishedAt: new Date().toISOString(), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
+    }
+    return this.api.put<ReportGenerationJob>(`/reports/jobs/${jobId}/publish`, payload);
+  }
+
+  listPublicationSnapshots(jobId: number): Observable<ReportPublicationSnapshot[]> {
+    if (runtimeConfig.useMocks) {
+      return of([]);
+    }
+    return this.api.get<ReportPublicationSnapshot[]>(`/reports/jobs/${jobId}/snapshots`);
+  }
+
+  rollbackToSnapshot(jobId: number, versionNo: number, note?: string): Observable<ReportGenerationJob> {
+    if (runtimeConfig.useMocks) {
+      return of({ id: jobId, requestId: `rollback-${jobId}`, reportType: 'STUDENT_PERFORMANCE', format: 'PDF', status: 'COMPLETED', workflowState: 'PUBLISHED', workflowNote: note, createdAt: new Date().toISOString() });
+    }
+    return this.api.put<ReportGenerationJob>(`/reports/jobs/${jobId}/rollback`, { versionNo, note });
+  }
+
+  getAnalyticsPack(payload: { packCode?: string; classId?: number | null; sectionId?: number | null; examId?: number | null; month?: string }): Observable<ReportAnalyticsPack> {
+    if (runtimeConfig.useMocks) {
+      return of({ packCode: payload.packCode ?? 'CUSTOM', trendBands: [], laggingStudents: [], promotionEligibility: [], guardrails: {} });
+    }
+    const params = new URLSearchParams();
+    if (payload.packCode) params.set('packCode', payload.packCode);
+    if (payload.classId != null) params.set('classId', String(payload.classId));
+    if (payload.sectionId != null) params.set('sectionId', String(payload.sectionId));
+    if (payload.examId != null) params.set('examId', String(payload.examId));
+    if (payload.month) params.set('month', payload.month);
+    return this.api.get<ReportAnalyticsPack>(`/reports/analytics-pack?${params.toString()}`);
+  }
+
+  listAnalyticsPackConfigs(): Observable<ReportAnalyticsPackConfig[]> {
+    if (runtimeConfig.useMocks) {
+      return of([]);
+    }
+    return this.api.get<ReportAnalyticsPackConfig[]>('/reports/analytics-pack/configs');
+  }
+
+  upsertAnalyticsPackConfig(payload: ReportAnalyticsPackConfig): Observable<ReportAnalyticsPackConfig> {
+    if (runtimeConfig.useMocks) {
+      return of({ ...payload, id: payload.id ?? Date.now() });
+    }
+    return this.api.post<ReportAnalyticsPackConfig>('/reports/analytics-pack/configs', payload);
   }
 }

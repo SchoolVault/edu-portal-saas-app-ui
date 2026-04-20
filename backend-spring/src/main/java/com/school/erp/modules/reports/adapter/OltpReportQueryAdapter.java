@@ -29,6 +29,7 @@ import com.school.erp.modules.student.entity.Student;
 import com.school.erp.common.enums.Enums;
 import com.school.erp.modules.attendance.entity.AttendanceRecord;
 import com.school.erp.modules.fees.entity.FeePayment;
+import com.school.erp.modules.timetable.entity.TimetableEntry;
 import com.school.erp.modules.timetable.repository.TimetableRepository;
 import com.school.erp.tenant.TenantContext;
 import org.slf4j.Logger;
@@ -802,6 +803,9 @@ public class OltpReportQueryAdapter implements ReportQueryPort {
                     .orElse(0);
             double totalCollected = payments.stream().mapToDouble(payment -> payment.getPaidAmount() != null ? payment.getPaidAmount().doubleValue() : 0).sum();
             double totalAmount = payments.stream().mapToDouble(payment -> payment.getAmount() != null ? payment.getAmount().doubleValue() : 0).sum();
+            long overdueAccounts = payments.stream()
+                    .filter(payment -> payment.getStatus() == Enums.FeeStatus.OVERDUE)
+                    .count();
             return Map.<String, Object>of(
                     "classId", cls.getId(),
                     "className", cls.getName(),
@@ -811,11 +815,22 @@ public class OltpReportQueryAdapter implements ReportQueryPort {
                     "attendancePercentage", Math.round(attendancePercentage * 10) / 10.0,
                     "performancePercentage", Math.round(performance * 10) / 10.0,
                     "feeCollectionPercentage", totalAmount > 0 ? Math.round((totalCollected / totalAmount) * 1000) / 10.0 : 0.0,
-                    "classTeacherName", cls.getClassTeacherName() != null ? cls.getClassTeacherName() : ""
+                    "overdueAccounts", overdueAccounts
             );
         }).collect(Collectors.toList());
         log.info("Class summary rows={} tenantId={}", list.size(), tenantId);
         return list;
+    }
+
+    private String resolveTeacherNameById(String tenantId, Long teacherId) {
+        if (teacherId == null) {
+            return "";
+        }
+        return teacherRepo.findByIdAndTenantIdAndIsDeletedFalse(teacherId, tenantId)
+                .map(teacher -> String.format("%s %s",
+                        teacher.getFirstName() != null ? teacher.getFirstName().trim() : "",
+                        teacher.getLastName() != null ? teacher.getLastName().trim() : "").trim())
+                .orElse("");
     }
 
     @Transactional(readOnly = true)
@@ -831,7 +846,8 @@ public class OltpReportQueryAdapter implements ReportQueryPort {
                         "sectionName", sec.getName(),
                         "classId", cls.getId(),
                         "className", cls.getName(),
-                        "studentCount", count
+                        "studentCount", count,
+                        "classTeacherName", resolveSectionTeacherName(tenantId, cls.getId(), cls.getClassTeacherId(), cls.getClassTeacherName(), sec, LocalDate.now())
                 ));
             }
         }
@@ -839,22 +855,103 @@ public class OltpReportQueryAdapter implements ReportQueryPort {
         return rows;
     }
 
+    private String resolveSectionTeacherName(
+            String tenantId,
+            Long classId,
+            Long classTeacherId,
+            String classTeacherName,
+            com.school.erp.modules.academic.entity.Section section,
+            LocalDate asOfDate) {
+        if (section.getClassTeacherName() != null && !section.getClassTeacherName().isBlank()) {
+            return section.getClassTeacherName().trim();
+        }
+        if (section.getClassTeacherId() != null) {
+            String fromSectionId = resolveTeacherNameById(tenantId, section.getClassTeacherId());
+            if (!fromSectionId.isBlank()) {
+                return fromSectionId;
+            }
+        }
+        String fromAssignment = classTeacherAssignmentRepo.findActiveForClass(tenantId, classId, section.getId(), asOfDate).stream()
+                .map(ClassTeacherAssignment::getTeacherId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .map(teacherId -> resolveTeacherNameById(tenantId, teacherId))
+                .filter(name -> !name.isBlank())
+                .findFirst()
+                .orElse("");
+        if (!fromAssignment.isBlank()) {
+            return fromAssignment;
+        }
+        if (classTeacherName != null && !classTeacherName.isBlank()) {
+            return classTeacherName.trim();
+        }
+        if (classTeacherId != null) {
+            String fromClassId = resolveTeacherNameById(tenantId, classTeacherId);
+            if (!fromClassId.isBlank()) {
+                return fromClassId;
+            }
+        }
+        return "-";
+    }
+
     @Transactional(readOnly = true)
     public List<Map<String, Object>> getTeacherWorkload() {
         String tenantId = TenantContext.getTenantId();
         log.debug("Building teacher workload tenantId={}", tenantId);
         var teachers = teacherRepo.findByTenantIdAndIsDeletedFalse(tenantId);
+        LocalDate today = LocalDate.now();
+        Map<Long, String> classNamesById = classRepo.findByTenantIdAndIsDeletedFalseOrderByGrade(tenantId).stream()
+                .collect(Collectors.toMap(
+                        com.school.erp.modules.academic.entity.SchoolClass::getId,
+                        com.school.erp.modules.academic.entity.SchoolClass::getName,
+                        (left, right) -> left,
+                        LinkedHashMap::new));
+        Map<Long, String> sectionNamesById = new LinkedHashMap<>();
+        classNamesById.keySet().forEach(classId ->
+                sectionRepo.findByTenantIdAndClassIdAndIsDeletedFalse(tenantId, classId).forEach(section ->
+                        sectionNamesById.putIfAbsent(section.getId(), section.getName())));
         List<Map<String, Object>> result = new ArrayList<>();
         for (var t : teachers) {
+            List<TimetableEntry> timetableRows = timetableRepo.findByTenantIdAndTeacherIdAndIsDeletedFalse(tenantId, t.getId());
+            Set<Long> classIdsFromTimetable = timetableRows.stream()
+                    .map(TimetableEntry::getClassId)
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.toCollection(LinkedHashSet::new));
+            int weeklyPeriods = (int) timetableRows.stream()
+                    .map(row -> String.format("%s-%s-%s", row.getDay(), row.getPeriod(), row.getSectionId()))
+                    .distinct()
+                    .count();
+            String homeroomClasses = classTeacherAssignmentRepo.findActiveForTeacher(tenantId, t.getId(), today).stream()
+                    .map(a -> formatHomeroomLabel(a.getClassId(), a.getSectionId(), classNamesById, sectionNamesById))
+                    .filter(label -> !label.isBlank())
+                    .distinct()
+                    .sorted()
+                    .collect(Collectors.joining(", "));
             result.add(Map.of(
                     "teacherId", t.getId(),
                     "teacherName", t.getFirstName() + " " + t.getLastName(),
                     "specialization", t.getSpecialization() != null ? t.getSpecialization() : "",
                     "subjects", EntitySnapshotCollections.detachList(t.getSubjects()),
-                    "status", t.getStatus() != null ? t.getStatus().name() : "ACTIVE"));
+                    "status", t.getStatus() != null ? t.getStatus().name() : "ACTIVE",
+                    "homeroomClasses", homeroomClasses.isBlank() ? "-" : homeroomClasses,
+                    "assignedClasses", classIdsFromTimetable.size(),
+                    "weeklyPeriods", weeklyPeriods));
         }
         log.info("Teacher workload rows={} tenantId={}", result.size(), tenantId);
         return result;
+    }
+
+    private String formatHomeroomLabel(
+            Long classId,
+            Long sectionId,
+            Map<Long, String> classNamesById,
+            Map<Long, String> sectionNamesById) {
+        String className = classId != null ? classNamesById.getOrDefault(classId, "Class") : "Class";
+        if (sectionId == null) {
+            return className;
+        }
+        String sectionName = sectionNamesById.getOrDefault(sectionId, "");
+        return sectionName.isBlank() ? className : className + " - " + sectionName;
     }
 
     private List<ReportDashboardDTOs.MetricPoint> buildMonthlyAdmissions(String tenantId) {
