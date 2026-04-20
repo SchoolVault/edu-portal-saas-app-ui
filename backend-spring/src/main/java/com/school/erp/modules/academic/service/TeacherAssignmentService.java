@@ -36,12 +36,23 @@ public class TeacherAssignmentService {
         this.teacherRepository = teacherRepository;
     }
 
+    /** Ends active homeroom assignment rows for the exact class / whole-class vs section slot. */
+    @Transactional
+    public void closeActiveHomeroomSlotAssignments(String tenantId, Long classId, Long sectionId, LocalDate effectiveEnd) {
+        LocalDate d = LocalDate.now();
+        for (ClassTeacherAssignment a : classTeacherRepo.findActiveHomeroomSlot(tenantId, classId, sectionId, d)) {
+            a.setEffectiveTo(effectiveEnd);
+            classTeacherRepo.save(a);
+        }
+    }
+
     /** Persists a class-teacher assignment row (used when admin assigns class teacher). */
     @Transactional
     public void recordClassTeacherAssignment(
             Long classId, Long sectionId, Long teacherId, Long academicYearId, LocalDate effectiveFrom) {
         String t = TenantContext.getTenantId();
-        log.debug("Recording class-teacher assignment classId={} teacherId={} academicYearId={}", classId, teacherId, academicYearId);
+        closeActiveHomeroomSlotAssignments(t, classId, sectionId, LocalDate.now().minusDays(1));
+        log.debug("Recording class-teacher assignment classId={} sectionId={} teacherId={} academicYearId={}", classId, sectionId, teacherId, academicYearId);
         ClassTeacherAssignment a = new ClassTeacherAssignment();
         a.setTenantId(t);
         a.setAcademicYearId(academicYearId);

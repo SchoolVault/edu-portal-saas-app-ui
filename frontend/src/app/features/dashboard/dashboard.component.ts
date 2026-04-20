@@ -9,12 +9,14 @@ import { ErpMonthPickerComponent } from '../../shared/erp-month-picker/erp-month
 import { AuthService } from '../../core/services/auth.service';
 import { ParentSelectionService } from '../../core/services/parent-selection.service';
 import { DashboardService } from '../../core/services/dashboard.service';
+import { OperationsService } from '../../core/services/operations.service';
 import {
   AdminDashboardData,
   ParentDashboardData,
   TeacherDashboardData,
   TeacherHomeroomDailyPoint,
 } from '../../core/models/models';
+import { localIsoDateString } from '../../core/utils/local-date';
 
 Chart.register(...registerables);
 
@@ -531,6 +533,7 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
   teacherKPIs: DashboardTeacherKpi[] = [];
   parentKPIs: DashboardParentKpi[] = [];
   private langSub?: Subscription;
+  private coverMutSub?: Subscription;
   selectedParentChildId: number | null = null;
   showAdmissionsSeries = true;
   showFeesSeries = true;
@@ -554,6 +557,7 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
   constructor(
     private authService: AuthService,
     private dashboardService: DashboardService,
+    private operationsService: OperationsService,
     private parentSelection: ParentSelectionService,
     private cdr: ChangeDetectorRef,
     private translate: TranslateService
@@ -585,6 +589,22 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
         this.cdr.markForCheck();
       }
     });
+    this.refreshRoleContextThenLoad();
+    this.coverMutSub = this.operationsService.attendanceCoverMutations$.subscribe(() => {
+      if (!this.loading && !this.refreshing) {
+        this.refreshDashboard();
+      }
+    });
+  }
+
+  private refreshRoleContextThenLoad(): void {
+    if (this.role === 'teacher' || this.role === 'admin') {
+      this.authService.fetchProfileSummary().subscribe({
+        next: () => this.loadDashboard(),
+        error: () => this.loadDashboard(),
+      });
+      return;
+    }
     this.loadDashboard();
   }
 
@@ -596,46 +616,56 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
     const finish = () => {
       this.refreshing = false;
     };
-    if (this.role === 'admin') {
-      this.dashboardService.getAdminDashboard().subscribe({
+    const runRefresh = () => {
+      if (this.role === 'admin') {
+        this.dashboardService.getAdminDashboard().subscribe({
+          next: dashboard => {
+            this.adminDashboard = dashboard;
+            this.adminKPIs = this.buildAdminKpis(dashboard);
+            this.admissionInsights = this.buildAdmissionInsights(dashboard);
+            this.cdr.detectChanges();
+            this.initAdminCharts();
+            finish();
+          },
+          error: () => finish()
+        });
+        return;
+      }
+      if (this.role === 'teacher') {
+        this.dashboardService.getTeacherDashboard(this.teacherTrendMonth).subscribe({
+          next: dashboard => {
+            this.teacherDashboard = dashboard;
+            this.teacherKPIs = this.buildTeacherKpis(dashboard);
+            this.cdr.detectChanges();
+            queueMicrotask(() => this.initTeacherCharts());
+            finish();
+          },
+          error: () => finish()
+        });
+        return;
+      }
+      const today = new Date();
+      const from = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().slice(0, 10);
+      const to = today.toISOString().slice(0, 10);
+      this.dashboardService.getParentDashboard(from, to, this.selectedParentChildId).subscribe({
         next: dashboard => {
-          this.adminDashboard = dashboard;
-          this.adminKPIs = this.buildAdminKpis(dashboard);
-          this.admissionInsights = this.buildAdmissionInsights(dashboard);
-          this.cdr.detectChanges();
-          this.initAdminCharts();
+          this.parentDashboard = dashboard;
+          this.selectedParentChildId = dashboard.selectedChildId ?? dashboard.selectedChild?.id ?? null;
+          this.parentSelection.rememberSelectedChild(this.selectedParentChildId);
+          this.parentKPIs = this.buildParentKpis(dashboard);
           finish();
         },
         error: () => finish()
       });
-      return;
-    }
-    if (this.role === 'teacher') {
-      this.dashboardService.getTeacherDashboard(this.teacherTrendMonth).subscribe({
-        next: dashboard => {
-          this.teacherDashboard = dashboard;
-          this.teacherKPIs = this.buildTeacherKpis(dashboard);
-          this.cdr.detectChanges();
-          queueMicrotask(() => this.initTeacherCharts());
-          finish();
-        },
-        error: () => finish()
+    };
+    if (this.role === 'teacher' || this.role === 'admin') {
+      this.authService.fetchProfileSummary().subscribe({
+        next: () => runRefresh(),
+        error: () => runRefresh(),
       });
       return;
     }
-    const today = new Date();
-    const from = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().slice(0, 10);
-    const to = today.toISOString().slice(0, 10);
-    this.dashboardService.getParentDashboard(from, to, this.selectedParentChildId).subscribe({
-      next: dashboard => {
-        this.parentDashboard = dashboard;
-        this.selectedParentChildId = dashboard.selectedChildId ?? dashboard.selectedChild?.id ?? null;
-        this.parentSelection.rememberSelectedChild(this.selectedParentChildId);
-        this.parentKPIs = this.buildParentKpis(dashboard);
-        finish();
-      },
-      error: () => finish()
-    });
+    runRefresh();
   }
 
   private loadDashboard(): void {
@@ -721,6 +751,7 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.langSub?.unsubscribe();
+    this.coverMutSub?.unsubscribe();
     this.combinedTrendChart?.destroy();
     this.attendanceChart?.destroy();
     this.admissionsTrendChart?.destroy();
@@ -808,12 +839,14 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
     const homeroomDisplay =
       hmLabel ||
       (ct ? `${ct.className?.trim() || ''}${ct.sectionName ? ' · ' + ct.sectionName : ''}`.trim() : '');
-    const homeroomQuery: Record<string, string> | undefined =
+    const todayIso = localIsoDateString();
+    const homeroomScopeParams: Record<string, string> | undefined =
       ct?.classId != null && ct.sectionId != null
         ? { classId: String(ct.classId), sectionId: String(ct.sectionId) }
         : ct?.classId != null
           ? { classId: String(ct.classId) }
           : undefined;
+    const attendanceQuery: Record<string, string> = { ...(homeroomScopeParams ?? {}), date: todayIso };
     const rosterStrength =
       ct != null && ct.totalStudents != null && ct.totalStudents > 0 ? ct.totalStudents : dashboard.studentsAssigned;
     const attendanceDone = Boolean(dashboard.homeroomTodayAttendanceComplete);
@@ -825,7 +858,7 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
         bgColor: 'rgba(27,58,48,0.1)',
         color: '#1B3A30',
         link: '/app/students',
-        queryParams: homeroomQuery,
+        queryParams: homeroomScopeParams,
         // subtextKey: homeroomDisplay ? 'dashboard.teacher.kpi.homeroomSubStudents' : 'dashboard.teacher.kpi.homeroomEmpty',
       },
       {
@@ -835,7 +868,7 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
         bgColor: 'rgba(192,92,61,0.1)',
         color: '#C05C3D',
         link: '/app/students',
-        queryParams: homeroomQuery,
+        queryParams: homeroomScopeParams,
         // subtextKey: ct ? 'dashboard.teacher.kpi.studentsAssignedHomeroomHint' : 'dashboard.teacher.kpi.studentsAssignedFallbackHint',
       },
       {
@@ -856,8 +889,7 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
         bgColor: attendanceDone ? 'rgba(5,150,105,0.12)' : 'rgba(217,119,6,0.12)',
         color: attendanceDone ? '#059669' : '#D97706',
         link: '/app/attendance',
-        queryParams: homeroomQuery,
-        // subtextKey: attendanceDone ? 'dashboard.teacher.kpi.homeAttendanceHintDone' : 'dashboard.teacher.kpi.homeAttendanceHintPending',
+        queryParams: attendanceQuery,
         kpiVariant: attendanceDone ? 'attendance-done' : 'attendance-pending',
       },
     ];

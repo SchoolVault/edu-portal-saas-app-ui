@@ -18,6 +18,7 @@ import com.school.erp.modules.auth.repository.RefreshTokenRepository;
 import com.school.erp.modules.auth.repository.UserRepository;
 import com.school.erp.platform.port.AuditTrailPort;
 import com.school.erp.modules.academic.entity.ClassTeacherAssignment;
+import com.school.erp.modules.academic.entity.Section;
 import com.school.erp.modules.academic.entity.SchoolClass;
 import com.school.erp.modules.academic.repository.AcademicYearRepository;
 import com.school.erp.modules.academic.repository.ClassTeacherAssignmentRepository;
@@ -437,10 +438,10 @@ public class AuthService {
     private void applyTeacherProfileShell(String tenantId, com.school.erp.modules.teacher.entity.Teacher teacher, AuthProfileDTOs.ProfileSummaryResponse response) {
         response.setQualification(teacher.getQualification());
         response.setSpecialization(teacher.getSpecialization());
-        if (teacher.getSubjects() != null && !teacher.getSubjects().isEmpty()) {
+        if (teacher.getSpecialization() != null && !teacher.getSpecialization().isBlank()) {
+            response.setPrimaryTeachingSubject(teacher.getSpecialization().trim());
+        } else if (teacher.getSubjects() != null && !teacher.getSubjects().isEmpty()) {
             response.setPrimaryTeachingSubject(teacher.getSubjects().get(0));
-        } else if (teacher.getSpecialization() != null && !teacher.getSpecialization().isBlank()) {
-            response.setPrimaryTeachingSubject(teacher.getSpecialization());
         }
         response.setSubjectCount(teacher.getSubjects() != null ? (long) teacher.getSubjects().size() : 0L);
 
@@ -479,10 +480,12 @@ public class AuthService {
                 row.setClassId(a.getClassId() != null ? String.valueOf(a.getClassId()) : null);
                 row.setClassName(classNames.getOrDefault(a.getClassId(), ""));
                 if (a.getSectionId() != null) {
+                    row.setSectionId(String.valueOf(a.getSectionId()));
                     row.setSectionName(sectionNames.getOrDefault(a.getSectionId(), ""));
                     long headcount = studentRepository.findByTenantIdAndClassIdAndSectionIdAndIsDeletedFalse(tenantId, a.getClassId(), a.getSectionId()).size();
                     row.setTotalStudents(headcount);
                 } else {
+                    row.setSectionId(null);
                     row.setSectionName(null);
                     row.setTotalStudents(studentRepository.findByTenantIdAndClassIdAndIsDeletedFalse(tenantId, a.getClassId()).size());
                 }
@@ -491,11 +494,25 @@ public class AuthService {
         }
         if (rows.isEmpty()) {
             for (SchoolClass sc : schoolClassRepository.findByTenantIdAndClassTeacherIdAndIsDeletedFalse(tenantId, teacher.getId())) {
+                if (!sectionRepository.findByTenantIdAndClassIdAndIsDeletedFalse(tenantId, sc.getId()).isEmpty()) {
+                    continue;
+                }
                 AuthProfileDTOs.ClassTeacherAssignment row = new AuthProfileDTOs.ClassTeacherAssignment();
                 row.setClassId(sc.getId() != null ? String.valueOf(sc.getId()) : null);
                 row.setClassName(sc.getName());
+                row.setSectionId(null);
                 row.setSectionName(null);
                 row.setTotalStudents(studentRepository.findByTenantIdAndClassIdAndIsDeletedFalse(tenantId, sc.getId()).size());
+                rows.add(row);
+            }
+            for (Section sec : sectionRepository.findByTenantIdAndClassTeacherIdAndIsDeletedFalse(tenantId, teacher.getId())) {
+                SchoolClass sc = schoolClassRepository.findByIdAndTenantIdAndIsDeletedFalse(sec.getClassId(), tenantId).orElse(null);
+                AuthProfileDTOs.ClassTeacherAssignment row = new AuthProfileDTOs.ClassTeacherAssignment();
+                row.setClassId(sec.getClassId() != null ? String.valueOf(sec.getClassId()) : null);
+                row.setClassName(sc != null ? sc.getName() : "");
+                row.setSectionId(sec.getId() != null ? String.valueOf(sec.getId()) : null);
+                row.setSectionName(sec.getName());
+                row.setTotalStudents(studentRepository.findByTenantIdAndClassIdAndSectionIdAndIsDeletedFalse(tenantId, sec.getClassId(), sec.getId()).size());
                 rows.add(row);
             }
         }

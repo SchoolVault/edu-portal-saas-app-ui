@@ -474,6 +474,7 @@ export class AuthService {
             ? summary.classTeacherOf.map((r: Record<string, unknown>) => ({
                 classId: Number(r['classId']),
                 className: r['className'] != null ? String(r['className']) : undefined,
+                sectionId: r['sectionId'] != null ? Number(r['sectionId']) : undefined,
                 sectionName: r['sectionName'] != null ? String(r['sectionName']) : undefined,
                 totalStudents: r['totalStudents'] != null ? Number(r['totalStudents']) : undefined,
               }))

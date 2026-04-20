@@ -2,9 +2,17 @@ import { Injectable } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable, of, throwError, timer } from 'rxjs';
 import { catchError, delay, map, switchMap } from 'rxjs/operators';
-import { TimetableConflictPayload, TimetableEntry, TimetableGrid, TimetableGridSlot } from '../models/models';
+import {
+  ApplyTeacherScheduleOnboardingRequest,
+  ApplyTeacherScheduleOnboardingResponse,
+  TimetableConflictPayload,
+  TimetableEntry,
+  TimetableGrid,
+  TimetableGridSlot,
+} from '../models/models';
 import { AttendanceCoverRow } from '../models/operations.models';
 import { ApiResp, ApiService } from './api.service';
+import { AcademicService } from './academic.service';
 import { OperationsService } from './operations.service';
 import { runtimeConfig } from '../config/runtime-config';
 import { MOCK_TIMETABLE_ENTRIES } from '../mocks/timetable.mock-data';
@@ -416,10 +424,196 @@ export class TimetableService {
     return of(void 0).pipe(delay(200));
   }
 
+  /**
+   * Admin onboarding: homeroom + weekly recurring slots in one API (or mock transaction).
+   * Aligns with {@code POST /api/v1/timetable/onboarding/apply}.
+   */
+  applyTeacherScheduleOnboarding(
+    body: ApplyTeacherScheduleOnboardingRequest
+  ): Observable<ApplyTeacherScheduleOnboardingResponse> {
+    if (!runtimeConfig.useMocks) {
+      return this.pipeTimetableConflict(
+        this.http
+          .post<ApiResp<ApplyTeacherScheduleOnboardingResponse>>(
+            `${this.api.getBaseUrl()}/timetable/onboarding/apply`,
+            body
+          )
+          .pipe(
+            map(res => {
+              if (!res.success || res.data == null) {
+                throw new Error(res.message || 'Schedule onboarding failed');
+              }
+              return res.data;
+            })
+          )
+      );
+    }
+    return this.mockApplyTeacherScheduleOnboarding(body);
+  }
+
+  private mockApplyTeacherScheduleOnboarding(
+    req: ApplyTeacherScheduleOnboardingRequest
+  ): Observable<ApplyTeacherScheduleOnboardingResponse> {
+    const teacherName = this.mockResolveTeacherName(req.teacherId);
+    const homeroom$: Observable<void> = req.homeroom
+      ? this.academic
+          .assignClassTeacher(
+            req.homeroom.classId,
+            req.teacherId,
+            teacherName,
+            req.homeroom.sectionId ?? undefined
+          )
+          .pipe(map(() => undefined))
+      : of(undefined);
+    return homeroom$.pipe(
+      switchMap(() => {
+        for (const id of req.removeEntryIds ?? []) {
+          this.entries = this.entries.filter(e => e.id !== id);
+        }
+        const created: number[] = [];
+        const updated: number[] = [];
+        for (const slot of req.slots ?? []) {
+          const win = this.mockPeriodWindow(slot.period);
+          const dayTitle = this.toTitleDay(slot.day);
+          if (slot.existingEntryId != null) {
+            const idx = this.entries.findIndex(e => e.id === slot.existingEntryId);
+            if (idx >= 0) {
+              this.entries[idx] = {
+                ...this.entries[idx],
+                classId: slot.classId,
+                sectionId: slot.sectionId ?? 0,
+                day: dayTitle,
+                period: slot.period,
+                subjectName: slot.subjectName,
+                teacherId: req.teacherId,
+                teacherName,
+                room: (slot.room ?? this.entries[idx].room) || '',
+                startTime: win.start,
+                endTime: win.end,
+              };
+              updated.push(slot.existingEntryId);
+            }
+          } else {
+            const candidate: TimetableEntry = {
+              id: 0,
+              classId: slot.classId,
+              sectionId: slot.sectionId ?? 0,
+              day: dayTitle,
+              period: slot.period,
+              startTime: win.start,
+              endTime: win.end,
+              subjectName: slot.subjectName,
+              teacherId: req.teacherId,
+              teacherName,
+              room: slot.room?.trim() || `Room ${100 + slot.classId + slot.period}`,
+              tenantId: 't1',
+            };
+            const ins = this.mockInsertOnboardingSlot(candidate, slot.replaceTimetableEntryId ?? undefined);
+            if (ins instanceof TimetableConflictError) {
+              return throwError(() => ins);
+            }
+            created.push(ins.id);
+          }
+        }
+        let anchoredEntryId: number | undefined;
+        const opt = req.options ?? {};
+        if (opt.anchorMondayFirstPeriod !== false && req.homeroom) {
+          const sid = req.homeroom.sectionId ?? 0;
+          const hit = this.entries.find(
+            e =>
+              e.classId === req.homeroom!.classId &&
+              (e.sectionId ?? 0) === sid &&
+              e.day === 'Monday' &&
+              e.period === 1
+          );
+          if (hit) {
+            const idx = this.entries.findIndex(e => e.id === hit.id);
+            if (idx >= 0) {
+              this.entries[idx] = {
+                ...this.entries[idx],
+                teacherId: req.teacherId,
+                teacherName,
+                subjectName: this.mockPrimarySubjectForTeacher(req.teacherId),
+              };
+              anchoredEntryId = hit.id;
+            }
+          }
+        }
+        const out: ApplyTeacherScheduleOnboardingResponse = {
+          teacherId: req.teacherId,
+          teacherName,
+          createdEntryIds: created,
+          updatedEntryIds: updated,
+          removedEntryIds: [...(req.removeEntryIds ?? [])],
+          anchoredEntryId: anchoredEntryId ?? null,
+        };
+        return of(out).pipe(delay(450));
+      })
+    );
+  }
+
+  /**
+   * Mock-only insert with the same conflict rules as {@link #mockMutateSlot} (class slot + teacher double-book).
+   */
+  private mockInsertOnboardingSlot(
+    candidate: TimetableEntry,
+    replaceTimetableEntryId?: number
+  ): TimetableEntry | TimetableConflictError {
+    let block = this.mockFindBlocking(candidate, null);
+    if (replaceTimetableEntryId != null) {
+      if (block && block.existingEntryId === replaceTimetableEntryId) {
+        this.entries = this.entries.filter(e => e.id !== replaceTimetableEntryId);
+        block = this.mockFindBlocking(candidate, null);
+      } else if (block) {
+        return new TimetableConflictError(this.mockHumanMessage(String(block.conflictType)), block);
+      }
+    } else if (block) {
+      return new TimetableConflictError(this.mockHumanMessage(String(block.conflictType)), block);
+    }
+    const nextId = Math.max(0, ...this.entries.map(e => e.id)) + 1;
+    const row: TimetableEntry = { ...candidate, id: nextId };
+    this.entries = [...this.entries, row];
+    return row;
+  }
+
+  private mockResolveTeacherName(teacherId: number): string {
+    const hit = this.entries.find(e => e.teacherId === teacherId);
+    return hit?.teacherName?.trim() || 'Teacher';
+  }
+
+  private mockPrimarySubjectForTeacher(teacherId: number): string {
+    if (teacherId === 1) {
+      return 'Mathematics';
+    }
+    return 'Value Education';
+  }
+
+  private mockPeriodWindow(period: number): { start: string; end: string } {
+    const p = Math.max(1, period);
+    const startMin = (p - 1) * 45;
+    const h = Math.floor(8 + startMin / 60);
+    const m = startMin % 60;
+    const start = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+    const endMin = startMin + 45;
+    const eh = Math.floor(8 + endMin / 60);
+    const em = endMin % 60;
+    const end = `${String(eh).padStart(2, '0')}:${String(em).padStart(2, '0')}`;
+    return { start, end };
+  }
+
+  private toTitleDay(day: string): string {
+    const u = (day || '').trim();
+    if (!u) {
+      return 'Monday';
+    }
+    return u.charAt(0) + u.slice(1).toLowerCase();
+  }
+
   constructor(
     private api: ApiService,
     private http: HttpClient,
-    private operations: OperationsService
+    private operations: OperationsService,
+    private academic: AcademicService
   ) {}
 
   private normalizeEntry(entry: any): TimetableEntry {

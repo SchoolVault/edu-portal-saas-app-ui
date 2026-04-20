@@ -44,6 +44,10 @@ export class AttendanceService {
   }
 
   saveAttendance(records: AttendanceRecord[]): Observable<boolean> {
+    const validationError = this.validateAttendancePayload(records);
+    if (validationError) {
+      throw new Error(validationError);
+    }
     if (!runtimeConfig.useMocks) {
       return this.api
         .post<any>('/attendance', {
@@ -68,6 +72,38 @@ export class AttendanceService {
       }
     });
     return of(true).pipe(delay(500));
+  }
+
+  private validateAttendancePayload(records: AttendanceRecord[]): string | null {
+    if (!records.length) {
+      return 'No attendance records provided.';
+    }
+    const first = records[0];
+    const expectedClassId = Number(first.classId);
+    const expectedSectionId = Number(first.sectionId);
+    const expectedDate = String(first.date || '');
+    if (!expectedClassId || !expectedDate) {
+      return 'Attendance context is incomplete.';
+    }
+    const seenStudentIds = new Set<number>();
+    for (const row of records) {
+      const studentId = Number(row.studentId);
+      if (!studentId || seenStudentIds.has(studentId)) {
+        return 'Duplicate or invalid student row in attendance payload.';
+      }
+      seenStudentIds.add(studentId);
+      if (
+        Number(row.classId) !== expectedClassId ||
+        Number(row.sectionId) !== expectedSectionId ||
+        String(row.date || '') !== expectedDate
+      ) {
+        return 'Attendance payload contains mixed class, section, or date rows.';
+      }
+      if (!['present', 'absent', 'late'].includes(String(row.status))) {
+        return 'Attendance payload contains invalid status.';
+      }
+    }
+    return null;
   }
 
   getStudentAttendanceStats(studentId: number, from: string, to: string): Observable<AttendanceStats> {

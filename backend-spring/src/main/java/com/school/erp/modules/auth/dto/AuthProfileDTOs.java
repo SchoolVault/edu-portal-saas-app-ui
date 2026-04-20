@@ -9,6 +9,7 @@ public class AuthProfileDTOs {
     public static class ClassTeacherAssignment {
         private String classId;
         private String className;
+        private String sectionId;
         private String sectionName;
         private long totalStudents;
 
@@ -16,6 +17,8 @@ public class AuthProfileDTOs {
         public void setClassId(String classId) { this.classId = classId; }
         public String getClassName() { return className; }
         public void setClassName(String className) { this.className = className; }
+        public String getSectionId() { return sectionId; }
+        public void setSectionId(String sectionId) { this.sectionId = sectionId; }
         public String getSectionName() { return sectionName; }
         public void setSectionName(String sectionName) { this.sectionName = sectionName; }
         public long getTotalStudents() { return totalStudents; }

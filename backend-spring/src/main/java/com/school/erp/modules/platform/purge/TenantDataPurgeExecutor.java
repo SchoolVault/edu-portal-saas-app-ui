@@ -34,6 +34,7 @@ public class TenantDataPurgeExecutor {
             "exam_class_scope",
             "class_teacher_assignments",
             "subject_teacher_assignments",
+            "leave_entitlement_policies",
             "leave_requests",
             "student_guardian_mappings",
             "guardians",

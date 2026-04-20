@@ -1719,7 +1719,47 @@ img.table-avatar {
 .modal-header-erp { padding: 20px 24px; border-bottom: 1px solid var(--clr-border); display: flex; align-items: center; justify-content: space-between; }
 .modal-header-erp h3 { font-size: 18px; font-weight: 700; }
 .modal-body-erp { padding: 24px; }
-.modal-footer-erp { padding: 16px 24px; border-top: 1px solid var(--clr-border); display: flex; align-items: center; justify-content: flex-end; gap: 12px; }
+.modal-footer-erp { padding: 16px 24px; border-top: 1px solid var(--clr-border); display: flex; align-items: center; justify-content: flex-end; gap: 12px; flex-wrap: wrap; }
+
+/* Small screens: bottom-sheet style modals, full-width tap targets */
+@media (max-width: 576px) {
+  .modal-overlay {
+    align-items: flex-end;
+    padding: 0;
+  }
+  .modal-content-erp {
+    width: 100%;
+    max-width: 100%;
+    border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+    max-height: min(92vh, 100dvh);
+    margin-block: 0;
+  }
+  .modal-footer-erp {
+    justify-content: stretch;
+  }
+  .modal-footer-erp .btn-primary-erp,
+  .modal-footer-erp .btn-outline-erp {
+    flex: 1;
+    min-width: 0;
+  }
+}
+
+/** Horizontal scroll for wide data tables (wrap `.erp-table` for small viewports). */
+.erp-table-scroll {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.erp-table-scroll .erp-table {
+  min-width: 720px;
+}
+@media (max-width: 576px) {
+  .erp-table-scroll .erp-table {
+    min-width: 640px;
+  }
+}
 
 /* === CHART === */
 .chart-container { position: relative; height: 280px; width: 100%; }

@@ -108,7 +108,7 @@ public class AcademicController {
     @PreAuthorize("hasAnyRole(\'ADMIN\',\'SUPER_ADMIN\')")
     @Operation(summary = "Assign class teacher")
     public ResponseEntity<ApiResponse<AcademicDTOs.ClassWithSectionsResponse>> assignTeacher(@PathVariable Long classId, @Valid @RequestBody AcademicDTOs.AssignTeacherRequest req) {
-        return ResponseEntity.ok(ApiResponse.ok(service.assignClassTeacher(classId, req.getTeacherId(), req.getTeacherName())));
+        return ResponseEntity.ok(ApiResponse.ok(service.assignClassTeacher(classId, req.getSectionId(), req.getTeacherId(), req.getTeacherName())));
     }
 
     @GetMapping("/subjects/catalog")

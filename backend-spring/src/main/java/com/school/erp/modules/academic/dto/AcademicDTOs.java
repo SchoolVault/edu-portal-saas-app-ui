@@ -482,6 +482,8 @@ public class AcademicDTOs {
         private Long classId;
         private Integer capacity;
         private Integer studentCount;
+        private Long classTeacherId;
+        private String classTeacherName;
 
 
         public static class SectionDTOBuilder {
@@ -490,6 +492,8 @@ public class AcademicDTOs {
             private Long classId;
             private Integer capacity;
             private Integer studentCount;
+            private Long classTeacherId;
+            private String classTeacherName;
 
             SectionDTOBuilder() {
             }
@@ -534,13 +538,24 @@ public class AcademicDTOs {
                 return this;
             }
 
+            public AcademicDTOs.SectionDTO.SectionDTOBuilder classTeacherId(final Long classTeacherId) {
+                this.classTeacherId = classTeacherId;
+                return this;
+            }
+
+            public AcademicDTOs.SectionDTO.SectionDTOBuilder classTeacherName(final String classTeacherName) {
+                this.classTeacherName = classTeacherName;
+                return this;
+            }
+
             public AcademicDTOs.SectionDTO build() {
-                return new AcademicDTOs.SectionDTO(this.id, this.name, this.classId, this.capacity, this.studentCount);
+                return new AcademicDTOs.SectionDTO(
+                        this.id, this.name, this.classId, this.capacity, this.studentCount, this.classTeacherId, this.classTeacherName);
             }
 
             @Override
             public String toString() {
-                return "AcademicDTOs.SectionDTO.SectionDTOBuilder(id=" + this.id + ", name=" + this.name + ", classId=" + this.classId + ", capacity=" + this.capacity + ", studentCount=" + this.studentCount + ")";
+                return "AcademicDTOs.SectionDTO.SectionDTOBuilder(id=" + this.id + ", name=" + this.name + ", classId=" + this.classId + ", capacity=" + this.capacity + ", studentCount=" + this.studentCount + ", classTeacherId=" + this.classTeacherId + ", classTeacherName=" + this.classTeacherName + ")";
             }
         }
 
@@ -568,6 +583,14 @@ public class AcademicDTOs {
             return this.studentCount;
         }
 
+        public Long getClassTeacherId() {
+            return this.classTeacherId;
+        }
+
+        public String getClassTeacherName() {
+            return this.classTeacherName;
+        }
+
         public void setId(final Long id) {
             this.id = id;
         }
@@ -588,6 +611,14 @@ public class AcademicDTOs {
             this.studentCount = studentCount;
         }
 
+        public void setClassTeacherId(final Long classTeacherId) {
+            this.classTeacherId = classTeacherId;
+        }
+
+        public void setClassTeacherName(final String classTeacherName) {
+            this.classTeacherName = classTeacherName;
+        }
+
         @Override
         public boolean equals(final Object o) {
             if (o == this) return true;
@@ -606,9 +637,15 @@ public class AcademicDTOs {
             final Object this$studentCount = this.getStudentCount();
             final Object other$studentCount = other.getStudentCount();
             if (this$studentCount == null ? other$studentCount != null : !this$studentCount.equals(other$studentCount)) return false;
+            final Object this$classTeacherId = this.getClassTeacherId();
+            final Object other$classTeacherId = other.getClassTeacherId();
+            if (this$classTeacherId == null ? other$classTeacherId != null : !this$classTeacherId.equals(other$classTeacherId)) return false;
             final Object this$name = this.getName();
             final Object other$name = other.getName();
             if (this$name == null ? other$name != null : !this$name.equals(other$name)) return false;
+            final Object this$classTeacherName = this.getClassTeacherName();
+            final Object other$classTeacherName = other.getClassTeacherName();
+            if (this$classTeacherName == null ? other$classTeacherName != null : !this$classTeacherName.equals(other$classTeacherName)) return false;
             return true;
         }
 
@@ -628,14 +665,18 @@ public class AcademicDTOs {
             result = result * PRIME + ($capacity == null ? 43 : $capacity.hashCode());
             final Object $studentCount = this.getStudentCount();
             result = result * PRIME + ($studentCount == null ? 43 : $studentCount.hashCode());
+            final Object $classTeacherId = this.getClassTeacherId();
+            result = result * PRIME + ($classTeacherId == null ? 43 : $classTeacherId.hashCode());
             final Object $name = this.getName();
             result = result * PRIME + ($name == null ? 43 : $name.hashCode());
+            final Object $classTeacherName = this.getClassTeacherName();
+            result = result * PRIME + ($classTeacherName == null ? 43 : $classTeacherName.hashCode());
             return result;
         }
 
         @Override
         public String toString() {
-            return "AcademicDTOs.SectionDTO(id=" + this.getId() + ", name=" + this.getName() + ", classId=" + this.getClassId() + ", capacity=" + this.getCapacity() + ", studentCount=" + this.getStudentCount() + ")";
+            return "AcademicDTOs.SectionDTO(id=" + this.getId() + ", name=" + this.getName() + ", classId=" + this.getClassId() + ", capacity=" + this.getCapacity() + ", studentCount=" + this.getStudentCount() + ", classTeacherId=" + this.getClassTeacherId() + ", classTeacherName=" + this.getClassTeacherName() + ")";
         }
 
         public SectionDTO() {
@@ -647,6 +688,23 @@ public class AcademicDTOs {
             this.classId = classId;
             this.capacity = capacity;
             this.studentCount = studentCount;
+        }
+
+        public SectionDTO(
+                final Long id,
+                final String name,
+                final Long classId,
+                final Integer capacity,
+                final Integer studentCount,
+                final Long classTeacherId,
+                final String classTeacherName) {
+            this.id = id;
+            this.name = name;
+            this.classId = classId;
+            this.capacity = capacity;
+            this.studentCount = studentCount;
+            this.classTeacherId = classTeacherId;
+            this.classTeacherName = classTeacherName;
         }
     }
 
@@ -786,12 +844,18 @@ public class AcademicDTOs {
         /** Null clears class teacher assignment. */
         private Long teacherId;
         private String teacherName;
+        /**
+         * Required when the class has section rows — identifies which section’s homeroom to set.
+         * Omit or null for whole-class (no sections) homeroom on {@code school_classes}.
+         */
+        private Long sectionId;
 
 
         public static class AssignTeacherRequestBuilder {
             private Long classId;
             private Long teacherId;
             private String teacherName;
+            private Long sectionId;
 
             AssignTeacherRequestBuilder() {
             }
@@ -820,13 +884,18 @@ public class AcademicDTOs {
                 return this;
             }
 
+            public AcademicDTOs.AssignTeacherRequest.AssignTeacherRequestBuilder sectionId(final Long sectionId) {
+                this.sectionId = sectionId;
+                return this;
+            }
+
             public AcademicDTOs.AssignTeacherRequest build() {
-                return new AcademicDTOs.AssignTeacherRequest(this.classId, this.teacherId, this.teacherName);
+                return new AcademicDTOs.AssignTeacherRequest(this.classId, this.teacherId, this.teacherName, this.sectionId);
             }
 
             @Override
             public String toString() {
-                return "AcademicDTOs.AssignTeacherRequest.AssignTeacherRequestBuilder(classId=" + this.classId + ", teacherId=" + this.teacherId + ", teacherName=" + this.teacherName + ")";
+                return "AcademicDTOs.AssignTeacherRequest.AssignTeacherRequestBuilder(classId=" + this.classId + ", teacherId=" + this.teacherId + ", teacherName=" + this.teacherName + ", sectionId=" + this.sectionId + ")";
             }
         }
 
@@ -858,6 +927,14 @@ public class AcademicDTOs {
             this.teacherName = teacherName;
         }
 
+        public Long getSectionId() {
+            return this.sectionId;
+        }
+
+        public void setSectionId(final Long sectionId) {
+            this.sectionId = sectionId;
+        }
+
         @Override
         public boolean equals(final Object o) {
             if (o == this) return true;
@@ -873,6 +950,9 @@ public class AcademicDTOs {
             final Object this$teacherName = this.getTeacherName();
             final Object other$teacherName = other.getTeacherName();
             if (this$teacherName == null ? other$teacherName != null : !this$teacherName.equals(other$teacherName)) return false;
+            final Object this$sectionId = this.getSectionId();
+            final Object other$sectionId = other.getSectionId();
+            if (this$sectionId == null ? other$sectionId != null : !this$sectionId.equals(other$sectionId)) return false;
             return true;
         }
 
@@ -890,21 +970,24 @@ public class AcademicDTOs {
             result = result * PRIME + ($teacherId == null ? 43 : $teacherId.hashCode());
             final Object $teacherName = this.getTeacherName();
             result = result * PRIME + ($teacherName == null ? 43 : $teacherName.hashCode());
+            final Object $sectionId = this.getSectionId();
+            result = result * PRIME + ($sectionId == null ? 43 : $sectionId.hashCode());
             return result;
         }
 
         @Override
         public String toString() {
-            return "AcademicDTOs.AssignTeacherRequest(classId=" + this.getClassId() + ", teacherId=" + this.getTeacherId() + ", teacherName=" + this.getTeacherName() + ")";
+            return "AcademicDTOs.AssignTeacherRequest(classId=" + this.getClassId() + ", teacherId=" + this.getTeacherId() + ", teacherName=" + this.getTeacherName() + ", sectionId=" + this.getSectionId() + ")";
         }
 
         public AssignTeacherRequest() {
         }
 
-        public AssignTeacherRequest(final Long classId, final Long teacherId, final String teacherName) {
+        public AssignTeacherRequest(final Long classId, final Long teacherId, final String teacherName, final Long sectionId) {
             this.classId = classId;
             this.teacherId = teacherId;
             this.teacherName = teacherName;
+            this.sectionId = sectionId;
         }
     }
 

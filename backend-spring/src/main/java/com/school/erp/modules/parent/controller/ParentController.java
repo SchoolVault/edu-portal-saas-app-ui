@@ -8,7 +8,9 @@ import com.school.erp.modules.attendance.entity.AttendanceRecord;
 import com.school.erp.modules.attendance.repository.AttendanceRepository;
 import com.school.erp.modules.guardian.service.GuardianService;
 import com.school.erp.modules.academic.entity.SchoolClass;
+import com.school.erp.modules.academic.entity.Section;
 import com.school.erp.modules.academic.repository.SchoolClassRepository;
+import com.school.erp.modules.academic.repository.SectionRepository;
 import com.school.erp.modules.auth.repository.UserRepository;
 import com.school.erp.common.enums.Enums;
 import com.school.erp.modules.student.entity.Student;
@@ -50,6 +52,7 @@ public class ParentController {
     private final AttendanceRepository attendanceRepo;
     private final FeeService feeService;
     private final SchoolClassRepository schoolClassRepository;
+    private final SectionRepository sectionRepository;
     private final TeacherRepository teacherRepository;
     private final UserRepository userRepository;
     private final TimetableService timetableService;
@@ -248,15 +251,34 @@ public class ParentController {
             SchoolClass sc = byClassId.computeIfAbsent(
                     classId,
                     id -> schoolClassRepository.findByIdAndTenantIdAndIsDeletedFalse(id, tenantId).orElse(null));
-            if (sc != null && sc.getClassTeacherId() != null) {
-                teacherRepository.findByIdAndTenantIdAndIsDeletedFalse(sc.getClassTeacherId(), tenantId).ifPresent(t -> {
+            if (sc == null) {
+                continue;
+            }
+            Long homeroomTeacherPk = sc.getClassTeacherId();
+            if (s.getSectionId() != null) {
+                Section sec = sectionRepository.findByIdAndTenantIdAndIsDeletedFalse(s.getSectionId(), tenantId).orElse(null);
+                if (sec != null && sec.getClassTeacherId() != null) {
+                    homeroomTeacherPk = sec.getClassTeacherId();
+                }
+            }
+            if (homeroomTeacherPk != null) {
+                teacherRepository.findByIdAndTenantIdAndIsDeletedFalse(homeroomTeacherPk, tenantId).ifPresent(t -> {
                     s.setHomeroomTeacherUserId(t.getUserId());
                     if (t.getUserId() != null) {
                         userRepository.findByIdAndTenantIdAndIsDeletedFalse(t.getUserId(), tenantId)
                                 .ifPresent(u -> s.setHomeroomTeacherName(u.getName()));
                     }
                     if (s.getHomeroomTeacherName() == null || s.getHomeroomTeacherName().isBlank()) {
-                        s.setHomeroomTeacherName(sc.getClassTeacherName());
+                        if (s.getSectionId() != null) {
+                            sectionRepository.findByIdAndTenantIdAndIsDeletedFalse(s.getSectionId(), tenantId).ifPresent(sec -> {
+                                if (sec.getClassTeacherName() != null && !sec.getClassTeacherName().isBlank()) {
+                                    s.setHomeroomTeacherName(sec.getClassTeacherName());
+                                }
+                            });
+                        }
+                        if (s.getHomeroomTeacherName() == null || s.getHomeroomTeacherName().isBlank()) {
+                            s.setHomeroomTeacherName(sc.getClassTeacherName());
+                        }
                     }
                 });
             }
@@ -283,6 +305,7 @@ public class ParentController {
             final AttendanceRepository attendanceRepo,
             final FeeService feeService,
             final SchoolClassRepository schoolClassRepository,
+            final SectionRepository sectionRepository,
             final TeacherRepository teacherRepository,
             final UserRepository userRepository,
             final TimetableService timetableService,
@@ -295,6 +318,7 @@ public class ParentController {
         this.attendanceRepo = attendanceRepo;
         this.feeService = feeService;
         this.schoolClassRepository = schoolClassRepository;
+        this.sectionRepository = sectionRepository;
         this.teacherRepository = teacherRepository;
         this.userRepository = userRepository;
         this.timetableService = timetableService;

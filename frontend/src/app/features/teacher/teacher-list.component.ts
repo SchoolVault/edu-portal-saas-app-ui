@@ -2,10 +2,12 @@ import { ChangeDetectorRef, Component, OnDestroy, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterModule } from '@angular/router';
-import { debounceTime, filter } from 'rxjs/operators';
+import { catchError, debounceTime, filter, map, switchMap } from 'rxjs/operators';
+import { of } from 'rxjs';
 import { TeacherService } from '../../core/services/teacher.service';
+import { AcademicService } from '../../core/services/academic.service';
 import { AuthService } from '../../core/services/auth.service';
-import { Teacher } from '../../core/models/models';
+import { SchoolClass, Teacher } from '../../core/models/models';
 import { ConfirmDialogService } from '../../shared/confirm-dialog/confirm-dialog.service';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { Subject, Subscription } from 'rxjs';
@@ -20,6 +22,36 @@ import { runtimeConfig } from '../../core/config/runtime-config';
   selector: 'app-teacher-list',
   standalone: true,
   imports: [CommonModule, FormsModule, RouterModule, TranslateModule, ErpPaginationComponent, ErpI18nPhDirective],
+  styles: [
+    `
+      .teacher-list-table-wrap {
+        width: 100%;
+        max-width: 100%;
+        min-width: 0;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+      }
+      .teacher-list-table-wrap .erp-table {
+        min-width: 720px;
+      }
+      @media (max-width: 576px) {
+        .search-input-wrapper {
+          min-width: 100% !important;
+          width: 100%;
+        }
+        .search-input-wrapper .erp-input {
+          width: 100%;
+        }
+        .teacher-list-filter-wrap {
+          min-width: 100% !important;
+          width: 100%;
+        }
+        .teacher-list-table-wrap .erp-table {
+          min-width: 640px;
+        }
+      }
+    `,
+  ],
   template: `
     <div data-testid="teacher-list-page">
       <header class="erp-page-header animate-in">
@@ -37,13 +69,20 @@ import { runtimeConfig } from '../../core/config/runtime-config';
         </div>
       </header>
       <div class="erp-card animate-in animate-in-delay-1">
-        <div class="d-flex justify-content-between align-items-center mb-3">
+        <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
           <div class="search-input-wrapper" style="min-width: 300px;">
             <i class="bi bi-search"></i>
             <input type="text" class="erp-input" erpI18nPh="teachers.list.searchPlaceholder" [(ngModel)]="searchTerm" (input)="onSearchInput()" data-testid="teacher-search">
           </div>
+          <div class="teacher-list-filter-wrap" style="min-width: 220px;">
+            <label class="erp-label mb-1">{{ 'teachers.list.subjectFilterLabel' | translate }}</label>
+            <select class="erp-select" [(ngModel)]="selectedSubject" (ngModelChange)="onSubjectFilterChange()" data-testid="teacher-subject-filter">
+              <option value="">{{ 'teachers.list.subjectFilterAll' | translate }}</option>
+              <option *ngFor="let subject of subjectOptions" [value]="subject">{{ subject }}</option>
+            </select>
+          </div>
         </div>
-        <div style="overflow-x: auto;" dir="ltr">
+        <div class="teacher-list-table-wrap" dir="ltr">
           <table class="erp-table" data-testid="teacher-table">
             <thead>
               <tr><th>{{ 'teachers.list.thTeacher' | translate }}</th><th>{{ 'teachers.list.thSpecialization' | translate }}</th><th>{{ 'teachers.list.thSubjects' | translate }}</th><th>{{ 'teachers.list.thHomeroom' | translate }}</th><th>{{ 'teachers.list.thJoinDate' | translate }}</th><th>{{ 'teachers.list.thStatus' | translate }}</th><th>{{ 'teachers.list.thActions' | translate }}</th></tr>
@@ -81,8 +120,8 @@ import { runtimeConfig } from '../../core/config/runtime-config';
                   <ng-template #noSubjectsCell><span class="text-muted small">—</span></ng-template>
                 </td>
                 <td>
-                  <ng-container *ngIf="t.homeroomClassNames?.length; else noHomeroom">
-                    <span class="text-body">{{ homeroomLine(t) }}</span>
+                  <ng-container *ngIf="homeroomLine(t) as line; else noHomeroom">
+                    <span>{{ line }}</span>
                   </ng-container>
                   <ng-template #noHomeroom><span class="text-muted small">{{ 'teachers.list.homeroomNone' | translate }}</span></ng-template>
                 </td>
@@ -119,16 +158,20 @@ export class TeacherListComponent implements OnInit, OnDestroy {
   teachers: Teacher[] = [];
   filtered: Teacher[] = [];
   pagedTeachers: Teacher[] = [];
+  subjectOptions: string[] = [];
   serverTotal = 0;
   searchTerm = '';
+  selectedSubject = '';
   pageIndex = 0;
   pageSize = DEFAULT_ERP_PAGE_SIZE;
   private readonly subs = new Subscription();
   private readonly searchDebounced$ = new Subject<void>();
   private teachersListRequestSeq = 0;
+  private allTeachersCache: Teacher[] = [];
 
   constructor(
     private teacherService: TeacherService,
+    private academicService: AcademicService,
     private auth: AuthService,
     private confirmDialog: ConfirmDialogService,
     private translate: TranslateService,
@@ -176,11 +219,21 @@ export class TeacherListComponent implements OnInit, OnDestroy {
       })
     );
     this.reloadTeachers();
+    this.loadSubjectOptionsCatalog();
   }
 
   onSearchInput(): void {
     if (this.useServerPaging) {
       this.searchDebounced$.next();
+    } else {
+      this.filter();
+    }
+  }
+
+  onSubjectFilterChange(): void {
+    if (this.useServerPaging) {
+      this.pageIndex = 0;
+      this.fetchTeachersPage();
     } else {
       this.filter();
     }
@@ -194,23 +247,52 @@ export class TeacherListComponent implements OnInit, OnDestroy {
     }
     this.teacherService.getTeachers().subscribe(t => {
       this.teachers = t;
+      this.subjectOptions = this.extractSubjectOptions(t);
       this.filter();
     });
   }
 
   private fetchTeachersPage(): void {
     const seq = ++this.teachersListRequestSeq;
+    const hasSubjectFilter = !!this.selectedSubject.trim();
     this.subs.add(
       this.teacherService
         .getTeachersPage({
           page: this.pageIndex,
           size: this.pageSize,
           search: this.searchTerm.trim() || undefined,
+          subject: this.selectedSubject || undefined,
         })
+        .pipe(
+          switchMap(page => {
+            const needsCatalog =
+              this.useServerPaging && page.content.some(t => !(t.homeroomClassNames?.length));
+            if (!needsCatalog) {
+              return of(page);
+            }
+            return this.academicService.getClasses().pipe(
+              map(classes => ({
+                ...page,
+                content: this.fillHomeroomFromCatalog(page.content, classes),
+              })),
+              catchError(() => of(page))
+            );
+          })
+        )
         .subscribe(page => {
           if (seq !== this.teachersListRequestSeq) return;
+          const q = this.selectedSubject.trim().toLowerCase();
+          const backendIgnoredSubjectFilter =
+            hasSubjectFilter &&
+            page.content.length > 0 &&
+            page.content.some(t => !(t.subjects ?? []).some(s => s.toLowerCase().includes(q)));
+          if (backendIgnoredSubjectFilter) {
+            this.fallbackClientSubjectFilterPage();
+            return;
+          }
           this.serverTotal = page.totalElements;
           this.pagedTeachers = page.content;
+          this.subjectOptions = this.extractSubjectOptions(page.content, this.subjectOptions);
           this.pageIndex = page.page;
           this.pageSize = page.size;
           this.cdr.markForCheck();
@@ -218,13 +300,107 @@ export class TeacherListComponent implements OnInit, OnDestroy {
     );
   }
 
+  private loadSubjectOptionsCatalog(): void {
+    if (!this.useServerPaging) {
+      return;
+    }
+    this.subs.add(
+      this.teacherService.getTeachers().subscribe(rows => {
+        this.allTeachersCache = rows;
+        this.subjectOptions = this.extractSubjectOptions(rows, this.subjectOptions);
+        this.cdr.markForCheck();
+      })
+    );
+  }
+
+  /**
+   * Safety fallback when backend ignores `subject` query filtering; keeps UX correct while API catches up.
+   */
+  private fallbackClientSubjectFilterPage(): void {
+    const source = this.allTeachersCache.length ? this.allTeachersCache : this.pagedTeachers;
+    const term = this.searchTerm.trim().toLowerCase();
+    const subject = this.selectedSubject.trim().toLowerCase();
+    const filtered = source.filter(t => {
+      const nameOrSpec =
+        `${t.firstName} ${t.lastName}`.toLowerCase().includes(term) || (t.specialization || '').toLowerCase().includes(term);
+      const subjectMatch = !subject || (t.subjects ?? []).some(s => (s || '').toLowerCase().includes(subject));
+      return nameOrSpec && subjectMatch;
+    });
+    const page = sliceToPage(filtered, this.pageIndex, this.pageSize);
+    this.serverTotal = filtered.length;
+    this.pagedTeachers = page.content;
+    this.pageIndex = page.page;
+    this.subjectOptions = this.extractSubjectOptions(source, this.subjectOptions);
+    this.cdr.markForCheck();
+  }
+
+  /**
+   * When the paged teacher API omits homeroom labels (e.g. stale Redis cache), derive the same
+   * section-aware labels as the profile fallback from {@link AcademicService#getClasses}.
+   */
+  private fillHomeroomFromCatalog(rows: Teacher[], classes: SchoolClass[]): Teacher[] {
+    const byTeacher = TeacherListComponent.homeroomLabelsByTeacherId(classes);
+    return rows.map(t => {
+      if (t.homeroomClassNames?.length) {
+        return t;
+      }
+      const labels = byTeacher.get(t.id);
+      if (!labels?.length) {
+        return t;
+      }
+      return { ...t, homeroomClassNames: labels };
+    });
+  }
+
+  private static homeroomLabelsByTeacherId(classes: SchoolClass[]): Map<number, string[]> {
+    const raw = new Map<number, Set<string>>();
+    const add = (teacherId: number, label: string) => {
+      let set = raw.get(teacherId);
+      if (!set) {
+        set = new Set<string>();
+        raw.set(teacherId, set);
+      }
+      set.add(label);
+    };
+    for (const c of classes) {
+      if (!c.sections?.length && c.classTeacherId != null) {
+        add(c.classTeacherId, c.name);
+      }
+      for (const s of c.sections ?? []) {
+        if (s.classTeacherId != null) {
+          add(s.classTeacherId, `${c.name}-${s.name}`);
+        }
+      }
+    }
+    const out = new Map<number, string[]>();
+    for (const [id, set] of raw) {
+      out.set(id, Array.from(set).sort((a, b) => a.localeCompare(b)));
+    }
+    return out;
+  }
+
   filter(): void {
     const term = this.searchTerm.toLowerCase();
+    const subjectNeedle = this.selectedSubject.toLowerCase();
     this.filtered = this.teachers.filter(t =>
-      (t.firstName + ' ' + t.lastName).toLowerCase().includes(term) || (t.specialization || '').toLowerCase().includes(term)
+      ((t.firstName + ' ' + t.lastName).toLowerCase().includes(term) || (t.specialization || '').toLowerCase().includes(term)) &&
+      (!subjectNeedle || (t.subjects ?? []).some(s => (s || '').toLowerCase().includes(subjectNeedle)))
     );
     this.pageIndex = 0;
     this.applyPage();
+  }
+
+  private extractSubjectOptions(rows: Teacher[], existing: string[] = []): string[] {
+    const options = new Set(existing);
+    for (const teacher of rows) {
+      for (const subject of teacher.subjects ?? []) {
+        const clean = subject?.trim();
+        if (clean) {
+          options.add(clean);
+        }
+      }
+    }
+    return Array.from(options).sort((a, b) => a.localeCompare(b));
   }
 
   private applyPage(): void {

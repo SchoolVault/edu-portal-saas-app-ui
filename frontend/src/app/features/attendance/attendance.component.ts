@@ -20,10 +20,20 @@ import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { sliceToPage } from '../../core/utils/paginate';
 import { DEFAULT_ERP_PAGE_SIZE } from '../../core/constants/pagination.constants';
 import { mergeClassesForAttendanceCatalog } from '../../core/utils/parent-dashboard-metrics';
+import { localIsoDateString } from '../../core/utils/local-date';
 
 @Component({
   selector: 'app-attendance',
   standalone: true,
+  styles: [
+    `
+      @media (max-width: 768px) {
+        .attendance-actions-col {
+          width: 100%;
+        }
+      }
+    `,
+  ],
   imports: [
     CommonModule,
     FormsModule,
@@ -86,7 +96,7 @@ import { mergeClassesForAttendanceCatalog } from '../../core/utils/parent-dashbo
               placeholderI18nKey="attendance.datePlaceholder"
             />
           </div>
-          <div class="col-md-3 d-flex flex-column gap-2">
+          <div class="col-md-3 d-flex flex-column gap-2 attendance-actions-col">
             <button
               *ngIf="adminPastAuditView && !adminPastEditing"
               type="button"
@@ -155,7 +165,8 @@ import { mergeClassesForAttendanceCatalog } from '../../core/utils/parent-dashbo
           </div>
         </div>
         <p *ngIf="records.length && !attFilteredTotal" class="text-muted small mb-2">{{ 'attendance.noSearchMatches' | translate }}</p>
-        <table class="erp-table" *ngIf="attFilteredTotal > 0">
+        <div class="erp-table-scroll" *ngIf="attFilteredTotal > 0">
+        <table class="erp-table">
           <thead>
             <tr>
               <th>{{ 'attendance.thNum' | translate }}</th>
@@ -183,6 +194,7 @@ import { mergeClassesForAttendanceCatalog } from '../../core/utils/parent-dashbo
             </tr>
           </tbody>
         </table>
+        </div>
         <app-erp-pagination
           *ngIf="attFilteredTotal > attPageSize"
           [totalElements]="attFilteredTotal"
@@ -210,7 +222,7 @@ export class AttendanceComponent implements OnInit {
   sections: { id: number; name: string }[] = [];
   selectedClassId: number | null = null;
   selectedSectionId: number | null = null;
-  selectedDate = new Date().toISOString().split('T')[0];
+  selectedDate = localIsoDateString();
   records: AttendanceRecord[] = [];
   attStudentSearch = '';
   attPageIndex = 0;
@@ -248,6 +260,43 @@ export class AttendanceComponent implements OnInit {
     private route: ActivatedRoute
   ) {}
 
+  private showAttendanceValidation(message: string): void {
+    this.confirmDialog
+      .confirm({
+        title: this.translate.instant('attendance.pageTitle'),
+        message,
+        variant: 'warning',
+        confirmLabel: this.translate.instant('attendance.confirm.cancel'),
+        cancelLabel: '',
+      })
+      .subscribe();
+  }
+
+  private validateAttendanceRecordConsistency(): string | null {
+    if (!this.records.length) {
+      return this.translate.instant('attendance.emptyLead');
+    }
+    const first = this.records[0];
+    const classId = Number(first.classId);
+    const sectionId = Number(first.sectionId);
+    const date = String(first.date || '');
+    if (!classId || !date) {
+      return this.translate.instant('attendance.errors.saveFailed');
+    }
+    const seenStudentIds = new Set<number>();
+    for (const row of this.records) {
+      const studentId = Number(row.studentId);
+      if (!studentId || seenStudentIds.has(studentId)) {
+        return this.translate.instant('attendance.errors.saveFailed');
+      }
+      seenStudentIds.add(studentId);
+      if (Number(row.classId) !== classId || Number(row.sectionId) !== sectionId || String(row.date || '') !== date) {
+        return this.translate.instant('attendance.errors.saveFailed');
+      }
+    }
+    return null;
+  }
+
   private linkedTeacherId: number | null = null;
   teacherRosterResolved = false;
   adminPastEditing = false;
@@ -256,10 +305,15 @@ export class AttendanceComponent implements OnInit {
     this.translate.onLangChange.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => this.cdr.markForCheck());
 
     this.route.queryParamMap.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
+      const qd = this.route.snapshot.queryParamMap.get('date');
+      if (qd && /^\d{4}-\d{2}-\d{2}$/.test(qd)) {
+        this.selectedDate = qd;
+      }
       if (this.isTeacher) {
         this.homeroomScopeApplied = false;
         this.maybeApplyTeacherHomeroomScope();
       }
+      this.cdr.markForCheck();
     });
 
     this.loadClassesMerged();
@@ -283,21 +337,32 @@ export class AttendanceComponent implements OnInit {
     if (this.isTeacher) {
       this.loadMyCovers();
     }
+    this.operationsService.attendanceCoverMutations$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(mutation => {
+      if (!this.selectedDate || mutation.coverDate !== this.selectedDate) {
+        return;
+      }
+      if (this.isTeacher) {
+        this.loadMyCovers();
+      }
+      if (this.selectedClassId != null) {
+        this.loadAttendance();
+      }
+    });
   }
 
   /** Short label for homeroom scope banner (e.g. "Class 8 · Section A"). */
   get teacherHomeroomHint(): string {
-    if (!this.isTeacher || this.linkedTeacherId == null) {
+    if (!this.isTeacher || this.linkedTeacherId == null || this.selectedClassId == null) {
       return '';
     }
-    const cls = this.classes.find(c => c.classTeacherId === this.linkedTeacherId);
+    const cls = this.classes.find(c => c.id === this.selectedClassId);
     if (!cls) {
       return '';
     }
-    const sec =
-      this.selectedSectionId != null && this.selectedSectionId !== 0
-        ? cls.sections?.find(s => s.id === this.selectedSectionId)
-        : cls.sections?.[0];
+    if (!cls.sections?.length) {
+      return this.translate.instant('attendance.scopeHomeroomLine', { class: cls.name, section: '—' });
+    }
+    const sec = cls.sections.find(s => s.id === this.selectedSectionId);
     const sn = sec?.name?.trim() || '—';
     return this.translate.instant('attendance.scopeHomeroomLine', { class: cls.name, section: sn });
   }
@@ -352,23 +417,57 @@ export class AttendanceComponent implements OnInit {
       }
     }
     if (this.linkedTeacherId == null) {
+      this.homeroomScopeApplied = true;
       return;
     }
-    const hm = this.classes.find(c => c.classTeacherId === this.linkedTeacherId);
+    const fromCatalog = this.findHomeroomClassSectionForTeacher(this.linkedTeacherId);
+    const fromProfile = this.auth.getProfileSummarySnapshot()?.classTeacherOf?.[0];
+    const hm =
+      fromCatalog ??
+      (fromProfile?.classId != null
+        ? {
+            classId: fromProfile.classId,
+            sectionId: fromProfile.sectionId != null ? fromProfile.sectionId : null,
+          }
+        : null);
     if (!hm) {
       this.homeroomScopeApplied = true;
       return;
     }
-    this.selectedClassId = hm.id;
-    if (hm.sections.length === 0) {
+    const cls = this.classes.find(c => c.id === hm.classId);
+    if (!cls) {
+      this.homeroomScopeApplied = true;
+      return;
+    }
+    this.selectedClassId = cls.id;
+    if (cls.sections.length === 0) {
       this.sections = [{ id: 0, name: 'Whole class' }];
       this.selectedSectionId = 0;
     } else {
-      this.sections = hm.sections.map(s => ({ id: s.id, name: s.name }));
-      this.selectedSectionId = hm.sections[0].id;
+      this.sections = cls.sections.map(s => ({ id: s.id, name: s.name }));
+      const want = hm.sectionId != null ? cls.sections.find(s => s.id === hm.sectionId) : undefined;
+      this.selectedSectionId = want?.id ?? cls.sections[0].id;
     }
     this.homeroomScopeApplied = true;
     this.loadAttendance();
+  }
+
+  /** Resolves homeroom from section-level (or whole-class) class teacher — not {@link SchoolClass.classTeacherId} alone. */
+  private findHomeroomClassSectionForTeacher(teacherRecordId: number): { classId: number; sectionId: number | null } | null {
+    for (const c of this.classes) {
+      if (!c.sections?.length) {
+        if (c.classTeacherId === teacherRecordId) {
+          return { classId: c.id, sectionId: null };
+        }
+      } else {
+        for (const s of c.sections) {
+          if (s.classTeacherId === teacherRecordId) {
+            return { classId: c.id, sectionId: s.id };
+          }
+        }
+      }
+    }
+    return null;
   }
 
   onDateChange(): void {
@@ -567,10 +666,21 @@ export class AttendanceComponent implements OnInit {
 
   private isClassTeacherForCurrentClass(): boolean {
     const cls = this.classes.find(c => c.id === this.selectedClassId);
-    if (cls?.classTeacherId == null || this.linkedTeacherId == null) {
+    if (cls == null || this.linkedTeacherId == null) {
       return false;
     }
-    return cls.classTeacherId === this.linkedTeacherId;
+    const secId =
+      this.selectedSectionId != null && this.selectedSectionId !== 0 ? this.selectedSectionId : null;
+    if (secId != null) {
+      const sec = cls.sections?.find(s => s.id === secId);
+      if (sec?.classTeacherId != null) {
+        return sec.classTeacherId === this.linkedTeacherId;
+      }
+    }
+    if (!cls.sections?.length) {
+      return cls.classTeacherId === this.linkedTeacherId;
+    }
+    return false;
   }
 
   private hasActiveCoverForSelection(): boolean {
@@ -603,21 +713,73 @@ export class AttendanceComponent implements OnInit {
     return this.selectedSectionId != null && this.selectedSectionId !== 0 ? this.selectedSectionId : null;
   }
 
-  private confirmDetailLines(cls: SchoolClass | undefined, useSectionWord: boolean): string[] {
-    const sid = this.effectiveSectionIdForCover();
-    return [
+  /** Human-readable section label (e.g. "A") for confirmations — never raw database ids. */
+  private selectedSectionDisplayName(cls: SchoolClass | undefined): string {
+    if (!cls?.sections?.length) {
+      return this.translate.instant('attendance.wholeClass');
+    }
+    const sid = this.selectedSectionId != null && this.selectedSectionId !== 0 ? this.selectedSectionId : null;
+    if (sid == null) {
+      return '';
+    }
+    return cls.sections.find(s => s.id === sid)?.name?.trim() || '';
+  }
+
+  /** Homeroom teacher name for the current class/section (for admin copy). */
+  private homeroomTeacherDisplayName(cls: SchoolClass | undefined): string {
+    if (!cls) {
+      return this.translate.instant('attendance.confirm.notAssigned');
+    }
+    const sid = this.selectedSectionId != null && this.selectedSectionId !== 0 ? this.selectedSectionId : null;
+    if (sid != null) {
+      const sec = cls.sections?.find(s => s.id === sid);
+      const n = sec?.classTeacherName?.trim();
+      if (n) {
+        return n;
+      }
+    }
+    return cls.classTeacherName?.trim() || this.translate.instant('attendance.confirm.notAssigned');
+  }
+
+  private buildAttendanceConfirmDetails(cls: SchoolClass | undefined): string[] {
+    const lines: string[] = [
       this.translate.instant('attendance.confirmDetail.date', { date: this.selectedDate }),
       cls ? this.translate.instant('attendance.confirmDetail.class', { name: cls.name }) : '',
-      sid != null
-        ? this.translate.instant(useSectionWord ? 'attendance.confirmDetail.section' : 'attendance.confirmDetail.sectionId', {
-            id: sid,
-          })
-        : '',
-    ].filter((x): x is string => !!x);
+    ];
+    const secName = this.selectedSectionDisplayName(cls);
+    if (secName) {
+      lines.push(this.translate.instant('attendance.confirmDetail.sectionNamed', { name: secName }));
+    }
+    lines.push(
+      this.translate.instant(
+        this.attendanceSessionComplete
+          ? 'attendance.confirmDetail.statusComplete'
+          : 'attendance.confirmDetail.statusIncomplete'
+      )
+    );
+    return lines.filter((x): x is string => !!x);
   }
 
   saveAttendance(): void {
     if (this.saveDisabled || this.saving) return;
+    if (this.selectedClassId == null) {
+      this.showAttendanceValidation(this.translate.instant('attendance.selectClass'));
+      return;
+    }
+    if (this.sectionSelectDisabled ? false : this.selectedSectionId == null) {
+      this.showAttendanceValidation(this.translate.instant('attendance.selectSection'));
+      return;
+    }
+    const invalidStatus = this.records.some(r => !['present', 'absent', 'late'].includes(String(r.status)));
+    if (invalidStatus) {
+      this.showAttendanceValidation(this.translate.instant('attendance.errors.saveFailed'));
+      return;
+    }
+    const consistencyError = this.validateAttendanceRecordConsistency();
+    if (consistencyError) {
+      this.showAttendanceValidation(consistencyError);
+      return;
+    }
     const role = this.auth.getNormalizedRole();
     if (!this.isTeacher && !this.isAdmin) {
       this.saveError = this.translate.instant('attendance.errors.roleDenied');
@@ -641,13 +803,13 @@ export class AttendanceComponent implements OnInit {
               : this.linkedTeacherId
                 ? this.translate.instant('attendance.confirm.notHomeroomMessageLinked')
                 : this.translate.instant('attendance.confirm.notHomeroomMessageUnlinked'),
-            details: this.confirmDetailLines(cls, false),
+            details: this.buildAttendanceConfirmDetails(cls),
             variant: 'warning',
             confirmLabel: this.translate.instant('attendance.confirm.confirmSubmit'),
             cancelLabel: this.translate.instant('attendance.confirm.goBack'),
           })
           .pipe(filter(Boolean))
-          .subscribe(() => this.finishSaveAfterGuards());
+          .subscribe(() => this.maybeConfirmAlreadyMarkedThenFinish());
         return;
       }
     }
@@ -658,7 +820,7 @@ export class AttendanceComponent implements OnInit {
       }
       this.saveError = '';
       const cls = this.classes.find(c => c.id === this.selectedClassId);
-      const homeroom = cls?.classTeacherName?.trim() || this.translate.instant('attendance.confirm.notAssigned');
+      const homeroom = this.homeroomTeacherDisplayName(cls);
       const asHomeroom = this.isClassTeacherForCurrentClass();
       this.confirmDialog
         .confirm({
@@ -666,16 +828,38 @@ export class AttendanceComponent implements OnInit {
           message: asHomeroom
             ? this.translate.instant('attendance.confirm.adminMessageHomeroom', { name: homeroom })
             : this.translate.instant('attendance.confirm.adminMessageNotHomeroom', { name: homeroom }),
-          details: this.confirmDetailLines(cls, false),
+          details: this.buildAttendanceConfirmDetails(cls),
           variant: 'warning',
           confirmLabel: this.translate.instant('attendance.confirm.confirmSubmit'),
           cancelLabel: this.translate.instant('attendance.confirm.goBack'),
         })
         .pipe(filter(Boolean))
-        .subscribe(() => this.finishSaveAfterGuards());
+        .subscribe(() => this.maybeConfirmAlreadyMarkedThenFinish());
       return;
     }
     this.finishSaveAfterGuards();
+  }
+
+  /**
+   * When every student already has a saved row for this date, ask once more before overwriting (admins / delegated teachers).
+   */
+  private maybeConfirmAlreadyMarkedThenFinish(): void {
+    if (!this.attendanceSessionComplete || !this.records.length) {
+      this.finishSaveAfterGuards();
+      return;
+    }
+    const cls = this.classes.find(c => c.id === this.selectedClassId);
+    this.confirmDialog
+      .confirm({
+        title: this.translate.instant('attendance.confirm.alreadyMarkedTitle'),
+        message: this.translate.instant('attendance.confirm.alreadyMarkedMessage'),
+        details: this.buildAttendanceConfirmDetails(cls),
+        variant: 'warning',
+        confirmLabel: this.translate.instant('attendance.confirm.alreadyMarkedConfirm'),
+        cancelLabel: this.translate.instant('attendance.confirm.goBack'),
+      })
+      .pipe(filter(Boolean))
+      .subscribe(() => this.finishSaveAfterGuards());
   }
 
   private finishSaveAfterGuards(): void {
@@ -686,7 +870,7 @@ export class AttendanceComponent implements OnInit {
           title: this.translate.instant('attendance.confirm.pastTitle'),
           message: this.translate.instant('attendance.confirm.pastMessage'),
           details: [
-            ...this.confirmDetailLines(cls, true),
+            ...this.buildAttendanceConfirmDetails(cls),
             this.translate.instant('attendance.confirmDetail.rows', { count: this.records.length }),
           ],
           variant: 'warning',
@@ -707,6 +891,7 @@ export class AttendanceComponent implements OnInit {
       next: () => {
         this.saving = false;
         this.loadAttendance();
+        this.auth.fetchProfileSummary().subscribe({ error: () => void 0 });
         if (this.isTeacher && !this.isClassTeacherForCurrentClass() && this.records.length && this.selectedClassId != null) {
           const me = this.auth.getCurrentUser();
           const sec = this.records[0]?.sectionId ?? 0;

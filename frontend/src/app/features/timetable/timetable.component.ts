@@ -10,7 +10,7 @@ import { AuthService } from '../../core/services/auth.service';
 import { SchoolClass, Student, Teacher, TimetableEntry, TimetableGrid } from '../../core/models/models';
 import { ParentService } from '../../core/services/parent.service';
 import { OperationsService } from '../../core/services/operations.service';
-import { AttendanceCoverRow } from '../../core/models/operations.models';
+import { AttendanceCoverConflictPayload, AttendanceCoverRow } from '../../core/models/operations.models';
 import { ErpDatePickerComponent } from '../../shared/erp-date-picker/erp-date-picker.component';
 import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directives';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
@@ -19,11 +19,20 @@ import { SchoolClassNamePipe } from '../../core/i18n/school-class-name.pipe';
 import { ConfirmDialogService } from '../../shared/confirm-dialog/confirm-dialog.service';
 import { SchedulingConflictError } from '../../core/errors/scheduling-conflict.error';
 import { TimetableConflictError } from '../../core/errors/timetable-conflict.error';
+import {
+  buildTimetableConflictDialogStrings,
+  createTimetableConflictHumanLabels,
+} from '../../core/timetable/timetable-conflict-dialog.builder';
 
 type TimetableEntryForm = Omit<Partial<TimetableEntry>, 'teacherId' | 'classId' | 'sectionId'> & {
   teacherId?: number | null;
   classId?: number | null;
   sectionId?: number | null;
+};
+
+type ParentTimetableContract = {
+  getChildTimetableEntries(studentId: number): import('rxjs').Observable<TimetableEntry[]>;
+  getChildTimetableGrid(studentId: number): import('rxjs').Observable<TimetableGrid>;
 };
 
 @Component({
@@ -250,6 +259,9 @@ type TimetableEntryForm = Omit<Partial<TimetableEntry>, 'teacherId' | 'classId' 
         <button type="button" class="erp-tab" [class.active]="timetableSection === 'covers'" (click)="setTimetableSection('covers')">
           {{ 'timetable.tab.coversAdmin' | translate }}
         </button>
+        <button type="button" class="erp-tab" (click)="openAssignTimetableTab()">
+          {{ 'timetable.tab.assign' | translate }}
+        </button>
       </div>
 
       <ng-container *ngIf="!isAdmin || timetableSection === 'schedule'">
@@ -283,6 +295,10 @@ type TimetableEntryForm = Omit<Partial<TimetableEntry>, 'teacherId' | 'classId' 
               <option [ngValue]="null">{{ 'timetable.selectSection' | translate }}</option>
               <option *ngFor="let sec of sections" [ngValue]="sec.id">{{ sec.name }}</option>
             </select>
+          </div>
+          <div class="col-md-4" *ngIf="selectedClassTeacherName">
+            <label class="erp-label">{{ 'timetable.labelClassTeacher' | translate }}</label>
+            <input class="erp-input" [value]="selectedClassTeacherName" readonly />
           </div>
         </div>
         <div class="row g-3 align-items-end" *ngIf="scheduleScope === 'teacher'">
@@ -386,7 +402,7 @@ type TimetableEntryForm = Omit<Partial<TimetableEntry>, 'teacherId' | 'classId' 
           <h4 class="erp-card-title mb-0" style="font-size: 15px;">{{ 'timetable.weekMatrixTitle' | translate }}</h4>
           <span class="text-muted small">{{ 'timetable.weekMatrixSubtitle' | translate }}</span>
         </div>
-        <div style="overflow-x: auto;">
+        <div class="timetable-classic-scroll">
           <table class="erp-table timetable-calendar">
             <thead>
               <tr>
@@ -433,6 +449,7 @@ type TimetableEntryForm = Omit<Partial<TimetableEntry>, 'teacherId' | 'classId' 
       <div class="erp-card animate-in mb-4" *ngIf="isAdmin && timetableSection === 'covers'">
         <h4 class="erp-card-title mb-3">{{ 'operations.covers.title' | translate }}</h4>
         <p class="text-muted small mb-3">{{ 'timetable.coversAdminLead' | translate }}</p>
+        <div *ngIf="coverAdminError" class="alert alert-danger py-2 px-3 small mb-3" style="border-radius: var(--radius-md);">{{ coverAdminError }}</div>
         <div class="row g-3 align-items-end mb-3">
           <div class="col-md-2">
             <label class="erp-label">{{ 'operations.covers.labelDate' | translate }}</label>
@@ -482,12 +499,14 @@ type TimetableEntryForm = Omit<Partial<TimetableEntry>, 'teacherId' | 'classId' 
         </div>
         <button type="button" class="btn-primary-erp btn-sm me-2" (click)="submitCover()">{{ 'operations.covers.addCover' | translate }}</button>
         <button type="button" class="btn-outline-erp btn-sm" (click)="reloadCoversAdmin()">{{ 'operations.covers.refreshList' | translate }}</button>
-        <table class="erp-table mt-3 mb-0">
+        <div class="erp-table-scroll mt-3">
+        <table class="erp-table mb-0">
           <thead>
             <tr>
               <th>{{ 'operations.covers.thDate' | translate }}</th>
               <th>{{ 'operations.covers.thClass' | translate }}</th>
               <th>{{ 'operations.covers.thSection' | translate }}</th>
+              <th>{{ 'operations.covers.thPeriod' | translate }}</th>
               <th>{{ 'operations.covers.thCovering' | translate }}</th>
               <th>{{ 'operations.covers.thStatus' | translate }}</th>
               <th></th>
@@ -496,9 +515,10 @@ type TimetableEntryForm = Omit<Partial<TimetableEntry>, 'teacherId' | 'classId' 
           <tbody>
             <tr *ngFor="let c of coversAdmin">
               <td>{{ c.coverDate }}</td>
-              <td>{{ c.classId }}</td>
-              <td>{{ c.sectionId || ('transport.dash' | translate) }}</td>
-              <td>{{ c.coveringTeacherId }}</td>
+              <td>{{ coverRowClassDisplay(c) | schoolClassName }}</td>
+              <td>{{ coverRowSectionDisplay(c) }}</td>
+              <td>{{ c.periodNumber ?? ('transport.dash' | translate) }}</td>
+              <td>{{ coverRowTeacherDisplay(c) }}</td>
               <td>{{ c.status }}</td>
               <td>
                 <button *ngIf="c.status === 'ACTIVE'" type="button" class="btn-outline-erp btn-xs" (click)="cancelCoverAdmin(c)">
@@ -508,6 +528,7 @@ type TimetableEntryForm = Omit<Partial<TimetableEntry>, 'teacherId' | 'classId' 
             </tr>
           </tbody>
         </table>
+        </div>
       </div>
     </div>
 
@@ -530,10 +551,6 @@ type TimetableEntryForm = Omit<Partial<TimetableEntry>, 'teacherId' | 'classId' 
               <input class="erp-input" type="number" [(ngModel)]="entryForm.period" [disabled]="editingEntryId != null" />
             </div>
             <div class="col-md-6">
-              <label class="erp-label">{{ 'timetable.labelSubject' | translate }}</label>
-              <input class="erp-input" [(ngModel)]="entryForm.subjectName" />
-            </div>
-            <div class="col-md-6">
               <label class="erp-label">{{ 'timetable.labelTeacherForm' | translate }}</label>
               <select
                 class="erp-select"
@@ -544,6 +561,10 @@ type TimetableEntryForm = Omit<Partial<TimetableEntry>, 'teacherId' | 'classId' 
                 <option [ngValue]="null">{{ 'timetable.selectTeacherForm' | translate }}</option>
                 <option *ngFor="let teacher of teachers" [ngValue]="teacher.id">{{ teacher.firstName }} {{ teacher.lastName }}</option>
               </select>
+            </div>
+            <div class="col-md-6">
+              <label class="erp-label">{{ 'timetable.labelSubject' | translate }}</label>
+              <input class="erp-input" [(ngModel)]="entryForm.subjectName" />
             </div>
             <ng-container *ngIf="scheduleScope === 'teacher'">
               <div class="col-md-6">
@@ -611,6 +632,7 @@ export class TimetableComponent implements OnInit {
     periodNumber: null as number | null,
   };
   coversAdmin: AttendanceCoverRow[] = [];
+  coverAdminError = '';
   showModal = false;
   editingEntryId: number | null = null;
   dayOptions = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -645,6 +667,62 @@ export class TimetableComponent implements OnInit {
     return c ? c.sections.map(s => ({ id: s.id, name: s.name })) : [];
   }
 
+  get selectedClassTeacherName(): string {
+    if (this.selectedClassId == null) {
+      return '';
+    }
+    const cls = this.classes.find(c => c.id === this.selectedClassId);
+    if (!cls) {
+      return '';
+    }
+    if (!cls.sections?.length) {
+      return cls.classTeacherName?.trim() || this.translate.instant('timetable.classTeacherNotAssigned');
+    }
+    const sid = this.selectedSectionId;
+    if (sid == null) {
+      return this.translate.instant('timetable.classTeacherSelectSectionHint');
+    }
+    const sec = cls.sections.find(s => s.id === sid);
+    return sec?.classTeacherName?.trim() || this.translate.instant('timetable.classTeacherNotAssigned');
+  }
+
+  /** Human-readable class name for cover admin list (falls back to id). */
+  coverRowClassDisplay(row: AttendanceCoverRow): string {
+    return this.classes.find(x => x.id === row.classId)?.name ?? String(row.classId);
+  }
+
+  /** Human-readable section for cover list (whole-class / all-sections / section name). */
+  coverRowSectionDisplay(row: AttendanceCoverRow): string {
+    const cls = this.classes.find(x => x.id === row.classId);
+    if (!cls?.sections?.length) {
+      return this.translate.instant('timetable.sectionWholeClass');
+    }
+    if (row.sectionId == null) {
+      return this.translate.instant('operations.covers.allSections');
+    }
+    return cls.sections.find(s => s.id === row.sectionId)?.name ?? String(row.sectionId);
+  }
+
+  coverRowTeacherDisplay(row: AttendanceCoverRow): string {
+    const t = this.teachers.find(x => x.id === row.coveringTeacherId);
+    return t ? `${t.firstName} ${t.lastName}`.trim() : String(row.coveringTeacherId);
+  }
+
+  private buildCoverConflictLocationLine(c: AttendanceCoverConflictPayload): string {
+    const labels = createTimetableConflictHumanLabels(this.classes, this.translate);
+    const classId = c.classId ?? this.coverForm.classId;
+    if (classId == null) {
+      return '—';
+    }
+    const sectionId = c.sectionId !== undefined ? c.sectionId : this.coverForm.sectionId;
+    let loc = `${labels.classDisplayName(classId)} · ${labels.sectionDisplayForClass(classId, sectionId)}`;
+    const p = c.periodNumber;
+    if (p != null && p > 0) {
+      loc += ` · ${this.translate.instant('timetable.gridPeriod', { n: p })}`;
+    }
+    return this.translate.instant('operations.covers.conflictDetailScope', { location: loc });
+  }
+
   ngOnInit(): void {
     this.translate.onLangChange.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => this.cdr.markForCheck());
 
@@ -674,6 +752,20 @@ export class TimetableComponent implements OnInit {
       }
       this.cdr.markForCheck();
     });
+    this.operations.attendanceCoverMutations$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(mutation => {
+      if (this.coverDate === mutation.coverDate) {
+        if (this.isAdmin && this.timetableSection === 'covers') {
+          this.reloadCoversAdmin();
+        }
+        if (this.scheduleScope === 'teacher' && this.selectedTeacherId != null) {
+          this.loadTeacherTimetable();
+        } else if (this.scheduleScope === 'class' && this.selectedClassId != null) {
+          this.loadTimetable();
+        } else if (this.isParent && this.selectedChildId != null) {
+          this.loadTimetable();
+        }
+      }
+    });
     if (this.isParent) {
       this.loadParentTimetableContext();
     } else {
@@ -697,6 +789,10 @@ export class TimetableComponent implements OnInit {
     }
   }
 
+  openAssignTimetableTab(): void {
+    void this.router.navigateByUrl('/app/timetable/onboarding');
+  }
+
   private bootstrapCoversAdmin(): void {
     if (!this.classes.length) {
       this.academicService.getClasses().subscribe(c => {
@@ -712,11 +808,23 @@ export class TimetableComponent implements OnInit {
   }
 
   reloadCoversAdmin(): void {
-    this.operations.listAttendanceCoversAdmin(this.coverDate).subscribe(rows => (this.coversAdmin = rows || []));
+    this.coverAdminError = '';
+    this.operations.listAttendanceCoversAdmin(this.coverDate).subscribe({
+      next: rows => (this.coversAdmin = rows || []),
+      error: (e: Error) => {
+        this.coverAdminError = e?.message || this.translate.instant('attendance.errors.saveFailed');
+      },
+    });
   }
 
   submitCover(): void {
+    this.coverAdminError = '';
     if (this.coverForm.classId == null || this.coverForm.coveringTeacherId == null) {
+      this.warnInvalidTimetableInput('timetable.validationClassSectionRequired');
+      return;
+    }
+    if (this.coverForm.periodNumber != null && (this.coverForm.periodNumber < 1 || this.coverForm.periodNumber > 12)) {
+      this.warnInvalidTimetableInput('timetable.validationPeriodRange');
       return;
     }
     this.createCoverWithOptionalReplace(undefined);
@@ -734,9 +842,16 @@ export class TimetableComponent implements OnInit {
         reason: this.coverForm.reason,
         periodNumber: period,
         replaceCoverAssignmentId,
+      }, {
+        actorUserId: this.auth.getCurrentUser()?.id ?? null,
+        actorName: this.auth.getCurrentUser()?.name ?? undefined,
       })
       .subscribe({
-        next: () => this.reloadCoversAdmin(),
+        next: () => {
+          this.coverForm.reason = '';
+          this.reloadCoversAdmin();
+          this.refreshTimetable();
+        },
         error: (e: unknown) => {
           if (e instanceof SchedulingConflictError) {
             const c = e.conflict;
@@ -747,7 +862,7 @@ export class TimetableComponent implements OnInit {
                 message: this.translate.instant('operations.covers.conflictMessage', { name: otherName }),
                 details: [
                   this.translate.instant('operations.covers.conflictDetailDate', { date: this.coverDate }),
-                  this.translate.instant('operations.covers.conflictDetailClass', { id: String(c.classId ?? this.coverForm.classId) }),
+                  this.buildCoverConflictLocationLine(c),
                 ],
                 variant: 'warning',
                 confirmLabel: this.translate.instant('operations.covers.conflictConfirmReplace'),
@@ -757,7 +872,7 @@ export class TimetableComponent implements OnInit {
               .subscribe(() => this.createCoverWithOptionalReplace(c.existingCoverAssignmentId));
             return;
           }
-          console.error(e);
+          this.coverAdminError = e instanceof Error ? e.message : this.translate.instant('attendance.errors.saveFailed');
         },
       });
   }
@@ -771,7 +886,26 @@ export class TimetableComponent implements OnInit {
         confirmLabel: this.translate.instant('operations.covers.cancelConfirm'),
       })
       .pipe(filter(Boolean), take(1))
-      .subscribe(() => this.operations.cancelAttendanceCover(c.id).subscribe(() => this.reloadCoversAdmin()));
+      .subscribe(() =>
+        this.operations
+          .cancelAttendanceCover(c.id, {
+            coverDate: c.coverDate,
+            classId: c.classId,
+            sectionId: c.sectionId ?? null,
+          }, {
+            actorUserId: this.auth.getCurrentUser()?.id ?? null,
+            actorName: this.auth.getCurrentUser()?.name ?? undefined,
+          })
+          .subscribe({
+            next: () => {
+              this.reloadCoversAdmin();
+              this.refreshTimetable();
+            },
+            error: (e: Error) => {
+              this.coverAdminError = e?.message || this.translate.instant('attendance.errors.saveFailed');
+            },
+          })
+      );
   }
 
   get isTeacherViewer(): boolean {
@@ -1049,8 +1183,11 @@ export class TimetableComponent implements OnInit {
         this.grid = null;
         return;
       }
-      this.parentService.getChildTimetableEntries(this.selectedChildId).subscribe(entries => (this.entries = entries));
-      this.parentService.getChildTimetableGrid(this.selectedChildId).subscribe(grid => (this.grid = grid));
+      const parentTimetable = this.parentService as ParentService & ParentTimetableContract;
+      parentTimetable
+        .getChildTimetableEntries(this.selectedChildId)
+        .subscribe((entries: TimetableEntry[]) => (this.entries = entries));
+      parentTimetable.getChildTimetableGrid(this.selectedChildId).subscribe((grid: TimetableGrid) => (this.grid = grid));
       return;
     }
     if (this.selectedClassId == null) return;
@@ -1105,10 +1242,72 @@ export class TimetableComponent implements OnInit {
     this.persistTimetableSlot(undefined);
   }
 
-  private persistTimetableSlot(replaceTimetableEntryId?: number): void {
-    if (!this.canMutateTimetable) {
-      return;
+  private warnInvalidTimetableInput(messageKey: string): void {
+    this.confirmDialog
+      .confirm({
+        title: this.translate.instant('timetable.validationTitle'),
+        message: this.translate.instant(messageKey),
+        variant: 'warning',
+        confirmLabel: this.translate.instant('timetable.validationAcknowledge'),
+        cancelLabel: '',
+      })
+      .pipe(take(1))
+      .subscribe();
+  }
+
+  private validateTimetablePayload(payload: TimetableEntry): boolean {
+    if (!payload.teacherId) {
+      this.warnInvalidTimetableInput('timetable.validationTeacherRequired');
+      return false;
     }
+    if (!payload.subjectName.trim()) {
+      this.warnInvalidTimetableInput('timetable.validationSubjectRequired');
+      return false;
+    }
+    if (!payload.startTime || !payload.endTime || payload.startTime >= payload.endTime) {
+      this.warnInvalidTimetableInput('timetable.validationTimeRange');
+      return false;
+    }
+    if (payload.period < 1 || payload.period > 12) {
+      this.warnInvalidTimetableInput('timetable.validationPeriodRange');
+      return false;
+    }
+    if (!payload.classId || (this.sections.length > 0 && payload.sectionId == null)) {
+      this.warnInvalidTimetableInput('timetable.validationClassSectionRequired');
+      return false;
+    }
+    const duplicateClassSlot = this.entries.some(
+      e =>
+        e.id !== payload.id &&
+        this.normalizeDay(e.day) === this.normalizeDay(payload.day) &&
+        e.period === payload.period &&
+        e.classId === payload.classId &&
+        (e.sectionId ?? 0) === (payload.sectionId ?? 0)
+    );
+    if (duplicateClassSlot) {
+      this.warnInvalidTimetableInput('timetable.validationClassSlotConflict');
+      return false;
+    }
+    const duplicateTeacherSlot = this.teacherScheduleRows.some(
+      e =>
+        e.id !== payload.id &&
+        this.normalizeDay(e.day) === this.normalizeDay(payload.day) &&
+        e.period === payload.period &&
+        e.teacherId === payload.teacherId &&
+        !this.isCoverRow(e)
+    );
+    if (duplicateTeacherSlot) {
+      this.warnInvalidTimetableInput('timetable.validationTeacherSlotConflict');
+      return false;
+    }
+    return true;
+  }
+
+  /**
+   * Class/section that the add/edit modal will persist for the current scope (matches API payload).
+   * Used for conflict dialogs so “pending assignment” labels match what will be saved.
+   */
+  private getEffectiveSlotClassSectionForSave(): { classId: number; sectionId: number } {
     let classId: number;
     let sectionId: number;
     if (this.scheduleScope === 'class') {
@@ -1124,6 +1323,14 @@ export class TimetableComponent implements OnInit {
         sectionId = 0;
       }
     }
+    return { classId, sectionId };
+  }
+
+  private persistTimetableSlot(replaceTimetableEntryId?: number): void {
+    if (!this.canMutateTimetable) {
+      return;
+    }
+    const { classId, sectionId } = this.getEffectiveSlotClassSectionForSave();
     const teacherId = this.entryForm.teacherId ?? 0;
     const payload: TimetableEntry = {
       id: this.editingEntryId ?? 0,
@@ -1140,9 +1347,14 @@ export class TimetableComponent implements OnInit {
       tenantId: '',
     };
     const request$ =
-      this.editingEntryId != null
-        ? this.timetableService.updateEntry(this.editingEntryId, payload, replaceTimetableEntryId)
-        : this.timetableService.addEntry(payload, replaceTimetableEntryId);
+      this.validateTimetablePayload(payload)
+        ? this.editingEntryId != null
+          ? this.timetableService.updateEntry(this.editingEntryId, payload, replaceTimetableEntryId)
+          : this.timetableService.addEntry(payload, replaceTimetableEntryId)
+        : null;
+    if (!request$) {
+      return;
+    }
     request$.subscribe({
       next: () => {
         this.closeModal();
@@ -1163,36 +1375,22 @@ export class TimetableComponent implements OnInit {
   }
 
   private promptTimetableConflictReplace(err: TimetableConflictError): void {
-    const p = err.conflict;
-    const isClass = p.conflictType === 'CLASS_PERIOD_OCCUPIED';
+    const labels = createTimetableConflictHumanLabels(this.classes, this.translate);
+    const pending = this.getEffectiveSlotClassSectionForSave();
+    const dlg = buildTimetableConflictDialogStrings({
+      translate: this.translate,
+      conflict: err.conflict,
+      labels,
+      pendingClassId: pending.classId,
+      pendingSectionId: pending.sectionId,
+    });
     this.confirmDialog
       .confirm({
-        title: this.translate.instant(isClass ? 'timetable.conflictClassTitle' : 'timetable.conflictTeacherTitle'),
-        message: this.translate.instant(isClass ? 'timetable.conflictClassMessage' : 'timetable.conflictTeacherMessage', {
-          subject: p.subjectName ?? '—',
-          teacher: p.teacherName ?? '—',
-          clazz: String(p.classId ?? '—'),
-          section: String(p.sectionId ?? '—'),
-          day: p.day,
-          period: String(p.period),
-        }),
-        details: [
-          this.translate.instant('timetable.conflictDetailPeriod', { day: p.day, period: p.period }),
-          ...(isClass
-            ? []
-            : [
-                this.translate.instant('timetable.conflictDetailOtherClass', {
-                  clazz: String(p.conflictingClassId ?? p.classId ?? '—'),
-                  section: String(p.conflictingSectionId ?? '—'),
-                }),
-              ]),
-        ],
+        ...dlg,
         variant: 'warning',
-        confirmLabel: this.translate.instant('timetable.conflictReplace'),
-        cancelLabel: this.translate.instant('timetable.conflictKeep'),
       })
       .pipe(filter(Boolean), take(1))
-      .subscribe(() => this.persistTimetableSlot(p.existingEntryId));
+      .subscribe(() => this.persistTimetableSlot(err.conflict.existingEntryId));
   }
 
   deleteEntry(id: number): void {
