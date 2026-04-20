@@ -6,10 +6,12 @@ import { Chart, registerables } from 'chart.js';
 import { Subscription } from 'rxjs';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { ErpMonthPickerComponent } from '../../shared/erp-month-picker/erp-month-picker.component';
+import { SchoolClassNamePipe } from '../../core/i18n/school-class-name.pipe';
 import { AuthService } from '../../core/services/auth.service';
 import { ParentSelectionService } from '../../core/services/parent-selection.service';
 import { DashboardService } from '../../core/services/dashboard.service';
 import { OperationsService } from '../../core/services/operations.service';
+import { ThemeService } from '../../core/services/theme.service';
 import {
   AdminDashboardData,
   ParentDashboardData,
@@ -75,10 +77,26 @@ interface DashboardAdmissionInsight {
   badgeVariant?: 'positive' | 'negative' | 'neutral';
 }
 
+interface DashboardChartPalette {
+  text: string;
+  muted: string;
+  grid: string;
+  tooltipBg: string;
+  tooltipText: string;
+  admissionsBar: string;
+  feeBar: string;
+  line: string;
+  lineFill: string;
+  present: string;
+  absent: string;
+  late: string;
+  excused: string;
+}
+
 @Component({
   selector: 'app-dashboard',
   standalone: true,
-  imports: [CommonModule, RouterModule, FormsModule, TranslateModule, ErpMonthPickerComponent],
+  imports: [CommonModule, RouterModule, FormsModule, TranslateModule, ErpMonthPickerComponent, SchoolClassNamePipe],
   styles: [
     `
       .parent-fee-urgency--high {
@@ -124,6 +142,18 @@ interface DashboardAdmissionInsight {
         border-top-style: solid;
         display: inline-block;
         vertical-align: middle;
+      }
+      .dashboard-table-wrap {
+        width: 100%;
+        overflow-x: auto;
+      }
+      .dashboard-table-wrap .erp-table {
+        min-width: 620px;
+      }
+      @media (max-width: 576px) {
+        .dashboard-table-wrap .erp-table {
+          min-width: 560px;
+        }
       }
     `,
   ],
@@ -316,19 +346,19 @@ interface DashboardAdmissionInsight {
               <div class="chart-container" style="height: 300px;"><canvas #teacherHomeroomDailyChart></canvas></div>
               <div class="d-flex flex-wrap gap-3 mt-2 px-1 small align-items-center teacher-homeroom-legend">
                 <span class="d-inline-flex align-items-center gap-2 text-muted mb-0">
-                  <span class="teacher-homeroom-legend__swatch" style="background: #1b3a30;"></span>
+                  <span class="teacher-homeroom-legend__swatch" [style.background]="chartPalette.present"></span>
                   {{ 'dashboard.chart.present' | translate }}
                 </span>
                 <span class="d-inline-flex align-items-center gap-2 text-muted mb-0">
-                  <span class="teacher-homeroom-legend__swatch" style="background: #c05c3d;"></span>
+                  <span class="teacher-homeroom-legend__swatch" [style.background]="chartPalette.absent"></span>
                   {{ 'dashboard.chart.absent' | translate }}
                 </span>
                 <span class="d-inline-flex align-items-center gap-2 text-muted mb-0">
-                  <span class="teacher-homeroom-legend__swatch" style="background: #d97706;"></span>
+                  <span class="teacher-homeroom-legend__swatch" [style.background]="chartPalette.late"></span>
                   {{ 'dashboard.chart.late' | translate }}
                 </span>
                 <span class="d-inline-flex align-items-center gap-2 text-muted mb-0">
-                  <span class="teacher-homeroom-legend__swatch" style="background: #0284c7;"></span>
+                  <span class="teacher-homeroom-legend__swatch" [style.background]="chartPalette.excused"></span>
                   {{ 'dashboard.chart.excused' | translate }}
                 </span>
               </div>
@@ -350,18 +380,20 @@ interface DashboardAdmissionInsight {
           <div [ngClass]="(teacherDashboard?.recentActivities || []).length ? 'col-lg-8' : 'col-12'">
             <div class="erp-card">
               <div class="erp-card-header"><h3 class="erp-card-title">{{ 'dashboard.teacher.todayTimetable' | translate }}</h3></div>
-              <table class="erp-table">
-                <thead><tr><th>{{ 'dashboard.teacher.thPeriod' | translate }}</th><th>{{ 'dashboard.teacher.thTime' | translate }}</th><th>{{ 'dashboard.teacher.thSubject' | translate }}</th><th>{{ 'dashboard.teacher.thClass' | translate }}</th><th>{{ 'dashboard.teacher.thRoom' | translate }}</th></tr></thead>
-                <tbody>
-                  <tr *ngFor="let slot of teacherDashboard?.todaySchedule">
-                    <td>{{ slot.period }}</td>
-                    <td>{{ slot.startTime }} - {{ slot.endTime }}</td>
-                    <td><strong>{{ slot.subject }}</strong></td>
-                    <td>{{ slot.className }}{{ slot.sectionName ? ' - ' + slot.sectionName : '' }}</td>
-                    <td>{{ slot.room || '-' }}</td>
-                  </tr>
-                </tbody>
-              </table>
+              <div class="dashboard-table-wrap">
+                <table class="erp-table">
+                  <thead><tr><th>{{ 'dashboard.teacher.thPeriod' | translate }}</th><th>{{ 'dashboard.teacher.thTime' | translate }}</th><th>{{ 'dashboard.teacher.thSubject' | translate }}</th><th>{{ 'dashboard.teacher.thClass' | translate }}</th><th>{{ 'dashboard.teacher.thRoom' | translate }}</th></tr></thead>
+                  <tbody>
+                    <tr *ngFor="let slot of teacherDashboard?.todaySchedule">
+                      <td>{{ slot.period }}</td>
+                      <td>{{ slot.startTime }} - {{ slot.endTime }}</td>
+                      <td><strong>{{ slot.subject }}</strong></td>
+                      <td>{{ slot.className | schoolClassName }}{{ slot.sectionName ? ' - ' + slot.sectionName : '' }}</td>
+                      <td>{{ slot.room || '-' }}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
           <div class="col-lg-4" *ngIf="(teacherDashboard?.recentActivities || []).length">
@@ -434,7 +466,7 @@ interface DashboardAdmissionInsight {
               <label class="erp-label">{{ 'dashboard.parent.child' | translate }}</label>
               <select class="erp-select" [(ngModel)]="selectedParentChildId" (change)="onParentChildChange()">
                 <option *ngFor="let c of parentDashboard?.children" [ngValue]="c.id">
-                  {{ c.firstName }} {{ c.lastName }} · {{ c.className || ('dashboard.parent.classFallback' | translate: { id: c.classId }) }}{{ c.sectionName ? ' - ' + c.sectionName : '' }}
+                  {{ c.firstName }} {{ c.lastName }} · {{ (c.className | schoolClassName) || ('dashboard.parent.classFallback' | translate: { id: c.classId }) }}{{ c.sectionName ? ' - ' + c.sectionName : '' }}
                 </option>
               </select>
             </div>
@@ -534,6 +566,7 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
   parentKPIs: DashboardParentKpi[] = [];
   private langSub?: Subscription;
   private coverMutSub?: Subscription;
+  private themeSub?: Subscription;
   selectedParentChildId: number | null = null;
   showAdmissionsSeries = true;
   showFeesSeries = true;
@@ -546,6 +579,21 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
   private admissionsTrendChart?: Chart;
   private teacherHomeroomDailyChart?: Chart;
   private teacherHomeroomRingChart?: Chart;
+  chartPalette: DashboardChartPalette = {
+    text: '#1F2937',
+    muted: '#4B5563',
+    grid: 'rgba(148, 163, 184, 0.25)',
+    tooltipBg: '#111827',
+    tooltipText: '#F9FAFB',
+    admissionsBar: 'rgba(27, 58, 48, 0.85)',
+    feeBar: 'rgba(192, 92, 61, 0.85)',
+    line: '#1B3A30',
+    lineFill: 'rgba(27, 58, 48, 0.12)',
+    present: 'rgba(27, 58, 48, 0.92)',
+    absent: 'rgba(192, 92, 61, 0.90)',
+    late: 'rgba(217, 119, 6, 0.90)',
+    excused: 'rgba(2, 132, 199, 0.88)',
+  };
   /** Local month filter for teacher attendance chart (YYYY-MM). */
   teacherTrendMonth = new Date().toISOString().slice(0, 7);
 
@@ -559,6 +607,7 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
     private dashboardService: DashboardService,
     private operationsService: OperationsService,
     private parentSelection: ParentSelectionService,
+    private themeService: ThemeService,
     private cdr: ChangeDetectorRef,
     private translate: TranslateService
   ) {}
@@ -574,6 +623,7 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   ngOnInit(): void {
+    this.chartPalette = this.resolveChartPalette();
     this.role = this.authService.getRole() || 'admin';
     this.langSub = this.translate.onLangChange.subscribe(() => {
       if (this.role === 'admin' && this.adminDashboard) {
@@ -593,6 +643,17 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
     this.coverMutSub = this.operationsService.attendanceCoverMutations$.subscribe(() => {
       if (!this.loading && !this.refreshing) {
         this.refreshDashboard();
+      }
+    });
+    this.themeSub = this.themeService.theme$.subscribe(() => {
+      this.chartPalette = this.resolveChartPalette();
+      if (this.role === 'admin' && this.adminDashboard) {
+        this.cdr.detectChanges();
+        queueMicrotask(() => this.initAdminCharts());
+      }
+      if (this.role === 'teacher' && this.teacherDashboard) {
+        this.cdr.detectChanges();
+        queueMicrotask(() => this.initTeacherCharts());
       }
     });
   }
@@ -752,6 +813,7 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
   ngOnDestroy(): void {
     this.langSub?.unsubscribe();
     this.coverMutSub?.unsubscribe();
+    this.themeSub?.unsubscribe();
     this.combinedTrendChart?.destroy();
     this.attendanceChart?.destroy();
     this.admissionsTrendChart?.destroy();
@@ -992,20 +1054,27 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
     };
 
     const t = (k: string) => this.translate.instant(k);
+    const p = this.chartPalette;
     this.combinedTrendChart = new Chart(this.combinedTrendChartRef.nativeElement, {
       type: 'bar',
       data: {
         labels: monthlyAdmissions.map(point => point.label),
         datasets: [
-          { label: t('dashboard.chart.admissions'), data: monthlyAdmissions.map(point => Number(point.value)), backgroundColor: 'rgba(27,58,48,0.8)', borderRadius: 6, barPercentage: 0.55, hidden: !this.showAdmissionsSeries },
-          { label: t('dashboard.chart.feeCollection'), data: monthlyCollections.map(point => Number(point.value)), backgroundColor: 'rgba(192,92,61,0.8)', borderRadius: 6, barPercentage: 0.55, hidden: !this.showFeesSeries }
+          { label: t('dashboard.chart.admissions'), data: monthlyAdmissions.map(point => Number(point.value)), backgroundColor: p.admissionsBar, borderRadius: 6, barPercentage: 0.55, hidden: !this.showAdmissionsSeries },
+          { label: t('dashboard.chart.feeCollection'), data: monthlyCollections.map(point => Number(point.value)), backgroundColor: p.feeBar, borderRadius: 6, barPercentage: 0.55, hidden: !this.showFeesSeries }
         ]
       },
       options: {
         responsive: true,
         maintainAspectRatio: false,
-        plugins: { legend: { position: 'top' } },
-        scales: { x: { grid: { display: false } }, y: { beginAtZero: true } }
+        plugins: {
+          legend: { position: 'top', labels: { color: p.text } },
+          tooltip: { backgroundColor: p.tooltipBg, titleColor: p.tooltipText, bodyColor: p.tooltipText },
+        },
+        scales: {
+          x: { grid: { color: p.grid }, ticks: { color: p.muted } },
+          y: { beginAtZero: true, grid: { color: p.grid }, ticks: { color: p.muted } }
+        }
       }
     });
 
@@ -1020,14 +1089,18 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
             Number(overview.late),
             Number(overview.excused)
           ],
-          backgroundColor: ['#1B3A30', '#C05C3D', '#D97706', '#0284C7'],
+          backgroundColor: [p.present, p.absent, p.late, p.excused],
           borderWidth: 0
         }]
       },
       options: {
         responsive: true,
         maintainAspectRatio: false,
-        cutout: '70%'
+        cutout: '70%',
+        plugins: {
+          legend: { labels: { color: p.text } },
+          tooltip: { backgroundColor: p.tooltipBg, titleColor: p.tooltipText, bodyColor: p.tooltipText },
+        }
       }
     });
     this.applyAttendanceVisibility();
@@ -1039,22 +1112,25 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
         datasets: [{
           label: t('dashboard.chart.admissions'),
           data: monthlyAdmissions.map(point => Number(point.value)),
-          borderColor: '#1B3A30',
-          backgroundColor: 'rgba(27,58,48,0.12)',
+          borderColor: p.line,
+          backgroundColor: p.lineFill,
           fill: true,
           tension: 0.35,
           pointRadius: 4,
           pointHoverRadius: 6,
-          pointBackgroundColor: '#1B3A30'
+          pointBackgroundColor: p.line
         }]
       },
       options: {
         responsive: true,
         maintainAspectRatio: false,
-        plugins: { legend: { display: false } },
+        plugins: {
+          legend: { display: false },
+          tooltip: { backgroundColor: p.tooltipBg, titleColor: p.tooltipText, bodyColor: p.tooltipText },
+        },
         scales: {
-          x: { grid: { display: false } },
-          y: { beginAtZero: true, ticks: { precision: 0 } }
+          x: { grid: { color: p.grid }, ticks: { color: p.muted } },
+          y: { beginAtZero: true, ticks: { precision: 0, color: p.muted }, grid: { color: p.grid } }
         }
       }
     });
@@ -1216,7 +1292,8 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
       return Number.isNaN(d.getTime()) ? row.date : d.toLocaleDateString(loc, { day: 'numeric' });
     });
     const t = this.translate;
-    const gridColor = 'color-mix(in srgb, var(--clr-border) 65%, transparent)';
+    const p = this.chartPalette;
+    const gridColor = p.grid;
     const presentData: number[] = [];
     const absentData: number[] = [];
     const lateData: number[] = [];
@@ -1238,28 +1315,28 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
           {
             label: t.instant('dashboard.chart.present'),
             data: presentData,
-            backgroundColor: 'rgba(27, 58, 48, 0.92)',
+            backgroundColor: p.present,
             borderRadius: 4,
             stack: 'att',
           },
           {
             label: t.instant('dashboard.chart.absent'),
             data: absentData,
-            backgroundColor: 'rgba(192, 92, 61, 0.9)',
+            backgroundColor: p.absent,
             borderRadius: 4,
             stack: 'att',
           },
           {
             label: t.instant('dashboard.chart.late'),
             data: lateData,
-            backgroundColor: 'rgba(217, 119, 6, 0.9)',
+            backgroundColor: p.late,
             borderRadius: 4,
             stack: 'att',
           },
           {
             label: t.instant('dashboard.chart.excused'),
             data: excusedData,
-            backgroundColor: 'rgba(2, 132, 199, 0.88)',
+            backgroundColor: p.excused,
             borderRadius: 4,
             stack: 'att',
           },
@@ -1272,6 +1349,9 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
         plugins: {
           legend: { display: false },
           tooltip: {
+            backgroundColor: p.tooltipBg,
+            titleColor: p.tooltipText,
+            bodyColor: p.tooltipText,
             callbacks: {
               label: ctx => {
                 const dsLabel = ctx.dataset.label || '';
@@ -1283,7 +1363,7 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
           },
         },
         scales: {
-          x: { stacked: true, grid: { display: false }, ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 16 } },
+          x: { stacked: true, grid: { color: gridColor }, ticks: { color: p.muted, maxRotation: 0, autoSkip: true, maxTicksLimit: 16 } },
           y: {
             stacked: true,
             min: 0,
@@ -1300,7 +1380,7 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
             title: {
               display: true,
               text: t.instant('dashboard.teacher.homeroomAxisDailyCounts'),
-              color: 'color-mix(in srgb, var(--clr-text) 75%, transparent)',
+              color: p.text,
               font: { size: 11, weight: 600 },
             },
           },
@@ -1320,7 +1400,7 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
         datasets: [
           {
             data: [b.present, b.absent, b.late, b.excused],
-            backgroundColor: ['#1B3A30', '#C05C3D', '#D97706', '#0284C7'],
+            backgroundColor: [p.present, p.absent, p.late, p.excused],
             borderWidth: 0,
           },
         ],
@@ -1330,10 +1410,47 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
         maintainAspectRatio: false,
         cutout: '68%',
         plugins: {
-          legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } },
+          legend: { position: 'bottom', labels: { color: p.text, boxWidth: 12, font: { size: 11 } } },
+          tooltip: { backgroundColor: p.tooltipBg, titleColor: p.tooltipText, bodyColor: p.tooltipText },
         },
       },
     });
+  }
+
+  private resolveChartPalette(): DashboardChartPalette {
+    const isDark = this.themeService.getTheme() === 'dark';
+    if (isDark) {
+      return {
+        text: '#E5E7EB',
+        muted: '#C3CDD9',
+        grid: 'rgba(148, 163, 184, 0.25)',
+        tooltipBg: '#0B1220',
+        tooltipText: '#F8FAFC',
+        admissionsBar: 'rgba(52, 211, 153, 0.90)',
+        feeBar: 'rgba(251, 146, 60, 0.92)',
+        line: '#34D399',
+        lineFill: 'rgba(52, 211, 153, 0.20)',
+        present: 'rgba(52, 211, 153, 0.92)',
+        absent: 'rgba(248, 113, 113, 0.92)',
+        late: 'rgba(251, 191, 36, 0.92)',
+        excused: 'rgba(56, 189, 248, 0.92)',
+      };
+    }
+    return {
+      text: '#1F2937',
+      muted: '#4B5563',
+      grid: 'rgba(148, 163, 184, 0.25)',
+      tooltipBg: '#111827',
+      tooltipText: '#F9FAFB',
+      admissionsBar: 'rgba(27, 58, 48, 0.85)',
+      feeBar: 'rgba(192, 92, 61, 0.85)',
+      line: '#1B3A30',
+      lineFill: 'rgba(27, 58, 48, 0.12)',
+      present: 'rgba(27, 58, 48, 0.92)',
+      absent: 'rgba(192, 92, 61, 0.90)',
+      late: 'rgba(217, 119, 6, 0.90)',
+      excused: 'rgba(2, 132, 199, 0.88)',
+    };
   }
 
 }

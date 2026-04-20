@@ -179,12 +179,50 @@ public class PlatformService {
     @Transactional(readOnly = true)
     public PlatformDTOs.SchoolDetailResponse getSchoolDetail(String tenantId) {
         log.debug("Loading school detail tenantId={}", tenantId);
-        TenantConfig tc = requireTenant(tenantId);
+        TenantConfig tc = tenantConfigRepository.findByTenantId(tenantId)
+                .filter(config -> !Boolean.TRUE.equals(config.getIsDeleted()))
+                .orElse(null);
+        if (tc == null) {
+            List<PlatformTenantPurgeJob> jobs = purgeJobRepository.findByTenantIdOrderByCreatedAtDesc(tenantId);
+            if (!jobs.isEmpty()) {
+                log.info("School detail fallback for purged tenantId={} latestJobStatus={}", tenantId, jobs.get(0).getStatus());
+                return buildPurgedSchoolDetail(tenantId, jobs.get(0));
+            }
+            throw new ResourceNotFoundException("School workspace not found for tenant: " + tenantId);
+        }
         PlatformDTOs.SchoolDetailResponse out = new PlatformDTOs.SchoolDetailResponse();
         out.setSchool(toSchoolSummary(tc));
         out.setAdmins(getSchoolAdmins(tenantId));
         out.setParentUserCount(userRepository.countByTenantIdAndRoleAndIsDeletedFalse(tenantId, Enums.Role.PARENT));
         log.info("School detail tenantId={} admins={} parentUsers={}", tenantId, out.getAdmins().size(), out.getParentUserCount());
+        return out;
+    }
+
+    private PlatformDTOs.SchoolDetailResponse buildPurgedSchoolDetail(String tenantId, PlatformTenantPurgeJob latestJob) {
+        PlatformDTOs.SchoolSummary school = new PlatformDTOs.SchoolSummary();
+        school.setTenantId(tenantId);
+        school.setSchoolName("Deleted workspace");
+        school.setSchoolCode(
+                latestJob.getSchoolCode() != null && !latestJob.getSchoolCode().isBlank()
+                        ? latestJob.getSchoolCode()
+                        : tenantId
+        );
+        school.setActive(false);
+        school.setStudentCount(0);
+        school.setTeacherCount(0);
+        school.setAdminCount(0);
+        school.setEmail(null);
+        school.setPhone(null);
+        school.setAddress(null);
+        school.setPrimaryColor("#6B7280");
+        school.setSecondaryColor("#9CA3AF");
+
+        PlatformDTOs.SchoolDetailResponse out = new PlatformDTOs.SchoolDetailResponse();
+        out.setSchool(school);
+        out.setAdmins(List.of());
+        out.setParentUserCount(0);
+        out.setSubscriptionPlanCode("N/A");
+        out.setSubscriptionStatus("PURGED");
         return out;
     }
 

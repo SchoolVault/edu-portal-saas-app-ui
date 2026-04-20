@@ -19,6 +19,7 @@ export const MOCK_TENANT_CONFIG_DEFAULT: TenantConfig = {
     operationsHub: true,
     importExport: true,
     directory: true,
+    leave: true,
   },
   tenantId: 't1',
 };

@@ -31,6 +31,7 @@ import { ErpI18nPhDirective, ErpI18nTextDirective } from '../../shared/erp-i18n/
 import { runtimeConfig } from '../../core/config/runtime-config';
 import { SettingsService } from '../../core/services/settings.service';
 import { AuthService } from '../../core/services/auth.service';
+import { formatSchoolClassDisplayName } from '../../core/i18n/school-class-display';
 
 @Component({
   selector: 'app-operations-hub',
@@ -686,7 +687,10 @@ export class OperationsHubComponent implements OnInit {
   }
 
   private buildCoverConflictLocationLine(c: AttendanceCoverConflictPayload): string {
-    const className = this.classes.find(x => x.id === (c.classId ?? this.coverForm.classId))?.name ?? '—';
+    const classId = c.classId ?? this.coverForm.classId;
+    const className = classId == null
+      ? '—'
+      : formatSchoolClassDisplayName(classId, this.classes.find(x => x.id === classId)?.name, this.translate);
     const sectionText =
       c.sectionId == null
         ? this.translate.instant('operations.covers.allSections')
@@ -851,7 +855,7 @@ export class OperationsHubComponent implements OnInit {
   }
 
   coverRowClassDisplay(row: AttendanceCoverRow): string {
-    return this.classes.find(x => x.id === row.classId)?.name ?? String(row.classId);
+    return formatSchoolClassDisplayName(row.classId, this.classes.find(x => x.id === row.classId)?.name, this.translate);
   }
 
   coverRowSectionDisplay(row: AttendanceCoverRow): string {
@@ -877,7 +881,7 @@ export class OperationsHubComponent implements OnInit {
   }
 
   auditClassDisplay(a: AttendanceCoverAuditRow): string {
-    return this.classes.find(c => c.id === a.classId)?.name ?? String(a.classId);
+    return formatSchoolClassDisplayName(a.classId, this.classes.find(c => c.id === a.classId)?.name, this.translate);
   }
 
   auditSectionDisplay(a: AttendanceCoverAuditRow): string {

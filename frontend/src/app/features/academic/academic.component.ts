@@ -190,6 +190,11 @@ import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directiv
         max-width: min(560px, calc(100vw - 32px));
         width: 100%;
       }
+      @media (max-width: 576px) {
+        .academic-class-card .timetable-slot-cell {
+          min-width: 100%;
+        }
+      }
     `,
   ],
   template: `
@@ -280,7 +285,6 @@ import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directiv
                     {{ cls.name }}
                     <span *ngIf="isMyHomeroomWholeClass(cls)" class="academic-homeroom-you-pill academic-homeroom-you-pill--inline">{{ 'academic.homeroom.you' | translate }}</span>
                   </h4>
-                  <span class="academic-help-text" style="font-size: 12px;">{{ 'academic.card.grade' | translate: { grade: cls.grade } }}</span>
                 </div>
                 <div class="d-flex flex-column align-items-end gap-1">
                   <span class="badge-erp" [ngClass]="cls.sections.length ? 'badge-info' : 'badge-neutral'">{{ cls.sections.length ? ('academic.card.sectionsCount' | translate: { count: cls.sections.length }) : ('academic.card.wholeClass' | translate) }}</span>
@@ -317,7 +321,9 @@ import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directiv
                   <div class="d-flex align-items-start justify-content-between gap-1">
                     <div style="flex: 1; text-align: center;">
                       <div class="timetable-slot-subject">{{ sec.name }}</div>
-                      <div class="timetable-slot-teacher">{{ sec.studentCount }}/{{ sec.capacity }}</div>
+                      <div class="timetable-slot-teacher">
+                        {{ 'academic.card.studentCount' | translate: { count: sec.studentCount, capacity: sec.capacity } }}
+                      </div>
                     </div>
                     <div *ngIf="canManageAcademic" class="d-flex flex-column gap-1">
                       <button type="button" class="btn-icon btn-xs p-0" style="font-size: 14px;" (click)="openEditSectionModal(cls, sec)" [attr.title]="'academic.card.editTitle' | translate"><i class="bi bi-pencil"></i></button>
@@ -494,8 +500,6 @@ import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directiv
               <select class="erp-select" [(ngModel)]="newClass.academicYearId"><option *ngFor="let ay of academicYears" [ngValue]="ay.id">{{ ay.name }}</option></select></div>
             <div class="erp-form-group"><label class="erp-label">{{ 'academic.modal.displayNameReq' | translate }}</label>
               <input type="text" class="erp-input" [(ngModel)]="newClass.name" erpI18nPh="academic.modal.displayNamePh"></div>
-            <div class="erp-form-group"><label class="erp-label">{{ 'academic.modal.gradeReq' | translate }}</label>
-              <input type="number" class="erp-input" [(ngModel)]="newClass.grade" min="0" max="20"></div>
             <div class="erp-form-group"><label class="erp-label">{{ 'academic.modal.initialSections' | translate }}</label>
               <input type="text" class="erp-input" [(ngModel)]="newClass.sectionNamesText" erpI18nPh="academic.modal.initialSectionsPh"></div>
             <div class="erp-form-group"><label class="erp-label">{{ 'academic.modal.defaultCapacity' | translate }}</label>
@@ -515,7 +519,6 @@ import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directiv
           <div class="modal-header-erp"><h3>{{ 'academic.modal.editClassTitle' | translate }}</h3><button type="button" class="btn-icon" (click)="showEditClass = false"><i class="bi bi-x-lg"></i></button></div>
           <div class="modal-body-erp">
             <div class="erp-form-group"><label class="erp-label">{{ 'academic.modal.nameReq' | translate }}</label><input type="text" class="erp-input" [(ngModel)]="editClassForm.name"></div>
-            <div class="erp-form-group"><label class="erp-label">{{ 'academic.modal.gradeReq' | translate }}</label><input type="number" class="erp-input" [(ngModel)]="editClassForm.grade" min="0" max="20"></div>
           </div>
           <div class="modal-footer-erp">
             <button type="button" class="btn-outline-erp" (click)="showEditClass = false">{{ 'academic.modal.cancel' | translate }}</button>
@@ -618,13 +621,12 @@ export class AcademicComponent implements OnInit {
   editClassTarget: SchoolClass | null = null;
   newClass: {
     name: string;
-    grade: number;
     academicYearId: number | null;
     sectionNamesText: string;
     sectionCapacity: number;
     classTeacherId: number | null;
-  } = { name: '', grade: 1, academicYearId: null, sectionNamesText: '', sectionCapacity: 40, classTeacherId: null };
-  editClassForm = { name: '', grade: 1 };
+  } = { name: '', academicYearId: null, sectionNamesText: '', sectionCapacity: 40, classTeacherId: null };
+  editClassForm = { name: '' };
   showAddSection = false;
   sectionClassId: number | null = null;
   newSection = { name: '', capacity: 40 };
@@ -834,7 +836,6 @@ export class AcademicComponent implements OnInit {
     const cur = this.academicYears.find(y => y.isCurrent);
     this.newClass = {
       name: '',
-      grade: 1,
       academicYearId: cur?.id ?? this.academicYears[0]?.id ?? null,
       sectionNamesText: '',
       sectionCapacity: 40,
@@ -847,11 +848,6 @@ export class AcademicComponent implements OnInit {
     const n = this.newClass.name.trim();
     if (!n || this.newClass.academicYearId == null) {
       this.showValidationWarning(this.translate.instant('academic.modal.displayNameReq'));
-      return;
-    }
-    const grade = Number(this.newClass.grade);
-    if (!Number.isFinite(grade) || grade < 1 || grade > 12) {
-      this.showValidationWarning(this.translate.instant('academic.modal.gradeReq'));
       return;
     }
     const duplicateName = this.classes.some(
@@ -870,7 +866,6 @@ export class AcademicComponent implements OnInit {
     this.academicService
       .createClass({
         name: n,
-        grade,
         academicYearId: this.newClass.academicYearId,
         sectionNames: names,
         sectionCapacity: this.newClass.sectionCapacity,
@@ -898,7 +893,7 @@ export class AcademicComponent implements OnInit {
 
   openEditClassModal(cls: SchoolClass): void {
     this.editClassTarget = cls;
-    this.editClassForm = { name: cls.name, grade: cls.grade };
+    this.editClassForm = { name: cls.name };
     this.showEditClass = true;
   }
 
@@ -909,13 +904,8 @@ export class AcademicComponent implements OnInit {
       this.showValidationWarning(this.translate.instant('academic.modal.nameReq'));
       return;
     }
-    const grade = Number(this.editClassForm.grade);
-    if (!Number.isFinite(grade) || grade < 1 || grade > 12) {
-      this.showValidationWarning(this.translate.instant('academic.modal.gradeReq'));
-      return;
-    }
     this.savingClass = true;
-    this.academicService.updateClass(this.editClassTarget.id, name, grade).subscribe({
+    this.academicService.updateClass(this.editClassTarget.id, name).subscribe({
       next: updated => {
         this.classes = this.classes.map(c => (c.id === updated.id ? updated : c));
         this.savingClass = false;

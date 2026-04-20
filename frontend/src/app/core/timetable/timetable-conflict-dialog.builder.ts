@@ -1,5 +1,6 @@
 import type { TranslateService } from '@ngx-translate/core';
 import type { SchoolClass, TimetableConflictPayload } from '../models/models';
+import { formatSchoolClassDisplayName } from '../i18n/school-class-display';
 
 /**
  * Human-readable class/section labels for timetable conflict dialogs (grid, onboarding, future flows).
@@ -18,7 +19,7 @@ export function createTimetableConflictHumanLabels(
     if (classId == null || classId === 0) {
       return '—';
     }
-    return classes.find(c => c.id === classId)?.name?.trim() || String(classId);
+    return formatSchoolClassDisplayName(classId, classes.find(c => c.id === classId)?.name?.trim(), translate);
   };
 
   const sectionDisplayForClass = (

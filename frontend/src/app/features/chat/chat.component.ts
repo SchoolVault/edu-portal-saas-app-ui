@@ -501,6 +501,66 @@ import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directiv
         margin: 0 auto;
         line-height: 1.5;
       }
+      [data-theme='dark'] .chat-shell {
+        border-color: color-mix(in srgb, var(--clr-primary) 20%, var(--clr-border));
+      }
+      [data-theme='dark'] .chat-sidebar-toolbar,
+      [data-theme='dark'] .chat-thread-header,
+      [data-theme='dark'] .chat-compose {
+        background: color-mix(in srgb, var(--clr-surface-alt) 72%, var(--clr-surface));
+      }
+      [data-theme='dark'] .chat-messages {
+        background-color: color-mix(in srgb, var(--clr-surface-muted) 86%, var(--clr-bg));
+        background-image: radial-gradient(
+            circle at 12% 18%,
+            color-mix(in srgb, var(--clr-primary) 12%, transparent) 0%,
+            transparent 45%
+          ),
+          radial-gradient(
+            circle at 88% 72%,
+            color-mix(in srgb, var(--clr-accent) 10%, transparent) 0%,
+            transparent 48%
+          ),
+          repeating-linear-gradient(
+            -12deg,
+            transparent,
+            transparent 11px,
+            color-mix(in srgb, var(--clr-primary) 5%, transparent) 11px,
+            color-mix(in srgb, var(--clr-primary) 5%, transparent) 12px
+          );
+      }
+      [data-theme='dark'] .bubble {
+        background: color-mix(in srgb, var(--clr-surface) 90%, var(--clr-surface-alt));
+        border-color: color-mix(in srgb, var(--clr-primary) 14%, var(--clr-border));
+      }
+      [data-theme='dark'] .bubble--mine {
+        background: linear-gradient(
+          145deg,
+          color-mix(in srgb, var(--clr-primary) 28%, var(--clr-surface)) 0%,
+          color-mix(in srgb, var(--clr-primary) 18%, var(--clr-surface-alt)) 100%
+        );
+      }
+      @media (max-width: 767.98px) {
+        .chat-layout-row {
+          display: flex;
+          flex-direction: column;
+          min-height: calc(100vh - 210px);
+        }
+        .chat-sidebar {
+          max-height: 42vh;
+          border-right: 0;
+          border-bottom: 1px solid var(--clr-border);
+        }
+        .chat-thread-column {
+          min-height: 52vh;
+        }
+        .chat-messages {
+          padding: 12px 12px 16px;
+        }
+        .bubble {
+          max-width: min(92%, 520px);
+        }
+      }
     `
   ],
   template: `

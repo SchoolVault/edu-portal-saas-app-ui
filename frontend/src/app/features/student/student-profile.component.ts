@@ -10,17 +10,66 @@ import { Student, StudentGuardianMapping, AttendanceStats } from '../../core/mod
 import { StudentGuardianPanelComponent } from './student-guardian-panel/student-guardian-panel.component';
 import { ConfirmDialogService } from '../../shared/confirm-dialog/confirm-dialog.service';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
+import { SchoolClassNamePipe } from '../../core/i18n/school-class-name.pipe';
+import { formatSchoolClassName } from '../../core/i18n/school-class-display';
 
 @Component({
   selector: 'app-student-profile',
   standalone: true,
-  imports: [CommonModule, RouterModule, TranslateModule, StudentGuardianPanelComponent],
+  imports: [CommonModule, RouterModule, TranslateModule, StudentGuardianPanelComponent, SchoolClassNamePipe],
+  styles: [
+    `
+      .student-profile-page {
+        color: var(--clr-text);
+      }
+      .student-profile-page .erp-card {
+        border: 1px solid color-mix(in srgb, var(--clr-border) 82%, var(--clr-primary) 18%);
+        border-radius: 14px;
+        box-shadow: 0 8px 22px color-mix(in srgb, var(--clr-primary) 8%, transparent);
+        background: linear-gradient(
+          180deg,
+          color-mix(in srgb, var(--clr-surface) 97%, var(--clr-primary) 3%) 0%,
+          var(--clr-surface) 100%
+        );
+      }
+      .student-profile-title {
+        font-size: 24px;
+        font-weight: 800;
+        letter-spacing: -0.02em;
+        color: color-mix(in srgb, var(--clr-text) 92%, var(--clr-primary));
+      }
+      .student-profile-card--identity {
+        padding: 28px;
+      }
+      .student-profile-section-title {
+        font-size: 16px;
+        font-weight: 800;
+        letter-spacing: -0.01em;
+        color: color-mix(in srgb, var(--clr-text) 88%, var(--clr-primary) 12%);
+      }
+      .student-kpi-strip {
+        padding: 16px;
+        background: color-mix(in srgb, var(--clr-surface) 94%, var(--clr-primary) 6%);
+        border-radius: var(--radius-lg);
+        border: 1px solid color-mix(in srgb, var(--clr-border) 72%, var(--clr-primary) 28%);
+        margin-bottom: 16px;
+      }
+      @media (max-width: 576px) {
+        .student-profile-card--identity {
+          padding: 20px;
+        }
+        .student-profile-title {
+          font-size: 21px;
+        }
+      }
+    `,
+  ],
   template: `
-    <div data-testid="student-profile-page" class="animate-in" *ngIf="student">
-      <div class="d-flex align-items-center gap-3 mb-4">
+    <div class="student-profile-page animate-in" data-testid="student-profile-page" *ngIf="student">
+      <div class="d-flex align-items-center gap-3 mb-4 flex-wrap">
         <button class="btn-icon" (click)="router.navigate(['/app/students'])" data-testid="back-btn"><i class="bi bi-arrow-left" style="font-size: 20px;"></i></button>
         <div class="flex-grow-1">
-          <h2 style="font-size: 24px; font-weight: 800;">{{ 'students.profile.title' | translate }}</h2>
+          <h2 class="student-profile-title">{{ 'students.profile.title' | translate }}</h2>
         </div>
         <div class="d-flex gap-2 flex-wrap">
           <button type="button" class="btn-outline-erp btn-sm" (click)="reloadAll()" data-testid="profile-refresh-btn">
@@ -43,7 +92,7 @@ import { TranslateModule, TranslateService } from '@ngx-translate/core';
 
       <div class="row g-4">
         <div class="col-lg-4">
-          <div class="erp-card text-center" style="padding: 32px;">
+          <div class="erp-card student-profile-card--identity text-center">
             <img *ngIf="studentPortraitUrl" [src]="studentPortraitUrl" alt="" class="mx-auto mb-3 d-block rounded-circle" style="width: 80px; height: 80px; object-fit: cover; border: 2px solid var(--clr-border);" />
             <div *ngIf="!studentPortraitUrl" class="profile-avatar mx-auto mb-3" style="width: 80px; height: 80px; font-size: 28px;"
                  [style.background]="student.gender === 'female' ? '#C05C3D' : '#1B3A30'">
@@ -65,9 +114,9 @@ import { TranslateModule, TranslateService } from '@ngx-translate/core';
         </div>
         <div class="col-lg-8">
           <div class="erp-card mb-4">
-            <h4 class="erp-card-title mb-3">{{ 'students.profile.academicInfo' | translate }}</h4>
+            <h4 class="student-profile-section-title mb-3">{{ 'students.profile.academicInfo' | translate }}</h4>
             <div class="row g-3">
-              <div class="col-md-3"><span style="font-size: 12px; color: var(--clr-text-muted); display: block;">{{ 'students.profile.class' | translate }}</span><strong>{{ student.className }}</strong></div>
+              <div class="col-md-3"><span style="font-size: 12px; color: var(--clr-text-muted); display: block;">{{ 'students.profile.class' | translate }}</span><strong>{{ student.className | schoolClassName }}</strong></div>
               <div class="col-md-3"><span style="font-size: 12px; color: var(--clr-text-muted); display: block;">{{ 'students.profile.section' | translate }}</span><strong>{{ student.sectionName }}</strong></div>
               <div class="col-md-3"><span style="font-size: 12px; color: var(--clr-text-muted); display: block;">{{ 'students.profile.rollNumber' | translate }}</span><strong>{{ student.rollNumber }}</strong></div>
               <div class="col-md-3"><span style="font-size: 12px; color: var(--clr-text-muted); display: block;">{{ 'students.profile.admissionDate' | translate }}</span><strong>{{ student.admissionDate }}</strong></div>
@@ -80,9 +129,9 @@ import { TranslateModule, TranslateService } from '@ngx-translate/core';
             />
           </div>
           <div class="erp-card">
-            <h4 class="erp-card-title mb-2">{{ 'students.profile.attendanceOverviewTitle' | translate }}</h4>
+            <h4 class="student-profile-section-title mb-2">{{ 'students.profile.attendanceOverviewTitle' | translate }}</h4>
             <p class="text-muted small mb-3" style="line-height: 1.5;">{{ 'students.profile.directoryScopeNote' | translate }}</p>
-            <div style="padding: 16px; background: var(--clr-bg); border-radius: var(--radius-lg); margin-bottom: 16px;">
+            <div class="student-kpi-strip">
               <div class="row text-center">
                 <div class="col-md-3"><div style="font-size: 28px; font-weight: 800; color: var(--clr-success);">{{ attendanceStats.present }}</div><div style="font-size: 12px; color: var(--clr-text-muted);">{{ 'students.profile.attPresent' | translate }}</div></div>
                 <div class="col-md-3"><div style="font-size: 28px; font-weight: 800; color: var(--clr-danger);">{{ attendanceStats.absent }}</div><div style="font-size: 12px; color: var(--clr-text-muted);">{{ 'students.profile.attAbsent' | translate }}</div></div>
@@ -208,7 +257,7 @@ export class StudentProfileComponent implements OnInit, OnDestroy {
         details: [
           this.translate.instant('students.profile.confirmInactive.detailAdmission', { no: s.admissionNumber }),
           this.translate.instant('students.profile.confirmInactive.detailClass', {
-            class: `${s.className} ${s.sectionName || ''}`.trim(),
+            class: `${formatSchoolClassName(s.className, this.translate) || s.className} ${s.sectionName || ''}`.trim(),
           }),
         ],
         variant: 'warning',

@@ -11,7 +11,6 @@ import com.school.erp.modules.academic.repository.SchoolClassRepository;
 import com.school.erp.modules.academic.repository.SectionRepository;
 import com.school.erp.modules.attendance.entity.AttendanceCoverAssignment;
 import com.school.erp.modules.attendance.repository.AttendanceCoverAssignmentRepository;
-import com.school.erp.modules.teacher.entity.Teacher;
 import com.school.erp.modules.teacher.repository.TeacherRepository;
 import com.school.erp.modules.timetable.dto.TeacherScheduleSlot;
 import com.school.erp.modules.timetable.dto.TimetableDTOs;
@@ -276,6 +275,7 @@ public class TimetableService {
     public TimetableEntry createEntry(TimetableEntry entry, Long replaceTimetableEntryId) {
         String t = TenantContext.getTenantId();
         log.info("Creating timetable slot classId={} day={} period={} replaceId={}", entry.getClassId(), entry.getDay(), entry.getPeriod(), replaceTimetableEntryId);
+        validateTimetableEntryRules(entry);
         assertNoTimetableConflictOrReplace(t, entry, null, replaceTimetableEntryId);
         entry.setTenantId(t);
         TimetableEntry saved = repo.save(entry);
@@ -290,6 +290,7 @@ public class TimetableService {
         log.info("Batch creating timetable rows count={}", entries.size());
         entries.forEach(e -> e.setTenantId(t));
         for (TimetableEntry e : entries) {
+            validateTimetableEntryRules(e);
             assertNoTimetableConflictOrReplace(t, e, null, null);
         }
         List<TimetableEntry> saved = repo.saveAll(entries);
@@ -322,6 +323,7 @@ public class TimetableService {
         if (update.getRoom() != null) entry.setRoom(update.getRoom());
         if (update.getStartTime() != null) entry.setStartTime(update.getStartTime());
         if (update.getEndTime() != null) entry.setEndTime(update.getEndTime());
+        validateTimetableEntryRules(entry);
         assertNoTimetableConflictOrReplace(t, entry, id, replaceTimetableEntryId);
         TimetableEntry saved = repo.save(entry);
         log.info("Timetable entry updated id={}", id);
@@ -386,6 +388,40 @@ public class TimetableService {
             return "This class already has a subject scheduled for that weekday and period.";
         }
         return "This teacher is already scheduled in another class for that weekday and period.";
+    }
+
+    private void validateTimetableEntryRules(TimetableEntry entry) {
+        if (entry.getClassId() == null || entry.getClassId() <= 0) {
+            throw new BusinessException("Class is required for timetable slot.");
+        }
+        if (entry.getDay() == null) {
+            throw new BusinessException("Weekday is required for timetable slot.");
+        }
+        if (entry.getPeriod() == null || entry.getPeriod() < 1 || entry.getPeriod() > 12) {
+            throw new BusinessException("Period must be between 1 and 12.");
+        }
+        if (entry.getSubjectName() == null || entry.getSubjectName().trim().isEmpty()) {
+            throw new BusinessException("Subject is required for timetable slot.");
+        }
+        if (entry.getTeacherId() == null || entry.getTeacherId() <= 0) {
+            throw new BusinessException("Teacher is required for timetable slot.");
+        }
+        if (entry.getStartTime() == null || entry.getEndTime() == null || !entry.getStartTime().isBefore(entry.getEndTime())) {
+            throw new BusinessException("Start time must be earlier than end time.");
+        }
+        String tenantId = TenantContext.getTenantId();
+        schoolClassRepository
+                .findByIdAndTenantIdAndIsDeletedFalse(entry.getClassId(), tenantId)
+                .orElseThrow(() -> new ResourceNotFoundException("Class", entry.getClassId()));
+        List<Section> classSections = sectionRepository.findByTenantIdAndClassIdAndIsDeletedFalse(tenantId, entry.getClassId());
+        if (!classSections.isEmpty()) {
+            if (entry.getSectionId() == null || entry.getSectionId() <= 0) {
+                throw new BusinessException("Section is required for this class.");
+            }
+            sectionRepository.findByIdAndTenantIdAndIsDeletedFalse(entry.getSectionId(), tenantId)
+                    .filter(sec -> sec.getClassId().equals(entry.getClassId()))
+                    .orElseThrow(() -> new BusinessException("Selected section does not belong to the chosen class."));
+        }
     }
 
     private void softDeleteBlockingEntry(String tenantId, Long id) {

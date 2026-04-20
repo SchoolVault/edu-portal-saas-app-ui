@@ -17,9 +17,12 @@ import com.school.erp.modules.student.entity.Student;
 import com.school.erp.modules.guardian.service.GuardianLinkSyncService;
 import com.school.erp.modules.student.mapper.StudentResponseMapper;
 import com.school.erp.modules.student.port.StudentPersistencePort;
+import com.school.erp.cache.CacheService;
+import com.school.erp.cache.CacheService.CacheRegion;
 import com.school.erp.config.CacheConfig;
 import com.school.erp.platform.port.DomainEventPublisher;
 import com.school.erp.tenant.TenantContext;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -31,6 +34,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -47,6 +51,7 @@ public class StudentService {
     private final TeacherRosterScopeService teacherRosterScopeService;
     private final DomainEventPublisher domainEventPublisher;
     private final GuardianLinkSyncService guardianLinkSyncService;
+    private final ObjectProvider<CacheService> cacheService;
 
     @Cacheable(cacheNames = CacheConfig.STUDENT_DIRECTORY, keyGenerator = "tenantMethodParamsKeyGenerator", unless = "#result == null")
     @Transactional(readOnly = true)
@@ -137,10 +142,15 @@ public class StudentService {
         if (request.getClassId() == null) {
             throw new BusinessException("classId is required");
         }
+        Long normalizedSectionId = normalizeSectionId(request.getSectionId());
         schoolClassRepository.findByIdAndTenantIdAndIsDeletedFalse(request.getClassId(), tenantId)
                 .orElseThrow(() -> new ResourceNotFoundException("Class", request.getClassId()));
-        if (request.getSectionId() != null) {
-            Section sec = sectionRepository.findByIdAndTenantIdAndIsDeletedFalse(request.getSectionId(), tenantId)
+        List<Section> classSections = sectionRepository.findByTenantIdAndClassIdAndIsDeletedFalse(tenantId, request.getClassId());
+        if (!classSections.isEmpty() && normalizedSectionId == null) {
+            throw new BusinessException("sectionId is required for classes that have sections");
+        }
+        if (normalizedSectionId != null) {
+            Section sec = sectionRepository.findByIdAndTenantIdAndIsDeletedFalse(normalizedSectionId, tenantId)
                     .orElseThrow(() -> new ResourceNotFoundException("Section", request.getSectionId()));
             if (!request.getClassId().equals(sec.getClassId())) {
                 throw new BusinessException("sectionId does not belong to the given classId");
@@ -158,7 +168,7 @@ public class StudentService {
         if (email != null && email.isBlank()) {
             email = null;
         }
-        Student student = Student.builder().firstName(request.getFirstName()).lastName(request.getLastName()).email(email).phone(request.getPhone()).dateOfBirth(request.getDateOfBirth()).gender(request.getGender()).classId(request.getClassId()).sectionId(request.getSectionId()).rollNumber(request.getRollNumber()).admissionNumber(admNo).admissionDate(request.getAdmissionDate() != null ? request.getAdmissionDate() : LocalDate.now()).parentId(request.getParentId()).parentName(request.getParentName()).address(request.getAddress()).bloodGroup(request.getBloodGroup()).status(Enums.StudentStatus.ACTIVE).build();
+        Student student = Student.builder().firstName(request.getFirstName()).lastName(request.getLastName()).email(email).phone(request.getPhone()).dateOfBirth(request.getDateOfBirth()).gender(request.getGender()).classId(request.getClassId()).sectionId(normalizedSectionId).rollNumber(request.getRollNumber()).admissionNumber(admNo).admissionDate(request.getAdmissionDate() != null ? request.getAdmissionDate() : LocalDate.now()).parentId(request.getParentId()).parentName(request.getParentName()).address(request.getAddress()).bloodGroup(request.getBloodGroup()).status(Enums.StudentStatus.ACTIVE).build();
         student.setTenantId(tenantId);
         student.setCreatedBy(TenantContext.getUserId() != null ? TenantContext.getUserId().toString() : null);
         studentPersistence.save(student);
@@ -171,15 +181,23 @@ public class StudentService {
                 student.getSectionId(),
                 student.getAdmissionNumber(),
                 Instant.now()));
+        evictStudentAndAcademicCaches();
         return toResponse(student);
     }
 
     @Transactional
     public StudentDTOs.Response updateStudent(Long id, StudentDTOs.UpdateRequest request) {
         log.info("Updating student id={}", id);
-        Student student = studentPersistence.findByIdAndTenantIdAndIsDeletedFalse(id, TenantContext.getTenantId()).orElseThrow(() -> new ResourceNotFoundException("Student", id));
+        String tenantId = TenantContext.getTenantId();
+        Student student = studentPersistence.findByIdAndTenantIdAndIsDeletedFalse(id, tenantId).orElseThrow(() -> new ResourceNotFoundException("Student", id));
         Long priorClassId = student.getClassId();
         Long priorSectionId = student.getSectionId();
+        Long targetClassId = request.getClassId() != null ? request.getClassId() : student.getClassId();
+        schoolClassRepository.findByIdAndTenantIdAndIsDeletedFalse(targetClassId, tenantId)
+                .orElseThrow(() -> new ResourceNotFoundException("Class", targetClassId));
+        List<Section> targetClassSections = sectionRepository.findByTenantIdAndClassIdAndIsDeletedFalse(tenantId, targetClassId);
+        boolean classChangedByRequest = request.getClassId() != null && !java.util.Objects.equals(priorClassId, targetClassId);
+        Long normalizedSectionId = normalizeSectionId(request.getSectionId());
         if (request.getFirstName() != null) student.setFirstName(request.getFirstName());
         if (request.getLastName() != null) student.setLastName(request.getLastName());
         if (request.getEmail() != null) student.setEmail(request.getEmail());
@@ -187,7 +205,30 @@ public class StudentService {
         if (request.getDateOfBirth() != null) student.setDateOfBirth(request.getDateOfBirth());
         if (request.getGender() != null) student.setGender(request.getGender());
         if (request.getClassId() != null) student.setClassId(request.getClassId());
-        if (request.getSectionId() != null) student.setSectionId(request.getSectionId());
+        if (normalizedSectionId != null) {
+            Section sec = sectionRepository.findByIdAndTenantIdAndIsDeletedFalse(normalizedSectionId, tenantId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Section", normalizedSectionId));
+            if (!targetClassId.equals(sec.getClassId())) {
+                throw new BusinessException("sectionId does not belong to the given classId");
+            }
+            student.setSectionId(normalizedSectionId);
+        } else if (request.getSectionId() != null) {
+            student.setSectionId(null);
+        } else if (classChangedByRequest) {
+            if (!targetClassSections.isEmpty()) {
+                throw new BusinessException("sectionId is required when moving a student into a class that has sections");
+            }
+            student.setSectionId(null);
+        }
+        if (!targetClassSections.isEmpty() && normalizeSectionId(student.getSectionId()) == null) {
+            Section fallbackSection = targetClassSections.stream()
+                    .sorted(Comparator.comparing(Section::getName))
+                    .findFirst()
+                    .orElseThrow(() -> new BusinessException("Target class has sections configured but none are available for enrollment."));
+            student.setSectionId(fallbackSection.getId());
+            log.warn("Auto-assigned student id={} to fallback section id={} for class id={} to keep class-section counts consistent",
+                    student.getId(), fallbackSection.getId(), targetClassId);
+        }
         if (request.getRollNumber() != null) student.setRollNumber(request.getRollNumber());
         if (request.getParentId() != null) student.setParentId(request.getParentId());
         if (request.getParentName() != null) student.setParentName(request.getParentName());
@@ -197,11 +238,11 @@ public class StudentService {
         student.setUpdatedBy(TenantContext.getUserId() != null ? TenantContext.getUserId().toString() : null);
         studentPersistence.save(student);
         guardianLinkSyncService.syncForStudent(student);
-        boolean classChanged = request.getClassId() != null && !java.util.Objects.equals(priorClassId, student.getClassId());
-        boolean sectionChanged = request.getSectionId() != null && !java.util.Objects.equals(priorSectionId, student.getSectionId());
+        boolean classChanged = !java.util.Objects.equals(priorClassId, student.getClassId());
+        boolean sectionChanged = !java.util.Objects.equals(priorSectionId, student.getSectionId());
         if (classChanged || sectionChanged) {
             domainEventPublisher.publish(new StudentEnrollmentChangedEvent(
-                    TenantContext.getTenantId(),
+                    tenantId,
                     student.getId(),
                     priorClassId,
                     student.getClassId(),
@@ -209,6 +250,7 @@ public class StudentService {
                     student.getSectionId(),
                     Instant.now()));
         }
+        evictStudentAndAcademicCaches();
         log.info("Student updated id={}", id);
         return toResponse(student);
     }
@@ -216,9 +258,21 @@ public class StudentService {
     @Transactional
     public void deleteStudent(Long id) {
         log.warn("Soft-deleting student id={}", id);
-        Student student = studentPersistence.findByIdAndTenantIdAndIsDeletedFalse(id, TenantContext.getTenantId()).orElseThrow(() -> new ResourceNotFoundException("Student", id));
+        String tenantId = TenantContext.getTenantId();
+        Student student = studentPersistence.findByIdAndTenantIdAndIsDeletedFalse(id, tenantId).orElseThrow(() -> new ResourceNotFoundException("Student", id));
+        Long priorClassId = student.getClassId();
+        Long priorSectionId = student.getSectionId();
         student.markSoftDeleted();
         studentPersistence.save(student);
+        domainEventPublisher.publish(new StudentEnrollmentChangedEvent(
+                tenantId,
+                student.getId(),
+                priorClassId,
+                null,
+                priorSectionId,
+                null,
+                Instant.now()));
+        evictStudentAndAcademicCaches();
         log.info("Student soft-deleted: {}", id);
     }
 
@@ -361,13 +415,29 @@ public class StudentService {
                           final SectionRepository sectionRepository,
                           final TeacherRosterScopeService teacherRosterScopeService,
                           final DomainEventPublisher domainEventPublisher,
-                          final GuardianLinkSyncService guardianLinkSyncService) {
+                          final GuardianLinkSyncService guardianLinkSyncService,
+                          final ObjectProvider<CacheService> cacheService) {
         this.studentPersistence = studentPersistence;
         this.schoolClassRepository = schoolClassRepository;
         this.sectionRepository = sectionRepository;
         this.teacherRosterScopeService = teacherRosterScopeService;
         this.domainEventPublisher = domainEventPublisher;
         this.guardianLinkSyncService = guardianLinkSyncService;
+        this.cacheService = cacheService;
+    }
+
+    private void evictStudentAndAcademicCaches() {
+        cacheService.ifAvailable(cs -> {
+            cs.clearRegion(CacheRegion.STUDENT_DIRECTORY);
+            cs.clearRegion(CacheRegion.ACADEMIC_CATALOG);
+        });
+    }
+
+    private Long normalizeSectionId(Long sectionId) {
+        if (sectionId == null || sectionId <= 0L) {
+            return null;
+        }
+        return sectionId;
     }
 
     private String required(Map<String, String> row, String key) {

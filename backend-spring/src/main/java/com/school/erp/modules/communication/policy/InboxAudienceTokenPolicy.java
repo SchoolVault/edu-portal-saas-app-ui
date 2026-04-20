@@ -9,9 +9,6 @@ import java.util.Set;
  * attaching meaningless filters; announcement rows are still scoped in {@code CommunicationService}.
  */
 public final class InboxAudienceTokenPolicy {
-
-    public static final String TOKEN_ALERT = "ALERT";
-
     private InboxAudienceTokenPolicy() {}
 
     /** Spring / JWT role string → uppercase without {@code ROLE_} prefix. */
@@ -44,18 +41,19 @@ public final class InboxAudienceTokenPolicy {
             if (u.isEmpty()) {
                 continue;
             }
-            if (TOKEN_ALERT.equals(u) || annAllowed.contains(u)) {
+            if (annAllowed.contains(u)) {
                 out.add(u);
             }
         }
         return out;
     }
 
-    /** Uppercase announcement audience keys this role may use in a filter (excludes {@value #TOKEN_ALERT}). */
+    /** Uppercase announcement audience keys this role may use in a filter. */
     public static Set<String> allowedAnnouncementAudienceTokens(final String roleUpper) {
         return switch (roleUpper) {
-            case "PARENT", "STUDENT" -> Set.of("ALL", "CLASS", "SECTION");
-            case "ADMIN", "SUPER_ADMIN", "TEACHER", "LIBRARY_STAFF" ->
+            case "PARENT", "STUDENT" -> Set.of("ALL", "PARENTS", "CLASS", "SECTION");
+            case "TEACHER" -> Set.of("ALL", "TEACHERS", "CLASS", "SECTION");
+            case "ADMIN", "SUPER_ADMIN", "LIBRARY_STAFF" ->
                     Set.of("ALL", "TEACHERS", "PARENTS", "CLASS", "SECTION");
             default -> Set.of("ALL", "CLASS", "SECTION");
         };

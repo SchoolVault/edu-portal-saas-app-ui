@@ -10,6 +10,7 @@ export const PLATFORM_TENANT_FEATURE_KEYS = [
   'audit',
   'operationsHub',
   'importExport',
+  'exams',
   'directory',
   'fees',
   'payroll',
@@ -19,5 +20,6 @@ export const PLATFORM_TENANT_FEATURE_KEYS = [
   'student',
   'teacher',
   'attendance',
+  'leave',
 ] as const;
 export type PlatformTenantFeatureKey = (typeof PLATFORM_TENANT_FEATURE_KEYS)[number];

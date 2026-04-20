@@ -3,6 +3,10 @@ package com.school.erp.modules.notification.service;
 import com.school.erp.common.enums.Enums;
 import com.school.erp.modules.auth.entity.User;
 import com.school.erp.modules.auth.repository.UserRepository;
+import com.school.erp.modules.academic.entity.SchoolClass;
+import com.school.erp.modules.academic.entity.Section;
+import com.school.erp.modules.academic.repository.SchoolClassRepository;
+import com.school.erp.modules.academic.repository.SectionRepository;
 import com.school.erp.modules.communication.entity.Announcement;
 import com.school.erp.modules.guardian.entity.Guardian;
 import com.school.erp.modules.guardian.entity.StudentGuardianMapping;
@@ -10,6 +14,7 @@ import com.school.erp.modules.guardian.repository.GuardianRepository;
 import com.school.erp.modules.guardian.repository.StudentGuardianMappingRepository;
 import com.school.erp.modules.student.entity.Student;
 import com.school.erp.modules.student.repository.StudentRepository;
+import com.school.erp.modules.teacher.repository.TeacherRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -29,16 +34,25 @@ public class AnnouncementAudienceResolver {
     private final StudentRepository studentRepository;
     private final StudentGuardianMappingRepository mappingRepository;
     private final GuardianRepository guardianRepository;
+    private final SchoolClassRepository schoolClassRepository;
+    private final SectionRepository sectionRepository;
+    private final TeacherRepository teacherRepository;
 
     public AnnouncementAudienceResolver(
             UserRepository userRepository,
             StudentRepository studentRepository,
             StudentGuardianMappingRepository mappingRepository,
-            GuardianRepository guardianRepository) {
+            GuardianRepository guardianRepository,
+            SchoolClassRepository schoolClassRepository,
+            SectionRepository sectionRepository,
+            TeacherRepository teacherRepository) {
         this.userRepository = userRepository;
         this.studentRepository = studentRepository;
         this.mappingRepository = mappingRepository;
         this.guardianRepository = guardianRepository;
+        this.schoolClassRepository = schoolClassRepository;
+        this.sectionRepository = sectionRepository;
+        this.teacherRepository = teacherRepository;
     }
 
     public record AudienceMember(Long userId, String phone, String role) {}
@@ -68,6 +82,7 @@ public class AnnouncementAudienceResolver {
                     return List.of();
                 }
                 addParentUserIdsForStudents(studentRepository.findByTenantIdAndClassIdAndIsDeletedFalse(tenantId, ann.getTargetClassId()), tenantId, userIds);
+                addResponsibleTeacherUsersForClassScope(tenantId, ann.getTargetClassId(), null, userIds);
             }
             case SECTION -> {
                 if (ann.getTargetClassId() == null || ann.getTargetSectionId() == null) {
@@ -78,6 +93,7 @@ public class AnnouncementAudienceResolver {
                                 tenantId, ann.getTargetClassId(), ann.getTargetSectionId()),
                         tenantId,
                         userIds);
+                addResponsibleTeacherUsersForClassScope(tenantId, ann.getTargetClassId(), ann.getTargetSectionId(), userIds);
             }
             default -> {
                 return List.of();
@@ -115,6 +131,53 @@ public class AnnouncementAudienceResolver {
                 }
             }
         }
+    }
+
+    /**
+     * Adds homeroom/class-teacher users only.
+     * CLASS -> class teacher + all section class-teachers for that class.
+     * SECTION -> section class-teacher, fallback to class teacher.
+     */
+    private void addResponsibleTeacherUsersForClassScope(
+            String tenantId,
+            Long classId,
+            Long sectionId,
+            Set<Long> userIds) {
+        if (classId == null) {
+            return;
+        }
+        if (sectionId != null) {
+            Section section = sectionRepository.findByIdAndTenantIdAndIsDeletedFalse(sectionId, tenantId).orElse(null);
+            if (section != null && section.getClassTeacherId() != null) {
+                addTeacherUserIdByTeacherPk(tenantId, section.getClassTeacherId(), userIds);
+            } else {
+                SchoolClass schoolClass = schoolClassRepository.findByIdAndTenantIdAndIsDeletedFalse(classId, tenantId).orElse(null);
+                if (schoolClass != null && schoolClass.getClassTeacherId() != null) {
+                    addTeacherUserIdByTeacherPk(tenantId, schoolClass.getClassTeacherId(), userIds);
+                }
+            }
+            return;
+        }
+        SchoolClass schoolClass = schoolClassRepository.findByIdAndTenantIdAndIsDeletedFalse(classId, tenantId).orElse(null);
+        if (schoolClass != null && schoolClass.getClassTeacherId() != null) {
+            addTeacherUserIdByTeacherPk(tenantId, schoolClass.getClassTeacherId(), userIds);
+        }
+        for (Section sec : sectionRepository.findByTenantIdAndClassIdAndIsDeletedFalse(tenantId, classId)) {
+            if (sec.getClassTeacherId() != null) {
+                addTeacherUserIdByTeacherPk(tenantId, sec.getClassTeacherId(), userIds);
+            }
+        }
+    }
+
+    private void addTeacherUserIdByTeacherPk(String tenantId, Long teacherPk, Set<Long> userIds) {
+        if (teacherPk == null || userIds.size() >= CAP) {
+            return;
+        }
+        teacherRepository.findByIdAndTenantIdAndIsDeletedFalse(teacherPk, tenantId).ifPresent(t -> {
+            if (t.getUserId() != null) {
+                userIds.add(t.getUserId());
+            }
+        });
     }
 
     private static String normalizePhone(String p) {

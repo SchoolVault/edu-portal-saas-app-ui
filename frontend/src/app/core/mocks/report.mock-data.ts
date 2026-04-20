@@ -113,7 +113,7 @@ export function buildMockClassSummary(): ClassSummaryRow[] {
       attendancePercentage: Math.round(avgAtt * 10) / 10,
       performancePercentage: performancePctForClass(c.id),
       feeCollectionPercentage: feeCollectionPctForClass(c.id),
-      classTeacherName: c.classTeacherName ?? '',
+      overdueAccounts: MOCK_FEE_PAYMENTS_SEED.filter(p => studs.some(s => s.id === p.studentId) && String(p.status).toUpperCase() === 'OVERDUE').length,
     };
   });
 }
@@ -126,6 +126,7 @@ export function buildMockSectionSummary(): SectionSummaryRow[] {
       classId: c.id,
       className: c.name,
       studentCount: mockStudentsInSection(c.id, sec.id).length,
+      classTeacherName: sec.classTeacherName || c.classTeacherName || '-',
     }))
   );
 }
@@ -136,6 +137,9 @@ export function buildMockTeacherWorkload(): TeacherWorkloadRow[] {
     teacherName: `${t.firstName} ${t.lastName}`.trim(),
     specialization: t.specialization ?? '',
     subjects: [...t.subjects],
+    homeroomClasses: '-',
+    assignedClasses: 0,
+    weeklyPeriods: 0,
     status: 'ACTIVE',
   }));
 }

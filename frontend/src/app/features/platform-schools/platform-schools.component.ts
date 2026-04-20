@@ -85,13 +85,13 @@ import { DEFAULT_ERP_PAGE_SIZE } from '../../core/constants/pagination.constants
           <div class="col-lg-7">
             <div class="erp-card platform-card platform-detail-card">
               <div class="erp-card-header platform-card-header">
-                <h3 class="erp-card-title mb-0">Workspace detail</h3>
+                <h3 class="erp-card-title mb-0">{{ 'platformSchools.detailTitle' | translate }}</h3>
               </div>
 
               <div *ngIf="!selected" class="empty-state" style="padding: 48px 24px;">
                 <i class="bi bi-building"></i>
-                <h3>Select a school</h3>
-                <p>Metrics, admins, and lifecycle actions appear here.</p>
+                <h3>{{ 'platformSchools.emptyTitle' | translate }}</h3>
+                <p>{{ 'platformSchools.emptyLead' | translate }}</p>
               </div>
 
               <div *ngIf="selected && detailLoading" class="platform-detail-body text-muted">Loading…</div>
@@ -119,43 +119,43 @@ import { DEFAULT_ERP_PAGE_SIZE } from '../../core/constants/pagination.constants
                   <div class="platform-stat-tile">
                     <div class="platform-stat-icon"><i class="bi bi-people-fill"></i></div>
                     <div class="platform-stat-value">{{ detail.school.studentCount | number }}</div>
-                    <div class="platform-stat-label">Students</div>
+                    <div class="platform-stat-label">{{ 'platformSchools.stats.students' | translate }}</div>
                   </div>
                   <div class="platform-stat-tile">
                     <div class="platform-stat-icon"><i class="bi bi-person-badge-fill"></i></div>
                     <div class="platform-stat-value">{{ detail.school.teacherCount | number }}</div>
-                    <div class="platform-stat-label">Teachers</div>
+                    <div class="platform-stat-label">{{ 'platformSchools.stats.teachers' | translate }}</div>
                   </div>
                   <div class="platform-stat-tile">
                     <div class="platform-stat-icon"><i class="bi bi-shield-lock-fill"></i></div>
                     <div class="platform-stat-value">{{ detail.school.adminCount | number }}</div>
-                    <div class="platform-stat-label">Admins</div>
+                    <div class="platform-stat-label">{{ 'platformSchools.stats.admins' | translate }}</div>
                   </div>
                   <div class="platform-stat-tile">
                     <div class="platform-stat-icon"><i class="bi bi-person-vcard-fill"></i></div>
                     <div class="platform-stat-value">{{ detail.parentUserCount | number }}</div>
-                    <div class="platform-stat-label">Parent accounts</div>
+                    <div class="platform-stat-label">{{ 'platformSchools.stats.parentAccounts' | translate }}</div>
                   </div>
                 </div>
 
                 <div class="platform-actions">
                   <button type="button" class="btn-outline-erp btn-sm" (click)="openSuspendModal()" [disabled]="busy || !detail.school.active">
-                    <i class="bi bi-pause-circle me-1"></i>Suspend workspace
+                    <i class="bi bi-pause-circle me-1"></i>{{ 'platformSchools.actions.suspend' | translate }}
                   </button>
                   <button type="button" class="btn-outline-erp btn-sm" (click)="openActivateModal()" [disabled]="busy || detail.school.active">
-                    <i class="bi bi-play-circle me-1"></i>Activate workspace
+                    <i class="bi bi-play-circle me-1"></i>{{ 'platformSchools.actions.activate' | translate }}
                   </button>
                   <button type="button" class="btn-outline-erp btn-sm" (click)="refreshDetail()" [disabled]="busy">
-                    <i class="bi bi-arrow-clockwise me-1"></i>Refresh
+                    <i class="bi bi-arrow-clockwise me-1"></i>{{ 'platformSchools.actions.refresh' | translate }}
                   </button>
                 </div>
 
                 <div class="platform-section">
-                  <h5 class="platform-section-title">Campus admins</h5>
+                  <h5 class="platform-section-title">{{ 'platformSchools.adminsTitle' | translate }}</h5>
                   <div class="platform-table-wrap">
                     <table class="erp-table platform-table mb-0">
                       <thead>
-                        <tr><th>Name</th><th>Email</th><th>Status</th></tr>
+                        <tr><th>{{ 'platformSchools.adminCols.name' | translate }}</th><th>{{ 'platformSchools.adminCols.email' | translate }}</th><th>{{ 'platformSchools.adminCols.status' | translate }}</th></tr>
                       </thead>
                       <tbody>
                         <tr *ngFor="let a of detail.admins">
@@ -163,12 +163,12 @@ import { DEFAULT_ERP_PAGE_SIZE } from '../../core/constants/pagination.constants
                           <td class="platform-muted-sm">{{ a.email }}</td>
                           <td>
                             <span class="badge-erp" [ngClass]="a.active ? 'badge-success' : 'badge-warning'">
-                              {{ a.active ? 'Active' : 'Inactive' }}
+                              {{ a.active ? ('platformSchools.active' | translate) : ('platformSchools.inactive' | translate) }}
                             </span>
                           </td>
                         </tr>
                         <tr *ngIf="detail.admins.length === 0">
-                          <td colspan="3" class="text-muted platform-muted-sm">No campus admins listed.</td>
+                          <td colspan="3" class="text-muted platform-muted-sm">{{ 'platformSchools.noAdmins' | translate }}</td>
                         </tr>
                       </tbody>
                     </table>
@@ -178,31 +178,31 @@ import { DEFAULT_ERP_PAGE_SIZE } from '../../core/constants/pagination.constants
                 <div class="platform-section" *ngIf="detail.school.active">
                   <div class="platform-info-panel">
                     <i class="bi bi-info-circle me-2"></i>
-                    <strong>Data purge</strong> is locked while the workspace is active. Suspend the school first; then you can start the deletion workflow with explicit confirmations.
+                    <strong>{{ 'platformSchools.purge.lockedTitle' | translate }}</strong> {{ 'platformSchools.purge.lockedLead' | translate }}
                   </div>
                 </div>
 
                 <div class="platform-section" *ngIf="!detail.school.active">
-                  <h5 class="platform-section-title text-danger">Permanent data removal</h5>
+                  <h5 class="platform-section-title text-danger">{{ 'platformSchools.purge.title' | translate }}</h5>
                   <div class="platform-danger-panel">
-                    <p class="mb-2"><strong>This is not archival.</strong> Queuing a purge starts an asynchronous job that removes this tenant’s academic, financial, and user data from the platform database. Other schools are not affected.</p>
+                    <p class="mb-2"><strong>{{ 'platformSchools.purge.notArchiveTitle' | translate }}</strong> {{ 'platformSchools.purge.notArchiveLead' | translate }}</p>
                     <ul class="platform-danger-list mb-3">
-                      <li>No automatic backup is created by this action.</li>
-                      <li>Recovery typically requires restoring from your own database backups, if they exist.</li>
-                      <li>All users for this school remain unable to sign in until the row is removed.</li>
+                      <li>{{ 'platformSchools.purge.warning1' | translate }}</li>
+                      <li>{{ 'platformSchools.purge.warning2' | translate }}</li>
+                      <li>{{ 'platformSchools.purge.warning3' | translate }}</li>
                     </ul>
                     <button type="button" class="btn-danger-erp btn-sm" (click)="openPurgeModal()" [disabled]="busy">
-                      <i class="bi bi-exclamation-octagon me-1"></i>Start deletion workflow…
+                      <i class="bi bi-exclamation-octagon me-1"></i>{{ 'platformSchools.purge.startWorkflow' | translate }}
                     </button>
                   </div>
                 </div>
 
                 <div class="platform-section" *ngIf="purgeJobs.length">
-                  <h5 class="platform-section-title">Recent purge jobs</h5>
+                  <h5 class="platform-section-title">{{ 'platformSchools.purge.recentJobs' | translate }}</h5>
                   <ul class="platform-job-list mb-0">
                     <li *ngFor="let j of purgeJobs">
                       <span class="badge-erp badge-info text-uppercase" style="font-size: 10px;">{{ j.status }}</span>
-                      <span *ngIf="j.rowsDeletedEstimate" class="platform-muted-sm ms-2">~{{ j.rowsDeletedEstimate | number }} rows affected</span>
+                      <span *ngIf="j.rowsDeletedEstimate" class="platform-muted-sm ms-2">{{ 'platformSchools.purge.rowsAffected' | translate: { rows: (j.rowsDeletedEstimate | number) } }}</span>
                       <span *ngIf="j.errorMessage" class="text-danger ms-2">{{ j.errorMessage }}</span>
                     </li>
                   </ul>
@@ -217,16 +217,16 @@ import { DEFAULT_ERP_PAGE_SIZE } from '../../core/constants/pagination.constants
       <div class="modal-overlay modal-overlay-viewport" *ngIf="suspendModalOpen" (click)="closeSuspendModal()">
         <div class="modal-content-erp modal-narrow" (click)="$event.stopPropagation()">
           <div class="modal-header-erp">
-            <h3>Suspend workspace?</h3>
+            <h3>{{ 'platformSchools.modal.suspendTitle' | translate }}</h3>
             <button type="button" class="btn-icon" (click)="closeSuspendModal()" aria-label="Close"><i class="bi bi-x-lg"></i></button>
           </div>
           <div class="modal-body-erp">
-            <p class="mb-2">All user accounts in <strong>{{ detail?.school?.schoolName }}</strong> will be deactivated immediately. Nobody from this school can sign in until you activate the workspace again and re-enable individuals.</p>
-            <p class="text-muted mb-0" style="font-size: 13px;">Billing and subscription changes are handled separately in your commercial workflow.</p>
+            <p class="mb-2">{{ 'platformSchools.modal.suspendLead' | translate: { school: detail?.school?.schoolName } }}</p>
+            <p class="text-muted mb-0" style="font-size: 13px;">{{ 'platformSchools.modal.suspendNote' | translate }}</p>
           </div>
           <div class="modal-footer-erp">
-            <button type="button" class="btn-outline-erp" (click)="closeSuspendModal()">Cancel</button>
-            <button type="button" class="btn-primary-erp" (click)="confirmSuspend()" [disabled]="busy">Suspend workspace</button>
+            <button type="button" class="btn-outline-erp" (click)="closeSuspendModal()">{{ 'platformSchools.modal.cancel' | translate }}</button>
+            <button type="button" class="btn-primary-erp" (click)="confirmSuspend()" [disabled]="busy">{{ 'platformSchools.actions.suspend' | translate }}</button>
           </div>
         </div>
       </div>
@@ -235,15 +235,15 @@ import { DEFAULT_ERP_PAGE_SIZE } from '../../core/constants/pagination.constants
       <div class="modal-overlay modal-overlay-viewport" *ngIf="activateModalOpen" (click)="closeActivateModal()">
         <div class="modal-content-erp modal-narrow" (click)="$event.stopPropagation()">
           <div class="modal-header-erp">
-            <h3>Activate workspace?</h3>
+            <h3>{{ 'platformSchools.modal.activateTitle' | translate }}</h3>
             <button type="button" class="btn-icon" (click)="closeActivateModal()" aria-label="Close"><i class="bi bi-x-lg"></i></button>
           </div>
           <div class="modal-body-erp">
-            <p class="mb-0">The school may resume operations at the platform level. <strong>Campus admins stay inactive</strong> until you turn each account back on—this avoids surprise access after a suspension.</p>
+            <p class="mb-0">{{ 'platformSchools.modal.activateLead' | translate }}</p>
           </div>
           <div class="modal-footer-erp">
-            <button type="button" class="btn-outline-erp" (click)="closeActivateModal()">Cancel</button>
-            <button type="button" class="btn-primary-erp" (click)="confirmActivate()" [disabled]="busy">Activate workspace</button>
+            <button type="button" class="btn-outline-erp" (click)="closeActivateModal()">{{ 'platformSchools.modal.cancel' | translate }}</button>
+            <button type="button" class="btn-primary-erp" (click)="confirmActivate()" [disabled]="busy">{{ 'platformSchools.actions.activate' | translate }}</button>
           </div>
         </div>
       </div>
@@ -252,29 +252,64 @@ import { DEFAULT_ERP_PAGE_SIZE } from '../../core/constants/pagination.constants
       <div class="modal-overlay modal-overlay-viewport" *ngIf="purgeModalOpen" (click)="closePurgeModal()">
         <div class="modal-content-erp modal-purge" (click)="$event.stopPropagation()">
           <div class="modal-header-erp border-danger" style="border-bottom-width: 2px;">
-            <h3 class="text-danger mb-0"><i class="bi bi-exclamation-triangle-fill me-2"></i>Confirm permanent deletion</h3>
+            <h3 class="text-danger mb-0"><i class="bi bi-exclamation-triangle-fill me-2"></i>{{ 'platformSchools.modal.purgeTitle' | translate }}</h3>
             <button type="button" class="btn-icon" (click)="closePurgeModal()" aria-label="Close"><i class="bi bi-x-lg"></i></button>
           </div>
           <div class="modal-body-erp">
-            <p class="fw-semibold mb-2">You are about to queue a hard delete for <strong>{{ detail?.school?.schoolName }}</strong> (code <strong>{{ detail?.school?.schoolCode }}</strong>).</p>
+            <p class="fw-semibold mb-2">{{ 'platformSchools.modal.purgeLead' | translate: { school: detail?.school?.schoolName, code: detail?.school?.schoolCode } }}</p>
+            <div class="platform-impact-box mb-3">
+              <div class="platform-impact-title">{{ 'platformSchools.modal.impactTitle' | translate }}</div>
+              <p class="platform-impact-lead mb-2">{{ 'platformSchools.modal.impactLead' | translate }}</p>
+              <div class="platform-impact-grid">
+                <div class="platform-impact-item">
+                  <span class="platform-impact-label">{{ 'platformSchools.stats.students' | translate }}</span>
+                  <strong>{{ detail?.school?.studentCount || 0 | number }}</strong>
+                </div>
+                <div class="platform-impact-item">
+                  <span class="platform-impact-label">{{ 'platformSchools.stats.teachers' | translate }}</span>
+                  <strong>{{ detail?.school?.teacherCount || 0 | number }}</strong>
+                </div>
+                <div class="platform-impact-item">
+                  <span class="platform-impact-label">{{ 'platformSchools.stats.admins' | translate }}</span>
+                  <strong>{{ detail?.school?.adminCount || 0 | number }}</strong>
+                </div>
+                <div class="platform-impact-item">
+                  <span class="platform-impact-label">{{ 'platformSchools.stats.parentAccounts' | translate }}</span>
+                  <strong>{{ detail?.parentUserCount || 0 | number }}</strong>
+                </div>
+              </div>
+            </div>
+            <ol class="platform-danger-list mb-3">
+              <li><strong>{{ 'platformSchools.modal.step1Title' | translate }}</strong> — {{ 'platformSchools.modal.step1Lead' | translate }}</li>
+              <li><strong>{{ 'platformSchools.modal.step2Title' | translate }}</strong> — {{ 'platformSchools.modal.step2Lead' | translate }}</li>
+              <li><strong>{{ 'platformSchools.modal.step3Title' | translate }}</strong> — {{ 'platformSchools.modal.step3Lead' | translate }}</li>
+            </ol>
             <ul class="platform-danger-list mb-3">
-              <li>All operational data for this tenant will be removed from the application database.</li>
-              <li>There is <strong>no in-app undo</strong> and <strong>no platform-managed backup</strong> from this button.</li>
-              <li>If you need retention for compliance, stop and export or backup through your DBA <em>before</em> proceeding.</li>
+              <li>{{ 'platformSchools.modal.purgeWarning1' | translate }}</li>
+              <li>{{ 'platformSchools.modal.purgeWarning2' | translate }}</li>
+              <li>{{ 'platformSchools.modal.purgeWarning3' | translate }}</li>
             </ul>
             <div class="erp-form-group mb-3">
-              <label class="erp-label">Type the school code to confirm</label>
+              <label class="erp-label">{{ 'platformSchools.modal.confirmCodeLabel' | translate }}</label>
               <input type="text" class="erp-input" [(ngModel)]="purgeModalCode" autocomplete="off" [placeholder]="detail?.school?.schoolCode || ''" />
             </div>
             <label class="platform-check d-flex align-items-start gap-2">
-              <input type="checkbox" [(ngModel)]="purgeUnderstand" class="mt-1" />
-              <span>I understand this action is irreversible, data will be gone from this environment, and I am authorized to proceed.</span>
+              <input type="checkbox" [(ngModel)]="purgeChecks.irreversible" class="mt-1" />
+              <span>{{ 'platformSchools.modal.checkIrreversible' | translate }}</span>
+            </label>
+            <label class="platform-check d-flex align-items-start gap-2 mt-2">
+              <input type="checkbox" [(ngModel)]="purgeChecks.backup" class="mt-1" />
+              <span>{{ 'platformSchools.modal.checkBackup' | translate }}</span>
+            </label>
+            <label class="platform-check d-flex align-items-start gap-2 mt-2">
+              <input type="checkbox" [(ngModel)]="purgeChecks.authorized" class="mt-1" />
+              <span>{{ 'platformSchools.modal.checkAuthorized' | translate }}</span>
             </label>
             <p *ngIf="purgeModalError" class="text-danger mt-3 mb-0" style="font-size: 13px;">{{ purgeModalError }}</p>
           </div>
           <div class="modal-footer-erp">
-            <button type="button" class="btn-outline-erp" (click)="closePurgeModal()">Cancel</button>
-            <button type="button" class="btn-danger-erp" (click)="confirmPurgeFromModal()" [disabled]="busy">Queue purge job</button>
+            <button type="button" class="btn-outline-erp" (click)="closePurgeModal()">{{ 'platformSchools.modal.cancel' | translate }}</button>
+            <button type="button" class="btn-danger-erp" (click)="confirmPurgeFromModal()" [disabled]="busy">{{ 'platformSchools.modal.queuePurge' | translate }}</button>
           </div>
         </div>
       </div>
@@ -355,6 +390,44 @@ import { DEFAULT_ERP_PAGE_SIZE } from '../../core/constants/pagination.constants
     .platform-job-list li { padding: 8px 0; border-bottom: 1px solid var(--clr-border-light); }
     .platform-job-list li:last-child { border-bottom: none; }
     .platform-check { font-size: 13px; line-height: 1.45; cursor: pointer; }
+    .platform-impact-box {
+      border: 1px solid color-mix(in srgb, var(--clr-border-light) 75%, var(--clr-primary) 25%);
+      border-radius: var(--radius-lg);
+      background: color-mix(in srgb, var(--clr-surface-alt) 72%, var(--clr-surface) 28%);
+      padding: 12px 14px;
+    }
+    .platform-impact-title {
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: var(--clr-text-muted);
+      margin-bottom: 4px;
+    }
+    .platform-impact-lead {
+      font-size: 12px;
+      color: var(--clr-text-secondary);
+    }
+    .platform-impact-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+    }
+    .platform-impact-item {
+      border: 1px solid var(--clr-border-light);
+      border-radius: 10px;
+      padding: 8px 10px;
+      background: var(--clr-surface);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+    }
+    .platform-impact-label {
+      color: var(--clr-text-muted);
+      font-size: 12px;
+    }
     .modal-narrow { max-width: 480px; width: 100%; }
     .modal-purge { max-width: 520px; width: 100%; }
   `]
@@ -380,7 +453,7 @@ export class PlatformSchoolsComponent implements OnInit {
   activateModalOpen = false;
   purgeModalOpen = false;
   purgeModalCode = '';
-  purgeUnderstand = false;
+  purgeChecks = { irreversible: false, backup: false, authorized: false };
   purgeModalError = '';
 
   private readonly destroyRef = inject(DestroyRef);
@@ -470,13 +543,13 @@ export class PlatformSchoolsComponent implements OnInit {
     this.busy = true;
     this.platform.suspendSchoolWorkspace(this.selected.tenantId).subscribe({
       next: () => {
-        this.actionMessage = 'Workspace suspended; all users in this tenant were deactivated.';
+        this.actionMessage = this.translate.instant('platformSchools.messages.suspended');
         this.busy = false;
         this.closeSuspendModal();
         this.patchSelectedActive(false);
         this.refreshDetail();
       },
-      error: e => { this.actionError = e?.message || 'Suspend failed'; this.busy = false; }
+      error: e => { this.actionError = e?.message || this.translate.instant('platformSchools.messages.suspendFailed'); this.busy = false; }
     });
   }
 
@@ -492,19 +565,19 @@ export class PlatformSchoolsComponent implements OnInit {
     this.busy = true;
     this.platform.activateSchoolWorkspace(this.selected.tenantId).subscribe({
       next: () => {
-        this.actionMessage = 'Workspace activated. Re-enable campus admins individually as needed.';
+        this.actionMessage = this.translate.instant('platformSchools.messages.activated');
         this.busy = false;
         this.closeActivateModal();
         this.patchSelectedActive(true);
         this.refreshDetail();
       },
-      error: e => { this.actionError = e?.message || 'Activate failed'; this.busy = false; }
+      error: e => { this.actionError = e?.message || this.translate.instant('platformSchools.messages.activateFailed'); this.busy = false; }
     });
   }
 
   openPurgeModal(): void {
     this.purgeModalCode = '';
-    this.purgeUnderstand = false;
+    this.purgeChecks = { irreversible: false, backup: false, authorized: false };
     this.purgeModalError = '';
     this.purgeModalOpen = true;
   }
@@ -516,27 +589,30 @@ export class PlatformSchoolsComponent implements OnInit {
   confirmPurgeFromModal(): void {
     this.purgeModalError = '';
     if (!this.selected || !this.detail) return;
-    if (!this.purgeUnderstand) {
-      this.purgeModalError = 'Please confirm that you understand this action is irreversible.';
+    if (!this.purgeChecks.irreversible || !this.purgeChecks.backup || !this.purgeChecks.authorized) {
+      this.purgeModalError = this.translate.instant('platformSchools.modal.checklistRequired');
       return;
     }
     const expected = (this.detail.school.schoolCode || '').trim().toUpperCase();
     const got = (this.purgeModalCode || '').trim().toUpperCase();
     if (!got || got !== expected) {
-      this.purgeModalError = 'School code does not match. Type it exactly as shown for this school.';
+      this.purgeModalError = this.translate.instant('platformSchools.modal.codeMismatch');
       return;
     }
     this.clearFeedback();
     this.busy = true;
     this.platform.requestTenantDataPurge(this.selected.tenantId, this.purgeModalCode.trim()).subscribe({
       next: () => {
-        this.actionMessage = 'Purge job queued. Status updates appear below; allow a few seconds then refresh.';
+        this.actionMessage = this.translate.instant('platformSchools.purge.jobQueued');
         this.busy = false;
         this.closePurgeModal();
-        setTimeout(() => this.refreshDetail(), 1800);
+        setTimeout(() => {
+          this.loadSchoolsPage();
+          this.refreshDetail();
+        }, 1800);
       },
       error: e => {
-        this.actionError = e?.message || 'Purge request failed';
+        this.actionError = e?.message || this.translate.instant('platformSchools.purge.requestFailed');
         this.busy = false;
       }
     });

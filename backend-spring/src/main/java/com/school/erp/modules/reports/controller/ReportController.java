@@ -4,9 +4,12 @@ import com.school.erp.common.dto.ApiResponse;
 import com.school.erp.common.dto.PageResponse;
 import com.school.erp.modules.reports.dto.ParentDashboardDtos;
 import com.school.erp.modules.reports.dto.ReportDashboardDTOs;
+import com.school.erp.modules.reports.dto.ReportModuleDTOs;
 import com.school.erp.security.RequireTenantFeature;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
@@ -54,24 +57,32 @@ public class ReportController {
     @RequireTenantFeature("reports")
     @PreAuthorize("hasAnyRole(\'ADMIN\',\'TEACHER\')")
     @Operation(summary = "Student performance report", description = "Class-wise student performance with marks, grades, and rankings")
-    public ResponseEntity<ApiResponse<List<Map<String, Object>>>> studentPerformance(@RequestParam Long classId, @RequestParam Long examId) {
-        return ResponseEntity.ok(ApiResponse.ok(reportService.getStudentPerformanceReport(classId, examId)));
+    public ResponseEntity<ApiResponse<List<Map<String, Object>>>> studentPerformance(
+            @RequestParam Long classId,
+            @RequestParam Long examId,
+            @RequestParam(required = false) Long sectionId) {
+        return ResponseEntity.ok(ApiResponse.ok(reportService.getStudentPerformanceReport(classId, examId, sectionId)));
     }
 
     @GetMapping("/attendance-summary")
     @RequireTenantFeature("reports")
     @PreAuthorize("hasAnyRole(\'ADMIN\',\'TEACHER\')")
     @Operation(summary = "Attendance summary report", description = "Monthly attendance summary by class")
-    public ResponseEntity<ApiResponse<List<Map<String, Object>>>> attendanceSummary(@RequestParam Long classId, @RequestParam String month) {
-        return ResponseEntity.ok(ApiResponse.ok(reportService.getAttendanceSummary(classId, month)));
+    public ResponseEntity<ApiResponse<List<Map<String, Object>>>> attendanceSummary(
+            @RequestParam Long classId,
+            @RequestParam String month,
+            @RequestParam(required = false) Long sectionId) {
+        return ResponseEntity.ok(ApiResponse.ok(reportService.getAttendanceSummary(classId, month, sectionId)));
     }
 
     @GetMapping("/fee-collection")
     @RequireTenantFeature("reports")
     @PreAuthorize("hasRole(\'ADMIN\')")
     @Operation(summary = "Fee collection report", description = "Fee collection status with pending and collected amounts")
-    public ResponseEntity<ApiResponse<Map<String, Object>>> feeCollection(@RequestParam(required = false) Long classId) {
-        return ResponseEntity.ok(ApiResponse.ok(reportService.getFeeCollectionReport(classId)));
+    public ResponseEntity<ApiResponse<Map<String, Object>>> feeCollection(
+            @RequestParam(required = false) Long classId,
+            @RequestParam(required = false) Long sectionId) {
+        return ResponseEntity.ok(ApiResponse.ok(reportService.getFeeCollectionReport(classId, sectionId)));
     }
 
     @GetMapping("/class-summary")
@@ -126,6 +137,174 @@ public class ReportController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
         return ResponseEntity.ok(ApiResponse.ok(reportService.getTeacherWorkloadPaged(page, size)));
+    }
+
+    @GetMapping("/templates")
+    @RequireTenantFeature("reports")
+    @PreAuthorize("hasAnyRole('ADMIN','TEACHER','SUPER_ADMIN')")
+    @Operation(summary = "List report templates")
+    public ResponseEntity<ApiResponse<List<ReportModuleDTOs.TemplateResponse>>> listTemplates() {
+        return ResponseEntity.ok(ApiResponse.ok(reportService.listTemplates()));
+    }
+
+    @PostMapping("/templates")
+    @RequireTenantFeature("reports")
+    @PreAuthorize("hasAnyRole('ADMIN','SUPER_ADMIN')")
+    @Operation(summary = "Create / update report template")
+    public ResponseEntity<ApiResponse<ReportModuleDTOs.TemplateResponse>> upsertTemplate(@Valid @RequestBody ReportModuleDTOs.UpsertTemplateRequest req) {
+        return ResponseEntity.ok(ApiResponse.ok(reportService.upsertTemplate(req)));
+    }
+
+    @PostMapping("/generate")
+    @RequireTenantFeature("reports")
+    @PreAuthorize("hasAnyRole('ADMIN','TEACHER','SUPER_ADMIN')")
+    @Operation(summary = "Generate a report file (PDF/CSV)")
+    public ResponseEntity<ApiResponse<ReportModuleDTOs.ReportJobResponse>> generate(@Valid @RequestBody ReportModuleDTOs.GenerateReportRequest req) {
+        return ResponseEntity.ok(ApiResponse.ok(reportService.generateReport(req)));
+    }
+
+    @PutMapping("/jobs/{jobId}/retry")
+    @RequireTenantFeature("reports")
+    @PreAuthorize("hasAnyRole('ADMIN','SUPER_ADMIN')")
+    @Operation(summary = "Retry failed report generation job")
+    public ResponseEntity<ApiResponse<ReportModuleDTOs.ReportJobResponse>> retryJob(@PathVariable Long jobId) {
+        return ResponseEntity.ok(ApiResponse.ok(reportService.retryReportJob(jobId)));
+    }
+
+    @GetMapping("/jobs")
+    @RequireTenantFeature("reports")
+    @PreAuthorize("hasAnyRole('ADMIN','TEACHER','SUPER_ADMIN')")
+    @Operation(summary = "List generated report jobs (paged)")
+    public ResponseEntity<ApiResponse<PageResponse<ReportModuleDTOs.ReportJobResponse>>> listJobs(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return ResponseEntity.ok(ApiResponse.ok(reportService.listGeneratedReports(page, size)));
+    }
+
+    @GetMapping("/jobs/{jobId}/download")
+    @RequireTenantFeature("reports")
+    @PreAuthorize("hasAnyRole('ADMIN','TEACHER','SUPER_ADMIN')")
+    @Operation(summary = "Download generated report")
+    public ResponseEntity<byte[]> download(@PathVariable Long jobId) {
+        var job = reportService.getGeneratedReportFile(jobId);
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + (job.getFileName() != null ? job.getFileName() : "report.bin") + "\"")
+                .header(HttpHeaders.CONTENT_TYPE, job.getContentType() != null ? job.getContentType() : "application/octet-stream")
+                .body(job.getFileContent() != null ? job.getFileContent() : new byte[0]);
+    }
+
+    @GetMapping("/jobs/{jobId}/dispatches")
+    @RequireTenantFeature("reports")
+    @PreAuthorize("hasAnyRole('ADMIN','SUPER_ADMIN')")
+    @Operation(summary = "List share dispatch rows for report job")
+    public ResponseEntity<ApiResponse<PageResponse<ReportModuleDTOs.ShareDispatchResponse>>> listDispatches(
+            @PathVariable Long jobId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return ResponseEntity.ok(ApiResponse.ok(reportService.listDispatches(jobId, page, size)));
+    }
+
+    @GetMapping("/jobs/{jobId}/events")
+    @RequireTenantFeature("reports")
+    @PreAuthorize("hasAnyRole('ADMIN','SUPER_ADMIN')")
+    @Operation(summary = "List workflow event logs for report job")
+    public ResponseEntity<ApiResponse<PageResponse<ReportModuleDTOs.WorkflowEventLogResponse>>> listWorkflowEvents(
+            @PathVariable Long jobId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return ResponseEntity.ok(ApiResponse.ok(reportService.listWorkflowEvents(jobId, page, size)));
+    }
+
+    @PutMapping("/jobs/{jobId}/approve")
+    @RequireTenantFeature("reports")
+    @PreAuthorize("hasAnyRole('ADMIN','SUPER_ADMIN')")
+    @Operation(summary = "Approve report job for publication")
+    public ResponseEntity<ApiResponse<ReportModuleDTOs.ReportJobResponse>> approveJob(
+            @PathVariable Long jobId,
+            @RequestBody(required = false) ReportModuleDTOs.WorkflowActionRequest req) {
+        return ResponseEntity.ok(ApiResponse.ok(reportService.approveJob(jobId, req)));
+    }
+
+    @PutMapping("/jobs/{jobId}/publish")
+    @RequireTenantFeature("reports")
+    @PreAuthorize("hasAnyRole('ADMIN','SUPER_ADMIN')")
+    @Operation(summary = "Publish approved report job and create immutable snapshot")
+    public ResponseEntity<ApiResponse<ReportModuleDTOs.ReportJobResponse>> publishJob(
+            @PathVariable Long jobId,
+            @RequestBody(required = false) ReportModuleDTOs.WorkflowActionRequest req) {
+        return ResponseEntity.ok(ApiResponse.ok(reportService.publishJob(jobId, req)));
+    }
+
+    @GetMapping("/jobs/{jobId}/snapshots")
+    @RequireTenantFeature("reports")
+    @PreAuthorize("hasAnyRole('ADMIN','SUPER_ADMIN')")
+    @Operation(summary = "List immutable publication snapshots for report job")
+    public ResponseEntity<ApiResponse<List<ReportModuleDTOs.PublicationSnapshotResponse>>> listSnapshots(@PathVariable Long jobId) {
+        return ResponseEntity.ok(ApiResponse.ok(reportService.listPublicationSnapshots(jobId)));
+    }
+
+    @PutMapping("/jobs/{jobId}/rollback")
+    @RequireTenantFeature("reports")
+    @PreAuthorize("hasAnyRole('ADMIN','SUPER_ADMIN')")
+    @Operation(summary = "Rollback report publication to a snapshot version")
+    public ResponseEntity<ApiResponse<ReportModuleDTOs.ReportJobResponse>> rollback(
+            @PathVariable Long jobId,
+            @Valid @RequestBody ReportModuleDTOs.RollbackSnapshotRequest req) {
+        return ResponseEntity.ok(ApiResponse.ok(reportService.rollbackToSnapshot(jobId, req)));
+    }
+
+    @GetMapping("/analytics-pack")
+    @RequireTenantFeature("reports")
+    @PreAuthorize("hasAnyRole('ADMIN','TEACHER','SUPER_ADMIN')")
+    @Operation(summary = "Get analytics pack with trend bands and promotion eligibility")
+    public ResponseEntity<ApiResponse<ReportModuleDTOs.AnalyticsPackResponse>> analyticsPack(
+            @RequestParam(required = false) String packCode,
+            @RequestParam(required = false) Long classId,
+            @RequestParam(required = false) Long sectionId,
+            @RequestParam(required = false) Long examId,
+            @RequestParam(required = false) String month) {
+        return ResponseEntity.ok(ApiResponse.ok(reportService.getAnalyticsPack(packCode, classId, sectionId, examId, month)));
+    }
+
+    @GetMapping("/analytics-pack/configs")
+    @RequireTenantFeature("reports")
+    @PreAuthorize("hasAnyRole('ADMIN','SUPER_ADMIN')")
+    @Operation(summary = "List analytics pack configurations")
+    public ResponseEntity<ApiResponse<List<ReportModuleDTOs.AnalyticsPackConfigResponse>>> listAnalyticsPackConfigs() {
+        return ResponseEntity.ok(ApiResponse.ok(reportService.listAnalyticsPackConfigs()));
+    }
+
+    @PostMapping("/analytics-pack/configs")
+    @RequireTenantFeature("reports")
+    @PreAuthorize("hasAnyRole('ADMIN','SUPER_ADMIN')")
+    @Operation(summary = "Create or update analytics pack config with formula guardrails")
+    public ResponseEntity<ApiResponse<ReportModuleDTOs.AnalyticsPackConfigResponse>> upsertAnalyticsPackConfig(
+            @Valid @RequestBody ReportModuleDTOs.AnalyticsPackConfigRequest req) {
+        return ResponseEntity.ok(ApiResponse.ok(reportService.upsertAnalyticsPackConfig(req)));
+    }
+
+    @PostMapping("/jobs/process")
+    @RequireTenantFeature("reports")
+    @PreAuthorize("hasAnyRole('ADMIN','SUPER_ADMIN')")
+    @Operation(summary = "Process due report jobs now")
+    public ResponseEntity<ApiResponse<Integer>> processJobs(@RequestParam(defaultValue = "20") int batchSize) {
+        return ResponseEntity.ok(ApiResponse.ok(reportService.processQueuedJobs(batchSize)));
+    }
+
+    @PostMapping("/dispatches/process")
+    @RequireTenantFeature("reports")
+    @PreAuthorize("hasAnyRole('ADMIN','SUPER_ADMIN')")
+    @Operation(summary = "Process due report share dispatches now")
+    public ResponseEntity<ApiResponse<Integer>> processDispatches(@RequestParam(defaultValue = "50") int batchSize) {
+        return ResponseEntity.ok(ApiResponse.ok(reportService.processDispatches(batchSize)));
+    }
+
+    @PostMapping("/templates/seed-defaults")
+    @RequireTenantFeature("reports")
+    @PreAuthorize("hasAnyRole('ADMIN','SUPER_ADMIN')")
+    @Operation(summary = "Seed predefined report template packs")
+    public ResponseEntity<ApiResponse<Integer>> seedDefaultPacks() {
+        return ResponseEntity.ok(ApiResponse.ok(reportService.seedDefaultPacks()));
     }
 
     public ReportController(final com.school.erp.modules.reports.service.ReportService reportService) {

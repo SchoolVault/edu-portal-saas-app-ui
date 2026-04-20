@@ -89,6 +89,9 @@ import { notificationListRowNavigation } from '../../core/utils/notification-lin
                   <i class="bi bi-megaphone-fill" style="margin-right: 6px; color: var(--clr-primary);"></i>
                   {{ ann.title }}
                 </h5>
+                <p class="small text-muted mb-1" *ngIf="announcementScopeSubtitle(ann) as scope">
+                  {{ scope }}
+                </p>
                 <p>{{ ann.preview }}</p>
                 <div class="time">{{ timeAgo(ann.createdAt || '') }}</div>
               </div>
@@ -146,7 +149,7 @@ import { notificationListRowNavigation } from '../../core/utils/notification-lin
                 <span class="profile-summary-email">{{ profileSummary.email }}</span>
               </div>
               <div class="profile-summary-stats">
-                <span *ngFor="let chip of profileStatChips">
+                <span *ngFor="let chip of profileStatChipRows">
                   {{ chip.translateKey | translate: chip.params }}
                 </span>
               </div>
@@ -208,6 +211,7 @@ export class HeaderComponent implements OnInit, OnDestroy {
   isSuperAdmin = false;
   platformHealthItems: { name: string; status: string; detail?: string }[] = [];
   profileSummary: ProfileSummary | null = null;
+  profileStatChipRows: Array<{ translateKey: string; params: Record<string, string | number> }> = [];
   currentTheme: 'light' | 'dark' = 'light';
 
   avatarUrl: string | null = null;
@@ -243,7 +247,7 @@ export class HeaderComponent implements OnInit, OnDestroy {
   }
 
   /** Role-aware KPI chips for the profile card (parents never see student/teacher/subject admin stats). */
-  get profileStatChips(): Array<{ translateKey: string; params: Record<string, string | number> }> {
+  private buildProfileStatChips(): Array<{ translateKey: string; params: Record<string, string | number> }> {
     const s = this.profileSummary;
     if (!s || this.isSuperAdmin) {
       return [];
@@ -294,6 +298,10 @@ export class HeaderComponent implements OnInit, OnDestroy {
       return [{ translateKey: 'header.stats.children', params: { count: Number(s.childCount) } }];
     }
     return [];
+  }
+
+  private rebuildProfileStatChips(): void {
+    this.profileStatChipRows = this.buildProfileStatChips();
   }
 
   constructor(
@@ -347,6 +355,7 @@ export class HeaderComponent implements OnInit, OnDestroy {
         .toUpperCase()
         .substring(0, 2);
       this.avatarUrl = this.authService.resolveCurrentUserAvatarUrl(s?.avatar ?? null);
+      this.rebuildProfileStatChips();
     };
 
     this.authService.profileSummary$.pipe(takeUntil(this.destroy$)).subscribe(s => {
@@ -573,20 +582,9 @@ export class HeaderComponent implements OnInit, OnDestroy {
     this.router.navigate(['/app/settings'], { queryParams: { settingsTab: 'preferences' } });
   }
 
-  /** Parents only see ALL-audience notices in the “School notices” strip; targeted items stay in notifications. */
+  /** Show the same announcement previews in bell across roles; role visibility is enforced by backend API. */
   private applySchoolNoticePreviewsForRole(rows: AnnouncementPreview[]): void {
-    const role = (
-      (this.profileSummary?.role as string | undefined) ||
-      this.userRole ||
-      ''
-    )
-      .toLowerCase()
-      .replace(/^role_/, '');
-    if (role === 'parent') {
-      this.schoolNoticePreviews = rows.filter(r => (r.targetAudience || 'all').toLowerCase() === 'all');
-    } else {
-      this.schoolNoticePreviews = rows;
-    }
+    this.schoolNoticePreviews = rows;
   }
 
   openAnnouncementFromBell(ann: AnnouncementPreview, event: MouseEvent): void {
@@ -606,6 +604,23 @@ export class HeaderComponent implements OnInit, OnDestroy {
       return;
     }
     void this.router.navigate(['/app/notifications', target.id]);
+  }
+
+  announcementScopeSubtitle(ann: AnnouncementPreview): string {
+    const aud = String(ann.targetAudience || '').toLowerCase();
+    if (aud !== 'class' && aud !== 'section') {
+      return '';
+    }
+    const classNameRaw = String(ann.targetClassName || '').trim();
+    const className = classNameRaw.replace(/^class\s+/i, '').trim();
+    if (!className) {
+      return '';
+    }
+    const sectionName = String(ann.targetSectionName || '').trim();
+    if (aud === 'section' && sectionName) {
+      return this.translate.instant('header.bell.scopeClassSection', { className, sectionName });
+    }
+    return this.translate.instant('header.bell.scopeClassOnly', { className });
   }
 
   getNotifIcon(type: string): string {

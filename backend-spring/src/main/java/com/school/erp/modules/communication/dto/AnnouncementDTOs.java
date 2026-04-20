@@ -3,11 +3,15 @@ package com.school.erp.modules.communication.dto;
 import com.school.erp.common.enums.Enums;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 
 public class AnnouncementDTOs {
     public static class CreateAnnouncementRequest {
         @NotBlank
+        @Size(max = 200)
         private String title;
+        @NotBlank
+        @Size(max = 5000)
         private String content;
         @NotNull
         private Enums.TargetAudience targetAudience;
@@ -34,6 +38,10 @@ public class AnnouncementDTOs {
         private String createdAt;
         /** {@link com.school.erp.common.enums.Enums.TargetAudience} name — drives shell split (school-wide vs personal). */
         private String targetAudience;
+        private Long targetClassId;
+        private Long targetSectionId;
+        private String targetClassName;
+        private String targetSectionName;
 
         public Long getId() {
             return id;
@@ -73,6 +81,38 @@ public class AnnouncementDTOs {
 
         public void setTargetAudience(String targetAudience) {
             this.targetAudience = targetAudience;
+        }
+
+        public Long getTargetClassId() {
+            return targetClassId;
+        }
+
+        public void setTargetClassId(final Long targetClassId) {
+            this.targetClassId = targetClassId;
+        }
+
+        public Long getTargetSectionId() {
+            return targetSectionId;
+        }
+
+        public void setTargetSectionId(final Long targetSectionId) {
+            this.targetSectionId = targetSectionId;
+        }
+
+        public String getTargetClassName() {
+            return targetClassName;
+        }
+
+        public void setTargetClassName(final String targetClassName) {
+            this.targetClassName = targetClassName;
+        }
+
+        public String getTargetSectionName() {
+            return targetSectionName;
+        }
+
+        public void setTargetSectionName(final String targetSectionName) {
+            this.targetSectionName = targetSectionName;
         }
     }
 }

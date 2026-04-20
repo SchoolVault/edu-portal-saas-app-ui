@@ -17,6 +17,7 @@ import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { formatSchoolClassName } from '../../core/i18n/school-class-display';
 import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directives';
 import { UserFacingHttpError } from '../../core/http/user-facing-http-error';
+import { StudentGuardianMapping } from '../../core/models/models';
 
 @Component({
   selector: 'app-student-form',
@@ -203,6 +204,48 @@ import { UserFacingHttpError } from '../../core/http/user-facing-http-error';
             </div>
           </div>
 
+          <h4 *ngIf="isEdit" style="font-size: 15px; font-weight: 700; margin-bottom: 20px; color: var(--clr-primary);">{{ 'students.form.sectionGuardians' | translate }}</h4>
+          <div *ngIf="isEdit" class="row g-3 mb-4">
+            <div class="col-12"><p class="text-muted small mb-0">{{ 'students.form.guardiansEditIntro' | translate }}</p></div>
+            <div class="col-md-6 erp-card p-3" *ngFor="let guardian of editGuardians; let i = index">
+              <div class="erp-form-group">
+                <label class="erp-label">{{ (i === 0 ? 'students.form.g1name' : 'students.form.g2name') | translate }}</label>
+                <input type="text" class="erp-input" [(ngModel)]="guardian.fullName" [name]="'editGuardianName' + i">
+              </div>
+              <div class="erp-form-group">
+                <label class="erp-label">{{ 'students.form.phone' | translate }}</label>
+                <input type="text" class="erp-input" [(ngModel)]="guardian.primaryPhone" [name]="'editGuardianPhone' + i">
+              </div>
+              <div class="erp-form-group">
+                <label class="erp-label">{{ 'students.form.email' | translate }}</label>
+                <input type="email" class="erp-input" [(ngModel)]="guardian.email" [name]="'editGuardianEmail' + i">
+              </div>
+              <div class="erp-form-group">
+                <label class="erp-label">{{ 'students.form.occupation' | translate }}</label>
+                <input type="text" class="erp-input" [(ngModel)]="guardian.occupation" [name]="'editGuardianOccupation' + i">
+              </div>
+              <div class="erp-form-group">
+                <label class="erp-label">{{ 'students.form.relation' | translate }}</label>
+                <select class="erp-select" [(ngModel)]="guardian.relationType" [name]="'editGuardianRelation' + i">
+                  <option value="FATHER">{{ 'students.enums.guardianRelation.FATHER' | translate }}</option>
+                  <option value="MOTHER">{{ 'students.enums.guardianRelation.MOTHER' | translate }}</option>
+                  <option value="GUARDIAN">{{ 'students.enums.guardianRelation.GUARDIAN' | translate }}</option>
+                  <option value="OTHER">{{ 'students.enums.guardianRelation.OTHER' | translate }}</option>
+                </select>
+              </div>
+              <div class="d-flex gap-3 flex-wrap mt-2">
+                <label class="small d-flex align-items-center gap-2">
+                  <input type="checkbox" [(ngModel)]="guardian.isPrimary" (ngModelChange)="onPrimaryGuardianToggle(i)" [name]="'editGuardianPrimary' + i">
+                  <span>{{ 'students.form.guardianPrimary' | translate }}</span>
+                </label>
+                <label class="small d-flex align-items-center gap-2">
+                  <input type="checkbox" [(ngModel)]="guardian.isEmergencyContact" [name]="'editGuardianEmergency' + i">
+                  <span>{{ 'students.form.guardianEmergency' | translate }}</span>
+                </label>
+              </div>
+            </div>
+          </div>
+
           <div class="d-flex justify-content-end gap-3">
             <button type="button" class="btn-outline-erp" (click)="goBack()" data-testid="cancel-btn">{{ 'students.form.cancel' | translate }}</button>
             <button type="submit" class="btn-primary-erp" [disabled]="saving" data-testid="save-student-btn">
@@ -231,6 +274,17 @@ export class StudentFormComponent implements OnInit, OnDestroy {
   studentDirectoryPreview: string | null = null;
   g1 = { fullName: '', primaryPhone: '', occupation: '', relationType: 'FATHER' as const };
   g2 = { fullName: '', primaryPhone: '', occupation: '', relationType: 'MOTHER' as const };
+  editGuardians: Array<{
+    mappingId: number | null;
+    guardianId: number | null;
+    fullName: string;
+    primaryPhone: string;
+    email: string;
+    occupation: string;
+    relationType: 'FATHER' | 'MOTHER' | 'GUARDIAN' | 'OTHER';
+    isPrimary: boolean;
+    isEmergencyContact: boolean;
+  }> = [];
   private langSub?: Subscription;
 
   get isAdmin(): boolean {
@@ -269,9 +323,110 @@ export class StudentFormComponent implements OnInit, OnDestroy {
           this.student = { ...s };
           this.onClassChange();
           this.refreshStudentDirectoryPreview();
+          this.loadGuardianEditorRows(id);
         }
       });
     }
+  }
+
+  private loadGuardianEditorRows(studentId: number): void {
+    this.studentService.getGuardianMappings(studentId).subscribe({
+      next: rows => {
+        this.editGuardians = this.toEditGuardianRows(rows);
+      },
+      error: () => {
+        this.editGuardians = this.buildFallbackEditRows();
+      },
+    });
+  }
+
+  private toEditGuardianRows(rows: StudentGuardianMapping[]): Array<{
+    mappingId: number | null;
+    guardianId: number | null;
+    fullName: string;
+    primaryPhone: string;
+    email: string;
+    occupation: string;
+    relationType: 'FATHER' | 'MOTHER' | 'GUARDIAN' | 'OTHER';
+    isPrimary: boolean;
+    isEmergencyContact: boolean;
+  }> {
+    const toRelation = (v: string | null | undefined): 'FATHER' | 'MOTHER' | 'GUARDIAN' | 'OTHER' => {
+      const normalized = (v ?? '').toUpperCase();
+      return normalized === 'FATHER' || normalized === 'MOTHER' || normalized === 'GUARDIAN' ? normalized : 'OTHER';
+    };
+    const mapped: Array<{
+      mappingId: number | null;
+      guardianId: number | null;
+      fullName: string;
+      primaryPhone: string;
+      email: string;
+      occupation: string;
+      relationType: 'FATHER' | 'MOTHER' | 'GUARDIAN' | 'OTHER';
+      isPrimary: boolean;
+      isEmergencyContact: boolean;
+    }> = rows.slice(0, 2).map(r => ({
+      mappingId: r.id ?? null,
+      guardianId: r.guardianId ?? null,
+      fullName: r.guardianName ?? '',
+      primaryPhone: r.primaryPhone ?? '',
+      email: r.email ?? '',
+      occupation: r.occupation ?? '',
+      relationType: toRelation(r.relationType),
+      isPrimary: !!r.isPrimary,
+      isEmergencyContact: !!r.isEmergencyContact,
+    }));
+    while (mapped.length < 2) {
+      mapped.push({
+        mappingId: null,
+        guardianId: null,
+        fullName: '',
+        primaryPhone: '',
+        email: '',
+        occupation: '',
+        relationType: mapped.length === 0 ? 'FATHER' : 'MOTHER',
+        isPrimary: mapped.length === 0,
+        isEmergencyContact: mapped.length === 0,
+      });
+    }
+    return mapped;
+  }
+
+  private buildFallbackEditRows(): Array<{
+    mappingId: number | null;
+    guardianId: number | null;
+    fullName: string;
+    primaryPhone: string;
+    email: string;
+    occupation: string;
+    relationType: 'FATHER' | 'MOTHER' | 'GUARDIAN' | 'OTHER';
+    isPrimary: boolean;
+    isEmergencyContact: boolean;
+  }> {
+    return [
+      {
+        mappingId: null,
+        guardianId: null,
+        fullName: this.student.parentName ?? '',
+        primaryPhone: '',
+        email: '',
+        occupation: '',
+        relationType: 'FATHER',
+        isPrimary: true,
+        isEmergencyContact: true,
+      },
+      {
+        mappingId: null,
+        guardianId: null,
+        fullName: '',
+        primaryPhone: '',
+        email: '',
+        occupation: '',
+        relationType: 'MOTHER',
+        isPrimary: false,
+        isEmergencyContact: false,
+      },
+    ];
   }
 
   showStudentDirectoryPhoto(): boolean {
@@ -362,8 +517,17 @@ export class StudentFormComponent implements OnInit, OnDestroy {
     };
 
     if (this.isEdit && this.student.id) {
+      const primaryGuardian = this.editGuardians.find(g => g.isPrimary && g.fullName.trim());
+      if (primaryGuardian) {
+        this.student.parentName = primaryGuardian.fullName.trim();
+      }
       this.studentService.updateStudent(this.student.id, this.student).subscribe({
-        next: () => {
+        next: async () => {
+          try {
+            await this.syncGuardianMetadataForEdit();
+          } catch {
+            // Student update already succeeded; keep the flow resilient.
+          }
           this.saving = false;
           this.router.navigate(['/app/students']);
         },
@@ -415,6 +579,80 @@ export class StudentFormComponent implements OnInit, OnDestroy {
         }
       });
     }
+  }
+
+  private async syncGuardianMetadataForEdit(): Promise<void> {
+    if (!this.isEdit || !this.student.id || runtimeConfig.useMocks) {
+      return;
+    }
+    const activeRows = this.editGuardians
+      .map(row => ({ ...row, fullName: row.fullName.trim(), primaryPhone: row.primaryPhone.trim(), email: row.email.trim(), occupation: row.occupation.trim() }))
+      .filter(row => row.fullName || row.primaryPhone || row.email || row.occupation);
+    if (!activeRows.length) {
+      return;
+    }
+    const primaryIndex = activeRows.findIndex(r => r.isPrimary);
+    if (primaryIndex === -1) {
+      activeRows[0].isPrimary = true;
+    }
+    for (const row of activeRows) {
+      if (!row.fullName || !row.primaryPhone) {
+        continue;
+      }
+      const emailsJson = row.email ? JSON.stringify([row.email]) : undefined;
+      const phonesJson = row.primaryPhone ? JSON.stringify([row.primaryPhone]) : undefined;
+      if (row.guardianId != null) {
+        await firstValueFrom(
+          this.guardianService.updateGuardian(row.guardianId, {
+            fullName: row.fullName,
+            primaryPhone: row.primaryPhone,
+            occupation: row.occupation || undefined,
+            emailsJson,
+            phonesJson,
+          })
+        );
+      } else {
+        const created = await firstValueFrom(
+          this.guardianService.createGuardian({
+            fullName: row.fullName,
+            primaryPhone: row.primaryPhone,
+            occupation: row.occupation || undefined,
+            emailsJson,
+            phonesJson,
+          })
+        );
+        row.guardianId = Number(created.id);
+      }
+
+      if (row.mappingId != null) {
+        await firstValueFrom(
+          this.guardianService.updateStudentMapping(this.student.id, row.mappingId, {
+            relationType: row.relationType,
+            isPrimary: row.isPrimary,
+            isEmergencyContact: row.isEmergencyContact,
+          })
+        );
+      } else if (row.guardianId != null) {
+        await firstValueFrom(
+          this.guardianService.addStudentMapping(this.student.id, {
+            guardianId: String(row.guardianId),
+            relationType: row.relationType,
+            isPrimary: row.isPrimary,
+            isEmergencyContact: row.isEmergencyContact,
+          })
+        );
+      }
+    }
+  }
+
+  onPrimaryGuardianToggle(index: number): void {
+    if (!this.editGuardians[index]?.isPrimary) {
+      return;
+    }
+    this.editGuardians = this.editGuardians.map((row, i) => ({
+      ...row,
+      isPrimary: i === index,
+    }));
   }
 
   private validateGuardianPairs(): boolean {

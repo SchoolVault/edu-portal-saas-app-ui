@@ -1,9 +1,12 @@
 package com.school.erp.modules.communication.service;
 
 import com.school.erp.common.dto.PageResponse;
+import com.school.erp.common.enums.Enums;
 import com.school.erp.common.exception.BusinessException;
 import com.school.erp.common.exception.ResourceNotFoundException;
 import com.school.erp.common.exception.UnauthorizedException;
+import com.school.erp.modules.academic.repository.SchoolClassRepository;
+import com.school.erp.modules.academic.repository.SectionRepository;
 import com.school.erp.modules.auth.entity.User;
 import com.school.erp.modules.auth.repository.UserRepository;
 import com.school.erp.modules.chat.service.ChatDirectoryService;
@@ -28,6 +31,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.time.LocalDateTime;
 import java.util.stream.Collectors;
 
 @Service
@@ -40,6 +44,8 @@ public class CommunicationService {
     private final UserRepository userRepository;
     private final ChatDirectoryService chatDirectoryService;
     private final TeacherRosterScopeService teacherRosterScopeService;
+    private final SchoolClassRepository schoolClassRepository;
+    private final SectionRepository sectionRepository;
 
     private record AudienceLists(List<Long> classIds, List<Long> sectionIds) {}
 
@@ -80,6 +86,16 @@ public class CommunicationService {
             if (a.getTargetAudience() != null) {
                 p.setTargetAudience(a.getTargetAudience().name());
             }
+            p.setTargetClassId(a.getTargetClassId());
+            p.setTargetSectionId(a.getTargetSectionId());
+            if (a.getTargetClassId() != null) {
+                schoolClassRepository.findByIdAndTenantIdAndIsDeletedFalse(a.getTargetClassId(), a.getTenantId())
+                        .ifPresent(c -> p.setTargetClassName(c.getName()));
+            }
+            if (a.getTargetSectionId() != null) {
+                sectionRepository.findByIdAndTenantIdAndIsDeletedFalse(a.getTargetSectionId(), a.getTenantId())
+                        .ifPresent(s -> p.setTargetSectionName(s.getName()));
+            }
             return p;
         }).collect(Collectors.toList());
     }
@@ -117,7 +133,7 @@ public class CommunicationService {
                 }
             }
         } else if ("TEACHER".equals(role)) {
-            teacherRosterScopeService.communicationAudienceScopeForCurrentUser().ifPresent(scope -> {
+            teacherRosterScopeService.homeroomAnnouncementScopeForCurrentUser().ifPresent(scope -> {
                 classIds.addAll(scope.classIds());
                 sectionIds.addAll(scope.sectionIds());
             });
@@ -151,10 +167,11 @@ public class CommunicationService {
     @CacheEvict(cacheNames = CacheConfig.ANNOUNCEMENT_PREVIEWS, allEntries = true)
     @Transactional
     public Announcement createAnnouncement(AnnouncementDTOs.CreateAnnouncementRequest req) {
+        validateAnnouncementRequest(req);
         Announcement ann = new Announcement();
         ann.setTenantId(TenantContext.getTenantId());
-        ann.setTitle(req.getTitle());
-        ann.setContent(req.getContent());
+        ann.setTitle(req.getTitle().trim());
+        ann.setContent(req.getContent() != null ? req.getContent().trim() : null);
         ann.setAuthor(null);
         ann.setAuthorRole(TenantContext.getUserRole());
         ann.setTargetAudience(req.getTargetAudience());
@@ -167,6 +184,64 @@ public class CommunicationService {
             log.warn("Announcement fan-out failed id={}: {}", saved.getId(), e.getMessage());
         }
         return saved;
+    }
+
+    private void validateAnnouncementRequest(AnnouncementDTOs.CreateAnnouncementRequest req) {
+        if (req == null) {
+            throw new BusinessException("Announcement request is required.");
+        }
+        final String tenantId = TenantContext.getTenantId();
+        final String title = req.getTitle() != null ? req.getTitle().trim() : "";
+        if (title.isEmpty()) {
+            throw new BusinessException("Announcement title is required.");
+        }
+        if (req.getTargetAudience() == null) {
+            throw new BusinessException("Target audience is required.");
+        }
+        final Enums.TargetAudience aud = req.getTargetAudience();
+        final Long targetClassId = req.getTargetClassId();
+        final Long targetSectionId = req.getTargetSectionId();
+        switch (aud) {
+            case CLASS -> {
+                if (targetClassId == null) {
+                    throw new BusinessException("Class is required for class-targeted announcements.");
+                }
+                if (targetSectionId != null) {
+                    throw new BusinessException("Section must be empty for class-targeted announcements.");
+                }
+            }
+            case SECTION -> {
+                if (targetClassId == null || targetSectionId == null) {
+                    throw new BusinessException("Both class and section are required for section-targeted announcements.");
+                }
+            }
+            default -> {
+                if (targetClassId != null || targetSectionId != null) {
+                    throw new BusinessException("Class or section is not allowed for this audience.");
+                }
+            }
+        }
+        if (targetClassId != null && schoolClassRepository.findByIdAndTenantIdAndIsDeletedFalse(targetClassId, tenantId).isEmpty()) {
+            throw new BusinessException("Selected class does not belong to this school.");
+        }
+        if (targetSectionId != null) {
+            var section = sectionRepository.findByIdAndTenantIdAndIsDeletedFalse(targetSectionId, tenantId)
+                    .orElseThrow(() -> new BusinessException("Selected section does not belong to this school."));
+            if (targetClassId != null && !targetClassId.equals(section.getClassId())) {
+                throw new BusinessException("Selected section does not belong to the chosen class.");
+            }
+        }
+        boolean duplicateRecent = annRepo
+                .existsByTenantIdAndIsDeletedFalseAndTitleIgnoreCaseAndTargetAudienceAndTargetClassIdAndTargetSectionIdAndCreatedAtAfter(
+                        tenantId,
+                        title,
+                        aud,
+                        targetClassId,
+                        targetSectionId,
+                        LocalDateTime.now().minusMinutes(5));
+        if (duplicateRecent) {
+            throw new BusinessException("A similar announcement was published recently. Please edit and retry.");
+        }
     }
 
     @CacheEvict(cacheNames = CacheConfig.ANNOUNCEMENT_PREVIEWS, allEntries = true)
@@ -313,7 +388,9 @@ public class CommunicationService {
             final AnnouncementNotificationFanoutService announcementFanout,
             final UserRepository userRepository,
             final ChatDirectoryService chatDirectoryService,
-            final TeacherRosterScopeService teacherRosterScopeService) {
+            final TeacherRosterScopeService teacherRosterScopeService,
+            final SchoolClassRepository schoolClassRepository,
+            final SectionRepository sectionRepository) {
         this.annRepo = annRepo;
         this.msgRepo = msgRepo;
         this.guardianService = guardianService;
@@ -321,5 +398,7 @@ public class CommunicationService {
         this.userRepository = userRepository;
         this.chatDirectoryService = chatDirectoryService;
         this.teacherRosterScopeService = teacherRosterScopeService;
+        this.schoolClassRepository = schoolClassRepository;
+        this.sectionRepository = sectionRepository;
     }
 }

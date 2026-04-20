@@ -132,6 +132,45 @@ public class TeacherRosterScopeService {
         return Optional.of(new CommunicationAudienceScope(classIds, sectionIds));
     }
 
+    /**
+     * Homeroom/class-teacher scope only (no subject-teacher or cover assignments).
+     * Used for announcement visibility where SECTION/CLASS should reach only responsible class teachers.
+     */
+    @Transactional(readOnly = true)
+    public Optional<CommunicationAudienceScope> homeroomAnnouncementScopeForCurrentUser() {
+        String raw = TenantContext.getUserRole();
+        if (raw == null) {
+            return Optional.empty();
+        }
+        String r = raw.trim().toUpperCase(Locale.ROOT);
+        if (r.startsWith("ROLE_")) {
+            r = r.substring(5);
+        }
+        if (!"TEACHER".equals(r)) {
+            return Optional.empty();
+        }
+        String tenantId = TenantContext.getTenantId();
+        Long userId = TenantContext.getUserId();
+        if (userId == null) {
+            return Optional.of(new CommunicationAudienceScope(Set.of(), Set.of()));
+        }
+        Optional<Teacher> t = teacherRepository.findByTenantIdAndUserIdAndIsDeletedFalse(tenantId, userId);
+        if (t.isEmpty()) {
+            return Optional.of(new CommunicationAudienceScope(Set.of(), Set.of()));
+        }
+        Long teacherPk = t.get().getId();
+        Set<Long> classIds = new HashSet<>();
+        Set<Long> sectionIds = new HashSet<>();
+        for (SchoolClass c : schoolClassRepository.findByTenantIdAndClassTeacherIdAndIsDeletedFalse(tenantId, teacherPk)) {
+            classIds.add(c.getId());
+        }
+        for (Section sec : sectionRepository.findByTenantIdAndClassTeacherIdAndIsDeletedFalse(tenantId, teacherPk)) {
+            classIds.add(sec.getClassId());
+            sectionIds.add(sec.getId());
+        }
+        return Optional.of(new CommunicationAudienceScope(classIds, sectionIds));
+    }
+
     private Set<Long> collectAllowedClassIds(String tenantId, Long teacherPk, LocalDate asOfDate) {
         Set<Long> ids = new HashSet<>();
         for (SchoolClass c : schoolClassRepository.findByTenantIdAndClassTeacherIdAndIsDeletedFalse(tenantId, teacherPk)) {
@@ -193,5 +232,36 @@ public class TeacherRosterScopeService {
             return sec.map(s -> classId.equals(s.getClassId())).orElse(false);
         }
         return true;
+    }
+
+    @Transactional(readOnly = true)
+    public boolean isCurrentTeacherHomeroomFor(Long classId, Long sectionId) {
+        String role = TenantContext.getUserRole();
+        if (role == null || !role.trim().equalsIgnoreCase("TEACHER")) {
+            return true;
+        }
+        String tenantId = TenantContext.getTenantId();
+        Long userId = TenantContext.getUserId();
+        if (userId == null || classId == null) {
+            return false;
+        }
+        Optional<Teacher> t = teacherRepository.findByTenantIdAndUserIdAndIsDeletedFalse(tenantId, userId);
+        if (t.isEmpty()) {
+            return false;
+        }
+        Long teacherId = t.get().getId();
+        if (sectionId != null && sectionId != 0L) {
+            return sectionRepository.findByIdAndTenantIdAndIsDeletedFalse(sectionId, tenantId)
+                    .map(section -> classId.equals(section.getClassId()) && teacherId.equals(section.getClassTeacherId()))
+                    .orElse(false);
+        }
+        boolean classTeacher = schoolClassRepository.findByIdAndTenantIdAndIsDeletedFalse(classId, tenantId)
+                .map(c -> teacherId.equals(c.getClassTeacherId()))
+                .orElse(false);
+        if (classTeacher) {
+            return true;
+        }
+        return sectionRepository.findByTenantIdAndClassTeacherIdAndIsDeletedFalse(tenantId, teacherId).stream()
+                .anyMatch(section -> classId.equals(section.getClassId()));
     }
 }

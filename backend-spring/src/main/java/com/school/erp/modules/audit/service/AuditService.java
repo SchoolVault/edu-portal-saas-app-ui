@@ -2,6 +2,8 @@ package com.school.erp.modules.audit.service;
 
 import com.school.erp.common.enums.Enums;
 import com.school.erp.config.RabbitMQConfig;
+import com.school.erp.modules.auth.entity.User;
+import com.school.erp.modules.auth.repository.UserRepository;
 import com.school.erp.modules.audit.entity.AuditLog;
 import com.school.erp.modules.audit.repository.AuditLogRepository;
 import com.school.erp.platform.port.AuditTrailPort;
@@ -20,6 +22,7 @@ import java.util.Map;
 public class AuditService implements AuditTrailPort {
     private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(AuditService.class);
     private final AuditLogRepository repo;
+    private final UserRepository userRepository;
     @Nullable
     private final RabbitTemplate rabbitTemplate;
 
@@ -43,11 +46,22 @@ public class AuditService implements AuditTrailPort {
     public void logAction(Enums.AuditAction action, String module, String description, Long entityId, String entityType, String oldValue, String newValue) {
         String t = TenantContext.getTenantId();
         Long userId = TenantContext.getUserId();
-        AuditLog auditLog =  // In real impl, extract from request
-        AuditLog.builder().action(action).module(module).description(description).userId(userId).userName(TenantContext.getUserRole()).entityId(entityId).entityType(entityType).oldValue(oldValue).newValue(newValue).ipAddress("system").build();
+        String actorName = resolveActorDisplayName(t, userId);
+        AuditLog auditLog = AuditLog.builder()
+                .action(action)
+                .module(module)
+                .description(description)
+                .userId(userId)
+                .userName(actorName)
+                .entityId(entityId)
+                .entityType(entityType)
+                .oldValue(oldValue)
+                .newValue(newValue)
+                .ipAddress("system")
+                .build();
         auditLog.setTenantId(t != null ? t : "system");
         repo.save(auditLog);
-        log.info("Audit persisted action={} module={} entityId={}", action, module, entityId);
+        log.info("Audit persisted action={} module={} entityId={} actor={}", action, module, entityId, actorName);
         if (rabbitTemplate != null) {
             try {
                 rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE, "event.audit.logged", Map.of("action", action.name(), "module", module, "description", description));
@@ -77,8 +91,36 @@ public class AuditService implements AuditTrailPort {
         logAction(Enums.AuditAction.LOGIN, "Auth", "User logged in: " + email, null, "User", null, null);
     }
 
-    public AuditService(final AuditLogRepository repo, @Autowired(required = false) @Nullable RabbitTemplate rabbitTemplate) {
+    private String resolveActorDisplayName(String tenantId, Long userId) {
+        String contextDisplayName = TenantContext.getUserDisplayName();
+        if (contextDisplayName != null && !contextDisplayName.isBlank()) {
+            return contextDisplayName.trim();
+        }
+        if (tenantId != null && userId != null) {
+            User user = userRepository.findByIdAndTenantIdAndIsDeletedFalse(userId, tenantId).orElse(null);
+            if (user != null) {
+                if (user.getName() != null && !user.getName().isBlank()) {
+                    return user.getName().trim();
+                }
+                if (user.getEmail() != null && !user.getEmail().isBlank()) {
+                    return user.getEmail().trim().toLowerCase();
+                }
+            }
+        }
+        String principal = TenantContext.getUserPrincipal();
+        if (principal != null && !principal.isBlank()) {
+            return principal.trim();
+        }
+        String role = TenantContext.getUserRole();
+        if (role != null && !role.isBlank()) {
+            return role.trim().toUpperCase();
+        }
+        return "System";
+    }
+
+    public AuditService(final AuditLogRepository repo, final UserRepository userRepository, @Autowired(required = false) @Nullable RabbitTemplate rabbitTemplate) {
         this.repo = repo;
+        this.userRepository = userRepository;
         this.rabbitTemplate = rabbitTemplate;
     }
 }

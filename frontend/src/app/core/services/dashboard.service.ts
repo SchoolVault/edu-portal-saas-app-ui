@@ -168,9 +168,14 @@ export class DashboardService {
     const marks = (raw.childPerformance ?? raw.marks ?? []) as MarkRecord[];
     const feeStatus = (raw.feeStatus ?? []) as ParentDashboardData['feeStatus'];
     const overallGrade = String(raw.overallGrade ?? '-');
+    const children = Array.isArray(raw.children) ? raw.children : [];
+    const parsedChildCount = Number(raw.childCount);
+    const childCountFromPayload = Number.isFinite(parsedChildCount) ? parsedChildCount : 0;
+    // Keep shell KPIs consistent when backend omits/under-reports childCount but includes linked children list.
+    const resolvedChildCount = Math.max(childCountFromPayload, children.length);
     return {
-      childCount: Number(raw.childCount ?? 0),
-      children: raw.children ?? [],
+      childCount: resolvedChildCount,
+      children,
       selectedChild: raw.selectedChild,
       selectedChildId: raw.selectedChildId != null ? Number(raw.selectedChildId) : undefined,
       attendancePercentage: attendancePct,

@@ -15,7 +15,7 @@ import { DEFAULT_INBOX_FILTER_STATE, InboxFilterState } from '../../core/models/
 import { InboxFiltersPanelComponent } from './inbox-filters-panel.component';
 import { SchoolClassNamePipe } from '../../core/i18n/school-class-name.pipe';
 import { ErpPaginationComponent } from '../../shared/erp-pagination/erp-pagination.component';
-import { ErpI18nPhDirective, ErpI18nTextDirective } from '../../shared/erp-i18n/erp-i18n-host.directives';
+import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directives';
 import { debounceTime } from 'rxjs/operators';
 import { Subject, Subscription } from 'rxjs';
 import { DEFAULT_ERP_PAGE_SIZE } from '../../core/constants/pagination.constants';
@@ -31,7 +31,6 @@ import { DEFAULT_ERP_PAGE_SIZE } from '../../core/constants/pagination.constants
     SchoolClassNamePipe,
     ErpPaginationComponent,
     ErpI18nPhDirective,
-    ErpI18nTextDirective,
     InboxFiltersPanelComponent,
   ],
   template: `
@@ -102,10 +101,7 @@ import { DEFAULT_ERP_PAGE_SIZE } from '../../core/constants/pagination.constants
                 <i *ngIf="row.kind === 'announcement'" class="bi bi-megaphone-fill" style="color: var(--clr-primary)"></i>
                 {{ row.title }}
                 <span *ngIf="row.kind === 'announcement'" class="badge-erp badge-info text-uppercase" style="font-size: 10px">{{
-                  audienceBadgeFromKey(row.audienceKey)
-                }}</span>
-                <span *ngIf="row.kind === 'notification'" class="badge-erp badge-neutral text-uppercase" style="font-size: 10px">{{
-                  'inbox.kindNotification' | translate
+                  audienceBadge(row)
                 }}</span>
                 <span *ngIf="row.kind === 'notification' && row.read === false" class="badge-erp badge-info text-uppercase" style="font-size: 9px">{{
                   'inbox.notifUnread' | translate
@@ -135,11 +131,11 @@ import { DEFAULT_ERP_PAGE_SIZE } from '../../core/constants/pagination.constants
         </div>
       </div>
 
-      <div class="modal-overlay modal-overlay-viewport" *ngIf="showAnnouncementModal" (click)="showAnnouncementModal = false">
+      <div class="modal-overlay modal-overlay-viewport" *ngIf="showAnnouncementModal" (click)="closeAnnouncementModal()">
         <div class="modal-content-erp modal-wide" (click)="$event.stopPropagation()">
           <div class="modal-header-erp">
             <h3>{{ 'inbox.modalTitle' | translate }}</h3>
-            <button class="btn-icon" type="button" (click)="showAnnouncementModal = false"><i class="bi bi-x-lg"></i></button>
+            <button class="btn-icon" type="button" [disabled]="isPublishingAnnouncement" (click)="closeAnnouncementModal()"><i class="bi bi-x-lg"></i></button>
           </div>
           <div class="modal-body-erp">
             <div class="erp-form-group">
@@ -159,6 +155,7 @@ import { DEFAULT_ERP_PAGE_SIZE } from '../../core/constants/pagination.constants
                 <option value="CLASS">{{ 'inbox.audienceCLASS' | translate }}</option>
                 <option value="SECTION">{{ 'inbox.audienceSECTION' | translate }}</option>
               </select>
+              <small class="text-muted d-block mt-1">{{ 'inbox.audienceScopeHint' | translate }}</small>
             </div>
             <div class="erp-form-group" *ngIf="annForm.targetAudience === 'CLASS' || annForm.targetAudience === 'SECTION'">
               <label class="erp-label">{{ 'timetable.labelClass' | translate }}</label>
@@ -174,10 +171,22 @@ import { DEFAULT_ERP_PAGE_SIZE } from '../../core/constants/pagination.constants
                 <option *ngFor="let s of annSections" [ngValue]="s.id">{{ s.name }}</option>
               </select>
             </div>
+            <p *ngIf="announcementPublishError" class="text-danger small mb-0">{{ announcementPublishError }}</p>
+            <p *ngIf="announcementPublishInfo" class="text-muted small mb-0">{{ announcementPublishInfo }}</p>
           </div>
           <div class="modal-footer-erp">
-            <button type="button" class="btn-outline-erp" (click)="showAnnouncementModal = false">{{ 'inbox.cancel' | translate }}</button>
-            <button type="button" class="btn-primary-erp" (click)="publishAnnouncement()" [disabled]="!annForm.title.trim()">{{ 'inbox.publish' | translate }}</button>
+            <button type="button" class="btn-outline-erp" [disabled]="isPublishingAnnouncement" (click)="closeAnnouncementModal()">{{ 'inbox.cancel' | translate }}</button>
+            <button
+              type="button"
+              class="btn-primary-erp"
+              (click)="publishAnnouncement()"
+              [disabled]="isPublishingAnnouncement || !annForm.title.trim() || !annForm.content.trim()">
+              <span *ngIf="!isPublishingAnnouncement">{{ 'inbox.publish' | translate }}</span>
+              <span *ngIf="isPublishingAnnouncement">
+                <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                {{ 'inbox.publishInProgress' | translate }}
+              </span>
+            </button>
           </div>
         </div>
       </div>
@@ -232,6 +241,14 @@ import { DEFAULT_ERP_PAGE_SIZE } from '../../core/constants/pagination.constants
       .inbox-row:hover {
         box-shadow: 0 4px 18px rgba(0, 0, 0, 0.06);
       }
+      @media (max-width: 576px) {
+        .inbox-card-shell {
+          padding: 12px;
+        }
+        .modal-wide {
+          max-width: 100%;
+        }
+      }
     `,
   ],
 })
@@ -245,6 +262,9 @@ export class CommunicationComponent implements OnInit {
   appliedFilters: InboxFilterState = cloneInboxFilters(DEFAULT_INBOX_FILTER_STATE);
 
   showAnnouncementModal = false;
+  isPublishingAnnouncement = false;
+  announcementPublishError = '';
+  announcementPublishInfo = '';
   annClasses: SchoolClass[] = [];
   annSections: { id: number; name: string }[] = [];
   annSelectedClassId: number | null = null;
@@ -364,14 +384,38 @@ export class CommunicationComponent implements OnInit {
     return colors[type || 'info'] || 'var(--clr-info)';
   }
 
-  audienceBadgeFromKey(key: string | undefined): string {
+  audienceBadge(row: InboxUnifiedItem): string {
+    const key = row.audienceKey;
     if (!key) {
       return '';
     }
     const v = key.toUpperCase();
+    if (v === 'CLASS' || v === 'SECTION') {
+      const cls = this.annClasses.find(c => c.id === row.targetClassId);
+      const sec = cls?.sections?.find(s => s.id === row.targetSectionId);
+      const className = this.classDisplayName((row.targetClassName || cls?.name || '').trim());
+      const sectionName = (row.targetSectionName || sec?.name || '').trim();
+      if (v === 'SECTION' && className && sec?.name) {
+        return `${this.translate.instant('inbox.badgeClassPrefix')} ${className} - ${sectionName}`;
+      }
+      if (v === 'CLASS' && className) {
+        return `${this.translate.instant('inbox.badgeClassPrefix')} ${className}`;
+      }
+      if (v === 'SECTION' && className && sectionName) {
+        return `${this.translate.instant('inbox.badgeClassPrefix')} ${className} - ${sectionName}`;
+      }
+    }
     const trKey = `inbox.badge${v}`;
     const t = this.translate.instant(trKey);
     return t !== trKey ? t : v;
+  }
+
+  private classDisplayName(name: string): string {
+    const t = (name || '').trim();
+    if (!t) {
+      return '';
+    }
+    return t.toUpperCase().startsWith('CLASS ') ? t.substring(6).trim() : t;
   }
 
   onInboxSearchChange(): void {
@@ -404,28 +448,67 @@ export class CommunicationComponent implements OnInit {
     this.annSelectedClassId = null;
     this.annSelectedSectionId = null;
     this.annSections = [];
+    this.isPublishingAnnouncement = false;
+    this.announcementPublishError = '';
+    this.announcementPublishInfo = '';
     this.showAnnouncementModal = true;
   }
 
+  closeAnnouncementModal(): void {
+    if (this.isPublishingAnnouncement) {
+      return;
+    }
+    this.showAnnouncementModal = false;
+  }
+
   publishAnnouncement(): void {
+    if (this.isPublishingAnnouncement) {
+      return;
+    }
+    const title = this.annForm.title.trim();
+    const content = this.annForm.content.trim();
+    if (!title || !content) {
+      this.announcementPublishError = this.translate.instant('inbox.publishValidationTitleMessage');
+      return;
+    }
     let targetClassId: number | undefined;
     let targetSectionId: number | undefined;
     if (this.annForm.targetAudience === 'CLASS' || this.annForm.targetAudience === 'SECTION') {
       targetClassId = this.annSelectedClassId ?? undefined;
+      if (!targetClassId) {
+        this.announcementPublishError = this.translate.instant('inbox.publishValidationClass');
+        return;
+      }
     }
     if (this.annForm.targetAudience === 'SECTION') {
       targetSectionId = this.annSelectedSectionId ?? undefined;
+      if (!targetSectionId) {
+        this.announcementPublishError = this.translate.instant('inbox.publishValidationSection');
+        return;
+      }
     }
+    this.announcementPublishError = '';
+    this.announcementPublishInfo = this.translate.instant('inbox.publishInProgress');
+    this.isPublishingAnnouncement = true;
     const payload: CreateAnnouncementPayload = {
-      title: this.annForm.title.trim(),
-      content: this.annForm.content,
+      title,
+      content,
       targetAudience: this.annForm.targetAudience,
       targetClassId,
       targetSectionId,
     };
-    this.comm.createAnnouncement(payload).subscribe(() => {
-      this.showAnnouncementModal = false;
-      this.refreshInbox();
+    this.comm.createAnnouncement(payload).subscribe({
+      next: () => {
+        this.isPublishingAnnouncement = false;
+        this.announcementPublishInfo = this.translate.instant('inbox.publishSuccess');
+        this.showAnnouncementModal = false;
+        this.refreshInbox();
+      },
+      error: (err: { error?: { message?: string } }) => {
+        this.isPublishingAnnouncement = false;
+        this.announcementPublishInfo = '';
+        this.announcementPublishError = err?.error?.message || this.translate.instant('inbox.publishFailed');
+      },
     });
   }
 

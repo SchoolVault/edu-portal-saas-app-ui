@@ -6,6 +6,7 @@ import { AuthService } from '../../core/services/auth.service';
 import { DEFAULT_INBOX_FILTER_STATE, InboxFeedKindFilter, InboxFilterState } from '../../core/models/inbox-filter.model';
 import {
   allowedInboxAudiencePresetValues,
+  expandLogicalInboxAudienceTokens,
   inboxAudiencePresetOptionsForRole,
   sanitizeInboxAudienceTokens,
 } from '../../core/utils/inbox-audience-visibility';
@@ -143,7 +144,7 @@ export class InboxFiltersPanelComponent implements OnInit {
 
   emitDraft(): void {
     const role = this.auth.getNormalizedRole();
-    const raw = this.tokensFromAudiencePreset(this.audiencePreset);
+    const raw = expandLogicalInboxAudienceTokens(role, this.tokensFromAudiencePreset(this.audiencePreset));
     const tokens = sanitizeInboxAudienceTokens(role, raw);
     this.apply.emit({
       feedKind: this.draft.feedKind,

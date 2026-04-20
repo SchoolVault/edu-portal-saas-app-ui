@@ -26,6 +26,21 @@ public interface AnnouncementRepository extends JpaRepository<Announcement, Long
 
     Optional<Announcement> findByIdAndTenantIdAndIsDeletedFalse(Long id, String tenantId);
 
+    boolean existsByTenantIdAndIsDeletedFalseAndTitleIgnoreCaseAndTargetAudienceAndTargetClassIdAndTargetSectionIdAndCreatedAtAfter(
+            String tenantId,
+            String title,
+            com.school.erp.common.enums.Enums.TargetAudience targetAudience,
+            Long targetClassId,
+            Long targetSectionId,
+            LocalDateTime createdAtAfter);
+
+    boolean existsByTenantIdAndIsDeletedFalseAndTitleIgnoreCaseAndTargetAudienceAndTargetClassIdAndTargetSectionId(
+            String tenantId,
+            String title,
+            com.school.erp.common.enums.Enums.TargetAudience targetAudience,
+            Long targetClassId,
+            Long targetSectionId);
+
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("""
             UPDATE Announcement a SET a.isDeleted = true, a.deletedAt = :now

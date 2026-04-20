@@ -43,6 +43,8 @@ import com.school.erp.bootstrap.demo.DemoExtendedTablesSeed;
 import com.school.erp.modules.chat.repository.ChatConversationRepository;
 import com.school.erp.modules.chat.repository.ChatMessageRepository;
 import com.school.erp.modules.chat.repository.ChatParticipantRepository;
+import com.school.erp.modules.audit.entity.AuditLog;
+import com.school.erp.modules.audit.repository.AuditLogRepository;
 import com.school.erp.modules.fees.entity.PaymentWebhookEvent;
 import com.school.erp.modules.fees.repository.PaymentWebhookEventRepository;
 import com.school.erp.modules.importexport.ImportJobConstants;
@@ -63,6 +65,20 @@ import com.school.erp.modules.payroll.entity.SalaryStructure;
 import com.school.erp.modules.payroll.repository.PayslipRepository;
 import com.school.erp.modules.payroll.repository.SalaryComponentRepository;
 import com.school.erp.modules.payroll.repository.SalaryStructureRepository;
+import com.school.erp.modules.reports.entity.ReportAnalyticsPackConfig;
+import com.school.erp.modules.reports.entity.ReportGenerationJob;
+import com.school.erp.modules.reports.entity.ReportNotificationTemplate;
+import com.school.erp.modules.reports.entity.ReportPublicationSnapshot;
+import com.school.erp.modules.reports.entity.ReportShareDispatch;
+import com.school.erp.modules.reports.entity.ReportTemplate;
+import com.school.erp.modules.reports.entity.ReportWorkflowEventLog;
+import com.school.erp.modules.reports.repository.ReportAnalyticsPackConfigRepository;
+import com.school.erp.modules.reports.repository.ReportGenerationJobRepository;
+import com.school.erp.modules.reports.repository.ReportNotificationTemplateRepository;
+import com.school.erp.modules.reports.repository.ReportPublicationSnapshotRepository;
+import com.school.erp.modules.reports.repository.ReportShareDispatchRepository;
+import com.school.erp.modules.reports.repository.ReportTemplateRepository;
+import com.school.erp.modules.reports.repository.ReportWorkflowEventLogRepository;
 import com.school.erp.modules.settings.entity.TenantConfig;
 import com.school.erp.modules.settings.repository.TenantConfigRepository;
 import com.school.erp.modules.student.entity.Student;
@@ -152,7 +168,7 @@ public class DemoDataSeedService {
     private static final String FEATURES_JSON = "{\"chat\":true,\"transport\":true,\"library\":true,\"hostel\":true,"
             + "\"operationsHub\":true,\"importExport\":true,\"directory\":true,"
             + "\"payroll\":true,\"documents\":true,\"audit\":true,\"communication\":true,\"reports\":true,\"student\":true,\"teacher\":true,"
-            + "\"attendance\":true,\"fees\":true}";
+            + "\"attendance\":true,\"fees\":true,\"leave\":true}";
 
     // Realistic Indian name pools for data generation
     private static final String[] MALE_FIRST_NAMES = {
@@ -237,10 +253,23 @@ public class DemoDataSeedService {
     private final ChatMessageRepository chatMessageRepository;
     private final ImportJobRepository importJobRepository;
     private final ImportJobLineRepository importJobLineRepository;
+    private final AuditLogRepository auditLogRepository;
     private final NotificationOutboxRepository notificationOutboxRepository;
     private final NotificationDispatchPort notificationDispatchPort;
     private final SalaryDisbursementAttemptRepository salaryDisbursementAttemptRepository;
     private final PaymentWebhookEventRepository paymentWebhookEventRepository;
+    private final ExamTemplateRepository examTemplateRepository;
+    private final ExamTemplateComponentRepository examTemplateComponentRepository;
+    private final ExamNotificationJobRepository examNotificationJobRepository;
+    private final ExamEventLogRepository examEventLogRepository;
+    private final ExamBulkOperationLogRepository examBulkOperationLogRepository;
+    private final ReportTemplateRepository reportTemplateRepository;
+    private final ReportGenerationJobRepository reportGenerationJobRepository;
+    private final ReportNotificationTemplateRepository reportNotificationTemplateRepository;
+    private final ReportShareDispatchRepository reportShareDispatchRepository;
+    private final ReportPublicationSnapshotRepository reportPublicationSnapshotRepository;
+    private final ReportWorkflowEventLogRepository reportWorkflowEventLogRepository;
+    private final ReportAnalyticsPackConfigRepository reportAnalyticsPackConfigRepository;
     private final DemoExtendedTablesSeed demoExtendedTablesSeed;
     private final EntityManager entityManager;
 
@@ -296,10 +325,23 @@ public class DemoDataSeedService {
             ChatMessageRepository chatMessageRepository,
             ImportJobRepository importJobRepository,
             ImportJobLineRepository importJobLineRepository,
+            AuditLogRepository auditLogRepository,
             NotificationOutboxRepository notificationOutboxRepository,
             NotificationDispatchPort notificationDispatchPort,
             SalaryDisbursementAttemptRepository salaryDisbursementAttemptRepository,
             PaymentWebhookEventRepository paymentWebhookEventRepository,
+            ExamTemplateRepository examTemplateRepository,
+            ExamTemplateComponentRepository examTemplateComponentRepository,
+            ExamNotificationJobRepository examNotificationJobRepository,
+            ExamEventLogRepository examEventLogRepository,
+            ExamBulkOperationLogRepository examBulkOperationLogRepository,
+            ReportTemplateRepository reportTemplateRepository,
+            ReportGenerationJobRepository reportGenerationJobRepository,
+            ReportNotificationTemplateRepository reportNotificationTemplateRepository,
+            ReportShareDispatchRepository reportShareDispatchRepository,
+            ReportPublicationSnapshotRepository reportPublicationSnapshotRepository,
+            ReportWorkflowEventLogRepository reportWorkflowEventLogRepository,
+            ReportAnalyticsPackConfigRepository reportAnalyticsPackConfigRepository,
             EntityManager entityManager,
             DemoExtendedTablesSeed demoExtendedTablesSeed) {
         this.tenantConfigRepository = tenantConfigRepository;
@@ -347,10 +389,23 @@ public class DemoDataSeedService {
         this.chatMessageRepository = chatMessageRepository;
         this.importJobRepository = importJobRepository;
         this.importJobLineRepository = importJobLineRepository;
+        this.auditLogRepository = auditLogRepository;
         this.notificationOutboxRepository = notificationOutboxRepository;
         this.notificationDispatchPort = notificationDispatchPort;
         this.salaryDisbursementAttemptRepository = salaryDisbursementAttemptRepository;
         this.paymentWebhookEventRepository = paymentWebhookEventRepository;
+        this.examTemplateRepository = examTemplateRepository;
+        this.examTemplateComponentRepository = examTemplateComponentRepository;
+        this.examNotificationJobRepository = examNotificationJobRepository;
+        this.examEventLogRepository = examEventLogRepository;
+        this.examBulkOperationLogRepository = examBulkOperationLogRepository;
+        this.reportTemplateRepository = reportTemplateRepository;
+        this.reportGenerationJobRepository = reportGenerationJobRepository;
+        this.reportNotificationTemplateRepository = reportNotificationTemplateRepository;
+        this.reportShareDispatchRepository = reportShareDispatchRepository;
+        this.reportPublicationSnapshotRepository = reportPublicationSnapshotRepository;
+        this.reportWorkflowEventLogRepository = reportWorkflowEventLogRepository;
+        this.reportAnalyticsPackConfigRepository = reportAnalyticsPackConfigRepository;
         this.demoExtendedTablesSeed = demoExtendedTablesSeed;
         this.entityManager = entityManager;
     }
@@ -425,19 +480,17 @@ public class DemoDataSeedService {
     // PLATFORM SUPER ADMIN
     // ═══════════════════════════════════════════════════════════════════════════════════════════
 
-    /**
-     * Fills extended demo tables ({@link DemoExtendedTablesSeed}) for DPS-DLH and KV-MUM when those tenants exist.
-     * Safe on every startup: each tenant skips after a marker inventory row is present.
-     */
     private void applyExtendedDemoSeedsForConfiguredSchools() {
-        for (String code : List.of("DPS-DLH", "KV-MUM")) {
-            tenantConfigRepository.findBySchoolCode(code).ifPresent(tc -> {
-                try {
-                    demoExtendedTablesSeed.seedExtendedModuleRows(tc.getTenantId(), code);
-                } catch (Exception e) {
-                    log.warn("Extended demo seed for {} skipped or failed: {}", code, e.getMessage());
-                }
-            });
+        List<TenantConfig> demoTenants = tenantConfigRepository.findAll().stream()
+                .filter(tc -> !Boolean.TRUE.equals(tc.getIsDeleted()))
+                .filter(tc -> tc.getTenantId() != null && !"SUPER_ADMIN_PLATFORM".equals(tc.getTenantId()))
+                .toList();
+        for (TenantConfig tc : demoTenants) {
+            try {
+                demoExtendedTablesSeed.seedExtendedModuleRows(tc.getTenantId(), tc.getSchoolCode());
+            } catch (Exception e) {
+                log.warn("Extended demo seed for {} skipped or failed: {}", tc.getSchoolCode(), e.getMessage());
+            }
         }
     }
 
@@ -544,7 +597,8 @@ public class DemoDataSeedService {
 
         // STEP 10: Exams & Mark Records
         log.info("  [10/15] Exams & Marks...");
-        createExamsAndMarks(tenantId, academicYear.getId(), classesMap, allStudents, random);
+        List<Exam> seededExams = createExamsAndMarks(tenantId, academicYear.getId(), classesMap, allStudents, random);
+        createExamAndReportModuleSeedData(tenantId, academicYear.getId(), classesMap, allStudents, teachers, seededExams, random);
         log.info("  [10/15] ✓ Created exams and mark records");
         flushAndClear(); // Critical: Clear memory after marks
         pauseForResourceManagement();
@@ -595,6 +649,11 @@ public class DemoDataSeedService {
 
         createLeaveRequests(tenantId, teachers, allStudents, random);
         flushAndClear();
+        pauseForResourceManagement();
+
+        seedShowcaseSupplementaryRows(tenantId, schoolCode);
+        createMeaningfulAuditTrailSeed(tenantId, schoolCode, adminUser, teachers, allStudents);
+        flushAndClear();
 
         log.info("══════════════════════════════════════════════════════════════");
         log.info("✅ School {} SEEDED SUCCESSFULLY!", schoolCode);
@@ -629,6 +688,68 @@ public class DemoDataSeedService {
         seedNotificationOutboxShowcase(tenantId, schoolCode);
         seedPayslipAndSalaryDisbursementDemo(tenantId, schoolCode);
         seedPaymentWebhookDemoRow(tenantId, schoolCode);
+    }
+
+    private void createMeaningfulAuditTrailSeed(String tenantId, String schoolCode, User adminUser,
+                                                List<Teacher> teachers, List<Student> students) {
+        if (auditLogRepository.findByTenantIdAndIsDeletedFalse(tenantId, org.springframework.data.domain.Pageable.ofSize(1))
+                .getTotalElements() > 0) {
+            return;
+        }
+        Student sampleStudent = students.isEmpty() ? null : students.get(0);
+        Teacher classTeacher = teachers.isEmpty() ? null : teachers.get(0);
+        Teacher coveringTeacher = teachers.size() > 1 ? teachers.get(1) : classTeacher;
+        Long classTeacherUserId = classTeacher != null ? classTeacher.getUserId() : null;
+        Long coveringTeacherUserId = coveringTeacher != null ? coveringTeacher.getUserId() : null;
+        String classScope = sampleStudent == null
+                ? "Class 7-A"
+                : ("Class " + sampleStudent.getClassId() + (sampleStudent.getSectionId() != null ? ", Section " + sampleStudent.getSectionId() : ""));
+        String adminName = adminUser != null && adminUser.getName() != null ? adminUser.getName() : "School Admin";
+        String classTeacherName = classTeacher != null ? (classTeacher.getFirstName() + " " + classTeacher.getLastName()).trim() : "Class Teacher";
+        String coveringName = coveringTeacher != null ? (coveringTeacher.getFirstName() + " " + coveringTeacher.getLastName()).trim() : "Cover Teacher";
+        String studentName = sampleStudent != null ? (sampleStudent.getFirstName() + " " + sampleStudent.getLastName()).trim() : "Student";
+        Long studentId = sampleStudent != null ? sampleStudent.getId() : null;
+        Long teacherId = classTeacher != null ? classTeacher.getId() : null;
+
+        List<AuditLog> rows = new ArrayList<>();
+        rows.add(buildAuditRow(tenantId, Enums.AuditAction.LOGIN, "Auth",
+                adminName + " logged in to " + schoolCode + " workspace.", adminUser != null ? adminUser.getId() : null, adminName, null, "User"));
+        rows.add(buildAuditRow(tenantId, Enums.AuditAction.UPDATE, "Attendance",
+                classTeacherName + " marked attendance for " + classScope + " (today).", classTeacherUserId, classTeacherName, teacherId, "AttendanceRecord"));
+        rows.add(buildAuditRow(tenantId, Enums.AuditAction.UPDATE, "Attendance",
+                coveringName + " marked attendance for " + classScope + " on behalf of class teacher " + classTeacherName + ".", coveringTeacherUserId, coveringName, teacherId, "AttendanceCoverAssignment"));
+        rows.add(buildAuditRow(tenantId, Enums.AuditAction.UPDATE, "Fees",
+                adminName + " recorded a partial fee payment for " + studentName + ".", adminUser != null ? adminUser.getId() : null, adminName, studentId, "FeePayment"));
+        rows.add(buildAuditRow(tenantId, Enums.AuditAction.CREATE, "Exams",
+                adminName + " published Mid-Term exam timetable for " + classScope + ".", adminUser != null ? adminUser.getId() : null, adminName, null, "Exam"));
+        rows.add(buildAuditRow(tenantId, Enums.AuditAction.UPDATE, "Reports",
+                adminName + " approved and published report cards for " + classScope + ".", adminUser != null ? adminUser.getId() : null, adminName, null, "ReportGenerationJob"));
+        rows.add(buildAuditRow(tenantId, Enums.AuditAction.CREATE, "Communication",
+                adminName + " broadcast an announcement to parents about PTM timing changes.", adminUser != null ? adminUser.getId() : null, adminName, null, "Announcement"));
+        rows.add(buildAuditRow(tenantId, Enums.AuditAction.UPDATE, "Timetable",
+                adminName + " adjusted timetable slot for " + classScope + " to resolve a period conflict.", adminUser != null ? adminUser.getId() : null, adminName, teacherId, "TimetableEntry"));
+        rows.add(buildAuditRow(tenantId, Enums.AuditAction.CREATE, "Operations",
+                adminName + " issued a gate pass for " + studentName + " (medical appointment).", adminUser != null ? adminUser.getId() : null, adminName, studentId, "GatePass"));
+        rows.add(buildAuditRow(tenantId, Enums.AuditAction.UPDATE, "Payroll",
+                adminName + " completed monthly payroll disbursement for teaching staff.", adminUser != null ? adminUser.getId() : null, adminName, teacherId, "Payslip"));
+        auditLogRepository.saveAll(rows);
+    }
+
+    private AuditLog buildAuditRow(String tenantId, Enums.AuditAction action, String module,
+                                   String description, Long userId, String userName,
+                                   Long entityId, String entityType) {
+        AuditLog row = AuditLog.builder()
+                .action(action)
+                .module(module)
+                .description(description)
+                .userId(userId)
+                .userName(userName)
+                .ipAddress("system")
+                .entityId(entityId)
+                .entityType(entityType)
+                .build();
+        row.setTenantId(tenantId);
+        return row;
     }
 
     private void seedAcademicSubjectCatalogIfMissing(String tenantId) {
@@ -1583,9 +1704,9 @@ public class DemoDataSeedService {
         feeComponentRepository.save(fc);
     }
 
-    private void createExamsAndMarks(String tenantId, Long academicYearId,
-                                    Map<Integer, List<ClassSectionPair>> classesMap,
-                                    List<Student> allStudents, Random random) {
+    private List<Exam> createExamsAndMarks(String tenantId, Long academicYearId,
+                                           Map<Integer, List<ClassSectionPair>> classesMap,
+                                           List<Student> allStudents, Random random) {
         String[] examNames = {"Unit Test 1", "Mid-Term Exam", "Unit Test 2", "Final Exam"};
         LocalDate[] examDates = {
             LocalDate.of(2025, 6, 15),
@@ -1595,6 +1716,7 @@ public class DemoDataSeedService {
         };
         String[] subjects = {"Mathematics", "Science", "English", "Hindi", "Social Studies"};
 
+        List<Exam> seededExams = new ArrayList<>();
         for (int examIdx = 0; examIdx < examNames.length; examIdx++) {
             Exam exam = new Exam();
             exam.setTenantId(tenantId);
@@ -1604,8 +1726,11 @@ public class DemoDataSeedService {
             exam.setEndDate(examDates[examIdx].plusDays(7));
             exam.setStatus(examIdx <= 1 ? Enums.ExamStatus.COMPLETED : Enums.ExamStatus.UPCOMING);
             exam.setResultsPublished(examIdx == 0); // Only first exam results published
+            exam.setWorkflowState(examIdx == 0 ? "PUBLISHED" : "APPROVED");
+            exam.setWorkflowNote("Demo seeded exam lifecycle");
             exam.setIsDeleted(false);
             exam = examRepository.save(exam);
+            seededExams.add(exam);
 
             // Add all classes to exam scope
             for (int grade = 6; grade <= 12; grade++) {
@@ -1673,6 +1798,314 @@ public class DemoDataSeedService {
                 }
             }
         }
+        return seededExams;
+    }
+
+    private void createExamAndReportModuleSeedData(
+            String tenantId,
+            Long academicYearId,
+            Map<Integer, List<ClassSectionPair>> classesMap,
+            List<Student> allStudents,
+            List<Teacher> teachers,
+            List<Exam> seededExams,
+            Random random) {
+        List<User> adminUsers = userRepository.findByTenantIdAndRoleAndIsDeletedFalse(tenantId, Enums.Role.ADMIN);
+        User creator = adminUsers.isEmpty() ? null : adminUsers.get(0);
+        User approver = adminUsers.size() > 1 ? adminUsers.get(1) : creator;
+        User publisher = creator;
+        if (!teachers.isEmpty()) {
+            publisher = userRepository.findByEmailAndTenantIdAndIsDeletedFalse(teachers.get(0).getEmail(), tenantId).orElse(creator);
+        }
+        if (!seededExams.isEmpty()) {
+            seedExamOperationalData(tenantId, academicYearId, classesMap, seededExams.get(0), creator);
+        }
+        seedReportOperationalData(tenantId, allStudents, seededExams, creator, approver, publisher, random);
+    }
+
+    private void seedExamOperationalData(
+            String tenantId,
+            Long academicYearId,
+            Map<Integer, List<ClassSectionPair>> classesMap,
+            Exam anchorExam,
+            User actor) {
+        List<ExamTemplate> templates = examTemplateRepository.findByTenantIdAndIsDeletedFalseOrderByNameAsc(tenantId);
+        if (templates.isEmpty()) {
+            ExamTemplate template = new ExamTemplate();
+            template.setTenantId(tenantId);
+            template.setName("CBSE Term Pattern Template");
+            template.setBoardType("CBSE");
+            template.setClassBand("6-10");
+            template.setDefaultMarkingScheme("THEORY_PRACTICAL");
+            template.setRulesJson("{\"maxPapersPerDay\":1,\"requiresRoom\":true,\"requiresInvigilator\":true}");
+            template.setIsDeleted(false);
+            template = examTemplateRepository.save(template);
+
+            ExamTemplateComponent theory = new ExamTemplateComponent();
+            theory.setTenantId(tenantId);
+            theory.setTemplateId(template.getId());
+            theory.setComponentCode("THEORY");
+            theory.setComponentLabel("Theory");
+            theory.setMaxMarks(BigDecimal.valueOf(80d));
+            theory.setWeightagePct(BigDecimal.valueOf(80d));
+            theory.setOptional(false);
+            theory.setRuleJson("{\"minPassMarks\":26}");
+            theory.setIsDeleted(false);
+            examTemplateComponentRepository.save(theory);
+
+            ExamTemplateComponent practical = new ExamTemplateComponent();
+            practical.setTenantId(tenantId);
+            practical.setTemplateId(template.getId());
+            practical.setComponentCode("PRACTICAL");
+            practical.setComponentLabel("Practical");
+            practical.setMaxMarks(BigDecimal.valueOf(20d));
+            practical.setWeightagePct(BigDecimal.valueOf(20d));
+            practical.setOptional(false);
+            practical.setRuleJson("{\"minPassMarks\":7}");
+            practical.setIsDeleted(false);
+            examTemplateComponentRepository.save(practical);
+        }
+
+        if (examNotificationJobRepository
+                .findByTenantIdAndExamIdAndIsDeletedFalseOrderByCreatedAtDesc(tenantId, anchorExam.getId(), org.springframework.data.domain.PageRequest.of(0, 1))
+                .isEmpty()) {
+            ExamNotificationJob job = new ExamNotificationJob();
+            job.setTenantId(tenantId);
+            job.setExamId(anchorExam.getId());
+            job.setEventType("RESULT_PUBLISH_READY");
+            job.setTargetRole("PARENT");
+            job.setLocaleCode("en");
+            job.setStatus("PENDING");
+            job.setAttempts(0);
+            job.setMaxAttempts(5);
+            job.setPayloadJson("{\"examName\":\"" + anchorExam.getName() + "\",\"academicYearId\":" + academicYearId + "}");
+            job.setIsDeleted(false);
+            examNotificationJobRepository.save(job);
+        }
+
+        ExamEventLog eventLog = new ExamEventLog();
+        eventLog.setTenantId(tenantId);
+        eventLog.setExamId(anchorExam.getId());
+        eventLog.setEventType("SEED_EXAM_WORKFLOW_INITIALIZED");
+        eventLog.setActorUserId(actor != null ? actor.getId() : null);
+        eventLog.setActorRole(actor != null && actor.getRole() != null ? actor.getRole().name() : "ADMIN");
+        eventLog.setPayloadJson("{\"source\":\"demo-seed\",\"classBands\":" + classesMap.size() + "}");
+        eventLog.setIsDeleted(false);
+        examEventLogRepository.save(eventLog);
+
+        ExamBulkOperationLog bulk = examBulkOperationLogRepository
+                .findByTenantIdAndOperationTypeAndRequestIdAndIsDeletedFalse(tenantId, "SAVE_MARKS", "seed-marks-" + anchorExam.getId())
+                .orElseGet(ExamBulkOperationLog::new);
+        bulk.setTenantId(tenantId);
+        bulk.setOperationType("SAVE_MARKS");
+        bulk.setRequestId("seed-marks-" + anchorExam.getId());
+        bulk.setExamId(anchorExam.getId());
+        bulk.setStatus("COMPLETED");
+        bulk.setResponseJson("{\"saved\":true,\"rows\":true}");
+        bulk.setIsDeleted(false);
+        examBulkOperationLogRepository.save(bulk);
+    }
+
+    private void seedReportOperationalData(
+            String tenantId,
+            List<Student> allStudents,
+            List<Exam> seededExams,
+            User creator,
+            User approver,
+            User publisher,
+            Random random) {
+        ReportTemplate template = reportTemplateRepository.findByTenantIdAndTemplateCodeAndIsDeletedFalse(tenantId, "DEMO_ACADEMIC_PERFORMANCE_V1")
+                .orElseGet(() -> {
+                    ReportTemplate t = new ReportTemplate();
+                    t.setTenantId(tenantId);
+                    t.setTemplateCode("DEMO_ACADEMIC_PERFORMANCE_V1");
+                    t.setName("Demo Academic Performance Report");
+                    t.setReportType("STUDENT_PERFORMANCE");
+                    t.setDefaultFormat("PDF");
+                    t.setPackCode("CBSE");
+                    t.setLayoutConfigJson("{\"columns\":[\"studentName\",\"totalMarks\",\"percentage\",\"grade\"]}");
+                    t.setFilterSchemaJson("{\"required\":[\"classId\",\"examId\"]}");
+                    t.setSystemTemplate(true);
+                    t.setIsDeleted(false);
+                    return reportTemplateRepository.save(t);
+                });
+
+        ensureReportNotificationTemplate(tenantId, "REPORT_SHARED_DEFAULT", "IN_APP", "PARENT", "en",
+                "Report available: {{reportType}}", "Your school shared {{reportType}}. Download from reports.");
+        ensureReportNotificationTemplate(tenantId, "REPORT_SHARED_DEFAULT", "IN_APP", "PARENT", "hi",
+                "रिपोर्ट उपलब्ध: {{reportType}}", "स्कूल ने {{reportType}} साझा किया है। रिपोर्ट अनुभाग से डाउनलोड करें।");
+
+        Long classId = allStudents.isEmpty() ? 0L : allStudents.get(0).getClassId();
+        Long examId = seededExams.isEmpty() ? 0L : seededExams.get(0).getId();
+
+        ReportGenerationJob published = createReportJob(tenantId, template.getId(), "seed-report-published-" + tenantId,
+                "COMPLETED", "PUBLISHED", creator, approver, publisher, classId, examId, true, random);
+        ReportGenerationJob approved = createReportJob(tenantId, template.getId(), "seed-report-approved-" + tenantId,
+                "COMPLETED", "APPROVED", creator, approver, null, classId, examId, false, random);
+        createReportJob(tenantId, template.getId(), "seed-report-draft-" + tenantId,
+                "COMPLETED", "DRAFT", creator, null, null, classId, examId, false, random);
+        ReportGenerationJob failed = createReportJob(tenantId, template.getId(), "seed-report-failed-" + tenantId,
+                "FAILED", "DRAFT", creator, null, null, classId, examId, false, random);
+        failed.setAttempts(3);
+        failed.setMaxAttempts(3);
+        failed.setLastError("Seeded demo failure for retry test.");
+        failed.setNextRetryAt(null);
+        reportGenerationJobRepository.save(failed);
+
+        createWorkflowLog(tenantId, published.getId(), "JOB_CREATED", null, "DRAFT", creator, "Seeded published flow.");
+        createWorkflowLog(tenantId, approved.getId(), "JOB_APPROVED", "DRAFT", "APPROVED", approver, "Seeded approval flow.");
+        createWorkflowLog(tenantId, published.getId(), "JOB_PUBLISHED", "APPROVED", "PUBLISHED", publisher, "Seeded publication flow.");
+        createWorkflowLog(tenantId, failed.getId(), "JOB_FAILED", "RUNNING", "DRAFT", creator, "Seeded failure flow.");
+
+        if (reportPublicationSnapshotRepository.findByTenantIdAndReportJobIdAndIsDeletedFalseOrderByVersionNoDesc(tenantId, published.getId()).isEmpty()) {
+            ReportPublicationSnapshot v1 = new ReportPublicationSnapshot();
+            v1.setTenantId(tenantId);
+            v1.setReportJobId(published.getId());
+            v1.setVersionNo(1);
+            v1.setSnapshotType("PUBLISH");
+            v1.setSnapshotJson("{\"workflowState\":\"PUBLISHED\",\"note\":\"v1\"}");
+            v1.setNote("Initial publication snapshot");
+            v1.setPublishedAt(LocalDateTime.now().minusDays(1));
+            v1.setIsDeleted(false);
+            reportPublicationSnapshotRepository.save(v1);
+
+            ReportPublicationSnapshot v2 = new ReportPublicationSnapshot();
+            v2.setTenantId(tenantId);
+            v2.setReportJobId(published.getId());
+            v2.setVersionNo(2);
+            v2.setSnapshotType("ROLLBACK");
+            v2.setSnapshotJson("{\"workflowState\":\"PUBLISHED\",\"note\":\"rollback-ready\"}");
+            v2.setNote("Rollback candidate snapshot");
+            v2.setPublishedAt(LocalDateTime.now());
+            v2.setIsDeleted(false);
+            reportPublicationSnapshotRepository.save(v2);
+        }
+
+        ReportShareDispatch dispatch = new ReportShareDispatch();
+        dispatch.setTenantId(tenantId);
+        dispatch.setReportJobId(published.getId());
+        dispatch.setChannel("IN_APP");
+        dispatch.setTargetRole("PARENT");
+        dispatch.setLocaleCode("en");
+        dispatch.setTemplateCode("REPORT_SHARED_DEFAULT");
+        dispatch.setStatus("SENT");
+        dispatch.setAttempts(1);
+        dispatch.setMaxAttempts(5);
+        dispatch.setDeliveredCount(Math.max(1, allStudents.size() / 2));
+        dispatch.setIsDeleted(false);
+        reportShareDispatchRepository.save(dispatch);
+
+        seedAnalyticsPackConfig(tenantId, "CBSE", 85d, 60d, 75d);
+        seedAnalyticsPackConfig(tenantId, "ICSE", 80d, 55d, 75d);
+        seedAnalyticsPackConfig(tenantId, "STATE", 75d, 50d, 70d);
+        seedAnalyticsPackConfig(tenantId, "CUSTOM", 82d, 57d, 74d);
+    }
+
+    private ReportGenerationJob createReportJob(
+            String tenantId,
+            Long templateId,
+            String requestId,
+            String status,
+            String workflowState,
+            User creator,
+            User approver,
+            User publisher,
+            Long classId,
+            Long examId,
+            boolean includeFile,
+            Random random) {
+        ReportGenerationJob existing = reportGenerationJobRepository.findByTenantIdAndRequestIdAndIsDeletedFalse(tenantId, requestId).orElse(null);
+        if (existing != null) {
+            return existing;
+        }
+        ReportGenerationJob job = new ReportGenerationJob();
+        job.setTenantId(tenantId);
+        job.setRequestId(requestId);
+        job.setTemplateId(templateId);
+        job.setReportType("STUDENT_PERFORMANCE");
+        job.setFormat("PDF");
+        job.setFilterJson("{\"classId\":" + classId + ",\"examId\":" + examId + "}");
+        job.setShareConfigJson("{\"channels\":[\"IN_APP\"],\"targetRoles\":[\"PARENT\"],\"locales\":[\"en\"],\"templateCode\":\"REPORT_SHARED_DEFAULT\"}");
+        job.setStatus(status);
+        job.setWorkflowState(workflowState);
+        job.setWorkflowNote("Demo seeded state " + workflowState);
+        job.setAttempts(0);
+        job.setMaxAttempts(3);
+        job.setCreatorUserId(creator != null ? creator.getId() : null);
+        job.setApproverUserId(approver != null ? approver.getId() : null);
+        job.setPublisherUserId(publisher != null ? publisher.getId() : null);
+        job.setGeneratedAt(LocalDateTime.now().minusHours(8 + random.nextInt(18)));
+        if ("APPROVED".equals(workflowState) || "PUBLISHED".equals(workflowState)) {
+            job.setApprovedAt(LocalDateTime.now().minusHours(2));
+        }
+        if ("PUBLISHED".equals(workflowState)) {
+            job.setPublishedAt(LocalDateTime.now().minusHours(1));
+            job.setLastPublishIdempotencyKey("seed-publish-" + requestId);
+        }
+        if ("APPROVED".equals(workflowState)) {
+            job.setLastApproveIdempotencyKey("seed-approve-" + requestId);
+        }
+        if (includeFile) {
+            byte[] content = ("Demo report payload for " + requestId).getBytes(java.nio.charset.StandardCharsets.UTF_8);
+            job.setFileName("report-" + requestId + ".pdf");
+            job.setContentType("application/pdf");
+            job.setFileContent(content);
+            job.setContentSizeBytes((long) content.length);
+        }
+        job.setIsDeleted(false);
+        return reportGenerationJobRepository.save(job);
+    }
+
+    private void createWorkflowLog(String tenantId, Long jobId, String eventCode, String fromState, String toState, User actor, String note) {
+        ReportWorkflowEventLog row = new ReportWorkflowEventLog();
+        row.setTenantId(tenantId);
+        row.setReportJobId(jobId);
+        row.setActorUserId(actor != null ? actor.getId() : null);
+        row.setActorRole(actor != null && actor.getRole() != null ? actor.getRole().name() : "ADMIN");
+        row.setEventCode(eventCode);
+        row.setFromState(fromState);
+        row.setToState(toState);
+        row.setNote(note);
+        row.setEventMetaJson("{\"source\":\"demo-seed\"}");
+        row.setOccurredAt(LocalDateTime.now().minusMinutes(20));
+        row.setIsDeleted(false);
+        reportWorkflowEventLogRepository.save(row);
+    }
+
+    private void ensureReportNotificationTemplate(
+            String tenantId,
+            String templateCode,
+            String channel,
+            String role,
+            String locale,
+            String title,
+            String message) {
+        if (reportNotificationTemplateRepository
+                .findByTenantIdAndTemplateCodeAndTargetRoleAndLocaleCodeAndChannelAndIsDeletedFalse(tenantId, templateCode, role, locale, channel)
+                .isPresent()) {
+            return;
+        }
+        ReportNotificationTemplate template = new ReportNotificationTemplate();
+        template.setTenantId(tenantId);
+        template.setTemplateCode(templateCode);
+        template.setChannel(channel);
+        template.setTargetRole(role);
+        template.setLocaleCode(locale);
+        template.setTitleTemplate(title);
+        template.setMessageTemplate(message);
+        template.setIsDeleted(false);
+        reportNotificationTemplateRepository.save(template);
+    }
+
+    private void seedAnalyticsPackConfig(String tenantId, String packCode, double excellentPct, double laggingPct, double minAttendancePct) {
+        ReportAnalyticsPackConfig config = reportAnalyticsPackConfigRepository
+                .findByTenantIdAndPackCodeAndIsDeletedFalse(tenantId, packCode)
+                .orElseGet(ReportAnalyticsPackConfig::new);
+        config.setTenantId(tenantId);
+        config.setPackCode(packCode);
+        config.setConfigJson("{\"excellentPct\":" + excellentPct + ",\"laggingPct\":" + laggingPct + ",\"promotionMinAttendance\":" + minAttendancePct + "}");
+        config.setFormulaJson("{\"promotionFormula\":\"performancePct >= 33 && attendancePct >= promotionMinAttendance\"}");
+        config.setIsDeleted(false);
+        reportAnalyticsPackConfigRepository.save(config);
     }
 
     private void createAttendance(String tenantId, List<Student> allStudents,
@@ -2338,6 +2771,10 @@ public class DemoDataSeedService {
             Enums.TargetAudience audience,
             Long targetClassId,
             Long targetSectionId) {
+        if (announcementRepository.existsByTenantIdAndIsDeletedFalseAndTitleIgnoreCaseAndTargetAudienceAndTargetClassIdAndTargetSectionId(
+                tenantId, title, audience, targetClassId, targetSectionId)) {
+            return;
+        }
         Announcement announcement = new Announcement();
         announcement.setTenantId(tenantId);
         announcement.setTitle(title);
@@ -2407,6 +2844,10 @@ public class DemoDataSeedService {
             Enums.NotificationType type,
             boolean read,
             String link) {
+        if (notificationRepository.existsByTenantIdAndUserIdAndIsDeletedFalseAndTitleAndMessageAndLink(
+                tenantId, userId, title, message, link)) {
+            return;
+        }
         Notification n = Notification.builder()
                 .title(title)
                 .message(message)

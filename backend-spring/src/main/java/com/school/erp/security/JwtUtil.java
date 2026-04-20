@@ -122,6 +122,10 @@ public class JwtUtil {
         return parseToken(token).get("role", String.class);
     }
 
+    public String getName(String token) {
+        return parseToken(token).get("name", String.class);
+    }
+
     /** Fine-grained authorities (e.g. LIBRARY_CIRCULATION) in addition to ROLE_* . */
     public List<String> getPermissionAuthorities(String token) {
         String raw = parseToken(token).get("permissions", String.class);

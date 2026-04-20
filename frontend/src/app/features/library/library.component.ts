@@ -16,11 +16,12 @@ import { DEFAULT_ERP_PAGE_SIZE } from '../../core/constants/pagination.constants
 import { sliceToPage } from '../../core/utils/paginate';
 import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directives';
 import { runtimeConfig } from '../../core/config/runtime-config';
+import { SchoolClassNamePipe } from '../../core/i18n/school-class-name.pipe';
 
 @Component({
   selector: 'app-library',
   standalone: true,
-  imports: [CommonModule, FormsModule, ErpDatePickerComponent, TranslateModule, ErpPaginationComponent, ErpI18nPhDirective],
+  imports: [CommonModule, FormsModule, ErpDatePickerComponent, TranslateModule, ErpPaginationComponent, ErpI18nPhDirective, SchoolClassNamePipe],
   styleUrl: './library.component.css',
   template: `
     <div data-testid="library-page">
@@ -232,7 +233,7 @@ import { runtimeConfig } from '../../core/config/runtime-config';
           <label class="erp-label">{{ 'library.thStudent' | translate }}</label>
           <select class="erp-select mb-2" [(ngModel)]="issueForm.studentId" (ngModelChange)="syncIssueStudent()">
             <option [ngValue]="null">{{ 'library.selectStudent' | translate }}</option>
-            <option *ngFor="let s of students" [ngValue]="s.id">{{ s.firstName }} {{ s.lastName }} · {{ s.className }}</option>
+            <option *ngFor="let s of students" [ngValue]="s.id">{{ s.firstName }} {{ s.lastName }} · {{ s.className | schoolClassName }}</option>
           </select>
           <label class="erp-label">{{ 'library.labelDueDays' | translate }}</label>
           <input class="erp-input mb-2" type="number" min="1" [(ngModel)]="issueForm.dueDays">

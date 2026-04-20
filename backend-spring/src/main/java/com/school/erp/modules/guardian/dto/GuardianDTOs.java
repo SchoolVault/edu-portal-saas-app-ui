@@ -438,4 +438,61 @@ public final class GuardianDTOs {
             this.parentPortalLinked = parentPortalLinked;
         }
     }
+
+    public static class UpdateMappingRequest {
+        private Enums.GuardianRelationType relationType;
+        private Boolean isPrimary;
+        private Boolean isEmergencyContact;
+        private String custodyType;
+        private LocalDate effectiveFrom;
+        private LocalDate effectiveTo;
+
+        public Enums.GuardianRelationType getRelationType() {
+            return relationType;
+        }
+
+        public void setRelationType(Enums.GuardianRelationType relationType) {
+            this.relationType = relationType;
+        }
+
+        public Boolean getIsPrimary() {
+            return isPrimary;
+        }
+
+        public void setIsPrimary(Boolean primary) {
+            isPrimary = primary;
+        }
+
+        public Boolean getIsEmergencyContact() {
+            return isEmergencyContact;
+        }
+
+        public void setIsEmergencyContact(Boolean emergencyContact) {
+            isEmergencyContact = emergencyContact;
+        }
+
+        public String getCustodyType() {
+            return custodyType;
+        }
+
+        public void setCustodyType(String custodyType) {
+            this.custodyType = custodyType;
+        }
+
+        public LocalDate getEffectiveFrom() {
+            return effectiveFrom;
+        }
+
+        public void setEffectiveFrom(LocalDate effectiveFrom) {
+            this.effectiveFrom = effectiveFrom;
+        }
+
+        public LocalDate getEffectiveTo() {
+            return effectiveTo;
+        }
+
+        public void setEffectiveTo(LocalDate effectiveTo) {
+            this.effectiveTo = effectiveTo;
+        }
+    }
 }

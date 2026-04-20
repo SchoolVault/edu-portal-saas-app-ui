@@ -15,20 +15,64 @@ import { formatSchoolClassName } from '../../core/i18n/school-class-display';
   selector: 'app-teacher-profile',
   standalone: true,
   imports: [CommonModule, RouterModule, TranslateModule],
+  styles: [
+    `
+      .teacher-profile-page {
+        color: var(--clr-text);
+      }
+      .teacher-profile-page .erp-card {
+        border: 1px solid color-mix(in srgb, var(--clr-border) 82%, var(--clr-primary) 18%);
+        border-radius: 14px;
+        box-shadow: 0 8px 22px color-mix(in srgb, var(--clr-primary) 8%, transparent);
+        background: linear-gradient(
+          180deg,
+          color-mix(in srgb, var(--clr-surface) 97%, var(--clr-primary) 3%) 0%,
+          var(--clr-surface) 100%
+        );
+      }
+      .teacher-profile-title {
+        font-size: 24px;
+        font-weight: 800;
+        letter-spacing: -0.02em;
+        color: color-mix(in srgb, var(--clr-text) 92%, var(--clr-primary));
+      }
+      .teacher-profile-banner {
+        border-left: 4px solid var(--clr-primary);
+        padding: 14px 18px;
+      }
+      .teacher-profile-card--identity {
+        padding: 28px;
+      }
+      .teacher-profile-section-title {
+        font-size: 16px;
+        font-weight: 800;
+        letter-spacing: -0.01em;
+        color: color-mix(in srgb, var(--clr-text) 88%, var(--clr-primary) 12%);
+      }
+      @media (max-width: 576px) {
+        .teacher-profile-card--identity {
+          padding: 20px;
+        }
+        .teacher-profile-title {
+          font-size: 21px;
+        }
+      }
+    `,
+  ],
   template: `
-    <div data-testid="teacher-profile-page" class="animate-in" *ngIf="teacher">
-      <div *ngIf="!isSchoolAdmin" class="erp-card mb-4" style="border-left: 4px solid var(--clr-primary); padding: 14px 18px;">
+    <div class="teacher-profile-page animate-in" data-testid="teacher-profile-page" *ngIf="teacher">
+      <div *ngIf="!isSchoolAdmin" class="erp-card teacher-profile-banner mb-4">
         <div class="d-flex align-items-start gap-2 mb-0">
           <i class="bi bi-info-circle" style="color: var(--clr-primary); margin-top: 2px;"></i>
           <p class="mb-0 small" style="color: var(--clr-text-secondary); line-height: 1.5;">{{ 'teachers.profile.colleagueReadOnlyHint' | translate }}</p>
         </div>
       </div>
-      <div class="d-flex align-items-center gap-3 mb-4">
+      <div class="d-flex align-items-center gap-3 mb-4 flex-wrap">
         <button type="button" class="btn-icon" (click)="router.navigate(['/app/teachers'])" data-testid="back-teachers">
           <i class="bi bi-arrow-left" style="font-size: 20px;"></i>
         </button>
         <div class="flex-grow-1">
-          <h2 style="font-size: 24px; font-weight: 800;">{{ 'teachers.profile.title' | translate }}</h2>
+          <h2 class="teacher-profile-title">{{ 'teachers.profile.title' | translate }}</h2>
           <p *ngIf="!isSchoolAdmin" class="text-muted small mb-0" style="max-width: 640px;">{{ 'teachers.profile.leadColleague' | translate }}</p>
         </div>
         <div class="d-flex gap-2 flex-wrap">
@@ -53,7 +97,7 @@ import { formatSchoolClassName } from '../../core/i18n/school-class-display';
 
       <div class="row g-4">
         <div class="col-lg-4">
-          <div class="erp-card text-center" style="padding: 28px;">
+          <div class="erp-card teacher-profile-card--identity text-center">
             <img
               *ngIf="portraitUrl as src"
               [src]="src"
@@ -89,6 +133,14 @@ import { formatSchoolClassName } from '../../core/i18n/school-class-display';
                 <span style="font-size: 12px; color: var(--clr-text-muted); display: block;">{{ 'teachers.profile.joined' | translate }}</span>
                 <strong>{{ teacher.joinDate }}</strong>
               </div>
+              <div class="mb-3" *ngIf="isSchoolAdmin">
+                <span style="font-size: 12px; color: var(--clr-text-muted); display: block;">{{ 'teachers.profile.salary' | translate }}</span>
+                <strong>{{ teacher.salary | number:'1.0-0' }}</strong>
+              </div>
+              <div class="mb-3" *ngIf="isSchoolAdmin">
+                <span style="font-size: 12px; color: var(--clr-text-muted); display: block;">{{ 'teachers.profile.teacherRecordId' | translate }}</span>
+                <strong>{{ teacher.id }}</strong>
+              </div>
               <div *ngIf="isSchoolAdmin && teacher.userId">
                 <span style="font-size: 12px; color: var(--clr-text-muted); display: block;">{{ 'teachers.profile.linkedLogin' | translate }}</span>
                 <strong>{{ 'teachers.profile.linkedYes' | translate }}</strong>
@@ -98,7 +150,7 @@ import { formatSchoolClassName } from '../../core/i18n/school-class-display';
         </div>
         <div class="col-lg-8">
           <div class="erp-card mb-4">
-            <h4 class="erp-card-title mb-3">{{ 'teachers.profile.teaching' | translate }}</h4>
+            <h4 class="teacher-profile-section-title mb-3">{{ 'teachers.profile.teaching' | translate }}</h4>
             <p class="text-muted small mb-3" style="line-height: 1.55;">{{ 'teachers.profile.teachingLead' | translate }}</p>
             <div class="row g-3">
               <div class="col-md-6">
@@ -110,13 +162,35 @@ import { formatSchoolClassName } from '../../core/i18n/school-class-display';
               </div>
               <div class="col-md-6">
                 <span style="font-size: 12px; color: var(--clr-text-muted); display: block;">{{ 'teachers.profile.homeroomClasses' | translate }}</span>
-                <strong>{{ homeroomFormatted() || ('directory.emDash' | translate) }}</strong>
+                <strong>{{ homeroomLabel || ('directory.emDash' | translate) }}</strong>
               </div>
             </div>
           </div>
           <div class="erp-card" *ngIf="teacher.libraryStaffRole">
-            <h4 class="erp-card-title mb-2">{{ 'teachers.profile.library' | translate }}</h4>
+            <h4 class="teacher-profile-section-title mb-2">{{ 'teachers.profile.library' | translate }}</h4>
             <p class="text-muted small mb-0">{{ 'teachers.profile.libraryDesk' | translate }} <strong>{{ teacher.libraryStaffRole }}</strong></p>
+          </div>
+          <div class="erp-card mt-4" *ngIf="isSchoolAdmin && hasAdminMetadata()">
+            <h4 class="teacher-profile-section-title mb-2">{{ 'teachers.profile.adminMetadata' | translate }}</h4>
+            <p class="text-muted small mb-3">{{ 'teachers.profile.adminMetadataLead' | translate }}</p>
+            <div class="row g-3">
+              <div class="col-md-6" *ngIf="teacher.bankAccountHolder">
+                <span style="font-size: 12px; color: var(--clr-text-muted); display: block;">{{ 'teachers.profile.bankAccountHolder' | translate }}</span>
+                <strong>{{ teacher.bankAccountHolder }}</strong>
+              </div>
+              <div class="col-md-6" *ngIf="teacher.bankName">
+                <span style="font-size: 12px; color: var(--clr-text-muted); display: block;">{{ 'teachers.profile.bankName' | translate }}</span>
+                <strong>{{ teacher.bankName }}</strong>
+              </div>
+              <div class="col-md-6" *ngIf="teacher.bankAccountNumber">
+                <span style="font-size: 12px; color: var(--clr-text-muted); display: block;">{{ 'teachers.profile.bankAccountNumber' | translate }}</span>
+                <strong>{{ maskedBankAccount(teacher.bankAccountNumber) }}</strong>
+              </div>
+              <div class="col-md-6" *ngIf="teacher.bankIfsc">
+                <span style="font-size: 12px; color: var(--clr-text-muted); display: block;">{{ 'teachers.profile.bankIfsc' | translate }}</span>
+                <strong>{{ teacher.bankIfsc }}</strong>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -133,7 +207,10 @@ export class TeacherProfileComponent implements OnInit, OnDestroy {
   loadError = '';
   lifecycleBusy = false;
   classes: SchoolClass[] = [];
+  homeroomLabel = '';
   private langSub?: Subscription;
+  private routeSub?: Subscription;
+  private lastLoadedTeacherId: number | null = null;
 
   constructor(
     private route: ActivatedRoute,
@@ -147,7 +224,7 @@ export class TeacherProfileComponent implements OnInit, OnDestroy {
   ) {}
 
   /** Homeroom class names (class teacher), localized; falls back to academic class list if API omitted names. */
-  homeroomFormatted(): string {
+  private computeHomeroomLabel(): string {
     if (!this.teacher) return '';
     const fromApi = this.teacher.homeroomClassNames ?? [];
     const sep = this.translate.instant('teachers.list.homeroomSeparator');
@@ -165,6 +242,23 @@ export class TeacherProfileComponent implements OnInit, OnDestroy {
     return t !== key ? t : status;
   }
 
+  hasAdminMetadata(): boolean {
+    if (!this.teacher) return false;
+    return !!(
+      this.teacher.bankAccountHolder ||
+      this.teacher.bankName ||
+      this.teacher.bankAccountNumber ||
+      this.teacher.bankIfsc
+    );
+  }
+
+  maskedBankAccount(account: string): string {
+    const raw = String(account || '').trim();
+    if (!raw) return '';
+    const tail = raw.slice(-4);
+    return '••••' + tail;
+  }
+
   get isSchoolAdmin(): boolean {
     const r = this.auth.getNormalizedRole();
     return r === 'admin' || r === 'super_admin';
@@ -176,8 +270,11 @@ export class TeacherProfileComponent implements OnInit, OnDestroy {
   }
 
   ngOnInit(): void {
-    this.langSub = this.translate.onLangChange.subscribe(() => this.cdr.markForCheck());
-    this.route.paramMap.subscribe(pm => {
+    this.langSub = this.translate.onLangChange.subscribe(() => {
+      this.homeroomLabel = this.computeHomeroomLabel();
+      this.cdr.markForCheck();
+    });
+    this.routeSub = this.route.paramMap.subscribe(pm => {
       const id = pm.get('id');
       if (!id) return;
       this.load(id);
@@ -196,6 +293,10 @@ export class TeacherProfileComponent implements OnInit, OnDestroy {
       this.loadError = this.translate.instant('teachers.profile.invalidId');
       return;
     }
+    if (this.lastLoadedTeacherId === nid && this.teacher?.id === nid) {
+      return;
+    }
+    this.lastLoadedTeacherId = nid;
     this.teacherService.getTeacherById(nid).subscribe({
       next: t => {
         this.teacher = t ?? null;
@@ -205,6 +306,8 @@ export class TeacherProfileComponent implements OnInit, OnDestroy {
       error: () => {
         this.teacher = null;
         this.loadError = this.translate.instant('teachers.profile.loadFailed');
+        this.homeroomLabel = '';
+        this.lastLoadedTeacherId = null;
       },
     });
   }
@@ -213,11 +316,13 @@ export class TeacherProfileComponent implements OnInit, OnDestroy {
     if (!this.teacher) return;
     if (this.teacher.homeroomClassNames?.length) {
       this.classes = [];
+      this.homeroomLabel = this.computeHomeroomLabel();
       this.cdr.markForCheck();
       return;
     }
     this.academicService.getClasses().subscribe(list => {
       this.classes = list || [];
+      this.homeroomLabel = this.computeHomeroomLabel();
       this.cdr.markForCheck();
     });
   }
@@ -247,5 +352,6 @@ export class TeacherProfileComponent implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.langSub?.unsubscribe();
+    this.routeSub?.unsubscribe();
   }
 }

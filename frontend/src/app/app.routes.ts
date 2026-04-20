@@ -89,7 +89,12 @@ export const routes: Routes = [
           import('./features/timetable/teacher-schedule-onboarding.component').then(m => m.TeacherScheduleOnboardingComponent),
         canActivate: [adminOnlyGuard],
       },
-      { path: 'exams', loadComponent: () => import('./features/exams/exams.component').then(m => m.ExamsComponent) },
+      {
+        path: 'exams',
+        loadComponent: () => import('./features/exams/exams.component').then(m => m.ExamsComponent),
+        canActivate: [featureModuleGuard],
+        data: { requireFeatures: ['exams'], requireAnyRole: ['admin', 'teacher', 'parent', 'super_admin'] },
+      },
       {
         path: 'fees',
         loadComponent: () => import('./features/fees/fees.component').then(m => m.FeesComponent),

@@ -18,7 +18,7 @@ import { runtimeConfig } from '../config/runtime-config';
 /** Mirrors POST /academic/classes body (ERP Long ids as JSON numbers). */
 export interface CreateClassPayload {
   name: string;
-  grade: number;
+  grade?: number;
   academicYearId: number;
   classTeacherId?: number | null;
   classTeacherName?: string | null;
@@ -66,13 +66,19 @@ export class AcademicService {
     if (!runtimeConfig.useMocks) {
       return this.api.get<any[]>('/academic/classes').pipe(map(list => list.map((c: any) => this.normalizeClass(c))));
     }
-    return of([...this.classes]).pipe(delay(400));
+    return this.studentService.getStudents().pipe(
+      map(students => this.withSyncedMockCounts(students)),
+      delay(400)
+    );
   }
   getClassById(id: number): Observable<SchoolClass | undefined> {
     if (!runtimeConfig.useMocks) {
       return this.api.get<any>('/academic/classes/' + id).pipe(map((c: any) => this.normalizeClass(c)));
     }
-    return of(this.classes.find(c => c.id === id)).pipe(delay(200));
+    return this.studentService.getStudents().pipe(
+      map(students => this.withSyncedMockCounts(students).find(c => c.id === id)),
+      delay(200)
+    );
   }
 
   constructor(
@@ -86,7 +92,7 @@ export class AcademicService {
       return this.api
         .post<any>('/academic/classes', {
           name: payload.name,
-          grade: payload.grade,
+          grade: payload.grade ?? null,
           academicYearId: payload.academicYearId,
           classTeacherId: payload.classTeacherId ?? null,
           classTeacherName: payload.classTeacherName ?? null,
@@ -117,13 +123,15 @@ export class AcademicService {
     const cls: SchoolClass = {
       id: nextClassId,
       name: payload.name,
-      grade: payload.grade,
+      grade: payload.grade ?? this.inferGradeFromClassName(payload.name),
       sections,
       academicYearId: payload.academicYearId,
       tenantId: 't1',
       ...(tch != null && names.length === 0 ? { classTeacherId: tch, classTeacherName: tnm } : {}),
     };
-    this.classes = [...this.classes, cls].sort((a, b) => a.grade - b.grade);
+    this.classes = [...this.classes, cls].sort(
+      (a, b) => (a.grade ?? Number.MAX_SAFE_INTEGER) - (b.grade ?? Number.MAX_SAFE_INTEGER)
+    );
     return of({ ...cls, sections: cls.sections.map(s => ({ ...s })) }).pipe(delay(350));
   }
 
@@ -147,15 +155,15 @@ export class AcademicService {
     });
   }
 
-  updateClass(classId: number, name: string, grade: number): Observable<SchoolClass> {
+  updateClass(classId: number, name: string, grade?: number): Observable<SchoolClass> {
     if (!runtimeConfig.useMocks) {
       return this.api
-        .put<any>(`/academic/classes/${classId}`, { name, grade })
+        .put<any>(`/academic/classes/${classId}`, { name, grade: grade ?? null })
         .pipe(map((c: any) => this.normalizeClass(c)));
     }
     const i = this.classes.findIndex(c => c.id === classId);
     if (i === -1) return of(this.classes[0]).pipe(delay(200));
-    this.classes[i] = { ...this.classes[i], name, grade };
+    this.classes[i] = { ...this.classes[i], name, grade: grade ?? this.inferGradeFromClassName(name) };
     return of({ ...this.classes[i] }).pipe(delay(250));
   }
 
@@ -493,5 +501,41 @@ export class AcademicService {
       sections,
       totalStudents: total,
     };
+  }
+
+  private inferGradeFromClassName(className: string): number {
+    const hit = className.match(/\d{1,2}/);
+    const parsed = hit ? Number(hit[0]) : NaN;
+    if (Number.isFinite(parsed) && parsed >= 1 && parsed <= 12) {
+      return parsed;
+    }
+    return 1;
+  }
+
+  private withSyncedMockCounts(students: { classId: number; sectionId?: number | null; status: string }[]): SchoolClass[] {
+    const activeStudents = students.filter(s => s.status === 'active');
+    const activeByClass = new Map<number, number>();
+    const activeBySection = new Map<number, number>();
+    for (const student of activeStudents) {
+      activeByClass.set(student.classId, (activeByClass.get(student.classId) ?? 0) + 1);
+      if (student.sectionId != null && student.sectionId > 0) {
+        activeBySection.set(student.sectionId, (activeBySection.get(student.sectionId) ?? 0) + 1);
+      }
+    }
+    return this.classes.map(cls => {
+      const sections = (cls.sections ?? []).map(sec => ({
+        ...sec,
+        studentCount: activeBySection.get(sec.id) ?? 0,
+      }));
+      const totalStudents =
+        sections.length > 0
+          ? sections.reduce((sum, section) => sum + (section.studentCount ?? 0), 0)
+          : (activeByClass.get(cls.id) ?? 0);
+      return {
+        ...cls,
+        sections,
+        totalStudents,
+      };
+    });
   }
 }

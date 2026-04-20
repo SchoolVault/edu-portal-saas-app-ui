@@ -20,7 +20,10 @@ const DEFAULT_MOCK_TENANT_FEATURES: Record<string, boolean> = {
   audit: true,
   operationsHub: true,
   importExport: true,
+  exams: true,
+  documents: true,
   directory: true,
+  leave: true,
 };
 import {
   PlatformBroadcastResult,

@@ -153,7 +153,11 @@ public class AcademicService {
     private AcademicDTOs.ClassWithSectionsResponse toClassWithSectionsResponse(SchoolClass cls) {
         String t = TenantContext.getTenantId();
         List<Section> sections = sectionRepo.findByTenantIdAndClassIdAndIsDeletedFalse(t, cls.getId());
-        int totalStudents = sections.stream().mapToInt(s -> s.getStudentCount() != null ? s.getStudentCount() : 0).sum();
+        java.util.Map<Long, Integer> sectionStudentCounts = resolveActiveSectionStudentCounts(t, cls.getId(), sections);
+        int totalStudents = sections.isEmpty()
+                ? (int) studentRepo.countByTenantIdAndClassIdAndIsDeletedFalseAndStatus(
+                        t, cls.getId(), Enums.StudentStatus.ACTIVE)
+                : sectionStudentCounts.values().stream().mapToInt(Integer::intValue).sum();
         return AcademicDTOs.ClassWithSectionsResponse.builder()
                 .id(cls.getId())
                 .name(cls.getName())
@@ -168,7 +172,7 @@ public class AcademicService {
                                 .name(s.getName())
                                 .classId(s.getClassId())
                                 .capacity(s.getCapacity())
-                                .studentCount(s.getStudentCount())
+                                .studentCount(sectionStudentCounts.getOrDefault(s.getId(), 0))
                                 .classTeacherId(s.getClassTeacherId())
                                 .classTeacherName(s.getClassTeacherName())
                                 .build())
@@ -176,20 +180,45 @@ public class AcademicService {
                 .build();
     }
 
+    private java.util.Map<Long, Integer> resolveActiveSectionStudentCounts(String tenantId, Long classId, List<Section> sections) {
+        java.util.Map<Long, Integer> counts = new java.util.HashMap<>();
+        if (sections.isEmpty()) {
+            return counts;
+        }
+        List<Long> sectionIds = sections.stream().map(Section::getId).collect(Collectors.toList());
+        for (Object[] row : studentRepo.countActiveBySectionIds(tenantId, classId, sectionIds, Enums.StudentStatus.ACTIVE)) {
+            if (row == null || row.length < 2 || row[0] == null) {
+                continue;
+            }
+            Long sectionId = (Long) row[0];
+            Number total = (Number) row[1];
+            counts.put(sectionId, total != null ? total.intValue() : 0);
+        }
+        for (Section section : sections) {
+            counts.putIfAbsent(section.getId(), 0);
+        }
+        return counts;
+    }
+
     @Transactional
     public SchoolClass createClass(AcademicDTOs.CreateClassRequest req) {
         String t = TenantContext.getTenantId();
+        String normalizedName = normalizeAndValidateClassName(req.getName());
+        ensureClassNameUniqueForAcademicYear(t, req.getAcademicYearId(), normalizedName, null);
+        Integer resolvedGrade = resolveGrade(req.getGrade(), req.getName());
         List<String> names = req.getSectionNames() != null
                 ? req.getSectionNames().stream().map(String::trim).filter(s -> !s.isEmpty()).collect(Collectors.toList())
                 : List.of();
+        ensureDistinctSectionNames(names);
+        int normalizedCapacity = normalizeAndValidateSectionCapacity(req.getSectionCapacity());
         boolean hasSections = !names.isEmpty();
         boolean multiSection = names.size() > 1;
         Long initialClassTeacher = (!hasSections) ? req.getClassTeacherId() : null;
         String initialClassTeacherName = (!hasSections) ? req.getClassTeacherName() : null;
 
         SchoolClass cls = SchoolClass.builder()
-                .name(req.getName())
-                .grade(req.getGrade())
+                .name(normalizedName)
+                .grade(resolvedGrade)
                 .classTeacherId(initialClassTeacher)
                 .classTeacherName(initialClassTeacherName)
                 .academicYearId(req.getAcademicYearId())
@@ -200,7 +229,7 @@ public class AcademicService {
             Section sec = Section.builder()
                     .name(secName)
                     .classId(cls.getId())
-                    .capacity(req.getSectionCapacity() != null ? req.getSectionCapacity() : 40)
+                    .capacity(normalizedCapacity)
                     .studentCount(0)
                     .build();
             sec.setTenantId(t);
@@ -288,10 +317,13 @@ public class AcademicService {
     @Transactional
     public Section addSection(Long classId, String sectionName, Integer capacity) {
         String t = TenantContext.getTenantId();
-        log.info("Adding section name={} to classId={}", sectionName, classId);
+        String normalizedName = normalizeAndValidateSectionName(sectionName);
+        int normalizedCapacity = normalizeAndValidateSectionCapacity(capacity);
+        log.info("Adding section name={} to classId={}", normalizedName, classId);
         SchoolClass cls = classRepo.findByIdAndTenantIdAndIsDeletedFalse(classId, t).orElseThrow(() -> new ResourceNotFoundException("Class", classId));
         List<Section> existing = sectionRepo.findByTenantIdAndClassIdAndIsDeletedFalse(t, classId);
-        Section sec = Section.builder().name(sectionName).classId(classId).capacity(capacity != null ? capacity : 40).studentCount(0).build();
+        ensureSectionNameUniqueWithinClass(existing, normalizedName, null);
+        Section sec = Section.builder().name(normalizedName).classId(classId).capacity(normalizedCapacity).studentCount(0).build();
         sec.setTenantId(t);
         if (existing.isEmpty() && cls.getClassTeacherId() != null) {
             sec.setClassTeacherId(cls.getClassTeacherId());
@@ -389,31 +421,113 @@ public class AcademicService {
     public AcademicDTOs.ClassWithSectionsResponse updateClass(Long classId, AcademicMutationRequests.UpdateSchoolClassRequest req) {
         String t = TenantContext.getTenantId();
         SchoolClass cls = classRepo.findByIdAndTenantIdAndIsDeletedFalse(classId, t).orElseThrow(() -> new ResourceNotFoundException("Class", classId));
-        cls.setName(req.getName());
-        cls.setGrade(req.getGrade());
+        String normalizedName = normalizeAndValidateClassName(req.getName());
+        ensureClassNameUniqueForAcademicYear(t, cls.getAcademicYearId(), normalizedName, classId);
+        cls.setName(normalizedName);
+        cls.setGrade(resolveGrade(req.getGrade(), normalizedName));
         classRepo.save(cls);
-        log.info("Class updated id={} name={}", classId, req.getName());
+        log.info("Class updated id={} name={}", classId, normalizedName);
         evictAcademicClassCaches(classId, true);
         return getClassWithSectionsById(classId);
+    }
+
+    private Integer resolveGrade(Integer suppliedGrade, String className) {
+        if (suppliedGrade != null) {
+            return suppliedGrade;
+        }
+        if (className == null) {
+            throw new BusinessException("Class name is required.");
+        }
+        java.util.regex.Matcher matcher = java.util.regex.Pattern.compile("(\\d{1,2})").matcher(className);
+        if (!matcher.find()) {
+            throw new BusinessException("Could not infer grade from class name. Include a numeric grade in class name (e.g., Class 6).");
+        }
+        int inferred = Integer.parseInt(matcher.group(1));
+        if (inferred < 1 || inferred > 12) {
+            throw new BusinessException("Inferred grade from class name must be between 1 and 12.");
+        }
+        return inferred;
     }
 
     @Transactional
     public Section updateSection(Long sectionId, AcademicMutationRequests.UpdateSectionRequest req) {
         String t = TenantContext.getTenantId();
         Section sec = sectionRepo.findByIdAndTenantIdAndIsDeletedFalse(sectionId, t).orElseThrow(() -> new ResourceNotFoundException("Section", sectionId));
-        sec.setName(req.getName());
-        sec.setCapacity(req.getCapacity());
+        String normalizedName = normalizeAndValidateSectionName(req.getName());
+        int normalizedCapacity = normalizeAndValidateSectionCapacity(req.getCapacity());
+        List<Section> existing = sectionRepo.findByTenantIdAndClassIdAndIsDeletedFalse(t, sec.getClassId());
+        ensureSectionNameUniqueWithinClass(existing, normalizedName, sectionId);
+        sec.setName(normalizedName);
+        sec.setCapacity(normalizedCapacity);
         Section saved = sectionRepo.save(sec);
         log.info("Section updated id={}", sectionId);
         evictAcademicClassCaches(saved.getClassId(), true);
         return saved;
     }
 
+    private String normalizeAndValidateClassName(String className) {
+        String normalized = className != null ? className.trim() : "";
+        if (normalized.isEmpty()) {
+            throw new BusinessException("Class name is required.");
+        }
+        return normalized;
+    }
+
+    private String normalizeAndValidateSectionName(String sectionName) {
+        String normalized = sectionName != null ? sectionName.trim() : "";
+        if (normalized.isEmpty()) {
+            throw new BusinessException("Section name is required.");
+        }
+        return normalized;
+    }
+
+    private int normalizeAndValidateSectionCapacity(Integer capacity) {
+        int normalized = capacity != null ? capacity : 40;
+        if (normalized < 1 || normalized > 200) {
+            throw new BusinessException("Section capacity must be between 1 and 200.");
+        }
+        return normalized;
+    }
+
+    private void ensureDistinctSectionNames(List<String> sectionNames) {
+        Set<String> seen = new HashSet<>();
+        for (String name : sectionNames) {
+            String normalized = name.trim().toLowerCase();
+            if (!seen.add(normalized)) {
+                throw new BusinessException("Section names must be unique within a class.");
+            }
+        }
+    }
+
+    private void ensureClassNameUniqueForAcademicYear(String tenantId, Long academicYearId, String className, Long ignoreClassId) {
+        String normalized = className.trim().toLowerCase();
+        boolean duplicate = classRepo.findByTenantIdAndIsDeletedFalseOrderByGrade(tenantId).stream()
+                .anyMatch(c -> c.getAcademicYearId() != null
+                        && c.getAcademicYearId().equals(academicYearId)
+                        && (ignoreClassId == null || !c.getId().equals(ignoreClassId))
+                        && c.getName() != null
+                        && c.getName().trim().toLowerCase().equals(normalized));
+        if (duplicate) {
+            throw new BusinessException("Class name must be unique within the selected academic year.");
+        }
+    }
+
+    private void ensureSectionNameUniqueWithinClass(List<Section> existing, String sectionName, Long ignoreSectionId) {
+        String normalized = sectionName.trim().toLowerCase();
+        boolean duplicate = existing.stream().anyMatch(s -> (ignoreSectionId == null || !s.getId().equals(ignoreSectionId))
+                && s.getName() != null
+                && s.getName().trim().toLowerCase().equals(normalized));
+        if (duplicate) {
+            throw new BusinessException("Section name must be unique within this class.");
+        }
+    }
+
     @Transactional
     public void deleteSection(Long sectionId) {
         String t = TenantContext.getTenantId();
         Section sec = sectionRepo.findByIdAndTenantIdAndIsDeletedFalse(sectionId, t).orElseThrow(() -> new ResourceNotFoundException("Section", sectionId));
-        int enrolled = sec.getStudentCount() != null ? sec.getStudentCount() : 0;
+        int enrolled = (int) studentRepo.countByTenantIdAndClassIdAndSectionIdAndIsDeletedFalseAndStatus(
+                t, sec.getClassId(), sec.getId(), Enums.StudentStatus.ACTIVE);
         if (enrolled > 0) {
             throw new BusinessException("Cannot delete a section that still has students. Reassign students first.");
         }
@@ -587,7 +701,8 @@ public class AcademicService {
                 sectionRepo.findByTenantIdAndClassIdAndIsDeletedFalse(tenantId, cls.getId()).stream()
                         .filter(section -> sectionIds.contains(section.getId()))
                         .forEach(section -> {
-                            int count = studentRepo.findByTenantIdAndClassIdAndSectionIdAndIsDeletedFalse(tenantId, cls.getId(), section.getId()).size();
+                            int count = (int) studentRepo.countByTenantIdAndClassIdAndSectionIdAndIsDeletedFalseAndStatus(
+                                    tenantId, cls.getId(), section.getId(), Enums.StudentStatus.ACTIVE);
                             section.setStudentCount(count);
                             sectionRepo.save(section);
                         }));

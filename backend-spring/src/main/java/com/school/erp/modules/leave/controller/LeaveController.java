@@ -4,6 +4,7 @@ import com.school.erp.common.dto.ApiResponse;
 import com.school.erp.common.dto.PageResponse;
 import com.school.erp.modules.leave.dto.LeaveDTOs;
 import com.school.erp.modules.leave.service.LeaveService;
+import com.school.erp.security.RequireTenantFeature;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -17,6 +18,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/v1/leave")
 @Tag(name = "Leave", description = "Leave requests and approvals")
+@RequireTenantFeature("leave")
 public class LeaveController {
 
     private final LeaveService leaveService;

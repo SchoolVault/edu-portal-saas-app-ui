@@ -14,11 +14,20 @@ import { runtimeConfig } from '../../core/config/runtime-config';
 import { ProfilePhotoPickerComponent, ProfilePhotoPickEvent } from '../../shared/profile-photo-picker/profile-photo-picker.component';
 import { UserLocaleService, type UiLanguage } from '../../core/i18n/user-locale.service';
 import { ParentSelectionService } from '../../core/services/parent-selection.service';
+import { SchoolClassNamePipe } from '../../core/i18n/school-class-name.pipe';
+
+type SettingsFeatureToggleView = {
+  enabled: boolean;
+  persistKey: string;
+  platformOnly?: boolean;
+  nameLabel: string;
+  descriptionLabel: string;
+};
 
 @Component({
   selector: 'app-settings',
   standalone: true,
-  imports: [CommonModule, FormsModule, TranslateModule, ProfilePhotoPickerComponent],
+  imports: [CommonModule, FormsModule, TranslateModule, ProfilePhotoPickerComponent, SchoolClassNamePipe],
   template: `
     <div data-testid="settings-page">
       <div class="mb-4 animate-in d-flex flex-wrap justify-content-between align-items-start gap-2">
@@ -38,7 +47,6 @@ import { ParentSelectionService } from '../../core/services/parent-selection.ser
         <button type="button" class="erp-tab" [class.active]="tab === 'preferences'" (click)="selectSettingsTab('preferences')">{{ 'prefs.tab' | translate }}</button>
         <button type="button" *ngIf="isTenantAdmin" class="erp-tab" [class.active]="tab === 'branding'" (click)="tab = 'branding'">{{ 'settings.tabBranding' | translate }}</button>
         <button type="button" *ngIf="isTenantAdmin" class="erp-tab" [class.active]="tab === 'roles'" (click)="tab = 'roles'">{{ 'settings.tabRoles' | translate }}</button>
-        <button type="button" *ngIf="isTenantAdmin" class="erp-tab" [class.active]="tab === 'features'" (click)="tab = 'features'">{{ 'settings.tabFeatures' | translate }}</button>
         <button type="button" class="erp-tab" [class.active]="tab === 'profile'" (click)="selectSettingsTab('profile')">{{ 'settings.tabProfile' | translate }}</button>
       </div>
 
@@ -247,7 +255,7 @@ import { ParentSelectionService } from '../../core/services/parent-selection.ser
               <div *ngIf="selectedChildForProfile as ch" class="settings-child-school-card mb-4">
                 <div class="settings-child-school-card__title">{{ 'settings.schoolRecordTitle' | translate }}</div>
                 <dl class="settings-child-school-card__grid">
-                  <div><dt>{{ 'settings.dtClassSection' | translate }}</dt><dd>{{ ch.className }} · {{ 'settings.sectionLabel' | translate: { name: ch.sectionName } }}</dd></div>
+                  <div><dt>{{ 'settings.dtClassSection' | translate }}</dt><dd>{{ ch.className | schoolClassName }} · {{ 'settings.sectionLabel' | translate: { name: ch.sectionName } }}</dd></div>
                   <div><dt>{{ 'settings.dtRollAdmission' | translate }}</dt><dd>{{ ch.rollNumber }} · {{ ch.admissionNumber }}</dd></div>
                   <div><dt>{{ 'settings.dtAdmissionDate' | translate }}</dt><dd>{{ ch.admissionDate || ('exams.dash' | translate) }}</dd></div>
                   <div><dt>{{ 'settings.dtStatus' | translate }}</dt><dd class="text-capitalize">{{ ch.status }}</dd></div>
@@ -453,40 +461,6 @@ import { ParentSelectionService } from '../../core/services/parent-selection.ser
         </table>
       </div>
 
-      <div *ngIf="tab === 'features'" class="erp-card animate-in">
-        <h4 style="font-size: 15px; font-weight: 700; margin-bottom: 12px;">{{ 'settings.featureTogglesHeading' | translate }}</h4>
-        <p class="text-muted small mb-3" style="font-size: 13px;" [innerHTML]="'settings.featureTogglesLeadHtml' | translate"></p>
-        <div *ngIf="platformManagedFeatures.length" class="mb-4 pb-3" style="border-bottom: 1px solid var(--clr-border-light);">
-          <h5 style="font-size: 13px; font-weight: 700; margin-bottom: 6px;">{{ 'settings.platformModulesHeading' | translate }}</h5>
-          <p class="text-muted small mb-2">{{ 'settings.platformModulesLead' | translate }}</p>
-          <div *ngFor="let feat of platformManagedFeatures" class="d-flex justify-content-between align-items-center py-2">
-            <div>
-              <div style="font-weight: 600;">{{ featureToggleName(feat) }}</div>
-              <div style="font-size: 12px; color: var(--clr-text-muted);">{{ featureToggleDescription(feat) }}</div>
-            </div>
-            <span class="badge-erp" [ngClass]="feat.enabled ? 'badge-success' : 'badge-info'">
-              {{ feat.enabled ? ('settings.readonlyOn' | translate) : ('settings.readonlyOff' | translate) }}
-            </span>
-          </div>
-        </div>
-        <div *ngFor="let feat of tenantAdminFeatures" class="d-flex justify-content-between align-items-center py-3" style="border-bottom: 1px solid var(--clr-border-light);">
-          <div>
-            <div style="font-weight: 600;">{{ featureToggleName(feat) }}</div>
-            <div style="font-size: 12px; color: var(--clr-text-muted);">{{ featureToggleDescription(feat) }}</div>
-          </div>
-          <label style="position: relative; display: inline-block; width: 48px; height: 26px; cursor: pointer;">
-            <input type="checkbox" [(ngModel)]="feat.enabled" style="opacity: 0; width: 0; height: 0;">
-            <span style="position: absolute; inset: 0; background: var(--clr-border); border-radius: 13px; transition: 0.3s;" [style.background]="feat.enabled ? 'var(--clr-success)' : 'var(--clr-border)'">
-              <span style="position: absolute; left: 3px; top: 3px; width: 20px; height: 20px; background: white; border-radius: 50%; transition: 0.3s;" [style.transform]="feat.enabled ? 'translateX(22px)' : 'translateX(0)'"></span>
-            </span>
-          </label>
-        </div>
-        <div class="d-flex flex-wrap gap-2 align-items-center mt-3 pt-2" style="border-top: 1px solid var(--clr-border-light);">
-          <button type="button" class="btn-primary-erp" *ngIf="isTenantAdmin" (click)="saveFeatureFlags()" [disabled]="featureFlagsSaving">{{ featureFlagsSaving ? ('settings.savingEllipsis' | translate) : ('settings.saveFeatureToggles' | translate) }}</button>
-          <span *ngIf="featureFlagsMsg" class="text-success small">{{ featureFlagsMsg }}</span>
-          <span *ngIf="featureFlagsErr" class="text-danger small">{{ featureFlagsErr }}</span>
-        </div>
-      </div>
     </div>
   `,
   styles: [
@@ -836,6 +810,7 @@ import { ParentSelectionService } from '../../core/services/parent-selection.ser
 })
 export class SettingsComponent implements OnInit, OnDestroy {
   private readonly destroy$ = new Subject<void>();
+  private readonly profilePerfDebugEnabled = this.isProfilePerfDebugEnabled();
 
   tab = 'general';
   schoolName = 'SchoolVault Academy';
@@ -859,6 +834,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
   childPhotoTargetId: number | null = null;
   childPhotoPreview: string | null = null;
   childPhotoInitials = '';
+  selectedChildForProfile: Student | null = null;
   settingsRefreshing = false;
 
   featureFlagsSaving = false;
@@ -878,30 +854,34 @@ export class SettingsComponent implements OnInit, OnDestroy {
   /** View vs edit for account fields — reduces confusion with read-only profile hero above. */
   accountDetailsEditing = false;
 
+  /** Role/profile values are cached for template performance (avoid getters in hot render paths). */
+  isTenantAdmin = false;
+  profileVisualRole = 'other';
+  canEditOwnPhoto = false;
+  isParentOnlyChildren = false;
+  profileUser: ReturnType<AuthService['getCurrentUser']> = null;
+  roleDisplayLabel = '';
+  photoHintLine = '';
+
   /** Feature toggles: labels come from `settings.features.<persistKey>.{name,description}` for i18n. */
-  features: Array<{ enabled: boolean; persistKey: string; platformOnly?: boolean }> = [
-    { enabled: true, persistKey: 'chat', platformOnly: true },
-    { enabled: true, persistKey: 'transport', platformOnly: true },
-    { enabled: true, persistKey: 'library', platformOnly: true },
-    { enabled: true, persistKey: 'hostel', platformOnly: true },
-    { enabled: true, persistKey: 'audit', platformOnly: true },
-    { enabled: true, persistKey: 'operationsHub', platformOnly: true },
-    { enabled: true, persistKey: 'importExport', platformOnly: true },
-    { enabled: true, persistKey: 'directory', platformOnly: true },
-    { enabled: false, persistKey: 'feeReminderAutomation' },
-    { enabled: true, persistKey: 'payroll' },
-    { enabled: true, persistKey: 'documents' },
-    { enabled: false, persistKey: 'smsNotifications' },
-    { enabled: false, persistKey: 'onlinePayments' },
+  features: SettingsFeatureToggleView[] = [
+    { enabled: true, persistKey: 'chat', platformOnly: true, nameLabel: '', descriptionLabel: '' },
+    { enabled: true, persistKey: 'transport', platformOnly: true, nameLabel: '', descriptionLabel: '' },
+    { enabled: true, persistKey: 'library', platformOnly: true, nameLabel: '', descriptionLabel: '' },
+    { enabled: true, persistKey: 'hostel', platformOnly: true, nameLabel: '', descriptionLabel: '' },
+    { enabled: true, persistKey: 'audit', platformOnly: true, nameLabel: '', descriptionLabel: '' },
+    { enabled: true, persistKey: 'operationsHub', platformOnly: true, nameLabel: '', descriptionLabel: '' },
+    { enabled: true, persistKey: 'importExport', platformOnly: true, nameLabel: '', descriptionLabel: '' },
+    { enabled: true, persistKey: 'directory', platformOnly: true, nameLabel: '', descriptionLabel: '' },
+    { enabled: false, persistKey: 'feeReminderAutomation', nameLabel: '', descriptionLabel: '' },
+    { enabled: true, persistKey: 'payroll', nameLabel: '', descriptionLabel: '' },
+    { enabled: true, persistKey: 'documents', nameLabel: '', descriptionLabel: '' },
+    { enabled: false, persistKey: 'smsNotifications', nameLabel: '', descriptionLabel: '' },
+    { enabled: false, persistKey: 'onlinePayments', nameLabel: '', descriptionLabel: '' },
   ];
 
-  get platformManagedFeatures(): Array<{ enabled: boolean; persistKey: string; platformOnly?: boolean }> {
-    return this.features.filter(f => f.platformOnly);
-  }
-
-  get tenantAdminFeatures(): Array<{ enabled: boolean; persistKey: string; platformOnly?: boolean }> {
-    return this.features.filter(f => !f.platformOnly);
-  }
+  platformManagedFeatures: SettingsFeatureToggleView[] = [];
+  tenantAdminFeatures: SettingsFeatureToggleView[] = [];
 
   constructor(
     private settingsService: SettingsService,
@@ -917,46 +897,8 @@ export class SettingsComponent implements OnInit, OnDestroy {
     private tenantModuleGate: TenantModuleGateService
   ) {}
 
-  /** School tenant administrator — only this role may change tenant config, branding, roles, and feature toggles. */
-  get isTenantAdmin(): boolean {
-    return (this.auth.getRole() || '').toLowerCase() === 'admin';
-  }
-
-  /** Normalized role for profile card accent (CSS `data-role`). */
-  get profileVisualRole(): string {
-    let r = (this.auth.getRole() || '').toLowerCase().trim();
-    if (r.startsWith('role_')) {
-      r = r.slice(5);
-    }
-    if (['admin', 'teacher', 'parent', 'super_admin', 'student'].includes(r)) {
-      return r;
-    }
-    return 'other';
-  }
-
-  get canEditOwnPhoto(): boolean {
-    const r = this.auth.getRole();
-    return r === 'admin' || r === 'teacher' || r === 'super_admin' || r === 'student' || r === 'parent';
-  }
-
-  get isParentOnlyChildren(): boolean {
-    return this.auth.getRole() === 'parent';
-  }
-
-  /** Selected child in the parent settings dropdown — school roster fields for read-only summary. */
-  get selectedChildForProfile(): Student | null {
-    if (this.childPhotoTargetId == null) {
-      return null;
-    }
-    return this.myChildren.find(s => s.id === this.childPhotoTargetId) ?? null;
-  }
-
-  get profileUser() {
-    return this.auth.getCurrentUser();
-  }
-
-  get roleDisplayLabel(): string {
-    const r = (this.auth.getRole() || '').toLowerCase();
+  private resolveRoleDisplayLabel(roleRaw: string): string {
+    const r = roleRaw.toLowerCase();
     const key =
       r === 'super_admin'
         ? 'header.role.superAdmin'
@@ -978,26 +920,26 @@ export class SettingsComponent implements OnInit, OnDestroy {
     return r ? r.replace(/_/g, ' ') : this.translate.instant('header.role.user');
   }
 
-  get photoHintLine(): string {
-    return this.translate.instant(runtimeConfig.useMocks ? 'settings.photoHintMock' : 'settings.photoHintLive');
-  }
-
-  featureToggleName(feat: { persistKey: string }): string {
-    return this.translate.instant(`settings.features.${feat.persistKey}.name`);
-  }
-
-  featureToggleDescription(feat: { persistKey: string }): string {
-    return this.translate.instant(`settings.features.${feat.persistKey}.description`);
-  }
-
   ngOnInit(): void {
+    this.refreshProfileContext();
+    this.hydrateFeatureToggleLabels();
+    this.recomputeFeatureBuckets();
     this.applySettingsTabFromQuery(this.route.snapshot.queryParamMap);
     this.route.queryParamMap.pipe(takeUntil(this.destroy$)).subscribe(q => {
       this.applySettingsTabFromQuery(q);
       this.cdr.markForCheck();
     });
+    this.translate.onLangChange.pipe(takeUntil(this.destroy$)).subscribe(() => {
+      this.refreshProfileContext();
+      this.hydrateFeatureToggleLabels();
+      this.cdr.markForCheck();
+    });
+    this.auth.currentUser$.pipe(takeUntil(this.destroy$)).subscribe(() => {
+      this.refreshProfileContext();
+      this.cdr.markForCheck();
+    });
     this.prefsLang = this.userLocale.readStored();
-    const u = this.auth.getCurrentUser();
+    const u = this.profileUser;
     if (u?.interfaceLocale === 'hi' || u?.interfaceLocale === 'en') {
       this.prefsLang = u.interfaceLocale === 'hi' ? 'hi' : 'en';
     }
@@ -1013,6 +955,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
 
   /** Syncs visible tab with {@code ?settingsTab=school|preferences|profile} for deep links from the header. */
   selectSettingsTab(next: 'general' | 'preferences' | 'profile'): void {
+    const startedAt = this.profilePerfDebugEnabled && next === 'profile' ? performance.now() : 0;
     this.tab = next;
     this.profileAccountMsg = '';
     this.profileAccountErr = '';
@@ -1026,6 +969,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
       queryParamsHandling: 'merge',
       replaceUrl: true,
     });
+    this.profilePerfTrace('profile-tab-selected', startedAt, { role: this.profileVisualRole });
   }
 
   private applySettingsTabFromQuery(q: ParamMap): void {
@@ -1063,7 +1007,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
   }
 
   private syncAccountDrafts(): void {
-    const u = this.auth.getCurrentUser();
+    const u = this.profileUser ?? this.auth.getCurrentUser();
     this.profileDraftName = u?.name ?? '';
     this.profileDraftPhone = u?.phone ?? '';
   }
@@ -1132,6 +1076,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
             f.enabled = !!flags[f.persistKey];
           }
         }
+        this.recomputeFeatureBuckets();
         this.cdr.markForCheck();
       },
       error: () => {
@@ -1180,6 +1125,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
   }
 
   reloadSettings(): void {
+    const startedAt = this.profilePerfDebugEnabled ? performance.now() : 0;
     this.settingsRefreshing = true;
     if (this.isParentOnlyChildren) {
       this.parentService.getChildren().subscribe(list => {
@@ -1189,6 +1135,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
           this.childPhotoTargetId = pref;
         }
         this.syncChildPhotoPreview();
+        this.profilePerfTrace('children-loaded', startedAt, { count: this.myChildren.length });
         this.cdr.markForCheck();
       });
     }
@@ -1210,7 +1157,9 @@ export class SettingsComponent implements OnInit, OnDestroy {
         this.settingsRefreshing = false;
         this.applyFeatureFlagsFromServer();
         const afterHydrate = () => {
+          this.refreshProfileContext();
           this.syncAccountDrafts();
+          this.profilePerfTrace('settings-loaded', startedAt, { role: this.profileVisualRole });
           this.cdr.markForCheck();
         };
         if (!runtimeConfig.useMocks) {
@@ -1224,6 +1173,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
       },
       error: () => {
         this.settingsRefreshing = false;
+        this.profilePerfTrace('settings-load-failed', startedAt);
       }
     });
     this.refreshProfilePreview();
@@ -1251,11 +1201,54 @@ export class SettingsComponent implements OnInit, OnDestroy {
     if (this.childPhotoTargetId == null) {
       this.childPhotoPreview = null;
       this.childPhotoInitials = '';
+      this.selectedChildForProfile = null;
       return;
     }
     const s = this.myChildren.find(x => x.id === this.childPhotoTargetId);
+    this.selectedChildForProfile = s ?? null;
     this.childPhotoInitials = s ? (s.firstName[0] + s.lastName[0]).toUpperCase() : '';
     this.childPhotoPreview = this.auth.getChildAvatarDataUrl(this.childPhotoTargetId);
+  }
+
+  private refreshProfileContext(): void {
+    this.profileUser = this.auth.getCurrentUser();
+    const roleRaw = (this.auth.getRole() || '').toLowerCase().trim();
+    const normalizedRole = roleRaw.startsWith('role_') ? roleRaw.slice(5) : roleRaw;
+    this.isTenantAdmin = normalizedRole === 'admin';
+    this.isParentOnlyChildren = normalizedRole === 'parent';
+    this.canEditOwnPhoto = ['admin', 'teacher', 'super_admin', 'student', 'parent'].includes(normalizedRole);
+    this.profileVisualRole = ['admin', 'teacher', 'parent', 'super_admin', 'student'].includes(normalizedRole) ? normalizedRole : 'other';
+    this.roleDisplayLabel = this.resolveRoleDisplayLabel(normalizedRole);
+    this.photoHintLine = this.translate.instant(runtimeConfig.useMocks ? 'settings.photoHintMock' : 'settings.photoHintLive');
+  }
+
+  private recomputeFeatureBuckets(): void {
+    this.platformManagedFeatures = this.features.filter(f => !!f.platformOnly);
+    this.tenantAdminFeatures = this.features.filter(f => !f.platformOnly);
+  }
+
+  private hydrateFeatureToggleLabels(): void {
+    for (const f of this.features) {
+      f.nameLabel = this.translate.instant(`settings.features.${f.persistKey}.name`);
+      f.descriptionLabel = this.translate.instant(`settings.features.${f.persistKey}.description`);
+    }
+  }
+
+  private isProfilePerfDebugEnabled(): boolean {
+    if (typeof window === 'undefined' || !window.localStorage) {
+      return false;
+    }
+    return window.localStorage.getItem('sv.profilePerfDebug') === '1';
+  }
+
+  private profilePerfTrace(label: string, startedAt: number, context?: Record<string, unknown>): void {
+    if (!this.profilePerfDebugEnabled || !startedAt) {
+      return;
+    }
+    const elapsedMs = Math.round(performance.now() - startedAt);
+    const payload = context ? { elapsedMs, ...context } : { elapsedMs };
+    // Opt-in profiling: enable with localStorage `sv.profilePerfDebug=1`.
+    console.debug(`[profile-perf] ${label}`, payload);
   }
 
   onChildPhotoPicked(ev: ProfilePhotoPickEvent): void {
