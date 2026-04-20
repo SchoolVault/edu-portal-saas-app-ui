@@ -4,15 +4,23 @@ import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { forkJoin } from 'rxjs';
+import { filter, take } from 'rxjs/operators';
 import { AcademicService } from '../../core/services/academic.service';
 import { TeacherService } from '../../core/services/teacher.service';
 import { TimetableService } from '../../core/services/timetable.service';
+import { TimetableConflictError } from '../../core/errors/timetable-conflict.error';
+import { ConfirmDialogService } from '../../shared/confirm-dialog/confirm-dialog.service';
 import {
   ApplyTeacherScheduleOnboardingRequest,
   SchoolClass,
   Teacher,
   TimetableEntry,
+  type TimetableConflictPayload,
 } from '../../core/models/models';
+import {
+  buildTimetableConflictDialogStrings,
+  createTimetableConflictHumanLabels,
+} from '../../core/timetable/timetable-conflict-dialog.builder';
 import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directives';
 
 type DayApi = 'MONDAY' | 'TUESDAY' | 'WEDNESDAY' | 'THURSDAY' | 'FRIDAY' | 'SATURDAY';
@@ -21,6 +29,8 @@ interface DraftSlot {
   /** Stable client id for *ngFor */
   key: string;
   existingEntryId?: number;
+  /** When server returns 409, retry once after removing this timetable row id (duplicate-safe). */
+  replaceTimetableEntryId?: number;
   day: DayApi;
   period: number;
   classId: number | null;
@@ -48,20 +58,22 @@ interface DraftSlot {
   ],
   template: `
     <div data-testid="teacher-schedule-onboarding" class="animate-in">
-      <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3">
+      <div class="erp-tabs mb-3">
+        <a class="erp-tab" routerLink="/app/timetable">{{ 'timetable.tab.schedule' | translate }}</a>
+        <a class="erp-tab" [routerLink]="['/app/timetable']" [queryParams]="{ section: 'covers' }">{{
+          'timetable.tab.coversAdmin' | translate
+        }}</a>
+        <span class="erp-tab active">{{ 'timetable.tab.assign' | translate }}</span>
+      </div>
+      <div class="mb-3">
         <div>
           <h2 class="timetable-page-title" style="font-size: 24px; font-weight: 800;">{{ 'timetableOnboarding.pageTitle' | translate }}</h2>
           <p class="text-muted mb-0" style="font-size: 13px;">{{ 'timetableOnboarding.pageLead' | translate }}</p>
         </div>
-        <a routerLink="/app/timetable" class="btn-outline-erp btn-sm" style="text-decoration: none;">{{ 'timetableOnboarding.backTimetable' | translate }}</a>
       </div>
 
       <div class="onb-hero mb-4">
         <p class="mb-2 small" style="color: var(--clr-text-secondary);">{{ 'timetableOnboarding.hero' | translate }}</p>
-        <div class="d-flex flex-wrap gap-2">
-          <a routerLink="/app/academic" class="btn-outline-erp btn-xs" style="text-decoration: none;">{{ 'timetableOnboarding.linkAcademic' | translate }}</a>
-          <a routerLink="/app/timetable" [queryParams]="{ section: 'covers' }" class="btn-outline-erp btn-xs" style="text-decoration: none;">{{ 'timetableOnboarding.linkCovers' | translate }}</a>
-        </div>
       </div>
 
       <div class="erp-card mb-3">
@@ -109,7 +121,7 @@ interface DraftSlot {
           <button type="button" class="btn-outline-erp btn-sm" (click)="addDraftRow()">{{ 'timetableOnboarding.addRow' | translate }}</button>
         </div>
         <p class="small text-muted mb-3">{{ 'timetableOnboarding.slotsHelp' | translate }}</p>
-        <div class="table-responsive">
+        <div class="erp-table-scroll">
           <table class="erp-table mb-0">
             <thead>
               <tr>
@@ -165,7 +177,7 @@ interface DraftSlot {
           {{ saving ? ('timetableOnboarding.saving' | translate) : ('timetableOnboarding.save' | translate) }}
         </button>
         <p *ngIf="lastMessage" class="small mt-3 mb-0" style="color: var(--clr-success);">{{ lastMessage | translate: lastMessageParams }}</p>
-        <p *ngIf="lastError" class="small mt-3 mb-0" style="color: var(--clr-danger);">{{ lastError }}</p>
+        <p *ngIf="lastError" class="small mt-3 mb-0" style="color: var(--clr-danger);" [attr.data-testid]="'timetable-onb-error'">{{ lastError }}</p>
       </div>
     </div>
   `,
@@ -192,7 +204,8 @@ export class TeacherScheduleOnboardingComponent implements OnInit {
   constructor(
     private academic: AcademicService,
     private teacherService: TeacherService,
-    private timetable: TimetableService
+    private timetable: TimetableService,
+    private confirmDialog: ConfirmDialogService
   ) {}
 
   ngOnInit(): void {
@@ -362,6 +375,11 @@ export class TeacherScheduleOnboardingComponent implements OnInit {
     if (!this.teacherId || !this.canSave) {
       return;
     }
+    const draftValidationError = this.validateDraftRowsBeforeSave();
+    if (draftValidationError) {
+      this.lastError = this.translate.instant(draftValidationError);
+      return;
+    }
     if (this.hmClassId != null && this.hmClassHasSections && this.hmSectionId == null) {
       this.lastError = this.translate.instant('timetableOnboarding.errSectionRequired');
       return;
@@ -388,6 +406,7 @@ export class TeacherScheduleOnboardingComponent implements OnInit {
         sectionId: r.sectionId,
         subjectName: r.subjectName.trim(),
         room: r.room?.trim() || null,
+        replaceTimetableEntryId: r.replaceTimetableEntryId ?? undefined,
       })),
       options: { anchorMondayFirstPeriod: this.anchorMonday },
     };
@@ -400,6 +419,9 @@ export class TeacherScheduleOnboardingComponent implements OnInit {
       next: res => {
         this.saving = false;
         this.removedEntryIds = [];
+        this.draftRows.forEach(r => {
+          delete r.replaceTimetableEntryId;
+        });
         this.lastMessageParams = {
           created: res.createdEntryIds?.length ?? 0,
           updated: res.updatedEntryIds?.length ?? 0,
@@ -408,10 +430,85 @@ export class TeacherScheduleOnboardingComponent implements OnInit {
         this.lastMessage = 'timetableOnboarding.savedSummary';
         this.reloadFromServer();
       },
-      error: err => {
+      error: (err: unknown) => {
         this.saving = false;
-        this.lastError = err?.message || this.translate.instant('timetableOnboarding.saveFailed');
+        if (err instanceof TimetableConflictError) {
+          const row = this.findDraftRowForConflict(err.conflict);
+          if (row?.replaceTimetableEntryId === err.conflict.existingEntryId) {
+            this.lastError = this.translate.instant('timetableOnboarding.conflictPersistent');
+            delete row.replaceTimetableEntryId;
+            return;
+          }
+          this.lastError = '';
+          this.promptOnboardingConflictReplace(err);
+          return;
+        }
+        this.lastError = err instanceof Error ? err.message : this.translate.instant('timetableOnboarding.saveFailed');
       },
+    });
+  }
+
+  private validateDraftRowsBeforeSave(): string | null {
+    const uniqueSlotKeys = new Set<string>();
+    const uniqueTeacherPeriodKeys = new Set<string>();
+    for (const row of this.draftRows) {
+      if (row.classId == null) {
+        return 'timetableOnboarding.errClassRequired';
+      }
+      if (!row.subjectName.trim()) {
+        return 'timetableOnboarding.errSubjectRequired';
+      }
+      if (row.period < 1 || row.period > 12) {
+        return 'timetableOnboarding.errPeriodRange';
+      }
+      const key = `${row.day}|${row.period}|${row.classId}|${row.sectionId ?? 0}`;
+      if (uniqueSlotKeys.has(key)) {
+        return 'timetableOnboarding.errDuplicateSlot';
+      }
+      uniqueSlotKeys.add(key);
+      const teacherPeriodKey = `${row.day}|${row.period}`;
+      if (uniqueTeacherPeriodKeys.has(teacherPeriodKey)) {
+        return 'timetableOnboarding.errTeacherDoubleBooked';
+      }
+      uniqueTeacherPeriodKeys.add(teacherPeriodKey);
+    }
+    return null;
+  }
+
+  private promptOnboardingConflictReplace(err: TimetableConflictError): void {
+    const p = err.conflict;
+    const labels = createTimetableConflictHumanLabels(this.classes, this.translate);
+    const draftAtSlot = this.findDraftRowForConflict(p);
+    const dlg = buildTimetableConflictDialogStrings({
+      translate: this.translate,
+      conflict: p,
+      labels,
+      pendingClassId: draftAtSlot?.classId ?? null,
+      pendingSectionId: draftAtSlot?.sectionId ?? null,
+    });
+    this.confirmDialog
+      .confirm({
+        ...dlg,
+        variant: 'warning',
+      })
+      .pipe(filter(Boolean), take(1))
+      .subscribe(() => {
+        const row = this.findDraftRowForConflict(p);
+        if (row) {
+          row.replaceTimetableEntryId = p.existingEntryId;
+        }
+        this.save();
+      });
+  }
+
+  private findDraftRowForConflict(p: TimetableConflictPayload): DraftSlot | undefined {
+    const wantDay = this.timetable.normalizeWeekdayTitle(p.day);
+    return this.draftRows.find(r => {
+      if (r.existingEntryId != null) {
+        return false;
+      }
+      const d = this.timetable.normalizeWeekdayTitle(r.day);
+      return d === wantDay && r.period === p.period;
     });
   }
 }

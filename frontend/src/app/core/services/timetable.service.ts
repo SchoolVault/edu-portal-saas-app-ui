@@ -432,19 +432,21 @@ export class TimetableService {
     body: ApplyTeacherScheduleOnboardingRequest
   ): Observable<ApplyTeacherScheduleOnboardingResponse> {
     if (!runtimeConfig.useMocks) {
-      return this.http
-        .post<ApiResp<ApplyTeacherScheduleOnboardingResponse>>(
-          `${this.api.getBaseUrl()}/timetable/onboarding/apply`,
-          body
-        )
-        .pipe(
-          map(res => {
-            if (!res.success || res.data == null) {
-              throw new Error(res.message || 'Schedule onboarding failed');
-            }
-            return res.data;
-          })
-        );
+      return this.pipeTimetableConflict(
+        this.http
+          .post<ApiResp<ApplyTeacherScheduleOnboardingResponse>>(
+            `${this.api.getBaseUrl()}/timetable/onboarding/apply`,
+            body
+          )
+          .pipe(
+            map(res => {
+              if (!res.success || res.data == null) {
+                throw new Error(res.message || 'Schedule onboarding failed');
+              }
+              return res.data;
+            })
+          )
+      );
     }
     return this.mockApplyTeacherScheduleOnboarding(body);
   }
@@ -492,9 +494,8 @@ export class TimetableService {
               updated.push(slot.existingEntryId);
             }
           } else {
-            const nextId = Math.max(0, ...this.entries.map(e => e.id)) + 1;
-            this.entries.push({
-              id: nextId,
+            const candidate: TimetableEntry = {
+              id: 0,
               classId: slot.classId,
               sectionId: slot.sectionId ?? 0,
               day: dayTitle,
@@ -506,8 +507,12 @@ export class TimetableService {
               teacherName,
               room: slot.room?.trim() || `Room ${100 + slot.classId + slot.period}`,
               tenantId: 't1',
-            });
-            created.push(nextId);
+            };
+            const ins = this.mockInsertOnboardingSlot(candidate, slot.replaceTimetableEntryId ?? undefined);
+            if (ins instanceof TimetableConflictError) {
+              return throwError(() => ins);
+            }
+            created.push(ins.id);
           }
         }
         let anchoredEntryId: number | undefined;
@@ -545,6 +550,30 @@ export class TimetableService {
         return of(out).pipe(delay(450));
       })
     );
+  }
+
+  /**
+   * Mock-only insert with the same conflict rules as {@link #mockMutateSlot} (class slot + teacher double-book).
+   */
+  private mockInsertOnboardingSlot(
+    candidate: TimetableEntry,
+    replaceTimetableEntryId?: number
+  ): TimetableEntry | TimetableConflictError {
+    let block = this.mockFindBlocking(candidate, null);
+    if (replaceTimetableEntryId != null) {
+      if (block && block.existingEntryId === replaceTimetableEntryId) {
+        this.entries = this.entries.filter(e => e.id !== replaceTimetableEntryId);
+        block = this.mockFindBlocking(candidate, null);
+      } else if (block) {
+        return new TimetableConflictError(this.mockHumanMessage(String(block.conflictType)), block);
+      }
+    } else if (block) {
+      return new TimetableConflictError(this.mockHumanMessage(String(block.conflictType)), block);
+    }
+    const nextId = Math.max(0, ...this.entries.map(e => e.id)) + 1;
+    const row: TimetableEntry = { ...candidate, id: nextId };
+    this.entries = [...this.entries, row];
+    return row;
   }
 
   private mockResolveTeacherName(teacherId: number): string {

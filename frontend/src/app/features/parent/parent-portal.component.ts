@@ -93,6 +93,35 @@ import {
         border-color: color-mix(in srgb, var(--clr-accent) 35%, var(--clr-border-light));
         box-shadow: var(--shadow-md);
       }
+      @media (max-width: 768px) {
+        .parent-fee-card-header,
+        .parent-fee-card-footer {
+          flex-direction: column;
+          align-items: flex-start !important;
+          gap: 10px;
+        }
+        .parent-fee-card-footer .d-flex.gap-2 {
+          width: 100%;
+          justify-content: flex-start;
+          flex-wrap: wrap;
+        }
+        .parent-fee-card-footer .btn-outline-erp,
+        .parent-fee-card-footer .btn-primary-erp {
+          width: 100%;
+        }
+      }
+      @media (max-width: 576px) {
+        .parent-fee-breakdown-row {
+          flex-direction: column;
+          align-items: flex-start !important;
+          gap: 2px;
+        }
+        .parent-payment-modal {
+          width: calc(100vw - 16px);
+          max-width: calc(100vw - 16px) !important;
+          margin: 8px;
+        }
+      }
     `,
   ],
   template: `
@@ -128,6 +157,9 @@ import {
             />
           </div>
         </div>
+      </div>
+      <div *ngIf="portalError" class="alert alert-danger py-2 px-3 small mb-3" style="border-radius: var(--radius-md);">
+        {{ portalError }}
       </div>
 
       <div *ngIf="selectedChild" class="animate-in animate-in-delay-2">
@@ -208,7 +240,7 @@ import {
           <div *ngIf="feeObligations.length" class="row g-4">
             <div class="col-lg-7">
               <div *ngFor="let obligation of feeObligations" class="erp-card mb-3" style="border: 1px solid var(--clr-border-light); box-shadow: none;">
-                <div class="d-flex justify-content-between align-items-start mb-3">
+                <div class="d-flex justify-content-between align-items-start mb-3 parent-fee-card-header">
                   <div>
                     <h4 style="font-size: 16px; font-weight: 800; margin-bottom: 6px;">{{ obligation.feeStructureName }}</h4>
                     <p class="text-muted mb-0" style="font-size: 12px;">
@@ -254,12 +286,12 @@ import {
                     <h5 style="font-size: 14px; font-weight: 700; margin: 0;">{{ 'parentPortal.feeBreakdown' | translate }}</h5>
                     <span style="font-size: 12px; color: var(--clr-text-muted);">{{ 'parentPortal.lateFeeLabel' | translate: { amount: (obligation.lateFee | currency:obligation.currency:'symbol':'1.0-0') } }}</span>
                   </div>
-                  <div *ngFor="let line of obligation.lineItems" class="d-flex justify-content-between align-items-center" style="padding: 8px 0; border-bottom: 1px solid var(--clr-border-light); font-size: 13px;">
+                  <div *ngFor="let line of obligation.lineItems" class="d-flex justify-content-between align-items-center parent-fee-breakdown-row" style="padding: 8px 0; border-bottom: 1px solid var(--clr-border-light); font-size: 13px;">
                     <span>{{ line.name }}</span>
                     <strong>{{ line.amount | currency:obligation.currency:'symbol':'1.0-0' }}</strong>
                   </div>
                 </div>
-                <div class="d-flex justify-content-between align-items-center mt-3">
+                <div class="d-flex justify-content-between align-items-center mt-3 parent-fee-card-footer">
                   <div style="font-size: 12px; color: var(--clr-text-muted);">
                     {{ 'parentPortal.outstandingLine' | translate: {
                       outstanding: (obligation.dueAmount | currency:obligation.currency:'symbol':'1.0-0'),
@@ -331,7 +363,7 @@ import {
       </div>
 
       <div class="modal-overlay" *ngIf="showPaymentModal && selectedObligation" (click)="closePaymentModal()">
-        <div class="modal-content-erp" style="max-width: 720px;" (click)="$event.stopPropagation()">
+        <div class="modal-content-erp parent-payment-modal" style="max-width: 720px;" (click)="$event.stopPropagation()">
           <div class="modal-header-erp">
             <h3>{{ 'parentPortal.modalPayTitle' | translate }}</h3>
             <button class="btn-icon" (click)="closePaymentModal()"><i class="bi bi-x-lg"></i></button>
@@ -497,6 +529,7 @@ export class ParentPortalComponent implements OnInit, OnDestroy {
   lastOrderPreview: { providerOrderId: string; amount: number } | null = null;
   /** Inline error for gateway (Stripe unsupported, Razorpay config, etc.). */
   paymentGatewayMessage: string | null = null;
+  portalError: string | null = null;
   /** Review-step validation for amount vs payable. */
   paymentAmountError: string | null = null;
   readonly useMocks = runtimeConfig.useMocks;
@@ -785,6 +818,13 @@ export class ParentPortalComponent implements OnInit, OnDestroy {
       this.latestReceipt = null;
       return;
     }
+    if (this.receiptFrom > this.receiptTo) {
+      this.portalError = 'Receipt date range is invalid.';
+      this.receiptHistory = [];
+      this.latestReceipt = null;
+      return;
+    }
+    this.portalError = null;
     this.receiptsLoading = true;
     this.parentService.listChildReceipts(this.selectedStudentId, this.receiptFrom, this.receiptTo).subscribe({
       next: list => {
@@ -796,6 +836,7 @@ export class ParentPortalComponent implements OnInit, OnDestroy {
         this.receiptHistory = [];
         this.latestReceipt = null;
         this.receiptsLoading = false;
+        this.portalError = 'Could not load receipt history.';
       }
     });
   }
@@ -880,6 +921,12 @@ export class ParentPortalComponent implements OnInit, OnDestroy {
     if (!this.selectedObligation || !this.selectedChild) {
       return;
     }
+    const latestObligation = this.feeObligations.find(o => o.paymentId === this.selectedObligation?.paymentId);
+    if (!latestObligation || latestObligation.payableNow <= 0) {
+      this.paymentGatewayMessage = this.translate.instant('parentPortal.err.nothingPayable');
+      return;
+    }
+    this.selectedObligation = latestObligation;
     const amountErr = this.computePaymentAmountError();
     if (amountErr) {
       this.paymentGatewayMessage = amountErr;
@@ -997,6 +1044,12 @@ export class ParentPortalComponent implements OnInit, OnDestroy {
     if (!this.selectedObligation || !this.selectedChild) {
       return;
     }
+    const latestObligation = this.feeObligations.find(o => o.paymentId === this.selectedObligation?.paymentId);
+    if (!latestObligation || latestObligation.payableNow <= 0) {
+      this.paymentGatewayMessage = this.translate.instant('parentPortal.err.nothingPayable');
+      return;
+    }
+    this.selectedObligation = latestObligation;
     if (this.computePaymentAmountError()) {
       return;
     }

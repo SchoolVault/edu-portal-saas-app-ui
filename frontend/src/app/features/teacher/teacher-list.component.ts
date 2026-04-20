@@ -35,6 +35,17 @@ import { runtimeConfig } from '../../core/config/runtime-config';
         min-width: 720px;
       }
       @media (max-width: 576px) {
+        .search-input-wrapper {
+          min-width: 100% !important;
+          width: 100%;
+        }
+        .search-input-wrapper .erp-input {
+          width: 100%;
+        }
+        .teacher-list-filter-wrap {
+          min-width: 100% !important;
+          width: 100%;
+        }
         .teacher-list-table-wrap .erp-table {
           min-width: 640px;
         }
@@ -58,10 +69,17 @@ import { runtimeConfig } from '../../core/config/runtime-config';
         </div>
       </header>
       <div class="erp-card animate-in animate-in-delay-1">
-        <div class="d-flex justify-content-between align-items-center mb-3">
+        <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
           <div class="search-input-wrapper" style="min-width: 300px;">
             <i class="bi bi-search"></i>
             <input type="text" class="erp-input" erpI18nPh="teachers.list.searchPlaceholder" [(ngModel)]="searchTerm" (input)="onSearchInput()" data-testid="teacher-search">
+          </div>
+          <div class="teacher-list-filter-wrap" style="min-width: 220px;">
+            <label class="erp-label mb-1">{{ 'teachers.list.subjectFilterLabel' | translate }}</label>
+            <select class="erp-select" [(ngModel)]="selectedSubject" (ngModelChange)="onSubjectFilterChange()" data-testid="teacher-subject-filter">
+              <option value="">{{ 'teachers.list.subjectFilterAll' | translate }}</option>
+              <option *ngFor="let subject of subjectOptions" [value]="subject">{{ subject }}</option>
+            </select>
           </div>
         </div>
         <div class="teacher-list-table-wrap" dir="ltr">
@@ -140,13 +158,16 @@ export class TeacherListComponent implements OnInit, OnDestroy {
   teachers: Teacher[] = [];
   filtered: Teacher[] = [];
   pagedTeachers: Teacher[] = [];
+  subjectOptions: string[] = [];
   serverTotal = 0;
   searchTerm = '';
+  selectedSubject = '';
   pageIndex = 0;
   pageSize = DEFAULT_ERP_PAGE_SIZE;
   private readonly subs = new Subscription();
   private readonly searchDebounced$ = new Subject<void>();
   private teachersListRequestSeq = 0;
+  private allTeachersCache: Teacher[] = [];
 
   constructor(
     private teacherService: TeacherService,
@@ -198,11 +219,21 @@ export class TeacherListComponent implements OnInit, OnDestroy {
       })
     );
     this.reloadTeachers();
+    this.loadSubjectOptionsCatalog();
   }
 
   onSearchInput(): void {
     if (this.useServerPaging) {
       this.searchDebounced$.next();
+    } else {
+      this.filter();
+    }
+  }
+
+  onSubjectFilterChange(): void {
+    if (this.useServerPaging) {
+      this.pageIndex = 0;
+      this.fetchTeachersPage();
     } else {
       this.filter();
     }
@@ -216,18 +247,21 @@ export class TeacherListComponent implements OnInit, OnDestroy {
     }
     this.teacherService.getTeachers().subscribe(t => {
       this.teachers = t;
+      this.subjectOptions = this.extractSubjectOptions(t);
       this.filter();
     });
   }
 
   private fetchTeachersPage(): void {
     const seq = ++this.teachersListRequestSeq;
+    const hasSubjectFilter = !!this.selectedSubject.trim();
     this.subs.add(
       this.teacherService
         .getTeachersPage({
           page: this.pageIndex,
           size: this.pageSize,
           search: this.searchTerm.trim() || undefined,
+          subject: this.selectedSubject || undefined,
         })
         .pipe(
           switchMap(page => {
@@ -247,13 +281,57 @@ export class TeacherListComponent implements OnInit, OnDestroy {
         )
         .subscribe(page => {
           if (seq !== this.teachersListRequestSeq) return;
+          const q = this.selectedSubject.trim().toLowerCase();
+          const backendIgnoredSubjectFilter =
+            hasSubjectFilter &&
+            page.content.length > 0 &&
+            page.content.some(t => !(t.subjects ?? []).some(s => s.toLowerCase().includes(q)));
+          if (backendIgnoredSubjectFilter) {
+            this.fallbackClientSubjectFilterPage();
+            return;
+          }
           this.serverTotal = page.totalElements;
           this.pagedTeachers = page.content;
+          this.subjectOptions = this.extractSubjectOptions(page.content, this.subjectOptions);
           this.pageIndex = page.page;
           this.pageSize = page.size;
           this.cdr.markForCheck();
         })
     );
+  }
+
+  private loadSubjectOptionsCatalog(): void {
+    if (!this.useServerPaging) {
+      return;
+    }
+    this.subs.add(
+      this.teacherService.getTeachers().subscribe(rows => {
+        this.allTeachersCache = rows;
+        this.subjectOptions = this.extractSubjectOptions(rows, this.subjectOptions);
+        this.cdr.markForCheck();
+      })
+    );
+  }
+
+  /**
+   * Safety fallback when backend ignores `subject` query filtering; keeps UX correct while API catches up.
+   */
+  private fallbackClientSubjectFilterPage(): void {
+    const source = this.allTeachersCache.length ? this.allTeachersCache : this.pagedTeachers;
+    const term = this.searchTerm.trim().toLowerCase();
+    const subject = this.selectedSubject.trim().toLowerCase();
+    const filtered = source.filter(t => {
+      const nameOrSpec =
+        `${t.firstName} ${t.lastName}`.toLowerCase().includes(term) || (t.specialization || '').toLowerCase().includes(term);
+      const subjectMatch = !subject || (t.subjects ?? []).some(s => (s || '').toLowerCase().includes(subject));
+      return nameOrSpec && subjectMatch;
+    });
+    const page = sliceToPage(filtered, this.pageIndex, this.pageSize);
+    this.serverTotal = filtered.length;
+    this.pagedTeachers = page.content;
+    this.pageIndex = page.page;
+    this.subjectOptions = this.extractSubjectOptions(source, this.subjectOptions);
+    this.cdr.markForCheck();
   }
 
   /**
@@ -303,11 +381,26 @@ export class TeacherListComponent implements OnInit, OnDestroy {
 
   filter(): void {
     const term = this.searchTerm.toLowerCase();
+    const subjectNeedle = this.selectedSubject.toLowerCase();
     this.filtered = this.teachers.filter(t =>
-      (t.firstName + ' ' + t.lastName).toLowerCase().includes(term) || (t.specialization || '').toLowerCase().includes(term)
+      ((t.firstName + ' ' + t.lastName).toLowerCase().includes(term) || (t.specialization || '').toLowerCase().includes(term)) &&
+      (!subjectNeedle || (t.subjects ?? []).some(s => (s || '').toLowerCase().includes(subjectNeedle)))
     );
     this.pageIndex = 0;
     this.applyPage();
+  }
+
+  private extractSubjectOptions(rows: Teacher[], existing: string[] = []): string[] {
+    const options = new Set(existing);
+    for (const teacher of rows) {
+      for (const subject of teacher.subjects ?? []) {
+        const clean = subject?.trim();
+        if (clean) {
+          options.add(clean);
+        }
+      }
+    }
+    return Array.from(options).sort((a, b) => a.localeCompare(b));
   }
 
   private applyPage(): void {

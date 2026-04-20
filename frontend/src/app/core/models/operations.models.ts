@@ -76,6 +76,32 @@ export interface AttendanceCoverRow {
   status: string;
 }
 
+export interface AttendanceCoverAuditRow {
+  id: string;
+  at: string;
+  action: 'CREATED' | 'REPLACED' | 'CANCELLED';
+  actorUserId?: number | null;
+  actorName?: string;
+  coverDate: string;
+  classId: number;
+  sectionId?: number | null;
+  periodNumber?: number | null;
+  coveringTeacherId?: number | null;
+  replacedCoverAssignmentId?: number | null;
+  cancelledCoverAssignmentId?: number | null;
+  reason?: string;
+  before?: {
+    coverAssignmentId?: number | null;
+    coveringTeacherId?: number | null;
+    reason?: string | null;
+  };
+  after?: {
+    coverAssignmentId?: number | null;
+    coveringTeacherId?: number | null;
+    reason?: string | null;
+  };
+}
+
 /** Audit row when a teacher marks attendance outside their homeroom (proxy / substitute). */
 export interface AttendanceProxyAuditRow {
   id?: string;
@@ -117,5 +143,6 @@ export type OperationsTab =
   | 'visitors'
   | 'gate'
   | 'inventory'
+  | 'covers'
   | 'reminders'
   | 'payroll';

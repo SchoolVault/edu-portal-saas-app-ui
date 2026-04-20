@@ -42,13 +42,20 @@ export class TeacherService {
   /**
    * Paged teachers aligned with {@code GET /api/v1/teachers}.
    */
-  getTeachersPage(opts: { page?: number; size?: number; search?: string }): Observable<PageResp<Teacher>> {
+  getTeachersPage(opts: { page?: number; size?: number; search?: string; subject?: string }): Observable<PageResp<Teacher>> {
     const page = opts.page ?? 0;
     const size = opts.size ?? DEFAULT_ERP_PAGE_SIZE;
     const q = opts.search?.trim() || '';
+    const subject = opts.subject?.trim() || '';
     if (!runtimeConfig.useMocks) {
       return this.api
-        .getPageParams<any>('/teachers', { page, size, search: q || undefined })
+        .getPageParams<any>('/teachers', {
+          page,
+          size,
+          search: q || undefined,
+          subject: subject || undefined,
+          subjectName: subject || undefined,
+        })
         .pipe(
           map(p => ({
             ...p,
@@ -63,6 +70,10 @@ export class TeacherService {
         t =>
           `${t.firstName} ${t.lastName}`.toLowerCase().includes(ql) || (t.specialization || '').toLowerCase().includes(ql)
       );
+    }
+    if (subject) {
+      const subjectNeedle = subject.toLowerCase();
+      rows = rows.filter(t => (t.subjects ?? []).some(s => (s || '').toLowerCase().includes(subjectNeedle)));
     }
     rows.sort((a, b) => a.firstName.localeCompare(b.firstName));
     return of(sliceToPage(rows, page, size)).pipe(
