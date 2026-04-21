@@ -8,4 +8,7 @@ public interface SchoolClassRepository extends JpaRepository<SchoolClass, Long> 
     List<SchoolClass> findByTenantIdAndIsDeletedFalseOrderByGrade(String tenantId);
     Optional<SchoolClass> findByIdAndTenantIdAndIsDeletedFalse(Long id, String tenantId);
     List<SchoolClass> findByTenantIdAndClassTeacherIdAndIsDeletedFalse(String tenantId, Long classTeacherId);
+
+    Optional<SchoolClass> findFirstByTenantIdAndAcademicYearIdAndNameIgnoreCaseAndIsDeletedFalse(
+            String tenantId, Long academicYearId, String name);
 }

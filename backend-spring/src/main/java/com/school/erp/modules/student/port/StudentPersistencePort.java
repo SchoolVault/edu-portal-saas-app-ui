@@ -38,6 +38,8 @@ public interface StudentPersistencePort {
 
     boolean existsByTenantIdAndAdmissionNumber(String tenantId, String admissionNumber);
 
+    Optional<Student> findByTenantIdAndAdmissionNumberAndIsDeletedFalse(String tenantId, String admissionNumber);
+
     Student save(Student student);
 
     List<Student> saveAll(Iterable<Student> students);

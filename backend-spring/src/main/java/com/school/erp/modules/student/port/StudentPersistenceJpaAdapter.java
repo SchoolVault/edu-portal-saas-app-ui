@@ -81,6 +81,11 @@ public class StudentPersistenceJpaAdapter implements StudentPersistencePort {
     }
 
     @Override
+    public Optional<Student> findByTenantIdAndAdmissionNumberAndIsDeletedFalse(String tenantId, String admissionNumber) {
+        return delegate.findByTenantIdAndAdmissionNumberAndIsDeletedFalse(tenantId, admissionNumber);
+    }
+
+    @Override
     public Student save(Student student) {
         return delegate.save(student);
     }

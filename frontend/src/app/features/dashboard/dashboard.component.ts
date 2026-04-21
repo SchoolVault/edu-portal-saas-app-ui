@@ -12,6 +12,7 @@ import { ParentSelectionService } from '../../core/services/parent-selection.ser
 import { DashboardService } from '../../core/services/dashboard.service';
 import { OperationsService } from '../../core/services/operations.service';
 import { ThemeService } from '../../core/services/theme.service';
+import { TenantModuleGateService } from '../../core/services/tenant-module-gate.service';
 import {
   AdminDashboardData,
   ParentDashboardData,
@@ -446,8 +447,11 @@ interface DashboardChartPalette {
             <h2 class="mb-1 lh-sm" style="font-size: 24px; font-weight: 800;">{{ 'dashboard.parent.pageTitle' | translate }}</h2>
             <p class="text-muted mb-0 lh-sm" style="font-size: 13px;">
               {{ 'parentPortal.leadBefore' | translate }}
-              <strong>{{ 'parentPortal.leadExams' | translate }}</strong>
-              {{ 'parentPortal.leadAfter' | translate }}
+              <ng-container *ngIf="showParentExamsJourney; else parentLeadNoExams">
+                <strong>{{ 'parentPortal.leadExams' | translate }}</strong>
+                {{ 'parentPortal.leadAfter' | translate }}
+              </ng-container>
+              <ng-template #parentLeadNoExams>{{ 'dashboard.parent.leadNoExams' | translate }}</ng-template>
             </p>
           </div>
           <button
@@ -608,9 +612,14 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
     private operationsService: OperationsService,
     private parentSelection: ParentSelectionService,
     private themeService: ThemeService,
+    private moduleGate: TenantModuleGateService,
     private cdr: ChangeDetectorRef,
     private translate: TranslateService
   ) {}
+
+  get showParentExamsJourney(): boolean {
+    return this.moduleGate.isModuleEnabled('exams');
+  }
 
   /** Keeps dashboard child selection aligned with Parent portal / fees deep links. */
   get parentFeesDeepLink(): Record<string, string | number> {
@@ -625,6 +634,9 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
   ngOnInit(): void {
     this.chartPalette = this.resolveChartPalette();
     this.role = this.authService.getRole() || 'admin';
+    if (this.role === 'parent') {
+      this.selectedParentChildId = this.parentSelection.readPreferredChildId();
+    }
     this.langSub = this.translate.onLangChange.subscribe(() => {
       if (this.role === 'admin' && this.adminDashboard) {
         this.cdr.detectChanges();

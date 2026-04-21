@@ -1,0 +1,6 @@
+firstname,lastname,email,phone,qualification,specialization,joindate,salary,subjects,createportal,portalrole,libraryrole,importmode,bankaccountholder,bankname,bankaccountnumber,bankifsc,notifycredentials
+Amit,Sharma,amit.sharma@greenfieldschool.edu,9876501001,M.Ed,Mathematics,2024-04-01,55000,Mathematics|Algebra,Y,TEACHER,AUTO,UPSERT,Amit Sharma,HDFC Bank,502000111001,HDFC0001234,N
+Neha,Verma,neha.verma@greenfieldschool.edu,9876501002,M.Sc,Science,2024-04-01,54000,Science|Biology,Y,TEACHER,AUTO,UPSERT,Neha Verma,ICICI Bank,001122334455,ICIC0002345,N
+Rohan,Iyer,rohan.iyer@greenfieldschool.edu,9876501003,M.A,English,2024-04-01,53000,English|Literature,Y,TEACHER,AUTO,UPSERT,Rohan Iyer,SBI,330001998877,SBIN0003456,N
+Pooja,Kapoor,pooja.kapoor@greenfieldschool.edu,9876501004,B.P.Ed,Physical Education,2024-04-01,50000,Sports|Health,Y,TEACHER,AUTO,UPSERT,Pooja Kapoor,Axis Bank,918273645500,UTIB0004567,N
+Karan,Das,karan.das@greenfieldschool.edu,9876501005,M.Lib,Library Science,2024-04-01,48000,Library Management,Y,LIBRARY_STAFF,LIBRARIAN,UPSERT,Karan Das,Kotak Bank,701122334455,KKBK0005678,N

@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 
 import java.util.List;
 import java.util.stream.Collectors;
@@ -116,6 +117,14 @@ public class GlobalExceptionHandler {
         List<String> errors = ex.getConstraintViolations().stream().map(v -> v.getPropertyPath() + ": " + v.getMessage()).collect(Collectors.toList());
         log.warn("Constraint violation uri={} details={}", currentRequestUri(), errors);
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ApiResponse.error("Validation failed", ApiErrorCode.VALIDATION_FAILED.name(), traceId(), errors));
+    }
+
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ApiResponse<Void>> handleUnreadableBody(HttpMessageNotReadableException ex) {
+        String msg = ex.getMostSpecificCause() != null ? ex.getMostSpecificCause().getMessage() : ex.getMessage();
+        log.warn("Malformed request body uri={} msg={}", currentRequestUri(), msg);
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(err("Invalid request payload. Please verify field names and formats.", ApiErrorCode.VALIDATION_FAILED));
     }
 
     private static String currentRequestUri() {

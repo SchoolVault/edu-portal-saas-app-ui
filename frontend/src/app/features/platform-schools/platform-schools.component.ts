@@ -5,16 +5,29 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { PlatformService } from '../../core/services/platform.service';
-import { PlatformPurgeJob, PlatformSchoolDetail, PlatformSchoolSummary } from '../../core/models/models';
+import { OnboardSchoolRequest, PlatformPurgeJob, PlatformSchoolDetail, PlatformSchoolSummary } from '../../core/models/models';
 import { forkJoin, Subject } from 'rxjs';
 import { debounceTime, distinctUntilChanged } from 'rxjs/operators';
 import { ErpPaginationComponent } from '../../shared/erp-pagination/erp-pagination.component';
+import { ErpDatePickerComponent } from '../../shared/erp-date-picker/erp-date-picker.component';
 import { DEFAULT_ERP_PAGE_SIZE } from '../../core/constants/pagination.constants';
+import {
+  FieldErrors,
+  OnboardSchoolField,
+  hasFieldErrors,
+  validateOnboardSchoolForm,
+} from '../../core/validation/onboard-school-form.validation';
+import {
+  ONBOARD_ADMIN_PASSWORD_MAX,
+  ONBOARD_ADMIN_PASSWORD_MIN,
+  ONBOARD_SCHOOL_CODE_MAX,
+  ONBOARD_SCHOOL_CODE_MIN,
+} from '../../core/validation/auth-forms.constants';
 
 @Component({
   selector: 'app-platform-schools',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink, TranslateModule, ErpPaginationComponent],
+  imports: [CommonModule, FormsModule, RouterLink, TranslateModule, ErpPaginationComponent, ErpDatePickerComponent],
   template: `
     <div class="platform-schools-root" data-testid="platform-schools-page">
       <div class="platform-page-inner animate-in">
@@ -24,7 +37,12 @@ import { DEFAULT_ERP_PAGE_SIZE } from '../../core/constants/pagination.constants
             <h2 class="platform-page-title">{{ 'platformSchools.pageTitle' | translate }}</h2>
             <p class="text-muted mb-0 platform-page-lead">{{ 'platformSchools.lead' | translate }}</p>
           </div>
-          <a routerLink="/app/super-admin" class="btn-outline-erp btn-sm"><i class="bi bi-arrow-left me-1"></i>{{ 'platformSchools.backOverview' | translate }}</a>
+          <div class="d-flex align-items-center gap-2 flex-wrap">
+            <button type="button" class="btn-primary-erp btn-sm" (click)="openOnboardModal()">
+              <i class="bi bi-plus-circle me-1"></i>{{ 'platformSchools.onboard.openCta' | translate }}
+            </button>
+            <a routerLink="/app/super-admin" class="btn-outline-erp btn-sm"><i class="bi bi-arrow-left me-1"></i>{{ 'platformSchools.backOverview' | translate }}</a>
+          </div>
         </div>
 
         <div *ngIf="loadError" class="alert alert-danger py-2 mb-3">{{ loadError }}</div>
@@ -59,7 +77,7 @@ import { DEFAULT_ERP_PAGE_SIZE } from '../../core/constants/pagination.constants
                         <div class="platform-muted-xs">{{ s.schoolCode }}</div>
                       </td>
                       <td class="platform-muted-sm">
-                        {{ 'platformSchools.rollup' | translate: { stu: (s.studentCount | number), tch: s.teacherCount, adm: s.adminCount } }}
+                        <span class="platform-rollup-text">{{ formatWorkspaceRollup(s) }}</span>
                       </td>
                       <td>
                         <span class="badge-erp" [ngClass]="s.active ? 'badge-success' : 'badge-warning'">
@@ -94,7 +112,7 @@ import { DEFAULT_ERP_PAGE_SIZE } from '../../core/constants/pagination.constants
                 <p>{{ 'platformSchools.emptyLead' | translate }}</p>
               </div>
 
-              <div *ngIf="selected && detailLoading" class="platform-detail-body text-muted">Loading…</div>
+              <div *ngIf="selected && detailLoading" class="platform-detail-body text-muted">{{ 'platformSchools.loading' | translate }}</div>
 
               <div *ngIf="selected && !detailLoading && detail" class="platform-detail-body">
                 <div class="platform-hero" [style.border-left-color]="detail.school.primaryColor || 'var(--clr-primary)'">
@@ -218,7 +236,7 @@ import { DEFAULT_ERP_PAGE_SIZE } from '../../core/constants/pagination.constants
         <div class="modal-content-erp modal-narrow" (click)="$event.stopPropagation()">
           <div class="modal-header-erp">
             <h3>{{ 'platformSchools.modal.suspendTitle' | translate }}</h3>
-            <button type="button" class="btn-icon" (click)="closeSuspendModal()" aria-label="Close"><i class="bi bi-x-lg"></i></button>
+            <button type="button" class="btn-icon" (click)="closeSuspendModal()" [attr.aria-label]="'platformSchools.modal.closeAria' | translate"><i class="bi bi-x-lg"></i></button>
           </div>
           <div class="modal-body-erp">
             <p class="mb-2">{{ 'platformSchools.modal.suspendLead' | translate: { school: detail?.school?.schoolName } }}</p>
@@ -236,7 +254,7 @@ import { DEFAULT_ERP_PAGE_SIZE } from '../../core/constants/pagination.constants
         <div class="modal-content-erp modal-narrow" (click)="$event.stopPropagation()">
           <div class="modal-header-erp">
             <h3>{{ 'platformSchools.modal.activateTitle' | translate }}</h3>
-            <button type="button" class="btn-icon" (click)="closeActivateModal()" aria-label="Close"><i class="bi bi-x-lg"></i></button>
+            <button type="button" class="btn-icon" (click)="closeActivateModal()" [attr.aria-label]="'platformSchools.modal.closeAria' | translate"><i class="bi bi-x-lg"></i></button>
           </div>
           <div class="modal-body-erp">
             <p class="mb-0">{{ 'platformSchools.modal.activateLead' | translate }}</p>
@@ -253,7 +271,7 @@ import { DEFAULT_ERP_PAGE_SIZE } from '../../core/constants/pagination.constants
         <div class="modal-content-erp modal-purge" (click)="$event.stopPropagation()">
           <div class="modal-header-erp border-danger" style="border-bottom-width: 2px;">
             <h3 class="text-danger mb-0"><i class="bi bi-exclamation-triangle-fill me-2"></i>{{ 'platformSchools.modal.purgeTitle' | translate }}</h3>
-            <button type="button" class="btn-icon" (click)="closePurgeModal()" aria-label="Close"><i class="bi bi-x-lg"></i></button>
+            <button type="button" class="btn-icon" (click)="closePurgeModal()" [attr.aria-label]="'platformSchools.modal.closeAria' | translate"><i class="bi bi-x-lg"></i></button>
           </div>
           <div class="modal-body-erp">
             <p class="fw-semibold mb-2">{{ 'platformSchools.modal.purgeLead' | translate: { school: detail?.school?.schoolName, code: detail?.school?.schoolCode } }}</p>
@@ -313,6 +331,151 @@ import { DEFAULT_ERP_PAGE_SIZE } from '../../core/constants/pagination.constants
           </div>
         </div>
       </div>
+
+      <div class="modal-overlay modal-overlay-viewport" *ngIf="onboardModalOpen" (click)="closeOnboardModal()">
+        <div class="modal-content-erp modal-narrow" (click)="$event.stopPropagation()">
+          <div class="modal-header-erp">
+            <h3>{{ 'platformSchools.onboard.title' | translate }}</h3>
+            <button type="button" class="btn-icon" (click)="closeOnboardModal()" [attr.aria-label]="'platformSchools.modal.closeAria' | translate"><i class="bi bi-x-lg"></i></button>
+          </div>
+          <div class="modal-body-erp">
+            <div class="erp-form-group mb-2">
+              <label class="erp-label">{{ 'platformSchools.onboard.schoolName' | translate }}</label>
+              <input
+                class="erp-input"
+                [class.erp-input--invalid]="showOnboardFieldError('schoolName')"
+                [(ngModel)]="onboardForm.schoolName"
+                (ngModelChange)="onOnboardFieldInput('schoolName')"
+                (blur)="markOnboardFieldTouched('schoolName')"
+                [placeholder]="'platformSchools.onboard.schoolNamePh' | translate"
+              />
+              <p *ngIf="!showOnboardFieldError('schoolName')" class="text-muted mb-0 mt-1 small">{{ 'platformSchools.onboard.hints.schoolName' | translate }}</p>
+              <p *ngIf="showOnboardFieldError('schoolName')" class="text-danger mb-0 mt-1 small">{{ getOnboardFieldError('schoolName') | translate: getOnboardFieldErrorParams('schoolName') }}</p>
+            </div>
+            <div class="erp-form-group mb-2">
+              <label class="erp-label">{{ 'platformSchools.onboard.schoolCode' | translate }}</label>
+              <input
+                class="erp-input"
+                [class.erp-input--invalid]="showOnboardFieldError('schoolCode')"
+                [(ngModel)]="onboardForm.schoolCode"
+                (ngModelChange)="onOnboardFieldInput('schoolCode')"
+                (blur)="markOnboardFieldTouched('schoolCode')"
+                [placeholder]="'platformSchools.onboard.schoolCodePh' | translate"
+              />
+              <p *ngIf="!showOnboardFieldError('schoolCode')" class="text-muted mb-0 mt-1 small">{{ 'platformSchools.onboard.hints.schoolCode' | translate }}</p>
+              <p *ngIf="showOnboardFieldError('schoolCode')" class="text-danger mb-0 mt-1 small">{{ getOnboardFieldError('schoolCode') | translate: getOnboardFieldErrorParams('schoolCode') }}</p>
+            </div>
+            <div class="erp-form-group mb-2">
+              <label class="erp-label">{{ 'platformSchools.onboard.adminName' | translate }}</label>
+              <input
+                class="erp-input"
+                [class.erp-input--invalid]="showOnboardFieldError('adminName')"
+                [(ngModel)]="onboardForm.adminName"
+                (ngModelChange)="onOnboardFieldInput('adminName')"
+                (blur)="markOnboardFieldTouched('adminName')"
+                [placeholder]="'platformSchools.onboard.adminNamePh' | translate"
+              />
+              <p *ngIf="!showOnboardFieldError('adminName')" class="text-muted mb-0 mt-1 small">{{ 'platformSchools.onboard.hints.adminName' | translate }}</p>
+              <p *ngIf="showOnboardFieldError('adminName')" class="text-danger mb-0 mt-1 small">{{ getOnboardFieldError('adminName') | translate: getOnboardFieldErrorParams('adminName') }}</p>
+            </div>
+            <div class="erp-form-group mb-2">
+              <label class="erp-label">{{ 'platformSchools.onboard.adminEmail' | translate }}</label>
+              <input
+                class="erp-input"
+                [class.erp-input--invalid]="showOnboardFieldError('adminEmail')"
+                [(ngModel)]="onboardForm.adminEmail"
+                (ngModelChange)="onOnboardFieldInput('adminEmail')"
+                (blur)="markOnboardFieldTouched('adminEmail')"
+                [placeholder]="'platformSchools.onboard.adminEmailPh' | translate"
+              />
+              <p *ngIf="!showOnboardFieldError('adminEmail')" class="text-muted mb-0 mt-1 small">{{ 'platformSchools.onboard.hints.adminEmail' | translate }}</p>
+              <p *ngIf="showOnboardFieldError('adminEmail')" class="text-danger mb-0 mt-1 small">{{ getOnboardFieldError('adminEmail') | translate: getOnboardFieldErrorParams('adminEmail') }}</p>
+            </div>
+            <div class="erp-form-group mb-2">
+              <label class="erp-label">{{ 'platformSchools.onboard.adminPhone' | translate }}</label>
+              <input
+                class="erp-input"
+                [class.erp-input--invalid]="showOnboardFieldError('phone')"
+                [(ngModel)]="onboardForm.phone"
+                (ngModelChange)="onOnboardFieldInput('phone')"
+                (blur)="markOnboardFieldTouched('phone')"
+                [placeholder]="'platformSchools.onboard.adminPhonePh' | translate"
+              />
+              <p *ngIf="!showOnboardFieldError('phone')" class="text-muted mb-0 mt-1 small">{{ 'platformSchools.onboard.hints.adminPhone' | translate }}</p>
+              <p *ngIf="showOnboardFieldError('phone')" class="text-danger mb-0 mt-1 small">{{ getOnboardFieldError('phone') | translate: getOnboardFieldErrorParams('phone') }}</p>
+            </div>
+            <div class="erp-form-group mb-2">
+              <label class="erp-label">{{ 'platformSchools.onboard.tempPassword' | translate }}</label>
+              <div class="d-flex align-items-center gap-2">
+                <input
+                  [type]="showTempPassword ? 'text' : 'password'"
+                  class="erp-input"
+                  [class.erp-input--invalid]="showOnboardFieldError('adminPassword')"
+                  [(ngModel)]="onboardForm.adminPassword"
+                  (ngModelChange)="onOnboardFieldInput('adminPassword')"
+                  (blur)="markOnboardFieldTouched('adminPassword')"
+                  [placeholder]="'platformSchools.onboard.tempPasswordPh' | translate"
+                />
+                <button type="button" class="btn-outline-erp btn-sm" (click)="showTempPassword = !showTempPassword" [attr.aria-label]="showTempPassword ? ('platformSchools.onboard.hidePassword' | translate) : ('platformSchools.onboard.showPassword' | translate)">
+                  <i class="bi" [ngClass]="showTempPassword ? 'bi-eye-slash' : 'bi-eye'"></i>
+                </button>
+              </div>
+              <p *ngIf="!showOnboardFieldError('adminPassword')" class="text-muted mb-0 mt-1 small">{{ 'platformSchools.onboard.hints.tempPassword' | translate }}</p>
+              <p *ngIf="showOnboardFieldError('adminPassword')" class="text-danger mb-0 mt-1 small">{{ getOnboardFieldError('adminPassword') | translate: getOnboardFieldErrorParams('adminPassword') }}</p>
+            </div>
+            <div class="erp-form-group mb-2">
+              <label class="erp-label">{{ 'platformSchools.onboard.academicYearLabel' | translate }}</label>
+              <input
+                class="erp-input"
+                [class.erp-input--invalid]="showOnboardFieldError('academicYearName')"
+                [(ngModel)]="onboardForm.academicYearName"
+                (ngModelChange)="onOnboardFieldInput('academicYearName')"
+                (blur)="markOnboardFieldTouched('academicYearName')"
+                [placeholder]="'platformSchools.onboard.academicYearLabelPh' | translate"
+              />
+              <p *ngIf="!showOnboardFieldError('academicYearName')" class="text-muted mb-0 mt-1 small">{{ 'platformSchools.onboard.hints.academicYearLabel' | translate }}</p>
+              <p *ngIf="showOnboardFieldError('academicYearName')" class="text-danger mb-0 mt-1 small">{{ getOnboardFieldError('academicYearName') | translate: getOnboardFieldErrorParams('academicYearName') }}</p>
+            </div>
+            <div class="row g-2">
+              <div class="col-6">
+                <label class="erp-label">{{ 'platformSchools.onboard.academicYearStart' | translate }}</label>
+                <app-erp-date-picker
+                  [(ngModel)]="onboardForm.academicYearStartDate"
+                  (ngModelChange)="onOnboardFieldInput('academicYearStartDate')"
+                  (blur)="markOnboardFieldTouched('academicYearStartDate')"
+                  [maxDate]="onboardForm.academicYearEndDate || undefined"
+                  [placeholder]="'platformSchools.onboard.datePlaceholder' | translate" />
+                <p *ngIf="!showOnboardFieldError('academicYearStartDate')" class="text-muted mb-0 mt-1 small">{{ 'platformSchools.onboard.hints.academicYearStart' | translate }}</p>
+                <p *ngIf="showOnboardFieldError('academicYearStartDate')" class="text-danger mb-0 mt-1 small">{{ getOnboardFieldError('academicYearStartDate') | translate: getOnboardFieldErrorParams('academicYearStartDate') }}</p>
+              </div>
+              <div class="col-6">
+                <label class="erp-label">{{ 'platformSchools.onboard.academicYearEnd' | translate }}</label>
+                <app-erp-date-picker
+                  [(ngModel)]="onboardForm.academicYearEndDate"
+                  (ngModelChange)="onOnboardFieldInput('academicYearEndDate')"
+                  (blur)="markOnboardFieldTouched('academicYearEndDate')"
+                  [minDate]="onboardForm.academicYearStartDate || undefined"
+                  [placeholder]="'platformSchools.onboard.datePlaceholder' | translate" />
+                <p *ngIf="!showOnboardFieldError('academicYearEndDate')" class="text-muted mb-0 mt-1 small">{{ 'platformSchools.onboard.hints.academicYearEnd' | translate }}</p>
+                <p *ngIf="showOnboardFieldError('academicYearEndDate')" class="text-danger mb-0 mt-1 small">{{ getOnboardFieldError('academicYearEndDate') | translate: getOnboardFieldErrorParams('academicYearEndDate') }}</p>
+              </div>
+            </div>
+            <div class="erp-form-group mb-0">
+              <label class="erp-label">{{ 'platformSchools.onboard.address' | translate }}</label>
+              <input class="erp-input" [(ngModel)]="onboardForm.address" [placeholder]="'platformSchools.onboard.addressPh' | translate" />
+              <p class="text-muted mb-0 mt-1 small">{{ 'platformSchools.onboard.hints.address' | translate }}</p>
+            </div>
+            <p *ngIf="onboardError" class="text-danger mb-0 mt-2">{{ onboardError }}</p>
+            <p *ngIf="onboardSuccess" class="text-success mb-0 mt-2">{{ onboardSuccess }}</p>
+          </div>
+          <div class="modal-footer-erp">
+            <button type="button" class="btn-outline-erp" (click)="closeOnboardModal()">{{ 'platformSchools.modal.cancel' | translate }}</button>
+            <button type="button" class="btn-primary-erp" (click)="submitOnboardSchool()" [disabled]="onboardSubmitting">
+              {{ onboardSubmitting ? ('platformSchools.onboard.creating' | translate) : ('platformSchools.onboard.createCta' | translate) }}
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   `,
   styles: [`
@@ -331,6 +494,7 @@ import { DEFAULT_ERP_PAGE_SIZE } from '../../core/constants/pagination.constants
     .platform-table-row { cursor: pointer; transition: background 0.15s ease; }
     .platform-table-row:hover { background: var(--clr-hover); }
     .platform-table-row-active { background: var(--clr-surface-alt) !important; }
+    .platform-rollup-text { white-space: nowrap; }
     .platform-hero {
       border-left: 4px solid var(--clr-primary);
       padding: 16px 18px;
@@ -430,6 +594,21 @@ import { DEFAULT_ERP_PAGE_SIZE } from '../../core/constants/pagination.constants
     }
     .modal-narrow { max-width: 480px; width: 100%; }
     .modal-purge { max-width: 520px; width: 100%; }
+    @media (max-width: 768px) {
+      .platform-page-title { font-size: 22px; }
+      .platform-page-lead { font-size: 12px; }
+      .platform-table th,
+      .platform-table td {
+        padding: 10px 8px;
+      }
+      .platform-rollup-text {
+        white-space: normal;
+        line-height: 1.35;
+      }
+      .platform-impact-grid {
+        grid-template-columns: 1fr;
+      }
+    }
   `]
 })
 export class PlatformSchoolsComponent implements OnInit {
@@ -455,6 +634,22 @@ export class PlatformSchoolsComponent implements OnInit {
   purgeModalCode = '';
   purgeChecks = { irreversible: false, backup: false, authorized: false };
   purgeModalError = '';
+  onboardModalOpen = false;
+  onboardSubmitting = false;
+  showTempPassword = false;
+  onboardError = '';
+  onboardSuccess = '';
+  onboardValidationErrors: FieldErrors<OnboardSchoolField> = {};
+  onboardTouched: Partial<Record<OnboardSchoolField, boolean>> = {};
+  onboardForm: OnboardSchoolRequest = {
+    schoolName: '',
+    schoolCode: '',
+    adminName: '',
+    adminEmail: '',
+    adminPassword: '',
+    phone: '',
+    address: '',
+  };
 
   private readonly destroyRef = inject(DestroyRef);
 
@@ -526,7 +721,7 @@ export class PlatformSchoolsComponent implements OnInit {
       },
       error: e => {
         this.detailLoading = false;
-        this.actionError = e?.message || 'Could not load school detail.';
+        this.actionError = e?.message || this.translate.instant('platformSchools.detailLoadError');
       }
     });
   }
@@ -627,5 +822,165 @@ export class PlatformSchoolsComponent implements OnInit {
   private clearFeedback(): void {
     this.actionMessage = '';
     this.actionError = '';
+  }
+
+  openOnboardModal(): void {
+    this.onboardModalOpen = true;
+    this.onboardError = '';
+    this.onboardSuccess = '';
+    this.onboardValidationErrors = {};
+    this.onboardTouched = {};
+    this.showTempPassword = false;
+    if (!this.onboardForm.academicYearStartDate || !this.onboardForm.academicYearEndDate) {
+      const now = new Date();
+      const startYear = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
+      this.onboardForm.academicYearStartDate = `${startYear}-04-01`;
+      this.onboardForm.academicYearEndDate = `${startYear + 1}-03-31`;
+      if (!this.onboardForm.academicYearName) {
+        this.onboardForm.academicYearName = `${startYear}-${startYear + 1}`;
+      }
+    }
+  }
+
+  closeOnboardModal(): void {
+    this.onboardModalOpen = false;
+  }
+
+  private resetOnboardForm(): void {
+    this.onboardForm = {
+      schoolName: '',
+      schoolCode: '',
+      adminName: '',
+      adminEmail: '',
+      adminPassword: '',
+      phone: '',
+      address: '',
+    };
+    this.onboardValidationErrors = {};
+    this.onboardTouched = {};
+    this.onboardError = '';
+    this.onboardSuccess = '';
+    this.showTempPassword = false;
+  }
+
+  private validateOnboardForm(): FieldErrors<OnboardSchoolField> {
+    const errors = validateOnboardSchoolForm(this.onboardForm);
+    if (!(this.onboardForm.academicYearName || '').trim()) {
+      errors.academicYearName = 'platformSchools.onboard.errors.academicYearNameRequired';
+    }
+    if (!(this.onboardForm.academicYearStartDate || '').trim()) {
+      errors.academicYearStartDate = 'platformSchools.onboard.errors.academicYearStartRequired';
+    }
+    if (!(this.onboardForm.academicYearEndDate || '').trim()) {
+      errors.academicYearEndDate = 'platformSchools.onboard.errors.academicYearEndRequired';
+    }
+    if (
+      this.onboardForm.academicYearStartDate &&
+      this.onboardForm.academicYearEndDate &&
+      this.onboardForm.academicYearEndDate <= this.onboardForm.academicYearStartDate
+    ) {
+      errors.academicYearEndDate = 'platformSchools.onboard.errors.academicYearRange';
+    }
+    return errors;
+  }
+
+  private markAllOnboardFieldsTouched(): void {
+    this.onboardTouched = {
+      schoolName: true,
+      schoolCode: true,
+      adminName: true,
+      adminEmail: true,
+      adminPassword: true,
+      phone: true,
+      academicYearName: true,
+      academicYearStartDate: true,
+      academicYearEndDate: true,
+    };
+  }
+
+  markOnboardFieldTouched(field: OnboardSchoolField): void {
+    this.onboardTouched[field] = true;
+    this.onboardValidationErrors = this.validateOnboardForm();
+  }
+
+  onOnboardFieldInput(field: OnboardSchoolField): void {
+    if (!this.onboardTouched[field]) {
+      return;
+    }
+    this.onboardValidationErrors = this.validateOnboardForm();
+  }
+
+  showOnboardFieldError(field: OnboardSchoolField): boolean {
+    return !!this.onboardTouched[field] && !!this.onboardValidationErrors[field];
+  }
+
+  getOnboardFieldError(field: OnboardSchoolField): string {
+    return this.onboardValidationErrors[field] || '';
+  }
+
+  getOnboardFieldErrorParams(field: OnboardSchoolField): Record<string, number> {
+    if (field === 'schoolCode') {
+      return { min: ONBOARD_SCHOOL_CODE_MIN, max: ONBOARD_SCHOOL_CODE_MAX };
+    }
+    if (field === 'adminPassword') {
+      return { min: ONBOARD_ADMIN_PASSWORD_MIN, max: ONBOARD_ADMIN_PASSWORD_MAX };
+    }
+    return {};
+  }
+
+  submitOnboardSchool(): void {
+    this.onboardError = '';
+    this.onboardSuccess = '';
+    this.markAllOnboardFieldsTouched();
+    this.onboardValidationErrors = this.validateOnboardForm();
+    if (hasFieldErrors(this.onboardValidationErrors)) {
+      this.onboardError = this.translate.instant('platformSchools.onboard.errors.fixFieldErrors');
+      return;
+    }
+    this.onboardSubmitting = true;
+    this.platform.onboardSchoolWorkspace(this.onboardForm).subscribe({
+      next: res => {
+        this.onboardSubmitting = false;
+        this.actionMessage = this.translate.instant('platformSchools.onboard.successBanner', {
+          school: this.onboardForm.schoolName || this.onboardForm.schoolCode || res.schoolCode || res.tenantId,
+        });
+        this.onboardSuccess = this.translate.instant('platformSchools.onboard.success', {
+          tenantId: res.tenantId,
+          academicYearId: res.academicYearId ?? '-',
+        });
+        this.closeOnboardModal();
+        this.resetOnboardForm();
+        this.schoolPageIndex = 0;
+        this.loadSchoolsPage();
+        if (this.selected) {
+          this.refreshDetail();
+        }
+      },
+      error: err => {
+        this.onboardSubmitting = false;
+        this.onboardError = err?.message || this.translate.instant('platformSchools.onboard.errors.createFailed');
+      }
+    });
+  }
+
+  /**
+   * Human-readable counts for sales/support users (avoids short technical abbreviations).
+   */
+  formatWorkspaceRollup(school: Pick<PlatformSchoolSummary, 'studentCount' | 'teacherCount' | 'adminCount'>): string {
+    const student = this.translate.instant('platformSchools.rollupStudent', {
+      count: this.formatLocalizedCount(school.studentCount),
+    });
+    const teacher = this.translate.instant('platformSchools.rollupTeacher', {
+      count: this.formatLocalizedCount(school.teacherCount),
+    });
+    const admin = this.translate.instant('platformSchools.rollupAdmin', {
+      count: this.formatLocalizedCount(school.adminCount),
+    });
+    return [student, teacher, admin].join(' · ');
+  }
+
+  private formatLocalizedCount(value: number): string {
+    const locale = this.translate.currentLang?.toLowerCase().startsWith('hi') ? 'hi-IN' : 'en-IN';
+    return new Intl.NumberFormat(locale).format(value || 0);
   }
 }

@@ -1,7 +1,7 @@
 import type { AcademicYear, SchoolClass, SubjectCatalogItem } from '../models/models';
 
 export const MOCK_ACADEMIC_YEARS: AcademicYear[] = [
-  { id: 1, name: '2025-2026', startDate: '2025-06-01', endDate: '2026-05-31', isCurrent: true, tenantId: 't1' },
+  { id: 1, name: '2026-2027', startDate: '2026-04-01', endDate: '2027-03-31', isCurrent: true, tenantId: 't1' },
   { id: 2, name: '2024-2025', startDate: '2024-06-01', endDate: '2025-05-31', isCurrent: false, tenantId: 't1' },
 ];
 

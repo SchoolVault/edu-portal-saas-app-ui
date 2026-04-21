@@ -1,7 +1,7 @@
 import { Injectable } from '@angular/core';
 import { forkJoin, Observable, of } from 'rxjs';
 import { catchError, delay, map, switchMap } from 'rxjs/operators';
-import { AdminDashboardData, MarkRecord, ParentDashboardData, TeacherDashboardData } from '../models/models';
+import { AdminDashboardData, MarkRecord, ParentDashboardData, Student, TeacherDashboardData } from '../models/models';
 import {
   buildMockParentActivities,
   buildMockParentDashboardData,
@@ -128,6 +128,12 @@ export class DashboardService {
     }
     return this.api.get<any>(`/reports/dashboard/parent?${q.toString()}`).pipe(
       map(raw => this.normalizeParentDashboardApi(raw)),
+      switchMap(dashboard =>
+        this.parentService.getChildren().pipe(
+          map(children => this.reconcileParentChildren(dashboard, children)),
+          catchError(() => of(dashboard))
+        )
+      ),
       catchError(() =>
         this.parentService.getChildren().pipe(
           switchMap(children => {
@@ -145,6 +151,30 @@ export class DashboardService {
         )
       )
     );
+  }
+
+  /**
+   * Reports API may lag behind child roster updates; prefer parent children endpoint for class/section labels.
+   * Keeps dashboard child picker and selected child card consistent with Parent portal.
+   */
+  private reconcileParentChildren(
+    dashboard: ParentDashboardData,
+    parentChildren: Student[]
+  ): ParentDashboardData {
+    if (!parentChildren?.length) {
+      return dashboard;
+    }
+    const byId = new Map(parentChildren.map(child => [child.id, child]));
+    const mergedChildren = (dashboard.children ?? []).map(child => byId.get(child.id) ?? child);
+    const selectedChildId = dashboard.selectedChildId ?? dashboard.selectedChild?.id;
+    const selectedChild = selectedChildId != null ? byId.get(selectedChildId) ?? dashboard.selectedChild : dashboard.selectedChild;
+    return {
+      ...dashboard,
+      children: mergedChildren.length ? mergedChildren : parentChildren,
+      selectedChild,
+      selectedChildId: selectedChild?.id ?? dashboard.selectedChildId,
+      childCount: Math.max(dashboard.childCount ?? 0, parentChildren.length),
+    };
   }
 
   private emptyParentDashboard(): ParentDashboardData {

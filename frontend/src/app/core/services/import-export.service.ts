@@ -16,6 +16,8 @@ export interface ImportJobSummary {
   finishedAt: string | null;
   summaryMessage: string | null;
   createdAt: string | null;
+  /** SHA-256 hex of raw upload bytes (when present). */
+  payloadHash?: string | null;
 }
 
 export interface ImportJobLine {
@@ -32,6 +34,44 @@ export interface JobSubmitResponse {
   jobId: number;
   status: string;
   totalRows: number;
+  /** True when server returned an existing QUEUED/RUNNING job for the same file hash. */
+  idempotentReplay?: boolean;
+  payloadHash?: string | null;
+  advisoryMessage?: string | null;
+}
+
+export interface DryRunRowError {
+  lineIndex: number;
+  message: string;
+}
+
+export interface DryRunResponse {
+  jobType: string;
+  totalRows: number;
+  validRows: number;
+  invalidRows: number;
+  advisoryMessage?: string | null;
+  sampleErrors: DryRunRowError[];
+}
+
+/** Response from POST /import-export/jobs/preview-headers */
+export interface FileHeaderPreview {
+  jobType: string;
+  detectedHeaders: string[];
+  canonicalFields: string[];
+  /** file header (lowercase) → canonical field key */
+  suggestedMapping: Record<string, string>;
+}
+
+/** GET /import-export/metrics/summary — tenant activity; JVM metrics use meterNamespaceHint → Prometheus. */
+export interface ImportMetricsSummary {
+  jobsCreatedLast24h: number;
+  jobsCompletedLast24h: number;
+  jobsFailedLast24h: number;
+  jobsRunningNow: number;
+  rowsSucceededLast24h: number;
+  rowsFailedLast24h: number;
+  meterNamespaceHint?: string | null;
 }
 
 const MOCK_JOBS: ImportJobSummary[] = [
@@ -39,7 +79,7 @@ const MOCK_JOBS: ImportJobSummary[] = [
     id: 9001,
     jobType: 'STUDENTS',
     status: 'COMPLETED',
-    originalFilename: 'admissions-mock.zip',
+    originalFilename: 'admissions-mock.xlsx',
     totalRows: 120,
     successCount: 118,
     failCount: 2,
@@ -52,7 +92,7 @@ const MOCK_JOBS: ImportJobSummary[] = [
     id: 9002,
     jobType: 'TEACHERS',
     status: 'QUEUED',
-    originalFilename: 'faculty-term2.zip',
+    originalFilename: 'faculty-term2.csv',
     totalRows: 0,
     successCount: 0,
     failCount: 0,
@@ -88,7 +128,68 @@ const MOCK_LINES: ImportJobLine[] = [
 export class ImportExportService {
   constructor(private api: ApiService) {}
 
-  submitJob(jobType: string, file: File): Observable<JobSubmitResponse> {
+  getMetricsSummary(schoolCode?: string | null): Observable<ImportMetricsSummary> {
+    if (runtimeConfig.useMocks) {
+      return of({
+        jobsCreatedLast24h: 14,
+        jobsCompletedLast24h: 12,
+        jobsFailedLast24h: 1,
+        jobsRunningNow: 1,
+        rowsSucceededLast24h: 4520,
+        rowsFailedLast24h: 18,
+        meterNamespaceHint: 'school.import',
+      }).pipe(delay(200));
+    }
+    return this.api.getParams<ImportMetricsSummary>('/import-export/metrics/summary', {
+      schoolCode: schoolCode?.trim().toUpperCase() || undefined,
+    });
+  }
+
+  previewHeaders(jobType: string, file: File, schoolCode?: string | null): Observable<FileHeaderPreview> {
+    if (runtimeConfig.useMocks) {
+      return of({
+        jobType,
+        detectedHeaders: ['first_name', 'last_name', 'email_address'],
+        canonicalFields: ['firstname', 'lastname', 'email', 'phone'],
+        suggestedMapping: {
+          first_name: 'firstname',
+          last_name: 'lastname',
+          email_address: 'email',
+        },
+      }).pipe(delay(280));
+    }
+    const fd = new FormData();
+    fd.append('jobType', jobType);
+    fd.append('file', file);
+    if (schoolCode && schoolCode.trim().length > 0) {
+      fd.append('schoolCode', schoolCode.trim().toUpperCase());
+    }
+    return this.api.postFormData<FileHeaderPreview>('/import-export/jobs/preview-headers', fd);
+  }
+
+  dryRun(jobType: string, file: File, columnMappingJson?: string | null, schoolCode?: string | null): Observable<DryRunResponse> {
+    if (runtimeConfig.useMocks) {
+      return of({
+        jobType,
+        totalRows: 3,
+        validRows: 2,
+        invalidRows: 1,
+        sampleErrors: [{ lineIndex: 2, message: 'Class not found for this year: Class 99' }],
+      }).pipe(delay(350));
+    }
+    const fd = new FormData();
+    fd.append('jobType', jobType);
+    fd.append('file', file);
+    if (columnMappingJson) {
+      fd.append('columnMappingJson', columnMappingJson);
+    }
+    if (schoolCode && schoolCode.trim().length > 0) {
+      fd.append('schoolCode', schoolCode.trim().toUpperCase());
+    }
+    return this.api.postFormData<DryRunResponse>('/import-export/jobs/dry-run', fd);
+  }
+
+  submitJob(jobType: string, file: File, columnMappingJson?: string | null, schoolCode?: string | null): Observable<JobSubmitResponse> {
     if (runtimeConfig.useMocks) {
       return of({
         jobId: 9100 + Math.floor(Math.random() * 89),
@@ -99,10 +200,16 @@ export class ImportExportService {
     const fd = new FormData();
     fd.append('jobType', jobType);
     fd.append('file', file);
+    if (columnMappingJson) {
+      fd.append('columnMappingJson', columnMappingJson);
+    }
+    if (schoolCode && schoolCode.trim().length > 0) {
+      fd.append('schoolCode', schoolCode.trim().toUpperCase());
+    }
     return this.api.postFormData<JobSubmitResponse>('/import-export/jobs', fd);
   }
 
-  listJobs(page = 0, size = 20): Observable<PageResp<ImportJobSummary>> {
+  listJobs(page = 0, size = 20, schoolCode?: string | null): Observable<PageResp<ImportJobSummary>> {
     if (runtimeConfig.useMocks) {
       return of({
         content: MOCK_JOBS,
@@ -114,18 +221,24 @@ export class ImportExportService {
         last: true,
       }).pipe(delay(300));
     }
-    return this.api.getPageParams<ImportJobSummary>('/import-export/jobs', { page, size });
+    return this.api.getPageParams<ImportJobSummary>('/import-export/jobs', {
+      page,
+      size,
+      schoolCode: schoolCode?.trim().toUpperCase() || undefined,
+    });
   }
 
-  getJob(jobId: number): Observable<ImportJobSummary> {
+  getJob(jobId: number, schoolCode?: string | null): Observable<ImportJobSummary> {
     if (runtimeConfig.useMocks) {
       const j = MOCK_JOBS.find(x => x.id === jobId);
       return of(j ?? MOCK_JOBS[0]).pipe(delay(200));
     }
-    return this.api.get<ImportJobSummary>(`/import-export/jobs/${jobId}`);
+    return this.api.getParams<ImportJobSummary>(`/import-export/jobs/${jobId}`, {
+      schoolCode: schoolCode?.trim().toUpperCase() || undefined,
+    });
   }
 
-  getLines(jobId: number, page = 0, size = 50): Observable<PageResp<ImportJobLine>> {
+  getLines(jobId: number, page = 0, size = 50, schoolCode?: string | null): Observable<PageResp<ImportJobLine>> {
     if (runtimeConfig.useMocks) {
       return of({
         content: MOCK_LINES,
@@ -137,21 +250,29 @@ export class ImportExportService {
         last: true,
       }).pipe(delay(250));
     }
-    return this.api.getPageParams<ImportJobLine>(`/import-export/jobs/${jobId}/lines`, { page, size });
+    return this.api.getPageParams<ImportJobLine>(`/import-export/jobs/${jobId}/lines`, {
+      page,
+      size,
+      schoolCode: schoolCode?.trim().toUpperCase() || undefined,
+    });
   }
 
-  retryFailed(jobId: number): Observable<JobSubmitResponse> {
+  retryFailed(jobId: number, schoolCode?: string | null): Observable<JobSubmitResponse> {
     if (runtimeConfig.useMocks) {
       return of({ jobId, status: 'QUEUED', totalRows: 1 }).pipe(delay(350));
     }
-    return this.api.post<JobSubmitResponse>(`/import-export/jobs/${jobId}/retry-failed`, {});
+    const normalizedSchoolCode = schoolCode?.trim().toUpperCase();
+    const path = normalizedSchoolCode
+      ? `/import-export/jobs/${jobId}/retry-failed?schoolCode=${encodeURIComponent(normalizedSchoolCode)}`
+      : `/import-export/jobs/${jobId}/retry-failed`;
+    return this.api.post<JobSubmitResponse>(path, {});
   }
 
   downloadStudentsCsv(): Observable<Blob> {
     if (runtimeConfig.useMocks) {
       const csv =
-        'firstname,lastname,email,classid,sectionid,admissionnumber,parentemail,notifycredentials\n' +
-        'Riya,Banerjee,,1,,ADM-MOCK-1,parent@example.com,Y\n';
+        'firstname,lastname,email,phone,dateofbirth,gender,classid,sectionid,classname,sectionname,academicyearid,rollnumber,admissionnumber,admissiondate,parentid,parentname,parentemail,parentphone,notifycredentials,importmode,address,bloodgroup\n' +
+        'Riya,Banerjee,,,,,1,,,,,ADM-MOCK-1,,,,,parent@example.com,9876500000,Y,UPSERT,,\n';
       return of(new Blob([csv], { type: 'text/csv' })).pipe(delay(200));
     }
     return this.api.getBlob('/import-export/export/students.csv');
@@ -160,8 +281,8 @@ export class ImportExportService {
   downloadTeachersCsv(): Observable<Blob> {
     if (runtimeConfig.useMocks) {
       const csv =
-        'firstname,lastname,email,createportal,portalrole\n' +
-        'Meera,Iyer,m.iyer@school.com,Y,TEACHER\n';
+        'firstname,lastname,email,phone,qualification,specialization,joindate,salary,subjects,createportal,portalrole,libraryrole,importmode,bankaccountholder,bankname,bankaccountnumber,bankifsc,notifycredentials\n' +
+        'Meera,Iyer,m.iyer@school.com,,,,,,,Y,TEACHER,,UPSERT,,,,N\n';
       return of(new Blob([csv], { type: 'text/csv' })).pipe(delay(200));
     }
     return this.api.getBlob('/import-export/export/teachers.csv');

@@ -6,7 +6,8 @@ public enum ImportJobType {
     STUDENTS,
     TEACHERS,
     STAFF,
-    CLASSES;
+    CLASSES,
+    TIMETABLE;
 
     public static ImportJobType fromParam(String raw) {
         if (raw == null || raw.isBlank()) {
@@ -21,6 +22,7 @@ public enum ImportJobType {
             case TEACHERS -> "teachers.csv";
             case STAFF -> "staff.csv";
             case CLASSES -> "classes.csv";
+            case TIMETABLE -> "timetable.csv";
         };
     }
 }

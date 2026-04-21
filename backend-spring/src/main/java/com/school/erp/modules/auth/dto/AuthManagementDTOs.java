@@ -1,8 +1,10 @@
 package com.school.erp.modules.auth.dto;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
+import java.time.LocalDate;
 
 public class AuthManagementDTOs {
 
@@ -26,6 +28,13 @@ public class AuthManagementDTOs {
         /** Optional UI language for the first admin (en | hi); defaults server-side if absent or invalid. */
         @Size(max = 16)
         private String interfaceLocale;
+        /** Optional onboarding convenience — if absent server creates the current AY from today's date window. */
+        @Size(max = 50)
+        private String academicYearName;
+        @JsonFormat(pattern = "yyyy-MM-dd")
+        private LocalDate academicYearStartDate;
+        @JsonFormat(pattern = "yyyy-MM-dd")
+        private LocalDate academicYearEndDate;
 
         public String getSchoolName() {
             return schoolName;
@@ -89,6 +98,30 @@ public class AuthManagementDTOs {
 
         public void setInterfaceLocale(String interfaceLocale) {
             this.interfaceLocale = interfaceLocale;
+        }
+
+        public String getAcademicYearName() {
+            return academicYearName;
+        }
+
+        public void setAcademicYearName(String academicYearName) {
+            this.academicYearName = academicYearName;
+        }
+
+        public LocalDate getAcademicYearStartDate() {
+            return academicYearStartDate;
+        }
+
+        public void setAcademicYearStartDate(LocalDate academicYearStartDate) {
+            this.academicYearStartDate = academicYearStartDate;
+        }
+
+        public LocalDate getAcademicYearEndDate() {
+            return academicYearEndDate;
+        }
+
+        public void setAcademicYearEndDate(LocalDate academicYearEndDate) {
+            this.academicYearEndDate = academicYearEndDate;
         }
     }
 

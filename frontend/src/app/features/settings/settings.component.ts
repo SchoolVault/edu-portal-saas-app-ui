@@ -9,12 +9,13 @@ import { SettingsService } from '../../core/services/settings.service';
 import { ThemeService } from '../../core/services/theme.service';
 import { AuthService } from '../../core/services/auth.service';
 import { ParentService } from '../../core/services/parent.service';
-import { SchoolBranch, Student } from '../../core/models/models';
+import { PersonalProfileDetails, SchoolBranch, Student } from '../../core/models/models';
 import { runtimeConfig } from '../../core/config/runtime-config';
 import { ProfilePhotoPickerComponent, ProfilePhotoPickEvent } from '../../shared/profile-photo-picker/profile-photo-picker.component';
 import { UserLocaleService, type UiLanguage } from '../../core/i18n/user-locale.service';
 import { ParentSelectionService } from '../../core/services/parent-selection.service';
 import { SchoolClassNamePipe } from '../../core/i18n/school-class-name.pipe';
+import { ConfirmDialogService } from '../../shared/confirm-dialog/confirm-dialog.service';
 
 type SettingsFeatureToggleView = {
   enabled: boolean;
@@ -309,6 +310,14 @@ type SettingsFeatureToggleView = {
                   <p class="mb-1"><strong>{{ 'settings.profileContactPhoneLabel' | translate }}:</strong> {{ account.phone || ('exams.dash' | translate) }}</p>
                   <p class="mb-1"><strong>{{ 'settings.labelEmail' | translate }}:</strong> {{ account.email }}</p>
                   <p class="text-muted small mb-0">{{ 'settings.profileEmailReadonlyHint' | translate }}</p>
+                  <ng-container *ngIf="isTeacherProfileEditable">
+                    <p class="mb-1 mt-2"><strong>{{ 'settings.teacherQualificationLabel' | translate }}:</strong> {{ profileDetails?.qualification || ('exams.dash' | translate) }}</p>
+                    <p class="mb-1"><strong>{{ 'settings.teacherSpecializationLabel' | translate }}:</strong> {{ profileDetails?.specialization || ('exams.dash' | translate) }}</p>
+                    <p class="mb-1"><strong>{{ 'settings.bankAccountHolderLabel' | translate }}:</strong> {{ profileDetails?.bankAccountHolder || ('exams.dash' | translate) }}</p>
+                    <p class="mb-1"><strong>{{ 'settings.bankNameLabel' | translate }}:</strong> {{ profileDetails?.bankName || ('exams.dash' | translate) }}</p>
+                    <p class="mb-1"><strong>{{ 'settings.bankAccountNumberLabel' | translate }}:</strong> {{ profileDetails?.bankAccountNumber || ('exams.dash' | translate) }}</p>
+                    <p class="mb-0"><strong>{{ 'settings.bankIfscLabel' | translate }}:</strong> {{ profileDetails?.bankIfsc || ('exams.dash' | translate) }}</p>
+                  </ng-container>
                 </div>
               </div>
               <div class="row g-3" *ngIf="accountDetailsEditing">
@@ -353,6 +362,44 @@ type SettingsFeatureToggleView = {
                     <p class="text-muted small mb-0 mt-1">{{ 'settings.profileEmailReadonlyHint' | translate }}</p>
                   </div>
                 </div>
+                <ng-container *ngIf="isTeacherProfileEditable">
+                  <div class="col-md-6">
+                    <div class="erp-form-group">
+                      <label class="erp-label" for="settings-qualification">{{ 'settings.teacherQualificationLabel' | translate }}</label>
+                      <input id="settings-qualification" type="text" class="erp-input" name="profileDraftQualification" [(ngModel)]="profileDraftQualification" />
+                    </div>
+                  </div>
+                  <div class="col-md-6">
+                    <div class="erp-form-group">
+                      <label class="erp-label" for="settings-specialization">{{ 'settings.teacherSpecializationLabel' | translate }}</label>
+                      <input id="settings-specialization" type="text" class="erp-input" name="profileDraftSpecialization" [(ngModel)]="profileDraftSpecialization" />
+                    </div>
+                  </div>
+                  <div class="col-md-6">
+                    <div class="erp-form-group">
+                      <label class="erp-label" for="settings-bank-holder">{{ 'settings.bankAccountHolderLabel' | translate }}</label>
+                      <input id="settings-bank-holder" type="text" class="erp-input" name="profileDraftBankAccountHolder" [(ngModel)]="profileDraftBankAccountHolder" />
+                    </div>
+                  </div>
+                  <div class="col-md-6">
+                    <div class="erp-form-group">
+                      <label class="erp-label" for="settings-bank-name">{{ 'settings.bankNameLabel' | translate }}</label>
+                      <input id="settings-bank-name" type="text" class="erp-input" name="profileDraftBankName" [(ngModel)]="profileDraftBankName" />
+                    </div>
+                  </div>
+                  <div class="col-md-6">
+                    <div class="erp-form-group">
+                      <label class="erp-label" for="settings-bank-number">{{ 'settings.bankAccountNumberLabel' | translate }}</label>
+                      <input id="settings-bank-number" type="text" class="erp-input" name="profileDraftBankAccountNumber" [(ngModel)]="profileDraftBankAccountNumber" />
+                    </div>
+                  </div>
+                  <div class="col-md-6">
+                    <div class="erp-form-group mb-0">
+                      <label class="erp-label" for="settings-bank-ifsc">{{ 'settings.bankIfscLabel' | translate }}</label>
+                      <input id="settings-bank-ifsc" type="text" class="erp-input" name="profileDraftBankIfsc" [(ngModel)]="profileDraftBankIfsc" />
+                    </div>
+                  </div>
+                </ng-container>
               </div>
               <div class="d-flex flex-wrap align-items-center gap-2 mt-3" *ngIf="accountDetailsEditing">
                 <button type="button" class="btn-primary-erp" (click)="saveProfileAccount()" [disabled]="profileAccountSaving">
@@ -848,6 +895,13 @@ export class SettingsComponent implements OnInit, OnDestroy {
 
   profileDraftName = '';
   profileDraftPhone = '';
+  profileDraftQualification = '';
+  profileDraftSpecialization = '';
+  profileDraftBankAccountHolder = '';
+  profileDraftBankName = '';
+  profileDraftBankAccountNumber = '';
+  profileDraftBankIfsc = '';
+  profileDetails: PersonalProfileDetails | null = null;
   profileAccountSaving = false;
   profileAccountMsg = '';
   profileAccountErr = '';
@@ -894,7 +948,8 @@ export class SettingsComponent implements OnInit, OnDestroy {
     private cdr: ChangeDetectorRef,
     readonly userLocale: UserLocaleService,
     private translate: TranslateService,
-    private tenantModuleGate: TenantModuleGateService
+    private tenantModuleGate: TenantModuleGateService,
+    private confirmDialog: ConfirmDialogService
   ) {}
 
   private resolveRoleDisplayLabel(roleRaw: string): string {
@@ -945,6 +1000,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
     }
     this.syncAccountDrafts();
     this.refreshProfilePreview();
+    this.loadPersonalProfileDetails();
     this.reloadSettings();
   }
 
@@ -1010,10 +1066,35 @@ export class SettingsComponent implements OnInit, OnDestroy {
     const u = this.profileUser ?? this.auth.getCurrentUser();
     this.profileDraftName = u?.name ?? '';
     this.profileDraftPhone = u?.phone ?? '';
+    this.profileDraftQualification = this.profileDetails?.qualification ?? '';
+    this.profileDraftSpecialization = this.profileDetails?.specialization ?? '';
+    this.profileDraftBankAccountHolder = this.profileDetails?.bankAccountHolder ?? '';
+    this.profileDraftBankName = this.profileDetails?.bankName ?? '';
+    this.profileDraftBankAccountNumber = this.profileDetails?.bankAccountNumber ?? '';
+    this.profileDraftBankIfsc = this.profileDetails?.bankIfsc ?? '';
+  }
+
+  get isTeacherProfileEditable(): boolean {
+    return this.profileVisualRole === 'teacher';
+  }
+
+  private loadPersonalProfileDetails(): void {
+    this.auth.fetchMyProfileDetails().subscribe({
+      next: details => {
+        this.profileDetails = details;
+        this.syncAccountDrafts();
+        this.cdr.markForCheck();
+      },
+      error: () => {
+        this.profileDetails = null;
+      },
+    });
   }
 
   saveProfileAccount(): void {
     const name = (this.profileDraftName ?? '').trim();
+    const previousPhone = (this.profileUser?.phone ?? '').trim();
+    const currentEmail = (this.profileUser?.email ?? '').trim();
     if (!name) {
       this.profileAccountErr = this.translate.instant('settings.profileNameRequired');
       this.profileAccountMsg = '';
@@ -1022,8 +1103,19 @@ export class SettingsComponent implements OnInit, OnDestroy {
     this.profileAccountSaving = true;
     this.profileAccountMsg = '';
     this.profileAccountErr = '';
-    this.auth.updateAccountProfile({ name, phone: this.profileDraftPhone ?? '' }).subscribe({
+    const updatePayload = {
+      name,
+      phone: this.profileDraftPhone ?? '',
+      qualification: this.isTeacherProfileEditable ? (this.profileDraftQualification || '').trim() : undefined,
+      specialization: this.isTeacherProfileEditable ? (this.profileDraftSpecialization || '').trim() : undefined,
+      bankAccountHolder: this.isTeacherProfileEditable ? (this.profileDraftBankAccountHolder || '').trim() : undefined,
+      bankName: this.isTeacherProfileEditable ? (this.profileDraftBankName || '').trim() : undefined,
+      bankAccountNumber: this.isTeacherProfileEditable ? (this.profileDraftBankAccountNumber || '').trim() : undefined,
+      bankIfsc: this.isTeacherProfileEditable ? (this.profileDraftBankIfsc || '').trim().toUpperCase() : undefined,
+    };
+    this.auth.updateMyProfileDetails(updatePayload).subscribe({
       next: () => {
+        const updatedPhone = (this.profileDraftPhone ?? '').trim();
         this.profileAccountSaving = false;
         this.accountDetailsEditing = false;
         this.profileAccountMsg = this.translate.instant(
@@ -1031,7 +1123,21 @@ export class SettingsComponent implements OnInit, OnDestroy {
         );
         this.syncAccountDrafts();
         this.refreshProfilePreview();
+        this.loadPersonalProfileDetails();
         this.auth.fetchProfileSummary().subscribe({ error: () => void 0 });
+        if (updatedPhone !== previousPhone) {
+          this.confirmDialog.confirm({
+            title: this.translate.instant('settings.credentialsUpdatedDialogTitle'),
+            message: this.translate.instant('settings.credentialsUpdatedDialogBody'),
+            details: [
+              currentEmail ? `${this.translate.instant('settings.labelEmail')}: ${currentEmail}` : '',
+              updatedPhone ? `${this.translate.instant('settings.profileContactPhoneLabel')}: ${updatedPhone}` : '',
+            ].filter(Boolean),
+            variant: 'warning',
+            confirmLabel: this.translate.instant('settings.dialogOk'),
+            cancelLabel: this.translate.instant('settings.dialogClose'),
+          }).subscribe();
+        }
         this.cdr.markForCheck();
       },
       error: () => {

@@ -45,6 +45,13 @@ public class PlatformController {
         return ResponseEntity.ok(ApiResponse.ok(platformService.getSchools()));
     }
 
+    @PostMapping("/schools/onboard")
+    @Operation(summary = "Create school workspace + first admin (super-admin flow, no session switch)")
+    public ResponseEntity<ApiResponse<PlatformDTOs.OnboardSchoolResponse>> onboardSchool(
+            @Valid @RequestBody PlatformDTOs.OnboardSchoolRequest request) {
+        return ResponseEntity.ok(ApiResponse.ok(platformService.onboardSchoolWorkspace(request), "School workspace created"));
+    }
+
     @GetMapping("/schools/paged")
     @Operation(summary = "List schools (paged)", description = "Optional q filters school name or code")
     public ResponseEntity<ApiResponse<PageResponse<PlatformDTOs.SchoolSummary>>> getSchoolsPaged(

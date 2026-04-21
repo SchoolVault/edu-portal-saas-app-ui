@@ -1,7 +1,7 @@
 import { Injectable } from '@angular/core';
 import { BehaviorSubject, Observable, of } from 'rxjs';
 import { tap } from 'rxjs/operators';
-import { PLATFORM_TENANT_FEATURE_KEYS } from '../constants/platform-tenant-features';
+import { DEFAULT_PLATFORM_TENANT_FEATURES, PLATFORM_TENANT_FEATURE_KEYS } from '../constants/platform-tenant-features';
 import { SettingsService } from './settings.service';
 import { AuthService } from './auth.service';
 
@@ -24,6 +24,11 @@ export class TenantModuleGateService {
 
   /** Whether a gated nav item should appear. Unknown keys default to ON for backward compatibility. */
   isModuleEnabled(featureKey: string | undefined): boolean {
+    const role = (this.auth.getRole() || '').toLowerCase();
+    // Platform operators should always see platform tooling regardless of tenant feature toggles.
+    if (role === 'super_admin') {
+      return true;
+    }
     if (!featureKey) {
       return true;
     }
@@ -31,6 +36,9 @@ export class TenantModuleGateService {
       return true;
     }
     const v = this.flags$.value[featureKey];
+    if (v === undefined) {
+      return DEFAULT_PLATFORM_TENANT_FEATURES[featureKey as PlatformModuleKey] !== false;
+    }
     return v !== false;
   }
 
@@ -50,7 +58,10 @@ export class TenantModuleGateService {
     }
     return this.settings.getFeatures().pipe(
       tap({
-        next: f => this.flags$.next({ ...(f || {}) }),
+        next: f => {
+          const merged: Record<string, boolean> = { ...DEFAULT_PLATFORM_TENANT_FEATURES, ...(f || {}) };
+          this.flags$.next(merged);
+        },
         error: () => this.flags$.next({}),
       })
     );

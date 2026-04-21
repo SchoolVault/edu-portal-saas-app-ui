@@ -6,6 +6,7 @@ import com.school.erp.common.exception.BusinessException;
 import com.school.erp.common.exception.DuplicateResourceException;
 import com.school.erp.common.exception.ResourceNotFoundException;
 import com.school.erp.common.exception.ForbiddenException;
+import com.school.erp.common.importer.BulkImportRowPolicy;
 import com.school.erp.common.importer.ZipCsvImportUtil;
 import com.school.erp.modules.academic.entity.Section;
 import com.school.erp.modules.academic.repository.SchoolClassRepository;
@@ -183,6 +184,44 @@ public class StudentService {
                 Instant.now()));
         evictStudentAndAcademicCaches();
         return toResponse(student);
+    }
+
+    /**
+     * Bulk import path: supports {@link BulkImportRowPolicy} for admission-number collisions.
+     */
+    @Transactional
+    public StudentDTOs.Response importStudentRow(StudentDTOs.CreateRequest request, BulkImportRowPolicy policy) {
+        String tenantId = TenantContext.getTenantId();
+        String adm = request.getAdmissionNumber();
+        if (adm == null || adm.isBlank()) {
+            return createStudent(request);
+        }
+        adm = adm.trim();
+        Optional<Student> existing = studentPersistence.findByTenantIdAndAdmissionNumberAndIsDeletedFalse(tenantId, adm);
+        if (existing.isPresent()) {
+            if (policy == BulkImportRowPolicy.SKIP_IF_EXISTS) {
+                return toResponse(existing.get());
+            }
+            if (policy == BulkImportRowPolicy.UPSERT) {
+                StudentDTOs.UpdateRequest u = new StudentDTOs.UpdateRequest();
+                u.setFirstName(request.getFirstName());
+                u.setLastName(request.getLastName());
+                u.setEmail(request.getEmail());
+                u.setPhone(request.getPhone());
+                u.setDateOfBirth(request.getDateOfBirth());
+                u.setGender(request.getGender());
+                u.setClassId(request.getClassId());
+                u.setSectionId(request.getSectionId());
+                u.setRollNumber(request.getRollNumber());
+                u.setParentId(request.getParentId());
+                u.setParentName(request.getParentName());
+                u.setAddress(request.getAddress());
+                u.setBloodGroup(request.getBloodGroup());
+                return updateStudent(existing.get().getId(), u);
+            }
+            throw new DuplicateResourceException("Admission number already exists: " + adm);
+        }
+        return createStudent(request);
     }
 
     @Transactional
@@ -370,7 +409,7 @@ public class StudentService {
     public String exportStudentsAsCsv() {
         String tenantId = TenantContext.getTenantId();
         StringBuilder sb = new StringBuilder();
-        sb.append("firstname,lastname,email,phone,dateofbirth,gender,classid,sectionid,rollnumber,admissionnumber,admissiondate,parentid,parentname,parentemail,parentphone,notifycredentials,address,bloodgroup\n");
+        sb.append("firstname,lastname,email,phone,dateofbirth,gender,classid,sectionid,classname,sectionname,academicyearid,rollnumber,admissionnumber,admissiondate,parentid,parentname,parentemail,parentphone,notifycredentials,importmode,address,bloodgroup\n");
         for (Student s : studentPersistence.findByTenantIdAndIsDeletedFalse(tenantId)) {
             sb.append(csv(s.getFirstName())).append(',');
             sb.append(csv(s.getLastName())).append(',');
@@ -380,11 +419,18 @@ public class StudentService {
             sb.append(s.getGender() != null ? s.getGender().name().toLowerCase() : "").append(',');
             sb.append(s.getClassId() != null ? s.getClassId() : "").append(',');
             sb.append(s.getSectionId() != null ? s.getSectionId() : "").append(',');
+            sb.append(','); // classname — resolved at import time; omitted in export
+            sb.append(','); // sectionname
+            sb.append(','); // academicyearid
             sb.append(csv(s.getRollNumber())).append(',');
             sb.append(csv(s.getAdmissionNumber())).append(',');
             sb.append(s.getAdmissionDate() != null ? s.getAdmissionDate() : "").append(',');
             sb.append(s.getParentId() != null ? s.getParentId() : "").append(',');
-            sb.append(csv(s.getParentName())).append(",,,");
+            sb.append(csv(s.getParentName())).append(',');
+            sb.append(','); // parentemail — not denormalized on Student; leave blank in export
+            sb.append(','); // parentphone
+            sb.append(','); // notifycredentials
+            sb.append("UPSERT").append(',');
             sb.append(csv(s.getAddress())).append(',');
             sb.append(csv(s.getBloodGroup())).append('\n');
         }

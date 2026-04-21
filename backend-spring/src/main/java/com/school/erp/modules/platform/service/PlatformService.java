@@ -5,7 +5,9 @@ import com.school.erp.common.enums.Enums;
 import com.school.erp.common.exception.BusinessException;
 import com.school.erp.common.exception.ResourceNotFoundException;
 import com.school.erp.modules.auth.entity.User;
+import com.school.erp.modules.auth.dto.AuthManagementDTOs;
 import com.school.erp.modules.auth.repository.UserRepository;
+import com.school.erp.modules.auth.service.AuthService;
 import com.school.erp.modules.notification.entity.Notification;
 import com.school.erp.modules.notification.repository.NotificationRepository;
 import com.school.erp.modules.platform.dto.PlatformDTOs;
@@ -55,6 +57,7 @@ public class PlatformService {
     private final TenantPurgeJobProcessor tenantPurgeJobProcessor;
     private final NotificationRepository notificationRepository;
     private final OutboundNotificationFanout outboundNotificationFanout;
+    private final AuthService authService;
 
     /** Mutable in-process catalog (replace with persistence + audit when billing service is integrated). */
     private final List<PlatformDTOs.SubscriptionPlanRow> subscriptionPlanCatalog = new CopyOnWriteArrayList<>();
@@ -454,6 +457,33 @@ public class PlatformService {
         return new PlatformDTOs.PlatformBroadcastResult(rows, targets.size());
     }
 
+    @Transactional
+    public PlatformDTOs.OnboardSchoolResponse onboardSchoolWorkspace(PlatformDTOs.OnboardSchoolRequest request) {
+        AuthManagementDTOs.OnboardTenantRequest req = new AuthManagementDTOs.OnboardTenantRequest();
+        req.setSchoolName(request.getSchoolName());
+        req.setSchoolCode(request.getSchoolCode());
+        req.setAdminName(request.getAdminName());
+        req.setAdminEmail(request.getAdminEmail());
+        req.setAdminPassword(request.getAdminPassword());
+        req.setPhone(request.getPhone());
+        req.setAddress(request.getAddress());
+        req.setInterfaceLocale(request.getInterfaceLocale());
+        req.setAcademicYearName(request.getAcademicYearName());
+        req.setAcademicYearStartDate(request.getAcademicYearStartDate());
+        req.setAcademicYearEndDate(request.getAcademicYearEndDate());
+
+        var onboarding = authService.onboardTenantWithoutLogin(req);
+        var admin = onboarding.user();
+        PlatformDTOs.OnboardSchoolResponse out = new PlatformDTOs.OnboardSchoolResponse();
+        out.setTenantId(admin.getTenantId());
+        out.setSchoolCode(request.getSchoolCode() != null ? request.getSchoolCode().trim().toUpperCase(Locale.ROOT) : null);
+        out.setAdminUserId(admin.getId());
+        out.setAdminEmail(admin.getEmail());
+        out.setAdminPhone(admin.getPhone());
+        out.setAcademicYearId(onboarding.academicYearId());
+        return out;
+    }
+
     private static Enums.NotificationType parseNotificationType(String raw) {
         if (raw == null || raw.isBlank()) {
             return Enums.NotificationType.INFO;
@@ -585,7 +615,8 @@ public class PlatformService {
             PlatformTenantPurgeJobRepository purgeJobRepository,
             TenantPurgeJobProcessor tenantPurgeJobProcessor,
             NotificationRepository notificationRepository,
-            OutboundNotificationFanout outboundNotificationFanout
+            OutboundNotificationFanout outboundNotificationFanout,
+            AuthService authService
     ) {
         this.tenantConfigRepository = tenantConfigRepository;
         this.userRepository = userRepository;
@@ -595,5 +626,6 @@ public class PlatformService {
         this.tenantPurgeJobProcessor = tenantPurgeJobProcessor;
         this.notificationRepository = notificationRepository;
         this.outboundNotificationFanout = outboundNotificationFanout;
+        this.authService = authService;
     }
 }

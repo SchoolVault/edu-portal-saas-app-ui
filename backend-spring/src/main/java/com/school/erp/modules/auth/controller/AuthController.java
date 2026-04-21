@@ -3,6 +3,7 @@ package com.school.erp.modules.auth.controller;
 import com.school.erp.common.dto.ApiResponse;
 import com.school.erp.modules.auth.dto.AuthDTOs;
 import com.school.erp.modules.auth.dto.AuthManagementDTOs;
+import com.school.erp.modules.auth.dto.AuthPersonalProfileDTOs;
 import com.school.erp.modules.auth.dto.AuthProfileDTOs;
 import com.school.erp.modules.auth.dto.UserPreferencesRequest;
 import com.school.erp.modules.auth.service.AuthService;
@@ -54,6 +55,19 @@ public class AuthController {
     @Operation(summary = "Update profile (name, phone, avatar)")
     public ResponseEntity<ApiResponse<AuthDTOs.UserProfile>> updateProfile(@Valid @RequestBody AuthDTOs.UpdateProfileRequest request) {
         return ResponseEntity.ok(ApiResponse.ok(authService.updateProfile(request), "Profile updated"));
+    }
+
+    @GetMapping("/profile-details")
+    @Operation(summary = "Get role-scoped personal profile details")
+    public ResponseEntity<ApiResponse<AuthPersonalProfileDTOs.PersonalProfileResponse>> getProfileDetails() {
+        return ResponseEntity.ok(ApiResponse.ok(authService.getPersonalProfileDetails()));
+    }
+
+    @PutMapping("/profile-details")
+    @Operation(summary = "Update role-scoped personal profile details")
+    public ResponseEntity<ApiResponse<AuthPersonalProfileDTOs.PersonalProfileResponse>> updateProfileDetails(
+            @Valid @RequestBody AuthPersonalProfileDTOs.UpdatePersonalProfileRequest request) {
+        return ResponseEntity.ok(ApiResponse.ok(authService.updatePersonalProfileDetails(request), "Profile updated"));
     }
 
     @PutMapping("/preferences")

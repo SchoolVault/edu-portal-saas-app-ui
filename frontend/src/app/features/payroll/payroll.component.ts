@@ -193,26 +193,28 @@ import { runtimeConfig } from '../../core/config/runtime-config';
 
       <div *ngIf="isAdmin" class="erp-card animate-in mb-4">
         <h4 class="erp-card-title mb-3">{{ 'payroll.structuresTitle' | translate }}</h4>
-        <table class="erp-table" data-testid="salary-table">
-          <thead
-            ><tr
-              ><th>{{ 'payroll.thTeacher' | translate }}</th
-              ><th>{{ 'payroll.thBasic' | translate }}</th
-              ><th>{{ 'payroll.thAllowances' | translate }}</th
-              ><th>{{ 'payroll.thDeductions' | translate }}</th
-              ><th>{{ 'payroll.thNet' | translate }}</th></tr
-            ></thead
-          >
-          <tbody>
-            <tr *ngFor="let s of pagedSalaryStructures">
-              <td><strong>{{ s.teacherName }}</strong></td>
-              <td>₹{{ s.basicSalary | number:'1.0-0':'en-IN' }}</td>
-              <td style="color: var(--clr-success);">+₹{{ getAllowanceTotal(s) | number:'1.0-0':'en-IN' }}</td>
-              <td style="color: var(--clr-danger);">-₹{{ getDeductionTotal(s) | number:'1.0-0':'en-IN' }}</td>
-              <td><strong>₹{{ s.netSalary | number:'1.0-0':'en-IN' }}</strong></td>
-            </tr>
-          </tbody>
-        </table>
+        <div class="table-responsive payroll-salary-table-wrap">
+          <table class="erp-table payroll-salary-table" data-testid="salary-table">
+            <thead
+              ><tr
+                ><th>{{ 'payroll.thTeacher' | translate }}</th
+                ><th>{{ 'payroll.thBasic' | translate }}</th
+                ><th>{{ 'payroll.thAllowances' | translate }}</th
+                ><th>{{ 'payroll.thDeductions' | translate }}</th
+                ><th>{{ 'payroll.thNet' | translate }}</th></tr
+              ></thead
+            >
+            <tbody>
+              <tr *ngFor="let s of pagedSalaryStructures">
+                <td><strong>{{ s.teacherName }}</strong></td>
+                <td>₹{{ s.basicSalary | number:'1.0-0':'en-IN' }}</td>
+                <td style="color: var(--clr-success);">+₹{{ getAllowanceTotal(s) | number:'1.0-0':'en-IN' }}</td>
+                <td style="color: var(--clr-danger);">-₹{{ getDeductionTotal(s) | number:'1.0-0':'en-IN' }}</td>
+                <td><strong>₹{{ s.netSalary | number:'1.0-0':'en-IN' }}</strong></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
         <app-erp-pagination
           *ngIf="structPaginationTotal > 0"
           [totalElements]="structPaginationTotal"
@@ -287,6 +289,26 @@ import { runtimeConfig } from '../../core/config/runtime-config';
       .user-select-all {
         user-select: all;
         font-size: 12px;
+      }
+      .payroll-salary-table-wrap {
+        width: 100%;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+      }
+      .payroll-salary-table {
+        width: max-content;
+        min-width: 100%;
+      }
+      .payroll-salary-table th,
+      .payroll-salary-table td {
+        white-space: nowrap;
+      }
+      @media (max-width: 767.98px) {
+        .payroll-salary-table th,
+        .payroll-salary-table td {
+          font-size: 12px;
+          padding: 8px 10px;
+        }
       }
     `
   ]

@@ -9,6 +9,7 @@ import com.school.erp.common.exception.ResourceNotFoundException;
 import com.school.erp.common.exception.UnauthorizedException;
 import com.school.erp.modules.auth.dto.AuthDTOs;
 import com.school.erp.modules.auth.dto.AuthManagementDTOs;
+import com.school.erp.modules.auth.dto.AuthPersonalProfileDTOs;
 import com.school.erp.modules.auth.dto.AuthProfileDTOs;
 import com.school.erp.modules.auth.dto.UserPreferencesRequest;
 import com.school.erp.modules.auth.entity.RefreshToken;
@@ -17,6 +18,7 @@ import com.school.erp.modules.auth.repository.RefreshTokenRepository;
 import com.school.erp.modules.auth.repository.UserRepository;
 import com.school.erp.platform.port.AuditTrailPort;
 import com.school.erp.modules.academic.entity.ClassTeacherAssignment;
+import com.school.erp.modules.academic.entity.AcademicYear;
 import com.school.erp.modules.academic.entity.Section;
 import com.school.erp.modules.academic.entity.SchoolClass;
 import com.school.erp.modules.academic.repository.AcademicYearRepository;
@@ -156,6 +158,24 @@ public class AuthService {
 
     @Transactional
     public AuthDTOs.LoginResponse onboardTenant(AuthManagementDTOs.OnboardTenantRequest request) {
+        TenantAndAdminCreated created = createTenantAndAdminAccount(request);
+        User admin = created.admin();
+        String subject = JwtUtil.principalSubject(admin.getEmail(), admin.getPhone(), admin.getId());
+        String token = jwtUtil.generateToken(admin.getId(), admin.getTenantId(), subject, admin.getRole().name(), admin.getName(), jwtPermissionsCsv(admin.getRole()));
+        String refreshToken = issueRefreshToken(admin);
+        return AuthDTOs.LoginResponse.builder().token(token).refreshToken(refreshToken).user(toProfile(admin)).build();
+    }
+
+    /**
+     * Super-admin safe onboarding path: creates tenant + first admin account without issuing a login session.
+     */
+    @Transactional
+    public OnboardTenantResult onboardTenantWithoutLogin(AuthManagementDTOs.OnboardTenantRequest request) {
+        TenantAndAdminCreated created = createTenantAndAdminAccount(request);
+        return new OnboardTenantResult(toProfile(created.admin()), created.academicYearId());
+    }
+
+    private TenantAndAdminCreated createTenantAndAdminAccount(AuthManagementDTOs.OnboardTenantRequest request) {
         log.info("Onboarding tenant schoolCode={}", request.getSchoolCode());
         String normalizedSchoolCode = request.getSchoolCode().trim().toUpperCase(Locale.ROOT);
         if (tenantConfigRepository.existsBySchoolCode(normalizedSchoolCode)) {
@@ -183,7 +203,11 @@ public class AuthService {
         config.setEmail(request.getAdminEmail());
         config.setPrimaryColor("#1B3A30");
         config.setSecondaryColor("#C05C3D");
-        config.setFeaturesJson("{\"student\":true,\"teacher\":true,\"attendance\":true,\"fees\":true,\"leave\":true}");
+        config.setFeaturesJson("{\"student\":true,\"teacher\":true,\"attendance\":true,\"fees\":true,"
+                + "\"directory\":true,\"payroll\":true,\"communication\":true,\"audit\":true,"
+                + "\"chat\":false,\"transport\":false,\"hostel\":false,\"library\":false,"
+                + "\"operationsHub\":false,\"importExport\":false,\"exams\":false,\"documents\":false,"
+                + "\"reports\":false,\"leave\":false}");
         tenantConfigRepository.save(config);
 
         String adminEmailRaw = request.getAdminEmail() == null ? "" : request.getAdminEmail().trim();
@@ -206,13 +230,38 @@ public class AuthService {
         admin.setIsDeleted(false);
         admin.setAuthProvider("PHONE");
         userRepository.save(admin);
-
-        String subject = JwtUtil.principalSubject(admin.getEmail(), admin.getPhone(), admin.getId());
-        String token = jwtUtil.generateToken(admin.getId(), admin.getTenantId(), subject, admin.getRole().name(), admin.getName(), jwtPermissionsCsv(admin.getRole()));
-        String refreshToken = issueRefreshToken(admin);
+        AcademicYear academicYear = createInitialAcademicYear(tenantId, request);
         log.info("Tenant onboarded tenantId={} schoolCode={} adminUserId={}", tenantId, normalizedSchoolCode, admin.getId());
-        return AuthDTOs.LoginResponse.builder().token(token).refreshToken(refreshToken).user(toProfile(admin)).build();
+        return new TenantAndAdminCreated(tenantId, normalizedSchoolCode, admin, academicYear.getId());
     }
+
+    private AcademicYear createInitialAcademicYear(String tenantId, AuthManagementDTOs.OnboardTenantRequest request) {
+        LocalDate start = request.getAcademicYearStartDate();
+        LocalDate end = request.getAcademicYearEndDate();
+        if (start == null || end == null) {
+            LocalDate now = LocalDate.now();
+            int startYear = now.getMonthValue() >= 4 ? now.getYear() : now.getYear() - 1;
+            start = LocalDate.of(startYear, 4, 1);
+            end = LocalDate.of(startYear + 1, 3, 31);
+        }
+        if (!end.isAfter(start)) {
+            throw new BusinessException("Academic year end date must be after start date.");
+        }
+        String normalizedName = request.getAcademicYearName() != null && !request.getAcademicYearName().isBlank()
+                ? request.getAcademicYearName().trim()
+                : (start.getYear() + "-" + end.getYear());
+        AcademicYear ay = AcademicYear.builder()
+                .name(normalizedName)
+                .startDate(start)
+                .endDate(end)
+                .isCurrent(true)
+                .build();
+        ay.setTenantId(tenantId);
+        return academicYearRepository.save(ay);
+    }
+
+    private record TenantAndAdminCreated(String tenantId, String schoolCode, User admin, Long academicYearId) {}
+    public record OnboardTenantResult(AuthDTOs.UserProfile user, Long academicYearId) {}
 
     @Transactional(readOnly = true)
     public AuthDTOs.UserProfile getProfile() {
@@ -296,12 +345,112 @@ public class AuthService {
 
     @Transactional
     public AuthDTOs.UserProfile updateProfile(AuthDTOs.UpdateProfileRequest request) {
-        User user = userRepository.findByIdAndTenantIdAndIsDeletedFalse(TenantContext.getUserId(), TenantContext.getTenantId()).orElseThrow(() -> new ResourceNotFoundException("User", TenantContext.getUserId()));
-        if (request.getName() != null) user.setName(request.getName());
-        if (request.getPhone() != null) user.setPhone(request.getPhone());
-        if (request.getAvatar() != null) user.setAvatar(request.getAvatar());
+        String tenantId = TenantContext.getTenantId();
+        Long userId = TenantContext.getUserId();
+        User user = userRepository.findByIdAndTenantIdAndIsDeletedFalse(userId, tenantId)
+                .orElseThrow(() -> new ResourceNotFoundException("User", userId));
+        if (request.getName() != null) {
+            String name = request.getName().trim();
+            if (name.isBlank()) {
+                throw new BusinessException("Name cannot be empty.");
+            }
+            user.setName(name);
+        }
+        if (request.getPhone() != null) {
+            String canonicalPhone = request.getPhone().isBlank() ? null : InternationalPhone.canonical(request.getPhone().trim());
+            if (!request.getPhone().isBlank() && canonicalPhone == null) {
+                throw new BusinessException(InternationalPhone.invalidMessage());
+            }
+            if (canonicalPhone != null) {
+                ensurePhoneNotUsedByAnotherUser(tenantId, userId, canonicalPhone);
+            }
+            user.setPhone(canonicalPhone);
+        }
+        if (request.getAvatar() != null) {
+            user.setAvatar(trimToNull(request.getAvatar()));
+        }
+        if (user.getRole() == Enums.Role.TEACHER) {
+            teacherRepository.findByTenantIdAndUserIdAndIsDeletedFalse(tenantId, userId).ifPresent(teacher -> {
+                if (request.getPhone() != null) {
+                    teacher.setPhone(user.getPhone());
+                }
+                if (request.getAvatar() != null) {
+                    teacher.setAvatar(user.getAvatar());
+                }
+                teacherRepository.save(teacher);
+            });
+        }
         userRepository.save(user);
         return toProfile(user);
+    }
+
+    @Transactional(readOnly = true)
+    public AuthPersonalProfileDTOs.PersonalProfileResponse getPersonalProfileDetails() {
+        User user = userRepository.findByIdAndTenantIdAndIsDeletedFalse(TenantContext.getUserId(), TenantContext.getTenantId())
+                .orElseThrow(() -> new ResourceNotFoundException("User", TenantContext.getUserId()));
+        return toPersonalProfile(user);
+    }
+
+    @Transactional
+    public AuthPersonalProfileDTOs.PersonalProfileResponse updatePersonalProfileDetails(AuthPersonalProfileDTOs.UpdatePersonalProfileRequest request) {
+        String tenantId = TenantContext.getTenantId();
+        Long userId = TenantContext.getUserId();
+        User user = userRepository.findByIdAndTenantIdAndIsDeletedFalse(userId, tenantId)
+                .orElseThrow(() -> new ResourceNotFoundException("User", userId));
+
+        if (request.getName() != null) {
+            String name = request.getName().trim();
+            if (name.isBlank()) {
+                throw new BusinessException("Name cannot be empty.");
+            }
+            user.setName(name);
+        }
+        if (request.getAvatar() != null) {
+            user.setAvatar(trimToNull(request.getAvatar()));
+        }
+        if (request.getPhone() != null) {
+            String canonicalPhone = request.getPhone().isBlank() ? null : InternationalPhone.canonical(request.getPhone().trim());
+            if (!request.getPhone().isBlank() && canonicalPhone == null) {
+                throw new BusinessException(InternationalPhone.invalidMessage());
+            }
+            if (canonicalPhone != null) {
+                ensurePhoneNotUsedByAnotherUser(tenantId, userId, canonicalPhone);
+            }
+            user.setPhone(canonicalPhone);
+        }
+
+        if (user.getRole() == Enums.Role.TEACHER) {
+            var teacher = teacherRepository.findByTenantIdAndUserIdAndIsDeletedFalse(tenantId, userId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Teacher profile", userId));
+            if (request.getQualification() != null) {
+                teacher.setQualification(trimToNull(request.getQualification()));
+            }
+            if (request.getSpecialization() != null) {
+                teacher.setSpecialization(trimToNull(request.getSpecialization()));
+            }
+            if (request.getBankAccountHolder() != null) {
+                teacher.setBankAccountHolder(trimToNull(request.getBankAccountHolder()));
+            }
+            if (request.getBankName() != null) {
+                teacher.setBankName(trimToNull(request.getBankName()));
+            }
+            if (request.getBankAccountNumber() != null) {
+                teacher.setBankAccountNumber(trimToNull(request.getBankAccountNumber()));
+            }
+            if (request.getBankIfsc() != null) {
+                teacher.setBankIfsc(trimToNull(request.getBankIfsc()));
+            }
+            if (request.getPhone() != null) {
+                teacher.setPhone(user.getPhone());
+            }
+            if (request.getAvatar() != null) {
+                teacher.setAvatar(user.getAvatar());
+            }
+            teacherRepository.save(teacher);
+        }
+
+        userRepository.save(user);
+        return toPersonalProfile(user);
     }
 
     @Transactional
@@ -341,6 +490,52 @@ public class AuthService {
                 .avatar(user.getAvatar())
                 .interfaceLocale(InterfaceLocale.orDefault(user.getPreferredLocale()))
                 .build();
+    }
+
+    private AuthPersonalProfileDTOs.PersonalProfileResponse toPersonalProfile(User user) {
+        AuthPersonalProfileDTOs.PersonalProfileResponse out = new AuthPersonalProfileDTOs.PersonalProfileResponse();
+        out.setId(user.getId());
+        out.setName(user.getName());
+        out.setEmail(user.getEmail());
+        out.setPhone(user.getPhone());
+        out.setRole(user.getRole() != null ? user.getRole().name().toLowerCase() : "");
+        out.setTenantId(user.getTenantId());
+        out.setAvatar(user.getAvatar());
+        out.setInterfaceLocale(InterfaceLocale.orDefault(user.getPreferredLocale()));
+
+        if (user.getRole() == Enums.Role.TEACHER) {
+            teacherRepository.findByTenantIdAndUserIdAndIsDeletedFalse(user.getTenantId(), user.getId()).ifPresent(t -> {
+                out.setQualification(t.getQualification());
+                out.setSpecialization(t.getSpecialization());
+                out.setBankAccountHolder(t.getBankAccountHolder());
+                out.setBankName(t.getBankName());
+                out.setBankAccountNumber(t.getBankAccountNumber());
+                out.setBankIfsc(t.getBankIfsc());
+            });
+            out.setEditableScopes(List.of("name", "phone", "avatar", "qualification", "specialization", "bank"));
+        } else if (user.getRole() == Enums.Role.PARENT || user.getRole() == Enums.Role.ADMIN || user.getRole() == Enums.Role.SUPER_ADMIN) {
+            out.setEditableScopes(List.of("name", "phone", "avatar"));
+        } else {
+            out.setEditableScopes(List.of("name", "avatar"));
+        }
+        return out;
+    }
+
+    private static String trimToNull(String value) {
+        if (value == null) {
+            return null;
+        }
+        String trimmed = value.trim();
+        return trimmed.isBlank() ? null : trimmed;
+    }
+
+    private void ensurePhoneNotUsedByAnotherUser(String tenantId, Long currentUserId, String canonicalPhone) {
+        for (String key : InternationalPhone.compatibleLookupKeys(canonicalPhone)) {
+            User existing = userRepository.findByPhoneAndTenantIdAndIsDeletedFalse(key, tenantId).orElse(null);
+            if (existing != null && !Objects.equals(existing.getId(), currentUserId)) {
+                throw new DuplicateResourceException("This mobile number is already registered in this school");
+            }
+        }
     }
 
     private String issueRefreshToken(User user) {

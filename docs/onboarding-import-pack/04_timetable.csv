@@ -1,0 +1,15 @@
+teacheremail,teacherid,classname,classid,sectionname,sectionid,subjectname,dayofweek,period,starttime,endtime,room,academicyearid
+amit.sharma@greenfieldschool.edu,,Class 6,,A,,Mathematics,MONDAY,1,08:00,08:40,R-101,CURRENT
+neha.verma@greenfieldschool.edu,,Class 6,,A,,Science,MONDAY,2,08:45,09:25,LAB-2,CURRENT
+rohan.iyer@greenfieldschool.edu,,Class 6,,A,,English,MONDAY,3,09:30,10:10,R-203,CURRENT
+karan.das@greenfieldschool.edu,,Class 6,,A,,Library Skills,MONDAY,4,10:25,11:05,LIB-1,CURRENT
+pooja.kapoor@greenfieldschool.edu,,Class 6,,A,,Physical Education,MONDAY,5,11:10,11:50,GROUND,CURRENT
+amit.sharma@greenfieldschool.edu,,Class 6,,A,,Mathematics,MONDAY,6,12:20,13:00,R-101,CURRENT
+neha.verma@greenfieldschool.edu,,Class 6,,A,,Science,MONDAY,7,13:05,13:45,LAB-2,CURRENT
+amit.sharma@greenfieldschool.edu,,Class 6,,B,,Mathematics,TUESDAY,1,08:00,08:40,R-105,CURRENT
+neha.verma@greenfieldschool.edu,,Class 6,,B,,Science,TUESDAY,2,08:45,09:25,LAB-2,CURRENT
+rohan.iyer@greenfieldschool.edu,,Class 6,,B,,English,TUESDAY,3,09:30,10:10,R-205,CURRENT
+karan.das@greenfieldschool.edu,,Class 6,,B,,Library Skills,TUESDAY,4,10:25,11:05,LIB-1,CURRENT
+pooja.kapoor@greenfieldschool.edu,,Class 6,,B,,Physical Education,TUESDAY,5,11:10,11:50,GROUND,CURRENT
+amit.sharma@greenfieldschool.edu,,Class 6,,B,,Mathematics,TUESDAY,6,12:20,13:00,R-105,CURRENT
+neha.verma@greenfieldschool.edu,,Class 6,,B,,Science,TUESDAY,7,13:05,13:45,LAB-2,CURRENT

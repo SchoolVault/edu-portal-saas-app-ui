@@ -3,8 +3,13 @@ package com.school.erp.modules.teacher.service;
 import com.school.erp.common.dto.PageResponse;
 import com.school.erp.common.enums.Enums;
 import com.school.erp.common.exception.DuplicateResourceException;
+import com.school.erp.common.exception.BusinessException;
+import com.school.erp.common.importer.BulkImportRowPolicy;
 import com.school.erp.common.importer.ZipCsvImportUtil;
 import com.school.erp.common.exception.ResourceNotFoundException;
+import com.school.erp.common.util.InternationalPhone;
+import com.school.erp.modules.auth.entity.User;
+import com.school.erp.modules.auth.repository.UserRepository;
 import com.school.erp.modules.auth.service.PortalUserProvisioningService;
 import com.school.erp.modules.academic.entity.ClassTeacherAssignment;
 import com.school.erp.modules.academic.entity.SchoolClass;
@@ -30,6 +35,7 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.dao.DataIntegrityViolationException;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -51,6 +57,7 @@ public class TeacherService {
     private final SectionRepository sectionRepository;
     private final ClassTeacherAssignmentRepository classTeacherAssignmentRepository;
     private final PortalUserProvisioningService portalUserProvisioningService;
+    private final UserRepository userRepository;
     private final ObjectProvider<CacheService> cacheService;
 
     @Cacheable(cacheNames = CacheConfig.TEACHER_DIRECTORY, keyGenerator = "tenantMethodParamsKeyGenerator", unless = "#result == null")
@@ -142,18 +149,89 @@ public class TeacherService {
         return toRes(t, List.of());
     }
 
+    /**
+     * Idempotent teacher/staff import: update existing teacher row by email when policy is {@link BulkImportRowPolicy#UPSERT}.
+     */
+    @Transactional
+    public TeacherDTOs.Response upsertTeacherForImport(TeacherDTOs.CreateRequest req, boolean createPortal,
+                                                       Enums.Role portalRole, Enums.LibraryStaffRole libraryStaffRole,
+                                                       BulkImportRowPolicy policy) {
+        String tenantId = TenantContext.getTenantId();
+        String email = req.getEmail() != null ? req.getEmail().trim().toLowerCase(Locale.ROOT) : null;
+        if (email == null || email.isBlank()) {
+            throw new com.school.erp.common.exception.BusinessException("Teacher email is required");
+        }
+        Optional<Teacher> existing = repo.findByTenantIdAndEmailIgnoreCaseAndIsDeletedFalse(tenantId, email);
+        if (existing.isEmpty()) {
+            return createForBulkImport(req, createPortal, portalRole, libraryStaffRole);
+        }
+        if (policy == BulkImportRowPolicy.SKIP_IF_EXISTS) {
+            return applyAudienceVisibility(toRes(existing.get(), homeroomClassNamesForTeacher(tenantId, existing.get().getId())));
+        }
+        if (policy == BulkImportRowPolicy.UPSERT) {
+            TeacherDTOs.UpdateRequest ur = new TeacherDTOs.UpdateRequest();
+            ur.setFirstName(req.getFirstName());
+            ur.setLastName(req.getLastName());
+            ur.setEmail(req.getEmail());
+            ur.setPhone(req.getPhone());
+            ur.setQualification(req.getQualification());
+            ur.setSpecialization(req.getSpecialization());
+            ur.setJoinDate(req.getJoinDate());
+            ur.setSalary(req.getSalary());
+            ur.setSubjects(req.getSubjects());
+            ur.setBankAccountHolder(req.getBankAccountHolder());
+            ur.setBankName(req.getBankName());
+            ur.setBankAccountNumber(req.getBankAccountNumber());
+            ur.setBankIfsc(req.getBankIfsc());
+            return update(existing.get().getId(), ur);
+        }
+        throw new DuplicateResourceException("Teacher email already exists: " + email);
+    }
+
     @Transactional
     public TeacherDTOs.Response update(Long id, TeacherDTOs.UpdateRequest req) {
         log.info("Updating teacher id={}", id);
-        Teacher t = repo.findByIdAndTenantIdAndIsDeletedFalse(id, TenantContext.getTenantId()).orElseThrow(() -> new ResourceNotFoundException("Teacher", id));
+        String tenantId = TenantContext.getTenantId();
+        String actorRole = TenantContext.getUserRole();
+        Teacher t = repo.findByIdAndTenantIdAndIsDeletedFalse(id, tenantId).orElseThrow(() -> new ResourceNotFoundException("Teacher", id));
+        if (isAdminActor(actorRole) && hasSensitiveAdminEdit(req, t)) {
+            throw new BusinessException(
+                    "Admins can update school-assignment fields only. Contact details and bank details can be updated only by the teacher via their own profile."
+            );
+        }
+        String previousEmail = t.getEmail();
         if (req.getFirstName() != null) t.setFirstName(req.getFirstName());
         if (req.getLastName() != null) t.setLastName(req.getLastName());
-        if (req.getEmail() != null) t.setEmail(req.getEmail());
-        if (req.getPhone() != null) t.setPhone(req.getPhone());
+        if (req.getEmail() != null) {
+            String normalizedEmail = req.getEmail().trim().toLowerCase(Locale.ROOT);
+            repo.findByTenantIdAndEmailIgnoreCaseAndIsDeletedFalse(tenantId, normalizedEmail).ifPresent(existing -> {
+                if (!existing.getId().equals(t.getId())) {
+                    throw new DuplicateResourceException("Teacher email already exists: " + normalizedEmail);
+                }
+            });
+            t.setEmail(normalizedEmail);
+        }
+        if (req.getPhone() != null) {
+            String raw = req.getPhone().trim();
+            if (raw.isEmpty()) {
+                t.setPhone(null);
+            } else {
+                String canonicalPhone = InternationalPhone.canonical(raw);
+                if (canonicalPhone == null) {
+                    throw new BusinessException(InternationalPhone.invalidMessage());
+                }
+                t.setPhone(canonicalPhone);
+            }
+        }
         if (req.getQualification() != null) t.setQualification(req.getQualification());
         if (req.getSpecialization() != null) t.setSpecialization(req.getSpecialization());
+        if (req.getJoinDate() != null) t.setJoinDate(req.getJoinDate());
         if (req.getSalary() != null) t.setSalary(req.getSalary());
         if (req.getSubjects() != null) t.setSubjects(req.getSubjects());
+        if (req.getBankAccountHolder() != null) t.setBankAccountHolder(req.getBankAccountHolder());
+        if (req.getBankName() != null) t.setBankName(req.getBankName());
+        if (req.getBankAccountNumber() != null) t.setBankAccountNumber(req.getBankAccountNumber());
+        if (req.getBankIfsc() != null) t.setBankIfsc(req.getBankIfsc());
         if (req.getStatus() != null && !req.getStatus().isBlank()) {
             try {
                 Enums.TeacherStatus next = Enums.TeacherStatus.valueOf(req.getStatus().trim().toUpperCase(Locale.ROOT));
@@ -165,10 +243,65 @@ public class TeacherService {
                 log.warn("Ignoring invalid teacher status on update id={} status={}", id, req.getStatus());
             }
         }
-        repo.save(t);
+        try {
+            repo.save(t);
+            syncLinkedPortalUserIdentity(tenantId, t, previousEmail);
+        } catch (DataIntegrityViolationException ex) {
+            throw new BusinessException("Duplicate contact values are not allowed for this school.");
+        } catch (DuplicateResourceException | BusinessException ex) {
+            throw ex;
+        } catch (Exception ex) {
+            log.error("Teacher update failed id={} tenant={} msg={}", id, tenantId, ex.getMessage(), ex);
+            throw new BusinessException("Could not update teacher details right now. Please retry.");
+        }
         log.info("Teacher updated id={}", id);
         evictTeacherDirectoryCache();
-        return toRes(t, homeroomClassNamesForTeacher(TenantContext.getTenantId(), t.getId()));
+        return toRes(t, homeroomClassNamesForTeacher(tenantId, t.getId()));
+    }
+
+    private void syncLinkedPortalUserIdentity(String tenantId, Teacher teacher, String previousEmail) {
+        if (teacher.getUserId() == null) {
+            return;
+        }
+        Optional<User> maybeLinkedUser = userRepository.findByIdAndTenantIdAndIsDeletedFalse(teacher.getUserId(), tenantId);
+        if (maybeLinkedUser.isEmpty()) {
+            log.warn("Skipping portal-user identity sync for teacherId={} userId={} (missing linked user)", teacher.getId(), teacher.getUserId());
+            return;
+        }
+        User linkedUser = maybeLinkedUser.get();
+        if (teacher.getEmail() != null && (previousEmail == null || !teacher.getEmail().equalsIgnoreCase(previousEmail))) {
+            if (userRepository.existsByEmailAndTenantIdAndIsDeletedFalse(teacher.getEmail(), tenantId)
+                    && (linkedUser.getEmail() == null || !teacher.getEmail().equalsIgnoreCase(linkedUser.getEmail()))) {
+                throw new DuplicateResourceException("User email already exists in this school: " + teacher.getEmail());
+            }
+            linkedUser.setEmail(teacher.getEmail());
+        }
+        if (teacher.getPhone() != null && !teacher.getPhone().isBlank()) {
+            for (String key : InternationalPhone.compatibleLookupKeys(teacher.getPhone())) {
+                if (!key.equals(linkedUser.getPhone()) && userRepository.existsByPhoneAndTenantIdAndIsDeletedFalse(key, tenantId)) {
+                    throw new DuplicateResourceException("User phone already exists in this school: " + teacher.getPhone());
+                }
+            }
+        }
+        linkedUser.setPhone(teacher.getPhone());
+        userRepository.save(linkedUser);
+    }
+
+    private static boolean isAdminActor(String role) {
+        return role != null && role.trim().equalsIgnoreCase("ADMIN");
+    }
+
+    private static boolean hasSensitiveAdminEdit(TeacherDTOs.UpdateRequest req, Teacher current) {
+        boolean emailChanged = req.getEmail() != null
+                && !req.getEmail().trim().equalsIgnoreCase(current.getEmail() != null ? current.getEmail().trim() : "");
+        boolean phoneChanged = req.getPhone() != null
+                && !req.getPhone().trim().equals(current.getPhone() != null ? current.getPhone().trim() : "");
+        return emailChanged
+                || phoneChanged
+                || req.getBankAccountHolder() != null
+                || req.getBankName() != null
+                || req.getBankAccountNumber() != null
+                || req.getBankIfsc() != null;
     }
 
     @Transactional
@@ -229,7 +362,7 @@ public class TeacherService {
     public String exportTeachersAsCsv() {
         String tenantId = TenantContext.getTenantId();
         StringBuilder sb = new StringBuilder();
-        sb.append("firstname,lastname,email,phone,qualification,specialization,joindate,salary,subjects,createportal,portalrole,libraryrole\n");
+        sb.append("firstname,lastname,email,phone,qualification,specialization,joindate,salary,subjects,createportal,portalrole,libraryrole,importmode,bankaccountholder,bankname,bankaccountnumber,bankifsc,notifycredentials\n");
         for (Teacher t : repo.findByTenantIdAndIsDeletedFalse(tenantId)) {
             sb.append(csv(t.getFirstName())).append(',');
             sb.append(csv(t.getLastName())).append(',');
@@ -247,7 +380,13 @@ public class TeacherService {
                 sb.append("TEACHER");
             }
             sb.append(',');
-            sb.append(t.getLibraryStaffRole() != null ? t.getLibraryStaffRole().name() : "").append('\n');
+            sb.append(t.getLibraryStaffRole() != null ? t.getLibraryStaffRole().name() : "").append(',');
+            sb.append("UPSERT").append(',');
+            sb.append(csv(t.getBankAccountHolder())).append(',');
+            sb.append(csv(t.getBankName())).append(',');
+            sb.append(csv(t.getBankAccountNumber())).append(',');
+            sb.append(csv(t.getBankIfsc())).append(',');
+            sb.append("N").append('\n');
         }
         return sb.toString();
     }
@@ -403,12 +542,14 @@ public class TeacherService {
                           final SectionRepository sectionRepository,
                           final ClassTeacherAssignmentRepository classTeacherAssignmentRepository,
                           final PortalUserProvisioningService portalUserProvisioningService,
+                          final UserRepository userRepository,
                           final ObjectProvider<CacheService> cacheService) {
         this.repo = repo;
         this.schoolClassRepository = schoolClassRepository;
         this.sectionRepository = sectionRepository;
         this.classTeacherAssignmentRepository = classTeacherAssignmentRepository;
         this.portalUserProvisioningService = portalUserProvisioningService;
+        this.userRepository = userRepository;
         this.cacheService = cacheService;
     }
 

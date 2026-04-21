@@ -69,6 +69,8 @@ public interface StudentRepository extends JpaRepository<Student, Long> {
 
     boolean existsByTenantIdAndAdmissionNumber(String tenantId, String admissionNumber);
 
+    Optional<Student> findByTenantIdAndAdmissionNumberAndIsDeletedFalse(String tenantId, String admissionNumber);
+
     @Query("SELECT s.sectionId, COUNT(s.id) FROM Student s " +
            "WHERE s.tenantId = :tenantId AND s.classId = :classId " +
            "AND s.sectionId IN :sectionIds AND s.isDeleted = false AND s.status = :status " +

@@ -26,6 +26,7 @@ import {
   type ParentFeePaymentMethodOption,
 } from './parent-fee-payment.providers';
 import { SchoolClassNamePipe } from '../../core/i18n/school-class-name.pipe';
+import { TenantModuleGateService } from '../../core/services/tenant-module-gate.service';
 @Component({
   selector: 'app-parent-portal',
   standalone: true,
@@ -185,7 +186,11 @@ import { SchoolClassNamePipe } from '../../core/i18n/school-class-name.pipe';
           </div>
         </div>
 
-        <div class="erp-card mb-3 p-3 d-flex flex-wrap align-items-center justify-content-between gap-2" style="background: var(--clr-surface-alt); border: 1px solid var(--clr-border-light);">
+        <div
+          class="erp-card mb-3 p-3 d-flex flex-wrap align-items-center justify-content-between gap-2"
+          style="background: var(--clr-surface-alt); border: 1px solid var(--clr-border-light);"
+          *ngIf="showExamsCta"
+        >
           <p class="small text-muted mb-0" style="max-width: 42rem;">
             <strong>{{ 'parentPortal.examsBannerBefore' | translate }}</strong> <strong>{{ 'parentPortal.leadExams' | translate }}</strong>{{ 'parentPortal.examsBannerMid' | translate }}
             <strong>{{ 'parentPortal.examsBannerTimetable' | translate }}</strong> {{ 'parentPortal.examsBannerAnd' | translate }}
@@ -567,10 +572,15 @@ export class ParentPortalComponent implements OnInit, OnDestroy {
   constructor(
     private parentService: ParentService,
     private parentSelection: ParentSelectionService,
+    private moduleGate: TenantModuleGateService,
     private translate: TranslateService,
     private cdr: ChangeDetectorRef,
     private route: ActivatedRoute,
   ) {}
+
+  get showExamsCta(): boolean {
+    return this.moduleGate.isModuleEnabled('exams');
+  }
 
   get paymentMethodOptions(): ReadonlyArray<ParentFeePaymentMethodOption> {
     return parentFeePaymentMethodOptions(this.useMocks);

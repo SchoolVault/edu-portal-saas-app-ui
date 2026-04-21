@@ -9,4 +9,6 @@ public interface AcademicYearRepository extends JpaRepository<AcademicYear, Long
     List<AcademicYear> findByTenantIdAndIsDeletedFalse(String tenantId);
 
     Optional<AcademicYear> findByIdAndTenantIdAndIsDeletedFalse(Long id, String tenantId);
+
+    Optional<AcademicYear> findFirstByTenantIdAndIsCurrentTrueAndIsDeletedFalse(String tenantId);
 }

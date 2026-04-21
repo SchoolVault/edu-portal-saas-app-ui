@@ -8,3 +8,8 @@
 app:
   demo-seed:
     enabled: true
+    # Tune these in Render/QA without code changes.
+    step-pause-ms: ${DEMO_SEED_STEP_PAUSE_MS:800}
+    batch-size: ${DEMO_SEED_BATCH_SIZE:20}
+    teacher-count: ${DEMO_SEED_TEACHER_COUNT:36}
+    students-per-section: ${DEMO_SEED_STUDENTS_PER_SECTION:15}

@@ -13,17 +13,24 @@ import { DEFAULT_ERP_PAGE_SIZE } from '../constants/pagination.constants';
 import { sliceToPage } from '../utils/paginate';
 
 const DEFAULT_MOCK_TENANT_FEATURES: Record<string, boolean> = {
-  chat: true,
-  transport: true,
-  hostel: true,
-  library: true,
+  chat: false,
+  transport: false,
+  hostel: false,
+  library: false,
   audit: true,
-  operationsHub: true,
-  importExport: true,
-  exams: true,
-  documents: true,
+  operationsHub: false,
+  importExport: false,
+  exams: false,
+  documents: false,
   directory: true,
-  leave: true,
+  fees: true,
+  payroll: true,
+  communication: true,
+  reports: false,
+  student: true,
+  teacher: true,
+  attendance: true,
+  leave: false,
 };
 import {
   PlatformBroadcastResult,
@@ -34,9 +41,11 @@ import {
   PlatformSchoolDetail,
   PlatformSchoolSummary,
   PlatformSubscriptionPlan,
+  PlatformOnboardSchoolResponse,
   CacheClearResponse,
   CacheClearRequest,
   CacheRegionOption,
+  OnboardSchoolRequest,
 } from '../models/models';
 
 @Injectable({ providedIn: 'root' })
@@ -93,6 +102,21 @@ export class PlatformService {
       }).pipe(delay(200));
     }
     return this.api.get<PlatformDashboardData>('/platform/dashboard');
+  }
+
+  onboardSchoolWorkspace(body: OnboardSchoolRequest): Observable<PlatformOnboardSchoolResponse> {
+    if (runtimeConfig.useMocks) {
+      const tenantId = `tenant_${(body.schoolCode || 'new').toLowerCase()}_${Math.random().toString(36).slice(2, 8)}`;
+      return of({
+        tenantId,
+        schoolCode: (body.schoolCode || '').trim().toUpperCase(),
+        adminUserId: 900000 + Math.floor(Math.random() * 999),
+        adminEmail: body.adminEmail || `${(body.schoolCode || '').toLowerCase()}@school.local`,
+        adminPhone: body.phone,
+        academicYearId: 1,
+      }).pipe(delay(250));
+    }
+    return this.api.post<PlatformOnboardSchoolResponse>('/platform/schools/onboard', body);
   }
 
   getSchools(): Observable<PlatformSchoolSummary[]> {

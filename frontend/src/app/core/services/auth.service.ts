@@ -14,6 +14,7 @@ import {
   SendOtpResponse,
   TokenResponse,
   UpdateAccountProfileRequest,
+  PersonalProfileDetails,
   VerifyOtpRequest,
   VerifyOtpResponse,
 } from '../models/models';
@@ -640,6 +641,60 @@ export class AuthService {
         this.currentUserSubject.next(merged);
       }),
       map(() => this.getCurrentUser() as User)
+    );
+  }
+
+  fetchMyProfileDetails(): Observable<PersonalProfileDetails> {
+    if (runtimeConfig.useMocks) {
+      const u = this.getCurrentUser();
+      if (!u) {
+        return throwError(() => new Error('Not signed in'));
+      }
+      return of({
+        id: u.id,
+        name: u.name,
+        email: u.email,
+        phone: u.phone,
+        role: u.role,
+        tenantId: u.tenantId,
+        avatar: u.avatar,
+        interfaceLocale: u.interfaceLocale,
+        editableScopes: u.role === 'teacher' ? ['name', 'phone', 'avatar', 'qualification', 'specialization', 'bank'] : ['name', 'phone', 'avatar'],
+      }).pipe(delay(120));
+    }
+    return this.api.get<PersonalProfileDetails>('/auth/profile-details');
+  }
+
+  updateMyProfileDetails(body: UpdateAccountProfileRequest): Observable<PersonalProfileDetails> {
+    if (runtimeConfig.useMocks) {
+      const u = this.getCurrentUser();
+      if (!u) {
+        return throwError(() => new Error('Not signed in'));
+      }
+      const next: User = {
+        ...u,
+        name: body.name != null ? (body.name || '').trim() : u.name,
+        phone: body.phone != null ? (body.phone || '').trim() || undefined : u.phone,
+      };
+      localStorage.setItem(ERP_USER_KEY, JSON.stringify(next));
+      this.currentUserSubject.next(next);
+      return this.fetchMyProfileDetails();
+    }
+    return this.api.put<PersonalProfileDetails>('/auth/profile-details', body).pipe(
+      tap(p => {
+        const u = this.getCurrentUser();
+        if (!u || u.id !== p.id) {
+          return;
+        }
+        const merged: User = {
+          ...u,
+          name: p.name ?? u.name,
+          phone: p.phone ?? undefined,
+          avatar: p.avatar ?? u.avatar,
+        };
+        localStorage.setItem(ERP_USER_KEY, JSON.stringify(merged));
+        this.currentUserSubject.next(merged);
+      })
     );
   }
 
