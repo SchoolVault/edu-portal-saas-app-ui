@@ -7,6 +7,30 @@ export interface UpdateAccountProfileRequest {
   name?: string;
   phone?: string | null;
   avatar?: string | null;
+  qualification?: string | null;
+  specialization?: string | null;
+  bankAccountHolder?: string | null;
+  bankName?: string | null;
+  bankAccountNumber?: string | null;
+  bankIfsc?: string | null;
+}
+
+export interface PersonalProfileDetails {
+  id: number;
+  name: string;
+  email?: string;
+  phone?: string;
+  role: AppRole | string;
+  tenantId: string;
+  avatar?: string;
+  interfaceLocale?: string;
+  qualification?: string;
+  specialization?: string;
+  bankAccountHolder?: string;
+  bankName?: string;
+  bankAccountNumber?: string;
+  bankIfsc?: string;
+  editableScopes?: string[];
 }
 
 export interface User {
@@ -66,6 +90,18 @@ export interface OnboardSchoolRequest {
   address?: string;
   /** Optional UI locale for first admin; mirrors backend when enabled. */
   interfaceLocale?: string;
+  academicYearName?: string;
+  academicYearStartDate?: string;
+  academicYearEndDate?: string;
+}
+
+export interface PlatformOnboardSchoolResponse {
+  tenantId: string;
+  schoolCode: string;
+  adminUserId: number;
+  adminEmail?: string;
+  adminPhone?: string;
+  academicYearId?: number;
 }
 
 export interface ProfileSummary {

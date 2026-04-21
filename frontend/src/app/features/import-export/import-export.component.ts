@@ -1,21 +1,36 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnDestroy, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import {
+  DryRunResponse,
+  FileHeaderPreview,
   ImportExportService,
   ImportJobLine,
   ImportJobSummary,
+  ImportMetricsSummary,
 } from '../../core/services/import-export.service';
 import { ErpPaginationComponent } from '../../shared/erp-pagination/erp-pagination.component';
 import { DEFAULT_ERP_PAGE_SIZE } from '../../core/constants/pagination.constants';
 import { sliceToPage } from '../../core/utils/paginate';
+import { AuthService } from '../../core/services/auth.service';
+import { PlatformService } from '../../core/services/platform.service';
+import { PlatformSchoolSummary } from '../../core/models/models';
 
 interface JobTypeOption {
   id: string;
   file: string;
   icon: string;
 }
+
+/** Minimum canonical fields that must be mapped for each job type (matches backend validators). */
+const REQUIRED_IMPORT_FIELDS: Record<string, string[]> = {
+  STUDENTS: ['firstname', 'lastname'],
+  TEACHERS: ['firstname', 'lastname', 'email'],
+  STAFF: ['firstname', 'lastname', 'email'],
+  CLASSES: ['name', 'grade', 'academicyearid'],
+  TIMETABLE: ['teacheremail', 'classname', 'sectionname', 'subjectname', 'dayofweek', 'period', 'starttime', 'endtime'],
+};
 
 @Component({
   selector: 'app-import-export',
@@ -45,6 +60,83 @@ interface JobTypeOption {
         </div>
       </div>
 
+      <div class="ie-wizard mb-4" role="navigation" [attr.aria-label]="'importExport.wizardAria' | translate">
+        <div class="ie-wizard-track">
+          <div
+            *ngFor="let s of wizardSteps; let i = index"
+            class="ie-wizard-step"
+            [class.ie-wizard-step--active]="wizardStepIndex === i"
+            [class.ie-wizard-step--done]="wizardStepIndex > i"
+          >
+            <span class="ie-wizard-num">{{ i + 1 }}</span>
+            <span class="ie-wizard-label">{{ s.labelKey | translate }}</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Operations metrics (tenant DB) + hint for Prometheus -->
+      <div class="erp-card ie-section ie-metrics mb-4" *ngIf="metricsSummary || metricsLoading">
+        <div class="erp-card-header d-flex flex-wrap justify-content-between align-items-center gap-2 pb-2 border-bottom-0 mb-0">
+          <div>
+            <h3 class="erp-card-title mb-1">
+              <i class="bi bi-speedometer2 me-2 text-muted" aria-hidden="true"></i>{{ 'importExport.metricsTitle' | translate }}
+            </h3>
+            <p class="small text-muted mb-0">{{ 'importExport.metricsLead' | translate }}</p>
+          </div>
+          <button
+            type="button"
+            class="btn-outline-erp btn-sm"
+            (click)="loadMetrics()"
+            [disabled]="metricsLoading || (isSuperAdmin && !hasTargetSchoolCode)"
+          >
+            <span *ngIf="metricsLoading" class="spinner-border spinner-border-sm me-1" aria-hidden="true"></span>
+            <i *ngIf="!metricsLoading" class="bi bi-arrow-clockwise me-1" aria-hidden="true"></i>
+            {{ 'importExport.metricsRefresh' | translate }}
+          </button>
+        </div>
+        <div class="row g-2 g-md-3" *ngIf="metricsSummary as m">
+          <div class="col-6 col-md-4 col-xl-2">
+            <div class="ie-metric-tile">
+              <span class="ie-metric-val">{{ m.jobsCreatedLast24h }}</span>
+              <span class="ie-metric-lbl">{{ 'importExport.metricJobsCreated' | translate }}</span>
+            </div>
+          </div>
+          <div class="col-6 col-md-4 col-xl-2">
+            <div class="ie-metric-tile">
+              <span class="ie-metric-val text-success">{{ m.jobsCompletedLast24h }}</span>
+              <span class="ie-metric-lbl">{{ 'importExport.metricJobsDone' | translate }}</span>
+            </div>
+          </div>
+          <div class="col-6 col-md-4 col-xl-2">
+            <div class="ie-metric-tile">
+              <span class="ie-metric-val text-danger">{{ m.jobsFailedLast24h }}</span>
+              <span class="ie-metric-lbl">{{ 'importExport.metricJobsFail' | translate }}</span>
+            </div>
+          </div>
+          <div class="col-6 col-md-4 col-xl-2">
+            <div class="ie-metric-tile">
+              <span class="ie-metric-val text-primary">{{ m.jobsRunningNow }}</span>
+              <span class="ie-metric-lbl">{{ 'importExport.metricJobsRun' | translate }}</span>
+            </div>
+          </div>
+          <div class="col-6 col-md-4 col-xl-2">
+            <div class="ie-metric-tile">
+              <span class="ie-metric-val">{{ m.rowsSucceededLast24h | number }}</span>
+              <span class="ie-metric-lbl">{{ 'importExport.metricRowsOk' | translate }}</span>
+            </div>
+          </div>
+          <div class="col-6 col-md-4 col-xl-2">
+            <div class="ie-metric-tile">
+              <span class="ie-metric-val">{{ m.rowsFailedLast24h | number }}</span>
+              <span class="ie-metric-lbl">{{ 'importExport.metricRowsFail' | translate }}</span>
+            </div>
+          </div>
+        </div>
+        <p class="small text-muted mb-0 mt-2" *ngIf="metricsSummary?.meterNamespaceHint">
+          {{ 'importExport.metricsPromHint' | translate: { ns: metricsSummary!.meterNamespaceHint! } }}
+        </p>
+      </div>
+
       <!-- Import -->
       <div class="erp-card ie-section mb-4">
         <div class="erp-card-header d-flex flex-wrap justify-content-between align-items-start gap-2 mb-0 pb-3 border-bottom-0">
@@ -52,18 +144,47 @@ interface JobTypeOption {
             <h3 class="erp-card-title mb-1">
               <i class="bi bi-upload me-2 text-muted" aria-hidden="true"></i>{{ 'importExport.sectionNewJob' | translate }}
             </h3>
-            <p class="small text-muted mb-0">{{ 'importExport.newJobLead' | translate }}</p>
+            <p class="small text-muted mb-0">{{ 'importExport.newJobLeadV2' | translate }}</p>
           </div>
         </div>
 
         <p class="small fw-semibold text-uppercase text-muted mb-2 mt-2" style="letter-spacing: 0.04em;">{{ 'importExport.stepJobType' | translate }}</p>
+        <div class="mb-3" *ngIf="isSuperAdmin">
+          <label class="form-label small fw-semibold mb-1">{{ 'importExport.targetSchoolCodeLabel' | translate }}</label>
+          <div class="ie-school-picker-wrap">
+            <input
+              class="form-control ie-school-code-input"
+              [class.ie-school-code-input--invalid]="showSchoolCodeValidationError"
+              [(ngModel)]="targetSchoolCode"
+              (ngModelChange)="onTargetSchoolCodeChanged()"
+              (focus)="showSchoolPicker = true"
+              (blur)="onSchoolCodeBlur()"
+              [placeholder]="'importExport.targetSchoolCodePlaceholder' | translate"
+              maxlength="20"
+            />
+            <div class="ie-school-picker-dropdown" *ngIf="showSchoolPicker && filteredSchoolOptions.length > 0">
+              <button
+                type="button"
+                class="ie-school-option"
+                *ngFor="let school of filteredSchoolOptions"
+                (mousedown)="selectSchoolCodeOption(school)"
+              >
+                <span class="ie-school-option-name">{{ school.schoolName }}</span>
+                <span class="ie-school-option-code">{{ school.schoolCode }}</span>
+              </button>
+            </div>
+          </div>
+          <p class="small text-muted mb-0 mt-1" *ngIf="schoolOptionsLoading">{{ 'importExport.targetSchoolCodeLoading' | translate }}</p>
+          <p class="small text-muted mb-0 mt-1" *ngIf="!showSchoolCodeValidationError">{{ 'importExport.targetSchoolCodeHint' | translate }}</p>
+          <p class="small text-danger mb-0 mt-1" *ngIf="showSchoolCodeValidationError">{{ schoolCodeValidationMessageKey | translate }}</p>
+        </div>
         <div class="row g-3 mb-4">
-          <div class="col-6 col-lg-3" *ngFor="let jt of jobTypes">
+          <div class="col-12 col-sm-6 col-lg-3" *ngFor="let jt of jobTypes">
             <button
               type="button"
               class="ie-type-tile w-100 text-start"
               [class.ie-type-tile--active]="jobType === jt.id"
-              (click)="jobType = jt.id"
+              (click)="onJobTypeSelect(jt.id)"
               [attr.aria-pressed]="jobType === jt.id"
             >
               <span class="ie-type-icon"><i class="bi" [ngClass]="jt.icon" aria-hidden="true"></i></span>
@@ -74,7 +195,7 @@ interface JobTypeOption {
           </div>
         </div>
 
-        <p class="small fw-semibold text-uppercase text-muted mb-2" style="letter-spacing: 0.04em;">{{ 'importExport.stepUpload' | translate }}</p>
+        <p class="small fw-semibold text-uppercase text-muted mb-2" style="letter-spacing: 0.04em;">{{ 'importExport.stepUploadV2' | translate }}</p>
         <div
           class="ie-dropzone"
           [class.ie-dropzone--active]="dragOver"
@@ -91,14 +212,14 @@ interface JobTypeOption {
             #fileInput
             type="file"
             class="d-none"
-            accept=".zip,application/zip"
+            accept=".zip,.csv,.xlsx,application/zip,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             (change)="onFile($event)"
           />
           <div class="ie-dropzone-inner">
-            <i class="bi bi-file-earmark-zip ie-drop-ico" aria-hidden="true"></i>
+            <i class="bi bi-file-earmark-spreadsheet ie-drop-ico" aria-hidden="true"></i>
             <div>
-              <div class="ie-drop-title">{{ 'importExport.dropTitle' | translate }}</div>
-              <div class="ie-drop-sub">{{ 'importExport.dropSubBefore' | translate }} <code>{{ activeTypeFile }}</code></div>
+              <div class="ie-drop-title">{{ 'importExport.dropTitleV2' | translate }}</div>
+              <div class="ie-drop-sub">{{ 'importExport.dropSubV2' | translate }} <code>{{ activeTypeFile }}</code></div>
             </div>
           </div>
         </div>
@@ -109,13 +230,65 @@ interface JobTypeOption {
             <span class="text-muted">({{ (file.size / 1024) | number : '1.0-0' }} KB)</span>
           </span>
           <button type="button" class="btn btn-link btn-sm text-muted p-0" (click)="clearFile(fileInput)">{{ 'importExport.removeFile' | translate }}</button>
+          <span class="small text-muted" *ngIf="previewLoading">
+            <span class="spinner-border spinner-border-sm me-1" aria-hidden="true"></span>{{ 'importExport.previewLoading' | translate }}
+          </span>
+        </div>
+
+        <div class="ie-map card border-0 mt-3 p-3" *ngIf="file && headerPreview">
+          <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-2">
+            <div>
+              <div class="small text-muted text-uppercase fw-semibold" style="letter-spacing: 0.04em;">{{ 'importExport.stepMapColumns' | translate }}</div>
+              <p class="small text-muted mb-0">{{ 'importExport.mapLead' | translate }}</p>
+            </div>
+            <button type="button" class="btn btn-sm btn-outline-secondary" (click)="resetMappingToSuggested()">
+              {{ 'importExport.mapResetSuggested' | translate }}
+            </button>
+          </div>
+          <div class="table-responsive ie-table-wrap" *ngIf="headerPreview.detectedHeaders.length">
+            <table class="erp-table mb-0 ie-table ie-table--map">
+              <thead>
+                <tr>
+                  <th>{{ 'importExport.mapColFile' | translate }}</th>
+                  <th>{{ 'importExport.mapColSystem' | translate }}</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let h of headerPreview.detectedHeaders">
+                  <td class="small"><code>{{ h }}</code></td>
+                  <td style="min-width: 200px;">
+                    <select
+                      class="form-select form-select-sm"
+                      [(ngModel)]="columnSelections[h]"
+                      (ngModelChange)="onColumnMappingChanged()"
+                      [name]="'map-' + h"
+                    >
+                      <option value="">{{ 'importExport.mapIgnore' | translate }}</option>
+                      <option *ngFor="let c of headerPreview.canonicalFields" [value]="c">{{ c }}</option>
+                    </select>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="small text-danger mb-0 mt-2" *ngIf="mappingIncomplete">{{ 'importExport.mapIncomplete' | translate }}</p>
         </div>
 
         <div class="d-flex flex-wrap align-items-center gap-2 mt-4">
           <button
             type="button"
+            class="btn-outline-erp"
+            [disabled]="!canRunDryRun"
+            (click)="runDryRun()"
+          >
+            <span *ngIf="dryRunBusy" class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+            <i *ngIf="!dryRunBusy" class="bi bi-check2-circle me-2" aria-hidden="true"></i>
+            {{ dryRunBusy ? ('importExport.dryRunBusy' | translate) : ('importExport.dryRunBtn' | translate) }}
+          </button>
+          <button
+            type="button"
             class="btn-primary-erp"
-            [disabled]="!file || busy"
+            [disabled]="!canImportData"
             (click)="submit()"
           >
             <span *ngIf="busy" class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
@@ -125,6 +298,26 @@ interface JobTypeOption {
           <span class="small" [class.text-success]="lastSubmitOk" [class.text-danger]="lastSubmitOk === false" *ngIf="lastSubmitMsg">
             {{ lastSubmitMsg }}
           </span>
+        </div>
+        <div class="ie-dry-run card border-0 mt-3 p-3" *ngIf="dryRunResult as dr">
+          <div class="small text-muted text-uppercase fw-semibold mb-2" style="letter-spacing: 0.04em;">{{ 'importExport.dryRunSummary' | translate }}</div>
+          <div class="alert alert-info py-2 px-3 small mb-2" *ngIf="dr.advisoryMessage">
+            <i class="bi bi-info-circle me-1" aria-hidden="true"></i>{{ dr.advisoryMessage }}
+          </div>
+          <div class="row g-2 small ie-dry-run-stats">
+            <div class="col-6 col-md-3">
+              <div class="ie-dry-run-stat"><span class="text-muted">{{ 'importExport.dryRunTotal' | translate }}</span><strong>{{ dr.totalRows }}</strong></div>
+            </div>
+            <div class="col-6 col-md-3">
+              <div class="ie-dry-run-stat"><span class="text-muted">{{ 'importExport.dryRunValid' | translate }}</span><strong class="text-success">{{ dr.validRows }}</strong></div>
+            </div>
+            <div class="col-6 col-md-3">
+              <div class="ie-dry-run-stat"><span class="text-muted">{{ 'importExport.dryRunInvalid' | translate }}</span><strong class="text-danger">{{ dr.invalidRows }}</strong></div>
+            </div>
+          </div>
+          <ul class="list-unstyled mb-0 mt-2 small" *ngIf="dr.sampleErrors.length">
+            <li *ngFor="let e of dr.sampleErrors" class="text-danger"><span class="text-muted">#{{ e.lineIndex }}</span> — {{ e.message }}</li>
+          </ul>
         </div>
       </div>
 
@@ -160,13 +353,14 @@ interface JobTypeOption {
         </div>
       </div>
 
-      <!-- Jobs table -->
-      <div class="erp-card ie-section mb-4">
+      <!-- Jobs table (report) -->
+      <div class="erp-card ie-section mb-4" id="import-export-report">
         <div class="erp-card-header d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
           <div>
             <h3 class="erp-card-title mb-0">
-              <i class="bi bi-clock-history me-2 text-muted" aria-hidden="true"></i>{{ 'importExport.jobsTitle' | translate }}
+              <i class="bi bi-clipboard-data me-2 text-muted" aria-hidden="true"></i>{{ 'importExport.jobsTitleReport' | translate }}
             </h3>
+            <p class="small text-muted mb-0 mt-1">{{ 'importExport.jobsReportLead' | translate }}</p>
           </div>
           <button type="button" class="btn-outline-erp btn-sm" (click)="reloadJobs()" [disabled]="busy || jobsLoading">
             <span *ngIf="jobsLoading" class="spinner-border spinner-border-sm me-1" aria-hidden="true"></span>
@@ -272,8 +466,8 @@ interface JobTypeOption {
           {{ 'importExport.loadingLines' | translate }}
         </div>
 
-        <div class="table-responsive" *ngIf="!linesLoading && lines.length > 0">
-          <table class="erp-table mb-0 ie-table">
+        <div class="table-responsive ie-table-wrap" *ngIf="!linesLoading && lines.length > 0">
+          <table class="erp-table mb-0 ie-table ie-table--lines">
             <thead>
               <tr>
                 <th>{{ 'importExport.thLineNum' | translate }}</th>
@@ -367,6 +561,7 @@ interface JobTypeOption {
       .ie-hero-content {
         position: relative;
         display: flex;
+        flex-wrap: wrap;
         gap: 1.25rem;
         align-items: flex-start;
       }
@@ -562,7 +757,15 @@ interface JobTypeOption {
       .ie-table-wrap {
         border-radius: 10px;
         border: 1px solid var(--clr-border, rgba(0, 0, 0, 0.06));
-        overflow: hidden;
+        overflow-x: auto;
+        overflow-y: hidden;
+        -webkit-overflow-scrolling: touch;
+      }
+      .ie-table {
+        min-width: 640px;
+      }
+      .ie-table.ie-table--lines {
+        min-width: 880px;
       }
       .ie-table tbody tr {
         transition: background 0.15s;
@@ -632,7 +835,7 @@ interface JobTypeOption {
       }
       .ie-payload {
         display: block;
-        max-width: 320px;
+        max-width: min(320px, 100%);
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
@@ -641,15 +844,182 @@ interface JobTypeOption {
         border-radius: 6px;
         background: rgba(0, 0, 0, 0.04);
       }
+      .ie-dry-run {
+        background: color-mix(in srgb, var(--clr-surface-muted, #f5f5f5) 92%, transparent);
+        border-radius: 12px;
+      }
+      .ie-dry-run-stats .ie-dry-run-stat {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        flex-wrap: wrap;
+      }
+      .ie-wizard {
+        border-radius: 14px;
+        border: 1px solid var(--clr-border, rgba(0, 0, 0, 0.08));
+        background: var(--clr-surface, #fff);
+        padding: 0.75rem 1rem;
+        overflow: hidden;
+      }
+      .ie-wizard-track {
+        display: flex;
+        flex-wrap: nowrap;
+        gap: 0.5rem;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        padding-bottom: 0.25rem;
+        scrollbar-width: thin;
+      }
+      .ie-wizard-step {
+        display: flex;
+        align-items: center;
+        gap: 0.45rem;
+        flex: 1 1 0;
+        min-width: 120px;
+        padding: 0.45rem 0.5rem;
+        border-radius: 10px;
+        background: rgba(0, 0, 0, 0.03);
+        color: var(--clr-text-muted);
+        font-size: 0.78rem;
+        font-weight: 600;
+        white-space: nowrap;
+      }
+      .ie-wizard-step--active {
+        background: rgba(192, 92, 61, 0.12);
+        color: #1b3a30;
+        border: 1px solid rgba(192, 92, 61, 0.35);
+      }
+      .ie-wizard-step--done {
+        background: rgba(27, 58, 48, 0.08);
+        color: #1b3a30;
+      }
+      .ie-wizard-num {
+        width: 22px;
+        height: 22px;
+        border-radius: 50%;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.7rem;
+        font-weight: 800;
+        background: rgba(0, 0, 0, 0.06);
+        flex-shrink: 0;
+      }
+      .ie-wizard-step--active .ie-wizard-num {
+        background: #c05c3d;
+        color: #fff;
+      }
+      .ie-wizard-step--done .ie-wizard-num {
+        background: #1b3a30;
+        color: #fff;
+      }
+      .ie-table.ie-table--map {
+        min-width: 480px;
+      }
+      .ie-metrics .ie-metric-tile {
+        border-radius: 12px;
+        border: 1px solid var(--clr-border, rgba(0, 0, 0, 0.08));
+        background: linear-gradient(180deg, rgba(27, 58, 48, 0.04) 0%, var(--clr-surface, #fff) 100%);
+        padding: 0.85rem 1rem;
+        min-height: 88px;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        gap: 0.25rem;
+      }
+      .ie-metric-val {
+        font-size: 1.35rem;
+        font-weight: 800;
+        letter-spacing: -0.02em;
+        line-height: 1.2;
+        color: var(--clr-text, #1a1a1a);
+      }
+      .ie-metric-lbl {
+        font-size: 0.72rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        color: var(--clr-text-muted, #6c757d);
+        line-height: 1.25;
+      }
+      .ie-school-code-input {
+        border-radius: 10px;
+        border: 1px solid var(--clr-border, rgba(0, 0, 0, 0.14));
+        background: var(--clr-surface, #fff);
+        color: var(--clr-text, #1a1a1a);
+      }
+      .ie-school-code-input:focus {
+        border-color: rgba(192, 92, 61, 0.55);
+        box-shadow: 0 0 0 0.2rem rgba(192, 92, 61, 0.16);
+      }
+      .ie-school-code-input--invalid {
+        border-color: #dc3545 !important;
+        box-shadow: 0 0 0 0.2rem rgba(220, 53, 69, 0.12) !important;
+      }
+      .ie-school-picker-wrap {
+        position: relative;
+      }
+      .ie-school-picker-dropdown {
+        position: absolute;
+        inset-inline: 0;
+        top: calc(100% + 6px);
+        z-index: 25;
+        border: 1px solid var(--clr-border, rgba(0, 0, 0, 0.12));
+        border-radius: 10px;
+        background: var(--clr-surface, #fff);
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.12);
+        max-height: 240px;
+        overflow-y: auto;
+      }
+      .ie-school-option {
+        width: 100%;
+        border: 0;
+        background: transparent;
+        text-align: left;
+        padding: 0.55rem 0.7rem;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.75rem;
+      }
+      .ie-school-option:hover {
+        background: rgba(192, 92, 61, 0.08);
+      }
+      .ie-school-option-name {
+        font-size: 0.84rem;
+        font-weight: 600;
+        color: var(--clr-text, #1a1a1a);
+      }
+      .ie-school-option-code {
+        font-size: 0.75rem;
+        color: var(--clr-text-muted, #6c757d);
+      }
+      @media (max-width: 575.98px) {
+        .ie-title {
+          font-size: 1.35rem;
+        }
+        .ie-hero {
+          padding: 1rem !important;
+        }
+        .ie-dropzone-inner {
+          flex-direction: column;
+          align-items: flex-start !important;
+        }
+        .ie-wizard-step {
+          min-width: 100px;
+          font-size: 0.72rem;
+        }
+      }
     `,
   ],
 })
-export class ImportExportComponent implements OnInit {
+export class ImportExportComponent implements OnInit, OnDestroy {
   jobTypes: JobTypeOption[] = [
     { id: 'STUDENTS', file: 'students.csv', icon: 'bi-people-fill' },
     { id: 'TEACHERS', file: 'teachers.csv', icon: 'bi-person-workspace' },
     { id: 'STAFF', file: 'staff.csv', icon: 'bi-book-half' },
     { id: 'CLASSES', file: 'classes.csv', icon: 'bi-diagram-3-fill' },
+    { id: 'TIMETABLE', file: 'timetable.csv', icon: 'bi-calendar-week-fill' },
   ];
 
   jobType = 'STUDENTS';
@@ -669,11 +1039,85 @@ export class ImportExportComponent implements OnInit {
   linesPageSize = DEFAULT_ERP_PAGE_SIZE;
   selectedJob: ImportJobSummary | null = null;
   dragOver = false;
+  dryRunBusy = false;
+  dryRunResult: DryRunResponse | null = null;
+
+  /** 0..4 — upload, map, validate, queue, report */
+  wizardStepIndex = 0;
+  readonly wizardSteps = [
+    { labelKey: 'importExport.wizardStepUpload' },
+    { labelKey: 'importExport.wizardStepMap' },
+    { labelKey: 'importExport.wizardStepValidate' },
+    { labelKey: 'importExport.wizardStepQueue' },
+    { labelKey: 'importExport.wizardStepReport' },
+  ];
+
+  headerPreview: FileHeaderPreview | null = null;
+  previewLoading = false;
+  /** File header → canonical field (empty = ignore column). */
+  columnSelections: Record<string, string> = {};
+
+  metricsSummary: ImportMetricsSummary | null = null;
+  metricsLoading = false;
+  targetSchoolCode = '';
+  targetSchoolCodeTouched = false;
+  showSchoolPicker = false;
+  schoolOptionsLoading = false;
+  schoolOptions: PlatformSchoolSummary[] = [];
+  isSuperAdmin = false;
+  private liveRefreshTimer: ReturnType<typeof setInterval> | null = null;
 
   constructor(
     private importExport: ImportExportService,
-    private translate: TranslateService
+    private translate: TranslateService,
+    private authService: AuthService,
+    private platformService: PlatformService
   ) {}
+
+  get mappingIncomplete(): boolean {
+    if (!this.headerPreview) {
+      return true;
+    }
+    const mapped = new Set(
+      Object.values(this.columnSelections).filter(v => !!v && String(v).trim().length > 0)
+    );
+    const req = REQUIRED_IMPORT_FIELDS[this.jobType] ?? [];
+    return req.some(f => !mapped.has(f));
+  }
+
+  get canRunDryRun(): boolean {
+    return !!this.file && !!this.headerPreview && !this.busy && !this.dryRunBusy && !this.previewLoading && !this.mappingIncomplete;
+  }
+
+  get canImportData(): boolean {
+    if (!this.canRunDryRun) {
+      return false;
+    }
+    return !!this.dryRunResult && this.dryRunResult.invalidRows === 0;
+  }
+
+  get hasTargetSchoolCode(): boolean {
+    return !!this.effectiveSchoolCode;
+  }
+
+  get showSchoolCodeValidationError(): boolean {
+    return this.isSuperAdmin && this.targetSchoolCodeTouched && !this.hasTargetSchoolCode;
+  }
+
+  get schoolCodeValidationMessageKey(): string {
+    return 'importExport.targetSchoolCodeRequired';
+  }
+
+  get filteredSchoolOptions(): PlatformSchoolSummary[] {
+    const query = this.targetSchoolCode.trim().toLowerCase();
+    const source = this.schoolOptions.filter(s => s.active);
+    if (!query) {
+      return source.slice(0, 8);
+    }
+    return source
+      .filter(s => s.schoolName.toLowerCase().includes(query) || s.schoolCode.toLowerCase().includes(query))
+      .slice(0, 8);
+  }
 
   jobTypeLabel(raw: string): string {
     const id = String(raw || '').toUpperCase();
@@ -701,7 +1145,129 @@ export class ImportExportComponent implements OnInit {
   }
 
   ngOnInit(): void {
+    this.isSuperAdmin = (this.authService.getRole() || '').toLowerCase() === 'super_admin';
+    if (this.isSuperAdmin) {
+      this.loadSchoolCodeOptions();
+    }
+    this.loadMetrics();
     this.reloadJobs();
+    this.startLiveRefreshLoop();
+  }
+
+  ngOnDestroy(): void {
+    this.stopLiveRefreshLoop();
+  }
+
+  loadMetrics(): void {
+    if (this.isSuperAdmin && !this.hasTargetSchoolCode) {
+      this.metricsSummary = null;
+      this.metricsLoading = false;
+      return;
+    }
+    this.metricsLoading = true;
+    this.importExport.getMetricsSummary(this.effectiveSchoolCode).subscribe({
+      next: m => {
+        this.metricsSummary = m;
+        this.metricsLoading = false;
+      },
+      error: () => {
+        this.metricsLoading = false;
+      },
+    });
+  }
+
+  onJobTypeSelect(id: string): void {
+    this.jobType = id;
+    this.resetDryRunState();
+    if (this.file) {
+      this.loadHeaderPreview();
+    }
+  }
+
+  private loadHeaderPreview(): void {
+    if (!this.file) {
+      return;
+    }
+    this.previewLoading = true;
+    this.headerPreview = null;
+    this.columnSelections = {};
+    this.dryRunResult = null;
+    this.importExport.previewHeaders(this.jobType, this.file, this.targetSchoolCode).subscribe({
+      next: p => {
+        this.headerPreview = p;
+        this.initColumnSelections(p);
+        this.wizardStepIndex = 1;
+        this.previewLoading = false;
+      },
+      error: () => {
+        this.previewLoading = false;
+        this.lastSubmitMsg = this.translate.instant('importExport.previewFailed');
+        this.lastSubmitOk = false;
+      },
+    });
+  }
+
+  private initColumnSelections(p: FileHeaderPreview): void {
+    const next: Record<string, string> = {};
+    for (const h of p.detectedHeaders) {
+      next[h] = p.suggestedMapping[h] ?? '';
+    }
+    this.columnSelections = next;
+  }
+
+  resetMappingToSuggested(): void {
+    if (this.headerPreview) {
+      this.initColumnSelections(this.headerPreview);
+      this.resetDryRunState();
+    }
+  }
+
+  onColumnMappingChanged(): void {
+    this.resetDryRunState();
+  }
+
+  onTargetSchoolCodeChanged(): void {
+    this.targetSchoolCode = this.targetSchoolCode.toUpperCase();
+    this.showSchoolPicker = true;
+    this.resetDryRunState();
+    this.reloadJobs();
+    this.loadMetrics();
+  }
+
+  onSchoolCodeBlur(): void {
+    this.targetSchoolCodeTouched = true;
+    setTimeout(() => {
+      this.showSchoolPicker = false;
+    }, 120);
+  }
+
+  selectSchoolCodeOption(school: PlatformSchoolSummary): void {
+    this.targetSchoolCode = school.schoolCode.toUpperCase();
+    this.targetSchoolCodeTouched = true;
+    this.showSchoolPicker = false;
+    this.onTargetSchoolCodeChanged();
+  }
+
+  /** JSON for multipart `columnMappingJson`, or null when mapping not needed (identity). */
+  private buildColumnMappingJson(): string | null {
+    if (!this.headerPreview) {
+      return null;
+    }
+    const o: Record<string, string> = {};
+    for (const h of this.headerPreview.detectedHeaders) {
+      const v = this.columnSelections[h];
+      if (v && String(v).trim().length > 0) {
+        o[h] = v.trim();
+      }
+    }
+    if (Object.keys(o).length === 0) {
+      return null;
+    }
+    const allIdentity = Object.keys(o).every(k => k === o[k]);
+    if (allIdentity) {
+      return null;
+    }
+    return JSON.stringify(o);
   }
 
   openFilePicker(input: HTMLInputElement): void {
@@ -725,10 +1291,13 @@ export class ImportExportComponent implements OnInit {
     e.stopPropagation();
     this.dragOver = false;
     const f = e.dataTransfer?.files?.[0];
-    if (f && (f.name.toLowerCase().endsWith('.zip') || f.type === 'application/zip')) {
+    if (f && this.isAllowedImportFile(f)) {
       this.file = f;
       this.lastSubmitMsg = '';
       this.lastSubmitOk = null;
+      this.resetDryRunState();
+      this.wizardStepIndex = 0;
+      this.loadHeaderPreview();
     }
   }
 
@@ -737,35 +1306,99 @@ export class ImportExportComponent implements OnInit {
     this.file = input.files && input.files.length ? input.files[0] : null;
     this.lastSubmitMsg = '';
     this.lastSubmitOk = null;
+    this.resetDryRunState();
+    this.wizardStepIndex = 0;
+    this.headerPreview = null;
+    this.columnSelections = {};
+    if (this.file) {
+      this.loadHeaderPreview();
+    }
+  }
+
+  private isAllowedImportFile(f: File): boolean {
+    const n = f.name.toLowerCase();
+    return n.endsWith('.zip') || n.endsWith('.csv') || n.endsWith('.xlsx');
   }
 
   clearFile(input: HTMLInputElement): void {
     this.file = null;
     input.value = '';
+    this.resetDryRunState();
+    this.headerPreview = null;
+    this.columnSelections = {};
+    this.wizardStepIndex = 0;
+    this.previewLoading = false;
+  }
+
+  runDryRun(): void {
+    if (!this.ensureSchoolCodePresentForSuperAdmin()) return;
+    if (!this.canRunDryRun || !this.file || !this.headerPreview) return;
+    this.resetDryRunState();
+    this.dryRunBusy = true;
+    const mapJson = this.buildColumnMappingJson();
+    this.importExport.dryRun(this.jobType, this.file, mapJson, this.targetSchoolCode).subscribe({
+      next: r => {
+        this.dryRunResult = r;
+        this.wizardStepIndex = 2;
+        this.lastSubmitMsg = this.translate.instant('importExport.msgDryRunDone');
+        this.lastSubmitOk = r.invalidRows === 0;
+      },
+      error: e => {
+        const errMsg = e?.message || this.translate.instant('importExport.msgDryRunFailed');
+        this.lastSubmitMsg = errMsg;
+        this.lastSubmitOk = false;
+        this.dryRunBusy = false;
+      },
+      complete: () => (this.dryRunBusy = false),
+    });
   }
 
   submit(): void {
-    if (!this.file) return;
+    if (!this.ensureSchoolCodePresentForSuperAdmin()) return;
+    if (!this.canImportData || !this.file || !this.headerPreview) return;
+    this.wizardStepIndex = 3;
     this.busy = true;
     this.lastSubmitMsg = '';
     this.lastSubmitOk = null;
-    this.importExport.submitJob(this.jobType, this.file).subscribe({
+    const mapJson = this.buildColumnMappingJson();
+    this.importExport.submitJob(this.jobType, this.file, mapJson, this.targetSchoolCode).subscribe({
       next: r => {
+        this.wizardStepIndex = 4;
         this.lastSubmitMsg = this.translate.instant('importExport.msgQueued', { jobId: r.jobId, rows: r.totalRows });
+        if (r.advisoryMessage) {
+          this.lastSubmitMsg = `${this.lastSubmitMsg} ${r.advisoryMessage}`;
+        }
         this.lastSubmitOk = true;
         this.reloadJobs();
+        this.loadMetrics();
+        setTimeout(() => {
+          const el = document.getElementById('import-export-report');
+          el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }, 200);
       },
       error: e => {
         this.lastSubmitMsg = e?.message || this.translate.instant('importExport.msgUploadFailed');
         this.lastSubmitOk = false;
+        this.busy = false;
       },
       complete: () => (this.busy = false),
     });
   }
 
+  private resetDryRunState(): void {
+    this.dryRunResult = null;
+    this.dryRunBusy = false;
+  }
+
   reloadJobs(): void {
+    if (this.isSuperAdmin && !this.hasTargetSchoolCode) {
+      this.jobs = [];
+      this.pagedJobs = [];
+      this.jobsLoading = false;
+      return;
+    }
     this.jobsLoading = true;
-    this.importExport.listJobs(0, 50).subscribe({
+    this.importExport.listJobs(0, 50, this.effectiveSchoolCode).subscribe({
       next: p => {
         this.jobs = p.content;
         this.jobsPageIndex = 0;
@@ -798,7 +1431,7 @@ export class ImportExportComponent implements OnInit {
     this.linesLoading = true;
     this.lines = [];
     this.pagedLines = [];
-    this.importExport.getLines(j.id, 0, 200).subscribe({
+    this.importExport.getLines(j.id, 0, 200, this.effectiveSchoolCode).subscribe({
       next: p => {
         this.lines = p.content;
         this.linesPageIndex = 0;
@@ -834,11 +1467,12 @@ export class ImportExportComponent implements OnInit {
 
   retry(j: ImportJobSummary): void {
     this.busy = true;
-    this.importExport.retryFailed(j.id).subscribe({
+    this.importExport.retryFailed(j.id, this.effectiveSchoolCode).subscribe({
       next: () => {
         this.lastSubmitMsg = this.translate.instant('importExport.msgRetryQueued', { id: j.id });
         this.lastSubmitOk = true;
         this.reloadJobs();
+        this.loadMetrics();
       },
       error: e => {
         this.lastSubmitMsg = e?.message || this.translate.instant('importExport.msgRetryFailed');
@@ -887,5 +1521,54 @@ export class ImportExportComponent implements OnInit {
     if (s === 'FAILED') return 'ie-st-failed';
     if (s === 'RUNNING') return 'ie-st-running';
     return 'ie-st-pending';
+  }
+
+  private get effectiveSchoolCode(): string | null {
+    if (!this.isSuperAdmin) {
+      return null;
+    }
+    const code = this.targetSchoolCode.trim().toUpperCase();
+    return code.length ? code : null;
+  }
+
+  private ensureSchoolCodePresentForSuperAdmin(): boolean {
+    if (!this.isSuperAdmin) {
+      return true;
+    }
+    this.targetSchoolCodeTouched = true;
+    return this.hasTargetSchoolCode;
+  }
+
+  private loadSchoolCodeOptions(): void {
+    this.schoolOptionsLoading = true;
+    this.platformService.getSchools().subscribe({
+      next: rows => {
+        this.schoolOptions = rows ?? [];
+        this.schoolOptionsLoading = false;
+      },
+      error: () => {
+        this.schoolOptions = [];
+        this.schoolOptionsLoading = false;
+      },
+    });
+  }
+
+  private startLiveRefreshLoop(): void {
+    this.stopLiveRefreshLoop();
+    this.liveRefreshTimer = setInterval(() => {
+      this.reloadJobs();
+      this.loadMetrics();
+      if (this.selectedJob) {
+        this.selectJob(this.selectedJob);
+      }
+    }, 5000);
+  }
+
+  private stopLiveRefreshLoop(): void {
+    if (!this.liveRefreshTimer) {
+      return;
+    }
+    clearInterval(this.liveRefreshTimer);
+    this.liveRefreshTimer = null;
   }
 }

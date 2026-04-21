@@ -3,6 +3,7 @@ import { CanActivateFn, Router } from '@angular/router';
 import { of } from 'rxjs';
 import { map, take } from 'rxjs/operators';
 import { switchMap } from 'rxjs/operators';
+import { DEFAULT_PLATFORM_TENANT_FEATURES } from '../constants/platform-tenant-features';
 import { schoolStaffRole } from '../policy/access-policy';
 import { AuthService } from '../services/auth.service';
 import { SettingsService } from '../services/settings.service';
@@ -87,7 +88,10 @@ export const leaveStaffGuard: CanActivateFn = () => {
       if (r === 'admin' || r === 'teacher') {
         return settings.getFeatures().pipe(
           take(1),
-          map(flags => (flags?.leave === false ? router.createUrlTree(['/app/dashboard']) : true))
+          map(flags => {
+            const enabled = flags?.leave ?? DEFAULT_PLATFORM_TENANT_FEATURES.leave;
+            return enabled === false ? router.createUrlTree(['/app/dashboard']) : true;
+          })
         );
       }
       return of(router.createUrlTree(['/app/dashboard']));

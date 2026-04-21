@@ -23,3 +23,28 @@ export const PLATFORM_TENANT_FEATURE_KEYS = [
   'leave',
 ] as const;
 export type PlatformTenantFeatureKey = (typeof PLATFORM_TENANT_FEATURE_KEYS)[number];
+
+/**
+ * Baseline rollout for newly onboarded schools:
+ * core academics/finance/communication on, optional modules off until super-admin enables them.
+ */
+export const DEFAULT_PLATFORM_TENANT_FEATURES: Record<PlatformTenantFeatureKey, boolean> = {
+  chat: false,
+  transport: false,
+  hostel: false,
+  library: false,
+  audit: true,
+  operationsHub: false,
+  importExport: false,
+  exams: false,
+  directory: true,
+  fees: true,
+  payroll: true,
+  documents: false,
+  communication: true,
+  reports: false,
+  student: true,
+  teacher: true,
+  attendance: true,
+  leave: false,
+};

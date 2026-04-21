@@ -89,9 +89,11 @@ import com.school.erp.modules.timetable.entity.TimetableEntry;
 import com.school.erp.modules.timetable.repository.TimetableRepository;
 import com.school.erp.modules.transport.entity.*;
 import com.school.erp.modules.transport.repository.*;
+import com.school.erp.common.util.InternationalPhone;
 import jakarta.persistence.EntityManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -165,10 +167,10 @@ public class DemoDataSeedService {
 
     private static final String QA_MULTICHILD_EMAIL_LOCAL = "qa.multichild.parent";
 
-    private static final String FEATURES_JSON = "{\"chat\":true,\"transport\":true,\"library\":true,\"hostel\":true,"
-            + "\"operationsHub\":true,\"importExport\":true,\"directory\":true,"
-            + "\"payroll\":true,\"documents\":true,\"audit\":true,\"communication\":true,\"reports\":true,\"student\":true,\"teacher\":true,"
-            + "\"attendance\":true,\"fees\":true,\"leave\":true}";
+    private static final String FEATURES_JSON = "{\"chat\":false,\"transport\":false,\"library\":false,\"hostel\":false,"
+            + "\"operationsHub\":false,\"importExport\":false,\"directory\":true,"
+            + "\"payroll\":true,\"documents\":false,\"audit\":true,\"communication\":true,\"reports\":false,\"student\":true,\"teacher\":true,"
+            + "\"attendance\":true,\"fees\":true,\"leave\":false}";
 
     // Realistic Indian name pools for data generation
     private static final String[] MALE_FIRST_NAMES = {
@@ -273,11 +275,21 @@ public class DemoDataSeedService {
     private final DemoExtendedTablesSeed demoExtendedTablesSeed;
     private final EntityManager entityManager;
 
-    /** Pause duration between major steps (in milliseconds) to avoid overwhelming Render free tier */
-    private static final long STEP_PAUSE_MS = 1000; // 1 second between steps
+    /** Pause duration between major steps to avoid CPU spikes on free tier. */
+    @Value("${app.demo-seed.step-pause-ms:800}")
+    private long stepPauseMs;
 
-    /** Batch size for entity manager flush/clear operations */
-    private static final int BATCH_SIZE = 20;
+    /** Batch size for entity manager flush/clear operations. */
+    @Value("${app.demo-seed.batch-size:20}")
+    private int batchSize;
+
+    /** Teacher count per school; keep enough for timetable + homeroom coverage. */
+    @Value("${app.demo-seed.teacher-count:36}")
+    private int teacherCount;
+
+    /** Students per section for demo roster density. */
+    @Value("${app.demo-seed.students-per-section:15}")
+    private int studentsPerSection;
 
     public DemoDataSeedService(
             TenantConfigRepository tenantConfigRepository,
@@ -549,9 +561,9 @@ public class DemoDataSeedService {
 
         // STEP 3: Academic Year
         log.info("  [3/15] Academic Year...");
-        AcademicYear academicYear = createAcademicYear(tenantId, "2025-2026",
-                                                       LocalDate.of(2025, 4, 1),
-                                                       LocalDate.of(2026, 3, 31),
+        AcademicYear academicYear = createAcademicYear(tenantId, "2026-2027",
+                                                       LocalDate.of(2026, 4, 1),
+                                                       LocalDate.of(2027, 3, 31),
                                                        true);
         pauseForResourceManagement();
 
@@ -564,7 +576,7 @@ public class DemoDataSeedService {
         // STEP 5: Teachers — 36 so Mon–Sat × 6 periods can assign distinct teachers across ~14 sections
         // (one teacher per (day,period) tenant-wide while teacher_id is set; see uq_tt_active_teacher_slot / V20).
         log.info("  [5/15] Teachers...");
-        List<Teacher> teachers = createTeachers(tenantId, schoolCode, 36, random);
+        List<Teacher> teachers = createTeachers(tenantId, schoolCode, normalizedTeacherCount(), random);
         flushAndClear(); // Clear memory after creating teachers
         pauseForResourceManagement();
 
@@ -673,7 +685,9 @@ public class DemoDataSeedService {
      */
     private void pauseForResourceManagement() {
         try {
-            Thread.sleep(STEP_PAUSE_MS);
+            if (stepPauseMs > 0) {
+                Thread.sleep(stepPauseMs);
+            }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             log.warn("Pause interrupted: {}", e.getMessage());
@@ -1091,7 +1105,7 @@ public class DemoDataSeedService {
         p.setAnnualEntitled(24);
         p.setSickEntitled(12);
         p.setCasualEntitled(12);
-        p.setPolicyYearLabel("2025-2026");
+        p.setPolicyYearLabel("2026-2027");
         p.setIsActive(true);
         p.setIsDeleted(false);
         leaveEntitlementPolicyRepository.save(p);
@@ -1127,18 +1141,36 @@ public class DemoDataSeedService {
         if (preferredPhone == null || preferredPhone.isBlank()) {
             return null;
         }
-        String candidate = preferredPhone.trim();
-        if (!userRepository.existsByPhoneAndTenantIdAndIsDeletedFalse(candidate, tenantId)) {
+        String candidate = InternationalPhone.canonical(preferredPhone.trim());
+        if (candidate == null) {
+            throw new IllegalStateException("Demo seed generated invalid phone: " + preferredPhone);
+        }
+        if (!phoneExistsForTenant(tenantId, candidate)) {
             return candidate;
         }
         long h = Objects.hash(tenantId, uniquenessSalt);
         for (int i = 0; i < 2000; i++) {
-            String next = "+91-9" + String.format("%09d", Math.floorMod(h + (long) i * 7919L, 1_000_000_000L));
-            if (!userRepository.existsByPhoneAndTenantIdAndIsDeletedFalse(next, tenantId)) {
+            String next = InternationalPhone.canonical(
+                    "+91-9" + String.format("%09d", Math.floorMod(h + (long) i * 7919L, 1_000_000_000L))
+            );
+            if (next != null && !phoneExistsForTenant(tenantId, next)) {
                 return next;
             }
         }
         throw new IllegalStateException("Could not allocate unique phone for tenant " + tenantId);
+    }
+
+    private boolean phoneExistsForTenant(String tenantId, String canonicalPhone) {
+        for (String key : InternationalPhone.compatibleLookupKeys(canonicalPhone)) {
+            if (userRepository.existsByPhoneAndTenantIdAndIsDeletedFalse(key, tenantId)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private int normalizedTeacherCount() {
+        return Math.max(20, teacherCount);
     }
 
     /**
@@ -1333,7 +1365,7 @@ public class DemoDataSeedService {
                 section.setName(sectionName);
                 section.setClassId(schoolClass.getId());
                 section.setCapacity(30);
-                section.setStudentCount(15);
+                section.setStudentCount(Math.max(6, studentsPerSection));
                 section.setClassTeacherId(sectionTeacher.getId());
                 section.setClassTeacherName(sectionTeacher.getFirstName() + " " + sectionTeacher.getLastName());
                 section.setIsDeleted(false);
@@ -1441,9 +1473,9 @@ public class DemoDataSeedService {
 
                     allStudents.add(student);
 
-                    // Batch processing: flush and clear every BATCH_SIZE students to manage memory
+                    // Batch processing: flush and clear every batchSize students to manage memory
                     entityCounter++;
-                    if (entityCounter % BATCH_SIZE == 0) {
+                    if (entityCounter % batchSize == 0) {
                         flushAndClear();
                         log.debug("  Processed {} students, flushed memory", entityCounter);
                     }
@@ -1683,9 +1715,9 @@ public class DemoDataSeedService {
             payment.setIsDeleted(false);
             feePaymentRepository.save(payment);
 
-            // Batch processing: flush and clear every BATCH_SIZE payments to manage memory
+            // Batch processing: flush and clear every batchSize payments to manage memory
             paymentCounter++;
-            if (paymentCounter % BATCH_SIZE == 0) {
+            if (paymentCounter % batchSize == 0) {
                 flushAndClear();
                 log.debug("  Processed {} fee payments, flushed memory", paymentCounter);
             }
@@ -1788,9 +1820,9 @@ public class DemoDataSeedService {
                         mr.setIsDeleted(false);
                         markRecordRepository.save(mr);
 
-                        // Batch processing: flush and clear every BATCH_SIZE marks to manage memory
+                        // Batch processing: flush and clear every batchSize marks to manage memory
                         markCounter++;
-                        if (markCounter % BATCH_SIZE == 0) {
+                        if (markCounter % batchSize == 0) {
                             flushAndClear();
                             log.debug("  Processed {} mark records, flushed memory", markCounter);
                         }
@@ -2138,9 +2170,9 @@ public class DemoDataSeedService {
                 ar.setIsDeleted(false);
                 attendanceRepository.save(ar);
 
-                // Batch processing: flush and clear every BATCH_SIZE records to manage memory
+                // Batch processing: flush and clear every batchSize records to manage memory
                 attendanceCounter++;
-                if (attendanceCounter % BATCH_SIZE == 0) {
+                if (attendanceCounter % batchSize == 0) {
                     flushAndClear();
                     log.debug("  Processed {} attendance records, flushed memory", attendanceCounter);
                 }
@@ -2269,7 +2301,7 @@ public class DemoDataSeedService {
 
                     timetableCounter++;
                     sectionOrdinal++;
-                    if (timetableCounter % BATCH_SIZE == 0) {
+                    if (timetableCounter % batchSize == 0) {
                         flushAndClear();
                         log.debug("  Processed {} timetable entries, flushed memory", timetableCounter);
                     }

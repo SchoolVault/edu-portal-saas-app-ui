@@ -11,4 +11,6 @@ public interface SectionRepository extends JpaRepository<Section, Long> {
     Optional<Section> findByIdAndTenantIdAndIsDeletedFalse(Long id, String tenantId);
 
     List<Section> findByTenantIdAndClassTeacherIdAndIsDeletedFalse(String tenantId, Long classTeacherId);
+
+    Optional<Section> findFirstByTenantIdAndClassIdAndNameIgnoreCaseAndIsDeletedFalse(String tenantId, Long classId, String name);
 }

@@ -172,14 +172,16 @@ type ParentTimetableContract = {
         -webkit-overflow-scrolling: touch;
       }
       .timetable-classic-table {
-        width: 100%;
-        table-layout: fixed;
+        width: max-content;
+        min-width: 100%;
+        table-layout: auto;
       }
       .timetable-classic-table th,
       .timetable-classic-table td {
         vertical-align: top;
         word-wrap: break-word;
-        overflow-wrap: anywhere;
+        overflow-wrap: break-word;
+        word-break: normal;
       }
       .timetable-classic-table th:first-child,
       .timetable-classic-table td:first-child {
@@ -197,6 +199,17 @@ type ParentTimetableContract = {
       col.timetable-classic-col-day {
         width: 6.25rem;
       }
+      col.timetable-classic-col-slot {
+        width: 9rem;
+      }
+      .timetable-calendar {
+        width: max-content;
+        min-width: 100%;
+      }
+      .timetable-calendar th,
+      .timetable-calendar td {
+        min-width: 9rem;
+      }
       .classic-wrap .timetable-slot-cell {
         min-height: 64px;
         padding: 8px 8px 8px 11px;
@@ -213,6 +226,37 @@ type ParentTimetableContract = {
       .classic-wrap .timetable-slot-time {
         font-size: 10px;
         margin-top: 3px;
+      }
+      @media (max-width: 767.98px) {
+        .timetable-page-title {
+          font-size: 20px;
+        }
+        .timetable-toolbar-wrap,
+        .timetable-toolbar-actions,
+        .timetable-toolbar-actions .btn-group-erp {
+          width: 100%;
+        }
+        .timetable-toolbar-actions .btn-outline-erp,
+        .timetable-toolbar-actions .btn-primary-erp {
+          flex: 1 1 auto;
+          justify-content: center;
+        }
+        col.timetable-classic-col-slot,
+        .timetable-calendar th,
+        .timetable-calendar td {
+          min-width: 8.5rem;
+        }
+        .timetable-slot-cell {
+          min-height: 68px;
+          padding: 8px 8px 8px 10px;
+        }
+        .timetable-slot-subject {
+          font-size: 12px;
+        }
+        .timetable-slot-class,
+        .timetable-slot-teacher {
+          font-size: 11px;
+        }
       }
     `,
   ],
@@ -237,7 +281,13 @@ type ParentTimetableContract = {
               </button>
             </div>
             <div class="btn-group-erp d-flex gap-1">
-              <button type="button" class="btn-outline-erp btn-sm" [class.active-layout]="layout === 'dayRows'" (click)="setTimetableLayout('dayRows')">
+              <button
+                *ngIf="!isParent"
+                type="button"
+                class="btn-outline-erp btn-sm"
+                [class.active-layout]="layout === 'dayRows'"
+                (click)="setTimetableLayout('dayRows')"
+              >
                 {{ 'timetable.layoutClassic' | translate }}
               </button>
               <button type="button" class="btn-outline-erp btn-sm" [class.active-layout]="layout === 'periodRows'" (click)="setTimetableLayout('periodRows')">
@@ -402,7 +452,7 @@ type ParentTimetableContract = {
       <div class="erp-card mb-4 timetable-calendar-week animate-in" *ngIf="grid?.days?.length && layout === 'periodRows'">
         <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
           <h4 class="erp-card-title mb-0" style="font-size: 15px;">{{ 'timetable.weekMatrixTitle' | translate }}</h4>
-          <span class="text-muted small">{{ 'timetable.weekMatrixSubtitle' | translate }}</span>
+          <span *ngIf="!isParent" class="text-muted small">{{ 'timetable.weekMatrixSubtitle' | translate }}</span>
         </div>
         <div class="timetable-classic-scroll">
           <table class="erp-table timetable-calendar">
@@ -734,6 +784,9 @@ export class TimetableComponent implements OnInit {
     this.isAdmin = r === 'admin' || r === 'super_admin';
     this.isParent = r === 'parent';
     this.canMutateTimetable = r === 'admin';
+    if (this.isParent) {
+      this.layout = 'periodRows';
+    }
     if (r === 'teacher') {
       this.scheduleScope = 'teacher';
     } else if (!this.isAdmin) {

@@ -28,4 +28,6 @@ public interface TeacherRepository extends JpaRepository<Teacher, Long> {
     long countByIsDeletedFalse();
 
     boolean existsByTenantIdAndEmailAndIsDeletedFalse(String tenantId, String email);
+
+    Optional<Teacher> findByTenantIdAndEmailIgnoreCaseAndIsDeletedFalse(String tenantId, String email);
 }

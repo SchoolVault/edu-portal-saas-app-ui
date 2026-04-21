@@ -1,11 +1,81 @@
 package com.school.erp.modules.platform.dto;
 
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 
 public class PlatformDTOs {
+
+    public static class OnboardSchoolRequest {
+        @NotBlank
+        private String schoolName;
+        @NotBlank
+        @Size(min = 3, max = 20)
+        private String schoolCode;
+        @NotBlank
+        private String adminName;
+        private String adminEmail;
+        @NotBlank
+        @Size(min = 8, max = 128)
+        private String adminPassword;
+        @NotBlank
+        private String phone;
+        private String address;
+        @Size(max = 16)
+        private String interfaceLocale;
+        @Size(max = 50)
+        private String academicYearName;
+        private LocalDate academicYearStartDate;
+        private LocalDate academicYearEndDate;
+
+        public String getSchoolName() { return schoolName; }
+        public void setSchoolName(String schoolName) { this.schoolName = schoolName; }
+        public String getSchoolCode() { return schoolCode; }
+        public void setSchoolCode(String schoolCode) { this.schoolCode = schoolCode; }
+        public String getAdminName() { return adminName; }
+        public void setAdminName(String adminName) { this.adminName = adminName; }
+        public String getAdminEmail() { return adminEmail; }
+        public void setAdminEmail(String adminEmail) { this.adminEmail = adminEmail; }
+        public String getAdminPassword() { return adminPassword; }
+        public void setAdminPassword(String adminPassword) { this.adminPassword = adminPassword; }
+        public String getPhone() { return phone; }
+        public void setPhone(String phone) { this.phone = phone; }
+        public String getAddress() { return address; }
+        public void setAddress(String address) { this.address = address; }
+        public String getInterfaceLocale() { return interfaceLocale; }
+        public void setInterfaceLocale(String interfaceLocale) { this.interfaceLocale = interfaceLocale; }
+        public String getAcademicYearName() { return academicYearName; }
+        public void setAcademicYearName(String academicYearName) { this.academicYearName = academicYearName; }
+        public LocalDate getAcademicYearStartDate() { return academicYearStartDate; }
+        public void setAcademicYearStartDate(LocalDate academicYearStartDate) { this.academicYearStartDate = academicYearStartDate; }
+        public LocalDate getAcademicYearEndDate() { return academicYearEndDate; }
+        public void setAcademicYearEndDate(LocalDate academicYearEndDate) { this.academicYearEndDate = academicYearEndDate; }
+    }
+
+    public static class OnboardSchoolResponse {
+        private String tenantId;
+        private String schoolCode;
+        private Long adminUserId;
+        private String adminEmail;
+        private String adminPhone;
+        private Long academicYearId;
+
+        public String getTenantId() { return tenantId; }
+        public void setTenantId(String tenantId) { this.tenantId = tenantId; }
+        public String getSchoolCode() { return schoolCode; }
+        public void setSchoolCode(String schoolCode) { this.schoolCode = schoolCode; }
+        public Long getAdminUserId() { return adminUserId; }
+        public void setAdminUserId(Long adminUserId) { this.adminUserId = adminUserId; }
+        public String getAdminEmail() { return adminEmail; }
+        public void setAdminEmail(String adminEmail) { this.adminEmail = adminEmail; }
+        public String getAdminPhone() { return adminPhone; }
+        public void setAdminPhone(String adminPhone) { this.adminPhone = adminPhone; }
+        public Long getAcademicYearId() { return academicYearId; }
+        public void setAcademicYearId(Long academicYearId) { this.academicYearId = academicYearId; }
+    }
 
     public static class MetricPoint {
         private String label;

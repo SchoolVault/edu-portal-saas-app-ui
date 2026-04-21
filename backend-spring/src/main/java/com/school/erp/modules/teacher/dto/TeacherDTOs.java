@@ -324,6 +324,7 @@ public class TeacherDTOs {
         private String phone;
         private String qualification;
         private String specialization;
+        private LocalDate joinDate;
         private BigDecimal salary;
         private List<String> subjects;
         private String status;
@@ -457,6 +458,10 @@ public class TeacherDTOs {
             return this.specialization;
         }
 
+        public LocalDate getJoinDate() {
+            return this.joinDate;
+        }
+
         public BigDecimal getSalary() {
             return this.salary;
         }
@@ -507,6 +512,10 @@ public class TeacherDTOs {
 
         public void setSpecialization(final String specialization) {
             this.specialization = specialization;
+        }
+
+        public void setJoinDate(final LocalDate joinDate) {
+            this.joinDate = joinDate;
         }
 
         public void setSalary(final BigDecimal salary) {

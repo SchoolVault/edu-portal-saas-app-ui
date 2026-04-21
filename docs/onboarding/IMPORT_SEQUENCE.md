@@ -20,7 +20,8 @@ This document describes the **sequence** in which CSV/ZIP bulk imports should be
 
 ## 4. Dependent academic and operations data
 
-8. **Timetable, attendance, fees, transport, etc.** — After rosters exist: assignments, fee structures, routes, and other modules as supported by their own APIs or future import types.
+8. **Timetable** — Import `TIMETABLE` (`timetable.csv`) after classes/sections + teachers are present. Re-import is idempotent per class-section + day + period (updates slot instead of creating duplicates).
+9. **Attendance, fees, transport, etc.** — After rosters and timetable exist, continue module-specific setup.
 
 ## Retry policy
 
@@ -35,6 +36,7 @@ This document describes the **sequence** in which CSV/ZIP bulk imports should be
 | `TEACHERS`      | `teachers.csv`            |
 | `STAFF`         | `staff.csv`               |
 | `CLASSES`       | `classes.csv`             |
+| `TIMETABLE`     | `timetable.csv`           |
 
 Excel users should **Save as CSV** and pack into a `.zip` archive.
 

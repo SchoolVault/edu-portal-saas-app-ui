@@ -8,7 +8,7 @@ export interface NavItem {
   sectionKey: string;
   /**
    * Optional tenant feature flag (features_json). When the flag is false, the item is hidden for that school.
-   * Keys match platform rollout: chat, transport, hostel, library, audit, operationsHub, importExport, exams, directory, documents.
+   * Keys match platform rollout: chat, transport, hostel, library, audit, operationsHub, importExport, exams, directory, documents, leave.
    */
   moduleGate?: string;
 }
@@ -61,7 +61,15 @@ export const NAV_ITEMS: NavItem[] = [
     labelKey: 'nav.importExport',
     icon: 'bi-file-earmark-zip-fill',
     route: '/app/import-export',
-    roles: ['admin', 'super_admin'],
+    roles: ['super_admin'],
+    sectionKey: 'nav.section.platform',
+    moduleGate: 'importExport',
+  },
+  {
+    labelKey: 'nav.importExport',
+    icon: 'bi-file-earmark-zip-fill',
+    route: '/app/import-export',
+    roles: ['admin'],
     sectionKey: 'nav.section.operations',
     moduleGate: 'importExport',
   },
@@ -96,17 +104,21 @@ export const API_ENDPOINTS = {
 };
 
 export const DEFAULT_FEATURES: Record<string, boolean> = {
-  transport: true,
-  library: true,
-  hostel: true,
+  transport: false,
+  library: false,
+  hostel: false,
   payroll: true,
-  documents: true,
+  documents: false,
   audit: true,
   communication: true,
-  reports: true,
-  operationsHub: true,
-  importExport: true,
-  exams: true,
+  reports: false,
+  operationsHub: false,
+  importExport: false,
+  exams: false,
   directory: true,
-  leave: true,
+  student: true,
+  teacher: true,
+  attendance: true,
+  fees: true,
+  leave: false,
 };

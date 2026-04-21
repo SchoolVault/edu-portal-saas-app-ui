@@ -127,6 +127,21 @@ resilience4j:
         baseConfig: default
 
 app:
+  # Bulk import (ZIP / CSV / XLSX). Tune per deployment for 10k+ row schools.
+  import:
+    max-rows-per-file: ${APP_IMPORT_MAX_ROWS:50000}
+    orchestrator-page-size: ${APP_IMPORT_ORCH_PAGE_SIZE:500}
+    yield-sleep-millis-between-pages: ${APP_IMPORT_YIELD_MS:0}
+    persist-job-lines-batch-size: ${APP_IMPORT_PERSIST_LINES_BATCH:500}
+    dry-run-max-sample-errors: ${APP_IMPORT_DRY_RUN_MAX_ERRORS:200}
+    max-concurrent-import-jobs-per-jvm: ${APP_IMPORT_MAX_CONCURRENT_JOBS_JVM:8}
+    cluster-submit-lock-enabled: ${APP_IMPORT_CLUSTER_SUBMIT_LOCK:true}
+    cluster-submit-lock-ttl-seconds: ${APP_IMPORT_CLUSTER_LOCK_TTL:180}
+    cluster-submit-lock-acquire-attempts: ${APP_IMPORT_CLUSTER_LOCK_ATTEMPTS:25}
+    executor-core-pool-size: ${APP_IMPORT_EXEC_CORE:2}
+    executor-max-pool-size: ${APP_IMPORT_EXEC_MAX:8}
+    executor-queue-capacity: ${APP_IMPORT_EXEC_QUEUE:200}
+
   integration:
     # Optional HTTP hooks for domain-event side effects (empty = no outbound calls).
     email:
@@ -136,6 +151,10 @@ app:
 
   demo-seed:
     enabled: ${DEMO_SEED_ENABLED:false}
+    step-pause-ms: ${DEMO_SEED_STEP_PAUSE_MS:800}
+    batch-size: ${DEMO_SEED_BATCH_SIZE:20}
+    teacher-count: ${DEMO_SEED_TEACHER_COUNT:36}
+    students-per-section: ${DEMO_SEED_STUDENTS_PER_SECTION:15}
 
   # Read replica JDBC URL — leave empty to disable routing (single primary only).
   datasource:
@@ -334,7 +353,7 @@ management:
   endpoints:
     web:
       exposure:
-        include: ${MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE:health,info,metrics}
+        include: ${MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE:health,info,metrics,prometheus}
   endpoint:
     health:
       show-details: ${MANAGEMENT_HEALTH_SHOW_DETAILS:when-authorized}
@@ -342,7 +361,7 @@ management:
 logging:
   # Render-friendly single line: correlation + tenant/user from MDC (see CorrelationMdcFilter, JwtAuthenticationFilter).
   pattern:
-    console: "%d{yyyy-MM-dd'T'HH:mm:ss.SSSXXX} %-5level [${spring.application.name}] [%thread] [corr:%X{correlationId:-}] [trace:%X{traceId:-}] [tenant:%X{tenantId:-}] [user:%X{userId:-}] [role:%X{userRole:-}] %logger{40} : %msg%n%wEx"
+    console: "%d{yyyy-MM-dd'T'HH:mm:ss.SSSXXX} %-5level [${spring.application.name}] [%thread] [corr:%X{correlationId:-}] [trace:%X{traceId:-}] [tenant:%X{tenantId:-}] [user:%X{userId:-}] [role:%X{userRole:-}] [importJob:%X{importJobId:-}] %logger{40} : %msg%n%wEx"
   level:
     com.school.erp: ${LOG_LEVEL_APP:INFO}
     com.school.erp.cache.access: ${LOG_LEVEL_CACHE_ACCESS:INFO}

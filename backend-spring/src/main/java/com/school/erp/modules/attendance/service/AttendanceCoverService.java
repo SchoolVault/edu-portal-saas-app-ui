@@ -8,6 +8,8 @@ import com.school.erp.modules.attendance.dto.AttendanceCoverDTOs;
 import com.school.erp.modules.attendance.entity.AttendanceCoverAssignment;
 import com.school.erp.modules.attendance.policy.AttendanceCoverSlotOverlapPolicy;
 import com.school.erp.modules.attendance.repository.AttendanceCoverAssignmentRepository;
+import com.school.erp.modules.academic.repository.SchoolClassRepository;
+import com.school.erp.modules.academic.repository.SectionRepository;
 import com.school.erp.modules.teacher.entity.Teacher;
 import com.school.erp.modules.teacher.repository.TeacherRepository;
 import com.school.erp.common.enums.Enums;
@@ -28,13 +30,19 @@ public class AttendanceCoverService {
     private final AttendanceCoverAssignmentRepository coverRepo;
     private final TeacherRepository teacherRepository;
     private final AuditTrailPort auditTrailPort;
+    private final SchoolClassRepository schoolClassRepository;
+    private final SectionRepository sectionRepository;
 
     public AttendanceCoverService(AttendanceCoverAssignmentRepository coverRepo,
                                   TeacherRepository teacherRepository,
-                                  AuditTrailPort auditTrailPort) {
+                                  AuditTrailPort auditTrailPort,
+                                  SchoolClassRepository schoolClassRepository,
+                                  SectionRepository sectionRepository) {
         this.coverRepo = coverRepo;
         this.teacherRepository = teacherRepository;
         this.auditTrailPort = auditTrailPort;
+        this.schoolClassRepository = schoolClassRepository;
+        this.sectionRepository = sectionRepository;
     }
 
     @Transactional(readOnly = true)
@@ -105,10 +113,9 @@ public class AttendanceCoverService {
             auditTrailPort.logAction(
                     Enums.AuditAction.UPDATE,
                     "Attendance",
-                    resolveActorLabel() + " replaced existing cover assignment " + block.getId()
-                            + " for class " + block.getClassId()
-                            + (block.getSectionId() != null ? ", section " + block.getSectionId() : "")
-                            + " on " + req.getCoverDate() + ".",
+                    resolveActorLabel() + " replaced an existing attendance cover assignment for "
+                            + buildAudienceFriendlyScope(block.getClassId(), block.getSectionId(), req.getCoverDate())
+                            + ".",
                     block.getId(),
                     "AttendanceCoverAssignment",
                     "status=ACTIVE",
@@ -133,10 +140,10 @@ public class AttendanceCoverService {
         String desc = resolveActorLabel()
                 + " assigned " + coveringTeacher
                 + " as attendance cover for " + regularTeacher
-                + " (class " + req.getClassId()
-                + (req.getSectionId() != null ? ", section " + req.getSectionId() : "")
+                + " ("
+                + buildAudienceFriendlyScope(req.getClassId(), req.getSectionId(), req.getCoverDate())
                 + (req.getPeriodNumber() != null ? ", period " + req.getPeriodNumber() : ", all periods")
-                + ", date " + req.getCoverDate() + ").";
+                + ").";
         auditTrailPort.logAction(
                 Enums.AuditAction.CREATE,
                 "Attendance",
@@ -157,10 +164,9 @@ public class AttendanceCoverService {
         e.setStatus("CANCELLED");
         coverRepo.save(e);
         String desc = resolveActorLabel()
-                + " cancelled attendance cover assignment " + e.getId()
-                + " (class " + e.getClassId()
-                + (e.getSectionId() != null ? ", section " + e.getSectionId() : "")
-                + ", date " + e.getCoverDate() + ").";
+                + " cancelled an attendance cover assignment for "
+                + buildAudienceFriendlyScope(e.getClassId(), e.getSectionId(), e.getCoverDate())
+                + ".";
         auditTrailPort.logAction(
                 Enums.AuditAction.UPDATE,
                 "Attendance",
@@ -213,6 +219,30 @@ public class AttendanceCoverService {
         }
         Long userId = TenantContext.getUserId();
         return userId != null ? ("User " + userId) : "System";
+    }
+
+    private String buildAudienceFriendlyScope(Long classId, Long sectionId, LocalDate date) {
+        StringBuilder scope = new StringBuilder(resolveClassSectionLabel(classId, sectionId));
+        scope.append(" on ").append(date);
+        return scope.toString();
+    }
+
+    private String resolveClassSectionLabel(Long classId, Long sectionId) {
+        String tenantId = TenantContext.getTenantId();
+        String classLabel = schoolClassRepository.findByIdAndTenantIdAndIsDeletedFalse(classId, tenantId)
+                .map(schoolClass -> Optional.ofNullable(schoolClass.getName()).orElse("").trim())
+                .filter(name -> !name.isBlank())
+                .orElse(classId != null ? ("Class " + classId) : "the class");
+
+        if (sectionId == null) {
+            return classLabel;
+        }
+
+        String sectionLabel = sectionRepository.findByIdAndTenantIdAndIsDeletedFalse(sectionId, tenantId)
+                .map(section -> Optional.ofNullable(section.getName()).orElse("").trim())
+                .filter(name -> !name.isBlank())
+                .orElse("Section " + sectionId);
+        return classLabel + " - Section " + sectionLabel;
     }
 
     private AttendanceCoverDTOs.Response toResponse(AttendanceCoverAssignment e) {

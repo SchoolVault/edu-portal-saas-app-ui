@@ -6,7 +6,7 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { Subject } from 'rxjs';
 import { debounceTime, distinctUntilChanged } from 'rxjs/operators';
-import { PLATFORM_TENANT_FEATURE_KEYS } from '../../core/constants/platform-tenant-features';
+import { DEFAULT_PLATFORM_TENANT_FEATURES, PLATFORM_TENANT_FEATURE_KEYS } from '../../core/constants/platform-tenant-features';
 import { DEFAULT_ERP_PAGE_SIZE } from '../../core/constants/pagination.constants';
 import { PlatformSchoolSummary } from '../../core/models/models';
 import { PlatformService } from '../../core/services/platform.service';
@@ -501,7 +501,7 @@ export class PlatformFeatureRolloutComponent implements OnInit {
         const next: Record<string, boolean> = { ...(f || {}) };
         for (const k of this.platformModuleKeys) {
           if (next[k] === undefined) {
-            next[k] = true;
+            next[k] = DEFAULT_PLATFORM_TENANT_FEATURES[k as keyof typeof DEFAULT_PLATFORM_TENANT_FEATURES];
           }
         }
         this.schoolFeatureDraft = next;

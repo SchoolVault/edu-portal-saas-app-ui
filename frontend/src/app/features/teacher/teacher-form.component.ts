@@ -13,6 +13,7 @@ import { ErpDatePickerComponent } from '../../shared/erp-date-picker/erp-date-pi
 import { SubjectCatalogChipsComponent } from '../../shared/subject-catalog-chips/subject-catalog-chips.component';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directives';
+import { ConfirmDialogService } from '../../shared/confirm-dialog/confirm-dialog.service';
 @Component({
   selector: 'app-teacher-form',
   standalone: true,
@@ -114,6 +115,7 @@ import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directiv
               {{ saving ? ('teachers.form.saving' | translate) : (isEdit ? ('teachers.form.saveUpdate' | translate) : ('teachers.form.saveAdd' | translate)) }}
             </button>
           </div>
+          <p class="small text-danger mt-2 mb-0" *ngIf="saveError">{{ saveError }}</p>
         </form>
       </div>
     </div>
@@ -128,7 +130,10 @@ export class TeacherFormComponent implements OnInit, OnDestroy {
   additionalSubjectsRaw = '';
   isEdit = false;
   saving = false;
+  saveError = '';
   teacherDirectoryPreview: string | null = null;
+  private initialTeacherEmail = '';
+  private initialTeacherPhone = '';
   private readonly categoryOrder = ['STEM', 'Languages', 'Social', 'Arts', 'Other'];
   private langSub?: Subscription;
 
@@ -139,7 +144,8 @@ export class TeacherFormComponent implements OnInit, OnDestroy {
     private router: Router,
     private route: ActivatedRoute,
     private translate: TranslateService,
-    private cdr: ChangeDetectorRef
+    private cdr: ChangeDetectorRef,
+    private confirmDialog: ConfirmDialogService
   ) {}
 
   ngOnInit(): void {
@@ -256,6 +262,8 @@ export class TeacherFormComponent implements OnInit, OnDestroy {
     const all = [...(t.subjects ?? [])];
     this.teacher = { ...t, subjects: [...all.filter(s => catNames.has(s))] };
     this.additionalSubjectsRaw = all.filter(s => !catNames.has(s)).join(', ');
+    this.initialTeacherEmail = (t.email ?? '').trim().toLowerCase();
+    this.initialTeacherPhone = (t.phone ?? '').trim();
     this.refreshTeacherDirectoryPreview();
   }
 
@@ -271,18 +279,51 @@ export class TeacherFormComponent implements OnInit, OnDestroy {
   onSubmit(): void {
     if (!this.teacher.firstName || !this.teacher.lastName || !this.teacher.email) return;
     this.saving = true;
+    this.saveError = '';
     const payload = { ...this.teacher, subjects: this.mergeSubjectsForSave() };
     if (this.isEdit && payload.id) {
       this.teacherService.updateTeacher(payload.id, payload).subscribe({
-        next: () => { this.saving = false; this.router.navigate(['/app/teachers']); },
-        error: () => { this.saving = false; }
+        next: () => {
+          this.saving = false;
+          const emailChanged = (payload.email ?? '').trim().toLowerCase() !== this.initialTeacherEmail;
+          const phoneChanged = (payload.phone ?? '').trim() !== this.initialTeacherPhone;
+          if (emailChanged || phoneChanged) {
+            this.showNextLoginCredentialDialog(payload.email ?? '', payload.phone ?? '');
+          }
+          this.router.navigate(['/app/teachers']);
+        },
+        error: (err) => {
+          this.saving = false;
+          this.saveError = err?.message || this.translate.instant('teachers.form.saveError');
+        }
       });
     } else {
       this.teacherService.addTeacher(payload as Omit<Teacher, 'id'>).subscribe({
         next: () => { this.saving = false; this.router.navigate(['/app/teachers']); },
-        error: () => { this.saving = false; }
+        error: (err) => {
+          this.saving = false;
+          this.saveError = err?.message || this.translate.instant('teachers.form.saveError');
+        }
       });
     }
+  }
+
+  private showNextLoginCredentialDialog(email: string, phone: string): void {
+    const details: string[] = [];
+    if (email.trim()) {
+      details.push(`${this.translate.instant('settings.labelEmail')}: ${email}`);
+    }
+    if (phone.trim()) {
+      details.push(`${this.translate.instant('settings.profileContactPhoneLabel')}: ${phone}`);
+    }
+    this.confirmDialog.confirm({
+      title: this.translate.instant('settings.credentialsUpdatedDialogTitle'),
+      message: this.translate.instant('settings.credentialsUpdatedDialogBody'),
+      details,
+      variant: 'warning',
+      confirmLabel: this.translate.instant('settings.dialogOk'),
+      cancelLabel: this.translate.instant('settings.dialogClose'),
+    }).subscribe();
   }
 
   goBack(): void { this.router.navigate(['/app/teachers']); }
