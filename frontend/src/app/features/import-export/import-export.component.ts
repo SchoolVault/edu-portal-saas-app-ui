@@ -1,4 +1,4 @@
-import { Component, OnDestroy, OnInit } from '@angular/core';
+import { Component, ElementRef, OnDestroy, OnInit, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
@@ -11,6 +11,8 @@ import {
   ImportMetricsSummary,
 } from '../../core/services/import-export.service';
 import { ErpPaginationComponent } from '../../shared/erp-pagination/erp-pagination.component';
+import { ErpDatePickerComponent } from '../../shared/erp-date-picker/erp-date-picker.component';
+import { ErpIntlPhoneRowComponent } from '../../shared/erp-phone-intl/erp-intl-phone-row.component';
 import { DEFAULT_ERP_PAGE_SIZE } from '../../core/constants/pagination.constants';
 import { sliceToPage } from '../../core/utils/paginate';
 import { AuthService } from '../../core/services/auth.service';
@@ -50,7 +52,7 @@ const REQUIRED_IMPORT_FIELDS: Record<string, string[]> = {
 @Component({
   selector: 'app-import-export',
   standalone: true,
-  imports: [CommonModule, FormsModule, TranslateModule, ErpPaginationComponent],
+  imports: [CommonModule, FormsModule, TranslateModule, ErpPaginationComponent, ErpDatePickerComponent, ErpIntlPhoneRowComponent],
   template: `
     <div class="ie-page" data-testid="import-export-page">
       <!-- Hero -->
@@ -161,6 +163,14 @@ const REQUIRED_IMPORT_FIELDS: Record<string, string[]> = {
             </h3>
             <p class="small text-muted mb-0">{{ 'importExport.newJobLeadV2' | translate }}</p>
           </div>
+          <button
+            *ngIf="isSuperAdmin"
+            type="button"
+            class="btn-primary-erp btn-sm"
+            (click)="openOnboardModal()"
+          >
+            <i class="bi bi-plus-circle me-1"></i>{{ 'importExport.onboard.openCta' | translate }}
+          </button>
         </div>
 
         <p class="small fw-semibold text-uppercase text-muted mb-2 mt-2" style="letter-spacing: 0.04em;">{{ 'importExport.stepJobType' | translate }}</p>
@@ -208,7 +218,7 @@ const REQUIRED_IMPORT_FIELDS: Record<string, string[]> = {
               </span>
               <span class="ie-type-label">{{ ('importExport.jobType.' + jt.id) | translate }}</span>
               <span class="ie-type-file"><code>{{ jt.file }}</code></span>
-              <span class="ie-type-hint">{{ ('importExport.jobTypeHint.' + jt.id) | translate }}</span>
+              <!-- <span class="ie-type-hint">{{ ('importExport.jobTypeHint.' + jt.id) | translate }}</span> -->
             </button>
           </div>
         </div>
@@ -241,6 +251,9 @@ const REQUIRED_IMPORT_FIELDS: Record<string, string[]> = {
             </div>
           </div>
         </div>
+        <p class="small text-muted mb-0 mt-2" *ngIf="isSuperAdmin && !hasTargetSchoolCode">
+          <i class="bi bi-info-circle me-1" aria-hidden="true"></i>{{ 'importExport.schoolSelectBeforeUpload' | translate }}
+        </p>
         <div class="d-flex flex-wrap align-items-center gap-3 mt-3" *ngIf="file">
           <span class="ie-file-chip">
             <i class="bi bi-paperclip" aria-hidden="true"></i>
@@ -600,13 +613,12 @@ const REQUIRED_IMPORT_FIELDS: Record<string, string[]> = {
             </div>
             <div class="erp-form-group mb-2">
               <label class="erp-label">{{ 'signup.phone' | translate }}</label>
-              <input
-                class="erp-input"
-                [class.erp-input--invalid]="showOnboardFieldError('phone')"
-                [(ngModel)]="onboardForm.phone"
-                (ngModelChange)="onOnboardFieldInput('phone')"
-                (blur)="markOnboardFieldTouched('phone')"
-                [placeholder]="'signup.phonePlaceholder' | translate"
+              <erp-intl-phone-row
+                idPrefix="onboard-phone"
+                namePrefix="onboardPhone"
+                testIdPrefix="onboard-phone"
+                [canonicalPhone]="onboardForm.phone || ''"
+                (canonicalPhoneChange)="onOnboardCanonicalPhone($event)"
               />
               <p *ngIf="!showOnboardFieldError('phone')" class="text-muted mb-0 mt-1 small">{{ 'signup.phoneHintAdmin' | translate }}</p>
               <p *ngIf="showOnboardFieldError('phone')" class="text-danger mb-0 mt-1 small">{{ getOnboardFieldError('phone') | translate }}</p>
@@ -632,42 +644,41 @@ const REQUIRED_IMPORT_FIELDS: Record<string, string[]> = {
             </div>
             <div class="erp-form-group mb-2">
               <label class="erp-label">{{ 'importExport.onboard.academicYearLabel' | translate }}</label>
-              <input
-                class="erp-input"
+              <select
+                class="erp-select"
                 [class.erp-input--invalid]="showOnboardFieldError('academicYearName')"
                 [(ngModel)]="onboardForm.academicYearName"
-                (ngModelChange)="onOnboardFieldInput('academicYearName')"
+                (ngModelChange)="onAcademicYearOptionChange()"
                 (blur)="markOnboardFieldTouched('academicYearName')"
-                [placeholder]="'importExport.onboard.academicYearLabelPh' | translate"
-              />
-              <p *ngIf="!showOnboardFieldError('academicYearName')" class="text-muted mb-0 mt-1 small">{{ 'importExport.onboard.hints.academicYearLabel' | translate }}</p>
+              >
+                <option *ngFor="let ay of onboardingAcademicYearOptions" [ngValue]="ay.label">{{ ay.label }}</option>
+              </select>
+              <p *ngIf="!showOnboardFieldError('academicYearName')" class="text-muted mb-0 mt-1 small">{{ 'importExport.onboard.hints.academicYearSelect' | translate }}</p>
               <p *ngIf="showOnboardFieldError('academicYearName')" class="text-danger mb-0 mt-1 small">{{ getOnboardFieldError('academicYearName') | translate }}</p>
             </div>
             <div class="row g-2">
               <div class="col-6">
                 <label class="erp-label">{{ 'importExport.onboard.academicYearStart' | translate }}</label>
-                <input
-                  type="date"
-                  class="erp-input"
+                <app-erp-date-picker
                   [class.erp-input--invalid]="showOnboardFieldError('academicYearStartDate')"
                   [(ngModel)]="onboardForm.academicYearStartDate"
-                  (ngModelChange)="onOnboardFieldInput('academicYearStartDate')"
+                  (ngModelChange)="onAcademicYearDateChanged('academicYearStartDate')"
                   (blur)="markOnboardFieldTouched('academicYearStartDate')"
-                  [max]="onboardForm.academicYearEndDate || null"
+                  [maxDate]="onboardForm.academicYearEndDate || undefined"
+                  placeholderI18nKey="importExport.onboard.datePlaceholder"
                 />
                 <p *ngIf="!showOnboardFieldError('academicYearStartDate')" class="text-muted mb-0 mt-1 small">{{ 'importExport.onboard.hints.academicYearStart' | translate }}</p>
                 <p *ngIf="showOnboardFieldError('academicYearStartDate')" class="text-danger mb-0 mt-1 small">{{ getOnboardFieldError('academicYearStartDate') | translate }}</p>
               </div>
               <div class="col-6">
                 <label class="erp-label">{{ 'importExport.onboard.academicYearEnd' | translate }}</label>
-                <input
-                  type="date"
-                  class="erp-input"
+                <app-erp-date-picker
                   [class.erp-input--invalid]="showOnboardFieldError('academicYearEndDate')"
                   [(ngModel)]="onboardForm.academicYearEndDate"
-                  (ngModelChange)="onOnboardFieldInput('academicYearEndDate')"
+                  (ngModelChange)="onAcademicYearDateChanged('academicYearEndDate')"
                   (blur)="markOnboardFieldTouched('academicYearEndDate')"
-                  [min]="onboardForm.academicYearStartDate || null"
+                  [minDate]="onboardForm.academicYearStartDate || undefined"
+                  placeholderI18nKey="importExport.onboard.datePlaceholder"
                 />
                 <p *ngIf="!showOnboardFieldError('academicYearEndDate')" class="text-muted mb-0 mt-1 small">{{ 'importExport.onboard.hints.academicYearEnd' | translate }}</p>
                 <p *ngIf="showOnboardFieldError('academicYearEndDate')" class="text-danger mb-0 mt-1 small">{{ getOnboardFieldError('academicYearEndDate') | translate }}</p>
@@ -1327,6 +1338,11 @@ const REQUIRED_IMPORT_FIELDS: Record<string, string[]> = {
   ],
 })
 export class ImportExportComponent implements OnInit, OnDestroy {
+  @ViewChild('fileInput') private fileInputRef?: ElementRef<HTMLInputElement>;
+
+  private static readonly ACADEMIC_YEAR_MONTH_START = 4;
+  private static readonly ACADEMIC_YEAR_MONTH_END = 3;
+
   jobTypes: JobTypeOption[] = [
     { id: 'CLASSES', file: 'classes.csv', icon: 'bi-diagram-3-fill', seq: 1 },
     { id: 'TEACHERS', file: 'teachers.csv', icon: 'bi-person-workspace', seq: 2 },
@@ -1387,6 +1403,7 @@ export class ImportExportComponent implements OnInit, OnDestroy {
   onboardSuccess = '';
   onboardValidationErrors: FieldErrors<OnboardSchoolField> = {};
   onboardTouched: Partial<Record<OnboardSchoolField, boolean>> = {};
+  onboardingAcademicYearOptions: Array<{ label: string; academicYearStartDate: string; academicYearEndDate: string }> = [];
   onboardForm: OnboardSchoolRequest = {
     schoolName: '',
     schoolCode: '',
@@ -1422,7 +1439,8 @@ export class ImportExportComponent implements OnInit, OnDestroy {
   }
 
   get canRunDryRun(): boolean {
-    return !!this.file && !!this.headerPreview && !this.busy && !this.dryRunBusy && !this.previewLoading && !this.mappingIncomplete;
+    const hasSchoolScope = !this.isSuperAdmin || this.hasTargetSchoolCode;
+    return hasSchoolScope && !!this.file && !!this.headerPreview && !this.busy && !this.dryRunBusy && !this.previewLoading && !this.mappingIncomplete;
   }
 
   get canImportData(): boolean {
@@ -1521,6 +1539,15 @@ export class ImportExportComponent implements OnInit, OnDestroy {
   }
 
   private loadHeaderPreview(): void {
+    if (!this.ensureSchoolCodePresentForSuperAdmin()) {
+      this.previewLoading = false;
+      this.headerPreview = null;
+      this.columnSelections = {};
+      this.dryRunResult = null;
+      this.lastSubmitMsg = this.translate.instant('importExport.targetSchoolCodeRequired');
+      this.lastSubmitOk = false;
+      return;
+    }
     if (!this.file) {
       return;
     }
@@ -1631,8 +1658,7 @@ export class ImportExportComponent implements OnInit, OnDestroy {
       this.file = f;
       this.lastSubmitMsg = '';
       this.lastSubmitOk = null;
-      this.resetDryRunState();
-      this.wizardStepIndex = 0;
+      this.resetImportDraftState();
       this.loadHeaderPreview();
     }
   }
@@ -1642,10 +1668,7 @@ export class ImportExportComponent implements OnInit, OnDestroy {
     this.file = input.files && input.files.length ? input.files[0] : null;
     this.lastSubmitMsg = '';
     this.lastSubmitOk = null;
-    this.resetDryRunState();
-    this.wizardStepIndex = 0;
-    this.headerPreview = null;
-    this.columnSelections = {};
+    this.resetImportDraftState();
     if (this.file) {
       this.loadHeaderPreview();
     }
@@ -1659,11 +1682,7 @@ export class ImportExportComponent implements OnInit, OnDestroy {
   clearFile(input: HTMLInputElement): void {
     this.file = null;
     input.value = '';
-    this.resetDryRunState();
-    this.headerPreview = null;
-    this.columnSelections = {};
-    this.wizardStepIndex = 0;
-    this.previewLoading = false;
+    this.resetImportDraftState();
   }
 
   runDryRun(): void {
@@ -1707,6 +1726,7 @@ export class ImportExportComponent implements OnInit, OnDestroy {
         this.lastSubmitOk = true;
         this.reloadJobs();
         this.loadMetrics();
+        this.clearSelectedImportState();
         setTimeout(() => {
           const el = document.getElementById('import-export-report');
           el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -1724,6 +1744,26 @@ export class ImportExportComponent implements OnInit, OnDestroy {
   private resetDryRunState(): void {
     this.dryRunResult = null;
     this.dryRunBusy = false;
+  }
+
+  /**
+   * Clears selected file + mapped columns so the next import can start immediately.
+   * Keeps submit status banner intact for operator visibility.
+   */
+  private clearSelectedImportState(): void {
+    this.file = null;
+    this.resetImportDraftState();
+    if (this.fileInputRef?.nativeElement) {
+      this.fileInputRef.nativeElement.value = '';
+    }
+  }
+
+  private resetImportDraftState(): void {
+    this.resetDryRunState();
+    this.headerPreview = null;
+    this.columnSelections = {};
+    this.wizardStepIndex = 0;
+    this.previewLoading = false;
   }
 
   reloadJobs(): void {
@@ -1956,15 +1996,20 @@ export class ImportExportComponent implements OnInit, OnDestroy {
     this.onboardSuccess = '';
     this.onboardValidationErrors = {};
     this.onboardTouched = {};
+    this.onboardingAcademicYearOptions = this.buildAcademicYearOptions();
     if (!this.onboardForm.academicYearStartDate || !this.onboardForm.academicYearEndDate) {
       const now = new Date();
       const startYear = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
       this.onboardForm.academicYearStartDate = `${startYear}-04-01`;
       this.onboardForm.academicYearEndDate = `${startYear + 1}-03-31`;
-      if (!this.onboardForm.academicYearName) {
-        this.onboardForm.academicYearName = `${startYear}-${startYear + 1}`;
-      }
     }
+    if (!this.onboardForm.academicYearName) {
+      this.onboardForm.academicYearName = this.findAcademicYearLabel(
+        this.onboardForm.academicYearStartDate,
+        this.onboardForm.academicYearEndDate
+      );
+    }
+    this.ensureAcademicYearOptionExists();
   }
 
   closeOnboardModal(): void {
@@ -2009,6 +2054,82 @@ export class ImportExportComponent implements OnInit, OnDestroy {
       return;
     }
     this.onboardValidationErrors = this.validateOnboardForm();
+  }
+
+  onOnboardCanonicalPhone(value: string): void {
+    this.onboardForm.phone = value;
+    this.onOnboardFieldInput('phone');
+  }
+
+  onAcademicYearOptionChange(): void {
+    const selected = this.onboardingAcademicYearOptions.find(ay => ay.label === (this.onboardForm.academicYearName || ''));
+    if (selected) {
+      this.onboardForm.academicYearStartDate = selected.academicYearStartDate;
+      this.onboardForm.academicYearEndDate = selected.academicYearEndDate;
+    }
+    this.onOnboardFieldInput('academicYearName');
+    this.onOnboardFieldInput('academicYearStartDate');
+    this.onOnboardFieldInput('academicYearEndDate');
+  }
+
+  onAcademicYearDateChanged(field: 'academicYearStartDate' | 'academicYearEndDate'): void {
+    this.syncAcademicYearLabelFromDates();
+    this.ensureAcademicYearOptionExists();
+    this.onOnboardFieldInput(field);
+    this.onOnboardFieldInput('academicYearName');
+  }
+
+  private syncAcademicYearLabelFromDates(): void {
+    this.onboardForm.academicYearName = this.findAcademicYearLabel(
+      this.onboardForm.academicYearStartDate,
+      this.onboardForm.academicYearEndDate
+    );
+  }
+
+  private findAcademicYearLabel(startDate?: string, endDate?: string): string {
+    const startYear = startDate && /^\d{4}-\d{2}-\d{2}$/.test(startDate) ? Number(startDate.slice(0, 4)) : NaN;
+    const endYear = endDate && /^\d{4}-\d{2}-\d{2}$/.test(endDate) ? Number(endDate.slice(0, 4)) : NaN;
+    if (!Number.isNaN(startYear) && !Number.isNaN(endYear)) {
+      return `${startYear}-${endYear}`;
+    }
+    const now = new Date();
+    const fallbackStartYear = now.getMonth() + 1 >= ImportExportComponent.ACADEMIC_YEAR_MONTH_START
+      ? now.getFullYear()
+      : now.getFullYear() - 1;
+    return `${fallbackStartYear}-${fallbackStartYear + 1}`;
+  }
+
+  private ensureAcademicYearOptionExists(): void {
+    const label = (this.onboardForm.academicYearName || '').trim();
+    const start = (this.onboardForm.academicYearStartDate || '').trim();
+    const end = (this.onboardForm.academicYearEndDate || '').trim();
+    if (!label || !start || !end) {
+      return;
+    }
+    if (this.onboardingAcademicYearOptions.some(ay => ay.label === label)) {
+      return;
+    }
+    this.onboardingAcademicYearOptions = [
+      ...this.onboardingAcademicYearOptions,
+      { label, academicYearStartDate: start, academicYearEndDate: end },
+    ].sort((a, b) => a.label.localeCompare(b.label));
+  }
+
+  private buildAcademicYearOptions(): Array<{ label: string; academicYearStartDate: string; academicYearEndDate: string }> {
+    const now = new Date();
+    const currentStartYear = now.getMonth() + 1 >= ImportExportComponent.ACADEMIC_YEAR_MONTH_START
+      ? now.getFullYear()
+      : now.getFullYear() - 1;
+    const options: Array<{ label: string; academicYearStartDate: string; academicYearEndDate: string }> = [];
+    for (let startYear = currentStartYear - 2; startYear <= currentStartYear + 6; startYear++) {
+      const endYear = startYear + 1;
+      options.push({
+        label: `${startYear}-${endYear}`,
+        academicYearStartDate: `${startYear}-${String(ImportExportComponent.ACADEMIC_YEAR_MONTH_START).padStart(2, '0')}-01`,
+        academicYearEndDate: `${endYear}-${String(ImportExportComponent.ACADEMIC_YEAR_MONTH_END).padStart(2, '0')}-31`,
+      });
+    }
+    return options;
   }
 
   showOnboardFieldError(field: OnboardSchoolField): boolean {

@@ -2971,6 +2971,7 @@
     "targetSchoolCodeHint": "सही स्कूल वर्कस्पेस में आयात चलाने के लिए सही स्कूल कोड दर्ज करें।",
     "targetSchoolCodeLoading": "स्कूल लोड हो रहे हैं...",
     "targetSchoolCodeRequired": "सुपर एडमिन आयात के लिए स्कूल कोड अनिवार्य है।",
+    "schoolSelectBeforeUpload": "हेडर प्रीव्यू, ड्राय रन और आयात कतार सक्षम करने से पहले पहले स्कूल कोड चुनें।",
     "stepUpload": "2. ZIP अपलोड",
     "stepUploadV2": "2. फ़ाइल अपलोड",
     "wizardAria": "आयात विज़ार्ड चरण",
@@ -3053,13 +3054,16 @@
     "copyJson": "JSON कॉपी करें",
     "noLineRows": "कोई पंक्ति नहीं मिली।",
     "onboard": {
+      "openCta": "स्कूल ऑनबोर्ड करें",
       "academicYearLabel": "शैक्षणिक वर्ष लेबल",
       "academicYearLabelPh": "उदा. 2026-2027",
       "academicYearStart": "शैक्षणिक वर्ष प्रारंभ",
       "academicYearEnd": "शैक्षणिक वर्ष समाप्ति",
+      "datePlaceholder": "तिथि चुनें",
       "success": "वर्कस्पेस बनाया गया। टेनेंट: {{tenantId}} · शैक्षणिक वर्ष ID: {{academicYearId}}",
       "hints": {
         "academicYearLabel": "ऐसा लेबल दें जिसे आपकी टीम आसानी से पहचान सके।",
+        "academicYearSelect": "शैक्षणिक वर्ष चुनें; प्रारंभ/समाप्ति तिथियाँ स्वतः भरेंगी और जरूरत हो तो बदली भी जा सकती हैं।",
         "academicYearStart": "शैक्षणिक वर्ष का पहला दिन चुनें।",
         "academicYearEnd": "अंतिम दिन चुनें; यह प्रारंभ तिथि के बाद होना चाहिए।",
         "address": "वैकल्पिक, लेकिन सपोर्ट और सेल्स हैंडओवर के लिए उपयोगी।"
