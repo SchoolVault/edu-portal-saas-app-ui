@@ -2976,6 +2976,7 @@
     "targetSchoolCodeHint": "Enter the exact school code so import runs in the correct school workspace.",
     "targetSchoolCodeLoading": "Loading schools...",
     "targetSchoolCodeRequired": "School code is required for Super Admin import operations.",
+    "schoolSelectBeforeUpload": "Select a school code first to enable header preview, dry run, and import queue.",
     "stepUpload": "2. Upload ZIP",
     "stepUploadV2": "2. Upload file",
     "wizardAria": "Import wizard steps",
@@ -3058,13 +3059,16 @@
     "copyJson": "Copy JSON",
     "noLineRows": "No line rows returned.",
     "onboard": {
+      "openCta": "Onboard school",
       "academicYearLabel": "Academic year label",
       "academicYearLabelPh": "e.g. 2026-2027",
       "academicYearStart": "Academic year start",
       "academicYearEnd": "Academic year end",
+      "datePlaceholder": "Select date",
       "success": "Workspace created. Tenant: {{tenantId}} · Academic year ID: {{academicYearId}}",
       "hints": {
         "academicYearLabel": "Use a clear year label your school team will recognize.",
+        "academicYearSelect": "Select the academic year; start and end dates are auto-filled and can still be adjusted.",
         "academicYearStart": "Pick the first day of the academic year.",
         "academicYearEnd": "Pick the final day; this must be after start date.",
         "address": "Optional but recommended for support and sales handover."
