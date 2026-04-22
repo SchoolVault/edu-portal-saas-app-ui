@@ -70,7 +70,35 @@
       "warning3": "इस स्कूल के सभी यूज़र पंक्ति हटने तक साइन-इन नहीं कर पाएंगे।",
       "startWorkflow": "डिलीशन वर्कफ़्लो शुरू करें...",
       "recentJobs": "हाल के पर्ज जॉब",
+      "jobDetails": "पर्ज जॉब विवरण",
+      "historyTitle": "सभी स्कूलों का पर्ज इतिहास",
+      "historyLead": "असिंक्रोनस पर्ज जॉब कभी भी देखें। स्कूल/स्थिति से फ़िल्टर करें और कानूनी कंप्लायंस CSV रिकॉर्ड डाउनलोड करें।",
+      "searchLabel": "स्कूल/कोड/टेनेंट खोजें",
+      "searchPh": "स्कूल नाम, कोड या टेनेंट आईडी लिखें",
+      "statusAll": "सभी स्थितियां",
+      "statusQueued": "कतार में",
+      "statusRunning": "चल रहा है",
+      "statusCompleted": "पूर्ण",
+      "statusFailed": "विफल",
+      "colStatus": "स्थिति",
+      "colSchool": "स्कूल",
+      "colCode": "स्कूल कोड",
+      "colTenant": "टेनेंट",
+      "colCreated": "कतार समय",
+      "colCompleted": "पूर्ण समय",
+      "colRows": "हटाई गई पंक्तियां",
+      "colAction": "क्रियाएं",
+      "historyEmpty": "वर्तमान फ़िल्टर के लिए कोई पर्ज जॉब नहीं मिला।",
       "rowsAffected": "~{{rows}} पंक्तियाँ प्रभावित",
+      "duration": "निष्पादन समय",
+      "startedAt": "प्रारंभ समय",
+      "completedAt": "पूर्ण समय",
+      "initiatedBy": "आरंभ करने वाला",
+      "role": "भूमिका",
+      "affectedUsers": "प्रभावित उपयोगकर्ता",
+      "downloadCsv": "कंप्लायंस CSV डाउनलोड करें",
+      "exportReady": "कंप्लायंस CSV डाउनलोड हो गई।",
+      "exportFailed": "कंप्लायंस CSV डाउनलोड नहीं हो सकी।",
       "jobQueued": "पर्ज जॉब कतार में डाला गया। स्टेटस नीचे दिखेगा; कुछ सेकंड बाद रीफ़्रेश करें।",
       "requestFailed": "पर्ज अनुरोध विफल हुआ।"
     },
@@ -217,6 +245,7 @@
     "lastCleared": "अंतिम सफाई",
     "scope": "दायरा",
     "regionsClearedLabel": "साफ़ किए गए क्षेत्र",
+    "failedRegionsLabel": "विफल क्षेत्र",
     "keysEvictedLabel": "हटाई गई कुंजियाँ (लगभग)",
     "clearedBy": "द्वारा साफ़ किया गया",
     "allSchools": "सभी स्कूल",
@@ -339,23 +368,74 @@
       "saveErr": "फ़ीचर फ़्लैग सहेजे नहीं जा सके।",
       "loadErr": "फ़ीचर फ़्लैग लोड नहीं हो सके।",
       "modules": {
-        "chat": { "name": "चैट", "description": "रीयल-टाइम संदेश" },
-        "transport": { "name": "परिवहन", "description": "बेड़ा और मार्ग" },
-        "hostel": { "name": "छात्रावास", "description": "आवासीय संचालन" },
-        "library": { "name": "पुस्तकालय", "description": "सूची और परिसंचरण" },
-        "audit": { "name": "ऑडिट", "description": "अनुपालन ऑडिट ट्रेल" },
-        "operationsHub": { "name": "संचालन केंद्र", "description": "कर्मी, आगंतुक, गेट पास, इन्वेंटरी, फीस अनुस्मारक, पेरोल संचय (प्रारूप)" },
-        "importExport": { "name": "आयात / निर्यात", "description": "बल्क डेटा जॉब और CSV निर्यात" },
-        "directory": { "name": "निर्देशिका", "description": "प्रशासकों के लिए एकीकृत खोज" },
-        "fees": { "name": "फीस", "description": "संरचना, चालान, वसूली और अनुस्मारक" },
-        "payroll": { "name": "पेरोल", "description": "वेतन संरचना, भुगतान चक्र और पेस्लिप" },
-        "documents": { "name": "दस्तावेज़", "description": "स्कूल दस्तावेज़ भंडार और स्टाफ साझाकरण" },
-        "communication": { "name": "संचार", "description": "घोषणाएँ, इनबॉक्स और स्कूल-व्यापी संदेश" },
-        "reports": { "name": "रिपोर्ट", "description": "प्रशासकों के लिए विश्लेषण और डैशबोर्ड" },
-        "student": { "name": "छात्र मॉड्यूल", "description": "रोस्टर, प्रोफ़ाइल और अभिभावक-जुड़े रिकॉर्ड" },
-        "teacher": { "name": "शिक्षक मॉड्यूल", "description": "फैकल्टी रोस्टर, असाइनमेंट और कक्षा संदर्भ" },
-        "attendance": { "name": "उपस्थिति", "description": "दैनिक उपस्थिति, सारांश और अनुपालन दृश्य" },
-        "leave": { "name": "अवकाश", "description": "स्कूल स्टाफ के लिए अवकाश अनुरोध, अनुमोदन और नीति प्रबंधन" }
+        "chat": {
+          "name": "चैट",
+          "description": "रीयल-टाइम संदेश"
+        },
+        "transport": {
+          "name": "परिवहन",
+          "description": "बेड़ा और मार्ग"
+        },
+        "hostel": {
+          "name": "छात्रावास",
+          "description": "आवासीय संचालन"
+        },
+        "library": {
+          "name": "पुस्तकालय",
+          "description": "सूची और परिसंचरण"
+        },
+        "audit": {
+          "name": "ऑडिट",
+          "description": "अनुपालन ऑडिट ट्रेल"
+        },
+        "operationsHub": {
+          "name": "संचालन केंद्र",
+          "description": "कर्मी, आगंतुक, गेट पास, इन्वेंटरी, फीस अनुस्मारक और पेरोल संचय नियंत्रण"
+        },
+        "importExport": {
+          "name": "इम्पोर्ट / एक्सपोर्ट",
+          "description": "बल्क डेटा जॉब और CSV निर्यात"
+        },
+        "directory": {
+          "name": "निर्देशिका",
+          "description": "प्रशासकों के लिए एकीकृत खोज"
+        },
+        "fees": {
+          "name": "फीस",
+          "description": "फीस संरचना, विद्यार्थी बिलिंग, वसूली और अनुस्मारक"
+        },
+        "payroll": {
+          "name": "पेरोल",
+          "description": "वेतन सेटअप, मासिक भुगतान और पेस्लिप"
+        },
+        "documents": {
+          "name": "दस्तावेज़",
+          "description": "स्कूल दस्तावेज़ भंडार और स्टाफ साझाकरण"
+        },
+        "communication": {
+          "name": "संचार",
+          "description": "घोषणाएँ, इनबॉक्स और स्कूल-व्यापी संदेश"
+        },
+        "reports": {
+          "name": "रिपोर्ट",
+          "description": "प्रशासकों के लिए विश्लेषण और डैशबोर्ड"
+        },
+        "student": {
+          "name": "छात्र मॉड्यूल",
+          "description": "रोस्टर, प्रोफ़ाइल और अभिभावक-जुड़े रिकॉर्ड"
+        },
+        "teacher": {
+          "name": "शिक्षक मॉड्यूल",
+          "description": "फैकल्टी रोस्टर, असाइनमेंट और कक्षा संदर्भ"
+        },
+        "attendance": {
+          "name": "उपस्थिति",
+          "description": "दैनिक उपस्थिति, सारांश और अनुपालन दृश्य"
+        },
+        "leave": {
+          "name": "अवकाश",
+          "description": "स्कूल स्टाफ के लिए अवकाश अनुरोध, अनुमोदन और नीति प्रबंधन"
+        }
       }
     },
     "activity": {
@@ -424,7 +504,7 @@
     "reports": "रिपोर्ट",
     "operationsHub": "संचालन केंद्र",
     "schoolOnboarding": "स्कूल ऑनबोर्डिंग",
-    "importExport": "आयात / निर्यात",
+    "importExport": "इम्पोर्ट / एक्सपोर्ट",
     "transport": "परिवहन",
     "library": "पुस्तकालय",
     "hostel": "छात्रावास",
@@ -465,7 +545,7 @@
       "subscriptionPlans": "सदस्यता योजनाएँ",
       "adminBroadcasts": "प्रशासक प्रसारण",
       "platformSettings": "प्लेटफ़ॉर्म सेटिंग्स",
-      "importExport": "आयात / निर्यात",
+      "importExport": "इम्पोर्ट / एक्सपोर्ट",
       "schoolOnboarding": "स्कूल ऑनबोर्डिंग",
       "notice": "सूचना",
       "notificationDetail": "अधिसूचना",
@@ -750,7 +830,8 @@
         "studentsAssigned": "मेरी कक्षा में विद्यार्थी",
         "studentsAssignedHomeroomHint": "आपके होमरूम खंड की संख्या",
         "studentsAssignedFallbackHint": "आपकी समय सारणी से जुड़ी सभी कक्षाओं में",
-        "upcomingExams": "आगामी परीक्षाएँ",
+        "todaySchedule": "आज के पीरियड",
+        "todayScheduleSub": "आज के लिए आपकी समय सारणी के अनुसार",
         "unreadAlerts": "अपठित चेतावनियाँ",
         "pendingAttendance": "लंबित उपस्थिति",
         "homeAttendanceTitlePending": "होमरूम उपस्थिति (आज)",
@@ -945,7 +1026,8 @@
       "noSections": "कोई खंड नहीं — केवल कक्षा स्तर पर नामांकन।",
       "totalStudents": "कुल विद्यार्थी:",
       "editTitle": "संपादित करें",
-      "removeTitle": "हटाएँ"
+      "removeTitle": "हटाएँ",
+      "removeClass": "कक्षा हटाएँ"
     },
     "promotion": {
       "title": "बल्क विद्यार्थी प्रोन्नति",
@@ -1009,11 +1091,13 @@
       "sectionNamePh": "उदा. A",
       "capacity": "क्षमता",
       "editSectionTitle": "खंड संपादित करें",
+      "ok": "ठीक है",
       "cancel": "रद्द करें",
       "create": "बनाएँ",
       "add": "जोड़ें",
       "save": "सहेजें",
-      "saving": "सहेजा जा रहा है…"
+      "saving": "सहेजा जा रहा है…",
+      "removeClass": "कक्षा हटाएँ"
     },
     "confirm": {
       "removeSection": {
@@ -1021,7 +1105,17 @@
         "message": "खंड \"{{section}}\" कक्षा \"{{class}}\" से हटाया जाएगा। UI से पूर्ववत नहीं।",
         "detailClass": "कक्षा: {{name}} (स्तर {{grade}})",
         "detailRule": "नामांकित विद्यार्थियों वाले खंड नहीं हटाए जा सकते।",
+        "studentsPresent": "खंड \"{{section}}\" में अभी {{count}} सक्रिय विद्यार्थी हैं। पहले उन्हें स्थानांतरित या निष्क्रिय करें।",
         "confirm": "हाँ, खंड हटाएँ"
+      },
+      "removeClass": {
+        "title": "कक्षा हटाएँ?",
+        "message": "कक्षा \"{{class}}\" निष्क्रिय चिह्नित होगी और सक्रिय शैक्षणिक दृश्य से हट जाएगी।",
+        "sectionsExist": "कक्षा \"{{class}}\" में अभी {{count}} सक्रिय खंड हैं। पहले खंड हटाएँ या निष्क्रिय करें।",
+        "studentsExist": "कक्षा \"{{class}}\" में अभी {{count}} सक्रिय विद्यार्थी हैं। पहले विद्यार्थियों को स्थानांतरित या निष्क्रिय करें।",
+        "detailUnassign": "इस कक्षा का कक्षा-शिक्षक असाइनमेंट हट जाएगा।",
+        "detailIrreversible": "यह संवेदनशील कार्रवाई है; पहले खंड और विद्यार्थी निर्भरताएँ जांच लें।",
+        "confirm": "हाँ, कक्षा हटाएँ"
       },
       "classTeacher": {
         "unknownTeacher": "अज्ञात शिक्षक",
@@ -1039,6 +1133,10 @@
         "confirm": "हाँ, लागू करें",
         "cancel": "रद्द करें"
       }
+    },
+    "errors": {
+      "sectionDeleteFailed": "खंड हटाया नहीं जा सका। निर्भरताएँ जांचकर पुनः प्रयास करें।",
+      "classDeleteFailed": "कक्षा हटाई नहीं जा सकी। सुनिश्चित करें कि कोई सक्रिय खंड या विद्यार्थी शेष नहीं है।"
     }
   },
   "directory": {
@@ -1792,13 +1890,17 @@
     "saveFailed": "सहेजना विफल"
   },
   "fees": {
-    "pageTitle": "शुल्क प्रबंधन",
-    "lead": "संरचनाएँ प्रति-कक्षा घटक परिभाषित करती हैं (ट्यूशन, परिवहन, छात्रावास, वर्दी, …)। भुगतान पर अभिभावक वही विवरण देखते हैं।",
+    "pageTitle": "फीस प्रबंधन",
+    "lead": "कक्षा-वार फीस संरचना कॉन्फ़िगर करें, विद्यार्थियों को असाइन करें, और वसूली को एक ही स्थान से मॉनिटर करें।",
     "refresh": "रीफ़्रेश",
     "refreshing": "रीफ़्रेश हो रहा है…",
-    "newStructure": "नई शुल्क संरचना",
-    "tabStructures": "शुल्क संरचनाएँ",
+    "newStructure": "नई फीस संरचना बनाएं",
+    "tabStructures": "फीस संरचनाएँ",
     "tabPayments": "भुगतान",
+    "adminFlowTitle": "3-चरण फीस कार्यप्रवाह",
+    "adminFlowStep1": "चरण 1: फीस संरचना बनाएं",
+    "adminFlowStep2": "चरण 2: योजना विद्यार्थियों को असाइन करें",
+    "adminFlowStep3": "चरण 3: वसूली और बकाया ट्रैक करें",
     "edit": "संपादित करें",
     "bulkAssign": "विद्यार्थियों के लिए जोड़ें",
     "bulkAssignTitle": "एक साथ कई विद्यार्थियों के लिए शुल्क रिकॉर्ड बनाएँ",
@@ -1822,7 +1924,7 @@
     "yearPrefix": "वर्ष",
     "modalEditTitle": "शुल्क संरचना संपादित करें",
     "modalNewTitle": "नई शुल्क संरचना",
-    "labelStructureName": "संरचना नाम",
+    "labelStructureName": "फीस संरचना का नाम",
     "structureNamePh": "जैसे वार्षिक शुल्क — कक्षा 8",
     "labelClass": "कक्षा",
     "selectClass": "कक्षा चुनें",
@@ -1838,7 +1940,7 @@
     "saving": "सहेजा जा रहा है…",
     "bulkModalTitle": "कई विद्यार्थियों के लिए यह शुल्क जोड़ें",
     "closeAria": "बंद करें",
-    "bulkPlanLabel": "जोड़ रहे हैं शुल्क योजना",
+    "bulkPlanLabel": "असाइन की जा रही फीस संरचना",
     "bulkPerStudent": "· प्रति विद्यार्थी कुल ₹{{amount}}",
     "bulkWhatTitle": "इस बटन पर क्लिक करने पर क्या होगा?",
     "bulkStep1": "सिस्टम नीचे चुनी कक्षा (या खंड) में सक्रिय विद्यार्थी ढूँढता है।",
@@ -1868,12 +1970,54 @@
     "errClass": "कक्षा चुनें।",
     "errYear": "शैक्षणिक वर्ष चुनें।",
     "errComponents": "कम से कम एक घटक नाम और राशि के साथ जोड़ें।",
+    "errComponentNegative": "घटक राशि ऋणात्मक नहीं हो सकती।",
+    "errTotalZero": "कुल शुल्क राशि शून्य से अधिक होनी चाहिए।",
+    "errDuplicateComponent": "एक ही संरचना में घटक नाम अद्वितीय होने चाहिए।",
+    "kpiCollected": "इस सूची में वसूली",
+    "kpiPending": "इस सूची में लंबित",
+    "kpiOverdueCount": "इस सूची में अतिदेय रिकॉर्ड",
+    "kpiCollectionRate": "इस सूची की वसूली दर",
+    "summaryStudents": "भुगतान रिकॉर्ड में विद्यार्थी: {{n}}",
+    "thActions": "क्रियाएँ",
+    "sortBy": "क्रमबद्ध करें",
+    "sortDueDateAsc": "देय तिथि (पुरानी पहले)",
+    "sortDueDateDesc": "देय तिथि (नई पहले)",
+    "sortDueAmountDesc": "देय राशि (अधिक से कम)",
+    "sortStudentAsc": "विद्यार्थी नाम (A-Z)",
+    "exportPayments": "CSV निर्यात",
+    "chipAll": "सभी",
+    "chipDueToday": "आज देय",
+    "chipOverdue": "अतिदेय",
+    "chipPartial": "आंशिक",
+    "viewLedger": "भुगतान विवरण देखें",
+    "collectNow": "अभी वसूली दर्ज करें",
+    "sendReminder": "रिमाइंडर भेजें",
+    "reminderSent": "{{name}} के लिए रिमाइंडर भेजा गया।",
+    "reminderFailed": "रिमाइंडर भेजा नहीं जा सका।",
+    "ledgerTitle": "विद्यार्थी भुगतान विवरण — {{name}}",
+    "loadingLedger": "भुगतान विवरण लोड हो रहा है...",
+    "emptyLedger": "इस विद्यार्थी के लिए कोई भुगतान रिकॉर्ड नहीं मिला।",
+    "collectTitle": "शुल्क वसूली दर्ज करें",
+    "collectDueNow": "वर्तमान देय",
+    "collectAmountLabel": "अभी प्राप्त राशि",
+    "collectMethodLabel": "भुगतान विधि",
+    "methodCash": "नकद",
+    "methodUpi": "UPI",
+    "methodOnline": "ऑनलाइन",
+    "methodCheque": "चेक",
+    "collectAmountInvalid": "शून्य से अधिक वैध राशि दर्ज करें।",
+    "collectAmountTooHigh": "राशि वर्तमान देय से अधिक नहीं हो सकती।",
+    "collectFailed": "भुगतान दर्ज नहीं हो सका।",
+    "collectSaving": "भुगतान सहेजा जा रहा है...",
+    "collectConfirm": "भुगतान सहेजें",
+    "exportLedger": "भुगतान इतिहास CSV निर्यात",
+    "close": "बंद करें",
     "saveFailed": "सहेजना विफल।",
     "skipInactive": "निष्क्रिय विद्यार्थी — शुल्क नहीं जोड़ा",
     "skipDuplicate": "इसी देय तिथि पर यह शुल्क पहले से है",
     "bulkError": "शुल्क नहीं जोड़े जा सके। पुनः प्रयास करें।",
-    "confirmDeleteTitle": "शुल्क संरचना हटाएँ?",
-    "confirmDeleteMessage": "संरचना “{{name}}” कॉन्फ़िगरेशन से हटेगी। लेजर में मौजूद भुगतान पंक्तियाँ नहीं मिटतीं।",
+    "confirmDeleteTitle": "फीस संरचना हटाएँ?",
+    "confirmDeleteMessage": "संरचना “{{name}}” कॉन्फ़िगरेशन से हटेगी। मौजूदा भुगतान रिकॉर्ड नहीं मिटेंगे।",
     "confirmDeleteDetailClass": "कक्षा: {{className}}",
     "confirmDeleteDetailYear": "शैक्षणिक वर्ष ID: {{id}}",
     "confirmDeleteOk": "हाँ, संरचना हटाएँ",
@@ -2124,35 +2268,54 @@
     "applicantMetaName": "{{name}} ({{role}})"
   },
   "payroll": {
-    "pageTitle": "वेतन",
-    "leadAdmin": "वेतन संरचना, बैंक भुगतान, पेस्लिप और PDF",
+    "pageTitle": "पेरोल संचालन",
+    "leadAdmin": "वेतन संरचना, पेरोल प्रोसेसिंग, पेस्लिप और भुगतान स्थिति एक ही स्क्रीन से प्रबंधित करें।",
     "leadTeacher": "आपकी पेस्लिप और PDF डाउनलोड",
     "leadDenied": "वेतन केवल प्रशासक और शिक्षकों के लिए।",
     "labelMonth": "माह",
     "labelYear": "वर्ष",
     "generate": "पेस्लिप बनाएँ",
     "generating": "बन रहा है…",
-    "genDisburseError": "भुगतान शुरू नहीं हो सका।",
+    "adminFlowTitle": "3-चरण वेतन कार्यप्रवाह",
+    "adminFlowStep1": "चरण 1: वेतन + बैंक विवरण सत्यापित करें",
+    "adminFlowStep2": "चरण 2: अवधि के लिए पेस्लिप बनाएँ",
+    "adminFlowStep3": "चरण 3: ट्रांसफर शुरू करें, फिर भुगतान चिह्नित करें",
+    "runStep1Title": "चरण 1 तैयारी",
+    "runStep1Value": "बैंक प्रोफ़ाइल तैयार",
+    "runStep2Title": "चरण 2 जनरेट",
+    "runStep2Value": "पेस्लिप भुगतान के लिए तैयार",
+    "runStep3Title": "चरण 3 निपटान",
+    "runStep3Value": "पेस्लिप भुगतान चिह्नित",
+    "genDisburseError": "वेतन भुगतान शुरू नहीं हो सका।",
     "genPayslipError": "पेस्लिप नहीं बन सकीं।",
+    "errMonthRequired": "पेरोल माह चुनें।",
+    "errYearRange": "वैध पेरोल वर्ष दर्ज करें।",
+    "errPeriodInvalid": "वैध पेरोल अवधि (माह और वर्ष) चुनें।",
     "refresh": "रीफ़्रेश",
+    "searchTeachers": "शिक्षक खोजें",
+    "searchTeachersPh": "शिक्षक, बैंक या IFSC से खोजें...",
+    "readinessFilter": "तैयारी स्थिति",
+    "filterAll": "सभी",
+    "filterReady": "तैयार",
+    "filterIncomplete": "अपूर्ण",
     "genErrorPrefix": "",
-    "disburseSuccess": "ट्रांसफ़र कतार में: {{rail}}{{referenceId}} · ₹{{amount}} — {{name}}।",
+    "disburseSuccess": "डिस्बर्समेंट शुरू: {{rail}}{{referenceId}} · ₹{{amount}} — {{name}}।",
     "payslip": {
       "generated": "जनरेट",
       "paid": "भुगतान"
     },
-    "disburseHowTitle": "प्रोडक्शन में यह कैसे काम करता है:",
-    "disburseHowBody": "यह चरण केवल आपके बैंक/PSP को ट्रांसफ़र सबमिट करता है। सफलता/विफलता बाद में वेबहुक या मैन्युअल मिलान से आती है; शिक्षक को SMS/WhatsApp/इन-ऐप सूचना मिलती है। जब तक राशि नहीं आती, क्रेडिट पुष्टि के बाद पेस्लिप पर “भुगतान चिह्नित करें” उपयोग करें।",
+    "disburseHowTitle": "वेतन भुगतान कैसे काम करता है:",
+    "disburseHowBody": "यह कार्रवाई बैंक/PSP को भुगतान अनुरोध सबमिट करती है। अंतिम सफलता/विफलता बैंक प्रतिक्रिया या सत्यापन प्रक्रिया से बाद में मिलती है। वेतन क्रेडिट पुष्टि के बाद ही पेस्लिप को “भुगतान” चिह्नित करें।",
     "statStructures": "वेतन संरचनाएँ",
-    "statNetPayroll": "कुल वेतन (संरचनाएँ)",
+    "statNetPayroll": "नेट पेरोल देय",
     "statPayslips": "पेस्लिप (फ़िल्टर)",
     "statBankReady": "बैंक प्रोफ़ाइल तैयार",
     "cardDisburseTitle": "वेतन भुगतान",
-    "cardDisburseLead": "चेकलिस्ट के लिए शिक्षक चुनें, या सभी के लिए तालिका उपयोग करें। पहले माह की पेस्लिप बनाएँ, फिर बैंक ट्रांसफ़र शुरू करें।",
-    "reloadBank": "बैंक सूची रीलोड",
+    "cardDisburseLead": "मार्गदर्शित भुगतान जाँच के लिए शिक्षक चुनें, या सभी स्टाफ के लिए तालिका उपयोग करें। पहले पेस्लिप बनाएं, फिर बैंक भुगतान शुरू करें।",
+    "reloadBank": "भुगतान सूची रीफ़्रेश करें",
     "labelTeacherStep": "शिक्षक (चरणबद्ध)",
     "chooseTeacher": "— शिक्षक चुनें —",
-    "labelPaymentRail": "भुगतान माध्यम",
+    "labelPaymentRail": "भुगतान मोड",
     "railNetbanking": "नेटबैंकिंग (कॉर्पोरेट)",
     "railUpi": "UPI (तुरंत)",
     "railNeft": "NEFT",
@@ -2164,20 +2327,20 @@
     "salaryStructureNet": "वेतन संरचना (मासिक नेट)",
     "payslipForPeriod": "पेस्लिप ({{month}} {{year}})",
     "generateFirst": "पहले इस अवधि की पेस्लिप बनाएँ।",
-    "initiateTransfer": "इस शिक्षक के लिए ट्रांसफ़र शुरू करें",
+    "initiateTransfer": "इस शिक्षक के लिए भुगतान शुरू करें",
     "submitting": "सबमिट हो रहा है…",
-    "afterBankNote": "बैंक पुष्टि के बाद नीचे तालिका में पेस्लिप भुगतान चिह्नित करें।",
+    "afterBankNote": "बैंक क्रेडिट पुष्टि के बाद नीचे पेस्लिप को भुगतान चिह्नित करें।",
     "thTeacher": "शिक्षक",
     "thMonthlyNet": "मासिक नेट (संरचना)",
     "thBank": "बैंक",
     "thAccount": "खाता",
     "thIfsc": "IFSC",
     "thStatus": "स्थिति",
-    "thBankTransfer": "बैंक ट्रांसफ़र",
+    "thBankTransfer": "भुगतान कार्रवाई",
     "statusReady": "तैयार",
     "statusIncomplete": "अधूरा",
-    "initiate": "शुरू करें",
-    "initiateTitle": "चयनित माह/वर्ष की बनी पेस्लिप से नेट राशि",
+    "initiate": "भुगतान शुरू करें",
+    "initiateTitle": "चयनित माह/वर्ष की बनी पेस्लिप की नेट राशि का उपयोग",
     "noStructures": "अभी कोई वेतन संरचना नहीं।",
     "structuresTitle": "वेतन संरचनाएँ",
     "thBasic": "मूल",
@@ -2196,10 +2359,30 @@
     "noPayslips": "इस अवधि के लिए कोई पेस्लिप नहीं।",
     "accessDenied": "वेतन विवरण तक आपकी पहुँच नहीं।",
     "confirmMarkPaidTitle": "पेस्लिप भुगतान चिह्नित करें?",
-    "confirmMarkPaidMessage": "{{name}} — {{month}} {{year}} के लिए भुगतान की पुष्टि करें।",
+    "confirmMarkPaidMessage": "{{name}} — {{month}} {{year}} के लिए वेतन भुगतान की पुष्टि करें।",
     "detailNet": "नेट वेतन: ₹{{amount}}",
     "detailStatus": "वर्तमान स्थिति: {{status}}",
     "confirmMarkPaidOk": "हाँ, भुगतान चिह्नित करें",
+    "settlementTitle": "निपटान और मिलान कतार",
+    "queueSubmitted": "सबमिटेड",
+    "queueCompleted": "पूर्ण",
+    "queueFailed": "विफल",
+    "queueVariance": "वैरिएंस (सबमिटेड - सेटल्ड)",
+    "resetDemoData": "डेमो वित्त डेटा रीसेट करें",
+    "resetDemoInProgress": "रीसेट हो रहा है...",
+    "resetDemoConfirmTitle": "वित्त डेमो डेटा रीसेट करें?",
+    "resetDemoConfirmMessage": "यह इस स्कूल के वर्तमान फीस/पेरोल डेमो रिकॉर्ड को आर्काइव करके नया डेमो बेसलाइन बनाएगा।",
+    "resetDemoSuccess": "डेमो वित्त डेटा रीसेट सफल। {{fee}} फीस रिकॉर्ड और {{payslips}} पेस्लिप बनाई गईं।",
+    "resetDemoFailed": "डेमो वित्त डेटा रीसेट नहीं हो सका।",
+    "markSettled": "सेटल्ड चिह्नित करें",
+    "markFailed": "विफल चिह्नित करें",
+    "noQueueRows": "इस फ़िल्टर के लिए कोई भुगतान प्रयास नहीं मिला।",
+    "queueUpdateFailed": "डिस्बर्समेंट स्थिति अपडेट नहीं हो सकी।",
+    "disbursementStatus": {
+      "SUBMITTED": "सबमिटेड",
+      "COMPLETED": "पूर्ण",
+      "FAILED": "विफल"
+    },
     "months": {
       "january": "जनवरी",
       "february": "फरवरी",
@@ -2252,8 +2435,8 @@
       "section": "अनुभाग",
       "teacher": "शिक्षक कार्यभार",
       "reportCard": "रिपोर्ट कार्ड",
-      "designer": "रिपोर्ट डिज़ाइनर",
-      "insights": "इनसाइट्स पैक",
+      "designer": "रिपोर्ट बिल्डर",
+      "insights": "इनसाइट्स डैशबोर्ड",
       "insightsFriendly": "स्कूल इनसाइट्स"
     },
     "template": "टेम्पलेट",
@@ -2343,7 +2526,7 @@
       "LIBRARY_STAFF": "पुस्तकालय कर्मी"
     },
     "designer": {
-      "guideTitle": "सरल रिपोर्ट बिल्डर",
+      "guideTitle": "मार्गदर्शित रिपोर्ट बिल्डर",
       "guideLead": "चरण 1: बार-बार उपयोग के लिए टेम्पलेट सहेजें। चरण 2: कक्षा/परीक्षा या विद्यार्थी चुनकर ‘अभी जनरेट करें’ दबाएँ। चरण 3: Generated jobs में शेयरिंग, संस्करण और गतिविधि से पूरी स्थिति देखें।",
       "stepCounter": "चरण {{step}} / {{total}}",
       "step1Title": "स्कोप चुनें",
@@ -2589,7 +2772,7 @@
   },
   "operations": {
     "pageTitle": "स्कूल संचालन",
-    "lead": "गैर-शिक्षण कर्मी, आगंतुक, गेट पास, इन्वेंटरी, फीस अनुस्मारक, पेरोल संचय (प्रारूप)। उपस्थिति कवर समय सारणी → उपस्थिति कवर में।",
+    "lead": "गैर-शिक्षण कर्मी, आगंतुक, गेट पास, इन्वेंटरी, फीस अनुस्मारक और पेरोल संचय को एक ही संचालन वर्कस्पेस से प्रबंधित करें। उपस्थिति कवर असाइनमेंट समय सारणी → उपस्थिति कवर में उपलब्ध हैं।",
     "tab": {
       "staff": "कर्मी",
       "visitors": "आगंतुक",
@@ -2742,7 +2925,7 @@
     },
     "reminders": {
       "title": "फीस अनुस्मारक",
-      "lead": "निम्नलिखित बकाया शेष। प्रोडक्शन में नियत कार्य SMS/WhatsApp/ईमेल भेजता है; यह स्क्रीन कतार दर्शाती है।",
+      "lead": "निम्नलिखित बकाया शेष। प्रोडक्शन में स्वचालित शेड्यूल नियत तिथि के करीब SMS/WhatsApp/ईमेल भेजता है। यह स्क्रीन उसी अनुस्मारक कार्यप्रवाह को दर्शाती है और मैन्युअल ट्रिगर की सुविधा देती है।",
       "refresh": "रीफ़्रेश",
       "outstandingTitle": "बकाया फीस शेष",
       "thStudent": "विद्यार्थी",
@@ -2754,27 +2937,27 @@
       "channelSms": "SMS",
       "channelWhatsapp": "WhatsApp",
       "channelEmail": "ईमेल",
-      "queueTitle": "अनुस्मारक कतार",
+      "queueTitle": "अनुस्मारक कार्यप्रवाह",
       "thChannel": "चैनल",
       "thScheduled": "निर्धारित",
       "emptyPending": "वर्तमान लेजर में कोई लंबित फीस शेष नहीं।",
-      "emptyQueue": "कतार में अभी कोई पंक्ति नहीं। मॉक शेड्यूलर के लिए टैब दोबारा खोलें।",
+      "emptyQueue": "अभी कोई अनुस्मारक निर्धारित नहीं है। 14 दिनों के भीतर देयों के लिए मॉक ऑटो-शेड्यूलर चलाने हेतु यह टैब फिर खोलें।",
       "searchOutstanding": "लंबित शेष छाँटें",
       "searchOutstandingPh": "छात्र नाम, id या स्थिति…",
-      "searchQueue": "अनुस्मारक कतार छाँटें",
+      "searchQueue": "अनुस्मारक कार्यप्रवाह छाँटें",
       "searchQueuePh": "छात्र नाम, id, चैनल या स्थिति…",
       "noOutstandingMatches": "आपकी खोज से कोई शेष मेल नहीं खाता।",
       "noQueueMatches": "आपकी खोज से कोई अनुस्मारक मेल नहीं खाता।"
     },
     "payroll": {
-      "title": "पेरोल संचय (प्रारूप)",
+      "title": "पेरोल संचय (पूर्वावलोकन)",
       "refreshSummary": "सारांश रीफ़्रेश करें",
       "period": "अवधि:",
       "summaryLine": "कुल वेतन: {{gross}} | कटौती: {{ded}} | निवल: {{net}} | कर्मचारी: {{count}}"
     }
   },
   "importExport": {
-    "pageTitle": "आयात और निर्यात",
+    "pageTitle": "इम्पोर्ट / एक्सपोर्ट",
     "pill": "प्रशासक और सुपर प्रशासक",
     "pillTitle": "केवल स्कूल प्रशासक और प्लेटफ़ॉर्म सुपर-प्रशासक इस मॉड्यूल का उपयोग कर सकते हैं",
     "lead": "CSV, XLSX या ZIP (अंदर CSV) कार्य पृष्ठभूमि में बैच में कतारबद्ध करें। निर्यात समान स्तंभों में होते हैं। बड़े आयात से पहले ड्राय-रन चलाएँ; पंक्ति परिणाम देखें और केवल विफल पुनः प्रयास करें।",
@@ -2852,6 +3035,7 @@
     "thId": "ID",
     "thType": "प्रकार",
     "thStatus": "स्थिति",
+    "thTimeTaken": "लगा समय",
     "thFile": "फ़ाइल",
     "thRows": "पंक्तियाँ",
     "thOkFail": "ठीक / विफल",
@@ -2868,19 +3052,42 @@
     "thPayload": "पेलोड",
     "copyJson": "JSON कॉपी करें",
     "noLineRows": "कोई पंक्ति नहीं मिली।",
+    "onboard": {
+      "academicYearLabel": "शैक्षणिक वर्ष लेबल",
+      "academicYearLabelPh": "उदा. 2026-2027",
+      "academicYearStart": "शैक्षणिक वर्ष प्रारंभ",
+      "academicYearEnd": "शैक्षणिक वर्ष समाप्ति",
+      "success": "वर्कस्पेस बनाया गया। टेनेंट: {{tenantId}} · शैक्षणिक वर्ष ID: {{academicYearId}}",
+      "hints": {
+        "academicYearLabel": "ऐसा लेबल दें जिसे आपकी टीम आसानी से पहचान सके।",
+        "academicYearStart": "शैक्षणिक वर्ष का पहला दिन चुनें।",
+        "academicYearEnd": "अंतिम दिन चुनें; यह प्रारंभ तिथि के बाद होना चाहिए।",
+        "address": "वैकल्पिक, लेकिन सपोर्ट और सेल्स हैंडओवर के लिए उपयोगी।"
+      },
+      "errors": {
+        "academicYearNameRequired": "शैक्षणिक वर्ष लेबल आवश्यक है।",
+        "academicYearStartRequired": "शैक्षणिक वर्ष प्रारंभ तिथि आवश्यक है।",
+        "academicYearEndRequired": "शैक्षणिक वर्ष समाप्ति तिथि आवश्यक है।",
+        "academicYearRange": "समाप्ति तिथि प्रारंभ तिथि के बाद होनी चाहिए।",
+        "fixFieldErrors": "सबमिट करने से पहले सभी त्रुटियाँ ठीक करें।",
+        "createFailed": "अभी स्कूल वर्कस्पेस ऑनबोर्ड नहीं हो सका। कृपया पुनः प्रयास करें।"
+      }
+    },
     "jobType": {
       "STUDENTS": "विद्यार्थी",
       "TEACHERS": "शिक्षक",
       "STAFF": "पुस्तकालय / कर्मी",
       "CLASSES": "कक्षाएँ",
-      "TIMETABLE": "समयसारणी"
+      "TIMETABLE": "समयसारणी",
+      "FEE_STRUCTURES": "फीस संरचनाएँ"
     },
     "jobTypeHint": {
       "STUDENTS": "अभिभावक, कक्षा, वैकल्पिक अनुभाग",
       "TEACHERS": "पोर्टल लॉगिन वैकल्पिक",
       "STAFF": "डिफ़ॉल्ट पुस्तकालय पोर्टल",
       "CLASSES": "अनुभाग पाइप से अलग",
-      "TIMETABLE": "शिक्षक, कक्षा और अनुभाग के साप्ताहिक स्लॉट (प्रतिदिन 6-7 पीरियड)"
+      "TIMETABLE": "शिक्षक, कक्षा और अनुभाग के साप्ताहिक स्लॉट (प्रतिदिन 6-7 पीरियड)",
+      "FEE_STRUCTURES": "कक्षा + वर्ष + संरचना नाम से अपसर्ट (componentspec: नाम:राशि:प्रकार | ...)"
     },
     "jobStatus": {
       "COMPLETED": "पूर्ण",
@@ -2901,7 +3108,7 @@
     "pageTitle": "स्कूल ऑनबोर्डिंग",
     "lead": "इन चरणों को क्रम में पूरा करें ताकि बल्क आयात से पहले शैक्षणिक संरचना तैयार हो।",
     "open": "खोलें",
-    "footerHint": "पहले वर्तमान वर्ष, कक्षाएँ और अनुभाग बनाएँ। बड़े आयात से पहले आयात निर्यात में ड्राय-रन चलाएँ।",
+    "footerHint": "पहले वर्तमान वर्ष, कक्षाएँ और अनुभाग बनाएँ। बड़े आयात से पहले स्कूल ऑनबोर्डिंग मॉड्यूल में ड्राय-रन चलाएँ।",
     "step1Title": "शैक्षणिक वर्ष",
     "step1Body": "सक्रिय शैक्षणिक वर्ष बनाएँ या चिह्नित करें—वर्ष छोड़ने पर आयात इसका उपयोग करते हैं।",
     "step2Title": "कक्षाएँ और अनुभाग",
@@ -3179,6 +3386,12 @@
     "profileSaved": "खाता विवरण सहेजे गए।",
     "profileSavedMock": "खाता विवरण इस सत्र में सहेजे गए (मॉक)। मॉक बंद होने पर PUT /auth/profile पर वही अनुरोध जाएगा।",
     "profileSaveErr": "खाता विवरण सहेजे नहीं जा सके। पुनः प्रयास करें।",
+    "profileConfirmTitle": "महत्वपूर्ण प्रोफ़ाइल बदलाव की पुष्टि करें",
+    "profileConfirmBody": "सहेजने से पहले इन संवेदनशील खाता बदलावों की पुष्टि करें। ये अपडेट आपकी प्रोफ़ाइल पहचान और साइन-इन सत्यापन को प्रभावित कर सकते हैं।",
+    "profileConfirmProceed": "हाँ, बदलाव सहेजें",
+    "profileConfirmCancel": "नहीं, पुरानी जानकारी रखें",
+    "profileConfirmNoValue": "सेट नहीं",
+    "profileConfirmChangeLine": "{{field}}: {{before}} -> {{after}}",
     "credentialsUpdatedDialogTitle": "लॉगिन विवरण अपडेट हो गए",
     "credentialsUpdatedDialogBody": "अगली लॉगिन से अपडेट किए गए संपर्क विवरण का उपयोग करें।",
     "dialogOk": "ठीक है",
@@ -3296,11 +3509,11 @@
       },
       "operationsHub": {
         "name": "संचालन केंद्र",
-        "description": "कर्मी, आगंतुक, गेट पास, इन्वेंटरी, फीस अनुस्मारक और पेरोल संचय प्रारूप।"
+        "description": "कर्मी, आगंतुक, गेट पास, इन्वेंटरी, फीस अनुस्मारक और पेरोल संचय नियंत्रण।"
       },
       "importExport": {
-        "name": "आयात / निर्यात",
-        "description": "बल्क ZIP+CSV जॉब और निर्यात।"
+        "name": "इम्पोर्ट / एक्सपोर्ट",
+        "description": "बल्क ZIP+CSV डेटा जॉब और निर्यात।"
       },
       "directory": {
         "name": "निर्देशिका",

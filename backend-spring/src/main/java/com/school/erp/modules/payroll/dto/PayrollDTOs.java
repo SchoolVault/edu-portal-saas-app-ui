@@ -852,4 +852,80 @@ public class PayrollDTOs {
             this.paymentMethod = paymentMethod;
         }
     }
+
+    public static class DisbursementAttemptResponse {
+        private Long id;
+        private Long payslipId;
+        private Long teacherId;
+        private String teacherName;
+        private String periodLabel;
+        private BigDecimal amount;
+        private String paymentMethod;
+        private String referenceId;
+        private String status;
+        private String createdAt;
+        private String completedAt;
+        private String lastMessage;
+
+        public Long getId() { return id; }
+        public void setId(Long id) { this.id = id; }
+        public Long getPayslipId() { return payslipId; }
+        public void setPayslipId(Long payslipId) { this.payslipId = payslipId; }
+        public Long getTeacherId() { return teacherId; }
+        public void setTeacherId(Long teacherId) { this.teacherId = teacherId; }
+        public String getTeacherName() { return teacherName; }
+        public void setTeacherName(String teacherName) { this.teacherName = teacherName; }
+        public String getPeriodLabel() { return periodLabel; }
+        public void setPeriodLabel(String periodLabel) { this.periodLabel = periodLabel; }
+        public BigDecimal getAmount() { return amount; }
+        public void setAmount(BigDecimal amount) { this.amount = amount; }
+        public String getPaymentMethod() { return paymentMethod; }
+        public void setPaymentMethod(String paymentMethod) { this.paymentMethod = paymentMethod; }
+        public String getReferenceId() { return referenceId; }
+        public void setReferenceId(String referenceId) { this.referenceId = referenceId; }
+        public String getStatus() { return status; }
+        public void setStatus(String status) { this.status = status; }
+        public String getCreatedAt() { return createdAt; }
+        public void setCreatedAt(String createdAt) { this.createdAt = createdAt; }
+        public String getCompletedAt() { return completedAt; }
+        public void setCompletedAt(String completedAt) { this.completedAt = completedAt; }
+        public String getLastMessage() { return lastMessage; }
+        public void setLastMessage(String lastMessage) { this.lastMessage = lastMessage; }
+    }
+
+    public static class DisbursementQueueSummaryResponse {
+        private long totalAttempts;
+        private long submittedCount;
+        private long completedCount;
+        private long failedCount;
+        private BigDecimal submittedAmount;
+        private BigDecimal completedAmount;
+        private BigDecimal failedAmount;
+
+        public long getTotalAttempts() { return totalAttempts; }
+        public void setTotalAttempts(long totalAttempts) { this.totalAttempts = totalAttempts; }
+        public long getSubmittedCount() { return submittedCount; }
+        public void setSubmittedCount(long submittedCount) { this.submittedCount = submittedCount; }
+        public long getCompletedCount() { return completedCount; }
+        public void setCompletedCount(long completedCount) { this.completedCount = completedCount; }
+        public long getFailedCount() { return failedCount; }
+        public void setFailedCount(long failedCount) { this.failedCount = failedCount; }
+        public BigDecimal getSubmittedAmount() { return submittedAmount; }
+        public void setSubmittedAmount(BigDecimal submittedAmount) { this.submittedAmount = submittedAmount; }
+        public BigDecimal getCompletedAmount() { return completedAmount; }
+        public void setCompletedAmount(BigDecimal completedAmount) { this.completedAmount = completedAmount; }
+        public BigDecimal getFailedAmount() { return failedAmount; }
+        public void setFailedAmount(BigDecimal failedAmount) { this.failedAmount = failedAmount; }
+    }
+
+    public static class UpdateDisbursementStatusRequest {
+        @jakarta.validation.constraints.NotBlank
+        private String status; // SUBMITTED | COMPLETED | FAILED
+        private String message;
+
+        public String getStatus() { return status; }
+        public void setStatus(String status) { this.status = status; }
+        public String getMessage() { return message; }
+        public void setMessage(String message) { this.message = message; }
+    }
 }

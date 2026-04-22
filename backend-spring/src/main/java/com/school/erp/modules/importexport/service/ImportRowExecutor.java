@@ -20,6 +20,9 @@ import com.school.erp.modules.teacher.service.TeacherService;
 import com.school.erp.modules.timetable.entity.TimetableEntry;
 import com.school.erp.modules.timetable.repository.TimetableRepository;
 import com.school.erp.modules.timetable.service.TimetableService;
+import com.school.erp.modules.fees.dto.FeeDTOs;
+import com.school.erp.modules.fees.service.FeeService;
+import com.school.erp.modules.academic.entity.SchoolClass;
 import com.school.erp.platform.port.NotificationDispatchPort;
 import com.school.erp.tenant.TenantContext;
 import org.springframework.stereotype.Service;
@@ -51,6 +54,7 @@ public class ImportRowExecutor {
     private final TenantConfigRepository tenantConfigRepository;
     private final BulkImportAcademicResolver academicResolver;
     private final ImportBulkRowValidator bulkRowValidator;
+    private final FeeService feeService;
 
     public ImportRowExecutor(ObjectMapper objectMapper,
                            StudentService studentService,
@@ -64,7 +68,8 @@ public class ImportRowExecutor {
                            NotificationDispatchPort notificationDispatchPort,
                            TenantConfigRepository tenantConfigRepository,
                            BulkImportAcademicResolver academicResolver,
-                           ImportBulkRowValidator bulkRowValidator) {
+                           ImportBulkRowValidator bulkRowValidator,
+                           FeeService feeService) {
         this.objectMapper = objectMapper;
         this.studentService = studentService;
         this.teacherService = teacherService;
@@ -78,6 +83,7 @@ public class ImportRowExecutor {
         this.tenantConfigRepository = tenantConfigRepository;
         this.academicResolver = academicResolver;
         this.bulkRowValidator = bulkRowValidator;
+        this.feeService = feeService;
     }
 
     public void execute(ImportJob job, ImportJobLine line) throws Exception {
@@ -94,7 +100,25 @@ public class ImportRowExecutor {
             case STAFF -> handleTeacher(job, line, row, true);
             case CLASSES -> handleClass(line, row);
             case TIMETABLE -> handleTimetable(line, row);
+            case FEE_STRUCTURES -> handleFeeStructure(line, row);
         }
+    }
+
+    private void handleFeeStructure(ImportJobLine line, Map<String, String> row) {
+        SchoolClass cls = academicResolver.resolveClassOnly(row);
+        Long academicYearId = academicResolver.resolveAcademicYearId(row.get("academicyearid"));
+        BulkImportRowPolicy policy = BulkImportRowPolicy.fromCsv(row.get("importmode"));
+        List<FeeDTOs.FeeComponentDTO> components = parseFeeComponents(required(row, "componentspec"));
+        FeeDTOs.CreateFeeStructureRequest req = FeeDTOs.CreateFeeStructureRequest.builder()
+                .name(required(row, "name"))
+                .classId(cls.getId())
+                .className(cls.getName())
+                .academicYearId(academicYearId)
+                .components(components)
+                .build();
+        FeeDTOs.FeeStructureResponse saved = feeService.importStructureRow(req, policy);
+        line.setEntityType("FEE_STRUCTURE");
+        line.setEntityId(saved.getId());
     }
 
     private void handleStudent(ImportJob job, ImportJobLine line, Map<String, String> row,
@@ -190,6 +214,7 @@ public class ImportRowExecutor {
         TeacherDTOs.Response created = teacherService.upsertTeacherForImport(request, createPortal, portalRole, libRole, policy);
         line.setEntityType("TEACHER");
         line.setEntityId(created.getId());
+        assignOptionalClassTeacherSlot(row, created.getId(), portalRole);
 
         if (createPortal && truthy(row.get("notifycredentials"))) {
             String tenantId = TenantContext.getTenantId();
@@ -204,6 +229,19 @@ public class ImportRowExecutor {
                         "import-job-" + job.getId() + "-line-" + line.getId(), "import-" + job.getId());
             }
         }
+    }
+
+    private void assignOptionalClassTeacherSlot(Map<String, String> row, Long teacherId, Enums.Role portalRole) {
+        BulkImportAcademicResolver.ResolvedPlacement placement = academicResolver
+                .resolveOptionalClassTeacherPlacement(row)
+                .orElse(null);
+        if (placement == null) {
+            return;
+        }
+        if (portalRole == Enums.Role.LIBRARY_STAFF) {
+            throw new BusinessException("classteacherfor cannot be used for library staff rows");
+        }
+        academicService.assignClassTeacher(placement.classId(), placement.sectionId(), teacherId, null);
     }
 
     private void handleClass(ImportJobLine line, Map<String, String> row) {
@@ -307,7 +345,11 @@ public class ImportRowExecutor {
         if (n == null) {
             return null;
         }
-        return Enums.LibraryStaffRole.valueOf(n.trim().toUpperCase(Locale.ROOT));
+        String normalized = n.trim().toUpperCase(Locale.ROOT);
+        if (normalized.equals("AUTO")) {
+            return null;
+        }
+        return Enums.LibraryStaffRole.valueOf(normalized);
     }
 
     private static boolean truthy(String v) {
@@ -399,5 +441,36 @@ public class ImportRowExecutor {
                 .map(String::trim)
                 .filter(part -> !part.isEmpty())
                 .collect(Collectors.toList());
+    }
+
+    private static List<FeeDTOs.FeeComponentDTO> parseFeeComponents(String componentSpec) {
+        List<FeeDTOs.FeeComponentDTO> out = new ArrayList<>();
+        for (String raw : componentSpec.split("\\|")) {
+            String token = raw == null ? "" : raw.trim();
+            if (token.isEmpty()) {
+                continue;
+            }
+            String[] parts = token.split(":");
+            if (parts.length < 2) {
+                throw new BusinessException("Invalid componentspec token '" + token + "'. Use name:amount[:type].");
+            }
+            String name = parts[0].trim();
+            BigDecimal amount;
+            try {
+                amount = new BigDecimal(parts[1].trim());
+            } catch (NumberFormatException ex) {
+                throw new BusinessException("Invalid amount in componentspec for component '" + name + "'.");
+            }
+            String type = parts.length >= 3 ? blankToNull(parts[2]) : null;
+            out.add(FeeDTOs.FeeComponentDTO.builder()
+                    .name(name)
+                    .amount(amount)
+                    .type(type)
+                    .build());
+        }
+        if (out.isEmpty()) {
+            throw new BusinessException("componentspec must include at least one component.");
+        }
+        return out;
     }
 }

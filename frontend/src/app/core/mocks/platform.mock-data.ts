@@ -97,7 +97,7 @@ export const MOCK_PLATFORM_DASHBOARD_BASE: Omit<PlatformDashboardData, 'topSchoo
   ],
   recentActivities: [
     { title: '3 new schools completed onboarding', description: 'Operations team provisioned campuses in Texas and Arizona.', tone: 'success', timestamp: '2 hours ago' },
-    { title: 'Billing reconciliation queued', description: 'Monthly subscription sync is prepared for all active tenants.', tone: 'info', timestamp: 'Today' },
+    { title: 'Billing reconciliation run scheduled', description: 'Monthly subscription sync is scheduled for all active tenants.', tone: 'info', timestamp: 'Today' },
     { title: 'Admin policy cleanup', description: 'Inactive school admins were flagged for review in two tenants.', tone: 'warning', timestamp: 'Today' },
   ],
 };

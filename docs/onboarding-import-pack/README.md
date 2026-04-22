@@ -10,6 +10,7 @@ This pack is for end-to-end school setup from the Super Admin flow plus Import/E
 - Students: import via `STUDENTS` CSV.
 - Teachers: import via `TEACHERS` CSV.
 - Timetable: import via `TIMETABLE` CSV.
+- Fee structures: import via `FEE_STRUCTURES` CSV.
 
 ## Required onboarding sequence (must follow)
 
@@ -21,7 +22,8 @@ This pack is for end-to-end school setup from the Super Admin flow plus Import/E
 6. Import `02_teachers.csv` with job type `TEACHERS`.
 7. Import `03_students.csv` with job type `STUDENTS`.
 8. Import `04_timetable.csv` with job type `TIMETABLE`.
-9. Verify records in Academic, Teachers, Students, Timetable screens.
+9. Import `05_fee_structures.csv` with job type `FEE_STRUCTURES`.
+10. Verify records in Academic, Teachers, Students, Timetable, Fees screens.
 
 Reason for this order:
 - Students require class/section resolution.
@@ -51,6 +53,16 @@ Reason for this order:
   - `CREATE_ONLY` = fail if duplicate exists.
 - Timetable import idempotency:
   - Re-importing the same slot (same class/section + day + period) updates that slot instead of creating duplicates.
+- Fee structure import format:
+  - `componentspec` is required.
+  - Token format: `ComponentName:Amount[:Type]` (pipe-separated list).
+  - Example: `Tuition:18000:TUITION|Lab:2000:LAB|Sports:1500:SPORTS`.
+  - Supported types: `TUITION`, `TRANSPORT`, `LIBRARY`, `LAB`, `SPORTS`, `MISC` (unknown type defaults to `MISC`).
+  - Identity key for idempotent upsert: `class + academicYear + structure name`.
+  - `importmode`:
+    - `UPSERT` = create if missing, update full component list if exists.
+    - `CREATE_ONLY` = fail when same structure already exists.
+    - `SKIP_IF_EXISTS` = keep existing structure unchanged.
 
 ## How to run in Import/Export wizard
 
@@ -79,6 +91,29 @@ For each file:
 - `02_teachers.csv`
 - `03_students.csv`
 - `04_timetable.csv`
+- `05_fee_structures.csv`
+
+### Current load-test dataset sizing
+
+- Classes: `8` (`Class 5` to `Class 12`)
+- Sections: `2` per class (`A|B`) => `16` sections total
+- Teachers: `20` total
+- Subject coverage: `10` subjects with `2` teachers per subject
+- Students: `400` (one parent profile mapping per student)
+- Timetable: `672` rows (`16` sections × `6` weekdays × `7` periods)
+
+Notes:
+- Teacher emails are now realistic school-domain IDs.
+- Student email is optional in import. Many rows intentionally keep it blank because most school students do not have personal email IDs.
+
+### Import throttling for CPU-safe runs
+
+The backend already supports a configurable pause between import orchestration pages:
+
+- Env var: `APP_IMPORT_YIELD_MS`
+- Example for your stress test: set `APP_IMPORT_YIELD_MS=10000` (10 seconds)
+
+This helps reduce CPU spikes during long imports on lower-memory / shared instances.
 
 ## Real-school rollout tips
 

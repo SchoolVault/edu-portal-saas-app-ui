@@ -46,6 +46,10 @@ public class ReportGenerationJob extends BaseEntity {
     private String contentType;
     @Column(name = "content_size_bytes")
     private Long contentSizeBytes;
+    @Column(name = "storage_provider", length = 40)
+    private String storageProvider;
+    @Column(name = "file_storage_path", length = 500)
+    private String fileStoragePath;
     @Lob
     @Column(name = "file_content", columnDefinition = "LONGBLOB")
     private byte[] fileContent;
@@ -202,6 +206,22 @@ public class ReportGenerationJob extends BaseEntity {
 
     public void setFileContent(byte[] fileContent) {
         this.fileContent = fileContent;
+    }
+
+    public String getStorageProvider() {
+        return storageProvider;
+    }
+
+    public void setStorageProvider(String storageProvider) {
+        this.storageProvider = storageProvider;
+    }
+
+    public String getFileStoragePath() {
+        return fileStoragePath;
+    }
+
+    public void setFileStoragePath(String fileStoragePath) {
+        this.fileStoragePath = fileStoragePath;
     }
 
     public String getLastError() {

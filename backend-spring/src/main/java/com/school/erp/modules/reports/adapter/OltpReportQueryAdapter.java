@@ -36,6 +36,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
@@ -731,22 +734,28 @@ public class OltpReportQueryAdapter implements ReportQueryPort {
         java.time.YearMonth ym = java.time.YearMonth.parse(month);
         LocalDate from = ym.atDay(1);
         LocalDate to = ym.atEndOfMonth();
-        List<Map<String, Object>> rows = studentRepo.findByTenantIdAndClassIdAndIsDeletedFalse(tenantId, classId).stream().map(student -> {
-            List<Object[]> stats = attendanceRepo.getStudentAttendanceStats(tenantId, student.getId(), from, to);
-            long present = 0;
-            long absent = 0;
-            long late = 0;
-            long excused = 0;
-            for (Object[] stat : stats) {
-                com.school.erp.common.enums.Enums.AttendanceStatus status = (com.school.erp.common.enums.Enums.AttendanceStatus) stat[0];
-                long count = (Long) stat[1];
-                switch (status) {
-                    case PRESENT -> present = count;
-                    case ABSENT -> absent = count;
-                    case LATE -> late = count;
-                    case EXCUSED -> excused = count;
+        List<com.school.erp.modules.student.entity.Student> students = studentRepo.findByTenantIdAndClassIdAndIsDeletedFalse(tenantId, classId);
+        Map<Long, long[]> statByStudent = new HashMap<>();
+        for (Object[] row : attendanceRepo.getAttendanceStatsByClassAndDateRange(tenantId, classId, from, to)) {
+            Long studentId = (Long) row[0];
+            Enums.AttendanceStatus status = (Enums.AttendanceStatus) row[1];
+            long count = (Long) row[2];
+            long[] counters = statByStudent.computeIfAbsent(studentId, key -> new long[4]);
+            switch (status) {
+                case PRESENT -> counters[0] = count;
+                case ABSENT -> counters[1] = count;
+                case LATE -> counters[2] = count;
+                case EXCUSED -> counters[3] = count;
+                default -> {
                 }
             }
+        }
+        List<Map<String, Object>> rows = students.stream().map(student -> {
+            long[] counters = statByStudent.getOrDefault(student.getId(), new long[4]);
+            long present = counters[0];
+            long absent = counters[1];
+            long late = counters[2];
+            long excused = counters[3];
             long total = present + absent + late + excused;
             double percentage = total > 0 ? ((present + (late * 0.5)) / total) * 100 : 0;
             return Map.<String, Object>of(
@@ -781,43 +790,9 @@ public class OltpReportQueryAdapter implements ReportQueryPort {
     public List<Map<String, Object>> getClassSummary() {
         String tenantId = TenantContext.getTenantId();
         log.debug("Building class summary tenantId={}", tenantId);
-        LocalDate today = LocalDate.now();
-        List<Map<String, Object>> list = classRepo.findByTenantIdAndIsDeletedFalseOrderByGrade(tenantId).stream().map(cls -> {
-            List<com.school.erp.modules.student.entity.Student> students = studentRepo.findByTenantIdAndClassIdAndIsDeletedFalse(tenantId, cls.getId());
-            List<com.school.erp.modules.fees.entity.FeePayment> payments = feePaymentRepo.findByTenantIdAndIsDeletedFalse(tenantId).stream()
-                    .filter(payment -> students.stream().anyMatch(student -> student.getId().equals(payment.getStudentId())))
-                    .collect(Collectors.toList());
-            List<com.school.erp.modules.exams.entity.MarkRecord> marks = markRepo.findAll().stream()
-                    .filter(mark -> tenantId.equals(mark.getTenantId()) && cls.getId().equals(mark.getClassId()))
-                    .collect(Collectors.toList());
-            List<com.school.erp.modules.academic.entity.Section> sections = sectionRepo.findByTenantIdAndClassIdAndIsDeletedFalse(tenantId, cls.getId());
-            List<Object[]> attendanceStats = attendanceRepo.getClassAttendanceStats(tenantId, cls.getId(), today);
-            long attendanceTotal = attendanceStats.stream().mapToLong(stat -> (Long) stat[1]).sum();
-            long attendancePresent = attendanceStats.stream()
-                    .filter(stat -> stat[0] == com.school.erp.common.enums.Enums.AttendanceStatus.PRESENT)
-                    .mapToLong(stat -> (Long) stat[1]).sum();
-            double attendancePercentage = attendanceTotal > 0 ? (attendancePresent * 100.0) / attendanceTotal : 0;
-            double performance = marks.stream()
-                    .mapToDouble(mark -> mark.getMaxMarks() != null && mark.getMaxMarks() > 0 ? (mark.getMarksObtained() / mark.getMaxMarks()) * 100 : 0)
-                    .average()
-                    .orElse(0);
-            double totalCollected = payments.stream().mapToDouble(payment -> payment.getPaidAmount() != null ? payment.getPaidAmount().doubleValue() : 0).sum();
-            double totalAmount = payments.stream().mapToDouble(payment -> payment.getAmount() != null ? payment.getAmount().doubleValue() : 0).sum();
-            long overdueAccounts = payments.stream()
-                    .filter(payment -> payment.getStatus() == Enums.FeeStatus.OVERDUE)
-                    .count();
-            return Map.<String, Object>of(
-                    "classId", cls.getId(),
-                    "className", cls.getName(),
-                    "grade", cls.getGrade(),
-                    "sections", sections.size(),
-                    "totalStudents", students.size(),
-                    "attendancePercentage", Math.round(attendancePercentage * 10) / 10.0,
-                    "performancePercentage", Math.round(performance * 10) / 10.0,
-                    "feeCollectionPercentage", totalAmount > 0 ? Math.round((totalCollected / totalAmount) * 1000) / 10.0 : 0.0,
-                    "overdueAccounts", overdueAccounts
-            );
-        }).collect(Collectors.toList());
+        List<com.school.erp.modules.academic.entity.SchoolClass> classes =
+                classRepo.findByTenantIdAndIsDeletedFalseOrderByGrade(tenantId);
+        List<Map<String, Object>> list = buildClassSummaryRows(tenantId, classes);
         log.info("Class summary rows={} tenantId={}", list.size(), tenantId);
         return list;
     }
@@ -853,6 +828,42 @@ public class OltpReportQueryAdapter implements ReportQueryPort {
         }
         log.info("Section summary rows={} tenantId={}", rows.size(), tenantId);
         return rows;
+    }
+
+    @Transactional(readOnly = true)
+    public Page<Map<String, Object>> getSectionSummaryPaged(int page, int size) {
+        String tenantId = TenantContext.getTenantId();
+        int safePage = Math.max(0, page);
+        int safeSize = Math.max(1, Math.min(size, 100));
+        PageRequest pageable = PageRequest.of(safePage, safeSize);
+        Page<com.school.erp.modules.academic.entity.Section> sectionPage =
+                sectionRepo.findByTenantIdAndIsDeletedFalseOrderByClassIdAscNameAsc(tenantId, pageable);
+        if (sectionPage.isEmpty()) {
+            return Page.empty(pageable);
+        }
+        Set<Long> classIds = sectionPage.getContent().stream()
+                .map(com.school.erp.modules.academic.entity.Section::getClassId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        Map<Long, String> classNamesById = classRepo.findByTenantIdAndIsDeletedFalseOrderByGrade(tenantId).stream()
+                .filter(c -> classIds.contains(c.getId()))
+                .collect(Collectors.toMap(
+                        com.school.erp.modules.academic.entity.SchoolClass::getId,
+                        com.school.erp.modules.academic.entity.SchoolClass::getName,
+                        (left, right) -> left));
+        List<Map<String, Object>> rows = sectionPage.getContent().stream()
+                .map(sec -> {
+                    int count = studentRepo.findByTenantIdAndClassIdAndSectionIdAndIsDeletedFalse(tenantId, sec.getClassId(), sec.getId()).size();
+                    return Map.<String, Object>of(
+                            "sectionId", sec.getId(),
+                            "sectionName", sec.getName(),
+                            "classId", sec.getClassId(),
+                            "className", classNamesById.getOrDefault(sec.getClassId(), "Class"),
+                            "studentCount", count,
+                            "classTeacherName", resolveSectionTeacherName(tenantId, sec.getClassId(), null, null, sec, LocalDate.now()));
+                })
+                .collect(Collectors.toList());
+        return new PageImpl<>(rows, pageable, sectionPage.getTotalElements());
     }
 
     private String resolveSectionTeacherName(
@@ -899,7 +910,39 @@ public class OltpReportQueryAdapter implements ReportQueryPort {
         String tenantId = TenantContext.getTenantId();
         log.debug("Building teacher workload tenantId={}", tenantId);
         var teachers = teacherRepo.findByTenantIdAndIsDeletedFalse(tenantId);
+        List<Map<String, Object>> result = buildTeacherWorkloadRows(tenantId, teachers);
+        log.info("Teacher workload rows={} tenantId={}", result.size(), tenantId);
+        return result;
+    }
+
+    @Transactional(readOnly = true)
+    public Page<Map<String, Object>> getTeacherWorkloadPaged(int page, int size) {
+        String tenantId = TenantContext.getTenantId();
+        int safePage = Math.max(0, page);
+        int safeSize = Math.max(1, Math.min(size, 100));
+        PageRequest pageable = PageRequest.of(safePage, safeSize);
+        Page<com.school.erp.modules.teacher.entity.Teacher> teachers = teacherRepo.findByTenantIdAndIsDeletedFalse(tenantId, pageable);
+        if (teachers.isEmpty()) {
+            return Page.empty(pageable);
+        }
+        List<Map<String, Object>> rows = buildTeacherWorkloadRows(tenantId, teachers.getContent());
+        return new PageImpl<>(rows, pageable, teachers.getTotalElements());
+    }
+
+    private List<Map<String, Object>> buildTeacherWorkloadRows(
+            String tenantId,
+            List<com.school.erp.modules.teacher.entity.Teacher> teachers) {
+        if (teachers.isEmpty()) {
+            return List.of();
+        }
         LocalDate today = LocalDate.now();
+        List<Long> teacherIds = teachers.stream().map(com.school.erp.modules.teacher.entity.Teacher::getId).filter(Objects::nonNull).toList();
+        Map<Long, List<TimetableEntry>> timetableByTeacher = timetableRepo.findByTenantIdAndTeacherIdInAndIsDeletedFalse(tenantId, teacherIds).stream()
+                .collect(Collectors.groupingBy(TimetableEntry::getTeacherId));
+        Map<Long, List<ClassTeacherAssignment>> homeroomByTeacher = classTeacherAssignmentRepo
+                .findActiveForTeacherIds(tenantId, teacherIds, today)
+                .stream()
+                .collect(Collectors.groupingBy(ClassTeacherAssignment::getTeacherId));
         Map<Long, String> classNamesById = classRepo.findByTenantIdAndIsDeletedFalseOrderByGrade(tenantId).stream()
                 .collect(Collectors.toMap(
                         com.school.erp.modules.academic.entity.SchoolClass::getId,
@@ -910,9 +953,8 @@ public class OltpReportQueryAdapter implements ReportQueryPort {
         classNamesById.keySet().forEach(classId ->
                 sectionRepo.findByTenantIdAndClassIdAndIsDeletedFalse(tenantId, classId).forEach(section ->
                         sectionNamesById.putIfAbsent(section.getId(), section.getName())));
-        List<Map<String, Object>> result = new ArrayList<>();
-        for (var t : teachers) {
-            List<TimetableEntry> timetableRows = timetableRepo.findByTenantIdAndTeacherIdAndIsDeletedFalse(tenantId, t.getId());
+        return teachers.stream().map(t -> {
+            List<TimetableEntry> timetableRows = timetableByTeacher.getOrDefault(t.getId(), List.of());
             Set<Long> classIdsFromTimetable = timetableRows.stream()
                     .map(TimetableEntry::getClassId)
                     .filter(Objects::nonNull)
@@ -921,13 +963,13 @@ public class OltpReportQueryAdapter implements ReportQueryPort {
                     .map(row -> String.format("%s-%s-%s", row.getDay(), row.getPeriod(), row.getSectionId()))
                     .distinct()
                     .count();
-            String homeroomClasses = classTeacherAssignmentRepo.findActiveForTeacher(tenantId, t.getId(), today).stream()
+            String homeroomClasses = homeroomByTeacher.getOrDefault(t.getId(), List.of()).stream()
                     .map(a -> formatHomeroomLabel(a.getClassId(), a.getSectionId(), classNamesById, sectionNamesById))
                     .filter(label -> !label.isBlank())
                     .distinct()
                     .sorted()
                     .collect(Collectors.joining(", "));
-            result.add(Map.of(
+            return Map.of(
                     "teacherId", t.getId(),
                     "teacherName", t.getFirstName() + " " + t.getLastName(),
                     "specialization", t.getSpecialization() != null ? t.getSpecialization() : "",
@@ -935,10 +977,149 @@ public class OltpReportQueryAdapter implements ReportQueryPort {
                     "status", t.getStatus() != null ? t.getStatus().name() : "ACTIVE",
                     "homeroomClasses", homeroomClasses.isBlank() ? "-" : homeroomClasses,
                     "assignedClasses", classIdsFromTimetable.size(),
-                    "weeklyPeriods", weeklyPeriods));
+                    "weeklyPeriods", weeklyPeriods);
+        }).collect(Collectors.toList());
+    }
+
+    @Transactional(readOnly = true)
+    public Page<Map<String, Object>> getClassSummaryPaged(int page, int size) {
+        String tenantId = TenantContext.getTenantId();
+        int safePage = Math.max(0, page);
+        int safeSize = Math.max(1, Math.min(size, 100));
+        PageRequest pageable = PageRequest.of(safePage, safeSize);
+        Page<com.school.erp.modules.academic.entity.SchoolClass> classPage =
+                classRepo.findByTenantIdAndIsDeletedFalseOrderByGrade(tenantId, pageable);
+        if (classPage.isEmpty()) {
+            return Page.empty(pageable);
         }
-        log.info("Teacher workload rows={} tenantId={}", result.size(), tenantId);
-        return result;
+        List<Map<String, Object>> rows = buildClassSummaryRows(tenantId, classPage.getContent());
+        return new PageImpl<>(rows, pageable, classPage.getTotalElements());
+    }
+
+    private List<Map<String, Object>> buildClassSummaryRows(
+            String tenantId,
+            List<com.school.erp.modules.academic.entity.SchoolClass> classes) {
+        if (classes.isEmpty()) {
+            return List.of();
+        }
+        LocalDate today = LocalDate.now();
+        List<Long> classIds = classes.stream()
+                .map(com.school.erp.modules.academic.entity.SchoolClass::getId)
+                .filter(Objects::nonNull)
+                .toList();
+        Map<Long, Long> studentCountByClassId = mapLongAggregate(studentRepo.countStudentsByClassIds(tenantId, classIds));
+        Map<Long, Long> sectionCountByClassId = mapLongAggregate(sectionRepo.countSectionsByClassIds(tenantId, classIds));
+        Map<Long, Double> performanceByClassId = mapDoubleAggregate(markRepo.getAveragePerformanceByClassIds(tenantId, classIds));
+        Map<Long, double[]> attendanceByClassId = mapAttendanceAggregates(
+                attendanceRepo.getClassAttendanceStatsByClassIds(tenantId, classIds, today));
+        Map<Long, double[]> feeByClassId =
+                mapFeeAggregates(feePaymentRepo.getClassFeeSummaryByClassIds(
+                        tenantId,
+                        classIds,
+                        com.school.erp.common.enums.Enums.FeeStatus.OVERDUE));
+
+        return classes.stream()
+                .map(schoolClass -> toClassSummaryRow(
+                        schoolClass,
+                        studentCountByClassId,
+                        sectionCountByClassId,
+                        performanceByClassId,
+                        attendanceByClassId,
+                        feeByClassId))
+                .toList();
+    }
+
+    private Map<String, Object> toClassSummaryRow(
+            com.school.erp.modules.academic.entity.SchoolClass schoolClass,
+            Map<Long, Long> studentCountByClassId,
+            Map<Long, Long> sectionCountByClassId,
+            Map<Long, Double> performanceByClassId,
+            Map<Long, double[]> attendanceByClassId,
+            Map<Long, double[]> feeByClassId) {
+        Long classId = schoolClass.getId();
+        long studentCount = studentCountByClassId.getOrDefault(classId, 0L);
+        long sectionCount = sectionCountByClassId.getOrDefault(classId, 0L);
+        double[] attendanceStats = attendanceByClassId.getOrDefault(classId, new double[]{0.0, 0.0});
+        double[] feeStats = feeByClassId.getOrDefault(classId, new double[]{0.0, 0.0, 0.0});
+        double attendancePercentage = attendanceStats[1] > 0
+                ? (attendanceStats[0] * 100.0) / attendanceStats[1]
+                : 0.0;
+        double performance = performanceByClassId.getOrDefault(classId, 0.0);
+        double collectionPercentage = feeStats[1] > 0
+                ? Math.round((feeStats[0] / feeStats[1]) * 1000.0) / 10.0
+                : 0.0;
+        return Map.of(
+                "classId", classId,
+                "className", schoolClass.getName(),
+                "grade", schoolClass.getGrade(),
+                "sections", sectionCount,
+                "totalStudents", studentCount,
+                "attendancePercentage", Math.round(attendancePercentage * 10.0) / 10.0,
+                "performancePercentage", Math.round(performance * 10.0) / 10.0,
+                "feeCollectionPercentage", collectionPercentage,
+                "overdueAccounts", (long) feeStats[2]);
+    }
+
+    private Map<Long, Long> mapLongAggregate(List<Object[]> rows) {
+        Map<Long, Long> aggregates = new HashMap<>();
+        for (Object[] row : rows) {
+            Long classId = (Long) row[0];
+            Number count = (Number) row[1];
+            if (classId != null) {
+                aggregates.put(classId, count != null ? count.longValue() : 0L);
+            }
+        }
+        return aggregates;
+    }
+
+    private Map<Long, Double> mapDoubleAggregate(List<Object[]> rows) {
+        Map<Long, Double> aggregates = new HashMap<>();
+        for (Object[] row : rows) {
+            Long classId = (Long) row[0];
+            Number value = (Number) row[1];
+            if (classId != null) {
+                aggregates.put(classId, value != null ? value.doubleValue() : 0.0);
+            }
+        }
+        return aggregates;
+    }
+
+    private Map<Long, double[]> mapAttendanceAggregates(List<Object[]> rows) {
+        Map<Long, double[]> aggregates = new HashMap<>();
+        for (Object[] row : rows) {
+            Long classId = (Long) row[0];
+            Enums.AttendanceStatus status = (Enums.AttendanceStatus) row[1];
+            Number count = (Number) row[2];
+            if (classId == null) {
+                continue;
+            }
+            double[] values = aggregates.computeIfAbsent(classId, key -> new double[]{0.0, 0.0});
+            double currentCount = count != null ? count.doubleValue() : 0.0;
+            values[1] += currentCount;
+            if (status == Enums.AttendanceStatus.PRESENT) {
+                values[0] += currentCount;
+            }
+        }
+        return aggregates;
+    }
+
+    private Map<Long, double[]> mapFeeAggregates(List<Object[]> rows) {
+        Map<Long, double[]> aggregates = new HashMap<>();
+        for (Object[] row : rows) {
+            Long classId = (Long) row[0];
+            if (classId == null) {
+                continue;
+            }
+            Number totalCollected = (Number) row[1];
+            Number totalAmount = (Number) row[2];
+            Number overdue = (Number) row[3];
+            aggregates.put(classId, new double[]{
+                    totalCollected != null ? totalCollected.doubleValue() : 0.0,
+                    totalAmount != null ? totalAmount.doubleValue() : 0.0,
+                    overdue != null ? overdue.doubleValue() : 0.0
+            });
+        }
+        return aggregates;
     }
 
     private String formatHomeroomLabel(

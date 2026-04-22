@@ -251,21 +251,6 @@ type PhoneFlowStep = 'idle' | 'otp_sent';
         overflow: hidden;
         border: 1px solid var(--clr-border-light);
       }
-      .login-mode-btn {
-        flex: 1;
-        padding: 10px 12px;
-        font-weight: 600;
-        font-size: 13px;
-        border: none;
-        background: var(--clr-surface-muted, #f4f6f8);
-        color: var(--clr-text-muted);
-        cursor: pointer;
-        transition: background 0.15s ease, color 0.15s ease;
-      }
-      .login-mode-btn--active {
-        background: var(--clr-primary, #1b3a30);
-        color: #fff;
-      }
       .login-lang-row {
         margin-top: 0.25rem;
         margin-bottom: 1rem;

@@ -2,6 +2,7 @@ package com.school.erp.modules.operations.service;
 
 import com.school.erp.common.dto.PageResponse;
 import com.school.erp.common.exception.BusinessException;
+import com.school.erp.common.exception.BusinessException;
 import com.school.erp.common.exception.ResourceNotFoundException;
 import com.school.erp.modules.operations.dto.OperationsDTOs;
 import com.school.erp.modules.operations.entity.*;
@@ -15,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeParseException;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -269,12 +271,20 @@ public class OperationsService {
         if (req.getStudentId() == null) {
             throw new BusinessException("studentId is required");
         }
+        LocalDate parsedDueDate = null;
+        if (req.getDueDate() != null && !req.getDueDate().trim().isEmpty()) {
+            try {
+                parsedDueDate = LocalDate.parse(req.getDueDate().trim());
+            } catch (DateTimeParseException ex) {
+                throw new BusinessException("Invalid due date format. Please refresh and try again.");
+            }
+        }
         FeeReminderQueue q = new FeeReminderQueue();
         q.setTenantId(TenantContext.getTenantId());
         q.setStudentId(req.getStudentId());
         q.setFeePaymentId(req.getFeePaymentId());
-        q.setDueDate(req.getDueDate() != null ? LocalDate.parse(req.getDueDate()) : null);
-        q.setChannel(req.getChannel() != null ? req.getChannel().toUpperCase() : "EMAIL");
+        q.setDueDate(parsedDueDate);
+        q.setChannel(req.getChannel() != null && !req.getChannel().trim().isEmpty() ? req.getChannel().trim().toUpperCase() : "EMAIL");
         q.setStatus("PENDING");
         q.setScheduledAt(LocalDateTime.now().plusHours(1));
         q.setCreatedBy(TenantContext.getUserId() != null ? TenantContext.getUserId().toString() : null);

@@ -361,9 +361,11 @@ public class TeacherService {
     @Transactional(readOnly = true)
     public String exportTeachersAsCsv() {
         String tenantId = TenantContext.getTenantId();
+        Map<Long, List<String>> homeroomByTeacherId = homeroomClassNamesByTeacherId(tenantId);
         StringBuilder sb = new StringBuilder();
-        sb.append("firstname,lastname,email,phone,qualification,specialization,joindate,salary,subjects,createportal,portalrole,libraryrole,importmode,bankaccountholder,bankname,bankaccountnumber,bankifsc,notifycredentials\n");
+        sb.append("firstname,lastname,email,phone,qualification,specialization,joindate,salary,subjects,createportal,portalrole,libraryrole,importmode,bankaccountholder,bankname,bankaccountnumber,bankifsc,notifycredentials,classteacherfor,classteacherclassid,classteachersectionid,classteacherclassname,classteachersectionname,classteacheracademicyearid\n");
         for (Teacher t : repo.findByTenantIdAndIsDeletedFalse(tenantId)) {
+            String classTeacherFor = homeroomByTeacherId.getOrDefault(t.getId(), List.of()).stream().findFirst().orElse("");
             sb.append(csv(t.getFirstName())).append(',');
             sb.append(csv(t.getLastName())).append(',');
             sb.append(csv(t.getEmail())).append(',');
@@ -386,7 +388,9 @@ public class TeacherService {
             sb.append(csv(t.getBankName())).append(',');
             sb.append(csv(t.getBankAccountNumber())).append(',');
             sb.append(csv(t.getBankIfsc())).append(',');
-            sb.append("N").append('\n');
+            sb.append("N").append(',');
+            sb.append(csv(classTeacherFor)).append(',');
+            sb.append(',').append(',').append(',').append(',').append('\n');
         }
         return sb.toString();
     }

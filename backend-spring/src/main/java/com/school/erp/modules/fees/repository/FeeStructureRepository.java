@@ -8,4 +8,13 @@ public interface FeeStructureRepository extends JpaRepository<FeeStructure, Long
     List<FeeStructure> findByTenantIdAndIsDeletedFalse(String tenantId);
 
     Optional<FeeStructure> findByIdAndTenantIdAndIsDeletedFalse(Long id, String tenantId);
+
+    boolean existsByTenantIdAndIsDeletedFalseAndClassIdAndAcademicYearIdAndNameIgnoreCase(
+            String tenantId, Long classId, Long academicYearId, String name);
+
+    boolean existsByTenantIdAndIsDeletedFalseAndClassIdAndAcademicYearIdAndNameIgnoreCaseAndIdNot(
+            String tenantId, Long classId, Long academicYearId, String name, Long id);
+
+    Optional<FeeStructure> findFirstByTenantIdAndIsDeletedFalseAndClassIdAndAcademicYearIdAndNameIgnoreCase(
+            String tenantId, Long classId, Long academicYearId, String name);
 }

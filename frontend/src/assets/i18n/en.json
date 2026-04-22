@@ -71,7 +71,35 @@
       "warning3": "All users for this school remain unable to sign in until the row is removed.",
       "startWorkflow": "Start deletion workflow...",
       "recentJobs": "Recent purge jobs",
+      "jobDetails": "Purge job details",
+      "historyTitle": "Purge history across all schools",
+      "historyLead": "Track asynchronous purge jobs anytime. Filter by school or status and export legal-compliance CSV records.",
+      "searchLabel": "Search school/code/tenant",
+      "searchPh": "Type school name, code, or tenant id",
+      "statusAll": "All statuses",
+      "statusQueued": "Queued",
+      "statusRunning": "Running",
+      "statusCompleted": "Completed",
+      "statusFailed": "Failed",
+      "colStatus": "Status",
+      "colSchool": "School",
+      "colCode": "School code",
+      "colTenant": "Tenant",
+      "colCreated": "Queued at",
+      "colCompleted": "Completed at",
+      "colRows": "Rows deleted",
+      "colAction": "Actions",
+      "historyEmpty": "No purge jobs match the current filter.",
       "rowsAffected": "~{{rows}} rows affected",
+      "duration": "Execution time",
+      "startedAt": "Started at",
+      "completedAt": "Completed at",
+      "initiatedBy": "Initiated by",
+      "role": "Role",
+      "affectedUsers": "Affected users",
+      "downloadCsv": "Download compliance CSV",
+      "exportReady": "Compliance CSV downloaded.",
+      "exportFailed": "Unable to download compliance CSV.",
       "jobQueued": "Purge job queued. Status updates appear below; allow a few seconds then refresh.",
       "requestFailed": "Purge request failed."
     },
@@ -218,6 +246,7 @@
     "lastCleared": "Last cleared",
     "scope": "Scope",
     "regionsClearedLabel": "Regions cleared",
+    "failedRegionsLabel": "Regions failed",
     "keysEvictedLabel": "Keys removed (approx.)",
     "clearedBy": "Cleared by",
     "allSchools": "All schools",
@@ -340,24 +369,78 @@
       "saveErr": "Could not save feature flags.",
       "loadErr": "Could not load feature flags.",
       "modules": {
-        "chat": { "name": "Chat", "description": "Real-time messaging" },
-        "transport": { "name": "Transport", "description": "Fleet & route tracking" },
-        "hostel": { "name": "Hostel", "description": "Residential operations" },
-        "library": { "name": "Library", "description": "Catalog & circulation" },
-        "audit": { "name": "Audit", "description": "Compliance audit trail" },
-        "operationsHub": { "name": "Operations hub", "description": "Staff, visitors, gate passes, inventory, fee reminders, payroll accrual (stub)" },
-        "importExport": { "name": "Import / export", "description": "Bulk data jobs and CSV exports" },
-        "exams": { "name": "Exams", "description": "Exam planning, marks workflow, publication, and report cards" },
-        "directory": { "name": "Directory", "description": "Unified staff & student search for administrators" },
-        "fees": { "name": "Fees", "description": "Fee structures, invoices, collections, and reminders for the campus" },
-        "payroll": { "name": "Payroll", "description": "Salary structures, pay runs, and payslips for staff" },
-        "documents": { "name": "Documents", "description": "School document vault and controlled sharing with staff" },
-        "communication": { "name": "Communication", "description": "Announcements, inbox, and school-wide messaging channels" },
-        "reports": { "name": "Reports", "description": "Operational and academic analytics dashboards for administrators" },
-        "student": { "name": "Student module", "description": "Student roster, profiles, and guardian-linked records in the portal" },
-        "teacher": { "name": "Teacher module", "description": "Faculty roster, assignments, and class-linked teaching context" },
-        "attendance": { "name": "Attendance", "description": "Daily attendance capture, summaries, and compliance views" },
-        "leave": { "name": "Leave", "description": "Leave requests, approvals, and policy management for school staff" }
+        "chat": {
+          "name": "Chat",
+          "description": "Real-time messaging"
+        },
+        "transport": {
+          "name": "Transport",
+          "description": "Fleet & route tracking"
+        },
+        "hostel": {
+          "name": "Hostel",
+          "description": "Residential operations"
+        },
+        "library": {
+          "name": "Library",
+          "description": "Catalog & circulation"
+        },
+        "audit": {
+          "name": "Audit",
+          "description": "Compliance audit trail"
+        },
+        "operationsHub": {
+          "name": "Operations hub",
+          "description": "Staff, visitors, gate passes, inventory, fee reminders, and payroll accrual controls"
+        },
+        "importExport": {
+          "name": "Import / export",
+          "description": "Bulk data jobs and CSV exports"
+        },
+        "exams": {
+          "name": "Exams",
+          "description": "Exam planning, marks workflow, publication, and report cards"
+        },
+        "directory": {
+          "name": "Directory",
+          "description": "Unified staff & student search for administrators"
+        },
+        "fees": {
+          "name": "Fees",
+          "description": "Fee structures, student billing, collections, and reminders for the campus"
+        },
+        "payroll": {
+          "name": "Payroll",
+          "description": "Salary setup, monthly payouts, and payslips for staff"
+        },
+        "documents": {
+          "name": "Documents",
+          "description": "School document vault and controlled sharing with staff"
+        },
+        "communication": {
+          "name": "Communication",
+          "description": "Announcements, inbox, and school-wide messaging channels"
+        },
+        "reports": {
+          "name": "Reports",
+          "description": "Operational and academic analytics dashboards for administrators"
+        },
+        "student": {
+          "name": "Student module",
+          "description": "Student roster, profiles, and guardian-linked records in the portal"
+        },
+        "teacher": {
+          "name": "Teacher module",
+          "description": "Faculty roster, assignments, and class-linked teaching context"
+        },
+        "attendance": {
+          "name": "Attendance",
+          "description": "Daily attendance capture, summaries, and compliance views"
+        },
+        "leave": {
+          "name": "Leave",
+          "description": "Leave requests, approvals, and policy management for school staff"
+        }
       }
     },
     "activity": {
@@ -752,7 +835,8 @@
         "studentsAssigned": "Students in my class",
         "studentsAssignedHomeroomHint": "Headcount for your homeroom section",
         "studentsAssignedFallbackHint": "Across classes linked to your timetable",
-        "upcomingExams": "Upcoming exams",
+        "todaySchedule": "Today's periods",
+        "todayScheduleSub": "Based on your timetable entries for today",
         "unreadAlerts": "Unread alerts",
         "pendingAttendance": "Pending attendance",
         "homeAttendanceTitlePending": "Homeroom attendance (today)",
@@ -947,7 +1031,8 @@
       "noSections": "No sections — enroll students at class level only.",
       "totalStudents": "Total students:",
       "editTitle": "Edit",
-      "removeTitle": "Remove"
+      "removeTitle": "Remove",
+      "removeClass": "Delete class"
     },
     "promotion": {
       "title": "Bulk student promotion",
@@ -1011,11 +1096,13 @@
       "sectionNamePh": "e.g. A",
       "capacity": "Capacity",
       "editSectionTitle": "Edit section",
+      "ok": "OK",
       "cancel": "Cancel",
       "create": "Create",
       "add": "Add",
       "save": "Save",
-      "saving": "Saving…"
+      "saving": "Saving…",
+      "removeClass": "Delete class"
     },
     "confirm": {
       "removeSection": {
@@ -1023,7 +1110,17 @@
         "message": "Section \"{{section}}\" will be removed from class \"{{class}}\". This cannot be undone from the UI.",
         "detailClass": "Class: {{name}} (grade {{grade}})",
         "detailRule": "Sections with enrolled students cannot be removed.",
+        "studentsPresent": "Section \"{{section}}\" still has {{count}} active students. Move or inactivate students first.",
         "confirm": "Yes, remove section"
+      },
+      "removeClass": {
+        "title": "Delete class?",
+        "message": "Class \"{{class}}\" will be marked inactive and removed from active academic views.",
+        "sectionsExist": "Class \"{{class}}\" still has {{count}} active section(s). Remove or inactivate sections first.",
+        "studentsExist": "Class \"{{class}}\" still has {{count}} active students. Move or inactivate students first.",
+        "detailUnassign": "Any class-teacher assignment for this class will be unassigned.",
+        "detailIrreversible": "This action is sensitive and should be done only after checking section and student dependencies.",
+        "confirm": "Yes, delete class"
       },
       "classTeacher": {
         "unknownTeacher": "Unknown teacher",
@@ -1041,6 +1138,10 @@
         "confirm": "Yes, apply",
         "cancel": "Cancel"
       }
+    },
+    "errors": {
+      "sectionDeleteFailed": "Unable to remove section. Check dependencies and try again.",
+      "classDeleteFailed": "Unable to delete class. Ensure no active sections or students remain."
     }
   },
   "directory": {
@@ -1284,7 +1385,7 @@
   "teachers": {
     "list": {
       "title": "Teachers",
-      "leadAdmin": "Manage teaching staff. Bulk ZIP/CSV import is under Operations → Import / export.",
+      "leadAdmin": "Manage teaching staff. Bulk ZIP/CSV onboarding is under Operations → School onboarding.",
       "leadTeacher": "Browse colleagues — homeroom classes, subjects, and professional context. Sensitive HR fields are visible to administrators only.",
       "refresh": "Refresh",
       "add": "Add teacher",
@@ -1794,13 +1895,17 @@
     "saveFailed": "Save failed"
   },
   "fees": {
-    "pageTitle": "Fee management",
-    "lead": "Structures define per-class components (tuition, transport, hostel, uniform, …). Parents see the same breakdown when paying.",
+    "pageTitle": "Fees management",
+    "lead": "Configure class-wise fee structures, assign them to students, and monitor collections from a single workspace.",
     "refresh": "Refresh",
     "refreshing": "Refreshing…",
-    "newStructure": "New fee structure",
+    "newStructure": "Create fee structure",
     "tabStructures": "Fee structures",
     "tabPayments": "Payments",
+    "adminFlowTitle": "3-step fees workflow",
+    "adminFlowStep1": "Step 1: Create fee structure",
+    "adminFlowStep2": "Step 2: Assign plan to students",
+    "adminFlowStep3": "Step 3: Track collections and dues",
     "edit": "Edit",
     "bulkAssign": "Add for students",
     "bulkAssignTitle": "Create fee records for many students at once (e.g. new term or admission batch)",
@@ -1824,7 +1929,7 @@
     "yearPrefix": "Year",
     "modalEditTitle": "Edit fee structure",
     "modalNewTitle": "New fee structure",
-    "labelStructureName": "Structure name",
+    "labelStructureName": "Fee structure name",
     "structureNamePh": "e.g. Annual fee — Class 8",
     "labelClass": "Class",
     "selectClass": "Select class",
@@ -1840,7 +1945,7 @@
     "saving": "Saving…",
     "bulkModalTitle": "Add this fee for many students",
     "closeAria": "Close",
-    "bulkPlanLabel": "Fee plan you are adding",
+    "bulkPlanLabel": "Fee structure being assigned",
     "bulkPerStudent": "· total ₹{{amount}} per student",
     "bulkWhatTitle": "What happens when you click “Add fees for students”?",
     "bulkStep1": "The system finds active students in the class (or section) you choose below.",
@@ -1870,12 +1975,54 @@
     "errClass": "Select a class.",
     "errYear": "Select an academic year.",
     "errComponents": "Add at least one component with a name and amount.",
+    "errComponentNegative": "Component amount cannot be negative.",
+    "errTotalZero": "Total fee amount must be greater than zero.",
+    "errDuplicateComponent": "Component names must be unique within a structure.",
+    "kpiCollected": "Collected in this view",
+    "kpiPending": "Pending in this view",
+    "kpiOverdueCount": "Overdue records in this view",
+    "kpiCollectionRate": "Collection rate in this view",
+    "summaryStudents": "Students in payment records: {{n}}",
+    "thActions": "Actions",
+    "sortBy": "Sort by",
+    "sortDueDateAsc": "Due date (oldest first)",
+    "sortDueDateDesc": "Due date (newest first)",
+    "sortDueAmountDesc": "Due amount (high to low)",
+    "sortStudentAsc": "Student name (A-Z)",
+    "exportPayments": "Export CSV",
+    "chipAll": "All",
+    "chipDueToday": "Due today",
+    "chipOverdue": "Overdue",
+    "chipPartial": "Partial",
+    "viewLedger": "View payment details",
+    "collectNow": "Collect now",
+    "sendReminder": "Send reminder",
+    "reminderSent": "Reminder sent for {{name}}.",
+    "reminderFailed": "Could not send reminder.",
+    "ledgerTitle": "Student payment details — {{name}}",
+    "loadingLedger": "Loading payment details...",
+    "emptyLedger": "No payment records found for this student.",
+    "collectTitle": "Record fee collection",
+    "collectDueNow": "Current due",
+    "collectAmountLabel": "Amount received now",
+    "collectMethodLabel": "Payment method",
+    "methodCash": "Cash",
+    "methodUpi": "UPI",
+    "methodOnline": "Online",
+    "methodCheque": "Cheque",
+    "collectAmountInvalid": "Enter a valid amount greater than zero.",
+    "collectAmountTooHigh": "Amount cannot be more than current due.",
+    "collectFailed": "Could not record payment.",
+    "collectSaving": "Saving payment...",
+    "collectConfirm": "Save payment",
+    "exportLedger": "Export payment history CSV",
+    "close": "Close",
     "saveFailed": "Save failed.",
     "skipInactive": "inactive student — fee not added",
     "skipDuplicate": "already has this fee with the same due date",
     "bulkError": "Could not add fees. Please try again or contact support.",
     "confirmDeleteTitle": "Delete fee structure?",
-    "confirmDeleteMessage": "Structure “{{name}}” will be removed from configuration. Existing fee payment rows in the ledger are not deleted.",
+    "confirmDeleteMessage": "Structure “{{name}}” will be removed from configuration. Existing fee payment records are not deleted.",
     "confirmDeleteDetailClass": "Class: {{className}}",
     "confirmDeleteDetailYear": "Academic year id: {{id}}",
     "confirmDeleteOk": "Yes, delete structure",
@@ -2126,35 +2273,54 @@
     "applicantMetaName": "{{name}} ({{role}})"
   },
   "payroll": {
-    "pageTitle": "Payroll",
-    "leadAdmin": "Salary structures, bank disbursement, payslips & PDFs",
+    "pageTitle": "Payroll operations",
+    "leadAdmin": "Manage salary structures, payroll processing, payslips, and payout status from one screen.",
     "leadTeacher": "Your payslips and PDF downloads",
     "leadDenied": "Payroll is available to administrators and teachers.",
     "labelMonth": "Month",
     "labelYear": "Year",
     "generate": "Generate payslips",
     "generating": "Generating…",
-    "genDisburseError": "Could not initiate disbursement.",
+    "adminFlowTitle": "3-step salary workflow",
+    "adminFlowStep1": "Step 1: Verify salary + bank details",
+    "adminFlowStep2": "Step 2: Generate payslips for period",
+    "adminFlowStep3": "Step 3: Initiate transfer, then mark paid",
+    "runStep1Title": "Step 1 readiness",
+    "runStep1Value": "bank profiles ready",
+    "runStep2Title": "Step 2 generated",
+    "runStep2Value": "payslips ready for payout",
+    "runStep3Title": "Step 3 settled",
+    "runStep3Value": "payslips marked paid",
+    "genDisburseError": "Could not start salary payout.",
     "genPayslipError": "Could not generate payslips.",
+    "errMonthRequired": "Select payroll month.",
+    "errYearRange": "Enter a valid payroll year.",
+    "errPeriodInvalid": "Select a valid payroll period (month and year).",
     "refresh": "Refresh",
+    "searchTeachers": "Find teacher",
+    "searchTeachersPh": "Search by teacher, bank, or IFSC...",
+    "readinessFilter": "Readiness",
+    "filterAll": "All",
+    "filterReady": "Ready",
+    "filterIncomplete": "Incomplete",
     "genErrorPrefix": "",
-    "disburseSuccess": "Transfer queued: {{rail}}{{referenceId}} · ₹{{amount}} for {{name}}.",
+    "disburseSuccess": "Disbursement initiated: {{rail}}{{referenceId}} · ₹{{amount}} for {{name}}.",
     "payslip": {
       "generated": "Generated",
       "paid": "Paid"
     },
-    "disburseHowTitle": "How this works in production:",
-    "disburseHowBody": "this step only submits the transfer to your bank or PSP. Success/failure of the payment itself arrives later via bank webhooks or manual reconciliation; the teacher then gets SMS/WhatsApp and in-app notice from that pipeline. Until funds settle, use Mark paid on the payslip after you confirm the credit.",
+    "disburseHowTitle": "How salary payout works:",
+    "disburseHowBody": "This action submits the payout request to your bank/PSP. Final success or failure is confirmed later through bank responses or verification workflows. Mark payslip as paid only after salary credit is confirmed.",
     "statStructures": "Salary structures",
-    "statNetPayroll": "Net payroll (structures)",
+    "statNetPayroll": "Net payroll payable",
     "statPayslips": "Payslips (filter)",
     "statBankReady": "Bank profiles ready",
-    "cardDisburseTitle": "Salary disbursement",
-    "cardDisburseLead": "Pick a teacher for a simple payment checklist, or use the table for everyone. Generate payslips for the month first, then initiate bank transfer.",
-    "reloadBank": "Reload bank list",
+    "cardDisburseTitle": "Salary payout",
+    "cardDisburseLead": "Select a teacher for guided payout checks, or use the table for all staff. Generate payslips first, then start bank payout.",
+    "reloadBank": "Refresh payout list",
     "labelTeacherStep": "Teacher (step-by-step)",
     "chooseTeacher": "— Choose teacher —",
-    "labelPaymentRail": "Payment rail",
+    "labelPaymentRail": "Disbursement mode",
     "railNetbanking": "Netbanking (corporate)",
     "railUpi": "UPI (instant)",
     "railNeft": "NEFT",
@@ -2166,20 +2332,20 @@
     "salaryStructureNet": "Salary structure (monthly net)",
     "payslipForPeriod": "Payslip ({{month}} {{year}})",
     "generateFirst": "Generate payslips for this period first.",
-    "initiateTransfer": "Initiate transfer for this teacher",
+    "initiateTransfer": "Start payout for this teacher",
     "submitting": "Submitting…",
-    "afterBankNote": "After your bank confirms, mark the payslip paid in the table below.",
+    "afterBankNote": "After bank credit confirmation, mark the payslip as paid below.",
     "thTeacher": "Teacher",
     "thMonthlyNet": "Monthly net (structure)",
     "thBank": "Bank",
     "thAccount": "Account",
     "thIfsc": "IFSC",
     "thStatus": "Status",
-    "thBankTransfer": "Bank transfer",
+    "thBankTransfer": "Payout action",
     "statusReady": "Ready",
     "statusIncomplete": "Incomplete",
-    "initiate": "Initiate",
-    "initiateTitle": "Uses net from generated payslip for selected month/year",
+    "initiate": "Start payout",
+    "initiateTitle": "Uses net amount from the generated payslip for selected month/year",
     "noStructures": "No salary structures yet.",
     "structuresTitle": "Salary structures",
     "thBasic": "Basic",
@@ -2198,10 +2364,30 @@
     "noPayslips": "No payslips for this period.",
     "accessDenied": "You do not have access to payroll details.",
     "confirmMarkPaidTitle": "Mark payslip as paid?",
-    "confirmMarkPaidMessage": "Confirm disbursement for {{name}} — {{month}} {{year}}.",
+    "confirmMarkPaidMessage": "Confirm salary payout for {{name}} — {{month}} {{year}}.",
     "detailNet": "Net salary: ₹{{amount}}",
     "detailStatus": "Current status: {{status}}",
     "confirmMarkPaidOk": "Yes, mark paid",
+    "settlementTitle": "Settlement and reconciliation queue",
+    "queueSubmitted": "Submitted",
+    "queueCompleted": "Completed",
+    "queueFailed": "Failed",
+    "queueVariance": "Variance (submitted - settled)",
+    "resetDemoData": "Reset demo finance data",
+    "resetDemoInProgress": "Resetting...",
+    "resetDemoConfirmTitle": "Reset finance demo data?",
+    "resetDemoConfirmMessage": "This will archive current fee/payroll demo rows for this school and regenerate a fresh demo baseline.",
+    "resetDemoSuccess": "Demo finance data reset complete. Seeded {{fee}} fee rows and {{payslips}} payslips.",
+    "resetDemoFailed": "Could not reset demo finance data.",
+    "markSettled": "Mark settled",
+    "markFailed": "Mark failed",
+    "noQueueRows": "No disbursement attempts found for this filter.",
+    "queueUpdateFailed": "Could not update disbursement status.",
+    "disbursementStatus": {
+      "SUBMITTED": "Submitted",
+      "COMPLETED": "Completed",
+      "FAILED": "Failed"
+    },
     "months": {
       "january": "January",
       "february": "February",
@@ -2254,8 +2440,8 @@
       "section": "Sections",
       "teacher": "Teacher workload",
       "reportCard": "Report card",
-      "designer": "Report designer",
-      "insights": "Insights pack",
+      "designer": "Report builder",
+      "insights": "Insights dashboard",
       "insightsFriendly": "School insights"
     },
     "template": "Template",
@@ -2345,7 +2531,7 @@
       "LIBRARY_STAFF": "Library staff"
     },
     "designer": {
-      "guideTitle": "Simple report builder",
+      "guideTitle": "Guided report builder",
       "guideLead": "Step 1: save a template for repeat use. Step 2: pick class/exam or student and click Generate now. Step 3: in Generated jobs, use Sharing, Versions, and Activity to track the report lifecycle.",
       "stepCounter": "Step {{step}} of {{total}}",
       "step1Title": "Select scope",
@@ -2591,7 +2777,7 @@
   },
   "operations": {
     "pageTitle": "School operations",
-    "lead": "Non-teaching staff, visitors, gate passes, inventory, fee reminders, payroll accrual (stub). Attendance cover assignments are under Timetable → Attendance cover.",
+    "lead": "Manage non-teaching staff, visitors, gate passes, inventory, fee reminders, and payroll accrual from one operations workspace. Attendance cover assignments are under Timetable → Attendance cover.",
     "tab": {
       "staff": "Staff",
       "visitors": "Visitors",
@@ -2599,7 +2785,7 @@
       "inventory": "Inventory",
       "covers": "Attendance cover",
       "reminders": "Fee reminders",
-      "payroll": "Payroll accrual"
+      "payroll": "Payroll accruals"
     },
     "covers": {
       "title": "Attendance cover",
@@ -2744,7 +2930,7 @@
     },
     "reminders": {
       "title": "Fee reminders",
-      "lead": "Outstanding balances are listed below. In production, a scheduled job sends SMS/WhatsApp/email when due dates approach; this screen mirrors that queue and allows manual enqueue.",
+      "lead": "Outstanding balances are listed below. In production, an automated schedule sends SMS/WhatsApp/email as due dates approach. This screen reflects that reminder workflow and supports manual triggering.",
       "refresh": "Refresh",
       "outstandingTitle": "Outstanding fee balances",
       "thStudent": "Student",
@@ -2756,27 +2942,27 @@
       "channelSms": "SMS",
       "channelWhatsapp": "WhatsApp",
       "channelEmail": "Email",
-      "queueTitle": "Reminder queue",
+      "queueTitle": "Reminder workflow",
       "thChannel": "Channel",
       "thScheduled": "Scheduled",
       "emptyPending": "No pending fee balances in the current fee ledger.",
-      "emptyQueue": "No rows in the queue yet. Open this tab again to run the mock auto-scheduler for dues within 14 days.",
+      "emptyQueue": "No reminders are scheduled yet. Open this tab again to run the mock auto-scheduler for dues within 14 days.",
       "searchOutstanding": "Filter outstanding balances",
       "searchOutstandingPh": "Student name, id, or status…",
-      "searchQueue": "Filter reminder queue",
+      "searchQueue": "Filter reminder workflow",
       "searchQueuePh": "Student name, id, channel, or status…",
       "noOutstandingMatches": "No balances match your search.",
       "noQueueMatches": "No reminders match your search."
     },
     "payroll": {
-      "title": "Payroll accrual (stub)",
+      "title": "Payroll accrual (preview)",
       "refreshSummary": "Refresh summary",
       "period": "Period:",
       "summaryLine": "Gross: {{gross}} | Deductions: {{ded}} | Net: {{net}} | Employees: {{count}}"
     }
   },
   "importExport": {
-    "pageTitle": "Import & export",
+    "pageTitle": "Import / export",
     "pill": "Admin & super admin",
     "pillTitle": "Only school administrators and platform super-admins can use this module",
     "lead": "Queue CSV, XLSX, or ZIP (CSV inside) jobs in the background—batched and non-blocking. Download exports in the same shape for round-trip edits. Run a dry-run first, then queue; see per-row outcomes and retry only what failed.",
@@ -2854,6 +3040,7 @@
     "thId": "ID",
     "thType": "Type",
     "thStatus": "Status",
+    "thTimeTaken": "Time taken",
     "thFile": "File",
     "thRows": "Rows",
     "thOkFail": "OK / fail",
@@ -2870,19 +3057,42 @@
     "thPayload": "Payload",
     "copyJson": "Copy JSON",
     "noLineRows": "No line rows returned.",
+    "onboard": {
+      "academicYearLabel": "Academic year label",
+      "academicYearLabelPh": "e.g. 2026-2027",
+      "academicYearStart": "Academic year start",
+      "academicYearEnd": "Academic year end",
+      "success": "Workspace created. Tenant: {{tenantId}} · Academic year ID: {{academicYearId}}",
+      "hints": {
+        "academicYearLabel": "Use a clear year label your school team will recognize.",
+        "academicYearStart": "Pick the first day of the academic year.",
+        "academicYearEnd": "Pick the final day; this must be after start date.",
+        "address": "Optional but recommended for support and sales handover."
+      },
+      "errors": {
+        "academicYearNameRequired": "Academic year label is required.",
+        "academicYearStartRequired": "Academic year start date is required.",
+        "academicYearEndRequired": "Academic year end date is required.",
+        "academicYearRange": "End date must be after start date.",
+        "fixFieldErrors": "Please fix highlighted fields before submitting.",
+        "createFailed": "Unable to onboard school workspace right now. Please retry."
+      }
+    },
     "jobType": {
       "STUDENTS": "Students",
       "TEACHERS": "Teachers",
       "STAFF": "Library / staff",
       "CLASSES": "Classes",
-      "TIMETABLE": "Timetable"
+      "TIMETABLE": "Timetable",
+      "FEE_STRUCTURES": "Fee structures"
     },
     "jobTypeHint": {
       "STUDENTS": "Parents, class, optional section",
       "TEACHERS": "Portal login optional",
       "STAFF": "Defaults to library portal",
       "CLASSES": "Sections pipe-separated",
-      "TIMETABLE": "Weekly slots by teacher, class, and section (6-7 periods/day)"
+      "TIMETABLE": "Weekly slots by teacher, class, and section (6-7 periods/day)",
+      "FEE_STRUCTURES": "Upsert by class + year + structure name (componentspec: Name:Amount:Type | ...)"
     },
     "jobStatus": {
       "COMPLETED": "Completed",
@@ -2903,7 +3113,7 @@
     "pageTitle": "School onboarding",
     "lead": "Follow these steps in order so academic structure exists before you bulk-import students and staff.",
     "open": "Open",
-    "footerHint": "Use Academic to create the current year, classes, and sections first. Then run Import & export with a dry-run before large jobs.",
+    "footerHint": "Use Academic to create the current year, classes, and sections first. Then run School onboarding with a dry-run before large jobs.",
     "step1Title": "Academic year",
     "step1Body": "Create or mark the active academic year—imports resolve placement against it when year is omitted.",
     "step2Title": "Classes & sections",
@@ -3181,6 +3391,12 @@
     "profileSaved": "Account details saved.",
     "profileSavedMock": "Account details saved in this session (mock). Same request will call PUT /auth/profile when mocks are off.",
     "profileSaveErr": "Could not save account details. Try again.",
+    "profileConfirmTitle": "Review critical profile updates",
+    "profileConfirmBody": "Please confirm these sensitive account changes before saving. These updates affect your profile identity and may impact sign-in verification.",
+    "profileConfirmProceed": "Yes, save changes",
+    "profileConfirmCancel": "No, keep existing details",
+    "profileConfirmNoValue": "Not set",
+    "profileConfirmChangeLine": "{{field}}: {{before}} -> {{after}}",
     "credentialsUpdatedDialogTitle": "Login details updated",
     "credentialsUpdatedDialogBody": "Use the updated contact details from the next login onward.",
     "dialogOk": "OK",
@@ -3302,11 +3518,11 @@
       },
       "operationsHub": {
         "name": "Operations hub",
-        "description": "Staff, visitors, gate passes, inventory, fee reminders, and payroll accrual stub."
+        "description": "Staff, visitors, gate passes, inventory, fee reminders, and payroll accrual controls."
       },
       "importExport": {
         "name": "Import / export",
-        "description": "Bulk ZIP+CSV jobs and exports."
+        "description": "Bulk ZIP+CSV data jobs and exports."
       },
       "directory": {
         "name": "Directory",

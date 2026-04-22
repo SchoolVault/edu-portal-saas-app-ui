@@ -15,12 +15,26 @@ import { DEFAULT_ERP_PAGE_SIZE } from '../../core/constants/pagination.constants
 import { sliceToPage } from '../../core/utils/paginate';
 import { AuthService } from '../../core/services/auth.service';
 import { PlatformService } from '../../core/services/platform.service';
-import { PlatformSchoolSummary } from '../../core/models/models';
+import { OnboardSchoolRequest, PlatformSchoolSummary } from '../../core/models/models';
+import {
+  FieldErrors,
+  OnboardSchoolField,
+  hasFieldErrors,
+  validateOnboardSchoolForm,
+} from '../../core/validation/onboard-school-form.validation';
+import {
+  ONBOARD_ADMIN_PASSWORD_MAX,
+  ONBOARD_ADMIN_PASSWORD_MIN,
+  ONBOARD_SCHOOL_CODE_MAX,
+  ONBOARD_SCHOOL_CODE_MIN,
+} from '../../core/validation/auth-forms.constants';
 
 interface JobTypeOption {
   id: string;
   file: string;
   icon: string;
+  /** Visual import sequence number (sales ops guidance). */
+  seq?: number;
 }
 
 /** Minimum canonical fields that must be mapped for each job type (matches backend validators). */
@@ -30,6 +44,7 @@ const REQUIRED_IMPORT_FIELDS: Record<string, string[]> = {
   STAFF: ['firstname', 'lastname', 'email'],
   CLASSES: ['name', 'grade', 'academicyearid'],
   TIMETABLE: ['teacheremail', 'classname', 'sectionname', 'subjectname', 'dayofweek', 'period', 'starttime', 'endtime'],
+  FEE_STRUCTURES: ['name', 'classname', 'academicyearid', 'componentspec'],
 };
 
 @Component({
@@ -187,7 +202,10 @@ const REQUIRED_IMPORT_FIELDS: Record<string, string[]> = {
               (click)="onJobTypeSelect(jt.id)"
               [attr.aria-pressed]="jobType === jt.id"
             >
-              <span class="ie-type-icon"><i class="bi" [ngClass]="jt.icon" aria-hidden="true"></i></span>
+              <span class="ie-type-icon">
+                <span class="ie-type-seq" *ngIf="jt.seq">{{ jt.seq }}</span>
+                <i class="bi" [ngClass]="jt.icon" aria-hidden="true"></i>
+              </span>
               <span class="ie-type-label">{{ ('importExport.jobType.' + jt.id) | translate }}</span>
               <span class="ie-type-file"><code>{{ jt.file }}</code></span>
               <span class="ie-type-hint">{{ ('importExport.jobTypeHint.' + jt.id) | translate }}</span>
@@ -245,7 +263,7 @@ const REQUIRED_IMPORT_FIELDS: Record<string, string[]> = {
               {{ 'importExport.mapResetSuggested' | translate }}
             </button>
           </div>
-          <div class="table-responsive ie-table-wrap" *ngIf="headerPreview.detectedHeaders.length">
+          <div class="ie-map-scroll" *ngIf="headerPreview.detectedHeaders.length">
             <table class="erp-table mb-0 ie-table ie-table--map">
               <thead>
                 <tr>
@@ -388,6 +406,7 @@ const REQUIRED_IMPORT_FIELDS: Record<string, string[]> = {
                 <th>{{ 'importExport.thId' | translate }}</th>
                 <th>{{ 'importExport.thType' | translate }}</th>
                 <th>{{ 'importExport.thStatus' | translate }}</th>
+                <th>{{ 'importExport.thTimeTaken' | translate }}</th>
                 <th>{{ 'importExport.thFile' | translate }}</th>
                 <th class="text-end">{{ 'importExport.thRows' | translate }}</th>
                 <th class="text-end">{{ 'importExport.thOkFail' | translate }}</th>
@@ -406,6 +425,7 @@ const REQUIRED_IMPORT_FIELDS: Record<string, string[]> = {
                     {{ jobStatusLabel(j.status) }}
                   </span>
                 </td>
+                <td class="small text-nowrap text-muted">{{ formatJobDuration(j) }}</td>
                 <td class="small text-truncate" style="max-width: 200px;" [title]="j.originalFilename || ''">
                   {{ j.originalFilename || '—' }}
                 </td>
@@ -519,6 +539,155 @@ const REQUIRED_IMPORT_FIELDS: Record<string, string[]> = {
           />
         </div>
         <p class="small text-muted mb-0" *ngIf="!linesLoading && lines.length === 0">{{ 'importExport.noLineRows' | translate }}</p>
+      </div>
+
+      <div class="modal-overlay modal-overlay-viewport" *ngIf="onboardModalOpen" (click)="closeOnboardModal()">
+        <div class="modal-content-erp modal-narrow" (click)="$event.stopPropagation()">
+          <div class="modal-header-erp">
+            <h3>{{ 'signup.title' | translate }}</h3>
+            <button type="button" class="btn-icon" (click)="closeOnboardModal()"><i class="bi bi-x-lg"></i></button>
+          </div>
+          <div class="modal-body-erp">
+            <div class="erp-form-group mb-2">
+              <label class="erp-label">{{ 'signup.schoolName' | translate }}</label>
+              <input
+                class="erp-input"
+                [class.erp-input--invalid]="showOnboardFieldError('schoolName')"
+                [(ngModel)]="onboardForm.schoolName"
+                (ngModelChange)="onOnboardFieldInput('schoolName')"
+                (blur)="markOnboardFieldTouched('schoolName')"
+                [placeholder]="'signup.schoolNamePlaceholder' | translate"
+              />
+              <p *ngIf="!showOnboardFieldError('schoolName')" class="text-muted mb-0 mt-1 small">{{ 'signup.validation.schoolNameRequired' | translate }}</p>
+              <p *ngIf="showOnboardFieldError('schoolName')" class="text-danger mb-0 mt-1 small">{{ getOnboardFieldError('schoolName') | translate }}</p>
+            </div>
+            <div class="erp-form-group mb-2">
+              <label class="erp-label">{{ 'signup.schoolCode' | translate }}</label>
+              <input
+                class="erp-input"
+                [class.erp-input--invalid]="showOnboardFieldError('schoolCode')"
+                [(ngModel)]="onboardForm.schoolCode"
+                (ngModelChange)="onOnboardFieldInput('schoolCode')"
+                (blur)="markOnboardFieldTouched('schoolCode')"
+                [placeholder]="'signup.schoolCodePlaceholder' | translate"
+              />
+              <p *ngIf="!showOnboardFieldError('schoolCode')" class="text-muted mb-0 mt-1 small">{{ 'signup.schoolCodeHint' | translate: getOnboardFieldErrorParams('schoolCode') }}</p>
+              <p *ngIf="showOnboardFieldError('schoolCode')" class="text-danger mb-0 mt-1 small">{{ getOnboardFieldError('schoolCode') | translate: getOnboardFieldErrorParams('schoolCode') }}</p>
+            </div>
+            <div class="erp-form-group mb-2">
+              <label class="erp-label">{{ 'signup.adminName' | translate }}</label>
+              <input
+                class="erp-input"
+                [class.erp-input--invalid]="showOnboardFieldError('adminName')"
+                [(ngModel)]="onboardForm.adminName"
+                (ngModelChange)="onOnboardFieldInput('adminName')"
+                (blur)="markOnboardFieldTouched('adminName')"
+              />
+              <p *ngIf="!showOnboardFieldError('adminName')" class="text-muted mb-0 mt-1 small">{{ 'signup.validation.adminNameRequired' | translate }}</p>
+              <p *ngIf="showOnboardFieldError('adminName')" class="text-danger mb-0 mt-1 small">{{ getOnboardFieldError('adminName') | translate }}</p>
+            </div>
+            <div class="erp-form-group mb-2">
+              <label class="erp-label">{{ 'signup.adminEmail' | translate }}</label>
+              <input
+                class="erp-input"
+                [class.erp-input--invalid]="showOnboardFieldError('adminEmail')"
+                [(ngModel)]="onboardForm.adminEmail"
+                (ngModelChange)="onOnboardFieldInput('adminEmail')"
+                (blur)="markOnboardFieldTouched('adminEmail')"
+              />
+              <p *ngIf="!showOnboardFieldError('adminEmail')" class="text-muted mb-0 mt-1 small">{{ 'signup.adminEmailHint' | translate }}</p>
+              <p *ngIf="showOnboardFieldError('adminEmail')" class="text-danger mb-0 mt-1 small">{{ getOnboardFieldError('adminEmail') | translate }}</p>
+            </div>
+            <div class="erp-form-group mb-2">
+              <label class="erp-label">{{ 'signup.phone' | translate }}</label>
+              <input
+                class="erp-input"
+                [class.erp-input--invalid]="showOnboardFieldError('phone')"
+                [(ngModel)]="onboardForm.phone"
+                (ngModelChange)="onOnboardFieldInput('phone')"
+                (blur)="markOnboardFieldTouched('phone')"
+                [placeholder]="'signup.phonePlaceholder' | translate"
+              />
+              <p *ngIf="!showOnboardFieldError('phone')" class="text-muted mb-0 mt-1 small">{{ 'signup.phoneHintAdmin' | translate }}</p>
+              <p *ngIf="showOnboardFieldError('phone')" class="text-danger mb-0 mt-1 small">{{ getOnboardFieldError('phone') | translate }}</p>
+            </div>
+            <div class="erp-form-group mb-2">
+              <label class="erp-label">{{ 'signup.adminPassword' | translate }}</label>
+              <div class="d-flex align-items-center gap-2">
+                <input
+                  [type]="showTempPassword ? 'text' : 'password'"
+                  class="erp-input"
+                  [class.erp-input--invalid]="showOnboardFieldError('adminPassword')"
+                  [(ngModel)]="onboardForm.adminPassword"
+                  (ngModelChange)="onOnboardFieldInput('adminPassword')"
+                  (blur)="markOnboardFieldTouched('adminPassword')"
+                  [placeholder]="'signup.adminPasswordPlaceholder' | translate"
+                />
+                <button type="button" class="btn-outline-erp btn-sm" (click)="showTempPassword = !showTempPassword">
+                  <i class="bi" [ngClass]="showTempPassword ? 'bi-eye-slash' : 'bi-eye'"></i>
+                </button>
+              </div>
+              <p *ngIf="!showOnboardFieldError('adminPassword')" class="text-muted mb-0 mt-1 small">{{ 'signup.passwordHint' | translate: getOnboardFieldErrorParams('adminPassword') }}</p>
+              <p *ngIf="showOnboardFieldError('adminPassword')" class="text-danger mb-0 mt-1 small">{{ getOnboardFieldError('adminPassword') | translate: getOnboardFieldErrorParams('adminPassword') }}</p>
+            </div>
+            <div class="erp-form-group mb-2">
+              <label class="erp-label">{{ 'importExport.onboard.academicYearLabel' | translate }}</label>
+              <input
+                class="erp-input"
+                [class.erp-input--invalid]="showOnboardFieldError('academicYearName')"
+                [(ngModel)]="onboardForm.academicYearName"
+                (ngModelChange)="onOnboardFieldInput('academicYearName')"
+                (blur)="markOnboardFieldTouched('academicYearName')"
+                [placeholder]="'importExport.onboard.academicYearLabelPh' | translate"
+              />
+              <p *ngIf="!showOnboardFieldError('academicYearName')" class="text-muted mb-0 mt-1 small">{{ 'importExport.onboard.hints.academicYearLabel' | translate }}</p>
+              <p *ngIf="showOnboardFieldError('academicYearName')" class="text-danger mb-0 mt-1 small">{{ getOnboardFieldError('academicYearName') | translate }}</p>
+            </div>
+            <div class="row g-2">
+              <div class="col-6">
+                <label class="erp-label">{{ 'importExport.onboard.academicYearStart' | translate }}</label>
+                <input
+                  type="date"
+                  class="erp-input"
+                  [class.erp-input--invalid]="showOnboardFieldError('academicYearStartDate')"
+                  [(ngModel)]="onboardForm.academicYearStartDate"
+                  (ngModelChange)="onOnboardFieldInput('academicYearStartDate')"
+                  (blur)="markOnboardFieldTouched('academicYearStartDate')"
+                  [max]="onboardForm.academicYearEndDate || null"
+                />
+                <p *ngIf="!showOnboardFieldError('academicYearStartDate')" class="text-muted mb-0 mt-1 small">{{ 'importExport.onboard.hints.academicYearStart' | translate }}</p>
+                <p *ngIf="showOnboardFieldError('academicYearStartDate')" class="text-danger mb-0 mt-1 small">{{ getOnboardFieldError('academicYearStartDate') | translate }}</p>
+              </div>
+              <div class="col-6">
+                <label class="erp-label">{{ 'importExport.onboard.academicYearEnd' | translate }}</label>
+                <input
+                  type="date"
+                  class="erp-input"
+                  [class.erp-input--invalid]="showOnboardFieldError('academicYearEndDate')"
+                  [(ngModel)]="onboardForm.academicYearEndDate"
+                  (ngModelChange)="onOnboardFieldInput('academicYearEndDate')"
+                  (blur)="markOnboardFieldTouched('academicYearEndDate')"
+                  [min]="onboardForm.academicYearStartDate || null"
+                />
+                <p *ngIf="!showOnboardFieldError('academicYearEndDate')" class="text-muted mb-0 mt-1 small">{{ 'importExport.onboard.hints.academicYearEnd' | translate }}</p>
+                <p *ngIf="showOnboardFieldError('academicYearEndDate')" class="text-danger mb-0 mt-1 small">{{ getOnboardFieldError('academicYearEndDate') | translate }}</p>
+              </div>
+            </div>
+            <div class="erp-form-group mb-0 mt-2">
+              <label class="erp-label">{{ 'signup.address' | translate }}</label>
+              <input class="erp-input" [(ngModel)]="onboardForm.address" [placeholder]="'signup.addressPlaceholder' | translate" />
+              <p class="text-muted mb-0 mt-1 small">{{ 'importExport.onboard.hints.address' | translate }}</p>
+            </div>
+            <p *ngIf="onboardError" class="text-danger mb-0 mt-2">{{ onboardError }}</p>
+            <p *ngIf="onboardSuccess" class="text-success mb-0 mt-2">{{ onboardSuccess }}</p>
+          </div>
+          <div class="modal-footer-erp">
+            <button type="button" class="btn-outline-erp" (click)="closeOnboardModal()">{{ 'importExport.close' | translate }}</button>
+            <button type="button" class="btn-primary-erp" (click)="submitOnboardSchool()" [disabled]="onboardSubmitting">
+              {{ onboardSubmitting ? ('signup.submitting' | translate) : ('signup.submit' | translate) }}
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   `,
@@ -637,9 +806,32 @@ const REQUIRED_IMPORT_FIELDS: Record<string, string[]> = {
         font-size: 1.35rem;
         color: #c05c3d;
         opacity: 0.9;
+        position: relative;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.45rem;
+      }
+      .ie-type-seq {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 22px;
+        height: 22px;
+        border-radius: 999px;
+        font-size: 0.72rem;
+        font-weight: 900;
+        letter-spacing: -0.02em;
+        background: color-mix(in srgb, var(--clr-surface) 88%, var(--clr-text-muted) 12%);
+        color: var(--clr-text-muted);
+        border: 1px solid color-mix(in srgb, var(--clr-border) 70%, transparent);
       }
       .ie-type-tile--active .ie-type-icon {
         color: #1b3a30;
+      }
+      .ie-type-tile--active .ie-type-seq {
+        background: color-mix(in srgb, var(--clr-accent) 18%, var(--clr-surface));
+        color: var(--clr-text);
+        border-color: color-mix(in srgb, var(--clr-accent) 40%, transparent);
       }
       .ie-type-label {
         font-weight: 700;
@@ -848,6 +1040,39 @@ const REQUIRED_IMPORT_FIELDS: Record<string, string[]> = {
         background: color-mix(in srgb, var(--clr-surface-muted, #f5f5f5) 92%, transparent);
         border-radius: 12px;
       }
+      .ie-map {
+        background: color-mix(in srgb, var(--clr-surface, #fff) 90%, var(--clr-surface-muted, #f5f5f5));
+        border: 1px solid var(--clr-border, rgba(0, 0, 0, 0.08));
+        border-radius: 12px;
+      }
+      .ie-map .form-select {
+        border-color: var(--clr-border, rgba(0, 0, 0, 0.15));
+        background-color: var(--clr-surface, #fff);
+        color: var(--clr-text, #1a1a1a);
+      }
+      .ie-map .form-select:focus {
+        border-color: color-mix(in srgb, var(--clr-accent, #c05c3d) 55%, var(--clr-border));
+        box-shadow: 0 0 0 0.2rem color-mix(in srgb, var(--clr-accent, #c05c3d) 20%, transparent);
+      }
+      .ie-map .btn-outline-secondary {
+        border-color: var(--clr-border, rgba(0, 0, 0, 0.18));
+        color: var(--clr-text-secondary, #57534e);
+        background: color-mix(in srgb, var(--clr-surface, #fff) 96%, var(--clr-surface-muted, #f5f5f5));
+      }
+      .ie-map .btn-outline-secondary:hover {
+        border-color: var(--clr-accent, #c05c3d);
+        color: var(--clr-text, #1a1a1a);
+        background: color-mix(in srgb, var(--clr-accent, #c05c3d) 10%, var(--clr-surface, #fff));
+      }
+      .ie-dry-run .alert-info {
+        background: color-mix(in srgb, var(--clr-info, #0284c7) 14%, var(--clr-surface, #fff));
+        border-color: color-mix(in srgb, var(--clr-info, #0284c7) 30%, var(--clr-border));
+        color: var(--clr-text-secondary, #57534e);
+      }
+      .ie-dry-run .list-unstyled li {
+        border-left: 2px solid color-mix(in srgb, var(--clr-danger, #dc3545) 55%, transparent);
+        padding-left: 0.55rem;
+      }
       .ie-dry-run-stats .ie-dry-run-stat {
         display: inline-flex;
         align-items: center;
@@ -915,6 +1140,28 @@ const REQUIRED_IMPORT_FIELDS: Record<string, string[]> = {
       }
       .ie-table.ie-table--map {
         min-width: 480px;
+      }
+      .ie-map-scroll {
+        max-height: min(420px, 56vh);
+        overflow: auto;
+        -webkit-overflow-scrolling: touch;
+        border-radius: 12px;
+        border: 1px solid var(--clr-border, rgba(0, 0, 0, 0.08));
+      }
+      .ie-map-scroll .ie-table--map {
+        min-width: 520px;
+      }
+      .ie-table--map thead th {
+        position: sticky;
+        top: 0;
+        z-index: 1;
+        background: color-mix(in srgb, var(--clr-surface) 92%, var(--clr-surface-alt));
+      }
+      .ie-table--map tbody tr:nth-child(2n) td {
+        background: color-mix(in srgb, var(--clr-surface-alt) 76%, transparent);
+      }
+      .ie-table--map td {
+        vertical-align: middle;
       }
       .ie-metrics .ie-metric-tile {
         border-radius: 12px;
@@ -994,6 +1241,72 @@ const REQUIRED_IMPORT_FIELDS: Record<string, string[]> = {
         font-size: 0.75rem;
         color: var(--clr-text-muted, #6c757d);
       }
+      :host-context([data-theme='dark']) .ie-section {
+        box-shadow: 0 10px 26px rgba(2, 6, 23, 0.28);
+      }
+      :host-context([data-theme='dark']) .ie-map {
+        background: linear-gradient(
+          165deg,
+          color-mix(in srgb, var(--clr-surface) 94%, #0b1220) 0%,
+          color-mix(in srgb, var(--clr-surface-alt) 95%, #0b1220) 100%
+        );
+        border-color: color-mix(in srgb, var(--clr-primary) 18%, var(--clr-border));
+      }
+      :host-context([data-theme='dark']) .ie-map .form-select {
+        background-color: color-mix(in srgb, var(--clr-surface-alt) 96%, #0b1220);
+        border-color: color-mix(in srgb, var(--clr-primary) 16%, var(--clr-border));
+        color: var(--clr-text);
+      }
+      :host-context([data-theme='dark']) .ie-map .form-select option {
+        background: var(--clr-surface-alt);
+        color: var(--clr-text);
+      }
+      :host-context([data-theme='dark']) .ie-map .btn-outline-secondary {
+        background: color-mix(in srgb, var(--clr-surface-alt) 97%, #0b1220);
+        border-color: color-mix(in srgb, var(--clr-primary) 20%, var(--clr-border));
+        color: var(--clr-text-secondary);
+      }
+      :host-context([data-theme='dark']) .ie-map .btn-outline-secondary:hover {
+        background: color-mix(in srgb, var(--clr-primary) 18%, var(--clr-surface-alt));
+        color: var(--clr-text);
+      }
+      :host-context([data-theme='dark']) .ie-dry-run {
+        background: linear-gradient(
+          165deg,
+          color-mix(in srgb, var(--clr-surface-alt) 94%, #0b1220) 0%,
+          color-mix(in srgb, var(--clr-surface-muted) 92%, #0b1220) 100%
+        );
+        border: 1px solid color-mix(in srgb, var(--clr-primary) 14%, var(--clr-border));
+      }
+      :host-context([data-theme='dark']) .ie-dry-run .alert-info {
+        background: color-mix(in srgb, var(--clr-info) 22%, var(--clr-surface-alt));
+        border-color: color-mix(in srgb, var(--clr-info) 35%, var(--clr-border));
+        color: var(--clr-text-secondary);
+      }
+      :host-context([data-theme='dark']) .ie-table-wrap {
+        border-color: color-mix(in srgb, var(--clr-primary) 16%, var(--clr-border));
+        background: color-mix(in srgb, var(--clr-surface-alt) 96%, #0b1220);
+      }
+      :host-context([data-theme='dark']) .ie-map-scroll {
+        border-color: color-mix(in srgb, var(--clr-primary) 16%, var(--clr-border));
+        background: color-mix(in srgb, var(--clr-surface-alt) 96%, #0b1220);
+      }
+      :host-context([data-theme='dark']) .ie-table--map thead th {
+        background: color-mix(in srgb, var(--clr-surface-alt) 94%, #0b1220);
+      }
+      :host-context([data-theme='dark']) .ie-table--map tbody tr:nth-child(2n) td {
+        background: color-mix(in srgb, var(--clr-surface-muted) 44%, transparent);
+      }
+      :host-context([data-theme='dark']) .ie-table tbody tr:hover {
+        background: color-mix(in srgb, var(--clr-primary) 12%, transparent);
+      }
+      :host-context([data-theme='dark']) .ie-row--open {
+        background: color-mix(in srgb, var(--clr-accent) 14%, transparent) !important;
+      }
+      :host-context([data-theme='dark']) .ie-file-chip {
+        background: color-mix(in srgb, var(--clr-primary) 18%, transparent);
+        color: var(--clr-text-secondary);
+      }
       @media (max-width: 575.98px) {
         .ie-title {
           font-size: 1.35rem;
@@ -1015,14 +1328,16 @@ const REQUIRED_IMPORT_FIELDS: Record<string, string[]> = {
 })
 export class ImportExportComponent implements OnInit, OnDestroy {
   jobTypes: JobTypeOption[] = [
-    { id: 'STUDENTS', file: 'students.csv', icon: 'bi-people-fill' },
-    { id: 'TEACHERS', file: 'teachers.csv', icon: 'bi-person-workspace' },
-    { id: 'STAFF', file: 'staff.csv', icon: 'bi-book-half' },
-    { id: 'CLASSES', file: 'classes.csv', icon: 'bi-diagram-3-fill' },
-    { id: 'TIMETABLE', file: 'timetable.csv', icon: 'bi-calendar-week-fill' },
+    { id: 'CLASSES', file: 'classes.csv', icon: 'bi-diagram-3-fill', seq: 1 },
+    { id: 'TEACHERS', file: 'teachers.csv', icon: 'bi-person-workspace', seq: 2 },
+    { id: 'STUDENTS', file: 'students.csv', icon: 'bi-people-fill', seq: 3 },
+    { id: 'TIMETABLE', file: 'timetable.csv', icon: 'bi-calendar-week-fill', seq: 4 },
+    { id: 'STAFF', file: 'staff.csv', icon: 'bi-book-half', seq: 5 },
+    { id: 'FEE_STRUCTURES', file: 'fee-structures.csv', icon: 'bi-cash-stack', seq: 6 },
   ];
 
-  jobType = 'STUDENTS';
+  /** Default to recommended onboarding flow (sales ops): classes → teachers → students → timetable. */
+  jobType = 'CLASSES';
   file: File | null = null;
   busy = false;
   jobsLoading = false;
@@ -1065,6 +1380,22 @@ export class ImportExportComponent implements OnInit, OnDestroy {
   schoolOptionsLoading = false;
   schoolOptions: PlatformSchoolSummary[] = [];
   isSuperAdmin = false;
+  onboardModalOpen = false;
+  onboardSubmitting = false;
+  showTempPassword = false;
+  onboardError = '';
+  onboardSuccess = '';
+  onboardValidationErrors: FieldErrors<OnboardSchoolField> = {};
+  onboardTouched: Partial<Record<OnboardSchoolField, boolean>> = {};
+  onboardForm: OnboardSchoolRequest = {
+    schoolName: '',
+    schoolCode: '',
+    adminName: '',
+    adminEmail: '',
+    adminPassword: '',
+    phone: '',
+    address: '',
+  };
   private liveRefreshTimer: ReturnType<typeof setInterval> | null = null;
 
   constructor(
@@ -1081,6 +1412,11 @@ export class ImportExportComponent implements OnInit, OnDestroy {
     const mapped = new Set(
       Object.values(this.columnSelections).filter(v => !!v && String(v).trim().length > 0)
     );
+    if (this.jobType === 'FEE_STRUCTURES') {
+      const hasBase = mapped.has('name') && mapped.has('academicyearid') && mapped.has('componentspec');
+      const hasClassRef = mapped.has('classid') || mapped.has('classname');
+      return !(hasBase && hasClassRef);
+    }
     const req = REQUIRED_IMPORT_FIELDS[this.jobType] ?? [];
     return req.some(f => !mapped.has(f));
   }
@@ -1523,6 +1859,48 @@ export class ImportExportComponent implements OnInit, OnDestroy {
     return 'ie-st-pending';
   }
 
+  formatJobDuration(job: ImportJobSummary): string {
+    const durationMs = this.computeDurationMs(job);
+    if (durationMs === null) {
+      return '—';
+    }
+    if (durationMs < 1000) {
+      return '<1s';
+    }
+    const totalSeconds = Math.floor(durationMs / 1000);
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+    if (hours > 0) {
+      return `${hours}h ${minutes}m ${seconds}s`;
+    }
+    if (minutes > 0) {
+      return `${minutes}m ${seconds}s`;
+    }
+    return `${seconds}s`;
+  }
+
+  private computeDurationMs(job: ImportJobSummary): number | null {
+    const startedAtMs = this.toEpochMs(job.startedAt);
+    if (startedAtMs === null) {
+      return null;
+    }
+    const finishedAtMs = this.toEpochMs(job.finishedAt);
+    const endMs = finishedAtMs ?? Date.now();
+    if (endMs < startedAtMs) {
+      return null;
+    }
+    return endMs - startedAtMs;
+  }
+
+  private toEpochMs(value: string | null): number | null {
+    if (!value) {
+      return null;
+    }
+    const parsed = Date.parse(value);
+    return Number.isNaN(parsed) ? null : parsed;
+  }
+
   private get effectiveSchoolCode(): string | null {
     if (!this.isSuperAdmin) {
       return null;
@@ -1571,4 +1949,120 @@ export class ImportExportComponent implements OnInit, OnDestroy {
     clearInterval(this.liveRefreshTimer);
     this.liveRefreshTimer = null;
   }
+
+  openOnboardModal(): void {
+    this.onboardModalOpen = true;
+    this.onboardError = '';
+    this.onboardSuccess = '';
+    this.onboardValidationErrors = {};
+    this.onboardTouched = {};
+    if (!this.onboardForm.academicYearStartDate || !this.onboardForm.academicYearEndDate) {
+      const now = new Date();
+      const startYear = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
+      this.onboardForm.academicYearStartDate = `${startYear}-04-01`;
+      this.onboardForm.academicYearEndDate = `${startYear + 1}-03-31`;
+      if (!this.onboardForm.academicYearName) {
+        this.onboardForm.academicYearName = `${startYear}-${startYear + 1}`;
+      }
+    }
+  }
+
+  closeOnboardModal(): void {
+    this.onboardModalOpen = false;
+  }
+
+  private validateOnboardForm(): FieldErrors<OnboardSchoolField> {
+    const errors = validateOnboardSchoolForm(this.onboardForm);
+    if (!(this.onboardForm.academicYearName || '').trim()) errors.academicYearName = 'importExport.onboard.errors.academicYearNameRequired';
+    if (!(this.onboardForm.academicYearStartDate || '').trim()) errors.academicYearStartDate = 'importExport.onboard.errors.academicYearStartRequired';
+    if (!(this.onboardForm.academicYearEndDate || '').trim()) errors.academicYearEndDate = 'importExport.onboard.errors.academicYearEndRequired';
+    if (this.onboardForm.academicYearStartDate && this.onboardForm.academicYearEndDate && this.onboardForm.academicYearEndDate <= this.onboardForm.academicYearStartDate) {
+      errors.academicYearEndDate = 'importExport.onboard.errors.academicYearRange';
+    }
+    return errors;
+  }
+
+  private markAllOnboardFieldsTouched(): void {
+    this.onboardTouched = {
+      schoolName: true,
+      schoolCode: true,
+      adminName: true,
+      adminEmail: true,
+      adminPassword: true,
+      phone: true,
+      academicYearName: true,
+      academicYearStartDate: true,
+      academicYearEndDate: true,
+    };
+  }
+
+  markOnboardFieldTouched(field: OnboardSchoolField): void {
+    this.onboardTouched[field] = true;
+    this.onboardValidationErrors = this.validateOnboardForm();
+  }
+
+  onOnboardFieldInput(field: OnboardSchoolField): void {
+    if (field === 'schoolCode') {
+      this.onboardForm.schoolCode = (this.onboardForm.schoolCode || '').toUpperCase();
+    }
+    if (!this.onboardTouched[field]) {
+      return;
+    }
+    this.onboardValidationErrors = this.validateOnboardForm();
+  }
+
+  showOnboardFieldError(field: OnboardSchoolField): boolean {
+    return !!this.onboardTouched[field] && !!this.onboardValidationErrors[field];
+  }
+
+  getOnboardFieldError(field: OnboardSchoolField): string {
+    return this.onboardValidationErrors[field] || '';
+  }
+
+  getOnboardFieldErrorParams(field: OnboardSchoolField): Record<string, number> {
+    if (field === 'schoolCode') return { min: ONBOARD_SCHOOL_CODE_MIN, max: ONBOARD_SCHOOL_CODE_MAX };
+    if (field === 'adminPassword') return { min: ONBOARD_ADMIN_PASSWORD_MIN, max: ONBOARD_ADMIN_PASSWORD_MAX };
+    return {};
+  }
+
+  submitOnboardSchool(): void {
+    this.onboardError = '';
+    this.onboardSuccess = '';
+    this.markAllOnboardFieldsTouched();
+    this.onboardValidationErrors = this.validateOnboardForm();
+    if (hasFieldErrors(this.onboardValidationErrors)) {
+      this.onboardError = this.translate.instant('importExport.onboard.errors.fixFieldErrors');
+      return;
+    }
+    this.onboardSubmitting = true;
+    this.platformService.onboardSchoolWorkspace(this.onboardForm).subscribe({
+      next: res => {
+        this.onboardSubmitting = false;
+        this.onboardSuccess = this.translate.instant('importExport.onboard.success', {
+          tenantId: res.tenantId,
+          academicYearId: res.academicYearId ?? '-',
+        });
+        this.closeOnboardModal();
+        this.onboardForm = {
+          schoolName: '',
+          schoolCode: '',
+          adminName: '',
+          adminEmail: '',
+          adminPassword: '',
+          phone: '',
+          address: '',
+        };
+        this.onboardValidationErrors = {};
+        this.onboardTouched = {};
+        this.showTempPassword = false;
+        this.reloadJobs();
+        this.loadMetrics();
+      },
+      error: err => {
+        this.onboardSubmitting = false;
+        this.onboardError = err?.message || this.translate.instant('importExport.onboard.errors.createFailed');
+      },
+    });
+  }
 }
+

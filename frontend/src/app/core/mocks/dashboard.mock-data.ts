@@ -242,7 +242,7 @@ export const MOCK_TEACHER_DASHBOARD: TeacherDashboardData = {
     },
     {
       title: 'Review midterm papers',
-      description: 'Moderation queue has pending answer sheets for Class 8-A.',
+      description: 'Moderation review list has pending answer sheets for Class 8-A.',
       type: 'info',
       timestamp: 'Today',
     },

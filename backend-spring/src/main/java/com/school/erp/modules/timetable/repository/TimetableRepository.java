@@ -13,6 +13,7 @@ public interface TimetableRepository extends JpaRepository<TimetableEntry, Long>
     List<TimetableEntry> findByTenantIdAndClassIdAndSectionIdAndIsDeletedFalse(String tenantId, Long classId, Long sectionId);
 
     List<TimetableEntry> findByTenantIdAndTeacherIdAndIsDeletedFalse(String tenantId, Long teacherId);
+    List<TimetableEntry> findByTenantIdAndTeacherIdInAndIsDeletedFalse(String tenantId, List<Long> teacherIds);
 
     @Query("SELECT e FROM TimetableEntry e WHERE e.tenantId = :t AND e.classId = :c AND e.isDeleted = false "
             + "AND ((:s IS NULL AND e.sectionId IS NULL) OR (:s IS NOT NULL AND e.sectionId = :s))")

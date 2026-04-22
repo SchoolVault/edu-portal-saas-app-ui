@@ -12,7 +12,7 @@ import { PlatformSubscriptionPlan } from '../../core/models/models';
   template: `
     <div class="platform-subs-root" data-testid="platform-subscriptions-page">
       <div class="platform-subs-inner animate-in">
-        <div class="d-flex justify-content-between align-items-end mb-4 flex-wrap gap-3">
+        <div class="erp-filter-toolbar mb-4">
           <div>
             <div class="badge-erp badge-info mb-2">Platform</div>
             <h2 class="platform-subs-title">Subscription plans</h2>
@@ -20,7 +20,12 @@ import { PlatformSubscriptionPlan } from '../../core/models/models';
               Commercial packaging for school workspaces: capacity, modules, and support. Provisioning and billing integrations plug into the same catalog the UI loads today.
             </p>
           </div>
-          <a routerLink="/app/super-admin" class="btn-outline-erp btn-sm"><i class="bi bi-arrow-left me-1"></i>Platform overview</a>
+          <div class="erp-filter-toolbar__actions">
+            <button type="button" class="btn-outline-erp btn-sm erp-filter-toolbar__action" (click)="refreshPageData()" [disabled]="loadingPlans || saving">
+              <i class="bi bi-arrow-clockwise me-1"></i>{{ loadingPlans ? 'Refreshing...' : 'Refresh' }}
+            </button>
+            <a routerLink="/app/super-admin" class="btn-outline-erp btn-sm erp-filter-toolbar__action"><i class="bi bi-arrow-left me-1"></i>Platform overview</a>
+          </div>
         </div>
 
         <div *ngIf="pageError" class="alert alert-danger py-2 mb-4">{{ pageError }}</div>
@@ -298,6 +303,7 @@ import { PlatformSubscriptionPlan } from '../../core/models/models';
 export class PlatformSubscriptionsComponent implements OnInit {
   plans: PlatformSubscriptionPlan[] = [];
   pageError = '';
+  loadingPlans = false;
   saveBanner = '';
   detailPlan: PlatformSubscriptionPlan | null = null;
   editDraft: PlatformSubscriptionPlan | null = null;
@@ -309,11 +315,16 @@ export class PlatformSubscriptionsComponent implements OnInit {
   constructor(private platform: PlatformService) {}
 
   ngOnInit(): void {
+    this.refreshPageData();
+  }
+
+  refreshPageData(): void {
     this.loadPlans();
   }
 
   private loadPlans(): void {
     this.pageError = '';
+    this.loadingPlans = true;
     this.platform.listSubscriptionPlans().subscribe({
       next: p => {
         this.plans = p.map(row => ({
@@ -321,8 +332,12 @@ export class PlatformSubscriptionsComponent implements OnInit {
           highlights: [...(row.highlights || [])],
           modules: [...(row.modules || [])]
         }));
+        this.loadingPlans = false;
       },
-      error: e => { this.pageError = e?.message || 'Could not load plans.'; }
+      error: e => {
+        this.pageError = e?.message || 'Could not load plans.';
+        this.loadingPlans = false;
+      }
     });
   }
 

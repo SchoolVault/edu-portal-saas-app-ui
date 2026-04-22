@@ -27,21 +27,21 @@ import { runtimeConfig } from '../../core/config/runtime-config';
             {{ isAdmin ? ('payroll.leadAdmin' | translate) : isTeacher ? ('payroll.leadTeacher' | translate) : ('payroll.leadDenied' | translate) }}
           </p>
         </div>
-        <div *ngIf="isAdmin || isTeacher" class="d-flex gap-2 align-items-end flex-wrap">
-          <div>
+        <div *ngIf="isAdmin || isTeacher" class="d-flex gap-2 align-items-end flex-wrap payroll-period-toolbar">
+          <div class="payroll-period-field">
             <label class="erp-label d-block mb-1">{{ 'payroll.labelMonth' | translate }}</label>
-            <select class="erp-select" [(ngModel)]="genMonth">
+            <select class="erp-select payroll-period-control" [(ngModel)]="genMonth">
               <option *ngFor="let m of monthNames" [value]="m">{{ monthOptionLabel(m) }}</option>
             </select>
           </div>
-          <div>
+          <div class="payroll-period-field payroll-period-field--year">
             <label class="erp-label d-block mb-1">{{ 'payroll.labelYear' | translate }}</label>
-            <input class="erp-input" type="number" [(ngModel)]="genYear" style="width: 100px;" />
+            <input class="erp-input payroll-period-control" type="number" [(ngModel)]="genYear" />
           </div>
-          <button *ngIf="isAdmin" class="btn-primary-erp btn-sm align-self-end" data-testid="generate-payslips-btn" [disabled]="generating" (click)="runGenerate()">
+          <button *ngIf="isAdmin" class="btn-primary-erp btn-sm align-self-end payroll-period-btn payroll-period-btn--primary" data-testid="generate-payslips-btn" [disabled]="generating" (click)="runGenerate()">
             <i class="bi bi-file-earmark-text"></i> {{ generating ? ('payroll.generating' | translate) : ('payroll.generate' | translate) }}
           </button>
-          <button class="btn-outline-erp btn-sm align-self-end" type="button" (click)="refreshPayroll()">{{ 'payroll.refresh' | translate }}</button>
+          <button class="btn-outline-erp btn-sm align-self-end payroll-period-btn payroll-period-btn--secondary" type="button" (click)="refreshPayroll()">{{ 'payroll.refresh' | translate }}</button>
         </div>
       </div>
 
@@ -50,6 +50,35 @@ import { runtimeConfig } from '../../core/config/runtime-config';
         {{ disburseInfo }}
         <div class="mt-2 pt-2 text-muted" style="font-size: 12px; border-top: 1px solid rgba(15, 23, 42, 0.12);">
           <strong>{{ 'payroll.disburseHowTitle' | translate }}</strong> {{ 'payroll.disburseHowBody' | translate }}
+        </div>
+      </div>
+
+      <div *ngIf="isAdmin" class="erp-card mb-3 animate-in payroll-flow-card">
+        <div class="small fw-semibold text-uppercase text-muted mb-2">{{ 'payroll.adminFlowTitle' | translate }}</div>
+        <div class="d-flex flex-wrap gap-2">
+          <span class="badge-erp badge-neutral">{{ 'payroll.adminFlowStep1' | translate }}</span>
+          <span class="badge-erp badge-neutral">{{ 'payroll.adminFlowStep2' | translate }}</span>
+          <span class="badge-erp badge-neutral">{{ 'payroll.adminFlowStep3' | translate }}</span>
+        </div>
+        <div class="row g-2 mt-1">
+          <div class="col-md-4">
+            <div class="p-2 rounded-2 payroll-flow-step-card">
+              <div class="small text-muted">{{ 'payroll.runStep1Title' | translate }}</div>
+              <div class="fw-semibold">{{ bankReadyCount }}/{{ paymentDetails.length }} {{ 'payroll.runStep1Value' | translate }}</div>
+            </div>
+          </div>
+          <div class="col-md-4">
+            <div class="p-2 rounded-2 payroll-flow-step-card">
+              <div class="small text-muted">{{ 'payroll.runStep2Title' | translate }}</div>
+              <div class="fw-semibold">{{ generatedPayslipCount }} {{ 'payroll.runStep2Value' | translate }}</div>
+            </div>
+          </div>
+          <div class="col-md-4">
+            <div class="p-2 rounded-2 payroll-flow-step-card">
+              <div class="small text-muted">{{ 'payroll.runStep3Title' | translate }}</div>
+              <div class="fw-semibold">{{ paidPayslipCount }} {{ 'payroll.runStep3Value' | translate }}</div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -92,7 +121,6 @@ import { runtimeConfig } from '../../core/config/runtime-config';
           </div>
           <button type="button" class="btn-outline-erp btn-sm" (click)="loadPaymentDetails()"><i class="bi bi-arrow-clockwise"></i> {{ 'payroll.reloadBank' | translate }}</button>
         </div>
-
         <div class="row g-3 mb-4" *ngIf="paymentDetails.length">
           <div class="col-md-4">
             <label class="erp-label">{{ 'payroll.labelTeacherStep' | translate }}</label>
@@ -282,9 +310,70 @@ import { runtimeConfig } from '../../core/config/runtime-config';
         border: 1px solid color-mix(in srgb, var(--clr-primary) 18%, var(--clr-border));
         background: linear-gradient(135deg, color-mix(in srgb, var(--clr-surface) 92%, var(--clr-primary) 8%), var(--clr-surface));
       }
+      .payroll-period-toolbar {
+        gap: 10px;
+      }
+      .payroll-period-field {
+        min-width: 160px;
+      }
+      .payroll-period-field--year {
+        min-width: 124px;
+        max-width: 124px;
+      }
+      .payroll-period-control {
+        width: 100%;
+        height: 42px;
+        min-height: 42px;
+        border-radius: 14px;
+        font-size: 14px;
+        box-sizing: border-box;
+      }
+      .payroll-period-btn {
+        height: 42px;
+        min-height: 42px;
+        border-radius: 999px;
+        padding: 0 18px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        font-size: 13px;
+        font-weight: 700;
+        white-space: nowrap;
+      }
+      .payroll-period-btn--primary {
+        min-width: 218px;
+      }
+      .payroll-period-btn--secondary {
+        min-width: 120px;
+      }
+      .payroll-flow-card {
+        border: 1px solid color-mix(in srgb, var(--clr-border) 86%, var(--clr-primary) 14%);
+        border-radius: 14px;
+        box-shadow: var(--shadow-sm);
+      }
+      .payroll-flow-step-card,
+      .payroll-queue-stat-card {
+        border: 1px solid var(--clr-border-light);
+        background: color-mix(in srgb, var(--clr-surface) 96%, var(--clr-primary) 4%);
+      }
       .payroll-focus-panel {
         border: 1px solid var(--clr-border);
         background: var(--clr-surface-muted);
+      }
+      [data-theme='dark'] .payroll-disburse-card,
+      [data-theme='dark'] .payroll-flow-card {
+        border-color: color-mix(in srgb, var(--clr-primary) 22%, var(--clr-border));
+        background: linear-gradient(
+          145deg,
+          color-mix(in srgb, var(--clr-surface) 95%, #0b1220),
+          color-mix(in srgb, var(--clr-surface-alt) 96%, #0b1220)
+        );
+      }
+      [data-theme='dark'] .payroll-flow-step-card,
+      [data-theme='dark'] .payroll-queue-stat-card {
+        border-color: color-mix(in srgb, var(--clr-primary) 22%, var(--clr-border));
+        background: color-mix(in srgb, var(--clr-surface) 94%, #0b1220);
       }
       .user-select-all {
         user-select: all;
@@ -304,6 +393,20 @@ import { runtimeConfig } from '../../core/config/runtime-config';
         white-space: nowrap;
       }
       @media (max-width: 767.98px) {
+        .payroll-period-toolbar {
+          width: 100%;
+        }
+        .payroll-period-field,
+        .payroll-period-field--year {
+          min-width: 100%;
+          max-width: 100%;
+        }
+        .payroll-period-btn,
+        .payroll-period-btn--primary,
+        .payroll-period-btn--secondary {
+          width: 100%;
+          min-width: 100%;
+        }
         .payroll-salary-table th,
         .payroll-salary-table td {
           font-size: 12px;
@@ -350,6 +453,14 @@ export class PayrollComponent implements OnInit {
     return this.paymentDetails.filter(d => d.bankDetailsComplete).length;
   }
 
+  get generatedPayslipCount(): number {
+    return this.payslips.filter(p => p.status === 'generated').length;
+  }
+
+  get paidPayslipCount(): number {
+    return this.payslips.filter(p => p.status === 'paid').length;
+  }
+
   get structPaginationTotal(): number {
     return runtimeConfig.useMocks ? this.salaryStructures.length : this.structTotalFromServer;
   }
@@ -363,6 +474,18 @@ export class PayrollComponent implements OnInit {
   }
 
   private readonly destroyRef = inject(DestroyRef);
+
+  private resolveUiErrorMessage(error: unknown, fallbackI18nKey: string): string {
+    const fallback = this.translate.instant(fallbackI18nKey);
+    if (!error || typeof error !== 'object') {
+      return fallback;
+    }
+    const msg = (error as { message?: unknown }).message;
+    if (typeof msg === 'string' && msg.trim()) {
+      return msg.trim();
+    }
+    return fallback;
+  }
 
   constructor(
     private payrollService: PayrollService,
@@ -540,6 +663,10 @@ export class PayrollComponent implements OnInit {
   runDisburse(d: TeacherPaymentDetails): void {
     this.disburseInfo = '';
     this.genError = '';
+    if (!this.isValidPayrollPeriod(this.genMonth, Number(this.genYear))) {
+      this.genError = this.translate.instant('payroll.errPeriodInvalid');
+      return;
+    }
     if (!this.canInitiateDisburse(d)) return;
     this.disbursingTeacherId = d.teacherId;
     this.payrollService
@@ -555,9 +682,9 @@ export class PayrollComponent implements OnInit {
           name: res.teacherName,
         });
       },
-      error: (e: Error) => {
+      error: (error: unknown) => {
         this.disbursingTeacherId = null;
-        this.genError = e?.message || this.translate.instant('payroll.genDisburseError');
+        this.genError = this.resolveUiErrorMessage(error, 'payroll.genDisburseError');
       }
     });
   }
@@ -602,17 +729,37 @@ export class PayrollComponent implements OnInit {
 
   runGenerate(): void {
     this.genError = '';
+    if (!this.genMonth || !this.genMonth.trim()) {
+      this.genError = this.translate.instant('payroll.errMonthRequired');
+      return;
+    }
+    if (!this.isValidPayrollPeriod(this.genMonth, Number(this.genYear))) {
+      this.genError = this.translate.instant('payroll.errPeriodInvalid');
+      return;
+    }
     this.generating = true;
     this.payrollService.generatePayslips(this.genMonth, this.genYear).subscribe({
       next: () => {
         this.generating = false;
         this.refreshPayroll();
       },
-      error: (e: Error) => {
+      error: (error: unknown) => {
         this.generating = false;
-        this.genError = e?.message || this.translate.instant('payroll.genPayslipError');
+        this.genError = this.resolveUiErrorMessage(error, 'payroll.genPayslipError');
       }
     });
+  }
+
+  private isValidPayrollPeriod(month: string, year: number): boolean {
+    const currentYear = new Date().getFullYear();
+    if (!month || !month.trim()) {
+      return false;
+    }
+    if (!Number.isInteger(year) || year < 2000 || year > currentYear + 2) {
+      return false;
+    }
+    const monthKey = month.trim().toLowerCase();
+    return this.monthNames.some(m => m.toLowerCase() === monthKey);
   }
 
   openPdf(p: Payslip): void {
@@ -671,4 +818,5 @@ export class PayrollComponent implements OnInit {
         });
       });
   }
+
 }

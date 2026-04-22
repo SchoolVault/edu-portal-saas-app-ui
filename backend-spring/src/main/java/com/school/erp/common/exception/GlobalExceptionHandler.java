@@ -28,7 +28,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(ResourceNotFoundException.class)
     public ResponseEntity<ApiResponse<Void>> handleNotFound(ResourceNotFoundException ex) {
         log.warn("Resource not found: {}", ex.getMessage());
-        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(err(ex.getMessage(), ApiErrorCode.RESOURCE_NOT_FOUND));
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(err(safeNotFoundMessage(ex.getMessage()), ApiErrorCode.RESOURCE_NOT_FOUND));
     }
 
     @ExceptionHandler(DuplicateResourceException.class)
@@ -63,6 +63,12 @@ public class GlobalExceptionHandler {
                 msg = "This class already has a timetable slot for that weekday and period.";
             } else if (root.contains("uq_tt_active_teacher_slot")) {
                 msg = "This teacher is already assigned to another class for that weekday and period.";
+            } else if (root.contains("ux_fee_structures_tenant_class_year_name_active")) {
+                msg = "A fee structure with this name already exists for the selected class and academic year.";
+            } else if (root.contains("ux_salary_structures_tenant_teacher_active")) {
+                msg = "A salary structure already exists for this teacher.";
+            } else if (root.contains("ux_salary_disb_tenant_reference_active")) {
+                msg = "This disbursement reference already exists. Please retry the disbursement action.";
             }
         }
         return ResponseEntity.status(HttpStatus.CONFLICT).body(err(msg, ApiErrorCode.DUPLICATE_RESOURCE));
@@ -95,8 +101,8 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(BusinessException.class)
     public ResponseEntity<ApiResponse<Void>> handleBusiness(BusinessException ex) {
         log.warn("Business error: {}", ex.getMessage());
-        ApiErrorCode code = ex.getApiErrorCode() != null ? ex.getApiErrorCode() : ApiErrorCode.BUSINESS_RULE_VIOLATION;
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(err(ex.getMessage(), code));
+        ApiErrorCode code = ex.getApiErrorCode() != null ? ex.getApiErrorCode() : safeBusinessCode(ex.getMessage());
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(err(safeBusinessMessage(ex.getMessage()), code));
     }
 
     @ExceptionHandler(RateLimitExceededException.class)
@@ -148,6 +154,78 @@ public class GlobalExceptionHandler {
 
     private static ApiResponse<Void> err(String message, ApiErrorCode code) {
         return ApiResponse.error(message, code.name(), traceId());
+    }
+
+    private static String safeNotFoundMessage(String rawMessage) {
+        if (rawMessage == null || rawMessage.isBlank()) {
+            return "Requested record was not found.";
+        }
+        String m = rawMessage.toLowerCase();
+        if (m.contains("feestructure")) {
+            return "Fee structure not found.";
+        }
+        if (m.contains("fee payment") || m.contains("payment")) {
+            return "Fee payment record not found.";
+        }
+        if (m.contains("receipt")) {
+            return "Receipt not found.";
+        }
+        if (m.contains("salarydisbursementattempt")) {
+            return "Disbursement record not found.";
+        }
+        if (m.contains("payslip")) {
+            return "Payslip not found.";
+        }
+        if (m.contains("teacher")) {
+            return "Teacher record not found.";
+        }
+        return "Requested record was not found.";
+    }
+
+    private static ApiErrorCode safeBusinessCode(String rawMessage) {
+        if (rawMessage == null || rawMessage.isBlank()) {
+            return ApiErrorCode.BUSINESS_RULE_VIOLATION;
+        }
+        String m = rawMessage.toLowerCase();
+        if (m.contains("fee") || m.contains("receipt") || m.contains("outstanding balance")) {
+            if (m.contains("incomplete") || m.contains("blocked") || m.contains("failed")) {
+                return ApiErrorCode.FEES_OPERATION_BLOCKED;
+            }
+            return ApiErrorCode.FEES_VALIDATION_FAILED;
+        }
+        if (m.contains("payroll") || m.contains("payslip") || m.contains("disbursement") || m.contains("bank details")) {
+            if (m.contains("incomplete") || m.contains("awaiting payment") || m.contains("generate payslips")) {
+                return ApiErrorCode.PAYROLL_DISBURSEMENT_BLOCKED;
+            }
+            return ApiErrorCode.PAYROLL_VALIDATION_FAILED;
+        }
+        return ApiErrorCode.BUSINESS_RULE_VIOLATION;
+    }
+
+    private static String safeBusinessMessage(String rawMessage) {
+        if (rawMessage == null || rawMessage.isBlank()) {
+            return "Request could not be completed due to a business rule.";
+        }
+        String m = rawMessage.toLowerCase();
+        if (m.contains("paid amount exceeds outstanding balance")) {
+            return "Paid amount cannot be greater than pending dues.";
+        }
+        if (m.contains("invalid payroll year") || m.contains("payroll month is required")) {
+            return "Please select a valid payroll month and year.";
+        }
+        if (m.contains("no payslip found for this teacher and period")) {
+            return "Payslip is not generated for the selected period.";
+        }
+        if (m.contains("payslip is not awaiting payment")) {
+            return "This payslip is already settled or not eligible for disbursement.";
+        }
+        if (m.contains("bank details incomplete")) {
+            return "Teacher bank details are incomplete. Please update profile before disbursement.";
+        }
+        if (m.contains("invalid disbursement status")) {
+            return "Invalid settlement status selected.";
+        }
+        return rawMessage;
     }
 
     private static String traceId() {

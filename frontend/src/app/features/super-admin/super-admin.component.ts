@@ -124,18 +124,90 @@ interface SuperAdminChartPalette {
         margin: 0;
         word-break: break-word;
       }
+      .sa-table-wrap {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        border-radius: 12px;
+      }
+      .sa-portfolio-table {
+        min-width: 760px;
+      }
+      .sa-portfolio-school {
+        min-width: 240px;
+      }
+      .sa-portfolio-school__name {
+        font-weight: 700;
+      }
+      .sa-portfolio-school__meta {
+        font-size: 12px;
+        color: var(--clr-text-muted);
+      }
+      @media (max-width: 767.98px) {
+        .sa-stat-grid {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+        .sa-admin-card {
+          flex-direction: column;
+        }
+        .sa-admin-card .btn-outline-erp {
+          width: 100%;
+        }
+      }
+      @media (max-width: 575.98px) {
+        .sa-table-wrap {
+          overflow: visible;
+        }
+        .sa-portfolio-table {
+          min-width: 0;
+        }
+        .sa-portfolio-table thead {
+          display: none;
+        }
+        .sa-portfolio-table tbody tr {
+          display: block;
+          border: 1px solid var(--clr-border-light, #e8eef0);
+          border-radius: 12px;
+          padding: 0.65rem;
+          margin: 0 0 0.65rem;
+          background: var(--clr-surface, #fff);
+        }
+        .sa-portfolio-table tbody td {
+          display: flex;
+          justify-content: space-between;
+          gap: 0.75rem;
+          border: 0;
+          padding: 0.35rem 0;
+          text-align: right;
+        }
+        .sa-portfolio-table tbody td::before {
+          content: attr(data-label);
+          color: var(--clr-text-muted);
+          font-weight: 600;
+          text-align: left;
+        }
+        .sa-portfolio-table .sa-portfolio-school {
+          display: block;
+          text-align: left;
+        }
+        .sa-portfolio-table .sa-portfolio-school::before {
+          display: none;
+        }
+        .sa-portfolio-school__meta {
+          margin-top: 0.15rem;
+        }
+      }
     `,
   ],
   template: `
     <div data-testid="super-admin-page">
-      <div class="d-flex justify-content-between align-items-end mb-4 animate-in flex-wrap gap-2">
+      <div class="erp-filter-toolbar mb-4 animate-in">
         <div>
           <div class="badge-erp badge-info mb-2">{{ 'superAdmin.badge' | translate }}</div>
           <h2 style="font-size: 28px; font-weight: 800;">{{ 'superAdmin.title' | translate }}</h2>
           <p class="text-muted mb-0" style="font-size: 13px;">{{ 'superAdmin.lead' | translate }}</p>
         </div>
-        <div class="d-flex gap-2 align-self-center flex-wrap">
-          <button type="button" class="btn-outline-erp btn-sm" (click)="refreshPlatform()" [disabled]="refreshing">
+        <div class="erp-filter-toolbar__actions">
+          <button type="button" class="btn-outline-erp btn-sm erp-filter-toolbar__action" (click)="refreshPlatform()" [disabled]="refreshing">
             <i class="bi bi-arrow-clockwise"></i>
             {{ refreshing ? ('superAdmin.refreshing' | translate) : ('superAdmin.refresh' | translate) }}
           </button>
@@ -178,16 +250,23 @@ interface SuperAdminChartPalette {
               </div>
             </div>
             <div class="px-3 pt-3 pb-0">
-              <label class="erp-label small mb-1">{{ 'superAdmin.portfolio.search' | translate }}</label>
-              <input
-                type="search"
-                class="erp-input"
-                [(ngModel)]="schoolSearchInput"
-                (ngModelChange)="schoolSearch$.next($event)"
-                [placeholder]="'superAdmin.portfolio.searchPh' | translate"
-              />
+              <div class="erp-filter-toolbar">
+                <div class="erp-filter-toolbar__search">
+                  <div>
+                    <label class="erp-label small mb-1">{{ 'superAdmin.portfolio.search' | translate }}</label>
+                    <input
+                      type="search"
+                      class="erp-input"
+                      [(ngModel)]="schoolSearchInput"
+                      (ngModelChange)="schoolSearch$.next($event)"
+                      [placeholder]="'superAdmin.portfolio.searchPh' | translate"
+                    />
+                  </div>
+                </div>
+              </div>
             </div>
-            <table class="erp-table">
+            <div class="sa-table-wrap">
+            <table class="erp-table sa-portfolio-table">
               <thead>
                 <tr>
                   <th>{{ 'superAdmin.portfolio.thSchool' | translate }}</th>
@@ -204,16 +283,16 @@ interface SuperAdminChartPalette {
                   style="cursor: pointer;"
                   [style.background]="selectedSchool?.tenantId === school.tenantId ? 'var(--clr-surface-alt)' : ''"
                 >
-                  <td>
-                    <div style="font-weight: 700;">{{ school.schoolName }}</div>
-                    <div style="font-size: 12px; color: var(--clr-text-muted);">
+                  <td class="sa-portfolio-school" [attr.data-label]="'superAdmin.portfolio.thSchool' | translate">
+                    <div class="sa-portfolio-school__name">{{ school.schoolName }}</div>
+                    <div class="sa-portfolio-school__meta">
                       {{ school.schoolCode }} · {{ school.address || ('superAdmin.noAddress' | translate) }}
                     </div>
                   </td>
-                  <td>{{ school.studentCount }}</td>
-                  <td>{{ school.teacherCount }}</td>
-                  <td>{{ school.adminCount }}</td>
-                  <td>
+                  <td [attr.data-label]="'superAdmin.portfolio.thStudents' | translate">{{ school.studentCount }}</td>
+                  <td [attr.data-label]="'superAdmin.portfolio.thTeachers' | translate">{{ school.teacherCount }}</td>
+                  <td [attr.data-label]="'superAdmin.portfolio.thAdmins' | translate">{{ school.adminCount }}</td>
+                  <td [attr.data-label]="'superAdmin.portfolio.thStatus' | translate">
                     <span class="badge-erp" [ngClass]="school.active ? 'badge-success' : 'badge-warning'">
                       {{ school.active ? ('superAdmin.status.active' | translate) : ('superAdmin.status.attention' | translate) }}
                     </span>
@@ -221,6 +300,7 @@ interface SuperAdminChartPalette {
                 </tr>
               </tbody>
             </table>
+            </div>
             <app-erp-pagination
               *ngIf="schoolsTotal > 0"
               [totalElements]="schoolsTotal"

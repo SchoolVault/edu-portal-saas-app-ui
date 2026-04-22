@@ -26,11 +26,14 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.Month;
 import java.time.YearMonth;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -75,18 +78,31 @@ public class PayrollService {
     @Transactional
     public PayrollDTOs.SalaryStructureResponse createStructure(PayrollDTOs.CreateSalaryStructureRequest req) {
         String t = TenantContext.getTenantId();
-        BigDecimal totalAllow = req.getAllowances().stream().map(PayrollDTOs.SalaryComponentDTO::getAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
-        BigDecimal totalDeduct = req.getDeductions().stream().map(PayrollDTOs.SalaryComponentDTO::getAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
+        if (req.getTeacherId() == null) {
+            throw new BusinessException("Teacher is required");
+        }
+        if (req.getBasicSalary() == null || req.getBasicSalary().compareTo(BigDecimal.ZERO) <= 0) {
+            throw new BusinessException("Basic salary must be greater than zero");
+        }
+        if (ssRepo.existsByTenantIdAndIsDeletedFalseAndTeacherId(t, req.getTeacherId())) {
+            throw new BusinessException("Salary structure already exists for this teacher");
+        }
+        List<PayrollDTOs.SalaryComponentDTO> allowanceRows = req.getAllowances() != null ? req.getAllowances() : List.of();
+        List<PayrollDTOs.SalaryComponentDTO> deductionRows = req.getDeductions() != null ? req.getDeductions() : List.of();
+        validateSalaryComponents("allowance", allowanceRows);
+        validateSalaryComponents("deduction", deductionRows);
+        BigDecimal totalAllow = allowanceRows.stream().map(PayrollDTOs.SalaryComponentDTO::getAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal totalDeduct = deductionRows.stream().map(PayrollDTOs.SalaryComponentDTO::getAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
         BigDecimal netSalary = req.getBasicSalary().add(totalAllow).subtract(totalDeduct);
         SalaryStructure ss = SalaryStructure.builder().teacherId(req.getTeacherId()).teacherName(req.getTeacherName()).basicSalary(req.getBasicSalary()).netSalary(netSalary).build();
         ss.setTenantId(t);
         ssRepo.save(ss);
-        req.getAllowances().forEach(a -> {
+        allowanceRows.forEach(a -> {
             SalaryComponent sc = SalaryComponent.builder().salaryStructureId(ss.getId()).name(a.getName()).amount(a.getAmount()).type(Enums.SalaryComponentType.ALLOWANCE).build();
             sc.setTenantId(t);
             scRepo.save(sc);
         });
-        req.getDeductions().forEach(d -> {
+        deductionRows.forEach(d -> {
             SalaryComponent sc = SalaryComponent.builder().salaryStructureId(ss.getId()).name(d.getName()).amount(d.getAmount()).type(Enums.SalaryComponentType.DEDUCTION).build();
             sc.setTenantId(t);
             scRepo.save(sc);
@@ -95,14 +111,34 @@ public class PayrollService {
         return getStructures().stream().filter(s -> s.getId().equals(ss.getId())).findFirst().orElse(null);
     }
 
+    private void validateSalaryComponents(String kind, List<PayrollDTOs.SalaryComponentDTO> rows) {
+        List<String> names = new ArrayList<>();
+        for (PayrollDTOs.SalaryComponentDTO row : rows) {
+            String name = row.getName() == null ? "" : row.getName().trim();
+            if (name.isEmpty()) {
+                throw new BusinessException("Salary " + kind + " name is required");
+            }
+            if (names.stream().anyMatch(n -> n.equalsIgnoreCase(name))) {
+                throw new BusinessException("Duplicate salary " + kind + " component name: " + name);
+            }
+            names.add(name);
+            if (row.getAmount() == null || row.getAmount().compareTo(BigDecimal.ZERO) < 0) {
+                throw new BusinessException("Salary " + kind + " amount cannot be negative");
+            }
+        }
+    }
+
     @Transactional
     public List<Payslip> generatePayslips(String month, int year) {
         String t = TenantContext.getTenantId();
-        String payrollMonth = toPayrollMonthKey(month, year);
+        String payrollMonth = normalizePayrollMonthKey(month, year);
         if (psRepo.existsByTenantIdAndPayrollMonthAndIsDeletedFalse(t, payrollMonth)) {
             throw new BusinessException("Payslips already generated for " + payrollMonth + ". Refresh the list or choose another month.");
         }
         List<SalaryStructure> structures = ssRepo.findByTenantIdAndIsDeletedFalse(t);
+        if (structures.isEmpty()) {
+            throw new BusinessException("No salary structures found. Configure salary structures before generating payslips.");
+        }
         List<Payslip> payslips = structures.stream().map(ss -> {
             List<SalaryComponent> comps = scRepo.findByTenantIdAndSalaryStructureId(t, ss.getId());
             BigDecimal allow = comps.stream().filter(c -> c.getType() == Enums.SalaryComponentType.ALLOWANCE).map(SalaryComponent::getAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
@@ -197,8 +233,9 @@ public class PayrollService {
     public PayrollDTOs.DisburseSalaryResponse initiateSalaryDisbursement(PayrollDTOs.DisburseSalaryRequest req) {
         String t = TenantContext.getTenantId();
         Long teacherId = req.getTeacherId();
-        int year = req.getYear();
+        int year = req.getYear() != null ? req.getYear() : 0;
         String month = req.getMonth() != null ? req.getMonth().trim() : "";
+        normalizePayrollMonthKey(month, year);
         String methodRaw = req.getPaymentMethod() != null ? req.getPaymentMethod().trim().toUpperCase(Locale.ROOT) : "NETBANKING";
         if (!methodRaw.matches("NETBANKING|UPI|NEFT|IMPS")) {
             methodRaw = "NETBANKING";
@@ -258,6 +295,68 @@ public class PayrollService {
     }
 
     @Transactional(readOnly = true)
+    public PageResponse<PayrollDTOs.DisbursementAttemptResponse> getDisbursementAttemptsPaged(
+            int page, int size, String status) {
+        String t = TenantContext.getTenantId();
+        Pageable pageable = PageRequest.of(Math.max(0, page), Math.min(Math.max(size, 1), 200), Sort.by(Sort.Direction.DESC, "createdAt"));
+        String normalizedStatus = status != null ? status.trim().toUpperCase(Locale.ROOT) : "";
+        Page<SalaryDisbursementAttempt> rows = normalizedStatus.isEmpty()
+                ? salaryDisbursementAttemptRepository.findByTenantIdAndIsDeletedFalseOrderByCreatedAtDesc(t, pageable)
+                : salaryDisbursementAttemptRepository.findByTenantIdAndStatusAndIsDeletedFalseOrderByCreatedAtDesc(t, normalizedStatus, pageable);
+        Map<Long, Payslip> payslipMap = psRepo.findByTenantIdAndIsDeletedFalse(t).stream()
+                .collect(Collectors.toMap(Payslip::getId, p -> p, (a, b) -> a, HashMap::new));
+        return PageResponse.fromSpringPage(rows.map(a -> toAttemptResponse(a, payslipMap.get(a.getPayslipId()))));
+    }
+
+    @Transactional(readOnly = true)
+    public PayrollDTOs.DisbursementQueueSummaryResponse getDisbursementSummary() {
+        String t = TenantContext.getTenantId();
+        List<SalaryDisbursementAttempt> rows = salaryDisbursementAttemptRepository.findByTenantIdAndIsDeletedFalseOrderByCreatedAtDesc(t);
+        PayrollDTOs.DisbursementQueueSummaryResponse out = new PayrollDTOs.DisbursementQueueSummaryResponse();
+        out.setTotalAttempts(rows.size());
+        out.setSubmittedCount(rows.stream().filter(r -> "SUBMITTED".equalsIgnoreCase(r.getStatus())).count());
+        out.setCompletedCount(rows.stream().filter(r -> "COMPLETED".equalsIgnoreCase(r.getStatus())).count());
+        out.setFailedCount(rows.stream().filter(r -> "FAILED".equalsIgnoreCase(r.getStatus())).count());
+        out.setSubmittedAmount(sumByStatus(rows, "SUBMITTED"));
+        out.setCompletedAmount(sumByStatus(rows, "COMPLETED"));
+        out.setFailedAmount(sumByStatus(rows, "FAILED"));
+        return out;
+    }
+
+    @Transactional
+    public PayrollDTOs.DisbursementAttemptResponse updateDisbursementStatus(
+            Long attemptId, PayrollDTOs.UpdateDisbursementStatusRequest req) {
+        String t = TenantContext.getTenantId();
+        SalaryDisbursementAttempt attempt = salaryDisbursementAttemptRepository.findByIdAndTenantIdAndIsDeletedFalse(attemptId, t)
+                .orElseThrow(() -> new ResourceNotFoundException("SalaryDisbursementAttempt", attemptId));
+        String targetStatus = req.getStatus().trim().toUpperCase(Locale.ROOT);
+        if (!targetStatus.matches("SUBMITTED|COMPLETED|FAILED")) {
+            throw new BusinessException("Invalid disbursement status");
+        }
+        attempt.setStatus(targetStatus);
+        if ("COMPLETED".equals(targetStatus) || "FAILED".equals(targetStatus)) {
+            attempt.setCompletedAt(LocalDateTime.now());
+        } else {
+            attempt.setCompletedAt(null);
+        }
+        if (req.getMessage() != null && !req.getMessage().trim().isEmpty()) {
+            attempt.setGatewayPayload(req.getMessage().trim());
+        }
+        salaryDisbursementAttemptRepository.save(attempt);
+        Payslip payslip = psRepo.findByIdAndTenantIdAndIsDeletedFalse(attempt.getPayslipId(), t)
+                .orElseThrow(() -> new ResourceNotFoundException("Payslip", attempt.getPayslipId()));
+        if ("COMPLETED".equals(targetStatus)) {
+            payslip.setStatus(Enums.PayslipStatus.PAID);
+            payslip.setPaymentDate(LocalDate.now());
+        } else if ("FAILED".equals(targetStatus) && payslip.getStatus() == Enums.PayslipStatus.PAID) {
+            payslip.setStatus(Enums.PayslipStatus.GENERATED);
+            payslip.setPaymentDate(null);
+        }
+        psRepo.save(payslip);
+        return toAttemptResponse(attempt, payslip);
+    }
+
+    @Transactional(readOnly = true)
     public List<Payslip> getMyPayslips(Integer year, String month) {
         String t = TenantContext.getTenantId();
         Long uid = TenantContext.getUserId();
@@ -305,6 +404,45 @@ public class PayrollService {
     private static String toPayrollMonthKey(String month, int year) {
         Month m = Month.valueOf(month.trim().toUpperCase(Locale.ENGLISH));
         return YearMonth.of(year, m).toString();
+    }
+
+    private static BigDecimal sumByStatus(List<SalaryDisbursementAttempt> rows, String status) {
+        return rows.stream()
+                .filter(r -> status.equalsIgnoreCase(r.getStatus()))
+                .map(r -> r.getAmount() != null ? r.getAmount() : BigDecimal.ZERO)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
+    private PayrollDTOs.DisbursementAttemptResponse toAttemptResponse(SalaryDisbursementAttempt attempt, Payslip payslip) {
+        PayrollDTOs.DisbursementAttemptResponse out = new PayrollDTOs.DisbursementAttemptResponse();
+        out.setId(attempt.getId());
+        out.setPayslipId(attempt.getPayslipId());
+        out.setTeacherId(attempt.getTeacherId());
+        out.setTeacherName(payslip != null ? payslip.getTeacherName() : null);
+        out.setPeriodLabel(payslip != null ? (payslip.getMonth() + " " + payslip.getYear()) : null);
+        out.setAmount(attempt.getAmount());
+        out.setPaymentMethod(attempt.getPaymentMethod());
+        out.setReferenceId(attempt.getReferenceId());
+        out.setStatus(attempt.getStatus());
+        out.setCreatedAt(attempt.getCreatedAt() != null ? attempt.getCreatedAt().toString() : null);
+        out.setCompletedAt(attempt.getCompletedAt() != null ? attempt.getCompletedAt().toString() : null);
+        out.setLastMessage(attempt.getGatewayPayload());
+        return out;
+    }
+
+    private static String normalizePayrollMonthKey(String month, int year) {
+        int currentYear = LocalDate.now().getYear();
+        if (year < 2000 || year > currentYear + 2) {
+            throw new BusinessException("Invalid payroll year. Please use a valid year.");
+        }
+        if (month == null || month.trim().isEmpty()) {
+            throw new BusinessException("Payroll month is required.");
+        }
+        try {
+            return toPayrollMonthKey(month, year);
+        } catch (Exception ex) {
+            throw new BusinessException("Invalid payroll month. Use full month name, e.g. April.");
+        }
     }
 
     public PayrollService(

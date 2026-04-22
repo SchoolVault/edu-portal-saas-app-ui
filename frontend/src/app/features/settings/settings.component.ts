@@ -1093,14 +1093,11 @@ export class SettingsComponent implements OnInit, OnDestroy {
 
   saveProfileAccount(): void {
     const name = (this.profileDraftName ?? '').trim();
-    const previousPhone = (this.profileUser?.phone ?? '').trim();
-    const currentEmail = (this.profileUser?.email ?? '').trim();
     if (!name) {
       this.profileAccountErr = this.translate.instant('settings.profileNameRequired');
       this.profileAccountMsg = '';
       return;
     }
-    this.profileAccountSaving = true;
     this.profileAccountMsg = '';
     this.profileAccountErr = '';
     const updatePayload = {
@@ -1113,9 +1110,124 @@ export class SettingsComponent implements OnInit, OnDestroy {
       bankAccountNumber: this.isTeacherProfileEditable ? (this.profileDraftBankAccountNumber || '').trim() : undefined,
       bankIfsc: this.isTeacherProfileEditable ? (this.profileDraftBankIfsc || '').trim().toUpperCase() : undefined,
     };
+    const criticalChangeDetails = this.buildCriticalProfileChangeDetails(updatePayload);
+    if (criticalChangeDetails.length) {
+      this.confirmDialog
+        .confirm({
+          title: this.translate.instant('settings.profileConfirmTitle'),
+          message: this.translate.instant('settings.profileConfirmBody'),
+          details: criticalChangeDetails,
+          variant: 'warning',
+          confirmLabel: this.translate.instant('settings.profileConfirmProceed'),
+          cancelLabel: this.translate.instant('settings.profileConfirmCancel'),
+        })
+        .subscribe(confirmed => {
+          if (!confirmed) {
+            this.syncAccountDrafts();
+            this.accountDetailsEditing = false;
+            this.cdr.markForCheck();
+            return;
+          }
+          this.persistProfileAccountUpdate(updatePayload);
+        });
+      return;
+    }
+    this.persistProfileAccountUpdate(updatePayload);
+  }
+
+  private buildCriticalProfileChangeDetails(updatePayload: {
+    name: string;
+    phone: string;
+    qualification?: string;
+    specialization?: string;
+    bankAccountHolder?: string;
+    bankName?: string;
+    bankAccountNumber?: string;
+    bankIfsc?: string;
+  }): string[] {
+    const previous = this.profileDetails;
+    const roleSensitiveFields: Array<{ label: string; before: string; after: string }> = [
+      {
+        label: this.translate.instant('settings.profileFullNameLabel'),
+        before: (this.profileUser?.name ?? '').trim(),
+        after: updatePayload.name.trim(),
+      },
+      {
+        label: this.translate.instant('settings.profileContactPhoneLabel'),
+        before: (this.profileUser?.phone ?? '').trim(),
+        after: (updatePayload.phone ?? '').trim(),
+      },
+    ];
+    if (this.isTeacherProfileEditable) {
+      roleSensitiveFields.push(
+        {
+          label: this.translate.instant('settings.teacherQualificationLabel'),
+          before: (previous?.qualification ?? '').trim(),
+          after: (updatePayload.qualification ?? '').trim(),
+        },
+        {
+          label: this.translate.instant('settings.teacherSpecializationLabel'),
+          before: (previous?.specialization ?? '').trim(),
+          after: (updatePayload.specialization ?? '').trim(),
+        },
+        {
+          label: this.translate.instant('settings.bankAccountHolderLabel'),
+          before: (previous?.bankAccountHolder ?? '').trim(),
+          after: (updatePayload.bankAccountHolder ?? '').trim(),
+        },
+        {
+          label: this.translate.instant('settings.bankNameLabel'),
+          before: (previous?.bankName ?? '').trim(),
+          after: (updatePayload.bankName ?? '').trim(),
+        },
+        {
+          label: this.translate.instant('settings.bankAccountNumberLabel'),
+          before: this.maskSensitiveAccountNumber(previous?.bankAccountNumber ?? ''),
+          after: this.maskSensitiveAccountNumber(updatePayload.bankAccountNumber ?? ''),
+        },
+        {
+          label: this.translate.instant('settings.bankIfscLabel'),
+          before: (previous?.bankIfsc ?? '').trim().toUpperCase(),
+          after: (updatePayload.bankIfsc ?? '').trim().toUpperCase(),
+        }
+      );
+    }
+    const emptyText = this.translate.instant('settings.profileConfirmNoValue');
+    return roleSensitiveFields
+      .filter(change => change.before !== change.after)
+      .map(change =>
+        this.translate.instant('settings.profileConfirmChangeLine', {
+          field: change.label,
+          before: change.before || emptyText,
+          after: change.after || emptyText,
+        })
+      );
+  }
+
+  private maskSensitiveAccountNumber(raw: string): string {
+    const trimmed = (raw ?? '').trim();
+    if (!trimmed) {
+      return '';
+    }
+    const visibleTail = trimmed.slice(-4);
+    return `****${visibleTail}`;
+  }
+
+  private persistProfileAccountUpdate(updatePayload: {
+    name: string;
+    phone: string;
+    qualification?: string;
+    specialization?: string;
+    bankAccountHolder?: string;
+    bankName?: string;
+    bankAccountNumber?: string;
+    bankIfsc?: string;
+  }): void {
+    this.profileAccountSaving = true;
+    this.profileAccountMsg = '';
+    this.profileAccountErr = '';
     this.auth.updateMyProfileDetails(updatePayload).subscribe({
       next: () => {
-        const updatedPhone = (this.profileDraftPhone ?? '').trim();
         this.profileAccountSaving = false;
         this.accountDetailsEditing = false;
         this.profileAccountMsg = this.translate.instant(
@@ -1125,19 +1237,6 @@ export class SettingsComponent implements OnInit, OnDestroy {
         this.refreshProfilePreview();
         this.loadPersonalProfileDetails();
         this.auth.fetchProfileSummary().subscribe({ error: () => void 0 });
-        if (updatedPhone !== previousPhone) {
-          this.confirmDialog.confirm({
-            title: this.translate.instant('settings.credentialsUpdatedDialogTitle'),
-            message: this.translate.instant('settings.credentialsUpdatedDialogBody'),
-            details: [
-              currentEmail ? `${this.translate.instant('settings.labelEmail')}: ${currentEmail}` : '',
-              updatedPhone ? `${this.translate.instant('settings.profileContactPhoneLabel')}: ${updatedPhone}` : '',
-            ].filter(Boolean),
-            variant: 'warning',
-            confirmLabel: this.translate.instant('settings.dialogOk'),
-            cancelLabel: this.translate.instant('settings.dialogClose'),
-          }).subscribe();
-        }
         this.cdr.markForCheck();
       },
       error: () => {

@@ -36,10 +36,13 @@ import {
   PlatformBroadcastResult,
   PlatformDashboardData,
   PlatformPurgeJob,
+  PlatformLifecycleSummary,
+  PlatformLifecycleObservability,
   PlatformSchoolAdmin,
   PlatformSchoolAdminChatHit,
   PlatformSchoolDetail,
   PlatformSchoolSummary,
+  PlatformStorageReconciliation,
   PlatformSubscriptionPlan,
   PlatformOnboardSchoolResponse,
   CacheClearResponse,
@@ -102,6 +105,62 @@ export class PlatformService {
       }).pipe(delay(200));
     }
     return this.api.get<PlatformDashboardData>('/platform/dashboard');
+  }
+
+  getLifecycleSummary(): Observable<PlatformLifecycleSummary> {
+    if (runtimeConfig.useMocks) {
+      return of({
+        archivedRecordCount: 12450,
+        latestArchivedAt: new Date(Date.now() - 1000 * 60 * 30).toISOString(),
+        reportStorageTrackedRows: 220,
+        reportStorageMissingFiles: 2,
+      }).pipe(delay(180));
+    }
+    return this.api.get<PlatformLifecycleSummary>('/platform/lifecycle/summary');
+  }
+
+  reconcileReportStorage(dryRun = true, deleteOrphans = false): Observable<PlatformStorageReconciliation> {
+    if (runtimeConfig.useMocks) {
+      return of({
+        dryRun,
+        scannedFiles: 240,
+        referencedFiles: 220,
+        missingFiles: 2,
+        orphanFiles: 20,
+        deletedOrphanFiles: dryRun || !deleteOrphans ? 0 : 10,
+        sampleMissingFiles: ['/tmp/report-binaries/tenant_a/2026/04/190_report.pdf'],
+        sampleOrphanFiles: ['/tmp/report-binaries/tenant_a/2026/04/orphan_legacy.csv'],
+      }).pipe(delay(300));
+    }
+    return this.api.post<PlatformStorageReconciliation>(
+      `/platform/storage/reconcile?dryRun=${encodeURIComponent(String(dryRun))}&deleteOrphans=${encodeURIComponent(String(deleteOrphans))}`,
+      {}
+    );
+  }
+
+  getLifecycleObservability(): Observable<PlatformLifecycleObservability> {
+    if (runtimeConfig.useMocks) {
+      return of({
+        totalArchivedRecords: 12450,
+        latestArchivedAt: new Date(Date.now() - 1000 * 60 * 30).toISOString(),
+        archiveLagDays: 0,
+        sourceStats: [
+          { sourceTable: 'attendance_records', recordCount: 8200, latestArchivedAt: new Date().toISOString() },
+          { sourceTable: 'audit_logs', recordCount: 2600, latestArchivedAt: new Date().toISOString() },
+          { sourceTable: 'notifications', recordCount: 1650, latestArchivedAt: new Date().toISOString() },
+        ],
+        dailyTrend: [
+          { day: '2026-04-16', archivedCount: 920 },
+          { day: '2026-04-17', archivedCount: 1010 },
+          { day: '2026-04-18', archivedCount: 980 },
+          { day: '2026-04-19', archivedCount: 1110 },
+          { day: '2026-04-20', archivedCount: 970 },
+          { day: '2026-04-21', archivedCount: 1200 },
+          { day: '2026-04-22', archivedCount: 840 },
+        ],
+      }).pipe(delay(220));
+    }
+    return this.api.get<PlatformLifecycleObservability>('/platform/lifecycle/observability');
   }
 
   onboardSchoolWorkspace(body: OnboardSchoolRequest): Observable<PlatformOnboardSchoolResponse> {
@@ -254,7 +313,18 @@ export class PlatformService {
         id: String(this.purgeJobSeq++),
         tenantId,
         schoolCode: school.schoolCode,
+        schoolName: school.schoolName,
         status: 'QUEUED',
+        requestedByRole: 'ADMIN',
+        requestedByDisplayName: `${school.schoolName} Principal`,
+        requestedByPrincipal: (school.email || `${school.schoolCode.toLowerCase()}-admin@school.local`),
+        executedByRole: 'SUPER_ADMIN',
+        executedByDisplayName: 'Platform Super Admin',
+        executedByPrincipal: 'super-admin@mock.school',
+        affectedStudents: school.studentCount,
+        affectedTeachers: school.teacherCount,
+        affectedAdmins: school.adminCount,
+        affectedParentAccounts: Math.round(school.studentCount * 0.85),
         createdAt: new Date().toISOString()
       };
       if (!this.mockPurgeJobs[tenantId]) {
@@ -269,6 +339,9 @@ export class PlatformService {
         job.status = 'COMPLETED';
         job.completedAt = new Date().toISOString();
         job.rowsDeletedEstimate = 12400 + Math.floor(Math.random() * 2000);
+        if (job.startedAt && job.completedAt) {
+          job.executionDurationMs = new Date(job.completedAt).getTime() - new Date(job.startedAt).getTime();
+        }
       }, 1600);
       return of({ ...job }).pipe(delay(250));
     }
@@ -286,6 +359,81 @@ export class PlatformService {
         id: String(j.id)
       })))
     );
+  }
+
+  listGlobalPurgeJobs(
+    page = 0,
+    size = DEFAULT_ERP_PAGE_SIZE,
+    q?: string,
+    status?: string
+  ): Observable<PageResp<PlatformPurgeJob>> {
+    if (runtimeConfig.useMocks) {
+      const allRows: PlatformPurgeJob[] = Object.entries(this.mockPurgeJobs).flatMap(([tenantId, rows]) => {
+        const school = this.mockSchools.find(s => s.tenantId === tenantId);
+        return (rows ?? []).map(row => ({
+          ...row,
+          schoolName: row.schoolName ?? school?.schoolName ?? null,
+          schoolCode: row.schoolCode ?? school?.schoolCode ?? '',
+          tenantId
+        }));
+      });
+      const query = (q || '').trim().toLowerCase();
+      const desiredStatus = (status || '').trim().toUpperCase();
+      let filtered = [...allRows];
+      if (query) {
+        filtered = filtered.filter(row =>
+          `${row.schoolName || ''} ${row.schoolCode || ''} ${row.tenantId || ''}`
+            .toLowerCase()
+            .includes(query)
+        );
+      }
+      if (desiredStatus) {
+        filtered = filtered.filter(row => (row.status || '').toUpperCase() === desiredStatus);
+      }
+      filtered.sort((a, b) => {
+        const aTime = new Date(a.createdAt || 0).getTime();
+        const bTime = new Date(b.createdAt || 0).getTime();
+        return bTime - aTime;
+      });
+      return of(sliceToPage(filtered, page, size)).pipe(delay(120));
+    }
+    return this.api.getPageParams<PlatformPurgeJob>('/platform/purge-jobs', {
+      page,
+      size,
+      q: q?.trim() || undefined,
+      status: status?.trim() || undefined
+    }).pipe(
+      map(p => ({
+        ...p,
+        content: p.content.map(row => ({ ...row, id: String(row.id) }))
+      }))
+    );
+  }
+
+  exportPurgeJobCsv(tenantId: string, jobId: string): Observable<Blob> {
+    if (runtimeConfig.useMocks) {
+      const list = this.mockPurgeJobs[tenantId] ?? [];
+      const job = list.find(j => j.id === String(jobId));
+      if (!job) {
+        return throwError(() => new Error('Purge job not found'));
+      }
+      const header = [
+        'job_id', 'tenant_id', 'school_code', 'status', 'error_message', 'rows_deleted_estimate', 'execution_duration_ms',
+        'requested_by_user_id', 'requested_by_role', 'requested_by_principal', 'requested_by_display_name',
+        'affected_students', 'affected_teachers', 'affected_admins', 'affected_parent_accounts',
+        'created_at', 'started_at', 'completed_at'
+      ];
+      const row = [
+        job.id, job.tenantId, job.schoolCode, job.status, job.errorMessage ?? '', job.rowsDeletedEstimate ?? '', job.executionDurationMs ?? '',
+        job.requestedByUserId ?? '', job.requestedByRole ?? '', job.requestedByPrincipal ?? '', job.requestedByDisplayName ?? '',
+        job.affectedStudents ?? '', job.affectedTeachers ?? '', job.affectedAdmins ?? '', job.affectedParentAccounts ?? '',
+        job.createdAt ?? '', job.startedAt ?? '', job.completedAt ?? ''
+      ];
+      const escapeCell = (value: unknown): string => `"${String(value ?? '').replace(/"/g, '""')}"`;
+      const csv = `${header.join(',')}\n${row.map(escapeCell).join(',')}\n`;
+      return of(new Blob([csv], { type: 'text/csv;charset=utf-8' })).pipe(delay(120));
+    }
+    return this.api.getBlob(`/platform/schools/${encodeURIComponent(tenantId)}/purge-jobs/${encodeURIComponent(jobId)}/export.csv`);
   }
 
   listSubscriptionPlans(): Observable<PlatformSubscriptionPlan[]> {
@@ -387,6 +535,7 @@ export class PlatformService {
         statistics: {
           regionsCleared: targetRegions.length,
           clearedRegions: targetRegions,
+          failedRegions: [],
           clearedAt: new Date().toISOString(),
           clearedBy: 'SUPER_ADMIN (Mock)',
           targetTenantId: request.tenantId || null,

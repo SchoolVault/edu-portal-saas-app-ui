@@ -74,6 +74,7 @@ public class CacheManagementService {
                 isRegionFiltered ? targetRegions : "ALL");
 
         List<String> clearedRegions = new ArrayList<>();
+        List<String> failedRegions = new ArrayList<>();
         int successCount = 0;
         long totalKeysEvicted = 0;
         String targetSchoolName = null;
@@ -129,6 +130,7 @@ public class CacheManagementService {
                     successCount++;
                 } catch (Exception e) {
                     log.error("Failed to clear cache region: {}", region.cacheName(), e);
+                    failedRegions.add(region.cacheName());
                 }
             }
 
@@ -158,24 +160,33 @@ public class CacheManagementService {
             stats.setTargetTenantId(isTenantScoped ? targetTenant.trim() : null);
             stats.setTargetSchoolName(targetSchoolName);
             stats.setKeysEvicted(isTenantScoped ? totalKeysEvicted : null);
+            stats.setFailedRegions(failedRegions);
 
             log.info("Cache clear completed. Regions: {} | Tenant: {} | keysEvicted: {}",
                     successCount,
                     isTenantScoped ? targetTenant : "ALL",
                     isTenantScoped ? totalKeysEvicted : "n/a");
 
+            boolean allSucceeded = failedRegions.isEmpty();
             String message;
             if (isTenantScoped) {
-                message = String.format(
+                message = allSucceeded
+                        ? String.format(
                         "Cleared %d cache region(s) for the selected school; removed ~%d Redis key(s). Next reads load fresh data.",
-                        successCount, totalKeysEvicted);
+                        successCount, totalKeysEvicted)
+                        : String.format(
+                        "Cleared %d region(s) for the selected school; %d region(s) failed. Removed ~%d Redis key(s) from successful regions.",
+                        successCount, failedRegions.size(), totalKeysEvicted);
             } else {
-                message = String.format(
+                message = allSucceeded
+                        ? String.format(
                         "Cleared %d cache region(s) for all schools; next reads will reload from source.",
-                        successCount);
+                        successCount)
+                        : String.format(
+                        "Cleared %d region(s) globally; %d region(s) failed and need retry.",
+                        successCount, failedRegions.size());
             }
-
-            return new PlatformDTOs.CacheClearResponse(true, message, stats);
+            return new PlatformDTOs.CacheClearResponse(allSucceeded, message, stats);
 
         } catch (Exception e) {
             log.error("Cache clear operation failed", e);

@@ -149,7 +149,7 @@ import { ErpPaginationComponent } from '../../shared/erp-pagination/erp-paginati
         left: 3px;
         width: 18px;
         height: 18px;
-        background: #fff;
+        background: var(--clr-surface);
         border-radius: 50%;
         transition: transform 0.2s;
         box-shadow: 0 1px 2px rgba(15, 23, 42, 0.12);
@@ -160,19 +160,66 @@ import { ErpPaginationComponent } from '../../shared/erp-pagination/erp-paginati
       .fr-toggle input:checked + .fr-toggle__ui .fr-toggle__knob {
         transform: translateX(20px);
       }
+      .fr-table-wrap {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        border-radius: 12px;
+      }
+      .fr-school-table {
+        min-width: 560px;
+      }
+      @media (max-width: 767.98px) {
+        .fr-feature-row {
+          align-items: flex-start;
+        }
+      }
+      @media (max-width: 575.98px) {
+        .fr-school-table thead {
+          display: none;
+        }
+        .fr-school-table {
+          min-width: 0;
+        }
+        .fr-school-table tbody tr {
+          display: block;
+          border: 1px solid var(--clr-border-light, #e8eef0);
+          border-radius: 12px;
+          padding: 0.65rem;
+          margin: 0 0 0.6rem;
+          background: var(--clr-surface, #fff);
+        }
+        .fr-school-table tbody td {
+          display: flex;
+          justify-content: space-between;
+          gap: 0.75rem;
+          border: 0;
+          padding: 0.3rem 0;
+          text-align: right;
+        }
+        .fr-school-table tbody td::before {
+          content: attr(data-label);
+          color: var(--clr-text-muted);
+          font-weight: 600;
+          text-align: left;
+        }
+        .fr-feature-row {
+          flex-direction: column;
+          gap: 0.45rem;
+        }
+      }
     `,
   ],
   template: `
     <div data-testid="platform-feature-rollout">
-      <div class="d-flex justify-content-between align-items-end mb-4 flex-wrap gap-2">
+      <div class="erp-filter-toolbar mb-4">
         <div>
           <div class="badge-erp badge-info mb-2">{{ 'featureRollout.badge' | translate }}</div>
           <h2 style="font-size: 26px; font-weight: 800;">{{ 'featureRollout.title' | translate }}</h2>
           <p class="text-muted mb-0" style="font-size: 13px;">{{ 'featureRollout.lead' | translate }}</p>
         </div>
-        <div class="d-flex gap-2 flex-wrap">
-          <a routerLink="/app/super-admin" class="btn-outline-erp btn-sm">{{ 'featureRollout.backPlatform' | translate }}</a>
-          <button type="button" class="btn-outline-erp btn-sm" (click)="reloadSchools()" [disabled]="loading">
+        <div class="erp-filter-toolbar__actions">
+          <a routerLink="/app/super-admin" class="btn-outline-erp btn-sm erp-filter-toolbar__action">{{ 'featureRollout.backPlatform' | translate }}</a>
+          <button type="button" class="btn-outline-erp btn-sm erp-filter-toolbar__action" (click)="reloadSchools()" [disabled]="loading">
             <i class="bi bi-arrow-clockwise"></i>
             {{ loading ? ('featureRollout.refreshing' | translate) : ('featureRollout.refresh' | translate) }}
           </button>
@@ -189,16 +236,23 @@ import { ErpPaginationComponent } from '../../shared/erp-pagination/erp-paginati
               </div>
             </div>
             <div class="px-3 pt-3 pb-0">
-              <label class="erp-label small mb-1">{{ 'superAdmin.portfolio.search' | translate }}</label>
-              <input
-                type="search"
-                class="erp-input"
-                [(ngModel)]="schoolSearchInput"
-                (ngModelChange)="schoolSearch$.next($event)"
-                [placeholder]="'superAdmin.portfolio.searchPh' | translate"
-              />
+              <div class="erp-filter-toolbar">
+                <div class="erp-filter-toolbar__search">
+                  <div>
+                    <label class="erp-label small mb-1">{{ 'superAdmin.portfolio.search' | translate }}</label>
+                    <input
+                      type="search"
+                      class="erp-input"
+                      [(ngModel)]="schoolSearchInput"
+                      (ngModelChange)="schoolSearch$.next($event)"
+                      [placeholder]="'superAdmin.portfolio.searchPh' | translate"
+                    />
+                  </div>
+                </div>
+              </div>
             </div>
-            <table class="erp-table">
+            <div class="fr-table-wrap">
+            <table class="erp-table fr-school-table">
               <thead>
                 <tr>
                   <th>{{ 'superAdmin.portfolio.thSchool' | translate }}</th>
@@ -215,13 +269,13 @@ import { ErpPaginationComponent } from '../../shared/erp-pagination/erp-paginati
                   style="cursor: pointer;"
                   [style.background]="selectedSchool?.tenantId === school.tenantId ? 'var(--clr-surface-alt)' : ''"
                 >
-                  <td>
+                  <td [attr.data-label]="'superAdmin.portfolio.thSchool' | translate">
                     <div style="font-weight: 700;">{{ school.schoolName }}</div>
                     <div style="font-size: 12px; color: var(--clr-text-muted);">
                       {{ school.schoolCode }} · {{ school.tenantId }}
                     </div>
                   </td>
-                  <td>
+                  <td [attr.data-label]="'superAdmin.portfolio.thStatus' | translate">
                     <span class="badge-erp" [ngClass]="school.active ? 'badge-success' : 'badge-warning'">
                       {{ school.active ? ('superAdmin.status.active' | translate) : ('superAdmin.status.attention' | translate) }}
                     </span>
@@ -229,6 +283,7 @@ import { ErpPaginationComponent } from '../../shared/erp-pagination/erp-paginati
                 </tr>
               </tbody>
             </table>
+            </div>
             <app-erp-pagination
               *ngIf="schoolsTotal > 0"
               [totalElements]="schoolsTotal"

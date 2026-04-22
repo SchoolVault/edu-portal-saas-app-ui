@@ -23,17 +23,17 @@ import { AuthService } from '../../core/services/auth.service';
   imports: [CommonModule, FormsModule, TranslateModule, ErpI18nPhDirective, ErpPaginationComponent],
   template: `
     <div data-testid="transport-page">
-      <div class="d-flex justify-content-between align-items-end mb-4 animate-in flex-wrap gap-3">
+      <div class="erp-filter-toolbar mb-4 animate-in">
         <div>
           <h2 style="font-size: 24px; font-weight: 800;">{{ 'transport.pageTitle' | translate }}</h2>
           <p class="text-muted mb-0" style="font-size: 13px;">{{ 'transport.lead' | translate }}</p>
         </div>
-        <div *ngIf="routesUseServerPaging" class="flex-grow-1" style="min-width: 200px; max-width: 320px;">
+        <div *ngIf="routesUseServerPaging" class="erp-filter-toolbar__search">
           <label class="erp-label small mb-1">{{ 'transport.listSearch' | translate }}</label>
           <input type="search" class="erp-input" [(ngModel)]="routeSearchInput" (ngModelChange)="routeSearch$.next($event)" [placeholder]="'transport.listSearchPh' | translate" />
         </div>
-        <div class="d-flex gap-2 flex-wrap align-items-end">
-          <button type="button" class="btn-outline-erp btn-sm" (click)="reload()"><i class="bi bi-arrow-clockwise"></i> {{ 'transport.refresh' | translate }}</button>
+        <div class="erp-filter-toolbar__actions">
+          <button type="button" class="btn-outline-erp btn-sm erp-filter-toolbar__action" (click)="reload()"><i class="bi bi-arrow-clockwise"></i> {{ 'transport.refresh' | translate }}</button>
           <button *ngIf="canManageRoutes" class="btn-primary-erp btn-sm" data-testid="add-route-btn" (click)="openRouteWizard()"><i class="bi bi-plus-lg"></i> {{ 'transport.addRoute' | translate }}</button>
         </div>
       </div>

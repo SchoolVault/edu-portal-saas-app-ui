@@ -155,6 +155,9 @@ app:
     batch-size: ${DEMO_SEED_BATCH_SIZE:20}
     teacher-count: ${DEMO_SEED_TEACHER_COUNT:36}
     students-per-section: ${DEMO_SEED_STUDENTS_PER_SECTION:15}
+    warehouse:
+      enabled: ${DEMO_SEED_WAREHOUSE_ENABLED:false}
+      include-snapshot-seed: ${DEMO_SEED_INCLUDE_SNAPSHOT_SEED:true}
 
   # Read replica JDBC URL — leave empty to disable routing (single primary only).
   datasource:
@@ -311,6 +314,12 @@ app:
       enabled: ${APP_LIFECYCLE_ARCHIVE_ENABLED:false}
       dry-run: ${APP_LIFECYCLE_ARCHIVE_DRY_RUN:true}
       cron: ${APP_LIFECYCLE_ARCHIVE_CRON:0 30 2 * * SAT}
+      lag-warn-days: ${APP_LIFECYCLE_ARCHIVE_LAG_WARN_DAYS:2}
+      lag-critical-days: ${APP_LIFECYCLE_ARCHIVE_LAG_CRITICAL_DAYS:5}
+    storage:
+      missing-files-warn: ${APP_LIFECYCLE_STORAGE_MISSING_WARN:10}
+      missing-files-critical: ${APP_LIFECYCLE_STORAGE_MISSING_CRITICAL:30}
+      reconcile-max-sample: ${APP_LIFECYCLE_STORAGE_RECONCILE_MAX_SAMPLE:20}
 
   analytics:
     datasource:
@@ -320,6 +329,19 @@ app:
     etl:
       enabled: ${APP_ANALYTICS_ETL_ENABLED:false}
       cron: ${APP_ANALYTICS_ETL_CRON:0 15 1 * * *}
+
+  observability:
+    slo:
+      report-read-p95-warn-ms: ${APP_OBS_SLO_REPORT_P95_WARN_MS:800}
+      report-read-p95-critical-ms: ${APP_OBS_SLO_REPORT_P95_CRITICAL_MS:1500}
+      snapshot-hit-rate-warn-pct: ${APP_OBS_SLO_SNAPSHOT_HIT_WARN_PCT:70}
+      snapshot-hit-rate-critical-pct: ${APP_OBS_SLO_SNAPSHOT_HIT_CRITICAL_PCT:50}
+      snapshot-refresh-backlog-warn: ${APP_OBS_SLO_SNAPSHOT_BACKLOG_WARN:50}
+      snapshot-refresh-backlog-critical: ${APP_OBS_SLO_SNAPSHOT_BACKLOG_CRITICAL:120}
+      db-pool-pending-warn: ${APP_OBS_SLO_DB_PENDING_WARN:5}
+      db-pool-pending-critical: ${APP_OBS_SLO_DB_PENDING_CRITICAL:12}
+      jvm-heap-warn-pct: ${APP_OBS_SLO_JVM_HEAP_WARN_PCT:85}
+      jvm-heap-critical-pct: ${APP_OBS_SLO_JVM_HEAP_CRITICAL_PCT:93}
 
   # Key Id = publishable (rzp_test_… / rzp_live_…). Secret = from same "Generate key" pair. Never commit real values.
   # If RAZORPAY_KEY is set to "" in an IDE env block, Spring uses empty string (not the default) — Checkout then gets 401 on preferences.

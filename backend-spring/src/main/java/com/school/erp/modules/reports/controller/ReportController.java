@@ -187,10 +187,11 @@ public class ReportController {
     @Operation(summary = "Download generated report")
     public ResponseEntity<byte[]> download(@PathVariable Long jobId) {
         var job = reportService.getGeneratedReportFile(jobId);
+        byte[] content = reportService.getGeneratedReportContent(jobId);
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + (job.getFileName() != null ? job.getFileName() : "report.bin") + "\"")
                 .header(HttpHeaders.CONTENT_TYPE, job.getContentType() != null ? job.getContentType() : "application/octet-stream")
-                .body(job.getFileContent() != null ? job.getFileContent() : new byte[0]);
+                .body(content);
     }
 
     @GetMapping("/jobs/{jobId}/dispatches")
@@ -305,6 +306,23 @@ public class ReportController {
     @Operation(summary = "Seed predefined report template packs")
     public ResponseEntity<ApiResponse<Integer>> seedDefaultPacks() {
         return ResponseEntity.ok(ApiResponse.ok(reportService.seedDefaultPacks()));
+    }
+
+    @PostMapping("/dashboard/snapshots/warmup")
+    @RequireTenantFeature("reports")
+    @PreAuthorize("hasAnyRole('ADMIN','SUPER_ADMIN')")
+    @Operation(summary = "Warm up dashboard snapshots", description = "Proactively regenerates dashboard snapshots for tenants")
+    public ResponseEntity<ApiResponse<Integer>> warmupDashboardSnapshots(
+            @RequestParam(defaultValue = "30") int tenantLimit) {
+        return ResponseEntity.ok(ApiResponse.ok(reportService.warmupDashboardSnapshots(tenantLimit)));
+    }
+
+    @GetMapping("/performance-metrics")
+    @RequireTenantFeature("reports")
+    @PreAuthorize("hasAnyRole('ADMIN','SUPER_ADMIN')")
+    @Operation(summary = "Report performance metrics", description = "Returns in-process report latency and snapshot hit/miss metrics")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> performanceMetrics() {
+        return ResponseEntity.ok(ApiResponse.ok(reportService.getPerformanceMetrics()));
     }
 
     public ReportController(final com.school.erp.modules.reports.service.ReportService reportService) {

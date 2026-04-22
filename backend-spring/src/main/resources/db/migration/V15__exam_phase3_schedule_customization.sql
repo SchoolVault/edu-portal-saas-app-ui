@@ -1,14 +1,15 @@
--- Exam Phase 3: richer schedule slots and configurable safeguards.
+-- V15 domain foundation bundle:
+-- Exam Phase 3 schedule customization + reports reliability modules.
 
 ALTER TABLE exam_schedule_slot
     ADD COLUMN paper_type VARCHAR(80) NULL AFTER subject_name,
     ADD COLUMN invigilator_name VARCHAR(160) NULL AFTER paper_type;
 
 -- ---------------------------------------------------------------------------
--- Consolidated from legacy V16..V23 to keep Flyway chain at V1..V15.
+-- Module blocks in this migration are grouped by responsibility.
 -- ---------------------------------------------------------------------------
 
--- Legacy V16__exam_enterprise_extension_foundation.sql
+-- Exam template and publication foundation
 CREATE TABLE exam_templates (
     id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
     tenant_id VARCHAR(50) NOT NULL,
@@ -129,7 +130,7 @@ CREATE TABLE exam_bulk_operation_logs (
     KEY idx_exam_bulk_lookup (tenant_id, operation_type, created_at, is_deleted)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Legacy V17__reports_phase1_template_and_jobs.sql
+-- Report templates and generation jobs
 CREATE TABLE report_templates (
     id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
     tenant_id VARCHAR(50) NOT NULL,
@@ -178,7 +179,7 @@ CREATE TABLE report_generation_jobs (
     KEY idx_report_job_status (tenant_id, status, is_deleted)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Legacy V18__reports_phase2_orchestration_and_sharing.sql
+-- Report orchestration and sharing
 ALTER TABLE report_templates
     ADD COLUMN pack_code VARCHAR(40) NULL AFTER default_format;
 
@@ -237,7 +238,7 @@ CREATE TABLE report_share_dispatches (
     KEY idx_report_share_job (tenant_id, report_job_id, is_deleted)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Legacy V19__reports_phase3_publication_and_analytics.sql
+-- Report publication snapshots and analytics
 ALTER TABLE report_generation_jobs
     ADD COLUMN workflow_state VARCHAR(30) NOT NULL DEFAULT 'DRAFT' AFTER status,
     ADD COLUMN workflow_note VARCHAR(500) NULL AFTER workflow_state,
@@ -266,7 +267,7 @@ CREATE TABLE report_publication_snapshots (
     KEY idx_report_snapshot_job (tenant_id, report_job_id, version_no, is_deleted)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Legacy V20__reports_phase3_hardening_workflow_logs_and_guardrails.sql
+-- Report workflow guardrails and event logs
 ALTER TABLE report_generation_jobs
     ADD COLUMN creator_user_id BIGINT NULL AFTER workflow_note,
     ADD COLUMN approver_user_id BIGINT NULL AFTER creator_user_id,
@@ -313,7 +314,7 @@ CREATE TABLE report_analytics_pack_configs (
     KEY idx_report_analytics_pack (tenant_id, pack_code, is_deleted)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Legacy V21__reports_reliability_idempotency_and_concurrency.sql
+-- Report idempotency and concurrency safety
 ALTER TABLE report_generation_jobs
     ADD COLUMN last_approve_idempotency_key VARCHAR(120) NULL AFTER publisher_user_id,
     ADD COLUMN last_publish_idempotency_key VARCHAR(120) NULL AFTER last_approve_idempotency_key;
@@ -321,7 +322,7 @@ ALTER TABLE report_generation_jobs
 CREATE INDEX idx_report_job_approve_idem ON report_generation_jobs (tenant_id, last_approve_idempotency_key, is_deleted);
 CREATE INDEX idx_report_job_publish_idem ON report_generation_jobs (tenant_id, last_publish_idempotency_key, is_deleted);
 
--- Legacy V22__student_section_count_consistency.sql
+-- Student-section consistency reconciliation
 CREATE TEMPORARY TABLE tmp_first_section_per_class (
     tenant_id VARCHAR(50) NOT NULL,
     class_id BIGINT NOT NULL,
@@ -368,7 +369,7 @@ SET sec.student_count = COALESCE(src.active_count, 0),
     sec.updated_at = NOW()
 WHERE sec.is_deleted = 0;
 
--- Legacy V23__notification_outbox_delivery_reliability.sql
+-- Notification outbox delivery reliability
 CREATE TABLE IF NOT EXISTS notification_outbox (
     id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
     tenant_id VARCHAR(64) NOT NULL,
@@ -405,6 +406,73 @@ SET @sql = IF(@col_exists = 0,
 PREPARE stmt FROM @sql;
 EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
+
+-- Report job storage metadata (binary storage abstraction).
+ALTER TABLE report_generation_jobs
+  ADD COLUMN storage_provider VARCHAR(40) NULL AFTER content_size_bytes,
+  ADD COLUMN file_storage_path VARCHAR(500) NULL AFTER storage_provider;
+
+CREATE UNIQUE INDEX ux_report_job_request_id
+  ON report_generation_jobs (tenant_id, request_id, is_deleted);
+
+-- Normalize boolean flags to BIT(1) so Hibernate schema validation remains consistent.
+ALTER TABLE leave_entitlement_policies
+    MODIFY COLUMN is_active BIT(1) DEFAULT b'1',
+    MODIFY COLUMN is_deleted BIT(1) DEFAULT b'0';
+
+ALTER TABLE exam_templates
+    MODIFY COLUMN is_active BIT(1) DEFAULT b'1',
+    MODIFY COLUMN is_deleted BIT(1) DEFAULT b'0';
+
+ALTER TABLE exam_template_components
+    MODIFY COLUMN is_active BIT(1) DEFAULT b'1',
+    MODIFY COLUMN is_deleted BIT(1) DEFAULT b'0',
+    MODIFY COLUMN is_optional BIT(1) NOT NULL DEFAULT b'0';
+
+ALTER TABLE exam_publication_snapshots
+    MODIFY COLUMN is_active BIT(1) DEFAULT b'1',
+    MODIFY COLUMN is_deleted BIT(1) DEFAULT b'0';
+
+ALTER TABLE exam_event_logs
+    MODIFY COLUMN is_active BIT(1) DEFAULT b'1',
+    MODIFY COLUMN is_deleted BIT(1) DEFAULT b'0';
+
+ALTER TABLE exam_notification_jobs
+    MODIFY COLUMN is_active BIT(1) DEFAULT b'1',
+    MODIFY COLUMN is_deleted BIT(1) DEFAULT b'0';
+
+ALTER TABLE exam_bulk_operation_logs
+    MODIFY COLUMN is_active BIT(1) DEFAULT b'1',
+    MODIFY COLUMN is_deleted BIT(1) DEFAULT b'0';
+
+ALTER TABLE report_templates
+    MODIFY COLUMN is_active BIT(1) DEFAULT b'1',
+    MODIFY COLUMN is_deleted BIT(1) DEFAULT b'0',
+    MODIFY COLUMN is_system_template BIT(1) NOT NULL DEFAULT b'0';
+
+ALTER TABLE report_generation_jobs
+    MODIFY COLUMN is_active BIT(1) DEFAULT b'1',
+    MODIFY COLUMN is_deleted BIT(1) DEFAULT b'0';
+
+ALTER TABLE report_notification_templates
+    MODIFY COLUMN is_active BIT(1) DEFAULT b'1',
+    MODIFY COLUMN is_deleted BIT(1) DEFAULT b'0';
+
+ALTER TABLE report_share_dispatches
+    MODIFY COLUMN is_active BIT(1) DEFAULT b'1',
+    MODIFY COLUMN is_deleted BIT(1) DEFAULT b'0';
+
+ALTER TABLE report_publication_snapshots
+    MODIFY COLUMN is_active BIT(1) DEFAULT b'1',
+    MODIFY COLUMN is_deleted BIT(1) DEFAULT b'0';
+
+ALTER TABLE report_workflow_event_logs
+    MODIFY COLUMN is_active BIT(1) DEFAULT b'1',
+    MODIFY COLUMN is_deleted BIT(1) DEFAULT b'0';
+
+ALTER TABLE report_analytics_pack_configs
+    MODIFY COLUMN is_active BIT(1) DEFAULT b'1',
+    MODIFY COLUMN is_deleted BIT(1) DEFAULT b'0';
 
 SET @col_exists = (
     SELECT COUNT(*)

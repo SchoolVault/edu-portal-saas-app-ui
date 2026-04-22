@@ -11,7 +11,7 @@ This document describes the **sequence** in which CSV/ZIP bulk imports should be
 
 ## 2. People who anchor rosters
 
-5. **Teachers and library staff** — Import `TEACHERS` (`teachers.csv`) and/or `STAFF` (`staff.csv`). Staff import defaults to **library** portal role when columns are omitted. Use `createportal=Y` and `portalrole` / `libraryrole` as needed. Homeroom / class teacher assignment can be done **after** teachers exist (Academic UI or APIs).
+5. **Teachers and library staff** — Import `TEACHERS` (`teachers.csv`) and/or `STAFF` (`staff.csv`). Staff import defaults to **library** portal role when columns are omitted. Use `createportal=Y` and `portalrole` / `libraryrole` as needed. To assign homeroom during import, add `classteacherfor` (example: `Class 6-A` or `6A`) or use explicit `classteacherclass*` columns.
 6. **Other operational users** — Any additional admin-only users via normal registration flows if not in CSV.
 
 ## 3. Students and parents
@@ -21,12 +21,16 @@ This document describes the **sequence** in which CSV/ZIP bulk imports should be
 ## 4. Dependent academic and operations data
 
 8. **Timetable** — Import `TIMETABLE` (`timetable.csv`) after classes/sections + teachers are present. Re-import is idempotent per class-section + day + period (updates slot instead of creating duplicates).
-9. **Attendance, fees, transport, etc.** — After rosters and timetable exist, continue module-specific setup.
+9. **Fee structures** — Import `FEE_STRUCTURES` (`fee-structures.csv`) to create/update class-wise fee structures in bulk. Re-import is idempotent by `class + academic year + structure name`.
+10. **Attendance, transport, etc.** — After rosters and timetable/fees setup, continue module-specific setup.
 
 ## Retry policy
 
 - Failed rows stay on the job with **per-line errors** and original **payload JSON**. Admin uses **Retry failed** to re-queue only failed lines after fixing data or dependencies.
-- Re-importing the **same** admission number or teacher email will hit **duplicate** rules by design.
+- Re-import behavior is controlled by `importmode`:
+  - `UPSERT` (recommended for onboarding corrections) updates existing rows by stable identifiers (teacher email, student admission number) and avoids duplicates.
+  - `INSERT_ONLY` fails on duplicates.
+  - `SKIP_IF_EXISTS` keeps existing records unchanged.
 
 ## ZIP layout (current implementation)
 
@@ -37,6 +41,7 @@ This document describes the **sequence** in which CSV/ZIP bulk imports should be
 | `STAFF`         | `staff.csv`               |
 | `CLASSES`       | `classes.csv`             |
 | `TIMETABLE`     | `timetable.csv`           |
+| `FEE_STRUCTURES`| `fee-structures.csv`      |
 
 Excel users should **Save as CSV** and pack into a `.zip` archive.
 

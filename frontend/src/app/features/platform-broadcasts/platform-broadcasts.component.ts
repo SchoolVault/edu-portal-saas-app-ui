@@ -12,7 +12,7 @@ import { PlatformSchoolSummary } from '../../core/models/models';
   template: `
     <div class="platform-bc-root" data-testid="platform-broadcasts-page">
       <div class="platform-bc-inner animate-in">
-        <div class="d-flex justify-content-between align-items-end mb-4 flex-wrap gap-3">
+        <div class="erp-filter-toolbar mb-4">
           <div>
             <div class="badge-erp badge-info mb-2">Platform</div>
             <h2 class="platform-bc-title">Admin broadcasts</h2>
@@ -20,7 +20,12 @@ import { PlatformSchoolSummary } from '../../core/models/models';
               Reach campus administrators through their in-app notification center—ideal for maintenance windows, policy reminders, or release notes.
             </p>
           </div>
-          <a routerLink="/app/super-admin" class="btn-outline-erp btn-sm"><i class="bi bi-arrow-left me-1"></i>Platform overview</a>
+          <div class="erp-filter-toolbar__actions">
+            <button type="button" class="btn-outline-erp btn-sm erp-filter-toolbar__action" (click)="refreshPageData()" [disabled]="loadingSchools || sending">
+              <i class="bi bi-arrow-clockwise me-1"></i>{{ loadingSchools ? 'Refreshing...' : 'Refresh' }}
+            </button>
+            <a routerLink="/app/super-admin" class="btn-outline-erp btn-sm erp-filter-toolbar__action"><i class="bi bi-arrow-left me-1"></i>Platform overview</a>
+          </div>
         </div>
 
         <div class="row g-4 justify-content-center">
@@ -160,6 +165,7 @@ export class PlatformBroadcastsComponent implements OnInit {
   message = 'We will deploy a platform update tonight. Expect under 5 minutes of read-only mode.';
   notificationType = 'WARNING';
   sending = false;
+  loadingSchools = false;
   resultText = '';
   error = '';
   confirmOpen = false;
@@ -167,9 +173,21 @@ export class PlatformBroadcastsComponent implements OnInit {
   constructor(private platform: PlatformService) {}
 
   ngOnInit(): void {
+    this.refreshPageData();
+  }
+
+  refreshPageData(): void {
+    this.loadingSchools = true;
+    this.error = '';
     this.platform.getSchools().subscribe({
-      next: s => { this.schools = s; },
-      error: () => { this.error = 'Could not load schools for targeting.'; }
+      next: s => {
+        this.schools = s;
+        this.loadingSchools = false;
+      },
+      error: () => {
+        this.error = 'Could not load schools for targeting.';
+        this.loadingSchools = false;
+      }
     });
   }
 

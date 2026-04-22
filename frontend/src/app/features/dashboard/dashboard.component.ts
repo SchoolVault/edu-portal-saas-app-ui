@@ -151,7 +151,26 @@ interface DashboardChartPalette {
       .dashboard-table-wrap .erp-table {
         min-width: 620px;
       }
+      @media (max-width: 992px) {
+        .chart-container {
+          min-height: 220px;
+          height: auto !important;
+        }
+      }
       @media (max-width: 576px) {
+        .erp-card-header {
+          align-items: flex-start !important;
+        }
+        .erp-card-header .d-flex {
+          width: 100%;
+          justify-content: flex-start !important;
+        }
+        .stat-card {
+          min-height: 132px;
+        }
+        .chart-container {
+          min-height: 190px;
+        }
         .dashboard-table-wrap .erp-table {
           min-width: 560px;
         }
@@ -707,7 +726,7 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
       if (this.role === 'teacher') {
         this.dashboardService.getTeacherDashboard(this.teacherTrendMonth).subscribe({
           next: dashboard => {
-            this.teacherDashboard = dashboard;
+            this.teacherDashboard = this.applyTeacherActivityVisibility(dashboard);
             this.teacherKPIs = this.buildTeacherKpis(dashboard);
             this.cdr.detectChanges();
             queueMicrotask(() => this.initTeacherCharts());
@@ -722,10 +741,11 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
       const to = today.toISOString().slice(0, 10);
       this.dashboardService.getParentDashboard(from, to, this.selectedParentChildId).subscribe({
         next: dashboard => {
-          this.parentDashboard = dashboard;
-          this.selectedParentChildId = dashboard.selectedChildId ?? dashboard.selectedChild?.id ?? null;
+          const visibleDashboard = this.applyParentModuleVisibility(dashboard);
+          this.parentDashboard = visibleDashboard;
+          this.selectedParentChildId = visibleDashboard.selectedChildId ?? visibleDashboard.selectedChild?.id ?? null;
           this.parentSelection.rememberSelectedChild(this.selectedParentChildId);
-          this.parentKPIs = this.buildParentKpis(dashboard);
+          this.parentKPIs = this.buildParentKpis(visibleDashboard);
           finish();
         },
         error: () => finish()
@@ -762,7 +782,7 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
     if (this.role === 'teacher') {
       this.dashboardService.getTeacherDashboard(this.teacherTrendMonth).subscribe({
         next: dashboard => {
-          this.teacherDashboard = dashboard;
+          this.teacherDashboard = this.applyTeacherActivityVisibility(dashboard);
           this.teacherKPIs = this.buildTeacherKpis(dashboard);
           this.loading = false;
           this.cdr.detectChanges();
@@ -779,10 +799,11 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
     const to = today.toISOString().slice(0, 10);
     this.dashboardService.getParentDashboard(from, to, this.selectedParentChildId).subscribe({
       next: dashboard => {
-        this.parentDashboard = dashboard;
-        this.selectedParentChildId = dashboard.selectedChildId ?? dashboard.selectedChild?.id ?? null;
+        const visibleDashboard = this.applyParentModuleVisibility(dashboard);
+        this.parentDashboard = visibleDashboard;
+        this.selectedParentChildId = visibleDashboard.selectedChildId ?? visibleDashboard.selectedChild?.id ?? null;
         this.parentSelection.rememberSelectedChild(this.selectedParentChildId);
-        this.parentKPIs = this.buildParentKpis(dashboard);
+        this.parentKPIs = this.buildParentKpis(visibleDashboard);
         this.loading = false;
       },
       error: () => {
@@ -803,10 +824,11 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
     const to = today.toISOString().slice(0, 10);
     this.dashboardService.getParentDashboard(from, to, this.selectedParentChildId).subscribe({
       next: dashboard => {
-        this.parentDashboard = dashboard;
-        this.selectedParentChildId = dashboard.selectedChildId ?? dashboard.selectedChild?.id ?? null;
+        const visibleDashboard = this.applyParentModuleVisibility(dashboard);
+        this.parentDashboard = visibleDashboard;
+        this.selectedParentChildId = visibleDashboard.selectedChildId ?? visibleDashboard.selectedChild?.id ?? null;
         this.parentSelection.rememberSelectedChild(this.selectedParentChildId);
-        this.parentKPIs = this.buildParentKpis(dashboard);
+        this.parentKPIs = this.buildParentKpis(visibleDashboard);
         this.refreshing = false;
         this.cdr.markForCheck();
       },
@@ -853,7 +875,7 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
     this.refreshing = true;
     this.dashboardService.getTeacherDashboard(this.teacherTrendMonth).subscribe({
       next: dashboard => {
-        this.teacherDashboard = dashboard;
+        this.teacherDashboard = this.applyTeacherActivityVisibility(dashboard);
         this.teacherKPIs = this.buildTeacherKpis(dashboard);
         this.refreshing = false;
         this.cdr.detectChanges();
@@ -924,6 +946,7 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
     const rosterStrength =
       ct != null && ct.totalStudents != null && ct.totalStudents > 0 ? ct.totalStudents : dashboard.studentsAssigned;
     const attendanceDone = Boolean(dashboard.homeroomTodayAttendanceComplete);
+    const todaysPeriods = dashboard.todaySchedule?.length ?? 0;
     return [
       {
         labelKey: 'dashboard.teacher.kpi.homeroomLabel',
@@ -946,12 +969,13 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
         // subtextKey: ct ? 'dashboard.teacher.kpi.studentsAssignedHomeroomHint' : 'dashboard.teacher.kpi.studentsAssignedFallbackHint',
       },
       {
-        labelKey: 'dashboard.teacher.kpi.upcomingExams',
-        value: String(dashboard.upcomingExams),
-        icon: 'bi-file-earmark-text',
-        bgColor: 'rgba(217,119,6,0.1)',
-        color: '#D97706',
-        link: '/app/exams',
+        labelKey: 'dashboard.teacher.kpi.todaySchedule',
+        value: String(todaysPeriods),
+        icon: 'bi-calendar-week-fill',
+        bgColor: 'rgba(2,132,199,0.10)',
+        color: '#0284C7',
+        link: '/app/timetable',
+        // subtextKey: 'dashboard.teacher.kpi.todayScheduleSub',
       },
       {
         labelKey: attendanceDone ? 'dashboard.teacher.kpi.homeAttendanceTitleDone' : 'dashboard.teacher.kpi.homeAttendanceTitlePending',
@@ -967,6 +991,70 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
         kpiVariant: attendanceDone ? 'attendance-done' : 'attendance-pending',
       },
     ];
+  }
+
+  /**
+   * Keeps teacher dashboard activity feed aligned with tenant feature toggles.
+   * Exam-related activities are hidden only when the exams module is OFF.
+   * When the module is ON, all exam activities pass through untouched.
+   */
+  private applyTeacherActivityVisibility(dashboard: TeacherDashboardData): TeacherDashboardData {
+    const activities = dashboard.recentActivities ?? [];
+    if (!activities.length) {
+      return dashboard;
+    }
+    if (this.moduleGate.isModuleEnabled('exams')) {
+      return dashboard;
+    }
+    const hiddenWhenExamOff = new Set<string>(['EXAM_SCHEDULED']);
+    const filteredActivities = activities.filter(activity => !hiddenWhenExamOff.has(activity.code));
+    if (filteredActivities.length === activities.length) {
+      return dashboard;
+    }
+    return {
+      ...dashboard,
+      recentActivities: filteredActivities,
+    };
+  }
+
+  /**
+   * Prevents parent dashboard from surfacing exam-specific content while exams module is disabled.
+   * When exams is enabled, payload is returned unchanged.
+   */
+  private applyParentModuleVisibility(dashboard: ParentDashboardData): ParentDashboardData {
+    if (this.moduleGate.isModuleEnabled('exams')) {
+      return dashboard;
+    }
+    const recentActivities = (dashboard.recentActivities ?? []).filter(activity => activity.code !== 'RESULT_PUBLISHED');
+    const alerts = (dashboard.alerts ?? []).filter(alert => !this.isExamLinkedParentAlert(alert));
+    const hadExamLinkedData =
+      recentActivities.length !== (dashboard.recentActivities ?? []).length
+      || alerts.length !== (dashboard.alerts ?? []).length
+      || (dashboard.upcoming?.length ?? 0) > 0
+      || (dashboard.childPerformance?.length ?? 0) > 0
+      || (dashboard.overallGrade ?? '').trim() !== '';
+    if (!hadExamLinkedData) {
+      return dashboard;
+    }
+    return {
+      ...dashboard,
+      recentActivities,
+      alerts,
+      upcoming: [],
+      childPerformance: [],
+      overallGrade: '-',
+      resultMetric: undefined,
+    };
+  }
+
+  private isExamLinkedParentAlert(alert: NonNullable<ParentDashboardData['alerts']>[number]): boolean {
+    if (!alert) {
+      return false;
+    }
+    return alert.titleKey === 'dashboard.parent.alert.resultsTitle'
+      || alert.messageKey === 'dashboard.parent.alert.resultsMessage'
+      || alert.ctaLabelKey === 'dashboard.parent.cta.viewExams'
+      || alert.ctaRoute === '/app/exams';
   }
 
   private buildParentKpis(dashboard: ParentDashboardData): DashboardParentKpi[] {
