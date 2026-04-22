@@ -438,6 +438,9 @@ export class HeaderComponent implements OnInit, OnDestroy {
     const settingsTab = String(tree.queryParams['settingsTab'] || '')
       .trim()
       .toLowerCase();
+    const onboardFlow = String(tree.queryParams['onboard'] || '')
+      .trim()
+      .toLowerCase();
 
     const map: Record<string, string> = {
       dashboard: 'header.title.dashboard',
@@ -480,6 +483,9 @@ export class HeaderComponent implements OnInit, OnDestroy {
     if (first === 'announcement') return 'header.title.notice';
     if (first === 'notification' || first === 'notifications') return 'header.title.notificationDetail';
     const seg = first || 'dashboard';
+    if (seg === 'platform-schools' && (onboardFlow === '1' || onboardFlow === 'true' || onboardFlow === 'yes')) {
+      return 'header.title.schoolOnboarding';
+    }
     if (seg === 'settings') {
       if (settingsTab === 'preferences') {
         return 'header.title.preferences';

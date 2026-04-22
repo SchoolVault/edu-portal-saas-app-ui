@@ -11,4 +11,6 @@ public interface SalaryStructureRepository extends JpaRepository<SalaryStructure
     List<SalaryStructure> findByTenantIdAndIsDeletedFalse(String t);
 
     Page<SalaryStructure> findByTenantIdAndIsDeletedFalse(String t, Pageable pageable);
+
+    boolean existsByTenantIdAndIsDeletedFalseAndTeacherId(String tenantId, Long teacherId);
 }

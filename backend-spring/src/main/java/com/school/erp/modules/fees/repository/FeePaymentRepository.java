@@ -54,4 +54,28 @@ public interface FeePaymentRepository extends JpaRepository<FeePayment, Long> {
             @Param("feeStructureId") Long feeStructureId,
             @Param("dueDate") LocalDate dueDate,
             @Param("studentIds") Collection<Long> studentIds);
+
+    /**
+     * Class-level fee aggregates used by reports.
+     * Keep JPQL free of SQL-style inline comments because Hibernate 6 query validation
+     * parses annotation text strictly and can fail during application startup.
+     */
+    @Query("""
+            SELECT s.classId,
+                   COALESCE(SUM(f.paidAmount), 0),
+                   COALESCE(SUM(f.amount), 0),
+                   SUM(CASE WHEN f.status = :overdueStatus THEN 1 ELSE 0 END)
+            FROM FeePayment f, Student s
+            WHERE f.tenantId = :tenantId
+              AND s.tenantId = :tenantId
+              AND f.isDeleted = false
+              AND s.isDeleted = false
+              AND f.studentId = s.id
+              AND s.classId IN :classIds
+            GROUP BY s.classId
+            """)
+    List<Object[]> getClassFeeSummaryByClassIds(
+            @Param("tenantId") String tenantId,
+            @Param("classIds") Collection<Long> classIds,
+            @Param("overdueStatus") Enums.FeeStatus overdueStatus);
 }

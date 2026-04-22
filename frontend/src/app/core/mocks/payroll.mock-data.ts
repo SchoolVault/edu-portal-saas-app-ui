@@ -44,6 +44,16 @@ export const MOCK_PAYROLL_TEACHER_PAYMENT_DETAILS: TeacherPaymentDetails[] = [
     bankIfsc: 'HDFC0000999',
     bankDetailsComplete: true,
   },
+  {
+    teacherId: 3,
+    teacherName: 'Anjali Verma',
+    monthlyNetSalary: 39800,
+    bankAccountHolder: 'Anjali Verma',
+    bankName: 'ICICI Bank',
+    bankAccountMasked: '****1102',
+    bankIfsc: '',
+    bankDetailsComplete: false,
+  },
 ];
 
 /** Templates for mock payslip generation (month/year applied in service). */

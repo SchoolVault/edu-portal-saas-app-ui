@@ -100,14 +100,14 @@ import { runtimeConfig } from '../../core/config/runtime-config';
         </div>
       </header>
       <div class="erp-card animate-in animate-in-delay-1">
-        <div class="d-flex justify-content-between teacher-list-filter-toolbar mb-3 flex-wrap gap-2">
-          <div class="search-input-wrapper" style="min-width: 300px;">
+        <div class="erp-filter-toolbar teacher-list-filter-toolbar mb-3">
+          <div class="search-input-wrapper erp-filter-toolbar__search">
             <i class="bi bi-search"></i>
             <input type="text" class="erp-input" erpI18nPh="teachers.list.searchPlaceholder" [(ngModel)]="searchTerm" (input)="onSearchInput()" data-testid="teacher-search">
           </div>
-          <div class="teacher-list-filter-wrap" style="min-width: 220px;">
+          <div class="teacher-list-filter-wrap erp-filter-toolbar__actions" style="min-width: 220px;">
             <label class="erp-label mb-1">{{ 'teachers.list.subjectFilterLabel' | translate }}</label>
-            <select class="erp-select" [(ngModel)]="selectedSubject" (ngModelChange)="onSubjectFilterChange()" data-testid="teacher-subject-filter">
+            <select class="erp-select" style="width: 220px;" [(ngModel)]="selectedSubject" (ngModelChange)="onSubjectFilterChange()" data-testid="teacher-subject-filter">
               <option value="">{{ 'teachers.list.subjectFilterAll' | translate }}</option>
               <option *ngFor="let subject of subjectOptions" [value]="subject">{{ subject }}</option>
             </select>

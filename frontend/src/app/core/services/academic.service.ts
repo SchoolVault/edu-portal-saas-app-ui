@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { Observable, of } from 'rxjs';
+import { Observable, of, throwError } from 'rxjs';
 import { delay, map, switchMap } from 'rxjs/operators';
 import {
   AcademicYear,
@@ -228,6 +228,26 @@ export class AcademicService {
       sections: this.classes[ci].sections.filter(s => s.id !== sectionId),
     };
     return of({ ...this.classes[ci] }).pipe(delay(250));
+  }
+
+  deleteClass(classId: number): Observable<void> {
+    if (!runtimeConfig.useMocks) {
+      return this.api.delete<void>(`/academic/classes/${classId}`);
+    }
+    const ci = this.classes.findIndex(c => c.id === classId);
+    if (ci === -1) {
+      return throwError(() => new Error('Class not found.'));
+    }
+    const cls = this.classes[ci];
+    if ((cls.sections?.length ?? 0) > 0) {
+      return throwError(() => new Error('Cannot delete class while sections exist.'));
+    }
+    const hasActiveStudents = (cls.totalStudents ?? 0) > 0;
+    if (hasActiveStudents) {
+      return throwError(() => new Error('Cannot delete class while active students exist.'));
+    }
+    this.classes.splice(ci, 1);
+    return of(void 0).pipe(delay(200));
   }
 
   addAcademicYear(ay: AcademicYear): Observable<AcademicYear> {

@@ -339,17 +339,17 @@ import { formatSchoolClassDisplayName } from '../../core/i18n/school-class-displ
       </div>
 
       <div class="erp-card mb-4" *ngIf="tab === 'reminders'">
-        <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
+        <div class="erp-filter-toolbar mb-3">
           <div>
             <h4 class="erp-card-title mb-1">{{ 'operations.reminders.title' | translate }}</h4>
             <p class="text-muted small mb-0" style="max-width: 640px;">{{ 'operations.reminders.lead' | translate }}</p>
           </div>
-          <button type="button" class="btn-outline-erp btn-sm" (click)="reloadReminders()"><i class="bi bi-arrow-clockwise"></i> {{ 'operations.reminders.refresh' | translate }}</button>
+          <button type="button" class="btn-outline-erp btn-sm erp-filter-toolbar__action" (click)="reloadReminders()"><i class="bi bi-arrow-clockwise"></i> {{ 'operations.reminders.refresh' | translate }}</button>
         </div>
         <div *ngIf="remindersTabError" class="alert alert-danger py-2 px-3 small mb-2" style="border-radius: var(--radius-md);">{{ remindersTabError }}</div>
         <h5 class="erp-card-title mb-2" style="font-size: 14px;">{{ 'operations.reminders.outstandingTitle' | translate }}</h5>
-        <div class="row g-2 align-items-end mb-2" *ngIf="pendingFees.length">
-          <div class="col-md-6">
+        <div class="erp-filter-toolbar mb-2" *ngIf="pendingFees.length">
+          <div class="erp-filter-toolbar__search">
             <label class="erp-label small mb-1" erpI18nText="operations.reminders.searchOutstanding"></label>
             <input type="search" class="erp-input" erpI18nPh="operations.reminders.searchOutstandingPh" [(ngModel)]="pendingFeesSearch" (ngModelChange)="onPendingFeesSearchChange()" />
           </div>
@@ -392,8 +392,8 @@ import { formatSchoolClassDisplayName } from '../../core/i18n/school-class-displ
         />
         <p *ngIf="!pendingFees.length" class="text-muted small mb-4">{{ 'operations.reminders.emptyPending' | translate }}</p>
         <h5 class="erp-card-title mb-2" style="font-size: 14px;">{{ 'operations.reminders.queueTitle' | translate }}</h5>
-        <div class="row g-2 align-items-end mb-2" *ngIf="reminders.length && remindersQueueClientFilter">
-          <div class="col-md-6">
+        <div class="erp-filter-toolbar mb-2" *ngIf="reminders.length && remindersQueueClientFilter">
+          <div class="erp-filter-toolbar__search">
             <label class="erp-label small mb-1" erpI18nText="operations.reminders.searchQueue"></label>
             <input type="search" class="erp-input" erpI18nPh="operations.reminders.searchQueuePh" [(ngModel)]="remindersSearch" (ngModelChange)="onRemindersSearchChange()" />
           </div>

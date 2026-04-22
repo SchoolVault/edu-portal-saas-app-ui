@@ -9,6 +9,8 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
@@ -37,6 +39,26 @@ public class PlatformController {
     @Operation(summary = "Platform runtime health (memory, disk, component status)")
     public ResponseEntity<ApiResponse<PlatformDTOs.PlatformHealthResponse>> health() {
         return ResponseEntity.ok(ApiResponse.ok(platformService.getHealthSnapshot()));
+    }
+
+    @GetMapping("/lifecycle/summary")
+    @Operation(summary = "Lifecycle archive and report storage summary")
+    public ResponseEntity<ApiResponse<PlatformDTOs.LifecycleSummaryResponse>> lifecycleSummary() {
+        return ResponseEntity.ok(ApiResponse.ok(platformService.getLifecycleSummary()));
+    }
+
+    @GetMapping("/lifecycle/observability")
+    @Operation(summary = "Lifecycle archive observability metrics")
+    public ResponseEntity<ApiResponse<PlatformDTOs.LifecycleObservabilityResponse>> lifecycleObservability() {
+        return ResponseEntity.ok(ApiResponse.ok(platformService.getLifecycleObservability()));
+    }
+
+    @PostMapping("/storage/reconcile")
+    @Operation(summary = "Reconcile report file storage with DB metadata")
+    public ResponseEntity<ApiResponse<PlatformDTOs.StorageReconciliationResponse>> reconcileStorage(
+            @RequestParam(defaultValue = "true") boolean dryRun,
+            @RequestParam(defaultValue = "false") boolean deleteOrphans) {
+        return ResponseEntity.ok(ApiResponse.ok(platformService.reconcileReportStorage(dryRun, deleteOrphans)));
     }
 
     @GetMapping("/schools")
@@ -102,6 +124,31 @@ public class PlatformController {
     @Operation(summary = "List purge jobs for a tenant")
     public ResponseEntity<ApiResponse<List<PlatformDTOs.PurgeJobSummary>>> listPurgeJobs(@PathVariable String tenantId) {
         return ResponseEntity.ok(ApiResponse.ok(platformService.listPurgeJobsForTenant(tenantId)));
+    }
+
+    @GetMapping("/purge-jobs")
+    @Operation(summary = "List purge jobs across all schools (paged)")
+    public ResponseEntity<ApiResponse<PageResponse<PlatformDTOs.PurgeJobSummary>>> listGlobalPurgeJobs(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(required = false) String q,
+            @RequestParam(required = false) String status
+    ) {
+        return ResponseEntity.ok(ApiResponse.ok(platformService.listPurgeJobsGlobal(page, size, q, status)));
+    }
+
+    @GetMapping(value = "/schools/{tenantId}/purge-jobs/{jobId}/export.csv", produces = "text/csv")
+    @Operation(summary = "Export purge job audit record as CSV")
+    public ResponseEntity<byte[]> exportPurgeJobCsv(
+            @PathVariable String tenantId,
+            @PathVariable Long jobId
+    ) {
+        byte[] csv = platformService.exportTenantPurgeJobCsv(tenantId, jobId);
+        String filename = "tenant-purge-job-" + jobId + ".csv";
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType("text/csv"))
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
+                .body(csv);
     }
 
     @GetMapping("/subscription-plans")

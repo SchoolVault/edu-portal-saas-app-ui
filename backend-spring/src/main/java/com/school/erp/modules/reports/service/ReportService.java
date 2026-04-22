@@ -25,12 +25,12 @@ import com.school.erp.modules.reports.repository.ReportPublicationSnapshotReposi
 import com.school.erp.modules.reports.repository.ReportShareDispatchRepository;
 import com.school.erp.modules.reports.repository.ReportTemplateRepository;
 import com.school.erp.modules.reports.repository.ReportWorkflowEventLogRepository;
+import com.school.erp.modules.reports.repository.DashboardSnapshotRepository;
 import com.school.erp.modules.student.repository.StudentRepository;
 import com.school.erp.tenant.TenantContext;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.cache.annotation.Cacheable;
-import org.springframework.context.annotation.Lazy;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -43,6 +43,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
+import java.util.function.Supplier;
 
 /**
  * Facade for report/dashboard HTTP layer. Heavy lifting lives in {@link ReportQueryPort}
@@ -57,7 +59,6 @@ import java.util.Set;
 public class ReportService {
 
     private final ReportQueryPort reportQueryPort;
-    private final ReportService self;
     private final ReportTemplateRepository reportTemplateRepository;
     private final ReportGenerationJobRepository reportGenerationJobRepository;
     private final ReportNotificationTemplateRepository reportNotificationTemplateRepository;
@@ -70,10 +71,13 @@ public class ReportService {
     private final UserRepository userRepository;
     private final StudentRepository studentRepository;
     private final ObjectMapper objectMapper;
+    private final DashboardSnapshotService dashboardSnapshotService;
+    private final DashboardSnapshotRepository dashboardSnapshotRepository;
+    private final ReportPerformanceMetricsService reportPerformanceMetricsService;
+    private final ReportBinaryStorageService reportBinaryStorageService;
 
     public ReportService(
             ReportQueryPort reportQueryPort,
-            @Lazy ReportService self,
             ReportTemplateRepository reportTemplateRepository,
             ReportGenerationJobRepository reportGenerationJobRepository,
             ReportNotificationTemplateRepository reportNotificationTemplateRepository,
@@ -85,9 +89,12 @@ public class ReportService {
             NotificationService notificationService,
             UserRepository userRepository,
             StudentRepository studentRepository,
-            ObjectMapper objectMapper) {
+            ObjectMapper objectMapper,
+            DashboardSnapshotService dashboardSnapshotService,
+            DashboardSnapshotRepository dashboardSnapshotRepository,
+            ReportPerformanceMetricsService reportPerformanceMetricsService,
+            ReportBinaryStorageService reportBinaryStorageService) {
         this.reportQueryPort = reportQueryPort;
-        this.self = self;
         this.reportTemplateRepository = reportTemplateRepository;
         this.reportGenerationJobRepository = reportGenerationJobRepository;
         this.reportNotificationTemplateRepository = reportNotificationTemplateRepository;
@@ -100,30 +107,42 @@ public class ReportService {
         this.userRepository = userRepository;
         this.studentRepository = studentRepository;
         this.objectMapper = objectMapper;
+        this.dashboardSnapshotService = dashboardSnapshotService;
+        this.dashboardSnapshotRepository = dashboardSnapshotRepository;
+        this.reportPerformanceMetricsService = reportPerformanceMetricsService;
+        this.reportBinaryStorageService = reportBinaryStorageService;
     }
 
     @Cacheable(cacheNames = CacheConfig.DASHBOARD_SNAPSHOTS, keyGenerator = "tenantUserRoleKeyGenerator", unless = "#result == null")
-    @Transactional(readOnly = true)
+    @Transactional
     public Map<String, Object> getDashboardKPIs() {
-        return reportQueryPort.getDashboardKPIs();
+        return timedReportRead("dashboard.kpis", () ->
+                dashboardSnapshotService.getKpiSnapshotOrRefresh(TenantContext.getUserRole(), reportQueryPort::getDashboardKPIs),
+                map -> map != null ? map.size() : 0);
     }
 
     @Cacheable(cacheNames = CacheConfig.DASHBOARD_SNAPSHOTS, keyGenerator = "tenantUserRoleKeyGenerator", unless = "#result == null")
-    @Transactional(readOnly = true)
+    @Transactional
     public ReportDashboardDTOs.AdminDashboardResponse getAdminDashboard() {
-        return reportQueryPort.getAdminDashboard();
+        return timedReportRead("dashboard.admin", () ->
+                dashboardSnapshotService.getAdminSnapshotOrRefresh(reportQueryPort::getAdminDashboard),
+                out -> out != null && out.getRecentActivities() != null ? out.getRecentActivities().size() : 0);
     }
 
     @Cacheable(cacheNames = CacheConfig.DASHBOARD_SNAPSHOTS, keyGenerator = "tenantMethodParamsKeyGenerator", unless = "#result == null")
-    @Transactional(readOnly = true)
+    @Transactional
     public ReportDashboardDTOs.TeacherDashboardResponse getTeacherDashboard(String month) {
-        return reportQueryPort.getTeacherDashboard(month);
+        return timedReportRead("dashboard.teacher", () ->
+                dashboardSnapshotService.getTeacherSnapshotOrRefresh(month, () -> reportQueryPort.getTeacherDashboard(month)),
+                out -> out != null && out.getTodaySchedule() != null ? out.getTodaySchedule().size() : 0);
     }
 
     @Cacheable(cacheNames = CacheConfig.DASHBOARD_SNAPSHOTS, keyGenerator = "tenantMethodParamsKeyGenerator", unless = "#result == null")
-    @Transactional(readOnly = true)
+    @Transactional
     public ParentDashboardDtos.Response getParentDashboard(String from, String to, Long childId) {
-        return reportQueryPort.getParentDashboard(from, to, childId);
+        return timedReportRead("dashboard.parent", () ->
+                dashboardSnapshotService.getParentSnapshotOrRefresh(from, to, childId, () -> reportQueryPort.getParentDashboard(from, to, childId)),
+                out -> out != null && out.getChildren() != null ? out.getChildren().size() : 0);
     }
 
     @Cacheable(cacheNames = CacheConfig.REPORT_RESULTS, keyGenerator = "tenantMethodParamsKeyGenerator", unless = "#result == null")
@@ -164,17 +183,23 @@ public class ReportService {
 
     @Transactional(readOnly = true)
     public PageResponse<Map<String, Object>> getClassSummaryPaged(int page, int size) {
-        return sliceList(self.getClassSummary(), page, size);
+        int safePage = Math.max(0, page);
+        int safeSize = Math.max(1, Math.min(size, 100));
+        return PageResponse.fromSpringPage(reportQueryPort.getClassSummaryPaged(safePage, safeSize));
     }
 
     @Transactional(readOnly = true)
     public PageResponse<Map<String, Object>> getSectionSummaryPaged(int page, int size) {
-        return sliceList(self.getSectionSummary(), page, size);
+        int safePage = Math.max(0, page);
+        int safeSize = Math.max(1, Math.min(size, 100));
+        return PageResponse.fromSpringPage(reportQueryPort.getSectionSummaryPaged(safePage, safeSize));
     }
 
     @Transactional(readOnly = true)
     public PageResponse<Map<String, Object>> getTeacherWorkloadPaged(int page, int size) {
-        return sliceList(self.getTeacherWorkload(), page, size);
+        int safePage = Math.max(0, page);
+        int safeSize = Math.max(1, Math.min(size, 100));
+        return PageResponse.fromSpringPage(reportQueryPort.getTeacherWorkloadPaged(safePage, safeSize));
     }
 
     @Transactional(readOnly = true)
@@ -264,6 +289,15 @@ public class ReportService {
     public ReportGenerationJob getGeneratedReportFile(Long id) {
         return reportGenerationJobRepository.findByIdAndTenantIdAndIsDeletedFalse(id, TenantContext.getTenantId())
                 .orElseThrow(() -> new ResourceNotFoundException("ReportGenerationJob", id));
+    }
+
+    @Transactional(readOnly = true)
+    public byte[] getGeneratedReportContent(Long id) {
+        ReportGenerationJob job = getGeneratedReportFile(id);
+        if (job.getFileStoragePath() != null && !job.getFileStoragePath().isBlank()) {
+            return reportBinaryStorageService.read(job.getFileStoragePath());
+        }
+        return job.getFileContent() != null ? job.getFileContent() : new byte[0];
     }
 
     @Transactional
@@ -557,14 +591,51 @@ public class ReportService {
         return out;
     }
 
-    private static <T> PageResponse<T> sliceList(List<T> all, int page, int size) {
-        long total = all.size();
-        int from = page * size;
-        if (from >= all.size()) {
-            return PageResponse.of(List.of(), page, size, total);
+    private <T> T timedReportRead(String operation, Supplier<T> supplier, Function<T, Integer> rowsExtractor) {
+        long startedAt = System.nanoTime();
+        T value = supplier.get();
+        long elapsedMs = (System.nanoTime() - startedAt) / 1_000_000;
+        int rows = 0;
+        try {
+            rows = Math.max(0, rowsExtractor.apply(value));
+        } catch (Exception ignored) {
+            rows = 0;
         }
-        int to = Math.min(from + size, all.size());
-        return PageResponse.of(all.subList(from, to), page, size, total);
+        reportPerformanceMetricsService.recordReportRead(operation, elapsedMs, rows);
+        if (elapsedMs >= 500) {
+            org.slf4j.LoggerFactory.getLogger(ReportService.class)
+                    .warn("Report read op={} tenantId={} elapsedMs={} rows={}",
+                            operation, TenantContext.getTenantId(), elapsedMs, rows);
+        } else {
+            org.slf4j.LoggerFactory.getLogger(ReportService.class)
+                    .debug("Report read op={} tenantId={} elapsedMs={} rows={}",
+                            operation, TenantContext.getTenantId(), elapsedMs, rows);
+        }
+        return value;
+    }
+
+    @Transactional
+    public int warmupDashboardSnapshots(int tenantLimit) {
+        int safeLimit = Math.max(1, Math.min(tenantLimit, 200));
+        List<String> tenantIds = dashboardSnapshotRepository.findDistinctTenantIds();
+        int warmed = 0;
+        for (String tenantId : tenantIds.stream().limit(safeLimit).toList()) {
+            com.school.erp.tenant.TenantScopedExecution.run(tenantId, null, "ADMIN", () -> {
+                selfWarmupForTenant();
+            });
+            warmed++;
+        }
+        return warmed;
+    }
+
+    @Transactional(readOnly = true)
+    public Map<String, Object> getPerformanceMetrics() {
+        return reportPerformanceMetricsService.readMetricsSnapshot();
+    }
+
+    private void selfWarmupForTenant() {
+        this.getDashboardKPIs();
+        this.getAdminDashboard();
     }
 
     private List<Map<String, Object>> resolveReportRows(String reportType, Map<String, Object> filters) {
@@ -699,8 +770,19 @@ public class ReportService {
             ReportExportService.RenderedReport rendered = reportExportService.render(job.getReportType(), job.getFormat(), rows);
             job.setFileName(rendered.fileName());
             job.setContentType(rendered.contentType());
-            job.setFileContent(rendered.content());
-            job.setContentSizeBytes((long) rendered.content().length);
+            ReportBinaryStorageService.StoredBinary storedBinary = reportBinaryStorageService.store(
+                    job.getTenantId(),
+                    job.getId(),
+                    rendered.fileName(),
+                    rendered.content());
+            job.setStorageProvider(storedBinary.provider());
+            job.setFileStoragePath(storedBinary.path());
+            job.setContentSizeBytes(storedBinary.sizeBytes());
+            if (reportBinaryStorageService.keepDbCopy()) {
+                job.setFileContent(rendered.content());
+            } else {
+                job.setFileContent(null);
+            }
             job.setGeneratedAt(LocalDateTime.now());
             job.setStatus("COMPLETED");
             if (job.getWorkflowState() == null || job.getWorkflowState().isBlank()) {

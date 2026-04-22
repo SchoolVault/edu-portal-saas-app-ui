@@ -60,7 +60,7 @@ public class AcademicController {
     }
 
     @PostMapping("/classes")
-    @PreAuthorize("hasAnyRole(\'ADMIN\',\'SUPER_ADMIN\')")
+    @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "Create class with optional sections", description = "Omit or empty sectionNames for a whole-class (no section rows). Response matches list entries.")
     public ResponseEntity<ApiResponse<AcademicDTOs.ClassWithSectionsResponse>> createClass(@Valid @RequestBody AcademicDTOs.CreateClassRequest req) {
         SchoolClass created = service.createClass(req);
@@ -68,7 +68,7 @@ public class AcademicController {
     }
 
     @PutMapping("/classes/{id}")
-    @PreAuthorize("hasAnyRole(\'ADMIN\',\'SUPER_ADMIN\')")
+    @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "Update class name and grade")
     public ResponseEntity<ApiResponse<AcademicDTOs.ClassWithSectionsResponse>> updateClass(
             @PathVariable Long id, @Valid @RequestBody AcademicMutationRequests.UpdateSchoolClassRequest req) {
@@ -76,25 +76,33 @@ public class AcademicController {
     }
 
     @PostMapping("/sections")
-    @PreAuthorize("hasAnyRole(\'ADMIN\',\'SUPER_ADMIN\')")
+    @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "Add section to class")
     public ResponseEntity<ApiResponse<Section>> addSection(@Valid @RequestBody AcademicDTOs.AddSectionRequest req) {
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.created(service.addSection(req.getClassId(), req.getName(), req.getCapacity())));
     }
 
     @PutMapping("/sections/{id}")
-    @PreAuthorize("hasAnyRole(\'ADMIN\',\'SUPER_ADMIN\')")
+    @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "Update section name and capacity")
     public ResponseEntity<ApiResponse<Section>> updateSection(@PathVariable Long id, @Valid @RequestBody AcademicMutationRequests.UpdateSectionRequest req) {
         return ResponseEntity.ok(ApiResponse.ok(service.updateSection(id, req)));
     }
 
     @DeleteMapping("/sections/{id}")
-    @PreAuthorize("hasAnyRole(\'ADMIN\',\'SUPER_ADMIN\')")
+    @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "Remove empty section", description = "Soft-deletes section when studentCount is zero")
     public ResponseEntity<ApiResponse<Void>> deleteSection(@PathVariable Long id) {
         service.deleteSection(id);
         return ResponseEntity.ok(ApiResponse.ok(null, "Section removed"));
+    }
+
+    @DeleteMapping("/classes/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Remove empty class", description = "Soft-deletes class only when no active sections and no active students remain")
+    public ResponseEntity<ApiResponse<Void>> deleteClass(@PathVariable Long id) {
+        service.deleteClass(id);
+        return ResponseEntity.ok(ApiResponse.ok(null, "Class removed"));
     }
 
     @GetMapping("/sections/class/{classId}")
@@ -105,7 +113,7 @@ public class AcademicController {
     }
 
     @PutMapping("/classes/{classId}/teacher")
-    @PreAuthorize("hasAnyRole(\'ADMIN\',\'SUPER_ADMIN\')")
+    @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "Assign class teacher")
     public ResponseEntity<ApiResponse<AcademicDTOs.ClassWithSectionsResponse>> assignTeacher(@PathVariable Long classId, @Valid @RequestBody AcademicDTOs.AssignTeacherRequest req) {
         return ResponseEntity.ok(ApiResponse.ok(service.assignClassTeacher(classId, req.getSectionId(), req.getTeacherId(), req.getTeacherName())));

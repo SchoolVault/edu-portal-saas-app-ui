@@ -32,6 +32,10 @@ import { localIsoDateString } from '../../core/utils/local-date';
           width: 100%;
         }
       }
+      .attendance-actions-col .btn-outline-erp,
+      .attendance-actions-col .btn-primary-erp {
+        width: 100%;
+      }
     `,
   ],
   imports: [
@@ -45,14 +49,16 @@ import { localIsoDateString } from '../../core/utils/local-date';
   ],
   template: `
     <div data-testid="attendance-page">
-      <div class="d-flex justify-content-between align-items-center mb-4 animate-in flex-wrap gap-2">
+      <div class="erp-filter-toolbar mb-4 animate-in">
         <div>
           <h2 style="font-size: 24px; font-weight: 800;">{{ 'attendance.pageTitle' | translate }}</h2>
           <p class="text-muted mb-0" style="font-size: 13px;">{{ 'attendance.pageLead' | translate }}</p>
         </div>
-        <button type="button" class="btn-outline-erp btn-sm" (click)="refreshAttendance()">
-          <i class="bi bi-arrow-clockwise"></i> {{ 'attendance.refresh' | translate }}
-        </button>
+        <div class="erp-filter-toolbar__actions">
+          <button type="button" class="btn-outline-erp btn-sm erp-filter-toolbar__action" (click)="refreshAttendance()">
+            <i class="bi bi-arrow-clockwise"></i> {{ 'attendance.refresh' | translate }}
+          </button>
+        </div>
       </div>
 
       <div class="erp-card mb-3 animate-in attendance-teacher-scope" *ngIf="isTeacher && teacherHomeroomHint">
@@ -101,7 +107,6 @@ import { localIsoDateString } from '../../core/utils/local-date';
               *ngIf="adminPastAuditView && !adminPastEditing"
               type="button"
               class="btn-outline-erp"
-              style="width: 100%;"
               [disabled]="!records.length"
               (click)="adminPastEditing = true"
               data-testid="edit-past-attendance-btn"
@@ -110,7 +115,6 @@ import { localIsoDateString } from '../../core/utils/local-date';
             </button>
             <button
               class="btn-primary-erp"
-              style="width: 100%;"
               (click)="saveAttendance()"
               [disabled]="!records.length || saving || saveDisabled"
               data-testid="save-attendance-btn"
@@ -152,16 +156,18 @@ import { localIsoDateString } from '../../core/utils/local-date';
             >
           </div>
         </div>
-        <div class="row g-2 align-items-end mb-3">
-          <div class="col-md-6 col-lg-4">
-            <label class="erp-label small mb-1" erpI18nText="attendance.searchStudent"></label>
-            <input
-              type="search"
-              class="erp-input"
-              erpI18nPh="attendance.searchStudentPh"
-              [(ngModel)]="attStudentSearch"
-              (ngModelChange)="onAttSearchChange()"
-            />
+        <div class="erp-filter-toolbar mb-3">
+          <div class="erp-filter-toolbar__search">
+            <div>
+              <label class="erp-label small mb-1" erpI18nText="attendance.searchStudent"></label>
+              <input
+                type="search"
+                class="erp-input"
+                erpI18nPh="attendance.searchStudentPh"
+                [(ngModel)]="attStudentSearch"
+                (ngModelChange)="onAttSearchChange()"
+              />
+            </div>
           </div>
         </div>
         <p *ngIf="records.length && !attFilteredTotal" class="text-muted small mb-2">{{ 'attendance.noSearchMatches' | translate }}</p>

@@ -1,6 +1,21 @@
-firstname,lastname,email,phone,qualification,specialization,joindate,salary,subjects,createportal,portalrole,libraryrole,importmode,bankaccountholder,bankname,bankaccountnumber,bankifsc,notifycredentials
-Amit,Sharma,amit.sharma@greenfieldschool.edu,9876501001,M.Ed,Mathematics,2024-04-01,55000,Mathematics|Algebra,Y,TEACHER,AUTO,UPSERT,Amit Sharma,HDFC Bank,502000111001,HDFC0001234,N
-Neha,Verma,neha.verma@greenfieldschool.edu,9876501002,M.Sc,Science,2024-04-01,54000,Science|Biology,Y,TEACHER,AUTO,UPSERT,Neha Verma,ICICI Bank,001122334455,ICIC0002345,N
-Rohan,Iyer,rohan.iyer@greenfieldschool.edu,9876501003,M.A,English,2024-04-01,53000,English|Literature,Y,TEACHER,AUTO,UPSERT,Rohan Iyer,SBI,330001998877,SBIN0003456,N
-Pooja,Kapoor,pooja.kapoor@greenfieldschool.edu,9876501004,B.P.Ed,Physical Education,2024-04-01,50000,Sports|Health,Y,TEACHER,AUTO,UPSERT,Pooja Kapoor,Axis Bank,918273645500,UTIB0004567,N
-Karan,Das,karan.das@greenfieldschool.edu,9876501005,M.Lib,Library Science,2024-04-01,48000,Library Management,Y,LIBRARY_STAFF,LIBRARIAN,UPSERT,Karan Das,Kotak Bank,701122334455,KKBK0005678,N
+firstname,lastname,email,phone,qualification,specialization,joindate,salary,subjects,createportal,portalrole,libraryrole,importmode,bankaccountholder,bankname,bankaccountnumber,bankifsc,notifycredentials,classteacherfor,classteacherclassid,classteachersectionid,classteacherclassname,classteachersectionname,classteacheracademicyearid
+Amit,Sharma,amit.sharma@shantiniketanpublicschool.in,9876512000,M.Ed,Mathematics,2024-04-01,56000,Mathematics,Y,TEACHER,,UPSERT,Amit Sharma,HDFC Bank,603000000000,HDFC0002200,N,Class 5-A,,,,,
+Neha,Verma,neha.verma@shantiniketanpublicschool.in,9876512001,M.Ed,Mathematics,2024-04-01,56000,Mathematics,Y,TEACHER,,UPSERT,Neha Verma,ICICI Bank,603000000001,ICIC0002201,N,Class 5-B,,,,,
+Rohan,Iyer,rohan.iyer@shantiniketanpublicschool.in,9876512002,M.Sc,Science,2024-04-01,55500,Science,Y,TEACHER,,UPSERT,Rohan Iyer,HDFC Bank,603000000002,HDFC0002202,N,Class 6-A,,,,,
+Pooja,Kapoor,pooja.kapoor@shantiniketanpublicschool.in,9876512003,M.Sc,Science,2024-04-01,55500,Science,Y,TEACHER,,UPSERT,Pooja Kapoor,ICICI Bank,603000000003,ICIC0002203,N,Class 6-B,,,,,
+Karan,Das,karan.das@shantiniketanpublicschool.in,9876512004,M.A,English,2024-04-01,54500,English,Y,TEACHER,,UPSERT,Karan Das,HDFC Bank,603000000004,HDFC0002204,N,Class 7-A,,,,,
+Sanya,Nair,sanya.nair@shantiniketanpublicschool.in,9876512005,M.A,English,2024-04-01,54500,English,Y,TEACHER,,UPSERT,Sanya Nair,ICICI Bank,603000000005,ICIC0002205,N,Class 7-B,,,,,
+Vivek,Singh,vivek.singh@shantiniketanpublicschool.in,9876512006,M.A,Hindi,2024-04-01,53500,Hindi,Y,TEACHER,,UPSERT,Vivek Singh,HDFC Bank,603000000006,HDFC0002206,N,Class 8-A,,,,,
+Anjali,Patel,anjali.patel@shantiniketanpublicschool.in,9876512007,M.A,Hindi,2024-04-01,53500,Hindi,Y,TEACHER,,UPSERT,Anjali Patel,ICICI Bank,603000000007,ICIC0002207,N,Class 8-B,,,,,
+Rahul,Gupta,rahul.gupta@shantiniketanpublicschool.in,9876512008,M.A,Social Studies,2024-04-01,54000,Social Studies,Y,TEACHER,,UPSERT,Rahul Gupta,HDFC Bank,603000000008,HDFC0002208,N,Class 9-A,,,,,
+Meera,Mehta,meera.mehta@shantiniketanpublicschool.in,9876512009,M.A,Social Studies,2024-04-01,54000,Social Studies,Y,TEACHER,,UPSERT,Meera Mehta,ICICI Bank,603000000009,ICIC0002209,N,Class 9-B,,,,,
+Arjun,Rao,arjun.rao@shantiniketanpublicschool.in,9876512010,M.Tech,Computer Science,2024-04-01,57000,Computer Science,Y,TEACHER,,UPSERT,Arjun Rao,HDFC Bank,603000000010,HDFC0002210,N,Class 10-A,,,,,
+Priya,Chopra,priya.chopra@shantiniketanpublicschool.in,9876512011,M.Tech,Computer Science,2024-04-01,57000,Computer Science,Y,TEACHER,,UPSERT,Priya Chopra,ICICI Bank,603000000011,ICIC0002211,N,Class 10-B,,,,,
+Nikhil,Joshi,nikhil.joshi@shantiniketanpublicschool.in,9876512012,B.P.Ed,Physical Education,2024-04-01,51000,Physical Education,Y,TEACHER,,UPSERT,Nikhil Joshi,HDFC Bank,603000000012,HDFC0002212,N,,,,,,
+Kavya,Bose,kavya.bose@shantiniketanpublicschool.in,9876512013,B.P.Ed,Physical Education,2024-04-01,51000,Physical Education,Y,TEACHER,,UPSERT,Kavya Bose,ICICI Bank,603000000013,ICIC0002213,N,,,,,,
+Dev,Khan,dev.khan@shantiniketanpublicschool.in,9876512014,MFA,Art,2024-04-01,50500,Art,Y,TEACHER,,UPSERT,Dev Khan,HDFC Bank,603000000014,HDFC0002214,N,,,,,,
+Ishita,Sen,ishita.sen@shantiniketanpublicschool.in,9876512015,MFA,Art,2024-04-01,50500,Art,Y,TEACHER,,UPSERT,Ishita Sen,ICICI Bank,603000000015,ICIC0002215,N,,,,,,
+Saurabh,Malhotra,saurabh.malhotra@shantiniketanpublicschool.in,9876512016,M.A,Sanskrit,2024-04-01,52500,Sanskrit,Y,TEACHER,,UPSERT,Saurabh Malhotra,HDFC Bank,603000000016,HDFC0002216,N,,,,,,
+Ritika,Roy,ritika.roy@shantiniketanpublicschool.in,9876512017,M.A,Sanskrit,2024-04-01,52500,Sanskrit,Y,TEACHER,,UPSERT,Ritika Roy,ICICI Bank,603000000017,ICIC0002217,N,,,,,,
+Manish,Saxena,manish.saxena@shantiniketanpublicschool.in,9876512018,M.A,General Knowledge,2024-04-01,52000,General Knowledge,Y,TEACHER,,UPSERT,Manish Saxena,HDFC Bank,603000000018,HDFC0002218,N,,,,,,
+Divya,Jain,divya.jain@shantiniketanpublicschool.in,9876512019,M.A,General Knowledge,2024-04-01,52000,General Knowledge,Y,TEACHER,,UPSERT,Divya Jain,ICICI Bank,603000000019,ICIC0002219,N,,,,,,

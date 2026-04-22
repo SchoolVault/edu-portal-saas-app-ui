@@ -1,0 +1,75 @@
+{
+  "version": 1,
+  "domains": {
+    "finance": {
+      "feeStructure": {
+        "en": "Fee structure",
+        "hi": "फीस संरचना"
+      },
+      "paymentLedger": {
+        "en": "Payment ledger",
+        "hi": "भुगतान लेजर"
+      },
+      "payrollOperations": {
+        "en": "Payroll operations",
+        "hi": "पेरोल संचालन"
+      },
+      "salaryDisbursement": {
+        "en": "Salary disbursement",
+        "hi": "वेतन डिस्बर्समेंट"
+      },
+      "disbursementAction": {
+        "en": "Disbursement action",
+        "hi": "डिस्बर्समेंट कार्रवाई"
+      },
+      "payrollAccrual": {
+        "en": "Payroll accrual",
+        "hi": "पेरोल संचय"
+      }
+    },
+    "reports": {
+      "reportBuilder": {
+        "en": "Report builder",
+        "hi": "रिपोर्ट बिल्डर"
+      },
+      "insightsDashboard": {
+        "en": "Insights dashboard",
+        "hi": "इनसाइट्स डैशबोर्ड"
+      },
+      "boardPreset": {
+        "en": "Board preset",
+        "hi": "बोर्ड प्रीसेट"
+      },
+      "workflowState": {
+        "en": "Workflow",
+        "hi": "वर्कफ़्लो"
+      }
+    },
+    "operations": {
+      "operationsHub": {
+        "en": "Operations hub",
+        "hi": "संचालन केंद्र"
+      },
+      "reminderWorkflow": {
+        "en": "Reminder workflow",
+        "hi": "अनुस्मारक कार्यप्रवाह"
+      },
+      "attendanceCover": {
+        "en": "Attendance cover",
+        "hi": "उपस्थिति कवर"
+      }
+    }
+  },
+  "usageGuidance": {
+    "en": [
+      "Use these terms as canonical labels in UI text, mock seed labels, and help content.",
+      "Prefer title case for headings and sentence case for body copy.",
+      "Keep API fields and enum values unchanged; this map is for display text only."
+    ],
+    "hi": [
+      "इन शब्दों को UI टेक्स्ट, मॉक डेटा लेबल और सहायता सामग्री में मानक रूप में उपयोग करें।",
+      "शीर्षकों में समान शैली रखें और विवरण में सरल, स्पष्ट वाक्य उपयोग करें।",
+      "API फ़ील्ड और enum मान न बदलें; यह मैप केवल प्रदर्शन टेक्स्ट के लिए है।"
+    ]
+  }
+}

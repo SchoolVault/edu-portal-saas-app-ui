@@ -199,7 +199,7 @@ import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directiv
   ],
   template: `
     <div data-testid="academic-page">
-      <div class="d-flex justify-content-between align-items-center mb-4 animate-in">
+      <div class="erp-filter-toolbar mb-4 animate-in">
         <div>
           <h2 style="font-size: 24px; font-weight: 800;">{{ 'academic.pageTitle' | translate }}</h2>
           <p class="text-muted mb-0" style="font-size: 13px;">{{ 'academic.pageLead' | translate }}</p>
@@ -236,21 +236,21 @@ import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directiv
           <i class="bi bi-info-circle me-1"></i> {{ 'academic.classes.viewOnlyHint' | translate }}
         </p>
 
-        <div class="d-flex flex-wrap justify-content-between align-items-end gap-3 mb-3">
-          <div class="d-flex flex-wrap align-items-end gap-3">
+        <div class="erp-filter-toolbar mb-3">
+          <div class="erp-filter-toolbar__search">
             <div>
               <label class="erp-label mb-1">{{ 'academic.classes.filterYear' | translate }}</label>
-              <select class="erp-select" style="min-width: min(180px, 100%);" [(ngModel)]="filterYearId">
+              <select class="erp-select" [(ngModel)]="filterYearId">
                 <option [ngValue]="null">{{ 'academic.classes.allYears' | translate }}</option>
                 <option *ngFor="let ay of academicYears" [ngValue]="ay.id">{{ ay.name }}</option>
               </select>
             </div>
           </div>
-          <div *ngIf="canManageAcademic" class="d-flex flex-wrap gap-2 align-items-center">
-            <button type="button" class="btn-outline-erp btn-sm" (click)="openAssignClassTeacherModal()">
+          <div *ngIf="canManageAcademic" class="erp-filter-toolbar__actions">
+            <button type="button" class="btn-outline-erp btn-sm erp-filter-toolbar__action" (click)="openAssignClassTeacherModal()">
               <i class="bi bi-person-badge me-1" aria-hidden="true"></i>{{ 'academic.assign.openButton' | translate }}
             </button>
-            <button type="button" class="btn-primary-erp btn-sm" (click)="openCreateClassModal()"><i class="bi bi-plus-lg"></i> {{ 'academic.classes.create' | translate }}</button>
+            <button type="button" class="btn-primary-erp btn-sm erp-filter-toolbar__action" (click)="openCreateClassModal()"><i class="bi bi-plus-lg"></i> {{ 'academic.classes.create' | translate }}</button>
           </div>
         </div>
         <p *ngIf="showHomeroomOwnerHint" class="mb-3 d-flex align-items-start gap-2" style="font-size: 13px; color: var(--clr-text-secondary); max-width: 720px;">
@@ -290,6 +290,13 @@ import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directiv
                   <span class="badge-erp" [ngClass]="cls.sections.length ? 'badge-info' : 'badge-neutral'">{{ cls.sections.length ? ('academic.card.sectionsCount' | translate: { count: cls.sections.length }) : ('academic.card.wholeClass' | translate) }}</span>
                   <span *ngIf="canManageAcademic && classNeedsHomeroom(cls)" class="badge-erp" style="background: color-mix(in srgb, var(--clr-warning) 22%, transparent); color: var(--clr-warning); border: 1px solid color-mix(in srgb, var(--clr-warning) 45%, transparent);">{{ 'academic.card.homeroomTbd' | translate }}</span>
                   <button *ngIf="canManageAcademic" type="button" class="btn-outline-erp btn-xs" (click)="openEditClassModal(cls)">{{ 'academic.card.editClass' | translate }}</button>
+                  <button
+                    *ngIf="canManageAcademic"
+                    type="button"
+                    class="btn-outline-erp btn-xs"
+                    [disabled]="sectionBusy"
+                    (click)="removeClass(cls)"
+                  >{{ 'academic.card.removeClass' | translate }}</button>
                 </div>
               </div>
               <div *ngIf="cls.sections.length === 0 && cls.classTeacherName" style="font-size: 13px; color: var(--clr-text-secondary); margin-bottom: 10px;">
@@ -327,7 +334,7 @@ import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directiv
                     </div>
                     <div *ngIf="canManageAcademic" class="d-flex flex-column gap-1">
                       <button type="button" class="btn-icon btn-xs p-0" style="font-size: 14px;" (click)="openEditSectionModal(cls, sec)" [attr.title]="'academic.card.editTitle' | translate"><i class="bi bi-pencil"></i></button>
-                      <button type="button" class="btn-icon btn-xs p-0" style="font-size: 14px; color: var(--clr-danger);" [disabled]="sec.studentCount > 0 || sectionBusy" (click)="removeSection(cls, sec)" [attr.title]="'academic.card.removeTitle' | translate"><i class="bi bi-trash"></i></button>
+                      <button type="button" class="btn-icon btn-xs p-0" style="font-size: 14px; color: var(--clr-danger);" [disabled]="sectionBusy" (click)="removeSection(cls, sec)" [attr.title]="'academic.card.removeTitle' | translate"><i class="bi bi-trash"></i></button>
                     </div>
                   </div>
                   <div class="academic-section-ct">
@@ -522,6 +529,7 @@ import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directiv
           </div>
           <div class="modal-footer-erp">
             <button type="button" class="btn-outline-erp" (click)="showEditClass = false">{{ 'academic.modal.cancel' | translate }}</button>
+            <button type="button" class="btn-outline-erp" [disabled]="savingClass || !editClassTarget" (click)="removeClass(editClassTarget)">{{ 'academic.modal.removeClass' | translate }}</button>
             <button type="button" class="btn-primary-erp" [disabled]="savingClass" (click)="submitEditClass()">{{ savingClass ? ('academic.modal.saving' | translate) : ('academic.modal.save' | translate) }}</button>
           </div>
         </div>
@@ -664,15 +672,15 @@ export class AcademicComponent implements OnInit {
         title: this.translate.instant('academic.pageTitle'),
         message,
         variant: 'warning',
-        confirmLabel: this.translate.instant('academic.modal.cancel'),
-        cancelLabel: '',
+        confirmLabel: this.translate.instant('academic.modal.ok'),
+        cancelLabel: this.translate.instant('academic.modal.cancel'),
       })
       .subscribe();
   }
 
   ngOnInit(): void {
     const r = this.auth.getRole();
-    this.canManageAcademic = r === 'admin' || r === 'super_admin';
+    this.canManageAcademic = r === 'admin';
     if (this.canManageAcademic) {
       this.tab = 'classes';
     }
@@ -996,7 +1004,15 @@ export class AcademicComponent implements OnInit {
   }
 
   removeSection(cls: SchoolClass, sec: { id: number; name: string; studentCount: number }): void {
-    if (sec.studentCount > 0) return;
+    if (sec.studentCount > 0) {
+      this.showValidationWarning(
+        this.translate.instant('academic.confirm.removeSection.studentsPresent', {
+          section: sec.name,
+          count: sec.studentCount,
+        })
+      );
+      return;
+    }
     this.confirmDialog
       .confirm({
         title: this.translate.instant('academic.confirm.removeSection.title'),
@@ -1026,6 +1042,62 @@ export class AcademicComponent implements OnInit {
           },
           error: () => {
             this.sectionBusy = false;
+            this.showValidationWarning(this.translate.instant('academic.errors.sectionDeleteFailed'));
+          },
+        });
+      });
+  }
+
+  removeClass(cls: SchoolClass | null | undefined): void {
+    if (!cls || !this.canManageAcademic) {
+      return;
+    }
+    if ((cls.sections?.length ?? 0) > 0) {
+      this.showValidationWarning(
+        this.translate.instant('academic.confirm.removeClass.sectionsExist', {
+          class: cls.name,
+          count: cls.sections.length,
+        })
+      );
+      return;
+    }
+    const totalStudents = this.getTotalStudents(cls);
+    if (totalStudents > 0) {
+      this.showValidationWarning(
+        this.translate.instant('academic.confirm.removeClass.studentsExist', {
+          class: cls.name,
+          count: totalStudents,
+        })
+      );
+      return;
+    }
+    this.confirmDialog
+      .confirm({
+        title: this.translate.instant('academic.confirm.removeClass.title'),
+        message: this.translate.instant('academic.confirm.removeClass.message', { class: cls.name }),
+        details: [
+          this.translate.instant('academic.confirm.removeClass.detailUnassign'),
+          this.translate.instant('academic.confirm.removeClass.detailIrreversible'),
+        ],
+        variant: 'danger',
+        confirmLabel: this.translate.instant('academic.confirm.removeClass.confirm'),
+        cancelLabel: this.translate.instant('academic.modal.cancel'),
+      })
+      .pipe(filter(Boolean))
+      .subscribe(() => {
+        this.sectionBusy = true;
+        this.academicService.deleteClass(cls.id).subscribe({
+          next: () => {
+            this.classes = this.classes.filter(c => c.id !== cls.id);
+            this.sectionBusy = false;
+            if (this.editClassTarget?.id === cls.id) {
+              this.showEditClass = false;
+              this.editClassTarget = null;
+            }
+          },
+          error: () => {
+            this.sectionBusy = false;
+            this.showValidationWarning(this.translate.instant('academic.errors.classDeleteFailed'));
           },
         });
       });

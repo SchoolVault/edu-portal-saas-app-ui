@@ -20,20 +20,24 @@ import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directiv
   imports: [CommonModule, FormsModule, TranslateModule, ErpPaginationComponent, ErpI18nPhDirective],
   template: `
     <div data-testid="documents-page">
-      <div class="d-flex justify-content-between align-items-center mb-4 animate-in flex-wrap gap-2">
+      <div class="erp-filter-toolbar mb-4 animate-in">
         <div>
           <h2 style="font-size: 24px; font-weight: 800;">{{ 'documents.pageTitle' | translate }}</h2>
           <p class="text-muted mb-0" style="font-size: 13px;">{{ 'documents.lead' | translate }}</p>
         </div>
-        <div class="d-flex gap-2 flex-wrap">
+        <div class="erp-filter-toolbar__actions">
           <button type="button" class="btn-outline-erp btn-sm" (click)="reload()"><i class="bi bi-arrow-clockwise"></i> {{ 'documents.refresh' | translate }}</button>
           <button *ngIf="canUpload" class="btn-primary-erp btn-sm" data-testid="upload-document-btn" (click)="openUpload()"><i class="bi bi-cloud-upload"></i> {{ 'documents.upload' | translate }}</button>
         </div>
       </div>
       <div class="erp-card animate-in animate-in-delay-1">
-        <div class="search-input-wrapper mb-3" style="max-width: 400px;">
-          <i class="bi bi-search"></i>
-          <input type="text" class="erp-input" erpI18nPh="documents.searchPlaceholder" [(ngModel)]="search" (input)="onSearchInput()">
+        <div class="erp-filter-toolbar mb-3">
+          <div class="erp-filter-toolbar__search">
+            <div class="search-input-wrapper">
+              <i class="bi bi-search"></i>
+              <input type="text" class="erp-input" erpI18nPh="documents.searchPlaceholder" [(ngModel)]="search" (input)="onSearchInput()">
+            </div>
+          </div>
         </div>
         <table class="erp-table" data-testid="documents-table">
           <thead><tr><th>{{ 'documents.thName' | translate }}</th><th>{{ 'documents.thType' | translate }}</th><th>{{ 'documents.thCategory' | translate }}</th><th>{{ 'documents.thUploadedBy' | translate }}</th><th>{{ 'documents.thDate' | translate }}</th><th>{{ 'documents.thSize' | translate }}</th><th>{{ 'documents.thActions' | translate }}</th></tr></thead>

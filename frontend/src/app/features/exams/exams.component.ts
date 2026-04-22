@@ -70,7 +70,7 @@ function compareExamsForGrid(a: Exam, b: Exam): number {
   ],
   template: `
     <div data-testid="exams-page">
-      <div class="d-flex justify-content-between align-items-center mb-4 animate-in flex-wrap gap-2">
+      <div class="erp-filter-toolbar mb-4 animate-in">
         <div>
           <h2 style="font-size: 24px; font-weight: 800;">{{ 'exams.pageTitle' | translate }}</h2>
           <p class="text-muted mb-0" style="font-size: 13px;" *ngIf="role !== 'parent'">
@@ -88,11 +88,11 @@ function compareExamsForGrid(a: Exam, b: Exam): number {
             >{{ 'exams.leadParentTail' | translate }}
           </p>
         </div>
-        <div class="d-flex gap-2 flex-wrap">
-          <button type="button" class="btn-outline-erp btn-sm" (click)="refreshExams()">
+        <div class="erp-filter-toolbar__actions">
+          <button type="button" class="btn-outline-erp btn-sm erp-filter-toolbar__action" (click)="refreshExams()">
             <i class="bi bi-arrow-clockwise"></i> {{ 'exams.refresh' | translate }}
           </button>
-          <button *ngIf="canCreateExam" type="button" class="btn-primary-erp btn-sm" (click)="openCreateModal()">
+          <button *ngIf="canCreateExam" type="button" class="btn-primary-erp btn-sm erp-filter-toolbar__action" (click)="openCreateModal()">
             <i class="bi bi-plus-lg"></i> {{ 'exams.createExam' | translate }}
           </button>
         </div>
@@ -120,16 +120,18 @@ function compareExamsForGrid(a: Exam, b: Exam): number {
       </div>
 
       <div class="erp-card mb-3 animate-in animate-in-delay-1" *ngIf="role !== 'parent' && staffUsesServerPaging">
-        <div class="row g-2 align-items-end">
-          <div class="col-md-5 col-lg-4">
-            <label class="erp-label">{{ 'exams.listSearch' | translate }}</label>
-            <input
-              type="search"
-              class="erp-input"
-              [(ngModel)]="staffExamSearch"
-              (ngModelChange)="onStaffExamSearchChange()"
-              [attr.placeholder]="'exams.listSearchPh' | translate"
-            />
+        <div class="erp-filter-toolbar">
+          <div class="erp-filter-toolbar__search">
+            <div>
+              <label class="erp-label">{{ 'exams.listSearch' | translate }}</label>
+              <input
+                type="search"
+                class="erp-input"
+                [(ngModel)]="staffExamSearch"
+                (ngModelChange)="onStaffExamSearchChange()"
+                [attr.placeholder]="'exams.listSearchPh' | translate"
+              />
+            </div>
           </div>
         </div>
       </div>

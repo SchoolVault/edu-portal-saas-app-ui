@@ -96,8 +96,8 @@ export const MOCK_TEACHER_NOTIFICATIONS_SEED: AppNotification[] = [
 export const MOCK_PLATFORM_OPERATOR_NOTIFICATIONS_SEED: AppNotification[] = [
   {
     id: 'p1',
-    title: 'Billing reconciliation queued',
-    message: 'Monthly subscription sync is prepared for all active school workspaces.',
+    title: 'Billing reconciliation run scheduled',
+    message: 'Monthly subscription sync is scheduled for all active school workspaces.',
     type: 'info',
     read: false,
     userId: 9901,

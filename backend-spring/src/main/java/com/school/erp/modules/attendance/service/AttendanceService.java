@@ -9,6 +9,7 @@ import com.school.erp.modules.attendance.entity.AttendanceRecord;
 import com.school.erp.modules.attendance.port.AttendancePersistencePort;
 import com.school.erp.modules.academic.repository.SchoolClassRepository;
 import com.school.erp.modules.academic.repository.SectionRepository;
+import com.school.erp.modules.reports.service.DashboardSnapshotInvalidationService;
 import com.school.erp.platform.port.AuditTrailPort;
 import com.school.erp.modules.student.service.TeacherRosterScopeService;
 import com.school.erp.tenant.TenantContext;
@@ -30,6 +31,7 @@ public class AttendanceService {
     private final AuditTrailPort auditTrailPort;
     private final SchoolClassRepository schoolClassRepository;
     private final SectionRepository sectionRepository;
+    private final DashboardSnapshotInvalidationService dashboardSnapshotInvalidationService;
 
     private void assertTeacherAttendanceScope(Long classId, Long sectionId, LocalDate date) {
         if (!teacherRosterScopeService.teacherMayMarkAttendance(classId, sectionId, date)) {
@@ -109,6 +111,7 @@ public class AttendanceService {
                 null,
                 "students=" + records.size());
         log.info("Attendance marked for class={} section={} date={} students={}", request.getClassId(), request.getSectionId(), date, records.size());
+        dashboardSnapshotInvalidationService.invalidateCurrentTenant("attendance_marked");
         return records.stream().map(this::toResponse).collect(Collectors.toList());
     }
 
@@ -207,11 +210,13 @@ public class AttendanceService {
                              final TeacherRosterScopeService teacherRosterScopeService,
                              final AuditTrailPort auditTrailPort,
                              final SchoolClassRepository schoolClassRepository,
-                             final SectionRepository sectionRepository) {
+                             final SectionRepository sectionRepository,
+                             final DashboardSnapshotInvalidationService dashboardSnapshotInvalidationService) {
         this.attendancePersistence = attendancePersistence;
         this.teacherRosterScopeService = teacherRosterScopeService;
         this.auditTrailPort = auditTrailPort;
         this.schoolClassRepository = schoolClassRepository;
         this.sectionRepository = sectionRepository;
+        this.dashboardSnapshotInvalidationService = dashboardSnapshotInvalidationService;
     }
 }

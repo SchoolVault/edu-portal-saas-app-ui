@@ -18,18 +18,25 @@ public final class ImportCanonicalFieldCatalog {
             ImportJobType.TEACHERS, List.of(
                     "firstname", "lastname", "email", "phone", "qualification", "specialization",
                     "joindate", "salary", "subjects", "createportal", "portalrole", "libraryrole",
-                    "importmode", "bankaccountholder", "bankname", "bankaccountnumber", "bankifsc", "notifycredentials"),
+                    "importmode", "bankaccountholder", "bankname", "bankaccountnumber", "bankifsc", "notifycredentials",
+                    "classteacherfor", "classteacherclassid", "classteachersectionid",
+                    "classteacherclassname", "classteachersectionname", "classteacheracademicyearid"),
             ImportJobType.STAFF, List.of(
                     "firstname", "lastname", "email", "phone", "qualification", "specialization",
                     "joindate", "salary", "subjects", "createportal", "portalrole", "libraryrole",
-                    "importmode", "bankaccountholder", "bankname", "bankaccountnumber", "bankifsc", "notifycredentials"),
+                    "importmode", "bankaccountholder", "bankname", "bankaccountnumber", "bankifsc", "notifycredentials",
+                    "classteacherfor", "classteacherclassid", "classteachersectionid",
+                    "classteacherclassname", "classteachersectionname", "classteacheracademicyearid"),
             ImportJobType.CLASSES, List.of(
                     "name", "grade", "academicyearid", "sections", "sectioncapacity"),
             ImportJobType.TIMETABLE, List.of(
                     "teacheremail", "teacherid",
                     "classname", "classid", "sectionname", "sectionid",
                     "subjectname", "dayofweek", "period", "starttime", "endtime",
-                    "room", "academicyearid"));
+                    "room", "academicyearid"),
+            ImportJobType.FEE_STRUCTURES, List.of(
+                    "name", "classid", "classname", "academicyearid",
+                    "componentspec", "importmode"));
 
     private ImportCanonicalFieldCatalog() {
     }

@@ -119,17 +119,17 @@ import { sortSchoolClassesByGrade } from '../../core/utils/school-class-sort.uti
       </div>
 
       <div class="erp-card animate-in animate-in-delay-1">
-        <div class="student-list-filter-row">
-          <div class="search-input-wrapper student-list-search">
+        <div class="erp-filter-toolbar student-list-filter-row">
+          <div class="search-input-wrapper student-list-search erp-filter-toolbar__search">
             <i class="bi bi-search"></i>
             <input type="text" class="erp-input" erpI18nPh="students.list.searchPlaceholder" [(ngModel)]="searchTerm"
                    (input)="onSearchInput()" data-testid="student-search-input">
           </div>
-          <div class="student-list-filter-group">
-            <select class="erp-select" style="width: 160px;" [(ngModel)]="classFilter" (change)="onClassOrStatusChange()" data-testid="class-filter">
+          <div class="student-list-filter-group erp-filter-toolbar__actions">
+            <select class="erp-select" style="width: 170px;" [(ngModel)]="classFilter" (change)="onClassOrStatusChange()" data-testid="class-filter">
               <option *ngFor="let c of classOptions" [value]="c.value">{{ c.value === '' ? ('students.list.allClasses' | translate) : classDisplayName(c.label) }}</option>
             </select>
-            <select class="erp-select" style="width: 140px;" [(ngModel)]="statusFilter" (change)="onClassOrStatusChange()" data-testid="status-filter">
+            <select class="erp-select" style="width: 170px;" [(ngModel)]="statusFilter" (change)="onClassOrStatusChange()" data-testid="status-filter">
               <option value="">{{ 'students.list.allStatus' | translate }}</option>
               <option value="active">{{ 'students.enums.status.active' | translate }}</option>
               <option value="inactive">{{ 'students.enums.status.inactive' | translate }}</option>

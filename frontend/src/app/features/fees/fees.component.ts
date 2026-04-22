@@ -16,6 +16,7 @@ import {
   BulkAssignFeesResponse,
   BulkAssignFeesSkipEntry,
   FeeComponent,
+  FeeCollectionSummary,
   FeePayment,
   FeeStructure,
   SchoolClass,
@@ -28,14 +29,225 @@ import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directiv
   selector: 'app-fees',
   standalone: true,
   imports: [CommonModule, FormsModule, TranslateModule, SchoolClassNamePipe, ErpPaginationComponent, ErpI18nPhDirective],
+  styles: [`
+    .fees-page-header {
+      margin-bottom: 1.1rem;
+    }
+    .fees-page-title {
+      font-size: 24px;
+      font-weight: 800;
+      margin: 0;
+      letter-spacing: -0.01em;
+    }
+    .fees-page-subtitle {
+      font-size: 13px;
+      margin: 4px 0 0;
+    }
+    .fees-kpi-grid .erp-card {
+      border-radius: 12px;
+      border: 1px solid var(--clr-border-light);
+      box-shadow: var(--shadow-sm);
+      min-height: 68px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: 2px;
+    }
+    .fees-kpi-label {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      font-weight: 700;
+      color: var(--clr-text-muted);
+    }
+    .fees-kpi-value {
+      font-size: 18px;
+      font-weight: 800;
+      color: var(--clr-text);
+      font-family: var(--font-heading, inherit);
+      line-height: 1.2;
+    }
+    .fees-payments-shell {
+      border-radius: 14px;
+      border: 1px solid var(--clr-border-light);
+      box-shadow: var(--shadow-sm);
+      padding: 14px;
+    }
+    .fees-structures-shell .erp-card {
+      border-radius: 14px;
+      border: 1px solid color-mix(in srgb, var(--clr-border) 88%, var(--clr-primary) 12%);
+      box-shadow: var(--shadow-sm);
+    }
+    .fees-toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px 12px;
+      align-items: end;
+      margin-bottom: 10px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid var(--clr-border-light);
+    }
+    .fees-toolbar-group {
+      min-width: 150px;
+    }
+    .fees-toolbar-right {
+      margin-left: auto;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: end;
+      gap: 10px;
+    }
+    .fees-search-block {
+      min-width: 220px;
+      max-width: 380px;
+    }
+    .fees-search-block .erp-input,
+    .fees-toolbar .erp-select,
+    .fees-toolbar .btn-outline-erp.btn-sm {
+      height: 40px;
+      min-height: 40px;
+      border-radius: 12px;
+      box-sizing: border-box;
+    }
+    .fees-search-block .erp-input {
+      font-size: 13px;
+      padding-top: 0;
+      padding-bottom: 0;
+    }
+    .fees-toolbar .erp-select {
+      font-size: 13px;
+      padding-top: 0;
+      padding-bottom: 0;
+    }
+    .fees-toolbar .btn-outline-erp.btn-sm {
+      font-size: 12.5px;
+      font-weight: 700;
+      padding: 0 14px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      white-space: nowrap;
+    }
+    .fees-toolbar .erp-label {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      font-weight: 700;
+      margin-bottom: 4px !important;
+    }
+    .fees-toolbar-actions {
+      display: flex;
+      align-items: end;
+      gap: 8px;
+    }
+    .fees-toolbar-actions .btn-outline-erp.btn-sm {
+      min-width: 112px;
+    }
+    .fees-summary-note {
+      margin: 2px 0 10px;
+      font-size: 12px;
+    }
+    .fees-table-wrap {
+      border: 1px solid var(--clr-border-light);
+      border-radius: 12px;
+      overflow: auto;
+      background: var(--clr-surface);
+    }
+    .fees-table-wrap .erp-table thead th {
+      white-space: nowrap;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      font-weight: 700;
+    }
+    .fees-table-wrap .erp-table tbody td {
+      vertical-align: middle;
+      font-size: 13px;
+    }
+    .fees-cell-student {
+      font-weight: 700;
+      white-space: nowrap;
+    }
+    .fees-cell-paid {
+      color: var(--clr-success);
+      font-weight: 700;
+    }
+    .fees-actions {
+      white-space: nowrap;
+      display: flex;
+      gap: 6px;
+      align-items: center;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+    .fees-btn-ledger,
+    .fees-btn-reminder,
+    .fees-btn-collect {
+      border-radius: 999px;
+    }
+    [data-theme='dark'] .fees-payments-shell,
+    [data-theme='dark'] .fees-kpi-grid .erp-card,
+    [data-theme='dark'] .fees-table-wrap {
+      border-color: color-mix(in srgb, var(--clr-primary) 20%, var(--clr-border));
+      background: color-mix(in srgb, var(--clr-surface) 96%, #0b1220);
+    }
+    [data-theme='dark'] .fees-structures-shell .erp-card {
+      border-color: color-mix(in srgb, var(--clr-primary) 20%, var(--clr-border));
+      background: linear-gradient(
+        150deg,
+        color-mix(in srgb, var(--clr-surface) 95%, #0b1220),
+        color-mix(in srgb, var(--clr-surface-alt) 96%, #0b1220)
+      );
+    }
+    [data-theme='dark'] .fees-toolbar {
+      border-bottom-color: color-mix(in srgb, var(--clr-primary) 20%, var(--clr-border));
+    }
+    @media (max-width: 768px) {
+      .fees-page-header {
+        margin-bottom: 0.8rem;
+      }
+      .fees-toolbar-stack {
+        width: 100%;
+        justify-content: flex-start !important;
+      }
+      .fees-toolbar {
+        gap: 8px;
+        align-items: stretch;
+      }
+      .fees-toolbar-right {
+        width: 100%;
+        margin-left: 0;
+        gap: 8px;
+      }
+      .fees-toolbar-group,
+      .fees-search-block {
+        min-width: 100% !important;
+        max-width: 100% !important;
+      }
+      .fees-toolbar-actions {
+        width: 100%;
+        margin-left: 0;
+      }
+      .fees-toolbar-actions .btn-outline-erp.btn-sm {
+        flex: 1;
+      }
+      .fees-table-wrap .erp-table {
+        min-width: 860px;
+      }
+    }
+  `],
   template: `
     <div data-testid="fees-page">
-      <div class="d-flex justify-content-between align-items-center mb-4 animate-in flex-wrap gap-2">
+      <div *ngIf="operationMessage" class="alert py-2 small mb-3" [class.alert-success]="operationMessageOk" [class.alert-danger]="!operationMessageOk">
+        {{ operationMessage }}
+      </div>
+      <div class="d-flex justify-content-between align-items-center animate-in flex-wrap gap-2 fees-page-header">
         <div>
-          <h2 style="font-size: 24px; font-weight: 800;">{{ 'fees.pageTitle' | translate }}</h2>
-          <p class="text-muted mb-0" style="font-size: 13px;">{{ 'fees.lead' | translate }}</p>
+          <h2 class="fees-page-title">{{ 'fees.pageTitle' | translate }}</h2>
+          <p class="text-muted mb-0 fees-page-subtitle">{{ 'fees.lead' | translate }}</p>
         </div>
-        <div class="d-flex gap-2 flex-wrap">
+        <div class="d-flex gap-2 flex-wrap fees-toolbar-stack">
           <button type="button" class="btn-outline-erp btn-sm" (click)="refreshAll()" [disabled]="refreshing">
             <i class="bi bi-arrow-clockwise"></i> {{ refreshing ? ('fees.refreshing' | translate) : ('fees.refresh' | translate) }}
           </button>
@@ -50,7 +262,15 @@ import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directiv
         <button type="button" class="erp-tab" [class.active]="tab === 'payments'" (click)="tab = 'payments'" data-testid="tab-payments">{{ 'fees.tabPayments' | translate }}</button>
       </div>
 
-      <div *ngIf="tab === 'structures'" class="animate-in">
+      <div *ngIf="tab === 'structures'" class="animate-in fees-structures-shell">
+        <div class="erp-card mb-3" *ngIf="isAdmin">
+          <div class="small fw-semibold text-uppercase text-muted mb-2">{{ 'fees.adminFlowTitle' | translate }}</div>
+          <div class="d-flex flex-wrap gap-2">
+            <span class="badge-erp badge-neutral">{{ 'fees.adminFlowStep1' | translate }}</span>
+            <span class="badge-erp badge-neutral">{{ 'fees.adminFlowStep2' | translate }}</span>
+            <span class="badge-erp badge-neutral">{{ 'fees.adminFlowStep3' | translate }}</span>
+          </div>
+        </div>
         <div class="row g-4">
           <div class="col-md-6 col-lg-4" *ngFor="let fs of feeStructures">
             <div class="erp-card h-100" [attr.data-testid]="'fee-structure-' + fs.id">
@@ -86,9 +306,38 @@ import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directiv
       </div>
 
       <div *ngIf="tab === 'payments'" class="animate-in">
-        <div class="erp-card">
-          <div class="d-flex flex-wrap gap-3 align-items-end mb-3">
-            <div class="search-input-wrapper flex-grow-1" style="min-width: 200px; max-width: 360px;">
+        <div *ngIf="reminderMessage" class="alert py-2 small mb-2" [class.alert-success]="reminderMessageOk" [class.alert-danger]="!reminderMessageOk">
+          {{ reminderMessage }}
+        </div>
+        <div class="row g-2 mb-3 fees-kpi-grid" *ngIf="isAdmin">
+          <div class="col-6 col-md-3">
+            <div class="erp-card p-2">
+              <div class="fees-kpi-label">{{ 'fees.kpiCollected' | translate }}</div>
+              <div class="fees-kpi-value">₹{{ effectiveCollected | number:'1.0-0':'en-IN' }}</div>
+            </div>
+          </div>
+          <div class="col-6 col-md-3">
+            <div class="erp-card p-2">
+              <div class="fees-kpi-label">{{ 'fees.kpiPending' | translate }}</div>
+              <div class="fees-kpi-value">₹{{ effectivePending | number:'1.0-0':'en-IN' }}</div>
+            </div>
+          </div>
+          <div class="col-6 col-md-3">
+            <div class="erp-card p-2">
+              <div class="fees-kpi-label">{{ 'fees.kpiOverdueCount' | translate }}</div>
+              <div class="fees-kpi-value">{{ effectiveOverdueCount }}</div>
+            </div>
+          </div>
+          <div class="col-6 col-md-3">
+            <div class="erp-card p-2">
+              <div class="fees-kpi-label">{{ 'fees.kpiCollectionRate' | translate }}</div>
+              <div class="fees-kpi-value">{{ effectiveCollectionRatePct | number:'1.0-1' }}%</div>
+            </div>
+          </div>
+        </div>
+        <div class="erp-card fees-payments-shell">
+          <div class="fees-toolbar">
+            <div class="search-input-wrapper flex-grow-1 fees-search-block">
               <i class="bi bi-search"></i>
               <input
                 type="text"
@@ -99,19 +348,36 @@ import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directiv
                 data-testid="payments-search"
               />
             </div>
-            <div>
-              <label class="erp-label d-block mb-1 small">{{ 'fees.labelStatus' | translate }}</label>
-              <select class="erp-select" style="min-width: 150px;" [(ngModel)]="statusFilter" (ngModelChange)="onPaymentStatusChange()">
-                <option value="">{{ 'fees.allStatus' | translate }}</option>
-                <option value="paid">{{ 'fees.statusPaid' | translate }}</option>
-                <option value="partial">{{ 'fees.statusPartial' | translate }}</option>
-                <option value="unpaid">{{ 'fees.statusUnpaid' | translate }}</option>
-                <option value="overdue">{{ 'fees.statusOverdue' | translate }}</option>
-              </select>
+            <div class="fees-toolbar-right">
+              <div class="fees-toolbar-group">
+                <label class="erp-label d-block mb-1">{{ 'fees.labelStatus' | translate }}</label>
+                <select class="erp-select w-100" [(ngModel)]="statusFilter" (ngModelChange)="onPaymentStatusChange()">
+                  <option value="">{{ 'fees.allStatus' | translate }}</option>
+                  <option value="paid">{{ 'fees.statusPaid' | translate }}</option>
+                  <option value="partial">{{ 'fees.statusPartial' | translate }}</option>
+                  <option value="unpaid">{{ 'fees.statusUnpaid' | translate }}</option>
+                  <option value="overdue">{{ 'fees.statusOverdue' | translate }}</option>
+                </select>
+              </div>
+              <div class="fees-toolbar-group">
+                <label class="erp-label d-block mb-1">{{ 'fees.sortBy' | translate }}</label>
+                <select class="erp-select w-100" [(ngModel)]="sortBy" (ngModelChange)="applyClientView()">
+                  <option value="dueDateAsc">{{ 'fees.sortDueDateAsc' | translate }}</option>
+                  <option value="dueDateDesc">{{ 'fees.sortDueDateDesc' | translate }}</option>
+                  <option value="dueAmountDesc">{{ 'fees.sortDueAmountDesc' | translate }}</option>
+                  <option value="studentAsc">{{ 'fees.sortStudentAsc' | translate }}</option>
+                </select>
+              </div>
+              <div class="fees-toolbar-actions">
+                <button type="button" class="btn-outline-erp btn-sm" (click)="loadPaymentsPage()"><i class="bi bi-arrow-clockwise"></i> {{ 'fees.refresh' | translate }}</button>
+                <button type="button" class="btn-outline-erp btn-sm" (click)="exportPaymentsCsv()"><i class="bi bi-download"></i> {{ 'fees.exportPayments' | translate }}</button>
+              </div>
             </div>
-            <button type="button" class="btn-outline-erp btn-sm" (click)="loadPaymentsPage()"><i class="bi bi-arrow-clockwise"></i> {{ 'fees.refresh' | translate }}</button>
           </div>
-          <div style="overflow-x: auto;" dir="ltr">
+          <p class="small text-muted fees-summary-note" *ngIf="collectionSummary">
+            {{ 'fees.summaryStudents' | translate: { n: collectionSummary.totalStudents } }}
+          </p>
+          <div class="fees-table-wrap" dir="ltr">
             <table class="erp-table" data-testid="payments-table">
               <thead>
                 <tr
@@ -121,14 +387,15 @@ import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directiv
                   ><th>{{ 'fees.thDue' | translate }}</th
                   ><th>{{ 'fees.thDueDate' | translate }}</th
                   ><th>{{ 'fees.thStatus' | translate }}</th
-                  ><th>{{ 'fees.thReceipt' | translate }}</th></tr
+                  ><th>{{ 'fees.thReceipt' | translate }}</th
+                  ><th>{{ 'fees.thActions' | translate }}</th></tr
                 >
               </thead>
               <tbody>
-                <tr *ngFor="let p of paymentsPage" [attr.data-testid]="'payment-row-' + p.id">
-                  <td><strong>{{ p.studentName }}</strong></td>
+                <tr *ngFor="let p of displayPaymentsPage" [attr.data-testid]="'payment-row-' + p.id">
+                  <td class="fees-cell-student">{{ p.studentName }}</td>
                   <td>₹{{ p.amount | number:'1.0-0':'en-IN' }}</td>
-                  <td style="color: var(--clr-success);">₹{{ p.paidAmount | number:'1.0-0':'en-IN' }}</td>
+                  <td class="fees-cell-paid">₹{{ p.paidAmount | number:'1.0-0':'en-IN' }}</td>
                   <td [style.color]="p.dueAmount > 0 ? 'var(--clr-danger)' : 'var(--clr-success)'">₹{{ p.dueAmount | number:'1.0-0':'en-IN' }}</td>
                   <td>{{ p.dueDate }}</td>
                   <td>
@@ -137,11 +404,32 @@ import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directiv
                     </span>
                   </td>
                   <td>{{ p.receiptNumber || '-' }}</td>
+                  <td class="fees-actions">
+                    <button type="button" class="btn-outline-erp btn-xs fees-btn-ledger" (click)="openStudentLedgerModal(p)">
+                      {{ 'fees.viewLedger' | translate }}
+                    </button>
+                    <button
+                      *ngIf="isAdmin && p.dueAmount > 0"
+                      type="button"
+                      class="btn-primary-erp btn-xs fees-btn-collect"
+                      (click)="openCollectPaymentModal(p)"
+                    >
+                      {{ 'fees.collectNow' | translate }}
+                    </button>
+                    <button
+                      *ngIf="isAdmin && p.dueAmount > 0"
+                      type="button"
+                      class="btn-outline-erp btn-xs fees-btn-reminder"
+                      (click)="sendReminder(p)"
+                    >
+                      {{ 'fees.sendReminder' | translate }}
+                    </button>
+                  </td>
                 </tr>
               </tbody>
             </table>
           </div>
-          <p *ngIf="!paymentsPage.length && !paymentsLoading" class="text-muted small mb-0">{{ 'fees.emptyPayments' | translate }}</p>
+          <p *ngIf="!displayPaymentsPage.length && !paymentsLoading" class="text-muted small mb-0">{{ 'fees.emptyPayments' | translate }}</p>
           <app-erp-pagination
             *ngIf="paymentsTotal > 0"
             [totalElements]="paymentsTotal"
@@ -265,7 +553,7 @@ import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directiv
               <span *ngIf="r.skippedCount === 1">{{ 'fees.bulkSkippedOne' | translate: { n: r.skippedCount } }}</span>
               <span *ngIf="r.skippedCount !== 1">{{ 'fees.bulkSkippedMany' | translate: { n: r.skippedCount } }}</span>
             </div>
-            <div *ngIf="r.skipped?.length" class="mt-2 pt-2 text-muted" style="border-top: 1px solid var(--clr-border); max-height: 140px; overflow-y: auto;">
+            <div *ngIf="r.skipped.length" class="mt-2 pt-2 text-muted" style="border-top: 1px solid var(--clr-border); max-height: 140px; overflow-y: auto;">
               <div class="small fw-semibold text-body mb-1">{{ 'fees.bulkDetailsSample' | translate }}</div>
               <div *ngFor="let s of r.skipped" class="mb-1">
                 {{ 'fees.bulkStudentHash' | translate: { id: s.studentId, reason: friendlyBulkSkipLabel(s) } }}
@@ -282,12 +570,84 @@ import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directiv
         </div>
       </div>
     </div>
+
+    <div class="modal-overlay" *ngIf="studentLedgerModal" (click)="closeStudentLedgerModal()">
+      <div class="modal-content-erp modal-lg" style="max-width: 760px;" (click)="$event.stopPropagation()">
+        <div class="modal-header-erp">
+          <h3>{{ 'fees.ledgerTitle' | translate: { name: ledgerStudentName } }}</h3>
+          <button type="button" class="btn-icon" (click)="closeStudentLedgerModal()"><i class="bi bi-x-lg"></i></button>
+        </div>
+        <div class="modal-body-erp">
+          <div *ngIf="ledgerLoading" class="small text-muted">{{ 'fees.loadingLedger' | translate }}</div>
+          <table *ngIf="!ledgerLoading && ledgerRows.length" class="erp-table">
+            <thead>
+              <tr>
+                <th>{{ 'fees.thAmount' | translate }}</th>
+                <th>{{ 'fees.thPaid' | translate }}</th>
+                <th>{{ 'fees.thDue' | translate }}</th>
+                <th>{{ 'fees.thDueDate' | translate }}</th>
+                <th>{{ 'fees.thStatus' | translate }}</th>
+                <th>{{ 'fees.thReceipt' | translate }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let row of ledgerRows">
+                <td>₹{{ row.amount | number:'1.0-0':'en-IN' }}</td>
+                <td>₹{{ row.paidAmount | number:'1.0-0':'en-IN' }}</td>
+                <td>₹{{ row.dueAmount | number:'1.0-0':'en-IN' }}</td>
+                <td>{{ row.dueDate }}</td>
+                <td>{{ feeStatusLabel(row.status) }}</td>
+                <td>{{ row.receiptNumber || '-' }}</td>
+              </tr>
+            </tbody>
+          </table>
+          <p *ngIf="!ledgerLoading && !ledgerRows.length" class="small text-muted mb-0">{{ 'fees.emptyLedger' | translate }}</p>
+        </div>
+        <div class="modal-footer-erp">
+          <button *ngIf="ledgerRows.length" type="button" class="btn-outline-erp" (click)="exportStudentLedgerCsv()">{{ 'fees.exportLedger' | translate }}</button>
+          <button type="button" class="btn-outline-erp" (click)="closeStudentLedgerModal()">{{ 'fees.close' | translate }}</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal-overlay" *ngIf="collectPaymentModal" (click)="closeCollectPaymentModal()">
+      <div class="modal-content-erp" style="max-width: 520px;" (click)="$event.stopPropagation()">
+        <div class="modal-header-erp">
+          <h3>{{ 'fees.collectTitle' | translate }}</h3>
+          <button type="button" class="btn-icon" (click)="closeCollectPaymentModal()"><i class="bi bi-x-lg"></i></button>
+        </div>
+        <div class="modal-body-erp" *ngIf="collectTargetPayment as cp">
+          <p class="small text-muted mb-2">{{ cp.studentName }}</p>
+          <div class="small mb-3">
+            <span class="text-muted">{{ 'fees.collectDueNow' | translate }}</span>
+            <strong class="ms-1">₹{{ cp.dueAmount | number:'1.0-0':'en-IN' }}</strong>
+          </div>
+          <label class="erp-label">{{ 'fees.collectAmountLabel' | translate }}</label>
+          <input class="erp-input mb-2" type="number" min="1" step="1" [(ngModel)]="collectAmount" />
+          <label class="erp-label">{{ 'fees.collectMethodLabel' | translate }}</label>
+          <select class="erp-select mb-2" [(ngModel)]="collectMethod">
+            <option value="CASH">{{ 'fees.methodCash' | translate }}</option>
+            <option value="UPI">{{ 'fees.methodUpi' | translate }}</option>
+            <option value="ONLINE">{{ 'fees.methodOnline' | translate }}</option>
+            <option value="CHEQUE">{{ 'fees.methodCheque' | translate }}</option>
+          </select>
+          <p *ngIf="collectError" class="text-danger small mb-0">{{ collectError }}</p>
+        </div>
+        <div class="modal-footer-erp">
+          <button type="button" class="btn-outline-erp" (click)="closeCollectPaymentModal()">{{ 'fees.cancel' | translate }}</button>
+          <button type="button" class="btn-primary-erp" [disabled]="collectSaving" (click)="submitCollectPayment()">
+            {{ collectSaving ? ('fees.collectSaving' | translate) : ('fees.collectConfirm' | translate) }}
+          </button>
+        </div>
+      </div>
+    </div>
   `
 })
 export class FeesComponent implements OnInit {
   tab = 'structures';
   feeStructures: FeeStructure[] = [];
   paymentsPage: FeePayment[] = [];
+  displayPaymentsPage: FeePayment[] = [];
   paymentsTotal = 0;
   paymentPageIndex = 0;
   paymentPageSize = DEFAULT_ERP_PAGE_SIZE;
@@ -295,6 +655,7 @@ export class FeesComponent implements OnInit {
   paymentsLoading = false;
   private paymentSearchTimer: ReturnType<typeof setTimeout> | null = null;
   statusFilter = '';
+  sortBy: 'dueDateAsc' | 'dueDateDesc' | 'dueAmountDesc' | 'studentAsc' = 'dueDateAsc';
   classes: SchoolClass[] = [];
   academicYears: AcademicYear[] = [];
   isAdmin = false;
@@ -321,6 +682,21 @@ export class FeesComponent implements OnInit {
   bulkAssignSaving = false;
   bulkAssignError = '';
   bulkAssignResult: BulkAssignFeesResponse | null = null;
+  collectionSummary: FeeCollectionSummary | null = null;
+  studentLedgerModal = false;
+  ledgerLoading = false;
+  ledgerRows: FeePayment[] = [];
+  ledgerStudentName = '';
+  collectPaymentModal = false;
+  collectTargetPayment: FeePayment | null = null;
+  collectAmount = 0;
+  collectMethod = 'CASH';
+  collectSaving = false;
+  collectError = '';
+  operationMessage = '';
+  operationMessageOk = true;
+  reminderMessage = '';
+  reminderMessageOk = true;
 
   componentTypeIds = ['tuition', 'transport', 'hostel', 'uniform', 'library', 'lab', 'sports', 'misc'] as const;
 
@@ -341,6 +717,45 @@ export class FeesComponent implements OnInit {
     return this.structureForm.components.reduce((s, c) => s + (Number(c.amount) || 0), 0);
   }
 
+  get collectedAmount(): number {
+    return this.paymentsPage.reduce((sum, p) => sum + (Number(p.paidAmount) || 0), 0);
+  }
+
+  get pendingAmount(): number {
+    return this.paymentsPage.reduce((sum, p) => sum + (Number(p.dueAmount) || 0), 0);
+  }
+
+  get overdueCount(): number {
+    return this.paymentsPage.filter(p => p.status === 'overdue').length;
+  }
+
+  get collectionRatePct(): number {
+    const billed = this.paymentsPage.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+    if (billed <= 0) {
+      return 0;
+    }
+    return (this.collectedAmount / billed) * 100;
+  }
+
+  get effectiveCollected(): number {
+    return this.collectionSummary?.totalCollected ?? this.collectedAmount;
+  }
+
+  get effectivePending(): number {
+    return this.collectionSummary?.totalPending ?? this.pendingAmount;
+  }
+
+  get effectiveOverdueCount(): number {
+    return this.collectionSummary?.overdueCount ?? this.overdueCount;
+  }
+
+  get effectiveCollectionRatePct(): number {
+    if (this.collectionSummary) {
+      return (this.collectionSummary.collectionRate || 0) * 100;
+    }
+    return this.collectionRatePct;
+  }
+
   ngOnInit(): void {
     this.translate.onLangChange.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => this.cdr.markForCheck());
 
@@ -349,6 +764,7 @@ export class FeesComponent implements OnInit {
     this.academicService.getAcademicYears().subscribe(y => (this.academicYears = y || []));
     this.loadStructures();
     this.loadPaymentsPage();
+    this.loadCollectionSummary();
   }
 
   refreshAll(): void {
@@ -359,6 +775,7 @@ export class FeesComponent implements OnInit {
       next: fs => {
         this.feeStructures = fs;
         this.loadPaymentsPage();
+        this.loadCollectionSummary();
         this.refreshing = false;
       },
       error: () => {
@@ -383,16 +800,44 @@ export class FeesComponent implements OnInit {
       .subscribe({
         next: pr => {
           this.paymentsPage = pr.content;
+          this.applyClientView();
           this.paymentsTotal = pr.totalElements;
           this.paymentPageIndex = pr.page;
           this.paymentsLoading = false;
           this.refreshing = false;
+          this.loadCollectionSummary();
         },
         error: () => {
           this.paymentsLoading = false;
           this.refreshing = false;
         },
       });
+  }
+
+  applyClientView(): void {
+    let rows = [...this.paymentsPage];
+    rows.sort((a, b) => {
+      if (this.sortBy === 'studentAsc') {
+        return (a.studentName || '').localeCompare(b.studentName || '');
+      }
+      if (this.sortBy === 'dueAmountDesc') {
+        return Number(b.dueAmount || 0) - Number(a.dueAmount || 0);
+      }
+      const ad = Date.parse(a.dueDate || '');
+      const bd = Date.parse(b.dueDate || '');
+      if (this.sortBy === 'dueDateDesc') {
+        return (Number.isNaN(bd) ? 0 : bd) - (Number.isNaN(ad) ? 0 : ad);
+      }
+      return (Number.isNaN(ad) ? 0 : ad) - (Number.isNaN(bd) ? 0 : bd);
+    });
+    this.displayPaymentsPage = rows;
+  }
+
+  loadCollectionSummary(): void {
+    this.feeService.getCollectionSummary().subscribe({
+      next: s => (this.collectionSummary = s),
+      error: () => (this.collectionSummary = null),
+    });
   }
 
   schedulePaymentSearch(): void {
@@ -484,11 +929,28 @@ export class FeesComponent implements OnInit {
       return;
     }
     const comps: FeeComponent[] = this.structureForm.components
-      .filter(c => c.name.trim() && (Number(c.amount) || 0) >= 0)
+      .filter(c => c.name.trim().length > 0)
       .map(c => ({ name: c.name.trim(), amount: Number(c.amount) || 0, type: c.type }));
     if (!comps.length) {
       this.structureError = this.translate.instant('fees.errComponents');
       return;
+    }
+    if (comps.some(c => Number(c.amount) < 0)) {
+      this.structureError = this.translate.instant('fees.errComponentNegative');
+      return;
+    }
+    if (comps.every(c => Number(c.amount) === 0)) {
+      this.structureError = this.translate.instant('fees.errTotalZero');
+      return;
+    }
+    const seen = new Set<string>();
+    for (const c of comps) {
+      const key = c.name.trim().toLowerCase();
+      if (seen.has(key)) {
+        this.structureError = this.translate.instant('fees.errDuplicateComponent');
+        return;
+      }
+      seen.add(key);
     }
     this.syncClassName();
     this.savingStructure = true;
@@ -510,7 +972,7 @@ export class FeesComponent implements OnInit {
       },
       error: (e: Error) => {
         this.savingStructure = false;
-        this.structureError = e?.message || this.translate.instant('fees.saveFailed');
+        this.structureError = this.translate.instant('fees.saveFailed');
       }
     });
   }
@@ -582,7 +1044,7 @@ export class FeesComponent implements OnInit {
         },
         error: (e: Error) => {
           this.bulkAssignSaving = false;
-          this.bulkAssignError = e?.message || this.translate.instant('fees.bulkError');
+          this.bulkAssignError = this.translate.instant('fees.bulkError');
         },
       });
   }
@@ -605,7 +1067,10 @@ export class FeesComponent implements OnInit {
       .subscribe(() => {
         this.feeService.deleteFeeStructure(fs.id).subscribe({
           next: () => this.loadStructures(),
-          error: (e: Error) => alert(e?.message || this.translate.instant('fees.deleteFailed')),
+          error: () => {
+            this.operationMessage = this.translate.instant('fees.deleteFailed');
+            this.operationMessageOk = false;
+          },
         });
       });
   }
@@ -615,5 +1080,152 @@ export class FeesComponent implements OnInit {
     const key = `students.enums.feeStatus.${k}`;
     const t = this.translate.instant(key);
     return t !== key ? t : status;
+  }
+
+  openStudentLedgerModal(payment: FeePayment): void {
+    this.ledgerStudentName = payment.studentName;
+    this.studentLedgerModal = true;
+    this.ledgerRows = [];
+    this.ledgerLoading = true;
+    this.feeService.getStudentPayments(payment.studentId).subscribe({
+      next: rows => {
+        this.ledgerRows = rows || [];
+        this.ledgerLoading = false;
+      },
+      error: () => {
+        this.ledgerRows = [];
+        this.ledgerLoading = false;
+      },
+    });
+  }
+
+  private downloadCsv(filename: string, headers: string[], rows: (string | number)[][]): void {
+    const esc = (v: string | number) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    const body = [headers.map(esc).join(','), ...rows.map(r => r.map(esc).join(','))].join('\n');
+    const blob = new Blob([body], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  exportPaymentsCsv(): void {
+    const rows = this.displayPaymentsPage.map(r => [
+      r.studentName,
+      r.amount,
+      r.paidAmount,
+      r.dueAmount,
+      r.dueDate,
+      r.status,
+      r.receiptNumber || '',
+      r.paymentMethod || '',
+    ]);
+    this.downloadCsv(
+      `fees-payment-records-${new Date().toISOString().slice(0, 10)}.csv`,
+      ['student', 'amount', 'paid', 'due', 'dueDate', 'status', 'receipt', 'paymentMethod'],
+      rows
+    );
+  }
+
+  exportStudentLedgerCsv(): void {
+    const rows = this.ledgerRows.map(r => [
+      r.studentName,
+      r.amount,
+      r.paidAmount,
+      r.dueAmount,
+      r.dueDate,
+      r.status,
+      r.receiptNumber || '',
+      r.paymentMethod || '',
+    ]);
+    this.downloadCsv(
+      `student-payment-history-${(this.ledgerStudentName || 'student').replace(/\s+/g, '-').toLowerCase()}.csv`,
+      ['student', 'amount', 'paid', 'due', 'dueDate', 'status', 'receipt', 'paymentMethod'],
+      rows
+    );
+  }
+
+  closeStudentLedgerModal(): void {
+    this.studentLedgerModal = false;
+    this.ledgerLoading = false;
+    this.ledgerRows = [];
+    this.ledgerStudentName = '';
+  }
+
+  openCollectPaymentModal(payment: FeePayment): void {
+    this.collectTargetPayment = payment;
+    this.collectAmount = Math.max(0, Math.floor(payment.dueAmount));
+    this.collectMethod = 'CASH';
+    this.collectSaving = false;
+    this.collectError = '';
+    this.collectPaymentModal = true;
+  }
+
+  closeCollectPaymentModal(): void {
+    this.collectPaymentModal = false;
+    this.collectTargetPayment = null;
+    this.collectAmount = 0;
+    this.collectMethod = 'CASH';
+    this.collectSaving = false;
+    this.collectError = '';
+  }
+
+  submitCollectPayment(): void {
+    const payment = this.collectTargetPayment;
+    if (!payment) {
+      return;
+    }
+    const amount = Number(this.collectAmount) || 0;
+    if (amount <= 0) {
+      this.collectError = this.translate.instant('fees.collectAmountInvalid');
+      return;
+    }
+    if (amount > Number(payment.dueAmount || 0)) {
+      this.collectError = this.translate.instant('fees.collectAmountTooHigh');
+      return;
+    }
+    this.collectSaving = true;
+    this.collectError = '';
+    const body: FeePayment = {
+      ...payment,
+      paidAmount: amount,
+      paymentMethod: this.collectMethod,
+    };
+    this.feeService.recordPayment(body).subscribe({
+      next: () => {
+        this.collectSaving = false;
+        this.closeCollectPaymentModal();
+        this.loadPaymentsPage();
+      },
+      error: (e: Error) => {
+        this.collectSaving = false;
+        this.collectError = this.translate.instant('fees.collectFailed');
+      },
+    });
+  }
+
+  sendReminder(payment: FeePayment): void {
+    this.feeService
+      .enqueueFeeReminder({
+        studentId: payment.studentId,
+        feePaymentId: payment.id,
+        dueDate: payment.dueDate && payment.dueDate.trim() ? payment.dueDate : undefined,
+        channel: 'SMS',
+      })
+      .subscribe({
+        next: () => {
+          this.reminderMessage = this.translate.instant('fees.reminderSent', { name: payment.studentName });
+          this.reminderMessageOk = true;
+        },
+        error: (e: unknown) => {
+          const msg = (e as { message?: unknown })?.message;
+          this.reminderMessage = typeof msg === 'string' && msg.trim()
+            ? msg.trim()
+            : this.translate.instant('fees.reminderFailed');
+          this.reminderMessageOk = false;
+        },
+      });
   }
 }

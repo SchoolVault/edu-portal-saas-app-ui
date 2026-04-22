@@ -3,7 +3,7 @@ import { Observable, of, throwError } from 'rxjs';
 import { delay, map } from 'rxjs/operators';
 import { MOCK_FEE_PAYMENTS_SEED, MOCK_FEE_STRUCTURES_SEED } from '../mocks/fee.mock-data';
 import { MOCK_STUDENTS } from '../mocks/students.mock-data';
-import { BulkAssignFeesRequest, BulkAssignFeesResponse, FeeStructure, FeePayment } from '../models/models';
+import { BulkAssignFeesRequest, BulkAssignFeesResponse, FeeStructure, FeePayment, FeeCollectionSummary } from '../models/models';
 import { ApiService, PageResp } from './api.service';
 import { AuthService } from './auth.service';
 import { runtimeConfig } from '../config/runtime-config';
@@ -82,6 +82,32 @@ export class FeeService {
       return this.api.get<any[]>(`/fees/payments/student/${studentId}`).pipe(map(payments => payments.map(item => this.normalizePayment(item))));
     }
     return of(this.payments.filter(p => p.studentId === studentId)).pipe(delay(300));
+  }
+
+  getCollectionSummary(): Observable<FeeCollectionSummary> {
+    if (!runtimeConfig.useMocks) {
+      return this.api.get<FeeCollectionSummary>('/fees/collection-summary').pipe(
+        map((s: any) => ({
+          totalCollected: Number(s.totalCollected ?? 0),
+          totalPending: Number(s.totalPending ?? 0),
+          totalStudents: Number(s.totalStudents ?? 0),
+          overdueCount: Number(s.overdueCount ?? 0),
+          collectionRate: Number(s.collectionRate ?? 0),
+        }))
+      );
+    }
+    const totalCollected = this.payments.reduce((sum, p) => sum + (Number(p.paidAmount) || 0), 0);
+    const totalPending = this.payments.reduce((sum, p) => sum + (Number(p.dueAmount) || 0), 0);
+    const overdueCount = this.payments.filter(p => p.status === 'overdue').length;
+    const uniqueStudents = new Set(this.payments.map(p => p.studentId)).size;
+    const billed = this.payments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+    return of({
+      totalCollected,
+      totalPending,
+      totalStudents: uniqueStudents,
+      overdueCount,
+      collectionRate: billed > 0 ? totalCollected / billed : 0,
+    }).pipe(delay(220));
   }
 
   bulkAssignFees(req: BulkAssignFeesRequest): Observable<BulkAssignFeesResponse> {
@@ -199,6 +225,18 @@ export class FeeService {
       this.payments.push(payment);
     }
     return of(payment).pipe(delay(500));
+  }
+
+  enqueueFeeReminder(req: { studentId: number; feePaymentId: number; dueDate?: string; channel?: 'SMS' | 'IN_APP' }): Observable<void> {
+    if (runtimeConfig.useMocks) {
+      return of(undefined).pipe(delay(180));
+    }
+    return this.api.post<void>('/fees/payments/reminders', {
+      studentId: req.studentId,
+      feePaymentId: req.feePaymentId,
+      dueDate: req.dueDate ?? null,
+      channel: req.channel ?? 'SMS',
+    });
   }
 
   addFeeStructure(fs: Omit<FeeStructure, 'id' | 'totalAmount' | 'tenantId'> & { id?: number }): Observable<FeeStructure> {

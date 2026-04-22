@@ -2,6 +2,7 @@ package com.school.erp.modules.reports.port;
 
 import com.school.erp.modules.reports.dto.ParentDashboardDtos;
 import com.school.erp.modules.reports.dto.ReportDashboardDTOs;
+import org.springframework.data.domain.Page;
 
 import java.util.List;
 import java.util.Map;
@@ -30,8 +31,11 @@ public interface ReportQueryPort {
     Map<String, Object> getFeeCollectionReport(Long classId);
 
     List<Map<String, Object>> getClassSummary();
+    Page<Map<String, Object>> getClassSummaryPaged(int page, int size);
 
     List<Map<String, Object>> getSectionSummary();
+    Page<Map<String, Object>> getSectionSummaryPaged(int page, int size);
 
     List<Map<String, Object>> getTeacherWorkload();
+    Page<Map<String, Object>> getTeacherWorkloadPaged(int page, int size);
 }

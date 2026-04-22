@@ -26,7 +26,7 @@ import { ConfirmDialogOptions, ConfirmDialogService } from './confirm-dialog.ser
           <li *ngFor="let line of d.details">{{ line }}</li>
         </ul>
         <div class="confirm-dialog-actions">
-          <button type="button" class="btn-outline-erp" (click)="onCancel()">{{ d.cancelLabel }}</button>
+          <button *ngIf="showCancel(d)" type="button" class="btn-outline-erp" (click)="onCancel()">{{ d.cancelLabel }}</button>
           <button
             type="button"
             class="btn-primary-erp"
@@ -198,6 +198,10 @@ export class ConfirmDialogHostComponent implements OnDestroy {
 
   onCancel(): void {
     this.confirmDialog.respond(false);
+  }
+
+  showCancel(d: ConfirmDialogOptions): boolean {
+    return !!(d.cancelLabel && d.cancelLabel.trim().length > 0);
   }
 
   @HostListener('document:keydown.escape')

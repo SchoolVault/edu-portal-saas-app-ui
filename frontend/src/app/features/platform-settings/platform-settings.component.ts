@@ -28,6 +28,11 @@ import { UserLocaleService, type UiLanguage } from '../../core/i18n/user-locale.
               {{ 'platformSettingsPage.heroLead' | translate }}
             </p>
           </div>
+          <div class="ps-hero__actions">
+            <button type="button" class="btn-outline-erp btn-sm" (click)="refreshPageData()" [disabled]="refreshingPage">
+              <i class="bi bi-arrow-clockwise me-1"></i>{{ refreshingPage ? 'Refreshing...' : 'Refresh' }}
+            </button>
+          </div>
           <div class="ps-hero__accent" aria-hidden="true"></div>
         </div>
       </div>
@@ -361,6 +366,10 @@ import { UserLocaleService, type UiLanguage } from '../../core/i18n/user-locale.
                 <span class="ps-cache-info__label">{{ 'platformSettingsPage.regionsClearedLabel' | translate }}</span>
                 <span class="ps-cache-info__value">{{ lastCacheCleared.regionsCleared }}</span>
               </div>
+              <div class="ps-cache-info__item" *ngIf="lastCacheCleared.failedRegions.length > 0">
+                <span class="ps-cache-info__label">{{ 'platformSettingsPage.failedRegionsLabel' | translate }}</span>
+                <span class="ps-cache-info__value text-danger">{{ lastCacheCleared.failedRegions.length }}</span>
+              </div>
               <div class="ps-cache-info__item" *ngIf="lastCacheCleared.keysEvicted != null">
                 <span class="ps-cache-info__label">{{ 'platformSettingsPage.keysEvictedLabel' | translate }}</span>
                 <span class="ps-cache-info__value">{{ lastCacheCleared.keysEvicted }}</span>
@@ -536,10 +545,16 @@ import { UserLocaleService, type UiLanguage } from '../../core/i18n/user-locale.
     .ps-hero { padding: 0; overflow: hidden; border: 1px solid var(--clr-border-light); }
     .ps-hero__grid {
       display: grid;
-      grid-template-columns: 1fr minmax(120px, 28%);
+      grid-template-columns: 1fr auto minmax(120px, 28%);
       gap: 0;
       align-items: stretch;
       min-height: 120px;
+    }
+    .ps-hero__actions {
+      display: flex;
+      align-items: flex-start;
+      justify-content: flex-end;
+      padding: 22px 16px 0 0;
     }
     .ps-hero__titles { padding: 22px 24px; }
     .ps-hero__title { font-size: 26px; font-weight: 800; margin: 0 0 8px; letter-spacing: -0.02em; }
@@ -551,6 +566,10 @@ import { UserLocaleService, type UiLanguage } from '../../core/i18n/user-locale.
     @media (max-width: 640px) {
       .ps-hero__grid {
         grid-template-columns: 1fr;
+      }
+      .ps-hero__actions {
+        justify-content: flex-start;
+        padding: 0 16px 12px;
       }
       .ps-hero__accent {
         min-height: 72px;
@@ -1413,11 +1432,13 @@ export class PlatformSettingsComponent implements OnInit, OnDestroy {
   profileEditData: any = {};
 
   // Cache management state
+  refreshingPage = false;
   cacheClearing = false;
   cacheSuccessMsg = '';
   cacheErrorMsg = '';
   lastCacheCleared: {
     regionsCleared: number;
+    failedRegions: string[];
     clearedAt: string;
     clearedBy: string;
     targetSchoolName?: string | null;
@@ -1468,6 +1489,13 @@ export class PlatformSettingsComponent implements OnInit, OnDestroy {
 
     this.summary = this.auth.getProfileSummarySnapshot();
     this.refreshOperatorPhoto();
+    this.refreshPageData();
+
+    this.allCacheRegions = this.platformService.getCacheRegions();
+  }
+
+  refreshPageData(): void {
+    this.refreshingPage = true;
     this.subs.add(
       this.auth.fetchProfileSummary().subscribe({
         next: s => {
@@ -1475,23 +1503,25 @@ export class PlatformSettingsComponent implements OnInit, OnDestroy {
           if (s.interfaceLocale === 'hi' || s.interfaceLocale === 'en') {
             this.prefsLang = s.interfaceLocale === 'hi' ? 'hi' : 'en';
           }
+          this.refreshingPage = false;
           this.cdr.markForCheck();
         },
-        error: () => { /* keep snapshot */ }
+        error: () => {
+          this.refreshingPage = false;
+          this.cdr.markForCheck();
+        }
       })
     );
-
     this.subs.add(
       this.platformService.getSchools().subscribe({
         next: schools => {
           this.allCacheSchools = schools;
           this.filteredCacheSchools = schools;
+          this.cdr.markForCheck();
         },
         error: () => { /* silent fail */ }
       })
     );
-
-    this.allCacheRegions = this.platformService.getCacheRegions();
   }
 
   ngOnDestroy(): void {
@@ -1853,14 +1883,20 @@ export class PlatformSettingsComponent implements OnInit, OnDestroy {
         if (response.statistics) {
           this.lastCacheCleared = {
             regionsCleared: response.statistics.regionsCleared,
+            failedRegions: response.statistics.failedRegions || [],
             clearedAt: response.statistics.clearedAt,
             clearedBy: response.statistics.clearedBy,
             targetSchoolName: response.statistics.targetSchoolName,
             keysEvicted: response.statistics.keysEvicted ?? null
           };
         }
-
-        this.cacheSuccessMsg = response.message || this.translate.instant('platformSettingsPage.cacheClearOk');
+        if (response.success) {
+          this.cacheSuccessMsg = response.message || this.translate.instant('platformSettingsPage.cacheClearOk');
+          this.cacheErrorMsg = '';
+        } else {
+          this.cacheSuccessMsg = '';
+          this.cacheErrorMsg = response.message || this.translate.instant('platformSettingsPage.cacheClearFailed');
+        }
 
         setTimeout(() => {
           this.cacheSuccessMsg = '';

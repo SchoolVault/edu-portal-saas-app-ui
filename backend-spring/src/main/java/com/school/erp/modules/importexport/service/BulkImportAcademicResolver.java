@@ -16,12 +16,15 @@ import java.util.List;
 import java.util.Map;
 import java.util.Locale;
 import java.util.Optional;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Resolves {@code classId}/{@code sectionId} from bulk rows that may use human-readable class/section names.
  */
 @Service
 public class BulkImportAcademicResolver {
+    private static final Pattern CLASS_SECTION_COMPACT_TOKEN = Pattern.compile("^(\\d{1,2})([A-Za-z])$");
     public enum AcademicYearResolutionMode {
         EXPLICIT,
         CURRENT,
@@ -127,6 +130,97 @@ public class BulkImportAcademicResolver {
                 )));
         Long resolvedSection = resolveSectionForClass(tenantId, cls.getId(), sectionId, blankToNull(row.get("sectionname")));
         return new ResolvedPlacement(cls.getId(), resolvedSection);
+    }
+
+    /**
+     * Resolves only class identity from row fields ({@code classid} or {@code classname + academicyearid}).
+     * Unlike {@link #resolveClassAndSection(Map)}, this does not require section columns even when class has sections.
+     */
+    public SchoolClass resolveClassOnly(Map<String, String> row) {
+        String tenantId = TenantContext.getTenantId();
+        Long classId = parseLong(blankToNull(row.get("classid")));
+        if (classId != null) {
+            return schoolClassRepository.findByIdAndTenantIdAndIsDeletedFalse(classId, tenantId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Class", classId));
+        }
+        String className = blankToNull(row.get("classname"));
+        if (className == null) {
+            throw new BusinessException("Either classid or classname is required");
+        }
+        Long academicYearId = resolveAcademicYearId(row.get("academicyearid"));
+        return schoolClassRepository
+                .findFirstByTenantIdAndAcademicYearIdAndNameIgnoreCaseAndIsDeletedFalse(tenantId, academicYearId, className)
+                .orElseGet(() -> resolveClassByGradeToken(tenantId, academicYearId, className)
+                        .orElseThrow(() -> new BusinessException(
+                                "Could not match class '" + className + "' in this academic year. "
+                                        + "Use exact class name from Academic module or provide classid."
+                        )));
+    }
+
+    /**
+     * Optional class-teacher placement parser for teacher import rows.
+     *
+     * <p>Supported inputs:
+     * <ul>
+     *   <li>{@code classteacherfor=Class 6-A} (or {@code 6-A})</li>
+     *   <li>{@code classteacherfor=6A} (compact grade+section)</li>
+     *   <li>explicit columns: {@code classteacherclassid/classteachersectionid} or
+     *   {@code classteacherclassname/classteachersectionname}</li>
+     * </ul>
+     */
+    public Optional<ResolvedPlacement> resolveOptionalClassTeacherPlacement(Map<String, String> row) {
+        String slotToken = blankToNull(row.get("classteacherfor"));
+        String classIdRaw = blankToNull(row.get("classteacherclassid"));
+        String sectionIdRaw = blankToNull(row.get("classteachersectionid"));
+        String classNameRaw = blankToNull(row.get("classteacherclassname"));
+        String sectionNameRaw = blankToNull(row.get("classteachersectionname"));
+
+        boolean hasExplicit = classIdRaw != null || sectionIdRaw != null || classNameRaw != null || sectionNameRaw != null;
+        if (slotToken == null && !hasExplicit) {
+            return Optional.empty();
+        }
+
+        Map<String, String> placementRow = new java.util.HashMap<>();
+        placementRow.put("academicyearid", row.get("classteacheracademicyearid"));
+        if (hasExplicit) {
+            placementRow.put("classid", classIdRaw);
+            placementRow.put("sectionid", sectionIdRaw);
+            placementRow.put("classname", classNameRaw);
+            placementRow.put("sectionname", sectionNameRaw);
+        } else {
+            parseClassTeacherSlotToken(slotToken, placementRow);
+        }
+        return Optional.of(resolveClassAndSection(placementRow));
+    }
+
+    private static void parseClassTeacherSlotToken(String tokenRaw, Map<String, String> placementRow) {
+        String token = blankToNull(tokenRaw);
+        if (token == null) {
+            throw new BusinessException("classteacherfor cannot be blank");
+        }
+        String normalized = token.trim().replaceAll("\\s+", " ");
+        if (normalized.contains("-")) {
+            int idx = normalized.lastIndexOf('-');
+            String classPart = normalized.substring(0, idx).trim();
+            String sectionPart = normalized.substring(idx + 1).trim();
+            if (classPart.isEmpty() || sectionPart.isEmpty()) {
+                throw new BusinessException("Invalid classteacherfor format. Use Class 6-A or 6-A.");
+            }
+            placementRow.put("classname", classPart);
+            placementRow.put("sectionname", sectionPart);
+            return;
+        }
+
+        Matcher compact = CLASS_SECTION_COMPACT_TOKEN.matcher(normalized);
+        if (compact.matches()) {
+            placementRow.put("classname", compact.group(1));
+            placementRow.put("sectionname", compact.group(2).toUpperCase(Locale.ROOT));
+            return;
+        }
+
+        throw new BusinessException(
+                "Invalid classteacherfor format. Use Class 6-A (recommended), 6-A, or 6A."
+        );
     }
 
     /**

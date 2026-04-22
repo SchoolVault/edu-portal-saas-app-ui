@@ -67,9 +67,46 @@ function buildAuditSeed(): AuditLog[] {
         font-size: 11px;
         color: var(--clr-text-muted);
       }
+      .audit-filter-toolbar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        align-items: flex-end;
+        justify-content: space-between;
+      }
+      .audit-filter-toolbar__search {
+        flex: 1 1 280px;
+        min-width: 220px;
+        max-width: 420px;
+      }
+      .audit-filter-toolbar__right {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        align-items: flex-end;
+        justify-content: flex-end;
+      }
+      .audit-filter-select {
+        width: 170px;
+      }
+      .audit-table-wrap .audit-col-action,
+      .audit-table-wrap .audit-col-module {
+        white-space: nowrap;
+      }
       @media (max-width: 576px) {
         .audit-table-wrap .erp-table {
           min-width: 760px;
+        }
+        .audit-filter-toolbar__search {
+          max-width: 100%;
+        }
+        .audit-filter-toolbar__right {
+          width: 100%;
+          justify-content: stretch;
+        }
+        .audit-filter-select {
+          flex: 1 1 100%;
+          width: 100%;
         }
       }
     `,
@@ -84,8 +121,8 @@ function buildAuditSeed(): AuditLog[] {
         </div>
       </div>
       <div class="erp-card animate-in animate-in-delay-1">
-        <div class="d-flex flex-wrap gap-3 mb-3 align-items-end">
-          <div class="search-input-wrapper flex-grow-1" style="min-width: 200px; max-width: 360px;">
+        <div class="audit-filter-toolbar mb-3">
+          <div class="search-input-wrapper audit-filter-toolbar__search">
             <i class="bi bi-search"></i>
             <input
               type="text"
@@ -95,27 +132,29 @@ function buildAuditSeed(): AuditLog[] {
               (ngModelChange)="onSearchChange()"
             />
           </div>
-          <select class="erp-select" style="width: 160px;" [(ngModel)]="actionFilter" (ngModelChange)="onFilterDropdownChange()">
-            <option value="">{{ 'audit.filterAllActions' | translate }}</option>
-            <option value="create">{{ 'audit.action.create' | translate }}</option>
-            <option value="update">{{ 'audit.action.update' | translate }}</option>
-            <option value="delete">{{ 'audit.action.delete' | translate }}</option>
-            <option value="login">{{ 'audit.action.login' | translate }}</option>
-            <option value="logout">{{ 'audit.action.logout' | translate }}</option>
-            <option value="cache_cleared">{{ 'audit.action.cache_cleared' | translate }}</option>
-          </select>
-          <select class="erp-select" style="width: 160px;" [(ngModel)]="moduleFilter" (ngModelChange)="onFilterDropdownChange()">
-            <option value="">{{ 'audit.filterAllModules' | translate }}</option>
-            <option *ngFor="let m of modules" [value]="m">{{ moduleLabel(m) }}</option>
-          </select>
+          <div class="audit-filter-toolbar__right">
+            <select class="erp-select audit-filter-select" [(ngModel)]="actionFilter" (ngModelChange)="onFilterDropdownChange()">
+              <option value="">{{ 'audit.filterAllActions' | translate }}</option>
+              <option value="create">{{ 'audit.action.create' | translate }}</option>
+              <option value="update">{{ 'audit.action.update' | translate }}</option>
+              <option value="delete">{{ 'audit.action.delete' | translate }}</option>
+              <option value="login">{{ 'audit.action.login' | translate }}</option>
+              <option value="logout">{{ 'audit.action.logout' | translate }}</option>
+              <option value="cache_cleared">{{ 'audit.action.cache_cleared' | translate }}</option>
+            </select>
+            <select class="erp-select audit-filter-select" [(ngModel)]="moduleFilter" (ngModelChange)="onFilterDropdownChange()">
+              <option value="">{{ 'audit.filterAllModules' | translate }}</option>
+              <option *ngFor="let m of modules" [value]="m">{{ moduleLabel(m) }}</option>
+            </select>
+          </div>
         </div>
         <div class="audit-table-wrap" dir="ltr">
           <table class="erp-table" data-testid="audit-table">
-            <thead><tr><th>{{ 'audit.thAction' | translate }}</th><th>{{ 'audit.thModule' | translate }}</th><th>{{ 'audit.thDescription' | translate }}</th><th>{{ 'audit.thUser' | translate }}</th><th>{{ 'audit.thTimestamp' | translate }}</th><th>{{ 'audit.thIp' | translate }}</th></tr></thead>
+            <thead><tr><th class="audit-col-action">{{ 'audit.thAction' | translate }}</th><th class="audit-col-module">{{ 'audit.thModule' | translate }}</th><th>{{ 'audit.thDescription' | translate }}</th><th>{{ 'audit.thUser' | translate }}</th><th>{{ 'audit.thTimestamp' | translate }}</th><th>{{ 'audit.thIp' | translate }}</th></tr></thead>
             <tbody>
               <tr *ngFor="let log of pagedLogs">
-                <td><span class="badge-erp" [ngClass]="getActionBadge(log.action)">{{ actionLabel(log.action) }}</span></td>
-                <td>{{ moduleLabel(log.module) }}</td>
+                <td class="audit-col-action"><span class="badge-erp" [ngClass]="getActionBadge(log.action)">{{ actionLabel(log.action) }}</span></td>
+                <td class="audit-col-module">{{ moduleLabel(log.module) }}</td>
                 <td>{{ log.description }}</td>
                 <td class="audit-user-cell">
                   <div class="audit-user-name">{{ displayUser(log) }}</div>

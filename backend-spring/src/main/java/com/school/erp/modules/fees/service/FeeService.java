@@ -5,6 +5,7 @@ import com.school.erp.common.enums.Enums;
 import com.school.erp.common.exception.BusinessException;
 import com.school.erp.common.exception.ResourceNotFoundException;
 import com.school.erp.common.exception.UnauthorizedException;
+import com.school.erp.common.importer.BulkImportRowPolicy;
 import com.school.erp.modules.fees.gateway.PaymentGatewayClient;
 import com.school.erp.modules.payment.domain.PaymentProviderIds;
 import com.school.erp.modules.fees.dto.FeeDTOs;
@@ -18,6 +19,7 @@ import com.school.erp.modules.reminder.service.FeeReminderAutomationService;
 import com.school.erp.events.domain.FeePaymentRecordedEvent;
 import com.school.erp.modules.student.entity.Student;
 import com.school.erp.modules.student.port.StudentPersistencePort;
+import com.school.erp.modules.reports.service.DashboardSnapshotInvalidationService;
 import com.school.erp.platform.port.DomainEventPublisher;
 import com.school.erp.tenant.TenantContext;
 import com.school.erp.tenant.TenantQueryPolicy;
@@ -63,6 +65,7 @@ public class FeeService {
     private final FeeReminderAutomationService feeReminderAutomationService;
     private final SectionRepository sectionRepository;
     private final DomainEventPublisher domainEventPublisher;
+    private final DashboardSnapshotInvalidationService dashboardSnapshotInvalidationService;
 
     @Value("${app.payments.razorpay.key:}")
     private String razorpayPublishableKeyId;
@@ -86,6 +89,11 @@ public class FeeService {
     @Transactional
     public FeeDTOs.FeeStructureResponse createStructure(FeeDTOs.CreateFeeStructureRequest req) {
         String t = TenantContext.getTenantId();
+        validateStructureRequest(req);
+        if (structureRepo.existsByTenantIdAndIsDeletedFalseAndClassIdAndAcademicYearIdAndNameIgnoreCase(
+                t, req.getClassId(), req.getAcademicYearId(), req.getName().trim())) {
+            throw new BusinessException("A fee structure with the same name already exists for this class and academic year.");
+        }
         BigDecimal total = req.getComponents().stream().map(FeeDTOs.FeeComponentDTO::getAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
         FeeStructure fs = FeeStructure.builder().name(req.getName()).classId(req.getClassId()).className(req.getClassName()).academicYearId(req.getAcademicYearId()).totalAmount(total).build();
         fs.setTenantId(t);
@@ -111,11 +119,80 @@ public class FeeService {
         }
     }
 
+    /**
+     * Import-safe upsert for fee structures from bulk CSV rows.
+     * Identity key: tenant + classId + academicYearId + structureName (case-insensitive).
+     */
+    @CacheEvict(cacheNames = CacheConfig.FEES_CATALOG, keyGenerator = "tenantKeyGenerator")
+    @Transactional
+    public FeeDTOs.FeeStructureResponse importStructureRow(FeeDTOs.CreateFeeStructureRequest req, BulkImportRowPolicy policy) {
+        String tenantId = TenantContext.getTenantId();
+        validateStructureRequest(req);
+        String normalizedName = req.getName().trim();
+        FeeStructure existing = structureRepo
+                .findFirstByTenantIdAndIsDeletedFalseAndClassIdAndAcademicYearIdAndNameIgnoreCase(
+                        tenantId, req.getClassId(), req.getAcademicYearId(), normalizedName)
+                .orElse(null);
+
+        if (existing != null && policy == BulkImportRowPolicy.CREATE_ONLY) {
+            throw new BusinessException("Fee structure already exists for this class and academic year.");
+        }
+        if (existing != null && policy == BulkImportRowPolicy.SKIP_IF_EXISTS) {
+            return mapStructureResponse(existing, tenantId);
+        }
+
+        if (existing == null) {
+            return createStructure(req);
+        }
+        return updateStructure(existing.getId(), req);
+    }
+
+    private void validateStructureRequest(FeeDTOs.CreateFeeStructureRequest req) {
+        if (req.getName() == null || req.getName().trim().isEmpty()) {
+            throw new BusinessException("Fee structure name is required");
+        }
+        if (req.getClassId() == null) {
+            throw new BusinessException("Class is required");
+        }
+        if (req.getAcademicYearId() == null) {
+            throw new BusinessException("Academic year is required");
+        }
+        if (req.getComponents() == null || req.getComponents().isEmpty()) {
+            throw new BusinessException("At least one fee component is required");
+        }
+        Set<String> names = new LinkedHashSet<>();
+        BigDecimal total = BigDecimal.ZERO;
+        for (FeeDTOs.FeeComponentDTO component : req.getComponents()) {
+            String componentName = component.getName() == null ? "" : component.getName().trim();
+            if (componentName.isEmpty()) {
+                throw new BusinessException("Fee component name is required");
+            }
+            if (!names.add(componentName.toLowerCase(Locale.ROOT))) {
+                throw new BusinessException("Fee component names must be unique within a structure");
+            }
+            if (component.getAmount() == null) {
+                throw new BusinessException("Fee component amount is required");
+            }
+            if (component.getAmount().compareTo(BigDecimal.ZERO) < 0) {
+                throw new BusinessException("Fee component amount cannot be negative");
+            }
+            total = total.add(component.getAmount());
+        }
+        if (total.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new BusinessException("Total fee amount must be greater than zero");
+        }
+    }
+
     @CacheEvict(cacheNames = CacheConfig.FEES_CATALOG, keyGenerator = "tenantKeyGenerator")
     @Transactional
     public FeeDTOs.FeeStructureResponse updateStructure(Long id, FeeDTOs.CreateFeeStructureRequest req) {
         FeeStructure fs = requireFeeStructure(id);
         String structureTenant = fs.getTenantId();
+        validateStructureRequest(req);
+        if (structureRepo.existsByTenantIdAndIsDeletedFalseAndClassIdAndAcademicYearIdAndNameIgnoreCaseAndIdNot(
+                structureTenant, req.getClassId(), req.getAcademicYearId(), req.getName().trim(), id)) {
+            throw new BusinessException("A fee structure with the same name already exists for this class and academic year.");
+        }
         BigDecimal total = req.getComponents().stream().map(FeeDTOs.FeeComponentDTO::getAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
         fs.setName(req.getName());
         fs.setClassId(req.getClassId());
@@ -242,6 +319,7 @@ public class FeeService {
                 payment.getStatus() != null ? payment.getStatus().name() : "UNKNOWN",
                 payment.getReceiptNumber(),
                 Instant.now()));
+        invalidateDashboardSnapshots("fee_record_payment");
         return toPaymentResponse(payment);
     }
 
@@ -341,6 +419,7 @@ public class FeeService {
         resp.setCreatedSample(saved.stream().limit(BULK_ASSIGN_CREATED_SAMPLE).map(this::toPaymentResponse).collect(Collectors.toList()));
         log.info("Bulk fee assign tenant={} structure={} class={} section={} created={} skipped={} correlationId={}",
                 t, fs.getId(), req.getClassId(), req.getSectionId(), saved.size(), resp.getSkippedCount(), req.getCorrelationId());
+        invalidateDashboardSnapshots("fee_bulk_assign");
         return resp;
     }
 
@@ -495,6 +574,7 @@ public class FeeService {
         applySuccessfulPayment(payment, attempt.getAmount(), attempt.getProvider());
         paymentRepo.save(payment);
         enqueueParentPaymentChannels(tenantId, payment, attempt);
+        invalidateDashboardSnapshots("fee_checkout_confirmed");
         return toReceiptResponse(payment, attempt);
     }
 
@@ -546,6 +626,7 @@ public class FeeService {
             applySuccessfulPayment(payment, attempt.getAmount(), attempt.getProvider());
             paymentRepo.save(payment);
             enqueueParentPaymentChannels(tenantId, payment, attempt);
+            invalidateDashboardSnapshots("fee_webhook_captured");
             return true;
         } finally {
             TenantContext.clear();
@@ -761,6 +842,10 @@ public class FeeService {
         return response;
     }
 
+    private void invalidateDashboardSnapshots(String reason) {
+        dashboardSnapshotInvalidationService.invalidateCurrentTenant(reason);
+    }
+
     public FeeService(
             final FeeStructureRepository structureRepo,
             final FeeComponentRepository componentRepo,
@@ -773,7 +858,8 @@ public class FeeService {
             final UserRepository userRepository,
             final FeeReminderAutomationService feeReminderAutomationService,
             final SectionRepository sectionRepository,
-            final DomainEventPublisher domainEventPublisher) {
+            final DomainEventPublisher domainEventPublisher,
+            final DashboardSnapshotInvalidationService dashboardSnapshotInvalidationService) {
         this.structureRepo = structureRepo;
         this.componentRepo = componentRepo;
         this.paymentRepo = paymentRepo;
@@ -786,5 +872,6 @@ public class FeeService {
         this.feeReminderAutomationService = feeReminderAutomationService;
         this.sectionRepository = sectionRepository;
         this.domainEventPublisher = domainEventPublisher;
+        this.dashboardSnapshotInvalidationService = dashboardSnapshotInvalidationService;
     }
 }

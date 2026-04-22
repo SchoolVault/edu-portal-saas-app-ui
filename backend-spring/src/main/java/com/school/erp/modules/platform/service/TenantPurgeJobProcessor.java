@@ -10,6 +10,7 @@ import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 
 @Service
 public class TenantPurgeJobProcessor {
@@ -34,11 +35,14 @@ public class TenantPurgeJobProcessor {
             job.setStatus("RUNNING");
             job.setStartedAt(LocalDateTime.now());
             jobRepository.save(job);
-            int deleted = purgeExecutor.purgeTenantData(job.getTenantId());
+            TenantDataPurgeExecutor.PurgeExecutionSummary summary = purgeExecutor.purgeTenantData(job.getTenantId());
             PlatformTenantPurgeJob updated = jobRepository.findById(jobId).orElse(job);
             updated.setStatus("COMPLETED");
-            updated.setRowsDeletedEstimate(deleted);
+            updated.setRowsDeletedEstimate((int) Math.min(Integer.MAX_VALUE, summary.totalRowsDeleted()));
             updated.setCompletedAt(LocalDateTime.now());
+            if (updated.getStartedAt() != null) {
+                updated.setExecutionDurationMs(ChronoUnit.MILLIS.between(updated.getStartedAt(), updated.getCompletedAt()));
+            }
             jobRepository.save(updated);
         } catch (Exception e) {
             log.error("Tenant purge job {} failed for tenant {}", jobId, job.getTenantId(), e);
@@ -46,6 +50,9 @@ public class TenantPurgeJobProcessor {
             updated.setStatus("FAILED");
             updated.setErrorMessage(e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName());
             updated.setCompletedAt(LocalDateTime.now());
+            if (updated.getStartedAt() != null) {
+                updated.setExecutionDurationMs(ChronoUnit.MILLIS.between(updated.getStartedAt(), updated.getCompletedAt()));
+            }
             jobRepository.save(updated);
         } finally {
             TenantContext.clear();

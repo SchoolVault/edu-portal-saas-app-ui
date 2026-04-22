@@ -13,3 +13,6 @@ app:
     batch-size: ${DEMO_SEED_BATCH_SIZE:20}
     teacher-count: ${DEMO_SEED_TEACHER_COUNT:36}
     students-per-section: ${DEMO_SEED_STUDENTS_PER_SECTION:15}
+    warehouse:
+      enabled: ${DEMO_SEED_WAREHOUSE_ENABLED:true}
+      include-snapshot-seed: ${DEMO_SEED_INCLUDE_SNAPSHOT_SEED:true}

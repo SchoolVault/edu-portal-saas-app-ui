@@ -9,6 +9,10 @@ public enum ApiErrorCode {
     UNAUTHORIZED,
     FORBIDDEN,
     BUSINESS_RULE_VIOLATION,
+    FEES_VALIDATION_FAILED,
+    FEES_OPERATION_BLOCKED,
+    PAYROLL_VALIDATION_FAILED,
+    PAYROLL_DISBURSEMENT_BLOCKED,
     RATE_LIMIT_EXCEEDED,
     VALIDATION_FAILED,
     /** Leave type {@code OTHER} submitted without a sufficient free-text reason. */

@@ -539,6 +539,31 @@ public class AcademicService {
         evictAcademicClassCaches(classId, true);
     }
 
+    @Transactional
+    public void deleteClass(Long classId) {
+        String tenantId = TenantContext.getTenantId();
+        SchoolClass cls = classRepo.findByIdAndTenantIdAndIsDeletedFalse(classId, tenantId)
+                .orElseThrow(() -> new ResourceNotFoundException("Class", classId));
+        List<Section> activeSections = sectionRepo.findByTenantIdAndClassIdAndIsDeletedFalse(tenantId, classId);
+        if (!activeSections.isEmpty()) {
+            throw new BusinessException("Cannot delete class while active sections exist. Delete or inactivate all sections first.");
+        }
+        int enrolled = (int) studentRepo.countByTenantIdAndClassIdAndIsDeletedFalseAndStatus(
+                tenantId, classId, Enums.StudentStatus.ACTIVE);
+        if (enrolled > 0) {
+            throw new BusinessException("Cannot delete class that still has active students. Move or inactivate students first.");
+        }
+        teacherAssignmentService.closeActiveHomeroomSlotAssignments(
+                tenantId, classId, null, LocalDate.now().minusDays(1));
+        cls.setClassTeacherId(null);
+        cls.setClassTeacherName(null);
+        cls.setIsDeleted(true);
+        classRepo.save(cls);
+        log.info("Class soft-deleted id={}", classId);
+        evictAcademicClassCaches(classId, true);
+        evictTeacherDirectoryCacheAfterHomeroomChange();
+    }
+
     @Transactional(readOnly = true)
     public AcademicWorkflowDTOs.PromotionPreviewResponse previewPromotion(Long fromClassId) {
         String tenantId = TenantContext.getTenantId();

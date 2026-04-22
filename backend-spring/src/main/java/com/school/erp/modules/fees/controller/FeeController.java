@@ -6,6 +6,8 @@ import com.school.erp.common.dto.PageResponse;
 import com.school.erp.common.enums.Enums;
 import com.school.erp.modules.fees.dto.FeeDTOs;
 import com.school.erp.modules.fees.service.FeeService;
+import com.school.erp.modules.operations.dto.OperationsDTOs;
+import com.school.erp.modules.operations.service.OperationsService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -21,6 +23,7 @@ import java.util.List;
 @RequireTenantFeature("fees")
 public class FeeController {
     private final FeeService service;
+    private final OperationsService operationsService;
 
     @GetMapping("/structures")
     @PreAuthorize("hasAnyRole('ADMIN','TEACHER')")
@@ -97,7 +100,16 @@ public class FeeController {
         return ResponseEntity.ok(ApiResponse.ok(service.getCollectionSummary()));
     }
 
-    public FeeController(final FeeService service) {
+    @PostMapping("/payments/reminders")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Queue fee reminder", description = "Queues reminder without requiring Operations Hub module access.")
+    public ResponseEntity<ApiResponse<Void>> enqueueFeeReminder(@RequestBody OperationsDTOs.FeeReminderEnqueueRequest req) {
+        operationsService.enqueueFeeReminder(req);
+        return ResponseEntity.ok(ApiResponse.ok(null, "Reminder queued"));
+    }
+
+    public FeeController(final FeeService service, final OperationsService operationsService) {
         this.service = service;
+        this.operationsService = operationsService;
     }
 }

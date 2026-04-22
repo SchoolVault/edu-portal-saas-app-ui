@@ -29,15 +29,18 @@ import {
   standalone: true,
   imports: [CommonModule, FormsModule, RouterLink, TranslateModule, ErpPaginationComponent, ErpDatePickerComponent],
   template: `
-    <div class="platform-schools-root" data-testid="platform-schools-page">
+    <div class="platform-schools-root platform-shell" data-testid="platform-schools-page">
       <div class="platform-page-inner animate-in">
-        <div class="d-flex justify-content-between align-items-end mb-4 flex-wrap gap-3">
+        <div class="erp-filter-toolbar mb-4">
           <div>
             <div class="badge-erp badge-info mb-2">{{ 'platformSchools.badge' | translate }}</div>
             <h2 class="platform-page-title">{{ 'platformSchools.pageTitle' | translate }}</h2>
             <p class="text-muted mb-0 platform-page-lead">{{ 'platformSchools.lead' | translate }}</p>
           </div>
-          <div class="d-flex align-items-center gap-2 flex-wrap">
+          <div class="erp-filter-toolbar__actions">
+            <button type="button" class="btn-outline-erp btn-sm" (click)="refreshPageData()" [disabled]="detailLoading || purgeHistoryLoading || busy">
+              <i class="bi bi-arrow-clockwise me-1"></i>{{ 'platformSchools.actions.refresh' | translate }}
+            </button>
             <button type="button" class="btn-primary-erp btn-sm" (click)="openOnboardModal()">
               <i class="bi bi-plus-circle me-1"></i>{{ 'platformSchools.onboard.openCta' | translate }}
             </button>
@@ -49,9 +52,9 @@ import {
         <div *ngIf="actionMessage" class="alert alert-success py-2 mb-3">{{ actionMessage }}</div>
         <div *ngIf="actionError" class="alert alert-danger py-2 mb-3">{{ actionError }}</div>
 
-        <div class="row g-4 align-items-start">
+        <div class="row g-4 align-items-start platform-main-grid">
           <div class="col-lg-5">
-            <div class="erp-card platform-card">
+            <div class="erp-card platform-card platform-card-elevated h-100">
               <div class="erp-card-header platform-card-header flex-wrap gap-2">
                 <div>
                   <h3 class="erp-card-title mb-0">{{ 'platformSchools.workspaces' | translate }}</h3>
@@ -60,7 +63,7 @@ import {
               </div>
               <div class="px-3 pt-2 pb-0">
                 <label class="erp-label small mb-1">{{ 'platformSchools.search' | translate }}</label>
-                <input type="search" class="erp-input" [(ngModel)]="schoolSearchInput" (ngModelChange)="schoolSearch$.next($event)" [placeholder]="'platformSchools.searchPh' | translate" />
+                <input type="search" class="erp-input" style="max-width: 360px;" [(ngModel)]="schoolSearchInput" (ngModelChange)="schoolSearch$.next($event)" [placeholder]="'platformSchools.searchPh' | translate" />
               </div>
               <div class="platform-table-wrap">
                 <table class="erp-table platform-table mb-0">
@@ -101,7 +104,7 @@ import {
           </div>
 
           <div class="col-lg-7">
-            <div class="erp-card platform-card platform-detail-card">
+            <div class="erp-card platform-card platform-card-elevated platform-detail-card h-100">
               <div class="erp-card-header platform-card-header">
                 <h3 class="erp-card-title mb-0">{{ 'platformSchools.detailTitle' | translate }}</h3>
               </div>
@@ -218,12 +221,35 @@ import {
                 <div class="platform-section" *ngIf="purgeJobs.length">
                   <h5 class="platform-section-title">{{ 'platformSchools.purge.recentJobs' | translate }}</h5>
                   <ul class="platform-job-list mb-0">
-                    <li *ngFor="let j of purgeJobs">
+                    <li *ngFor="let j of purgeJobs"
+                        (click)="selectedPurgeJob = j"
+                        [class.platform-job-list-active]="selectedPurgeJob?.id === j.id">
                       <span class="badge-erp badge-info text-uppercase" style="font-size: 10px;">{{ j.status }}</span>
+                      <span class="platform-muted-xs ms-2" *ngIf="j.createdAt">{{ j.createdAt | date: 'medium' }}</span>
                       <span *ngIf="j.rowsDeletedEstimate" class="platform-muted-sm ms-2">{{ 'platformSchools.purge.rowsAffected' | translate: { rows: (j.rowsDeletedEstimate | number) } }}</span>
                       <span *ngIf="j.errorMessage" class="text-danger ms-2">{{ j.errorMessage }}</span>
                     </li>
                   </ul>
+                </div>
+                <div class="platform-section" *ngIf="selectedPurgeJob">
+                  <h5 class="platform-section-title">{{ 'platformSchools.purge.jobDetails' | translate }}</h5>
+                  <div class="platform-info-panel">
+                    <div class="platform-impact-grid">
+                      <div><strong>{{ 'platformSchools.purge.duration' | translate }}:</strong> {{ formatDurationMs(selectedPurgeJob.executionDurationMs) }}</div>
+                      <div><strong>{{ 'platformSchools.purge.startedAt' | translate }}:</strong> {{ selectedPurgeJob.startedAt ? (selectedPurgeJob.startedAt | date: 'medium') : '—' }}</div>
+                      <div><strong>{{ 'platformSchools.purge.completedAt' | translate }}:</strong> {{ selectedPurgeJob.completedAt ? (selectedPurgeJob.completedAt | date: 'medium') : '—' }}</div>
+                      <div><strong>{{ 'platformSchools.purge.initiatedBy' | translate }}:</strong> {{ selectedPurgeJob.requestedByDisplayName || selectedPurgeJob.requestedByPrincipal || '—' }}</div>
+                      <div><strong>{{ 'platformSchools.purge.role' | translate }}:</strong> {{ selectedPurgeJob.requestedByRole || '—' }}</div>
+                      <div><strong>{{ 'platformSchools.purge.affectedUsers' | translate }}:</strong>
+                        {{ (selectedPurgeJob.affectedStudents || 0) + (selectedPurgeJob.affectedTeachers || 0) + (selectedPurgeJob.affectedAdmins || 0) + (selectedPurgeJob.affectedParentAccounts || 0) | number }}
+                      </div>
+                    </div>
+                    <div class="d-flex justify-content-end mt-3">
+                      <button type="button" class="btn-outline-erp btn-sm" (click)="downloadPurgeCsv(selectedPurgeJob)" [disabled]="busy">
+                        <i class="bi bi-download me-1"></i>{{ 'platformSchools.purge.downloadCsv' | translate }}
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -476,14 +502,112 @@ import {
           </div>
         </div>
       </div>
+
+      <div class="platform-history-section mt-4">
+        <div class="erp-card platform-card platform-card-elevated">
+          <div class="erp-card-header platform-card-header">
+            <div>
+              <h3 class="erp-card-title mb-0">{{ 'platformSchools.purge.historyTitle' | translate }}</h3>
+              <p class="text-muted mb-0 small">{{ 'platformSchools.purge.historyLead' | translate }}</p>
+            </div>
+          </div>
+          <div class="p-3 pb-2">
+            <div class="erp-filter-toolbar platform-history-toolbar">
+              <div class="erp-filter-toolbar__search">
+                <div>
+                  <label class="erp-label small mb-1">{{ 'platformSchools.purge.searchLabel' | translate }}</label>
+                  <input
+                    type="search"
+                    class="erp-input"
+                    [(ngModel)]="purgeHistorySearchInput"
+                    (ngModelChange)="onPurgeHistorySearchChange($event)"
+                    [placeholder]="'platformSchools.purge.searchPh' | translate"
+                  />
+                </div>
+              </div>
+              <div class="erp-filter-toolbar__actions">
+                <select class="erp-select erp-filter-toolbar__action" [(ngModel)]="purgeHistoryStatus" (ngModelChange)="onPurgeHistoryStatusChange($event)">
+                  <option value="">{{ 'platformSchools.purge.statusAll' | translate }}</option>
+                  <option value="QUEUED">{{ 'platformSchools.purge.statusQueued' | translate }}</option>
+                  <option value="RUNNING">{{ 'platformSchools.purge.statusRunning' | translate }}</option>
+                  <option value="COMPLETED">{{ 'platformSchools.purge.statusCompleted' | translate }}</option>
+                  <option value="FAILED">{{ 'platformSchools.purge.statusFailed' | translate }}</option>
+                </select>
+                <button type="button" class="btn-outline-erp btn-sm erp-filter-toolbar__action" (click)="loadGlobalPurgeHistory()" [disabled]="busy || purgeHistoryLoading">
+                  <i class="bi bi-arrow-clockwise me-1"></i>{{ 'platformSchools.actions.refresh' | translate }}
+                </button>
+              </div>
+            </div>
+          </div>
+          <div class="platform-table-wrap">
+            <table class="erp-table platform-table platform-purge-table mb-0">
+              <thead>
+                <tr>
+                  <th>{{ 'platformSchools.purge.colStatus' | translate }}</th>
+                  <th>{{ 'platformSchools.purge.colSchool' | translate }}</th>
+                  <th>{{ 'platformSchools.purge.colCode' | translate }}</th>
+                  <th>{{ 'platformSchools.purge.colTenant' | translate }}</th>
+                  <th>{{ 'platformSchools.purge.colCreated' | translate }}</th>
+                  <th>{{ 'platformSchools.purge.colCompleted' | translate }}</th>
+                  <th>{{ 'platformSchools.purge.colRows' | translate }}</th>
+                  <th>{{ 'platformSchools.purge.colAction' | translate }}</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngIf="purgeHistoryLoading">
+                  <td colspan="8" class="text-muted">{{ 'platformSchools.loading' | translate }}</td>
+                </tr>
+                <tr *ngFor="let job of globalPurgeJobs" (click)="selectedPurgeJob = job" class="platform-table-row">
+                  <td>
+                    <span class="badge-erp text-uppercase" [ngClass]="purgeStatusBadge(job.status)">{{ job.status }}</span>
+                  </td>
+                  <td>{{ job.schoolName || '—' }}</td>
+                  <td>{{ job.schoolCode || '—' }}</td>
+                  <td><span class="platform-muted-xs">{{ job.tenantId }}</span></td>
+                  <td>{{ job.createdAt ? (job.createdAt | date: 'short') : '—' }}</td>
+                  <td>{{ job.completedAt ? (job.completedAt | date: 'short') : '—' }}</td>
+                  <td>{{ (job.rowsDeletedEstimate || 0) | number }}</td>
+                  <td>
+                    <button type="button" class="btn-outline-erp btn-sm" (click)="downloadPurgeCsv(job); $event.stopPropagation()" [disabled]="busy">
+                      <i class="bi bi-download me-1"></i>{{ 'platformSchools.purge.downloadCsv' | translate }}
+                    </button>
+                  </td>
+                </tr>
+                <tr *ngIf="!purgeHistoryLoading && globalPurgeJobs.length === 0">
+                  <td colspan="8" class="text-muted">{{ 'platformSchools.purge.historyEmpty' | translate }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <app-erp-pagination
+            *ngIf="globalPurgeJobsTotal > 0"
+            class="d-block px-3 pb-3"
+            [totalElements]="globalPurgeJobsTotal"
+            [pageIndex]="globalPurgePageIndex"
+            [pageSize]="globalPurgePageSize"
+            (pageIndexChange)="onGlobalPurgePageIndex($event)"
+            (pageSizeChange)="onGlobalPurgePageSize($event)"
+          />
+        </div>
+      </div>
     </div>
   `,
   styles: [`
     :host { display: block; }
     .platform-schools-root { position: relative; }
     .platform-page-inner { max-width: 1200px; margin: 0 auto; }
+    .platform-shell { padding-bottom: 10px; }
+    .platform-main-grid { margin-bottom: 6px; }
     .platform-page-title { font-size: 26px; font-weight: 800; margin-bottom: 4px; }
     .platform-page-lead { font-size: 13px; max-width: 52rem; line-height: 1.5; }
+    .platform-card-elevated {
+      background: linear-gradient(
+        180deg,
+        color-mix(in srgb, var(--clr-surface) 94%, var(--clr-primary) 6%) 0%,
+        var(--clr-surface) 100%
+      );
+      box-shadow: 0 10px 26px color-mix(in srgb, var(--clr-bg) 65%, transparent);
+    }
     .platform-card-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
     .platform-detail-card { min-height: 480px; }
     .platform-detail-body { padding: 24px; }
@@ -498,7 +622,7 @@ import {
     .platform-hero {
       border-left: 4px solid var(--clr-primary);
       padding: 16px 18px;
-      background: var(--clr-surface-alt);
+      background: color-mix(in srgb, var(--clr-primary) 8%, var(--clr-surface));
       border-radius: var(--radius-lg);
       margin-bottom: 20px;
     }
@@ -506,7 +630,7 @@ import {
     .platform-pill {
       font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em;
       padding: 6px 12px; border-radius: 999px;
-      background: rgba(27, 58, 48, 0.12); color: var(--clr-primary);
+      background: color-mix(in srgb, var(--clr-primary) 14%, var(--clr-surface)); color: var(--clr-primary);
     }
     .platform-pill-muted { background: var(--clr-border-light); color: var(--clr-text-muted); }
     .platform-stat-grid {
@@ -535,14 +659,14 @@ import {
       font-size: 13px;
       padding: 14px 16px;
       border-radius: var(--radius-lg);
-      background: rgba(2, 132, 199, 0.08);
-      border: 1px solid rgba(2, 132, 199, 0.25);
+      background: color-mix(in srgb, var(--clr-info) 10%, var(--clr-surface));
+      border: 1px solid color-mix(in srgb, var(--clr-info) 26%, var(--clr-border));
       display: flex;
       align-items: flex-start;
     }
     .platform-danger-panel {
-      border: 1px solid rgba(220, 38, 38, 0.35);
-      background: rgba(220, 38, 38, 0.06);
+      border: 1px solid color-mix(in srgb, var(--clr-danger) 30%, var(--clr-border));
+      background: color-mix(in srgb, var(--clr-danger) 8%, var(--clr-surface));
       border-radius: var(--radius-lg);
       padding: 16px 18px;
       font-size: 14px;
@@ -551,8 +675,16 @@ import {
     .platform-danger-list { padding-left: 1.2rem; margin: 0; font-size: 13px; }
     .platform-danger-list li { margin-bottom: 6px; }
     .platform-job-list { list-style: none; padding: 0; margin: 0; font-size: 13px; }
-    .platform-job-list li { padding: 8px 0; border-bottom: 1px solid var(--clr-border-light); }
+    .platform-job-list li { padding: 8px 10px; border-bottom: 1px solid var(--clr-border-light); cursor: pointer; border-radius: 10px; }
     .platform-job-list li:last-child { border-bottom: none; }
+    .platform-job-list-active { background: color-mix(in srgb, var(--clr-primary) 10%, transparent); }
+    .platform-history-section .erp-card-header p {
+      max-width: 760px;
+    }
+    .platform-history-toolbar { align-items: end; }
+    .platform-purge-table {
+      min-width: 980px;
+    }
     .platform-check { font-size: 13px; line-height: 1.45; cursor: pointer; }
     .platform-impact-box {
       border: 1px solid color-mix(in srgb, var(--clr-border-light) 75%, var(--clr-primary) 25%);
@@ -623,6 +755,15 @@ export class PlatformSchoolsComponent implements OnInit {
   detail: PlatformSchoolDetail | null = null;
   detailLoading = false;
   purgeJobs: PlatformPurgeJob[] = [];
+  selectedPurgeJob: PlatformPurgeJob | null = null;
+  globalPurgeJobs: PlatformPurgeJob[] = [];
+  globalPurgeJobsTotal = 0;
+  globalPurgePageIndex = 0;
+  globalPurgePageSize = DEFAULT_ERP_PAGE_SIZE;
+  purgeHistorySearchInput = '';
+  purgeHistoryQuery = '';
+  purgeHistoryStatus = '';
+  purgeHistoryLoading = false;
   busy = false;
   loadError = '';
   actionMessage = '';
@@ -668,7 +809,17 @@ export class PlatformSchoolsComponent implements OnInit {
         this.schoolPageIndex = 0;
         this.loadSchoolsPage();
       });
+    this.purgeHistorySearchInput = '';
+    this.purgeHistoryQuery = '';
+    this.refreshPageData();
+  }
+
+  refreshPageData(): void {
     this.loadSchoolsPage();
+    this.loadGlobalPurgeHistory();
+    if (this.selected) {
+      this.refreshDetail();
+    }
   }
 
   loadSchoolsPage(): void {
@@ -708,6 +859,7 @@ export class PlatformSchoolsComponent implements OnInit {
     if (!this.selected) {
       return;
     }
+    this.clearFeedback();
     this.detailLoading = true;
     this.detail = null;
     forkJoin({
@@ -717,6 +869,7 @@ export class PlatformSchoolsComponent implements OnInit {
       next: ({ detail, jobs }) => {
         this.detail = detail;
         this.purgeJobs = jobs;
+        this.selectedPurgeJob = jobs[0] ?? null;
         this.detailLoading = false;
       },
       error: e => {
@@ -804,6 +957,7 @@ export class PlatformSchoolsComponent implements OnInit {
         setTimeout(() => {
           this.loadSchoolsPage();
           this.refreshDetail();
+          this.loadGlobalPurgeHistory();
         }, 1800);
       },
       error: e => {
@@ -822,6 +976,98 @@ export class PlatformSchoolsComponent implements OnInit {
   private clearFeedback(): void {
     this.actionMessage = '';
     this.actionError = '';
+  }
+
+  formatDurationMs(durationMs?: number | null): string {
+    if (!durationMs || durationMs <= 0) {
+      return '—';
+    }
+    const seconds = Math.round(durationMs / 1000);
+    if (seconds < 60) {
+      return `${seconds}s`;
+    }
+    const mins = Math.floor(seconds / 60);
+    const rem = seconds % 60;
+    return `${mins}m ${rem}s`;
+  }
+
+  downloadPurgeCsv(job: PlatformPurgeJob): void {
+    const targetTenantId = job.tenantId || this.selected?.tenantId;
+    if (!targetTenantId) {
+      return;
+    }
+    this.clearFeedback();
+    this.busy = true;
+    this.platform.exportPurgeJobCsv(targetTenantId, job.id).subscribe({
+      next: blob => {
+        const url = URL.createObjectURL(blob);
+        const anchor = document.createElement('a');
+        anchor.href = url;
+        anchor.download = `purge-job-${job.id}.csv`;
+        anchor.click();
+        URL.revokeObjectURL(url);
+        this.actionMessage = this.translate.instant('platformSchools.purge.exportReady');
+        this.busy = false;
+      },
+      error: e => {
+        this.actionError = e?.message || this.translate.instant('platformSchools.purge.exportFailed');
+        this.busy = false;
+      }
+    });
+  }
+
+  onPurgeHistorySearchChange(value: string): void {
+    this.purgeHistoryQuery = (value || '').trim();
+    this.globalPurgePageIndex = 0;
+    this.loadGlobalPurgeHistory();
+  }
+
+  onPurgeHistoryStatusChange(value: string): void {
+    this.purgeHistoryStatus = (value || '').trim().toUpperCase();
+    this.globalPurgePageIndex = 0;
+    this.loadGlobalPurgeHistory();
+  }
+
+  onGlobalPurgePageIndex(index: number): void {
+    this.globalPurgePageIndex = index;
+    this.loadGlobalPurgeHistory();
+  }
+
+  onGlobalPurgePageSize(size: number): void {
+    this.globalPurgePageSize = size;
+    this.globalPurgePageIndex = 0;
+    this.loadGlobalPurgeHistory();
+  }
+
+  loadGlobalPurgeHistory(): void {
+    this.purgeHistoryLoading = true;
+    this.platform
+      .listGlobalPurgeJobs(
+        this.globalPurgePageIndex,
+        this.globalPurgePageSize,
+        this.purgeHistoryQuery || undefined,
+        this.purgeHistoryStatus || undefined
+      )
+      .subscribe({
+        next: page => {
+          this.globalPurgeJobs = page.content;
+          this.globalPurgeJobsTotal = page.totalElements;
+          this.globalPurgePageIndex = page.page;
+          this.purgeHistoryLoading = false;
+        },
+        error: e => {
+          this.purgeHistoryLoading = false;
+          this.actionError = e?.message || this.translate.instant('platformSchools.detailLoadError');
+        }
+      });
+  }
+
+  purgeStatusBadge(status: string): string {
+    const normalizedStatus = (status || '').toUpperCase();
+    if (normalizedStatus === 'COMPLETED') return 'badge-success';
+    if (normalizedStatus === 'FAILED') return 'badge-danger';
+    if (normalizedStatus === 'RUNNING') return 'badge-warning';
+    return 'badge-info';
   }
 
   openOnboardModal(): void {

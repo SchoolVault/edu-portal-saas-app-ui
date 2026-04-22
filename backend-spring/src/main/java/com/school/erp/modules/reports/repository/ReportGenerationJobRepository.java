@@ -4,6 +4,7 @@ import com.school.erp.modules.reports.entity.ReportGenerationJob;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -17,4 +18,15 @@ public interface ReportGenerationJobRepository extends JpaRepository<ReportGener
             List<String> statuses, LocalDateTime scheduleAt, Pageable pageable);
     List<ReportGenerationJob> findByStatusInAndIsDeletedFalseAndNextRetryAtLessThanEqualOrderByNextRetryAtAscCreatedAtAsc(
             List<String> statuses, LocalDateTime retryAt, Pageable pageable);
+
+    @Query("""
+            select r.fileStoragePath
+            from ReportGenerationJob r
+            where r.isDeleted = false
+              and r.fileStoragePath is not null
+              and r.fileStoragePath <> ''
+            """)
+    List<String> findActiveStoragePaths();
+
+    long countByIsDeletedFalseAndFileStoragePathIsNotNull();
 }

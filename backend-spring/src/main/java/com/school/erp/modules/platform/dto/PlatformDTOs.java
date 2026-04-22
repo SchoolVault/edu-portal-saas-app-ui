@@ -254,6 +254,8 @@ public class PlatformDTOs {
         private JvmMemory jvm;
         private DiskSpace disk;
         private List<ComponentHealth> components = new ArrayList<>();
+        private List<SloSignal> sloSignals = new ArrayList<>();
+        private List<OperationalAlert> alerts = new ArrayList<>();
 
         public String getCheckedAt() { return checkedAt; }
         public void setCheckedAt(String checkedAt) { this.checkedAt = checkedAt; }
@@ -263,6 +265,10 @@ public class PlatformDTOs {
         public void setDisk(DiskSpace disk) { this.disk = disk; }
         public List<ComponentHealth> getComponents() { return components; }
         public void setComponents(List<ComponentHealth> components) { this.components = components; }
+        public List<SloSignal> getSloSignals() { return sloSignals; }
+        public void setSloSignals(List<SloSignal> sloSignals) { this.sloSignals = sloSignals; }
+        public List<OperationalAlert> getAlerts() { return alerts; }
+        public void setAlerts(List<OperationalAlert> alerts) { this.alerts = alerts; }
     }
 
     public static class JvmMemory {
@@ -315,6 +321,138 @@ public class PlatformDTOs {
         public void setDetail(String detail) { this.detail = detail; }
     }
 
+    /** Named SLO metric and its current state for platform operations. */
+    public static class SloSignal {
+        private String key;
+        private String label;
+        private String unit;
+        private double value;
+        private double warnThreshold;
+        private double criticalThreshold;
+        private String status;
+
+        public String getKey() { return key; }
+        public void setKey(String key) { this.key = key; }
+        public String getLabel() { return label; }
+        public void setLabel(String label) { this.label = label; }
+        public String getUnit() { return unit; }
+        public void setUnit(String unit) { this.unit = unit; }
+        public double getValue() { return value; }
+        public void setValue(double value) { this.value = value; }
+        public double getWarnThreshold() { return warnThreshold; }
+        public void setWarnThreshold(double warnThreshold) { this.warnThreshold = warnThreshold; }
+        public double getCriticalThreshold() { return criticalThreshold; }
+        public void setCriticalThreshold(double criticalThreshold) { this.criticalThreshold = criticalThreshold; }
+        public String getStatus() { return status; }
+        public void setStatus(String status) { this.status = status; }
+    }
+
+    /** Alert-ready signal for dashboards/notifications. */
+    public static class OperationalAlert {
+        private String severity;
+        private String code;
+        private String title;
+        private String detail;
+        private String suggestedAction;
+
+        public String getSeverity() { return severity; }
+        public void setSeverity(String severity) { this.severity = severity; }
+        public String getCode() { return code; }
+        public void setCode(String code) { this.code = code; }
+        public String getTitle() { return title; }
+        public void setTitle(String title) { this.title = title; }
+        public String getDetail() { return detail; }
+        public void setDetail(String detail) { this.detail = detail; }
+        public String getSuggestedAction() { return suggestedAction; }
+        public void setSuggestedAction(String suggestedAction) { this.suggestedAction = suggestedAction; }
+    }
+
+    public static class LifecycleSummaryResponse {
+        private long archivedRecordCount;
+        private String latestArchivedAt;
+        private long reportStorageTrackedRows;
+        private long reportStorageMissingFiles;
+
+        public long getArchivedRecordCount() { return archivedRecordCount; }
+        public void setArchivedRecordCount(long archivedRecordCount) { this.archivedRecordCount = archivedRecordCount; }
+        public String getLatestArchivedAt() { return latestArchivedAt; }
+        public void setLatestArchivedAt(String latestArchivedAt) { this.latestArchivedAt = latestArchivedAt; }
+        public long getReportStorageTrackedRows() { return reportStorageTrackedRows; }
+        public void setReportStorageTrackedRows(long reportStorageTrackedRows) { this.reportStorageTrackedRows = reportStorageTrackedRows; }
+        public long getReportStorageMissingFiles() { return reportStorageMissingFiles; }
+        public void setReportStorageMissingFiles(long reportStorageMissingFiles) { this.reportStorageMissingFiles = reportStorageMissingFiles; }
+    }
+
+    public static class StorageReconciliationResponse {
+        private boolean dryRun;
+        private int scannedFiles;
+        private int referencedFiles;
+        private int missingFiles;
+        private int orphanFiles;
+        private int deletedOrphanFiles;
+        private List<String> sampleMissingFiles = new ArrayList<>();
+        private List<String> sampleOrphanFiles = new ArrayList<>();
+
+        public boolean isDryRun() { return dryRun; }
+        public void setDryRun(boolean dryRun) { this.dryRun = dryRun; }
+        public int getScannedFiles() { return scannedFiles; }
+        public void setScannedFiles(int scannedFiles) { this.scannedFiles = scannedFiles; }
+        public int getReferencedFiles() { return referencedFiles; }
+        public void setReferencedFiles(int referencedFiles) { this.referencedFiles = referencedFiles; }
+        public int getMissingFiles() { return missingFiles; }
+        public void setMissingFiles(int missingFiles) { this.missingFiles = missingFiles; }
+        public int getOrphanFiles() { return orphanFiles; }
+        public void setOrphanFiles(int orphanFiles) { this.orphanFiles = orphanFiles; }
+        public int getDeletedOrphanFiles() { return deletedOrphanFiles; }
+        public void setDeletedOrphanFiles(int deletedOrphanFiles) { this.deletedOrphanFiles = deletedOrphanFiles; }
+        public List<String> getSampleMissingFiles() { return sampleMissingFiles; }
+        public void setSampleMissingFiles(List<String> sampleMissingFiles) { this.sampleMissingFiles = sampleMissingFiles; }
+        public List<String> getSampleOrphanFiles() { return sampleOrphanFiles; }
+        public void setSampleOrphanFiles(List<String> sampleOrphanFiles) { this.sampleOrphanFiles = sampleOrphanFiles; }
+    }
+
+    public static class LifecycleArchiveSourceStat {
+        private String sourceTable;
+        private long recordCount;
+        private String latestArchivedAt;
+
+        public String getSourceTable() { return sourceTable; }
+        public void setSourceTable(String sourceTable) { this.sourceTable = sourceTable; }
+        public long getRecordCount() { return recordCount; }
+        public void setRecordCount(long recordCount) { this.recordCount = recordCount; }
+        public String getLatestArchivedAt() { return latestArchivedAt; }
+        public void setLatestArchivedAt(String latestArchivedAt) { this.latestArchivedAt = latestArchivedAt; }
+    }
+
+    public static class LifecycleDailyArchivePoint {
+        private String day;
+        private long archivedCount;
+
+        public String getDay() { return day; }
+        public void setDay(String day) { this.day = day; }
+        public long getArchivedCount() { return archivedCount; }
+        public void setArchivedCount(long archivedCount) { this.archivedCount = archivedCount; }
+    }
+
+    public static class LifecycleObservabilityResponse {
+        private long totalArchivedRecords;
+        private String latestArchivedAt;
+        private long archiveLagDays;
+        private List<LifecycleArchiveSourceStat> sourceStats = new ArrayList<>();
+        private List<LifecycleDailyArchivePoint> dailyTrend = new ArrayList<>();
+
+        public long getTotalArchivedRecords() { return totalArchivedRecords; }
+        public void setTotalArchivedRecords(long totalArchivedRecords) { this.totalArchivedRecords = totalArchivedRecords; }
+        public String getLatestArchivedAt() { return latestArchivedAt; }
+        public void setLatestArchivedAt(String latestArchivedAt) { this.latestArchivedAt = latestArchivedAt; }
+        public long getArchiveLagDays() { return archiveLagDays; }
+        public void setArchiveLagDays(long archiveLagDays) { this.archiveLagDays = archiveLagDays; }
+        public List<LifecycleArchiveSourceStat> getSourceStats() { return sourceStats; }
+        public void setSourceStats(List<LifecycleArchiveSourceStat> sourceStats) { this.sourceStats = sourceStats; }
+        public List<LifecycleDailyArchivePoint> getDailyTrend() { return dailyTrend; }
+        public void setDailyTrend(List<LifecycleDailyArchivePoint> dailyTrend) { this.dailyTrend = dailyTrend; }
+    }
+
     /** Single-school drill-down for platform operators. */
     public static class SchoolDetailResponse {
         private SchoolSummary school;
@@ -348,9 +486,23 @@ public class PlatformDTOs {
         private Long id;
         private String tenantId;
         private String schoolCode;
+        private String schoolName;
         private String status;
         private String errorMessage;
         private Integer rowsDeletedEstimate;
+        private Long executionDurationMs;
+        private Long requestedByUserId;
+        private String requestedByRole;
+        private String requestedByPrincipal;
+        private String requestedByDisplayName;
+        private Long executedByUserId;
+        private String executedByRole;
+        private String executedByPrincipal;
+        private String executedByDisplayName;
+        private Long affectedStudents;
+        private Long affectedTeachers;
+        private Long affectedAdmins;
+        private Long affectedParentAccounts;
         private String createdAt;
         private String startedAt;
         private String completedAt;
@@ -361,12 +513,40 @@ public class PlatformDTOs {
         public void setTenantId(String tenantId) { this.tenantId = tenantId; }
         public String getSchoolCode() { return schoolCode; }
         public void setSchoolCode(String schoolCode) { this.schoolCode = schoolCode; }
+        public String getSchoolName() { return schoolName; }
+        public void setSchoolName(String schoolName) { this.schoolName = schoolName; }
         public String getStatus() { return status; }
         public void setStatus(String status) { this.status = status; }
         public String getErrorMessage() { return errorMessage; }
         public void setErrorMessage(String errorMessage) { this.errorMessage = errorMessage; }
         public Integer getRowsDeletedEstimate() { return rowsDeletedEstimate; }
         public void setRowsDeletedEstimate(Integer rowsDeletedEstimate) { this.rowsDeletedEstimate = rowsDeletedEstimate; }
+        public Long getExecutionDurationMs() { return executionDurationMs; }
+        public void setExecutionDurationMs(Long executionDurationMs) { this.executionDurationMs = executionDurationMs; }
+        public Long getRequestedByUserId() { return requestedByUserId; }
+        public void setRequestedByUserId(Long requestedByUserId) { this.requestedByUserId = requestedByUserId; }
+        public String getRequestedByRole() { return requestedByRole; }
+        public void setRequestedByRole(String requestedByRole) { this.requestedByRole = requestedByRole; }
+        public String getRequestedByPrincipal() { return requestedByPrincipal; }
+        public void setRequestedByPrincipal(String requestedByPrincipal) { this.requestedByPrincipal = requestedByPrincipal; }
+        public String getRequestedByDisplayName() { return requestedByDisplayName; }
+        public void setRequestedByDisplayName(String requestedByDisplayName) { this.requestedByDisplayName = requestedByDisplayName; }
+        public Long getExecutedByUserId() { return executedByUserId; }
+        public void setExecutedByUserId(Long executedByUserId) { this.executedByUserId = executedByUserId; }
+        public String getExecutedByRole() { return executedByRole; }
+        public void setExecutedByRole(String executedByRole) { this.executedByRole = executedByRole; }
+        public String getExecutedByPrincipal() { return executedByPrincipal; }
+        public void setExecutedByPrincipal(String executedByPrincipal) { this.executedByPrincipal = executedByPrincipal; }
+        public String getExecutedByDisplayName() { return executedByDisplayName; }
+        public void setExecutedByDisplayName(String executedByDisplayName) { this.executedByDisplayName = executedByDisplayName; }
+        public Long getAffectedStudents() { return affectedStudents; }
+        public void setAffectedStudents(Long affectedStudents) { this.affectedStudents = affectedStudents; }
+        public Long getAffectedTeachers() { return affectedTeachers; }
+        public void setAffectedTeachers(Long affectedTeachers) { this.affectedTeachers = affectedTeachers; }
+        public Long getAffectedAdmins() { return affectedAdmins; }
+        public void setAffectedAdmins(Long affectedAdmins) { this.affectedAdmins = affectedAdmins; }
+        public Long getAffectedParentAccounts() { return affectedParentAccounts; }
+        public void setAffectedParentAccounts(Long affectedParentAccounts) { this.affectedParentAccounts = affectedParentAccounts; }
         public String getCreatedAt() { return createdAt; }
         public void setCreatedAt(String createdAt) { this.createdAt = createdAt; }
         public String getStartedAt() { return startedAt; }
@@ -516,6 +696,8 @@ public class PlatformDTOs {
         private String targetSchoolName;
         /** Approximate Redis keys removed (tenant-scoped clears only; null for global region clears). */
         private Long keysEvicted;
+        /** Regions that failed to clear in this request (partial success if non-empty). */
+        private List<String> failedRegions;
 
         public CacheStatistics() {}
 
@@ -540,5 +722,7 @@ public class PlatformDTOs {
         public void setTargetSchoolName(String targetSchoolName) { this.targetSchoolName = targetSchoolName; }
         public Long getKeysEvicted() { return keysEvicted; }
         public void setKeysEvicted(Long keysEvicted) { this.keysEvicted = keysEvicted; }
+        public List<String> getFailedRegions() { return failedRegions; }
+        public void setFailedRegions(List<String> failedRegions) { this.failedRegions = failedRegions; }
     }
 }

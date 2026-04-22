@@ -24,6 +24,11 @@ public interface ClassTeacherAssignmentRepository extends JpaRepository<ClassTea
                     + "AND a.effectiveFrom <= :d AND (a.effectiveTo IS NULL OR a.effectiveTo >= :d)")
     List<ClassTeacherAssignment> findActiveForTeacher(@Param("t") String tenantId, @Param("tid") Long teacherId, @Param("d") LocalDate d);
 
+    @Query(
+            "SELECT a FROM ClassTeacherAssignment a WHERE a.tenantId = :t AND a.isDeleted = false AND a.teacherId IN :teacherIds "
+                    + "AND a.effectiveFrom <= :d AND (a.effectiveTo IS NULL OR a.effectiveTo >= :d)")
+    List<ClassTeacherAssignment> findActiveForTeacherIds(@Param("t") String tenantId, @Param("teacherIds") List<Long> teacherIds, @Param("d") LocalDate d);
+
     /**
      * All homeroom assignments active on calendar date {@code d} (one query for teacher-directory homeroom labels).
      */

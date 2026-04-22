@@ -680,9 +680,23 @@ export interface PlatformPurgeJob {
   id: string;
   tenantId: string;
   schoolCode: string;
+  schoolName?: string | null;
   status: string;
   errorMessage?: string | null;
   rowsDeletedEstimate?: number | null;
+  executionDurationMs?: number | null;
+  requestedByUserId?: number | null;
+  requestedByRole?: string | null;
+  requestedByPrincipal?: string | null;
+  requestedByDisplayName?: string | null;
+  executedByUserId?: number | null;
+  executedByRole?: string | null;
+  executedByPrincipal?: string | null;
+  executedByDisplayName?: string | null;
+  affectedStudents?: number | null;
+  affectedTeachers?: number | null;
+  affectedAdmins?: number | null;
+  affectedParentAccounts?: number | null;
   createdAt?: string | null;
   startedAt?: string | null;
   completedAt?: string | null;
@@ -717,6 +731,7 @@ export interface CacheClearRequest {
 export interface CacheStatistics {
   regionsCleared: number;
   clearedRegions: string[];
+  failedRegions?: string[];
   clearedAt: string;
   clearedBy: string;
   targetTenantId?: string | null;
@@ -1103,7 +1118,17 @@ export interface FeePayment {
   discount: number;
   lateFee: number;
   receiptNumber?: string;
+  paymentMethod?: string;
+  lineItems?: FeeComponent[];
   tenantId: string;
+}
+
+export interface FeeCollectionSummary {
+  totalCollected: number;
+  totalPending: number;
+  totalStudents: number;
+  overdueCount: number;
+  collectionRate: number;
 }
 
 /** Mirrors {@code FeeDTOs.BulkAssignFeesRequest}. */
@@ -1441,6 +1466,31 @@ export interface TeacherPaymentDetails {
   bankDetailsComplete?: boolean;
 }
 
+export interface PayrollDisbursementAttempt {
+  id: number;
+  payslipId: number;
+  teacherId: number;
+  teacherName?: string;
+  periodLabel?: string;
+  amount: number;
+  paymentMethod: string;
+  referenceId: string;
+  status: 'SUBMITTED' | 'COMPLETED' | 'FAILED';
+  createdAt?: string;
+  completedAt?: string;
+  lastMessage?: string;
+}
+
+export interface PayrollDisbursementSummary {
+  totalAttempts: number;
+  submittedCount: number;
+  completedCount: number;
+  failedCount: number;
+  submittedAmount: number;
+  completedAmount: number;
+  failedAmount: number;
+}
+
 export interface DocumentRecord {
   id: string;
   name: string;
@@ -1472,6 +1522,59 @@ export interface PlatformHealthSnapshot {
   jvm: { heapUsedBytes: number; heapMaxBytes: number; heapUsagePercent: number };
   disk: { path: string; totalBytes: number; usableBytes: number; usagePercent: number };
   components: { name: string; status: string; detail?: string }[];
+  sloSignals?: {
+    key: string;
+    label: string;
+    unit?: string;
+    value: number;
+    warnThreshold: number;
+    criticalThreshold: number;
+    status: 'OK' | 'WARN' | 'CRITICAL' | string;
+  }[];
+  alerts?: {
+    severity: 'warning' | 'critical' | string;
+    code: string;
+    title: string;
+    detail?: string;
+    suggestedAction?: string;
+  }[];
+}
+
+export interface PlatformLifecycleSummary {
+  archivedRecordCount: number;
+  latestArchivedAt?: string | null;
+  reportStorageTrackedRows: number;
+  reportStorageMissingFiles: number;
+}
+
+export interface PlatformStorageReconciliation {
+  dryRun: boolean;
+  scannedFiles: number;
+  referencedFiles: number;
+  missingFiles: number;
+  orphanFiles: number;
+  deletedOrphanFiles: number;
+  sampleMissingFiles: string[];
+  sampleOrphanFiles: string[];
+}
+
+export interface PlatformLifecycleSourceStat {
+  sourceTable: string;
+  recordCount: number;
+  latestArchivedAt?: string | null;
+}
+
+export interface PlatformLifecycleDailyPoint {
+  day: string;
+  archivedCount: number;
+}
+
+export interface PlatformLifecycleObservability {
+  totalArchivedRecords: number;
+  latestArchivedAt?: string | null;
+  archiveLagDays: number;
+  sourceStats: PlatformLifecycleSourceStat[];
+  dailyTrend: PlatformLifecycleDailyPoint[];
 }
 
 export interface TenantConfig {

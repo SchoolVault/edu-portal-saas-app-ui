@@ -386,12 +386,12 @@ import { SchoolClassNamePipe } from '../../core/i18n/school-class-name.pipe';
           </div>
         </div>
         <div class="erp-card">
-          <div class="d-flex flex-wrap justify-content-between align-items-end gap-2 mb-2">
-            <div class="flex-grow-1" style="min-width: 200px; max-width: 360px;">
+          <div class="erp-filter-toolbar mb-2">
+            <div class="erp-filter-toolbar__search">
               <label class="erp-label small mb-1" erpI18nText="reports.filter.performance"></label>
               <input type="search" class="erp-input" erpI18nPh="reports.filter.performancePh" [(ngModel)]="perfSearch" (ngModelChange)="onPerfSearchChange()" />
             </div>
-            <button type="button" class="btn-outline-erp btn-sm reports-export-btn" (click)="exportPerformanceCsv()"><i class="bi bi-download"></i> {{ 'reports.exportCsv' | translate }}</button>
+            <button type="button" class="btn-outline-erp btn-sm erp-filter-toolbar__action" (click)="exportPerformanceCsv()"><i class="bi bi-download"></i> {{ 'reports.exportCsv' | translate }}</button>
           </div>
           <p *ngIf="performanceRows.length && !perfFilteredTotal" class="text-muted small mb-2">{{ 'reports.noMatches' | translate }}</p>
           <table class="erp-table" *ngIf="perfFilteredTotal">
@@ -441,12 +441,12 @@ import { SchoolClassNamePipe } from '../../core/i18n/school-class-name.pipe';
           </div>
         </div>
         <div class="erp-card">
-          <div class="d-flex flex-wrap justify-content-between align-items-end gap-2 mb-2">
-            <div class="flex-grow-1" style="min-width: 200px; max-width: 360px;">
+          <div class="erp-filter-toolbar mb-2">
+            <div class="erp-filter-toolbar__search">
               <label class="erp-label small mb-1" erpI18nText="reports.filter.attendance"></label>
               <input type="search" class="erp-input" erpI18nPh="reports.filter.attendancePh" [(ngModel)]="attRepSearch" (ngModelChange)="onAttRepSearchChange()" />
             </div>
-            <button type="button" class="btn-outline-erp btn-sm reports-export-btn" (click)="exportAttendanceCsv()"><i class="bi bi-download"></i> {{ 'reports.exportCsv' | translate }}</button>
+            <button type="button" class="btn-outline-erp btn-sm erp-filter-toolbar__action" (click)="exportAttendanceCsv()"><i class="bi bi-download"></i> {{ 'reports.exportCsv' | translate }}</button>
           </div>
           <p *ngIf="attendanceRows.length && !attRepFilteredTotal" class="text-muted small mb-2">{{ 'reports.noMatches' | translate }}</p>
           <table class="erp-table" *ngIf="attRepFilteredTotal">
@@ -500,12 +500,12 @@ import { SchoolClassNamePipe } from '../../core/i18n/school-class-name.pipe';
           <div class="col-sm-6 col-lg-3"><div class="stat-card"><div class="stat-value">{{ feeSummary.overdueCount }}</div><div class="stat-label">{{ 'reports.stat.overdueAccounts' | translate }}</div></div></div>
         </div>
         <div class="erp-card">
-          <div class="d-flex flex-wrap justify-content-between align-items-end gap-2 mb-2">
-            <div class="flex-grow-1" style="min-width: 200px; max-width: 360px;">
+          <div class="erp-filter-toolbar mb-2">
+            <div class="erp-filter-toolbar__search">
               <label class="erp-label small mb-1" erpI18nText="reports.filter.fees"></label>
               <input type="search" class="erp-input" erpI18nPh="reports.filter.feesPh" [(ngModel)]="feeRepSearch" (ngModelChange)="onFeeRepSearchChange()" />
             </div>
-            <button type="button" class="btn-outline-erp btn-sm reports-export-btn" (click)="exportFeesCsv()"><i class="bi bi-download"></i> {{ 'reports.exportCsv' | translate }}</button>
+            <button type="button" class="btn-outline-erp btn-sm erp-filter-toolbar__action" (click)="exportFeesCsv()"><i class="bi bi-download"></i> {{ 'reports.exportCsv' | translate }}</button>
           </div>
           <p *ngIf="feeRows.length && !feeRepFilteredTotal" class="text-muted small mb-2">{{ 'reports.noMatches' | translate }}</p>
           <table class="erp-table" *ngIf="feeRepFilteredTotal">
@@ -535,12 +535,12 @@ import { SchoolClassNamePipe } from '../../core/i18n/school-class-name.pipe';
 
       <div *ngIf="tab === 'class'" class="animate-in">
         <div class="erp-card">
-          <div class="d-flex flex-wrap justify-content-between align-items-end gap-2 mb-2">
-            <div *ngIf="!reportServerPaging" class="flex-grow-1" style="min-width: 200px; max-width: 360px;">
+          <div class="erp-filter-toolbar mb-2">
+            <div *ngIf="!reportServerPaging" class="erp-filter-toolbar__search">
               <label class="erp-label small mb-1" erpI18nText="reports.filter.class"></label>
               <input type="search" class="erp-input" erpI18nPh="reports.filter.classPh" [(ngModel)]="classRepSearch" (ngModelChange)="onClassRepSearchChange()" />
             </div>
-            <button type="button" class="btn-outline-erp btn-sm reports-export-btn" (click)="exportClassCsv()"><i class="bi bi-download"></i> {{ 'reports.exportCsv' | translate }}</button>
+            <button type="button" class="btn-outline-erp btn-sm erp-filter-toolbar__action" (click)="exportClassCsv()"><i class="bi bi-download"></i> {{ 'reports.exportCsv' | translate }}</button>
           </div>
           <p *ngIf="classSummaryRows.length && !classRepFilteredTotal" class="text-muted small mb-2">{{ 'reports.noMatches' | translate }}</p>
           <table class="erp-table" *ngIf="classRepFilteredTotal">
@@ -571,12 +571,12 @@ import { SchoolClassNamePipe } from '../../core/i18n/school-class-name.pipe';
 
       <div *ngIf="tab === 'section'" class="animate-in">
         <div class="erp-card">
-          <div class="d-flex flex-wrap justify-content-between align-items-end gap-2 mb-2">
-            <div *ngIf="!reportServerPaging" class="flex-grow-1" style="min-width: 200px; max-width: 360px;">
+          <div class="erp-filter-toolbar mb-2">
+            <div *ngIf="!reportServerPaging" class="erp-filter-toolbar__search">
               <label class="erp-label small mb-1" erpI18nText="reports.filter.section"></label>
               <input type="search" class="erp-input" erpI18nPh="reports.filter.sectionPh" [(ngModel)]="secRepSearch" (ngModelChange)="onSecRepSearchChange()" />
             </div>
-            <button type="button" class="btn-outline-erp btn-sm reports-export-btn" (click)="exportSectionCsv()"><i class="bi bi-download"></i> {{ 'reports.exportCsv' | translate }}</button>
+            <button type="button" class="btn-outline-erp btn-sm erp-filter-toolbar__action" (click)="exportSectionCsv()"><i class="bi bi-download"></i> {{ 'reports.exportCsv' | translate }}</button>
           </div>
           <p *ngIf="sectionRows.length && !secRepFilteredTotal" class="text-muted small mb-2">{{ 'reports.noMatches' | translate }}</p>
           <table class="erp-table" *ngIf="secRepFilteredTotal">
@@ -604,12 +604,12 @@ import { SchoolClassNamePipe } from '../../core/i18n/school-class-name.pipe';
 
       <div *ngIf="tab === 'teacher'" class="animate-in">
         <div class="erp-card">
-          <div class="d-flex flex-wrap justify-content-between align-items-end gap-2 mb-2">
-            <div *ngIf="!reportServerPaging" class="flex-grow-1" style="min-width: 200px; max-width: 360px;">
+          <div class="erp-filter-toolbar mb-2">
+            <div *ngIf="!reportServerPaging" class="erp-filter-toolbar__search">
               <label class="erp-label small mb-1" erpI18nText="reports.filter.teacher"></label>
               <input type="search" class="erp-input" erpI18nPh="reports.filter.teacherPh" [(ngModel)]="teachRepSearch" (ngModelChange)="onTeachRepSearchChange()" />
             </div>
-            <button type="button" class="btn-outline-erp btn-sm reports-export-btn" (click)="exportTeacherCsv()"><i class="bi bi-download"></i> {{ 'reports.exportCsv' | translate }}</button>
+            <button type="button" class="btn-outline-erp btn-sm erp-filter-toolbar__action" (click)="exportTeacherCsv()"><i class="bi bi-download"></i> {{ 'reports.exportCsv' | translate }}</button>
           </div>
           <p *ngIf="teacherRows.length && !teachRepFilteredTotal" class="text-muted small mb-2">{{ 'reports.noMatches' | translate }}</p>
           <table class="erp-table" *ngIf="teachRepFilteredTotal">

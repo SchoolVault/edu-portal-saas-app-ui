@@ -22,8 +22,20 @@ public interface StudentRepository extends JpaRepository<Student, Long> {
     Optional<Student> findByIdAndTenantIdAndIsDeletedFalse(Long id, String tenantId);
 
     List<Student> findByTenantIdAndClassIdAndIsDeletedFalse(String tenantId, Long classId);
+    List<Student> findByTenantIdAndClassIdInAndIsDeletedFalse(String tenantId, List<Long> classIds);
 
     List<Student> findByTenantIdAndClassIdAndSectionIdAndIsDeletedFalse(String tenantId, Long classId, Long sectionId);
+    @Query("""
+            SELECT s.classId, COUNT(s.id)
+            FROM Student s
+            WHERE s.tenantId = :tenantId
+              AND s.isDeleted = false
+              AND s.classId IN :classIds
+            GROUP BY s.classId
+            """)
+    List<Object[]> countStudentsByClassIds(
+            @Param("tenantId") String tenantId,
+            @Param("classIds") List<Long> classIds);
     long countByTenantIdAndClassIdAndSectionIdAndIsDeletedFalseAndStatus(
             String tenantId,
             Long classId,

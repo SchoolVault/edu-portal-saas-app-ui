@@ -48,22 +48,22 @@ import { SchoolClassNamePipe } from '../../core/i18n/school-class-name.pipe';
       </div>
       <div *ngIf="tab === 'catalog'" class="animate-in">
         <div class="erp-card">
-          <div class="d-flex flex-wrap gap-3 align-items-end mb-3 w-100">
-            <div class="search-input-wrapper flex-grow-1" style="min-width: 200px; max-width: 420px;">
+          <div class="erp-filter-toolbar mb-3 w-100">
+            <div class="search-input-wrapper erp-filter-toolbar__search">
               <i class="bi bi-search"></i>
               <input type="text" class="erp-input" erpI18nPh="library.searchPlaceholder" [(ngModel)]="searchTerm" (input)="onBookSearchInput()" data-testid="book-search">
             </div>
-            <div class="d-flex flex-wrap gap-2 align-items-end ms-md-auto">
+            <div class="erp-filter-toolbar__actions">
               <div>
                 <label class="erp-label d-block mb-1 small">{{ 'library.labelCategory' | translate }}</label>
-                <select class="erp-select" style="min-width: 168px;" [(ngModel)]="catalogCategory" (change)="loadBooks()" [attr.aria-label]="'library.labelCategory' | translate">
+                <select class="erp-select" style="width: 170px;" [(ngModel)]="catalogCategory" (change)="loadBooks()" [attr.aria-label]="'library.labelCategory' | translate">
                   <option value="">{{ 'library.allCategories' | translate }}</option>
                   <option *ngFor="let c of bookCategories" [value]="c">{{ c }}</option>
                 </select>
               </div>
               <div>
                 <label class="erp-label d-block mb-1 small">{{ 'library.labelCatalog' | translate }}</label>
-                <select class="erp-select" style="min-width: 148px;" [(ngModel)]="catalogFilter" (change)="loadBooks()" [attr.aria-label]="'library.labelCatalog' | translate">
+                <select class="erp-select" style="width: 170px;" [(ngModel)]="catalogFilter" (change)="loadBooks()" [attr.aria-label]="'library.labelCatalog' | translate">
                   <option value="active">{{ 'library.catalogActive' | translate }}</option>
                   <option value="inactive">{{ 'library.catalogInactive' | translate }}</option>
                   <option value="all">{{ 'library.catalogAll' | translate }}</option>
@@ -140,17 +140,17 @@ import { SchoolClassNamePipe } from '../../core/i18n/school-class-name.pipe';
       </div>
       <div *ngIf="tab === 'issued'" class="animate-in">
         <div class="erp-card">
-          <div class="d-flex flex-wrap gap-2 align-items-end mb-3">
+          <div class="erp-filter-toolbar mb-3">
             <div>
               <label class="erp-label d-block mb-1 small">{{ 'library.labelIssueStatus' | translate }}</label>
-              <select class="erp-select" style="min-width: 180px;" [(ngModel)]="issueStatusFilter" (change)="loadIssues()">
+              <select class="erp-select" style="width: 180px;" [(ngModel)]="issueStatusFilter" (change)="loadIssues()">
                 <option value="">{{ 'library.issueFilterAll' | translate }}</option>
                 <option value="issued">{{ 'library.issueFilterIssued' | translate }}</option>
                 <option value="overdue">{{ 'library.issueFilterOverdue' | translate }}</option>
                 <option value="returned">{{ 'library.issueFilterReturned' | translate }}</option>
               </select>
             </div>
-            <button type="button" class="btn-outline-erp btn-sm" (click)="loadIssues()"><i class="bi bi-arrow-clockwise"></i> {{ 'library.refresh' | translate }}</button>
+            <button type="button" class="btn-outline-erp btn-sm erp-filter-toolbar__action" (click)="loadIssues()"><i class="bi bi-arrow-clockwise"></i> {{ 'library.refresh' | translate }}</button>
           </div>
           <div class="erp-table-scroll">
           <table class="erp-table library-issues-table" data-testid="issued-books-table">

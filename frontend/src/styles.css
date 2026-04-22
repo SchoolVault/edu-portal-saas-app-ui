@@ -1087,6 +1087,43 @@ img.table-avatar {
 }
 .btn-danger-erp:hover { background: #B91C1C; }
 
+/* Reusable list/filter toolbar alignment across modules. */
+.erp-filter-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 10px;
+}
+.erp-filter-toolbar__search {
+  flex: 1 1 280px;
+  min-width: 200px;
+  max-width: 360px;
+}
+.erp-filter-toolbar__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: flex-end;
+  gap: 10px;
+}
+.erp-filter-toolbar__action {
+  margin-left: auto;
+}
+@media (max-width: 768px) {
+  .erp-filter-toolbar__search {
+    max-width: 100%;
+  }
+  .erp-filter-toolbar__actions {
+    width: 100%;
+    justify-content: stretch;
+  }
+  .erp-filter-toolbar__action {
+    width: 100%;
+    margin-left: 0;
+  }
+}
+
 /* === BADGES === */
 .badge-erp {
   display: inline-flex;
@@ -1123,6 +1160,27 @@ img.table-avatar {
   background: color-mix(in srgb, var(--clr-primary) 7%, var(--clr-hover));
   color: var(--clr-text-secondary);
   border: 1px solid var(--clr-border-light);
+}
+
+/* === ALERT PANELS === */
+.erp-alert-panel {
+  border: 1px solid var(--clr-border-light);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--clr-surface) 90%, var(--clr-surface-alt) 10%);
+}
+.erp-alert-panel--warning {
+  border-color: color-mix(in srgb, var(--clr-warning) 28%, var(--clr-border));
+  background: color-mix(in srgb, var(--clr-warning) 12%, var(--clr-surface));
+}
+.erp-alert-panel--danger {
+  border-color: color-mix(in srgb, var(--clr-danger) 30%, var(--clr-border));
+  background: color-mix(in srgb, var(--clr-danger) 12%, var(--clr-surface));
+}
+[data-theme='dark'] .erp-alert-panel--warning {
+  background: color-mix(in srgb, var(--clr-warning) 16%, var(--clr-surface));
+}
+[data-theme='dark'] .erp-alert-panel--danger {
+  background: color-mix(in srgb, var(--clr-danger) 16%, var(--clr-surface));
 }
 /* Subject / catalog labels — aligns with --clr-primary chips (teachers, academic). */
 .badge-subject-pill {
@@ -1175,6 +1233,36 @@ img.table-avatar {
 .login-title { font-size: clamp(2rem, 3.3vw, 3.05rem); font-weight: 900; margin-bottom: 8px; letter-spacing: -0.03em; line-height: 1.1; }
 .login-subtitle { color: var(--clr-text-muted); margin-bottom: 26px; font-size: 15px; font-weight: 500; }
 
+/* Auth mode tabs: one pattern for all themes (same as light: primary = selected, surface-muted = rest).
+   Token-driven so dark mode only swaps palette — behaviour and structure stay identical. */
+.login-mode-btn {
+  flex: 1;
+  padding: 10px 12px;
+  font-weight: 600;
+  font-size: 13px;
+  border: none;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+  -webkit-tap-highlight-color: transparent;
+  background: var(--clr-surface-muted);
+  color: var(--clr-text-muted);
+}
+.login-mode-btn:not(.login-mode-btn--active):hover {
+  background: color-mix(in srgb, var(--clr-primary) 8%, var(--clr-surface-muted));
+  color: var(--clr-text);
+}
+.login-mode-btn--active,
+.login-mode-btn--active:hover,
+.login-mode-btn--active:focus-visible {
+  background: var(--clr-primary);
+  color: #fff;
+  box-shadow: none;
+}
+.login-mode-btn:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--clr-primary) 40%, transparent);
+  outline-offset: 2px;
+}
+
 .login-right { flex: 1; display: none; position: relative; overflow: hidden; }
 .login-right img { width: 100%; height: 100%; object-fit: cover; }
 
@@ -1219,23 +1307,6 @@ img.table-avatar {
 [data-theme='dark'] .login-subtitle {
   color: #c7d2e4;
 }
-[data-theme='dark'] .login-mode-bar {
-  border-color: color-mix(in srgb, var(--clr-primary) 32%, var(--clr-border));
-  background: color-mix(in srgb, var(--clr-primary) 9%, var(--clr-surface));
-  box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.05);
-}
-[data-theme='dark'] .login-mode-btn {
-  color: #b8c6dc;
-  background: transparent;
-}
-[data-theme='dark'] .login-mode-btn:hover {
-  background: rgba(148, 163, 184, 0.12);
-  color: #e2e8f0;
-}
-[data-theme='dark'] .login-mode-btn--active {
-  background: linear-gradient(160deg, rgba(52, 211, 153, 0.34) 0%, rgba(56, 189, 248, 0.26) 100%);
-  color: #f8fafc;
-}
 [data-theme='dark'] .login-lang-row {
   border-top-color: color-mix(in srgb, var(--clr-primary) 20%, var(--clr-border));
 }
@@ -1264,12 +1335,7 @@ img.table-avatar {
     color-mix(in srgb, var(--clr-surface) 96%, #0b1220) 100%
   );
 }
-[data-theme='dark'] .login-right-overlay {
-  background: linear-gradient(145deg, rgba(8, 14, 26, 0.9) 0%, rgba(15, 23, 42, 0.62) 55%, rgba(2, 132, 199, 0.33) 100%);
-}
-[data-theme='dark'] .login-right-text p {
-  color: rgba(241, 245, 249, 0.88);
-}
+/* Hero: no [data-theme='dark'] overrides — same image + overlay as light (brand tint + copy contrast). */
 
 /* Hero copy stays English (brand); isolate bidi so UI language does not mirror this block. */
 .login-right-text {

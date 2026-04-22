@@ -51,7 +51,59 @@ public class ImportBulkRowValidator {
             case TEACHERS, STAFF -> validateTeacherRow(row);
             case CLASSES -> validateClassRow(row);
             case TIMETABLE -> validateTimetableRow(row, resolveStudentPlacement);
+            case FEE_STRUCTURES -> validateFeeStructureRow(row);
             default -> throw new BusinessException("Unsupported job type");
+        }
+    }
+
+    private void validateFeeStructureRow(Map<String, String> row) {
+        if (blank(row.get("name"))) {
+            throw new BusinessException("name is required");
+        }
+        if (blankToNull(row.get("classid")) == null && blankToNull(row.get("classname")) == null) {
+            throw new BusinessException("Either classid or classname is required");
+        }
+        academicResolver.resolveClassOnly(row);
+        String componentSpec = blankToNull(row.get("componentspec"));
+        if (componentSpec == null) {
+            throw new BusinessException("componentspec is required");
+        }
+        String[] parts = componentSpec.split("\\|");
+        Set<String> names = new HashSet<>();
+        BigDecimal total = BigDecimal.ZERO;
+        for (String raw : parts) {
+            String token = raw == null ? "" : raw.trim();
+            if (token.isEmpty()) {
+                continue;
+            }
+            String[] fields = token.split(":");
+            if (fields.length < 2) {
+                throw new BusinessException("Invalid componentspec token '" + token + "'. Use name:amount[:type].");
+            }
+            String componentName = fields[0].trim();
+            if (componentName.isEmpty()) {
+                throw new BusinessException("Fee component name is required in componentspec.");
+            }
+            String normalized = componentName.toLowerCase(Locale.ROOT);
+            if (!names.add(normalized)) {
+                throw new BusinessException("Fee component names must be unique within one structure row.");
+            }
+            BigDecimal amount;
+            try {
+                amount = new BigDecimal(fields[1].trim());
+            } catch (NumberFormatException ex) {
+                throw new BusinessException("Invalid fee component amount for '" + componentName + "'.");
+            }
+            if (amount.compareTo(BigDecimal.ZERO) < 0) {
+                throw new BusinessException("Fee component amount cannot be negative.");
+            }
+            total = total.add(amount);
+        }
+        if (names.isEmpty()) {
+            throw new BusinessException("componentspec must include at least one component.");
+        }
+        if (total.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new BusinessException("Total fee amount must be greater than zero.");
         }
     }
 
@@ -132,6 +184,7 @@ public class ImportBulkRowValidator {
         parseOptionalBigDecimal(row.get("salary"), "salary");
         parseOptionalPortalRole(row.get("portalrole"));
         parseOptionalLibraryRole(row.get("libraryrole"));
+        academicResolver.resolveOptionalClassTeacherPlacement(row);
     }
 
     private void validateClassRow(Map<String, String> row) {
@@ -190,8 +243,12 @@ public class ImportBulkRowValidator {
         if (n == null) {
             return;
         }
+        String normalized = n.trim().toUpperCase(Locale.ROOT);
+        if (normalized.equals("AUTO")) {
+            return;
+        }
         try {
-            Enums.LibraryStaffRole.valueOf(n.trim().toUpperCase(Locale.ROOT));
+            Enums.LibraryStaffRole.valueOf(normalized);
         } catch (IllegalArgumentException ex) {
             throw new BusinessException("Invalid libraryrole: " + raw);
         }
