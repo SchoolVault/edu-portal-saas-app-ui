@@ -13,6 +13,7 @@ import com.school.erp.modules.student.entity.Student;
 import com.school.erp.modules.student.repository.StudentRepository;
 import com.school.erp.modules.teacher.entity.Teacher;
 import com.school.erp.modules.teacher.repository.TeacherRepository;
+import com.school.erp.modules.reports.service.DashboardSnapshotInvalidationService;
 import com.school.erp.cache.CacheService;
 import com.school.erp.cache.CacheService.CacheRegion;
 import com.school.erp.config.CacheConfig;
@@ -55,6 +56,7 @@ public class AcademicService {
     private final AcademicSubjectRepository academicSubjectRepo;
     private final TeacherRepository teacherRepository;
     private final ObjectProvider<CacheService> cacheService;
+    private final DashboardSnapshotInvalidationService dashboardSnapshotInvalidationService;
 
     // ========== SUBJECT CATALOG ==========
     @Cacheable(cacheNames = CacheConfig.ACADEMIC_CATALOG, keyGenerator = "tenantMethodNameKeyGenerator", unless = "#result == null")
@@ -404,6 +406,7 @@ public class AcademicService {
         log.info("Homeroom updated classId={}", classId);
         evictAcademicClassCaches(classId, true);
         evictTeacherDirectoryCacheAfterHomeroomChange();
+        dashboardSnapshotInvalidationService.invalidateCurrentTenant("homeroom_assignment_changed");
         return getClassWithSectionsById(classId);
     }
 
@@ -767,7 +770,8 @@ public class AcademicService {
             final TeacherAssignmentService teacherAssignmentService,
             final AcademicSubjectRepository academicSubjectRepo,
             final TeacherRepository teacherRepository,
-            ObjectProvider<CacheService> cacheService) {
+            ObjectProvider<CacheService> cacheService,
+            final DashboardSnapshotInvalidationService dashboardSnapshotInvalidationService) {
         this.yearRepo = yearRepo;
         this.classRepo = classRepo;
         this.sectionRepo = sectionRepo;
@@ -777,5 +781,6 @@ public class AcademicService {
         this.academicSubjectRepo = academicSubjectRepo;
         this.teacherRepository = teacherRepository;
         this.cacheService = cacheService;
+        this.dashboardSnapshotInvalidationService = dashboardSnapshotInvalidationService;
     }
 }

@@ -212,11 +212,13 @@ public class OltpReportQueryAdapter implements ReportQueryPort {
                 .findFirst()
                 .map(y -> y.getId())
                 .orElse(null);
+        List<ClassTeacherAssignment> activeHomeroomAssignments = List.of();
         if (currentAyId != null) {
-            for (var a : classTeacherAssignmentRepo.findActiveForTeacher(tenantId, teacher.getId(), today)) {
-                if (!currentAyId.equals(a.getAcademicYearId())) {
-                    continue;
-                }
+            activeHomeroomAssignments = classTeacherAssignmentRepo.findActiveForTeacher(tenantId, teacher.getId(), today).stream()
+                    .filter(a -> currentAyId.equals(a.getAcademicYearId()))
+                    .sorted(this::compareHomeroomAssignmentPriority)
+                    .collect(Collectors.toList());
+            for (var a : activeHomeroomAssignments) {
                 String cname = classNames.getOrDefault(a.getClassId(), "Class");
                 String sname = a.getSectionId() != null ? sectionNames.getOrDefault(a.getSectionId(), "") : "";
                 int count = a.getSectionId() != null
@@ -247,7 +249,7 @@ public class OltpReportQueryAdapter implements ReportQueryPort {
 
         response.setMessageQueue(new ArrayList<>());
         response.setAttendanceTrend(buildTeacherMonthlyAttendanceTrend(tenantId, classIds));
-        response.setHomeroomAttendance(buildTeacherHomeroomAttendance(tenantId, teacher.getId(), classNames, sectionNames, ym, currentAyId, today));
+        response.setHomeroomAttendance(buildTeacherHomeroomAttendance(tenantId, classNames, sectionNames, ym, activeHomeroomAssignments));
         response.setRecentActivities(buildTeacherRecentActivityFeed(tenantId));
 
         List<ReportDashboardDTOs.ActivityItem> pendingTasks = notificationRepo.findByTenantIdAndUserIdOrderByCreatedAtDesc(tenantId, TenantContext.getUserId()).stream()
@@ -295,24 +297,14 @@ public class OltpReportQueryAdapter implements ReportQueryPort {
 
     private ReportDashboardDTOs.TeacherHomeroomAttendanceDetail buildTeacherHomeroomAttendance(
             String tenantId,
-            Long teacherRecordId,
             Map<Long, String> classNames,
             Map<Long, String> sectionNames,
             YearMonth ym,
-            Long currentAyId,
-            LocalDate today) {
-        if (currentAyId == null) {
+            List<ClassTeacherAssignment> activeHomeroomAssignments) {
+        if (activeHomeroomAssignments == null || activeHomeroomAssignments.isEmpty()) {
             return null;
         }
-        Optional<ClassTeacherAssignment> pick = classTeacherAssignmentRepo
-                .findActiveForTeacher(tenantId, teacherRecordId, today)
-                .stream()
-                .filter(a -> currentAyId.equals(a.getAcademicYearId()))
-                .findFirst();
-        if (pick.isEmpty()) {
-            return null;
-        }
-        var a = pick.get();
+        var a = activeHomeroomAssignments.get(0);
         Long classId = a.getClassId();
         Long sectionId = a.getSectionId();
         LocalDate from = ym.atDay(1);
@@ -380,6 +372,32 @@ public class OltpReportQueryAdapter implements ReportQueryPort {
         }
         detail.setDaily(daily);
         return detail;
+    }
+
+    /**
+     * Stable priority for dashboard primary homeroom when multiple active rows exist.
+     * Newest effective assignment is preferred, then tie-break by class/section for determinism.
+     */
+    private int compareHomeroomAssignmentPriority(ClassTeacherAssignment left, ClassTeacherAssignment right) {
+        LocalDate lf = left.getEffectiveFrom();
+        LocalDate rf = right.getEffectiveFrom();
+        if (lf != null && rf != null) {
+            int byFromDesc = rf.compareTo(lf);
+            if (byFromDesc != 0) {
+                return byFromDesc;
+            }
+        }
+        if (lf != null && rf == null) {
+            return -1;
+        }
+        if (lf == null && rf != null) {
+            return 1;
+        }
+        int byClass = Long.compare(left.getClassId() != null ? left.getClassId() : Long.MAX_VALUE, right.getClassId() != null ? right.getClassId() : Long.MAX_VALUE);
+        if (byClass != 0) {
+            return byClass;
+        }
+        return Long.compare(left.getSectionId() != null ? left.getSectionId() : Long.MAX_VALUE, right.getSectionId() != null ? right.getSectionId() : Long.MAX_VALUE);
     }
 
     private List<ReportDashboardDTOs.TeacherRecentActivityItem> buildTeacherRecentActivityFeed(String tenantId) {

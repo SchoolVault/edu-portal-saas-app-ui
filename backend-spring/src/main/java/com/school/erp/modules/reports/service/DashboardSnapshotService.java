@@ -48,18 +48,19 @@ public class DashboardSnapshotService {
 
     @Transactional
     public Map<String, Object> getKpiSnapshotOrRefresh(String roleCode, Supplier<Map<String, Object>> loader) {
-        return loadOrRefresh(TYPE_KPI, roleCode, "default", null, null, loader, new TypeReference<>() {});
+        return loadOrRefresh(TYPE_KPI, roleCode, userScopedKey("default"), null, null, loader, new TypeReference<>() {});
     }
 
     @Transactional
     public ReportDashboardDTOs.AdminDashboardResponse getAdminSnapshotOrRefresh(Supplier<ReportDashboardDTOs.AdminDashboardResponse> loader) {
-        return loadOrRefresh(TYPE_ADMIN, "ADMIN", "default", null, null, loader, new TypeReference<>() {});
+        return loadOrRefresh(TYPE_ADMIN, "ADMIN", userScopedKey("default"), null, null, loader, new TypeReference<>() {});
     }
 
     @Transactional
     public ReportDashboardDTOs.TeacherDashboardResponse getTeacherSnapshotOrRefresh(String month, Supplier<ReportDashboardDTOs.TeacherDashboardResponse> loader) {
         String normalizedMonth = month == null || month.isBlank() ? LocalDate.now().toString().substring(0, 7) : month.trim();
-        return loadOrRefresh(TYPE_TEACHER, "TEACHER", "month:" + normalizedMonth, null, null, loader, new TypeReference<>() {});
+        String scope = userScopedKey("month:" + normalizedMonth);
+        return loadOrRefresh(TYPE_TEACHER, "TEACHER", scope, null, null, loader, new TypeReference<>() {});
     }
 
     @Transactional
@@ -70,7 +71,7 @@ public class DashboardSnapshotService {
             Supplier<ParentDashboardDtos.Response> loader) {
         LocalDate fromDate = LocalDate.parse(from);
         LocalDate toDate = LocalDate.parse(to);
-        String scope = "child:" + (childId != null ? childId : 0L);
+        String scope = userScopedKey("child:" + (childId != null ? childId : 0L));
         return loadOrRefresh(TYPE_PARENT, "PARENT", scope, fromDate, toDate, loader, new TypeReference<>() {});
     }
 
@@ -170,6 +171,13 @@ public class DashboardSnapshotService {
         }
         saveSnapshotBestEffort(row, "upsert-snapshot");
         return freshPayload;
+    }
+
+    /** Keep dashboard snapshots isolated per authenticated user inside a tenant. */
+    private String userScopedKey(String baseScope) {
+        Long uid = TenantContext.getUserId();
+        String safeBase = (baseScope == null || baseScope.isBlank()) ? "default" : baseScope;
+        return "uid:" + (uid != null ? uid : 0L) + ":" + safeBase;
     }
 
     /**
