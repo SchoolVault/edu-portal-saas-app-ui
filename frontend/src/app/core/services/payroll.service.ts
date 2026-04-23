@@ -398,6 +398,8 @@ export class PayrollService {
   }
 
   private normalizeAttempt(a: any): PayrollDisbursementAttempt {
+    const statusRaw = String(a.status ?? 'SUBMITTED').toUpperCase();
+    const normalizedStatus = statusRaw === 'PROCESSED' || statusRaw === 'RECONCILED' ? 'COMPLETED' : statusRaw;
     return {
       id: Number(a.id),
       payslipId: Number(a.payslipId),
@@ -407,7 +409,7 @@ export class PayrollService {
       amount: Number(a.amount ?? 0),
       paymentMethod: String(a.paymentMethod ?? ''),
       referenceId: String(a.referenceId ?? ''),
-      status: String(a.status ?? 'SUBMITTED').toUpperCase() as PayrollDisbursementAttempt['status'],
+      status: normalizedStatus as PayrollDisbursementAttempt['status'],
       createdAt: a.createdAt != null ? String(a.createdAt) : undefined,
       completedAt: a.completedAt != null ? String(a.completedAt) : undefined,
       lastMessage: a.lastMessage != null ? String(a.lastMessage) : undefined,

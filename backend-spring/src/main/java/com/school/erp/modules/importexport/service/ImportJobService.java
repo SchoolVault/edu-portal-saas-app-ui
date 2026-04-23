@@ -11,13 +11,16 @@ import com.school.erp.config.ImportRuntimeProperties;
 import com.school.erp.modules.importexport.ImportJobAsyncLauncher;
 import com.school.erp.modules.importexport.observability.ImportMetricsRecorder;
 import com.school.erp.modules.importexport.observability.ImportSubmitCoordinationService;
+import com.school.erp.modules.importexport.ImportExecutionMode;
 import com.school.erp.modules.importexport.ImportJobConstants;
 import com.school.erp.modules.importexport.ImportJobType;
 import com.school.erp.modules.importexport.dto.ImportExportDTOs;
 import com.school.erp.modules.importexport.entity.ImportJob;
 import com.school.erp.modules.importexport.entity.ImportJobLine;
+import com.school.erp.modules.importexport.entity.ImportLedgerEntry;
 import com.school.erp.modules.importexport.repository.ImportJobLineRepository;
 import com.school.erp.modules.importexport.repository.ImportJobRepository;
+import com.school.erp.modules.importexport.repository.ImportLedgerEntryRepository;
 import com.school.erp.tenant.TenantContext;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
@@ -35,6 +38,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -51,6 +55,7 @@ public class ImportJobService {
     private final ImportSubmitCoordinationService submitCoordination;
     private final ImportMetricsRecorder importMetricsRecorder;
     private final BulkImportAcademicResolver academicResolver;
+    private final ImportLedgerEntryRepository importLedgerEntryRepository;
 
     @PersistenceContext
     private EntityManager entityManager;
@@ -62,7 +67,8 @@ public class ImportJobService {
                           ImportRuntimeProperties importRuntimeProperties,
                           ImportSubmitCoordinationService submitCoordination,
                           ImportMetricsRecorder importMetricsRecorder,
-                          BulkImportAcademicResolver academicResolver) {
+                          BulkImportAcademicResolver academicResolver,
+                          ImportLedgerEntryRepository importLedgerEntryRepository) {
         this.jobRepository = jobRepository;
         this.lineRepository = lineRepository;
         this.objectMapper = objectMapper;
@@ -71,11 +77,13 @@ public class ImportJobService {
         this.submitCoordination = submitCoordination;
         this.importMetricsRecorder = importMetricsRecorder;
         this.academicResolver = academicResolver;
+        this.importLedgerEntryRepository = importLedgerEntryRepository;
     }
 
     @Transactional
-    public ImportExportDTOs.JobSubmitResponse submit(MultipartFile file, String jobTypeParam, String columnMappingJson) {
+    public ImportExportDTOs.JobSubmitResponse submit(MultipartFile file, String jobTypeParam, String columnMappingJson, String executionModeParam) {
         ImportJobType jobType = ImportJobType.fromParam(jobTypeParam);
+        ImportExecutionMode executionMode = ImportExecutionMode.fromParam(executionModeParam);
         String tenantId = TenantContext.getTenantId();
         Long userId = TenantContext.getUserId();
         String role = TenantContext.getUserRole();
@@ -103,14 +111,15 @@ public class ImportJobService {
             int maxRows = importRuntimeProperties.getMaxRowsPerFile();
             int lineBatch = Math.max(100, importRuntimeProperties.getPersistJobLinesBatchSize());
 
-            String idemKey = tenantId + "|" + jobType.name() + "|" + payloadHash + "|" + mappingHash;
+            String idemKey = tenantId + "|" + jobType.name() + "|" + payloadHash + "|" + mappingHash + "|" + executionMode.name();
             final ImportExportDTOs.JobSubmitResponse[] resultHolder = new ImportExportDTOs.JobSubmitResponse[1];
             submitCoordination.runWithSubmitLock(idemKey, () -> {
-                Optional<ImportJob> inflight = jobRepository.findFirstByTenantIdAndJobTypeAndPayloadHashAndColumnMappingHashAndStatusInAndIsDeletedFalseOrderByCreatedAtDesc(
+                Optional<ImportJob> inflight = jobRepository.findFirstByTenantIdAndJobTypeAndPayloadHashAndColumnMappingHashAndExecutionModeAndStatusInAndIsDeletedFalseOrderByCreatedAtDesc(
                         tenantId,
                         jobType.name(),
                         payloadHash,
                         mappingHash,
+                        executionMode.name(),
                         List.of(ImportJobConstants.JOB_QUEUED, ImportJobConstants.JOB_RUNNING));
                 if (inflight.isPresent()) {
                     ImportJob existing = inflight.get();
@@ -120,6 +129,24 @@ public class ImportJobService {
                     resultHolder[0] = buildSubmitResponse(existing, existing.getTotalRows() != null ? existing.getTotalRows() : 0,
                             true, payloadHash);
                     return;
+                }
+                if (importRuntimeProperties.isCompletedJobIdempotencyEnabled()) {
+                    Optional<ImportJob> completed = jobRepository.findFirstByTenantIdAndJobTypeAndPayloadHashAndColumnMappingHashAndExecutionModeAndStatusInAndIsDeletedFalseOrderByCreatedAtDesc(
+                            tenantId,
+                            jobType.name(),
+                            payloadHash,
+                            mappingHash,
+                            executionMode.name(),
+                            List.of(ImportJobConstants.JOB_COMPLETED));
+                    if (completed.isPresent()) {
+                        ImportJob existing = completed.get();
+                        log.info("Import submit replay hit completed job id={} tenant={} type={} hashPrefix={}",
+                                existing.getId(), tenantId, jobType.name(), hashPrefix(payloadHash));
+                        importMetricsRecorder.incrementIdempotentReplay();
+                        resultHolder[0] = buildSubmitResponse(existing, existing.getTotalRows() != null ? existing.getTotalRows() : 0,
+                                true, payloadHash);
+                        return;
+                    }
                 }
 
                 importMetricsRecorder.incrementJobsSubmitted();
@@ -131,6 +158,7 @@ public class ImportJobService {
                 job.setOriginalFilename(file.getOriginalFilename());
                 job.setPayloadHash(payloadHash);
                 job.setColumnMappingHash(mappingHash);
+                job.setExecutionMode(executionMode.name());
                 job.setTotalRows(0);
                 job.setSuccessCount(0);
                 job.setFailCount(0);
@@ -225,6 +253,7 @@ public class ImportJobService {
         res.setJobId(job.getId());
         res.setStatus(job.getStatus());
         res.setTotalRows(totalRows);
+        res.setExecutionMode(job.getExecutionMode());
         res.setIdempotentReplay(idempotentReplay);
         res.setPayloadHash(payloadHash);
         return res;
@@ -267,6 +296,65 @@ public class ImportJobService {
         Page<ImportJobLine> p = lineRepository.findByJobIdAndTenantIdAndIsDeletedFalseOrderByLineIndexAsc(jobId, tenantId, PageRequest.of(page, size));
         List<ImportExportDTOs.LineResponse> content = p.getContent().stream().map(this::toLine).toList();
         return PageResponse.of(content, page, size, p.getTotalElements());
+    }
+
+    @Transactional(readOnly = true)
+    public PageResponse<ImportExportDTOs.LedgerLineResponse> getLedger(Long jobId, int page, int size) {
+        String tenantId = TenantContext.getTenantId();
+        jobRepository.findByIdAndTenantIdAndIsDeletedFalse(jobId, tenantId)
+                .orElseThrow(() -> new ResourceNotFoundException("ImportJob", jobId));
+        Page<ImportLedgerEntry> p = importLedgerEntryRepository
+                .findByTenantIdAndJobIdAndIsDeletedFalse(tenantId, jobId, PageRequest.of(page, size));
+        List<ImportExportDTOs.LedgerLineResponse> content = p.getContent().stream().map(this::toLedger).toList();
+        return PageResponse.of(content, page, size, p.getTotalElements());
+    }
+
+    @Transactional(readOnly = true)
+    public ImportExportDTOs.RollbackBundleResponse getRollbackBundle(Long jobId) {
+        String tenantId = TenantContext.getTenantId();
+        jobRepository.findByIdAndTenantIdAndIsDeletedFalse(jobId, tenantId)
+                .orElseThrow(() -> new ResourceNotFoundException("ImportJob", jobId));
+        long total = importLedgerEntryRepository.countByTenantIdAndJobIdAndIsDeletedFalse(tenantId, jobId);
+        long created = 0L;
+        long updated = 0L;
+        long skipped = 0L;
+        for (Object[] row : importLedgerEntryRepository.countByOutcomeForJob(tenantId, jobId)) {
+            String o = (String) row[0];
+            long c = ((Number) row[1]).longValue();
+            if ("CREATED".equals(o)) {
+                created = c;
+            } else if ("UPDATED".equals(o)) {
+                updated = c;
+            } else if ("SKIPPED".equals(o)) {
+                skipped = c;
+            }
+        }
+        ImportExportDTOs.RollbackBundleResponse r = new ImportExportDTOs.RollbackBundleResponse();
+        r.setJobId(jobId);
+        r.setLedgerRowCount(total);
+        r.setCreatedCount(created);
+        r.setUpdatedCount(updated);
+        r.setSkippedCount(skipped);
+        r.setSuggestedOperatorSteps(buildRollbackSteps(created, updated, skipped));
+        return r;
+    }
+
+    private static List<String> buildRollbackSteps(long created, long updated, long skipped) {
+        List<String> steps = new ArrayList<>();
+        steps.add("This screen summarizes what the import did. The system does not auto-delete your school data.");
+        if (created > 0) {
+            steps.add(String.format("Created records (~%d): if these rows are wrong, archive or remove them in the relevant directory screen using the entity ids shown in the import ledger table.", created));
+        }
+        if (updated > 0) {
+            steps.add(String.format("Updated records (~%d): roll back by editing the record manually or restoring from a backup export if you keep one.", updated));
+        }
+        if (skipped > 0) {
+            steps.add(String.format("Skipped / unchanged (~%d): no rollback needed; existing records were kept as-is.", skipped));
+        }
+        if (created == 0 && updated == 0 && skipped == 0) {
+            steps.add("No ledger entries yet, or the job is still running.");
+        }
+        return steps;
     }
 
     @Transactional
@@ -319,6 +407,7 @@ public class ImportJobService {
         res.setJobId(job.getId());
         res.setStatus(job.getStatus());
         res.setTotalRows(n);
+        res.setExecutionMode(job.getExecutionMode());
         res.setIdempotentReplay(false);
         res.setPayloadHash(job.getPayloadHash());
         return res;
@@ -338,6 +427,7 @@ public class ImportJobService {
         r.setSummaryMessage(j.getSummaryMessage());
         r.setCreatedAt(j.getCreatedAt());
         r.setPayloadHash(j.getPayloadHash());
+        r.setExecutionMode(j.getExecutionMode());
         return r;
     }
 
@@ -350,6 +440,20 @@ public class ImportJobService {
         r.setEntityType(line.getEntityType());
         r.setEntityId(line.getEntityId());
         r.setPayloadJson(line.getPayloadJson());
+        return r;
+    }
+
+    private ImportExportDTOs.LedgerLineResponse toLedger(ImportLedgerEntry e) {
+        ImportExportDTOs.LedgerLineResponse r = new ImportExportDTOs.LedgerLineResponse();
+        r.setId(e.getId());
+        r.setJobLineId(e.getJobLineId());
+        r.setLineIndex(e.getLineIndex());
+        r.setOutcome(e.getOutcome());
+        r.setEntityType(e.getEntityType());
+        r.setEntityId(e.getEntityId());
+        r.setNaturalKey(e.getNaturalKey());
+        r.setRollbackGuidance(e.getRollbackGuidance());
+        r.setCreatedAt(e.getCreatedAt());
         return r;
     }
 }

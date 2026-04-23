@@ -304,21 +304,100 @@ type SettingsFeatureToggleView = {
             <div class="settings-profile-panel__body">
               <p class="settings-profile-hint mb-3" *ngIf="!accountDetailsEditing">{{ 'settings.accountDetailsViewLead' | translate }}</p>
               <p class="settings-profile-hint mb-3" *ngIf="accountDetailsEditing">{{ 'settings.accountDetailsLead' | translate }}</p>
-              <div class="row g-3 mb-1" *ngIf="!accountDetailsEditing">
-                <div class="col-12">
-                  <p class="mb-1"><strong>{{ 'settings.profileFullNameLabel' | translate }}:</strong> {{ account.name }}</p>
-                  <p class="mb-1"><strong>{{ 'settings.profileContactPhoneLabel' | translate }}:</strong> {{ account.phone || ('exams.dash' | translate) }}</p>
-                  <p class="mb-1"><strong>{{ 'settings.labelEmail' | translate }}:</strong> {{ account.email }}</p>
-                  <p class="text-muted small mb-0">{{ 'settings.profileEmailReadonlyHint' | translate }}</p>
-                  <ng-container *ngIf="isTeacherProfileEditable">
-                    <p class="mb-1 mt-2"><strong>{{ 'settings.teacherQualificationLabel' | translate }}:</strong> {{ profileDetails?.qualification || ('exams.dash' | translate) }}</p>
-                    <p class="mb-1"><strong>{{ 'settings.teacherSpecializationLabel' | translate }}:</strong> {{ profileDetails?.specialization || ('exams.dash' | translate) }}</p>
-                    <p class="mb-1"><strong>{{ 'settings.bankAccountHolderLabel' | translate }}:</strong> {{ profileDetails?.bankAccountHolder || ('exams.dash' | translate) }}</p>
-                    <p class="mb-1"><strong>{{ 'settings.bankNameLabel' | translate }}:</strong> {{ profileDetails?.bankName || ('exams.dash' | translate) }}</p>
-                    <p class="mb-1"><strong>{{ 'settings.bankAccountNumberLabel' | translate }}:</strong> {{ profileDetails?.bankAccountNumber || ('exams.dash' | translate) }}</p>
-                    <p class="mb-0"><strong>{{ 'settings.bankIfscLabel' | translate }}:</strong> {{ profileDetails?.bankIfsc || ('exams.dash' | translate) }}</p>
-                  </ng-container>
+              <div class="settings-account-overview" *ngIf="!accountDetailsEditing">
+                <div class="settings-account-overview__grid">
+                  <div class="settings-account-overview__item">
+                    <span class="settings-account-overview__label">{{ 'settings.profileFullNameLabel' | translate }}</span>
+                    <strong class="settings-account-overview__value">{{ account.name }}</strong>
+                  </div>
+                  <div class="settings-account-overview__item">
+                    <span class="settings-account-overview__label">{{ 'settings.profileContactPhoneLabel' | translate }}</span>
+                    <div class="d-flex align-items-center flex-wrap gap-2">
+                      <strong class="settings-account-overview__value">{{ account.phone || ('exams.dash' | translate) }}</strong>
+                      <span class="badge rounded-pill" [class.text-bg-success]="profilePhoneVerified" [class.text-bg-warning]="!profilePhoneVerified">
+                        {{ (profilePhoneVerified ? 'settings.phoneVerifiedBadge' : 'settings.phoneUnverifiedBadge') | translate }}
+                      </span>
+                    </div>
+                  </div>
+                  <div class="settings-account-overview__item">
+                    <span class="settings-account-overview__label">{{ 'settings.labelEmail' | translate }}</span>
+                    <div class="d-flex align-items-center flex-wrap gap-2">
+                      <strong class="settings-account-overview__value">{{ account.email || ('exams.dash' | translate) }}</strong>
+                      <span class="badge rounded-pill" [class.text-bg-success]="profileEmailVerified" [class.text-bg-warning]="!profileEmailVerified">
+                        {{ (profileEmailVerified ? 'settings.emailVerifiedBadge' : 'settings.emailUnverifiedBadge') | translate }}
+                      </span>
+                    </div>
+                  </div>
                 </div>
+                <p class="text-muted small mb-0">{{ 'settings.profileIdentityFlowHint' | translate }}</p>
+                <div class="settings-account-overview__status">
+                  <div
+                    *ngIf="account.email && !profileEmailVerified"
+                    class="mt-2 p-3 rounded border"
+                    style="background: var(--clr-surface-muted)"
+                  >
+                    <div class="fw-semibold small mb-2">{{ 'settings.emailVerifyTitle' | translate }}</div>
+                    <p class="small text-muted mb-2">{{ 'settings.emailVerifyLead' | translate }}</p>
+                    <div class="d-flex flex-wrap gap-2 align-items-center">
+                      <button
+                        type="button"
+                        class="btn-outline-erp btn-sm"
+                        (click)="requestEmailVerificationClick()"
+                        [disabled]="emailVerifyBusy"
+                      >
+                        {{ emailVerifyBusy ? ('settings.emailVerifyRequesting' | translate) : ('settings.emailVerifyRequest' | translate) }}
+                      </button>
+                      <span *ngIf="emailVerifyMessage" class="small text-body">{{ emailVerifyMessage }}</span>
+                    </div>
+                    <div class="mt-2" *ngIf="emailVerifyDevTokenHint">
+                      <label class="erp-label small mb-1">{{ 'settings.emailVerifyTokenLabel' | translate }}</label>
+                      <div class="d-flex flex-wrap gap-2">
+                        <input
+                          type="text"
+                          class="erp-input"
+                          style="max-width: 22rem"
+                          [(ngModel)]="emailVerifyTokenDraft"
+                          [placeholder]="'settings.emailVerifyTokenPh' | translate"
+                          name="emailVerifyTokenDraft"
+                        />
+                        <button type="button" class="btn-primary-erp btn-sm" (click)="confirmEmailVerificationClick()" [disabled]="emailVerifyBusy">
+                          {{ 'settings.emailVerifyConfirm' | translate }}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                  <p *ngIf="account.phone && !profilePhoneVerified" class="text-warning small mb-0 mt-2">
+                    <i class="bi bi-phone me-1" aria-hidden="true"></i>{{ 'settings.phoneVerifyViaOtpHint' | translate }}
+                  </p>
+                </div>
+                <ng-container *ngIf="isTeacherProfileEditable">
+                  <div class="settings-account-overview__grid settings-account-overview__grid--teacher mt-3">
+                    <div class="settings-account-overview__item">
+                      <span class="settings-account-overview__label">{{ 'settings.teacherQualificationLabel' | translate }}</span>
+                      <strong class="settings-account-overview__value">{{ profileDetails?.qualification || ('exams.dash' | translate) }}</strong>
+                    </div>
+                    <div class="settings-account-overview__item">
+                      <span class="settings-account-overview__label">{{ 'settings.teacherSpecializationLabel' | translate }}</span>
+                      <strong class="settings-account-overview__value">{{ profileDetails?.specialization || ('exams.dash' | translate) }}</strong>
+                    </div>
+                    <div class="settings-account-overview__item">
+                      <span class="settings-account-overview__label">{{ 'settings.bankAccountHolderLabel' | translate }}</span>
+                      <strong class="settings-account-overview__value">{{ profileDetails?.bankAccountHolder || ('exams.dash' | translate) }}</strong>
+                    </div>
+                    <div class="settings-account-overview__item">
+                      <span class="settings-account-overview__label">{{ 'settings.bankNameLabel' | translate }}</span>
+                      <strong class="settings-account-overview__value">{{ profileDetails?.bankName || ('exams.dash' | translate) }}</strong>
+                    </div>
+                    <div class="settings-account-overview__item">
+                      <span class="settings-account-overview__label">{{ 'settings.bankAccountNumberLabel' | translate }}</span>
+                      <strong class="settings-account-overview__value">{{ profileDetails?.bankAccountNumber || ('exams.dash' | translate) }}</strong>
+                    </div>
+                    <div class="settings-account-overview__item">
+                      <span class="settings-account-overview__label">{{ 'settings.bankIfscLabel' | translate }}</span>
+                      <strong class="settings-account-overview__value">{{ profileDetails?.bankIfsc || ('exams.dash' | translate) }}</strong>
+                    </div>
+                  </div>
+                </ng-container>
               </div>
               <div class="row g-3" *ngIf="accountDetailsEditing">
                 <div class="col-md-6">
@@ -347,19 +426,18 @@ type SettingsFeatureToggleView = {
                     />
                   </div>
                 </div>
-                <div class="col-12">
-                  <div class="erp-form-group mb-0">
-                    <label class="erp-label" for="settings-acct-email-ro">{{ 'settings.labelEmail' | translate }}</label>
+                <div class="col-md-6">
+                  <div class="erp-form-group">
+                    <label class="erp-label" for="settings-acct-email-edit">{{ 'settings.labelEmail' | translate }}</label>
                     <input
-                      id="settings-acct-email-ro"
+                      id="settings-acct-email-edit"
                       type="email"
                       class="erp-input"
-                      [value]="account.email"
-                      readonly
-                      tabindex="-1"
-                      [attr.aria-label]="'settings.profileEmailReadonlyAria' | translate"
+                      name="profileDraftEmail"
+                      [(ngModel)]="profileDraftEmail"
+                      autocomplete="email"
                     />
-                    <p class="text-muted small mb-0 mt-1">{{ 'settings.profileEmailReadonlyHint' | translate }}</p>
+                    <p class="text-muted small mb-0 mt-1">{{ 'settings.profileEditableEmailHint' | translate }}</p>
                   </div>
                 </div>
                 <ng-container *ngIf="isTeacherProfileEditable">
@@ -407,6 +485,37 @@ type SettingsFeatureToggleView = {
                 </button>
                 <span *ngIf="profileAccountMsg" class="text-success small">{{ profileAccountMsg }}</span>
                 <span *ngIf="profileAccountErr" class="text-danger small">{{ profileAccountErr }}</span>
+              </div>
+              <div class="mt-3 p-3 rounded border" style="background: var(--clr-surface-muted);">
+                <div class="fw-semibold small mb-2">{{ 'settings.securityActionsTitle' | translate }}</div>
+                <p class="small text-muted mb-3">{{ 'settings.securityActionsLead' | translate }}</p>
+                <div class="row g-2">
+                  <div class="col-md-5">
+                    <input
+                      type="password"
+                      class="erp-input"
+                      [(ngModel)]="profileDraftNewPassword"
+                      [placeholder]="'settings.setPasswordPh' | translate"
+                      autocomplete="new-password"
+                    />
+                  </div>
+                  <div class="col-md-5">
+                    <input
+                      type="password"
+                      class="erp-input"
+                      [(ngModel)]="profileDraftConfirmPassword"
+                      [placeholder]="'settings.setPasswordConfirmPh' | translate"
+                      autocomplete="new-password"
+                    />
+                  </div>
+                  <div class="col-md-2 d-grid">
+                    <button type="button" class="btn-primary-erp btn-sm" (click)="setPasswordAfterVerificationClick()" [disabled]="identityActionBusy">
+                      {{ identityActionBusy ? ('settings.profileSaving' | translate) : ('settings.setPasswordAction' | translate) }}
+                    </button>
+                  </div>
+                </div>
+                <p *ngIf="identityActionMsg" class="text-success small mt-2 mb-0">{{ identityActionMsg }}</p>
+                <p *ngIf="identityActionErr" class="text-danger small mt-2 mb-0">{{ identityActionErr }}</p>
               </div>
             </div>
           </section>
@@ -499,11 +608,11 @@ type SettingsFeatureToggleView = {
       <div *ngIf="tab === 'roles'" class="erp-card animate-in">
         <h4 style="font-size: 15px; font-weight: 700; margin-bottom: 20px;">{{ 'settings.rolesHeading' | translate }}</h4>
         <table class="erp-table">
-          <thead><tr><th>{{ 'settings.thRole' | translate }}</th><th>{{ 'settings.thDescription' | translate }}</th><th>{{ 'settings.thUsers' | translate }}</th><th>{{ 'settings.thStatus' | translate }}</th></tr></thead>
+          <thead><tr><th>{{ 'settings.thRole' | translate }}</th><th>{{ 'settings.thDescription' | translate }}</th><th>{{ 'settings.thRoleOperationalScope' | translate }}</th><th>{{ 'settings.thStatus' | translate }}</th></tr></thead>
           <tbody>
-            <tr><td><strong>{{ 'settings.roleAdminLabel' | translate }}</strong></td><td>{{ 'settings.roleAdminDesc' | translate }}</td><td>1</td><td><span class="badge-erp badge-success">{{ 'settings.statusActive' | translate }}</span></td></tr>
-            <tr><td><strong>{{ 'settings.roleTeacherLabel' | translate }}</strong></td><td>{{ 'settings.roleTeacherDesc' | translate }}</td><td>8</td><td><span class="badge-erp badge-success">{{ 'settings.statusActive' | translate }}</span></td></tr>
-            <tr><td><strong>{{ 'settings.roleParentLabel' | translate }}</strong></td><td>{{ 'settings.roleParentDesc' | translate }}</td><td>12</td><td><span class="badge-erp badge-success">{{ 'settings.statusActive' | translate }}</span></td></tr>
+            <tr><td><strong>{{ 'settings.roleAdminLabel' | translate }}</strong></td><td>{{ 'settings.roleAdminDesc' | translate }}</td><td>{{ 'settings.roleAdminScope' | translate }}</td><td><span class="badge-erp badge-success">{{ 'settings.statusActive' | translate }}</span></td></tr>
+            <tr><td><strong>{{ 'settings.roleTeacherLabel' | translate }}</strong></td><td>{{ 'settings.roleTeacherDesc' | translate }}</td><td>{{ 'settings.roleTeacherScope' | translate }}</td><td><span class="badge-erp badge-success">{{ 'settings.statusActive' | translate }}</span></td></tr>
+            <tr><td><strong>{{ 'settings.roleParentLabel' | translate }}</strong></td><td>{{ 'settings.roleParentDesc' | translate }}</td><td>{{ 'settings.roleParentScope' | translate }}</td><td><span class="badge-erp badge-success">{{ 'settings.statusActive' | translate }}</span></td></tr>
           </tbody>
         </table>
       </div>
@@ -763,6 +872,49 @@ type SettingsFeatureToggleView = {
       .settings-profile-panel__body {
         padding: 16px;
       }
+      .settings-account-overview {
+        display: grid;
+        gap: 12px;
+      }
+      .settings-account-overview__grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+        gap: 10px;
+      }
+      .settings-account-overview__grid--teacher {
+        border-top: 1px dashed var(--clr-border-light, #e8eef0);
+        padding-top: 12px;
+      }
+      .settings-account-overview__item {
+        border: 1px solid color-mix(in srgb, var(--clr-border-light, #e8eef0) 88%, transparent);
+        border-radius: var(--radius-md, 10px);
+        padding: 10px 12px;
+        background: color-mix(in srgb, var(--clr-surface, #fff) 92%, var(--clr-primary, #1b3a30) 8%);
+        min-height: 62px;
+      }
+      .settings-account-overview__label {
+        display: block;
+        font-size: 11px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        color: var(--clr-text-muted, #64748b);
+        margin-bottom: 4px;
+      }
+      .settings-account-overview__value {
+        font-size: 14px;
+        font-weight: 650;
+        color: var(--clr-text, #0f172a);
+        word-break: break-word;
+      }
+      .settings-account-overview__status {
+        margin-top: 2px;
+      }
+      @media (max-width: 640px) {
+        .settings-account-overview__grid {
+          grid-template-columns: 1fr;
+        }
+      }
       .settings-profile-role {
         display: inline-block;
         padding: 2px 10px;
@@ -895,6 +1047,9 @@ export class SettingsComponent implements OnInit, OnDestroy {
 
   profileDraftName = '';
   profileDraftPhone = '';
+  profileDraftEmail = '';
+  profileDraftNewPassword = '';
+  profileDraftConfirmPassword = '';
   profileDraftQualification = '';
   profileDraftSpecialization = '';
   profileDraftBankAccountHolder = '';
@@ -905,6 +1060,14 @@ export class SettingsComponent implements OnInit, OnDestroy {
   profileAccountSaving = false;
   profileAccountMsg = '';
   profileAccountErr = '';
+  emailVerifyBusy = false;
+  emailVerifyTokenDraft = '';
+  emailVerifyMessage = '';
+  identityActionBusy = false;
+  identityActionMsg = '';
+  identityActionErr = '';
+  /** When backend exposes a dev token in the request response, user pastes it here to confirm. */
+  emailVerifyDevTokenHint: string | null = null;
   /** View vs edit for account fields — reduces confusion with read-only profile hero above. */
   accountDetailsEditing = false;
 
@@ -1066,6 +1229,11 @@ export class SettingsComponent implements OnInit, OnDestroy {
     const u = this.profileUser ?? this.auth.getCurrentUser();
     this.profileDraftName = u?.name ?? '';
     this.profileDraftPhone = u?.phone ?? '';
+    this.profileDraftEmail = u?.email ?? '';
+    this.profileDraftNewPassword = '';
+    this.profileDraftConfirmPassword = '';
+    this.identityActionMsg = '';
+    this.identityActionErr = '';
     this.profileDraftQualification = this.profileDetails?.qualification ?? '';
     this.profileDraftSpecialization = this.profileDetails?.specialization ?? '';
     this.profileDraftBankAccountHolder = this.profileDetails?.bankAccountHolder ?? '';
@@ -1076,6 +1244,22 @@ export class SettingsComponent implements OnInit, OnDestroy {
 
   get isTeacherProfileEditable(): boolean {
     return this.profileVisualRole === 'teacher';
+  }
+
+  get profileEmailVerified(): boolean {
+    const fromUser = this.profileUser?.emailVerified;
+    if (fromUser !== undefined && fromUser !== null) {
+      return !!fromUser;
+    }
+    return !!this.profileDetails?.emailVerified;
+  }
+
+  get profilePhoneVerified(): boolean {
+    const fromUser = this.profileUser?.phoneVerified;
+    if (fromUser !== undefined && fromUser !== null) {
+      return !!fromUser;
+    }
+    return !!this.profileDetails?.phoneVerified;
   }
 
   private loadPersonalProfileDetails(): void {
@@ -1102,7 +1286,6 @@ export class SettingsComponent implements OnInit, OnDestroy {
     this.profileAccountErr = '';
     const updatePayload = {
       name,
-      phone: this.profileDraftPhone ?? '',
       qualification: this.isTeacherProfileEditable ? (this.profileDraftQualification || '').trim() : undefined,
       specialization: this.isTeacherProfileEditable ? (this.profileDraftSpecialization || '').trim() : undefined,
       bankAccountHolder: this.isTeacherProfileEditable ? (this.profileDraftBankAccountHolder || '').trim() : undefined,
@@ -1110,34 +1293,72 @@ export class SettingsComponent implements OnInit, OnDestroy {
       bankAccountNumber: this.isTeacherProfileEditable ? (this.profileDraftBankAccountNumber || '').trim() : undefined,
       bankIfsc: this.isTeacherProfileEditable ? (this.profileDraftBankIfsc || '').trim().toUpperCase() : undefined,
     };
-    const criticalChangeDetails = this.buildCriticalProfileChangeDetails(updatePayload);
-    if (criticalChangeDetails.length) {
-      this.confirmDialog
-        .confirm({
-          title: this.translate.instant('settings.profileConfirmTitle'),
-          message: this.translate.instant('settings.profileConfirmBody'),
-          details: criticalChangeDetails,
-          variant: 'warning',
-          confirmLabel: this.translate.instant('settings.profileConfirmProceed'),
-          cancelLabel: this.translate.instant('settings.profileConfirmCancel'),
-        })
-        .subscribe(confirmed => {
-          if (!confirmed) {
-            this.syncAccountDrafts();
-            this.accountDetailsEditing = false;
-            this.cdr.markForCheck();
-            return;
-          }
-          this.persistProfileAccountUpdate(updatePayload);
-        });
+    const requestedEmail = (this.profileDraftEmail || '').trim();
+    const requestedPhone = (this.profileDraftPhone || '').trim();
+    const continueWithCriticalConfirmation = () => {
+      const criticalChangeDetails = this.buildCriticalProfileChangeDetails(updatePayload);
+      if (criticalChangeDetails.length) {
+        this.confirmDialog
+          .confirm({
+            title: this.translate.instant('settings.profileConfirmTitle'),
+            message: this.translate.instant('settings.profileConfirmBody'),
+            details: criticalChangeDetails,
+            variant: 'warning',
+            confirmLabel: this.translate.instant('settings.profileConfirmProceed'),
+            cancelLabel: this.translate.instant('settings.profileConfirmCancel'),
+          })
+          .subscribe(confirmed => {
+            if (!confirmed) {
+              this.syncAccountDrafts();
+              this.accountDetailsEditing = false;
+              this.cdr.markForCheck();
+              return;
+            }
+            this.persistProfileAccountUpdate(updatePayload, requestedEmail, requestedPhone);
+          });
+        return;
+      }
+      this.persistProfileAccountUpdate(updatePayload, requestedEmail, requestedPhone);
+    };
+    const identityImpactDetails = this.buildIdentityImpactChangeDetails(requestedEmail, requestedPhone);
+    if (!identityImpactDetails.length) {
+      continueWithCriticalConfirmation();
       return;
     }
-    this.persistProfileAccountUpdate(updatePayload);
+    this.confirmDialog
+      .confirm({
+        title: this.translate.instant('settings.identityImpactConfirmTitle'),
+        message: this.translate.instant('settings.identityImpactConfirmBody'),
+        details: identityImpactDetails,
+        variant: 'warning',
+        confirmLabel: this.translate.instant('settings.identityImpactConfirmProceed'),
+        cancelLabel: this.translate.instant('settings.identityImpactConfirmCancel'),
+      })
+      .subscribe(confirmed => {
+        if (!confirmed) {
+          this.cdr.markForCheck();
+          return;
+        }
+        continueWithCriticalConfirmation();
+      });
+  }
+
+  private buildIdentityImpactChangeDetails(requestedEmail: string, requestedPhone: string): string[] {
+    const normalizedRequestedEmail = requestedEmail.toLowerCase();
+    const currentEmail = (this.profileUser?.email ?? '').trim().toLowerCase();
+    const currentPhone = (this.profileUser?.phone ?? '').trim();
+    const details: string[] = [];
+    if (normalizedRequestedEmail !== currentEmail) {
+      details.push(this.translate.instant('settings.identityImpactEmailLine'));
+    }
+    if (requestedPhone !== currentPhone) {
+      details.push(this.translate.instant('settings.identityImpactPhoneLine'));
+    }
+    return details;
   }
 
   private buildCriticalProfileChangeDetails(updatePayload: {
     name: string;
-    phone: string;
     qualification?: string;
     specialization?: string;
     bankAccountHolder?: string;
@@ -1155,7 +1376,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
       {
         label: this.translate.instant('settings.profileContactPhoneLabel'),
         before: (this.profileUser?.phone ?? '').trim(),
-        after: (updatePayload.phone ?? '').trim(),
+        after: (this.profileDraftPhone ?? '').trim(),
       },
     ];
     if (this.isTeacherProfileEditable) {
@@ -1215,33 +1436,120 @@ export class SettingsComponent implements OnInit, OnDestroy {
 
   private persistProfileAccountUpdate(updatePayload: {
     name: string;
-    phone: string;
     qualification?: string;
     specialization?: string;
     bankAccountHolder?: string;
     bankName?: string;
     bankAccountNumber?: string;
     bankIfsc?: string;
-  }): void {
+  }, requestedEmail: string, requestedPhone: string): void {
     this.profileAccountSaving = true;
     this.profileAccountMsg = '';
     this.profileAccountErr = '';
+    this.identityActionMsg = '';
+    this.identityActionErr = '';
     this.auth.updateMyProfileDetails(updatePayload).subscribe({
       next: () => {
-        this.profileAccountSaving = false;
-        this.accountDetailsEditing = false;
-        this.profileAccountMsg = this.translate.instant(
-          runtimeConfig.useMocks ? 'settings.profileSavedMock' : 'settings.profileSaved'
-        );
-        this.syncAccountDrafts();
-        this.refreshProfilePreview();
-        this.loadPersonalProfileDetails();
-        this.auth.fetchProfileSummary().subscribe({ error: () => void 0 });
-        this.cdr.markForCheck();
+        this.persistIdentityUpdatesAfterProfileSave(requestedEmail, requestedPhone);
       },
       error: () => {
         this.profileAccountSaving = false;
         this.profileAccountErr = this.translate.instant('settings.profileSaveErr');
+        this.cdr.markForCheck();
+      },
+    });
+  }
+
+  private persistIdentityUpdatesAfterProfileSave(requestedEmail: string, requestedPhone: string): void {
+    const current = this.auth.getCurrentUser();
+    if (!current) {
+      this.onProfileSaveComplete();
+      return;
+    }
+    const normalizedEmail = requestedEmail.toLowerCase();
+    const emailChanged = normalizedEmail !== ((current.email ?? '').trim().toLowerCase());
+    const phoneChanged = requestedPhone !== ((current.phone ?? '').trim());
+    const applyPhoneUpdate = () => {
+      if (!phoneChanged) {
+        this.onProfileSaveComplete();
+        return;
+      }
+      this.auth.updateLoginPhone(requestedPhone).subscribe({
+        next: res => {
+          if (res?.message) {
+            this.identityActionMsg = this.identityActionMsg
+              ? `${this.identityActionMsg} ${res.message}`
+              : res.message;
+          }
+          this.onProfileSaveComplete();
+        },
+        error: e => {
+          this.profileAccountSaving = false;
+          this.profileAccountErr = e?.message || this.translate.instant('settings.profileSaveErr');
+          this.cdr.markForCheck();
+        },
+      });
+    };
+    if (!emailChanged) {
+      applyPhoneUpdate();
+      return;
+    }
+    this.auth.updateLoginEmail(normalizedEmail).subscribe({
+      next: res => {
+        if (res?.message) {
+          this.identityActionMsg = res.message;
+        }
+        this.emailVerifyDevTokenHint = res?.devVerificationToken ?? null;
+        this.emailVerifyTokenDraft = '';
+        applyPhoneUpdate();
+      },
+      error: e => {
+        this.profileAccountSaving = false;
+        this.profileAccountErr = e?.message || this.translate.instant('settings.profileSaveErr');
+        this.cdr.markForCheck();
+      },
+    });
+  }
+
+  private onProfileSaveComplete(): void {
+    this.profileAccountSaving = false;
+    this.accountDetailsEditing = false;
+    this.profileAccountMsg = this.translate.instant(
+      runtimeConfig.useMocks ? 'settings.profileSavedMock' : 'settings.profileSaved'
+    );
+    this.syncAccountDrafts();
+    this.refreshProfileContext();
+    this.refreshProfilePreview();
+    this.loadPersonalProfileDetails();
+    this.auth.fetchProfileSummary().subscribe({ error: () => void 0 });
+    this.cdr.markForCheck();
+  }
+
+  setPasswordAfterVerificationClick(): void {
+    const nextPassword = (this.profileDraftNewPassword || '').trim();
+    const confirmPassword = (this.profileDraftConfirmPassword || '').trim();
+    this.identityActionMsg = '';
+    this.identityActionErr = '';
+    if (!nextPassword || nextPassword.length < 8) {
+      this.identityActionErr = this.translate.instant('settings.setPasswordMinLength');
+      return;
+    }
+    if (nextPassword !== confirmPassword) {
+      this.identityActionErr = this.translate.instant('settings.setPasswordMismatch');
+      return;
+    }
+    this.identityActionBusy = true;
+    this.auth.setPasswordAfterVerification(nextPassword).subscribe({
+      next: () => {
+        this.identityActionBusy = false;
+        this.profileDraftNewPassword = '';
+        this.profileDraftConfirmPassword = '';
+        this.identityActionMsg = this.translate.instant('settings.setPasswordSuccess');
+        this.cdr.markForCheck();
+      },
+      error: e => {
+        this.identityActionBusy = false;
+        this.identityActionErr = e?.message || this.translate.instant('settings.setPasswordErr');
         this.cdr.markForCheck();
       },
     });
@@ -1413,6 +1721,61 @@ export class SettingsComponent implements OnInit, OnDestroy {
     this.selectedChildForProfile = s ?? null;
     this.childPhotoInitials = s ? (s.firstName[0] + s.lastName[0]).toUpperCase() : '';
     this.childPhotoPreview = this.auth.getChildAvatarDataUrl(this.childPhotoTargetId);
+  }
+
+  requestEmailVerificationClick(): void {
+    this.emailVerifyBusy = true;
+    this.emailVerifyMessage = '';
+    this.auth.requestEmailVerification().subscribe({
+      next: res => {
+        this.emailVerifyMessage = res.message;
+        this.emailVerifyDevTokenHint = res.devOneTimeToken ?? null;
+        if (this.emailVerifyDevTokenHint) {
+          this.emailVerifyTokenDraft = '';
+        }
+        this.emailVerifyBusy = false;
+        this.cdr.markForCheck();
+      },
+      error: e => {
+        this.emailVerifyMessage = e?.message || this.translate.instant('settings.emailVerifyErr');
+        this.emailVerifyBusy = false;
+        this.cdr.markForCheck();
+      },
+    });
+  }
+
+  confirmEmailVerificationClick(): void {
+    const t = (this.emailVerifyTokenDraft || '').trim();
+    if (!t) {
+      return;
+    }
+    this.emailVerifyBusy = true;
+    this.auth.confirmEmailVerification(t).subscribe({
+      next: () => {
+        this.emailVerifyMessage = this.translate.instant('settings.emailVerifyDone');
+        this.emailVerifyDevTokenHint = null;
+        this.emailVerifyTokenDraft = '';
+        this.auth.fetchProfileSummary().subscribe({
+          next: () => {
+            this.refreshProfileContext();
+            this.loadPersonalProfileDetails();
+            this.emailVerifyBusy = false;
+            this.cdr.markForCheck();
+          },
+          error: () => {
+            this.refreshProfileContext();
+            this.loadPersonalProfileDetails();
+            this.emailVerifyBusy = false;
+            this.cdr.markForCheck();
+          },
+        });
+      },
+      error: e => {
+        this.emailVerifyMessage = e?.message || this.translate.instant('settings.emailVerifyErr');
+        this.emailVerifyBusy = false;
+        this.cdr.markForCheck();
+      },
+    });
   }
 
   private refreshProfileContext(): void {

@@ -2,7 +2,7 @@ import { Component, OnInit, ChangeDetectorRef, DestroyRef, inject } from '@angul
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { Payslip, SalaryStructure, TeacherPaymentDetails } from '../../core/models/models';
+import { Payslip, PayrollDisbursementAttempt, PayrollDisbursementSummary, SalaryStructure, TeacherPaymentDetails } from '../../core/models/models';
 import { filter } from 'rxjs/operators';
 import { forkJoin } from 'rxjs';
 import { PayrollService } from '../../core/services/payroll.service';
@@ -10,6 +10,7 @@ import { AuthService } from '../../core/services/auth.service';
 import { ConfirmDialogService } from '../../shared/confirm-dialog/confirm-dialog.service';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { ErpPaginationComponent } from '../../shared/erp-pagination/erp-pagination.component';
+import { ErpMonthPickerComponent } from '../../shared/erp-month-picker/erp-month-picker.component';
 import { DEFAULT_ERP_PAGE_SIZE } from '../../core/constants/pagination.constants';
 import { sliceToPage } from '../../core/utils/paginate';
 import { runtimeConfig } from '../../core/config/runtime-config';
@@ -17,7 +18,7 @@ import { runtimeConfig } from '../../core/config/runtime-config';
 @Component({
   selector: 'app-payroll',
   standalone: true,
-  imports: [CommonModule, FormsModule, TranslateModule, ErpPaginationComponent],
+  imports: [CommonModule, FormsModule, TranslateModule, ErpPaginationComponent, ErpMonthPickerComponent],
   template: `
     <div data-testid="payroll-page">
       <div class="d-flex justify-content-between align-items-center mb-4 animate-in flex-wrap gap-2">
@@ -30,13 +31,13 @@ import { runtimeConfig } from '../../core/config/runtime-config';
         <div *ngIf="isAdmin || isTeacher" class="d-flex gap-2 align-items-end flex-wrap payroll-period-toolbar">
           <div class="payroll-period-field">
             <label class="erp-label d-block mb-1">{{ 'payroll.labelMonth' | translate }}</label>
-            <select class="erp-select payroll-period-control" [(ngModel)]="genMonth">
+            <select class="erp-select payroll-period-control" [(ngModel)]="genMonth" (ngModelChange)="onHeaderPeriodChanged()">
               <option *ngFor="let m of monthNames" [value]="m">{{ monthOptionLabel(m) }}</option>
             </select>
           </div>
           <div class="payroll-period-field payroll-period-field--year">
             <label class="erp-label d-block mb-1">{{ 'payroll.labelYear' | translate }}</label>
-            <input class="erp-input payroll-period-control" type="number" [(ngModel)]="genYear" />
+            <input class="erp-input payroll-period-control" type="number" [(ngModel)]="genYear" (ngModelChange)="onHeaderPeriodChanged()" />
           </div>
           <button *ngIf="isAdmin" class="btn-primary-erp btn-sm align-self-end payroll-period-btn payroll-period-btn--primary" data-testid="generate-payslips-btn" [disabled]="generating" (click)="runGenerate()">
             <i class="bi bi-file-earmark-text"></i> {{ generating ? ('payroll.generating' | translate) : ('payroll.generate' | translate) }}
@@ -44,8 +45,13 @@ import { runtimeConfig } from '../../core/config/runtime-config';
           <button class="btn-outline-erp btn-sm align-self-end payroll-period-btn payroll-period-btn--secondary" type="button" (click)="refreshPayroll()">{{ 'payroll.refresh' | translate }}</button>
         </div>
       </div>
+      <div *ngIf="isAdmin || isTeacher" class="payroll-period-hint" [class.payroll-period-hint--warn]="!!payrollPeriodValidationMessage()">
+        <i class="bi" [ngClass]="payrollPeriodValidationMessage() ? 'bi-exclamation-triangle' : 'bi-calendar-check'"></i>
+        <span>{{ payrollPeriodValidationMessage() || ('payroll.periodHint' | translate) }}</span>
+      </div>
 
       <div *ngIf="genError" class="alert alert-danger py-2 small mb-3">{{ genError }}</div>
+      <div *ngIf="queueError" class="alert alert-danger py-2 small mb-3">{{ queueError }}</div>
       <div *ngIf="disburseInfo" class="alert alert-success py-2 small mb-3">
         {{ disburseInfo }}
         <div class="mt-2 pt-2 text-muted" style="font-size: 12px; border-top: 1px solid rgba(15, 23, 42, 0.12);">
@@ -146,11 +152,11 @@ import { runtimeConfig } from '../../core/config/runtime-config';
                 <div class="col-sm-6"><span class="text-muted">{{ 'payroll.salaryStructureNet' | translate }}</span><br /><strong>₹{{ fd.monthlyNetSalary | number:'1.0-0':'en-IN' }}</strong></div>
                 <div class="col-sm-6">
                   <span class="text-muted">{{ 'payroll.payslipForPeriod' | translate: { month: monthOptionLabel(genMonth), year: genYear } }}</span><br />
-                  <ng-container *ngIf="payslipForTeacher(fd.teacherId) as ps">
+                  <ng-container *ngIf="periodPayslipForTeacher(fd.teacherId) as ps">
                     <strong>₹{{ ps.netSalary | number:'1.0-0':'en-IN' }}</strong>
                     <span class="badge-erp ms-1" [class.badge-neutral]="ps.status === 'generated'" [class.badge-success]="ps.status === 'paid'">{{ payslipStatusLabel(ps.status) }}</span>
                   </ng-container>
-                  <span *ngIf="!payslipForTeacher(fd.teacherId)" class="text-warning">{{ 'payroll.generateFirst' | translate }}</span>
+                  <span *ngIf="!periodPayslipForTeacher(fd.teacherId)" class="text-warning">{{ 'payroll.generateFirst' | translate }}</span>
                 </div>
               </div>
               <div class="mt-3 d-flex flex-wrap gap-2">
@@ -158,11 +164,22 @@ import { runtimeConfig } from '../../core/config/runtime-config';
                   type="button"
                   class="btn-primary-erp btn-sm"
                   [disabled]="!canInitiateDisburse(fd) || disbursingTeacherId === fd.teacherId"
-                  (click)="runDisburse(fd)"
+                  (click)="openDisbursePreview(fd)"
                 >
                   {{ disbursingTeacherId === fd.teacherId ? ('payroll.submitting' | translate) : ('payroll.initiateTransfer' | translate) }}
                 </button>
                 <span class="text-muted small align-self-center">{{ 'payroll.afterBankNote' | translate }}</span>
+              </div>
+              <div class="payroll-disburse-checklist mt-3">
+                <div class="small fw-semibold mb-1">{{ 'payroll.disburseChecklistTitle' | translate }}</div>
+                <ul class="mb-0">
+                  <li [class.is-ok]="hasBankBasics(fd)">{{ 'payroll.checkBankProfile' | translate }}</li>
+                  <li [class.is-ok]="hasValidIfsc(fd)">{{ 'payroll.checkIfsc' | translate }}</li>
+                  <li [class.is-ok]="!!periodPayslipForTeacher(fd.teacherId)">{{ 'payroll.checkPayslip' | translate }}</li>
+                </ul>
+                <p *ngIf="disburseReadinessIssues(fd).length" class="small mb-0 mt-2" [class.text-danger]="!isSalaryAlreadyDisbursed(fd)" [class.text-success]="isSalaryAlreadyDisbursed(fd)">
+                  {{ 'payroll.disburseBlockedPrefix' | translate }} {{ disburseReadinessIssues(fd).join(' ') }}
+                </p>
               </div>
             </div>
           </div>
@@ -192,20 +209,25 @@ import { runtimeConfig } from '../../core/config/runtime-config';
                   <span class="badge-erp" [class.badge-success]="d.bankDetailsComplete" [class.badge-warning]="!d.bankDetailsComplete">
                     {{ d.bankDetailsComplete ? ('payroll.statusReady' | translate) : ('payroll.statusIncomplete' | translate) }}
                   </span>
+                  <div *ngIf="disburseReadinessIssues(d).length" class="small mt-1" [class.text-danger]="!isSalaryAlreadyDisbursed(d)" [class.text-success]="isSalaryAlreadyDisbursed(d)">
+                    {{ disburseReadinessIssues(d).join(' ') }}
+                  </div>
                 </td>
                 <td class="text-end">
                   <button
                     type="button"
                     class="btn-primary-erp btn-xs"
                     [disabled]="!canInitiateDisburse(d) || disbursingTeacherId === d.teacherId"
-                    (click)="runDisburse(d)"
+                    (click)="openDisbursePreview(d)"
                     [title]="'payroll.initiateTitle' | translate"
                   >
                     {{ disbursingTeacherId === d.teacherId ? ('payroll.submitting' | translate) : ('payroll.initiate' | translate) }}
                   </button>
                 </td>
               </tr>
-              <tr *ngIf="!paymentDetails.length"><td colspan="7" class="text-muted text-center py-3">{{ 'payroll.noStructures' | translate }}</td></tr>
+              <tr *ngIf="!paymentDetails.length"><td colspan="7" class="text-center py-3">
+                <div class="payroll-empty-state"><i class="bi bi-bank2"></i>{{ 'payroll.noStructures' | translate }}</div>
+              </td></tr>
             </tbody>
           </table>
           <app-erp-pagination
@@ -215,6 +237,77 @@ import { runtimeConfig } from '../../core/config/runtime-config';
             [pageSize]="payDetPageSize"
             (pageIndexChange)="onPayDetPageIndexChange($event)"
             (pageSizeChange)="onPayDetPageSizeChange($event)"
+          />
+        </div>
+      </div>
+
+      <div *ngIf="isAdmin" class="erp-card animate-in mb-4 payroll-queue-card">
+        <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
+          <div>
+            <h4 class="erp-card-title mb-1">{{ 'payroll.settlementTitle' | translate }}</h4>
+            <p class="text-muted small mb-0">{{ 'payroll.disburseHowBody' | translate }}</p>
+          </div>
+          <button type="button" class="btn-outline-erp btn-sm" (click)="refreshDisbursementQueue()"><i class="bi bi-arrow-clockwise"></i> {{ 'payroll.refresh' | translate }}</button>
+        </div>
+        <div class="row g-2 mb-3">
+          <div class="col-sm-6 col-lg-3"><div class="p-2 rounded-2 payroll-queue-stat-card"><div class="small text-muted">{{ 'payroll.queueSubmitted' | translate }}</div><div class="fw-semibold">{{ disbursementSummary.submittedCount }}</div></div></div>
+          <div class="col-sm-6 col-lg-3"><div class="p-2 rounded-2 payroll-queue-stat-card"><div class="small text-muted">{{ 'payroll.queueCompleted' | translate }}</div><div class="fw-semibold">{{ disbursementSummary.completedCount }}</div></div></div>
+          <div class="col-sm-6 col-lg-3"><div class="p-2 rounded-2 payroll-queue-stat-card"><div class="small text-muted">{{ 'payroll.queueFailed' | translate }}</div><div class="fw-semibold">{{ disbursementSummary.failedCount }}</div></div></div>
+          <div class="col-sm-6 col-lg-3"><div class="p-2 rounded-2 payroll-queue-stat-card"><div class="small text-muted">{{ 'payroll.queueVariance' | translate }}</div><div class="fw-semibold">₹{{ queueVarianceAmount | number:'1.0-0':'en-IN' }}</div></div></div>
+        </div>
+        <div class="payroll-queue-filters mb-2">
+          <button type="button" class="btn-outline-erp btn-xs" [class.active]="queueStatusFilter===''" (click)="setQueueFilter('')">{{ 'payroll.filterAll' | translate }}</button>
+          <button type="button" class="btn-outline-erp btn-xs" [class.active]="queueStatusFilter==='SUBMITTED'" (click)="setQueueFilter('SUBMITTED')">{{ 'payroll.queueSubmitted' | translate }}</button>
+          <button type="button" class="btn-outline-erp btn-xs" [class.active]="queueStatusFilter==='COMPLETED'" (click)="setQueueFilter('COMPLETED')">{{ 'payroll.queueCompleted' | translate }}</button>
+          <button type="button" class="btn-outline-erp btn-xs" [class.active]="queueStatusFilter==='FAILED'" (click)="setQueueFilter('FAILED')">{{ 'payroll.queueFailed' | translate }}</button>
+        </div>
+        <div class="table-responsive">
+          <table class="erp-table">
+            <thead><tr>
+              <th>{{ 'payroll.thTeacher' | translate }}</th>
+              <th>{{ 'payroll.thPeriod' | translate }}</th>
+              <th>{{ 'payroll.thNetSalary' | translate }}</th>
+              <th>{{ 'payroll.labelPaymentRail' | translate }}</th>
+              <th>{{ 'payroll.queueRef' | translate }}</th>
+              <th>{{ 'payroll.thStatus' | translate }}</th>
+              <th>{{ 'payroll.queueLastUpdate' | translate }}</th>
+              <th class="text-end">{{ 'payroll.thActions' | translate }}</th>
+            </tr></thead>
+            <tbody>
+              <tr *ngFor="let a of queueAttempts">
+                <td><strong>{{ a.teacherName || ('exams.dash' | translate) }}</strong></td>
+                <td>{{ a.periodLabel || ('exams.dash' | translate) }}</td>
+                <td><strong>₹{{ a.amount | number:'1.0-0':'en-IN' }}</strong></td>
+                <td>{{ a.paymentMethod }}</td>
+                <td><code class="user-select-all">{{ a.referenceId }}</code></td>
+                <td>
+                  <span class="badge-erp" [class.badge-neutral]="a.status==='SUBMITTED'" [class.badge-success]="a.status==='COMPLETED'" [class.badge-warning]="a.status==='FAILED'">{{ disbursementStatusLabel(a.status) }}</span>
+                  <span
+                    *ngIf="isWebhookSyncedAttempt(a)"
+                    class="payroll-webhook-chip ms-1"
+                    [attr.title]="webhookStatusTooltip(a)"
+                  >
+                    <i class="bi bi-broadcast-pin"></i> {{ 'payroll.webhookSynced' | translate }}
+                  </span>
+                </td>
+                <td class="small text-muted">{{ a.completedAt || a.createdAt || ('exams.dash' | translate) }}</td>
+                <td class="text-end text-nowrap">
+                  <button type="button" class="btn-outline-erp btn-xs me-1" [disabled]="queueUpdatingId===a.id || a.status==='COMPLETED'" (click)="updateQueueStatus(a, 'COMPLETED')">{{ 'payroll.markSettled' | translate }}</button>
+                  <button type="button" class="btn-outline-erp btn-xs" [disabled]="queueUpdatingId===a.id || a.status==='FAILED'" (click)="updateQueueStatus(a, 'FAILED')">{{ 'payroll.markFailed' | translate }}</button>
+                </td>
+              </tr>
+              <tr *ngIf="!queueAttempts.length"><td colspan="8" class="text-center py-3">
+                <div class="payroll-empty-state"><i class="bi bi-hourglass-split"></i>{{ 'payroll.noQueueRows' | translate }}</div>
+              </td></tr>
+            </tbody>
+          </table>
+          <app-erp-pagination
+            *ngIf="queuePaginationTotal > 0"
+            [totalElements]="queuePaginationTotal"
+            [pageIndex]="queuePageIndex"
+            [pageSize]="queuePageSize"
+            (pageIndexChange)="onQueuePageIndexChange($event)"
+            (pageSizeChange)="onQueuePageSizeChange($event)"
           />
         </div>
       </div>
@@ -254,8 +347,22 @@ import { runtimeConfig } from '../../core/config/runtime-config';
       </div>
 
       <div class="erp-card animate-in" *ngIf="isAdmin || isTeacher">
-        <h4 class="erp-card-title mb-3">{{ isTeacher ? ('payroll.payslipsTitleTeacher' | translate) : ('payroll.payslipsTitleAdmin' | translate) }}</h4>
-        <p class="text-muted small mb-2">{{ 'payroll.payslipsLead' | translate }}</p>
+        <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-2">
+          <div>
+            <h4 class="erp-card-title mb-1">{{ isTeacher ? ('payroll.payslipsTitleTeacher' | translate) : ('payroll.payslipsTitleAdmin' | translate) }}</h4>
+            <p class="text-muted small mb-0">{{ 'payroll.payslipsLead' | translate }}</p>
+          </div>
+          <div class="payroll-payslip-filter">
+            <label class="erp-label d-block mb-1">{{ 'payroll.payslipFilterMonthLabel' | translate }}</label>
+            <app-erp-month-picker
+              [(ngModel)]="payslipFilterYm"
+              [maxYm]="currentMonthYm"
+              [yearNavMode]="'plain'"
+              [placeholderI18nKey]="'payroll.payslipFilterMonthPlaceholder'"
+              (ngModelChange)="onPayslipFilterMonthChange($event)"
+            />
+          </div>
+        </div>
         <div class="table-responsive">
           <table class="erp-table">
             <thead>
@@ -284,7 +391,9 @@ import { runtimeConfig } from '../../core/config/runtime-config';
                   <button *ngIf="isAdmin && p.status === 'generated'" type="button" class="btn-primary-erp btn-xs" (click)="markPaid(p)" [disabled]="markingId === p.id">{{ 'payroll.markPaid' | translate }}</button>
                 </td>
               </tr>
-              <tr *ngIf="payslips.length === 0"><td colspan="6" class="text-muted text-center py-4">{{ 'payroll.noPayslips' | translate }}</td></tr>
+              <tr *ngIf="payslips.length === 0"><td colspan="6" class="text-center py-4">
+                <div class="payroll-empty-state"><i class="bi bi-file-earmark-text"></i>{{ 'payroll.noPayslips' | translate }}</div>
+              </td></tr>
             </tbody>
           </table>
           <app-erp-pagination
@@ -302,6 +411,57 @@ import { runtimeConfig } from '../../core/config/runtime-config';
         <i class="bi bi-lock" style="font-size: 2rem;"></i>
         <p class="mt-2 mb-0">{{ 'payroll.accessDenied' | translate }}</p>
       </div>
+
+      <div class="modal-overlay" *ngIf="payoutPreviewModal" (click)="closePayoutPreview()">
+        <div class="modal-content-erp payroll-payout-modal" (click)="$event.stopPropagation()">
+          <div class="modal-header-erp">
+            <h3>{{ 'payroll.previewTitle' | translate }}</h3>
+            <button type="button" class="btn-icon" (click)="closePayoutPreview()"><i class="bi bi-x-lg"></i></button>
+          </div>
+          <div class="modal-body-erp" *ngIf="payoutPreviewTarget as t">
+            <p class="text-muted small mb-3">{{ 'payroll.previewLead' | translate }}</p>
+            <div class="payroll-preview-steps mb-3">
+              <div class="payroll-preview-step">
+                <div class="payroll-preview-step__idx">1</div>
+                <div>
+                  <div class="fw-semibold">{{ 'payroll.previewStep1Title' | translate }}</div>
+                  <div class="small text-muted">{{ 'payroll.previewStep1Body' | translate }}</div>
+                </div>
+              </div>
+              <div class="payroll-preview-step">
+                <div class="payroll-preview-step__idx">2</div>
+                <div>
+                  <div class="fw-semibold">{{ 'payroll.previewStep2Title' | translate }}</div>
+                  <div class="small text-muted">{{ 'payroll.previewStep2Body' | translate }}</div>
+                </div>
+              </div>
+              <div class="payroll-preview-step">
+                <div class="payroll-preview-step__idx">3</div>
+                <div>
+                  <div class="fw-semibold">{{ 'payroll.previewStep3Title' | translate }}</div>
+                  <div class="small text-muted">{{ 'payroll.previewStep3Body' | translate }}</div>
+                </div>
+              </div>
+            </div>
+            <div class="payroll-preview-summary">
+              <div><span>{{ 'payroll.thTeacher' | translate }}:</span><strong>{{ t.teacherName }}</strong></div>
+              <div><span>{{ 'payroll.payslipForPeriod' | translate: { month: monthOptionLabel(genMonth), year: genYear } }}:</span><strong>₹{{ (periodPayslipForTeacher(t.teacherId)?.netSalary || 0) | number:'1.0-0':'en-IN' }}</strong></div>
+              <div><span>{{ 'payroll.labelPaymentRail' | translate }}:</span><strong>{{ disbursePaymentMethod }}</strong></div>
+              <div><span>{{ 'payroll.account' | translate }}:</span><strong>{{ t.bankAccountMasked || ('exams.dash' | translate) }}</strong></div>
+            </div>
+            <label class="payroll-preview-ack mt-3">
+              <input type="checkbox" [(ngModel)]="payoutPreviewAcknowledge" />
+              <span>{{ 'payroll.previewAck' | translate }}</span>
+            </label>
+          </div>
+          <div class="modal-footer-erp">
+            <button type="button" class="btn-outline-erp" (click)="closePayoutPreview()">{{ 'payroll.cancelPreview' | translate }}</button>
+            <button type="button" class="btn-primary-erp" [disabled]="!payoutPreviewAcknowledge || !payoutPreviewTarget || disbursingTeacherId===payoutPreviewTarget.teacherId" (click)="confirmPayoutPreview()">
+              {{ (payoutPreviewTarget && disbursingTeacherId===payoutPreviewTarget.teacherId) ? ('payroll.submitting' | translate) : ('payroll.confirmStartPayout' | translate) }}
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   `,
   styles: [
@@ -309,12 +469,29 @@ import { runtimeConfig } from '../../core/config/runtime-config';
       .payroll-disburse-card {
         border: 1px solid color-mix(in srgb, var(--clr-primary) 18%, var(--clr-border));
         background: linear-gradient(135deg, color-mix(in srgb, var(--clr-surface) 92%, var(--clr-primary) 8%), var(--clr-surface));
+        border-radius: 16px;
+        box-shadow: var(--shadow-sm);
       }
       .payroll-period-toolbar {
         gap: 10px;
       }
+      .payroll-period-hint {
+        margin: -10px 0 12px;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 12px;
+        color: var(--clr-text-muted);
+      }
+      .payroll-period-hint--warn {
+        color: color-mix(in srgb, var(--clr-danger) 82%, var(--clr-text) 18%);
+      }
       .payroll-period-field {
         min-width: 160px;
+      }
+      .payroll-payslip-filter {
+        width: 220px;
+        min-width: 220px;
       }
       .payroll-period-field--year {
         min-width: 124px;
@@ -360,6 +537,85 @@ import { runtimeConfig } from '../../core/config/runtime-config';
       .payroll-focus-panel {
         border: 1px solid var(--clr-border);
         background: var(--clr-surface-muted);
+        border-radius: 14px;
+      }
+      .payroll-disburse-checklist {
+        border-top: 1px dashed var(--clr-border);
+        padding-top: 10px;
+      }
+      .payroll-disburse-checklist ul {
+        margin: 0;
+        padding-left: 1.1rem;
+        display: grid;
+        gap: 3px;
+        font-size: 12px;
+        color: var(--clr-text-muted);
+      }
+      .payroll-disburse-checklist li {
+        line-height: 1.4;
+      }
+      .payroll-disburse-checklist li.is-ok {
+        color: color-mix(in srgb, var(--clr-success) 84%, var(--clr-text) 16%);
+      }
+      .payroll-queue-card {
+        border: 1px solid color-mix(in srgb, var(--clr-border) 84%, var(--clr-primary) 16%);
+        border-radius: 16px;
+        box-shadow: var(--shadow-sm);
+      }
+      .payroll-queue-filters {
+        display: inline-flex;
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+      .payroll-queue-filters .btn-outline-erp.btn-xs {
+        border-radius: 999px;
+        font-weight: 700;
+      }
+      .payroll-queue-filters .btn-outline-erp.btn-xs.active {
+        background: color-mix(in srgb, var(--clr-primary) 14%, var(--clr-surface));
+        border-color: color-mix(in srgb, var(--clr-primary) 34%, var(--clr-border));
+        color: color-mix(in srgb, var(--clr-primary) 78%, var(--clr-text));
+      }
+      .payroll-queue-filters .btn-outline-erp.btn-xs,
+      .btn-outline-erp.btn-sm,
+      .btn-primary-erp.btn-sm,
+      .btn-primary-erp.btn-xs,
+      .btn-outline-erp.btn-xs {
+        transition: transform 140ms ease, box-shadow 160ms ease, background-color 160ms ease, border-color 160ms ease, color 160ms ease;
+      }
+      .payroll-queue-filters .btn-outline-erp.btn-xs:hover,
+      .btn-outline-erp.btn-sm:hover,
+      .btn-primary-erp.btn-sm:hover,
+      .btn-primary-erp.btn-xs:hover,
+      .btn-outline-erp.btn-xs:hover {
+        transform: translateY(-1px);
+        box-shadow: var(--shadow-sm);
+      }
+      .payroll-queue-filters .btn-outline-erp.btn-xs:active,
+      .btn-outline-erp.btn-sm:active,
+      .btn-primary-erp.btn-sm:active,
+      .btn-primary-erp.btn-xs:active,
+      .btn-outline-erp.btn-xs:active {
+        transform: translateY(0);
+      }
+      .payroll-queue-filters .btn-outline-erp.btn-xs:focus-visible,
+      .btn-outline-erp.btn-sm:focus-visible,
+      .btn-primary-erp.btn-sm:focus-visible,
+      .btn-primary-erp.btn-xs:focus-visible,
+      .btn-outline-erp.btn-xs:focus-visible {
+        outline: 0;
+        box-shadow: 0 0 0 3px color-mix(in srgb, var(--clr-primary) 34%, transparent);
+      }
+      .payroll-webhook-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        font-size: 10.5px;
+        border-radius: 999px;
+        padding: 2px 8px;
+        border: 1px solid color-mix(in srgb, var(--clr-info) 35%, var(--clr-border));
+        background: color-mix(in srgb, var(--clr-info) 10%, var(--clr-surface));
+        color: color-mix(in srgb, var(--clr-info) 80%, var(--clr-text));
       }
       [data-theme='dark'] .payroll-disburse-card,
       [data-theme='dark'] .payroll-flow-card {
@@ -375,6 +631,16 @@ import { runtimeConfig } from '../../core/config/runtime-config';
         border-color: color-mix(in srgb, var(--clr-primary) 22%, var(--clr-border));
         background: color-mix(in srgb, var(--clr-surface) 94%, #0b1220);
       }
+      [data-theme='dark'] .payroll-queue-filters .btn-outline-erp.btn-xs.active {
+        background: color-mix(in srgb, var(--clr-primary) 24%, var(--clr-surface));
+        border-color: color-mix(in srgb, var(--clr-primary) 40%, var(--clr-border));
+        color: color-mix(in srgb, #ffffff 78%, var(--clr-primary) 22%);
+      }
+      [data-theme='dark'] .payroll-webhook-chip {
+        border-color: color-mix(in srgb, var(--clr-info) 45%, var(--clr-border));
+        background: color-mix(in srgb, var(--clr-info) 22%, var(--clr-surface));
+        color: color-mix(in srgb, #ffffff 78%, var(--clr-info) 22%);
+      }
       .user-select-all {
         user-select: all;
         font-size: 12px;
@@ -383,6 +649,8 @@ import { runtimeConfig } from '../../core/config/runtime-config';
         width: 100%;
         overflow-x: auto;
         -webkit-overflow-scrolling: touch;
+        border: 1px solid var(--clr-border-light);
+        border-radius: 12px;
       }
       .payroll-salary-table {
         width: max-content;
@@ -391,6 +659,91 @@ import { runtimeConfig } from '../../core/config/runtime-config';
       .payroll-salary-table th,
       .payroll-salary-table td {
         white-space: nowrap;
+      }
+      .erp-card-title {
+        font-weight: 800;
+        letter-spacing: 0.01em;
+      }
+      .table-responsive .erp-table thead th {
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.035em;
+        font-weight: 800;
+      }
+      .table-responsive .erp-table tbody td {
+        font-size: 13px;
+      }
+      .btn-primary-erp.btn-xs,
+      .btn-outline-erp.btn-xs {
+        border-radius: 999px;
+        font-weight: 700;
+      }
+      .payroll-empty-state {
+        border: 1px dashed var(--clr-border);
+        border-radius: 12px;
+        padding: 12px 10px;
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        font-size: 12.5px;
+        color: var(--clr-text-muted);
+        background: color-mix(in srgb, var(--clr-surface-muted) 68%, var(--clr-surface) 32%);
+      }
+      .payroll-empty-state i {
+        color: color-mix(in srgb, var(--clr-primary) 72%, var(--clr-text-muted) 28%);
+      }
+      .payroll-payout-modal {
+        width: min(96vw, 720px);
+        max-width: 720px !important;
+      }
+      .payroll-preview-steps {
+        display: grid;
+        gap: 10px;
+      }
+      .payroll-preview-step {
+        display: grid;
+        grid-template-columns: 28px 1fr;
+        gap: 10px;
+        align-items: start;
+        padding: 10px;
+        border-radius: 12px;
+        border: 1px solid var(--clr-border-light);
+        background: color-mix(in srgb, var(--clr-surface) 96%, var(--clr-surface-muted) 4%);
+      }
+      .payroll-preview-step__idx {
+        width: 28px;
+        height: 28px;
+        border-radius: 50%;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 12px;
+        font-weight: 800;
+        border: 1px solid color-mix(in srgb, var(--clr-primary) 35%, var(--clr-border));
+        background: color-mix(in srgb, var(--clr-primary) 12%, var(--clr-surface));
+      }
+      .payroll-preview-summary {
+        border: 1px solid var(--clr-border-light);
+        border-radius: 12px;
+        padding: 10px 12px;
+        background: var(--clr-surface);
+        display: grid;
+        gap: 6px;
+      }
+      .payroll-preview-summary > div {
+        display: flex;
+        justify-content: space-between;
+        gap: 10px;
+        font-size: 13px;
+      }
+      .payroll-preview-summary span {
+        color: var(--clr-text-muted);
+      }
+      .payroll-preview-ack {
+        display: flex;
+        gap: 8px;
+        align-items: flex-start;
+        font-size: 12.5px;
       }
       @media (max-width: 767.98px) {
         .payroll-period-toolbar {
@@ -404,6 +757,10 @@ import { runtimeConfig } from '../../core/config/runtime-config';
         .payroll-period-btn,
         .payroll-period-btn--primary,
         .payroll-period-btn--secondary {
+          width: 100%;
+          min-width: 100%;
+        }
+        .payroll-payslip-filter {
           width: 100%;
           min-width: 100%;
         }
@@ -433,21 +790,46 @@ export class PayrollComponent implements OnInit {
   pagedPayslips: Payslip[] = [];
   payslipPageIndex = 0;
   payslipPageSize = DEFAULT_ERP_PAGE_SIZE;
-  genMonth = 'April';
+  genMonth = '';
   genYear = new Date().getFullYear();
   generating = false;
   genError = '';
   disburseInfo = '';
+  queueError = '';
   disbursingTeacherId: number | null = null;
+  queueUpdatingId: number | null = null;
   pdfLoadingId: string | null = null;
   markingId: string | null = null;
   monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+  currentMonthYm = '';
+  payslipFilterYm = '';
 
   isAdmin = false;
   isTeacher = false;
   payrollFocusTeacherId: number | null = null;
   /** NETBANKING | UPI | NEFT | IMPS — sent to backend for reference prefix + audit. */
   disbursePaymentMethod = 'NETBANKING';
+  queueAttempts: PayrollDisbursementAttempt[] = [];
+  disbursementSummary: PayrollDisbursementSummary = {
+    totalAttempts: 0,
+    submittedCount: 0,
+    completedCount: 0,
+    failedCount: 0,
+    submittedAmount: 0,
+    completedAmount: 0,
+    failedAmount: 0,
+  };
+  queueStatusFilter: '' | 'SUBMITTED' | 'COMPLETED' | 'FAILED' = '';
+  queuePageIndex = 0;
+  queuePageSize = DEFAULT_ERP_PAGE_SIZE;
+  queuePaginationTotal = 0;
+  payoutPreviewModal = false;
+  payoutPreviewAcknowledge = false;
+  payoutPreviewTarget: TeacherPaymentDetails | null = null;
+
+  get queueVarianceAmount(): number {
+    return Math.max(0, (this.disbursementSummary.submittedAmount || 0) - (this.disbursementSummary.completedAmount || 0));
+  }
 
   get bankReadyCount(): number {
     return this.paymentDetails.filter(d => d.bankDetailsComplete).length;
@@ -497,6 +879,7 @@ export class PayrollComponent implements OnInit {
 
   ngOnInit(): void {
     this.translate.onLangChange.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => this.cdr.markForCheck());
+    this.initializePeriodDefaults();
 
     const r = (this.auth.getRole() ?? '').toLowerCase();
     this.isAdmin = r === 'admin';
@@ -504,8 +887,44 @@ export class PayrollComponent implements OnInit {
     if (this.isAdmin) {
       this.loadAdminStructures();
       this.loadPaymentDetails();
+      this.refreshDisbursementQueue();
     }
     this.refreshPayroll();
+  }
+
+  private initializePeriodDefaults(): void {
+    const now = new Date();
+    this.genMonth = this.monthNames[now.getMonth()];
+    this.genYear = now.getFullYear();
+    this.currentMonthYm = this.toYm(this.genYear, now.getMonth());
+    this.payslipFilterYm = this.currentMonthYm;
+  }
+
+  onHeaderPeriodChanged(): void {
+    this.payslipFilterYm = this.toYm(Number(this.genYear), this.monthNames.findIndex(m => m === this.genMonth));
+  }
+
+  onPayslipFilterMonthChange(ym: string): void {
+    if (!ym || !/^\d{4}-\d{2}$/.test(ym)) {
+      return;
+    }
+    const [yy, mm] = ym.split('-');
+    const y = Number(yy);
+    const mIdx = Number(mm) - 1;
+    if (!Number.isInteger(y) || mIdx < 0 || mIdx > 11) {
+      return;
+    }
+    this.genYear = y;
+    this.genMonth = this.monthNames[mIdx];
+    this.payslipPageIndex = 0;
+    this.refreshPayroll();
+  }
+
+  private toYm(year: number, monthIndex: number): string {
+    if (!Number.isInteger(year) || monthIndex < 0 || monthIndex > 11) {
+      return '';
+    }
+    return `${year}-${String(monthIndex + 1).padStart(2, '0')}`;
   }
 
   private loadAdminStructures(): void {
@@ -643,28 +1062,34 @@ export class PayrollComponent implements OnInit {
     return s.deductions.reduce((sum, d) => sum + d.amount, 0);
   }
 
-  payslipForTeacher(teacherId: number): Payslip | undefined {
+  periodPayslipForTeacher(teacherId: number): Payslip | undefined {
     const y = Number(this.genYear);
     const m = this.genMonth.trim().toLowerCase();
     return this.payslips.find(
       p =>
         p.teacherId === teacherId &&
         p.year === y &&
-        (p.month || '').trim().toLowerCase() === m &&
-        p.status === 'generated'
+        (p.month || '').trim().toLowerCase() === m
     );
+  }
+
+  private generatedPayslipForTeacher(teacherId: number): Payslip | undefined {
+    const period = this.periodPayslipForTeacher(teacherId);
+    return period?.status === 'generated' ? period : undefined;
   }
 
   canInitiateDisburse(d: TeacherPaymentDetails): boolean {
     if (!d.bankDetailsComplete) return false;
-    return !!this.payslipForTeacher(d.teacherId);
+    if (!this.hasBankBasics(d) || !this.hasValidIfsc(d)) return false;
+    return !!this.generatedPayslipForTeacher(d.teacherId);
   }
 
   runDisburse(d: TeacherPaymentDetails): void {
     this.disburseInfo = '';
     this.genError = '';
-    if (!this.isValidPayrollPeriod(this.genMonth, Number(this.genYear))) {
-      this.genError = this.translate.instant('payroll.errPeriodInvalid');
+    const periodError = this.payrollPeriodValidationMessage();
+    if (periodError) {
+      this.genError = periodError;
       return;
     }
     if (!this.canInitiateDisburse(d)) return;
@@ -681,12 +1106,86 @@ export class PayrollComponent implements OnInit {
           amount: res.amount.toLocaleString('en-IN'),
           name: res.teacherName,
         });
+        this.refreshDisbursementQueue();
       },
       error: (error: unknown) => {
         this.disbursingTeacherId = null;
-        this.genError = this.resolveUiErrorMessage(error, 'payroll.genDisburseError');
+        this.genError = this.resolveDisburseErrorMessage(error);
       }
     });
+  }
+
+  openDisbursePreview(d: TeacherPaymentDetails): void {
+    this.genError = '';
+    const periodError = this.payrollPeriodValidationMessage();
+    if (periodError) {
+      this.genError = periodError;
+      return;
+    }
+    if (!this.canInitiateDisburse(d)) {
+      this.genError = `${this.translate.instant('payroll.disburseBlockedPrefix')} ${this.disburseReadinessIssues(d).join(' ')}`.trim();
+      return;
+    }
+    this.payoutPreviewTarget = d;
+    this.payoutPreviewAcknowledge = false;
+    this.payoutPreviewModal = true;
+  }
+
+  closePayoutPreview(): void {
+    this.payoutPreviewModal = false;
+    this.payoutPreviewAcknowledge = false;
+    this.payoutPreviewTarget = null;
+  }
+
+  confirmPayoutPreview(): void {
+    if (!this.payoutPreviewTarget || !this.payoutPreviewAcknowledge) {
+      return;
+    }
+    const target = this.payoutPreviewTarget;
+    this.closePayoutPreview();
+    this.runDisburse(target);
+  }
+
+  hasBankBasics(d: TeacherPaymentDetails): boolean {
+    return !!(d.bankAccountHolder?.trim() && d.bankName?.trim() && d.bankAccountMasked?.trim());
+  }
+
+  hasValidIfsc(d: TeacherPaymentDetails): boolean {
+    const ifsc = (d.bankIfsc || '').trim().toUpperCase();
+    return /^[A-Z]{4}0[A-Z0-9]{6}$/.test(ifsc);
+  }
+
+  disburseReadinessIssues(d: TeacherPaymentDetails): string[] {
+    const issues: string[] = [];
+    if (!this.hasBankBasics(d)) {
+      issues.push(this.translate.instant('payroll.disburseFixBankHint'));
+    }
+    if (!this.hasValidIfsc(d)) {
+      issues.push(this.translate.instant('payroll.disburseFixIfscHint'));
+    }
+    const periodPayslip = this.periodPayslipForTeacher(d.teacherId);
+    if (!periodPayslip) {
+      issues.push(this.translate.instant('payroll.generateFirst'));
+    } else if (periodPayslip.status === 'paid') {
+      issues.push(this.translate.instant('payroll.salaryAlreadyDisbursed'));
+    }
+    return issues;
+  }
+
+  isSalaryAlreadyDisbursed(d: TeacherPaymentDetails): boolean {
+    return this.periodPayslipForTeacher(d.teacherId)?.status === 'paid';
+  }
+
+  private resolveDisburseErrorMessage(error: unknown): string {
+    const raw = this.resolveUiErrorMessage(error, 'payroll.genDisburseError');
+    const msg = raw.toLowerCase();
+    if (msg.includes('bank account number')) {
+      return `${raw} ${this.translate.instant('payroll.disburseInvalidAccountHint')}`;
+    }
+    if (msg.includes('ifsc')) {
+      return `${raw} ${this.translate.instant('payroll.disburseFixIfscHint')}`;
+    }
+    return raw;
   }
 
   refreshPayroll(): void {
@@ -697,6 +1196,7 @@ export class PayrollComponent implements OnInit {
       this.structPageIndex = 0;
       this.loadAdminStructures();
       this.loadPaymentDetails();
+      this.refreshDisbursementQueue();
     }
     const full$ =
       this.isTeacher && !this.isAdmin
@@ -733,8 +1233,9 @@ export class PayrollComponent implements OnInit {
       this.genError = this.translate.instant('payroll.errMonthRequired');
       return;
     }
-    if (!this.isValidPayrollPeriod(this.genMonth, Number(this.genYear))) {
-      this.genError = this.translate.instant('payroll.errPeriodInvalid');
+    const periodError = this.payrollPeriodValidationMessage();
+    if (periodError) {
+      this.genError = periodError;
       return;
     }
     this.generating = true;
@@ -751,15 +1252,48 @@ export class PayrollComponent implements OnInit {
   }
 
   private isValidPayrollPeriod(month: string, year: number): boolean {
-    const currentYear = new Date().getFullYear();
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonthIndex = now.getMonth();
     if (!month || !month.trim()) {
       return false;
     }
-    if (!Number.isInteger(year) || year < 2000 || year > currentYear + 2) {
+    if (!Number.isInteger(year) || year < 2000 || year > currentYear) {
       return false;
     }
     const monthKey = month.trim().toLowerCase();
-    return this.monthNames.some(m => m.toLowerCase() === monthKey);
+    const monthIdx = this.monthNames.findIndex(m => m.toLowerCase() === monthKey);
+    if (monthIdx < 0) {
+      return false;
+    }
+    const selectedSerial = year * 12 + monthIdx;
+    const currentSerial = currentYear * 12 + currentMonthIndex;
+    const minAllowedSerial = currentSerial - 1;
+    return selectedSerial <= currentSerial && selectedSerial >= minAllowedSerial;
+  }
+
+  payrollPeriodValidationMessage(): string {
+    if (!this.genMonth || !this.genMonth.trim()) {
+      return this.translate.instant('payroll.errMonthRequired');
+    }
+    const year = Number(this.genYear);
+    if (!Number.isInteger(year) || year < 2000) {
+      return this.translate.instant('payroll.errYearRange');
+    }
+    if (this.isValidPayrollPeriod(this.genMonth, year)) {
+      return '';
+    }
+    const now = new Date();
+    const selectedMonthIdx = this.monthNames.findIndex(m => m.toLowerCase() === this.genMonth.trim().toLowerCase());
+    if (selectedMonthIdx < 0) {
+      return this.translate.instant('payroll.errPeriodInvalid');
+    }
+    const selectedSerial = year * 12 + selectedMonthIdx;
+    const currentSerial = now.getFullYear() * 12 + now.getMonth();
+    if (selectedSerial > currentSerial) {
+      return this.translate.instant('payroll.errFuturePeriodNotAllowed');
+    }
+    return this.translate.instant('payroll.errHistoryWindow');
   }
 
   openPdf(p: Payslip): void {
@@ -817,6 +1351,100 @@ export class PayrollComponent implements OnInit {
           error: () => (this.markingId = null),
         });
       });
+  }
+
+  refreshDisbursementQueue(): void {
+    if (!this.isAdmin) return;
+    this.queueError = '';
+    this.fetchQueueSummary();
+    this.fetchQueueAttempts();
+  }
+
+  setQueueFilter(next: '' | 'SUBMITTED' | 'COMPLETED' | 'FAILED'): void {
+    this.queueStatusFilter = next;
+    this.queuePageIndex = 0;
+    this.fetchQueueAttempts();
+  }
+
+  onQueuePageIndexChange(idx: number): void {
+    this.queuePageIndex = idx;
+    this.fetchQueueAttempts();
+  }
+
+  onQueuePageSizeChange(size: number): void {
+    this.queuePageSize = size;
+    this.queuePageIndex = 0;
+    this.fetchQueueAttempts();
+  }
+
+  private fetchQueueSummary(): void {
+    this.payrollService.getDisbursementSummary().subscribe({
+      next: summary => (this.disbursementSummary = summary),
+    });
+  }
+
+  private fetchQueueAttempts(): void {
+    this.payrollService.getDisbursementAttemptsPage(this.queuePageIndex, this.queuePageSize, this.queueStatusFilter || undefined).subscribe({
+      next: page => {
+        this.queueAttempts = page.content || [];
+        this.queuePaginationTotal = page.totalElements || 0;
+        this.queuePageIndex = page.page || 0;
+      },
+      error: (error: unknown) => {
+        this.queueError = this.resolveUiErrorMessage(error, 'payroll.queueUpdateFailed');
+        this.queueAttempts = [];
+      },
+    });
+  }
+
+  updateQueueStatus(attempt: PayrollDisbursementAttempt, next: 'COMPLETED' | 'FAILED'): void {
+    const isComplete = next === 'COMPLETED';
+    this.confirmDialog
+      .confirm({
+        title: isComplete ? this.translate.instant('payroll.confirmSettleTitle') : this.translate.instant('payroll.confirmFailTitle'),
+        message: isComplete
+          ? this.translate.instant('payroll.confirmSettleMessage', { name: attempt.teacherName || '-' })
+          : this.translate.instant('payroll.confirmFailMessage', { name: attempt.teacherName || '-' }),
+        details: [
+          this.translate.instant('payroll.queueRef') + `: ${attempt.referenceId || '-'}`,
+          this.translate.instant('payroll.thNetSalary') + `: ₹${Number(attempt.amount || 0).toLocaleString('en-IN')}`,
+        ],
+        variant: isComplete ? 'primary' : 'warning',
+        confirmLabel: isComplete ? this.translate.instant('payroll.markSettled') : this.translate.instant('payroll.markFailed'),
+      })
+      .pipe(filter(Boolean))
+      .subscribe(() => {
+        this.queueUpdatingId = attempt.id;
+        this.payrollService.updateDisbursementStatus(attempt.id, next).subscribe({
+          next: () => {
+            this.queueUpdatingId = null;
+            this.refreshDisbursementQueue();
+            this.refreshPayroll();
+          },
+          error: (error: unknown) => {
+            this.queueUpdatingId = null;
+            this.queueError = this.resolveUiErrorMessage(error, 'payroll.queueUpdateFailed');
+          },
+        });
+      });
+  }
+
+  disbursementStatusLabel(status: string): string {
+    const key = `payroll.disbursementStatus.${(status || '').toUpperCase()}`;
+    const translated = this.translate.instant(key);
+    return translated !== key ? translated : status;
+  }
+
+  isWebhookSyncedAttempt(attempt: PayrollDisbursementAttempt): boolean {
+    const msg = (attempt.lastMessage || '').toLowerCase();
+    return msg.includes('event') || msg.includes('razorpayx') || msg.includes('payload');
+  }
+
+  webhookStatusTooltip(attempt: PayrollDisbursementAttempt): string {
+    const detail = (attempt.lastMessage || '').trim();
+    const prefix = this.translate.instant('payroll.webhookSyncedTooltip');
+    if (!detail) return prefix;
+    return `${prefix}: ${detail.length > 120 ? detail.slice(0, 120) + '...' : detail}`;
   }
 
 }

@@ -108,6 +108,40 @@ public class FeeController {
         return ResponseEntity.ok(ApiResponse.ok(null, "Reminder queued"));
     }
 
+    @GetMapping("/payments/{paymentId}/transactions")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Fee transaction ledger", description = "Append-only transaction stream for one fee payment.")
+    public ResponseEntity<ApiResponse<List<FeeDTOs.FeeTransactionResponse>>> getPaymentTransactions(@PathVariable Long paymentId) {
+        return ResponseEntity.ok(ApiResponse.ok(service.getPaymentTransactions(paymentId)));
+    }
+
+    @PostMapping("/payments/{paymentId}/refunds/request")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Request fee refund", description = "Creates REFUND_REQUESTED transaction in immutable ledger.")
+    public ResponseEntity<ApiResponse<FeeDTOs.FeeTransactionResponse>> requestRefund(
+            @PathVariable Long paymentId,
+            @Valid @RequestBody FeeDTOs.FeeRefundRequest request) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.created(service.requestRefund(paymentId, request)));
+    }
+
+    @PostMapping("/payments/refunds/{transactionId}/approve")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Approve fee refund", description = "Creates REFUND_APPROVED transaction linked by refund reference.")
+    public ResponseEntity<ApiResponse<FeeDTOs.FeeTransactionResponse>> approveRefund(
+            @PathVariable Long transactionId,
+            @RequestBody FeeDTOs.FeeRefundDecisionRequest request) {
+        return ResponseEntity.ok(ApiResponse.ok(service.approveRefund(transactionId, request)));
+    }
+
+    @PostMapping("/payments/refunds/{transactionId}/execute")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Execute fee refund", description = "Creates REFUND_EXECUTED transaction and re-derives payment aggregate.")
+    public ResponseEntity<ApiResponse<FeeDTOs.FeeTransactionResponse>> executeRefund(
+            @PathVariable Long transactionId,
+            @RequestBody FeeDTOs.FeeRefundExecuteRequest request) {
+        return ResponseEntity.ok(ApiResponse.ok(service.executeRefund(transactionId, request)));
+    }
+
     public FeeController(final FeeService service, final OperationsService operationsService) {
         this.service = service;
         this.operationsService = operationsService;

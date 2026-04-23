@@ -2,7 +2,6 @@ package com.school.erp.modules.directory.service;
 
 import com.school.erp.common.dto.PageResponse;
 import com.school.erp.common.enums.Enums;
-import com.school.erp.modules.auth.entity.User;
 import com.school.erp.modules.auth.repository.UserRepository;
 import com.school.erp.modules.directory.dto.DirectoryDTOs;
 import com.school.erp.modules.operations.entity.OperationalStaff;
@@ -30,6 +29,7 @@ public class DirectoryService {
 
     private static final Logger log = LoggerFactory.getLogger(DirectoryService.class);
     private static final int CAP_PER_KIND = 25;
+    private static final Set<String> ALLOWED_KINDS = Set.of("teacher", "student", "staff");
 
     private final TeacherRepository teacherRepository;
     private final StudentRepository studentRepository;
@@ -57,8 +57,11 @@ public class DirectoryService {
             return res;
         }
         Set<String> kinds = kindsFilter == null || kindsFilter.isEmpty()
-                ? Set.of("teacher", "student", "staff", "user")
-                : kindsFilter.stream().map(k -> k.toLowerCase(Locale.ROOT)).collect(Collectors.toCollection(LinkedHashSet::new));
+                ? ALLOWED_KINDS
+                : kindsFilter.stream()
+                        .map(k -> k.toLowerCase(Locale.ROOT))
+                        .filter(ALLOWED_KINDS::contains)
+                        .collect(Collectors.toCollection(LinkedHashSet::new));
 
         List<DirectoryDTOs.Entry> merged = new ArrayList<>();
         if (kinds.contains("teacher")) {
@@ -69,9 +72,6 @@ public class DirectoryService {
         }
         if (kinds.contains("staff")) {
             merged.addAll(matchStaff(tenantId, q));
-        }
-        if (kinds.contains("user")) {
-            merged.addAll(matchUsers(tenantId, q));
         }
         merged.sort(Comparator.comparing(DirectoryDTOs.Entry::getDisplayName, String.CASE_INSENSITIVE_ORDER));
         res.setResults(merged);
@@ -116,14 +116,6 @@ public class DirectoryService {
                 .filter(s -> contains(s.getFullName(), null, s.getEmail(), q))
                 .limit(CAP_PER_KIND)
                 .map(this::toStaffEntry)
-                .collect(Collectors.toList());
-    }
-
-    private List<DirectoryDTOs.Entry> matchUsers(String tenantId, String q) {
-        return userRepository.findByTenantIdAndIsDeletedFalseOrderByNameAsc(tenantId).stream()
-                .filter(u -> contains(u.getName(), null, u.getEmail(), q))
-                .limit(CAP_PER_KIND)
-                .map(this::toUserEntry)
                 .collect(Collectors.toList());
     }
 
@@ -198,19 +190,4 @@ public class DirectoryService {
         return e;
     }
 
-    private DirectoryDTOs.Entry toUserEntry(User u) {
-        DirectoryDTOs.Entry e = new DirectoryDTOs.Entry();
-        e.setKind("user");
-        e.setId(u.getId());
-        e.setDisplayName(u.getName());
-        e.setSubtitle(u.getRole() != null ? u.getRole().name() : "User");
-        e.setEmail(u.getEmail());
-        e.setPhone(u.getPhone());
-        e.setDeepLink("/app/settings");
-        e.setChatUserId(String.valueOf(u.getId()));
-        if (u.getRole() != null) {
-            e.setChatTargetRole(u.getRole().name());
-        }
-        return e;
-    }
 }

@@ -121,8 +121,11 @@ public class PayrollController {
     @PostMapping("/disburse/initiate")
     @PreAuthorize("hasRole(\'ADMIN\')")
     @Operation(summary = "Initiate salary disbursement", description = "Uses generated payslip net amount and teacher bank profile; returns a bank reference for reconciliation")
-    public ResponseEntity<ApiResponse<PayrollDTOs.DisburseSalaryResponse>> initiateDisburse(@Valid @RequestBody PayrollDTOs.DisburseSalaryRequest req) {
-        return ResponseEntity.ok(ApiResponse.ok(service.initiateSalaryDisbursement(req)));
+    public ResponseEntity<ApiResponse<PayrollDTOs.DisburseSalaryResponse>> initiateDisburse(
+            @Valid @RequestBody PayrollDTOs.DisburseSalaryRequest req,
+            @RequestHeader(value = "X-Operation-Key", required = false) String operationKey,
+            @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey) {
+        return ResponseEntity.ok(ApiResponse.ok(service.initiateSalaryDisbursement(req, operationKey, idempotencyKey)));
     }
 
     @GetMapping("/disburse/attempts/paged")
@@ -147,8 +150,10 @@ public class PayrollController {
     @Operation(summary = "Reconcile disbursement status", description = "Updates queue attempt status and synchronizes payslip paid/generated state")
     public ResponseEntity<ApiResponse<PayrollDTOs.DisbursementAttemptResponse>> updateDisbursementStatus(
             @PathVariable Long id,
-            @Valid @RequestBody PayrollDTOs.UpdateDisbursementStatusRequest req) {
-        return ResponseEntity.ok(ApiResponse.ok(service.updateDisbursementStatus(id, req)));
+            @Valid @RequestBody PayrollDTOs.UpdateDisbursementStatusRequest req,
+            @RequestHeader(value = "X-Operation-Key", required = false) String operationKey,
+            @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey) {
+        return ResponseEntity.ok(ApiResponse.ok(service.updateDisbursementStatus(id, req, operationKey, idempotencyKey)));
     }
 
     @PostMapping("/demo/reset-finance-data")

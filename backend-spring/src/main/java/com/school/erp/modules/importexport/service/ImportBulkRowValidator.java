@@ -2,7 +2,7 @@ package com.school.erp.modules.importexport.service;
 
 import com.school.erp.common.enums.Enums;
 import com.school.erp.common.exception.BusinessException;
-import com.school.erp.modules.academic.repository.SchoolClassRepository;
+import com.school.erp.common.util.InternationalPhone;
 import com.school.erp.modules.teacher.repository.TeacherRepository;
 import com.school.erp.modules.importexport.ImportJobType;
 import com.school.erp.tenant.TenantContext;
@@ -29,14 +29,11 @@ public class ImportBulkRowValidator {
     private static final Pattern EMAIL_LENIENT = Pattern.compile("^[\\w.!#$%&'*+/=?^`{|}~-]+@[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+$");
 
     private final BulkImportAcademicResolver academicResolver;
-    private final SchoolClassRepository schoolClassRepository;
     private final TeacherRepository teacherRepository;
 
     public ImportBulkRowValidator(BulkImportAcademicResolver academicResolver,
-                                 SchoolClassRepository schoolClassRepository,
                                  TeacherRepository teacherRepository) {
         this.academicResolver = academicResolver;
-        this.schoolClassRepository = schoolClassRepository;
         this.teacherRepository = teacherRepository;
     }
 
@@ -109,12 +106,20 @@ public class ImportBulkRowValidator {
 
     private void validateTimetableRow(Map<String, String> row, boolean resolvePlacement) {
         String teacherEmail = blankToNull(row.get("teacheremail"));
+        String teacherPhoneRaw = blankToNull(row.get("teacherphone"));
         Long teacherId = parseOptionalLongRaw(row.get("teacherid"), "teacherid");
-        if (teacherEmail == null && teacherId == null) {
-            throw new BusinessException("teacheremail or teacherid is required");
+        int refCount = (teacherId != null ? 1 : 0) + (teacherEmail != null ? 1 : 0) + (teacherPhoneRaw != null ? 1 : 0);
+        if (refCount == 0) {
+            throw new BusinessException("Exactly one of teacherid, teacherphone, or teacheremail is required");
+        }
+        if (refCount > 1) {
+            throw new BusinessException("Use only one of teacherid, teacherphone, or teacheremail (not multiple)");
         }
         if (teacherEmail != null && !EMAIL_LENIENT.matcher(teacherEmail).matches()) {
             throw new BusinessException("Invalid email format in teacheremail column");
+        }
+        if (teacherPhoneRaw != null && InternationalPhone.canonical(teacherPhoneRaw) == null) {
+            throw new BusinessException(InternationalPhone.invalidMessage());
         }
         if (blankToNull(row.get("subjectname")) == null) {
             throw new BusinessException("subjectname is required");
@@ -145,6 +150,10 @@ public class ImportBulkRowValidator {
         if (teacherId != null) {
             teacherRepository.findByIdAndTenantIdAndIsDeletedFalse(teacherId, tenantId)
                     .orElseThrow(() -> new BusinessException("Teacher not found for teacherid: " + teacherId));
+        } else if (teacherPhoneRaw != null) {
+            String canon = InternationalPhone.canonical(teacherPhoneRaw);
+            teacherRepository.findByTenantIdAndPhoneAndIsDeletedFalse(tenantId, canon)
+                    .orElseThrow(() -> new BusinessException("Teacher not found for teacherphone: " + canon));
         } else if (teacherEmail != null) {
             teacherRepository.findByTenantIdAndEmailIgnoreCaseAndIsDeletedFalse(tenantId, teacherEmail)
                     .orElseThrow(() -> new BusinessException("Teacher not found for teacheremail: " + teacherEmail));
@@ -163,6 +172,10 @@ public class ImportBulkRowValidator {
         if (parentEmail != null && !EMAIL_LENIENT.matcher(parentEmail).matches()) {
             throw new BusinessException("Invalid email format in parentemail column");
         }
+        String parentPhone = blankToNull(row.get("parentphone"));
+        if (parentPhone == null) {
+            throw new BusinessException("parentphone is required");
+        }
         parseOptionalLocalDate(row.get("dateofbirth"), "dateofbirth");
         parseOptionalLocalDate(row.get("admissiondate"), "admissiondate");
         parseOptionalGender(row.get("gender"));
@@ -173,12 +186,26 @@ public class ImportBulkRowValidator {
     }
 
     private void validateTeacherRow(Map<String, String> row) {
-        if (blank(row.get("firstname")) || blank(row.get("lastname")) || blank(row.get("email"))) {
-            throw new BusinessException("firstname, lastname, and email are required");
+        if (blank(row.get("firstname")) || blank(row.get("lastname"))) {
+            throw new BusinessException("firstname and lastname are required");
+        }
+        String phone = blankToNull(row.get("phone"));
+        if (phone == null) {
+            throw new BusinessException("phone is required");
+        }
+        if (InternationalPhone.canonical(phone) == null) {
+            throw new BusinessException(InternationalPhone.invalidMessage());
         }
         String email = blankToNull(row.get("email"));
         if (email != null && !EMAIL_LENIENT.matcher(email).matches()) {
             throw new BusinessException("Invalid email format");
+        }
+        String portalPassword = blankToNull(row.get("portalpassword"));
+        if (portalPassword != null && portalPassword.length() < 8) {
+            throw new BusinessException("portalpassword must be at least 8 characters when provided");
+        }
+        if (portalPassword != null && email == null) {
+            throw new BusinessException("email is required when portalpassword is provided");
         }
         parseOptionalLocalDate(row.get("joindate"), "joindate");
         parseOptionalBigDecimal(row.get("salary"), "salary");
@@ -192,17 +219,13 @@ public class ImportBulkRowValidator {
             throw new BusinessException("name and grade are required");
         }
         parseIntStrict(row.get("grade"), "grade");
-        long ayId = academicResolver.resolveAcademicYearId(row.get("academicyearid"));
-        String tenantId = TenantContext.getTenantId();
+        academicResolver.resolveAcademicYearId(row.get("academicyearid"));
 
         String className = row.get("name").trim();
         if (className.isEmpty()) {
             throw new BusinessException("name and grade are required");
         }
-        if (schoolClassRepository.findFirstByTenantIdAndAcademicYearIdAndNameIgnoreCaseAndIsDeletedFalse(tenantId, ayId, className)
-                .isPresent()) {
-            throw new BusinessException("Class name must be unique within the selected academic year.");
-        }
+        // Existing classes are valid in re-import flows. Runtime import logic decides create/update/skip safely.
 
         String rawSections = row.get("sections");
         if (rawSections != null && !rawSections.isBlank()) {

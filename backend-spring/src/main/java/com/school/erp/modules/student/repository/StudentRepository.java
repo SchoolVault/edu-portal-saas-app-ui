@@ -44,6 +44,7 @@ public interface StudentRepository extends JpaRepository<Student, Long> {
     long countByTenantIdAndClassIdAndIsDeletedFalseAndStatus(String tenantId, Long classId, Enums.StudentStatus status);
 
     List<Student> findByTenantIdAndParentIdAndIsDeletedFalse(String tenantId, Long parentId);
+    List<Student> findByTenantIdAndParentIdInAndIsDeletedFalse(String tenantId, java.util.Collection<Long> parentIds);
     long countByTenantIdAndParentIdAndIsDeletedFalse(String tenantId, Long parentId);
 
     List<Student> findByTenantIdAndIdInAndIsDeletedFalse(String tenantId, List<Long> ids);

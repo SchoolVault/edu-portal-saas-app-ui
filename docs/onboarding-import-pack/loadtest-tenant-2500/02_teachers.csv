@@ -1,4 +1,4 @@
-firstname,lastname,email,phone,qualification,specialization,joindate,salary,subjects,createportal,portalrole,libraryrole,importmode,bankaccountholder,bankname,bankaccountnumber,bankifsc,notifycredentials
+firstname,lastname,email,phone,qualification,specialization,joindate,salary,subjects,createportal,portalrole,libraryrole,importmode,bankaccountholder,bankname,bankaccountnumber,bankifsc,notifycredentials,portalpassword
 Amit,Sharma,amit.sharma.001@benchmarkschool.in,9870000000,M.Ed,Mathematics,2024-04-01,42000,Mathematics,Y,TEACHER,AUTO,UPSERT,Amit Sharma,HDFC Bank,6040000000001,HDFC0002200,N
 Neha,Kapoor,neha.kapoor.002@benchmarkschool.in,9870000001,M.Sc,Science,2024-04-01,43800,Science,Y,TEACHER,AUTO,UPSERT,Neha Kapoor,ICICI Bank,6040000000002,ICIC0002201,N
 Rohan,Singh,rohan.singh.003@benchmarkschool.in,9870000002,M.A,English,2024-04-01,45600,English,Y,TEACHER,AUTO,UPSERT,Rohan Singh,SBI,6040000000003,SBIN0002202,N

@@ -71,6 +71,8 @@ export class ErpDatePickerComponent
   @Input() placeholderI18nKey = '';
   @Input() minDate: string | Date | undefined;
   @Input() maxDate: string | Date | undefined;
+  /** date = YYYY-MM-DD, datetime = YYYY-MM-DDTHH:mm */
+  @Input() mode: 'date' | 'datetime' = 'date';
 
   @ViewChild('host', { static: true }) hostRef!: ElementRef<HTMLInputElement>;
 
@@ -100,14 +102,19 @@ export class ErpDatePickerComponent
 
   ngAfterViewInit(): void {
     const el = this.hostRef.nativeElement;
+    const isDateTime = this.mode === 'datetime';
     const opts: Partial<FlatpickrOptions> = {
-      dateFormat: 'Y-m-d',
+      dateFormat: isDateTime ? 'Y-m-d\\TH:i' : 'Y-m-d',
       altInput: true,
-      altFormat: 'd/m/Y',
+      altFormat: isDateTime ? 'd/m/Y, H:i' : 'd/m/Y',
+      enableTime: isDateTime,
+      time_24hr: true,
       altInputClass: 'erp-input erp-date-picker__visible',
       allowInput: false,
       clickOpens: !this.isDisabled,
       disableMobile: true,
+      /** Keep calendar aligned to its own field (left edge) across forms/modals. */
+      position: 'auto left',
       monthSelectorType: 'static',
       defaultDate: this.value || undefined,
       minDate: this.minDate,
@@ -117,7 +124,9 @@ export class ErpDatePickerComponent
         this.onChange(dateStr);
       },
       onOpen: () => this.onTouched(),
-      onReady: (_d, _s, inst) => this.attachFooter(inst),
+      onReady: (_d, _s, inst) => {
+        this.attachFooter(inst);
+      },
     };
     this.fp = flatpickr(el, opts);
     this.syncFlatpickrPlaceholders();
@@ -204,4 +213,5 @@ export class ErpDatePickerComponent
     });
     cal.appendChild(foot);
   }
+
 }

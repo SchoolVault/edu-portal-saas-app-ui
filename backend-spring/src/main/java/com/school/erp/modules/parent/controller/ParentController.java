@@ -144,15 +144,20 @@ public class ParentController {
 
     @PostMapping("/payments/checkout-session")
     @Operation(summary = "Create a parent checkout session")
-    public ResponseEntity<ApiResponse<FeeDTOs.CheckoutSessionResponse>> createCheckoutSession(@RequestBody FeeDTOs.CreateCheckoutSessionRequest request) {
-        return ResponseEntity.ok(ApiResponse.ok(feeService.createCheckoutSession(request)));
+    public ResponseEntity<ApiResponse<FeeDTOs.CheckoutSessionResponse>> createCheckoutSession(
+            @RequestBody FeeDTOs.CreateCheckoutSessionRequest request,
+            @RequestHeader(value = "X-Operation-Key", required = false) String operationKey,
+            @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey) {
+        return ResponseEntity.ok(ApiResponse.ok(feeService.createCheckoutSession(request, operationKey, idempotencyKey)));
     }
 
     @PostMapping("/payments/checkout-session/{attemptId}/confirm")
     @Operation(summary = "Confirm a parent checkout session")
     public ResponseEntity<ApiResponse<FeeDTOs.PaymentReceiptResponse>> confirmCheckout(@PathVariable Long attemptId,
-                                                                                       @RequestBody FeeDTOs.ConfirmCheckoutRequest request) {
-        return ResponseEntity.ok(ApiResponse.ok(feeService.confirmCheckout(attemptId, request), "Payment confirmed"));
+                                                                                       @RequestBody FeeDTOs.ConfirmCheckoutRequest request,
+                                                                                       @RequestHeader(value = "X-Operation-Key", required = false) String operationKey,
+                                                                                       @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey) {
+        return ResponseEntity.ok(ApiResponse.ok(feeService.confirmCheckout(attemptId, request, operationKey, idempotencyKey), "Payment confirmed"));
     }
 
     @GetMapping("/payments/receipts/{receiptNumber}")

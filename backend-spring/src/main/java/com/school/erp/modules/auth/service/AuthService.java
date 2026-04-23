@@ -8,6 +8,7 @@ import com.school.erp.common.exception.DuplicateResourceException;
 import com.school.erp.common.exception.ResourceNotFoundException;
 import com.school.erp.common.exception.UnauthorizedException;
 import com.school.erp.modules.auth.dto.AuthDTOs;
+import com.school.erp.modules.auth.dto.AuthIdentityDTOs;
 import com.school.erp.modules.auth.dto.AuthManagementDTOs;
 import com.school.erp.modules.auth.dto.AuthPersonalProfileDTOs;
 import com.school.erp.modules.auth.dto.AuthProfileDTOs;
@@ -66,12 +67,14 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
     private final AuditTrailPort auditTrailPort;
+    private final EmailVerificationService emailVerificationService;
 
     @Transactional
     public AuthDTOs.LoginResponse login(AuthDTOs.LoginRequest request) {
         String schoolCode = request.getSchoolCode().trim().toUpperCase(Locale.ROOT);
         log.debug("Login attempt schoolCode={}", schoolCode);
         User user;
+        boolean emailLogin = request.getPhone() == null || request.getPhone().isBlank();
         if (request.getPhone() != null && !request.getPhone().isBlank()) {
             String canonicalPhone = InternationalPhone.canonical(request.getPhone().trim());
             if (canonicalPhone == null) {
@@ -84,6 +87,17 @@ public class AuthService {
         } else {
             user = userRepository.findByEmailAndSchoolCodeAndIsDeletedFalse(request.getEmail().trim().toLowerCase(Locale.ROOT), schoolCode)
                     .orElseThrow(() -> new UnauthorizedException("Invalid credentials or school code"));
+        }
+        if (emailLogin) {
+            if (isSyntheticEmail(user.getEmail())) {
+                throw new UnauthorizedException("Email/password login is not available for this account. Use phone OTP and set a verified email in profile.");
+            }
+            if (!Boolean.TRUE.equals(user.getEmailVerified())) {
+                throw new UnauthorizedException("Email is not verified yet. Verify email from profile or login with phone OTP.");
+            }
+        }
+        if (user.getPassword() == null || user.getPassword().isBlank()) {
+            throw new UnauthorizedException("Password is not set for this account. Login with phone OTP and set password from profile.");
         }
         if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
             throw new UnauthorizedException("Invalid credentials or school code");
@@ -364,7 +378,11 @@ public class AuthService {
             if (canonicalPhone != null) {
                 ensurePhoneNotUsedByAnotherUser(tenantId, userId, canonicalPhone);
             }
+            String priorPhone = user.getPhone();
             user.setPhone(canonicalPhone);
+            if (!Objects.equals(priorPhone, canonicalPhone)) {
+                user.setPhoneVerified(false);
+            }
         }
         if (request.getAvatar() != null) {
             user.setAvatar(trimToNull(request.getAvatar()));
@@ -416,7 +434,29 @@ public class AuthService {
             if (canonicalPhone != null) {
                 ensurePhoneNotUsedByAnotherUser(tenantId, userId, canonicalPhone);
             }
+            String priorPhone = user.getPhone();
             user.setPhone(canonicalPhone);
+            if (!Objects.equals(priorPhone, canonicalPhone)) {
+                user.setPhoneVerified(false);
+            }
+        }
+        if (request.getEmail() != null) {
+            String normalizedEmail = trimToNull(request.getEmail());
+            if (normalizedEmail != null) {
+                normalizedEmail = normalizedEmail.toLowerCase(Locale.ROOT);
+                if (isSyntheticEmail(normalizedEmail)) {
+                    throw new BusinessException("Use a real email address. Synthetic addresses are not allowed.");
+                }
+                User existingEmailUser = userRepository.findByEmailAndTenantIdAndIsDeletedFalse(normalizedEmail, tenantId).orElse(null);
+                if (existingEmailUser != null && !Objects.equals(existingEmailUser.getId(), userId)) {
+                    throw new DuplicateResourceException("Email already registered in this school");
+                }
+            }
+            String oldEmail = user.getEmail();
+            user.setEmail(normalizedEmail);
+            if (!Objects.equals(oldEmail, normalizedEmail)) {
+                user.setEmailVerified(false);
+            }
         }
 
         if (user.getRole() == Enums.Role.TEACHER) {
@@ -443,6 +483,9 @@ public class AuthService {
             if (request.getPhone() != null) {
                 teacher.setPhone(user.getPhone());
             }
+            if (request.getEmail() != null) {
+                teacher.setEmail(user.getEmail());
+            }
             if (request.getAvatar() != null) {
                 teacher.setAvatar(user.getAvatar());
             }
@@ -458,8 +501,101 @@ public class AuthService {
         User user = userRepository.findByIdAndTenantIdAndIsDeletedFalse(TenantContext.getUserId(), TenantContext.getTenantId()).orElseThrow(() -> new ResourceNotFoundException("User", TenantContext.getUserId()));
         if (!passwordEncoder.matches(request.getCurrentPassword(), user.getPassword())) throw new BusinessException("Current password is incorrect");
         user.setPassword(passwordEncoder.encode(request.getNewPassword()));
+        user.setPasswordChangedAt(LocalDateTime.now());
         userRepository.save(user);
         log.info("Password changed for user: {}", user.getEmail());
+    }
+
+    @Transactional
+    public AuthDTOs.UserProfile setPasswordAfterVerifiedIdentity(AuthIdentityDTOs.SetPasswordRequest request) {
+        User user = userRepository.findByIdAndTenantIdAndIsDeletedFalse(TenantContext.getUserId(), TenantContext.getTenantId())
+                .orElseThrow(() -> new ResourceNotFoundException("User", TenantContext.getUserId()));
+        if (!Boolean.TRUE.equals(user.getPhoneVerified()) && !Boolean.TRUE.equals(user.getEmailVerified())) {
+            throw new BusinessException("Verify email or phone before setting password.");
+        }
+        user.setPassword(passwordEncoder.encode(request.getNewPassword()));
+        user.setPasswordChangedAt(LocalDateTime.now());
+        userRepository.save(user);
+        auditTrailPort.logAction(
+                Enums.AuditAction.UPDATE,
+                "AUTH",
+                "Password set via verified identity",
+                user.getId(),
+                "USER",
+                null,
+                "password_changed");
+        return toProfile(user);
+    }
+
+    @Transactional
+    public AuthIdentityDTOs.IdentityUpdateResponse updateLoginEmail(AuthIdentityDTOs.ChangeEmailRequest request) {
+        String tenantId = TenantContext.getTenantId();
+        Long userId = TenantContext.getUserId();
+        User user = userRepository.findByIdAndTenantIdAndIsDeletedFalse(userId, tenantId)
+                .orElseThrow(() -> new ResourceNotFoundException("User", userId));
+        String newEmail = request.getEmail().trim().toLowerCase(Locale.ROOT);
+        if (isSyntheticEmail(newEmail)) {
+            throw new BusinessException("Use a real email address. Synthetic addresses are not allowed.");
+        }
+        if (!newEmail.equalsIgnoreCase(user.getEmail())
+                && userRepository.existsByEmailAndTenantIdAndIsDeletedFalse(newEmail, tenantId)) {
+            throw new DuplicateResourceException("Email already registered in this school");
+        }
+        String oldEmail = user.getEmail();
+        user.setEmail(newEmail);
+        user.setEmailVerified(false);
+        userRepository.save(user);
+        teacherRepository.findByTenantIdAndUserIdAndIsDeletedFalse(tenantId, userId).ifPresent(teacher -> {
+            teacher.setEmail(newEmail);
+            teacherRepository.save(teacher);
+        });
+        AuthDTOs.EmailVerificationRequestResponse verify = emailVerificationService.requestVerificationForCurrentUser();
+        auditTrailPort.logAction(
+                Enums.AuditAction.UPDATE,
+                "AUTH",
+                "Login email changed; verification pending",
+                userId,
+                "USER",
+                oldEmail,
+                newEmail);
+        AuthIdentityDTOs.IdentityUpdateResponse out = new AuthIdentityDTOs.IdentityUpdateResponse();
+        out.setUser(toProfile(user));
+        out.setMessage("Email updated. Verification is required before email/password login.");
+        out.setDevVerificationToken(verify.getDevOneTimeToken());
+        return out;
+    }
+
+    @Transactional
+    public AuthIdentityDTOs.IdentityUpdateResponse updateLoginPhone(AuthIdentityDTOs.ChangePhoneRequest request) {
+        String tenantId = TenantContext.getTenantId();
+        Long userId = TenantContext.getUserId();
+        User user = userRepository.findByIdAndTenantIdAndIsDeletedFalse(userId, tenantId)
+                .orElseThrow(() -> new ResourceNotFoundException("User", userId));
+        String canonicalPhone = InternationalPhone.canonical(request.getPhone().trim());
+        if (canonicalPhone == null) {
+            throw new BusinessException(InternationalPhone.invalidMessage());
+        }
+        ensurePhoneNotUsedByAnotherUser(tenantId, userId, canonicalPhone);
+        String oldPhone = user.getPhone();
+        user.setPhone(canonicalPhone);
+        user.setPhoneVerified(false);
+        userRepository.save(user);
+        teacherRepository.findByTenantIdAndUserIdAndIsDeletedFalse(tenantId, userId).ifPresent(teacher -> {
+            teacher.setPhone(canonicalPhone);
+            teacherRepository.save(teacher);
+        });
+        auditTrailPort.logAction(
+                Enums.AuditAction.UPDATE,
+                "AUTH",
+                "Login phone changed; OTP verification required",
+                userId,
+                "USER",
+                oldPhone,
+                canonicalPhone);
+        AuthIdentityDTOs.IdentityUpdateResponse out = new AuthIdentityDTOs.IdentityUpdateResponse();
+        out.setUser(toProfile(user));
+        out.setMessage("Phone updated. Verify with OTP on next login.");
+        return out;
     }
 
     @Transactional
@@ -489,6 +625,8 @@ public class AuthService {
                 .tenantId(user.getTenantId())
                 .avatar(user.getAvatar())
                 .interfaceLocale(InterfaceLocale.orDefault(user.getPreferredLocale()))
+                .emailVerified(Boolean.TRUE.equals(user.getEmailVerified()))
+                .phoneVerified(Boolean.TRUE.equals(user.getPhoneVerified()))
                 .build();
     }
 
@@ -502,6 +640,8 @@ public class AuthService {
         out.setTenantId(user.getTenantId());
         out.setAvatar(user.getAvatar());
         out.setInterfaceLocale(InterfaceLocale.orDefault(user.getPreferredLocale()));
+        out.setEmailVerified(Boolean.TRUE.equals(user.getEmailVerified()));
+        out.setPhoneVerified(Boolean.TRUE.equals(user.getPhoneVerified()));
 
         if (user.getRole() == Enums.Role.TEACHER) {
             teacherRepository.findByTenantIdAndUserIdAndIsDeletedFalse(user.getTenantId(), user.getId()).ifPresent(t -> {
@@ -512,11 +652,11 @@ public class AuthService {
                 out.setBankAccountNumber(t.getBankAccountNumber());
                 out.setBankIfsc(t.getBankIfsc());
             });
-            out.setEditableScopes(List.of("name", "phone", "avatar", "qualification", "specialization", "bank"));
+            out.setEditableScopes(List.of("name", "email", "phone", "avatar", "qualification", "specialization", "bank"));
         } else if (user.getRole() == Enums.Role.PARENT || user.getRole() == Enums.Role.ADMIN || user.getRole() == Enums.Role.SUPER_ADMIN) {
-            out.setEditableScopes(List.of("name", "phone", "avatar"));
+            out.setEditableScopes(List.of("name", "email", "phone", "avatar"));
         } else {
-            out.setEditableScopes(List.of("name", "avatar"));
+            out.setEditableScopes(List.of("name", "email", "avatar"));
         }
         return out;
     }
@@ -617,7 +757,8 @@ public class AuthService {
             final TimetableRepository timetableRepository,
             final PasswordEncoder passwordEncoder,
             final JwtUtil jwtUtil,
-            final AuditTrailPort auditTrailPort) {
+            final AuditTrailPort auditTrailPort,
+            final EmailVerificationService emailVerificationService) {
         this.userRepository = userRepository;
         this.refreshTokenRepository = refreshTokenRepository;
         this.tenantConfigRepository = tenantConfigRepository;
@@ -632,6 +773,15 @@ public class AuthService {
         this.passwordEncoder = passwordEncoder;
         this.jwtUtil = jwtUtil;
         this.auditTrailPort = auditTrailPort;
+        this.emailVerificationService = emailVerificationService;
+    }
+
+    private static boolean isSyntheticEmail(String email) {
+        if (email == null || email.isBlank()) {
+            return false;
+        }
+        String normalized = email.trim().toLowerCase(Locale.ROOT);
+        return normalized.endsWith("@phone.schoolvault.local");
     }
 
     /**

@@ -20,6 +20,8 @@ public class AuthPersonalProfileDTOs {
         private String bankName;
         private String bankAccountNumber;
         private String bankIfsc;
+        private Boolean emailVerified;
+        private Boolean phoneVerified;
         private List<String> editableScopes;
 
         public Long getId() { return id; }
@@ -50,6 +52,10 @@ public class AuthPersonalProfileDTOs {
         public void setBankAccountNumber(String bankAccountNumber) { this.bankAccountNumber = bankAccountNumber; }
         public String getBankIfsc() { return bankIfsc; }
         public void setBankIfsc(String bankIfsc) { this.bankIfsc = bankIfsc; }
+        public Boolean getEmailVerified() { return emailVerified; }
+        public void setEmailVerified(Boolean emailVerified) { this.emailVerified = emailVerified; }
+        public Boolean getPhoneVerified() { return phoneVerified; }
+        public void setPhoneVerified(Boolean phoneVerified) { this.phoneVerified = phoneVerified; }
         public List<String> getEditableScopes() { return editableScopes; }
         public void setEditableScopes(List<String> editableScopes) { this.editableScopes = editableScopes; }
     }
@@ -59,6 +65,8 @@ public class AuthPersonalProfileDTOs {
         private String name;
         @Size(max = 40)
         private String phone;
+        @Size(max = 150)
+        private String email;
         @Size(max = 500)
         private String avatar;
         @Size(max = 200)
@@ -78,6 +86,8 @@ public class AuthPersonalProfileDTOs {
         public void setName(String name) { this.name = name; }
         public String getPhone() { return phone; }
         public void setPhone(String phone) { this.phone = phone; }
+        public String getEmail() { return email; }
+        public void setEmail(String email) { this.email = email; }
         public String getAvatar() { return avatar; }
         public void setAvatar(String avatar) { this.avatar = avatar; }
         public String getQualification() { return qualification; }

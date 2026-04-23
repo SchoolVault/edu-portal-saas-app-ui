@@ -18,6 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
@@ -36,6 +37,20 @@ public class DashboardSnapshotService {
 
     @Value("${app.reports.snapshots.max-age-minutes:20}")
     private int maxSnapshotAgeMinutes;
+
+    @Value("${app.reports.snapshots.freshness-mode:strict_realtime}")
+    private String freshnessModeConfig;
+
+    @Value("${app.reports.snapshots.microcache-ttl-seconds:15}")
+    private int microcacheTtlSeconds;
+
+    /**
+     * Comma-separated snapshot type patterns that must always be recomputed before response.
+     * Supports exact names (e.g., DASHBOARD_TEACHER) and prefix wildcard (e.g., DASHBOARD_*).
+     * Default keeps all dashboards strongly consistent.
+     */
+    @Value("${app.reports.snapshots.realtime-snapshot-types:DASHBOARD_*}")
+    private String realtimeSnapshotTypesConfig;
 
     public DashboardSnapshotService(
             DashboardSnapshotRepository dashboardSnapshotRepository,
@@ -137,13 +152,22 @@ public class DashboardSnapshotService {
                     tenantId, snapshotType, roleCode, scopeKey, existingRows.size());
         }
         LocalDateTime now = LocalDateTime.now();
+        boolean realtimeSnapshotType = isRealtimeSnapshotType(snapshotType);
+        FreshnessMode freshnessMode = resolveFreshnessMode();
+        long ttlSeconds = Math.max(1, Math.min(microcacheTtlSeconds, 60));
         if (existing != null) {
             DashboardSnapshot row = existing;
-            if (!Boolean.TRUE.equals(row.getRefreshRequired())
+            boolean allowedByMicrocache = freshnessMode == FreshnessMode.REALTIME_WITH_MICROCACHE
+                    && realtimeSnapshotType
                     && row.getGeneratedAt() != null
-                    && row.getGeneratedAt().isAfter(now.minusMinutes(Math.max(5, maxSnapshotAgeMinutes)))) {
+                    && row.getGeneratedAt().isAfter(now.minusSeconds(ttlSeconds));
+            boolean allowedBySnapshotAge = !realtimeSnapshotType
+                    && row.getGeneratedAt() != null
+                    && row.getGeneratedAt().isAfter(now.minusMinutes(Math.max(5, maxSnapshotAgeMinutes)));
+            if (!Boolean.TRUE.equals(row.getRefreshRequired()) && (allowedByMicrocache || allowedBySnapshotAge)) {
                 try {
                     T cachedPayload = readPayload(row.getPayloadJson(), typeReference);
+                    applyComputedAt(cachedPayload, row.getGeneratedAt() != null ? row.getGeneratedAt() : now);
                     reportPerformanceMetricsService.recordSnapshotHit(snapshotType);
                     return cachedPayload;
                 } catch (Exception ex) {
@@ -170,7 +194,59 @@ public class DashboardSnapshotService {
             row.setCacheVersion(1);
         }
         saveSnapshotBestEffort(row, "upsert-snapshot");
+        applyComputedAt(freshPayload, now);
         return freshPayload;
+    }
+
+    @SuppressWarnings("unchecked")
+    private void applyComputedAt(Object payload, LocalDateTime computedAt) {
+        if (payload == null || computedAt == null) {
+            return;
+        }
+        String iso = computedAt.toString();
+        if (payload instanceof ReportDashboardDTOs.AdminDashboardResponse admin) {
+            admin.setDataComputedAt(iso);
+            return;
+        }
+        if (payload instanceof ReportDashboardDTOs.TeacherDashboardResponse teacher) {
+            teacher.setDataComputedAt(iso);
+            return;
+        }
+        if (payload instanceof ParentDashboardDtos.Response parent) {
+            parent.setDataComputedAt(iso);
+            return;
+        }
+        if (payload instanceof Map<?, ?> mapPayload) {
+            Map<String, Object> writablePayload = (Map<String, Object>) mapPayload;
+            writablePayload.put("dataComputedAt", iso);
+        }
+    }
+
+    private boolean isRealtimeSnapshotType(String snapshotType) {
+        String normalizedType = snapshotType == null ? "" : snapshotType.trim().toUpperCase();
+        if (normalizedType.isBlank()) {
+            return false;
+        }
+        String configValue = realtimeSnapshotTypesConfig == null ? "" : realtimeSnapshotTypesConfig;
+        return Arrays.stream(configValue.split(","))
+                .map(String::trim)
+                .filter(s -> !s.isBlank())
+                .map(s -> s.toUpperCase())
+                .anyMatch(pattern -> {
+                    if (pattern.endsWith("*")) {
+                        String prefix = pattern.substring(0, pattern.length() - 1);
+                        return normalizedType.startsWith(prefix);
+                    }
+                    return normalizedType.equals(pattern);
+                });
+    }
+
+    private FreshnessMode resolveFreshnessMode() {
+        String modeRaw = freshnessModeConfig == null ? "" : freshnessModeConfig.trim().toLowerCase();
+        if ("realtime_with_microcache".equals(modeRaw)) {
+            return FreshnessMode.REALTIME_WITH_MICROCACHE;
+        }
+        return FreshnessMode.STRICT_REALTIME;
     }
 
     /** Keep dashboard snapshots isolated per authenticated user inside a tenant. */
@@ -225,5 +301,10 @@ public class DashboardSnapshotService {
         } catch (Exception ex) {
             throw new BusinessException("Unable to deserialize dashboard snapshot payload");
         }
+    }
+
+    private enum FreshnessMode {
+        STRICT_REALTIME,
+        REALTIME_WITH_MICROCACHE
     }
 }

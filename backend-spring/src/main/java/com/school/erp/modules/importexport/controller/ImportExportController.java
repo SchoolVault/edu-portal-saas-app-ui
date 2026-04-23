@@ -93,10 +93,11 @@ public class ImportExportController {
             @RequestParam("jobType") String jobType,
             @RequestParam("file") MultipartFile file,
             @RequestParam(value = "columnMappingJson", required = false) String columnMappingJson,
+            @RequestParam(value = "executionMode", required = false) String executionMode,
             @RequestParam(value = "schoolCode", required = false) String schoolCode) {
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.created(runInImportTenant(schoolCode,
-                        () -> importJobService.submit(file, jobType, columnMappingJson))));
+                        () -> importJobService.submit(file, jobType, columnMappingJson, executionMode))));
     }
 
     private <T> T runInImportTenant(String schoolCode, Supplier<T> operation) {
@@ -149,6 +150,28 @@ public class ImportExportController {
             @RequestParam(value = "schoolCode", required = false) String schoolCode) {
         return ResponseEntity.ok(ApiResponse.ok(runInImportTenant(schoolCode,
                 () -> importJobService.getLines(jobId, page, size))));
+    }
+
+    @GetMapping("/jobs/{jobId}/ledger")
+    @PreAuthorize("hasAnyRole('ADMIN','SUPER_ADMIN')")
+    @Operation(summary = "Per-row ledger: created / updated / skipped for the job (replay and rollback context)")
+    public ResponseEntity<ApiResponse<PageResponse<ImportExportDTOs.LedgerLineResponse>>> getLedger(
+            @PathVariable Long jobId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "100") int size,
+            @RequestParam(value = "schoolCode", required = false) String schoolCode) {
+        return ResponseEntity.ok(ApiResponse.ok(runInImportTenant(schoolCode,
+                () -> importJobService.getLedger(jobId, page, size))));
+    }
+
+    @GetMapping("/jobs/{jobId}/rollback-brief")
+    @PreAuthorize("hasAnyRole('ADMIN','SUPER_ADMIN')")
+    @Operation(summary = "Guided rollback summary for operators (no automatic deletes)")
+    public ResponseEntity<ApiResponse<ImportExportDTOs.RollbackBundleResponse>> getRollbackBrief(
+            @PathVariable Long jobId,
+            @RequestParam(value = "schoolCode", required = false) String schoolCode) {
+        return ResponseEntity.ok(ApiResponse.ok(runInImportTenant(schoolCode,
+                () -> importJobService.getRollbackBundle(jobId))));
     }
 
     @PostMapping("/jobs/{jobId}/retry-failed")

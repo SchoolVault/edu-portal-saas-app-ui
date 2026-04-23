@@ -3,7 +3,17 @@ import { Observable, of, throwError } from 'rxjs';
 import { delay, map } from 'rxjs/operators';
 import { MOCK_FEE_PAYMENTS_SEED, MOCK_FEE_STRUCTURES_SEED } from '../mocks/fee.mock-data';
 import { MOCK_STUDENTS } from '../mocks/students.mock-data';
-import { BulkAssignFeesRequest, BulkAssignFeesResponse, FeeStructure, FeePayment, FeeCollectionSummary } from '../models/models';
+import {
+  BulkAssignFeesRequest,
+  BulkAssignFeesResponse,
+  FeeCollectionSummary,
+  FeePayment,
+  FeeRefundDecisionRequest,
+  FeeRefundExecuteRequest,
+  FeeRefundRequest,
+  FeeStructure,
+  FeeTransaction,
+} from '../models/models';
 import { ApiService, PageResp } from './api.service';
 import { AuthService } from './auth.service';
 import { runtimeConfig } from '../config/runtime-config';
@@ -239,6 +249,70 @@ export class FeeService {
     });
   }
 
+  getPaymentTransactions(paymentId: number): Observable<FeeTransaction[]> {
+    if (!runtimeConfig.useMocks) {
+      return this.api.get<any[]>(`/fees/payments/${paymentId}/transactions`).pipe(
+        map(rows => (rows ?? []).map(item => this.normalizeTransaction(item)))
+      );
+    }
+    return of([]).pipe(delay(180));
+  }
+
+  requestRefund(paymentId: number, req: FeeRefundRequest): Observable<FeeTransaction> {
+    if (!runtimeConfig.useMocks) {
+      return this.api.post<any>(`/fees/payments/${paymentId}/refunds/request`, req).pipe(
+        map(item => this.normalizeTransaction(item))
+      );
+    }
+    return of({
+      id: Date.now(),
+      feePaymentId: paymentId,
+      eventType: 'REFUND_REQUESTED',
+      eventStatus: 'REQUESTED',
+      amount: Number(req.amount ?? 0),
+      currency: 'INR',
+      note: req.reason ?? '',
+      occurredAt: new Date().toISOString(),
+    }).pipe(delay(250));
+  }
+
+  approveRefund(transactionId: number, req: FeeRefundDecisionRequest): Observable<FeeTransaction> {
+    if (!runtimeConfig.useMocks) {
+      return this.api.post<any>(`/fees/payments/refunds/${transactionId}/approve`, req).pipe(
+        map(item => this.normalizeTransaction(item))
+      );
+    }
+    return of({
+      id: Date.now(),
+      feePaymentId: 0,
+      eventType: 'REFUND_APPROVED',
+      eventStatus: 'APPROVED',
+      amount: 0,
+      currency: 'INR',
+      note: req.note ?? '',
+      occurredAt: new Date().toISOString(),
+    }).pipe(delay(250));
+  }
+
+  executeRefund(transactionId: number, req: FeeRefundExecuteRequest): Observable<FeeTransaction> {
+    if (!runtimeConfig.useMocks) {
+      return this.api.post<any>(`/fees/payments/refunds/${transactionId}/execute`, req).pipe(
+        map(item => this.normalizeTransaction(item))
+      );
+    }
+    return of({
+      id: Date.now(),
+      feePaymentId: 0,
+      eventType: 'REFUND_EXECUTED',
+      eventStatus: 'RECONCILED',
+      amount: 0,
+      currency: 'INR',
+      providerPaymentId: req.providerRefundId ?? '',
+      note: req.note ?? '',
+      occurredAt: new Date().toISOString(),
+    }).pipe(delay(250));
+  }
+
   addFeeStructure(fs: Omit<FeeStructure, 'id' | 'totalAmount' | 'tenantId'> & { id?: number }): Observable<FeeStructure> {
     const total = sumComponents(fs.components);
     if (!runtimeConfig.useMocks) {
@@ -363,6 +437,24 @@ export class FeeService {
             type: (line.type ?? 'misc').toString().toLowerCase()
           }))
         : undefined
+    };
+  }
+
+  private normalizeTransaction(row: any): FeeTransaction {
+    return {
+      id: Number(row.id),
+      feePaymentId: Number(row.feePaymentId),
+      attemptId: row.attemptId != null ? Number(row.attemptId) : undefined,
+      eventType: String(row.eventType ?? ''),
+      eventStatus: row.eventStatus != null ? String(row.eventStatus) : undefined,
+      amount: Number(row.amount ?? 0),
+      currency: row.currency != null ? String(row.currency) : undefined,
+      provider: row.provider != null ? String(row.provider) : undefined,
+      providerPaymentId: row.providerPaymentId != null ? String(row.providerPaymentId) : undefined,
+      referenceId: row.referenceId != null ? String(row.referenceId) : undefined,
+      operationKey: row.operationKey != null ? String(row.operationKey) : undefined,
+      note: row.note != null ? String(row.note) : undefined,
+      occurredAt: row.occurredAt != null ? String(row.occurredAt) : undefined,
     };
   }
 }

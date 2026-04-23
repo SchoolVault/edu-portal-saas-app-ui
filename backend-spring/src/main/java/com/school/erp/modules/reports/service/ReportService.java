@@ -113,7 +113,6 @@ public class ReportService {
         this.reportBinaryStorageService = reportBinaryStorageService;
     }
 
-    @Cacheable(cacheNames = CacheConfig.DASHBOARD_SNAPSHOTS, keyGenerator = "tenantUserRoleKeyGenerator", unless = "#result == null")
     @Transactional
     public Map<String, Object> getDashboardKPIs() {
         return timedReportRead("dashboard.kpis", () ->
@@ -121,7 +120,6 @@ public class ReportService {
                 map -> map != null ? map.size() : 0);
     }
 
-    @Cacheable(cacheNames = CacheConfig.DASHBOARD_SNAPSHOTS, keyGenerator = "tenantUserRoleKeyGenerator", unless = "#result == null")
     @Transactional
     public ReportDashboardDTOs.AdminDashboardResponse getAdminDashboard() {
         return timedReportRead("dashboard.admin", () ->
@@ -129,7 +127,34 @@ public class ReportService {
                 out -> out != null && out.getRecentActivities() != null ? out.getRecentActivities().size() : 0);
     }
 
-    @Cacheable(cacheNames = CacheConfig.DASHBOARD_SNAPSHOTS, keyGenerator = "tenantMethodParamsKeyGenerator", unless = "#result == null")
+    @Transactional(readOnly = true)
+    public PageResponse<ReportDashboardDTOs.ActivityItem> getAdminRecentActivitiesPaged(
+            int page,
+            int size,
+            String q,
+            String eventType,
+            String fromDate,
+            String toDate) {
+        int safePage = Math.max(0, page);
+        int safeSize = Math.max(1, Math.min(size, 100));
+        return PageResponse.fromSpringPage(reportQueryPort.getAdminRecentActivities(
+                q, eventType, fromDate, toDate, PageRequest.of(safePage, safeSize)));
+    }
+
+    @Transactional(readOnly = true)
+    public PageResponse<ReportDashboardDTOs.UpcomingEvent> getAdminUpcomingEventsPaged(
+            int page,
+            int size,
+            String q,
+            String eventType,
+            String fromDate,
+            String toDate) {
+        int safePage = Math.max(0, page);
+        int safeSize = Math.max(1, Math.min(size, 100));
+        return PageResponse.fromSpringPage(reportQueryPort.getAdminUpcomingEvents(
+                q, eventType, fromDate, toDate, PageRequest.of(safePage, safeSize)));
+    }
+
     @Transactional
     public ReportDashboardDTOs.TeacherDashboardResponse getTeacherDashboard(String month) {
         return timedReportRead("dashboard.teacher", () ->
@@ -137,7 +162,6 @@ public class ReportService {
                 out -> out != null && out.getTodaySchedule() != null ? out.getTodaySchedule().size() : 0);
     }
 
-    @Cacheable(cacheNames = CacheConfig.DASHBOARD_SNAPSHOTS, keyGenerator = "tenantMethodParamsKeyGenerator", unless = "#result == null")
     @Transactional
     public ParentDashboardDtos.Response getParentDashboard(String from, String to, Long childId) {
         return timedReportRead("dashboard.parent", () ->

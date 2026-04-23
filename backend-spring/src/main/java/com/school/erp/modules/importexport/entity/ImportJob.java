@@ -49,6 +49,10 @@ public class ImportJob extends BaseEntity {
     @Column(name = "column_mapping_hash", nullable = false, length = 64)
     private String columnMappingHash = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
 
+    /** {@link com.school.erp.modules.importexport.ImportExecutionMode} name. */
+    @Column(name = "execution_mode", nullable = false, length = 32)
+    private String executionMode = "BEST_EFFORT";
+
     public Long getCreatedByUserId() {
         return createdByUserId;
     }
@@ -143,5 +147,13 @@ public class ImportJob extends BaseEntity {
 
     public void setColumnMappingHash(String columnMappingHash) {
         this.columnMappingHash = columnMappingHash;
+    }
+
+    public String getExecutionMode() {
+        return executionMode;
+    }
+
+    public void setExecutionMode(String executionMode) {
+        this.executionMode = executionMode;
     }
 }

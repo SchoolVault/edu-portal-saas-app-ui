@@ -35,6 +35,34 @@ public class ReportController {
         return ResponseEntity.ok(ApiResponse.ok(reportService.getAdminDashboard()));
     }
 
+    @GetMapping("/dashboard/admin/recent-activities")
+    @PreAuthorize("hasAnyRole('ADMIN','LIBRARY_STAFF')")
+    @Operation(summary = "Get paged admin recent activity", description = "Server-side filtered/paginated admin dashboard recent activity stream")
+    public ResponseEntity<ApiResponse<PageResponse<ReportDashboardDTOs.ActivityItem>>> getAdminRecentActivitiesPaged(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "8") int size,
+            @RequestParam(required = false) String q,
+            @RequestParam(required = false) String eventType,
+            @RequestParam(required = false) String fromDate,
+            @RequestParam(required = false) String toDate) {
+        return ResponseEntity.ok(ApiResponse.ok(
+                reportService.getAdminRecentActivitiesPaged(page, size, q, eventType, fromDate, toDate)));
+    }
+
+    @GetMapping("/dashboard/admin/upcoming-events")
+    @PreAuthorize("hasAnyRole('ADMIN','LIBRARY_STAFF')")
+    @Operation(summary = "Get paged admin upcoming events", description = "Server-side filtered/paginated admin dashboard upcoming events stream")
+    public ResponseEntity<ApiResponse<PageResponse<ReportDashboardDTOs.UpcomingEvent>>> getAdminUpcomingEventsPaged(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "8") int size,
+            @RequestParam(required = false) String q,
+            @RequestParam(required = false) String eventType,
+            @RequestParam(required = false) String fromDate,
+            @RequestParam(required = false) String toDate) {
+        return ResponseEntity.ok(ApiResponse.ok(
+                reportService.getAdminUpcomingEventsPaged(page, size, q, eventType, fromDate, toDate)));
+    }
+
     @GetMapping("/dashboard/teacher")
     @PreAuthorize("hasRole(\'TEACHER\')")
     @Operation(summary = "Get teacher dashboard", description = "Returns schedule, workload, activity feed, and attendance charts for the current teacher. Optional month (YYYY-MM) scopes homeroom daily + ring breakdown.")

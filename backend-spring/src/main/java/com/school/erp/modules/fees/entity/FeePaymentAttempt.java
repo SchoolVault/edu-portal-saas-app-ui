@@ -31,6 +31,8 @@ public class FeePaymentAttempt extends BaseEntity {
     private String providerOrderId;
     @Column(name = "provider_payment_id", length = 100)
     private String providerPaymentId;
+    @Column(name = "operation_key", length = 120)
+    private String operationKey;
     @Column(name = "checkout_token", nullable = false, length = 120)
     private String checkoutToken;
     @Column(name = "currency", nullable = false, length = 10)
@@ -60,6 +62,8 @@ public class FeePaymentAttempt extends BaseEntity {
     public void setProviderOrderId(String providerOrderId) { this.providerOrderId = providerOrderId; }
     public String getProviderPaymentId() { return providerPaymentId; }
     public void setProviderPaymentId(String providerPaymentId) { this.providerPaymentId = providerPaymentId; }
+    public String getOperationKey() { return operationKey; }
+    public void setOperationKey(String operationKey) { this.operationKey = operationKey; }
     public String getCheckoutToken() { return checkoutToken; }
     public void setCheckoutToken(String checkoutToken) { this.checkoutToken = checkoutToken; }
     public String getCurrency() { return currency; }

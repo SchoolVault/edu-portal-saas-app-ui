@@ -12,6 +12,7 @@ import {
   ProfileSummary,
   SendOtpRequest,
   SendOtpResponse,
+  IdentityUpdateResponse,
   TokenResponse,
   UpdateAccountProfileRequest,
   PersonalProfileDetails,
@@ -698,6 +699,58 @@ export class AuthService {
     );
   }
 
+  setPasswordAfterVerification(newPassword: string): Observable<User> {
+    if (runtimeConfig.useMocks) {
+      const u = this.getCurrentUser();
+      if (!u) return throwError(() => new Error('Not signed in'));
+      return of(u).pipe(delay(180));
+    }
+    return this.api.post<User>('/auth/set-password', { newPassword }).pipe(
+      tap(u => {
+        localStorage.setItem(ERP_USER_KEY, JSON.stringify(u));
+        this.currentUserSubject.next(u);
+      })
+    );
+  }
+
+  updateLoginEmail(email: string): Observable<IdentityUpdateResponse> {
+    if (runtimeConfig.useMocks) {
+      const u = this.getCurrentUser();
+      if (!u) return throwError(() => new Error('Not signed in'));
+      const next: User = { ...u, email, emailVerified: false };
+      localStorage.setItem(ERP_USER_KEY, JSON.stringify(next));
+      this.currentUserSubject.next(next);
+      return of({ user: next, message: 'Email updated. Please verify email.', devVerificationToken: 'MOCK-EMAIL-VERIFY' }).pipe(delay(250));
+    }
+    return this.api.put<IdentityUpdateResponse>('/auth/profile/email', { email }).pipe(
+      tap(res => {
+        if (res?.user) {
+          localStorage.setItem(ERP_USER_KEY, JSON.stringify(res.user));
+          this.currentUserSubject.next(res.user);
+        }
+      })
+    );
+  }
+
+  updateLoginPhone(phone: string): Observable<IdentityUpdateResponse> {
+    if (runtimeConfig.useMocks) {
+      const u = this.getCurrentUser();
+      if (!u) return throwError(() => new Error('Not signed in'));
+      const next: User = { ...u, phone, phoneVerified: false };
+      localStorage.setItem(ERP_USER_KEY, JSON.stringify(next));
+      this.currentUserSubject.next(next);
+      return of({ user: next, message: 'Phone updated. Verify by OTP on next login.' }).pipe(delay(250));
+    }
+    return this.api.put<IdentityUpdateResponse>('/auth/profile/phone', { phone }).pipe(
+      tap(res => {
+        if (res?.user) {
+          localStorage.setItem(ERP_USER_KEY, JSON.stringify(res.user));
+          this.currentUserSubject.next(res.user);
+        }
+      })
+    );
+  }
+
   getProfileSummarySnapshot(): ProfileSummary | null {
     return this.profileSummarySubject.value;
   }
@@ -841,5 +894,33 @@ export class AuthService {
       return of({ success: true, message: 'Password reset successfully' }).pipe(delay(700));
     }
     return this.api.post<PasswordResetResponse>('/auth/phone/reset-password', request);
+  }
+
+  /** Prepares one-time email verification (dev may return a plain token when server is configured). */
+  requestEmailVerification(): Observable<{ message: string; devOneTimeToken?: string | null }> {
+    if (runtimeConfig.useMocks) {
+      return of({ message: 'Mock: use token MOCK-EMAIL-VERIFY', devOneTimeToken: 'MOCK-EMAIL-VERIFY' }).pipe(delay(300));
+    }
+    return this.api.post<{ message: string; devOneTimeToken?: string | null }>('/auth/email-verification/request', {});
+  }
+
+  /** Confirms email with the token (works with or without an active session). */
+  confirmEmailVerification(token: string): Observable<User> {
+    if (runtimeConfig.useMocks) {
+      const u = this.getCurrentUser();
+      if (!u || (token || '').trim() !== 'MOCK-EMAIL-VERIFY') {
+        return throwError(() => new Error('Invalid token')).pipe(delay(200));
+      }
+      const next: User = { ...u, emailVerified: true };
+      localStorage.setItem(ERP_USER_KEY, JSON.stringify(next));
+      this.currentUserSubject.next(next);
+      return of(next).pipe(delay(300));
+    }
+    return this.api.post<User>('/auth/email-verification/confirm', { token: token.trim() }).pipe(
+      tap(u => {
+        localStorage.setItem(ERP_USER_KEY, JSON.stringify(u));
+        this.currentUserSubject.next(u);
+      })
+    );
   }
 }

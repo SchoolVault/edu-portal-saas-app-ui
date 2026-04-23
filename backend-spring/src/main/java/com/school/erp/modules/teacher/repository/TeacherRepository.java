@@ -30,4 +30,8 @@ public interface TeacherRepository extends JpaRepository<Teacher, Long> {
     boolean existsByTenantIdAndEmailAndIsDeletedFalse(String tenantId, String email);
 
     Optional<Teacher> findByTenantIdAndEmailIgnoreCaseAndIsDeletedFalse(String tenantId, String email);
+
+    Optional<Teacher> findByTenantIdAndPhoneAndIsDeletedFalse(String tenantId, String phone);
+
+    boolean existsByTenantIdAndPhoneAndIsDeletedFalse(String tenantId, String phone);
 }

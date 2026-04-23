@@ -27,4 +27,13 @@ public class MockPaymentGatewayClient {
         String payload = "{\"provider\":\"" + normalizedProvider + "\",\"checkoutToken\":\"" + checkoutToken + "\",\"providerOrderId\":\"" + providerOrderId + "\",\"providerPaymentId\":\"" + resolvedPaymentId + "\"}";
         return new PaymentGatewayClient.GatewayPaymentConfirmation(resolvedPaymentId, "SUCCESS", payload);
     }
+
+    public PaymentGatewayClient.GatewayPaymentStatus fetchPaymentStatus(String provider, String providerOrderId, String providerPaymentId) {
+        String normalizedProvider = provider == null ? "mockpay" : provider.trim().toLowerCase(Locale.ROOT);
+        String resolvedPaymentId = (providerPaymentId != null && !providerPaymentId.isBlank())
+                ? providerPaymentId
+                : normalizedProvider.toUpperCase(Locale.ROOT) + "-PAY-" + UUID.randomUUID().toString().substring(0, 10);
+        String payload = "{\"provider\":\"" + normalizedProvider + "\",\"providerOrderId\":\"" + providerOrderId + "\",\"providerPaymentId\":\"" + resolvedPaymentId + "\",\"status\":\"CAPTURED\"}";
+        return new PaymentGatewayClient.GatewayPaymentStatus(resolvedPaymentId, "CAPTURED", payload);
+    }
 }

@@ -10,4 +10,12 @@ public class NotificationWebhookDTOs {
             @NotBlank String providerStatus,
             String providerErrorCode,
             String providerErrorMessage) {}
+
+    public record Msg91ReceiptRequest(
+            String requestId,
+            String messageId,
+            String mobile,
+            String status,
+            String reason,
+            String errorCode) {}
 }

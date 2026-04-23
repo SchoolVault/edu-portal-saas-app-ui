@@ -9,6 +9,7 @@ import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDateTime;
 import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 
 public interface ImportJobRepository extends JpaRepository<ImportJob, Long> {
@@ -18,8 +19,10 @@ public interface ImportJobRepository extends JpaRepository<ImportJob, Long> {
 
     boolean existsByTenantIdAndOriginalFilenameAndIsDeletedFalse(String tenantId, String originalFilename);
 
-    Optional<ImportJob> findFirstByTenantIdAndJobTypeAndPayloadHashAndColumnMappingHashAndStatusInAndIsDeletedFalseOrderByCreatedAtDesc(
-            String tenantId, String jobType, String payloadHash, String columnMappingHash, Collection<String> statuses);
+    Optional<ImportJob> findFirstByTenantIdAndJobTypeAndPayloadHashAndColumnMappingHashAndExecutionModeAndStatusInAndIsDeletedFalseOrderByCreatedAtDesc(
+            String tenantId, String jobType, String payloadHash, String columnMappingHash, String executionMode, Collection<String> statuses);
+
+    List<ImportJob> findByStatusAndIsDeletedFalseAndStartedAtBefore(String status, java.time.LocalDateTime startedBefore);
 
     long countByTenantIdAndIsDeletedFalseAndCreatedAtAfter(String tenantId, LocalDateTime createdAtAfter);
 

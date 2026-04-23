@@ -25,6 +25,7 @@ import java.util.Base64;
 import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 /**
  * Razorpay-like adapter:
@@ -40,6 +41,7 @@ public class RazorpayPaymentGatewayClient {
     private static final int RAZORPAY_RECEIPT_MAX_LEN = 40;
     private static final Logger log = LoggerFactory.getLogger(RazorpayPaymentGatewayClient.class);
     private final RestTemplate restTemplate = new RestTemplate();
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Value("${app.payments.razorpay.api-base:https://api.razorpay.com}")
     private String apiBase;
@@ -162,7 +164,10 @@ public class RazorpayPaymentGatewayClient {
             throw new BusinessException("providerPaymentId is required for Razorpay confirmation");
         }
 
-        if (providerSignature != null && !providerSignature.isBlank() && secret != null && !secret.isBlank()) {
+        if (secret != null && !secret.isBlank()) {
+            if (providerSignature == null || providerSignature.isBlank()) {
+                throw new BusinessException("Razorpay signature is required");
+            }
             String data = providerOrderId + "|" + providerPaymentId;
             String expected = hmacSha256Hex(secret, data);
             if (!expected.equals(providerSignature)) {
@@ -172,6 +177,38 @@ public class RazorpayPaymentGatewayClient {
 
         String payload = "{\"provider\":\"razorpay\",\"checkoutToken\":\"" + checkoutToken + "\",\"providerOrderId\":\"" + providerOrderId + "\",\"providerPaymentId\":\"" + providerPaymentId + "\"}";
         return new PaymentGatewayClient.GatewayPaymentConfirmation(providerPaymentId, "SUCCESS", payload);
+    }
+
+    @CircuitBreaker(name = "paymentGateway")
+    @Retry(name = "paymentGateway")
+    public PaymentGatewayClient.GatewayPaymentStatus fetchPaymentStatus(String providerOrderId, String providerPaymentId) {
+        if (providerPaymentId == null || providerPaymentId.isBlank()) {
+            return new PaymentGatewayClient.GatewayPaymentStatus(null, "PENDING", "{\"reason\":\"missing_provider_payment_id\"}");
+        }
+        boolean credsOk = key != null && !key.isBlank() && secret != null && !secret.isBlank();
+        if (!credsOk) {
+            return new PaymentGatewayClient.GatewayPaymentStatus(providerPaymentId, "PENDING", "{\"reason\":\"missing_credentials\"}");
+        }
+        String url = apiBase.replaceAll("/+$", "") + "/v1/payments/" + providerPaymentId.trim();
+        HttpHeaders headers = new HttpHeaders();
+        String basic = Base64.getEncoder().encodeToString((key.trim() + ":" + secret.trim()).getBytes(StandardCharsets.UTF_8));
+        headers.set(HttpHeaders.AUTHORIZATION, "Basic " + basic);
+        try {
+            String raw = restTemplate.postForObject(url, new HttpEntity<>(null, headers), String.class);
+            String status = "PENDING";
+            try {
+                String parsed = objectMapper.readTree(raw).path("status").asText("");
+                status = mapRazorpayStatus(parsed);
+            } catch (Exception ignored) {
+                // Keep fallback value.
+            }
+            return new PaymentGatewayClient.GatewayPaymentStatus(providerPaymentId, status, raw);
+        } catch (HttpStatusCodeException ex) {
+            String bodySnippet = ex.getResponseBodyAsString();
+            return new PaymentGatewayClient.GatewayPaymentStatus(providerPaymentId, "PENDING", bodySnippet);
+        } catch (RestClientException ex) {
+            return new PaymentGatewayClient.GatewayPaymentStatus(providerPaymentId, "PENDING", "{\"error\":\"" + ex.getMessage() + "\"}");
+        }
     }
 
     private String hmacSha256Hex(String secret, String data) {
@@ -185,6 +222,13 @@ public class RazorpayPaymentGatewayClient {
         } catch (Exception e) {
             throw new BusinessException("Failed to verify gateway signature");
         }
+    }
+
+    private static String mapRazorpayStatus(String raw) {
+        String normalized = raw == null ? "" : raw.trim().toLowerCase(Locale.ROOT);
+        if ("captured".equals(normalized)) return "CAPTURED";
+        if ("failed".equals(normalized)) return "FAILED";
+        return "PENDING";
     }
 }
 

@@ -3,6 +3,7 @@ package com.school.erp.modules.fees.webhook;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.school.erp.common.exception.BusinessException;
+import com.school.erp.modules.fees.domain.FeeAttemptStatus;
 import com.school.erp.modules.fees.entity.FeePaymentAttempt;
 import com.school.erp.modules.fees.repository.FeePaymentAttemptRepository;
 import com.school.erp.modules.fees.service.FeeService;
@@ -12,8 +13,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
-import java.util.Locale;
-import java.util.Objects;
 
 /**
  * Maps Razorpay webhook JSON to fee ledger updates. Extensible: add order.paid, refunds, etc.
@@ -82,7 +81,7 @@ public class FeeRazorpayWebhookProcessor {
         }
 
         List<FeePaymentAttempt> byPay = attemptRepository.findByProviderAndProviderPaymentIdAndIsDeletedFalse(RAZORPAY, paymentId);
-        if (byPay.size() == 1 && "success".equalsIgnoreCase(byPay.get(0).getStatus())) {
+        if (byPay.size() == 1 && FeeAttemptStatus.RECONCILED.name().equalsIgnoreCase(byPay.get(0).getStatus())) {
             return new Outcome(Outcome.Type.DUPLICATE, "payment_id_already_applied");
         }
 
@@ -97,7 +96,7 @@ public class FeeRazorpayWebhookProcessor {
             return new Outcome(Outcome.Type.NO_MATCH, "provider_mismatch");
         }
 
-        if ("success".equalsIgnoreCase(attempt.getStatus()) && paymentId.equals(attempt.getProviderPaymentId())) {
+        if (FeeAttemptStatus.RECONCILED.name().equalsIgnoreCase(attempt.getStatus()) && paymentId.equals(attempt.getProviderPaymentId())) {
             return new Outcome(Outcome.Type.DUPLICATE, "already_success");
         }
 

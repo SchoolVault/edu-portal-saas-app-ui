@@ -45,6 +45,14 @@ public class MockSandboxFeePaymentCheckoutStrategy implements FeePaymentCheckout
         return mock.confirmPayment(providerId, checkoutToken, providerOrderId, providerPaymentId, providerSignature);
     }
 
+    @Override
+    public PaymentGatewayClient.GatewayPaymentStatus fetchPaymentStatus(
+            String providerId,
+            String providerOrderId,
+            String providerPaymentId) {
+        return mock.fetchPaymentStatus(providerId, providerOrderId, providerPaymentId);
+    }
+
     public MockSandboxFeePaymentCheckoutStrategy(MockPaymentGatewayClient mock) {
         this.mock = mock;
     }

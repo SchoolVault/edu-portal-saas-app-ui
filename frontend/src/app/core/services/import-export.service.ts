@@ -18,6 +18,8 @@ export interface ImportJobSummary {
   createdAt: string | null;
   /** SHA-256 hex of raw upload bytes (when present). */
   payloadHash?: string | null;
+  /** BEST_EFFORT | ALL_OR_NOTHING */
+  executionMode?: string | null;
 }
 
 export interface ImportJobLine {
@@ -34,6 +36,7 @@ export interface JobSubmitResponse {
   jobId: number;
   status: string;
   totalRows: number;
+  executionMode?: string | null;
   /** True when server returned an existing QUEUED/RUNNING job for the same file hash. */
   idempotentReplay?: boolean;
   payloadHash?: string | null;
@@ -42,7 +45,9 @@ export interface JobSubmitResponse {
 
 export interface DryRunRowError {
   lineIndex: number;
+  errorCode?: string;
   message: string;
+  dedupeKey?: string;
 }
 
 export interface DryRunResponse {
@@ -52,6 +57,33 @@ export interface DryRunResponse {
   invalidRows: number;
   advisoryMessage?: string | null;
   sampleErrors: DryRunRowError[];
+  importBlocked?: boolean;
+  importBlockCode?: string | null;
+  importBlockMessage?: string | null;
+  createOnlyDuplicateRatio?: number;
+  createOnlyEvaluatedRows?: number;
+  createOnlyCollisionRows?: number;
+}
+
+export interface ImportLedgerLine {
+  id: number;
+  jobLineId: number | null;
+  lineIndex: number;
+  outcome: string;
+  entityType: string | null;
+  entityId: number | null;
+  naturalKey: string | null;
+  rollbackGuidance: string | null;
+  createdAt: string | null;
+}
+
+export interface RollbackBundleResponse {
+  jobId: number;
+  ledgerRowCount: number;
+  createdCount: number;
+  updatedCount: number;
+  skippedCount: number;
+  suggestedOperatorSteps: string[];
 }
 
 /** Response from POST /import-export/jobs/preview-headers */
@@ -174,6 +206,9 @@ export class ImportExportService {
         totalRows: 3,
         validRows: 2,
         invalidRows: 1,
+        importBlocked: false,
+        createOnlyEvaluatedRows: 0,
+        createOnlyCollisionRows: 0,
         sampleErrors: [{ lineIndex: 2, message: 'Class not found for this year: Class 99' }],
       }).pipe(delay(350));
     }
@@ -189,12 +224,19 @@ export class ImportExportService {
     return this.api.postFormData<DryRunResponse>('/import-export/jobs/dry-run', fd);
   }
 
-  submitJob(jobType: string, file: File, columnMappingJson?: string | null, schoolCode?: string | null): Observable<JobSubmitResponse> {
+  submitJob(
+    jobType: string,
+    file: File,
+    columnMappingJson?: string | null,
+    schoolCode?: string | null,
+    executionMode?: string | null
+  ): Observable<JobSubmitResponse> {
     if (runtimeConfig.useMocks) {
       return of({
         jobId: 9100 + Math.floor(Math.random() * 89),
         status: 'QUEUED',
         totalRows: 1,
+        executionMode: executionMode || 'BEST_EFFORT',
       }).pipe(delay(400));
     }
     const fd = new FormData();
@@ -202,6 +244,9 @@ export class ImportExportService {
     fd.append('file', file);
     if (columnMappingJson) {
       fd.append('columnMappingJson', columnMappingJson);
+    }
+    if (executionMode && executionMode.trim()) {
+      fd.append('executionMode', executionMode.trim().toUpperCase());
     }
     if (schoolCode && schoolCode.trim().length > 0) {
       fd.append('schoolCode', schoolCode.trim().toUpperCase());
@@ -253,6 +298,56 @@ export class ImportExportService {
     return this.api.getPageParams<ImportJobLine>(`/import-export/jobs/${jobId}/lines`, {
       page,
       size,
+      schoolCode: schoolCode?.trim().toUpperCase() || undefined,
+    });
+  }
+
+  getLedger(jobId: number, page = 0, size = 100, schoolCode?: string | null): Observable<PageResp<ImportLedgerLine>> {
+    if (runtimeConfig.useMocks) {
+      return of({
+        content: [
+          {
+            id: 1,
+            jobLineId: 10,
+            lineIndex: 0,
+            outcome: 'CREATED',
+            entityType: 'STUDENT',
+            entityId: 501,
+            naturalKey: 'ADM:1001',
+            rollbackGuidance: 'A new entity was created — remove in directory if needed.',
+            createdAt: new Date().toISOString(),
+          },
+        ],
+        page,
+        size,
+        totalElements: 1,
+        totalPages: 1,
+        first: true,
+        last: true,
+      }).pipe(delay(200));
+    }
+    return this.api.getPageParams<ImportLedgerLine>(`/import-export/jobs/${jobId}/ledger`, {
+      page,
+      size,
+      schoolCode: schoolCode?.trim().toUpperCase() || undefined,
+    });
+  }
+
+  getRollbackBrief(jobId: number, schoolCode?: string | null): Observable<RollbackBundleResponse> {
+    if (runtimeConfig.useMocks) {
+      return of({
+        jobId,
+        ledgerRowCount: 1,
+        createdCount: 1,
+        updatedCount: 0,
+        skippedCount: 0,
+        suggestedOperatorSteps: [
+          'This screen summarizes what the import did.',
+          'For created rows, remove or edit records in the app if the import was a mistake.',
+        ],
+      }).pipe(delay(200));
+    }
+    return this.api.getParams<RollbackBundleResponse>(`/import-export/jobs/${jobId}/rollback-brief`, {
       schoolCode: schoolCode?.trim().toUpperCase() || undefined,
     });
   }

@@ -7,7 +7,7 @@ import com.school.erp.modules.notification.sms.SmsResponse;
 import com.school.erp.modules.notification.sms.SmsService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.stereotype.Service;
 
 /**
@@ -22,7 +22,8 @@ import org.springframework.stereotype.Service;
  * Future implementation: Integrate AWS SDK for Java
  */
 @Service
-@ConditionalOnProperty(name = "app.sms.provider", havingValue = "AWS_SNS")
+@ConditionalOnExpression(
+    "'${app.sms.provider:MOCK}'.equalsIgnoreCase('AWS_SNS') || '${app.sms.providers.aws-sns.enabled:false}'.equalsIgnoreCase('true')")
 @Slf4j
 public class AwsSnsSmsService implements SmsService {
 

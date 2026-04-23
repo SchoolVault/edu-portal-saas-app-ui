@@ -28,4 +28,9 @@ public interface FeePaymentCheckoutStrategy {
             String providerOrderId,
             String providerPaymentId,
             String providerSignature);
+
+    PaymentGatewayClient.GatewayPaymentStatus fetchPaymentStatus(
+            String providerId,
+            String providerOrderId,
+            String providerPaymentId);
 }

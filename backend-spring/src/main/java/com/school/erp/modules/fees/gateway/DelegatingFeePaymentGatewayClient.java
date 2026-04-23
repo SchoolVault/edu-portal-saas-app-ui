@@ -63,4 +63,10 @@ public class DelegatingFeePaymentGatewayClient implements PaymentGatewayClient {
         String p = normalize(provider);
         return resolve(p).confirmPayment(p, checkoutToken, providerOrderId, providerPaymentId, providerSignature);
     }
+
+    @Override
+    public GatewayPaymentStatus fetchPaymentStatus(String provider, String providerOrderId, String providerPaymentId) {
+        String p = normalize(provider);
+        return resolve(p).fetchPaymentStatus(p, providerOrderId, providerPaymentId);
+    }
 }

@@ -44,6 +44,14 @@ public class RazorpayFeePaymentCheckoutStrategy implements FeePaymentCheckoutStr
         return razorpay.confirm(checkoutToken, providerOrderId, providerPaymentId, providerSignature);
     }
 
+    @Override
+    public PaymentGatewayClient.GatewayPaymentStatus fetchPaymentStatus(
+            String providerId,
+            String providerOrderId,
+            String providerPaymentId) {
+        return razorpay.fetchPaymentStatus(providerOrderId, providerPaymentId);
+    }
+
     public RazorpayFeePaymentCheckoutStrategy(RazorpayPaymentGatewayClient razorpay) {
         this.razorpay = razorpay;
     }

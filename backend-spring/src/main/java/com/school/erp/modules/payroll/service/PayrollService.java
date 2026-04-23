@@ -5,7 +5,11 @@ import com.school.erp.common.enums.Enums;
 import com.school.erp.common.exception.BusinessException;
 import com.school.erp.common.exception.ResourceNotFoundException;
 import com.school.erp.common.exception.UnauthorizedException;
+import com.school.erp.common.lock.TenantRedisLockService;
+import com.school.erp.modules.finance.audit.service.FinancialAuditService;
+import com.school.erp.modules.payroll.domain.PayrollDisbursementStatus;
 import com.school.erp.modules.payroll.dto.PayrollDTOs;
+import com.school.erp.modules.payroll.payout.PayrollPayoutGatewayClient;
 import com.school.erp.platform.port.NotificationDispatchPort;
 import com.school.erp.modules.notification.service.NotificationService;
 import com.school.erp.modules.payroll.entity.*;
@@ -29,13 +33,13 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.Month;
 import java.time.YearMonth;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Service
@@ -50,6 +54,9 @@ public class PayrollService {
     private final SalaryDisbursementAttemptRepository salaryDisbursementAttemptRepository;
     private final NotificationService notificationService;
     private final NotificationDispatchPort notificationDispatchPort;
+    private final TenantRedisLockService tenantRedisLockService;
+    private final FinancialAuditService financialAuditService;
+    private final PayrollPayoutGatewayClient payrollPayoutGatewayClient;
 
     @Cacheable(cacheNames = CacheConfig.PAYROLL_STRUCTURES, keyGenerator = "tenantKeyGenerator", unless = "#result == null")
     @Transactional(readOnly = true)
@@ -186,10 +193,29 @@ public class PayrollService {
     }
 
     private static boolean isBankProfileComplete(Teacher teacher) {
-        return teacher.getBankAccountHolder() != null && !teacher.getBankAccountHolder().isBlank()
-                && teacher.getBankName() != null && !teacher.getBankName().isBlank()
-                && teacher.getBankAccountNumber() != null && !teacher.getBankAccountNumber().isBlank()
-                && teacher.getBankIfsc() != null && !teacher.getBankIfsc().isBlank();
+        if (teacher.getBankAccountHolder() == null || teacher.getBankAccountHolder().isBlank()) {
+            return false;
+        }
+        if (teacher.getBankName() == null || teacher.getBankName().isBlank()) {
+            return false;
+        }
+        String ifsc = teacher.getBankIfsc() != null ? teacher.getBankIfsc().trim().toUpperCase(Locale.ROOT) : "";
+        if (!ifsc.matches("^[A-Z]{4}0[A-Z0-9]{6}$")) {
+            return false;
+        }
+        String account = teacher.getBankAccountNumber() != null ? teacher.getBankAccountNumber().replaceAll("\\s+", "") : "";
+        return account.matches("^[0-9]{6,22}$");
+    }
+
+    private static void validateBankProfileForPayout(Teacher teacher, String teacherName) {
+        String ifsc = teacher.getBankIfsc() != null ? teacher.getBankIfsc().trim().toUpperCase(Locale.ROOT) : "";
+        String account = teacher.getBankAccountNumber() != null ? teacher.getBankAccountNumber().replaceAll("\\s+", "") : "";
+        if (!ifsc.matches("^[A-Z]{4}0[A-Z0-9]{6}$")) {
+            throw new BusinessException("Invalid IFSC for " + teacherName + ". Use a valid 11-character IFSC code.");
+        }
+        if (!account.matches("^[0-9]{6,22}$")) {
+            throw new BusinessException("Invalid bank account number for " + teacherName + ". Use 6 to 22 digits.");
+        }
     }
 
     @Transactional(readOnly = true)
@@ -230,7 +256,7 @@ public class PayrollService {
      * Does not change payslip status; admin marks paid after settlement.
      */
     @Transactional
-    public PayrollDTOs.DisburseSalaryResponse initiateSalaryDisbursement(PayrollDTOs.DisburseSalaryRequest req) {
+    public PayrollDTOs.DisburseSalaryResponse initiateSalaryDisbursement(PayrollDTOs.DisburseSalaryRequest req, String operationKey, String idempotencyKey) {
         String t = TenantContext.getTenantId();
         Long teacherId = req.getTeacherId();
         int year = req.getYear() != null ? req.getYear() : 0;
@@ -240,6 +266,7 @@ public class PayrollService {
         if (!methodRaw.matches("NETBANKING|UPI|NEFT|IMPS")) {
             methodRaw = "NETBANKING";
         }
+        final String paymentMethod = methodRaw;
         Payslip p = psRepo.findByTenantIdAndIsDeletedFalse(t).stream()
                 .filter(x -> teacherId.equals(x.getTeacherId())
                         && Objects.equals(x.getYear(), year)
@@ -254,18 +281,46 @@ public class PayrollService {
         if (!isBankProfileComplete(teacher)) {
             throw new BusinessException("Bank details incomplete for " + p.getTeacherName() + ". Update the teacher profile before disbursement.");
         }
-        String ref = methodRaw + "-" + UUID.randomUUID().toString().replace("-", "").substring(0, 12).toUpperCase(Locale.ROOT);
-        log.info("Salary disbursement initiated ref={} teacherId={} net={} method={}", ref, teacherId, p.getNetSalary(), methodRaw);
-        SalaryDisbursementAttempt att = new SalaryDisbursementAttempt();
-        att.setTenantId(t);
-        att.setPayslipId(p.getId());
-        att.setTeacherId(teacherId);
-        att.setAmount(p.getNetSalary());
-        att.setPaymentMethod(methodRaw);
-        att.setReferenceId(ref);
-        att.setStatus("SUBMITTED");
-        att.setGatewayPayload("{\"mock\":true,\"rail\":\"" + methodRaw + "\"}");
-        salaryDisbursementAttemptRepository.save(att);
+        validateBankProfileForPayout(teacher, p.getTeacherName());
+        String effectiveOperationKey = normalizedOperationKey(operationKey, "PAYROLL_DISBURSE", p.getId());
+        var existing = salaryDisbursementAttemptRepository.findByTenantIdAndOperationKeyAndIsDeletedFalse(t, effectiveOperationKey);
+        if (existing.isPresent()) {
+            return toDisburseResponse(existing.get(), p.getTeacherName());
+        }
+        SalaryDisbursementAttempt att = tenantRedisLockService.withBestEffortLock(
+                "payroll:initiate:" + t + ":" + p.getId(), Duration.ofSeconds(30), () -> {
+                    PayrollPayoutGatewayClient.PayoutInitiationResult providerResult = payrollPayoutGatewayClient.initiate(
+                            new PayrollPayoutGatewayClient.PayoutInitiationRequest(
+                                    t, teacherId, p.getTeacherName(), p.getNetSalary(), "INR", paymentMethod,
+                                    teacher.getBankAccountHolder(), teacher.getBankAccountNumber(), teacher.getBankIfsc(), teacher.getBankName(),
+                                    effectiveOperationKey));
+                    String referenceId = providerResult.providerReferenceId();
+                    log.info("Salary disbursement initiated ref={} teacherId={} net={} method={}",
+                            referenceId, teacherId, p.getNetSalary(), paymentMethod);
+                    SalaryDisbursementAttempt row = new SalaryDisbursementAttempt();
+                    row.setTenantId(t);
+                    row.setPayslipId(p.getId());
+                    row.setTeacherId(teacherId);
+                    row.setAmount(p.getNetSalary());
+                    row.setPaymentMethod(paymentMethod);
+                    row.setReferenceId(referenceId);
+                    row.setOperationKey(effectiveOperationKey);
+                    row.setStatus(PayrollDisbursementStatus.INITIATED.name());
+                    row.setGatewayPayload(providerResult.payloadJson());
+                    salaryDisbursementAttemptRepository.save(row);
+                    String nextStatus = normalizeDisbursementStatus(providerResult.status());
+                    row.setStatus(nextStatus);
+                    if (PayrollDisbursementStatus.PROCESSED.name().equals(nextStatus)
+                            || PayrollDisbursementStatus.FAILED.name().equals(nextStatus)
+                            || PayrollDisbursementStatus.RECONCILED.name().equals(nextStatus)) {
+                        row.setCompletedAt(LocalDateTime.now());
+                    }
+                    return salaryDisbursementAttemptRepository.save(row);
+                });
+        financialAuditService.record(
+                "PAYROLL", "INITIATE_DISBURSEMENT", "SALARY_DISBURSEMENT_ATTEMPT", att.getId(),
+                effectiveOperationKey, idempotencyKey, PayrollDisbursementStatus.INITIATED.name(),
+                att.getStatus(), "SUCCESS", payoutProviderFromPayload(att.getGatewayPayload()), att.getReferenceId(), "INR", att.getAmount(), att.getGatewayPayload());
 
         Long staffUserId = teacher.getUserId();
         if (staffUserId != null) {
@@ -273,25 +328,19 @@ public class PayrollService {
                     t,
                     staffUserId,
                     "Salary disbursement initiated",
-                    methodRaw + " transfer " + ref + " for " + month + " " + year + " (" + p.getTeacherName() + ").",
+                    paymentMethod + " transfer " + att.getReferenceId() + " for " + month + " " + year + " (" + p.getTeacherName() + ").",
                     Enums.NotificationType.INFO,
                     "/app/payroll");
-            String body = "Salary " + methodRaw + " initiated. Ref " + ref + ". Net " + p.getNetSalary() + " INR. Mark payslip paid after settlement.";
+            String body = "Salary " + paymentMethod + " initiated. Ref " + att.getReferenceId() + ". Net " + p.getNetSalary() + " INR. Mark payslip paid after settlement.";
             notificationDispatchPort.enqueue(
                     t, "SALARY_DISBURSE", "SMS", staffUserId, null, "Salary transfer", body,
-                    "SALDIS:" + p.getId() + ":" + ref, "payroll-" + p.getId());
+                    "SALDIS:" + p.getId() + ":" + att.getReferenceId(), "payroll-" + p.getId());
             notificationDispatchPort.enqueue(
                     t, "SALARY_DISBURSE", "WHATSAPP", staffUserId, null, "Salary transfer", body,
-                    "SALDIS:" + p.getId() + ":" + ref + ":WA", "payroll-" + p.getId());
+                    "SALDIS:" + p.getId() + ":" + att.getReferenceId() + ":WA", "payroll-" + p.getId());
         }
 
-        PayrollDTOs.DisburseSalaryResponse out = new PayrollDTOs.DisburseSalaryResponse();
-        out.setReferenceId(ref);
-        out.setAmount(p.getNetSalary());
-        out.setTeacherName(p.getTeacherName());
-        out.setPaymentMethod(methodRaw);
-        out.setMessage("Transfer submitted to bank pipeline (connect your PSP). Mark paid after funds settle.");
-        return out;
+        return toDisburseResponse(att, p.getTeacherName());
     }
 
     @Transactional(readOnly = true)
@@ -300,6 +349,9 @@ public class PayrollService {
         String t = TenantContext.getTenantId();
         Pageable pageable = PageRequest.of(Math.max(0, page), Math.min(Math.max(size, 1), 200), Sort.by(Sort.Direction.DESC, "createdAt"));
         String normalizedStatus = status != null ? status.trim().toUpperCase(Locale.ROOT) : "";
+        if ("COMPLETED".equals(normalizedStatus)) {
+            normalizedStatus = PayrollDisbursementStatus.PROCESSED.name();
+        }
         Page<SalaryDisbursementAttempt> rows = normalizedStatus.isEmpty()
                 ? salaryDisbursementAttemptRepository.findByTenantIdAndIsDeletedFalseOrderByCreatedAtDesc(t, pageable)
                 : salaryDisbursementAttemptRepository.findByTenantIdAndStatusAndIsDeletedFalseOrderByCreatedAtDesc(t, normalizedStatus, pageable);
@@ -314,46 +366,134 @@ public class PayrollService {
         List<SalaryDisbursementAttempt> rows = salaryDisbursementAttemptRepository.findByTenantIdAndIsDeletedFalseOrderByCreatedAtDesc(t);
         PayrollDTOs.DisbursementQueueSummaryResponse out = new PayrollDTOs.DisbursementQueueSummaryResponse();
         out.setTotalAttempts(rows.size());
-        out.setSubmittedCount(rows.stream().filter(r -> "SUBMITTED".equalsIgnoreCase(r.getStatus())).count());
-        out.setCompletedCount(rows.stream().filter(r -> "COMPLETED".equalsIgnoreCase(r.getStatus())).count());
+        out.setSubmittedCount(rows.stream().filter(r -> PayrollDisbursementStatus.SUBMITTED.name().equalsIgnoreCase(r.getStatus())).count());
+        out.setCompletedCount(rows.stream().filter(r -> PayrollDisbursementStatus.PROCESSED.name().equalsIgnoreCase(r.getStatus())
+                || "COMPLETED".equalsIgnoreCase(r.getStatus())).count());
         out.setFailedCount(rows.stream().filter(r -> "FAILED".equalsIgnoreCase(r.getStatus())).count());
-        out.setSubmittedAmount(sumByStatus(rows, "SUBMITTED"));
-        out.setCompletedAmount(sumByStatus(rows, "COMPLETED"));
-        out.setFailedAmount(sumByStatus(rows, "FAILED"));
+        out.setSubmittedAmount(sumByStatus(rows, PayrollDisbursementStatus.SUBMITTED.name()));
+        out.setCompletedAmount(sumByStatus(rows, PayrollDisbursementStatus.PROCESSED.name()).add(sumByStatus(rows, "COMPLETED")));
+        out.setFailedAmount(sumByStatus(rows, PayrollDisbursementStatus.FAILED.name()));
         return out;
     }
 
     @Transactional
     public PayrollDTOs.DisbursementAttemptResponse updateDisbursementStatus(
-            Long attemptId, PayrollDTOs.UpdateDisbursementStatusRequest req) {
+            Long attemptId, PayrollDTOs.UpdateDisbursementStatusRequest req, String operationKey, String idempotencyKey) {
         String t = TenantContext.getTenantId();
-        SalaryDisbursementAttempt attempt = salaryDisbursementAttemptRepository.findByIdAndTenantIdAndIsDeletedFalse(attemptId, t)
-                .orElseThrow(() -> new ResourceNotFoundException("SalaryDisbursementAttempt", attemptId));
-        String targetStatus = req.getStatus().trim().toUpperCase(Locale.ROOT);
-        if (!targetStatus.matches("SUBMITTED|COMPLETED|FAILED")) {
-            throw new BusinessException("Invalid disbursement status");
+        return tenantRedisLockService.withBestEffortLock("payroll:status:" + t + ":" + attemptId, Duration.ofSeconds(30), () -> {
+            SalaryDisbursementAttempt attempt = salaryDisbursementAttemptRepository.findByIdAndTenantIdAndIsDeletedFalse(attemptId, t)
+                    .orElseThrow(() -> new ResourceNotFoundException("SalaryDisbursementAttempt", attemptId));
+            String targetStatus = req.getStatus().trim().toUpperCase(Locale.ROOT);
+            if ("COMPLETED".equals(targetStatus)) {
+                targetStatus = PayrollDisbursementStatus.PROCESSED.name();
+            }
+            if (!targetStatus.matches("SUBMITTED|PROCESSED|FAILED|RECONCILED")) {
+                throw new BusinessException("Invalid disbursement status");
+            }
+            String fromState = attempt.getStatus();
+            attempt.setStatus(targetStatus);
+            if (req.getMessage() != null && !req.getMessage().trim().isEmpty()) {
+                attempt.setGatewayPayload(req.getMessage().trim());
+            }
+            Payslip payslip = psRepo.findByIdAndTenantIdAndIsDeletedFalse(attempt.getPayslipId(), t)
+                    .orElseThrow(() -> new ResourceNotFoundException("Payslip", attempt.getPayslipId()));
+            applyDisbursementOutcome(attempt, payslip, targetStatus);
+            salaryDisbursementAttemptRepository.save(attempt);
+            psRepo.save(payslip);
+            financialAuditService.record(
+                    "PAYROLL", "UPDATE_DISBURSEMENT_STATUS", "SALARY_DISBURSEMENT_ATTEMPT", attempt.getId(),
+                    normalizedOperationKey(operationKey, "PAYROLL_STATUS", attemptId), idempotencyKey,
+                    fromState, targetStatus, "SUCCESS", "mock_payout", attempt.getReferenceId(), "INR", attempt.getAmount(), attempt.getGatewayPayload());
+            return toAttemptResponse(attempt, payslip);
+        });
+    }
+
+    @Transactional
+    public int reconcilePendingDisbursements(int maxBatchSize) {
+        String tenantId = TenantContext.getTenantId();
+        if (tenantId == null || tenantId.isBlank()) {
+            return 0;
         }
-        attempt.setStatus(targetStatus);
-        if ("COMPLETED".equals(targetStatus) || "FAILED".equals(targetStatus)) {
-            attempt.setCompletedAt(LocalDateTime.now());
-        } else {
-            attempt.setCompletedAt(null);
+        return reconcilePendingDisbursementsForTenant(tenantId, maxBatchSize);
+    }
+
+    @Transactional
+    public int reconcilePendingDisbursementsForAllTenants(int maxBatchSizePerTenant) {
+        int totalProcessed = 0;
+        for (String tenantId : salaryDisbursementAttemptRepository.findDistinctTenantIdByIsDeletedFalse()) {
+            totalProcessed += reconcilePendingDisbursementsForTenant(tenantId, maxBatchSizePerTenant);
         }
-        if (req.getMessage() != null && !req.getMessage().trim().isEmpty()) {
-            attempt.setGatewayPayload(req.getMessage().trim());
+        return totalProcessed;
+    }
+
+    @Transactional
+    public boolean applyWebhookDisbursementStatus(String referenceId, String providerStatus, String providerPayload, String idempotencyKey) {
+        if (referenceId == null || referenceId.isBlank()) {
+            return false;
         }
-        salaryDisbursementAttemptRepository.save(attempt);
-        Payslip payslip = psRepo.findByIdAndTenantIdAndIsDeletedFalse(attempt.getPayslipId(), t)
-                .orElseThrow(() -> new ResourceNotFoundException("Payslip", attempt.getPayslipId()));
-        if ("COMPLETED".equals(targetStatus)) {
-            payslip.setStatus(Enums.PayslipStatus.PAID);
-            payslip.setPaymentDate(LocalDate.now());
-        } else if ("FAILED".equals(targetStatus) && payslip.getStatus() == Enums.PayslipStatus.PAID) {
-            payslip.setStatus(Enums.PayslipStatus.GENERATED);
-            payslip.setPaymentDate(null);
+        String normalized = normalizeDisbursementStatus(providerStatus);
+        return tenantRedisLockService.withBestEffortLock("payroll:webhook:ref:" + referenceId, Duration.ofSeconds(30), () -> {
+            var optionalAttempt = salaryDisbursementAttemptRepository
+                    .findFirstByReferenceIdAndIsDeletedFalseOrderByCreatedAtDesc(referenceId);
+            if (optionalAttempt.isEmpty()) {
+                return false;
+            }
+            SalaryDisbursementAttempt attempt = optionalAttempt.get();
+            String tenantId = attempt.getTenantId();
+            Payslip payslip = psRepo.findByIdAndTenantIdAndIsDeletedFalse(attempt.getPayslipId(), tenantId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Payslip", attempt.getPayslipId()));
+            String fromStatus = attempt.getStatus();
+            if (normalized.equalsIgnoreCase(fromStatus)) {
+                return true;
+            }
+            attempt.setStatus(normalized);
+            if (providerPayload != null && !providerPayload.isBlank()) {
+                attempt.setGatewayPayload(providerPayload);
+            }
+            applyDisbursementOutcome(attempt, payslip, normalized);
+            salaryDisbursementAttemptRepository.save(attempt);
+            psRepo.save(payslip);
+            financialAuditService.record(
+                    "PAYROLL", "WEBHOOK_DISBURSEMENT_STATUS", "SALARY_DISBURSEMENT_ATTEMPT", attempt.getId(),
+                    "PAYROLL_WEBHOOK:" + tenantId + ":" + attempt.getId(), idempotencyKey,
+                    fromStatus, normalized, "SUCCESS", payoutProviderFromPayload(attempt.getGatewayPayload()),
+                    attempt.getReferenceId(), "INR", attempt.getAmount(), attempt.getGatewayPayload());
+            return true;
+        });
+    }
+
+    private int reconcilePendingDisbursementsForTenant(String tenantId, int maxBatchSize) {
+        List<String> activeStatuses = List.of(
+                PayrollDisbursementStatus.INITIATED.name(),
+                PayrollDisbursementStatus.SUBMITTED.name());
+        List<SalaryDisbursementAttempt> candidates = salaryDisbursementAttemptRepository
+                .findByTenantIdAndStatusInAndIsDeletedFalseOrderByCreatedAtAsc(tenantId, activeStatuses);
+        int processed = 0;
+        for (SalaryDisbursementAttempt attempt : candidates) {
+            if (processed >= maxBatchSize) {
+                break;
+            }
+            PayrollPayoutGatewayClient.PayoutStatusResult providerStatus = payrollPayoutGatewayClient.fetchStatus(attempt.getReferenceId());
+            String nextStatus = normalizeDisbursementStatus(providerStatus.status());
+            if (nextStatus.equalsIgnoreCase(attempt.getStatus())) {
+                continue;
+            }
+            Payslip payslip = psRepo.findByIdAndTenantIdAndIsDeletedFalse(attempt.getPayslipId(), tenantId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Payslip", attempt.getPayslipId()));
+            String fromStatus = attempt.getStatus();
+            attempt.setStatus(nextStatus);
+            attempt.setGatewayPayload(providerStatus.payloadJson());
+            applyDisbursementOutcome(attempt, payslip, nextStatus);
+            salaryDisbursementAttemptRepository.save(attempt);
+            psRepo.save(payslip);
+            financialAuditService.record(
+                    "PAYROLL", "RECONCILE_DISBURSEMENT", "SALARY_DISBURSEMENT_ATTEMPT", attempt.getId(),
+                    "PAYROLL_RECON:" + tenantId + ":" + attempt.getId(), null,
+                    fromStatus, nextStatus, "SUCCESS", providerStatus.providerName(),
+                    attempt.getReferenceId(), "INR", attempt.getAmount(), providerStatus.payloadJson());
+            processed++;
         }
-        psRepo.save(payslip);
-        return toAttemptResponse(attempt, payslip);
+        return processed;
     }
 
     @Transactional(readOnly = true)
@@ -423,7 +563,7 @@ public class PayrollService {
         out.setAmount(attempt.getAmount());
         out.setPaymentMethod(attempt.getPaymentMethod());
         out.setReferenceId(attempt.getReferenceId());
-        out.setStatus(attempt.getStatus());
+        out.setStatus(PayrollDisbursementStatus.PROCESSED.name().equalsIgnoreCase(attempt.getStatus()) ? "COMPLETED" : attempt.getStatus());
         out.setCreatedAt(attempt.getCreatedAt() != null ? attempt.getCreatedAt().toString() : null);
         out.setCompletedAt(attempt.getCompletedAt() != null ? attempt.getCompletedAt().toString() : null);
         out.setLastMessage(attempt.getGatewayPayload());
@@ -432,15 +572,25 @@ public class PayrollService {
 
     private static String normalizePayrollMonthKey(String month, int year) {
         int currentYear = LocalDate.now().getYear();
-        if (year < 2000 || year > currentYear + 2) {
+        if (year < 2000 || year > currentYear) {
             throw new BusinessException("Invalid payroll year. Please use a valid year.");
         }
         if (month == null || month.trim().isEmpty()) {
             throw new BusinessException("Payroll month is required.");
         }
         try {
-            return toPayrollMonthKey(month, year);
+            String payrollMonth = toPayrollMonthKey(month, year);
+            YearMonth selected = YearMonth.parse(payrollMonth);
+            YearMonth current = YearMonth.now();
+            YearMonth previous = current.minusMonths(1);
+            if (!(selected.equals(current) || selected.equals(previous))) {
+                throw new BusinessException("Payroll period must be current month or previous month only.");
+            }
+            return payrollMonth;
         } catch (Exception ex) {
+            if (ex instanceof BusinessException be) {
+                throw be;
+            }
             throw new BusinessException("Invalid payroll month. Use full month name, e.g. April.");
         }
     }
@@ -454,7 +604,10 @@ public class PayrollService {
             final PayslipPdfService payslipPdfService,
             final SalaryDisbursementAttemptRepository salaryDisbursementAttemptRepository,
             final NotificationService notificationService,
-            final NotificationDispatchPort notificationDispatchPort) {
+            final NotificationDispatchPort notificationDispatchPort,
+            final TenantRedisLockService tenantRedisLockService,
+            final FinancialAuditService financialAuditService,
+            final PayrollPayoutGatewayClient payrollPayoutGatewayClient) {
         this.ssRepo = ssRepo;
         this.scRepo = scRepo;
         this.psRepo = psRepo;
@@ -464,5 +617,62 @@ public class PayrollService {
         this.salaryDisbursementAttemptRepository = salaryDisbursementAttemptRepository;
         this.notificationService = notificationService;
         this.notificationDispatchPort = notificationDispatchPort;
+        this.tenantRedisLockService = tenantRedisLockService;
+        this.financialAuditService = financialAuditService;
+        this.payrollPayoutGatewayClient = payrollPayoutGatewayClient;
+    }
+
+    private String normalizedOperationKey(String incoming, String prefix, Long id) {
+        String trimmed = incoming != null ? incoming.trim() : "";
+        if (!trimmed.isEmpty()) {
+            return trimmed;
+        }
+        return prefix + ":" + TenantContext.getTenantId() + ":" + id;
+    }
+
+    private PayrollDTOs.DisburseSalaryResponse toDisburseResponse(SalaryDisbursementAttempt attempt, String teacherName) {
+        PayrollDTOs.DisburseSalaryResponse out = new PayrollDTOs.DisburseSalaryResponse();
+        out.setReferenceId(attempt.getReferenceId());
+        out.setAmount(attempt.getAmount());
+        out.setTeacherName(teacherName);
+        out.setPaymentMethod(attempt.getPaymentMethod());
+        out.setMessage("Transfer submitted to bank pipeline (connect your PSP). Mark paid after funds settle.");
+        return out;
+    }
+
+    private static String normalizeDisbursementStatus(String sourceStatus) {
+        String normalized = sourceStatus != null ? sourceStatus.trim().toUpperCase(Locale.ROOT) : "";
+        if ("COMPLETED".equals(normalized)) {
+            return PayrollDisbursementStatus.PROCESSED.name();
+        }
+        if (!normalized.matches("INITIATED|SUBMITTED|PROCESSED|FAILED|RECONCILED")) {
+            return PayrollDisbursementStatus.SUBMITTED.name();
+        }
+        return normalized;
+    }
+
+    private void applyDisbursementOutcome(SalaryDisbursementAttempt attempt, Payslip payslip, String targetStatus) {
+        if (PayrollDisbursementStatus.PROCESSED.name().equals(targetStatus)
+                || PayrollDisbursementStatus.FAILED.name().equals(targetStatus)
+                || PayrollDisbursementStatus.RECONCILED.name().equals(targetStatus)) {
+            attempt.setCompletedAt(LocalDateTime.now());
+        } else {
+            attempt.setCompletedAt(null);
+        }
+        if (PayrollDisbursementStatus.PROCESSED.name().equals(targetStatus)
+                || PayrollDisbursementStatus.RECONCILED.name().equals(targetStatus)) {
+            payslip.setStatus(Enums.PayslipStatus.PAID);
+            payslip.setPaymentDate(LocalDate.now());
+        } else if (PayrollDisbursementStatus.FAILED.name().equals(targetStatus) && payslip.getStatus() == Enums.PayslipStatus.PAID) {
+            payslip.setStatus(Enums.PayslipStatus.GENERATED);
+            payslip.setPaymentDate(null);
+        }
+    }
+
+    private static String payoutProviderFromPayload(String payload) {
+        if (payload != null && payload.contains("razorpayx")) {
+            return "razorpayx";
+        }
+        return "mock_payout";
     }
 }

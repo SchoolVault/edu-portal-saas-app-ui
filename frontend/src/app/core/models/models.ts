@@ -5,6 +5,7 @@ export type AppRole = 'super_admin' | 'admin' | 'teacher' | 'parent' | 'student'
 /** Body for {@code PUT /api/v1/auth/profile} — mirrors Spring {@code AuthDTOs.UpdateProfileRequest}. */
 export interface UpdateAccountProfileRequest {
   name?: string;
+  email?: string | null;
   phone?: string | null;
   avatar?: string | null;
   qualification?: string | null;
@@ -30,7 +31,15 @@ export interface PersonalProfileDetails {
   bankName?: string;
   bankAccountNumber?: string;
   bankIfsc?: string;
+  emailVerified?: boolean;
+  phoneVerified?: boolean;
   editableScopes?: string[];
+}
+
+export interface IdentityUpdateResponse {
+  user: User;
+  message?: string;
+  devVerificationToken?: string | null;
 }
 
 export interface User {
@@ -45,6 +54,8 @@ export interface User {
   phone?: string;
   /** Mirrors backend `UserProfile.interfaceLocale` (en | hi, …). */
   interfaceLocale?: string;
+  emailVerified?: boolean;
+  phoneVerified?: boolean;
 }
 
 export interface LoginRequest {
@@ -570,6 +581,7 @@ export interface DashboardActivityItem {
   description: string;
   type: string;
   timestamp: string;
+  campaignId?: string;
 }
 
 export interface DashboardUpcomingEvent {
@@ -577,6 +589,7 @@ export interface DashboardUpcomingEvent {
   title: string;
   date: string;
   description: string;
+  campaignId?: string;
 }
 
 export interface DashboardAttendanceOverview {
@@ -594,6 +607,7 @@ export interface ClassHomeroomGap {
 }
 
 export interface AdminDashboardData {
+  dataComputedAt?: string;
   totalStudents: number;
   totalTeachers: number;
   feesCollected: number;
@@ -811,6 +825,7 @@ export interface TeacherHomeroomAttendanceDetail {
 }
 
 export interface TeacherDashboardData {
+  dataComputedAt?: string;
   assignedClasses: number;
   studentsAssigned: number;
   upcomingExams: number;
@@ -884,6 +899,7 @@ export interface ParentDashboardActivityItem {
 }
 
 export interface ParentDashboardData {
+  dataComputedAt?: string;
   childCount: number;
   children?: Student[];
   selectedChild?: Student;
@@ -1156,6 +1172,39 @@ export interface BulkAssignFeesResponse {
   skippedCount: number;
   skipped: BulkAssignFeesSkipEntry[];
   createdSample: FeePayment[];
+}
+
+export interface FeeTransaction {
+  id: number;
+  feePaymentId: number;
+  attemptId?: number;
+  eventType: string;
+  eventStatus?: string;
+  amount: number;
+  currency?: string;
+  provider?: string;
+  providerPaymentId?: string;
+  referenceId?: string;
+  operationKey?: string;
+  note?: string;
+  occurredAt?: string;
+}
+
+export interface FeeRefundRequest {
+  amount: number;
+  reason?: string;
+  operationKey?: string;
+}
+
+export interface FeeRefundDecisionRequest {
+  note?: string;
+  operationKey?: string;
+}
+
+export interface FeeRefundExecuteRequest {
+  providerRefundId?: string;
+  note?: string;
+  operationKey?: string;
 }
 
 /** @see ParentFeeDtos — mirrors {@code FeeDTOs.ParentFeeLineItem}. */

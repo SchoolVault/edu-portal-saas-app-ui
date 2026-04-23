@@ -2,13 +2,16 @@ import { Component, ElementRef, OnDestroy, OnInit, ViewChild } from '@angular/co
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
+import { forkJoin } from 'rxjs';
 import {
   DryRunResponse,
   FileHeaderPreview,
   ImportExportService,
   ImportJobLine,
   ImportJobSummary,
+  ImportLedgerLine,
   ImportMetricsSummary,
+  RollbackBundleResponse,
 } from '../../core/services/import-export.service';
 import { ErpPaginationComponent } from '../../shared/erp-pagination/erp-pagination.component';
 import { ErpDatePickerComponent } from '../../shared/erp-date-picker/erp-date-picker.component';
@@ -42,8 +45,8 @@ interface JobTypeOption {
 /** Minimum canonical fields that must be mapped for each job type (matches backend validators). */
 const REQUIRED_IMPORT_FIELDS: Record<string, string[]> = {
   STUDENTS: ['firstname', 'lastname'],
-  TEACHERS: ['firstname', 'lastname', 'email'],
-  STAFF: ['firstname', 'lastname', 'email'],
+  TEACHERS: ['firstname', 'lastname', 'phone'],
+  STAFF: ['firstname', 'lastname', 'phone'],
   CLASSES: ['name', 'grade', 'academicyearid'],
   TIMETABLE: ['teacheremail', 'classname', 'sectionname', 'subjectname', 'dayofweek', 'period', 'starttime', 'endtime'],
   FEE_STRUCTURES: ['name', 'classname', 'academicyearid', 'componentspec'],
@@ -152,6 +155,20 @@ const REQUIRED_IMPORT_FIELDS: Record<string, string[]> = {
         <p class="small text-muted mb-0 mt-2" *ngIf="metricsSummary?.meterNamespaceHint">
           {{ 'importExport.metricsPromHint' | translate: { ns: metricsSummary!.meterNamespaceHint! } }}
         </p>
+      </div>
+      <div
+        *ngIf="globalFlowMessage"
+        class="alert mb-4"
+        [class.alert-success]="globalFlowMessageOk"
+        [class.alert-danger]="!globalFlowMessageOk"
+      >
+        <div class="d-flex justify-content-between align-items-start gap-2">
+          <div>
+            <div class="fw-semibold">{{ globalFlowMessage }}</div>
+            <div class="small mt-1" *ngIf="globalFlowMessageContext">{{ globalFlowMessageContext }}</div>
+          </div>
+          <button type="button" class="btn-close" aria-label="Close" (click)="clearGlobalFlowMessage()"></button>
+        </div>
       </div>
 
       <!-- Import -->
@@ -305,6 +322,28 @@ const REQUIRED_IMPORT_FIELDS: Record<string, string[]> = {
           <p class="small text-danger mb-0 mt-2" *ngIf="mappingIncomplete">{{ 'importExport.mapIncomplete' | translate }}</p>
         </div>
 
+        <div
+          class="ie-execution border-0 mt-3 p-3 rounded-3"
+          *ngIf="file && headerPreview"
+          style="background: var(--clr-surface-muted, rgba(0, 0, 0, 0.04)); border: 1px solid var(--clr-border, rgba(0, 0, 0, 0.08)) !important"
+        >
+          <label class="form-label small text-muted text-uppercase fw-semibold mb-2 d-block" style="letter-spacing: 0.04em">{{
+            'importExport.executionModeLabel' | translate
+          }}</label>
+          <select
+            class="form-select form-select-sm"
+            [(ngModel)]="executionMode"
+            name="importExecutionMode"
+            style="max-width: 28rem"
+          >
+            <option value="BEST_EFFORT">{{ 'importExport.executionModeBestEffort' | translate }}</option>
+            <option value="ALL_OR_NOTHING">{{ 'importExport.executionModeAllOrNothing' | translate }}</option>
+          </select>
+          <p class="small text-muted mt-2 mb-0" style="max-width: 40rem">
+            {{ 'importExport.executionModeHint' | translate }}
+          </p>
+        </div>
+
         <div class="d-flex flex-wrap align-items-center gap-2 mt-4">
           <button
             type="button"
@@ -332,6 +371,9 @@ const REQUIRED_IMPORT_FIELDS: Record<string, string[]> = {
         </div>
         <div class="ie-dry-run card border-0 mt-3 p-3" *ngIf="dryRunResult as dr">
           <div class="small text-muted text-uppercase fw-semibold mb-2" style="letter-spacing: 0.04em;">{{ 'importExport.dryRunSummary' | translate }}</div>
+          <div class="small text-muted mb-2">
+            <span class="fw-semibold">{{ 'importExport.dedupeKeyLabel' | translate }}:</span> {{ dryRunDedupeKeyHint() }}
+          </div>
           <div class="alert alert-info py-2 px-3 small mb-2" *ngIf="dr.advisoryMessage">
             <i class="bi bi-info-circle me-1" aria-hidden="true"></i>{{ dr.advisoryMessage }}
           </div>
@@ -345,9 +387,36 @@ const REQUIRED_IMPORT_FIELDS: Record<string, string[]> = {
             <div class="col-6 col-md-3">
               <div class="ie-dry-run-stat"><span class="text-muted">{{ 'importExport.dryRunInvalid' | translate }}</span><strong class="text-danger">{{ dr.invalidRows }}</strong></div>
             </div>
+            <div class="col-6 col-md-3" *ngIf="dr.createOnlyEvaluatedRows != null && dr.createOnlyEvaluatedRows > 0">
+              <div class="ie-dry-run-stat">
+                <span class="text-muted">{{ 'importExport.createOnlyDupRatio' | translate }}</span
+                ><strong
+                  >{{ (dr.createOnlyDuplicateRatio != null ? dr.createOnlyDuplicateRatio * 100 : 0) | number: '1.0-1' }}%</strong
+                >
+                <span class="text-muted d-block small"
+                  >({{ dr.createOnlyCollisionRows }} / {{ dr.createOnlyEvaluatedRows }})</span
+                >
+              </div>
+            </div>
+          </div>
+          <div class="alert alert-danger py-2 px-3 small mb-2" *ngIf="dr.importBlocked && dr.importBlockMessage">
+            <i class="bi bi-shield-exclamation me-1" aria-hidden="true"></i>{{ dr.importBlockMessage }}
+          </div>
+          <div class="small text-muted mt-2" *ngIf="dr.sampleErrors.length">
+            <span *ngFor="let bucket of groupedDryRunErrorBuckets(); let last = last">
+              {{ dryRunErrorCodeLabel(bucket.code) }}: {{ bucket.count }}<span *ngIf="!last"> · </span>
+            </span>
+          </div>
+          <div class="alert alert-warning py-2 px-3 small mb-2 mt-2" *ngIf="jobType.toUpperCase() === 'TIMETABLE' && dr.sampleErrors.length">
+            <i class="bi bi-lightbulb me-1" aria-hidden="true"></i>{{ 'importExport.timetableDryRunHelper' | translate }}
           </div>
           <ul class="list-unstyled mb-0 mt-2 small" *ngIf="dr.sampleErrors.length">
-            <li *ngFor="let e of dr.sampleErrors" class="text-danger"><span class="text-muted">#{{ e.lineIndex }}</span> — {{ e.message }}</li>
+            <li *ngFor="let e of dr.sampleErrors" class="text-danger">
+              <span class="text-muted">#{{ e.lineIndex }}</span>
+              <span *ngIf="e.errorCode" class="text-muted">[{{ dryRunErrorCodeLabel(e.errorCode) }}]</span>
+              — {{ humanizeDryRunMessage(e.message, e.errorCode) }}
+              <span *ngIf="e.dedupeKey" class="text-muted">({{ e.dedupeKey }})</span>
+            </li>
           </ul>
         </div>
       </div>
@@ -418,6 +487,7 @@ const REQUIRED_IMPORT_FIELDS: Record<string, string[]> = {
               <tr>
                 <th>{{ 'importExport.thId' | translate }}</th>
                 <th>{{ 'importExport.thType' | translate }}</th>
+                <th>{{ 'importExport.thExecution' | translate }}</th>
                 <th>{{ 'importExport.thStatus' | translate }}</th>
                 <th>{{ 'importExport.thTimeTaken' | translate }}</th>
                 <th>{{ 'importExport.thFile' | translate }}</th>
@@ -431,6 +501,9 @@ const REQUIRED_IMPORT_FIELDS: Record<string, string[]> = {
                 <td class="fw-semibold text-muted">#{{ j.id }}</td>
                 <td>
                   <span class="ie-type-pill">{{ jobTypeLabel(j.jobType) }}</span>
+                </td>
+                <td class="small text-nowrap text-muted">
+                  {{ jobExecutionModeLabel(j.executionMode) }}
                 </td>
                 <td>
                   <span class="ie-status" [ngClass]="statusClass(j.status)">
@@ -497,6 +570,69 @@ const REQUIRED_IMPORT_FIELDS: Record<string, string[]> = {
         <div *ngIf="linesLoading" class="text-center py-4 text-muted">
           <span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>
           {{ 'importExport.loadingLines' | translate }}
+        </div>
+
+        <div
+          *ngIf="!linesLoading && rollbackBrief"
+          class="border rounded p-3 mb-3 bg-body-secondary bg-opacity-10"
+        >
+          <h4 class="h6 text-uppercase text-muted mb-2" style="letter-spacing: 0.04em">
+            <i class="bi bi-reply-all me-1" aria-hidden="true"></i>{{ 'importExport.undoGuideTitle' | translate }}
+          </h4>
+          <p class="small text-muted mb-2">
+            <span *ngIf="rollbackBrief.ledgerRowCount"
+              >{{ 'importExport.undoLedgerCount' | translate: { n: rollbackBrief.ledgerRowCount } }}</span
+            >
+            <span *ngIf="!rollbackBrief.ledgerRowCount">{{ 'importExport.undoLedgerEmpty' | translate }}</span>
+          </p>
+          <ol class="small mb-0 ps-3">
+            <li *ngFor="let s of rollbackBrief.suggestedOperatorSteps">{{ s }}</li>
+          </ol>
+        </div>
+
+        <div *ngIf="ledgerLoading" class="text-center py-2 text-muted small">
+          <span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>
+          {{ 'importExport.loadingLedger' | translate }}
+        </div>
+
+        <div *ngIf="!ledgerLoading && ledgerRows.length > 0" class="mb-3">
+          <h4 class="h6 text-uppercase text-muted mb-2" style="letter-spacing: 0.04em">
+            <i class="bi bi-journal-text me-1" aria-hidden="true"></i>{{ 'importExport.importLedgerTitle' | translate }}
+          </h4>
+          <div class="table-responsive ie-table-wrap">
+            <table class="erp-table mb-0 ie-table ie-table--lines small">
+              <thead>
+                <tr>
+                  <th>{{ 'importExport.thLineNum' | translate }}</th>
+                  <th>{{ 'importExport.thLedgerOutcome' | translate }}</th>
+                  <th>{{ 'importExport.thEntity' | translate }}</th>
+                  <th>{{ 'importExport.thLedgerKey' | translate }}</th>
+                  <th>{{ 'importExport.thLedgerGuidance' | translate }}</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let g of ledgerRows">
+                  <td class="fw-semibold">{{ g.lineIndex }}</td>
+                  <td>
+                    <span class="ie-status ie-status--sm" [ngClass]="ledgerOutcomeClass(g.outcome)">
+                      <span class="ie-status-dot" aria-hidden="true"></span>
+                      {{ g.outcome }}
+                    </span>
+                  </td>
+                  <td>
+                    <ng-container *ngIf="g.entityType"
+                      >{{ g.entityType }} <span class="text-muted" *ngIf="g.entityId != null">#{{ g.entityId }}</span></ng-container
+                    >
+                    <ng-container *ngIf="!g.entityType">—</ng-container>
+                  </td>
+                  <td class="text-break" style="max-width: 140px">
+                    <code class="ie-payload small">{{ g.naturalKey || '—' }}</code>
+                  </td>
+                  <td class="text-muted" style="max-width: 320px">{{ g.rollbackGuidance || '—' }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </div>
 
         <div class="table-responsive ie-table-wrap" *ngIf="!linesLoading && lines.length > 0">
@@ -1369,9 +1505,16 @@ export class ImportExportComponent implements OnInit, OnDestroy {
   linesPageIndex = 0;
   linesPageSize = DEFAULT_ERP_PAGE_SIZE;
   selectedJob: ImportJobSummary | null = null;
+  /** Import ledger: per-row create / update / skip (after successful line commit). */
+  ledgerRows: ImportLedgerLine[] = [];
+  ledgerLoading = false;
+  /** Operator-facing undo copy (no automatic deletes). */
+  rollbackBrief: RollbackBundleResponse | null = null;
   dragOver = false;
   dryRunBusy = false;
   dryRunResult: DryRunResponse | null = null;
+  /** BEST_EFFORT (default) or ALL_OR_NOTHING (single DB transaction, smaller files). */
+  executionMode: 'BEST_EFFORT' | 'ALL_OR_NOTHING' = 'BEST_EFFORT';
 
   /** 0..4 — upload, map, validate, queue, report */
   wizardStepIndex = 0;
@@ -1401,18 +1544,13 @@ export class ImportExportComponent implements OnInit, OnDestroy {
   showTempPassword = false;
   onboardError = '';
   onboardSuccess = '';
+  globalFlowMessage = '';
+  globalFlowMessageContext = '';
+  globalFlowMessageOk = true;
   onboardValidationErrors: FieldErrors<OnboardSchoolField> = {};
   onboardTouched: Partial<Record<OnboardSchoolField, boolean>> = {};
   onboardingAcademicYearOptions: Array<{ label: string; academicYearStartDate: string; academicYearEndDate: string }> = [];
-  onboardForm: OnboardSchoolRequest = {
-    schoolName: '',
-    schoolCode: '',
-    adminName: '',
-    adminEmail: '',
-    adminPassword: '',
-    phone: '',
-    address: '',
-  };
+  onboardForm: OnboardSchoolRequest = this.createEmptyOnboardForm();
   private liveRefreshTimer: ReturnType<typeof setInterval> | null = null;
 
   constructor(
@@ -1447,7 +1585,10 @@ export class ImportExportComponent implements OnInit, OnDestroy {
     if (!this.canRunDryRun) {
       return false;
     }
-    return !!this.dryRunResult && this.dryRunResult.invalidRows === 0;
+    if (!this.dryRunResult || this.dryRunResult.invalidRows !== 0) {
+      return false;
+    }
+    return this.dryRunResult.importBlocked !== true;
   }
 
   get hasTargetSchoolCode(): boolean {
@@ -1487,11 +1628,64 @@ export class ImportExportComponent implements OnInit, OnDestroy {
     return t !== key ? t : raw;
   }
 
+  jobExecutionModeLabel(raw: string | null | undefined): string {
+    const id = String(raw || 'BEST_EFFORT').toUpperCase();
+    const key = `importExport.executionModeShort.${id}`;
+    return this.translate.instant(key);
+  }
+
   lineStatusLabel(raw: string): string {
     const id = String(raw || '').toUpperCase();
     const key = `importExport.lineStatus.${id}`;
     const t = this.translate.instant(key);
     return t !== key ? t : raw;
+  }
+
+  dryRunDedupeKeyHint(): string {
+    switch ((this.jobType || '').toUpperCase()) {
+      case 'TEACHERS':
+      case 'STAFF':
+        return 'phone';
+      case 'STUDENTS':
+        return 'admissionnumber (parent household by parentphone)';
+      case 'TIMETABLE':
+        return 'class+section+day+period; teacher by id, phone, or email (conflicts checked)';
+      case 'FEE_STRUCTURES':
+        return 'class+academicyearid+name';
+      default:
+        return 'entity natural key';
+    }
+  }
+
+  groupedDryRunErrorBuckets(): Array<{ code: string; count: number }> {
+    if (!this.dryRunResult?.sampleErrors?.length) {
+      return [];
+    }
+    const counts = new Map<string, number>();
+    for (const e of this.dryRunResult.sampleErrors) {
+      const code = (e.errorCode || 'VALIDATION_ERROR').toUpperCase();
+      counts.set(code, (counts.get(code) || 0) + 1);
+    }
+    return Array.from(counts.entries()).map(([code, count]) => ({ code, count }));
+  }
+
+  dryRunErrorCodeLabel(raw: string | null | undefined): string {
+    const code = String(raw || 'VALIDATION_ERROR').toUpperCase();
+    const key = `importExport.dryRunCode.${code}`;
+    const translated = this.translate.instant(key);
+    return translated !== key ? translated : code;
+  }
+
+  humanizeDryRunMessage(message: string | null | undefined, code: string | null | undefined): string {
+    const msg = String(message || '').trim();
+    const normalizedCode = String(code || '').toUpperCase();
+    if (normalizedCode === 'FK_NOT_FOUND' && msg.toLowerCase().includes('teacher not found')) {
+      return this.translate.instant('importExport.dryRunTeacherMissing');
+    }
+    if (normalizedCode === 'DUPLICATE_IN_FILE' && msg.toLowerCase().includes('double-booked')) {
+      return this.translate.instant('importExport.dryRunTeacherDoubleBooked');
+    }
+    return msg;
   }
 
   get activeTypeFile(): string {
@@ -1716,7 +1910,7 @@ export class ImportExportComponent implements OnInit, OnDestroy {
     this.lastSubmitMsg = '';
     this.lastSubmitOk = null;
     const mapJson = this.buildColumnMappingJson();
-    this.importExport.submitJob(this.jobType, this.file, mapJson, this.targetSchoolCode).subscribe({
+    this.importExport.submitJob(this.jobType, this.file, mapJson, this.targetSchoolCode, this.executionMode).subscribe({
       next: r => {
         this.wizardStepIndex = 4;
         this.lastSubmitMsg = this.translate.instant('importExport.msgQueued', { jobId: r.jobId, rows: r.totalRows });
@@ -1764,6 +1958,7 @@ export class ImportExportComponent implements OnInit, OnDestroy {
     this.columnSelections = {};
     this.wizardStepIndex = 0;
     this.previewLoading = false;
+    this.executionMode = 'BEST_EFFORT';
   }
 
   reloadJobs(): void {
@@ -1805,16 +2000,29 @@ export class ImportExportComponent implements OnInit, OnDestroy {
   selectJob(j: ImportJobSummary): void {
     this.selectedJob = j;
     this.linesLoading = true;
+    this.ledgerLoading = true;
     this.lines = [];
     this.pagedLines = [];
-    this.importExport.getLines(j.id, 0, 200, this.effectiveSchoolCode).subscribe({
-      next: p => {
-        this.lines = p.content;
+    this.ledgerRows = [];
+    this.rollbackBrief = null;
+    forkJoin({
+      lines: this.importExport.getLines(j.id, 0, 200, this.effectiveSchoolCode),
+      ledger: this.importExport.getLedger(j.id, 0, 500, this.effectiveSchoolCode),
+      rb: this.importExport.getRollbackBrief(j.id, this.effectiveSchoolCode),
+    }).subscribe({
+      next: res => {
+        this.lines = res.lines.content;
         this.linesPageIndex = 0;
         this.applyLinesPage();
+        this.ledgerRows = res.ledger.content;
+        this.rollbackBrief = res.rb;
         this.linesLoading = false;
+        this.ledgerLoading = false;
       },
-      error: () => (this.linesLoading = false),
+      error: () => {
+        this.linesLoading = false;
+        this.ledgerLoading = false;
+      },
     });
   }
 
@@ -1839,6 +2047,8 @@ export class ImportExportComponent implements OnInit, OnDestroy {
     this.selectedJob = null;
     this.lines = [];
     this.pagedLines = [];
+    this.ledgerRows = [];
+    this.rollbackBrief = null;
   }
 
   retry(j: ImportJobSummary): void {
@@ -1896,6 +2106,14 @@ export class ImportExportComponent implements OnInit, OnDestroy {
     if (s === 'COMPLETED' || s === 'SUCCESS') return 'ie-st-completed';
     if (s === 'FAILED') return 'ie-st-failed';
     if (s === 'RUNNING') return 'ie-st-running';
+    return 'ie-st-pending';
+  }
+
+  ledgerOutcomeClass(outcome: string): string {
+    const o = (outcome || '').toUpperCase();
+    if (o === 'CREATED') return 'ie-st-completed';
+    if (o === 'UPDATED') return 'ie-st-running';
+    if (o === 'SKIPPED') return 'ie-st-pending';
     return 'ie-st-pending';
   }
 
@@ -1992,6 +2210,7 @@ export class ImportExportComponent implements OnInit, OnDestroy {
 
   openOnboardModal(): void {
     this.onboardModalOpen = true;
+    this.onboardForm = this.createEmptyOnboardForm();
     this.onboardError = '';
     this.onboardSuccess = '';
     this.onboardValidationErrors = {};
@@ -2014,6 +2233,11 @@ export class ImportExportComponent implements OnInit, OnDestroy {
 
   closeOnboardModal(): void {
     this.onboardModalOpen = false;
+  }
+
+  clearGlobalFlowMessage(): void {
+    this.globalFlowMessage = '';
+    this.globalFlowMessageContext = '';
   }
 
   private validateOnboardForm(): FieldErrors<OnboardSchoolField> {
@@ -2163,16 +2387,11 @@ export class ImportExportComponent implements OnInit, OnDestroy {
           tenantId: res.tenantId,
           academicYearId: res.academicYearId ?? '-',
         });
+        this.globalFlowMessage = this.translate.instant('importExport.onboard.flowSuccessTitle');
+        this.globalFlowMessageContext = this.onboardSuccess;
+        this.globalFlowMessageOk = true;
         this.closeOnboardModal();
-        this.onboardForm = {
-          schoolName: '',
-          schoolCode: '',
-          adminName: '',
-          adminEmail: '',
-          adminPassword: '',
-          phone: '',
-          address: '',
-        };
+        this.onboardForm = this.createEmptyOnboardForm();
         this.onboardValidationErrors = {};
         this.onboardTouched = {};
         this.showTempPassword = false;
@@ -2182,8 +2401,23 @@ export class ImportExportComponent implements OnInit, OnDestroy {
       error: err => {
         this.onboardSubmitting = false;
         this.onboardError = err?.message || this.translate.instant('importExport.onboard.errors.createFailed');
+        this.globalFlowMessage = this.translate.instant('importExport.onboard.flowErrorTitle');
+        this.globalFlowMessageContext = this.onboardError;
+        this.globalFlowMessageOk = false;
       },
     });
+  }
+
+  private createEmptyOnboardForm(): OnboardSchoolRequest {
+    return {
+      schoolName: '',
+      schoolCode: '',
+      adminName: '',
+      adminEmail: '',
+      adminPassword: '',
+      phone: '',
+      address: '',
+    };
   }
 }
 

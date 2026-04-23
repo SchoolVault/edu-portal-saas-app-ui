@@ -99,6 +99,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -522,6 +523,10 @@ public class DemoDataSeedService {
         superAdmin.setPhone("+91-11-2800-0000");
         superAdmin.setRole(Enums.Role.SUPER_ADMIN);
         superAdmin.setSchoolCode(schoolCode);
+        superAdmin.setEmailVerified(true);
+        superAdmin.setPhoneVerified(true);
+        superAdmin.setPasswordChangedAt(LocalDateTime.now().minusDays(30));
+        superAdmin.setLastLoginAt(LocalDateTime.now().minusDays(1));
         superAdmin.setIsActive(true);
         superAdmin.setIsDeleted(false);
         userRepository.save(superAdmin);
@@ -660,6 +665,10 @@ public class DemoDataSeedService {
         pauseForResourceManagement();
 
         createLeaveRequests(tenantId, teachers, allStudents, random);
+        flushAndClear();
+        pauseForResourceManagement();
+
+        seedIdentityStateFixtures(tenantId, schoolCode);
         flushAndClear();
         pauseForResourceManagement();
 
@@ -1127,9 +1136,53 @@ public class DemoDataSeedService {
         u.setPhone(uniquePhone);
         u.setRole(role);
         u.setSchoolCode(schoolCode);
+        u.setEmailVerified(true);
+        u.setPhoneVerified(uniquePhone != null && !uniquePhone.isBlank());
+        u.setPasswordChangedAt(LocalDateTime.now().minusDays(10));
+        u.setLastLoginAt(LocalDateTime.now().minusDays(1));
         u.setIsActive(true);
         u.setIsDeleted(false);
         return userRepository.save(u);
+    }
+
+    private void seedIdentityStateFixtures(String tenantId, String schoolCode) {
+        String domain = tenantConfigRepository.findByTenantId(tenantId)
+                .map(TenantConfig::getEmail)
+                .filter(e -> e != null && e.contains("@"))
+                .map(e -> e.substring(e.indexOf('@') + 1).trim())
+                .filter(d -> !d.isBlank())
+                .orElse("school.local");
+
+        String teacherEmail = "qa.identity.teacher+" + schoolCode.toLowerCase(Locale.ROOT) + "@" + domain;
+        User teacherFixture = userRepository.findByEmailAndTenantIdAndIsDeletedFalse(teacherEmail, tenantId)
+                .orElseGet(() -> createUser(
+                        tenantId,
+                        schoolCode,
+                        "QA Identity Teacher " + schoolCode,
+                        teacherEmail,
+                        Enums.Role.TEACHER,
+                        "+91-8100000777"));
+        teacherFixture.setEmailVerified(false);
+        teacherFixture.setPhoneVerified(true);
+        teacherFixture.setPassword(BCRYPT_ADMIN123);
+        teacherFixture.setPasswordChangedAt(LocalDateTime.now().minusDays(3));
+        userRepository.save(teacherFixture);
+
+        String parentEmail = "qa.identity.parent+" + schoolCode.toLowerCase(Locale.ROOT) + "@" + domain;
+        User parentFixture = userRepository.findByEmailAndTenantIdAndIsDeletedFalse(parentEmail, tenantId)
+                .orElseGet(() -> createUser(
+                        tenantId,
+                        schoolCode,
+                        "QA Identity Parent " + schoolCode,
+                        parentEmail,
+                        Enums.Role.PARENT,
+                        "+91-9100000888"));
+        parentFixture.setEmailVerified(true);
+        parentFixture.setPhoneVerified(true);
+        parentFixture.setPassword("");
+        parentFixture.setPasswordChangedAt(null);
+        parentFixture.setLastLoginAt(LocalDateTime.now().minusDays(20));
+        userRepository.save(parentFixture);
     }
 
     /**
@@ -1315,7 +1368,7 @@ public class DemoDataSeedService {
             t.setSubjects(subjects);
             t.setBankAccountHolder(firstName + " " + lastName);
             t.setBankName(random.nextBoolean() ? "HDFC Bank" : "ICICI Bank");
-            t.setBankAccountNumber("ACC" + (100000000000L + random.nextLong(900000000000L)));
+            t.setBankAccountNumber(String.valueOf(100000000000L + random.nextLong(900000000000L)));
             t.setBankIfsc(random.nextBoolean() ? "HDFC0001234" : "ICIC0005678");
             t.setIsDeleted(false);
 
@@ -1665,27 +1718,40 @@ public class DemoDataSeedService {
         }
 
         // Create fee payments for all students
+        // Keep a guaranteed unsettled subset so checkout/settlement behavior is always testable.
+        int totalStudents = allStudents.size();
+        int forcedUnpaidCount = Math.max(12, totalStudents / 5);      // ~20%
+        int forcedPartialCount = Math.max(12, totalStudents / 5);     // ~20%
         long receiptCounter = System.currentTimeMillis(); // Start counter with current timestamp
         int paymentCounter = 0; // For batch processing
+        int studentIndex = 0;
         for (Student student : allStudents) {
             FeeStructure fs = feeStructureMap.get(student.getClassId());
             if (fs == null) continue;
 
-            // Random payment status: 60% PAID, 25% PARTIAL, 15% UNPAID
+            // Deterministic unsettled slice first, then random distribution for the rest.
             int statusRoll = random.nextInt(100);
             Enums.FeeStatus feeStatus;
             BigDecimal paidAmount;
             BigDecimal dueAmount;
 
-            if (statusRoll < 60) {
+            if (studentIndex < forcedUnpaidCount) {
+                feeStatus = Enums.FeeStatus.UNPAID;
+                paidAmount = BigDecimal.ZERO;
+                dueAmount = fs.getTotalAmount();
+            } else if (studentIndex < (forcedUnpaidCount + forcedPartialCount)) {
+                feeStatus = Enums.FeeStatus.PARTIAL;
+                paidAmount = fs.getTotalAmount().multiply(new BigDecimal("0.35")).setScale(2, RoundingMode.HALF_UP);
+                dueAmount = fs.getTotalAmount().subtract(paidAmount);
+            } else if (statusRoll < 55) {
                 // PAID
                 feeStatus = Enums.FeeStatus.PAID;
                 paidAmount = fs.getTotalAmount();
                 dueAmount = BigDecimal.ZERO;
-            } else if (statusRoll < 85) {
+            } else if (statusRoll < 80) {
                 // PARTIAL
                 feeStatus = Enums.FeeStatus.PARTIAL;
-                paidAmount = fs.getTotalAmount().multiply(new BigDecimal("0.5"));
+                paidAmount = fs.getTotalAmount().multiply(new BigDecimal("0.5")).setScale(2, RoundingMode.HALF_UP);
                 dueAmount = fs.getTotalAmount().subtract(paidAmount);
             } else {
                 // UNPAID
@@ -1721,6 +1787,7 @@ public class DemoDataSeedService {
                 flushAndClear();
                 log.debug("  Processed {} fee payments, flushed memory", paymentCounter);
             }
+            studentIndex++;
         }
     }
 
@@ -2632,8 +2699,8 @@ public class DemoDataSeedService {
             saveSalaryComponent(tenantId, ss.getId(), "TDS", tds, Enums.SalaryComponentType.DEDUCTION);
             saveSalaryComponent(tenantId, ss.getId(), "Provident Fund", pf, Enums.SalaryComponentType.DEDUCTION);
 
-            // Create payslips for last 3 months
-            for (int monthBack = 2; monthBack >= 0; monthBack--) {
+            // Create historical payslips only (exclude current + previous month so demo can test fresh generation).
+            for (int monthBack = 4; monthBack >= 2; monthBack--) {
                 YearMonth payrollMonth = currentMonth.minusMonths(monthBack);
 
                 Payslip payslip = new Payslip();
@@ -2647,8 +2714,8 @@ public class DemoDataSeedService {
                 payslip.setTotalAllowances(totalAllowances);
                 payslip.setTotalDeductions(totalDeductions);
                 payslip.setNetSalary(netSalary);
-                payslip.setStatus(monthBack == 0 ? Enums.PayslipStatus.GENERATED : Enums.PayslipStatus.PAID);
-                payslip.setPaymentDate(monthBack == 0 ? null : payrollMonth.atEndOfMonth());
+                payslip.setStatus(Enums.PayslipStatus.PAID);
+                payslip.setPaymentDate(payrollMonth.atEndOfMonth());
                 payslip.setIsDeleted(false);
                 payslipRepository.save(payslip);
             }

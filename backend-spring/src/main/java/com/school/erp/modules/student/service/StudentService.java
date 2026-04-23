@@ -7,6 +7,8 @@ import com.school.erp.common.exception.DuplicateResourceException;
 import com.school.erp.common.exception.ResourceNotFoundException;
 import com.school.erp.common.exception.ForbiddenException;
 import com.school.erp.common.importer.BulkImportRowPolicy;
+import com.school.erp.common.importer.ImportLineOutcome;
+import com.school.erp.common.importer.LineApplyResult;
 import com.school.erp.common.importer.ZipCsvImportUtil;
 import com.school.erp.modules.academic.entity.Section;
 import com.school.erp.modules.academic.repository.SchoolClassRepository;
@@ -16,6 +18,7 @@ import com.school.erp.events.domain.StudentEnrollmentChangedEvent;
 import com.school.erp.modules.student.dto.StudentDTOs;
 import com.school.erp.modules.student.entity.Student;
 import com.school.erp.modules.guardian.service.GuardianLinkSyncService;
+import com.school.erp.modules.reports.service.DashboardSnapshotInvalidationService;
 import com.school.erp.modules.student.mapper.StudentResponseMapper;
 import com.school.erp.modules.student.port.StudentPersistencePort;
 import com.school.erp.cache.CacheService;
@@ -53,6 +56,7 @@ public class StudentService {
     private final DomainEventPublisher domainEventPublisher;
     private final GuardianLinkSyncService guardianLinkSyncService;
     private final ObjectProvider<CacheService> cacheService;
+    private final DashboardSnapshotInvalidationService dashboardSnapshotInvalidationService;
 
     @Cacheable(cacheNames = CacheConfig.STUDENT_DIRECTORY, keyGenerator = "tenantMethodParamsKeyGenerator", unless = "#result == null")
     @Transactional(readOnly = true)
@@ -190,17 +194,18 @@ public class StudentService {
      * Bulk import path: supports {@link BulkImportRowPolicy} for admission-number collisions.
      */
     @Transactional
-    public StudentDTOs.Response importStudentRow(StudentDTOs.CreateRequest request, BulkImportRowPolicy policy) {
+    public LineApplyResult<StudentDTOs.Response> importStudentRow(StudentDTOs.CreateRequest request, BulkImportRowPolicy policy) {
         String tenantId = TenantContext.getTenantId();
+        String natural = studentImportNaturalKey(request);
         String adm = request.getAdmissionNumber();
         if (adm == null || adm.isBlank()) {
-            return createStudent(request);
+            return new LineApplyResult<>(createStudent(request), ImportLineOutcome.CREATED, natural);
         }
         adm = adm.trim();
         Optional<Student> existing = studentPersistence.findByTenantIdAndAdmissionNumberAndIsDeletedFalse(tenantId, adm);
         if (existing.isPresent()) {
             if (policy == BulkImportRowPolicy.SKIP_IF_EXISTS) {
-                return toResponse(existing.get());
+                return new LineApplyResult<>(toResponse(existing.get()), ImportLineOutcome.SKIPPED, "ADM:" + adm);
             }
             if (policy == BulkImportRowPolicy.UPSERT) {
                 StudentDTOs.UpdateRequest u = new StudentDTOs.UpdateRequest();
@@ -217,11 +222,24 @@ public class StudentService {
                 u.setParentName(request.getParentName());
                 u.setAddress(request.getAddress());
                 u.setBloodGroup(request.getBloodGroup());
-                return updateStudent(existing.get().getId(), u);
+                return new LineApplyResult<>(updateStudent(existing.get().getId(), u), ImportLineOutcome.UPDATED, "ADM:" + adm);
             }
             throw new DuplicateResourceException("Admission number already exists: " + adm);
         }
-        return createStudent(request);
+        return new LineApplyResult<>(createStudent(request), ImportLineOutcome.CREATED, "ADM:" + adm);
+    }
+
+    private static String studentImportNaturalKey(StudentDTOs.CreateRequest request) {
+        if (request.getAdmissionNumber() != null && !request.getAdmissionNumber().isBlank()) {
+            return "ADM:" + request.getAdmissionNumber().trim();
+        }
+        if (request.getPhone() != null && !request.getPhone().isBlank()) {
+            return "PHONE:" + request.getPhone().trim();
+        }
+        if (request.getRollNumber() != null && !request.getRollNumber().isBlank()) {
+            return "ROLL:" + request.getRollNumber().trim();
+        }
+        return "NEW";
     }
 
     @Transactional
@@ -462,7 +480,8 @@ public class StudentService {
                           final TeacherRosterScopeService teacherRosterScopeService,
                           final DomainEventPublisher domainEventPublisher,
                           final GuardianLinkSyncService guardianLinkSyncService,
-                          final ObjectProvider<CacheService> cacheService) {
+                          final ObjectProvider<CacheService> cacheService,
+                          final DashboardSnapshotInvalidationService dashboardSnapshotInvalidationService) {
         this.studentPersistence = studentPersistence;
         this.schoolClassRepository = schoolClassRepository;
         this.sectionRepository = sectionRepository;
@@ -470,6 +489,7 @@ public class StudentService {
         this.domainEventPublisher = domainEventPublisher;
         this.guardianLinkSyncService = guardianLinkSyncService;
         this.cacheService = cacheService;
+        this.dashboardSnapshotInvalidationService = dashboardSnapshotInvalidationService;
     }
 
     private void evictStudentAndAcademicCaches() {
@@ -477,6 +497,7 @@ public class StudentService {
             cs.clearRegion(CacheRegion.STUDENT_DIRECTORY);
             cs.clearRegion(CacheRegion.ACADEMIC_CATALOG);
         });
+        dashboardSnapshotInvalidationService.invalidateCurrentTenant("student_directory_changed");
     }
 
     private Long normalizeSectionId(Long sectionId) {
