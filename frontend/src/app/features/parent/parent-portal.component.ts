@@ -3,7 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, ParamMap, RouterModule } from '@angular/router';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
-import { Subject, takeUntil } from 'rxjs';
+import { Subject, take, takeUntil } from 'rxjs';
 import { ParentService } from '../../core/services/parent.service';
 import { ParentSelectionService } from '../../core/services/parent-selection.service';
 import { openRazorpaySchoolFeeCheckout, PAYMENT_PROVIDER_IDS } from '../../core/payment';
@@ -96,21 +96,60 @@ import { TenantModuleGateService } from '../../core/services/tenant-module-gate.
         border-color: color-mix(in srgb, var(--clr-accent) 35%, var(--clr-border-light));
         box-shadow: var(--shadow-md);
       }
+      .parent-fee-card-footer {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        margin-top: 1rem;
+      }
+      .parent-fee-card-footer__row {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 12px;
+      }
+      .parent-fee-outstanding {
+        flex: 1 1 220px;
+        min-width: 0;
+        font-size: 12px;
+        color: var(--clr-text-muted);
+        line-height: 1.45;
+      }
+      .parent-fee-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        align-items: center;
+        justify-content: flex-end;
+        flex: 0 1 auto;
+      }
+      .parent-fee-hint {
+        width: 100%;
+        max-width: 40rem;
+        margin: 0;
+        line-height: 1.45;
+      }
+      @media (max-width: 991px) {
+        .parent-fee-card-footer__row {
+          flex-direction: column;
+          align-items: stretch;
+        }
+        .parent-fee-actions {
+          justify-content: flex-start;
+          width: 100%;
+        }
+      }
       @media (max-width: 768px) {
-        .parent-fee-card-header,
-        .parent-fee-card-footer {
+        .parent-fee-card-header {
           flex-direction: column;
           align-items: flex-start !important;
           gap: 10px;
         }
-        .parent-fee-card-footer .d-flex.gap-2 {
-          width: 100%;
-          justify-content: flex-start;
-          flex-wrap: wrap;
-        }
-        .parent-fee-card-footer .btn-outline-erp,
-        .parent-fee-card-footer .btn-primary-erp {
-          width: 100%;
+        .parent-fee-actions .btn-outline-erp,
+        .parent-fee-actions .btn-primary-erp {
+          flex: 1 1 auto;
+          min-width: min(100%, 11rem);
         }
       }
       @media (max-width: 576px) {
@@ -243,8 +282,8 @@ import { TenantModuleGateService } from '../../core/services/tenant-module-gate.
         </div>
 
         <div class="erp-card" *ngIf="tab === 'fees'">
-          <div *ngIf="feeObligations.length" class="row g-4">
-            <div class="col-lg-7">
+          <div *ngIf="feeObligations.length" class="row g-4 align-items-stretch">
+            <div class="col-12 col-xl-7">
               <div *ngFor="let obligation of feeObligations" class="erp-card mb-3" style="border: 1px solid var(--clr-border-light); box-shadow: none;">
                 <div class="d-flex justify-content-between align-items-start mb-3 parent-fee-card-header">
                   <div>
@@ -297,24 +336,55 @@ import { TenantModuleGateService } from '../../core/services/tenant-module-gate.
                     <strong>{{ line.amount | currency:obligation.currency:'symbol':'1.0-0' }}</strong>
                   </div>
                 </div>
-                <div class="d-flex justify-content-between align-items-center mt-3 parent-fee-card-footer">
-                  <div style="font-size: 12px; color: var(--clr-text-muted);">
-                    {{ 'parentPortal.outstandingLine' | translate: {
-                      outstanding: (obligation.dueAmount | currency:obligation.currency:'symbol':'1.0-0'),
-                      discount: (obligation.discount | currency:obligation.currency:'symbol':'1.0-0')
-                    } }}
+                <div class="parent-fee-card-footer">
+                  <div class="parent-fee-card-footer__row">
+                    <div class="parent-fee-outstanding">
+                      {{ 'parentPortal.outstandingLine' | translate: {
+                        outstanding: (obligation.dueAmount | currency:obligation.currency:'symbol':'1.0-0'),
+                        discount: (obligation.discount | currency:obligation.currency:'symbol':'1.0-0')
+                      } }}
+                    </div>
+                    <div class="parent-fee-actions">
+                      <button
+                        type="button"
+                        class="btn-outline-erp btn-sm"
+                        *ngIf="latestReceiptForPayment(obligation.paymentId) as rec"
+                        (click)="downloadReceipt(rec)"
+                      >
+                        <i class="bi bi-download me-1"></i>{{ 'parentPortal.receiptBtn' | translate }}
+                      </button>
+                      <button
+                        *ngIf="obligation.payableNow > 0 && isParentOnlineFeeCheckoutEnabled(obligation)"
+                        type="button"
+                        class="btn-primary-erp btn-sm"
+                        [disabled]="processingPayment"
+                        (click)="openPayment(obligation)"
+                      >
+                        {{ 'parentPortal.payNow' | translate }}
+                      </button>
+                      <button
+                        *ngIf="obligation.payableNow > 0 && !isParentOnlineFeeCheckoutEnabled(obligation)"
+                        type="button"
+                        class="btn-primary-erp btn-sm"
+                        disabled
+                        [attr.aria-disabled]="true"
+                        [attr.title]="'parentPortal.payAtSchoolTitle' | translate"
+                      >
+                        {{ 'parentPortal.payAtSchool' | translate }}
+                      </button>
+                      <button *ngIf="obligation.payableNow <= 0" type="button" class="btn-primary-erp btn-sm" disabled>
+                        {{ 'parentPortal.settled' | translate }}
+                      </button>
+                    </div>
                   </div>
-                  <div class="d-flex gap-2">
-                    <button type="button" class="btn-outline-erp btn-sm" *ngIf="latestReceiptForPayment(obligation.paymentId) as rec" (click)="downloadReceipt(rec)"><i class="bi bi-download me-1"></i>{{ 'parentPortal.receiptBtn' | translate }}</button>
-                    <button class="btn-primary-erp btn-sm" [disabled]="obligation.payableNow <= 0 || processingPayment" (click)="openPayment(obligation)">
-                      {{ obligation.payableNow > 0 ? ('parentPortal.payNow' | translate) : ('parentPortal.settled' | translate) }}
-                    </button>
-                  </div>
+                  <p *ngIf="obligation.payableNow > 0 && !isParentOnlineFeeCheckoutEnabled(obligation)" class="small text-muted parent-fee-hint">
+                    {{ 'parentPortal.payAtSchoolHint' | translate }}
+                  </p>
                 </div>
               </div>
             </div>
-            <div class="col-lg-5">
-              <div class="erp-card parent-payment-activity">
+            <div class="col-12 col-xl-5">
+              <div class="erp-card parent-payment-activity h-100">
                 <div class="erp-card-header d-flex justify-content-between align-items-start flex-wrap gap-2">
                   <div>
                     <h3 class="erp-card-title mb-0">{{ 'parentPortal.paymentActivityTitle' | translate }}</h3>
@@ -908,7 +978,18 @@ export class ParentPortalComponent implements OnInit, OnDestroy {
     return remarks && remarks.trim() ? remarks : this.translate.instant('exams.dash');
   }
 
+  /**
+   * Mirrors {@code tenant_finance_profiles.parent_online_fee_checkout_enabled} echoed on each obligation row.
+   * When absent (older API), default true so existing deployments keep Pay Now until upgraded.
+   */
+  isParentOnlineFeeCheckoutEnabled(obligation: ParentFeeObligation): boolean {
+    return obligation.parentOnlineFeeCheckoutEnabled !== false;
+  }
+
   openPayment(obligation: ParentFeeObligation): void {
+    if (!this.isParentOnlineFeeCheckoutEnabled(obligation)) {
+      return;
+    }
     this.selectedObligation = obligation;
     this.paymentAmount = obligation.payableNow;
     this.paymentProvider = this.pickDefaultPaymentProvider();
@@ -986,9 +1067,11 @@ export class ParentPortalComponent implements OnInit, OnDestroy {
               this.paymentGatewayMessage = this.translate.instant('parentPortal.err.orderNoKey');
             }
           },
-          error: () => {
+          error: (e: unknown) => {
             this.processingPayment = false;
-            this.paymentGatewayMessage = this.translate.instant('parentPortal.err.checkoutFailed');
+            const raw = e instanceof Error ? e.message : '';
+            this.paymentGatewayMessage =
+              raw?.trim() || this.translate.instant('parentPortal.err.checkoutFailed');
           },
         });
       return;
@@ -1116,26 +1199,24 @@ export class ParentPortalComponent implements OnInit, OnDestroy {
   }
 
   downloadReceipt(receipt: PaymentReceipt): void {
-    const t = (key: string, params?: Record<string, string | number>) => this.translate.instant(key, params);
-    const dash = this.translate.instant('exams.dash');
-    const html = `
-      <html><head><title>${t('parentPortal.receiptHtml.docTitle', { no: receipt.receiptNumber })}</title></head><body style="font-family: Arial, sans-serif; padding: 24px;">
-      <h1>${t('parentPortal.receiptHtml.heading')}</h1>
-      <p><strong>${t('parentPortal.receiptHtml.receipt')}</strong> ${receipt.receiptNumber}</p>
-      <p><strong>${t('parentPortal.receiptHtml.student')}</strong> ${receipt.studentName}</p>
-      <p><strong>${t('parentPortal.receiptHtml.feePlan')}</strong> ${receipt.feeStructureName}</p>
-      <p><strong>${t('parentPortal.receiptHtml.paymentDate')}</strong> ${receipt.paymentDate || dash}</p>
-      <p><strong>${t('parentPortal.receiptHtml.amountPaid')}</strong> ${receipt.currency} ${receipt.amountPaid}</p>
-      <hr />
-      ${receipt.lineItems.map(line => `<div style="display:flex;justify-content:space-between;padding:6px 0;"><span>${line.name}</span><strong>${receipt.currency} ${line.amount}</strong></div>`).join('')}
-      </body></html>
-    `;
-    const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement('a');
-    anchor.href = url;
-    anchor.download = `${receipt.receiptNumber}.html`;
-    anchor.click();
-    URL.revokeObjectURL(url);
+    this.portalError = null;
+    this.parentService
+      .getFeeReceiptPdf(receipt.receiptNumber)
+      .pipe(takeUntil(this.destroy$), take(1))
+      .subscribe({
+        next: blob => {
+          const url = URL.createObjectURL(blob);
+          const anchor = document.createElement('a');
+          anchor.href = url;
+          anchor.download = `${receipt.receiptNumber}.pdf`;
+          anchor.click();
+          URL.revokeObjectURL(url);
+          this.cdr.markForCheck();
+        },
+        error: () => {
+          this.portalError = this.translate.instant('parentPortal.err.receiptPdfFailed');
+          this.cdr.markForCheck();
+        },
+      });
   }
 }

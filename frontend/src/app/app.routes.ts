@@ -17,6 +17,10 @@ export const routes: Routes = [
     loadComponent: () => import('./features/auth/forgot-password/forgot-password.component').then(m => m.ForgotPasswordComponent)
   },
   {
+    path: 'verify-email',
+    loadComponent: () => import('./features/auth/verify-email/verify-email.component').then(m => m.VerifyEmailComponent)
+  },
+  {
     path: 'app',
     loadComponent: () => import('./layout/layout.component').then(m => m.LayoutComponent),
     canActivate: [authGuard],
@@ -165,8 +169,8 @@ export const routes: Routes = [
       {
         path: 'payroll',
         loadComponent: () => import('./features/payroll/payroll.component').then(m => m.PayrollComponent),
-        canActivate: [adminOnlyGuard, featureModuleGuard],
-        data: { requireFeatures: ['payroll'], requireAnyRole: ['admin', 'super_admin'] },
+        canActivate: [featureModuleGuard],
+        data: { requireFeatures: ['payroll'], requireAnyRole: ['admin', 'super_admin', 'teacher'] },
       },
       {
         path: 'documents',

@@ -31,9 +31,13 @@ import com.school.erp.modules.parent.service.ParentPortalReadFacade;
 import com.school.erp.tenant.TenantContext;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.util.HashMap;
 import java.util.List;
@@ -164,6 +168,19 @@ public class ParentController {
     @Operation(summary = "Get receipt by receipt number")
     public ResponseEntity<ApiResponse<FeeDTOs.PaymentReceiptResponse>> getReceipt(@PathVariable String receiptNumber) {
         return ResponseEntity.ok(ApiResponse.ok(feeService.getReceipt(receiptNumber)));
+    }
+
+    @GetMapping(value = "/payments/receipts/{receiptNumber}/pdf", produces = MediaType.APPLICATION_PDF_VALUE)
+    @Operation(summary = "Download fee receipt as PDF")
+    public ResponseEntity<byte[]> downloadFeeReceiptPdf(@PathVariable String receiptNumber) {
+        byte[] data = feeService.getParentFeeReceiptPdf(receiptNumber);
+        String safeName = receiptNumber.replaceAll("[^a-zA-Z0-9._-]", "_");
+        ContentDisposition disposition = ContentDisposition.attachment()
+                .filename("fee-receipt-" + safeName + ".pdf", StandardCharsets.UTF_8)
+                .build();
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, disposition.toString())
+                .body(data);
     }
 
     @GetMapping("/children/{studentId}/receipts")

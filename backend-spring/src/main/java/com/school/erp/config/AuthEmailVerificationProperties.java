@@ -15,6 +15,12 @@ public class AuthEmailVerificationProperties {
     private boolean exposePlainTokenInApiResponse = false;
     private int requestCooldownSeconds = 60;
 
+    /**
+     * Public origin of the Angular SPA (no trailing slash), used to build {@code /verify-email?token=…} links
+     * for outbound email / webhooks. Example: {@code https://portal.example.com}
+     */
+    private String publicSpaBaseUrl = "";
+
     public int getTokenTtlHours() {
         return tokenTtlHours;
     }
@@ -37,5 +43,13 @@ public class AuthEmailVerificationProperties {
 
     public void setRequestCooldownSeconds(int requestCooldownSeconds) {
         this.requestCooldownSeconds = requestCooldownSeconds;
+    }
+
+    public String getPublicSpaBaseUrl() {
+        return publicSpaBaseUrl;
+    }
+
+    public void setPublicSpaBaseUrl(String publicSpaBaseUrl) {
+        this.publicSpaBaseUrl = publicSpaBaseUrl;
     }
 }

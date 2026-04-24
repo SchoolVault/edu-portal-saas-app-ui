@@ -1,4 +1,6 @@
 import { environment } from '../../../environments/environment';
+
+type EnvWithRbac = typeof environment & { useRbacMocks?: boolean };
 import { resolveStompBrokerUrl } from './resolve-stomp-broker-url';
 
 /**
@@ -23,10 +25,15 @@ export const runtimeConfig: DeployedApiConfig & {
    * Backend contract alignment: repo root {@code docs/README_PHASES.md} (pagination {@code PageResponse}, {@code ApiResponse}).
    */
   useMocks: boolean;
+  /**
+   * RBAC settings panel: in-memory vs `/api/v1/rbac` (default false in prod; dev may enable for UI-only work).
+   */
+  useRbacMocks: boolean;
 } = {
   apiUrl: environment.apiUrl,
   websocketUrl: undefined,
   useMocks: environment.useMocks,
+  useRbacMocks: Boolean((environment as EnvWithRbac).useRbacMocks),
   production: environment.production
 };
 

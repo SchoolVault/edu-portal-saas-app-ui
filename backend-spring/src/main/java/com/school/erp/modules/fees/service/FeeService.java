@@ -9,6 +9,7 @@ import com.school.erp.common.importer.BulkImportRowPolicy;
 import com.school.erp.common.importer.ImportLineOutcome;
 import com.school.erp.common.importer.LineApplyResult;
 import com.school.erp.common.lock.TenantRedisLockService;
+import com.school.erp.modules.fees.gateway.FeeGatewayOrderContext;
 import com.school.erp.modules.fees.gateway.PaymentGatewayClient;
 import com.school.erp.modules.finance.audit.service.FinancialAuditService;
 import com.school.erp.modules.payment.domain.PaymentProviderIds;
@@ -18,6 +19,10 @@ import com.school.erp.modules.fees.domain.FeeTransactionType;
 import com.school.erp.modules.academic.repository.SectionRepository;
 import com.school.erp.modules.fees.entity.*;
 import com.school.erp.modules.fees.repository.*;
+import com.school.erp.modules.finance.service.TenantFinanceProfileService;
+import com.school.erp.modules.fees.pdf.FeeReceiptPdfContext;
+import com.school.erp.modules.fees.pdf.FeeReceiptPdfService;
+import com.school.erp.modules.settings.repository.TenantConfigRepository;
 import com.school.erp.modules.auth.repository.UserRepository;
 import com.school.erp.modules.guardian.service.GuardianService;
 import com.school.erp.platform.port.NotificationDispatchPort;
@@ -49,7 +54,10 @@ import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Service
@@ -60,6 +68,10 @@ public class FeeService {
     private static final int BULK_ASSIGN_MAX_STUDENTS = 2000;
     private static final int BULK_ASSIGN_SKIPPED_CAP = 100;
     private static final int BULK_ASSIGN_CREATED_SAMPLE = 25;
+    /** Ledger rows that mean money was actually collected (parent receipt / PDF allowed). */
+    private static final List<String> PARENT_RECEIPT_LEDGER_EVENTS = List.of(
+            FeeTransactionType.PAYMENT_CAPTURED,
+            FeeTransactionType.PAYMENT_MANUAL_POSTED);
     private final FeeStructureRepository structureRepo;
     private final FeeComponentRepository componentRepo;
     private final FeePaymentRepository paymentRepo;
@@ -76,6 +88,9 @@ public class FeeService {
     private final DashboardSnapshotInvalidationService dashboardSnapshotInvalidationService;
     private final TenantRedisLockService tenantRedisLockService;
     private final FinancialAuditService financialAuditService;
+    private final TenantFinanceProfileService tenantFinanceProfileService;
+    private final TenantConfigRepository tenantConfigRepository;
+    private final FeeReceiptPdfService feeReceiptPdfService;
 
     @Value("${app.payments.razorpay.key:}")
     private String razorpayPublishableKeyId;
@@ -342,6 +357,9 @@ public class FeeService {
                 payment.getStatus() != null ? payment.getStatus().name() : "UNKNOWN",
                 payment.getReceiptNumber(),
                 Instant.now()));
+        if (req.getPaymentAmount() != null && req.getPaymentAmount().compareTo(BigDecimal.ZERO) > 0) {
+            enqueueManualFeeRecordedParentChannels(t, payment, req.getPaymentAmount());
+        }
         invalidateDashboardSnapshots("fee_record_payment");
         return toPaymentResponse(payment);
     }
@@ -405,8 +423,6 @@ public class FeeService {
             toCreate.add(s);
         }
 
-        long stamp = System.currentTimeMillis();
-        String tenantUpper = t.toUpperCase(Locale.ROOT);
         List<FeePayment> batch = new ArrayList<>(toCreate.size());
         for (Student s : toCreate) {
             FeePayment p = FeePayment.builder()
@@ -421,9 +437,9 @@ public class FeeService {
                     .lateFee(BigDecimal.ZERO)
                     .build();
             p.setTenantId(t);
-            p.setPaymentDate(LocalDate.now());
-            p.setReceiptNumber("REC-" + tenantUpper + "-" + stamp + "-" + s.getId());
-            p.setPaymentMethod("BULK_ASSIGN");
+            // No receipt or payment date until money is recorded (manual / online); avoids parent "receipt" before any collection.
+            p.setPaymentDate(null);
+            p.setPaymentMethod(null);
             applyDueDateLateFeeAndStatus(p);
             batch.add(p);
         }
@@ -506,8 +522,9 @@ public class FeeService {
     public List<FeeDTOs.ParentFeeObligationResponse> getParentFeeObligations(Long studentId) {
         assertParentOwnsStudent(studentId);
         String tenantId = TenantContext.getTenantId();
+        boolean parentOnlineCheckout = tenantFinanceProfileService.isParentOnlineFeeCheckoutEnabled(tenantId);
         return paymentRepo.findByTenantIdAndStudentIdAndIsDeletedFalse(tenantId, studentId).stream()
-                .map(this::toParentObligation)
+                .map(p -> toParentObligation(p, parentOnlineCheckout))
                 .collect(Collectors.toList());
     }
 
@@ -531,30 +548,51 @@ public class FeeService {
         if (!enabledParentFeeProviders().contains(provider)) {
             throw new BusinessException("Payment provider is not enabled for parent checkout: " + provider);
         }
+        tenantFinanceProfileService.assertParentOnlineFeeCheckoutAllowed(tenantId);
+        if (PaymentProviderIds.RAZORPAY.equals(provider)) {
+            tenantFinanceProfileService.assertRazorpayRouteParentCheckoutAllowed(tenantId);
+        }
         String effectiveOperationKey = normalizedOperationKey(operationKey, "FEE_ORDER", payment.getId(), request.getAmount());
         var existing = paymentAttemptRepository.findByTenantIdAndOperationKeyAndIsDeletedFalse(tenantId, effectiveOperationKey);
         if (existing.isPresent()) {
             return toCheckoutSessionResponse(existing.get());
         }
-        PaymentGatewayClient.GatewayCheckoutSession gatewaySession = paymentGatewayClient.createSession(provider, tenantId, payment.getId(), request.getAmount(), DEFAULT_CURRENCY, request.getReturnUrl());
 
+        String checkoutToken = "checkout-" + UUID.randomUUID().toString().replace("-", "");
+        String pendingOrderId = "RZP_PENDING_" + UUID.randomUUID().toString().replace("-", "");
         FeePaymentAttempt attempt = new FeePaymentAttempt();
         attempt.setTenantId(tenantId);
         attempt.setFeePaymentId(payment.getId());
         attempt.setStudentId(student.getId());
         attempt.setParentUserId(TenantContext.getUserId());
-        attempt.setProvider(gatewaySession.getProvider());
-        attempt.setProviderOrderId(gatewaySession.getProviderOrderId());
-        attempt.setCheckoutToken(gatewaySession.getCheckoutToken());
+        attempt.setProvider(provider);
+        attempt.setProviderOrderId(pendingOrderId);
+        attempt.setCheckoutToken(checkoutToken);
         attempt.setCurrency(DEFAULT_CURRENCY);
         attempt.setAmount(request.getAmount());
         attempt.setOperationKey(effectiveOperationKey);
-        attempt.setStatus(FeeAttemptStatus.ORDER_CREATED.name());
+        attempt.setStatus(FeeAttemptStatus.ORDER_CREATING.name());
         attempt.setReturnUrl(request.getReturnUrl());
-        attempt.setGatewayPayload(gatewaySession.getRawPayload());
         attempt.setInitiatedAt(LocalDateTime.now());
         attempt.setIsActive(true);
         attempt.setIsDeleted(false);
+        paymentAttemptRepository.save(attempt);
+        paymentAttemptRepository.flush();
+
+        FeeGatewayOrderContext orderContext = new FeeGatewayOrderContext(
+                tenantId,
+                payment.getId(),
+                attempt.getId(),
+                request.getAmount(),
+                DEFAULT_CURRENCY,
+                request.getReturnUrl());
+        PaymentGatewayClient.GatewayCheckoutSession gatewaySession = paymentGatewayClient.createSession(provider, orderContext);
+
+        attempt.setProvider(gatewaySession.getProvider());
+        attempt.setProviderOrderId(gatewaySession.getProviderOrderId());
+        attempt.setCheckoutToken(gatewaySession.getCheckoutToken());
+        attempt.setGatewayPayload(gatewaySession.getRawPayload());
+        attempt.setStatus(FeeAttemptStatus.ORDER_CREATED.name());
         paymentAttemptRepository.save(attempt);
         financialAuditService.record(
                 "FEES", "CREATE_ORDER", "FEE_PAYMENT_ATTEMPT", attempt.getId(),
@@ -700,6 +738,17 @@ public class FeeService {
     }
 
     @Transactional(readOnly = true)
+    public Optional<String> resolveTenantIdForProviderPaymentCapture(String razorpayPaymentId) {
+        if (razorpayPaymentId == null || razorpayPaymentId.isBlank()) {
+            return Optional.empty();
+        }
+        return feeTransactionRepository
+                .findFirstByEventTypeAndProviderPaymentIdAndIsDeletedFalseOrderByIdDesc(
+                        FeeTransactionType.PAYMENT_CAPTURED, razorpayPaymentId.trim())
+                .map(FeeTransaction::getTenantId);
+    }
+
+    @Transactional(readOnly = true)
     public List<FeeDTOs.FeeTransactionResponse> getPaymentTransactions(Long paymentId) {
         String tenantId = TenantContext.getTenantId();
         FeePayment payment = paymentRepo.findByIdAndTenantIdAndIsDeletedFalse(paymentId, tenantId)
@@ -824,7 +873,10 @@ public class FeeService {
 
     @Transactional
     public void timeoutStaleAttempts(int timeoutMinutes) {
-        List<String> activeStatuses = List.of(FeeAttemptStatus.ORDER_CREATED.name(), FeeAttemptStatus.ATTEMPTED.name());
+        List<String> activeStatuses = List.of(
+                FeeAttemptStatus.ORDER_CREATING.name(),
+                FeeAttemptStatus.ORDER_CREATED.name(),
+                FeeAttemptStatus.ATTEMPTED.name());
         LocalDateTime cutoff = LocalDateTime.now().minusMinutes(Math.max(timeoutMinutes, 1));
         List<FeePaymentAttempt> attempts = paymentAttemptRepository.findByStatusInAndIsDeletedFalseOrderByInitiatedAtAsc(activeStatuses);
         for (FeePaymentAttempt attempt : attempts) {
@@ -863,6 +915,168 @@ public class FeeService {
         }
     }
 
+    /**
+     * Applies a Razorpay {@code refund.processed} event: links to an approved ERP refund when possible,
+     * otherwise posts {@link FeeTransactionType#PROVIDER_REFUND_SETTLED} for reconciliation.
+     */
+    @Transactional
+    public boolean reconcileRefundProcessedFromWebhook(
+            String tenantId,
+            String razorpayPaymentId,
+            String razorpayRefundId,
+            long amountPaise,
+            String currency,
+            String rawPayload) {
+        if (tenantId == null || tenantId.isBlank()
+                || razorpayPaymentId == null || razorpayPaymentId.isBlank()
+                || razorpayRefundId == null || razorpayRefundId.isBlank()) {
+            return false;
+        }
+        try {
+            TenantContext.setTenantId(tenantId);
+            TenantContext.setUserRole("ADMIN");
+
+            if (feeTransactionRepository.findByTenantIdAndEventTypeAndProviderPaymentIdAndIsDeletedFalse(
+                    tenantId, FeeTransactionType.REFUND_EXECUTED, razorpayRefundId).isPresent()) {
+                return true;
+            }
+            if (feeTransactionRepository.findByTenantIdAndEventTypeAndProviderPaymentIdAndIsDeletedFalse(
+                    tenantId, FeeTransactionType.PROVIDER_REFUND_SETTLED, razorpayRefundId).isPresent()) {
+                return true;
+            }
+
+            BigDecimal refundAmount = BigDecimal.valueOf(amountPaise).movePointLeft(2).setScale(2, RoundingMode.HALF_UP);
+            String cur = currency != null ? currency.trim() : "INR";
+            if (!"INR".equalsIgnoreCase(cur)) {
+                log.warn("Refund webhook: non-INR currency {} — applying amount as scaled decimal", cur);
+            }
+
+            Optional<FeeTransaction> capture = feeTransactionRepository.findByTenantIdAndEventTypeAndProviderPaymentIdAndIsDeletedFalse(
+                    tenantId, FeeTransactionType.PAYMENT_CAPTURED, razorpayPaymentId);
+            FeePayment payment = null;
+            if (capture.isPresent()) {
+                payment = paymentRepo.findByIdAndTenantIdAndIsDeletedFalse(capture.get().getFeePaymentId(), tenantId).orElse(null);
+            }
+            if (payment == null) {
+                List<FeePaymentAttempt> byPay = paymentAttemptRepository.findByProviderAndProviderPaymentIdAndIsDeletedFalse(
+                        PaymentProviderIds.RAZORPAY, razorpayPaymentId);
+                FeePaymentAttempt attempt = byPay.stream()
+                        .filter(a -> tenantId.equals(a.getTenantId()))
+                        .filter(a -> FeeAttemptStatus.RECONCILED.name().equalsIgnoreCase(a.getStatus()))
+                        .findFirst()
+                        .orElse(byPay.stream().filter(a -> tenantId.equals(a.getTenantId())).findFirst().orElse(null));
+                if (attempt != null) {
+                    payment = paymentRepo.findByIdAndTenantIdAndIsDeletedFalse(attempt.getFeePaymentId(), tenantId).orElse(null);
+                }
+            }
+            if (payment == null) {
+                log.warn("Refund webhook: no fee payment for payment_id={} tenant={}", razorpayPaymentId, tenantId);
+                return false;
+            }
+
+            Optional<FeeTransaction> approved = findMatchingOpenApprovedRefund(tenantId, payment.getId(), refundAmount);
+            if (approved.isPresent()) {
+                FeeTransaction executed = appendFeeTransaction(
+                        payment,
+                        null,
+                        FeeTransactionType.REFUND_EXECUTED,
+                        "RECONCILED",
+                        approved.get().getAmount(),
+                        razorpayRefundId,
+                        "WEBHOOK_REFUND",
+                        approved.get().getReferenceId(),
+                        "Razorpay refund.processed");
+                recomputePaymentAggregate(payment);
+                paymentRepo.save(payment);
+                financialAuditService.record(
+                        "FEES", "WEBHOOK_REFUND", "FEE_TRANSACTION", executed.getId(),
+                        "WEBHOOK_REFUND", null, null, executed.getEventType(), "SUCCESS",
+                        PaymentProviderIds.RAZORPAY, razorpayRefundId, DEFAULT_CURRENCY, executed.getAmount(), rawPayload);
+                return true;
+            }
+
+            FeeTransaction settled = appendFeeTransaction(
+                    payment,
+                    null,
+                    FeeTransactionType.PROVIDER_REFUND_SETTLED,
+                    "SETTLED",
+                    refundAmount,
+                    razorpayRefundId,
+                    "WEBHOOK_REFUND_UNAPPROVED",
+                    "RZP-RFD-" + razorpayRefundId,
+                    "Provider refund without matching ERP approval — ledger adjusted");
+            recomputePaymentAggregate(payment);
+            paymentRepo.save(payment);
+            financialAuditService.record(
+                    "FEES", "WEBHOOK_REFUND_PROVIDER", "FEE_TRANSACTION", settled.getId(),
+                    "WEBHOOK_REFUND", null, null, settled.getEventType(), "SUCCESS",
+                    PaymentProviderIds.RAZORPAY, razorpayRefundId, DEFAULT_CURRENCY, settled.getAmount(), rawPayload);
+            return true;
+        } finally {
+            TenantContext.clear();
+        }
+    }
+
+    private Optional<FeeTransaction> findMatchingOpenApprovedRefund(String tenantId, Long feePaymentId, BigDecimal refundAmount) {
+        List<FeeTransaction> txs = feeTransactionRepository.findByTenantIdAndFeePaymentIdAndIsDeletedFalseOrderByCreatedAtAsc(tenantId, feePaymentId);
+        List<String> executedRefs = txs.stream()
+                .filter(t -> FeeTransactionType.REFUND_EXECUTED.equals(t.getEventType()))
+                .map(FeeTransaction::getReferenceId)
+                .filter(Objects::nonNull)
+                .toList();
+        return txs.stream()
+                .filter(t -> FeeTransactionType.REFUND_APPROVED.equals(t.getEventType()))
+                .filter(t -> t.getReferenceId() != null && !executedRefs.contains(t.getReferenceId()))
+                .filter(t -> amountsClose(t.getAmount(), refundAmount))
+                .reduce((a, b) -> b);
+    }
+
+    private static boolean amountsClose(BigDecimal a, BigDecimal b) {
+        if (a == null || b == null) {
+            return false;
+        }
+        return a.subtract(b).abs().compareTo(new BigDecimal("0.02")) <= 0;
+    }
+
+    /**
+     * Staff-recorded fee (counter/cash/UPI at school). Mirrors gateway confirm notifications so parents
+     * see parity when finance posts the ledger. Future: fan out to guardians, email template registry, etc.
+     */
+    private void enqueueManualFeeRecordedParentChannels(String tenantId, FeePayment payment, BigDecimal amountPosted) {
+        studentPersistence.findByIdAndTenantIdAndIsDeletedFalse(payment.getStudentId(), tenantId).ifPresent(student -> {
+            Long parentUserId = student.getParentId();
+            if (parentUserId == null) {
+                log.warn("Skipping manual fee notifications: no parent user on student {}", student.getId());
+                return;
+            }
+            String statusLabel =
+                    payment.getStatus() == Enums.FeeStatus.PAID ? "paid in full" : "partial payment recorded at school";
+            String body =
+                    "Fee update "
+                            + (payment.getReceiptNumber() != null ? payment.getReceiptNumber() : "")
+                            + ": "
+                            + DEFAULT_CURRENCY
+                            + " "
+                            + amountPosted
+                            + " for "
+                            + (payment.getStudentName() != null ? payment.getStudentName() : "student")
+                            + ". "
+                            + statusLabel
+                            + ". Outstanding: "
+                            + DEFAULT_CURRENCY
+                            + " "
+                            + (payment.getDueAmount() != null ? payment.getDueAmount() : BigDecimal.ZERO)
+                            + ".";
+            String corr = "fee-manual-" + payment.getId() + "-" + System.currentTimeMillis();
+            notificationDispatchPort.enqueue(
+                    tenantId, "FEE_MANUAL_RECORDED", "SMS", parentUserId, null,
+                    "Fee recorded at school", body, "FEEMAN:" + payment.getId(), corr);
+            notificationDispatchPort.enqueue(
+                    tenantId, "FEE_MANUAL_RECORDED", "WHATSAPP", parentUserId, null,
+                    "Fee recorded at school", body, "FEEMAN:" + payment.getId() + ":WA", corr);
+        });
+    }
+
     private void enqueueParentPaymentChannels(String tenantId, FeePayment payment, FeePaymentAttempt attempt) {
         Long parentUserId = attempt.getParentUserId() != null ? attempt.getParentUserId() : TenantContext.getUserId();
         if (parentUserId == null) {
@@ -888,10 +1102,28 @@ public class FeeService {
 
     @Transactional(readOnly = true)
     public FeeDTOs.PaymentReceiptResponse getReceipt(String receiptNumber) {
-        FeePayment payment = paymentRepo.findByReceiptNumberAndTenantIdAndIsDeletedFalse(receiptNumber, TenantContext.getTenantId())
+        String tenantId = TenantContext.getTenantId();
+        FeePayment payment = paymentRepo.findByReceiptNumberAndTenantIdAndIsDeletedFalse(receiptNumber, tenantId)
                 .orElseThrow(() -> new ResourceNotFoundException("Receipt not found"));
         assertParentOwnsStudent(payment.getStudentId());
-        return toReceiptResponse(payment, latestSuccessAttempt(TenantContext.getTenantId(), payment.getId()));
+        if (!hasRecordedFeeCollection(tenantId, payment.getId())) {
+            throw new ResourceNotFoundException("Receipt not found");
+        }
+        return toReceiptResponse(payment, latestSuccessAttempt(tenantId, payment.getId()));
+    }
+
+    @Transactional(readOnly = true)
+    public byte[] getParentFeeReceiptPdf(String receiptNumber) {
+        String tenantId = TenantContext.getTenantId();
+        FeePayment payment = paymentRepo.findByReceiptNumberAndTenantIdAndIsDeletedFalse(receiptNumber, tenantId)
+                .orElseThrow(() -> new ResourceNotFoundException("Receipt not found"));
+        assertParentOwnsStudent(payment.getStudentId());
+        if (!hasRecordedFeeCollection(tenantId, payment.getId())) {
+            throw new ResourceNotFoundException("Receipt not found");
+        }
+        FeeDTOs.PaymentReceiptResponse r = toReceiptResponse(payment, latestSuccessAttempt(tenantId, payment.getId()));
+        FeeReceiptPdfContext ctx = FeeReceiptPdfContext.fromTenantConfig(tenantConfigRepository.findByTenantId(tenantId).orElse(null));
+        return feeReceiptPdfService.build(r, ctx);
     }
 
     /**
@@ -903,12 +1135,18 @@ public class FeeService {
         String tenantId = TenantContext.getTenantId();
         return paymentRepo.findByTenantIdAndStudentIdAndIsDeletedFalse(tenantId, studentId).stream()
                 .filter(p -> p.getReceiptNumber() != null && !p.getReceiptNumber().isBlank())
+                .filter(p -> hasRecordedFeeCollection(tenantId, p.getId()))
                 .filter(p -> p.getPaymentDate() != null
                         && !p.getPaymentDate().isBefore(from)
                         && !p.getPaymentDate().isAfter(to))
                 .sorted(Comparator.comparing(FeePayment::getPaymentDate).reversed())
                 .map(p -> toReceiptResponse(p, latestSuccessAttempt(tenantId, p.getId())))
                 .collect(Collectors.toList());
+    }
+
+    private boolean hasRecordedFeeCollection(String tenantId, Long feePaymentId) {
+        return feeTransactionRepository.existsByTenantIdAndFeePaymentIdAndIsDeletedFalseAndEventTypeIn(
+                tenantId, feePaymentId, PARENT_RECEIPT_LEDGER_EVENTS);
     }
 
     private FeePaymentAttempt latestSuccessAttempt(String tenantId, Long feePaymentId) {
@@ -938,8 +1176,9 @@ public class FeeService {
         return student;
     }
 
-    private FeeDTOs.ParentFeeObligationResponse toParentObligation(FeePayment payment) {
+    private FeeDTOs.ParentFeeObligationResponse toParentObligation(FeePayment payment, boolean parentOnlineFeeCheckoutEnabled) {
         FeeDTOs.ParentFeeObligationResponse response = new FeeDTOs.ParentFeeObligationResponse();
+        response.setParentOnlineFeeCheckoutEnabled(parentOnlineFeeCheckoutEnabled);
         response.setPaymentId(payment.getId());
         response.setStudentId(payment.getStudentId());
         response.setStudentName(payment.getStudentName());
@@ -1008,6 +1247,20 @@ public class FeeService {
             return feeTransactionRepository.findByTenantIdAndEventTypeAndProviderPaymentIdAndIsDeletedFalse(
                     tenantId, eventType, providerPaymentId).orElseThrow();
         }
+        if (FeeTransactionType.PROVIDER_REFUND_SETTLED.equals(eventType)
+                && providerPaymentId != null
+                && feeTransactionRepository.findByTenantIdAndEventTypeAndProviderPaymentIdAndIsDeletedFalse(
+                tenantId, eventType, providerPaymentId).isPresent()) {
+            return feeTransactionRepository.findByTenantIdAndEventTypeAndProviderPaymentIdAndIsDeletedFalse(
+                    tenantId, eventType, providerPaymentId).orElseThrow();
+        }
+        if (FeeTransactionType.REFUND_EXECUTED.equals(eventType)
+                && providerPaymentId != null
+                && feeTransactionRepository.findByTenantIdAndEventTypeAndProviderPaymentIdAndIsDeletedFalse(
+                tenantId, eventType, providerPaymentId).isPresent()) {
+            return feeTransactionRepository.findByTenantIdAndEventTypeAndProviderPaymentIdAndIsDeletedFalse(
+                    tenantId, eventType, providerPaymentId).orElseThrow();
+        }
         FeeTransaction row = new FeeTransaction();
         row.setTenantId(tenantId);
         row.setFeePaymentId(payment.getId());
@@ -1038,7 +1291,8 @@ public class FeeService {
                     || FeeTransactionType.PAYMENT_MANUAL_POSTED.equals(tx.getEventType())) {
                 collected = collected.add(tx.getAmount() != null ? tx.getAmount() : BigDecimal.ZERO);
                 lastPaymentAt = tx.getOccurredAt() != null ? tx.getOccurredAt() : tx.getCreatedAt();
-            } else if (FeeTransactionType.REFUND_EXECUTED.equals(tx.getEventType())) {
+            } else if (FeeTransactionType.REFUND_EXECUTED.equals(tx.getEventType())
+                    || FeeTransactionType.PROVIDER_REFUND_SETTLED.equals(tx.getEventType())) {
                 collected = collected.subtract(tx.getAmount() != null ? tx.getAmount() : BigDecimal.ZERO);
             }
         }
@@ -1135,7 +1389,10 @@ public class FeeService {
             final DomainEventPublisher domainEventPublisher,
             final DashboardSnapshotInvalidationService dashboardSnapshotInvalidationService,
             final TenantRedisLockService tenantRedisLockService,
-            final FinancialAuditService financialAuditService) {
+            final FinancialAuditService financialAuditService,
+            final TenantFinanceProfileService tenantFinanceProfileService,
+            final TenantConfigRepository tenantConfigRepository,
+            final FeeReceiptPdfService feeReceiptPdfService) {
         this.structureRepo = structureRepo;
         this.componentRepo = componentRepo;
         this.paymentRepo = paymentRepo;
@@ -1152,6 +1409,9 @@ public class FeeService {
         this.dashboardSnapshotInvalidationService = dashboardSnapshotInvalidationService;
         this.tenantRedisLockService = tenantRedisLockService;
         this.financialAuditService = financialAuditService;
+        this.tenantFinanceProfileService = tenantFinanceProfileService;
+        this.tenantConfigRepository = tenantConfigRepository;
+        this.feeReceiptPdfService = feeReceiptPdfService;
     }
 
     private String normalizedOperationKey(String incoming, String prefix, Long id, BigDecimal amount) {

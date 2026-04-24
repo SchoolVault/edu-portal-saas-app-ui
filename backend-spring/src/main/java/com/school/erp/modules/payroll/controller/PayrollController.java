@@ -7,9 +7,12 @@ import com.school.erp.modules.payroll.dto.PayrollDTOs;
 import com.school.erp.modules.payroll.entity.Payslip;
 import com.school.erp.modules.payroll.service.DemoFinanceResetService;
 import com.school.erp.modules.payroll.service.PayrollService;
+import com.school.erp.security.rbac.RbacSpel;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import java.nio.charset.StandardCharsets;
+import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -29,14 +32,14 @@ public class PayrollController {
     private final DemoFinanceResetService demoFinanceResetService;
 
     @GetMapping("/structures")
-    @PreAuthorize("hasRole(\'ADMIN\')")
+    @PreAuthorize(RbacSpel.SCHOOL_PAYROLL_OFFICE)
     @Operation(summary = "List salary structures with components")
     public ResponseEntity<ApiResponse<List<PayrollDTOs.SalaryStructureResponse>>> listStructures() {
         return ResponseEntity.ok(ApiResponse.ok(service.getStructures()));
     }
 
     @GetMapping("/structures/paged")
-    @PreAuthorize("hasRole(\'ADMIN\')")
+    @PreAuthorize(RbacSpel.SCHOOL_PAYROLL_OFFICE)
     @Operation(summary = "List salary structures (paged)")
     public ResponseEntity<ApiResponse<PageResponse<PayrollDTOs.SalaryStructureResponse>>> listStructuresPaged(
             @RequestParam(defaultValue = "0") int page,
@@ -45,35 +48,35 @@ public class PayrollController {
     }
 
     @PostMapping("/structures")
-    @PreAuthorize("hasRole(\'ADMIN\')")
+    @PreAuthorize(RbacSpel.SCHOOL_PAYROLL_OFFICE)
     @Operation(summary = "Create salary structure", description = "Define basic salary, allowances, and deductions for a teacher")
     public ResponseEntity<ApiResponse<PayrollDTOs.SalaryStructureResponse>> createStructure(@Valid @RequestBody PayrollDTOs.CreateSalaryStructureRequest req) {
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.created(service.createStructure(req)));
     }
 
     @PostMapping("/payslips/generate")
-    @PreAuthorize("hasRole(\'ADMIN\')")
+    @PreAuthorize(RbacSpel.SCHOOL_PAYROLL_OFFICE)
     @Operation(summary = "Generate payslips", description = "Generate payslips for all teachers for a given month/year")
     public ResponseEntity<ApiResponse<List<Payslip>>> generatePayslips(@Valid @RequestBody PayrollDTOs.GeneratePayslipRequest req) {
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.created(service.generatePayslips(req.getMonth(), req.getYear())));
     }
 
     @GetMapping("/teachers/payment-details")
-    @PreAuthorize("hasRole(\'ADMIN\')")
+    @PreAuthorize(RbacSpel.SCHOOL_PAYROLL_OFFICE)
     @Operation(summary = "Teachers on salary with bank details (masked) for disbursement")
     public ResponseEntity<ApiResponse<List<PayrollDTOs.TeacherPaymentDetailsResponse>>> teacherPaymentDetails() {
         return ResponseEntity.ok(ApiResponse.ok(service.listTeacherPaymentDetails()));
     }
 
     @GetMapping("/payslips")
-    @PreAuthorize("hasRole(\'ADMIN\')")
+    @PreAuthorize(RbacSpel.SCHOOL_PAYROLL_OFFICE)
     @Operation(summary = "List payslips", description = "Filter by year and month")
     public ResponseEntity<ApiResponse<List<Payslip>>> listPayslips(@RequestParam(required = false) Integer year, @RequestParam(required = false) String month) {
         return ResponseEntity.ok(ApiResponse.ok(service.getPayslips(year, month)));
     }
 
     @GetMapping("/payslips/paged")
-    @PreAuthorize("hasRole(\'ADMIN\')")
+    @PreAuthorize(RbacSpel.SCHOOL_PAYROLL_OFFICE)
     @Operation(summary = "List payslips (paged)", description = "Filter by year and month")
     public ResponseEntity<ApiResponse<PageResponse<Payslip>>> listPayslipsPaged(
             @RequestParam(defaultValue = "0") int page,
@@ -106,20 +109,23 @@ public class PayrollController {
     @Operation(summary = "Download payslip PDF")
     public ResponseEntity<byte[]> payslipPdf(@PathVariable Long id) {
         byte[] data = service.getPayslipPdf(id);
+        ContentDisposition disposition = ContentDisposition.attachment()
+                .filename("payslip-" + id + ".pdf", StandardCharsets.UTF_8)
+                .build();
         return ResponseEntity.ok()
-                .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"payslip-" + id + ".pdf\"")
+                .header(HttpHeaders.CONTENT_DISPOSITION, disposition.toString())
                 .body(data);
     }
 
     @PostMapping("/payslips/{id}/mark-paid")
-    @PreAuthorize("hasRole(\'ADMIN\')")
+    @PreAuthorize(RbacSpel.SCHOOL_PAYROLL_OFFICE)
     @Operation(summary = "Mark payslip paid (after bank transfer recorded)")
     public ResponseEntity<ApiResponse<Payslip>> markPaid(@PathVariable Long id) {
         return ResponseEntity.ok(ApiResponse.ok(service.markPayslipPaid(id)));
     }
 
     @PostMapping("/disburse/initiate")
-    @PreAuthorize("hasRole(\'ADMIN\')")
+    @PreAuthorize(RbacSpel.SCHOOL_PAYROLL_OFFICE)
     @Operation(summary = "Initiate salary disbursement", description = "Uses generated payslip net amount and teacher bank profile; returns a bank reference for reconciliation")
     public ResponseEntity<ApiResponse<PayrollDTOs.DisburseSalaryResponse>> initiateDisburse(
             @Valid @RequestBody PayrollDTOs.DisburseSalaryRequest req,
@@ -129,7 +135,7 @@ public class PayrollController {
     }
 
     @GetMapping("/disburse/attempts/paged")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize(RbacSpel.SCHOOL_PAYROLL_OFFICE)
     @Operation(summary = "Disbursement attempts queue (paged)", description = "Filter by status: SUBMITTED, COMPLETED, FAILED")
     public ResponseEntity<ApiResponse<PageResponse<PayrollDTOs.DisbursementAttemptResponse>>> disbursementAttemptsPaged(
             @RequestParam(defaultValue = "0") int page,
@@ -139,14 +145,14 @@ public class PayrollController {
     }
 
     @GetMapping("/disburse/summary")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize(RbacSpel.SCHOOL_PAYROLL_OFFICE)
     @Operation(summary = "Disbursement queue summary")
     public ResponseEntity<ApiResponse<PayrollDTOs.DisbursementQueueSummaryResponse>> disbursementSummary() {
         return ResponseEntity.ok(ApiResponse.ok(service.getDisbursementSummary()));
     }
 
     @PostMapping("/disburse/attempts/{id}/status")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize(RbacSpel.SCHOOL_PAYROLL_OFFICE)
     @Operation(summary = "Reconcile disbursement status", description = "Updates queue attempt status and synchronizes payslip paid/generated state")
     public ResponseEntity<ApiResponse<PayrollDTOs.DisbursementAttemptResponse>> updateDisbursementStatus(
             @PathVariable Long id,
@@ -157,7 +163,7 @@ public class PayrollController {
     }
 
     @PostMapping("/demo/reset-finance-data")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize(RbacSpel.SCHOOL_PAYROLL_OFFICE)
     @Operation(summary = "Reset demo finance data", description = "Demo-only one-click reset for fees and payroll sample data in current tenant.")
     public ResponseEntity<ApiResponse<Map<String, Long>>> resetDemoFinanceData() {
         return ResponseEntity.ok(ApiResponse.ok(demoFinanceResetService.resetDemoFinanceData(), "Demo finance data reset completed."));

@@ -2,20 +2,22 @@ package com.school.erp.modules.fees.gateway;
 
 import org.springframework.stereotype.Component;
 
-import java.math.BigDecimal;
 import java.util.Locale;
 import java.util.UUID;
 
 /** In-process sandbox orders; used by {@link com.school.erp.modules.fees.gateway.strategy.MockSandboxFeePaymentCheckoutStrategy}. */
 @Component
 public class MockPaymentGatewayClient {
-    public PaymentGatewayClient.GatewayCheckoutSession createSession(String provider, String tenantId, Long paymentId, BigDecimal amount, String currency, String returnUrl) {
+    public PaymentGatewayClient.GatewayCheckoutSession createSession(String provider, FeeGatewayOrderContext ctx) {
         String normalizedProvider = provider == null ? "mockpay" : provider.trim().toLowerCase(Locale.ROOT);
         String orderId = normalizedProvider.toUpperCase(Locale.ROOT) + "-ORDER-" + UUID.randomUUID().toString().substring(0, 10);
         String token = normalizedProvider + "-token-" + UUID.randomUUID().toString().replace("-", "");
-        String checkoutUrl = (returnUrl != null && !returnUrl.isBlank() ? returnUrl : "https://mockpay.schoolvault.local/checkout")
+        String checkoutUrl = (ctx.returnUrl() != null && !ctx.returnUrl().isBlank() ? ctx.returnUrl() : "https://mockpay.schoolvault.local/checkout")
                 + "?token=" + token + "&orderId=" + orderId;
-        String payload = "{\"provider\":\"" + normalizedProvider + "\",\"tenantId\":\"" + tenantId + "\",\"paymentId\":" + paymentId + ",\"amount\":\"" + amount + "\"}";
+        String payload = "{\"provider\":\"" + normalizedProvider + "\",\"tenantId\":\"" + ctx.tenantId()
+                + "\",\"feePaymentId\":" + ctx.feePaymentId()
+                + ",\"feePaymentAttemptId\":" + ctx.feePaymentAttemptId()
+                + ",\"amount\":\"" + ctx.amount() + "\"}";
         return new PaymentGatewayClient.GatewayCheckoutSession(normalizedProvider, orderId, token, checkoutUrl, payload);
     }
 

@@ -374,6 +374,10 @@ import { UserLocaleService, type UiLanguage } from '../../core/i18n/user-locale.
                 <span class="ps-cache-info__label">{{ 'platformSettingsPage.keysEvictedLabel' | translate }}</span>
                 <span class="ps-cache-info__value">{{ lastCacheCleared.keysEvicted }}</span>
               </div>
+              <div class="ps-cache-info__item" *ngIf="lastCacheCleared.dashboardSnapshotRowsMarked != null">
+                <span class="ps-cache-info__label">{{ 'platformSettingsPage.dashboardSnapshotRowsLabel' | translate }}</span>
+                <span class="ps-cache-info__value">{{ lastCacheCleared.dashboardSnapshotRowsMarked }}</span>
+              </div>
               <div class="ps-cache-info__item">
                 <span class="ps-cache-info__label">{{ 'platformSettingsPage.clearedBy' | translate }}</span>
                 <span class="ps-cache-info__value">{{ lastCacheCleared.clearedBy }}</span>
@@ -1443,6 +1447,7 @@ export class PlatformSettingsComponent implements OnInit, OnDestroy {
     clearedBy: string;
     targetSchoolName?: string | null;
     keysEvicted?: number | null;
+    dashboardSnapshotRowsMarked?: number | null;
   } | null = null;
 
   // Cache school selector
@@ -1887,7 +1892,8 @@ export class PlatformSettingsComponent implements OnInit, OnDestroy {
             clearedAt: response.statistics.clearedAt,
             clearedBy: response.statistics.clearedBy,
             targetSchoolName: response.statistics.targetSchoolName,
-            keysEvicted: response.statistics.keysEvicted ?? null
+            keysEvicted: response.statistics.keysEvicted ?? null,
+            dashboardSnapshotRowsMarked: response.statistics.dashboardSnapshotRowsMarked ?? null
           };
         }
         if (response.success) {

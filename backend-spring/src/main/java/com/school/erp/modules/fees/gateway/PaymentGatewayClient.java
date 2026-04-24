@@ -1,9 +1,7 @@
 package com.school.erp.modules.fees.gateway;
 
-import java.math.BigDecimal;
-
 public interface PaymentGatewayClient {
-    GatewayCheckoutSession createSession(String provider, String tenantId, Long paymentId, BigDecimal amount, String currency, String returnUrl);
+    GatewayCheckoutSession createSession(String provider, FeeGatewayOrderContext orderContext);
     GatewayPaymentConfirmation confirmPayment(String provider, String checkoutToken, String providerOrderId, String providerPaymentId, String providerSignature);
     GatewayPaymentStatus fetchPaymentStatus(String provider, String providerOrderId, String providerPaymentId);
 

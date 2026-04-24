@@ -8,6 +8,8 @@
  *
  * - School staff: admin, super_admin (platform operator in a school context), teacher
  * - Student master mutations: admin + super_admin only (matches {@code PUT /students/{id}})
+ * - Fine-grained module checks: prefer `AuthService.hasAppPermission` with `AppPermission` codes
+ *   (mirrors backend `hasAuthority`); role checks remain for legacy paths until fully migrated.
  */
 export function schoolStaffRole(role: string | null | undefined): boolean {
   const r = (role || '').toLowerCase();

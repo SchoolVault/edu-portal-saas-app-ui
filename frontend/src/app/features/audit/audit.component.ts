@@ -1,8 +1,10 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { ActivatedRoute } from '@angular/router';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { AuditLog } from '../../core/models/models';
+import { MOCK_RBAC_AUDIT_LOGS } from '../../core/mocks/audit-rbac-seed';
 import { runtimeConfig } from '../../core/config/runtime-config';
 import { AuditLogsService } from '../../core/services/audit-logs.service';
 import { ErpPaginationComponent } from '../../shared/erp-pagination/erp-pagination.component';
@@ -11,12 +13,22 @@ import { sliceToPage } from '../../core/utils/paginate';
 import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directives';
 
 const AUDIT_ACTIONS = ['create', 'update', 'delete', 'login', 'logout', 'cache_cleared'] as const;
-const AUDIT_MODULES = ['Students', 'Teachers', 'Fees', 'Attendance', 'Exams', 'Auth', 'System'];
+const AUDIT_MODULES = ['Students', 'Teachers', 'Fees', 'Attendance', 'Exams', 'Auth', 'System', 'RBAC'];
 
 function buildAuditSeed(): AuditLog[] {
   const base: AuditLog[] = [
     { id: 'al1', action: 'create', module: 'Students', description: 'New student Arjun Patel added', userId: 'u1', userName: 'John Anderson', timestamp: '2026-02-05T10:30:00Z', ipAddress: '192.168.1.100', tenantId: 't1' },
-    { id: 'al2', action: 'update', module: 'Fees', description: 'Fee payment recorded for Emily Watson', userId: 'u1', userName: 'John Anderson', timestamp: '2026-02-05T09:15:00Z', ipAddress: '192.168.1.100', tenantId: 't1' },
+    {
+      id: 'al2',
+      action: 'update',
+      module: 'Fees',
+      description: 'Fee payment recorded for Emily Watson',
+      userId: 'u1',
+      userName: 'John Anderson (john.anderson@demo-school.edu)',
+      timestamp: '2026-02-05T09:15:00Z',
+      ipAddress: '192.168.1.100',
+      tenantId: 't1',
+    },
     { id: 'al3', action: 'login', module: 'System', description: 'Admin login successful', userId: 'u1', userName: 'John Anderson', timestamp: '2026-02-05T08:00:00Z', ipAddress: '192.168.1.100', tenantId: 't1' },
     { id: 'al4', action: 'update', module: 'Attendance', description: 'Attendance marked for Class 5-A', userId: 'u2', userName: 'Sarah Mitchell', timestamp: '2026-02-04T14:30:00Z', ipAddress: '192.168.1.105', tenantId: 't1' },
     { id: 'al5', action: 'create', module: 'Exams', description: 'New exam schedule created: Midterm', userId: 'u1', userName: 'John Anderson', timestamp: '2026-02-04T11:00:00Z', ipAddress: '192.168.1.100', tenantId: 't1' },
@@ -39,6 +51,9 @@ function buildAuditSeed(): AuditLog[] {
       ipAddress: i % 2 === 0 ? '192.168.1.100' : '192.168.1.105',
       tenantId: 't1',
     });
+  }
+  for (const row of MOCK_RBAC_AUDIT_LOGS) {
+    base.push({ ...row });
   }
   return base;
 }
@@ -117,7 +132,8 @@ function buildAuditSeed(): AuditLog[] {
         <div><h2 style="font-size: 24px; font-weight: 800;">{{ 'audit.pageTitle' | translate }}</h2><p class="text-muted mb-0" style="font-size: 13px;">{{ 'audit.lead' | translate }}</p></div>
         <div class="d-flex gap-2 flex-wrap">
           <button type="button" class="btn-outline-erp btn-sm" (click)="reloadFromServer()"><i class="bi bi-arrow-clockwise"></i> {{ 'audit.refresh' | translate }}</button>
-          <button type="button" class="btn-outline-erp btn-sm" data-testid="export-audit-btn"><i class="bi bi-download"></i> {{ 'audit.export' | translate }}</button>
+          <button type="button" class="btn-outline-erp btn-sm" data-testid="export-audit-csv-btn" (click)="exportAudit('CSV')"><i class="bi bi-filetype-csv"></i> {{ 'audit.exportCsv' | translate }}</button>
+          <button type="button" class="btn-outline-erp btn-sm" data-testid="export-audit-pdf-btn" (click)="exportAudit('PDF')"><i class="bi bi-file-earmark-pdf"></i> {{ 'audit.exportPdf' | translate }}</button>
         </div>
       </div>
       <div class="erp-card animate-in animate-in-delay-1">
@@ -133,6 +149,10 @@ function buildAuditSeed(): AuditLog[] {
             />
           </div>
           <div class="audit-filter-toolbar__right">
+            <div class="d-flex flex-column" style="min-width: 170px;">
+              <label class="small text-muted mb-1">{{ 'audit.periodMonth' | translate }}</label>
+              <input type="month" class="erp-input" [(ngModel)]="periodMonth" (ngModelChange)="onPeriodMonthChange()" />
+            </div>
             <select class="erp-select audit-filter-select" [(ngModel)]="actionFilter" (ngModelChange)="onFilterDropdownChange()">
               <option value="">{{ 'audit.filterAllActions' | translate }}</option>
               <option value="create">{{ 'audit.action.create' | translate }}</option>
@@ -187,6 +207,8 @@ export class AuditComponent implements OnInit {
   filteredLogs: AuditLog[] = [];
   pagedLogs: AuditLog[] = [];
   searchQuery = '';
+  /** yyyy-MM — export and list are scoped to this calendar month. */
+  periodMonth = new Date().toISOString().slice(0, 7);
   pageIndex = 0;
   pageSize = DEFAULT_ERP_PAGE_SIZE;
   private searchTimer: ReturnType<typeof setTimeout> | null = null;
@@ -195,7 +217,8 @@ export class AuditComponent implements OnInit {
 
   constructor(
     private translate: TranslateService,
-    private auditApi: AuditLogsService
+    private auditApi: AuditLogsService,
+    private route: ActivatedRoute
   ) {}
 
   get paginationTotal(): number {
@@ -203,6 +226,10 @@ export class AuditComponent implements OnInit {
   }
 
   ngOnInit(): void {
+    const m = this.route.snapshot.queryParamMap.get('module')?.trim();
+    if (m && AUDIT_MODULES.includes(m)) {
+      this.moduleFilter = m;
+    }
     this.reloadFromServer();
   }
 
@@ -244,6 +271,61 @@ export class AuditComponent implements OnInit {
     }
   }
 
+  onPeriodMonthChange(): void {
+    this.pageIndex = 0;
+    if (runtimeConfig.useMocks) {
+      this.filter();
+    } else {
+      this.fetchApiPage();
+    }
+  }
+
+  /** Inclusive calendar bounds for {@code periodMonth} (yyyy-MM). */
+  periodRange(): { from: string; to: string } {
+    const pm = (this.periodMonth || '').trim();
+    if (pm.length < 7) {
+      const d = new Date();
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      return this.monthBounds(`${y}-${m}`);
+    }
+    return this.monthBounds(pm);
+  }
+
+  private monthBounds(pm: string): { from: string; to: string } {
+    const [ys, ms] = pm.split('-');
+    const y = parseInt(ys, 10);
+    const m = parseInt(ms, 10);
+    const from = `${ys}-${String(m).padStart(2, '0')}-01`;
+    const last = new Date(y, m, 0).getDate();
+    const to = `${ys}-${String(m).padStart(2, '0')}-${String(last).padStart(2, '0')}`;
+    return { from, to };
+  }
+
+  exportAudit(format: 'CSV' | 'PDF'): void {
+    const { from, to } = this.periodRange();
+    this.auditApi
+      .exportBlob({
+        format,
+        action: this.actionFilter || undefined,
+        module: this.moduleFilter || undefined,
+        q: this.searchQuery.trim() || undefined,
+        from,
+        to,
+      })
+      .subscribe({
+        next: blob => {
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          const ext = format === 'PDF' ? 'pdf' : 'csv';
+          a.download = `audit-trail-${this.periodMonth}.${ext}`;
+          a.click();
+          URL.revokeObjectURL(url);
+        },
+      });
+  }
+
   filter(): void {
     if (!runtimeConfig.useMocks) {
       this.pageIndex = 0;
@@ -251,6 +333,7 @@ export class AuditComponent implements OnInit {
       return;
     }
     const q = this.searchQuery.trim().toLowerCase();
+    const { from, to } = this.periodRange();
     this.filteredLogs = this.logs.filter(l => {
       const actionOk = !this.actionFilter || l.action === this.actionFilter;
       const moduleOk = !this.moduleFilter || l.module === this.moduleFilter;
@@ -259,13 +342,16 @@ export class AuditComponent implements OnInit {
         l.description.toLowerCase().includes(q) ||
         l.userName.toLowerCase().includes(q) ||
         l.module.toLowerCase().includes(q);
-      return actionOk && moduleOk && textOk;
+      const day = l.timestamp.slice(0, 10);
+      const periodOk = day >= from && day <= to;
+      return actionOk && moduleOk && textOk && periodOk;
     });
     this.applyPage();
   }
 
   private fetchApiPage(): void {
     const seq = ++this.apiSeq;
+    const { from, to } = this.periodRange();
     this.auditApi
       .getPage(
         {
@@ -274,6 +360,8 @@ export class AuditComponent implements OnInit {
           action: this.actionFilter || undefined,
           module: this.moduleFilter || undefined,
           q: this.searchQuery.trim() || undefined,
+          from,
+          to,
         },
         []
       )

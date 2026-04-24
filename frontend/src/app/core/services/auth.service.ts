@@ -20,9 +20,10 @@ import {
   VerifyOtpResponse,
 } from '../models/models';
 import { ApiService } from './api.service';
+import { MOCK_SCHOOL_ADMIN_PERMISSIONS } from '../auth/app-permission.constants';
 import { runtimeConfig } from '../config/runtime-config';
 import { environment } from '../../../environments/environment';
-import { decodeJwtPermissions, isAccessExpiredByClock, isLikelyJwt } from '../auth/access-token';
+import { decodeJwtPermissions, decodeJwtUserId, isAccessExpiredByClock, isLikelyJwt } from '../auth/access-token';
 import { MOCK_LOGIN_USERS, buildMockProfileSummary, findMockLoginUser, phonesMatch } from '../mocks/auth.mock-data';
 import { ERP_ACCESS_TOKEN_KEY, ERP_REFRESH_TOKEN_KEY, ERP_USER_KEY } from '../auth/client-session-keys';
 import { UserLocaleService, type UiLanguage } from '../i18n/user-locale.service';
@@ -61,7 +62,10 @@ export class AuthService {
     const userStr = localStorage.getItem(ERP_USER_KEY);
     if (token && refreshToken && userStr) {
       try {
-        const user = JSON.parse(userStr);
+        const user = JSON.parse(userStr) as User;
+        if (isLikelyJwt(token) && (!user.permissions || user.permissions.length === 0)) {
+          user.permissions = decodeJwtPermissions(token);
+        }
         this.ensureMockSessionMetadata(token);
         this.tokenSubject.next(token);
         this.refreshTokenSubject.next(refreshToken);
@@ -148,7 +152,12 @@ export class AuthService {
     localStorage.setItem(AuthService.STORAGE_REFRESH_EXPIRES_AT, String(Date.now() + this.getMockRefreshTtlMs()));
   }
 
-  /** Apply new access + refresh pair after login or refresh (keeps user row unchanged). */
+  /**
+   * Apply new access + refresh pair after login or refresh.
+   * When {@code app.jwt.slim-permissions} is on, the access JWT often has an empty {@code permissions} claim;
+   * do not overwrite a populated session profile with that — keep server profile / prior list until
+   * {@link #syncProfileFromServer} runs.
+   */
   applyTokenPair(token: string, refreshToken: string): void {
     localStorage.setItem(ERP_ACCESS_TOKEN_KEY, token);
     localStorage.setItem(ERP_REFRESH_TOKEN_KEY, refreshToken);
@@ -156,6 +165,17 @@ export class AuthService {
     this.refreshTokenSubject.next(refreshToken);
     if (isLikelyJwt(token)) {
       this.stripMockExpiryKeys();
+      const current = this.currentUserSubject.value;
+      const tokenUid = decodeJwtUserId(token);
+      if (current && tokenUid != null && current.id === tokenUid) {
+        const fromJwt = decodeJwtPermissions(token);
+        if (fromJwt.length === 0) {
+          return;
+        }
+        const next = { ...current, permissions: fromJwt };
+        localStorage.setItem(ERP_USER_KEY, JSON.stringify(next));
+        this.currentUserSubject.next(next);
+      }
     }
   }
 
@@ -199,6 +219,11 @@ export class AuthService {
 
     return this.api.post<TokenResponse>('/auth/refresh-token', { refreshToken: refresh }).pipe(
       tap(res => this.applyTokenPair(res.token, res.refreshToken)),
+      switchMap(() =>
+        this.syncProfileFromServer().pipe(
+          catchError(() => of(null))
+        )
+      ),
       map(() => true),
       catchError(() => {
         this.clearLocalAuthState();
@@ -280,6 +305,7 @@ export class AuthService {
           tenantId: 'tenant_' + request.schoolCode.toLowerCase(),
           phone: request.phone,
           interfaceLocale: iface,
+          permissions: [...MOCK_SCHOOL_ADMIN_PERMISSIONS],
         }
       };
       return of(response).pipe(
@@ -342,11 +368,28 @@ export class AuthService {
    * Empty for mock tokens — features that need this should fall back to profile/API hints.
    */
   getJwtPermissionAuthorities(): Set<string> {
-    const token = this.getToken();
-    if (!token) {
-      return new Set();
+    return new Set(this.getEffectivePermissionCodes());
+  }
+
+  /**
+   * Effective permission codes: prefers `user.permissions` from login profile, else JWT claim.
+   * Use for UI capability checks aligned with backend {@code hasAuthority}.
+   */
+  getEffectivePermissionCodes(): string[] {
+    const u = this.getCurrentUser();
+    if (u?.permissions && u.permissions.length > 0) {
+      return u.permissions;
     }
-    return new Set(decodeJwtPermissions(token));
+    const t = this.getToken();
+    if (t && isLikelyJwt(t)) {
+      return decodeJwtPermissions(t);
+    }
+    return [];
+  }
+
+  /** True if the session carries the given {@code AppPermission} code (or mock data includes it). */
+  hasAppPermission(code: string): boolean {
+    return this.getEffectivePermissionCodes().includes(code);
   }
 
   getTenantId(): string | null {
@@ -567,6 +610,13 @@ export class AuthService {
     const iface = p['interfaceLocale'];
     const interfaceLocale: User['interfaceLocale'] =
       iface === 'hi' ? 'hi' : iface === 'en' ? 'en' : previous?.interfaceLocale;
+    const rawPerms = p['permissions'];
+    let permissions: string[] | undefined;
+    if (Array.isArray(rawPerms)) {
+      permissions = rawPerms.map(x => String(x).trim()).filter(s => s.length > 0);
+    } else if (previous?.permissions?.length) {
+      permissions = previous.permissions;
+    }
     return {
       id: Number.isFinite(id) ? id : (previous?.id ?? 0),
       name: String(p['name'] ?? previous?.name ?? ''),
@@ -576,6 +626,7 @@ export class AuthService {
       tenantId: String(p['tenantId'] ?? previous?.tenantId ?? ''),
       avatar: p['avatar'] != null && String(p['avatar']).length > 0 ? String(p['avatar']) : undefined,
       interfaceLocale,
+      permissions,
     };
   }
 
@@ -599,6 +650,8 @@ export class AuthService {
           ...nextRow,
           avatar: hasLocalPhoto ? cur.avatar : nextRow.avatar,
           interfaceLocale: cur.interfaceLocale ?? nextRow.interfaceLocale,
+          permissions:
+            nextRow.permissions && nextRow.permissions.length > 0 ? nextRow.permissions : cur.permissions,
         };
         localStorage.setItem(ERP_USER_KEY, JSON.stringify(merged));
         this.currentUserSubject.next(merged);
@@ -637,6 +690,8 @@ export class AuthService {
           ...nextRow,
           avatar: hasLocalPhoto ? u.avatar : nextRow.avatar,
           interfaceLocale: u.interfaceLocale ?? nextRow.interfaceLocale,
+          permissions:
+            nextRow.permissions && nextRow.permissions.length > 0 ? nextRow.permissions : u.permissions,
         };
         localStorage.setItem(ERP_USER_KEY, JSON.stringify(merged));
         this.currentUserSubject.next(merged);

@@ -487,6 +487,9 @@ export class HeaderComponent implements OnInit, OnDestroy {
       return 'header.title.schoolOnboarding';
     }
     if (seg === 'settings') {
+      if (settingsTab === 'finance') {
+        return 'header.title.settingsFinance';
+      }
       if (settingsTab === 'preferences') {
         return 'header.title.preferences';
       }

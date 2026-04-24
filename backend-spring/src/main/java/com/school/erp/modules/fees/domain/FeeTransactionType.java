@@ -9,4 +9,6 @@ public final class FeeTransactionType {
     public static final String REFUND_REQUESTED = "REFUND_REQUESTED";
     public static final String REFUND_APPROVED = "REFUND_APPROVED";
     public static final String REFUND_EXECUTED = "REFUND_EXECUTED";
+    /** Provider-side refund settled (dashboard or API) when no prior ERP refund approval row exists. */
+    public static final String PROVIDER_REFUND_SETTLED = "PROVIDER_REFUND_SETTLED";
 }

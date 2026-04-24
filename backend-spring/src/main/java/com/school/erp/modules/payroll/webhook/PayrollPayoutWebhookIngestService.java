@@ -72,11 +72,13 @@ public class PayrollPayoutWebhookIngestService {
             return ResponseEntity.ok("duplicate");
         }
 
+        String tenantHint = parseTenantIdFromPayoutWebhook(rawBody);
         boolean applied = payrollService.applyWebhookDisbursementStatus(
                 row.getReferenceId(),
                 parseProviderStatus(rawBody),
                 row.getRawBody(),
-                "PAYROLL_WEBHOOK_EVENT:" + (externalEventId != null ? externalEventId : payloadHash));
+                "PAYROLL_WEBHOOK_EVENT:" + (externalEventId != null ? externalEventId : payloadHash),
+                tenantHint);
         row.setStatus(applied ? "PROCESSED_OK" : "NO_MATCH");
         row.setProcessedAt(Instant.now());
         webhookEventRepository.save(row);
@@ -114,6 +116,21 @@ public class PayrollPayoutWebhookIngestService {
         } catch (Exception e) {
             return "SUBMITTED";
         }
+    }
+
+    private String parseTenantIdFromPayoutWebhook(byte[] rawBody) {
+        try {
+            JsonNode notes = objectMapper.readTree(rawBody).path("payload").path("payout").path("entity").path("notes");
+            if (notes.hasNonNull("tenantId")) {
+                return notes.get("tenantId").asText().trim();
+            }
+            if (notes.hasNonNull("tenant_id")) {
+                return notes.get("tenant_id").asText().trim();
+            }
+        } catch (Exception e) {
+            log.debug("Payroll webhook tenant parse skipped: {}", e.getMessage());
+        }
+        return null;
     }
 
     private void parseMetadata(byte[] rawBody, PayrollPayoutWebhookEvent row) {

@@ -56,6 +56,8 @@ export interface User {
   interfaceLocale?: string;
   emailVerified?: boolean;
   phoneVerified?: boolean;
+  /** Server-issued {@code AppPermission} names (see JWT `permissions` claim; sorted on API). */
+  permissions?: string[];
 }
 
 export interface LoginRequest {
@@ -752,6 +754,8 @@ export interface CacheStatistics {
   targetSchoolName?: string | null;
   /** Tenant-scoped clears only — approximate Redis keys removed */
   keysEvicted?: number | null;
+  /** When dashboardSnapshots was cleared: rows marked refresh_required in DB */
+  dashboardSnapshotRowsMarked?: number | null;
 }
 
 export interface CacheClearResponse {
@@ -1501,6 +1505,10 @@ export interface Payslip {
   status: 'generated' | 'paid';
   /** When salary was marked paid / disbursed (UI + PDF). */
   paymentDate?: string;
+  /**
+   * Backend: OFFLINE_RECORDED (mark paid) vs DIGITAL_PAYOUT (payout API). Omitted/legacy for older rows.
+   */
+  salarySettlementMode?: 'OFFLINE_RECORDED' | 'DIGITAL_PAYOUT' | string;
   tenantId: string;
 }
 
@@ -1563,6 +1571,12 @@ export interface AuditLog {
   timestamp: string;
   ipAddress: string;
   tenantId: string;
+  /** Optional target record id from the server audit row. */
+  entityId?: string;
+  entityType?: string;
+  /** Technical before/after snapshot when the backend recorded a change. */
+  oldValue?: string;
+  newValue?: string;
 }
 
 /** Super-admin platform health API (/api/v1/platform/health). */

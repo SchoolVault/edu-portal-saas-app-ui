@@ -5,12 +5,13 @@ import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { Subject } from 'rxjs';
-import { debounceTime, distinctUntilChanged } from 'rxjs/operators';
+import { debounceTime, distinctUntilChanged, take } from 'rxjs/operators';
 import { DEFAULT_PLATFORM_TENANT_FEATURES, PLATFORM_TENANT_FEATURE_KEYS } from '../../core/constants/platform-tenant-features';
 import { DEFAULT_ERP_PAGE_SIZE } from '../../core/constants/pagination.constants';
 import { PlatformSchoolSummary } from '../../core/models/models';
 import { PlatformService } from '../../core/services/platform.service';
 import { ErpPaginationComponent } from '../../shared/erp-pagination/erp-pagination.component';
+import { ConfirmDialogService } from '../../shared/confirm-dialog/confirm-dialog.service';
 
 @Component({
   selector: 'app-platform-feature-rollout',
@@ -369,7 +370,11 @@ import { ErpPaginationComponent } from '../../shared/erp-pagination/erp-paginati
                   (pageIndexChange)="onFeaturesPageIndexChange($event)"
                 />
                 <div class="d-flex flex-wrap gap-2 align-items-center mt-3 pt-2" style="border-top: 1px solid var(--clr-border-light);">
-                  <button type="button" class="btn-primary-erp" (click)="saveSchoolFeatures()" [disabled]="schoolFeatureSaving">
+                  <button
+                    type="button"
+                    class="btn-primary-erp"
+                    (click)="saveSchoolFeatures()"
+                    [disabled]="schoolFeatureSaving || !hasUnsavedFeatureChanges">
                     {{ schoolFeatureSaving ? ('superAdmin.features.saving' | translate) : ('superAdmin.features.save' | translate) }}
                   </button>
                   <span *ngIf="hasUnsavedFeatureChanges" class="badge-erp badge-warning">{{ 'featureRollout.unsavedChanges' | translate }}</span>
@@ -444,7 +449,8 @@ export class PlatformFeatureRolloutComponent implements OnInit {
     private translate: TranslateService,
     private cdr: ChangeDetectorRef,
     private route: ActivatedRoute,
-    private router: Router
+    private router: Router,
+    private confirmDialog: ConfirmDialogService
   ) {}
 
   ngOnInit(): void {
@@ -571,6 +577,48 @@ export class PlatformFeatureRolloutComponent implements OnInit {
   }
 
   saveSchoolFeatures(): void {
+    if (!this.selectedSchool || !this.hasUnsavedFeatureChanges) {
+      return;
+    }
+    const details = this.buildFeatureSaveConfirmDetails();
+    this.confirmDialog
+      .confirm({
+        title: this.translate.instant('featureRollout.saveConfirmTitle'),
+        message: this.translate.instant('featureRollout.saveConfirmMessage'),
+        details,
+        confirmLabel: this.translate.instant('featureRollout.saveConfirmSave'),
+        cancelLabel: this.translate.instant('featureRollout.saveConfirmCancel'),
+        variant: 'primary',
+      })
+      .pipe(take(1))
+      .subscribe(confirmed => {
+        if (confirmed) {
+          this.executeSaveSchoolFeatures();
+        }
+      });
+  }
+
+  private buildFeatureSaveConfirmDetails(): string[] {
+    const school = this.selectedSchool!;
+    const schoolLine = this.translate.instant('featureRollout.saveConfirmSchool', {
+      name: school.schoolName,
+      code: school.schoolCode,
+    });
+    const lines: string[] = [schoolLine];
+    for (const k of this.platformModuleKeys) {
+      const before = !!this.loadedSchoolFeatures[k];
+      const after = !!this.schoolFeatureDraft[k];
+      if (before !== after) {
+        const modName = this.translate.instant('superAdmin.features.modules.' + k + '.name');
+        const from = before ? this.translate.instant('featureRollout.stateOn') : this.translate.instant('featureRollout.stateOff');
+        const to = after ? this.translate.instant('featureRollout.stateOn') : this.translate.instant('featureRollout.stateOff');
+        lines.push(this.translate.instant('featureRollout.saveConfirmLine', { module: modName, from, to }));
+      }
+    }
+    return lines;
+  }
+
+  private executeSaveSchoolFeatures(): void {
     if (!this.selectedSchool) {
       return;
     }

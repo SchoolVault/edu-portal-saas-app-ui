@@ -16,7 +16,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Transactional;
 
 @Component
 @ConditionalOnProperty(name = "app.communication.events.scheduler.enabled", havingValue = "true", matchIfMissing = true)
@@ -40,8 +39,13 @@ public class CommunicationEventLifecycleScheduler {
         this.campaignService = campaignService;
     }
 
+    /**
+     * Intentionally not transactional as a whole: Spring Data and {@code NotificationCampaignService} already define
+     * transaction boundaries per call. A single outer transaction here caused {@code UnexpectedRollbackException} when
+     * {@code send} threw a caught business rule error (e.g. quiet hours) after marking the shared transaction
+     * rollback-only.
+     */
     @Scheduled(fixedDelayString = "${app.communication.events.scheduler.poll-ms:60000}")
-    @Transactional
     public void runLifecycleTick() {
         List<String> tenantIds = eventRepository.findDistinctTenantIds();
         LocalDateTime now = LocalDateTime.now();
@@ -138,7 +142,7 @@ public class CommunicationEventLifecycleScheduler {
         req.setTargetSectionId(event.getTargetSectionId());
         req.setLocale(event.getLocaleCode() == null || event.getLocaleCode().isBlank() ? "en" : event.getLocaleCode());
         req.setChannels(List.of("SMS", "IN_APP"));
-        req.setScheduledAt(now.plusMinutes(2).toString());
+        req.setScheduledAt(campaignService.resolveSendSlotSkirtingQuietHours(now.plusMinutes(2)).toString());
         return campaignService.send(req).getCampaignId();
     }
 

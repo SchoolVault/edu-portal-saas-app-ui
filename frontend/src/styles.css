@@ -722,6 +722,59 @@ a:hover {
 .erp-table tbody tr:hover { background: var(--clr-hover); }
 .erp-table tbody tr:last-child td { border-bottom: none; }
 
+/* Inline code: neutral (overrides Bootstrap pink on `code` in tables/cards) */
+.erp-table code,
+code.erp-code {
+  font-family: ui-monospace, 'SFMono-Regular', Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--clr-text-secondary);
+  background: color-mix(in srgb, var(--clr-surface-muted) 90%, var(--clr-border));
+  padding: 0.15em 0.45em;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--clr-border);
+}
+
+/* Alias for tertiary actions (same as outline; was referenced only in Settings → RBAC) */
+.btn-ghost-erp,
+.btn-ghost-erp.btn-sm,
+.btn-ghost-erp.btn-xs {
+  background: transparent;
+  color: var(--clr-text-secondary);
+  border: 1.5px solid var(--surface-ring);
+  padding: 10px 24px;
+  border-radius: var(--radius-lg);
+  font-family: var(--font-body);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.btn-ghost-erp.btn-sm { padding: 6px 16px; font-size: 13px; }
+.btn-ghost-erp.btn-xs { padding: 4px 12px; font-size: 12px; }
+.btn-ghost-erp:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-ghost-erp:hover:not(:disabled),
+.btn-ghost-erp:focus-visible {
+  color: var(--clr-text-primary);
+  border-color: color-mix(in srgb, var(--clr-primary) 32%, var(--surface-ring));
+  background: color-mix(in srgb, var(--clr-primary) 6%, var(--clr-surface));
+}
+[data-theme='dark'] .btn-ghost-erp:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--clr-primary) 10%, var(--clr-surface));
+}
+.btn-ghost-erp.text-danger { color: var(--clr-danger); }
+.btn-ghost-erp.text-danger:hover:not(:disabled) {
+  color: var(--clr-danger);
+  background: color-mix(in srgb, var(--clr-danger) 10%, var(--clr-surface));
+  border-color: color-mix(in srgb, var(--clr-danger) 35%, var(--clr-border));
+}
+
 .table-avatar {
   width: 36px;
   height: 36px;
@@ -1651,6 +1704,25 @@ img.table-avatar {
   background: color-mix(in srgb, var(--clr-accent) 14%, var(--clr-surface));
 }
 
+/* Narrow phones / small tablets: many module tab bars — horizontal scroll instead of cramped wrap */
+@media (max-width: 640px) {
+  .erp-tabs {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overflow-y: hidden;
+    gap: 4px;
+    margin-bottom: 18px;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+    overscroll-behavior-x: contain;
+  }
+  .erp-tab {
+    flex: 0 0 auto;
+    padding: 8px 12px;
+    font-size: 13px;
+  }
+}
+
 /* === ANIMATIONS === */
 @keyframes fadeInUp {
   from { opacity: 0; transform: translateY(12px); }
@@ -1658,6 +1730,14 @@ img.table-avatar {
 }
 
 .animate-in { animation: fadeInUp 0.4s ease-out forwards; }
+
+/**
+ * Opacity-only page section entrance — avoids `transform` on the ancestor so
+ * `position: fixed` overlays (RBAC modals, etc.) stay viewport-anchored.
+ */
+.animate-in-fade {
+  animation: fadeIn 0.4s ease-out forwards;
+}
 .animate-in-delay-1 { animation-delay: 0.05s; opacity: 0; }
 .animate-in-delay-2 { animation-delay: 0.1s; opacity: 0; }
 .animate-in-delay-3 { animation-delay: 0.15s; opacity: 0; }
@@ -2069,6 +2149,7 @@ img.table-avatar {
 @media (max-width: 576px) {
   .erp-card { padding: 16px; }
   .stat-card { padding: 16px; }
+  .main-content { padding: 12px; }
 }
 
 /* === ERP DATE / MONTH PICKER (Flatpickr) — SchoolVault tokens, light + dark === */

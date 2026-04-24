@@ -253,6 +253,7 @@ export class PayrollService {
       if (!p) return throwError(() => new Error('Payslip not found'));
       p.status = 'paid';
       p.paymentDate = new Date().toISOString().slice(0, 10);
+      p.salarySettlementMode = 'OFFLINE_RECORDED';
       return of({ ...p });
     }
     return this.api.post<any>(`/payroll/payslips/${id}/mark-paid`, {}).pipe(map(p => this.normalizePayslip(p)));
@@ -381,6 +382,7 @@ export class PayrollService {
 
   private normalizePayslip(p: any): Payslip {
     const st = String(p.status ?? 'GENERATED').toUpperCase();
+    const modeRaw = p.salarySettlementMode != null ? String(p.salarySettlementMode).trim() : '';
     return {
       id: String(p.id),
       teacherId: Number(p.teacherId),
@@ -393,6 +395,7 @@ export class PayrollService {
       netSalary: Number(p.netSalary ?? 0),
       status: st === 'PAID' ? 'paid' : 'generated',
       paymentDate: p.paymentDate ? String(p.paymentDate).slice(0, 10) : undefined,
+      salarySettlementMode: modeRaw || undefined,
       tenantId: p.tenantId ?? ''
     };
   }
@@ -445,6 +448,7 @@ export class PayrollService {
       netSalary: t.net,
       status: i === 1 ? 'paid' : 'generated',
       paymentDate: i === 1 ? now.toISOString().slice(0, 10) : undefined,
+      salarySettlementMode: i === 1 ? 'OFFLINE_RECORDED' : undefined,
       tenantId: 't1',
     }));
 

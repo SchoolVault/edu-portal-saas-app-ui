@@ -1433,6 +1433,11 @@ public class FeeDTOs {
         private List<ParentFeeLineItem> lineItems;
         /** Days from today until due date; negative when overdue. Null when paid or no due date. */
         private Integer daysUntilDue;
+        /**
+         * Same value on every row for a student: copied from {@code tenant_finance_profiles.parent_online_fee_checkout_enabled}.
+         * Parent UI uses this to swap Pay Now vs pay-at-school without a second round-trip.
+         */
+        private boolean parentOnlineFeeCheckoutEnabled = true;
 
         public Long getPaymentId() { return paymentId; }
         public void setPaymentId(Long paymentId) { this.paymentId = paymentId; }
@@ -1468,6 +1473,10 @@ public class FeeDTOs {
         public void setLineItems(List<ParentFeeLineItem> lineItems) { this.lineItems = lineItems; }
         public Integer getDaysUntilDue() { return daysUntilDue; }
         public void setDaysUntilDue(Integer daysUntilDue) { this.daysUntilDue = daysUntilDue; }
+        public boolean isParentOnlineFeeCheckoutEnabled() { return parentOnlineFeeCheckoutEnabled; }
+        public void setParentOnlineFeeCheckoutEnabled(boolean parentOnlineFeeCheckoutEnabled) {
+            this.parentOnlineFeeCheckoutEnabled = parentOnlineFeeCheckoutEnabled;
+        }
     }
 
     public static class CreateCheckoutSessionRequest {

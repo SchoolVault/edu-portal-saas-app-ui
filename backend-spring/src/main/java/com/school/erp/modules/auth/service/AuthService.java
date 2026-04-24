@@ -33,7 +33,10 @@ import com.school.erp.modules.student.repository.StudentRepository;
 import com.school.erp.modules.teacher.repository.TeacherRepository;
 import com.school.erp.modules.timetable.repository.TimetableRepository;
 import com.school.erp.security.JwtUtil;
+import com.school.erp.modules.rbac.service.RbacTenantBootstrapService;
+import com.school.erp.security.rbac.EffectivePermissionService;
 import com.school.erp.tenant.TenantContext;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -66,8 +69,12 @@ public class AuthService {
     private final TimetableRepository timetableRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
+    private final EffectivePermissionService effectivePermissionService;
+    private final RbacTenantBootstrapService rbacTenantBootstrapService;
     private final AuditTrailPort auditTrailPort;
     private final EmailVerificationService emailVerificationService;
+    @Value("${app.jwt.slim-permissions:false}")
+    private boolean jwtSlimPermissions;
 
     @Transactional
     public AuthDTOs.LoginResponse login(AuthDTOs.LoginRequest request) {
@@ -121,7 +128,7 @@ public class AuthService {
     @Transactional
     public AuthDTOs.LoginResponse issueSessionAfterSuccessfulAuth(User user, String interfaceLocaleFromClient) {
         String subject = JwtUtil.principalSubject(user.getEmail(), user.getPhone(), user.getId());
-        String token = jwtUtil.generateToken(user.getId(), user.getTenantId(), subject, user.getRole().name(), user.getName(), resolveJwtPermissions(user));
+        String token = jwtUtil.generateToken(user.getId(), user.getTenantId(), subject, user.getRole().name(), user.getName(), permissionCsvForToken(user));
         String refreshToken = issueRefreshToken(user);
         try {
             TenantContext.setTenantId(user.getTenantId());
@@ -175,7 +182,7 @@ public class AuthService {
         TenantAndAdminCreated created = createTenantAndAdminAccount(request);
         User admin = created.admin();
         String subject = JwtUtil.principalSubject(admin.getEmail(), admin.getPhone(), admin.getId());
-        String token = jwtUtil.generateToken(admin.getId(), admin.getTenantId(), subject, admin.getRole().name(), admin.getName(), jwtPermissionsCsv(admin.getRole()));
+        String token = jwtUtil.generateToken(admin.getId(), admin.getTenantId(), subject, admin.getRole().name(), admin.getName(), permissionCsvForToken(admin));
         String refreshToken = issueRefreshToken(admin);
         return AuthDTOs.LoginResponse.builder().token(token).refreshToken(refreshToken).user(toProfile(admin)).build();
     }
@@ -244,6 +251,7 @@ public class AuthService {
         admin.setIsDeleted(false);
         admin.setAuthProvider("PHONE");
         userRepository.save(admin);
+        rbacTenantBootstrapService.seedForNewTenantAndFirstAdmin(tenantId, admin);
         AcademicYear academicYear = createInitialAcademicYear(tenantId, request);
         log.info("Tenant onboarded tenantId={} schoolCode={} adminUserId={}", tenantId, normalizedSchoolCode, admin.getId());
         return new TenantAndAdminCreated(tenantId, normalizedSchoolCode, admin, academicYear.getId());
@@ -605,7 +613,7 @@ public class AuthService {
         User user = userRepository.findByIdAndTenantIdAndIsDeletedFalse(refreshToken.getUserId(), refreshToken.getTenantId()).orElseThrow(() -> new UnauthorizedException("Invalid refresh token"));
         revokeToken(refreshToken);
         String subject = JwtUtil.principalSubject(user.getEmail(), user.getPhone(), user.getId());
-        String newToken = jwtUtil.generateToken(user.getId(), user.getTenantId(), subject, user.getRole().name(), user.getName(), resolveJwtPermissions(user));
+        String newToken = jwtUtil.generateToken(user.getId(), user.getTenantId(), subject, user.getRole().name(), user.getName(), permissionCsvForToken(user));
         String newRefreshToken = issueRefreshToken(user);
         return AuthDTOs.TokenResponse.builder().token(newToken).refreshToken(newRefreshToken).build();
     }
@@ -627,6 +635,7 @@ public class AuthService {
                 .interfaceLocale(InterfaceLocale.orDefault(user.getPreferredLocale()))
                 .emailVerified(Boolean.TRUE.equals(user.getEmailVerified()))
                 .phoneVerified(Boolean.TRUE.equals(user.getPhoneVerified()))
+                .permissions(effectivePermissionService.toSortedPermissionCodes(user))
                 .build();
     }
 
@@ -678,6 +687,10 @@ public class AuthService {
         }
     }
 
+    private String permissionCsvForToken(User user) {
+        return jwtSlimPermissions ? "" : effectivePermissionService.toPermissionCsv(user);
+    }
+
     private String issueRefreshToken(User user) {
         refreshTokenRepository.findByTenantIdAndUserIdAndIsDeletedFalse(user.getTenantId(), user.getId()).forEach(this::revokeToken);
         RefreshToken refreshToken = new RefreshToken();
@@ -696,39 +709,6 @@ public class AuthService {
         token.setIsActive(false);
         token.setIsDeleted(true);
         refreshTokenRepository.save(token);
-    }
-
-    private String resolveJwtPermissions(User user) {
-        String csv = jwtPermissionsCsv(user.getRole());
-        if (user.getRole() != Enums.Role.TEACHER || user.getTenantId() == null || user.getTenantId().isBlank()) {
-            return csv;
-        }
-        return teacherRepository.findByTenantIdAndUserIdAndIsDeletedFalse(user.getTenantId(), user.getId())
-                .filter(t -> t.getLibraryStaffRole() != null)
-                .map(t -> appendPermissionCsv(csv, "LIBRARY_MANAGE,LIBRARY_CIRCULATION"))
-                .orElse(csv);
-    }
-
-    private static String appendPermissionCsv(String existing, String add) {
-        if (add == null || add.isBlank()) {
-            return existing != null ? existing : "";
-        }
-        if (existing == null || existing.isBlank()) {
-            return add;
-        }
-        return existing + "," + add;
-    }
-
-    private static String jwtPermissionsCsv(Enums.Role role) {
-        if (role == null) {
-            return "";
-        }
-        return switch (role) {
-            case LIBRARY_STAFF -> "LIBRARY_MANAGE,LIBRARY_CIRCULATION";
-            case ADMIN -> "TENANT_ADMIN";
-            case SUPER_ADMIN -> "PLATFORM_ADMIN";
-            case TEACHER, PARENT, STUDENT -> "";
-        };
     }
 
     private String buildTenantId(String schoolCode) {
@@ -757,6 +737,8 @@ public class AuthService {
             final TimetableRepository timetableRepository,
             final PasswordEncoder passwordEncoder,
             final JwtUtil jwtUtil,
+            final EffectivePermissionService effectivePermissionService,
+            final RbacTenantBootstrapService rbacTenantBootstrapService,
             final AuditTrailPort auditTrailPort,
             final EmailVerificationService emailVerificationService) {
         this.userRepository = userRepository;
@@ -772,6 +754,8 @@ public class AuthService {
         this.timetableRepository = timetableRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtUtil = jwtUtil;
+        this.effectivePermissionService = effectivePermissionService;
+        this.rbacTenantBootstrapService = rbacTenantBootstrapService;
         this.auditTrailPort = auditTrailPort;
         this.emailVerificationService = emailVerificationService;
     }

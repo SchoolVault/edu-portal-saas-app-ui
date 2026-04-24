@@ -4,16 +4,24 @@ import com.school.erp.common.dto.PageResponse;
 import com.school.erp.common.enums.Enums;
 import com.school.erp.common.exception.BusinessException;
 import com.school.erp.common.exception.ResourceNotFoundException;
+import com.school.erp.common.exception.ForbiddenException;
 import com.school.erp.common.exception.UnauthorizedException;
 import com.school.erp.common.lock.TenantRedisLockService;
 import com.school.erp.modules.finance.audit.service.FinancialAuditService;
+import com.school.erp.modules.finance.service.TenantFinanceProfileService;
 import com.school.erp.modules.payroll.domain.PayrollDisbursementStatus;
+import com.school.erp.modules.payroll.domain.SalarySettlementMode;
 import com.school.erp.modules.payroll.dto.PayrollDTOs;
 import com.school.erp.modules.payroll.payout.PayrollPayoutGatewayClient;
 import com.school.erp.platform.port.NotificationDispatchPort;
 import com.school.erp.modules.notification.service.NotificationService;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.school.erp.modules.payroll.entity.*;
+import com.school.erp.modules.payroll.pdf.PayslipPdfContext;
 import com.school.erp.modules.payroll.repository.*;
+import com.school.erp.modules.settings.entity.TenantConfig;
 import com.school.erp.modules.settings.repository.TenantConfigRepository;
 import com.school.erp.modules.teacher.entity.Teacher;
 import com.school.erp.modules.teacher.repository.TeacherRepository;
@@ -40,6 +48,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Service
@@ -56,7 +65,9 @@ public class PayrollService {
     private final NotificationDispatchPort notificationDispatchPort;
     private final TenantRedisLockService tenantRedisLockService;
     private final FinancialAuditService financialAuditService;
+    private final TenantFinanceProfileService tenantFinanceProfileService;
     private final PayrollPayoutGatewayClient payrollPayoutGatewayClient;
+    private final ObjectMapper objectMapper;
 
     @Cacheable(cacheNames = CacheConfig.PAYROLL_STRUCTURES, keyGenerator = "tenantKeyGenerator", unless = "#result == null")
     @Transactional(readOnly = true)
@@ -153,6 +164,7 @@ public class PayrollService {
             Payslip ps = Payslip.builder().teacherId(ss.getTeacherId()).teacherName(ss.getTeacherName()).month(month).year(year).basicSalary(ss.getBasicSalary()).totalAllowances(allow).totalDeductions(deduct).netSalary(ss.getBasicSalary().add(allow).subtract(deduct)).status(Enums.PayslipStatus.GENERATED).build();
             ps.setTenantId(t);
             ps.setPayrollMonth(payrollMonth);
+            ps.setComponentsJson(buildPayslipComponentsSnapshotJson(ss.getBasicSalary(), comps));
             return ps;
         }).collect(Collectors.toList());
         psRepo.saveAll(payslips);
@@ -258,6 +270,7 @@ public class PayrollService {
     @Transactional
     public PayrollDTOs.DisburseSalaryResponse initiateSalaryDisbursement(PayrollDTOs.DisburseSalaryRequest req, String operationKey, String idempotencyKey) {
         String t = TenantContext.getTenantId();
+        tenantFinanceProfileService.assertPayrollDigitalPayoutInitiationAllowed(t);
         Long teacherId = req.getTeacherId();
         int year = req.getYear() != null ? req.getYear() : 0;
         String month = req.getMonth() != null ? req.getMonth().trim() : "";
@@ -324,6 +337,7 @@ public class PayrollService {
 
         Long staffUserId = teacher.getUserId();
         if (staffUserId != null) {
+            // In-app only at initiation; SMS/WhatsApp fire when the payslip is marked paid / payout reconciled.
             notificationService.createNotification(
                     t,
                     staffUserId,
@@ -331,13 +345,6 @@ public class PayrollService {
                     paymentMethod + " transfer " + att.getReferenceId() + " for " + month + " " + year + " (" + p.getTeacherName() + ").",
                     Enums.NotificationType.INFO,
                     "/app/payroll");
-            String body = "Salary " + paymentMethod + " initiated. Ref " + att.getReferenceId() + ". Net " + p.getNetSalary() + " INR. Mark payslip paid after settlement.";
-            notificationDispatchPort.enqueue(
-                    t, "SALARY_DISBURSE", "SMS", staffUserId, null, "Salary transfer", body,
-                    "SALDIS:" + p.getId() + ":" + att.getReferenceId(), "payroll-" + p.getId());
-            notificationDispatchPort.enqueue(
-                    t, "SALARY_DISBURSE", "WHATSAPP", staffUserId, null, "Salary transfer", body,
-                    "SALDIS:" + p.getId() + ":" + att.getReferenceId() + ":WA", "payroll-" + p.getId());
         }
 
         return toDisburseResponse(att, p.getTeacherName());
@@ -427,14 +434,21 @@ public class PayrollService {
     }
 
     @Transactional
-    public boolean applyWebhookDisbursementStatus(String referenceId, String providerStatus, String providerPayload, String idempotencyKey) {
+    public boolean applyWebhookDisbursementStatus(
+            String referenceId, String providerStatus, String providerPayload, String idempotencyKey, String tenantIdHint) {
         if (referenceId == null || referenceId.isBlank()) {
             return false;
         }
         String normalized = normalizeDisbursementStatus(providerStatus);
         return tenantRedisLockService.withBestEffortLock("payroll:webhook:ref:" + referenceId, Duration.ofSeconds(30), () -> {
-            var optionalAttempt = salaryDisbursementAttemptRepository
-                    .findFirstByReferenceIdAndIsDeletedFalseOrderByCreatedAtDesc(referenceId);
+            Optional<SalaryDisbursementAttempt> optionalAttempt;
+            if (tenantIdHint != null && !tenantIdHint.isBlank()) {
+                optionalAttempt = salaryDisbursementAttemptRepository
+                        .findFirstByTenantIdAndReferenceIdAndIsDeletedFalseOrderByCreatedAtDesc(tenantIdHint.trim(), referenceId);
+            } else {
+                optionalAttempt = salaryDisbursementAttemptRepository
+                        .findFirstByReferenceIdAndIsDeletedFalseOrderByCreatedAtDesc(referenceId);
+            }
             if (optionalAttempt.isEmpty()) {
                 return false;
             }
@@ -513,9 +527,21 @@ public class PayrollService {
     public Payslip markPayslipPaid(Long id) {
         String t = TenantContext.getTenantId();
         Payslip p = psRepo.findByIdAndTenantIdAndIsDeletedFalse(id, t).orElseThrow(() -> new ResourceNotFoundException("Payslip", id));
+        Enums.PayslipStatus before = p.getStatus();
         p.setStatus(Enums.PayslipStatus.PAID);
         p.setPaymentDate(LocalDate.now());
-        return psRepo.save(p);
+        if (before != Enums.PayslipStatus.PAID) {
+            p.setSalarySettlementMode(SalarySettlementMode.OFFLINE_RECORDED);
+        }
+        Payslip saved = psRepo.save(p);
+        if (before != Enums.PayslipStatus.PAID) {
+            String ref = salaryDisbursementAttemptRepository
+                    .findFirstByTenantIdAndPayslipIdAndIsDeletedFalseOrderByCreatedAtDesc(t, id)
+                    .map(SalaryDisbursementAttempt::getReferenceId)
+                    .orElse("");
+            notifyTeacherPayslipPaid(t, saved, ref);
+        }
+        return saved;
     }
 
     @Transactional(readOnly = true)
@@ -536,9 +562,53 @@ public class PayrollService {
     @Transactional(readOnly = true)
     public byte[] getPayslipPdf(Long id) {
         assertCurrentUserCanViewPayslip(id);
+        String t = TenantContext.getTenantId();
         Payslip p = getPayslipForTenant(id);
-        String school = tenantConfigRepository.findByTenantId(TenantContext.getTenantId()).map(c -> c.getSchoolName()).orElse("School");
-        return payslipPdfService.build(p, school);
+        String role = TenantContext.getUserRole() != null ? TenantContext.getUserRole() : "";
+        if ("TEACHER".equalsIgnoreCase(role) && p.getStatus() != Enums.PayslipStatus.PAID) {
+            throw new ForbiddenException(
+                    "The official payslip PDF is available only after salary has been settled (payslip status: Paid). "
+                            + "Until then, please contact school finance if you need a provisional statement.");
+        }
+        TenantConfig cfg = tenantConfigRepository.findByTenantId(t).orElse(null);
+        String schoolName = cfg != null && cfg.getSchoolName() != null && !cfg.getSchoolName().isBlank() ? cfg.getSchoolName().trim() : "School";
+        String schoolCode = cfg != null && cfg.getSchoolCode() != null ? cfg.getSchoolCode().trim() : "";
+        String schoolAddress = cfg != null && cfg.getAddress() != null ? cfg.getAddress().trim() : "";
+        String schoolPhone = cfg != null && cfg.getPhone() != null ? cfg.getPhone().trim() : "";
+        String schoolEmail = cfg != null && cfg.getEmail() != null ? cfg.getEmail().trim() : "";
+        Teacher teacher = teacherRepository.findByIdAndTenantIdAndIsDeletedFalse(p.getTeacherId(), t).orElse(null);
+        String holder = teacher != null && teacher.getBankAccountHolder() != null ? teacher.getBankAccountHolder().trim() : "";
+        String bankName = teacher != null && teacher.getBankName() != null ? teacher.getBankName().trim() : "";
+        String ifsc = teacher != null && teacher.getBankIfsc() != null ? teacher.getBankIfsc().trim().toUpperCase(Locale.ROOT) : "";
+        String masked = teacher != null ? maskBankAccount(teacher.getBankAccountNumber()) : "";
+        if (masked == null) {
+            masked = "";
+        }
+        String payoutRef = salaryDisbursementAttemptRepository
+                .findFirstByTenantIdAndPayslipIdAndIsDeletedFalseOrderByCreatedAtDesc(t, id)
+                .map(a -> a.getReferenceId() + " · " + a.getStatus())
+                .orElse("");
+        PayslipPdfContext ctx = new PayslipPdfContext(
+                schoolName, schoolCode, schoolAddress, schoolPhone, schoolEmail,
+                holder, bankName, ifsc, masked, payoutRef);
+        return payslipPdfService.build(p, ctx);
+    }
+
+    private String buildPayslipComponentsSnapshotJson(BigDecimal basicSalary, List<SalaryComponent> comps) {
+        ArrayNode arr = objectMapper.createArrayNode();
+        ObjectNode basic = objectMapper.createObjectNode();
+        basic.put("name", "Basic salary");
+        basic.put("type", "BASIC");
+        basic.put("amount", basicSalary != null ? basicSalary.toPlainString() : "0");
+        arr.add(basic);
+        for (SalaryComponent c : comps) {
+            ObjectNode n = objectMapper.createObjectNode();
+            n.put("name", c.getName() != null ? c.getName() : "");
+            n.put("type", c.getType() != null ? c.getType().name() : "");
+            n.put("amount", c.getAmount() != null ? c.getAmount().toPlainString() : "0");
+            arr.add(n);
+        }
+        return arr.toString();
     }
 
     private static String toPayrollMonthKey(String month, int year) {
@@ -607,7 +677,9 @@ public class PayrollService {
             final NotificationDispatchPort notificationDispatchPort,
             final TenantRedisLockService tenantRedisLockService,
             final FinancialAuditService financialAuditService,
-            final PayrollPayoutGatewayClient payrollPayoutGatewayClient) {
+            final TenantFinanceProfileService tenantFinanceProfileService,
+            final PayrollPayoutGatewayClient payrollPayoutGatewayClient,
+            final ObjectMapper objectMapper) {
         this.ssRepo = ssRepo;
         this.scRepo = scRepo;
         this.psRepo = psRepo;
@@ -619,7 +691,9 @@ public class PayrollService {
         this.notificationDispatchPort = notificationDispatchPort;
         this.tenantRedisLockService = tenantRedisLockService;
         this.financialAuditService = financialAuditService;
+        this.tenantFinanceProfileService = tenantFinanceProfileService;
         this.payrollPayoutGatewayClient = payrollPayoutGatewayClient;
+        this.objectMapper = objectMapper;
     }
 
     private String normalizedOperationKey(String incoming, String prefix, Long id) {
@@ -652,6 +726,7 @@ public class PayrollService {
     }
 
     private void applyDisbursementOutcome(SalaryDisbursementAttempt attempt, Payslip payslip, String targetStatus) {
+        Enums.PayslipStatus statusBefore = payslip.getStatus();
         if (PayrollDisbursementStatus.PROCESSED.name().equals(targetStatus)
                 || PayrollDisbursementStatus.FAILED.name().equals(targetStatus)
                 || PayrollDisbursementStatus.RECONCILED.name().equals(targetStatus)) {
@@ -663,10 +738,40 @@ public class PayrollService {
                 || PayrollDisbursementStatus.RECONCILED.name().equals(targetStatus)) {
             payslip.setStatus(Enums.PayslipStatus.PAID);
             payslip.setPaymentDate(LocalDate.now());
+            payslip.setSalarySettlementMode(SalarySettlementMode.DIGITAL_PAYOUT);
         } else if (PayrollDisbursementStatus.FAILED.name().equals(targetStatus) && payslip.getStatus() == Enums.PayslipStatus.PAID) {
             payslip.setStatus(Enums.PayslipStatus.GENERATED);
             payslip.setPaymentDate(null);
+            payslip.setSalarySettlementMode(null);
         }
+        if (payslip.getStatus() == Enums.PayslipStatus.PAID && statusBefore != Enums.PayslipStatus.PAID) {
+            notifyTeacherPayslipPaid(attempt.getTenantId(), payslip, attempt.getReferenceId());
+        }
+    }
+
+    private void notifyTeacherPayslipPaid(String tenantId, Payslip payslip, String payoutReference) {
+        Teacher teacher = teacherRepository.findByIdAndTenantIdAndIsDeletedFalse(payslip.getTeacherId(), tenantId).orElse(null);
+        if (teacher == null || teacher.getUserId() == null) {
+            return;
+        }
+        Long staffUserId = teacher.getUserId();
+        String period = ((payslip.getMonth() != null ? payslip.getMonth() : "") + " " + (payslip.getYear() != null ? payslip.getYear() : "")).trim();
+        String refLine = payoutReference != null && !payoutReference.isBlank() ? " Reference: " + payoutReference + "." : "";
+        notificationService.createNotification(
+                tenantId,
+                staffUserId,
+                "Salary credited — payslip ready",
+                "Your salary for " + (period.isEmpty() ? "the pay period" : period) + " has been marked paid." + refLine
+                        + " Download your payslip from Payroll.",
+                Enums.NotificationType.INFO,
+                "/app/payroll");
+        String body = "Payslip ready for " + (period.isEmpty() ? "your pay period" : period) + ". Net " + payslip.getNetSalary() + " INR." + refLine;
+        notificationDispatchPort.enqueue(
+                tenantId, "SALARY_PAID", "SMS", staffUserId, null, "Payslip available", body,
+                "SALPAID:" + payslip.getId(), "payroll-" + payslip.getId());
+        notificationDispatchPort.enqueue(
+                tenantId, "SALARY_PAID", "WHATSAPP", staffUserId, null, "Payslip available", body,
+                "SALPAID:" + payslip.getId() + ":WA", "payroll-" + payslip.getId());
     }
 
     private static String payoutProviderFromPayload(String payload) {

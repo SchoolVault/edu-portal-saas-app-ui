@@ -29,5 +29,11 @@ public interface SalaryDisbursementAttemptRepository extends JpaRepository<Salar
 
     Optional<SalaryDisbursementAttempt> findFirstByReferenceIdAndIsDeletedFalseOrderByCreatedAtDesc(String referenceId);
 
+    Optional<SalaryDisbursementAttempt> findFirstByTenantIdAndReferenceIdAndIsDeletedFalseOrderByCreatedAtDesc(
+            String tenantId, String referenceId);
+
+    Optional<SalaryDisbursementAttempt> findFirstByTenantIdAndPayslipIdAndIsDeletedFalseOrderByCreatedAtDesc(
+            String tenantId, Long payslipId);
+
     long countByStatusInAndCreatedAtBeforeAndIsDeletedFalse(List<String> statuses, LocalDateTime cutoff);
 }

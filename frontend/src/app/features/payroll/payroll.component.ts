@@ -1,12 +1,14 @@
 import { Component, OnInit, ChangeDetectorRef, DestroyRef, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { Router } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Payslip, PayrollDisbursementAttempt, PayrollDisbursementSummary, SalaryStructure, TeacherPaymentDetails } from '../../core/models/models';
 import { filter } from 'rxjs/operators';
 import { forkJoin } from 'rxjs';
 import { PayrollService } from '../../core/services/payroll.service';
 import { AuthService } from '../../core/services/auth.service';
+import { SettingsService } from '../../core/services/settings.service';
 import { ConfirmDialogService } from '../../shared/confirm-dialog/confirm-dialog.service';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { ErpPaginationComponent } from '../../shared/erp-pagination/erp-pagination.component';
@@ -20,7 +22,7 @@ import { runtimeConfig } from '../../core/config/runtime-config';
   standalone: true,
   imports: [CommonModule, FormsModule, TranslateModule, ErpPaginationComponent, ErpMonthPickerComponent],
   template: `
-    <div data-testid="payroll-page">
+    <div class="payroll-page" data-testid="payroll-page">
       <div class="d-flex justify-content-between align-items-center mb-4 animate-in flex-wrap gap-2">
         <div>
           <h2 style="font-size: 24px; font-weight: 800;">{{ 'payroll.pageTitle' | translate }}</h2>
@@ -119,10 +121,32 @@ import { runtimeConfig } from '../../core/config/runtime-config';
         </div>
       </div>
 
-      <div *ngIf="isAdmin" class="erp-card animate-in animate-in-delay-2 mb-4 payroll-disburse-card">
+      <div
+        *ngIf="isAdmin && !financeProfileLoading && !payrollDigitalPayoutEnabled"
+        class="erp-card animate-in mb-3 payroll-offline-payout-hint"
+        role="status"
+      >
+        <div class="d-flex flex-wrap align-items-start justify-content-between gap-2">
+          <div>
+            <h4 class="erp-card-title mb-1">{{ 'payroll.digitalPayoutOffTitle' | translate }}</h4>
+            <p class="text-muted small mb-0">{{ 'payroll.digitalPayoutOffBody' | translate }}</p>
+          </div>
+          <button type="button" class="btn-outline-erp btn-sm text-nowrap" (click)="goToPayrollFinanceSettings()">
+            {{ 'payroll.digitalPayoutOffCta' | translate }}
+          </button>
+        </div>
+      </div>
+
+      <div
+        *ngIf="isAdmin && !financeProfileLoading && payrollDigitalPayoutEnabled"
+        class="erp-card animate-in animate-in-delay-2 mb-4 payroll-disburse-card"
+      >
         <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
           <div>
             <h4 class="erp-card-title mb-1">{{ 'payroll.cardDisburseTitle' | translate }}</h4>
+            <p class="small fw-semibold text-primary mb-2 payroll-digital-on-status">
+              <i class="bi bi-check2-circle me-1" aria-hidden="true"></i>{{ 'payroll.digitalPayoutOnStatus' | translate }}
+            </p>
             <p class="text-muted small mb-0">{{ 'payroll.cardDisburseLead' | translate }}</p>
           </div>
           <button type="button" class="btn-outline-erp btn-sm" (click)="loadPaymentDetails()"><i class="bi bi-arrow-clockwise"></i> {{ 'payroll.reloadBank' | translate }}</button>
@@ -155,6 +179,9 @@ import { runtimeConfig } from '../../core/config/runtime-config';
                   <ng-container *ngIf="periodPayslipForTeacher(fd.teacherId) as ps">
                     <strong>₹{{ ps.netSalary | number:'1.0-0':'en-IN' }}</strong>
                     <span class="badge-erp ms-1" [class.badge-neutral]="ps.status === 'generated'" [class.badge-success]="ps.status === 'paid'">{{ payslipStatusLabel(ps.status) }}</span>
+                    <div *ngIf="ps.status === 'paid'" class="small text-muted mt-1">
+                      {{ 'payroll.focusSettlement' | translate }}: <span class="text-body fw-semibold">{{ payslipSettlementLabel(ps) }}</span>
+                    </div>
                   </ng-container>
                   <span *ngIf="!periodPayslipForTeacher(fd.teacherId)" class="text-warning">{{ 'payroll.generateFirst' | translate }}</span>
                 </div>
@@ -241,7 +268,10 @@ import { runtimeConfig } from '../../core/config/runtime-config';
         </div>
       </div>
 
-      <div *ngIf="isAdmin" class="erp-card animate-in mb-4 payroll-queue-card">
+      <div
+        *ngIf="isAdmin && !financeProfileLoading && payrollDigitalPayoutEnabled"
+        class="erp-card animate-in mb-4 payroll-queue-card"
+      >
         <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
           <div>
             <h4 class="erp-card-title mb-1">{{ 'payroll.settlementTitle' | translate }}</h4>
@@ -369,8 +399,9 @@ import { runtimeConfig } from '../../core/config/runtime-config';
               <tr>
                 <th>{{ 'payroll.thTeacher' | translate }}</th
                 ><th>{{ 'payroll.thPeriod' | translate }}</th
-                ><th>{{ 'payroll.thNetSalary' | translate }}</th
+                >                <th>{{ 'payroll.thNetSalary' | translate }}</th
                 ><th>{{ 'payroll.thStatus' | translate }}</th
+                ><th>{{ 'payroll.thSettlementMode' | translate }}</th
                 ><th>{{ 'payroll.thPaidOn' | translate }}</th
                 ><th class="text-end">{{ 'payroll.thActions' | translate }}</th>
               </tr>
@@ -383,15 +414,31 @@ import { runtimeConfig } from '../../core/config/runtime-config';
                 <td>
                   <span class="badge-erp" [class.badge-neutral]="p.status === 'generated'" [class.badge-success]="p.status === 'paid'">{{ payslipStatusLabel(p.status) }}</span>
                 </td>
+                <td>
+                  <span
+                    *ngIf="p.status === 'paid'"
+                    class="badge-erp"
+                    [ngClass]="payslipSettlementBadgeClass(p)"
+                    [attr.title]="'payroll.settlementModeHint' | translate"
+                    >{{ payslipSettlementLabel(p) }}</span
+                  >
+                  <span *ngIf="p.status !== 'paid'" class="text-muted small">{{ 'payroll.settlementModePending' | translate }}</span>
+                </td>
                 <td>{{ p.paymentDate || ('exams.dash' | translate) }}</td>
                 <td class="text-end text-nowrap">
-                  <button type="button" class="btn-outline-erp btn-xs me-1" (click)="openPdf(p)" [disabled]="pdfLoadingId === p.id">
+                  <button
+                    type="button"
+                    class="btn-outline-erp btn-xs me-1"
+                    (click)="openPdf(p)"
+                    [disabled]="pdfLoadingId === p.id || !canDownloadPayslipPdf(p)"
+                    [attr.title]="!canDownloadPayslipPdf(p) && isTeacher ? ('payroll.pdfTeacherRequiresPaid' | translate) : null"
+                  >
                     <i class="bi bi-file-pdf"></i> {{ 'payroll.pdf' | translate }}
                   </button>
                   <button *ngIf="isAdmin && p.status === 'generated'" type="button" class="btn-primary-erp btn-xs" (click)="markPaid(p)" [disabled]="markingId === p.id">{{ 'payroll.markPaid' | translate }}</button>
                 </td>
               </tr>
-              <tr *ngIf="payslips.length === 0"><td colspan="6" class="text-center py-4">
+              <tr *ngIf="payslips.length === 0"><td colspan="7" class="text-center py-4">
                 <div class="payroll-empty-state"><i class="bi bi-file-earmark-text"></i>{{ 'payroll.noPayslips' | translate }}</div>
               </td></tr>
             </tbody>
@@ -466,6 +513,11 @@ import { runtimeConfig } from '../../core/config/runtime-config';
   `,
   styles: [
     `
+      .payroll-page {
+        width: 100%;
+        max-width: 100%;
+        min-width: 0;
+      }
       .payroll-disburse-card {
         border: 1px solid color-mix(in srgb, var(--clr-primary) 18%, var(--clr-border));
         background: linear-gradient(135deg, color-mix(in srgb, var(--clr-surface) 92%, var(--clr-primary) 8%), var(--clr-surface));
@@ -473,15 +525,20 @@ import { runtimeConfig } from '../../core/config/runtime-config';
         box-shadow: var(--shadow-sm);
       }
       .payroll-period-toolbar {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: flex-end;
         gap: 10px;
       }
       .payroll-period-hint {
         margin: -10px 0 12px;
-        display: inline-flex;
-        align-items: center;
+        display: flex;
+        flex-wrap: wrap;
+        align-items: flex-start;
         gap: 8px;
         font-size: 12px;
         color: var(--clr-text-muted);
+        max-width: 100%;
       }
       .payroll-period-hint--warn {
         color: color-mix(in srgb, var(--clr-danger) 82%, var(--clr-text) 18%);
@@ -563,9 +620,11 @@ import { runtimeConfig } from '../../core/config/runtime-config';
         box-shadow: var(--shadow-sm);
       }
       .payroll-queue-filters {
-        display: inline-flex;
+        display: flex;
         flex-wrap: wrap;
         gap: 6px;
+        width: 100%;
+        max-width: 100%;
       }
       .payroll-queue-filters .btn-outline-erp.btn-xs {
         border-radius: 999px;
@@ -764,6 +823,15 @@ import { runtimeConfig } from '../../core/config/runtime-config';
           width: 100%;
           min-width: 100%;
         }
+        .payroll-queue-filters .btn-outline-erp.btn-xs {
+          flex: 1 1 calc(50% - 4px);
+          justify-content: center;
+          min-width: 0;
+        }
+        .payroll-offline-payout-hint .btn-outline-erp,
+        .payroll-disburse-card .d-flex.justify-content-between .btn-outline-erp {
+          width: 100%;
+        }
         .payroll-salary-table th,
         .payroll-salary-table td {
           font-size: 12px;
@@ -826,6 +894,9 @@ export class PayrollComponent implements OnInit {
   payoutPreviewModal = false;
   payoutPreviewAcknowledge = false;
   payoutPreviewTarget: TeacherPaymentDetails | null = null;
+  /** Mirrors Settings → Finance; when false, in-app transfer is hidden (backend also blocks). */
+  payrollDigitalPayoutEnabled = false;
+  financeProfileLoading = true;
 
   get queueVarianceAmount(): number {
     return Math.max(0, (this.disbursementSummary.submittedAmount || 0) - (this.disbursementSummary.completedAmount || 0));
@@ -874,7 +945,9 @@ export class PayrollComponent implements OnInit {
     private auth: AuthService,
     private confirmDialog: ConfirmDialogService,
     private translate: TranslateService,
-    private cdr: ChangeDetectorRef
+    private cdr: ChangeDetectorRef,
+    private settingsService: SettingsService,
+    private router: Router
   ) {}
 
   ngOnInit(): void {
@@ -885,11 +958,39 @@ export class PayrollComponent implements OnInit {
     this.isAdmin = r === 'admin';
     this.isTeacher = r === 'teacher';
     if (this.isAdmin) {
+      this.loadPayrollFinanceGate(true);
       this.loadAdminStructures();
       this.loadPaymentDetails();
       this.refreshDisbursementQueue();
+    } else {
+      this.financeProfileLoading = false;
     }
     this.refreshPayroll();
+  }
+
+  /**
+   * @param showLoader only on first page load; refresh runs silently to avoid hiding payroll cards.
+   */
+  private loadPayrollFinanceGate(showLoader: boolean): void {
+    if (showLoader) {
+      this.financeProfileLoading = true;
+    }
+    this.settingsService.getFinanceProfile().subscribe({
+      next: p => {
+        this.payrollDigitalPayoutEnabled = !!p.payrollDigitalPayoutEnabled;
+        this.financeProfileLoading = false;
+        this.cdr.markForCheck();
+      },
+      error: () => {
+        this.payrollDigitalPayoutEnabled = false;
+        this.financeProfileLoading = false;
+        this.cdr.markForCheck();
+      },
+    });
+  }
+
+  goToPayrollFinanceSettings(): void {
+    void this.router.navigate(['/app/settings'], { queryParams: { settingsTab: 'finance' } });
   }
 
   private initializePeriodDefaults(): void {
@@ -1079,6 +1180,9 @@ export class PayrollComponent implements OnInit {
   }
 
   canInitiateDisburse(d: TeacherPaymentDetails): boolean {
+    if (!this.payrollDigitalPayoutEnabled || this.financeProfileLoading) {
+      return false;
+    }
     if (!d.bankDetailsComplete) return false;
     if (!this.hasBankBasics(d) || !this.hasValidIfsc(d)) return false;
     return !!this.generatedPayslipForTeacher(d.teacherId);
@@ -1087,7 +1191,7 @@ export class PayrollComponent implements OnInit {
   runDisburse(d: TeacherPaymentDetails): void {
     this.disburseInfo = '';
     this.genError = '';
-    const periodError = this.payrollPeriodValidationMessage();
+    const periodError = this.payrollActionPeriodError();
     if (periodError) {
       this.genError = periodError;
       return;
@@ -1117,7 +1221,7 @@ export class PayrollComponent implements OnInit {
 
   openDisbursePreview(d: TeacherPaymentDetails): void {
     this.genError = '';
-    const periodError = this.payrollPeriodValidationMessage();
+    const periodError = this.payrollActionPeriodError();
     if (periodError) {
       this.genError = periodError;
       return;
@@ -1193,6 +1297,7 @@ export class PayrollComponent implements OnInit {
     this.disburseInfo = '';
     const y = Number(this.genYear);
     if (this.isAdmin) {
+      this.loadPayrollFinanceGate(false);
       this.structPageIndex = 0;
       this.loadAdminStructures();
       this.loadPaymentDetails();
@@ -1233,7 +1338,7 @@ export class PayrollComponent implements OnInit {
       this.genError = this.translate.instant('payroll.errMonthRequired');
       return;
     }
-    const periodError = this.payrollPeriodValidationMessage();
+    const periodError = this.payrollActionPeriodError();
     if (periodError) {
       this.genError = periodError;
       return;
@@ -1251,7 +1356,8 @@ export class PayrollComponent implements OnInit {
     });
   }
 
-  private isValidPayrollPeriod(month: string, year: number): boolean {
+  /** Admin generate / disburse: backend only allows current or previous calendar month. */
+  private isValidPayrollActionPeriod(month: string, year: number): boolean {
     const now = new Date();
     const currentYear = now.getFullYear();
     const currentMonthIndex = now.getMonth();
@@ -1272,6 +1378,26 @@ export class PayrollComponent implements OnInit {
     return selectedSerial <= currentSerial && selectedSerial >= minAllowedSerial;
   }
 
+  /** Month filter for payslip grid: any past month up to today. */
+  private isValidListingPayrollPeriod(month: string, year: number): boolean {
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    if (!month || !month.trim()) {
+      return false;
+    }
+    if (!Number.isInteger(year) || year < 2000 || year > currentYear) {
+      return false;
+    }
+    const monthKey = month.trim().toLowerCase();
+    const monthIdx = this.monthNames.findIndex(m => m.toLowerCase() === monthKey);
+    if (monthIdx < 0) {
+      return false;
+    }
+    const selectedSerial = year * 12 + monthIdx;
+    const currentSerial = currentYear * 12 + now.getMonth();
+    return selectedSerial <= currentSerial;
+  }
+
   payrollPeriodValidationMessage(): string {
     if (!this.genMonth || !this.genMonth.trim()) {
       return this.translate.instant('payroll.errMonthRequired');
@@ -1280,14 +1406,38 @@ export class PayrollComponent implements OnInit {
     if (!Number.isInteger(year) || year < 2000) {
       return this.translate.instant('payroll.errYearRange');
     }
-    if (this.isValidPayrollPeriod(this.genMonth, year)) {
+    if (this.isValidListingPayrollPeriod(this.genMonth, year)) {
       return '';
     }
-    const now = new Date();
     const selectedMonthIdx = this.monthNames.findIndex(m => m.toLowerCase() === this.genMonth.trim().toLowerCase());
     if (selectedMonthIdx < 0) {
       return this.translate.instant('payroll.errPeriodInvalid');
     }
+    const now = new Date();
+    const selectedSerial = year * 12 + selectedMonthIdx;
+    const currentSerial = now.getFullYear() * 12 + now.getMonth();
+    if (selectedSerial > currentSerial) {
+      return this.translate.instant('payroll.errFuturePeriodNotAllowed');
+    }
+    return this.translate.instant('payroll.errYearRange');
+  }
+
+  payrollActionPeriodError(): string {
+    if (!this.genMonth || !this.genMonth.trim()) {
+      return this.translate.instant('payroll.errMonthRequired');
+    }
+    const year = Number(this.genYear);
+    if (!Number.isInteger(year) || year < 2000) {
+      return this.translate.instant('payroll.errYearRange');
+    }
+    if (this.isValidPayrollActionPeriod(this.genMonth, year)) {
+      return '';
+    }
+    const selectedMonthIdx = this.monthNames.findIndex(m => m.toLowerCase() === this.genMonth.trim().toLowerCase());
+    if (selectedMonthIdx < 0) {
+      return this.translate.instant('payroll.errPeriodInvalid');
+    }
+    const now = new Date();
     const selectedSerial = year * 12 + selectedMonthIdx;
     const currentSerial = now.getFullYear() * 12 + now.getMonth();
     if (selectedSerial > currentSerial) {
@@ -1296,7 +1446,20 @@ export class PayrollComponent implements OnInit {
     return this.translate.instant('payroll.errHistoryWindow');
   }
 
+  canDownloadPayslipPdf(p: Payslip): boolean {
+    if (this.isAdmin) {
+      return true;
+    }
+    if (this.isTeacher) {
+      return (p.status || '').toLowerCase() === 'paid';
+    }
+    return true;
+  }
+
   openPdf(p: Payslip): void {
+    if (!this.canDownloadPayslipPdf(p)) {
+      return;
+    }
     this.pdfLoadingId = p.id;
     this.payrollService.downloadPayslipPdf(p.id).subscribe({
       next: blob => {
@@ -1322,6 +1485,31 @@ export class PayrollComponent implements OnInit {
     return t !== key ? t : (status ?? '');
   }
 
+  payslipSettlementLabel(p: Payslip): string {
+    if (p.status !== 'paid') {
+      return '';
+    }
+    const m = (p.salarySettlementMode || '').toUpperCase();
+    if (m === 'DIGITAL_PAYOUT') {
+      return this.translate.instant('payroll.settlementModeDigital');
+    }
+    if (m === 'OFFLINE_RECORDED') {
+      return this.translate.instant('payroll.settlementModeOffline');
+    }
+    return this.translate.instant('payroll.settlementModeLegacy');
+  }
+
+  payslipSettlementBadgeClass(p: Payslip): string {
+    const m = (p.salarySettlementMode || '').toUpperCase();
+    if (m === 'DIGITAL_PAYOUT') {
+      return 'badge-success';
+    }
+    if (m === 'OFFLINE_RECORDED') {
+      return 'badge-info';
+    }
+    return 'badge-warning';
+  }
+
   markPaid(p: Payslip): void {
     this.confirmDialog
       .confirm({
@@ -1336,6 +1524,7 @@ export class PayrollComponent implements OnInit {
             ? this.translate.instant('payroll.detailNet', { amount: String(p.netSalary) })
             : undefined,
           p.status ? this.translate.instant('payroll.detailStatus', { status: this.payslipStatusLabel(p.status) }) : undefined,
+          this.translate.instant('payroll.confirmMarkPaidDetailOffline'),
         ].filter((x): x is string => !!x),
         variant: 'primary',
         confirmLabel: this.translate.instant('payroll.confirmMarkPaidOk'),

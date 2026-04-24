@@ -9,13 +9,16 @@ import com.school.erp.modules.auth.entity.EmailVerificationToken;
 import com.school.erp.modules.auth.entity.User;
 import com.school.erp.modules.auth.repository.EmailVerificationTokenRepository;
 import com.school.erp.modules.auth.repository.UserRepository;
+import com.school.erp.modules.auth.port.EmailVerificationDispatchPort;
 import com.school.erp.platform.port.AuditTrailPort;
 import com.school.erp.tenant.TenantContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
+import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -31,15 +34,18 @@ public class EmailVerificationService {
     private final EmailVerificationTokenRepository tokenRepository;
     private final AuthEmailVerificationProperties properties;
     private final AuditTrailPort auditTrailPort;
+    private final EmailVerificationDispatchPort emailVerificationDispatchPort;
 
     public EmailVerificationService(UserRepository userRepository,
                                     EmailVerificationTokenRepository tokenRepository,
                                     AuthEmailVerificationProperties properties,
-                                    AuditTrailPort auditTrailPort) {
+                                    AuditTrailPort auditTrailPort,
+                                    EmailVerificationDispatchPort emailVerificationDispatchPort) {
         this.userRepository = userRepository;
         this.tokenRepository = tokenRepository;
         this.properties = properties;
         this.auditTrailPort = auditTrailPort;
+        this.emailVerificationDispatchPort = emailVerificationDispatchPort;
     }
 
     @Transactional
@@ -78,10 +84,26 @@ public class EmailVerificationService {
         row.setIsDeleted(false);
         tokenRepository.save(row);
 
+        String verificationUrl = buildPublicVerificationUrl(rawToken);
+        String outboundMessage = resolvePostSaveMessage(verificationUrl);
         if (properties.isExposePlainTokenInApiResponse()) {
             log.warn("Email verification token for userId={} tenant={} (dev only): {}", userId, tenantId, rawToken);
         } else {
             log.info("Email verification token issued userId={} tenant={}", userId, tenantId);
+        }
+        if (verificationUrl != null && emailVerificationDispatchPort.canSendOutbound()) {
+            try {
+                emailVerificationDispatchPort.publishVerificationLink(
+                        tenantId,
+                        userId,
+                        user.getEmail(),
+                        verificationUrl,
+                        row.getExpiresAt().toString());
+            } catch (Exception ex) {
+                log.warn("Email verification outbound dispatch failed userId={} tenant={}: {}", userId, tenantId, ex.getMessage());
+                outboundMessage =
+                        "We could not send the verification email right now. Please try again in a few minutes, or contact your school.";
+            }
         }
         auditTrailPort.logAction(
                 Enums.AuditAction.UPDATE,
@@ -93,11 +115,35 @@ public class EmailVerificationService {
                 user.getEmail());
 
         AuthDTOs.EmailVerificationRequestResponse res = new AuthDTOs.EmailVerificationRequestResponse();
-        res.setMessage("Verification link has been prepared. In production this is sent by email.");
+        res.setMessage(outboundMessage);
         if (properties.isExposePlainTokenInApiResponse()) {
             res.setDevOneTimeToken(rawToken);
         }
         return res;
+    }
+
+    private String buildPublicVerificationUrl(String rawToken) {
+        String base = properties.getPublicSpaBaseUrl();
+        if (!StringUtils.hasText(base)) {
+            return null;
+        }
+        String trimmed = base.trim().replaceAll("/+$", "");
+        return trimmed + "/verify-email?token=" + URLEncoder.encode(rawToken, StandardCharsets.UTF_8);
+    }
+
+    private String resolvePostSaveMessage(String verificationUrl) {
+        if (properties.isExposePlainTokenInApiResponse()) {
+            return "Verification token issued. Paste the dev token in Settings, or use the link if configured.";
+        }
+        if (verificationUrl == null) {
+            return "Verification was prepared, but the public portal URL is not configured on the server (AUTH_EMAIL_VER_PUBLIC_SPA_BASE_URL). "
+                    + "Contact support to finish email verification.";
+        }
+        if (emailVerificationDispatchPort.canSendOutbound()) {
+            return "Check your email for a verification link. If it does not arrive within a few minutes, check spam or request again.";
+        }
+        return "Verification link is ready, but automatic email delivery is not configured (set APP_INTEGRATION_EMAIL_TRIGGER_URL). "
+                + "Ask your school administrator to complete setup, or open the verification link they provide.";
     }
 
     @Transactional

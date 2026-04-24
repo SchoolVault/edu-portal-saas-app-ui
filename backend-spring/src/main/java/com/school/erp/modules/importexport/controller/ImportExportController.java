@@ -1,6 +1,7 @@
 package com.school.erp.modules.importexport.controller;
 
 import com.school.erp.common.dto.ApiResponse;
+import com.school.erp.common.export.CsvExportSupport;
 import com.school.erp.common.dto.PageResponse;
 import com.school.erp.common.exception.BusinessException;
 import com.school.erp.security.RequireTenantFeature;
@@ -13,6 +14,8 @@ import com.school.erp.modules.teacher.service.TeacherService;
 import com.school.erp.tenant.TenantContext;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import java.time.LocalDate;
+import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -188,9 +191,13 @@ public class ImportExportController {
     @PreAuthorize("hasAnyRole('ADMIN','TEACHER','SUPER_ADMIN')")
     @Operation(summary = "Download students as CSV (import template shape)")
     public ResponseEntity<byte[]> exportStudents() {
-        byte[] body = studentService.exportStudentsAsCsv().getBytes(StandardCharsets.UTF_8);
+        byte[] body = CsvExportSupport.utf8BomBytes(studentService.exportStudentsAsCsv());
+        ContentDisposition disposition = ContentDisposition.attachment()
+                .filename("students-export-" + LocalDate.now() + ".csv", StandardCharsets.UTF_8)
+                .build();
         return ResponseEntity.ok()
-                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"students-export.csv\"")
+                .contentType(MediaType.parseMediaType("text/csv;charset=UTF-8"))
+                .header(HttpHeaders.CONTENT_DISPOSITION, disposition.toString())
                 .body(body);
     }
 
@@ -198,9 +205,13 @@ public class ImportExportController {
     @PreAuthorize("hasAnyRole('ADMIN','SUPER_ADMIN')")
     @Operation(summary = "Download teachers/staff directory as CSV")
     public ResponseEntity<byte[]> exportTeachers() {
-        byte[] body = teacherService.exportTeachersAsCsv().getBytes(StandardCharsets.UTF_8);
+        byte[] body = CsvExportSupport.utf8BomBytes(teacherService.exportTeachersAsCsv());
+        ContentDisposition disposition = ContentDisposition.attachment()
+                .filename("teachers-export-" + LocalDate.now() + ".csv", StandardCharsets.UTF_8)
+                .build();
         return ResponseEntity.ok()
-                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"teachers-export.csv\"")
+                .contentType(MediaType.parseMediaType("text/csv;charset=UTF-8"))
+                .header(HttpHeaders.CONTENT_DISPOSITION, disposition.toString())
                 .body(body);
     }
 }

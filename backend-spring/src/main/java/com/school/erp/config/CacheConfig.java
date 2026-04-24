@@ -6,7 +6,10 @@ import com.school.erp.cache.RedisTenantCacheEvictor;
 import com.school.erp.cache.logging.LoggingCacheManager;
 import com.school.erp.modules.audit.service.AuditService;
 import com.school.erp.modules.platform.service.CacheManagementService;
+import com.school.erp.modules.parent.cache.ParentPortalExamPageCache;
+import com.school.erp.modules.reports.service.DashboardSnapshotService;
 import com.school.erp.modules.settings.repository.TenantConfigRepository;
+import com.school.erp.security.rbac.SlimJwtAuthorityCache;
 import com.school.erp.tenant.TenantContext;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -158,9 +161,19 @@ public class CacheConfig {
             AuditService auditService,
             CacheManager cacheManager,
             RedisTenantCacheEvictor redisTenantCacheEvictor,
-            TenantConfigRepository tenantConfigRepository) {
+            TenantConfigRepository tenantConfigRepository,
+            DashboardSnapshotService dashboardSnapshotService,
+            SlimJwtAuthorityCache slimJwtAuthorityCache,
+            ParentPortalExamPageCache parentPortalExamPageCache) {
         return new CacheManagementService(
-                cacheService, auditService, cacheManager, redisTenantCacheEvictor, tenantConfigRepository);
+                cacheService,
+                auditService,
+                cacheManager,
+                redisTenantCacheEvictor,
+                tenantConfigRepository,
+                dashboardSnapshotService,
+                slimJwtAuthorityCache,
+                parentPortalExamPageCache);
     }
 
     /** Cache key = current tenant id (never share across schools). */

@@ -43,6 +43,15 @@ public interface DashboardSnapshotRepository extends JpaRepository<DashboardSnap
             """)
     int markRefreshRequiredForTenant(@Param("tenantId") String tenantId);
 
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("""
+            update DashboardSnapshot s
+            set s.refreshRequired = true,
+                s.cacheVersion = s.cacheVersion + 1
+            where s.isDeleted = false
+            """)
+    int markRefreshRequiredAll();
+
     @Query("select distinct s.tenantId from DashboardSnapshot s where s.isDeleted = false")
     List<String> findDistinctTenantIds();
 }

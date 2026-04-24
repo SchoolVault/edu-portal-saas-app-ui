@@ -96,8 +96,29 @@ public class DashboardSnapshotService {
         if (tenantId == null || tenantId.isBlank()) {
             return 0;
         }
-        int updated = dashboardSnapshotRepository.markRefreshRequiredForTenant(tenantId);
-        log.info("Marked dashboard snapshots refresh-required tenantId={} rows={} reason={}", tenantId, updated, reason);
+        return markRefreshRequiredForTenantId(tenantId, reason);
+    }
+
+    /**
+     * Marks persisted snapshot rows so the next dashboard read recomputes (used by platform cache clear
+     * where {@link TenantContext} is not the target school).
+     */
+    @Transactional
+    public int markRefreshRequiredForTenantId(String tenantId, String reason) {
+        if (tenantId == null || tenantId.isBlank()) {
+            return 0;
+        }
+        String tid = tenantId.trim();
+        int updated = dashboardSnapshotRepository.markRefreshRequiredForTenant(tid);
+        log.info("Marked dashboard snapshots refresh-required tenantId={} rows={} reason={}", tid, updated, reason);
+        return updated;
+    }
+
+    /** Super-admin global cache clear: every school's dashboard snapshot rows require refresh. */
+    @Transactional
+    public int markRefreshRequiredAllTenants(String reason) {
+        int updated = dashboardSnapshotRepository.markRefreshRequiredAll();
+        log.info("Marked dashboard snapshots refresh-required for all tenants rows={} reason={}", updated, reason);
         return updated;
     }
 

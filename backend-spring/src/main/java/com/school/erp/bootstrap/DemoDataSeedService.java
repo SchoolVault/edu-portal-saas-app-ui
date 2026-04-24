@@ -21,6 +21,10 @@ import com.school.erp.modules.fees.entity.FeeStructure;
 import com.school.erp.modules.fees.repository.FeeComponentRepository;
 import com.school.erp.modules.fees.repository.FeePaymentRepository;
 import com.school.erp.modules.fees.repository.FeeStructureRepository;
+import com.school.erp.modules.finance.domain.FeeSettlementMode;
+import com.school.erp.modules.finance.domain.PaymentRoutingOnboardingStatus;
+import com.school.erp.modules.finance.entity.TenantFinanceProfile;
+import com.school.erp.modules.finance.repository.TenantFinanceProfileRepository;
 import com.school.erp.modules.guardian.entity.Guardian;
 import com.school.erp.modules.guardian.entity.StudentGuardianMapping;
 import com.school.erp.modules.guardian.repository.GuardianRepository;
@@ -39,6 +43,13 @@ import com.school.erp.modules.library.entity.Book;
 import com.school.erp.modules.library.entity.BookIssue;
 import com.school.erp.modules.library.repository.BookIssueRepository;
 import com.school.erp.modules.library.repository.BookRepository;
+import com.school.erp.modules.rbac.RbacRoleCatalog;
+import com.school.erp.modules.rbac.audit.RbacAuditModule;
+import com.school.erp.modules.rbac.entity.SchoolRole;
+import com.school.erp.modules.rbac.entity.UserSchoolRoleAssignment;
+import com.school.erp.modules.rbac.repository.SchoolRoleRepository;
+import com.school.erp.modules.rbac.repository.UserSchoolRoleAssignmentRepository;
+import com.school.erp.modules.rbac.service.RbacTenantBootstrapService;
 import com.school.erp.bootstrap.demo.DemoExtendedTablesSeed;
 import com.school.erp.modules.chat.repository.ChatConversationRepository;
 import com.school.erp.modules.chat.repository.ChatMessageRepository;
@@ -95,6 +106,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Profile;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -135,6 +147,9 @@ import java.util.stream.Collectors;
  * ├── QA parent: one dedicated {@code qa.multichild.parent@parent.<schoolCode>.edu.in} with four linked
  * │   active students (different classes where possible) for multi-child E2E / parent-portal QA
  * ├── Users: ADMIN, TEACHERS, PARENTS, LIBRARY_STAFF with login credentials
+ * ├── RBAC: {@link RbacTenantBootstrapService} backfill + narrow-role demo logins (fee / exam / payroll / finance
+ * │   settings / custom role) for E2E testing of permissions and school role assignments
+ * ├── Finance: {@link TenantFinanceProfile} per tenant (DPS: platform merchant; KV: Razorpay Route + LIVE onboarding)
  * ├── Academic: Subjects, Teacher Assignments (Class + Subject)
  * ├── Fees: Fee structures, components, payments (PAID, PARTIAL, UNPAID examples)
  * ├── Exams: Multiple exams with schedules, mark records
@@ -273,6 +288,10 @@ public class DemoDataSeedService {
     private final ReportPublicationSnapshotRepository reportPublicationSnapshotRepository;
     private final ReportWorkflowEventLogRepository reportWorkflowEventLogRepository;
     private final ReportAnalyticsPackConfigRepository reportAnalyticsPackConfigRepository;
+    private final RbacTenantBootstrapService rbacTenantBootstrapService;
+    private final SchoolRoleRepository schoolRoleRepository;
+    private final UserSchoolRoleAssignmentRepository userSchoolRoleAssignmentRepository;
+    private final TenantFinanceProfileRepository tenantFinanceProfileRepository;
     private final DemoExtendedTablesSeed demoExtendedTablesSeed;
     private final EntityManager entityManager;
 
@@ -355,6 +374,10 @@ public class DemoDataSeedService {
             ReportPublicationSnapshotRepository reportPublicationSnapshotRepository,
             ReportWorkflowEventLogRepository reportWorkflowEventLogRepository,
             ReportAnalyticsPackConfigRepository reportAnalyticsPackConfigRepository,
+            RbacTenantBootstrapService rbacTenantBootstrapService,
+            SchoolRoleRepository schoolRoleRepository,
+            UserSchoolRoleAssignmentRepository userSchoolRoleAssignmentRepository,
+            TenantFinanceProfileRepository tenantFinanceProfileRepository,
             EntityManager entityManager,
             DemoExtendedTablesSeed demoExtendedTablesSeed) {
         this.tenantConfigRepository = tenantConfigRepository;
@@ -419,6 +442,10 @@ public class DemoDataSeedService {
         this.reportPublicationSnapshotRepository = reportPublicationSnapshotRepository;
         this.reportWorkflowEventLogRepository = reportWorkflowEventLogRepository;
         this.reportAnalyticsPackConfigRepository = reportAnalyticsPackConfigRepository;
+        this.rbacTenantBootstrapService = rbacTenantBootstrapService;
+        this.schoolRoleRepository = schoolRoleRepository;
+        this.userSchoolRoleAssignmentRepository = userSchoolRoleAssignmentRepository;
+        this.tenantFinanceProfileRepository = tenantFinanceProfileRepository;
         this.demoExtendedTablesSeed = demoExtendedTablesSeed;
         this.entityManager = entityManager;
     }
@@ -674,6 +701,10 @@ public class DemoDataSeedService {
 
         seedShowcaseSupplementaryRows(tenantId, schoolCode);
         createMeaningfulAuditTrailSeed(tenantId, schoolCode, adminUser, teachers, allStudents);
+        rbacTenantBootstrapService.ensureTenantSeeded(tenantId);
+        seedRbacNarrowRoleDemoPersonas(tenantId, schoolCode);
+        seedRbacModuleAuditStubs(tenantId, schoolCode, adminUser);
+        seedTenantFinanceProfileIfMissing(tenantId, schoolCode);
         flushAndClear();
 
         log.info("══════════════════════════════════════════════════════════════");
@@ -773,6 +804,153 @@ public class DemoDataSeedService {
                 .build();
         row.setTenantId(tenantId);
         return row;
+    }
+
+    private static final String DEMO_CUSTOM_SCHOOL_ROLE_CODE = "DEMO_CUSTOM_FEE_REVIEW";
+
+    /**
+     * {@link com.school.erp.modules.auth.entity.User#getRole()} is {@code ADMIN} for all demo personas so they
+     * use the staff portal; effective API permissions come only from the single {@link SchoolRole} we attach.
+     */
+    private void seedRbacNarrowRoleDemoPersonas(String tenantId, String schoolCode) {
+        String domain = tenantConfigRepository.findByTenantId(tenantId)
+                .map(TenantConfig::getEmail)
+                .filter(e -> e != null && e.contains("@"))
+                .map(e -> e.substring(e.indexOf('@') + 1).trim())
+                .filter(d -> !d.isBlank())
+                .orElse("school.local");
+
+        SchoolRole customRole = ensureDemoCustomFeeReviewRole(tenantId);
+        if (customRole == null) {
+            log.warn("  RBAC narrow demo: custom school role not available tenantId={}", tenantId);
+        }
+
+        record Persona(String emailLocal, String fullName, String schoolRoleCode, boolean useCustomRole) {}
+
+        List<Persona> personas = List.of(
+                new Persona("fee.desk.demo", "Demo Fee Desk " + schoolCode, RbacRoleCatalog.CODE_FEE_OFFICE, false),
+                new Persona("exam.desk.demo", "Demo Exam Desk " + schoolCode, RbacRoleCatalog.CODE_EXAM_OFFICE, false),
+                new Persona("payroll.desk.demo", "Demo Payroll Desk " + schoolCode, RbacRoleCatalog.CODE_PAYROLL_OFFICE, false),
+                new Persona("finance.settings.demo", "Demo Finance & Settings " + schoolCode, RbacRoleCatalog.CODE_TENANT_SETTINGS, false),
+                new Persona("library.desk.demo", "Demo Library Desk " + schoolCode, RbacRoleCatalog.CODE_LIBRARY_OPERATIONS, false),
+                new Persona("rbac.custom.demo", "Demo Custom Bundle " + schoolCode, null, true)
+        );
+        int phoneSlot = 0;
+        for (Persona p : personas) {
+            if (p.useCustomRole() && customRole == null) {
+                continue;
+            }
+            String email = p.emailLocal() + "@" + domain;
+            String preferredPhone = "+91-73" + String.format("%08d", 4_200_000 + phoneSlot++);
+            User u = createUser(
+                    tenantId, schoolCode, p.fullName(), email, Enums.Role.ADMIN, preferredPhone);
+            userSchoolRoleAssignmentRepository.deleteByTenantIdAndUserId(tenantId, u.getId());
+            if (p.useCustomRole()) {
+                linkUserToSchoolRole(tenantId, u.getId(), customRole);
+            } else {
+                schoolRoleRepository
+                        .findByTenantIdAndCodeAndIsDeletedFalse(tenantId, p.schoolRoleCode())
+                        .ifPresent(r -> linkUserToSchoolRole(tenantId, u.getId(), r));
+            }
+        }
+    }
+
+    private void linkUserToSchoolRole(String tenantId, Long userId, SchoolRole role) {
+        if (userId == null || role == null) {
+            return;
+        }
+        UserSchoolRoleAssignment a = new UserSchoolRoleAssignment();
+        a.setTenantId(tenantId);
+        a.setUserId(userId);
+        a.setSchoolRole(role);
+        a.setCreatedAt(LocalDateTime.now());
+        userSchoolRoleAssignmentRepository.save(a);
+    }
+
+    private SchoolRole ensureDemoCustomFeeReviewRole(String tenantId) {
+        return schoolRoleRepository
+                .findByTenantIdAndCodeAndIsDeletedFalse(tenantId, DEMO_CUSTOM_SCHOOL_ROLE_CODE)
+                .orElseGet(() -> {
+                    SchoolRole e = new SchoolRole();
+                    e.setTenantId(tenantId);
+                    e.setIsActive(true);
+                    e.setIsDeleted(false);
+                    e.setCode(DEMO_CUSTOM_SCHOOL_ROLE_CODE);
+                    e.setName("Demo: fee + school reports (custom bundle)");
+                    e.setDescription("Seeded for RBAC E2E — narrow custom bundle distinct from FEE_OFFICE / EXAM_OFFICE templates.");
+                    e.setSortOrder(900);
+                    e.setSystemRole(false);
+                    e.setPermissionsCsv("FEE_STRUCTURES_READ,SCHOOL_REPORTS_SCHOOL");
+                    return schoolRoleRepository.save(e);
+                });
+    }
+
+    private void seedRbacModuleAuditStubs(String tenantId, String schoolCode, User adminUser) {
+        if (auditLogRepository
+                .findByTenantIdAndModuleAndIsDeletedFalse(tenantId, RbacAuditModule.CODE, PageRequest.of(0, 1))
+                .getTotalElements() > 0) {
+            return;
+        }
+        String adminName = adminUser != null && adminUser.getName() != null ? adminUser.getName() : "School Admin";
+        List<AuditLog> rows = List.of(
+                buildAuditRow(
+                        tenantId,
+                        Enums.AuditAction.UPDATE,
+                        RbacAuditModule.CODE,
+                        adminName + " adjusted school role assignment for a staff user (" + schoolCode + ").",
+                        adminUser != null ? adminUser.getId() : null,
+                        adminName,
+                        null,
+                        "RbacUserSchoolRoleView"),
+                buildAuditRow(
+                        tenantId,
+                        Enums.AuditAction.CREATE,
+                        RbacAuditModule.CODE,
+                        "Seeded custom school role " + DEMO_CUSTOM_SCHOOL_ROLE_CODE + " (demo bundle).",
+                        adminUser != null ? adminUser.getId() : null,
+                        adminName,
+                        null,
+                        "RbacSchoolRoleView"));
+        auditLogRepository.saveAll(rows);
+    }
+
+    /**
+     * One row per tenant for fee settlement + Route onboarding E2E. Skips if a profile already exists.
+     * DPS: platform merchant (no Route gate). KV: Route linked account + LIVE (parent Route checkout allowed).
+     */
+    private void seedTenantFinanceProfileIfMissing(String tenantId, String schoolCode) {
+        if (tenantFinanceProfileRepository.findByTenantIdAndIsDeletedFalse(tenantId).isPresent()) {
+            return;
+        }
+        TenantFinanceProfile p = new TenantFinanceProfile();
+        p.setTenantId(tenantId);
+        p.setIsActive(true);
+        p.setIsDeleted(false);
+        p.setPlatformCommissionBps(0);
+        LocalDateTime now = LocalDateTime.now();
+        p.setPayrollDigitalPayoutEnabled(false);
+        if ("KV-MUM".equals(schoolCode)) {
+            p.setFeeSettlementMode(FeeSettlementMode.ROUTE_LINKED_ACCOUNT.name());
+            p.setRazorpayRouteLinkedAccountId("acc_rzp_demo_route_kv_mum");
+            p.setPlatformCommissionBps(150);
+            p.setPaymentRoutingOnboardingStatus(PaymentRoutingOnboardingStatus.LIVE.name());
+            p.setPaymentRoutingSubmittedAt(now.minusDays(2));
+            p.setPaymentRoutingLiveAt(now.minusDays(1));
+            p.setParentOnlineFeeCheckoutEnabled(true);
+            p.setFinanceNotes(
+                    "Demo seed: Razorpay Route linked account; payment routing LIVE. Use for parent online fee E2E on the Route path.");
+        } else if ("DPS-DLH".equals(schoolCode)) {
+            p.setFeeSettlementMode(FeeSettlementMode.PLATFORM_MERCHANT.name());
+            p.setPaymentRoutingOnboardingStatus(PaymentRoutingOnboardingStatus.NOT_REQUIRED.name());
+            p.setParentOnlineFeeCheckoutEnabled(true);
+            p.setFinanceNotes("Demo seed: platform merchant fee settlement; parent online checkout (no school Route onboarding).");
+        } else {
+            p.setFeeSettlementMode(FeeSettlementMode.OFFLINE_SCHOOL_COLLECTION.name());
+            p.setPaymentRoutingOnboardingStatus(PaymentRoutingOnboardingStatus.NOT_REQUIRED.name());
+            p.setParentOnlineFeeCheckoutEnabled(false);
+            p.setFinanceNotes("Demo seed: offline / counter collection.");
+        }
+        tenantFinanceProfileRepository.save(p);
     }
 
     private void seedAcademicSubjectCatalogIfMissing(String tenantId) {
@@ -3082,6 +3260,17 @@ public class DemoDataSeedService {
         log.info("  Teachers: same local-parts as DPS-DLH with @kv-mum.edu.in");
         log.info("  Parents: same pattern with @parent.kv-mum.edu.in (see DEMO_CREDENTIALS.md)");
         log.info("  QA multi-child parent: qa.multichild.parent@parent.kv-mum.edu.in");
+        log.info("");
+        log.info("TENANT FINANCE (fee settlement; Settings → Finance & collections):");
+        log.info("  DPS-DLH: PLATFORM_MERCHANT, Route onboarding N/A, parent online checkout enabled (demo).");
+        log.info("  KV-MUM:  ROUTE_LINKED_ACCOUNT acc_rzp_demo_route_kv_mum, onboarding LIVE, 1.5% platform commission bps=150.");
+        log.info("NARROW SCHOOL-ROLE E2E (password admin123; same domain as each school’s office email):");
+        log.info("  FEE_OFFICE:        fee.desk.demo@<office-domain>  (e.g. dpsdel.edu.in / kvmumbai1.gmail.com)");
+        log.info("  EXAM_OFFICE:       exam.desk.demo@<office-domain>");
+        log.info("  PAYROLL_OFFICE:    payroll.desk.demo@<office-domain>");
+        log.info("  TENANT_SETTINGS:   finance.settings.demo@<office-domain>");
+        log.info("  LIBRARY:           library.desk.demo@<office-domain>");
+        log.info("  Custom bundle:     rbac.custom.demo@<office-domain>  (role " + DEMO_CUSTOM_SCHOOL_ROLE_CODE + ")");
         log.info("");
         log.info("QA multi-child E2E: see docs/DEMO_QA_MULTI_CHILD_PARENT.md");
         log.info("For complete list of all credentials, see DEMO_CREDENTIALS.md file");

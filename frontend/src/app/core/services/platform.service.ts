@@ -9,6 +9,7 @@ import {
 } from '../mocks/platform.mock-data';
 import { runtimeConfig } from '../config/runtime-config';
 import { ApiService, PageResp } from './api.service';
+import { TenantFinanceProfile } from './settings.service';
 import { DEFAULT_ERP_PAGE_SIZE } from '../constants/pagination.constants';
 import { sliceToPage } from '../utils/paginate';
 
@@ -59,6 +60,7 @@ export class PlatformService {
   private purgeJobSeq = 1;
   private mockPlans: PlatformSubscriptionPlan[];
   private readonly mockTenantFeatures: Record<string, Record<string, boolean>> = {};
+  private readonly mockSchoolFinanceProfiles: Record<string, TenantFinanceProfile> = {};
 
   constructor(private api: ApiService) {
     this.mockSchools = MOCK_PLATFORM_SCHOOLS_SEED.map(s => ({ ...s }));
@@ -272,6 +274,85 @@ export class PlatformService {
       }).pipe(delay(180));
     }
     return this.api.get<PlatformSchoolDetail>(`/platform/schools/${tenantId}/detail`);
+  }
+
+  getSchoolFinanceProfile(tenantId: string): Observable<TenantFinanceProfile> {
+    if (!runtimeConfig.useMocks) {
+      return this.api.get<TenantFinanceProfile>(`/platform/schools/${encodeURIComponent(tenantId)}/finance-profile`);
+    }
+    this.seedMockSchoolFinanceProfileIfNeeded(tenantId);
+    const row = this.mockSchoolFinanceProfiles[tenantId];
+    if (!row) {
+      return throwError(() => new Error('School not found'));
+    }
+    return of({ ...row }).pipe(delay(90));
+  }
+
+  approveSchoolFinanceProfileLive(tenantId: string): Observable<TenantFinanceProfile> {
+    if (!runtimeConfig.useMocks) {
+      return this.api.post<TenantFinanceProfile>(
+        `/platform/schools/${encodeURIComponent(tenantId)}/finance-profile/approve-live`,
+        {}
+      );
+    }
+    this.seedMockSchoolFinanceProfileIfNeeded(tenantId);
+    const cur = this.mockSchoolFinanceProfiles[tenantId];
+    if (!cur || cur.paymentRoutingOnboardingStatus !== 'SUBMITTED') {
+      return throwError(() => new Error('Can only approve LIVE when Route onboarding is SUBMITTED.'));
+    }
+    const next: TenantFinanceProfile = {
+      ...cur,
+      paymentRoutingOnboardingStatus: 'LIVE',
+      paymentRoutingLiveAt: new Date().toISOString(),
+      paymentRoutingLiveByUserId: 999001,
+    };
+    this.mockSchoolFinanceProfiles[tenantId] = next;
+    return of({ ...next }).pipe(delay(140));
+  }
+
+  private seedMockSchoolFinanceProfileIfNeeded(tenantId: string): void {
+    if (this.mockSchoolFinanceProfiles[tenantId]) {
+      return;
+    }
+    const school = this.mockSchools.find(s => s.tenantId === tenantId);
+    if (!school) {
+      return;
+    }
+    const idx = this.mockSchools.findIndex(s => s.tenantId === tenantId);
+    if (idx === 0) {
+      this.mockSchoolFinanceProfiles[tenantId] = {
+        tenantId,
+        feeSettlementMode: 'ROUTE_LINKED_ACCOUNT',
+        razorpayRouteLinkedAccountId: 'acc_mock_route_demo_001',
+        razorpayRouteLinkedAccountMasked: 'acc_moc…0001',
+        platformCommissionBps: 150,
+        financeNotes: 'Demo: KYC pack received (mock)',
+        paymentRoutingOnboardingStatus: 'SUBMITTED',
+        paymentRoutingSubmittedAt: new Date(Date.now() - 86400000).toISOString(),
+        paymentRoutingLiveAt: null,
+        paymentRoutingLiveByUserId: null,
+        paymentRoutingOnboardingDeclaration:
+          'We confirm that this linked account belongs to our institution and we are authorized to receive parent fee settlements here.',
+        parentOnlineFeeCheckoutEnabled: true,
+        payrollDigitalPayoutEnabled: false,
+      };
+    } else {
+      this.mockSchoolFinanceProfiles[tenantId] = {
+        tenantId,
+        feeSettlementMode: 'OFFLINE_SCHOOL_COLLECTION',
+        razorpayRouteLinkedAccountId: null,
+        razorpayRouteLinkedAccountMasked: null,
+        platformCommissionBps: 0,
+        financeNotes: null,
+        paymentRoutingOnboardingStatus: 'NOT_REQUIRED',
+        paymentRoutingSubmittedAt: null,
+        paymentRoutingLiveAt: null,
+        paymentRoutingLiveByUserId: null,
+        paymentRoutingOnboardingDeclaration: null,
+        parentOnlineFeeCheckoutEnabled: false,
+        payrollDigitalPayoutEnabled: false,
+      };
+    }
   }
 
   suspendSchoolWorkspace(tenantId: string): Observable<void> {
@@ -526,6 +607,8 @@ export class PlatformService {
 
       const targetRegions = isRegionFiltered ? request.regions! : allRegions;
       const school = isTenantScoped ? this.mockSchools.find(s => s.tenantId === request.tenantId) : null;
+      const includesDashboardSnapshots = targetRegions.some(r => r.toLowerCase() === 'dashboardsnapshots');
+      const dashRows = includesDashboardSnapshots ? (isTenantScoped ? 6 : 180) : null;
 
       const mockResponse: CacheClearResponse = {
         success: true,
@@ -540,7 +623,8 @@ export class PlatformService {
           clearedBy: 'SUPER_ADMIN (Mock)',
           targetTenantId: request.tenantId || null,
           targetSchoolName: school?.schoolName || null,
-          keysEvicted: isTenantScoped ? Math.floor(12 + targetRegions.length * 7 + Math.random() * 20) : null
+          keysEvicted: isTenantScoped ? Math.floor(12 + targetRegions.length * 7 + Math.random() * 20) : null,
+          dashboardSnapshotRowsMarked: dashRows
         }
       };
       return of(mockResponse).pipe(delay(800));

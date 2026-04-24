@@ -161,6 +161,8 @@ app:
       token-ttl-hours: ${AUTH_EMAIL_VER_TTL:48}
       expose-plain-token-in-api-response: ${AUTH_EMAIL_EXPOSE_TOKEN:false}
       request-cooldown-seconds: ${AUTH_EMAIL_VER_COOLDOWN_SECONDS:60}
+      # SPA origin for /verify-email?token=… (no trailing slash). Required to build links in outbound triggers / future SMTP.
+      public-spa-base-url: ${AUTH_EMAIL_VER_PUBLIC_SPA_BASE_URL:}
 
   fees:
     reconciliation:
@@ -289,6 +291,8 @@ app:
     secret: ${JWT_SECRET:c2Nob29sLWVycC1zZWNyZXQta2V5LWZvci1qd3QtdG9rZW4tZ2VuZXJhdGlvbi0yMDI2}
     expiration-ms: ${JWT_EXPIRATION_MS:86400000}
     refresh-expiration-ms: ${JWT_REFRESH_EXPIRATION_MS:604800000}
+    # When true, omit long permissions CSV in JWT; authorities resolved from DB per request (cached; evicted on RBAC writes).
+    slim-permissions: ${JWT_SLIM_PERMISSIONS:false}
 
   dev:
     mode: ${APP_DEV_MODE:false}

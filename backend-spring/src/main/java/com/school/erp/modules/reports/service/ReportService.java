@@ -50,10 +50,9 @@ import java.util.function.Supplier;
  * Facade for report/dashboard HTTP layer. Heavy lifting lives in {@link ReportQueryPort}
  * ({@code oltp} vs {@code warehouse} via {@code app.reports.backend}).
  * <p>
- * Redis-backed caching (when {@code spring.cache.type=redis}): dashboard payloads use
- * {@link CacheConfig#DASHBOARD_SNAPSHOTS} (default 1h); heavier drill-down reports use
- * {@link CacheConfig#REPORT_RESULTS}. Paged endpoints delegate through {@link #self} so list
- * methods stay cache hits.
+ * Dashboard payloads are persisted in {@code dashboard_snapshot} (see {@link DashboardSnapshotService})
+ * with optional microcache / age rules; drill-down reports use {@link CacheConfig#REPORT_RESULTS} via
+ * {@code @Cacheable} when Redis is enabled. Paged endpoints delegate through {@link #self} so list methods stay cache hits.
  */
 @Service
 public class ReportService {
@@ -791,7 +790,8 @@ public class ReportService {
         try {
             job.setStatus("RUNNING");
             List<Map<String, Object>> rows = resolveReportRows(job.getReportType(), readJsonMap(job.getFilterJson()));
-            ReportExportService.RenderedReport rendered = reportExportService.render(job.getReportType(), job.getFormat(), rows);
+            ReportExportService.RenderedReport rendered =
+                    reportExportService.render(job.getReportType(), job.getFormat(), rows, job.getTenantId());
             job.setFileName(rendered.fileName());
             job.setContentType(rendered.contentType());
             ReportBinaryStorageService.StoredBinary storedBinary = reportBinaryStorageService.store(

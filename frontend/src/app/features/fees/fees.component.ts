@@ -1,8 +1,10 @@
 import { Component, OnInit, ChangeDetectorRef, DestroyRef, inject } from '@angular/core';
+import { Router } from '@angular/router';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FeeService } from '../../core/services/fee.service';
+import { SettingsService } from '../../core/services/settings.service';
 import { AcademicService } from '../../core/services/academic.service';
 import { AuthService } from '../../core/services/auth.service';
 import { filter } from 'rxjs/operators';
@@ -28,12 +30,18 @@ import {
 } from '../../core/models/models';
 import { ConfirmDialogService } from '../../shared/confirm-dialog/confirm-dialog.service';
 import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directives';
+import { buildCsvSchoolLine, downloadCsvDocument } from '../../core/utils/csv-export.util';
 
 @Component({
   selector: 'app-fees',
   standalone: true,
   imports: [CommonModule, FormsModule, TranslateModule, SchoolClassNamePipe, ErpPaginationComponent, ErpI18nPhDirective],
   styles: [`
+    .fees-page {
+      width: 100%;
+      max-width: 100%;
+      min-width: 0;
+    }
     .fees-page-header {
       margin-bottom: 1.1rem;
     }
@@ -165,6 +173,7 @@ import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directiv
       border: 1px solid var(--clr-border-light);
       border-radius: 12px;
       overflow: auto;
+      -webkit-overflow-scrolling: touch;
       background: var(--clr-surface);
     }
     .fees-table-wrap .erp-table thead th {
@@ -394,7 +403,7 @@ import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directiv
       margin-bottom: 0;
     }
     .fees-ledger-modal {
-      width: min(96vw, 940px);
+      width: min(calc(100vw - 16px), 940px);
       max-width: 940px !important;
     }
     .fees-ledger-modal-body {
@@ -505,6 +514,15 @@ import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directiv
       background: color-mix(in srgb, var(--clr-danger) 20%, var(--clr-surface));
       color: color-mix(in srgb, #ffffff 76%, var(--clr-danger) 24%);
     }
+    @media (max-width: 480px) {
+      .fees-page-title {
+        font-size: 1.15rem;
+      }
+      .fees-kpi-grid > [class*='col-'] {
+        flex: 0 0 100%;
+        max-width: 100%;
+      }
+    }
     @media (max-width: 768px) {
       .fees-page-header {
         margin-bottom: 0.8rem;
@@ -551,9 +569,20 @@ import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directiv
     }
   `],
   template: `
-    <div data-testid="fees-page">
+    <div class="fees-page" data-testid="fees-page">
       <div *ngIf="operationMessage" class="alert py-2 small mb-3" [class.alert-success]="operationMessageOk" [class.alert-danger]="!operationMessageOk">
         {{ operationMessage }}
+      </div>
+      <div
+        *ngIf="isAdmin && feeFinanceBannerVisible"
+        class="alert py-2 small mb-3 d-flex flex-wrap align-items-center justify-content-between gap-2"
+        style="background: color-mix(in srgb, var(--clr-info) 10%, var(--clr-surface)); border: 1px solid color-mix(in srgb, var(--clr-info) 26%, var(--clr-border));"
+        role="status"
+      >
+        <span class="fees-reminder-alert__text mb-0">{{ 'fees.bannerParentCheckoutOff' | translate }}</span>
+        <button type="button" class="btn-outline-erp btn-sm text-nowrap" (click)="goToFeeSettlementSettings()">
+          {{ 'fees.bannerParentCheckoutOffCta' | translate }}
+        </button>
       </div>
       <div class="d-flex justify-content-between align-items-center animate-in flex-wrap gap-2 fees-page-header">
         <div>
@@ -563,6 +592,9 @@ import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directiv
         <div class="d-flex gap-2 flex-wrap fees-toolbar-stack">
           <button type="button" class="btn-outline-erp btn-sm" (click)="refreshAll()" [disabled]="refreshing">
             <i class="bi bi-arrow-clockwise"></i> {{ refreshing ? ('fees.refreshing' | translate) : ('fees.refresh' | translate) }}
+          </button>
+          <button *ngIf="isAdmin" type="button" class="btn-outline-erp btn-sm" (click)="goToFeeSettlementSettings()">
+            <i class="bi bi-bank2 me-1"></i>{{ 'fees.linkPaymentSettlement' | translate }}
           </button>
           <button *ngIf="isAdmin" type="button" class="btn-primary-erp btn-sm" (click)="openStructureModal()">
             <i class="bi bi-plus-lg"></i> {{ 'fees.newStructure' | translate }}
@@ -1098,6 +1130,8 @@ export class FeesComponent implements OnInit {
   reminderMessage = '';
   reminderMessageOk = true;
   private reminderMessageTimer: ReturnType<typeof setTimeout> | null = null;
+  /** After load: OFFLINE means counter collection; parent portal hides gateway checkout. */
+  feeSettlementMode: string | null = null;
 
   componentTypeIds = ['tuition', 'transport', 'hostel', 'uniform', 'library', 'lab', 'sports', 'misc'] as const;
 
@@ -1107,9 +1141,11 @@ export class FeesComponent implements OnInit {
     private feeService: FeeService,
     private academicService: AcademicService,
     private auth: AuthService,
+    private router: Router,
     private confirmDialog: ConfirmDialogService,
     private translate: TranslateService,
-    private cdr: ChangeDetectorRef
+    private cdr: ChangeDetectorRef,
+    private settingsService: SettingsService
   ) {
     this.structureForm = this.emptyStructureForm();
     this.destroyRef.onDestroy(() => {
@@ -1165,6 +1201,10 @@ export class FeesComponent implements OnInit {
     return this.collectionRatePct;
   }
 
+  get feeFinanceBannerVisible(): boolean {
+    return (this.feeSettlementMode || '').toUpperCase() === 'OFFLINE_SCHOOL_COLLECTION';
+  }
+
   ngOnInit(): void {
     this.translate.onLangChange.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => this.cdr.markForCheck());
 
@@ -1174,12 +1214,39 @@ export class FeesComponent implements OnInit {
     this.loadStructures();
     this.loadPaymentsPage();
     this.loadCollectionSummary();
+    this.refreshFeeFinanceBanner();
+  }
+
+  /** Deep link to Settings → Finance & payments → Fee settlement (Razorpay Route). */
+  goToFeeSettlementSettings(): void {
+    void this.router.navigate(['/app/settings'], {
+      queryParams: { settingsTab: 'finance', financeHub: 'settlement' },
+    });
+  }
+
+  /** Loads tenant finance flag for admin banner (parent online checkout). */
+  private refreshFeeFinanceBanner(): void {
+    if (!this.isAdmin) {
+      this.feeSettlementMode = null;
+      return;
+    }
+    this.settingsService.getFinanceProfile().subscribe({
+      next: p => {
+        this.feeSettlementMode = (p.feeSettlementMode || '').trim();
+        this.cdr.markForCheck();
+      },
+      error: () => {
+        this.feeSettlementMode = null;
+        this.cdr.markForCheck();
+      },
+    });
   }
 
   refreshAll(): void {
     this.refreshing = true;
     this.academicService.getClasses().subscribe(c => (this.classes = c || []));
     this.academicService.getAcademicYears().subscribe(y => (this.academicYears = y || []));
+    this.refreshFeeFinanceBanner();
     this.feeService.getFeeStructures().subscribe({
       next: fs => {
         this.feeStructures = fs;
@@ -1514,16 +1581,12 @@ export class FeesComponent implements OnInit {
     });
   }
 
-  private downloadCsv(filename: string, headers: string[], rows: (string | number)[][]): void {
-    const esc = (v: string | number) => `"${String(v ?? '').replace(/"/g, '""')}"`;
-    const body = [headers.map(esc).join(','), ...rows.map(r => r.map(esc).join(','))].join('\n');
-    const blob = new Blob([body], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    a.click();
-    URL.revokeObjectURL(url);
+  private feeCsvMeta(documentTitleKey: string) {
+    const sm = this.auth.getProfileSummarySnapshot();
+    return {
+      documentTitle: this.translate.instant(documentTitleKey),
+      schoolLine: buildCsvSchoolLine(sm?.schoolName, sm?.schoolCode),
+    };
   }
 
   exportPaymentsCsv(): void {
@@ -1537,10 +1600,12 @@ export class FeesComponent implements OnInit {
       r.receiptNumber || '',
       r.paymentMethod || '',
     ]);
-    this.downloadCsv(
+    const headers = ['student', 'amount', 'paid', 'due', 'dueDate', 'status', 'receipt', 'paymentMethod'];
+    const table: string[][] = [headers, ...rows.map(r => r.map(c => String(c ?? '')))];
+    downloadCsvDocument(
       `fees-payment-records-${new Date().toISOString().slice(0, 10)}.csv`,
-      ['student', 'amount', 'paid', 'due', 'dueDate', 'status', 'receipt', 'paymentMethod'],
-      rows
+      this.feeCsvMeta('fees.csvDocumentTitle.paymentRecords'),
+      table
     );
   }
 
@@ -1555,10 +1620,12 @@ export class FeesComponent implements OnInit {
       r.receiptNumber || '',
       r.paymentMethod || '',
     ]);
-    this.downloadCsv(
-      `student-payment-history-${(this.ledgerStudentName || 'student').replace(/\s+/g, '-').toLowerCase()}.csv`,
-      ['student', 'amount', 'paid', 'due', 'dueDate', 'status', 'receipt', 'paymentMethod'],
-      rows
+    const headers = ['student', 'amount', 'paid', 'due', 'dueDate', 'status', 'receipt', 'paymentMethod'];
+    const table: string[][] = [headers, ...rows.map(r => r.map(c => String(c ?? '')))];
+    downloadCsvDocument(
+      `student-payment-history-${(this.ledgerStudentName || 'student').replace(/\s+/g, '-').toLowerCase()}-${new Date().toISOString().slice(0, 10)}.csv`,
+      this.feeCsvMeta('fees.csvDocumentTitle.studentLedger'),
+      table
     );
   }
 

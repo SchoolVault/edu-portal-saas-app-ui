@@ -5,6 +5,9 @@ import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 
+import java.util.List;
+import java.util.Objects;
+
 public class AuthDTOs {
 
     public static class LoginRequest {
@@ -553,6 +556,11 @@ public class AuthDTOs {
         private String interfaceLocale;
         private Boolean emailVerified;
         private Boolean phoneVerified;
+        /**
+         * Effective {@code AppPermission} names for the session (mirrors JWT {@code permissions} claim;
+         * sorted for stable JSON). Empty when no fine-grained authorities apply.
+         */
+        private java.util.List<String> permissions;
 
         public static class UserProfileBuilder {
             private Long id;
@@ -565,6 +573,7 @@ public class AuthDTOs {
             private String interfaceLocale;
             private Boolean emailVerified;
             private Boolean phoneVerified;
+            private List<String> permissions;
 
             UserProfileBuilder() {
             }
@@ -640,17 +649,22 @@ public class AuthDTOs {
                 return this;
             }
 
+            public AuthDTOs.UserProfile.UserProfileBuilder permissions(final List<String> permissions) {
+                this.permissions = permissions;
+                return this;
+            }
+
             public AuthDTOs.UserProfile build() {
                 return new AuthDTOs.UserProfile(
                         this.id, this.name, this.email, this.phone, this.role, this.tenantId, this.avatar, this.interfaceLocale,
-                        this.emailVerified, this.phoneVerified);
+                        this.emailVerified, this.phoneVerified, this.permissions != null ? this.permissions : List.of());
             }
 
             @Override
             public String toString() {
                 return "AuthDTOs.UserProfile.UserProfileBuilder(id=" + this.id + ", name=" + this.name + ", email=" + this.email + ", phone=" + this.phone
                         + ", role=" + this.role + ", tenantId=" + this.tenantId + ", avatar=" + this.avatar + ", interfaceLocale=" + this.interfaceLocale
-                        + ", emailVerified=" + this.emailVerified + ", phoneVerified=" + this.phoneVerified + ")";
+                        + ", emailVerified=" + this.emailVerified + ", phoneVerified=" + this.phoneVerified + ", permissions=" + this.permissions + ")";
             }
         }
 
@@ -698,6 +712,10 @@ public class AuthDTOs {
             return this.phoneVerified;
         }
 
+        public List<String> getPermissions() {
+            return this.permissions;
+        }
+
         public void setId(final Long id) {
             this.id = id;
         }
@@ -738,6 +756,10 @@ public class AuthDTOs {
             this.phoneVerified = phoneVerified;
         }
 
+        public void setPermissions(final List<String> permissions) {
+            this.permissions = permissions;
+        }
+
         @Override
         public boolean equals(final Object o) {
             if (o == this) return true;
@@ -774,6 +796,9 @@ public class AuthDTOs {
             final Object this$pv = this.getPhoneVerified();
             final Object other$pv = other.getPhoneVerified();
             if (this$pv == null ? other$pv != null : !this$pv.equals(other$pv)) return false;
+            if (!Objects.equals(this.getPermissions(), other.getPermissions())) {
+                return false;
+            }
             return true;
         }
 
@@ -805,6 +830,8 @@ public class AuthDTOs {
             result = result * PRIME + ($ev == null ? 43 : $ev.hashCode());
             final Object $pv = this.getPhoneVerified();
             result = result * PRIME + ($pv == null ? 43 : $pv.hashCode());
+            final Object $perm = this.getPermissions();
+            result = result * PRIME + ($perm == null ? 43 : $perm.hashCode());
             return result;
         }
 
@@ -812,7 +839,7 @@ public class AuthDTOs {
         public String toString() {
             return "AuthDTOs.UserProfile(id=" + this.getId() + ", name=" + this.getName() + ", email=" + this.getEmail() + ", phone=" + this.getPhone()
                     + ", role=" + this.getRole() + ", tenantId=" + this.getTenantId() + ", avatar=" + this.getAvatar() + ", interfaceLocale=" + this.getInterfaceLocale()
-                    + ", emailVerified=" + this.getEmailVerified() + ", phoneVerified=" + this.getPhoneVerified() + ")";
+                    + ", emailVerified=" + this.getEmailVerified() + ", phoneVerified=" + this.getPhoneVerified() + ", permissions=" + this.getPermissions() + ")";
         }
 
         public UserProfile() {
@@ -828,7 +855,8 @@ public class AuthDTOs {
                 final String avatar,
                 final String interfaceLocale,
                 final Boolean emailVerified,
-                final Boolean phoneVerified) {
+                final Boolean phoneVerified,
+                final List<String> permissions) {
             this.id = id;
             this.name = name;
             this.email = email;
@@ -839,6 +867,7 @@ public class AuthDTOs {
             this.interfaceLocale = interfaceLocale;
             this.emailVerified = emailVerified;
             this.phoneVerified = phoneVerified;
+            this.permissions = permissions;
         }
     }
 

@@ -73,7 +73,12 @@ public class NotificationCampaignService {
         return out;
     }
 
-    @Transactional
+    /**
+     * Validation failures throw {@link BusinessException} before any enqueue or campaign row is written.
+     * {@code noRollbackFor} keeps participating outer transactions (e.g. batch schedulers that catch and log)
+     * from being marked rollback-only — otherwise Spring throws {@code UnexpectedRollbackException} on commit.
+     */
+    @Transactional(noRollbackFor = BusinessException.class)
     public CampaignDTOs.CampaignSendResponse send(CampaignDTOs.CampaignRequest req) {
         ValidatedCampaign validated = validate(req);
         List<AnnouncementAudienceResolver.AudienceMember> recipients = resolveRecipients(validated);
@@ -328,6 +333,20 @@ public class NotificationCampaignService {
         out.setScheduledAt(row.getScheduledAt() != null ? row.getScheduledAt().toString() : null);
         out.setCreatedAt(row.getCreatedAt() != null ? row.getCreatedAt().toString() : null);
         return out;
+    }
+
+    /**
+     * For batch jobs (e.g. communication lifecycle): pick the earliest time at or after {@code minDesired} that is
+     * not blocked by quiet-hours rules, using the same wall-clock interpretation as campaign {@code send} validation.
+     */
+    public LocalDateTime resolveSendSlotSkirtingQuietHours(LocalDateTime minDesired) {
+        LocalDateTime floor = LocalDateTime.now().plusMinutes(1);
+        LocalDateTime t = minDesired.isBefore(floor) ? floor.plusMinutes(1) : minDesired;
+        int guard = 0;
+        while (isWithinQuietHours(t) && guard++ < 192) {
+            t = t.plusMinutes(15);
+        }
+        return t;
     }
 
     private boolean isWithinQuietHours(LocalDateTime localDateTime) {
