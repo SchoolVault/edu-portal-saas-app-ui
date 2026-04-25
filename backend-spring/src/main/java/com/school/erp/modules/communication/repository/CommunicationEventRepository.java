@@ -5,6 +5,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.domain.Page;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -87,6 +88,11 @@ public interface CommunicationEventRepository extends JpaRepository<Communicatio
             @Param("toTs") LocalDateTime toTs,
             Pageable pageable);
 
+    /**
+     * Runs in its own transaction so {@code flushAutomatically} is safe when invoked from schedulers
+     * (no enclosing Spring transaction).
+     */
+    @Transactional
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("""
             update CommunicationEvent e
@@ -98,6 +104,7 @@ public interface CommunicationEventRepository extends JpaRepository<Communicatio
             """)
     int markCompletedPastEvents(@Param("tenantId") String tenantId, @Param("now") LocalDateTime now);
 
+    @Transactional
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("""
             update CommunicationEvent e
