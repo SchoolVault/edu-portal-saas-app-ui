@@ -71,6 +71,10 @@ public class PhoneAuthService {
         }
 
         User user = loadUserForPhoneAndSchoolOrThrow(schoolCode, phone, tenantId);
+        if (!Boolean.TRUE.equals(user.getPhoneVerified())) {
+            user.setPhoneVerified(true);
+            userRepository.save(user);
+        }
 
         otp.setExchangeToken(null);
         otpVerificationRepository.save(otp);
@@ -101,8 +105,12 @@ public class PhoneAuthService {
         }
 
         User user = loadUserForPhoneAndSchoolOrThrow(schoolCode, phone, tenantId);
+        if (!Boolean.TRUE.equals(user.getPhoneVerified())) {
+            user.setPhoneVerified(true);
+        }
 
         user.setPassword(passwordEncoder.encode(request.getNewPassword()));
+        user.setPasswordChangedAt(LocalDateTime.now());
         userRepository.save(user);
         refreshTokenRepository.findByTenantIdAndUserIdAndIsDeletedFalse(user.getTenantId(), user.getId())
                 .forEach(this::revokeRefreshToken);

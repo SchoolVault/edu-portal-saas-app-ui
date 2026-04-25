@@ -1,6 +1,8 @@
 package com.school.erp.modules.platform.service;
 
 import com.school.erp.common.dto.PageResponse;
+import com.school.erp.common.export.CsvExportSupport;
+import com.school.erp.common.export.SchoolExportBranding;
 import com.school.erp.common.enums.Enums;
 import com.school.erp.common.exception.BusinessException;
 import com.school.erp.common.exception.ResourceNotFoundException;
@@ -713,6 +715,10 @@ public class PlatformService {
                 .filter(j -> tenantId.equals(j.getTenantId()))
                 .orElseThrow(() -> new ResourceNotFoundException("Purge job not found for tenant: " + tenantId));
         StringBuilder csv = new StringBuilder();
+        SchoolExportBranding branding = new SchoolExportBranding(
+                job.getSchoolName() != null ? job.getSchoolName() : "",
+                job.getSchoolCode() != null ? job.getSchoolCode() : "");
+        CsvExportSupport.appendDocumentPreamble(csv, branding, "Tenant data purge audit", Instant.now());
         csv.append("job_id,tenant_id,school_code,status,error_message,rows_deleted_estimate,execution_duration_ms,")
                 .append("school_name,")
                 .append("requested_by_user_id,requested_by_role,requested_by_principal,requested_by_display_name,")
@@ -743,7 +749,7 @@ public class PlatformService {
                 .append(csvCell(job.getStartedAt())).append(',')
                 .append(csvCell(job.getCompletedAt()))
                 .append('\n');
-        return csv.toString().getBytes(StandardCharsets.UTF_8);
+        return CsvExportSupport.utf8BomBytes(csv.toString());
     }
 
     private static String csvCell(Object value) {

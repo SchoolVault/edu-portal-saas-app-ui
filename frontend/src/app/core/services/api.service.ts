@@ -127,4 +127,14 @@ export class ApiService {
   getBlob(path: string): Observable<Blob> {
     return this.http.get(`${this.baseUrl}${path}`, { responseType: 'blob' });
   }
+
+  /** Raw binary GET with query params (e.g. filtered CSV/PDF export). */
+  getBlobParams(path: string, query: Record<string, string | number | boolean | undefined | null>): Observable<Blob> {
+    let params = new HttpParams();
+    for (const [key, value] of Object.entries(query)) {
+      if (value === undefined || value === null || value === '') continue;
+      params = params.set(key, String(value));
+    }
+    return this.http.get(`${this.baseUrl}${path}`, { params, responseType: 'blob' });
+  }
 }

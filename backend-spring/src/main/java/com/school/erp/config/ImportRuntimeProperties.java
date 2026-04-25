@@ -44,6 +44,35 @@ public class ImportRuntimeProperties {
     private int executorMaxPoolSize = 8;
     private int executorQueueCapacity = 200;
 
+    /**
+     * When enabled, submit treats an already completed payload+mapping+jobType as idempotent replay
+     * and returns that job instead of creating a new one.
+     */
+    private boolean completedJobIdempotencyEnabled = true;
+
+    /**
+     * Row cap for ALL_OR_NOTHING mode (0 = unlimited — not recommended for production timeouts).
+     */
+    private int maxAllOrNothingRows = 3_000;
+
+    /** Jobs stuck in RUNNING longer than this are marked FAILED by the watchdog. */
+    private int stuckRunningThresholdMinutes = 120;
+
+    /** How often the stuck-job watchdog runs (ms). */
+    private int stuckJobPollIntervalMs = 300_000;
+
+    /**
+     * When true, dry-run can block submit if CREATE-only rows would mostly collide with existing data
+     * (prevents a bad re-upload of the same file).
+     */
+    private boolean createOnlyDuplicateBlockEnabled = true;
+
+    /**
+     * If the ratio of CREATE-only rows that would hit an existing key exceeds this (0.0 - 1.0), dry-run is blocked.
+     * Example: 0.40 = more than 40% duplicates stops the operator before queueing a job.
+     */
+    private double createOnlyDuplicateMaxRatio = 0.40d;
+
     public int getMaxRowsPerFile() {
         return maxRowsPerFile;
     }
@@ -138,5 +167,53 @@ public class ImportRuntimeProperties {
 
     public void setExecutorQueueCapacity(int executorQueueCapacity) {
         this.executorQueueCapacity = executorQueueCapacity;
+    }
+
+    public boolean isCompletedJobIdempotencyEnabled() {
+        return completedJobIdempotencyEnabled;
+    }
+
+    public void setCompletedJobIdempotencyEnabled(boolean completedJobIdempotencyEnabled) {
+        this.completedJobIdempotencyEnabled = completedJobIdempotencyEnabled;
+    }
+
+    public int getMaxAllOrNothingRows() {
+        return maxAllOrNothingRows;
+    }
+
+    public void setMaxAllOrNothingRows(int maxAllOrNothingRows) {
+        this.maxAllOrNothingRows = maxAllOrNothingRows;
+    }
+
+    public int getStuckRunningThresholdMinutes() {
+        return stuckRunningThresholdMinutes;
+    }
+
+    public void setStuckRunningThresholdMinutes(int stuckRunningThresholdMinutes) {
+        this.stuckRunningThresholdMinutes = stuckRunningThresholdMinutes;
+    }
+
+    public int getStuckJobPollIntervalMs() {
+        return stuckJobPollIntervalMs;
+    }
+
+    public void setStuckJobPollIntervalMs(int stuckJobPollIntervalMs) {
+        this.stuckJobPollIntervalMs = stuckJobPollIntervalMs;
+    }
+
+    public boolean isCreateOnlyDuplicateBlockEnabled() {
+        return createOnlyDuplicateBlockEnabled;
+    }
+
+    public void setCreateOnlyDuplicateBlockEnabled(boolean createOnlyDuplicateBlockEnabled) {
+        this.createOnlyDuplicateBlockEnabled = createOnlyDuplicateBlockEnabled;
+    }
+
+    public double getCreateOnlyDuplicateMaxRatio() {
+        return createOnlyDuplicateMaxRatio;
+    }
+
+    public void setCreateOnlyDuplicateMaxRatio(double createOnlyDuplicateMaxRatio) {
+        this.createOnlyDuplicateMaxRatio = createOnlyDuplicateMaxRatio;
     }
 }

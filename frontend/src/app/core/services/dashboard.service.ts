@@ -24,9 +24,37 @@ export class DashboardService {
 
   getAdminDashboard(): Observable<AdminDashboardData> {
     if (runtimeConfig.useMocks) {
-      return of({ ...MOCK_ADMIN_DASHBOARD }).pipe();
+      return of({ ...MOCK_ADMIN_DASHBOARD, dataComputedAt: new Date().toISOString() }).pipe();
     }
     return this.api.get<AdminDashboardData>('/reports/dashboard/admin');
+  }
+
+  getAdminRecentActivitiesPaged(query: {
+    page?: number;
+    size?: number;
+    q?: string;
+    eventType?: string;
+    fromDate?: string;
+    toDate?: string;
+  }) {
+    return this.api.getPageParams<AdminDashboardData['recentActivities'][number]>(
+      '/reports/dashboard/admin/recent-activities',
+      query
+    );
+  }
+
+  getAdminUpcomingEventsPaged(query: {
+    page?: number;
+    size?: number;
+    q?: string;
+    eventType?: string;
+    fromDate?: string;
+    toDate?: string;
+  }) {
+    return this.api.getPageParams<AdminDashboardData['upcomingEvents'][number]>(
+      '/reports/dashboard/admin/upcoming-events',
+      query
+    );
   }
 
   getTeacherDashboard(monthYm?: string | null): Observable<TeacherDashboardData> {
@@ -34,6 +62,7 @@ export class DashboardService {
     if (runtimeConfig.useMocks) {
       return of({
         ...MOCK_TEACHER_DASHBOARD,
+        dataComputedAt: new Date().toISOString(),
         classTeacherOf: (MOCK_TEACHER_DASHBOARD.classTeacherOf ?? []).map(r => ({ ...r })),
         messageQueue: (MOCK_TEACHER_DASHBOARD.messageQueue ?? []).map(m => ({ ...m })),
         quickActions: (MOCK_TEACHER_DASHBOARD.quickActions ?? []).map(a => ({ ...a })),
@@ -56,6 +85,7 @@ export class DashboardService {
         const homeroom = dashboard.homeroomAttendance;
         return {
           ...dashboard,
+          dataComputedAt: dashboard.dataComputedAt ?? new Date().toISOString(),
           pendingAttendanceSessions: pending,
           homeroomTodayAttendanceComplete: Boolean(dashboard.homeroomTodayAttendanceComplete),
           classTeacherOf: (dashboard.classTeacherOf ?? []).map((row: any) => ({
@@ -120,7 +150,10 @@ export class DashboardService {
    */
   getParentDashboard(from: string, to: string, preferredChildId?: number | null): Observable<ParentDashboardData> {
     if (runtimeConfig.useMocks) {
-      return of(buildMockParentDashboardData(from, to, preferredChildId ?? undefined)).pipe(delay(200));
+      return of({
+        ...buildMockParentDashboardData(from, to, preferredChildId ?? undefined),
+        dataComputedAt: new Date().toISOString(),
+      }).pipe(delay(200));
     }
     const q = new URLSearchParams({ from, to });
     if (preferredChildId != null) {
@@ -204,6 +237,7 @@ export class DashboardService {
     // Keep shell KPIs consistent when backend omits/under-reports childCount but includes linked children list.
     const resolvedChildCount = Math.max(childCountFromPayload, children.length);
     return {
+      dataComputedAt: raw.dataComputedAt ?? new Date().toISOString(),
       childCount: resolvedChildCount,
       children,
       selectedChild: raw.selectedChild,
@@ -302,6 +336,7 @@ export class DashboardService {
     const overallGrade = this.getOverallGrade(marks);
     const classLabel = `${selectedChild.className || ''}${selectedChild.sectionName ? ' · ' + selectedChild.sectionName : ''}`.trim();
     return {
+      dataComputedAt: new Date().toISOString(),
       childCount: children?.length ?? 0,
       children,
       selectedChild,

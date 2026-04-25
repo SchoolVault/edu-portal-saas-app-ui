@@ -41,6 +41,8 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     List<User> findByTenantIdAndIsDeletedFalseOrderByNameAsc(String tenantId);
 
+    List<User> findByTenantIdAndRoleInAndIsDeletedFalseOrderByNameAsc(String tenantId, Collection<Enums.Role> roles);
+
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("UPDATE User u SET u.isActive = false WHERE u.tenantId = :tenantId AND u.isDeleted = false")
     int deactivateAllByTenantId(@Param("tenantId") String tenantId);

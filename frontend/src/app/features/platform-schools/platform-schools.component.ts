@@ -6,8 +6,9 @@ import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { PlatformService } from '../../core/services/platform.service';
 import { PlatformPurgeJob, PlatformSchoolDetail, PlatformSchoolSummary } from '../../core/models/models';
-import { forkJoin, Subject } from 'rxjs';
-import { debounceTime, distinctUntilChanged } from 'rxjs/operators';
+import { forkJoin, of, Subject } from 'rxjs';
+import { catchError, debounceTime, distinctUntilChanged } from 'rxjs/operators';
+import { TenantFinanceProfile } from '../../core/services/settings.service';
 import { ErpPaginationComponent } from '../../shared/erp-pagination/erp-pagination.component';
 import { DEFAULT_ERP_PAGE_SIZE } from '../../core/constants/pagination.constants';
 
@@ -153,6 +154,32 @@ import { DEFAULT_ERP_PAGE_SIZE } from '../../core/constants/pagination.constants
                   <button type="button" class="btn-outline-erp btn-sm" (click)="refreshDetail()" [disabled]="busy">
                     <i class="bi bi-arrow-clockwise me-1"></i>{{ 'platformSchools.actions.refresh' | translate }}
                   </button>
+                </div>
+
+                <div class="platform-section" *ngIf="schoolFinanceProfile as fp">
+                  <h5 class="platform-section-title">{{ 'platformSchools.financeRouteTitle' | translate }}</h5>
+                  <p class="text-muted small mb-2">{{ 'platformSchools.financeRouteLead' | translate }}</p>
+                  <div class="platform-info-panel mb-3">
+                    <div class="platform-impact-grid">
+                      <div><strong>{{ 'platformSchools.financeRouteMode' | translate }}:</strong> {{ fp.feeSettlementMode }}</div>
+                      <div><strong>{{ 'platformSchools.financeRouteOnboarding' | translate }}:</strong> {{ fp.paymentRoutingOnboardingStatus || '—' }}</div>
+                      <div><strong>{{ 'platformSchools.financeRouteLinked' | translate }}:</strong> {{ fp.razorpayRouteLinkedAccountId || fp.razorpayRouteLinkedAccountMasked || '—' }}</div>
+                      <div><strong>{{ 'platformSchools.financeRouteBps' | translate }}:</strong> {{ fp.platformCommissionBps | number }}</div>
+                      <div *ngIf="fp.paymentRoutingSubmittedAt"><strong>{{ 'platformSchools.financeRouteSubmitted' | translate }}:</strong> {{ fp.paymentRoutingSubmittedAt | date: 'medium' }}</div>
+                      <div *ngIf="fp.paymentRoutingLiveAt"><strong>{{ 'platformSchools.financeRouteLive' | translate }}:</strong> {{ fp.paymentRoutingLiveAt | date: 'medium' }}</div>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    class="btn-primary-erp btn-sm"
+                    *ngIf="fp.feeSettlementMode === 'ROUTE_LINKED_ACCOUNT' && fp.paymentRoutingOnboardingStatus === 'SUBMITTED'"
+                    (click)="approveRouteLive()"
+                    [disabled]="busy || financeApproveBusy"
+                  >
+                    {{ financeApproveBusy ? ('platformSchools.financeApproveLiveBusy' | translate) : ('platformSchools.financeApproveLive' | translate) }}
+                  </button>
+                  <p *ngIf="financeApproveMsg" class="text-success small mt-2 mb-0">{{ financeApproveMsg }}</p>
+                  <p *ngIf="financeApproveErr" class="text-danger small mt-2 mb-0">{{ financeApproveErr }}</p>
                 </div>
 
                 <div class="platform-section">
@@ -592,7 +619,11 @@ export class PlatformSchoolsComponent implements OnInit {
   readonly schoolSearch$ = new Subject<string>();
   selected: PlatformSchoolSummary | null = null;
   detail: PlatformSchoolDetail | null = null;
+  schoolFinanceProfile: TenantFinanceProfile | null = null;
   detailLoading = false;
+  financeApproveBusy = false;
+  financeApproveMsg = '';
+  financeApproveErr = '';
   purgeJobs: PlatformPurgeJob[] = [];
   selectedPurgeJob: PlatformPurgeJob | null = null;
   globalPurgeJobs: PlatformPurgeJob[] = [];
@@ -683,21 +714,50 @@ export class PlatformSchoolsComponent implements OnInit {
       return;
     }
     this.clearFeedback();
+    this.financeApproveMsg = '';
+    this.financeApproveErr = '';
     this.detailLoading = true;
     this.detail = null;
+    this.schoolFinanceProfile = null;
     forkJoin({
       detail: this.platform.getSchoolDetail(this.selected.tenantId),
-      jobs: this.platform.listPurgeJobs(this.selected.tenantId)
+      jobs: this.platform.listPurgeJobs(this.selected.tenantId),
+      financeProfile: this.platform.getSchoolFinanceProfile(this.selected.tenantId).pipe(catchError(() => of(null)))
     }).subscribe({
-      next: ({ detail, jobs }) => {
+      next: ({ detail, jobs, financeProfile }) => {
         this.detail = detail;
         this.purgeJobs = jobs;
         this.selectedPurgeJob = jobs[0] ?? null;
+        this.schoolFinanceProfile = financeProfile;
         this.detailLoading = false;
+        this.cdr.markForCheck();
       },
       error: e => {
         this.detailLoading = false;
         this.actionError = e?.message || this.translate.instant('platformSchools.detailLoadError');
+        this.cdr.markForCheck();
+      }
+    });
+  }
+
+  approveRouteLive(): void {
+    if (!this.selected) {
+      return;
+    }
+    this.financeApproveMsg = '';
+    this.financeApproveErr = '';
+    this.financeApproveBusy = true;
+    this.platform.approveSchoolFinanceProfileLive(this.selected.tenantId).subscribe({
+      next: fp => {
+        this.schoolFinanceProfile = fp;
+        this.financeApproveBusy = false;
+        this.financeApproveMsg = this.translate.instant('platformSchools.financeApproveLiveOk');
+        this.cdr.markForCheck();
+      },
+      error: e => {
+        this.financeApproveBusy = false;
+        this.financeApproveErr = e?.message || this.translate.instant('platformSchools.financeApproveLiveErr');
+        this.cdr.markForCheck();
       }
     });
   }

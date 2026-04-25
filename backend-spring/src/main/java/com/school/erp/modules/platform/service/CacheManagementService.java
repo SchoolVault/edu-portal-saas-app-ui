@@ -6,7 +6,10 @@ import com.school.erp.common.enums.Enums;
 import com.school.erp.config.CacheConfig;
 import com.school.erp.modules.audit.service.AuditService;
 import com.school.erp.modules.platform.dto.PlatformDTOs;
+import com.school.erp.modules.parent.cache.ParentPortalExamPageCache;
+import com.school.erp.modules.reports.service.DashboardSnapshotService;
 import com.school.erp.modules.settings.entity.TenantConfig;
+import com.school.erp.security.rbac.SlimJwtAuthorityCache;
 import com.school.erp.modules.settings.repository.TenantConfigRepository;
 import com.school.erp.tenant.TenantContext;
 import org.slf4j.Logger;
@@ -25,7 +28,9 @@ import java.util.stream.Collectors;
 
 /**
  * Cache management for platform operators: global region flush or tenant-scoped key eviction via
- * {@link RedisTenantCacheEvictor} (Redis SCAN + unlink).
+ * {@link RedisTenantCacheEvictor} (Redis SCAN + unlink), plus non-Redis layers that would otherwise
+ * keep stale reads ({@link DashboardSnapshotService} rows, {@link SlimJwtAuthorityCache},
+ * {@link ParentPortalExamPageCache}).
  * <p>Bean: {@link CacheConfig#cacheManagementService(...)} (not component-scanned).
  */
 public class CacheManagementService {
@@ -37,18 +42,27 @@ public class CacheManagementService {
     private final CacheManager cacheManager;
     private final RedisTenantCacheEvictor redisTenantCacheEvictor;
     private final TenantConfigRepository tenantConfigRepository;
+    private final DashboardSnapshotService dashboardSnapshotService;
+    private final SlimJwtAuthorityCache slimJwtAuthorityCache;
+    private final ParentPortalExamPageCache parentPortalExamPageCache;
 
     public CacheManagementService(
             CacheService cacheService,
             AuditService auditService,
             CacheManager cacheManager,
             RedisTenantCacheEvictor redisTenantCacheEvictor,
-            TenantConfigRepository tenantConfigRepository) {
+            TenantConfigRepository tenantConfigRepository,
+            DashboardSnapshotService dashboardSnapshotService,
+            SlimJwtAuthorityCache slimJwtAuthorityCache,
+            ParentPortalExamPageCache parentPortalExamPageCache) {
         this.cacheService = cacheService;
         this.auditService = auditService;
         this.cacheManager = cacheManager;
         this.redisTenantCacheEvictor = redisTenantCacheEvictor;
         this.tenantConfigRepository = tenantConfigRepository;
+        this.dashboardSnapshotService = dashboardSnapshotService;
+        this.slimJwtAuthorityCache = slimJwtAuthorityCache;
+        this.parentPortalExamPageCache = parentPortalExamPageCache;
     }
 
     /**
@@ -134,6 +148,26 @@ public class CacheManagementService {
                 }
             }
 
+            int dashboardDbRowsMarked = 0;
+            if (regionsToProcess.contains(CacheService.CacheRegion.DASHBOARD_SNAPSHOTS)) {
+                try {
+                    if (isTenantScoped) {
+                        dashboardDbRowsMarked = dashboardSnapshotService.markRefreshRequiredForTenantId(
+                                targetTenant.trim(), "platform_cache_clear");
+                    } else {
+                        dashboardDbRowsMarked = dashboardSnapshotService.markRefreshRequiredAllTenants("platform_cache_clear");
+                    }
+                } catch (Exception e) {
+                    log.error("Failed marking dashboard_snapshot rows refresh-required after cache clear", e);
+                }
+            }
+
+            applyNonRedisSideEffects(
+                    regionsToProcess,
+                    isTenantScoped,
+                    isTenantScoped ? targetTenant.trim() : null,
+                    !isRegionFiltered);
+
             String clearedAt = LocalDateTime.now().format(FORMATTER);
             String clearedBy = getUserIdentifier();
 
@@ -161,11 +195,14 @@ public class CacheManagementService {
             stats.setTargetSchoolName(targetSchoolName);
             stats.setKeysEvicted(isTenantScoped ? totalKeysEvicted : null);
             stats.setFailedRegions(failedRegions);
+            stats.setDashboardSnapshotRowsMarked(dashboardDbRowsMarked > 0 ? dashboardDbRowsMarked : null);
 
-            log.info("Cache clear completed. Regions: {} | Tenant: {} | keysEvicted: {}",
+            log.info(
+                    "Cache clear completed. Regions: {} | Tenant: {} | keysEvicted: {} | dashboardDbRowsMarked: {}",
                     successCount,
                     isTenantScoped ? targetTenant : "ALL",
-                    isTenantScoped ? totalKeysEvicted : "n/a");
+                    isTenantScoped ? totalKeysEvicted : "n/a",
+                    dashboardDbRowsMarked);
 
             boolean allSucceeded = failedRegions.isEmpty();
             String message;
@@ -185,6 +222,11 @@ public class CacheManagementService {
                         : String.format(
                         "Cleared %d region(s) globally; %d region(s) failed and need retry.",
                         successCount, failedRegions.size());
+            }
+            if (dashboardDbRowsMarked > 0) {
+                message += String.format(
+                        " Marked %d dashboard_snapshot row(s) in PostgreSQL for refresh (no stale dashboard JSON).",
+                        dashboardDbRowsMarked);
             }
             return new PlatformDTOs.CacheClearResponse(allSucceeded, message, stats);
 
@@ -215,6 +257,40 @@ public class CacheManagementService {
         }
 
         return "SYSTEM";
+    }
+
+    /**
+     * Layers that are not Spring Redis {@link org.springframework.cache.Cache} entries but still serve
+     * read paths until TTL or explicit eviction.
+     */
+    private void applyNonRedisSideEffects(
+            List<CacheService.CacheRegion> regionsToProcess,
+            boolean tenantScoped,
+            String tenantIdTrimmed,
+            boolean clearedEntireRegionCatalog) {
+        boolean touchesPermissions =
+                regionsToProcess.contains(CacheService.CacheRegion.PERMISSIONS) || clearedEntireRegionCatalog;
+        try {
+            if (tenantScoped && tenantIdTrimmed != null) {
+                if (touchesPermissions) {
+                    slimJwtAuthorityCache.evictForTenant(tenantIdTrimmed);
+                    log.info("SlimJwtAuthorityCache evicted for tenantId={} (permissions region or full Redis catalog)", tenantIdTrimmed);
+                }
+                parentPortalExamPageCache.invalidateTenant(tenantIdTrimmed);
+                log.info("ParentPortalExamPageCache invalidated for tenantId={}", tenantIdTrimmed);
+            } else if (!tenantScoped) {
+                if (touchesPermissions) {
+                    slimJwtAuthorityCache.evictAll();
+                    log.info("SlimJwtAuthorityCache evicted globally (permissions region or full Redis catalog)");
+                }
+                if (clearedEntireRegionCatalog) {
+                    parentPortalExamPageCache.invalidateAll();
+                    log.info("ParentPortalExamPageCache invalidated globally (full Redis catalog clear)");
+                }
+            }
+        } catch (Exception e) {
+            log.error("Non-Redis cache side-effects failed after platform cache clear", e);
+        }
     }
 
     private static List<String> sanitizeRegions(List<String> regions) {

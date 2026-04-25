@@ -5,6 +5,8 @@ import com.school.erp.common.enums.Enums;
 import com.school.erp.common.exception.DuplicateResourceException;
 import com.school.erp.common.exception.BusinessException;
 import com.school.erp.common.importer.BulkImportRowPolicy;
+import com.school.erp.common.importer.ImportLineOutcome;
+import com.school.erp.common.importer.LineApplyResult;
 import com.school.erp.common.importer.ZipCsvImportUtil;
 import com.school.erp.common.exception.ResourceNotFoundException;
 import com.school.erp.common.util.InternationalPhone;
@@ -21,6 +23,7 @@ import com.school.erp.common.jpa.EntitySnapshotCollections;
 import com.school.erp.modules.teacher.dto.TeacherDTOs;
 import com.school.erp.modules.teacher.entity.Teacher;
 import com.school.erp.modules.teacher.repository.TeacherRepository;
+import com.school.erp.modules.reports.service.DashboardSnapshotInvalidationService;
 import com.school.erp.cache.CacheService;
 import com.school.erp.config.CacheConfig;
 import com.school.erp.tenant.TenantContext;
@@ -59,6 +62,7 @@ public class TeacherService {
     private final PortalUserProvisioningService portalUserProvisioningService;
     private final UserRepository userRepository;
     private final ObjectProvider<CacheService> cacheService;
+    private final DashboardSnapshotInvalidationService dashboardSnapshotInvalidationService;
 
     @Cacheable(cacheNames = CacheConfig.TEACHER_DIRECTORY, keyGenerator = "tenantMethodParamsKeyGenerator", unless = "#result == null")
     @Transactional(readOnly = true)
@@ -114,17 +118,24 @@ public class TeacherService {
                                                      Enums.Role portalRole, Enums.LibraryStaffRole libraryStaffRole) {
         String tenantId = TenantContext.getTenantId();
         String email = req.getEmail() != null ? req.getEmail().trim().toLowerCase(java.util.Locale.ROOT) : null;
-        if (email == null || email.isBlank()) {
-            throw new com.school.erp.common.exception.BusinessException("Teacher email is required");
+        if (email != null && email.isBlank()) {
+            email = null;
         }
-        if (repo.existsByTenantIdAndEmailAndIsDeletedFalse(tenantId, email)) {
+        String canonicalPhone = InternationalPhone.canonical(req.getPhone() != null ? req.getPhone().trim() : null);
+        if (canonicalPhone == null) {
+            throw new BusinessException(InternationalPhone.invalidMessage());
+        }
+        if (email != null && repo.existsByTenantIdAndEmailAndIsDeletedFalse(tenantId, email)) {
             throw new DuplicateResourceException("Teacher email already exists: " + email);
+        }
+        if (repo.existsByTenantIdAndPhoneAndIsDeletedFalse(tenantId, canonicalPhone)) {
+            throw new DuplicateResourceException("Teacher phone already exists: " + canonicalPhone);
         }
         Teacher t = Teacher.builder()
                 .firstName(req.getFirstName())
                 .lastName(req.getLastName())
                 .email(email)
-                .phone(req.getPhone() != null ? req.getPhone().trim() : null)
+                .phone(canonicalPhone)
                 .qualification(req.getQualification())
                 .specialization(req.getSpecialization())
                 .joinDate(req.getJoinDate())
@@ -153,26 +164,61 @@ public class TeacherService {
      * Idempotent teacher/staff import: update existing teacher row by email when policy is {@link BulkImportRowPolicy#UPSERT}.
      */
     @Transactional
-    public TeacherDTOs.Response upsertTeacherForImport(TeacherDTOs.CreateRequest req, boolean createPortal,
-                                                       Enums.Role portalRole, Enums.LibraryStaffRole libraryStaffRole,
-                                                       BulkImportRowPolicy policy) {
+    public LineApplyResult<TeacherDTOs.Response> upsertTeacherForImport(TeacherDTOs.CreateRequest req, boolean createPortal,
+                                                                       Enums.Role portalRole, Enums.LibraryStaffRole libraryStaffRole,
+                                                                       BulkImportRowPolicy policy,
+                                                                       String portalLoginEmail,
+                                                                       String portalLoginPhone,
+                                                                       String importPassword) {
         String tenantId = TenantContext.getTenantId();
         String email = req.getEmail() != null ? req.getEmail().trim().toLowerCase(Locale.ROOT) : null;
-        if (email == null || email.isBlank()) {
-            throw new com.school.erp.common.exception.BusinessException("Teacher email is required");
+        if (email != null && email.isBlank()) {
+            email = null;
         }
-        Optional<Teacher> existing = repo.findByTenantIdAndEmailIgnoreCaseAndIsDeletedFalse(tenantId, email);
+        String canonicalPhone = InternationalPhone.canonical(req.getPhone() != null ? req.getPhone().trim() : null);
+        if (canonicalPhone == null) {
+            throw new BusinessException(InternationalPhone.invalidMessage());
+        }
+        String naturalKey = "PHONE:" + canonicalPhone;
+        Optional<Teacher> existing = repo.findByTenantIdAndPhoneAndIsDeletedFalse(tenantId, canonicalPhone);
         if (existing.isEmpty()) {
-            return createForBulkImport(req, createPortal, portalRole, libraryStaffRole);
+            TeacherDTOs.Response created = createForBulkImport(req, false, portalRole, libraryStaffRole);
+            if (createPortal) {
+                Long createdTeacherId = created.getId();
+                Teacher teacher = repo.findByIdAndTenantIdAndIsDeletedFalse(createdTeacherId, tenantId)
+                        .orElseThrow(() -> new ResourceNotFoundException("Teacher", createdTeacherId));
+                String display = (teacher.getFirstName() + " " + teacher.getLastName()).trim();
+                PortalUserProvisioningService.ProvisionResult pr = portalUserProvisioningService.ensureStaffUserForImport(
+                        tenantId, portalLoginEmail, display, portalLoginPhone, portalRole, importPassword);
+                teacher.setUserId(pr.userId());
+                repo.save(teacher);
+                created = applyAudienceVisibility(toRes(teacher, homeroomClassNamesForTeacher(tenantId, teacher.getId())));
+            }
+            return new LineApplyResult<>(created, ImportLineOutcome.CREATED, naturalKey);
+        }
+        if (policy == BulkImportRowPolicy.CREATE_ONLY) {
+            throw new DuplicateResourceException("Teacher with this phone already exists: " + canonicalPhone);
         }
         if (policy == BulkImportRowPolicy.SKIP_IF_EXISTS) {
-            return applyAudienceVisibility(toRes(existing.get(), homeroomClassNamesForTeacher(tenantId, existing.get().getId())));
+            Teacher teacher = existing.get();
+            if (createPortal) {
+                String display = (teacher.getFirstName() + " " + teacher.getLastName()).trim();
+                PortalUserProvisioningService.ProvisionResult pr = portalUserProvisioningService.ensureStaffUserForImport(
+                        tenantId, portalLoginEmail, display, portalLoginPhone, portalRole, importPassword);
+                teacher.setUserId(pr.userId());
+                repo.save(teacher);
+            }
+            return new LineApplyResult<>(
+                    applyAudienceVisibility(toRes(teacher, homeroomClassNamesForTeacher(tenantId, teacher.getId()))),
+                    ImportLineOutcome.SKIPPED, naturalKey);
         }
         if (policy == BulkImportRowPolicy.UPSERT) {
             TeacherDTOs.UpdateRequest ur = new TeacherDTOs.UpdateRequest();
             ur.setFirstName(req.getFirstName());
             ur.setLastName(req.getLastName());
-            ur.setEmail(req.getEmail());
+            if (req.getEmail() != null) {
+                ur.setEmail(req.getEmail());
+            }
             ur.setPhone(req.getPhone());
             ur.setQualification(req.getQualification());
             ur.setSpecialization(req.getSpecialization());
@@ -183,9 +229,23 @@ public class TeacherService {
             ur.setBankName(req.getBankName());
             ur.setBankAccountNumber(req.getBankAccountNumber());
             ur.setBankIfsc(req.getBankIfsc());
-            return update(existing.get().getId(), ur);
+            TeacherDTOs.Response updated = update(existing.get().getId(), ur);
+            if (createPortal) {
+                Long updatedTeacherId = updated.getId();
+                Teacher teacher = repo.findByIdAndTenantIdAndIsDeletedFalse(updatedTeacherId, tenantId)
+                        .orElseThrow(() -> new ResourceNotFoundException("Teacher", updatedTeacherId));
+                String display = (teacher.getFirstName() + " " + teacher.getLastName()).trim();
+                PortalUserProvisioningService.ProvisionResult pr = portalUserProvisioningService.ensureStaffUserForImport(
+                        tenantId, portalLoginEmail, display, portalLoginPhone, portalRole, importPassword);
+                if (teacher.getUserId() == null || !teacher.getUserId().equals(pr.userId())) {
+                    teacher.setUserId(pr.userId());
+                    repo.save(teacher);
+                }
+                updated = applyAudienceVisibility(toRes(teacher, homeroomClassNamesForTeacher(tenantId, teacher.getId())));
+            }
+            return new LineApplyResult<>(updated, ImportLineOutcome.UPDATED, naturalKey);
         }
-        throw new DuplicateResourceException("Teacher email already exists: " + email);
+        throw new IllegalStateException("Unhandled import policy: " + policy);
     }
 
     @Transactional
@@ -451,6 +511,7 @@ public class TeacherService {
     /** {@link #getTeachers} is cached; invalidate on any teacher mutation so list rows stay aligned with detail. */
     private void evictTeacherDirectoryCache() {
         cacheService.ifAvailable(cs -> cs.clearRegion(CacheService.CacheRegion.TEACHER_DIRECTORY));
+        dashboardSnapshotInvalidationService.invalidateCurrentTenant("teacher_directory_changed");
     }
 
     private TeacherDTOs.Response toRes(Teacher t, List<String> homeroomClassNames) {
@@ -547,7 +608,8 @@ public class TeacherService {
                           final ClassTeacherAssignmentRepository classTeacherAssignmentRepository,
                           final PortalUserProvisioningService portalUserProvisioningService,
                           final UserRepository userRepository,
-                          final ObjectProvider<CacheService> cacheService) {
+                          final ObjectProvider<CacheService> cacheService,
+                          final DashboardSnapshotInvalidationService dashboardSnapshotInvalidationService) {
         this.repo = repo;
         this.schoolClassRepository = schoolClassRepository;
         this.sectionRepository = sectionRepository;
@@ -555,6 +617,7 @@ public class TeacherService {
         this.portalUserProvisioningService = portalUserProvisioningService;
         this.userRepository = userRepository;
         this.cacheService = cacheService;
+        this.dashboardSnapshotInvalidationService = dashboardSnapshotInvalidationService;
     }
 
     private String required(Map<String, String> row, String key) {

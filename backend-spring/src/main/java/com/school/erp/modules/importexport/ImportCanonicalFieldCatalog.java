@@ -17,20 +17,20 @@ public final class ImportCanonicalFieldCatalog {
                     "notifycredentials", "importmode", "address", "bloodgroup"),
             ImportJobType.TEACHERS, List.of(
                     "firstname", "lastname", "email", "phone", "qualification", "specialization",
-                    "joindate", "salary", "subjects", "createportal", "portalrole", "libraryrole",
+                    "joindate", "salary", "subjects", "createportal", "portalpassword", "portalrole", "libraryrole",
                     "importmode", "bankaccountholder", "bankname", "bankaccountnumber", "bankifsc", "notifycredentials",
                     "classteacherfor", "classteacherclassid", "classteachersectionid",
                     "classteacherclassname", "classteachersectionname", "classteacheracademicyearid"),
             ImportJobType.STAFF, List.of(
                     "firstname", "lastname", "email", "phone", "qualification", "specialization",
-                    "joindate", "salary", "subjects", "createportal", "portalrole", "libraryrole",
+                    "joindate", "salary", "subjects", "createportal", "portalpassword", "portalrole", "libraryrole",
                     "importmode", "bankaccountholder", "bankname", "bankaccountnumber", "bankifsc", "notifycredentials",
                     "classteacherfor", "classteacherclassid", "classteachersectionid",
                     "classteacherclassname", "classteachersectionname", "classteacheracademicyearid"),
             ImportJobType.CLASSES, List.of(
                     "name", "grade", "academicyearid", "sections", "sectioncapacity"),
             ImportJobType.TIMETABLE, List.of(
-                    "teacheremail", "teacherid",
+                    "teacheremail", "teacherphone", "teacherid",
                     "classname", "classid", "sectionname", "sectionid",
                     "subjectname", "dayofweek", "period", "starttime", "endtime",
                     "room", "academicyearid"),

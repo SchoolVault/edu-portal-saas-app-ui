@@ -1,13 +1,12 @@
 package com.school.erp.modules.fees.gateway.strategy;
 
+import com.school.erp.modules.fees.gateway.FeeGatewayOrderContext;
 import com.school.erp.modules.fees.gateway.MockPaymentGatewayClient;
 import com.school.erp.modules.fees.gateway.PaymentGatewayClient;
 import com.school.erp.modules.payment.domain.PaymentProviderIds;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
-
-import java.math.BigDecimal;
 
 /**
  * In-process sandbox for integration tests and optional non-production gateways (mockpay, upi, …).
@@ -25,14 +24,8 @@ public class MockSandboxFeePaymentCheckoutStrategy implements FeePaymentCheckout
     }
 
     @Override
-    public PaymentGatewayClient.GatewayCheckoutSession createSession(
-            String providerId,
-            String tenantId,
-            Long paymentId,
-            BigDecimal amount,
-            String currency,
-            String returnUrl) {
-        return mock.createSession(providerId, tenantId, paymentId, amount, currency, returnUrl);
+    public PaymentGatewayClient.GatewayCheckoutSession createSession(String providerId, FeeGatewayOrderContext orderContext) {
+        return mock.createSession(providerId, orderContext);
     }
 
     @Override
@@ -43,6 +36,14 @@ public class MockSandboxFeePaymentCheckoutStrategy implements FeePaymentCheckout
             String providerPaymentId,
             String providerSignature) {
         return mock.confirmPayment(providerId, checkoutToken, providerOrderId, providerPaymentId, providerSignature);
+    }
+
+    @Override
+    public PaymentGatewayClient.GatewayPaymentStatus fetchPaymentStatus(
+            String providerId,
+            String providerOrderId,
+            String providerPaymentId) {
+        return mock.fetchPaymentStatus(providerId, providerOrderId, providerPaymentId);
     }
 
     public MockSandboxFeePaymentCheckoutStrategy(MockPaymentGatewayClient mock) {

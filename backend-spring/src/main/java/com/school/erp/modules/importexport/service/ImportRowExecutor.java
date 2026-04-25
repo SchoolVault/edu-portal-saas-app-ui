@@ -5,6 +5,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.school.erp.common.enums.Enums;
 import com.school.erp.common.exception.BusinessException;
 import com.school.erp.common.importer.BulkImportRowPolicy;
+import com.school.erp.common.importer.ImportLineOutcome;
+import com.school.erp.common.importer.LineApplyResult;
+import com.school.erp.common.util.InternationalPhone;
 import com.school.erp.modules.auth.service.PortalUserProvisioningService;
 import com.school.erp.modules.importexport.ImportJobType;
 import com.school.erp.modules.importexport.entity.ImportJob;
@@ -22,7 +25,10 @@ import com.school.erp.modules.timetable.repository.TimetableRepository;
 import com.school.erp.modules.timetable.service.TimetableService;
 import com.school.erp.modules.fees.dto.FeeDTOs;
 import com.school.erp.modules.fees.service.FeeService;
+import com.school.erp.modules.academic.dto.AcademicMutationRequests;
 import com.school.erp.modules.academic.entity.SchoolClass;
+import com.school.erp.modules.academic.entity.Section;
+import com.school.erp.modules.academic.repository.SchoolClassRepository;
 import com.school.erp.platform.port.NotificationDispatchPort;
 import com.school.erp.tenant.TenantContext;
 import org.springframework.stereotype.Service;
@@ -31,6 +37,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -46,6 +53,7 @@ public class ImportRowExecutor {
     private final TeacherService teacherService;
     private final TeacherRepository teacherRepository;
     private final com.school.erp.modules.academic.service.AcademicService academicService;
+    private final SchoolClassRepository schoolClassRepository;
     private final TimetableService timetableService;
     private final TimetableRepository timetableRepository;
     private final PortalUserProvisioningService portalUserProvisioningService;
@@ -55,12 +63,14 @@ public class ImportRowExecutor {
     private final BulkImportAcademicResolver academicResolver;
     private final ImportBulkRowValidator bulkRowValidator;
     private final FeeService feeService;
+    private final ImportLedgerWriteService importLedgerWriteService;
 
     public ImportRowExecutor(ObjectMapper objectMapper,
                            StudentService studentService,
                            TeacherService teacherService,
                            TeacherRepository teacherRepository,
                            com.school.erp.modules.academic.service.AcademicService academicService,
+                           SchoolClassRepository schoolClassRepository,
                            TimetableService timetableService,
                            TimetableRepository timetableRepository,
                            PortalUserProvisioningService portalUserProvisioningService,
@@ -69,12 +79,14 @@ public class ImportRowExecutor {
                            TenantConfigRepository tenantConfigRepository,
                            BulkImportAcademicResolver academicResolver,
                            ImportBulkRowValidator bulkRowValidator,
-                           FeeService feeService) {
+                           FeeService feeService,
+                           ImportLedgerWriteService importLedgerWriteService) {
         this.objectMapper = objectMapper;
         this.studentService = studentService;
         this.teacherService = teacherService;
         this.teacherRepository = teacherRepository;
         this.academicService = academicService;
+        this.schoolClassRepository = schoolClassRepository;
         this.timetableService = timetableService;
         this.timetableRepository = timetableRepository;
         this.portalUserProvisioningService = portalUserProvisioningService;
@@ -84,6 +96,7 @@ public class ImportRowExecutor {
         this.academicResolver = academicResolver;
         this.bulkRowValidator = bulkRowValidator;
         this.feeService = feeService;
+        this.importLedgerWriteService = importLedgerWriteService;
     }
 
     public void execute(ImportJob job, ImportJobLine line) throws Exception {
@@ -98,13 +111,13 @@ public class ImportRowExecutor {
             }
             case TEACHERS -> handleTeacher(job, line, row, false);
             case STAFF -> handleTeacher(job, line, row, true);
-            case CLASSES -> handleClass(line, row);
-            case TIMETABLE -> handleTimetable(line, row);
-            case FEE_STRUCTURES -> handleFeeStructure(line, row);
+            case CLASSES -> handleClass(job, line, row);
+            case TIMETABLE -> handleTimetable(job, line, row);
+            case FEE_STRUCTURES -> handleFeeStructure(job, line, row);
         }
     }
 
-    private void handleFeeStructure(ImportJobLine line, Map<String, String> row) {
+    private void handleFeeStructure(ImportJob job, ImportJobLine line, Map<String, String> row) {
         SchoolClass cls = academicResolver.resolveClassOnly(row);
         Long academicYearId = academicResolver.resolveAcademicYearId(row.get("academicyearid"));
         BulkImportRowPolicy policy = BulkImportRowPolicy.fromCsv(row.get("importmode"));
@@ -116,9 +129,11 @@ public class ImportRowExecutor {
                 .academicYearId(academicYearId)
                 .components(components)
                 .build();
-        FeeDTOs.FeeStructureResponse saved = feeService.importStructureRow(req, policy);
+        LineApplyResult<FeeDTOs.FeeStructureResponse> applied = feeService.importStructureRow(req, policy);
+        FeeDTOs.FeeStructureResponse saved = applied.value();
         line.setEntityType("FEE_STRUCTURE");
         line.setEntityId(saved.getId());
+        importLedgerWriteService.recordLine(job, line, applied.outcome(), "FEE_STRUCTURE", saved.getId(), applied.naturalKey());
     }
 
     private void handleStudent(ImportJob job, ImportJobLine line, Map<String, String> row,
@@ -161,9 +176,11 @@ public class ImportRowExecutor {
             request.setParentName(blankToNull(row.get("parentname")));
         }
 
-        StudentDTOs.Response created = studentService.importStudentRow(request, policy);
+        LineApplyResult<StudentDTOs.Response> applied = studentService.importStudentRow(request, policy);
+        StudentDTOs.Response created = applied.value();
         line.setEntityType("STUDENT");
         line.setEntityId(created.getId());
+        importLedgerWriteService.recordLine(job, line, applied.outcome(), "STUDENT", created.getId(), applied.naturalKey());
 
         if (truthy(row.get("notifycredentials")) && parentProvision != null) {
             String schoolCode = tenantConfigRepository.findByTenantId(tenantId).map(c -> c.getSchoolCode()).orElse("");
@@ -178,11 +195,16 @@ public class ImportRowExecutor {
     }
 
     private void handleTeacher(ImportJob job, ImportJobLine line, Map<String, String> row, boolean staffImport) {
+        String tenantId = TenantContext.getTenantId();
+        String canonicalPhone = canonicalPhoneRequired(row.get("phone"));
+        String loginEmail = normalizeEmailOptional(row.get("email"));
+        String importPassword = blankToNull(row.get("portalpassword"));
+
         TeacherDTOs.CreateRequest request = new TeacherDTOs.CreateRequest();
         request.setFirstName(required(row, "firstname"));
         request.setLastName(required(row, "lastname"));
-        request.setEmail(required(row, "email"));
-        request.setPhone(blankToNull(row.get("phone")));
+        request.setEmail(loginEmail);
+        request.setPhone(canonicalPhone);
         request.setQualification(blankToNull(row.get("qualification")));
         request.setSpecialization(blankToNull(row.get("specialization")));
         request.setJoinDate(parseDate(row.get("joindate")));
@@ -197,7 +219,8 @@ public class ImportRowExecutor {
         if (staffImport) {
             createPortal = row.get("createportal") == null || row.get("createportal").isBlank() || truthy(row.get("createportal"));
         } else {
-            createPortal = truthy(row.get("createportal"));
+            // Teachers should be login-ready by default after onboarding.
+            createPortal = row.get("createportal") == null || row.get("createportal").isBlank() || truthy(row.get("createportal"));
         }
         Enums.Role portalRole = parsePortalRole(row.get("portalrole"), staffImport);
         Enums.LibraryStaffRole libRole = parseLibraryRole(row.get("libraryrole"));
@@ -211,23 +234,30 @@ public class ImportRowExecutor {
 
         BulkImportRowPolicy policy = BulkImportRowPolicy.fromCsv(row.get("importmode"));
 
-        TeacherDTOs.Response created = teacherService.upsertTeacherForImport(request, createPortal, portalRole, libRole, policy);
-        line.setEntityType("TEACHER");
+        LineApplyResult<TeacherDTOs.Response> applied = teacherService.upsertTeacherForImport(
+                request,
+                createPortal,
+                portalRole,
+                libRole,
+                policy,
+                loginEmail,
+                canonicalPhone,
+                importPassword);
+        TeacherDTOs.Response created = applied.value();
+        String teacherLedgerType = staffImport ? "STAFF" : "TEACHER";
+        line.setEntityType(teacherLedgerType);
         line.setEntityId(created.getId());
+        importLedgerWriteService.recordLine(job, line, applied.outcome(), teacherLedgerType, created.getId(), applied.naturalKey());
         assignOptionalClassTeacherSlot(row, created.getId(), portalRole);
 
-        if (createPortal && truthy(row.get("notifycredentials"))) {
-            String tenantId = TenantContext.getTenantId();
+        if (createPortal && created.getUserId() != null) {
             String schoolCode = tenantConfigRepository.findByTenantId(tenantId).map(c -> c.getSchoolCode()).orElse("");
-            String body = "Your " + (portalRole == Enums.Role.LIBRARY_STAFF ? "library staff" : "teacher")
-                    + " portal is ready. School code: " + schoolCode + ". Sign in with this email; use Forgot password or phone OTP if needed.";
-            if (created.getUserId() != null) {
-                notificationService.createNotification(tenantId, created.getUserId(), "Staff portal access",
-                        body, Enums.NotificationType.INFO, "/app/dashboard");
-                notificationDispatchPort.enqueue(tenantId, "STAFF_PORTAL_CREDENTIALS", "SMS", created.getUserId(),
-                        request.getPhone(), "Staff portal access", body,
-                        "import-job-" + job.getId() + "-line-" + line.getId(), "import-" + job.getId());
-            }
+            String body = teacherCredentialMessage(schoolCode, loginEmail, canonicalPhone, importPassword, portalRole);
+            notificationService.createNotification(tenantId, created.getUserId(), "Staff portal access",
+                    body, Enums.NotificationType.INFO, "/app/dashboard");
+            notificationDispatchPort.enqueue(tenantId, "STAFF_PORTAL_CREDENTIALS", "SMS", created.getUserId(),
+                    canonicalPhone, "Staff portal access", body,
+                    "import-job-" + job.getId() + "-line-" + line.getId(), "import-" + job.getId());
         }
     }
 
@@ -244,21 +274,79 @@ public class ImportRowExecutor {
         academicService.assignClassTeacher(placement.classId(), placement.sectionId(), teacherId, null);
     }
 
-    private void handleClass(ImportJobLine line, Map<String, String> row) {
+    private void handleClass(ImportJob job, ImportJobLine line, Map<String, String> row) {
+        String tenantId = TenantContext.getTenantId();
         Long resolvedAcademicYearId = academicResolver.resolveAcademicYearId(row.get("academicyearid"));
+        String className = required(row, "name");
+        Integer grade = Integer.parseInt(required(row, "grade"));
+        List<String> desiredSections = parsePipeList(row.get("sections"));
+        Integer sectionCapacity = parseInt(row.get("sectioncapacity"));
+
+        SchoolClass existing = schoolClassRepository
+                .findFirstByTenantIdAndAcademicYearIdAndNameIgnoreCaseAndIsDeletedFalse(
+                        tenantId, resolvedAcademicYearId, className)
+                .orElse(null);
+
+        if (existing != null) {
+            boolean changed = false;
+            if (!className.equals(existing.getName()) || !grade.equals(existing.getGrade())) {
+                AcademicMutationRequests.UpdateSchoolClassRequest updateReq = new AcademicMutationRequests.UpdateSchoolClassRequest();
+                updateReq.setName(className);
+                updateReq.setGrade(grade);
+                academicService.updateClass(existing.getId(), updateReq);
+                changed = true;
+            }
+
+            List<Section> currentSections = academicService.getSectionsByClass(existing.getId());
+            Map<String, Section> currentByName = new HashMap<>();
+            for (Section section : currentSections) {
+                currentByName.put(section.getName().trim().toLowerCase(Locale.ROOT), section);
+            }
+            for (String sectionName : desiredSections) {
+                String normalizedKey = sectionName.trim().toLowerCase(Locale.ROOT);
+                Section current = currentByName.get(normalizedKey);
+                if (current == null) {
+                    academicService.addSection(existing.getId(), sectionName, sectionCapacity);
+                    changed = true;
+                    continue;
+                }
+                if (sectionCapacity != null && !sectionCapacity.equals(current.getCapacity())) {
+                    AcademicMutationRequests.UpdateSectionRequest sectionUpdateReq = new AcademicMutationRequests.UpdateSectionRequest();
+                    sectionUpdateReq.setName(current.getName());
+                    sectionUpdateReq.setCapacity(sectionCapacity);
+                    academicService.updateSection(current.getId(), sectionUpdateReq);
+                    changed = true;
+                }
+            }
+
+            line.setEntityType("CLASS");
+            line.setEntityId(existing.getId());
+            String nk = "NAME:" + existing.getName() + "|G:" + existing.getGrade() + "|AY:" + resolvedAcademicYearId;
+            importLedgerWriteService.recordLine(
+                    job,
+                    line,
+                    changed ? ImportLineOutcome.UPDATED : ImportLineOutcome.SKIPPED,
+                    "CLASS",
+                    existing.getId(),
+                    nk);
+            return;
+        }
+
         com.school.erp.modules.academic.dto.AcademicDTOs.CreateClassRequest req = com.school.erp.modules.academic.dto.AcademicDTOs.CreateClassRequest.builder()
-                .name(required(row, "name"))
-                .grade(Integer.parseInt(required(row, "grade")))
+                .name(className)
+                .grade(grade)
                 .academicYearId(resolvedAcademicYearId)
-                .sectionNames(parsePipeList(row.get("sections")))
-                .sectionCapacity(parseInt(row.get("sectioncapacity")))
+                .sectionNames(desiredSections)
+                .sectionCapacity(sectionCapacity)
                 .build();
         com.school.erp.modules.academic.entity.SchoolClass created = academicService.createClass(req);
         line.setEntityType("CLASS");
         line.setEntityId(created.getId());
+        String nk = "NAME:" + created.getName() + "|G:" + created.getGrade() + "|AY:" + resolvedAcademicYearId;
+        importLedgerWriteService.recordLine(job, line, ImportLineOutcome.CREATED, "CLASS", created.getId(), nk);
     }
 
-    private void handleTimetable(ImportJobLine line, Map<String, String> row) {
+    private void handleTimetable(ImportJob job, ImportJobLine line, Map<String, String> row) {
         String tenantId = TenantContext.getTenantId();
         BulkImportAcademicResolver.ResolvedPlacement placement = academicResolver.resolveClassAndSection(row);
         Long academicYearId = academicResolver.resolveAcademicYearId(row.get("academicyearid"));
@@ -285,9 +373,11 @@ public class ImportRowExecutor {
                 .build();
         upsert.setAcademicYearId(academicYearId);
 
+        final boolean[] wasUpdate = {false};
         TimetableEntry saved = timetableRepository
                 .findFirstByTenantAndClassSectionDayPeriod(tenantId, placement.classId(), placement.sectionId(), day, period)
                 .map(existing -> {
+                    wasUpdate[0] = true;
                     TimetableEntry patch = new TimetableEntry();
                     patch.setSubjectName(upsert.getSubjectName());
                     patch.setTeacherId(upsert.getTeacherId());
@@ -302,30 +392,70 @@ public class ImportRowExecutor {
 
         line.setEntityType("TIMETABLE");
         line.setEntityId(saved.getId());
+        ImportLineOutcome toOutcome = wasUpdate[0] ? ImportLineOutcome.UPDATED : ImportLineOutcome.CREATED;
+        String nk = "C:" + placement.classId() + "|S:" + placement.sectionId() + "|" + day + "|P" + period + "|AY:" + academicYearId;
+        importLedgerWriteService.recordLine(job, line, toOutcome, "TIMETABLE", saved.getId(), nk);
     }
 
     private Teacher resolveTimetableTeacher(Map<String, String> row, String tenantId) {
         String teacherEmail = blankToNull(row.get("teacheremail"));
+        String teacherPhone = blankToNull(row.get("teacherphone"));
         Long teacherId = parseLong(row.get("teacherid"));
         if (teacherId != null) {
             return teacherRepository.findByIdAndTenantIdAndIsDeletedFalse(teacherId, tenantId)
                     .orElseThrow(() -> new BusinessException("Teacher not found for teacherid: " + teacherId));
         }
+        if (teacherPhone != null) {
+            String canonical = InternationalPhone.canonical(teacherPhone);
+            if (canonical == null) {
+                throw new BusinessException(InternationalPhone.invalidMessage());
+            }
+            return teacherRepository.findByTenantIdAndPhoneAndIsDeletedFalse(tenantId, canonical)
+                    .orElseThrow(() -> new BusinessException("Teacher not found for teacherphone: " + canonical));
+        }
         if (teacherEmail != null) {
             return teacherRepository.findByTenantIdAndEmailIgnoreCaseAndIsDeletedFalse(tenantId, teacherEmail)
                     .orElseThrow(() -> new BusinessException("Teacher not found for teacheremail: " + teacherEmail));
         }
-        throw new BusinessException("teacheremail or teacherid is required");
+        throw new BusinessException("teacherid, teacherphone, or teacheremail is required");
     }
 
     private static String credentialMessage(String schoolCode, String email, String phone, String plainPassword, boolean createdNew) {
-        if (createdNew && plainPassword != null) {
-            String loginHint = email != null ? "Email: " + email : "Phone: " + phone;
-            return "Welcome to the parent portal. School code: " + schoolCode + ". " + loginHint
-                    + ". Temporary password: " + plainPassword + ". You can also sign in with OTP on your registered phone.";
+        if (createdNew && email != null && !email.isBlank() && plainPassword != null) {
+            return "Welcome to the parent portal. School code: " + schoolCode + ". Email: " + email
+                    + ". Temporary password: " + plainPassword
+                    + ". Verify email from Profile > Security, then set your own password. You can also sign in with OTP on your registered phone.";
+        }
+        if (createdNew) {
+            return "Welcome to the parent portal. School code: " + schoolCode
+                    + ". Sign in with OTP using your registered mobile " + (phone != null ? phone : "") + ".";
         }
         return "Your parent portal account is linked to this student. School code: " + schoolCode
                 + ". Sign in with your email or phone OTP.";
+    }
+
+    private static String teacherCredentialMessage(
+            String schoolCode,
+            String loginEmail,
+            String phone,
+            String providedPassword,
+            Enums.Role portalRole) {
+        String persona = portalRole == Enums.Role.LIBRARY_STAFF ? "library staff" : "teacher";
+        StringBuilder sb = new StringBuilder("Your ").append(persona)
+                .append(" profile has been onboarded successfully. School code: ")
+                .append(schoolCode).append(". ");
+        if (loginEmail != null && !loginEmail.isBlank()) {
+            sb.append("Email login: ").append(loginEmail).append(". ");
+            if (providedPassword != null && !providedPassword.isBlank()) {
+                sb.append("Password: ").append(providedPassword).append(". ");
+            } else {
+                sb.append("Set password from your profile or use Forgot password after you verify email. ");
+            }
+        } else {
+            sb.append("No email on file; sign in with mobile OTP only until email is added and verified. ");
+        }
+        sb.append("Mobile OTP login is enabled on ").append(phone).append(".");
+        return sb.toString();
     }
 
     private static Enums.Role parsePortalRole(String raw, boolean staffImport) {
@@ -398,6 +528,23 @@ public class ImportRowExecutor {
             return null;
         }
         return normalized;
+    }
+
+    private static String normalizeEmailOptional(String value) {
+        String normalized = blankToNull(value);
+        return normalized != null ? normalized.toLowerCase(Locale.ROOT) : null;
+    }
+
+    private static String canonicalPhoneRequired(String value) {
+        String raw = blankToNull(value);
+        if (raw == null) {
+            throw new BusinessException("phone is required");
+        }
+        String canonical = InternationalPhone.canonical(raw);
+        if (canonical == null) {
+            throw new BusinessException(InternationalPhone.invalidMessage());
+        }
+        return canonical;
     }
 
     private static Long parseLong(String value) {

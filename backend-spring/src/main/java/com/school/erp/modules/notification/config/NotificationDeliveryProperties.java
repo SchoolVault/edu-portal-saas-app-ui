@@ -18,6 +18,10 @@ public class NotificationDeliveryProperties {
     private int whatsappEstimatedCostMinor = 35;
     private int emailEstimatedCostMinor = 5;
     private String webhookSecret = "";
+    private String quietHoursStart = "22:00";
+    private String quietHoursEnd = "07:00";
+    private String quietHoursTimezone = "Asia/Kolkata";
+    private boolean enforceDltTemplateForSms = true;
 
     public int getSmsMaxAttempts() { return smsMaxAttempts; }
     public void setSmsMaxAttempts(int smsMaxAttempts) { this.smsMaxAttempts = smsMaxAttempts; }
@@ -39,4 +43,12 @@ public class NotificationDeliveryProperties {
     public void setEmailEstimatedCostMinor(int emailEstimatedCostMinor) { this.emailEstimatedCostMinor = emailEstimatedCostMinor; }
     public String getWebhookSecret() { return webhookSecret; }
     public void setWebhookSecret(String webhookSecret) { this.webhookSecret = webhookSecret; }
+    public String getQuietHoursStart() { return quietHoursStart; }
+    public void setQuietHoursStart(String quietHoursStart) { this.quietHoursStart = quietHoursStart; }
+    public String getQuietHoursEnd() { return quietHoursEnd; }
+    public void setQuietHoursEnd(String quietHoursEnd) { this.quietHoursEnd = quietHoursEnd; }
+    public String getQuietHoursTimezone() { return quietHoursTimezone; }
+    public void setQuietHoursTimezone(String quietHoursTimezone) { this.quietHoursTimezone = quietHoursTimezone; }
+    public boolean isEnforceDltTemplateForSms() { return enforceDltTemplateForSms; }
+    public void setEnforceDltTemplateForSms(boolean enforceDltTemplateForSms) { this.enforceDltTemplateForSms = enforceDltTemplateForSms; }
 }

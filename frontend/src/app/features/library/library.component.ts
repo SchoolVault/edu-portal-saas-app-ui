@@ -332,13 +332,20 @@ export class LibraryComponent implements OnInit, OnDestroy {
       this.canManageCatalog = false;
       this.canCirculateBooks = false;
     }
+    this.subs.add(
+      this.authService.currentUser$.pipe(debounceTime(80), filter(u => !!u)).subscribe(() => {
+        if (this.authService.getNormalizedRole() === 'teacher') {
+          this.applyTeacherLibraryAccess();
+        }
+      })
+    );
     this.rebuildCategories();
     this.loadBooks();
     this.studentService.getStudents().subscribe(s => (this.students = s || []));
   }
 
   /**
-   * Mirrors backend {@code AuthService.resolveJwtPermissions}: teachers get library actions only when
+   * Mirrors backend {@code EffectivePermissionService}: teachers get library actions only when
    * JWT includes LIBRARY_* (real API) or mock teacher row has {@link Teacher.libraryStaffRole}.
    */
   private applyTeacherLibraryAccess(): void {

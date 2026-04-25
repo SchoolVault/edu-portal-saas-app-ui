@@ -3,6 +3,7 @@ package com.school.erp.modules.reports.port;
 import com.school.erp.modules.reports.dto.ParentDashboardDtos;
 import com.school.erp.modules.reports.dto.ReportDashboardDTOs;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 import java.util.List;
 import java.util.Map;
@@ -19,6 +20,20 @@ public interface ReportQueryPort {
     Map<String, Object> getDashboardKPIs();
 
     ReportDashboardDTOs.AdminDashboardResponse getAdminDashboard();
+
+    Page<ReportDashboardDTOs.ActivityItem> getAdminRecentActivities(
+            String q,
+            String eventType,
+            String fromDate,
+            String toDate,
+            Pageable pageable);
+
+    Page<ReportDashboardDTOs.UpcomingEvent> getAdminUpcomingEvents(
+            String q,
+            String eventType,
+            String fromDate,
+            String toDate,
+            Pageable pageable);
 
     ReportDashboardDTOs.TeacherDashboardResponse getTeacherDashboard(String month);
 

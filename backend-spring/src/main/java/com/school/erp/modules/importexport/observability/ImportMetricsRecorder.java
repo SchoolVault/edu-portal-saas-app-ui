@@ -26,6 +26,8 @@ public class ImportMetricsRecorder {
     private final Counter dryRuns;
     private final Counter dryRunRowsValidated;
     private final Counter idempotentSubmitReplays;
+    private final Counter ledgerRowsWritten;
+    private final Counter createOnlyDuplicateStops;
     private final Timer jobDuration;
     private final AtomicInteger activeJobsGauge = new AtomicInteger(0);
 
@@ -53,6 +55,12 @@ public class ImportMetricsRecorder {
                 .register(registry);
         this.idempotentSubmitReplays = Counter.builder(METER_NS + ".submit.idempotent_replays")
                 .description("Submit API returned an existing in-flight job (same file + mapping)")
+                .register(registry);
+        this.ledgerRowsWritten = Counter.builder(METER_NS + ".ledger.rows_written")
+                .description("Per-row import ledger records persisted (success path)")
+                .register(registry);
+        this.createOnlyDuplicateStops = Counter.builder(METER_NS + ".dry_run.create_only_ratio_stop")
+                .description("Dry-run runs blocked by CREATE-only duplicate ratio guard")
                 .register(registry);
         this.jobDuration = Timer.builder(METER_NS + ".job.duration")
                 .description("Wall-clock time to process one import job end-to-end")
@@ -95,6 +103,16 @@ public class ImportMetricsRecorder {
 
     public void incrementIdempotentReplay() {
         idempotentSubmitReplays.increment();
+    }
+
+    public void incrementLedgerRowsWritten(int n) {
+        if (n > 0) {
+            ledgerRowsWritten.increment(n);
+        }
+    }
+
+    public void incrementCreateOnlyDuplicateStops() {
+        createOnlyDuplicateStops.increment();
     }
 
     public void recordJobDurationMs(long millis) {

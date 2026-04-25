@@ -133,6 +133,8 @@ export class ErpMonthPickerComponent
       clickOpens: !this.isDisabled,
       disableMobile: true,
       enableTime: false,
+      /** Keep popup anchored to its field in modal and non-modal layouts. */
+      position: 'auto left',
       /** Static month label path; monthSelect plugin removes the label—year row stays predictable. */
       monthSelectorType: 'static',
       defaultDate: this.parseYmToDate(this.value) ?? undefined,
@@ -348,4 +350,5 @@ export class ErpMonthPickerComponent
     });
     cal.appendChild(foot);
   }
+
 }

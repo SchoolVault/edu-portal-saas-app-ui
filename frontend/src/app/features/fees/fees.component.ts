@@ -1,8 +1,10 @@
 import { Component, OnInit, ChangeDetectorRef, DestroyRef, inject } from '@angular/core';
+import { Router } from '@angular/router';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FeeService } from '../../core/services/fee.service';
+import { SettingsService } from '../../core/services/settings.service';
 import { AcademicService } from '../../core/services/academic.service';
 import { AuthService } from '../../core/services/auth.service';
 import { filter } from 'rxjs/operators';
@@ -18,18 +20,28 @@ import {
   FeeComponent,
   FeeCollectionSummary,
   FeePayment,
+  FeeRefundDecisionRequest,
+  FeeRefundExecuteRequest,
+  FeeRefundRequest,
   FeeStructure,
+  FeeTransaction,
   SchoolClass,
   Section,
 } from '../../core/models/models';
 import { ConfirmDialogService } from '../../shared/confirm-dialog/confirm-dialog.service';
 import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directives';
+import { buildCsvSchoolLine, downloadCsvDocument } from '../../core/utils/csv-export.util';
 
 @Component({
   selector: 'app-fees',
   standalone: true,
   imports: [CommonModule, FormsModule, TranslateModule, SchoolClassNamePipe, ErpPaginationComponent, ErpI18nPhDirective],
   styles: [`
+    .fees-page {
+      width: 100%;
+      max-width: 100%;
+      min-width: 0;
+    }
     .fees-page-header {
       margin-bottom: 1.1rem;
     }
@@ -77,6 +89,15 @@ import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directiv
       border-radius: 14px;
       border: 1px solid color-mix(in srgb, var(--clr-border) 88%, var(--clr-primary) 12%);
       box-shadow: var(--shadow-sm);
+    }
+    .fees-structure-total {
+      font-size: 18px;
+      font-weight: 800;
+      font-family: var(--font-heading, inherit);
+      line-height: 1.1;
+      letter-spacing: 0.01em;
+      color: color-mix(in srgb, var(--clr-success) 68%, var(--clr-text) 32%);
+      text-shadow: 0 0 0.01px currentColor;
     }
     .fees-toolbar {
       display: flex;
@@ -152,6 +173,7 @@ import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directiv
       border: 1px solid var(--clr-border-light);
       border-radius: 12px;
       overflow: auto;
+      -webkit-overflow-scrolling: touch;
       background: var(--clr-surface);
     }
     .fees-table-wrap .erp-table thead th {
@@ -169,9 +191,25 @@ import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directiv
       font-weight: 700;
       white-space: nowrap;
     }
-    .fees-cell-paid {
-      color: var(--clr-success);
+    .fees-cell-amount {
       font-weight: 700;
+      color: color-mix(in srgb, var(--clr-text) 90%, var(--clr-primary) 10%);
+      font-variant-numeric: tabular-nums;
+    }
+    .fees-cell-paid {
+      font-weight: 700;
+      color: color-mix(in srgb, var(--clr-success) 72%, var(--clr-text) 28%);
+      font-variant-numeric: tabular-nums;
+    }
+    .fees-cell-due {
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+    }
+    .fees-cell-due--pending {
+      color: color-mix(in srgb, var(--clr-danger) 78%, var(--clr-text) 22%);
+    }
+    .fees-cell-due--clear {
+      color: color-mix(in srgb, var(--clr-success) 76%, var(--clr-text) 24%);
     }
     .fees-actions {
       white-space: nowrap;
@@ -185,6 +223,241 @@ import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directiv
     .fees-btn-reminder,
     .fees-btn-collect {
       border-radius: 999px;
+    }
+    .fees-btn-refund {
+      border-radius: 999px;
+      border-color: color-mix(in srgb, var(--clr-info) 28%, var(--clr-border));
+      color: color-mix(in srgb, var(--clr-info) 82%, var(--clr-text) 18%);
+    }
+    .fees-actions .btn-outline-erp,
+    .fees-actions .btn-primary-erp,
+    .fees-toolbar-actions .btn-outline-erp,
+    .fees-tx-filter .btn-outline-erp,
+    .fees-reminder-alert__close {
+      transition: transform 140ms ease, box-shadow 160ms ease, background-color 160ms ease, border-color 160ms ease, color 160ms ease;
+    }
+    .fees-actions .btn-outline-erp:hover,
+    .fees-actions .btn-primary-erp:hover,
+    .fees-toolbar-actions .btn-outline-erp:hover,
+    .fees-tx-filter .btn-outline-erp:hover {
+      transform: translateY(-1px);
+      box-shadow: var(--shadow-sm);
+    }
+    .fees-actions .btn-outline-erp:active,
+    .fees-actions .btn-primary-erp:active,
+    .fees-toolbar-actions .btn-outline-erp:active,
+    .fees-tx-filter .btn-outline-erp:active {
+      transform: translateY(0);
+    }
+    .fees-actions .btn-outline-erp:focus-visible,
+    .fees-actions .btn-primary-erp:focus-visible,
+    .fees-toolbar-actions .btn-outline-erp:focus-visible,
+    .fees-tx-filter .btn-outline-erp:focus-visible,
+    .fees-reminder-alert__close:focus-visible {
+      outline: 0;
+      box-shadow: 0 0 0 3px color-mix(in srgb, var(--clr-primary) 34%, transparent);
+    }
+    .fees-ledger-split {
+      display: grid;
+      grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+      gap: 14px;
+      align-items: start;
+    }
+    .fees-ledger-block {
+      border: 1px solid var(--clr-border-light);
+      border-radius: 14px;
+      padding: 12px;
+      background: color-mix(in srgb, var(--clr-surface) 96%, var(--clr-surface-muted) 4%);
+      min-width: 0;
+    }
+    .fees-ledger-block h5 {
+      font-size: 14px;
+      font-weight: 800;
+      margin: 0 0 10px;
+      letter-spacing: 0.01em;
+    }
+    .fees-tx-timeline {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      max-height: 360px;
+      overflow: auto;
+      padding-right: 4px;
+    }
+    .fees-tx-filter {
+      display: inline-flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      margin: 0 0 8px;
+    }
+    .fees-tx-filter .btn-outline-erp.btn-xs {
+      border-radius: 999px;
+      padding-inline: 10px;
+      font-size: 11px;
+      font-weight: 700;
+    }
+    .fees-tx-filter .btn-outline-erp.btn-xs.active {
+      background: color-mix(in srgb, var(--clr-primary) 14%, var(--clr-surface));
+      border-color: color-mix(in srgb, var(--clr-primary) 30%, var(--clr-border));
+      color: color-mix(in srgb, var(--clr-primary) 80%, var(--clr-text));
+    }
+    .fees-tx-item {
+      border: 1px solid var(--clr-border-light);
+      border-radius: 12px;
+      padding: 10px 11px;
+      background: var(--clr-surface);
+      box-shadow: var(--shadow-sm);
+      position: relative;
+      transition: transform 140ms ease, box-shadow 160ms ease, border-color 160ms ease;
+    }
+    .fees-tx-item::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 10px;
+      bottom: 10px;
+      width: 3px;
+      border-radius: 99px;
+      background: color-mix(in srgb, var(--clr-primary) 50%, var(--clr-border));
+    }
+    .fees-tx-item__head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 6px;
+      font-size: 12.5px;
+      font-weight: 800;
+    }
+    .fees-tx-item__title {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      min-width: 0;
+    }
+    .fees-tx-item__title i {
+      font-size: 13px;
+    }
+    .fees-tx-item__title span {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .fees-tx-item__meta {
+      font-size: 11.5px;
+      color: var(--clr-text-muted);
+      line-height: 1.45;
+      word-break: break-word;
+      display: grid;
+      gap: 2px;
+    }
+    .fees-tx-item:hover {
+      transform: translateY(-1px);
+      border-color: color-mix(in srgb, var(--clr-primary) 30%, var(--clr-border-light));
+      box-shadow: var(--shadow-md);
+    }
+    .fees-refund-panel {
+      border-top: 1px dashed var(--clr-border);
+      margin-top: 12px;
+      padding-top: 12px;
+    }
+    .fees-refund-panel .erp-input,
+    .fees-refund-panel .erp-textarea {
+      width: 100%;
+    }
+    .fees-refund-panel .btn-outline-erp.btn-sm {
+      min-width: 160px;
+      border-radius: 999px;
+      font-weight: 700;
+    }
+    .fees-reminder-alert {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .fees-reminder-alert__text {
+      min-width: 0;
+      word-break: break-word;
+    }
+    .fees-reminder-alert__close {
+      border: 0;
+      background: transparent;
+      padding: 0;
+      line-height: 1;
+      font-size: 16px;
+      opacity: 0.72;
+      cursor: pointer;
+      color: inherit;
+    }
+    .fees-reminder-alert__close:hover {
+      opacity: 1;
+      transform: scale(1.03);
+    }
+    .fees-ledger-table-wrap {
+      overflow: auto;
+      border: 1px solid var(--clr-border-light);
+      border-radius: 12px;
+    }
+    .fees-ledger-table-wrap .erp-table {
+      margin-bottom: 0;
+    }
+    .fees-ledger-modal {
+      width: min(calc(100vw - 16px), 940px);
+      max-width: 940px !important;
+    }
+    .fees-ledger-modal-body {
+      max-height: min(78vh, 720px);
+      overflow: auto;
+    }
+    .fees-ledger-modal .modal-header-erp h3 {
+      font-size: 28px;
+      line-height: 1.15;
+    }
+    .fees-ledger-modal .modal-footer-erp .btn-outline-erp {
+      border-radius: 999px;
+      min-width: 120px;
+    }
+    .fees-empty-state {
+      border: 1px dashed var(--clr-border);
+      border-radius: 12px;
+      padding: 14px 12px;
+      background: color-mix(in srgb, var(--clr-surface-muted) 70%, var(--clr-surface) 30%);
+      text-align: center;
+      color: var(--clr-text-muted);
+      font-size: 12.5px;
+      line-height: 1.45;
+    }
+    .fees-empty-state i {
+      display: inline-block;
+      margin-right: 6px;
+      color: color-mix(in srgb, var(--clr-primary) 66%, var(--clr-text-muted) 34%);
+    }
+    .fees-refund-toast {
+      border-radius: 10px;
+      padding: 8px 10px;
+      font-size: 12px;
+      line-height: 1.4;
+      margin: 0 0 10px;
+      border: 1px solid var(--clr-border-light);
+      background: var(--clr-surface-muted);
+      color: var(--clr-text);
+    }
+    .fees-refund-toast--ok {
+      border-color: color-mix(in srgb, var(--clr-success) 30%, var(--clr-border));
+      background: color-mix(in srgb, var(--clr-success) 10%, var(--clr-surface));
+      color: color-mix(in srgb, var(--clr-success) 86%, var(--clr-text) 14%);
+    }
+    .fees-refund-toast--err {
+      border-color: color-mix(in srgb, var(--clr-danger) 34%, var(--clr-border));
+      background: color-mix(in srgb, var(--clr-danger) 10%, var(--clr-surface));
+      color: color-mix(in srgb, var(--clr-danger) 86%, var(--clr-text) 14%);
+    }
+    .fees-refund-panel .erp-label {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      font-weight: 700;
     }
     [data-theme='dark'] .fees-payments-shell,
     [data-theme='dark'] .fees-kpi-grid .erp-card,
@@ -200,8 +473,55 @@ import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directiv
         color-mix(in srgb, var(--clr-surface-alt) 96%, #0b1220)
       );
     }
+    [data-theme='dark'] .fees-structure-total {
+      color: color-mix(in srgb, var(--clr-success) 84%, #ffffff 16%);
+      text-shadow: 0 1px 10px color-mix(in srgb, var(--clr-success) 22%, transparent);
+    }
     [data-theme='dark'] .fees-toolbar {
       border-bottom-color: color-mix(in srgb, var(--clr-primary) 20%, var(--clr-border));
+    }
+    [data-theme='dark'] .fees-cell-amount {
+      color: color-mix(in srgb, var(--clr-text) 88%, #ffffff 12%);
+    }
+    [data-theme='dark'] .fees-cell-paid {
+      color: color-mix(in srgb, var(--clr-success) 86%, #ffffff 14%);
+      text-shadow: 0 1px 8px color-mix(in srgb, var(--clr-success) 18%, transparent);
+    }
+    [data-theme='dark'] .fees-cell-due--pending {
+      color: color-mix(in srgb, var(--clr-danger) 84%, #ffffff 16%);
+    }
+    [data-theme='dark'] .fees-cell-due--clear {
+      color: color-mix(in srgb, var(--clr-success) 84%, #ffffff 16%);
+    }
+    [data-theme='dark'] .fees-ledger-block {
+      border-color: color-mix(in srgb, var(--clr-primary) 20%, var(--clr-border));
+      background: color-mix(in srgb, var(--clr-surface) 95%, #0b1220);
+    }
+    [data-theme='dark'] .fees-tx-item {
+      border-color: color-mix(in srgb, var(--clr-primary) 18%, var(--clr-border));
+      background: color-mix(in srgb, var(--clr-surface) 93%, #0b1220);
+    }
+    [data-theme='dark'] .fees-tx-filter .btn-outline-erp.btn-xs.active {
+      background: color-mix(in srgb, var(--clr-primary) 26%, var(--clr-surface));
+      border-color: color-mix(in srgb, var(--clr-primary) 42%, var(--clr-border));
+      color: color-mix(in srgb, #ffffff 78%, var(--clr-primary) 22%);
+    }
+    [data-theme='dark'] .fees-refund-toast--ok {
+      background: color-mix(in srgb, var(--clr-success) 18%, var(--clr-surface));
+      color: color-mix(in srgb, #ffffff 78%, var(--clr-success) 22%);
+    }
+    [data-theme='dark'] .fees-refund-toast--err {
+      background: color-mix(in srgb, var(--clr-danger) 20%, var(--clr-surface));
+      color: color-mix(in srgb, #ffffff 76%, var(--clr-danger) 24%);
+    }
+    @media (max-width: 480px) {
+      .fees-page-title {
+        font-size: 1.15rem;
+      }
+      .fees-kpi-grid > [class*='col-'] {
+        flex: 0 0 100%;
+        max-width: 100%;
+      }
     }
     @media (max-width: 768px) {
       .fees-page-header {
@@ -235,12 +555,34 @@ import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directiv
       .fees-table-wrap .erp-table {
         min-width: 860px;
       }
+      .fees-ledger-split {
+        grid-template-columns: 1fr;
+      }
+      .fees-refund-panel .btn-outline-erp.btn-sm {
+        width: 100%;
+      }
+    }
+    @media (max-width: 1180px) {
+      .fees-ledger-split {
+        grid-template-columns: 1fr;
+      }
     }
   `],
   template: `
-    <div data-testid="fees-page">
+    <div class="fees-page" data-testid="fees-page">
       <div *ngIf="operationMessage" class="alert py-2 small mb-3" [class.alert-success]="operationMessageOk" [class.alert-danger]="!operationMessageOk">
         {{ operationMessage }}
+      </div>
+      <div
+        *ngIf="isAdmin && feeFinanceBannerVisible"
+        class="alert py-2 small mb-3 d-flex flex-wrap align-items-center justify-content-between gap-2"
+        style="background: color-mix(in srgb, var(--clr-info) 10%, var(--clr-surface)); border: 1px solid color-mix(in srgb, var(--clr-info) 26%, var(--clr-border));"
+        role="status"
+      >
+        <span class="fees-reminder-alert__text mb-0">{{ 'fees.bannerParentCheckoutOff' | translate }}</span>
+        <button type="button" class="btn-outline-erp btn-sm text-nowrap" (click)="goToFeeSettlementSettings()">
+          {{ 'fees.bannerParentCheckoutOffCta' | translate }}
+        </button>
       </div>
       <div class="d-flex justify-content-between align-items-center animate-in flex-wrap gap-2 fees-page-header">
         <div>
@@ -250,6 +592,9 @@ import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directiv
         <div class="d-flex gap-2 flex-wrap fees-toolbar-stack">
           <button type="button" class="btn-outline-erp btn-sm" (click)="refreshAll()" [disabled]="refreshing">
             <i class="bi bi-arrow-clockwise"></i> {{ refreshing ? ('fees.refreshing' | translate) : ('fees.refresh' | translate) }}
+          </button>
+          <button *ngIf="isAdmin" type="button" class="btn-outline-erp btn-sm" (click)="goToFeeSettlementSettings()">
+            <i class="bi bi-bank2 me-1"></i>{{ 'fees.linkPaymentSettlement' | translate }}
           </button>
           <button *ngIf="isAdmin" type="button" class="btn-primary-erp btn-sm" (click)="openStructureModal()">
             <i class="bi bi-plus-lg"></i> {{ 'fees.newStructure' | translate }}
@@ -276,7 +621,7 @@ import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directiv
             <div class="erp-card h-100" [attr.data-testid]="'fee-structure-' + fs.id">
               <div class="d-flex justify-content-between align-items-start mb-2">
                 <h4 style="font-size: 15px; font-weight: 700;">{{ fs.name }}</h4>
-                <span style="font-size: 18px; font-weight: 800; color: var(--clr-primary); font-family: var(--font-heading);">₹{{ fs.totalAmount | number:'1.0-0':'en-IN' }}</span>
+                <span class="fees-structure-total">₹{{ fs.totalAmount | number:'1.0-0':'en-IN' }}</span>
               </div>
               <div class="text-muted small mb-2">{{ fs.className | schoolClassName }} · {{ 'fees.yearPrefix' | translate }} {{ fs.academicYearId }}</div>
               <div *ngFor="let comp of fs.components" class="d-flex justify-content-between align-items-center" style="padding: 6px 0; border-bottom: 1px solid var(--clr-border-light); font-size: 13px;">
@@ -306,8 +651,11 @@ import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directiv
       </div>
 
       <div *ngIf="tab === 'payments'" class="animate-in">
-        <div *ngIf="reminderMessage" class="alert py-2 small mb-2" [class.alert-success]="reminderMessageOk" [class.alert-danger]="!reminderMessageOk">
-          {{ reminderMessage }}
+        <div *ngIf="reminderMessage" class="alert py-2 small mb-2 fees-reminder-alert" [class.alert-success]="reminderMessageOk" [class.alert-danger]="!reminderMessageOk">
+          <span class="fees-reminder-alert__text">{{ reminderMessage }}</span>
+          <button type="button" class="fees-reminder-alert__close" (click)="clearReminderMessage()" [attr.aria-label]="'fees.close' | translate">
+            <i class="bi bi-x-lg"></i>
+          </button>
         </div>
         <div class="row g-2 mb-3 fees-kpi-grid" *ngIf="isAdmin">
           <div class="col-6 col-md-3">
@@ -394,9 +742,9 @@ import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directiv
               <tbody>
                 <tr *ngFor="let p of displayPaymentsPage" [attr.data-testid]="'payment-row-' + p.id">
                   <td class="fees-cell-student">{{ p.studentName }}</td>
-                  <td>₹{{ p.amount | number:'1.0-0':'en-IN' }}</td>
+                  <td class="fees-cell-amount">₹{{ p.amount | number:'1.0-0':'en-IN' }}</td>
                   <td class="fees-cell-paid">₹{{ p.paidAmount | number:'1.0-0':'en-IN' }}</td>
-                  <td [style.color]="p.dueAmount > 0 ? 'var(--clr-danger)' : 'var(--clr-success)'">₹{{ p.dueAmount | number:'1.0-0':'en-IN' }}</td>
+                  <td class="fees-cell-due" [ngClass]="p.dueAmount > 0 ? 'fees-cell-due--pending' : 'fees-cell-due--clear'">₹{{ p.dueAmount | number:'1.0-0':'en-IN' }}</td>
                   <td>{{ p.dueDate }}</td>
                   <td>
                     <span class="badge-erp" [ngClass]="{'badge-success': p.status === 'paid', 'badge-warning': p.status === 'partial', 'badge-danger': p.status === 'overdue', 'badge-neutral': p.status === 'unpaid'}">
@@ -407,6 +755,14 @@ import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directiv
                   <td class="fees-actions">
                     <button type="button" class="btn-outline-erp btn-xs fees-btn-ledger" (click)="openStudentLedgerModal(p)">
                       {{ 'fees.viewLedger' | translate }}
+                    </button>
+                    <button
+                      *ngIf="isAdmin && p.paidAmount > 0"
+                      type="button"
+                      class="btn-outline-erp btn-xs fees-btn-refund"
+                      (click)="openRefundPanel(p)"
+                    >
+                      {{ 'fees.refund' | translate }}
                     </button>
                     <button
                       *ngIf="isAdmin && p.dueAmount > 0"
@@ -572,36 +928,102 @@ import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directiv
     </div>
 
     <div class="modal-overlay" *ngIf="studentLedgerModal" (click)="closeStudentLedgerModal()">
-      <div class="modal-content-erp modal-lg" style="max-width: 760px;" (click)="$event.stopPropagation()">
+      <div class="modal-content-erp modal-lg fees-ledger-modal" (click)="$event.stopPropagation()">
         <div class="modal-header-erp">
           <h3>{{ 'fees.ledgerTitle' | translate: { name: ledgerStudentName } }}</h3>
           <button type="button" class="btn-icon" (click)="closeStudentLedgerModal()"><i class="bi bi-x-lg"></i></button>
         </div>
-        <div class="modal-body-erp">
+        <div class="modal-body-erp fees-ledger-modal-body">
           <div *ngIf="ledgerLoading" class="small text-muted">{{ 'fees.loadingLedger' | translate }}</div>
-          <table *ngIf="!ledgerLoading && ledgerRows.length" class="erp-table">
-            <thead>
-              <tr>
-                <th>{{ 'fees.thAmount' | translate }}</th>
-                <th>{{ 'fees.thPaid' | translate }}</th>
-                <th>{{ 'fees.thDue' | translate }}</th>
-                <th>{{ 'fees.thDueDate' | translate }}</th>
-                <th>{{ 'fees.thStatus' | translate }}</th>
-                <th>{{ 'fees.thReceipt' | translate }}</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr *ngFor="let row of ledgerRows">
-                <td>₹{{ row.amount | number:'1.0-0':'en-IN' }}</td>
-                <td>₹{{ row.paidAmount | number:'1.0-0':'en-IN' }}</td>
-                <td>₹{{ row.dueAmount | number:'1.0-0':'en-IN' }}</td>
-                <td>{{ row.dueDate }}</td>
-                <td>{{ feeStatusLabel(row.status) }}</td>
-                <td>{{ row.receiptNumber || '-' }}</td>
-              </tr>
-            </tbody>
-          </table>
-          <p *ngIf="!ledgerLoading && !ledgerRows.length" class="small text-muted mb-0">{{ 'fees.emptyLedger' | translate }}</p>
+          <div *ngIf="!ledgerLoading" class="fees-ledger-split">
+            <div class="fees-ledger-block">
+              <h5>{{ 'fees.ledgerSummaryTitle' | translate }}</h5>
+              <div *ngIf="ledgerRows.length" class="fees-ledger-table-wrap">
+                <table class="erp-table">
+                  <thead>
+                    <tr>
+                      <th>{{ 'fees.thAmount' | translate }}</th>
+                      <th>{{ 'fees.thPaid' | translate }}</th>
+                      <th>{{ 'fees.thDue' | translate }}</th>
+                      <th>{{ 'fees.thDueDate' | translate }}</th>
+                      <th>{{ 'fees.thStatus' | translate }}</th>
+                      <th>{{ 'fees.thReceipt' | translate }}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr *ngFor="let row of ledgerRows" (click)="selectLedgerRow(row)" [class.table-active]="ledgerSelectedPaymentId === row.id" style="cursor: pointer;">
+                      <td>₹{{ row.amount | number:'1.0-0':'en-IN' }}</td>
+                      <td>₹{{ row.paidAmount | number:'1.0-0':'en-IN' }}</td>
+                      <td>₹{{ row.dueAmount | number:'1.0-0':'en-IN' }}</td>
+                      <td>{{ row.dueDate }}</td>
+                      <td>{{ feeStatusLabel(row.status) }}</td>
+                      <td>{{ row.receiptNumber || '-' }}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <div *ngIf="!ledgerRows.length" class="fees-empty-state">
+                <i class="bi bi-receipt-cutoff"></i>{{ 'fees.emptyLedger' | translate }}
+              </div>
+            </div>
+
+            <div class="fees-ledger-block">
+              <h5>{{ 'fees.txTimelineTitle' | translate }}</h5>
+              <div class="fees-tx-filter" *ngIf="ledgerTransactions.length">
+                <button type="button" class="btn-outline-erp btn-xs" [class.active]="txFilter === 'all'" (click)="setTxFilter('all')">{{ 'fees.txFilterAll' | translate }}</button>
+                <button type="button" class="btn-outline-erp btn-xs" [class.active]="txFilter === 'payment'" (click)="setTxFilter('payment')">{{ 'fees.txFilterPayments' | translate }}</button>
+                <button type="button" class="btn-outline-erp btn-xs" [class.active]="txFilter === 'refund'" (click)="setTxFilter('refund')">{{ 'fees.txFilterRefunds' | translate }}</button>
+              </div>
+              <div class="fees-tx-timeline" *ngIf="filteredLedgerTransactions.length; else emptyTimeline">
+                <div class="fees-tx-item" *ngFor="let tx of filteredLedgerTransactions">
+                  <div class="fees-tx-item__head">
+                    <span class="fees-tx-item__title"><i class="bi" [ngClass]="txIconClass(tx)"></i><span>{{ txLabel(tx) }}</span></span>
+                    <span>₹{{ tx.amount | number:'1.0-0':'en-IN' }}</span>
+                  </div>
+                  <div class="fees-tx-item__meta">
+                    <div *ngIf="tx.eventStatus">{{ 'fees.txState' | translate }}: {{ tx.eventStatus }}</div>
+                    <div *ngIf="tx.referenceId">{{ 'fees.txRef' | translate }}: {{ tx.referenceId }}</div>
+                    <div *ngIf="tx.providerPaymentId">{{ 'fees.txProviderRef' | translate }}: {{ tx.providerPaymentId }}</div>
+                    <div *ngIf="tx.occurredAt">{{ tx.occurredAt | date:'medium' }}</div>
+                    <div *ngIf="tx.note">{{ tx.note }}</div>
+                  </div>
+                  <div class="d-flex gap-2 mt-2" *ngIf="isAdmin">
+                    <button
+                      *ngIf="tx.eventType === 'REFUND_REQUESTED'"
+                      type="button"
+                      class="btn-outline-erp btn-xs"
+                      (click)="approveRefund(tx)"
+                    >{{ 'fees.refundApprove' | translate }}</button>
+                    <button
+                      *ngIf="tx.eventType === 'REFUND_APPROVED'"
+                      type="button"
+                      class="btn-outline-erp btn-xs"
+                      (click)="executeRefund(tx)"
+                    >{{ 'fees.refundExecute' | translate }}</button>
+                  </div>
+                </div>
+              </div>
+              <ng-template #emptyTimeline>
+                <div class="fees-empty-state">
+                  <i class="bi bi-clock-history"></i>{{ 'fees.txTimelineEmpty' | translate }}
+                </div>
+              </ng-template>
+
+              <div class="fees-refund-panel" *ngIf="isAdmin && refundTargetPayment">
+                <div *ngIf="refundNotice" class="fees-refund-toast" [class.fees-refund-toast--ok]="refundNoticeOk" [class.fees-refund-toast--err]="!refundNoticeOk">
+                  {{ refundNotice }}
+                </div>
+                <label class="erp-label">{{ 'fees.refundAmountLabel' | translate }}</label>
+                <input class="erp-input mb-2" type="number" min="1" step="1" [(ngModel)]="refundAmount" />
+                <label class="erp-label">{{ 'fees.refundReasonLabel' | translate }}</label>
+                <textarea class="erp-input erp-textarea mb-2" rows="2" [(ngModel)]="refundReason"></textarea>
+                <p *ngIf="refundError" class="small text-danger mb-2">{{ refundError }}</p>
+                <button type="button" class="btn-outline-erp btn-sm" [disabled]="refundSaving" (click)="requestRefund()">
+                  {{ refundSaving ? ('fees.refundSaving' | translate) : ('fees.refundRequest' | translate) }}
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
         <div class="modal-footer-erp">
           <button *ngIf="ledgerRows.length" type="button" class="btn-outline-erp" (click)="exportStudentLedgerCsv()">{{ 'fees.exportLedger' | translate }}</button>
@@ -687,6 +1109,16 @@ export class FeesComponent implements OnInit {
   ledgerLoading = false;
   ledgerRows: FeePayment[] = [];
   ledgerStudentName = '';
+  ledgerSelectedPaymentId: number | null = null;
+  ledgerTransactions: FeeTransaction[] = [];
+  txFilter: 'all' | 'payment' | 'refund' = 'all';
+  refundTargetPayment: FeePayment | null = null;
+  refundAmount = 0;
+  refundReason = '';
+  refundSaving = false;
+  refundError = '';
+  refundNotice = '';
+  refundNoticeOk = true;
   collectPaymentModal = false;
   collectTargetPayment: FeePayment | null = null;
   collectAmount = 0;
@@ -697,6 +1129,9 @@ export class FeesComponent implements OnInit {
   operationMessageOk = true;
   reminderMessage = '';
   reminderMessageOk = true;
+  private reminderMessageTimer: ReturnType<typeof setTimeout> | null = null;
+  /** After load: OFFLINE means counter collection; parent portal hides gateway checkout. */
+  feeSettlementMode: string | null = null;
 
   componentTypeIds = ['tuition', 'transport', 'hostel', 'uniform', 'library', 'lab', 'sports', 'misc'] as const;
 
@@ -706,11 +1141,21 @@ export class FeesComponent implements OnInit {
     private feeService: FeeService,
     private academicService: AcademicService,
     private auth: AuthService,
+    private router: Router,
     private confirmDialog: ConfirmDialogService,
     private translate: TranslateService,
-    private cdr: ChangeDetectorRef
+    private cdr: ChangeDetectorRef,
+    private settingsService: SettingsService
   ) {
     this.structureForm = this.emptyStructureForm();
+    this.destroyRef.onDestroy(() => {
+      if (this.paymentSearchTimer) {
+        clearTimeout(this.paymentSearchTimer);
+      }
+      if (this.reminderMessageTimer) {
+        clearTimeout(this.reminderMessageTimer);
+      }
+    });
   }
 
   get draftTotal(): number {
@@ -756,6 +1201,10 @@ export class FeesComponent implements OnInit {
     return this.collectionRatePct;
   }
 
+  get feeFinanceBannerVisible(): boolean {
+    return (this.feeSettlementMode || '').toUpperCase() === 'OFFLINE_SCHOOL_COLLECTION';
+  }
+
   ngOnInit(): void {
     this.translate.onLangChange.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => this.cdr.markForCheck());
 
@@ -765,12 +1214,39 @@ export class FeesComponent implements OnInit {
     this.loadStructures();
     this.loadPaymentsPage();
     this.loadCollectionSummary();
+    this.refreshFeeFinanceBanner();
+  }
+
+  /** Deep link to Settings → Finance & payments → Fee settlement (Razorpay Route). */
+  goToFeeSettlementSettings(): void {
+    void this.router.navigate(['/app/settings'], {
+      queryParams: { settingsTab: 'finance', financeHub: 'settlement' },
+    });
+  }
+
+  /** Loads tenant finance flag for admin banner (parent online checkout). */
+  private refreshFeeFinanceBanner(): void {
+    if (!this.isAdmin) {
+      this.feeSettlementMode = null;
+      return;
+    }
+    this.settingsService.getFinanceProfile().subscribe({
+      next: p => {
+        this.feeSettlementMode = (p.feeSettlementMode || '').trim();
+        this.cdr.markForCheck();
+      },
+      error: () => {
+        this.feeSettlementMode = null;
+        this.cdr.markForCheck();
+      },
+    });
   }
 
   refreshAll(): void {
     this.refreshing = true;
     this.academicService.getClasses().subscribe(c => (this.classes = c || []));
     this.academicService.getAcademicYears().subscribe(y => (this.academicYears = y || []));
+    this.refreshFeeFinanceBanner();
     this.feeService.getFeeStructures().subscribe({
       next: fs => {
         this.feeStructures = fs;
@@ -1086,10 +1562,16 @@ export class FeesComponent implements OnInit {
     this.ledgerStudentName = payment.studentName;
     this.studentLedgerModal = true;
     this.ledgerRows = [];
+    this.ledgerTransactions = [];
+    this.ledgerSelectedPaymentId = null;
+    this.refundTargetPayment = null;
     this.ledgerLoading = true;
     this.feeService.getStudentPayments(payment.studentId).subscribe({
       next: rows => {
         this.ledgerRows = rows || [];
+        if (this.ledgerRows.length) {
+          this.selectLedgerRow(this.ledgerRows[0]);
+        }
         this.ledgerLoading = false;
       },
       error: () => {
@@ -1099,16 +1581,12 @@ export class FeesComponent implements OnInit {
     });
   }
 
-  private downloadCsv(filename: string, headers: string[], rows: (string | number)[][]): void {
-    const esc = (v: string | number) => `"${String(v ?? '').replace(/"/g, '""')}"`;
-    const body = [headers.map(esc).join(','), ...rows.map(r => r.map(esc).join(','))].join('\n');
-    const blob = new Blob([body], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    a.click();
-    URL.revokeObjectURL(url);
+  private feeCsvMeta(documentTitleKey: string) {
+    const sm = this.auth.getProfileSummarySnapshot();
+    return {
+      documentTitle: this.translate.instant(documentTitleKey),
+      schoolLine: buildCsvSchoolLine(sm?.schoolName, sm?.schoolCode),
+    };
   }
 
   exportPaymentsCsv(): void {
@@ -1122,10 +1600,12 @@ export class FeesComponent implements OnInit {
       r.receiptNumber || '',
       r.paymentMethod || '',
     ]);
-    this.downloadCsv(
+    const headers = ['student', 'amount', 'paid', 'due', 'dueDate', 'status', 'receipt', 'paymentMethod'];
+    const table: string[][] = [headers, ...rows.map(r => r.map(c => String(c ?? '')))];
+    downloadCsvDocument(
       `fees-payment-records-${new Date().toISOString().slice(0, 10)}.csv`,
-      ['student', 'amount', 'paid', 'due', 'dueDate', 'status', 'receipt', 'paymentMethod'],
-      rows
+      this.feeCsvMeta('fees.csvDocumentTitle.paymentRecords'),
+      table
     );
   }
 
@@ -1140,10 +1620,12 @@ export class FeesComponent implements OnInit {
       r.receiptNumber || '',
       r.paymentMethod || '',
     ]);
-    this.downloadCsv(
-      `student-payment-history-${(this.ledgerStudentName || 'student').replace(/\s+/g, '-').toLowerCase()}.csv`,
-      ['student', 'amount', 'paid', 'due', 'dueDate', 'status', 'receipt', 'paymentMethod'],
-      rows
+    const headers = ['student', 'amount', 'paid', 'due', 'dueDate', 'status', 'receipt', 'paymentMethod'];
+    const table: string[][] = [headers, ...rows.map(r => r.map(c => String(c ?? '')))];
+    downloadCsvDocument(
+      `student-payment-history-${(this.ledgerStudentName || 'student').replace(/\s+/g, '-').toLowerCase()}-${new Date().toISOString().slice(0, 10)}.csv`,
+      this.feeCsvMeta('fees.csvDocumentTitle.studentLedger'),
+      table
     );
   }
 
@@ -1151,7 +1633,160 @@ export class FeesComponent implements OnInit {
     this.studentLedgerModal = false;
     this.ledgerLoading = false;
     this.ledgerRows = [];
+    this.ledgerTransactions = [];
+    this.ledgerSelectedPaymentId = null;
     this.ledgerStudentName = '';
+    this.refundTargetPayment = null;
+    this.refundAmount = 0;
+    this.refundReason = '';
+    this.refundSaving = false;
+    this.refundError = '';
+    this.refundNotice = '';
+    this.txFilter = 'all';
+  }
+
+  selectLedgerRow(row: FeePayment): void {
+    this.ledgerSelectedPaymentId = row.id;
+    this.refundTargetPayment = row;
+    this.refundAmount = Math.max(0, Math.floor(Number(row.paidAmount || 0)));
+    this.refundReason = '';
+    this.refundError = '';
+    this.refundNotice = '';
+    this.feeService.getPaymentTransactions(row.id).subscribe({
+      next: tx => {
+        this.ledgerTransactions = tx || [];
+      },
+      error: () => {
+        this.ledgerTransactions = [];
+      },
+    });
+  }
+
+  openRefundPanel(payment: FeePayment): void {
+    this.openStudentLedgerModal(payment);
+    this.refundTargetPayment = payment;
+    this.refundAmount = Math.max(0, Math.floor(Number(payment.paidAmount || 0)));
+    this.refundNotice = '';
+  }
+
+  requestRefund(): void {
+    const payment = this.refundTargetPayment;
+    if (!payment) return;
+    const amount = Number(this.refundAmount) || 0;
+    if (amount <= 0) {
+      this.refundError = this.translate.instant('fees.refundAmountInvalid');
+      return;
+    }
+    if (amount > Number(payment.paidAmount || 0)) {
+      this.refundError = this.translate.instant('fees.refundAmountTooHigh');
+      return;
+    }
+    const payload: FeeRefundRequest = {
+      amount,
+      reason: this.refundReason?.trim() || undefined,
+      operationKey: this.nextOperationKey('refund-request', payment.id),
+    };
+    this.refundSaving = true;
+    this.refundError = '';
+    this.refundNotice = '';
+    this.feeService.requestRefund(payment.id, payload).subscribe({
+      next: () => {
+        this.refundSaving = false;
+        this.refundNotice = this.translate.instant('fees.refundRequestedToast');
+        this.refundNoticeOk = true;
+        this.selectLedgerRow(payment);
+        this.loadPaymentsPage();
+      },
+      error: (e: Error) => {
+        this.refundSaving = false;
+        this.refundError = e?.message || this.translate.instant('fees.refundRequestFailed');
+        this.refundNotice = this.translate.instant('fees.refundRequestFailed');
+        this.refundNoticeOk = false;
+      },
+    });
+  }
+
+  approveRefund(tx: FeeTransaction): void {
+    const payload: FeeRefundDecisionRequest = {
+      operationKey: this.nextOperationKey('refund-approve', tx.id),
+      note: this.translate.instant('fees.refundApprovedNote'),
+    };
+    this.feeService.approveRefund(tx.id, payload).subscribe({
+      next: () => {
+        this.refundNotice = this.translate.instant('fees.refundApprovedToast');
+        this.refundNoticeOk = true;
+        this.refreshLedgerTransactions();
+      },
+      error: () => {
+        this.refundError = this.translate.instant('fees.refundApproveFailed');
+        this.refundNotice = this.translate.instant('fees.refundApproveFailed');
+        this.refundNoticeOk = false;
+      },
+    });
+  }
+
+  executeRefund(tx: FeeTransaction): void {
+    const payload: FeeRefundExecuteRequest = {
+      providerRefundId: `manual-${tx.id}-${Date.now()}`,
+      operationKey: this.nextOperationKey('refund-execute', tx.id),
+      note: this.translate.instant('fees.refundExecutedNote'),
+    };
+    this.feeService.executeRefund(tx.id, payload).subscribe({
+      next: () => {
+        this.refundNotice = this.translate.instant('fees.refundExecutedToast');
+        this.refundNoticeOk = true;
+        this.refreshLedgerTransactions();
+        this.loadPaymentsPage();
+      },
+      error: () => {
+        this.refundError = this.translate.instant('fees.refundExecuteFailed');
+        this.refundNotice = this.translate.instant('fees.refundExecuteFailed');
+        this.refundNoticeOk = false;
+      },
+    });
+  }
+
+  private refreshLedgerTransactions(): void {
+    const selectedId = this.ledgerSelectedPaymentId;
+    if (!selectedId) return;
+    this.feeService.getPaymentTransactions(selectedId).subscribe({
+      next: tx => (this.ledgerTransactions = tx || []),
+      error: () => (this.ledgerTransactions = []),
+    });
+  }
+
+  txLabel(tx: FeeTransaction): string {
+    const key = `fees.txType.${(tx.eventType || '').toLowerCase()}`;
+    const t = this.translate.instant(key);
+    return t !== key ? t : tx.eventType;
+  }
+
+  setTxFilter(next: 'all' | 'payment' | 'refund'): void {
+    this.txFilter = next;
+  }
+
+  get filteredLedgerTransactions(): FeeTransaction[] {
+    if (this.txFilter === 'all') {
+      return this.ledgerTransactions;
+    }
+    return this.ledgerTransactions.filter(tx => {
+      const type = (tx.eventType || '').toUpperCase();
+      const isRefund = type.startsWith('REFUND_');
+      return this.txFilter === 'refund' ? isRefund : !isRefund;
+    });
+  }
+
+  txIconClass(tx: FeeTransaction): string {
+    const type = (tx.eventType || '').toUpperCase();
+    if (type.startsWith('REFUND_')) return 'bi-arrow-counterclockwise';
+    if (type === 'PAYMENT_CAPTURED') return 'bi-check-circle-fill';
+    if (type === 'PAYMENT_MANUAL_POSTED') return 'bi-cash-stack';
+    if (type === 'OBLIGATION_CREATED') return 'bi-receipt';
+    return 'bi-dot';
+  }
+
+  private nextOperationKey(prefix: string, id: number): string {
+    return `${prefix}:${id}:${Date.now()}`;
   }
 
   openCollectPaymentModal(payment: FeePayment): void {
@@ -1216,16 +1851,35 @@ export class FeesComponent implements OnInit {
       })
       .subscribe({
         next: () => {
-          this.reminderMessage = this.translate.instant('fees.reminderSent', { name: payment.studentName });
-          this.reminderMessageOk = true;
+          this.setReminderMessage(this.translate.instant('fees.reminderSent', { name: payment.studentName }), true);
         },
         error: (e: unknown) => {
           const msg = (e as { message?: unknown })?.message;
-          this.reminderMessage = typeof msg === 'string' && msg.trim()
+          const message = typeof msg === 'string' && msg.trim()
             ? msg.trim()
             : this.translate.instant('fees.reminderFailed');
-          this.reminderMessageOk = false;
+          this.setReminderMessage(message, false);
         },
       });
+  }
+
+  clearReminderMessage(): void {
+    this.reminderMessage = '';
+    if (this.reminderMessageTimer) {
+      clearTimeout(this.reminderMessageTimer);
+      this.reminderMessageTimer = null;
+    }
+  }
+
+  private setReminderMessage(message: string, isSuccess: boolean): void {
+    this.reminderMessage = message;
+    this.reminderMessageOk = isSuccess;
+    if (this.reminderMessageTimer) {
+      clearTimeout(this.reminderMessageTimer);
+    }
+    this.reminderMessageTimer = setTimeout(() => {
+      this.reminderMessage = '';
+      this.reminderMessageTimer = null;
+    }, 10_000);
   }
 }

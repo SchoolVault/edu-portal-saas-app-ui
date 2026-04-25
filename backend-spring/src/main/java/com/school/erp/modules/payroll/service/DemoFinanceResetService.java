@@ -261,7 +261,8 @@ public class DemoFinanceResetService {
             throw new BusinessException("No teachers found for demo payroll reset.", ApiErrorCode.PAYROLL_DISBURSEMENT_BLOCKED);
         }
 
-        YearMonth currentMonth = YearMonth.now();
+        // Seed only historical month so admins can generate current/previous month during demos.
+        YearMonth seededMonth = YearMonth.now().minusMonths(2);
         long payslipCount = 0;
         for (int i = 0; i < teachers.size(); i++) {
             Teacher teacher = teachers.get(i);
@@ -285,15 +286,15 @@ public class DemoFinanceResetService {
             payslip.setTenantId(tenantId);
             payslip.setTeacherId(teacher.getId());
             payslip.setTeacherName(structure.getTeacherName());
-            payslip.setPayrollMonth(currentMonth.toString());
-            payslip.setMonth(currentMonth.getMonth().name().toLowerCase(Locale.ROOT));
-            payslip.setYear(currentMonth.getYear());
+            payslip.setPayrollMonth(seededMonth.toString());
+            payslip.setMonth(seededMonth.getMonth().name().toLowerCase(Locale.ROOT));
+            payslip.setYear(seededMonth.getYear());
             payslip.setBasicSalary(basic);
             payslip.setTotalAllowances(allowance);
             payslip.setTotalDeductions(deduction);
             payslip.setNetSalary(net);
-            payslip.setStatus(i == 2 ? Enums.PayslipStatus.PAID : Enums.PayslipStatus.GENERATED);
-            payslip.setPaymentDate(i == 2 ? LocalDate.now().minusDays(1) : null);
+            payslip.setStatus(Enums.PayslipStatus.PAID);
+            payslip.setPaymentDate(seededMonth.atEndOfMonth());
             payslip = payslipRepository.save(payslip);
             payslipCount++;
 
@@ -304,7 +305,7 @@ public class DemoFinanceResetService {
             attempt.setAmount(net);
             attempt.setPaymentMethod(i == 0 ? "NETBANKING" : (i == 1 ? "UPI" : "NEFT"));
             attempt.setReferenceId("DEMO-RESET-SAL-" + (i + 1) + "-" + System.currentTimeMillis());
-            attempt.setStatus(i == 0 ? "SUBMITTED" : (i == 1 ? "FAILED" : "COMPLETED"));
+            attempt.setStatus(i == 0 ? "COMPLETED" : (i == 1 ? "FAILED" : "COMPLETED"));
             attempt.setGatewayPayload(i == 1 ? "Validation failed at bank rail." : "Demo reset seeded.");
             attempt.setCompletedAt(i == 0 ? null : LocalDateTime.now().minusHours(i + 1L));
             salaryDisbursementAttemptRepository.save(attempt);

@@ -50,4 +50,9 @@ public class ParentPortalExamPageCache {
         String prefix = tenantId + "|";
         store.keySet().removeIf(k -> k.startsWith(prefix));
     }
+
+    /** Platform global clear of all Redis regions — parent exam pages are not in Spring Cache. */
+    public void invalidateAll() {
+        store.clear();
+    }
 }

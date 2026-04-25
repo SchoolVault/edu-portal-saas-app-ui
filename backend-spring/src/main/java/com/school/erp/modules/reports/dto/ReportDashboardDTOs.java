@@ -39,6 +39,7 @@ public class ReportDashboardDTOs {
         private String description;
         private String type;
         private String timestamp;
+        private String campaignId;
 
         public ActivityItem() {
         }
@@ -80,6 +81,14 @@ public class ReportDashboardDTOs {
 
         public void setTimestamp(final String timestamp) {
             this.timestamp = timestamp;
+        }
+
+        public String getCampaignId() {
+            return campaignId;
+        }
+
+        public void setCampaignId(String campaignId) {
+            this.campaignId = campaignId;
         }
     }
 
@@ -136,6 +145,7 @@ public class ReportDashboardDTOs {
         private String title;
         private String date;
         private String description;
+        private String campaignId;
 
         public Long getId() {
             return this.id;
@@ -167,6 +177,14 @@ public class ReportDashboardDTOs {
 
         public void setDescription(final String description) {
             this.description = description;
+        }
+
+        public String getCampaignId() {
+            return campaignId;
+        }
+
+        public void setCampaignId(String campaignId) {
+            this.campaignId = campaignId;
         }
     }
 
@@ -211,6 +229,7 @@ public class ReportDashboardDTOs {
     }
 
     public static class AdminDashboardResponse {
+        private String dataComputedAt;
         private long totalStudents;
         private long totalTeachers;
         private double feesCollected;
@@ -222,6 +241,14 @@ public class ReportDashboardDTOs {
         private List<ActivityItem> recentActivities = new ArrayList<>();
         private List<UpcomingEvent> upcomingEvents = new ArrayList<>();
         private List<ClassHomeroomGap> classesWithoutHomeroomTeacher = new ArrayList<>();
+
+        public String getDataComputedAt() {
+            return dataComputedAt;
+        }
+
+        public void setDataComputedAt(String dataComputedAt) {
+            this.dataComputedAt = dataComputedAt;
+        }
 
         public long getTotalStudents() {
             return this.totalStudents;
@@ -770,6 +797,7 @@ public class ReportDashboardDTOs {
     }
 
     public static class TeacherDashboardResponse {
+        private String dataComputedAt;
         private long assignedClasses;
         private long studentsAssigned;
         private long upcomingExams;
@@ -786,6 +814,14 @@ public class ReportDashboardDTOs {
         private List<TeacherAttendanceTrendPoint> attendanceTrend = new ArrayList<>();
         private List<TeacherRecentActivityItem> recentActivities = new ArrayList<>();
         private TeacherHomeroomAttendanceDetail homeroomAttendance;
+
+        public String getDataComputedAt() {
+            return dataComputedAt;
+        }
+
+        public void setDataComputedAt(String dataComputedAt) {
+            this.dataComputedAt = dataComputedAt;
+        }
 
         public long getAssignedClasses() {
             return this.assignedClasses;

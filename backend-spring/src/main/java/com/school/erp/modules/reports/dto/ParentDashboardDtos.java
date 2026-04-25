@@ -178,6 +178,7 @@ public final class ParentDashboardDtos {
     }
 
     public static class Response {
+        private String dataComputedAt;
         private long childCount;
         private List<Student> children = new ArrayList<>();
         private Long selectedChildId;
@@ -191,7 +192,16 @@ public final class ParentDashboardDtos {
         private ResultMetric resultMetric = new ResultMetric();
         private FeeMetric feeMetric = new FeeMetric();
         private List<ActivityCoded> recentActivities = new ArrayList<>();
+        private List<ReportDashboardDTOs.UpcomingEvent> upcoming = new ArrayList<>();
         private AttendanceSnapshot attendanceSnapshot = new AttendanceSnapshot();
+
+        public String getDataComputedAt() {
+            return dataComputedAt;
+        }
+
+        public void setDataComputedAt(String dataComputedAt) {
+            this.dataComputedAt = dataComputedAt;
+        }
 
         public long getChildCount() {
             return childCount;
@@ -295,6 +305,14 @@ public final class ParentDashboardDtos {
 
         public void setRecentActivities(List<ActivityCoded> recentActivities) {
             this.recentActivities = recentActivities != null ? recentActivities : new ArrayList<>();
+        }
+
+        public List<ReportDashboardDTOs.UpcomingEvent> getUpcoming() {
+            return upcoming;
+        }
+
+        public void setUpcoming(List<ReportDashboardDTOs.UpcomingEvent> upcoming) {
+            this.upcoming = upcoming != null ? upcoming : new ArrayList<>();
         }
 
         public AttendanceSnapshot getAttendanceSnapshot() {

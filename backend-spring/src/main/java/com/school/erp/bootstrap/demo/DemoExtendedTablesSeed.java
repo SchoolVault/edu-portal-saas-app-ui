@@ -9,6 +9,10 @@ import com.school.erp.modules.attendance.entity.AttendanceCoverAssignment;
 import com.school.erp.modules.attendance.repository.AttendanceCoverAssignmentRepository;
 import com.school.erp.modules.auth.entity.User;
 import com.school.erp.modules.auth.repository.UserRepository;
+import com.school.erp.modules.communication.domain.CommunicationEventStatus;
+import com.school.erp.modules.communication.domain.CommunicationEventType;
+import com.school.erp.modules.communication.entity.CommunicationEvent;
+import com.school.erp.modules.communication.repository.CommunicationEventRepository;
 import com.school.erp.modules.fees.entity.FeePayment;
 import com.school.erp.modules.fees.repository.FeePaymentRepository;
 import com.school.erp.modules.operations.entity.FeeReminderQueue;
@@ -66,6 +70,7 @@ public class DemoExtendedTablesSeed {
     private final SectionRepository sectionRepository;
     private final TenantConfigRepository tenantConfigRepository;
     private final FeePaymentRepository feePaymentRepository;
+    private final CommunicationEventRepository communicationEventRepository;
 
     public DemoExtendedTablesSeed(
             InventoryItemRepository inventoryItemRepository,
@@ -80,7 +85,8 @@ public class DemoExtendedTablesSeed {
             SchoolClassRepository schoolClassRepository,
             SectionRepository sectionRepository,
             TenantConfigRepository tenantConfigRepository,
-            FeePaymentRepository feePaymentRepository) {
+            FeePaymentRepository feePaymentRepository,
+            CommunicationEventRepository communicationEventRepository) {
         this.inventoryItemRepository = inventoryItemRepository;
         this.operationalStaffRepository = operationalStaffRepository;
         this.gatePassRepository = gatePassRepository;
@@ -94,6 +100,7 @@ public class DemoExtendedTablesSeed {
         this.sectionRepository = sectionRepository;
         this.tenantConfigRepository = tenantConfigRepository;
         this.feePaymentRepository = feePaymentRepository;
+        this.communicationEventRepository = communicationEventRepository;
     }
 
     private static String markerSku(String schoolCode) {
@@ -240,8 +247,63 @@ public class DemoExtendedTablesSeed {
             ac.setStatus("ACTIVE");
             attendanceCoverAssignmentRepository.save(ac);
         }
+        seedCommunicationEvents(tenantId, c0, secs);
 
         log.info("Extended demo module rows applied for tenant {} (school_code={})", tenantId, schoolCode);
+    }
+
+    private void seedCommunicationEvents(String tenantId, SchoolClass focusClass, List<Section> focusSections) {
+        LocalDateTime now = LocalDateTime.now();
+
+        CommunicationEvent scheduled = new CommunicationEvent();
+        scheduled.setTenantId(tenantId);
+        scheduled.setTitle("PTM slots open next week");
+        scheduled.setDescription("Parents can pre-book PTM slots from the portal.");
+        scheduled.setEventType(CommunicationEventType.PTM);
+        scheduled.setAudienceScope(Enums.TargetAudience.PARENTS);
+        scheduled.setPublishAt(now.plusHours(2));
+        scheduled.setEventStartAt(now.plusDays(4).withHour(10).withMinute(0));
+        scheduled.setEventEndAt(now.plusDays(4).withHour(13).withMinute(0));
+        scheduled.setTimezone("Asia/Kolkata");
+        scheduled.setLocation("Main auditorium");
+        scheduled.setLocaleCode("en");
+        scheduled.setStatus(CommunicationEventStatus.SCHEDULED);
+        communicationEventRepository.save(scheduled);
+
+        CommunicationEvent publishedUpcoming = new CommunicationEvent();
+        publishedUpcoming.setTenantId(tenantId);
+        publishedUpcoming.setTitle("Inter-house sports meet");
+        publishedUpcoming.setDescription("Track and field rounds begin this Friday.");
+        publishedUpcoming.setEventType(CommunicationEventType.SPORTS);
+        publishedUpcoming.setAudienceScope(Enums.TargetAudience.ALL);
+        publishedUpcoming.setPublishedAt(now.minusHours(3));
+        publishedUpcoming.setEventStartAt(now.plusDays(2).withHour(8).withMinute(30));
+        publishedUpcoming.setEventEndAt(now.plusDays(2).withHour(12).withMinute(30));
+        publishedUpcoming.setTimezone("Asia/Kolkata");
+        publishedUpcoming.setLocation("Sports ground");
+        publishedUpcoming.setLocaleCode("en");
+        publishedUpcoming.setStatus(CommunicationEventStatus.PUBLISHED);
+        communicationEventRepository.save(publishedUpcoming);
+
+        CommunicationEvent completedPast = new CommunicationEvent();
+        completedPast.setTenantId(tenantId);
+        completedPast.setTitle("Science expo (completed)");
+        completedPast.setDescription("Event completed successfully; winner list posted.");
+        completedPast.setEventType(CommunicationEventType.FESTIVAL);
+        completedPast.setAudienceScope(Enums.TargetAudience.CLASS);
+        completedPast.setTargetClassId(focusClass.getId());
+        if (!focusSections.isEmpty()) {
+            completedPast.setTargetSectionId(focusSections.get(0).getId());
+        }
+        completedPast.setPublishedAt(now.minusDays(3));
+        completedPast.setEventStartAt(now.minusDays(2).withHour(9).withMinute(0));
+        completedPast.setEventEndAt(now.minusDays(2).withHour(12).withMinute(0));
+        completedPast.setCompletedAt(now.minusDays(2).withHour(12).withMinute(15));
+        completedPast.setTimezone("Asia/Kolkata");
+        completedPast.setLocation("Science lab block");
+        completedPast.setLocaleCode("en");
+        completedPast.setStatus(CommunicationEventStatus.COMPLETED);
+        communicationEventRepository.save(completedPast);
     }
 
     private void inv(String tenantId, String sku, String name, String cat, int qty, int reorder, String loc) {

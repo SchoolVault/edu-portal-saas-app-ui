@@ -1,6 +1,7 @@
 package com.school.erp.modules.settings.controller;
 
 import com.school.erp.common.dto.ApiResponse;
+import com.school.erp.security.rbac.RbacSpel;
 import com.school.erp.modules.settings.dto.SchoolBranchDTO;
 import com.school.erp.modules.settings.entity.TenantConfig;
 import com.school.erp.modules.settings.service.SettingsService;
@@ -25,7 +26,7 @@ public class SettingsController {
     }
 
     @PutMapping
-    @PreAuthorize("hasRole(\'ADMIN\')")
+    @PreAuthorize(RbacSpel.SCHOOL_TENANT_SETTINGS)
     @Operation(summary = "Update school settings", description = "Update name, address, phone, email, branding colors, logo")
     public ResponseEntity<ApiResponse<TenantConfig>> update(@RequestBody TenantConfig config) {
         return ResponseEntity.ok(ApiResponse.ok(service.updateSettings(config), "Settings updated"));
@@ -38,7 +39,7 @@ public class SettingsController {
     }
 
     @PutMapping("/features")
-    @PreAuthorize("hasRole(\'ADMIN\')")
+    @PreAuthorize(RbacSpel.SCHOOL_TENANT_SETTINGS)
     @Operation(summary = "Update feature flags", description = "Enable/disable modules: transport, library, hostel, payroll, etc.")
     public ResponseEntity<ApiResponse<Map<String, Boolean>>> updateFeatures(@RequestBody Map<String, Boolean> flags) {
         return ResponseEntity.ok(ApiResponse.ok(service.updateFeatureFlags(flags), "Features updated"));

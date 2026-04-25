@@ -12,6 +12,8 @@ import com.school.erp.modules.auth.repository.UserRepository;
 import com.school.erp.modules.chat.service.ChatDirectoryService;
 import com.school.erp.modules.communication.dto.CommunicationDTOs;
 import com.school.erp.modules.communication.dto.AnnouncementDTOs;
+import com.school.erp.modules.communication.dto.CommunicationEventDTOs;
+import com.school.erp.modules.communication.domain.CommunicationEventStatus;
 import com.school.erp.modules.communication.entity.*;
 import com.school.erp.modules.communication.repository.*;
 import com.school.erp.modules.guardian.service.GuardianService;
@@ -46,6 +48,7 @@ public class CommunicationService {
     private final TeacherRosterScopeService teacherRosterScopeService;
     private final SchoolClassRepository schoolClassRepository;
     private final SectionRepository sectionRepository;
+    private final CommunicationEventRepository eventRepo;
 
     private record AudienceLists(List<Long> classIds, List<Long> sectionIds) {}
 
@@ -186,6 +189,58 @@ public class CommunicationService {
         return saved;
     }
 
+    @Transactional
+    public CommunicationEventDTOs.EventResponse createEvent(CommunicationEventDTOs.CreateEventRequest req) {
+        validateEventRequest(req);
+        CommunicationEvent event = new CommunicationEvent();
+        event.setTenantId(TenantContext.getTenantId());
+        event.setTitle(req.getTitle().trim());
+        event.setDescription(req.getDescription() != null ? req.getDescription().trim() : null);
+        event.setEventType(req.getEventType());
+        event.setAudienceScope(req.getAudienceScope());
+        event.setTargetClassId(req.getTargetClassId());
+        event.setTargetSectionId(req.getTargetSectionId());
+        event.setPublishAt(req.getPublishAt());
+        event.setEventStartAt(req.getEventStartAt());
+        event.setEventEndAt(req.getEventEndAt());
+        event.setTimezone(req.getTimezone().trim());
+        event.setLocation(req.getLocation() != null ? req.getLocation().trim() : null);
+        event.setLocaleCode(req.getLocale() == null || req.getLocale().isBlank() ? "en" : req.getLocale().trim().toLowerCase(Locale.ROOT));
+        if (req.getPublishAt() != null) {
+            event.setStatus(CommunicationEventStatus.SCHEDULED);
+        } else {
+            event.setStatus(CommunicationEventStatus.PUBLISHED);
+            event.setPublishedAt(LocalDateTime.now());
+        }
+        return toEventResponse(eventRepo.save(event));
+    }
+
+    @Transactional(readOnly = true)
+    public PageResponse<CommunicationEventDTOs.EventResponse> getEventsPaged(int page, int size, boolean upcomingOnly) {
+        Pageable pageable = PageRequest.of(page, size);
+        Page<CommunicationEvent> pg = upcomingOnly
+                ? eventRepo.pageUpcoming(TenantContext.getTenantId(), LocalDateTime.now(), pageable)
+                : eventRepo.pageForTenant(TenantContext.getTenantId(), pageable);
+        return PageResponse.fromSpringPage(pg.map(this::toEventResponse));
+    }
+
+    @Transactional(readOnly = true)
+    public PageResponse<CommunicationEventDTOs.EventResponse> getEventsForMePaged(int page, int size) {
+        Pageable pageable = PageRequest.of(page, size);
+        String role = normalizedRole();
+        if (seesFullSchoolAnnouncementBoard(role)) {
+            return getEventsPaged(page, size, false);
+        }
+        AudienceLists lists = resolveAnnouncementAudienceLists();
+        Page<CommunicationEvent> pg = eventRepo.pageForAudience(
+                TenantContext.getTenantId(),
+                role,
+                lists.classIds(),
+                lists.sectionIds(),
+                pageable);
+        return PageResponse.fromSpringPage(pg.map(this::toEventResponse));
+    }
+
     private void validateAnnouncementRequest(AnnouncementDTOs.CreateAnnouncementRequest req) {
         if (req == null) {
             throw new BusinessException("Announcement request is required.");
@@ -242,6 +297,84 @@ public class CommunicationService {
         if (duplicateRecent) {
             throw new BusinessException("A similar announcement was published recently. Please edit and retry.");
         }
+    }
+
+    private void validateEventRequest(CommunicationEventDTOs.CreateEventRequest req) {
+        if (req == null) {
+            throw new BusinessException("Event request is required.");
+        }
+        if (req.getTitle() == null || req.getTitle().trim().isEmpty()) {
+            throw new BusinessException("Event title is required.");
+        }
+        if (req.getAudienceScope() == null) {
+            throw new BusinessException("Audience is required.");
+        }
+        if (req.getEventStartAt() == null) {
+            throw new BusinessException("Event start date/time is required.");
+        }
+        if (req.getEventEndAt() != null && req.getEventEndAt().isBefore(req.getEventStartAt())) {
+            throw new BusinessException("Event end date/time cannot be before start date/time.");
+        }
+        if (req.getPublishAt() != null && req.getPublishAt().isAfter(req.getEventStartAt())) {
+            throw new BusinessException("Publish date/time cannot be after event start date/time.");
+        }
+        String tenantId = TenantContext.getTenantId();
+        Enums.TargetAudience aud = req.getAudienceScope();
+        Long targetClassId = req.getTargetClassId();
+        Long targetSectionId = req.getTargetSectionId();
+        switch (aud) {
+            case CLASS -> {
+                if (targetClassId == null) {
+                    throw new BusinessException("Class is required for class-targeted events.");
+                }
+                if (targetSectionId != null) {
+                    throw new BusinessException("Section must be empty for class-targeted events.");
+                }
+            }
+            case SECTION -> {
+                if (targetClassId == null || targetSectionId == null) {
+                    throw new BusinessException("Both class and section are required for section-targeted events.");
+                }
+            }
+            default -> {
+                if (targetClassId != null || targetSectionId != null) {
+                    throw new BusinessException("Class or section is not allowed for this audience.");
+                }
+            }
+        }
+        if (targetClassId != null && schoolClassRepository.findByIdAndTenantIdAndIsDeletedFalse(targetClassId, tenantId).isEmpty()) {
+            throw new BusinessException("Selected class does not belong to this school.");
+        }
+        if (targetSectionId != null) {
+            var section = sectionRepository.findByIdAndTenantIdAndIsDeletedFalse(targetSectionId, tenantId)
+                    .orElseThrow(() -> new BusinessException("Selected section does not belong to this school."));
+            if (targetClassId != null && !targetClassId.equals(section.getClassId())) {
+                throw new BusinessException("Selected section does not belong to the chosen class.");
+            }
+        }
+    }
+
+    private CommunicationEventDTOs.EventResponse toEventResponse(CommunicationEvent event) {
+        CommunicationEventDTOs.EventResponse response = new CommunicationEventDTOs.EventResponse();
+        response.setId(event.getId());
+        response.setTitle(event.getTitle());
+        response.setDescription(event.getDescription());
+        response.setEventType(event.getEventType());
+        response.setAudienceScope(event.getAudienceScope());
+        response.setTargetClassId(event.getTargetClassId());
+        response.setTargetSectionId(event.getTargetSectionId());
+        response.setPublishAt(event.getPublishAt());
+        response.setEventStartAt(event.getEventStartAt());
+        response.setEventEndAt(event.getEventEndAt());
+        response.setTimezone(event.getTimezone());
+        response.setLocale(event.getLocaleCode());
+        response.setLocation(event.getLocation());
+        response.setStatus(event.getStatus());
+        response.setCreatedAt(event.getCreatedAt());
+        response.setPublishedCampaignId(event.getPublishedCampaignId());
+        response.setReminder1dCampaignId(event.getReminder1dCampaignId());
+        response.setReminder1hCampaignId(event.getReminder1hCampaignId());
+        return response;
     }
 
     @CacheEvict(cacheNames = CacheConfig.ANNOUNCEMENT_PREVIEWS, allEntries = true)
@@ -390,7 +523,8 @@ public class CommunicationService {
             final ChatDirectoryService chatDirectoryService,
             final TeacherRosterScopeService teacherRosterScopeService,
             final SchoolClassRepository schoolClassRepository,
-            final SectionRepository sectionRepository) {
+            final SectionRepository sectionRepository,
+            final CommunicationEventRepository eventRepo) {
         this.annRepo = annRepo;
         this.msgRepo = msgRepo;
         this.guardianService = guardianService;
@@ -400,5 +534,6 @@ public class CommunicationService {
         this.teacherRosterScopeService = teacherRosterScopeService;
         this.schoolClassRepository = schoolClassRepository;
         this.sectionRepository = sectionRepository;
+        this.eventRepo = eventRepo;
     }
 }

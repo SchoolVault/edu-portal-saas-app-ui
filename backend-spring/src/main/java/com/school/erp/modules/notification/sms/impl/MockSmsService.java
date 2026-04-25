@@ -6,7 +6,7 @@ import com.school.erp.modules.notification.sms.SmsRequest;
 import com.school.erp.modules.notification.sms.SmsResponse;
 import com.school.erp.modules.notification.sms.SmsService;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.stereotype.Service;
 
 import java.util.UUID;
@@ -18,7 +18,8 @@ import java.util.concurrent.atomic.AtomicInteger;
  * Enabled when: sms.provider=MOCK or sms.provider not configured.
  */
 @Service
-@ConditionalOnProperty(name = "app.sms.provider", havingValue = "MOCK", matchIfMissing = true)
+@ConditionalOnExpression(
+    "'${app.sms.provider:MOCK}'.equalsIgnoreCase('MOCK') || '${app.sms.providers.mock.enabled:false}'.equalsIgnoreCase('true')")
 @Slf4j
 public class MockSmsService implements SmsService {
 

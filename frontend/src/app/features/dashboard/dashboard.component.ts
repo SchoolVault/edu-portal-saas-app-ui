@@ -144,6 +144,43 @@ interface DashboardChartPalette {
         display: inline-block;
         vertical-align: middle;
       }
+      .dashboard-freshness-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.45rem;
+        padding: 0.35rem 0.7rem;
+        border-radius: 999px;
+        border: 1px solid color-mix(in srgb, var(--clr-primary, #1b3a30) 25%, var(--clr-border-light, #e2e8f0));
+        background: color-mix(in srgb, var(--clr-primary, #1b3a30) 14%, var(--clr-surface, #ffffff));
+        color: var(--clr-text, #0f172a);
+      }
+      .dashboard-freshness-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 999px;
+        background: var(--clr-success, #059669);
+        box-shadow: 0 0 0 4px color-mix(in srgb, var(--clr-success, #059669) 18%, transparent);
+      }
+      .dashboard-freshness-label {
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.02em;
+        text-transform: uppercase;
+      }
+      .dashboard-freshness-time {
+        font-size: 12px;
+        color: var(--clr-text-muted, #64748b);
+      }
+      :host-context(body.dark-theme) .dashboard-freshness-chip,
+      :host-context(html.dark-theme) .dashboard-freshness-chip {
+        border-color: color-mix(in srgb, var(--clr-primary, #3b82f6) 38%, var(--clr-border, #334155));
+        background: color-mix(in srgb, var(--clr-primary, #3b82f6) 20%, var(--clr-surface, #0f172a));
+        color: var(--clr-text, #e2e8f0);
+      }
+      :host-context(body.dark-theme) .dashboard-freshness-label,
+      :host-context(html.dark-theme) .dashboard-freshness-label {
+        color: color-mix(in srgb, var(--clr-success, #22c55e) 55%, var(--clr-text, #e2e8f0));
+      }
       .dashboard-table-wrap {
         width: 100%;
         overflow-x: auto;
@@ -179,7 +216,11 @@ interface DashboardChartPalette {
   ],
   template: `
     <div data-testid="dashboard-page">
-      <div class="d-flex justify-content-end mb-2" *ngIf="role !== 'parent' || loading">
+      <div class="d-flex justify-content-end align-items-center mb-2 gap-2 flex-wrap" *ngIf="role !== 'parent' || loading">
+        <div class="dashboard-freshness-chip">
+          <span class="dashboard-freshness-dot" aria-hidden="true"></span>
+          <span class="dashboard-freshness-label">{{ 'dashboard.freshness.live' | translate }}</span>
+        </div>
         <button type="button" class="btn-outline-erp btn-sm" (click)="refreshDashboard()" [disabled]="loading || refreshing" data-testid="dashboard-refresh">
           <i class="bi bi-arrow-clockwise"></i> {{ refreshing ? ('dashboard.refreshing' | translate) : ('dashboard.refresh' | translate) }}
         </button>
@@ -288,25 +329,51 @@ interface DashboardChartPalette {
         <div class="row g-4">
           <div class="col-lg-6">
             <div class="erp-card">
-              <div class="erp-card-header"><h3 class="erp-card-title">{{ 'dashboard.admin.recentActivity' | translate }}</h3></div>
-              <div *ngFor="let activity of adminDashboard?.recentActivities" class="activity-item">
+              <div class="erp-card-header">
+                <h3 class="erp-card-title mb-0">{{ 'dashboard.admin.recentActivity' | translate }}</h3>
+              </div>
+              <div *ngFor="let activity of adminRecentActivities" class="activity-item">
                 <div class="activity-icon" style="background: rgba(27,58,48,0.1); color: var(--clr-primary);"><i class="bi bi-bell"></i></div>
                 <div class="activity-content">
                   <h5>{{ activity.title }}</h5>
                   <p>{{ activity.description || activity.timestamp }}</p>
                 </div>
+                <a
+                  *ngIf="activity.campaignId"
+                  class="btn-outline-erp btn-sm"
+                  [routerLink]="['/app/inbox']"
+                  [queryParams]="{ campaignId: activity.campaignId }"
+                >View delivery</a>
+              </div>
+              <div class="d-flex justify-content-between align-items-center mt-2" *ngIf="adminRecentTotal > adminRecentSize">
+                <button class="btn-outline-erp btn-sm" type="button" [disabled]="adminRecentPage === 0" (click)="goToAdminRecentPage(adminRecentPage - 1)">Previous</button>
+                <small class="text-muted">Page {{ adminRecentPage + 1 }} / {{ adminRecentTotalPages }}</small>
+                <button class="btn-outline-erp btn-sm" type="button" [disabled]="adminRecentPage + 1 >= adminRecentTotalPages" (click)="goToAdminRecentPage(adminRecentPage + 1)">Next</button>
               </div>
             </div>
           </div>
           <div class="col-lg-6">
             <div class="erp-card">
-              <div class="erp-card-header"><h3 class="erp-card-title">{{ 'dashboard.admin.upcomingEvents' | translate }}</h3></div>
-              <div *ngFor="let event of adminDashboard?.upcomingEvents" class="activity-item">
+              <div class="erp-card-header">
+                <h3 class="erp-card-title mb-0">{{ 'dashboard.admin.upcomingEvents' | translate }}</h3>
+              </div>
+              <div *ngFor="let event of adminUpcomingEvents" class="activity-item">
                 <div class="activity-icon" style="background: rgba(2,132,199,0.1); color: var(--clr-info);"><i class="bi bi-calendar-event"></i></div>
                 <div class="activity-content">
                   <h5>{{ event.title }}</h5>
                   <p>{{ event.date }} &middot; {{ event.description }}</p>
                 </div>
+                <a
+                  *ngIf="event.campaignId"
+                  class="btn-outline-erp btn-sm"
+                  [routerLink]="['/app/inbox']"
+                  [queryParams]="{ campaignId: event.campaignId }"
+                >View delivery</a>
+              </div>
+              <div class="d-flex justify-content-between align-items-center mt-2" *ngIf="adminUpcomingTotal > adminUpcomingSize">
+                <button class="btn-outline-erp btn-sm" type="button" [disabled]="adminUpcomingPage === 0" (click)="goToAdminUpcomingPage(adminUpcomingPage - 1)">Previous</button>
+                <small class="text-muted">Page {{ adminUpcomingPage + 1 }} / {{ adminUpcomingTotalPages }}</small>
+                <button class="btn-outline-erp btn-sm" type="button" [disabled]="adminUpcomingPage + 1 >= adminUpcomingTotalPages" (click)="goToAdminUpcomingPage(adminUpcomingPage + 1)">Next</button>
               </div>
             </div>
           </div>
@@ -473,15 +540,21 @@ interface DashboardChartPalette {
               <ng-template #parentLeadNoExams>{{ 'dashboard.parent.leadNoExams' | translate }}</ng-template>
             </p>
           </div>
-          <button
-            type="button"
-            class="btn-outline-erp btn-sm flex-shrink-0 align-self-start"
-            (click)="refreshDashboard()"
-            [disabled]="loading || refreshing"
-            data-testid="dashboard-refresh-parent"
-          >
-            <i class="bi bi-arrow-clockwise"></i> {{ refreshing ? ('dashboard.refreshing' | translate) : ('dashboard.refresh' | translate) }}
-          </button>
+          <div class="d-flex gap-2 flex-wrap align-items-center">
+            <div class="dashboard-freshness-chip">
+              <span class="dashboard-freshness-dot" aria-hidden="true"></span>
+              <span class="dashboard-freshness-label">{{ 'dashboard.freshness.live' | translate }}</span>
+            </div>
+            <button
+              type="button"
+              class="btn-outline-erp btn-sm flex-shrink-0 align-self-start"
+              (click)="refreshDashboard()"
+              [disabled]="loading || refreshing"
+              data-testid="dashboard-refresh-parent"
+            >
+              <i class="bi bi-arrow-clockwise"></i> {{ refreshing ? ('dashboard.refreshing' | translate) : ('dashboard.refresh' | translate) }}
+            </button>
+          </div>
         </div>
         <div class="erp-card mb-4" *ngIf="(parentDashboard?.children || []).length">
           <div class="row g-3 align-items-end">
@@ -619,10 +692,50 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
   };
   /** Local month filter for teacher attendance chart (YYYY-MM). */
   teacherTrendMonth = new Date().toISOString().slice(0, 7);
+  adminRecentActivities: NonNullable<AdminDashboardData['recentActivities']> = [];
+  adminUpcomingEvents: NonNullable<AdminDashboardData['upcomingEvents']> = [];
+  adminRecentPage = 0;
+  adminUpcomingPage = 0;
+  adminRecentSize = 8;
+  adminUpcomingSize = 8;
+  adminRecentTotal = 0;
+  adminUpcomingTotal = 0;
 
   /** Max selectable month for homeroom picker (current calendar month). */
   get teacherHomeroomMaxYm(): string {
     return new Date().toISOString().slice(0, 7);
+  }
+
+  get dashboardComputedAtIso(): string | null {
+    if (this.role === 'admin') {
+      return this.adminDashboard?.dataComputedAt ?? null;
+    }
+    if (this.role === 'teacher') {
+      return this.teacherDashboard?.dataComputedAt ?? null;
+    }
+    if (this.role === 'parent') {
+      return this.parentDashboard?.dataComputedAt ?? null;
+    }
+    return null;
+  }
+
+  get dashboardComputedAtDisplay(): string | null {
+    const raw = this.dashboardComputedAtIso;
+    if (!raw) {
+      return null;
+    }
+    const dt = new Date(raw);
+    if (Number.isNaN(dt.getTime())) {
+      return raw;
+    }
+    const locale = this.translate.currentLang?.toLowerCase().startsWith('hi') ? 'hi-IN' : 'en-IN';
+    return dt.toLocaleString(locale, {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
   }
 
   constructor(
@@ -715,6 +828,7 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
             this.adminDashboard = dashboard;
             this.adminKPIs = this.buildAdminKpis(dashboard);
             this.admissionInsights = this.buildAdmissionInsights(dashboard);
+            this.loadAdminDashboardFeeds(false);
             this.cdr.detectChanges();
             this.initAdminCharts();
             finish();
@@ -769,6 +883,7 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
           this.adminDashboard = dashboard;
           this.adminKPIs = this.buildAdminKpis(dashboard);
           this.admissionInsights = this.buildAdmissionInsights(dashboard);
+          this.loadAdminDashboardFeeds(true);
           this.loading = false;
           this.cdr.detectChanges();
           this.initAdminCharts();
@@ -889,6 +1004,68 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
 
   private initTeacherCharts(): void {
     this.initTeacherHomeroomCharts();
+  }
+
+  get adminRecentTotalPages(): number {
+    return this.adminRecentSize > 0 ? Math.max(1, Math.ceil(this.adminRecentTotal / this.adminRecentSize)) : 1;
+  }
+
+  get adminUpcomingTotalPages(): number {
+    return this.adminUpcomingSize > 0 ? Math.max(1, Math.ceil(this.adminUpcomingTotal / this.adminUpcomingSize)) : 1;
+  }
+
+  goToAdminRecentPage(page: number): void {
+    this.adminRecentPage = Math.max(0, page);
+    this.loadAdminRecentActivities();
+  }
+
+  goToAdminUpcomingPage(page: number): void {
+    this.adminUpcomingPage = Math.max(0, page);
+    this.loadAdminUpcomingEvents();
+  }
+
+  private loadAdminDashboardFeeds(resetPages: boolean): void {
+    if (this.role !== 'admin') {
+      return;
+    }
+    if (resetPages) {
+      this.adminRecentPage = 0;
+      this.adminUpcomingPage = 0;
+    }
+    this.loadAdminRecentActivities();
+    this.loadAdminUpcomingEvents();
+  }
+
+  private loadAdminRecentActivities(): void {
+    this.dashboardService.getAdminRecentActivitiesPaged({
+      page: this.adminRecentPage,
+      size: this.adminRecentSize,
+    }).subscribe({
+      next: page => {
+        this.adminRecentActivities = page.content ?? [];
+        this.adminRecentTotal = Number(page.totalElements ?? 0);
+      },
+      error: () => {
+        this.adminRecentActivities = this.adminDashboard?.recentActivities ?? [];
+        this.adminRecentTotal = this.adminRecentActivities.length;
+      }
+    });
+  }
+
+  private loadAdminUpcomingEvents(): void {
+    this.dashboardService.getAdminUpcomingEventsPaged({
+      page: this.adminUpcomingPage,
+      size: this.adminUpcomingSize,
+    }).subscribe({
+      next: page => {
+        this.adminUpcomingEvents = page.content ?? [];
+        this.adminUpcomingTotal = Number(page.totalElements ?? 0);
+      },
+      error: () => {
+        this.adminUpcomingEvents = this.adminDashboard?.upcomingEvents ?? [];
+        this.adminUpcomingTotal = this.adminUpcomingEvents.length;
+      }
+    });
   }
 
   private buildAdminKpis(dashboard: AdminDashboardData): DashboardAdminKpi[] {

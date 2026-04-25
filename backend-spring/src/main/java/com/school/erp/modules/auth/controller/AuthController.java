@@ -2,11 +2,13 @@ package com.school.erp.modules.auth.controller;
 
 import com.school.erp.common.dto.ApiResponse;
 import com.school.erp.modules.auth.dto.AuthDTOs;
+import com.school.erp.modules.auth.dto.AuthIdentityDTOs;
 import com.school.erp.modules.auth.dto.AuthManagementDTOs;
 import com.school.erp.modules.auth.dto.AuthPersonalProfileDTOs;
 import com.school.erp.modules.auth.dto.AuthProfileDTOs;
 import com.school.erp.modules.auth.dto.UserPreferencesRequest;
 import com.school.erp.modules.auth.service.AuthService;
+import com.school.erp.modules.auth.service.EmailVerificationService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -19,6 +21,7 @@ import org.springframework.web.bind.annotation.*;
 @Tag(name = "Authentication", description = "Login, Register, Profile, Password Management")
 public class AuthController {
     private final AuthService authService;
+    private final EmailVerificationService emailVerificationService;
 
     @PostMapping("/login")
     @Operation(summary = "Login", description = "Authenticate with school code + password and either email or phone. Returns JWT + refresh token.")
@@ -83,6 +86,44 @@ public class AuthController {
         return ResponseEntity.ok(ApiResponse.ok(null, "Password changed successfully"));
     }
 
+    @PostMapping("/set-password")
+    @org.springframework.security.access.prepost.PreAuthorize("isAuthenticated()")
+    @Operation(summary = "Set password after verified identity", description = "Allows setting password when email or phone has been verified.")
+    public ResponseEntity<ApiResponse<AuthDTOs.UserProfile>> setPassword(@Valid @RequestBody AuthIdentityDTOs.SetPasswordRequest request) {
+        return ResponseEntity.ok(ApiResponse.ok(authService.setPasswordAfterVerifiedIdentity(request), "Password set successfully"));
+    }
+
+    @PutMapping("/profile/email")
+    @org.springframework.security.access.prepost.PreAuthorize("isAuthenticated()")
+    @Operation(summary = "Change login email", description = "Marks email as unverified and sends new verification link.")
+    public ResponseEntity<ApiResponse<AuthIdentityDTOs.IdentityUpdateResponse>> changeEmail(
+            @Valid @RequestBody AuthIdentityDTOs.ChangeEmailRequest request) {
+        return ResponseEntity.ok(ApiResponse.ok(authService.updateLoginEmail(request), "Email updated"));
+    }
+
+    @PutMapping("/profile/phone")
+    @org.springframework.security.access.prepost.PreAuthorize("isAuthenticated()")
+    @Operation(summary = "Change login phone", description = "Marks phone as unverified; OTP verification required on next login.")
+    public ResponseEntity<ApiResponse<AuthIdentityDTOs.IdentityUpdateResponse>> changePhone(
+            @Valid @RequestBody AuthIdentityDTOs.ChangePhoneRequest request) {
+        return ResponseEntity.ok(ApiResponse.ok(authService.updateLoginPhone(request), "Phone updated"));
+    }
+
+    @PostMapping("/email-verification/request")
+    @org.springframework.security.access.prepost.PreAuthorize("isAuthenticated()")
+    @Operation(summary = "Request email verification (sends or prepares one-time token; mock-friendly)")
+    public ResponseEntity<ApiResponse<AuthDTOs.EmailVerificationRequestResponse>> requestEmailVerification() {
+        return ResponseEntity.ok(ApiResponse.ok(emailVerificationService.requestVerificationForCurrentUser()));
+    }
+
+    @PostMapping("/email-verification/confirm")
+    @Operation(summary = "Confirm email with one-time token (link flow)")
+    public ResponseEntity<ApiResponse<AuthDTOs.UserProfile>> confirmEmailVerification(
+            @Valid @RequestBody AuthDTOs.EmailVerificationConfirmRequest request) {
+        return ResponseEntity.ok(
+                ApiResponse.ok(emailVerificationService.confirmToken(request.getToken()), "Email verified"));
+    }
+
     @PostMapping("/refresh-token")
     @Operation(summary = "Refresh JWT token")
     public ResponseEntity<ApiResponse<AuthDTOs.TokenResponse>> refreshToken(@Valid @RequestBody AuthDTOs.RefreshTokenRequest request) {
@@ -96,7 +137,8 @@ public class AuthController {
         return ResponseEntity.ok(ApiResponse.ok(null, "Logged out successfully"));
     }
 
-    public AuthController(final AuthService authService) {
+    public AuthController(final AuthService authService, final EmailVerificationService emailVerificationService) {
         this.authService = authService;
+        this.emailVerificationService = emailVerificationService;
     }
 }

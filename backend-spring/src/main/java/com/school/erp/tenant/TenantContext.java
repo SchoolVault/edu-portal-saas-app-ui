@@ -6,6 +6,8 @@ public class TenantContext {
     private static final ThreadLocal<String> USER_ROLE = new ThreadLocal<>();
     private static final ThreadLocal<String> USER_DISPLAY_NAME = new ThreadLocal<>();
     private static final ThreadLocal<String> USER_PRINCIPAL = new ThreadLocal<>();
+    /** Best-effort client IP for the current HTTP request (set by security filter). */
+    private static final ThreadLocal<String> CLIENT_IP = new ThreadLocal<>();
 
     public static void setTenantId(String tenantId) {
         TENANT_ID.set(tenantId);
@@ -52,11 +54,21 @@ public class TenantContext {
         return USER_PRINCIPAL.get();
     }
 
+    public static void setClientIp(String clientIp) {
+        CLIENT_IP.set(clientIp);
+    }
+
+    /** @return client IP captured for this request, or null if unset */
+    public static String getClientIp() {
+        return CLIENT_IP.get();
+    }
+
     public static void clear() {
         TENANT_ID.remove();
         USER_ID.remove();
         USER_ROLE.remove();
         USER_DISPLAY_NAME.remove();
         USER_PRINCIPAL.remove();
+        CLIENT_IP.remove();
     }
 }

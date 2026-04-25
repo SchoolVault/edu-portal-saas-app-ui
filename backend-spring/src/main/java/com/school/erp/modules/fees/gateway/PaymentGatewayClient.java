@@ -1,10 +1,9 @@
 package com.school.erp.modules.fees.gateway;
 
-import java.math.BigDecimal;
-
 public interface PaymentGatewayClient {
-    GatewayCheckoutSession createSession(String provider, String tenantId, Long paymentId, BigDecimal amount, String currency, String returnUrl);
+    GatewayCheckoutSession createSession(String provider, FeeGatewayOrderContext orderContext);
     GatewayPaymentConfirmation confirmPayment(String provider, String checkoutToken, String providerOrderId, String providerPaymentId, String providerSignature);
+    GatewayPaymentStatus fetchPaymentStatus(String provider, String providerOrderId, String providerPaymentId);
 
     class GatewayCheckoutSession {
         private final String provider;
@@ -34,6 +33,22 @@ public interface PaymentGatewayClient {
         private final String rawPayload;
 
         public GatewayPaymentConfirmation(String providerPaymentId, String status, String rawPayload) {
+            this.providerPaymentId = providerPaymentId;
+            this.status = status;
+            this.rawPayload = rawPayload;
+        }
+
+        public String getProviderPaymentId() { return providerPaymentId; }
+        public String getStatus() { return status; }
+        public String getRawPayload() { return rawPayload; }
+    }
+
+    class GatewayPaymentStatus {
+        private final String providerPaymentId;
+        private final String status;
+        private final String rawPayload;
+
+        public GatewayPaymentStatus(String providerPaymentId, String status, String rawPayload) {
             this.providerPaymentId = providerPaymentId;
             this.status = status;
             this.rawPayload = rawPayload;

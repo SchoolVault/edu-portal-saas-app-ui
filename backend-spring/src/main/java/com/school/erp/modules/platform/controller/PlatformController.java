@@ -2,19 +2,26 @@ package com.school.erp.modules.platform.controller;
 
 import com.school.erp.common.dto.ApiResponse;
 import com.school.erp.common.dto.PageResponse;
+import com.school.erp.modules.finance.dto.TenantFinanceProfileDTOs;
+import com.school.erp.modules.finance.service.TenantFinanceProfileService;
 import com.school.erp.modules.platform.dto.PlatformDTOs;
 import com.school.erp.modules.platform.service.PlatformService;
 import com.school.erp.modules.settings.service.TenantFeatureRolloutService;
+import com.school.erp.tenant.TenantContext;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import java.nio.charset.StandardCharsets;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
 
@@ -25,6 +32,7 @@ import java.util.Map;
 public class PlatformController {
     private final PlatformService platformService;
     private final TenantFeatureRolloutService tenantFeatureRolloutService;
+    private final TenantFinanceProfileService tenantFinanceProfileService;
 
     @Autowired(required = false)
     private com.school.erp.modules.platform.service.CacheManagementService cacheManagementService;
@@ -97,6 +105,26 @@ public class PlatformController {
         return ResponseEntity.ok(ApiResponse.ok(platformService.getSchoolDetail(tenantId)));
     }
 
+    @GetMapping("/schools/{tenantId}/finance-profile")
+    @Operation(
+            summary = "Read tenant finance / Route profile (platform verification)",
+            description = "Includes full Razorpay linked account id for operators. Tenant-scoped audit rows use the school tenant id when approving LIVE.")
+    public ResponseEntity<ApiResponse<TenantFinanceProfileDTOs.FinanceProfileResponse>> getSchoolFinanceProfile(
+            @PathVariable String tenantId) {
+        return ResponseEntity.ok(ApiResponse.ok(tenantFinanceProfileService.getProfileForTenant(tenantId)));
+    }
+
+    @PostMapping("/schools/{tenantId}/finance-profile/approve-live")
+    @Operation(
+            summary = "Approve Razorpay Route settlement (LIVE)",
+            description = "Allowed only when status is SUBMITTED. Enables parent online fee checkout for Route-linked settlement for that tenant.")
+    public ResponseEntity<ApiResponse<TenantFinanceProfileDTOs.FinanceProfileResponse>> approveSchoolFinanceProfileLive(
+            @PathVariable String tenantId) {
+        Long uid = TenantContext.getUserId();
+        return ResponseEntity.ok(
+                ApiResponse.ok(tenantFinanceProfileService.approveLiveForTenant(tenantId, uid), "Route settlement is LIVE for this school"));
+    }
+
     @PostMapping("/schools/{tenantId}/suspend")
     @Operation(summary = "Suspend workspace and deactivate all users in tenant (no logins)")
     public ResponseEntity<ApiResponse<Void>> suspendSchool(@PathVariable String tenantId) {
@@ -137,17 +165,20 @@ public class PlatformController {
         return ResponseEntity.ok(ApiResponse.ok(platformService.listPurgeJobsGlobal(page, size, q, status)));
     }
 
-    @GetMapping(value = "/schools/{tenantId}/purge-jobs/{jobId}/export.csv", produces = "text/csv")
+    @GetMapping(value = "/schools/{tenantId}/purge-jobs/{jobId}/export.csv", produces = "text/csv;charset=UTF-8")
     @Operation(summary = "Export purge job audit record as CSV")
     public ResponseEntity<byte[]> exportPurgeJobCsv(
             @PathVariable String tenantId,
             @PathVariable Long jobId
     ) {
         byte[] csv = platformService.exportTenantPurgeJobCsv(tenantId, jobId);
-        String filename = "tenant-purge-job-" + jobId + ".csv";
+        String filename = "tenant-purge-job-" + jobId + "-" + LocalDate.now().format(DateTimeFormatter.BASIC_ISO_DATE) + ".csv";
+        ContentDisposition disposition = ContentDisposition.attachment()
+                .filename(filename, StandardCharsets.UTF_8)
+                .build();
         return ResponseEntity.ok()
-                .contentType(MediaType.parseMediaType("text/csv"))
-                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
+                .contentType(MediaType.parseMediaType("text/csv;charset=UTF-8"))
+                .header(HttpHeaders.CONTENT_DISPOSITION, disposition.toString())
                 .body(csv);
     }
 
@@ -210,7 +241,12 @@ public class PlatformController {
             summary = "Clear cache regions",
             description = "Without `tenantId`: clears entire named region(s) for all schools. "
                     + "With `tenantId`: removes only that school's cache keys in those region(s) (Redis SCAN + unlink). "
-                    + "Empty `regions` applies to every CacheService.CacheRegion (including tenantFeatureFlags)."
+                    + "Empty `regions` applies to every CacheService.CacheRegion (including tenantFeatureFlags). "
+                    + "When `dashboardSnapshots` is included (or all regions), persisted dashboard_snapshot rows are marked "
+                    + "refresh_required so PostgreSQL-backed dashboard JSON cannot stay stale after Redis eviction. "
+                    + "Clearing `permissions` or all regions also evicts the in-process slim-JWT authority cache; "
+                    + "tenant-scoped clears invalidate the parent-portal exam page L1 cache for that school; "
+                    + "global all-region clears drop that L1 cache for every tenant."
     )
     public ResponseEntity<ApiResponse<PlatformDTOs.CacheClearResponse>> clearCache(
             @Valid @RequestBody PlatformDTOs.CacheClearRequest request) {
@@ -242,8 +278,12 @@ public class PlatformController {
         return ResponseEntity.ok(ApiResponse.ok(response, response.getMessage()));
     }
 
-    public PlatformController(PlatformService platformService, TenantFeatureRolloutService tenantFeatureRolloutService) {
+    public PlatformController(
+            PlatformService platformService,
+            TenantFeatureRolloutService tenantFeatureRolloutService,
+            TenantFinanceProfileService tenantFinanceProfileService) {
         this.platformService = platformService;
         this.tenantFeatureRolloutService = tenantFeatureRolloutService;
+        this.tenantFinanceProfileService = tenantFinanceProfileService;
     }
 }

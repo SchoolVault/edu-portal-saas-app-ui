@@ -642,8 +642,12 @@ public class PlatformDTOs {
     /**
      * Request to clear cache. When {@code regions} is empty, every {@link com.school.erp.cache.CacheService.CacheRegion}
      * is cleared (including {@code tenantFeatureFlags}).
-     * <p><strong>Tenant id caveat:</strong> Spring Cache does not expose key iteration; when {@code tenantId} is set,
-     * With {@code tenantId}: only that school's cache entries are removed (Redis key pattern per tenant).
+     * <p><strong>Tenant id caveat:</strong> when {@code tenantId} is set, only that school's Redis cache entries
+     * are removed (SCAN + unlink by key suffix).
+     * <p>When region {@code dashboardSnapshots} is included, persisted {@code dashboard_snapshot} rows for the
+     * affected tenant(s) are also marked {@code refresh_required} so microcache / age modes cannot serve stale JSON.
+     * Clearing {@code permissions} or the full region catalog also evicts in-process slim-JWT authority entries;
+     * tenant-scoped clears invalidate the parent-portal exam page L1 cache for that school.
      */
     public static class CacheClearRequest {
         /** Optional tenant ID — when set, only this school's keys are evicted in the chosen region(s). */
@@ -698,6 +702,11 @@ public class PlatformDTOs {
         private Long keysEvicted;
         /** Regions that failed to clear in this request (partial success if non-empty). */
         private List<String> failedRegions;
+        /**
+         * When {@code dashboardSnapshots} was in the clear scope: number of {@code dashboard_snapshot} rows
+         * marked {@code refresh_required} so the next API read reloads from OLTP.
+         */
+        private Integer dashboardSnapshotRowsMarked;
 
         public CacheStatistics() {}
 
@@ -724,5 +733,9 @@ public class PlatformDTOs {
         public void setKeysEvicted(Long keysEvicted) { this.keysEvicted = keysEvicted; }
         public List<String> getFailedRegions() { return failedRegions; }
         public void setFailedRegions(List<String> failedRegions) { this.failedRegions = failedRegions; }
+        public Integer getDashboardSnapshotRowsMarked() { return dashboardSnapshotRowsMarked; }
+        public void setDashboardSnapshotRowsMarked(Integer dashboardSnapshotRowsMarked) {
+            this.dashboardSnapshotRowsMarked = dashboardSnapshotRowsMarked;
+        }
     }
 }

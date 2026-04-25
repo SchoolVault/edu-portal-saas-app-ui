@@ -2,9 +2,20 @@ import { ChangeDetectorRef, Component, DestroyRef, OnInit, inject } from '@angul
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterModule } from '@angular/router';
+import { ActivatedRoute } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
-import { CommunicationService, CreateAnnouncementPayload } from '../../core/services/communication.service';
+import {
+  CampaignAnalyticsResponse,
+  CampaignHistoryItem,
+  CampaignPreviewResponse,
+  CampaignRequestPayload,
+  CommunicationService,
+  CreateCommunicationEventPayload,
+  CreateAnnouncementPayload,
+  DeadLetterItem,
+  ProviderHealthResponse,
+} from '../../core/services/communication.service';
 import { AuthService } from '../../core/services/auth.service';
 import { AcademicService } from '../../core/services/academic.service';
 import { InboxUnifiedItem, SchoolClass } from '../../core/models/models';
@@ -16,6 +27,7 @@ import { InboxFiltersPanelComponent } from './inbox-filters-panel.component';
 import { SchoolClassNamePipe } from '../../core/i18n/school-class-name.pipe';
 import { ErpPaginationComponent } from '../../shared/erp-pagination/erp-pagination.component';
 import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directives';
+import { ErpDatePickerComponent } from '../../shared/erp-date-picker/erp-date-picker.component';
 import { debounceTime } from 'rxjs/operators';
 import { Subject, Subscription } from 'rxjs';
 import { DEFAULT_ERP_PAGE_SIZE } from '../../core/constants/pagination.constants';
@@ -31,6 +43,7 @@ import { DEFAULT_ERP_PAGE_SIZE } from '../../core/constants/pagination.constants
     SchoolClassNamePipe,
     ErpPaginationComponent,
     ErpI18nPhDirective,
+    ErpDatePickerComponent,
     InboxFiltersPanelComponent,
   ],
   template: `
@@ -129,6 +142,65 @@ import { DEFAULT_ERP_PAGE_SIZE } from '../../core/constants/pagination.constants
             (pageSizeChange)="onInboxPageSize($event)"
           />
         </div>
+
+        <div *ngIf="canPublish" class="erp-card mt-3">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h3 style="font-size: 16px; margin: 0;">Notification Delivery Dashboard</h3>
+            <button type="button" class="btn-outline-erp btn-sm" (click)="refreshOpsDashboard()">Refresh</button>
+          </div>
+          <div class="mb-2 small" *ngIf="providerHealth?.providers">
+            <strong>Provider status:</strong>
+            <span class="ms-2" *ngFor="let p of providerHealthEntries()">
+              <span [class.text-success]="p[1]" [class.text-danger]="!p[1]">{{ p[0] }}: {{ p[1] ? 'UP' : 'DOWN' }}</span>
+            </span>
+          </div>
+          <div *ngIf="campaignHistoryLoading" class="text-muted small">Loading campaign history...</div>
+          <div *ngIf="!campaignHistoryLoading && !campaignHistory.length" class="text-muted small">No notification campaigns yet.</div>
+          <div *ngFor="let c of campaignHistory" class="border rounded p-2 mb-2">
+            <div class="d-flex justify-content-between align-items-center">
+              <div>
+                <div><strong>{{ c.title }}</strong> <span class="text-muted small">({{ c.eventType }})</span></div>
+                <div class="small text-muted">Audience {{ c.targetAudience }} | Recipients {{ c.recipientCount }} | Queued {{ c.queuedCount }}</div>
+              </div>
+              <span class="badge-erp badge-info text-uppercase">{{ c.status }}</span>
+            </div>
+            <div class="small mt-1" *ngIf="campaignAnalytics[c.campaignId] as a">
+              Delivered {{ a.sent }} | Retrying {{ a.retry }} | Failed {{ a.deadLetter }} | Total {{ a.total }}
+            </div>
+            <div class="mt-1" *ngIf="(campaignAnalytics[c.campaignId]?.deadLetter || 0) > 0">
+              <button type="button" class="btn-outline-erp btn-sm" (click)="replayCampaignDlq(c.campaignId)">Retry failed deliveries</button>
+            </div>
+          </div>
+          <app-erp-pagination
+            *ngIf="campaignHistoryTotal > 0"
+            class="d-block mt-1"
+            [totalElements]="campaignHistoryTotal"
+            [pageIndex]="campaignHistoryPageIndex"
+            [pageSize]="campaignHistoryPageSize"
+            (pageIndexChange)="onCampaignHistoryPageIndex($event)"
+            (pageSizeChange)="onCampaignHistoryPageSize($event)"
+          />
+
+          <div class="mt-3">
+            <h4 style="font-size: 14px;">Failed Deliveries</h4>
+            <div *ngIf="deadLetterLoading" class="text-muted small">Loading failed deliveries...</div>
+            <div *ngIf="!deadLetterLoading && !deadLetters.length" class="text-muted small">No failed deliveries.</div>
+            <div *ngFor="let dlq of deadLetters" class="border rounded p-2 mb-2">
+              <div class="small"><strong>{{ dlq.eventType }}</strong> · {{ dlq.channel }} · attempts {{ dlq.attempts }}</div>
+              <div class="small text-muted">{{ dlq.lastError }}</div>
+              <button type="button" class="btn-outline-erp btn-sm mt-1" (click)="replayDeadLetter(dlq.id)">Retry delivery</button>
+            </div>
+            <app-erp-pagination
+              *ngIf="deadLetterTotal > 0"
+              class="d-block mt-1"
+              [totalElements]="deadLetterTotal"
+              [pageIndex]="deadLetterPageIndex"
+              [pageSize]="deadLetterPageSize"
+              (pageIndexChange)="onDeadLetterPageIndex($event)"
+              (pageSizeChange)="onDeadLetterPageSize($event)"
+            />
+          </div>
+        </div>
       </div>
 
       <div class="modal-overlay modal-overlay-viewport" *ngIf="showAnnouncementModal" (click)="closeAnnouncementModal()">
@@ -139,12 +211,31 @@ import { DEFAULT_ERP_PAGE_SIZE } from '../../core/constants/pagination.constants
           </div>
           <div class="modal-body-erp">
             <div class="erp-form-group">
+              <label class="erp-label">Type</label>
+              <select class="erp-select" [(ngModel)]="announcementMode">
+                <option value="NOTICE">Notice</option>
+                <option value="EVENT">Scheduled Event</option>
+              </select>
+            </div>
+            <div class="erp-form-group">
               <label class="erp-label">{{ 'inbox.labelTitle' | translate }}</label>
               <input type="text" class="erp-input" [(ngModel)]="annForm.title" />
             </div>
             <div class="erp-form-group">
-              <label class="erp-label">{{ 'inbox.labelMessage' | translate }}</label>
+              <label class="erp-label">{{ announcementMode === 'EVENT' ? 'Description' : ('inbox.labelMessage' | translate) }}</label>
               <textarea class="erp-input erp-textarea" rows="5" [(ngModel)]="annForm.content"></textarea>
+            </div>
+            <div *ngIf="announcementMode === 'EVENT'" class="erp-form-group">
+              <label class="erp-label">Event type</label>
+              <select class="erp-select" [(ngModel)]="eventType">
+                <option value="PTM">PTM</option>
+                <option value="SPORTS">Sports</option>
+                <option value="FESTIVAL">Festival</option>
+                <option value="STAFF_MEETING">Staff Meeting</option>
+                <option value="EXAM">Exam</option>
+                <option value="FEES">Fees</option>
+                <option value="OTHER">Other</option>
+              </select>
             </div>
             <div class="erp-form-group">
               <label class="erp-label">{{ 'inbox.labelAudience' | translate }}</label>
@@ -156,6 +247,46 @@ import { DEFAULT_ERP_PAGE_SIZE } from '../../core/constants/pagination.constants
                 <option value="SECTION">{{ 'inbox.audienceSECTION' | translate }}</option>
               </select>
               <small class="text-muted d-block mt-1">{{ 'inbox.audienceScopeHint' | translate }}</small>
+            </div>
+            <div class="erp-form-group">
+              <label class="erp-label">Channels</label>
+              <div class="d-flex flex-wrap gap-3">
+                <label class="form-check-label"><input type="checkbox" class="form-check-input me-1" [checked]="channelChecked('SMS')" (change)="toggleChannel('SMS', $event)" />SMS</label>
+                <label class="form-check-label"><input type="checkbox" class="form-check-input me-1" [checked]="channelChecked('WHATSAPP')" (change)="toggleChannel('WHATSAPP', $event)" />WhatsApp</label>
+                <label class="form-check-label"><input type="checkbox" class="form-check-input me-1" [checked]="channelChecked('IN_APP')" (change)="toggleChannel('IN_APP', $event)" />In-App</label>
+              </div>
+            </div>
+            <div *ngIf="announcementMode === 'EVENT'" class="erp-form-group">
+              <label class="erp-label">Event start</label>
+              <app-erp-date-picker
+                [(ngModel)]="eventStartAt"
+                mode="datetime"
+                placeholder="Select event start date and time"
+              />
+            </div>
+            <div *ngIf="announcementMode === 'EVENT'" class="erp-form-group">
+              <label class="erp-label">Event end (optional)</label>
+              <app-erp-date-picker
+                [(ngModel)]="eventEndAt"
+                mode="datetime"
+                placeholder="Select event end date and time"
+              />
+            </div>
+            <div *ngIf="announcementMode === 'EVENT'" class="erp-form-group">
+              <label class="erp-label">Publish at (optional schedule)</label>
+              <app-erp-date-picker
+                [(ngModel)]="publishAt"
+                mode="datetime"
+                placeholder="Select publish date and time"
+              />
+            </div>
+            <div *ngIf="announcementMode === 'EVENT'" class="erp-form-group">
+              <label class="erp-label">Timezone</label>
+              <input type="text" class="erp-input" [(ngModel)]="eventTimezone" />
+            </div>
+            <div *ngIf="announcementMode === 'EVENT'" class="erp-form-group">
+              <label class="erp-label">Location</label>
+              <input type="text" class="erp-input" [(ngModel)]="eventLocation" />
             </div>
             <div class="erp-form-group" *ngIf="annForm.targetAudience === 'CLASS' || annForm.targetAudience === 'SECTION'">
               <label class="erp-label">{{ 'timetable.labelClass' | translate }}</label>
@@ -171,6 +302,11 @@ import { DEFAULT_ERP_PAGE_SIZE } from '../../core/constants/pagination.constants
                 <option *ngFor="let s of annSections" [ngValue]="s.id">{{ s.name }}</option>
               </select>
             </div>
+            <div *ngIf="campaignPreview" class="p-2 rounded border bg-light mb-2">
+              <div class="small"><strong>Recipients:</strong> {{ campaignPreview.estimatedRecipients }}</div>
+              <div class="small"><strong>Estimated cost (minor):</strong> {{ campaignPreview.estimatedCostMinor }}</div>
+              <div class="small" *ngIf="campaignPreview.warnings.length"><strong>Warnings:</strong> {{ campaignPreview.warnings.join(' | ') }}</div>
+            </div>
             <p *ngIf="announcementPublishError" class="text-danger small mb-0">{{ announcementPublishError }}</p>
             <p *ngIf="announcementPublishInfo" class="text-muted small mb-0">{{ announcementPublishInfo }}</p>
           </div>
@@ -178,10 +314,17 @@ import { DEFAULT_ERP_PAGE_SIZE } from '../../core/constants/pagination.constants
             <button type="button" class="btn-outline-erp" [disabled]="isPublishingAnnouncement" (click)="closeAnnouncementModal()">{{ 'inbox.cancel' | translate }}</button>
             <button
               type="button"
+              class="btn-outline-erp"
+              (click)="previewCampaign()"
+              [disabled]="isPublishingAnnouncement || !annForm.title.trim() || !annForm.content.trim() || selectedChannels.length === 0">
+              Preview
+            </button>
+            <button
+              type="button"
               class="btn-primary-erp"
               (click)="publishAnnouncement()"
-              [disabled]="isPublishingAnnouncement || !annForm.title.trim() || !annForm.content.trim()">
-              <span *ngIf="!isPublishingAnnouncement">{{ 'inbox.publish' | translate }}</span>
+              [disabled]="isPublishingAnnouncement || !annForm.title.trim() || !annForm.content.trim() || selectedChannels.length === 0 || (announcementMode === 'EVENT' && !eventStartAt)">
+              <span *ngIf="!isPublishingAnnouncement">{{ announcementMode === 'EVENT' ? 'Create event' : ('inbox.publish' | translate) }}</span>
               <span *ngIf="isPublishingAnnouncement">
                 <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
                 {{ 'inbox.publishInProgress' | translate }}
@@ -265,6 +408,20 @@ export class CommunicationComponent implements OnInit {
   isPublishingAnnouncement = false;
   announcementPublishError = '';
   announcementPublishInfo = '';
+  campaignPreview: CampaignPreviewResponse | null = null;
+  selectedChannels: string[] = ['SMS'];
+  campaignHistory: CampaignHistoryItem[] = [];
+  campaignAnalytics: Record<string, CampaignAnalyticsResponse> = {};
+  campaignHistoryLoading = false;
+  campaignHistoryTotal = 0;
+  campaignHistoryPageIndex = 0;
+  campaignHistoryPageSize = 8;
+  providerHealth: ProviderHealthResponse | null = null;
+  deadLetters: DeadLetterItem[] = [];
+  deadLetterLoading = false;
+  deadLetterTotal = 0;
+  deadLetterPageIndex = 0;
+  deadLetterPageSize = 10;
   annClasses: SchoolClass[] = [];
   annSections: { id: number; name: string }[] = [];
   annSelectedClassId: number | null = null;
@@ -274,8 +431,16 @@ export class CommunicationComponent implements OnInit {
     content: '',
     targetAudience: 'ALL',
   };
+  announcementMode: 'NOTICE' | 'EVENT' = 'NOTICE';
+  eventType = 'PTM';
+  eventStartAt = '';
+  eventEndAt = '';
+  publishAt = '';
+  eventTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Kolkata';
+  eventLocation = '';
 
   private readonly translate = inject(TranslateService);
+  private readonly route = inject(ActivatedRoute);
   private readonly cdr = inject(ChangeDetectorRef);
   private readonly destroyRef = inject(DestroyRef);
   private readonly bellRead = inject(BellReadStateService);
@@ -329,6 +494,17 @@ export class CommunicationComponent implements OnInit {
     this.destroyRef.onDestroy(() => this.subs.unsubscribe());
     this.refreshInbox();
     this.academic.getClasses().subscribe(list => (this.annClasses = list || []));
+    this.refreshOpsDashboard();
+    this.route.queryParamMap.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(params => {
+      const campaignId = params.get('campaignId');
+      if (campaignId && this.canPublish) {
+        this.comm.getCampaignAnalytics(campaignId).subscribe({
+          next: analytics => {
+            this.announcementPublishInfo = `Campaign ${campaignId}: Delivered ${analytics.sent}, Retrying ${analytics.retry}, Failed ${analytics.deadLetter}`;
+          },
+        });
+      }
+    });
   }
 
   refreshInbox(): void {
@@ -451,6 +627,15 @@ export class CommunicationComponent implements OnInit {
     this.isPublishingAnnouncement = false;
     this.announcementPublishError = '';
     this.announcementPublishInfo = '';
+    this.selectedChannels = ['SMS'];
+    this.campaignPreview = null;
+    this.announcementMode = 'NOTICE';
+    this.eventType = 'PTM';
+    this.eventStartAt = '';
+    this.eventEndAt = '';
+    this.publishAt = '';
+    this.eventTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Kolkata';
+    this.eventLocation = '';
     this.showAnnouncementModal = true;
   }
 
@@ -471,6 +656,10 @@ export class CommunicationComponent implements OnInit {
       this.announcementPublishError = this.translate.instant('inbox.publishValidationTitleMessage');
       return;
     }
+    if (!this.selectedChannels.length) {
+      this.announcementPublishError = 'Select at least one channel.';
+      return;
+    }
     let targetClassId: number | undefined;
     let targetSectionId: number | undefined;
     if (this.annForm.targetAudience === 'CLASS' || this.annForm.targetAudience === 'SECTION') {
@@ -487,6 +676,10 @@ export class CommunicationComponent implements OnInit {
         return;
       }
     }
+    if (this.announcementMode === 'EVENT' && !this.eventStartAt) {
+      this.announcementPublishError = 'Event start date/time is required.';
+      return;
+    }
     this.announcementPublishError = '';
     this.announcementPublishInfo = this.translate.instant('inbox.publishInProgress');
     this.isPublishingAnnouncement = true;
@@ -497,12 +690,64 @@ export class CommunicationComponent implements OnInit {
       targetClassId,
       targetSectionId,
     };
-    this.comm.createAnnouncement(payload).subscribe({
+    const campaignPayload: CampaignRequestPayload = {
+      title,
+      message: content,
+      eventType: this.announcementMode === 'EVENT' ? this.eventType : 'ANNOUNCEMENT_PUBLISHED',
+      targetAudience: this.annForm.targetAudience,
+      targetClassId,
+      targetSectionId,
+      channels: [...this.selectedChannels],
+      locale: 'en',
+      scheduledAt: this.publishAt || undefined,
+    };
+    this.comm.sendCampaign(campaignPayload).subscribe({
       next: () => {
-        this.isPublishingAnnouncement = false;
-        this.announcementPublishInfo = this.translate.instant('inbox.publishSuccess');
-        this.showAnnouncementModal = false;
-        this.refreshInbox();
+        if (this.announcementMode === 'EVENT') {
+          const eventPayload: CreateCommunicationEventPayload = {
+            title,
+            description: content,
+            eventType: this.eventType,
+            audienceScope: this.annForm.targetAudience,
+            targetClassId,
+            targetSectionId,
+            publishAt: this.publishAt || undefined,
+            eventStartAt: this.eventStartAt,
+            eventEndAt: this.eventEndAt || undefined,
+            timezone: this.eventTimezone || 'Asia/Kolkata',
+            locale: (this.translate.currentLang || 'en').toLowerCase(),
+            location: this.eventLocation || undefined,
+          };
+          this.comm.createCommunicationEvent(eventPayload).subscribe({
+            next: () => {
+              this.isPublishingAnnouncement = false;
+              this.announcementPublishInfo = this.translate.instant('inbox.publishSuccess');
+              this.showAnnouncementModal = false;
+              this.refreshInbox();
+              this.loadCampaignHistory();
+            },
+            error: (err: { error?: { message?: string } }) => {
+              this.isPublishingAnnouncement = false;
+              this.announcementPublishInfo = '';
+              this.announcementPublishError = err?.error?.message || this.translate.instant('inbox.publishFailed');
+            },
+          });
+          return;
+        }
+        this.comm.createAnnouncement(payload).subscribe({
+          next: () => {
+            this.isPublishingAnnouncement = false;
+            this.announcementPublishInfo = this.translate.instant('inbox.publishSuccess');
+            this.showAnnouncementModal = false;
+            this.refreshInbox();
+            this.loadCampaignHistory();
+          },
+          error: (err: { error?: { message?: string } }) => {
+            this.isPublishingAnnouncement = false;
+            this.announcementPublishInfo = '';
+            this.announcementPublishError = err?.error?.message || this.translate.instant('inbox.publishFailed');
+          },
+        });
       },
       error: (err: { error?: { message?: string } }) => {
         this.isPublishingAnnouncement = false;
@@ -510,6 +755,151 @@ export class CommunicationComponent implements OnInit {
         this.announcementPublishError = err?.error?.message || this.translate.instant('inbox.publishFailed');
       },
     });
+  }
+
+  previewCampaign(): void {
+    const title = this.annForm.title.trim();
+    const content = this.annForm.content.trim();
+    if (!title || !content || !this.selectedChannels.length) {
+      return;
+    }
+    const payload: CampaignRequestPayload = {
+      title,
+      message: content,
+      eventType: this.announcementMode === 'EVENT' ? this.eventType : 'ANNOUNCEMENT_PUBLISHED',
+      targetAudience: this.annForm.targetAudience,
+      targetClassId: this.annSelectedClassId ?? undefined,
+      targetSectionId: this.annSelectedSectionId ?? undefined,
+      channels: [...this.selectedChannels],
+      locale: 'en',
+      scheduledAt: this.publishAt || undefined,
+    };
+    this.comm.previewCampaign(payload).subscribe({
+      next: preview => {
+        this.campaignPreview = preview;
+        this.announcementPublishInfo = `Estimated recipients: ${preview.estimatedRecipients}`;
+      },
+      error: () => {
+        this.campaignPreview = null;
+        this.announcementPublishError = 'Preview failed';
+      },
+    });
+  }
+
+  toggleChannel(channel: string, event: Event): void {
+    const checked = (event.target as HTMLInputElement).checked;
+    if (checked) {
+      if (!this.selectedChannels.includes(channel)) {
+        this.selectedChannels = [...this.selectedChannels, channel];
+      }
+      return;
+    }
+    this.selectedChannels = this.selectedChannels.filter(c => c !== channel);
+  }
+
+  channelChecked(channel: string): boolean {
+    return this.selectedChannels.includes(channel);
+  }
+
+  loadCampaignHistory(): void {
+    if (!this.canPublish) {
+      return;
+    }
+    this.campaignHistoryLoading = true;
+    this.comm.getCampaignHistory(this.campaignHistoryPageIndex, this.campaignHistoryPageSize).subscribe({
+      next: page => {
+        this.campaignHistory = page.content || [];
+        this.campaignHistoryTotal = page.totalElements || 0;
+        this.campaignHistoryLoading = false;
+        this.campaignAnalytics = {};
+        for (const row of this.campaignHistory) {
+          this.comm.getCampaignAnalytics(row.campaignId).subscribe({
+            next: a => {
+              this.campaignAnalytics[row.campaignId] = a;
+            },
+          });
+        }
+      },
+      error: () => {
+        this.campaignHistoryLoading = false;
+      },
+    });
+  }
+
+  loadDeadLetters(): void {
+    if (!this.canPublish) {
+      return;
+    }
+    this.deadLetterLoading = true;
+    this.comm.getDeadLetterPage(this.deadLetterPageIndex, this.deadLetterPageSize).subscribe({
+      next: page => {
+        this.deadLetters = page.content || [];
+        this.deadLetterTotal = page.totalElements || 0;
+        this.deadLetterLoading = false;
+      },
+      error: () => {
+        this.deadLetterLoading = false;
+      },
+    });
+  }
+
+  loadProviderHealth(): void {
+    if (!this.canPublish) {
+      return;
+    }
+    this.comm.getProviderHealth().subscribe({
+      next: health => {
+        this.providerHealth = health;
+      },
+    });
+  }
+
+  replayDeadLetter(id: number): void {
+    this.comm.replayDeadLetter(id).subscribe({
+      next: () => this.loadDeadLetters(),
+    });
+  }
+
+  replayCampaignDlq(campaignId: string): void {
+    this.comm.replayCampaignDeadLetters(campaignId).subscribe({
+      next: () => {
+        this.loadCampaignHistory();
+        this.loadDeadLetters();
+      },
+    });
+  }
+
+  providerHealthEntries(): [string, boolean][] {
+    const providers = this.providerHealth?.providers || {};
+    return Object.entries(providers) as [string, boolean][];
+  }
+
+  refreshOpsDashboard(): void {
+    this.loadCampaignHistory();
+    this.loadDeadLetters();
+    this.loadProviderHealth();
+  }
+
+  onCampaignHistoryPageIndex(i: number): void {
+    this.campaignHistoryPageIndex = i;
+    this.loadCampaignHistory();
+  }
+
+  onCampaignHistoryPageSize(s: number): void {
+    this.campaignHistoryPageSize = s;
+    this.campaignHistoryPageIndex = 0;
+    this.loadCampaignHistory();
+  }
+
+  onDeadLetterPageIndex(i: number): void {
+    this.deadLetterPageIndex = i;
+    this.loadDeadLetters();
+  }
+
+  onDeadLetterPageSize(s: number): void {
+    this.deadLetterPageSize = s;
+    this.deadLetterPageIndex = 0;
+    this.loadDeadLetters();
   }
 
   formatDate(dateStr: string): string {

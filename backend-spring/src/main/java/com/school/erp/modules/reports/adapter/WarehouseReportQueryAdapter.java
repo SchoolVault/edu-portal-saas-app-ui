@@ -12,6 +12,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Primary;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
@@ -112,6 +113,26 @@ public class WarehouseReportQueryAdapter implements ReportQueryPort {
             log.warn("Warehouse admin dashboard read failed; fallback to OLTP tenantId={}", tenantId, ex);
             return oltp.getAdminDashboard();
         }
+    }
+
+    @Override
+    public Page<ReportDashboardDTOs.ActivityItem> getAdminRecentActivities(
+            String q,
+            String eventType,
+            String fromDate,
+            String toDate,
+            Pageable pageable) {
+        return oltp.getAdminRecentActivities(q, eventType, fromDate, toDate, pageable);
+    }
+
+    @Override
+    public Page<ReportDashboardDTOs.UpcomingEvent> getAdminUpcomingEvents(
+            String q,
+            String eventType,
+            String fromDate,
+            String toDate,
+            Pageable pageable) {
+        return oltp.getAdminUpcomingEvents(q, eventType, fromDate, toDate, pageable);
     }
 
     @Override

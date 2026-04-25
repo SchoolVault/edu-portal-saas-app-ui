@@ -6,6 +6,12 @@ import {
   mockTeacherAssignedSlots,
   mockTeacherAssignedStudentCountFromTimetable,
 } from './mock-aggregates';
+import {
+  MOCK_SCHOOL_ADMIN_PERMISSIONS,
+  MOCK_SUPER_ADMIN_PERMISSIONS,
+  MOCK_TEACHER_BASE_PERMISSIONS,
+  AppPermission,
+} from '../auth/app-permission.constants';
 
 /** Demo accounts — same shape as future `POST /auth/login` users; delete this file when mocks are off. */
 export interface MockLoginRecord {
@@ -20,19 +26,43 @@ export const MOCK_LOGIN_USERS: readonly MockLoginRecord[] = [
     email: 'admin@school.com',
     password: 'admin123',
     schoolCode: 'SCH001',
-    user: { id: 1, email: 'admin@school.com', name: 'John Anderson', role: 'admin', tenantId: 't1', phone: '+1-555-0101' },
+    user: {
+      id: 1,
+      email: 'admin@school.com',
+      name: 'John Anderson',
+      role: 'admin',
+      tenantId: 't1',
+      phone: '+1-555-0101',
+      permissions: [...MOCK_SCHOOL_ADMIN_PERMISSIONS],
+    },
   },
   {
     email: 'teacher@school.com',
     password: 'teacher123',
     schoolCode: 'SCH001',
-    user: { id: 2, email: 'teacher@school.com', name: 'Sarah Mitchell', role: 'teacher', tenantId: 't1', phone: '+1-555-0102' },
+    user: {
+      id: 2,
+      email: 'teacher@school.com',
+      name: 'Sarah Mitchell',
+      role: 'teacher',
+      tenantId: 't1',
+      phone: '+1-555-0102',
+      permissions: [...MOCK_TEACHER_BASE_PERMISSIONS],
+    },
   },
   {
     email: 'parent@school.com',
     password: 'parent123',
     schoolCode: 'SCH001',
-    user: { id: 3, email: 'parent@school.com', name: 'Michael Chen', role: 'parent', tenantId: 't1', phone: '+1-555-0103' },
+    user: {
+      id: 3,
+      email: 'parent@school.com',
+      name: 'Michael Chen',
+      role: 'parent',
+      tenantId: 't1',
+      phone: '+1-555-0103',
+      permissions: [AppPermission.PORTAL_PARENT],
+    },
   },
   {
     email: 'superadmin@schoolvault.com',
@@ -45,6 +75,7 @@ export const MOCK_LOGIN_USERS: readonly MockLoginRecord[] = [
       role: 'super_admin',
       tenantId: 'platform',
       phone: '+1-555-0199',
+      permissions: [...MOCK_SUPER_ADMIN_PERMISSIONS],
     },
   },
 ];

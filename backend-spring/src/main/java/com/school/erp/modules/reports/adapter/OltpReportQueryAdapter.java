@@ -18,6 +18,9 @@ import com.school.erp.modules.chat.entity.ChatParticipant;
 import com.school.erp.modules.chat.repository.ChatConversationRepository;
 import com.school.erp.modules.chat.repository.ChatParticipantRepository;
 import com.school.erp.modules.communication.repository.AnnouncementRepository;
+import com.school.erp.modules.communication.repository.CommunicationEventRepository;
+import com.school.erp.modules.communication.entity.CommunicationEvent;
+import com.school.erp.modules.communication.domain.CommunicationEventStatus;
 import com.school.erp.modules.notification.repository.NotificationRepository;
 import com.school.erp.modules.reports.dto.ParentDashboardDtos;
 import com.school.erp.modules.reports.dto.ReportDashboardDTOs;
@@ -34,6 +37,7 @@ import com.school.erp.modules.timetable.repository.TimetableRepository;
 import com.school.erp.tenant.TenantContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.data.domain.Page;
@@ -42,6 +46,8 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeParseException;
 import java.time.YearMonth;
 import java.time.format.TextStyle;
 import java.util.*;
@@ -68,11 +74,16 @@ public class OltpReportQueryAdapter implements ReportQueryPort {
     private final ChatConversationRepository chatConversationRepo;
     private final ChatParticipantRepository chatParticipantRepo;
     private final AnnouncementRepository announcementRepo;
+    private final CommunicationEventRepository communicationEventRepo;
     private final GuardianService guardianService;
     private final ExamService examService;
 
     private static final int PARENT_ATTENDANCE_THRESHOLD = 85;
     private static final double HIGH_FEE_ABS_INR = 15000d;
+    @Value("${app.reports.dashboard.upcoming-window-days:7}")
+    private int upcomingWindowDays;
+    @Value("${app.reports.dashboard.recent-window-days:7}")
+    private int recentWindowDays;
 
     @Transactional(readOnly = true)
     public Map<String, Object> getDashboardKPIs() {
@@ -107,30 +118,9 @@ public class OltpReportQueryAdapter implements ReportQueryPort {
         response.setMonthlyAdmissions(buildMonthlyAdmissions(tenantId));
         response.setMonthlyCollections(buildMonthlyCollections(payments));
         response.setAttendanceOverview(buildAttendanceOverview(tenantId, today));
-        List<ReportDashboardDTOs.ActivityItem> activities = notificationRepo.findByTenantIdAndUserIdOrderByCreatedAtDesc(tenantId, TenantContext.getUserId()).stream()
-                .limit(5)
-                .map(notification -> new ReportDashboardDTOs.ActivityItem(notification.getTitle(), notification.getMessage(), notification.getType() != null ? notification.getType().name().toLowerCase() : "info", notification.getCreatedAt() != null ? notification.getCreatedAt().toString() : ""))
-                .collect(Collectors.toList());
-        if (activities.isEmpty()) {
-            activities = announcementRepo.findByTenantIdAndIsDeletedFalseOrderByCreatedAtDesc(tenantId).stream()
-                    .limit(5)
-                    .map(a -> new ReportDashboardDTOs.ActivityItem(a.getTitle(), a.getContent() != null && a.getContent().length() > 120 ? a.getContent().substring(0, 117) + "…" : (a.getContent() != null ? a.getContent() : ""), "info", a.getCreatedAt() != null ? a.getCreatedAt().toString() : ""))
-                    .collect(Collectors.toList());
-        }
+        List<ReportDashboardDTOs.ActivityItem> activities = buildAdminRecentActivities(tenantId, today, 8);
         response.setRecentActivities(activities);
-        response.setUpcomingEvents(examRepo.findByTenantIdAndIsDeletedFalse(tenantId).stream()
-                .filter(exam -> exam.getEndDate() == null || !exam.getEndDate().isBefore(today))
-                .sorted(Comparator.comparing(exam -> exam.getStartDate() != null ? exam.getStartDate() : today))
-                .limit(5)
-                .map(exam -> {
-                    ReportDashboardDTOs.UpcomingEvent event = new ReportDashboardDTOs.UpcomingEvent();
-                    event.setId(exam.getId());
-                    event.setTitle(exam.getName());
-                    event.setDate(exam.getStartDate() != null ? exam.getStartDate().toString() : "");
-                    event.setDescription("Exam window ends " + (exam.getEndDate() != null ? exam.getEndDate() : "TBD"));
-                    return event;
-                })
-                .collect(Collectors.toList()));
+        response.setUpcomingEvents(buildAdminUpcomingEvents(tenantId, today, 8));
         List<ReportDashboardDTOs.ClassHomeroomGap> homeroomGaps = classRepo.findByTenantIdAndIsDeletedFalseOrderByGrade(tenantId).stream()
                 .filter(c -> c.getClassTeacherId() == null)
                 .map(c -> new ReportDashboardDTOs.ClassHomeroomGap(c.getId(), c.getName(), c.getGrade()))
@@ -138,6 +128,34 @@ public class OltpReportQueryAdapter implements ReportQueryPort {
         response.setClassesWithoutHomeroomTeacher(homeroomGaps);
         log.info("Admin dashboard ready tenantId={} students={} activities={} homeroomGaps={}", tenantId, response.getTotalStudents(), response.getRecentActivities().size(), homeroomGaps.size());
         return response;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<ReportDashboardDTOs.ActivityItem> getAdminRecentActivities(
+            String q,
+            String eventType,
+            String fromDate,
+            String toDate,
+            Pageable pageable) {
+        String tenantId = TenantContext.getTenantId();
+        int windowSize = Math.max(40, (pageable.getPageNumber() + 1) * pageable.getPageSize() * 3);
+        List<ReportDashboardDTOs.ActivityItem> rows = buildAdminRecentActivities(tenantId, LocalDate.now(), windowSize);
+        return pageFilteredActivities(rows, q, eventType, fromDate, toDate, pageable);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<ReportDashboardDTOs.UpcomingEvent> getAdminUpcomingEvents(
+            String q,
+            String eventType,
+            String fromDate,
+            String toDate,
+            Pageable pageable) {
+        String tenantId = TenantContext.getTenantId();
+        int windowSize = Math.max(40, (pageable.getPageNumber() + 1) * pageable.getPageSize() * 3);
+        List<ReportDashboardDTOs.UpcomingEvent> rows = buildAdminUpcomingEvents(tenantId, LocalDate.now(), windowSize);
+        return pageFilteredUpcoming(rows, q, eventType, fromDate, toDate, pageable);
     }
 
     @Transactional(readOnly = true)
@@ -488,8 +506,41 @@ public class OltpReportQueryAdapter implements ReportQueryPort {
         out.setFeeMetric(fm);
 
         out.setRecentActivities(buildParentRecentActivities(tenantId, uid, selected, records, fees, !marks.isEmpty()));
+        out.setUpcoming(buildParentUpcomingEvents(tenantId, selected, 8));
         log.info("Parent dashboard ready studentId={} attendancePct={} feeDue={}", selected.getId(), out.getAttendancePercentage(), feeDue);
         return out;
+    }
+
+    private List<ReportDashboardDTOs.UpcomingEvent> buildParentUpcomingEvents(String tenantId, Student selected, int limit) {
+        if (selected == null) {
+            return List.of();
+        }
+        Long classId = selected.getClassId();
+        Long sectionId = selected.getSectionId();
+        LocalDate today = LocalDate.now();
+        LocalDate windowEnd = today.plusDays(resolveUpcomingWindowDays());
+        return communicationEventRepo.pageForTenant(tenantId, PageRequest.of(0, 300)).getContent().stream()
+                .filter(event -> (event.getStatus() == CommunicationEventStatus.SCHEDULED || event.getStatus() == CommunicationEventStatus.PUBLISHED)
+                        && event.getEventStartAt() != null
+                        && !event.getEventStartAt().toLocalDate().isBefore(today)
+                        && !event.getEventStartAt().toLocalDate().isAfter(windowEnd))
+                .filter(event -> {
+                    Enums.TargetAudience aud = event.getAudienceScope();
+                    if (aud == null || aud == Enums.TargetAudience.ALL || aud == Enums.TargetAudience.PARENTS) {
+                        return true;
+                    }
+                    if (aud == Enums.TargetAudience.CLASS) {
+                        return classId != null && classId.equals(event.getTargetClassId());
+                    }
+                    if (aud == Enums.TargetAudience.SECTION) {
+                        return sectionId != null && sectionId.equals(event.getTargetSectionId());
+                    }
+                    return false;
+                })
+                .map(this::toUpcomingFromCommunicationEvent)
+                .sorted(Comparator.comparing(e -> e.getDate() != null ? e.getDate() : ""))
+                .limit(limit)
+                .collect(Collectors.toList());
     }
 
     private static String attendanceBand(double pct) {
@@ -1213,6 +1264,280 @@ public class OltpReportQueryAdapter implements ReportQueryPort {
         return overview;
     }
 
+    private List<ReportDashboardDTOs.UpcomingEvent> buildAdminUpcomingEvents(String tenantId, LocalDate today, int limit) {
+        int fetchSize = Math.max(limit * 3, 80);
+        LocalDate windowEnd = today.plusDays(resolveUpcomingWindowDays());
+        List<ReportDashboardDTOs.UpcomingEvent> fromEvents = communicationEventRepo
+                .pageForTenant(tenantId, PageRequest.of(0, fetchSize))
+                .getContent()
+                .stream()
+                .filter(event -> (event.getStatus() == CommunicationEventStatus.SCHEDULED || event.getStatus() == CommunicationEventStatus.PUBLISHED)
+                        && event.getEventStartAt() != null
+                        && !event.getEventStartAt().toLocalDate().isBefore(today)
+                        && !event.getEventStartAt().toLocalDate().isAfter(windowEnd))
+                .map(this::toUpcomingFromCommunicationEvent)
+                .collect(Collectors.toList());
+
+        List<ReportDashboardDTOs.UpcomingEvent> fromExams = examRepo.findByTenantIdAndIsDeletedFalse(tenantId).stream()
+                .filter(exam -> exam.getStartDate() != null
+                        && !exam.getStartDate().isBefore(today)
+                        && !exam.getStartDate().isAfter(windowEnd))
+                .map(exam -> {
+                    ReportDashboardDTOs.UpcomingEvent event = new ReportDashboardDTOs.UpcomingEvent();
+                    event.setId(exam.getId());
+                    event.setTitle(exam.getName());
+                    event.setDate(exam.getStartDate() != null ? exam.getStartDate().toString() : "");
+                    event.setDescription("Exam window ends " + (exam.getEndDate() != null ? exam.getEndDate() : "TBD"));
+                    return event;
+                })
+                .collect(Collectors.toList());
+
+        List<ReportDashboardDTOs.UpcomingEvent> merged = new ArrayList<>();
+        merged.addAll(fromEvents);
+        merged.addAll(fromExams);
+        merged.sort(Comparator.comparing(e -> e.getDate() != null ? e.getDate() : ""));
+        return merged.stream().limit(limit).collect(Collectors.toList());
+    }
+
+    private List<ReportDashboardDTOs.ActivityItem> buildAdminRecentActivities(String tenantId, LocalDate today, int limit) {
+        List<ReportDashboardDTOs.ActivityItem> rows = new ArrayList<>();
+        int fetchSize = Math.max(limit * 3, 80);
+        LocalDate recentCutoffDate = today.minusDays(resolveRecentWindowDays());
+        communicationEventRepo.pageForTenant(tenantId, PageRequest.of(0, fetchSize)).getContent().stream()
+                .filter(event -> event.getStatus() == CommunicationEventStatus.PUBLISHED
+                        || event.getStatus() == CommunicationEventStatus.COMPLETED
+                        || event.getStatus() == CommunicationEventStatus.CANCELLED)
+                .forEach(event -> {
+                    LocalDateTime ts = event.getCompletedAt() != null ? event.getCompletedAt()
+                            : event.getCancelledAt() != null ? event.getCancelledAt()
+                            : event.getPublishedAt() != null ? event.getPublishedAt()
+                            : event.getEventEndAt() != null ? event.getEventEndAt()
+                            : event.getEventStartAt() != null ? event.getEventStartAt()
+                            : event.getUpdatedAt();
+                    if (ts == null) {
+                        ts = event.getCreatedAt();
+                    }
+                    if (ts == null || ts.toLocalDate().isBefore(recentCutoffDate)) {
+                        return;
+                    }
+                    String statusWord = event.getStatus().name().toLowerCase(Locale.ROOT);
+                    String desc = (event.getDescription() != null && event.getDescription().length() > 120)
+                            ? event.getDescription().substring(0, 117) + "…"
+                            : (event.getDescription() != null ? event.getDescription() : "");
+                    rows.add(new ReportDashboardDTOs.ActivityItem(
+                            event.getTitle(),
+                            "Event " + statusWord + (desc.isBlank() ? "" : " • " + desc),
+                            "info",
+                            ts.toString()));
+                    ReportDashboardDTOs.ActivityItem last = rows.get(rows.size() - 1);
+                    last.setCampaignId(resolveEventCampaignId(event));
+                });
+
+        feePaymentRepo.findByTenantIdAndIsDeletedFalse(tenantId).stream()
+                .filter(fp -> fp.getPaidAmount() != null && fp.getPaidAmount().doubleValue() > 0)
+                .forEach(fp -> {
+                    LocalDateTime ts = fp.getPaymentDate() != null ? fp.getPaymentDate().atStartOfDay() : fp.getCreatedAt();
+                    if (ts == null || ts.toLocalDate().isBefore(recentCutoffDate)) {
+                        return;
+                    }
+                    String amount = fp.getPaidAmount() != null ? fp.getPaidAmount().toPlainString() : "0";
+                    String mode = fp.getPaymentMethod() != null && !fp.getPaymentMethod().isBlank()
+                            ? " via " + fp.getPaymentMethod()
+                            : "";
+                    rows.add(new ReportDashboardDTOs.ActivityItem(
+                            "Fee payment received",
+                            (fp.getStudentName() != null && !fp.getStudentName().isBlank() ? fp.getStudentName() : "Student")
+                                    + " paid INR " + amount + mode,
+                            "success",
+                            ts.toString()));
+                });
+
+        examRepo.findByTenantIdAndIsDeletedFalse(tenantId).stream()
+                .forEach(exam -> {
+                    LocalDateTime publishedTs = exam.getPublishedAt();
+                    if (publishedTs != null && !publishedTs.toLocalDate().isBefore(recentCutoffDate)) {
+                        String kind = Boolean.TRUE.equals(exam.getResultsPublished()) ? "Result published" : "Exam published";
+                        rows.add(new ReportDashboardDTOs.ActivityItem(
+                                kind,
+                                exam.getName() + (exam.getWorkflowState() != null && !exam.getWorkflowState().isBlank()
+                                        ? " • state " + exam.getWorkflowState()
+                                        : ""),
+                                "info",
+                                publishedTs.toString()));
+                    }
+                    if (exam.getStatus() == Enums.ExamStatus.COMPLETED) {
+                        LocalDateTime completedTs = exam.getEndDate() != null
+                                ? exam.getEndDate().atTime(23, 59)
+                                : exam.getUpdatedAt();
+                        if (completedTs != null && !completedTs.toLocalDate().isBefore(recentCutoffDate)) {
+                            rows.add(new ReportDashboardDTOs.ActivityItem(
+                                    "Exam completed",
+                                    exam.getName(),
+                                    "info",
+                                    completedTs.toString()));
+                        }
+                    }
+                });
+
+        rows.addAll(announcementRepo.findByTenantIdAndIsDeletedFalseOrderByCreatedAtDesc(
+                        tenantId,
+                        PageRequest.of(0, Math.max(20, limit)))
+                .getContent()
+                .stream()
+                .filter(a -> a.getCreatedAt() != null && !a.getCreatedAt().toLocalDate().isBefore(recentCutoffDate))
+                .map(a -> new ReportDashboardDTOs.ActivityItem(
+                        a.getTitle(),
+                        a.getContent() != null && a.getContent().length() > 120 ? a.getContent().substring(0, 117) + "…" : (a.getContent() != null ? a.getContent() : ""),
+                        "info",
+                        a.getCreatedAt() != null ? a.getCreatedAt().toString() : ""))
+                .collect(Collectors.toList()));
+
+        rows.sort(Comparator.comparing((ReportDashboardDTOs.ActivityItem it) -> it.getTimestamp() != null ? it.getTimestamp() : "").reversed());
+        return rows.stream().limit(limit).collect(Collectors.toList());
+    }
+
+    private int resolveUpcomingWindowDays() {
+        return Math.max(1, Math.min(90, upcomingWindowDays));
+    }
+
+    private int resolveRecentWindowDays() {
+        return Math.max(1, Math.min(90, recentWindowDays));
+    }
+
+    private ReportDashboardDTOs.UpcomingEvent toUpcomingFromCommunicationEvent(CommunicationEvent event) {
+        ReportDashboardDTOs.UpcomingEvent out = new ReportDashboardDTOs.UpcomingEvent();
+        out.setId(event.getId());
+        out.setTitle(event.getTitle());
+        out.setDate(event.getEventStartAt() != null ? event.getEventStartAt().toLocalDate().toString() : "");
+        String where = (event.getLocation() != null && !event.getLocation().isBlank()) ? (" at " + event.getLocation()) : "";
+        out.setDescription("Event: " + event.getEventType() + where);
+        out.setCampaignId(resolveEventCampaignId(event));
+        return out;
+    }
+
+    private String resolveEventCampaignId(CommunicationEvent event) {
+        if (event.getPublishedCampaignId() != null && !event.getPublishedCampaignId().isBlank()) {
+            return event.getPublishedCampaignId();
+        }
+        if (event.getReminder1hCampaignId() != null && !event.getReminder1hCampaignId().isBlank()) {
+            return event.getReminder1hCampaignId();
+        }
+        if (event.getReminder1dCampaignId() != null && !event.getReminder1dCampaignId().isBlank()) {
+            return event.getReminder1dCampaignId();
+        }
+        return null;
+    }
+
+    private Page<ReportDashboardDTOs.ActivityItem> pageFilteredActivities(
+            List<ReportDashboardDTOs.ActivityItem> source,
+            String q,
+            String eventType,
+            String fromDate,
+            String toDate,
+            Pageable pageable) {
+        String query = q == null ? "" : q.trim().toLowerCase(Locale.ROOT);
+        String type = eventType == null ? "" : eventType.trim().toUpperCase(Locale.ROOT);
+        LocalDate from = parseDateSafe(fromDate);
+        LocalDate to = parseDateSafe(toDate);
+        List<ReportDashboardDTOs.ActivityItem> filtered = source.stream()
+                .filter(row -> {
+                    if (!query.isBlank()) {
+                        String hay = ((row.getTitle() == null ? "" : row.getTitle()) + " " + (row.getDescription() == null ? "" : row.getDescription()))
+                                .toLowerCase(Locale.ROOT);
+                        if (!hay.contains(query)) {
+                            return false;
+                        }
+                    }
+                    if (!type.isBlank()) {
+                        String hayType = ((row.getTitle() == null ? "" : row.getTitle()) + " " + (row.getDescription() == null ? "" : row.getDescription()))
+                                .toUpperCase(Locale.ROOT);
+                        if (!hayType.contains(type)) {
+                            return false;
+                        }
+                    }
+                    LocalDate d = parseDateFromTimestamp(row.getTimestamp());
+                    if (from != null && d != null && d.isBefore(from)) {
+                        return false;
+                    }
+                    if (to != null && d != null && d.isAfter(to)) {
+                        return false;
+                    }
+                    return true;
+                })
+                .toList();
+        return toPage(filtered, pageable);
+    }
+
+    private Page<ReportDashboardDTOs.UpcomingEvent> pageFilteredUpcoming(
+            List<ReportDashboardDTOs.UpcomingEvent> source,
+            String q,
+            String eventType,
+            String fromDate,
+            String toDate,
+            Pageable pageable) {
+        String query = q == null ? "" : q.trim().toLowerCase(Locale.ROOT);
+        String type = eventType == null ? "" : eventType.trim().toUpperCase(Locale.ROOT);
+        LocalDate from = parseDateSafe(fromDate);
+        LocalDate to = parseDateSafe(toDate);
+        List<ReportDashboardDTOs.UpcomingEvent> filtered = source.stream()
+                .filter(row -> {
+                    if (!query.isBlank()) {
+                        String hay = ((row.getTitle() == null ? "" : row.getTitle()) + " " + (row.getDescription() == null ? "" : row.getDescription()))
+                                .toLowerCase(Locale.ROOT);
+                        if (!hay.contains(query)) {
+                            return false;
+                        }
+                    }
+                    if (!type.isBlank()) {
+                        String hayType = ((row.getTitle() == null ? "" : row.getTitle()) + " " + (row.getDescription() == null ? "" : row.getDescription()))
+                                .toUpperCase(Locale.ROOT);
+                        if (!hayType.contains(type)) {
+                            return false;
+                        }
+                    }
+                    LocalDate d = parseDateSafe(row.getDate());
+                    if (from != null && d != null && d.isBefore(from)) {
+                        return false;
+                    }
+                    if (to != null && d != null && d.isAfter(to)) {
+                        return false;
+                    }
+                    return true;
+                })
+                .toList();
+        return toPage(filtered, pageable);
+    }
+
+    private <T> Page<T> toPage(List<T> rows, Pageable pageable) {
+        int total = rows.size();
+        int from = Math.min((int) pageable.getOffset(), total);
+        int to = Math.min(from + pageable.getPageSize(), total);
+        List<T> content = from >= to ? List.of() : rows.subList(from, to);
+        return new PageImpl<>(content, pageable, total);
+    }
+
+    private LocalDate parseDateSafe(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return null;
+        }
+        try {
+            return LocalDate.parse(raw.trim().substring(0, Math.min(10, raw.trim().length())));
+        } catch (DateTimeParseException ex) {
+            return null;
+        }
+    }
+
+    private LocalDate parseDateFromTimestamp(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return null;
+        }
+        try {
+            return LocalDateTime.parse(raw.trim()).toLocalDate();
+        } catch (Exception ex) {
+            return parseDateSafe(raw);
+        }
+    }
+
     public OltpReportQueryAdapter(
             final StudentRepository studentRepo,
             final TeacherRepository teacherRepo,
@@ -1229,6 +1554,7 @@ public class OltpReportQueryAdapter implements ReportQueryPort {
             final ChatConversationRepository chatConversationRepo,
             final ChatParticipantRepository chatParticipantRepo,
             final AnnouncementRepository announcementRepo,
+            final CommunicationEventRepository communicationEventRepo,
             final GuardianService guardianService,
             final ExamService examService) {
         this.studentRepo = studentRepo;
@@ -1246,6 +1572,7 @@ public class OltpReportQueryAdapter implements ReportQueryPort {
         this.chatConversationRepo = chatConversationRepo;
         this.chatParticipantRepo = chatParticipantRepo;
         this.announcementRepo = announcementRepo;
+        this.communicationEventRepo = communicationEventRepo;
         this.guardianService = guardianService;
         this.examService = examService;
     }

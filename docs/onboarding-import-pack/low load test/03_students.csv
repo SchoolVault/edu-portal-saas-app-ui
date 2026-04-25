@@ -1,5 +1,5 @@
 firstname,lastname,email,phone,dateofbirth,gender,classid,sectionid,classname,sectionname,academicyearid,rollnumber,admissionnumber,admissiondate,parentid,parentname,parentemail,parentphone,createparentportal,notifycredentials,importmode,address,bloodgroup
-Aarav,Sharma,,9876604001,2009-04-14,female,AUTO,AUTO,Class 5,A,CURRENT,1,ADM2026-0001,2026-04-05,AUTO,Rajesh Sharma,rajesh.sharma.001.parent@gmail.com,9877705001,Y,N,UPSERT,2 Civil Lines,B+
+Aarav,Sharma,,9876604001,2009-04-14,female,AUTO,AUTO,Class 5,A,CURRENT,1,ADM2026-0001,2026-04-05,AUTO,Rajesh Sharma,rajesh.sharma.001.parent@gmail.com,9877705001,Y,Y,UPSERT,2 Civil Lines,B+
 Vivaan,Sharma,,9876604002,2009-04-27,male,AUTO,AUTO,Class 5,A,CURRENT,2,ADM2026-0002,2026-04-05,AUTO,Amit Sharma,amit.sharma.002.parent@gmail.com,9877705002,Y,N,UPSERT,3 Model Town,O+
 Aditya,Sharma,,9876604003,2009-05-10,female,AUTO,AUTO,Class 5,A,CURRENT,3,ADM2026-0003,2026-04-05,AUTO,Suresh Sharma,suresh.sharma.003.parent@gmail.com,9877705003,Y,N,UPSERT,4 Nehru Nagar,AB+
 Vihaan,Sharma,vihaan.sharma.004@student.shantiniketanpublicschool.in,9876604004,2009-05-23,male,AUTO,AUTO,Class 5,A,CURRENT,4,ADM2026-0004,2026-04-05,AUTO,Prakash Sharma,prakash.sharma.004.parent@gmail.com,9877705004,Y,N,UPSERT,5 Shastri Nagar,A-

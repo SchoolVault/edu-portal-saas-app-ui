@@ -1,11 +1,13 @@
 package com.school.erp.security;
 
 import com.school.erp.common.logging.MdcKeys;
+import com.school.erp.security.rbac.SlimJwtAuthorityCache;
 import com.school.erp.tenant.TenantContext;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -22,9 +24,12 @@ import java.util.List;
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(JwtAuthenticationFilter.class);
     private final JwtUtil jwtUtil;
+    private final SlimJwtAuthorityCache slimJwtAuthorityCache;
+    private final boolean slimJwtPermissions;
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain) throws ServletException, IOException {
+        TenantContext.setClientIp(resolveClientIp(request));
         try {
             String token = extractToken(request);
             // Do not bind TenantContext / SecurityContext from JWT on auth endpoints that must work
@@ -42,10 +47,18 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 TenantContext.setUserRole(role);
                 TenantContext.setUserDisplayName(displayName);
                 TenantContext.setUserPrincipal(email);
-                List<SimpleGrantedAuthority> authorities = new ArrayList<>();
-                authorities.add(new SimpleGrantedAuthority("ROLE_" + role));
-                for (String p : jwtUtil.getPermissionAuthorities(token)) {
-                    authorities.add(new SimpleGrantedAuthority(p));
+                List<SimpleGrantedAuthority> authorities;
+                if (slimJwtPermissions) {
+                    authorities = new ArrayList<>(
+                            slimJwtAuthorityCache.appAuthoritiesFor(tenantId, userId));
+                } else {
+                    authorities = new ArrayList<>();
+                    if (role != null) {
+                        authorities.add(new SimpleGrantedAuthority("ROLE_" + role));
+                    }
+                    for (String p : jwtUtil.getPermissionAuthorities(token)) {
+                        authorities.add(new SimpleGrantedAuthority(p));
+                    }
                 }
                 var auth = new UsernamePasswordAuthenticationToken(email, null, authorities);
                 auth.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
@@ -86,7 +99,37 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         return null;
     }
 
-    public JwtAuthenticationFilter(final JwtUtil jwtUtil) {
+    /** Prefer {@code X-Forwarded-For} first hop when behind a proxy; otherwise {@code X-Real-IP} or remote address. */
+    private static String resolveClientIp(HttpServletRequest request) {
+        String xff = request.getHeader("X-Forwarded-For");
+        if (StringUtils.hasText(xff)) {
+            int comma = xff.indexOf(',');
+            String first = (comma > 0 ? xff.substring(0, comma) : xff).trim();
+            if (!first.isEmpty()) {
+                return truncateIp(first);
+            }
+        }
+        String real = request.getHeader("X-Real-IP");
+        if (StringUtils.hasText(real)) {
+            return truncateIp(real.trim());
+        }
+        String addr = request.getRemoteAddr();
+        return addr == null ? "" : truncateIp(addr.trim());
+    }
+
+    private static String truncateIp(String ip) {
+        if (ip.length() > 45) {
+            return ip.substring(0, 45);
+        }
+        return ip;
+    }
+
+    public JwtAuthenticationFilter(
+            final JwtUtil jwtUtil,
+            final SlimJwtAuthorityCache slimJwtAuthorityCache,
+            @Value("${app.jwt.slim-permissions:false}") boolean slimJwtPermissions) {
         this.jwtUtil = jwtUtil;
+        this.slimJwtAuthorityCache = slimJwtAuthorityCache;
+        this.slimJwtPermissions = slimJwtPermissions;
     }
 }

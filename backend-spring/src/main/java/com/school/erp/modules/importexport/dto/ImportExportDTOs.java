@@ -55,6 +55,13 @@ public class ImportExportDTOs {
         /** Human-readable guidance for non-technical operators (e.g., which academic year auto-selected). */
         private String advisoryMessage;
         private List<DryRunRowError> sampleErrors;
+        /** When true, the server recommends not queueing an import (ratio guard or future hard blocks). */
+        private boolean importBlocked;
+        private String importBlockCode;
+        private String importBlockMessage;
+        private double createOnlyDuplicateRatio;
+        private int createOnlyEvaluatedRows;
+        private int createOnlyCollisionRows;
 
         public String getJobType() {
             return jobType;
@@ -103,11 +110,61 @@ public class ImportExportDTOs {
         public void setSampleErrors(List<DryRunRowError> sampleErrors) {
             this.sampleErrors = sampleErrors;
         }
+
+        public boolean isImportBlocked() {
+            return importBlocked;
+        }
+
+        public void setImportBlocked(boolean importBlocked) {
+            this.importBlocked = importBlocked;
+        }
+
+        public String getImportBlockCode() {
+            return importBlockCode;
+        }
+
+        public void setImportBlockCode(String importBlockCode) {
+            this.importBlockCode = importBlockCode;
+        }
+
+        public String getImportBlockMessage() {
+            return importBlockMessage;
+        }
+
+        public void setImportBlockMessage(String importBlockMessage) {
+            this.importBlockMessage = importBlockMessage;
+        }
+
+        public double getCreateOnlyDuplicateRatio() {
+            return createOnlyDuplicateRatio;
+        }
+
+        public void setCreateOnlyDuplicateRatio(double createOnlyDuplicateRatio) {
+            this.createOnlyDuplicateRatio = createOnlyDuplicateRatio;
+        }
+
+        public int getCreateOnlyEvaluatedRows() {
+            return createOnlyEvaluatedRows;
+        }
+
+        public void setCreateOnlyEvaluatedRows(int createOnlyEvaluatedRows) {
+            this.createOnlyEvaluatedRows = createOnlyEvaluatedRows;
+        }
+
+        public int getCreateOnlyCollisionRows() {
+            return createOnlyCollisionRows;
+        }
+
+        public void setCreateOnlyCollisionRows(int createOnlyCollisionRows) {
+            this.createOnlyCollisionRows = createOnlyCollisionRows;
+        }
     }
 
     public static class DryRunRowError {
         private int lineIndex;
+        private String errorCode;
         private String message;
+        private String dedupeKey;
 
         public int getLineIndex() {
             return lineIndex;
@@ -124,12 +181,30 @@ public class ImportExportDTOs {
         public void setMessage(String message) {
             this.message = message;
         }
+
+        public String getErrorCode() {
+            return errorCode;
+        }
+
+        public void setErrorCode(String errorCode) {
+            this.errorCode = errorCode;
+        }
+
+        public String getDedupeKey() {
+            return dedupeKey;
+        }
+
+        public void setDedupeKey(String dedupeKey) {
+            this.dedupeKey = dedupeKey;
+        }
     }
 
     public static class JobSubmitResponse {
         private Long jobId;
         private String status;
         private int totalRows;
+        /** BEST_EFFORT | ALL_OR_NOTHING */
+        private String executionMode;
         /** True when an in-flight job with the same payload hash already existed (idempotent replay). */
         private boolean idempotentReplay;
         /** SHA-256 hex of uploaded bytes (for client-side correlation). */
@@ -159,6 +234,14 @@ public class ImportExportDTOs {
 
         public void setTotalRows(int totalRows) {
             this.totalRows = totalRows;
+        }
+
+        public String getExecutionMode() {
+            return executionMode;
+        }
+
+        public void setExecutionMode(String executionMode) {
+            this.executionMode = executionMode;
         }
 
         public boolean isIdempotentReplay() {
@@ -199,6 +282,7 @@ public class ImportExportDTOs {
         private String summaryMessage;
         private LocalDateTime createdAt;
         private String payloadHash;
+        private String executionMode;
 
         public Long getId() {
             return id;
@@ -294,6 +378,14 @@ public class ImportExportDTOs {
 
         public void setPayloadHash(String payloadHash) {
             this.payloadHash = payloadHash;
+        }
+
+        public String getExecutionMode() {
+            return executionMode;
+        }
+
+        public void setExecutionMode(String executionMode) {
+            this.executionMode = executionMode;
         }
     }
 
@@ -427,6 +519,149 @@ public class ImportExportDTOs {
 
         public void setPayloadJson(String payloadJson) {
             this.payloadJson = payloadJson;
+        }
+    }
+
+    /** One ledger row per successful import line (create / update / skip). */
+    public static class LedgerLineResponse {
+        private Long id;
+        private Long jobLineId;
+        private int lineIndex;
+        private String outcome;
+        private String entityType;
+        private Long entityId;
+        private String naturalKey;
+        private String rollbackGuidance;
+        private java.time.LocalDateTime createdAt;
+
+        public Long getId() {
+            return id;
+        }
+
+        public void setId(Long id) {
+            this.id = id;
+        }
+
+        public Long getJobLineId() {
+            return jobLineId;
+        }
+
+        public void setJobLineId(Long jobLineId) {
+            this.jobLineId = jobLineId;
+        }
+
+        public int getLineIndex() {
+            return lineIndex;
+        }
+
+        public void setLineIndex(int lineIndex) {
+            this.lineIndex = lineIndex;
+        }
+
+        public String getOutcome() {
+            return outcome;
+        }
+
+        public void setOutcome(String outcome) {
+            this.outcome = outcome;
+        }
+
+        public String getEntityType() {
+            return entityType;
+        }
+
+        public void setEntityType(String entityType) {
+            this.entityType = entityType;
+        }
+
+        public Long getEntityId() {
+            return entityId;
+        }
+
+        public void setEntityId(Long entityId) {
+            this.entityId = entityId;
+        }
+
+        public String getNaturalKey() {
+            return naturalKey;
+        }
+
+        public void setNaturalKey(String naturalKey) {
+            this.naturalKey = naturalKey;
+        }
+
+        public String getRollbackGuidance() {
+            return rollbackGuidance;
+        }
+
+        public void setRollbackGuidance(String rollbackGuidance) {
+            this.rollbackGuidance = rollbackGuidance;
+        }
+
+        public java.time.LocalDateTime getCreatedAt() {
+            return createdAt;
+        }
+
+        public void setCreatedAt(java.time.LocalDateTime createdAt) {
+            this.createdAt = createdAt;
+        }
+    }
+
+    /** Guided undo steps for operators (best-effort; no automatic deletes). */
+    public static class RollbackBundleResponse {
+        private long jobId;
+        private long ledgerRowCount;
+        private long createdCount;
+        private long updatedCount;
+        private long skippedCount;
+        private java.util.List<String> suggestedOperatorSteps;
+
+        public long getJobId() {
+            return jobId;
+        }
+
+        public void setJobId(long jobId) {
+            this.jobId = jobId;
+        }
+
+        public long getLedgerRowCount() {
+            return ledgerRowCount;
+        }
+
+        public void setLedgerRowCount(long ledgerRowCount) {
+            this.ledgerRowCount = ledgerRowCount;
+        }
+
+        public long getCreatedCount() {
+            return createdCount;
+        }
+
+        public void setCreatedCount(long createdCount) {
+            this.createdCount = createdCount;
+        }
+
+        public long getUpdatedCount() {
+            return updatedCount;
+        }
+
+        public void setUpdatedCount(long updatedCount) {
+            this.updatedCount = updatedCount;
+        }
+
+        public long getSkippedCount() {
+            return skippedCount;
+        }
+
+        public void setSkippedCount(long skippedCount) {
+            this.skippedCount = skippedCount;
+        }
+
+        public java.util.List<String> getSuggestedOperatorSteps() {
+            return suggestedOperatorSteps;
+        }
+
+        public void setSuggestedOperatorSteps(java.util.List<String> suggestedOperatorSteps) {
+            this.suggestedOperatorSteps = suggestedOperatorSteps;
         }
     }
 }

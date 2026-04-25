@@ -42,6 +42,11 @@ Reason for this order:
 - Date format must be `yyyy-MM-dd`.
 - Time format must be `HH:mm` for timetable start/end.
 - Email format must be valid.
+- Teacher import login fields:
+  - `phone` is mandatory (used for OTP login).
+  - `email` is optional.
+  - `portalpassword` is optional; when provided with `email`, teacher can sign in using email+password.
+  - If `email` is blank, teacher can still sign in using mobile OTP.
 - Use readable class names in files (recommended): `Class 6`, `Class 7`, etc. Numeric-only values like `6` are also accepted.
 - `sections` in classes file is pipe-separated (example: `A|B|C`).
 - Timetable section rule:

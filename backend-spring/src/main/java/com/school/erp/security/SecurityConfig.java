@@ -54,7 +54,10 @@ public class SecurityConfig {
                     auth.requestMatchers(HttpMethod.POST, "/api/v1/auth/onboard-tenant").permitAll();
                     auth.requestMatchers(HttpMethod.POST, "/api/v1/auth/refresh-token").permitAll();
                     auth.requestMatchers(HttpMethod.POST, "/api/v1/auth/logout").permitAll();
+                    auth.requestMatchers(HttpMethod.POST, "/api/v1/auth/email-verification/confirm").permitAll();
                     auth.requestMatchers("/api/v1/fees/webhooks/**").permitAll();
+                    auth.requestMatchers("/api/v1/payroll/webhooks/**").permitAll();
+                    auth.requestMatchers("/api/v1/notifications/webhooks/**").permitAll();
                     if (appSecurityProperties.isPermitSwaggerAnonymous()) {
                         auth.requestMatchers("/swagger-ui/**", "/swagger-ui.html", "/api-docs/**", "/v3/api-docs/**").permitAll();
                     } else {

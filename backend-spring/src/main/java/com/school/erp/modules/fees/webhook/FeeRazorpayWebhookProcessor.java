@@ -3,6 +3,7 @@ package com.school.erp.modules.fees.webhook;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.school.erp.common.exception.BusinessException;
+import com.school.erp.modules.fees.domain.FeeAttemptStatus;
 import com.school.erp.modules.fees.entity.FeePaymentAttempt;
 import com.school.erp.modules.fees.repository.FeePaymentAttemptRepository;
 import com.school.erp.modules.fees.service.FeeService;
@@ -12,8 +13,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
-import java.util.Locale;
-import java.util.Objects;
 
 /**
  * Maps Razorpay webhook JSON to fee ledger updates. Extensible: add order.paid, refunds, etc.
@@ -58,6 +57,12 @@ public class FeeRazorpayWebhookProcessor {
             if ("payment.failed".equals(event)) {
                 return handlePaymentFailed(root, rawJson);
             }
+            if ("refund.processed".equals(event)) {
+                return handleRefundProcessed(root, rawJson);
+            }
+            if ("refund.failed".equals(event)) {
+                return new Outcome(Outcome.Type.IGNORED, "refund_failed_logged");
+            }
             return new Outcome(Outcome.Type.IGNORED, "event:" + (event.isEmpty() ? "unknown" : event));
         } catch (BusinessException ex) {
             log.warn("Razorpay webhook business reject: {}", ex.getMessage());
@@ -82,7 +87,7 @@ public class FeeRazorpayWebhookProcessor {
         }
 
         List<FeePaymentAttempt> byPay = attemptRepository.findByProviderAndProviderPaymentIdAndIsDeletedFalse(RAZORPAY, paymentId);
-        if (byPay.size() == 1 && "success".equalsIgnoreCase(byPay.get(0).getStatus())) {
+        if (byPay.size() == 1 && FeeAttemptStatus.RECONCILED.name().equalsIgnoreCase(byPay.get(0).getStatus())) {
             return new Outcome(Outcome.Type.DUPLICATE, "payment_id_already_applied");
         }
 
@@ -97,7 +102,7 @@ public class FeeRazorpayWebhookProcessor {
             return new Outcome(Outcome.Type.NO_MATCH, "provider_mismatch");
         }
 
-        if ("success".equalsIgnoreCase(attempt.getStatus()) && paymentId.equals(attempt.getProviderPaymentId())) {
+        if (FeeAttemptStatus.RECONCILED.name().equalsIgnoreCase(attempt.getStatus()) && paymentId.equals(attempt.getProviderPaymentId())) {
             return new Outcome(Outcome.Type.DUPLICATE, "already_success");
         }
 
@@ -105,6 +110,31 @@ public class FeeRazorpayWebhookProcessor {
         return ok
                 ? new Outcome(Outcome.Type.APPLIED, "captured:" + paymentId)
                 : new Outcome(Outcome.Type.ERROR, "reconcile_rejected");
+    }
+
+    private Outcome handleRefundProcessed(JsonNode root, String rawJson) {
+        JsonNode refundEnt = root.path("payload").path("refund").path("entity");
+        JsonNode payEnt = root.path("payload").path("payment").path("entity");
+        if (refundEnt.isMissingNode() || refundEnt.isNull()) {
+            return new Outcome(Outcome.Type.NO_MATCH, "missing_refund_entity");
+        }
+        String paymentId = text(refundEnt, "payment_id");
+        String refundId = text(refundEnt, "id");
+        long amountPaise = refundEnt.path("amount").asLong(0);
+        String currency = text(refundEnt, "currency");
+        if (paymentId == null || paymentId.isBlank() || refundId == null || refundId.isBlank()) {
+            return new Outcome(Outcome.Type.NO_MATCH, "missing_refund_ids");
+        }
+        String tenantId = text(payEnt.path("notes"), "tenant_id");
+        if (tenantId == null || tenantId.isBlank()) {
+            tenantId = feeService.resolveTenantIdForProviderPaymentCapture(paymentId).orElse(null);
+        }
+        if (tenantId == null || tenantId.isBlank()) {
+            log.warn("refund.processed could not resolve tenant for payment_id={}", paymentId);
+            return new Outcome(Outcome.Type.NO_MATCH, "missing_tenant");
+        }
+        boolean ok = feeService.reconcileRefundProcessedFromWebhook(tenantId, paymentId, refundId, amountPaise, currency, rawJson);
+        return ok ? new Outcome(Outcome.Type.APPLIED, "refund:" + refundId) : new Outcome(Outcome.Type.NO_MATCH, "refund_no_payment");
     }
 
     private Outcome handlePaymentFailed(JsonNode root, String rawJson) {
@@ -135,8 +165,13 @@ public class FeeRazorpayWebhookProcessor {
         String tenantNote = text(notes, "tenant_id");
         String attemptNote = text(notes, "fee_payment_attempt_id");
         Long attemptId = parseLong(attemptNote);
+        String feePaymentNote = text(notes, "fee_payment_id");
+        Long feePaymentId = parseLong(feePaymentNote);
         for (FeePaymentAttempt a : candidates) {
             if (attemptId != null && attemptId.equals(a.getId())) {
+                return a;
+            }
+            if (feePaymentId != null && feePaymentId.equals(a.getFeePaymentId())) {
                 return a;
             }
             if (tenantNote != null && tenantNote.equals(a.getTenantId())) {

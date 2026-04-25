@@ -207,12 +207,44 @@ public class User extends BaseEntity {
         this.preferredLocale = preferredLocale != null && !preferredLocale.isBlank() ? preferredLocale : "en";
     }
 
+    public Boolean getEmailVerified() {
+        return emailVerified;
+    }
+
+    public void setEmailVerified(Boolean emailVerified) {
+        this.emailVerified = emailVerified != null && emailVerified;
+    }
+
+    public Boolean getPhoneVerified() {
+        return phoneVerified;
+    }
+
+    public void setPhoneVerified(Boolean phoneVerified) {
+        this.phoneVerified = phoneVerified != null && phoneVerified;
+    }
+
     public String getAuthProvider() {
         return authProvider;
     }
 
     public void setAuthProvider(final String authProvider) {
         this.authProvider = authProvider != null && !authProvider.isBlank() ? authProvider : "EMAIL";
+    }
+
+    public LocalDateTime getLastLoginAt() {
+        return lastLoginAt;
+    }
+
+    public void setLastLoginAt(LocalDateTime lastLoginAt) {
+        this.lastLoginAt = lastLoginAt;
+    }
+
+    public LocalDateTime getPasswordChangedAt() {
+        return passwordChangedAt;
+    }
+
+    public void setPasswordChangedAt(LocalDateTime passwordChangedAt) {
+        this.passwordChangedAt = passwordChangedAt;
     }
 
     public User() {

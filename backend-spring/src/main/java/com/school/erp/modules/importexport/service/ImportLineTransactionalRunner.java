@@ -23,8 +23,23 @@ public class ImportLineTransactionalRunner {
         this.rowExecutor = rowExecutor;
     }
 
+    /**
+     * One line = one new transaction. Failures in other lines do not roll back this row (best-effort jobs).
+     */
     @Transactional(propagation = Propagation.REQUIRES_NEW, rollbackFor = Exception.class)
-    public void runLine(Long jobId, Long lineId, String tenantId) throws Exception {
+    public void runLineIsolated(Long jobId, Long lineId, String tenantId) throws Exception {
+        runLineCore(jobId, lineId, tenantId);
+    }
+
+    /**
+     * Same work as {@link #runLineIsolated} but joins the caller's transaction (for ALL_OR_NOTHING jobs).
+     */
+    @Transactional(propagation = Propagation.MANDATORY, rollbackFor = Exception.class)
+    public void runLineParticipating(Long jobId, Long lineId, String tenantId) throws Exception {
+        runLineCore(jobId, lineId, tenantId);
+    }
+
+    private void runLineCore(Long jobId, Long lineId, String tenantId) throws Exception {
         ImportJob job = jobRepository.findByIdAndTenantIdAndIsDeletedFalse(jobId, tenantId).orElseThrow();
         ImportJobLine line = lineRepository.findById(lineId).orElseThrow();
         if (!tenantId.equals(line.getTenantId()) || !jobId.equals(line.getJobId())) {

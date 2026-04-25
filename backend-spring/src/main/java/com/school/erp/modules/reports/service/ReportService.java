@@ -50,10 +50,9 @@ import java.util.function.Supplier;
  * Facade for report/dashboard HTTP layer. Heavy lifting lives in {@link ReportQueryPort}
  * ({@code oltp} vs {@code warehouse} via {@code app.reports.backend}).
  * <p>
- * Redis-backed caching (when {@code spring.cache.type=redis}): dashboard payloads use
- * {@link CacheConfig#DASHBOARD_SNAPSHOTS} (default 1h); heavier drill-down reports use
- * {@link CacheConfig#REPORT_RESULTS}. Paged endpoints delegate through {@link #self} so list
- * methods stay cache hits.
+ * Dashboard payloads are persisted in {@code dashboard_snapshot} (see {@link DashboardSnapshotService})
+ * with optional microcache / age rules; drill-down reports use {@link CacheConfig#REPORT_RESULTS} via
+ * {@code @Cacheable} when Redis is enabled. Paged endpoints delegate through {@link #self} so list methods stay cache hits.
  */
 @Service
 public class ReportService {
@@ -113,7 +112,6 @@ public class ReportService {
         this.reportBinaryStorageService = reportBinaryStorageService;
     }
 
-    @Cacheable(cacheNames = CacheConfig.DASHBOARD_SNAPSHOTS, keyGenerator = "tenantUserRoleKeyGenerator", unless = "#result == null")
     @Transactional
     public Map<String, Object> getDashboardKPIs() {
         return timedReportRead("dashboard.kpis", () ->
@@ -121,7 +119,6 @@ public class ReportService {
                 map -> map != null ? map.size() : 0);
     }
 
-    @Cacheable(cacheNames = CacheConfig.DASHBOARD_SNAPSHOTS, keyGenerator = "tenantUserRoleKeyGenerator", unless = "#result == null")
     @Transactional
     public ReportDashboardDTOs.AdminDashboardResponse getAdminDashboard() {
         return timedReportRead("dashboard.admin", () ->
@@ -129,7 +126,34 @@ public class ReportService {
                 out -> out != null && out.getRecentActivities() != null ? out.getRecentActivities().size() : 0);
     }
 
-    @Cacheable(cacheNames = CacheConfig.DASHBOARD_SNAPSHOTS, keyGenerator = "tenantMethodParamsKeyGenerator", unless = "#result == null")
+    @Transactional(readOnly = true)
+    public PageResponse<ReportDashboardDTOs.ActivityItem> getAdminRecentActivitiesPaged(
+            int page,
+            int size,
+            String q,
+            String eventType,
+            String fromDate,
+            String toDate) {
+        int safePage = Math.max(0, page);
+        int safeSize = Math.max(1, Math.min(size, 100));
+        return PageResponse.fromSpringPage(reportQueryPort.getAdminRecentActivities(
+                q, eventType, fromDate, toDate, PageRequest.of(safePage, safeSize)));
+    }
+
+    @Transactional(readOnly = true)
+    public PageResponse<ReportDashboardDTOs.UpcomingEvent> getAdminUpcomingEventsPaged(
+            int page,
+            int size,
+            String q,
+            String eventType,
+            String fromDate,
+            String toDate) {
+        int safePage = Math.max(0, page);
+        int safeSize = Math.max(1, Math.min(size, 100));
+        return PageResponse.fromSpringPage(reportQueryPort.getAdminUpcomingEvents(
+                q, eventType, fromDate, toDate, PageRequest.of(safePage, safeSize)));
+    }
+
     @Transactional
     public ReportDashboardDTOs.TeacherDashboardResponse getTeacherDashboard(String month) {
         return timedReportRead("dashboard.teacher", () ->
@@ -137,7 +161,6 @@ public class ReportService {
                 out -> out != null && out.getTodaySchedule() != null ? out.getTodaySchedule().size() : 0);
     }
 
-    @Cacheable(cacheNames = CacheConfig.DASHBOARD_SNAPSHOTS, keyGenerator = "tenantMethodParamsKeyGenerator", unless = "#result == null")
     @Transactional
     public ParentDashboardDtos.Response getParentDashboard(String from, String to, Long childId) {
         return timedReportRead("dashboard.parent", () ->
@@ -767,7 +790,8 @@ public class ReportService {
         try {
             job.setStatus("RUNNING");
             List<Map<String, Object>> rows = resolveReportRows(job.getReportType(), readJsonMap(job.getFilterJson()));
-            ReportExportService.RenderedReport rendered = reportExportService.render(job.getReportType(), job.getFormat(), rows);
+            ReportExportService.RenderedReport rendered =
+                    reportExportService.render(job.getReportType(), job.getFormat(), rows, job.getTenantId());
             job.setFileName(rendered.fileName());
             job.setContentType(rendered.contentType());
             ReportBinaryStorageService.StoredBinary storedBinary = reportBinaryStorageService.store(

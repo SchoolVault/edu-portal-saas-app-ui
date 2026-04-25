@@ -31,9 +31,13 @@ import com.school.erp.modules.parent.service.ParentPortalReadFacade;
 import com.school.erp.tenant.TenantContext;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.util.HashMap;
 import java.util.List;
@@ -144,21 +148,39 @@ public class ParentController {
 
     @PostMapping("/payments/checkout-session")
     @Operation(summary = "Create a parent checkout session")
-    public ResponseEntity<ApiResponse<FeeDTOs.CheckoutSessionResponse>> createCheckoutSession(@RequestBody FeeDTOs.CreateCheckoutSessionRequest request) {
-        return ResponseEntity.ok(ApiResponse.ok(feeService.createCheckoutSession(request)));
+    public ResponseEntity<ApiResponse<FeeDTOs.CheckoutSessionResponse>> createCheckoutSession(
+            @RequestBody FeeDTOs.CreateCheckoutSessionRequest request,
+            @RequestHeader(value = "X-Operation-Key", required = false) String operationKey,
+            @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey) {
+        return ResponseEntity.ok(ApiResponse.ok(feeService.createCheckoutSession(request, operationKey, idempotencyKey)));
     }
 
     @PostMapping("/payments/checkout-session/{attemptId}/confirm")
     @Operation(summary = "Confirm a parent checkout session")
     public ResponseEntity<ApiResponse<FeeDTOs.PaymentReceiptResponse>> confirmCheckout(@PathVariable Long attemptId,
-                                                                                       @RequestBody FeeDTOs.ConfirmCheckoutRequest request) {
-        return ResponseEntity.ok(ApiResponse.ok(feeService.confirmCheckout(attemptId, request), "Payment confirmed"));
+                                                                                       @RequestBody FeeDTOs.ConfirmCheckoutRequest request,
+                                                                                       @RequestHeader(value = "X-Operation-Key", required = false) String operationKey,
+                                                                                       @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey) {
+        return ResponseEntity.ok(ApiResponse.ok(feeService.confirmCheckout(attemptId, request, operationKey, idempotencyKey), "Payment confirmed"));
     }
 
     @GetMapping("/payments/receipts/{receiptNumber}")
     @Operation(summary = "Get receipt by receipt number")
     public ResponseEntity<ApiResponse<FeeDTOs.PaymentReceiptResponse>> getReceipt(@PathVariable String receiptNumber) {
         return ResponseEntity.ok(ApiResponse.ok(feeService.getReceipt(receiptNumber)));
+    }
+
+    @GetMapping(value = "/payments/receipts/{receiptNumber}/pdf", produces = MediaType.APPLICATION_PDF_VALUE)
+    @Operation(summary = "Download fee receipt as PDF")
+    public ResponseEntity<byte[]> downloadFeeReceiptPdf(@PathVariable String receiptNumber) {
+        byte[] data = feeService.getParentFeeReceiptPdf(receiptNumber);
+        String safeName = receiptNumber.replaceAll("[^a-zA-Z0-9._-]", "_");
+        ContentDisposition disposition = ContentDisposition.attachment()
+                .filename("fee-receipt-" + safeName + ".pdf", StandardCharsets.UTF_8)
+                .build();
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, disposition.toString())
+                .body(data);
     }
 
     @GetMapping("/children/{studentId}/receipts")

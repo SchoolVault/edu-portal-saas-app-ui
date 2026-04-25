@@ -1,0 +1,421 @@
+teacheremail,teacherid,classname,classid,sectionname,sectionid,subjectname,dayofweek,period,starttime,endtime,room,academicyearid
+amit.sharma@navbharatacademy.in,,Class 6,,A,,Mathematics,MONDAY,1,08:00,08:40,R-6A1,CURRENT
+neha.verma@navbharatacademy.in,,Class 6,,B,,Science,MONDAY,1,08:00,08:40,R-6B1,CURRENT
+rohan.iyer@navbharatacademy.in,,Class 7,,A,,English,MONDAY,1,08:00,08:40,R-7A1,CURRENT
+pooja.kapoor@navbharatacademy.in,,Class 7,,B,,Hindi,MONDAY,1,08:00,08:40,R-7B1,CURRENT
+rahul.gupta@navbharatacademy.in,,Class 8,,A,,Social Studies,MONDAY,1,08:00,08:40,R-8A1,CURRENT
+meera.mehta@navbharatacademy.in,,Class 8,,B,,Computer Science,MONDAY,1,08:00,08:40,R-8B1,CURRENT
+nikhil.joshi@navbharatacademy.in,,Class 9,,A,,Physical Education,MONDAY,1,08:00,08:40,R-9A1,CURRENT
+kavya.nair@navbharatacademy.in,,Class 9,,B,,Art,MONDAY,1,08:00,08:40,R-9B1,CURRENT
+saurabh.malhotra@navbharatacademy.in,,Class 10,,A,,Sanskrit,MONDAY,1,08:00,08:40,R-10A1,CURRENT
+divya.jain@navbharatacademy.in,,Class 10,,B,,General Knowledge,MONDAY,1,08:00,08:40,R-10B1,CURRENT
+anjali.rao@navbharatacademy.in,,Class 11,,A,,Biology,MONDAY,1,08:00,08:40,R-11A1,CURRENT
+vikram.singh@navbharatacademy.in,,Class 11,,B,,Economics,MONDAY,1,08:00,08:40,R-11B1,CURRENT
+priya.menon@navbharatacademy.in,,Class 12,,A,,Informatics Practices,MONDAY,1,08:00,08:40,R-12A1,CURRENT
+arjun.patel@navbharatacademy.in,,Class 12,,B,,Health and Wellness,MONDAY,1,08:00,08:40,R-12B1,CURRENT
+neha.verma@navbharatacademy.in,,Class 6,,A,,Science,MONDAY,2,08:45,09:25,R-6A2,CURRENT
+rohan.iyer@navbharatacademy.in,,Class 6,,B,,English,MONDAY,2,08:45,09:25,R-6B2,CURRENT
+pooja.kapoor@navbharatacademy.in,,Class 7,,A,,Hindi,MONDAY,2,08:45,09:25,R-7A2,CURRENT
+rahul.gupta@navbharatacademy.in,,Class 7,,B,,Social Studies,MONDAY,2,08:45,09:25,R-7B2,CURRENT
+meera.mehta@navbharatacademy.in,,Class 8,,A,,Computer Science,MONDAY,2,08:45,09:25,R-8A2,CURRENT
+nikhil.joshi@navbharatacademy.in,,Class 8,,B,,Physical Education,MONDAY,2,08:45,09:25,R-8B2,CURRENT
+kavya.nair@navbharatacademy.in,,Class 9,,A,,Art,MONDAY,2,08:45,09:25,R-9A2,CURRENT
+saurabh.malhotra@navbharatacademy.in,,Class 9,,B,,Sanskrit,MONDAY,2,08:45,09:25,R-9B2,CURRENT
+divya.jain@navbharatacademy.in,,Class 10,,A,,General Knowledge,MONDAY,2,08:45,09:25,R-10A2,CURRENT
+anjali.rao@navbharatacademy.in,,Class 10,,B,,Biology,MONDAY,2,08:45,09:25,R-10B2,CURRENT
+vikram.singh@navbharatacademy.in,,Class 11,,A,,Economics,MONDAY,2,08:45,09:25,R-11A2,CURRENT
+priya.menon@navbharatacademy.in,,Class 11,,B,,Informatics Practices,MONDAY,2,08:45,09:25,R-11B2,CURRENT
+arjun.patel@navbharatacademy.in,,Class 12,,A,,Health and Wellness,MONDAY,2,08:45,09:25,R-12A2,CURRENT
+amit.sharma@navbharatacademy.in,,Class 12,,B,,Mathematics,MONDAY,2,08:45,09:25,R-12B2,CURRENT
+rohan.iyer@navbharatacademy.in,,Class 6,,A,,English,MONDAY,3,09:30,10:10,R-6A3,CURRENT
+pooja.kapoor@navbharatacademy.in,,Class 6,,B,,Hindi,MONDAY,3,09:30,10:10,R-6B3,CURRENT
+rahul.gupta@navbharatacademy.in,,Class 7,,A,,Social Studies,MONDAY,3,09:30,10:10,R-7A3,CURRENT
+meera.mehta@navbharatacademy.in,,Class 7,,B,,Computer Science,MONDAY,3,09:30,10:10,R-7B3,CURRENT
+nikhil.joshi@navbharatacademy.in,,Class 8,,A,,Physical Education,MONDAY,3,09:30,10:10,R-8A3,CURRENT
+kavya.nair@navbharatacademy.in,,Class 8,,B,,Art,MONDAY,3,09:30,10:10,R-8B3,CURRENT
+saurabh.malhotra@navbharatacademy.in,,Class 9,,A,,Sanskrit,MONDAY,3,09:30,10:10,R-9A3,CURRENT
+divya.jain@navbharatacademy.in,,Class 9,,B,,General Knowledge,MONDAY,3,09:30,10:10,R-9B3,CURRENT
+anjali.rao@navbharatacademy.in,,Class 10,,A,,Biology,MONDAY,3,09:30,10:10,R-10A3,CURRENT
+vikram.singh@navbharatacademy.in,,Class 10,,B,,Economics,MONDAY,3,09:30,10:10,R-10B3,CURRENT
+priya.menon@navbharatacademy.in,,Class 11,,A,,Informatics Practices,MONDAY,3,09:30,10:10,R-11A3,CURRENT
+arjun.patel@navbharatacademy.in,,Class 11,,B,,Health and Wellness,MONDAY,3,09:30,10:10,R-11B3,CURRENT
+amit.sharma@navbharatacademy.in,,Class 12,,A,,Mathematics,MONDAY,3,09:30,10:10,R-12A3,CURRENT
+neha.verma@navbharatacademy.in,,Class 12,,B,,Science,MONDAY,3,09:30,10:10,R-12B3,CURRENT
+pooja.kapoor@navbharatacademy.in,,Class 6,,A,,Hindi,MONDAY,4,10:35,11:15,R-6A4,CURRENT
+rahul.gupta@navbharatacademy.in,,Class 6,,B,,Social Studies,MONDAY,4,10:35,11:15,R-6B4,CURRENT
+meera.mehta@navbharatacademy.in,,Class 7,,A,,Computer Science,MONDAY,4,10:35,11:15,R-7A4,CURRENT
+nikhil.joshi@navbharatacademy.in,,Class 7,,B,,Physical Education,MONDAY,4,10:35,11:15,R-7B4,CURRENT
+kavya.nair@navbharatacademy.in,,Class 8,,A,,Art,MONDAY,4,10:35,11:15,R-8A4,CURRENT
+saurabh.malhotra@navbharatacademy.in,,Class 8,,B,,Sanskrit,MONDAY,4,10:35,11:15,R-8B4,CURRENT
+divya.jain@navbharatacademy.in,,Class 9,,A,,General Knowledge,MONDAY,4,10:35,11:15,R-9A4,CURRENT
+anjali.rao@navbharatacademy.in,,Class 9,,B,,Biology,MONDAY,4,10:35,11:15,R-9B4,CURRENT
+vikram.singh@navbharatacademy.in,,Class 10,,A,,Economics,MONDAY,4,10:35,11:15,R-10A4,CURRENT
+priya.menon@navbharatacademy.in,,Class 10,,B,,Informatics Practices,MONDAY,4,10:35,11:15,R-10B4,CURRENT
+arjun.patel@navbharatacademy.in,,Class 11,,A,,Health and Wellness,MONDAY,4,10:35,11:15,R-11A4,CURRENT
+amit.sharma@navbharatacademy.in,,Class 11,,B,,Mathematics,MONDAY,4,10:35,11:15,R-11B4,CURRENT
+neha.verma@navbharatacademy.in,,Class 12,,A,,Science,MONDAY,4,10:35,11:15,R-12A4,CURRENT
+rohan.iyer@navbharatacademy.in,,Class 12,,B,,English,MONDAY,4,10:35,11:15,R-12B4,CURRENT
+rahul.gupta@navbharatacademy.in,,Class 6,,A,,Social Studies,MONDAY,5,11:20,12:00,R-6A5,CURRENT
+meera.mehta@navbharatacademy.in,,Class 6,,B,,Computer Science,MONDAY,5,11:20,12:00,R-6B5,CURRENT
+nikhil.joshi@navbharatacademy.in,,Class 7,,A,,Physical Education,MONDAY,5,11:20,12:00,R-7A5,CURRENT
+kavya.nair@navbharatacademy.in,,Class 7,,B,,Art,MONDAY,5,11:20,12:00,R-7B5,CURRENT
+saurabh.malhotra@navbharatacademy.in,,Class 8,,A,,Sanskrit,MONDAY,5,11:20,12:00,R-8A5,CURRENT
+divya.jain@navbharatacademy.in,,Class 8,,B,,General Knowledge,MONDAY,5,11:20,12:00,R-8B5,CURRENT
+anjali.rao@navbharatacademy.in,,Class 9,,A,,Biology,MONDAY,5,11:20,12:00,R-9A5,CURRENT
+vikram.singh@navbharatacademy.in,,Class 9,,B,,Economics,MONDAY,5,11:20,12:00,R-9B5,CURRENT
+priya.menon@navbharatacademy.in,,Class 10,,A,,Informatics Practices,MONDAY,5,11:20,12:00,R-10A5,CURRENT
+arjun.patel@navbharatacademy.in,,Class 10,,B,,Health and Wellness,MONDAY,5,11:20,12:00,R-10B5,CURRENT
+amit.sharma@navbharatacademy.in,,Class 11,,A,,Mathematics,MONDAY,5,11:20,12:00,R-11A5,CURRENT
+neha.verma@navbharatacademy.in,,Class 11,,B,,Science,MONDAY,5,11:20,12:00,R-11B5,CURRENT
+rohan.iyer@navbharatacademy.in,,Class 12,,A,,English,MONDAY,5,11:20,12:00,R-12A5,CURRENT
+pooja.kapoor@navbharatacademy.in,,Class 12,,B,,Hindi,MONDAY,5,11:20,12:00,R-12B5,CURRENT
+neha.verma@navbharatacademy.in,,Class 6,,A,,Science,TUESDAY,1,08:00,08:40,R-6A1,CURRENT
+rohan.iyer@navbharatacademy.in,,Class 6,,B,,English,TUESDAY,1,08:00,08:40,R-6B1,CURRENT
+pooja.kapoor@navbharatacademy.in,,Class 7,,A,,Hindi,TUESDAY,1,08:00,08:40,R-7A1,CURRENT
+rahul.gupta@navbharatacademy.in,,Class 7,,B,,Social Studies,TUESDAY,1,08:00,08:40,R-7B1,CURRENT
+meera.mehta@navbharatacademy.in,,Class 8,,A,,Computer Science,TUESDAY,1,08:00,08:40,R-8A1,CURRENT
+nikhil.joshi@navbharatacademy.in,,Class 8,,B,,Physical Education,TUESDAY,1,08:00,08:40,R-8B1,CURRENT
+kavya.nair@navbharatacademy.in,,Class 9,,A,,Art,TUESDAY,1,08:00,08:40,R-9A1,CURRENT
+saurabh.malhotra@navbharatacademy.in,,Class 9,,B,,Sanskrit,TUESDAY,1,08:00,08:40,R-9B1,CURRENT
+divya.jain@navbharatacademy.in,,Class 10,,A,,General Knowledge,TUESDAY,1,08:00,08:40,R-10A1,CURRENT
+anjali.rao@navbharatacademy.in,,Class 10,,B,,Biology,TUESDAY,1,08:00,08:40,R-10B1,CURRENT
+vikram.singh@navbharatacademy.in,,Class 11,,A,,Economics,TUESDAY,1,08:00,08:40,R-11A1,CURRENT
+priya.menon@navbharatacademy.in,,Class 11,,B,,Informatics Practices,TUESDAY,1,08:00,08:40,R-11B1,CURRENT
+arjun.patel@navbharatacademy.in,,Class 12,,A,,Health and Wellness,TUESDAY,1,08:00,08:40,R-12A1,CURRENT
+amit.sharma@navbharatacademy.in,,Class 12,,B,,Mathematics,TUESDAY,1,08:00,08:40,R-12B1,CURRENT
+rohan.iyer@navbharatacademy.in,,Class 6,,A,,English,TUESDAY,2,08:45,09:25,R-6A2,CURRENT
+pooja.kapoor@navbharatacademy.in,,Class 6,,B,,Hindi,TUESDAY,2,08:45,09:25,R-6B2,CURRENT
+rahul.gupta@navbharatacademy.in,,Class 7,,A,,Social Studies,TUESDAY,2,08:45,09:25,R-7A2,CURRENT
+meera.mehta@navbharatacademy.in,,Class 7,,B,,Computer Science,TUESDAY,2,08:45,09:25,R-7B2,CURRENT
+nikhil.joshi@navbharatacademy.in,,Class 8,,A,,Physical Education,TUESDAY,2,08:45,09:25,R-8A2,CURRENT
+kavya.nair@navbharatacademy.in,,Class 8,,B,,Art,TUESDAY,2,08:45,09:25,R-8B2,CURRENT
+saurabh.malhotra@navbharatacademy.in,,Class 9,,A,,Sanskrit,TUESDAY,2,08:45,09:25,R-9A2,CURRENT
+divya.jain@navbharatacademy.in,,Class 9,,B,,General Knowledge,TUESDAY,2,08:45,09:25,R-9B2,CURRENT
+anjali.rao@navbharatacademy.in,,Class 10,,A,,Biology,TUESDAY,2,08:45,09:25,R-10A2,CURRENT
+vikram.singh@navbharatacademy.in,,Class 10,,B,,Economics,TUESDAY,2,08:45,09:25,R-10B2,CURRENT
+priya.menon@navbharatacademy.in,,Class 11,,A,,Informatics Practices,TUESDAY,2,08:45,09:25,R-11A2,CURRENT
+arjun.patel@navbharatacademy.in,,Class 11,,B,,Health and Wellness,TUESDAY,2,08:45,09:25,R-11B2,CURRENT
+amit.sharma@navbharatacademy.in,,Class 12,,A,,Mathematics,TUESDAY,2,08:45,09:25,R-12A2,CURRENT
+neha.verma@navbharatacademy.in,,Class 12,,B,,Science,TUESDAY,2,08:45,09:25,R-12B2,CURRENT
+pooja.kapoor@navbharatacademy.in,,Class 6,,A,,Hindi,TUESDAY,3,09:30,10:10,R-6A3,CURRENT
+rahul.gupta@navbharatacademy.in,,Class 6,,B,,Social Studies,TUESDAY,3,09:30,10:10,R-6B3,CURRENT
+meera.mehta@navbharatacademy.in,,Class 7,,A,,Computer Science,TUESDAY,3,09:30,10:10,R-7A3,CURRENT
+nikhil.joshi@navbharatacademy.in,,Class 7,,B,,Physical Education,TUESDAY,3,09:30,10:10,R-7B3,CURRENT
+kavya.nair@navbharatacademy.in,,Class 8,,A,,Art,TUESDAY,3,09:30,10:10,R-8A3,CURRENT
+saurabh.malhotra@navbharatacademy.in,,Class 8,,B,,Sanskrit,TUESDAY,3,09:30,10:10,R-8B3,CURRENT
+divya.jain@navbharatacademy.in,,Class 9,,A,,General Knowledge,TUESDAY,3,09:30,10:10,R-9A3,CURRENT
+anjali.rao@navbharatacademy.in,,Class 9,,B,,Biology,TUESDAY,3,09:30,10:10,R-9B3,CURRENT
+vikram.singh@navbharatacademy.in,,Class 10,,A,,Economics,TUESDAY,3,09:30,10:10,R-10A3,CURRENT
+priya.menon@navbharatacademy.in,,Class 10,,B,,Informatics Practices,TUESDAY,3,09:30,10:10,R-10B3,CURRENT
+arjun.patel@navbharatacademy.in,,Class 11,,A,,Health and Wellness,TUESDAY,3,09:30,10:10,R-11A3,CURRENT
+amit.sharma@navbharatacademy.in,,Class 11,,B,,Mathematics,TUESDAY,3,09:30,10:10,R-11B3,CURRENT
+neha.verma@navbharatacademy.in,,Class 12,,A,,Science,TUESDAY,3,09:30,10:10,R-12A3,CURRENT
+rohan.iyer@navbharatacademy.in,,Class 12,,B,,English,TUESDAY,3,09:30,10:10,R-12B3,CURRENT
+rahul.gupta@navbharatacademy.in,,Class 6,,A,,Social Studies,TUESDAY,4,10:35,11:15,R-6A4,CURRENT
+meera.mehta@navbharatacademy.in,,Class 6,,B,,Computer Science,TUESDAY,4,10:35,11:15,R-6B4,CURRENT
+nikhil.joshi@navbharatacademy.in,,Class 7,,A,,Physical Education,TUESDAY,4,10:35,11:15,R-7A4,CURRENT
+kavya.nair@navbharatacademy.in,,Class 7,,B,,Art,TUESDAY,4,10:35,11:15,R-7B4,CURRENT
+saurabh.malhotra@navbharatacademy.in,,Class 8,,A,,Sanskrit,TUESDAY,4,10:35,11:15,R-8A4,CURRENT
+divya.jain@navbharatacademy.in,,Class 8,,B,,General Knowledge,TUESDAY,4,10:35,11:15,R-8B4,CURRENT
+anjali.rao@navbharatacademy.in,,Class 9,,A,,Biology,TUESDAY,4,10:35,11:15,R-9A4,CURRENT
+vikram.singh@navbharatacademy.in,,Class 9,,B,,Economics,TUESDAY,4,10:35,11:15,R-9B4,CURRENT
+priya.menon@navbharatacademy.in,,Class 10,,A,,Informatics Practices,TUESDAY,4,10:35,11:15,R-10A4,CURRENT
+arjun.patel@navbharatacademy.in,,Class 10,,B,,Health and Wellness,TUESDAY,4,10:35,11:15,R-10B4,CURRENT
+amit.sharma@navbharatacademy.in,,Class 11,,A,,Mathematics,TUESDAY,4,10:35,11:15,R-11A4,CURRENT
+neha.verma@navbharatacademy.in,,Class 11,,B,,Science,TUESDAY,4,10:35,11:15,R-11B4,CURRENT
+rohan.iyer@navbharatacademy.in,,Class 12,,A,,English,TUESDAY,4,10:35,11:15,R-12A4,CURRENT
+pooja.kapoor@navbharatacademy.in,,Class 12,,B,,Hindi,TUESDAY,4,10:35,11:15,R-12B4,CURRENT
+meera.mehta@navbharatacademy.in,,Class 6,,A,,Computer Science,TUESDAY,5,11:20,12:00,R-6A5,CURRENT
+nikhil.joshi@navbharatacademy.in,,Class 6,,B,,Physical Education,TUESDAY,5,11:20,12:00,R-6B5,CURRENT
+kavya.nair@navbharatacademy.in,,Class 7,,A,,Art,TUESDAY,5,11:20,12:00,R-7A5,CURRENT
+saurabh.malhotra@navbharatacademy.in,,Class 7,,B,,Sanskrit,TUESDAY,5,11:20,12:00,R-7B5,CURRENT
+divya.jain@navbharatacademy.in,,Class 8,,A,,General Knowledge,TUESDAY,5,11:20,12:00,R-8A5,CURRENT
+anjali.rao@navbharatacademy.in,,Class 8,,B,,Biology,TUESDAY,5,11:20,12:00,R-8B5,CURRENT
+vikram.singh@navbharatacademy.in,,Class 9,,A,,Economics,TUESDAY,5,11:20,12:00,R-9A5,CURRENT
+priya.menon@navbharatacademy.in,,Class 9,,B,,Informatics Practices,TUESDAY,5,11:20,12:00,R-9B5,CURRENT
+arjun.patel@navbharatacademy.in,,Class 10,,A,,Health and Wellness,TUESDAY,5,11:20,12:00,R-10A5,CURRENT
+amit.sharma@navbharatacademy.in,,Class 10,,B,,Mathematics,TUESDAY,5,11:20,12:00,R-10B5,CURRENT
+neha.verma@navbharatacademy.in,,Class 11,,A,,Science,TUESDAY,5,11:20,12:00,R-11A5,CURRENT
+rohan.iyer@navbharatacademy.in,,Class 11,,B,,English,TUESDAY,5,11:20,12:00,R-11B5,CURRENT
+pooja.kapoor@navbharatacademy.in,,Class 12,,A,,Hindi,TUESDAY,5,11:20,12:00,R-12A5,CURRENT
+rahul.gupta@navbharatacademy.in,,Class 12,,B,,Social Studies,TUESDAY,5,11:20,12:00,R-12B5,CURRENT
+rohan.iyer@navbharatacademy.in,,Class 6,,A,,English,WEDNESDAY,1,08:00,08:40,R-6A1,CURRENT
+pooja.kapoor@navbharatacademy.in,,Class 6,,B,,Hindi,WEDNESDAY,1,08:00,08:40,R-6B1,CURRENT
+rahul.gupta@navbharatacademy.in,,Class 7,,A,,Social Studies,WEDNESDAY,1,08:00,08:40,R-7A1,CURRENT
+meera.mehta@navbharatacademy.in,,Class 7,,B,,Computer Science,WEDNESDAY,1,08:00,08:40,R-7B1,CURRENT
+nikhil.joshi@navbharatacademy.in,,Class 8,,A,,Physical Education,WEDNESDAY,1,08:00,08:40,R-8A1,CURRENT
+kavya.nair@navbharatacademy.in,,Class 8,,B,,Art,WEDNESDAY,1,08:00,08:40,R-8B1,CURRENT
+saurabh.malhotra@navbharatacademy.in,,Class 9,,A,,Sanskrit,WEDNESDAY,1,08:00,08:40,R-9A1,CURRENT
+divya.jain@navbharatacademy.in,,Class 9,,B,,General Knowledge,WEDNESDAY,1,08:00,08:40,R-9B1,CURRENT
+anjali.rao@navbharatacademy.in,,Class 10,,A,,Biology,WEDNESDAY,1,08:00,08:40,R-10A1,CURRENT
+vikram.singh@navbharatacademy.in,,Class 10,,B,,Economics,WEDNESDAY,1,08:00,08:40,R-10B1,CURRENT
+priya.menon@navbharatacademy.in,,Class 11,,A,,Informatics Practices,WEDNESDAY,1,08:00,08:40,R-11A1,CURRENT
+arjun.patel@navbharatacademy.in,,Class 11,,B,,Health and Wellness,WEDNESDAY,1,08:00,08:40,R-11B1,CURRENT
+amit.sharma@navbharatacademy.in,,Class 12,,A,,Mathematics,WEDNESDAY,1,08:00,08:40,R-12A1,CURRENT
+neha.verma@navbharatacademy.in,,Class 12,,B,,Science,WEDNESDAY,1,08:00,08:40,R-12B1,CURRENT
+pooja.kapoor@navbharatacademy.in,,Class 6,,A,,Hindi,WEDNESDAY,2,08:45,09:25,R-6A2,CURRENT
+rahul.gupta@navbharatacademy.in,,Class 6,,B,,Social Studies,WEDNESDAY,2,08:45,09:25,R-6B2,CURRENT
+meera.mehta@navbharatacademy.in,,Class 7,,A,,Computer Science,WEDNESDAY,2,08:45,09:25,R-7A2,CURRENT
+nikhil.joshi@navbharatacademy.in,,Class 7,,B,,Physical Education,WEDNESDAY,2,08:45,09:25,R-7B2,CURRENT
+kavya.nair@navbharatacademy.in,,Class 8,,A,,Art,WEDNESDAY,2,08:45,09:25,R-8A2,CURRENT
+saurabh.malhotra@navbharatacademy.in,,Class 8,,B,,Sanskrit,WEDNESDAY,2,08:45,09:25,R-8B2,CURRENT
+divya.jain@navbharatacademy.in,,Class 9,,A,,General Knowledge,WEDNESDAY,2,08:45,09:25,R-9A2,CURRENT
+anjali.rao@navbharatacademy.in,,Class 9,,B,,Biology,WEDNESDAY,2,08:45,09:25,R-9B2,CURRENT
+vikram.singh@navbharatacademy.in,,Class 10,,A,,Economics,WEDNESDAY,2,08:45,09:25,R-10A2,CURRENT
+priya.menon@navbharatacademy.in,,Class 10,,B,,Informatics Practices,WEDNESDAY,2,08:45,09:25,R-10B2,CURRENT
+arjun.patel@navbharatacademy.in,,Class 11,,A,,Health and Wellness,WEDNESDAY,2,08:45,09:25,R-11A2,CURRENT
+amit.sharma@navbharatacademy.in,,Class 11,,B,,Mathematics,WEDNESDAY,2,08:45,09:25,R-11B2,CURRENT
+neha.verma@navbharatacademy.in,,Class 12,,A,,Science,WEDNESDAY,2,08:45,09:25,R-12A2,CURRENT
+rohan.iyer@navbharatacademy.in,,Class 12,,B,,English,WEDNESDAY,2,08:45,09:25,R-12B2,CURRENT
+rahul.gupta@navbharatacademy.in,,Class 6,,A,,Social Studies,WEDNESDAY,3,09:30,10:10,R-6A3,CURRENT
+meera.mehta@navbharatacademy.in,,Class 6,,B,,Computer Science,WEDNESDAY,3,09:30,10:10,R-6B3,CURRENT
+nikhil.joshi@navbharatacademy.in,,Class 7,,A,,Physical Education,WEDNESDAY,3,09:30,10:10,R-7A3,CURRENT
+kavya.nair@navbharatacademy.in,,Class 7,,B,,Art,WEDNESDAY,3,09:30,10:10,R-7B3,CURRENT
+saurabh.malhotra@navbharatacademy.in,,Class 8,,A,,Sanskrit,WEDNESDAY,3,09:30,10:10,R-8A3,CURRENT
+divya.jain@navbharatacademy.in,,Class 8,,B,,General Knowledge,WEDNESDAY,3,09:30,10:10,R-8B3,CURRENT
+anjali.rao@navbharatacademy.in,,Class 9,,A,,Biology,WEDNESDAY,3,09:30,10:10,R-9A3,CURRENT
+vikram.singh@navbharatacademy.in,,Class 9,,B,,Economics,WEDNESDAY,3,09:30,10:10,R-9B3,CURRENT
+priya.menon@navbharatacademy.in,,Class 10,,A,,Informatics Practices,WEDNESDAY,3,09:30,10:10,R-10A3,CURRENT
+arjun.patel@navbharatacademy.in,,Class 10,,B,,Health and Wellness,WEDNESDAY,3,09:30,10:10,R-10B3,CURRENT
+amit.sharma@navbharatacademy.in,,Class 11,,A,,Mathematics,WEDNESDAY,3,09:30,10:10,R-11A3,CURRENT
+neha.verma@navbharatacademy.in,,Class 11,,B,,Science,WEDNESDAY,3,09:30,10:10,R-11B3,CURRENT
+rohan.iyer@navbharatacademy.in,,Class 12,,A,,English,WEDNESDAY,3,09:30,10:10,R-12A3,CURRENT
+pooja.kapoor@navbharatacademy.in,,Class 12,,B,,Hindi,WEDNESDAY,3,09:30,10:10,R-12B3,CURRENT
+meera.mehta@navbharatacademy.in,,Class 6,,A,,Computer Science,WEDNESDAY,4,10:35,11:15,R-6A4,CURRENT
+nikhil.joshi@navbharatacademy.in,,Class 6,,B,,Physical Education,WEDNESDAY,4,10:35,11:15,R-6B4,CURRENT
+kavya.nair@navbharatacademy.in,,Class 7,,A,,Art,WEDNESDAY,4,10:35,11:15,R-7A4,CURRENT
+saurabh.malhotra@navbharatacademy.in,,Class 7,,B,,Sanskrit,WEDNESDAY,4,10:35,11:15,R-7B4,CURRENT
+divya.jain@navbharatacademy.in,,Class 8,,A,,General Knowledge,WEDNESDAY,4,10:35,11:15,R-8A4,CURRENT
+anjali.rao@navbharatacademy.in,,Class 8,,B,,Biology,WEDNESDAY,4,10:35,11:15,R-8B4,CURRENT
+vikram.singh@navbharatacademy.in,,Class 9,,A,,Economics,WEDNESDAY,4,10:35,11:15,R-9A4,CURRENT
+priya.menon@navbharatacademy.in,,Class 9,,B,,Informatics Practices,WEDNESDAY,4,10:35,11:15,R-9B4,CURRENT
+arjun.patel@navbharatacademy.in,,Class 10,,A,,Health and Wellness,WEDNESDAY,4,10:35,11:15,R-10A4,CURRENT
+amit.sharma@navbharatacademy.in,,Class 10,,B,,Mathematics,WEDNESDAY,4,10:35,11:15,R-10B4,CURRENT
+neha.verma@navbharatacademy.in,,Class 11,,A,,Science,WEDNESDAY,4,10:35,11:15,R-11A4,CURRENT
+rohan.iyer@navbharatacademy.in,,Class 11,,B,,English,WEDNESDAY,4,10:35,11:15,R-11B4,CURRENT
+pooja.kapoor@navbharatacademy.in,,Class 12,,A,,Hindi,WEDNESDAY,4,10:35,11:15,R-12A4,CURRENT
+rahul.gupta@navbharatacademy.in,,Class 12,,B,,Social Studies,WEDNESDAY,4,10:35,11:15,R-12B4,CURRENT
+nikhil.joshi@navbharatacademy.in,,Class 6,,A,,Physical Education,WEDNESDAY,5,11:20,12:00,R-6A5,CURRENT
+kavya.nair@navbharatacademy.in,,Class 6,,B,,Art,WEDNESDAY,5,11:20,12:00,R-6B5,CURRENT
+saurabh.malhotra@navbharatacademy.in,,Class 7,,A,,Sanskrit,WEDNESDAY,5,11:20,12:00,R-7A5,CURRENT
+divya.jain@navbharatacademy.in,,Class 7,,B,,General Knowledge,WEDNESDAY,5,11:20,12:00,R-7B5,CURRENT
+anjali.rao@navbharatacademy.in,,Class 8,,A,,Biology,WEDNESDAY,5,11:20,12:00,R-8A5,CURRENT
+vikram.singh@navbharatacademy.in,,Class 8,,B,,Economics,WEDNESDAY,5,11:20,12:00,R-8B5,CURRENT
+priya.menon@navbharatacademy.in,,Class 9,,A,,Informatics Practices,WEDNESDAY,5,11:20,12:00,R-9A5,CURRENT
+arjun.patel@navbharatacademy.in,,Class 9,,B,,Health and Wellness,WEDNESDAY,5,11:20,12:00,R-9B5,CURRENT
+amit.sharma@navbharatacademy.in,,Class 10,,A,,Mathematics,WEDNESDAY,5,11:20,12:00,R-10A5,CURRENT
+neha.verma@navbharatacademy.in,,Class 10,,B,,Science,WEDNESDAY,5,11:20,12:00,R-10B5,CURRENT
+rohan.iyer@navbharatacademy.in,,Class 11,,A,,English,WEDNESDAY,5,11:20,12:00,R-11A5,CURRENT
+pooja.kapoor@navbharatacademy.in,,Class 11,,B,,Hindi,WEDNESDAY,5,11:20,12:00,R-11B5,CURRENT
+rahul.gupta@navbharatacademy.in,,Class 12,,A,,Social Studies,WEDNESDAY,5,11:20,12:00,R-12A5,CURRENT
+meera.mehta@navbharatacademy.in,,Class 12,,B,,Computer Science,WEDNESDAY,5,11:20,12:00,R-12B5,CURRENT
+pooja.kapoor@navbharatacademy.in,,Class 6,,A,,Hindi,THURSDAY,1,08:00,08:40,R-6A1,CURRENT
+rahul.gupta@navbharatacademy.in,,Class 6,,B,,Social Studies,THURSDAY,1,08:00,08:40,R-6B1,CURRENT
+meera.mehta@navbharatacademy.in,,Class 7,,A,,Computer Science,THURSDAY,1,08:00,08:40,R-7A1,CURRENT
+nikhil.joshi@navbharatacademy.in,,Class 7,,B,,Physical Education,THURSDAY,1,08:00,08:40,R-7B1,CURRENT
+kavya.nair@navbharatacademy.in,,Class 8,,A,,Art,THURSDAY,1,08:00,08:40,R-8A1,CURRENT
+saurabh.malhotra@navbharatacademy.in,,Class 8,,B,,Sanskrit,THURSDAY,1,08:00,08:40,R-8B1,CURRENT
+divya.jain@navbharatacademy.in,,Class 9,,A,,General Knowledge,THURSDAY,1,08:00,08:40,R-9A1,CURRENT
+anjali.rao@navbharatacademy.in,,Class 9,,B,,Biology,THURSDAY,1,08:00,08:40,R-9B1,CURRENT
+vikram.singh@navbharatacademy.in,,Class 10,,A,,Economics,THURSDAY,1,08:00,08:40,R-10A1,CURRENT
+priya.menon@navbharatacademy.in,,Class 10,,B,,Informatics Practices,THURSDAY,1,08:00,08:40,R-10B1,CURRENT
+arjun.patel@navbharatacademy.in,,Class 11,,A,,Health and Wellness,THURSDAY,1,08:00,08:40,R-11A1,CURRENT
+amit.sharma@navbharatacademy.in,,Class 11,,B,,Mathematics,THURSDAY,1,08:00,08:40,R-11B1,CURRENT
+neha.verma@navbharatacademy.in,,Class 12,,A,,Science,THURSDAY,1,08:00,08:40,R-12A1,CURRENT
+rohan.iyer@navbharatacademy.in,,Class 12,,B,,English,THURSDAY,1,08:00,08:40,R-12B1,CURRENT
+rahul.gupta@navbharatacademy.in,,Class 6,,A,,Social Studies,THURSDAY,2,08:45,09:25,R-6A2,CURRENT
+meera.mehta@navbharatacademy.in,,Class 6,,B,,Computer Science,THURSDAY,2,08:45,09:25,R-6B2,CURRENT
+nikhil.joshi@navbharatacademy.in,,Class 7,,A,,Physical Education,THURSDAY,2,08:45,09:25,R-7A2,CURRENT
+kavya.nair@navbharatacademy.in,,Class 7,,B,,Art,THURSDAY,2,08:45,09:25,R-7B2,CURRENT
+saurabh.malhotra@navbharatacademy.in,,Class 8,,A,,Sanskrit,THURSDAY,2,08:45,09:25,R-8A2,CURRENT
+divya.jain@navbharatacademy.in,,Class 8,,B,,General Knowledge,THURSDAY,2,08:45,09:25,R-8B2,CURRENT
+anjali.rao@navbharatacademy.in,,Class 9,,A,,Biology,THURSDAY,2,08:45,09:25,R-9A2,CURRENT
+vikram.singh@navbharatacademy.in,,Class 9,,B,,Economics,THURSDAY,2,08:45,09:25,R-9B2,CURRENT
+priya.menon@navbharatacademy.in,,Class 10,,A,,Informatics Practices,THURSDAY,2,08:45,09:25,R-10A2,CURRENT
+arjun.patel@navbharatacademy.in,,Class 10,,B,,Health and Wellness,THURSDAY,2,08:45,09:25,R-10B2,CURRENT
+amit.sharma@navbharatacademy.in,,Class 11,,A,,Mathematics,THURSDAY,2,08:45,09:25,R-11A2,CURRENT
+neha.verma@navbharatacademy.in,,Class 11,,B,,Science,THURSDAY,2,08:45,09:25,R-11B2,CURRENT
+rohan.iyer@navbharatacademy.in,,Class 12,,A,,English,THURSDAY,2,08:45,09:25,R-12A2,CURRENT
+pooja.kapoor@navbharatacademy.in,,Class 12,,B,,Hindi,THURSDAY,2,08:45,09:25,R-12B2,CURRENT
+meera.mehta@navbharatacademy.in,,Class 6,,A,,Computer Science,THURSDAY,3,09:30,10:10,R-6A3,CURRENT
+nikhil.joshi@navbharatacademy.in,,Class 6,,B,,Physical Education,THURSDAY,3,09:30,10:10,R-6B3,CURRENT
+kavya.nair@navbharatacademy.in,,Class 7,,A,,Art,THURSDAY,3,09:30,10:10,R-7A3,CURRENT
+saurabh.malhotra@navbharatacademy.in,,Class 7,,B,,Sanskrit,THURSDAY,3,09:30,10:10,R-7B3,CURRENT
+divya.jain@navbharatacademy.in,,Class 8,,A,,General Knowledge,THURSDAY,3,09:30,10:10,R-8A3,CURRENT
+anjali.rao@navbharatacademy.in,,Class 8,,B,,Biology,THURSDAY,3,09:30,10:10,R-8B3,CURRENT
+vikram.singh@navbharatacademy.in,,Class 9,,A,,Economics,THURSDAY,3,09:30,10:10,R-9A3,CURRENT
+priya.menon@navbharatacademy.in,,Class 9,,B,,Informatics Practices,THURSDAY,3,09:30,10:10,R-9B3,CURRENT
+arjun.patel@navbharatacademy.in,,Class 10,,A,,Health and Wellness,THURSDAY,3,09:30,10:10,R-10A3,CURRENT
+amit.sharma@navbharatacademy.in,,Class 10,,B,,Mathematics,THURSDAY,3,09:30,10:10,R-10B3,CURRENT
+neha.verma@navbharatacademy.in,,Class 11,,A,,Science,THURSDAY,3,09:30,10:10,R-11A3,CURRENT
+rohan.iyer@navbharatacademy.in,,Class 11,,B,,English,THURSDAY,3,09:30,10:10,R-11B3,CURRENT
+pooja.kapoor@navbharatacademy.in,,Class 12,,A,,Hindi,THURSDAY,3,09:30,10:10,R-12A3,CURRENT
+rahul.gupta@navbharatacademy.in,,Class 12,,B,,Social Studies,THURSDAY,3,09:30,10:10,R-12B3,CURRENT
+nikhil.joshi@navbharatacademy.in,,Class 6,,A,,Physical Education,THURSDAY,4,10:35,11:15,R-6A4,CURRENT
+kavya.nair@navbharatacademy.in,,Class 6,,B,,Art,THURSDAY,4,10:35,11:15,R-6B4,CURRENT
+saurabh.malhotra@navbharatacademy.in,,Class 7,,A,,Sanskrit,THURSDAY,4,10:35,11:15,R-7A4,CURRENT
+divya.jain@navbharatacademy.in,,Class 7,,B,,General Knowledge,THURSDAY,4,10:35,11:15,R-7B4,CURRENT
+anjali.rao@navbharatacademy.in,,Class 8,,A,,Biology,THURSDAY,4,10:35,11:15,R-8A4,CURRENT
+vikram.singh@navbharatacademy.in,,Class 8,,B,,Economics,THURSDAY,4,10:35,11:15,R-8B4,CURRENT
+priya.menon@navbharatacademy.in,,Class 9,,A,,Informatics Practices,THURSDAY,4,10:35,11:15,R-9A4,CURRENT
+arjun.patel@navbharatacademy.in,,Class 9,,B,,Health and Wellness,THURSDAY,4,10:35,11:15,R-9B4,CURRENT
+amit.sharma@navbharatacademy.in,,Class 10,,A,,Mathematics,THURSDAY,4,10:35,11:15,R-10A4,CURRENT
+neha.verma@navbharatacademy.in,,Class 10,,B,,Science,THURSDAY,4,10:35,11:15,R-10B4,CURRENT
+rohan.iyer@navbharatacademy.in,,Class 11,,A,,English,THURSDAY,4,10:35,11:15,R-11A4,CURRENT
+pooja.kapoor@navbharatacademy.in,,Class 11,,B,,Hindi,THURSDAY,4,10:35,11:15,R-11B4,CURRENT
+rahul.gupta@navbharatacademy.in,,Class 12,,A,,Social Studies,THURSDAY,4,10:35,11:15,R-12A4,CURRENT
+meera.mehta@navbharatacademy.in,,Class 12,,B,,Computer Science,THURSDAY,4,10:35,11:15,R-12B4,CURRENT
+kavya.nair@navbharatacademy.in,,Class 6,,A,,Art,THURSDAY,5,11:20,12:00,R-6A5,CURRENT
+saurabh.malhotra@navbharatacademy.in,,Class 6,,B,,Sanskrit,THURSDAY,5,11:20,12:00,R-6B5,CURRENT
+divya.jain@navbharatacademy.in,,Class 7,,A,,General Knowledge,THURSDAY,5,11:20,12:00,R-7A5,CURRENT
+anjali.rao@navbharatacademy.in,,Class 7,,B,,Biology,THURSDAY,5,11:20,12:00,R-7B5,CURRENT
+vikram.singh@navbharatacademy.in,,Class 8,,A,,Economics,THURSDAY,5,11:20,12:00,R-8A5,CURRENT
+priya.menon@navbharatacademy.in,,Class 8,,B,,Informatics Practices,THURSDAY,5,11:20,12:00,R-8B5,CURRENT
+arjun.patel@navbharatacademy.in,,Class 9,,A,,Health and Wellness,THURSDAY,5,11:20,12:00,R-9A5,CURRENT
+amit.sharma@navbharatacademy.in,,Class 9,,B,,Mathematics,THURSDAY,5,11:20,12:00,R-9B5,CURRENT
+neha.verma@navbharatacademy.in,,Class 10,,A,,Science,THURSDAY,5,11:20,12:00,R-10A5,CURRENT
+rohan.iyer@navbharatacademy.in,,Class 10,,B,,English,THURSDAY,5,11:20,12:00,R-10B5,CURRENT
+pooja.kapoor@navbharatacademy.in,,Class 11,,A,,Hindi,THURSDAY,5,11:20,12:00,R-11A5,CURRENT
+rahul.gupta@navbharatacademy.in,,Class 11,,B,,Social Studies,THURSDAY,5,11:20,12:00,R-11B5,CURRENT
+meera.mehta@navbharatacademy.in,,Class 12,,A,,Computer Science,THURSDAY,5,11:20,12:00,R-12A5,CURRENT
+nikhil.joshi@navbharatacademy.in,,Class 12,,B,,Physical Education,THURSDAY,5,11:20,12:00,R-12B5,CURRENT
+rahul.gupta@navbharatacademy.in,,Class 6,,A,,Social Studies,FRIDAY,1,08:00,08:40,R-6A1,CURRENT
+meera.mehta@navbharatacademy.in,,Class 6,,B,,Computer Science,FRIDAY,1,08:00,08:40,R-6B1,CURRENT
+nikhil.joshi@navbharatacademy.in,,Class 7,,A,,Physical Education,FRIDAY,1,08:00,08:40,R-7A1,CURRENT
+kavya.nair@navbharatacademy.in,,Class 7,,B,,Art,FRIDAY,1,08:00,08:40,R-7B1,CURRENT
+saurabh.malhotra@navbharatacademy.in,,Class 8,,A,,Sanskrit,FRIDAY,1,08:00,08:40,R-8A1,CURRENT
+divya.jain@navbharatacademy.in,,Class 8,,B,,General Knowledge,FRIDAY,1,08:00,08:40,R-8B1,CURRENT
+anjali.rao@navbharatacademy.in,,Class 9,,A,,Biology,FRIDAY,1,08:00,08:40,R-9A1,CURRENT
+vikram.singh@navbharatacademy.in,,Class 9,,B,,Economics,FRIDAY,1,08:00,08:40,R-9B1,CURRENT
+priya.menon@navbharatacademy.in,,Class 10,,A,,Informatics Practices,FRIDAY,1,08:00,08:40,R-10A1,CURRENT
+arjun.patel@navbharatacademy.in,,Class 10,,B,,Health and Wellness,FRIDAY,1,08:00,08:40,R-10B1,CURRENT
+amit.sharma@navbharatacademy.in,,Class 11,,A,,Mathematics,FRIDAY,1,08:00,08:40,R-11A1,CURRENT
+neha.verma@navbharatacademy.in,,Class 11,,B,,Science,FRIDAY,1,08:00,08:40,R-11B1,CURRENT
+rohan.iyer@navbharatacademy.in,,Class 12,,A,,English,FRIDAY,1,08:00,08:40,R-12A1,CURRENT
+pooja.kapoor@navbharatacademy.in,,Class 12,,B,,Hindi,FRIDAY,1,08:00,08:40,R-12B1,CURRENT
+meera.mehta@navbharatacademy.in,,Class 6,,A,,Computer Science,FRIDAY,2,08:45,09:25,R-6A2,CURRENT
+nikhil.joshi@navbharatacademy.in,,Class 6,,B,,Physical Education,FRIDAY,2,08:45,09:25,R-6B2,CURRENT
+kavya.nair@navbharatacademy.in,,Class 7,,A,,Art,FRIDAY,2,08:45,09:25,R-7A2,CURRENT
+saurabh.malhotra@navbharatacademy.in,,Class 7,,B,,Sanskrit,FRIDAY,2,08:45,09:25,R-7B2,CURRENT
+divya.jain@navbharatacademy.in,,Class 8,,A,,General Knowledge,FRIDAY,2,08:45,09:25,R-8A2,CURRENT
+anjali.rao@navbharatacademy.in,,Class 8,,B,,Biology,FRIDAY,2,08:45,09:25,R-8B2,CURRENT
+vikram.singh@navbharatacademy.in,,Class 9,,A,,Economics,FRIDAY,2,08:45,09:25,R-9A2,CURRENT
+priya.menon@navbharatacademy.in,,Class 9,,B,,Informatics Practices,FRIDAY,2,08:45,09:25,R-9B2,CURRENT
+arjun.patel@navbharatacademy.in,,Class 10,,A,,Health and Wellness,FRIDAY,2,08:45,09:25,R-10A2,CURRENT
+amit.sharma@navbharatacademy.in,,Class 10,,B,,Mathematics,FRIDAY,2,08:45,09:25,R-10B2,CURRENT
+neha.verma@navbharatacademy.in,,Class 11,,A,,Science,FRIDAY,2,08:45,09:25,R-11A2,CURRENT
+rohan.iyer@navbharatacademy.in,,Class 11,,B,,English,FRIDAY,2,08:45,09:25,R-11B2,CURRENT
+pooja.kapoor@navbharatacademy.in,,Class 12,,A,,Hindi,FRIDAY,2,08:45,09:25,R-12A2,CURRENT
+rahul.gupta@navbharatacademy.in,,Class 12,,B,,Social Studies,FRIDAY,2,08:45,09:25,R-12B2,CURRENT
+nikhil.joshi@navbharatacademy.in,,Class 6,,A,,Physical Education,FRIDAY,3,09:30,10:10,R-6A3,CURRENT
+kavya.nair@navbharatacademy.in,,Class 6,,B,,Art,FRIDAY,3,09:30,10:10,R-6B3,CURRENT
+saurabh.malhotra@navbharatacademy.in,,Class 7,,A,,Sanskrit,FRIDAY,3,09:30,10:10,R-7A3,CURRENT
+divya.jain@navbharatacademy.in,,Class 7,,B,,General Knowledge,FRIDAY,3,09:30,10:10,R-7B3,CURRENT
+anjali.rao@navbharatacademy.in,,Class 8,,A,,Biology,FRIDAY,3,09:30,10:10,R-8A3,CURRENT
+vikram.singh@navbharatacademy.in,,Class 8,,B,,Economics,FRIDAY,3,09:30,10:10,R-8B3,CURRENT
+priya.menon@navbharatacademy.in,,Class 9,,A,,Informatics Practices,FRIDAY,3,09:30,10:10,R-9A3,CURRENT
+arjun.patel@navbharatacademy.in,,Class 9,,B,,Health and Wellness,FRIDAY,3,09:30,10:10,R-9B3,CURRENT
+amit.sharma@navbharatacademy.in,,Class 10,,A,,Mathematics,FRIDAY,3,09:30,10:10,R-10A3,CURRENT
+neha.verma@navbharatacademy.in,,Class 10,,B,,Science,FRIDAY,3,09:30,10:10,R-10B3,CURRENT
+rohan.iyer@navbharatacademy.in,,Class 11,,A,,English,FRIDAY,3,09:30,10:10,R-11A3,CURRENT
+pooja.kapoor@navbharatacademy.in,,Class 11,,B,,Hindi,FRIDAY,3,09:30,10:10,R-11B3,CURRENT
+rahul.gupta@navbharatacademy.in,,Class 12,,A,,Social Studies,FRIDAY,3,09:30,10:10,R-12A3,CURRENT
+meera.mehta@navbharatacademy.in,,Class 12,,B,,Computer Science,FRIDAY,3,09:30,10:10,R-12B3,CURRENT
+kavya.nair@navbharatacademy.in,,Class 6,,A,,Art,FRIDAY,4,10:35,11:15,R-6A4,CURRENT
+saurabh.malhotra@navbharatacademy.in,,Class 6,,B,,Sanskrit,FRIDAY,4,10:35,11:15,R-6B4,CURRENT
+divya.jain@navbharatacademy.in,,Class 7,,A,,General Knowledge,FRIDAY,4,10:35,11:15,R-7A4,CURRENT
+anjali.rao@navbharatacademy.in,,Class 7,,B,,Biology,FRIDAY,4,10:35,11:15,R-7B4,CURRENT
+vikram.singh@navbharatacademy.in,,Class 8,,A,,Economics,FRIDAY,4,10:35,11:15,R-8A4,CURRENT
+priya.menon@navbharatacademy.in,,Class 8,,B,,Informatics Practices,FRIDAY,4,10:35,11:15,R-8B4,CURRENT
+arjun.patel@navbharatacademy.in,,Class 9,,A,,Health and Wellness,FRIDAY,4,10:35,11:15,R-9A4,CURRENT
+amit.sharma@navbharatacademy.in,,Class 9,,B,,Mathematics,FRIDAY,4,10:35,11:15,R-9B4,CURRENT
+neha.verma@navbharatacademy.in,,Class 10,,A,,Science,FRIDAY,4,10:35,11:15,R-10A4,CURRENT
+rohan.iyer@navbharatacademy.in,,Class 10,,B,,English,FRIDAY,4,10:35,11:15,R-10B4,CURRENT
+pooja.kapoor@navbharatacademy.in,,Class 11,,A,,Hindi,FRIDAY,4,10:35,11:15,R-11A4,CURRENT
+rahul.gupta@navbharatacademy.in,,Class 11,,B,,Social Studies,FRIDAY,4,10:35,11:15,R-11B4,CURRENT
+meera.mehta@navbharatacademy.in,,Class 12,,A,,Computer Science,FRIDAY,4,10:35,11:15,R-12A4,CURRENT
+nikhil.joshi@navbharatacademy.in,,Class 12,,B,,Physical Education,FRIDAY,4,10:35,11:15,R-12B4,CURRENT
+saurabh.malhotra@navbharatacademy.in,,Class 6,,A,,Sanskrit,FRIDAY,5,11:20,12:00,R-6A5,CURRENT
+divya.jain@navbharatacademy.in,,Class 6,,B,,General Knowledge,FRIDAY,5,11:20,12:00,R-6B5,CURRENT
+anjali.rao@navbharatacademy.in,,Class 7,,A,,Biology,FRIDAY,5,11:20,12:00,R-7A5,CURRENT
+vikram.singh@navbharatacademy.in,,Class 7,,B,,Economics,FRIDAY,5,11:20,12:00,R-7B5,CURRENT
+priya.menon@navbharatacademy.in,,Class 8,,A,,Informatics Practices,FRIDAY,5,11:20,12:00,R-8A5,CURRENT
+arjun.patel@navbharatacademy.in,,Class 8,,B,,Health and Wellness,FRIDAY,5,11:20,12:00,R-8B5,CURRENT
+amit.sharma@navbharatacademy.in,,Class 9,,A,,Mathematics,FRIDAY,5,11:20,12:00,R-9A5,CURRENT
+neha.verma@navbharatacademy.in,,Class 9,,B,,Science,FRIDAY,5,11:20,12:00,R-9B5,CURRENT
+rohan.iyer@navbharatacademy.in,,Class 10,,A,,English,FRIDAY,5,11:20,12:00,R-10A5,CURRENT
+pooja.kapoor@navbharatacademy.in,,Class 10,,B,,Hindi,FRIDAY,5,11:20,12:00,R-10B5,CURRENT
+rahul.gupta@navbharatacademy.in,,Class 11,,A,,Social Studies,FRIDAY,5,11:20,12:00,R-11A5,CURRENT
+meera.mehta@navbharatacademy.in,,Class 11,,B,,Computer Science,FRIDAY,5,11:20,12:00,R-11B5,CURRENT
+nikhil.joshi@navbharatacademy.in,,Class 12,,A,,Physical Education,FRIDAY,5,11:20,12:00,R-12A5,CURRENT
+kavya.nair@navbharatacademy.in,,Class 12,,B,,Art,FRIDAY,5,11:20,12:00,R-12B5,CURRENT
+meera.mehta@navbharatacademy.in,,Class 6,,A,,Computer Science,SATURDAY,1,08:00,08:40,R-6A1,CURRENT
+nikhil.joshi@navbharatacademy.in,,Class 6,,B,,Physical Education,SATURDAY,1,08:00,08:40,R-6B1,CURRENT
+kavya.nair@navbharatacademy.in,,Class 7,,A,,Art,SATURDAY,1,08:00,08:40,R-7A1,CURRENT
+saurabh.malhotra@navbharatacademy.in,,Class 7,,B,,Sanskrit,SATURDAY,1,08:00,08:40,R-7B1,CURRENT
+divya.jain@navbharatacademy.in,,Class 8,,A,,General Knowledge,SATURDAY,1,08:00,08:40,R-8A1,CURRENT
+anjali.rao@navbharatacademy.in,,Class 8,,B,,Biology,SATURDAY,1,08:00,08:40,R-8B1,CURRENT
+vikram.singh@navbharatacademy.in,,Class 9,,A,,Economics,SATURDAY,1,08:00,08:40,R-9A1,CURRENT
+priya.menon@navbharatacademy.in,,Class 9,,B,,Informatics Practices,SATURDAY,1,08:00,08:40,R-9B1,CURRENT
+arjun.patel@navbharatacademy.in,,Class 10,,A,,Health and Wellness,SATURDAY,1,08:00,08:40,R-10A1,CURRENT
+amit.sharma@navbharatacademy.in,,Class 10,,B,,Mathematics,SATURDAY,1,08:00,08:40,R-10B1,CURRENT
+neha.verma@navbharatacademy.in,,Class 11,,A,,Science,SATURDAY,1,08:00,08:40,R-11A1,CURRENT
+rohan.iyer@navbharatacademy.in,,Class 11,,B,,English,SATURDAY,1,08:00,08:40,R-11B1,CURRENT
+pooja.kapoor@navbharatacademy.in,,Class 12,,A,,Hindi,SATURDAY,1,08:00,08:40,R-12A1,CURRENT
+rahul.gupta@navbharatacademy.in,,Class 12,,B,,Social Studies,SATURDAY,1,08:00,08:40,R-12B1,CURRENT
+nikhil.joshi@navbharatacademy.in,,Class 6,,A,,Physical Education,SATURDAY,2,08:45,09:25,R-6A2,CURRENT
+kavya.nair@navbharatacademy.in,,Class 6,,B,,Art,SATURDAY,2,08:45,09:25,R-6B2,CURRENT
+saurabh.malhotra@navbharatacademy.in,,Class 7,,A,,Sanskrit,SATURDAY,2,08:45,09:25,R-7A2,CURRENT
+divya.jain@navbharatacademy.in,,Class 7,,B,,General Knowledge,SATURDAY,2,08:45,09:25,R-7B2,CURRENT
+anjali.rao@navbharatacademy.in,,Class 8,,A,,Biology,SATURDAY,2,08:45,09:25,R-8A2,CURRENT
+vikram.singh@navbharatacademy.in,,Class 8,,B,,Economics,SATURDAY,2,08:45,09:25,R-8B2,CURRENT
+priya.menon@navbharatacademy.in,,Class 9,,A,,Informatics Practices,SATURDAY,2,08:45,09:25,R-9A2,CURRENT
+arjun.patel@navbharatacademy.in,,Class 9,,B,,Health and Wellness,SATURDAY,2,08:45,09:25,R-9B2,CURRENT
+amit.sharma@navbharatacademy.in,,Class 10,,A,,Mathematics,SATURDAY,2,08:45,09:25,R-10A2,CURRENT
+neha.verma@navbharatacademy.in,,Class 10,,B,,Science,SATURDAY,2,08:45,09:25,R-10B2,CURRENT
+rohan.iyer@navbharatacademy.in,,Class 11,,A,,English,SATURDAY,2,08:45,09:25,R-11A2,CURRENT
+pooja.kapoor@navbharatacademy.in,,Class 11,,B,,Hindi,SATURDAY,2,08:45,09:25,R-11B2,CURRENT
+rahul.gupta@navbharatacademy.in,,Class 12,,A,,Social Studies,SATURDAY,2,08:45,09:25,R-12A2,CURRENT
+meera.mehta@navbharatacademy.in,,Class 12,,B,,Computer Science,SATURDAY,2,08:45,09:25,R-12B2,CURRENT
+kavya.nair@navbharatacademy.in,,Class 6,,A,,Art,SATURDAY,3,09:30,10:10,R-6A3,CURRENT
+saurabh.malhotra@navbharatacademy.in,,Class 6,,B,,Sanskrit,SATURDAY,3,09:30,10:10,R-6B3,CURRENT
+divya.jain@navbharatacademy.in,,Class 7,,A,,General Knowledge,SATURDAY,3,09:30,10:10,R-7A3,CURRENT
+anjali.rao@navbharatacademy.in,,Class 7,,B,,Biology,SATURDAY,3,09:30,10:10,R-7B3,CURRENT
+vikram.singh@navbharatacademy.in,,Class 8,,A,,Economics,SATURDAY,3,09:30,10:10,R-8A3,CURRENT
+priya.menon@navbharatacademy.in,,Class 8,,B,,Informatics Practices,SATURDAY,3,09:30,10:10,R-8B3,CURRENT
+arjun.patel@navbharatacademy.in,,Class 9,,A,,Health and Wellness,SATURDAY,3,09:30,10:10,R-9A3,CURRENT
+amit.sharma@navbharatacademy.in,,Class 9,,B,,Mathematics,SATURDAY,3,09:30,10:10,R-9B3,CURRENT
+neha.verma@navbharatacademy.in,,Class 10,,A,,Science,SATURDAY,3,09:30,10:10,R-10A3,CURRENT
+rohan.iyer@navbharatacademy.in,,Class 10,,B,,English,SATURDAY,3,09:30,10:10,R-10B3,CURRENT
+pooja.kapoor@navbharatacademy.in,,Class 11,,A,,Hindi,SATURDAY,3,09:30,10:10,R-11A3,CURRENT
+rahul.gupta@navbharatacademy.in,,Class 11,,B,,Social Studies,SATURDAY,3,09:30,10:10,R-11B3,CURRENT
+meera.mehta@navbharatacademy.in,,Class 12,,A,,Computer Science,SATURDAY,3,09:30,10:10,R-12A3,CURRENT
+nikhil.joshi@navbharatacademy.in,,Class 12,,B,,Physical Education,SATURDAY,3,09:30,10:10,R-12B3,CURRENT
+saurabh.malhotra@navbharatacademy.in,,Class 6,,A,,Sanskrit,SATURDAY,4,10:35,11:15,R-6A4,CURRENT
+divya.jain@navbharatacademy.in,,Class 6,,B,,General Knowledge,SATURDAY,4,10:35,11:15,R-6B4,CURRENT
+anjali.rao@navbharatacademy.in,,Class 7,,A,,Biology,SATURDAY,4,10:35,11:15,R-7A4,CURRENT
+vikram.singh@navbharatacademy.in,,Class 7,,B,,Economics,SATURDAY,4,10:35,11:15,R-7B4,CURRENT
+priya.menon@navbharatacademy.in,,Class 8,,A,,Informatics Practices,SATURDAY,4,10:35,11:15,R-8A4,CURRENT
+arjun.patel@navbharatacademy.in,,Class 8,,B,,Health and Wellness,SATURDAY,4,10:35,11:15,R-8B4,CURRENT
+amit.sharma@navbharatacademy.in,,Class 9,,A,,Mathematics,SATURDAY,4,10:35,11:15,R-9A4,CURRENT
+neha.verma@navbharatacademy.in,,Class 9,,B,,Science,SATURDAY,4,10:35,11:15,R-9B4,CURRENT
+rohan.iyer@navbharatacademy.in,,Class 10,,A,,English,SATURDAY,4,10:35,11:15,R-10A4,CURRENT
+pooja.kapoor@navbharatacademy.in,,Class 10,,B,,Hindi,SATURDAY,4,10:35,11:15,R-10B4,CURRENT
+rahul.gupta@navbharatacademy.in,,Class 11,,A,,Social Studies,SATURDAY,4,10:35,11:15,R-11A4,CURRENT
+meera.mehta@navbharatacademy.in,,Class 11,,B,,Computer Science,SATURDAY,4,10:35,11:15,R-11B4,CURRENT
+nikhil.joshi@navbharatacademy.in,,Class 12,,A,,Physical Education,SATURDAY,4,10:35,11:15,R-12A4,CURRENT
+kavya.nair@navbharatacademy.in,,Class 12,,B,,Art,SATURDAY,4,10:35,11:15,R-12B4,CURRENT
+divya.jain@navbharatacademy.in,,Class 6,,A,,General Knowledge,SATURDAY,5,11:20,12:00,R-6A5,CURRENT
+anjali.rao@navbharatacademy.in,,Class 6,,B,,Biology,SATURDAY,5,11:20,12:00,R-6B5,CURRENT
+vikram.singh@navbharatacademy.in,,Class 7,,A,,Economics,SATURDAY,5,11:20,12:00,R-7A5,CURRENT
+priya.menon@navbharatacademy.in,,Class 7,,B,,Informatics Practices,SATURDAY,5,11:20,12:00,R-7B5,CURRENT
+arjun.patel@navbharatacademy.in,,Class 8,,A,,Health and Wellness,SATURDAY,5,11:20,12:00,R-8A5,CURRENT
+amit.sharma@navbharatacademy.in,,Class 8,,B,,Mathematics,SATURDAY,5,11:20,12:00,R-8B5,CURRENT
+neha.verma@navbharatacademy.in,,Class 9,,A,,Science,SATURDAY,5,11:20,12:00,R-9A5,CURRENT
+rohan.iyer@navbharatacademy.in,,Class 9,,B,,English,SATURDAY,5,11:20,12:00,R-9B5,CURRENT
+pooja.kapoor@navbharatacademy.in,,Class 10,,A,,Hindi,SATURDAY,5,11:20,12:00,R-10A5,CURRENT
+rahul.gupta@navbharatacademy.in,,Class 10,,B,,Social Studies,SATURDAY,5,11:20,12:00,R-10B5,CURRENT
+meera.mehta@navbharatacademy.in,,Class 11,,A,,Computer Science,SATURDAY,5,11:20,12:00,R-11A5,CURRENT
+nikhil.joshi@navbharatacademy.in,,Class 11,,B,,Physical Education,SATURDAY,5,11:20,12:00,R-11B5,CURRENT
+kavya.nair@navbharatacademy.in,,Class 12,,A,,Art,SATURDAY,5,11:20,12:00,R-12A5,CURRENT
+saurabh.malhotra@navbharatacademy.in,,Class 12,,B,,Sanskrit,SATURDAY,5,11:20,12:00,R-12B5,CURRENT

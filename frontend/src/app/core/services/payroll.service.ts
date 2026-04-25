@@ -253,6 +253,7 @@ export class PayrollService {
       if (!p) return throwError(() => new Error('Payslip not found'));
       p.status = 'paid';
       p.paymentDate = new Date().toISOString().slice(0, 10);
+      p.salarySettlementMode = 'OFFLINE_RECORDED';
       return of({ ...p });
     }
     return this.api.post<any>(`/payroll/payslips/${id}/mark-paid`, {}).pipe(map(p => this.normalizePayslip(p)));
@@ -381,6 +382,7 @@ export class PayrollService {
 
   private normalizePayslip(p: any): Payslip {
     const st = String(p.status ?? 'GENERATED').toUpperCase();
+    const modeRaw = p.salarySettlementMode != null ? String(p.salarySettlementMode).trim() : '';
     return {
       id: String(p.id),
       teacherId: Number(p.teacherId),
@@ -393,11 +395,14 @@ export class PayrollService {
       netSalary: Number(p.netSalary ?? 0),
       status: st === 'PAID' ? 'paid' : 'generated',
       paymentDate: p.paymentDate ? String(p.paymentDate).slice(0, 10) : undefined,
+      salarySettlementMode: modeRaw || undefined,
       tenantId: p.tenantId ?? ''
     };
   }
 
   private normalizeAttempt(a: any): PayrollDisbursementAttempt {
+    const statusRaw = String(a.status ?? 'SUBMITTED').toUpperCase();
+    const normalizedStatus = statusRaw === 'PROCESSED' || statusRaw === 'RECONCILED' ? 'COMPLETED' : statusRaw;
     return {
       id: Number(a.id),
       payslipId: Number(a.payslipId),
@@ -407,7 +412,7 @@ export class PayrollService {
       amount: Number(a.amount ?? 0),
       paymentMethod: String(a.paymentMethod ?? ''),
       referenceId: String(a.referenceId ?? ''),
-      status: String(a.status ?? 'SUBMITTED').toUpperCase() as PayrollDisbursementAttempt['status'],
+      status: normalizedStatus as PayrollDisbursementAttempt['status'],
       createdAt: a.createdAt != null ? String(a.createdAt) : undefined,
       completedAt: a.completedAt != null ? String(a.completedAt) : undefined,
       lastMessage: a.lastMessage != null ? String(a.lastMessage) : undefined,
@@ -443,6 +448,7 @@ export class PayrollService {
       netSalary: t.net,
       status: i === 1 ? 'paid' : 'generated',
       paymentDate: i === 1 ? now.toISOString().slice(0, 10) : undefined,
+      salarySettlementMode: i === 1 ? 'OFFLINE_RECORDED' : undefined,
       tenantId: 't1',
     }));
 

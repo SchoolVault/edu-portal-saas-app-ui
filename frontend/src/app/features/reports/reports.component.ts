@@ -4,6 +4,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { AcademicService } from '../../core/services/academic.service';
+import { AuthService } from '../../core/services/auth.service';
 import { ExamService } from '../../core/services/exam.service';
 import { FeeService } from '../../core/services/fee.service';
 import { ReportService } from '../../core/services/report.service';
@@ -29,7 +30,7 @@ import {
   StudentPerformanceRow,
   TeacherWorkloadRow
 } from '../../core/models/models';
-import { downloadCsv } from '../../core/utils/csv-export.util';
+import { buildCsvSchoolLine, downloadCsvDocument, type CsvDocumentMeta } from '../../core/utils/csv-export.util';
 import { ErpPaginationComponent } from '../../shared/erp-pagination/erp-pagination.component';
 import { ErpMonthPickerComponent } from '../../shared/erp-month-picker/erp-month-picker.component';
 import { sliceToPage } from '../../core/utils/paginate';
@@ -1057,9 +1058,23 @@ export class ReportsComponent implements OnInit {
     private feeService: FeeService,
     private reportService: ReportService,
     private studentService: StudentService,
+    private auth: AuthService,
     private translate: TranslateService,
     private cdr: ChangeDetectorRef
   ) {}
+
+  private reportCsvMeta(titleKey: string): CsvDocumentMeta {
+    const sm = this.auth.getProfileSummarySnapshot();
+    return {
+      documentTitle: this.translate.instant(titleKey),
+      schoolLine: buildCsvSchoolLine(sm?.schoolName, sm?.schoolCode),
+    };
+  }
+
+  private datedReportCsvName(slug: string): string {
+    const d = new Date().toISOString().slice(0, 10);
+    return `${slug}-${d}.csv`;
+  }
 
   feeStatusLabel(raw: string | undefined): string {
     const n = String(raw ?? '')
@@ -1650,7 +1665,7 @@ export class ReportsComponent implements OnInit {
       ],
       ...this.performanceRows.map(r => [String(r.rank), r.studentName, String(r.totalMarks), String(r.totalMax), String(r.percentage), r.grade])
     ];
-    downloadCsv(`report-student-performance.csv`, rows);
+    downloadCsvDocument(this.datedReportCsvName('report-student-performance'), this.reportCsvMeta('reports.csvDocumentTitle.performance'), rows);
   }
 
   exportAttendanceCsv(): void {
@@ -1667,7 +1682,7 @@ export class ReportsComponent implements OnInit {
       ],
       ...this.attendanceRows.map(r => [r.studentName, String(r.present), String(r.absent), String(r.late), String(r.excused), String(r.totalDays), String(r.attendancePercentage)])
     ];
-    downloadCsv(`report-attendance-${this.selectedMonth}.csv`, rows);
+    downloadCsvDocument(`report-attendance-${this.selectedMonth}.csv`, this.reportCsvMeta('reports.csvDocumentTitle.attendance'), rows);
   }
 
   exportFeesCsv(): void {
@@ -1690,7 +1705,7 @@ export class ReportsComponent implements OnInit {
         this.feeStatusLabel(p.status),
       ])
     ];
-    downloadCsv(`report-fee-collection.csv`, rows);
+    downloadCsvDocument(this.datedReportCsvName('report-fee-collection'), this.reportCsvMeta('reports.csvDocumentTitle.fees'), rows);
   }
 
   exportClassCsv(): void {
@@ -1716,7 +1731,7 @@ export class ReportsComponent implements OnInit {
           String(r.overdueAccounts ?? 0),
         ]),
       ];
-      downloadCsv(`report-class-summary.csv`, rows);
+      downloadCsvDocument(this.datedReportCsvName('report-class-summary'), this.reportCsvMeta('reports.csvDocumentTitle.class'), rows);
     };
     if (this.reportServerPaging) {
       this.reportService.getClassSummary().subscribe(data => build(data));
@@ -1732,7 +1747,7 @@ export class ReportsComponent implements OnInit {
         [t('reports.csv.section.class'), t('reports.csv.section.section'), t('reports.csv.section.studentCount'), t('reports.csv.section.classTeacher')],
         ...data.map(r => [r.className, r.sectionName, String(r.studentCount), r.classTeacherName || '-']),
       ];
-      downloadCsv(`report-section-summary.csv`, rows);
+      downloadCsvDocument(this.datedReportCsvName('report-section-summary'), this.reportCsvMeta('reports.csvDocumentTitle.section'), rows);
     };
     if (this.reportServerPaging) {
       this.reportService.getSectionSummary().subscribe(data => build(data));
@@ -1755,7 +1770,7 @@ export class ReportsComponent implements OnInit {
         ],
         ...data.map(r => [r.teacherName, r.homeroomClasses || '-', r.subjects.join('; '), String(r.assignedClasses), String(r.weeklyPeriods), this.teacherStatusLabel(r.status)]),
       ];
-      downloadCsv(`report-teacher-workload.csv`, rows);
+      downloadCsvDocument(this.datedReportCsvName('report-teacher-workload'), this.reportCsvMeta('reports.csvDocumentTitle.teacher'), rows);
     };
     if (this.reportServerPaging) {
       this.reportService.getTeacherWorkload().subscribe(data => build(data));
@@ -1779,7 +1794,7 @@ export class ReportsComponent implements OnInit {
       ],
       ...this.reportCard.subjects.map(s => [s.subjectName, String(s.marksObtained), String(s.maxMarks), s.grade])
     ];
-    downloadCsv(`report-card-${this.reportCard.studentId}.csv`, rows);
+    downloadCsvDocument(this.datedReportCsvName(`report-card-${this.reportCard.studentId}`), this.reportCsvMeta('reports.csvDocumentTitle.reportCard'), rows);
   }
 
   private refreshVisibleTab(): void {

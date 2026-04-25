@@ -1,12 +1,51 @@
 import { Injectable } from '@angular/core';
 import { Observable, of } from 'rxjs';
 import { delay, map } from 'rxjs/operators';
+
+export interface TenantFinanceProfile {
+  tenantId: string;
+  feeSettlementMode: string;
+  razorpayRouteLinkedAccountId?: string | null;
+  razorpayRouteLinkedAccountMasked?: string | null;
+  platformCommissionBps: number;
+  financeNotes?: string | null;
+  paymentRoutingOnboardingStatus?: string | null;
+  paymentRoutingSubmittedAt?: string | null;
+  paymentRoutingLiveAt?: string | null;
+  paymentRoutingLiveByUserId?: number | null;
+  paymentRoutingOnboardingDeclaration?: string | null;
+  /** Per-school: allow parent Razorpay (etc.) checkout from parent portal. */
+  parentOnlineFeeCheckoutEnabled?: boolean;
+  /** In-app salary transfer via payout API; default off — use external bank run + mark paid. */
+  payrollDigitalPayoutEnabled?: boolean;
+}
 import { MOCK_TENANT_CONFIG_DEFAULT, mockSchoolBranches } from '../mocks/settings.mock-data';
 import { SchoolBranch, TenantConfig } from '../models/models';
 import { ApiService } from './api.service';
 import { runtimeConfig } from '../config/runtime-config';
 
 const MOCK_TENANT_LS = 'erp_mock_tenant_general_v1';
+
+/** In-memory finance profile when `useMocks` (GET/PUT/submit/withdraw stay consistent). */
+let mockFinanceProfileState: TenantFinanceProfile | null = null;
+
+function mockFinanceProfileDefault(): TenantFinanceProfile {
+  return {
+    tenantId: 'mock-tenant',
+    feeSettlementMode: 'OFFLINE_SCHOOL_COLLECTION',
+    razorpayRouteLinkedAccountId: null,
+    razorpayRouteLinkedAccountMasked: null,
+    platformCommissionBps: 0,
+    financeNotes: null,
+    paymentRoutingOnboardingStatus: 'NOT_REQUIRED',
+    paymentRoutingSubmittedAt: null,
+    paymentRoutingLiveAt: null,
+    paymentRoutingLiveByUserId: null,
+    paymentRoutingOnboardingDeclaration: null,
+    parentOnlineFeeCheckoutEnabled: false,
+    payrollDigitalPayoutEnabled: false,
+  };
+}
 
 function readMockTenant(): Partial<TenantConfig> {
   try {
@@ -83,5 +122,71 @@ export class SettingsService {
         }))
       )
     );
+  }
+
+  getFinanceProfile(): Observable<TenantFinanceProfile> {
+    if (runtimeConfig.useMocks) {
+      const row = { ...(mockFinanceProfileState ?? mockFinanceProfileDefault()) };
+      return of(row).pipe(delay(40));
+    }
+    return this.api.get<TenantFinanceProfile>('/settings/finance-profile');
+  }
+
+  updateFinanceProfile(body: Partial<TenantFinanceProfile>): Observable<TenantFinanceProfile> {
+    if (runtimeConfig.useMocks) {
+      const prev = { ...(mockFinanceProfileState ?? mockFinanceProfileDefault()) };
+      const merged = { ...prev, ...body, tenantId: prev.tenantId } as TenantFinanceProfile;
+      merged.parentOnlineFeeCheckoutEnabled = merged.feeSettlementMode !== 'OFFLINE_SCHOOL_COLLECTION';
+      if (merged.feeSettlementMode === 'ROUTE_LINKED_ACCOUNT') {
+        merged.paymentRoutingOnboardingStatus =
+          merged.paymentRoutingOnboardingStatus === 'LIVE' || merged.paymentRoutingOnboardingStatus === 'SUBMITTED'
+            ? merged.paymentRoutingOnboardingStatus
+            : 'DRAFT';
+        if (merged.razorpayRouteLinkedAccountId) {
+          const raw = merged.razorpayRouteLinkedAccountId;
+          merged.razorpayRouteLinkedAccountMasked =
+            raw.length > 10 ? `${raw.slice(0, 7)}…${raw.slice(-4)}` : 'acc_****';
+        }
+      } else {
+        merged.paymentRoutingOnboardingStatus = 'NOT_REQUIRED';
+        merged.paymentRoutingSubmittedAt = null;
+        merged.paymentRoutingLiveAt = null;
+        merged.paymentRoutingLiveByUserId = null;
+        merged.paymentRoutingOnboardingDeclaration = null;
+      }
+      mockFinanceProfileState = merged;
+      return of({ ...merged }).pipe(delay(60));
+    }
+    return this.api.put<TenantFinanceProfile>('/settings/finance-profile', body);
+  }
+
+  submitFinanceProfileForReview(declaration: string): Observable<TenantFinanceProfile> {
+    if (runtimeConfig.useMocks) {
+      const prev = { ...(mockFinanceProfileState ?? mockFinanceProfileDefault()) };
+      const next: TenantFinanceProfile = {
+        ...prev,
+        paymentRoutingOnboardingStatus: 'SUBMITTED',
+        paymentRoutingSubmittedAt: new Date().toISOString(),
+        paymentRoutingOnboardingDeclaration: declaration.trim(),
+      };
+      mockFinanceProfileState = next;
+      return of({ ...next }).pipe(delay(120));
+    }
+    return this.api.post<TenantFinanceProfile>('/settings/finance-profile/submit-for-review', { declaration });
+  }
+
+  withdrawFinanceProfileSubmission(): Observable<TenantFinanceProfile> {
+    if (runtimeConfig.useMocks) {
+      const prev = { ...(mockFinanceProfileState ?? mockFinanceProfileDefault()) };
+      const next: TenantFinanceProfile = {
+        ...prev,
+        paymentRoutingOnboardingStatus: 'DRAFT',
+        paymentRoutingSubmittedAt: null,
+        paymentRoutingOnboardingDeclaration: null,
+      };
+      mockFinanceProfileState = next;
+      return of({ ...next }).pipe(delay(100));
+    }
+    return this.api.post<TenantFinanceProfile>('/settings/finance-profile/withdraw-submission', {});
   }
 }

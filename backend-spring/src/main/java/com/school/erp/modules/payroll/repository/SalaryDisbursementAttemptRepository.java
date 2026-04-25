@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;
 import java.util.Optional;
+import java.time.LocalDateTime;
 
 public interface SalaryDisbursementAttemptRepository extends JpaRepository<SalaryDisbursementAttempt, Long> {
 
@@ -19,4 +20,20 @@ public interface SalaryDisbursementAttemptRepository extends JpaRepository<Salar
     Page<SalaryDisbursementAttempt> findByTenantIdAndStatusAndIsDeletedFalseOrderByCreatedAtDesc(String tenantId, String status, Pageable pageable);
 
     Optional<SalaryDisbursementAttempt> findByIdAndTenantIdAndIsDeletedFalse(Long id, String tenantId);
+
+    Optional<SalaryDisbursementAttempt> findByTenantIdAndOperationKeyAndIsDeletedFalse(String tenantId, String operationKey);
+
+    List<SalaryDisbursementAttempt> findByTenantIdAndStatusInAndIsDeletedFalseOrderByCreatedAtAsc(String tenantId, List<String> statuses);
+
+    List<String> findDistinctTenantIdByIsDeletedFalse();
+
+    Optional<SalaryDisbursementAttempt> findFirstByReferenceIdAndIsDeletedFalseOrderByCreatedAtDesc(String referenceId);
+
+    Optional<SalaryDisbursementAttempt> findFirstByTenantIdAndReferenceIdAndIsDeletedFalseOrderByCreatedAtDesc(
+            String tenantId, String referenceId);
+
+    Optional<SalaryDisbursementAttempt> findFirstByTenantIdAndPayslipIdAndIsDeletedFalseOrderByCreatedAtDesc(
+            String tenantId, Long payslipId);
+
+    long countByStatusInAndCreatedAtBeforeAndIsDeletedFalse(List<String> statuses, LocalDateTime cutoff);
 }

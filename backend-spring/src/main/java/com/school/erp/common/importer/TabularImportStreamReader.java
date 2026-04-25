@@ -1,6 +1,7 @@
 package com.school.erp.common.importer;
 
 import com.school.erp.common.exception.BusinessException;
+import com.school.erp.common.export.CsvExportSupport;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.DataFormatter;
 import org.apache.poi.ss.usermodel.Row;
@@ -67,6 +68,7 @@ public final class TabularImportStreamReader {
             if (headerLine == null || headerLine.isBlank()) {
                 throw new BusinessException("CSV file is empty");
             }
+            headerLine = CsvExportSupport.stripLeadingBom(headerLine);
             List<String> headers = TabularImportFileReader.parseCsvLine(headerLine).stream()
                     .map(h -> h.trim().toLowerCase(Locale.ROOT))
                     .toList();
