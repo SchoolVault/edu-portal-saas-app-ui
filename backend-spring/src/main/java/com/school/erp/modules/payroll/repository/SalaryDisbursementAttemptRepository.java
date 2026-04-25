@@ -4,6 +4,7 @@ import com.school.erp.modules.payroll.entity.SalaryDisbursementAttempt;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
 
 import java.util.List;
 import java.util.Optional;
@@ -25,6 +26,8 @@ public interface SalaryDisbursementAttemptRepository extends JpaRepository<Salar
 
     List<SalaryDisbursementAttempt> findByTenantIdAndStatusInAndIsDeletedFalseOrderByCreatedAtAsc(String tenantId, List<String> statuses);
 
+    /** Explicit JPQL — derived {@code findDistinctTenantId...} resolved to the entity type and broke at runtime. */
+    @Query("select distinct a.tenantId from SalaryDisbursementAttempt a where a.isDeleted = false")
     List<String> findDistinctTenantIdByIsDeletedFalse();
 
     Optional<SalaryDisbursementAttempt> findFirstByReferenceIdAndIsDeletedFalseOrderByCreatedAtDesc(String referenceId);
