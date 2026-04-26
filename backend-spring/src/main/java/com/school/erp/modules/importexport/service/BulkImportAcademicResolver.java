@@ -25,6 +25,8 @@ import java.util.regex.Pattern;
 @Service
 public class BulkImportAcademicResolver {
     private static final Pattern CLASS_SECTION_COMPACT_TOKEN = Pattern.compile("^(\\d{1,2})([A-Za-z])$");
+    /** e.g. {@code Class 10}, {@code 10} — class teacher at class level, or auto/ defer section by policy */
+    private static final Pattern CLASS_ONLY_TOKEN = Pattern.compile("^(?i)(Class\\s+)?(\\d{1,2})\\s*$");
     public enum AcademicYearResolutionMode {
         EXPLICIT,
         CURRENT,
@@ -47,6 +49,24 @@ public class BulkImportAcademicResolver {
     }
 
     public record ResolvedPlacement(Long classId, Long sectionId) {
+    }
+
+    /**
+     * @param sectionId   target section, or null for whole-class homeroom (class has no sections)
+     * @param skipIfEmpty if true, class has multiple sections but CSV did not disambiguate — do not assign yet
+     */
+    private record ClassTeacherSectionPick(Long sectionId, boolean skipIfEmpty) {
+        static ClassTeacherSectionPick classLevelHomeroom() {
+            return new ClassTeacherSectionPick(null, false);
+        }
+
+        static ClassTeacherSectionPick toSection(long id) {
+            return new ClassTeacherSectionPick(id, false);
+        }
+
+        static ClassTeacherSectionPick defer() {
+            return new ClassTeacherSectionPick(null, true);
+        }
     }
 
     /**
@@ -166,6 +186,9 @@ public class BulkImportAcademicResolver {
      *   <li>{@code classteacherfor=6A} (compact grade+section)</li>
      *   <li>explicit columns: {@code classteacherclassid/classteachersectionid} or
      *   {@code classteacherclassname/classteachersectionname}</li>
+     *   <li>{@code Class 10} or {@code 10} — class only: homeroom on the class if it has no sections; if it has
+     *   one section, that section is used; if it has more than one section, homeroom is skipped (assign in app or
+     *   re-import with {@code 10-A}).</li>
      * </ul>
      */
     public Optional<ResolvedPlacement> resolveOptionalClassTeacherPlacement(Map<String, String> row) {
@@ -190,7 +213,82 @@ public class BulkImportAcademicResolver {
         } else {
             parseClassTeacherSlotToken(slotToken, placementRow);
         }
-        return Optional.of(resolveClassAndSection(placementRow));
+        return resolveClassTeacherFromPlacement(placementRow);
+    }
+
+    /**
+     * Resolves class teacher slot with the same class matching as other imports, but with relaxed section rules
+     * for onboarding CSVs.
+     */
+    private Optional<ResolvedPlacement> resolveClassTeacherFromPlacement(Map<String, String> p) {
+        String tenantId = TenantContext.getTenantId();
+        SchoolClass cls = resolveSchoolClassForClassTeacherRow(tenantId, p);
+        Long classId = cls.getId();
+        String sectionNameFromRow = blankToNull(p.get("sectionname"));
+        Long sectionIdFromRow = parseLong(blankToNull(p.get("sectionid")));
+        List<Section> classSections = sectionRepository.findByTenantIdAndClassIdAndIsDeletedFalse(tenantId, classId);
+        ClassTeacherSectionPick pick = pickSectionForClassTeacherImport(
+                tenantId, classId, classSections, sectionIdFromRow, sectionNameFromRow);
+        if (pick.skipIfEmpty()) {
+            return Optional.empty();
+        }
+        return Optional.of(new ResolvedPlacement(classId, pick.sectionId()));
+    }
+
+    private SchoolClass resolveSchoolClassForClassTeacherRow(String tenantId, Map<String, String> p) {
+        Long classId = parseLong(blankToNull(p.get("classid")));
+        if (classId != null) {
+            return schoolClassRepository.findByIdAndTenantIdAndIsDeletedFalse(classId, tenantId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Class", classId));
+        }
+        String className = blankToNull(p.get("classname"));
+        if (className == null) {
+            throw new BusinessException("Either classid or classname is required for class-teacher column");
+        }
+        Long academicYearId = resolveAcademicYearId(p.get("academicyearid"));
+        return schoolClassRepository
+                .findFirstByTenantIdAndAcademicYearIdAndNameIgnoreCaseAndIsDeletedFalse(tenantId, academicYearId, className)
+                .orElseGet(() -> resolveClassByGradeToken(tenantId, academicYearId, className)
+                        .orElseThrow(() -> new BusinessException(
+                                "Could not match class '" + className + "' for class teacher in this academic year. "
+                                        + "Use the exact class name (e.g. Class 6), provide classteacherclassid, or fix the token."
+                        )));
+    }
+
+    private ClassTeacherSectionPick pickSectionForClassTeacherImport(
+            String tenantId,
+            Long classId,
+            List<Section> classSections,
+            Long sectionId,
+            String sectionName) {
+        if (classSections.isEmpty()) {
+            if (sectionId != null || (sectionName != null && !sectionName.isBlank())) {
+                throw new BusinessException("Section was provided for classteacher but this class has no sections in Academic setup");
+            }
+            return ClassTeacherSectionPick.classLevelHomeroom();
+        }
+        if (sectionId != null) {
+            Section sec = sectionRepository.findByIdAndTenantIdAndIsDeletedFalse(sectionId, tenantId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Section", sectionId));
+            if (!classId.equals(sec.getClassId())) {
+                throw new BusinessException("classteacher sectionid does not belong to the resolved class");
+            }
+            return ClassTeacherSectionPick.toSection(sectionId);
+        }
+        if (sectionName != null && !sectionName.isBlank()) {
+            Long sid = sectionRepository
+                    .findFirstByTenantIdAndClassIdAndNameIgnoreCaseAndIsDeletedFalse(tenantId, classId, sectionName)
+                    .map(Section::getId)
+                    .orElseThrow(() -> new BusinessException(
+                            "Section '" + sectionName + "' was not found in the class. Use the name from Academic (e.g. A, B)."
+                    ));
+            return ClassTeacherSectionPick.toSection(sid);
+        }
+        if (classSections.size() == 1) {
+            classSections.sort(Comparator.comparing(Section::getName, String.CASE_INSENSITIVE_ORDER));
+            return ClassTeacherSectionPick.toSection(classSections.get(0).getId());
+        }
+        return ClassTeacherSectionPick.defer();
     }
 
     private static void parseClassTeacherSlotToken(String tokenRaw, Map<String, String> placementRow) {
@@ -199,6 +297,7 @@ public class BulkImportAcademicResolver {
             throw new BusinessException("classteacherfor cannot be blank");
         }
         String normalized = token.trim().replaceAll("\\s+", " ");
+        normalized = normalized.replaceFirst("^(?i)C+lass\\s+", "Class ");
         if (normalized.contains("-")) {
             int idx = normalized.lastIndexOf('-');
             String classPart = normalized.substring(0, idx).trim();
@@ -218,8 +317,15 @@ public class BulkImportAcademicResolver {
             return;
         }
 
+        Matcher classOnly = CLASS_ONLY_TOKEN.matcher(normalized);
+        if (classOnly.matches()) {
+            placementRow.put("classname", classOnly.group(0).trim());
+            return;
+        }
+
         throw new BusinessException(
-                "Invalid classteacherfor format. Use Class 6-A (recommended), 6-A, or 6A."
+                "Invalid classteacherfor format. Use Class 6-A, 6-A, 6A, Class 10, or 10 (section optional when the class is unsplit; "
+                        + "if the class has multiple sections, add -A, or set classteachersectionname in its own column)."
         );
     }
 

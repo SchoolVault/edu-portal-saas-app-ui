@@ -3,8 +3,9 @@ package com.school.erp.modules.importexport.service;
 import com.school.erp.common.enums.Enums;
 import com.school.erp.common.exception.BusinessException;
 import com.school.erp.common.util.InternationalPhone;
-import com.school.erp.modules.teacher.repository.TeacherRepository;
 import com.school.erp.modules.importexport.ImportJobType;
+import com.school.erp.modules.rbac.repository.SchoolRoleRepository;
+import com.school.erp.modules.teacher.repository.TeacherRepository;
 import com.school.erp.tenant.TenantContext;
 import org.springframework.stereotype.Service;
 
@@ -12,6 +13,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -30,11 +32,14 @@ public class ImportBulkRowValidator {
 
     private final BulkImportAcademicResolver academicResolver;
     private final TeacherRepository teacherRepository;
+    private final SchoolRoleRepository schoolRoleRepository;
 
     public ImportBulkRowValidator(BulkImportAcademicResolver academicResolver,
-                                 TeacherRepository teacherRepository) {
+                                 TeacherRepository teacherRepository,
+                                 SchoolRoleRepository schoolRoleRepository) {
         this.academicResolver = academicResolver;
         this.teacherRepository = teacherRepository;
+        this.schoolRoleRepository = schoolRoleRepository;
     }
 
     /**
@@ -211,7 +216,38 @@ public class ImportBulkRowValidator {
         parseOptionalBigDecimal(row.get("salary"), "salary");
         parseOptionalPortalRole(row.get("portalrole"));
         parseOptionalLibraryRole(row.get("libraryrole"));
+        validateOptionalSchoolRoleCodes(row);
         academicResolver.resolveOptionalClassTeacherPlacement(row);
+    }
+
+    /**
+     * Optional comma-separated {@link com.school.erp.modules.rbac.entity.SchoolRole} codes for the tenant
+     * (e.g. {@code FEE_OFFICE,ACADEMIC_STAFF}). Validated against the catalog; applied at import execution when a portal user exists.
+     */
+    private void validateOptionalSchoolRoleCodes(Map<String, String> row) {
+        String raw = blankToNull(row.get("schoolrolecodes"));
+        if (raw == null) {
+            return;
+        }
+        String tenantId = TenantContext.getTenantId();
+        if (tenantId == null || tenantId.isBlank()) {
+            throw new BusinessException("Tenant context required when schoolrolecodes is provided.");
+        }
+        LinkedHashSet<String> seen = new LinkedHashSet<>();
+        for (String token : raw.split(",")) {
+            String code = blankToNull(token);
+            if (code == null) {
+                continue;
+            }
+            String upper = code.toUpperCase(Locale.ROOT);
+            if (!seen.add(upper)) {
+                continue;
+            }
+            schoolRoleRepository.findByTenantIdAndCodeAndIsDeletedFalse(tenantId, upper)
+                    .orElseThrow(() -> new BusinessException(
+                            "Unknown schoolrolecodes value: " + code.trim()
+                                    + ". Use role codes from Settings → access roles (e.g. FEE_OFFICE, ACADEMIC_STAFF)."));
+        }
     }
 
     private void validateClassRow(Map<String, String> row) {
@@ -256,7 +292,15 @@ public class ImportBulkRowValidator {
             return;
         }
         switch (n.toUpperCase(Locale.ROOT)) {
-            case "LIBRARY", "LIBRARY_STAFF", "LIB", "TEACHER", "TCH", "T" -> { /* ok */ }
+            case "LIBRARY",
+                    "LIBRARY_STAFF",
+                    "LIB",
+                    "STAFF",
+                    "SCHOOL_STAFF",
+                    "BASE_STAFF",
+                    "TEACHER",
+                    "TCH",
+                    "T" -> { /* ok */ }
             default -> throw new BusinessException("Invalid portalrole: " + raw);
         }
     }

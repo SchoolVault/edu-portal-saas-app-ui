@@ -27,8 +27,8 @@ public interface CommunicationEventRepository extends JpaRepository<Communicatio
             where e.tenantId = :tenantId and e.isDeleted = false
               and (
                 e.audienceScope = 'ALL'
-                or (e.audienceScope = 'TEACHERS' and (:role = 'TEACHER' or :role = 'ADMIN' or :role = 'LIBRARY_STAFF' or :role = 'SUPER_ADMIN'))
-                or (e.audienceScope = 'PARENTS' and (:role = 'PARENT' or :role = 'ADMIN' or :role = 'LIBRARY_STAFF' or :role = 'SUPER_ADMIN'))
+                or (e.audienceScope = 'TEACHERS' and (:role = 'TEACHER' or :role = 'ADMIN' or :role = 'LIBRARY_STAFF' or :role = 'SCHOOL_STAFF' or :role = 'SUPER_ADMIN'))
+                or (e.audienceScope = 'PARENTS' and (:role = 'PARENT' or :role = 'ADMIN' or :role = 'LIBRARY_STAFF' or :role = 'SCHOOL_STAFF' or :role = 'SUPER_ADMIN'))
                 or (e.audienceScope = 'CLASS' and e.targetClassId in :classIds)
                 or (e.audienceScope = 'SECTION' and e.targetSectionId in :sectionIds)
               )

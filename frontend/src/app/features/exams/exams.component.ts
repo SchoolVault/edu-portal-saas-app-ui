@@ -8,6 +8,7 @@ import { ExamService } from '../../core/services/exam.service';
 import { ParentService } from '../../core/services/parent.service';
 import { StudentService } from '../../core/services/student.service';
 import { AuthService } from '../../core/services/auth.service';
+import { UiAccessService } from '../../core/services/ui-access.service';
 import { runtimeConfig } from '../../core/config/runtime-config';
 import { examAppliesToStudent } from '../../core/utils/exam-scope';
 import { forkJoin } from 'rxjs';
@@ -716,6 +717,7 @@ export class ExamsComponent implements OnInit {
     private studentService: StudentService,
     private parentService: ParentService,
     private auth: AuthService,
+    private uiAccess: UiAccessService,
     private translate: TranslateService,
     private cdr: ChangeDetectorRef,
     private route: ActivatedRoute
@@ -730,15 +732,15 @@ export class ExamsComponent implements OnInit {
   }
 
   get canCreateExam(): boolean {
-    return this.role === 'admin' || this.role === 'super_admin' || this.role === 'teacher';
+    return this.uiAccess.hasExamStaffReadAccess();
   }
 
   get canEnterMarks(): boolean {
-    return this.role === 'admin' || this.role === 'teacher' || this.role === 'super_admin';
+    return this.uiAccess.hasExamMarksAndScheduleWriteAccess();
   }
 
   get canEditSchedule(): boolean {
-    if (!(this.role === 'admin' || this.role === 'teacher' || this.role === 'super_admin')) return false;
+    if (!this.uiAccess.hasExamMarksAndScheduleWriteAccess()) return false;
     const state = (this.selectedExam?.workflowState || '').toUpperCase();
     return !state || (state !== 'FROZEN' && state !== 'PUBLISHED');
   }
@@ -1617,21 +1619,18 @@ export class ExamsComponent implements OnInit {
   }
 
   canSubmitForApproval(exam: Exam): boolean {
-    const r = this.role;
-    if (!(r === 'teacher' || r === 'admin' || r === 'super_admin')) return false;
+    if (!this.uiAccess.hasExamStaffReadAccess()) return false;
     const s = (exam.workflowState || '').toUpperCase();
     return s === 'DRAFT' || s === 'REJECTED' || s === '';
   }
 
   canApproveWorkflow(exam: Exam): boolean {
-    const r = this.role;
-    if (!(r === 'admin' || r === 'super_admin')) return false;
+    if (!this.uiAccess.hasSchoolExamsOfficeWriteAccess()) return false;
     return (exam.workflowState || '').toUpperCase() === 'PENDING_APPROVAL';
   }
 
   canFreezeWorkflow(exam: Exam): boolean {
-    const r = this.role;
-    if (!(r === 'admin' || r === 'super_admin')) return false;
+    if (!this.uiAccess.hasSchoolExamsOfficeWriteAccess()) return false;
     const s = (exam.workflowState || '').toUpperCase();
     return s === 'APPROVED' || s === 'PUBLISHED';
   }

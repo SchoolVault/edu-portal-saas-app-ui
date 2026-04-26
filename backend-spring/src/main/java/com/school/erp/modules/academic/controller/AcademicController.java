@@ -8,6 +8,7 @@ import com.school.erp.modules.academic.entity.*;
 import com.school.erp.modules.academic.dto.TeacherAssignmentDTOs;
 import com.school.erp.modules.academic.service.AcademicService;
 import com.school.erp.modules.academic.service.TeacherAssignmentService;
+import com.school.erp.security.rbac.RbacSpel;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -25,42 +26,42 @@ public class AcademicController {
     private final TeacherAssignmentService teacherAssignmentService;
 
     @GetMapping("/years")
-    @PreAuthorize("hasAnyRole(\'ADMIN\',\'TEACHER\')")
+    @PreAuthorize(RbacSpel.ACADEMIC_ROSTER_READ)
     @Operation(summary = "List academic years")
     public ResponseEntity<ApiResponse<List<AcademicYear>>> getYears() {
         return ResponseEntity.ok(ApiResponse.ok(service.getYears()));
     }
 
     @PostMapping("/years")
-    @PreAuthorize("hasAnyRole(\'ADMIN\',\'SUPER_ADMIN\')")
+    @PreAuthorize(RbacSpel.ACADEMIC_DESK_ADMIN)
     @Operation(summary = "Create academic year")
     public ResponseEntity<ApiResponse<AcademicYear>> createYear(@RequestBody AcademicYear year) {
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.created(service.createYear(year)));
     }
 
     @PutMapping("/years/{id}/set-current")
-    @PreAuthorize("hasAnyRole(\'ADMIN\',\'SUPER_ADMIN\')")
+    @PreAuthorize(RbacSpel.ACADEMIC_DESK_ADMIN)
     @Operation(summary = "Set academic year as current")
     public ResponseEntity<ApiResponse<AcademicYear>> setCurrent(@PathVariable Long id) {
         return ResponseEntity.ok(ApiResponse.ok(service.setCurrentYear(id), "Current year updated"));
     }
 
     @GetMapping("/classes")
-    @PreAuthorize("hasAnyRole(\'ADMIN\',\'TEACHER\')")
+    @PreAuthorize(RbacSpel.ACADEMIC_ROSTER_READ)
     @Operation(summary = "List classes with sections and student counts")
     public ResponseEntity<ApiResponse<List<AcademicDTOs.ClassWithSectionsResponse>>> getClasses() {
         return ResponseEntity.ok(ApiResponse.ok(service.getClassesWithSections()));
     }
 
     @GetMapping("/classes/{id}")
-    @PreAuthorize("hasAnyRole(\'ADMIN\',\'TEACHER\')")
+    @PreAuthorize(RbacSpel.ACADEMIC_ROSTER_READ)
     @Operation(summary = "Get one class with sections", description = "Matches Angular AcademicService.getClassById")
     public ResponseEntity<ApiResponse<AcademicDTOs.ClassWithSectionsResponse>> getClassById(@PathVariable Long id) {
         return ResponseEntity.ok(ApiResponse.ok(service.getClassWithSectionsById(id)));
     }
 
     @PostMapping("/classes")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize(RbacSpel.ACADEMIC_DESK_ADMIN)
     @Operation(summary = "Create class with optional sections", description = "Omit or empty sectionNames for a whole-class (no section rows). Response matches list entries.")
     public ResponseEntity<ApiResponse<AcademicDTOs.ClassWithSectionsResponse>> createClass(@Valid @RequestBody AcademicDTOs.CreateClassRequest req) {
         SchoolClass created = service.createClass(req);
@@ -68,7 +69,7 @@ public class AcademicController {
     }
 
     @PutMapping("/classes/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize(RbacSpel.ACADEMIC_DESK_ADMIN)
     @Operation(summary = "Update class name and grade")
     public ResponseEntity<ApiResponse<AcademicDTOs.ClassWithSectionsResponse>> updateClass(
             @PathVariable Long id, @Valid @RequestBody AcademicMutationRequests.UpdateSchoolClassRequest req) {
@@ -76,21 +77,21 @@ public class AcademicController {
     }
 
     @PostMapping("/sections")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize(RbacSpel.ACADEMIC_DESK_ADMIN)
     @Operation(summary = "Add section to class")
     public ResponseEntity<ApiResponse<Section>> addSection(@Valid @RequestBody AcademicDTOs.AddSectionRequest req) {
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.created(service.addSection(req.getClassId(), req.getName(), req.getCapacity())));
     }
 
     @PutMapping("/sections/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize(RbacSpel.ACADEMIC_DESK_ADMIN)
     @Operation(summary = "Update section name and capacity")
     public ResponseEntity<ApiResponse<Section>> updateSection(@PathVariable Long id, @Valid @RequestBody AcademicMutationRequests.UpdateSectionRequest req) {
         return ResponseEntity.ok(ApiResponse.ok(service.updateSection(id, req)));
     }
 
     @DeleteMapping("/sections/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize(RbacSpel.ACADEMIC_DESK_ADMIN)
     @Operation(summary = "Remove empty section", description = "Soft-deletes section when studentCount is zero")
     public ResponseEntity<ApiResponse<Void>> deleteSection(@PathVariable Long id) {
         service.deleteSection(id);
@@ -98,7 +99,7 @@ public class AcademicController {
     }
 
     @DeleteMapping("/classes/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize(RbacSpel.ACADEMIC_DESK_ADMIN)
     @Operation(summary = "Remove empty class", description = "Soft-deletes class only when no active sections and no active students remain")
     public ResponseEntity<ApiResponse<Void>> deleteClass(@PathVariable Long id) {
         service.deleteClass(id);
@@ -106,35 +107,35 @@ public class AcademicController {
     }
 
     @GetMapping("/sections/class/{classId}")
-    @PreAuthorize("hasAnyRole(\'ADMIN\',\'TEACHER\')")
+    @PreAuthorize(RbacSpel.ACADEMIC_ROSTER_READ)
     @Operation(summary = "Get sections by class")
     public ResponseEntity<ApiResponse<List<Section>>> getSections(@PathVariable Long classId) {
         return ResponseEntity.ok(ApiResponse.ok(service.getSectionsByClass(classId)));
     }
 
     @PutMapping("/classes/{classId}/teacher")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize(RbacSpel.ACADEMIC_DESK_ADMIN)
     @Operation(summary = "Assign class teacher")
     public ResponseEntity<ApiResponse<AcademicDTOs.ClassWithSectionsResponse>> assignTeacher(@PathVariable Long classId, @Valid @RequestBody AcademicDTOs.AssignTeacherRequest req) {
         return ResponseEntity.ok(ApiResponse.ok(service.assignClassTeacher(classId, req.getSectionId(), req.getTeacherId(), req.getTeacherName())));
     }
 
     @GetMapping("/subjects/catalog")
-    @PreAuthorize("hasAnyRole(\'ADMIN\',\'TEACHER\')")
+    @PreAuthorize(RbacSpel.ACADEMIC_ROSTER_READ)
     @Operation(summary = "Subject catalog for dropdowns", description = "Tenant-scoped master list; falls back to platform defaults if no rows.")
     public ResponseEntity<ApiResponse<List<AcademicDTOs.SubjectCatalogItem>>> subjectCatalog() {
         return ResponseEntity.ok(ApiResponse.ok(service.getSubjectCatalog()));
     }
 
     @GetMapping("/promotion/preview")
-    @PreAuthorize("hasAnyRole(\'ADMIN\',\'SUPER_ADMIN\')")
+    @PreAuthorize(RbacSpel.ACADEMIC_DESK_ADMIN)
     @Operation(summary = "Preview class promotion", description = "Returns target class and eligible students for promotion")
     public ResponseEntity<ApiResponse<AcademicWorkflowDTOs.PromotionPreviewResponse>> previewPromotion(@RequestParam Long fromClassId) {
         return ResponseEntity.ok(ApiResponse.ok(service.previewPromotion(fromClassId)));
     }
 
     @GetMapping("/promotion/split-preview")
-    @PreAuthorize("hasAnyRole(\'ADMIN\',\'SUPER_ADMIN\')")
+    @PreAuthorize(RbacSpel.ACADEMIC_DESK_ADMIN)
     @Operation(summary = "Suggest section distribution for promotion", description = "Heuristic student counts per target section when merging sections")
     public ResponseEntity<ApiResponse<AcademicWorkflowDTOs.PromotionSplitPreviewResponse>> promotionSplitPreview(
             @RequestParam Long fromClassId,
@@ -143,14 +144,14 @@ public class AcademicController {
     }
 
     @PostMapping("/promotion/execute")
-    @PreAuthorize("hasAnyRole(\'ADMIN\',\'SUPER_ADMIN\')")
+    @PreAuthorize(RbacSpel.ACADEMIC_DESK_ADMIN)
     @Operation(summary = "Promote students", description = "Promotes selected students into the target class and section")
     public ResponseEntity<ApiResponse<AcademicWorkflowDTOs.PromotionResultResponse>> promoteStudents(@Valid @RequestBody AcademicWorkflowDTOs.PromoteStudentsRequest req) {
         return ResponseEntity.ok(ApiResponse.ok(service.promoteStudents(req), "Students promoted"));
     }
 
     @GetMapping("/classes/{classId}/class-teacher-assignments")
-    @PreAuthorize("hasAnyRole(\'ADMIN\',\'TEACHER\')")
+    @PreAuthorize(RbacSpel.ACADEMIC_ROSTER_READ)
     @Operation(summary = "Active class-teacher assignments for a class")
     public ResponseEntity<ApiResponse<List<TeacherAssignmentDTOs.ClassTeacherAssignmentResponse>>> listClassTeacherAssignments(
             @PathVariable Long classId, @RequestParam(required = false) Long sectionId) {
@@ -158,7 +159,7 @@ public class AcademicController {
     }
 
     @PostMapping("/class-teacher-assignments")
-    @PreAuthorize("hasAnyRole(\'ADMIN\',\'SUPER_ADMIN\')")
+    @PreAuthorize(RbacSpel.ACADEMIC_DESK_ADMIN)
     @Operation(summary = "Create class-teacher assignment (historical)")
     public ResponseEntity<ApiResponse<TeacherAssignmentDTOs.ClassTeacherAssignmentResponse>> createClassTeacherAssignment(
             @Valid @RequestBody TeacherAssignmentDTOs.CreateClassTeacherAssignmentRequest req) {
@@ -167,7 +168,7 @@ public class AcademicController {
     }
 
     @GetMapping("/classes/{classId}/subject-teacher-assignments")
-    @PreAuthorize("hasAnyRole(\'ADMIN\',\'TEACHER\')")
+    @PreAuthorize(RbacSpel.ACADEMIC_ROSTER_READ)
     @Operation(summary = "Active subject-teacher assignments for a class")
     public ResponseEntity<ApiResponse<List<TeacherAssignmentDTOs.SubjectTeacherAssignmentResponse>>> listSubjectTeacherAssignments(
             @PathVariable Long classId, @RequestParam(required = false) Long sectionId) {
@@ -175,7 +176,7 @@ public class AcademicController {
     }
 
     @PostMapping("/subject-teacher-assignments")
-    @PreAuthorize("hasAnyRole(\'ADMIN\',\'SUPER_ADMIN\')")
+    @PreAuthorize(RbacSpel.ACADEMIC_DESK_ADMIN)
     @Operation(summary = "Assign subject teacher to class/section")
     public ResponseEntity<ApiResponse<TeacherAssignmentDTOs.SubjectTeacherAssignmentResponse>> createSubjectTeacherAssignment(
             @Valid @RequestBody TeacherAssignmentDTOs.CreateSubjectTeacherAssignmentRequest req) {
@@ -184,7 +185,7 @@ public class AcademicController {
     }
 
     @GetMapping("/teachers/{teacherId}/workload")
-    @PreAuthorize("hasAnyRole(\'ADMIN\',\'TEACHER\')")
+    @PreAuthorize(RbacSpel.ACADEMIC_ROSTER_READ)
     @Operation(summary = "Teacher workload from assignment tables")
     public ResponseEntity<ApiResponse<TeacherAssignmentDTOs.TeacherWorkloadResponse>> teacherWorkload(@PathVariable Long teacherId) {
         return ResponseEntity.ok(ApiResponse.ok(teacherAssignmentService.getWorkload(teacherId)));

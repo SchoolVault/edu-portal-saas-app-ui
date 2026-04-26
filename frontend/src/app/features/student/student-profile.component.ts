@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { StudentService } from '../../core/services/student.service';
 import { AuthService } from '../../core/services/auth.service';
+import { UiAccessService } from '../../core/services/ui-access.service';
 import { AttendanceService } from '../../core/services/attendance.service';
 import { filter } from 'rxjs/operators';
 import { Subscription } from 'rxjs';
@@ -158,6 +159,7 @@ export class StudentProfileComponent implements OnInit, OnDestroy {
     private studentService: StudentService,
     private attendanceService: AttendanceService,
     private auth: AuthService,
+    private uiAccess: UiAccessService,
     private route: ActivatedRoute,
     public router: Router,
     private confirmDialog: ConfirmDialogService,
@@ -178,9 +180,9 @@ export class StudentProfileComponent implements OnInit, OnDestroy {
     return t !== key ? t : g;
   }
 
-  /** School tenant admin only — directory lifecycle edits (not platform super-admin). */
+  /** Student master writes — {@code STUDENT_MASTER_WRITE} / delegated registrar. */
   get isSchoolAdmin(): boolean {
-    return this.auth.getNormalizedRole() === 'admin';
+    return this.uiAccess.hasStudentMasterWriteAccess();
   }
 
   get studentPortraitUrl(): string | null {

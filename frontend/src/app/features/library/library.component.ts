@@ -7,6 +7,7 @@ import { LibraryCatalogFilter, LibraryService } from '../../core/services/librar
 import { StudentService } from '../../core/services/student.service';
 import { TeacherService } from '../../core/services/teacher.service';
 import { AuthService } from '../../core/services/auth.service';
+import { UiAccessService } from '../../core/services/ui-access.service';
 import { debounceTime, filter } from 'rxjs/operators';
 import { Subject, Subscription } from 'rxjs';
 import { ErpDatePickerComponent } from '../../shared/erp-date-picker/erp-date-picker.component';
@@ -291,6 +292,7 @@ export class LibraryComponent implements OnInit, OnDestroy {
     private studentService: StudentService,
     private teacherService: TeacherService,
     private authService: AuthService,
+    private uiAccess: UiAccessService,
     private confirmDialog: ConfirmDialogService,
     private translate: TranslateService
   ) {}
@@ -328,14 +330,23 @@ export class LibraryComponent implements OnInit, OnDestroy {
       this.canCirculateBooks = true;
     } else if (nr === 'teacher') {
       this.applyTeacherLibraryAccess();
+    } else if (nr === 'school_staff') {
+      this.canManageCatalog = this.uiAccess.hasLibraryCatalogWriteAccess();
+      this.canCirculateBooks = this.uiAccess.hasLibraryCirculationDeskAccess();
+      this.readOnlyHintVisible = !this.canManageCatalog && !this.canCirculateBooks;
     } else {
       this.canManageCatalog = false;
       this.canCirculateBooks = false;
     }
     this.subs.add(
       this.authService.currentUser$.pipe(debounceTime(80), filter(u => !!u)).subscribe(() => {
-        if (this.authService.getNormalizedRole() === 'teacher') {
+        const role = this.authService.getNormalizedRole();
+        if (role === 'teacher') {
           this.applyTeacherLibraryAccess();
+        } else if (role === 'school_staff') {
+          this.canManageCatalog = this.uiAccess.hasLibraryCatalogWriteAccess();
+          this.canCirculateBooks = this.uiAccess.hasLibraryCirculationDeskAccess();
+          this.readOnlyHintVisible = !this.canManageCatalog && !this.canCirculateBooks;
         }
       })
     );

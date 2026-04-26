@@ -7,6 +7,7 @@ import com.school.erp.modules.hostel.dto.HostelDTOs;
 import com.school.erp.modules.hostel.entity.Hostel;
 import com.school.erp.modules.hostel.entity.HostelRoom;
 import com.school.erp.modules.hostel.service.HostelService;
+import com.school.erp.security.rbac.RbacSpel;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -30,7 +31,7 @@ public class HostelController {
     }
 
     @PostMapping("/buildings")
-    @PreAuthorize("hasRole(\'ADMIN\')")
+    @PreAuthorize(RbacSpel.HOSTEL_DESK_WRITE)
     @Operation(summary = "Create hostel building (e.g. Boys BH1)")
     public ResponseEntity<ApiResponse<Hostel>> createBuilding(@RequestBody Hostel hostel) {
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.created(service.createHostel(hostel)));
@@ -51,28 +52,28 @@ public class HostelController {
     }
 
     @PostMapping("/rooms")
-    @PreAuthorize("hasRole(\'ADMIN\')")
+    @PreAuthorize(RbacSpel.HOSTEL_DESK_WRITE)
     @Operation(summary = "Create room")
     public ResponseEntity<ApiResponse<HostelRoom>> createRoom(@RequestBody HostelRoom room) {
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.created(service.createRoom(room)));
     }
 
     @PutMapping("/rooms/{id}")
-    @PreAuthorize("hasRole(\'ADMIN\')")
+    @PreAuthorize(RbacSpel.HOSTEL_DESK_WRITE)
     @Operation(summary = "Update room metadata", description = "Hostel, block, floor, room number, type, capacity (cannot drop below occupancy)")
     public ResponseEntity<ApiResponse<HostelRoom>> updateRoom(@PathVariable Long id, @RequestBody HostelRoom patch) {
         return ResponseEntity.ok(ApiResponse.ok(service.updateRoom(id, patch)));
     }
 
     @PostMapping("/allocate")
-    @PreAuthorize("hasRole(\'ADMIN\')")
+    @PreAuthorize(RbacSpel.HOSTEL_DESK_WRITE)
     @Operation(summary = "Allocate student to room", description = "Checks capacity before allocation. Returns error if room is full.")
     public ResponseEntity<ApiResponse<HostelDTOs.AllocationDTO>> allocate(@Valid @RequestBody HostelDTOs.AllocateRequest req) {
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.created(service.allocateStudent(req)));
     }
 
     @PutMapping("/vacate/{allocationId}")
-    @PreAuthorize("hasRole(\'ADMIN\')")
+    @PreAuthorize(RbacSpel.HOSTEL_DESK_WRITE)
     @Operation(summary = "Vacate student from room", description = "Sets status to VACATED, decreases room occupancy")
     public ResponseEntity<ApiResponse<Void>> vacate(@PathVariable Long allocationId) {
         service.vacateStudent(allocationId);

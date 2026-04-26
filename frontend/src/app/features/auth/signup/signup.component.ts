@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { Router, RouterModule } from '@angular/router';
 import { TranslateModule } from '@ngx-translate/core';
 import { AuthService } from '../../../core/services/auth.service';
+import { PostLoginRouteService } from '../../../core/services/post-login-route.service';
 import { UserLocaleService } from '../../../core/i18n/user-locale.service';
 import type { OnboardSchoolRequest } from '../../../core/models/models';
 import {
@@ -249,6 +250,7 @@ export class SignupComponent {
   constructor(
     private authService: AuthService,
     private router: Router,
+    private postLoginRoute: PostLoginRouteService,
     readonly userLocale: UserLocaleService
   ) {}
 
@@ -303,7 +305,7 @@ export class SignupComponent {
     this.authService.onboardSchool(payload).subscribe({
       next: () => {
         this.loading = false;
-        this.router.navigate(['/app/dashboard']);
+        this.router.navigate([this.postLoginRoute.defaultAppPath()]);
       },
       error: () => {
         this.loading = false;

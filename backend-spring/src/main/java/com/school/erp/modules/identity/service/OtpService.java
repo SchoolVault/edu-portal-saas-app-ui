@@ -51,7 +51,7 @@ public class OtpService {
     @Value("${app.otp.rate.limit.window.minutes:60}")
     private int rateLimitWindowMinutes;
 
-    @Value("${app.otp.rate.limit.max.requests:5}")
+    @Value("${app.otp.rate.limit.max.requests:20}")
     private int rateLimitMaxRequests;
 
     @Value("${app.dev.mode:false}")

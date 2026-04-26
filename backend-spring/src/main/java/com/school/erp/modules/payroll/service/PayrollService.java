@@ -26,6 +26,7 @@ import com.school.erp.modules.settings.repository.TenantConfigRepository;
 import com.school.erp.modules.teacher.entity.Teacher;
 import com.school.erp.modules.teacher.repository.TeacherRepository;
 import com.school.erp.config.CacheConfig;
+import com.school.erp.security.rbac.RbacPrincipalSupport;
 import com.school.erp.tenant.TenantContext;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
@@ -546,8 +547,7 @@ public class PayrollService {
 
     @Transactional(readOnly = true)
     public void assertCurrentUserCanViewPayslip(Long payslipId) {
-        String role = TenantContext.getUserRole() != null ? TenantContext.getUserRole() : "";
-        if ("ADMIN".equalsIgnoreCase(role) || "SUPER_ADMIN".equalsIgnoreCase(role)) {
+        if (RbacPrincipalSupport.hasPayrollPayslipTenantWideDeskAccess()) {
             getPayslipForTenant(payslipId);
             return;
         }
@@ -564,8 +564,7 @@ public class PayrollService {
         assertCurrentUserCanViewPayslip(id);
         String t = TenantContext.getTenantId();
         Payslip p = getPayslipForTenant(id);
-        String role = TenantContext.getUserRole() != null ? TenantContext.getUserRole() : "";
-        if ("TEACHER".equalsIgnoreCase(role) && p.getStatus() != Enums.PayslipStatus.PAID) {
+        if (!RbacPrincipalSupport.hasPayrollPayslipTenantWideDeskAccess() && p.getStatus() != Enums.PayslipStatus.PAID) {
             throw new ForbiddenException(
                     "The official payslip PDF is available only after salary has been settled (payslip status: Paid). "
                             + "Until then, please contact school finance if you need a provisional statement.");

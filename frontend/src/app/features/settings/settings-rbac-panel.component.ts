@@ -10,9 +10,19 @@ import { RbacService } from '../../core/services/rbac.service';
 import { AuditLogsService } from '../../core/services/audit-logs.service';
 import { AuthService } from '../../core/services/auth.service';
 import { runtimeConfig } from '../../core/config/runtime-config';
-import type { CreateCustomSchoolRoleRequest, RbacStaffUserRow, SchoolRoleRow, UpdateCustomSchoolRoleRequest } from '../../core/models/rbac.model';
+import type {
+  CreateCustomSchoolRoleRequest,
+  CreatePermissionGroupRequest,
+  PermissionGroupRow,
+  RbacStaffUserRow,
+  SchoolRoleRow,
+  UpdateCustomSchoolRoleRequest,
+  UpdatePermissionGroupRequest,
+} from '../../core/models/rbac.model';
 
 type EditMode = 'create' | 'edit' | null;
+type PackEditMode = 'create' | 'edit' | null;
+type ComposeMode = 'direct' | 'groups';
 
 @Component({
   selector: 'app-settings-rbac-panel',
@@ -21,6 +31,7 @@ type EditMode = 'create' | 'edit' | null;
   template: `
     <div class="settings-rbac" data-testid="settings-rbac-panel">
       <p class="settings-rbac__lead">{{ 'settings.rbac.lead' | translate }}</p>
+      <p class="settings-rbac__lead-sub small text-muted">{{ 'settings.rbac.leadSub' | translate }}</p>
       <p *ngIf="usesMocks" class="settings-rbac__banner">
         {{ 'settings.rbac.mockBanner' | translate }}
       </p>
@@ -62,6 +73,65 @@ type EditMode = 'create' | 'edit' | null;
           {{ 'settings.rbac.recentAuditEmpty' | translate }}
         </p>
         <p *ngIf="auditStripLoading" class="settings-rbac__empty">{{ 'settings.rbac.recentAuditLoading' | translate }}</p>
+      </section>
+
+      <section class="settings-rbac__section" [attr.aria-label]="'settings.rbac.packsTitle' | translate">
+        <div class="settings-rbac__section-head settings-rbac__catalog-head">
+          <div class="settings-rbac__catalog-head-text">
+            <h4 class="settings-rbac__h m-0">{{ 'settings.rbac.packsTitle' | translate }}</h4>
+            <p class="settings-rbac__catalog-hint small text-muted mb-0 mt-1">{{ 'settings.rbac.packsHint' | translate }}</p>
+          </div>
+          <button
+            type="button"
+            class="btn-secondary-erp btn-sm"
+            (click)="openPackCreate()"
+            [disabled]="loading || permLoading || packSaving">
+            <i class="bi bi-collection me-1" aria-hidden="true"></i>{{ 'settings.rbac.addPack' | translate }}
+          </button>
+        </div>
+        <p *ngIf="packListErr" class="text-danger small mb-2">{{ packListErr }}</p>
+        <div class="settings-rbac__table-wrap table-responsive">
+          <table class="erp-table">
+            <thead>
+              <tr>
+                <th scope="col">{{ 'settings.rbac.thPackCode' | translate }}</th>
+                <th scope="col">{{ 'settings.rbac.thPackName' | translate }}</th>
+                <th scope="col">{{ 'settings.rbac.thPackKind' | translate }}</th>
+                <th scope="col">{{ 'settings.rbac.thPackPerms' | translate }}</th>
+                <th scope="col" class="text-end">{{ 'settings.rbac.thPackActions' | translate }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let g of permissionGroups">
+                <td><code class="erp-code">{{ g.code }}</code></td>
+                <td>
+                  <strong class="settings-rbac__name">{{ g.name }}</strong>
+                  <div class="settings-rbac__desc" *ngIf="g.description">{{ g.description }}</div>
+                </td>
+                <td>
+                  <span class="settings-rbac__tag" [class.settings-rbac__tag--custom]="!g.systemTemplate">
+                    {{ (g.systemTemplate ? 'settings.rbac.packKindSystem' : 'settings.rbac.packKindCustom') | translate }}
+                  </span>
+                </td>
+                <td class="small">
+                  <span *ngIf="g.permissions?.length">{{ 'settings.rbac.accessCount' | translate: { n: g.permissions.length } }}</span>
+                  <span *ngIf="!g.permissions?.length" class="text-muted">—</span>
+                </td>
+                <td class="text-end text-nowrap">
+                  <ng-container *ngIf="!g.systemTemplate; else packNoAct">
+                    <button type="button" class="btn-outline-erp btn-sm" (click)="openPackEdit(g)">
+                      {{ 'settings.rbac.actionEdit' | translate }}
+                    </button>
+                    <button type="button" class="btn-outline-erp btn-sm ms-1 settings-rbac__btn-danger" (click)="onDeletePack(g)">
+                      {{ 'settings.rbac.actionDelete' | translate }}
+                    </button>
+                  </ng-container>
+                  <ng-template #packNoAct><span class="text-muted">—</span></ng-template>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </section>
 
       <section class="settings-rbac__section" [attr.aria-label]="'settings.rbac.staffLabel' | translate">
@@ -198,18 +268,57 @@ type EditMode = 'create' | 'edit' | null;
             <label class="erp-label" for="cr-sort">{{ 'settings.rbac.fieldSort' | translate }}</label>
             <input id="cr-sort" type="number" class="erp-input" [disabled]="savingForm" [(ngModel)]="formSort" />
           </div>
-          <p class="small text-muted mb-1">{{ 'settings.rbac.permsLabel' | translate }}</p>
-          <div class="settings-rbac__perm-grid">
-            <label *ngFor="let p of permCatalog" class="settings-rbac__perm-row small">
+          <div class="mb-2">
+            <div class="fw-semibold small mb-1">{{ 'settings.rbac.composeLabel' | translate }}</div>
+            <label class="settings-rbac__check small d-block">
               <input
-                type="checkbox"
+                type="radio"
+                name="rbac-compose"
+                value="direct"
                 [disabled]="savingForm"
-                [checked]="formPermsSet.has(p)"
-                (change)="togglePerm(p, $any($event.target).checked)" />
-              <span class="settings-rbac__perm-lbl">{{ permLabel(p) }}</span>
-              <code class="erp-code settings-rbac__perm-code">{{ p }}</code>
+                [(ngModel)]="formComposeMode"
+                (ngModelChange)="onComposeModeChange()" />
+              <span class="settings-rbac__check-text">{{ 'settings.rbac.composeDirect' | translate }}</span>
+            </label>
+            <label class="settings-rbac__check small d-block">
+              <input
+                type="radio"
+                name="rbac-compose"
+                value="groups"
+                [disabled]="savingForm"
+                [(ngModel)]="formComposeMode"
+                (ngModelChange)="onComposeModeChange()" />
+              <span class="settings-rbac__check-text">{{ 'settings.rbac.composeGroups' | translate }}</span>
             </label>
           </div>
+          <ng-container *ngIf="formComposeMode === 'groups'">
+            <p class="small text-muted mb-1">{{ 'settings.rbac.groupsPickerHint' | translate }}</p>
+            <div class="settings-rbac__perm-grid">
+              <label *ngFor="let g of permissionGroups" class="settings-rbac__perm-row small">
+                <input
+                  type="checkbox"
+                  [disabled]="savingForm"
+                  [checked]="formGroupIds.includes(g.id)"
+                  (change)="togglePackForRole(g.id, $any($event.target).checked)" />
+                <span class="settings-rbac__perm-lbl">{{ g.name }}</span>
+                <code class="erp-code settings-rbac__perm-code">{{ g.code }}</code>
+              </label>
+            </div>
+          </ng-container>
+          <ng-container *ngIf="formComposeMode === 'direct'">
+            <p class="small text-muted mb-1">{{ 'settings.rbac.permsLabel' | translate }}</p>
+            <div class="settings-rbac__perm-grid">
+              <label *ngFor="let p of permCatalog" class="settings-rbac__perm-row small">
+                <input
+                  type="checkbox"
+                  [disabled]="savingForm"
+                  [checked]="formPermsSet.has(p)"
+                  (change)="togglePerm(p, $any($event.target).checked)" />
+                <span class="settings-rbac__perm-lbl">{{ permLabel(p) }}</span>
+                <code class="erp-code settings-rbac__perm-code">{{ p }}</code>
+              </label>
+            </div>
+          </ng-container>
           <p *ngIf="formErr" class="text-danger small mt-2 mb-0">{{ formErr }}</p>
         </div>
         <div class="settings-rbac__modal-footer">
@@ -269,6 +378,66 @@ type EditMode = 'create' | 'edit' | null;
         </div>
       </div>
     </div>
+
+    <div
+      *ngIf="packEditMode"
+      class="settings-rbac__modal-backdrop modal-overlay-viewport"
+      (click)="$event.target === $event.currentTarget && closePackEditor()"
+      role="dialog"
+      aria-modal="true">
+      <div class="settings-rbac__modal settings-rbac__modal--editor" (click)="$event.stopPropagation()">
+        <div class="settings-rbac__modal-head">
+          <h5 class="mb-0">
+            {{ packEditMode === 'create' ? ('settings.rbac.packCreateTitle' | translate) : ('settings.rbac.packEditTitle' | translate) }}
+          </h5>
+        </div>
+        <div class="settings-rbac__modal-body">
+          <div class="mb-2" *ngIf="packEditMode === 'create'">
+            <label class="erp-label" for="pk-code">{{ 'settings.rbac.fieldPackCode' | translate }}</label>
+            <input
+              id="pk-code"
+              class="erp-input w-100"
+              [disabled]="packSaving"
+              [(ngModel)]="packFormCode"
+              autocomplete="off"
+              [attr.placeholder]="'settings.rbac.codePlaceholder' | translate" />
+          </div>
+          <div class="mb-2">
+            <label class="erp-label" for="pk-name">{{ 'settings.rbac.fieldName' | translate }}</label>
+            <input id="pk-name" class="erp-input w-100" [disabled]="packSaving" [(ngModel)]="packFormName" />
+          </div>
+          <div class="mb-2">
+            <label class="erp-label" for="pk-desc">{{ 'settings.rbac.fieldDescription' | translate }}</label>
+            <textarea id="pk-desc" class="erp-input w-100" rows="2" [disabled]="packSaving" [(ngModel)]="packFormDesc"></textarea>
+          </div>
+          <div class="mb-2">
+            <label class="erp-label" for="pk-sort">{{ 'settings.rbac.fieldSort' | translate }}</label>
+            <input id="pk-sort" type="number" class="erp-input" [disabled]="packSaving" [(ngModel)]="packFormSort" />
+          </div>
+          <p class="small text-muted mb-1">{{ 'settings.rbac.packPermsLabel' | translate }}</p>
+          <div class="settings-rbac__perm-grid">
+            <label *ngFor="let p of permCatalog" class="settings-rbac__perm-row small">
+              <input
+                type="checkbox"
+                [disabled]="packSaving"
+                [checked]="packFormPermsSet.has(p)"
+                (change)="togglePackPerm(p, $any($event.target).checked)" />
+              <span class="settings-rbac__perm-lbl">{{ permLabel(p) }}</span>
+              <code class="erp-code settings-rbac__perm-code">{{ p }}</code>
+            </label>
+          </div>
+          <p *ngIf="packFormErr" class="text-danger small mt-2 mb-0">{{ packFormErr }}</p>
+        </div>
+        <div class="settings-rbac__modal-footer">
+          <button type="button" class="btn-outline-erp" [disabled]="packSaving" (click)="closePackEditor()">
+            {{ 'settings.rbac.actionCancel' | translate }}
+          </button>
+          <button type="button" class="btn-primary-erp" [disabled]="packSaving || !canSubmitPack" (click)="submitPack()">
+            {{ packSaving ? ('settings.rbac.savingForm' | translate) : ('settings.rbac.actionSave' | translate) }}
+          </button>
+        </div>
+      </div>
+    </div>
   `,
   styles: [
     `
@@ -283,10 +452,16 @@ type EditMode = 'create' | 'edit' | null;
       .settings-rbac__lead {
         line-height: 1.55;
         max-width: 52rem;
-        margin: 0 0 1rem;
+        margin: 0 0 0.5rem;
         font-size: 13px;
         font-weight: 500;
         color: var(--clr-text-secondary);
+      }
+      .settings-rbac__lead-sub {
+        line-height: 1.5;
+        max-width: 52rem;
+        margin: 0 0 1rem;
+        font-size: 12.5px;
       }
       .settings-rbac__banner {
         padding: 0.5rem 0.85rem;
@@ -699,6 +874,19 @@ export class SettingsRbacPanelComponent implements OnInit, OnDestroy {
   protected formSort = 1000;
   protected formPerms: string[] = [];
   protected formPermsSet = new Set<string>();
+  protected formComposeMode: ComposeMode = 'direct';
+  protected formGroupIds: number[] = [];
+  protected permissionGroups: PermissionGroupRow[] = [];
+  protected packListErr = '';
+  protected packEditMode: PackEditMode = null;
+  protected packSaving = false;
+  protected packFormErr = '';
+  protected packFormCode = '';
+  protected packFormName = '';
+  protected packFormDesc = '';
+  protected packFormSort = 1000;
+  protected packFormPermsSet = new Set<string>();
+  private packEditingId: number | null = null;
   private editingId: number | null = null;
   protected recentRbacLogs: AuditLog[] = [];
   protected auditStripLoading = false;
@@ -748,31 +936,54 @@ export class SettingsRbacPanelComponent implements OnInit, OnDestroy {
   }
 
   get canSubmitCustom(): boolean {
-    if (this.formName?.trim() && (this.formPerms?.length ?? 0) > 0) {
-      if (this.editMode === 'create') {
-        return /^[A-Z][A-Z0-9_]+$/.test((this.formCode || '').trim()) && (this.formCode || '').trim().length >= 2;
-      }
-      return true;
+    if (!this.formName?.trim()) {
+      return false;
     }
-    return false;
+    const hasDirect = this.formComposeMode === 'direct' && (this.formPerms?.length ?? 0) > 0;
+    const hasGroups = this.formComposeMode === 'groups' && (this.formGroupIds?.length ?? 0) > 0;
+    if (!hasDirect && !hasGroups) {
+      return false;
+    }
+    if (this.editMode === 'create') {
+      return /^[A-Z][A-Z0-9_]+$/.test((this.formCode || '').trim()) && (this.formCode || '').trim().length >= 2;
+    }
+    return true;
+  }
+
+  get canSubmitPack(): boolean {
+    if (!this.packFormName?.trim() || (this.packFormPermsSet?.size ?? 0) < 1) {
+      return false;
+    }
+    if (this.packEditMode === 'create') {
+      return /^[A-Z][A-Z0-9_]+$/.test((this.packFormCode || '').trim()) && (this.packFormCode || '').trim().length >= 2;
+    }
+    return true;
   }
 
   ngOnInit(): void {
     this.loading = true;
     this.permLoading = true;
-    forkJoin([this.rbac.listSchoolRoleCatalog(), this.rbac.listStaffUsers(), this.rbac.getPermissionCatalog()])
+    forkJoin([
+      this.rbac.listSchoolRoleCatalog(),
+      this.rbac.listStaffUsers(),
+      this.rbac.getPermissionCatalog(),
+      this.rbac.listPermissionGroups(),
+    ])
       .pipe(takeUntil(this.destroy$))
       .subscribe({
-        next: ([rows, s, perms]) => {
+        next: ([rows, s, perms, packs]) => {
           this.catalog = [...rows].sort((a, b) => a.sortOrder - b.sortOrder);
           this.staff = s;
           this.permCatalog = perms;
+          this.permissionGroups = [...packs].sort((a, b) => a.sortOrder - b.sortOrder);
+          this.packListErr = '';
           this.loading = false;
           this.permLoading = false;
           this.loadRecentRbacStrip();
         },
         error: e => {
           this.errMsg = (e as Error)?.message ?? 'load';
+          this.packListErr = (e as Error)?.message ?? 'load';
           this.loading = false;
           this.permLoading = false;
         },
@@ -882,6 +1093,8 @@ export class SettingsRbacPanelComponent implements OnInit, OnDestroy {
     this.formSort = 1000;
     this.formPerms = [];
     this.formPermsSet = new Set();
+    this.formComposeMode = 'direct';
+    this.formGroupIds = [];
     this.formErr = '';
   }
 
@@ -893,9 +1106,46 @@ export class SettingsRbacPanelComponent implements OnInit, OnDestroy {
     this.formName = r.name;
     this.formDesc = r.description ?? '';
     this.formSort = r.sortOrder;
-    this.formPerms = [...r.permissions];
-    this.formPermsSet = new Set(r.permissions);
     this.formErr = '';
+    if (this.usesSyntheticInlineOnly(r)) {
+      this.formComposeMode = 'direct';
+      this.formPerms = [...r.permissions];
+      this.formPermsSet = new Set(r.permissions);
+      this.formGroupIds = [];
+    } else {
+      this.formComposeMode = 'groups';
+      this.formGroupIds = [...(r.permissionGroupIds ?? [])].sort((a, b) => a - b);
+      this.formPerms = [...r.permissions];
+      this.formPermsSet = new Set(r.permissions);
+    }
+  }
+
+  /** Synthetic auto-pack {@code BNDL_R<id>} is treated as “direct matrix” in the editor. */
+  protected usesSyntheticInlineOnly(r: SchoolRoleRow): boolean {
+    const g = r.permissionGroups ?? [];
+    if (g.length === 0) {
+      return true;
+    }
+    return g.length === 1 && (g[0].code ?? '').startsWith('BNDL_R');
+  }
+
+  protected onComposeModeChange(): void {
+    if (this.formComposeMode === 'direct') {
+      this.formGroupIds = [];
+    } else {
+      this.formPerms = [];
+      this.formPermsSet = new Set();
+    }
+  }
+
+  protected togglePackForRole(id: number, on: boolean): void {
+    if (on) {
+      if (!this.formGroupIds.includes(id)) {
+        this.formGroupIds = [...this.formGroupIds, id].sort((a, b) => a - b);
+      }
+    } else {
+      this.formGroupIds = this.formGroupIds.filter(x => x !== id);
+    }
   }
 
   protected closeEditor(): void {
@@ -921,14 +1171,16 @@ export class SettingsRbacPanelComponent implements OnInit, OnDestroy {
         name: this.formName.trim(),
         description: this.formDesc?.trim() || undefined,
         sortOrder: this.formSort,
-        permissions: this.formPerms,
+        ...(this.formComposeMode === 'groups'
+          ? { permissionGroupIds: [...this.formGroupIds] }
+          : { permissions: [...this.formPerms] }),
       };
       this.rbac
         .createCustomSchoolRole(body)
         .pipe(takeUntil(this.destroy$))
         .subscribe({
         next: () => {
-          this.reloadCatalog();
+          this.reloadCatalogAndPacks();
           this.closeEditor();
           this.savingForm = false;
           this.loadRecentRbacStrip();
@@ -948,14 +1200,16 @@ export class SettingsRbacPanelComponent implements OnInit, OnDestroy {
       name: this.formName.trim(),
       description: this.formDesc?.trim() || undefined,
       sortOrder: this.formSort,
-      permissions: this.formPerms,
+      ...(this.formComposeMode === 'groups'
+        ? { permissionGroupIds: [...this.formGroupIds] }
+        : { permissions: [...this.formPerms] }),
     };
     this.rbac
       .updateCustomSchoolRole(this.editingId, body)
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: () => {
-          this.reloadCatalog();
+          this.reloadCatalogAndPacks();
           this.closeEditor();
           this.savingForm = false;
           this.loadRecentRbacStrip();
@@ -964,6 +1218,116 @@ export class SettingsRbacPanelComponent implements OnInit, OnDestroy {
           this.formErr = (e as Error)?.message ?? 'save';
           this.savingForm = false;
         },
+      });
+  }
+
+  protected openPackCreate(): void {
+    this.editMode = null;
+    this.packEditMode = 'create';
+    this.packEditingId = null;
+    this.packFormCode = 'PACK_';
+    this.packFormName = '';
+    this.packFormDesc = '';
+    this.packFormSort = 1000;
+    this.packFormPermsSet = new Set();
+    this.packFormErr = '';
+  }
+
+  protected openPackEdit(g: PermissionGroupRow): void {
+    this.editMode = null;
+    this.packEditMode = 'edit';
+    this.packEditingId = g.id;
+    this.packFormCode = g.code;
+    this.packFormName = g.name;
+    this.packFormDesc = g.description ?? '';
+    this.packFormSort = g.sortOrder;
+    this.packFormPermsSet = new Set(g.permissions ?? []);
+    this.packFormErr = '';
+  }
+
+  protected closePackEditor(): void {
+    this.packEditMode = null;
+    this.packSaving = false;
+  }
+
+  protected togglePackPerm(p: string, on: boolean): void {
+    if (on) {
+      this.packFormPermsSet.add(p);
+    } else {
+      this.packFormPermsSet.delete(p);
+    }
+  }
+
+  protected submitPack(): void {
+    this.packFormErr = '';
+    this.packSaving = true;
+    if (this.packEditMode === 'create') {
+      const body: CreatePermissionGroupRequest = {
+        code: this.packFormCode.trim().toUpperCase(),
+        name: this.packFormName.trim(),
+        description: this.packFormDesc?.trim() || undefined,
+        sortOrder: this.packFormSort,
+        permissions: Array.from(this.packFormPermsSet).sort(),
+      };
+      this.rbac
+        .createPermissionGroup(body)
+        .pipe(takeUntil(this.destroy$))
+        .subscribe({
+          next: () => {
+            this.reloadCatalogAndPacks();
+            this.closePackEditor();
+            this.loadRecentRbacStrip();
+          },
+          error: e => {
+            this.packFormErr = (e as Error)?.message ?? 'save';
+            this.packSaving = false;
+          },
+        });
+      return;
+    }
+    if (this.packEditingId == null) {
+      this.packSaving = false;
+      return;
+    }
+    const body: UpdatePermissionGroupRequest = {
+      name: this.packFormName.trim(),
+      description: this.packFormDesc?.trim() || undefined,
+      sortOrder: this.packFormSort,
+      permissions: Array.from(this.packFormPermsSet).sort(),
+    };
+    this.rbac
+      .updatePermissionGroup(this.packEditingId, body)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: () => {
+          this.reloadCatalogAndPacks();
+          this.closePackEditor();
+          this.loadRecentRbacStrip();
+        },
+        error: e => {
+          this.packFormErr = (e as Error)?.message ?? 'save';
+          this.packSaving = false;
+        },
+      });
+  }
+
+  protected onDeletePack(g: PermissionGroupRow): void {
+    if (g.systemTemplate) {
+      return;
+    }
+    if (!window.confirm(this.translate.instant('settings.rbac.deletePackConfirm'))) {
+      return;
+    }
+    this.errMsg = '';
+    this.rbac
+      .deletePermissionGroup(g.id)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: () => {
+          this.reloadCatalogAndPacks();
+          this.loadRecentRbacStrip();
+        },
+        error: e => (this.errMsg = (e as Error)?.message ?? 'delete'),
       });
   }
 
@@ -980,7 +1344,7 @@ export class SettingsRbacPanelComponent implements OnInit, OnDestroy {
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: () => {
-          this.reloadCatalog();
+          this.reloadCatalogAndPacks();
           this.loadRecentRbacStrip();
           if (this.selectedStaffId != null) {
             this.onStaffChange();
@@ -990,15 +1354,19 @@ export class SettingsRbacPanelComponent implements OnInit, OnDestroy {
       });
   }
 
-  private reloadCatalog(): void {
-    this.rbac
-      .listSchoolRoleCatalog()
+  private reloadCatalogAndPacks(): void {
+    forkJoin([this.rbac.listSchoolRoleCatalog(), this.rbac.listPermissionGroups()])
       .pipe(takeUntil(this.destroy$))
       .subscribe({
-        next: rows => {
+        next: ([rows, packs]) => {
           this.catalog = [...rows].sort((a, b) => a.sortOrder - b.sortOrder);
+          this.permissionGroups = [...packs].sort((a, b) => a.sortOrder - b.sortOrder);
+          this.packListErr = '';
         },
-        error: e => (this.errMsg = (e as Error)?.message ?? 'load'),
+        error: e => {
+          this.errMsg = (e as Error)?.message ?? 'load';
+          this.packListErr = (e as Error)?.message ?? 'load';
+        },
       });
   }
 

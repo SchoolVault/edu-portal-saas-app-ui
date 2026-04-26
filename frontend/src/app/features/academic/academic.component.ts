@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { AcademicService } from '../../core/services/academic.service';
 import { TeacherService } from '../../core/services/teacher.service';
 import { AuthService } from '../../core/services/auth.service';
+import { UiAccessService } from '../../core/services/ui-access.service';
 import {
   AcademicYear,
   PromotionPreview,
@@ -662,6 +663,7 @@ export class AcademicComponent implements OnInit {
     private academicService: AcademicService,
     private teacherService: TeacherService,
     private auth: AuthService,
+    private uiAccess: UiAccessService,
     private confirmDialog: ConfirmDialogService,
     private translate: TranslateService
   ) {}
@@ -679,8 +681,7 @@ export class AcademicComponent implements OnInit {
   }
 
   ngOnInit(): void {
-    const r = this.auth.getRole();
-    this.canManageAcademic = r === 'admin';
+    this.canManageAcademic = this.uiAccess.hasAcademicDeskAdminAccess();
     if (this.canManageAcademic) {
       this.tab = 'classes';
     }

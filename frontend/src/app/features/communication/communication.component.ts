@@ -17,6 +17,7 @@ import {
   ProviderHealthResponse,
 } from '../../core/services/communication.service';
 import { AuthService } from '../../core/services/auth.service';
+import { UiAccessService } from '../../core/services/ui-access.service';
 import { AcademicService } from '../../core/services/academic.service';
 import { InboxUnifiedItem, SchoolClass } from '../../core/models/models';
 import { BellReadStateService } from '../../core/services/bell-read-state.service';
@@ -447,6 +448,7 @@ export class CommunicationComponent implements OnInit {
   private readonly inboxSearch$ = new Subject<void>();
   private readonly subs = new Subscription();
   private inboxReqSeq = 0;
+  private readonly uiAccess = inject(UiAccessService);
 
   constructor(
     private comm: CommunicationService,
@@ -456,10 +458,9 @@ export class CommunicationComponent implements OnInit {
     private inboxFeed: InboxUnifiedFeedService
   ) {}
 
-  /** Only school / platform administrators publish announcements; teachers and parents read only. */
+  /** Mirrors {@code RbacSpel#COMMUNICATION_SCHOOL_ADMIN} — delegated comms / ops desk may publish. */
   get canPublish(): boolean {
-    const r = this.auth.getNormalizedRole();
-    return r === 'admin' || r === 'super_admin';
+    return this.uiAccess.hasCommunicationSchoolAdminDesk();
   }
 
   get hasActiveFilters(): boolean {

@@ -5,6 +5,7 @@ import { filter } from 'rxjs/operators';
 import { TeacherService } from '../../core/services/teacher.service';
 import { AcademicService } from '../../core/services/academic.service';
 import { AuthService } from '../../core/services/auth.service';
+import { UiAccessService } from '../../core/services/ui-access.service';
 import { Teacher, SchoolClass } from '../../core/models/models';
 import { ConfirmDialogService } from '../../shared/confirm-dialog/confirm-dialog.service';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
@@ -218,6 +219,7 @@ export class TeacherProfileComponent implements OnInit, OnDestroy {
     private teacherService: TeacherService,
     private academicService: AcademicService,
     private auth: AuthService,
+    private uiAccess: UiAccessService,
     private confirmDialog: ConfirmDialogService,
     private translate: TranslateService,
     private cdr: ChangeDetectorRef
@@ -260,8 +262,7 @@ export class TeacherProfileComponent implements OnInit, OnDestroy {
   }
 
   get isSchoolAdmin(): boolean {
-    const r = this.auth.getNormalizedRole();
-    return r === 'admin' || r === 'super_admin';
+    return this.uiAccess.hasAcademicDeskAdminAccess();
   }
 
   get portraitUrl(): string | null {

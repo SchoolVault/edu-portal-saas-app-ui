@@ -1479,16 +1479,20 @@ export class ImportExportComponent implements OnInit, OnDestroy {
   private static readonly ACADEMIC_YEAR_MONTH_START = 4;
   private static readonly ACADEMIC_YEAR_MONTH_END = 3;
 
+  /**
+   * Order matches onboarding: classes → teachers + staff (library) → students → timetable → fees.
+   * Seq badges are shown on tiles so super admins can follow the same order as sales CSV packs.
+   */
   jobTypes: JobTypeOption[] = [
     { id: 'CLASSES', file: 'classes.csv', icon: 'bi-diagram-3-fill', seq: 1 },
     { id: 'TEACHERS', file: 'teachers.csv', icon: 'bi-person-workspace', seq: 2 },
-    { id: 'STUDENTS', file: 'students.csv', icon: 'bi-people-fill', seq: 3 },
-    { id: 'TIMETABLE', file: 'timetable.csv', icon: 'bi-calendar-week-fill', seq: 4 },
-    { id: 'STAFF', file: 'staff.csv', icon: 'bi-book-half', seq: 5 },
+    { id: 'STAFF', file: 'staff.csv', icon: 'bi-person-badge-fill', seq: 3 },
+    { id: 'STUDENTS', file: 'students.csv', icon: 'bi-people-fill', seq: 4 },
+    { id: 'TIMETABLE', file: 'timetable.csv', icon: 'bi-calendar-week-fill', seq: 5 },
     { id: 'FEE_STRUCTURES', file: 'fee-structures.csv', icon: 'bi-cash-stack', seq: 6 },
   ];
 
-  /** Default to recommended onboarding flow (sales ops): classes → teachers → students → timetable. */
+  /** Default job type: start with classes (see {@link jobTypes} for full sequence). */
   jobType = 'CLASSES';
   file: File | null = null;
   busy = false;

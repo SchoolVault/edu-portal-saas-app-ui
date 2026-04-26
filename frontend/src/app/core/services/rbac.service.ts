@@ -5,20 +5,27 @@ import { ApiService } from './api.service';
 import { runtimeConfig } from '../config/runtime-config';
 import type {
   CreateCustomSchoolRoleRequest,
+  CreatePermissionGroupRequest,
+  PermissionGroupRow,
   RbacStaffUserRow,
   SchoolRoleRow,
   UpdateCustomSchoolRoleRequest,
+  UpdatePermissionGroupRequest,
   UserSchoolRoleAssignments,
 } from '../models/rbac.model';
 import {
   mockCreateCustomRole,
+  mockCreatePermissionGroup,
   mockDeleteCustomRole,
+  mockDeletePermissionGroup,
   mockGetPermissionCatalog,
   mockGetRbacCatalog,
   mockGetUserAssignments,
+  mockListPermissionGroups,
   mockListRbacStaff,
   mockReplaceAssignments,
   mockUpdateCustomRole,
+  mockUpdatePermissionGroup,
 } from '../mocks/rbac.mock-data';
 
 /**
@@ -83,5 +90,33 @@ export class RbacService {
       return of(mockDeleteCustomRole(roleId)).pipe(delay(200));
     }
     return this.api.delete<void>(`/rbac/roles/${roleId}/custom`);
+  }
+
+  listPermissionGroups(): Observable<PermissionGroupRow[]> {
+    if (runtimeConfig.useRbacMocks) {
+      return of(mockListPermissionGroups()).pipe(delay(120));
+    }
+    return this.api.get<PermissionGroupRow[]>('/rbac/permission-groups');
+  }
+
+  createPermissionGroup(body: CreatePermissionGroupRequest): Observable<PermissionGroupRow> {
+    if (runtimeConfig.useRbacMocks) {
+      return of(mockCreatePermissionGroup(body)).pipe(delay(180));
+    }
+    return this.api.post<PermissionGroupRow>('/rbac/permission-groups', body);
+  }
+
+  updatePermissionGroup(groupId: number, body: UpdatePermissionGroupRequest): Observable<PermissionGroupRow> {
+    if (runtimeConfig.useRbacMocks) {
+      return of(mockUpdatePermissionGroup(groupId, body)).pipe(delay(180));
+    }
+    return this.api.put<PermissionGroupRow>(`/rbac/permission-groups/${groupId}`, body);
+  }
+
+  deletePermissionGroup(groupId: number): Observable<void> {
+    if (runtimeConfig.useRbacMocks) {
+      return of(mockDeletePermissionGroup(groupId)).pipe(delay(180));
+    }
+    return this.api.delete<void>(`/rbac/permission-groups/${groupId}`);
   }
 }

@@ -16,6 +16,7 @@ import {
 } from '../models/models';
 import { ApiService, PageResp } from './api.service';
 import { AuthService } from './auth.service';
+import { UiAccessService } from './ui-access.service';
 import { runtimeConfig } from '../config/runtime-config';
 import { DEFAULT_ERP_PAGE_SIZE } from '../constants/pagination.constants';
 import { sliceToPage } from '../utils/paginate';
@@ -35,7 +36,8 @@ export class FeeService {
 
   constructor(
     private api: ApiService,
-    private auth: AuthService
+    private auth: AuthService,
+    private uiAccess: UiAccessService
   ) {}
 
   getFeeStructures(): Observable<FeeStructure[]> {
@@ -85,7 +87,7 @@ export class FeeService {
   }
 
   getStudentPayments(studentId: number): Observable<FeePayment[]> {
-    if (this.auth.getNormalizedRole() !== 'admin') {
+    if (!this.uiAccess.hasSchoolFeeOfficeDesk()) {
       return of([]).pipe(delay(0));
     }
     if (!runtimeConfig.useMocks) {

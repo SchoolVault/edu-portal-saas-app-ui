@@ -24,7 +24,7 @@ export class TenantModuleGateService {
 
   /** Whether a gated nav item should appear. Unknown keys default to ON for backward compatibility. */
   isModuleEnabled(featureKey: string | undefined): boolean {
-    const role = (this.auth.getRole() || '').toLowerCase();
+    const role = this.auth.getNormalizedRole();
     // Platform operators should always see platform tooling regardless of tenant feature toggles.
     if (role === 'super_admin') {
       return true;
@@ -47,12 +47,8 @@ export class TenantModuleGateService {
    * @returns observable that completes after flags are applied (errors fall back to empty map).
    */
   refresh(): Observable<Record<string, boolean>> {
-    const role = (this.auth.getRole() || '').toLowerCase();
+    const role = this.auth.getNormalizedRole();
     if (role === 'super_admin' || !role) {
-      this.flags$.next({});
-      return of({});
-    }
-    if (!['admin', 'teacher', 'parent', 'student', 'library_staff'].includes(role)) {
       this.flags$.next({});
       return of({});
     }

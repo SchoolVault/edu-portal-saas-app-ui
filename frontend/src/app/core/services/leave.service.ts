@@ -7,6 +7,7 @@ import { runtimeConfig } from '../config/runtime-config';
 import { DEFAULT_ERP_PAGE_SIZE } from '../constants/pagination.constants';
 import { sliceToPage } from '../utils/paginate';
 import { AuthService } from './auth.service';
+import { UiAccessService } from './ui-access.service';
 import { MOCK_LEAVE_REQUESTS_SEED, MOCK_LEAVE_SEQ_START } from '../mocks/leave.mock-data';
 import { LEAVE_OTHER_REASON_MIN_LEN, normalizeLeaveRequestRow } from '../leave/leave-api.contract';
 import { readLeaveEntitlementPolicy, writeLeaveEntitlementPolicy, type LeaveEntitlementPolicy } from '../leave/leave-policy.storage';
@@ -49,7 +50,8 @@ let MOCK_REQUESTS: LeaveRequestRow[] = MOCK_LEAVE_REQUESTS_SEED.map(r => normali
 export class LeaveService {
   constructor(
     private api: ApiService,
-    private auth: AuthService
+    private auth: AuthService,
+    private uiAccess: UiAccessService
   ) {}
 
   private mockUserNumId(): number {
@@ -126,7 +128,7 @@ export class LeaveService {
     if (!runtimeConfig.useMocks) {
       return this.api.get<LeaveRequestRow[]>('/leave/requests').pipe(map(rows => (rows || []).map(normalizeLeaveRequestRow)));
     }
-    if (this.auth.getNormalizedRole() !== 'admin') {
+    if (!this.uiAccess.hasAcademicDeskAdminAccess()) {
       return of([]).pipe(delay(120));
     }
     return of([...MOCK_REQUESTS].map(normalizeLeaveRequestRow)).pipe(delay(200));
@@ -161,7 +163,7 @@ export class LeaveService {
         .getPageParams<LeaveRequestRow>('/leave/requests/paged', { page, size, q: opts.q?.trim() || undefined })
         .pipe(map(p => ({ ...p, content: p.content.map(normalizeLeaveRequestRow) })));
     }
-    if (this.auth.getNormalizedRole() !== 'admin') {
+    if (!this.uiAccess.hasAcademicDeskAdminAccess()) {
       return of({
         content: [],
         page,

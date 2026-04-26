@@ -6,6 +6,12 @@
 # 2) Confirm credentials outside Spring: mysql -h <host> -P <port> -u avnadmin -p --ssl-mode=REQUIRED defaultdb
 # 3) If you still get 1045: reset avnadmin password in Aiven, re-paste into IDE (no trailing newline). Hikari DEBUG below logs jdbcUrl + username at startup.
 app:
+  auth:
+    email-verification:
+      # Same as ng serve; override with AUTH_EMAIL_VER_PUBLIC_SPA_BASE_URL or APP_PUBLIC_SPA_BASE_URL.
+      public-spa-base-url: ${AUTH_EMAIL_VER_PUBLIC_SPA_BASE_URL:${APP_PUBLIC_SPA_BASE_URL:http://localhost:4200}}
+      # Without APP_INTEGRATION_EMAIL_TRIGGER_URL, return the one-time token in the API for paste-in-UI (dev only). Set AUTH_EMAIL_EXPOSE_TOKEN=false to require real email delivery.
+      expose-plain-token-in-api-response: ${AUTH_EMAIL_EXPOSE_TOKEN:true}
   demo-seed:
     enabled: true
   dev:
@@ -39,7 +45,7 @@ spring:
         auto-startup: ${SPRING_RABBITMQ_LISTENER_SIMPLE_AUTO_STARTUP:false}
 
   jpa:
-    show-sql: true
+    show-sql: false
   flyway:
     clean-disabled: false
 

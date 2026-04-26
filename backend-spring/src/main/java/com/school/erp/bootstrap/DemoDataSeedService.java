@@ -50,6 +50,7 @@ import com.school.erp.modules.rbac.entity.UserSchoolRoleAssignment;
 import com.school.erp.modules.rbac.repository.SchoolRoleRepository;
 import com.school.erp.modules.rbac.repository.UserSchoolRoleAssignmentRepository;
 import com.school.erp.modules.rbac.service.RbacTenantBootstrapService;
+import com.school.erp.security.rbac.SlimJwtAuthorityCache;
 import com.school.erp.bootstrap.demo.DemoExtendedTablesSeed;
 import com.school.erp.modules.chat.repository.ChatConversationRepository;
 import com.school.erp.modules.chat.repository.ChatMessageRepository;
@@ -126,8 +127,8 @@ import java.util.stream.Collectors;
  * COMPREHENSIVE DEMO DATA SEED SERVICE FOR SCHOOL ERP
  * ═══════════════════════════════════════════════════════════════════════════════════════════════
  *
- * Seeds TWO realistic Indian schools with COMPLETE data for classes 6-12 for comprehensive
- * end-to-end testing across ALL roles and modules.
+ * Seeds TWO realistic Indian schools with COMPLETE data for classes 1–12 (mixed single/dual sections)
+ * for end-to-end testing across ALL roles and modules.
  *
  * ⚠️  OPTIMIZED FOR RENDER FREE TIER (0.1 CPU, 512MB RAM)
  * - Reduced data volume by ~90%
@@ -139,16 +140,15 @@ import java.util.stream.Collectors;
  * SCHOOL 2: Kendriya Vidyalaya (KV-MUM) - Mumbai
  *
  * Each school includes:
- * ├── Classes: 6, 7, 8, 9, 10, 11, 12 (7 classes)
- * ├── Sections: A, B per class (2 sections × 7 classes = 14 sections)
- * ├── Students: 15 per section (14 sections → ~210 students total per school)
+ * ├── Classes: grades 1–12; odd grades one section (A), even grades sections A+B (Indian-style mix)
+ * ├── Students: configurable per section (default 20) — fee mix includes PAID / PARTIAL / UNPAID for desk QA
  * ├── Teachers: 36 teachers (enough breadth for demo timetables without teacher double-booking per slot)
  * ├── Guardians: Father + Mother for each student (proper mapping)
  * ├── QA parent: one dedicated {@code qa.multichild.parent@parent.<schoolCode>.edu.in} with four linked
  * │   active students (different classes where possible) for multi-child E2E / parent-portal QA
  * ├── Users: ADMIN, TEACHERS, PARENTS, LIBRARY_STAFF with login credentials
- * ├── RBAC: {@link RbacTenantBootstrapService} backfill + narrow-role demo logins (fee / exam / payroll / finance
- * │   settings / custom role) for E2E testing of permissions and school role assignments
+ * ├── RBAC: {@link RbacTenantBootstrapService} backfill + {@code school_staff} desk demo logins (base-only, fee,
+ * │   exam, payroll, finance settings, library, transport/hostel logistics, custom bundle) for permission QA
  * ├── Finance: {@link TenantFinanceProfile} per tenant (DPS: platform merchant; KV: Razorpay Route + LIVE onboarding)
  * ├── Academic: Subjects, Teacher Assignments (Class + Subject)
  * ├── Fees: Fee structures, components, payments (PAID, PARTIAL, UNPAID examples)
@@ -183,10 +183,19 @@ public class DemoDataSeedService {
 
     private static final String QA_MULTICHILD_EMAIL_LOCAL = "qa.multichild.parent";
 
-    private static final String FEATURES_JSON = "{\"chat\":false,\"transport\":false,\"library\":false,\"hostel\":false,"
-            + "\"operationsHub\":false,\"importExport\":false,\"directory\":true,"
-            + "\"payroll\":true,\"documents\":false,\"audit\":true,\"communication\":true,\"reports\":false,\"student\":true,\"teacher\":true,"
-            + "\"attendance\":true,\"fees\":true,\"leave\":false}";
+    /** Phase-1 demo: enable modular surfaces so seeded transport/library/hostel/import rows are reachable from UI. */
+    private static final String FEATURES_JSON = "{\"chat\":false,\"transport\":true,\"library\":true,\"hostel\":true,"
+            + "\"operationsHub\":true,\"importExport\":true,\"directory\":true,"
+            + "\"payroll\":true,\"documents\":true,\"audit\":true,\"communication\":true,\"reports\":true,\"student\":true,\"teacher\":true,"
+            + "\"attendance\":true,\"fees\":true,\"leave\":true}";
+
+    private static final int DEMO_MIN_GRADE = 1;
+    private static final int DEMO_MAX_GRADE = 12;
+
+    /** Even grades → sections A+B; odd grades → single section A (whole-class where no B). */
+    private static boolean demoGradeUsesTwoSections(int grade) {
+        return grade % 2 == 0;
+    }
 
     // Realistic Indian name pools for data generation
     private static final String[] MALE_FIRST_NAMES = {
@@ -293,6 +302,7 @@ public class DemoDataSeedService {
     private final UserSchoolRoleAssignmentRepository userSchoolRoleAssignmentRepository;
     private final TenantFinanceProfileRepository tenantFinanceProfileRepository;
     private final DemoExtendedTablesSeed demoExtendedTablesSeed;
+    private final SlimJwtAuthorityCache slimJwtAuthorityCache;
     private final EntityManager entityManager;
 
     /** Pause duration between major steps to avoid CPU spikes on free tier. */
@@ -307,8 +317,8 @@ public class DemoDataSeedService {
     @Value("${app.demo-seed.teacher-count:36}")
     private int teacherCount;
 
-    /** Students per section for demo roster density. */
-    @Value("${app.demo-seed.students-per-section:15}")
+    /** Students per section for demo roster density (~Indian CBSE section strength). */
+    @Value("${app.demo-seed.students-per-section:20}")
     private int studentsPerSection;
 
     public DemoDataSeedService(
@@ -379,6 +389,7 @@ public class DemoDataSeedService {
             UserSchoolRoleAssignmentRepository userSchoolRoleAssignmentRepository,
             TenantFinanceProfileRepository tenantFinanceProfileRepository,
             EntityManager entityManager,
+            SlimJwtAuthorityCache slimJwtAuthorityCache,
             DemoExtendedTablesSeed demoExtendedTablesSeed) {
         this.tenantConfigRepository = tenantConfigRepository;
         this.userRepository = userRepository;
@@ -446,6 +457,7 @@ public class DemoDataSeedService {
         this.schoolRoleRepository = schoolRoleRepository;
         this.userSchoolRoleAssignmentRepository = userSchoolRoleAssignmentRepository;
         this.tenantFinanceProfileRepository = tenantFinanceProfileRepository;
+        this.slimJwtAuthorityCache = slimJwtAuthorityCache;
         this.demoExtendedTablesSeed = demoExtendedTablesSeed;
         this.entityManager = entityManager;
     }
@@ -612,7 +624,7 @@ public class DemoDataSeedService {
         flushAndClear(); // Clear memory after creating teachers
         pauseForResourceManagement();
 
-        // STEP 6: Classes & Sections (Classes 6-12, Sections A, B - optimized for Render)
+        // STEP 6: Classes & Sections (grades 1–12, mixed sections — optimized for Render)
         log.info("  [6/15] Classes & Sections...");
         Map<Integer, List<ClassSectionPair>> classesMap = createClassesAndSections(tenantId, academicYear.getId(), teachers, random);
         flushAndClear(); // Clear memory after creating classes
@@ -707,12 +719,13 @@ public class DemoDataSeedService {
         seedTenantFinanceProfileIfMissing(tenantId, schoolCode);
         flushAndClear();
 
+        int sectionCount = classesMap.values().stream().mapToInt(List::size).sum();
         log.info("══════════════════════════════════════════════════════════════");
         log.info("✅ School {} SEEDED SUCCESSFULLY!", schoolCode);
         log.info("   Students: {}", allStudents.size());
         log.info("   Teachers: {}", teachers.size());
-        log.info("   Classes: 7 (grades 6-12)");
-        log.info("   Sections: 14 (A, B per class)");
+        log.info("   Classes: {} (grades {}–{})", classesMap.size(), DEMO_MIN_GRADE, DEMO_MAX_GRADE);
+        log.info("   Sections: {} (odd grades: A only; even grades: A+B)", sectionCount);
         log.info("══════════════════════════════════════════════════════════════");
     }
 
@@ -809,8 +822,8 @@ public class DemoDataSeedService {
     private static final String DEMO_CUSTOM_SCHOOL_ROLE_CODE = "DEMO_CUSTOM_FEE_REVIEW";
 
     /**
-     * {@link com.school.erp.modules.auth.entity.User#getRole()} is {@code ADMIN} for all demo personas so they
-     * use the staff portal; effective API permissions come only from the single {@link SchoolRole} we attach.
+     * Desk QA logins use {@link Enums.Role#SCHOOL_STAFF} with one stacked {@link SchoolRole} each (same contract as
+     * CSV import / RBAC settings UI). Effective permissions = {@code PORTAL_SCHOOL_STAFF} baseline + role CSV.
      */
     private void seedRbacNarrowRoleDemoPersonas(String tenantId, String schoolCode) {
         String domain = tenantConfigRepository.findByTenantId(tenantId)
@@ -828,13 +841,28 @@ public class DemoDataSeedService {
         record Persona(String emailLocal, String fullName, String schoolRoleCode, boolean useCustomRole) {}
 
         List<Persona> personas = List.of(
+                new Persona("staff.base.only", "Demo Base Staff " + schoolCode, RbacRoleCatalog.CODE_BASE_SCHOOL_STAFF, false),
                 new Persona("fee.desk.demo", "Demo Fee Desk " + schoolCode, RbacRoleCatalog.CODE_FEE_OFFICE, false),
                 new Persona("exam.desk.demo", "Demo Exam Desk " + schoolCode, RbacRoleCatalog.CODE_EXAM_OFFICE, false),
                 new Persona("payroll.desk.demo", "Demo Payroll Desk " + schoolCode, RbacRoleCatalog.CODE_PAYROLL_OFFICE, false),
                 new Persona("finance.settings.demo", "Demo Finance & Settings " + schoolCode, RbacRoleCatalog.CODE_TENANT_SETTINGS, false),
                 new Persona("library.desk.demo", "Demo Library Desk " + schoolCode, RbacRoleCatalog.CODE_LIBRARY_OPERATIONS, false),
-                new Persona("rbac.custom.demo", "Demo Custom Bundle " + schoolCode, null, true)
-        );
+                new Persona(
+                        "logistics.desk.demo",
+                        "Demo Transport & Hostel Desk " + schoolCode,
+                        RbacRoleCatalog.CODE_TRANSPORT_HOSTEL_LOGISTICS,
+                        false),
+                new Persona(
+                        "transport.desk.demo",
+                        "Demo Transport Desk " + schoolCode,
+                        RbacRoleCatalog.CODE_TRANSPORT_LOGISTICS,
+                        false),
+                new Persona(
+                        "hostel.desk.demo",
+                        "Demo Hostel Desk " + schoolCode,
+                        RbacRoleCatalog.CODE_HOSTEL_RESIDENCE_DESK,
+                        false),
+                new Persona("rbac.custom.demo", "Demo Custom Bundle " + schoolCode, null, true));
         int phoneSlot = 0;
         for (Persona p : personas) {
             if (p.useCustomRole() && customRole == null) {
@@ -843,7 +871,7 @@ public class DemoDataSeedService {
             String email = p.emailLocal() + "@" + domain;
             String preferredPhone = "+91-73" + String.format("%08d", 4_200_000 + phoneSlot++);
             User u = createUser(
-                    tenantId, schoolCode, p.fullName(), email, Enums.Role.ADMIN, preferredPhone);
+                    tenantId, schoolCode, p.fullName(), email, Enums.Role.SCHOOL_STAFF, preferredPhone);
             userSchoolRoleAssignmentRepository.deleteByTenantIdAndUserId(tenantId, u.getId());
             if (p.useCustomRole()) {
                 linkUserToSchoolRole(tenantId, u.getId(), customRole);
@@ -852,6 +880,7 @@ public class DemoDataSeedService {
                         .findByTenantIdAndCodeAndIsDeletedFalse(tenantId, p.schoolRoleCode())
                         .ifPresent(r -> linkUserToSchoolRole(tenantId, u.getId(), r));
             }
+            slimJwtAuthorityCache.evictForUser(tenantId, u.getId());
         }
     }
 
@@ -1400,8 +1429,12 @@ public class DemoDataSeedService {
         return false;
     }
 
+    /**
+     * Enough homerooms + timetable diversity for up to ~18 sections (grades 1–12 mixed) without starving
+     * {@code uq_tt_active_teacher_slot} subject-specialization picks.
+     */
     private int normalizedTeacherCount() {
-        return Math.max(20, teacherCount);
+        return Math.max(56, teacherCount);
     }
 
     /**
@@ -1514,7 +1547,9 @@ public class DemoDataSeedService {
             String firstName = (i % 2 == 0) ? MALE_FIRST_NAMES[i % MALE_FIRST_NAMES.length]
                                             : FEMALE_FIRST_NAMES[i % FEMALE_FIRST_NAMES.length];
             String lastName = LAST_NAMES[i % LAST_NAMES.length];
-            String email = firstName.toLowerCase() + "." + lastName.toLowerCase() + "@" + schoolCode.toLowerCase() + ".edu.in";
+            // Disambiguate with index — name pairs repeat when i wraps name-array lengths (else one User → two Teacher rows).
+            String email = firstName.toLowerCase(Locale.ROOT) + "." + lastName.toLowerCase(Locale.ROOT)
+                    + ".t" + i + "@" + schoolCode.toLowerCase(Locale.ROOT) + ".edu.in";
             // +91-8… space: avoids clashing with parent phones (+91-9…) used in stableDemoParentPhone / V15 index
             String phone = "+91-8" + String.format("%09d", Math.floorMod(Objects.hash(tenantId, email), 1_000_000_000L));
 
@@ -1569,10 +1604,9 @@ public class DemoDataSeedService {
                                                                           List<Teacher> teachers, Random random) {
         Map<Integer, List<ClassSectionPair>> classesMap = new HashMap<>();
 
-        // Create classes 6-12 (optimized for Render free tier - 7 classes instead of 9)
         /** One distinct homeroom teacher per section (matches product rule: one class-teacher slot per teacher). */
         int homeroomOrdinal = 0;
-        for (int grade = 6; grade <= 12; grade++) {
+        for (int grade = DEMO_MIN_GRADE; grade <= DEMO_MAX_GRADE; grade++) {
             List<ClassSectionPair> sectionsForGrade = new ArrayList<>();
 
             SchoolClass schoolClass = new SchoolClass();
@@ -1583,10 +1617,8 @@ public class DemoDataSeedService {
             schoolClass.setIsDeleted(false);
             schoolClass = schoolClassRepository.save(schoolClass);
 
-            // Create sections A, B — homeroom per section (Indian school model); distinct teachers per section.
-            String[] sectionLetters = new String[]{"A", "B"};
-            for (int si = 0; si < sectionLetters.length; si++) {
-                String sectionName = sectionLetters[si];
+            String[] sectionLetters = demoGradeUsesTwoSections(grade) ? new String[]{"A", "B"} : new String[]{"A"};
+            for (String sectionName : sectionLetters) {
                 if (homeroomOrdinal >= teachers.size()) {
                     throw new IllegalStateException("Demo seed: not enough teachers for unique homeroom per section");
                 }
@@ -1595,7 +1627,7 @@ public class DemoDataSeedService {
                 section.setTenantId(tenantId);
                 section.setName(sectionName);
                 section.setClassId(schoolClass.getId());
-                section.setCapacity(30);
+                section.setCapacity(Math.max(30, studentsPerSection + 10));
                 section.setStudentCount(Math.max(6, studentsPerSection));
                 section.setClassTeacherId(sectionTeacher.getId());
                 section.setClassTeacherName(sectionTeacher.getFirstName() + " " + sectionTeacher.getLastName());
@@ -1618,7 +1650,7 @@ public class DemoDataSeedService {
         int admissionCounter = 1000;
         int entityCounter = 0; // For batch processing
 
-        for (int grade = 6; grade <= 12; grade++) {
+        for (int grade = DEMO_MIN_GRADE; grade <= DEMO_MAX_GRADE; grade++) {
             List<ClassSectionPair> sections = classesMap.get(grade);
 
             for (ClassSectionPair pair : sections) {
@@ -1635,8 +1667,9 @@ public class DemoDataSeedService {
                     String schoolCodeLower = schoolCode.toLowerCase();
                     String admToken = admissionNumber.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]", "");
 
-                    // Calculate age-appropriate birth year
-                    int birthYear = 2026 - grade - 6; // Rough age calculation
+                    // Age-appropriate DOB: class 12 ~17–18 yrs, class 1 ~6 yrs (academic year 2026–27)
+                    int approxAgeYears = 5 + (DEMO_MAX_GRADE - grade);
+                    int birthYear = 2026 - approxAgeYears;
                     LocalDate dob = LocalDate.of(birthYear, 1 + random.nextInt(12), 1 + random.nextInt(28));
 
                     // Create guardians (Father + Mother)
@@ -1821,7 +1854,7 @@ public class DemoDataSeedService {
 
         int teacherIdx = 0;
 
-        for (int grade = 6; grade <= 12; grade++) {
+        for (int grade = DEMO_MIN_GRADE; grade <= DEMO_MAX_GRADE; grade++) {
             List<ClassSectionPair> sections = classesMap.get(grade);
 
             for (ClassSectionPair pair : sections) {
@@ -1863,7 +1896,7 @@ public class DemoDataSeedService {
         Map<Long, FeeStructure> feeStructureMap = new HashMap<>();
 
         // Create fee structures for each class
-        for (int grade = 6; grade <= 12; grade++) {
+        for (int grade = DEMO_MIN_GRADE; grade <= DEMO_MAX_GRADE; grade++) {
             List<ClassSectionPair> sections = classesMap.get(grade);
             SchoolClass schoolClass = sections.get(0).schoolClass;
 
@@ -2010,7 +2043,7 @@ public class DemoDataSeedService {
             seededExams.add(exam);
 
             // Add all classes to exam scope
-            for (int grade = 6; grade <= 12; grade++) {
+            for (int grade = DEMO_MIN_GRADE; grade <= DEMO_MAX_GRADE; grade++) {
                 List<ClassSectionPair> sections = classesMap.get(grade);
                 for (ClassSectionPair pair : sections) {
                     ExamClassScope scope = new ExamClassScope();
@@ -2111,7 +2144,7 @@ public class DemoDataSeedService {
             template.setTenantId(tenantId);
             template.setName("CBSE Term Pattern Template");
             template.setBoardType("CBSE");
-            template.setClassBand("6-10");
+            template.setClassBand("1-12");
             template.setDefaultMarkingScheme("THEORY_PRACTICAL");
             template.setRulesJson("{\"maxPapersPerDay\":1,\"requiresRoom\":true,\"requiresInvigilator\":true}");
             template.setIsDeleted(false);
@@ -2451,7 +2484,7 @@ public class DemoDataSeedService {
         };
 
         List<ClassSectionPair> allPairs = new ArrayList<>();
-        for (int grade = 6; grade <= 12; grade++) {
+        for (int grade = DEMO_MIN_GRADE; grade <= DEMO_MAX_GRADE; grade++) {
             List<ClassSectionPair> sections = classesMap.get(grade);
             if (sections != null) {
                 allPairs.addAll(sections);
@@ -2462,7 +2495,7 @@ public class DemoDataSeedService {
         for (int si = 0; si < allPairs.size(); si++) {
             ClassSectionPair p = allPairs.get(si);
             int g = p.schoolClass.getGrade() != null ? p.schoolClass.getGrade() : 0;
-            if (g == 8 && p.section.getName() != null && "A".equalsIgnoreCase(p.section.getName().trim())) {
+            if (g >= 6 && p.section.getName() != null && "A".equalsIgnoreCase(p.section.getName().trim())) {
                 libraryPairIndex = si;
                 break;
             }
@@ -2664,11 +2697,12 @@ public class DemoDataSeedService {
                 routeStopRepository.save(stop);
             }
 
-            // Assign ~8 students per route (optimized for Render free tier)
+            // Assign students spread across the roster (classId is a DB FK, not a grade label)
             List<Student> routeStudents = allStudents.stream()
                 .filter(s -> s.getId() != null)
-                .filter(s -> s.getClassId() >= 6 && s.getClassId() <= 12) // Classes 6-12
-                .limit(8)
+                .sorted(Comparator.comparing(Student::getId))
+                .skip((long) (routeNum - 1) * 12L)
+                .limit(12)
                 .toList();
 
             for (Student student : routeStudents) {
@@ -2818,7 +2852,7 @@ public class DemoDataSeedService {
                 final int targetHostelIdx = hostelIdx;
                 List<Student> eligibleStudents = allStudents.stream()
                     .filter(s -> s.getGender() == targetGender)
-                    .filter(s -> s.getClassId() % 2 == targetHostelIdx) // Simple filter
+                    .filter(s -> Math.floorMod(Objects.hash(s.getId(), targetHostelIdx), 2) == 0)
                     .limit(allocations)
                     .collect(Collectors.toList());
 
@@ -3264,12 +3298,16 @@ public class DemoDataSeedService {
         log.info("TENANT FINANCE (fee settlement; Settings → Finance & collections):");
         log.info("  DPS-DLH: PLATFORM_MERCHANT, Route onboarding N/A, parent online checkout enabled (demo).");
         log.info("  KV-MUM:  ROUTE_LINKED_ACCOUNT acc_rzp_demo_route_kv_mum, onboarding LIVE, 1.5% platform commission bps=150.");
-        log.info("NARROW SCHOOL-ROLE E2E (password admin123; same domain as each school’s office email):");
-        log.info("  FEE_OFFICE:        fee.desk.demo@<office-domain>  (e.g. dpsdel.edu.in / kvmumbai1.gmail.com)");
+        log.info("SCHOOL_STAFF + STACKED SCHOOL ROLES (password admin123; office email domain):");
+        log.info("  BASE_ONLY:         staff.base.only@<office-domain>   (BASE_SCHOOL_STAFF — assign more roles in UI)");
+        log.info("  FEE_OFFICE:        fee.desk.demo@<office-domain>");
         log.info("  EXAM_OFFICE:       exam.desk.demo@<office-domain>");
         log.info("  PAYROLL_OFFICE:    payroll.desk.demo@<office-domain>");
         log.info("  TENANT_SETTINGS:   finance.settings.demo@<office-domain>");
         log.info("  LIBRARY:           library.desk.demo@<office-domain>");
+        log.info("  TRANSPORT+HOSTEL:  logistics.desk.demo@<office-domain>  (TRANSPORT_HOSTEL_LOGISTICS combined)");
+        log.info("  TRANSPORT_ONLY:    transport.desk.demo@<office-domain>  (TRANSPORT_LOGISTICS)");
+        log.info("  HOSTEL_ONLY:       hostel.desk.demo@<office-domain>  (HOSTEL_RESIDENCE_DESK)");
         log.info("  Custom bundle:     rbac.custom.demo@<office-domain>  (role " + DEMO_CUSTOM_SCHOOL_ROLE_CODE + ")");
         log.info("");
         log.info("QA multi-child E2E: see docs/DEMO_QA_MULTI_CHILD_PARENT.md");

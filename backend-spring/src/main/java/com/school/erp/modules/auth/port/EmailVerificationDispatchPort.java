@@ -1,8 +1,9 @@
 package com.school.erp.modules.auth.port;
 
 /**
- * Publishes a login-email verification link to an outbound channel (HTTP worker, queue, etc.).
- * Default implementation posts to {@code app.integration.email.trigger-url} when configured.
+ * Publishes a login-email verification link. See {@code app.integration.email.dispatch.provider} and
+ * {@link com.school.erp.integration.email.verification.EmailVerificationChannel} implementations
+ * (SendGrid, Brevo, HTTP trigger).
  */
 public interface EmailVerificationDispatchPort {
 

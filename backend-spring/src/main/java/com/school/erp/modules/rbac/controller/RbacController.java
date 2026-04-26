@@ -83,4 +83,35 @@ public class RbacController {
         rbacService.deleteCustomSchoolRole(roleId);
         return ResponseEntity.ok(ApiResponse.ok((Void) null, "Custom school role removed."));
     }
+
+    @GetMapping("/permission-groups")
+    @PreAuthorize(RbacSpel.SCHOOL_RBAC_API)
+    @Operation(summary = "List reusable permission packs for the current tenant")
+    public ResponseEntity<ApiResponse<List<RbacDTOs.PermissionGroupResponse>>> listPermissionGroups() {
+        return ResponseEntity.ok(ApiResponse.ok(rbacService.listPermissionGroups()));
+    }
+
+    @PostMapping("/permission-groups")
+    @PreAuthorize(RbacSpel.SCHOOL_RBAC_API)
+    @Operation(summary = "Create a tenant-defined permission pack (reusable across school roles)")
+    public ResponseEntity<ApiResponse<RbacDTOs.PermissionGroupResponse>> createPermissionGroup(
+            @Valid @RequestBody RbacDTOs.CreatePermissionGroupRequest body) {
+        return ResponseEntity.ok(ApiResponse.ok(rbacService.createPermissionGroup(body), "Permission pack created."));
+    }
+
+    @PutMapping("/permission-groups/{groupId}")
+    @PreAuthorize(RbacSpel.SCHOOL_RBAC_API)
+    @Operation(summary = "Update a non-template permission pack")
+    public ResponseEntity<ApiResponse<RbacDTOs.PermissionGroupResponse>> updatePermissionGroup(
+            @PathVariable long groupId, @Valid @RequestBody RbacDTOs.UpdatePermissionGroupRequest body) {
+        return ResponseEntity.ok(ApiResponse.ok(rbacService.updatePermissionGroup(groupId, body), "Permission pack updated."));
+    }
+
+    @DeleteMapping("/permission-groups/{groupId}")
+    @PreAuthorize(RbacSpel.SCHOOL_RBAC_API)
+    @Operation(summary = "Soft-delete a tenant-defined permission pack (detaches from roles; system templates cannot be deleted)")
+    public ResponseEntity<ApiResponse<Void>> deletePermissionGroup(@PathVariable long groupId) {
+        rbacService.deletePermissionGroup(groupId);
+        return ResponseEntity.ok(ApiResponse.ok((Void) null, "Permission pack removed."));
+    }
 }

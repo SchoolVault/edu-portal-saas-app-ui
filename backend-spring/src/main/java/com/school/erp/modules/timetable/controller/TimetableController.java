@@ -7,6 +7,7 @@ import com.school.erp.modules.timetable.dto.TimetableDTOs;
 import com.school.erp.modules.timetable.entity.TimetableEntry;
 import com.school.erp.modules.timetable.service.TeacherScheduleOnboardingService;
 import com.school.erp.modules.timetable.service.TimetableService;
+import com.school.erp.security.rbac.RbacSpel;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -26,21 +27,21 @@ public class TimetableController {
     private final TeacherScheduleOnboardingService onboardingService;
 
     @GetMapping
-    @PreAuthorize("hasAnyRole('ADMIN','TEACHER','SUPER_ADMIN')")
+    @PreAuthorize(RbacSpel.ACADEMIC_ROSTER_READ)
     @Operation(summary = "Get timetable entries by class and optional section", description = "When the class has no sections, pass sectionId omitted or null. Parents use GET /api/v1/parent/children/{studentId}/timetable (child-scoped).")
     public ResponseEntity<ApiResponse<List<TimetableEntry>>> get(@RequestParam Long classId, @RequestParam(required = false) Long sectionId) {
         return ResponseEntity.ok(ApiResponse.ok(service.getByClassAndSection(classId, sectionId)));
     }
 
     @GetMapping("/grid")
-    @PreAuthorize("hasAnyRole('ADMIN','TEACHER','SUPER_ADMIN')")
+    @PreAuthorize(RbacSpel.ACADEMIC_ROSTER_READ)
     @Operation(summary = "Get timetable as grid (day x period)", description = "Returns structured grid ready for UI rendering. Parents use GET /api/v1/parent/children/{studentId}/timetable/grid.")
     public ResponseEntity<ApiResponse<TimetableDTOs.TimetableGridResponse>> getGrid(@RequestParam Long classId, @RequestParam(required = false) Long sectionId) {
         return ResponseEntity.ok(ApiResponse.ok(service.getGrid(classId, sectionId)));
     }
 
     @GetMapping("/teacher/{teacherId}")
-    @PreAuthorize("hasAnyRole('ADMIN','TEACHER','SUPER_ADMIN')")
+    @PreAuthorize(RbacSpel.ACADEMIC_ROSTER_READ)
     @Operation(summary = "Get teacher schedule", description = "Recurring weekly slots. When forDate is set, merges active attendance-cover rows for that calendar day (virtual COVER slots override same weekday/period for display only).")
     public ResponseEntity<ApiResponse<List<TeacherScheduleSlot>>> getByTeacher(
             @PathVariable Long teacherId,
@@ -49,7 +50,7 @@ public class TimetableController {
     }
 
     @PostMapping
-    @PreAuthorize("hasRole(\'ADMIN\')")
+    @PreAuthorize(RbacSpel.ACADEMIC_DESK_ADMIN)
     @Operation(summary = "Create timetable entry", description = "Detects class-period and teacher double-booking conflicts (HTTP 409 + payload). Optional replaceTimetableEntryId soft-deletes the blocking row first.")
     public ResponseEntity<ApiResponse<TimetableEntry>> create(
             @RequestBody TimetableEntry entry,
@@ -58,14 +59,14 @@ public class TimetableController {
     }
 
     @PostMapping("/batch")
-    @PreAuthorize("hasRole(\'ADMIN\')")
+    @PreAuthorize(RbacSpel.ACADEMIC_DESK_ADMIN)
     @Operation(summary = "Batch create entries")
     public ResponseEntity<ApiResponse<List<TimetableEntry>>> batchCreate(@RequestBody List<TimetableEntry> entries) {
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.created(service.batchCreate(entries)));
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasRole(\'ADMIN\')")
+    @PreAuthorize(RbacSpel.ACADEMIC_DESK_ADMIN)
     @Operation(summary = "Update timetable entry", description = "Same conflict rules as create; optional replaceTimetableEntryId removes another row after explicit user confirmation.")
     public ResponseEntity<ApiResponse<TimetableEntry>> update(
             @PathVariable Long id,
@@ -75,7 +76,7 @@ public class TimetableController {
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasRole(\'ADMIN\')")
+    @PreAuthorize(RbacSpel.ACADEMIC_DESK_ADMIN)
     @Operation(summary = "Delete timetable entry")
     public ResponseEntity<ApiResponse<Void>> delete(@PathVariable Long id) {
         service.deleteEntry(id);
@@ -83,7 +84,7 @@ public class TimetableController {
     }
 
     @PostMapping("/onboarding/apply")
-    @PreAuthorize("hasRole(\'ADMIN\')")
+    @PreAuthorize(RbacSpel.ACADEMIC_DESK_ADMIN)
     @Operation(
             summary = "Apply teacher schedule onboarding",
             description = "Single transaction: optional homeroom (class teacher) assignment plus recurring weekly slots. "

@@ -2,6 +2,7 @@ package com.school.erp.modules.chat.controller;
 
 import com.school.erp.common.dto.ApiResponse;
 import com.school.erp.security.RequireTenantFeature;
+import com.school.erp.security.rbac.RbacSpel;
 import com.school.erp.modules.chat.dto.ChatDTOs;
 import com.school.erp.modules.chat.service.ChatService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -18,7 +19,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/v1/chat")
 @Tag(name = "Chat", description = "Conversation-centric chat (inbox, conversations, messages) with realtime delivery")
-@PreAuthorize("hasAnyRole('ADMIN','TEACHER','PARENT','STUDENT','SUPER_ADMIN')")
+@PreAuthorize(RbacSpel.CHAT_TENANT_PARTICIPANT)
 @RequireTenantFeature("chat")
 public class ChatController {
     private final ChatService chatService;

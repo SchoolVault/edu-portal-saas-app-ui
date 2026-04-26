@@ -8,6 +8,7 @@ import { TenantModuleGateService } from '../../core/services/tenant-module-gate.
 import { SettingsService } from '../../core/services/settings.service';
 import { ThemeService } from '../../core/services/theme.service';
 import { AuthService } from '../../core/services/auth.service';
+import { UiAccessService } from '../../core/services/ui-access.service';
 import { ParentService } from '../../core/services/parent.service';
 import { PersonalProfileDetails, SchoolBranch, Student } from '../../core/models/models';
 import { runtimeConfig } from '../../core/config/runtime-config';
@@ -49,7 +50,7 @@ type SettingsFeatureToggleView = {
         <button type="button" class="erp-tab" [class.active]="tab === 'preferences'" (click)="selectSettingsTab('preferences')">{{ 'prefs.tab' | translate }}</button>
         <button type="button" *ngIf="isTenantAdmin" class="erp-tab" [class.active]="tab === 'branding'" (click)="tab = 'branding'">{{ 'settings.tabBranding' | translate }}</button>
         <button type="button" *ngIf="isTenantAdmin" class="erp-tab" [class.active]="tab === 'finance'" (click)="selectFinanceTab()">{{ 'settings.tabFinance' | translate }}</button>
-        <button type="button" *ngIf="isTenantAdmin" class="erp-tab" [class.active]="tab === 'roles'" (click)="tab = 'roles'">{{ 'settings.tabRoles' | translate }}</button>
+        <button type="button" *ngIf="canManageStaffRbacAccess" class="erp-tab" [class.active]="tab === 'roles'" (click)="tab = 'roles'">{{ 'settings.tabRoles' | translate }}</button>
         <button type="button" class="erp-tab" [class.active]="tab === 'profile'" (click)="selectSettingsTab('profile')">{{ 'settings.tabProfile' | translate }}</button>
       </div>
 
@@ -823,8 +824,11 @@ type SettingsFeatureToggleView = {
         <header class="settings-page__section-head settings-page__section-head--tight">
           <h2 class="settings-page__section-title settings-page__section-title--flush">{{ 'settings.rolesHeading' | translate }}</h2>
         </header>
-        <app-settings-rbac-panel *ngIf="isTenantAdmin"></app-settings-rbac-panel>
-        <p *ngIf="!isTenantAdmin" class="text-muted small mb-0">{{ 'settings.rbacUserShellNote' | translate }}</p>
+        <app-settings-rbac-panel *ngIf="canManageStaffRbacAccess"></app-settings-rbac-panel>
+        <p *ngIf="!canManageStaffRbacAccess && isTenantAdmin" class="text-muted small mb-0">
+          {{ 'settings.rbacDeskNoAssignmentPrivilege' | translate }}
+        </p>
+        <p *ngIf="!canManageStaffRbacAccess && !isTenantAdmin" class="text-muted small mb-0">{{ 'settings.rbacUserShellNote' | translate }}</p>
       </div>
 
     </div>
@@ -1550,6 +1554,8 @@ export class SettingsComponent implements OnInit, OnDestroy {
 
   /** Role/profile values are cached for template performance (avoid getters in hot render paths). */
   isTenantAdmin = false;
+  /** Duty assignment UI — not part of narrow {@code TENANT_SETTINGS} desk (requires portal admin or {@code TENANT_ADMIN}). */
+  canManageStaffRbacAccess = false;
   profileVisualRole = 'other';
   canEditOwnPhoto = false;
   isParentOnlyChildren = false;
@@ -1581,6 +1587,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
     private settingsService: SettingsService,
     private themeService: ThemeService,
     private auth: AuthService,
+    private uiAccess: UiAccessService,
     private parentService: ParentService,
     private parentSelection: ParentSelectionService,
     private router: Router,
@@ -1599,7 +1606,9 @@ export class SettingsComponent implements OnInit, OnDestroy {
         ? 'header.role.superAdmin'
         : r === 'library_staff'
           ? 'header.role.libraryStaff'
-          : r === 'admin'
+          : r === 'school_staff'
+            ? 'header.role.schoolStaff'
+            : r === 'admin'
             ? 'header.role.admin'
             : r === 'teacher'
               ? 'header.role.teacher'
@@ -1686,6 +1695,20 @@ export class SettingsComponent implements OnInit, OnDestroy {
     if (raw === 'finance' && this.isTenantAdmin) {
       this.tab = 'finance';
       this.loadFinanceProfile();
+      return;
+    }
+    if (raw === 'roles') {
+      if (this.canManageStaffRbacAccess) {
+        this.tab = 'roles';
+        return;
+      }
+      this.tab = this.isTenantAdmin ? 'general' : 'preferences';
+      void this.router.navigate([], {
+        relativeTo: this.route,
+        queryParams: { settingsTab: this.isTenantAdmin ? 'school' : 'preferences' },
+        queryParamsHandling: 'merge',
+        replaceUrl: true,
+      });
       return;
     }
     if (!this.isTenantAdmin && !raw) {
@@ -2681,7 +2704,11 @@ export class SettingsComponent implements OnInit, OnDestroy {
     this.profileUser = this.auth.getCurrentUser();
     const roleRaw = (this.auth.getRole() || '').toLowerCase().trim();
     const normalizedRole = roleRaw.startsWith('role_') ? roleRaw.slice(5) : roleRaw;
-    this.isTenantAdmin = normalizedRole === 'admin';
+    this.isTenantAdmin = this.uiAccess.hasSchoolTenantSettingsWriteShell();
+    this.canManageStaffRbacAccess = this.uiAccess.hasSchoolRbacAssignmentAdminAccess();
+    if (this.tab === 'roles' && !this.canManageStaffRbacAccess) {
+      this.tab = this.isTenantAdmin ? 'general' : 'preferences';
+    }
     this.isParentOnlyChildren = normalizedRole === 'parent';
     this.canEditOwnPhoto = ['admin', 'teacher', 'super_admin', 'student', 'parent'].includes(normalizedRole);
     this.profileVisualRole = ['admin', 'teacher', 'parent', 'super_admin', 'student'].includes(normalizedRole) ? normalizedRole : 'other';

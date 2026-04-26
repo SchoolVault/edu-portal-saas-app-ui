@@ -1,9 +1,13 @@
 import { AppPermission } from '../auth/app-permission.constants';
 import type {
   CreateCustomSchoolRoleRequest,
+  CreatePermissionGroupRequest,
+  PermissionGroupRow,
+  PermissionGroupSummary,
   RbacStaffUserRow,
   SchoolRoleRow,
   UpdateCustomSchoolRoleRequest,
+  UpdatePermissionGroupRequest,
   UserSchoolRoleAssignments,
 } from '../models/rbac.model';
 
@@ -13,7 +17,13 @@ export function mockGetPermissionCatalog(): string[] {
 }
 
 const MOCK_ASSIGNABLE_PERMISSIONS: readonly string[] = Object.values(AppPermission)
-  .filter(p => p !== AppPermission.PLATFORM_ADMIN && p !== AppPermission.PORTAL_PARENT && p !== AppPermission.PORTAL_STUDENT)
+  .filter(
+    p =>
+      p !== AppPermission.PLATFORM_ADMIN &&
+      p !== AppPermission.PORTAL_PARENT &&
+      p !== AppPermission.PORTAL_STUDENT &&
+      p !== AppPermission.PORTAL_SCHOOL_STAFF
+  )
   .sort();
 
 /** In-memory catalog — includes one custom row for UI demo; swap off via environment.useRbacMocks. */
@@ -98,6 +108,19 @@ let MOCK_SCHOOL_ROLES: SchoolRoleRow[] = [
   },
 ];
 
+/** Reusable permission packs (mock). */
+let MOCK_PERMISSION_GROUPS: PermissionGroupRow[] = [
+  {
+    id: 500,
+    code: 'PACK_FEE_AND_REPORTS',
+    name: 'Fee structures + school reports',
+    description: 'Read-only finance visibility for reviewers.',
+    systemTemplate: false,
+    sortOrder: 5,
+    permissions: [AppPermission.FEE_STRUCTURES_READ, AppPermission.SCHOOL_REPORTS_SCHOOL],
+  },
+];
+
 const MOCK_STAFF: RbacStaffUserRow[] = [
   { id: 1, name: 'John Anderson', email: 'admin@school.com', portalRole: 'admin' },
   { id: 2, name: 'Sarah Mitchell', email: 'teacher@school.com', portalRole: 'teacher' },
@@ -112,6 +135,7 @@ const mockUserRoles = new Map<number, number[]>([
 ]);
 
 let nextId = 200;
+let nextPackId = 600;
 
 function rowsForIds(ids: number[]): SchoolRoleRow[] {
   const set = new Set(ids);
@@ -120,6 +144,85 @@ function rowsForIds(ids: number[]): SchoolRoleRow[] {
 
 export function mockGetRbacCatalog(): SchoolRoleRow[] {
   return [...MOCK_SCHOOL_ROLES].sort((a, b) => a.sortOrder - b.sortOrder);
+}
+
+export function mockListPermissionGroups(): PermissionGroupRow[] {
+  return [...MOCK_PERMISSION_GROUPS].sort((a, b) => a.sortOrder - b.sortOrder);
+}
+
+function packSummaries(ids: number[]): PermissionGroupSummary[] {
+  const set = new Set(ids);
+  return MOCK_PERMISSION_GROUPS.filter(p => set.has(p.id)).map(p => ({ id: p.id, code: p.code, name: p.name }));
+}
+
+function unionPermissionsFromPackIds(ids: number[]): string[] {
+  const uniq = new Set<string>();
+  for (const id of ids) {
+    const p = MOCK_PERMISSION_GROUPS.find(x => x.id === id);
+    if (p) {
+      for (const c of p.permissions) {
+        uniq.add(c);
+      }
+    }
+  }
+  return [...uniq].sort();
+}
+
+export function mockCreatePermissionGroup(body: CreatePermissionGroupRequest): PermissionGroupRow {
+  const perms = [...new Set(body.permissions)];
+  for (const p of perms) {
+    if (!MOCK_ASSIGNABLE_PERMISSIONS.includes(p)) {
+      throw new Error('Unknown or disallowed permission: ' + p);
+    }
+  }
+  const row: PermissionGroupRow = {
+    id: nextPackId++,
+    code: body.code.trim().toUpperCase(),
+    name: body.name,
+    description: body.description ?? '',
+    systemTemplate: false,
+    sortOrder: body.sortOrder,
+    permissions: perms.sort(),
+  };
+  MOCK_PERMISSION_GROUPS = [...MOCK_PERMISSION_GROUPS, row];
+  return row;
+}
+
+export function mockUpdatePermissionGroup(groupId: number, body: UpdatePermissionGroupRequest): PermissionGroupRow {
+  const idx = MOCK_PERMISSION_GROUPS.findIndex(p => p.id === groupId);
+  if (idx < 0) {
+    throw new Error('Permission pack not found');
+  }
+  const e = MOCK_PERMISSION_GROUPS[idx];
+  if (e.systemTemplate) {
+    throw new Error('System template packs cannot be modified in mock');
+  }
+  const perms = [...new Set(body.permissions)];
+  const row: PermissionGroupRow = {
+    ...e,
+    name: body.name,
+    description: body.description ?? '',
+    sortOrder: body.sortOrder,
+    permissions: perms.sort(),
+  };
+  MOCK_PERMISSION_GROUPS = MOCK_PERMISSION_GROUPS.map((x, i) => (i === idx ? row : x));
+  return row;
+}
+
+export function mockDeletePermissionGroup(groupId: number): void {
+  const e = MOCK_PERMISSION_GROUPS.find(p => p.id === groupId);
+  if (!e) {
+    throw new Error('Permission pack not found');
+  }
+  if (e.systemTemplate) {
+    throw new Error('System pack cannot be deleted in mock');
+  }
+  MOCK_PERMISSION_GROUPS = MOCK_PERMISSION_GROUPS.filter(p => p.id !== groupId);
+  MOCK_SCHOOL_ROLES = MOCK_SCHOOL_ROLES.map(r => ({
+    ...r,
+    permissionGroupIds: (r.permissionGroupIds ?? []).filter(id => id !== groupId),
+    permissionGroups: (r.permissionGroups ?? []).filter(g => g.id !== groupId),
+  }));
 }
 
 export function mockListRbacStaff(): RbacStaffUserRow[] {
@@ -146,11 +249,31 @@ export function mockCreateCustomRole(body: CreateCustomSchoolRoleRequest): Schoo
   if (MOCK_SCHOOL_ROLES.some(r => r.code === body.code)) {
     throw new Error('A school role with this code already exists.');
   }
-  const perms = [...new Set(body.permissions)];
-  for (const p of perms) {
-    if (!MOCK_ASSIGNABLE_PERMISSIONS.includes(p)) {
-      throw new Error('Unknown or disallowed permission: ' + p);
+  const hasGroups = body.permissionGroupIds != null && body.permissionGroupIds.length > 0;
+  const hasPerms = body.permissions != null && body.permissions.some(p => p != null && p !== '');
+  if (!hasGroups && !hasPerms) {
+    throw new Error('Choose packs or direct permissions.');
+  }
+  let perms: string[];
+  let groupIds: number[] | undefined;
+  let groups: PermissionGroupSummary[] | undefined;
+  if (hasGroups) {
+    groupIds = [...new Set(body.permissionGroupIds!)];
+    for (const id of groupIds) {
+      if (!MOCK_PERMISSION_GROUPS.some(p => p.id === id)) {
+        throw new Error('Unknown permission pack id in mock');
+      }
     }
+    perms = unionPermissionsFromPackIds(groupIds);
+    groups = packSummaries(groupIds);
+  } else {
+    perms = [...new Set(body.permissions!)];
+    for (const p of perms) {
+      if (!MOCK_ASSIGNABLE_PERMISSIONS.includes(p)) {
+        throw new Error('Unknown or disallowed permission: ' + p);
+      }
+    }
+    perms.sort();
   }
   const row: SchoolRoleRow = {
     id: nextId++,
@@ -159,7 +282,9 @@ export function mockCreateCustomRole(body: CreateCustomSchoolRoleRequest): Schoo
     description: body.description ?? '',
     systemRole: false,
     sortOrder: body.sortOrder,
-    permissions: perms.sort(),
+    permissions: perms,
+    permissionGroupIds: groupIds,
+    permissionGroups: groups,
   };
   MOCK_SCHOOL_ROLES = [...MOCK_SCHOOL_ROLES, row];
   return row;
@@ -174,13 +299,40 @@ export function mockUpdateCustomRole(roleId: number, body: UpdateCustomSchoolRol
   if (e.systemRole) {
     throw new Error('System template roles cannot be modified in mock');
   }
-  const perms = [...new Set(body.permissions)];
+  const hasGroups = body.permissionGroupIds != null && body.permissionGroupIds.length > 0;
+  const hasPerms = body.permissions != null && body.permissions.some(p => p != null && p !== '');
+  if (!hasGroups && !hasPerms) {
+    throw new Error('Choose packs or direct permissions.');
+  }
+  let perms: string[];
+  let groupIds: number[] | undefined;
+  let groups: PermissionGroupSummary[] | undefined;
+  if (hasGroups) {
+    groupIds = [...new Set(body.permissionGroupIds!)];
+    for (const id of groupIds) {
+      if (!MOCK_PERMISSION_GROUPS.some(p => p.id === id)) {
+        throw new Error('Unknown permission pack id in mock');
+      }
+    }
+    perms = unionPermissionsFromPackIds(groupIds);
+    groups = packSummaries(groupIds);
+  } else {
+    perms = [...new Set(body.permissions!)];
+    for (const p of perms) {
+      if (!MOCK_ASSIGNABLE_PERMISSIONS.includes(p)) {
+        throw new Error('Unknown or disallowed permission: ' + p);
+      }
+    }
+    perms.sort();
+  }
   const row: SchoolRoleRow = {
     ...e,
     name: body.name,
     description: body.description ?? '',
     sortOrder: body.sortOrder,
-    permissions: perms.sort(),
+    permissions: perms,
+    permissionGroupIds: groupIds,
+    permissionGroups: groups,
   };
   MOCK_SCHOOL_ROLES = MOCK_SCHOOL_ROLES.map((x, i) => (i === idx ? row : x));
   return row;

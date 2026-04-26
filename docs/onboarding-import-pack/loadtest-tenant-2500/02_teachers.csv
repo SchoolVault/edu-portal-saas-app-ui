@@ -1,76 +1,76 @@
-firstname,lastname,email,phone,qualification,specialization,joindate,salary,subjects,createportal,portalrole,libraryrole,importmode,bankaccountholder,bankname,bankaccountnumber,bankifsc,notifycredentials,portalpassword
-Amit,Sharma,amit.sharma.001@benchmarkschool.in,9870000000,M.Ed,Mathematics,2024-04-01,42000,Mathematics,Y,TEACHER,AUTO,UPSERT,Amit Sharma,HDFC Bank,6040000000001,HDFC0002200,N
-Neha,Kapoor,neha.kapoor.002@benchmarkschool.in,9870000001,M.Sc,Science,2024-04-01,43800,Science,Y,TEACHER,AUTO,UPSERT,Neha Kapoor,ICICI Bank,6040000000002,ICIC0002201,N
-Rohan,Singh,rohan.singh.003@benchmarkschool.in,9870000002,M.A,English,2024-04-01,45600,English,Y,TEACHER,AUTO,UPSERT,Rohan Singh,SBI,6040000000003,SBIN0002202,N
-Pooja,Mehta,pooja.mehta.004@benchmarkschool.in,9870000003,M.Ed,Hindi,2024-04-01,47400,Hindi,Y,TEACHER,AUTO,UPSERT,Pooja Mehta,HDFC Bank,6040000000004,HDFC0002203,N
-Karan,Joshi,karan.joshi.005@benchmarkschool.in,9870000004,M.Sc,Social Studies,2024-04-01,49200,Social Studies,Y,TEACHER,AUTO,UPSERT,Karan Joshi,ICICI Bank,6040000000005,ICIC0002204,N
-Sanya,Sen,sanya.sen.006@benchmarkschool.in,9870000005,M.A,Computer Science,2024-04-01,51000,Computer Science,Y,TEACHER,AUTO,UPSERT,Sanya Sen,SBI,6040000000006,SBIN0002205,N
-Vivek,Saxena,vivek.saxena.007@benchmarkschool.in,9870000006,M.Ed,Physical Education,2024-04-01,52800,Physical Education,Y,TEACHER,AUTO,UPSERT,Vivek Saxena,HDFC Bank,6040000000007,HDFC0002206,N
-Anjali,Verma,anjali.verma.008@benchmarkschool.in,9870000007,M.Sc,Art,2024-04-01,54600,Art,Y,TEACHER,AUTO,UPSERT,Anjali Verma,ICICI Bank,6040000000008,ICIC0002207,N
-Rahul,Das,rahul.das.009@benchmarkschool.in,9870000008,M.A,Sanskrit,2024-04-01,56400,Sanskrit,Y,TEACHER,AUTO,UPSERT,Rahul Das,SBI,6040000000009,SBIN0002208,N
-Meera,Patel,meera.patel.010@benchmarkschool.in,9870000009,M.Ed,General Knowledge,2024-04-01,58200,General Knowledge,Y,TEACHER,AUTO,UPSERT,Meera Patel,HDFC Bank,6040000000010,HDFC0002209,N
-Arjun,Rao,arjun.rao.011@benchmarkschool.in,9870000010,M.Sc,Music,2024-04-01,60000,Music,Y,TEACHER,AUTO,UPSERT,Arjun Rao,ICICI Bank,6040000000011,ICIC0002210,N
-Priya,Bose,priya.bose.012@benchmarkschool.in,9870000011,M.A,EVS,2024-04-01,61800,EVS,Y,TEACHER,AUTO,UPSERT,Priya Bose,SBI,6040000000012,SBIN0002211,N
-Nikhil,Malhotra,nikhil.malhotra.013@benchmarkschool.in,9870000012,M.Ed,Mathematics,2024-04-01,42000,Mathematics,Y,TEACHER,AUTO,UPSERT,Nikhil Malhotra,HDFC Bank,6040000000013,HDFC0002212,N
-Kavya,Jain,kavya.jain.014@benchmarkschool.in,9870000013,M.Sc,Science,2024-04-01,43800,Science,Y,TEACHER,AUTO,UPSERT,Kavya Jain,ICICI Bank,6040000000014,ICIC0002213,N
-Dev,Iyer,dev.iyer.015@benchmarkschool.in,9870000014,M.A,English,2024-04-01,45600,English,Y,TEACHER,AUTO,UPSERT,Dev Iyer,SBI,6040000000015,SBIN0002214,N
-Ishita,Nair,ishita.nair.016@benchmarkschool.in,9870000015,M.Ed,Hindi,2024-04-01,47400,Hindi,Y,TEACHER,AUTO,UPSERT,Ishita Nair,HDFC Bank,6040000000016,HDFC0002215,N
-Saurabh,Gupta,saurabh.gupta.017@benchmarkschool.in,9870000016,M.Sc,Social Studies,2024-04-01,49200,Social Studies,Y,TEACHER,AUTO,UPSERT,Saurabh Gupta,ICICI Bank,6040000000017,ICIC0002216,N
-Ritika,Chopra,ritika.chopra.018@benchmarkschool.in,9870000017,M.A,Computer Science,2024-04-01,51000,Computer Science,Y,TEACHER,AUTO,UPSERT,Ritika Chopra,SBI,6040000000018,SBIN0002217,N
-Manish,Khan,manish.khan.019@benchmarkschool.in,9870000018,M.Ed,Physical Education,2024-04-01,52800,Physical Education,Y,TEACHER,AUTO,UPSERT,Manish Khan,HDFC Bank,6040000000019,HDFC0002218,N
-Divya,Roy,divya.roy.020@benchmarkschool.in,9870000019,M.Sc,Art,2024-04-01,54600,Art,Y,TEACHER,AUTO,UPSERT,Divya Roy,ICICI Bank,6040000000020,ICIC0002219,N
-Aditya,Sharma,aditya.sharma.021@benchmarkschool.in,9870000020,M.A,Sanskrit,2024-04-01,56400,Sanskrit,Y,TEACHER,AUTO,UPSERT,Aditya Sharma,SBI,6040000000021,SBIN0002220,N
-Sneha,Kapoor,sneha.kapoor.022@benchmarkschool.in,9870000021,M.Ed,General Knowledge,2024-04-01,58200,General Knowledge,Y,TEACHER,AUTO,UPSERT,Sneha Kapoor,HDFC Bank,6040000000022,HDFC0002221,N
-Varun,Singh,varun.singh.023@benchmarkschool.in,9870000022,M.Sc,Music,2024-04-01,60000,Music,Y,TEACHER,AUTO,UPSERT,Varun Singh,ICICI Bank,6040000000023,ICIC0002222,N
-Payal,Mehta,payal.mehta.024@benchmarkschool.in,9870000023,M.A,EVS,2024-04-01,61800,EVS,Y,TEACHER,AUTO,UPSERT,Payal Mehta,SBI,6040000000024,SBIN0002223,N
-Ritesh,Joshi,ritesh.joshi.025@benchmarkschool.in,9870000024,M.Ed,Mathematics,2024-04-01,42000,Mathematics,Y,TEACHER,AUTO,UPSERT,Ritesh Joshi,HDFC Bank,6040000000025,HDFC0002224,N
-Amit,Sen,amit.sen.026@benchmarkschool.in,9870000025,M.Sc,Science,2024-04-01,43800,Science,Y,TEACHER,AUTO,UPSERT,Amit Sen,ICICI Bank,6040000000026,ICIC0002225,N
-Neha,Saxena,neha.saxena.027@benchmarkschool.in,9870000026,M.A,English,2024-04-01,45600,English,Y,TEACHER,AUTO,UPSERT,Neha Saxena,SBI,6040000000027,SBIN0002226,N
-Rohan,Verma,rohan.verma.028@benchmarkschool.in,9870000027,M.Ed,Hindi,2024-04-01,47400,Hindi,Y,TEACHER,AUTO,UPSERT,Rohan Verma,HDFC Bank,6040000000028,HDFC0002227,N
-Pooja,Das,pooja.das.029@benchmarkschool.in,9870000028,M.Sc,Social Studies,2024-04-01,49200,Social Studies,Y,TEACHER,AUTO,UPSERT,Pooja Das,ICICI Bank,6040000000029,ICIC0002228,N
-Karan,Patel,karan.patel.030@benchmarkschool.in,9870000029,M.A,Computer Science,2024-04-01,51000,Computer Science,Y,TEACHER,AUTO,UPSERT,Karan Patel,SBI,6040000000030,SBIN0002229,N
-Sanya,Rao,sanya.rao.031@benchmarkschool.in,9870000030,M.Ed,Physical Education,2024-04-01,52800,Physical Education,Y,TEACHER,AUTO,UPSERT,Sanya Rao,HDFC Bank,6040000000031,HDFC0002230,N
-Vivek,Bose,vivek.bose.032@benchmarkschool.in,9870000031,M.Sc,Art,2024-04-01,54600,Art,Y,TEACHER,AUTO,UPSERT,Vivek Bose,ICICI Bank,6040000000032,ICIC0002231,N
-Anjali,Malhotra,anjali.malhotra.033@benchmarkschool.in,9870000032,M.A,Sanskrit,2024-04-01,56400,Sanskrit,Y,TEACHER,AUTO,UPSERT,Anjali Malhotra,SBI,6040000000033,SBIN0002232,N
-Rahul,Jain,rahul.jain.034@benchmarkschool.in,9870000033,M.Ed,General Knowledge,2024-04-01,58200,General Knowledge,Y,TEACHER,AUTO,UPSERT,Rahul Jain,HDFC Bank,6040000000034,HDFC0002233,N
-Meera,Iyer,meera.iyer.035@benchmarkschool.in,9870000034,M.Sc,Music,2024-04-01,60000,Music,Y,TEACHER,AUTO,UPSERT,Meera Iyer,ICICI Bank,6040000000035,ICIC0002234,N
-Arjun,Nair,arjun.nair.036@benchmarkschool.in,9870000035,M.A,EVS,2024-04-01,61800,EVS,Y,TEACHER,AUTO,UPSERT,Arjun Nair,SBI,6040000000036,SBIN0002235,N
-Priya,Gupta,priya.gupta.037@benchmarkschool.in,9870000036,M.Ed,Mathematics,2024-04-01,42000,Mathematics,Y,TEACHER,AUTO,UPSERT,Priya Gupta,HDFC Bank,6040000000037,HDFC0002236,N
-Nikhil,Chopra,nikhil.chopra.038@benchmarkschool.in,9870000037,M.Sc,Science,2024-04-01,43800,Science,Y,TEACHER,AUTO,UPSERT,Nikhil Chopra,ICICI Bank,6040000000038,ICIC0002237,N
-Kavya,Khan,kavya.khan.039@benchmarkschool.in,9870000038,M.A,English,2024-04-01,45600,English,Y,TEACHER,AUTO,UPSERT,Kavya Khan,SBI,6040000000039,SBIN0002238,N
-Dev,Roy,dev.roy.040@benchmarkschool.in,9870000039,M.Ed,Hindi,2024-04-01,47400,Hindi,Y,TEACHER,AUTO,UPSERT,Dev Roy,HDFC Bank,6040000000040,HDFC0002239,N
-Ishita,Sharma,ishita.sharma.041@benchmarkschool.in,9870000040,M.Sc,Social Studies,2024-04-01,49200,Social Studies,Y,TEACHER,AUTO,UPSERT,Ishita Sharma,ICICI Bank,6040000000041,ICIC0002240,N
-Saurabh,Kapoor,saurabh.kapoor.042@benchmarkschool.in,9870000041,M.A,Computer Science,2024-04-01,51000,Computer Science,Y,TEACHER,AUTO,UPSERT,Saurabh Kapoor,SBI,6040000000042,SBIN0002241,N
-Ritika,Singh,ritika.singh.043@benchmarkschool.in,9870000042,M.Ed,Physical Education,2024-04-01,52800,Physical Education,Y,TEACHER,AUTO,UPSERT,Ritika Singh,HDFC Bank,6040000000043,HDFC0002242,N
-Manish,Mehta,manish.mehta.044@benchmarkschool.in,9870000043,M.Sc,Art,2024-04-01,54600,Art,Y,TEACHER,AUTO,UPSERT,Manish Mehta,ICICI Bank,6040000000044,ICIC0002243,N
-Divya,Joshi,divya.joshi.045@benchmarkschool.in,9870000044,M.A,Sanskrit,2024-04-01,56400,Sanskrit,Y,TEACHER,AUTO,UPSERT,Divya Joshi,SBI,6040000000045,SBIN0002244,N
-Aditya,Sen,aditya.sen.046@benchmarkschool.in,9870000045,M.Ed,General Knowledge,2024-04-01,58200,General Knowledge,Y,TEACHER,AUTO,UPSERT,Aditya Sen,HDFC Bank,6040000000046,HDFC0002245,N
-Sneha,Saxena,sneha.saxena.047@benchmarkschool.in,9870000046,M.Sc,Music,2024-04-01,60000,Music,Y,TEACHER,AUTO,UPSERT,Sneha Saxena,ICICI Bank,6040000000047,ICIC0002246,N
-Varun,Verma,varun.verma.048@benchmarkschool.in,9870000047,M.A,EVS,2024-04-01,61800,EVS,Y,TEACHER,AUTO,UPSERT,Varun Verma,SBI,6040000000048,SBIN0002247,N
-Payal,Das,payal.das.049@benchmarkschool.in,9870000048,M.Ed,Mathematics,2024-04-01,42000,Mathematics,Y,TEACHER,AUTO,UPSERT,Payal Das,HDFC Bank,6040000000049,HDFC0002248,N
-Ritesh,Patel,ritesh.patel.050@benchmarkschool.in,9870000049,M.Sc,Science,2024-04-01,43800,Science,Y,TEACHER,AUTO,UPSERT,Ritesh Patel,ICICI Bank,6040000000050,ICIC0002249,N
-Amit,Rao,amit.rao.051@benchmarkschool.in,9870000050,M.A,English,2024-04-01,45600,English,Y,TEACHER,AUTO,UPSERT,Amit Rao,SBI,6040000000051,SBIN0002250,N
-Neha,Bose,neha.bose.052@benchmarkschool.in,9870000051,M.Ed,Hindi,2024-04-01,47400,Hindi,Y,TEACHER,AUTO,UPSERT,Neha Bose,HDFC Bank,6040000000052,HDFC0002251,N
-Rohan,Malhotra,rohan.malhotra.053@benchmarkschool.in,9870000052,M.Sc,Social Studies,2024-04-01,49200,Social Studies,Y,TEACHER,AUTO,UPSERT,Rohan Malhotra,ICICI Bank,6040000000053,ICIC0002252,N
-Pooja,Jain,pooja.jain.054@benchmarkschool.in,9870000053,M.A,Computer Science,2024-04-01,51000,Computer Science,Y,TEACHER,AUTO,UPSERT,Pooja Jain,SBI,6040000000054,SBIN0002253,N
-Karan,Iyer,karan.iyer.055@benchmarkschool.in,9870000054,M.Ed,Physical Education,2024-04-01,52800,Physical Education,Y,TEACHER,AUTO,UPSERT,Karan Iyer,HDFC Bank,6040000000055,HDFC0002254,N
-Sanya,Nair,sanya.nair.056@benchmarkschool.in,9870000055,M.Sc,Art,2024-04-01,54600,Art,Y,TEACHER,AUTO,UPSERT,Sanya Nair,ICICI Bank,6040000000056,ICIC0002255,N
-Vivek,Gupta,vivek.gupta.057@benchmarkschool.in,9870000056,M.A,Sanskrit,2024-04-01,56400,Sanskrit,Y,TEACHER,AUTO,UPSERT,Vivek Gupta,SBI,6040000000057,SBIN0002256,N
-Anjali,Chopra,anjali.chopra.058@benchmarkschool.in,9870000057,M.Ed,General Knowledge,2024-04-01,58200,General Knowledge,Y,TEACHER,AUTO,UPSERT,Anjali Chopra,HDFC Bank,6040000000058,HDFC0002257,N
-Rahul,Khan,rahul.khan.059@benchmarkschool.in,9870000058,M.Sc,Music,2024-04-01,60000,Music,Y,TEACHER,AUTO,UPSERT,Rahul Khan,ICICI Bank,6040000000059,ICIC0002258,N
-Meera,Roy,meera.roy.060@benchmarkschool.in,9870000059,M.A,EVS,2024-04-01,61800,EVS,Y,TEACHER,AUTO,UPSERT,Meera Roy,SBI,6040000000060,SBIN0002259,N
-Arjun,Sharma,arjun.sharma.061@benchmarkschool.in,9870000060,M.Ed,Mathematics,2024-04-01,42000,Mathematics,Y,TEACHER,AUTO,UPSERT,Arjun Sharma,HDFC Bank,6040000000061,HDFC0002260,N
-Priya,Kapoor,priya.kapoor.062@benchmarkschool.in,9870000061,M.Sc,Science,2024-04-01,43800,Science,Y,TEACHER,AUTO,UPSERT,Priya Kapoor,ICICI Bank,6040000000062,ICIC0002261,N
-Nikhil,Singh,nikhil.singh.063@benchmarkschool.in,9870000062,M.A,English,2024-04-01,45600,English,Y,TEACHER,AUTO,UPSERT,Nikhil Singh,SBI,6040000000063,SBIN0002262,N
-Kavya,Mehta,kavya.mehta.064@benchmarkschool.in,9870000063,M.Ed,Hindi,2024-04-01,47400,Hindi,Y,TEACHER,AUTO,UPSERT,Kavya Mehta,HDFC Bank,6040000000064,HDFC0002263,N
-Dev,Joshi,dev.joshi.065@benchmarkschool.in,9870000064,M.Sc,Social Studies,2024-04-01,49200,Social Studies,Y,TEACHER,AUTO,UPSERT,Dev Joshi,ICICI Bank,6040000000065,ICIC0002264,N
-Ishita,Sen,ishita.sen.066@benchmarkschool.in,9870000065,M.A,Computer Science,2024-04-01,51000,Computer Science,Y,TEACHER,AUTO,UPSERT,Ishita Sen,SBI,6040000000066,SBIN0002265,N
-Saurabh,Saxena,saurabh.saxena.067@benchmarkschool.in,9870000066,M.Ed,Physical Education,2024-04-01,52800,Physical Education,Y,TEACHER,AUTO,UPSERT,Saurabh Saxena,HDFC Bank,6040000000067,HDFC0002266,N
-Ritika,Verma,ritika.verma.068@benchmarkschool.in,9870000067,M.Sc,Art,2024-04-01,54600,Art,Y,TEACHER,AUTO,UPSERT,Ritika Verma,ICICI Bank,6040000000068,ICIC0002267,N
-Manish,Das,manish.das.069@benchmarkschool.in,9870000068,M.A,Sanskrit,2024-04-01,56400,Sanskrit,Y,TEACHER,AUTO,UPSERT,Manish Das,SBI,6040000000069,SBIN0002268,N
-Divya,Patel,divya.patel.070@benchmarkschool.in,9870000069,M.Ed,General Knowledge,2024-04-01,58200,General Knowledge,Y,TEACHER,AUTO,UPSERT,Divya Patel,HDFC Bank,6040000000070,HDFC0002269,N
-Aditya,Rao,aditya.rao.071@benchmarkschool.in,9870000070,M.Sc,Music,2024-04-01,60000,Music,Y,TEACHER,AUTO,UPSERT,Aditya Rao,ICICI Bank,6040000000071,ICIC0002270,N
-Sneha,Bose,sneha.bose.072@benchmarkschool.in,9870000071,M.A,EVS,2024-04-01,61800,EVS,Y,TEACHER,AUTO,UPSERT,Sneha Bose,SBI,6040000000072,SBIN0002271,N
-Varun,Malhotra,varun.malhotra.073@benchmarkschool.in,9870000072,M.Ed,Mathematics,2024-04-01,42000,Mathematics,Y,TEACHER,AUTO,UPSERT,Varun Malhotra,HDFC Bank,6040000000073,HDFC0002272,N
-Payal,Jain,payal.jain.074@benchmarkschool.in,9870000073,M.Sc,Science,2024-04-01,43800,Science,Y,TEACHER,AUTO,UPSERT,Payal Jain,ICICI Bank,6040000000074,ICIC0002273,N
-Ritesh,Iyer,ritesh.iyer.075@benchmarkschool.in,9870000074,M.A,English,2024-04-01,45600,English,Y,TEACHER,AUTO,UPSERT,Ritesh Iyer,SBI,6040000000075,SBIN0002274,N
+firstname,lastname,email,phone,qualification,specialization,joindate,salary,subjects,createportal,portalrole,libraryrole,schoolrolecodes,importmode,bankaccountholder,bankname,bankaccountnumber,bankifsc,notifycredentials,portalpassword
+Amit,Sharma,amit.sharma.001@benchmarkschool.in,9870000000,M.Ed,Mathematics,2024-04-01,42000,Mathematics,Y,TEACHER,AUTO,ACADEMIC_STAFF,UPSERT,Amit Sharma,HDFC Bank,6040000000001,HDFC0002200,N,
+Neha,Kapoor,neha.kapoor.002@benchmarkschool.in,9870000001,M.Sc,Science,2024-04-01,43800,Science,Y,TEACHER,AUTO,ACADEMIC_STAFF,UPSERT,Neha Kapoor,ICICI Bank,6040000000002,ICIC0002201,N,
+Rohan,Singh,rohan.singh.003@benchmarkschool.in,9870000002,M.A,English,2024-04-01,45600,English,Y,TEACHER,AUTO,ACADEMIC_STAFF,UPSERT,Rohan Singh,SBI,6040000000003,SBIN0002202,N,
+Pooja,Mehta,pooja.mehta.004@benchmarkschool.in,9870000003,M.Ed,Hindi,2024-04-01,47400,Hindi,Y,TEACHER,AUTO,ACADEMIC_STAFF,UPSERT,Pooja Mehta,HDFC Bank,6040000000004,HDFC0002203,N,
+Karan,Joshi,karan.joshi.005@benchmarkschool.in,9870000004,M.Sc,Social Studies,2024-04-01,49200,Social Studies,Y,TEACHER,AUTO,ACADEMIC_STAFF,UPSERT,Karan Joshi,ICICI Bank,6040000000005,ICIC0002204,N,
+Sanya,Sen,sanya.sen.006@benchmarkschool.in,9870000005,M.A,Computer Science,2024-04-01,51000,Computer Science,Y,TEACHER,AUTO,ACADEMIC_STAFF,UPSERT,Sanya Sen,SBI,6040000000006,SBIN0002205,N,
+Vivek,Saxena,vivek.saxena.007@benchmarkschool.in,9870000006,M.Ed,Physical Education,2024-04-01,52800,Physical Education,Y,TEACHER,AUTO,ACADEMIC_STAFF,UPSERT,Vivek Saxena,HDFC Bank,6040000000007,HDFC0002206,N,
+Anjali,Verma,anjali.verma.008@benchmarkschool.in,9870000007,M.Sc,Art,2024-04-01,54600,Art,Y,TEACHER,AUTO,ACADEMIC_STAFF,UPSERT,Anjali Verma,ICICI Bank,6040000000008,ICIC0002207,N,
+Rahul,Das,rahul.das.009@benchmarkschool.in,9870000008,M.A,Sanskrit,2024-04-01,56400,Sanskrit,Y,TEACHER,AUTO,ACADEMIC_STAFF,UPSERT,Rahul Das,SBI,6040000000009,SBIN0002208,N,
+Meera,Patel,meera.patel.010@benchmarkschool.in,9870000009,M.Ed,General Knowledge,2024-04-01,58200,General Knowledge,Y,TEACHER,AUTO,ACADEMIC_STAFF,UPSERT,Meera Patel,HDFC Bank,6040000000010,HDFC0002209,N,
+Arjun,Rao,arjun.rao.011@benchmarkschool.in,9870000010,M.Sc,Music,2024-04-01,60000,Music,Y,TEACHER,AUTO,ACADEMIC_STAFF,UPSERT,Arjun Rao,ICICI Bank,6040000000011,ICIC0002210,N,
+Priya,Bose,priya.bose.012@benchmarkschool.in,9870000011,M.A,EVS,2024-04-01,61800,EVS,Y,TEACHER,AUTO,ACADEMIC_STAFF,UPSERT,Priya Bose,SBI,6040000000012,SBIN0002211,N,
+Nikhil,Malhotra,nikhil.malhotra.013@benchmarkschool.in,9870000012,M.Ed,Mathematics,2024-04-01,42000,Mathematics,Y,TEACHER,AUTO,ACADEMIC_STAFF,UPSERT,Nikhil Malhotra,HDFC Bank,6040000000013,HDFC0002212,N,
+Kavya,Jain,kavya.jain.014@benchmarkschool.in,9870000013,M.Sc,Science,2024-04-01,43800,Science,Y,TEACHER,AUTO,ACADEMIC_STAFF,UPSERT,Kavya Jain,ICICI Bank,6040000000014,ICIC0002213,N,
+Dev,Iyer,dev.iyer.015@benchmarkschool.in,9870000014,M.A,English,2024-04-01,45600,English,Y,TEACHER,AUTO,ACADEMIC_STAFF,UPSERT,Dev Iyer,SBI,6040000000015,SBIN0002214,N,
+Ishita,Nair,ishita.nair.016@benchmarkschool.in,9870000015,M.Ed,Hindi,2024-04-01,47400,Hindi,Y,TEACHER,AUTO,ACADEMIC_STAFF,UPSERT,Ishita Nair,HDFC Bank,6040000000016,HDFC0002215,N,
+Saurabh,Gupta,saurabh.gupta.017@benchmarkschool.in,9870000016,M.Sc,Social Studies,2024-04-01,49200,Social Studies,Y,TEACHER,AUTO,ACADEMIC_STAFF,UPSERT,Saurabh Gupta,ICICI Bank,6040000000017,ICIC0002216,N,
+Ritika,Chopra,ritika.chopra.018@benchmarkschool.in,9870000017,M.A,Computer Science,2024-04-01,51000,Computer Science,Y,TEACHER,AUTO,ACADEMIC_STAFF,UPSERT,Ritika Chopra,SBI,6040000000018,SBIN0002217,N,
+Manish,Khan,manish.khan.019@benchmarkschool.in,9870000018,M.Ed,Physical Education,2024-04-01,52800,Physical Education,Y,TEACHER,AUTO,ACADEMIC_STAFF,UPSERT,Manish Khan,HDFC Bank,6040000000019,HDFC0002218,N,
+Divya,Roy,divya.roy.020@benchmarkschool.in,9870000019,M.Sc,Art,2024-04-01,54600,Art,Y,TEACHER,AUTO,ACADEMIC_STAFF,UPSERT,Divya Roy,ICICI Bank,6040000000020,ICIC0002219,N,
+Aditya,Sharma,aditya.sharma.021@benchmarkschool.in,9870000020,M.A,Sanskrit,2024-04-01,56400,Sanskrit,Y,TEACHER,AUTO,ACADEMIC_STAFF,UPSERT,Aditya Sharma,SBI,6040000000021,SBIN0002220,N,
+Sneha,Kapoor,sneha.kapoor.022@benchmarkschool.in,9870000021,M.Ed,General Knowledge,2024-04-01,58200,General Knowledge,Y,TEACHER,AUTO,ACADEMIC_STAFF,UPSERT,Sneha Kapoor,HDFC Bank,6040000000022,HDFC0002221,N,
+Varun,Singh,varun.singh.023@benchmarkschool.in,9870000022,M.Sc,Music,2024-04-01,60000,Music,Y,TEACHER,AUTO,ACADEMIC_STAFF,UPSERT,Varun Singh,ICICI Bank,6040000000023,ICIC0002222,N,
+Payal,Mehta,payal.mehta.024@benchmarkschool.in,9870000023,M.A,EVS,2024-04-01,61800,EVS,Y,TEACHER,AUTO,ACADEMIC_STAFF,UPSERT,Payal Mehta,SBI,6040000000024,SBIN0002223,N,
+Ritesh,Joshi,ritesh.joshi.025@benchmarkschool.in,9870000024,M.Ed,Mathematics,2024-04-01,42000,Mathematics,Y,TEACHER,AUTO,ACADEMIC_STAFF,UPSERT,Ritesh Joshi,HDFC Bank,6040000000025,HDFC0002224,N,
+Amit,Sen,amit.sen.026@benchmarkschool.in,9870000025,M.Sc,Science,2024-04-01,43800,Science,Y,TEACHER,AUTO,ACADEMIC_STAFF,UPSERT,Amit Sen,ICICI Bank,6040000000026,ICIC0002225,N,
+Neha,Saxena,neha.saxena.027@benchmarkschool.in,9870000026,M.A,English,2024-04-01,45600,English,Y,TEACHER,AUTO,ACADEMIC_STAFF,UPSERT,Neha Saxena,SBI,6040000000027,SBIN0002226,N,
+Rohan,Verma,rohan.verma.028@benchmarkschool.in,9870000027,M.Ed,Hindi,2024-04-01,47400,Hindi,Y,TEACHER,AUTO,ACADEMIC_STAFF,UPSERT,Rohan Verma,HDFC Bank,6040000000028,HDFC0002227,N,
+Pooja,Das,pooja.das.029@benchmarkschool.in,9870000028,M.Sc,Social Studies,2024-04-01,49200,Social Studies,Y,TEACHER,AUTO,ACADEMIC_STAFF,UPSERT,Pooja Das,ICICI Bank,6040000000029,ICIC0002228,N,
+Karan,Patel,karan.patel.030@benchmarkschool.in,9870000029,M.A,Computer Science,2024-04-01,51000,Computer Science,Y,TEACHER,AUTO,ACADEMIC_STAFF,UPSERT,Karan Patel,SBI,6040000000030,SBIN0002229,N,
+Sanya,Rao,sanya.rao.031@benchmarkschool.in,9870000030,M.Ed,Physical Education,2024-04-01,52800,Physical Education,Y,TEACHER,AUTO,ACADEMIC_STAFF,UPSERT,Sanya Rao,HDFC Bank,6040000000031,HDFC0002230,N,
+Vivek,Bose,vivek.bose.032@benchmarkschool.in,9870000031,M.Sc,Art,2024-04-01,54600,Art,Y,TEACHER,AUTO,ACADEMIC_STAFF,UPSERT,Vivek Bose,ICICI Bank,6040000000032,ICIC0002231,N,
+Anjali,Malhotra,anjali.malhotra.033@benchmarkschool.in,9870000032,M.A,Sanskrit,2024-04-01,56400,Sanskrit,Y,TEACHER,AUTO,ACADEMIC_STAFF,UPSERT,Anjali Malhotra,SBI,6040000000033,SBIN0002232,N,
+Rahul,Jain,rahul.jain.034@benchmarkschool.in,9870000033,M.Ed,General Knowledge,2024-04-01,58200,General Knowledge,Y,TEACHER,AUTO,ACADEMIC_STAFF,UPSERT,Rahul Jain,HDFC Bank,6040000000034,HDFC0002233,N,
+Meera,Iyer,meera.iyer.035@benchmarkschool.in,9870000034,M.Sc,Music,2024-04-01,60000,Music,Y,TEACHER,AUTO,ACADEMIC_STAFF,UPSERT,Meera Iyer,ICICI Bank,6040000000035,ICIC0002234,N,
+Arjun,Nair,arjun.nair.036@benchmarkschool.in,9870000035,M.A,EVS,2024-04-01,61800,EVS,Y,TEACHER,AUTO,ACADEMIC_STAFF,UPSERT,Arjun Nair,SBI,6040000000036,SBIN0002235,N,
+Priya,Gupta,priya.gupta.037@benchmarkschool.in,9870000036,M.Ed,Mathematics,2024-04-01,42000,Mathematics,Y,TEACHER,AUTO,ACADEMIC_STAFF,UPSERT,Priya Gupta,HDFC Bank,6040000000037,HDFC0002236,N,
+Nikhil,Chopra,nikhil.chopra.038@benchmarkschool.in,9870000037,M.Sc,Science,2024-04-01,43800,Science,Y,TEACHER,AUTO,ACADEMIC_STAFF,UPSERT,Nikhil Chopra,ICICI Bank,6040000000038,ICIC0002237,N,
+Kavya,Khan,kavya.khan.039@benchmarkschool.in,9870000038,M.A,English,2024-04-01,45600,English,Y,TEACHER,AUTO,ACADEMIC_STAFF,UPSERT,Kavya Khan,SBI,6040000000039,SBIN0002238,N,
+Dev,Roy,dev.roy.040@benchmarkschool.in,9870000039,M.Ed,Hindi,2024-04-01,47400,Hindi,Y,TEACHER,AUTO,ACADEMIC_STAFF,UPSERT,Dev Roy,HDFC Bank,6040000000040,HDFC0002239,N,
+Ishita,Sharma,ishita.sharma.041@benchmarkschool.in,9870000040,M.Sc,Social Studies,2024-04-01,49200,Social Studies,Y,TEACHER,AUTO,ACADEMIC_STAFF,UPSERT,Ishita Sharma,ICICI Bank,6040000000041,ICIC0002240,N,
+Saurabh,Kapoor,saurabh.kapoor.042@benchmarkschool.in,9870000041,M.A,Computer Science,2024-04-01,51000,Computer Science,Y,TEACHER,AUTO,ACADEMIC_STAFF,UPSERT,Saurabh Kapoor,SBI,6040000000042,SBIN0002241,N,
+Ritika,Singh,ritika.singh.043@benchmarkschool.in,9870000042,M.Ed,Physical Education,2024-04-01,52800,Physical Education,Y,TEACHER,AUTO,ACADEMIC_STAFF,UPSERT,Ritika Singh,HDFC Bank,6040000000043,HDFC0002242,N,
+Manish,Mehta,manish.mehta.044@benchmarkschool.in,9870000043,M.Sc,Art,2024-04-01,54600,Art,Y,TEACHER,AUTO,ACADEMIC_STAFF,UPSERT,Manish Mehta,ICICI Bank,6040000000044,ICIC0002243,N,
+Divya,Joshi,divya.joshi.045@benchmarkschool.in,9870000044,M.A,Sanskrit,2024-04-01,56400,Sanskrit,Y,TEACHER,AUTO,ACADEMIC_STAFF,UPSERT,Divya Joshi,SBI,6040000000045,SBIN0002244,N,
+Aditya,Sen,aditya.sen.046@benchmarkschool.in,9870000045,M.Ed,General Knowledge,2024-04-01,58200,General Knowledge,Y,TEACHER,AUTO,ACADEMIC_STAFF,UPSERT,Aditya Sen,HDFC Bank,6040000000046,HDFC0002245,N,
+Sneha,Saxena,sneha.saxena.047@benchmarkschool.in,9870000046,M.Sc,Music,2024-04-01,60000,Music,Y,TEACHER,AUTO,ACADEMIC_STAFF,UPSERT,Sneha Saxena,ICICI Bank,6040000000047,ICIC0002246,N,
+Varun,Verma,varun.verma.048@benchmarkschool.in,9870000047,M.A,EVS,2024-04-01,61800,EVS,Y,TEACHER,AUTO,ACADEMIC_STAFF,UPSERT,Varun Verma,SBI,6040000000048,SBIN0002247,N,
+Payal,Das,payal.das.049@benchmarkschool.in,9870000048,M.Ed,Mathematics,2024-04-01,42000,Mathematics,Y,TEACHER,AUTO,ACADEMIC_STAFF,UPSERT,Payal Das,HDFC Bank,6040000000049,HDFC0002248,N,
+Ritesh,Patel,ritesh.patel.050@benchmarkschool.in,9870000049,M.Sc,Science,2024-04-01,43800,Science,Y,TEACHER,AUTO,ACADEMIC_STAFF,UPSERT,Ritesh Patel,ICICI Bank,6040000000050,ICIC0002249,N,
+Amit,Rao,amit.rao.051@benchmarkschool.in,9870000050,M.A,English,2024-04-01,45600,English,Y,TEACHER,AUTO,ACADEMIC_STAFF,UPSERT,Amit Rao,SBI,6040000000051,SBIN0002250,N,
+Neha,Bose,neha.bose.052@benchmarkschool.in,9870000051,M.Ed,Hindi,2024-04-01,47400,Hindi,Y,TEACHER,AUTO,ACADEMIC_STAFF,UPSERT,Neha Bose,HDFC Bank,6040000000052,HDFC0002251,N,
+Rohan,Malhotra,rohan.malhotra.053@benchmarkschool.in,9870000052,M.Sc,Social Studies,2024-04-01,49200,Social Studies,Y,TEACHER,AUTO,ACADEMIC_STAFF,UPSERT,Rohan Malhotra,ICICI Bank,6040000000053,ICIC0002252,N,
+Pooja,Jain,pooja.jain.054@benchmarkschool.in,9870000053,M.A,Computer Science,2024-04-01,51000,Computer Science,Y,TEACHER,AUTO,ACADEMIC_STAFF,UPSERT,Pooja Jain,SBI,6040000000054,SBIN0002253,N,
+Karan,Iyer,karan.iyer.055@benchmarkschool.in,9870000054,M.Ed,Physical Education,2024-04-01,52800,Physical Education,Y,TEACHER,AUTO,ACADEMIC_STAFF,UPSERT,Karan Iyer,HDFC Bank,6040000000055,HDFC0002254,N,
+Sanya,Nair,sanya.nair.056@benchmarkschool.in,9870000055,M.Sc,Art,2024-04-01,54600,Art,Y,TEACHER,AUTO,ACADEMIC_STAFF,UPSERT,Sanya Nair,ICICI Bank,6040000000056,ICIC0002255,N,
+Vivek,Gupta,vivek.gupta.057@benchmarkschool.in,9870000056,M.A,Sanskrit,2024-04-01,56400,Sanskrit,Y,TEACHER,AUTO,ACADEMIC_STAFF,UPSERT,Vivek Gupta,SBI,6040000000057,SBIN0002256,N,
+Anjali,Chopra,anjali.chopra.058@benchmarkschool.in,9870000057,M.Ed,General Knowledge,2024-04-01,58200,General Knowledge,Y,TEACHER,AUTO,ACADEMIC_STAFF,UPSERT,Anjali Chopra,HDFC Bank,6040000000058,HDFC0002257,N,
+Rahul,Khan,rahul.khan.059@benchmarkschool.in,9870000058,M.Sc,Music,2024-04-01,60000,Music,Y,TEACHER,AUTO,ACADEMIC_STAFF,UPSERT,Rahul Khan,ICICI Bank,6040000000059,ICIC0002258,N,
+Meera,Roy,meera.roy.060@benchmarkschool.in,9870000059,M.A,EVS,2024-04-01,61800,EVS,Y,TEACHER,AUTO,ACADEMIC_STAFF,UPSERT,Meera Roy,SBI,6040000000060,SBIN0002259,N,
+Arjun,Sharma,arjun.sharma.061@benchmarkschool.in,9870000060,M.Ed,Mathematics,2024-04-01,42000,Mathematics,Y,TEACHER,AUTO,ACADEMIC_STAFF,UPSERT,Arjun Sharma,HDFC Bank,6040000000061,HDFC0002260,N,
+Priya,Kapoor,priya.kapoor.062@benchmarkschool.in,9870000061,M.Sc,Science,2024-04-01,43800,Science,Y,TEACHER,AUTO,ACADEMIC_STAFF,UPSERT,Priya Kapoor,ICICI Bank,6040000000062,ICIC0002261,N,
+Nikhil,Singh,nikhil.singh.063@benchmarkschool.in,9870000062,M.A,English,2024-04-01,45600,English,Y,TEACHER,AUTO,ACADEMIC_STAFF,UPSERT,Nikhil Singh,SBI,6040000000063,SBIN0002262,N,
+Kavya,Mehta,kavya.mehta.064@benchmarkschool.in,9870000063,M.Ed,Hindi,2024-04-01,47400,Hindi,Y,TEACHER,AUTO,ACADEMIC_STAFF,UPSERT,Kavya Mehta,HDFC Bank,6040000000064,HDFC0002263,N,
+Dev,Joshi,dev.joshi.065@benchmarkschool.in,9870000064,M.Sc,Social Studies,2024-04-01,49200,Social Studies,Y,TEACHER,AUTO,ACADEMIC_STAFF,UPSERT,Dev Joshi,ICICI Bank,6040000000065,ICIC0002264,N,
+Ishita,Sen,ishita.sen.066@benchmarkschool.in,9870000065,M.A,Computer Science,2024-04-01,51000,Computer Science,Y,TEACHER,AUTO,ACADEMIC_STAFF,UPSERT,Ishita Sen,SBI,6040000000066,SBIN0002265,N,
+Saurabh,Saxena,saurabh.saxena.067@benchmarkschool.in,9870000066,M.Ed,Physical Education,2024-04-01,52800,Physical Education,Y,TEACHER,AUTO,ACADEMIC_STAFF,UPSERT,Saurabh Saxena,HDFC Bank,6040000000067,HDFC0002266,N,
+Ritika,Verma,ritika.verma.068@benchmarkschool.in,9870000067,M.Sc,Art,2024-04-01,54600,Art,Y,TEACHER,AUTO,ACADEMIC_STAFF,UPSERT,Ritika Verma,ICICI Bank,6040000000068,ICIC0002267,N,
+Manish,Das,manish.das.069@benchmarkschool.in,9870000068,M.A,Sanskrit,2024-04-01,56400,Sanskrit,Y,TEACHER,AUTO,ACADEMIC_STAFF,UPSERT,Manish Das,SBI,6040000000069,SBIN0002268,N,
+Divya,Patel,divya.patel.070@benchmarkschool.in,9870000069,M.Ed,General Knowledge,2024-04-01,58200,General Knowledge,Y,TEACHER,AUTO,ACADEMIC_STAFF,UPSERT,Divya Patel,HDFC Bank,6040000000070,HDFC0002269,N,
+Aditya,Rao,aditya.rao.071@benchmarkschool.in,9870000070,M.Sc,Music,2024-04-01,60000,Music,Y,TEACHER,AUTO,ACADEMIC_STAFF,UPSERT,Aditya Rao,ICICI Bank,6040000000071,ICIC0002270,N,
+Sneha,Bose,sneha.bose.072@benchmarkschool.in,9870000071,M.A,EVS,2024-04-01,61800,EVS,Y,TEACHER,AUTO,ACADEMIC_STAFF,UPSERT,Sneha Bose,SBI,6040000000072,SBIN0002271,N,
+Varun,Malhotra,varun.malhotra.073@benchmarkschool.in,9870000072,M.Ed,Mathematics,2024-04-01,42000,Mathematics,Y,TEACHER,AUTO,ACADEMIC_STAFF,UPSERT,Varun Malhotra,HDFC Bank,6040000000073,HDFC0002272,N,
+Payal,Jain,payal.jain.074@benchmarkschool.in,9870000073,M.Sc,Science,2024-04-01,43800,Science,Y,TEACHER,AUTO,ACADEMIC_STAFF,UPSERT,Payal Jain,ICICI Bank,6040000000074,ICIC0002273,N,
+Ritesh,Iyer,ritesh.iyer.075@benchmarkschool.in,9870000074,M.A,English,2024-04-01,45600,English,Y,TEACHER,AUTO,ACADEMIC_STAFF,UPSERT,Ritesh Iyer,SBI,6040000000075,SBIN0002274,N,

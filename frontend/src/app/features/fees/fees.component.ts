@@ -7,6 +7,7 @@ import { FeeService } from '../../core/services/fee.service';
 import { SettingsService } from '../../core/services/settings.service';
 import { AcademicService } from '../../core/services/academic.service';
 import { AuthService } from '../../core/services/auth.service';
+import { UiAccessService } from '../../core/services/ui-access.service';
 import { filter } from 'rxjs/operators';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { SchoolClassNamePipe } from '../../core/i18n/school-class-name.pipe';
@@ -574,7 +575,7 @@ import { buildCsvSchoolLine, downloadCsvDocument } from '../../core/utils/csv-ex
         {{ operationMessage }}
       </div>
       <div
-        *ngIf="isAdmin && feeFinanceBannerVisible"
+        *ngIf="canManageFeeFinanceRouting && feeFinanceBannerVisible"
         class="alert py-2 small mb-3 d-flex flex-wrap align-items-center justify-content-between gap-2"
         style="background: color-mix(in srgb, var(--clr-info) 10%, var(--clr-surface)); border: 1px solid color-mix(in srgb, var(--clr-info) 26%, var(--clr-border));"
         role="status"
@@ -593,10 +594,10 @@ import { buildCsvSchoolLine, downloadCsvDocument } from '../../core/utils/csv-ex
           <button type="button" class="btn-outline-erp btn-sm" (click)="refreshAll()" [disabled]="refreshing">
             <i class="bi bi-arrow-clockwise"></i> {{ refreshing ? ('fees.refreshing' | translate) : ('fees.refresh' | translate) }}
           </button>
-          <button *ngIf="isAdmin" type="button" class="btn-outline-erp btn-sm" (click)="goToFeeSettlementSettings()">
+          <button *ngIf="canManageFeeFinanceRouting" type="button" class="btn-outline-erp btn-sm" (click)="goToFeeSettlementSettings()">
             <i class="bi bi-bank2 me-1"></i>{{ 'fees.linkPaymentSettlement' | translate }}
           </button>
-          <button *ngIf="isAdmin" type="button" class="btn-primary-erp btn-sm" (click)="openStructureModal()">
+          <button *ngIf="feeDeskOps" type="button" class="btn-primary-erp btn-sm" (click)="openStructureModal()">
             <i class="bi bi-plus-lg"></i> {{ 'fees.newStructure' | translate }}
           </button>
         </div>
@@ -608,7 +609,7 @@ import { buildCsvSchoolLine, downloadCsvDocument } from '../../core/utils/csv-ex
       </div>
 
       <div *ngIf="tab === 'structures'" class="animate-in fees-structures-shell">
-        <div class="erp-card mb-3" *ngIf="isAdmin">
+        <div class="erp-card mb-3" *ngIf="feeDeskOps">
           <div class="small fw-semibold text-uppercase text-muted mb-2">{{ 'fees.adminFlowTitle' | translate }}</div>
           <div class="d-flex flex-wrap gap-2">
             <span class="badge-erp badge-neutral">{{ 'fees.adminFlowStep1' | translate }}</span>
@@ -631,7 +632,7 @@ import { buildCsvSchoolLine, downloadCsvDocument } from '../../core/utils/csv-ex
                 </span>
                 <strong>₹{{ comp.amount | number:'1.0-0':'en-IN' }}</strong>
               </div>
-              <div *ngIf="isAdmin" class="d-flex flex-wrap gap-2 mt-3 pt-2" style="border-top: 1px solid var(--clr-border-light);">
+              <div *ngIf="feeDeskOps" class="d-flex flex-wrap gap-2 mt-3 pt-2" style="border-top: 1px solid var(--clr-border-light);">
                 <button type="button" class="btn-outline-erp btn-xs" (click)="openStructureModal(fs)">{{ 'fees.edit' | translate }}</button>
                 <button
                   type="button"
@@ -657,7 +658,7 @@ import { buildCsvSchoolLine, downloadCsvDocument } from '../../core/utils/csv-ex
             <i class="bi bi-x-lg"></i>
           </button>
         </div>
-        <div class="row g-2 mb-3 fees-kpi-grid" *ngIf="isAdmin">
+        <div class="row g-2 mb-3 fees-kpi-grid" *ngIf="feeDeskOps">
           <div class="col-6 col-md-3">
             <div class="erp-card p-2">
               <div class="fees-kpi-label">{{ 'fees.kpiCollected' | translate }}</div>
@@ -757,7 +758,7 @@ import { buildCsvSchoolLine, downloadCsvDocument } from '../../core/utils/csv-ex
                       {{ 'fees.viewLedger' | translate }}
                     </button>
                     <button
-                      *ngIf="isAdmin && p.paidAmount > 0"
+                      *ngIf="feeDeskOps && p.paidAmount > 0"
                       type="button"
                       class="btn-outline-erp btn-xs fees-btn-refund"
                       (click)="openRefundPanel(p)"
@@ -765,7 +766,7 @@ import { buildCsvSchoolLine, downloadCsvDocument } from '../../core/utils/csv-ex
                       {{ 'fees.refund' | translate }}
                     </button>
                     <button
-                      *ngIf="isAdmin && p.dueAmount > 0"
+                      *ngIf="feeDeskOps && p.dueAmount > 0"
                       type="button"
                       class="btn-primary-erp btn-xs fees-btn-collect"
                       (click)="openCollectPaymentModal(p)"
@@ -773,7 +774,7 @@ import { buildCsvSchoolLine, downloadCsvDocument } from '../../core/utils/csv-ex
                       {{ 'fees.collectNow' | translate }}
                     </button>
                     <button
-                      *ngIf="isAdmin && p.dueAmount > 0"
+                      *ngIf="feeDeskOps && p.dueAmount > 0"
                       type="button"
                       class="btn-outline-erp btn-xs fees-btn-reminder"
                       (click)="sendReminder(p)"
@@ -987,7 +988,7 @@ import { buildCsvSchoolLine, downloadCsvDocument } from '../../core/utils/csv-ex
                     <div *ngIf="tx.occurredAt">{{ tx.occurredAt | date:'medium' }}</div>
                     <div *ngIf="tx.note">{{ tx.note }}</div>
                   </div>
-                  <div class="d-flex gap-2 mt-2" *ngIf="isAdmin">
+                  <div class="d-flex gap-2 mt-2" *ngIf="feeDeskOps">
                     <button
                       *ngIf="tx.eventType === 'REFUND_REQUESTED'"
                       type="button"
@@ -1009,7 +1010,7 @@ import { buildCsvSchoolLine, downloadCsvDocument } from '../../core/utils/csv-ex
                 </div>
               </ng-template>
 
-              <div class="fees-refund-panel" *ngIf="isAdmin && refundTargetPayment">
+              <div class="fees-refund-panel" *ngIf="feeDeskOps && refundTargetPayment">
                 <div *ngIf="refundNotice" class="fees-refund-toast" [class.fees-refund-toast--ok]="refundNoticeOk" [class.fees-refund-toast--err]="!refundNoticeOk">
                   {{ refundNotice }}
                 </div>
@@ -1080,7 +1081,10 @@ export class FeesComponent implements OnInit {
   sortBy: 'dueDateAsc' | 'dueDateDesc' | 'dueAmountDesc' | 'studentAsc' = 'dueDateAsc';
   classes: SchoolClass[] = [];
   academicYears: AcademicYear[] = [];
-  isAdmin = false;
+  /** Fee collection, refunds, structures, reminders — mirrors {@code SCHOOL_FEE_OFFICE} / admin. */
+  feeDeskOps = false;
+  /** Razorpay settlement / finance profile banner — mirrors {@code SCHOOL_SETTINGS_FINANCE}. */
+  canManageFeeFinanceRouting = false;
   refreshing = false;
   structureModal = false;
   editingStructureId: number | null = null;
@@ -1136,6 +1140,7 @@ export class FeesComponent implements OnInit {
   componentTypeIds = ['tuition', 'transport', 'hostel', 'uniform', 'library', 'lab', 'sports', 'misc'] as const;
 
   private readonly destroyRef = inject(DestroyRef);
+  private readonly uiAccess = inject(UiAccessService);
 
   constructor(
     private feeService: FeeService,
@@ -1208,7 +1213,8 @@ export class FeesComponent implements OnInit {
   ngOnInit(): void {
     this.translate.onLangChange.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => this.cdr.markForCheck());
 
-    this.isAdmin = this.auth.getNormalizedRole() === 'admin';
+    this.feeDeskOps = this.uiAccess.hasSchoolFeeOfficeDesk();
+    this.canManageFeeFinanceRouting = this.uiAccess.hasSchoolSettingsFinanceAccess();
     this.academicService.getClasses().subscribe(c => (this.classes = c || []));
     this.academicService.getAcademicYears().subscribe(y => (this.academicYears = y || []));
     this.loadStructures();
@@ -1226,7 +1232,7 @@ export class FeesComponent implements OnInit {
 
   /** Loads tenant finance flag for admin banner (parent online checkout). */
   private refreshFeeFinanceBanner(): void {
-    if (!this.isAdmin) {
+    if (!this.canManageFeeFinanceRouting) {
       this.feeSettlementMode = null;
       return;
     }

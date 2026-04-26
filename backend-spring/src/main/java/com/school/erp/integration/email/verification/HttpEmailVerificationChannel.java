@@ -1,7 +1,6 @@
-package com.school.erp.modules.auth.service;
+package com.school.erp.integration.email.verification;
 
 import com.school.erp.integration.outbound.OutboundEmailHttpClient;
-import com.school.erp.modules.auth.port.EmailVerificationDispatchPort;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
@@ -9,25 +8,29 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * Sends {@code email_verification_requested} to the optional integration email worker
- * ({@code app.integration.email.trigger-url}), same transport as other domain email hooks.
+ * Publishes the same {@code email_verification_requested} JSON as legacy integration workers.
  */
 @Component
-public class EmailVerificationHttpDispatchAdapter implements EmailVerificationDispatchPort {
+public class HttpEmailVerificationChannel implements EmailVerificationChannel {
 
     private final OutboundEmailHttpClient outboundEmailHttpClient;
 
-    public EmailVerificationHttpDispatchAdapter(OutboundEmailHttpClient outboundEmailHttpClient) {
+    public HttpEmailVerificationChannel(OutboundEmailHttpClient outboundEmailHttpClient) {
         this.outboundEmailHttpClient = outboundEmailHttpClient;
     }
 
     @Override
-    public boolean canSendOutbound() {
+    public EmailProvider kind() {
+        return EmailProvider.HTTP;
+    }
+
+    @Override
+    public boolean isReady() {
         return outboundEmailHttpClient.isTriggerConfigured();
     }
 
     @Override
-    public void publishVerificationLink(
+    public void send(
             String tenantId,
             Long userId,
             String toEmail,

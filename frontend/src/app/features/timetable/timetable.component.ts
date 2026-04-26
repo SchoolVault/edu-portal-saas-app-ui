@@ -7,6 +7,7 @@ import { AcademicService } from '../../core/services/academic.service';
 import { TeacherService } from '../../core/services/teacher.service';
 import { TimetableService } from '../../core/services/timetable.service';
 import { AuthService } from '../../core/services/auth.service';
+import { UiAccessService } from '../../core/services/ui-access.service';
 import { SchoolClass, Student, Teacher, TimetableEntry, TimetableGrid } from '../../core/models/models';
 import { ParentService } from '../../core/services/parent.service';
 import { OperationsService } from '../../core/services/operations.service';
@@ -657,6 +658,7 @@ type ParentTimetableContract = {
 })
 export class TimetableComponent implements OnInit {
   private readonly destroyRef = inject(DestroyRef);
+  private readonly uiAccess = inject(UiAccessService);
 
   classes: SchoolClass[] = [];
   sections: { id: number; name: string }[] = [];
@@ -780,10 +782,10 @@ export class TimetableComponent implements OnInit {
 
     this.teacherViewDate = this.defaultTeacherSessionCalendarDate();
 
-    const r = (this.auth.getRole() ?? '').toLowerCase();
-    this.isAdmin = r === 'admin' || r === 'super_admin';
+    const r = this.auth.getNormalizedRole();
+    this.isAdmin = this.uiAccess.hasAcademicDeskAdminAccess();
     this.isParent = r === 'parent';
-    this.canMutateTimetable = r === 'admin';
+    this.canMutateTimetable = this.uiAccess.hasAcademicDeskAdminAccess();
     if (this.isParent) {
       this.layout = 'periodRows';
     }

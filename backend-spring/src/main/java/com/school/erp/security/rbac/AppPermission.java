@@ -42,6 +42,10 @@ public enum AppPermission {
     SCHOOL_IMPORT_EXPORT,
     /** Operations hub (admissions office style workflows). */
     SCHOOL_OPERATIONS_HUB,
+    /** Transport desk: routes, vehicles, drivers (narrow duty; stack with hostel or use combined catalog role). */
+    SCHOOL_TRANSPORT_DESK,
+    /** Hostel desk: blocks, rooms, allocations (narrow duty; stack with transport or use combined catalog role). */
+    SCHOOL_HOSTEL_DESK,
     /** School-scoped report endpoints not covered by a finer permission yet. */
     SCHOOL_REPORTS_SCHOOL,
 
@@ -61,6 +65,17 @@ public enum AppPermission {
     LIBRARY_CIRCULATION,
 
     // --- Portals (reserved for future JWT claims; may stay empty in phase 1) -
+    /**
+     * Baseline signed-in school employee (not parent/student): profile, school-wide comms shell, and
+     * modules granted via stacked {@code rbac_user_school_role} assignments. Big-ERP analogue of
+     * “employee” before duty roles are applied.
+     */
+    PORTAL_SCHOOL_STAFF,
+    /**
+     * Optional tenant chat for school employees: assign via school roles when a school enables chat
+     * for non-teaching staff. Parents/teachers/admins/students use role-based chat gates instead.
+     */
+    PORTAL_CHAT,
     PORTAL_PARENT,
     PORTAL_STUDENT
 }

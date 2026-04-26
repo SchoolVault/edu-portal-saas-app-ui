@@ -7,6 +7,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { ChatService } from '../../core/services/chat.service';
 import { AuthService } from '../../core/services/auth.service';
+import { UiAccessService } from '../../core/services/ui-access.service';
 import { DirectoryEntry, DirectoryService } from '../../core/services/directory.service';
 import { PlatformService } from '../../core/services/platform.service';
 import {
@@ -755,7 +756,7 @@ import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directiv
               </div>
 
               <!-- Admin: direct pick (MVP) -->
-              <div *ngIf="role === 'admin'">
+              <div *ngIf="canUseSchoolDirectoryForChat">
                 <label class="erp-label">{{ 'chat.labelTeachers' | translate }}</label>
                 <select class="erp-select" [(ngModel)]="selectedAdminTeacher" (ngModelChange)="selectedAdminParent = null">
                   <option [ngValue]="null">{{ 'chat.selectTeacher' | translate }}</option>
@@ -939,9 +940,14 @@ export class ChatComponent implements OnInit, OnDestroy {
 
   @ViewChild('threadScroll') private threadScroll?: ElementRef<HTMLElement>;
 
+  get canUseSchoolDirectoryForChat(): boolean {
+    return this.uiAccess.hasAcademicDeskAdminAccess();
+  }
+
   constructor(
     private chat: ChatService,
     private auth: AuthService,
+    private uiAccess: UiAccessService,
     private directoryService: DirectoryService,
     private platform: PlatformService,
     private router: Router,
@@ -953,7 +959,7 @@ export class ChatComponent implements OnInit, OnDestroy {
   ngOnInit(): void {
     this.translate.onLangChange.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => this.cdr.markForCheck());
     this.myUserId = this.auth.getCurrentUser()?.id ?? null;
-    this.role = this.auth.getRole() || 'admin';
+    this.role = this.auth.getNormalizedRole() || this.auth.getRole() || 'admin';
     this.chat.connectRealtime();
     this.rtSub = this.chat.realtimeConnected$.subscribe(v => (this.realtimeConnected = v));
     this.chat.inbox$.subscribe(items => (this.inbox = items));
@@ -986,7 +992,7 @@ export class ChatComponent implements OnInit, OnDestroy {
     if (this.role === 'parent') {
       return;
     }
-    if (!['admin', 'teacher', 'super_admin'].includes(this.role)) {
+    if (!(this.role === 'super_admin' || this.uiAccess.hasAcademicDeskAdminAccess())) {
       return;
     }
     this.toolbarSearchTimer = setTimeout(() => this.runToolbarSuggest(), 280);
@@ -1000,7 +1006,7 @@ export class ChatComponent implements OnInit, OnDestroy {
     if (this.role === 'parent') {
       return false;
     }
-    if (!['admin', 'teacher', 'super_admin'].includes(this.role)) {
+    if (!(this.role === 'super_admin' || this.uiAccess.hasAcademicDeskAdminAccess())) {
       return false;
     }
     return this.toolbarSearchLoading || this.toolbarDirHits.length > 0 || this.toolbarPlatHits.length > 0 || this.toolbarSuggestScanned;
@@ -1055,7 +1061,7 @@ export class ChatComponent implements OnInit, OnDestroy {
       });
       return;
     }
-    if (this.role !== 'admin' && this.role !== 'teacher') {
+    if (!this.uiAccess.hasAcademicDeskAdminAccess()) {
       this.clearToolbarSuggest();
       return;
     }
@@ -1417,6 +1423,7 @@ export class ChatComponent implements OnInit, OnDestroy {
       ADMIN: 'chat.counterpartRoleAdmin',
       SUPER_ADMIN: 'chat.counterpartRoleSuperAdmin',
       LIBRARY_STAFF: 'chat.counterpartRoleLibraryStaff',
+      SCHOOL_STAFF: 'chat.counterpartRoleSchoolStaff',
       STUDENT: 'chat.counterpartRoleStudent',
     };
     const key = map[c] ?? 'chat.counterpartRoleGeneric';

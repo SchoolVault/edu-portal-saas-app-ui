@@ -136,8 +136,9 @@ public class EmailVerificationService {
             return "Verification token issued. Paste the dev token in Settings, or use the link if configured.";
         }
         if (verificationUrl == null) {
-            return "Verification was prepared, but the public portal URL is not configured on the server (AUTH_EMAIL_VER_PUBLIC_SPA_BASE_URL). "
-                    + "Contact support to finish email verification.";
+            return "Verification was prepared, but the public portal URL is not configured on the server. "
+                    + "Set AUTH_EMAIL_VER_PUBLIC_SPA_BASE_URL or APP_PUBLIC_SPA_BASE_URL to the SPA origin (e.g. https://your-ui.example.com), "
+                    + "or in local dev use profile dev or local. Contact your administrator to finish email verification.";
         }
         if (emailVerificationDispatchPort.canSendOutbound()) {
             return "Check your email for a verification link. If it does not arrive within a few minutes, check spam or request again.";

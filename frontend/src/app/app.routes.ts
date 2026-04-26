@@ -1,5 +1,15 @@
 import { Routes } from '@angular/router';
-import { adminOnlyGuard, authGuard, importExportGuard, leaveStaffGuard, schoolSettingsGuard, schoolStaffGuard, superAdminGuard } from './core/guards/auth.guard';
+import {
+  adminOnlyGuard,
+  authGuard,
+  chatAccessGuard,
+  importExportGuard,
+  leaveStaffGuard,
+  schoolSettingsGuard,
+  schoolStaffGuard,
+  superAdminGuard,
+  timetableAccessGuard,
+} from './core/guards/auth.guard';
 import { featureModuleGuard } from './core/guards/feature-module.guard';
 
 export const routes: Routes = [
@@ -78,7 +88,11 @@ export const routes: Routes = [
         path: 'directory',
         loadComponent: () => import('./features/directory/directory.component').then(m => m.DirectoryComponent),
         canActivate: [adminOnlyGuard, featureModuleGuard],
-        data: { requireFeatures: ['directory'], requireAnyRole: ['admin'] },
+        data: {
+          requireFeatures: ['directory'],
+          requireAnyRole: ['admin'],
+          requireAnyPermission: ['SCHOOL_OPERATIONS_HUB', 'TENANT_ADMIN', 'PLATFORM_ADMIN'],
+        },
       },
       { path: 'teachers', loadComponent: () => import('./features/teacher/teacher-list.component').then(m => m.TeacherListComponent), canActivate: [schoolStaffGuard] },
       { path: 'teachers/new', loadComponent: () => import('./features/teacher/teacher-form.component').then(m => m.TeacherFormComponent), canActivate: [adminOnlyGuard] },
@@ -86,7 +100,11 @@ export const routes: Routes = [
       { path: 'teachers/:id', loadComponent: () => import('./features/teacher/teacher-profile.component').then(m => m.TeacherProfileComponent), canActivate: [schoolStaffGuard] },
       { path: 'academic', loadComponent: () => import('./features/academic/academic.component').then(m => m.AcademicComponent), canActivate: [schoolStaffGuard] },
       { path: 'attendance', loadComponent: () => import('./features/attendance/attendance.component').then(m => m.AttendanceComponent), canActivate: [schoolStaffGuard] },
-      { path: 'timetable', loadComponent: () => import('./features/timetable/timetable.component').then(m => m.TimetableComponent) },
+      {
+        path: 'timetable',
+        loadComponent: () => import('./features/timetable/timetable.component').then(m => m.TimetableComponent),
+        canActivate: [timetableAccessGuard],
+      },
       {
         path: 'timetable/onboarding',
         loadComponent: () =>
@@ -97,92 +115,171 @@ export const routes: Routes = [
         path: 'exams',
         loadComponent: () => import('./features/exams/exams.component').then(m => m.ExamsComponent),
         canActivate: [featureModuleGuard],
-        data: { requireFeatures: ['exams'], requireAnyRole: ['admin', 'teacher', 'parent', 'super_admin'] },
+        data: {
+          requireFeatures: ['exams'],
+          requireAnyRole: ['admin', 'teacher', 'parent', 'super_admin'],
+          requireAnyPermission: [
+            'ACADEMIC_TEACHER',
+            'SCHOOL_EXAMS_OFFICE',
+            'TENANT_ADMIN',
+            'PLATFORM_ADMIN',
+            'PORTAL_PARENT',
+            'PORTAL_STUDENT',
+          ],
+        },
       },
       {
         path: 'fees',
         loadComponent: () => import('./features/fees/fees.component').then(m => m.FeesComponent),
         canActivate: [adminOnlyGuard, featureModuleGuard],
-        data: { requireFeatures: ['fees'], requireAnyRole: ['admin'] },
+        data: {
+          requireFeatures: ['fees'],
+          requireAnyRole: ['admin'],
+          requireAnyPermission: ['SCHOOL_FEE_OFFICE', 'TENANT_ADMIN', 'PLATFORM_ADMIN'],
+        },
       },
       {
         path: 'chat',
         loadComponent: () => import('./features/chat/chat.component').then(m => m.ChatComponent),
-        canActivate: [featureModuleGuard],
-        data: { requireFeatures: ['chat'], requireAnyRole: ['admin', 'teacher', 'parent'] },
+        canActivate: [chatAccessGuard, featureModuleGuard],
+        data: { requireFeatures: ['chat'] },
       },
       {
         path: 'inbox',
         loadComponent: () => import('./features/communication/communication.component').then(m => m.CommunicationComponent),
         canActivate: [featureModuleGuard],
-        data: { requireFeatures: ['communication'], requireAnyRole: ['admin', 'teacher', 'parent', 'student'] },
+        data: {
+          requireFeatures: ['communication'],
+          requireAnyRole: ['admin', 'teacher', 'parent', 'student', 'library_staff', 'school_staff'],
+        },
       },
       {
         path: 'communication',
         loadComponent: () => import('./features/communication/communication.component').then(m => m.CommunicationComponent),
         canActivate: [featureModuleGuard],
-        data: { requireFeatures: ['communication'], requireAnyRole: ['admin', 'teacher', 'parent', 'student'] },
+        data: {
+          requireFeatures: ['communication'],
+          requireAnyRole: ['admin', 'teacher', 'parent', 'student', 'library_staff', 'school_staff'],
+        },
       },
       {
         path: 'announcement/:id',
         loadComponent: () => import('./features/announcement-detail/announcement-detail.component').then(m => m.AnnouncementDetailComponent),
         canActivate: [featureModuleGuard],
-        data: { requireFeatures: ['communication'], requireAnyRole: ['admin', 'teacher', 'parent', 'student'] },
+        data: {
+          requireFeatures: ['communication'],
+          requireAnyRole: ['admin', 'teacher', 'parent', 'student', 'library_staff', 'school_staff'],
+        },
       },
-      { path: 'leave', loadComponent: () => import('./features/leave/leave.component').then(m => m.LeaveComponent), canActivate: [leaveStaffGuard] },
+      {
+        path: 'leave',
+        loadComponent: () => import('./features/leave/leave.component').then(m => m.LeaveComponent),
+        canActivate: [leaveStaffGuard, featureModuleGuard],
+        data: {
+          requireFeatures: ['leave'],
+          requireAnyRole: ['admin', 'teacher', 'super_admin', 'library_staff', 'school_staff'],
+          requireAnyPermission: [
+            'ACADEMIC_TEACHER',
+            'TENANT_ADMIN',
+            'PLATFORM_ADMIN',
+            'SCHOOL_OPERATIONS_HUB',
+          ],
+        },
+      },
       {
         path: 'reports',
         loadComponent: () => import('./features/reports/reports.component').then(m => m.ReportsComponent),
         canActivate: [adminOnlyGuard, featureModuleGuard],
-        data: { requireFeatures: ['reports'], requireAnyRole: ['admin', 'super_admin'] },
+        data: {
+          requireFeatures: ['reports'],
+          requireAnyRole: ['admin', 'super_admin'],
+          requireAnyPermission: ['SCHOOL_REPORTS_SCHOOL', 'TENANT_ADMIN', 'PLATFORM_ADMIN'],
+        },
       },
       {
         path: 'operations',
         loadComponent: () => import('./features/operations/operations-hub.component').then(m => m.OperationsHubComponent),
         canActivate: [adminOnlyGuard, featureModuleGuard],
-        data: { requireFeatures: ['operationsHub'], requireAnyRole: ['admin', 'super_admin'] },
+        data: {
+          requireFeatures: ['operationsHub'],
+          requireAnyRole: ['admin', 'super_admin'],
+          requireAnyPermission: ['SCHOOL_OPERATIONS_HUB', 'TENANT_ADMIN', 'PLATFORM_ADMIN'],
+        },
       },
       {
         path: 'import-export',
         loadComponent: () => import('./features/import-export/import-export.component').then(m => m.ImportExportComponent),
         canActivate: [importExportGuard, featureModuleGuard],
-        data: { requireFeatures: ['importExport'], requireAnyRole: ['admin', 'super_admin'] },
+        data: {
+          requireFeatures: ['importExport'],
+          requireAnyRole: ['admin', 'super_admin'],
+          requireAnyPermission: ['SCHOOL_IMPORT_EXPORT', 'TENANT_ADMIN', 'PLATFORM_ADMIN'],
+        },
       },
       {
         path: 'transport',
         loadComponent: () => import('./features/transport/transport.component').then(m => m.TransportComponent),
         canActivate: [featureModuleGuard],
-        data: { requireFeatures: ['transport'], requireAnyRole: ['admin', 'super_admin'] },
+        data: {
+          requireFeatures: ['transport'],
+          requireAnyRole: ['admin', 'super_admin', 'school_staff'],
+          requireAnyPermission: ['SCHOOL_TRANSPORT_DESK', 'TENANT_ADMIN', 'PLATFORM_ADMIN'],
+        },
       },
       {
         path: 'library',
         loadComponent: () => import('./features/library/library.component').then(m => m.LibraryComponent),
         canActivate: [featureModuleGuard],
-        data: { requireFeatures: ['library'], requireAnyRole: ['admin', 'teacher', 'library_staff'] },
+        data: {
+          requireFeatures: ['library'],
+          requireAnyRole: ['admin', 'teacher', 'library_staff', 'school_staff'],
+          requireAnyPermission: ['LIBRARY_MANAGE', 'LIBRARY_CIRCULATION', 'TENANT_ADMIN', 'PLATFORM_ADMIN'],
+        },
       },
       {
         path: 'hostel',
         loadComponent: () => import('./features/hostel/hostel.component').then(m => m.HostelComponent),
         canActivate: [featureModuleGuard],
-        data: { requireFeatures: ['hostel'], requireAnyRole: ['admin', 'super_admin'] },
+        data: {
+          requireFeatures: ['hostel'],
+          requireAnyRole: ['admin', 'super_admin', 'school_staff'],
+          requireAnyPermission: ['SCHOOL_HOSTEL_DESK', 'TENANT_ADMIN', 'PLATFORM_ADMIN'],
+        },
       },
       {
         path: 'payroll',
         loadComponent: () => import('./features/payroll/payroll.component').then(m => m.PayrollComponent),
         canActivate: [featureModuleGuard],
-        data: { requireFeatures: ['payroll'], requireAnyRole: ['admin', 'super_admin', 'teacher'] },
+        data: {
+          requireFeatures: ['payroll'],
+          requireAnyRole: ['admin', 'super_admin', 'teacher'],
+          requireAnyPermission: [
+            'SCHOOL_PAYROLL_OFFICE',
+            'TENANT_ADMIN',
+            'PLATFORM_ADMIN',
+            'ACADEMIC_TEACHER',
+          ],
+        },
       },
       {
         path: 'documents',
         loadComponent: () => import('./features/documents/documents.component').then(m => m.DocumentsComponent),
         canActivate: [featureModuleGuard],
-        data: { requireFeatures: ['documents'], requireAnyRole: ['admin', 'teacher', 'super_admin'] },
+        data: {
+          requireFeatures: ['documents'],
+          requireAnyRole: ['admin', 'teacher', 'super_admin'],
+          requireAnyPermission: ['ACADEMIC_TEACHER', 'TENANT_ADMIN', 'PLATFORM_ADMIN'],
+        },
       },
       {
         path: 'audit',
         loadComponent: () => import('./features/audit/audit.component').then(m => m.AuditComponent),
         canActivate: [featureModuleGuard],
-        data: { requireFeatures: ['audit'], requireAnyRole: ['admin', 'super_admin'] },
+        data: {
+          requireFeatures: ['audit'],
+          requireAnyRole: ['admin', 'super_admin'],
+          requireAnyPermission: ['TENANT_ADMIN', 'PLATFORM_ADMIN'],
+        },
       },
       { path: 'settings', loadComponent: () => import('./features/settings/settings.component').then(m => m.SettingsComponent), canActivate: [schoolSettingsGuard] },
       {

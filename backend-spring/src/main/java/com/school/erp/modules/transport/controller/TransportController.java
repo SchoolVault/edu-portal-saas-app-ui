@@ -6,6 +6,7 @@ import com.school.erp.common.dto.PageResponse;
 import com.school.erp.modules.transport.dto.TransportDTOs;
 import com.school.erp.modules.transport.entity.*;
 import com.school.erp.modules.transport.service.TransportService;
+import com.school.erp.security.rbac.RbacSpel;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -40,21 +41,21 @@ public class TransportController {
     }
 
     @PostMapping("/routes")
-    @PreAuthorize("hasRole(\'ADMIN\')")
+    @PreAuthorize(RbacSpel.TRANSPORT_DESK_WRITE)
     @Operation(summary = "Create route")
     public ResponseEntity<ApiResponse<TransportRoute>> createRoute(@RequestBody TransportRoute route) {
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.created(service.createRoute(route)));
     }
 
     @PutMapping("/routes/{id}")
-    @PreAuthorize("hasRole(\'ADMIN\')")
+    @PreAuthorize(RbacSpel.TRANSPORT_DESK_WRITE)
     @Operation(summary = "Update route")
     public ResponseEntity<ApiResponse<TransportRoute>> updateRoute(@PathVariable Long id, @RequestBody TransportRoute route) {
         return ResponseEntity.ok(ApiResponse.ok(service.updateRoute(id, route)));
     }
 
     @DeleteMapping("/routes/{id}")
-    @PreAuthorize("hasRole(\'ADMIN\')")
+    @PreAuthorize(RbacSpel.TRANSPORT_DESK_WRITE)
     @Operation(summary = "Delete route")
     public ResponseEntity<ApiResponse<Void>> deleteRoute(@PathVariable Long id) {
         service.deleteRoute(id);
@@ -62,14 +63,14 @@ public class TransportController {
     }
 
     @PostMapping("/stops")
-    @PreAuthorize("hasRole(\'ADMIN\')")
+    @PreAuthorize(RbacSpel.TRANSPORT_DESK_WRITE)
     @Operation(summary = "Add stop to route")
     public ResponseEntity<ApiResponse<RouteStop>> addStop(@RequestBody RouteStop stop) {
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.created(service.addStop(stop)));
     }
 
     @DeleteMapping("/stops/{id}")
-    @PreAuthorize("hasRole(\'ADMIN\')")
+    @PreAuthorize(RbacSpel.TRANSPORT_DESK_WRITE)
     @Operation(summary = "Remove stop")
     public ResponseEntity<ApiResponse<Void>> removeStop(@PathVariable Long id) {
         service.removeStop(id);
@@ -77,21 +78,21 @@ public class TransportController {
     }
 
     @PutMapping("/stops/{id}")
-    @PreAuthorize("hasRole(\'ADMIN\')")
+    @PreAuthorize(RbacSpel.TRANSPORT_DESK_WRITE)
     @Operation(summary = "Update stop name, order, or time")
     public ResponseEntity<ApiResponse<RouteStop>> updateStop(@PathVariable Long id, @RequestBody RouteStop patch) {
         return ResponseEntity.ok(ApiResponse.ok(service.updateStop(id, patch)));
     }
 
     @PostMapping("/assign-student")
-    @PreAuthorize("hasRole(\'ADMIN\')")
+    @PreAuthorize(RbacSpel.TRANSPORT_DESK_WRITE)
     @Operation(summary = "Assign student to route with pickup/drop stops")
     public ResponseEntity<ApiResponse<StudentTransportMapping>> assignStudent(@Valid @RequestBody TransportDTOs.AssignStudentRequest req) {
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.created(service.assignStudent(req)));
     }
 
     @DeleteMapping("/student-mapping/{id}")
-    @PreAuthorize("hasRole(\'ADMIN\')")
+    @PreAuthorize(RbacSpel.TRANSPORT_DESK_WRITE)
     @Operation(summary = "Remove student from route")
     public ResponseEntity<ApiResponse<Void>> removeStudent(@PathVariable Long id) {
         service.removeStudentFromRoute(id);
@@ -99,35 +100,35 @@ public class TransportController {
     }
 
     @GetMapping("/vehicles")
-    @PreAuthorize("hasRole(\'ADMIN\')")
+    @PreAuthorize(RbacSpel.TRANSPORT_DESK_WRITE)
     @Operation(summary = "Fleet vehicles")
     public ResponseEntity<ApiResponse<List<com.school.erp.modules.transport.entity.TransportVehicle>>> listVehicles() {
         return ResponseEntity.ok(ApiResponse.ok(service.listVehicles()));
     }
 
     @PostMapping("/vehicles")
-    @PreAuthorize("hasRole(\'ADMIN\')")
+    @PreAuthorize(RbacSpel.TRANSPORT_DESK_WRITE)
     @Operation(summary = "Register vehicle")
     public ResponseEntity<ApiResponse<com.school.erp.modules.transport.entity.TransportVehicle>> createVehicle(@RequestBody com.school.erp.modules.transport.entity.TransportVehicle vehicle) {
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.created(service.createVehicle(vehicle)));
     }
 
     @GetMapping("/drivers")
-    @PreAuthorize("hasRole(\'ADMIN\')")
+    @PreAuthorize(RbacSpel.TRANSPORT_DESK_WRITE)
     @Operation(summary = "Drivers")
     public ResponseEntity<ApiResponse<List<com.school.erp.modules.transport.entity.TransportDriver>>> listDrivers() {
         return ResponseEntity.ok(ApiResponse.ok(service.listDrivers()));
     }
 
     @PostMapping("/drivers")
-    @PreAuthorize("hasRole(\'ADMIN\')")
+    @PreAuthorize(RbacSpel.TRANSPORT_DESK_WRITE)
     @Operation(summary = "Register driver")
     public ResponseEntity<ApiResponse<com.school.erp.modules.transport.entity.TransportDriver>> createDriver(@RequestBody com.school.erp.modules.transport.entity.TransportDriver driver) {
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.created(service.createDriver(driver)));
     }
 
     @PostMapping("/vehicles/{vehicleId}/location")
-    @PreAuthorize("hasRole(\'ADMIN\')")
+    @PreAuthorize(RbacSpel.TRANSPORT_DESK_WRITE)
     @Operation(summary = "Report GPS point (simulator / device gateway)")
     public ResponseEntity<ApiResponse<com.school.erp.modules.transport.entity.VehicleLiveLocation>> reportLocation(
             @PathVariable Long vehicleId,

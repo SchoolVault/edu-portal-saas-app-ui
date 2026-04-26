@@ -500,7 +500,8 @@ public class CommunicationService {
     private static boolean seesFullSchoolAnnouncementBoard(String roleNorm) {
         return "ADMIN".equals(roleNorm)
                 || "SUPER_ADMIN".equals(roleNorm)
-                || "LIBRARY_STAFF".equals(roleNorm);
+                || "LIBRARY_STAFF".equals(roleNorm)
+                || "SCHOOL_STAFF".equals(roleNorm);
     }
 
     private static String previewText(String content) {

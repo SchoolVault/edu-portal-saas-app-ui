@@ -7,6 +7,7 @@ import com.school.erp.common.enums.Enums;
 import com.school.erp.modules.audit.entity.AuditLog;
 import com.school.erp.modules.audit.service.AuditExportService;
 import com.school.erp.modules.audit.service.AuditService;
+import com.school.erp.security.rbac.RbacSpel;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import java.nio.charset.StandardCharsets;
@@ -29,7 +30,7 @@ public class AuditController {
     private final AuditExportService auditExportService;
 
     @GetMapping
-    @PreAuthorize("hasRole(\'ADMIN\')")
+    @PreAuthorize(RbacSpel.AUDIT_LOG_READ)
     @Operation(summary = "Get audit logs", description = "Paginated audit logs with optional action and module filters")
     public ResponseEntity<ApiResponse<PageResponse<AuditLog>>> list(
             @RequestParam(defaultValue = "0") int page,
@@ -44,7 +45,7 @@ public class AuditController {
     }
 
     @GetMapping("/export")
-    @PreAuthorize("hasRole(\'ADMIN\')")
+    @PreAuthorize(RbacSpel.AUDIT_LOG_READ)
     @Operation(summary = "Export audit trail", description = "CSV or PDF for the selected calendar period and filters (max 10k rows).")
     public ResponseEntity<byte[]> export(
             @RequestParam String format,

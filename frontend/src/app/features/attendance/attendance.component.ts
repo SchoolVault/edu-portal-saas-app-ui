@@ -8,6 +8,7 @@ import { StudentService } from '../../core/services/student.service';
 import { AcademicService } from '../../core/services/academic.service';
 import { TeacherService } from '../../core/services/teacher.service';
 import { AuthService } from '../../core/services/auth.service';
+import { UiAccessService } from '../../core/services/ui-access.service';
 import { filter } from 'rxjs/operators';
 import { OperationsService } from '../../core/services/operations.service';
 import { ConfirmDialogService } from '../../shared/confirm-dialog/confirm-dialog.service';
@@ -223,6 +224,7 @@ import { localIsoDateString } from '../../core/utils/local-date';
 })
 export class AttendanceComponent implements OnInit {
   private readonly destroyRef = inject(DestroyRef);
+  private readonly uiAccess = inject(UiAccessService);
 
   classes: SchoolClass[] = [];
   sections: { id: number; name: string }[] = [];
@@ -245,8 +247,7 @@ export class AttendanceComponent implements OnInit {
   private homeroomScopeApplied = false;
 
   get isAdmin(): boolean {
-    const r = this.auth.getNormalizedRole();
-    return r === 'admin' || r === 'super_admin';
+    return this.uiAccess.hasAcademicDeskAdminAccess();
   }
 
   get isTeacher(): boolean {
