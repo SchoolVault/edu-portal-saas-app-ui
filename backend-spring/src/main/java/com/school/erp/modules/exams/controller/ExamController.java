@@ -42,7 +42,7 @@ public class ExamController {
     }
 
     @PostMapping
-    @PreAuthorize(RbacSpel.EXAM_STAFF_READ)
+    @PreAuthorize(RbacSpel.EXAM_OFFICE_WRITE)
     @Operation(summary = "Create exam")
     public ResponseEntity<ApiResponse<ExamDTOs.ExamResponse>> create(@Valid @RequestBody ExamDTOs.CreateExamRequest req) {
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.created(service.createExam(req)));
@@ -63,7 +63,7 @@ public class ExamController {
     }
 
     @PutMapping("/{id}/submit-approval")
-    @PreAuthorize(RbacSpel.EXAM_STAFF_READ)
+    @PreAuthorize(RbacSpel.EXAM_OFFICE_WRITE)
     @Operation(summary = "Submit exam for approval")
     public ResponseEntity<ApiResponse<ExamDTOs.ExamResponse>> submitApproval(
             @PathVariable Long id,

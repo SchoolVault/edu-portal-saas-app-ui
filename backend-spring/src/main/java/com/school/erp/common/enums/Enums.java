@@ -64,6 +64,17 @@ public class Enums {
         ISSUED, RETURNED, OVERDUE
     }
 
+    /**
+     * Canonical borrower identity for library circulation.
+     * <p>
+     * Use together with borrowerRefId/userId in {@code book_issues} to support student, staff,
+     * and future borrower personas without schema churn.
+     * </p>
+     */
+    public enum LibraryBorrowerType {
+        STUDENT, STAFF, GUARDIAN, OTHER
+    }
+
     public enum HostelRoomType {
         SINGLE, DOUBLE, TRIPLE, DORMITORY
     }

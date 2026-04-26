@@ -7,7 +7,9 @@ import {
   leaveStaffGuard,
   schoolSettingsGuard,
   schoolStaffGuard,
+  studentMasterWriteGuard,
   superAdminGuard,
+  feesOfficeGuard,
   timetableAccessGuard,
 } from './core/guards/auth.guard';
 import { featureModuleGuard } from './core/guards/feature-module.guard';
@@ -81,17 +83,16 @@ export const routes: Routes = [
         ],
       },
       { path: 'students', loadComponent: () => import('./features/student/student-list.component').then(m => m.StudentListComponent), canActivate: [schoolStaffGuard] },
-      { path: 'students/new', loadComponent: () => import('./features/student/student-form.component').then(m => m.StudentFormComponent), canActivate: [adminOnlyGuard] },
+      { path: 'students/new', loadComponent: () => import('./features/student/student-form.component').then(m => m.StudentFormComponent), canActivate: [studentMasterWriteGuard] },
       { path: 'students/:id', loadComponent: () => import('./features/student/student-profile.component').then(m => m.StudentProfileComponent), canActivate: [schoolStaffGuard] },
-      { path: 'students/:id/edit', loadComponent: () => import('./features/student/student-form.component').then(m => m.StudentFormComponent), canActivate: [adminOnlyGuard] },
+      { path: 'students/:id/edit', loadComponent: () => import('./features/student/student-form.component').then(m => m.StudentFormComponent), canActivate: [studentMasterWriteGuard] },
       {
         path: 'directory',
         loadComponent: () => import('./features/directory/directory.component').then(m => m.DirectoryComponent),
         canActivate: [adminOnlyGuard, featureModuleGuard],
         data: {
           requireFeatures: ['directory'],
-          requireAnyRole: ['admin'],
-          requireAnyPermission: ['SCHOOL_OPERATIONS_HUB', 'TENANT_ADMIN', 'PLATFORM_ADMIN'],
+          requireAnyPermission: ['SCHOOL_DIRECTORY_READ', 'SCHOOL_DIRECTORY_WRITE', 'TENANT_ADMIN', 'PLATFORM_ADMIN'],
         },
       },
       { path: 'teachers', loadComponent: () => import('./features/teacher/teacher-list.component').then(m => m.TeacherListComponent), canActivate: [schoolStaffGuard] },
@@ -117,10 +118,10 @@ export const routes: Routes = [
         canActivate: [featureModuleGuard],
         data: {
           requireFeatures: ['exams'],
-          requireAnyRole: ['admin', 'teacher', 'parent', 'super_admin'],
           requireAnyPermission: [
             'ACADEMIC_TEACHER',
-            'SCHOOL_EXAMS_OFFICE',
+            'SCHOOL_EXAMS_READ',
+            'SCHOOL_EXAMS_WRITE',
             'TENANT_ADMIN',
             'PLATFORM_ADMIN',
             'PORTAL_PARENT',
@@ -131,11 +132,10 @@ export const routes: Routes = [
       {
         path: 'fees',
         loadComponent: () => import('./features/fees/fees.component').then(m => m.FeesComponent),
-        canActivate: [adminOnlyGuard, featureModuleGuard],
+        canActivate: [feesOfficeGuard, featureModuleGuard],
         data: {
           requireFeatures: ['fees'],
-          requireAnyRole: ['admin'],
-          requireAnyPermission: ['SCHOOL_FEE_OFFICE', 'TENANT_ADMIN', 'PLATFORM_ADMIN'],
+          requireAnyPermission: ['SCHOOL_FEES_READ', 'SCHOOL_FEES_WRITE', 'TENANT_ADMIN', 'PLATFORM_ADMIN'],
         },
       },
       {
@@ -150,7 +150,16 @@ export const routes: Routes = [
         canActivate: [featureModuleGuard],
         data: {
           requireFeatures: ['communication'],
-          requireAnyRole: ['admin', 'teacher', 'parent', 'student', 'library_staff', 'school_staff'],
+          requireAnyPermission: [
+            'ACADEMIC_TEACHER',
+            'PORTAL_PARENT',
+            'PORTAL_STUDENT',
+            'PORTAL_SCHOOL_STAFF',
+            'SCHOOL_COMMUNICATION_READ',
+            'SCHOOL_COMMUNICATION_WRITE',
+            'TENANT_ADMIN',
+            'PLATFORM_ADMIN',
+          ],
         },
       },
       {
@@ -159,7 +168,16 @@ export const routes: Routes = [
         canActivate: [featureModuleGuard],
         data: {
           requireFeatures: ['communication'],
-          requireAnyRole: ['admin', 'teacher', 'parent', 'student', 'library_staff', 'school_staff'],
+          requireAnyPermission: [
+            'ACADEMIC_TEACHER',
+            'PORTAL_PARENT',
+            'PORTAL_STUDENT',
+            'PORTAL_SCHOOL_STAFF',
+            'SCHOOL_COMMUNICATION_READ',
+            'SCHOOL_COMMUNICATION_WRITE',
+            'TENANT_ADMIN',
+            'PLATFORM_ADMIN',
+          ],
         },
       },
       {
@@ -168,7 +186,16 @@ export const routes: Routes = [
         canActivate: [featureModuleGuard],
         data: {
           requireFeatures: ['communication'],
-          requireAnyRole: ['admin', 'teacher', 'parent', 'student', 'library_staff', 'school_staff'],
+          requireAnyPermission: [
+            'ACADEMIC_TEACHER',
+            'PORTAL_PARENT',
+            'PORTAL_STUDENT',
+            'PORTAL_SCHOOL_STAFF',
+            'SCHOOL_COMMUNICATION_READ',
+            'SCHOOL_COMMUNICATION_WRITE',
+            'TENANT_ADMIN',
+            'PLATFORM_ADMIN',
+          ],
         },
       },
       {
@@ -179,10 +206,12 @@ export const routes: Routes = [
           requireFeatures: ['leave'],
           requireAnyRole: ['admin', 'teacher', 'super_admin', 'library_staff', 'school_staff'],
           requireAnyPermission: [
-            'ACADEMIC_TEACHER',
+            'SCHOOL_LEAVE_SELF_READ',
+            'SCHOOL_LEAVE_SELF_APPLY',
+            'SCHOOL_LEAVE_APPROVAL_READ',
+            'SCHOOL_LEAVE_APPROVAL_WRITE',
             'TENANT_ADMIN',
             'PLATFORM_ADMIN',
-            'SCHOOL_OPERATIONS_HUB',
           ],
         },
       },
@@ -192,8 +221,7 @@ export const routes: Routes = [
         canActivate: [adminOnlyGuard, featureModuleGuard],
         data: {
           requireFeatures: ['reports'],
-          requireAnyRole: ['admin', 'super_admin'],
-          requireAnyPermission: ['SCHOOL_REPORTS_SCHOOL', 'TENANT_ADMIN', 'PLATFORM_ADMIN'],
+          requireAnyPermission: ['SCHOOL_REPORTS_READ', 'SCHOOL_REPORTS_WRITE', 'TENANT_ADMIN', 'PLATFORM_ADMIN'],
         },
       },
       {
@@ -202,8 +230,7 @@ export const routes: Routes = [
         canActivate: [adminOnlyGuard, featureModuleGuard],
         data: {
           requireFeatures: ['operationsHub'],
-          requireAnyRole: ['admin', 'super_admin'],
-          requireAnyPermission: ['SCHOOL_OPERATIONS_HUB', 'TENANT_ADMIN', 'PLATFORM_ADMIN'],
+          requireAnyPermission: ['SCHOOL_OPERATIONS_READ', 'SCHOOL_OPERATIONS_WRITE', 'TENANT_ADMIN', 'PLATFORM_ADMIN'],
         },
       },
       {
@@ -212,8 +239,7 @@ export const routes: Routes = [
         canActivate: [importExportGuard, featureModuleGuard],
         data: {
           requireFeatures: ['importExport'],
-          requireAnyRole: ['admin', 'super_admin'],
-          requireAnyPermission: ['SCHOOL_IMPORT_EXPORT', 'TENANT_ADMIN', 'PLATFORM_ADMIN'],
+          requireAnyPermission: ['SCHOOL_IMPORT_EXPORT_READ', 'SCHOOL_IMPORT_EXPORT_WRITE', 'TENANT_ADMIN', 'PLATFORM_ADMIN'],
         },
       },
       {
@@ -222,8 +248,12 @@ export const routes: Routes = [
         canActivate: [featureModuleGuard],
         data: {
           requireFeatures: ['transport'],
-          requireAnyRole: ['admin', 'super_admin', 'school_staff'],
-          requireAnyPermission: ['SCHOOL_TRANSPORT_DESK', 'TENANT_ADMIN', 'PLATFORM_ADMIN'],
+          requireAnyPermission: [
+            'SCHOOL_TRANSPORT_READ',
+            'SCHOOL_TRANSPORT_WRITE',
+            'TENANT_ADMIN',
+            'PLATFORM_ADMIN',
+          ],
         },
       },
       {
@@ -232,8 +262,13 @@ export const routes: Routes = [
         canActivate: [featureModuleGuard],
         data: {
           requireFeatures: ['library'],
-          requireAnyRole: ['admin', 'teacher', 'library_staff', 'school_staff'],
-          requireAnyPermission: ['LIBRARY_MANAGE', 'LIBRARY_CIRCULATION', 'TENANT_ADMIN', 'PLATFORM_ADMIN'],
+          requireAnyPermission: [
+            'SCHOOL_LIBRARY_MEMBER_READ',
+            'SCHOOL_LIBRARY_READ',
+            'SCHOOL_LIBRARY_WRITE',
+            'TENANT_ADMIN',
+            'PLATFORM_ADMIN',
+          ],
         },
       },
       {
@@ -242,8 +277,31 @@ export const routes: Routes = [
         canActivate: [featureModuleGuard],
         data: {
           requireFeatures: ['hostel'],
-          requireAnyRole: ['admin', 'super_admin', 'school_staff'],
-          requireAnyPermission: ['SCHOOL_HOSTEL_DESK', 'TENANT_ADMIN', 'PLATFORM_ADMIN'],
+          requireAnyPermission: [
+            'SCHOOL_HOSTEL_READ',
+            'SCHOOL_HOSTEL_WRITE',
+            'SCHOOL_HOSTEL_BILLING_READ',
+            'SCHOOL_HOSTEL_BILLING_WRITE',
+            'SCHOOL_HOSTEL_APPROVAL_WRITE',
+            'SCHOOL_HOSTEL_VISITOR_WRITE',
+            'SCHOOL_HOSTEL_INCIDENT_WRITE',
+            'TENANT_ADMIN',
+            'PLATFORM_ADMIN',
+          ],
+        },
+      },
+      {
+        path: 'hostel-portal',
+        loadComponent: () => import('./features/hostel/hostel-portal.component').then(m => m.HostelPortalComponent),
+        canActivate: [featureModuleGuard],
+        data: {
+          requireFeatures: ['hostel'],
+          requireAnyPermission: [
+            'PORTAL_PARENT',
+            'PORTAL_STUDENT',
+            'TENANT_ADMIN',
+            'PLATFORM_ADMIN',
+          ],
         },
       },
       {
@@ -252,9 +310,9 @@ export const routes: Routes = [
         canActivate: [featureModuleGuard],
         data: {
           requireFeatures: ['payroll'],
-          requireAnyRole: ['admin', 'super_admin', 'teacher'],
           requireAnyPermission: [
-            'SCHOOL_PAYROLL_OFFICE',
+            'SCHOOL_PAYROLL_READ',
+            'SCHOOL_PAYROLL_WRITE',
             'TENANT_ADMIN',
             'PLATFORM_ADMIN',
             'ACADEMIC_TEACHER',
@@ -268,7 +326,7 @@ export const routes: Routes = [
         data: {
           requireFeatures: ['documents'],
           requireAnyRole: ['admin', 'teacher', 'super_admin'],
-          requireAnyPermission: ['ACADEMIC_TEACHER', 'TENANT_ADMIN', 'PLATFORM_ADMIN'],
+          requireAnyPermission: ['ACADEMIC_TEACHER', 'SCHOOL_ACADEMIC_READ', 'SCHOOL_ACADEMIC_WRITE', 'TENANT_ADMIN', 'PLATFORM_ADMIN'],
         },
       },
       {

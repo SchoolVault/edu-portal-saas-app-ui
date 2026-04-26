@@ -150,6 +150,7 @@ app:
     executor-max-pool-size: ${APP_IMPORT_EXEC_MAX:8}
     executor-queue-capacity: ${APP_IMPORT_EXEC_QUEUE:200}
     completed-job-idempotency-enabled: ${APP_IMPORT_COMPLETED_IDEM_ENABLED:true}
+    allow-reprocess-override: ${APP_IMPORT_ALLOW_REPROCESS_OVERRIDE:true}
     max-all-or-nothing-rows: ${APP_IMPORT_MAX_AON_ROWS:3000}
     stuck-running-threshold-minutes: ${APP_IMPORT_STUCK_MIN:120}
     stuck-job-poll-interval-ms: ${APP_IMPORT_STUCK_POLL_MS:300000}
@@ -418,6 +419,16 @@ app:
     reminders:
       enabled: ${APP_JOBS_REMINDERS_ENABLED:true}
       external-scheduler-only: ${APP_JOBS_REMINDERS_EXTERNAL_ONLY:false}
+
+  hostel:
+    billing:
+      nightly-cron: ${APP_HOSTEL_BILLING_NIGHTLY_CRON:0 10 1 * * *}
+    incident:
+      sla-cron: ${APP_HOSTEL_INCIDENT_SLA_CRON:0 */20 * * * *}
+      low-severity-sla-minutes: ${APP_HOSTEL_INCIDENT_SLA_LOW_MIN:480}
+      medium-severity-sla-minutes: ${APP_HOSTEL_INCIDENT_SLA_MEDIUM_MIN:240}
+      high-severity-sla-minutes: ${APP_HOSTEL_INCIDENT_SLA_HIGH_MIN:120}
+      critical-severity-sla-minutes: ${APP_HOSTEL_INCIDENT_SLA_CRITICAL_MIN:60}
 
   audit:
     retention:

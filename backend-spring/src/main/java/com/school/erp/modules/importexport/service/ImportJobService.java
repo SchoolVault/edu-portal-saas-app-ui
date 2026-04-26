@@ -38,7 +38,6 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -81,12 +80,15 @@ public class ImportJobService {
     }
 
     @Transactional
-    public ImportExportDTOs.JobSubmitResponse submit(MultipartFile file, String jobTypeParam, String columnMappingJson, String executionModeParam) {
+    public ImportExportDTOs.JobSubmitResponse submit(MultipartFile file, String jobTypeParam, String columnMappingJson, String executionModeParam, boolean reprocess) {
         ImportJobType jobType = ImportJobType.fromParam(jobTypeParam);
         ImportExecutionMode executionMode = ImportExecutionMode.fromParam(executionModeParam);
         String tenantId = TenantContext.getTenantId();
         Long userId = TenantContext.getUserId();
         String role = TenantContext.getUserRole();
+        if (reprocess && !importRuntimeProperties.isAllowReprocessOverride()) {
+            throw new BusinessException("Reprocess override is disabled for this environment.");
+        }
 
         if (file == null || file.isEmpty()) {
             throw new BusinessException("Import file is required");
@@ -130,7 +132,7 @@ public class ImportJobService {
                             true, payloadHash);
                     return;
                 }
-                if (importRuntimeProperties.isCompletedJobIdempotencyEnabled()) {
+                if (!reprocess && importRuntimeProperties.isCompletedJobIdempotencyEnabled()) {
                     Optional<ImportJob> completed = jobRepository.findFirstByTenantIdAndJobTypeAndPayloadHashAndColumnMappingHashAndExecutionModeAndStatusInAndIsDeletedFalseOrderByCreatedAtDesc(
                             tenantId,
                             jobType.name(),
@@ -159,6 +161,7 @@ public class ImportJobService {
                 job.setPayloadHash(payloadHash);
                 job.setColumnMappingHash(mappingHash);
                 job.setExecutionMode(executionMode.name());
+                job.setReprocessRequested(reprocess);
                 job.setTotalRows(0);
                 job.setSuccessCount(0);
                 job.setFailCount(0);
@@ -215,6 +218,10 @@ public class ImportJobService {
 
                 log.info("Import job queued id={} tenant={} type={} rows={} hashPrefix={}",
                         jobId, tenantId, jobType.name(), totalRows[0], hashPrefix(payloadHash));
+                if (reprocess) {
+                    log.info("Import job queued with reprocess override id={} tenant={} type={} hashPrefix={}",
+                            jobId, tenantId, jobType.name(), hashPrefix(payloadHash));
+                }
 
                 scheduleAsyncStart(jobId, tenantId, userId, role);
                 resultHolder[0] = buildSubmitResponse(persisted, totalRows[0], false, payloadHash);
@@ -428,6 +435,7 @@ public class ImportJobService {
         r.setCreatedAt(j.getCreatedAt());
         r.setPayloadHash(j.getPayloadHash());
         r.setExecutionMode(j.getExecutionMode());
+        r.setReprocessRequested(Boolean.TRUE.equals(j.getReprocessRequested()));
         return r;
     }
 

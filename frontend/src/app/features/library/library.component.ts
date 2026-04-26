@@ -5,8 +5,6 @@ import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { Book, BookIssue, Student } from '../../core/models/models';
 import { LibraryCatalogFilter, LibraryService } from '../../core/services/library.service';
 import { StudentService } from '../../core/services/student.service';
-import { TeacherService } from '../../core/services/teacher.service';
-import { AuthService } from '../../core/services/auth.service';
 import { UiAccessService } from '../../core/services/ui-access.service';
 import { debounceTime, filter } from 'rxjs/operators';
 import { Subject, Subscription } from 'rxjs';
@@ -272,6 +270,7 @@ export class LibraryComponent implements OnInit, OnDestroy {
   canManageCatalog = false;
   /** Issue and return — same cohort as circulation on the API (LIBRARY_MANAGE or LIBRARY_CIRCULATION), not all teachers. */
   canCirculateBooks = false;
+  canUseMemberLane = false;
   readOnlyHintVisible = false;
   refreshing = false;
   bookModal = false;
@@ -290,15 +289,13 @@ export class LibraryComponent implements OnInit, OnDestroy {
   constructor(
     private libraryService: LibraryService,
     private studentService: StudentService,
-    private teacherService: TeacherService,
-    private authService: AuthService,
     private uiAccess: UiAccessService,
     private confirmDialog: ConfirmDialogService,
     private translate: TranslateService
   ) {}
 
   get libraryReadOnlyKey(): string {
-    return this.authService.getNormalizedRole() === 'super_admin' ? 'library.readOnlyHintSuperAdmin' : 'library.readOnlyHintTeacher';
+    return this.canUseMemberLane ? 'library.readOnlyHintMember' : 'library.readOnlyHintTeacher';
   }
 
   issueStatusLabel(raw: string): string {
@@ -319,64 +316,16 @@ export class LibraryComponent implements OnInit, OnDestroy {
         this.fetchBooksPage();
       })
     );
-    const nr = this.authService.getNormalizedRole();
-    this.readOnlyHintVisible = false;
-    if (nr === 'super_admin') {
-      this.canManageCatalog = false;
-      this.canCirculateBooks = false;
-      this.readOnlyHintVisible = true;
-    } else if (nr === 'admin' || nr === 'library_staff') {
-      this.canManageCatalog = true;
-      this.canCirculateBooks = true;
-    } else if (nr === 'teacher') {
-      this.applyTeacherLibraryAccess();
-    } else if (nr === 'school_staff') {
-      this.canManageCatalog = this.uiAccess.hasLibraryCatalogWriteAccess();
-      this.canCirculateBooks = this.uiAccess.hasLibraryCirculationDeskAccess();
-      this.readOnlyHintVisible = !this.canManageCatalog && !this.canCirculateBooks;
-    } else {
-      this.canManageCatalog = false;
-      this.canCirculateBooks = false;
-    }
-    this.subs.add(
-      this.authService.currentUser$.pipe(debounceTime(80), filter(u => !!u)).subscribe(() => {
-        const role = this.authService.getNormalizedRole();
-        if (role === 'teacher') {
-          this.applyTeacherLibraryAccess();
-        } else if (role === 'school_staff') {
-          this.canManageCatalog = this.uiAccess.hasLibraryCatalogWriteAccess();
-          this.canCirculateBooks = this.uiAccess.hasLibraryCirculationDeskAccess();
-          this.readOnlyHintVisible = !this.canManageCatalog && !this.canCirculateBooks;
-        }
-      })
-    );
+    const hasLibraryDeskLane = this.uiAccess.hasLibraryDeskLaneAccess();
+    this.canManageCatalog = this.uiAccess.hasLibraryCatalogWriteAccess();
+    this.canCirculateBooks = hasLibraryDeskLane && this.uiAccess.hasLibraryCirculationDeskAccess();
+    this.canUseMemberLane = this.uiAccess.hasLibraryMemberReadAccess();
+    this.readOnlyHintVisible = !this.canManageCatalog && !this.canCirculateBooks;
     this.rebuildCategories();
     this.loadBooks();
-    this.studentService.getStudents().subscribe(s => (this.students = s || []));
-  }
-
-  /**
-   * Mirrors backend {@code EffectivePermissionService}: teachers get library actions only when
-   * JWT includes LIBRARY_* (real API) or mock teacher row has {@link Teacher.libraryStaffRole}.
-   */
-  private applyTeacherLibraryAccess(): void {
-    const jwt = this.authService.getJwtPermissionAuthorities();
-    const jwtManage = jwt.has('LIBRARY_MANAGE');
-    const jwtCirc = jwt.has('LIBRARY_CIRCULATION');
-    if (jwtManage || jwtCirc) {
-      this.canManageCatalog = jwtManage;
-      this.canCirculateBooks = jwtManage || jwtCirc;
-      this.readOnlyHintVisible = !this.canManageCatalog && !this.canCirculateBooks;
-      return;
+    if (this.canCirculateBooks) {
+      this.studentService.getStudents().subscribe(s => (this.students = s || []));
     }
-    const me = this.authService.getCurrentUser();
-    this.teacherService.getTeachers().subscribe(list => {
-      const row = (list || []).find(t => t.userId === me?.id);
-      const libStaff = !!row?.libraryStaffRole;
-      this.canManageCatalog = libStaff;
-      this.canCirculateBooks = libStaff;
-      this.readOnlyHintVisible = !libStaff;
-    });
   }
 
   onLoan(b: Book): number {
@@ -386,6 +335,12 @@ export class LibraryComponent implements OnInit, OnDestroy {
   refreshAll(): void {
     this.refreshing = true;
     this.rebuildCategories();
+    if (!this.canCirculateBooks) {
+      this.loadBooks();
+      this.loadIssues();
+      this.refreshing = false;
+      return;
+    }
     this.studentService.getStudents().subscribe({
       next: s => {
         this.students = s || [];
@@ -488,7 +443,10 @@ export class LibraryComponent implements OnInit, OnDestroy {
       this.fetchIssuesPage();
       return;
     }
-    this.libraryService.listIssues(this.issueStatusFilter || undefined).subscribe(i => {
+    const loader = this.canCirculateBooks
+      ? this.libraryService.listIssues.bind(this.libraryService)
+      : this.libraryService.listMyIssues.bind(this.libraryService);
+    loader(this.issueStatusFilter || undefined).subscribe(i => {
       this.issuesFull = i || [];
       this.issuePageIndex = 0;
       this.applyIssuesPage();
@@ -497,8 +455,10 @@ export class LibraryComponent implements OnInit, OnDestroy {
 
   private fetchIssuesPage(): void {
     const seq = ++this.issuesReqSeq;
-    this.libraryService
-      .getIssuesPage({
+    const loader = this.canCirculateBooks
+      ? this.libraryService.getIssuesPage.bind(this.libraryService)
+      : this.libraryService.getMyIssuesPage.bind(this.libraryService);
+    loader({
         page: this.issuePageIndex,
         size: this.issuePageSize,
         status: this.issueStatusFilter || undefined,

@@ -25,6 +25,7 @@ public class LibraryController {
     private final LibraryService service;
 
     @GetMapping("/books")
+    @PreAuthorize(RbacSpel.LIBRARY_MEMBER_READ)
     @Operation(summary = "List/search books", description = "By default only catalog-active titles; pass includeInactive=true to list withdrawn titles")
     public ResponseEntity<ApiResponse<List<Book>>> listBooks(
             @RequestParam(required = false) String search,
@@ -48,12 +49,14 @@ public class LibraryController {
     }
 
     @GetMapping("/issues")
+    @PreAuthorize(RbacSpel.LIBRARY_DESK_READ)
     @Operation(summary = "List book issues", description = "Filter by status: ISSUED, RETURNED, OVERDUE")
     public ResponseEntity<ApiResponse<List<LibraryDTOs.BookIssueResponse>>> listIssues(@RequestParam(required = false) Enums.BookIssueStatus status) {
         return ResponseEntity.ok(ApiResponse.ok(service.getIssues(status)));
     }
 
     @GetMapping("/books/paged")
+    @PreAuthorize(RbacSpel.LIBRARY_MEMBER_READ)
     @Operation(summary = "List/search books (paged)", description = "catalogScope: ACTIVE (default), INACTIVE, or ALL")
     public ResponseEntity<ApiResponse<PageResponse<Book>>> listBooksPaged(
             @RequestParam(defaultValue = "0") int page,
@@ -65,6 +68,7 @@ public class LibraryController {
     }
 
     @GetMapping("/issues/paged")
+    @PreAuthorize(RbacSpel.LIBRARY_DESK_READ)
     @Operation(summary = "List book issues (paged)", description = "Filter by status: ISSUED, RETURNED, OVERDUE")
     public ResponseEntity<ApiResponse<PageResponse<LibraryDTOs.BookIssueResponse>>> listIssuesPaged(
             @RequestParam(defaultValue = "0") int page,
@@ -73,11 +77,37 @@ public class LibraryController {
         return ResponseEntity.ok(ApiResponse.ok(service.getIssuesPaged(page, size, status)));
     }
 
+    @GetMapping("/issues/me")
+    @PreAuthorize(RbacSpel.LIBRARY_MEMBER_READ)
+    @Operation(summary = "List own/linked borrow history", description = "Member lane: students see own issues; parents see linked ward issues")
+    public ResponseEntity<ApiResponse<List<LibraryDTOs.BookIssueResponse>>> listMyIssues(
+            @RequestParam(required = false) Enums.BookIssueStatus status) {
+        return ResponseEntity.ok(ApiResponse.ok(service.getMemberIssues(status)));
+    }
+
+    @GetMapping("/issues/me/paged")
+    @PreAuthorize(RbacSpel.LIBRARY_MEMBER_READ)
+    @Operation(summary = "List own/linked borrow history (paged)", description = "Member lane paged issues for student self-service or parent-linked wards")
+    public ResponseEntity<ApiResponse<PageResponse<LibraryDTOs.BookIssueResponse>>> listMyIssuesPaged(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(required = false) Enums.BookIssueStatus status) {
+        return ResponseEntity.ok(ApiResponse.ok(service.getMemberIssuesPaged(page, size, status)));
+    }
+
     @PostMapping("/issues")
     @PreAuthorize(RbacSpel.LIBRARY_CIRCULATION_ACCESS)
     @Operation(summary = "Issue book to student", description = "Decreases available copies. Default due: 14 days.")
     public ResponseEntity<ApiResponse<LibraryDTOs.BookIssueResponse>> issueBook(@Valid @RequestBody LibraryDTOs.IssueBookRequest req) {
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.created(service.issueBook(req)));
+    }
+
+    @PostMapping("/issues/borrower")
+    @PreAuthorize(RbacSpel.LIBRARY_CIRCULATION_ACCESS)
+    @Operation(summary = "Issue book to generic borrower", description = "ERP-grade borrower API using borrowerType + borrowerRefId (+ optional borrowerUserId)")
+    public ResponseEntity<ApiResponse<LibraryDTOs.BorrowerIssueResponse>> issueBookToBorrower(
+            @Valid @RequestBody LibraryDTOs.IssueBorrowerRequest req) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.created(service.issueBookForBorrower(req)));
     }
 
     @PutMapping("/issues/{id}/return")

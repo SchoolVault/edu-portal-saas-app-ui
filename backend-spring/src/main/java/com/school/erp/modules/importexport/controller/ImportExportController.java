@@ -91,17 +91,18 @@ public class ImportExportController {
     }
 
     @PostMapping(value = "/jobs", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @PreAuthorize(RbacSpel.IMPORT_EXPORT_JOBS)
+    @PreAuthorize(RbacSpel.SCHOOL_IMPORT_EXPORT_WRITE)
     @Operation(summary = "Submit async import job (CSV, XLSX, or ZIP containing typed CSV)")
     public ResponseEntity<ApiResponse<ImportExportDTOs.JobSubmitResponse>> submitJob(
             @RequestParam("jobType") String jobType,
             @RequestParam("file") MultipartFile file,
             @RequestParam(value = "columnMappingJson", required = false) String columnMappingJson,
             @RequestParam(value = "executionMode", required = false) String executionMode,
+            @RequestParam(value = "reprocess", required = false, defaultValue = "false") boolean reprocess,
             @RequestParam(value = "schoolCode", required = false) String schoolCode) {
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.created(runInImportTenant(schoolCode,
-                        () -> importJobService.submit(file, jobType, columnMappingJson, executionMode))));
+                        () -> importJobService.submit(file, jobType, columnMappingJson, executionMode, reprocess))));
     }
 
     private <T> T runInImportTenant(String schoolCode, Supplier<T> operation) {
@@ -179,7 +180,7 @@ public class ImportExportController {
     }
 
     @PostMapping("/jobs/{jobId}/retry-failed")
-    @PreAuthorize(RbacSpel.IMPORT_EXPORT_JOBS)
+    @PreAuthorize(RbacSpel.SCHOOL_IMPORT_EXPORT_WRITE)
     @Operation(summary = "Re-queue failed rows for another async pass")
     public ResponseEntity<ApiResponse<ImportExportDTOs.JobSubmitResponse>> retryFailed(
             @PathVariable Long jobId,

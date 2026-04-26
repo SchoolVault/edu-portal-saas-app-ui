@@ -25,12 +25,14 @@ public class NotificationController {
     private final RoutingSmsService routingSmsService;
 
     @GetMapping
+    @PreAuthorize(RbacSpel.COMMUNICATION_INBOX_READ)
     @Operation(summary = "Get user notifications")
     public ResponseEntity<ApiResponse<List<Notification>>> list() {
         return ResponseEntity.ok(ApiResponse.ok(service.getUserNotifications()));
     }
 
     @GetMapping("/paged")
+    @PreAuthorize(RbacSpel.COMMUNICATION_INBOX_READ)
     @Operation(summary = "Get user notifications (paged)")
     public ResponseEntity<ApiResponse<PageResponse<Notification>>> listPaged(
             @RequestParam(defaultValue = "0") int page,
@@ -39,12 +41,14 @@ public class NotificationController {
     }
 
     @GetMapping("/unread-count")
+    @PreAuthorize(RbacSpel.COMMUNICATION_INBOX_READ)
     @Operation(summary = "Get unread notification count")
     public ResponseEntity<ApiResponse<Long>> unreadCount() {
         return ResponseEntity.ok(ApiResponse.ok(service.getUnreadCount()));
     }
 
     @GetMapping("/{id}")
+    @PreAuthorize(RbacSpel.COMMUNICATION_INBOX_READ)
     @Operation(summary = "Get one notification (current user / super-admin filtered scope)")
     public ResponseEntity<ApiResponse<Notification>> getOne(@PathVariable Long id) {
         Notification n = service.getNotificationForCurrentUser(id)
@@ -53,6 +57,7 @@ public class NotificationController {
     }
 
     @PutMapping("/{id}/read")
+    @PreAuthorize(RbacSpel.COMMUNICATION_INBOX_READ)
     @Operation(summary = "Mark notification as read")
     public ResponseEntity<ApiResponse<Void>> markRead(@PathVariable Long id) {
         service.markAsRead(id);
@@ -60,6 +65,7 @@ public class NotificationController {
     }
 
     @PutMapping("/read-all")
+    @PreAuthorize(RbacSpel.COMMUNICATION_INBOX_READ)
     @Operation(summary = "Mark all notifications as read")
     public ResponseEntity<ApiResponse<Void>> markAllRead() {
         service.markAllAsRead();
@@ -67,7 +73,7 @@ public class NotificationController {
     }
 
     @GetMapping("/ops/dead-letter")
-    @PreAuthorize(RbacSpel.NOTIFICATION_SCHOOL_ADMIN)
+    @PreAuthorize(RbacSpel.SCHOOL_COMMUNICATION_READ)
     @Operation(summary = "Dead-letter queue items")
     public ResponseEntity<ApiResponse<PageResponse<NotificationOpsDTOs.DeadLetterItem>>> deadLetterPage(
             @RequestParam(defaultValue = "0") int page,
@@ -76,14 +82,14 @@ public class NotificationController {
     }
 
     @PostMapping("/ops/dead-letter/{id}/replay")
-    @PreAuthorize(RbacSpel.NOTIFICATION_SCHOOL_ADMIN)
+    @PreAuthorize(RbacSpel.SCHOOL_COMMUNICATION_WRITE)
     @Operation(summary = "Replay dead-letter entry")
     public ResponseEntity<ApiResponse<NotificationOpsDTOs.ReplayResult>> replayOne(@PathVariable Long id) {
         return ResponseEntity.ok(ApiResponse.ok(outboxService.replayDeadLetter(id), "Replay requested"));
     }
 
     @PostMapping("/ops/dead-letter/replay-by-campaign/{campaignId}")
-    @PreAuthorize(RbacSpel.NOTIFICATION_SCHOOL_ADMIN)
+    @PreAuthorize(RbacSpel.SCHOOL_COMMUNICATION_WRITE)
     @Operation(summary = "Replay dead-letter entries for campaign")
     public ResponseEntity<ApiResponse<NotificationOpsDTOs.ReplayResult>> replayByCampaign(
             @PathVariable String campaignId,
@@ -92,7 +98,7 @@ public class NotificationController {
     }
 
     @GetMapping("/ops/provider-health")
-    @PreAuthorize(RbacSpel.NOTIFICATION_SCHOOL_ADMIN)
+    @PreAuthorize(RbacSpel.SCHOOL_COMMUNICATION_READ)
     @Operation(summary = "SMS provider health snapshot")
     public ResponseEntity<ApiResponse<NotificationOpsDTOs.ProviderHealthResponse>> providerHealth() {
         NotificationOpsDTOs.ProviderHealthResponse out = new NotificationOpsDTOs.ProviderHealthResponse();

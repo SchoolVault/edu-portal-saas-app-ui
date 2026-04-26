@@ -9,7 +9,6 @@ import com.school.erp.modules.student.dto.StudentDTOs;
 import com.school.erp.modules.student.service.StudentService;
 import com.school.erp.security.rbac.RbacSpel;
 import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -28,28 +27,28 @@ public class StudentController {
     private final GuardianService guardianService;
 
     @GetMapping
-    @PreAuthorize(RbacSpel.ACADEMIC_ROSTER_READ)
+    @PreAuthorize(RbacSpel.STUDENT_MASTER_READ)
     @Operation(summary = "List students", description = "Get paginated list of students with optional filters")
     public ResponseEntity<ApiResponse<PageResponse<StudentDTOs.Response>>> list(@RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "20") int size, @RequestParam(required = false) Long classId, @RequestParam(required = false) Long sectionId, @RequestParam(required = false) Enums.StudentStatus status, @RequestParam(required = false) String search, @RequestParam(defaultValue = "firstName") String sortBy, @RequestParam(defaultValue = "asc") String direction) {
         return ResponseEntity.ok(ApiResponse.ok(studentService.getStudents(page, size, classId, sectionId, status, search, sortBy, direction)));
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize(RbacSpel.ACADEMIC_ROSTER_READ)
+    @PreAuthorize(RbacSpel.STUDENT_MASTER_READ)
     @Operation(summary = "Get student", description = "Get student by ID with full profile")
     public ResponseEntity<ApiResponse<StudentDTOs.Response>> getById(@PathVariable Long id) {
         return ResponseEntity.ok(ApiResponse.ok(studentService.getStudentById(id)));
     }
 
     @GetMapping("/class/{classId}")
-    @PreAuthorize(RbacSpel.ACADEMIC_ROSTER_READ)
+    @PreAuthorize(RbacSpel.STUDENT_MASTER_READ)
     @Operation(summary = "Get students by class", description = "Get all students in a specific class")
     public ResponseEntity<ApiResponse<List<StudentDTOs.Response>>> getByClass(@PathVariable Long classId) {
         return ResponseEntity.ok(ApiResponse.ok(studentService.getStudentsByClass(classId)));
     }
 
     @GetMapping("/class/{classId}/section/{sectionId}")
-    @PreAuthorize(RbacSpel.ACADEMIC_ROSTER_READ)
+    @PreAuthorize(RbacSpel.STUDENT_MASTER_READ)
     @Operation(summary = "Get students by class and section")
     public ResponseEntity<ApiResponse<List<StudentDTOs.Response>>> getByClassAndSection(@PathVariable Long classId, @PathVariable Long sectionId) {
         return ResponseEntity.ok(ApiResponse.ok(studentService.getStudentsByClassAndSection(classId, sectionId)));
@@ -107,14 +106,14 @@ public class StudentController {
     }
 
     @GetMapping("/count")
-    @PreAuthorize(RbacSpel.ACADEMIC_ROSTER_READ)
+    @PreAuthorize(RbacSpel.STUDENT_MASTER_READ)
     @Operation(summary = "Count students", description = "Get total number of active students")
     public ResponseEntity<ApiResponse<Long>> count() {
         return ResponseEntity.ok(ApiResponse.ok(studentService.countStudents()));
     }
 
     @GetMapping("/{id}/guardian-mappings")
-    @PreAuthorize(RbacSpel.ACADEMIC_ROSTER_READ)
+    @PreAuthorize(RbacSpel.STUDENT_MASTER_READ)
     @Operation(summary = "List guardian links for a student")
     public ResponseEntity<ApiResponse<List<GuardianDTOs.MappingResponse>>> listGuardianMappings(@PathVariable Long id) {
         return ResponseEntity.ok(ApiResponse.ok(guardianService.listMappingsForStudent(id)));

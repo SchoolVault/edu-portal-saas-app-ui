@@ -19,6 +19,12 @@ export interface TenantFinanceProfile {
   /** In-app salary transfer via payout API; default off — use external bank run + mark paid. */
   payrollDigitalPayoutEnabled?: boolean;
 }
+
+export type LibraryBorrowerType = 'STUDENT' | 'STAFF' | 'GUARDIAN' | 'OTHER';
+
+export interface LibraryBorrowerPolicy {
+  allowedBorrowerTypes: LibraryBorrowerType[];
+}
 import { MOCK_TENANT_CONFIG_DEFAULT, mockSchoolBranches } from '../mocks/settings.mock-data';
 import { SchoolBranch, TenantConfig } from '../models/models';
 import { ApiService } from './api.service';
@@ -188,5 +194,26 @@ export class SettingsService {
       return of({ ...next }).pipe(delay(100));
     }
     return this.api.post<TenantFinanceProfile>('/settings/finance-profile/withdraw-submission', {});
+  }
+
+  getLibraryBorrowerPolicy(): Observable<LibraryBorrowerPolicy> {
+    if (runtimeConfig.useMocks) {
+      const t = readMockTenant();
+      const defaults: LibraryBorrowerPolicy = { allowedBorrowerTypes: ['STUDENT', 'STAFF'] };
+      return of((t as any).libraryBorrowerPolicy ?? defaults).pipe(delay(60));
+    }
+    return this.api.get<LibraryBorrowerPolicy>('/settings/library/borrower-policy');
+  }
+
+  updateLibraryBorrowerPolicy(body: LibraryBorrowerPolicy): Observable<LibraryBorrowerPolicy> {
+    if (runtimeConfig.useMocks) {
+      const prev = readMockTenant();
+      const next = {
+        allowedBorrowerTypes: Array.from(new Set((body?.allowedBorrowerTypes ?? []).filter(Boolean))) as LibraryBorrowerType[],
+      };
+      writeMockTenant({ ...prev, libraryBorrowerPolicy: next } as any);
+      return of(next).pipe(delay(90));
+    }
+    return this.api.put<LibraryBorrowerPolicy>('/settings/library/borrower-policy', body);
   }
 }

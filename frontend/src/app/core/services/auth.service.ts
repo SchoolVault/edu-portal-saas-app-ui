@@ -372,46 +372,17 @@ export class AuthService {
   }
 
   /**
-   * Effective permission codes: prefers {@code user.permissions} from login, else JWT {@code permissions} claim,
-   * merged with the portal-role baseline that mirrors backend {@code EffectivePermissionService}
-   * (teacher / library / base school staff always carry their baseline; stacked school-role grants are additive).
+   * Effective permission codes from server-resolved authority sets.
+   * Prefers {@code user.permissions} from login/profile; falls back to JWT {@code permissions}.
    */
   getEffectivePermissionCodes(): string[] {
     const u = this.getCurrentUser();
-    let codes: string[] = [];
     if (u?.permissions && u.permissions.length > 0) {
-      codes = [...u.permissions];
-    } else {
-      const t = this.getToken();
-      if (t && isLikelyJwt(t)) {
-        codes = decodeJwtPermissions(t);
-      }
+      return [...new Set(u.permissions)];
     }
-    const baseline = this.portalRoleBaselinePermissions();
-    if (baseline.length === 0) {
-      return codes;
-    }
-    return [...new Set([...codes, ...baseline])];
-  }
-
-  /**
-   * Legacy portal bundles for school identities (not {@code admin} / {@code parent} / {@code student}),
-   * so UI checks stay aligned when JWT lists only extra desk authorities.
-   */
-  private portalRoleBaselinePermissions(): string[] {
-    const r = this.getNormalizedRole();
-    if (r === 'teacher') {
-      return [AppPermission.ACADEMIC_TEACHER, AppPermission.FEE_STRUCTURES_READ];
-    }
-    if (r === 'library_staff') {
-      return [
-        AppPermission.PORTAL_SCHOOL_STAFF,
-        AppPermission.LIBRARY_MANAGE,
-        AppPermission.LIBRARY_CIRCULATION,
-      ];
-    }
-    if (r === 'school_staff') {
-      return [AppPermission.PORTAL_SCHOOL_STAFF];
+    const t = this.getToken();
+    if (t && isLikelyJwt(t)) {
+      return [...new Set(decodeJwtPermissions(t))];
     }
     return [];
   }

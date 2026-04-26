@@ -20,6 +20,8 @@ export interface ImportJobSummary {
   payloadHash?: string | null;
   /** BEST_EFFORT | ALL_OR_NOTHING */
   executionMode?: string | null;
+  /** True when job was intentionally queued as a corrective reprocess run. */
+  reprocessRequested?: boolean;
 }
 
 export interface ImportJobLine {
@@ -229,7 +231,8 @@ export class ImportExportService {
     file: File,
     columnMappingJson?: string | null,
     schoolCode?: string | null,
-    executionMode?: string | null
+    executionMode?: string | null,
+    reprocess?: boolean
   ): Observable<JobSubmitResponse> {
     if (runtimeConfig.useMocks) {
       return of({
@@ -250,6 +253,9 @@ export class ImportExportService {
     }
     if (schoolCode && schoolCode.trim().length > 0) {
       fd.append('schoolCode', schoolCode.trim().toUpperCase());
+    }
+    if (reprocess === true) {
+      fd.append('reprocess', 'true');
     }
     return this.api.postFormData<JobSubmitResponse>('/import-export/jobs', fd);
   }

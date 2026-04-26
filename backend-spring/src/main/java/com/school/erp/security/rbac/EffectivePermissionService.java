@@ -26,28 +26,63 @@ public class EffectivePermissionService {
 
     private static final Set<AppPermission> SCHOOL_TENANT_BUNDLE = EnumSet.of(
             AppPermission.TENANT_ADMIN,
-            AppPermission.SCHOOL_FEE_OFFICE,
-            AppPermission.SCHOOL_SETTINGS_FINANCE,
-            AppPermission.SCHOOL_PAYROLL_OFFICE,
-            AppPermission.SCHOOL_SETTINGS_CORE,
-            AppPermission.SCHOOL_STUDENT_MASTER,
-            AppPermission.SCHOOL_EXAMS_OFFICE,
-            AppPermission.SCHOOL_IMPORT_EXPORT,
-            AppPermission.SCHOOL_OPERATIONS_HUB,
-            AppPermission.SCHOOL_TRANSPORT_DESK,
-            AppPermission.SCHOOL_HOSTEL_DESK,
-            AppPermission.SCHOOL_REPORTS_SCHOOL,
+            AppPermission.SCHOOL_FEES_READ,
+            AppPermission.SCHOOL_FEES_WRITE,
+            AppPermission.SCHOOL_SETTINGS_FINANCE_READ,
+            AppPermission.SCHOOL_SETTINGS_FINANCE_WRITE,
+            AppPermission.SCHOOL_PAYROLL_READ,
+            AppPermission.SCHOOL_PAYROLL_WRITE,
+            AppPermission.SCHOOL_SETTINGS_CORE_READ,
+            AppPermission.SCHOOL_SETTINGS_CORE_WRITE,
+            AppPermission.SCHOOL_GUARDIAN_READ,
+            AppPermission.SCHOOL_GUARDIAN_WRITE,
+            AppPermission.SCHOOL_STUDENT_READ,
+            AppPermission.SCHOOL_STUDENT_WRITE,
+            AppPermission.SCHOOL_EXAMS_READ,
+            AppPermission.SCHOOL_EXAMS_WRITE,
+            AppPermission.SCHOOL_IMPORT_EXPORT_READ,
+            AppPermission.SCHOOL_IMPORT_EXPORT_WRITE,
+            AppPermission.SCHOOL_COMMUNICATION_READ,
+            AppPermission.SCHOOL_COMMUNICATION_WRITE,
+            AppPermission.SCHOOL_DIRECTORY_READ,
+            AppPermission.SCHOOL_DIRECTORY_WRITE,
+            AppPermission.SCHOOL_OPERATIONS_READ,
+            AppPermission.SCHOOL_OPERATIONS_WRITE,
+            AppPermission.SCHOOL_ACADEMIC_READ,
+            AppPermission.SCHOOL_ACADEMIC_WRITE,
+            AppPermission.SCHOOL_RBAC_READ,
+            AppPermission.SCHOOL_RBAC_WRITE,
+            AppPermission.SCHOOL_CHAT_READ,
+            AppPermission.SCHOOL_CHAT_WRITE,
+            AppPermission.SCHOOL_TRANSPORT_READ,
+            AppPermission.SCHOOL_TRANSPORT_WRITE,
+            AppPermission.SCHOOL_HOSTEL_READ,
+            AppPermission.SCHOOL_HOSTEL_WRITE,
+            AppPermission.SCHOOL_HOSTEL_BILLING_READ,
+            AppPermission.SCHOOL_HOSTEL_BILLING_WRITE,
+            AppPermission.SCHOOL_HOSTEL_APPROVAL_WRITE,
+            AppPermission.SCHOOL_HOSTEL_VISITOR_WRITE,
+            AppPermission.SCHOOL_HOSTEL_INCIDENT_WRITE,
+            AppPermission.SCHOOL_REPORTS_READ,
+            AppPermission.SCHOOL_REPORTS_WRITE,
+            AppPermission.SCHOOL_LEAVE_SELF_READ,
+            AppPermission.SCHOOL_LEAVE_SELF_APPLY,
+            AppPermission.SCHOOL_LEAVE_APPROVAL_READ,
+            AppPermission.SCHOOL_LEAVE_APPROVAL_WRITE,
             AppPermission.FEE_STRUCTURES_READ
     );
 
     private static final Set<AppPermission> TEACHER_BASE = EnumSet.of(
             AppPermission.ACADEMIC_TEACHER,
-            AppPermission.FEE_STRUCTURES_READ
+            AppPermission.FEE_STRUCTURES_READ,
+            AppPermission.SCHOOL_LIBRARY_MEMBER_READ,
+            AppPermission.SCHOOL_LEAVE_SELF_READ,
+            AppPermission.SCHOOL_LEAVE_SELF_APPLY
     );
 
     private static final Set<AppPermission> LIBRARY_BUNDLE = EnumSet.of(
-            AppPermission.LIBRARY_MANAGE,
-            AppPermission.LIBRARY_CIRCULATION
+            AppPermission.SCHOOL_LIBRARY_READ,
+            AppPermission.SCHOOL_LIBRARY_WRITE
     );
 
     private static final Set<AppPermission> SUPER_ADMIN_BUNDLE;
@@ -82,7 +117,7 @@ public class EffectivePermissionService {
             return Set.of(AppPermission.PORTAL_PARENT);
         }
         if (user.getRole() == Enums.Role.STUDENT) {
-            return Set.of(AppPermission.PORTAL_STUDENT);
+            return Set.of(AppPermission.PORTAL_STUDENT, AppPermission.SCHOOL_LIBRARY_MEMBER_READ);
         }
         if (user.getTenantId() != null && !user.getTenantId().isBlank()
                 && (user.getRole() == Enums.Role.ADMIN
@@ -118,7 +153,7 @@ public class EffectivePermissionService {
             return Set.of(AppPermission.PORTAL_PARENT);
         }
         if (user.getRole() == Enums.Role.STUDENT) {
-            return Set.of(AppPermission.PORTAL_STUDENT);
+            return Set.of(AppPermission.PORTAL_STUDENT, AppPermission.SCHOOL_LIBRARY_MEMBER_READ);
         }
         if (user.getTenantId() != null && !user.getTenantId().isBlank()
                 && (user.getRole() == Enums.Role.ADMIN
@@ -136,6 +171,7 @@ public class EffectivePermissionService {
                 acc.addAll(LIBRARY_BUNDLE);
             } else if (user.getRole() == Enums.Role.SCHOOL_STAFF) {
                 acc.add(AppPermission.PORTAL_SCHOOL_STAFF);
+                acc.add(AppPermission.SCHOOL_LIBRARY_MEMBER_READ);
             }
             for (SchoolRole r : schoolRoles) {
                 if (r != null) {
@@ -162,7 +198,7 @@ public class EffectivePermissionService {
         if (user.getTenantId() == null || user.getTenantId().isBlank()) {
             return;
         }
-        boolean hasLib = acc.contains(AppPermission.LIBRARY_MANAGE) && acc.contains(AppPermission.LIBRARY_CIRCULATION);
+        boolean hasLib = acc.contains(AppPermission.SCHOOL_LIBRARY_READ) && acc.contains(AppPermission.SCHOOL_LIBRARY_WRITE);
         if (hasLib) {
             return;
         }
@@ -181,9 +217,9 @@ public class EffectivePermissionService {
                 lib.add(AppPermission.PORTAL_SCHOOL_STAFF);
                 yield Collections.unmodifiableSet(lib);
             }
-            case SCHOOL_STAFF -> Set.of(AppPermission.PORTAL_SCHOOL_STAFF);
+            case SCHOOL_STAFF -> Set.of(AppPermission.PORTAL_SCHOOL_STAFF, AppPermission.SCHOOL_LIBRARY_MEMBER_READ);
             case PARENT -> Set.of(AppPermission.PORTAL_PARENT);
-            case STUDENT -> Set.of(AppPermission.PORTAL_STUDENT);
+            case STUDENT -> Set.of(AppPermission.PORTAL_STUDENT, AppPermission.SCHOOL_LIBRARY_MEMBER_READ);
         };
     }
 

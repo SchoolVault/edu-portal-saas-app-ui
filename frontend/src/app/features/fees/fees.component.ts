@@ -1081,9 +1081,9 @@ export class FeesComponent implements OnInit {
   sortBy: 'dueDateAsc' | 'dueDateDesc' | 'dueAmountDesc' | 'studentAsc' = 'dueDateAsc';
   classes: SchoolClass[] = [];
   academicYears: AcademicYear[] = [];
-  /** Fee collection, refunds, structures, reminders — mirrors {@code SCHOOL_FEE_OFFICE} / admin. */
+  /** Fee collection, refunds, structures, reminders — mirrors fees read/write atoms + tenant/platform operators. */
   feeDeskOps = false;
-  /** Razorpay settlement / finance profile banner — mirrors {@code SCHOOL_SETTINGS_FINANCE}. */
+  /** Razorpay settlement / finance profile banner — mirrors finance settings read/write envelope. */
   canManageFeeFinanceRouting = false;
   refreshing = false;
   structureModal = false;

@@ -909,7 +909,7 @@ public class DemoDataSeedService {
                     e.setDescription("Seeded for RBAC E2E — narrow custom bundle distinct from FEE_OFFICE / EXAM_OFFICE templates.");
                     e.setSortOrder(900);
                     e.setSystemRole(false);
-                    e.setPermissionsCsv("FEE_STRUCTURES_READ,SCHOOL_REPORTS_SCHOOL");
+                    e.setPermissionsCsv("FEE_STRUCTURES_READ,SCHOOL_REPORTS_READ");
                     return schoolRoleRepository.save(e);
                 });
     }

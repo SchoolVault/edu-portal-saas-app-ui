@@ -49,6 +49,6 @@ public final class RbacPrincipalSupport {
             }
         }
         return hasAnyAppPermission(
-                AppPermission.SCHOOL_PAYROLL_OFFICE, AppPermission.TENANT_ADMIN, AppPermission.PLATFORM_ADMIN);
+                AppPermission.SCHOOL_PAYROLL_READ, AppPermission.SCHOOL_PAYROLL_WRITE, AppPermission.TENANT_ADMIN, AppPermission.PLATFORM_ADMIN);
     }
 }

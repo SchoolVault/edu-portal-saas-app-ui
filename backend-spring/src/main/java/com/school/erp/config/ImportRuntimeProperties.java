@@ -51,6 +51,12 @@ public class ImportRuntimeProperties {
     private boolean completedJobIdempotencyEnabled = true;
 
     /**
+     * Allows explicit submit-time override ({@code reprocess=true}) to bypass completed-job idempotent replay.
+     * Keep disabled in production unless operators need same-file corrective UPSERT reruns.
+     */
+    private boolean allowReprocessOverride = true;
+
+    /**
      * Row cap for ALL_OR_NOTHING mode (0 = unlimited — not recommended for production timeouts).
      */
     private int maxAllOrNothingRows = 3_000;
@@ -175,6 +181,14 @@ public class ImportRuntimeProperties {
 
     public void setCompletedJobIdempotencyEnabled(boolean completedJobIdempotencyEnabled) {
         this.completedJobIdempotencyEnabled = completedJobIdempotencyEnabled;
+    }
+
+    public boolean isAllowReprocessOverride() {
+        return allowReprocessOverride;
+    }
+
+    public void setAllowReprocessOverride(boolean allowReprocessOverride) {
+        this.allowReprocessOverride = allowReprocessOverride;
     }
 
     public int getMaxAllOrNothingRows() {
