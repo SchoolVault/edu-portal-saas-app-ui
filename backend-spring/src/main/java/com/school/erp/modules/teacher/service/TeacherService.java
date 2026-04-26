@@ -20,6 +20,8 @@ import com.school.erp.modules.academic.repository.ClassTeacherAssignmentReposito
 import com.school.erp.modules.academic.repository.SchoolClassRepository;
 import com.school.erp.modules.academic.repository.SectionRepository;
 import com.school.erp.common.jpa.EntitySnapshotCollections;
+import com.school.erp.modules.rbac.entity.UserSchoolRoleAssignment;
+import com.school.erp.modules.rbac.repository.UserSchoolRoleAssignmentRepository;
 import com.school.erp.modules.teacher.dto.TeacherDTOs;
 import com.school.erp.modules.teacher.entity.Teacher;
 import com.school.erp.modules.teacher.repository.TeacherRepository;
@@ -45,6 +47,7 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Objects;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
@@ -61,6 +64,7 @@ public class TeacherService {
     private final ClassTeacherAssignmentRepository classTeacherAssignmentRepository;
     private final PortalUserProvisioningService portalUserProvisioningService;
     private final UserRepository userRepository;
+    private final UserSchoolRoleAssignmentRepository userSchoolRoleAssignmentRepository;
     private final ObjectProvider<CacheService> cacheService;
     private final DashboardSnapshotInvalidationService dashboardSnapshotInvalidationService;
 
@@ -422,9 +426,11 @@ public class TeacherService {
     public String exportTeachersAsCsv() {
         String tenantId = TenantContext.getTenantId();
         Map<Long, List<String>> homeroomByTeacherId = homeroomClassNamesByTeacherId(tenantId);
+        List<Teacher> teachers = repo.findByTenantIdAndIsDeletedFalse(tenantId);
+        Map<Long, String> schoolRoleCodesByUserId = buildSchoolRoleCodesCsvByUserId(tenantId, teachers);
         StringBuilder sb = new StringBuilder();
-        sb.append("firstname,lastname,email,phone,qualification,specialization,joindate,salary,subjects,createportal,portalrole,libraryrole,importmode,bankaccountholder,bankname,bankaccountnumber,bankifsc,notifycredentials,classteacherfor,classteacherclassid,classteachersectionid,classteacherclassname,classteachersectionname,classteacheracademicyearid\n");
-        for (Teacher t : repo.findByTenantIdAndIsDeletedFalse(tenantId)) {
+        sb.append("firstname,lastname,email,phone,qualification,specialization,joindate,salary,subjects,createportal,portalrole,libraryrole,schoolrolecodes,importmode,bankaccountholder,bankname,bankaccountnumber,bankifsc,notifycredentials,classteacherfor,classteacherclassid,classteachersectionid,classteacherclassname,classteachersectionname,classteacheracademicyearid\n");
+        for (Teacher t : teachers) {
             String classTeacherFor = homeroomByTeacherId.getOrDefault(t.getId(), List.of()).stream().findFirst().orElse("");
             sb.append(csv(t.getFirstName())).append(',');
             sb.append(csv(t.getLastName())).append(',');
@@ -443,6 +449,7 @@ public class TeacherService {
             }
             sb.append(',');
             sb.append(t.getLibraryStaffRole() != null ? t.getLibraryStaffRole().name() : "").append(',');
+            sb.append(csv(schoolRoleCodesByUserId.getOrDefault(t.getUserId(), ""))).append(',');
             sb.append("UPSERT").append(',');
             sb.append(csv(t.getBankAccountHolder())).append(',');
             sb.append(csv(t.getBankName())).append(',');
@@ -453,6 +460,40 @@ public class TeacherService {
             sb.append(',').append(',').append(',').append(',').append('\n');
         }
         return sb.toString();
+    }
+
+    /**
+     * Maps portal {@code userId} → comma-separated {@link com.school.erp.modules.rbac.entity.SchoolRole} codes
+     * (sorted) for CSV re-import.
+     */
+    private Map<Long, String> buildSchoolRoleCodesCsvByUserId(String tenantId, List<Teacher> teachers) {
+        List<Long> userIds = teachers.stream()
+                .map(Teacher::getUserId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+        if (userIds.isEmpty()) {
+            return Map.of();
+        }
+        List<UserSchoolRoleAssignment> rows =
+                userSchoolRoleAssignmentRepository.findByTenantIdAndUserIdInFetchRoles(tenantId, userIds);
+        Map<Long, List<String>> accum = new HashMap<>();
+        for (UserSchoolRoleAssignment a : rows) {
+            if (a.getUserId() == null || a.getSchoolRole() == null) {
+                continue;
+            }
+            String code = a.getSchoolRole().getCode();
+            if (code == null || code.isBlank()) {
+                continue;
+            }
+            accum.computeIfAbsent(a.getUserId(), k -> new ArrayList<>()).add(code);
+        }
+        Map<Long, String> out = new HashMap<>();
+        for (Map.Entry<Long, List<String>> e : accum.entrySet()) {
+            List<String> uniq = e.getValue().stream().distinct().sorted().toList();
+            out.put(e.getKey(), String.join(",", uniq));
+        }
+        return out;
     }
 
     private static String csv(String v) {
@@ -608,6 +649,7 @@ public class TeacherService {
                           final ClassTeacherAssignmentRepository classTeacherAssignmentRepository,
                           final PortalUserProvisioningService portalUserProvisioningService,
                           final UserRepository userRepository,
+                          final UserSchoolRoleAssignmentRepository userSchoolRoleAssignmentRepository,
                           final ObjectProvider<CacheService> cacheService,
                           final DashboardSnapshotInvalidationService dashboardSnapshotInvalidationService) {
         this.repo = repo;
@@ -616,6 +658,7 @@ public class TeacherService {
         this.classTeacherAssignmentRepository = classTeacherAssignmentRepository;
         this.portalUserProvisioningService = portalUserProvisioningService;
         this.userRepository = userRepository;
+        this.userSchoolRoleAssignmentRepository = userSchoolRoleAssignmentRepository;
         this.cacheService = cacheService;
         this.dashboardSnapshotInvalidationService = dashboardSnapshotInvalidationService;
     }

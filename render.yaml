@@ -30,6 +30,51 @@ services:
         sync: false
       - key: CORS_ORIGINS
         sync: false
+      # Public origin of the static site (schoolvault-ui) for email verification links; must match CORS.
+      - key: AUTH_EMAIL_VER_PUBLIC_SPA_BASE_URL
+        sync: false
+      # Direct SendGrid (email verification + optional). Verify sender in SendGrid; do not commit keys.
+      - key: APP_INTEGRATION_EMAIL_PROVIDER
+        sync: false
+      - key: SENDGRID_API_KEY
+        sync: false
+      - key: BREVO_API_KEY
+        sync: false
+      - key: EMAIL_VERIFICATION_FROM_EMAIL
+        sync: false
+      - key: EMAIL_VERIFICATION_FROM_NAME
+        sync: false
+      - key: BREVO_FROM_EMAIL
+        sync: false
+      - key: AWS_SES_REGION
+        sync: false
+      - key: AWS_SES_FROM_EMAIL
+        sync: false
+      - key: AWS_SES_USE_DEFAULT_CREDS
+        sync: false
+      - key: AWS_SES_ACCESS_KEY
+        sync: false
+      - key: AWS_SES_SECRET_KEY
+        sync: false
+      - key: AWS_ACCESS_KEY_ID
+        sync: false
+      - key: AWS_SECRET_ACCESS_KEY
+        sync: false
+      # Optional: only if you use a custom email worker (provider=HTTP or AUTO fallback)
+      - key: APP_INTEGRATION_EMAIL_TRIGGER_URL
+        sync: false
+      - key: APP_SMS_PROVIDER
+        sync: false
+      - key: APP_SMS_ROUTING_ENABLED
+        sync: false
+      - key: APP_SMS_ROUTING_PRIORITY
+        sync: false
+      - key: APP_SMS_SPRINGEDGE_API_KEY
+        sync: false
+      - key: APP_SMS_SPRINGEDGE_SENDER_ID
+        sync: false
+      - key: APP_SMS_SPRINGEDGE_BASE_URL
+        sync: false
       # Optional: POST /api/v1/internal/jobs/reminders/run with header X-Job-Key (Render Cron Job)
       - key: APP_INTERNAL_JOB_KEY
         sync: false

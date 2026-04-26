@@ -87,14 +87,14 @@ public class PayrollController {
     }
 
     @GetMapping("/payslips/me")
-    @PreAuthorize("hasRole(\'TEACHER\')")
+    @PreAuthorize(RbacSpel.PORTAL_TEACHER_SELF)
     @Operation(summary = "Teacher payslips for linked profile")
     public ResponseEntity<ApiResponse<List<Payslip>>> myPayslips(@RequestParam(required = false) Integer year, @RequestParam(required = false) String month) {
         return ResponseEntity.ok(ApiResponse.ok(service.getMyPayslips(year, month)));
     }
 
     @GetMapping("/payslips/me/paged")
-    @PreAuthorize("hasRole(\'TEACHER\')")
+    @PreAuthorize(RbacSpel.PORTAL_TEACHER_SELF)
     @Operation(summary = "Teacher payslips (paged)")
     public ResponseEntity<ApiResponse<PageResponse<Payslip>>> myPayslipsPaged(
             @RequestParam(defaultValue = "0") int page,
@@ -105,7 +105,7 @@ public class PayrollController {
     }
 
     @GetMapping(value = "/payslips/{id}/pdf", produces = MediaType.APPLICATION_PDF_VALUE)
-    @PreAuthorize("hasAnyRole(\'ADMIN\',\'TEACHER\',\'SUPER_ADMIN\')")
+    @PreAuthorize(RbacSpel.PAYROLL_PAYSLIP_READ)
     @Operation(summary = "Download payslip PDF")
     public ResponseEntity<byte[]> payslipPdf(@PathVariable Long id) {
         byte[] data = service.getPayslipPdf(id);

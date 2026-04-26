@@ -32,10 +32,20 @@ export interface DemoFinanceResetResult {
   seededPayslips: number;
 }
 
+export interface CreateSalaryStructurePayload {
+  teacherId: number;
+  teacherName: string;
+  basicSalary: number;
+  allowances: { name: string; amount: number }[];
+  deductions: { name: string; amount: number }[];
+}
+
 @Injectable({ providedIn: 'root' })
 export class PayrollService {
   private mockPayslips: Payslip[] = [];
   private mockDisbursementAttempts: PayrollDisbursementAttempt[] = [];
+  /** Extra structures created in mock mode (seed list is const). */
+  private mockCreatedStructures: SalaryStructure[] = [];
 
   constructor(private api: ApiService) {
     this.seedMockDemoData();
@@ -43,13 +53,19 @@ export class PayrollService {
 
   getStructures(): Observable<SalaryStructure[]> {
     if (runtimeConfig.useMocks) {
-      return of(
-        MOCK_PAYROLL_STRUCTURES.map(s => ({
+      const merged = [
+        ...MOCK_PAYROLL_STRUCTURES.map(s => ({
           ...s,
           allowances: s.allowances.map(a => ({ ...a })),
           deductions: s.deductions.map(d => ({ ...d })),
-        }))
-      );
+        })),
+        ...this.mockCreatedStructures.map(s => ({
+          ...s,
+          allowances: s.allowances.map(a => ({ ...a })),
+          deductions: s.deductions.map(d => ({ ...d })),
+        })),
+      ];
+      return of(merged);
     }
     return this.api.get<any[]>('/payroll/structures').pipe(map(list => list.map(s => this.normalizeStructure(s))));
   }
@@ -61,6 +77,40 @@ export class PayrollService {
       );
     }
     return this.getStructures().pipe(map(all => sliceToPage(all, page, size)));
+  }
+
+  createSalaryStructure(payload: CreateSalaryStructurePayload): Observable<SalaryStructure> {
+    const allow = (payload.allowances ?? []).filter(r => (r.name || '').trim() && Number(r.amount) >= 0);
+    const ded = (payload.deductions ?? []).filter(r => (r.name || '').trim() && Number(r.amount) >= 0);
+    const totalAllow = allow.reduce((s, r) => s + Number(r.amount || 0), 0);
+    const totalDed = ded.reduce((s, r) => s + Number(r.amount || 0), 0);
+    const net = Number(payload.basicSalary) + totalAllow - totalDed;
+    if (runtimeConfig.useMocks) {
+      const exists = [...MOCK_PAYROLL_STRUCTURES, ...this.mockCreatedStructures].some(s => s.teacherId === payload.teacherId);
+      if (exists) {
+        return throwError(() => new Error('Salary structure already exists for this teacher'));
+      }
+      const row: SalaryStructure = {
+        id: Date.now(),
+        teacherId: payload.teacherId,
+        teacherName: payload.teacherName.trim(),
+        basicSalary: Number(payload.basicSalary),
+        allowances: allow.map(a => ({ ...a })),
+        deductions: ded.map(d => ({ ...d })),
+        netSalary: net,
+        tenantId: 't1',
+      };
+      this.mockCreatedStructures = [row, ...this.mockCreatedStructures];
+      return of({ ...row });
+    }
+    const body = {
+      teacherId: payload.teacherId,
+      teacherName: payload.teacherName.trim(),
+      basicSalary: payload.basicSalary,
+      allowances: allow.map(a => ({ name: a.name.trim(), amount: a.amount })),
+      deductions: ded.map(d => ({ name: d.name.trim(), amount: d.amount })),
+    };
+    return this.api.post<any>('/payroll/structures', body).pipe(map(s => this.normalizeStructure(s)));
   }
 
   getTeacherPaymentDetails(): Observable<TeacherPaymentDetails[]> {
@@ -343,13 +393,15 @@ export class PayrollService {
         archivedFeeStructures: MOCK_PAYROLL_STRUCTURES.length,
         archivedFeeComponents: MOCK_PAYROLL_STRUCTURES.reduce((sum, s) => sum + s.allowances.length + s.deductions.length, 0),
         archivedFeePayments: 0,
-        archivedSalaryStructures: MOCK_PAYROLL_STRUCTURES.length,
-        archivedSalaryComponents: MOCK_PAYROLL_STRUCTURES.reduce((sum, s) => sum + s.allowances.length + s.deductions.length, 0),
+        archivedSalaryStructures: MOCK_PAYROLL_STRUCTURES.length + this.mockCreatedStructures.length,
+        archivedSalaryComponents: MOCK_PAYROLL_STRUCTURES.reduce((sum, s) => sum + s.allowances.length + s.deductions.length, 0)
+          + this.mockCreatedStructures.reduce((sum, s) => sum + s.allowances.length + s.deductions.length, 0),
         archivedPayslips: this.mockPayslips.length,
         archivedDisbursementAttempts: this.mockDisbursementAttempts.length,
       };
       this.mockPayslips = [];
       this.mockDisbursementAttempts = [];
+      this.mockCreatedStructures = [];
       this.seedMockDemoData();
       return of({
         ...previous,

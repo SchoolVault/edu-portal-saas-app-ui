@@ -6,7 +6,9 @@
  * stay admin-only unless you add explicit grants. School admins are bounded by tenant_id. Future
  * per-action toggles should read from this module plus backend permission tables.
  *
- * - School staff: admin, super_admin (platform operator in a school context), teacher
+ * - Legacy coarse “staff” helper below: admin, super_admin, teacher only.
+ *   Roster-aligned UI and guards use `UiAccessService.hasAcademicRosterReadAccess()` (mirrors backend
+ *   `RbacSpel#ACADEMIC_ROSTER_READ`) so JWT `AppPermission` bundles stay authoritative.
  * - Student master mutations: admin + super_admin only (matches {@code PUT /students/{id}})
  * - Fine-grained module checks: prefer `AuthService.hasAppPermission` with `AppPermission` codes
  *   (mirrors backend `hasAuthority`); role checks remain for legacy paths until fully migrated.

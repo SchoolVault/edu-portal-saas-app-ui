@@ -11,6 +11,7 @@ import com.school.erp.modules.rbac.audit.RbacAuditModule;
 import com.school.erp.modules.rbac.dto.RbacDTOs;
 import com.school.erp.modules.rbac.entity.SchoolRole;
 import com.school.erp.modules.rbac.entity.UserSchoolRoleAssignment;
+import com.school.erp.modules.rbac.repository.SchoolRolePermissionGroupRepository;
 import com.school.erp.modules.rbac.repository.SchoolRoleRepository;
 import com.school.erp.modules.rbac.repository.UserSchoolRoleAssignmentRepository;
 import com.school.erp.platform.port.AuditTrailPort;
@@ -22,9 +23,11 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.EnumSet;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -36,26 +39,35 @@ import java.util.stream.Collectors;
 public class RbacService {
 
     private static final Set<Enums.Role> ASSIGNABLE_PORTAL_ROLES = EnumSet.of(
-            Enums.Role.ADMIN, Enums.Role.TEACHER, Enums.Role.LIBRARY_STAFF);
+            Enums.Role.ADMIN, Enums.Role.TEACHER, Enums.Role.LIBRARY_STAFF, Enums.Role.SCHOOL_STAFF);
 
     private final SchoolRoleRepository schoolRoleRepository;
     private final UserSchoolRoleAssignmentRepository userSchoolRoleAssignmentRepository;
+    private final SchoolRolePermissionGroupRepository schoolRolePermissionGroupRepository;
     private final UserRepository userRepository;
     private final RbacLastAdminEligibility lastAdminEligibility;
+    private final SchoolRolePermissionResolver schoolRolePermissionResolver;
+    private final RbacPermissionGroupService rbacPermissionGroupService;
     private final SlimJwtAuthorityCache slimJwtAuthorityCache;
     private final AuditTrailPort auditTrailPort;
 
     public RbacService(
             SchoolRoleRepository schoolRoleRepository,
             UserSchoolRoleAssignmentRepository userSchoolRoleAssignmentRepository,
+            SchoolRolePermissionGroupRepository schoolRolePermissionGroupRepository,
             UserRepository userRepository,
             RbacLastAdminEligibility lastAdminEligibility,
+            SchoolRolePermissionResolver schoolRolePermissionResolver,
+            RbacPermissionGroupService rbacPermissionGroupService,
             SlimJwtAuthorityCache slimJwtAuthorityCache,
             AuditTrailPort auditTrailPort) {
         this.schoolRoleRepository = schoolRoleRepository;
         this.userSchoolRoleAssignmentRepository = userSchoolRoleAssignmentRepository;
+        this.schoolRolePermissionGroupRepository = schoolRolePermissionGroupRepository;
         this.userRepository = userRepository;
         this.lastAdminEligibility = lastAdminEligibility;
+        this.schoolRolePermissionResolver = schoolRolePermissionResolver;
+        this.rbacPermissionGroupService = rbacPermissionGroupService;
         this.slimJwtAuthorityCache = slimJwtAuthorityCache;
         this.auditTrailPort = auditTrailPort;
     }
@@ -114,7 +126,9 @@ public class RbacService {
         if (schoolRoleRepository.findByTenantIdAndCodeAndIsDeletedFalse(tid, code).isPresent()) {
             throw new BusinessException("A school role with this code already exists.");
         }
-        String csv = toPermissionsCsv(request.getPermissions());
+        boolean hasGroups = hasNonEmptyGroupIds(request.getPermissionGroupIds());
+        boolean hasPerms = hasNonEmptyPermissionNames(request.getPermissions());
+        validateCustomRoleComposition(hasGroups, hasPerms);
         SchoolRole e = new SchoolRole();
         e.setTenantId(tid);
         e.setCode(code);
@@ -122,22 +136,29 @@ public class RbacService {
         e.setDescription(request.getDescription() == null ? null : request.getDescription().trim());
         e.setSystemRole(false);
         e.setSortOrder(request.getSortOrder());
-        e.setPermissionsCsv(csv);
+        e.setPermissionsCsv("");
         e.setIsActive(true);
         e.setIsDeleted(false);
         schoolRoleRepository.save(e);
+        if (hasGroups) {
+            rbacPermissionGroupService.replaceSchoolRoleWithLinkedGroups(tid, e, request.getPermissionGroupIds());
+        } else {
+            EnumSet<AppPermission> perms = parsePermissionNameList(request.getPermissions());
+            rbacPermissionGroupService.syncInlineBundleForRole(e, perms, false);
+        }
+        SchoolRole saved = schoolRoleRepository.findById(e.getId()).orElse(e);
         slimJwtAuthorityCache.evictForTenant(tid);
-        int permCount = RbacPermissionCodec.parsePermissionsCsv(e.getPermissionsCsv()).size();
-        String desc = trimAuditDesc("Custom school role: " + e.getCode() + " — " + e.getName());
+        int permCount = schoolRolePermissionResolver.resolveEffective(saved).size();
+        String desc = trimAuditDesc("Custom school role: " + saved.getCode() + " — " + saved.getName());
         auditTrailPort.logAction(
                 Enums.AuditAction.CREATE,
                 RbacAuditModule.CODE,
                 desc,
-                e.getId(),
+                saved.getId(),
                 "SchoolRole",
                 null,
-                "code=" + e.getCode() + ",permCount=" + permCount);
-        return toSchoolRoleResponse(e);
+                "code=" + saved.getCode() + ",permCount=" + permCount);
+        return toSchoolRoleResponse(saved);
     }
 
     @Transactional
@@ -151,25 +172,35 @@ public class RbacService {
         if (Boolean.TRUE.equals(e.getSystemRole())) {
             throw new BusinessException("System template roles cannot be modified.");
         }
+        boolean hasGroups = hasNonEmptyGroupIds(request.getPermissionGroupIds());
+        boolean hasPerms = hasNonEmptyPermissionNames(request.getPermissions());
+        validateCustomRoleComposition(hasGroups, hasPerms);
         String beforeSnap = "name=" + e.getName() + ";sort=" + e.getSortOrder() + ";permCount="
-                + RbacPermissionCodec.parsePermissionsCsv(e.getPermissionsCsv()).size();
-        String csv = toPermissionsCsv(request.getPermissions());
+                + schoolRolePermissionResolver.resolveEffective(e).size();
+        EnumSet<AppPermission> proposed =
+                hasGroups
+                        ? rbacPermissionGroupService.unionPermissionsForGroupIds(tid, request.getPermissionGroupIds())
+                        : parsePermissionNameList(request.getPermissions());
         SchoolRole preview = new SchoolRole();
-        preview.setId(e.getId());
-        preview.setPermissionsCsv(csv);
+        preview.setPermissionsCsv(RbacPermissionCodec.toCsv(proposed));
         lastAdminEligibility.assertAfterCustomRoleContentChange(tid, e.getId(), preview);
         e.setName(request.getName().trim());
         e.setDescription(request.getDescription() == null ? null : request.getDescription().trim());
         e.setSortOrder(request.getSortOrder());
-        e.setPermissionsCsv(csv);
         schoolRoleRepository.save(e);
+        if (hasGroups) {
+            rbacPermissionGroupService.replaceSchoolRoleWithLinkedGroups(tid, e, request.getPermissionGroupIds());
+        } else {
+            rbacPermissionGroupService.syncInlineBundleForRole(e, EnumSet.copyOf(proposed), false);
+        }
+        SchoolRole saved = schoolRoleRepository.findById(e.getId()).orElse(e);
         slimJwtAuthorityCache.evictForTenant(tid);
-        String afterSnap = "name=" + e.getName() + ";sort=" + e.getSortOrder() + ";permCount="
-                + RbacPermissionCodec.parsePermissionsCsv(e.getPermissionsCsv()).size();
-        String desc = trimAuditDesc("Updated custom school role: " + e.getCode());
+        String afterSnap = "name=" + saved.getName() + ";sort=" + saved.getSortOrder() + ";permCount="
+                + schoolRolePermissionResolver.resolveEffective(saved).size();
+        String desc = trimAuditDesc("Updated custom school role: " + saved.getCode());
         auditTrailPort.logAction(
-                Enums.AuditAction.UPDATE, RbacAuditModule.CODE, desc, e.getId(), "SchoolRole", beforeSnap, afterSnap);
-        return toSchoolRoleResponse(e);
+                Enums.AuditAction.UPDATE, RbacAuditModule.CODE, desc, saved.getId(), "SchoolRole", beforeSnap, afterSnap);
+        return toSchoolRoleResponse(saved);
     }
 
     @Transactional
@@ -187,6 +218,7 @@ public class RbacService {
         String code = e.getCode();
         lastAdminEligibility.assertAfterCustomRoleSoftDelete(tid, e.getId());
         userSchoolRoleAssignmentRepository.deleteByTenantIdAndSchoolRoleId(tid, e.getId());
+        rbacPermissionGroupService.detachAndSoftDeleteExclusiveBundles(tid, e.getId());
         e.markSoftDeleted();
         schoolRoleRepository.save(e);
         slimJwtAuthorityCache.evictForTenant(tid);
@@ -205,15 +237,59 @@ public class RbacService {
         }
         List<Long> idList = request.getSchoolRoleIds() == null ? List.of() : request.getSchoolRoleIds();
         Set<Long> distinct = new LinkedHashSet<>(idList);
+        List<SchoolRole> newRoleEntities = loadSchoolRolesForTenantByIds(tid, distinct);
+        replaceUserAssignmentsCore(tid, target, targetUserId, newRoleEntities);
+        return getUserAssignments(targetUserId);
+    }
+
+    /**
+     * Bulk staff import: set school responsibility roles by stable {@link SchoolRole#getCode()} values
+     * (same codes as Settings → access roles). Replaces existing assignments for this user in the tenant.
+     */
+    @Transactional
+    public void replaceUserSchoolRolesFromImportCodes(Long userId, List<String> schoolRoleCodes) {
+        if (schoolRoleCodes == null || schoolRoleCodes.isEmpty()) {
+            return;
+        }
+        String tid = requireTenant();
+        User target = userRepository.findByIdAndTenantIdAndIsDeletedFalse(userId, tid)
+                .orElseThrow(() -> new ResourceNotFoundException("User", userId));
+        if (!ASSIGNABLE_PORTAL_ROLES.contains(target.getRole())) {
+            throw new BusinessException("School responsibility roles apply only to staff (admin, teacher, library).");
+        }
+        LinkedHashSet<String> orderedCodes = new LinkedHashSet<>();
+        for (String raw : schoolRoleCodes) {
+            if (raw == null || raw.isBlank()) {
+                continue;
+            }
+            orderedCodes.add(raw.trim().toUpperCase(Locale.ROOT));
+        }
+        if (orderedCodes.isEmpty()) {
+            return;
+        }
         List<SchoolRole> newRoleEntities = new ArrayList<>();
-        for (Long rid : distinct) {
+        for (String code : orderedCodes) {
+            SchoolRole r = schoolRoleRepository.findByTenantIdAndCodeAndIsDeletedFalse(tid, code)
+                    .orElseThrow(() -> new BusinessException("Unknown school role code: " + code));
+            newRoleEntities.add(r);
+        }
+        replaceUserAssignmentsCore(tid, target, userId, newRoleEntities);
+    }
+
+    private List<SchoolRole> loadSchoolRolesForTenantByIds(String tenantId, Collection<Long> roleIds) {
+        List<SchoolRole> newRoleEntities = new ArrayList<>();
+        for (Long rid : roleIds) {
             SchoolRole r = schoolRoleRepository.findById(rid)
                     .orElseThrow(() -> new BusinessException("Unknown school role id: " + rid));
-            if (Boolean.TRUE.equals(r.getIsDeleted()) || r.getTenantId() == null || !tid.equals(r.getTenantId())) {
+            if (Boolean.TRUE.equals(r.getIsDeleted()) || r.getTenantId() == null || !tenantId.equals(r.getTenantId())) {
                 throw new BusinessException("Invalid school role for this school.");
             }
             newRoleEntities.add(r);
         }
+        return newRoleEntities;
+    }
+
+    private void replaceUserAssignmentsCore(String tid, User target, Long targetUserId, List<SchoolRole> newRoleEntities) {
         lastAdminEligibility.assertAfterReplaceUserAssignments(tid, targetUserId, newRoleEntities);
         List<UserSchoolRoleAssignment> previous =
                 userSchoolRoleAssignmentRepository.findByTenantIdAndUserIdFetchRoles(tid, targetUserId);
@@ -222,8 +298,7 @@ public class RbacService {
                 .map(r -> r.getId() + ":" + r.getCode())
                 .collect(Collectors.joining(","));
         userSchoolRoleAssignmentRepository.deleteByTenantIdAndUserId(tid, targetUserId);
-        for (Long rid : distinct) {
-            SchoolRole r = schoolRoleRepository.findById(rid).orElseThrow();
+        for (SchoolRole r : newRoleEntities) {
             UserSchoolRoleAssignment a = new UserSchoolRoleAssignment();
             a.setTenantId(tid);
             a.setUserId(targetUserId);
@@ -239,7 +314,6 @@ public class RbacService {
         String desc = trimAuditDesc("School roles for " + tName + ": " + delta);
         auditTrailPort.logAction(
                 Enums.AuditAction.UPDATE, RbacAuditModule.CODE, desc, targetUserId, "User", oldVal, newVal);
-        return getUserAssignments(targetUserId);
     }
 
     private static String compactAssignmentSnapshot(List<UserSchoolRoleAssignment> rows) {
@@ -305,7 +379,29 @@ public class RbacService {
         return s.substring(0, 497) + "...";
     }
 
-    private String toPermissionsCsv(List<String> permissionNames) {
+    private static boolean hasNonEmptyGroupIds(List<Long> ids) {
+        return ids != null && !ids.isEmpty();
+    }
+
+    private static boolean hasNonEmptyPermissionNames(List<String> names) {
+        if (names == null || names.isEmpty()) {
+            return false;
+        }
+        for (String n : names) {
+            if (n != null && !n.isBlank()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static void validateCustomRoleComposition(boolean hasGroups, boolean hasPerms) {
+        if (!hasGroups && !hasPerms) {
+            throw new BusinessException("Choose either permission packs or at least one direct permission.");
+        }
+    }
+
+    private static EnumSet<AppPermission> parsePermissionNameList(List<String> permissionNames) {
         if (permissionNames == null || permissionNames.isEmpty()) {
             throw new BusinessException("At least one permission is required.");
         }
@@ -324,10 +420,43 @@ public class RbacService {
             throw new BusinessException("At least one permission is required.");
         }
         SchoolRbacPermissionCatalog.assertSubset(set);
-        return set.stream()
-                .map(AppPermission::name)
-                .sorted()
-                .collect(Collectors.joining(","));
+        return set;
+    }
+
+    @Transactional(readOnly = true)
+    public List<RbacDTOs.PermissionGroupResponse> listPermissionGroups() {
+        return rbacPermissionGroupService.listPermissionGroups(requireTenant());
+    }
+
+    @Transactional
+    public RbacDTOs.PermissionGroupResponse createPermissionGroup(RbacDTOs.CreatePermissionGroupRequest request) {
+        String tid = requireTenant();
+        RbacDTOs.PermissionGroupResponse r = rbacPermissionGroupService.createPermissionGroup(tid, request);
+        slimJwtAuthorityCache.evictForTenant(tid);
+        String desc = trimAuditDesc("Permission pack: " + r.getCode() + " — " + r.getName());
+        auditTrailPort.logAction(
+                Enums.AuditAction.CREATE, RbacAuditModule.CODE, desc, r.getId(), "PermissionGroup", null, "code=" + r.getCode());
+        return r;
+    }
+
+    @Transactional
+    public RbacDTOs.PermissionGroupResponse updatePermissionGroup(long groupId, RbacDTOs.UpdatePermissionGroupRequest request) {
+        String tid = requireTenant();
+        RbacDTOs.PermissionGroupResponse r = rbacPermissionGroupService.updatePermissionGroup(tid, groupId, request);
+        slimJwtAuthorityCache.evictForTenant(tid);
+        String desc = trimAuditDesc("Updated permission pack: " + r.getCode());
+        auditTrailPort.logAction(
+                Enums.AuditAction.UPDATE, RbacAuditModule.CODE, desc, r.getId(), "PermissionGroup", null, "permCount=" + r.getPermissions().size());
+        return r;
+    }
+
+    @Transactional
+    public void deletePermissionGroup(long groupId) {
+        String tid = requireTenant();
+        rbacPermissionGroupService.deletePermissionGroup(tid, groupId);
+        slimJwtAuthorityCache.evictForTenant(tid);
+        String desc = trimAuditDesc("Removed permission pack id=" + groupId);
+        auditTrailPort.logAction(Enums.AuditAction.DELETE, RbacAuditModule.CODE, desc, groupId, "PermissionGroup", "id=" + groupId, null);
     }
 
     private RbacDTOs.SchoolRoleResponse toSchoolRoleResponse(SchoolRole e) {
@@ -338,11 +467,23 @@ public class RbacService {
         r.setDescription(e.getDescription());
         r.setSystemRole(Boolean.TRUE.equals(e.getSystemRole()));
         r.setSortOrder(e.getSortOrder() != null ? e.getSortOrder() : 0);
-        r.setPermissions(
-                RbacPermissionCodec.parsePermissionsCsv(e.getPermissionsCsv()).stream()
-                        .map(AppPermission::name)
-                        .sorted()
-                        .toList());
+        EnumSet<AppPermission> eff = schoolRolePermissionResolver.resolveEffective(e);
+        r.setPermissions(eff.stream().map(AppPermission::name).sorted().toList());
+        if (e.getId() != null) {
+            r.setPermissionGroupIds(schoolRolePermissionGroupRepository.findPermissionGroupIdsBySchoolRoleId(e.getId()));
+            List<RbacDTOs.PermissionGroupSummary> sums = new ArrayList<>();
+            for (Object[] row : schoolRolePermissionGroupRepository.findLinkedGroupSummaries(e.getId())) {
+                RbacDTOs.PermissionGroupSummary s = new RbacDTOs.PermissionGroupSummary();
+                s.setId((Long) row[0]);
+                s.setCode((String) row[1]);
+                s.setName((String) row[2]);
+                sums.add(s);
+            }
+            r.setPermissionGroups(sums);
+        } else {
+            r.setPermissionGroupIds(List.of());
+            r.setPermissionGroups(List.of());
+        }
         return r;
     }
 

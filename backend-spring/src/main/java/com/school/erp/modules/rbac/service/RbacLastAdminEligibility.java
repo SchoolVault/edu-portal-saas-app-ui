@@ -23,7 +23,8 @@ import java.util.Set;
 @Component
 public class RbacLastAdminEligibility {
 
-    private static final Set<Enums.Role> STAFF = EnumSet.of(Enums.Role.ADMIN, Enums.Role.TEACHER, Enums.Role.LIBRARY_STAFF);
+    private static final Set<Enums.Role> STAFF =
+            EnumSet.of(Enums.Role.ADMIN, Enums.Role.TEACHER, Enums.Role.LIBRARY_STAFF, Enums.Role.SCHOOL_STAFF);
 
     private static final String MSG =
             "This change would remove the last user with full tenant configuration access (TENANT_ADMIN). Add another before continuing.";

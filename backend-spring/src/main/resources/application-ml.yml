@@ -1,6 +1,7 @@
 # ML — dev / integration testing (e.g. Render service `ml`). Same runtime contract as prod: DB_URL, Redis, Rabbit, strict security defaults.
 # Render / K8s: set SPRING_PROFILES_ACTIVE=ml (or ml-with-demo-seed for one-time demo seed).
 # One-time demo tenant: SPRING_PROFILES_ACTIVE=ml,demo-seed (demo-seed last) or profile group ml-with-demo-seed.
+# Email verification links: set AUTH_EMAIL_VER_PUBLIC_SPA_BASE_URL (or APP_PUBLIC_SPA_BASE_URL) to the public SPA origin.
 app:
   demo-seed:
     enabled: false

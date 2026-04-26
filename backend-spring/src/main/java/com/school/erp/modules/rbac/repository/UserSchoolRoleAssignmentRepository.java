@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.Collection;
 import java.util.List;
 
 @Repository
@@ -17,6 +18,10 @@ public interface UserSchoolRoleAssignmentRepository extends JpaRepository<UserSc
     @Query("SELECT a FROM UserSchoolRoleAssignment a JOIN FETCH a.schoolRole r WHERE a.tenantId = :t AND a.userId = :u")
     List<UserSchoolRoleAssignment> findByTenantIdAndUserIdFetchRoles(
             @Param("t") String tenantId, @Param("u") Long userId);
+
+    @Query("SELECT a FROM UserSchoolRoleAssignment a JOIN FETCH a.schoolRole r WHERE a.tenantId = :t AND a.userId IN :uids")
+    List<UserSchoolRoleAssignment> findByTenantIdAndUserIdInFetchRoles(
+            @Param("t") String tenantId, @Param("uids") Collection<Long> userIds);
 
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("DELETE FROM UserSchoolRoleAssignment u WHERE u.tenantId = :tenantId AND u.userId = :userId")

@@ -5,6 +5,7 @@ import com.school.erp.common.dto.PageResponse;
 import com.school.erp.modules.operations.dto.OperationsDTOs;
 import com.school.erp.security.RequireTenantFeature;
 import com.school.erp.modules.operations.service.OperationsService;
+import com.school.erp.security.rbac.RbacSpel;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -17,7 +18,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/v1/operations")
 @Tag(name = "School operations", description = "Staff, visitors, gate passes, inventory, fee reminders, payroll accrual stub")
-@PreAuthorize("hasAnyRole('ADMIN','SUPER_ADMIN')")
+@PreAuthorize(RbacSpel.OPERATIONS_HUB_ADMIN)
 @RequireTenantFeature("operationsHub")
 public class OperationsController {
 

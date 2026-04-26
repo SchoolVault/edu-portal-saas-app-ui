@@ -31,7 +31,7 @@ export function allowedInboxAudienceTokens(normalizedRoleKey: string): ReadonlyS
   if (r === 'teacher') {
     return new Set(['ALL', 'TEACHERS', 'CLASS', 'SECTION']);
   }
-  if (r === 'admin' || r === 'super_admin' || r === 'library_staff') {
+  if (r === 'admin' || r === 'super_admin' || r === 'library_staff' || r === 'school_staff') {
     return new Set(['ALL', 'TEACHERS', 'PARENTS', 'CLASS', 'SECTION']);
   }
   return new Set(['ALL', 'CLASS', 'SECTION']);

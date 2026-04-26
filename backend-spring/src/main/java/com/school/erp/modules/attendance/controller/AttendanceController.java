@@ -4,6 +4,7 @@ import com.school.erp.common.dto.ApiResponse;
 import com.school.erp.common.dto.PageResponse;
 import com.school.erp.modules.attendance.dto.AttendanceDTOs;
 import com.school.erp.modules.attendance.service.AttendanceService;
+import com.school.erp.security.rbac.RbacSpel;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -20,14 +21,14 @@ public class AttendanceController {
     private final AttendanceService service;
 
     @GetMapping
-    @PreAuthorize("hasAnyRole('ADMIN','TEACHER')")
+    @PreAuthorize(RbacSpel.ACADEMIC_ROSTER_READ)
     @Operation(summary = "Get attendance by class, section, date")
     public ResponseEntity<ApiResponse<List<AttendanceDTOs.AttendanceResponse>>> get(@RequestParam Long classId, @RequestParam Long sectionId, @RequestParam String date) {
         return ResponseEntity.ok(ApiResponse.ok(service.getByClassSectionDate(classId, sectionId, LocalDate.parse(date))));
     }
 
     @GetMapping("/paged")
-    @PreAuthorize("hasAnyRole('ADMIN','TEACHER')")
+    @PreAuthorize(RbacSpel.ACADEMIC_ROSTER_READ)
     @Operation(summary = "Get attendance by class, section, date (paged)")
     public ResponseEntity<ApiResponse<PageResponse<AttendanceDTOs.AttendanceResponse>>> getPaged(
             @RequestParam Long classId,
@@ -39,28 +40,28 @@ public class AttendanceController {
     }
 
     @PostMapping
-    @PreAuthorize("hasAnyRole(\'ADMIN\',\'TEACHER\')")
+    @PreAuthorize(RbacSpel.ACADEMIC_ROSTER_READ)
     @Operation(summary = "Mark attendance (bulk)", description = "Mark attendance for multiple students at once")
     public ResponseEntity<ApiResponse<List<AttendanceDTOs.AttendanceResponse>>> mark(@Valid @RequestBody AttendanceDTOs.BulkMarkRequest request) {
         return ResponseEntity.ok(ApiResponse.ok(service.markAttendance(request), "Attendance saved"));
     }
 
     @GetMapping("/student/{studentId}/stats")
-    @PreAuthorize("hasAnyRole('ADMIN','TEACHER')")
+    @PreAuthorize(RbacSpel.ACADEMIC_ROSTER_READ)
     @Operation(summary = "Get student attendance statistics for date range")
     public ResponseEntity<ApiResponse<AttendanceDTOs.AttendanceStatsResponse>> studentStats(@PathVariable Long studentId, @RequestParam String from, @RequestParam String to) {
         return ResponseEntity.ok(ApiResponse.ok(service.getStudentStats(studentId, LocalDate.parse(from), LocalDate.parse(to))));
     }
 
     @GetMapping("/class-stats")
-    @PreAuthorize("hasAnyRole('ADMIN','TEACHER')")
+    @PreAuthorize(RbacSpel.ACADEMIC_ROSTER_READ)
     @Operation(summary = "Get class attendance statistics for a date")
     public ResponseEntity<ApiResponse<AttendanceDTOs.ClassAttendanceStatsResponse>> classStats(@RequestParam Long classId, @RequestParam Long sectionId, @RequestParam String date) {
         return ResponseEntity.ok(ApiResponse.ok(service.getClassStats(classId, sectionId, LocalDate.parse(date))));
     }
 
     @GetMapping("/monthly-report")
-    @PreAuthorize("hasAnyRole(\'ADMIN\',\'TEACHER\')")
+    @PreAuthorize(RbacSpel.ACADEMIC_ROSTER_READ)
     @Operation(summary = "Monthly attendance report", description = "Student-wise monthly attendance with percentages")
     public ResponseEntity<ApiResponse<List<AttendanceDTOs.MonthlyAttendanceRow>>> monthlyReport(@RequestParam Long classId, @RequestParam Long sectionId, @RequestParam int year, @RequestParam int month) {
         return ResponseEntity.ok(ApiResponse.ok(service.getMonthlyReport(classId, sectionId, year, month)));

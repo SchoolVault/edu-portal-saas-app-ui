@@ -20,7 +20,7 @@ import {
   VerifyOtpResponse,
 } from '../models/models';
 import { ApiService } from './api.service';
-import { MOCK_SCHOOL_ADMIN_PERMISSIONS } from '../auth/app-permission.constants';
+import { AppPermission, MOCK_SCHOOL_ADMIN_PERMISSIONS } from '../auth/app-permission.constants';
 import { runtimeConfig } from '../config/runtime-config';
 import { environment } from '../../../environments/environment';
 import { decodeJwtPermissions, decodeJwtUserId, isAccessExpiredByClock, isLikelyJwt } from '../auth/access-token';
@@ -372,17 +372,46 @@ export class AuthService {
   }
 
   /**
-   * Effective permission codes: prefers `user.permissions` from login profile, else JWT claim.
-   * Use for UI capability checks aligned with backend {@code hasAuthority}.
+   * Effective permission codes: prefers {@code user.permissions} from login, else JWT {@code permissions} claim,
+   * merged with the portal-role baseline that mirrors backend {@code EffectivePermissionService}
+   * (teacher / library / base school staff always carry their baseline; stacked school-role grants are additive).
    */
   getEffectivePermissionCodes(): string[] {
     const u = this.getCurrentUser();
+    let codes: string[] = [];
     if (u?.permissions && u.permissions.length > 0) {
-      return u.permissions;
+      codes = [...u.permissions];
+    } else {
+      const t = this.getToken();
+      if (t && isLikelyJwt(t)) {
+        codes = decodeJwtPermissions(t);
+      }
     }
-    const t = this.getToken();
-    if (t && isLikelyJwt(t)) {
-      return decodeJwtPermissions(t);
+    const baseline = this.portalRoleBaselinePermissions();
+    if (baseline.length === 0) {
+      return codes;
+    }
+    return [...new Set([...codes, ...baseline])];
+  }
+
+  /**
+   * Legacy portal bundles for school identities (not {@code admin} / {@code parent} / {@code student}),
+   * so UI checks stay aligned when JWT lists only extra desk authorities.
+   */
+  private portalRoleBaselinePermissions(): string[] {
+    const r = this.getNormalizedRole();
+    if (r === 'teacher') {
+      return [AppPermission.ACADEMIC_TEACHER, AppPermission.FEE_STRUCTURES_READ];
+    }
+    if (r === 'library_staff') {
+      return [
+        AppPermission.PORTAL_SCHOOL_STAFF,
+        AppPermission.LIBRARY_MANAGE,
+        AppPermission.LIBRARY_CIRCULATION,
+      ];
+    }
+    if (r === 'school_staff') {
+      return [AppPermission.PORTAL_SCHOOL_STAFF];
     }
     return [];
   }
@@ -553,6 +582,7 @@ export class AuthService {
       case 'parent':
       case 'student':
       case 'library_staff':
+      case 'school_staff':
         return withoutSpringPrefix;
       default:
         return (this.getCurrentUser()?.role ?? 'parent') as User['role'];

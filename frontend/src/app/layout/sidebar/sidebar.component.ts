@@ -4,6 +4,7 @@ import { RouterModule } from '@angular/router';
 import { TranslateModule } from '@ngx-translate/core';
 import { AuthService } from '../../core/services/auth.service';
 import { TenantModuleGateService } from '../../core/services/tenant-module-gate.service';
+import { UiAccessService } from '../../core/services/ui-access.service';
 import { NAV_ITEMS, NavItem } from '../../core/config/app-constants';
 
 @Component({
@@ -51,7 +52,8 @@ export class SidebarComponent implements OnInit {
 
   constructor(
     private authService: AuthService,
-    private moduleGate: TenantModuleGateService
+    private moduleGate: TenantModuleGateService,
+    private uiAccess: UiAccessService
   ) {}
 
   ngOnInit(): void {
@@ -59,13 +61,7 @@ export class SidebarComponent implements OnInit {
   }
 
   private rebuildNav(): void {
-    const role = this.authService.getNormalizedRole();
-    this.filteredItems = NAV_ITEMS.filter(
-      item =>
-        role &&
-        item.roles.includes(role) &&
-        (!item.moduleGate || this.moduleGate.isModuleEnabled(item.moduleGate))
-    );
+    this.filteredItems = NAV_ITEMS.filter(item => this.uiAccess.isNavItemVisible(item));
     const sectionSet = new Set(this.filteredItems.map(i => i.sectionKey));
     this.sectionKeys = Array.from(sectionSet);
   }

@@ -11,6 +11,7 @@ import com.school.erp.modules.importexport.service.ImportJobService;
 import com.school.erp.modules.importexport.service.ImportMetricsQueryService;
 import com.school.erp.modules.student.service.StudentService;
 import com.school.erp.modules.teacher.service.TeacherService;
+import com.school.erp.security.rbac.RbacSpel;
 import com.school.erp.tenant.TenantContext;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -58,7 +59,7 @@ public class ImportExportController {
     }
 
     @GetMapping("/metrics/summary")
-    @PreAuthorize("hasAnyRole('ADMIN','SUPER_ADMIN')")
+    @PreAuthorize(RbacSpel.IMPORT_EXPORT_JOBS)
     @Operation(summary = "Tenant import activity summary (last 24h) — complements Prometheus /actuator/metrics")
     public ResponseEntity<ApiResponse<ImportExportDTOs.ImportMetricsSummaryResponse>> importMetricsSummary(
             @RequestParam(value = "schoolCode", required = false) String schoolCode) {
@@ -67,7 +68,7 @@ public class ImportExportController {
     }
 
     @PostMapping(value = "/jobs/preview-headers", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @PreAuthorize("hasAnyRole('ADMIN','SUPER_ADMIN')")
+    @PreAuthorize(RbacSpel.IMPORT_EXPORT_JOBS)
     @Operation(summary = "Read first-row headers and suggest canonical column mapping (wizard step)")
     public ResponseEntity<ApiResponse<ImportExportDTOs.FileHeaderPreviewResponse>> previewHeaders(
             @RequestParam("jobType") String jobType,
@@ -78,7 +79,7 @@ public class ImportExportController {
     }
 
     @PostMapping(value = "/jobs/dry-run", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @PreAuthorize("hasAnyRole('ADMIN','SUPER_ADMIN')")
+    @PreAuthorize(RbacSpel.IMPORT_EXPORT_JOBS)
     @Operation(summary = "Validate import file without queueing a job (structure + class/section resolution)")
     public ResponseEntity<ApiResponse<ImportExportDTOs.DryRunResponse>> dryRun(
             @RequestParam("jobType") String jobType,
@@ -90,7 +91,7 @@ public class ImportExportController {
     }
 
     @PostMapping(value = "/jobs", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @PreAuthorize("hasAnyRole('ADMIN','SUPER_ADMIN')")
+    @PreAuthorize(RbacSpel.IMPORT_EXPORT_JOBS)
     @Operation(summary = "Submit async import job (CSV, XLSX, or ZIP containing typed CSV)")
     public ResponseEntity<ApiResponse<ImportExportDTOs.JobSubmitResponse>> submitJob(
             @RequestParam("jobType") String jobType,
@@ -123,7 +124,7 @@ public class ImportExportController {
     }
 
     @GetMapping("/jobs")
-    @PreAuthorize("hasAnyRole('ADMIN','SUPER_ADMIN')")
+    @PreAuthorize(RbacSpel.IMPORT_EXPORT_JOBS)
     @Operation(summary = "List import jobs")
     public ResponseEntity<ApiResponse<PageResponse<ImportExportDTOs.JobSummaryResponse>>> listJobs(
             @RequestParam(defaultValue = "0") int page,
@@ -134,7 +135,7 @@ public class ImportExportController {
     }
 
     @GetMapping("/jobs/{jobId}")
-    @PreAuthorize("hasAnyRole('ADMIN','SUPER_ADMIN')")
+    @PreAuthorize(RbacSpel.IMPORT_EXPORT_JOBS)
     @Operation(summary = "Get import job summary")
     public ResponseEntity<ApiResponse<ImportExportDTOs.JobSummaryResponse>> getJob(
             @PathVariable Long jobId,
@@ -144,7 +145,7 @@ public class ImportExportController {
     }
 
     @GetMapping("/jobs/{jobId}/lines")
-    @PreAuthorize("hasAnyRole('ADMIN','SUPER_ADMIN')")
+    @PreAuthorize(RbacSpel.IMPORT_EXPORT_JOBS)
     @Operation(summary = "Paginated import line outcomes (payload + errors)")
     public ResponseEntity<ApiResponse<PageResponse<ImportExportDTOs.LineResponse>>> getLines(
             @PathVariable Long jobId,
@@ -156,7 +157,7 @@ public class ImportExportController {
     }
 
     @GetMapping("/jobs/{jobId}/ledger")
-    @PreAuthorize("hasAnyRole('ADMIN','SUPER_ADMIN')")
+    @PreAuthorize(RbacSpel.IMPORT_EXPORT_JOBS)
     @Operation(summary = "Per-row ledger: created / updated / skipped for the job (replay and rollback context)")
     public ResponseEntity<ApiResponse<PageResponse<ImportExportDTOs.LedgerLineResponse>>> getLedger(
             @PathVariable Long jobId,
@@ -168,7 +169,7 @@ public class ImportExportController {
     }
 
     @GetMapping("/jobs/{jobId}/rollback-brief")
-    @PreAuthorize("hasAnyRole('ADMIN','SUPER_ADMIN')")
+    @PreAuthorize(RbacSpel.IMPORT_EXPORT_JOBS)
     @Operation(summary = "Guided rollback summary for operators (no automatic deletes)")
     public ResponseEntity<ApiResponse<ImportExportDTOs.RollbackBundleResponse>> getRollbackBrief(
             @PathVariable Long jobId,
@@ -178,7 +179,7 @@ public class ImportExportController {
     }
 
     @PostMapping("/jobs/{jobId}/retry-failed")
-    @PreAuthorize("hasAnyRole('ADMIN','SUPER_ADMIN')")
+    @PreAuthorize(RbacSpel.IMPORT_EXPORT_JOBS)
     @Operation(summary = "Re-queue failed rows for another async pass")
     public ResponseEntity<ApiResponse<ImportExportDTOs.JobSubmitResponse>> retryFailed(
             @PathVariable Long jobId,
@@ -188,7 +189,7 @@ public class ImportExportController {
     }
 
     @GetMapping(value = "/export/students.csv", produces = "text/csv")
-    @PreAuthorize("hasAnyRole('ADMIN','TEACHER','SUPER_ADMIN')")
+    @PreAuthorize(RbacSpel.IMPORT_EXPORT_STUDENT_TEMPLATE_READ)
     @Operation(summary = "Download students as CSV (import template shape)")
     public ResponseEntity<byte[]> exportStudents() {
         byte[] body = CsvExportSupport.utf8BomBytes(studentService.exportStudentsAsCsv());
@@ -202,7 +203,7 @@ public class ImportExportController {
     }
 
     @GetMapping(value = "/export/teachers.csv", produces = "text/csv")
-    @PreAuthorize("hasAnyRole('ADMIN','SUPER_ADMIN')")
+    @PreAuthorize(RbacSpel.IMPORT_EXPORT_TEACHER_DIRECTORY_EXPORT)
     @Operation(summary = "Download teachers/staff directory as CSV")
     public ResponseEntity<byte[]> exportTeachers() {
         byte[] body = CsvExportSupport.utf8BomBytes(teacherService.exportTeachersAsCsv());

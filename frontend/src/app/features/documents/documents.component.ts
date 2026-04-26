@@ -5,6 +5,7 @@ import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { DocumentRecord } from '../../core/models/models';
 import { DocumentsService } from '../../core/services/documents.service';
 import { AuthService } from '../../core/services/auth.service';
+import { UiAccessService } from '../../core/services/ui-access.service';
 import { debounceTime, filter } from 'rxjs/operators';
 import { Subject, Subscription } from 'rxjs';
 import { runtimeConfig } from '../../core/config/runtime-config';
@@ -123,6 +124,7 @@ export class DocumentsComponent implements OnInit, OnDestroy {
   constructor(
     private documentsService: DocumentsService,
     private authService: AuthService,
+    private uiAccess: UiAccessService,
     private confirmDialog: ConfirmDialogService,
     private translate: TranslateService
   ) {}
@@ -144,9 +146,8 @@ export class DocumentsComponent implements OnInit, OnDestroy {
       })
     );
     const u = this.authService.getCurrentUser();
-    const r = (u?.role ?? '').toLowerCase();
-    this.isAdmin = r === 'admin';
-    this.canUpload = this.isAdmin || r === 'teacher';
+    this.isAdmin = this.uiAccess.hasAcademicDeskAdminAccess();
+    this.canUpload = this.uiAccess.hasAcademicRosterReadAccess();
     this.currentUserId = u?.id != null ? String(u.id) : '';
     this.reload();
   }
@@ -211,7 +212,7 @@ export class DocumentsComponent implements OnInit, OnDestroy {
   }
 
   canDelete(doc: DocumentRecord): boolean {
-    if (this.isAdmin) return true;
+    if (this.uiAccess.hasAcademicDeskAdminAccess()) return true;
     if (runtimeConfig.useMocks) return true;
     return !!this.currentUserId && doc.uploadedBy === this.currentUserId;
   }

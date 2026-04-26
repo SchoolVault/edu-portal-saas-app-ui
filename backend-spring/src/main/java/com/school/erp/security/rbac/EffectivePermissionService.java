@@ -2,10 +2,10 @@ package com.school.erp.security.rbac;
 
 import com.school.erp.common.enums.Enums;
 import com.school.erp.modules.auth.entity.User;
-import com.school.erp.modules.rbac.RbacPermissionCodec;
 import com.school.erp.modules.rbac.entity.SchoolRole;
 import com.school.erp.modules.rbac.entity.UserSchoolRoleAssignment;
 import com.school.erp.modules.rbac.repository.UserSchoolRoleAssignmentRepository;
+import com.school.erp.modules.rbac.service.SchoolRolePermissionResolver;
 import com.school.erp.modules.teacher.repository.TeacherRepository;
 import org.springframework.stereotype.Service;
 
@@ -34,6 +34,8 @@ public class EffectivePermissionService {
             AppPermission.SCHOOL_EXAMS_OFFICE,
             AppPermission.SCHOOL_IMPORT_EXPORT,
             AppPermission.SCHOOL_OPERATIONS_HUB,
+            AppPermission.SCHOOL_TRANSPORT_DESK,
+            AppPermission.SCHOOL_HOSTEL_DESK,
             AppPermission.SCHOOL_REPORTS_SCHOOL,
             AppPermission.FEE_STRUCTURES_READ
     );
@@ -58,12 +60,15 @@ public class EffectivePermissionService {
 
     private final TeacherRepository teacherRepository;
     private final UserSchoolRoleAssignmentRepository userSchoolRoleAssignmentRepository;
+    private final SchoolRolePermissionResolver schoolRolePermissionResolver;
 
     public EffectivePermissionService(
             TeacherRepository teacherRepository,
-            UserSchoolRoleAssignmentRepository userSchoolRoleAssignmentRepository) {
+            UserSchoolRoleAssignmentRepository userSchoolRoleAssignmentRepository,
+            SchoolRolePermissionResolver schoolRolePermissionResolver) {
         this.teacherRepository = teacherRepository;
         this.userSchoolRoleAssignmentRepository = userSchoolRoleAssignmentRepository;
+        this.schoolRolePermissionResolver = schoolRolePermissionResolver;
     }
 
     public Set<AppPermission> resolveEffectivePermissions(User user) {
@@ -82,7 +87,8 @@ public class EffectivePermissionService {
         if (user.getTenantId() != null && !user.getTenantId().isBlank()
                 && (user.getRole() == Enums.Role.ADMIN
                 || user.getRole() == Enums.Role.TEACHER
-                || user.getRole() == Enums.Role.LIBRARY_STAFF)) {
+                || user.getRole() == Enums.Role.LIBRARY_STAFF
+                || user.getRole() == Enums.Role.SCHOOL_STAFF)) {
             List<UserSchoolRoleAssignment> fromDb =
                     userSchoolRoleAssignmentRepository.findByTenantIdAndUserIdFetchRoles(user.getTenantId(), user.getId());
             if (!fromDb.isEmpty()) {
@@ -117,7 +123,8 @@ public class EffectivePermissionService {
         if (user.getTenantId() != null && !user.getTenantId().isBlank()
                 && (user.getRole() == Enums.Role.ADMIN
                 || user.getRole() == Enums.Role.TEACHER
-                || user.getRole() == Enums.Role.LIBRARY_STAFF)) {
+                || user.getRole() == Enums.Role.LIBRARY_STAFF
+                || user.getRole() == Enums.Role.SCHOOL_STAFF)) {
             if (schoolRoles == null || schoolRoles.isEmpty()) {
                 return legacyByPortalRole(user);
             }
@@ -125,11 +132,14 @@ public class EffectivePermissionService {
             if (user.getRole() == Enums.Role.TEACHER) {
                 acc.addAll(TEACHER_BASE);
             } else if (user.getRole() == Enums.Role.LIBRARY_STAFF) {
+                acc.add(AppPermission.PORTAL_SCHOOL_STAFF);
                 acc.addAll(LIBRARY_BUNDLE);
+            } else if (user.getRole() == Enums.Role.SCHOOL_STAFF) {
+                acc.add(AppPermission.PORTAL_SCHOOL_STAFF);
             }
             for (SchoolRole r : schoolRoles) {
-                if (r != null && r.getPermissionsCsv() != null) {
-                    acc.addAll(RbacPermissionCodec.parsePermissionsCsv(r.getPermissionsCsv()));
+                if (r != null) {
+                    acc.addAll(schoolRolePermissionResolver.resolveEffective(r));
                 }
             }
             if (user.getRole() == Enums.Role.TEACHER) {
@@ -166,7 +176,12 @@ public class EffectivePermissionService {
             case SUPER_ADMIN -> Collections.unmodifiableSet(new LinkedHashSet<>(SUPER_ADMIN_BUNDLE));
             case ADMIN -> Collections.unmodifiableSet(new LinkedHashSet<>(SCHOOL_TENANT_BUNDLE));
             case TEACHER -> resolveTeacherPermissions(user);
-            case LIBRARY_STAFF -> Collections.unmodifiableSet(EnumSet.copyOf(LIBRARY_BUNDLE));
+            case LIBRARY_STAFF -> {
+                EnumSet<AppPermission> lib = EnumSet.copyOf(LIBRARY_BUNDLE);
+                lib.add(AppPermission.PORTAL_SCHOOL_STAFF);
+                yield Collections.unmodifiableSet(lib);
+            }
+            case SCHOOL_STAFF -> Set.of(AppPermission.PORTAL_SCHOOL_STAFF);
             case PARENT -> Set.of(AppPermission.PORTAL_PARENT);
             case STUDENT -> Set.of(AppPermission.PORTAL_STUDENT);
         };

@@ -8,6 +8,7 @@ import com.school.erp.modules.notification.entity.Notification;
 import com.school.erp.modules.notification.service.NotificationOutboxService;
 import com.school.erp.modules.notification.service.NotificationService;
 import com.school.erp.modules.notification.sms.impl.RoutingSmsService;
+import com.school.erp.security.rbac.RbacSpel;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.ResponseEntity;
@@ -66,7 +67,7 @@ public class NotificationController {
     }
 
     @GetMapping("/ops/dead-letter")
-    @PreAuthorize("hasAnyRole('ADMIN','SUPER_ADMIN')")
+    @PreAuthorize(RbacSpel.NOTIFICATION_SCHOOL_ADMIN)
     @Operation(summary = "Dead-letter queue items")
     public ResponseEntity<ApiResponse<PageResponse<NotificationOpsDTOs.DeadLetterItem>>> deadLetterPage(
             @RequestParam(defaultValue = "0") int page,
@@ -75,14 +76,14 @@ public class NotificationController {
     }
 
     @PostMapping("/ops/dead-letter/{id}/replay")
-    @PreAuthorize("hasAnyRole('ADMIN','SUPER_ADMIN')")
+    @PreAuthorize(RbacSpel.NOTIFICATION_SCHOOL_ADMIN)
     @Operation(summary = "Replay dead-letter entry")
     public ResponseEntity<ApiResponse<NotificationOpsDTOs.ReplayResult>> replayOne(@PathVariable Long id) {
         return ResponseEntity.ok(ApiResponse.ok(outboxService.replayDeadLetter(id), "Replay requested"));
     }
 
     @PostMapping("/ops/dead-letter/replay-by-campaign/{campaignId}")
-    @PreAuthorize("hasAnyRole('ADMIN','SUPER_ADMIN')")
+    @PreAuthorize(RbacSpel.NOTIFICATION_SCHOOL_ADMIN)
     @Operation(summary = "Replay dead-letter entries for campaign")
     public ResponseEntity<ApiResponse<NotificationOpsDTOs.ReplayResult>> replayByCampaign(
             @PathVariable String campaignId,
@@ -91,7 +92,7 @@ public class NotificationController {
     }
 
     @GetMapping("/ops/provider-health")
-    @PreAuthorize("hasAnyRole('ADMIN','SUPER_ADMIN')")
+    @PreAuthorize(RbacSpel.NOTIFICATION_SCHOOL_ADMIN)
     @Operation(summary = "SMS provider health snapshot")
     public ResponseEntity<ApiResponse<NotificationOpsDTOs.ProviderHealthResponse>> providerHealth() {
         NotificationOpsDTOs.ProviderHealthResponse out = new NotificationOpsDTOs.ProviderHealthResponse();

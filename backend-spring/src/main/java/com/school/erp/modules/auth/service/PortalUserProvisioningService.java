@@ -99,7 +99,7 @@ public class PortalUserProvisioningService {
 
     @Transactional
     public ProvisionResult ensureStaffUser(String tenantId, String email, String name, String phone, Enums.Role role) {
-        if (role != Enums.Role.TEACHER && role != Enums.Role.LIBRARY_STAFF) {
+        if (role != Enums.Role.TEACHER && role != Enums.Role.LIBRARY_STAFF && role != Enums.Role.SCHOOL_STAFF) {
             throw new IllegalArgumentException("Unsupported portal role: " + role);
         }
         return ensureUser(tenantId, email, name, phone, role);
@@ -119,7 +119,7 @@ public class PortalUserProvisioningService {
             String phone,
             Enums.Role role,
             String importPassword) {
-        if (role != Enums.Role.TEACHER && role != Enums.Role.LIBRARY_STAFF) {
+        if (role != Enums.Role.TEACHER && role != Enums.Role.LIBRARY_STAFF && role != Enums.Role.SCHOOL_STAFF) {
             throw new IllegalArgumentException("Unsupported portal role: " + role);
         }
         String canonicalPhone = InternationalPhone.canonical(phone != null ? phone.trim() : null);

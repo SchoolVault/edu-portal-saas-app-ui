@@ -3,13 +3,18 @@ package com.school.erp.modules.rbac.service;
 import com.school.erp.common.enums.Enums;
 import com.school.erp.modules.auth.entity.User;
 import com.school.erp.modules.auth.repository.UserRepository;
+import com.school.erp.modules.rbac.RbacPermissionCodec;
 import com.school.erp.modules.rbac.RbacRoleCatalog;
+import com.school.erp.modules.rbac.SchoolRbacPermissionCatalog;
 import com.school.erp.modules.rbac.entity.SchoolRole;
 import com.school.erp.modules.rbac.entity.UserSchoolRoleAssignment;
 import com.school.erp.modules.rbac.repository.SchoolRoleRepository;
 import com.school.erp.modules.rbac.repository.UserSchoolRoleAssignmentRepository;
 import com.school.erp.modules.settings.repository.TenantConfigRepository;
+import com.school.erp.modules.teacher.entity.Teacher;
 import com.school.erp.modules.teacher.repository.TeacherRepository;
+import com.school.erp.security.rbac.AppPermission;
+import com.school.erp.security.rbac.SlimJwtAuthorityCache;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -30,25 +35,31 @@ public class RbacTenantBootstrapService {
     private static final Logger log = LoggerFactory.getLogger(RbacTenantBootstrapService.class);
 
     private static final Set<Enums.Role> STAFF_PORTAL_ROLES = EnumSet.of(
-            Enums.Role.ADMIN, Enums.Role.TEACHER, Enums.Role.LIBRARY_STAFF);
+            Enums.Role.ADMIN, Enums.Role.TEACHER, Enums.Role.LIBRARY_STAFF, Enums.Role.SCHOOL_STAFF);
 
     private final TenantConfigRepository tenantConfigRepository;
     private final SchoolRoleRepository schoolRoleRepository;
     private final UserSchoolRoleAssignmentRepository userSchoolRoleAssignmentRepository;
     private final UserRepository userRepository;
     private final TeacherRepository teacherRepository;
+    private final RbacPermissionGroupService rbacPermissionGroupService;
+    private final SlimJwtAuthorityCache slimJwtAuthorityCache;
 
     public RbacTenantBootstrapService(
             TenantConfigRepository tenantConfigRepository,
             SchoolRoleRepository schoolRoleRepository,
             UserSchoolRoleAssignmentRepository userSchoolRoleAssignmentRepository,
             UserRepository userRepository,
-            TeacherRepository teacherRepository) {
+            TeacherRepository teacherRepository,
+            RbacPermissionGroupService rbacPermissionGroupService,
+            SlimJwtAuthorityCache slimJwtAuthorityCache) {
         this.tenantConfigRepository = tenantConfigRepository;
         this.schoolRoleRepository = schoolRoleRepository;
         this.userSchoolRoleAssignmentRepository = userSchoolRoleAssignmentRepository;
         this.userRepository = userRepository;
         this.teacherRepository = teacherRepository;
+        this.rbacPermissionGroupService = rbacPermissionGroupService;
+        this.slimJwtAuthorityCache = slimJwtAuthorityCache;
     }
 
     @Transactional
@@ -60,7 +71,14 @@ public class RbacTenantBootstrapService {
             return;
         }
         seedRoleCatalogIfEmpty(tenantId);
+        ensureCatalogContainsBaseSchoolStaff(tenantId);
+        ensureCatalogContainsStaffMessaging(tenantId);
+        upsertMissingCatalogTemplates(tenantId);
+        migrateLegacyTransportHostelCombinedDeskRole(tenantId);
+        migrateLegacyTenantSettingsCatalogOverPrivilege(tenantId);
         backfillUserAssignmentsIfEmpty(tenantId);
+        linkBaseSchoolStaffForPortalUsersIfMissing(tenantId);
+        rbacPermissionGroupService.ensureLinkedBundlesForTenant(tenantId);
     }
 
     /**
@@ -69,6 +87,9 @@ public class RbacTenantBootstrapService {
     @Transactional
     public void seedForNewTenantAndFirstAdmin(String tenantId, User adminUser) {
         seedRoleCatalogIfEmpty(tenantId);
+        ensureCatalogContainsBaseSchoolStaff(tenantId);
+        ensureCatalogContainsStaffMessaging(tenantId);
+        upsertMissingCatalogTemplates(tenantId);
         if (adminUser == null || adminUser.getId() == null) {
             return;
         }
@@ -80,6 +101,7 @@ public class RbacTenantBootstrapService {
                     linkUserToRole(tenantId, adminUser.getId(), r);
                     log.info("RBAC linked first admin to SCHOOL_FULL_ADMIN tenantId={} userId={}", tenantId, adminUser.getId());
                 });
+        rbacPermissionGroupService.ensureLinkedBundlesForTenant(tenantId);
     }
 
     private void seedRoleCatalogIfEmpty(String tenantId) {
@@ -102,6 +124,153 @@ public class RbacTenantBootstrapService {
         log.info("RBAC seeded {} default school roles for tenantId={}", RbacRoleCatalog.TEMPLATES.size(), tenantId);
     }
 
+    /**
+     * Forward-compatible: insert any {@link RbacRoleCatalog#TEMPLATES} rows not yet present (e.g. new desk codes after
+     * an upgrade) without touching existing custom roles.
+     */
+    private void upsertMissingCatalogTemplates(String tenantId) {
+        for (RbacRoleCatalog.DefaultSchoolRole t : RbacRoleCatalog.TEMPLATES) {
+            if (schoolRoleRepository.findByTenantIdAndCodeAndIsDeletedFalse(tenantId, t.code()).isPresent()) {
+                continue;
+            }
+            SchoolRole e = new SchoolRole();
+            e.setTenantId(tenantId);
+            e.setIsActive(true);
+            e.setIsDeleted(false);
+            e.setCode(t.code());
+            e.setName(t.name());
+            e.setDescription(t.description());
+            e.setSortOrder(t.sortOrder());
+            e.setSystemRole(t.systemRole());
+            e.setPermissionsCsv(t.permissionsCsv());
+            schoolRoleRepository.save(e);
+            log.info("RBAC inserted missing catalog role {} for tenantId={}", t.code(), tenantId);
+        }
+    }
+
+    /**
+     * Legacy combined desk used {@code SCHOOL_OPERATIONS_HUB}; transport/hostel are now separate atoms. One-time
+     * upgrade for persisted {@link RbacRoleCatalog#CODE_TRANSPORT_HOSTEL_LOGISTICS} rows still on the old CSV.
+     */
+    private void migrateLegacyTransportHostelCombinedDeskRole(String tenantId) {
+        schoolRoleRepository
+                .findByTenantIdAndCodeAndIsDeletedFalse(tenantId, RbacRoleCatalog.CODE_TRANSPORT_HOSTEL_LOGISTICS)
+                .ifPresent(role -> {
+                    EnumSet<AppPermission> perms =
+                            EnumSet.copyOf(RbacPermissionCodec.parsePermissionsCsv(role.getPermissionsCsv()));
+                    boolean legacyOpsHubPack =
+                            perms.contains(AppPermission.SCHOOL_OPERATIONS_HUB)
+                                    && !perms.contains(AppPermission.SCHOOL_TRANSPORT_DESK);
+                    if (!legacyOpsHubPack) {
+                        return;
+                    }
+                    perms.remove(AppPermission.SCHOOL_OPERATIONS_HUB);
+                    perms.add(AppPermission.SCHOOL_TRANSPORT_DESK);
+                    perms.add(AppPermission.SCHOOL_HOSTEL_DESK);
+                    if (!perms.contains(AppPermission.FEE_STRUCTURES_READ)) {
+                        perms.add(AppPermission.FEE_STRUCTURES_READ);
+                    }
+                    SchoolRbacPermissionCatalog.assertSubset(perms);
+                    rbacPermissionGroupService.syncInlineBundleForRole(
+                            role, perms, Boolean.TRUE.equals(role.getSystemRole()));
+                    slimJwtAuthorityCache.evictForTenant(tenantId);
+                    log.info(
+                            "RBAC migrated {} desk from SCHOOL_OPERATIONS_HUB to SCHOOL_TRANSPORT_DESK+SCHOOL_HOSTEL_DESK tenantId={}",
+                            RbacRoleCatalog.CODE_TRANSPORT_HOSTEL_LOGISTICS,
+                            tenantId);
+                });
+    }
+
+    /**
+     * Catalog template {@link RbacRoleCatalog#CODE_TENANT_SETTINGS} incorrectly bundled {@code TENANT_ADMIN}, which
+     * grants the entire school operator surface. Strip it from persisted catalog rows and rebuild linked bundles.
+     */
+    private void migrateLegacyTenantSettingsCatalogOverPrivilege(String tenantId) {
+        schoolRoleRepository
+                .findByTenantIdAndCodeAndIsDeletedFalse(tenantId, RbacRoleCatalog.CODE_TENANT_SETTINGS)
+                .ifPresent(role -> {
+                    EnumSet<AppPermission> perms =
+                            EnumSet.copyOf(RbacPermissionCodec.parsePermissionsCsv(role.getPermissionsCsv()));
+                    if (!perms.contains(AppPermission.TENANT_ADMIN)) {
+                        return;
+                    }
+                    perms.remove(AppPermission.TENANT_ADMIN);
+                    perms.add(AppPermission.SCHOOL_SETTINGS_CORE);
+                    perms.add(AppPermission.SCHOOL_SETTINGS_FINANCE);
+                    if (!perms.contains(AppPermission.FEE_STRUCTURES_READ)) {
+                        perms.add(AppPermission.FEE_STRUCTURES_READ);
+                    }
+                    SchoolRbacPermissionCatalog.assertSubset(perms);
+                    rbacPermissionGroupService.syncInlineBundleForRole(
+                            role, perms, Boolean.TRUE.equals(role.getSystemRole()));
+                    slimJwtAuthorityCache.evictForTenant(tenantId);
+                    log.info(
+                            "RBAC migrated {} removed TENANT_ADMIN from settings desk template tenantId={}",
+                            RbacRoleCatalog.CODE_TENANT_SETTINGS,
+                            tenantId);
+                });
+    }
+
+    /**
+     * Older tenants created before {@link RbacRoleCatalog#CODE_BASE_SCHOOL_STAFF} existed: add the row idempotently.
+     */
+    private void ensureCatalogContainsBaseSchoolStaff(String tenantId) {
+        if (schoolRoleRepository.findByTenantIdAndCodeAndIsDeletedFalse(tenantId, RbacRoleCatalog.CODE_BASE_SCHOOL_STAFF)
+                .isPresent()) {
+            return;
+        }
+        SchoolRole e = new SchoolRole();
+        e.setTenantId(tenantId);
+        e.setIsActive(true);
+        e.setIsDeleted(false);
+        e.setCode(RbacRoleCatalog.CODE_BASE_SCHOOL_STAFF);
+        e.setName("Base school staff");
+        e.setDescription(
+                "Minimal employee portal; assign additional school roles (library, fee office, academic, …) for duties.");
+        e.setSortOrder(5);
+        e.setSystemRole(true);
+        e.setPermissionsCsv("PORTAL_SCHOOL_STAFF");
+        schoolRoleRepository.save(e);
+        log.info("RBAC inserted BASE_SCHOOL_STAFF for tenantId={}", tenantId);
+    }
+
+    /** Older tenants: add {@link RbacRoleCatalog#CODE_STAFF_MESSAGING} for optional employee chat. */
+    private void ensureCatalogContainsStaffMessaging(String tenantId) {
+        if (schoolRoleRepository.findByTenantIdAndCodeAndIsDeletedFalse(tenantId, RbacRoleCatalog.CODE_STAFF_MESSAGING)
+                .isPresent()) {
+            return;
+        }
+        SchoolRole e = new SchoolRole();
+        e.setTenantId(tenantId);
+        e.setIsActive(true);
+        e.setIsDeleted(false);
+        e.setCode(RbacRoleCatalog.CODE_STAFF_MESSAGING);
+        e.setName("Staff messaging (chat)");
+        e.setDescription("Optional tenant chat for non-teaching employees when the school enables chat for staff.");
+        e.setSortOrder(6);
+        e.setSystemRole(true);
+        e.setPermissionsCsv("PORTAL_CHAT");
+        schoolRoleRepository.save(e);
+        log.info("RBAC inserted STAFF_MESSAGING for tenantId={}", tenantId);
+    }
+
+    /** Ensures {@code LIBRARY_STAFF} / {@code SCHOOL_STAFF} portal users carry the baseline school-staff link. */
+    private void linkBaseSchoolStaffForPortalUsersIfMissing(String tenantId) {
+        schoolRoleRepository.findByTenantIdAndCodeAndIsDeletedFalse(tenantId, RbacRoleCatalog.CODE_BASE_SCHOOL_STAFF).ifPresent(base -> {
+            List<User> users = userRepository.findByTenantIdAndRoleInAndIsDeletedFalseOrderByNameAsc(
+                    tenantId, List.of(Enums.Role.LIBRARY_STAFF, Enums.Role.SCHOOL_STAFF));
+            for (User u : users) {
+                List<UserSchoolRoleAssignment> cur =
+                        userSchoolRoleAssignmentRepository.findByTenantIdAndUserIdFetchRoles(tenantId, u.getId());
+                boolean hasBase = cur.stream()
+                        .anyMatch(a -> RbacRoleCatalog.CODE_BASE_SCHOOL_STAFF.equals(a.getSchoolRole().getCode()));
+                if (!hasBase) {
+                    linkUserToRole(tenantId, u.getId(), base);
+                }
+            }
+        });
+    }
+
     private void backfillUserAssignmentsIfEmpty(String tenantId) {
         for (User u : userRepository.findByTenantIdAndIsDeletedFalseOrderByNameAsc(tenantId)) {
             if (u.getRole() == null || !STAFF_PORTAL_ROLES.contains(u.getRole())) {
@@ -120,8 +289,14 @@ public class RbacTenantBootstrapService {
                                 .ifPresent(toLink::add);
                     }
                 }
-                case LIBRARY_STAFF -> schoolRoleRepository
-                        .findByTenantIdAndCodeAndIsDeletedFalse(tenantId, RbacRoleCatalog.CODE_LIBRARY_OPERATIONS)
+                case LIBRARY_STAFF -> {
+                    schoolRoleRepository.findByTenantIdAndCodeAndIsDeletedFalse(tenantId, RbacRoleCatalog.CODE_BASE_SCHOOL_STAFF)
+                            .ifPresent(toLink::add);
+                    schoolRoleRepository.findByTenantIdAndCodeAndIsDeletedFalse(tenantId, RbacRoleCatalog.CODE_LIBRARY_OPERATIONS)
+                            .ifPresent(toLink::add);
+                }
+                case SCHOOL_STAFF -> schoolRoleRepository
+                        .findByTenantIdAndCodeAndIsDeletedFalse(tenantId, RbacRoleCatalog.CODE_BASE_SCHOOL_STAFF)
                         .ifPresent(toLink::add);
                 default -> {
                 }
@@ -133,9 +308,15 @@ public class RbacTenantBootstrapService {
     }
 
     private boolean hasLibraryFlag(User u, String tenantId) {
-        return teacherRepository.findByTenantIdAndUserIdAndIsDeletedFalse(tenantId, u.getId())
-                .map(t -> t.getLibraryStaffRole() != null)
-                .orElse(false);
+        List<Teacher> rows = teacherRepository.findAllByTenantIdAndUserIdAndIsDeletedFalseOrderByIdAsc(tenantId, u.getId());
+        if (rows.size() > 1) {
+            log.warn(
+                    "RBAC backfill: {} active Teacher rows for tenantId={} userId={} (expected one); using first for library flag",
+                    rows.size(),
+                    tenantId,
+                    u.getId());
+        }
+        return rows.stream().findFirst().map(t -> t.getLibraryStaffRole() != null).orElse(false);
     }
 
     private void linkUserToRole(String tenantId, Long userId, SchoolRole role) {

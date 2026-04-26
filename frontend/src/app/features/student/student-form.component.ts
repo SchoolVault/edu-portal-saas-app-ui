@@ -7,6 +7,7 @@ import { StudentService } from '../../core/services/student.service';
 import { AcademicService } from '../../core/services/academic.service';
 import { GuardianService } from '../../core/services/guardian.service';
 import { AuthService } from '../../core/services/auth.service';
+import { UiAccessService } from '../../core/services/ui-access.service';
 import { Student, SchoolClass } from '../../core/models/models';
 import { BLOOD_GROUPS, GENDERS, STUDENT_STATUS } from '../../core/config/app-constants';
 import { runtimeConfig } from '../../core/config/runtime-config';
@@ -288,8 +289,7 @@ export class StudentFormComponent implements OnInit, OnDestroy {
   private langSub?: Subscription;
 
   get isAdmin(): boolean {
-    const r = (this.auth.getRole() || '').toLowerCase();
-    return r === 'admin' || r === 'super_admin';
+    return this.uiAccess.hasStudentMasterWriteAccess();
   }
 
   constructor(
@@ -297,6 +297,7 @@ export class StudentFormComponent implements OnInit, OnDestroy {
     private academicService: AcademicService,
     private guardianService: GuardianService,
     private auth: AuthService,
+    private uiAccess: UiAccessService,
     private router: Router,
     private route: ActivatedRoute,
     private translate: TranslateService,

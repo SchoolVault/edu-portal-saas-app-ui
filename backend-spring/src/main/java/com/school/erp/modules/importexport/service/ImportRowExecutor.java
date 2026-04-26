@@ -13,6 +13,7 @@ import com.school.erp.modules.importexport.ImportJobType;
 import com.school.erp.modules.importexport.entity.ImportJob;
 import com.school.erp.modules.importexport.entity.ImportJobLine;
 import com.school.erp.modules.notification.service.NotificationService;
+import com.school.erp.modules.rbac.service.RbacService;
 import com.school.erp.modules.settings.repository.TenantConfigRepository;
 import com.school.erp.modules.student.dto.StudentDTOs;
 import com.school.erp.modules.student.service.StudentService;
@@ -37,6 +38,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -64,6 +66,7 @@ public class ImportRowExecutor {
     private final ImportBulkRowValidator bulkRowValidator;
     private final FeeService feeService;
     private final ImportLedgerWriteService importLedgerWriteService;
+    private final RbacService rbacService;
 
     public ImportRowExecutor(ObjectMapper objectMapper,
                            StudentService studentService,
@@ -80,7 +83,8 @@ public class ImportRowExecutor {
                            BulkImportAcademicResolver academicResolver,
                            ImportBulkRowValidator bulkRowValidator,
                            FeeService feeService,
-                           ImportLedgerWriteService importLedgerWriteService) {
+                           ImportLedgerWriteService importLedgerWriteService,
+                           RbacService rbacService) {
         this.objectMapper = objectMapper;
         this.studentService = studentService;
         this.teacherService = teacherService;
@@ -97,6 +101,7 @@ public class ImportRowExecutor {
         this.bulkRowValidator = bulkRowValidator;
         this.feeService = feeService;
         this.importLedgerWriteService = importLedgerWriteService;
+        this.rbacService = rbacService;
     }
 
     public void execute(ImportJob job, ImportJobLine line) throws Exception {
@@ -259,6 +264,34 @@ public class ImportRowExecutor {
                     canonicalPhone, "Staff portal access", body,
                     "import-job-" + job.getId() + "-line-" + line.getId(), "import-" + job.getId());
         }
+        applySchoolRoleCodesFromRow(row, created.getUserId());
+    }
+
+    /**
+     * When {@code schoolrolecodes} is set, replace this user's tenant school RBAC roles (stable codes, comma-separated).
+     * Requires a portal {@code userId} on the teacher row (enable portal + email/phone as applicable).
+     */
+    private void applySchoolRoleCodesFromRow(Map<String, String> row, Long userId) {
+        String raw = blankToNull(row.get("schoolrolecodes"));
+        if (raw == null) {
+            return;
+        }
+        LinkedHashSet<String> codes = new LinkedHashSet<>();
+        for (String token : raw.split(",")) {
+            String c = blankToNull(token);
+            if (c != null) {
+                codes.add(c.toUpperCase(Locale.ROOT));
+            }
+        }
+        if (codes.isEmpty()) {
+            return;
+        }
+        if (userId == null) {
+            throw new BusinessException(
+                    "schoolrolecodes requires a portal user on this row. Use createportal true with email (for email login) "
+                            + "and phone, or omit schoolrolecodes until a portal account exists.");
+        }
+        rbacService.replaceUserSchoolRolesFromImportCodes(userId, new ArrayList<>(codes));
     }
 
     private void assignOptionalClassTeacherSlot(Map<String, String> row, Long teacherId, Enums.Role portalRole) {
@@ -268,8 +301,8 @@ public class ImportRowExecutor {
         if (placement == null) {
             return;
         }
-        if (portalRole == Enums.Role.LIBRARY_STAFF) {
-            throw new BusinessException("classteacherfor cannot be used for library staff rows");
+        if (portalRole == Enums.Role.LIBRARY_STAFF || portalRole == Enums.Role.SCHOOL_STAFF) {
+            throw new BusinessException("classteacherfor cannot be used for non-teacher portal rows");
         }
         academicService.assignClassTeacher(placement.classId(), placement.sectionId(), teacherId, null);
     }
@@ -440,7 +473,10 @@ public class ImportRowExecutor {
             String phone,
             String providedPassword,
             Enums.Role portalRole) {
-        String persona = portalRole == Enums.Role.LIBRARY_STAFF ? "library staff" : "teacher";
+        String persona =
+                portalRole == Enums.Role.LIBRARY_STAFF
+                        ? "library staff"
+                        : portalRole == Enums.Role.SCHOOL_STAFF ? "school staff" : "teacher";
         StringBuilder sb = new StringBuilder("Your ").append(persona)
                 .append(" profile has been onboarded successfully. School code: ")
                 .append(schoolCode).append(". ");
@@ -461,10 +497,11 @@ public class ImportRowExecutor {
     private static Enums.Role parsePortalRole(String raw, boolean staffImport) {
         String n = blankToNull(raw);
         if (n == null) {
-            return staffImport ? Enums.Role.LIBRARY_STAFF : Enums.Role.TEACHER;
+            return staffImport ? Enums.Role.SCHOOL_STAFF : Enums.Role.TEACHER;
         }
         return switch (n.toUpperCase(Locale.ROOT)) {
             case "LIBRARY", "LIBRARY_STAFF", "LIB" -> Enums.Role.LIBRARY_STAFF;
+            case "STAFF", "SCHOOL_STAFF", "BASE_STAFF" -> Enums.Role.SCHOOL_STAFF;
             case "TEACHER", "TCH", "T" -> Enums.Role.TEACHER;
             default -> throw new BusinessException("Invalid portalrole: " + raw);
         };

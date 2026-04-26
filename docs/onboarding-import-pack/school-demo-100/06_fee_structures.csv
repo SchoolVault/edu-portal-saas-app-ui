@@ -1,0 +1,13 @@
+name,classid,classname,academicyearid,componentspec,importmode
+Class 1 - Annual,,Class 1,CURRENT,Tuition:12000:TUITION|Lab:800:LAB|Activity:500:MISC,UPSERT
+Class 2 - Annual,,Class 2,CURRENT,Tuition:12800:TUITION|Lab:900:LAB|Activity:500:MISC,UPSERT
+Class 3 - Annual,,Class 3,CURRENT,Tuition:13600:TUITION|Lab:1000:LAB|Activity:600:MISC,UPSERT
+Class 4 - Annual,,Class 4,CURRENT,Tuition:14500:TUITION|Lab:1200:LAB|Activity:600:MISC,UPSERT
+Class 5 - Annual,,Class 5,CURRENT,Tuition:18000:TUITION|Lab:2000:LAB|Sports:1500:SPORTS|Misc:500:MISC,UPSERT
+Class 6 - Annual,,Class 6,CURRENT,Tuition:19000:TUITION|Lab:2200:LAB|Sports:1500:SPORTS|Library:800:LIBRARY,UPSERT
+Class 7 - Annual,,Class 7,CURRENT,Tuition:20000:TUITION|Lab:2500:LAB|Sports:1800:SPORTS|Transport:2500:TRANSPORT,UPSERT
+Class 8 - Annual,,Class 8,CURRENT,Tuition:21500:TUITION|Lab:2800:LAB|Sports:2000:SPORTS|Library:900:LIBRARY,UPSERT
+Class 9 - Annual,,Class 9,CURRENT,Tuition:23500:TUITION|Lab:3200:LAB|Sports:2200:SPORTS|Transport:3000:TRANSPORT,UPSERT
+Class 10 - Annual,,Class 10,CURRENT,Tuition:25500:TUITION|Lab:3500:LAB|Sports:2500:SPORTS|Exam:2000:MISC,UPSERT
+Class 11 - Annual,,Class 11,CURRENT,Tuition:28500:TUITION|Lab:4500:LAB|Sports:2500:SPORTS|Library:1200:LIBRARY,UPSERT
+Class 12 - Annual,,Class 12,CURRENT,Tuition:30500:TUITION|Lab:5000:LAB|Sports:2500:SPORTS|Exam:3000:MISC,UPSERT

@@ -346,6 +346,7 @@ public class AuthService {
                 response.setChildCount(linkedChildren);
             }
             case LIBRARY_STAFF -> response.setUserTitle("Library Staff");
+            case SCHOOL_STAFF -> response.setUserTitle("School Staff");
             default -> response.setUserTitle("School User");
         }
         return response;

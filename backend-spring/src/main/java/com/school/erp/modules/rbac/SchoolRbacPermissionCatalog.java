@@ -9,7 +9,9 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
- * App permissions that may appear on tenant-defined school roles (excludes platform / portal-identity only codes).
+ * App permissions that may appear on persisted school roles and permission groups.
+ * Excludes other portal personas and platform-only codes; {@link AppPermission#PORTAL_SCHOOL_STAFF} is included
+ * so system templates (e.g. {@code BASE_SCHOOL_STAFF}) and bootstrap can mirror CSV into linked bundles without failing.
  */
 public final class SchoolRbacPermissionCatalog {
     private static final Set<AppPermission> ASSIGNABLE = EnumSet.complementOf(EnumSet.of(

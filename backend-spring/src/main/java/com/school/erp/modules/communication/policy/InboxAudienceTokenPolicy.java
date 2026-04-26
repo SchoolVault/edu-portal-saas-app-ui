@@ -53,7 +53,7 @@ public final class InboxAudienceTokenPolicy {
         return switch (roleUpper) {
             case "PARENT", "STUDENT" -> Set.of("ALL", "PARENTS", "CLASS", "SECTION");
             case "TEACHER" -> Set.of("ALL", "TEACHERS", "CLASS", "SECTION");
-            case "ADMIN", "SUPER_ADMIN", "LIBRARY_STAFF" ->
+            case "ADMIN", "SUPER_ADMIN", "LIBRARY_STAFF", "SCHOOL_STAFF" ->
                     Set.of("ALL", "TEACHERS", "PARENTS", "CLASS", "SECTION");
             default -> Set.of("ALL", "CLASS", "SECTION");
         };

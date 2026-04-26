@@ -6,6 +6,7 @@ import { filter } from 'rxjs/operators';
 import { SidebarComponent } from './sidebar/sidebar.component';
 import { HeaderComponent } from './header/header.component';
 import { AuthService } from '../core/services/auth.service';
+import { TenantModuleGateService } from '../core/services/tenant-module-gate.service';
 import { runtimeConfig } from '../core/config/runtime-config';
 
 @Component({
@@ -54,13 +55,15 @@ export class LayoutComponent implements OnInit, OnDestroy {
 
   constructor(
     private router: Router,
-    private auth: AuthService
+    private auth: AuthService,
+    private moduleGate: TenantModuleGateService
   ) {}
 
   ngOnInit(): void {
     this.refreshViewport();
     if (!runtimeConfig.useMocks && this.auth.isAuthenticated()) {
       this.auth.syncProfileFromServer().subscribe({ error: () => void 0 });
+      this.moduleGate.refresh().subscribe({ error: () => void 0 });
     }
     this.navSub = this.router.events.pipe(filter(e => e instanceof NavigationEnd)).subscribe(() => {
       if (this.isMobileViewport) {

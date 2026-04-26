@@ -15,6 +15,7 @@ import {
 import { resolveLeaveSubmitError } from '../../core/leave/leave-api.error';
 import { readLeaveEntitlementPolicy, writeLeaveEntitlementPolicy, type LeaveEntitlementPolicy } from '../../core/leave/leave-policy.storage';
 import { AuthService } from '../../core/services/auth.service';
+import { UiAccessService } from '../../core/services/ui-access.service';
 import { ErpDatePickerComponent } from '../../shared/erp-date-picker/erp-date-picker.component';
 import { ErpPaginationComponent } from '../../shared/erp-pagination/erp-pagination.component';
 import { ErpI18nPhDirective, ErpI18nTextDirective } from '../../shared/erp-i18n/erp-i18n-host.directives';
@@ -248,6 +249,7 @@ export class LeaveComponent implements OnInit {
   private readonly translate = inject(TranslateService);
   private readonly cdr = inject(ChangeDetectorRef);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly uiAccess = inject(UiAccessService);
   private readonly mineSearch$ = new Subject<void>();
   private readonly allSearch$ = new Subject<void>();
   private readonly subs = new Subscription();
@@ -260,7 +262,7 @@ export class LeaveComponent implements OnInit {
   ) {}
 
   get isApprover(): boolean {
-    return this.auth.getNormalizedRole() === 'admin';
+    return this.uiAccess.hasAcademicDeskAdminAccess();
   }
 
   /** Shown under balance title when a policy year label is configured (mock or API). */
@@ -274,7 +276,7 @@ export class LeaveComponent implements OnInit {
 
   /** Team queue is for school admins only; teachers use “My requests”. */
   get canSeeDirectory(): boolean {
-    return this.auth.getNormalizedRole() === 'admin';
+    return this.uiAccess.hasAcademicDeskAdminAccess();
   }
 
   applicantLine(r: LeaveRequestRow): string {

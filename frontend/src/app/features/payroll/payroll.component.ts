@@ -3,11 +3,20 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { Payslip, PayrollDisbursementAttempt, PayrollDisbursementSummary, SalaryStructure, TeacherPaymentDetails } from '../../core/models/models';
+import {
+  Payslip,
+  PayrollDisbursementAttempt,
+  PayrollDisbursementSummary,
+  SalaryStructure,
+  TeacherPaymentDetails,
+} from '../../core/models/models';
+import { TeacherService } from '../../core/services/teacher.service';
+import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directives';
 import { filter } from 'rxjs/operators';
 import { forkJoin } from 'rxjs';
 import { PayrollService } from '../../core/services/payroll.service';
 import { AuthService } from '../../core/services/auth.service';
+import { UiAccessService } from '../../core/services/ui-access.service';
 import { SettingsService } from '../../core/services/settings.service';
 import { ConfirmDialogService } from '../../shared/confirm-dialog/confirm-dialog.service';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
@@ -20,17 +29,17 @@ import { runtimeConfig } from '../../core/config/runtime-config';
 @Component({
   selector: 'app-payroll',
   standalone: true,
-  imports: [CommonModule, FormsModule, TranslateModule, ErpPaginationComponent, ErpMonthPickerComponent],
+  imports: [CommonModule, FormsModule, TranslateModule, ErpPaginationComponent, ErpMonthPickerComponent, ErpI18nPhDirective],
   template: `
     <div class="payroll-page" data-testid="payroll-page">
       <div class="d-flex justify-content-between align-items-center mb-4 animate-in flex-wrap gap-2">
         <div>
           <h2 style="font-size: 24px; font-weight: 800;">{{ 'payroll.pageTitle' | translate }}</h2>
           <p class="text-muted mb-0" style="font-size: 13px;">
-            {{ isAdmin ? ('payroll.leadAdmin' | translate) : isTeacher ? ('payroll.leadTeacher' | translate) : ('payroll.leadDenied' | translate) }}
+            {{ canManagePayrollDesk ? ('payroll.leadAdmin' | translate) : isTeacher ? ('payroll.leadTeacher' | translate) : ('payroll.leadDenied' | translate) }}
           </p>
         </div>
-        <div *ngIf="isAdmin || isTeacher" class="d-flex gap-2 align-items-end flex-wrap payroll-period-toolbar">
+        <div *ngIf="canManagePayrollDesk || isTeacher" class="d-flex gap-2 align-items-end flex-wrap payroll-period-toolbar">
           <div class="payroll-period-field">
             <label class="erp-label d-block mb-1">{{ 'payroll.labelMonth' | translate }}</label>
             <select class="erp-select payroll-period-control" [(ngModel)]="genMonth" (ngModelChange)="onHeaderPeriodChanged()">
@@ -41,17 +50,18 @@ import { runtimeConfig } from '../../core/config/runtime-config';
             <label class="erp-label d-block mb-1">{{ 'payroll.labelYear' | translate }}</label>
             <input class="erp-input payroll-period-control" type="number" [(ngModel)]="genYear" (ngModelChange)="onHeaderPeriodChanged()" />
           </div>
-          <button *ngIf="isAdmin" class="btn-primary-erp btn-sm align-self-end payroll-period-btn payroll-period-btn--primary" data-testid="generate-payslips-btn" [disabled]="generating" (click)="runGenerate()">
+          <button *ngIf="canManagePayrollDesk" class="btn-primary-erp btn-sm align-self-end payroll-period-btn payroll-period-btn--primary" data-testid="generate-payslips-btn" [disabled]="generating" (click)="runGenerate()">
             <i class="bi bi-file-earmark-text"></i> {{ generating ? ('payroll.generating' | translate) : ('payroll.generate' | translate) }}
           </button>
           <button class="btn-outline-erp btn-sm align-self-end payroll-period-btn payroll-period-btn--secondary" type="button" (click)="refreshPayroll()">{{ 'payroll.refresh' | translate }}</button>
         </div>
       </div>
-      <div *ngIf="isAdmin || isTeacher" class="payroll-period-hint" [class.payroll-period-hint--warn]="!!payrollPeriodValidationMessage()">
+      <div *ngIf="canManagePayrollDesk || isTeacher" class="payroll-period-hint" [class.payroll-period-hint--warn]="!!payrollPeriodValidationMessage()">
         <i class="bi" [ngClass]="payrollPeriodValidationMessage() ? 'bi-exclamation-triangle' : 'bi-calendar-check'"></i>
         <span>{{ payrollPeriodValidationMessage() || ('payroll.periodHint' | translate) }}</span>
       </div>
 
+      <div *ngIf="salaryStructureSuccess" class="alert alert-success py-2 small mb-3">{{ salaryStructureSuccess }}</div>
       <div *ngIf="genError" class="alert alert-danger py-2 small mb-3">{{ genError }}</div>
       <div *ngIf="queueError" class="alert alert-danger py-2 small mb-3">{{ queueError }}</div>
       <div *ngIf="disburseInfo" class="alert alert-success py-2 small mb-3">
@@ -61,7 +71,7 @@ import { runtimeConfig } from '../../core/config/runtime-config';
         </div>
       </div>
 
-      <div *ngIf="isAdmin" class="erp-card mb-3 animate-in payroll-flow-card">
+      <div *ngIf="canManagePayrollDesk" class="erp-card mb-3 animate-in payroll-flow-card">
         <div class="small fw-semibold text-uppercase text-muted mb-2">{{ 'payroll.adminFlowTitle' | translate }}</div>
         <div class="d-flex flex-wrap gap-2">
           <span class="badge-erp badge-neutral">{{ 'payroll.adminFlowStep1' | translate }}</span>
@@ -90,7 +100,7 @@ import { runtimeConfig } from '../../core/config/runtime-config';
         </div>
       </div>
 
-      <div *ngIf="isAdmin" class="row g-4 mb-4 animate-in animate-in-delay-1">
+      <div *ngIf="canManagePayrollDesk" class="row g-4 mb-4 animate-in animate-in-delay-1">
         <div class="col-sm-6 col-lg-3">
           <div class="stat-card"
             ><div class="stat-icon" style="background: rgba(27,58,48,0.1); color: #1B3A30;"><i class="bi bi-people-fill"></i></div
@@ -122,7 +132,7 @@ import { runtimeConfig } from '../../core/config/runtime-config';
       </div>
 
       <div
-        *ngIf="isAdmin && !financeProfileLoading && !payrollDigitalPayoutEnabled"
+        *ngIf="canManagePayrollDesk && !financeProfileLoading && !payrollDigitalPayoutEnabled"
         class="erp-card animate-in mb-3 payroll-offline-payout-hint"
         role="status"
       >
@@ -138,7 +148,7 @@ import { runtimeConfig } from '../../core/config/runtime-config';
       </div>
 
       <div
-        *ngIf="isAdmin && !financeProfileLoading && payrollDigitalPayoutEnabled"
+        *ngIf="canManagePayrollDesk && !financeProfileLoading && payrollDigitalPayoutEnabled"
         class="erp-card animate-in animate-in-delay-2 mb-4 payroll-disburse-card"
       >
         <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
@@ -269,7 +279,7 @@ import { runtimeConfig } from '../../core/config/runtime-config';
       </div>
 
       <div
-        *ngIf="isAdmin && !financeProfileLoading && payrollDigitalPayoutEnabled"
+        *ngIf="canManagePayrollDesk && !financeProfileLoading && payrollDigitalPayoutEnabled"
         class="erp-card animate-in mb-4 payroll-queue-card"
       >
         <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
@@ -342,8 +352,13 @@ import { runtimeConfig } from '../../core/config/runtime-config';
         </div>
       </div>
 
-      <div *ngIf="isAdmin" class="erp-card animate-in mb-4">
-        <h4 class="erp-card-title mb-3">{{ 'payroll.structuresTitle' | translate }}</h4>
+      <div *ngIf="canManagePayrollDesk" class="erp-card animate-in mb-4">
+        <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
+          <h4 class="erp-card-title mb-0">{{ 'payroll.structuresTitle' | translate }}</h4>
+          <button type="button" class="btn-primary-erp btn-sm" (click)="openSalaryStructureModal()" data-testid="payroll-new-structure-btn">
+            <i class="bi bi-plus-lg"></i> {{ 'payroll.newStructure' | translate }}
+          </button>
+        </div>
         <div class="table-responsive payroll-salary-table-wrap">
           <table class="erp-table payroll-salary-table" data-testid="salary-table">
             <thead
@@ -376,7 +391,7 @@ import { runtimeConfig } from '../../core/config/runtime-config';
         />
       </div>
 
-      <div class="erp-card animate-in" *ngIf="isAdmin || isTeacher">
+      <div class="erp-card animate-in" *ngIf="canManagePayrollDesk || isTeacher">
         <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-2">
           <div>
             <h4 class="erp-card-title mb-1">{{ isTeacher ? ('payroll.payslipsTitleTeacher' | translate) : ('payroll.payslipsTitleAdmin' | translate) }}</h4>
@@ -435,7 +450,7 @@ import { runtimeConfig } from '../../core/config/runtime-config';
                   >
                     <i class="bi bi-file-pdf"></i> {{ 'payroll.pdf' | translate }}
                   </button>
-                  <button *ngIf="isAdmin && p.status === 'generated'" type="button" class="btn-primary-erp btn-xs" (click)="markPaid(p)" [disabled]="markingId === p.id">{{ 'payroll.markPaid' | translate }}</button>
+                  <button *ngIf="canManagePayrollDesk && p.status === 'generated'" type="button" class="btn-primary-erp btn-xs" (click)="markPaid(p)" [disabled]="markingId === p.id">{{ 'payroll.markPaid' | translate }}</button>
                 </td>
               </tr>
               <tr *ngIf="payslips.length === 0"><td colspan="7" class="text-center py-4">
@@ -454,9 +469,80 @@ import { runtimeConfig } from '../../core/config/runtime-config';
         </div>
       </div>
 
-      <div *ngIf="!isAdmin && !isTeacher" class="erp-card text-muted text-center py-5">
+      <div *ngIf="!canManagePayrollDesk && !isTeacher" class="erp-card text-muted text-center py-5">
         <i class="bi bi-lock" style="font-size: 2rem;"></i>
         <p class="mt-2 mb-0">{{ 'payroll.accessDenied' | translate }}</p>
+      </div>
+
+      <div class="modal-overlay" *ngIf="salaryStructureModal" (click)="closeSalaryStructureModal()">
+        <div class="modal-content-erp modal-lg" style="max-width: 640px;" (click)="$event.stopPropagation()" data-testid="payroll-structure-modal">
+          <div class="modal-header-erp">
+            <h3>{{ 'payroll.structureModalTitle' | translate }}</h3>
+            <button type="button" class="btn-icon" (click)="closeSalaryStructureModal()"><i class="bi bi-x-lg"></i></button>
+          </div>
+          <div class="modal-body-erp">
+            <p class="text-muted small mb-3">{{ 'payroll.structureModalLead' | translate }}</p>
+            <label class="erp-label">{{ 'payroll.structureLabelTeacher' | translate }}</label>
+            <select class="erp-select mb-3" [(ngModel)]="structureForm.teacherId" [disabled]="structureTeachersLoading">
+              <option [ngValue]="null">{{ 'payroll.structureSelectTeacher' | translate }}</option>
+              <option *ngFor="let opt of structureTeacherOptions" [ngValue]="opt.id">{{ opt.name }}</option>
+            </select>
+            <p *ngIf="structureTeachersLoading" class="small text-muted mb-2">{{ 'payroll.structureLoadingTeachers' | translate }}</p>
+            <p *ngIf="!structureTeachersLoading && !structureTeacherOptions.length" class="small text-warning mb-2">{{ 'payroll.structureNoTeachersLeft' | translate }}</p>
+
+            <label class="erp-label">{{ 'payroll.structureLabelBasic' | translate }}</label>
+            <input class="erp-input mb-3" type="number" min="1" step="1" [(ngModel)]="structureForm.basicSalary" erpI18nPh="payroll.structureBasicPh" />
+
+            <div class="d-flex justify-content-between align-items-center mb-2">
+              <label class="erp-label mb-0">{{ 'payroll.structureAllowances' | translate }}</label>
+              <button type="button" class="btn-outline-erp btn-xs" (click)="addStructureAllowanceRow()"><i class="bi bi-plus"></i> {{ 'payroll.structureAddLine' | translate }}</button>
+            </div>
+            <div *ngFor="let row of structureForm.allowances; let i = index" class="row g-2 align-items-end mb-2">
+              <div class="col-md-7">
+                <input class="erp-input" [(ngModel)]="row.name" erpI18nPh="payroll.structureComponentNamePh" />
+              </div>
+              <div class="col-md-3">
+                <input class="erp-input" type="number" min="0" step="1" [(ngModel)]="row.amount" placeholder="₹" />
+              </div>
+              <div class="col-md-2">
+                <button type="button" class="btn-icon" (click)="removeStructureAllowanceRow(i)" [title]="'payroll.structureRemoveLine' | translate"><i class="bi bi-trash text-danger"></i></button>
+              </div>
+            </div>
+
+            <div class="d-flex justify-content-between align-items-center mb-2 mt-3">
+              <label class="erp-label mb-0">{{ 'payroll.structureDeductions' | translate }}</label>
+              <button type="button" class="btn-outline-erp btn-xs" (click)="addStructureDeductionRow()"><i class="bi bi-plus"></i> {{ 'payroll.structureAddLine' | translate }}</button>
+            </div>
+            <div *ngFor="let row of structureForm.deductions; let j = index" class="row g-2 align-items-end mb-2">
+              <div class="col-md-7">
+                <input class="erp-input" [(ngModel)]="row.name" erpI18nPh="payroll.structureComponentNamePh" />
+              </div>
+              <div class="col-md-3">
+                <input class="erp-input" type="number" min="0" step="1" [(ngModel)]="row.amount" placeholder="₹" />
+              </div>
+              <div class="col-md-2">
+                <button type="button" class="btn-icon" (click)="removeStructureDeductionRow(j)" [title]="'payroll.structureRemoveLine' | translate"><i class="bi bi-trash text-danger"></i></button>
+              </div>
+            </div>
+
+            <div class="d-flex justify-content-between align-items-center mt-2 p-2 rounded-2" style="background: var(--clr-surface-muted); border: 1px solid var(--clr-border);">
+              <strong>{{ 'payroll.structureDraftNet' | translate }}</strong>
+              <strong style="color: var(--clr-primary); font-size: 18px;">₹{{ structureDraftNet | number:'1.0-0':'en-IN' }}</strong>
+            </div>
+            <p *ngIf="structureFormError" class="text-danger small mt-2 mb-0">{{ structureFormError }}</p>
+          </div>
+          <div class="modal-footer-erp">
+            <button type="button" class="btn-outline-erp" (click)="closeSalaryStructureModal()">{{ 'payroll.structureCancel' | translate }}</button>
+            <button
+              type="button"
+              class="btn-primary-erp"
+              [disabled]="structureSaving || structureTeachersLoading || !structureTeacherOptions.length"
+              (click)="saveSalaryStructure()"
+            >
+              {{ structureSaving ? ('payroll.structureSaving' | translate) : ('payroll.structureSave' | translate) }}
+            </button>
+          </div>
+        </div>
       </div>
 
       <div class="modal-overlay" *ngIf="payoutPreviewModal" (click)="closePayoutPreview()">
@@ -872,7 +958,7 @@ export class PayrollComponent implements OnInit {
   currentMonthYm = '';
   payslipFilterYm = '';
 
-  isAdmin = false;
+  canManagePayrollDesk = false;
   isTeacher = false;
   payrollFocusTeacherId: number | null = null;
   /** NETBANKING | UPI | NEFT | IMPS — sent to backend for reference prefix + audit. */
@@ -897,6 +983,35 @@ export class PayrollComponent implements OnInit {
   /** Mirrors Settings → Finance; when false, in-app transfer is hidden (backend also blocks). */
   payrollDigitalPayoutEnabled = false;
   financeProfileLoading = true;
+
+  /** Fee-style modal: define basic + optional allowance/deduction lines for one teacher (per backend contract). */
+  salaryStructureModal = false;
+  salaryStructureSuccess = '';
+  structureTeachersLoading = false;
+  structureSaving = false;
+  structureFormError = '';
+  structureTeacherOptions: { id: number; name: string }[] = [];
+  structureForm: {
+    teacherId: number | null;
+    basicSalary: number | null;
+    allowances: { name: string; amount: number }[];
+    deductions: { name: string; amount: number }[];
+  } = {
+    teacherId: null,
+    basicSalary: null,
+    allowances: [],
+    deductions: [],
+  };
+
+  get structureDraftNet(): number {
+    const b = Number(this.structureForm.basicSalary);
+    if (!Number.isFinite(b) || b < 0) {
+      return 0;
+    }
+    const allow = this.structureForm.allowances.reduce((s, r) => s + (Number(r.amount) || 0), 0);
+    const ded = this.structureForm.deductions.reduce((s, r) => s + (Number(r.amount) || 0), 0);
+    return Math.round(b + allow - ded);
+  }
 
   get queueVarianceAmount(): number {
     return Math.max(0, (this.disbursementSummary.submittedAmount || 0) - (this.disbursementSummary.completedAmount || 0));
@@ -927,6 +1042,7 @@ export class PayrollComponent implements OnInit {
   }
 
   private readonly destroyRef = inject(DestroyRef);
+  private readonly uiAccess = inject(UiAccessService);
 
   private resolveUiErrorMessage(error: unknown, fallbackI18nKey: string): string {
     const fallback = this.translate.instant(fallbackI18nKey);
@@ -947,17 +1063,18 @@ export class PayrollComponent implements OnInit {
     private translate: TranslateService,
     private cdr: ChangeDetectorRef,
     private settingsService: SettingsService,
-    private router: Router
+    private router: Router,
+    private teacherService: TeacherService
   ) {}
 
   ngOnInit(): void {
     this.translate.onLangChange.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => this.cdr.markForCheck());
     this.initializePeriodDefaults();
 
-    const r = (this.auth.getRole() ?? '').toLowerCase();
-    this.isAdmin = r === 'admin';
+    const r = (this.auth.getNormalizedRole() ?? '').toLowerCase();
     this.isTeacher = r === 'teacher';
-    if (this.isAdmin) {
+    this.canManagePayrollDesk = this.uiAccess.hasSchoolPayrollOfficeDesk();
+    if (this.canManagePayrollDesk) {
       this.loadPayrollFinanceGate(true);
       this.loadAdminStructures();
       this.loadPaymentDetails();
@@ -1029,7 +1146,7 @@ export class PayrollComponent implements OnInit {
   }
 
   private loadAdminStructures(): void {
-    if (!this.isAdmin) return;
+    if (!this.canManagePayrollDesk) return;
     if (runtimeConfig.useMocks) {
       this.payrollService.getStructures().subscribe(s => {
         this.salaryStructures = s;
@@ -1054,7 +1171,7 @@ export class PayrollComponent implements OnInit {
   }
 
   private fetchStructuresPage(): void {
-    if (!this.isAdmin || runtimeConfig.useMocks) {
+    if (!this.canManagePayrollDesk || runtimeConfig.useMocks) {
       this.applyStructPage();
       return;
     }
@@ -1068,7 +1185,7 @@ export class PayrollComponent implements OnInit {
   private fetchPayslipsPage(): void {
     const y = Number(this.genYear);
     const req$ =
-      this.isTeacher && !this.isAdmin
+      this.isTeacher && !this.canManagePayrollDesk
         ? this.payrollService.listMyPayslipsPage(this.payslipPageIndex, this.payslipPageSize, y, this.genMonth)
         : this.payrollService.listPayslipsPage(this.payslipPageIndex, this.payslipPageSize, y, this.genMonth);
     req$.subscribe(p => {
@@ -1079,7 +1196,7 @@ export class PayrollComponent implements OnInit {
   }
 
   loadPaymentDetails(): void {
-    if (!this.isAdmin) return;
+    if (!this.canManagePayrollDesk) return;
     this.payrollService.getTeacherPaymentDetails().subscribe(d => {
       this.paymentDetails = d;
       this.payDetPageIndex = 0;
@@ -1296,7 +1413,7 @@ export class PayrollComponent implements OnInit {
     this.genError = '';
     this.disburseInfo = '';
     const y = Number(this.genYear);
-    if (this.isAdmin) {
+    if (this.canManagePayrollDesk) {
       this.loadPayrollFinanceGate(false);
       this.structPageIndex = 0;
       this.loadAdminStructures();
@@ -1304,7 +1421,7 @@ export class PayrollComponent implements OnInit {
       this.refreshDisbursementQueue();
     }
     const full$ =
-      this.isTeacher && !this.isAdmin
+      this.isTeacher && !this.canManagePayrollDesk
         ? this.payrollService.listMyPayslips(y, this.genMonth)
         : this.payrollService.listPayslips(y, this.genMonth);
     if (runtimeConfig.useMocks) {
@@ -1319,7 +1436,7 @@ export class PayrollComponent implements OnInit {
     forkJoin({
       full: full$,
       page:
-        this.isTeacher && !this.isAdmin
+        this.isTeacher && !this.canManagePayrollDesk
           ? this.payrollService.listMyPayslipsPage(0, this.payslipPageSize, y, this.genMonth)
           : this.payrollService.listPayslipsPage(0, this.payslipPageSize, y, this.genMonth),
     }).subscribe({
@@ -1447,7 +1564,7 @@ export class PayrollComponent implements OnInit {
   }
 
   canDownloadPayslipPdf(p: Payslip): boolean {
-    if (this.isAdmin) {
+    if (this.canManagePayrollDesk) {
       return true;
     }
     if (this.isTeacher) {
@@ -1543,7 +1660,7 @@ export class PayrollComponent implements OnInit {
   }
 
   refreshDisbursementQueue(): void {
-    if (!this.isAdmin) return;
+    if (!this.canManagePayrollDesk) return;
     this.queueError = '';
     this.fetchQueueSummary();
     this.fetchQueueAttempts();
@@ -1615,6 +1732,130 @@ export class PayrollComponent implements OnInit {
             this.queueError = this.resolveUiErrorMessage(error, 'payroll.queueUpdateFailed');
           },
         });
+      });
+  }
+
+  openSalaryStructureModal(): void {
+    if (!this.canManagePayrollDesk) {
+      return;
+    }
+    this.salaryStructureSuccess = '';
+    this.structureFormError = '';
+    this.resetSalaryStructureForm();
+    this.salaryStructureModal = true;
+    this.structureTeachersLoading = true;
+    this.structureTeacherOptions = [];
+    const assigned = new Set([...this.structuresForTotals, ...this.salaryStructures].map(s => s.teacherId));
+    this.teacherService.getTeachers().subscribe({
+      next: teachers => {
+        this.structureTeacherOptions = (teachers || [])
+          .filter(t => (t.status || 'active') === 'active')
+          .filter(t => !assigned.has(t.id))
+          .map(t => ({
+            id: t.id,
+            name:
+              `${(t.firstName || '').trim()} ${(t.lastName || '').trim()}`.trim() ||
+              (t.email || '').trim() ||
+              `Teacher #${t.id}`,
+          }))
+          .sort((a, b) => a.name.localeCompare(b.name));
+        this.structureTeachersLoading = false;
+        this.cdr.markForCheck();
+      },
+      error: () => {
+        this.structureTeachersLoading = false;
+        this.structureFormError = this.translate.instant('payroll.structureLoadTeachersError');
+        this.cdr.markForCheck();
+      },
+    });
+    this.cdr.markForCheck();
+  }
+
+  closeSalaryStructureModal(): void {
+    this.salaryStructureModal = false;
+    this.structureFormError = '';
+    this.structureTeachersLoading = false;
+  }
+
+  private resetSalaryStructureForm(): void {
+    this.structureForm = {
+      teacherId: null,
+      basicSalary: null,
+      allowances: [],
+      deductions: [],
+    };
+  }
+
+  addStructureAllowanceRow(): void {
+    this.structureForm.allowances = [...this.structureForm.allowances, { name: '', amount: 0 }];
+  }
+
+  addStructureDeductionRow(): void {
+    this.structureForm.deductions = [...this.structureForm.deductions, { name: '', amount: 0 }];
+  }
+
+  removeStructureAllowanceRow(index: number): void {
+    this.structureForm.allowances = this.structureForm.allowances.filter((_, i) => i !== index);
+  }
+
+  removeStructureDeductionRow(index: number): void {
+    this.structureForm.deductions = this.structureForm.deductions.filter((_, i) => i !== index);
+  }
+
+  saveSalaryStructure(): void {
+    this.structureFormError = '';
+    const tid = this.structureForm.teacherId;
+    if (tid == null) {
+      this.structureFormError = this.translate.instant('payroll.structureErrTeacher');
+      return;
+    }
+    const basic = Number(this.structureForm.basicSalary);
+    if (!Number.isFinite(basic) || basic <= 0) {
+      this.structureFormError = this.translate.instant('payroll.structureErrBasic');
+      return;
+    }
+    const pick = this.structureTeacherOptions.find(o => o.id === tid);
+    const teacherName = pick?.name?.trim() || '';
+    const allow = this.structureForm.allowances
+      .map(r => ({ name: (r.name || '').trim(), amount: Number(r.amount) || 0 }))
+      .filter(r => r.name.length > 0 && r.amount >= 0);
+    const ded = this.structureForm.deductions
+      .map(r => ({ name: (r.name || '').trim(), amount: Number(r.amount) || 0 }))
+      .filter(r => r.name.length > 0 && r.amount >= 0);
+    for (const r of allow) {
+      if (r.amount < 0) {
+        this.structureFormError = this.translate.instant('payroll.structureErrNegative');
+        return;
+      }
+    }
+    for (const r of ded) {
+      if (r.amount < 0) {
+        this.structureFormError = this.translate.instant('payroll.structureErrNegative');
+        return;
+      }
+    }
+    this.structureSaving = true;
+    this.payrollService
+      .createSalaryStructure({
+        teacherId: tid,
+        teacherName,
+        basicSalary: basic,
+        allowances: allow,
+        deductions: ded,
+      })
+      .subscribe({
+        next: () => {
+          this.structureSaving = false;
+          this.salaryStructureModal = false;
+          this.salaryStructureSuccess = this.translate.instant('payroll.structureSaved');
+          this.refreshPayroll();
+          this.cdr.markForCheck();
+        },
+        error: (err: unknown) => {
+          this.structureSaving = false;
+          this.structureFormError = this.resolveUiErrorMessage(err, 'payroll.structureSaveFailed');
+          this.cdr.markForCheck();
+        },
       });
   }
 

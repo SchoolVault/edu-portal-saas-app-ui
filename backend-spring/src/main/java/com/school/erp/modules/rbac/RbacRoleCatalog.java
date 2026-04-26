@@ -21,13 +21,28 @@ public final class RbacRoleCatalog {
 
     public static final List<DefaultSchoolRole> TEMPLATES = List.of(
             new DefaultSchoolRole(
+                    "BASE_SCHOOL_STAFF",
+                    "Base school staff",
+                    "Minimal employee portal (profile, school-wide comms shell). Stack LIBRARY_OPERATIONS, FEE_OFFICE, "
+                            + "ACADEMIC_STAFF, etc. for each duty.",
+                    5,
+                    "PORTAL_SCHOOL_STAFF",
+                    true),
+            new DefaultSchoolRole(
+                    "STAFF_MESSAGING",
+                    "Staff messaging (chat)",
+                    "Optional tenant chat for non-teaching employees when the school enables chat for staff.",
+                    6,
+                    "PORTAL_CHAT",
+                    true),
+            new DefaultSchoolRole(
                     "SCHOOL_FULL_ADMIN",
                     "Full school administration",
                     "Configuration, users, fees, payroll, exams, import/export, and school reports (typical principal office / head admin).",
                     10,
                     "TENANT_ADMIN,SCHOOL_FEE_OFFICE,SCHOOL_SETTINGS_FINANCE,SCHOOL_PAYROLL_OFFICE,SCHOOL_SETTINGS_CORE,"
                             + "SCHOOL_STUDENT_MASTER,SCHOOL_EXAMS_OFFICE,SCHOOL_IMPORT_EXPORT,SCHOOL_OPERATIONS_HUB,"
-                            + "SCHOOL_REPORTS_SCHOOL,FEE_STRUCTURES_READ",
+                            + "SCHOOL_TRANSPORT_DESK,SCHOOL_HOSTEL_DESK,SCHOOL_REPORTS_SCHOOL,FEE_STRUCTURES_READ",
                     true),
             new DefaultSchoolRole(
                     "ACADEMIC_STAFF",
@@ -67,11 +82,38 @@ public final class RbacRoleCatalog {
             new DefaultSchoolRole(
                     "TENANT_SETTINGS",
                     "School settings & finance profile",
-                    "Branding, feature flags, and payment routing / finance profile without full admin bundle.",
+                    "Branding, feature flags, and payment routing / finance profile. Does not grant full tenant admin; "
+                            + "assign school admin or TENANT_ADMIN for RBAC and other desks.",
                     70,
-                    "TENANT_ADMIN,SCHOOL_SETTINGS_CORE,SCHOOL_SETTINGS_FINANCE,FEE_STRUCTURES_READ",
+                    "SCHOOL_SETTINGS_CORE,SCHOOL_SETTINGS_FINANCE,FEE_STRUCTURES_READ",
+                    true),
+            new DefaultSchoolRole(
+                    "TRANSPORT_LOGISTICS",
+                    "Transport logistics desk",
+                    "Routes, vehicles, and drivers only. Stack HOSTEL_RESIDENCE_DESK or assign combined "
+                            + "TRANSPORT_HOSTEL_LOGISTICS for one-person schools.",
+                    75,
+                    "SCHOOL_TRANSPORT_DESK,FEE_STRUCTURES_READ",
+                    true),
+            new DefaultSchoolRole(
+                    "HOSTEL_RESIDENCE_DESK",
+                    "Hostel & residence desk",
+                    "Hostel blocks, rooms, and allocations. Stack TRANSPORT_LOGISTICS or use combined "
+                            + "TRANSPORT_HOSTEL_LOGISTICS.",
+                    76,
+                    "SCHOOL_HOSTEL_DESK,FEE_STRUCTURES_READ",
+                    true),
+            new DefaultSchoolRole(
+                    "TRANSPORT_HOSTEL_LOGISTICS",
+                    "Transport & hostel desk (combined pack)",
+                    "Both transport and hostel atoms for schools that assign a single desk officer; "
+                            + "custom roles can bundle the two permissions the same way.",
+                    77,
+                    "SCHOOL_TRANSPORT_DESK,SCHOOL_HOSTEL_DESK,FEE_STRUCTURES_READ",
                     true));
 
+    public static final String CODE_BASE_SCHOOL_STAFF = "BASE_SCHOOL_STAFF";
+    public static final String CODE_STAFF_MESSAGING = "STAFF_MESSAGING";
     public static final String CODE_SCHOOL_FULL_ADMIN = "SCHOOL_FULL_ADMIN";
     public static final String CODE_ACADEMIC_STAFF = "ACADEMIC_STAFF";
     public static final String CODE_FEE_OFFICE = "FEE_OFFICE";
@@ -79,4 +121,8 @@ public final class RbacRoleCatalog {
     public static final String CODE_EXAM_OFFICE = "EXAM_OFFICE";
     public static final String CODE_LIBRARY_OPERATIONS = "LIBRARY_OPERATIONS";
     public static final String CODE_TENANT_SETTINGS = "TENANT_SETTINGS";
+    public static final String CODE_TRANSPORT_LOGISTICS = "TRANSPORT_LOGISTICS";
+    public static final String CODE_HOSTEL_RESIDENCE_DESK = "HOSTEL_RESIDENCE_DESK";
+    /** Combined catalog template; stable code for migrations and BNDL_R* bundle linkage. */
+    public static final String CODE_TRANSPORT_HOSTEL_LOGISTICS = "TRANSPORT_HOSTEL_LOGISTICS";
 }

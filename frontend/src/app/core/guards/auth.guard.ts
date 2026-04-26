@@ -3,10 +3,43 @@ import { CanActivateFn, Router } from '@angular/router';
 import { of } from 'rxjs';
 import { map, take } from 'rxjs/operators';
 import { switchMap } from 'rxjs/operators';
+import { AppPermission } from '../auth/app-permission.constants';
 import { DEFAULT_PLATFORM_TENANT_FEATURES } from '../constants/platform-tenant-features';
-import { schoolStaffRole } from '../policy/access-policy';
 import { AuthService } from '../services/auth.service';
 import { SettingsService } from '../services/settings.service';
+import { UiAccessService } from '../services/ui-access.service';
+
+/** Timetable UI — aligned with roster read + parent portal (see {@code TimetableController}). */
+export const timetableAccessGuard: CanActivateFn = () => {
+  const auth = inject(AuthService);
+  const router = inject(Router);
+  const ui = inject(UiAccessService);
+  return auth.ensureValidSession().pipe(
+    take(1),
+    map(ok => {
+      if (!ok) {
+        return router.createUrlTree(['/login']);
+      }
+      return ui.hasTimetableViewAccess() ? true : router.createUrlTree(['/app/dashboard']);
+    })
+  );
+};
+
+/** Chat — mirrors backend {@code RbacSpel#CHAT_TENANT_PARTICIPANT}. */
+export const chatAccessGuard: CanActivateFn = () => {
+  const auth = inject(AuthService);
+  const router = inject(Router);
+  const ui = inject(UiAccessService);
+  return auth.ensureValidSession().pipe(
+    take(1),
+    map(ok => {
+      if (!ok) {
+        return router.createUrlTree(['/login']);
+      }
+      return ui.hasChatParticipantAccess() ? true : router.createUrlTree(['/app/dashboard']);
+    })
+  );
+};
 
 export const authGuard: CanActivateFn = () => {
   const authService = inject(AuthService);
@@ -17,20 +50,24 @@ export const authGuard: CanActivateFn = () => {
   );
 };
 
-/** Roster and student profiles — admins, teachers, super_admin; not parents. */
+/**
+ * Roster-scoped school surfaces (students, teachers, academic, attendance) — mirrors backend
+ * {@code RbacSpel#ACADEMIC_ROSTER_READ} (admin/teacher/super_admin roles or roster authorities).
+ */
 export const schoolStaffGuard: CanActivateFn = () => {
   const auth = inject(AuthService);
   const router = inject(Router);
+  const uiAccess = inject(UiAccessService);
   return auth.ensureValidSession().pipe(
     take(1),
     map(ok => {
       if (!ok) {
         return router.createUrlTree(['/login']);
       }
-      if (schoolStaffRole(auth.getRole())) {
+      if (uiAccess.hasAcademicRosterReadAccess()) {
         return true;
       }
-      return router.createUrlTree(['/app/parent/children']);
+      return router.createUrlTree(['/app/dashboard']);
     })
   );
 };
@@ -45,8 +82,26 @@ export const adminOnlyGuard: CanActivateFn = () => {
       if (!ok) {
         return router.createUrlTree(['/login']);
       }
-      const r = (auth.getRole() || '').toLowerCase();
+      const r = auth.getNormalizedRole();
       if (r === 'admin' || r === 'super_admin') {
+        return true;
+      }
+      const deskPermissions: readonly string[] = [
+        AppPermission.TENANT_ADMIN,
+        AppPermission.PLATFORM_ADMIN,
+        AppPermission.SCHOOL_FEE_OFFICE,
+        AppPermission.SCHOOL_PAYROLL_OFFICE,
+        AppPermission.SCHOOL_OPERATIONS_HUB,
+        AppPermission.SCHOOL_TRANSPORT_DESK,
+        AppPermission.SCHOOL_HOSTEL_DESK,
+        AppPermission.SCHOOL_STUDENT_MASTER,
+        AppPermission.SCHOOL_EXAMS_OFFICE,
+        AppPermission.SCHOOL_IMPORT_EXPORT,
+        AppPermission.SCHOOL_SETTINGS_CORE,
+        AppPermission.SCHOOL_SETTINGS_FINANCE,
+        AppPermission.SCHOOL_REPORTS_SCHOOL,
+      ];
+      if (deskPermissions.some(p => auth.hasAppPermission(p))) {
         return true;
       }
       return router.createUrlTree(['/app/students']);
@@ -68,33 +123,40 @@ export const importExportGuard: CanActivateFn = () => {
       if (r === 'admin' || r === 'super_admin') {
         return true;
       }
+      if (
+        auth.hasAppPermission(AppPermission.SCHOOL_IMPORT_EXPORT) ||
+        auth.hasAppPermission(AppPermission.TENANT_ADMIN) ||
+        auth.hasAppPermission(AppPermission.PLATFORM_ADMIN)
+      ) {
+        return true;
+      }
       return router.createUrlTree(['/app/dashboard']);
     })
   );
 };
 
-/** Leave & HR workflows — school staff only (not parents). */
+/** Leave & HR — roster self-service or desk approver (matches {@code LeaveController} SpEL). */
 export const leaveStaffGuard: CanActivateFn = () => {
   const auth = inject(AuthService);
   const settings = inject(SettingsService);
   const router = inject(Router);
+  const ui = inject(UiAccessService);
   return auth.ensureValidSession().pipe(
     take(1),
     switchMap(ok => {
       if (!ok) {
         return of(router.createUrlTree(['/login']));
       }
-      const r = auth.getNormalizedRole();
-      if (r === 'admin' || r === 'teacher') {
-        return settings.getFeatures().pipe(
-          take(1),
-          map(flags => {
-            const enabled = flags?.leave ?? DEFAULT_PLATFORM_TENANT_FEATURES.leave;
-            return enabled === false ? router.createUrlTree(['/app/dashboard']) : true;
-          })
-        );
+      if (!ui.hasLeaveModuleAccess()) {
+        return of(router.createUrlTree(['/app/dashboard']));
       }
-      return of(router.createUrlTree(['/app/dashboard']));
+      return settings.getFeatures().pipe(
+        take(1),
+        map(flags => {
+          const enabled = flags?.leave ?? DEFAULT_PLATFORM_TENANT_FEATURES.leave;
+          return enabled === false ? router.createUrlTree(['/app/dashboard']) : true;
+        })
+      );
     })
   );
 };
@@ -109,11 +171,11 @@ export const schoolSettingsGuard: CanActivateFn = () => {
       if (!ok) {
         return router.createUrlTree(['/login']);
       }
-      const r = (auth.getRole() || '').toLowerCase();
+      const r = auth.getNormalizedRole();
       if (r === 'super_admin') {
         return router.createUrlTree(['/app/platform-settings']);
       }
-      if (r === 'admin' || r === 'teacher' || r === 'parent') {
+      if (r === 'admin' || r === 'teacher' || r === 'parent' || r === 'library_staff' || r === 'school_staff' || r === 'student') {
         return true;
       }
       return router.createUrlTree(['/app/dashboard']);

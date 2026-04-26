@@ -18,12 +18,14 @@ public final class ImportCanonicalFieldCatalog {
             ImportJobType.TEACHERS, List.of(
                     "firstname", "lastname", "email", "phone", "qualification", "specialization",
                     "joindate", "salary", "subjects", "createportal", "portalpassword", "portalrole", "libraryrole",
+                    "schoolrolecodes",
                     "importmode", "bankaccountholder", "bankname", "bankaccountnumber", "bankifsc", "notifycredentials",
                     "classteacherfor", "classteacherclassid", "classteachersectionid",
                     "classteacherclassname", "classteachersectionname", "classteacheracademicyearid"),
             ImportJobType.STAFF, List.of(
                     "firstname", "lastname", "email", "phone", "qualification", "specialization",
                     "joindate", "salary", "subjects", "createportal", "portalpassword", "portalrole", "libraryrole",
+                    "schoolrolecodes",
                     "importmode", "bankaccountholder", "bankname", "bankaccountnumber", "bankifsc", "notifycredentials",
                     "classteacherfor", "classteacherclassid", "classteachersectionid",
                     "classteacherclassname", "classteachersectionname", "classteacheracademicyearid"),

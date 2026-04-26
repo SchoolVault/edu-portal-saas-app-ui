@@ -5,6 +5,7 @@ import { Router, RouterModule } from '@angular/router';
 import { TranslateModule } from '@ngx-translate/core';
 import { take } from 'rxjs/operators';
 import { AuthService } from '../../../core/services/auth.service';
+import { PostLoginRouteService } from '../../../core/services/post-login-route.service';
 import { UserLocaleService, type UiLanguage } from '../../../core/i18n/user-locale.service';
 import type { FieldErrors } from '../../../core/validation';
 import {
@@ -362,6 +363,7 @@ export class LoginComponent implements OnInit, OnDestroy {
   constructor(
     private authService: AuthService,
     private router: Router,
+    private postLoginRoute: PostLoginRouteService,
     readonly userLocale: UserLocaleService
   ) {}
 
@@ -391,8 +393,7 @@ export class LoginComponent implements OnInit, OnDestroy {
         if (!ok) {
           return;
         }
-        const role = this.authService.getRole();
-        this.router.navigate([role === 'parent' ? '/app/dashboard' : role === 'super_admin' ? '/app/super-admin' : '/app/dashboard']);
+        this.router.navigate([this.postLoginRoute.defaultAppPath()]);
       });
   }
 
@@ -445,8 +446,8 @@ export class LoginComponent implements OnInit, OnDestroy {
     this.onVerifyAndPhoneLogin();
   }
 
-  private navigateAfterLogin(role: string): void {
-    this.router.navigate([role === 'parent' ? '/app/dashboard' : role === 'super_admin' ? '/app/super-admin' : '/app/dashboard']);
+  private navigateAfterLogin(_role: string): void {
+    this.router.navigate([this.postLoginRoute.defaultAppPath()]);
   }
 
   onEmailLogin(): void {

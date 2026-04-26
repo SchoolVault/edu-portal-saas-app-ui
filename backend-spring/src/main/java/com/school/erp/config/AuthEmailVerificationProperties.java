@@ -17,7 +17,8 @@ public class AuthEmailVerificationProperties {
 
     /**
      * Public origin of the Angular SPA (no trailing slash), used to build {@code /verify-email?token=…} links
-     * for outbound email / webhooks. Example: {@code https://portal.example.com}
+     * for outbound email / webhooks. Config: {@code AUTH_EMAIL_VER_PUBLIC_SPA_BASE_URL} or {@code APP_PUBLIC_SPA_BASE_URL};
+     * profile dev/local default to {@code http://localhost:4200}. Example: {@code https://portal.example.com}
      */
     private String publicSpaBaseUrl = "";
 

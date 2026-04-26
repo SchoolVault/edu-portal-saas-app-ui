@@ -1,6 +1,13 @@
 import type { ParentFeeDtos } from './parent-fee.dto';
 
-export type AppRole = 'super_admin' | 'admin' | 'teacher' | 'parent' | 'student' | 'library_staff';
+export type AppRole =
+  | 'super_admin'
+  | 'admin'
+  | 'teacher'
+  | 'parent'
+  | 'student'
+  | 'library_staff'
+  | 'school_staff';
 
 /** Body for {@code PUT /api/v1/auth/profile} — mirrors Spring {@code AuthDTOs.UpdateProfileRequest}. */
 export interface UpdateAccountProfileRequest {

@@ -5,6 +5,7 @@ import com.school.erp.common.dto.PageResponse;
 import com.school.erp.security.RequireTenantFeature;
 import com.school.erp.modules.directory.dto.DirectoryDTOs;
 import com.school.erp.modules.directory.service.DirectoryService;
+import com.school.erp.security.rbac.RbacSpel;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -29,7 +30,7 @@ public class DirectoryController {
     }
 
     @GetMapping("/search")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize(RbacSpel.DIRECTORY_ADMIN)
     public ResponseEntity<ApiResponse<DirectoryDTOs.SearchResponse>> search(
             @RequestParam("q") String q,
             @RequestParam(value = "kinds", required = false) String kindsCsv) {
@@ -44,7 +45,7 @@ public class DirectoryController {
     }
 
     @GetMapping("/search/paged")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize(RbacSpel.DIRECTORY_ADMIN)
     public ResponseEntity<ApiResponse<PageResponse<DirectoryDTOs.Entry>>> searchPaged(
             @RequestParam("q") String q,
             @RequestParam(value = "kinds", required = false) String kindsCsv,

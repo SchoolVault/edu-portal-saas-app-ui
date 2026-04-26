@@ -12,6 +12,7 @@ import com.school.erp.modules.communication.entity.Announcement;
 import com.school.erp.modules.communication.service.CommunicationService;
 import com.school.erp.modules.communication.service.InboxTimelineService;
 import com.school.erp.modules.notification.service.NotificationCampaignService;
+import com.school.erp.security.rbac.RbacSpel;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -73,14 +74,14 @@ public class CommunicationController {
     }
 
     @PostMapping("/announcements")
-    @PreAuthorize("hasAnyRole('ADMIN','SUPER_ADMIN')")
+    @PreAuthorize(RbacSpel.COMMUNICATION_SCHOOL_ADMIN)
     @Operation(summary = "Create announcement", description = "Campus / platform administrators only; teachers and parents consume announcements read-only.")
     public ResponseEntity<ApiResponse<Announcement>> createAnnouncement(@Valid @RequestBody AnnouncementDTOs.CreateAnnouncementRequest req) {
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.created(service.createAnnouncement(req)));
     }
 
     @PostMapping("/events")
-    @PreAuthorize("hasAnyRole('ADMIN','SUPER_ADMIN')")
+    @PreAuthorize(RbacSpel.COMMUNICATION_SCHOOL_ADMIN)
     @Operation(summary = "Create scheduled communication event")
     public ResponseEntity<ApiResponse<CommunicationEventDTOs.EventResponse>> createEvent(
             @Valid @RequestBody CommunicationEventDTOs.CreateEventRequest req) {
@@ -88,7 +89,7 @@ public class CommunicationController {
     }
 
     @GetMapping("/events/paged")
-    @PreAuthorize("hasAnyRole('ADMIN','SUPER_ADMIN')")
+    @PreAuthorize(RbacSpel.COMMUNICATION_SCHOOL_ADMIN)
     @Operation(summary = "List communication events", description = "Paged event list with optional upcoming-only mode.")
     public ResponseEntity<ApiResponse<PageResponse<CommunicationEventDTOs.EventResponse>>> listEventsPaged(
             @RequestParam(defaultValue = "0") int page,
@@ -106,14 +107,14 @@ public class CommunicationController {
     }
 
     @PutMapping("/announcements/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN','SUPER_ADMIN')")
+    @PreAuthorize(RbacSpel.COMMUNICATION_SCHOOL_ADMIN)
     @Operation(summary = "Update announcement")
     public ResponseEntity<ApiResponse<Announcement>> updateAnnouncement(@PathVariable Long id, @RequestBody Announcement ann) {
         return ResponseEntity.ok(ApiResponse.ok(service.updateAnnouncement(id, ann)));
     }
 
     @DeleteMapping("/announcements/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN','SUPER_ADMIN')")
+    @PreAuthorize(RbacSpel.COMMUNICATION_SCHOOL_ADMIN)
     @Operation(summary = "Delete announcement")
     public ResponseEntity<ApiResponse<Void>> deleteAnnouncement(@PathVariable Long id) {
         service.deleteAnnouncement(id);
@@ -121,7 +122,7 @@ public class CommunicationController {
     }
 
     @PostMapping("/campaigns/preview")
-    @PreAuthorize("hasAnyRole('ADMIN','SUPER_ADMIN')")
+    @PreAuthorize(RbacSpel.COMMUNICATION_SCHOOL_ADMIN)
     @Operation(summary = "Preview notification campaign", description = "Estimates audience size, channel counts and cost before queueing.")
     public ResponseEntity<ApiResponse<CampaignDTOs.CampaignPreviewResponse>> previewCampaign(
             @Valid @RequestBody CampaignDTOs.CampaignRequest req) {
@@ -129,7 +130,7 @@ public class CommunicationController {
     }
 
     @PostMapping("/campaigns/send")
-    @PreAuthorize("hasAnyRole('ADMIN','SUPER_ADMIN')")
+    @PreAuthorize(RbacSpel.COMMUNICATION_SCHOOL_ADMIN)
     @Operation(summary = "Queue notification campaign", description = "Queues multi-channel campaign dispatch through outbox with dedupe/retry safety.")
     public ResponseEntity<ApiResponse<CampaignDTOs.CampaignSendResponse>> sendCampaign(
             @Valid @RequestBody CampaignDTOs.CampaignRequest req) {
@@ -137,7 +138,7 @@ public class CommunicationController {
     }
 
     @GetMapping("/campaigns/history")
-    @PreAuthorize("hasAnyRole('ADMIN','SUPER_ADMIN')")
+    @PreAuthorize(RbacSpel.COMMUNICATION_SCHOOL_ADMIN)
     @Operation(summary = "Campaign history", description = "Paged list of previously queued campaigns for the tenant.")
     public ResponseEntity<ApiResponse<PageResponse<CampaignDTOs.CampaignHistoryItem>>> campaignHistory(
             @RequestParam(defaultValue = "0") int page,
@@ -146,21 +147,21 @@ public class CommunicationController {
     }
 
     @GetMapping("/campaigns/{campaignId}/analytics")
-    @PreAuthorize("hasAnyRole('ADMIN','SUPER_ADMIN')")
+    @PreAuthorize(RbacSpel.COMMUNICATION_SCHOOL_ADMIN)
     @Operation(summary = "Campaign analytics", description = "Delivery status aggregation for a campaign.")
     public ResponseEntity<ApiResponse<CampaignDTOs.CampaignAnalyticsResponse>> campaignAnalytics(@PathVariable String campaignId) {
         return ResponseEntity.ok(ApiResponse.ok(campaignService.analytics(campaignId)));
     }
 
     @GetMapping("/campaign-templates")
-    @PreAuthorize("hasAnyRole('ADMIN','SUPER_ADMIN')")
+    @PreAuthorize(RbacSpel.COMMUNICATION_SCHOOL_ADMIN)
     @Operation(summary = "List campaign templates")
     public ResponseEntity<ApiResponse<List<CampaignDTOs.CampaignTemplateResponse>>> listCampaignTemplates() {
         return ResponseEntity.ok(ApiResponse.ok(campaignService.listTemplates()));
     }
 
     @PostMapping("/campaign-templates")
-    @PreAuthorize("hasAnyRole('ADMIN','SUPER_ADMIN')")
+    @PreAuthorize(RbacSpel.COMMUNICATION_SCHOOL_ADMIN)
     @Operation(summary = "Create campaign template")
     public ResponseEntity<ApiResponse<CampaignDTOs.CampaignTemplateResponse>> createCampaignTemplate(
             @Valid @RequestBody CampaignDTOs.CampaignTemplateUpsertRequest req) {
@@ -168,7 +169,7 @@ public class CommunicationController {
     }
 
     @PutMapping("/campaign-templates/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN','SUPER_ADMIN')")
+    @PreAuthorize(RbacSpel.COMMUNICATION_SCHOOL_ADMIN)
     @Operation(summary = "Update campaign template")
     public ResponseEntity<ApiResponse<CampaignDTOs.CampaignTemplateResponse>> updateCampaignTemplate(
             @PathVariable Long id,

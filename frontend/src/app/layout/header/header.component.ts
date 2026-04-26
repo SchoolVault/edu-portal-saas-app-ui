@@ -15,6 +15,7 @@ import {
   pickPrimaryHomeroomAssignment,
 } from '../../core/profile/teacher-header-homeroom.util';
 import { ThemeService } from '../../core/services/theme.service';
+import { TenantModuleGateService } from '../../core/services/tenant-module-gate.service';
 import { runtimeConfig } from '../../core/config/runtime-config';
 import { notificationListRowNavigation } from '../../core/utils/notification-link.util';
 
@@ -235,6 +236,7 @@ export class HeaderComponent implements OnInit, OnDestroy {
       parent: 'header.role.parent',
       student: 'header.role.student',
       library_staff: 'header.role.libraryStaff',
+      school_staff: 'header.role.schoolStaff',
     };
     return map[r] || 'header.role.user';
   }
@@ -312,6 +314,7 @@ export class HeaderComponent implements OnInit, OnDestroy {
     private platformHealthService: PlatformHealthService,
     private router: Router,
     private themeService: ThemeService,
+    private moduleGate: TenantModuleGateService,
     private translate: TranslateService,
     private cdr: ChangeDetectorRef
   ) {}
@@ -393,7 +396,11 @@ export class HeaderComponent implements OnInit, OnDestroy {
       merge(of(null), this.router.events.pipe(filter(e => e instanceof NavigationEnd)))
         .pipe(
           debounceTime(450),
-          switchMap(() => this.communicationService.getAnnouncementPreviews()),
+          switchMap(() =>
+            this.moduleGate.isModuleEnabled('communication')
+              ? this.communicationService.getAnnouncementPreviews()
+              : of([] as AnnouncementPreview[])
+          ),
           takeUntil(this.destroy$)
         )
         .subscribe({

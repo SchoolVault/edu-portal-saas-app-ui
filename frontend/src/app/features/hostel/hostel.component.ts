@@ -6,6 +6,7 @@ import { HostelBuilding, HostelRoom, Student } from '../../core/models/models';
 import { HostelService, HostelStats } from '../../core/services/hostel.service';
 import { StudentService } from '../../core/services/student.service';
 import { AuthService } from '../../core/services/auth.service';
+import { UiAccessService } from '../../core/services/ui-access.service';
 import { ErpPaginationComponent } from '../../shared/erp-pagination/erp-pagination.component';
 import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directives';
 import { DEFAULT_ERP_PAGE_SIZE } from '../../core/constants/pagination.constants';
@@ -221,6 +222,7 @@ export class HostelComponent implements OnInit {
     private hostelService: HostelService,
     private studentService: StudentService,
     private authService: AuthService,
+    private uiAccess: UiAccessService,
     private translate: TranslateService
   ) {}
 
@@ -239,7 +241,7 @@ export class HostelComponent implements OnInit {
   }
 
   ngOnInit(): void {
-    this.isAdmin = (this.authService.getCurrentUser()?.role ?? '').toLowerCase() === 'admin';
+    this.isAdmin = this.uiAccess.hasHostelDeskWriteAccess();
     this.reload();
     this.studentService.getStudents().subscribe(s => (this.students = s));
   }

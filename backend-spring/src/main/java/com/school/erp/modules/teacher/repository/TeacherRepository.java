@@ -23,6 +23,9 @@ public interface TeacherRepository extends JpaRepository<Teacher, Long> {
     Page<Teacher> findByTenantIdAndSearch(@Param("tenantId") String tenantId, @Param("search") String search, Pageable pageable);
     Optional<Teacher> findByIdAndTenantIdAndIsDeletedFalse(Long id, String tenantId);
     Optional<Teacher> findByTenantIdAndUserIdAndIsDeletedFalse(String tenantId, Long userId);
+
+    /** All active teacher rows for a portal user (normally one; demo/legacy data may duplicate). */
+    List<Teacher> findAllByTenantIdAndUserIdAndIsDeletedFalseOrderByIdAsc(String tenantId, Long userId);
     List<Teacher> findByTenantIdAndIsDeletedFalse(String tenantId);
     long countByTenantIdAndIsDeletedFalse(String tenantId);
     long countByIsDeletedFalse();

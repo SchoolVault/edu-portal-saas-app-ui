@@ -13,6 +13,7 @@ import { DashboardService } from '../../core/services/dashboard.service';
 import { OperationsService } from '../../core/services/operations.service';
 import { ThemeService } from '../../core/services/theme.service';
 import { TenantModuleGateService } from '../../core/services/tenant-module-gate.service';
+import { UiAccessService } from '../../core/services/ui-access.service';
 import {
   AdminDashboardData,
   ParentDashboardData,
@@ -229,7 +230,7 @@ interface DashboardChartPalette {
         <i class="bi bi-hourglass-split"></i><h3>{{ 'dashboard.loadingTitle' | translate }}</h3><p>{{ 'dashboard.loadingLead' | translate }}</p>
       </div>
 
-      <ng-container *ngIf="!loading && role === 'admin'">
+      <ng-container *ngIf="!loading && showAdminAnalyticsHome">
         <div class="row g-4 mb-4">
           <div class="col-sm-6 col-lg-3" *ngFor="let kpi of adminKPIs">
             <div class="stat-card">
@@ -640,6 +641,42 @@ interface DashboardChartPalette {
           </div>
         </div>
       </ng-container>
+
+      <ng-container *ngIf="!loading && showStaffLanding">
+        <div class="row g-4 mb-4" *ngIf="showLibraryDeskHome">
+          <div class="col-12 col-lg-8">
+            <div class="erp-card h-100">
+              <div class="erp-card-header d-flex flex-wrap justify-content-between align-items-start gap-2">
+                <div>
+                  <h3 class="erp-card-title mb-0">{{ 'dashboard.libraryDeskTitle' | translate }}</h3>
+                  <p class="text-muted small mb-0 mt-2">{{ 'dashboard.libraryDeskLead' | translate }}</p>
+                </div>
+                <a routerLink="/app/library" class="btn-primary-erp btn-sm flex-shrink-0">
+                  <i class="bi bi-book-half me-1"></i> {{ 'dashboard.libraryDeskCta' | translate }}
+                </a>
+              </div>
+            </div>
+          </div>
+          <div class="col-12 col-lg-4">
+            <div class="erp-card h-100">
+              <div class="erp-card-header">
+                <h4 class="erp-card-title mb-0" style="font-size: 15px;">{{ 'dashboard.staffQuickInboxTitle' | translate }}</h4>
+              </div>
+              <p class="text-muted small mb-3">{{ 'dashboard.staffQuickInboxLead' | translate }}</p>
+              <a routerLink="/app/inbox" class="btn-outline-erp btn-sm"><i class="bi bi-inbox-fill me-1"></i> {{ 'nav.inbox' | translate }}</a>
+            </div>
+          </div>
+        </div>
+        <div class="erp-card" *ngIf="showBaselineStaffHomeCard">
+          <div class="erp-card-header d-flex flex-wrap justify-content-between align-items-start gap-2">
+            <h3 class="erp-card-title mb-0">{{ 'dashboard.staffLandingTitle' | translate }}</h3>
+            <a *ngIf="role === 'school_staff'" routerLink="/app/inbox" class="btn-outline-erp btn-sm">{{
+              'dashboard.staffOpenInbox' | translate
+            }}</a>
+          </div>
+          <p class="text-muted mb-0">{{ 'dashboard.staffLandingLead' | translate }}</p>
+        </div>
+      </ng-container>
     </div>
   `
 })
@@ -706,8 +743,42 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
     return new Date().toISOString().slice(0, 7);
   }
 
+  /**
+   * Roles without a dedicated KPI dashboard (e.g. library_staff) must not fall through to the parent
+   * dashboard pipeline — that incorrectly calls parent-only APIs.
+   */
+  get showStaffLanding(): boolean {
+    const r = this.role;
+    if (r === 'teacher' || r === 'parent') {
+      return false;
+    }
+    if (this.showAdminAnalyticsHome) {
+      return false;
+    }
+    return true;
+  }
+
+  get showLibraryDeskHome(): boolean {
+    return this.role === 'library_staff' && this.moduleGate.isModuleEnabled('library');
+  }
+
+  /** Baseline staff welcome (always for staff landing except when only library row fills the viewport). */
+  get showBaselineStaffHomeCard(): boolean {
+    if (!this.showStaffLanding) {
+      return false;
+    }
+    if (this.showLibraryDeskHome) {
+      return this.role === 'school_staff';
+    }
+    return true;
+  }
+
+  get showAdminAnalyticsHome(): boolean {
+    return this.uiAccess.hasReportLibraryDeskAdminDashboardAccess();
+  }
+
   get dashboardComputedAtIso(): string | null {
-    if (this.role === 'admin') {
+    if (this.showAdminAnalyticsHome) {
       return this.adminDashboard?.dataComputedAt ?? null;
     }
     if (this.role === 'teacher') {
@@ -745,6 +816,7 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
     private parentSelection: ParentSelectionService,
     private themeService: ThemeService,
     private moduleGate: TenantModuleGateService,
+    private uiAccess: UiAccessService,
     private cdr: ChangeDetectorRef,
     private translate: TranslateService
   ) {}
@@ -765,12 +837,12 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
 
   ngOnInit(): void {
     this.chartPalette = this.resolveChartPalette();
-    this.role = this.authService.getRole() || 'admin';
+    this.role = this.authService.getNormalizedRole() || this.authService.getRole() || 'admin';
     if (this.role === 'parent') {
       this.selectedParentChildId = this.parentSelection.readPreferredChildId();
     }
     this.langSub = this.translate.onLangChange.subscribe(() => {
-      if (this.role === 'admin' && this.adminDashboard) {
+      if (this.showAdminAnalyticsHome && this.adminDashboard) {
         this.cdr.detectChanges();
         queueMicrotask(() => this.initAdminCharts());
       }
@@ -791,7 +863,7 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
     });
     this.themeSub = this.themeService.theme$.subscribe(() => {
       this.chartPalette = this.resolveChartPalette();
-      if (this.role === 'admin' && this.adminDashboard) {
+      if (this.showAdminAnalyticsHome && this.adminDashboard) {
         this.cdr.detectChanges();
         queueMicrotask(() => this.initAdminCharts());
       }
@@ -803,7 +875,7 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   private refreshRoleContextThenLoad(): void {
-    if (this.role === 'teacher' || this.role === 'admin') {
+    if (this.role === 'teacher' || this.showAdminAnalyticsHome) {
       this.authService.fetchProfileSummary().subscribe({
         next: () => this.loadDashboard(),
         error: () => this.loadDashboard(),
@@ -822,7 +894,7 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
       this.refreshing = false;
     };
     const runRefresh = () => {
-      if (this.role === 'admin') {
+      if (this.showAdminAnalyticsHome) {
         this.dashboardService.getAdminDashboard().subscribe({
           next: dashboard => {
             this.adminDashboard = dashboard;
@@ -850,22 +922,26 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
         });
         return;
       }
-      const today = new Date();
-      const from = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().slice(0, 10);
-      const to = today.toISOString().slice(0, 10);
-      this.dashboardService.getParentDashboard(from, to, this.selectedParentChildId).subscribe({
-        next: dashboard => {
-          const visibleDashboard = this.applyParentModuleVisibility(dashboard);
-          this.parentDashboard = visibleDashboard;
-          this.selectedParentChildId = visibleDashboard.selectedChildId ?? visibleDashboard.selectedChild?.id ?? null;
-          this.parentSelection.rememberSelectedChild(this.selectedParentChildId);
-          this.parentKPIs = this.buildParentKpis(visibleDashboard);
-          finish();
-        },
-        error: () => finish()
-      });
+      if (this.role === 'parent') {
+        const today = new Date();
+        const from = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().slice(0, 10);
+        const to = today.toISOString().slice(0, 10);
+        this.dashboardService.getParentDashboard(from, to, this.selectedParentChildId).subscribe({
+          next: dashboard => {
+            const visibleDashboard = this.applyParentModuleVisibility(dashboard);
+            this.parentDashboard = visibleDashboard;
+            this.selectedParentChildId = visibleDashboard.selectedChildId ?? visibleDashboard.selectedChild?.id ?? null;
+            this.parentSelection.rememberSelectedChild(this.selectedParentChildId);
+            this.parentKPIs = this.buildParentKpis(visibleDashboard);
+            finish();
+          },
+          error: () => finish()
+        });
+        return;
+      }
+      finish();
     };
-    if (this.role === 'teacher' || this.role === 'admin') {
+    if (this.role === 'teacher' || this.showAdminAnalyticsHome) {
       this.authService.fetchProfileSummary().subscribe({
         next: () => runRefresh(),
         error: () => runRefresh(),
@@ -877,7 +953,7 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
 
   private loadDashboard(): void {
     this.loading = true;
-    if (this.role === 'admin') {
+    if (this.showAdminAnalyticsHome) {
       this.dashboardService.getAdminDashboard().subscribe({
         next: dashboard => {
           this.adminDashboard = dashboard;
@@ -909,22 +985,26 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
       });
       return;
     }
-    const today = new Date();
-    const from = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().slice(0, 10);
-    const to = today.toISOString().slice(0, 10);
-    this.dashboardService.getParentDashboard(from, to, this.selectedParentChildId).subscribe({
-      next: dashboard => {
-        const visibleDashboard = this.applyParentModuleVisibility(dashboard);
-        this.parentDashboard = visibleDashboard;
-        this.selectedParentChildId = visibleDashboard.selectedChildId ?? visibleDashboard.selectedChild?.id ?? null;
-        this.parentSelection.rememberSelectedChild(this.selectedParentChildId);
-        this.parentKPIs = this.buildParentKpis(visibleDashboard);
-        this.loading = false;
-      },
-      error: () => {
-        this.loading = false;
-      }
-    });
+    if (this.role === 'parent') {
+      const today = new Date();
+      const from = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().slice(0, 10);
+      const to = today.toISOString().slice(0, 10);
+      this.dashboardService.getParentDashboard(from, to, this.selectedParentChildId).subscribe({
+        next: dashboard => {
+          const visibleDashboard = this.applyParentModuleVisibility(dashboard);
+          this.parentDashboard = visibleDashboard;
+          this.selectedParentChildId = visibleDashboard.selectedChildId ?? visibleDashboard.selectedChild?.id ?? null;
+          this.parentSelection.rememberSelectedChild(this.selectedParentChildId);
+          this.parentKPIs = this.buildParentKpis(visibleDashboard);
+          this.loading = false;
+        },
+        error: () => {
+          this.loading = false;
+        }
+      });
+      return;
+    }
+    this.loading = false;
   }
 
   onParentChildChange(): void {
@@ -954,7 +1034,7 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   ngAfterViewInit(): void {
-    if (!this.loading && this.role === 'admin') {
+    if (!this.loading && this.showAdminAnalyticsHome) {
       this.initAdminCharts();
     }
   }
@@ -1025,7 +1105,7 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   private loadAdminDashboardFeeds(resetPages: boolean): void {
-    if (this.role !== 'admin') {
+    if (!this.showAdminAnalyticsHome) {
       return;
     }
     if (resetPages) {
