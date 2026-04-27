@@ -26,12 +26,14 @@ public class TransportController {
     private final TransportService service;
 
     @GetMapping("/routes")
+    @PreAuthorize(RbacSpel.TRANSPORT_DESK_READ)
     @Operation(summary = "List routes with stops and assigned students")
     public ResponseEntity<ApiResponse<List<TransportDTOs.RouteResponse>>> listRoutes() {
         return ResponseEntity.ok(ApiResponse.ok(service.getRoutes()));
     }
 
     @GetMapping("/routes/paged")
+    @PreAuthorize(RbacSpel.TRANSPORT_DESK_READ)
     @Operation(summary = "List routes (paged)", description = "Optional search on route name")
     public ResponseEntity<ApiResponse<PageResponse<TransportDTOs.RouteResponse>>> listRoutesPaged(
             @RequestParam(defaultValue = "0") int page,
@@ -100,7 +102,7 @@ public class TransportController {
     }
 
     @GetMapping("/vehicles")
-    @PreAuthorize(RbacSpel.TRANSPORT_DESK_WRITE)
+    @PreAuthorize(RbacSpel.TRANSPORT_DESK_READ)
     @Operation(summary = "Fleet vehicles")
     public ResponseEntity<ApiResponse<List<com.school.erp.modules.transport.entity.TransportVehicle>>> listVehicles() {
         return ResponseEntity.ok(ApiResponse.ok(service.listVehicles()));
@@ -114,7 +116,7 @@ public class TransportController {
     }
 
     @GetMapping("/drivers")
-    @PreAuthorize(RbacSpel.TRANSPORT_DESK_WRITE)
+    @PreAuthorize(RbacSpel.TRANSPORT_DESK_READ)
     @Operation(summary = "Drivers")
     public ResponseEntity<ApiResponse<List<com.school.erp.modules.transport.entity.TransportDriver>>> listDrivers() {
         return ResponseEntity.ok(ApiResponse.ok(service.listDrivers()));

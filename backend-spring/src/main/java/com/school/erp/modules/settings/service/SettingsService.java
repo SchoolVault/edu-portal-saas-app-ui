@@ -54,6 +54,8 @@ public class SettingsService {
         if (update.getSecondaryColor() != null) config.setSecondaryColor(update.getSecondaryColor());
         if (update.getLogo() != null) config.setLogo(update.getLogo());
         if (update.getFeaturesJson() != null) config.setFeaturesJson(update.getFeaturesJson());
+        if (update.getLeaveSmsApplyTemplate() != null) config.setLeaveSmsApplyTemplate(update.getLeaveSmsApplyTemplate());
+        if (update.getLeaveSmsDecisionTemplate() != null) config.setLeaveSmsDecisionTemplate(update.getLeaveSmsDecisionTemplate());
         if (update.getLibraryFinePerDay() != null) config.setLibraryFinePerDay(update.getLibraryFinePerDay());
         return repo.save(config);
     }

@@ -76,32 +76,52 @@ export const schoolStaffGuard: CanActivateFn = () => {
 export const adminOnlyGuard: CanActivateFn = () => {
   const auth = inject(AuthService);
   const router = inject(Router);
+  const ui = inject(UiAccessService);
   return auth.ensureValidSession().pipe(
     take(1),
     map(ok => {
       if (!ok) {
         return router.createUrlTree(['/login']);
       }
-      const r = auth.getNormalizedRole();
-      if (r === 'admin' || r === 'super_admin') {
+      if (ui.hasAcademicDeskAdminAccess()) {
         return true;
       }
-      const deskPermissions: readonly string[] = [
-        AppPermission.TENANT_ADMIN,
-        AppPermission.PLATFORM_ADMIN,
-        AppPermission.SCHOOL_FEE_OFFICE,
-        AppPermission.SCHOOL_PAYROLL_OFFICE,
-        AppPermission.SCHOOL_OPERATIONS_HUB,
-        AppPermission.SCHOOL_TRANSPORT_DESK,
-        AppPermission.SCHOOL_HOSTEL_DESK,
-        AppPermission.SCHOOL_STUDENT_MASTER,
-        AppPermission.SCHOOL_EXAMS_OFFICE,
-        AppPermission.SCHOOL_IMPORT_EXPORT,
-        AppPermission.SCHOOL_SETTINGS_CORE,
-        AppPermission.SCHOOL_SETTINGS_FINANCE,
-        AppPermission.SCHOOL_REPORTS_SCHOOL,
-      ];
-      if (deskPermissions.some(p => auth.hasAppPermission(p))) {
+      return router.createUrlTree(['/app/students']);
+    })
+  );
+};
+
+/** Fees module — same envelope as {@link UiAccessService#hasSchoolFeeOfficeDesk} (not academic desk admin). */
+export const feesOfficeGuard: CanActivateFn = () => {
+  const auth = inject(AuthService);
+  const router = inject(Router);
+  const ui = inject(UiAccessService);
+  return auth.ensureValidSession().pipe(
+    take(1),
+    map(ok => {
+      if (!ok) {
+        return router.createUrlTree(['/login']);
+      }
+      if (ui.hasSchoolFeeOfficeDesk()) {
+        return true;
+      }
+      return router.createUrlTree(['/app/dashboard']);
+    })
+  );
+};
+
+/** Student admissions/master mutations — mirrors {@code RbacSpel#STUDENT_MASTER_WRITE}. */
+export const studentMasterWriteGuard: CanActivateFn = () => {
+  const auth = inject(AuthService);
+  const router = inject(Router);
+  const ui = inject(UiAccessService);
+  return auth.ensureValidSession().pipe(
+    take(1),
+    map(ok => {
+      if (!ok) {
+        return router.createUrlTree(['/login']);
+      }
+      if (ui.hasStudentMasterWriteAccess()) {
         return true;
       }
       return router.createUrlTree(['/app/students']);
@@ -113,21 +133,14 @@ export const adminOnlyGuard: CanActivateFn = () => {
 export const importExportGuard: CanActivateFn = () => {
   const auth = inject(AuthService);
   const router = inject(Router);
+  const ui = inject(UiAccessService);
   return auth.ensureValidSession().pipe(
     take(1),
     map(ok => {
       if (!ok) {
         return router.createUrlTree(['/login']);
       }
-      const r = auth.getNormalizedRole();
-      if (r === 'admin' || r === 'super_admin') {
-        return true;
-      }
-      if (
-        auth.hasAppPermission(AppPermission.SCHOOL_IMPORT_EXPORT) ||
-        auth.hasAppPermission(AppPermission.TENANT_ADMIN) ||
-        auth.hasAppPermission(AppPermission.PLATFORM_ADMIN)
-      ) {
+      if (ui.hasSchoolImportExportDesk()) {
         return true;
       }
       return router.createUrlTree(['/app/dashboard']);
@@ -165,17 +178,23 @@ export const leaveStaffGuard: CanActivateFn = () => {
 export const schoolSettingsGuard: CanActivateFn = () => {
   const auth = inject(AuthService);
   const router = inject(Router);
+  const ui = inject(UiAccessService);
   return auth.ensureValidSession().pipe(
     take(1),
     map(ok => {
       if (!ok) {
         return router.createUrlTree(['/login']);
       }
-      const r = auth.getNormalizedRole();
-      if (r === 'super_admin') {
+      if (auth.hasAppPermission(AppPermission.PLATFORM_ADMIN) && !auth.hasAppPermission(AppPermission.TENANT_ADMIN)) {
         return router.createUrlTree(['/app/platform-settings']);
       }
-      if (r === 'admin' || r === 'teacher' || r === 'parent' || r === 'library_staff' || r === 'school_staff' || r === 'student') {
+      if (
+        ui.hasSchoolTenantSettingsWriteShell() ||
+        auth.hasAppPermission(AppPermission.ACADEMIC_TEACHER) ||
+        auth.hasAppPermission(AppPermission.PORTAL_PARENT) ||
+        auth.hasAppPermission(AppPermission.PORTAL_STUDENT) ||
+        auth.hasAppPermission(AppPermission.PORTAL_SCHOOL_STAFF)
+      ) {
         return true;
       }
       return router.createUrlTree(['/app/dashboard']);
@@ -193,7 +212,7 @@ export const superAdminGuard: CanActivateFn = () => {
       if (!ok) {
         return router.createUrlTree(['/login']);
       }
-      if ((auth.getRole() || '').toLowerCase() === 'super_admin') {
+      if (auth.hasAppPermission(AppPermission.PLATFORM_ADMIN)) {
         return true;
       }
       return router.createUrlTree(['/app/dashboard']);

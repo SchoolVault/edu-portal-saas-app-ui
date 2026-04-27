@@ -16,12 +16,12 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/v1/chat")
 @Tag(name = "Chat Directory", description = "Role-aware directory for starting chats (teacher<->parent via students/classes)")
-@PreAuthorize(RbacSpel.CHAT_TENANT_PARTICIPANT)
 @RequireTenantFeature("chat")
 public class ChatDirectoryController {
     private final ChatDirectoryService directoryService;
 
     @GetMapping("/directory")
+    @PreAuthorize(RbacSpel.CHAT_TENANT_PARTICIPANT)
     @Operation(summary = "Get chat directory for current user", description = "Teacher sees their class rosters; Parent sees their children & class teacher; Admin sees teachers/parents")
     public ResponseEntity<ApiResponse<ChatDirectoryDTOs.DirectoryResponse>> directory() {
         return ResponseEntity.ok(ApiResponse.ok(directoryService.getDirectory()));

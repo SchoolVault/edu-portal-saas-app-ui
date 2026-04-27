@@ -22,9 +22,12 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.EnumSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Idempotently seeds school role definitions per tenant and backfills user↔role links from legacy
@@ -74,7 +77,8 @@ public class RbacTenantBootstrapService {
         ensureCatalogContainsBaseSchoolStaff(tenantId);
         ensureCatalogContainsStaffMessaging(tenantId);
         upsertMissingCatalogTemplates(tenantId);
-        migrateLegacyTransportHostelCombinedDeskRole(tenantId);
+        migrateLeavePermissionLanes(tenantId);
+        migrateLegacyPortalChatCatalogPermission(tenantId);
         migrateLegacyTenantSettingsCatalogOverPrivilege(tenantId);
         backfillUserAssignmentsIfEmpty(tenantId);
         linkBaseSchoolStaffForPortalUsersIfMissing(tenantId);
@@ -90,6 +94,7 @@ public class RbacTenantBootstrapService {
         ensureCatalogContainsBaseSchoolStaff(tenantId);
         ensureCatalogContainsStaffMessaging(tenantId);
         upsertMissingCatalogTemplates(tenantId);
+        migrateLeavePermissionLanes(tenantId);
         if (adminUser == null || adminUser.getId() == null) {
             return;
         }
@@ -149,39 +154,6 @@ public class RbacTenantBootstrapService {
     }
 
     /**
-     * Legacy combined desk used {@code SCHOOL_OPERATIONS_HUB}; transport/hostel are now separate atoms. One-time
-     * upgrade for persisted {@link RbacRoleCatalog#CODE_TRANSPORT_HOSTEL_LOGISTICS} rows still on the old CSV.
-     */
-    private void migrateLegacyTransportHostelCombinedDeskRole(String tenantId) {
-        schoolRoleRepository
-                .findByTenantIdAndCodeAndIsDeletedFalse(tenantId, RbacRoleCatalog.CODE_TRANSPORT_HOSTEL_LOGISTICS)
-                .ifPresent(role -> {
-                    EnumSet<AppPermission> perms =
-                            EnumSet.copyOf(RbacPermissionCodec.parsePermissionsCsv(role.getPermissionsCsv()));
-                    boolean legacyOpsHubPack =
-                            perms.contains(AppPermission.SCHOOL_OPERATIONS_HUB)
-                                    && !perms.contains(AppPermission.SCHOOL_TRANSPORT_DESK);
-                    if (!legacyOpsHubPack) {
-                        return;
-                    }
-                    perms.remove(AppPermission.SCHOOL_OPERATIONS_HUB);
-                    perms.add(AppPermission.SCHOOL_TRANSPORT_DESK);
-                    perms.add(AppPermission.SCHOOL_HOSTEL_DESK);
-                    if (!perms.contains(AppPermission.FEE_STRUCTURES_READ)) {
-                        perms.add(AppPermission.FEE_STRUCTURES_READ);
-                    }
-                    SchoolRbacPermissionCatalog.assertSubset(perms);
-                    rbacPermissionGroupService.syncInlineBundleForRole(
-                            role, perms, Boolean.TRUE.equals(role.getSystemRole()));
-                    slimJwtAuthorityCache.evictForTenant(tenantId);
-                    log.info(
-                            "RBAC migrated {} desk from SCHOOL_OPERATIONS_HUB to SCHOOL_TRANSPORT_DESK+SCHOOL_HOSTEL_DESK tenantId={}",
-                            RbacRoleCatalog.CODE_TRANSPORT_HOSTEL_LOGISTICS,
-                            tenantId);
-                });
-    }
-
-    /**
      * Catalog template {@link RbacRoleCatalog#CODE_TENANT_SETTINGS} incorrectly bundled {@code TENANT_ADMIN}, which
      * grants the entire school operator surface. Strip it from persisted catalog rows and rebuild linked bundles.
      */
@@ -195,8 +167,10 @@ public class RbacTenantBootstrapService {
                         return;
                     }
                     perms.remove(AppPermission.TENANT_ADMIN);
-                    perms.add(AppPermission.SCHOOL_SETTINGS_CORE);
-                    perms.add(AppPermission.SCHOOL_SETTINGS_FINANCE);
+                    perms.add(AppPermission.SCHOOL_SETTINGS_CORE_READ);
+                    perms.add(AppPermission.SCHOOL_SETTINGS_CORE_WRITE);
+                    perms.add(AppPermission.SCHOOL_SETTINGS_FINANCE_READ);
+                    perms.add(AppPermission.SCHOOL_SETTINGS_FINANCE_WRITE);
                     if (!perms.contains(AppPermission.FEE_STRUCTURES_READ)) {
                         perms.add(AppPermission.FEE_STRUCTURES_READ);
                     }
@@ -229,7 +203,7 @@ public class RbacTenantBootstrapService {
                 "Minimal employee portal; assign additional school roles (library, fee office, academic, …) for duties.");
         e.setSortOrder(5);
         e.setSystemRole(true);
-        e.setPermissionsCsv("PORTAL_SCHOOL_STAFF");
+        e.setPermissionsCsv("PORTAL_SCHOOL_STAFF,SCHOOL_LIBRARY_MEMBER_READ");
         schoolRoleRepository.save(e);
         log.info("RBAC inserted BASE_SCHOOL_STAFF for tenantId={}", tenantId);
     }
@@ -249,9 +223,70 @@ public class RbacTenantBootstrapService {
         e.setDescription("Optional tenant chat for non-teaching employees when the school enables chat for staff.");
         e.setSortOrder(6);
         e.setSystemRole(true);
-        e.setPermissionsCsv("PORTAL_CHAT");
+        e.setPermissionsCsv("SCHOOL_CHAT_READ,SCHOOL_CHAT_WRITE");
         schoolRoleRepository.save(e);
         log.info("RBAC inserted STAFF_MESSAGING for tenantId={}", tenantId);
+    }
+
+    /** Retires legacy {@code PORTAL_CHAT} rows by replacing them with {@code SCHOOL_CHAT_READ/WRITE}. */
+    private void migrateLegacyPortalChatCatalogPermission(String tenantId) {
+        List<SchoolRole> roles = schoolRoleRepository.findByTenantIdAndIsDeletedFalseOrderBySortOrderAscNameAsc(tenantId);
+        for (SchoolRole role : roles) {
+            String csv = role.getPermissionsCsv();
+            if (csv == null || csv.isBlank() || !csv.contains("PORTAL_CHAT")) {
+                continue;
+            }
+            LinkedHashSet<String> codes = Arrays.stream(csv.split(","))
+                    .map(String::trim)
+                    .filter(s -> !s.isBlank())
+                    .filter(s -> !"PORTAL_CHAT".equals(s))
+                    .collect(Collectors.toCollection(LinkedHashSet::new));
+            codes.add("SCHOOL_CHAT_READ");
+            codes.add("SCHOOL_CHAT_WRITE");
+            role.setPermissionsCsv(String.join(",", codes));
+            schoolRoleRepository.save(role);
+            log.info("RBAC migrated legacy PORTAL_CHAT to SCHOOL_CHAT_* for tenantId={} roleCode={}", tenantId, role.getCode());
+        }
+    }
+
+    /** Ensures leave self/approval atoms exist on baseline role templates for upgraded tenants. */
+    private void migrateLeavePermissionLanes(String tenantId) {
+        ensureRolePermissions(
+                tenantId,
+                RbacRoleCatalog.CODE_SCHOOL_FULL_ADMIN,
+                AppPermission.SCHOOL_LEAVE_SELF_READ,
+                AppPermission.SCHOOL_LEAVE_SELF_APPLY,
+                AppPermission.SCHOOL_LEAVE_APPROVAL_READ,
+                AppPermission.SCHOOL_LEAVE_APPROVAL_WRITE);
+        ensureRolePermissions(
+                tenantId,
+                RbacRoleCatalog.CODE_ACADEMIC_STAFF,
+                AppPermission.SCHOOL_LEAVE_SELF_READ,
+                AppPermission.SCHOOL_LEAVE_SELF_APPLY);
+        ensureRolePermissions(
+                tenantId,
+                RbacRoleCatalog.CODE_ACADEMIC_ADMIN_DESK,
+                AppPermission.SCHOOL_LEAVE_APPROVAL_READ,
+                AppPermission.SCHOOL_LEAVE_APPROVAL_WRITE);
+    }
+
+    private void ensureRolePermissions(String tenantId, String roleCode, AppPermission... requiredPerms) {
+        schoolRoleRepository.findByTenantIdAndCodeAndIsDeletedFalse(tenantId, roleCode).ifPresent(role -> {
+            EnumSet<AppPermission> perms = EnumSet.copyOf(RbacPermissionCodec.parsePermissionsCsv(role.getPermissionsCsv()));
+            boolean changed = false;
+            for (AppPermission p : requiredPerms) {
+                if (perms.add(p)) {
+                    changed = true;
+                }
+            }
+            if (!changed) {
+                return;
+            }
+            SchoolRbacPermissionCatalog.assertSubset(perms);
+            rbacPermissionGroupService.syncInlineBundleForRole(role, perms, Boolean.TRUE.equals(role.getSystemRole()));
+            slimJwtAuthorityCache.evictForTenant(tenantId);
+            log.info("RBAC migrated {} added leave permissions tenantId={}", roleCode, tenantId);
+        });
     }
 
     /** Ensures {@code LIBRARY_STAFF} / {@code SCHOOL_STAFF} portal users carry the baseline school-staff link. */

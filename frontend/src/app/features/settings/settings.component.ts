@@ -5,7 +5,7 @@ import { ActivatedRoute, ParamMap, Router } from '@angular/router';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { Subject, takeUntil } from 'rxjs';
 import { TenantModuleGateService } from '../../core/services/tenant-module-gate.service';
-import { SettingsService } from '../../core/services/settings.service';
+import { LibraryBorrowerPolicy, LibraryBorrowerType, SettingsService } from '../../core/services/settings.service';
 import { ThemeService } from '../../core/services/theme.service';
 import { AuthService } from '../../core/services/auth.service';
 import { UiAccessService } from '../../core/services/ui-access.service';
@@ -804,6 +804,41 @@ type SettingsFeatureToggleView = {
             </div>
           </section>
 
+          <section class="settings-finance-section" aria-labelledby="fin-section-library-policy" *ngIf="showLibraryBorrowerPolicyPanel">
+            <h3 id="fin-section-library-policy" class="settings-finance-section__title">Library borrower policy</h3>
+            <p class="text-muted small mb-3">
+              Control which borrower types are allowed for this school. Circulation desk users can issue only for enabled borrower types.
+            </p>
+            <div class="d-flex flex-wrap gap-3 align-items-center">
+              <label class="settings-rbac__check small mb-0">
+                <input type="checkbox" [(ngModel)]="libraryBorrowerSelection.STUDENT" [disabled]="libraryBorrowerPolicySaving || libraryBorrowerPolicyLoading" />
+                <span class="settings-rbac__check-text">Student</span>
+              </label>
+              <label class="settings-rbac__check small mb-0">
+                <input type="checkbox" [(ngModel)]="libraryBorrowerSelection.STAFF" [disabled]="libraryBorrowerPolicySaving || libraryBorrowerPolicyLoading" />
+                <span class="settings-rbac__check-text">Staff (teacher/non-teaching/admin)</span>
+              </label>
+              <label class="settings-rbac__check small mb-0">
+                <input type="checkbox" [(ngModel)]="libraryBorrowerSelection.GUARDIAN" [disabled]="libraryBorrowerPolicySaving || libraryBorrowerPolicyLoading" />
+                <span class="settings-rbac__check-text">Guardian</span>
+              </label>
+              <label class="settings-rbac__check small mb-0">
+                <input type="checkbox" [(ngModel)]="libraryBorrowerSelection.OTHER" [disabled]="libraryBorrowerPolicySaving || libraryBorrowerPolicyLoading" />
+                <span class="settings-rbac__check-text">Other (ad-hoc)</span>
+              </label>
+            </div>
+            <div class="d-flex flex-wrap gap-2 align-items-center mt-3">
+              <button type="button" class="btn-outline-erp btn-sm" (click)="loadLibraryBorrowerPolicy()" [disabled]="libraryBorrowerPolicyLoading || libraryBorrowerPolicySaving">
+                {{ libraryBorrowerPolicyLoading ? 'Loading...' : 'Reload policy' }}
+              </button>
+              <button type="button" class="btn-primary-erp btn-sm" (click)="saveLibraryBorrowerPolicy()" [disabled]="libraryBorrowerPolicySaving || libraryBorrowerPolicyLoading">
+                {{ libraryBorrowerPolicySaving ? 'Saving...' : 'Save borrower policy' }}
+              </button>
+            </div>
+            <p *ngIf="libraryBorrowerPolicyMsg" class="text-success small mt-2 mb-0">{{ libraryBorrowerPolicyMsg }}</p>
+            <p *ngIf="libraryBorrowerPolicyErr" class="text-danger small mt-2 mb-0">{{ libraryBorrowerPolicyErr }}</p>
+          </section>
+
           <footer class="settings-finance-card__footer d-flex flex-wrap gap-2 align-items-center pt-3 mt-3">
             <button type="button" class="btn-outline-erp btn-sm" (click)="loadFinanceProfile()" [disabled]="financeLoading">{{ financeLoading ? ('settings.financeLoading' | translate) : ('settings.financeReload' | translate) }}</button>
             <button
@@ -1505,6 +1540,17 @@ export class SettingsComponent implements OnInit, OnDestroy {
   /** In-app salary transfer via payout API; default off (same contract as backend). */
   financePayrollDigitalPayout = false;
   financeSnapPayrollDigitalPayout = false;
+  libraryBorrowerPolicyLoading = false;
+  libraryBorrowerPolicySaving = false;
+  libraryBorrowerPolicyMsg = '';
+  libraryBorrowerPolicyErr = '';
+  libraryBorrowerPolicy: LibraryBorrowerPolicy = { allowedBorrowerTypes: ['STUDENT', 'STAFF'] };
+  libraryBorrowerSelection: Record<LibraryBorrowerType, boolean> = {
+    STUDENT: true,
+    STAFF: true,
+    GUARDIAN: false,
+    OTHER: false,
+  };
   profilePreviewUrl: string | null = null;
   profileInitials = '';
   myChildren: Student[] = [];
@@ -1721,6 +1767,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
     this.financeMsg = '';
     this.financeErr = '';
     this.loadFinanceProfile();
+    this.loadLibraryBorrowerPolicy();
     void this.router.navigate([], {
       relativeTo: this.route,
       queryParams: { settingsTab: 'finance', financeHub: 'settlement' },
@@ -2512,6 +2559,9 @@ export class SettingsComponent implements OnInit, OnDestroy {
           }
         }
         this.recomputeFeatureBuckets();
+        if (this.tab === 'finance') {
+          this.loadLibraryBorrowerPolicy();
+        }
         this.cdr.markForCheck();
       },
       error: () => {
@@ -2542,6 +2592,9 @@ export class SettingsComponent implements OnInit, OnDestroy {
               runtimeConfig.useMocks ? 'settings.featureFlagsSavedMock' : 'settings.featureFlagsSaved'
             );
             this.tenantModuleGate.refresh().subscribe({ error: () => void 0 });
+                if (this.tab === 'finance') {
+                  this.loadLibraryBorrowerPolicy();
+                }
             this.cdr.markForCheck();
           },
           error: () => {
@@ -2714,6 +2767,75 @@ export class SettingsComponent implements OnInit, OnDestroy {
     this.profileVisualRole = ['admin', 'teacher', 'parent', 'super_admin', 'student'].includes(normalizedRole) ? normalizedRole : 'other';
     this.roleDisplayLabel = this.resolveRoleDisplayLabel(normalizedRole);
     this.photoHintLine = this.translate.instant(runtimeConfig.useMocks ? 'settings.photoHintMock' : 'settings.photoHintLive');
+  }
+
+  get showLibraryBorrowerPolicyPanel(): boolean {
+    return this.isTenantAdmin && this.isLibraryFeatureEnabledForTenant();
+  }
+
+  private isLibraryFeatureEnabledForTenant(): boolean {
+    return this.features.find(f => f.persistKey === 'library')?.enabled === true;
+  }
+
+  private syncBorrowerSelectionFromPolicy(policy: LibraryBorrowerPolicy): void {
+    const allowed = new Set((policy?.allowedBorrowerTypes ?? []).map(v => v.toUpperCase()) as LibraryBorrowerType[]);
+    this.libraryBorrowerSelection = {
+      STUDENT: allowed.has('STUDENT'),
+      STAFF: allowed.has('STAFF'),
+      GUARDIAN: allowed.has('GUARDIAN'),
+      OTHER: allowed.has('OTHER'),
+    };
+  }
+
+  loadLibraryBorrowerPolicy(): void {
+    this.libraryBorrowerPolicyMsg = '';
+    this.libraryBorrowerPolicyErr = '';
+    if (!this.showLibraryBorrowerPolicyPanel) {
+      return;
+    }
+    this.libraryBorrowerPolicyLoading = true;
+    this.settingsService.getLibraryBorrowerPolicy().subscribe({
+      next: p => {
+        this.libraryBorrowerPolicy = p;
+        this.syncBorrowerSelectionFromPolicy(p);
+        this.libraryBorrowerPolicyLoading = false;
+        this.cdr.markForCheck();
+      },
+      error: () => {
+        this.libraryBorrowerPolicyLoading = false;
+        this.libraryBorrowerPolicyErr = 'Unable to load borrower policy.';
+        this.cdr.markForCheck();
+      },
+    });
+  }
+
+  saveLibraryBorrowerPolicy(): void {
+    this.libraryBorrowerPolicyMsg = '';
+    this.libraryBorrowerPolicyErr = '';
+    if (!this.showLibraryBorrowerPolicyPanel) {
+      return;
+    }
+    const selected = (Object.keys(this.libraryBorrowerSelection) as LibraryBorrowerType[])
+      .filter(k => this.libraryBorrowerSelection[k]);
+    if (selected.length < 1) {
+      this.libraryBorrowerPolicyErr = 'At least one borrower type must be enabled.';
+      return;
+    }
+    this.libraryBorrowerPolicySaving = true;
+    this.settingsService.updateLibraryBorrowerPolicy({ allowedBorrowerTypes: selected }).subscribe({
+      next: p => {
+        this.libraryBorrowerPolicy = p;
+        this.syncBorrowerSelectionFromPolicy(p);
+        this.libraryBorrowerPolicySaving = false;
+        this.libraryBorrowerPolicyMsg = 'Borrower policy saved.';
+        this.cdr.markForCheck();
+      },
+      error: () => {
+        this.libraryBorrowerPolicySaving = false;
+        this.libraryBorrowerPolicyErr = 'Unable to save borrower policy.';
+        this.cdr.markForCheck();
+      },
+    });
   }
 
   private recomputeFeatureBuckets(): void {

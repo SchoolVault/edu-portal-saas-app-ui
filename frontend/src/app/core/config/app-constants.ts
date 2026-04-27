@@ -28,64 +28,117 @@ export interface NavItem {
 /** Backend {@code RbacSpel#ACADEMIC_ROSTER_READ} authority arm. */
 const AP_ROSTER_READ: readonly string[] = [
   AppPermission.ACADEMIC_TEACHER,
+  AppPermission.SCHOOL_ACADEMIC_READ,
+  AppPermission.SCHOOL_ACADEMIC_WRITE,
+  AppPermission.SCHOOL_STUDENT_READ,
+  AppPermission.SCHOOL_STUDENT_WRITE,
   AppPermission.TENANT_ADMIN,
   AppPermission.PLATFORM_ADMIN,
 ];
 
-/** Backend {@code RbacSpel#ACADEMIC_DESK_ADMIN} authority arm. */
-const AP_DESK_ADMIN: readonly string[] = [
+const AP_LEAVE_SELF: readonly string[] = [
+  AppPermission.SCHOOL_LEAVE_SELF_READ,
+  AppPermission.SCHOOL_LEAVE_SELF_APPLY,
   AppPermission.TENANT_ADMIN,
   AppPermission.PLATFORM_ADMIN,
-  AppPermission.SCHOOL_OPERATIONS_HUB,
+];
+
+const AP_LEAVE_APPROVAL: readonly string[] = [
+  AppPermission.SCHOOL_LEAVE_APPROVAL_READ,
+  AppPermission.SCHOOL_LEAVE_APPROVAL_WRITE,
+  AppPermission.TENANT_ADMIN,
+  AppPermission.PLATFORM_ADMIN,
+];
+
+/** Backend {@code RbacSpel#OPERATIONS_HUB_ADMIN} authority arm. */
+const AP_OPERATIONS_HUB: readonly string[] = [
+  AppPermission.SCHOOL_OPERATIONS_READ,
+  AppPermission.SCHOOL_OPERATIONS_WRITE,
+  AppPermission.TENANT_ADMIN,
+  AppPermission.PLATFORM_ADMIN,
+];
+
+const AP_DIRECTORY_DESK: readonly string[] = [
+  AppPermission.SCHOOL_DIRECTORY_READ,
+  AppPermission.SCHOOL_DIRECTORY_WRITE,
+  AppPermission.TENANT_ADMIN,
+  AppPermission.PLATFORM_ADMIN,
 ];
 
 /** Mirrors {@code RbacSpel#TRANSPORT_DESK_WRITE} authority arm (not operations hub alone). */
 const AP_TRANSPORT_DESK: readonly string[] = [
-  AppPermission.SCHOOL_TRANSPORT_DESK,
+  AppPermission.SCHOOL_TRANSPORT_READ,
+  AppPermission.SCHOOL_TRANSPORT_WRITE,
   AppPermission.TENANT_ADMIN,
   AppPermission.PLATFORM_ADMIN,
 ];
 
 /** Mirrors {@code RbacSpel#HOSTEL_DESK_WRITE} authority arm (not operations hub alone). */
 const AP_HOSTEL_DESK: readonly string[] = [
-  AppPermission.SCHOOL_HOSTEL_DESK,
+  AppPermission.SCHOOL_HOSTEL_READ,
+  AppPermission.SCHOOL_HOSTEL_WRITE,
+  AppPermission.SCHOOL_HOSTEL_BILLING_READ,
+  AppPermission.SCHOOL_HOSTEL_BILLING_WRITE,
+  AppPermission.SCHOOL_HOSTEL_APPROVAL_WRITE,
+  AppPermission.SCHOOL_HOSTEL_VISITOR_WRITE,
+  AppPermission.SCHOOL_HOSTEL_INCIDENT_WRITE,
+  AppPermission.TENANT_ADMIN,
+  AppPermission.PLATFORM_ADMIN,
+];
+
+const AP_HOSTEL_PORTAL: readonly string[] = [
+  AppPermission.PORTAL_PARENT,
+  AppPermission.PORTAL_STUDENT,
   AppPermission.TENANT_ADMIN,
   AppPermission.PLATFORM_ADMIN,
 ];
 
 const AP_FEE_OFFICE: readonly string[] = [
-  AppPermission.SCHOOL_FEE_OFFICE,
+  AppPermission.SCHOOL_FEES_READ,
+  AppPermission.SCHOOL_FEES_WRITE,
   AppPermission.TENANT_ADMIN,
   AppPermission.PLATFORM_ADMIN,
 ];
 
 const AP_PAYROLL_OFFICE: readonly string[] = [
-  AppPermission.SCHOOL_PAYROLL_OFFICE,
+  AppPermission.SCHOOL_PAYROLL_READ,
+  AppPermission.SCHOOL_PAYROLL_WRITE,
   AppPermission.TENANT_ADMIN,
   AppPermission.PLATFORM_ADMIN,
 ];
 
 const AP_REPORTS_SCHOOL: readonly string[] = [
-  AppPermission.SCHOOL_REPORTS_SCHOOL,
+  AppPermission.SCHOOL_REPORTS_READ,
+  AppPermission.SCHOOL_REPORTS_WRITE,
   AppPermission.TENANT_ADMIN,
   AppPermission.PLATFORM_ADMIN,
 ];
 
 const AP_IMPORT_EXPORT: readonly string[] = [
-  AppPermission.SCHOOL_IMPORT_EXPORT,
+  AppPermission.SCHOOL_IMPORT_EXPORT_READ,
+  AppPermission.SCHOOL_IMPORT_EXPORT_WRITE,
+  AppPermission.TENANT_ADMIN,
+  AppPermission.PLATFORM_ADMIN,
+];
+
+const AP_COMMUNICATION_DESK: readonly string[] = [
+  AppPermission.SCHOOL_COMMUNICATION_READ,
+  AppPermission.SCHOOL_COMMUNICATION_WRITE,
   AppPermission.TENANT_ADMIN,
   AppPermission.PLATFORM_ADMIN,
 ];
 
 const AP_EXAMS_OFFICE: readonly string[] = [
-  AppPermission.SCHOOL_EXAMS_OFFICE,
+  AppPermission.SCHOOL_EXAMS_READ,
+  AppPermission.SCHOOL_EXAMS_WRITE,
   AppPermission.TENANT_ADMIN,
   AppPermission.PLATFORM_ADMIN,
 ];
 
 const AP_LIBRARY: readonly string[] = [
-  AppPermission.LIBRARY_MANAGE,
-  AppPermission.LIBRARY_CIRCULATION,
+  AppPermission.SCHOOL_LIBRARY_MEMBER_READ,
+  AppPermission.SCHOOL_LIBRARY_READ,
+  AppPermission.SCHOOL_LIBRARY_WRITE,
   AppPermission.TENANT_ADMIN,
   AppPermission.PLATFORM_ADMIN,
 ];
@@ -134,7 +187,7 @@ export const NAV_ITEMS: NavItem[] = [
     icon: 'bi-search-heart',
     route: '/app/directory',
     roles: ['admin'],
-    permissionsAny: [...AP_DESK_ADMIN],
+    permissionsAny: [...AP_DIRECTORY_DESK],
     sectionKey: 'nav.section.people',
     moduleGate: 'directory',
   },
@@ -196,6 +249,13 @@ export const NAV_ITEMS: NavItem[] = [
     icon: 'bi-inbox-fill',
     route: '/app/inbox',
     roles: ['admin', 'teacher', 'parent', 'student', 'library_staff', 'school_staff'],
+    permissionsAny: [
+      AppPermission.ACADEMIC_TEACHER,
+      AppPermission.PORTAL_PARENT,
+      AppPermission.PORTAL_STUDENT,
+      AppPermission.PORTAL_SCHOOL_STAFF,
+      ...AP_COMMUNICATION_DESK,
+    ],
     sectionKey: 'nav.section.connect',
     moduleGate: 'communication',
   },
@@ -204,7 +264,15 @@ export const NAV_ITEMS: NavItem[] = [
     icon: 'bi-chat-dots-fill',
     route: '/app/chat',
     roles: ['admin', 'teacher', 'parent', 'student'],
-    permissionsAny: [AppPermission.PORTAL_CHAT],
+    permissionsAny: [
+      AppPermission.SCHOOL_CHAT_READ,
+      AppPermission.SCHOOL_CHAT_WRITE,
+      AppPermission.ACADEMIC_TEACHER,
+      AppPermission.PORTAL_PARENT,
+      AppPermission.PORTAL_STUDENT,
+      AppPermission.TENANT_ADMIN,
+      AppPermission.PLATFORM_ADMIN,
+    ],
     sectionKey: 'nav.section.connect',
     moduleGate: 'chat',
   },
@@ -212,8 +280,8 @@ export const NAV_ITEMS: NavItem[] = [
     labelKey: 'nav.leave',
     icon: 'bi-calendar-x',
     route: '/app/leave',
-    roles: ['admin', 'teacher'],
-    permissionsAny: [...AP_ROSTER_READ, ...AP_DESK_ADMIN],
+    roles: ['admin', 'teacher', 'library_staff', 'school_staff'],
+    permissionsAny: [...AP_LEAVE_SELF, ...AP_LEAVE_APPROVAL],
     sectionKey: 'nav.section.connect',
     moduleGate: 'leave',
   },
@@ -231,7 +299,7 @@ export const NAV_ITEMS: NavItem[] = [
     icon: 'bi-building-gear',
     route: '/app/operations',
     roles: ['admin'],
-    permissionsAny: [...AP_DESK_ADMIN],
+    permissionsAny: [...AP_OPERATIONS_HUB],
     sectionKey: 'nav.section.operations',
     moduleGate: 'operationsHub',
   },
@@ -256,7 +324,7 @@ export const NAV_ITEMS: NavItem[] = [
     labelKey: 'nav.transport',
     icon: 'bi-bus-front-fill',
     route: '/app/transport',
-    roles: ['admin', 'school_staff'],
+    roles: [],
     permissionsAny: [...AP_TRANSPORT_DESK],
     sectionKey: 'nav.section.operations',
     moduleGate: 'transport',
@@ -265,7 +333,7 @@ export const NAV_ITEMS: NavItem[] = [
     labelKey: 'nav.library',
     icon: 'bi-book-fill',
     route: '/app/library',
-    roles: ['admin', 'teacher', 'library_staff'],
+    roles: [],
     permissionsAny: [...AP_LIBRARY],
     sectionKey: 'nav.section.operations',
     moduleGate: 'library',
@@ -274,9 +342,18 @@ export const NAV_ITEMS: NavItem[] = [
     labelKey: 'nav.hostel',
     icon: 'bi-house-fill',
     route: '/app/hostel',
-    roles: ['admin', 'school_staff'],
+    roles: [],
     permissionsAny: [...AP_HOSTEL_DESK],
     sectionKey: 'nav.section.operations',
+    moduleGate: 'hostel',
+  },
+  {
+    labelKey: 'nav.hostel',
+    icon: 'bi-house-fill',
+    route: '/app/hostel-portal',
+    roles: ['parent', 'student'],
+    permissionsAny: [...AP_HOSTEL_PORTAL],
+    sectionKey: 'nav.section.main',
     moduleGate: 'hostel',
   },
   {

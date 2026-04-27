@@ -43,14 +43,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
@@ -336,7 +329,7 @@ public class AuthService {
                 response.setManagedStudentCount(studentRepository.countByTenantIdAndIsDeletedFalse(tenantId));
                 response.setManagedTeacherCount(teacherRepository.countByTenantIdAndIsDeletedFalse(tenantId));
             }
-            case TEACHER -> teacherRepository.findByTenantIdAndUserIdAndIsDeletedFalse(tenantId, userId)
+            case TEACHER -> resolveTeacherProfileRow(tenantId, userId)
                     .ifPresent(teacher -> applyTeacherProfileShell(tenantId, teacher, response));
             case PARENT -> {
                 response.setUserTitle("Parent Account");
@@ -397,15 +390,19 @@ public class AuthService {
             user.setAvatar(trimToNull(request.getAvatar()));
         }
         if (user.getRole() == Enums.Role.TEACHER) {
-            teacherRepository.findByTenantIdAndUserIdAndIsDeletedFalse(tenantId, userId).ifPresent(teacher -> {
+            List<com.school.erp.modules.teacher.entity.Teacher> linkedTeachers =
+                    teacherRepository.findAllByTenantIdAndUserIdAndIsDeletedFalseOrderByIdAsc(tenantId, userId);
+            for (com.school.erp.modules.teacher.entity.Teacher teacher : linkedTeachers) {
                 if (request.getPhone() != null) {
                     teacher.setPhone(user.getPhone());
                 }
                 if (request.getAvatar() != null) {
                     teacher.setAvatar(user.getAvatar());
                 }
-                teacherRepository.save(teacher);
-            });
+            }
+            if (!linkedTeachers.isEmpty()) {
+                teacherRepository.saveAll(linkedTeachers);
+            }
         }
         userRepository.save(user);
         return toProfile(user);
@@ -469,7 +466,7 @@ public class AuthService {
         }
 
         if (user.getRole() == Enums.Role.TEACHER) {
-            var teacher = teacherRepository.findByTenantIdAndUserIdAndIsDeletedFalse(tenantId, userId)
+            var teacher = resolveTeacherProfileRow(tenantId, userId)
                     .orElseThrow(() -> new ResourceNotFoundException("Teacher profile", userId));
             if (request.getQualification() != null) {
                 teacher.setQualification(trimToNull(request.getQualification()));
@@ -499,6 +496,43 @@ public class AuthService {
                 teacher.setAvatar(user.getAvatar());
             }
             teacherRepository.save(teacher);
+            List<com.school.erp.modules.teacher.entity.Teacher> duplicates =
+                    teacherRepository.findAllByTenantIdAndUserIdAndIsDeletedFalseOrderByIdAsc(tenantId, userId);
+            for (com.school.erp.modules.teacher.entity.Teacher duplicate : duplicates) {
+                if (duplicate.getId().equals(teacher.getId())) {
+                    continue;
+                }
+                if (request.getQualification() != null) {
+                    duplicate.setQualification(teacher.getQualification());
+                }
+                if (request.getSpecialization() != null) {
+                    duplicate.setSpecialization(teacher.getSpecialization());
+                }
+                if (request.getBankAccountHolder() != null) {
+                    duplicate.setBankAccountHolder(teacher.getBankAccountHolder());
+                }
+                if (request.getBankName() != null) {
+                    duplicate.setBankName(teacher.getBankName());
+                }
+                if (request.getBankAccountNumber() != null) {
+                    duplicate.setBankAccountNumber(teacher.getBankAccountNumber());
+                }
+                if (request.getBankIfsc() != null) {
+                    duplicate.setBankIfsc(teacher.getBankIfsc());
+                }
+                if (request.getPhone() != null) {
+                    duplicate.setPhone(user.getPhone());
+                }
+                if (request.getEmail() != null) {
+                    duplicate.setEmail(user.getEmail());
+                }
+                if (request.getAvatar() != null) {
+                    duplicate.setAvatar(user.getAvatar());
+                }
+            }
+            if (!duplicates.isEmpty()) {
+                teacherRepository.saveAll(duplicates);
+            }
         }
 
         userRepository.save(user);
@@ -554,10 +588,14 @@ public class AuthService {
         user.setEmail(newEmail);
         user.setEmailVerified(false);
         userRepository.save(user);
-        teacherRepository.findByTenantIdAndUserIdAndIsDeletedFalse(tenantId, userId).ifPresent(teacher -> {
+        List<com.school.erp.modules.teacher.entity.Teacher> linkedTeachersForEmail =
+                teacherRepository.findAllByTenantIdAndUserIdAndIsDeletedFalseOrderByIdAsc(tenantId, userId);
+        for (com.school.erp.modules.teacher.entity.Teacher teacher : linkedTeachersForEmail) {
             teacher.setEmail(newEmail);
-            teacherRepository.save(teacher);
-        });
+        }
+        if (!linkedTeachersForEmail.isEmpty()) {
+            teacherRepository.saveAll(linkedTeachersForEmail);
+        }
         AuthDTOs.EmailVerificationRequestResponse verify = emailVerificationService.requestVerificationForCurrentUser();
         auditTrailPort.logAction(
                 Enums.AuditAction.UPDATE,
@@ -589,10 +627,14 @@ public class AuthService {
         user.setPhone(canonicalPhone);
         user.setPhoneVerified(false);
         userRepository.save(user);
-        teacherRepository.findByTenantIdAndUserIdAndIsDeletedFalse(tenantId, userId).ifPresent(teacher -> {
+        List<com.school.erp.modules.teacher.entity.Teacher> linkedTeachersForPhone =
+                teacherRepository.findAllByTenantIdAndUserIdAndIsDeletedFalseOrderByIdAsc(tenantId, userId);
+        for (com.school.erp.modules.teacher.entity.Teacher teacher : linkedTeachersForPhone) {
             teacher.setPhone(canonicalPhone);
-            teacherRepository.save(teacher);
-        });
+        }
+        if (!linkedTeachersForPhone.isEmpty()) {
+            teacherRepository.saveAll(linkedTeachersForPhone);
+        }
         auditTrailPort.logAction(
                 Enums.AuditAction.UPDATE,
                 "AUTH",
@@ -654,7 +696,7 @@ public class AuthService {
         out.setPhoneVerified(Boolean.TRUE.equals(user.getPhoneVerified()));
 
         if (user.getRole() == Enums.Role.TEACHER) {
-            teacherRepository.findByTenantIdAndUserIdAndIsDeletedFalse(user.getTenantId(), user.getId()).ifPresent(t -> {
+            resolveTeacherProfileRow(user.getTenantId(), user.getId()).ifPresent(t -> {
                 out.setQualification(t.getQualification());
                 out.setSpecialization(t.getSpecialization());
                 out.setBankAccountHolder(t.getBankAccountHolder());
@@ -677,6 +719,35 @@ public class AuthService {
         }
         String trimmed = value.trim();
         return trimmed.isBlank() ? null : trimmed;
+    }
+
+    private Optional<com.school.erp.modules.teacher.entity.Teacher> resolveTeacherProfileRow(String tenantId, Long userId) {
+        List<com.school.erp.modules.teacher.entity.Teacher> rows =
+                teacherRepository.findAllByTenantIdAndUserIdAndIsDeletedFalseOrderByIdAsc(tenantId, userId);
+        if (rows.isEmpty()) {
+            return Optional.empty();
+        }
+        if (rows.size() > 1) {
+            log.warn("Teacher profile resolution: {} active rows for tenantId={} userId={} (expected one); selecting richest row",
+                    rows.size(), tenantId, userId);
+        }
+        com.school.erp.modules.teacher.entity.Teacher selected = rows.stream()
+                .max(java.util.Comparator
+                        .comparingInt(this::teacherProfileCompletenessScore)
+                        .thenComparing(com.school.erp.modules.teacher.entity.Teacher::getId))
+                .orElse(rows.get(0));
+        return Optional.of(selected);
+    }
+
+    private int teacherProfileCompletenessScore(com.school.erp.modules.teacher.entity.Teacher t) {
+        int score = 0;
+        if (trimToNull(t.getQualification()) != null) score++;
+        if (trimToNull(t.getSpecialization()) != null) score++;
+        if (trimToNull(t.getBankAccountHolder()) != null) score++;
+        if (trimToNull(t.getBankName()) != null) score++;
+        if (trimToNull(t.getBankAccountNumber()) != null) score++;
+        if (trimToNull(t.getBankIfsc()) != null) score++;
+        return score;
     }
 
     private void ensurePhoneNotUsedByAnotherUser(String tenantId, Long currentUserId, String canonicalPhone) {

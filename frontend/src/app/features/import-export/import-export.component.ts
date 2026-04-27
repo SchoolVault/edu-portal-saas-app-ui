@@ -342,6 +342,21 @@ const REQUIRED_IMPORT_FIELDS: Record<string, string[]> = {
           <p class="small text-muted mt-2 mb-0" style="max-width: 40rem">
             {{ 'importExport.executionModeHint' | translate }}
           </p>
+          <div class="form-check mt-3 mb-0">
+            <input
+              id="import-reprocess"
+              class="form-check-input"
+              type="checkbox"
+              [(ngModel)]="reprocessImport"
+              name="reprocessImport"
+            />
+            <label class="form-check-label small fw-semibold" for="import-reprocess">
+              {{ 'importExport.reprocessToggleLabel' | translate }}
+            </label>
+          </div>
+          <p class="small text-muted mt-1 mb-0" style="max-width: 48rem">
+            {{ 'importExport.reprocessToggleHint' | translate }}
+          </p>
         </div>
 
         <div class="d-flex flex-wrap align-items-center gap-2 mt-4">
@@ -501,6 +516,9 @@ const REQUIRED_IMPORT_FIELDS: Record<string, string[]> = {
                 <td class="fw-semibold text-muted">#{{ j.id }}</td>
                 <td>
                   <span class="ie-type-pill">{{ jobTypeLabel(j.jobType) }}</span>
+                  <span class="ie-patch-pill ms-1" *ngIf="j.reprocessRequested">
+                    {{ patchJobBadgeLabel() }}
+                  </span>
                 </td>
                 <td class="small text-nowrap text-muted">
                   {{ jobExecutionModeLabel(j.executionMode) }}
@@ -1122,6 +1140,19 @@ const REQUIRED_IMPORT_FIELDS: Record<string, string[]> = {
         border-radius: 6px;
         background: rgba(0, 0, 0, 0.05);
       }
+      .ie-patch-pill {
+        display: inline-flex;
+        align-items: center;
+        font-size: 0.68rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        padding: 0.2rem 0.45rem;
+        border-radius: 6px;
+        color: #1b3a30;
+        background: rgba(192, 92, 61, 0.12);
+        border: 1px solid rgba(192, 92, 61, 0.28);
+      }
       .ie-status {
         display: inline-flex;
         align-items: center;
@@ -1519,6 +1550,8 @@ export class ImportExportComponent implements OnInit, OnDestroy {
   dryRunResult: DryRunResponse | null = null;
   /** BEST_EFFORT (default) or ALL_OR_NOTHING (single DB transaction, smaller files). */
   executionMode: 'BEST_EFFORT' | 'ALL_OR_NOTHING' = 'BEST_EFFORT';
+  /** Force same-file submit to run as a new corrective import job (when backend allows it). */
+  reprocessImport = false;
 
   /** 0..4 — upload, map, validate, queue, report */
   wizardStepIndex = 0;
@@ -1636,6 +1669,12 @@ export class ImportExportComponent implements OnInit, OnDestroy {
     const id = String(raw || 'BEST_EFFORT').toUpperCase();
     const key = `importExport.executionModeShort.${id}`;
     return this.translate.instant(key);
+  }
+
+  patchJobBadgeLabel(): string {
+    const key = 'importExport.patchJobBadge';
+    const translated = this.translate.instant(key);
+    return translated !== key ? translated : 'Patch job';
   }
 
   lineStatusLabel(raw: string): string {
@@ -1914,7 +1953,7 @@ export class ImportExportComponent implements OnInit, OnDestroy {
     this.lastSubmitMsg = '';
     this.lastSubmitOk = null;
     const mapJson = this.buildColumnMappingJson();
-    this.importExport.submitJob(this.jobType, this.file, mapJson, this.targetSchoolCode, this.executionMode).subscribe({
+    this.importExport.submitJob(this.jobType, this.file, mapJson, this.targetSchoolCode, this.executionMode, this.reprocessImport).subscribe({
       next: r => {
         this.wizardStepIndex = 4;
         this.lastSubmitMsg = this.translate.instant('importExport.msgQueued', { jobId: r.jobId, rows: r.totalRows });
@@ -1963,6 +2002,7 @@ export class ImportExportComponent implements OnInit, OnDestroy {
     this.wizardStepIndex = 0;
     this.previewLoading = false;
     this.executionMode = 'BEST_EFFORT';
+    this.reprocessImport = false;
   }
 
   reloadJobs(): void {

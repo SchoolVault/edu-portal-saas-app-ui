@@ -33,12 +33,14 @@ public class CommunicationController {
 
     // --- Announcements ---
     @GetMapping("/announcements")
+    @PreAuthorize(RbacSpel.COMMUNICATION_INBOX_READ)
     @Operation(summary = "List announcements")
     public ResponseEntity<ApiResponse<List<Announcement>>> listAnnouncements() {
         return ResponseEntity.ok(ApiResponse.ok(service.getAnnouncements()));
     }
 
     @GetMapping("/announcements/paged")
+    @PreAuthorize(RbacSpel.COMMUNICATION_INBOX_READ)
     @Operation(summary = "List announcements (paged)")
     public ResponseEntity<ApiResponse<PageResponse<Announcement>>> listAnnouncementsPaged(
             @RequestParam(defaultValue = "0") int page,
@@ -48,6 +50,7 @@ public class CommunicationController {
     }
 
     @GetMapping("/inbox/timeline")
+    @PreAuthorize(RbacSpel.COMMUNICATION_INBOX_READ)
     @Operation(summary = "Unified inbox timeline", description = "Announcements and user notifications merged, newest first. "
             + "Optional filters: feedKind=ANNOUNCEMENT|NOTIFICATION, audiences=ALL,TEACHERS,...,ALERT, yearMonth=yyyy-MM. "
             + "Audience tokens are sanitized to the signed-in role (parents cannot apply TEACHERS/PARENTS filters, etc.).")
@@ -62,12 +65,14 @@ public class CommunicationController {
     }
 
     @GetMapping("/announcements/previews")
+    @PreAuthorize(RbacSpel.COMMUNICATION_INBOX_READ)
     @Operation(summary = "Announcement previews for header widgets (truncated body)")
     public ResponseEntity<ApiResponse<List<AnnouncementDTOs.AnnouncementPreviewResponse>>> announcementPreviews() {
         return ResponseEntity.ok(ApiResponse.ok(service.getAnnouncementPreviews()));
     }
 
     @GetMapping("/announcements/{id}")
+    @PreAuthorize(RbacSpel.COMMUNICATION_INBOX_READ)
     @Operation(summary = "Single announcement (tenant-scoped)")
     public ResponseEntity<ApiResponse<Announcement>> getAnnouncement(@PathVariable Long id) {
         return ResponseEntity.ok(ApiResponse.ok(service.getAnnouncement(id)));
@@ -89,7 +94,7 @@ public class CommunicationController {
     }
 
     @GetMapping("/events/paged")
-    @PreAuthorize(RbacSpel.COMMUNICATION_SCHOOL_ADMIN)
+    @PreAuthorize(RbacSpel.SCHOOL_COMMUNICATION_READ)
     @Operation(summary = "List communication events", description = "Paged event list with optional upcoming-only mode.")
     public ResponseEntity<ApiResponse<PageResponse<CommunicationEventDTOs.EventResponse>>> listEventsPaged(
             @RequestParam(defaultValue = "0") int page,
@@ -99,6 +104,7 @@ public class CommunicationController {
     }
 
     @GetMapping("/events/my")
+    @PreAuthorize(RbacSpel.COMMUNICATION_INBOX_READ)
     @Operation(summary = "List events for current user audience")
     public ResponseEntity<ApiResponse<PageResponse<CommunicationEventDTOs.EventResponse>>> listMyEvents(
             @RequestParam(defaultValue = "0") int page,
@@ -138,7 +144,7 @@ public class CommunicationController {
     }
 
     @GetMapping("/campaigns/history")
-    @PreAuthorize(RbacSpel.COMMUNICATION_SCHOOL_ADMIN)
+    @PreAuthorize(RbacSpel.SCHOOL_COMMUNICATION_READ)
     @Operation(summary = "Campaign history", description = "Paged list of previously queued campaigns for the tenant.")
     public ResponseEntity<ApiResponse<PageResponse<CampaignDTOs.CampaignHistoryItem>>> campaignHistory(
             @RequestParam(defaultValue = "0") int page,
@@ -147,14 +153,14 @@ public class CommunicationController {
     }
 
     @GetMapping("/campaigns/{campaignId}/analytics")
-    @PreAuthorize(RbacSpel.COMMUNICATION_SCHOOL_ADMIN)
+    @PreAuthorize(RbacSpel.SCHOOL_COMMUNICATION_READ)
     @Operation(summary = "Campaign analytics", description = "Delivery status aggregation for a campaign.")
     public ResponseEntity<ApiResponse<CampaignDTOs.CampaignAnalyticsResponse>> campaignAnalytics(@PathVariable String campaignId) {
         return ResponseEntity.ok(ApiResponse.ok(campaignService.analytics(campaignId)));
     }
 
     @GetMapping("/campaign-templates")
-    @PreAuthorize(RbacSpel.COMMUNICATION_SCHOOL_ADMIN)
+    @PreAuthorize(RbacSpel.SCHOOL_COMMUNICATION_READ)
     @Operation(summary = "List campaign templates")
     public ResponseEntity<ApiResponse<List<CampaignDTOs.CampaignTemplateResponse>>> listCampaignTemplates() {
         return ResponseEntity.ok(ApiResponse.ok(campaignService.listTemplates()));
@@ -179,24 +185,28 @@ public class CommunicationController {
 
     // --- Teacher-Parent Messaging ---
     @GetMapping("/messages")
+    @PreAuthorize(RbacSpel.COMMUNICATION_INBOX_READ)
     @Operation(summary = "Get my messages", description = "All messages where current user is sender or receiver")
     public ResponseEntity<ApiResponse<List<CommunicationDTOs.MessageResponse>>> getMessages() {
         return ResponseEntity.ok(ApiResponse.ok(service.getMyMessages()));
     }
 
     @GetMapping("/messages/conversation/{otherUserId}")
+    @PreAuthorize(RbacSpel.COMMUNICATION_INBOX_READ)
     @Operation(summary = "Get conversation with a user")
     public ResponseEntity<ApiResponse<List<CommunicationDTOs.MessageResponse>>> getConversation(@PathVariable Long otherUserId) {
         return ResponseEntity.ok(ApiResponse.ok(service.getConversation(otherUserId)));
     }
 
     @PostMapping("/messages")
+    @PreAuthorize(RbacSpel.COMMUNICATION_INBOX_READ)
     @Operation(summary = "Send message", description = "Send message to another user (teacher-parent communication)")
     public ResponseEntity<ApiResponse<CommunicationDTOs.MessageResponse>> sendMessage(@Valid @RequestBody CommunicationDTOs.SendMessageRequest req) {
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.created(service.sendMessage(req)));
     }
 
     @PutMapping("/messages/{id}/read")
+    @PreAuthorize(RbacSpel.COMMUNICATION_INBOX_READ)
     @Operation(summary = "Mark message as read")
     public ResponseEntity<ApiResponse<Void>> markRead(@PathVariable Long id) {
         service.markMessageRead(id);
@@ -204,6 +214,7 @@ public class CommunicationController {
     }
 
     @GetMapping("/messages/unread-count")
+    @PreAuthorize(RbacSpel.COMMUNICATION_INBOX_READ)
     @Operation(summary = "Get unread message count")
     public ResponseEntity<ApiResponse<Long>> unreadCount() {
         return ResponseEntity.ok(ApiResponse.ok(service.getUnreadMessageCount()));

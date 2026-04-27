@@ -1,5 +1,6 @@
 package com.school.erp.modules.library.dto;
 
+import com.school.erp.common.enums.Enums;
 import jakarta.validation.constraints.NotNull;
 import java.math.BigDecimal;
 
@@ -484,6 +485,151 @@ public class LibraryDTOs {
 
         public void setFinePerDay(BigDecimal finePerDay) {
             this.finePerDay = finePerDay;
+        }
+    }
+
+    public static class IssueBorrowerRequest {
+        @NotNull
+        private Long bookId;
+        @NotNull
+        private Enums.LibraryBorrowerType borrowerType;
+        @NotNull
+        private Long borrowerRefId;
+        private Long borrowerUserId;
+        private String borrowerDisplayName;
+        private Integer dueDays;
+
+        public Long getBookId() {
+            return bookId;
+        }
+
+        public void setBookId(Long bookId) {
+            this.bookId = bookId;
+        }
+
+        public Enums.LibraryBorrowerType getBorrowerType() {
+            return borrowerType;
+        }
+
+        public void setBorrowerType(Enums.LibraryBorrowerType borrowerType) {
+            this.borrowerType = borrowerType;
+        }
+
+        public Long getBorrowerRefId() {
+            return borrowerRefId;
+        }
+
+        public void setBorrowerRefId(Long borrowerRefId) {
+            this.borrowerRefId = borrowerRefId;
+        }
+
+        public Long getBorrowerUserId() {
+            return borrowerUserId;
+        }
+
+        public void setBorrowerUserId(Long borrowerUserId) {
+            this.borrowerUserId = borrowerUserId;
+        }
+
+        public String getBorrowerDisplayName() {
+            return borrowerDisplayName;
+        }
+
+        public void setBorrowerDisplayName(String borrowerDisplayName) {
+            this.borrowerDisplayName = borrowerDisplayName;
+        }
+
+        public Integer getDueDays() {
+            return dueDays;
+        }
+
+        public void setDueDays(Integer dueDays) {
+            this.dueDays = dueDays;
+        }
+    }
+
+    public static class BorrowerIssueResponse {
+        private Long id;
+        private Long bookId;
+        private String bookTitle;
+        private Enums.LibraryBorrowerType borrowerType;
+        private Long borrowerRefId;
+        private Long borrowerUserId;
+        private String borrowerDisplayName;
+        private String issueDate;
+        private String dueDate;
+        private String returnDate;
+        private BigDecimal fine;
+        private String status;
+
+        public static Builder builder() {
+            return new Builder();
+        }
+
+        public static class Builder {
+            private final BorrowerIssueResponse v = new BorrowerIssueResponse();
+
+            public Builder id(Long id) { v.id = id; return this; }
+            public Builder bookId(Long bookId) { v.bookId = bookId; return this; }
+            public Builder bookTitle(String bookTitle) { v.bookTitle = bookTitle; return this; }
+            public Builder borrowerType(Enums.LibraryBorrowerType borrowerType) { v.borrowerType = borrowerType; return this; }
+            public Builder borrowerRefId(Long borrowerRefId) { v.borrowerRefId = borrowerRefId; return this; }
+            public Builder borrowerUserId(Long borrowerUserId) { v.borrowerUserId = borrowerUserId; return this; }
+            public Builder borrowerDisplayName(String borrowerDisplayName) { v.borrowerDisplayName = borrowerDisplayName; return this; }
+            public Builder issueDate(String issueDate) { v.issueDate = issueDate; return this; }
+            public Builder dueDate(String dueDate) { v.dueDate = dueDate; return this; }
+            public Builder returnDate(String returnDate) { v.returnDate = returnDate; return this; }
+            public Builder fine(BigDecimal fine) { v.fine = fine; return this; }
+            public Builder status(String status) { v.status = status; return this; }
+            public BorrowerIssueResponse build() { return v; }
+        }
+
+        public Long getId() {
+            return id;
+        }
+
+        public Long getBookId() {
+            return bookId;
+        }
+
+        public String getBookTitle() {
+            return bookTitle;
+        }
+
+        public Enums.LibraryBorrowerType getBorrowerType() {
+            return borrowerType;
+        }
+
+        public Long getBorrowerRefId() {
+            return borrowerRefId;
+        }
+
+        public Long getBorrowerUserId() {
+            return borrowerUserId;
+        }
+
+        public String getBorrowerDisplayName() {
+            return borrowerDisplayName;
+        }
+
+        public String getIssueDate() {
+            return issueDate;
+        }
+
+        public String getDueDate() {
+            return dueDate;
+        }
+
+        public String getReturnDate() {
+            return returnDate;
+        }
+
+        public BigDecimal getFine() {
+            return fine;
+        }
+
+        public String getStatus() {
+            return status;
         }
     }
 }

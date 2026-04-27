@@ -89,15 +89,36 @@ Below is a **summary map** of what our **named access rights** cover, in busines
 | Access right (internal name) | In sales language |
 |------------------------------|-------------------|
 | **TENANT_ADMIN** | “Full **school configuration** owner”: settings, many cross-cutting admin controls, user-directory style operations—**the serious master key** for that school. |
-| **SCHOOL_FEE_OFFICE** | **Fees** back office: structures, collection, reports, as implemented in the product. |
-| **SCHOOL_SETTINGS_FINANCE** | **Payment routing, finance profile**, settlement / onboarding for online fees. |
-| **SCHOOL_PAYROLL_OFFICE** | **Payroll** desk: salary structures, payslips, disbursement flows. |
-| **SCHOOL_SETTINGS_CORE** | **Branding, school code, feature** hooks exposed in school **settings** for admins. |
-| **SCHOOL_STUDENT_MASTER** | **Student** master / promotions (administrative), where the module applies. |
-| **SCHOOL_EXAMS_OFFICE** | **Exams** office scope: cycles, results publication as built. |
-| **SCHOOL_IMPORT_EXPORT** | **Data import and export** pipelines. |
-| **SCHOOL_OPERATIONS_HUB** | **Operations** hub (admissions-style, visitors, school ops workflows) where enabled. |
-| **SCHOOL_REPORTS_SCHOOL** | **School-scoped** reporting that isn’t already covered by a finer right. |
+| **SCHOOL_FEES_READ** | View fee structures, payment ledgers, and collection summary dashboards. |
+| **SCHOOL_FEES_WRITE** | Manage fee structures, collect payments, send reminders, and process refund actions. |
+| **SCHOOL_SETTINGS_FINANCE_READ** | View payment routing, finance profile, and settlement onboarding status. |
+| **SCHOOL_SETTINGS_FINANCE_WRITE** | Update payment routing, finance profile, and settlement onboarding workflow. |
+| **SCHOOL_PAYROLL_READ** | View salary structures, payslips, and disbursement queue status. |
+| **SCHOOL_PAYROLL_WRITE** | Manage salary structures, generate payslips, and perform disbursement/settlement actions. |
+| **SCHOOL_SETTINGS_CORE_READ** | View branding, school identity profile, and feature-flag settings. |
+| **SCHOOL_SETTINGS_CORE_WRITE** | Update branding, school identity profile, and feature-flag settings. |
+| **SCHOOL_RBAC_READ** | View role catalog, permission packs, and current duty assignments for staff. |
+| **SCHOOL_RBAC_WRITE** | Manage role assignments, custom roles, and reusable permission packs. |
+| **SCHOOL_GUARDIAN_READ** | View guardian directory records used for student linkage workflows. |
+| **SCHOOL_GUARDIAN_WRITE** | Create/update guardian directory records and guardian linkage metadata. |
+| **SCHOOL_STUDENT_READ** | View student master roster and profile records. |
+| **SCHOOL_STUDENT_WRITE** | Create/update student records, run bulk imports, and execute promotions. |
+| **SCHOOL_EXAMS_READ** | View exam cycles, marks records, schedules, and publication snapshots. |
+| **SCHOOL_EXAMS_WRITE** | Manage exam templates/workflows, marks entry, schedules, and result publication controls. |
+| **SCHOOL_IMPORT_EXPORT_READ** | **Read import/export operations**: preview, dry-run validation, job history, and template exports. |
+| **SCHOOL_IMPORT_EXPORT_WRITE** | **Write import/export operations**: queue import jobs and retry failed rows. |
+| **SCHOOL_COMMUNICATION_READ** | View inbox feed operations, campaign analytics/history, and provider health/dead-letter visibility. |
+| **SCHOOL_COMMUNICATION_WRITE** | Publish announcements/events, queue campaigns, and replay failed delivery queues. |
+| **SCHOOL_DIRECTORY_READ** | Search and view teacher/student/staff directory entries. |
+| **SCHOOL_DIRECTORY_WRITE** | Manage directory administration actions and future directory updates. |
+| **SCHOOL_OPERATIONS_READ** | View operations-hub queues and dashboards (visitors, gate passes, inventory, reminders). |
+| **SCHOOL_OPERATIONS_WRITE** | Execute operations-hub workflow actions (staff, visitors, gate, inventory, reminders). |
+| **SCHOOL_ACADEMIC_READ** | View academic rosters, classes, sections, assignments, attendance, and timetable data. |
+| **SCHOOL_ACADEMIC_WRITE** | Manage academic setup, assignments, promotions, and academic workflow updates. |
+| **SCHOOL_REPORTS_READ** | View school-scoped reporting dashboards, summaries, and generated report history. |
+| **SCHOOL_REPORTS_WRITE** | Manage report templates, workflow actions (approve/publish/rollback), and report processing jobs. |
+| **SCHOOL_CHAT_READ** | View chat inbox, conversation history, and role-aware participant directory. |
+| **SCHOOL_CHAT_WRITE** | Start conversations, send messages, and update read markers. |
 | **FEE_STRUCTURES_READ** | **Read** published fee information (e.g. teachers seeing relevant fee context for a class). |
 | **ACADEMIC_TEACHER** | **Classroom** side: roster, attendance, marks, timetable within assigned scope. |
 | **LIBRARY_MANAGE** / **LIBRARY_CIRCULATION** | **Library** catalogue and circulation. |

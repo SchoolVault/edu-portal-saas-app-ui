@@ -107,6 +107,10 @@ public class TeacherService {
                 .subjects(req.getSubjects())
                 .status(Enums.TeacherStatus.ACTIVE)
                 .build();
+        t.setBankAccountHolder(trimToNull(req.getBankAccountHolder()));
+        t.setBankName(trimToNull(req.getBankName()));
+        t.setBankAccountNumber(trimToNull(req.getBankAccountNumber()));
+        t.setBankIfsc(normalizeIfsc(req.getBankIfsc()));
         t.setTenantId(TenantContext.getTenantId());
         repo.save(t);
         log.info("Teacher created id={}", t.getId());
@@ -147,6 +151,10 @@ public class TeacherService {
                 .subjects(req.getSubjects() != null ? req.getSubjects() : List.of())
                 .status(Enums.TeacherStatus.ACTIVE)
                 .build();
+        t.setBankAccountHolder(trimToNull(req.getBankAccountHolder()));
+        t.setBankName(trimToNull(req.getBankName()));
+        t.setBankAccountNumber(trimToNull(req.getBankAccountNumber()));
+        t.setBankIfsc(normalizeIfsc(req.getBankIfsc()));
         if (libraryStaffRole != null) {
             t.setLibraryStaffRole(libraryStaffRole);
         }
@@ -217,35 +225,53 @@ public class TeacherService {
                     ImportLineOutcome.SKIPPED, naturalKey);
         }
         if (policy == BulkImportRowPolicy.UPSERT) {
-            TeacherDTOs.UpdateRequest ur = new TeacherDTOs.UpdateRequest();
-            ur.setFirstName(req.getFirstName());
-            ur.setLastName(req.getLastName());
+            Teacher teacher = existing.get();
+            String previousEmail = teacher.getEmail();
+            teacher.setFirstName(req.getFirstName());
+            teacher.setLastName(req.getLastName());
             if (req.getEmail() != null) {
-                ur.setEmail(req.getEmail());
+                String normalizedEmail = req.getEmail().trim().toLowerCase(Locale.ROOT);
+                repo.findByTenantIdAndEmailIgnoreCaseAndIsDeletedFalse(tenantId, normalizedEmail).ifPresent(existingByEmail -> {
+                    if (!existingByEmail.getId().equals(teacher.getId())) {
+                        throw new DuplicateResourceException("Teacher email already exists: " + normalizedEmail);
+                    }
+                });
+                teacher.setEmail(normalizedEmail);
             }
-            ur.setPhone(req.getPhone());
-            ur.setQualification(req.getQualification());
-            ur.setSpecialization(req.getSpecialization());
-            ur.setJoinDate(req.getJoinDate());
-            ur.setSalary(req.getSalary());
-            ur.setSubjects(req.getSubjects());
-            ur.setBankAccountHolder(req.getBankAccountHolder());
-            ur.setBankName(req.getBankName());
-            ur.setBankAccountNumber(req.getBankAccountNumber());
-            ur.setBankIfsc(req.getBankIfsc());
-            TeacherDTOs.Response updated = update(existing.get().getId(), ur);
+            teacher.setPhone(canonicalPhone);
+            teacher.setQualification(req.getQualification());
+            teacher.setSpecialization(req.getSpecialization());
+            teacher.setJoinDate(req.getJoinDate());
+            teacher.setSalary(req.getSalary());
+            teacher.setSubjects(req.getSubjects());
+            teacher.setBankAccountHolder(trimToNull(req.getBankAccountHolder()));
+            teacher.setBankName(trimToNull(req.getBankName()));
+            teacher.setBankAccountNumber(trimToNull(req.getBankAccountNumber()));
+            teacher.setBankIfsc(normalizeIfsc(req.getBankIfsc()));
+            if (libraryStaffRole != null) {
+                teacher.setLibraryStaffRole(libraryStaffRole);
+            } else if (portalRole == Enums.Role.TEACHER) {
+                teacher.setLibraryStaffRole(null);
+            }
+            try {
+                repo.save(teacher);
+                syncLinkedPortalUserIdentity(tenantId, teacher, previousEmail);
+            } catch (DataIntegrityViolationException ex) {
+                throw new BusinessException("Duplicate contact values are not allowed for this school.");
+            }
+            TeacherDTOs.Response updated = applyAudienceVisibility(toRes(teacher, homeroomClassNamesForTeacher(tenantId, teacher.getId())));
             if (createPortal) {
                 Long updatedTeacherId = updated.getId();
-                Teacher teacher = repo.findByIdAndTenantIdAndIsDeletedFalse(updatedTeacherId, tenantId)
+                Teacher refreshed = repo.findByIdAndTenantIdAndIsDeletedFalse(updatedTeacherId, tenantId)
                         .orElseThrow(() -> new ResourceNotFoundException("Teacher", updatedTeacherId));
-                String display = (teacher.getFirstName() + " " + teacher.getLastName()).trim();
+                String display = (refreshed.getFirstName() + " " + refreshed.getLastName()).trim();
                 PortalUserProvisioningService.ProvisionResult pr = portalUserProvisioningService.ensureStaffUserForImport(
                         tenantId, portalLoginEmail, display, portalLoginPhone, portalRole, importPassword);
-                if (teacher.getUserId() == null || !teacher.getUserId().equals(pr.userId())) {
-                    teacher.setUserId(pr.userId());
-                    repo.save(teacher);
+                if (refreshed.getUserId() == null || !refreshed.getUserId().equals(pr.userId())) {
+                    refreshed.setUserId(pr.userId());
+                    repo.save(refreshed);
                 }
-                updated = applyAudienceVisibility(toRes(teacher, homeroomClassNamesForTeacher(tenantId, teacher.getId())));
+                updated = applyAudienceVisibility(toRes(refreshed, homeroomClassNamesForTeacher(tenantId, refreshed.getId())));
             }
             return new LineApplyResult<>(updated, ImportLineOutcome.UPDATED, naturalKey);
         }
@@ -292,10 +318,10 @@ public class TeacherService {
         if (req.getJoinDate() != null) t.setJoinDate(req.getJoinDate());
         if (req.getSalary() != null) t.setSalary(req.getSalary());
         if (req.getSubjects() != null) t.setSubjects(req.getSubjects());
-        if (req.getBankAccountHolder() != null) t.setBankAccountHolder(req.getBankAccountHolder());
-        if (req.getBankName() != null) t.setBankName(req.getBankName());
-        if (req.getBankAccountNumber() != null) t.setBankAccountNumber(req.getBankAccountNumber());
-        if (req.getBankIfsc() != null) t.setBankIfsc(req.getBankIfsc());
+        if (req.getBankAccountHolder() != null) t.setBankAccountHolder(trimToNull(req.getBankAccountHolder()));
+        if (req.getBankName() != null) t.setBankName(trimToNull(req.getBankName()));
+        if (req.getBankAccountNumber() != null) t.setBankAccountNumber(trimToNull(req.getBankAccountNumber()));
+        if (req.getBankIfsc() != null) t.setBankIfsc(normalizeIfsc(req.getBankIfsc()));
         if (req.getStatus() != null && !req.getStatus().isBlank()) {
             try {
                 Enums.TeacherStatus next = Enums.TeacherStatus.valueOf(req.getStatus().trim().toUpperCase(Locale.ROOT));
@@ -558,6 +584,10 @@ public class TeacherService {
     private TeacherDTOs.Response toRes(Teacher t, List<String> homeroomClassNames) {
         TeacherDTOs.Response r = TeacherDTOs.Response.builder().id(t.getId()).firstName(t.getFirstName()).lastName(t.getLastName()).email(t.getEmail()).phone(t.getPhone()).qualification(t.getQualification()).specialization(t.getSpecialization()).joinDate(t.getJoinDate()).salary(t.getSalary()).status(t.getStatus() != null ? t.getStatus().name().toLowerCase() : "active").subjects(EntitySnapshotCollections.detachList(t.getSubjects())).avatar(t.getAvatar()).tenantId(t.getTenantId()).build();
         r.setUserId(t.getUserId());
+        r.setBankAccountHolder(t.getBankAccountHolder());
+        r.setBankName(t.getBankName());
+        r.setBankAccountNumber(t.getBankAccountNumber());
+        r.setBankIfsc(t.getBankIfsc());
         if (t.getLibraryStaffRole() != null) {
             r.setLibraryStaffRole(t.getLibraryStaffRole().name().toLowerCase());
         }
@@ -683,6 +713,19 @@ public class TeacherService {
     private BigDecimal parseDecimal(String value) {
         String normalized = blankToNull(value);
         return normalized != null ? new BigDecimal(normalized) : null;
+    }
+
+    private String trimToNull(String value) {
+        if (value == null) {
+            return null;
+        }
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? null : trimmed;
+    }
+
+    private String normalizeIfsc(String value) {
+        String normalized = trimToNull(value);
+        return normalized != null ? normalized.toUpperCase(Locale.ROOT) : null;
     }
 
     private List<String> parseSubjects(String value) {

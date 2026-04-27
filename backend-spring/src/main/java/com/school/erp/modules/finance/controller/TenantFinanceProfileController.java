@@ -33,7 +33,7 @@ public class TenantFinanceProfileController {
     }
 
     @PutMapping
-    @PreAuthorize(RbacSpel.SCHOOL_SETTINGS_FINANCE)
+    @PreAuthorize(RbacSpel.SCHOOL_SETTINGS_FINANCE_WRITE)
     @Operation(summary = "Update finance routing profile for current tenant")
     public ResponseEntity<ApiResponse<TenantFinanceProfileDTOs.FinanceProfileResponse>> put(
             @Valid @RequestBody TenantFinanceProfileDTOs.FinanceProfileUpdateRequest body) {
@@ -41,7 +41,7 @@ public class TenantFinanceProfileController {
     }
 
     @PostMapping("/submit-for-review")
-    @PreAuthorize(RbacSpel.SCHOOL_SETTINGS_FINANCE)
+    @PreAuthorize(RbacSpel.SCHOOL_SETTINGS_FINANCE_WRITE)
     @Operation(
             summary = "Submit Razorpay Route settlement for platform review",
             description = "Moves onboarding from DRAFT or PENDING_CHANGES to SUBMITTED. Parent online fee checkout stays blocked until platform sets LIVE.")
@@ -51,7 +51,7 @@ public class TenantFinanceProfileController {
     }
 
     @PostMapping("/withdraw-submission")
-    @PreAuthorize(RbacSpel.SCHOOL_SETTINGS_FINANCE)
+    @PreAuthorize(RbacSpel.SCHOOL_SETTINGS_FINANCE_WRITE)
     @Operation(summary = "Withdraw a pending Route submission", description = "Returns onboarding to DRAFT so the school can edit configuration again.")
     public ResponseEntity<ApiResponse<TenantFinanceProfileDTOs.FinanceProfileResponse>> withdrawSubmission() {
         return ResponseEntity.ok(ApiResponse.ok(service.withdrawSubmission(), "Submission withdrawn"));

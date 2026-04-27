@@ -1446,8 +1446,12 @@ export interface BookIssue {
   id: string;
   bookId: number;
   bookTitle: string;
-  studentId: number;
-  studentName: string;
+  studentId?: number;
+  studentName?: string;
+  borrowerType?: 'student' | 'staff' | 'guardian' | 'other';
+  borrowerRefId?: number;
+  borrowerUserId?: number;
+  borrowerDisplayName?: string;
   issueDate: string;
   dueDate: string;
   returnDate?: string;
@@ -1486,6 +1490,95 @@ export interface HostelRoom {
   hostelName?: string;
   residents?: HostelResident[];
   tenantId: string;
+}
+
+export interface HostelBillingProfile {
+  id?: string;
+  studentId: number;
+  studentName?: string;
+  feeStructureId: number;
+  billingCadence?: 'MONTHLY' | 'TERM' | 'ANNUAL' | string;
+  depositAmount?: number | null;
+  messChargeAmount?: number | null;
+  autoInvoiceEnabled?: boolean;
+  lastInvoiceDate?: string | null;
+  nextDueDate?: string | null;
+}
+
+export interface HostelBillingRunResult {
+  runRef: string;
+  queuedProfiles: number;
+  dueDate: string;
+  note?: string;
+}
+
+export interface HostelGatePass {
+  id: string;
+  studentId: number;
+  studentName?: string;
+  requestType: 'LEAVE_OUT' | 'GATE_PASS' | string;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'RETURNED' | string;
+  reason?: string;
+  outAt?: string;
+  expectedInAt?: string;
+  actualInAt?: string;
+  approvalNote?: string;
+}
+
+export interface HostelVisitorEntry {
+  id: string;
+  studentId: number;
+  studentName?: string;
+  visitorName?: string;
+  relationLabel?: string;
+  visitorPhone?: string;
+  purpose?: string;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'CHECKED_OUT' | string;
+  checkInAt?: string;
+  checkOutAt?: string;
+  approvalNote?: string;
+}
+
+export interface HostelIncident {
+  id: string;
+  studentId?: number;
+  studentName?: string;
+  incidentType?: string;
+  severity?: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL' | string;
+  status?: 'OPEN' | 'ESCALATED' | 'RESOLVED' | string;
+  summary?: string;
+  occurredAt?: string;
+  escalatedAt?: string;
+  escalationLevel?: string;
+  resolutionNote?: string;
+  resolutionReason?: string;
+  slaDueAt?: string;
+}
+
+export interface HostelPortalProfile {
+  studentId: number;
+  studentName: string;
+  hostelName?: string;
+  roomNumber?: string;
+  roomType?: string;
+  occupancyLabel?: string;
+  billingCadence?: string;
+  nextDueDate?: string;
+  activeGatePassStatus?: string;
+}
+
+export interface HostelBookingRequest {
+  id: string;
+  studentId: number;
+  studentName?: string;
+  parentUserId?: number;
+  preferredHostelId?: number;
+  preferredRoomType?: string;
+  status?: string;
+  requestNote?: string;
+  decisionNote?: string;
+  approvedAllocationId?: number;
+  createdAt?: string;
 }
 
 export interface SalaryStructure {
@@ -1658,6 +1751,9 @@ export interface TenantConfig {
   primaryColor: string;
   secondaryColor: string;
   features: Record<string, boolean>;
+  leaveSmsApplyTemplate?: string;
+  leaveSmsDecisionTemplate?: string;
+  libraryBorrowerPolicyJson?: string;
   tenantId: string;
 }
 

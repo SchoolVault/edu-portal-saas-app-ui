@@ -46,7 +46,7 @@ public class RbacController {
     }
 
     @PutMapping("/users/{userId}/assignments")
-    @PreAuthorize(RbacSpel.SCHOOL_RBAC_API)
+    @PreAuthorize(RbacSpel.SCHOOL_RBAC_API_WRITE)
     @Operation(summary = "Replace school role assignments (union of permissions issued at next login/refresh)")
     public ResponseEntity<ApiResponse<RbacDTOs.UserSchoolRoleAssignmentResponse>> putAssignments(
             @PathVariable Long userId, @Valid @RequestBody RbacDTOs.ReplaceUserSchoolRolesRequest body) {
@@ -61,7 +61,7 @@ public class RbacController {
     }
 
     @PostMapping("/roles/custom")
-    @PreAuthorize(RbacSpel.SCHOOL_RBAC_API)
+    @PreAuthorize(RbacSpel.SCHOOL_RBAC_API_WRITE)
     @Operation(summary = "Create a tenant-specific school role (non-template)")
     public ResponseEntity<ApiResponse<RbacDTOs.SchoolRoleResponse>> createCustomRole(
             @Valid @RequestBody RbacDTOs.CreateCustomSchoolRoleRequest body) {
@@ -69,7 +69,7 @@ public class RbacController {
     }
 
     @PutMapping("/roles/{roleId}/custom")
-    @PreAuthorize(RbacSpel.SCHOOL_RBAC_API)
+    @PreAuthorize(RbacSpel.SCHOOL_RBAC_API_WRITE)
     @Operation(summary = "Update a tenant-specific school role (system templates are immutable)")
     public ResponseEntity<ApiResponse<RbacDTOs.SchoolRoleResponse>> updateCustomRole(
             @PathVariable long roleId, @Valid @RequestBody RbacDTOs.UpdateCustomSchoolRoleRequest body) {
@@ -77,7 +77,7 @@ public class RbacController {
     }
 
     @DeleteMapping("/roles/{roleId}/custom")
-    @PreAuthorize(RbacSpel.SCHOOL_RBAC_API)
+    @PreAuthorize(RbacSpel.SCHOOL_RBAC_API_WRITE)
     @Operation(summary = "Soft-delete a tenant-specific school role (removes all assignments; system roles cannot be deleted)")
     public ResponseEntity<ApiResponse<Void>> deleteCustomRole(@PathVariable long roleId) {
         rbacService.deleteCustomSchoolRole(roleId);
@@ -92,7 +92,7 @@ public class RbacController {
     }
 
     @PostMapping("/permission-groups")
-    @PreAuthorize(RbacSpel.SCHOOL_RBAC_API)
+    @PreAuthorize(RbacSpel.SCHOOL_RBAC_API_WRITE)
     @Operation(summary = "Create a tenant-defined permission pack (reusable across school roles)")
     public ResponseEntity<ApiResponse<RbacDTOs.PermissionGroupResponse>> createPermissionGroup(
             @Valid @RequestBody RbacDTOs.CreatePermissionGroupRequest body) {
@@ -100,7 +100,7 @@ public class RbacController {
     }
 
     @PutMapping("/permission-groups/{groupId}")
-    @PreAuthorize(RbacSpel.SCHOOL_RBAC_API)
+    @PreAuthorize(RbacSpel.SCHOOL_RBAC_API_WRITE)
     @Operation(summary = "Update a non-template permission pack")
     public ResponseEntity<ApiResponse<RbacDTOs.PermissionGroupResponse>> updatePermissionGroup(
             @PathVariable long groupId, @Valid @RequestBody RbacDTOs.UpdatePermissionGroupRequest body) {
@@ -108,7 +108,7 @@ public class RbacController {
     }
 
     @DeleteMapping("/permission-groups/{groupId}")
-    @PreAuthorize(RbacSpel.SCHOOL_RBAC_API)
+    @PreAuthorize(RbacSpel.SCHOOL_RBAC_API_WRITE)
     @Operation(summary = "Soft-delete a tenant-defined permission pack (detaches from roles; system templates cannot be deleted)")
     public ResponseEntity<ApiResponse<Void>> deletePermissionGroup(@PathVariable long groupId) {
         rbacService.deletePermissionGroup(groupId);

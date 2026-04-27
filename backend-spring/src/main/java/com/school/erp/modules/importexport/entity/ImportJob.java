@@ -53,6 +53,10 @@ public class ImportJob extends BaseEntity {
     @Column(name = "execution_mode", nullable = false, length = 32)
     private String executionMode = "BEST_EFFORT";
 
+    /** True when submit explicitly requested same-file reprocess (idempotent replay bypass). */
+    @Column(name = "reprocess_requested", nullable = false)
+    private Boolean reprocessRequested = false;
+
     public Long getCreatedByUserId() {
         return createdByUserId;
     }
@@ -155,5 +159,13 @@ public class ImportJob extends BaseEntity {
 
     public void setExecutionMode(String executionMode) {
         this.executionMode = executionMode;
+    }
+
+    public Boolean getReprocessRequested() {
+        return reprocessRequested;
+    }
+
+    public void setReprocessRequested(Boolean reprocessRequested) {
+        this.reprocessRequested = reprocessRequested;
     }
 }

@@ -283,6 +283,7 @@ public class ImportExportDTOs {
         private LocalDateTime createdAt;
         private String payloadHash;
         private String executionMode;
+        private boolean reprocessRequested;
 
         public Long getId() {
             return id;
@@ -386,6 +387,14 @@ public class ImportExportDTOs {
 
         public void setExecutionMode(String executionMode) {
             this.executionMode = executionMode;
+        }
+
+        public boolean isReprocessRequested() {
+            return reprocessRequested;
+        }
+
+        public void setReprocessRequested(boolean reprocessRequested) {
+            this.reprocessRequested = reprocessRequested;
         }
     }
 

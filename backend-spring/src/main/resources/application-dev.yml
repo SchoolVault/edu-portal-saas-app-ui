@@ -6,6 +6,12 @@
 # 2) Confirm credentials outside Spring: mysql -h <host> -P <port> -u avnadmin -p --ssl-mode=REQUIRED defaultdb
 # 3) If you still get 1045: reset avnadmin password in Aiven, re-paste into IDE (no trailing newline). Hikari DEBUG below logs jdbcUrl + username at startup.
 app:
+  import:
+    # In local dev, rerunning the same CSV should execute again (not idempotent replay),
+    # so import fixes can be verified quickly without editing the file content.
+    completed-job-idempotency-enabled: false
+    # Enable explicit `reprocess=true` on submit in local/dev for corrective UPSERT reruns.
+    allow-reprocess-override: true
   auth:
     email-verification:
       # Same as ng serve; override with AUTH_EMAIL_VER_PUBLIC_SPA_BASE_URL or APP_PUBLIC_SPA_BASE_URL.

@@ -144,7 +144,7 @@ import { DEFAULT_ERP_PAGE_SIZE } from '../../core/constants/pagination.constants
           />
         </div>
 
-        <div *ngIf="canPublish" class="erp-card mt-3">
+        <div *ngIf="canViewOpsDashboard" class="erp-card mt-3">
           <div class="d-flex justify-content-between align-items-center mb-2">
             <h3 style="font-size: 16px; margin: 0;">Notification Delivery Dashboard</h3>
             <button type="button" class="btn-outline-erp btn-sm" (click)="refreshOpsDashboard()">Refresh</button>
@@ -169,7 +169,7 @@ import { DEFAULT_ERP_PAGE_SIZE } from '../../core/constants/pagination.constants
               Delivered {{ a.sent }} | Retrying {{ a.retry }} | Failed {{ a.deadLetter }} | Total {{ a.total }}
             </div>
             <div class="mt-1" *ngIf="(campaignAnalytics[c.campaignId]?.deadLetter || 0) > 0">
-              <button type="button" class="btn-outline-erp btn-sm" (click)="replayCampaignDlq(c.campaignId)">Retry failed deliveries</button>
+              <button *ngIf="canPublish" type="button" class="btn-outline-erp btn-sm" (click)="replayCampaignDlq(c.campaignId)">Retry failed deliveries</button>
             </div>
           </div>
           <app-erp-pagination
@@ -189,7 +189,7 @@ import { DEFAULT_ERP_PAGE_SIZE } from '../../core/constants/pagination.constants
             <div *ngFor="let dlq of deadLetters" class="border rounded p-2 mb-2">
               <div class="small"><strong>{{ dlq.eventType }}</strong> · {{ dlq.channel }} · attempts {{ dlq.attempts }}</div>
               <div class="small text-muted">{{ dlq.lastError }}</div>
-              <button type="button" class="btn-outline-erp btn-sm mt-1" (click)="replayDeadLetter(dlq.id)">Retry delivery</button>
+              <button *ngIf="canPublish" type="button" class="btn-outline-erp btn-sm mt-1" (click)="replayDeadLetter(dlq.id)">Retry delivery</button>
             </div>
             <app-erp-pagination
               *ngIf="deadLetterTotal > 0"
@@ -463,6 +463,11 @@ export class CommunicationComponent implements OnInit {
     return this.uiAccess.hasCommunicationSchoolAdminDesk();
   }
 
+  /** Read-only comm desk users can inspect ops dashboard even without publish rights. */
+  get canViewOpsDashboard(): boolean {
+    return this.uiAccess.hasCommunicationDeskReadAccess();
+  }
+
   get hasActiveFilters(): boolean {
     return (
       this.appliedFilters.feedKind !== 'ALL' ||
@@ -494,7 +499,11 @@ export class CommunicationComponent implements OnInit {
     );
     this.destroyRef.onDestroy(() => this.subs.unsubscribe());
     this.refreshInbox();
-    this.academic.getClasses().subscribe(list => (this.annClasses = list || []));
+    if (this.canPublish) {
+      this.academic.getClasses().subscribe(list => (this.annClasses = list || []));
+    } else {
+      this.annClasses = [];
+    }
     this.refreshOpsDashboard();
     this.route.queryParamMap.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(params => {
       const campaignId = params.get('campaignId');
@@ -803,7 +812,7 @@ export class CommunicationComponent implements OnInit {
   }
 
   loadCampaignHistory(): void {
-    if (!this.canPublish) {
+    if (!this.canViewOpsDashboard) {
       return;
     }
     this.campaignHistoryLoading = true;
@@ -828,7 +837,7 @@ export class CommunicationComponent implements OnInit {
   }
 
   loadDeadLetters(): void {
-    if (!this.canPublish) {
+    if (!this.canViewOpsDashboard) {
       return;
     }
     this.deadLetterLoading = true;
@@ -845,7 +854,7 @@ export class CommunicationComponent implements OnInit {
   }
 
   loadProviderHealth(): void {
-    if (!this.canPublish) {
+    if (!this.canViewOpsDashboard) {
       return;
     }
     this.comm.getProviderHealth().subscribe({

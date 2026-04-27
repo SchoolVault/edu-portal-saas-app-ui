@@ -608,6 +608,7 @@ export class ParentPortalComponent implements OnInit, OnDestroy {
   portalError: string | null = null;
   /** Review-step validation for amount vs payable. */
   paymentAmountError: string | null = null;
+  private pendingDeepLinkPaymentId: number | null = null;
   readonly useMocks = runtimeConfig.useMocks;
 
   /** Deep-link into Examinations with the selected child and Results tab when published. */
@@ -806,6 +807,10 @@ export class ParentPortalComponent implements OnInit, OnDestroy {
     if (child && /^\d+$/.test(child)) {
       this.selectedStudentId = Number(child);
     }
+    const paymentId = qp.get('paymentId');
+    if (paymentId && /^\d+$/.test(paymentId)) {
+      this.pendingDeepLinkPaymentId = Number(paymentId);
+    }
   }
 
   ngOnDestroy(): void {
@@ -862,6 +867,7 @@ export class ParentPortalComponent implements OnInit, OnDestroy {
     });
     this.parentService.getChildFeeObligations(this.selectedStudentId).subscribe(items => {
       this.feeObligations = items;
+      this.tryOpenDeepLinkedPayment();
     });
     this.reloadReceiptHistory();
     this.reloadReceiptLookup();
@@ -920,6 +926,15 @@ export class ParentPortalComponent implements OnInit, OnDestroy {
         this.portalError = 'Could not load receipt history.';
       }
     });
+  }
+
+  private tryOpenDeepLinkedPayment(): void {
+    if (this.pendingDeepLinkPaymentId == null) return;
+    const target = this.feeObligations.find(x => x.paymentId === this.pendingDeepLinkPaymentId);
+    if (!target) return;
+    this.pendingDeepLinkPaymentId = null;
+    this.tab = 'fees';
+    this.openPayment(target);
   }
 
   setReceiptPreset(days: number): void {

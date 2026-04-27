@@ -9,6 +9,7 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
 import java.time.LocalDate;
+import java.util.List;
 
 /**
  * REST contract for {@code /api/v1/leave/**}. Use stable enum names in JSON for status, dayUnit, and leaveType;
@@ -263,10 +264,13 @@ public final class LeaveDTOs {
     public static class LeaveBalanceSummary {
         private int annualEntitled = 24;
         private int annualUsed = 0;
+        private int annualRemaining = 24;
         private int sickEntitled = 12;
         private int sickUsed = 0;
+        private int sickRemaining = 12;
         private int casualEntitled = 12;
         private int casualUsed = 0;
+        private int casualRemaining = 12;
 
         public int getAnnualEntitled() {
             return annualEntitled;
@@ -282,6 +286,14 @@ public final class LeaveDTOs {
 
         public void setAnnualUsed(int annualUsed) {
             this.annualUsed = annualUsed;
+        }
+
+        public int getAnnualRemaining() {
+            return annualRemaining;
+        }
+
+        public void setAnnualRemaining(int annualRemaining) {
+            this.annualRemaining = annualRemaining;
         }
 
         public int getSickEntitled() {
@@ -300,6 +312,14 @@ public final class LeaveDTOs {
             this.sickUsed = sickUsed;
         }
 
+        public int getSickRemaining() {
+            return sickRemaining;
+        }
+
+        public void setSickRemaining(int sickRemaining) {
+            this.sickRemaining = sickRemaining;
+        }
+
         public int getCasualEntitled() {
             return casualEntitled;
         }
@@ -314,6 +334,14 @@ public final class LeaveDTOs {
 
         public void setCasualUsed(int casualUsed) {
             this.casualUsed = casualUsed;
+        }
+
+        public int getCasualRemaining() {
+            return casualRemaining;
+        }
+
+        public void setCasualRemaining(int casualRemaining) {
+            this.casualRemaining = casualRemaining;
         }
     }
 
@@ -368,5 +396,86 @@ public final class LeaveDTOs {
         public void setPolicyYearLabel(String policyYearLabel) {
             this.policyYearLabel = policyYearLabel;
         }
+    }
+
+    public static class EntitlementLedgerEntryResponse {
+        private Long id;
+        private Long userId;
+        private String leaveType;
+        private String policyYearLabel;
+        private String entryType;
+        private Integer signedUnits;
+        private String notes;
+        private String referenceType;
+        private Long referenceId;
+        private LocalDate effectiveDate;
+        private String createdAt;
+
+        public Long getId() { return id; }
+        public void setId(Long id) { this.id = id; }
+        public Long getUserId() { return userId; }
+        public void setUserId(Long userId) { this.userId = userId; }
+        public String getLeaveType() { return leaveType; }
+        public void setLeaveType(String leaveType) { this.leaveType = leaveType; }
+        public String getPolicyYearLabel() { return policyYearLabel; }
+        public void setPolicyYearLabel(String policyYearLabel) { this.policyYearLabel = policyYearLabel; }
+        public String getEntryType() { return entryType; }
+        public void setEntryType(String entryType) { this.entryType = entryType; }
+        public Integer getSignedUnits() { return signedUnits; }
+        public void setSignedUnits(Integer signedUnits) { this.signedUnits = signedUnits; }
+        public String getNotes() { return notes; }
+        public void setNotes(String notes) { this.notes = notes; }
+        public String getReferenceType() { return referenceType; }
+        public void setReferenceType(String referenceType) { this.referenceType = referenceType; }
+        public Long getReferenceId() { return referenceId; }
+        public void setReferenceId(Long referenceId) { this.referenceId = referenceId; }
+        public LocalDate getEffectiveDate() { return effectiveDate; }
+        public void setEffectiveDate(LocalDate effectiveDate) { this.effectiveDate = effectiveDate; }
+        public String getCreatedAt() { return createdAt; }
+        public void setCreatedAt(String createdAt) { this.createdAt = createdAt; }
+    }
+
+    public static class BulkEntitlementAllocationRequest {
+        private String policyYearLabel;
+        private Integer annualOpening;
+        private Integer sickOpening;
+        private Integer casualOpening;
+        private List<Long> userIds;
+        private List<String> roleFilters;
+        private boolean overwriteExistingYear;
+        private String notes;
+
+        public String getPolicyYearLabel() { return policyYearLabel; }
+        public void setPolicyYearLabel(String policyYearLabel) { this.policyYearLabel = policyYearLabel; }
+        public Integer getAnnualOpening() { return annualOpening; }
+        public void setAnnualOpening(Integer annualOpening) { this.annualOpening = annualOpening; }
+        public Integer getSickOpening() { return sickOpening; }
+        public void setSickOpening(Integer sickOpening) { this.sickOpening = sickOpening; }
+        public Integer getCasualOpening() { return casualOpening; }
+        public void setCasualOpening(Integer casualOpening) { this.casualOpening = casualOpening; }
+        public List<Long> getUserIds() { return userIds; }
+        public void setUserIds(List<Long> userIds) { this.userIds = userIds; }
+        public List<String> getRoleFilters() { return roleFilters; }
+        public void setRoleFilters(List<String> roleFilters) { this.roleFilters = roleFilters; }
+        public boolean isOverwriteExistingYear() { return overwriteExistingYear; }
+        public void setOverwriteExistingYear(boolean overwriteExistingYear) { this.overwriteExistingYear = overwriteExistingYear; }
+        public String getNotes() { return notes; }
+        public void setNotes(String notes) { this.notes = notes; }
+    }
+
+    public static class BulkEntitlementAllocationResponse {
+        private String policyYearLabel;
+        private int targetedUsers;
+        private int allocatedUsers;
+        private int skippedUsers;
+
+        public String getPolicyYearLabel() { return policyYearLabel; }
+        public void setPolicyYearLabel(String policyYearLabel) { this.policyYearLabel = policyYearLabel; }
+        public int getTargetedUsers() { return targetedUsers; }
+        public void setTargetedUsers(int targetedUsers) { this.targetedUsers = targetedUsers; }
+        public int getAllocatedUsers() { return allocatedUsers; }
+        public void setAllocatedUsers(int allocatedUsers) { this.allocatedUsers = allocatedUsers; }
+        public int getSkippedUsers() { return skippedUsers; }
+        public void setSkippedUsers(int skippedUsers) { this.skippedUsers = skippedUsers; }
     }
 }

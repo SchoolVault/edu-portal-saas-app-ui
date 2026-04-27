@@ -84,7 +84,7 @@ public class ReportController {
 
     @GetMapping("/student-performance")
     @RequireTenantFeature("reports")
-    @PreAuthorize(RbacSpel.ACADEMIC_ROSTER_READ)
+    @PreAuthorize(RbacSpel.SCHOOL_REPORTS_READ)
     @Operation(summary = "Student performance report", description = "Class-wise student performance with marks, grades, and rankings")
     public ResponseEntity<ApiResponse<List<Map<String, Object>>>> studentPerformance(
             @RequestParam Long classId,
@@ -95,7 +95,7 @@ public class ReportController {
 
     @GetMapping("/attendance-summary")
     @RequireTenantFeature("reports")
-    @PreAuthorize(RbacSpel.ACADEMIC_ROSTER_READ)
+    @PreAuthorize(RbacSpel.SCHOOL_REPORTS_READ)
     @Operation(summary = "Attendance summary report", description = "Monthly attendance summary by class")
     public ResponseEntity<ApiResponse<List<Map<String, Object>>>> attendanceSummary(
             @RequestParam Long classId,
@@ -106,7 +106,7 @@ public class ReportController {
 
     @GetMapping("/fee-collection")
     @RequireTenantFeature("reports")
-    @PreAuthorize(RbacSpel.ACADEMIC_DESK_ADMIN)
+    @PreAuthorize(RbacSpel.SCHOOL_REPORTS_READ)
     @Operation(summary = "Fee collection report", description = "Fee collection status with pending and collected amounts")
     public ResponseEntity<ApiResponse<Map<String, Object>>> feeCollection(
             @RequestParam(required = false) Long classId,
@@ -116,7 +116,7 @@ public class ReportController {
 
     @GetMapping("/class-summary")
     @RequireTenantFeature("reports")
-    @PreAuthorize(RbacSpel.ACADEMIC_DESK_ADMIN)
+    @PreAuthorize(RbacSpel.SCHOOL_REPORTS_READ)
     @Operation(summary = "Class summary report", description = "Overview of all classes with statistics")
     public ResponseEntity<ApiResponse<List<Map<String, Object>>>> classSummary() {
         return ResponseEntity.ok(ApiResponse.ok(reportService.getClassSummary()));
@@ -124,7 +124,7 @@ public class ReportController {
 
     @GetMapping("/class-summary/paged")
     @RequireTenantFeature("reports")
-    @PreAuthorize(RbacSpel.ACADEMIC_DESK_ADMIN)
+    @PreAuthorize(RbacSpel.SCHOOL_REPORTS_READ)
     @Operation(summary = "Class summary report (paged)", description = "Same aggregates as class-summary; windowed for large tenants")
     public ResponseEntity<ApiResponse<PageResponse<Map<String, Object>>>> classSummaryPaged(
             @RequestParam(defaultValue = "0") int page,
@@ -134,7 +134,7 @@ public class ReportController {
 
     @GetMapping("/section-summary")
     @RequireTenantFeature("reports")
-    @PreAuthorize(RbacSpel.ACADEMIC_DESK_ADMIN)
+    @PreAuthorize(RbacSpel.SCHOOL_REPORTS_READ)
     @Operation(summary = "Section summary report", description = "Per-section student counts by class")
     public ResponseEntity<ApiResponse<List<Map<String, Object>>>> sectionSummary() {
         return ResponseEntity.ok(ApiResponse.ok(reportService.getSectionSummary()));
@@ -142,7 +142,7 @@ public class ReportController {
 
     @GetMapping("/section-summary/paged")
     @RequireTenantFeature("reports")
-    @PreAuthorize(RbacSpel.ACADEMIC_DESK_ADMIN)
+    @PreAuthorize(RbacSpel.SCHOOL_REPORTS_READ)
     @Operation(summary = "Section summary report (paged)")
     public ResponseEntity<ApiResponse<PageResponse<Map<String, Object>>>> sectionSummaryPaged(
             @RequestParam(defaultValue = "0") int page,
@@ -152,7 +152,7 @@ public class ReportController {
 
     @GetMapping("/teacher-workload")
     @RequireTenantFeature("reports")
-    @PreAuthorize(RbacSpel.ACADEMIC_DESK_ADMIN)
+    @PreAuthorize(RbacSpel.SCHOOL_REPORTS_READ)
     @Operation(summary = "Teacher workload report", description = "Teacher teaching hours and class assignments")
     public ResponseEntity<ApiResponse<List<Map<String, Object>>>> teacherWorkload() {
         return ResponseEntity.ok(ApiResponse.ok(reportService.getTeacherWorkload()));
@@ -160,7 +160,7 @@ public class ReportController {
 
     @GetMapping("/teacher-workload/paged")
     @RequireTenantFeature("reports")
-    @PreAuthorize(RbacSpel.ACADEMIC_DESK_ADMIN)
+    @PreAuthorize(RbacSpel.SCHOOL_REPORTS_READ)
     @Operation(summary = "Teacher workload report (paged)")
     public ResponseEntity<ApiResponse<PageResponse<Map<String, Object>>>> teacherWorkloadPaged(
             @RequestParam(defaultValue = "0") int page,
@@ -170,7 +170,7 @@ public class ReportController {
 
     @GetMapping("/templates")
     @RequireTenantFeature("reports")
-    @PreAuthorize(RbacSpel.ACADEMIC_ROSTER_READ)
+    @PreAuthorize(RbacSpel.SCHOOL_REPORTS_READ)
     @Operation(summary = "List report templates")
     public ResponseEntity<ApiResponse<List<ReportModuleDTOs.TemplateResponse>>> listTemplates() {
         return ResponseEntity.ok(ApiResponse.ok(reportService.listTemplates()));
@@ -178,7 +178,7 @@ public class ReportController {
 
     @PostMapping("/templates")
     @RequireTenantFeature("reports")
-    @PreAuthorize(RbacSpel.ACADEMIC_DESK_ADMIN)
+    @PreAuthorize(RbacSpel.SCHOOL_REPORTS_WRITE)
     @Operation(summary = "Create / update report template")
     public ResponseEntity<ApiResponse<ReportModuleDTOs.TemplateResponse>> upsertTemplate(@Valid @RequestBody ReportModuleDTOs.UpsertTemplateRequest req) {
         return ResponseEntity.ok(ApiResponse.ok(reportService.upsertTemplate(req)));
@@ -186,7 +186,7 @@ public class ReportController {
 
     @PostMapping("/generate")
     @RequireTenantFeature("reports")
-    @PreAuthorize(RbacSpel.ACADEMIC_ROSTER_READ)
+    @PreAuthorize(RbacSpel.SCHOOL_REPORTS_READ)
     @Operation(summary = "Generate a report file (PDF/CSV)")
     public ResponseEntity<ApiResponse<ReportModuleDTOs.ReportJobResponse>> generate(@Valid @RequestBody ReportModuleDTOs.GenerateReportRequest req) {
         return ResponseEntity.ok(ApiResponse.ok(reportService.generateReport(req)));
@@ -194,7 +194,7 @@ public class ReportController {
 
     @PutMapping("/jobs/{jobId}/retry")
     @RequireTenantFeature("reports")
-    @PreAuthorize(RbacSpel.ACADEMIC_DESK_ADMIN)
+    @PreAuthorize(RbacSpel.SCHOOL_REPORTS_WRITE)
     @Operation(summary = "Retry failed report generation job")
     public ResponseEntity<ApiResponse<ReportModuleDTOs.ReportJobResponse>> retryJob(@PathVariable Long jobId) {
         return ResponseEntity.ok(ApiResponse.ok(reportService.retryReportJob(jobId)));
@@ -202,7 +202,7 @@ public class ReportController {
 
     @GetMapping("/jobs")
     @RequireTenantFeature("reports")
-    @PreAuthorize(RbacSpel.ACADEMIC_ROSTER_READ)
+    @PreAuthorize(RbacSpel.SCHOOL_REPORTS_READ)
     @Operation(summary = "List generated report jobs (paged)")
     public ResponseEntity<ApiResponse<PageResponse<ReportModuleDTOs.ReportJobResponse>>> listJobs(
             @RequestParam(defaultValue = "0") int page,
@@ -212,7 +212,7 @@ public class ReportController {
 
     @GetMapping("/jobs/{jobId}/download")
     @RequireTenantFeature("reports")
-    @PreAuthorize(RbacSpel.ACADEMIC_ROSTER_READ)
+    @PreAuthorize(RbacSpel.SCHOOL_REPORTS_READ)
     @Operation(summary = "Download generated report")
     public ResponseEntity<byte[]> download(@PathVariable Long jobId) {
         var job = reportService.getGeneratedReportFile(jobId);
@@ -225,7 +225,7 @@ public class ReportController {
 
     @GetMapping("/jobs/{jobId}/dispatches")
     @RequireTenantFeature("reports")
-    @PreAuthorize(RbacSpel.ACADEMIC_DESK_ADMIN)
+    @PreAuthorize(RbacSpel.SCHOOL_REPORTS_READ)
     @Operation(summary = "List share dispatch rows for report job")
     public ResponseEntity<ApiResponse<PageResponse<ReportModuleDTOs.ShareDispatchResponse>>> listDispatches(
             @PathVariable Long jobId,
@@ -236,7 +236,7 @@ public class ReportController {
 
     @GetMapping("/jobs/{jobId}/events")
     @RequireTenantFeature("reports")
-    @PreAuthorize(RbacSpel.ACADEMIC_DESK_ADMIN)
+    @PreAuthorize(RbacSpel.SCHOOL_REPORTS_READ)
     @Operation(summary = "List workflow event logs for report job")
     public ResponseEntity<ApiResponse<PageResponse<ReportModuleDTOs.WorkflowEventLogResponse>>> listWorkflowEvents(
             @PathVariable Long jobId,
@@ -247,7 +247,7 @@ public class ReportController {
 
     @PutMapping("/jobs/{jobId}/approve")
     @RequireTenantFeature("reports")
-    @PreAuthorize(RbacSpel.ACADEMIC_DESK_ADMIN)
+    @PreAuthorize(RbacSpel.SCHOOL_REPORTS_WRITE)
     @Operation(summary = "Approve report job for publication")
     public ResponseEntity<ApiResponse<ReportModuleDTOs.ReportJobResponse>> approveJob(
             @PathVariable Long jobId,
@@ -257,7 +257,7 @@ public class ReportController {
 
     @PutMapping("/jobs/{jobId}/publish")
     @RequireTenantFeature("reports")
-    @PreAuthorize(RbacSpel.ACADEMIC_DESK_ADMIN)
+    @PreAuthorize(RbacSpel.SCHOOL_REPORTS_WRITE)
     @Operation(summary = "Publish approved report job and create immutable snapshot")
     public ResponseEntity<ApiResponse<ReportModuleDTOs.ReportJobResponse>> publishJob(
             @PathVariable Long jobId,
@@ -267,7 +267,7 @@ public class ReportController {
 
     @GetMapping("/jobs/{jobId}/snapshots")
     @RequireTenantFeature("reports")
-    @PreAuthorize(RbacSpel.ACADEMIC_DESK_ADMIN)
+    @PreAuthorize(RbacSpel.SCHOOL_REPORTS_READ)
     @Operation(summary = "List immutable publication snapshots for report job")
     public ResponseEntity<ApiResponse<List<ReportModuleDTOs.PublicationSnapshotResponse>>> listSnapshots(@PathVariable Long jobId) {
         return ResponseEntity.ok(ApiResponse.ok(reportService.listPublicationSnapshots(jobId)));
@@ -275,7 +275,7 @@ public class ReportController {
 
     @PutMapping("/jobs/{jobId}/rollback")
     @RequireTenantFeature("reports")
-    @PreAuthorize(RbacSpel.ACADEMIC_DESK_ADMIN)
+    @PreAuthorize(RbacSpel.SCHOOL_REPORTS_WRITE)
     @Operation(summary = "Rollback report publication to a snapshot version")
     public ResponseEntity<ApiResponse<ReportModuleDTOs.ReportJobResponse>> rollback(
             @PathVariable Long jobId,
@@ -285,7 +285,7 @@ public class ReportController {
 
     @GetMapping("/analytics-pack")
     @RequireTenantFeature("reports")
-    @PreAuthorize(RbacSpel.ACADEMIC_ROSTER_READ)
+    @PreAuthorize(RbacSpel.SCHOOL_REPORTS_READ)
     @Operation(summary = "Get analytics pack with trend bands and promotion eligibility")
     public ResponseEntity<ApiResponse<ReportModuleDTOs.AnalyticsPackResponse>> analyticsPack(
             @RequestParam(required = false) String packCode,
@@ -298,7 +298,7 @@ public class ReportController {
 
     @GetMapping("/analytics-pack/configs")
     @RequireTenantFeature("reports")
-    @PreAuthorize(RbacSpel.ACADEMIC_DESK_ADMIN)
+    @PreAuthorize(RbacSpel.SCHOOL_REPORTS_READ)
     @Operation(summary = "List analytics pack configurations")
     public ResponseEntity<ApiResponse<List<ReportModuleDTOs.AnalyticsPackConfigResponse>>> listAnalyticsPackConfigs() {
         return ResponseEntity.ok(ApiResponse.ok(reportService.listAnalyticsPackConfigs()));
@@ -306,7 +306,7 @@ public class ReportController {
 
     @PostMapping("/analytics-pack/configs")
     @RequireTenantFeature("reports")
-    @PreAuthorize(RbacSpel.ACADEMIC_DESK_ADMIN)
+    @PreAuthorize(RbacSpel.SCHOOL_REPORTS_WRITE)
     @Operation(summary = "Create or update analytics pack config with formula guardrails")
     public ResponseEntity<ApiResponse<ReportModuleDTOs.AnalyticsPackConfigResponse>> upsertAnalyticsPackConfig(
             @Valid @RequestBody ReportModuleDTOs.AnalyticsPackConfigRequest req) {
@@ -315,7 +315,7 @@ public class ReportController {
 
     @PostMapping("/jobs/process")
     @RequireTenantFeature("reports")
-    @PreAuthorize(RbacSpel.ACADEMIC_DESK_ADMIN)
+    @PreAuthorize(RbacSpel.SCHOOL_REPORTS_WRITE)
     @Operation(summary = "Process due report jobs now")
     public ResponseEntity<ApiResponse<Integer>> processJobs(@RequestParam(defaultValue = "20") int batchSize) {
         return ResponseEntity.ok(ApiResponse.ok(reportService.processQueuedJobs(batchSize)));
@@ -323,7 +323,7 @@ public class ReportController {
 
     @PostMapping("/dispatches/process")
     @RequireTenantFeature("reports")
-    @PreAuthorize(RbacSpel.ACADEMIC_DESK_ADMIN)
+    @PreAuthorize(RbacSpel.SCHOOL_REPORTS_WRITE)
     @Operation(summary = "Process due report share dispatches now")
     public ResponseEntity<ApiResponse<Integer>> processDispatches(@RequestParam(defaultValue = "50") int batchSize) {
         return ResponseEntity.ok(ApiResponse.ok(reportService.processDispatches(batchSize)));
@@ -331,7 +331,7 @@ public class ReportController {
 
     @PostMapping("/templates/seed-defaults")
     @RequireTenantFeature("reports")
-    @PreAuthorize(RbacSpel.ACADEMIC_DESK_ADMIN)
+    @PreAuthorize(RbacSpel.SCHOOL_REPORTS_WRITE)
     @Operation(summary = "Seed predefined report template packs")
     public ResponseEntity<ApiResponse<Integer>> seedDefaultPacks() {
         return ResponseEntity.ok(ApiResponse.ok(reportService.seedDefaultPacks()));
@@ -339,7 +339,7 @@ public class ReportController {
 
     @PostMapping("/dashboard/snapshots/warmup")
     @RequireTenantFeature("reports")
-    @PreAuthorize(RbacSpel.ACADEMIC_DESK_ADMIN)
+    @PreAuthorize(RbacSpel.SCHOOL_REPORTS_WRITE)
     @Operation(summary = "Warm up dashboard snapshots", description = "Proactively regenerates dashboard snapshots for tenants")
     public ResponseEntity<ApiResponse<Integer>> warmupDashboardSnapshots(
             @RequestParam(defaultValue = "30") int tenantLimit) {
@@ -348,7 +348,7 @@ public class ReportController {
 
     @GetMapping("/performance-metrics")
     @RequireTenantFeature("reports")
-    @PreAuthorize(RbacSpel.ACADEMIC_DESK_ADMIN)
+    @PreAuthorize(RbacSpel.SCHOOL_REPORTS_READ)
     @Operation(summary = "Report performance metrics", description = "Returns in-process report latency and snapshot hit/miss metrics")
     public ResponseEntity<ApiResponse<Map<String, Object>>> performanceMetrics() {
         return ResponseEntity.ok(ApiResponse.ok(reportService.getPerformanceMetrics()));

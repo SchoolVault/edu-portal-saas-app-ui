@@ -166,6 +166,24 @@ export class LibraryService {
     );
   }
 
+  getMyIssuesPage(opts: { page?: number; size?: number; status?: string }): Observable<PageResp<BookIssue>> {
+    const page = opts.page ?? 0;
+    const size = opts.size ?? DEFAULT_ERP_PAGE_SIZE;
+    if (!runtimeConfig.useMocks) {
+      return this.api
+        .getPageParams<any>('/library/issues/me/paged', {
+          page,
+          size,
+          status: opts.status?.trim() ? opts.status.trim().toUpperCase() : undefined,
+        })
+        .pipe(map(p => ({ ...p, content: p.content.map((i: any) => this.normalizeIssue(i)) })));
+    }
+    return this.listMyIssues(opts.status).pipe(
+      map(rows => sliceToPage(rows ?? [], page, size)),
+      delay(200)
+    );
+  }
+
   listIssues(status?: string): Observable<BookIssue[]> {
     if (runtimeConfig.useMocks) {
       let rows = MOCK_ISSUES.map(i => withDerivedStatus({ ...i }));
@@ -177,6 +195,14 @@ export class LibraryService {
     }
     const q = status?.trim() ? `?status=${encodeURIComponent(status.trim().toUpperCase())}` : '';
     return this.api.get<any[]>(`/library/issues${q}`).pipe(map(list => list.map(i => this.normalizeIssue(i))));
+  }
+
+  listMyIssues(status?: string): Observable<BookIssue[]> {
+    if (runtimeConfig.useMocks) {
+      return this.listIssues(status);
+    }
+    const q = status?.trim() ? `?status=${encodeURIComponent(status.trim().toUpperCase())}` : '';
+    return this.api.get<any[]>(`/library/issues/me${q}`).pipe(map(list => list.map(i => this.normalizeIssue(i))));
   }
 
   issueBook(bookId: number, studentId: number, studentName?: string, dueDays?: number): Observable<BookIssue> {
@@ -270,12 +296,25 @@ export class LibraryService {
   private normalizeIssue(i: any): BookIssue {
     const st = String(i.status ?? 'ISSUED').toLowerCase();
     const status: BookIssue['status'] = st === 'returned' ? 'returned' : st === 'overdue' ? 'overdue' : 'issued';
+    const parseNum = (v: unknown): number | undefined => {
+      const n = Number(v);
+      return Number.isFinite(n) ? n : undefined;
+    };
+    const borrowerTypeRaw = String(i.borrowerType ?? '').toLowerCase();
+    const borrowerType =
+      borrowerTypeRaw === 'student' || borrowerTypeRaw === 'staff' || borrowerTypeRaw === 'guardian' || borrowerTypeRaw === 'other'
+        ? borrowerTypeRaw
+        : undefined;
     return {
       id: String(i.id),
       bookId: Number(i.bookId),
       bookTitle: i.bookTitle ?? '',
-      studentId: Number(i.studentId),
+      studentId: parseNum(i.studentId),
       studentName: i.studentName ?? '',
+      borrowerType,
+      borrowerRefId: parseNum(i.borrowerRefId),
+      borrowerUserId: parseNum(i.borrowerUserId),
+      borrowerDisplayName: i.borrowerDisplayName ?? undefined,
       issueDate: (i.issueDate ?? '').toString().slice(0, 10),
       dueDate: (i.dueDate ?? '').toString().slice(0, 10),
       returnDate: i.returnDate ? String(i.returnDate).slice(0, 10) : undefined,

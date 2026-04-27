@@ -8,6 +8,8 @@ import com.school.erp.common.importer.BulkImportRowPolicy;
 import com.school.erp.common.importer.ImportLineOutcome;
 import com.school.erp.common.importer.LineApplyResult;
 import com.school.erp.common.util.InternationalPhone;
+import com.school.erp.modules.auth.entity.User;
+import com.school.erp.modules.auth.repository.UserRepository;
 import com.school.erp.modules.auth.service.PortalUserProvisioningService;
 import com.school.erp.modules.importexport.ImportJobType;
 import com.school.erp.modules.importexport.entity.ImportJob;
@@ -50,6 +52,7 @@ import java.util.stream.Collectors;
  */
 @Service
 public class ImportRowExecutor {
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(ImportRowExecutor.class);
     private final ObjectMapper objectMapper;
     private final StudentService studentService;
     private final TeacherService teacherService;
@@ -59,6 +62,7 @@ public class ImportRowExecutor {
     private final TimetableService timetableService;
     private final TimetableRepository timetableRepository;
     private final PortalUserProvisioningService portalUserProvisioningService;
+    private final UserRepository userRepository;
     private final NotificationService notificationService;
     private final NotificationDispatchPort notificationDispatchPort;
     private final TenantConfigRepository tenantConfigRepository;
@@ -67,6 +71,7 @@ public class ImportRowExecutor {
     private final FeeService feeService;
     private final ImportLedgerWriteService importLedgerWriteService;
     private final RbacService rbacService;
+    private final ImportOnboardingAnnouncementPublisher onboardingAnnouncementPublisher;
 
     public ImportRowExecutor(ObjectMapper objectMapper,
                            StudentService studentService,
@@ -77,6 +82,7 @@ public class ImportRowExecutor {
                            TimetableService timetableService,
                            TimetableRepository timetableRepository,
                            PortalUserProvisioningService portalUserProvisioningService,
+                           UserRepository userRepository,
                            NotificationService notificationService,
                            NotificationDispatchPort notificationDispatchPort,
                            TenantConfigRepository tenantConfigRepository,
@@ -84,7 +90,8 @@ public class ImportRowExecutor {
                            ImportBulkRowValidator bulkRowValidator,
                            FeeService feeService,
                            ImportLedgerWriteService importLedgerWriteService,
-                           RbacService rbacService) {
+                           RbacService rbacService,
+                           ImportOnboardingAnnouncementPublisher onboardingAnnouncementPublisher) {
         this.objectMapper = objectMapper;
         this.studentService = studentService;
         this.teacherService = teacherService;
@@ -94,6 +101,7 @@ public class ImportRowExecutor {
         this.timetableService = timetableService;
         this.timetableRepository = timetableRepository;
         this.portalUserProvisioningService = portalUserProvisioningService;
+        this.userRepository = userRepository;
         this.notificationService = notificationService;
         this.notificationDispatchPort = notificationDispatchPort;
         this.tenantConfigRepository = tenantConfigRepository;
@@ -102,6 +110,7 @@ public class ImportRowExecutor {
         this.feeService = feeService;
         this.importLedgerWriteService = importLedgerWriteService;
         this.rbacService = rbacService;
+        this.onboardingAnnouncementPublisher = onboardingAnnouncementPublisher;
     }
 
     public void execute(ImportJob job, ImportJobLine line) throws Exception {
@@ -144,6 +153,7 @@ public class ImportRowExecutor {
     private void handleStudent(ImportJob job, ImportJobLine line, Map<String, String> row,
                              BulkImportAcademicResolver.ResolvedPlacement placement) {
         String tenantId = TenantContext.getTenantId();
+        boolean notifyCredentials = truthy(row.get("notifycredentials"));
 
         StudentDTOs.CreateRequest request = new StudentDTOs.CreateRequest();
         request.setFirstName(required(row, "firstname"));
@@ -164,6 +174,13 @@ public class ImportRowExecutor {
 
         String parentEmail = blankToNull(row.get("parentemail"));
         String parentPhone = blankToNull(row.get("parentphone"));
+        User parentBefore = null;
+        if (notifyCredentials && parentPhone != null) {
+            String canonicalParentPhone = InternationalPhone.canonical(parentPhone);
+            if (canonicalParentPhone != null) {
+                parentBefore = userRepository.findByPhoneAndTenantIdAndIsDeletedFalse(canonicalParentPhone, tenantId).orElse(null);
+            }
+        }
 
         PortalUserProvisioningService.ProvisionResult parentProvision = null;
         if (parentEmail != null || parentPhone != null || truthy(row.get("createparentportal"))) {
@@ -187,15 +204,30 @@ public class ImportRowExecutor {
         line.setEntityId(created.getId());
         importLedgerWriteService.recordLine(job, line, applied.outcome(), "STUDENT", created.getId(), applied.naturalKey());
 
-        if (truthy(row.get("notifycredentials")) && parentProvision != null) {
+        if (notifyCredentials && parentProvision != null) {
+            User parentAfter = userRepository.findByIdAndTenantIdAndIsDeletedFalse(parentProvision.userId(), tenantId).orElse(null);
+            PortalContactChange parentChange = detectPortalContactChange(parentBefore, parentAfter);
+            boolean shouldSendCredentials = parentChange.newlyProvisioned() || parentChange.emailChanged() || parentChange.phoneChanged();
+            if (!shouldSendCredentials) {
+                return;
+            }
             String schoolCode = tenantConfigRepository.findByTenantId(tenantId).map(c -> c.getSchoolCode()).orElse("");
-            String body = credentialMessage(schoolCode, parentEmail, parentPhone, parentProvision.plainPassword(), parentProvision.createdNew());
+            String body = parentChange.newlyProvisioned()
+                    ? credentialMessage(schoolCode, parentEmail, parentPhone, parentProvision.plainPassword(), true)
+                    : parentCredentialsUpdatedMessage(schoolCode, parentAfter != null ? parentAfter.getEmail() : parentEmail,
+                    parentAfter != null ? parentAfter.getPhone() : parentPhone, parentChange.emailChanged(), parentChange.phoneChanged());
             notificationService.createNotification(tenantId, parentProvision.userId(), "Parent portal access",
                     body, Enums.NotificationType.INFO, "/app/parent/children");
             // Persists to transactional outbox (see NotificationOutboxService) for async delivery / retries.
             notificationDispatchPort.enqueue(tenantId, "PARENT_PORTAL_CREDENTIALS", "SMS",
                     parentProvision.userId(), parentPhone, "Parent portal access", body,
                     "import-job-" + job.getId() + "-line-" + line.getId(), "import-" + job.getId());
+            if (parentChange.newlyProvisioned()) {
+                publishOnboardingAnnouncement(
+                        Enums.TargetAudience.PARENTS,
+                        "Parent portal onboarding update",
+                        "New parent portal accounts have been created. Parents can sign in with OTP and review credentials from their notifications.");
+            }
         }
     }
 
@@ -204,6 +236,8 @@ public class ImportRowExecutor {
         String canonicalPhone = canonicalPhoneRequired(row.get("phone"));
         String loginEmail = normalizeEmailOptional(row.get("email"));
         String importPassword = blankToNull(row.get("portalpassword"));
+        boolean notifyCredentials = truthy(row.get("notifycredentials"));
+        User portalBefore = notifyCredentials ? findPortalUserBeforeTeacherImport(tenantId, loginEmail, canonicalPhone) : null;
 
         TeacherDTOs.CreateRequest request = new TeacherDTOs.CreateRequest();
         request.setFirstName(required(row, "firstname"));
@@ -255,16 +289,75 @@ public class ImportRowExecutor {
         importLedgerWriteService.recordLine(job, line, applied.outcome(), teacherLedgerType, created.getId(), applied.naturalKey());
         assignOptionalClassTeacherSlot(row, created.getId(), portalRole);
 
-        if (createPortal && created.getUserId() != null) {
+        if (createPortal && notifyCredentials && created.getUserId() != null) {
+            User portalAfter = userRepository.findByIdAndTenantIdAndIsDeletedFalse(created.getUserId(), tenantId).orElse(null);
+            PortalContactChange portalChange = detectPortalContactChange(portalBefore, portalAfter);
+            if (!portalChange.newlyProvisioned() && !portalChange.emailChanged() && !portalChange.phoneChanged()) {
+                applySchoolRoleCodesFromRow(row, created.getUserId());
+                return;
+            }
             String schoolCode = tenantConfigRepository.findByTenantId(tenantId).map(c -> c.getSchoolCode()).orElse("");
-            String body = teacherCredentialMessage(schoolCode, loginEmail, canonicalPhone, importPassword, portalRole);
+            String body = portalChange.newlyProvisioned()
+                    ? teacherCredentialMessage(schoolCode, loginEmail, canonicalPhone, importPassword, portalRole)
+                    : teacherCredentialsUpdatedMessage(
+                    schoolCode,
+                    portalAfter != null ? portalAfter.getEmail() : loginEmail,
+                    portalAfter != null ? portalAfter.getPhone() : canonicalPhone,
+                    portalRole,
+                    portalChange.emailChanged(),
+                    portalChange.phoneChanged());
             notificationService.createNotification(tenantId, created.getUserId(), "Staff portal access",
                     body, Enums.NotificationType.INFO, "/app/dashboard");
             notificationDispatchPort.enqueue(tenantId, "STAFF_PORTAL_CREDENTIALS", "SMS", created.getUserId(),
                     canonicalPhone, "Staff portal access", body,
                     "import-job-" + job.getId() + "-line-" + line.getId(), "import-" + job.getId());
+            if (portalChange.newlyProvisioned()) {
+                publishOnboardingAnnouncement(
+                        onboardingAudienceForRole(portalRole),
+                        onboardingTitleForRole(portalRole),
+                        onboardingBodyForRole(portalRole));
+            }
         }
         applySchoolRoleCodesFromRow(row, created.getUserId());
+    }
+
+    private void publishOnboardingAnnouncement(Enums.TargetAudience audience, String title, String content) {
+        try {
+            onboardingAnnouncementPublisher.publish(audience, title, content);
+        } catch (BusinessException ex) {
+            // Dedup or audience validation can reject near-identical announcements during large imports; do not fail row apply.
+            log.debug("Skipping onboarding announcement title='{}' audience={} reason={}", title, audience, ex.getMessage());
+        } catch (Exception ex) {
+            log.warn("Onboarding announcement publish failed title='{}' audience={} error={}", title, audience, ex.getMessage());
+        }
+    }
+
+    private static Enums.TargetAudience onboardingAudienceForRole(Enums.Role role) {
+        if (role == Enums.Role.TEACHER) {
+            return Enums.TargetAudience.TEACHERS;
+        }
+        // No dedicated staff audience token yet; publish school-wide onboarding notice.
+        return Enums.TargetAudience.ALL;
+    }
+
+    private static String onboardingTitleForRole(Enums.Role role) {
+        if (role == Enums.Role.TEACHER) {
+            return "Teacher portal onboarding update";
+        }
+        if (role == Enums.Role.LIBRARY_STAFF) {
+            return "Library staff portal onboarding update";
+        }
+        return "Staff portal onboarding update";
+    }
+
+    private static String onboardingBodyForRole(Enums.Role role) {
+        if (role == Enums.Role.TEACHER) {
+            return "New teacher portal accounts are now active. Teachers can sign in with OTP and verify credentials from notifications.";
+        }
+        if (role == Enums.Role.LIBRARY_STAFF) {
+            return "New library staff portal accounts are now active. Staff can sign in with OTP and verify credentials from notifications.";
+        }
+        return "New school staff portal accounts are now active. Staff can sign in with OTP and verify credentials from notifications.";
     }
 
     /**
@@ -492,6 +585,84 @@ public class ImportRowExecutor {
         }
         sb.append("Mobile OTP login is enabled on ").append(phone).append(".");
         return sb.toString();
+    }
+
+    private User findPortalUserBeforeTeacherImport(String tenantId, String loginEmail, String canonicalPhone) {
+        if (loginEmail != null) {
+            User byEmail = userRepository.findByEmailAndTenantIdAndIsDeletedFalse(loginEmail, tenantId).orElse(null);
+            if (byEmail != null) {
+                return byEmail;
+            }
+        }
+        return userRepository.findByPhoneAndTenantIdAndIsDeletedFalse(canonicalPhone, tenantId).orElse(null);
+    }
+
+    private static PortalContactChange detectPortalContactChange(User before, User after) {
+        if (after == null) {
+            return new PortalContactChange(false, false, false);
+        }
+        if (before == null) {
+            return new PortalContactChange(true, false, false);
+        }
+        String beforeEmail = normalizeEmailOptional(before.getEmail());
+        String afterEmail = normalizeEmailOptional(after.getEmail());
+        String beforePhone = blankToNull(before.getPhone());
+        String afterPhone = blankToNull(after.getPhone());
+        boolean emailChanged = !java.util.Objects.equals(beforeEmail, afterEmail);
+        boolean phoneChanged = !java.util.Objects.equals(beforePhone, afterPhone);
+        return new PortalContactChange(false, emailChanged, phoneChanged);
+    }
+
+    private static String parentCredentialsUpdatedMessage(
+            String schoolCode,
+            String loginEmail,
+            String phone,
+            boolean emailChanged,
+            boolean phoneChanged) {
+        StringBuilder sb = new StringBuilder("Your parent portal contact details were updated. School code: ")
+                .append(schoolCode).append(". ");
+        if (emailChanged) {
+            if (loginEmail != null && !loginEmail.isBlank()) {
+                sb.append("New email login: ").append(loginEmail).append(". ");
+            } else {
+                sb.append("Email login was removed. ");
+            }
+        }
+        if (phoneChanged && phone != null && !phone.isBlank()) {
+            sb.append("New mobile OTP login: ").append(phone).append(". ");
+        }
+        sb.append("Please use the new mobile OTP for sign-in. If email changed, verify the new email after OTP login to continue email/password access.");
+        return sb.toString();
+    }
+
+    private static String teacherCredentialsUpdatedMessage(
+            String schoolCode,
+            String loginEmail,
+            String phone,
+            Enums.Role portalRole,
+            boolean emailChanged,
+            boolean phoneChanged) {
+        String persona =
+                portalRole == Enums.Role.LIBRARY_STAFF
+                        ? "library staff"
+                        : portalRole == Enums.Role.SCHOOL_STAFF ? "school staff" : "teacher";
+        StringBuilder sb = new StringBuilder("Your ").append(persona)
+                .append(" portal login details were updated. School code: ").append(schoolCode).append(". ");
+        if (emailChanged) {
+            if (loginEmail != null && !loginEmail.isBlank()) {
+                sb.append("New email login: ").append(loginEmail).append(". ");
+            } else {
+                sb.append("Email login was removed. ");
+            }
+        }
+        if (phoneChanged && phone != null && !phone.isBlank()) {
+            sb.append("New mobile OTP login: ").append(phone).append(". ");
+        }
+        sb.append("Please use the new mobile OTP for sign-in. If email changed, verify the new email after OTP login before using email/password sign-in.");
+        return sb.toString();
+    }
+
+    private record PortalContactChange(boolean newlyProvisioned, boolean emailChanged, boolean phoneChanged) {
     }
 
     private static Enums.Role parsePortalRole(String raw, boolean staffImport) {

@@ -732,7 +732,7 @@ export class ExamsComponent implements OnInit {
   }
 
   get canCreateExam(): boolean {
-    return this.uiAccess.hasExamStaffReadAccess();
+    return this.uiAccess.hasSchoolExamsOfficeWriteAccess();
   }
 
   get canEnterMarks(): boolean {
