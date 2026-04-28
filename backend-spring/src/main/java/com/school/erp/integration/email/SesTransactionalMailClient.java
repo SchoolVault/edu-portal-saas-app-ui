@@ -20,6 +20,7 @@ import software.amazon.awssdk.services.ses.model.Content;
 import software.amazon.awssdk.services.ses.model.Destination;
 import software.amazon.awssdk.services.ses.model.Message;
 import software.amazon.awssdk.services.ses.model.SendEmailRequest;
+import java.util.List;
 
 /**
  * Amazon SES outbound for verification mail (and future transactional templates). Reuses
@@ -81,6 +82,36 @@ public class SesTransactionalMailClient {
             log.info("Amazon SES email_verification sent for to={} subject={}", redacted, subject);
         } catch (SdkException ex) {
             log.warn("Amazon SES email_verification failed: {}", ex.getMessage());
+            throw ex;
+        }
+    }
+
+    @Retry(name = "emailProvider")
+    @CircuitBreaker(name = "emailProvider")
+    public void sendTransactionalEmail(String toEmail, String subject, String textContent, String htmlContent, List<String> tags) {
+        if (!isConfigured() || !StringUtils.hasText(toEmail) || !StringUtils.hasText(subject)) {
+            return;
+        }
+        SendEmailRequest req = SendEmailRequest.builder()
+                .source(fromDisplayLine())
+                .destination(Destination.builder().toAddresses(toEmail.trim()).build())
+                .message(Message.builder()
+                        .subject(Content.builder().data(subject.trim()).charset(CHARSET).build())
+                        .body(Body.builder()
+                                .text(Content.builder()
+                                        .data(StringUtils.hasText(textContent) ? textContent : subject.trim())
+                                        .charset(CHARSET)
+                                        .build())
+                                .html(StringUtils.hasText(htmlContent)
+                                        ? Content.builder().data(htmlContent).charset(CHARSET).build()
+                                        : null)
+                                .build())
+                        .build())
+                .build();
+        try {
+            getClient().sendEmail(req);
+        } catch (SdkException ex) {
+            log.warn("Amazon SES transactional send failed: {}", ex.getMessage());
             throw ex;
         }
     }

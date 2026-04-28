@@ -59,10 +59,36 @@ public class SendGridTransactionalMailClient {
         postMail(toEmail, subject, content);
     }
 
+    @Retry(name = "emailProvider")
+    @CircuitBreaker(name = "emailProvider")
+    public void sendTransactionalEmail(String toEmail, String subject, String textContent, String htmlContent, List<String> categories) {
+        if (!isConfigured()) {
+            return;
+        }
+        if (!StringUtils.hasText(toEmail) || !StringUtils.hasText(subject)) {
+            return;
+        }
+        postMail(
+                toEmail,
+                subject,
+                textContent != null ? textContent : subject,
+                htmlContent,
+                categories != null ? categories : List.of());
+    }
+
     private void postMail(
             String toEmail,
             String subject,
             EmailVerificationMessageFormatter.FormattedMessage content) {
+        postMail(toEmail, subject, content.textPlain(), content.textHtml(), List.of("auth", "email_verification"));
+    }
+
+    private void postMail(
+            String toEmail,
+            String subject,
+            String textContent,
+            String htmlContent,
+            List<String> categories) {
         List<Map<String, String>> to = new ArrayList<>();
         to.add(Map.of("email", toEmail.trim()));
         Map<String, Object> personalization = new LinkedHashMap<>();
@@ -71,14 +97,18 @@ public class SendGridTransactionalMailClient {
         from.put("email", properties.getFromEmail().trim());
         from.put("name", properties.getFromName() != null ? properties.getFromName() : "School");
         List<Map<String, String>> bodyContent = new ArrayList<>();
-        bodyContent.add(Map.of("type", "text/plain", "value", content.textPlain()));
-        bodyContent.add(Map.of("type", "text/html", "value", content.textHtml()));
+        bodyContent.add(Map.of("type", "text/plain", "value", StringUtils.hasText(textContent) ? textContent : subject));
+        if (StringUtils.hasText(htmlContent)) {
+            bodyContent.add(Map.of("type", "text/html", "value", htmlContent));
+        }
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("personalizations", List.of(personalization));
         body.put("from", from);
         body.put("subject", subject);
         body.put("content", bodyContent);
-        body.put("categories", List.of("auth", "email_verification"));
+        if (categories != null && !categories.isEmpty()) {
+            body.put("categories", categories);
+        }
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
         headers.set(HttpHeaders.AUTHORIZATION, "Bearer " + properties.getApiKey().trim());
