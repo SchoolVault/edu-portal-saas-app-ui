@@ -14,6 +14,7 @@ import com.school.erp.modules.notification.sms.SmsRequest;
 import com.school.erp.modules.notification.sms.SmsResponse;
 import com.school.erp.modules.notification.sms.SmsService;
 import com.school.erp.platform.port.NotificationDispatchPort;
+import com.school.erp.platform.port.NotificationDispatchAttributes;
 import io.micrometer.core.instrument.MeterRegistry;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -31,6 +32,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 import com.school.erp.common.dto.PageResponse;
+import com.school.erp.modules.academic.service.CurrentAcademicYearResolver;
+import com.school.erp.tenant.AcademicYearContext;
 import com.school.erp.tenant.TenantContext;
 
 /**
@@ -47,6 +50,7 @@ public class NotificationOutboxService implements NotificationDispatchPort {
     private final TransactionalEmailDispatcher transactionalEmailDispatcher;
     private final NotificationDeliveryProperties deliveryProperties;
     private final ObjectProvider<MeterRegistry> meterRegistryProvider;
+    private final CurrentAcademicYearResolver currentAcademicYearResolver;
 
     public NotificationOutboxService(
             NotificationOutboxRepository repo,
@@ -55,7 +59,8 @@ public class NotificationOutboxService implements NotificationDispatchPort {
             SmsService smsService,
             TransactionalEmailDispatcher transactionalEmailDispatcher,
             NotificationDeliveryProperties deliveryProperties,
-            ObjectProvider<MeterRegistry> meterRegistryProvider) {
+            ObjectProvider<MeterRegistry> meterRegistryProvider,
+            CurrentAcademicYearResolver currentAcademicYearResolver) {
         this.repo = repo;
         this.userRepository = userRepository;
         this.notificationRepository = notificationRepository;
@@ -63,6 +68,7 @@ public class NotificationOutboxService implements NotificationDispatchPort {
         this.transactionalEmailDispatcher = transactionalEmailDispatcher;
         this.deliveryProperties = deliveryProperties;
         this.meterRegistryProvider = meterRegistryProvider;
+        this.currentAcademicYearResolver = currentAcademicYearResolver;
     }
 
     @Override
@@ -76,7 +82,10 @@ public class NotificationOutboxService implements NotificationDispatchPort {
             String subject,
             String body,
             String dedupeKey,
-            String correlationId) {
+            String correlationId,
+            NotificationDispatchAttributes dispatchAttributes) {
+        NotificationDispatchAttributes attrs =
+                dispatchAttributes != null ? dispatchAttributes : NotificationDispatchAttributes.empty();
         String channelNorm = normalizeChannel(channel);
         String phone = phoneE164;
         String email = null;
@@ -133,6 +142,7 @@ public class NotificationOutboxService implements NotificationDispatchPort {
         }
         NotificationOutbox row = new NotificationOutbox();
         row.setTenantId(tenantId);
+        row.setAcademicYearId(attrs.academicYearId());
         row.setEventType(eventType);
         row.setChannel(channelNorm);
         row.setRecipientUserId(recipientUserId);
@@ -194,8 +204,19 @@ public class NotificationOutboxService implements NotificationDispatchPort {
             String body,
             String dedupeKey,
             String correlationId,
-            LocalDateTime scheduledAt) {
-        enqueue(tenantId, eventType, channel, recipientUserId, phoneE164, subject, body, dedupeKey, correlationId);
+            LocalDateTime scheduledAt,
+            NotificationDispatchAttributes dispatchAttributes) {
+        enqueue(
+                tenantId,
+                eventType,
+                channel,
+                recipientUserId,
+                phoneE164,
+                subject,
+                body,
+                dedupeKey,
+                correlationId,
+                dispatchAttributes);
         if (scheduledAt == null || !scheduledAt.isAfter(LocalDateTime.now())) {
             return;
         }
@@ -429,7 +450,25 @@ public class NotificationOutboxService implements NotificationDispatchPort {
                     .link(link)
                     .build();
             inApp.setTenantId(row.getTenantId());
-            notificationRepository.save(inApp);
+            Long previousAcademicYearId = AcademicYearContext.getAcademicYearId();
+            try {
+                Long academicYearId = row.getAcademicYearId() != null
+                        ? row.getAcademicYearId()
+                        : currentAcademicYearResolver.resolveCurrentAcademicYearId(row.getTenantId());
+                if (academicYearId == null) {
+                    throw new IllegalStateException(
+                            "Cannot deliver IN_APP notification: no academic year on outbox row and no current academic year for tenant "
+                                    + row.getTenantId());
+                }
+                AcademicYearContext.setAcademicYearId(academicYearId);
+                notificationRepository.save(inApp);
+            } finally {
+                if (previousAcademicYearId == null) {
+                    AcademicYearContext.clear();
+                } else {
+                    AcademicYearContext.setAcademicYearId(previousAcademicYearId);
+                }
+            }
             return;
         }
         if ("SMS".equals(channel) || "WHATSAPP".equals(channel)) {

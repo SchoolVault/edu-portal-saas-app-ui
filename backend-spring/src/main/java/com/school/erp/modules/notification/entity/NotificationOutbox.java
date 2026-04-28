@@ -13,9 +13,13 @@ import java.time.LocalDateTime;
         indexes = {
                 @Index(name = "idx_no_tenant_status_created", columnList = "tenant_id, status, created_at"),
                 @Index(name = "idx_no_tenant_event", columnList = "tenant_id, event_type"),
-                @Index(name = "idx_no_tenant_corr", columnList = "tenant_id, correlation_id")
+                @Index(name = "idx_no_tenant_corr", columnList = "tenant_id, correlation_id"),
+                @Index(name = "idx_no_tenant_ay_status_created", columnList = "tenant_id, academic_year_id, status, created_at")
         })
 public class NotificationOutbox extends BaseEntity {
+
+    @Column(name = "academic_year_id")
+    private Long academicYearId;
 
     @Column(name = "event_type", nullable = false, length = 64)
     private String eventType;
@@ -76,6 +80,14 @@ public class NotificationOutbox extends BaseEntity {
 
     @Column(name = "channel_cost_minor")
     private Integer channelCostMinor;
+
+    public Long getAcademicYearId() {
+        return academicYearId;
+    }
+
+    public void setAcademicYearId(Long academicYearId) {
+        this.academicYearId = academicYearId;
+    }
 
     public String getEventType() {
         return eventType;

@@ -14,6 +14,7 @@ import com.school.erp.modules.payroll.domain.SalarySettlementMode;
 import com.school.erp.modules.payroll.dto.PayrollDTOs;
 import com.school.erp.modules.payroll.payout.PayrollPayoutGatewayClient;
 import com.school.erp.platform.port.NotificationDispatchPort;
+import com.school.erp.platform.port.NotificationDispatchAttributes;
 import com.school.erp.modules.notification.service.NotificationService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
@@ -767,10 +768,12 @@ public class PayrollService {
         String body = "Payslip ready for " + (period.isEmpty() ? "your pay period" : period) + ". Net " + payslip.getNetSalary() + " INR." + refLine;
         notificationDispatchPort.enqueue(
                 tenantId, "SALARY_PAID", "SMS", staffUserId, null, "Payslip available", body,
-                "SALPAID:" + payslip.getId(), "payroll-" + payslip.getId());
+                "SALPAID:" + payslip.getId(), "payroll-" + payslip.getId(),
+                NotificationDispatchAttributes.inheritFromThread());
         notificationDispatchPort.enqueue(
                 tenantId, "SALARY_PAID", "WHATSAPP", staffUserId, null, "Payslip available", body,
-                "SALPAID:" + payslip.getId() + ":WA", "payroll-" + payslip.getId());
+                "SALPAID:" + payslip.getId() + ":WA", "payroll-" + payslip.getId(),
+                NotificationDispatchAttributes.inheritFromThread());
     }
 
     private static String payoutProviderFromPayload(String payload) {

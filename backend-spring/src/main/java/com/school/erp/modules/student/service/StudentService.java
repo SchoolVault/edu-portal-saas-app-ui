@@ -32,6 +32,7 @@ import com.school.erp.cache.CacheService.CacheRegion;
 import com.school.erp.config.CacheConfig;
 import com.school.erp.platform.port.DomainEventPublisher;
 import com.school.erp.platform.port.NotificationDispatchPort;
+import com.school.erp.platform.port.NotificationDispatchAttributes;
 import com.school.erp.tenant.TenantContext;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.cache.annotation.Cacheable;
@@ -588,7 +589,8 @@ public class StudentService {
                 title,
                 body,
                 "manual-student-parent-" + parentProvision.userId(),
-                "manual-student-parent-onboarding");
+                "manual-student-parent-onboarding",
+                NotificationDispatchAttributes.inheritFromThread());
         notifyAdminsOnParentOnboarding(tenantId, school);
     }
 
@@ -614,7 +616,8 @@ public class StudentService {
                         title,
                         body,
                         "manual-student-parent-admin-" + admin.getId(),
-                        "manual-student-parent-onboarding");
+                        "manual-student-parent-onboarding",
+                        NotificationDispatchAttributes.inheritFromThread());
             }
         }
     }

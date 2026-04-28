@@ -33,6 +33,7 @@ import com.school.erp.modules.academic.entity.SchoolClass;
 import com.school.erp.modules.academic.entity.Section;
 import com.school.erp.modules.academic.repository.SchoolClassRepository;
 import com.school.erp.platform.port.NotificationDispatchPort;
+import com.school.erp.platform.port.NotificationDispatchAttributes;
 import com.school.erp.tenant.AcademicYearContext;
 import com.school.erp.tenant.TenantContext;
 import org.springframework.stereotype.Service;
@@ -263,7 +264,8 @@ public class ImportRowExecutor {
             // Persists to transactional outbox (see NotificationOutboxService) for async delivery / retries.
             notificationDispatchPort.enqueue(tenantId, "PARENT_PORTAL_CREDENTIALS", "SMS",
                     parentProvision.userId(), parentPhone, parentCredentialTitle, body,
-                    "import-job-" + job.getId() + "-parent-" + parentProvision.userId(), "import-" + job.getId());
+                    "import-job-" + job.getId() + "-parent-" + parentProvision.userId(), "import-" + job.getId(),
+                    NotificationDispatchAttributes.inheritFromThread());
             notifyAdminsOnParentOnboarding(job, school);
         }
     }
@@ -368,7 +370,8 @@ public class ImportRowExecutor {
                     body, Enums.NotificationType.INFO, "/app/dashboard");
             notificationDispatchPort.enqueue(tenantId, "STAFF_PORTAL_CREDENTIALS", "SMS", created.getUserId(),
                     canonicalPhone, credentialTitle, body,
-                    "import-job-" + job.getId() + "-line-" + line.getId(), "import-" + job.getId());
+                    "import-job-" + job.getId() + "-line-" + line.getId(), "import-" + job.getId(),
+                    NotificationDispatchAttributes.inheritFromThread());
             if (portalChange.newlyProvisioned()) {
                 notifyAdminsOnRoleOnboarding(job, portalRole, school);
             }
@@ -413,7 +416,8 @@ public class ImportRowExecutor {
                         title,
                         body,
                         "import-job-" + job.getId() + "-admin-digest-" + roleKey,
-                        "import-" + job.getId());
+                        "import-" + job.getId(),
+                        NotificationDispatchAttributes.inheritFromThread());
             }
         }
     }
@@ -449,7 +453,8 @@ public class ImportRowExecutor {
                         title,
                         body,
                         "import-job-" + job.getId() + "-admin-digest-" + digestKey,
-                        "import-" + job.getId());
+                        "import-" + job.getId(),
+                        NotificationDispatchAttributes.inheritFromThread());
             }
         }
     }

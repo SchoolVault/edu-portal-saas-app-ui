@@ -2,6 +2,7 @@ package com.school.erp.modules.notification.service;
 
 import com.school.erp.modules.communication.entity.Announcement;
 import com.school.erp.platform.port.NotificationDispatchPort;
+import com.school.erp.platform.port.NotificationDispatchAttributes;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -33,6 +34,8 @@ public class AnnouncementNotificationFanoutService {
         var members = audienceResolver.resolve(ann);
         log.info("Announcement fan-out audienceSize={} announcementId={} tenant={}", members.size(), ann.getId(), tenantId);
         for (AnnouncementAudienceResolver.AudienceMember m : members) {
+            NotificationDispatchAttributes scope =
+                    NotificationDispatchAttributes.preferExplicitOrThread(ann.getAcademicYearId());
             String dedupeSms = "ANN:" + ann.getId() + ":SMS:" + m.userId();
             notificationDispatchPort.enqueue(
                     tenantId,
@@ -43,7 +46,8 @@ public class AnnouncementNotificationFanoutService {
                     title,
                     snippet,
                     dedupeSms,
-                    "ann-" + ann.getId());
+                    "ann-" + ann.getId(),
+                    scope);
             String dedupeWa = "ANN:" + ann.getId() + ":WA:" + m.userId();
             notificationDispatchPort.enqueue(
                     tenantId,
@@ -54,7 +58,8 @@ public class AnnouncementNotificationFanoutService {
                     title,
                     snippet,
                     dedupeWa,
-                    "ann-" + ann.getId());
+                    "ann-" + ann.getId(),
+                    scope);
         }
     }
 

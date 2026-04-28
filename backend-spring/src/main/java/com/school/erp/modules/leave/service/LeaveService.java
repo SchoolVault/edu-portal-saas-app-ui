@@ -18,6 +18,7 @@ import com.school.erp.modules.notification.service.NotificationService;
 import com.school.erp.modules.settings.entity.TenantConfig;
 import com.school.erp.modules.settings.repository.TenantConfigRepository;
 import com.school.erp.platform.port.NotificationDispatchPort;
+import com.school.erp.platform.port.NotificationDispatchAttributes;
 import com.school.erp.security.rbac.AppPermission;
 import com.school.erp.security.rbac.EffectivePermissionService;
 import com.school.erp.tenant.TenantContext;
@@ -351,7 +352,8 @@ public class LeaveService {
                         subject,
                         smsBody,
                         "leave-submitted-" + leave.getId() + "-to-" + approver.getId(),
-                        "leave-" + leave.getId());
+                        "leave-" + leave.getId(),
+                        NotificationDispatchAttributes.preferExplicitOrThread(leave.getAcademicYearId()));
             }
         }
     }
@@ -401,7 +403,8 @@ public class LeaveService {
                     subject,
                     smsBody,
                     "leave-decision-" + leave.getId() + "-to-" + applicantUserId + "-" + leave.getStatus(),
-                    "leave-" + leave.getId());
+                    "leave-" + leave.getId(),
+                    NotificationDispatchAttributes.preferExplicitOrThread(leave.getAcademicYearId()));
         }
     }
 

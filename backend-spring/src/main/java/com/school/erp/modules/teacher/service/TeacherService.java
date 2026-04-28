@@ -31,6 +31,7 @@ import com.school.erp.modules.reports.service.DashboardSnapshotInvalidationServi
 import com.school.erp.cache.CacheService;
 import com.school.erp.config.CacheConfig;
 import com.school.erp.platform.port.NotificationDispatchPort;
+import com.school.erp.platform.port.NotificationDispatchAttributes;
 import com.school.erp.tenant.TenantContext;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
@@ -756,7 +757,8 @@ public class TeacherService {
                 title,
                 body,
                 "manual-teacher-" + userId,
-                "manual-teacher-onboarding");
+                "manual-teacher-onboarding",
+                NotificationDispatchAttributes.inheritFromThread());
     }
 
     private void notifyAdminsOnTeacherOnboarding(String tenantId) {
@@ -784,7 +786,8 @@ public class TeacherService {
                         title,
                         body,
                         "manual-teacher-admin-" + admin.getId(),
-                        "manual-teacher-onboarding");
+                        "manual-teacher-onboarding",
+                        NotificationDispatchAttributes.inheritFromThread());
             }
         }
     }
