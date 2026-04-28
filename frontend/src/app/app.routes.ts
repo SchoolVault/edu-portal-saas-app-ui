@@ -272,6 +272,31 @@ export const routes: Routes = [
         },
       },
       {
+        path: 'hostel-home',
+        loadComponent: () =>
+          import('./shared/module-entry-redirect/module-entry-redirect.component').then(
+            m => m.ModuleEntryRedirectComponent
+          ),
+        canActivate: [featureModuleGuard],
+        data: {
+          moduleEntryKey: 'hostel',
+          requireFeatures: ['hostel'],
+          requireAnyPermission: [
+            'SCHOOL_HOSTEL_READ',
+            'SCHOOL_HOSTEL_WRITE',
+            'SCHOOL_HOSTEL_BILLING_READ',
+            'SCHOOL_HOSTEL_BILLING_WRITE',
+            'SCHOOL_HOSTEL_APPROVAL_WRITE',
+            'SCHOOL_HOSTEL_VISITOR_WRITE',
+            'SCHOOL_HOSTEL_INCIDENT_WRITE',
+            'PORTAL_PARENT',
+            'PORTAL_STUDENT',
+            'TENANT_ADMIN',
+            'PLATFORM_ADMIN',
+          ],
+        },
+      },
+      {
         path: 'hostel',
         loadComponent: () => import('./features/hostel/hostel.component').then(m => m.HostelComponent),
         canActivate: [featureModuleGuard],

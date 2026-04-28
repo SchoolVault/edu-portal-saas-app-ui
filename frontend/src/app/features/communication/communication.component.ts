@@ -33,6 +33,8 @@ import { debounceTime } from 'rxjs/operators';
 import { Subject, Subscription } from 'rxjs';
 import { DEFAULT_ERP_PAGE_SIZE } from '../../core/constants/pagination.constants';
 
+const INDIA_TIMEZONE = 'Asia/Kolkata';
+
 @Component({
   selector: 'app-communication',
   standalone: true,
@@ -282,10 +284,6 @@ import { DEFAULT_ERP_PAGE_SIZE } from '../../core/constants/pagination.constants
               />
             </div>
             <div *ngIf="announcementMode === 'EVENT'" class="erp-form-group">
-              <label class="erp-label">Timezone</label>
-              <input type="text" class="erp-input" [(ngModel)]="eventTimezone" />
-            </div>
-            <div *ngIf="announcementMode === 'EVENT'" class="erp-form-group">
               <label class="erp-label">Location</label>
               <input type="text" class="erp-input" [(ngModel)]="eventLocation" />
             </div>
@@ -437,7 +435,6 @@ export class CommunicationComponent implements OnInit {
   eventStartAt = '';
   eventEndAt = '';
   publishAt = '';
-  eventTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Kolkata';
   eventLocation = '';
 
   private readonly translate = inject(TranslateService);
@@ -644,7 +641,6 @@ export class CommunicationComponent implements OnInit {
     this.eventStartAt = '';
     this.eventEndAt = '';
     this.publishAt = '';
-    this.eventTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Kolkata';
     this.eventLocation = '';
     this.showAnnouncementModal = true;
   }
@@ -724,7 +720,7 @@ export class CommunicationComponent implements OnInit {
             publishAt: this.publishAt || undefined,
             eventStartAt: this.eventStartAt,
             eventEndAt: this.eventEndAt || undefined,
-            timezone: this.eventTimezone || 'Asia/Kolkata',
+            timezone: INDIA_TIMEZONE,
             locale: (this.translate.currentLang || 'en').toLowerCase(),
             location: this.eventLocation || undefined,
           };

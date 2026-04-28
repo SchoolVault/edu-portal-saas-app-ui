@@ -191,7 +191,36 @@ import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directiv
         max-width: min(560px, calc(100vw - 32px));
         width: 100%;
       }
+      .academic-class-header-actions {
+        min-width: 112px;
+      }
+      .academic-sections-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+        gap: 10px;
+      }
+      .academic-section-card {
+        min-width: 0;
+        width: 100%;
+      }
+      .academic-section-actions {
+        display: inline-flex;
+        flex-direction: column;
+        gap: 4px;
+        align-items: center;
+        justify-content: flex-start;
+      }
       @media (max-width: 576px) {
+        .academic-class-header-actions {
+          width: 100%;
+          flex-direction: row !important;
+          align-items: center !important;
+          justify-content: flex-start !important;
+          flex-wrap: wrap;
+        }
+        .academic-sections-grid {
+          grid-template-columns: 1fr;
+        }
         .academic-class-card .timetable-slot-cell {
           min-width: 100%;
         }
@@ -287,7 +316,7 @@ import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directiv
                     <span *ngIf="isMyHomeroomWholeClass(cls)" class="academic-homeroom-you-pill academic-homeroom-you-pill--inline">{{ 'academic.homeroom.you' | translate }}</span>
                   </h4>
                 </div>
-                <div class="d-flex flex-column align-items-end gap-1">
+                <div class="d-flex flex-column align-items-end gap-1 academic-class-header-actions">
                   <span class="badge-erp" [ngClass]="cls.sections.length ? 'badge-info' : 'badge-neutral'">{{ cls.sections.length ? ('academic.card.sectionsCount' | translate: { count: cls.sections.length }) : ('academic.card.wholeClass' | translate) }}</span>
                   <span *ngIf="canManageAcademic && classNeedsHomeroom(cls)" class="badge-erp" style="background: color-mix(in srgb, var(--clr-warning) 22%, transparent); color: var(--clr-warning); border: 1px solid color-mix(in srgb, var(--clr-warning) 45%, transparent);">{{ 'academic.card.homeroomTbd' | translate }}</span>
                   <button *ngIf="canManageAcademic" type="button" class="btn-outline-erp btn-xs" (click)="openEditClassModal(cls)">{{ 'academic.card.editClass' | translate }}</button>
@@ -310,16 +339,15 @@ import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directiv
                 <button *ngIf="canManageAcademic" type="button" class="btn-primary-erp btn-xs mt-2" (click)="prefillAssignClassTeacher(cls)">{{ 'academic.card.assignTeacher' | translate }}</button>
               </div>
               <div *ngIf="cls.sections.length === 0" class="text-muted mb-2" style="font-size: 12px;">{{ 'academic.card.noSections' | translate }}</div>
-              <div class="d-flex flex-wrap gap-2">
+              <div class="academic-sections-grid">
                 <div
                   *ngFor="let sec of cls.sections; let secIdx = index"
-                  class="d-flex flex-column timetable-slot-cell"
+                  class="d-flex flex-column timetable-slot-cell academic-section-card"
                   [ngClass]="
                     isMyHomeroomSection(cls, sec)
                       ? 'academic-section-slot--mine'
                       : 'timetable-slot--tone-' + (secIdx % 4)
                   "
-                  style="flex: 1; min-width: min(100%, 140px);"
                 >
                   <span
                     *ngIf="isMyHomeroomSection(cls, sec)"
@@ -333,7 +361,7 @@ import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directiv
                         {{ 'academic.card.studentCount' | translate: { count: sec.studentCount, capacity: sec.capacity } }}
                       </div>
                     </div>
-                    <div *ngIf="canManageAcademic" class="d-flex flex-column gap-1">
+                    <div *ngIf="canManageAcademic" class="academic-section-actions">
                       <button type="button" class="btn-icon btn-xs p-0" style="font-size: 14px;" (click)="openEditSectionModal(cls, sec)" [attr.title]="'academic.card.editTitle' | translate"><i class="bi bi-pencil"></i></button>
                       <button type="button" class="btn-icon btn-xs p-0" style="font-size: 14px; color: var(--clr-danger);" [disabled]="sectionBusy" (click)="removeSection(cls, sec)" [attr.title]="'academic.card.removeTitle' | translate"><i class="bi bi-trash"></i></button>
                     </div>

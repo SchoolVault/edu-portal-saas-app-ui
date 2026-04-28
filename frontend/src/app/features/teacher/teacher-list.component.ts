@@ -201,6 +201,18 @@ export class TeacherListComponent implements OnInit, OnDestroy {
   private teachersListRequestSeq = 0;
   private allTeachersCache: Teacher[] = [];
 
+  private normalizeSubject(value: string): string {
+    return (value || '').trim().replace(/\s+/g, ' ').toLowerCase();
+  }
+
+  private teacherHasExactSubject(teacher: Teacher, subject: string): boolean {
+    const needle = this.normalizeSubject(subject);
+    if (!needle) {
+      return true;
+    }
+    return (teacher.subjects ?? []).some(s => this.normalizeSubject(s) === needle);
+  }
+
   constructor(
     private teacherService: TeacherService,
     private academicService: AcademicService,
@@ -317,7 +329,7 @@ export class TeacherListComponent implements OnInit, OnDestroy {
           const backendIgnoredSubjectFilter =
             hasSubjectFilter &&
             page.content.length > 0 &&
-            page.content.some(t => !(t.subjects ?? []).some(s => s.toLowerCase().includes(q)));
+            page.content.some(t => !this.teacherHasExactSubject(t, q));
           if (backendIgnoredSubjectFilter) {
             this.fallbackClientSubjectFilterPage();
             return;
@@ -355,7 +367,7 @@ export class TeacherListComponent implements OnInit, OnDestroy {
     const filtered = source.filter(t => {
       const nameOrSpec =
         `${t.firstName} ${t.lastName}`.toLowerCase().includes(term) || (t.specialization || '').toLowerCase().includes(term);
-      const subjectMatch = !subject || (t.subjects ?? []).some(s => (s || '').toLowerCase().includes(subject));
+      const subjectMatch = this.teacherHasExactSubject(t, subject);
       return nameOrSpec && subjectMatch;
     });
     const page = sliceToPage(filtered, this.pageIndex, this.pageSize);
@@ -416,7 +428,7 @@ export class TeacherListComponent implements OnInit, OnDestroy {
     const subjectNeedle = this.selectedSubject.toLowerCase();
     this.filtered = this.teachers.filter(t =>
       ((t.firstName + ' ' + t.lastName).toLowerCase().includes(term) || (t.specialization || '').toLowerCase().includes(term)) &&
-      (!subjectNeedle || (t.subjects ?? []).some(s => (s || '').toLowerCase().includes(subjectNeedle)))
+      this.teacherHasExactSubject(t, subjectNeedle)
     );
     this.pageIndex = 0;
     this.applyPage();
