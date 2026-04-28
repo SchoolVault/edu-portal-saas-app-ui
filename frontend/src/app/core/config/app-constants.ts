@@ -93,6 +93,11 @@ const AP_HOSTEL_PORTAL: readonly string[] = [
   AppPermission.PLATFORM_ADMIN,
 ];
 
+const AP_HOSTEL_ENTRY: readonly string[] = [
+  ...AP_HOSTEL_DESK,
+  ...AP_HOSTEL_PORTAL,
+];
+
 const AP_FEE_OFFICE: readonly string[] = [
   AppPermission.SCHOOL_FEES_READ,
   AppPermission.SCHOOL_FEES_WRITE,
@@ -341,19 +346,10 @@ export const NAV_ITEMS: NavItem[] = [
   {
     labelKey: 'nav.hostel',
     icon: 'bi-house-fill',
-    route: '/app/hostel',
+    route: '/app/hostel-home',
     roles: [],
-    permissionsAny: [...AP_HOSTEL_DESK],
+    permissionsAny: [...AP_HOSTEL_ENTRY],
     sectionKey: 'nav.section.operations',
-    moduleGate: 'hostel',
-  },
-  {
-    labelKey: 'nav.hostel',
-    icon: 'bi-house-fill',
-    route: '/app/hostel-portal',
-    roles: ['parent', 'student'],
-    permissionsAny: [...AP_HOSTEL_PORTAL],
-    sectionKey: 'nav.section.main',
     moduleGate: 'hostel',
   },
   {

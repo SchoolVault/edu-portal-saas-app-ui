@@ -263,7 +263,10 @@ interface DashboardChartPalette {
           <div class="col-lg-4">
             <div class="erp-card" style="height: 100%;">
               <div class="erp-card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
-                <h3 class="erp-card-title mb-0">{{ 'dashboard.admin.attendanceOverview' | translate }}</h3>
+                <div>
+                  <h3 class="erp-card-title mb-0">{{ 'dashboard.admin.attendanceOverview' | translate }}</h3>
+                  <p class="text-muted mb-0 small">{{ 'dashboard.admin.attendanceScopeMonthToDate' | translate }}</p>
+                </div>
                 <div class="d-flex flex-wrap gap-2 small">
                   <label class="d-flex align-items-center gap-1 mb-0" style="cursor: pointer;" [attr.title]="'dashboard.admin.slicePresent' | translate">
                     <input type="checkbox" [(ngModel)]="attSlicePresent" (change)="updateAttendanceChart()" />
@@ -1370,9 +1373,12 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
 
   updateCombinedTrendChart(): void {
     if (!this.combinedTrendChart) return;
-    const ds = this.combinedTrendChart.data.datasets;
-    if (ds[0]) ds[0].hidden = !this.showAdmissionsSeries;
-    if (ds[1]) ds[1].hidden = !this.showFeesSeries;
+    if (this.combinedTrendChart.data.datasets[0]) {
+      this.combinedTrendChart.setDatasetVisibility(0, this.showAdmissionsSeries);
+    }
+    if (this.combinedTrendChart.data.datasets[1]) {
+      this.combinedTrendChart.setDatasetVisibility(1, this.showFeesSeries);
+    }
     this.combinedTrendChart.update();
   }
 
@@ -1382,11 +1388,10 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
 
   private applyAttendanceVisibility(): void {
     if (!this.attendanceChart) return;
-    const meta = this.attendanceChart.getDatasetMeta(0);
     const flags = [this.attSlicePresent, this.attSliceAbsent, this.attSliceLate, this.attSliceExcused];
-    meta.data.forEach((arc, i) => {
-      if (arc && 'hidden' in arc) {
-        (arc as { hidden?: boolean }).hidden = !flags[i];
+    flags.forEach((enabled, i) => {
+      if (this.attendanceChart && this.attendanceChart.getDataVisibility(i) !== enabled) {
+        this.attendanceChart.toggleDataVisibility(i);
       }
     });
     this.attendanceChart.update();
@@ -1425,7 +1430,7 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
         responsive: true,
         maintainAspectRatio: false,
         plugins: {
-          legend: { position: 'top', labels: { color: p.text } },
+          legend: { position: 'top', labels: { color: p.text }, onClick: () => void 0 },
           tooltip: { backgroundColor: p.tooltipBg, titleColor: p.tooltipText, bodyColor: p.tooltipText },
         },
         scales: {
@@ -1455,7 +1460,7 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
         maintainAspectRatio: false,
         cutout: '70%',
         plugins: {
-          legend: { labels: { color: p.text } },
+          legend: { labels: { color: p.text }, onClick: () => void 0 },
           tooltip: { backgroundColor: p.tooltipBg, titleColor: p.tooltipText, bodyColor: p.tooltipText },
         }
       }

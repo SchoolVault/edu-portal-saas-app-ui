@@ -61,6 +61,20 @@ import { runtimeConfig } from '../../core/config/runtime-config';
       background: var(--clr-surface-alt);
       padding: 10px;
     }
+    .room-actions-inline {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+    .room-actions-inline .erp-select {
+      min-width: 170px;
+      max-width: 220px;
+      height: 32px;
+      font-size: 12px;
+      padding-top: 4px;
+      padding-bottom: 4px;
+    }
   `],
   template: `
     <div data-testid="hostel-page">
@@ -123,12 +137,27 @@ import { runtimeConfig } from '../../core/config/runtime-config';
                 <span *ngIf="!room.residents?.length" class="text-muted">{{ 'transport.dash' | translate }}</span>
               </td>
               <td *ngIf="isAdmin">
-                <button type="button" class="btn-outline-erp btn-xs" (click)="openEditRoom(room)">{{ 'hostel.edit' | translate }}</button>
-                <button *ngIf="room.occupancy < room.capacity" type="button" class="btn-outline-erp btn-xs ms-1" (click)="openAllocate(room)">{{ 'hostel.bookAllocate' | translate }}</button>
-                <ng-container *ngFor="let r of room.residents">
-                  <button type="button" class="btn-outline-erp btn-xs ms-1" (click)="openTransfer(room, r)">{{ 'hostel.transfer' | translate }}</button>
-                  <button type="button" class="btn-outline-erp btn-xs ms-1" (click)="openVacate(room, r)">{{ 'hostel.vacate' | translate }}</button>
-                </ng-container>
+                <div class="room-actions-inline">
+                  <select
+                    class="erp-select"
+                    [ngModel]="roomActionSelection[room.id] || ''"
+                    (ngModelChange)="roomActionSelection[room.id] = $event"
+                  >
+                    <option value="">Select action</option>
+                    <option value="edit">{{ 'hostel.edit' | translate }}</option>
+                    <option value="allocate" [disabled]="room.occupancy >= room.capacity">{{ 'hostel.bookAllocate' | translate }}</option>
+                    <option value="transfer" [disabled]="!room.residents?.length">{{ 'hostel.transfer' | translate }}</option>
+                    <option value="vacate" [disabled]="!room.residents?.length">{{ 'hostel.vacate' | translate }}</option>
+                  </select>
+                  <button
+                    type="button"
+                    class="btn-outline-erp btn-xs"
+                    [disabled]="!roomActionSelection[room.id]"
+                    (click)="applyRoomAction(room)"
+                  >
+                    Apply
+                  </button>
+                </div>
               </td>
             </tr>
           </tbody>
@@ -512,6 +541,31 @@ import { runtimeConfig } from '../../core/config/runtime-config';
       </div>
     </div>
 
+    <div class="modal-overlay" *ngIf="residentActionPicker" (click)="residentActionPicker = null">
+      <div class="modal-content-erp" (click)="$event.stopPropagation()">
+        <div class="modal-header-erp">
+          <h3>{{ residentActionPicker.action === 'transfer' ? ('hostel.transfer' | translate) : ('hostel.vacate' | translate) }}</h3>
+          <button class="btn-icon" (click)="residentActionPicker = null"><i class="bi bi-x-lg"></i></button>
+        </div>
+        <div class="modal-body-erp">
+          <p class="small text-muted mb-2">
+            Room: <strong>{{ residentActionPicker.room.roomNumber }}</strong>
+          </p>
+          <label class="erp-label">Select resident</label>
+          <select class="erp-select" [(ngModel)]="residentActionSelectedAllocationId">
+            <option [ngValue]="null">Select</option>
+            <option *ngFor="let r of residentActionPicker.room.residents" [ngValue]="r.allocationId">
+              {{ r.studentName }}
+            </option>
+          </select>
+        </div>
+        <div class="modal-footer-erp">
+          <button class="btn-outline-erp" type="button" (click)="residentActionPicker = null">{{ 'hostel.cancel' | translate }}</button>
+          <button class="btn-primary-erp" type="button" [disabled]="!residentActionSelectedAllocationId" (click)="confirmResidentActionSelection()">Continue</button>
+        </div>
+      </div>
+    </div>
+
     <div class="modal-overlay" *ngIf="allocRoom" (click)="allocRoom = null">
       <div class="modal-content-erp" (click)="$event.stopPropagation()">
         <div class="modal-header-erp"><h3>{{ 'hostel.modalAllocateTitle' | translate }}</h3><button class="btn-icon" (click)="allocRoom = null"><i class="bi bi-x-lg"></i></button></div>
@@ -623,6 +677,10 @@ export class HostelComponent implements OnInit {
   bookingDecisionForm = { roomId: null as string | null, decisionNote: '' };
   bookingApprovalRoomOptions: HostelRoom[] = [];
   bookingDecisionSubmitting = false;
+  roomActionSelection: Record<string, '' | 'edit' | 'allocate' | 'transfer' | 'vacate'> = {};
+  residentActionPicker: { room: HostelRoom; action: 'transfer' | 'vacate' } | null = null;
+  residentActionSelectedAllocationId: string | null = null;
+
   gatePasses: HostelGatePass[] = [];
   gatePassForm = { studentId: null as number | null, studentName: '', requestType: 'LEAVE_OUT', reason: '', outAt: '' };
   visitorEntries: HostelVisitorEntry[] = [];
@@ -967,6 +1025,41 @@ export class HostelComponent implements OnInit {
   openAllocate(room: HostelRoom): void {
     this.allocRoom = room;
     this.allocForm = { studentId: null, studentName: '' };
+  }
+
+  applyRoomAction(room: HostelRoom): void {
+    const action = this.roomActionSelection[room.id];
+    this.roomActionSelection[room.id] = '';
+    if (!action) return;
+    if (action === 'edit') {
+      this.openEditRoom(room);
+      return;
+    }
+    if (action === 'allocate') {
+      if (room.occupancy < room.capacity) this.openAllocate(room);
+      return;
+    }
+    if (!room.residents?.length) return;
+    if (room.residents.length === 1) {
+      const resident = room.residents[0];
+      if (action === 'transfer') this.openTransfer(room, resident);
+      else this.openVacate(room, resident);
+      return;
+    }
+    this.residentActionPicker = { room, action };
+    this.residentActionSelectedAllocationId = null;
+  }
+
+  confirmResidentActionSelection(): void {
+    const picker = this.residentActionPicker;
+    const allocationId = this.residentActionSelectedAllocationId;
+    if (!picker || !allocationId) return;
+    const resident = (picker.room.residents ?? []).find(r => r.allocationId === allocationId);
+    if (!resident) return;
+    this.residentActionPicker = null;
+    this.residentActionSelectedAllocationId = null;
+    if (picker.action === 'transfer') this.openTransfer(picker.room, resident);
+    else this.openVacate(picker.room, resident);
   }
 
   syncAllocName(): void {
