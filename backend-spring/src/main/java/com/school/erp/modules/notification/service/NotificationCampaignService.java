@@ -10,6 +10,7 @@ import com.school.erp.modules.notification.entity.NotificationCampaign;
 import com.school.erp.modules.notification.repository.NotificationCampaignRepository;
 import com.school.erp.modules.notification.repository.NotificationOutboxRepository;
 import com.school.erp.platform.port.NotificationDispatchPort;
+import com.school.erp.platform.port.NotificationDispatchAttributes;
 import com.school.erp.tenant.TenantContext;
 import java.time.LocalTime;
 import java.time.LocalDateTime;
@@ -106,7 +107,8 @@ public class NotificationCampaignService {
                             body,
                             dedupe,
                             correlationId,
-                            validated.scheduledAt());
+                            validated.scheduledAt(),
+                            NotificationDispatchAttributes.inheritFromThread());
                 } else {
                     dispatchPort.enqueue(
                             tenantId,
@@ -117,7 +119,8 @@ public class NotificationCampaignService {
                             validated.title(),
                             body,
                             dedupe,
-                            correlationId);
+                            correlationId,
+                            NotificationDispatchAttributes.inheritFromThread());
                 }
                 queued++;
             }

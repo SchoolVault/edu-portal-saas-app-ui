@@ -71,6 +71,7 @@ import com.school.erp.modules.notification.repository.NotificationOutboxReposito
 import com.school.erp.modules.notification.repository.NotificationRepository;
 import com.school.erp.modules.payroll.repository.SalaryDisbursementAttemptRepository;
 import com.school.erp.platform.port.NotificationDispatchPort;
+import com.school.erp.platform.port.NotificationDispatchAttributes;
 import com.school.erp.tenant.AcademicYearContext;
 import com.school.erp.tenant.hibernate.AcademicYearScopedFilter;
 import com.school.erp.modules.payroll.entity.SalaryDisbursementAttempt;
@@ -1060,7 +1061,8 @@ public class DemoDataSeedService {
                 "Fee balance — gentle reminder",
                 "Demo: term fee balance can be cleared via the parent portal.",
                 "demo:v3:fee_email:" + schoolCode,
-                "seed-fee-email");
+                "seed-fee-email",
+                NotificationDispatchAttributes.inheritFromThread());
         notificationDispatchPort.enqueue(
                 tenantId,
                 "FEE_REMINDER",
@@ -1070,7 +1072,8 @@ public class DemoDataSeedService {
                 "Fee reminder",
                 "Demo: pay online or visit the accounts office.",
                 "demo:v3:fee_wa:" + schoolCode,
-                "seed-fee-wa");
+                "seed-fee-wa",
+                NotificationDispatchAttributes.inheritFromThread());
         notificationDispatchPort.enqueue(
                 tenantId,
                 "FEE_REMINDER",
@@ -1080,7 +1083,8 @@ public class DemoDataSeedService {
                 "In-app: fee due",
                 "Demo notification delivered via outbox (IN_APP channel).",
                 "demo:v3:fee_inapp:" + schoolCode,
-                "seed-fee-inapp");
+                "seed-fee-inapp",
+                NotificationDispatchAttributes.inheritFromThread());
 
         String dedupeSent = "demo:v3:sent_sms:" + schoolCode;
         if (!notificationOutboxRepository.existsByTenantIdAndDedupeKeyAndIsDeletedFalse(tenantId, dedupeSent)) {

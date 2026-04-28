@@ -26,6 +26,7 @@ import com.school.erp.modules.settings.repository.TenantConfigRepository;
 import com.school.erp.modules.auth.repository.UserRepository;
 import com.school.erp.modules.guardian.service.GuardianService;
 import com.school.erp.platform.port.NotificationDispatchPort;
+import com.school.erp.platform.port.NotificationDispatchAttributes;
 import com.school.erp.modules.reminder.service.FeeReminderAutomationService;
 import com.school.erp.events.domain.FeePaymentRecordedEvent;
 import com.school.erp.modules.student.entity.Student;
@@ -1070,10 +1071,12 @@ public class FeeService {
             String corr = "fee-manual-" + payment.getId() + "-" + System.currentTimeMillis();
             notificationDispatchPort.enqueue(
                     tenantId, "FEE_MANUAL_RECORDED", "SMS", parentUserId, null,
-                    "Fee recorded at school", body, "FEEMAN:" + payment.getId(), corr);
+                    "Fee recorded at school", body, "FEEMAN:" + payment.getId(), corr,
+                    NotificationDispatchAttributes.preferExplicitOrThread(payment.getAcademicYearId()));
             notificationDispatchPort.enqueue(
                     tenantId, "FEE_MANUAL_RECORDED", "WHATSAPP", parentUserId, null,
-                    "Fee recorded at school", body, "FEEMAN:" + payment.getId() + ":WA", corr);
+                    "Fee recorded at school", body, "FEEMAN:" + payment.getId() + ":WA", corr,
+                    NotificationDispatchAttributes.preferExplicitOrThread(payment.getAcademicYearId()));
         });
     }
 
@@ -1091,10 +1094,12 @@ public class FeeService {
         String corr = "fee-pay-" + attempt.getId();
         notificationDispatchPort.enqueue(
                 tenantId, "FEE_PAYMENT_CONFIRM", "SMS", parentUserId, null,
-                "Payment received", body, "PAYCONF:" + attempt.getId(), corr);
+                "Payment received", body, "PAYCONF:" + attempt.getId(), corr,
+                NotificationDispatchAttributes.preferExplicitOrThread(payment.getAcademicYearId()));
         notificationDispatchPort.enqueue(
                 tenantId, "FEE_PAYMENT_CONFIRM", "WHATSAPP", parentUserId, null,
-                "Payment received", body, "PAYCONF:" + attempt.getId() + ":WA", corr);
+                "Payment received", body, "PAYCONF:" + attempt.getId() + ":WA", corr,
+                NotificationDispatchAttributes.preferExplicitOrThread(payment.getAcademicYearId()));
         userRepository.findByIdAndTenantIdAndIsDeletedFalse(parentUserId, tenantId).ifPresent(u ->
                 log.info("Fee payment confirmed tenant={} parentUser={} student={} amount={} status={}",
                         tenantId, parentUserId, payment.getStudentId(), attempt.getAmount(), payment.getStatus()));

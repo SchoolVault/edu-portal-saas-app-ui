@@ -9,6 +9,7 @@ import com.school.erp.modules.settings.service.TenantFeatureFlagsService;
 import com.school.erp.modules.student.entity.Student;
 import com.school.erp.modules.student.port.StudentPersistencePort;
 import com.school.erp.platform.port.NotificationDispatchPort;
+import com.school.erp.platform.port.NotificationDispatchAttributes;
 import com.school.erp.tenant.AcademicYearContext;
 import com.school.erp.tenant.TenantScopedExecution;
 import java.math.BigDecimal;
@@ -76,7 +77,7 @@ public class FeeReminderAutomationService {
         String subject = "New fee assigned";
         String body = "A fee was assigned for " + name + "." + dueBit + " Please open the parent portal to pay.";
         String baseDedupe = "FEE_ASN:" + tenantId + ":" + payment.getId();
-        enqueueParentChannels(tenantId, parentId, "FEE_ASSIGNED", subject, body, baseDedupe);
+        enqueueParentChannels(tenantId, parentId, "FEE_ASSIGNED", subject, body, baseDedupe, resolveEnqueueScope(tenantId));
         log.info("Fee assignment notification queued tenant={} paymentId={}", tenantId, payment.getId());
     }
 
@@ -140,7 +141,7 @@ public class FeeReminderAutomationService {
             String subject = "Fee reminder";
             String body = buildReminderBody(p);
             String dedupe = "FEE_AUTO:" + tenantId + ":" + p.getId() + ":" + phase;
-            n += enqueueParentChannels(tenantId, parentId, "FEE_REMINDER", subject, body, dedupe);
+            n += enqueueParentChannels(tenantId, parentId, "FEE_REMINDER", subject, body, dedupe, resolveEnqueueScope(tenantId));
         }
         return n;
     }
@@ -199,8 +200,22 @@ public class FeeReminderAutomationService {
         return "Fee reminder: " + name + " — outstanding " + due.add(late) + dueBit + " Pay from the parent portal.";
     }
 
+    private NotificationDispatchAttributes resolveEnqueueScope(String tenantId) {
+        Long ay = AcademicYearContext.getAcademicYearId();
+        if (ay == null) {
+            ay = currentAcademicYearResolver.resolveCurrentAcademicYearId(tenantId);
+        }
+        return NotificationDispatchAttributes.academicYearOrEmpty(ay);
+    }
+
     private int enqueueParentChannels(
-            String tenantId, Long parentUserId, String eventType, String subject, String body, String baseDedupe) {
+            String tenantId,
+            Long parentUserId,
+            String eventType,
+            String subject,
+            String body,
+            String baseDedupe,
+            NotificationDispatchAttributes dispatchAttributes) {
         int n = 0;
         notificationDispatchPort.enqueue(
                 tenantId,
@@ -211,7 +226,8 @@ public class FeeReminderAutomationService {
                 subject,
                 body,
                 baseDedupe + ":IN_APP",
-                "fee-auto");
+                "fee-auto",
+                dispatchAttributes);
         n++;
         notificationDispatchPort.enqueue(
                 tenantId,
@@ -222,7 +238,8 @@ public class FeeReminderAutomationService {
                 subject,
                 body,
                 baseDedupe + ":SMS",
-                "fee-auto");
+                "fee-auto",
+                dispatchAttributes);
         n++;
         return n;
     }
