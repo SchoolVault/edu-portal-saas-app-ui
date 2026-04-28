@@ -33,6 +33,12 @@ export interface UpdateMappingPayload {
   isEmergencyContact?: boolean;
 }
 
+export interface GuardianLookup {
+  id: string;
+  fullName: string;
+  primaryPhone?: string;
+}
+
 @Injectable({ providedIn: 'root' })
 export class GuardianService {
   constructor(private api: ApiService) {}
@@ -68,5 +74,25 @@ export class GuardianService {
       return throwError(() => new Error('Guardian API disabled in mock mode'));
     }
     return this.api.put<void>(`/students/${studentId}/guardian-mappings/${mappingId}`, body);
+  }
+
+  removeStudentMapping(studentId: number, mappingId: number): Observable<void> {
+    if (runtimeConfig.useMocks) {
+      return throwError(() => new Error('Guardian API disabled in mock mode'));
+    }
+    return this.api.delete<void>(`/students/${studentId}/guardian-mappings/${mappingId}`);
+  }
+
+  searchByPhone(phone: string): Observable<GuardianLookup[]> {
+    if (runtimeConfig.useMocks) {
+      return throwError(() => new Error('Guardian API disabled in mock mode'));
+    }
+    return this.api
+      .getParams<any[]>('/guardians/search', { phone })
+      .pipe(
+        map((rows: any[]) =>
+          rows.map((r: any) => ({ id: String(r.id), fullName: r.fullName ?? '', primaryPhone: r.primaryPhone ?? '' }))
+        )
+      );
   }
 }

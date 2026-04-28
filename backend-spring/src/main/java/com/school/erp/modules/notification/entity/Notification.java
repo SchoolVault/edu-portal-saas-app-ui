@@ -1,14 +1,32 @@
 package com.school.erp.modules.notification.entity;
 
 import com.school.erp.common.entity.BaseEntity;
+import com.school.erp.common.entity.AcademicYearScopedEntity;
+import com.school.erp.common.entity.AcademicYearScopeGuardListener;
 import com.school.erp.common.enums.Enums;
 import jakarta.persistence.*;
+import org.hibernate.annotations.Filter;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
+import com.school.erp.tenant.hibernate.AcademicYearScopedFilter;
 
 @Entity
+@EntityListeners(AcademicYearScopeGuardListener.class)
+@Filter(name = AcademicYearScopedFilter.NAME, condition = "academic_year_id = :academicYearId")
 @Table(name = "notifications", indexes = {@Index(name = "idx_notif_user", columnList = "tenant_id, user_id"), @Index(name = "idx_notif_read", columnList = "tenant_id, user_id, is_read")})
-public class Notification extends BaseEntity {
+public class Notification extends BaseEntity implements AcademicYearScopedEntity {
+    @Column(name = "academic_year_id")
+    private Long academicYearId;
+    @Override
+    public Long getAcademicYearId() {
+        return academicYearId;
+    }
+
+    @Override
+    public void setAcademicYearId(Long academicYearId) {
+        this.academicYearId = academicYearId;
+    }
+
     @Column(nullable = false, length = 200)
     private String title;
     @Column(length = 500)

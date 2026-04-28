@@ -1,15 +1,21 @@
 package com.school.erp.modules.timetable.entity;
 
 import com.school.erp.common.entity.BaseEntity;
+import com.school.erp.common.entity.AcademicYearScopedEntity;
+import com.school.erp.common.entity.AcademicYearScopeGuardListener;
 import com.school.erp.common.enums.Enums;
 import jakarta.persistence.*;
 import java.time.LocalTime;
 import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.annotations.Filter;
 import org.hibernate.type.SqlTypes;
+import com.school.erp.tenant.hibernate.AcademicYearScopedFilter;
 
 @Entity
+@EntityListeners(AcademicYearScopeGuardListener.class)
+@Filter(name = AcademicYearScopedFilter.NAME, condition = "academic_year_id = :academicYearId")
 @Table(name = "timetable_entries", indexes = {@Index(name = "idx_tt_class_section", columnList = "tenant_id, class_id, section_id"), @Index(name = "idx_tt_teacher", columnList = "tenant_id, teacher_id")})
-public class TimetableEntry extends BaseEntity {
+public class TimetableEntry extends BaseEntity implements AcademicYearScopedEntity {
     @Column(name = "academic_year_id")
     private Long academicYearId;
     @Column(name = "timetable_version")

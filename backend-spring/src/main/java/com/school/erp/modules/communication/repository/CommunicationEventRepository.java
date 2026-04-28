@@ -12,9 +12,6 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 public interface CommunicationEventRepository extends JpaRepository<CommunicationEvent, Long> {
-    @Query("select distinct e.tenantId from CommunicationEvent e where e.isDeleted = false")
-    List<String> findDistinctTenantIds();
-
     @Query("""
             select e from CommunicationEvent e
             where e.tenantId = :tenantId and e.isDeleted = false
@@ -26,7 +23,7 @@ public interface CommunicationEventRepository extends JpaRepository<Communicatio
             select e from CommunicationEvent e
             where e.tenantId = :tenantId and e.isDeleted = false
               and (
-                e.audienceScope = 'ALL'
+                (e.audienceScope = 'ALL' and (:role = 'ADMIN' or :role = 'SUPER_ADMIN'))
                 or (e.audienceScope = 'TEACHERS' and (:role = 'TEACHER' or :role = 'ADMIN' or :role = 'LIBRARY_STAFF' or :role = 'SCHOOL_STAFF' or :role = 'SUPER_ADMIN'))
                 or (e.audienceScope = 'PARENTS' and (:role = 'PARENT' or :role = 'ADMIN' or :role = 'LIBRARY_STAFF' or :role = 'SCHOOL_STAFF' or :role = 'SUPER_ADMIN'))
                 or (e.audienceScope = 'CLASS' and e.targetClassId in :classIds)

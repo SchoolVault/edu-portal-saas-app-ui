@@ -1,10 +1,16 @@
 package com.school.erp.modules.academic.entity;
 
 import com.school.erp.common.entity.BaseEntity;
+import com.school.erp.common.entity.AcademicYearScopedEntity;
+import com.school.erp.common.entity.AcademicYearScopeGuardListener;
 import jakarta.persistence.*;
 import java.time.LocalDate;
+import org.hibernate.annotations.Filter;
+import com.school.erp.tenant.hibernate.AcademicYearScopedFilter;
 
 @Entity
+@EntityListeners(AcademicYearScopeGuardListener.class)
+@Filter(name = AcademicYearScopedFilter.NAME, condition = "academic_year_id = :academicYearId")
 @Table(
         name = "class_teacher_assignments",
         indexes = {
@@ -12,7 +18,7 @@ import java.time.LocalDate;
                 @Index(name = "idx_cta_tenant_teacher", columnList = "tenant_id, teacher_id"),
                 @Index(name = "idx_cta_year", columnList = "tenant_id, academic_year_id")
         })
-public class ClassTeacherAssignment extends BaseEntity {
+public class ClassTeacherAssignment extends BaseEntity implements AcademicYearScopedEntity {
 
     @Column(name = "academic_year_id", nullable = false)
     private Long academicYearId;

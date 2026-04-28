@@ -1,15 +1,21 @@
 package com.school.erp.modules.library.entity;
 
 import com.school.erp.common.entity.BaseEntity;
+import com.school.erp.common.entity.AcademicYearScopedEntity;
+import com.school.erp.common.entity.AcademicYearScopeGuardListener;
 import com.school.erp.common.enums.Enums;
 import jakarta.persistence.*;
+import org.hibernate.annotations.Filter;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
+import com.school.erp.tenant.hibernate.AcademicYearScopedFilter;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
 
 @Entity
+@EntityListeners(AcademicYearScopeGuardListener.class)
+@Filter(name = AcademicYearScopedFilter.NAME, condition = "academic_year_id = :academicYearId")
 @Table(name = "book_issues", indexes = {
         @Index(name = "idx_bi_student",
                 columnList = "tenant_id, student_id"),
@@ -17,7 +23,19 @@ import java.time.LocalDate;
                 columnList = "tenant_id, borrower_type, borrower_ref_id"),
         @Index(name = "idx_bi_borrower_user",
                 columnList = "tenant_id, borrower_user_id")})
-public class BookIssue extends BaseEntity {
+public class BookIssue extends BaseEntity implements AcademicYearScopedEntity {
+    @Column(name = "academic_year_id")
+    private Long academicYearId;
+    @Override
+    public Long getAcademicYearId() {
+        return academicYearId;
+    }
+
+    @Override
+    public void setAcademicYearId(Long academicYearId) {
+        this.academicYearId = academicYearId;
+    }
+
     @Column(name = "book_id", nullable = false)
     private Long bookId;
     @Column(name = "book_title", length = 200)

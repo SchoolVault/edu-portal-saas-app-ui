@@ -11,6 +11,8 @@ public class ImportExportDTOs {
         private String jobType;
         private List<String> detectedHeaders;
         private List<String> canonicalFields;
+        /** Canonical field guide for sales/operators: R/O + plain language meaning. */
+        private List<ImportFieldGuide> canonicalFieldGuides;
         /** Suggested map: file header (lowercase) → canonical key. Client may edit before dry-run / submit. */
         private Map<String, String> suggestedMapping;
 
@@ -38,12 +40,69 @@ public class ImportExportDTOs {
             this.canonicalFields = canonicalFields;
         }
 
+        public List<ImportFieldGuide> getCanonicalFieldGuides() {
+            return canonicalFieldGuides;
+        }
+
+        public void setCanonicalFieldGuides(List<ImportFieldGuide> canonicalFieldGuides) {
+            this.canonicalFieldGuides = canonicalFieldGuides;
+        }
+
         public Map<String, String> getSuggestedMapping() {
             return suggestedMapping;
         }
 
         public void setSuggestedMapping(Map<String, String> suggestedMapping) {
             this.suggestedMapping = suggestedMapping;
+        }
+    }
+
+    public static class ImportFieldGuide {
+        private String fieldKey;
+        /** R for required, O for optional. */
+        private String requirement;
+        private boolean required;
+        private String description;
+        private String sampleValue;
+
+        public String getFieldKey() {
+            return fieldKey;
+        }
+
+        public void setFieldKey(String fieldKey) {
+            this.fieldKey = fieldKey;
+        }
+
+        public String getRequirement() {
+            return requirement;
+        }
+
+        public void setRequirement(String requirement) {
+            this.requirement = requirement;
+        }
+
+        public boolean isRequired() {
+            return required;
+        }
+
+        public void setRequired(boolean required) {
+            this.required = required;
+        }
+
+        public String getDescription() {
+            return description;
+        }
+
+        public void setDescription(String description) {
+            this.description = description;
+        }
+
+        public String getSampleValue() {
+            return sampleValue;
+        }
+
+        public void setSampleValue(String sampleValue) {
+            this.sampleValue = sampleValue;
         }
     }
 

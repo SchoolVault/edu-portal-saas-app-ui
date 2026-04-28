@@ -170,14 +170,28 @@ import { StudentGuardianMapping } from '../../core/models/models';
             </div>
           </div>
 
-          <h4 *ngIf="!isEdit" style="font-size: 15px; font-weight: 700; margin-bottom: 20px; color: var(--clr-primary);">{{ 'students.form.sectionGuardians' | translate }}</h4>
+      <h4 *ngIf="!isEdit" style="font-size: 15px; font-weight: 700; margin-bottom: 20px; color: var(--clr-primary);">{{ 'students.form.sectionGuardians' | translate }}</h4>
           <div *ngIf="!isEdit" class="row g-3 mb-4">
             <div class="col-12"><p class="text-muted small mb-0">{{ 'students.form.guardiansIntro' | translate }}</p></div>
             <div class="col-md-6 erp-card p-3">
               <div class="erp-form-group"><label class="erp-label">{{ 'students.form.g1name' | translate }}</label>
-                <input type="text" class="erp-input" [(ngModel)]="g1.fullName" name="g1name"></div>
+                <input type="text" class="erp-input" [(ngModel)]="g1.fullName" name="g1name" required></div>
               <div class="erp-form-group"><label class="erp-label">{{ 'students.form.phone' | translate }}</label>
-                <input type="text" class="erp-input" [(ngModel)]="g1.primaryPhone" name="g1phone"></div>
+                <input type="text" class="erp-input" [(ngModel)]="g1.primaryPhone" (ngModelChange)="onPrimaryGuardianPhoneChanged()" (blur)="onPrimaryGuardianPhoneBlur()" name="g1phone" required>
+                <div class="mt-2" *ngIf="showExistingParentChip()">
+                  <div class="small text-muted" *ngIf="parentLookupLoading">{{ 'students.form.parentLookupChecking' | translate }}</div>
+                  <div class="small d-inline-flex align-items-center gap-1 px-2 py-1 rounded-2" style="background: rgba(13,110,253,0.12); color: #0b5ed7;" *ngIf="!parentLookupLoading && existingParentMatch">
+                    <i class="bi bi-link-45deg"></i>
+                    <span>{{ 'students.form.parentAlreadyLinkedChip' | translate:{ name: existingParentMatch.fullName, phone: existingParentMatch.primaryPhone || g1.primaryPhone } }}</span>
+                  </div>
+                  <div class="small d-inline-flex align-items-center gap-1 px-2 py-1 rounded-2" style="background: rgba(25,135,84,0.12); color: #146c43;" *ngIf="!parentLookupLoading && !existingParentMatch && parentLookupChecked">
+                    <i class="bi bi-person-plus"></i>
+                    <span>{{ 'students.form.parentWillBeCreatedChip' | translate }}</span>
+                  </div>
+                </div>
+              </div>
+              <div class="erp-form-group"><label class="erp-label">{{ 'students.form.email' | translate }}</label>
+                <input type="email" class="erp-input" [(ngModel)]="g1.email" name="g1email"></div>
               <div class="erp-form-group"><label class="erp-label">{{ 'students.form.occupation' | translate }}</label>
                 <input type="text" class="erp-input" [(ngModel)]="g1.occupation" name="g1job"></div>
               <div class="erp-form-group"><label class="erp-label">{{ 'students.form.relation' | translate }}</label>
@@ -187,12 +201,18 @@ import { StudentGuardianMapping } from '../../core/models/models';
                   <option value="GUARDIAN">{{ 'students.enums.guardianRelation.GUARDIAN' | translate }}</option>
                   <option value="OTHER">{{ 'students.enums.guardianRelation.OTHER' | translate }}</option>
                 </select></div>
+              <label class="small d-flex align-items-center gap-2">
+                <input type="checkbox" [(ngModel)]="g1.createPortal" name="g1CreatePortal">
+                <span>{{ 'students.form.createPortalForPrimary' | translate }}</span>
+              </label>
             </div>
-            <div class="col-md-6 erp-card p-3">
+            <div class="col-md-6 erp-card p-3" *ngIf="includeSecondGuardian">
               <div class="erp-form-group"><label class="erp-label">{{ 'students.form.g2name' | translate }}</label>
                 <input type="text" class="erp-input" [(ngModel)]="g2.fullName" name="g2name"></div>
               <div class="erp-form-group"><label class="erp-label">{{ 'students.form.phone' | translate }}</label>
                 <input type="text" class="erp-input" [(ngModel)]="g2.primaryPhone" name="g2phone"></div>
+              <div class="erp-form-group"><label class="erp-label">{{ 'students.form.email' | translate }}</label>
+                <input type="email" class="erp-input" [(ngModel)]="g2.email" name="g2email"></div>
               <div class="erp-form-group"><label class="erp-label">{{ 'students.form.occupation' | translate }}</label>
                 <input type="text" class="erp-input" [(ngModel)]="g2.occupation" name="g2job"></div>
               <div class="erp-form-group"><label class="erp-label">{{ 'students.form.relation' | translate }}</label>
@@ -202,6 +222,10 @@ import { StudentGuardianMapping } from '../../core/models/models';
                   <option value="GUARDIAN">{{ 'students.enums.guardianRelation.GUARDIAN' | translate }}</option>
                   <option value="OTHER">{{ 'students.enums.guardianRelation.OTHER' | translate }}</option>
                 </select></div>
+              <button type="button" class="btn btn-sm btn-outline-danger" (click)="removeSecondGuardianDraft()">{{ 'students.form.removeSecondaryGuardian' | translate }}</button>
+            </div>
+            <div class="col-12" *ngIf="!includeSecondGuardian">
+              <button type="button" class="btn-outline-erp" (click)="includeSecondGuardian = true">{{ 'students.form.addSecondaryGuardian' | translate }}</button>
             </div>
           </div>
 
@@ -243,6 +267,9 @@ import { StudentGuardianMapping } from '../../core/models/models';
                   <input type="checkbox" [(ngModel)]="guardian.isEmergencyContact" [name]="'editGuardianEmergency' + i">
                   <span>{{ 'students.form.guardianEmergency' | translate }}</span>
                 </label>
+                <button type="button" class="btn btn-sm btn-outline-danger" *ngIf="i > 0" (click)="removeGuardianRow(i)">
+                  {{ 'students.form.removeSecondaryGuardian' | translate }}
+                </button>
               </div>
             </div>
           </div>
@@ -273,8 +300,12 @@ export class StudentFormComponent implements OnInit, OnDestroy {
   /** Server-safe message from API (already user-facing). */
   saveApiMessage: string | null = null;
   studentDirectoryPreview: string | null = null;
-  g1 = { fullName: '', primaryPhone: '', occupation: '', relationType: 'FATHER' as const };
-  g2 = { fullName: '', primaryPhone: '', occupation: '', relationType: 'MOTHER' as const };
+  g1 = { fullName: '', primaryPhone: '', email: '', occupation: '', relationType: 'FATHER' as const, createPortal: true };
+  g2 = { fullName: '', primaryPhone: '', email: '', occupation: '', relationType: 'MOTHER' as const };
+  includeSecondGuardian = false;
+  existingParentMatch: { id: string; fullName: string; primaryPhone?: string } | null = null;
+  parentLookupLoading = false;
+  parentLookupChecked = false;
   editGuardians: Array<{
     mappingId: number | null;
     guardianId: number | null;
@@ -493,7 +524,7 @@ export class StudentFormComponent implements OnInit, OnDestroy {
     return !!cls && cls.sections.length > 0;
   }
 
-  onSubmit(): void {
+  async onSubmit(): Promise<void> {
     this.submitErrorKey = null;
     this.saveApiMessage = null;
     if (!this.student.firstName || !this.student.lastName || this.student.classId == null || this.student.classId === 0) {
@@ -501,6 +532,9 @@ export class StudentFormComponent implements OnInit, OnDestroy {
     }
     if (this.sectionRequired && (this.student.sectionId == null || this.student.sectionId === 0)) return;
     if (!this.isEdit && !this.validateGuardianPairs()) {
+      return;
+    }
+    if (!this.isEdit && !(await this.confirmLinkToExistingParentIfAny())) {
       return;
     }
     this.saving = true;
@@ -543,10 +577,17 @@ export class StudentFormComponent implements OnInit, OnDestroy {
       });
     } else {
       fillLegacyParentName();
+      this.student.parentPhone = this.g1.primaryPhone.trim() || undefined;
+      this.student.parentEmail = this.g1.email.trim() || undefined;
+      this.student.createParentPortal = !!this.g1.createPortal;
       this.student.admissionNumber = this.student.admissionNumber || ('ADM' + Date.now().toString().slice(-6));
       this.studentService.addStudent(this.student as Omit<Student, 'id'>).subscribe({
         next: async created => {
-          const extras = [this.g1, this.g2].filter(g => g.fullName.trim().length > 0);
+          const secondaryDrafts = this.includeSecondGuardian ? [this.g2] : [];
+          // Backend createStudent auto-links parent (by phone/email/create flag) and syncs one primary guardian mapping.
+          // Keep manual-create behavior aligned with import: avoid creating a second primary guardian row for g1.
+          const draftsToPersist = created.parentId ? secondaryDrafts : [this.g1, ...secondaryDrafts];
+          const extras = draftsToPersist.filter(g => g.fullName.trim().length > 0);
           if (!runtimeConfig.useMocks && extras.length > 0) {
             try {
               for (let i = 0; i < extras.length; i++) {
@@ -554,7 +595,8 @@ export class StudentFormComponent implements OnInit, OnDestroy {
                 const gr = await firstValueFrom(this.guardianService.createGuardian({
                   fullName: g.fullName.trim(),
                   primaryPhone: g.primaryPhone?.trim() || undefined,
-                  occupation: g.occupation?.trim() || undefined
+                  occupation: g.occupation?.trim() || undefined,
+                  emailsJson: g.email?.trim() ? JSON.stringify([g.email.trim()]) : undefined
                 }));
                 await firstValueFrom(this.guardianService.addStudentMapping(created.id, {
                   guardianId: gr.id,
@@ -656,8 +698,56 @@ export class StudentFormComponent implements OnInit, OnDestroy {
     }));
   }
 
+  removeSecondGuardianDraft(): void {
+    this.includeSecondGuardian = false;
+    this.g2 = { fullName: '', primaryPhone: '', email: '', occupation: '', relationType: 'MOTHER' as const };
+  }
+
+  async removeGuardianRow(index: number): Promise<void> {
+    if (!this.isEdit || !this.student.id || index <= 0 || index >= this.editGuardians.length) {
+      return;
+    }
+    const row = this.editGuardians[index];
+    if (row.mappingId != null && !runtimeConfig.useMocks) {
+      await firstValueFrom(this.guardianService.removeStudentMapping(this.student.id, row.mappingId));
+    }
+    this.editGuardians.splice(index, 1);
+  }
+
+  onPrimaryGuardianPhoneChanged(): void {
+    this.existingParentMatch = null;
+    this.parentLookupChecked = false;
+  }
+
+  async onPrimaryGuardianPhoneBlur(): Promise<void> {
+    if (runtimeConfig.useMocks) {
+      return;
+    }
+    const phone = this.g1.primaryPhone?.trim();
+    if (!phone) {
+      this.existingParentMatch = null;
+      this.parentLookupChecked = false;
+      return;
+    }
+    this.parentLookupLoading = true;
+    try {
+      const matches = await firstValueFrom(this.guardianService.searchByPhone(phone));
+      this.existingParentMatch = matches.length ? matches[0] : null;
+      this.parentLookupChecked = true;
+    } catch {
+      this.existingParentMatch = null;
+      this.parentLookupChecked = false;
+    } finally {
+      this.parentLookupLoading = false;
+    }
+  }
+
   private validateGuardianPairs(): boolean {
-    const rows = [this.g1, this.g2];
+    if (!this.g1.fullName.trim() || !this.g1.primaryPhone.trim()) {
+      this.submitErrorKey = 'students.form.primaryGuardianRequired';
+      return false;
+    }
+    const rows = [this.g1, ...(this.includeSecondGuardian ? [this.g2] : [])];
     for (const g of rows) {
       const hasName = g.fullName.trim().length > 0;
       const hasPhone = (g.primaryPhone ?? '').trim().length > 0;
@@ -668,11 +758,45 @@ export class StudentFormComponent implements OnInit, OnDestroy {
     }
     const p1 = (this.g1.primaryPhone ?? '').trim();
     const p2 = (this.g2.primaryPhone ?? '').trim();
-    if (this.g1.fullName.trim() && this.g2.fullName.trim() && p1 && p2 && p1 === p2) {
+    if (this.includeSecondGuardian && this.g1.fullName.trim() && this.g2.fullName.trim() && p1 && p2 && p1 === p2) {
       this.submitErrorKey = 'students.form.guardianDuplicatePhone';
       return false;
     }
     return true;
+  }
+
+  private async confirmLinkToExistingParentIfAny(): Promise<boolean> {
+    if (runtimeConfig.useMocks) {
+      return true;
+    }
+    const phone = this.g1.primaryPhone?.trim();
+    if (!phone) {
+      return true;
+    }
+    try {
+      if (!this.parentLookupChecked) {
+        await this.onPrimaryGuardianPhoneBlur();
+      }
+      const existing = this.existingParentMatch;
+      if (!existing) {
+        return true;
+      }
+      const message = this.translate.instant('students.form.parentPhoneExistsPrompt', {
+        name: existing.fullName || this.translate.instant('students.form.existingParentFallbackName'),
+        phone: existing.primaryPhone || phone,
+      });
+      return window.confirm(message);
+    } catch {
+      return true;
+    }
+  }
+
+  showExistingParentChip(): boolean {
+    if (runtimeConfig.useMocks) {
+      return false;
+    }
+    const phone = this.g1.primaryPhone?.trim();
+    return !!phone && (this.parentLookupLoading || this.parentLookupChecked || !!this.existingParentMatch);
   }
 
   goBack(): void { this.router.navigate(['/app/students']); }

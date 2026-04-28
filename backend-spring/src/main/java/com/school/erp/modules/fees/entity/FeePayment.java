@@ -1,14 +1,20 @@
 package com.school.erp.modules.fees.entity;
 
 import com.school.erp.common.entity.BaseEntity;
+import com.school.erp.common.entity.AcademicYearScopedEntity;
+import com.school.erp.common.entity.AcademicYearScopeGuardListener;
 import com.school.erp.common.enums.Enums;
 import jakarta.persistence.*;
 import java.math.BigDecimal;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
+import org.hibernate.annotations.Filter;
 import java.time.LocalDate;
+import com.school.erp.tenant.hibernate.AcademicYearScopedFilter;
 
 @Entity
+@EntityListeners(AcademicYearScopeGuardListener.class)
+@Filter(name = AcademicYearScopedFilter.NAME, condition = "academic_year_id = :academicYearId")
 @Table(
         name = "fee_payments",
         indexes = {
@@ -18,7 +24,19 @@ import java.time.LocalDate;
         uniqueConstraints = @UniqueConstraint(
                 name = "uq_fee_payment_tenant_receipt",
                 columnNames = {"tenant_id", "receipt_number"}))
-public class FeePayment extends BaseEntity {
+public class FeePayment extends BaseEntity implements AcademicYearScopedEntity {
+    @Column(name = "academic_year_id")
+    private Long academicYearId;
+    @Override
+    public Long getAcademicYearId() {
+        return academicYearId;
+    }
+
+    @Override
+    public void setAcademicYearId(Long academicYearId) {
+        this.academicYearId = academicYearId;
+    }
+
     @Column(name = "student_id", nullable = false)
     private Long studentId;
     @Column(name = "student_name", length = 200)

@@ -51,11 +51,11 @@ public final class InboxAudienceTokenPolicy {
     /** Uppercase announcement audience keys this role may use in a filter. */
     public static Set<String> allowedAnnouncementAudienceTokens(final String roleUpper) {
         return switch (roleUpper) {
-            case "PARENT", "STUDENT" -> Set.of("ALL", "PARENTS", "CLASS", "SECTION");
-            case "TEACHER" -> Set.of("ALL", "TEACHERS", "CLASS", "SECTION");
+            case "PARENT", "STUDENT" -> Set.of("PARENTS", "CLASS", "SECTION");
+            case "TEACHER" -> Set.of("TEACHERS", "CLASS", "SECTION");
             case "ADMIN", "SUPER_ADMIN", "LIBRARY_STAFF", "SCHOOL_STAFF" ->
                     Set.of("ALL", "TEACHERS", "PARENTS", "CLASS", "SECTION");
-            default -> Set.of("ALL", "CLASS", "SECTION");
+            default -> Set.of("CLASS", "SECTION");
         };
     }
 }

@@ -21,6 +21,7 @@ CREATE TABLE IF NOT EXISTS exam_classes (
 CREATE TABLE fee_payment_attempts (
     id BIGINT NOT NULL AUTO_INCREMENT,
     tenant_id VARCHAR(50) NOT NULL,
+    academic_year_id BIGINT NOT NULL,
     is_active BIT DEFAULT 1,
     is_deleted BIT DEFAULT 0,
     created_at DATETIME NULL,
@@ -47,6 +48,7 @@ CREATE TABLE fee_payment_attempts (
 CREATE INDEX idx_fpa_payment ON fee_payment_attempts (tenant_id, fee_payment_id);
 CREATE INDEX idx_fpa_student ON fee_payment_attempts (tenant_id, student_id);
 CREATE INDEX idx_fpa_status ON fee_payment_attempts (tenant_id, status);
+CREATE INDEX idx_fpa_tenant_year ON fee_payment_attempts (tenant_id, academic_year_id);
 
 -- >>> Legacy V7: V7__chat_conversations.sql
 CREATE TABLE chat_conversations (

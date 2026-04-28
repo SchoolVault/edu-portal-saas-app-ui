@@ -3,6 +3,7 @@
 CREATE TABLE fee_transactions (
   id BIGINT NOT NULL AUTO_INCREMENT,
   tenant_id VARCHAR(50) NOT NULL,
+  academic_year_id BIGINT NOT NULL,
   fee_payment_id BIGINT NOT NULL,
   attempt_id BIGINT NULL,
   event_type VARCHAR(40) NOT NULL,
@@ -24,6 +25,7 @@ CREATE TABLE fee_transactions (
   created_by VARCHAR(100) NULL,
   updated_by VARCHAR(100) NULL,
   PRIMARY KEY (id),
+  KEY idx_fee_txn_tenant_year (tenant_id, academic_year_id),
   KEY idx_fee_txn_payment (tenant_id, fee_payment_id, created_at),
   KEY idx_fee_txn_attempt (tenant_id, attempt_id),
   KEY idx_fee_txn_event (tenant_id, event_type, created_at)

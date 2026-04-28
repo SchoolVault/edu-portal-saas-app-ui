@@ -249,6 +249,32 @@ public class GuardianService {
         return r;
     }
 
+    @Transactional
+    public void removeMapping(Long studentId, Long mappingId) {
+        String tenantId = TenantContext.getTenantId();
+        studentRepository.findByIdAndTenantIdAndIsDeletedFalse(studentId, tenantId)
+                .orElseThrow(() -> new ResourceNotFoundException("Student", studentId));
+        StudentGuardianMapping mapping = mappingRepository
+                .findByIdAndTenantIdAndStudentIdAndIsDeletedFalse(mappingId, tenantId, studentId)
+                .orElseThrow(() -> new ResourceNotFoundException("StudentGuardianMapping", mappingId));
+        Long removedGuardianId = mapping.getGuardianId();
+        mapping.setIsDeleted(true);
+        mapping.setIsActive(false);
+        mappingRepository.save(mapping);
+
+        studentRepository.findByIdAndTenantIdAndIsDeletedFalse(studentId, tenantId).ifPresent(student -> {
+            if (student.getPrimaryContactGuardianId() != null && student.getPrimaryContactGuardianId().equals(removedGuardianId)) {
+                StudentGuardianMapping fallbackPrimary = mappingRepository
+                        .findByTenantIdAndStudentIdAndIsDeletedFalse(tenantId, studentId)
+                        .stream()
+                        .findFirst()
+                        .orElse(null);
+                student.setPrimaryContactGuardianId(fallbackPrimary != null ? fallbackPrimary.getGuardianId() : null);
+                studentRepository.save(student);
+            }
+        });
+    }
+
     private void applyCreate(Guardian g, GuardianDTOs.CreateGuardianRequest req) {
         g.setFullName(req.getFullName());
         g.setOccupation(req.getOccupation());

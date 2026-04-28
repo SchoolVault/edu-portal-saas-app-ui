@@ -44,12 +44,12 @@ interface JobTypeOption {
 
 /** Minimum canonical fields that must be mapped for each job type (matches backend validators). */
 const REQUIRED_IMPORT_FIELDS: Record<string, string[]> = {
-  STUDENTS: ['firstname', 'lastname'],
-  TEACHERS: ['firstname', 'lastname', 'phone'],
-  STAFF: ['firstname', 'lastname', 'phone'],
-  CLASSES: ['name', 'grade', 'academicyearid'],
-  TIMETABLE: ['teacheremail', 'classname', 'sectionname', 'subjectname', 'dayofweek', 'period', 'starttime', 'endtime'],
-  FEE_STRUCTURES: ['name', 'classname', 'academicyearid', 'componentspec'],
+  STUDENTS: ['first_name', 'last_name', 'primary_guardian_phone'],
+  TEACHERS: ['first_name', 'last_name', 'phone'],
+  STAFF: ['first_name', 'last_name', 'phone'],
+  CLASSES: ['class_name', 'grade'],
+  TIMETABLE: ['teacher_ref', 'class_ref', 'subject_code', 'day_of_week', 'period_no', 'start_time', 'end_time'],
+  FEE_STRUCTURES: ['name', 'class_name', 'academic_year_id', 'component_spec'],
 };
 
 @Component({

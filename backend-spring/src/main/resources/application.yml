@@ -481,10 +481,22 @@ app:
       cron: ${APP_LIFECYCLE_ARCHIVE_CRON:0 30 2 * * SAT}
       lag-warn-days: ${APP_LIFECYCLE_ARCHIVE_LAG_WARN_DAYS:2}
       lag-critical-days: ${APP_LIFECYCLE_ARCHIVE_LAG_CRITICAL_DAYS:5}
+    academic-year-archive:
+      enabled: ${APP_LIFECYCLE_ACADEMIC_YEAR_ARCHIVE_ENABLED:false}
+      dry-run: ${APP_LIFECYCLE_ACADEMIC_YEAR_ARCHIVE_DRY_RUN:true}
+      cron: ${APP_LIFECYCLE_ACADEMIC_YEAR_ARCHIVE_CRON:0 40 2 * * SUN}
+      batch-size: ${APP_LIFECYCLE_ACADEMIC_YEAR_ARCHIVE_BATCH_SIZE:5000}
+      grace-days-after-end: ${APP_LIFECYCLE_ACADEMIC_YEAR_ARCHIVE_GRACE_DAYS:30}
     storage:
       missing-files-warn: ${APP_LIFECYCLE_STORAGE_MISSING_WARN:10}
       missing-files-critical: ${APP_LIFECYCLE_STORAGE_MISSING_CRITICAL:30}
       reconcile-max-sample: ${APP_LIFECYCLE_STORAGE_RECONCILE_MAX_SAMPLE:20}
+  data-lifecycle:
+    # HOT/WARM/COLD policy by academic year recency per tenant.
+    hot-window-years: ${APP_DATA_LIFECYCLE_HOT_WINDOW_YEARS:1}
+    warm-window-years: ${APP_DATA_LIFECYCLE_WARM_WINDOW_YEARS:3}
+    archive-after-years: ${APP_DATA_LIFECYCLE_ARCHIVE_AFTER_YEARS:5}
+    cold-reads-read-only: ${APP_DATA_LIFECYCLE_COLD_READS_READ_ONLY:true}
 
   observability:
     api-timing:

@@ -13,6 +13,7 @@
 CREATE TABLE leave_requests (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     tenant_id VARCHAR(50) NOT NULL,
+    academic_year_id BIGINT NOT NULL,
     applicant_user_id BIGINT NOT NULL,
     applicant_role VARCHAR(20) NOT NULL,
     student_id BIGINT,
@@ -31,6 +32,7 @@ CREATE TABLE leave_requests (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     created_by VARCHAR(100),
     updated_by VARCHAR(100),
+    INDEX idx_leave_tenant_year (tenant_id, academic_year_id),
     INDEX idx_leave_tenant_status (tenant_id, status),
     INDEX idx_leave_applicant (tenant_id, applicant_user_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

@@ -3,6 +3,7 @@ package com.school.erp.modules.importexport.service;
 import com.school.erp.common.exception.BusinessException;
 import com.school.erp.common.importer.TabularImportStreamReader;
 import com.school.erp.modules.importexport.ImportCanonicalFieldCatalog;
+import com.school.erp.modules.importexport.ImportFieldGuideCatalog;
 import com.school.erp.modules.importexport.ImportJobType;
 import com.school.erp.modules.importexport.dto.ImportExportDTOs;
 import org.springframework.stereotype.Service;
@@ -49,6 +50,7 @@ public class ImportHeaderPreviewService {
             res.setJobType(jobType.name());
             res.setDetectedHeaders(detected);
             res.setCanonicalFields(canonical);
+            res.setCanonicalFieldGuides(ImportFieldGuideCatalog.fieldGuides(jobType));
             res.setSuggestedMapping(suggested);
             return res;
         } catch (BusinessException ex) {
@@ -89,6 +91,19 @@ public class ImportHeaderPreviewService {
         if (raw == null) {
             return "";
         }
-        return raw.trim().toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]", "");
+        String normalized = raw.trim();
+        int bracketIdx = normalized.indexOf('[');
+        if (bracketIdx >= 0) {
+            normalized = normalized.substring(0, bracketIdx);
+        }
+        int markerIdx = normalized.indexOf("__");
+        if (markerIdx >= 0) {
+            normalized = normalized.substring(0, markerIdx);
+        }
+        int reqIdx = normalized.indexOf('(');
+        if (reqIdx >= 0) {
+            normalized = normalized.substring(0, reqIdx);
+        }
+        return normalized.trim().toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]", "");
     }
 }

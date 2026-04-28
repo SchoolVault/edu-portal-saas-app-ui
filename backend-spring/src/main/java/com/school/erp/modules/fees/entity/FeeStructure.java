@@ -1,12 +1,18 @@
 package com.school.erp.modules.fees.entity;
 
 import com.school.erp.common.entity.BaseEntity;
+import com.school.erp.common.entity.AcademicYearScopedEntity;
+import com.school.erp.common.entity.AcademicYearScopeGuardListener;
 import jakarta.persistence.*;
 import java.math.BigDecimal;
+import org.hibernate.annotations.Filter;
+import com.school.erp.tenant.hibernate.AcademicYearScopedFilter;
 
 @Entity
+@EntityListeners(AcademicYearScopeGuardListener.class)
+@Filter(name = AcademicYearScopedFilter.NAME, condition = "academic_year_id = :academicYearId")
 @Table(name = "fee_structures", indexes = {@Index(name = "idx_fs_tenant", columnList = "tenant_id")})
-public class FeeStructure extends BaseEntity {
+public class FeeStructure extends BaseEntity implements AcademicYearScopedEntity {
     @Column(nullable = false, length = 100)
     private String name;
     @Column(name = "class_id")

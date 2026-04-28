@@ -35,6 +35,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
@@ -121,7 +122,7 @@ public class DemoExtendedTablesSeed {
                 .orElse("school.local");
     }
 
-    @Transactional
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void seedExtendedModuleRows(String tenantId, String schoolCode) {
         String sku = markerSku(schoolCode);
         if (inventoryItemRepository.findByTenantIdAndSkuAndIsDeletedFalse(tenantId, sku).isPresent()) {

@@ -25,6 +25,9 @@ public class StudentDTOs {
         private LocalDate admissionDate;
         private Long parentId;
         private String parentName;
+        private String parentPhone;
+        private String parentEmail;
+        private Boolean createParentPortal;
         private String address;
         private String bloodGroup;
 
@@ -235,6 +238,18 @@ public class StudentDTOs {
             return this.parentName;
         }
 
+        public String getParentPhone() {
+            return this.parentPhone;
+        }
+
+        public String getParentEmail() {
+            return this.parentEmail;
+        }
+
+        public Boolean getCreateParentPortal() {
+            return this.createParentPortal;
+        }
+
         public String getAddress() {
             return this.address;
         }
@@ -293,6 +308,18 @@ public class StudentDTOs {
 
         public void setParentName(final String parentName) {
             this.parentName = parentName;
+        }
+
+        public void setParentPhone(final String parentPhone) {
+            this.parentPhone = parentPhone;
+        }
+
+        public void setParentEmail(final String parentEmail) {
+            this.parentEmail = parentEmail;
+        }
+
+        public void setCreateParentPortal(final Boolean createParentPortal) {
+            this.createParentPortal = createParentPortal;
         }
 
         public void setAddress(final String address) {
@@ -438,6 +465,9 @@ public class StudentDTOs {
         private String rollNumber;
         private Long parentId;
         private String parentName;
+        private String parentPhone;
+        private String parentEmail;
+        private Boolean createParentPortal;
         private String address;
         private String bloodGroup;
         private Enums.StudentStatus status;
@@ -632,6 +662,18 @@ public class StudentDTOs {
             return this.parentName;
         }
 
+        public String getParentPhone() {
+            return this.parentPhone;
+        }
+
+        public String getParentEmail() {
+            return this.parentEmail;
+        }
+
+        public Boolean getCreateParentPortal() {
+            return this.createParentPortal;
+        }
+
         public String getAddress() {
             return this.address;
         }
@@ -686,6 +728,18 @@ public class StudentDTOs {
 
         public void setParentName(final String parentName) {
             this.parentName = parentName;
+        }
+
+        public void setParentPhone(final String parentPhone) {
+            this.parentPhone = parentPhone;
+        }
+
+        public void setParentEmail(final String parentEmail) {
+            this.parentEmail = parentEmail;
+        }
+
+        public void setCreateParentPortal(final Boolean createParentPortal) {
+            this.createParentPortal = createParentPortal;
         }
 
         public void setAddress(final String address) {

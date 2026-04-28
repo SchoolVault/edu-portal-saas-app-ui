@@ -1,12 +1,16 @@
 package com.school.erp.modules.reminder.service;
 
 import com.school.erp.common.enums.Enums;
+import com.school.erp.modules.academic.service.CurrentAcademicYearResolver;
 import com.school.erp.modules.fees.entity.FeePayment;
 import com.school.erp.modules.fees.repository.FeePaymentRepository;
+import com.school.erp.modules.settings.repository.TenantConfigRepository;
 import com.school.erp.modules.settings.service.TenantFeatureFlagsService;
 import com.school.erp.modules.student.entity.Student;
 import com.school.erp.modules.student.port.StudentPersistencePort;
 import com.school.erp.platform.port.NotificationDispatchPort;
+import com.school.erp.tenant.AcademicYearContext;
+import com.school.erp.tenant.TenantScopedExecution;
 import java.math.BigDecimal;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
@@ -32,16 +36,22 @@ public class FeeReminderAutomationService {
     private final StudentPersistencePort studentPersistence;
     private final NotificationDispatchPort notificationDispatchPort;
     private final TenantFeatureFlagsService featureFlagsService;
+    private final TenantConfigRepository tenantConfigRepository;
+    private final CurrentAcademicYearResolver currentAcademicYearResolver;
 
     public FeeReminderAutomationService(
             FeePaymentRepository feePaymentRepository,
             StudentPersistencePort studentPersistence,
             NotificationDispatchPort notificationDispatchPort,
-            TenantFeatureFlagsService featureFlagsService) {
+            TenantFeatureFlagsService featureFlagsService,
+            TenantConfigRepository tenantConfigRepository,
+            CurrentAcademicYearResolver currentAcademicYearResolver) {
         this.feePaymentRepository = feePaymentRepository;
         this.studentPersistence = studentPersistence;
         this.notificationDispatchPort = notificationDispatchPort;
         this.featureFlagsService = featureFlagsService;
+        this.tenantConfigRepository = tenantConfigRepository;
+        this.currentAcademicYearResolver = currentAcademicYearResolver;
     }
 
     /** Call after a new {@link FeePayment} row is persisted with outstanding balance. */
@@ -71,13 +81,33 @@ public class FeeReminderAutomationService {
     }
 
     public int runScheduledRemindersForAllTenants() {
-        List<String> tenants = feePaymentRepository.findDistinctTenantIds();
+        List<String> tenants = tenantConfigRepository.findAllTenantIds();
         int total = 0;
         for (String tenantId : tenants) {
-            if (!featureFlagsService.isFeeReminderAutomationEnabled(tenantId)) {
+            if (tenantId == null || tenantId.isBlank()) {
                 continue;
             }
-            total += runScheduledRemindersForTenant(tenantId);
+            total += TenantScopedExecution.execute(tenantId, null, "SYSTEM", () -> {
+                Long previousAcademicYearId = AcademicYearContext.getAcademicYearId();
+                Long currentAcademicYearId = currentAcademicYearResolver.resolveCurrentAcademicYearId(tenantId);
+                if (currentAcademicYearId == null) {
+                    log.debug("Fee reminder scheduler skipped tenantId={} (no current academic year)", tenantId);
+                    return 0;
+                }
+                AcademicYearContext.setAcademicYearId(currentAcademicYearId);
+                try {
+                    if (!featureFlagsService.isFeeReminderAutomationEnabled(tenantId)) {
+                        return 0;
+                    }
+                    return runScheduledRemindersForTenant(tenantId);
+                } finally {
+                    if (previousAcademicYearId == null) {
+                        AcademicYearContext.clear();
+                    } else {
+                        AcademicYearContext.setAcademicYearId(previousAcademicYearId);
+                    }
+                }
+            });
         }
         if (total > 0) {
             log.info("Automated fee reminders enqueued {} channel row(s) across tenant batch", total);

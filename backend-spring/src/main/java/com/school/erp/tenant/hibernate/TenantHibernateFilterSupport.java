@@ -2,6 +2,7 @@ package com.school.erp.tenant.hibernate;
 
 import com.school.erp.tenant.TenantContext;
 import com.school.erp.tenant.TenantQueryPolicy;
+import com.school.erp.tenant.AcademicYearContext;
 import org.hibernate.Filter;
 import org.hibernate.Session;
 
@@ -27,5 +28,11 @@ public final class TenantHibernateFilterSupport {
         }
         Filter filter = session.enableFilter(TenantScopedFilter.NAME);
         filter.setParameter("tenantId", tenantId);
+
+        Long academicYearId = AcademicYearContext.getAcademicYearId();
+        if (academicYearId != null) {
+            Filter academicYearFilter = session.enableFilter(AcademicYearScopedFilter.NAME);
+            academicYearFilter.setParameter("academicYearId", academicYearId);
+        }
     }
 }

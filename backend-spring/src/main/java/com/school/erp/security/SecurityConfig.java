@@ -32,6 +32,7 @@ import java.util.List;
 @EnableConfigurationProperties(AppSecurityProperties.class)
 public class SecurityConfig {
     private final JwtAuthenticationFilter jwtFilter;
+    private final AcademicYearContextFilter academicYearContextFilter;
     private final AppSecurityProperties appSecurityProperties;
     private final ObjectProvider<IdempotencyFilter> idempotencyFilter;
 
@@ -76,7 +77,8 @@ public class SecurityConfig {
                     auth.requestMatchers(HttpMethod.OPTIONS, "/**").permitAll();
                     auth.anyRequest().authenticated();
                 })
-                .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
+                .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class)
+                .addFilterAfter(academicYearContextFilter, JwtAuthenticationFilter.class);
         idempotencyFilter.ifAvailable(f -> http.addFilterAfter(f, JwtAuthenticationFilter.class));
         return http.build();
     }
@@ -111,9 +113,11 @@ public class SecurityConfig {
 
     public SecurityConfig(
             final JwtAuthenticationFilter jwtFilter,
+            final AcademicYearContextFilter academicYearContextFilter,
             final AppSecurityProperties appSecurityProperties,
             ObjectProvider<IdempotencyFilter> idempotencyFilter) {
         this.jwtFilter = jwtFilter;
+        this.academicYearContextFilter = academicYearContextFilter;
         this.appSecurityProperties = appSecurityProperties;
         this.idempotencyFilter = idempotencyFilter;
     }

@@ -23,9 +23,6 @@ public interface FeePaymentRepository extends JpaRepository<FeePayment, Long> {
 
     Optional<FeePayment> findByReceiptNumberAndTenantIdAndIsDeletedFalse(String receiptNumber, String tenantId);
 
-    @Query("select distinct f.tenantId from FeePayment f where f.isDeleted = false")
-    List<String> findDistinctTenantIds();
-
     @Query("""
             select f from FeePayment f
             where f.tenantId = :tenantId and f.isDeleted = false

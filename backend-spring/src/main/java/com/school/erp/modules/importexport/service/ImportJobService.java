@@ -188,6 +188,13 @@ public class ImportJobService {
                                     line.setStatus(ImportJobConstants.LINE_PENDING);
                                     try {
                                         Map<String, String> canonicalRow = ImportColumnMappingApplier.applyMapping(batch.get(i), columnMapping);
+                                        if (jobType == ImportJobType.STUDENTS) {
+                                            StudentImportCanonicalRow.normalize(canonicalRow);
+                                        } else if (jobType == ImportJobType.CLASSES) {
+                                            ClassImportCanonicalRow.normalize(canonicalRow);
+                                        } else if (jobType == ImportJobType.TIMETABLE) {
+                                            TimetableImportCanonicalRow.normalize(canonicalRow);
+                                        }
                                         if ((jobType == ImportJobType.CLASSES || jobType == ImportJobType.STUDENTS)
                                                 && academicResolver.usesAutomaticAcademicYear(canonicalRow.get("academicyearid"))) {
                                             autoAcademicYearSeen[0] = true;
