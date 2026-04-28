@@ -9,12 +9,15 @@ import com.school.erp.modules.notification.service.NotificationOutboxService;
 import com.school.erp.modules.notification.service.NotificationService;
 import com.school.erp.modules.notification.sms.impl.RoutingSmsService;
 import com.school.erp.security.rbac.RbacSpel;
+import com.school.erp.tenant.TenantContext;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import java.util.List;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/v1/notifications")
@@ -104,6 +107,29 @@ public class NotificationController {
         NotificationOpsDTOs.ProviderHealthResponse out = new NotificationOpsDTOs.ProviderHealthResponse();
         out.setProviders(routingSmsService.providerHealthSnapshot());
         return ResponseEntity.ok(ApiResponse.ok(out));
+    }
+
+    @PostMapping("/ops/email/test")
+    @PreAuthorize(RbacSpel.SCHOOL_COMMUNICATION_WRITE)
+    @Operation(summary = "Queue a test transactional email via outbox EMAIL channel")
+    public ResponseEntity<ApiResponse<Void>> queueEmailTest(
+            @Valid @RequestBody NotificationOpsDTOs.EmailTestRequest request) {
+        String tenantId = TenantContext.getTenantId();
+        String correlationId = "email-test-" + UUID.randomUUID();
+        String eventType = request.getEventType() != null && !request.getEventType().isBlank()
+                ? request.getEventType().trim()
+                : "OPS_EMAIL_TEST";
+        outboxService.enqueueEmail(
+                tenantId,
+                eventType,
+                null,
+                request.getToEmail().trim(),
+                request.getSubject(),
+                request.getBodyText(),
+                request.getBodyHtml(),
+                correlationId,
+                correlationId);
+        return ResponseEntity.ok(ApiResponse.ok(null, "Email test queued"));
     }
 
     public NotificationController(

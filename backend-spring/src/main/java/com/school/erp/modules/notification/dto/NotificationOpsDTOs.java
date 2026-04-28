@@ -1,6 +1,8 @@
 package com.school.erp.modules.notification.dto;
 
 import java.util.Map;
+import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.NotBlank;
 
 public class NotificationOpsDTOs {
     public static class DeadLetterItem {
@@ -43,5 +45,28 @@ public class NotificationOpsDTOs {
 
         public Map<String, Boolean> getProviders() { return providers; }
         public void setProviders(Map<String, Boolean> providers) { this.providers = providers; }
+    }
+
+    public static class EmailTestRequest {
+        @Email
+        @NotBlank
+        private String toEmail;
+        @NotBlank
+        private String subject;
+        @NotBlank
+        private String bodyText;
+        private String bodyHtml;
+        private String eventType;
+
+        public String getToEmail() { return toEmail; }
+        public void setToEmail(String toEmail) { this.toEmail = toEmail; }
+        public String getSubject() { return subject; }
+        public void setSubject(String subject) { this.subject = subject; }
+        public String getBodyText() { return bodyText; }
+        public void setBodyText(String bodyText) { this.bodyText = bodyText; }
+        public String getBodyHtml() { return bodyHtml; }
+        public void setBodyHtml(String bodyHtml) { this.bodyHtml = bodyHtml; }
+        public String getEventType() { return eventType; }
+        public void setEventType(String eventType) { this.eventType = eventType; }
     }
 }

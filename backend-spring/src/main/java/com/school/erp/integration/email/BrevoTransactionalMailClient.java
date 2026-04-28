@@ -76,4 +76,37 @@ public class BrevoTransactionalMailClient {
             throw ex;
         }
     }
+
+    @Retry(name = "emailProvider")
+    @CircuitBreaker(name = "emailProvider")
+    public void sendTransactionalEmail(String toEmail, String subject, String textContent, String htmlContent, List<String> tags) {
+        if (!isConfigured() || !StringUtils.hasText(toEmail) || !StringUtils.hasText(subject)) {
+            return;
+        }
+        Map<String, Object> sender = new LinkedHashMap<>();
+        sender.put("name", properties.getFromName() != null ? properties.getFromName() : "School");
+        sender.put("email", properties.getFromEmail().trim());
+        Map<String, String> to = new LinkedHashMap<>();
+        to.put("email", toEmail.trim());
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("sender", sender);
+        body.put("to", List.of(to));
+        body.put("subject", subject.trim());
+        body.put("textContent", StringUtils.hasText(textContent) ? textContent : subject.trim());
+        if (StringUtils.hasText(htmlContent)) {
+            body.put("htmlContent", htmlContent);
+        }
+        if (tags != null && !tags.isEmpty()) {
+            body.put("tags", tags);
+        }
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.set("api-key", properties.getApiKey().trim());
+        try {
+            restTemplate.exchange(BREVO_V3, HttpMethod.POST, new HttpEntity<>(body, headers), Void.class);
+        } catch (RestClientException ex) {
+            log.warn("Brevo transactional send failed: {}", ex.getMessage());
+            throw ex;
+        }
+    }
 }

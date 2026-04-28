@@ -132,7 +132,7 @@ import java.util.stream.Collectors;
  * COMPREHENSIVE DEMO DATA SEED SERVICE FOR SCHOOL ERP
  * ═══════════════════════════════════════════════════════════════════════════════════════════════
  *
- * Seeds TWO realistic Indian schools with COMPLETE data for classes 1–12 (mixed single/dual sections)
+ * Seeds a realistic Indian school with COMPLETE data for classes 1–12 (mixed single/dual sections)
  * for end-to-end testing across ALL roles and modules.
  *
  * ⚠️  OPTIMIZED FOR RENDER FREE TIER (0.1 CPU, 512MB RAM)
@@ -141,8 +141,7 @@ import java.util.stream.Collectors;
  * - Batch processing with memory flushes every 20 entities
  * - EntityManager flush/clear after each major operation
  *
- * SCHOOL 1: Delhi Public School (DPS-DLH) - New Delhi
- * SCHOOL 2: Kendriya Vidyalaya (KV-MUM) - Mumbai
+ * SCHOOL: Delhi Public School (DPS-DLH) - New Delhi
  *
  * Each school includes:
  * ├── Classes: grades 1–12; odd grades one section (A), even grades sections A+B (Indian-style mix)
@@ -154,7 +153,7 @@ import java.util.stream.Collectors;
  * ├── Users: ADMIN, TEACHERS, PARENTS, LIBRARY_STAFF with login credentials
  * ├── RBAC: {@link RbacTenantBootstrapService} backfill + {@code school_staff} desk demo logins (base-only, fee,
  * │   exam, payroll, finance settings, library, transport/hostel logistics, custom bundle) for permission QA
- * ├── Finance: {@link TenantFinanceProfile} per tenant (DPS: platform merchant; KV: Razorpay Route + LIVE onboarding)
+ * ├── Finance: {@link TenantFinanceProfile} seeded for platform-merchant flow
  * ├── Academic: Subjects, Teacher Assignments (Class + Subject)
  * ├── Fees: Fee structures, components, payments (PAID, PARTIAL, UNPAID examples)
  * ├── Exams: Multiple exams with schedules, mark records
@@ -494,19 +493,6 @@ public class DemoDataSeedService {
                           "office@dpsdel.edu.in");
             } else {
                 log.info("→ School 1 (DPS-DLH) already exists");
-            }
-
-            // 3. School 2: Kendriya Vidyalaya
-            if (!tenantConfigRepository.existsBySchoolCode("KV-MUM")) {
-                log.info("→ Seeding School 2: Kendriya Vidyalaya (KV-MUM)");
-                seedSchool("KV-MUM",
-                          "tenant_kv_mumbai_7p5n3x8q",
-                          "Kendriya Vidyalaya No. 1",
-                          "INS Hamla, Marve Road, Malad West, Mumbai 400095, Maharashtra",
-                          "+91-22-2844-6633",
-                          "kvmumbai1@gmail.com");
-            } else {
-                log.info("→ School 2 (KV-MUM) already exists");
             }
 
             log.info("══════════════════════════════════════════════════════════════");
@@ -980,8 +966,7 @@ public class DemoDataSeedService {
     }
 
     /**
-     * One row per tenant for fee settlement + Route onboarding E2E. Skips if a profile already exists.
-     * DPS: platform merchant (no Route gate). KV: Route linked account + LIVE (parent Route checkout allowed).
+     * One row per tenant for fee settlement defaults. Skips if a profile already exists.
      */
     private void seedTenantFinanceProfileIfMissing(String tenantId, String schoolCode) {
         if (tenantFinanceProfileRepository.findByTenantIdAndIsDeletedFalse(tenantId).isPresent()) {
@@ -992,19 +977,8 @@ public class DemoDataSeedService {
         p.setIsActive(true);
         p.setIsDeleted(false);
         p.setPlatformCommissionBps(0);
-        LocalDateTime now = LocalDateTime.now();
         p.setPayrollDigitalPayoutEnabled(false);
-        if ("KV-MUM".equals(schoolCode)) {
-            p.setFeeSettlementMode(FeeSettlementMode.ROUTE_LINKED_ACCOUNT.name());
-            p.setRazorpayRouteLinkedAccountId("acc_rzp_demo_route_kv_mum");
-            p.setPlatformCommissionBps(150);
-            p.setPaymentRoutingOnboardingStatus(PaymentRoutingOnboardingStatus.LIVE.name());
-            p.setPaymentRoutingSubmittedAt(now.minusDays(2));
-            p.setPaymentRoutingLiveAt(now.minusDays(1));
-            p.setParentOnlineFeeCheckoutEnabled(true);
-            p.setFinanceNotes(
-                    "Demo seed: Razorpay Route linked account; payment routing LIVE. Use for parent online fee E2E on the Route path.");
-        } else if ("DPS-DLH".equals(schoolCode)) {
+        if ("DPS-DLH".equals(schoolCode)) {
             p.setFeeSettlementMode(FeeSettlementMode.PLATFORM_MERCHANT.name());
             p.setPaymentRoutingOnboardingStatus(PaymentRoutingOnboardingStatus.NOT_REQUIRED.name());
             p.setParentOnlineFeeCheckoutEnabled(true);
@@ -3319,7 +3293,7 @@ public class DemoDataSeedService {
         log.info("PLATFORM SUPER ADMIN:");
         log.info("  Email: superadmin@schoolerp.com");
         log.info("");
-        log.info("SCHOOL 1: Delhi Public School (DPS-DLH)");
+        log.info("SCHOOL: Delhi Public School (DPS-DLH)");
         log.info("  School Code: DPS-DLH  |  Tenant: tenant_dps_delhi_9x4k7m2p");
         log.info("  Admin: admin@dpsdel.edu.in");
         log.info("  Teachers (10, password admin123): aarav.sharma / ananya.verma / aditya.singh / pari.kumar /");
@@ -3327,16 +3301,8 @@ public class DemoDataSeedService {
         log.info("  Parents: see DEMO_CREDENTIALS.md (emails include .father./.mother. + admission token)");
         log.info("  QA multi-child parent (4+ children, same password admin123): qa.multichild.parent@parent.dps-dlh.edu.in");
         log.info("");
-        log.info("SCHOOL 2: Kendriya Vidyalaya (KV-MUM)");
-        log.info("  School Code: KV-MUM  |  Tenant: tenant_kv_mumbai_7p5n3x8q");
-        log.info("  Admin: admin@kvmumbai1.gmail.com");
-        log.info("  Teachers: same local-parts as DPS-DLH with @kv-mum.edu.in");
-        log.info("  Parents: same pattern with @parent.kv-mum.edu.in (see DEMO_CREDENTIALS.md)");
-        log.info("  QA multi-child parent: qa.multichild.parent@parent.kv-mum.edu.in");
-        log.info("");
         log.info("TENANT FINANCE (fee settlement; Settings → Finance & collections):");
         log.info("  DPS-DLH: PLATFORM_MERCHANT, Route onboarding N/A, parent online checkout enabled (demo).");
-        log.info("  KV-MUM:  ROUTE_LINKED_ACCOUNT acc_rzp_demo_route_kv_mum, onboarding LIVE, 1.5% platform commission bps=150.");
         log.info("SCHOOL_STAFF + STACKED SCHOOL ROLES (password admin123; office email domain):");
         log.info("  BASE_ONLY:         staff.base.only@<office-domain>   (BASE_SCHOOL_STAFF — assign more roles in UI)");
         log.info("  FEE_OFFICE:        fee.desk.demo@<office-domain>");

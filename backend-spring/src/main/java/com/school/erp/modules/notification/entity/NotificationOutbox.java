@@ -33,11 +33,17 @@ public class NotificationOutbox extends BaseEntity {
     @Column(name = "recipient_phone_e164", length = 24)
     private String recipientPhoneE164;
 
+    @Column(name = "recipient_email", length = 150)
+    private String recipientEmail;
+
     @Column(length = 200)
     private String subject;
 
     @Column(name = "body_text", nullable = false, columnDefinition = "TEXT")
     private String bodyText;
+
+    @Column(name = "body_html", columnDefinition = "LONGTEXT")
+    private String bodyHtml;
 
     @Column(name = "dedupe_key", length = 200)
     private String dedupeKey;
@@ -123,12 +129,28 @@ public class NotificationOutbox extends BaseEntity {
         this.subject = subject;
     }
 
+    public String getRecipientEmail() {
+        return recipientEmail;
+    }
+
+    public void setRecipientEmail(String recipientEmail) {
+        this.recipientEmail = recipientEmail;
+    }
+
     public String getBodyText() {
         return bodyText;
     }
 
     public void setBodyText(String bodyText) {
         this.bodyText = bodyText;
+    }
+
+    public String getBodyHtml() {
+        return bodyHtml;
+    }
+
+    public void setBodyHtml(String bodyHtml) {
+        this.bodyHtml = bodyHtml;
     }
 
     public String getDedupeKey() {

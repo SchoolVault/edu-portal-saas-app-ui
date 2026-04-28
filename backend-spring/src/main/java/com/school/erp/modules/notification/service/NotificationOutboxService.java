@@ -2,6 +2,7 @@ package com.school.erp.modules.notification.service;
 
 import com.school.erp.common.enums.Enums;
 import com.school.erp.common.util.InternationalPhone;
+import com.school.erp.integration.email.TransactionalEmailDispatcher;
 import com.school.erp.modules.auth.repository.UserRepository;
 import com.school.erp.modules.notification.config.NotificationDeliveryProperties;
 import com.school.erp.modules.notification.dto.NotificationOpsDTOs;
@@ -29,6 +30,7 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 import com.school.erp.common.dto.PageResponse;
 import com.school.erp.modules.academic.service.CurrentAcademicYearResolver;
 import com.school.erp.tenant.AcademicYearContext;
@@ -45,6 +47,7 @@ public class NotificationOutboxService implements NotificationDispatchPort {
     private final UserRepository userRepository;
     private final NotificationRepository notificationRepository;
     private final SmsService smsService;
+    private final TransactionalEmailDispatcher transactionalEmailDispatcher;
     private final NotificationDeliveryProperties deliveryProperties;
     private final ObjectProvider<MeterRegistry> meterRegistryProvider;
     private final CurrentAcademicYearResolver currentAcademicYearResolver;
@@ -54,6 +57,7 @@ public class NotificationOutboxService implements NotificationDispatchPort {
             UserRepository userRepository,
             NotificationRepository notificationRepository,
             SmsService smsService,
+            TransactionalEmailDispatcher transactionalEmailDispatcher,
             NotificationDeliveryProperties deliveryProperties,
             ObjectProvider<MeterRegistry> meterRegistryProvider,
             CurrentAcademicYearResolver currentAcademicYearResolver) {
@@ -61,6 +65,7 @@ public class NotificationOutboxService implements NotificationDispatchPort {
         this.userRepository = userRepository;
         this.notificationRepository = notificationRepository;
         this.smsService = smsService;
+        this.transactionalEmailDispatcher = transactionalEmailDispatcher;
         this.deliveryProperties = deliveryProperties;
         this.meterRegistryProvider = meterRegistryProvider;
         this.currentAcademicYearResolver = currentAcademicYearResolver;
@@ -83,13 +88,27 @@ public class NotificationOutboxService implements NotificationDispatchPort {
                 dispatchAttributes != null ? dispatchAttributes : NotificationDispatchAttributes.empty();
         String channelNorm = normalizeChannel(channel);
         String phone = phoneE164;
+        String email = null;
+        if ("EMAIL".equals(channelNorm)) {
+            if (phone != null && phone.contains("@")) {
+                email = phone.trim();
+            } else if (recipientUserId != null) {
+                email = userRepository.findByIdAndTenantIdAndIsDeletedFalse(recipientUserId, tenantId)
+                        .map(u -> u.getEmail() != null ? u.getEmail().trim() : "")
+                        .orElse("");
+            }
+        }
         if ((phone == null || phone.isBlank()) && recipientUserId != null) {
             phone = userRepository.findByIdAndTenantIdAndIsDeletedFalse(recipientUserId, tenantId)
                     .map(u -> u.getPhone() != null ? u.getPhone().trim() : "")
                     .orElse("");
         }
         boolean inApp = "IN_APP".equals(channelNorm);
-        if ((phone == null || phone.isBlank()) && !inApp) {
+        if ("EMAIL".equals(channelNorm) && (email == null || email.isBlank())) {
+            log.debug("Skip outbox enqueue (no email) event={} userId={} channel={}", eventType, recipientUserId, channelNorm);
+            return;
+        }
+        if (!"EMAIL".equals(channelNorm) && (phone == null || phone.isBlank()) && !inApp) {
             log.debug("Skip outbox enqueue (no phone) event={} userId={} channel={}", eventType, recipientUserId, channelNorm);
             return;
         }
@@ -128,6 +147,7 @@ public class NotificationOutboxService implements NotificationDispatchPort {
         row.setChannel(channelNorm);
         row.setRecipientUserId(recipientUserId);
         row.setRecipientPhoneE164(phone != null && !phone.isBlank() ? phone.trim() : null);
+        row.setRecipientEmail(email != null && !email.isBlank() ? email.trim() : null);
         row.setSubject(subject);
         row.setBodyText(body);
         row.setDedupeKey(dedupeKey);
@@ -140,6 +160,36 @@ public class NotificationOutboxService implements NotificationDispatchPort {
         } catch (DataIntegrityViolationException ex) {
             log.debug("Outbox dedupe race for key={}: {}", dedupeKey, ex.getMessage());
         }
+    }
+
+    @Transactional
+    public void enqueueEmail(
+            String tenantId,
+            String eventType,
+            Long recipientUserId,
+            String recipientEmail,
+            String subject,
+            String bodyText,
+            String bodyHtml,
+            String dedupeKey,
+            String correlationId) {
+        enqueue(
+                tenantId,
+                eventType,
+                "EMAIL",
+                recipientUserId,
+                recipientEmail,
+                subject,
+                bodyText,
+                dedupeKey,
+                correlationId);
+        if (!StringUtils.hasText(bodyHtml) || !StringUtils.hasText(correlationId)) {
+            return;
+        }
+        repo.findByTenantIdAndCorrelationIdAndIsDeletedFalse(tenantId, correlationId).ifPresent(row -> {
+            row.setBodyHtml(bodyHtml);
+            repo.save(row);
+        });
     }
 
     @Override
@@ -447,6 +497,23 @@ public class NotificationOutboxService implements NotificationDispatchPort {
             }
             return;
         }
+        if ("EMAIL".equals(channel)) {
+            if (row.getRecipientEmail() == null || row.getRecipientEmail().isBlank()) {
+                row.setProviderStatus("FAILED");
+                row.setProviderErrorCode("INVALID_EMAIL");
+                throw new IllegalArgumentException("Recipient email is required");
+            }
+            transactionalEmailDispatcher.dispatch(
+                    row.getTenantId(),
+                    row.getRecipientEmail().trim(),
+                    row.getSubject() != null && !row.getSubject().isBlank() ? row.getSubject().trim() : "School Notification",
+                    row.getBodyText(),
+                    row.getBodyHtml(),
+                    row.getCorrelationId(),
+                    row.getEventType());
+            row.setProviderStatus("SENT");
+            return;
+        }
         throw new IllegalStateException("Unsupported notification channel for outbox delivery: " + channel);
     }
 
@@ -515,6 +582,7 @@ public class NotificationOutboxService implements NotificationDispatchPort {
         }
         String normalized = providerStatus.trim().toUpperCase(Locale.ROOT);
         return "INVALID_PHONE".equals(normalized)
+                || "INVALID_EMAIL".equals(normalized)
                 || "REJECTED".equals(normalized)
                 || "INVALID_MESSAGE".equals(normalized)
                 || "CONFIG_ERROR".equals(normalized);
