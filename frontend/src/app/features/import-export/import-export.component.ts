@@ -1605,8 +1605,8 @@ export class ImportExportComponent implements OnInit, OnDestroy {
       Object.values(this.columnSelections).filter(v => !!v && String(v).trim().length > 0)
     );
     if (this.jobType === 'FEE_STRUCTURES') {
-      const hasBase = mapped.has('name') && mapped.has('academicyearid') && mapped.has('componentspec');
-      const hasClassRef = mapped.has('classid') || mapped.has('classname');
+      const hasBase = mapped.has('name') && mapped.has('academic_year_id') && mapped.has('component_spec');
+      const hasClassRef = mapped.has('class_id') || mapped.has('class_name');
       return !(hasBase && hasClassRef);
     }
     const req = REQUIRED_IMPORT_FIELDS[this.jobType] ?? [];
