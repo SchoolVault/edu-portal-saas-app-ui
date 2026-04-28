@@ -1,6 +1,7 @@
 CREATE TABLE communication_events (
     id BIGINT PRIMARY KEY AUTO_INCREMENT,
     tenant_id VARCHAR(50) NOT NULL,
+    academic_year_id BIGINT NOT NULL,
     is_active BOOLEAN DEFAULT TRUE,
     is_deleted BOOLEAN DEFAULT FALSE,
     deleted_at DATETIME(6),
@@ -33,6 +34,8 @@ CREATE TABLE communication_events (
 
 CREATE INDEX idx_comm_evt_tenant_status_start
     ON communication_events (tenant_id, status, event_start_at);
+CREATE INDEX idx_comm_evt_tenant_year
+    ON communication_events (tenant_id, academic_year_id);
 
 CREATE INDEX idx_comm_evt_tenant_aud_start
     ON communication_events (tenant_id, audience_scope, event_start_at);

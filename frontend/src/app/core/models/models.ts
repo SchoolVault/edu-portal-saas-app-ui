@@ -190,6 +190,9 @@ export interface Student {
   /** Linked parent ERP user id for chat/directory (when parent has a login). */
   parentUserId?: number;
   parentName: string;
+  parentPhone?: string;
+  parentEmail?: string;
+  createParentPortal?: boolean;
   address: string;
   bloodGroup: string;
   avatar?: string;

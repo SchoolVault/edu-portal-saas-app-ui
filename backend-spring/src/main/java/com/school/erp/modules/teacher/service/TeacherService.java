@@ -13,6 +13,8 @@ import com.school.erp.common.util.InternationalPhone;
 import com.school.erp.modules.auth.entity.User;
 import com.school.erp.modules.auth.repository.UserRepository;
 import com.school.erp.modules.auth.service.PortalUserProvisioningService;
+import com.school.erp.modules.notification.service.NotificationService;
+import com.school.erp.modules.settings.repository.TenantConfigRepository;
 import com.school.erp.modules.academic.entity.ClassTeacherAssignment;
 import com.school.erp.modules.academic.entity.SchoolClass;
 import com.school.erp.modules.academic.entity.Section;
@@ -28,6 +30,7 @@ import com.school.erp.modules.teacher.repository.TeacherRepository;
 import com.school.erp.modules.reports.service.DashboardSnapshotInvalidationService;
 import com.school.erp.cache.CacheService;
 import com.school.erp.config.CacheConfig;
+import com.school.erp.platform.port.NotificationDispatchPort;
 import com.school.erp.tenant.TenantContext;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
@@ -65,6 +68,9 @@ public class TeacherService {
     private final PortalUserProvisioningService portalUserProvisioningService;
     private final UserRepository userRepository;
     private final UserSchoolRoleAssignmentRepository userSchoolRoleAssignmentRepository;
+    private final NotificationService notificationService;
+    private final NotificationDispatchPort notificationDispatchPort;
+    private final TenantConfigRepository tenantConfigRepository;
     private final ObjectProvider<CacheService> cacheService;
     private final DashboardSnapshotInvalidationService dashboardSnapshotInvalidationService;
 
@@ -95,11 +101,26 @@ public class TeacherService {
     @Transactional
     public TeacherDTOs.Response create(TeacherDTOs.CreateRequest req) {
         log.info("Creating teacher email={}", req.getEmail());
+        String tenantId = TenantContext.getTenantId();
+        String email = req.getEmail() != null ? req.getEmail().trim().toLowerCase(Locale.ROOT) : null;
+        if (email == null || email.isBlank()) {
+            throw new BusinessException("email is required");
+        }
+        String canonicalPhone = InternationalPhone.canonical(req.getPhone() != null ? req.getPhone().trim() : null);
+        if (canonicalPhone == null) {
+            throw new BusinessException(InternationalPhone.invalidMessage());
+        }
+        if (repo.existsByTenantIdAndEmailAndIsDeletedFalse(tenantId, email)) {
+            throw new DuplicateResourceException("Teacher email already exists: " + email);
+        }
+        if (repo.existsByTenantIdAndPhoneAndIsDeletedFalse(tenantId, canonicalPhone)) {
+            throw new DuplicateResourceException("Teacher phone already exists: " + canonicalPhone);
+        }
         Teacher t = Teacher.builder()
                 .firstName(req.getFirstName())
                 .lastName(req.getLastName())
-                .email(req.getEmail())
-                .phone(req.getPhone())
+                .email(email)
+                .phone(canonicalPhone)
                 .qualification(req.getQualification())
                 .specialization(req.getSpecialization())
                 .joinDate(req.getJoinDate())
@@ -111,8 +132,22 @@ public class TeacherService {
         t.setBankName(trimToNull(req.getBankName()));
         t.setBankAccountNumber(trimToNull(req.getBankAccountNumber()));
         t.setBankIfsc(normalizeIfsc(req.getBankIfsc()));
-        t.setTenantId(TenantContext.getTenantId());
+        t.setTenantId(tenantId);
         repo.save(t);
+        String display = (req.getFirstName() + " " + req.getLastName()).trim();
+        PortalUserProvisioningService.ProvisionResult provision = portalUserProvisioningService.ensureStaffUserForImport(
+                tenantId,
+                email,
+                display,
+                canonicalPhone,
+                Enums.Role.TEACHER,
+                null);
+        t.setUserId(provision.userId());
+        repo.save(t);
+        sendTeacherPortalCredentialsNotification(tenantId, provision.userId(), email, canonicalPhone);
+        if (provision.createdNew()) {
+            notifyAdminsOnTeacherOnboarding(tenantId);
+        }
         log.info("Teacher created id={}", t.getId());
         evictTeacherDirectoryCache();
         return toRes(t, List.of());
@@ -680,6 +715,9 @@ public class TeacherService {
                           final PortalUserProvisioningService portalUserProvisioningService,
                           final UserRepository userRepository,
                           final UserSchoolRoleAssignmentRepository userSchoolRoleAssignmentRepository,
+                          final NotificationService notificationService,
+                          final NotificationDispatchPort notificationDispatchPort,
+                          final TenantConfigRepository tenantConfigRepository,
                           final ObjectProvider<CacheService> cacheService,
                           final DashboardSnapshotInvalidationService dashboardSnapshotInvalidationService) {
         this.repo = repo;
@@ -689,8 +727,88 @@ public class TeacherService {
         this.portalUserProvisioningService = portalUserProvisioningService;
         this.userRepository = userRepository;
         this.userSchoolRoleAssignmentRepository = userSchoolRoleAssignmentRepository;
+        this.notificationService = notificationService;
+        this.notificationDispatchPort = notificationDispatchPort;
+        this.tenantConfigRepository = tenantConfigRepository;
         this.cacheService = cacheService;
         this.dashboardSnapshotInvalidationService = dashboardSnapshotInvalidationService;
+    }
+
+    private void sendTeacherPortalCredentialsNotification(String tenantId, Long userId, String loginEmail, String phone) {
+        if (userId == null) {
+            return;
+        }
+        String title = "Teacher Portal Access Credentials";
+        SchoolIdentity school = loadSchoolIdentity(tenantId);
+        String body = "Portal onboarding completed for your teacher account. "
+                + schoolIdentityLine(school.name(), school.code()) + ". "
+                + "Mobile OTP login: " + (phone != null && !phone.isBlank() ? phone : "registered mobile number") + ". "
+                + "Email login: " + loginEmail + ". "
+                + "Set your password from Profile > Security after email verification, or use Forgot password. "
+                + "For security, update credentials after first login.";
+        notificationService.createNotification(tenantId, userId, title, body, Enums.NotificationType.INFO, "/app/dashboard");
+        notificationDispatchPort.enqueue(
+                tenantId,
+                "STAFF_PORTAL_CREDENTIALS",
+                "SMS",
+                userId,
+                phone,
+                title,
+                body,
+                "manual-teacher-" + userId,
+                "manual-teacher-onboarding");
+    }
+
+    private void notifyAdminsOnTeacherOnboarding(String tenantId) {
+        SchoolIdentity school = loadSchoolIdentity(tenantId);
+        String title = "Teacher Portal Onboarding Notice";
+        String body = schoolIdentityLine(school.name(), school.code())
+                + " New teacher portal accounts are now active. Sign in using mobile OTP. "
+                + "If email login is enabled, verify your email in Profile > Security before using password login.";
+        LinkedHashSet<User> admins = new LinkedHashSet<>();
+        admins.addAll(userRepository.findByTenantIdAndRoleAndIsDeletedFalse(tenantId, Enums.Role.ADMIN));
+        admins.addAll(userRepository.findByTenantIdAndRoleAndIsDeletedFalse(tenantId, Enums.Role.SUPER_ADMIN));
+        for (User admin : admins) {
+            if (admin == null || admin.getId() == null) {
+                continue;
+            }
+            notificationService.createNotification(tenantId, admin.getId(), title, body, Enums.NotificationType.INFO, "/app/inbox");
+            String phone = trimToNull(admin.getPhone());
+            if (phone != null) {
+                notificationDispatchPort.enqueue(
+                        tenantId,
+                        "ADMIN_ONBOARDING_SUMMARY",
+                        "SMS",
+                        admin.getId(),
+                        phone,
+                        title,
+                        body,
+                        "manual-teacher-admin-" + admin.getId(),
+                        "manual-teacher-onboarding");
+            }
+        }
+    }
+
+    private SchoolIdentity loadSchoolIdentity(String tenantId) {
+        return tenantConfigRepository.findByTenantId(tenantId)
+                .map(cfg -> new SchoolIdentity(trimToNull(cfg.getSchoolName()), trimToNull(cfg.getSchoolCode())))
+                .orElseGet(() -> new SchoolIdentity(null, null));
+    }
+
+    private static String schoolIdentityLine(String schoolName, String schoolCode) {
+        if (schoolName != null && schoolCode != null) {
+            return "School: " + schoolName + " (" + schoolCode + ")";
+        }
+        if (schoolName != null) {
+            return "School: " + schoolName;
+        }
+        if (schoolCode != null) {
+            return "School code: " + schoolCode;
+        }
+        return "School portal access update";
+    }
+
+    private record SchoolIdentity(String name, String code) {
     }
 
     private String required(Map<String, String> row, String key) {

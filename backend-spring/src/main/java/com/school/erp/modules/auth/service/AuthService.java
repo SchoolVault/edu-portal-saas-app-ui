@@ -23,6 +23,7 @@ import com.school.erp.modules.academic.entity.AcademicYear;
 import com.school.erp.modules.academic.entity.Section;
 import com.school.erp.modules.academic.entity.SchoolClass;
 import com.school.erp.modules.academic.repository.AcademicYearRepository;
+import com.school.erp.modules.academic.service.CurrentAcademicYearResolver;
 import com.school.erp.modules.academic.repository.ClassTeacherAssignmentRepository;
 import com.school.erp.modules.academic.repository.SchoolClassRepository;
 import com.school.erp.modules.academic.repository.SectionRepository;
@@ -60,10 +61,12 @@ public class AuthService {
     private final AcademicYearRepository academicYearRepository;
     private final ClassTeacherAssignmentRepository classTeacherAssignmentRepository;
     private final TimetableRepository timetableRepository;
+    private final CurrentAcademicYearResolver currentAcademicYearResolver;
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
     private final EffectivePermissionService effectivePermissionService;
     private final RbacTenantBootstrapService rbacTenantBootstrapService;
+    private final TenantOnboardingBootstrapService tenantOnboardingBootstrapService;
     private final AuditTrailPort auditTrailPort;
     private final EmailVerificationService emailVerificationService;
     @Value("${app.jwt.slim-permissions:false}")
@@ -246,6 +249,8 @@ public class AuthService {
         userRepository.save(admin);
         rbacTenantBootstrapService.seedForNewTenantAndFirstAdmin(tenantId, admin);
         AcademicYear academicYear = createInitialAcademicYear(tenantId, request);
+        tenantOnboardingBootstrapService.bootstrapDefaults(tenantId, academicYear);
+        currentAcademicYearResolver.evictTenant(tenantId);
         log.info("Tenant onboarded tenantId={} schoolCode={} adminUserId={}", tenantId, normalizedSchoolCode, admin.getId());
         return new TenantAndAdminCreated(tenantId, normalizedSchoolCode, admin, academicYear.getId());
     }
@@ -807,10 +812,12 @@ public class AuthService {
             final AcademicYearRepository academicYearRepository,
             final ClassTeacherAssignmentRepository classTeacherAssignmentRepository,
             final TimetableRepository timetableRepository,
+            final CurrentAcademicYearResolver currentAcademicYearResolver,
             final PasswordEncoder passwordEncoder,
             final JwtUtil jwtUtil,
             final EffectivePermissionService effectivePermissionService,
             final RbacTenantBootstrapService rbacTenantBootstrapService,
+            final TenantOnboardingBootstrapService tenantOnboardingBootstrapService,
             final AuditTrailPort auditTrailPort,
             final EmailVerificationService emailVerificationService) {
         this.userRepository = userRepository;
@@ -824,10 +831,12 @@ public class AuthService {
         this.academicYearRepository = academicYearRepository;
         this.classTeacherAssignmentRepository = classTeacherAssignmentRepository;
         this.timetableRepository = timetableRepository;
+        this.currentAcademicYearResolver = currentAcademicYearResolver;
         this.passwordEncoder = passwordEncoder;
         this.jwtUtil = jwtUtil;
         this.effectivePermissionService = effectivePermissionService;
         this.rbacTenantBootstrapService = rbacTenantBootstrapService;
+        this.tenantOnboardingBootstrapService = tenantOnboardingBootstrapService;
         this.auditTrailPort = auditTrailPort;
         this.emailVerificationService = emailVerificationService;
     }

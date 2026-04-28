@@ -33,11 +33,11 @@ Reason for this order:
 
 ## Important data preparation rules
 
-- `academicyearid` is optional in classes/students files. When blank, importer uses Current academic year.
-- If you provide `academicyearid`, it must be a valid numeric ID from your tenant.
+- `academic_year_id` (or legacy `academicyearid`) is optional in classes/students/timetable files. When blank, importer uses Current academic year.
+- If you provide an explicit academic year value, it must be a valid numeric ID from your tenant.
 - If no year is marked Current, importer falls back to the latest academic year configured for that tenant.
 - This pack avoids empty CSV cells by using placeholders:
-  - `CURRENT` for `academicyearid` (uses current academic year in tenant).
+  - `CURRENT` for `academic_year_id` / `academicyearid` (uses current academic year in tenant).
   - `AUTO` for optional numeric refs like `classid`, `sectionid`, `parentid` when name-based resolution is used.
 - Date format must be `yyyy-MM-dd`.
 - Time format must be `HH:mm` for timetable start/end.
@@ -48,12 +48,12 @@ Reason for this order:
   - `portalpassword` is optional; when provided with `email`, teacher can sign in using email+password.
   - If `email` is blank, teacher can still sign in using mobile OTP.
 - Use readable class names in files (recommended): `Class 6`, `Class 7`, etc. Numeric-only values like `6` are also accepted.
-- `sections` in classes file is pipe-separated (example: `A|B|C`).
+- Classes import now expects one row per class/section combination (do not use pipe-separated `A|B|C` values).
 - Timetable section rule:
-  - If the class has sections in Academic module, timetable rows must include `sectionname` (recommended) or `sectionid`.
-  - If the class has no sections, keep both `sectionname` and `sectionid` blank.
+  - If the class has sections in Academic module, timetable rows must include `section_ref` (or legacy `sectionname` / `sectionid`).
+  - If the class has no sections, keep section reference blank.
 - Student `gender` must be `male`, `female`, or `other`.
-- `importmode`:
+- `import_mode` (or legacy `importmode`):
   - `UPSERT` = create or update existing by business keys.
   - `CREATE_ONLY` = fail if duplicate exists.
 - Timetable import idempotency:
@@ -68,6 +68,29 @@ Reason for this order:
     - `UPSERT` = create if missing, update full component list if exists.
     - `CREATE_ONLY` = fail when same structure already exists.
     - `SKIP_IF_EXISTS` = keep existing structure unchanged.
+
+## Header naming and R/O legend
+
+- `R` = required field.
+- `O` = optional field.
+- Sales/ops quick reference file: `HEADER_REQUIREMENT_GUIDE.csv` (contains `job_type, field_key, requirement, description, sample_value`).
+- API preview headers now includes field guides with requirement and description in addition to canonical keys.
+
+### Canonical headers by job type
+
+- Header readability format for templates:
+  - `field_key (R)`
+  - `field_key (O)`
+  - Import mapping auto-detects by `field_key` prefix, so decorated headers still map to backend fields.
+
+- Teachers / Staff:
+  - `academic_year_id (R),import_mode (O),employee_code (R),first_name (R),last_name (R),phone (R),join_date (O),status (O),email (O),gender (O),dob (O),qualification (O),specialization (O),department (O),subjects (O),can_class_teacher (O),class_teacher_slot (O),create_portal (O),portal_password (O),portal_role (O),library_role (O),school_role_codes (O),notify_credentials (O),salary (O),bank_account_holder (O),bank_name (O),bank_account_number (O),bank_ifsc (O)`
+- Classes:
+  - `academic_year (O),class_code (O),class_name (R),grade (R),section_code (O),section_name (O),class_capacity (O),section_capacity (O),import_mode (O)`
+- Timetable:
+  - `academic_year_id (R),import_mode (O),teacher_ref_type (R),teacher_ref (R),class_ref (R),section_ref (O),subject_code (R),day_of_week (R),period_no (R),start_time (R),end_time (R),room_code (O)`
+- Students:
+  - `academic_year_id (R),import_mode (O),first_name (R),last_name (R),gender (O),date_of_birth (O),student_email (O),class_id (O),section_id (O),classname (R),sectionname (O),roll_number (O),admission_number (R),admission_date (O),primary_guardian_relation (O),primary_guardian_name (R),primary_guardian_email (O),primary_guardian_phone (R),parent_id (O),create_parent_portal (O),notify_credentials (O),address (O),blood_group (O)`
 
 ## How to run in Import/Export wizard
 

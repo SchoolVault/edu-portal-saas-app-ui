@@ -35,7 +35,7 @@ public class ImportJobStateService {
         long bad = lineRepository.countByJobIdAndTenantIdAndStatusAndIsDeletedFalse(jobId, tenantId, ImportJobConstants.LINE_FAILED);
         job.setSuccessCount((int) ok);
         job.setFailCount((int) bad);
-        job.setStatus(ImportJobConstants.JOB_COMPLETED);
+        job.setStatus(bad > 0 ? ImportJobConstants.JOB_FAILED : ImportJobConstants.JOB_COMPLETED);
         job.setFinishedAt(LocalDateTime.now());
         job.setSummaryMessage("Processed " + job.getTotalRows() + " row(s): " + ok + " succeeded, " + bad + " failed.");
         jobRepository.save(job);

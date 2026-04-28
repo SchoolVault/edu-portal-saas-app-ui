@@ -245,6 +245,9 @@ export class AttendanceComponent implements OnInit {
   attendanceSessionComplete = false;
   /** Avoid re-applying homeroom defaults on every refresh. */
   private homeroomScopeApplied = false;
+  /** Fixed homeroom badge snapshot; must not change when user browses other classes/sections. */
+  private homeroomClassId: number | null = null;
+  private homeroomSectionId: number | null = null;
 
   get isAdmin(): boolean {
     return this.uiAccess.hasAcademicDeskAdminAccess();
@@ -359,17 +362,17 @@ export class AttendanceComponent implements OnInit {
 
   /** Short label for homeroom scope banner (e.g. "Class 8 · Section A"). */
   get teacherHomeroomHint(): string {
-    if (!this.isTeacher || this.linkedTeacherId == null || this.selectedClassId == null) {
+    if (!this.isTeacher || this.linkedTeacherId == null || this.homeroomClassId == null) {
       return '';
     }
-    const cls = this.classes.find(c => c.id === this.selectedClassId);
+    const cls = this.classes.find(c => c.id === this.homeroomClassId);
     if (!cls) {
       return '';
     }
     if (!cls.sections?.length) {
       return this.translate.instant('attendance.scopeHomeroomLine', { class: cls.name, section: '—' });
     }
-    const sec = cls.sections.find(s => s.id === this.selectedSectionId);
+    const sec = this.homeroomSectionId != null ? cls.sections.find(s => s.id === this.homeroomSectionId) : undefined;
     const sn = sec?.name?.trim() || '—';
     return this.translate.instant('attendance.scopeHomeroomLine', { class: cls.name, section: sn });
   }
@@ -441,6 +444,8 @@ export class AttendanceComponent implements OnInit {
       this.homeroomScopeApplied = true;
       return;
     }
+    this.homeroomClassId = hm.classId;
+    this.homeroomSectionId = hm.sectionId != null ? hm.sectionId : null;
     const cls = this.classes.find(c => c.id === hm.classId);
     if (!cls) {
       this.homeroomScopeApplied = true;

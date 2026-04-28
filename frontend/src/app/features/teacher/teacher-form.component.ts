@@ -65,7 +65,7 @@ import { ConfirmDialogService } from '../../shared/confirm-dialog/confirm-dialog
             <div class="col-md-4"><div class="erp-form-group"><label class="erp-label">{{ 'teachers.form.firstName' | translate }}</label><input type="text" class="erp-input" [(ngModel)]="teacher.firstName" name="firstName" required></div></div>
             <div class="col-md-4"><div class="erp-form-group"><label class="erp-label">{{ 'teachers.form.lastName' | translate }}</label><input type="text" class="erp-input" [(ngModel)]="teacher.lastName" name="lastName" required></div></div>
             <div class="col-md-4"><div class="erp-form-group"><label class="erp-label">{{ 'teachers.form.email' | translate }}</label><input type="email" class="erp-input" [(ngModel)]="teacher.email" name="email" required></div></div>
-            <div class="col-md-4"><div class="erp-form-group"><label class="erp-label">{{ 'teachers.form.phone' | translate }}</label><input type="text" class="erp-input" [(ngModel)]="teacher.phone" name="phone"></div></div>
+            <div class="col-md-4"><div class="erp-form-group"><label class="erp-label">{{ 'teachers.form.phone' | translate }}</label><input type="text" class="erp-input" [(ngModel)]="teacher.phone" name="phone" required></div></div>
             <div class="col-md-4"><div class="erp-form-group"><label class="erp-label">{{ 'teachers.form.qualification' | translate }}</label><input type="text" class="erp-input" [(ngModel)]="teacher.qualification" name="qualification"></div></div>
             <div class="col-md-4"><div class="erp-form-group"><label class="erp-label">{{ 'teachers.form.specialization' | translate }}</label><input type="text" class="erp-input" [(ngModel)]="teacher.specialization" name="specialization"></div></div>
             <div class="col-md-4"><div class="erp-form-group"><label class="erp-label">{{ 'teachers.form.joinDate' | translate }}</label><app-erp-date-picker [(ngModel)]="teacher.joinDate" name="joinDate" placeholderI18nKey="teachers.form.joinDatePh" /></div></div>
@@ -277,7 +277,7 @@ export class TeacherFormComponent implements OnInit, OnDestroy {
   }
 
   onSubmit(): void {
-    if (!this.teacher.firstName || !this.teacher.lastName || !this.teacher.email) return;
+    if (!this.teacher.firstName || !this.teacher.lastName || !this.teacher.email || !this.teacher.phone?.trim()) return;
     this.saving = true;
     this.saveError = '';
     const payload = { ...this.teacher, subjects: this.mergeSubjectsForSave() };

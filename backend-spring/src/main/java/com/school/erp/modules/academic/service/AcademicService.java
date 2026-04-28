@@ -55,6 +55,7 @@ public class AcademicService {
     private final TeacherAssignmentService teacherAssignmentService;
     private final AcademicSubjectRepository academicSubjectRepo;
     private final TeacherRepository teacherRepository;
+    private final CurrentAcademicYearResolver currentAcademicYearResolver;
     private final ObjectProvider<CacheService> cacheService;
     private final DashboardSnapshotInvalidationService dashboardSnapshotInvalidationService;
 
@@ -100,6 +101,7 @@ public class AcademicService {
             });
         }
         AcademicYear saved = yearRepo.save(year);
+        currentAcademicYearResolver.evictTenant(TenantContext.getTenantId());
         log.info("Academic year created id={}", saved.getId());
         return saved;
     }
@@ -122,7 +124,9 @@ public class AcademicService {
             yearRepo.save(y);
         });
         year.setIsCurrent(true);
-        return yearRepo.save(year);
+        AcademicYear saved = yearRepo.save(year);
+        currentAcademicYearResolver.evictTenant(tenantForYears);
+        return saved;
     }
 
     // ========== CLASSES ==========
@@ -770,6 +774,7 @@ public class AcademicService {
             final TeacherAssignmentService teacherAssignmentService,
             final AcademicSubjectRepository academicSubjectRepo,
             final TeacherRepository teacherRepository,
+            final CurrentAcademicYearResolver currentAcademicYearResolver,
             ObjectProvider<CacheService> cacheService,
             final DashboardSnapshotInvalidationService dashboardSnapshotInvalidationService) {
         this.yearRepo = yearRepo;
@@ -780,6 +785,7 @@ public class AcademicService {
         this.teacherAssignmentService = teacherAssignmentService;
         this.academicSubjectRepo = academicSubjectRepo;
         this.teacherRepository = teacherRepository;
+        this.currentAcademicYearResolver = currentAcademicYearResolver;
         this.cacheService = cacheService;
         this.dashboardSnapshotInvalidationService = dashboardSnapshotInvalidationService;
     }

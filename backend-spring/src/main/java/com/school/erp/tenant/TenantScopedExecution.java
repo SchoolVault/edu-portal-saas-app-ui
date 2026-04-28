@@ -20,10 +20,12 @@ public final class TenantScopedExecution {
 
     public static <T> T execute(String tenantId, Long userId, String role, Supplier<T> supplier) {
         final String prevTenant = TenantContext.getTenantId();
+        final Long previousAcademicYearId = AcademicYearContext.getAcademicYearId();
         final Long prevUserId = TenantContext.getUserId();
         final String prevRole = TenantContext.getUserRole();
         try {
             TenantContext.clear();
+            AcademicYearContext.clear();
             if (tenantId != null && !tenantId.isBlank()) {
                 TenantContext.setTenantId(tenantId);
             }
@@ -36,6 +38,10 @@ public final class TenantScopedExecution {
             return supplier.get();
         } finally {
             TenantContext.clear();
+            AcademicYearContext.clear();
+            if (previousAcademicYearId != null) {
+                AcademicYearContext.setAcademicYearId(previousAcademicYearId);
+            }
             if (prevTenant != null && !prevTenant.isBlank()) {
                 TenantContext.setTenantId(prevTenant);
             }

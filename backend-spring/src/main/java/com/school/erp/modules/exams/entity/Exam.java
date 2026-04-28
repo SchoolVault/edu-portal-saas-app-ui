@@ -1,18 +1,24 @@
 package com.school.erp.modules.exams.entity;
 
 import com.school.erp.common.entity.BaseEntity;
+import com.school.erp.common.entity.AcademicYearScopedEntity;
+import com.school.erp.common.entity.AcademicYearScopeGuardListener;
 import com.school.erp.common.enums.Enums;
 import jakarta.persistence.*;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.annotations.Filter;
 import org.hibernate.type.SqlTypes;
+import com.school.erp.tenant.hibernate.AcademicYearScopedFilter;
 import java.util.ArrayList;
 import java.util.List;
 
 @Entity
+@EntityListeners(AcademicYearScopeGuardListener.class)
+@Filter(name = AcademicYearScopedFilter.NAME, condition = "academic_year_id = :academicYearId")
 @Table(name = "exams", indexes = {@Index(name = "idx_exam_tenant", columnList = "tenant_id")})
-public class Exam extends BaseEntity {
+public class Exam extends BaseEntity implements AcademicYearScopedEntity {
     @Column(nullable = false, length = 100)
     private String name;
     @Column(name = "academic_year_id")

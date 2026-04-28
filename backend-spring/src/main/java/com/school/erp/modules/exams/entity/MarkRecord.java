@@ -1,11 +1,29 @@
 package com.school.erp.modules.exams.entity;
 
 import com.school.erp.common.entity.BaseEntity;
+import com.school.erp.common.entity.AcademicYearScopedEntity;
+import com.school.erp.common.entity.AcademicYearScopeGuardListener;
 import jakarta.persistence.*;
+import org.hibernate.annotations.Filter;
+import com.school.erp.tenant.hibernate.AcademicYearScopedFilter;
 
 @Entity
+@EntityListeners(AcademicYearScopeGuardListener.class)
+@Filter(name = AcademicYearScopedFilter.NAME, condition = "academic_year_id = :academicYearId")
 @Table(name = "mark_records", indexes = {@Index(name = "idx_marks_exam", columnList = "tenant_id, exam_id"), @Index(name = "idx_marks_student", columnList = "tenant_id, student_id")})
-public class MarkRecord extends BaseEntity {
+public class MarkRecord extends BaseEntity implements AcademicYearScopedEntity {
+    @Column(name = "academic_year_id")
+    private Long academicYearId;
+    @Override
+    public Long getAcademicYearId() {
+        return academicYearId;
+    }
+
+    @Override
+    public void setAcademicYearId(Long academicYearId) {
+        this.academicYearId = academicYearId;
+    }
+
     @Column(name = "exam_id", nullable = false)
     private Long examId;
     @Column(name = "student_id", nullable = false)

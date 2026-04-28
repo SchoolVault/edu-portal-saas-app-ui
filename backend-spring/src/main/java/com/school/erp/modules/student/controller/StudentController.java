@@ -137,6 +137,16 @@ public class StudentController {
         return ResponseEntity.ok(ApiResponse.ok(guardianService.updateMapping(id, mappingId, request), "Guardian mapping updated"));
     }
 
+    @DeleteMapping("/{id}/guardian-mappings/{mappingId}")
+    @PreAuthorize(RbacSpel.GUARDIAN_DIRECTORY_WRITE)
+    @Operation(summary = "Remove guardian mapping from a student")
+    public ResponseEntity<ApiResponse<Void>> removeGuardianMapping(
+            @PathVariable Long id,
+            @PathVariable Long mappingId) {
+        guardianService.removeMapping(id, mappingId);
+        return ResponseEntity.ok(ApiResponse.ok(null, "Guardian mapping removed"));
+    }
+
     public StudentController(final StudentService studentService, final GuardianService guardianService) {
         this.studentService = studentService;
         this.guardianService = guardianService;

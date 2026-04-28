@@ -141,6 +141,7 @@ CREATE TABLE teacher_subjects (
 CREATE TABLE attendance_records (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     tenant_id VARCHAR(50) NOT NULL,
+    academic_year_id BIGINT NOT NULL,
     student_id BIGINT NOT NULL,
     student_name VARCHAR(200),
     class_id BIGINT NOT NULL,
@@ -152,6 +153,7 @@ CREATE TABLE attendance_records (
     is_active BOOLEAN DEFAULT TRUE, is_deleted BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     created_by VARCHAR(100), updated_by VARCHAR(100),
+    INDEX idx_att_tenant_year (tenant_id, academic_year_id),
     INDEX idx_att_class_date (tenant_id, class_id, date),
     INDEX idx_att_student (tenant_id, student_id, date)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
@@ -160,6 +162,7 @@ CREATE TABLE attendance_records (
 CREATE TABLE timetable_entries (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     tenant_id VARCHAR(50) NOT NULL,
+    academic_year_id BIGINT NOT NULL,
     class_id BIGINT NOT NULL,
     section_id BIGINT NOT NULL,
     day VARCHAR(10) NOT NULL,
@@ -173,6 +176,7 @@ CREATE TABLE timetable_entries (
     is_active BOOLEAN DEFAULT TRUE, is_deleted BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     created_by VARCHAR(100), updated_by VARCHAR(100),
+    INDEX idx_tt_year (tenant_id, academic_year_id),
     INDEX idx_tt_class (tenant_id, class_id, section_id),
     INDEX idx_tt_teacher (tenant_id, teacher_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
@@ -182,20 +186,22 @@ CREATE TABLE exams (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     tenant_id VARCHAR(50) NOT NULL,
     name VARCHAR(100) NOT NULL,
-    academic_year_id BIGINT,
+    academic_year_id BIGINT NOT NULL,
     start_date DATE,
     end_date DATE,
     status VARCHAR(20),
     is_active BOOLEAN DEFAULT TRUE, is_deleted BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     created_by VARCHAR(100), updated_by VARCHAR(100),
-    INDEX idx_exam_tenant (tenant_id)
+    INDEX idx_exam_tenant (tenant_id),
+    INDEX idx_exam_tenant_year (tenant_id, academic_year_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- Mark Records
 CREATE TABLE mark_records (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     tenant_id VARCHAR(50) NOT NULL,
+    academic_year_id BIGINT NOT NULL,
     exam_id BIGINT NOT NULL,
     student_id BIGINT NOT NULL,
     student_name VARCHAR(200),
@@ -207,6 +213,7 @@ CREATE TABLE mark_records (
     is_active BOOLEAN DEFAULT TRUE, is_deleted BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     created_by VARCHAR(100), updated_by VARCHAR(100),
+    INDEX idx_marks_tenant_year (tenant_id, academic_year_id),
     INDEX idx_marks_exam (tenant_id, exam_id),
     INDEX idx_marks_student (tenant_id, student_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
@@ -218,12 +225,13 @@ CREATE TABLE fee_structures (
     name VARCHAR(100) NOT NULL,
     class_id BIGINT,
     class_name VARCHAR(50),
-    academic_year_id BIGINT,
+    academic_year_id BIGINT NOT NULL,
     total_amount DECIMAL(12,2),
     is_active BOOLEAN DEFAULT TRUE, is_deleted BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     created_by VARCHAR(100), updated_by VARCHAR(100),
-    INDEX idx_fs_tenant (tenant_id)
+    INDEX idx_fs_tenant (tenant_id),
+    INDEX idx_fs_tenant_year (tenant_id, academic_year_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- Fee Components
@@ -243,6 +251,7 @@ CREATE TABLE fee_components (
 CREATE TABLE fee_payments (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     tenant_id VARCHAR(50) NOT NULL,
+    academic_year_id BIGINT NOT NULL,
     student_id BIGINT NOT NULL,
     student_name VARCHAR(200),
     fee_structure_id BIGINT,
@@ -259,6 +268,7 @@ CREATE TABLE fee_payments (
     is_active BOOLEAN DEFAULT TRUE, is_deleted BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     created_by VARCHAR(100), updated_by VARCHAR(100),
+    INDEX idx_fp_tenant_year (tenant_id, academic_year_id),
     INDEX idx_fp_student (tenant_id, student_id),
     INDEX idx_fp_status (tenant_id, status)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
@@ -267,6 +277,7 @@ CREATE TABLE fee_payments (
 CREATE TABLE announcements (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     tenant_id VARCHAR(50) NOT NULL,
+    academic_year_id BIGINT NOT NULL,
     title VARCHAR(200) NOT NULL,
     content TEXT,
     author VARCHAR(200),
@@ -276,13 +287,15 @@ CREATE TABLE announcements (
     is_active BOOLEAN DEFAULT TRUE, is_deleted BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     created_by VARCHAR(100), updated_by VARCHAR(100),
-    INDEX idx_ann_tenant (tenant_id)
+    INDEX idx_ann_tenant (tenant_id),
+    INDEX idx_ann_tenant_year (tenant_id, academic_year_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- Notifications
 CREATE TABLE notifications (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     tenant_id VARCHAR(50) NOT NULL,
+    academic_year_id BIGINT NOT NULL,
     title VARCHAR(200) NOT NULL,
     message VARCHAR(500),
     type VARCHAR(10),
@@ -292,6 +305,7 @@ CREATE TABLE notifications (
     is_active BOOLEAN DEFAULT TRUE, is_deleted BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     created_by VARCHAR(100), updated_by VARCHAR(100),
+    INDEX idx_notif_tenant_year (tenant_id, academic_year_id),
     INDEX idx_notif_user (tenant_id, user_id),
     INDEX idx_notif_read (tenant_id, user_id, is_read)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
@@ -342,6 +356,7 @@ CREATE TABLE books (
 CREATE TABLE book_issues (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     tenant_id VARCHAR(50) NOT NULL,
+    academic_year_id BIGINT NOT NULL,
     book_id BIGINT NOT NULL,
     book_title VARCHAR(200),
     student_id BIGINT NOT NULL,
@@ -354,6 +369,7 @@ CREATE TABLE book_issues (
     is_active BOOLEAN DEFAULT TRUE, is_deleted BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     created_by VARCHAR(100), updated_by VARCHAR(100),
+    INDEX idx_bi_tenant_year (tenant_id, academic_year_id),
     INDEX idx_bi_student (tenant_id, student_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 

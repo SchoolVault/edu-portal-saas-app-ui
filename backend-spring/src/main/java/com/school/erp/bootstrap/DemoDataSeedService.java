@@ -3,6 +3,7 @@ package com.school.erp.bootstrap;
 import com.school.erp.common.enums.Enums;
 import com.school.erp.modules.academic.entity.*;
 import com.school.erp.modules.academic.repository.*;
+import com.school.erp.modules.academic.service.CurrentAcademicYearResolver;
 import com.school.erp.modules.attendance.entity.AttendanceRecord;
 import com.school.erp.modules.attendance.repository.AttendanceRepository;
 import com.school.erp.modules.auth.entity.User;
@@ -70,6 +71,8 @@ import com.school.erp.modules.notification.repository.NotificationOutboxReposito
 import com.school.erp.modules.notification.repository.NotificationRepository;
 import com.school.erp.modules.payroll.repository.SalaryDisbursementAttemptRepository;
 import com.school.erp.platform.port.NotificationDispatchPort;
+import com.school.erp.tenant.AcademicYearContext;
+import com.school.erp.tenant.hibernate.AcademicYearScopedFilter;
 import com.school.erp.modules.payroll.entity.SalaryDisbursementAttempt;
 import com.school.erp.modules.payroll.entity.Payslip;
 import com.school.erp.modules.payroll.entity.SalaryComponent;
@@ -103,6 +106,7 @@ import com.school.erp.modules.transport.entity.*;
 import com.school.erp.modules.transport.repository.*;
 import com.school.erp.common.util.InternationalPhone;
 import jakarta.persistence.EntityManager;
+import org.hibernate.Session;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -302,6 +306,7 @@ public class DemoDataSeedService {
     private final UserSchoolRoleAssignmentRepository userSchoolRoleAssignmentRepository;
     private final TenantFinanceProfileRepository tenantFinanceProfileRepository;
     private final DemoExtendedTablesSeed demoExtendedTablesSeed;
+    private final CurrentAcademicYearResolver currentAcademicYearResolver;
     private final SlimJwtAuthorityCache slimJwtAuthorityCache;
     private final EntityManager entityManager;
 
@@ -390,7 +395,8 @@ public class DemoDataSeedService {
             TenantFinanceProfileRepository tenantFinanceProfileRepository,
             EntityManager entityManager,
             SlimJwtAuthorityCache slimJwtAuthorityCache,
-            DemoExtendedTablesSeed demoExtendedTablesSeed) {
+            DemoExtendedTablesSeed demoExtendedTablesSeed,
+            CurrentAcademicYearResolver currentAcademicYearResolver) {
         this.tenantConfigRepository = tenantConfigRepository;
         this.userRepository = userRepository;
         this.academicYearRepository = academicYearRepository;
@@ -459,6 +465,7 @@ public class DemoDataSeedService {
         this.tenantFinanceProfileRepository = tenantFinanceProfileRepository;
         this.slimJwtAuthorityCache = slimJwtAuthorityCache;
         this.demoExtendedTablesSeed = demoExtendedTablesSeed;
+        this.currentAcademicYearResolver = currentAcademicYearResolver;
         this.entityManager = entityManager;
     }
 
@@ -538,10 +545,23 @@ public class DemoDataSeedService {
                 .filter(tc -> tc.getTenantId() != null && !"SUPER_ADMIN_PLATFORM".equals(tc.getTenantId()))
                 .toList();
         for (TenantConfig tc : demoTenants) {
+            Long previousAcademicYearId = AcademicYearContext.getAcademicYearId();
             try {
+                Long tenantAcademicYearId = currentAcademicYearResolver.resolveCurrentAcademicYearId(tc.getTenantId());
+                if (tenantAcademicYearId == null) {
+                    log.warn("Extended demo seed for {} skipped: no current academic year resolved", tc.getSchoolCode());
+                    continue;
+                }
+                AcademicYearContext.setAcademicYearId(tenantAcademicYearId);
                 demoExtendedTablesSeed.seedExtendedModuleRows(tc.getTenantId(), tc.getSchoolCode());
             } catch (Exception e) {
                 log.warn("Extended demo seed for {} skipped or failed: {}", tc.getSchoolCode(), e.getMessage());
+            } finally {
+                if (previousAcademicYearId == null) {
+                    AcademicYearContext.clear();
+                } else {
+                    AcademicYearContext.setAcademicYearId(previousAcademicYearId);
+                }
             }
         }
     }
@@ -610,6 +630,14 @@ public class DemoDataSeedService {
                                                        LocalDate.of(2027, 3, 31),
                                                        true);
         pauseForResourceManagement();
+        Long previousAcademicYearId = AcademicYearContext.getAcademicYearId();
+        AcademicYearContext.setAcademicYearId(academicYear.getId());
+        // Transaction already started at seedIfNeeded entry; enable year filter explicitly now
+        // so subsequent scoped repository queries carry academic_year_id constraints.
+        entityManager.unwrap(Session.class)
+                .enableFilter(AcademicYearScopedFilter.NAME)
+                .setParameter("academicYearId", academicYear.getId());
+        try {
 
         // STEP 4: Academic Subjects (common across all classes)
         log.info("  [4/15] Academic Subjects...");
@@ -727,6 +755,13 @@ public class DemoDataSeedService {
         log.info("   Classes: {} (grades {}–{})", classesMap.size(), DEMO_MIN_GRADE, DEMO_MAX_GRADE);
         log.info("   Sections: {} (odd grades: A only; even grades: A+B)", sectionCount);
         log.info("══════════════════════════════════════════════════════════════");
+        } finally {
+            if (previousAcademicYearId == null) {
+                AcademicYearContext.clear();
+            } else {
+                AcademicYearContext.setAcademicYearId(previousAcademicYearId);
+            }
+        }
     }
 
     // ═══════════════════════════════════════════════════════════════════════════════════════════

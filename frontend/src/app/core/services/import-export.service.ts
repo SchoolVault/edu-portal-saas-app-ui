@@ -145,7 +145,8 @@ const MOCK_LINES: ImportJobLine[] = [
     errorMessage: null,
     entityType: 'STUDENT',
     entityId: 501,
-    payloadJson: '{"firstname":"Riya","lastname":"Banerjee","classid":"1"}',
+    payloadJson:
+      '{"first_name":"Riya","last_name":"Banerjee","classname":"Class 6","primary_guardian_phone":"9876500000"}',
   },
   {
     id: 2,
@@ -154,7 +155,7 @@ const MOCK_LINES: ImportJobLine[] = [
     errorMessage: 'Admission number already exists: ADM123',
     entityType: null,
     entityId: null,
-    payloadJson: '{"firstname":"Amit","lastname":"Das","admissionnumber":"ADM123"}',
+    payloadJson: '{"first_name":"Amit","last_name":"Das","admission_number":"ADM123","primary_guardian_phone":"9876500001"}',
   },
 ];
 
@@ -183,12 +184,12 @@ export class ImportExportService {
     if (runtimeConfig.useMocks) {
       return of({
         jobType,
-        detectedHeaders: ['first_name', 'last_name', 'email_address'],
-        canonicalFields: ['firstname', 'lastname', 'email', 'phone'],
+        detectedHeaders: ['first_name', 'last_name', 'Student Email'],
+        canonicalFields: ['first_name', 'last_name', 'student_email', 'primary_guardian_phone'],
         suggestedMapping: {
-          first_name: 'firstname',
-          last_name: 'lastname',
-          email_address: 'email',
+          Student_Email: 'student_email',
+          first_name: 'first_name',
+          last_name: 'last_name',
         },
       }).pipe(delay(280));
     }
@@ -372,8 +373,8 @@ export class ImportExportService {
   downloadStudentsCsv(): Observable<Blob> {
     if (runtimeConfig.useMocks) {
       const csv =
-        'firstname,lastname,email,phone,dateofbirth,gender,classid,sectionid,classname,sectionname,academicyearid,rollnumber,admissionnumber,admissiondate,parentid,parentname,parentemail,parentphone,notifycredentials,importmode,address,bloodgroup\n' +
-        'Riya,Banerjee,,,,,1,,,,,ADM-MOCK-1,,,,,parent@example.com,9876500000,Y,UPSERT,,\n';
+        'academic_year_id (R),import_mode (O),first_name (R),last_name (R),gender (O),date_of_birth (O),student_email (O),class_id (O),section_id (O),classname (R),sectionname (O),roll_number (O),admission_number (R),admission_date (O),primary_guardian_relation (O),primary_guardian_name (R),primary_guardian_email (O),primary_guardian_phone (R),parent_id (O),create_parent_portal (O),notify_credentials (O),address (O),blood_group (O)\n' +
+        'CURRENT,UPSERT,Riya,Banerjee,,,,AUTO,AUTO,Class 6,,,ADM-MOCK-1,,,Parent Name,parent@example.com,9876500000,,Y,Y,,,\n';
       return of(new Blob([csv], { type: 'text/csv' })).pipe(delay(200));
     }
     return this.api.getBlob('/import-export/export/students.csv');
@@ -382,8 +383,8 @@ export class ImportExportService {
   downloadTeachersCsv(): Observable<Blob> {
     if (runtimeConfig.useMocks) {
       const csv =
-        'firstname,lastname,email,phone,qualification,specialization,joindate,salary,subjects,createportal,portalrole,libraryrole,importmode,bankaccountholder,bankname,bankaccountnumber,bankifsc,notifycredentials\n' +
-        'Meera,Iyer,m.iyer@school.com,,,,,,,Y,TEACHER,,UPSERT,,,,N\n';
+        'academic_year_id (R),import_mode (O),employee_code (R),first_name (R),last_name (R),phone (R),join_date (O),status (O),email (O),gender (O),dob (O),qualification (O),specialization (O),department (O),subjects (O),can_class_teacher (O),class_teacher_slot (O),create_portal (O),portal_password (O),portal_role (O),library_role (O),school_role_codes (O),notify_credentials (O),salary (O),bank_account_holder (O),bank_name (O),bank_account_number (O),bank_ifsc (O)\n' +
+        'CURRENT,UPSERT,T001,Meera,Iyer,9876000001,2024-04-01,ACTIVE,m.iyer@school.com,,,,,Science,Science,N,,Y,,TEACHER,,ACADEMIC_STAFF,N,45000,Meera Iyer,HDFC Bank,1234567890,HDFC0000001\n';
       return of(new Blob([csv], { type: 'text/csv' })).pipe(delay(200));
     }
     return this.api.getBlob('/import-export/export/teachers.csv');

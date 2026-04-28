@@ -70,5 +70,6 @@ public class TenantContext {
         USER_DISPLAY_NAME.remove();
         USER_PRINCIPAL.remove();
         CLIENT_IP.remove();
+        AcademicYearContext.clear();
     }
 }

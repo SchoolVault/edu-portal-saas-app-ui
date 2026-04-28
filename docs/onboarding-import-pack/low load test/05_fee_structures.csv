@@ -1,4 +1,4 @@
-name,classid,classname,academicyearid,componentspec,importmode
+name (R),class_id (O),class_name (R),academic_year_id (R),component_spec (R),import_mode (O)
 Class 5 Standard Fees,,Class 5,CURRENT,Tuition:18000:TUITION|Lab:2000:LAB|Sports:1500:SPORTS|Misc:500:MISC,UPSERT
 Class 6 Standard Fees,,Class 6,CURRENT,Tuition:19000:TUITION|Lab:2200:LAB|Sports:1500:SPORTS|Library:800:LIBRARY,UPSERT
 Class 7 Standard Fees,,Class 7,CURRENT,Tuition:20000:TUITION|Lab:2500:LAB|Sports:1800:SPORTS|Transport:2500:TRANSPORT,UPSERT

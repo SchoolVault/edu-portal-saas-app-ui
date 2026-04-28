@@ -13,18 +13,25 @@ import com.school.erp.common.importer.ZipCsvImportUtil;
 import com.school.erp.modules.academic.entity.Section;
 import com.school.erp.modules.academic.repository.SchoolClassRepository;
 import com.school.erp.modules.academic.repository.SectionRepository;
+import com.school.erp.modules.auth.entity.User;
+import com.school.erp.modules.auth.repository.UserRepository;
 import com.school.erp.events.domain.StudentAdmittedEvent;
 import com.school.erp.events.domain.StudentEnrollmentChangedEvent;
 import com.school.erp.modules.student.dto.StudentDTOs;
 import com.school.erp.modules.student.entity.Student;
 import com.school.erp.modules.guardian.service.GuardianLinkSyncService;
+import com.school.erp.modules.importexport.service.StudentImportCanonicalRow;
+import com.school.erp.modules.notification.service.NotificationService;
 import com.school.erp.modules.reports.service.DashboardSnapshotInvalidationService;
 import com.school.erp.modules.student.mapper.StudentResponseMapper;
 import com.school.erp.modules.student.port.StudentPersistencePort;
+import com.school.erp.modules.auth.service.PortalUserProvisioningService;
+import com.school.erp.modules.settings.repository.TenantConfigRepository;
 import com.school.erp.cache.CacheService;
 import com.school.erp.cache.CacheService.CacheRegion;
 import com.school.erp.config.CacheConfig;
 import com.school.erp.platform.port.DomainEventPublisher;
+import com.school.erp.platform.port.NotificationDispatchPort;
 import com.school.erp.tenant.TenantContext;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.cache.annotation.Cacheable;
@@ -55,6 +62,11 @@ public class StudentService {
     private final TeacherRosterScopeService teacherRosterScopeService;
     private final DomainEventPublisher domainEventPublisher;
     private final GuardianLinkSyncService guardianLinkSyncService;
+    private final PortalUserProvisioningService portalUserProvisioningService;
+    private final NotificationService notificationService;
+    private final NotificationDispatchPort notificationDispatchPort;
+    private final TenantConfigRepository tenantConfigRepository;
+    private final UserRepository userRepository;
     private final ObjectProvider<CacheService> cacheService;
     private final DashboardSnapshotInvalidationService dashboardSnapshotInvalidationService;
 
@@ -174,10 +186,14 @@ public class StudentService {
             email = null;
         }
         Student student = Student.builder().firstName(request.getFirstName()).lastName(request.getLastName()).email(email).phone(request.getPhone()).dateOfBirth(request.getDateOfBirth()).gender(request.getGender()).classId(request.getClassId()).sectionId(normalizedSectionId).rollNumber(request.getRollNumber()).admissionNumber(admNo).admissionDate(request.getAdmissionDate() != null ? request.getAdmissionDate() : LocalDate.now()).parentId(request.getParentId()).parentName(request.getParentName()).address(request.getAddress()).bloodGroup(request.getBloodGroup()).status(Enums.StudentStatus.ACTIVE).build();
+        PortalUserProvisioningService.ProvisionResult parentProvision = applyParentPortalAutoLink(
+                tenantId, request.getParentId(), request.getParentName(),
+                request.getParentPhone(), request.getParentEmail(), request.getCreateParentPortal(), student);
         student.setTenantId(tenantId);
         student.setCreatedBy(TenantContext.getUserId() != null ? TenantContext.getUserId().toString() : null);
         studentPersistence.save(student);
         log.info("Student created: {} {} [{}]", student.getFirstName(), student.getLastName(), student.getAdmissionNumber());
+        sendParentOnboardingForManualCreate(tenantId, request.getParentEmail(), request.getParentPhone(), parentProvision);
         guardianLinkSyncService.syncForStudent(student);
         domainEventPublisher.publish(new StudentAdmittedEvent(
                 tenantId,
@@ -289,6 +305,8 @@ public class StudentService {
         if (request.getRollNumber() != null) student.setRollNumber(request.getRollNumber());
         if (request.getParentId() != null) student.setParentId(request.getParentId());
         if (request.getParentName() != null) student.setParentName(request.getParentName());
+        applyParentPortalAutoLink(tenantId, request.getParentId(), request.getParentName(),
+                request.getParentPhone(), request.getParentEmail(), request.getCreateParentPortal(), student);
         if (request.getAddress() != null) student.setAddress(request.getAddress());
         if (request.getBloodGroup() != null) student.setBloodGroup(request.getBloodGroup());
         if (request.getStatus() != null) student.setStatus(request.getStatus());
@@ -372,6 +390,7 @@ public class StudentService {
         List<Map<String, String>> rows = ZipCsvImportUtil.readRows(file, "students.csv");
         List<StudentDTOs.Response> created = new ArrayList<>();
         for (Map<String, String> row : rows) {
+            StudentImportCanonicalRow.normalize(row);
             StudentDTOs.CreateRequest request = new StudentDTOs.CreateRequest();
             request.setFirstName(required(row, "firstname"));
             request.setLastName(required(row, "lastname"));
@@ -421,34 +440,38 @@ public class StudentService {
     }
 
     /**
-     * CSV aligned with bulk import template ({@code students.csv} inside ZIP).
+     * CSV aligned with bulk-import canonical ({@code students.csv}: snake_case + ERP naming; same contract as onboarding packs).
      */
     @Transactional(readOnly = true)
     public String exportStudentsAsCsv() {
         String tenantId = TenantContext.getTenantId();
         StringBuilder sb = new StringBuilder();
-        sb.append("firstname,lastname,email,phone,dateofbirth,gender,classid,sectionid,classname,sectionname,academicyearid,rollnumber,admissionnumber,admissiondate,parentid,parentname,parentemail,parentphone,notifycredentials,importmode,address,bloodgroup\n");
+        sb.append(
+                "academic_year_id,import_mode,first_name,last_name,gender,date_of_birth,student_email,class_id,section_id,classname,"
+                        + "sectionname,roll_number,admission_number,admission_date,primary_guardian_relation,primary_guardian_name,primary_guardian_email,"
+                        + "primary_guardian_phone,parent_id,create_parent_portal,notify_credentials,address,blood_group\n");
         for (Student s : studentPersistence.findByTenantIdAndIsDeletedFalse(tenantId)) {
+            sb.append(','); // academic_year_id — omit; fill on fresh imports
+            sb.append("UPSERT").append(',');
             sb.append(csv(s.getFirstName())).append(',');
             sb.append(csv(s.getLastName())).append(',');
-            sb.append(csv(s.getEmail())).append(',');
-            sb.append(csv(s.getPhone())).append(',');
-            sb.append(s.getDateOfBirth() != null ? s.getDateOfBirth() : "").append(',');
             sb.append(s.getGender() != null ? s.getGender().name().toLowerCase() : "").append(',');
+            sb.append(s.getDateOfBirth() != null ? s.getDateOfBirth() : "").append(',');
+            sb.append(csv(s.getEmail())).append(',');
             sb.append(s.getClassId() != null ? s.getClassId() : "").append(',');
             sb.append(s.getSectionId() != null ? s.getSectionId() : "").append(',');
-            sb.append(','); // classname — resolved at import time; omitted in export
+            sb.append(','); // classname — derive at import/export enrichment if needed
             sb.append(','); // sectionname
-            sb.append(','); // academicyearid
             sb.append(csv(s.getRollNumber())).append(',');
             sb.append(csv(s.getAdmissionNumber())).append(',');
             sb.append(s.getAdmissionDate() != null ? s.getAdmissionDate() : "").append(',');
-            sb.append(s.getParentId() != null ? s.getParentId() : "").append(',');
+            sb.append(','); // primary_guardian_relation
             sb.append(csv(s.getParentName())).append(',');
-            sb.append(','); // parentemail — not denormalized on Student; leave blank in export
-            sb.append(','); // parentphone
-            sb.append(','); // notifycredentials
-            sb.append("UPSERT").append(',');
+            sb.append(','); // primary_guardian_email — not denormalized on Student
+            sb.append(','); // primary_guardian_phone — load from guardian user when added
+            sb.append(s.getParentId() != null ? s.getParentId() : "").append(',');
+            sb.append(','); // create_parent_portal
+            sb.append(','); // notify_credentials
             sb.append(csv(s.getAddress())).append(',');
             sb.append(csv(s.getBloodGroup())).append('\n');
         }
@@ -480,6 +503,11 @@ public class StudentService {
                           final TeacherRosterScopeService teacherRosterScopeService,
                           final DomainEventPublisher domainEventPublisher,
                           final GuardianLinkSyncService guardianLinkSyncService,
+                          final PortalUserProvisioningService portalUserProvisioningService,
+                          final NotificationService notificationService,
+                          final NotificationDispatchPort notificationDispatchPort,
+                          final TenantConfigRepository tenantConfigRepository,
+                          final UserRepository userRepository,
                           final ObjectProvider<CacheService> cacheService,
                           final DashboardSnapshotInvalidationService dashboardSnapshotInvalidationService) {
         this.studentPersistence = studentPersistence;
@@ -488,8 +516,160 @@ public class StudentService {
         this.teacherRosterScopeService = teacherRosterScopeService;
         this.domainEventPublisher = domainEventPublisher;
         this.guardianLinkSyncService = guardianLinkSyncService;
+        this.portalUserProvisioningService = portalUserProvisioningService;
+        this.notificationService = notificationService;
+        this.notificationDispatchPort = notificationDispatchPort;
+        this.tenantConfigRepository = tenantConfigRepository;
+        this.userRepository = userRepository;
         this.cacheService = cacheService;
         this.dashboardSnapshotInvalidationService = dashboardSnapshotInvalidationService;
+    }
+
+    private PortalUserProvisioningService.ProvisionResult applyParentPortalAutoLink(
+            String tenantId,
+            Long explicitParentId,
+            String parentName,
+            String parentPhone,
+            String parentEmail,
+            Boolean createParentPortal,
+            Student student) {
+        if (explicitParentId != null) {
+            return null;
+        }
+        boolean shouldAutoLink = Boolean.TRUE.equals(createParentPortal)
+                || (parentPhone != null && !parentPhone.isBlank())
+                || (parentEmail != null && !parentEmail.isBlank());
+        if (!shouldAutoLink) {
+            return null;
+        }
+        PortalUserProvisioningService.ProvisionResult parentProvision =
+                portalUserProvisioningService.ensureParentUserForImport(
+                        tenantId,
+                        parentName,
+                        parentEmail,
+                        parentPhone);
+        student.setParentId(parentProvision.userId());
+        if ((student.getParentName() == null || student.getParentName().isBlank()) && parentName != null && !parentName.isBlank()) {
+            student.setParentName(parentName.trim());
+        }
+        return parentProvision;
+    }
+
+    private void sendParentOnboardingForManualCreate(
+            String tenantId,
+            String parentEmail,
+            String parentPhone,
+            PortalUserProvisioningService.ProvisionResult parentProvision) {
+        if (parentProvision == null || parentProvision.userId() == null || !parentProvision.createdNew()) {
+            return;
+        }
+        SchoolIdentity school = loadSchoolIdentity(tenantId);
+        String title = "Parent Portal Access Credentials";
+        String body = parentCredentialMessage(
+                school.name(),
+                school.code(),
+                parentEmail,
+                parentPhone,
+                parentProvision.plainPassword(),
+                true);
+        notificationService.createNotification(
+                tenantId,
+                parentProvision.userId(),
+                title,
+                body,
+                Enums.NotificationType.INFO,
+                "/app/parent/children");
+        notificationDispatchPort.enqueue(
+                tenantId,
+                "PARENT_PORTAL_CREDENTIALS",
+                "SMS",
+                parentProvision.userId(),
+                parentPhone,
+                title,
+                body,
+                "manual-student-parent-" + parentProvision.userId(),
+                "manual-student-parent-onboarding");
+        notifyAdminsOnParentOnboarding(tenantId, school);
+    }
+
+    private void notifyAdminsOnParentOnboarding(String tenantId, SchoolIdentity school) {
+        String title = "Parent Portal Onboarding Notice";
+        String body = parentOnboardingBody(school.name(), school.code());
+        java.util.LinkedHashSet<User> admins = new java.util.LinkedHashSet<>();
+        admins.addAll(userRepository.findByTenantIdAndRoleAndIsDeletedFalse(tenantId, Enums.Role.ADMIN));
+        admins.addAll(userRepository.findByTenantIdAndRoleAndIsDeletedFalse(tenantId, Enums.Role.SUPER_ADMIN));
+        for (User admin : admins) {
+            if (admin == null || admin.getId() == null) {
+                continue;
+            }
+            notificationService.createNotification(tenantId, admin.getId(), title, body, Enums.NotificationType.INFO, "/app/inbox");
+            String phone = blankToNull(admin.getPhone());
+            if (phone != null) {
+                notificationDispatchPort.enqueue(
+                        tenantId,
+                        "ADMIN_ONBOARDING_SUMMARY",
+                        "SMS",
+                        admin.getId(),
+                        phone,
+                        title,
+                        body,
+                        "manual-student-parent-admin-" + admin.getId(),
+                        "manual-student-parent-onboarding");
+            }
+        }
+    }
+
+    private SchoolIdentity loadSchoolIdentity(String tenantId) {
+        return tenantConfigRepository.findByTenantId(tenantId)
+                .map(c -> new SchoolIdentity(blankToNull(c.getSchoolName()), blankToNull(c.getSchoolCode())))
+                .orElseGet(() -> new SchoolIdentity(null, null));
+    }
+
+    private static String parentCredentialMessage(
+            String schoolName,
+            String schoolCode,
+            String email,
+            String phone,
+            String plainPassword,
+            boolean createdNew) {
+        String schoolLine = schoolIdentityLine(schoolName, schoolCode);
+        String maskedPhone = phone != null && !phone.isBlank() ? phone : "your registered mobile";
+        if (createdNew && email != null && !email.isBlank() && plainPassword != null) {
+            return "Welcome to the Parent Portal. " + schoolLine
+                    + " Login details: Mobile OTP on " + maskedPhone + "; Email login " + email
+                    + "; Temporary password " + plainPassword + ". "
+                    + "Please sign in, verify your email in Profile > Security, and change your password immediately.";
+        }
+        if (createdNew) {
+            return "Welcome to the Parent Portal. " + schoolLine
+                    + " Login details: Mobile OTP on " + maskedPhone + ". "
+                    + "After login, please review your profile and notification preferences.";
+        }
+        return "Parent portal access updated. " + schoolLine
+                + " This student is now linked to your existing parent account. "
+                + "Sign in using your registered mobile OTP" + (email != null && !email.isBlank() ? " or email login " + email : "") + ".";
+    }
+
+    private static String parentOnboardingBody(String schoolName, String schoolCode) {
+        return schoolIdentityLine(schoolName, schoolCode)
+                + " New parent portal accounts are now active. Parents can sign in with mobile OTP on their registered number. "
+                + "If email login is enabled, complete email verification from Profile > Security before using password login.";
+    }
+
+    private static String schoolIdentityLine(String schoolName, String schoolCode) {
+        if (schoolName != null && schoolCode != null) {
+            return "School: " + schoolName + " (" + schoolCode + ").";
+        }
+        if (schoolName != null) {
+            return "School: " + schoolName + ".";
+        }
+        if (schoolCode != null) {
+            return "School code: " + schoolCode + ".";
+        }
+        return "School portal access update.";
+    }
+
+    private record SchoolIdentity(String name, String code) {
     }
 
     private void evictStudentAndAcademicCaches() {

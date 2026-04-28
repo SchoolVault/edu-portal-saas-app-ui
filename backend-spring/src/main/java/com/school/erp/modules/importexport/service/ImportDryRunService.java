@@ -92,9 +92,13 @@ public class ImportDryRunService {
             final Map<String, Integer> seenTimetableClassSlot = new HashMap<>();
             final Map<String, Integer> seenTimetableTeacherSlot = new HashMap<>();
             final Map<String, Integer> seenClassTeacherSlot = new HashMap<>();
+            final Map<String, Integer> seenClassKey = new HashMap<>();
+            final Map<String, Integer> seenSectionKey = new HashMap<>();
+            final Map<String, String> seenClassMode = new HashMap<>();
             final Map<String, String> parentPhoneToEmail = new HashMap<>();
             final Map<String, Integer> timetableRowsPerSlot = new HashMap<>();
             final Map<String, java.util.Set<String>> timetableTeachersPerSlot = new HashMap<>();
+            final Map<String, java.util.Set<String>> timetableTeachersPerDay = new HashMap<>();
 
             TabularImportStreamReader.streamDataRows(
                     temp,
@@ -105,16 +109,28 @@ public class ImportDryRunService {
                     (batch, firstRowIndex) -> {
                         for (int i = 0; i < batch.size(); i++) {
                             Map<String, String> row = ImportColumnMappingApplier.applyMapping(batch.get(i), columnMapping);
+                            if (jobType == ImportJobType.STUDENTS) {
+                                StudentImportCanonicalRow.normalize(row);
+                            } else if (jobType == ImportJobType.CLASSES) {
+                                ClassImportCanonicalRow.normalize(row);
+                            } else if (jobType == ImportJobType.TIMETABLE) {
+                                TimetableImportCanonicalRow.normalize(row);
+                            }
                             int lineIndex = firstRowIndex + i;
                             totalRows[0]++;
-                            collectTimetableSlotDiagnostics(jobType, row, timetableRowsPerSlot, timetableTeachersPerSlot);
+                            collectTimetableSlotDiagnostics(
+                                    jobType,
+                                    row,
+                                    timetableRowsPerSlot,
+                                    timetableTeachersPerSlot,
+                                    timetableTeachersPerDay);
                             if ((jobType == ImportJobType.CLASSES || jobType == ImportJobType.STUDENTS)
                                     && academicResolver.usesAutomaticAcademicYear(row.get("academicyearid"))) {
                                 autoAcademicYearSeen[0] = true;
                             }
                             String inFileError = detectInFileConflict(jobType, row, lineIndex,
                                     seenStudentAdmission, seenTeacherPhone, seenTimetableClassSlot, seenTimetableTeacherSlot,
-                                    seenClassTeacherSlot, parentPhoneToEmail);
+                                    seenClassTeacherSlot, seenClassKey, seenSectionKey, seenClassMode, parentPhoneToEmail);
                             if (inFileError != null) {
                                 invalid[0]++;
                                 if (res.getSampleErrors().size() < maxSamples) {
@@ -157,7 +173,10 @@ public class ImportDryRunService {
                 res.setAdvisoryMessage(academicResolver.buildAcademicYearResolutionMessage("CURRENT"));
             }
             if (jobType == ImportJobType.TIMETABLE) {
-                String timetableAdvisory = buildTimetableTeacherCapacityAdvisory(timetableRowsPerSlot, timetableTeachersPerSlot);
+                String timetableAdvisory = buildTimetableTeacherCapacityAdvisory(
+                        timetableRowsPerSlot,
+                        timetableTeachersPerSlot,
+                        timetableTeachersPerDay);
                 if (timetableAdvisory != null) {
                     String existing = trimToNull(res.getAdvisoryMessage());
                     res.setAdvisoryMessage(existing == null ? timetableAdvisory : existing + " " + timetableAdvisory);
@@ -212,21 +231,24 @@ public class ImportDryRunService {
             Map<String, Integer> seenTimetableClassSlot,
             Map<String, Integer> seenTimetableTeacherSlot,
             Map<String, Integer> seenClassTeacherSlot,
+            Map<String, Integer> seenClassKey,
+            Map<String, Integer> seenSectionKey,
+            Map<String, String> seenClassMode,
             Map<String, String> parentPhoneToEmail) {
         if (jobType == ImportJobType.STUDENTS) {
-            String admission = trimToNull(row.get("admissionnumber"));
+            String admission = trimToNull(value(row, "admissionnumber", "admission_number"));
             if (admission != null) {
                 String key = admission.toLowerCase(Locale.ROOT);
                 Integer previous = seenStudentAdmission.putIfAbsent(key, lineIndex);
                 if (previous != null) {
-                    return "Duplicate admissionnumber in file (line #" + previous + ").";
+                    return "Duplicate admission number in file (line #" + previous + ").";
                 }
             }
-            String parentPhone = trimToNull(row.get("parentphone"));
+            String parentPhone = trimToNull(value(row, "parentphone", "primary_guardian_phone"));
             if (parentPhone != null) {
                 String canonical = InternationalPhone.canonical(parentPhone);
                 if (canonical != null) {
-                    String email = trimToNull(row.get("parentemail"));
+                    String email = trimToNull(value(row, "parentemail", "primary_guardian_email"));
                     String priorEmail = parentPhoneToEmail.putIfAbsent(canonical, email != null ? email.toLowerCase(Locale.ROOT) : "");
                     if (priorEmail != null && email != null && !priorEmail.isBlank() && !priorEmail.equalsIgnoreCase(email)) {
                         return "Same parentphone appears with different parentemail values in file; keep one household identity.";
@@ -234,27 +256,73 @@ public class ImportDryRunService {
                 }
             }
         } else if (jobType == ImportJobType.TEACHERS || jobType == ImportJobType.STAFF) {
-            String phone = trimToNull(row.get("phone"));
+            String phone = trimToNull(value(row, "phone"));
             String canonical = phone != null ? InternationalPhone.canonical(phone) : null;
             if (canonical != null) {
                 Integer previous = seenTeacherPhone.putIfAbsent(canonical, lineIndex);
                 if (previous != null) {
-                    return "Duplicate teacher phone in file (line #" + previous + ").";
+                    String kind = jobType == ImportJobType.STAFF ? "staff" : "teacher";
+                    return "Duplicate " + kind + " phone in file (line #" + previous + ").";
                 }
             }
             try {
-                if (trimToNull(row.get("classteacherfor")) != null || trimToNull(row.get("classteacherclassid")) != null || trimToNull(row.get("classteacherclassname")) != null) {
-                    var placement = academicResolver.resolveOptionalClassTeacherPlacement(row).orElse(null);
-                    if (placement != null) {
-                        String key = placement.classId() + ":" + (placement.sectionId() != null ? placement.sectionId() : 0L);
-                        Integer previous = seenClassTeacherSlot.putIfAbsent(key, lineIndex);
-                        if (previous != null && !previous.equals(lineIndex)) {
-                            throw new BusinessException("Duplicate class-teacher slot in file (line #" + previous + ").");
+                if (jobType == ImportJobType.TEACHERS && hasTeacherClassTeacherSpec(row)) {
+                    Map<String, String> placementRow = new java.util.HashMap<>(row);
+                    if (trimToNull(placementRow.get("classteacherfor")) == null) {
+                        String slot = trimToNull(value(placementRow, "class_teacher_slot"));
+                        if (slot != null) {
+                            placementRow.put("classteacherfor", slot);
+                        }
+                    }
+                    if (trimToNull(placementRow.get("classteacheracademicyearid")) == null) {
+                        String ay = trimToNull(value(placementRow, "academic_year_id", "academicyearid"));
+                        if (ay != null) {
+                            placementRow.put("classteacheracademicyearid", ay);
+                        }
+                    }
+                    if (trimToNull(placementRow.get("classteacherfor")) != null || trimToNull(placementRow.get("classteacherclassid")) != null || trimToNull(placementRow.get("classteacherclassname")) != null) {
+                        var placement = academicResolver.resolveOptionalClassTeacherPlacement(placementRow).orElse(null);
+                        if (placement != null) {
+                            String key = placement.classId() + ":" + (placement.sectionId() != null ? placement.sectionId() : 0L);
+                            Integer prevSlot = seenClassTeacherSlot.putIfAbsent(key, lineIndex);
+                            if (prevSlot != null && !prevSlot.equals(lineIndex)) {
+                                throw new BusinessException("Duplicate class-teacher slot in file (line #" + prevSlot + ").");
+                            }
                         }
                     }
                 }
             } catch (BusinessException ex) {
                 return ex.getMessage();
+            }
+        } else if (jobType == ImportJobType.CLASSES) {
+            String classCode = trimToNull(row.get("classcode"));
+            String className = trimToNull(row.get("classname"));
+            String grade = trimToNull(row.get("grade"));
+            String academicYearId = trimToNull(row.get("academicyearid"));
+            String classKey = (academicYearId != null ? academicYearId : "_")
+                    + "|" + (classCode != null ? classCode.toUpperCase(Locale.ROOT)
+                    : (className != null ? className.toUpperCase(Locale.ROOT) : "_"))
+                    + "|" + (grade != null ? grade : "_");
+            String sectionCode = trimToNull(row.get("sectioncode"));
+            String sectionName = trimToNull(row.get("sectionname"));
+            boolean sectioned = sectionCode != null || sectionName != null;
+            String mode = sectioned ? "SECTIONED" : "CLASS_ONLY";
+            String previousMode = seenClassMode.putIfAbsent(classKey, mode);
+            if (previousMode != null && !previousMode.equals(mode)) {
+                return "Mixed-mode class rows in file for key " + classKey + " (cannot mix sectioned and class-only rows).";
+            }
+            if (!sectioned) {
+                Integer prev = seenClassKey.putIfAbsent(classKey, lineIndex);
+                if (prev != null) {
+                    return "Duplicate class row in file (line #" + prev + ").";
+                }
+            } else {
+                String sectionToken = sectionCode != null ? sectionCode : sectionName;
+                String sectionKey = classKey + "|SEC:" + sectionToken.toUpperCase(Locale.ROOT);
+                Integer prev = seenSectionKey.putIfAbsent(sectionKey, lineIndex);
+                if (prev != null) {
+                    return "Duplicate section row in file (line #" + prev + ").";
+                }
             }
         } else if (jobType == ImportJobType.TIMETABLE) {
             String classId = trimToNull(row.get("classid"));
@@ -269,9 +337,12 @@ public class ImportDryRunService {
                         + "|day:" + day.toUpperCase(Locale.ROOT) + "|p:" + period;
                 Integer previousClass = seenTimetableClassSlot.putIfAbsent(classSlot, lineIndex);
                 if (previousClass != null) {
-                    return "Duplicate timetable class slot in file (line #" + previousClass + ").";
+                    return "Duplicate timetable class slot in file for key [" + classSlot + "] (line #" + previousClass + ").";
                 }
                 String teacherKey = trimToNull(row.get("teacherid"));
+                if (teacherKey == null) {
+                    teacherKey = trimToNull(row.get("teacherphone"));
+                }
                 if (teacherKey == null) {
                     teacherKey = trimToNull(row.get("teacheremail"));
                 }
@@ -279,7 +350,7 @@ public class ImportDryRunService {
                     String teacherSlot = teacherKey.toLowerCase(Locale.ROOT) + "|day:" + day.toUpperCase(Locale.ROOT) + "|p:" + period;
                     Integer previousTeacher = seenTimetableTeacherSlot.putIfAbsent(teacherSlot, lineIndex);
                     if (previousTeacher != null) {
-                        return "Teacher double-booked in file for same day/period (line #" + previousTeacher + ").";
+                        return "Teacher double-booked in file for key [" + teacherSlot + "] (line #" + previousTeacher + ").";
                     }
                 }
             }
@@ -309,14 +380,18 @@ public class ImportDryRunService {
 
     private static String extractDedupeKey(ImportJobType jobType, Map<String, String> row) {
         return switch (jobType) {
-            case STUDENTS -> "admissionnumber=" + safe(row.get("admissionnumber"));
-            case TEACHERS, STAFF -> "phone=" + safe(row.get("phone"));
-            case TIMETABLE -> "teacher=" + safe(row.get("teacherid")) + "/ph:" + safe(row.get("teacherphone")) + "/em:" + safe(row.get("teacheremail"))
-                    + ",class=" + safe(row.get("classid")) + "/" + safe(row.get("classname"))
-                    + ",section=" + safe(row.get("sectionid")) + "/" + safe(row.get("sectionname"))
-                    + ",day=" + safe(row.get("dayofweek")) + ",period=" + safe(row.get("period"));
-            case FEE_STRUCTURES -> "class=" + safe(row.get("classid")) + "/" + safe(row.get("classname"))
-                    + ",academicyearid=" + safe(row.get("academicyearid")) + ",name=" + safe(row.get("name"));
+            case STUDENTS -> "admission_number=" + safe(value(row, "admissionnumber", "admission_number"));
+            case TEACHERS, STAFF -> "employee_code=" + safe(value(row, "employee_code"))
+                    + ",phone=" + safe(value(row, "phone")) + ",email=" + safe(value(row, "email"));
+            case TIMETABLE -> "teacher=" + safe(value(row, "teacherid")) + "/ph:" + safe(value(row, "teacherphone")) + "/em:" + safe(value(row, "teacheremail"))
+                    + ",class=" + safe(value(row, "classid")) + "/" + safe(value(row, "classname"))
+                    + ",section=" + safe(value(row, "sectionid")) + "/" + safe(value(row, "sectionname"))
+                    + ",day=" + safe(value(row, "dayofweek")) + ",period=" + safe(value(row, "period"));
+            case FEE_STRUCTURES -> "class=" + safe(value(row, "class_id", "classid")) + "/" + safe(value(row, "class_name", "classname"))
+                    + ",academic_year_id=" + safe(value(row, "academic_year_id", "academicyearid")) + ",name=" + safe(row.get("name"));
+            case CLASSES -> "classcode=" + safe(row.get("classcode")) + ",classname=" + safe(row.get("classname"))
+                    + ",grade=" + safe(row.get("grade")) + ",sectioncode=" + safe(row.get("sectioncode"))
+                    + ",sectionname=" + safe(row.get("sectionname")) + ",academicyearid=" + safe(row.get("academicyearid"));
             default -> "";
         };
     }
@@ -334,11 +409,34 @@ public class ImportDryRunService {
         return v.isEmpty() ? null : v;
     }
 
+    private static String value(Map<String, String> row, String... keys) {
+        for (String key : keys) {
+            if (row.containsKey(key)) {
+                String v = row.get(key);
+                if (v != null) {
+                    return v;
+                }
+            }
+        }
+        return null;
+    }
+
+    /** True when the row might resolve a homeroom slot (Teachers import dry-run duplicate detection only). */
+    private static boolean hasTeacherClassTeacherSpec(Map<String, String> row) {
+        return trimToNull(row.get("classteacherfor")) != null
+                || trimToNull(row.get("classteacherclassid")) != null
+                || trimToNull(row.get("classteachersectionid")) != null
+                || trimToNull(row.get("classteacherclassname")) != null
+                || trimToNull(row.get("classteachersectionname")) != null
+                || trimToNull(value(row, "class_teacher_slot")) != null;
+    }
+
     private static void collectTimetableSlotDiagnostics(
             ImportJobType jobType,
             Map<String, String> row,
             Map<String, Integer> timetableRowsPerSlot,
-            Map<String, java.util.Set<String>> timetableTeachersPerSlot) {
+            Map<String, java.util.Set<String>> timetableTeachersPerSlot,
+            Map<String, java.util.Set<String>> timetableTeachersPerDay) {
         if (jobType != ImportJobType.TIMETABLE) {
             return;
         }
@@ -359,12 +457,15 @@ public class ImportDryRunService {
         if (teacherRef != null) {
             timetableTeachersPerSlot.computeIfAbsent(slotKey, ignored -> new java.util.HashSet<>())
                     .add(teacherRef.toLowerCase(Locale.ROOT));
+            timetableTeachersPerDay.computeIfAbsent(day.toUpperCase(Locale.ROOT), ignored -> new java.util.HashSet<>())
+                    .add(teacherRef.toLowerCase(Locale.ROOT));
         }
     }
 
     private static String buildTimetableTeacherCapacityAdvisory(
             Map<String, Integer> timetableRowsPerSlot,
-            Map<String, java.util.Set<String>> timetableTeachersPerSlot) {
+            Map<String, java.util.Set<String>> timetableTeachersPerSlot,
+            Map<String, java.util.Set<String>> timetableTeachersPerDay) {
         if (timetableRowsPerSlot.isEmpty()) {
             return null;
         }
@@ -381,14 +482,36 @@ public class ImportDryRunService {
             }
         }
         if (maxRowsInAnySlot <= maxDistinctTeachersInAnySlot) {
-            return null;
+            int busiestDistinctTeachers = timetableTeachersPerDay.values().stream()
+                    .mapToInt(set -> set != null ? set.size() : 0)
+                    .max()
+                    .orElse(0);
+            return String.format(
+                    Locale.ROOT,
+                    "Timetable dry-run checks passed with no same-slot teacher overload. Peak distinct teachers scheduled in a day: %d.",
+                    busiestDistinctTeachers);
+        }
+        int busiestDistinctTeachers = timetableTeachersPerDay.values().stream()
+                .mapToInt(set -> set != null ? set.size() : 0)
+                .max()
+                .orElse(0);
+        int slotClashCount = 0;
+        for (Map.Entry<String, Integer> entry : timetableRowsPerSlot.entrySet()) {
+            int rowsInSlot = entry.getValue() != null ? entry.getValue() : 0;
+            int teachersInSlot = timetableTeachersPerSlot.getOrDefault(entry.getKey(), java.util.Set.of()).size();
+            if (rowsInSlot > teachersInSlot) {
+                slotClashCount++;
+            }
         }
         return String.format(
                 Locale.ROOT,
                 "Timetable capacity check: slot %s has %d classes but only %d unique teacher references. "
-                        + "One teacher cannot teach two classes in the same period, so split those lines across different periods or add more teachers.",
+                        + "One teacher cannot teach two classes in the same period, so split those lines across different periods or add more teachers. "
+                        + "Dry-run guardrails: overloaded slot count=%d; peak distinct teachers scheduled in a day=%d.",
                 hottestSlot != null ? hottestSlot : "N/A",
                 maxRowsInAnySlot,
-                maxDistinctTeachersInAnySlot);
+                maxDistinctTeachersInAnySlot,
+                slotClashCount,
+                busiestDistinctTeachers);
     }
 }

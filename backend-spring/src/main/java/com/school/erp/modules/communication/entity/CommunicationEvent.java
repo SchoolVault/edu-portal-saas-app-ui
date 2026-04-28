@@ -1,26 +1,45 @@
 package com.school.erp.modules.communication.entity;
 
 import com.school.erp.common.entity.BaseEntity;
+import com.school.erp.common.entity.AcademicYearScopedEntity;
+import com.school.erp.common.entity.AcademicYearScopeGuardListener;
 import com.school.erp.common.enums.Enums;
 import com.school.erp.modules.communication.domain.CommunicationEventStatus;
 import com.school.erp.modules.communication.domain.CommunicationEventType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EntityListeners;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.Index;
 import jakarta.persistence.Table;
 import java.time.LocalDateTime;
 import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.annotations.Filter;
 import org.hibernate.type.SqlTypes;
+import com.school.erp.tenant.hibernate.AcademicYearScopedFilter;
 
 @Entity
+@EntityListeners(AcademicYearScopeGuardListener.class)
+@Filter(name = AcademicYearScopedFilter.NAME, condition = "academic_year_id = :academicYearId")
 @Table(name = "communication_events", indexes = {
         @Index(name = "idx_comm_evt_tenant_status_start", columnList = "tenant_id,status,event_start_at"),
         @Index(name = "idx_comm_evt_tenant_aud_start", columnList = "tenant_id,audience_scope,event_start_at"),
         @Index(name = "idx_comm_evt_tenant_publish_status", columnList = "tenant_id,publish_at,status")
 })
-public class CommunicationEvent extends BaseEntity {
+public class CommunicationEvent extends BaseEntity implements AcademicYearScopedEntity {
+    @Column(name = "academic_year_id", nullable = false)
+    private Long academicYearId;
+    @Override
+    public Long getAcademicYearId() {
+        return academicYearId;
+    }
+
+    @Override
+    public void setAcademicYearId(Long academicYearId) {
+        this.academicYearId = academicYearId;
+    }
+
     @Column(nullable = false, length = 200)
     private String title;
 

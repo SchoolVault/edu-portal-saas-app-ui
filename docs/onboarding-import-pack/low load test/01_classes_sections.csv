@@ -1,9 +1,17 @@
-name,grade,academicyearid,sections,sectioncapacity
-Class 5,5,CURRENT,A|B,35
-Class 6,6,CURRENT,A|B,35
-Class 7,7,CURRENT,A|B,35
-Class 8,8,CURRENT,A|B,35
-Class 9,9,CURRENT,A|B,35
-Class 10,10,CURRENT,A|B,35
-Class 11,11,CURRENT,A|B,35
-Class 12,12,CURRENT,A|B,35
+academic_year (O),class_code (O),class_name (R),grade (R),section_code (O),section_name (O),class_capacity (O),section_capacity (O),import_mode (O)
+CURRENT,,Class 5,5,,A,,35,UPSERT
+CURRENT,,Class 5,5,,B,,35,UPSERT
+CURRENT,,Class 6,6,,A,,35,UPSERT
+CURRENT,,Class 6,6,,B,,35,UPSERT
+CURRENT,,Class 7,7,,A,,35,UPSERT
+CURRENT,,Class 7,7,,B,,35,UPSERT
+CURRENT,,Class 8,8,,A,,35,UPSERT
+CURRENT,,Class 8,8,,B,,35,UPSERT
+CURRENT,,Class 9,9,,A,,35,UPSERT
+CURRENT,,Class 9,9,,B,,35,UPSERT
+CURRENT,,Class 10,10,,A,,35,UPSERT
+CURRENT,,Class 10,10,,B,,35,UPSERT
+CURRENT,,Class 11,11,,A,,35,UPSERT
+CURRENT,,Class 11,11,,B,,35,UPSERT
+CURRENT,,Class 12,12,,A,,35,UPSERT
+CURRENT,,Class 12,12,,B,,35,UPSERT

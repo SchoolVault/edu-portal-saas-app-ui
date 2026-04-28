@@ -1,10 +1,13 @@
 package com.school.erp.modules.communication.schedule;
 
 import com.school.erp.common.enums.Enums;
+import com.school.erp.modules.academic.service.CurrentAcademicYearResolver;
 import com.school.erp.modules.communication.dto.CampaignDTOs;
 import com.school.erp.modules.communication.entity.CommunicationEvent;
 import com.school.erp.modules.communication.repository.CommunicationEventRepository;
 import com.school.erp.modules.notification.service.NotificationCampaignService;
+import com.school.erp.modules.settings.repository.TenantConfigRepository;
+import com.school.erp.tenant.AcademicYearContext;
 import com.school.erp.tenant.TenantScopedExecution;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -25,6 +28,8 @@ public class CommunicationEventLifecycleScheduler {
 
     private final CommunicationEventRepository eventRepository;
     private final NotificationCampaignService campaignService;
+    private final TenantConfigRepository tenantConfigRepository;
+    private final CurrentAcademicYearResolver currentAcademicYearResolver;
 
     @Value("${app.communication.events.scheduler.tenant-limit:100}")
     private int tenantLimit;
@@ -34,9 +39,13 @@ public class CommunicationEventLifecycleScheduler {
 
     public CommunicationEventLifecycleScheduler(
             CommunicationEventRepository eventRepository,
-            NotificationCampaignService campaignService) {
+            NotificationCampaignService campaignService,
+            TenantConfigRepository tenantConfigRepository,
+            CurrentAcademicYearResolver currentAcademicYearResolver) {
         this.eventRepository = eventRepository;
         this.campaignService = campaignService;
+        this.tenantConfigRepository = tenantConfigRepository;
+        this.currentAcademicYearResolver = currentAcademicYearResolver;
     }
 
     /**
@@ -47,15 +56,30 @@ public class CommunicationEventLifecycleScheduler {
      */
     @Scheduled(fixedDelayString = "${app.communication.events.scheduler.poll-ms:60000}")
     public void runLifecycleTick() {
-        List<String> tenantIds = eventRepository.findDistinctTenantIds();
+        List<String> tenantIds = tenantConfigRepository.findAllTenantIds();
         LocalDateTime now = LocalDateTime.now();
         int safeTenantLimit = Math.max(1, tenantLimit);
         int safeBatchSize = Math.max(1, batchSize);
         for (String tenantId : tenantIds.stream().limit(safeTenantLimit).toList()) {
             TenantScopedExecution.execute(tenantId, null, "ADMIN", () -> {
-                markCompleted(tenantId, now);
-                publishDue(tenantId, now, safeBatchSize);
-                sendReminders(tenantId, now, safeBatchSize);
+                Long previousAcademicYearId = AcademicYearContext.getAcademicYearId();
+                Long currentAcademicYearId = currentAcademicYearResolver.resolveCurrentAcademicYearId(tenantId);
+                if (currentAcademicYearId == null) {
+                    log.debug("communication-events scheduler skipped tenantId={} (no current academic year)", tenantId);
+                    return 0;
+                }
+                AcademicYearContext.setAcademicYearId(currentAcademicYearId);
+                try {
+                    markCompleted(tenantId, now);
+                    publishDue(tenantId, now, safeBatchSize);
+                    sendReminders(tenantId, now, safeBatchSize);
+                } finally {
+                    if (previousAcademicYearId == null) {
+                        AcademicYearContext.clear();
+                    } else {
+                        AcademicYearContext.setAcademicYearId(previousAcademicYearId);
+                    }
+                }
                 return 0;
             });
         }

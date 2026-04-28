@@ -10,35 +10,40 @@ public final class ImportCanonicalFieldCatalog {
 
     private static final Map<ImportJobType, List<String>> BY_TYPE = Map.of(
             ImportJobType.STUDENTS, List.of(
-                    "firstname", "lastname", "email", "phone", "dateofbirth", "gender",
-                    "classid", "sectionid", "classname", "sectionname", "academicyearid",
-                    "rollnumber", "admissionnumber", "admissiondate",
-                    "parentid", "parentname", "parentemail", "parentphone", "createparentportal",
-                    "notifycredentials", "importmode", "address", "bloodgroup"),
+                    "academic_year_id", "import_mode",
+                    "admission_number", "admission_date", "roll_number",
+                    "first_name", "last_name", "gender", "date_of_birth",
+                    "student_email",
+                    "class_id", "section_id", "classname", "sectionname",
+                    "primary_guardian_relation", "primary_guardian_name", "primary_guardian_email", "primary_guardian_phone",
+                    "parent_id", "create_parent_portal", "notify_credentials",
+                    "address", "blood_group"),
             ImportJobType.TEACHERS, List.of(
-                    "firstname", "lastname", "email", "phone", "qualification", "specialization",
-                    "joindate", "salary", "subjects", "createportal", "portalpassword", "portalrole", "libraryrole",
-                    "schoolrolecodes",
-                    "importmode", "bankaccountholder", "bankname", "bankaccountnumber", "bankifsc", "notifycredentials",
-                    "classteacherfor", "classteacherclassid", "classteachersectionid",
-                    "classteacherclassname", "classteachersectionname", "classteacheracademicyearid"),
+                    "academic_year_id", "import_mode",
+                    "employee_code", "first_name", "last_name", "phone", "join_date", "status",
+                    "email", "gender", "dob", "qualification", "specialization", "department",
+                    "subjects", "can_class_teacher", "class_teacher_slot",
+                    "create_portal", "portal_password", "portal_role", "library_role", "school_role_codes", "notify_credentials",
+                    "salary", "bank_account_holder", "bank_name", "bank_account_number", "bank_ifsc"),
             ImportJobType.STAFF, List.of(
-                    "firstname", "lastname", "email", "phone", "qualification", "specialization",
-                    "joindate", "salary", "subjects", "createportal", "portalpassword", "portalrole", "libraryrole",
-                    "schoolrolecodes",
-                    "importmode", "bankaccountholder", "bankname", "bankaccountnumber", "bankifsc", "notifycredentials",
-                    "classteacherfor", "classteacherclassid", "classteachersectionid",
-                    "classteacherclassname", "classteachersectionname", "classteacheracademicyearid"),
+                    "academic_year_id", "import_mode",
+                    "employee_code", "first_name", "last_name", "phone", "join_date", "status",
+                    "email", "gender", "dob", "qualification", "specialization", "department",
+                    "subjects", "can_class_teacher", "class_teacher_slot",
+                    "create_portal", "portal_password", "portal_role", "library_role", "school_role_codes", "notify_credentials",
+                    "salary", "bank_account_holder", "bank_name", "bank_account_number", "bank_ifsc"),
             ImportJobType.CLASSES, List.of(
-                    "name", "grade", "academicyearid", "sections", "sectioncapacity"),
+                    "academic_year", "class_code", "class_name", "grade",
+                    "section_code", "section_name", "class_capacity", "section_capacity",
+                    "import_mode"),
             ImportJobType.TIMETABLE, List.of(
-                    "teacheremail", "teacherphone", "teacherid",
-                    "classname", "classid", "sectionname", "sectionid",
-                    "subjectname", "dayofweek", "period", "starttime", "endtime",
-                    "room", "academicyearid"),
+                    "academic_year_id", "import_mode",
+                    "teacher_ref_type", "teacher_ref",
+                    "class_ref", "section_ref", "subject_code",
+                    "day_of_week", "period_no", "start_time", "end_time", "room_code"),
             ImportJobType.FEE_STRUCTURES, List.of(
-                    "name", "classid", "classname", "academicyearid",
-                    "componentspec", "importmode"));
+                    "name", "class_id", "class_name", "academic_year_id",
+                    "component_spec", "import_mode"));
 
     private ImportCanonicalFieldCatalog() {
     }

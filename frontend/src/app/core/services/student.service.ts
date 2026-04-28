@@ -332,6 +332,9 @@ export class StudentService {
       admissionDate: student.admissionDate || null,
       parentId: student.parentId ?? null,
       parentName: student.parentName || null,
+      parentPhone: student.parentPhone || null,
+      parentEmail: student.parentEmail || null,
+      createParentPortal: student.createParentPortal ?? null,
       address: student.address || null,
       bloodGroup: student.bloodGroup || null
     };
@@ -350,6 +353,9 @@ export class StudentService {
       rollNumber: student.rollNumber,
       parentId: student.parentId ?? null,
       parentName: student.parentName,
+      parentPhone: student.parentPhone ?? null,
+      parentEmail: student.parentEmail ?? null,
+      createParentPortal: student.createParentPortal ?? null,
       address: student.address,
       bloodGroup: student.bloodGroup,
       status: student.status ? student.status.toUpperCase() : null

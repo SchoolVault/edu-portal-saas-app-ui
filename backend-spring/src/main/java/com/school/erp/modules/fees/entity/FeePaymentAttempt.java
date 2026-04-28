@@ -1,15 +1,22 @@
 package com.school.erp.modules.fees.entity;
 
 import com.school.erp.common.entity.BaseEntity;
+import com.school.erp.common.entity.AcademicYearScopedEntity;
+import com.school.erp.common.entity.AcademicYearScopeGuardListener;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EntityListeners;
 import jakarta.persistence.Index;
 import jakarta.persistence.Table;
+import org.hibernate.annotations.Filter;
+import com.school.erp.tenant.hibernate.AcademicYearScopedFilter;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Entity
+@EntityListeners(AcademicYearScopeGuardListener.class)
+@Filter(name = AcademicYearScopedFilter.NAME, condition = "academic_year_id = :academicYearId")
 @Table(
         name = "fee_payment_attempts",
         indexes = {
@@ -18,7 +25,9 @@ import java.time.LocalDateTime;
                 @Index(name = "idx_fpa_status", columnList = "tenant_id, status")
         }
 )
-public class FeePaymentAttempt extends BaseEntity {
+public class FeePaymentAttempt extends BaseEntity implements AcademicYearScopedEntity {
+    @Column(name = "academic_year_id", nullable = false)
+    private Long academicYearId;
     @Column(name = "fee_payment_id", nullable = false)
     private Long feePaymentId;
     @Column(name = "student_id", nullable = false)
@@ -49,6 +58,11 @@ public class FeePaymentAttempt extends BaseEntity {
     private LocalDateTime initiatedAt;
     @Column(name = "completed_at")
     private LocalDateTime completedAt;
+
+    @Override
+    public Long getAcademicYearId() { return academicYearId; }
+    @Override
+    public void setAcademicYearId(Long academicYearId) { this.academicYearId = academicYearId; }
 
     public Long getFeePaymentId() { return feePaymentId; }
     public void setFeePaymentId(Long feePaymentId) { this.feePaymentId = feePaymentId; }
