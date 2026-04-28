@@ -543,3 +543,45 @@ SET @sql = IF(@col_exists = 0,
 PREPARE stmt FROM @sql;
 EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
+
+SET @col_exists = (
+    SELECT COUNT(*)
+    FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'notification_outbox'
+      AND COLUMN_NAME = 'recipient_email'
+);
+SET @sql = IF(@col_exists = 0,
+    'ALTER TABLE notification_outbox ADD COLUMN recipient_email VARCHAR(150) NULL AFTER recipient_phone_e164',
+    'SELECT 1');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @col_exists = (
+    SELECT COUNT(*)
+    FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'notification_outbox'
+      AND COLUMN_NAME = 'body_html'
+);
+SET @sql = IF(@col_exists = 0,
+    'ALTER TABLE notification_outbox ADD COLUMN body_html LONGTEXT NULL AFTER body_text',
+    'SELECT 1');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @idx_exists = (
+    SELECT COUNT(*)
+    FROM information_schema.STATISTICS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'notification_outbox'
+      AND INDEX_NAME = 'idx_no_tenant_channel_status_created'
+);
+SET @sql = IF(@idx_exists = 0,
+    'CREATE INDEX idx_no_tenant_channel_status_created ON notification_outbox (tenant_id, channel, status, created_at)',
+    'SELECT 1');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
