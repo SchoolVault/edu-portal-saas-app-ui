@@ -1138,6 +1138,10 @@ export interface FeePayment {
   id: number;
   studentId: number;
   studentName: string;
+  /** Optional denormalized scope for server-side filtering in payments grid. */
+  classId?: number;
+  /** Optional denormalized scope for server-side filtering in payments grid. */
+  sectionId?: number;
   feeStructureId: number;
   amount: number;
   paidAmount: number;
