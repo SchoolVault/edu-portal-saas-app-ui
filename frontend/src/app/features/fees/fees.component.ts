@@ -112,6 +112,10 @@ import { buildCsvSchoolLine, downloadCsvDocument } from '../../core/utils/csv-ex
     .fees-toolbar-group {
       min-width: 150px;
     }
+    .fees-toolbar-group--class,
+    .fees-toolbar-group--section {
+      min-width: 170px;
+    }
     .fees-toolbar-right {
       margin-left: auto;
       display: flex;
@@ -708,6 +712,29 @@ import { buildCsvSchoolLine, downloadCsvDocument } from '../../core/utils/csv-ex
                   <option value="overdue">{{ 'fees.statusOverdue' | translate }}</option>
                 </select>
               </div>
+              <div class="fees-toolbar-group fees-toolbar-group--class">
+                <label class="erp-label d-block mb-1">{{ 'fees.labelClass' | translate }}</label>
+                <select class="erp-select w-100" [(ngModel)]="classFilterId" (ngModelChange)="onPaymentClassFilterChange()">
+                  <option [ngValue]="null">{{ 'fees.allClasses' | translate }}</option>
+                  <option *ngFor="let classItem of paymentFilterClasses" [ngValue]="classItem.id">
+                    {{ classItem.name | schoolClassName }}
+                  </option>
+                </select>
+              </div>
+              <div class="fees-toolbar-group fees-toolbar-group--section">
+                <label class="erp-label d-block mb-1">{{ 'fees.labelSection' | translate }}</label>
+                <select
+                  class="erp-select w-100"
+                  [(ngModel)]="sectionFilterId"
+                  (ngModelChange)="onPaymentSectionFilterChange()"
+                  [disabled]="classFilterId == null"
+                >
+                  <option [ngValue]="null">{{ 'fees.allSections' | translate }}</option>
+                  <option *ngFor="let section of paymentFilterSections" [ngValue]="section.id">
+                    {{ section.name }}
+                  </option>
+                </select>
+              </div>
               <div class="fees-toolbar-group">
                 <label class="erp-label d-block mb-1">{{ 'fees.sortBy' | translate }}</label>
                 <select class="erp-select w-100" [(ngModel)]="sortBy" (ngModelChange)="applyClientView()">
@@ -1079,6 +1106,8 @@ export class FeesComponent implements OnInit {
   private paymentSearchTimer: ReturnType<typeof setTimeout> | null = null;
   statusFilter = '';
   sortBy: 'dueDateAsc' | 'dueDateDesc' | 'dueAmountDesc' | 'studentAsc' = 'dueDateAsc';
+  classFilterId: number | null = null;
+  sectionFilterId: number | null = null;
   classes: SchoolClass[] = [];
   academicYears: AcademicYear[] = [];
   /** Fee collection, refunds, structures, reminders — mirrors fees read/write atoms + tenant/platform operators. */
@@ -1278,6 +1307,8 @@ export class FeesComponent implements OnInit {
         size: this.paymentPageSize,
         status: this.statusFilter || undefined,
         q: this.paymentSearch || undefined,
+        classId: this.classFilterId ?? undefined,
+        sectionId: this.sectionFilterId ?? undefined,
       })
       .subscribe({
         next: pr => {
@@ -1341,6 +1372,38 @@ export class FeesComponent implements OnInit {
   onPaymentPageIndexChange(idx: number): void {
     this.paymentPageIndex = idx;
     this.loadPaymentsPage();
+  }
+
+  onPaymentClassFilterChange(): void {
+    const classExists = this.paymentFilterClasses.some(c => c.id === this.classFilterId);
+    if (!classExists) {
+      this.classFilterId = null;
+    }
+    if (this.sectionFilterId != null) {
+      const sectionValid = this.paymentFilterSections.some(s => s.id === this.sectionFilterId);
+      if (!sectionValid) {
+        this.sectionFilterId = null;
+      }
+    }
+    this.paymentPageIndex = 0;
+    this.loadPaymentsPage();
+  }
+
+  onPaymentSectionFilterChange(): void {
+    this.paymentPageIndex = 0;
+    this.loadPaymentsPage();
+  }
+
+  get paymentFilterClasses(): SchoolClass[] {
+    return [...this.classes].sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+  }
+
+  get paymentFilterSections(): Section[] {
+    if (this.classFilterId == null) {
+      return [];
+    }
+    const selectedClass = this.classes.find(c => c.id === this.classFilterId);
+    return [...(selectedClass?.sections ?? [])].sort((a, b) => (a.name || '').localeCompare(b.name || ''));
   }
 
   onPaymentPageSizeChange(size: number): void {

@@ -57,11 +57,20 @@ export class FeeService {
   /**
    * Paged payments for admin UI. Mock path mirrors backend {@code GET /fees/payments/paged} (PageResponse shape).
    */
-  getPaymentsPage(opts: { page?: number; size?: number; status?: string; q?: string }): Observable<PageResp<FeePayment>> {
+  getPaymentsPage(opts: {
+    page?: number;
+    size?: number;
+    status?: string;
+    q?: string;
+    classId?: number;
+    sectionId?: number;
+  }): Observable<PageResp<FeePayment>> {
     const page = opts.page ?? 0;
     const size = opts.size ?? DEFAULT_ERP_PAGE_SIZE;
     const q = opts.q?.trim().toLowerCase() || '';
     const status = opts.status?.trim() || '';
+    const classId = opts.classId;
+    const sectionId = opts.sectionId;
 
     if (!runtimeConfig.useMocks) {
       const statusParam = status ? status.toUpperCase() : undefined;
@@ -71,6 +80,8 @@ export class FeeService {
           size,
           status: statusParam,
           q: opts.q?.trim() || undefined,
+          classId: classId ?? undefined,
+          sectionId: sectionId ?? undefined,
         })
         .pipe(map(pr => ({ ...pr, content: pr.content.map(item => this.normalizePayment(item as any)) })));
     }
@@ -81,6 +92,18 @@ export class FeeService {
     }
     if (q) {
       rows = rows.filter(p => (p.studentName || '').toLowerCase().includes(q));
+    }
+    if (classId != null) {
+      rows = rows.filter(p => {
+        const student = MOCK_STUDENTS.find(s => s.id === p.studentId);
+        return student?.classId === classId;
+      });
+    }
+    if (sectionId != null) {
+      rows = rows.filter(p => {
+        const student = MOCK_STUDENTS.find(s => s.id === p.studentId);
+        return student?.sectionId === sectionId;
+      });
     }
     rows.sort((a, b) => b.id - a.id);
     return of(sliceToPage(rows, page, size)).pipe(delay(250));
@@ -424,6 +447,8 @@ export class FeeService {
       ...payment,
       id: Number(payment.id),
       studentId: Number(payment.studentId),
+      classId: payment.classId != null ? Number(payment.classId) : undefined,
+      sectionId: payment.sectionId != null ? Number(payment.sectionId) : undefined,
       feeStructureId: payment.feeStructureId != null ? Number(payment.feeStructureId) : 0,
       amount: Number(payment.amount ?? 0),
       paidAmount: Number(payment.paidAmount ?? 0),
