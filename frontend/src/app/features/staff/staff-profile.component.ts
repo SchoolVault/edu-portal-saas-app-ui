@@ -49,7 +49,7 @@ import { OperationsService } from '../../core/services/operations.service';
           </div>
           <div class="col-md-6">
             <label class="erp-label">Phone</label>
-            <input class="erp-input" [(ngModel)]="draft.phone" [readOnly]="!editing" />
+            <input class="erp-input" [(ngModel)]="draft.phone" [readOnly]="!editing" inputmode="numeric" maxlength="10" pattern="[0-9]{10}" />
           </div>
           <div class="col-md-6">
             <label class="erp-label">Employee code</label>
@@ -114,6 +114,11 @@ export class StaffProfileComponent implements OnInit {
 
   save(): void {
     if (!this.staff) return;
+    this.draft.phone = this.normalizeTenDigitPhone(this.draft.phone);
+    if (this.draft.phone && !this.isValidTenDigitPhone(this.draft.phone)) {
+      this.error = 'Phone number must be exactly 10 digits.';
+      return;
+    }
     this.operationsService.updateStaff(this.staff.id, this.draft).subscribe({
       next: row => {
         this.staff = row;
@@ -138,5 +143,13 @@ export class StaffProfileComponent implements OnInit {
         this.error = e?.message || 'Unable to update staff status.';
       },
     });
+  }
+
+  private normalizeTenDigitPhone(value: string | null | undefined): string {
+    return (value ?? '').replace(/\D/g, '').slice(0, 10);
+  }
+
+  private isValidTenDigitPhone(value: string | null | undefined): boolean {
+    return /^\d{10}$/.test((value ?? '').trim());
   }
 }

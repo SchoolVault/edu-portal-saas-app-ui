@@ -7,13 +7,14 @@ import java.util.Locale;
 import java.util.Set;
 
 /**
- * Canonical portal phone format: {@code +{country}-{national}} (e.g. {@code +91-9876543210}).
+ * Canonical portal phone format: {@code +{country}-{national}} where national is exactly 10 digits
+ * (e.g. {@code +91-9876543210}).
  * Used for OTP, password reset, and user lookup so UI + API + DB stay aligned.
  */
 public final class InternationalPhone {
 
     /** Strict canonical form after normalization. */
-    public static final String CANONICAL_PATTERN = "^\\+\\d{1,4}-\\d{6,14}$";
+    public static final String CANONICAL_PATTERN = "^\\+\\d{1,4}-\\d{10}$";
 
     private InternationalPhone() {
     }
@@ -33,7 +34,7 @@ public final class InternationalPhone {
             int dash = t.indexOf('-');
             String cc = t.substring(1, dash).replaceAll("\\D", "");
             String nat = t.substring(dash + 1).replaceAll("\\D", "");
-            if (cc.isEmpty() || nat.length() < 6 || nat.length() > 14) {
+            if (cc.isEmpty() || nat.length() != 10) {
                 return null;
             }
             return "+" + cc + "-" + nat;
@@ -43,7 +44,7 @@ public final class InternationalPhone {
             int dash = compact.indexOf('-');
             String cc = compact.substring(1, dash).replaceAll("\\D", "");
             String nat = compact.substring(dash + 1).replaceAll("\\D", "");
-            if (cc.isEmpty() || nat.length() < 6 || nat.length() > 14) {
+            if (cc.isEmpty() || nat.length() != 10) {
                 return null;
             }
             return "+" + cc + "-" + nat;
@@ -99,7 +100,7 @@ public final class InternationalPhone {
     }
 
     public static String invalidMessage() {
-        return "Invalid phone format. Use +<country>-<number>, e.g. +91-9876543210.";
+        return "Invalid phone format. Use exactly 10 digits (or +<country>-<10-digit-number>), e.g. +91-9876543210.";
     }
 
     public static String normalizeSchoolCode(String schoolCode) {

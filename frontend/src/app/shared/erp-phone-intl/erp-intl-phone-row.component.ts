@@ -41,7 +41,7 @@ export interface ErpCountryDialOption {
           [disabled]="disabled"
           inputmode="numeric"
           autocomplete="tel-national"
-          maxlength="14"
+          maxlength="10"
           [attr.placeholder]="'phoneIntl.mobilePlaceholder' | translate"
           [attr.data-testid]="testIdPrefix + '-national'"
         />

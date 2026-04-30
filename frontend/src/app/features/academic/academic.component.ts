@@ -316,9 +316,6 @@ import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directiv
                 {{ 'academic.homeroom.bannerLead' | translate: { count: classesMissingHomeroom.length } }}
               </p>
             </div>
-            <button type="button" class="btn-primary-erp btn-sm flex-shrink-0" (click)="openAssignClassTeacherModal()">
-              <i class="bi bi-person-badge me-1" aria-hidden="true"></i>{{ 'academic.assign.openButton' | translate }}
-            </button>
           </div>
         </div>
 
@@ -340,11 +337,8 @@ import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directiv
                   <span class="badge-erp" [ngClass]="cls.sections.length ? 'badge-info' : 'badge-neutral'">{{ cls.sections.length ? ('academic.card.sectionsCount' | translate: { count: cls.sections.length }) : ('academic.card.wholeClass' | translate) }}</span>
                   <span *ngIf="canManageAcademic && classNeedsHomeroom(cls)" class="badge-erp" style="background: color-mix(in srgb, var(--clr-warning) 22%, transparent); color: var(--clr-warning); border: 1px solid color-mix(in srgb, var(--clr-warning) 45%, transparent);">{{ 'academic.card.homeroomTbd' | translate }}</span>
                   <button *ngIf="canManageAcademic" type="button" class="btn-outline-erp btn-xs" (click)="openEditClassModal(cls)">{{ 'academic.card.editClass' | translate }}</button>
-                  <button *ngIf="canManageAcademic && classLifecycleToggleAllowed(cls)" type="button" class="btn-outline-erp btn-xs" [disabled]="sectionBusy" (click)="toggleClassLifecycle(cls)">
-                    {{ cls.isActive === false ? ('academic.card.activateClass' | translate) : ('academic.card.deactivateClass' | translate) }}
-                  </button>
                   <button
-                    *ngIf="canManageAcademic && cls.isActive === false"
+                    *ngIf="canManageAcademic"
                     type="button"
                     class="btn-outline-erp btn-xs"
                     [disabled]="sectionBusy"
@@ -386,9 +380,6 @@ import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directiv
                     </div>
                     <div *ngIf="canManageAcademic" class="academic-section-actions">
                       <button type="button" class="btn-icon btn-xs p-0" style="font-size: 14px;" (click)="openEditSectionModal(cls, sec)" [attr.title]="'academic.card.editTitle' | translate"><i class="bi bi-pencil"></i></button>
-                      <button type="button" class="btn-icon btn-xs p-0" style="font-size: 14px;" [disabled]="sectionBusy" (click)="toggleSectionLifecycle(cls, sec)" [attr.title]="(sec.isActive === false ? 'academic.card.activateSection' : 'academic.card.deactivateSection') | translate">
-                        <i class="bi" [ngClass]="sec.isActive === false ? 'bi-toggle-on' : 'bi-toggle-off'" style="color: var(--clr-warning);"></i>
-                      </button>
                       <button type="button" class="btn-icon btn-xs p-0" style="font-size: 14px; color: var(--clr-danger);" [disabled]="sectionBusy" (click)="removeSection(cls, sec)" [attr.title]="'academic.card.removeTitle' | translate"><i class="bi bi-trash"></i></button>
                     </div>
                   </div>
@@ -1429,66 +1420,4 @@ export class AcademicComponent implements OnInit {
     this.academicService.getClasses('active').subscribe(classes => this.classes = classes);
   }
 
-  classLifecycleToggleAllowed(cls: SchoolClass): boolean {
-    if (cls.isActive === false) return true;
-    return (cls.sections?.length ?? 0) === 0 && this.getTotalStudents(cls) === 0;
-  }
-
-  toggleClassLifecycle(cls: SchoolClass): void {
-    const nextActive = cls.isActive === false;
-    const titleKey = nextActive ? 'academic.confirm.lifecycle.activateClassTitle' : 'academic.confirm.lifecycle.deactivateClassTitle';
-    const messageKey = nextActive ? 'academic.confirm.lifecycle.activateClassMessage' : 'academic.confirm.lifecycle.deactivateClassMessage';
-    const confirmKey = nextActive ? 'academic.confirm.lifecycle.activateConfirm' : 'academic.confirm.lifecycle.deactivateConfirm';
-    this.confirmDialog
-      .confirm({
-        title: this.translate.instant(titleKey),
-        message: this.translate.instant(messageKey, { class: cls.name }),
-        variant: 'warning',
-        confirmLabel: this.translate.instant(confirmKey),
-        cancelLabel: this.translate.instant('academic.modal.cancel'),
-      })
-      .pipe(filter(Boolean))
-      .subscribe(() => {
-        this.sectionBusy = true;
-        this.academicService.setClassActiveState(cls.id, nextActive).subscribe({
-          next: updated => {
-            this.classes = this.classes.map(c => (c.id === updated.id ? updated : c));
-            this.sectionBusy = false;
-          },
-          error: () => {
-            this.sectionBusy = false;
-            this.showValidationWarning(this.translate.instant('academic.errors.classLifecycleFailed'));
-          },
-        });
-      });
-  }
-
-  toggleSectionLifecycle(cls: SchoolClass, sec: Section): void {
-    const nextActive = sec.isActive === false;
-    const titleKey = nextActive ? 'academic.confirm.lifecycle.activateSectionTitle' : 'academic.confirm.lifecycle.deactivateSectionTitle';
-    const messageKey = nextActive ? 'academic.confirm.lifecycle.activateSectionMessage' : 'academic.confirm.lifecycle.deactivateSectionMessage';
-    const confirmKey = nextActive ? 'academic.confirm.lifecycle.activateConfirm' : 'academic.confirm.lifecycle.deactivateConfirm';
-    this.confirmDialog
-      .confirm({
-        title: this.translate.instant(titleKey),
-        message: this.translate.instant(messageKey, { class: cls.name, section: sec.name }),
-        variant: 'warning',
-        confirmLabel: this.translate.instant(confirmKey),
-        cancelLabel: this.translate.instant('academic.modal.cancel'),
-      })
-      .pipe(filter(Boolean))
-      .subscribe(() => {
-        this.sectionBusy = true;
-        this.academicService.setSectionActiveState(cls.id, sec.id, nextActive).subscribe({
-          next: updated => {
-            this.classes = this.classes.map(c => (c.id === updated.id ? updated : c));
-            this.sectionBusy = false;
-          },
-          error: () => {
-            this.sectionBusy = false;
-            this.showValidationWarning(this.translate.instant('academic.errors.sectionLifecycleFailed'));
-          },
-        });
-      });
-  }
 }

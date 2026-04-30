@@ -226,9 +226,10 @@ import { UiAccessService } from '../../core/services/ui-access.service';
             <p class="small text-muted">{{ 'transport.addDriverLead' | translate }}</p>
             <div class="row g-2 mb-2">
               <div class="col-md-5"><input class="erp-input" [(ngModel)]="newDriver.fullName" erpI18nPh="transport.phFullName"></div>
-              <div class="col-md-4"><input class="erp-input" [(ngModel)]="newDriver.phone" erpI18nPh="transport.phPhone"></div>
+              <div class="col-md-4"><input class="erp-input" [(ngModel)]="newDriver.phone" erpI18nPh="transport.phPhone" inputmode="numeric" maxlength="10" pattern="[0-9]{10}"></div>
               <div class="col-md-3"><input class="erp-input" [(ngModel)]="newDriver.licenseNumber" erpI18nPh="transport.phLicense"></div>
             </div>
+            <p class="small text-danger mb-2" *ngIf="routeWizardError">{{ routeWizardError | translate }}</p>
             <button type="button" class="btn-outline-erp btn-sm" (click)="saveNewDriver()">{{ 'transport.addDriverSelect' | translate }}</button>
           </ng-container>
         </div>
@@ -681,6 +682,7 @@ export class TransportComponent implements OnInit {
   mapPanelRoute: TransportRoute | null = null;
   editStopCtx: { route: TransportRoute; stop: { id?: number; name: string; time: string; order: number } } | null = null;
   editStopForm = { name: '', stopOrder: 1, stopTime: '' };
+  routeWizardError = '';
 
   private readonly destroyRef = inject(DestroyRef);
 
@@ -791,6 +793,7 @@ export class TransportComponent implements OnInit {
     this.newVehicle = { registrationNumber: '', vehicleType: 'BUS', capacity: 40, model: '' };
     this.newDriver = { fullName: '', phone: '', licenseNumber: '' };
     this.routeWizard = true;
+    this.routeWizardError = '';
     this.transportService.listVehicles().subscribe(v => (this.vehicles = v));
     this.transportService.listDrivers().subscribe(d => (this.drivers = d));
   }
@@ -801,6 +804,7 @@ export class TransportComponent implements OnInit {
     this.routeForm = { name: r.name, vehicleId: r.vehicleId ?? '', driverId: r.driverId ?? '' };
     this.wizardStops = [];
     this.routeWizard = true;
+    this.routeWizardError = '';
     this.transportService.listVehicles().subscribe(v => (this.vehicles = v));
     this.transportService.listDrivers().subscribe(d => (this.drivers = d));
   }
@@ -827,6 +831,12 @@ export class TransportComponent implements OnInit {
 
   saveNewDriver(): void {
     if (!this.newDriver.fullName.trim()) return;
+    this.newDriver.phone = this.normalizeTenDigitPhone(this.newDriver.phone);
+    if (this.newDriver.phone && !this.isValidTenDigitPhone(this.newDriver.phone)) {
+      this.routeWizardError = 'transport.errPhoneInvalidTenDigits';
+      return;
+    }
+    this.routeWizardError = '';
     this.transportService
       .createDriver({
         fullName: this.newDriver.fullName.trim(),
@@ -1023,5 +1033,13 @@ export class TransportComponent implements OnInit {
     const lat = (route.liveLatitude ?? 28.6) + (Math.random() - 0.5) * 0.02;
     const lng = (route.liveLongitude ?? 77.2) + (Math.random() - 0.5) * 0.02;
     this.transportService.reportVehicleLocation(route.vehicleId, lat, lng, route.id).subscribe(() => this.reload());
+  }
+
+  private normalizeTenDigitPhone(value: string | null | undefined): string {
+    return (value ?? '').replace(/\D/g, '').slice(0, 10);
+  }
+
+  private isValidTenDigitPhone(value: string | null | undefined): boolean {
+    return /^\d{10}$/.test((value ?? '').trim());
   }
 }

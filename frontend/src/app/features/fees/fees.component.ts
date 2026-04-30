@@ -33,6 +33,7 @@ import { ConfirmDialogService } from '../../shared/confirm-dialog/confirm-dialog
 import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directives';
 import { buildCsvSchoolLine, downloadCsvDocument } from '../../core/utils/csv-export.util';
 import { ImportExportService } from '../../core/services/import-export.service';
+import { formatDateDdMmYyyy } from '../../core/utils/date-format';
 
 @Component({
   selector: 'app-fees',
@@ -780,7 +781,7 @@ import { ImportExportService } from '../../core/services/import-export.service';
                   <td class="fees-cell-amount">₹{{ p.amount | number:'1.0-0':'en-IN' }}</td>
                   <td class="fees-cell-paid">₹{{ p.paidAmount | number:'1.0-0':'en-IN' }}</td>
                   <td class="fees-cell-due" [ngClass]="p.dueAmount > 0 ? 'fees-cell-due--pending' : 'fees-cell-due--clear'">₹{{ p.dueAmount | number:'1.0-0':'en-IN' }}</td>
-                  <td>{{ p.dueDate }}</td>
+                  <td>{{ formatDate(p.dueDate) }}</td>
                   <td>
                     <span class="badge-erp" [ngClass]="{'badge-success': p.status === 'paid', 'badge-warning': p.status === 'partial', 'badge-danger': p.status === 'overdue', 'badge-neutral': p.status === 'unpaid'}">
                       {{ feeStatusLabel(p.status) }}
@@ -990,7 +991,7 @@ import { ImportExportService } from '../../core/services/import-export.service';
                       <td>₹{{ row.amount | number:'1.0-0':'en-IN' }}</td>
                       <td>₹{{ row.paidAmount | number:'1.0-0':'en-IN' }}</td>
                       <td>₹{{ row.dueAmount | number:'1.0-0':'en-IN' }}</td>
-                      <td>{{ row.dueDate }}</td>
+                      <td>{{ formatDate(row.dueDate) }}</td>
                       <td>{{ feeStatusLabel(row.status) }}</td>
                       <td>{{ row.receiptNumber || '-' }}</td>
                     </tr>
@@ -1019,7 +1020,7 @@ import { ImportExportService } from '../../core/services/import-export.service';
                     <div *ngIf="tx.eventStatus">{{ 'fees.txState' | translate }}: {{ tx.eventStatus }}</div>
                     <div *ngIf="tx.referenceId">{{ 'fees.txRef' | translate }}: {{ tx.referenceId }}</div>
                     <div *ngIf="tx.providerPaymentId">{{ 'fees.txProviderRef' | translate }}: {{ tx.providerPaymentId }}</div>
-                    <div *ngIf="tx.occurredAt">{{ tx.occurredAt | date:'medium' }}</div>
+                    <div *ngIf="tx.occurredAt">{{ formatDate(tx.occurredAt) }}</div>
                     <div *ngIf="tx.note">{{ tx.note }}</div>
                   </div>
                   <div class="d-flex gap-2 mt-2" *ngIf="feeDeskOps">
@@ -1176,6 +1177,10 @@ export class FeesComponent implements OnInit {
   componentTypeIds = ['tuition', 'transport', 'hostel', 'uniform', 'library', 'lab', 'sports', 'misc'] as const;
 
   private readonly destroyRef = inject(DestroyRef);
+
+  formatDate(raw: string | null | undefined): string {
+    return formatDateDdMmYyyy(raw);
+  }
   private readonly uiAccess = inject(UiAccessService);
 
   constructor(

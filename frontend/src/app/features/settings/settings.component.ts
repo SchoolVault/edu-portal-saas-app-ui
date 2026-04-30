@@ -424,6 +424,9 @@ type SettingsFeatureToggleView = {
                       name="profileDraftPhone"
                       [(ngModel)]="profileDraftPhone"
                       autocomplete="tel"
+                      inputmode="numeric"
+                      maxlength="10"
+                      pattern="[0-9]{10}"
                     />
                   </div>
                 </div>
@@ -1081,6 +1084,10 @@ type SettingsFeatureToggleView = {
       }
       .settings-profile-hero--readonly {
         align-items: center;
+      }
+      .settings-profile-hero--readonly,
+      .settings-account-overview {
+        caret-color: transparent;
       }
       @media (max-width: 599.98px) {
         .settings-profile-hero {
@@ -2230,7 +2237,16 @@ export class SettingsComponent implements OnInit, OnDestroy {
       bankIfsc: this.isTeacherProfileEditable ? (this.profileDraftBankIfsc || '').trim().toUpperCase() : undefined,
     };
     const requestedEmail = (this.profileDraftEmail || '').trim();
-    const requestedPhone = (this.profileDraftPhone || '').trim();
+    const requestedPhone = this.normalizeTenDigitPhoneInput(this.profileDraftPhone);
+    if (!requestedPhone) {
+      this.profileAccountErr = this.translate.instant('settings.profilePhoneRequired');
+      return;
+    }
+    if (!this.isValidTenDigitPhone(requestedPhone)) {
+      this.profileAccountErr = this.translate.instant('settings.profilePhoneInvalidTenDigits');
+      return;
+    }
+    this.profileDraftPhone = requestedPhone;
     const continueWithCriticalConfirmation = () => {
       const criticalChangeDetails = this.buildCriticalProfileChangeDetails(updatePayload);
       if (criticalChangeDetails.length) {
@@ -2445,6 +2461,14 @@ export class SettingsComponent implements OnInit, OnDestroy {
         this.cdr.markForCheck();
       },
     });
+  }
+
+  private normalizeTenDigitPhoneInput(raw: string | null | undefined): string {
+    return (raw ?? '').replace(/\D+/g, '').slice(0, 10);
+  }
+
+  private isValidTenDigitPhone(raw: string): boolean {
+    return /^\d{10}$/.test(raw);
   }
 
   private onProfileSaveComplete(): void {

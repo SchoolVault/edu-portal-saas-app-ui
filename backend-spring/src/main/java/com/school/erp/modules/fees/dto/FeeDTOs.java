@@ -1620,7 +1620,7 @@ public class FeeDTOs {
         @NotNull
         private LocalDate dueDate;
         private BigDecimal discount;
-        /** When true (default), students who already have this structure + due date are skipped. */
+        /** When true (default), students who already have any fee obligation in same class + due month are skipped. */
         private Boolean skipIfDuplicate = Boolean.TRUE;
         /** Optional client correlation for logs and future idempotency. */
         private String correlationId;

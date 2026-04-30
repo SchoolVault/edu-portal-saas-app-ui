@@ -707,7 +707,7 @@
       "passwordRequired": "Password is required",
       "schoolCodeRequired": "School code is required",
       "phoneRequired": "Mobile number is required",
-      "phoneInvalid": "Choose country code and enter digits only. Stored format is +country-mobile (e.g. +91-9876543210).",
+      "phoneInvalid": "Choose country code and enter exactly 10 digits (e.g. +91-9876543210).",
       "otpRequired": "Enter the code we sent",
       "otpInvalid": "Code must be 4–6 digits",
       "otpMismatch": "That code is not valid. Try again or request a new code."
@@ -758,7 +758,7 @@
       "adminNameRequired": "Admin name is required",
       "adminEmailInvalid": "Enter a valid email address",
       "phoneRequired": "Admin mobile number is required",
-      "phoneInvalid": "Choose country code and enter digits only. Stored format is +country-mobile (e.g. +91-9876543210).",
+      "phoneInvalid": "Choose country code and enter exactly 10 digits (e.g. +91-9876543210).",
       "adminPasswordRequired": "Password is required",
       "adminPasswordLength": "Password must be {{min}}–{{max}} characters"
     }
@@ -1292,6 +1292,8 @@
       "add": "Add student",
       "searchPlaceholder": "Search students…",
       "allClasses": "All classes",
+      "allSections": "All sections",
+      "selectSection": "Select section",
       "allStatus": "All status",
       "thStudent": "Student",
       "thAdmission": "Admission #",
@@ -1374,6 +1376,7 @@
       "primaryGuardianRequired": "Primary guardian name and phone are required.",
       "guardianNamePhonePair": "For each guardian you start, enter both name and phone (or leave both empty).",
       "guardianDuplicatePhone": "Two guardians cannot use the same phone number — use distinct contacts or leave one blank.",
+      "phoneInvalidTenDigits": "Phone number must be exactly 10 digits.",
       "guardianPrimary": "Primary contact",
       "guardianEmergency": "Emergency contact",
       "createPortalForPrimary": "Create / link parent portal account for primary guardian",
@@ -1611,7 +1614,8 @@
       "saveAdd": "Add teacher",
       "saveUpdate": "Update",
       "saving": "Saving…",
-      "saveError": "Could not save teacher details. Please verify data and try again."
+      "saveError": "Could not save teacher details. Please verify data and try again.",
+      "phoneInvalidTenDigits": "Phone number must be exactly 10 digits."
     },
     "profile": {
       "title": "Teacher profile",
@@ -3194,6 +3198,7 @@
       "remove": "Remove",
       "errFullName": "Full name is required.",
       "errRole": "Role is required.",
+      "errPhoneInvalidTenDigits": "Phone number must be exactly 10 digits.",
       "errAddFailed": "Could not add staff.",
       "staffRoleEnum": {
         "DRIVER": "Driver",
@@ -3221,6 +3226,7 @@
       "phPurpose": "Purpose",
       "checkIn": "In",
       "errVisitorNameRequired": "Visitor name is required.",
+      "errPhoneInvalidTenDigits": "Phone number must be exactly 10 digits.",
       "errCheckInFailed": "Could not check in visitor.",
       "thName": "Name",
       "thBadge": "Badge",
@@ -3588,6 +3594,7 @@
     "addDriverLead": "Or add driver:",
     "phFullName": "Full name",
     "phPhone": "Phone",
+    "errPhoneInvalidTenDigits": "Phone number must be exactly 10 digits.",
     "phLicense": "License #",
     "addDriverSelect": "Add driver & select",
     "back": "Back",
@@ -3964,6 +3971,8 @@
     "dialogOk": "OK",
     "dialogClose": "Close",
     "profileNameRequired": "Full name is required.",
+    "profilePhoneRequired": "Contact phone is required.",
+    "profilePhoneInvalidTenDigits": "Contact phone must be exactly 10 digits.",
     "branchesLoadErr": "Could not load branches. Try again or check your connection.",
     "generalSavedMock": "Saved on this device (mock). Same fields will sync from the API when mocks are off.",
     "generalSaved": "School information updated.",

@@ -21,15 +21,15 @@ import { SettingsService } from '../../core/services/settings.service';
 import { ConfirmDialogService } from '../../shared/confirm-dialog/confirm-dialog.service';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { ErpPaginationComponent } from '../../shared/erp-pagination/erp-pagination.component';
-import { ErpMonthPickerComponent } from '../../shared/erp-month-picker/erp-month-picker.component';
 import { DEFAULT_ERP_PAGE_SIZE } from '../../core/constants/pagination.constants';
 import { sliceToPage } from '../../core/utils/paginate';
 import { runtimeConfig } from '../../core/config/runtime-config';
+import { formatDateDdMmYyyy } from '../../core/utils/date-format';
 
 @Component({
   selector: 'app-payroll',
   standalone: true,
-  imports: [CommonModule, FormsModule, TranslateModule, ErpPaginationComponent, ErpMonthPickerComponent, ErpI18nPhDirective],
+  imports: [CommonModule, FormsModule, TranslateModule, ErpPaginationComponent, ErpI18nPhDirective],
   template: `
     <div class="payroll-page" data-testid="payroll-page">
       <div class="d-flex justify-content-between align-items-center mb-4 animate-in flex-wrap gap-2">
@@ -397,16 +397,6 @@ import { runtimeConfig } from '../../core/config/runtime-config';
             <h4 class="erp-card-title mb-1">{{ isTeacher ? ('payroll.payslipsTitleTeacher' | translate) : ('payroll.payslipsTitleAdmin' | translate) }}</h4>
             <p class="text-muted small mb-0">{{ 'payroll.payslipsLead' | translate }}</p>
           </div>
-          <div class="payroll-payslip-filter">
-            <label class="erp-label d-block mb-1">{{ 'payroll.payslipFilterMonthLabel' | translate }}</label>
-            <app-erp-month-picker
-              [(ngModel)]="payslipFilterYm"
-              [maxYm]="currentMonthYm"
-              [yearNavMode]="'plain'"
-              [placeholderI18nKey]="'payroll.payslipFilterMonthPlaceholder'"
-              (ngModelChange)="onPayslipFilterMonthChange($event)"
-            />
-          </div>
         </div>
         <div class="table-responsive">
           <table class="erp-table">
@@ -439,7 +429,7 @@ import { runtimeConfig } from '../../core/config/runtime-config';
                   >
                   <span *ngIf="p.status !== 'paid'" class="text-muted small">{{ 'payroll.settlementModePending' | translate }}</span>
                 </td>
-                <td>{{ p.paymentDate || ('exams.dash' | translate) }}</td>
+                <td>{{ p.paymentDate ? formatDate(p.paymentDate) : ('exams.dash' | translate) }}</td>
                 <td class="text-end text-nowrap">
                   <button
                     type="button"
@@ -1015,6 +1005,10 @@ export class PayrollComponent implements OnInit {
 
   get queueVarianceAmount(): number {
     return Math.max(0, (this.disbursementSummary.submittedAmount || 0) - (this.disbursementSummary.completedAmount || 0));
+  }
+
+  formatDate(raw: string | null | undefined): string {
+    return formatDateDdMmYyyy(raw);
   }
 
   get bankReadyCount(): number {

@@ -52,6 +52,25 @@ public interface FeePaymentRepository extends JpaRepository<FeePayment, Long> {
             @Param("dueDate") LocalDate dueDate,
             @Param("studentIds") Collection<Long> studentIds);
 
+    @Query("""
+            select distinct p.studentId
+            from FeePayment p, FeeStructure fs
+            where p.tenantId = :tenantId
+              and p.isDeleted = false
+              and fs.tenantId = :tenantId
+              and fs.isDeleted = false
+              and p.feeStructureId = fs.id
+              and fs.classId = :classId
+              and p.dueDate between :monthStart and :monthEnd
+              and p.studentId in :studentIds
+            """)
+    Set<Long> findStudentIdsWithObligationInClassForMonth(
+            @Param("tenantId") String tenantId,
+            @Param("classId") Long classId,
+            @Param("monthStart") LocalDate monthStart,
+            @Param("monthEnd") LocalDate monthEnd,
+            @Param("studentIds") Collection<Long> studentIds);
+
     /**
      * Class-level fee aggregates used by reports.
      * Keep JPQL free of SQL-style inline comments because Hibernate 6 query validation

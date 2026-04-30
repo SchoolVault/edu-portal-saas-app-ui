@@ -1,5 +1,5 @@
-/** Canonical portal handset: +{country}-{national} (matches backend `InternationalPhone` normalizer). */
-export const CANONICAL_INTL_PHONE = /^\+\d{1,4}-\d{6,14}$/;
+/** Canonical portal handset: +{country}-{10-digit-national} (matches backend strict policy). */
+export const CANONICAL_INTL_PHONE = /^\+\d{1,4}-\d{10}$/;
 
 /** Legacy / pasted values still accepted by backend normalizer — prefer {@link isValidCanonicalIntlPhone} for new UI. */
 const LOGIN_PHONE_LEGACY_PATTERN = /^[+]?[0-9\s\-]{8,32}$/;
@@ -14,7 +14,7 @@ export function buildCanonicalIntlPhone(dialCode: string, nationalDigits: string
   if (!d || !n) {
     return '';
   }
-  if (n.length < 6 || n.length > 14) {
+  if (n.length !== 10) {
     return '';
   }
   if (d.length < 1 || d.length > 4) {
@@ -24,7 +24,7 @@ export function buildCanonicalIntlPhone(dialCode: string, nationalDigits: string
 }
 
 export function splitCanonicalIntlPhone(value: string): { dial: string; national: string } {
-  const m = (value ?? '').trim().match(/^\+(\d{1,4})-(\d{6,14})$/);
+  const m = (value ?? '').trim().match(/^\+(\d{1,4})-(\d{10})$/);
   if (m) {
     return { dial: m[1], national: m[2] };
   }

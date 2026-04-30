@@ -19,6 +19,7 @@ import { sliceToPage } from '../../core/utils/paginate';
 import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directives';
 import { runtimeConfig } from '../../core/config/runtime-config';
 import { ImportExportService } from '../../core/services/import-export.service';
+import { formatDateDdMmYyyy } from '../../core/utils/date-format';
 
 @Component({
   selector: 'app-teacher-list',
@@ -170,7 +171,7 @@ import { ImportExportService } from '../../core/services/import-export.service';
                   </ng-container>
                   <ng-template #noHomeroom><span class="text-muted small">{{ 'teachers.list.homeroomNone' | translate }}</span></ng-template>
                 </td>
-                <td>{{ t.joinDate }}</td>
+                <td>{{ formatDate(t.joinDate) }}</td>
                 <td><span class="badge-erp badge-success">{{ statusLabel(t.status) }}</span></td>
                 <td>
                   <div class="d-flex gap-1">
@@ -248,6 +249,10 @@ export class TeacherListComponent implements OnInit, OnDestroy {
 
   private normalizeSubject(value: string): string {
     return (value || '').trim().replace(/\s+/g, ' ').toLowerCase();
+  }
+
+  formatDate(raw: string | null | undefined): string {
+    return formatDateDdMmYyyy(raw);
   }
 
   constructor(

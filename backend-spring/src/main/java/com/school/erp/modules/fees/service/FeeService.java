@@ -372,20 +372,29 @@ public class FeeService {
     @Transactional
     public FeeDTOs.BulkAssignFeesResponse bulkAssignFees(FeeDTOs.BulkAssignFeesRequest req) {
         String t = TenantContext.getTenantId();
+        LocalDate dueDate = req.getDueDate();
+        if (dueDate == null) {
+            throw new BusinessException("Due date is required");
+        }
+        String assignLockKey = "fees:bulk-assign:" + t + ":class:" + req.getClassId() + ":month:" + dueDate.getYear() + "-" + dueDate.getMonthValue();
+        return tenantRedisLockService.withBestEffortLock(assignLockKey, Duration.ofSeconds(30), () -> doBulkAssignFees(req, t, dueDate));
+    }
+
+    private FeeDTOs.BulkAssignFeesResponse doBulkAssignFees(FeeDTOs.BulkAssignFeesRequest req, String tenantId, LocalDate dueDate) {
         FeeStructure fs = requireFeeStructure(req.getFeeStructureId());
         if (!fs.getClassId().equals(req.getClassId())) {
             throw new BusinessException("Fee structure does not apply to the selected class");
         }
         if (req.getSectionId() != null) {
-            var section = sectionRepository.findByIdAndTenantIdAndIsDeletedFalse(req.getSectionId(), t)
+            var section = sectionRepository.findByIdAndTenantIdAndIsDeletedFalse(req.getSectionId(), tenantId)
                     .orElseThrow(() -> new ResourceNotFoundException("Section", req.getSectionId()));
             if (!section.getClassId().equals(req.getClassId())) {
                 throw new BusinessException("Section does not belong to the selected class");
             }
         }
         List<Student> students = req.getSectionId() == null
-                ? studentPersistence.findByTenantIdAndClassIdAndIsDeletedFalse(t, req.getClassId())
-                : studentPersistence.findByTenantIdAndClassIdAndSectionIdAndIsDeletedFalse(t, req.getClassId(), req.getSectionId());
+                ? studentPersistence.findByTenantIdAndClassIdAndIsDeletedFalse(tenantId, req.getClassId())
+                : studentPersistence.findByTenantIdAndClassIdAndSectionIdAndIsDeletedFalse(tenantId, req.getClassId(), req.getSectionId());
         if (students.size() > BULK_ASSIGN_MAX_STUDENTS) {
             throw new BusinessException("Too many students in scope (max " + BULK_ASSIGN_MAX_STUDENTS + "). Narrow by section or split the run.");
         }
@@ -404,10 +413,18 @@ public class FeeService {
             activeStudents.add(s);
         }
 
+        LocalDate monthStart = dueDate.withDayOfMonth(1);
+        LocalDate monthEnd = dueDate.withDayOfMonth(dueDate.lengthOfMonth());
         Set<Long> duplicateIds = Collections.emptySet();
         List<Long> activeIds = activeStudents.stream().map(Student::getId).collect(Collectors.toList());
-        if (skipDup && !activeIds.isEmpty()) {
-            duplicateIds = paymentRepo.findStudentIdsWithObligationOnDueDate(t, fs.getId(), req.getDueDate(), activeIds);
+        if (!activeIds.isEmpty()) {
+            duplicateIds = paymentRepo.findStudentIdsWithObligationInClassForMonth(
+                    tenantId,
+                    req.getClassId(),
+                    monthStart,
+                    monthEnd,
+                    activeIds
+            );
         }
 
         List<Student> toCreate = new ArrayList<>();
@@ -416,10 +433,10 @@ public class FeeService {
             if (duplicateIds.contains(s.getId())) {
                 if (skipDup) {
                     duplicateSkipped++;
-                    appendBulkSkip(skippedSample, s.getId(), "DUPLICATE_OBLIGATION", "Same structure and due date already assigned");
+                    appendBulkSkip(skippedSample, s.getId(), "DUPLICATE_OBLIGATION", "Fee already assigned for this class in the selected month");
                     continue;
                 }
-                throw new BusinessException("Student " + s.getId() + " already has this fee for the chosen due date");
+                throw new BusinessException("Student " + s.getId() + " already has a fee obligation for this class in the selected month");
             }
             toCreate.add(s);
         }
@@ -433,11 +450,11 @@ public class FeeService {
                     .amount(fs.getTotalAmount())
                     .paidAmount(BigDecimal.ZERO)
                     .dueAmount(fs.getTotalAmount())
-                    .dueDate(req.getDueDate())
+                    .dueDate(dueDate)
                     .discount(discount)
                     .lateFee(BigDecimal.ZERO)
                     .build();
-            p.setTenantId(t);
+            p.setTenantId(tenantId);
             // No receipt or payment date until money is recorded (manual / online); avoids parent "receipt" before any collection.
             p.setPaymentDate(null);
             p.setPaymentMethod(null);
@@ -460,7 +477,7 @@ public class FeeService {
             recomputePaymentAggregate(p);
             paymentRepo.save(p);
             if (p.getDueAmount() != null && p.getDueAmount().compareTo(BigDecimal.ZERO) > 0) {
-                feeReminderAutomationService.onFeeAssigned(t, p);
+                feeReminderAutomationService.onFeeAssigned(tenantId, p);
             }
         }
 
@@ -469,8 +486,8 @@ public class FeeService {
         resp.setSkippedCount(inactiveSkipped + duplicateSkipped);
         resp.setSkipped(skippedSample);
         resp.setCreatedSample(saved.stream().limit(BULK_ASSIGN_CREATED_SAMPLE).map(this::toPaymentResponse).collect(Collectors.toList()));
-        log.info("Bulk fee assign tenant={} structure={} class={} section={} created={} skipped={} correlationId={}",
-                t, fs.getId(), req.getClassId(), req.getSectionId(), saved.size(), resp.getSkippedCount(), req.getCorrelationId());
+        log.info("Bulk fee assign tenant={} structure={} class={} section={} month={} created={} skipped={} correlationId={}",
+                tenantId, fs.getId(), req.getClassId(), req.getSectionId(), dueDate.getYear() + "-" + dueDate.getMonthValue(), saved.size(), resp.getSkippedCount(), req.getCorrelationId());
         invalidateDashboardSnapshots("fee_bulk_assign");
         return resp;
     }
