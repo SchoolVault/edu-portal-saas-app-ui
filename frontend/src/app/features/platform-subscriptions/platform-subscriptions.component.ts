@@ -2,13 +2,14 @@ import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
+import { TranslateModule } from '@ngx-translate/core';
 import { PlatformService } from '../../core/services/platform.service';
 import { PlatformSubscriptionPlan } from '../../core/models/models';
 
 @Component({
   selector: 'app-platform-subscriptions',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink],
+  imports: [CommonModule, FormsModule, RouterLink, TranslateModule],
   template: `
     <div class="platform-subs-root" data-testid="platform-subscriptions-page">
       <div class="platform-subs-inner animate-in">
@@ -97,7 +98,7 @@ import { PlatformSubscriptionPlan } from '../../core/models/models';
         <div class="modal-content-erp platform-plan-modal" (click)="$event.stopPropagation()">
           <div class="modal-header-erp">
             <h3>{{ detailPlan.name }}</h3>
-            <button type="button" class="btn-icon" (click)="closeDetail()" aria-label="Close"><i class="bi bi-x-lg"></i></button>
+            <button type="button" class="btn-icon" (click)="closeDetail()" [attr.aria-label]="'platformUi.closeAlert' | translate"><i class="bi bi-x-lg"></i></button>
           </div>
           <div class="modal-body-erp">
             <p class="text-muted small mb-3">{{ detailPlan.code }} · Catalog row for provisioning &amp; billing adapters</p>
@@ -163,7 +164,7 @@ import { PlatformSubscriptionPlan } from '../../core/models/models';
         <div class="modal-content-erp platform-plan-modal" style="max-width: 720px;" (click)="$event.stopPropagation()">
           <div class="modal-header-erp">
             <h3>Edit {{ editDraft.code }}</h3>
-            <button type="button" class="btn-icon" (click)="closeEdit()" [disabled]="saving" aria-label="Close"><i class="bi bi-x-lg"></i></button>
+            <button type="button" class="btn-icon" (click)="closeEdit()" [disabled]="saving" [attr.aria-label]="'platformUi.closeAlert' | translate"><i class="bi bi-x-lg"></i></button>
           </div>
           <div class="modal-body-erp">
             <div *ngIf="editError" class="alert alert-danger py-2 small">{{ editError }}</div>

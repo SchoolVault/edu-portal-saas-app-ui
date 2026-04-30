@@ -132,10 +132,14 @@ public class AcademicService {
     // ========== CLASSES ==========
     @Cacheable(cacheNames = CacheConfig.ACADEMIC_CATALOG, keyGenerator = "tenantMethodNameKeyGenerator", unless = "#result == null")
     @Transactional(readOnly = true)
-    public List<AcademicDTOs.ClassWithSectionsResponse> getClassesWithSections() {
+    public List<AcademicDTOs.ClassWithSectionsResponse> getClassesWithSections(String lifecycle) {
         String t = TenantContext.getTenantId();
+        Boolean activeFilter = resolveActiveFilterForRole(lifecycle);
         log.debug("Listing classes with sections tenantId={}", t);
-        List<AcademicDTOs.ClassWithSectionsResponse> list = classRepo.findByTenantIdAndIsDeletedFalseOrderByGrade(t).stream()
+        List<SchoolClass> classes = activeFilter == null
+                ? classRepo.findByTenantIdAndIsDeletedFalseOrderByGrade(t)
+                : classRepo.findByTenantIdAndIsDeletedFalseAndIsActiveOrderByGrade(t, activeFilter);
+        List<AcademicDTOs.ClassWithSectionsResponse> list = classes.stream()
                 .map(this::toClassWithSectionsResponse)
                 .collect(Collectors.toList());
         log.info("Loaded {} class(es) with sections tenantId={}", list.size(), t);
@@ -158,7 +162,9 @@ public class AcademicService {
 
     private AcademicDTOs.ClassWithSectionsResponse toClassWithSectionsResponse(SchoolClass cls) {
         String t = TenantContext.getTenantId();
-        List<Section> sections = sectionRepo.findByTenantIdAndClassIdAndIsDeletedFalse(t, cls.getId());
+        List<Section> sections = rolePrefersActiveOnly()
+                ? sectionRepo.findByTenantIdAndClassIdAndIsDeletedFalseAndIsActive(t, cls.getId(), true)
+                : sectionRepo.findByTenantIdAndClassIdAndIsDeletedFalse(t, cls.getId());
         java.util.Map<Long, Integer> sectionStudentCounts = resolveActiveSectionStudentCounts(t, cls.getId(), sections);
         int totalStudents = sections.isEmpty()
                 ? (int) studentRepo.countByTenantIdAndClassIdAndIsDeletedFalseAndStatus(
@@ -168,6 +174,7 @@ public class AcademicService {
                 .id(cls.getId())
                 .name(cls.getName())
                 .grade(cls.getGrade())
+                .isActive(Boolean.TRUE.equals(cls.getIsActive()))
                 .classTeacherId(cls.getClassTeacherId())
                 .classTeacherName(cls.getClassTeacherName())
                 .academicYearId(cls.getAcademicYearId())
@@ -177,6 +184,7 @@ public class AcademicService {
                                 .id(s.getId())
                                 .name(s.getName())
                                 .classId(s.getClassId())
+                                .isActive(Boolean.TRUE.equals(s.getIsActive()))
                                 .capacity(s.getCapacity())
                                 .studentCount(sectionStudentCounts.getOrDefault(s.getId(), 0))
                                 .classTeacherId(s.getClassTeacherId())
@@ -416,10 +424,13 @@ public class AcademicService {
 
     @Cacheable(cacheNames = CacheConfig.ACADEMIC_CATALOG, keyGenerator = "tenantMethodFirstParamKeyGenerator", unless = "#result == null")
     @Transactional(readOnly = true)
-    public List<Section> getSectionsByClass(Long classId) {
+    public List<Section> getSectionsByClass(Long classId, String lifecycle) {
         String t = TenantContext.getTenantId();
+        Boolean activeFilter = resolveActiveFilterForRole(lifecycle);
         log.debug("Listing sections for classId={}", classId);
-        List<Section> list = sectionRepo.findByTenantIdAndClassIdAndIsDeletedFalse(t, classId);
+        List<Section> list = activeFilter == null
+                ? sectionRepo.findByTenantIdAndClassIdAndIsDeletedFalse(t, classId)
+                : sectionRepo.findByTenantIdAndClassIdAndIsDeletedFalseAndIsActive(t, classId, activeFilter);
         log.info("Found {} section(s) for classId={}", list.size(), classId);
         return list;
     }
@@ -540,10 +551,41 @@ public class AcademicService {
         }
         Long classId = sec.getClassId();
         teacherAssignmentService.closeActiveHomeroomSlotAssignments(t, classId, sectionId, LocalDate.now().minusDays(1));
-        sec.setIsDeleted(true);
+        sec.markSoftDeleted();
         sectionRepo.save(sec);
         log.info("Section soft-deleted id={}", sectionId);
         evictAcademicClassCaches(classId, true);
+    }
+
+    @Transactional
+    public Section setSectionActiveState(Long sectionId, boolean active) {
+        String tenantId = TenantContext.getTenantId();
+        Section sec = sectionRepo.findByIdAndTenantIdAndIsDeletedFalse(sectionId, tenantId)
+                .orElseThrow(() -> new ResourceNotFoundException("Section", sectionId));
+        if (Boolean.TRUE.equals(sec.getIsActive()) == active) {
+            return sec;
+        }
+        if (!active) {
+            int enrolled = (int) studentRepo.countByTenantIdAndClassIdAndSectionIdAndIsDeletedFalseAndStatus(
+                    tenantId, sec.getClassId(), sec.getId(), Enums.StudentStatus.ACTIVE);
+            if (enrolled > 0) {
+                throw new BusinessException("Cannot deactivate a section with active students. Move or inactivate students first.");
+            }
+            teacherAssignmentService.closeActiveHomeroomSlotAssignments(
+                    tenantId, sec.getClassId(), sec.getId(), LocalDate.now().minusDays(1));
+            sec.setClassTeacherId(null);
+            sec.setClassTeacherName(null);
+        } else {
+            SchoolClass cls = classRepo.findByIdAndTenantIdAndIsDeletedFalse(sec.getClassId(), tenantId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Class", sec.getClassId()));
+            if (!Boolean.TRUE.equals(cls.getIsActive())) {
+                throw new BusinessException("Cannot activate section while parent class is inactive.");
+            }
+        }
+        sec.setIsActive(active);
+        sectionRepo.save(sec);
+        evictAcademicClassCaches(sec.getClassId(), true);
+        return sec;
     }
 
     @Transactional
@@ -564,11 +606,66 @@ public class AcademicService {
                 tenantId, classId, null, LocalDate.now().minusDays(1));
         cls.setClassTeacherId(null);
         cls.setClassTeacherName(null);
-        cls.setIsDeleted(true);
+        cls.markSoftDeleted();
         classRepo.save(cls);
         log.info("Class soft-deleted id={}", classId);
         evictAcademicClassCaches(classId, true);
         evictTeacherDirectoryCacheAfterHomeroomChange();
+    }
+
+    @Transactional
+    public AcademicDTOs.ClassWithSectionsResponse setClassActiveState(Long classId, boolean active) {
+        String tenantId = TenantContext.getTenantId();
+        SchoolClass cls = classRepo.findByIdAndTenantIdAndIsDeletedFalse(classId, tenantId)
+                .orElseThrow(() -> new ResourceNotFoundException("Class", classId));
+        if (Boolean.TRUE.equals(cls.getIsActive()) == active) {
+            return getClassWithSectionsById(classId);
+        }
+        if (!active) {
+            long activeSections = sectionRepo.countByTenantIdAndClassIdAndIsDeletedFalseAndIsActive(tenantId, classId, true);
+            if (activeSections > 0) {
+                throw new BusinessException("Cannot deactivate class while active sections exist. Deactivate sections first.");
+            }
+            int activeStudents = (int) studentRepo.countByTenantIdAndClassIdAndIsDeletedFalseAndStatus(
+                    tenantId, classId, Enums.StudentStatus.ACTIVE);
+            if (activeStudents > 0) {
+                throw new BusinessException("Cannot deactivate class with active students. Move or inactivate students first.");
+            }
+            teacherAssignmentService.closeActiveHomeroomSlotAssignments(
+                    tenantId, classId, null, LocalDate.now().minusDays(1));
+            cls.setClassTeacherId(null);
+            cls.setClassTeacherName(null);
+        }
+        cls.setIsActive(active);
+        classRepo.save(cls);
+        evictAcademicClassCaches(classId, true);
+        evictTeacherDirectoryCacheAfterHomeroomChange();
+        return getClassWithSectionsById(classId);
+    }
+
+    private Boolean resolveActiveFilterForRole(String lifecycle) {
+        String lc = lifecycle != null ? lifecycle.trim().toLowerCase() : "";
+        if (lc.isEmpty()) {
+            return rolePrefersActiveOnly() ? Boolean.TRUE : null;
+        }
+        if ("all".equals(lc)) {
+            return rolePrefersActiveOnly() ? Boolean.TRUE : null;
+        }
+        if ("active".equals(lc)) {
+            return Boolean.TRUE;
+        }
+        if ("inactive".equals(lc)) {
+            if (rolePrefersActiveOnly()) {
+                throw new BusinessException("Inactive roster rows are not visible for this role.");
+            }
+            return Boolean.FALSE;
+        }
+        throw new BusinessException("Invalid lifecycle filter. Use active, inactive, or all.");
+    }
+
+    private boolean rolePrefersActiveOnly() {
+        String role = String.valueOf(TenantContext.getUserRole()).trim().toUpperCase();
+        return !"ADMIN".equals(role) && !"SUPER_ADMIN".equals(role);
     }
 
     @Transactional(readOnly = true)

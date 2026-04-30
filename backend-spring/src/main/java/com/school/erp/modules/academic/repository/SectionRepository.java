@@ -11,6 +11,7 @@ import java.util.Optional;
 
 public interface SectionRepository extends JpaRepository<Section, Long> {
     List<Section> findByTenantIdAndClassIdAndIsDeletedFalse(String tenantId, Long classId);
+    List<Section> findByTenantIdAndClassIdAndIsDeletedFalseAndIsActive(String tenantId, Long classId, Boolean isActive);
     List<Section> findByTenantIdAndClassIdInAndIsDeletedFalse(String tenantId, List<Long> classIds);
     Page<Section> findByTenantIdAndIsDeletedFalseOrderByClassIdAscNameAsc(String tenantId, Pageable pageable);
     @Query("""
@@ -28,6 +29,7 @@ public interface SectionRepository extends JpaRepository<Section, Long> {
     Optional<Section> findByIdAndTenantIdAndIsDeletedFalse(Long id, String tenantId);
 
     List<Section> findByTenantIdAndClassTeacherIdAndIsDeletedFalse(String tenantId, Long classTeacherId);
+    long countByTenantIdAndClassIdAndIsDeletedFalseAndIsActive(String tenantId, Long classId, Boolean isActive);
 
     Optional<Section> findFirstByTenantIdAndClassIdAndNameIgnoreCaseAndIsDeletedFalse(String tenantId, Long classId, String name);
 }

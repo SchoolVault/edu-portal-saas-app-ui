@@ -337,6 +337,9 @@ public class TeacherService {
             teacher.setJoinDate(req.getJoinDate());
             teacher.setSalary(req.getSalary());
             teacher.setSubjects(req.getSubjects());
+            // ERP-style UPSERT: importing the same teacher should reactivate lifecycle by default.
+            teacher.setIsActive(true);
+            teacher.setStatus(Enums.TeacherStatus.ACTIVE);
             teacher.setBankAccountHolder(trimToNull(req.getBankAccountHolder()));
             teacher.setBankName(trimToNull(req.getBankName()));
             teacher.setBankAccountNumber(trimToNull(req.getBankAccountNumber()));
@@ -419,6 +422,7 @@ public class TeacherService {
             try {
                 Enums.TeacherStatus next = Enums.TeacherStatus.valueOf(req.getStatus().trim().toUpperCase(Locale.ROOT));
                 t.setStatus(next);
+                t.setIsActive(next == Enums.TeacherStatus.ACTIVE);
                 if (next == Enums.TeacherStatus.INACTIVE || next == Enums.TeacherStatus.RESIGNED) {
                     clearHomeroomForTeacher(t.getId(), TenantContext.getTenantId());
                 }
@@ -526,7 +530,7 @@ public class TeacherService {
         String tenantId = TenantContext.getTenantId();
         Teacher t = repo.findByIdAndTenantIdAndIsDeletedFalse(id, tenantId).orElseThrow(() -> new ResourceNotFoundException("Teacher", id));
         clearHomeroomForTeacher(id, tenantId);
-        t.setIsDeleted(true);
+        t.markSoftDeleted();
         repo.save(t);
         log.info("Teacher soft-deleted id={}", id);
         evictTeacherDirectoryCache();
@@ -547,6 +551,7 @@ public class TeacherService {
             throw new BusinessException("Invalid status. Use ACTIVE or INACTIVE.");
         }
         t.setStatus(next);
+        t.setIsActive(next == Enums.TeacherStatus.ACTIVE);
         if (next == Enums.TeacherStatus.INACTIVE || next == Enums.TeacherStatus.RESIGNED) {
             clearHomeroomForTeacher(id, tenantId);
         }

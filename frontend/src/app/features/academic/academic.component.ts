@@ -275,6 +275,14 @@ import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directiv
                 <option *ngFor="let ay of academicYears" [ngValue]="ay.id">{{ ay.name }}</option>
               </select>
             </div>
+            <div *ngIf="canViewInactiveLifecycle">
+              <label class="erp-label mb-1">{{ 'academic.classes.lifecycle' | translate }}</label>
+              <select class="erp-select" [(ngModel)]="lifecycleFilter" (ngModelChange)="reloadData()">
+                <option value="active">{{ 'academic.classes.lifecycleActive' | translate }}</option>
+                <option value="inactive">{{ 'academic.classes.lifecycleInactive' | translate }}</option>
+                <option value="all">{{ 'academic.classes.lifecycleAll' | translate }}</option>
+              </select>
+            </div>
           </div>
           <div *ngIf="canManageAcademic" class="erp-filter-toolbar__actions">
             <button type="button" class="btn-outline-erp btn-sm erp-filter-toolbar__action" (click)="openAssignClassTeacherModal()">
@@ -320,8 +328,11 @@ import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directiv
                   <span class="badge-erp" [ngClass]="cls.sections.length ? 'badge-info' : 'badge-neutral'">{{ cls.sections.length ? ('academic.card.sectionsCount' | translate: { count: cls.sections.length }) : ('academic.card.wholeClass' | translate) }}</span>
                   <span *ngIf="canManageAcademic && classNeedsHomeroom(cls)" class="badge-erp" style="background: color-mix(in srgb, var(--clr-warning) 22%, transparent); color: var(--clr-warning); border: 1px solid color-mix(in srgb, var(--clr-warning) 45%, transparent);">{{ 'academic.card.homeroomTbd' | translate }}</span>
                   <button *ngIf="canManageAcademic" type="button" class="btn-outline-erp btn-xs" (click)="openEditClassModal(cls)">{{ 'academic.card.editClass' | translate }}</button>
+                  <button *ngIf="canManageAcademic && classLifecycleToggleAllowed(cls)" type="button" class="btn-outline-erp btn-xs" [disabled]="sectionBusy" (click)="toggleClassLifecycle(cls)">
+                    {{ cls.isActive === false ? ('academic.card.activateClass' | translate) : ('academic.card.deactivateClass' | translate) }}
+                  </button>
                   <button
-                    *ngIf="canManageAcademic"
+                    *ngIf="canManageAcademic && cls.isActive === false"
                     type="button"
                     class="btn-outline-erp btn-xs"
                     [disabled]="sectionBusy"
@@ -363,6 +374,9 @@ import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directiv
                     </div>
                     <div *ngIf="canManageAcademic" class="academic-section-actions">
                       <button type="button" class="btn-icon btn-xs p-0" style="font-size: 14px;" (click)="openEditSectionModal(cls, sec)" [attr.title]="'academic.card.editTitle' | translate"><i class="bi bi-pencil"></i></button>
+                      <button type="button" class="btn-icon btn-xs p-0" style="font-size: 14px;" [disabled]="sectionBusy" (click)="toggleSectionLifecycle(cls, sec)" [attr.title]="(sec.isActive === false ? 'academic.card.activateSection' : 'academic.card.deactivateSection') | translate">
+                        <i class="bi" [ngClass]="sec.isActive === false ? 'bi-toggle-on' : 'bi-toggle-off'" style="color: var(--clr-warning);"></i>
+                      </button>
                       <button type="button" class="btn-icon btn-xs p-0" style="font-size: 14px; color: var(--clr-danger);" [disabled]="sectionBusy" (click)="removeSection(cls, sec)" [attr.title]="'academic.card.removeTitle' | translate"><i class="bi bi-trash"></i></button>
                     </div>
                   </div>
@@ -400,7 +414,7 @@ import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directiv
                 class="erp-select"
                 [(ngModel)]="promoFromClass"
                 (change)="loadPromotionPreview()"
-                title="Source grade: students currently enrolled here are candidates for promotion to the configured next class."
+                [attr.title]="'academic.promotion.fromClassTitle' | translate"
               >
                 <option [ngValue]="null">{{ 'academic.promotion.selectClass' | translate }}</option>
                 <option *ngFor="let cls of promotableClasses" [ngValue]="cls.id">{{ cls.name }}</option>
@@ -413,7 +427,7 @@ import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directiv
                 class="erp-input"
                 [value]="promotionPreview?.targetClassName || ''"
                 disabled
-                title="Target grade after promotion — determined by academic rules (usually the next grade up)."
+                [attr.title]="'academic.promotion.toClassTitle' | translate"
               />
             </div>
             <div class="col-md-4">
@@ -422,7 +436,7 @@ import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directiv
                 style="width: 100%;"
                 [disabled]="selectedForPromo === 0 || promoting"
                 (click)="promoteStudents()"
-                title="Moves selected eligible students from the source class to the target class (and section if chosen). Ineligible rows stay behind."
+                [attr.title]="'academic.promotion.promoteSelectedTitle' | translate"
               >
                 <span class="spinner" *ngIf="promoting"></span>
                 {{ promoting ? ('academic.promotion.promoting' | translate) : ('academic.promotion.promoteSelected' | translate) }}
@@ -435,7 +449,7 @@ import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directiv
               <select
                 class="erp-select"
                 [(ngModel)]="promoTargetSectionId"
-                title="Homeroom section in the target class. Capacity hints help balance strength; split preview suggests counts per section."
+                [attr.title]="'academic.promotion.targetSectionTitle' | translate"
               >
                 <option *ngFor="let sec of promotionPreview!.targetSections!" [ngValue]="sec.id">{{ sec.name }}<ng-container *ngIf="sec.capacity != null">{{ 'academic.promotion.capSuffix' | translate: { cap: sec.capacity } }}</ng-container></option>
               </select>
@@ -456,7 +470,7 @@ import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directiv
               class="btn-outline-erp btn-sm"
               [disabled]="splitLoading"
               (click)="loadSplitPreview()"
-              title="Estimates how many promoted students could go into each target section based on capacity and current counts — planning aid only until you confirm promotion."
+              [attr.title]="'academic.promotion.splitPreviewTitle' | translate"
             >
               {{ splitLoading ? ('academic.promotion.splitLoading' | translate) : ('academic.promotion.splitPreview' | translate) }}
             </button>
@@ -644,7 +658,9 @@ export class AcademicComponent implements OnInit {
   classes: SchoolClass[] = [];
   teachers: Teacher[] = [];
   canManageAcademic = false;
+  canViewInactiveLifecycle = false;
   filterYearId: number | null = null;
+  lifecycleFilter: 'active' | 'inactive' | 'all' = 'active';
   assignClassId: number | null = null;
   /** When the selected class has sections — required for save. */
   assignSectionId: number | null = null;
@@ -710,6 +726,7 @@ export class AcademicComponent implements OnInit {
 
   ngOnInit(): void {
     this.canManageAcademic = this.uiAccess.hasAcademicDeskAdminAccess();
+    this.canViewInactiveLifecycle = this.uiAccess.canViewInactiveRosterRows();
     if (this.canManageAcademic) {
       this.tab = 'classes';
     }
@@ -891,7 +908,7 @@ export class AcademicComponent implements OnInit {
       c => c.academicYearId === this.newClass.academicYearId && c.name.trim().toLowerCase() === n.toLowerCase()
     );
     if (duplicateName) {
-      this.showValidationWarning(this.translate.instant('academic.modal.displayNameReq') + ' (duplicate class name)');
+      this.showValidationWarning(this.translate.instant('academic.errors.duplicateClassName'));
       return;
     }
     const names = this.newClass.sectionNamesText.split(/[,;\n]+/).map(s => s.trim()).filter(Boolean);
@@ -911,7 +928,7 @@ export class AcademicComponent implements OnInit {
       })
       .subscribe({
         next: () => {
-          this.academicService.getClasses().subscribe({
+          this.academicService.getClasses(this.lifecycleFilter).subscribe({
             next: list => {
               this.classes = list;
               this.savingClass = false;
@@ -970,7 +987,7 @@ export class AcademicComponent implements OnInit {
     const hostClass = this.classes.find(c => c.id === this.sectionClassId);
     const duplicateSection = (hostClass?.sections ?? []).some(s => s.name.trim().toLowerCase() === name.toLowerCase());
     if (duplicateSection) {
-      this.showValidationWarning(this.translate.instant('academic.modal.sectionNameReq') + ' (duplicate section)');
+      this.showValidationWarning(this.translate.instant('academic.errors.duplicateSectionName'));
       return;
     }
     const capacity = Number(this.newSection.capacity) || 40;
@@ -1009,7 +1026,7 @@ export class AcademicComponent implements OnInit {
       s => s.id !== this.editSectionId && s.name.trim().toLowerCase() === name.toLowerCase()
     );
     if (duplicateSection) {
-      this.showValidationWarning(this.translate.instant('academic.modal.sectionNameReq') + ' (duplicate section)');
+      this.showValidationWarning(this.translate.instant('academic.errors.duplicateSectionName'));
       return;
     }
     const capacity = Number(this.editSectionForm.capacity) || 40;
@@ -1240,7 +1257,7 @@ export class AcademicComponent implements OnInit {
       )
       .subscribe({
         next: () => {
-          this.academicService.getClasses().subscribe({
+          this.academicService.getClasses(this.lifecycleFilter).subscribe({
             next: list => {
               this.classes = list;
               this.teacherService.getTeachers().subscribe({
@@ -1398,8 +1415,71 @@ export class AcademicComponent implements OnInit {
     });
   }
 
-  private reloadData(): void {
+  reloadData(): void {
     this.academicService.getAcademicYears().subscribe(years => this.academicYears = years);
-    this.academicService.getClasses().subscribe(classes => this.classes = classes);
+    this.academicService.getClasses(this.lifecycleFilter).subscribe(classes => this.classes = classes);
+  }
+
+  classLifecycleToggleAllowed(cls: SchoolClass): boolean {
+    if (cls.isActive === false) return true;
+    return (cls.sections?.length ?? 0) === 0 && this.getTotalStudents(cls) === 0;
+  }
+
+  toggleClassLifecycle(cls: SchoolClass): void {
+    const nextActive = cls.isActive === false;
+    const titleKey = nextActive ? 'academic.confirm.lifecycle.activateClassTitle' : 'academic.confirm.lifecycle.deactivateClassTitle';
+    const messageKey = nextActive ? 'academic.confirm.lifecycle.activateClassMessage' : 'academic.confirm.lifecycle.deactivateClassMessage';
+    const confirmKey = nextActive ? 'academic.confirm.lifecycle.activateConfirm' : 'academic.confirm.lifecycle.deactivateConfirm';
+    this.confirmDialog
+      .confirm({
+        title: this.translate.instant(titleKey),
+        message: this.translate.instant(messageKey, { class: cls.name }),
+        variant: 'warning',
+        confirmLabel: this.translate.instant(confirmKey),
+        cancelLabel: this.translate.instant('academic.modal.cancel'),
+      })
+      .pipe(filter(Boolean))
+      .subscribe(() => {
+        this.sectionBusy = true;
+        this.academicService.setClassActiveState(cls.id, nextActive).subscribe({
+          next: updated => {
+            this.classes = this.classes.map(c => (c.id === updated.id ? updated : c));
+            this.sectionBusy = false;
+          },
+          error: () => {
+            this.sectionBusy = false;
+            this.showValidationWarning(this.translate.instant('academic.errors.classLifecycleFailed'));
+          },
+        });
+      });
+  }
+
+  toggleSectionLifecycle(cls: SchoolClass, sec: Section): void {
+    const nextActive = sec.isActive === false;
+    const titleKey = nextActive ? 'academic.confirm.lifecycle.activateSectionTitle' : 'academic.confirm.lifecycle.deactivateSectionTitle';
+    const messageKey = nextActive ? 'academic.confirm.lifecycle.activateSectionMessage' : 'academic.confirm.lifecycle.deactivateSectionMessage';
+    const confirmKey = nextActive ? 'academic.confirm.lifecycle.activateConfirm' : 'academic.confirm.lifecycle.deactivateConfirm';
+    this.confirmDialog
+      .confirm({
+        title: this.translate.instant(titleKey),
+        message: this.translate.instant(messageKey, { class: cls.name, section: sec.name }),
+        variant: 'warning',
+        confirmLabel: this.translate.instant(confirmKey),
+        cancelLabel: this.translate.instant('academic.modal.cancel'),
+      })
+      .pipe(filter(Boolean))
+      .subscribe(() => {
+        this.sectionBusy = true;
+        this.academicService.setSectionActiveState(cls.id, sec.id, nextActive).subscribe({
+          next: updated => {
+            this.classes = this.classes.map(c => (c.id === updated.id ? updated : c));
+            this.sectionBusy = false;
+          },
+          error: () => {
+            this.sectionBusy = false;
+            this.showValidationWarning(this.translate.instant('academic.errors.sectionLifecycleFailed'));
+          },
+        });
+      });
   }
 }

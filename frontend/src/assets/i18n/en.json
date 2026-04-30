@@ -1026,6 +1026,10 @@
     "classes": {
       "viewOnlyHint": "View-only: structure and class-teacher changes are limited to administrators.",
       "filterYear": "Academic year",
+      "lifecycle": "Lifecycle",
+      "lifecycleActive": "Active",
+      "lifecycleInactive": "Inactive",
+      "lifecycleAll": "All",
       "allYears": "All years",
       "studentsLink": "Students",
       "timetableLink": "Weekly timetable",
@@ -1071,6 +1075,10 @@
       "studentCount": "Student Count: {{count}}/{{capacity}}",
       "noSections": "No sections — enroll students at class level only.",
       "totalStudents": "Total students:",
+      "activateClass": "Activate class",
+      "deactivateClass": "Deactivate class",
+      "activateSection": "Activate section",
+      "deactivateSection": "Deactivate section",
       "editTitle": "Edit",
       "removeTitle": "Remove",
       "removeClass": "Delete class"
@@ -1079,16 +1087,21 @@
       "title": "Bulk student promotion",
       "lead": "End-of-year workflow: promoted students are moved to the next grade in the database (class, section, and display names). Only active pupils are listed; inactive or alumni are skipped.",
       "fromClass": "From class",
+      "fromClassTitle": "Source grade: students currently enrolled here are candidates for promotion to the configured next class.",
       "toClass": "To class",
+      "toClassTitle": "Target grade after promotion - determined by academic rules (usually the next grade up).",
       "selectClass": "Select class",
       "promoteSelected": "Promote selected",
+      "promoteSelectedTitle": "Moves selected eligible students from the source class to the target class (and section if chosen). Ineligible rows stay behind.",
       "promoting": "Promoting…",
       "targetSection": "Target section",
+      "targetSectionTitle": "Homeroom section in the target class. Capacity hints help balance strength; split preview suggests counts per section.",
       "targetSectionHelp": "If the next grade has fewer sections than the current one, pick where promoted students land first; you can rebalance sections afterward.",
       "capSuffix": " (cap {{cap}})",
       "loadingTitle": "Loading preview",
       "loadingLead": "Fetching live promotion data",
       "splitPreview": "Split preview (suggested section counts)",
+      "splitPreviewTitle": "Estimates how many promoted students could go into each target section based on capacity and current counts - planning aid only until you confirm promotion.",
       "splitLoading": "Loading…",
       "splitSummary": "{{hint}} — {{count}} eligible students",
       "thSection": "Section",
@@ -1178,15 +1191,32 @@
         "detailWillMoveFrom": "{{teacher}} is currently class teacher for {{otherClass}}. That slot will be cleared when you confirm.",
         "confirm": "Yes, apply",
         "cancel": "Cancel"
+      },
+      "lifecycle": {
+        "activateClassTitle": "Activate class?",
+        "activateClassMessage": "Class \"{{class}}\" will be visible in active academic lists again.",
+        "deactivateClassTitle": "Deactivate class?",
+        "deactivateClassMessage": "Class \"{{class}}\" will move out of active views. Historical records stay safe.",
+        "activateSectionTitle": "Activate section?",
+        "activateSectionMessage": "Section \"{{section}}\" in class \"{{class}}\" will be visible in active academic lists again.",
+        "deactivateSectionTitle": "Deactivate section?",
+        "deactivateSectionMessage": "Section \"{{section}}\" in class \"{{class}}\" will move out of active views. Historical records stay safe.",
+        "activateConfirm": "Yes, activate",
+        "deactivateConfirm": "Yes, deactivate"
       }
     },
     "errors": {
+      "duplicateClassName": "Class name already exists for the selected academic year.",
+      "duplicateSectionName": "Section name already exists in this class.",
       "sectionDeleteFailed": "Unable to remove section. Check dependencies and try again.",
-      "classDeleteFailed": "Unable to delete class. Ensure no active sections or students remain."
+      "classDeleteFailed": "Unable to delete class. Ensure no active sections or students remain.",
+      "classLifecycleFailed": "Unable to update class lifecycle state right now. Please try again.",
+      "sectionLifecycleFailed": "Unable to update section lifecycle state right now. Please try again."
     }
   },
   "directory": {
     "pageTitle": "Staff & people directory",
+    "closeAlert": "Close alert",
     "pageLead": "Search teachers, students, and operational staff. Parent details are available inside student profile (Guardian section).",
     "tabAll": "All Directory",
     "tabStaff": "Staff",
@@ -1250,6 +1280,7 @@
   "students": {
     "list": {
       "title": "Students",
+      "closeAlert": "Close alert",
       "leadAdmin": "Manage enrolment and student master records. Default view shows active pupils only; use status to include left/alumni records.",
       "leadTeacher": "Directory of active students in the school (read-only roster). Admins handle admissions, class moves, and withdrawals.",
       "refresh": "Refresh",
@@ -1494,6 +1525,7 @@
   "teachers": {
     "list": {
       "title": "Teachers",
+      "closeAlert": "Close alert",
       "leadAdmin": "Manage teaching staff. Bulk ZIP/CSV onboarding is under Operations → School onboarding.",
       "leadTeacher": "Browse colleagues — homeroom classes, subjects, and professional context. Sensitive HR fields are visible to administrators only.",
       "refresh": "Refresh",
@@ -3188,6 +3220,8 @@
       "phHost": "Host",
       "phPurpose": "Purpose",
       "checkIn": "In",
+      "errVisitorNameRequired": "Visitor name is required.",
+      "errCheckInFailed": "Could not check in visitor.",
       "thName": "Name",
       "thBadge": "Badge",
       "thIn": "In",
@@ -3199,6 +3233,9 @@
       "phIssuedTo": "Issued to",
       "phPurpose": "Purpose",
       "issue": "Issue",
+      "errIssuedToAndDatesRequired": "Issued-to name and dates are required.",
+      "errValidToBeforeValidFrom": "Valid-to date must be on or after valid-from date.",
+      "errIssueFailed": "Could not issue gate pass.",
       "thTo": "To",
       "thValid": "Valid",
       "thStatus": "Status",
@@ -3232,6 +3269,7 @@
       "edit": "Edit",
       "remove": "Remove",
       "errSkuName": "SKU and name are required.",
+      "errNegativeQtyOrReorder": "Quantity and reorder level cannot be negative.",
       "errSaveFailed": "Could not save inventory.",
       "confirmRemoveTitle": "Remove inventory item?",
       "confirmRemoveMessage": "This will remove “{{name}}” ({{sku}}) from the active catalogue.",
@@ -3263,7 +3301,9 @@
       "searchQueue": "Filter reminder workflow",
       "searchQueuePh": "Student name, id, channel, or status…",
       "noOutstandingMatches": "No balances match your search.",
-      "noQueueMatches": "No reminders match your search."
+      "noQueueMatches": "No reminders match your search.",
+      "errDuplicatePendingReminder": "A pending reminder already exists for this student and channel.",
+      "errEnqueueFailed": "Could not enqueue reminder."
     },
     "payroll": {
       "title": "Payroll accrual (preview)",
@@ -3274,6 +3314,7 @@
   },
   "importExport": {
     "pageTitle": "Import / export",
+    "closeAlert": "Close alert",
     "pill": "Admin & super admin",
     "pillTitle": "Only school administrators and platform super-admins can use this module",
     "lead": "Queue CSV, XLSX, or ZIP (CSV inside) jobs in the background—batched and non-blocking. Download exports in the same shape for round-trip edits. Run a dry-run first, then queue; see per-row outcomes and retry only what failed.",
@@ -3662,6 +3703,9 @@
       "returned": "Returned",
       "overdue": "Overdue"
     }
+  },
+  "platformUi": {
+    "closeAlert": "Close dialog"
   },
   "hostel": {
     "pageTitle": "Hostel",

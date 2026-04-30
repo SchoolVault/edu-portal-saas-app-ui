@@ -198,6 +198,35 @@ export class UiAccessService {
     );
   }
 
+  /** Teacher desk mutations (create/edit/lifecycle) — aligns to academic write envelope. */
+  hasTeacherMasterWriteAccess(): boolean {
+    return this.hasAnyPermission(
+      AppPermission.SCHOOL_ACADEMIC_WRITE,
+      AppPermission.TENANT_ADMIN,
+      AppPermission.PLATFORM_ADMIN
+    );
+  }
+
+  /** Operations desk write lane (staff, gate, visitor, inventory mutations). */
+  hasOperationsDeskWriteAccess(): boolean {
+    return this.hasAnyPermission(
+      AppPermission.SCHOOL_OPERATIONS_WRITE,
+      AppPermission.TENANT_ADMIN,
+      AppPermission.PLATFORM_ADMIN
+    );
+  }
+
+  /** Inactive roster visibility is restricted to school operators/admin desks. */
+  canViewInactiveRosterRows(): boolean {
+    return this.hasAnyPermission(
+      AppPermission.SCHOOL_ACADEMIC_WRITE,
+      AppPermission.SCHOOL_STUDENT_WRITE,
+      AppPermission.SCHOOL_OPERATIONS_WRITE,
+      AppPermission.TENANT_ADMIN,
+      AppPermission.PLATFORM_ADMIN
+    );
+  }
+
   /** {@code RbacSpel#IMPORT_EXPORT_JOBS} — bulk jobs (not template-only reads). */
   hasSchoolImportExportDesk(): boolean {
     return this.hasAnyPermission(

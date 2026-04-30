@@ -62,12 +62,21 @@ export class AcademicService {
     }
     return of(this.mockSubjectCatalog.map(s => ({ ...s }))).pipe(delay(200));
   }
-  getClasses(): Observable<SchoolClass[]> {
+  getClasses(lifecycle: 'active' | 'inactive' | 'all' = 'active'): Observable<SchoolClass[]> {
     if (!runtimeConfig.useMocks) {
-      return this.api.get<any[]>('/academic/classes').pipe(map(list => list.map((c: any) => this.normalizeClass(c))));
+      return this.api
+        .get<any[]>(`/academic/classes?lifecycle=${encodeURIComponent(lifecycle)}`)
+        .pipe(map(list => list.map((c: any) => this.normalizeClass(c))));
     }
     return this.studentService.getStudents().pipe(
       map(students => this.withSyncedMockCounts(students)),
+      map(classes =>
+        classes.filter(c => {
+          const active = c.isActive !== false;
+          if (lifecycle === 'all') return true;
+          return lifecycle === 'active' ? active : !active;
+        })
+      ),
       delay(400)
     );
   }
@@ -248,6 +257,31 @@ export class AcademicService {
     }
     this.classes.splice(ci, 1);
     return of(void 0).pipe(delay(200));
+  }
+
+  setClassActiveState(classId: number, active: boolean): Observable<SchoolClass> {
+    if (!runtimeConfig.useMocks) {
+      return this.api
+        .patch<any>(`/academic/classes/${classId}/${active ? 'activate' : 'deactivate'}`, {})
+        .pipe(map((c: any) => this.normalizeClass(c)));
+    }
+    const i = this.classes.findIndex(c => c.id === classId);
+    if (i < 0) return throwError(() => new Error('Class not found'));
+    this.classes[i] = { ...this.classes[i], isActive: active };
+    return of({ ...this.classes[i], sections: this.classes[i].sections.map(s => ({ ...s })) }).pipe(delay(200));
+  }
+
+  setSectionActiveState(classId: number, sectionId: number, active: boolean): Observable<SchoolClass> {
+    if (!runtimeConfig.useMocks) {
+      return this.api
+        .patch<any>(`/academic/sections/${sectionId}/${active ? 'activate' : 'deactivate'}`, {})
+        .pipe(switchMap(() => this.getClassById(classId).pipe(map(c => c!))));
+    }
+    const ci = this.classes.findIndex(c => c.id === classId);
+    if (ci < 0) return throwError(() => new Error('Class not found'));
+    const next = this.classes[ci].sections.map(s => (s.id === sectionId ? { ...s, isActive: active } : { ...s }));
+    this.classes[ci] = { ...this.classes[ci], sections: next };
+    return of({ ...this.classes[ci], sections: next.map(s => ({ ...s })) }).pipe(delay(200));
   }
 
   addAcademicYear(ay: AcademicYear): Observable<AcademicYear> {
@@ -502,6 +536,7 @@ export class AcademicService {
       id: Number(section.id),
       name: section.name,
       classId: Number(section.classId ?? raw.id),
+      isActive: section.isActive !== false,
       capacity: section.capacity,
       studentCount: section.studentCount ?? 0,
       classTeacherId:
@@ -514,6 +549,7 @@ export class AcademicService {
       id: Number(raw.id),
       name: raw.name,
       grade: raw.grade,
+      isActive: raw.isActive !== false,
       classTeacherId: raw.classTeacherId != null ? Number(raw.classTeacherId) : undefined,
       classTeacherName: raw.classTeacherName,
       academicYearId: Number(raw.academicYearId),

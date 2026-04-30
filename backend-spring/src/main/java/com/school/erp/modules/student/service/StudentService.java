@@ -178,7 +178,7 @@ public class StudentService {
         if (admNo == null || admNo.isBlank()) {
             admNo = "ADM" + System.currentTimeMillis();
         }
-        if (studentPersistence.existsByTenantIdAndAdmissionNumber(tenantId, admNo)) {
+        if (studentPersistence.findByTenantIdAndAdmissionNumber(tenantId, admNo).isPresent()) {
             log.warn("Student create rejected: duplicate admissionNumber={}", admNo);
             throw new DuplicateResourceException("Admission number already exists: " + admNo);
         }
@@ -187,6 +187,7 @@ public class StudentService {
             email = null;
         }
         Student student = Student.builder().firstName(request.getFirstName()).lastName(request.getLastName()).email(email).phone(request.getPhone()).dateOfBirth(request.getDateOfBirth()).gender(request.getGender()).classId(request.getClassId()).sectionId(normalizedSectionId).rollNumber(request.getRollNumber()).admissionNumber(admNo).admissionDate(request.getAdmissionDate() != null ? request.getAdmissionDate() : LocalDate.now()).parentId(request.getParentId()).parentName(request.getParentName()).address(request.getAddress()).bloodGroup(request.getBloodGroup()).status(Enums.StudentStatus.ACTIVE).build();
+        student.setIsActive(true);
         PortalUserProvisioningService.ProvisionResult parentProvision = applyParentPortalAutoLink(
                 tenantId, request.getParentId(), request.getParentName(),
                 request.getParentPhone(), request.getParentEmail(), request.getCreateParentPortal(), student);
@@ -219,12 +220,51 @@ public class StudentService {
             return new LineApplyResult<>(createStudent(request), ImportLineOutcome.CREATED, natural);
         }
         adm = adm.trim();
-        Optional<Student> existing = studentPersistence.findByTenantIdAndAdmissionNumberAndIsDeletedFalse(tenantId, adm);
+        Optional<Student> existing = studentPersistence.findByTenantIdAndAdmissionNumber(tenantId, adm);
         if (existing.isPresent()) {
+            Student current = existing.get();
             if (policy == BulkImportRowPolicy.SKIP_IF_EXISTS) {
-                return new LineApplyResult<>(toResponse(existing.get()), ImportLineOutcome.SKIPPED, "ADM:" + adm);
+                return new LineApplyResult<>(toResponse(current), ImportLineOutcome.SKIPPED, "ADM:" + adm);
             }
             if (policy == BulkImportRowPolicy.UPSERT) {
+                if (request.getClassId() == null) {
+                    throw new BusinessException("classId is required");
+                }
+                Long normalizedSectionId = normalizeSectionId(request.getSectionId());
+                schoolClassRepository.findByIdAndTenantIdAndIsDeletedFalse(request.getClassId(), tenantId)
+                        .orElseThrow(() -> new ResourceNotFoundException("Class", request.getClassId()));
+                List<Section> classSections = sectionRepository.findByTenantIdAndClassIdAndIsDeletedFalse(tenantId, request.getClassId());
+                if (!classSections.isEmpty() && normalizedSectionId == null) {
+                    throw new BusinessException("sectionId is required for classes that have sections");
+                }
+                if (normalizedSectionId != null) {
+                    Section sec = sectionRepository.findByIdAndTenantIdAndIsDeletedFalse(normalizedSectionId, tenantId)
+                            .orElseThrow(() -> new ResourceNotFoundException("Section", request.getSectionId()));
+                    if (!request.getClassId().equals(sec.getClassId())) {
+                        throw new BusinessException("sectionId does not belong to the given classId");
+                    }
+                }
+                if (Boolean.TRUE.equals(current.getIsDeleted())) {
+                    current.setIsDeleted(false);
+                    current.setDeletedAt(null);
+                }
+                current.setFirstName(request.getFirstName());
+                current.setLastName(request.getLastName());
+                current.setEmail(request.getEmail());
+                current.setPhone(request.getPhone());
+                current.setDateOfBirth(request.getDateOfBirth());
+                current.setGender(request.getGender());
+                current.setClassId(request.getClassId());
+                current.setSectionId(normalizedSectionId);
+                current.setRollNumber(request.getRollNumber());
+                current.setParentId(request.getParentId());
+                current.setParentName(request.getParentName());
+                current.setAddress(request.getAddress());
+                current.setBloodGroup(request.getBloodGroup());
+                current.setStatus(Enums.StudentStatus.ACTIVE);
+                current.setIsActive(true);
+                current.setUpdatedBy(TenantContext.getUserId() != null ? TenantContext.getUserId().toString() : null);
+                studentPersistence.save(current);
                 StudentDTOs.UpdateRequest u = new StudentDTOs.UpdateRequest();
                 u.setFirstName(request.getFirstName());
                 u.setLastName(request.getLastName());
@@ -239,7 +279,9 @@ public class StudentService {
                 u.setParentName(request.getParentName());
                 u.setAddress(request.getAddress());
                 u.setBloodGroup(request.getBloodGroup());
-                return new LineApplyResult<>(updateStudent(existing.get().getId(), u), ImportLineOutcome.UPDATED, "ADM:" + adm);
+                // ERP-style UPSERT: re-import of an inactive student admission reactivates the student.
+                u.setStatus(Enums.StudentStatus.ACTIVE);
+                return new LineApplyResult<>(updateStudent(current.getId(), u), ImportLineOutcome.UPDATED, "ADM:" + adm);
             }
             throw new DuplicateResourceException("Admission number already exists: " + adm);
         }
@@ -310,7 +352,10 @@ public class StudentService {
                 request.getParentPhone(), request.getParentEmail(), request.getCreateParentPortal(), student);
         if (request.getAddress() != null) student.setAddress(request.getAddress());
         if (request.getBloodGroup() != null) student.setBloodGroup(request.getBloodGroup());
-        if (request.getStatus() != null) student.setStatus(request.getStatus());
+        if (request.getStatus() != null) {
+            student.setStatus(request.getStatus());
+            student.setIsActive(request.getStatus() == Enums.StudentStatus.ACTIVE);
+        }
         student.setUpdatedBy(TenantContext.getUserId() != null ? TenantContext.getUserId().toString() : null);
         studentPersistence.save(student);
         guardianLinkSyncService.syncForStudent(student);

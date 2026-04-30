@@ -39,6 +39,7 @@ public interface StudentPersistencePort {
     boolean existsByTenantIdAndAdmissionNumber(String tenantId, String admissionNumber);
 
     Optional<Student> findByTenantIdAndAdmissionNumberAndIsDeletedFalse(String tenantId, String admissionNumber);
+    Optional<Student> findByTenantIdAndAdmissionNumber(String tenantId, String admissionNumber);
 
     Student save(Student student);
 

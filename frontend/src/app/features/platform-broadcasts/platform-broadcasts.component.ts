@@ -2,13 +2,14 @@ import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
+import { TranslateModule } from '@ngx-translate/core';
 import { PlatformService } from '../../core/services/platform.service';
 import { PlatformSchoolSummary } from '../../core/models/models';
 
 @Component({
   selector: 'app-platform-broadcasts',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink],
+  imports: [CommonModule, FormsModule, RouterLink, TranslateModule],
   template: `
     <div class="platform-bc-root" data-testid="platform-broadcasts-page">
       <div class="platform-bc-inner animate-in">
@@ -102,7 +103,7 @@ import { PlatformSchoolSummary } from '../../core/models/models';
         <div class="modal-content-erp modal-bc" (click)="$event.stopPropagation()">
           <div class="modal-header-erp">
             <h3>Send this broadcast?</h3>
-            <button type="button" class="btn-icon" (click)="confirmOpen = false" aria-label="Close"><i class="bi bi-x-lg"></i></button>
+            <button type="button" class="btn-icon" (click)="confirmOpen = false" [attr.aria-label]="'platformUi.closeAlert' | translate"><i class="bi bi-x-lg"></i></button>
           </div>
           <div class="modal-body-erp">
             <ng-container *ngIf="targetMode === 'all'; else oneSchool">
