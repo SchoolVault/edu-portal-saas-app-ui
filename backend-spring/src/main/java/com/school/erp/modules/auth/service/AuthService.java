@@ -30,6 +30,7 @@ import com.school.erp.modules.academic.repository.SectionRepository;
 import com.school.erp.modules.settings.entity.TenantConfig;
 import com.school.erp.modules.settings.repository.TenantConfigRepository;
 import com.school.erp.modules.guardian.service.GuardianService;
+import com.school.erp.modules.operations.repository.OperationalStaffRepository;
 import com.school.erp.modules.student.repository.StudentRepository;
 import com.school.erp.modules.teacher.repository.TeacherRepository;
 import com.school.erp.modules.timetable.repository.TimetableRepository;
@@ -54,6 +55,7 @@ public class AuthService {
     private final RefreshTokenRepository refreshTokenRepository;
     private final TenantConfigRepository tenantConfigRepository;
     private final GuardianService guardianService;
+    private final OperationalStaffRepository operationalStaffRepository;
     private final StudentRepository studentRepository;
     private final TeacherRepository teacherRepository;
     private final SchoolClassRepository schoolClassRepository;
@@ -333,6 +335,7 @@ public class AuthService {
                 response.setUserTitle("School Administrator");
                 response.setManagedStudentCount(studentRepository.countByTenantIdAndIsDeletedFalse(tenantId));
                 response.setManagedTeacherCount(teacherRepository.countByTenantIdAndIsDeletedFalse(tenantId));
+                response.setManagedStaffCount(operationalStaffRepository.countByTenantIdAndIsDeletedFalse(tenantId));
             }
             case TEACHER -> resolveTeacherProfileRow(tenantId, userId)
                     .ifPresent(teacher -> applyTeacherProfileShell(tenantId, teacher, response));
@@ -805,6 +808,7 @@ public class AuthService {
             final RefreshTokenRepository refreshTokenRepository,
             final TenantConfigRepository tenantConfigRepository,
             final GuardianService guardianService,
+            final OperationalStaffRepository operationalStaffRepository,
             final StudentRepository studentRepository,
             final TeacherRepository teacherRepository,
             final SchoolClassRepository schoolClassRepository,
@@ -824,6 +828,7 @@ public class AuthService {
         this.refreshTokenRepository = refreshTokenRepository;
         this.tenantConfigRepository = tenantConfigRepository;
         this.guardianService = guardianService;
+        this.operationalStaffRepository = operationalStaffRepository;
         this.studentRepository = studentRepository;
         this.teacherRepository = teacherRepository;
         this.schoolClassRepository = schoolClassRepository;

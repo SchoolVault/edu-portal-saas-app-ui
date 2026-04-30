@@ -202,5 +202,6 @@ export function buildMockProfileSummary(user: User | null): ProfileSummary {
     userTitle: 'School Administrator',
     managedStudentCount: 2847,
     managedTeacherCount: 124,
+    managedStaffCount: 21,
   };
 }

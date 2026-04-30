@@ -516,6 +516,7 @@ export class AuthService {
           childCount: summary.childCount != null ? Number(summary.childCount) : undefined,
           managedStudentCount: summary.managedStudentCount != null ? Number(summary.managedStudentCount) : undefined,
           managedTeacherCount: summary.managedTeacherCount != null ? Number(summary.managedTeacherCount) : undefined,
+          managedStaffCount: summary.managedStaffCount != null ? Number(summary.managedStaffCount) : undefined,
           primaryTeachingSubject:
             summary.primaryTeachingSubject != null && String(summary.primaryTeachingSubject).trim() !== ''
               ? String(summary.primaryTeachingSubject).trim()

@@ -608,6 +608,7 @@
     "stats": {
       "students": "Students {{count}}",
       "teachers": "Teachers {{count}}",
+      "staff": "Staff {{count}}",
       "children": "Children {{count}}",
       "subjects": "Subjects {{count}}",
       "assignedStudents": "Students {{count}}",

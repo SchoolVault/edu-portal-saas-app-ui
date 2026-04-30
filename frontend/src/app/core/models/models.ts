@@ -151,6 +151,7 @@ export interface ProfileSummary {
   subjectCount?: number;
   managedStudentCount?: number;
   managedTeacherCount?: number;
+  managedStaffCount?: number;
   /** SUPER_ADMIN: count of active school workspaces (non-deleted tenants). */
   platformWorkspaceCount?: number;
   /** TEACHER: classes where this user is the assigned class teacher (photo / roster policy). */
