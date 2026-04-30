@@ -31,4 +31,12 @@ public interface OperationalStaffRepository extends JpaRepository<OperationalSta
     Optional<OperationalStaff> findByIdAndTenantIdAndIsDeletedFalse(Long id, String tenantId);
 
     Optional<OperationalStaff> findByIdAndTenantId(Long id, String tenantId);
+
+    Optional<OperationalStaff> findByTenantIdAndUserIdAndIsDeletedFalse(String tenantId, Long userId);
+
+    Optional<OperationalStaff> findByTenantIdAndEmployeeCodeAndIsDeletedFalse(String tenantId, String employeeCode);
+
+    Optional<OperationalStaff> findByTenantIdAndEmailIgnoreCaseAndIsDeletedFalse(String tenantId, String email);
+
+    Optional<OperationalStaff> findByTenantIdAndPhoneAndIsDeletedFalse(String tenantId, String phone);
 }

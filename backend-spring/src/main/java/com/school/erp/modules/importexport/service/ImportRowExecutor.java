@@ -15,6 +15,8 @@ import com.school.erp.modules.importexport.ImportJobType;
 import com.school.erp.modules.importexport.entity.ImportJob;
 import com.school.erp.modules.importexport.entity.ImportJobLine;
 import com.school.erp.modules.notification.service.NotificationService;
+import com.school.erp.modules.operations.entity.OperationalStaff;
+import com.school.erp.modules.operations.repository.OperationalStaffRepository;
 import com.school.erp.modules.rbac.service.RbacService;
 import com.school.erp.modules.settings.repository.TenantConfigRepository;
 import com.school.erp.modules.student.dto.StudentDTOs;
@@ -83,6 +85,7 @@ public class ImportRowExecutor {
     private final FeeService feeService;
     private final ImportLedgerWriteService importLedgerWriteService;
     private final RbacService rbacService;
+    private final OperationalStaffRepository operationalStaffRepository;
 
     public ImportRowExecutor(ObjectMapper objectMapper,
                            StudentService studentService,
@@ -101,7 +104,8 @@ public class ImportRowExecutor {
                            ImportBulkRowValidator bulkRowValidator,
                            FeeService feeService,
                            ImportLedgerWriteService importLedgerWriteService,
-                           RbacService rbacService) {
+                           RbacService rbacService,
+                           OperationalStaffRepository operationalStaffRepository) {
         this.objectMapper = objectMapper;
         this.studentService = studentService;
         this.teacherService = teacherService;
@@ -120,6 +124,7 @@ public class ImportRowExecutor {
         this.feeService = feeService;
         this.importLedgerWriteService = importLedgerWriteService;
         this.rbacService = rbacService;
+        this.operationalStaffRepository = operationalStaffRepository;
     }
 
     public void execute(ImportJob job, ImportJobLine line) throws Exception {
@@ -350,6 +355,9 @@ public class ImportRowExecutor {
         line.setEntityId(created.getId());
         importLedgerWriteService.recordLine(job, line, applied.outcome(), teacherLedgerType, created.getId(), applied.naturalKey());
         assignOptionalClassTeacherSlot(row, created.getId(), portalRole, staffImport);
+        if (staffImport) {
+            upsertOperationalStaffMirror(row, created, portalRole, canonicalPhone, loginEmail);
+        }
 
         if (createPortal && notifyCredentials && created.getUserId() != null) {
             User portalAfter = userRepository.findByIdAndTenantIdAndIsDeletedFalse(created.getUserId(), tenantId).orElse(null);
@@ -381,6 +389,70 @@ public class ImportRowExecutor {
             }
         }
         applySchoolRoleCodesFromRow(row, created.getUserId());
+    }
+
+    /**
+     * Keeps operations staff master table aligned with STAFF import rows (idempotent upsert).
+     * Matching priority: userId -> employeeCode -> email -> phone.
+     */
+    private void upsertOperationalStaffMirror(
+            Map<String, String> row,
+            TeacherDTOs.Response created,
+            Enums.Role portalRole,
+            String canonicalPhone,
+            String loginEmail) {
+        String tenantId = TenantContext.getTenantId();
+        Long userId = created.getUserId();
+        String employeeCode = normalizeEmployeeCode(blankToNull(value(row, "employee_code")));
+        String first = blankToNull(created.getFirstName());
+        String last = blankToNull(created.getLastName());
+        String fullName = ((first != null ? first : "") + " " + (last != null ? last : "")).trim();
+        if (fullName.isBlank()) {
+            fullName = "Staff";
+        }
+        String staffRole = deriveOperationalStaffRole(row, portalRole);
+        Optional<OperationalStaff> existing = Optional.empty();
+        if (userId != null) {
+            existing = operationalStaffRepository.findByTenantIdAndUserIdAndIsDeletedFalse(tenantId, userId);
+        }
+        if (existing.isEmpty() && employeeCode != null) {
+            existing = operationalStaffRepository.findByTenantIdAndEmployeeCodeAndIsDeletedFalse(tenantId, employeeCode);
+        }
+        if (existing.isEmpty() && loginEmail != null) {
+            existing = operationalStaffRepository.findByTenantIdAndEmailIgnoreCaseAndIsDeletedFalse(tenantId, loginEmail);
+        }
+        if (existing.isEmpty() && canonicalPhone != null) {
+            existing = operationalStaffRepository.findByTenantIdAndPhoneAndIsDeletedFalse(tenantId, canonicalPhone);
+        }
+        OperationalStaff staff = existing.orElseGet(OperationalStaff::new);
+        if (staff.getId() == null) {
+            staff.setTenantId(tenantId);
+            staff.setIsDeleted(false);
+            staff.setCreatedBy(TenantContext.getUserId() != null ? TenantContext.getUserId().toString() : null);
+        }
+        staff.setIsActive(true);
+        staff.setStaffRole(staffRole);
+        staff.setFullName(fullName);
+        staff.setPhone(canonicalPhone);
+        staff.setEmail(loginEmail);
+        staff.setEmployeeCode(employeeCode);
+        staff.setUserId(userId);
+        if (staff.getNotes() == null || staff.getNotes().isBlank()) {
+            staff.setNotes("Managed by STAFF import pipeline.");
+        }
+        staff.setUpdatedBy(TenantContext.getUserId() != null ? TenantContext.getUserId().toString() : null);
+        operationalStaffRepository.save(staff);
+    }
+
+    private static String deriveOperationalStaffRole(Map<String, String> row, Enums.Role portalRole) {
+        String explicit = blankToNull(value(row, "staff_role", "staffrole", "department", "specialization"));
+        if (explicit != null) {
+            return explicit.trim().toUpperCase(Locale.ROOT).replace(' ', '_');
+        }
+        if (portalRole == Enums.Role.LIBRARY_STAFF) {
+            return "LIBRARY";
+        }
+        return "OPERATIONS";
     }
 
     private void notifyAdminsOnRoleOnboarding(ImportJob job, Enums.Role role, SchoolIdentity school) {
@@ -970,6 +1042,11 @@ public class ImportRowExecutor {
             return null;
         }
         return normalized;
+    }
+
+    private static String normalizeEmployeeCode(String value) {
+        String normalized = blankToNull(value);
+        return normalized != null ? normalized.toUpperCase(Locale.ROOT) : null;
     }
 
     private static String normalizeEmailOptional(String value) {
