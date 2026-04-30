@@ -26,6 +26,9 @@ public interface UserRepository extends JpaRepository<User, Long> {
     Optional<User> findFirstBySchoolCodeAndPhoneInAndIsDeletedFalseOrderByIdAsc(String schoolCode, Collection<String> phones);
 
     Optional<User> findByPhoneAndTenantIdAndIsDeletedFalse(String phone, String tenantId);
+    Optional<User> findByTenantIdAndParentCodeAndIsDeletedFalse(String tenantId, String parentCode);
+
+    boolean existsByTenantIdAndParentCodeAndIsDeletedFalse(String tenantId, String parentCode);
 
     boolean existsByPhoneAndTenantIdAndIsDeletedFalse(String phone, String tenantId);
 
@@ -35,6 +38,7 @@ public interface UserRepository extends JpaRepository<User, Long> {
     Optional<User> findByIdAndTenantIdAndIsDeletedFalse(Long id, String tenantId);
 
     Optional<User> findByIdAndIsDeletedFalse(Long id);
+    List<User> findByTenantIdAndIdInAndIsDeletedFalse(String tenantId, Collection<Long> ids);
     List<User> findByTenantIdAndRoleAndIsDeletedFalse(String tenantId, Enums.Role role);
     long countByRoleAndIsDeletedFalse(Enums.Role role);
     long countByTenantIdAndRoleAndIsDeletedFalse(String tenantId, Enums.Role role);

@@ -29,6 +29,8 @@ public class User extends BaseEntity {
     private String avatar;
     @Column(name = "preferred_locale", nullable = false, length = 16)
     private String preferredLocale = "en";
+    @Column(name = "parent_code", length = 64)
+    private String parentCode;
 
     @Column(name = "phone_verified")
     private Boolean phoneVerified = false;
@@ -205,6 +207,14 @@ public class User extends BaseEntity {
 
     public void setPreferredLocale(final String preferredLocale) {
         this.preferredLocale = preferredLocale != null && !preferredLocale.isBlank() ? preferredLocale : "en";
+    }
+
+    public String getParentCode() {
+        return parentCode;
+    }
+
+    public void setParentCode(String parentCode) {
+        this.parentCode = parentCode;
     }
 
     public Boolean getEmailVerified() {

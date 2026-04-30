@@ -91,6 +91,63 @@ export class OperationsService {
     return this.listStaff().pipe(map(all => sliceToPage(all, page, size)));
   }
 
+  listStaffPageWithFilters(
+    page = 0,
+    size = DEFAULT_ERP_PAGE_SIZE,
+    search?: string,
+    status?: 'active' | 'inactive' | ''
+  ): Observable<PageResp<OperationalStaffRow>> {
+    if (!runtimeConfig.useMocks) {
+      return this.api
+        .getPageParams<OperationalStaffRow>('/operations/staff/paged', {
+          page,
+          size,
+          search: search?.trim() || undefined,
+          status: status?.trim() || undefined,
+        })
+        .pipe(map(p => ({ ...p, content: p.content.map(r => this.normalizeStaffRow(r)) })));
+    }
+    return this.listStaffPage(page, size);
+  }
+
+  getStaffById(id: string): Observable<OperationalStaffRow> {
+    if (runtimeConfig.useMocks) {
+      const row = this.mockStaff.find(s => s.id === id);
+      if (!row) return throwError(() => new Error('Staff record not found.'));
+      return of({ ...row }).pipe(delay(120));
+    }
+    return this.api.get<OperationalStaffRow>(`/operations/staff/${encodeURIComponent(id)}`).pipe(map(r => this.normalizeStaffRow(r)));
+  }
+
+  updateStaff(id: string, body: Partial<OperationalStaffRow>): Observable<OperationalStaffRow> {
+    if (runtimeConfig.useMocks) {
+      const idx = this.mockStaff.findIndex(s => s.id === id);
+      if (idx < 0) return throwError(() => new Error('Staff record not found.'));
+      const next = { ...this.mockStaff[idx], ...body };
+      this.mockStaff = [...this.mockStaff.slice(0, idx), next, ...this.mockStaff.slice(idx + 1)];
+      return of(next).pipe(delay(160));
+    }
+    return this.api
+      .put<OperationalStaffRow>(`/operations/staff/${encodeURIComponent(id)}`, {
+        staffRole: body.staffRole,
+        fullName: body.fullName,
+        phone: body.phone,
+        email: body.email,
+        employeeCode: body.employeeCode,
+        notes: body.notes,
+      })
+      .pipe(map(r => this.normalizeStaffRow(r)));
+  }
+
+  updateStaffStatus(id: string, active: boolean): Observable<OperationalStaffRow> {
+    if (runtimeConfig.useMocks) {
+      return this.updateStaff(id, { isActive: active });
+    }
+    return this.api
+      .patch<OperationalStaffRow>(`/operations/staff/${encodeURIComponent(id)}/status?active=${active ? 'true' : 'false'}`, {})
+      .pipe(map(r => this.normalizeStaffRow(r)));
+  }
+
   deleteStaff(id: string, permanent = false): Observable<void> {
     if (runtimeConfig.useMocks) {
       const row = this.mockStaff.find(s => s.id === id);

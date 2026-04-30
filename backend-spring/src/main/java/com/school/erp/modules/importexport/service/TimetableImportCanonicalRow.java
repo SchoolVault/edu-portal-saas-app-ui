@@ -46,6 +46,7 @@ public final class TimetableImportCanonicalRow {
                 case "ID" -> row.put("teacherid", ref);
                 case "PHONE", "MOBILE" -> row.put("teacherphone", ref);
                 case "EMAIL" -> row.put("teacheremail", ref);
+                case "EMPLOYEE_CODE", "EMPLOYEE", "EMP_CODE", "CODE" -> row.put("teacheremployeecode", ref);
                 default -> {
                     // Fall back by pattern to keep onboarding resilient.
                     if (ref.contains("@")) {
@@ -65,13 +66,17 @@ public final class TimetableImportCanonicalRow {
             return "";
         }
         String r = ref.trim();
+        // Timetable refs default to immutable employee code for resilient re-imports.
+        if (r.matches("(?i)^[A-Z][A-Z0-9_-]{1,63}$")) {
+            return "EMPLOYEE_CODE";
+        }
         if (r.contains("@")) {
             return "EMAIL";
         }
         if (looksNumeric(r)) {
-            return "ID";
+            return "PHONE";
         }
-        return "PHONE";
+        return "EMPLOYEE_CODE";
     }
 
     private static boolean looksNumeric(String value) {

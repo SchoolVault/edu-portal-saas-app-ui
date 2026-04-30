@@ -943,6 +943,10 @@
         "childrenLinkedContext": "{{count}} linked — switch above to refresh metrics for each child.",
         "attendance": "Attendance",
         "overallGrade": "Overall grade",
+        "classTeacher": "Class teacher",
+        "classTeacherTbd": "Not assigned",
+        "classTeacherContext": "{{className}} · {{sectionName}}",
+        "classTeacherContextEmpty": "Select a child to view class teacher details.",
         "feeDue": "Outstanding fees"
       },
       "metric": {
@@ -1183,6 +1187,8 @@
   "directory": {
     "pageTitle": "Staff & people directory",
     "pageLead": "Search teachers, students, and operational staff. Parent details are available inside student profile (Guardian section).",
+    "tabAll": "All Directory",
+    "tabStaff": "Staff",
     "searchLabel": "Search (min. 2 characters)",
     "searchPlaceholder": "Name, email, admission no., role…",
     "search": "Search",
@@ -1195,6 +1201,41 @@
     "thName": "Name",
     "thDetails": "Details",
     "thContact": "Contact",
+    "staffStatus": "Status",
+    "staffActive": "Active",
+    "staffInactive": "Inactive",
+    "staffRefresh": "Refresh list",
+    "exportCsv": "Export CSV",
+    "exportQueued": "Staff export queued. Preparing canonical CSV...",
+    "exportDone": "Staff canonical CSV downloaded.",
+    "exportFailed": "Could not export staff CSV.",
+    "exportTimeout": "Export is taking longer than expected. Please retry shortly.",
+    "staffActivate": "Activate",
+    "staffDeactivate": "Deactivate",
+    "staffDeletePermanent": "Delete permanently",
+    "lifecycleConfirm": {
+      "deactivate": {
+        "title": "Move staff to inactive?",
+        "message": "{{name}} will move out of active staff lists.",
+        "detailVisible": "You can find this record in the Inactive filter.",
+        "detailReversible": "You can reactivate this record later.",
+        "confirm": "Yes, mark inactive"
+      },
+      "reactivate": {
+        "title": "Reactivate staff?",
+        "message": "{{name}} will return to active staff lists.",
+        "detailVisible": "This record will be visible in Active filter.",
+        "detailReversible": "You can mark this record inactive again.",
+        "confirm": "Yes, reactivate"
+      },
+      "deletePermanent": {
+        "title": "Delete staff permanently?",
+        "message": "{{name}} will be permanently removed from this directory.",
+        "detailHidden": "After this, it will not appear in Active or Inactive lists.",
+        "detailFinal": "Use this only for final cleanup after review.",
+        "confirm": "Yes, delete permanently"
+      }
+    },
     "open": "Open",
     "emDash": "—",
     "kind": {
@@ -1211,6 +1252,11 @@
       "leadAdmin": "Manage enrolment and student master records. Default view shows active pupils only; use status to include left/alumni records.",
       "leadTeacher": "Directory of active students in the school (read-only roster). Admins handle admissions, class moves, and withdrawals.",
       "refresh": "Refresh",
+      "exportCsv": "Export CSV",
+      "exportQueued": "Students export queued. Preparing canonical CSV...",
+      "exportDone": "Students canonical CSV downloaded.",
+      "exportFailed": "Could not export students CSV.",
+      "exportTimeout": "Export is taking longer than expected. Please retry shortly.",
       "add": "Add student",
       "searchPlaceholder": "Search students…",
       "allClasses": "All classes",
@@ -1227,6 +1273,7 @@
       "view": "View",
       "edit": "Edit",
       "delete": "Delete",
+      "deletePermanent": "Delete permanently",
       "showing": "Showing {{from}} to {{to}} of {{total}}",
       "confirmDelete": {
         "title": "Remove student from directory?",
@@ -1236,6 +1283,22 @@
         "detailSoft": "Soft delete only — data is not permanently destroyed.",
         "confirm": "Yes, remove",
         "fallbackName": "This student"
+      },
+      "lifecycleConfirm": {
+        "reactivate": {
+          "title": "Reactivate student?",
+          "message": "{{name}} will return to active class and student lists.",
+          "detailVisible": "This student will be visible in Active filter again.",
+          "detailReversible": "You can mark this student inactive later if needed.",
+          "confirm": "Yes, reactivate"
+        },
+        "deletePermanent": {
+          "title": "Delete student permanently?",
+          "message": "{{name}} will be permanently removed from this directory.",
+          "detailHidden": "After this, it will not appear in Active or Inactive lists.",
+          "detailFinal": "Use this only after final review and confirmation.",
+          "confirm": "Yes, delete permanently"
+        }
       }
     },
     "form": {
@@ -1433,6 +1496,11 @@
       "leadAdmin": "Manage teaching staff. Bulk ZIP/CSV onboarding is under Operations → School onboarding.",
       "leadTeacher": "Browse colleagues — homeroom classes, subjects, and professional context. Sensitive HR fields are visible to administrators only.",
       "refresh": "Refresh",
+      "exportCsv": "Export CSV",
+      "exportQueued": "Teachers export queued. Preparing canonical CSV...",
+      "exportDone": "Teachers canonical CSV downloaded.",
+      "exportFailed": "Could not export teachers CSV.",
+      "exportTimeout": "Export is taking longer than expected. Please retry shortly.",
       "add": "Add teacher",
       "searchPlaceholder": "Search teachers…",
       "subjectFilterLabel": "Filter by subject",
@@ -1453,6 +1521,8 @@
       "viewProfile": "View profile",
       "edit": "Edit",
       "deactivate": "Deactivate",
+      "reactivate": "Reactivate",
+      "deletePermanent": "Delete permanently",
       "confirmDelete": {
         "title": "Remove teacher?",
         "message": "{{name}} will be deactivated and removed from staff lists. Homeroom assignments for this teacher are cleared in the backend.",
@@ -1461,6 +1531,22 @@
         "detailSoft": "This is a soft delete for compliance and audit.",
         "confirm": "Yes, remove",
         "fallbackName": "This teacher"
+      },
+      "lifecycleConfirm": {
+        "reactivate": {
+          "title": "Reactivate teacher?",
+          "message": "{{name}} will return to active teacher lists.",
+          "detailVisible": "This teacher will be visible in Active filter again.",
+          "detailReversible": "You can mark this teacher inactive later.",
+          "confirm": "Yes, reactivate"
+        },
+        "deletePermanent": {
+          "title": "Delete teacher permanently?",
+          "message": "{{name}} will be permanently removed from this directory.",
+          "detailHidden": "After this, it will not appear in Active or Inactive lists.",
+          "detailFinal": "Use this only after final admin review.",
+          "confirm": "Yes, delete permanently"
+        }
       }
     },
     "form": {
@@ -1657,6 +1743,8 @@
     "conflictClassMessage": "{{subject}} with {{teacher}} is already on this class’s timetable for {{day}}, period {{period}}. You can remove that slot and save this one instead.",
     "conflictTeacherTitle": "Teacher is already booked",
     "conflictTeacherMessage": "{{teacher}} is already assigned to {{subject}} (class {{clazz}}, section {{section}}) for {{day}}, period {{period}}.",
+    "conflictRoomTitle": "Room is already occupied",
+    "conflictRoomMessage": "Room {{room}} is already used for {{subject}} (class {{clazz}}, section {{section}}) on {{day}}, period {{period}}.",
     "conflictDetailPeriod": "{{day}} · Period {{period}}",
     "conflictDetailPendingAssignment": "This save assigns: {{clazz}} · {{section}}",
     "conflictReplaceHint": "You can remove the blocking timetable row and apply this assignment in one step, or go back and edit your entry.",
@@ -1751,6 +1839,8 @@
     "optAnchor": "After save, set Monday period 1 on the homeroom class/section to this teacher (common anchor for dashboards).",
     "save": "Save homeroom & timetable",
     "saving": "Saving…",
+    "successToastTitle": "Timetable saved successfully",
+    "successToastClose": "Close success message",
     "savedSummary": "Saved: {{created}} created, {{updated}} updated, {{removed}} removed.",
     "saveFailed": "Could not save. Fix conflicts in the timetable or try again.",
     "conflictPersistent": "The schedule still conflicts after replacing the indicated slot. Adjust periods or classes and try again.",
@@ -1758,8 +1848,39 @@
     "errClassRequired": "Select a class for each row before saving.",
     "errSubjectRequired": "Subject is required for every row.",
     "errPeriodRange": "Period must be between 1 and 12.",
+    "errTimeRequired": "Start and end time are required for each row.",
+    "errTimeRange": "Start time must be earlier than end time.",
     "errDuplicateSlot": "Duplicate slot found. Keep one row per class-section-day-period combination.",
     "errTeacherDoubleBooked": "Teacher cannot have two classes in the same day and period.",
+    "errRoomDoubleBooked": "Room cannot be assigned to two classes in the same day and period.",
+    "errSectionRequiredForRow": "Select a section for rows where the class has sections.",
+    "confirmTitle": "Review timetable changes before save",
+    "confirmMessage": "This operation will apply add, update, and delete actions in one save. Please verify the summary below.",
+    "confirmProceed": "Yes, apply changes",
+    "confirmCancel": "Go back and edit",
+    "confirmTeacher": "Teacher: {{teacher}}",
+    "confirmHomeroom": "Homeroom: {{homeroom}}",
+    "confirmCreated": "Slots to add: {{count}}",
+    "confirmUpdated": "Slots to update: {{count}}",
+    "confirmRemoved": "Slots to delete: {{count}}",
+    "confirmWarningsHeader": "Potential warnings (save will be blocked if conflicts remain):",
+    "confirmWarningsNone": "Warnings/conflicts detected locally: none",
+    "confirmHomeroomRemoved": "Removed / not assigned on this save",
+    "confirmHomeroomUnknown": "Unknown class/section",
+    "validationFailed": "Could not run pre-save validation. Please try again.",
+    "validationBlocked": "Save blocked. Resolve validation issues and retry.",
+    "validationBlockedTitle": "Validation found conflicts",
+    "validationBlockedMessage": "Your changes were not saved. Review and fix the issues below.",
+    "validationBlockedLead": "Server-side dry-run found these issues:",
+    "validationBlockedAcknowledge": "Understood",
+    "warnTeacherDoubleBooked": "Teacher double-booked on {{day}} period {{period}}.",
+    "warnClassDoubleBooked": "Class-section already occupied on {{day}} period {{period}}.",
+    "warnRoomDoubleBooked": "Room {{room}} is already used on {{day}} period {{period}}.",
+    "warnSectionMissing": "Section is required for class {{clazz}}.",
+    "warnTimeRangeInvalid": "One or more rows has invalid start/end time.",
+    "warnClassTimeOverlap": "Class time windows overlap on {{day}}.",
+    "warnTeacherTimeOverlap": "Teacher time windows overlap on {{day}}.",
+    "warnRoomTimeOverlap": "Room {{room}} has overlapping time windows on {{day}}.",
     "phSubject": "e.g. Mathematics",
     "phRoom": "e.g. Room 180"
   },
@@ -1943,6 +2064,11 @@
     "pageTitle": "Fees management",
     "lead": "Configure class-wise fee structures, assign them to students, and monitor collections from a single workspace.",
     "refresh": "Refresh",
+    "exportCsv": "Export CSV",
+    "exportQueued": "Fee structures export queued. Preparing canonical CSV...",
+    "exportDone": "Fee structures canonical CSV downloaded.",
+    "exportFailed": "Could not export fee structures CSV.",
+    "exportTimeout": "Export is taking longer than expected. Please retry shortly.",
     "refreshing": "Refreshing…",
     "linkPaymentSettlement": "Fee settlement (Settings)",
     "bannerParentCheckoutOff": "Fee collection is set to pay at school (offline). Record counter payments here; switch finance mode when you are ready for parent-portal online checkout.",
@@ -3238,6 +3364,14 @@
     "exportStudentsDesc": "Names, placement (class/section IDs or names + year), admission, guardians, importmode—matches bulk template.",
     "exportTeachersTitle": "Teachers & staff CSV",
     "exportTeachersDesc": "Profile, portal flags, subjects, bank fields, importmode—matches bulk template.",
+    "exportStaffTitle": "Staff CSV",
+    "exportStaffDesc": "Non-teaching staff in canonical re-import structure.",
+    "exportFeeTitle": "Fee structures CSV",
+    "exportFeeDesc": "Latest fee structures with component_spec for UPSERT re-import.",
+    "msgExportQueued": "Export job #{{id}} queued for {{type}}.",
+    "msgExportDownloadReady": "Export job #{{id}} completed and downloaded.",
+    "msgExportFailed": "Export job failed. Please retry.",
+    "msgExportTimeout": "Export is taking longer than expected. Please refresh status shortly.",
     "jobsTitle": "Recent jobs",
     "jobsTitleReport": "Import report",
     "jobsReportLead": "Job summary and per-row outcomes—open Lines to inspect payloads and retry failed rows only.",
@@ -3257,6 +3391,9 @@
     "patchJobBadge": "Patch job",
     "lines": "Lines",
     "retryFailed": "Retry failed",
+    "downloadNormalizedCsv": "Download for next update",
+    "msgNormalizedDownloadOk": "Downloaded normalized CSV for job #{{id}}.",
+    "msgNormalizedDownloadFailed": "Could not download normalized CSV for this job.",
     "lineOutcomesTitle": "Job #{{id}} — line outcomes",
     "close": "Close",
     "loadingLines": "Loading lines…",

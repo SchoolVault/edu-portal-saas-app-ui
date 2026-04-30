@@ -8,6 +8,7 @@ public class OperationsDTOs {
 
     public static class OperationalStaffResponse {
         private Long id;
+        private Boolean isActive;
         private String staffRole;
         private String fullName;
         private String phone;
@@ -23,6 +24,14 @@ public class OperationsDTOs {
 
         public void setId(Long id) {
             this.id = id;
+        }
+
+        public Boolean getIsActive() {
+            return isActive;
+        }
+
+        public void setIsActive(Boolean isActive) {
+            this.isActive = isActive;
         }
 
         public String getStaffRole() {
@@ -163,6 +172,28 @@ public class OperationsDTOs {
         public void setNotes(String notes) {
             this.notes = notes;
         }
+    }
+
+    public static class OperationalStaffUpdateRequest {
+        private String staffRole;
+        private String fullName;
+        private String phone;
+        private String email;
+        private String employeeCode;
+        private String notes;
+
+        public String getStaffRole() { return staffRole; }
+        public void setStaffRole(String staffRole) { this.staffRole = staffRole; }
+        public String getFullName() { return fullName; }
+        public void setFullName(String fullName) { this.fullName = fullName; }
+        public String getPhone() { return phone; }
+        public void setPhone(String phone) { this.phone = phone; }
+        public String getEmail() { return email; }
+        public void setEmail(String email) { this.email = email; }
+        public String getEmployeeCode() { return employeeCode; }
+        public void setEmployeeCode(String employeeCode) { this.employeeCode = employeeCode; }
+        public String getNotes() { return notes; }
+        public void setNotes(String notes) { this.notes = notes; }
     }
 
     public static class VisitorLogResponse {

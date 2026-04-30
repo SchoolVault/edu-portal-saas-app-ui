@@ -18,6 +18,7 @@ import { DEFAULT_ERP_PAGE_SIZE } from '../../core/constants/pagination.constants
 import { sliceToPage } from '../../core/utils/paginate';
 import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directives';
 import { runtimeConfig } from '../../core/config/runtime-config';
+import { ImportExportService } from '../../core/services/import-export.service';
 
 @Component({
   selector: 'app-teacher-list',
@@ -95,22 +96,34 @@ import { runtimeConfig } from '../../core/config/runtime-config';
         </div>
         <div class="erp-page-header__actions">
           <button type="button" class="btn-outline-erp btn-sm" (click)="reloadTeachers()"><i class="bi bi-arrow-clockwise" aria-hidden="true"></i> {{ 'teachers.list.refresh' | translate }}</button>
+          <button *ngIf="isAdmin" type="button" class="btn-outline-erp btn-sm" (click)="exportCanonicalTeachersCsv()">
+            <i class="bi bi-download" aria-hidden="true"></i> {{ 'teachers.list.exportCsv' | translate }}
+          </button>
           <a *ngIf="isAdmin" routerLink="/app/teachers/new" class="btn-primary-erp btn-sm" data-testid="add-teacher-btn">
             <i class="bi bi-plus-lg" aria-hidden="true"></i><span>{{ 'teachers.list.add' | translate }}</span>
           </a>
         </div>
       </header>
+      <div *ngIf="exportMessage" class="alert py-2 small mb-3" [class.alert-success]="exportMessageOk" [class.alert-danger]="!exportMessageOk">
+        <div class="d-flex justify-content-between align-items-center gap-2">
+          <span>{{ exportMessage }}</span>
+          <button type="button" class="btn-close" aria-label="Close" (click)="clearExportMessage()"></button>
+        </div>
+      </div>
       <div class="erp-card animate-in animate-in-delay-1">
         <div class="erp-filter-toolbar teacher-list-filter-toolbar mb-3">
           <div class="search-input-wrapper erp-filter-toolbar__search">
             <i class="bi bi-search"></i>
             <input type="text" class="erp-input" erpI18nPh="teachers.list.searchPlaceholder" [(ngModel)]="searchTerm" (input)="onSearchInput()" data-testid="teacher-search">
           </div>
-          <div class="teacher-list-filter-wrap erp-filter-toolbar__actions" style="min-width: 220px;">
-            <label class="erp-label mb-1">{{ 'teachers.list.subjectFilterLabel' | translate }}</label>
-            <select class="erp-select" style="width: 220px;" [(ngModel)]="selectedSubject" (ngModelChange)="onSubjectFilterChange()" data-testid="teacher-subject-filter">
+          <div class="teacher-list-filter-wrap erp-filter-toolbar__actions d-flex gap-2" style="min-width: 360px;">
+            <select class="erp-select" style="width: 180px;" [(ngModel)]="selectedSubject" (ngModelChange)="onSubjectFilterChange()" data-testid="teacher-subject-filter">
               <option value="">{{ 'teachers.list.subjectFilterAll' | translate }}</option>
               <option *ngFor="let subject of subjectOptions" [value]="subject">{{ subject }}</option>
+            </select>
+            <select class="erp-select" style="width: 170px;" [(ngModel)]="statusFilter" (ngModelChange)="onStatusFilterChange()" data-testid="teacher-status-filter">
+              <option value="active">{{ 'teachers.enums.status.active' | translate }}</option>
+              <option value="inactive">{{ 'teachers.enums.status.inactive' | translate }}</option>
             </select>
           </div>
         </div>
@@ -165,7 +178,36 @@ import { runtimeConfig } from '../../core/config/runtime-config';
                       <i class="bi bi-eye"></i>
                     </a>
                     <a *ngIf="isAdmin" [routerLink]="['/app/teachers', t.id, 'edit']" class="btn-icon" [attr.title]="'teachers.list.edit' | translate" [attr.data-testid]="'edit-teacher-' + t.id"><i class="bi bi-pencil"></i></a>
-                    <button *ngIf="isAdmin" type="button" class="btn-icon" (click)="deleteTeacher(t.id)" [attr.title]="'teachers.list.deactivate' | translate" [attr.data-testid]="'delete-teacher-' + t.id"><i class="bi bi-trash" style="color: var(--clr-danger);"></i></button>
+                    <button
+                      *ngIf="isAdmin && t.status === 'active'"
+                      type="button"
+                      class="btn-icon"
+                      (click)="deactivateTeacher(t.id)"
+                      [attr.title]="'teachers.list.deactivate' | translate"
+                      [attr.data-testid]="'deactivate-teacher-' + t.id"
+                    >
+                      <i class="bi bi-person-dash" style="color: var(--clr-warning);"></i>
+                    </button>
+                    <button
+                      *ngIf="isAdmin && t.status !== 'active'"
+                      type="button"
+                      class="btn-icon"
+                      (click)="reactivateTeacher(t.id)"
+                      [attr.title]="'teachers.list.reactivate' | translate"
+                      [attr.data-testid]="'reactivate-teacher-' + t.id"
+                    >
+                      <i class="bi bi-person-check" style="color: var(--clr-success);"></i>
+                    </button>
+                    <button
+                      *ngIf="isAdmin && t.status !== 'active'"
+                      type="button"
+                      class="btn-icon"
+                      (click)="deleteTeacherPermanently(t.id)"
+                      [attr.title]="'teachers.list.deletePermanent' | translate"
+                      [attr.data-testid]="'delete-teacher-' + t.id"
+                    >
+                      <i class="bi bi-trash" style="color: var(--clr-danger);"></i>
+                    </button>
                   </div>
                 </td>
               </tr>
@@ -194,23 +236,18 @@ export class TeacherListComponent implements OnInit, OnDestroy {
   serverTotal = 0;
   searchTerm = '';
   selectedSubject = '';
+  statusFilter: 'active' | 'inactive' = 'active';
   pageIndex = 0;
   pageSize = DEFAULT_ERP_PAGE_SIZE;
   private readonly subs = new Subscription();
   private readonly searchDebounced$ = new Subject<void>();
+  exportMessage = '';
+  exportMessageOk = true;
   private teachersListRequestSeq = 0;
   private allTeachersCache: Teacher[] = [];
 
   private normalizeSubject(value: string): string {
     return (value || '').trim().replace(/\s+/g, ' ').toLowerCase();
-  }
-
-  private teacherHasExactSubject(teacher: Teacher, subject: string): boolean {
-    const needle = this.normalizeSubject(subject);
-    if (!needle) {
-      return true;
-    }
-    return (teacher.subjects ?? []).some(s => this.normalizeSubject(s) === needle);
   }
 
   constructor(
@@ -220,7 +257,8 @@ export class TeacherListComponent implements OnInit, OnDestroy {
     private uiAccess: UiAccessService,
     private confirmDialog: ConfirmDialogService,
     private translate: TranslateService,
-    private cdr: ChangeDetectorRef
+    private cdr: ChangeDetectorRef,
+    private importExport: ImportExportService
   ) {}
 
   get isAdmin(): boolean {
@@ -274,6 +312,15 @@ export class TeacherListComponent implements OnInit, OnDestroy {
     }
   }
 
+  onStatusFilterChange(): void {
+    if (this.useServerPaging) {
+      this.pageIndex = 0;
+      this.fetchTeachersPage();
+    } else {
+      this.filter();
+    }
+  }
+
   onSubjectFilterChange(): void {
     if (this.useServerPaging) {
       this.pageIndex = 0;
@@ -296,15 +343,71 @@ export class TeacherListComponent implements OnInit, OnDestroy {
     });
   }
 
+  exportCanonicalTeachersCsv(): void {
+    this.exportMessage = this.translate.instant('teachers.list.exportQueued');
+    this.exportMessageOk = true;
+    this.importExport.createExportJob('TEACHERS').subscribe({
+      next: job => this.pollExportJob(job.id, 0),
+      error: e => {
+        this.exportMessage = e?.message || this.translate.instant('teachers.list.exportFailed');
+        this.exportMessageOk = false;
+      },
+    });
+  }
+
+  private pollExportJob(jobId: number, attempt: number): void {
+    this.importExport.getExportJob(jobId).subscribe({
+      next: job => {
+        const status = (job.status || '').toUpperCase();
+        if (status === 'COMPLETED') {
+          this.importExport.downloadExportJobCsv(jobId).subscribe(blob => {
+            this.saveBlob(blob, `canonical-teachers-${new Date().toISOString().slice(0, 10)}-${jobId}.csv`);
+            this.exportMessage = this.translate.instant('teachers.list.exportDone');
+            this.exportMessageOk = true;
+          });
+          return;
+        }
+        if (status === 'FAILED') {
+          this.exportMessage = job.errorMessage || this.translate.instant('teachers.list.exportFailed');
+          this.exportMessageOk = false;
+          return;
+        }
+        if (attempt > 80) {
+          this.exportMessage = this.translate.instant('teachers.list.exportTimeout');
+          this.exportMessageOk = false;
+          return;
+        }
+        setTimeout(() => this.pollExportJob(jobId, attempt + 1), 1500);
+      },
+      error: () => {
+        this.exportMessage = this.translate.instant('teachers.list.exportFailed');
+        this.exportMessageOk = false;
+      },
+    });
+  }
+
+  private saveBlob(blob: Blob, name: string): void {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = name;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  clearExportMessage(): void {
+    this.exportMessage = '';
+  }
+
   private fetchTeachersPage(): void {
     const seq = ++this.teachersListRequestSeq;
-    const hasSubjectFilter = !!this.selectedSubject.trim();
     this.subs.add(
       this.teacherService
         .getTeachersPage({
           page: this.pageIndex,
           size: this.pageSize,
           search: this.searchTerm.trim() || undefined,
+          status: this.statusFilter || undefined,
           subject: this.selectedSubject || undefined,
         })
         .pipe(
@@ -325,15 +428,6 @@ export class TeacherListComponent implements OnInit, OnDestroy {
         )
         .subscribe(page => {
           if (seq !== this.teachersListRequestSeq) return;
-          const q = this.selectedSubject.trim().toLowerCase();
-          const backendIgnoredSubjectFilter =
-            hasSubjectFilter &&
-            page.content.length > 0 &&
-            page.content.some(t => !this.teacherHasExactSubject(t, q));
-          if (backendIgnoredSubjectFilter) {
-            this.fallbackClientSubjectFilterPage();
-            return;
-          }
           this.serverTotal = page.totalElements;
           this.pagedTeachers = page.content;
           this.subjectOptions = this.extractSubjectOptions(page.content, this.subjectOptions);
@@ -355,27 +449,6 @@ export class TeacherListComponent implements OnInit, OnDestroy {
         this.cdr.markForCheck();
       })
     );
-  }
-
-  /**
-   * Safety fallback when backend ignores `subject` query filtering; keeps UX correct while API catches up.
-   */
-  private fallbackClientSubjectFilterPage(): void {
-    const source = this.allTeachersCache.length ? this.allTeachersCache : this.pagedTeachers;
-    const term = this.searchTerm.trim().toLowerCase();
-    const subject = this.selectedSubject.trim().toLowerCase();
-    const filtered = source.filter(t => {
-      const nameOrSpec =
-        `${t.firstName} ${t.lastName}`.toLowerCase().includes(term) || (t.specialization || '').toLowerCase().includes(term);
-      const subjectMatch = this.teacherHasExactSubject(t, subject);
-      return nameOrSpec && subjectMatch;
-    });
-    const page = sliceToPage(filtered, this.pageIndex, this.pageSize);
-    this.serverTotal = filtered.length;
-    this.pagedTeachers = page.content;
-    this.pageIndex = page.page;
-    this.subjectOptions = this.extractSubjectOptions(source, this.subjectOptions);
-    this.cdr.markForCheck();
   }
 
   /**
@@ -425,10 +498,11 @@ export class TeacherListComponent implements OnInit, OnDestroy {
 
   filter(): void {
     const term = this.searchTerm.toLowerCase();
-    const subjectNeedle = this.selectedSubject.toLowerCase();
+    const subjectNeedle = this.normalizeSubject(this.selectedSubject);
     this.filtered = this.teachers.filter(t =>
       ((t.firstName + ' ' + t.lastName).toLowerCase().includes(term) || (t.specialization || '').toLowerCase().includes(term)) &&
-      this.teacherHasExactSubject(t, subjectNeedle)
+      (this.statusFilter ? (t.status || '').toLowerCase() === this.statusFilter : true) &&
+      (!subjectNeedle || (t.subjects ?? []).some(s => this.normalizeSubject(s).includes(subjectNeedle)))
     );
     this.pageIndex = 0;
     this.applyPage();
@@ -472,7 +546,7 @@ export class TeacherListComponent implements OnInit, OnDestroy {
     }
   }
 
-  deleteTeacher(id: number): void {
+  deactivateTeacher(id: number): void {
     if (!this.isAdmin) {
       return;
     }
@@ -482,8 +556,8 @@ export class TeacherListComponent implements OnInit, OnDestroy {
       : this.translate.instant('teachers.list.confirmDelete.fallbackName');
     this.confirmDialog
       .confirm({
-        title: this.translate.instant('teachers.list.confirmDelete.title'),
-        message: this.translate.instant('teachers.list.confirmDelete.message', { name }),
+        title: this.translate.instant('teachers.profile.confirmDeactivate.title'),
+        message: this.translate.instant('teachers.profile.confirmDeactivate.message', { name }),
         details: [
           t?.email ? this.translate.instant('teachers.list.confirmDelete.detailEmail', { email: t.email }) : undefined,
           t?.specialization
@@ -491,15 +565,69 @@ export class TeacherListComponent implements OnInit, OnDestroy {
             : undefined,
           this.translate.instant('teachers.list.confirmDelete.detailSoft'),
         ].filter((x): x is string => !!x),
+        variant: 'warning',
+        confirmLabel: this.translate.instant('teachers.profile.confirmDeactivate.confirm'),
+      })
+      .pipe(filter(Boolean))
+      .subscribe(() => {
+        this.teacherService.updateTeacherStatus(id, 'inactive').subscribe(() => {
+          if (this.useServerPaging) {
+            this.fetchTeachersPage();
+          } else {
+            this.teachers = this.teachers.map(x => (x.id === id ? { ...x, status: 'inactive' } : x));
+            this.filter();
+          }
+        });
+      });
+  }
+
+  reactivateTeacher(id: number): void {
+    if (!this.isAdmin) return;
+    const t = this.teachers.find(x => x.id === id);
+    const name = t ? `${t.firstName} ${t.lastName}` : this.translate.instant('teachers.list.confirmDelete.fallbackName');
+    this.confirmDialog
+      .confirm({
+        title: this.translate.instant('teachers.list.lifecycleConfirm.reactivate.title'),
+        message: this.translate.instant('teachers.list.lifecycleConfirm.reactivate.message', { name }),
+        details: [
+          this.translate.instant('teachers.list.lifecycleConfirm.reactivate.detailVisible'),
+          this.translate.instant('teachers.list.lifecycleConfirm.reactivate.detailReversible'),
+        ],
+        variant: 'warning',
+        confirmLabel: this.translate.instant('teachers.list.lifecycleConfirm.reactivate.confirm'),
+      })
+      .pipe(filter(Boolean))
+      .subscribe(() => {
+        this.teacherService.updateTeacherStatus(id, 'active').subscribe(() => {
+          if (this.useServerPaging) this.fetchTeachersPage();
+          else {
+            this.teachers = this.teachers.map(x => (x.id === id ? { ...x, status: 'active' } : x));
+            this.filter();
+          }
+        });
+      });
+  }
+
+  deleteTeacherPermanently(id: number): void {
+    if (!this.isAdmin) return;
+    const t = this.teachers.find(x => x.id === id);
+    const name = t ? `${t.firstName} ${t.lastName}` : this.translate.instant('teachers.list.confirmDelete.fallbackName');
+    this.confirmDialog
+      .confirm({
+        title: this.translate.instant('teachers.list.lifecycleConfirm.deletePermanent.title'),
+        message: this.translate.instant('teachers.list.lifecycleConfirm.deletePermanent.message', { name }),
+        details: [
+          this.translate.instant('teachers.list.lifecycleConfirm.deletePermanent.detailHidden'),
+          this.translate.instant('teachers.list.lifecycleConfirm.deletePermanent.detailFinal'),
+        ],
         variant: 'danger',
-        confirmLabel: this.translate.instant('teachers.list.confirmDelete.confirm'),
+        confirmLabel: this.translate.instant('teachers.list.lifecycleConfirm.deletePermanent.confirm'),
       })
       .pipe(filter(Boolean))
       .subscribe(() => {
         this.teacherService.deleteTeacher(id).subscribe(() => {
-          if (this.useServerPaging) {
-            this.fetchTeachersPage();
-          } else {
+          if (this.useServerPaging) this.fetchTeachersPage();
+          else {
             this.teachers = this.teachers.filter(x => x.id !== id);
             this.filter();
           }

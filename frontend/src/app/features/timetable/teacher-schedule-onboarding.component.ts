@@ -1,4 +1,4 @@
-import { Component, OnInit, inject } from '@angular/core';
+import { Component, OnDestroy, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
@@ -15,6 +15,7 @@ import {
   SchoolClass,
   Teacher,
   TimetableEntry,
+  ValidateTeacherScheduleOnboardingResponse,
   type TimetableConflictPayload,
 } from '../../core/models/models';
 import {
@@ -33,6 +34,8 @@ interface DraftSlot {
   replaceTimetableEntryId?: number;
   day: DayApi;
   period: number;
+  startTime: string;
+  endTime: string;
   classId: number | null;
   sectionId: number | null;
   subjectName: string;
@@ -54,9 +57,103 @@ interface DraftSlot {
       .onb-slot-row:nth-child(even) {
         background: color-mix(in srgb, var(--clr-surface-muted) 55%, transparent);
       }
+      .onb-time-wrap {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .onb-time-part {
+        min-width: 68px;
+        font-variant-numeric: tabular-nums;
+      }
+      .onb-time-sep {
+        color: var(--clr-text-muted);
+        font-weight: 700;
+      }
+      .onb-success-toast {
+        position: fixed;
+        left: 50%;
+        top: 18px;
+        transform: translateX(-50%);
+        z-index: 12000;
+        width: min(520px, calc(100vw - 24px));
+        border-radius: var(--radius-lg);
+        border: 1px solid color-mix(in srgb, var(--clr-success) 35%, var(--clr-border));
+        background: color-mix(in srgb, var(--clr-success) 8%, var(--clr-surface));
+        box-shadow: var(--shadow-lg);
+        overflow: hidden;
+      }
+      .onb-success-toast-body {
+        display: grid;
+        grid-template-columns: auto 1fr auto;
+        gap: 12px;
+        align-items: start;
+        padding: 12px 14px 10px;
+      }
+      .onb-success-icon {
+        width: 28px;
+        height: 28px;
+        border-radius: 999px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        background: color-mix(in srgb, var(--clr-success) 20%, var(--clr-surface));
+        color: var(--clr-success);
+        font-size: 14px;
+      }
+      .onb-success-title {
+        margin: 1px 0 2px;
+        font-size: 13px;
+        font-weight: 800;
+        color: var(--clr-success);
+      }
+      .onb-success-message {
+        margin: 0;
+        font-size: 12.5px;
+        color: var(--clr-text-secondary);
+      }
+      .onb-success-close {
+        border: 0;
+        background: transparent;
+        color: var(--clr-text-muted);
+        font-size: 16px;
+        line-height: 1;
+        padding: 0;
+        margin-top: 2px;
+      }
+      .onb-success-progress {
+        height: 3px;
+        background: color-mix(in srgb, var(--clr-success) 70%, #ffffff);
+        animation: onbSuccessShrink 5s linear forwards;
+        transform-origin: left;
+      }
+      @keyframes onbSuccessShrink {
+        from {
+          transform: scaleX(1);
+        }
+        to {
+          transform: scaleX(0);
+        }
+      }
     `,
   ],
   template: `
+    <aside *ngIf="showSuccessToast" class="onb-success-toast animate-in" role="status" aria-live="polite">
+      <div class="onb-success-toast-body">
+        <span class="onb-success-icon"><i class="bi bi-check2-circle"></i></span>
+        <div>
+          <p class="onb-success-title">{{ 'timetableOnboarding.successToastTitle' | translate }}</p>
+          <p class="onb-success-message">{{ 'timetableOnboarding.savedSummary' | translate: successToastParams }}</p>
+        </div>
+        <button
+          type="button"
+          class="onb-success-close"
+          (click)="dismissSuccessToast()"
+          [attr.aria-label]="'timetableOnboarding.successToastClose' | translate">×</button>
+      </div>
+      <div class="onb-success-progress"></div>
+    </aside>
+
     <div data-testid="teacher-schedule-onboarding" class="animate-in">
       <div class="erp-tabs mb-3">
         <a class="erp-tab" routerLink="/app/timetable">{{ 'timetable.tab.schedule' | translate }}</a>
@@ -127,6 +224,8 @@ interface DraftSlot {
               <tr>
                 <th>{{ 'timetable.thDay' | translate }}</th>
                 <th>{{ 'timetable.thPeriod' | translate }}</th>
+                <th>{{ 'timetable.labelStart' | translate }}</th>
+                <th>{{ 'timetable.labelEnd' | translate }}</th>
                 <th>{{ 'timetable.labelClass' | translate }}</th>
                 <th>{{ 'timetable.labelSection' | translate }}</th>
                 <th>{{ 'timetable.thSubject' | translate }}</th>
@@ -143,6 +242,40 @@ interface DraftSlot {
                 </td>
                 <td style="min-width: 88px;">
                   <input type="number" class="erp-input" min="1" max="12" [(ngModel)]="r.period" />
+                </td>
+                <td style="min-width: 100px;">
+                  <div class="onb-time-wrap">
+                    <select
+                      class="erp-select onb-time-part"
+                      [ngModel]="getTimePart(r.startTime, 'hour')"
+                      (ngModelChange)="setTimePart(r, 'start', 'hour', $event)">
+                      <option *ngFor="let h of hourOptions" [ngValue]="h">{{ h }}</option>
+                    </select>
+                    <span class="onb-time-sep">:</span>
+                    <select
+                      class="erp-select onb-time-part"
+                      [ngModel]="getTimePart(r.startTime, 'minute')"
+                      (ngModelChange)="setTimePart(r, 'start', 'minute', $event)">
+                      <option *ngFor="let m of minuteOptions" [ngValue]="m">{{ m }}</option>
+                    </select>
+                  </div>
+                </td>
+                <td style="min-width: 100px;">
+                  <div class="onb-time-wrap">
+                    <select
+                      class="erp-select onb-time-part"
+                      [ngModel]="getTimePart(r.endTime, 'hour')"
+                      (ngModelChange)="setTimePart(r, 'end', 'hour', $event)">
+                      <option *ngFor="let h of hourOptions" [ngValue]="h">{{ h }}</option>
+                    </select>
+                    <span class="onb-time-sep">:</span>
+                    <select
+                      class="erp-select onb-time-part"
+                      [ngModel]="getTimePart(r.endTime, 'minute')"
+                      (ngModelChange)="setTimePart(r, 'end', 'minute', $event)">
+                      <option *ngFor="let m of minuteOptions" [ngValue]="m">{{ m }}</option>
+                    </select>
+                  </div>
                 </td>
                 <td style="min-width: 140px;">
                   <select class="erp-select" [(ngModel)]="r.classId" (ngModelChange)="onDraftClassChange(r)">
@@ -176,13 +309,13 @@ interface DraftSlot {
           <span class="spinner" *ngIf="saving"></span>
           {{ saving ? ('timetableOnboarding.saving' | translate) : ('timetableOnboarding.save' | translate) }}
         </button>
-        <p *ngIf="lastMessage" class="small mt-3 mb-0" style="color: var(--clr-success);">{{ lastMessage | translate: lastMessageParams }}</p>
         <p *ngIf="lastError" class="small mt-3 mb-0" style="color: var(--clr-danger);" [attr.data-testid]="'timetable-onb-error'">{{ lastError }}</p>
       </div>
+
     </div>
   `,
 })
-export class TeacherScheduleOnboardingComponent implements OnInit {
+export class TeacherScheduleOnboardingComponent implements OnInit, OnDestroy {
   teachers: Teacher[] = [];
   classes: SchoolClass[] = [];
   teacherId: number | null = null;
@@ -193,13 +326,16 @@ export class TeacherScheduleOnboardingComponent implements OnInit {
   anchorMonday = true;
   loading = false;
   saving = false;
-  lastMessage = '';
-  lastMessageParams: Record<string, string | number> = {};
   lastError = '';
+  showSuccessToast = false;
+  successToastParams: Record<string, string | number> = {};
+  private successToastTimer: ReturnType<typeof setTimeout> | null = null;
 
   private readonly translate = inject(TranslateService);
 
   readonly dayOptions: DayApi[] = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'];
+  readonly hourOptions: string[] = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0'));
+  readonly minuteOptions: string[] = Array.from({ length: 60 }, (_, i) => String(i).padStart(2, '0'));
 
   constructor(
     private academic: AcademicService,
@@ -218,6 +354,10 @@ export class TeacherScheduleOnboardingComponent implements OnInit {
         this.classes = classes;
       },
     });
+  }
+
+  ngOnDestroy(): void {
+    this.clearSuccessToastTimer();
   }
 
   get hmClass(): SchoolClass | undefined {
@@ -258,8 +398,8 @@ export class TeacherScheduleOnboardingComponent implements OnInit {
   }
 
   onTeacherChange(): void {
-    this.lastMessage = '';
     this.lastError = '';
+    this.dismissSuccessToast();
     this.removedEntryIds = [];
     this.hmClassId = null;
     this.hmSectionId = null;
@@ -326,11 +466,14 @@ export class TeacherScheduleOnboardingComponent implements OnInit {
 
   private entryToDraft(e: TimetableEntry): DraftSlot {
     const day = (e.day || 'Monday').toUpperCase() as DayApi;
+    const fallback = this.periodWindowText(e.period);
     return {
       key: `e-${e.id}`,
       existingEntryId: e.id,
       day: this.dayOptions.includes(day) ? day : 'MONDAY',
       period: e.period,
+      startTime: this.toHmTime(e.startTime) || fallback.start,
+      endTime: this.toHmTime(e.endTime) || fallback.end,
       classId: e.classId,
       sectionId: e.sectionId > 0 ? e.sectionId : null,
       subjectName: e.subjectName,
@@ -339,10 +482,13 @@ export class TeacherScheduleOnboardingComponent implements OnInit {
   }
 
   addDraftRow(): void {
+    const fallback = this.periodWindowText(1);
     this.draftRows.push({
       key: `n-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
       day: 'MONDAY',
       period: 1,
+      startTime: fallback.start,
+      endTime: fallback.end,
       classId: this.hmClassId ?? this.classes[0]?.id ?? null,
       sectionId: this.hmSectionId,
       subjectName: '',
@@ -372,6 +518,10 @@ export class TeacherScheduleOnboardingComponent implements OnInit {
   }
 
   save(): void {
+    this.saveWithConfirmation(false);
+  }
+
+  private saveWithConfirmation(skipConfirmation: boolean): void {
     if (!this.teacherId || !this.canSave) {
       return;
     }
@@ -402,6 +552,8 @@ export class TeacherScheduleOnboardingComponent implements OnInit {
         existingEntryId: r.existingEntryId,
         day: r.day,
         period: r.period,
+        startTime: r.startTime?.trim() || null,
+        endTime: r.endTime?.trim() || null,
         classId: r.classId!,
         sectionId: r.sectionId,
         subjectName: r.subjectName.trim(),
@@ -410,11 +562,39 @@ export class TeacherScheduleOnboardingComponent implements OnInit {
       })),
       options: { anchorMondayFirstPeriod: this.anchorMonday },
     };
+    if (!skipConfirmation) {
+      this.saving = true;
+      this.timetable.validateTeacherScheduleOnboarding(body).subscribe({
+        next: validation => {
+          this.saving = false;
+          if (!validation.valid) {
+            this.lastError = this.translate.instant('timetableOnboarding.validationBlocked');
+            this.openValidationBlockedDialog(validation);
+            return;
+          }
+          const summary = this.buildPendingChangeSummary(validation);
+          this.confirmDialog
+            .confirm({
+              title: this.translate.instant('timetableOnboarding.confirmTitle'),
+              message: this.translate.instant('timetableOnboarding.confirmMessage'),
+              details: summary,
+              confirmLabel: this.translate.instant('timetableOnboarding.confirmProceed'),
+              cancelLabel: this.translate.instant('timetableOnboarding.confirmCancel'),
+              variant: 'warning',
+            })
+            .pipe(filter(Boolean), take(1))
+            .subscribe(() => this.saveWithConfirmation(true));
+        },
+        error: (err: unknown) => {
+          this.saving = false;
+          this.lastError = err instanceof Error ? err.message : this.translate.instant('timetableOnboarding.validationFailed');
+        },
+      });
+      return;
+    }
 
     this.saving = true;
     this.lastError = '';
-    this.lastMessage = '';
-    this.lastMessageParams = {};
     this.timetable.applyTeacherScheduleOnboarding(body).subscribe({
       next: res => {
         this.saving = false;
@@ -422,12 +602,12 @@ export class TeacherScheduleOnboardingComponent implements OnInit {
         this.draftRows.forEach(r => {
           delete r.replaceTimetableEntryId;
         });
-        this.lastMessageParams = {
+        this.successToastParams = {
           created: res.createdEntryIds?.length ?? 0,
           updated: res.updatedEntryIds?.length ?? 0,
           removed: res.removedEntryIds?.length ?? 0,
         };
-        this.lastMessage = 'timetableOnboarding.savedSummary';
+        this.presentSuccessToast();
         this.reloadFromServer();
       },
       error: (err: unknown) => {
@@ -439,13 +619,108 @@ export class TeacherScheduleOnboardingComponent implements OnInit {
             delete row.replaceTimetableEntryId;
             return;
           }
-          this.lastError = '';
-          this.promptOnboardingConflictReplace(err);
+        this.lastError = '';
+        this.promptOnboardingConflictReplace(err);
           return;
         }
         this.lastError = err instanceof Error ? err.message : this.translate.instant('timetableOnboarding.saveFailed');
       },
     });
+  }
+
+  dismissSuccessToast(): void {
+    this.showSuccessToast = false;
+    this.clearSuccessToastTimer();
+  }
+
+  private presentSuccessToast(): void {
+    this.showSuccessToast = true;
+    this.clearSuccessToastTimer();
+    this.successToastTimer = setTimeout(() => {
+      this.showSuccessToast = false;
+      this.successToastTimer = null;
+    }, 5000);
+  }
+
+  private clearSuccessToastTimer(): void {
+    if (this.successToastTimer != null) {
+      clearTimeout(this.successToastTimer);
+      this.successToastTimer = null;
+    }
+  }
+
+  /**
+   * Mirrors backend onboarding slot window: period-1 starts at 08:00, each period is 45 minutes.
+   */
+  periodWindowText(period: number): { start: string; end: string } {
+    const p = Number.isFinite(period) && period > 0 ? Math.floor(period) : 1;
+    const startMinutes = (p - 1) * 45;
+    const startHour = 8 + Math.floor(startMinutes / 60);
+    const startMin = startMinutes % 60;
+    const endMinutes = startMinutes + 45;
+    const endHour = 8 + Math.floor(endMinutes / 60);
+    const endMin = endMinutes % 60;
+    const hhmm = (h: number, m: number) => `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+    return { start: hhmm(startHour, startMin), end: hhmm(endHour, endMin) };
+  }
+
+  private toHmTime(raw: string | null | undefined): string {
+    if (!raw) {
+      return '';
+    }
+    const t = raw.trim();
+    if (/^\d{2}:\d{2}$/.test(t)) {
+      return t;
+    }
+    if (/^\d{2}:\d{2}:\d{2}$/.test(t)) {
+      return t.slice(0, 5);
+    }
+    return '';
+  }
+
+  private isTimeText(raw: string | null | undefined): boolean {
+    return !!raw && /^\d{2}:\d{2}$/.test(raw.trim());
+  }
+
+  private timeToMinutes(raw: string | null | undefined): number | null {
+    if (!this.isTimeText(raw)) {
+      return null;
+    }
+    const [hh, mm] = raw!.split(':').map(Number);
+    if (!Number.isFinite(hh) || !Number.isFinite(mm) || hh < 0 || hh > 23 || mm < 0 || mm > 59) {
+      return null;
+    }
+    return hh * 60 + mm;
+  }
+
+  private isStartBeforeEnd(start: string, end: string): boolean {
+    const s = this.timeToMinutes(start);
+    const e = this.timeToMinutes(end);
+    return s != null && e != null && s < e;
+  }
+
+  private overlapsAny(windows: Array<{ start: number; end: number }>, start: number, end: number): boolean {
+    return windows.some(w => start < w.end && w.start < end);
+  }
+
+  getTimePart(value: string | null | undefined, part: 'hour' | 'minute'): string {
+    if (!this.isTimeText(value)) {
+      return part === 'hour' ? '08' : '00';
+    }
+    const [hh, mm] = value!.split(':');
+    return part === 'hour' ? hh : mm;
+  }
+
+  setTimePart(row: DraftSlot, target: 'start' | 'end', part: 'hour' | 'minute', raw: string): void {
+    const source = target === 'start' ? row.startTime : row.endTime;
+    const hour = part === 'hour' ? raw : this.getTimePart(source, 'hour');
+    const minute = part === 'minute' ? raw : this.getTimePart(source, 'minute');
+    const composed = `${hour}:${minute}`;
+    if (target === 'start') {
+      row.startTime = composed;
+      return;
+    }
+    row.endTime = composed;
   }
 
   private validateDraftRowsBeforeSave(): string | null {
@@ -461,6 +736,12 @@ export class TeacherScheduleOnboardingComponent implements OnInit {
       if (row.period < 1 || row.period > 12) {
         return 'timetableOnboarding.errPeriodRange';
       }
+      if (!this.isTimeText(row.startTime) || !this.isTimeText(row.endTime)) {
+        return 'timetableOnboarding.errTimeRequired';
+      }
+      if (!this.isStartBeforeEnd(row.startTime, row.endTime)) {
+        return 'timetableOnboarding.errTimeRange';
+      }
       const key = `${row.day}|${row.period}|${row.classId}|${row.sectionId ?? 0}`;
       if (uniqueSlotKeys.has(key)) {
         return 'timetableOnboarding.errDuplicateSlot';
@@ -471,6 +752,17 @@ export class TeacherScheduleOnboardingComponent implements OnInit {
         return 'timetableOnboarding.errTeacherDoubleBooked';
       }
       uniqueTeacherPeriodKeys.add(teacherPeriodKey);
+      if (this.classHasSections(row.classId) && row.sectionId == null) {
+        return 'timetableOnboarding.errSectionRequiredForRow';
+      }
+      const room = row.room?.trim().toLowerCase();
+      if (room) {
+        const roomKey = `${row.day}|${row.period}|${room}`;
+        if (uniqueSlotKeys.has(`room:${roomKey}`)) {
+          return 'timetableOnboarding.errRoomDoubleBooked';
+        }
+        uniqueSlotKeys.add(`room:${roomKey}`);
+      }
     }
     return null;
   }
@@ -497,7 +789,7 @@ export class TeacherScheduleOnboardingComponent implements OnInit {
         if (row) {
           row.replaceTimetableEntryId = p.existingEntryId;
         }
-        this.save();
+        this.saveWithConfirmation(true);
       });
   }
 
@@ -510,5 +802,160 @@ export class TeacherScheduleOnboardingComponent implements OnInit {
       const d = this.timetable.normalizeWeekdayTitle(r.day);
       return d === wantDay && r.period === p.period;
     });
+  }
+
+  private classHasSections(classId: number | null): boolean {
+    if (classId == null) {
+      return false;
+    }
+    return (this.classes.find(c => c.id === classId)?.sections?.length ?? 0) > 0;
+  }
+
+  private buildPendingChangeSummary(validation?: ValidateTeacherScheduleOnboardingResponse): string[] {
+    const created = validation?.slotsToCreate ?? this.draftRows.filter(r => r.existingEntryId == null).length;
+    const updated = validation?.slotsToUpdate ?? this.draftRows.filter(r => r.existingEntryId != null).length;
+    const removed = validation?.slotsToDelete ?? [...new Set(this.removedEntryIds)].length;
+    const teacher = this.teachers.find(t => t.id === this.teacherId);
+    const teacherName = validation?.teacherName || `${teacher?.firstName ?? ''} ${teacher?.lastName ?? ''}`.trim();
+    const homeroomLabel = this.describeHomeroomForSummary();
+    const warnings = this.buildClientWarningsForSummary(validation);
+    const details = [
+      this.translate.instant('timetableOnboarding.confirmTeacher', { teacher: teacherName || '—' }),
+      this.translate.instant('timetableOnboarding.confirmHomeroom', { homeroom: homeroomLabel }),
+      this.translate.instant('timetableOnboarding.confirmCreated', { count: created }),
+      this.translate.instant('timetableOnboarding.confirmUpdated', { count: updated }),
+      this.translate.instant('timetableOnboarding.confirmRemoved', { count: removed }),
+    ];
+    if (warnings.length) {
+      details.push(this.translate.instant('timetableOnboarding.confirmWarningsHeader'));
+      details.push(...warnings.map(w => `- ${w}`));
+    } else {
+      details.push(this.translate.instant('timetableOnboarding.confirmWarningsNone'));
+    }
+    return details;
+  }
+
+  private openValidationBlockedDialog(validation: ValidateTeacherScheduleOnboardingResponse): void {
+    const details = [
+      this.translate.instant('timetableOnboarding.validationBlockedLead'),
+      ...validation.issues.slice(0, 12).map(i => this.describeValidationIssue(i)),
+    ];
+    this.confirmDialog
+      .confirm({
+        title: this.translate.instant('timetableOnboarding.validationBlockedTitle'),
+        message: this.translate.instant('timetableOnboarding.validationBlockedMessage'),
+        details,
+        confirmLabel: this.translate.instant('timetableOnboarding.validationBlockedAcknowledge'),
+        cancelLabel: '',
+        variant: 'warning',
+      })
+      .pipe(take(1))
+      .subscribe(() => undefined);
+  }
+
+  private describeHomeroomForSummary(): string {
+    if (this.hmClassId == null) {
+      return this.translate.instant('timetableOnboarding.confirmHomeroomRemoved');
+    }
+    const cls = this.classes.find(c => c.id === this.hmClassId);
+    if (!cls) {
+      return this.translate.instant('timetableOnboarding.confirmHomeroomUnknown');
+    }
+    if (!cls.sections?.length) {
+      return cls.name;
+    }
+    const sec = cls.sections.find(s => s.id === this.hmSectionId);
+    return `${cls.name} - ${(sec?.name ?? '—').trim()}`;
+  }
+
+  private buildClientWarningsForSummary(validation?: ValidateTeacherScheduleOnboardingResponse): string[] {
+    if (validation?.issues?.length) {
+      return validation.issues.slice(0, 4).map(i => this.describeValidationIssue(i));
+    }
+    const out: string[] = [];
+    const teacherKeys = new Set<string>();
+    const classKeys = new Set<string>();
+    const roomKeys = new Set<string>();
+    const teacherWindows = new Map<string, { start: number; end: number }[]>();
+    const classWindows = new Map<string, { start: number; end: number }[]>();
+    const roomWindows = new Map<string, { start: number; end: number }[]>();
+    for (const row of this.draftRows) {
+      const tKey = `${row.day}|${row.period}`;
+      if (teacherKeys.has(tKey)) {
+        out.push(this.translate.instant('timetableOnboarding.warnTeacherDoubleBooked', { day: row.day, period: row.period }));
+        break;
+      }
+      teacherKeys.add(tKey);
+      const cKey = `${row.day}|${row.period}|${row.classId ?? 0}|${row.sectionId ?? 0}`;
+      if (classKeys.has(cKey)) {
+        out.push(this.translate.instant('timetableOnboarding.warnClassDoubleBooked', { day: row.day, period: row.period }));
+        break;
+      }
+      classKeys.add(cKey);
+      const room = row.room?.trim().toLowerCase();
+      if (room) {
+        const rKey = `${row.day}|${row.period}|${room}`;
+        if (roomKeys.has(rKey)) {
+          out.push(this.translate.instant('timetableOnboarding.warnRoomDoubleBooked', { room: row.room.trim(), day: row.day, period: row.period }));
+          break;
+        }
+        roomKeys.add(rKey);
+      }
+      if (row.classId != null && this.classHasSections(row.classId) && row.sectionId == null) {
+        const cls = this.classes.find(c => c.id === row.classId);
+        out.push(this.translate.instant('timetableOnboarding.warnSectionMissing', { clazz: cls?.name ?? row.classId }));
+        break;
+      }
+      const st = this.timeToMinutes(row.startTime);
+      const en = this.timeToMinutes(row.endTime);
+      if (st == null || en == null || st >= en) {
+        out.push(this.translate.instant('timetableOnboarding.warnTimeRangeInvalid'));
+        break;
+      }
+      const classScope = `${row.day}|${row.classId ?? 0}|${row.sectionId ?? 0}`;
+      if (this.overlapsAny(classWindows.get(classScope) ?? [], st, en)) {
+        out.push(this.translate.instant('timetableOnboarding.warnClassTimeOverlap', { day: row.day }));
+        break;
+      }
+      classWindows.set(classScope, [...(classWindows.get(classScope) ?? []), { start: st, end: en }]);
+      const teacherScope = `${row.day}|teacher`;
+      if (this.overlapsAny(teacherWindows.get(teacherScope) ?? [], st, en)) {
+        out.push(this.translate.instant('timetableOnboarding.warnTeacherTimeOverlap', { day: row.day }));
+        break;
+      }
+      teacherWindows.set(teacherScope, [...(teacherWindows.get(teacherScope) ?? []), { start: st, end: en }]);
+      const roomForWindow = row.room?.trim().toLowerCase();
+      if (roomForWindow) {
+        const roomScope = `${row.day}|${roomForWindow}`;
+        if (this.overlapsAny(roomWindows.get(roomScope) ?? [], st, en)) {
+          out.push(this.translate.instant('timetableOnboarding.warnRoomTimeOverlap', { day: row.day, room: row.room.trim() }));
+          break;
+        }
+        roomWindows.set(roomScope, [...(roomWindows.get(roomScope) ?? []), { start: st, end: en }]);
+      }
+    }
+    return out;
+  }
+
+  private describeValidationIssue(i: {
+    code?: string;
+    message?: string;
+    conflictType?: string;
+    day?: string;
+    period?: number;
+    classId?: number;
+    sectionId?: number | null;
+    room?: string;
+  }): string {
+    const where = [i.day, i.period != null ? `P${i.period}` : ''].filter(Boolean).join(' ');
+    const cls = i.classId != null ? this.classes.find(c => c.id === i.classId) : undefined;
+    const sec = i.sectionId != null ? cls?.sections?.find(s => s.id === i.sectionId) : undefined;
+    const classSection = cls
+      ? `${cls.name}${sec ? `-${sec.name}` : ''}`
+      : i.classId != null
+        ? String(i.classId)
+        : '';
+    const scope = [where, classSection, i.room ? `Room ${i.room}` : ''].filter(Boolean).join(' · ');
+    return scope ? `${i.message ?? i.code ?? 'Validation issue'} (${scope})` : i.message ?? i.code ?? 'Validation issue';
   }
 }

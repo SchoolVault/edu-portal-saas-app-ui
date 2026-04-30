@@ -81,7 +81,7 @@ public final class RbacSpel {
             "hasAnyAuthority('SCHOOL_DIRECTORY_WRITE','TENANT_ADMIN','PLATFORM_ADMIN')";
 
     public static final String SCHOOL_OPERATIONS_READ =
-            "hasAnyAuthority('SCHOOL_OPERATIONS_READ','SCHOOL_OPERATIONS_WRITE','TENANT_ADMIN','PLATFORM_ADMIN')";
+            "hasAnyAuthority('SCHOOL_OPERATIONS_READ','SCHOOL_OPERATIONS_WRITE','TENANT_ADMIN','PLATFORM_ADMIN','ADMIN','SUPER_ADMIN')";
 
     public static final String SCHOOL_OPERATIONS_WRITE =
             "hasAnyAuthority('SCHOOL_OPERATIONS_WRITE','TENANT_ADMIN','PLATFORM_ADMIN')";
@@ -145,6 +145,16 @@ public final class RbacSpel {
     /** Teachers/staff directory export (PII-sensitive). */
     public static final String IMPORT_EXPORT_TEACHER_DIRECTORY_EXPORT =
             "hasAnyAuthority('SCHOOL_IMPORT_EXPORT_READ','SCHOOL_IMPORT_EXPORT_WRITE','TENANT_ADMIN','PLATFORM_ADMIN')";
+
+    /**
+     * Canonical entity export jobs used from list pages (students/teachers/fees/import-export hub).
+     * Includes school admin desks even when explicit import-export atoms are not yet assigned.
+     */
+    public static final String CANONICAL_EXPORT_JOBS =
+            "hasAnyAuthority('SCHOOL_IMPORT_EXPORT_READ','SCHOOL_IMPORT_EXPORT_WRITE',"
+                    + "'SCHOOL_STUDENT_READ','SCHOOL_STUDENT_WRITE','SCHOOL_ACADEMIC_READ','SCHOOL_ACADEMIC_WRITE',"
+                    + "'SCHOOL_DIRECTORY_READ','SCHOOL_DIRECTORY_WRITE','SCHOOL_FEES_READ','SCHOOL_FEES_WRITE',"
+                    + "'TENANT_ADMIN','PLATFORM_ADMIN','ADMIN','SUPER_ADMIN')";
 
     // --- Operations / notifications -----------------------------------------
 

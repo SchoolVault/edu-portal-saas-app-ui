@@ -15,6 +15,7 @@ public class TeacherDTOs {
         @NotBlank
         private String email;
         private String phone;
+        private String employeeCode;
         private String qualification;
         private String specialization;
         private LocalDate joinDate;
@@ -146,6 +147,10 @@ public class TeacherDTOs {
             return this.qualification;
         }
 
+        public String getEmployeeCode() {
+            return employeeCode;
+        }
+
         public String getSpecialization() {
             return this.specialization;
         }
@@ -196,6 +201,10 @@ public class TeacherDTOs {
 
         public void setQualification(final String qualification) {
             this.qualification = qualification;
+        }
+
+        public void setEmployeeCode(final String employeeCode) {
+            this.employeeCode = employeeCode;
         }
 
         public void setSpecialization(final String specialization) {

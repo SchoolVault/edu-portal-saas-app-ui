@@ -11,6 +11,8 @@ import java.util.List;
 
 public interface ImportLedgerEntryRepository extends JpaRepository<ImportLedgerEntry, Long> {
 
+    List<ImportLedgerEntry> findByTenantIdAndJobIdAndIsDeletedFalseOrderByLineIndexAsc(String tenantId, long jobId);
+
     Page<ImportLedgerEntry> findByTenantIdAndJobIdAndIsDeletedFalse(String tenantId, long jobId, Pageable pageable);
 
     @Query("SELECT e.outcome, COUNT(e) FROM ImportLedgerEntry e WHERE e.tenantId = :tenantId AND e.jobId = :jobId AND e.isDeleted = false GROUP BY e.outcome")

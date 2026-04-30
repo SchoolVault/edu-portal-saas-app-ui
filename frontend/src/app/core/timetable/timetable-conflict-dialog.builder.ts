@@ -69,13 +69,20 @@ export interface TimetableConflictDialogStrings {
 export function buildTimetableConflictDialogStrings(input: BuildTimetableConflictDialogInput): TimetableConflictDialogStrings {
   const { translate, conflict: p, labels, pendingClassId, pendingSectionId, includeReplaceHint = true } = input;
   const isClassPeriodTaken = p.conflictType === 'CLASS_PERIOD_OCCUPIED';
+  const isRoomTaken = p.conflictType === 'ROOM_DOUBLE_BOOKED';
   const blockingClassId = p.conflictingClassId ?? p.classId;
   const blockingSectionId = p.conflictingSectionId ?? p.sectionId;
 
   const blockingClassLabel = labels.classDisplayName(blockingClassId);
   const blockingSectionLabel = labels.sectionDisplayForClass(blockingClassId, blockingSectionId);
 
-  const title = translate.instant(isClassPeriodTaken ? 'timetable.conflictClassTitle' : 'timetable.conflictTeacherTitle');
+  const title = translate.instant(
+    isClassPeriodTaken
+      ? 'timetable.conflictClassTitle'
+      : isRoomTaken
+        ? 'timetable.conflictRoomTitle'
+        : 'timetable.conflictTeacherTitle'
+  );
   const message = isClassPeriodTaken
     ? translate.instant('timetable.conflictClassMessage', {
         subject: p.subjectName ?? '—',
@@ -83,6 +90,15 @@ export function buildTimetableConflictDialogStrings(input: BuildTimetableConflic
         day: p.day,
         period: String(p.period),
       })
+    : isRoomTaken
+      ? translate.instant('timetable.conflictRoomMessage', {
+          room: (p as { room?: string }).room ?? '—',
+          subject: p.subjectName ?? '—',
+          clazz: blockingClassLabel,
+          section: blockingSectionLabel,
+          day: p.day,
+          period: String(p.period),
+        })
     : translate.instant('timetable.conflictTeacherMessage', {
         subject: p.subjectName ?? '—',
         teacher: p.teacherName ?? '—',
@@ -96,7 +112,7 @@ export function buildTimetableConflictDialogStrings(input: BuildTimetableConflic
     translate.instant('timetable.conflictDetailPeriod', { day: p.day, period: p.period }),
   ];
 
-  if (!isClassPeriodTaken) {
+  if (!isClassPeriodTaken && !isRoomTaken) {
     details.push(
       translate.instant('timetable.conflictDetailPendingAssignment', {
         clazz: labels.classDisplayName(pendingClassId),

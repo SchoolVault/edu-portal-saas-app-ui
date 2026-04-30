@@ -339,15 +339,30 @@ public class ImportDryRunService {
                 if (previousClass != null) {
                     return "Duplicate timetable class slot in file for key [" + classSlot + "] (line #" + previousClass + ").";
                 }
-                String teacherKey = trimToNull(row.get("teacherid"));
+                String teacherKey = trimToNull(row.get("teacheremployeecode"));
+                if (teacherKey != null) {
+                    teacherKey = "emp:" + teacherKey.toUpperCase(Locale.ROOT);
+                }
+                if (teacherKey == null) {
+                    teacherKey = trimToNull(row.get("teacherid"));
+                    if (teacherKey != null) {
+                        teacherKey = "id:" + teacherKey;
+                    }
+                }
                 if (teacherKey == null) {
                     teacherKey = trimToNull(row.get("teacherphone"));
+                    if (teacherKey != null) {
+                        teacherKey = "ph:" + teacherKey;
+                    }
                 }
                 if (teacherKey == null) {
                     teacherKey = trimToNull(row.get("teacheremail"));
+                    if (teacherKey != null) {
+                        teacherKey = "em:" + teacherKey.toLowerCase(Locale.ROOT);
+                    }
                 }
                 if (teacherKey != null) {
-                    String teacherSlot = teacherKey.toLowerCase(Locale.ROOT) + "|day:" + day.toUpperCase(Locale.ROOT) + "|p:" + period;
+                    String teacherSlot = teacherKey + "|day:" + day.toUpperCase(Locale.ROOT) + "|p:" + period;
                     Integer previousTeacher = seenTimetableTeacherSlot.putIfAbsent(teacherSlot, lineIndex);
                     if (previousTeacher != null) {
                         return "Teacher double-booked in file for key [" + teacherSlot + "] (line #" + previousTeacher + ").";
@@ -383,7 +398,8 @@ public class ImportDryRunService {
             case STUDENTS -> "admission_number=" + safe(value(row, "admissionnumber", "admission_number"));
             case TEACHERS, STAFF -> "employee_code=" + safe(value(row, "employee_code"))
                     + ",phone=" + safe(value(row, "phone")) + ",email=" + safe(value(row, "email"));
-            case TIMETABLE -> "teacher=" + safe(value(row, "teacherid")) + "/ph:" + safe(value(row, "teacherphone")) + "/em:" + safe(value(row, "teacheremail"))
+            case TIMETABLE -> "teacher=emp:" + safe(value(row, "teacheremployeecode")) + "/id:" + safe(value(row, "teacherid"))
+                    + "/ph:" + safe(value(row, "teacherphone")) + "/em:" + safe(value(row, "teacheremail"))
                     + ",class=" + safe(value(row, "classid")) + "/" + safe(value(row, "classname"))
                     + ",section=" + safe(value(row, "sectionid")) + "/" + safe(value(row, "sectionname"))
                     + ",day=" + safe(value(row, "dayofweek")) + ",period=" + safe(value(row, "period"));
@@ -447,18 +463,33 @@ public class ImportDryRunService {
         }
         String slotKey = day.toUpperCase(Locale.ROOT) + "|P" + period;
         timetableRowsPerSlot.put(slotKey, timetableRowsPerSlot.getOrDefault(slotKey, 0) + 1);
-        String teacherRef = trimToNull(row.get("teacherid"));
+        String teacherRef = trimToNull(row.get("teacheremployeecode"));
+        if (teacherRef != null) {
+            teacherRef = "emp:" + teacherRef.toUpperCase(Locale.ROOT);
+        }
+        if (teacherRef == null) {
+            teacherRef = trimToNull(row.get("teacherid"));
+            if (teacherRef != null) {
+                teacherRef = "id:" + teacherRef;
+            }
+        }
         if (teacherRef == null) {
             teacherRef = trimToNull(row.get("teacherphone"));
+            if (teacherRef != null) {
+                teacherRef = "ph:" + teacherRef;
+            }
         }
         if (teacherRef == null) {
             teacherRef = trimToNull(row.get("teacheremail"));
+            if (teacherRef != null) {
+                teacherRef = "em:" + teacherRef.toLowerCase(Locale.ROOT);
+            }
         }
         if (teacherRef != null) {
             timetableTeachersPerSlot.computeIfAbsent(slotKey, ignored -> new java.util.HashSet<>())
-                    .add(teacherRef.toLowerCase(Locale.ROOT));
+                    .add(teacherRef);
             timetableTeachersPerDay.computeIfAbsent(day.toUpperCase(Locale.ROOT), ignored -> new java.util.HashSet<>())
-                    .add(teacherRef.toLowerCase(Locale.ROOT));
+                    .add(teacherRef);
         }
     }
 
@@ -488,7 +519,7 @@ public class ImportDryRunService {
                     .orElse(0);
             return String.format(
                     Locale.ROOT,
-                    "Timetable dry-run checks passed with no same-slot teacher overload. Peak distinct teachers scheduled in a day: %d.",
+                    "Timetable dry-run checks passed: no same-slot teacher overload. Teacher matching uses employee_code first (fallback: phone/email/id). Peak distinct teachers scheduled in a day: %d.",
                     busiestDistinctTeachers);
         }
         int busiestDistinctTeachers = timetableTeachersPerDay.values().stream()

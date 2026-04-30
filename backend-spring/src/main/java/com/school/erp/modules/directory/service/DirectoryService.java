@@ -114,8 +114,8 @@ public class DirectoryService {
     private List<DirectoryDTOs.Entry> matchStaff(String tenantId, String q) {
         return operationalStaffRepository.findByTenantIdAndIsDeletedFalseOrderByFullNameAsc(tenantId).stream()
                 .filter(s -> contains(s.getFullName(), null, s.getEmail(), q))
-                .limit(CAP_PER_KIND)
                 .map(this::toStaffEntry)
+                .limit(CAP_PER_KIND)
                 .collect(Collectors.toList());
     }
 
@@ -182,7 +182,7 @@ public class DirectoryService {
         e.setSubtitle(s.getStaffRole() != null ? s.getStaffRole() : "Operations");
         e.setEmail(s.getEmail());
         e.setPhone(s.getPhone());
-        e.setDeepLink("/app/operations");
+        e.setDeepLink("/app/staff/" + s.getId());
         if (s.getUserId() != null) {
             e.setChatUserId(String.valueOf(s.getUserId()));
             e.setChatTargetRole("STAFF");

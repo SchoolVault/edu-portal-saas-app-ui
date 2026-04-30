@@ -32,6 +32,7 @@ import {
 import { ConfirmDialogService } from '../../shared/confirm-dialog/confirm-dialog.service';
 import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directives';
 import { buildCsvSchoolLine, downloadCsvDocument } from '../../core/utils/csv-export.util';
+import { ImportExportService } from '../../core/services/import-export.service';
 
 @Component({
   selector: 'app-fees',
@@ -576,7 +577,10 @@ import { buildCsvSchoolLine, downloadCsvDocument } from '../../core/utils/csv-ex
   template: `
     <div class="fees-page" data-testid="fees-page">
       <div *ngIf="operationMessage" class="alert py-2 small mb-3" [class.alert-success]="operationMessageOk" [class.alert-danger]="!operationMessageOk">
-        {{ operationMessage }}
+        <div class="d-flex justify-content-between align-items-center gap-2">
+          <span>{{ operationMessage }}</span>
+          <button type="button" class="btn-close" [attr.aria-label]="'fees.close' | translate" (click)="clearOperationMessage()"></button>
+        </div>
       </div>
       <div
         *ngIf="canManageFeeFinanceRouting && feeFinanceBannerVisible"
@@ -597,6 +601,9 @@ import { buildCsvSchoolLine, downloadCsvDocument } from '../../core/utils/csv-ex
         <div class="d-flex gap-2 flex-wrap fees-toolbar-stack">
           <button type="button" class="btn-outline-erp btn-sm" (click)="refreshAll()" [disabled]="refreshing">
             <i class="bi bi-arrow-clockwise"></i> {{ refreshing ? ('fees.refreshing' | translate) : ('fees.refresh' | translate) }}
+          </button>
+          <button type="button" class="btn-outline-erp btn-sm" (click)="exportCanonicalFeeStructuresCsv()">
+            <i class="bi bi-download"></i> {{ 'fees.exportCsv' | translate }}
           </button>
           <button *ngIf="canManageFeeFinanceRouting" type="button" class="btn-outline-erp btn-sm" (click)="goToFeeSettlementSettings()">
             <i class="bi bi-bank2 me-1"></i>{{ 'fees.linkPaymentSettlement' | translate }}
@@ -1179,7 +1186,8 @@ export class FeesComponent implements OnInit {
     private confirmDialog: ConfirmDialogService,
     private translate: TranslateService,
     private cdr: ChangeDetectorRef,
-    private settingsService: SettingsService
+    private settingsService: SettingsService,
+    private importExport: ImportExportService
   ) {
     this.structureForm = this.emptyStructureForm();
     this.destroyRef.onDestroy(() => {
@@ -1293,6 +1301,58 @@ export class FeesComponent implements OnInit {
         this.refreshing = false;
       }
     });
+  }
+
+  exportCanonicalFeeStructuresCsv(): void {
+    this.operationMessage = this.translate.instant('fees.exportQueued');
+    this.operationMessageOk = true;
+    this.importExport.createExportJob('FEE_STRUCTURES').subscribe({
+      next: job => this.pollExportJob(job.id, 0),
+      error: e => {
+        this.operationMessage = e?.message || this.translate.instant('fees.exportFailed');
+        this.operationMessageOk = false;
+      },
+    });
+  }
+
+  private pollExportJob(jobId: number, attempt: number): void {
+    this.importExport.getExportJob(jobId).subscribe({
+      next: job => {
+        const status = (job.status || '').toUpperCase();
+        if (status === 'COMPLETED') {
+          this.importExport.downloadExportJobCsv(jobId).subscribe(blob => {
+            this.saveBlob(blob, `canonical-fee-structures-${new Date().toISOString().slice(0, 10)}-${jobId}.csv`);
+            this.operationMessage = this.translate.instant('fees.exportDone');
+            this.operationMessageOk = true;
+          });
+          return;
+        }
+        if (status === 'FAILED') {
+          this.operationMessage = job.errorMessage || this.translate.instant('fees.exportFailed');
+          this.operationMessageOk = false;
+          return;
+        }
+        if (attempt > 80) {
+          this.operationMessage = this.translate.instant('fees.exportTimeout');
+          this.operationMessageOk = false;
+          return;
+        }
+        setTimeout(() => this.pollExportJob(jobId, attempt + 1), 1500);
+      },
+      error: () => {
+        this.operationMessage = this.translate.instant('fees.exportFailed');
+        this.operationMessageOk = false;
+      },
+    });
+  }
+
+  private saveBlob(blob: Blob, fileName: string): void {
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = fileName;
+    anchor.click();
+    URL.revokeObjectURL(url);
   }
 
   loadStructures(): void {
@@ -1938,6 +1998,10 @@ export class FeesComponent implements OnInit {
       clearTimeout(this.reminderMessageTimer);
       this.reminderMessageTimer = null;
     }
+  }
+
+  clearOperationMessage(): void {
+    this.operationMessage = '';
   }
 
   private setReminderMessage(message: string, isSuccess: boolean): void {

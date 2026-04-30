@@ -41,6 +41,7 @@ public final class StudentImportCanonicalRow {
         mergeInto(row, "parentname", "primary_guardian_name", "guardian_name", "parentname");
         mergeInto(row, "parentemail", "primary_guardian_email", "guardian_email", "parentemail");
         mergeInto(row, "parentphone", "primary_guardian_phone", "guardian_phone", "parentphone");
+        mergeInto(row, "parentcode", "parent_code", "primary_guardian_code", "parentcode");
         mergeInto(row, "parentid", "parent_id", "parentid");
         mergeInto(row, "createparentportal", "create_parent_portal", "createparentportal");
         mergeInto(row, "notifycredentials", "notify_credentials", "notifycredentials");

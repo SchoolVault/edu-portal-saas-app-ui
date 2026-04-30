@@ -127,22 +127,23 @@ public class ImportBulkRowValidator {
 
     private void validateTimetableRow(Map<String, String> row, boolean resolvePlacement) {
         TimetableImportCanonicalRow.normalize(row);
+        String teacherEmployeeCode = blankToNull(value(row, "teacheremployeecode", "teacher_employee_code"));
         String teacherEmail = blankToNull(value(row, "teacheremail"));
         String teacherPhoneRaw = blankToNull(value(row, "teacherphone"));
         Long teacherId = parseOptionalLongRaw(value(row, "teacherid"), "teacherid");
         String teacherRefType = blankToNull(value(row, "teacher_ref_type"));
         if (teacherRefType != null) {
             String t = teacherRefType.toUpperCase(Locale.ROOT);
-            if (!Set.of("ID", "PHONE", "MOBILE", "EMAIL").contains(t)) {
-                throw new BusinessException("Invalid teacher_ref_type. Use ID, PHONE, or EMAIL.");
+            if (!Set.of("ID", "PHONE", "MOBILE", "EMAIL", "EMPLOYEE_CODE", "EMPLOYEE", "EMP_CODE", "CODE").contains(t)) {
+                throw new BusinessException("Invalid teacher_ref_type. Use EMPLOYEE_CODE, ID, PHONE, or EMAIL.");
             }
         }
-        int refCount = (teacherId != null ? 1 : 0) + (teacherEmail != null ? 1 : 0) + (teacherPhoneRaw != null ? 1 : 0);
+        int refCount = (teacherEmployeeCode != null ? 1 : 0) + (teacherId != null ? 1 : 0) + (teacherEmail != null ? 1 : 0) + (teacherPhoneRaw != null ? 1 : 0);
         if (refCount == 0) {
-            throw new BusinessException("Exactly one teacher reference is required (teacher_ref or teacherid/teacherphone/teacheremail).");
+            throw new BusinessException("Exactly one teacher reference is required (teacher_ref or teacher_employee_code/teacherid/teacherphone/teacheremail).");
         }
         if (refCount > 1) {
-            throw new BusinessException("Use only one teacher reference (teacherid, teacherphone, or teacheremail).");
+            throw new BusinessException("Use only one teacher reference (teacher_employee_code, teacherid, teacherphone, or teacheremail).");
         }
         if (teacherEmail != null && !EMAIL_LENIENT.matcher(teacherEmail).matches()) {
             throw new BusinessException("Invalid email format in teacheremail column");
@@ -176,7 +177,11 @@ public class ImportBulkRowValidator {
             academicResolver.resolveClassAndSection(row);
         }
         String tenantId = TenantContext.getTenantId();
-        if (teacherId != null) {
+        if (teacherEmployeeCode != null) {
+            String normalizedCode = teacherEmployeeCode.trim().toUpperCase(Locale.ROOT);
+            teacherRepository.findByTenantIdAndEmployeeCodeAndIsDeletedFalse(tenantId, normalizedCode)
+                    .orElseThrow(() -> new BusinessException("Teacher not found for teacher_employee_code: " + normalizedCode));
+        } else if (teacherId != null) {
             teacherRepository.findByIdAndTenantIdAndIsDeletedFalse(teacherId, tenantId)
                     .orElseThrow(() -> new BusinessException("Teacher not found for teacherid: " + teacherId));
         } else if (teacherPhoneRaw != null) {
@@ -213,6 +218,7 @@ public class ImportBulkRowValidator {
         parseOptionalLocalDate(value(row, "admissiondate"), "admission_date");
         parseOptionalGender(value(row, "gender"));
         parseOptionalPrimaryGuardianRelation(StudentImportCanonicalRow.rawPrimaryGuardianRelation(row));
+        parseOptionalParentCode(value(row, "parentcode", "parent_code", "primary_guardian_code"));
         parseOptionalLong(value(row, "parentid"), "parent_id");
         if (resolvePlacement) {
             academicResolver.resolveClassAndSection(row);
@@ -232,6 +238,17 @@ public class ImportBulkRowValidator {
         }
     }
 
+    private static void parseOptionalParentCode(String raw) {
+        String value = blankToNull(raw);
+        if (value == null) {
+            return;
+        }
+        String normalized = value.trim();
+        if (normalized.length() > 64) {
+            throw new BusinessException("parent_code length must be <= 64");
+        }
+    }
+
     /**
      * Shared validation for teaching and non-teaching employee imports. Staff rows use the same canonical columns
      * as teachers but must not carry class-teacher placement (use Teachers / class-teacher assignment imports for that).
@@ -239,6 +256,9 @@ public class ImportBulkRowValidator {
     private void validateTeacherOrStaffRow(Map<String, String> row, boolean staffImport) {
         if (blank(value(row, "employee_code"))) {
             throw new BusinessException("employee_code is required");
+        }
+        if (value(row, "employee_code").trim().length() > 64) {
+            throw new BusinessException("employee_code length must be <= 64");
         }
         if (blank(value(row, "first_name", "firstname")) || blank(value(row, "last_name", "lastname"))) {
             throw new BusinessException("first_name and last_name are required");

@@ -450,7 +450,7 @@ public class StudentService {
         sb.append(
                 "academic_year_id,import_mode,first_name,last_name,gender,date_of_birth,student_email,class_id,section_id,classname,"
                         + "sectionname,roll_number,admission_number,admission_date,primary_guardian_relation,primary_guardian_name,primary_guardian_email,"
-                        + "primary_guardian_phone,parent_id,create_parent_portal,notify_credentials,address,blood_group\n");
+                        + "primary_guardian_phone,parent_code,parent_id,create_parent_portal,notify_credentials,address,blood_group\n");
         for (Student s : studentPersistence.findByTenantIdAndIsDeletedFalse(tenantId)) {
             sb.append(','); // academic_year_id — omit; fill on fresh imports
             sb.append("UPSERT").append(',');
@@ -470,6 +470,7 @@ public class StudentService {
             sb.append(csv(s.getParentName())).append(',');
             sb.append(','); // primary_guardian_email — not denormalized on Student
             sb.append(','); // primary_guardian_phone — load from guardian user when added
+            sb.append(','); // parent_code — school-scoped immutable parent key
             sb.append(s.getParentId() != null ? s.getParentId() : "").append(',');
             sb.append(','); // create_parent_portal
             sb.append(','); // notify_credentials
@@ -548,7 +549,8 @@ public class StudentService {
                         tenantId,
                         parentName,
                         parentEmail,
-                        parentPhone);
+                        parentPhone,
+                        null);
         student.setParentId(parentProvision.userId());
         if ((student.getParentName() == null || student.getParentName().isBlank()) && parentName != null && !parentName.isBlank()) {
             student.setParentName(parentName.trim());

@@ -12,6 +12,7 @@ import {
   ImportLedgerLine,
   ImportMetricsSummary,
   RollbackBundleResponse,
+  ExportJobSummary,
 } from '../../core/services/import-export.service';
 import { ErpPaginationComponent } from '../../shared/erp-pagination/erp-pagination.component';
 import { ErpDatePickerComponent } from '../../shared/erp-date-picker/erp-date-picker.component';
@@ -446,7 +447,7 @@ const REQUIRED_IMPORT_FIELDS: Record<string, string[]> = {
         </div>
         <div class="row g-3">
           <div class="col-md-6">
-            <button type="button" class="ie-export-card w-100 text-start" (click)="dlStudents()">
+            <button type="button" class="ie-export-card w-100 text-start" (click)="exportCanonicalCsv('STUDENTS')">
               <span class="ie-export-icon ie-export-icon--students"><i class="bi bi-people-fill" aria-hidden="true"></i></span>
               <span class="ie-export-body">
                 <span class="ie-export-title">{{ 'importExport.exportStudentsTitle' | translate }}</span>
@@ -456,11 +457,31 @@ const REQUIRED_IMPORT_FIELDS: Record<string, string[]> = {
             </button>
           </div>
           <div class="col-md-6">
-            <button type="button" class="ie-export-card w-100 text-start" (click)="dlTeachers()">
+            <button type="button" class="ie-export-card w-100 text-start" (click)="exportCanonicalCsv('TEACHERS')">
               <span class="ie-export-icon ie-export-icon--staff"><i class="bi bi-person-badge-fill" aria-hidden="true"></i></span>
               <span class="ie-export-body">
                 <span class="ie-export-title">{{ 'importExport.exportTeachersTitle' | translate }}</span>
                 <span class="ie-export-desc">{{ 'importExport.exportTeachersDesc' | translate }}</span>
+              </span>
+              <i class="bi bi-arrow-right-short ie-export-arrow" aria-hidden="true"></i>
+            </button>
+          </div>
+          <div class="col-md-6">
+            <button type="button" class="ie-export-card w-100 text-start" (click)="exportCanonicalCsv('STAFF')">
+              <span class="ie-export-icon ie-export-icon--staff"><i class="bi bi-person-vcard-fill" aria-hidden="true"></i></span>
+              <span class="ie-export-body">
+                <span class="ie-export-title">{{ 'importExport.exportStaffTitle' | translate }}</span>
+                <span class="ie-export-desc">{{ 'importExport.exportStaffDesc' | translate }}</span>
+              </span>
+              <i class="bi bi-arrow-right-short ie-export-arrow" aria-hidden="true"></i>
+            </button>
+          </div>
+          <div class="col-md-6">
+            <button type="button" class="ie-export-card w-100 text-start" (click)="exportCanonicalCsv('FEE_STRUCTURES')">
+              <span class="ie-export-icon ie-export-icon--students"><i class="bi bi-cash-stack" aria-hidden="true"></i></span>
+              <span class="ie-export-body">
+                <span class="ie-export-title">{{ 'importExport.exportFeeTitle' | translate }}</span>
+                <span class="ie-export-desc">{{ 'importExport.exportFeeDesc' | translate }}</span>
               </span>
               <i class="bi bi-arrow-right-short ie-export-arrow" aria-hidden="true"></i>
             </button>
@@ -549,8 +570,17 @@ const REQUIRED_IMPORT_FIELDS: Record<string, string[]> = {
                   </button>
                   <button
                     type="button"
+                    class="btn btn-sm btn-link p-0 me-2 ie-action-link"
+                    *ngIf="canDownloadNormalizedJob(j)"
+                    (click)="downloadNormalizedJobCsv(j); $event.stopPropagation()"
+                  >
+                    <i class="bi bi-file-earmark-spreadsheet me-1" aria-hidden="true"></i>
+                    {{ 'importExport.downloadNormalizedCsv' | translate }}
+                  </button>
+                  <button
+                    type="button"
                     class="btn btn-sm btn-link p-0 ie-action-link"
-                    *ngIf="j.status === 'COMPLETED' && j.failCount > 0"
+                    *ngIf="j.failCount > 0 && j.status !== 'QUEUED' && j.status !== 'RUNNING'"
                     (click)="retry(j); $event.stopPropagation()"
                   >
                     <i class="bi bi-arrow-repeat me-1" aria-hidden="true"></i>{{ 'importExport.retryFailed' | translate }}
@@ -2112,12 +2142,87 @@ export class ImportExportComponent implements OnInit, OnDestroy {
     });
   }
 
-  dlStudents(): void {
-    this.importExport.downloadStudentsCsv().subscribe(blob => this.saveBlob(blob, 'students-export.csv'));
+  canDownloadNormalizedJob(j: ImportJobSummary): boolean {
+    const s = (j.status || '').toUpperCase();
+    if (s === 'QUEUED' || s === 'RUNNING') {
+      return false;
+    }
+    const t = (j.jobType || '').toUpperCase();
+    return t === 'STUDENTS' || t === 'TEACHERS' || t === 'STAFF';
   }
 
-  dlTeachers(): void {
-    this.importExport.downloadTeachersCsv().subscribe(blob => this.saveBlob(blob, 'teachers-export.csv'));
+  downloadNormalizedJobCsv(j: ImportJobSummary): void {
+    this.busy = true;
+    this.importExport.downloadNormalizedJobCsv(j.id, this.effectiveSchoolCode).subscribe({
+      next: blob => {
+        this.saveBlob(blob, `import-job-${j.id}-normalized.csv`);
+        this.lastSubmitMsg = this.translate.instant('importExport.msgNormalizedDownloadOk', { id: j.id });
+        this.lastSubmitOk = true;
+      },
+      error: e => {
+        this.lastSubmitMsg = e?.message || this.translate.instant('importExport.msgNormalizedDownloadFailed');
+        this.lastSubmitOk = false;
+      },
+      complete: () => (this.busy = false),
+    });
+  }
+
+  exportCanonicalCsv(exportType: 'STUDENTS' | 'TEACHERS' | 'STAFF' | 'FEE_STRUCTURES'): void {
+    this.busy = true;
+    this.importExport.createExportJob(exportType, this.effectiveSchoolCode).subscribe({
+      next: job => {
+        this.lastSubmitMsg = this.translate.instant('importExport.msgExportQueued', { id: job.id, type: exportType });
+        this.lastSubmitOk = true;
+        this.pollExportJob(job.id, exportType, 0);
+      },
+      error: e => {
+        this.lastSubmitMsg = e?.message || this.translate.instant('importExport.msgExportFailed');
+        this.lastSubmitOk = false;
+        this.busy = false;
+      },
+    });
+  }
+
+  private pollExportJob(jobId: number, exportType: string, attempt: number): void {
+    this.importExport.getExportJob(jobId, this.effectiveSchoolCode).subscribe({
+      next: (job: ExportJobSummary) => {
+        const status = (job.status || '').toUpperCase();
+        if (status === 'COMPLETED') {
+          this.importExport.downloadExportJobCsv(jobId, this.effectiveSchoolCode).subscribe(blob => {
+            const fileName = this.exportFileName(exportType, jobId);
+            this.saveBlob(blob, fileName);
+            this.lastSubmitMsg = this.translate.instant('importExport.msgExportDownloadReady', { id: jobId });
+            this.lastSubmitOk = true;
+            this.busy = false;
+          });
+          return;
+        }
+        if (status === 'FAILED') {
+          this.lastSubmitMsg = job.errorMessage || this.translate.instant('importExport.msgExportFailed');
+          this.lastSubmitOk = false;
+          this.busy = false;
+          return;
+        }
+        if (attempt >= 80) {
+          this.lastSubmitMsg = this.translate.instant('importExport.msgExportTimeout');
+          this.lastSubmitOk = false;
+          this.busy = false;
+          return;
+        }
+        setTimeout(() => this.pollExportJob(jobId, exportType, attempt + 1), 1500);
+      },
+      error: () => {
+        this.lastSubmitMsg = this.translate.instant('importExport.msgExportFailed');
+        this.lastSubmitOk = false;
+        this.busy = false;
+      },
+    });
+  }
+
+  private exportFileName(exportType: string, jobId: number): string {
+    const suffix = new Date().toISOString().slice(0, 10);
+    const p = exportType.toLowerCase();
+    return `canonical-${p}-${suffix}-${jobId}.csv`;
   }
 
   copyPayload(l: ImportJobLine): void {

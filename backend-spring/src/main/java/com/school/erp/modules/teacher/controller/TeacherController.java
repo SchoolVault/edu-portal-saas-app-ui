@@ -27,8 +27,21 @@ public class TeacherController {
     public ResponseEntity<ApiResponse<PageResponse<TeacherDTOs.Response>>> list(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
-            @RequestParam(required = false) String search) {
-        return ResponseEntity.ok(ApiResponse.ok(service.getTeachers(page, size, search)));
+            @RequestParam(required = false) String search,
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) String subject) {
+        return ResponseEntity.ok(ApiResponse.ok(service.getTeachers(page, size, search, status, subject)));
+    }
+
+    @GetMapping("/staff")
+    @PreAuthorize(RbacSpel.ACADEMIC_ROSTER_READ)
+    @Operation(summary = "List non-teaching staff (school_staff/library_staff)")
+    public ResponseEntity<ApiResponse<PageResponse<TeacherDTOs.Response>>> listStaff(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(required = false) String search,
+            @RequestParam(required = false) String status) {
+        return ResponseEntity.ok(ApiResponse.ok(service.getStaff(page, size, search, status)));
     }
 
     @GetMapping("/{id}")
@@ -50,6 +63,15 @@ public class TeacherController {
     @Operation(summary = "Update teacher")
     public ResponseEntity<ApiResponse<TeacherDTOs.Response>> update(@PathVariable Long id, @Valid @RequestBody TeacherDTOs.UpdateRequest req) {
         return ResponseEntity.ok(ApiResponse.ok(service.update(id, req)));
+    }
+
+    @PatchMapping("/{id}/status")
+    @PreAuthorize(RbacSpel.ACADEMIC_DESK_ADMIN)
+    @Operation(summary = "Update teacher/staff active status")
+    public ResponseEntity<ApiResponse<TeacherDTOs.Response>> updateStatus(
+            @PathVariable Long id,
+            @RequestParam("status") String status) {
+        return ResponseEntity.ok(ApiResponse.ok(service.updateStatus(id, status)));
     }
 
     @DeleteMapping("/{id}")

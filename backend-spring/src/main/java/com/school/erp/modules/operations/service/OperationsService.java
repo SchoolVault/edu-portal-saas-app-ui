@@ -2,7 +2,6 @@ package com.school.erp.modules.operations.service;
 
 import com.school.erp.common.dto.PageResponse;
 import com.school.erp.common.exception.BusinessException;
-import com.school.erp.common.exception.BusinessException;
 import com.school.erp.common.exception.ResourceNotFoundException;
 import com.school.erp.modules.operations.dto.OperationsDTOs;
 import com.school.erp.modules.operations.entity.*;
@@ -74,7 +73,8 @@ public class OperationsService {
     }
 
     /**
-     * Remove operational staff. Default is soft-delete (audit-friendly).
+     * Remove operational staff.
+     * Default behavior is lifecycle-safe deactivate (record remains visible in inactive lists and can be restored).
      * Permanent delete is allowed only when the row has no linked ERP user and no transport route (e.g. ad-hoc driver record).
      */
     @Transactional
@@ -89,7 +89,7 @@ public class OperationsService {
             staffRepo.delete(e);
             return;
         }
-        e.setIsDeleted(true);
+        e.setIsActive(false);
         e.setUpdatedBy(TenantContext.getUserId() != null ? TenantContext.getUserId().toString() : null);
         staffRepo.save(e);
     }
@@ -229,6 +229,52 @@ public class OperationsService {
     }
 
     @Transactional(readOnly = true)
+    public PageResponse<OperationsDTOs.OperationalStaffResponse> listStaffPaged(int page, int size, String search, String status) {
+        Pageable p = PageRequest.of(page, size);
+        Boolean isActive = null;
+        if (status != null && !status.isBlank()) {
+            String s = status.trim().toLowerCase();
+            if ("active".equals(s)) isActive = true;
+            else if ("inactive".equals(s)) isActive = false;
+        }
+        String q = (search == null || search.isBlank()) ? null : search.trim();
+        return PageResponse.fromSpringPage(
+                staffRepo.searchStaff(TenantContext.getTenantId(), q, isActive, p).map(this::toStaffResponse));
+    }
+
+    @Transactional(readOnly = true)
+    public OperationsDTOs.OperationalStaffResponse getStaff(Long id) {
+        OperationalStaff e = staffRepo.findByIdAndTenantIdAndIsDeletedFalse(id, TenantContext.getTenantId())
+                .orElseThrow(() -> new ResourceNotFoundException("Operational staff not found"));
+        return toStaffResponse(e);
+    }
+
+    @Transactional
+    public OperationsDTOs.OperationalStaffResponse updateStaff(Long id, OperationsDTOs.OperationalStaffUpdateRequest req) {
+        OperationalStaff e = staffRepo.findByIdAndTenantIdAndIsDeletedFalse(id, TenantContext.getTenantId())
+                .orElseThrow(() -> new ResourceNotFoundException("Operational staff not found"));
+        if (req.getStaffRole() != null && !req.getStaffRole().isBlank()) e.setStaffRole(req.getStaffRole().trim().toUpperCase());
+        if (req.getFullName() != null && !req.getFullName().isBlank()) e.setFullName(req.getFullName().trim());
+        if (req.getPhone() != null) e.setPhone(req.getPhone().trim());
+        if (req.getEmail() != null) e.setEmail(req.getEmail().trim());
+        if (req.getEmployeeCode() != null) e.setEmployeeCode(req.getEmployeeCode().trim());
+        if (req.getNotes() != null) e.setNotes(req.getNotes().trim());
+        e.setUpdatedBy(TenantContext.getUserId() != null ? TenantContext.getUserId().toString() : null);
+        staffRepo.save(e);
+        return toStaffResponse(e);
+    }
+
+    @Transactional
+    public OperationsDTOs.OperationalStaffResponse updateStaffStatus(Long id, boolean active) {
+        OperationalStaff e = staffRepo.findByIdAndTenantIdAndIsDeletedFalse(id, TenantContext.getTenantId())
+                .orElseThrow(() -> new ResourceNotFoundException("Operational staff not found"));
+        e.setIsActive(active);
+        e.setUpdatedBy(TenantContext.getUserId() != null ? TenantContext.getUserId().toString() : null);
+        staffRepo.save(e);
+        return toStaffResponse(e);
+    }
+
+    @Transactional(readOnly = true)
     public PageResponse<OperationsDTOs.VisitorLogResponse> listVisitorsPaged(int page, int size) {
         Pageable p = PageRequest.of(page, size);
         return PageResponse.fromSpringPage(
@@ -310,6 +356,7 @@ public class OperationsService {
     private OperationsDTOs.OperationalStaffResponse toStaffResponse(OperationalStaff e) {
         OperationsDTOs.OperationalStaffResponse r = new OperationsDTOs.OperationalStaffResponse();
         r.setId(e.getId());
+        r.setIsActive(Boolean.TRUE.equals(e.getIsActive()));
         r.setStaffRole(e.getStaffRole());
         r.setFullName(e.getFullName());
         r.setPhone(e.getPhone());
