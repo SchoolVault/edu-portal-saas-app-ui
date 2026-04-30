@@ -1215,12 +1215,12 @@ public class OltpReportQueryAdapter implements ReportQueryPort {
         }
         for (var student : studentRepo.findByTenantIdAndIsDeletedFalse(tenantId, Pageable.unpaged()).getContent()) {
             LocalDate referenceDate = student.getAdmissionDate() != null ? student.getAdmissionDate() : (student.getCreatedAt() != null ? student.getCreatedAt().toLocalDate() : null);
-            YearMonth month = null;
-            if (referenceDate != null) {
-                month = YearMonth.from(referenceDate);
+            if (referenceDate == null) {
+                continue;
             }
-            if (month == null || !monthlyCounts.containsKey(month)) {
-                month = months.get((int) (Math.abs(student.getId()) % months.size()));
+            YearMonth month = YearMonth.from(referenceDate);
+            if (!monthlyCounts.containsKey(month)) {
+                continue;
             }
             monthlyCounts.put(month, monthlyCounts.get(month) + 1);
         }
@@ -1240,12 +1240,12 @@ public class OltpReportQueryAdapter implements ReportQueryPort {
         }
         payments.forEach(payment -> {
             LocalDate referenceDate = payment.getPaymentDate() != null ? payment.getPaymentDate() : (payment.getCreatedAt() != null ? payment.getCreatedAt().toLocalDate() : null);
-            YearMonth month = null;
-            if (referenceDate != null) {
-                month = YearMonth.from(referenceDate);
+            if (referenceDate == null) {
+                return;
             }
-            if (month == null || !monthlyCollections.containsKey(month)) {
-                month = months.get((int) (Math.abs(payment.getId() != null ? payment.getId() : 0) % months.size()));
+            YearMonth month = YearMonth.from(referenceDate);
+            if (!monthlyCollections.containsKey(month)) {
+                return;
             }
             monthlyCollections.put(month, monthlyCollections.get(month) + (payment.getPaidAmount() != null ? payment.getPaidAmount().doubleValue() : 0));
         });

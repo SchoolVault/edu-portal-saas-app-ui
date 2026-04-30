@@ -55,18 +55,6 @@ import { StudentGuardianMapping } from '../../../core/models/models';
               <span class="sgp__label">{{ 'students.profile.guardianDetail.occupation' | translate }}</span>
               <span class="sgp__value">{{ g.occupation }}</span>
             </div>
-            <div class="sgp__cell" *ngIf="g.parentPortalLinked === true || g.parentPortalLinked === false">
-              <span class="sgp__label">{{ 'students.profile.guardianDetail.parentApp' | translate }}</span>
-              <span class="sgp__value">{{
-                g.parentPortalLinked
-                  ? ('students.profile.guardianDetail.parentAppYes' | translate)
-                  : ('students.profile.guardianDetail.parentAppNo' | translate)
-              }}</span>
-            </div>
-            <div class="sgp__cell" *ngIf="g.custodyType">
-              <span class="sgp__label">{{ 'students.profile.guardianDetail.familyNotes' | translate }}</span>
-              <span class="sgp__value">{{ g.custodyType }}</span>
-            </div>
             <div class="sgp__cell" *ngIf="g.effectiveFrom || g.effectiveTo">
               <span class="sgp__label">{{ 'students.profile.guardianDetail.contactPeriod' | translate }}</span>
               <span class="sgp__value">{{ formatEffective(g) }}</span>

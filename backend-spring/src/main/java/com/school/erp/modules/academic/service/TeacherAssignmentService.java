@@ -16,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 @Service
@@ -40,10 +41,30 @@ public class TeacherAssignmentService {
     @Transactional
     public void closeActiveHomeroomSlotAssignments(String tenantId, Long classId, Long sectionId, LocalDate effectiveEnd) {
         LocalDate d = LocalDate.now();
+        LocalDate requestedEnd = effectiveEnd != null ? effectiveEnd : d;
         for (ClassTeacherAssignment a : classTeacherRepo.findActiveHomeroomSlot(tenantId, classId, sectionId, d)) {
-            a.setEffectiveTo(effectiveEnd);
+            LocalDate safeEnd = normalizeEffectiveEnd(a, requestedEnd);
+            if (Objects.equals(a.getEffectiveTo(), safeEnd)) {
+                continue;
+            }
+            a.setEffectiveTo(safeEnd);
             classTeacherRepo.save(a);
         }
+    }
+
+    /**
+     * Keeps assignment date ranges valid when lifecycle actions close a slot on the same day
+     * it was opened (or when callers pass a past date).
+     */
+    private LocalDate normalizeEffectiveEnd(ClassTeacherAssignment assignment, LocalDate requestedEnd) {
+        LocalDate start = assignment.getEffectiveFrom();
+        if (start == null || !requestedEnd.isBefore(start)) {
+            return requestedEnd;
+        }
+        log.debug(
+                "Adjusting assignment close date to avoid invalid range assignmentId={} requestedEnd={} effectiveFrom={}",
+                assignment.getId(), requestedEnd, start);
+        return start;
     }
 
     /** Persists a class-teacher assignment row (used when admin assigns class teacher). */

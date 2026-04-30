@@ -39,6 +39,7 @@ public interface TeacherRepository extends JpaRepository<Teacher, Long> {
            "(:subject IS NULL OR EXISTS (" +
            "SELECT s FROM Teacher tx JOIN tx.subjects s " +
            "WHERE tx.id = t.id AND LOWER(s) LIKE LOWER(CONCAT('%', :subject, '%')))) AND " +
+           "EXISTS (SELECT s2 FROM Teacher tx2 JOIN tx2.subjects s2 WHERE tx2.id = t.id) AND " +
            "(LOWER(CONCAT(t.firstName, ' ', t.lastName)) LIKE LOWER(CONCAT('%', :search, '%')) OR " +
            "LOWER(COALESCE(t.email, '')) LIKE LOWER(CONCAT('%', :search, '%')) OR " +
            "LOWER(COALESCE(t.specialization, '')) LIKE LOWER(CONCAT('%', :search, '%'))) AND " +

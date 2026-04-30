@@ -59,7 +59,7 @@ import { StudentGuardianMapping } from '../../core/models/models';
             </div>
             <div class="col-md-4">
               <div class="erp-form-group"><label class="erp-label">{{ 'students.form.phone' | translate }}</label>
-                <input type="text" class="erp-input" [(ngModel)]="student.phone" name="phone" data-testid="student-phone">
+                <input type="text" class="erp-input" [(ngModel)]="student.phone" name="phone" data-testid="student-phone" inputmode="numeric" maxlength="10" pattern="[0-9]{10}">
               </div>
             </div>
             <div class="col-md-4">
@@ -177,7 +177,7 @@ import { StudentGuardianMapping } from '../../core/models/models';
               <div class="erp-form-group"><label class="erp-label">{{ 'students.form.g1name' | translate }}</label>
                 <input type="text" class="erp-input" [(ngModel)]="g1.fullName" name="g1name" required></div>
               <div class="erp-form-group"><label class="erp-label">{{ 'students.form.phone' | translate }}</label>
-                <input type="text" class="erp-input" [(ngModel)]="g1.primaryPhone" (ngModelChange)="onPrimaryGuardianPhoneChanged()" (blur)="onPrimaryGuardianPhoneBlur()" name="g1phone" required>
+                <input type="text" class="erp-input" [(ngModel)]="g1.primaryPhone" (ngModelChange)="onPrimaryGuardianPhoneChanged()" (blur)="onPrimaryGuardianPhoneBlur()" name="g1phone" required inputmode="numeric" maxlength="10" pattern="[0-9]{10}">
                 <div class="mt-2" *ngIf="showExistingParentChip()">
                   <div class="small text-muted" *ngIf="parentLookupLoading">{{ 'students.form.parentLookupChecking' | translate }}</div>
                   <div class="small d-inline-flex align-items-center gap-1 px-2 py-1 rounded-2" style="background: rgba(13,110,253,0.12); color: #0b5ed7;" *ngIf="!parentLookupLoading && existingParentMatch">
@@ -210,7 +210,7 @@ import { StudentGuardianMapping } from '../../core/models/models';
               <div class="erp-form-group"><label class="erp-label">{{ 'students.form.g2name' | translate }}</label>
                 <input type="text" class="erp-input" [(ngModel)]="g2.fullName" name="g2name"></div>
               <div class="erp-form-group"><label class="erp-label">{{ 'students.form.phone' | translate }}</label>
-                <input type="text" class="erp-input" [(ngModel)]="g2.primaryPhone" name="g2phone"></div>
+                <input type="text" class="erp-input" [(ngModel)]="g2.primaryPhone" name="g2phone" inputmode="numeric" maxlength="10" pattern="[0-9]{10}"></div>
               <div class="erp-form-group"><label class="erp-label">{{ 'students.form.email' | translate }}</label>
                 <input type="email" class="erp-input" [(ngModel)]="g2.email" name="g2email"></div>
               <div class="erp-form-group"><label class="erp-label">{{ 'students.form.occupation' | translate }}</label>
@@ -239,7 +239,7 @@ import { StudentGuardianMapping } from '../../core/models/models';
               </div>
               <div class="erp-form-group">
                 <label class="erp-label">{{ 'students.form.phone' | translate }}</label>
-                <input type="text" class="erp-input" [(ngModel)]="guardian.primaryPhone" [name]="'editGuardianPhone' + i">
+                <input type="text" class="erp-input" [(ngModel)]="guardian.primaryPhone" [name]="'editGuardianPhone' + i" inputmode="numeric" maxlength="10" pattern="[0-9]{10}">
               </div>
               <div class="erp-form-group">
                 <label class="erp-label">{{ 'students.form.email' | translate }}</label>
@@ -527,6 +527,11 @@ export class StudentFormComponent implements OnInit, OnDestroy {
   async onSubmit(): Promise<void> {
     this.submitErrorKey = null;
     this.saveApiMessage = null;
+    this.student.phone = this.normalizeTenDigitPhone(this.student.phone ?? '');
+    if (this.student.phone && !this.isValidTenDigitPhone(this.student.phone)) {
+      this.submitErrorKey = 'students.form.phoneInvalidTenDigits';
+      return;
+    }
     if (!this.student.firstName || !this.student.lastName || this.student.classId == null || this.student.classId === 0) {
       return;
     }
@@ -629,7 +634,7 @@ export class StudentFormComponent implements OnInit, OnDestroy {
       return;
     }
     const activeRows = this.editGuardians
-      .map(row => ({ ...row, fullName: row.fullName.trim(), primaryPhone: row.primaryPhone.trim(), email: row.email.trim(), occupation: row.occupation.trim() }))
+      .map(row => ({ ...row, fullName: row.fullName.trim(), primaryPhone: this.normalizeTenDigitPhone(row.primaryPhone), email: row.email.trim(), occupation: row.occupation.trim() }))
       .filter(row => row.fullName || row.primaryPhone || row.email || row.occupation);
     if (!activeRows.length) {
       return;
@@ -641,6 +646,9 @@ export class StudentFormComponent implements OnInit, OnDestroy {
     for (const row of activeRows) {
       if (!row.fullName || !row.primaryPhone) {
         continue;
+      }
+      if (!this.isValidTenDigitPhone(row.primaryPhone)) {
+        throw new Error('Invalid guardian phone');
       }
       const emailsJson = row.email ? JSON.stringify([row.email]) : undefined;
       const phonesJson = row.primaryPhone ? JSON.stringify([row.primaryPhone]) : undefined;
@@ -743,8 +751,14 @@ export class StudentFormComponent implements OnInit, OnDestroy {
   }
 
   private validateGuardianPairs(): boolean {
+    this.g1.primaryPhone = this.normalizeTenDigitPhone(this.g1.primaryPhone);
+    this.g2.primaryPhone = this.normalizeTenDigitPhone(this.g2.primaryPhone);
     if (!this.g1.fullName.trim() || !this.g1.primaryPhone.trim()) {
       this.submitErrorKey = 'students.form.primaryGuardianRequired';
+      return false;
+    }
+    if (!this.isValidTenDigitPhone(this.g1.primaryPhone)) {
+      this.submitErrorKey = 'students.form.phoneInvalidTenDigits';
       return false;
     }
     const rows = [this.g1, ...(this.includeSecondGuardian ? [this.g2] : [])];
@@ -753,6 +767,10 @@ export class StudentFormComponent implements OnInit, OnDestroy {
       const hasPhone = (g.primaryPhone ?? '').trim().length > 0;
       if (hasName !== hasPhone) {
         this.submitErrorKey = 'students.form.guardianNamePhonePair';
+        return false;
+      }
+      if (hasPhone && !this.isValidTenDigitPhone(g.primaryPhone)) {
+        this.submitErrorKey = 'students.form.phoneInvalidTenDigits';
         return false;
       }
     }
@@ -800,6 +818,14 @@ export class StudentFormComponent implements OnInit, OnDestroy {
   }
 
   goBack(): void { this.router.navigate(['/app/students']); }
+
+  private normalizeTenDigitPhone(value: string | null | undefined): string {
+    return (value ?? '').replace(/\D/g, '').slice(0, 10);
+  }
+
+  private isValidTenDigitPhone(value: string | null | undefined): boolean {
+    return /^\d{10}$/.test((value ?? '').trim());
+  }
 
   ngOnDestroy(): void {
     this.langSub?.unsubscribe();

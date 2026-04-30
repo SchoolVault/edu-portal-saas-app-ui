@@ -3,6 +3,7 @@ package com.school.erp.modules.operations.service;
 import com.school.erp.common.dto.PageResponse;
 import com.school.erp.common.exception.BusinessException;
 import com.school.erp.common.exception.ResourceNotFoundException;
+import com.school.erp.common.util.InternationalPhone;
 import com.school.erp.modules.operations.dto.OperationsDTOs;
 import com.school.erp.modules.operations.entity.*;
 import com.school.erp.modules.operations.repository.*;
@@ -61,7 +62,7 @@ public class OperationsService {
         e.setTenantId(TenantContext.getTenantId());
         e.setStaffRole(req.getStaffRole().trim().toUpperCase());
         e.setFullName(req.getFullName().trim());
-        e.setPhone(req.getPhone());
+        e.setPhone(canonicalPhoneOptional(req.getPhone()));
         e.setEmail(req.getEmail());
         e.setEmployeeCode(req.getEmployeeCode());
         e.setUserId(req.getUserId());
@@ -110,7 +111,7 @@ public class OperationsService {
         VisitorLog v = new VisitorLog();
         v.setTenantId(TenantContext.getTenantId());
         v.setVisitorName(req.getVisitorName().trim());
-        v.setPhone(req.getPhone());
+        v.setPhone(canonicalPhoneOptional(req.getPhone()));
         v.setPurpose(req.getPurpose());
         v.setHostName(req.getHostName());
         v.setBadgeNo("V-" + System.currentTimeMillis());
@@ -255,7 +256,7 @@ public class OperationsService {
                 .orElseThrow(() -> new ResourceNotFoundException("Operational staff not found"));
         if (req.getStaffRole() != null && !req.getStaffRole().isBlank()) e.setStaffRole(req.getStaffRole().trim().toUpperCase());
         if (req.getFullName() != null && !req.getFullName().isBlank()) e.setFullName(req.getFullName().trim());
-        if (req.getPhone() != null) e.setPhone(req.getPhone().trim());
+        if (req.getPhone() != null) e.setPhone(canonicalPhoneOptional(req.getPhone()));
         if (req.getEmail() != null) e.setEmail(req.getEmail().trim());
         if (req.getEmployeeCode() != null) e.setEmployeeCode(req.getEmployeeCode().trim());
         if (req.getNotes() != null) e.setNotes(req.getNotes().trim());
@@ -419,5 +420,16 @@ public class OperationsService {
         r.setSentAt(q.getSentAt() != null ? ISO_DT.format(q.getSentAt()) : null);
         r.setLastError(q.getLastError());
         return r;
+    }
+
+    private String canonicalPhoneOptional(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return null;
+        }
+        String canonical = InternationalPhone.canonical(raw);
+        if (canonical == null) {
+            throw new BusinessException(InternationalPhone.invalidMessage());
+        }
+        return canonical;
     }
 }

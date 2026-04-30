@@ -27,6 +27,7 @@ import {
 } from './parent-fee-payment.providers';
 import { SchoolClassNamePipe } from '../../core/i18n/school-class-name.pipe';
 import { TenantModuleGateService } from '../../core/services/tenant-module-gate.service';
+import { formatDateDdMmYyyy } from '../../core/utils/date-format';
 @Component({
   selector: 'app-parent-portal',
   standalone: true,
@@ -254,7 +255,7 @@ import { TenantModuleGateService } from '../../core/services/tenant-module-gate.
             <thead><tr><th>{{ 'parentPortal.thDate' | translate }}</th><th>{{ 'parentPortal.thStatus' | translate }}</th><th>{{ 'parentPortal.thRemarks' | translate }}</th></tr></thead>
             <tbody>
               <tr *ngFor="let record of paginatedAttendanceRecords">
-                <td>{{ record.date }}</td>
+                <td>{{ formatDate(record.date) }}</td>
                 <td><span class="badge-erp badge-neutral">{{ attendanceRowStatusLabel(record.status) }}</span></td>
                 <td>{{ getAttendanceRemarks(record) }}</td>
               </tr>
@@ -290,7 +291,7 @@ import { TenantModuleGateService } from '../../core/services/tenant-module-gate.
                     <h4 style="font-size: 16px; font-weight: 800; margin-bottom: 6px;">{{ obligation.feeStructureName }}</h4>
                     <p class="text-muted mb-0" style="font-size: 12px;">
                       {{ selectedChild ? childClassSectionLabel(selectedChild) : ((obligation.className | schoolClassName) || ('exams.dash' | translate)) }}
-                      <ng-container *ngIf="obligation.dueDate">{{ 'parentPortal.obligationDuePrefix' | translate: { date: obligation.dueDate } }}</ng-container>
+                      <ng-container *ngIf="obligation.dueDate">{{ 'parentPortal.obligationDuePrefix' | translate: { date: formatDate(obligation.dueDate) } }}</ng-container>
                       <ng-container *ngIf="obligation.daysUntilDue != null && obligation.daysUntilDue > 0 && obligation.status !== 'paid'">
                         · {{ 'parentPortal.dueInDays' | translate: { n: obligation.daysUntilDue } }}
                       </ng-container>
@@ -409,7 +410,7 @@ import { TenantModuleGateService } from '../../core/services/tenant-module-gate.
                 <div *ngIf="latestReceipt" class="insight-card mb-3">
                   <div class="insight-label">{{ 'parentPortal.latestInRange' | translate }}</div>
                   <div class="insight-value" style="font-size: 15px;">{{ latestReceipt.receiptNumber }}</div>
-                  <div class="insight-subtext">{{ latestReceipt.paymentDate }} · {{ latestReceipt.amountPaid | currency:latestReceipt.currency:'symbol':'1.0-0' }}</div>
+                  <div class="insight-subtext">{{ formatDate(latestReceipt.paymentDate) }} · {{ latestReceipt.amountPaid | currency:latestReceipt.currency:'symbol':'1.0-0' }}</div>
                   <button type="button" class="btn-outline-erp btn-xs mt-2" (click)="downloadReceipt(latestReceipt)"><i class="bi bi-download me-1"></i>{{ 'parentPortal.download' | translate }}</button>
                 </div>
                 <div *ngIf="!receiptHistory.length && !receiptsLoading" class="empty-state" style="padding: 20px 12px;">
@@ -425,7 +426,7 @@ import { TenantModuleGateService } from '../../core/services/tenant-module-gate.
                   >
                     <div style="min-width: 0;">
                       <div class="fw-bold" style="font-size: 13px;">{{ r.receiptNumber }}</div>
-                      <div class="text-muted small">{{ r.paymentDate }} · {{ r.amountPaid | currency:r.currency:'symbol':'1.0-0' }} · {{ receiptLedgerStatusLabel(r) }}</div>
+                      <div class="text-muted small">{{ formatDate(r.paymentDate) }} · {{ r.amountPaid | currency:r.currency:'symbol':'1.0-0' }} · {{ receiptLedgerStatusLabel(r) }}</div>
                     </div>
                     <button type="button" class="btn-outline-erp btn-xs flex-shrink-0" (click)="downloadReceipt(r)"><i class="bi bi-download"></i></button>
                   </div>
@@ -633,6 +634,10 @@ export class ParentPortalComponent implements OnInit, OnDestroy {
 
   get attendancePageTo(): number {
     return Math.min(this.attendancePage * this.attendancePageSize, this.attendanceRecords.length);
+  }
+
+  formatDate(raw: string | null | undefined): string {
+    return formatDateDdMmYyyy(raw);
   }
 
   private static currentCalendarYm(): string {

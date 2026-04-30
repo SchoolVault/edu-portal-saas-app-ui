@@ -65,7 +65,7 @@ import { ConfirmDialogService } from '../../shared/confirm-dialog/confirm-dialog
             <div class="col-md-4"><div class="erp-form-group"><label class="erp-label">{{ 'teachers.form.firstName' | translate }}</label><input type="text" class="erp-input" [(ngModel)]="teacher.firstName" name="firstName" required></div></div>
             <div class="col-md-4"><div class="erp-form-group"><label class="erp-label">{{ 'teachers.form.lastName' | translate }}</label><input type="text" class="erp-input" [(ngModel)]="teacher.lastName" name="lastName" required></div></div>
             <div class="col-md-4"><div class="erp-form-group"><label class="erp-label">{{ 'teachers.form.email' | translate }}</label><input type="email" class="erp-input" [(ngModel)]="teacher.email" name="email" required></div></div>
-            <div class="col-md-4"><div class="erp-form-group"><label class="erp-label">{{ 'teachers.form.phone' | translate }}</label><input type="text" class="erp-input" [(ngModel)]="teacher.phone" name="phone" required></div></div>
+            <div class="col-md-4"><div class="erp-form-group"><label class="erp-label">{{ 'teachers.form.phone' | translate }}</label><input type="text" class="erp-input" [(ngModel)]="teacher.phone" name="phone" required inputmode="numeric" maxlength="10" pattern="[0-9]{10}"></div></div>
             <div class="col-md-4"><div class="erp-form-group"><label class="erp-label">{{ 'teachers.form.qualification' | translate }}</label><input type="text" class="erp-input" [(ngModel)]="teacher.qualification" name="qualification"></div></div>
             <div class="col-md-4"><div class="erp-form-group"><label class="erp-label">{{ 'teachers.form.specialization' | translate }}</label><input type="text" class="erp-input" [(ngModel)]="teacher.specialization" name="specialization"></div></div>
             <div class="col-md-4"><div class="erp-form-group"><label class="erp-label">{{ 'teachers.form.joinDate' | translate }}</label><app-erp-date-picker [(ngModel)]="teacher.joinDate" name="joinDate" placeholderI18nKey="teachers.form.joinDatePh" /></div></div>
@@ -277,7 +277,12 @@ export class TeacherFormComponent implements OnInit, OnDestroy {
   }
 
   onSubmit(): void {
+    this.teacher.phone = this.normalizeTenDigitPhone(this.teacher.phone ?? '');
     if (!this.teacher.firstName || !this.teacher.lastName || !this.teacher.email || !this.teacher.phone?.trim()) return;
+    if (!this.isValidTenDigitPhone(this.teacher.phone)) {
+      this.saveError = this.translate.instant('teachers.form.phoneInvalidTenDigits');
+      return;
+    }
     this.saving = true;
     this.saveError = '';
     const payload = { ...this.teacher, subjects: this.mergeSubjectsForSave() };
@@ -327,4 +332,12 @@ export class TeacherFormComponent implements OnInit, OnDestroy {
   }
 
   goBack(): void { this.router.navigate(['/app/teachers']); }
+
+  private normalizeTenDigitPhone(value: string | null | undefined): string {
+    return (value ?? '').replace(/\D/g, '').slice(0, 10);
+  }
+
+  private isValidTenDigitPhone(value: string | null | undefined): boolean {
+    return /^\d{10}$/.test((value ?? '').trim());
+  }
 }

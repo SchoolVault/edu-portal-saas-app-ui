@@ -7,7 +7,7 @@ import { StudentService } from '../../core/services/student.service';
 import { AcademicService } from '../../core/services/academic.service';
 import { AuthService } from '../../core/services/auth.service';
 import { UiAccessService } from '../../core/services/ui-access.service';
-import { Student } from '../../core/models/models';
+import { SchoolClass, Student } from '../../core/models/models';
 import { ConfirmDialogService } from '../../shared/confirm-dialog/confirm-dialog.service';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { Subject, Subscription } from 'rxjs';
@@ -139,6 +139,19 @@ import { ImportExportService } from '../../core/services/import-export.service';
           <div class="student-list-filter-group erp-filter-toolbar__actions">
             <select class="erp-select" style="width: 170px;" [(ngModel)]="classFilter" (change)="onClassOrStatusChange()" data-testid="class-filter">
               <option *ngFor="let c of classOptions" [value]="c.value">{{ c.value === '' ? ('students.list.allClasses' | translate) : classDisplayName(c.label) }}</option>
+            </select>
+            <select
+              class="erp-select"
+              style="width: 170px;"
+              [(ngModel)]="sectionFilter"
+              (change)="onClassOrStatusChange()"
+              [disabled]="sectionFilterDisabled"
+              data-testid="section-filter"
+            >
+              <option value="">
+                {{ sectionFilterDisabled ? ('students.list.selectSection' | translate) : ('students.list.allSections' | translate) }}
+              </option>
+              <option *ngFor="let s of sectionOptions" [value]="s.value">{{ s.label }}</option>
             </select>
             <select class="erp-select" style="width: 170px;" [(ngModel)]="statusFilter" (change)="onClassOrStatusChange()" data-testid="status-filter">
               <option value="">{{ 'students.list.allStatus' | translate }}</option>
@@ -277,6 +290,7 @@ export class StudentListComponent implements OnInit, OnDestroy {
   pageSize = DEFAULT_ERP_PAGE_SIZE;
   /** value: class id string (canonical); label: display name */
   classOptions: { value: string; label: string }[] = [{ value: '', label: '' }];
+  allClasses: SchoolClass[] = [];
   loadingStudents = true;
   exportMessage = '';
   exportMessageOk = true;
@@ -304,6 +318,23 @@ export class StudentListComponent implements OnInit, OnDestroy {
 
   get paginationTotal(): number {
     return this.useServerPaging ? this.serverTotal : this.filteredStudents.length;
+  }
+
+  get sectionOptions(): { value: string; label: string }[] {
+    if (!this.classFilter) {
+      return [];
+    }
+    const classId = Number(this.classFilter);
+    if (!Number.isFinite(classId) || classId <= 0) {
+      return [];
+    }
+    const cls = this.allClasses.find(c => c.id === classId);
+    const sections = [...(cls?.sections ?? [])].sort((a, b) => a.name.localeCompare(b.name));
+    return sections.map(s => ({ value: String(s.id), label: s.name }));
+  }
+
+  get sectionFilterDisabled(): boolean {
+    return !this.classFilter || this.sectionOptions.length === 0;
   }
 
   statusLabel(status: string): string {
@@ -382,7 +413,7 @@ export class StudentListComponent implements OnInit, OnDestroy {
   }
 
   onClassOrStatusChange(): void {
-    if (!this.classFilter) {
+    if (!this.classFilter || this.sectionFilterDisabled || !this.sectionOptions.some(s => s.value === this.sectionFilter)) {
       this.sectionFilter = '';
     }
     if (this.useServerPaging) {
@@ -398,6 +429,7 @@ export class StudentListComponent implements OnInit, OnDestroy {
     if (this.useServerPaging) {
       this.subs.add(
         this.academic.getClasses().subscribe(classes => {
+          this.allClasses = classes;
           this.classOptions = [
             { value: '', label: '' },
             ...sortSchoolClassesByGrade(classes.filter(c => c.id > 0)).map(c => ({ value: String(c.id), label: c.name || '' })),
@@ -412,6 +444,7 @@ export class StudentListComponent implements OnInit, OnDestroy {
     }
     this.subs.add(
       this.academic.getClasses().subscribe(classes => {
+        this.allClasses = classes;
         this.classOptions = [
           { value: '', label: '' },
           ...sortSchoolClassesByGrade(classes.filter(c => c.id > 0)).map(c => ({ value: String(c.id), label: c.name || '' })),

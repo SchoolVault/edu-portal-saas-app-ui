@@ -38,6 +38,7 @@ import { DEFAULT_ERP_PAGE_SIZE } from '../../core/constants/pagination.constants
 import { ErpI18nPhDirective, ErpI18nTextDirective } from '../../shared/erp-i18n/erp-i18n-host.directives';
 import { runtimeConfig } from '../../core/config/runtime-config';
 import { SchoolClassNamePipe } from '../../core/i18n/school-class-name.pipe';
+import { formatDateDdMmYyyy } from '../../core/utils/date-format';
 
 @Component({
   selector: 'app-reports',
@@ -286,7 +287,7 @@ import { SchoolClassNamePipe } from '../../core/i18n/school-class-name.pipe';
                 <td>{{ j.format }}</td>
                 <td>{{ reportJobStatusLabel(j.status) }}</td>
                 <td>{{ reportWorkflowLabel(j.workflowState) }}</td>
-                <td>{{ j.generatedAt || j.createdAt || '-' }}</td>
+                <td>{{ formatDate(j.generatedAt || j.createdAt) || '-' }}</td>
                 <td>
                   <div class="d-flex flex-wrap gap-1 reports-job-actions">
                     <button type="button" class="btn-outline-erp btn-sm" (click)="downloadReportJob(j)">
@@ -325,7 +326,7 @@ import { SchoolClassNamePipe } from '../../core/i18n/school-class-name.pipe';
                   <td>{{ humanRoleLabel(d.targetRole) }}</td>
                   <td>{{ d.localeCode }}</td>
                   <td>{{ d.channel }}</td>
-                  <td>{{ d.createdAt || '-' }}</td>
+                  <td>{{ formatDate(d.createdAt) || '-' }}</td>
                 </tr>
               </tbody>
             </table>
@@ -338,7 +339,7 @@ import { SchoolClassNamePipe } from '../../core/i18n/school-class-name.pipe';
                 <tr *ngFor="let s of snapshotRows">
                   <td>{{ s.versionNo }}</td>
                   <td>{{ reportSnapshotTypeLabel(s.snapshotType) }}</td>
-                  <td>{{ s.publishedAt || '-' }}</td>
+                  <td>{{ formatDate(s.publishedAt) || '-' }}</td>
                   <td><button type="button" class="btn-outline-erp btn-sm" (click)="rollbackSnapshot(s)">{{ 'reports.rollback' | translate }}</button></td>
                 </tr>
               </tbody>
@@ -352,7 +353,7 @@ import { SchoolClassNamePipe } from '../../core/i18n/school-class-name.pipe';
                 <tr *ngFor="let e of workflowEvents">
                   <td>{{ reportEventLabel(e.eventCode) }}</td>
                   <td>{{ (e.fromState || '-') + ' → ' + (e.toState || '-') }}</td>
-                  <td>{{ e.occurredAt || '-' }}</td>
+                  <td>{{ formatDate(e.occurredAt) || '-' }}</td>
                   <td>{{ e.note || '-' }}</td>
                 </tr>
               </tbody>
@@ -1074,6 +1075,10 @@ export class ReportsComponent implements OnInit {
   private datedReportCsvName(slug: string): string {
     const d = new Date().toISOString().slice(0, 10);
     return `${slug}-${d}.csv`;
+  }
+
+  formatDate(raw: string | null | undefined): string {
+    return formatDateDdMmYyyy(raw);
   }
 
   feeStatusLabel(raw: string | undefined): string {

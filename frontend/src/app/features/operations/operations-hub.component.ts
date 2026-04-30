@@ -62,7 +62,7 @@ import { UiAccessService } from '../../core/services/ui-access.service';
         <div class="row g-2 mb-3">
           <div class="col-md-3"><select class="erp-select" [(ngModel)]="staffForm.staffRole"><option *ngFor="let r of staffRoles" [value]="r">{{ staffRoleLabel(r) }}</option></select></div>
           <div class="col-md-3"><input class="erp-input" [(ngModel)]="staffForm.fullName" erpI18nPh="operations.staff.phFullName" /></div>
-          <div class="col-md-2"><input class="erp-input" [(ngModel)]="staffForm.phone" erpI18nPh="operations.staff.phPhone" /></div>
+          <div class="col-md-2"><input class="erp-input" [(ngModel)]="staffForm.phone" erpI18nPh="operations.staff.phPhone" inputmode="numeric" maxlength="10" pattern="[0-9]{10}" /></div>
           <div class="col-md-2"><input class="erp-input" [(ngModel)]="staffForm.employeeCode" erpI18nPh="operations.staff.phCode" /></div>
           <div class="col-md-2"><button type="button" class="btn-primary-erp w-100" [disabled]="!canManageOperationsLifecycle" (click)="addStaff()">{{ 'operations.staff.add' | translate }}</button></div>
         </div>
@@ -96,7 +96,7 @@ import { UiAccessService } from '../../core/services/ui-access.service';
         <div *ngIf="visitorsTabError" class="alert alert-danger py-2 px-3 small mb-2" style="border-radius: var(--radius-md);">{{ visitorsTabError }}</div>
         <div class="row g-2 mb-3">
           <div class="col-md-3"><input class="erp-input" [(ngModel)]="visitorForm.visitorName" erpI18nPh="operations.visitors.phVisitorName" /></div>
-          <div class="col-md-2"><input class="erp-input" [(ngModel)]="visitorForm.phone" erpI18nPh="operations.visitors.phPhone" /></div>
+          <div class="col-md-2"><input class="erp-input" [(ngModel)]="visitorForm.phone" erpI18nPh="operations.visitors.phPhone" inputmode="numeric" maxlength="10" pattern="[0-9]{10}" /></div>
           <div class="col-md-3"><input class="erp-input" [(ngModel)]="visitorForm.hostName" erpI18nPh="operations.visitors.phHost" /></div>
           <div class="col-md-3"><input class="erp-input" [(ngModel)]="visitorForm.purpose" erpI18nPh="operations.visitors.phPurpose" /></div>
           <div class="col-md-1"><button class="btn-primary-erp w-100" (click)="checkIn()">{{ 'operations.visitors.checkIn' | translate }}</button></div>
@@ -946,6 +946,11 @@ export class OperationsHubComponent implements OnInit {
       this.staffTabError = this.translate.instant('operations.staff.errRole');
       return;
     }
+    this.staffForm.phone = this.normalizeTenDigitPhone(this.staffForm.phone);
+    if (this.staffForm.phone && !this.isValidTenDigitPhone(this.staffForm.phone)) {
+      this.staffTabError = this.translate.instant('operations.staff.errPhoneInvalidTenDigits');
+      return;
+    }
     this.operations
       .createStaff({
         staffRole: this.staffForm.staffRole.trim(),
@@ -993,6 +998,11 @@ export class OperationsHubComponent implements OnInit {
     const visitorName = this.visitorForm.visitorName?.trim();
     if (!visitorName) {
       this.visitorsTabError = this.translate.instant('operations.visitors.errVisitorNameRequired');
+      return;
+    }
+    this.visitorForm.phone = this.normalizeTenDigitPhone(this.visitorForm.phone);
+    if (this.visitorForm.phone && !this.isValidTenDigitPhone(this.visitorForm.phone)) {
+      this.visitorsTabError = this.translate.instant('operations.visitors.errPhoneInvalidTenDigits');
       return;
     }
     this.operations.checkInVisitor({ ...this.visitorForm, visitorName }).subscribe({
@@ -1263,5 +1273,13 @@ export class OperationsHubComponent implements OnInit {
 
   loadPayroll(): void {
     this.operations.payrollAccrualSummary().subscribe(p => (this.payroll = p));
+  }
+
+  private normalizeTenDigitPhone(value: string | null | undefined): string {
+    return (value ?? '').replace(/\D/g, '').slice(0, 10);
+  }
+
+  private isValidTenDigitPhone(value: string | null | undefined): boolean {
+    return /^\d{10}$/.test((value ?? '').trim());
   }
 }

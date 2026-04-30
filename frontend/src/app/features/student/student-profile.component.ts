@@ -13,6 +13,7 @@ import { ConfirmDialogService } from '../../shared/confirm-dialog/confirm-dialog
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { SchoolClassNamePipe } from '../../core/i18n/school-class-name.pipe';
 import { formatSchoolClassName } from '../../core/i18n/school-class-display';
+import { formatDateDdMmYyyy } from '../../core/utils/date-format';
 
 @Component({
   selector: 'app-student-profile',
@@ -106,7 +107,7 @@ import { formatSchoolClassName } from '../../core/i18n/school-class-display';
             <div style="text-align: left;">
               <div class="mb-3"><span style="font-size: 12px; color: var(--clr-text-muted); display: block;">{{ 'students.profile.email' | translate }}</span><strong>{{ student.email }}</strong></div>
               <div class="mb-3"><span style="font-size: 12px; color: var(--clr-text-muted); display: block;">{{ 'students.profile.phone' | translate }}</span><strong>{{ student.phone }}</strong></div>
-              <div class="mb-3"><span style="font-size: 12px; color: var(--clr-text-muted); display: block;">{{ 'students.profile.dob' | translate }}</span><strong>{{ student.dateOfBirth }}</strong></div>
+              <div class="mb-3"><span style="font-size: 12px; color: var(--clr-text-muted); display: block;">{{ 'students.profile.dob' | translate }}</span><strong>{{ formatDate(student.dateOfBirth) }}</strong></div>
               <div class="mb-3"><span style="font-size: 12px; color: var(--clr-text-muted); display: block;">{{ 'students.form.bloodGroup' | translate }}</span><strong>{{ student.bloodGroup }}</strong></div>
               <div class="mb-3"><span style="font-size: 12px; color: var(--clr-text-muted); display: block;">{{ 'students.profile.gender' | translate }}</span><strong>{{ genderLabel(student.gender) }}</strong></div>
               <div><span style="font-size: 12px; color: var(--clr-text-muted); display: block;">{{ 'students.profile.address' | translate }}</span><strong>{{ student.address }}</strong></div>
@@ -120,7 +121,7 @@ import { formatSchoolClassName } from '../../core/i18n/school-class-display';
               <div class="col-md-3"><span style="font-size: 12px; color: var(--clr-text-muted); display: block;">{{ 'students.profile.class' | translate }}</span><strong>{{ student.className | schoolClassName }}</strong></div>
               <div class="col-md-3"><span style="font-size: 12px; color: var(--clr-text-muted); display: block;">{{ 'students.profile.section' | translate }}</span><strong>{{ student.sectionName }}</strong></div>
               <div class="col-md-3"><span style="font-size: 12px; color: var(--clr-text-muted); display: block;">{{ 'students.profile.rollNumber' | translate }}</span><strong>{{ student.rollNumber }}</strong></div>
-              <div class="col-md-3"><span style="font-size: 12px; color: var(--clr-text-muted); display: block;">{{ 'students.profile.admissionDate' | translate }}</span><strong>{{ student.admissionDate }}</strong></div>
+              <div class="col-md-3"><span style="font-size: 12px; color: var(--clr-text-muted); display: block;">{{ 'students.profile.admissionDate' | translate }}</span><strong>{{ formatDate(student.admissionDate) }}</strong></div>
             </div>
             <hr style="border-color: var(--clr-border); margin: 20px 0;" />
             <app-student-guardian-panel
@@ -178,6 +179,10 @@ export class StudentProfileComponent implements OnInit, OnDestroy {
     const key = 'students.enums.gender.' + g;
     const t = this.translate.instant(key);
     return t !== key ? t : g;
+  }
+
+  formatDate(raw: string | null | undefined): string {
+    return formatDateDdMmYyyy(raw);
   }
 
   /** Student master writes — {@code STUDENT_MASTER_WRITE} / delegated registrar. */
