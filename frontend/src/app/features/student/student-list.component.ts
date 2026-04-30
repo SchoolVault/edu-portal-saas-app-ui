@@ -118,7 +118,7 @@ import { ImportExportService } from '../../core/services/import-export.service';
       <div *ngIf="exportMessage" class="alert py-2 small mb-3" [class.alert-success]="exportMessageOk" [class.alert-danger]="!exportMessageOk">
         <div class="d-flex justify-content-between align-items-center gap-2">
           <span>{{ exportMessage }}</span>
-          <button type="button" class="btn-close" aria-label="Close" (click)="clearExportMessage()"></button>
+          <button type="button" class="btn-close" [attr.aria-label]="'students.list.closeAlert' | translate" (click)="clearExportMessage()"></button>
         </div>
       </div>
 
@@ -143,10 +143,10 @@ import { ImportExportService } from '../../core/services/import-export.service';
             <select class="erp-select" style="width: 170px;" [(ngModel)]="statusFilter" (change)="onClassOrStatusChange()" data-testid="status-filter">
               <option value="">{{ 'students.list.allStatus' | translate }}</option>
               <option value="active">{{ 'students.enums.status.active' | translate }}</option>
-              <option value="inactive">{{ 'students.enums.status.inactive' | translate }}</option>
-              <option value="graduated">{{ 'students.enums.status.graduated' | translate }}</option>
-              <option value="transferred">{{ 'students.enums.status.transferred' | translate }}</option>
-              <option value="alumni">{{ 'students.enums.status.alumni' | translate }}</option>
+              <option *ngIf="canViewInactive" value="inactive">{{ 'students.enums.status.inactive' | translate }}</option>
+              <option *ngIf="canViewInactive" value="graduated">{{ 'students.enums.status.graduated' | translate }}</option>
+              <option *ngIf="canViewInactive" value="transferred">{{ 'students.enums.status.transferred' | translate }}</option>
+              <option *ngIf="canViewInactive" value="alumni">{{ 'students.enums.status.alumni' | translate }}</option>
             </select>
           </div>
         </div>
@@ -324,7 +324,14 @@ export class StudentListComponent implements OnInit, OnDestroy {
     return this.uiAccess.hasStudentMasterWriteAccess();
   }
 
+  get canViewInactive(): boolean {
+    return this.uiAccess.canViewInactiveRosterRows();
+  }
+
   ngOnInit(): void {
+    if (!this.canViewInactive) {
+      this.statusFilter = 'active';
+    }
     this.subs.add(this.translate.onLangChange.subscribe(() => this.cdr.markForCheck()));
     this.subs.add(
       this.searchDebounced$.pipe(debounceTime(300)).subscribe(() => {

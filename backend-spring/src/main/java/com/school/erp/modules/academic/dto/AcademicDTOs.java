@@ -235,6 +235,7 @@ public class AcademicDTOs {
         private Long id;
         private String name;
         private Integer grade;
+        private Boolean isActive;
         private Long classTeacherId;
         private String classTeacherName;
         private Long academicYearId;
@@ -246,6 +247,7 @@ public class AcademicDTOs {
             private Long id;
             private String name;
             private Integer grade;
+            private Boolean isActive;
             private Long classTeacherId;
             private String classTeacherName;
             private Long academicYearId;
@@ -276,6 +278,11 @@ public class AcademicDTOs {
              */
             public AcademicDTOs.ClassWithSectionsResponse.ClassWithSectionsResponseBuilder grade(final Integer grade) {
                 this.grade = grade;
+                return this;
+            }
+
+            public AcademicDTOs.ClassWithSectionsResponse.ClassWithSectionsResponseBuilder isActive(final Boolean isActive) {
+                this.isActive = isActive;
                 return this;
             }
 
@@ -320,7 +327,7 @@ public class AcademicDTOs {
             }
 
             public AcademicDTOs.ClassWithSectionsResponse build() {
-                return new AcademicDTOs.ClassWithSectionsResponse(this.id, this.name, this.grade, this.classTeacherId, this.classTeacherName, this.academicYearId, this.totalStudents, this.sections);
+                return new AcademicDTOs.ClassWithSectionsResponse(this.id, this.name, this.grade, this.isActive, this.classTeacherId, this.classTeacherName, this.academicYearId, this.totalStudents, this.sections);
             }
 
             @Override
@@ -343,6 +350,10 @@ public class AcademicDTOs {
 
         public Integer getGrade() {
             return this.grade;
+        }
+
+        public Boolean getIsActive() {
+            return this.isActive;
         }
 
         public Long getClassTeacherId() {
@@ -375,6 +386,10 @@ public class AcademicDTOs {
 
         public void setGrade(final Integer grade) {
             this.grade = grade;
+        }
+
+        public void setIsActive(final Boolean isActive) {
+            this.isActive = isActive;
         }
 
         public void setClassTeacherId(final Long classTeacherId) {
@@ -462,10 +477,11 @@ public class AcademicDTOs {
         public ClassWithSectionsResponse() {
         }
 
-        public ClassWithSectionsResponse(final Long id, final String name, final Integer grade, final Long classTeacherId, final String classTeacherName, final Long academicYearId, final int totalStudents, final List<SectionDTO> sections) {
+        public ClassWithSectionsResponse(final Long id, final String name, final Integer grade, final Boolean isActive, final Long classTeacherId, final String classTeacherName, final Long academicYearId, final int totalStudents, final List<SectionDTO> sections) {
             this.id = id;
             this.name = name;
             this.grade = grade;
+            this.isActive = isActive;
             this.classTeacherId = classTeacherId;
             this.classTeacherName = classTeacherName;
             this.academicYearId = academicYearId;
@@ -479,6 +495,7 @@ public class AcademicDTOs {
         private Long id;
         private String name;
         private Long classId;
+        private Boolean isActive;
         private Integer capacity;
         private Integer studentCount;
         private Long classTeacherId;
@@ -489,6 +506,7 @@ public class AcademicDTOs {
             private Long id;
             private String name;
             private Long classId;
+            private Boolean isActive;
             private Integer capacity;
             private Integer studentCount;
             private Long classTeacherId;
@@ -521,6 +539,11 @@ public class AcademicDTOs {
                 return this;
             }
 
+            public AcademicDTOs.SectionDTO.SectionDTOBuilder isActive(final Boolean isActive) {
+                this.isActive = isActive;
+                return this;
+            }
+
             /**
              * @return {@code this}.
              */
@@ -549,7 +572,7 @@ public class AcademicDTOs {
 
             public AcademicDTOs.SectionDTO build() {
                 return new AcademicDTOs.SectionDTO(
-                        this.id, this.name, this.classId, this.capacity, this.studentCount, this.classTeacherId, this.classTeacherName);
+                        this.id, this.name, this.classId, this.isActive, this.capacity, this.studentCount, this.classTeacherId, this.classTeacherName);
             }
 
             @Override
@@ -572,6 +595,10 @@ public class AcademicDTOs {
 
         public Long getClassId() {
             return this.classId;
+        }
+
+        public Boolean getIsActive() {
+            return this.isActive;
         }
 
         public Integer getCapacity() {
@@ -600,6 +627,10 @@ public class AcademicDTOs {
 
         public void setClassId(final Long classId) {
             this.classId = classId;
+        }
+
+        public void setIsActive(final Boolean isActive) {
+            this.isActive = isActive;
         }
 
         public void setCapacity(final Integer capacity) {
@@ -693,6 +724,7 @@ public class AcademicDTOs {
                 final Long id,
                 final String name,
                 final Long classId,
+                final Boolean isActive,
                 final Integer capacity,
                 final Integer studentCount,
                 final Long classTeacherId,
@@ -700,6 +732,7 @@ public class AcademicDTOs {
             this.id = id;
             this.name = name;
             this.classId = classId;
+            this.isActive = isActive;
             this.capacity = capacity;
             this.studentCount = studentCount;
             this.classTeacherId = classTeacherId;

@@ -123,7 +123,7 @@ import { ImportExportService } from '../../core/services/import-export.service';
         <div *ngIf="activeTab === 'staff' && staffExportMessage" class="alert py-2 small mb-0 mt-2" [class.alert-success]="staffExportMessageOk" [class.alert-danger]="!staffExportMessageOk">
           <div class="d-flex justify-content-between align-items-center gap-2">
             <span>{{ staffExportMessage }}</span>
-            <button type="button" class="btn-close" aria-label="Close" (click)="clearStaffExportMessage()"></button>
+            <button type="button" class="btn-close" [attr.aria-label]="'directory.closeAlert' | translate" (click)="clearStaffExportMessage()"></button>
           </div>
         </div>
         <p class="text-muted small mb-0 mt-2">{{ 'directory.tip' | translate }}</p>

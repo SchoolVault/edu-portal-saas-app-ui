@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.school.erp.common.enums.Enums;
 import com.school.erp.common.exception.BusinessException;
+import com.school.erp.common.exception.DuplicateResourceException;
 import com.school.erp.common.importer.BulkImportRowPolicy;
 import com.school.erp.common.importer.ImportLineOutcome;
 import com.school.erp.common.importer.LineApplyResult;
@@ -44,7 +45,9 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeFormatterBuilder;
 import java.time.format.DateTimeParseException;
+import java.time.temporal.ChronoField;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -60,6 +63,13 @@ import java.util.stream.Collectors;
  */
 @Service
 public class ImportRowExecutor {
+    /** Accept both 08:00 and 8:00 from CSV/XLSX import packs. */
+    private static final DateTimeFormatter CSV_TIME_FLEX = new DateTimeFormatterBuilder()
+            .appendValue(ChronoField.HOUR_OF_DAY, 1, 2, java.time.format.SignStyle.NOT_NEGATIVE)
+            .appendLiteral(':')
+            .appendValue(ChronoField.MINUTE_OF_HOUR, 2)
+            .toFormatter();
+
     /**
      * One parent credential notification per (jobId, parentUserId), even if many children in the same file
      * share the same primary guardian phone.
@@ -342,14 +352,20 @@ public class ImportRowExecutor {
                 importPassword);
         TeacherDTOs.Response created = applied.value();
         Enums.TeacherStatus teacherStatus = parseTeacherStatus(value(row, "status"));
-        if (teacherStatus != null) {
-            teacherRepository.findByIdAndTenantIdAndIsDeletedFalse(created.getId(), tenantId).ifPresent(teacher -> {
+        teacherRepository.findByIdAndTenantIdAndIsDeletedFalse(created.getId(), tenantId).ifPresent(teacher -> {
+            if (teacherStatus != null) {
                 if (teacher.getStatus() != teacherStatus) {
                     teacher.setStatus(teacherStatus);
-                    teacherRepository.save(teacher);
                 }
-            });
-        }
+                teacher.setIsActive(teacherStatus == Enums.TeacherStatus.ACTIVE);
+                teacherRepository.save(teacher);
+            } else if (policy == BulkImportRowPolicy.UPSERT && !Boolean.TRUE.equals(teacher.getIsActive())) {
+                // UPSERT without explicit status revives inactive teacher rows.
+                teacher.setStatus(Enums.TeacherStatus.ACTIVE);
+                teacher.setIsActive(true);
+                teacherRepository.save(teacher);
+            }
+        });
         String teacherLedgerType = staffImport ? "STAFF" : "TEACHER";
         line.setEntityType(teacherLedgerType);
         line.setEntityId(created.getId());
@@ -620,6 +636,7 @@ public class ImportRowExecutor {
 
     private void handleClass(ImportJob job, ImportJobLine line, Map<String, String> row) {
         String tenantId = TenantContext.getTenantId();
+        BulkImportRowPolicy policy = BulkImportRowPolicy.fromCsv(value(row, "import_mode", "importmode"));
         Long resolvedAcademicYearId = academicResolver.resolveAcademicYearId(row.get("academicyearid"));
         String classCode = blankToNull(row.get("classcode"));
         String className = blankToNull(row.get("classname"));
@@ -647,7 +664,14 @@ public class ImportRowExecutor {
                     .orElse(null);
 
             if (existing != null) {
+                if (policy == BulkImportRowPolicy.CREATE_ONLY) {
+                    throw new DuplicateResourceException("Class already exists for academic year: " + className);
+                }
                 boolean changed = false;
+                if (policy == BulkImportRowPolicy.UPSERT && !Boolean.TRUE.equals(existing.getIsActive())) {
+                    academicService.setClassActiveState(existing.getId(), true);
+                    changed = true;
+                }
                 if (!className.equals(existing.getName()) || !grade.equals(existing.getGrade())) {
                     AcademicMutationRequests.UpdateSchoolClassRequest updateReq = new AcademicMutationRequests.UpdateSchoolClassRequest();
                     updateReq.setName(className);
@@ -655,7 +679,7 @@ public class ImportRowExecutor {
                     academicService.updateClass(existing.getId(), updateReq);
                     changed = true;
                 }
-                List<Section> currentSections = academicService.getSectionsByClass(existing.getId());
+                List<Section> currentSections = academicService.getSectionsByClass(existing.getId(), "all");
                 if (sectionedRow) {
                     Section current = findSectionByCodeOrName(currentSections, sectionCode, effectiveSectionName);
                     if (current == null) {
@@ -666,6 +690,10 @@ public class ImportRowExecutor {
                         sectionUpdateReq.setName(current.getName());
                         sectionUpdateReq.setCapacity(sectionCapacity);
                         academicService.updateSection(current.getId(), sectionUpdateReq);
+                        changed = true;
+                    }
+                    if (policy == BulkImportRowPolicy.UPSERT && current != null && !Boolean.TRUE.equals(current.getIsActive())) {
+                        academicService.setSectionActiveState(current.getId(), true);
                         changed = true;
                     }
                 } else if (!currentSections.isEmpty()) {
@@ -1111,9 +1139,9 @@ public class ImportRowExecutor {
             throw new BusinessException("Missing required column: " + column);
         }
         try {
-            return LocalTime.parse(normalized);
+            return LocalTime.parse(normalized, CSV_TIME_FLEX);
         } catch (Exception ex) {
-            throw new BusinessException("Invalid time for " + column + " (use HH:mm): " + value);
+            throw new BusinessException("Invalid time for " + column + " (use HH:mm or H:mm): " + value);
         }
     }
 

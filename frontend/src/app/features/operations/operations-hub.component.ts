@@ -32,6 +32,7 @@ import { runtimeConfig } from '../../core/config/runtime-config';
 import { SettingsService } from '../../core/services/settings.service';
 import { AuthService } from '../../core/services/auth.service';
 import { formatSchoolClassDisplayName } from '../../core/i18n/school-class-display';
+import { UiAccessService } from '../../core/services/ui-access.service';
 
 @Component({
   selector: 'app-operations-hub',
@@ -63,7 +64,7 @@ import { formatSchoolClassDisplayName } from '../../core/i18n/school-class-displ
           <div class="col-md-3"><input class="erp-input" [(ngModel)]="staffForm.fullName" erpI18nPh="operations.staff.phFullName" /></div>
           <div class="col-md-2"><input class="erp-input" [(ngModel)]="staffForm.phone" erpI18nPh="operations.staff.phPhone" /></div>
           <div class="col-md-2"><input class="erp-input" [(ngModel)]="staffForm.employeeCode" erpI18nPh="operations.staff.phCode" /></div>
-          <div class="col-md-2"><button type="button" class="btn-primary-erp w-100" (click)="addStaff()">{{ 'operations.staff.add' | translate }}</button></div>
+          <div class="col-md-2"><button type="button" class="btn-primary-erp w-100" [disabled]="!canManageOperationsLifecycle" (click)="addStaff()">{{ 'operations.staff.add' | translate }}</button></div>
         </div>
         <table class="erp-table mb-0">
           <thead><tr><th>{{ 'operations.staff.thRole' | translate }}</th><th>{{ 'operations.staff.thName' | translate }}</th><th>{{ 'operations.staff.thPhone' | translate }}</th><th>{{ 'operations.staff.thCode' | translate }}</th><th></th></tr></thead>
@@ -74,7 +75,7 @@ import { formatSchoolClassDisplayName } from '../../core/i18n/school-class-displ
               <td>{{ s.phone }}</td>
               <td>{{ s.employeeCode }}</td>
               <td>
-                <button type="button" class="btn-outline-erp btn-xs" (click)="removeStaff(s)">{{ 'operations.staff.remove' | translate }}</button>
+                <button type="button" class="btn-outline-erp btn-xs" [disabled]="!canManageOperationsLifecycle" (click)="removeStaff(s)">{{ 'operations.staff.remove' | translate }}</button>
               </td>
             </tr>
           </tbody>
@@ -516,6 +517,7 @@ export class OperationsHubComponent implements OnInit {
   inventoryTabError = '';
   coversTabError = '';
   private readonly destroyRef = inject(DestroyRef);
+  canManageOperationsLifecycle = false;
   get coverSections(): { id: number; name: string }[] {
     const cls = this.classes.find(c => c.id === this.coverForm.classId);
     return cls?.sections?.map(s => ({ id: s.id, name: s.name })) ?? [];
@@ -532,6 +534,7 @@ export class OperationsHubComponent implements OnInit {
     private cdr: ChangeDetectorRef,
     private settings: SettingsService,
     private auth: AuthService,
+    private uiAccess: UiAccessService,
     private route: ActivatedRoute,
     private router: Router
   ) {}
@@ -543,6 +546,7 @@ export class OperationsHubComponent implements OnInit {
   }
 
   ngOnInit(): void {
+    this.canManageOperationsLifecycle = this.uiAccess.hasOperationsDeskWriteAccess();
     this.translate.onLangChange.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => this.cdr.markForCheck());
     const tabSnap = this.route.snapshot.queryParamMap.get('tab');
     this.academic.getClasses().subscribe(c => (this.classes = c));
@@ -931,6 +935,7 @@ export class OperationsHubComponent implements OnInit {
   }
 
   addStaff(): void {
+    if (!this.canManageOperationsLifecycle) return;
     this.staffTabError = '';
     const fullName = this.staffForm.fullName?.trim();
     if (!fullName) {
@@ -961,6 +966,7 @@ export class OperationsHubComponent implements OnInit {
   }
 
   removeStaff(s: OperationalStaffRow): void {
+    if (!this.canManageOperationsLifecycle) return;
     const canHard = !s.userId && !s.transportRouteId;
     const detail = this.translate.instant(canHard ? 'operations.staff.detailCanHard' : 'operations.staff.detailCannotHard');
     const details: string[] = [
@@ -986,7 +992,7 @@ export class OperationsHubComponent implements OnInit {
     this.visitorsTabError = '';
     const visitorName = this.visitorForm.visitorName?.trim();
     if (!visitorName) {
-      this.visitorsTabError = 'Visitor name is required.';
+      this.visitorsTabError = this.translate.instant('operations.visitors.errVisitorNameRequired');
       return;
     }
     this.operations.checkInVisitor({ ...this.visitorForm, visitorName }).subscribe({
@@ -995,7 +1001,7 @@ export class OperationsHubComponent implements OnInit {
         this.loadVisitorsPage();
       },
       error: (e: Error) => {
-        this.visitorsTabError = e?.message || 'Could not check in visitor.';
+        this.visitorsTabError = e?.message || this.translate.instant('operations.visitors.errCheckInFailed');
       },
     });
   }
@@ -1008,11 +1014,11 @@ export class OperationsHubComponent implements OnInit {
     this.gateTabError = '';
     const issuedToName = this.gateForm.issuedToName?.trim();
     if (!issuedToName || !this.gateForm.validFrom || !this.gateForm.validTo) {
-      this.gateTabError = 'Issued to name and dates are required.';
+      this.gateTabError = this.translate.instant('operations.gate.errIssuedToAndDatesRequired');
       return;
     }
     if (this.gateForm.validTo < this.gateForm.validFrom) {
-      this.gateTabError = 'Valid-to date must be on or after valid-from date.';
+      this.gateTabError = this.translate.instant('operations.gate.errValidToBeforeValidFrom');
       return;
     }
     this.operations.createGatePass({ ...this.gateForm, issuedToName } as any).subscribe({
@@ -1027,7 +1033,7 @@ export class OperationsHubComponent implements OnInit {
         this.loadGatePage();
       },
       error: (e: Error) => {
-        this.gateTabError = e?.message || 'Could not issue gate pass.';
+        this.gateTabError = e?.message || this.translate.instant('operations.gate.errIssueFailed');
       },
     });
   }
@@ -1045,7 +1051,7 @@ export class OperationsHubComponent implements OnInit {
       return;
     }
     if ((this.invForm.quantityOnHand ?? 0) < 0 || (this.invForm.reorderLevel ?? 0) < 0) {
-      this.inventoryTabError = 'Quantity and reorder level cannot be negative.';
+      this.inventoryTabError = this.translate.instant('operations.inventory.errNegativeQtyOrReorder');
       return;
     }
     this.operations
@@ -1237,7 +1243,7 @@ export class OperationsHubComponent implements OnInit {
         (r.channel || '').toUpperCase() === channel.toUpperCase()
     );
     if (duplicatePending) {
-      this.remindersTabError = 'A pending reminder already exists for this student and channel.';
+      this.remindersTabError = this.translate.instant('operations.reminders.errDuplicatePendingReminder');
       return;
     }
     this.operations
@@ -1250,7 +1256,7 @@ export class OperationsHubComponent implements OnInit {
       .subscribe({
         next: () => this.reloadReminders(),
         error: (e: Error) => {
-          this.remindersTabError = e?.message || 'Could not enqueue reminder.';
+          this.remindersTabError = e?.message || this.translate.instant('operations.reminders.errEnqueueFailed');
         },
       });
   }

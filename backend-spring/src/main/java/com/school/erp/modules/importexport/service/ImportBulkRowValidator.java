@@ -12,6 +12,7 @@ import org.springframework.stereotype.Service;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeFormatterBuilder;
 import java.time.format.DateTimeParseException;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
@@ -19,6 +20,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.time.LocalTime;
+import java.time.temporal.ChronoField;
 import java.util.regex.Pattern;
 
 /**
@@ -31,6 +33,12 @@ public class ImportBulkRowValidator {
     private static final Pattern EMAIL_LENIENT = Pattern.compile("^[\\w.!#$%&'*+/=?^`{|}~-]+@[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+$");
     private static final DateTimeFormatter CSV_DMY_DASH = DateTimeFormatter.ofPattern("dd-MM-uuuu");
     private static final DateTimeFormatter CSV_DMY_SLASH = DateTimeFormatter.ofPattern("dd/MM/uuuu");
+    /** Accept both 08:00 and 8:00 from spreadsheet exports. */
+    private static final DateTimeFormatter CSV_TIME_FLEX = new DateTimeFormatterBuilder()
+            .appendValue(ChronoField.HOUR_OF_DAY, 1, 2, java.time.format.SignStyle.NOT_NEGATIVE)
+            .appendLiteral(':')
+            .appendValue(ChronoField.MINUTE_OF_HOUR, 2)
+            .toFormatter();
 
     private final BulkImportAcademicResolver academicResolver;
     private final TeacherRepository teacherRepository;
@@ -570,9 +578,9 @@ public class ImportBulkRowValidator {
 
     private static LocalTime parseRequiredTime(String raw, String column) {
         try {
-            return LocalTime.parse(raw.trim());
+            return LocalTime.parse(raw.trim(), CSV_TIME_FLEX);
         } catch (Exception ex) {
-            throw new BusinessException("Invalid time for " + column + " (use HH:mm): " + raw);
+            throw new BusinessException("Invalid time for " + column + " (use HH:mm or H:mm): " + raw);
         }
     }
 

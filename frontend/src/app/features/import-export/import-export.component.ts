@@ -168,7 +168,7 @@ const REQUIRED_IMPORT_FIELDS: Record<string, string[]> = {
             <div class="fw-semibold">{{ globalFlowMessage }}</div>
             <div class="small mt-1" *ngIf="globalFlowMessageContext">{{ globalFlowMessageContext }}</div>
           </div>
-          <button type="button" class="btn-close" aria-label="Close" (click)="clearGlobalFlowMessage()"></button>
+          <button type="button" class="btn-close" [attr.aria-label]="'importExport.closeAlert' | translate" (click)="clearGlobalFlowMessage()"></button>
         </div>
       </div>
 

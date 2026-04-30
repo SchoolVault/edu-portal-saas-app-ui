@@ -8,6 +8,7 @@ import java.util.List; import java.util.Optional;
 
 public interface SchoolClassRepository extends JpaRepository<SchoolClass, Long> {
     List<SchoolClass> findByTenantIdAndIsDeletedFalseOrderByGrade(String tenantId);
+    List<SchoolClass> findByTenantIdAndIsDeletedFalseAndIsActiveOrderByGrade(String tenantId, Boolean isActive);
     Page<SchoolClass> findByTenantIdAndIsDeletedFalseOrderByGrade(String tenantId, Pageable pageable);
     Optional<SchoolClass> findByIdAndTenantIdAndIsDeletedFalse(Long id, String tenantId);
     List<SchoolClass> findByTenantIdAndClassTeacherIdAndIsDeletedFalse(String tenantId, Long classTeacherId);

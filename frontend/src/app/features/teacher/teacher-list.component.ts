@@ -107,7 +107,7 @@ import { ImportExportService } from '../../core/services/import-export.service';
       <div *ngIf="exportMessage" class="alert py-2 small mb-3" [class.alert-success]="exportMessageOk" [class.alert-danger]="!exportMessageOk">
         <div class="d-flex justify-content-between align-items-center gap-2">
           <span>{{ exportMessage }}</span>
-          <button type="button" class="btn-close" aria-label="Close" (click)="clearExportMessage()"></button>
+          <button type="button" class="btn-close" [attr.aria-label]="'teachers.list.closeAlert' | translate" (click)="clearExportMessage()"></button>
         </div>
       </div>
       <div class="erp-card animate-in animate-in-delay-1">
@@ -123,7 +123,7 @@ import { ImportExportService } from '../../core/services/import-export.service';
             </select>
             <select class="erp-select" style="width: 170px;" [(ngModel)]="statusFilter" (ngModelChange)="onStatusFilterChange()" data-testid="teacher-status-filter">
               <option value="active">{{ 'teachers.enums.status.active' | translate }}</option>
-              <option value="inactive">{{ 'teachers.enums.status.inactive' | translate }}</option>
+              <option *ngIf="canViewInactive" value="inactive">{{ 'teachers.enums.status.inactive' | translate }}</option>
             </select>
           </div>
         </div>
@@ -262,7 +262,11 @@ export class TeacherListComponent implements OnInit, OnDestroy {
   ) {}
 
   get isAdmin(): boolean {
-    return this.uiAccess.hasAcademicDeskAdminAccess();
+    return this.uiAccess.hasTeacherMasterWriteAccess();
+  }
+
+  get canViewInactive(): boolean {
+    return this.uiAccess.canViewInactiveRosterRows();
   }
 
   /** Localized class names, comma-separated (homeroom / class teacher only). */
@@ -292,6 +296,9 @@ export class TeacherListComponent implements OnInit, OnDestroy {
   }
 
   ngOnInit(): void {
+    if (!this.canViewInactive) {
+      this.statusFilter = 'active';
+    }
     this.subs.add(this.translate.onLangChange.subscribe(() => this.cdr.markForCheck()));
     this.subs.add(
       this.searchDebounced$.pipe(debounceTime(300)).subscribe(() => {

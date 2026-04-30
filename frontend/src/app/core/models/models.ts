@@ -289,6 +289,7 @@ export interface SchoolClass {
   id: number;
   name: string;
   grade: number;
+  isActive?: boolean;
   sections: Section[];
   classTeacherId?: number;
   classTeacherName?: string;
@@ -302,6 +303,7 @@ export interface Section {
   id: number;
   name: string;
   classId: number;
+  isActive?: boolean;
   capacity: number;
   studentCount: number;
   /** Homeroom when the class is split into sections (Indian school model). */

@@ -105,6 +105,7 @@ public abstract class BaseEntity {
      */
     public void markSoftDeleted() {
         this.isDeleted = true;
+        this.isActive = false;
         if (this.deletedAt == null) {
             this.deletedAt = LocalDateTime.now();
         }

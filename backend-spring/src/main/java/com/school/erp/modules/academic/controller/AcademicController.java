@@ -49,8 +49,9 @@ public class AcademicController {
     @GetMapping("/classes")
     @PreAuthorize(RbacSpel.ACADEMIC_ROSTER_READ)
     @Operation(summary = "List classes with sections and student counts")
-    public ResponseEntity<ApiResponse<List<AcademicDTOs.ClassWithSectionsResponse>>> getClasses() {
-        return ResponseEntity.ok(ApiResponse.ok(service.getClassesWithSections()));
+    public ResponseEntity<ApiResponse<List<AcademicDTOs.ClassWithSectionsResponse>>> getClasses(
+            @RequestParam(required = false) String lifecycle) {
+        return ResponseEntity.ok(ApiResponse.ok(service.getClassesWithSections(lifecycle)));
     }
 
     @GetMapping("/classes/{id}")
@@ -109,8 +110,38 @@ public class AcademicController {
     @GetMapping("/sections/class/{classId}")
     @PreAuthorize(RbacSpel.ACADEMIC_ROSTER_READ)
     @Operation(summary = "Get sections by class")
-    public ResponseEntity<ApiResponse<List<Section>>> getSections(@PathVariable Long classId) {
-        return ResponseEntity.ok(ApiResponse.ok(service.getSectionsByClass(classId)));
+    public ResponseEntity<ApiResponse<List<Section>>> getSections(
+            @PathVariable Long classId,
+            @RequestParam(required = false) String lifecycle) {
+        return ResponseEntity.ok(ApiResponse.ok(service.getSectionsByClass(classId, lifecycle)));
+    }
+
+    @PatchMapping("/classes/{id}/deactivate")
+    @PreAuthorize(RbacSpel.ACADEMIC_DESK_ADMIN)
+    @Operation(summary = "Deactivate class", description = "Marks class inactive while retaining history. Blocks when active sections/students exist.")
+    public ResponseEntity<ApiResponse<AcademicDTOs.ClassWithSectionsResponse>> deactivateClass(@PathVariable Long id) {
+        return ResponseEntity.ok(ApiResponse.ok(service.setClassActiveState(id, false), "Class deactivated"));
+    }
+
+    @PatchMapping("/classes/{id}/activate")
+    @PreAuthorize(RbacSpel.ACADEMIC_DESK_ADMIN)
+    @Operation(summary = "Activate class", description = "Re-enables class for operational use.")
+    public ResponseEntity<ApiResponse<AcademicDTOs.ClassWithSectionsResponse>> activateClass(@PathVariable Long id) {
+        return ResponseEntity.ok(ApiResponse.ok(service.setClassActiveState(id, true), "Class activated"));
+    }
+
+    @PatchMapping("/sections/{id}/deactivate")
+    @PreAuthorize(RbacSpel.ACADEMIC_DESK_ADMIN)
+    @Operation(summary = "Deactivate section", description = "Marks section inactive while retaining history. Blocks when active students exist.")
+    public ResponseEntity<ApiResponse<Section>> deactivateSection(@PathVariable Long id) {
+        return ResponseEntity.ok(ApiResponse.ok(service.setSectionActiveState(id, false), "Section deactivated"));
+    }
+
+    @PatchMapping("/sections/{id}/activate")
+    @PreAuthorize(RbacSpel.ACADEMIC_DESK_ADMIN)
+    @Operation(summary = "Activate section", description = "Re-enables section for operational use; parent class must be active.")
+    public ResponseEntity<ApiResponse<Section>> activateSection(@PathVariable Long id) {
+        return ResponseEntity.ok(ApiResponse.ok(service.setSectionActiveState(id, true), "Section activated"));
     }
 
     @PutMapping("/classes/{classId}/teacher")
