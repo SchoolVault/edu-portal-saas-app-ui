@@ -1,0 +1,25 @@
+Contact-change reimport smoke test (employee_code / parent_code)
+================================================================
+
+Prerequisite: classes like "Class 1" exist (same as phase4 onboarding pack).
+
+TEACHERS
+--------
+1) First import: use 02_teachers_round1_baseline.csv (or full phase4 02_teachers.csv).
+2) Second import: use 02_teachers_round2_changed_phone_email.csv ONLY.
+   - Same employee_code T009; phone and email changed.
+   - Expect: one teacher row updated, no duplicate, portal user contacts updated (verification flags reset per backend rules).
+
+STUDENTS / PARENTS
+--------------------
+1) First import: 03_students_round1_baseline.csv (creates student ADM-QA-CONTACT-2026-001 + parent PG-QA-SMOKE-001).
+2) Second import: 03_students_round2_changed_guardian.csv (same admission + parent_code; new guardian email/phone).
+   - Expect: same parent user updated; student UPSERT by admission number.
+
+Optional parent_code: leave blank in CSV to let the system generate a unique code; for reimport tests, keep the same explicit parent_code in both rounds.
+
+Also updated in-repo:
+- docs/onboarding-import-pack/phase4-production-mini-1to12/03_students.csv
+  → added column parent_code (O); optional empty for existing rows; one QA row at end.
+- docs/onboarding-import-pack/phase4-production-mini-1to12/02_teachers.csv
+  → T009 email set to priyanka.dassunshine@yopmail.com for parity with your earlier test.

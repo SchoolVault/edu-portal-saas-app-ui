@@ -95,6 +95,17 @@ public class TimetableController {
         return ResponseEntity.ok(ApiResponse.ok(onboardingService.apply(body)));
     }
 
+    @PostMapping("/onboarding/validate")
+    @PreAuthorize(RbacSpel.ACADEMIC_DESK_ADMIN)
+    @Operation(
+            summary = "Validate teacher schedule onboarding (dry-run)",
+            description = "Runs full onboarding conflict validation without mutating data. "
+                    + "Returns all detected issues for the current DB snapshot so admins can confirm safely.")
+    public ResponseEntity<ApiResponse<TeacherScheduleOnboardingDTOs.ValidateResponse>> validateOnboarding(
+            @RequestBody TeacherScheduleOnboardingDTOs.ApplyRequest body) {
+        return ResponseEntity.ok(ApiResponse.ok(onboardingService.validate(body)));
+    }
+
     public TimetableController(final TimetableService service, final TeacherScheduleOnboardingService onboardingService) {
         this.service = service;
         this.onboardingService = onboardingService;

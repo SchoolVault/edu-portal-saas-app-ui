@@ -5,6 +5,7 @@ import { catchError, delay, map, switchMap } from 'rxjs/operators';
 import {
   ApplyTeacherScheduleOnboardingRequest,
   ApplyTeacherScheduleOnboardingResponse,
+  ValidateTeacherScheduleOnboardingResponse,
   TimetableConflictPayload,
   TimetableEntry,
   TimetableGrid,
@@ -363,6 +364,9 @@ export class TimetableService {
     if (kind === 'CLASS_PERIOD_OCCUPIED') {
       return 'This class already has a subject scheduled for that weekday and period.';
     }
+    if (kind === 'ROOM_DOUBLE_BOOKED') {
+      return 'This room is already occupied for that weekday and period.';
+    }
     return 'This teacher is already scheduled in another class for that weekday and period.';
   }
 
@@ -388,6 +392,20 @@ export class TimetableService {
       );
       if (tHit) {
         return this.toConflictPayload('TEACHER_DOUBLE_BOOKED', tHit);
+      }
+    }
+    const room = (candidate.room ?? '').trim().toLowerCase();
+    if (room) {
+      const roomHit = this.entries.find(
+        e =>
+          !this.isSyntheticCoverRow(e) &&
+          (e.room ?? '').trim().toLowerCase() === room &&
+          e.day === candidate.day &&
+          e.period === candidate.period &&
+          e.id !== excludeId
+      );
+      if (roomHit) {
+        return this.toConflictPayload('ROOM_DOUBLE_BOOKED', roomHit);
       }
     }
     return null;
@@ -449,6 +467,35 @@ export class TimetableService {
       );
     }
     return this.mockApplyTeacherScheduleOnboarding(body);
+  }
+
+  validateTeacherScheduleOnboarding(
+    body: ApplyTeacherScheduleOnboardingRequest
+  ): Observable<ValidateTeacherScheduleOnboardingResponse> {
+    if (!runtimeConfig.useMocks) {
+      return this.http
+        .post<ApiResp<ValidateTeacherScheduleOnboardingResponse>>(
+          `${this.api.getBaseUrl()}/timetable/onboarding/validate`,
+          body
+        )
+        .pipe(
+          map(res => {
+            if (!res.success || res.data == null) {
+              throw new Error(res.message || 'Schedule onboarding validation failed');
+            }
+            return res.data;
+          })
+        );
+    }
+    return of({
+      valid: true,
+      teacherId: body.teacherId,
+      teacherName: this.mockResolveTeacherName(body.teacherId),
+      slotsToCreate: (body.slots ?? []).filter(s => s.existingEntryId == null).length,
+      slotsToUpdate: (body.slots ?? []).filter(s => s.existingEntryId != null).length,
+      slotsToDelete: [...new Set(body.removeEntryIds ?? [])].length,
+      issues: [],
+    }).pipe(delay(250));
   }
 
   private mockApplyTeacherScheduleOnboarding(

@@ -77,12 +77,51 @@ public class TeacherService {
 
     @Cacheable(cacheNames = CacheConfig.TEACHER_DIRECTORY, keyGenerator = "tenantMethodParamsKeyGenerator", unless = "#result == null")
     @Transactional(readOnly = true)
-    public PageResponse<TeacherDTOs.Response> getTeachers(int page, int size, String search) {
+    public PageResponse<TeacherDTOs.Response> getTeachers(int page, int size, String search, String status, String subject) {
         String tenantId = TenantContext.getTenantId();
         String q = search == null ? "" : search.trim();
-        log.debug("Listing teachers page={} size={} searchPresent={}", page, size, !q.isEmpty());
-        Page<Teacher> result = repo.findByTenantIdAndSearch(tenantId, q, PageRequest.of(page, size, Sort.by("firstName")));
+        String subjectFilter = subject == null || subject.isBlank() ? null : subject.trim();
+        Enums.TeacherStatus statusFilter = null;
+        if (status != null && !status.isBlank()) {
+            try {
+                statusFilter = Enums.TeacherStatus.valueOf(status.trim().toUpperCase(Locale.ROOT));
+            } catch (Exception ignored) {
+                statusFilter = null;
+            }
+        }
+        log.debug("Listing teachers page={} size={} searchPresent={} status={} subject={}", page, size, !q.isEmpty(), statusFilter, subjectFilter);
+        Page<Teacher> result = repo.findByTenantIdAndSearchAndStatusAndSubjectExcludingPortalRoles(
+                tenantId,
+                q,
+                statusFilter,
+                subjectFilter,
+                List.of(Enums.Role.SCHOOL_STAFF, Enums.Role.LIBRARY_STAFF),
+                PageRequest.of(page, size, Sort.by("firstName")));
         log.info("Teachers page loaded page={} returned={} total={}", page, result.getNumberOfElements(), result.getTotalElements());
+        Map<Long, List<String>> homeroomByTeacher = homeroomClassNamesByTeacherId(tenantId);
+        return PageResponse.of(result.getContent().stream()
+                .map(t -> applyAudienceVisibility(toRes(t, homeroomByTeacher.getOrDefault(t.getId(), List.of()))))
+                .collect(Collectors.toList()), page, size, result.getTotalElements());
+    }
+
+    @Transactional(readOnly = true)
+    public PageResponse<TeacherDTOs.Response> getStaff(int page, int size, String search, String status) {
+        String tenantId = TenantContext.getTenantId();
+        String q = search == null ? "" : search.trim();
+        Enums.TeacherStatus statusFilter = null;
+        if (status != null && !status.isBlank()) {
+            try {
+                statusFilter = Enums.TeacherStatus.valueOf(status.trim().toUpperCase(Locale.ROOT));
+            } catch (Exception ignored) {
+                statusFilter = null;
+            }
+        }
+        Page<Teacher> result = repo.findStaffByTenantIdAndSearchAndStatus(
+                tenantId,
+                q,
+                statusFilter,
+                List.of(Enums.Role.SCHOOL_STAFF, Enums.Role.LIBRARY_STAFF),
+                PageRequest.of(page, size, Sort.by("firstName")));
         Map<Long, List<String>> homeroomByTeacher = homeroomClassNamesByTeacherId(tenantId);
         return PageResponse.of(result.getContent().stream()
                 .map(t -> applyAudienceVisibility(toRes(t, homeroomByTeacher.getOrDefault(t.getId(), List.of()))))
@@ -161,6 +200,7 @@ public class TeacherService {
     public TeacherDTOs.Response createForBulkImport(TeacherDTOs.CreateRequest req, boolean createPortal,
                                                      Enums.Role portalRole, Enums.LibraryStaffRole libraryStaffRole) {
         String tenantId = TenantContext.getTenantId();
+        String employeeCode = normalizeEmployeeCode(req.getEmployeeCode());
         String email = req.getEmail() != null ? req.getEmail().trim().toLowerCase(java.util.Locale.ROOT) : null;
         if (email != null && email.isBlank()) {
             email = null;
@@ -175,6 +215,9 @@ public class TeacherService {
         if (repo.existsByTenantIdAndPhoneAndIsDeletedFalse(tenantId, canonicalPhone)) {
             throw new DuplicateResourceException("Teacher phone already exists: " + canonicalPhone);
         }
+        if (employeeCode != null && repo.existsByTenantIdAndEmployeeCodeAndIsDeletedFalse(tenantId, employeeCode)) {
+            throw new DuplicateResourceException("Teacher employee code already exists: " + employeeCode);
+        }
         Teacher t = Teacher.builder()
                 .firstName(req.getFirstName())
                 .lastName(req.getLastName())
@@ -187,6 +230,7 @@ public class TeacherService {
                 .subjects(req.getSubjects() != null ? req.getSubjects() : List.of())
                 .status(Enums.TeacherStatus.ACTIVE)
                 .build();
+        t.setEmployeeCode(employeeCode);
         t.setBankAccountHolder(trimToNull(req.getBankAccountHolder()));
         t.setBankName(trimToNull(req.getBankName()));
         t.setBankAccountNumber(trimToNull(req.getBankAccountNumber()));
@@ -209,7 +253,8 @@ public class TeacherService {
     }
 
     /**
-     * Idempotent teacher/staff import: update existing teacher row by email when policy is {@link BulkImportRowPolicy#UPSERT}.
+     * Idempotent teacher/staff import: update existing teacher row by immutable employee code first,
+     * then email/phone fallbacks when older data lacks employee code.
      */
     @Transactional
     public LineApplyResult<TeacherDTOs.Response> upsertTeacherForImport(TeacherDTOs.CreateRequest req, boolean createPortal,
@@ -219,6 +264,7 @@ public class TeacherService {
                                                                        String portalLoginPhone,
                                                                        String importPassword) {
         String tenantId = TenantContext.getTenantId();
+        String employeeCode = normalizeEmployeeCode(req.getEmployeeCode());
         String email = req.getEmail() != null ? req.getEmail().trim().toLowerCase(Locale.ROOT) : null;
         if (email != null && email.isBlank()) {
             email = null;
@@ -227,8 +273,8 @@ public class TeacherService {
         if (canonicalPhone == null) {
             throw new BusinessException(InternationalPhone.invalidMessage());
         }
-        String naturalKey = "PHONE:" + canonicalPhone;
-        Optional<Teacher> existing = repo.findByTenantIdAndPhoneAndIsDeletedFalse(tenantId, canonicalPhone);
+        String naturalKey = employeeCode != null ? "EMPLOYEE_CODE:" + employeeCode : "PHONE:" + canonicalPhone;
+        Optional<Teacher> existing = resolveExistingTeacherForImport(tenantId, employeeCode, email, canonicalPhone);
         if (existing.isEmpty()) {
             TeacherDTOs.Response created = createForBulkImport(req, false, portalRole, libraryStaffRole);
             if (createPortal) {
@@ -245,6 +291,9 @@ public class TeacherService {
             return new LineApplyResult<>(created, ImportLineOutcome.CREATED, naturalKey);
         }
         if (policy == BulkImportRowPolicy.CREATE_ONLY) {
+            if (employeeCode != null) {
+                throw new DuplicateResourceException("Teacher with this employee code already exists: " + employeeCode);
+            }
             throw new DuplicateResourceException("Teacher with this phone already exists: " + canonicalPhone);
         }
         if (policy == BulkImportRowPolicy.SKIP_IF_EXISTS) {
@@ -265,6 +314,14 @@ public class TeacherService {
             String previousEmail = teacher.getEmail();
             teacher.setFirstName(req.getFirstName());
             teacher.setLastName(req.getLastName());
+            if (employeeCode != null) {
+                repo.findByTenantIdAndEmployeeCodeAndIsDeletedFalse(tenantId, employeeCode).ifPresent(existingByCode -> {
+                    if (!existingByCode.getId().equals(teacher.getId())) {
+                        throw new DuplicateResourceException("Teacher employee code already exists: " + employeeCode);
+                    }
+                });
+                teacher.setEmployeeCode(employeeCode);
+            }
             if (req.getEmail() != null) {
                 String normalizedEmail = req.getEmail().trim().toLowerCase(Locale.ROOT);
                 repo.findByTenantIdAndEmailIgnoreCaseAndIsDeletedFalse(tenantId, normalizedEmail).ifPresent(existingByEmail -> {
@@ -401,7 +458,9 @@ public class TeacherService {
                 throw new DuplicateResourceException("User email already exists in this school: " + teacher.getEmail());
             }
             linkedUser.setEmail(teacher.getEmail());
+            linkedUser.setEmailVerified(false);
         }
+        String previousPhone = linkedUser.getPhone();
         if (teacher.getPhone() != null && !teacher.getPhone().isBlank()) {
             for (String key : InternationalPhone.compatibleLookupKeys(teacher.getPhone())) {
                 if (!key.equals(linkedUser.getPhone()) && userRepository.existsByPhoneAndTenantIdAndIsDeletedFalse(key, tenantId)) {
@@ -410,7 +469,38 @@ public class TeacherService {
             }
         }
         linkedUser.setPhone(teacher.getPhone());
+        if (teacher.getPhone() != null && !teacher.getPhone().equals(previousPhone)) {
+            linkedUser.setPhoneVerified(false);
+        }
         userRepository.save(linkedUser);
+    }
+
+    private Optional<Teacher> resolveExistingTeacherForImport(
+            String tenantId,
+            String employeeCode,
+            String email,
+            String canonicalPhone) {
+        if (employeeCode != null) {
+            Optional<Teacher> byCode = repo.findByTenantIdAndEmployeeCodeAndIsDeletedFalse(tenantId, employeeCode);
+            if (byCode.isPresent()) {
+                return byCode;
+            }
+        }
+        if (email != null) {
+            Optional<Teacher> byEmail = repo.findByTenantIdAndEmailIgnoreCaseAndIsDeletedFalse(tenantId, email);
+            if (byEmail.isPresent()) {
+                return byEmail;
+            }
+        }
+        return repo.findByTenantIdAndPhoneAndIsDeletedFalse(tenantId, canonicalPhone);
+    }
+
+    private static String normalizeEmployeeCode(String rawEmployeeCode) {
+        if (rawEmployeeCode == null) {
+            return null;
+        }
+        String normalized = rawEmployeeCode.trim().toUpperCase(Locale.ROOT);
+        return normalized.isEmpty() ? null : normalized;
     }
 
     private static boolean isAdminActor(String role) {
@@ -440,6 +530,29 @@ public class TeacherService {
         repo.save(t);
         log.info("Teacher soft-deleted id={}", id);
         evictTeacherDirectoryCache();
+    }
+
+    @Transactional
+    public TeacherDTOs.Response updateStatus(Long id, String status) {
+        String tenantId = TenantContext.getTenantId();
+        Teacher t = repo.findByIdAndTenantIdAndIsDeletedFalse(id, tenantId)
+                .orElseThrow(() -> new ResourceNotFoundException("Teacher", id));
+        if (status == null || status.isBlank()) {
+            throw new BusinessException("status is required");
+        }
+        Enums.TeacherStatus next;
+        try {
+            next = Enums.TeacherStatus.valueOf(status.trim().toUpperCase(Locale.ROOT));
+        } catch (Exception ex) {
+            throw new BusinessException("Invalid status. Use ACTIVE or INACTIVE.");
+        }
+        t.setStatus(next);
+        if (next == Enums.TeacherStatus.INACTIVE || next == Enums.TeacherStatus.RESIGNED) {
+            clearHomeroomForTeacher(id, tenantId);
+        }
+        repo.save(t);
+        evictTeacherDirectoryCache();
+        return toRes(t, homeroomClassNamesForTeacher(tenantId, t.getId()));
     }
 
     private void clearHomeroomForTeacher(Long teacherPk, String tenantId) {
@@ -852,11 +965,11 @@ public class TeacherService {
     private List<String> parseSubjects(String value) {
         String normalized = blankToNull(value);
         if (normalized == null) {
-            return List.of();
+            return new ArrayList<>();
         }
         return java.util.Arrays.stream(normalized.split("\\|"))
                 .map(String::trim)
                 .filter(part -> !part.isEmpty())
-                .collect(Collectors.toList());
+                .collect(Collectors.toCollection(ArrayList::new));
     }
 }

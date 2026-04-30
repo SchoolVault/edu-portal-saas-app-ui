@@ -30,4 +30,10 @@ public interface TimetableRepository extends JpaRepository<TimetableEntry, Long>
             @Param("period") Integer period);
 
     Optional<TimetableEntry> findByIdAndTenantIdAndIsDeletedFalse(Long id, String tenantId);
+
+    @Query("SELECT e FROM TimetableEntry e WHERE e.tenantId = :tenantId AND e.isDeleted = false "
+            + "AND UPPER(TRIM(e.room)) = UPPER(TRIM(:room))")
+    List<TimetableEntry> findByTenantAndRoomIgnoreCase(
+            @Param("tenantId") String tenantId,
+            @Param("room") String room);
 }

@@ -16,7 +16,7 @@ public final class ImportCanonicalFieldCatalog {
                     "student_email",
                     "class_id", "section_id", "classname", "sectionname",
                     "primary_guardian_relation", "primary_guardian_name", "primary_guardian_email", "primary_guardian_phone",
-                    "parent_id", "create_parent_portal", "notify_credentials",
+                    "parent_code", "parent_id", "create_parent_portal", "notify_credentials",
                     "address", "blood_group"),
             ImportJobType.TEACHERS, List.of(
                     "academic_year_id", "import_mode",

@@ -91,6 +91,8 @@ public final class TeacherScheduleOnboardingDTOs {
         private Long existingEntryId;
         private String day;
         private Integer period;
+        private String startTime;
+        private String endTime;
         private Long classId;
         private Long sectionId;
         private String subjectName;
@@ -119,6 +121,22 @@ public final class TeacherScheduleOnboardingDTOs {
 
         public void setPeriod(Integer period) {
             this.period = period;
+        }
+
+        public String getStartTime() {
+            return startTime;
+        }
+
+        public void setStartTime(String startTime) {
+            this.startTime = startTime;
+        }
+
+        public String getEndTime() {
+            return endTime;
+        }
+
+        public void setEndTime(String endTime) {
+            this.endTime = endTime;
         }
 
         public Long getClassId() {
@@ -241,6 +259,175 @@ public final class TeacherScheduleOnboardingDTOs {
 
         public void setAnchoredEntryId(Long anchoredEntryId) {
             this.anchoredEntryId = anchoredEntryId;
+        }
+    }
+
+    /** Pre-save dry-run result for onboarding screens (no DB writes). */
+    public static class ValidateResponse {
+        private boolean valid;
+        private Long teacherId;
+        private String teacherName;
+        private int slotsToCreate;
+        private int slotsToUpdate;
+        private int slotsToDelete;
+        private List<ValidationIssue> issues = new ArrayList<>();
+
+        public boolean isValid() {
+            return valid;
+        }
+
+        public void setValid(boolean valid) {
+            this.valid = valid;
+        }
+
+        public Long getTeacherId() {
+            return teacherId;
+        }
+
+        public void setTeacherId(Long teacherId) {
+            this.teacherId = teacherId;
+        }
+
+        public String getTeacherName() {
+            return teacherName;
+        }
+
+        public void setTeacherName(String teacherName) {
+            this.teacherName = teacherName;
+        }
+
+        public int getSlotsToCreate() {
+            return slotsToCreate;
+        }
+
+        public void setSlotsToCreate(int slotsToCreate) {
+            this.slotsToCreate = slotsToCreate;
+        }
+
+        public int getSlotsToUpdate() {
+            return slotsToUpdate;
+        }
+
+        public void setSlotsToUpdate(int slotsToUpdate) {
+            this.slotsToUpdate = slotsToUpdate;
+        }
+
+        public int getSlotsToDelete() {
+            return slotsToDelete;
+        }
+
+        public void setSlotsToDelete(int slotsToDelete) {
+            this.slotsToDelete = slotsToDelete;
+        }
+
+        public List<ValidationIssue> getIssues() {
+            return issues;
+        }
+
+        public void setIssues(List<ValidationIssue> issues) {
+            this.issues = issues != null ? issues : new ArrayList<>();
+        }
+    }
+
+    public static class ValidationIssue {
+        private String code;
+        private String message;
+        private String conflictType;
+        private Long existingEntryId;
+        private String day;
+        private Integer period;
+        private String startTime;
+        private String endTime;
+        private Long classId;
+        private Long sectionId;
+        private String room;
+
+        public String getCode() {
+            return code;
+        }
+
+        public void setCode(String code) {
+            this.code = code;
+        }
+
+        public String getMessage() {
+            return message;
+        }
+
+        public void setMessage(String message) {
+            this.message = message;
+        }
+
+        public String getConflictType() {
+            return conflictType;
+        }
+
+        public void setConflictType(String conflictType) {
+            this.conflictType = conflictType;
+        }
+
+        public Long getExistingEntryId() {
+            return existingEntryId;
+        }
+
+        public void setExistingEntryId(Long existingEntryId) {
+            this.existingEntryId = existingEntryId;
+        }
+
+        public String getDay() {
+            return day;
+        }
+
+        public void setDay(String day) {
+            this.day = day;
+        }
+
+        public Integer getPeriod() {
+            return period;
+        }
+
+        public void setPeriod(Integer period) {
+            this.period = period;
+        }
+
+        public String getStartTime() {
+            return startTime;
+        }
+
+        public void setStartTime(String startTime) {
+            this.startTime = startTime;
+        }
+
+        public String getEndTime() {
+            return endTime;
+        }
+
+        public void setEndTime(String endTime) {
+            this.endTime = endTime;
+        }
+
+        public Long getClassId() {
+            return classId;
+        }
+
+        public void setClassId(Long classId) {
+            this.classId = classId;
+        }
+
+        public Long getSectionId() {
+            return sectionId;
+        }
+
+        public void setSectionId(Long sectionId) {
+            this.sectionId = sectionId;
+        }
+
+        public String getRoom() {
+            return room;
+        }
+
+        public void setRoom(String room) {
+            this.room = room;
         }
     }
 }

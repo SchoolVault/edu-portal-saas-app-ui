@@ -88,6 +88,19 @@ export interface RollbackBundleResponse {
   suggestedOperatorSteps: string[];
 }
 
+export interface ExportJobSummary {
+  id: number;
+  exportType: string;
+  status: string;
+  fileName: string | null;
+  contentSizeBytes: number | null;
+  rowCount: number | null;
+  errorMessage: string | null;
+  startedAt: string | null;
+  finishedAt: string | null;
+  createdAt: string | null;
+}
+
 /** Response from POST /import-export/jobs/preview-headers */
 export interface FileHeaderPreview {
   jobType: string;
@@ -388,5 +401,68 @@ export class ImportExportService {
       return of(new Blob([csv], { type: 'text/csv' })).pipe(delay(200));
     }
     return this.api.getBlob('/import-export/export/teachers.csv');
+  }
+
+  createExportJob(exportType: 'STUDENTS' | 'TEACHERS' | 'STAFF' | 'FEE_STRUCTURES', schoolCode?: string | null): Observable<ExportJobSummary> {
+    if (runtimeConfig.useMocks) {
+      return of({
+        id: 5000 + Math.floor(Math.random() * 500),
+        exportType,
+        status: 'QUEUED',
+        fileName: null,
+        contentSizeBytes: null,
+        rowCount: null,
+        errorMessage: null,
+        startedAt: null,
+        finishedAt: null,
+        createdAt: new Date().toISOString(),
+      }).pipe(delay(200));
+    }
+    const path = schoolCode?.trim()
+      ? `/import-export/export-jobs?exportType=${encodeURIComponent(exportType)}&schoolCode=${encodeURIComponent(schoolCode.trim().toUpperCase())}`
+      : `/import-export/export-jobs?exportType=${encodeURIComponent(exportType)}`;
+    return this.api.post<ExportJobSummary>(path, {});
+  }
+
+  getExportJob(jobId: number, schoolCode?: string | null): Observable<ExportJobSummary> {
+    if (runtimeConfig.useMocks) {
+      return of({
+        id: jobId,
+        exportType: 'STUDENTS',
+        status: 'COMPLETED',
+        fileName: 'canonical-students.csv',
+        contentSizeBytes: 2048,
+        rowCount: 50,
+        errorMessage: null,
+        startedAt: new Date(Date.now() - 3000).toISOString(),
+        finishedAt: new Date().toISOString(),
+        createdAt: new Date(Date.now() - 5000).toISOString(),
+      }).pipe(delay(200));
+    }
+    return this.api.getParams<ExportJobSummary>(`/import-export/export-jobs/${jobId}`, {
+      schoolCode: schoolCode?.trim().toUpperCase() || undefined,
+    });
+  }
+
+  downloadExportJobCsv(jobId: number, schoolCode?: string | null): Observable<Blob> {
+    if (runtimeConfig.useMocks) {
+      return of(new Blob(['first_name,last_name\nDemo,User\n'], { type: 'text/csv' })).pipe(delay(120));
+    }
+    return this.api.getBlobParams(`/import-export/export-jobs/${jobId}/download`, {
+      schoolCode: schoolCode?.trim().toUpperCase() || undefined,
+    });
+  }
+
+  /** Per-job enriched CSV (canonical columns + meta); same permission as job list. */
+  downloadNormalizedJobCsv(jobId: number, schoolCode?: string | null): Observable<Blob> {
+    if (runtimeConfig.useMocks) {
+      const csv =
+        'import_line_index,import_line_status,import_line_entity_type,import_line_entity_id,import_ledger_outcome,import_error_message,academic_year_id,import_mode,admission_number,admission_date,roll_number,first_name,last_name,gender,date_of_birth,student_email,class_id,section_id,classname,sectionname,primary_guardian_relation,primary_guardian_name,primary_guardian_email,primary_guardian_phone,parent_code,parent_id,create_parent_portal,notify_credentials,address,blood_group\n' +
+        '0,SUCCESS,STUDENT,501,CREATED,,,UPSERT,ADM-1,,,Riya,Banerjee,,,,,,,,,,,,PARENT01,9001,,,,\n';
+      return of(new Blob([csv], { type: 'text/csv' })).pipe(delay(200));
+    }
+    return this.api.getBlobParams(`/import-export/jobs/${jobId}/download-normalized-csv`, {
+      schoolCode: schoolCode?.trim().toUpperCase() || undefined,
+    });
   }
 }

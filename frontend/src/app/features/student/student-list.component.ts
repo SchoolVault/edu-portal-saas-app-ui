@@ -18,6 +18,7 @@ import { sliceToPage } from '../../core/utils/paginate';
 import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directives';
 import { runtimeConfig } from '../../core/config/runtime-config';
 import { sortSchoolClassesByGrade } from '../../core/utils/school-class-sort.util';
+import { ImportExportService } from '../../core/services/import-export.service';
 
 @Component({
   selector: 'app-student-list',
@@ -104,6 +105,9 @@ import { sortSchoolClassesByGrade } from '../../core/utils/school-class-sort.uti
         </div>
         <div class="erp-page-header__actions">
           <button type="button" class="btn-outline-erp btn-sm" (click)="reloadStudents()"><i class="bi bi-arrow-clockwise" aria-hidden="true"></i> {{ 'students.list.refresh' | translate }}</button>
+          <button *ngIf="isAdmin" type="button" class="btn-outline-erp btn-sm" (click)="exportCanonicalStudentsCsv()">
+            <i class="bi bi-download" aria-hidden="true"></i> {{ 'students.list.exportCsv' | translate }}
+          </button>
           <ng-container *ngIf="isAdmin">
             <a routerLink="/app/students/new" class="btn-primary-erp btn-sm" data-testid="add-student-btn">
               <i class="bi bi-plus-lg" aria-hidden="true"></i><span>{{ 'students.list.add' | translate }}</span>
@@ -111,6 +115,12 @@ import { sortSchoolClassesByGrade } from '../../core/utils/school-class-sort.uti
           </ng-container>
         </div>
       </header>
+      <div *ngIf="exportMessage" class="alert py-2 small mb-3" [class.alert-success]="exportMessageOk" [class.alert-danger]="!exportMessageOk">
+        <div class="d-flex justify-content-between align-items-center gap-2">
+          <span>{{ exportMessage }}</span>
+          <button type="button" class="btn-close" aria-label="Close" (click)="clearExportMessage()"></button>
+        </div>
+      </div>
 
       <div *ngIf="showHomeroomDeepLinkBanner" class="erp-card mb-3 animate-in" style="border-left: 4px solid var(--clr-primary); padding: 12px 16px;">
         <div class="d-flex align-items-start gap-2 mb-0">
@@ -199,7 +209,34 @@ import { sortSchoolClassesByGrade } from '../../core/utils/school-class-sort.uti
                     <a *ngIf="isAdmin" [routerLink]="['/app/students', student.id, 'edit']" class="btn-icon" [attr.title]="'students.list.edit' | translate" [attr.data-testid]="'edit-student-' + student.id">
                       <i class="bi bi-pencil"></i>
                     </a>
-                    <button *ngIf="isAdmin" type="button" class="btn-icon" [attr.title]="'students.list.delete' | translate" (click)="deleteStudent(student.id)" [attr.data-testid]="'delete-student-' + student.id">
+                    <button
+                      *ngIf="isAdmin && student.status === 'active'"
+                      type="button"
+                      class="btn-icon"
+                      [attr.title]="'students.profile.markInactive' | translate"
+                      (click)="deactivateStudent(student.id)"
+                      [attr.data-testid]="'deactivate-student-' + student.id"
+                    >
+                      <i class="bi bi-person-dash" style="color: var(--clr-warning);"></i>
+                    </button>
+                    <button
+                      *ngIf="isAdmin && student.status === 'inactive'"
+                      type="button"
+                      class="btn-icon"
+                      [attr.title]="'students.profile.reactivate' | translate"
+                      (click)="reactivateStudent(student.id)"
+                      [attr.data-testid]="'reactivate-student-' + student.id"
+                    >
+                      <i class="bi bi-person-check" style="color: var(--clr-success);"></i>
+                    </button>
+                    <button
+                      *ngIf="isAdmin && student.status === 'inactive'"
+                      type="button"
+                      class="btn-icon"
+                      [attr.title]="'students.list.deletePermanent' | translate"
+                      (click)="deleteStudentPermanently(student.id)"
+                      [attr.data-testid]="'delete-student-' + student.id"
+                    >
                       <i class="bi bi-trash" style="color: var(--clr-danger);"></i>
                     </button>
                   </div>
@@ -241,6 +278,8 @@ export class StudentListComponent implements OnInit, OnDestroy {
   /** value: class id string (canonical); label: display name */
   classOptions: { value: string; label: string }[] = [{ value: '', label: '' }];
   loadingStudents = true;
+  exportMessage = '';
+  exportMessageOk = true;
   private readonly subs = new Subscription();
   private readonly searchDebounced$ = new Subject<void>();
   /** Ignores stale HTTP responses when a newer list request was started. */
@@ -254,7 +293,8 @@ export class StudentListComponent implements OnInit, OnDestroy {
     private confirmDialog: ConfirmDialogService,
     private translate: TranslateService,
     private cdr: ChangeDetectorRef,
-    private route: ActivatedRoute
+    private route: ActivatedRoute,
+    private importExport: ImportExportService
   ) {}
 
   /** True when URL carries homeroom filters from the teacher dashboard. */
@@ -379,6 +419,62 @@ export class StudentListComponent implements OnInit, OnDestroy {
     );
   }
 
+  exportCanonicalStudentsCsv(): void {
+    this.exportMessage = this.translate.instant('students.list.exportQueued');
+    this.exportMessageOk = true;
+    this.importExport.createExportJob('STUDENTS').subscribe({
+      next: job => this.pollExportJob(job.id, 0),
+      error: e => {
+        this.exportMessage = e?.message || this.translate.instant('students.list.exportFailed');
+        this.exportMessageOk = false;
+      },
+    });
+  }
+
+  private pollExportJob(jobId: number, attempt: number): void {
+    this.importExport.getExportJob(jobId).subscribe({
+      next: job => {
+        const status = (job.status || '').toUpperCase();
+        if (status === 'COMPLETED') {
+          this.importExport.downloadExportJobCsv(jobId).subscribe(blob => {
+            this.saveBlob(blob, `canonical-students-${new Date().toISOString().slice(0, 10)}-${jobId}.csv`);
+            this.exportMessage = this.translate.instant('students.list.exportDone');
+            this.exportMessageOk = true;
+          });
+          return;
+        }
+        if (status === 'FAILED') {
+          this.exportMessage = job.errorMessage || this.translate.instant('students.list.exportFailed');
+          this.exportMessageOk = false;
+          return;
+        }
+        if (attempt > 80) {
+          this.exportMessage = this.translate.instant('students.list.exportTimeout');
+          this.exportMessageOk = false;
+          return;
+        }
+        setTimeout(() => this.pollExportJob(jobId, attempt + 1), 1500);
+      },
+      error: () => {
+        this.exportMessage = this.translate.instant('students.list.exportFailed');
+        this.exportMessageOk = false;
+      },
+    });
+  }
+
+  private saveBlob(blob: Blob, name: string): void {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = name;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  clearExportMessage(): void {
+    this.exportMessage = '';
+  }
+
   private fetchStudentsPage(): void {
     const classIdRaw = this.classFilter ? Number(this.classFilter) : NaN;
     const classId = Number.isFinite(classIdRaw) && classIdRaw > 0 ? classIdRaw : undefined;
@@ -496,33 +592,85 @@ export class StudentListComponent implements OnInit, OnDestroy {
     }
   }
 
-  deleteStudent(id: number): void {
+  deactivateStudent(id: number): void {
     const st = this.students.find(s => s.id === id);
     const name = st
       ? `${st.firstName} ${st.lastName}`
       : this.translate.instant('students.list.confirmDelete.fallbackName');
     this.confirmDialog
       .confirm({
-        title: this.translate.instant('students.list.confirmDelete.title'),
-        message: this.translate.instant('students.list.confirmDelete.message', { name }),
+        title: this.translate.instant('students.profile.confirmInactive.title'),
+        message: this.translate.instant('students.profile.confirmInactive.message', { name }),
         details: [
-          st ? this.translate.instant('students.list.confirmDelete.detailAdmission', { no: st.admissionNumber }) : undefined,
+          st ? this.translate.instant('students.profile.confirmInactive.detailAdmission', { no: st.admissionNumber }) : undefined,
           st
-            ? this.translate.instant('students.list.confirmDelete.detailClass', {
+            ? this.translate.instant('students.profile.confirmInactive.detailClass', {
                 class: `${st.className} ${st.sectionName || ''}`.trim(),
               })
             : undefined,
-          this.translate.instant('students.list.confirmDelete.detailSoft'),
+        ].filter((x): x is string => !!x),
+        variant: 'warning',
+        confirmLabel: this.translate.instant('students.profile.confirmInactive.confirm'),
+      })
+      .pipe(filter(Boolean))
+      .subscribe(() => {
+        this.studentService.updateStudent(id, { status: 'inactive' }).subscribe(() => {
+          if (this.useServerPaging) {
+            this.fetchStudentsPage();
+          } else {
+            this.students = this.students.map(s => (s.id === id ? { ...s, status: 'inactive' } : s));
+            this.filterStudents();
+          }
+        });
+      });
+  }
+
+  reactivateStudent(id: number): void {
+    const st = this.students.find(s => s.id === id);
+    const name = st ? `${st.firstName} ${st.lastName}` : this.translate.instant('students.list.confirmDelete.fallbackName');
+    this.confirmDialog
+      .confirm({
+        title: this.translate.instant('students.list.lifecycleConfirm.reactivate.title'),
+        message: this.translate.instant('students.list.lifecycleConfirm.reactivate.message', { name }),
+        details: [
+          this.translate.instant('students.list.lifecycleConfirm.reactivate.detailVisible'),
+          this.translate.instant('students.list.lifecycleConfirm.reactivate.detailReversible'),
+        ],
+        variant: 'warning',
+        confirmLabel: this.translate.instant('students.list.lifecycleConfirm.reactivate.confirm'),
+      })
+      .pipe(filter(Boolean))
+      .subscribe(() => {
+        this.studentService.updateStudent(id, { status: 'active' }).subscribe(() => {
+          if (this.useServerPaging) this.fetchStudentsPage();
+          else {
+            this.students = this.students.map(s => (s.id === id ? { ...s, status: 'active' } : s));
+            this.filterStudents();
+          }
+        });
+      });
+  }
+
+  deleteStudentPermanently(id: number): void {
+    const st = this.students.find(s => s.id === id);
+    const name = st ? `${st.firstName} ${st.lastName}` : this.translate.instant('students.list.confirmDelete.fallbackName');
+    this.confirmDialog
+      .confirm({
+        title: this.translate.instant('students.list.lifecycleConfirm.deletePermanent.title'),
+        message: this.translate.instant('students.list.lifecycleConfirm.deletePermanent.message', { name }),
+        details: [
+          st ? this.translate.instant('students.list.confirmDelete.detailAdmission', { no: st.admissionNumber }) : undefined,
+          this.translate.instant('students.list.lifecycleConfirm.deletePermanent.detailHidden'),
+          this.translate.instant('students.list.lifecycleConfirm.deletePermanent.detailFinal'),
         ].filter((x): x is string => !!x),
         variant: 'danger',
-        confirmLabel: this.translate.instant('students.list.confirmDelete.confirm'),
+        confirmLabel: this.translate.instant('students.list.lifecycleConfirm.deletePermanent.confirm'),
       })
       .pipe(filter(Boolean))
       .subscribe(() => {
         this.studentService.deleteStudent(id).subscribe(() => {
-          if (this.useServerPaging) {
-            this.fetchStudentsPage();
-          } else {
+          if (this.useServerPaging) this.fetchStudentsPage();
+          else {
             this.students = this.students.filter(s => s.id !== id);
             this.filterStudents();
           }

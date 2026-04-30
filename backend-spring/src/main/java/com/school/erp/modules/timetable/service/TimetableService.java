@@ -317,6 +317,14 @@ public class TimetableService {
         log.info("Updating timetable entry id={} replaceId={}", id, replaceTimetableEntryId);
         TimetableEntry entry = repo.findByIdAndTenantIdAndIsDeletedFalse(id, t).orElseThrow(() -> new ResourceNotFoundException("TimetableEntry", id));
         TimetableEntry before = snapshotEntry(entry);
+        if (update.getClassId() != null) {
+            entry.setClassId(update.getClassId());
+            entry.setSectionId(update.getSectionId());
+        } else if (update.getSectionId() != null) {
+            entry.setSectionId(update.getSectionId());
+        }
+        if (update.getDay() != null) entry.setDay(update.getDay());
+        if (update.getPeriod() != null) entry.setPeriod(update.getPeriod());
         if (update.getSubjectName() != null) entry.setSubjectName(update.getSubjectName());
         if (update.getTeacherId() != null) entry.setTeacherId(update.getTeacherId());
         if (update.getTeacherName() != null) entry.setTeacherName(update.getTeacherName());
@@ -341,13 +349,21 @@ public class TimetableService {
         List<TimetableEntry> teacherRows = candidate.getTeacherId() != null
                 ? repo.findByTenantIdAndTeacherIdAndIsDeletedFalse(tenantId, candidate.getTeacherId())
                 : List.of();
+        String room = candidate.getRoom() != null ? candidate.getRoom().trim() : "";
+        List<TimetableEntry> roomRows = !room.isBlank()
+                ? repo.findByTenantAndRoomIgnoreCase(tenantId, room)
+                : List.of();
 
         Optional<Conflict> conflict = TimetableSlotConflictResolver.resolve(
                 classRows,
                 teacherRows,
+                roomRows,
                 candidate.getDay(),
                 candidate.getPeriod(),
                 candidate.getTeacherId(),
+                room,
+                candidate.getStartTime(),
+                candidate.getEndTime(),
                 excludeEntryId);
 
         if (replaceTimetableEntryId != null) {
@@ -363,9 +379,13 @@ public class TimetableService {
                     candidate.getTeacherId() != null
                             ? repo.findByTenantIdAndTeacherIdAndIsDeletedFalse(tenantId, candidate.getTeacherId())
                             : List.of(),
+                    !room.isBlank() ? repo.findByTenantAndRoomIgnoreCase(tenantId, room) : List.of(),
                     candidate.getDay(),
                     candidate.getPeriod(),
                     candidate.getTeacherId(),
+                    room,
+                    candidate.getStartTime(),
+                    candidate.getEndTime(),
                     excludeEntryId);
             if (again.isPresent()) {
                 throw new BusinessException("After removing the selected slot, another conflict still exists. Refresh and review the grid.");
@@ -385,9 +405,12 @@ public class TimetableService {
 
     private static String humanTimetableConflictMessage(TimetableSlotConflictResolver.Kind kind) {
         if (kind == TimetableSlotConflictResolver.Kind.CLASS_PERIOD_OCCUPIED) {
-            return "This class already has a subject scheduled for that weekday and period.";
+            return "This class already has a subject scheduled in that weekday period/time window.";
         }
-        return "This teacher is already scheduled in another class for that weekday and period.";
+        if (kind == TimetableSlotConflictResolver.Kind.ROOM_DOUBLE_BOOKED) {
+            return "This room is already occupied in that weekday period/time window.";
+        }
+        return "This teacher is already scheduled in another class in that weekday period/time window.";
     }
 
     private void validateTimetableEntryRules(TimetableEntry entry) {
@@ -441,6 +464,7 @@ public class TimetableService {
         p.setPeriod(b.getPeriod());
         p.setSubjectName(b.getSubjectName());
         p.setTeacherName(b.getTeacherName());
+        p.setRoom(b.getRoom());
         p.setClassId(b.getClassId());
         p.setSectionId(b.getSectionId());
         if (c.kind() == TimetableSlotConflictResolver.Kind.TEACHER_DOUBLE_BOOKED) {
@@ -448,6 +472,43 @@ public class TimetableService {
             p.setConflictingSectionId(b.getSectionId());
         }
         return p;
+    }
+
+    @Transactional(readOnly = true)
+    public Optional<TimetableDTOs.TimetableConflictPayload> findConflict(
+            TimetableEntry candidate, Long excludeEntryId, Set<Long> ignoreEntryIds) {
+        if (candidate == null || candidate.getClassId() == null || candidate.getDay() == null || candidate.getPeriod() == null) {
+            return Optional.empty();
+        }
+        String tenantId = TenantContext.getTenantId();
+        Set<Long> ignore = ignoreEntryIds != null ? ignoreEntryIds : Set.of();
+        List<TimetableEntry> classRows = repo.findForTenantClassAndOptionalSection(tenantId, candidate.getClassId(), candidate.getSectionId())
+                .stream()
+                .filter(e -> !ignore.contains(e.getId()))
+                .collect(Collectors.toList());
+        List<TimetableEntry> teacherRows = candidate.getTeacherId() != null
+                ? repo.findByTenantIdAndTeacherIdAndIsDeletedFalse(tenantId, candidate.getTeacherId()).stream()
+                .filter(e -> !ignore.contains(e.getId()))
+                .collect(Collectors.toList())
+                : List.of();
+        String room = candidate.getRoom() != null ? candidate.getRoom().trim() : "";
+        List<TimetableEntry> roomRows = !room.isBlank()
+                ? repo.findByTenantAndRoomIgnoreCase(tenantId, room).stream()
+                .filter(e -> !ignore.contains(e.getId()))
+                .collect(Collectors.toList())
+                : List.of();
+        Optional<Conflict> conflict = TimetableSlotConflictResolver.resolve(
+                classRows,
+                teacherRows,
+                roomRows,
+                candidate.getDay(),
+                candidate.getPeriod(),
+                candidate.getTeacherId(),
+                room,
+                candidate.getStartTime(),
+                candidate.getEndTime(),
+                excludeEntryId);
+        return conflict.map(TimetableService::buildTimetableConflictPayload);
     }
 
     private static TimetableEntry snapshotEntry(TimetableEntry entry) {

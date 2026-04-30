@@ -20,6 +20,8 @@ public class Teacher extends BaseEntity {
     private String email;
     @Column(length = 20)
     private String phone;
+    @Column(name = "employee_code", length = 64)
+    private String employeeCode;
     @Column(length = 200)
     private String qualification;
     @Column(length = 100)
@@ -201,6 +203,10 @@ public class Teacher extends BaseEntity {
         return this.qualification;
     }
 
+    public String getEmployeeCode() {
+        return employeeCode;
+    }
+
     public String getSpecialization() {
         return this.specialization;
     }
@@ -279,6 +285,10 @@ public class Teacher extends BaseEntity {
 
     public void setQualification(final String qualification) {
         this.qualification = qualification;
+    }
+
+    public void setEmployeeCode(final String employeeCode) {
+        this.employeeCode = employeeCode;
     }
 
     public void setSpecialization(final String specialization) {

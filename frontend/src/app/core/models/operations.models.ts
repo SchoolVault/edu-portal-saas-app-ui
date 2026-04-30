@@ -1,5 +1,6 @@
 export interface OperationalStaffRow {
   id: string;
+  isActive?: boolean;
   staffRole: string;
   fullName: string;
   phone?: string;

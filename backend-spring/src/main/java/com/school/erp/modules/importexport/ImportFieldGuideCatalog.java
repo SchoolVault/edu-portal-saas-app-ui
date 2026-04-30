@@ -73,8 +73,8 @@ public final class ImportFieldGuideCatalog {
         return List.of(
                 guide("academic_year_id", true, "Target academic year id or CURRENT.", "CURRENT"),
                 guide("import_mode", false, "UPSERT / CREATE_ONLY / SKIP_IF_EXISTS.", "UPSERT"),
-                guide("teacher_ref_type", true, "Teacher ref type: ID / PHONE / EMAIL.", "EMAIL"),
-                guide("teacher_ref", true, "Teacher reference value based on teacher_ref_type.", "ananya@school.in"),
+                guide("teacher_ref_type", true, "Teacher ref type: EMPLOYEE_CODE (preferred) / PHONE / EMAIL / ID.", "EMPLOYEE_CODE"),
+                guide("teacher_ref", true, "Teacher reference value based on teacher_ref_type.", "T001"),
                 guide("class_ref", true, "Class id/code/name reference.", "Class 6"),
                 guide("section_ref", false, "Section id/name (required when class has sections).", "A"),
                 guide("subject_code", true, "Subject name/code.", "Mathematics"),
@@ -105,6 +105,7 @@ public final class ImportFieldGuideCatalog {
                 guide("primary_guardian_name", true, "Primary guardian full name.", "Pooja Sharma"),
                 guide("primary_guardian_email", false, "Primary guardian email.", "pooja@example.com"),
                 guide("primary_guardian_phone", true, "Primary guardian mobile (portal anchor).", "9817000001"),
+                guide("parent_code", false, "Optional. Immutable parent key for UPSERT; omit to auto-generate a unique code per school.", "P7K2M9NQ4X"),
                 guide("parent_id", false, "Existing parent id or AUTO for resolver flow.", "AUTO"),
                 guide("create_parent_portal", false, "Y/N parent portal creation/link.", "Y"),
                 guide("notify_credentials", false, "Y/N parent credential notification.", "Y"),

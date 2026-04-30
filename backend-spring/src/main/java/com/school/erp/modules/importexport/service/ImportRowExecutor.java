@@ -48,6 +48,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
@@ -226,6 +227,7 @@ public class ImportRowExecutor {
 
         String parentEmail = blankToNull(value(row, "parentemail"));
         String parentPhone = blankToNull(value(row, "parentphone"));
+        String parentCode = blankToNull(value(row, "parentcode", "parent_code", "primary_guardian_code"));
 
         PortalUserProvisioningService.ProvisionResult parentProvision = null;
         if (parentEmail != null || parentPhone != null || truthy(value(row, "create_parent_portal", "createparentportal"))) {
@@ -233,7 +235,8 @@ public class ImportRowExecutor {
             if (parentName == null) {
                 parentName = parentEmail != null ? parentEmail : (parentPhone != null ? parentPhone : "Parent");
             }
-            parentProvision = portalUserProvisioningService.ensureParentUserForImport(tenantId, parentName, parentEmail, parentPhone);
+            parentProvision = portalUserProvisioningService.ensureParentUserForImport(
+                    tenantId, parentName, parentEmail, parentPhone, parentCode);
             request.setParentId(parentProvision.userId());
             if (request.getParentName() == null) {
                 request.setParentName(parentName);
@@ -287,6 +290,7 @@ public class ImportRowExecutor {
         User portalBefore = notifyCredentials ? findPortalUserBeforeTeacherImport(tenantId, loginEmail, canonicalPhone) : null;
 
         TeacherDTOs.CreateRequest request = new TeacherDTOs.CreateRequest();
+        request.setEmployeeCode(blankToNull(value(row, "employee_code")));
         request.setFirstName(requiredAny(row, "first_name", "firstname"));
         request.setLastName(requiredAny(row, "last_name", "lastname"));
         request.setEmail(loginEmail);
@@ -725,9 +729,21 @@ public class ImportRowExecutor {
     }
 
     private Teacher resolveTimetableTeacher(Map<String, String> row, String tenantId) {
+        String teacherEmployeeCode = blankToNull(value(row, "teacheremployeecode", "teacher_employee_code"));
         String teacherEmail = blankToNull(value(row, "teacheremail"));
         String teacherPhone = blankToNull(value(row, "teacherphone"));
         Long teacherId = parseLong(value(row, "teacherid"));
+        if (teacherEmployeeCode != null) {
+            String normalizedCode = teacherEmployeeCode.trim().toUpperCase(Locale.ROOT);
+            Optional<Teacher> byCode = teacherRepository.findByTenantIdAndEmployeeCodeAndIsDeletedFalse(tenantId, normalizedCode);
+            if (byCode.isPresent()) {
+                return byCode.get();
+            }
+            // Fallback for legacy sheets: if code lookup misses, try phone/email when present.
+            if (teacherPhone == null && teacherEmail == null) {
+                throw new BusinessException("Teacher not found for employee_code: " + normalizedCode);
+            }
+        }
         if (teacherId != null) {
             return teacherRepository.findByIdAndTenantIdAndIsDeletedFalse(teacherId, tenantId)
                     .orElseThrow(() -> new BusinessException("Teacher not found for teacherid: " + teacherId));
@@ -744,7 +760,7 @@ public class ImportRowExecutor {
             return teacherRepository.findByTenantIdAndEmailIgnoreCaseAndIsDeletedFalse(tenantId, teacherEmail)
                     .orElseThrow(() -> new BusinessException("Teacher not found for teacheremail: " + teacherEmail));
         }
-        throw new BusinessException("teacherid, teacherphone, or teacheremail is required");
+        throw new BusinessException("teacher_employee_code (preferred), teacherid, teacherphone, or teacheremail is required");
     }
 
     private static String credentialMessage(
@@ -1027,13 +1043,13 @@ public class ImportRowExecutor {
     private static List<String> parseSubjects(String value) {
         String normalized = blankToNull(value);
         if (normalized == null) {
-            return List.of();
+            return new ArrayList<>();
         }
         String delimiter = normalized.contains("|") ? "\\|" : ",";
         return java.util.Arrays.stream(normalized.split(delimiter))
                 .map(String::trim)
                 .filter(part -> !part.isEmpty())
-                .collect(Collectors.toList());
+                .collect(Collectors.toCollection(ArrayList::new));
     }
 
     private static Enums.TeacherStatus parseTeacherStatus(String raw) {

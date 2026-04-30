@@ -1320,6 +1320,17 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
   private buildParentKpis(dashboard: ParentDashboardData): DashboardParentKpi[] {
     const th = dashboard.attendanceMetric?.schoolThresholdPct ?? 85;
     const feeU = dashboard.feeMetric?.urgency ?? 'none';
+    const examsEnabled = this.moduleGate.isModuleEnabled('exams');
+    const classTeacherName = dashboard.selectedChild?.homeroomTeacherName?.trim();
+    const classTeacherValue = classTeacherName && classTeacherName.length > 0
+      ? classTeacherName
+      : this.translate.instant('dashboard.parent.kpi.classTeacherTbd');
+    const classTeacherContext = dashboard.selectedChild
+      ? this.translate.instant('dashboard.parent.kpi.classTeacherContext', {
+          className: dashboard.selectedChild.className ?? this.translate.instant('exams.dash'),
+          sectionName: dashboard.selectedChild.sectionName ?? this.translate.instant('exams.dash'),
+        })
+      : this.translate.instant('dashboard.parent.kpi.classTeacherContextEmpty');
     return [
       {
         labelKey: 'dashboard.parent.kpi.childrenLinked',
@@ -1342,15 +1353,18 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
         tile: 'attendance',
       },
       {
-        labelKey: 'dashboard.parent.kpi.overallGrade',
-        value: dashboard.overallGrade,
-        icon: 'bi-trophy-fill',
+        labelKey: examsEnabled ? 'dashboard.parent.kpi.overallGrade' : 'dashboard.parent.kpi.classTeacher',
+        value: examsEnabled ? dashboard.overallGrade : classTeacherValue,
+        icon: examsEnabled ? 'bi-trophy-fill' : 'bi-person-workspace',
         bgColor: 'rgba(217,119,6,0.1)',
         color: '#D97706',
-        contextKey: dashboard.resultMetric?.labelKey,
-        contextParams: {
-          pct: dashboard.resultMetric?.averagePercent != null ? dashboard.resultMetric.averagePercent : '—',
-        },
+        contextKey: examsEnabled ? dashboard.resultMetric?.labelKey : undefined,
+        contextParams: examsEnabled
+          ? {
+              pct: dashboard.resultMetric?.averagePercent != null ? dashboard.resultMetric.averagePercent : '—',
+            }
+          : undefined,
+        resolvedContext: examsEnabled ? undefined : classTeacherContext,
         tile: 'result',
       },
       {

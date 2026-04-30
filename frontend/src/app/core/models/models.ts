@@ -342,7 +342,7 @@ export interface TimetableEntry {
   coverForDate?: string;
 }
 
-export type TimetableConflictKind = 'CLASS_PERIOD_OCCUPIED' | 'TEACHER_DOUBLE_BOOKED';
+export type TimetableConflictKind = 'CLASS_PERIOD_OCCUPIED' | 'TEACHER_DOUBLE_BOOKED' | 'ROOM_DOUBLE_BOOKED';
 
 /** Mirrors {@code TimetableDTOs.TimetableConflictPayload} for HTTP 409 responses. */
 export interface TimetableConflictPayload {
@@ -352,6 +352,7 @@ export interface TimetableConflictPayload {
   period: number;
   subjectName?: string;
   teacherName?: string;
+  room?: string;
   classId?: number;
   sectionId?: number | null;
   conflictingClassId?: number;
@@ -369,6 +370,10 @@ export interface TeacherScheduleOnboardingSlot {
   /** Backend expects {@code MONDAY} … {@code SATURDAY}. */
   day: string;
   period: number;
+  /** Optional custom slot window (HH:mm). When omitted, server derives from period. */
+  startTime?: string | null;
+  /** Optional custom slot window (HH:mm). When omitted, server derives from period. */
+  endTime?: string | null;
   classId: number;
   sectionId?: number | null;
   subjectName: string;
@@ -396,6 +401,28 @@ export interface ApplyTeacherScheduleOnboardingResponse {
   updatedEntryIds: number[];
   removedEntryIds: number[];
   anchoredEntryId?: number | null;
+}
+
+export interface TeacherScheduleValidationIssue {
+  code: string;
+  message: string;
+  conflictType?: string;
+  existingEntryId?: number;
+  day?: string;
+  period?: number;
+  classId?: number;
+  sectionId?: number | null;
+  room?: string;
+}
+
+export interface ValidateTeacherScheduleOnboardingResponse {
+  valid: boolean;
+  teacherId: number;
+  teacherName: string;
+  slotsToCreate: number;
+  slotsToUpdate: number;
+  slotsToDelete: number;
+  issues: TeacherScheduleValidationIssue[];
 }
 
 export interface TimetableGridSlot {

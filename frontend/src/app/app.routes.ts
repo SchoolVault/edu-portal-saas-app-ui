@@ -99,6 +99,8 @@ export const routes: Routes = [
       { path: 'teachers/new', loadComponent: () => import('./features/teacher/teacher-form.component').then(m => m.TeacherFormComponent), canActivate: [adminOnlyGuard] },
       { path: 'teachers/:id/edit', loadComponent: () => import('./features/teacher/teacher-form.component').then(m => m.TeacherFormComponent), canActivate: [adminOnlyGuard] },
       { path: 'teachers/:id', loadComponent: () => import('./features/teacher/teacher-profile.component').then(m => m.TeacherProfileComponent), canActivate: [schoolStaffGuard] },
+      { path: 'staff/:id', loadComponent: () => import('./features/staff/staff-profile.component').then(m => m.StaffProfileComponent), canActivate: [adminOnlyGuard] },
+      { path: 'staff/:id/edit', loadComponent: () => import('./features/staff/staff-profile.component').then(m => m.StaffProfileComponent), canActivate: [adminOnlyGuard] },
       { path: 'academic', loadComponent: () => import('./features/academic/academic.component').then(m => m.AcademicComponent), canActivate: [schoolStaffGuard] },
       { path: 'attendance', loadComponent: () => import('./features/attendance/attendance.component').then(m => m.AttendanceComponent), canActivate: [schoolStaffGuard] },
       {

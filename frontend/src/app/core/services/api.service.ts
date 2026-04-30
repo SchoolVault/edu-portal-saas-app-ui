@@ -114,6 +114,15 @@ export class ApiService {
     );
   }
 
+  patch<T>(path: string, body: any): Observable<T> {
+    return this.http.patch<ApiResp<T>>(`${this.baseUrl}${path}`, body).pipe(
+      map(res => {
+        if (!res.success) throw new Error(res.message);
+        return res.data as T;
+      })
+    );
+  }
+
   delete<T>(path: string): Observable<T> {
     return this.http.delete<ApiResp<T>>(`${this.baseUrl}${path}`).pipe(
       map(res => {

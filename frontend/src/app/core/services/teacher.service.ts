@@ -42,10 +42,11 @@ export class TeacherService {
   /**
    * Paged teachers aligned with {@code GET /api/v1/teachers}.
    */
-  getTeachersPage(opts: { page?: number; size?: number; search?: string; subject?: string }): Observable<PageResp<Teacher>> {
+  getTeachersPage(opts: { page?: number; size?: number; search?: string; status?: string; subject?: string }): Observable<PageResp<Teacher>> {
     const page = opts.page ?? 0;
     const size = opts.size ?? DEFAULT_ERP_PAGE_SIZE;
     const q = opts.search?.trim() || '';
+    const status = opts.status?.trim() || '';
     const subject = opts.subject?.trim() || '';
     if (!runtimeConfig.useMocks) {
       return this.api
@@ -53,6 +54,7 @@ export class TeacherService {
           page,
           size,
           search: q || undefined,
+          status: status || undefined,
           subject: subject || undefined,
           subjectName: subject || undefined,
         })
@@ -71,6 +73,10 @@ export class TeacherService {
           `${t.firstName} ${t.lastName}`.toLowerCase().includes(ql) || (t.specialization || '').toLowerCase().includes(ql)
       );
     }
+    if (status) {
+      const statusNeedle = status.toLowerCase();
+      rows = rows.filter(t => (t.status || '').toLowerCase() === statusNeedle);
+    }
     if (subject) {
       const subjectNeedle = subject.toLowerCase();
       rows = rows.filter(t => (t.subjects ?? []).some(s => (s || '').toLowerCase().includes(subjectNeedle)));
@@ -79,6 +85,34 @@ export class TeacherService {
     return of(sliceToPage(rows, page, size)).pipe(
       map(p => ({ ...p, content: p.content.map(t => this.withAudienceVisibility(t)) })),
       delay(250)
+    );
+  }
+
+  getStaffPage(opts: { page?: number; size?: number; search?: string; status?: string }): Observable<PageResp<Teacher>> {
+    const page = opts.page ?? 0;
+    const size = opts.size ?? DEFAULT_ERP_PAGE_SIZE;
+    const q = opts.search?.trim() || '';
+    const status = opts.status?.trim() || '';
+    if (!runtimeConfig.useMocks) {
+      return this.api
+        .getPageParams<any>('/teachers/staff', {
+          page,
+          size,
+          search: q || undefined,
+          status: status || undefined,
+        })
+        .pipe(
+          map(p => ({
+            ...p,
+            content: p.content.map((t: any) => this.withAudienceVisibility(this.normalizeTeacher(t))),
+          }))
+        );
+    }
+    return this.getTeachersPage({ page, size, search: q }).pipe(
+      map(p => ({
+        ...p,
+        content: p.content.filter(t => !!t.libraryStaffRole || (t.specialization || '').toLowerCase().includes('staff')),
+      }))
     );
   }
 
@@ -170,6 +204,21 @@ export class TeacherService {
     this.teachers = this.teachers.filter(t => t.id !== id);
     this.teachersSubject.next(this.teachers);
     return of(true).pipe(delay(300));
+  }
+
+  updateTeacherStatus(id: number, status: 'active' | 'inactive'): Observable<Teacher> {
+    if (!runtimeConfig.useMocks) {
+      return this.api
+        .patch<Teacher>(`/teachers/${id}/status?status=${encodeURIComponent(status)}`, {})
+        .pipe(map(updated => this.normalizeTeacher(updated)));
+    }
+    const idx = this.teachers.findIndex(t => t.id === id);
+    if (idx >= 0) {
+      this.teachers[idx] = { ...this.teachers[idx], status };
+      this.teachersSubject.next(this.teachers);
+      return of(this.withHomeroomFromMockAcademic(this.teachers[idx])).pipe(delay(200));
+    }
+    return of(this.teachers[0]).pipe(delay(200));
   }
 
   private withAudienceVisibility(t: Teacher): Teacher {
