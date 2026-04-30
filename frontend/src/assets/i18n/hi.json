@@ -603,6 +603,7 @@
     "stats": {
       "students": "विद्यार्थी {{count}}",
       "teachers": "शिक्षक {{count}}",
+      "staff": "स्टाफ {{count}}",
       "children": "बच्चे {{count}}",
       "subjects": "विषय {{count}}",
       "assignedStudents": "विद्यार्थी {{count}}",

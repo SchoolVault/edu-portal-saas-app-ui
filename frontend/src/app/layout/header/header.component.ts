@@ -269,6 +269,9 @@ export class HeaderComponent implements OnInit, OnDestroy {
       if (s.managedTeacherCount != null) {
         out.push({ translateKey: 'header.stats.teachers', params: { count: Number(s.managedTeacherCount) } });
       }
+      if (s.managedStaffCount != null && Number(s.managedStaffCount) > 0) {
+        out.push({ translateKey: 'header.stats.staff', params: { count: Number(s.managedStaffCount) } });
+      }
       return out;
     }
     if (role === 'teacher') {
