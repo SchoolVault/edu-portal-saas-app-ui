@@ -210,7 +210,27 @@ import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directiv
         align-items: center;
         justify-content: flex-start;
       }
+      .academic-classes-filter-group {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        align-items: flex-end;
+        max-width: none;
+        flex: 0 1 auto;
+      }
+      .academic-classes-filter-field {
+        flex: 0 1 230px;
+        min-width: 190px;
+        max-width: 240px;
+      }
       @media (max-width: 576px) {
+        .academic-classes-filter-group {
+          width: 100%;
+        }
+        .academic-classes-filter-field {
+          flex: 1 1 100%;
+          min-width: 0;
+        }
         .academic-class-header-actions {
           width: 100%;
           flex-direction: row !important;
@@ -267,20 +287,12 @@ import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directiv
         </p>
 
         <div class="erp-filter-toolbar mb-3">
-          <div class="erp-filter-toolbar__search">
-            <div>
+          <div class="erp-filter-toolbar__search academic-classes-filter-group">
+            <div class="academic-classes-filter-field">
               <label class="erp-label mb-1">{{ 'academic.classes.filterYear' | translate }}</label>
               <select class="erp-select" [(ngModel)]="filterYearId">
                 <option [ngValue]="null">{{ 'academic.classes.allYears' | translate }}</option>
                 <option *ngFor="let ay of academicYears" [ngValue]="ay.id">{{ ay.name }}</option>
-              </select>
-            </div>
-            <div *ngIf="canViewInactiveLifecycle">
-              <label class="erp-label mb-1">{{ 'academic.classes.lifecycle' | translate }}</label>
-              <select class="erp-select" [(ngModel)]="lifecycleFilter" (ngModelChange)="reloadData()">
-                <option value="active">{{ 'academic.classes.lifecycleActive' | translate }}</option>
-                <option value="inactive">{{ 'academic.classes.lifecycleInactive' | translate }}</option>
-                <option value="all">{{ 'academic.classes.lifecycleAll' | translate }}</option>
               </select>
             </div>
           </div>
@@ -658,9 +670,7 @@ export class AcademicComponent implements OnInit {
   classes: SchoolClass[] = [];
   teachers: Teacher[] = [];
   canManageAcademic = false;
-  canViewInactiveLifecycle = false;
   filterYearId: number | null = null;
-  lifecycleFilter: 'active' | 'inactive' | 'all' = 'active';
   assignClassId: number | null = null;
   /** When the selected class has sections — required for save. */
   assignSectionId: number | null = null;
@@ -726,7 +736,6 @@ export class AcademicComponent implements OnInit {
 
   ngOnInit(): void {
     this.canManageAcademic = this.uiAccess.hasAcademicDeskAdminAccess();
-    this.canViewInactiveLifecycle = this.uiAccess.canViewInactiveRosterRows();
     if (this.canManageAcademic) {
       this.tab = 'classes';
     }
@@ -928,7 +937,7 @@ export class AcademicComponent implements OnInit {
       })
       .subscribe({
         next: () => {
-          this.academicService.getClasses(this.lifecycleFilter).subscribe({
+          this.academicService.getClasses('active').subscribe({
             next: list => {
               this.classes = list;
               this.savingClass = false;
@@ -1257,7 +1266,7 @@ export class AcademicComponent implements OnInit {
       )
       .subscribe({
         next: () => {
-          this.academicService.getClasses(this.lifecycleFilter).subscribe({
+          this.academicService.getClasses('active').subscribe({
             next: list => {
               this.classes = list;
               this.teacherService.getTeachers().subscribe({
@@ -1417,7 +1426,7 @@ export class AcademicComponent implements OnInit {
 
   reloadData(): void {
     this.academicService.getAcademicYears().subscribe(years => this.academicYears = years);
-    this.academicService.getClasses(this.lifecycleFilter).subscribe(classes => this.classes = classes);
+    this.academicService.getClasses('active').subscribe(classes => this.classes = classes);
   }
 
   classLifecycleToggleAllowed(cls: SchoolClass): boolean {
