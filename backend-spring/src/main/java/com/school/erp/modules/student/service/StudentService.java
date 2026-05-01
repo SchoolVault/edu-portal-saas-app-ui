@@ -277,6 +277,8 @@ public class StudentService {
                 u.setRollNumber(request.getRollNumber());
                 u.setParentId(request.getParentId());
                 u.setParentName(request.getParentName());
+                u.setParentPhone(request.getParentPhone());
+                u.setParentEmail(request.getParentEmail());
                 u.setAddress(request.getAddress());
                 u.setBloodGroup(request.getBloodGroup());
                 // ERP-style UPSERT: re-import of an inactive student admission reactivates the student.
@@ -348,7 +350,7 @@ public class StudentService {
         if (request.getRollNumber() != null) student.setRollNumber(request.getRollNumber());
         if (request.getParentId() != null) student.setParentId(request.getParentId());
         if (request.getParentName() != null) student.setParentName(request.getParentName());
-        applyParentPortalAutoLink(tenantId, request.getParentId(), request.getParentName(),
+        applyParentPortalAutoLink(tenantId, student.getParentId(), request.getParentName(),
                 request.getParentPhone(), request.getParentEmail(), request.getCreateParentPortal(), student);
         if (request.getAddress() != null) student.setAddress(request.getAddress());
         if (request.getBloodGroup() != null) student.setBloodGroup(request.getBloodGroup());
@@ -581,6 +583,10 @@ public class StudentService {
             Boolean createParentPortal,
             Student student) {
         if (explicitParentId != null) {
+            if ((parentPhone != null && !parentPhone.isBlank()) || (parentEmail != null && !parentEmail.isBlank())) {
+                portalUserProvisioningService.mergeImportedContactOntoParentUser(
+                        tenantId, explicitParentId, parentName, parentEmail, parentPhone);
+            }
             return null;
         }
         boolean shouldAutoLink = Boolean.TRUE.equals(createParentPortal)

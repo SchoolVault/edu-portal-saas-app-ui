@@ -89,12 +89,12 @@
   },
   "media_assets": {
     "auth_background": {
-      "url": "https://static.prod-images.emergentagent.com/jobs/9a0eef39-d991-4ee9-b692-a0f34292613c/images/39ade40298c502bd4785354a93143be5e368f4457b5f0aee6cbf5d84e82fe503.png",
-      "description": "Serene modern architecture with warm stone and green ivy. Used as the right-side split screen background on the Auth page."
+      "url": "/schoolvault-logo.png",
+      "description": "School Vault brand artwork; used full-bleed on auth split panel (object-fit: cover) with overlay."
     },
     "school_logo": {
-      "url": "https://static.prod-images.emergentagent.com/jobs/9a0eef39-d991-4ee9-b692-a0f34292613c/images/327dafae8a43bdee0145f51e32a05747aa82374ad2bb3b35ccfdb8cc1130bd22.png",
-      "description": "Minimalist elite school crest logo. Used in sidebar top and Auth page header."
+      "url": "/schoolvault-logo.png",
+      "description": "Canonical School Vault logo (`frontend/public/schoolvault-logo.png`): favicon, sidebar, auth headers."
     },
     "portraits": [
       {

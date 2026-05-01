@@ -306,6 +306,44 @@ public class PortalUserProvisioningService {
         return sb.toString();
     }
 
+    /**
+     * Applies import/CSV or admin-entered guardian contact onto an existing parent portal account
+     * (e.g. student re-import with updated mobile). Keeps {@code users} aligned with bulk onboarding rules.
+     */
+    @Transactional
+    public void mergeImportedContactOntoParentUser(
+            String tenantId,
+            Long parentUserId,
+            String name,
+            String email,
+            String phone) {
+        if (parentUserId == null) {
+            return;
+        }
+        User u = userRepository.findByIdAndTenantIdAndIsDeletedFalse(parentUserId, tenantId)
+                .orElseThrow(() -> new ResourceNotFoundException("User", parentUserId));
+        if (u.getRole() != Enums.Role.PARENT) {
+            throw new BusinessException("User " + parentUserId + " is not a parent portal account");
+        }
+        String normPhone = PhoneNormalization.trimToNull(phone);
+        String normalizedEmail = email != null ? email.trim().toLowerCase(Locale.ROOT) : null;
+        if (normalizedEmail != null && normalizedEmail.isBlank()) {
+            normalizedEmail = null;
+        }
+        boolean touched = false;
+        if (normalizedEmail != null || normPhone != null) {
+            applyImportedParentContactChanges(u, tenantId, normalizedEmail, normPhone);
+            touched = true;
+        }
+        if (name != null && !name.isBlank()) {
+            u.setName(name.trim());
+            touched = true;
+        }
+        if (touched) {
+            userRepository.save(u);
+        }
+    }
+
     private void applyImportedParentContactChanges(
             User user,
             String tenantId,

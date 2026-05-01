@@ -260,6 +260,8 @@ public class ImportRowExecutor {
             request.setParentId(parseLong(value(row, "parentid")));
             request.setParentName(blankToNull(value(row, "parentname")));
         }
+        request.setParentPhone(parentPhone);
+        request.setParentEmail(parentEmail);
 
         LineApplyResult<StudentDTOs.Response> applied = studentService.importStudentRow(request, policy);
         StudentDTOs.Response created = applied.value();

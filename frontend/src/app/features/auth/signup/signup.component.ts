@@ -22,9 +22,7 @@ import {
 import { AuthMarketingBandComponent } from '../auth-marketing/auth-marketing-band.component';
 import { ErpI18nPhDirective } from '../../../shared/erp-i18n/erp-i18n-host.directives';
 import { ErpIntlPhoneRowComponent } from '../../../shared/erp-phone-intl/erp-intl-phone-row.component';
-
-const HERO_IMG =
-  'https://static.prod-images.emergentagent.com/jobs/9a0eef39-d991-4ee9-b692-a0f34292613c/images/39ade40298c502bd4785354a93143be5e368f4457b5f0aee6cbf5d84e82fe503.png';
+import { BRAND_LOGO_SRC } from '../../../core/config/brand-assets';
 
 @Component({
   selector: 'app-signup',
@@ -35,7 +33,7 @@ const HERO_IMG =
       <div class="login-left">
         <div class="login-form-wrapper animate-in">
           <div class="login-logo">
-            <img src="https://static.prod-images.emergentagent.com/jobs/9a0eef39-d991-4ee9-b692-a0f34292613c/images/327dafae8a43bdee0145f51e32a05747aa82374ad2bb3b35ccfdb8cc1130bd22.png" alt="SchoolVault">
+            <img [src]="brandLogoSrc" alt="School Vault" width="44" height="44" />
             <h1>SchoolVault</h1>
           </div>
           <h2 class="login-title">{{ 'signup.title' | translate }}</h2>
@@ -194,7 +192,7 @@ const HERO_IMG =
         </div>
       </div>
       <div class="login-right">
-        <img [src]="HERO_IMG" alt="">
+        <img [src]="brandLogoSrc" alt="" />
         <div class="login-right-overlay">
           <div class="login-right-text" lang="en" dir="ltr">
             <h2>{{ heroEn.title }}</h2>
@@ -216,13 +214,14 @@ const HERO_IMG =
   ]
 })
 export class SignupComponent {
+  readonly brandLogoSrc = BRAND_LOGO_SRC;
+
   readonly heroEn = {
     title: 'Trusted operations layer',
     subtitle:
       'Admissions, fees, transport, hostel, payroll, and parent engagement — modular services with a single sign-on and tenant-aware APIs.',
   } as const;
 
-  readonly HERO_IMG = HERO_IMG;
   readonly schoolCodeMin = ONBOARD_SCHOOL_CODE_MIN;
   readonly schoolCodeMax = ONBOARD_SCHOOL_CODE_MAX;
   readonly pwdMax = ONBOARD_ADMIN_PASSWORD_MAX;

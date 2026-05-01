@@ -34,11 +34,15 @@ public interface TeacherRepository extends JpaRepository<Teacher, Long> {
             @Param("excludedRoles") java.util.Collection<com.school.erp.common.enums.Enums.Role> excludedRoles,
             Pageable pageable);
 
+    /**
+     * Subject filter: exact match on assigned subject display names (catalog names), not substring.
+     * Future: extend with subjectId / code param using OR with this clause.
+     */
     @Query("SELECT t FROM Teacher t WHERE t.tenantId = :tenantId AND t.isDeleted = false AND " +
            "(:status IS NULL OR t.status = :status) AND " +
            "(:subject IS NULL OR EXISTS (" +
            "SELECT s FROM Teacher tx JOIN tx.subjects s " +
-           "WHERE tx.id = t.id AND LOWER(s) LIKE LOWER(CONCAT('%', :subject, '%')))) AND " +
+           "WHERE tx.id = t.id AND LOWER(TRIM(s)) = LOWER(TRIM(:subject)))) AND " +
            "EXISTS (SELECT s2 FROM Teacher tx2 JOIN tx2.subjects s2 WHERE tx2.id = t.id) AND " +
            "(LOWER(CONCAT(t.firstName, ' ', t.lastName)) LIKE LOWER(CONCAT('%', :search, '%')) OR " +
            "LOWER(COALESCE(t.email, '')) LIKE LOWER(CONCAT('%', :search, '%')) OR " +

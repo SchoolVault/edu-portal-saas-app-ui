@@ -12,11 +12,6 @@ export const AUTH_MARKETING_EN = {
     },
     {
       text:
-        'We evaluated SchoolMint-level suites; SchoolVault gave us the same depth with APIs we actually own.',
-      meta: 'Oliver Grant · Head of Technology, Harborview Schools',
-    },
-    {
-      text:
         'Role-based access for teachers and guardians is granular without feeling heavy — exactly what our trust needed.',
       meta: 'Elena Vogt · IT Director, Stadt Gymnasium',
     },
