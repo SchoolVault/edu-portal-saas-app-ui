@@ -29,6 +29,7 @@ import com.school.erp.modules.academic.repository.SchoolClassRepository;
 import com.school.erp.modules.academic.repository.SectionRepository;
 import com.school.erp.modules.settings.entity.TenantConfig;
 import com.school.erp.modules.settings.repository.TenantConfigRepository;
+import com.school.erp.modules.guardian.service.GuardianLinkSyncService;
 import com.school.erp.modules.guardian.service.GuardianService;
 import com.school.erp.modules.operations.repository.OperationalStaffRepository;
 import com.school.erp.modules.student.repository.StudentRepository;
@@ -55,6 +56,7 @@ public class AuthService {
     private final RefreshTokenRepository refreshTokenRepository;
     private final TenantConfigRepository tenantConfigRepository;
     private final GuardianService guardianService;
+    private final GuardianLinkSyncService guardianLinkSyncService;
     private final OperationalStaffRepository operationalStaffRepository;
     private final StudentRepository studentRepository;
     private final TeacherRepository teacherRepository;
@@ -411,8 +413,23 @@ public class AuthService {
             if (!linkedTeachers.isEmpty()) {
                 teacherRepository.saveAll(linkedTeachers);
             }
+        } else if (user.getRole() == Enums.Role.SCHOOL_STAFF || user.getRole() == Enums.Role.LIBRARY_STAFF) {
+            if (request.getPhone() != null || request.getName() != null) {
+                operationalStaffRepository.findByTenantIdAndUserIdAndIsDeletedFalse(tenantId, userId).ifPresent(staff -> {
+                    if (request.getPhone() != null) {
+                        staff.setPhone(user.getPhone());
+                    }
+                    if (request.getName() != null) {
+                        staff.setFullName(user.getName());
+                    }
+                    operationalStaffRepository.save(staff);
+                });
+            }
         }
         userRepository.save(user);
+        if (user.getRole() == Enums.Role.PARENT) {
+            guardianLinkSyncService.syncGuardianDirectoryForPortalUser(tenantId, userId);
+        }
         return toProfile(user);
     }
 
@@ -544,6 +561,24 @@ public class AuthService {
         }
 
         userRepository.save(user);
+        if (user.getRole() == Enums.Role.PARENT
+                && (request.getPhone() != null || request.getEmail() != null || request.getName() != null)) {
+            guardianLinkSyncService.syncGuardianDirectoryForPortalUser(tenantId, userId);
+        } else if ((user.getRole() == Enums.Role.SCHOOL_STAFF || user.getRole() == Enums.Role.LIBRARY_STAFF)
+                && (request.getPhone() != null || request.getEmail() != null || request.getName() != null)) {
+            operationalStaffRepository.findByTenantIdAndUserIdAndIsDeletedFalse(tenantId, userId).ifPresent(staff -> {
+                if (request.getPhone() != null) {
+                    staff.setPhone(user.getPhone());
+                }
+                if (request.getEmail() != null) {
+                    staff.setEmail(user.getEmail());
+                }
+                if (request.getName() != null) {
+                    staff.setFullName(user.getName());
+                }
+                operationalStaffRepository.save(staff);
+            });
+        }
         return toPersonalProfile(user);
     }
 
@@ -808,6 +843,7 @@ public class AuthService {
             final RefreshTokenRepository refreshTokenRepository,
             final TenantConfigRepository tenantConfigRepository,
             final GuardianService guardianService,
+            final GuardianLinkSyncService guardianLinkSyncService,
             final OperationalStaffRepository operationalStaffRepository,
             final StudentRepository studentRepository,
             final TeacherRepository teacherRepository,
@@ -828,6 +864,7 @@ public class AuthService {
         this.refreshTokenRepository = refreshTokenRepository;
         this.tenantConfigRepository = tenantConfigRepository;
         this.guardianService = guardianService;
+        this.guardianLinkSyncService = guardianLinkSyncService;
         this.operationalStaffRepository = operationalStaffRepository;
         this.studentRepository = studentRepository;
         this.teacherRepository = teacherRepository;

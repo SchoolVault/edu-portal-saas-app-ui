@@ -4,6 +4,7 @@ import { Component, OnInit } from '@angular/core';
 import { ActivatedRoute, RouterModule } from '@angular/router';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { AuthService } from '../../../core/services/auth.service';
+import { BRAND_LOGO_SRC } from '../../../core/config/brand-assets';
 
 function extractHttpErrorMessage(err: unknown): string {
   if (err instanceof HttpErrorResponse) {
@@ -31,10 +32,7 @@ function extractHttpErrorMessage(err: unknown): string {
             ><i class="bi bi-arrow-left"></i> {{ 'verifyEmail.backLogin' | translate }}</a
           >
           <div class="login-logo reset-logo">
-            <img
-              src="https://static.prod-images.emergentagent.com/jobs/9a0eef39-d991-4ee9-b692-a0f34292613c/images/327dafae8a43bdee0145f51e32a05747aa82374ad2bb3b35ccfdb8cc1130bd22.png"
-              alt=""
-            />
+            <img [src]="brandLogoSrc" alt="" width="44" height="44" />
             <h1>SchoolVault</h1>
           </div>
           <h2 class="login-title">{{ 'verifyEmail.title' | translate }}</h2>
@@ -62,10 +60,7 @@ function extractHttpErrorMessage(err: unknown): string {
         </div>
       </div>
       <div class="login-right">
-        <img
-          src="https://static.prod-images.emergentagent.com/jobs/9a0eef39-d991-4ee9-b692-a0f34292613c/images/39ade40298c502bd4785354a93143be5e368f4457b5f0aee6cbf5d84e82fe503.png"
-          alt=""
-        />
+        <img [src]="brandLogoSrc" alt="" />
         <div class="login-right-overlay">
           <div class="login-right-text" lang="en" dir="ltr">
             <h2>{{ 'verifyEmail.heroTitle' | translate }}</h2>
@@ -101,6 +96,8 @@ function extractHttpErrorMessage(err: unknown): string {
   ],
 })
 export class VerifyEmailComponent implements OnInit {
+  readonly brandLogoSrc = BRAND_LOGO_SRC;
+
   state: 'loading' | 'success' | 'error' | 'missing' = 'loading';
   errorMessage = '';
 

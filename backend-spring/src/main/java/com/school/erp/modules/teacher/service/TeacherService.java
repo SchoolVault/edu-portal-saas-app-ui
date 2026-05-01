@@ -80,6 +80,7 @@ public class TeacherService {
     public PageResponse<TeacherDTOs.Response> getTeachers(int page, int size, String search, String status, String subject) {
         String tenantId = TenantContext.getTenantId();
         String q = search == null ? "" : search.trim();
+        // Exact catalog/display name match on teacher_subjects (not substring); see TeacherRepository.
         String subjectFilter = subject == null || subject.isBlank() ? null : subject.trim();
         Enums.TeacherStatus statusFilter = null;
         if (status != null && !status.isBlank()) {

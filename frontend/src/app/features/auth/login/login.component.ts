@@ -30,7 +30,7 @@ type PhoneFlowStep = 'idle' | 'otp_sent';
       <div class="login-left">
         <div class="login-form-wrapper animate-in">
           <div class="login-logo">
-            <img src="https://static.prod-images.emergentagent.com/jobs/9a0eef39-d991-4ee9-b692-a0f34292613c/images/327dafae8a43bdee0145f51e32a05747aa82374ad2bb3b35ccfdb8cc1130bd22.png" alt="SchoolVault">
+            <img [src]="loginFormLogoSrc" alt="SchoolVault" width="44" height="44" />
             <h1>SchoolVault</h1>
           </div>
           <h2 class="login-title">{{ 'login.title' | translate }}</h2>
@@ -199,30 +199,6 @@ type PhoneFlowStep = 'idle' | 'otp_sent';
             </button>
           </form>
 
-          <div class="login-demo-panel" data-testid="demo-credentials">
-            <h4 class="login-demo-panel__title">{{ 'login.demoTitle' | translate }}</h4>
-            <p class="login-demo-panel__intro">{{ 'login.demoFlowIntro' | translate }}</p>
-            <div class="login-demo-section">
-              <h5 class="login-demo-section__title">{{ 'login.demoSeededTitle' | translate }}</h5>
-              <ul class="login-demo-list">
-                <li>{{ 'login.demoSeededLine1' | translate }}</li>
-                <li>{{ 'login.demoSeededLine2' | translate }}</li>
-                <li>{{ 'login.demoSeededLine3' | translate }}</li>
-                <li>{{ 'login.demoSeededLine4' | translate }}</li>
-                <li>{{ 'login.demoSeededLine5' | translate }}</li>
-              </ul>
-            </div>
-            <div class="login-demo-section">
-              <h5 class="login-demo-section__title">{{ 'login.demoFlywayTitle' | translate }}</h5>
-              <p class="login-demo-section__body">{{ 'login.demoFlywayBody' | translate }}</p>
-            </div>
-            <div class="login-demo-section">
-              <h5 class="login-demo-section__title">{{ 'login.demoOtpTitle' | translate }}</h5>
-              <p class="login-demo-section__body">{{ 'login.demoOtpBody' | translate }}</p>
-            </div>
-            <p class="login-demo-panel__doc">{{ 'login.demoDocHint' | translate }}</p>
-          </div>
-
           <app-auth-marketing-band />
 
           <p class="auth-page-footer-link">
@@ -232,7 +208,7 @@ type PhoneFlowStep = 'idle' | 'otp_sent';
         </div>
       </div>
       <div class="login-right">
-        <img src="https://static.prod-images.emergentagent.com/jobs/9a0eef39-d991-4ee9-b692-a0f34292613c/images/39ade40298c502bd4785354a93143be5e368f4457b5f0aee6cbf5d84e82fe503.png" alt="">
+        <img [src]="loginHeroImageSrc" alt="" />
         <div class="login-right-overlay">
           <div class="login-right-text" lang="en" dir="ltr">
             <h2>{{ heroEn.title }}</h2>
@@ -263,71 +239,6 @@ type PhoneFlowStep = 'idle' | 'otp_sent';
         .login-lang-select { max-width: 280px; }
       }
       .login-lang-hint { margin-top: 8px; line-height: 1.45; }
-      .login-demo-panel {
-        margin-top: 1.5rem;
-        padding: 1rem 1.1rem;
-        border-radius: var(--radius-lg, 12px);
-        border: 1px solid var(--clr-border-light);
-        background: linear-gradient(
-          165deg,
-          color-mix(in srgb, var(--clr-primary) 4%, var(--clr-surface)) 0%,
-          var(--clr-surface) 100%
-        );
-        box-shadow: var(--shadow-sm, 0 1px 2px rgba(0, 0, 0, 0.06));
-      }
-      .login-demo-panel__title {
-        font-size: 0.95rem;
-        font-weight: 800;
-        margin: 0 0 0.5rem;
-        font-family: var(--font-heading, inherit);
-        color: var(--clr-text);
-      }
-      .login-demo-panel__intro {
-        font-size: 12.5px;
-        line-height: 1.5;
-        color: var(--clr-text-secondary);
-        margin: 0 0 0.85rem;
-      }
-      .login-demo-section {
-        margin-top: 0.75rem;
-        padding-top: 0.75rem;
-        border-top: 1px dashed var(--clr-border-light);
-      }
-      .login-demo-section:first-of-type {
-        margin-top: 0;
-        padding-top: 0;
-        border-top: none;
-      }
-      .login-demo-section__title {
-        font-size: 11px;
-        text-transform: uppercase;
-        letter-spacing: 0.06em;
-        font-weight: 700;
-        color: var(--clr-text-muted);
-        margin: 0 0 0.35rem;
-      }
-      .login-demo-section__body {
-        font-size: 12.5px;
-        line-height: 1.5;
-        color: var(--clr-text-secondary);
-        margin: 0;
-      }
-      .login-demo-list {
-        margin: 0;
-        padding-left: 1.1rem;
-        font-size: 12.5px;
-        line-height: 1.55;
-        color: var(--clr-text-secondary);
-      }
-      .login-demo-list li {
-        margin-bottom: 0.25rem;
-      }
-      .login-demo-panel__doc {
-        font-size: 11.5px;
-        color: var(--clr-text-muted);
-        margin: 0.75rem 0 0;
-        line-height: 1.45;
-      }
     `
   ]
 })
@@ -338,6 +249,12 @@ export class LoginComponent implements OnInit, OnDestroy {
     subtitle:
       'Manage admissions, academics, fees, attendance and more — from one unified platform for modern schools.',
   } as const;
+
+  /** Login-only assets (pre–single-asset branding); sidebar/auth shell still use `BRAND_LOGO_SRC`. */
+  readonly loginFormLogoSrc =
+    'https://static.prod-images.emergentagent.com/jobs/9a0eef39-d991-4ee9-b692-a0f34292613c/images/327dafae8a43bdee0145f51e32a05747aa82374ad2bb3b35ccfdb8cc1130bd22.png';
+  readonly loginHeroImageSrc =
+    'https://static.prod-images.emergentagent.com/jobs/9a0eef39-d991-4ee9-b692-a0f34292613c/images/39ade40298c502bd4785354a93143be5e368f4457b5f0aee6cbf5d84e82fe503.png';
 
   authMode: LoginAuthMode = 'email_password';
   phoneFlowStep: PhoneFlowStep = 'idle';

@@ -14,6 +14,7 @@ import {
 } from '../../../core/validation';
 import { ErpI18nPhDirective } from '../../../shared/erp-i18n/erp-i18n-host.directives';
 import { ErpIntlPhoneRowComponent } from '../../../shared/erp-phone-intl/erp-intl-phone-row.component';
+import { BRAND_LOGO_SRC } from '../../../core/config/brand-assets';
 
 type ResetStep = 'identify' | 'verify' | 'new_password' | 'done';
 
@@ -27,7 +28,7 @@ type ResetStep = 'identify' | 'verify' | 'new_password' | 'done';
         <div class="login-form-wrapper reset-shell animate-in">
           <a routerLink="/login" class="reset-back-link"><i class="bi bi-arrow-left"></i> {{ 'forgotPassword.backToLogin' | translate }}</a>
           <div class="login-logo reset-logo">
-            <img src="https://static.prod-images.emergentagent.com/jobs/9a0eef39-d991-4ee9-b692-a0f34292613c/images/327dafae8a43bdee0145f51e32a05747aa82374ad2bb3b35ccfdb8cc1130bd22.png" alt="SchoolVault">
+            <img [src]="brandLogoSrc" alt="School Vault" width="44" height="44" />
             <h1>SchoolVault</h1>
           </div>
           <div class="reset-kicker">{{ 'forgotPassword.kicker' | translate }}</div>
@@ -182,7 +183,7 @@ type ResetStep = 'identify' | 'verify' | 'new_password' | 'done';
         </div>
       </div>
       <div class="login-right">
-        <img src="https://static.prod-images.emergentagent.com/jobs/9a0eef39-d991-4ee9-b692-a0f34292613c/images/39ade40298c502bd4785354a93143be5e368f4457b5f0aee6cbf5d84e82fe503.png" alt="">
+        <img [src]="brandLogoSrc" alt="" />
         <div class="login-right-overlay">
           <div class="login-right-text" lang="en" dir="ltr">
             <h2>{{ 'forgotPassword.heroTitle' | translate }}</h2>
@@ -213,6 +214,8 @@ type ResetStep = 'identify' | 'verify' | 'new_password' | 'done';
   `]
 })
 export class ForgotPasswordComponent implements OnInit, OnDestroy {
+  readonly brandLogoSrc = BRAND_LOGO_SRC;
+
   step: ResetStep = 'identify';
   schoolCode = '';
   phone = '';

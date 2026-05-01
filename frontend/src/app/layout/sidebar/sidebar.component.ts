@@ -6,6 +6,7 @@ import { AuthService } from '../../core/services/auth.service';
 import { TenantModuleGateService } from '../../core/services/tenant-module-gate.service';
 import { UiAccessService } from '../../core/services/ui-access.service';
 import { NAV_ITEMS, NavItem } from '../../core/config/app-constants';
+import { BRAND_LOGO_SRC } from '../../core/config/brand-assets';
 
 @Component({
   selector: 'app-sidebar',
@@ -14,7 +15,7 @@ import { NAV_ITEMS, NavItem } from '../../core/config/app-constants';
   template: `
     <aside class="sidebar" [class.collapsed]="collapsed" [class.mobile-open]="mobileOpen" data-testid="sidebar-nav">
       <div class="sidebar-brand">
-        <img src="https://static.prod-images.emergentagent.com/jobs/9a0eef39-d991-4ee9-b692-a0f34292613c/images/327dafae8a43bdee0145f51e32a05747aa82374ad2bb3b35ccfdb8cc1130bd22.png" alt="Logo">
+        <img [src]="brandLogoSrc" alt="School Vault" width="36" height="36" />
         <h2>SchoolVault</h2>
       </div>
       <nav class="sidebar-nav">
@@ -41,6 +42,8 @@ import { NAV_ITEMS, NavItem } from '../../core/config/app-constants';
   `
 })
 export class SidebarComponent implements OnInit {
+  readonly brandLogoSrc = BRAND_LOGO_SRC;
+
   @Input() collapsed = false;
   /** When true, drawer is visible on small screens (controlled by layout). */
   @Input() mobileOpen = false;

@@ -20,6 +20,7 @@ import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directiv
 import { runtimeConfig } from '../../core/config/runtime-config';
 import { ImportExportService } from '../../core/services/import-export.service';
 import { formatDateDdMmYyyy } from '../../core/utils/date-format';
+import { normalizeSubjectCatalogName, subjectCatalogNamesEqual } from '../../core/utils/subject-catalog-name';
 
 @Component({
   selector: 'app-teacher-list',
@@ -245,11 +246,6 @@ export class TeacherListComponent implements OnInit, OnDestroy {
   exportMessage = '';
   exportMessageOk = true;
   private teachersListRequestSeq = 0;
-  private allTeachersCache: Teacher[] = [];
-
-  private normalizeSubject(value: string): string {
-    return (value || '').trim().replace(/\s+/g, ' ').toLowerCase();
-  }
 
   formatDate(raw: string | null | undefined): string {
     return formatDateDdMmYyyy(raw);
@@ -313,7 +309,7 @@ export class TeacherListComponent implements OnInit, OnDestroy {
       })
     );
     this.reloadTeachers();
-    this.loadSubjectOptionsCatalog();
+    this.loadSubjectFilterCatalog();
   }
 
   onSearchInput(): void {
@@ -350,7 +346,6 @@ export class TeacherListComponent implements OnInit, OnDestroy {
     }
     this.teacherService.getTeachers().subscribe(t => {
       this.teachers = t;
-      this.subjectOptions = this.extractSubjectOptions(t);
       this.filter();
     });
   }
@@ -442,7 +437,6 @@ export class TeacherListComponent implements OnInit, OnDestroy {
           if (seq !== this.teachersListRequestSeq) return;
           this.serverTotal = page.totalElements;
           this.pagedTeachers = page.content;
-          this.subjectOptions = this.extractSubjectOptions(page.content, this.subjectOptions);
           this.pageIndex = page.page;
           this.pageSize = page.size;
           this.cdr.markForCheck();
@@ -450,15 +444,19 @@ export class TeacherListComponent implements OnInit, OnDestroy {
     );
   }
 
-  private loadSubjectOptionsCatalog(): void {
-    if (!this.useServerPaging) {
-      return;
-    }
+  /** Filter dropdown = canonical catalog names (same source as teacher form chips). */
+  private loadSubjectFilterCatalog(): void {
     this.subs.add(
-      this.teacherService.getTeachers().subscribe(rows => {
-        this.allTeachersCache = rows;
-        this.subjectOptions = this.extractSubjectOptions(rows, this.subjectOptions);
-        this.cdr.markForCheck();
+      this.academicService.getSubjectCatalog().subscribe({
+        next: cat => {
+          const names = [...new Set(cat.map(s => s.name?.trim()).filter((n): n is string => !!n))];
+          this.subjectOptions = names.sort((a, b) => a.localeCompare(b));
+          this.cdr.markForCheck();
+        },
+        error: () => {
+          this.subjectOptions = [];
+          this.cdr.markForCheck();
+        },
       })
     );
   }
@@ -510,27 +508,14 @@ export class TeacherListComponent implements OnInit, OnDestroy {
 
   filter(): void {
     const term = this.searchTerm.toLowerCase();
-    const subjectNeedle = this.normalizeSubject(this.selectedSubject);
+    const subjectFilter = normalizeSubjectCatalogName(this.selectedSubject);
     this.filtered = this.teachers.filter(t =>
       ((t.firstName + ' ' + t.lastName).toLowerCase().includes(term) || (t.specialization || '').toLowerCase().includes(term)) &&
       (this.statusFilter ? (t.status || '').toLowerCase() === this.statusFilter : true) &&
-      (!subjectNeedle || (t.subjects ?? []).some(s => this.normalizeSubject(s).includes(subjectNeedle)))
+      (!subjectFilter || (t.subjects ?? []).some(s => subjectCatalogNamesEqual(s, this.selectedSubject)))
     );
     this.pageIndex = 0;
     this.applyPage();
-  }
-
-  private extractSubjectOptions(rows: Teacher[], existing: string[] = []): string[] {
-    const options = new Set(existing);
-    for (const teacher of rows) {
-      for (const subject of teacher.subjects ?? []) {
-        const clean = subject?.trim();
-        if (clean) {
-          options.add(clean);
-        }
-      }
-    }
-    return Array.from(options).sort((a, b) => a.localeCompare(b));
   }
 
   private applyPage(): void {

@@ -10,6 +10,7 @@ import { runtimeConfig } from '../config/runtime-config';
 import { DEFAULT_ERP_PAGE_SIZE } from '../constants/pagination.constants';
 import { sanitizeTeacherForColleaguePeerView, shouldApplyTeacherColleagueVisibility } from '../people/teacher-colleague-visibility';
 import { sliceToPage } from '../utils/paginate';
+import { subjectCatalogNamesEqual } from '../utils/subject-catalog-name';
 
 function normalizeStringList(raw: unknown): string[] {
   if (typeof raw === 'string') {
@@ -56,7 +57,6 @@ export class TeacherService {
           search: q || undefined,
           status: status || undefined,
           subject: subject || undefined,
-          subjectName: subject || undefined,
         })
         .pipe(
           map(p => ({
@@ -78,8 +78,7 @@ export class TeacherService {
       rows = rows.filter(t => (t.status || '').toLowerCase() === statusNeedle);
     }
     if (subject) {
-      const subjectNeedle = subject.toLowerCase();
-      rows = rows.filter(t => (t.subjects ?? []).some(s => (s || '').toLowerCase().includes(subjectNeedle)));
+      rows = rows.filter(t => (t.subjects ?? []).some(s => subjectCatalogNamesEqual(s, subject)));
     }
     rows.sort((a, b) => a.firstName.localeCompare(b.firstName));
     return of(sliceToPage(rows, page, size)).pipe(
