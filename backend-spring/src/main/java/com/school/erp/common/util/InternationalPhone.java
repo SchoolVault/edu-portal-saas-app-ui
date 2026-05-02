@@ -103,6 +103,74 @@ public final class InternationalPhone {
         return "Invalid phone format. Use exactly 10 digits (or +<country>-<10-digit-number>), e.g. +91-9876543210.";
     }
 
+    /**
+     * Whether two raw/stored values denote the same portal phone for policy checks (admin vs self-service).
+     * Uses canonical form when parseable, otherwise compares India national 10-digit extractions so
+     * {@code +91-9876543210} matches {@code 9876543210} and legacy {@code 919876543210} forms.
+     */
+    public static boolean samePortalPhone(String rawA, String rawB) {
+        if (rawA == null && rawB == null) {
+            return true;
+        }
+        if (rawA == null || rawB == null) {
+            return false;
+        }
+        String a = rawA.trim();
+        String b = rawB.trim();
+        if (a.isEmpty() && b.isEmpty()) {
+            return true;
+        }
+        if (a.isEmpty() || b.isEmpty()) {
+            return false;
+        }
+        String ca = canonical(a);
+        String cb = canonical(b);
+        if (ca != null && cb != null) {
+            return ca.equals(cb);
+        }
+        String da = a.replaceAll("\\D", "");
+        String db = b.replaceAll("\\D", "");
+        String na = indianNationalDigits(da);
+        String nb = indianNationalDigits(db);
+        if (na.length() == 10 && nb.length() == 10) {
+            return na.equals(nb);
+        }
+        if (ca != null) {
+            for (String k : compatibleLookupKeys(ca)) {
+                if (k != null && (k.replaceAll("\\D", "").equals(db) || k.equals(b))) {
+                    return true;
+                }
+            }
+        }
+        if (cb != null) {
+            for (String k : compatibleLookupKeys(cb)) {
+                if (k != null && (k.replaceAll("\\D", "").equals(da) || k.equals(a))) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private static String indianNationalDigits(String digits) {
+        if (digits == null || digits.isEmpty()) {
+            return "";
+        }
+        if (digits.length() == 10) {
+            return digits;
+        }
+        if (digits.length() == 12 && digits.startsWith("91")) {
+            return digits.substring(2);
+        }
+        if (digits.length() == 11 && digits.startsWith("0")) {
+            return digits.substring(1);
+        }
+        if (digits.length() == 13 && digits.startsWith("091")) {
+            return digits.substring(3);
+        }
+        return "";
+    }
+
     public static String normalizeSchoolCode(String schoolCode) {
         if (schoolCode == null) {
             return "";

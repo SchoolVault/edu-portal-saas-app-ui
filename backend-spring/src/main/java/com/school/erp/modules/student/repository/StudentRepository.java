@@ -9,6 +9,8 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -93,4 +95,25 @@ public interface StudentRepository extends JpaRepository<Student, Long> {
                                            @Param("classId") Long classId,
                                            @Param("sectionIds") List<Long> sectionIds,
                                            @Param("status") Enums.StudentStatus status);
+
+    /**
+     * Students to include in the admin dashboard admissions rollup for {@code [from, to]} (inclusive calendar dates).
+     * Row matches if admission falls in-range, <em>or</em> {@code created_at} falls in-range (imports often carry an
+     * academic-year admission date while the row is newly created — those still count toward intake).
+     */
+    @Query("""
+            SELECT s FROM Student s
+            WHERE s.tenantId = :tenantId
+              AND s.isDeleted = false
+              AND (
+                (s.admissionDate IS NOT NULL AND s.admissionDate >= :from AND s.admissionDate <= :to)
+                OR (s.createdAt IS NOT NULL AND s.createdAt >= :createdFrom AND s.createdAt < :createdToExclusive)
+              )
+            """)
+    List<Student> findForAdmissionsDashboardWindow(
+            @Param("tenantId") String tenantId,
+            @Param("from") LocalDate from,
+            @Param("to") LocalDate to,
+            @Param("createdFrom") LocalDateTime createdFrom,
+            @Param("createdToExclusive") LocalDateTime createdToExclusive);
 }

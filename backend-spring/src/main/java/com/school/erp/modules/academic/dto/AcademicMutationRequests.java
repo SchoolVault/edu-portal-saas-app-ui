@@ -2,6 +2,9 @@ package com.school.erp.modules.academic.dto;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
+
+import java.util.List;
 
 /**
  * Small request bodies for class/section maintenance (kept separate from large {@link AcademicDTOs}).
@@ -9,6 +12,21 @@ import jakarta.validation.constraints.NotNull;
 public final class AcademicMutationRequests {
 
     private AcademicMutationRequests() {
+    }
+
+    /** Admin: persist comma-separated “additional” subject names into the tenant subject catalog. */
+    public static class RegisterSubjectCatalogNamesRequest {
+        @NotNull
+        @Size(max = 40)
+        private List<@NotBlank @Size(max = 120) String> names;
+
+        public List<String> getNames() {
+            return names;
+        }
+
+        public void setNames(List<String> names) {
+            this.names = names;
+        }
     }
 
     public static class UpdateSchoolClassRequest {

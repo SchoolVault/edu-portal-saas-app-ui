@@ -131,6 +131,49 @@ public class PayrollService {
         return getStructures().stream().filter(s -> s.getId().equals(ss.getId())).findFirst().orElse(null);
     }
 
+    @CacheEvict(cacheNames = CacheConfig.PAYROLL_STRUCTURES, keyGenerator = "tenantKeyGenerator")
+    @Transactional
+    public PayrollDTOs.SalaryStructureResponse updateStructure(long structureId, PayrollDTOs.CreateSalaryStructureRequest req) {
+        String t = TenantContext.getTenantId();
+        SalaryStructure ss = ssRepo.findById(structureId).orElseThrow(() -> new ResourceNotFoundException("Salary structure", structureId));
+        if (!t.equals(ss.getTenantId()) || Boolean.TRUE.equals(ss.getIsDeleted())) {
+            throw new ResourceNotFoundException("Salary structure", structureId);
+        }
+        if (req.getTeacherId() == null || !req.getTeacherId().equals(ss.getTeacherId())) {
+            throw new BusinessException("Teacher on this structure cannot be changed; remove and recreate if needed.");
+        }
+        if (req.getBasicSalary() == null || req.getBasicSalary().compareTo(BigDecimal.ZERO) <= 0) {
+            throw new BusinessException("Basic salary must be greater than zero");
+        }
+        List<PayrollDTOs.SalaryComponentDTO> allowanceRows = req.getAllowances() != null ? req.getAllowances() : List.of();
+        List<PayrollDTOs.SalaryComponentDTO> deductionRows = req.getDeductions() != null ? req.getDeductions() : List.of();
+        validateSalaryComponents("allowance", allowanceRows);
+        validateSalaryComponents("deduction", deductionRows);
+        BigDecimal totalAllow = allowanceRows.stream().map(PayrollDTOs.SalaryComponentDTO::getAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal totalDeduct = deductionRows.stream().map(PayrollDTOs.SalaryComponentDTO::getAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal netSalary = req.getBasicSalary().add(totalAllow).subtract(totalDeduct);
+        ss.setBasicSalary(req.getBasicSalary());
+        ss.setNetSalary(netSalary);
+        if (req.getTeacherName() != null && !req.getTeacherName().isBlank()) {
+            ss.setTeacherName(req.getTeacherName().trim());
+        }
+        ssRepo.save(ss);
+        List<SalaryComponent> existing = scRepo.findByTenantIdAndSalaryStructureId(t, ss.getId());
+        scRepo.deleteAll(existing);
+        allowanceRows.forEach(a -> {
+            SalaryComponent sc = SalaryComponent.builder().salaryStructureId(ss.getId()).name(a.getName()).amount(a.getAmount()).type(Enums.SalaryComponentType.ALLOWANCE).build();
+            sc.setTenantId(t);
+            scRepo.save(sc);
+        });
+        deductionRows.forEach(d -> {
+            SalaryComponent sc = SalaryComponent.builder().salaryStructureId(ss.getId()).name(d.getName()).amount(d.getAmount()).type(Enums.SalaryComponentType.DEDUCTION).build();
+            sc.setTenantId(t);
+            scRepo.save(sc);
+        });
+        log.info("Salary structure updated id={} teacher={} net={}", structureId, req.getTeacherId(), netSalary);
+        return getStructures().stream().filter(s -> s.getId().equals(ss.getId())).findFirst().orElse(null);
+    }
+
     private void validateSalaryComponents(String kind, List<PayrollDTOs.SalaryComponentDTO> rows) {
         List<String> names = new ArrayList<>();
         for (PayrollDTOs.SalaryComponentDTO row : rows) {

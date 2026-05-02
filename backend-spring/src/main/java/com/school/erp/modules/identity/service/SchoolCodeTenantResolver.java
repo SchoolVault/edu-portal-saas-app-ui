@@ -1,5 +1,6 @@
 package com.school.erp.modules.identity.service;
 
+import com.school.erp.common.exception.BusinessException;
 import com.school.erp.common.exception.UnauthorizedException;
 import com.school.erp.modules.settings.entity.TenantConfig;
 import com.school.erp.modules.settings.repository.TenantConfigRepository;
@@ -26,6 +27,20 @@ public class SchoolCodeTenantResolver {
         return tenantConfigRepository.findBySchoolCode(sc)
                 .map(TenantConfig::getTenantId)
                 .orElseThrow(() -> new UnauthorizedException("Invalid school code"));
+    }
+
+    /**
+     * Same lookup as {@link #resolveTenantId} but returns HTTP 400 for unknown codes — used when the caller is
+     * already authenticated (e.g. super admin import/export). Avoids mapping “bad school code” to 401 / session teardown.
+     */
+    public String resolveTenantIdStrict(String schoolCode) {
+        String sc = schoolCode == null ? "" : schoolCode.trim().toUpperCase(Locale.ROOT);
+        if ("PLATFORM".equals(sc)) {
+            return "platform";
+        }
+        return tenantConfigRepository.findBySchoolCode(sc)
+                .map(TenantConfig::getTenantId)
+                .orElseThrow(() -> new BusinessException("Invalid school code"));
     }
 
     /** Workspace row when the school code maps to a real tenant (not {@code PLATFORM}). */

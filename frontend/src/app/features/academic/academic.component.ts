@@ -19,6 +19,12 @@ import { ConfirmDialogService } from '../../shared/confirm-dialog/confirm-dialog
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directives';
 
+/** Existing homeroom slot the selected teacher would be moved from (class + optional section). */
+interface HomeroomTeacherConflictSlot {
+  cls: SchoolClass;
+  section: Section | null;
+}
+
 @Component({
   selector: 'app-academic',
   standalone: true,
@@ -618,8 +624,8 @@ import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directiv
           <div class="modal-body-erp">
             <p class="academic-help-text mb-2" style="font-size: 13px;">{{ 'academic.assign.help' | translate }}</p>
             <p class="academic-help-text mb-3" style="font-size: 12px;">{{ 'academic.assign.rulesSection' | translate }}</p>
-            <p *ngIf="assignConflictClass as prev" class="small mb-3" style="color: var(--clr-warning);">
-              <i class="bi bi-info-circle me-1"></i>{{ 'academic.assign.willMoveFrom' | translate: { class: prev.name } }}
+            <p *ngIf="assignConflictHomeroomSlot as cf" class="small mb-3" style="color: var(--clr-warning);">
+              <i class="bi bi-info-circle me-1"></i>{{ 'academic.assign.willMoveFrom' | translate: { classSection: formatHomeroomConflictLabel(cf) } }}
             </p>
             <div class="erp-form-group">
               <label class="erp-label">{{ 'academic.assign.class' | translate }}</label>
@@ -776,7 +782,7 @@ export class AcademicComponent implements OnInit {
   }
 
   /** Teacher is already homeroom on another slot (backend/mock will reassign when saving). */
-  get assignConflictClass(): SchoolClass | null {
+  get assignConflictHomeroomSlot(): HomeroomTeacherConflictSlot | null {
     if (this.assignClassId == null || this.assignTeacherId == null) {
       return null;
     }
@@ -791,7 +797,7 @@ export class AcademicComponent implements OnInit {
           if (c.id === this.assignClassId && secId == null) {
             continue;
           }
-          return c;
+          return { cls: c, section: null };
         }
         continue;
       }
@@ -802,10 +808,15 @@ export class AcademicComponent implements OnInit {
         if (c.id === this.assignClassId && s.id === secId) {
           continue;
         }
-        return c;
+        return { cls: c, section: s };
       }
     }
     return null;
+  }
+
+  formatHomeroomConflictLabel(slot: HomeroomTeacherConflictSlot): string {
+    const sec = slot.section?.name?.trim();
+    return sec ? `${slot.cls.name} - ${sec}` : slot.cls.name;
   }
 
   onAssignClassChange(): void {
@@ -1170,13 +1181,13 @@ export class AcademicComponent implements OnInit {
       (sec ? sec.classTeacherName : cls.classTeacherName)?.trim() ||
       this.translate.instant('academic.confirm.classTeacher.unknownTeacher');
 
-    const conflict = this.assignConflictClass;
+    const conflict = this.assignConflictHomeroomSlot;
     const details: string[] = [];
     if (conflict) {
       details.push(
         this.translate.instant('academic.confirm.classTeacher.detailWillMoveFrom', {
           teacher: nextName,
-          otherClass: conflict.name,
+          homeroomLabel: this.formatHomeroomConflictLabel(conflict),
         })
       );
     }

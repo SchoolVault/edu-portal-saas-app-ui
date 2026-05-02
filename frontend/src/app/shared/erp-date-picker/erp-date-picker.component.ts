@@ -106,7 +106,7 @@ export class ErpDatePickerComponent
     const opts: Partial<FlatpickrOptions> = {
       dateFormat: isDateTime ? 'Y-m-d\\TH:i' : 'Y-m-d',
       altInput: true,
-      altFormat: isDateTime ? 'd/m/Y, H:i' : 'd/m/Y',
+      altFormat: isDateTime ? 'd-m-Y H:i' : 'd-m-Y',
       enableTime: isDateTime,
       time_24hr: true,
       altInputClass: 'erp-input erp-date-picker__visible',

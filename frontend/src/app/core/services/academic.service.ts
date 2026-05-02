@@ -62,6 +62,47 @@ export class AcademicService {
     }
     return of(this.mockSubjectCatalog.map(s => ({ ...s }))).pipe(delay(200));
   }
+
+  /**
+   * Persists additional subject names into the school catalog (admin). Idempotent per name.
+   * Call before saving a teacher when the user opts in so chips load the names on the next visit.
+   */
+  registerSubjectCatalogNames(names: string[]): Observable<{ added: number; skipped: number }> {
+    const trimmed = [...new Set(names.map(n => String(n ?? '').trim()).filter(Boolean))];
+    if (!runtimeConfig.useMocks) {
+      return this.api.post<{ added: number; skipped: number }>('/academic/subjects/catalog/register', {
+        names: trimmed,
+      });
+    }
+    let added = 0;
+    let skipped = 0;
+    for (const name of trimmed) {
+      const exists = this.mockSubjectCatalog.some(s => s.name.toLowerCase() === name.toLowerCase());
+      if (exists) {
+        skipped++;
+        continue;
+      }
+      const code = name
+        .replace(/[^a-zA-Z0-9]/g, '')
+        .toUpperCase()
+        .slice(0, 8) || 'SUBJ';
+      let candidate = code;
+      let n = 0;
+      while (this.mockSubjectCatalog.some(s => (s.code ?? '').toUpperCase() === candidate)) {
+        n++;
+        candidate = (code.slice(0, Math.max(1, 8 - String(n).length)) || 'S') + n;
+      }
+      this.mockSubjectCatalog.push({
+        id: String(Date.now() + added),
+        code: candidate,
+        name,
+        category: 'Other',
+      });
+      added++;
+    }
+    return of({ added, skipped }).pipe(delay(180));
+  }
+
   getClasses(lifecycle: 'active' | 'inactive' | 'all' = 'active'): Observable<SchoolClass[]> {
     if (!runtimeConfig.useMocks) {
       return this.api

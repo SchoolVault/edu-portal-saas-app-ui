@@ -35,6 +35,8 @@
   --shadow-md: 0 8px 32px rgba(27, 58, 48, 0.09), 0 4px 12px rgba(192, 92, 61, 0.05);
   --shadow-lg: 0 20px 48px rgba(27, 58, 48, 0.11), 0 8px 20px rgba(192, 92, 61, 0.06);
   --surface-ring: color-mix(in srgb, var(--clr-primary) 14%, var(--clr-border));
+  /** Subject / catalog chips: brand green in light theme */
+  --clr-subject-accent: var(--clr-primary);
   --font-heading: 'Avenir Next', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
   --font-body: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
 }
@@ -66,6 +68,8 @@
   --shadow-md: 0 10px 36px rgba(0,0,0,0.32), 0 2px 10px rgba(0,0,0,0.2);
   --shadow-lg: 0 18px 48px rgba(0,0,0,0.42), 0 4px 16px rgba(0,0,0,0.25);
   --surface-ring: color-mix(in srgb, var(--clr-primary) 22%, var(--clr-border));
+  /** Dark: mint primary on charcoal reads muddy in dense tables — match success / Active badge green */
+  --clr-subject-accent: var(--clr-success);
 }
 
 [data-theme='dark'] html,
@@ -397,6 +401,7 @@ a:hover {
   border-radius: var(--radius-lg);
   background: linear-gradient(135deg, color-mix(in srgb, var(--clr-primary) 18%, var(--clr-surface)), color-mix(in srgb, var(--clr-accent) 10%, var(--clr-surface)));
   border: 1px solid color-mix(in srgb, var(--clr-border) 60%, transparent);
+  cursor: default;
 }
 
 .profile-summary-school {
@@ -843,6 +848,43 @@ img.table-avatar {
   border-color: color-mix(in srgb, var(--clr-primary) 45%, var(--clr-border));
   box-shadow: 0 0 0 4px color-mix(in srgb, var(--clr-primary) 14%, transparent);
 }
+
+/* Read-only fields: hide caret + default arrow (not I-beam) so they are not mistaken for editable inputs. */
+.erp-input[readonly],
+.erp-input:read-only,
+.erp-textarea[readonly],
+.erp-textarea:read-only,
+input.erp-input[disabled],
+textarea.erp-input[disabled],
+select.erp-select:disabled {
+  caret-color: transparent;
+  cursor: default;
+}
+
+/**
+ * Display-only profile / identity blocks (name, DOB, etc. as plain text).
+ * Browsers use text cursor over selectable copy by default; force arrow for clearer “read-only” affordance.
+ * Real controls inside keep pointer / text cursors as appropriate.
+ */
+.erp-readonly-profile {
+  cursor: default;
+}
+.erp-readonly-profile a[href],
+.erp-readonly-profile button:not(:disabled),
+.erp-readonly-profile summary,
+.erp-readonly-profile .btn-icon,
+.erp-readonly-profile .btn-primary-erp,
+.erp-readonly-profile .btn-outline-erp,
+.erp-readonly-profile .btn-danger-erp,
+.erp-readonly-profile .btn-link,
+.erp-readonly-profile .erp-tab {
+  cursor: pointer;
+}
+.erp-readonly-profile input:not([disabled]):not([readonly]):not(:read-only),
+.erp-readonly-profile textarea:not([disabled]):not([readonly]):not(:read-only),
+.erp-readonly-profile select:not([disabled]) {
+  cursor: text;
+}
 .erp-input::placeholder { color: var(--clr-text-muted); }
 .erp-input.ng-invalid.ng-touched { border-color: var(--clr-danger); box-shadow: 0 0 0 4px rgba(220,38,38,0.08); }
 .erp-input.erp-input--error,
@@ -1121,6 +1163,7 @@ img.table-avatar {
 .text-muted {
   color: var(--clr-text-secondary) !important;
 }
+
 .btn-danger-erp {
   background: var(--clr-danger);
   color: #fff;
@@ -1241,15 +1284,17 @@ img.table-avatar {
 [data-theme='dark'] .erp-alert-panel--danger {
   background: color-mix(in srgb, var(--clr-danger) 16%, var(--clr-surface));
 }
-/* Subject / catalog labels — aligns with --clr-primary chips (teachers, academic). */
+/* Subject / catalog labels — `--clr-subject-accent` (primary in light, success green in dark). */
 .badge-subject-pill {
-  background: color-mix(in srgb, var(--clr-primary) 10%, var(--clr-surface));
-  color: var(--clr-primary);
-  border: 1px solid color-mix(in srgb, var(--clr-primary) 24%, var(--clr-border));
+  background: color-mix(in srgb, var(--clr-subject-accent) 10%, var(--clr-surface));
+  color: var(--clr-subject-accent);
+  border: 1px solid color-mix(in srgb, var(--clr-subject-accent) 26%, var(--clr-border));
+  font-weight: 600;
 }
-[data-theme='dark'] .badge-subject-pill {
-  background: color-mix(in srgb, var(--clr-primary) 14%, var(--clr-surface));
-  border-color: color-mix(in srgb, var(--clr-primary) 30%, var(--clr-border));
+
+/* Timetable: class line under subject used primary mint; align with subject accent in dark for consistency */
+[data-theme='dark'] .timetable-slot-class {
+  color: var(--clr-subject-accent);
 }
 
 /* === LOGIN PAGE === */

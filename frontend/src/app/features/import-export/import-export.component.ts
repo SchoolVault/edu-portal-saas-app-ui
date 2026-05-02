@@ -1667,7 +1667,9 @@ export class ImportExportComponent implements OnInit, OnDestroy {
   }
 
   get schoolCodeValidationMessageKey(): string {
-    return 'importExport.targetSchoolCodeRequired';
+    return this.targetSchoolCode.trim().length > 0
+      ? 'importExport.targetSchoolCodeNoMatch'
+      : 'importExport.targetSchoolCodeRequired';
   }
 
   get filteredSchoolOptions(): PlatformSchoolSummary[] {
@@ -1822,7 +1824,7 @@ export class ImportExportComponent implements OnInit, OnDestroy {
     this.headerPreview = null;
     this.columnSelections = {};
     this.dryRunResult = null;
-    this.importExport.previewHeaders(this.jobType, this.file, this.targetSchoolCode).subscribe({
+    this.importExport.previewHeaders(this.jobType, this.file, this.effectiveSchoolCode).subscribe({
       next: p => {
         this.headerPreview = p;
         this.initColumnSelections(p);
@@ -1958,7 +1960,7 @@ export class ImportExportComponent implements OnInit, OnDestroy {
     this.resetDryRunState();
     this.dryRunBusy = true;
     const mapJson = this.buildColumnMappingJson();
-    this.importExport.dryRun(this.jobType, this.file, mapJson, this.targetSchoolCode).subscribe({
+    this.importExport.dryRun(this.jobType, this.file, mapJson, this.effectiveSchoolCode).subscribe({
       next: r => {
         this.dryRunResult = r;
         this.wizardStepIndex = 2;
@@ -1983,7 +1985,7 @@ export class ImportExportComponent implements OnInit, OnDestroy {
     this.lastSubmitMsg = '';
     this.lastSubmitOk = null;
     const mapJson = this.buildColumnMappingJson();
-    this.importExport.submitJob(this.jobType, this.file, mapJson, this.targetSchoolCode, this.executionMode, this.reprocessImport).subscribe({
+    this.importExport.submitJob(this.jobType, this.file, mapJson, this.effectiveSchoolCode, this.executionMode, this.reprocessImport).subscribe({
       next: r => {
         this.wizardStepIndex = 4;
         this.lastSubmitMsg = this.translate.instant('importExport.msgQueued', { jobId: r.jobId, rows: r.totalRows });
@@ -2308,12 +2310,20 @@ export class ImportExportComponent implements OnInit, OnDestroy {
     return Number.isNaN(parsed) ? null : parsed;
   }
 
+  /**
+   * For super admin, only emit a workspace code once it matches an active school — avoids API calls while typing prefixes
+   * (backend used to reject unknown codes with 401 and clear the portal session).
+   */
   private get effectiveSchoolCode(): string | null {
     if (!this.isSuperAdmin) {
       return null;
     }
-    const code = this.targetSchoolCode.trim().toUpperCase();
-    return code.length ? code : null;
+    const raw = this.targetSchoolCode.trim().toUpperCase();
+    if (!raw.length) {
+      return null;
+    }
+    const match = this.schoolOptions.find(s => s.active && s.schoolCode.trim().toUpperCase() === raw);
+    return match ? match.schoolCode.trim().toUpperCase() : null;
   }
 
   private ensureSchoolCodePresentForSuperAdmin(): boolean {
@@ -2330,6 +2340,11 @@ export class ImportExportComponent implements OnInit, OnDestroy {
       next: rows => {
         this.schoolOptions = rows ?? [];
         this.schoolOptionsLoading = false;
+        /** Typing ahead of catalog load — now we can resolve a full code and refresh panels */
+        if (this.isSuperAdmin) {
+          this.reloadJobs();
+          this.loadMetrics();
+        }
       },
       error: () => {
         this.schoolOptions = [];

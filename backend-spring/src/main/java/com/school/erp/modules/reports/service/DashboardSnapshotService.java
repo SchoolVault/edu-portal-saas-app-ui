@@ -3,6 +3,7 @@ package com.school.erp.modules.reports.service;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.school.erp.common.exception.BusinessException;
+import com.school.erp.modules.reports.dto.AdminAttendanceOverviewScope;
 import com.school.erp.modules.reports.dto.ParentDashboardDtos;
 import com.school.erp.modules.reports.dto.ReportDashboardDTOs;
 import com.school.erp.modules.reports.entity.DashboardSnapshot;
@@ -67,8 +68,15 @@ public class DashboardSnapshotService {
     }
 
     @Transactional
-    public ReportDashboardDTOs.AdminDashboardResponse getAdminSnapshotOrRefresh(Supplier<ReportDashboardDTOs.AdminDashboardResponse> loader) {
-        return loadOrRefresh(TYPE_ADMIN, "ADMIN", userScopedKey("default"), null, null, loader, new TypeReference<>() {});
+    public ReportDashboardDTOs.AdminDashboardResponse getAdminSnapshotOrRefresh(
+            String attendanceOverviewScopeKey,
+            Supplier<ReportDashboardDTOs.AdminDashboardResponse> loader) {
+        String normalized =
+                attendanceOverviewScopeKey == null || attendanceOverviewScopeKey.isBlank()
+                        ? AdminAttendanceOverviewScope.MONTH_TO_DATE.name()
+                        : attendanceOverviewScopeKey.trim();
+        String scoped = userScopedKey("att:" + normalized);
+        return loadOrRefresh(TYPE_ADMIN, "ADMIN", scoped, null, null, loader, new TypeReference<>() {});
     }
 
     @Transactional

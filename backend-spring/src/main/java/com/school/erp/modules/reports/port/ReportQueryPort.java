@@ -1,5 +1,6 @@
 package com.school.erp.modules.reports.port;
 
+import com.school.erp.modules.reports.dto.AdminAttendanceOverviewScope;
 import com.school.erp.modules.reports.dto.ParentDashboardDtos;
 import com.school.erp.modules.reports.dto.ReportDashboardDTOs;
 import org.springframework.data.domain.Page;
@@ -19,7 +20,7 @@ public interface ReportQueryPort {
 
     Map<String, Object> getDashboardKPIs();
 
-    ReportDashboardDTOs.AdminDashboardResponse getAdminDashboard();
+    ReportDashboardDTOs.AdminDashboardResponse getAdminDashboard(AdminAttendanceOverviewScope attendanceOverviewScope);
 
     Page<ReportDashboardDTOs.ActivityItem> getAdminRecentActivities(
             String q,

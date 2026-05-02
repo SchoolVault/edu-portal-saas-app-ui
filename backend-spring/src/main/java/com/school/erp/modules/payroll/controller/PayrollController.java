@@ -54,6 +54,14 @@ public class PayrollController {
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.created(service.createStructure(req)));
     }
 
+    @PutMapping("/structures/{id}")
+    @PreAuthorize(RbacSpel.SCHOOL_PAYROLL_WRITE)
+    @Operation(summary = "Update salary structure", description = "Replace basic salary and component lines for an existing structure (teacher id must match).")
+    public ResponseEntity<ApiResponse<PayrollDTOs.SalaryStructureResponse>> updateStructure(
+            @PathVariable long id, @Valid @RequestBody PayrollDTOs.CreateSalaryStructureRequest req) {
+        return ResponseEntity.ok(ApiResponse.ok(service.updateStructure(id, req)));
+    }
+
     @PostMapping("/payslips/generate")
     @PreAuthorize(RbacSpel.SCHOOL_PAYROLL_WRITE)
     @Operation(summary = "Generate payslips", description = "Generate payslips for all teachers for a given month/year")

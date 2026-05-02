@@ -135,6 +135,7 @@ import { localIsoDateString } from '../../core/utils/local-date';
           {{ 'attendance.alertAdminPastBefore' | translate }}<strong>{{ 'attendance.editPast' | translate }}</strong
           >{{ 'attendance.alertAdminPastAfter' | translate }}
         </div>
+        <div *ngIf="saveSuccessFlash" class="alert alert-success py-2 small mb-0 mt-2" role="status">{{ saveSuccessFlash }}</div>
         <div *ngIf="saveError" class="alert alert-danger py-2 small mb-0 mt-2">{{ saveError }}</div>
         <p *ngIf="isAdmin && !adminPastAuditView" class="text-muted small mb-0 mt-3" style="line-height: 1.5;">
           <i class="bi bi-shield-check me-1"></i>
@@ -239,6 +240,9 @@ export class AttendanceComponent implements OnInit {
   attFilteredTotal = 0;
   saving = false;
   saveError = '';
+  /** Transient success copy after save (cleared after a few seconds). */
+  saveSuccessFlash = '';
+  private saveSuccessClearTimer: ReturnType<typeof setTimeout> | null = null;
   /** Active covers for the selected date (not listed in UI; used for substitute save confirmation). */
   myCovers: AttendanceCoverRow[] = [];
   /** True when API returned a mark for every student in the selected roster (session considered final for teachers). */
@@ -382,8 +386,8 @@ export class AttendanceComponent implements OnInit {
     if (this.teacherPastLocked) {
       return 'attendance.saveViewOnly';
     }
-    if (this.isTeacher && this.attendanceSessionComplete && this.records.length > 0) {
-      return 'attendance.saveAlreadyMarked';
+    if (this.attendanceSessionComplete && this.records.length > 0) {
+      return 'attendance.saveUpdateCta';
     }
     if (this.adminPastAuditView && !this.adminPastEditing) {
       return 'attendance.saveViewOnly';
@@ -898,10 +902,21 @@ export class AttendanceComponent implements OnInit {
 
   private persistAttendance(): void {
     this.saveError = '';
+    this.saveSuccessFlash = '';
+    if (this.saveSuccessClearTimer) {
+      clearTimeout(this.saveSuccessClearTimer);
+      this.saveSuccessClearTimer = null;
+    }
     this.saving = true;
     this.attendanceService.saveAttendance(this.records).subscribe({
       next: () => {
         this.saving = false;
+        this.saveSuccessFlash = this.translate.instant('attendance.saveSuccessMessage');
+        this.saveSuccessClearTimer = setTimeout(() => {
+          this.saveSuccessFlash = '';
+          this.saveSuccessClearTimer = null;
+          this.cdr.markForCheck();
+        }, 5000);
         this.loadAttendance();
         this.auth.fetchProfileSummary().subscribe({ error: () => void 0 });
         if (this.isTeacher && !this.isClassTeacherForCurrentClass() && this.records.length && this.selectedClassId != null) {

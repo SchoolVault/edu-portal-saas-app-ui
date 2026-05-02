@@ -117,14 +117,30 @@ export class TimetableService {
     return { classId, sectionId: sectionId ?? 0, days: useDays, periods: usePeriods, grid };
   }
 
-  private buildGridFromEntries(classId: number, sectionId: number | undefined, entries: TimetableEntry[]): TimetableGrid {
+  private buildGridFromEntries(
+    classId: number,
+    sectionId: number | undefined,
+    entries: TimetableEntry[],
+    opts?: { restrictToWeekdays?: string[] }
+  ): TimetableGrid {
     const dayOrder = [...INDIAN_SCHOOL_WEEK_DAYS];
     const defaultPeriods = [1, 2, 3, 4, 5, 6, 7, 8];
-    const days = [...new Set(entries.map(e => this.normalizeWeekdayTitle(e.day)))].sort(
+    const restrict = (opts?.restrictToWeekdays ?? [])
+      .map(d => this.normalizeWeekdayTitle(d))
+      .filter(d => d.length > 0);
+    const entryDays = [...new Set(entries.map(e => this.normalizeWeekdayTitle(e.day)))].sort(
       (a, b) => dayOrder.indexOf(a) - dayOrder.indexOf(b)
     );
-    const periods = [...new Set(entries.map(e => e.period))].sort((a, b) => a - b);
-    const useDays = days.length ? days : dayOrder;
+    let days = entryDays;
+    if (restrict.length) {
+      const allow = new Set(restrict);
+      days = days.filter(d => allow.has(d));
+      if (!days.length) {
+        days = restrict.filter(d => dayOrder.includes(d)).sort((a, b) => dayOrder.indexOf(a) - dayOrder.indexOf(b));
+      }
+    }
+    const periods = [...new Set(entries.map(e => e.period).filter(p => p > 0))].sort((a, b) => a - b);
+    const useDays = days.length ? days : restrict.length ? restrict : dayOrder;
     const usePeriods = periods.length ? periods : defaultPeriods;
     const grid: Record<string, Record<number, TimetableGridSlot>> = {};
     for (const d of useDays) {
@@ -239,10 +255,14 @@ export class TimetableService {
   }
 
   /** Build a day×period grid from an arbitrary entry list (e.g. teacher schedule). */
-  toGridFromEntries(entries: TimetableEntry[]): TimetableGrid {
+  /**
+   * @param opts.restrictToWeekdays When set (e.g. teacher “classic” view for one calendar day), the grid shows only
+   *   those weekdays even if there are zero entries — avoids rendering Mon–Sat empty rows for “today”.
+   */
+  toGridFromEntries(entries: TimetableEntry[], opts?: { restrictToWeekdays?: string[] }): TimetableGrid {
     const classId = entries[0]?.classId ?? 0;
     const sectionId = entries[0]?.sectionId ?? 0;
-    return this.buildGridFromEntries(classId, sectionId, entries);
+    return this.buildGridFromEntries(classId, sectionId, entries, opts);
   }
 
   getAll(): Observable<TimetableEntry[]> {

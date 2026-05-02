@@ -126,7 +126,7 @@ public class ImportExportController {
         }
         try {
             if (isSuperAdmin && hasSchoolCode) {
-                String resolvedTenant = schoolCodeTenantResolver.resolveTenantId(schoolCode);
+                String resolvedTenant = schoolCodeTenantResolver.resolveTenantIdStrict(schoolCode);
                 TenantContext.setTenantId(resolvedTenant);
             }
             return operation.get();

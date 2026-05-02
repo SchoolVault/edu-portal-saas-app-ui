@@ -213,6 +213,9 @@ public class AuthService {
             if (userRepository.existsByPhoneAndTenantIdAndIsDeletedFalse(key, tenantId)) {
                 throw new DuplicateResourceException("This mobile number is already registered in this school");
             }
+            if (userRepository.existsByPhoneAndRoleAndIsDeletedFalse(key, com.school.erp.common.enums.Enums.Role.ADMIN)) {
+                throw new DuplicateResourceException("This mobile number is already assigned to another school administrator");
+            }
         }
 
         TenantConfig config = new TenantConfig();

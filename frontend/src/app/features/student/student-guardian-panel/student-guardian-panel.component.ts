@@ -1,8 +1,9 @@
-import { ChangeDetectorRef, Component, Input, OnDestroy } from '@angular/core';
+import { ChangeDetectorRef, Component, Input, OnDestroy, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Subscription } from 'rxjs';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { StudentGuardianMapping } from '../../../core/models/models';
+import { AuthService } from '../../../core/services/auth.service';
 
 /**
  * Parents & guardians block for student directory profile — contact-focused, role-neutral copy for staff.
@@ -12,6 +13,7 @@ import { StudentGuardianMapping } from '../../../core/models/models';
   selector: 'app-student-guardian-panel',
   standalone: true,
   imports: [CommonModule, TranslateModule],
+  host: { class: 'erp-readonly-profile' },
   template: `
     <section class="sgp" data-testid="student-guardian-panel">
       <h5 class="sgp__title">{{ 'students.profile.guardiansSection' | translate }}</h5>
@@ -55,7 +57,14 @@ import { StudentGuardianMapping } from '../../../core/models/models';
               <span class="sgp__label">{{ 'students.profile.guardianDetail.occupation' | translate }}</span>
               <span class="sgp__value">{{ g.occupation }}</span>
             </div>
-            <div class="sgp__cell" *ngIf="g.effectiveFrom || g.effectiveTo">
+            <div class="sgp__cell" *ngIf="showGuardianSensitiveFields && (g.parentPortalLinked === true || g.parentPortalLinked === false)">
+              <span class="sgp__label">{{ 'students.profile.guardianDetail.parentApp' | translate }}</span>
+              <span class="sgp__value">{{
+                (g.parentPortalLinked ? 'students.profile.guardianDetail.parentAppYes' : 'students.profile.guardianDetail.parentAppNo')
+                  | translate
+              }}</span>
+            </div>
+            <div class="sgp__cell" *ngIf="showGuardianSensitiveFields && (g.effectiveFrom || g.effectiveTo)">
               <span class="sgp__label">{{ 'students.profile.guardianDetail.contactPeriod' | translate }}</span>
               <span class="sgp__value">{{ formatEffective(g) }}</span>
             </div>
@@ -177,7 +186,13 @@ export class StudentGuardianPanelComponent implements OnDestroy {
   @Input() loading = false;
   @Input() fallbackParentName: string | null = null;
 
+  private readonly auth = inject(AuthService);
   private langSub?: Subscription;
+
+  /** Portal linkage, listing window, and occupation are parent-facing ops detail — staff see contact + relation only. */
+  get showGuardianSensitiveFields(): boolean {
+    return this.auth.getNormalizedRole() === 'parent';
+  }
 
   constructor(
     private readonly translate: TranslateService,

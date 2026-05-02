@@ -11,6 +11,7 @@ import { ConfirmDialogService } from '../../shared/confirm-dialog/confirm-dialog
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { Subscription } from 'rxjs';
 import { formatSchoolClassName } from '../../core/i18n/school-class-display';
+import { formatDateDdMmYyyy } from '../../core/utils/date-format';
 
 @Component({
   selector: 'app-teacher-profile',
@@ -61,7 +62,7 @@ import { formatSchoolClassName } from '../../core/i18n/school-class-display';
     `,
   ],
   template: `
-    <div class="teacher-profile-page animate-in" data-testid="teacher-profile-page" *ngIf="teacher">
+    <div class="teacher-profile-page erp-readonly-profile animate-in" data-testid="teacher-profile-page" *ngIf="teacher">
       <div *ngIf="!isSchoolAdmin" class="erp-card teacher-profile-banner mb-4">
         <div class="d-flex align-items-start gap-2 mb-0">
           <i class="bi bi-info-circle" style="color: var(--clr-primary); margin-top: 2px;"></i>
@@ -132,7 +133,7 @@ import { formatSchoolClassName } from '../../core/i18n/school-class-display';
               </div>
               <div class="mb-3">
                 <span style="font-size: 12px; color: var(--clr-text-muted); display: block;">{{ 'teachers.profile.joined' | translate }}</span>
-                <strong>{{ teacher.joinDate }}</strong>
+                <strong>{{ formatDisplayDate(teacher.joinDate) }}</strong>
               </div>
               <div class="mb-3" *ngIf="isSchoolAdmin">
                 <span style="font-size: 12px; color: var(--clr-text-muted); display: block;">{{ 'teachers.profile.salary' | translate }}</span>
@@ -242,6 +243,10 @@ export class TeacherProfileComponent implements OnInit, OnDestroy {
     const key = 'teachers.enums.status.' + status;
     const t = this.translate.instant(key);
     return t !== key ? t : status;
+  }
+
+  formatDisplayDate(raw: string | null | undefined): string {
+    return formatDateDdMmYyyy(raw);
   }
 
   hasAdminMetadata(): boolean {

@@ -67,7 +67,7 @@ import { formatDateDdMmYyyy } from '../../core/utils/date-format';
     `,
   ],
   template: `
-    <div class="student-profile-page animate-in" data-testid="student-profile-page" *ngIf="student">
+    <div class="student-profile-page erp-readonly-profile animate-in" data-testid="student-profile-page" *ngIf="student">
       <div class="d-flex align-items-center gap-3 mb-4 flex-wrap">
         <button class="btn-icon" (click)="router.navigate(['/app/students'])" data-testid="back-btn"><i class="bi bi-arrow-left" style="font-size: 20px;"></i></button>
         <div class="flex-grow-1">

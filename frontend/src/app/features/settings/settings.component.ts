@@ -99,7 +99,7 @@ type SettingsFeatureToggleView = {
             [attr.data-role]="profileVisualRole"
             [attr.aria-label]="'settings.ariaProfilePhoto' | translate"
           >
-            <div class="settings-profile-hero">
+            <div class="settings-profile-hero erp-readonly-profile">
               <div class="settings-profile-hero__visual">
                 <app-profile-photo-picker
                   [previewUrl]="profilePreviewUrl"
@@ -146,7 +146,7 @@ type SettingsFeatureToggleView = {
             [attr.data-role]="profileVisualRole"
             [attr.aria-label]="'settings.ariaAccount' | translate"
           >
-            <div class="settings-profile-hero settings-profile-hero--readonly">
+            <div class="settings-profile-hero settings-profile-hero--readonly erp-readonly-profile">
               <div class="settings-profile-hero__visual">
                 <div *ngIf="!profilePreviewUrl" class="settings-profile-hero__avatar-fallback" aria-hidden="true">{{ profileInitials }}</div>
                 <img
@@ -188,7 +188,7 @@ type SettingsFeatureToggleView = {
           <!-- Roles without self-serve photo: identity + directory policy -->
           <ng-container *ngIf="!canEditOwnPhoto && !isParentOnlyChildren && profileUser as u">
             <section class="settings-profile-unified" [attr.data-role]="profileVisualRole" [attr.aria-label]="'settings.ariaProfileReadonly' | translate">
-              <div class="settings-profile-hero settings-profile-hero--readonly">
+              <div class="settings-profile-hero settings-profile-hero--readonly erp-readonly-profile">
                 <div class="settings-profile-hero__visual">
                   <div *ngIf="!profilePreviewUrl" class="settings-profile-hero__avatar-fallback" aria-hidden="true">{{ profileInitials }}</div>
                   <img

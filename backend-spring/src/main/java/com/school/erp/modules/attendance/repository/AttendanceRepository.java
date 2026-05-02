@@ -56,4 +56,19 @@ public interface AttendanceRepository extends JpaRepository<AttendanceRecord, Lo
 
     List<AttendanceRecord> findByTenantIdAndClassIdAndSectionIdAndDateBetweenAndIsDeletedFalse(
             String tenantId, Long classId, Long sectionId, LocalDate from, LocalDate to);
+
+    long countByTenantIdAndDateBetweenAndIsDeletedFalse(String tenantId, LocalDate from, LocalDate to);
+
+    @Query("""
+            SELECT a.status, COUNT(a)
+            FROM AttendanceRecord a
+            WHERE a.tenantId = :tenantId
+              AND a.isDeleted = false
+              AND a.date BETWEEN :from AND :to
+            GROUP BY a.status
+            """)
+    List<Object[]> countByStatusForTenantAndDateRange(
+            @Param("tenantId") String tenantId,
+            @Param("from") LocalDate from,
+            @Param("to") LocalDate to);
 }
