@@ -159,10 +159,74 @@ export class UiAccessService {
     );
   }
 
-  /** Fees desk visibility: read/write atoms + tenant/platform operators. */
+  /** Fees desk visibility: coarse atoms, granular v2 lanes, tenant/platform operators (not parents). */
   hasSchoolFeeOfficeDesk(): boolean {
     return this.hasAnyPermission(
       AppPermission.SCHOOL_FEES_READ,
+      AppPermission.SCHOOL_FEES_WRITE,
+      AppPermission.FEE_FINANCE_READ,
+      AppPermission.FEE_CONFIG_WRITE,
+      AppPermission.FEE_BILLING_WRITE,
+      AppPermission.FEE_REFUND_REQUEST,
+      AppPermission.FEE_REFUND_APPROVE,
+      AppPermission.FEE_ONLINE_CHECKOUT,
+      AppPermission.TENANT_ADMIN,
+      AppPermission.PLATFORM_ADMIN
+    );
+  }
+
+  /** Mirrors {@code RbacSpel#FEE_FINANCE_READ}. */
+  hasFeeFinanceRead(): boolean {
+    return this.hasAnyPermission(
+      AppPermission.FEE_FINANCE_READ,
+      AppPermission.SCHOOL_FEES_READ,
+      AppPermission.SCHOOL_FEES_WRITE,
+      AppPermission.TENANT_ADMIN,
+      AppPermission.PLATFORM_ADMIN
+    );
+  }
+
+  /** Mirrors {@code RbacSpel#FEE_CONFIG_WRITE}. */
+  hasFeeConfigWrite(): boolean {
+    return this.hasAnyPermission(
+      AppPermission.FEE_CONFIG_WRITE,
+      AppPermission.SCHOOL_FEES_WRITE,
+      AppPermission.TENANT_ADMIN,
+      AppPermission.PLATFORM_ADMIN
+    );
+  }
+
+  /** Mirrors {@code RbacSpel#FEE_BILLING_WRITE}. */
+  hasFeeBillingWrite(): boolean {
+    return this.hasAnyPermission(
+      AppPermission.FEE_BILLING_WRITE,
+      AppPermission.SCHOOL_FEES_WRITE,
+      AppPermission.TENANT_ADMIN,
+      AppPermission.PLATFORM_ADMIN
+    );
+  }
+
+  hasFeeRefundRequest(): boolean {
+    return this.hasAnyPermission(
+      AppPermission.FEE_REFUND_REQUEST,
+      AppPermission.SCHOOL_FEES_WRITE,
+      AppPermission.TENANT_ADMIN,
+      AppPermission.PLATFORM_ADMIN
+    );
+  }
+
+  hasFeeRefundApprove(): boolean {
+    return this.hasAnyPermission(
+      AppPermission.FEE_REFUND_APPROVE,
+      AppPermission.SCHOOL_FEES_WRITE,
+      AppPermission.TENANT_ADMIN,
+      AppPermission.PLATFORM_ADMIN
+    );
+  }
+
+  hasFeeOnlineCheckout(): boolean {
+    return this.hasAnyPermission(
+      AppPermission.FEE_ONLINE_CHECKOUT,
       AppPermission.SCHOOL_FEES_WRITE,
       AppPermission.TENANT_ADMIN,
       AppPermission.PLATFORM_ADMIN

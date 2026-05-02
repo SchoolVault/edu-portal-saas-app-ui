@@ -26,11 +26,45 @@ import {
   FeeRefundRequest,
   FeeStructure,
   FeeTransaction,
+  FeeV2AuditEvent,
+  FeeV2ClassOutstanding,
+  FeeV2CollectionSummary,
+  FeeV2Component,
+  FeeV2CreateComponentRequest,
+  FeeV2CreateDemandRunRequest,
+  FeeV2CreateDiscountRequest,
+  FeeV2CreateRuleRequest,
+  FeeV2DefaulterRow,
+  FeeV2Demand,
+  FeeV2DemandRun,
+  FeeV2Discount,
+  FeeV2LateFeePolicy,
+  FeeV2CreateLateFeePolicyRequest,
+  FeeV2UpdateLateFeePolicyRequest,
+  FeeV2LateFeeRun,
+  FeeV2CreateLateFeeRunRequest,
+  FeeV2LedgerEntry,
+  FeeV2PaymentRegisterRow,
+  FeeV2RecordPaymentRequest,
+  FeeV2RecordPaymentResponse,
+  FeeV2RecordRefundRequest,
+  FeeV2Rule,
+  FeeV2RuleActionLine,
+  FeeV2RuleConditionLine,
+  FeeV2Structure,
+  FeeV2StudentFeeMap,
+  FeeV2StudentStatement,
+  FeeAssignmentPreviewResponse,
+  FeeAssignmentExecuteRequest,
+  FeeV2LedgerReconciliationReport,
   SchoolClass,
   Section,
+  Student,
 } from '../../core/models/models';
+import { StudentService } from '../../core/services/student.service';
 import { ConfirmDialogService } from '../../shared/confirm-dialog/confirm-dialog.service';
 import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directives';
+import { ErpDatePickerComponent } from '../../shared/erp-date-picker/erp-date-picker.component';
 import { buildCsvSchoolLine, downloadCsvDocument } from '../../core/utils/csv-export.util';
 import { ImportExportService } from '../../core/services/import-export.service';
 import { formatDateDdMmYyyy } from '../../core/utils/date-format';
@@ -38,12 +72,97 @@ import { formatDateDdMmYyyy } from '../../core/utils/date-format';
 @Component({
   selector: 'app-fees',
   standalone: true,
-  imports: [CommonModule, FormsModule, TranslateModule, SchoolClassNamePipe, ErpPaginationComponent, ErpI18nPhDirective],
+  imports: [
+    CommonModule,
+    FormsModule,
+    TranslateModule,
+    SchoolClassNamePipe,
+    ErpPaginationComponent,
+    ErpI18nPhDirective,
+    ErpDatePickerComponent,
+  ],
   styles: [`
     .fees-page {
       width: 100%;
       max-width: 100%;
       min-width: 0;
+    }
+    .fees-v2-tabs {
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      flex-wrap: nowrap;
+      gap: 6px;
+      padding-bottom: 4px;
+      margin-bottom: 0.35rem;
+    }
+    .fees-v2-tabs .erp-tab {
+      flex: 0 0 auto;
+    }
+    .fees-v2-panel-title {
+      font-size: 1.05rem;
+      font-weight: 800;
+      margin-bottom: 0.35rem;
+    }
+    .fees-v2-subcard {
+      border: 1px solid var(--clr-border-light);
+      border-radius: 12px;
+      padding: 12px;
+      background: var(--clr-surface);
+      margin-top: 10px;
+    }
+    .fees-page .fees-form-field {
+      margin-bottom: 0;
+    }
+    .fees-page .fees-form-field > .erp-label.small,
+    .fees-page .fees-form-field > label.erp-label.small {
+      display: block;
+      margin-bottom: 4px;
+      font-weight: 600;
+      color: var(--clr-text-muted);
+      font-size: 12px;
+      letter-spacing: 0.02em;
+    }
+    .fees-assignment-panel .fees-panel-lead,
+    .fees-page .fees-panel-lead {
+      max-width: 720px;
+    }
+    .fees-field-label-spacer {
+      visibility: hidden;
+      min-height: 1.15em;
+      margin-bottom: 4px;
+      padding: 0;
+      line-height: 1.2;
+    }
+    .fees-banner {
+      border-radius: 10px;
+    }
+    .fees-banner .btn-close {
+      opacity: 0.72;
+      padding: 0.35rem;
+      margin: -0.15rem -0.25rem -0.15rem 0;
+    }
+    .fees-banner .btn-close:hover {
+      opacity: 1;
+    }
+    .fees-inline-field-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      align-items: stretch;
+    }
+    .fees-inline-field-row .erp-input {
+      min-width: 160px;
+      flex: 1 1 180px;
+    }
+    .fees-inline-field-row .btn {
+      flex: 0 0 auto;
+      align-self: stretch;
+    }
+    .fees-assignment-divider {
+      border: 0;
+      border-top: 1px solid var(--clr-border-light);
+      margin: 1rem 0;
+      opacity: 1;
     }
     .fees-page-header {
       margin-bottom: 1.1rem;
@@ -615,12 +734,25 @@ import { formatDateDdMmYyyy } from '../../core/utils/date-format';
         </div>
       </div>
 
-      <div class="erp-tabs animate-in">
-        <button type="button" class="erp-tab" [class.active]="tab === 'structures'" (click)="tab = 'structures'" data-testid="tab-structures">{{ 'fees.tabStructures' | translate }}</button>
-        <button type="button" class="erp-tab" [class.active]="tab === 'payments'" (click)="tab = 'payments'" data-testid="tab-payments">{{ 'fees.tabPayments' | translate }}</button>
+      <div class="erp-tabs animate-in fees-v2-tabs">
+        <button *ngIf="showLegacyFeesTabs" type="button" class="erp-tab" [class.active]="tab === 'structures'" (click)="tab = 'structures'" data-testid="tab-structures">{{ 'fees.tabStructures' | translate }}</button>
+        <button *ngIf="showLegacyFeesTabs" type="button" class="erp-tab" [class.active]="tab === 'payments'" (click)="tab = 'payments'" data-testid="tab-payments">{{ 'fees.tabPayments' | translate }}</button>
+        <button *ngIf="canAccessFeesV2Tabs && feeV2ConfigWrite" type="button" class="erp-tab" [class.active]="tab === 'componentsV2'" (click)="tab = 'componentsV2'" data-testid="tab-components-v2">{{ 'fees.tabComponentsV2' | translate }}</button>
+        <button *ngIf="canAccessFeesV2Tabs && feeV2ConfigWrite" type="button" class="erp-tab" [class.active]="tab === 'structuresV2'" (click)="onSelectV2Tab('structuresV2')" data-testid="tab-structures-v2">{{ 'fees.tabStructuresV2' | translate }}</button>
+        <button *ngIf="canAccessFeesV2Tabs && (feeV2FinanceRead || feeV2ConfigWrite || feeV2BillingWrite)" type="button" class="erp-tab" [class.active]="tab === 'assignmentsV2'" (click)="onSelectV2Tab('assignmentsV2')" data-testid="tab-assignments-v2">{{ 'fees.tabAssignmentsV2' | translate }}</button>
+        <button *ngIf="canAccessFeesV2Tabs && feeV2ConfigWrite" type="button" class="erp-tab" [class.active]="tab === 'rulesV2'" (click)="tab = 'rulesV2'" data-testid="tab-rules-v2">{{ 'fees.tabRulesV2' | translate }}</button>
+        <button *ngIf="canAccessFeesV2Tabs && feeV2FinanceRead" type="button" class="erp-tab" [class.active]="tab === 'demandRunsV2'" (click)="tab = 'demandRunsV2'" data-testid="tab-demand-runs-v2">{{ 'fees.tabDemandRunsV2' | translate }}</button>
+        <button *ngIf="canAccessFeesV2Tabs && feeV2FinanceRead" type="button" class="erp-tab" [class.active]="tab === 'demandsV2'" (click)="onSelectV2Tab('demandsV2')" data-testid="tab-demands-v2">{{ 'fees.tabDemandsV2' | translate }}</button>
+        <button *ngIf="canAccessFeesV2Tabs && feeV2FinanceRead" type="button" class="erp-tab" [class.active]="tab === 'discountsV2'" (click)="onSelectV2Tab('discountsV2')" data-testid="tab-discounts-v2">{{ 'fees.tabDiscountsV2' | translate }}</button>
+        <button *ngIf="canAccessFeesV2Tabs && feeV2FinanceRead" type="button" class="erp-tab" [class.active]="tab === 'phase3Reports'" (click)="selectPhase3Tab('phase3Reports')" data-testid="tab-phase3-reports">{{ 'fees.tabPhase3Reports' | translate }}</button>
+        <button *ngIf="canAccessFeesV2Tabs && feeV2FinanceRead" type="button" class="erp-tab" [class.active]="tab === 'phase3Payments'" (click)="selectPhase3Tab('phase3Payments')" data-testid="tab-phase3-payments">{{ 'fees.tabPhase3Payments' | translate }}</button>
+        <button *ngIf="canAccessFeesV2Tabs && feeV2FinanceRead" type="button" class="erp-tab" [class.active]="tab === 'phase3Recon'" (click)="selectPhase3ReconTab()" data-testid="tab-phase3-recon">{{ 'fees.tabPhase3Recon' | translate }}</button>
+        <button *ngIf="canAccessFeesV2Tabs && feeV2FinanceRead" type="button" class="erp-tab" [class.active]="tab === 'phase3Audit'" (click)="selectPhase3Tab('phase3Audit')" data-testid="tab-phase3-audit">{{ 'fees.tabPhase3Audit' | translate }}</button>
+        <button *ngIf="canAccessFeesV2Tabs && (feeV2FinanceRead || feeV2ConfigWrite || feeV2BillingWrite)" type="button" class="erp-tab" [class.active]="tab === 'phase4LateFees'" (click)="selectPhase4LateFeeTab()" data-testid="tab-phase4-late-fees">{{ 'fees.tabPhase4LateFees' | translate }}</button>
+        <button *ngIf="canAccessFeesV2Tabs && feeV2FinanceRead" type="button" class="erp-tab" [class.active]="tab === 'ledgerV2'" (click)="tab = 'ledgerV2'" data-testid="tab-ledger-v2">{{ 'fees.tabLedgerV2' | translate }}</button>
       </div>
 
-      <div *ngIf="tab === 'structures'" class="animate-in fees-structures-shell">
+      <div *ngIf="showLegacyFeesTabs && tab === 'structures'" class="animate-in fees-structures-shell">
         <div class="erp-card mb-3" *ngIf="feeDeskOps">
           <div class="small fw-semibold text-uppercase text-muted mb-2">{{ 'fees.adminFlowTitle' | translate }}</div>
           <div class="d-flex flex-wrap gap-2">
@@ -663,7 +795,7 @@ import { formatDateDdMmYyyy } from '../../core/utils/date-format';
         <p *ngIf="!feeStructures.length" class="text-muted">{{ 'fees.emptyStructures' | translate }}</p>
       </div>
 
-      <div *ngIf="tab === 'payments'" class="animate-in">
+      <div *ngIf="showLegacyFeesTabs && tab === 'payments'" class="animate-in">
         <div *ngIf="reminderMessage" class="alert py-2 small mb-2 fees-reminder-alert" [class.alert-success]="reminderMessageOk" [class.alert-danger]="!reminderMessageOk">
           <span class="fees-reminder-alert__text">{{ reminderMessage }}</span>
           <button type="button" class="fees-reminder-alert__close" (click)="clearReminderMessage()" [attr.aria-label]="'fees.close' | translate">
@@ -832,6 +964,1087 @@ import { formatDateDdMmYyyy } from '../../core/utils/date-format';
           />
         </div>
       </div>
+
+      <div *ngIf="tab === 'componentsV2' && feeV2ConfigWrite" class="animate-in">
+        <div
+          *ngIf="v2Message"
+          class="alert alert-dismissible fees-banner py-2 px-3 small mb-2 d-flex align-items-start justify-content-between gap-2"
+          [class.alert-success]="v2MessageOk"
+          [class.alert-danger]="!v2MessageOk"
+          role="alert"
+        >
+          <span class="fees-banner__text flex-grow-1">{{ v2Message }}</span>
+          <button type="button" class="btn-close" [attr.aria-label]="'fees.close' | translate" (click)="clearV2Message()"></button>
+        </div>
+        <div class="erp-card mb-3">
+          <h4 class="mb-2">{{ 'fees.v2ComponentsTitle' | translate }}</h4>
+          <p class="text-muted small mb-3">{{ 'fees.v2ComponentsDesc' | translate }}</p>
+          <div class="row g-2">
+            <div class="col-md-2"><input class="erp-input" [(ngModel)]="v2ComponentForm.code" [placeholder]="'fees.v2Code' | translate" /></div>
+            <div class="col-md-3"><input class="erp-input" [(ngModel)]="v2ComponentForm.name" [placeholder]="'fees.v2Name' | translate" /></div>
+            <div class="col-md-2">
+              <select class="erp-select" [(ngModel)]="v2ComponentForm.componentType">
+                <option value="RECURRING">{{ 'fees.v2Recurring' | translate }}</option>
+                <option value="ONE_TIME">{{ 'fees.v2OneTime' | translate }}</option>
+              </select>
+            </div>
+            <div class="col-md-2">
+              <select class="erp-select" [(ngModel)]="v2ComponentForm.frequency">
+                <option value="MONTHLY">{{ 'fees.v2Monthly' | translate }}</option>
+                <option value="QUARTERLY">{{ 'fees.v2Quarterly' | translate }}</option>
+                <option value="YEARLY">{{ 'fees.v2Yearly' | translate }}</option>
+                <option value="CUSTOM">{{ 'fees.v2Custom' | translate }}</option>
+              </select>
+            </div>
+            <div class="col-md-3 d-flex gap-2 align-items-center">
+              <label class="small"><input type="checkbox" [(ngModel)]="v2ComponentForm.optionalComponent" /> {{ 'fees.v2Optional' | translate }}</label>
+              <label class="small"><input type="checkbox" [(ngModel)]="v2ComponentForm.refundable" /> {{ 'fees.v2Refundable' | translate }}</label>
+            </div>
+          </div>
+          <div class="d-flex gap-2 mt-3">
+            <button type="button" class="btn-primary-erp btn-sm" [disabled]="v2Busy" (click)="saveV2Component()">{{ 'fees.save' | translate }}</button>
+            <button type="button" class="btn-outline-erp btn-sm" (click)="resetV2ComponentForm()">{{ 'fees.cancel' | translate }}</button>
+          </div>
+        </div>
+        <div class="erp-card">
+          <div class="fees-table-wrap">
+            <table class="erp-table">
+              <thead><tr><th>{{ 'fees.v2Code' | translate }}</th><th>{{ 'fees.v2Name' | translate }}</th><th>{{ 'fees.v2Type' | translate }}</th><th>{{ 'fees.v2Freq' | translate }}</th><th>{{ 'fees.thActions' | translate }}</th></tr></thead>
+              <tbody>
+                <tr *ngFor="let c of v2Components">
+                  <td>{{ c.code }}</td><td>{{ c.name }}</td><td>{{ c.componentType }}</td><td>{{ c.frequency }}</td>
+                  <td class="fees-actions">
+                    <button type="button" class="btn-outline-erp btn-xs" (click)="startEditV2Component(c)">{{ 'fees.edit' | translate }}</button>
+                    <button type="button" class="btn-outline-erp btn-xs" (click)="deleteV2Component(c.id)">{{ 'fees.delete' | translate }}</button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div *ngIf="tab === 'structuresV2' && feeV2ConfigWrite" class="animate-in">
+        <div
+          *ngIf="v2Message"
+          class="alert alert-dismissible fees-banner py-2 px-3 small mb-2 d-flex align-items-start justify-content-between gap-2"
+          [class.alert-success]="v2MessageOk"
+          [class.alert-danger]="!v2MessageOk"
+          role="alert"
+        >
+          <span class="fees-banner__text flex-grow-1">{{ v2Message }}</span>
+          <button type="button" class="btn-close" [attr.aria-label]="'fees.close' | translate" (click)="clearV2Message()"></button>
+        </div>
+        <div class="erp-card mb-3">
+          <h4 class="fees-v2-panel-title">{{ 'fees.v2StructuresTitle' | translate }}</h4>
+          <p class="text-muted small mb-3">{{ 'fees.v2StructuresDesc' | translate }}</p>
+          <div class="row g-2">
+            <div class="col-12 col-md-3">
+              <label class="erp-label small">{{ 'fees.v2Class' | translate }}</label>
+              <select class="erp-select w-100" [(ngModel)]="v2StructureForm.classId">
+                <option [ngValue]="null">{{ 'fees.pickClass' | translate }}</option>
+                <option *ngFor="let cl of classes" [ngValue]="cl.id">{{ cl.name }}</option>
+              </select>
+            </div>
+            <div class="col-12 col-md-3">
+              <label class="erp-label small">{{ 'fees.v2StructureName' | translate }}</label>
+              <input class="erp-input w-100" [(ngModel)]="v2StructureForm.structureName" [placeholder]="'fees.v2StructureNamePh' | translate" />
+            </div>
+            <div class="col-6 col-md-2">
+              <label class="erp-label small">{{ 'fees.v2Version' | translate }}</label>
+              <input class="erp-input w-100" type="number" [(ngModel)]="v2StructureForm.versionNo" />
+            </div>
+            <div class="col-6 col-md-2">
+              <label class="erp-label small">{{ 'fees.labelStatus' | translate }}</label>
+              <select class="erp-select w-100" [(ngModel)]="v2StructureForm.status">
+                <option value="DRAFT">DRAFT</option>
+                <option value="ACTIVE">ACTIVE</option>
+                <option value="ARCHIVED">ARCHIVED</option>
+              </select>
+            </div>
+          </div>
+          <div class="fees-v2-subcard">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+              <span class="small fw-bold">{{ 'fees.v2StructureLines' | translate }}</span>
+              <button type="button" class="btn-outline-erp btn-xs" (click)="addV2StructureLine()">{{ 'fees.v2AddLine' | translate }}</button>
+            </div>
+            <div *ngFor="let line of v2StructureForm.lines; let li = index" class="row g-2 align-items-end mb-2">
+              <div class="col-12 col-md-5">
+                <label class="erp-label small">{{ 'fees.v2Component' | translate }}</label>
+                <select class="erp-select w-100" [(ngModel)]="line.feeComponentMasterId">
+                  <option [ngValue]="0">{{ 'fees.pickComponent' | translate }}</option>
+                  <option *ngFor="let c of v2Components" [ngValue]="c.id">{{ c.code }} — {{ c.name }}</option>
+                </select>
+              </div>
+              <div class="col-10 col-md-4">
+                <label class="erp-label small">{{ 'fees.thAmount' | translate }}</label>
+                <input class="erp-input w-100" type="number" [(ngModel)]="line.amount" />
+              </div>
+              <div class="col-2 col-md-3 text-md-end">
+                <button type="button" class="btn-outline-erp btn-xs" *ngIf="v2StructureForm.lines.length > 1" (click)="removeV2StructureLine(li)">{{ 'fees.delete' | translate }}</button>
+              </div>
+            </div>
+          </div>
+          <div class="d-flex gap-2 mt-3">
+            <button type="button" class="btn-primary-erp btn-sm" [disabled]="v2StructureSaving" (click)="saveV2Structure()">{{ 'fees.save' | translate }}</button>
+            <button type="button" class="btn-outline-erp btn-sm" (click)="resetV2StructureForm()">{{ 'fees.cancel' | translate }}</button>
+          </div>
+        </div>
+        <div class="erp-card">
+          <div class="fees-table-wrap">
+            <table class="erp-table">
+              <thead><tr><th>{{ 'fees.thRecordId' | translate }}</th><th>{{ 'fees.v2Class' | translate }}</th><th>{{ 'fees.v2StructureName' | translate }}</th><th>{{ 'fees.v2Version' | translate }}</th><th>{{ 'fees.labelStatus' | translate }}</th><th>{{ 'fees.v2LinesCount' | translate }}</th></tr></thead>
+              <tbody>
+                <tr *ngFor="let s of v2Structures">
+                  <td>{{ s.id }}</td>
+                  <td>{{ s.classId }}</td>
+                  <td>{{ s.structureName }}</td>
+                  <td>{{ s.versionNo }}</td>
+                  <td>{{ s.status }}</td>
+                  <td>{{ s.components.length || 0 }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div *ngIf="tab === 'assignmentsV2' && (feeV2FinanceRead || feeV2ConfigWrite || feeV2BillingWrite)" class="animate-in fees-assignment-panel">
+        <div
+          *ngIf="v2Message"
+          class="alert alert-dismissible fees-banner py-2 px-3 small mb-2 d-flex align-items-start justify-content-between gap-2"
+          [class.alert-success]="v2MessageOk"
+          [class.alert-danger]="!v2MessageOk"
+          role="alert"
+        >
+          <span class="fees-banner__text flex-grow-1">{{ v2Message }}</span>
+          <button type="button" class="btn-close" [attr.aria-label]="'fees.close' | translate" (click)="clearV2Message()"></button>
+        </div>
+        <div class="erp-card mb-3" *ngIf="feeV2ConfigWrite">
+          <h4 class="fees-v2-panel-title">{{ 'fees.v2AssignmentsTitle' | translate }}</h4>
+          <p class="text-muted small fees-panel-lead mb-3">{{ 'fees.v2AssignmentsDesc' | translate }}</p>
+          <div class="row g-3 align-items-end">
+            <div class="col-12 col-md-6 col-lg-4 fees-form-field">
+              <label class="erp-label small" for="feeV2SnapClass">{{ 'fees.v2PickClassForAssignment' | translate }}</label>
+              <select id="feeV2SnapClass" class="erp-select w-100" [(ngModel)]="v2SnapshotForm.classId" (ngModelChange)="onV2SnapshotClassChange($event)">
+                <option [ngValue]="null">{{ 'fees.v2ChooseClassPlaceholder' | translate }}</option>
+                <option *ngFor="let cl of classes" [ngValue]="cl.id">{{ cl.name | schoolClassName }}</option>
+              </select>
+            </div>
+            <div class="col-12 col-md-6 col-lg-4 fees-form-field">
+              <label class="erp-label small" for="feeV2SnapStudent">{{ 'fees.labelStudent' | translate }}</label>
+              <select id="feeV2SnapStudent" class="erp-select w-100" [(ngModel)]="v2SnapshotForm.studentId" [disabled]="!v2SnapshotStudentsInClass.length">
+                <option [ngValue]="0">{{ 'fees.v2ChooseStudentPlaceholder' | translate }}</option>
+                <option *ngFor="let st of v2SnapshotStudentsInClass" [ngValue]="st.id">{{ v2StudentOptionLabel(st) }}</option>
+              </select>
+            </div>
+            <div class="col-12 col-md-6 col-lg-4 fees-form-field" *ngIf="v2StructuresForSnapshotClass.length">
+              <label class="erp-label small" for="feeV2SnapPlan">{{ 'fees.v2FeePlanLabel' | translate }}</label>
+              <select id="feeV2SnapPlan" class="erp-select w-100" [ngModel]="v2SnapshotForm.feeStructureId" (ngModelChange)="onV2SnapshotPlanChange($event)">
+                <option [ngValue]="0">{{ 'fees.v2ChoosePlanPlaceholder' | translate }}</option>
+                <option *ngFor="let pl of v2StructuresForSnapshotClass" [ngValue]="pl.id">{{ pl.structureName }} — {{ 'fees.v2VersionTag' | translate: { n: pl.versionNo } }}</option>
+              </select>
+            </div>
+            <ng-container *ngIf="v2SnapshotForm.classId && !v2StructuresForSnapshotClass.length">
+              <div class="col-12 col-md-6 col-lg-4 fees-form-field">
+                <label class="erp-label small" for="feeV2SnapPlanId">{{ 'fees.v2ManualPlanIdLabel' | translate }}</label>
+                <input id="feeV2SnapPlanId" class="erp-input w-100" type="number" [(ngModel)]="v2SnapshotForm.feeStructureId" (ngModelChange)="onV2SnapshotManualStructureIdChange()" />
+                <p class="small text-muted mb-0 mt-1">{{ 'fees.v2ManualPlanHint' | translate }}</p>
+              </div>
+              <div class="col-12 col-md-4 col-lg-3 fees-form-field">
+                <label class="erp-label small" for="feeV2SnapVerManual">{{ 'fees.v2FrozenVersionPh' | translate }}</label>
+                <input id="feeV2SnapVerManual" class="erp-input w-100" type="number" [(ngModel)]="v2SnapshotForm.frozenVersionNo" />
+              </div>
+            </ng-container>
+            <div class="col-12 col-md-4 col-lg-3 fees-form-field" *ngIf="v2StructuresForSnapshotClass.length && v2SnapshotFrozenVersionLocked">
+              <label class="erp-label small">{{ 'fees.v2FrozenVersionPh' | translate }}</label>
+              <div class="erp-input w-100 py-2 small mb-0 border rounded px-2" style="background:var(--clr-surface-muted);opacity:0.95">{{ v2SnapshotForm.frozenVersionNo }}</div>
+              <p class="small text-muted mb-0 mt-1">{{ 'fees.v2VersionFromPlanHint' | translate }}</p>
+            </div>
+            <div class="col-12 col-md-4 col-lg-3 fees-form-field">
+              <label class="erp-label small" for="feeV2SnapFrom">{{ 'fees.v2ValidFrom' | translate }}</label>
+              <app-erp-date-picker
+                [(ngModel)]="v2SnapshotForm.validFrom"
+                inputId="feeV2SnapFrom"
+                placeholderI18nKey="fees.datePlaceholder"
+              />
+            </div>
+            <div class="col-12 col-md-4 col-lg-3 fees-form-field">
+              <label class="erp-label small" for="feeV2SnapTo">{{ 'fees.v2ValidToOptional' | translate }}</label>
+              <app-erp-date-picker
+                [(ngModel)]="v2SnapshotForm.validTo"
+                inputId="feeV2SnapTo"
+                placeholderI18nKey="fees.datePlaceholder"
+              />
+            </div>
+            <div class="col-12 col-md-4 col-lg-3 fees-form-field">
+              <label class="erp-label small fees-field-label-spacer" aria-hidden="true">&nbsp;</label>
+              <button type="button" class="btn-primary-erp btn-sm w-100" (click)="saveV2Snapshot()">{{ 'fees.v2FreezeAssignment' | translate }}</button>
+            </div>
+          </div>
+        </div>
+        <div class="erp-card mb-3" *ngIf="feeV2FinanceRead || feeV2BillingWrite">
+          <h4 class="fees-v2-panel-title">{{ 'fees.v2RuleAssignmentTitle' | translate }}</h4>
+          <p class="text-muted small fees-panel-lead mb-3">{{ 'fees.v2RuleAssignmentDesc' | translate }}</p>
+          <div class="row g-3 align-items-end">
+            <div class="col-12 col-md-6 col-lg-4 fees-form-field">
+              <label class="erp-label small">{{ 'fees.v2RuleAssignClass' | translate }}</label>
+              <select class="erp-select w-100" [(ngModel)]="v2AssignPreviewClassId" (ngModelChange)="onV2AssignPreviewClassChange()">
+                <option [ngValue]="null">{{ 'fees.v2ChooseClassPlaceholder' | translate }}</option>
+                <option *ngFor="let cl of classes" [ngValue]="cl.id">{{ cl.name | schoolClassName }}</option>
+              </select>
+            </div>
+            <div class="col-12 col-md-6 col-lg-4 fees-form-field">
+              <label class="erp-label small">{{ 'fees.v2SectionLabel' | translate }}</label>
+              <select class="erp-select w-100" [(ngModel)]="v2AssignPreviewSectionId" [disabled]="!v2AssignPreviewSections.length">
+                <option [ngValue]="null">{{ 'fees.v2SectionWholeClass' | translate }}</option>
+                <option *ngFor="let sec of v2AssignPreviewSections" [ngValue]="sec.id">{{ sec.name }}</option>
+              </select>
+            </div>
+            <div class="col-12 col-lg-6 fees-form-field">
+              <label class="erp-label small">{{ 'fees.v2StudentIdsOptionalCsv' | translate }}</label>
+              <div class="fees-inline-field-row">
+                <input class="erp-input" [(ngModel)]="v2AssignPreviewStudentIdsCsv" />
+                <button
+                  *ngIf="feeV2FinanceRead"
+                  type="button"
+                  class="btn-outline-erp btn-sm"
+                  [disabled]="v2Busy"
+                  (click)="runV2AssignmentPreview()"
+                >
+                  {{ 'fees.v2AssignmentPreview' | translate }}
+                </button>
+              </div>
+              <p class="small text-muted mb-0 mt-1">{{ 'fees.v2StudentIdsCsvHelp' | translate }}</p>
+            </div>
+          </div>
+          <hr class="fees-assignment-divider" *ngIf="feeV2BillingWrite" />
+          <h5 class="small fw-bold mb-2" *ngIf="feeV2BillingWrite">{{ 'fees.v2RuleApplySectionTitle' | translate }}</h5>
+          <p class="text-muted small mb-3" *ngIf="feeV2BillingWrite">{{ 'fees.v2RuleApplySectionLead' | translate }}</p>
+          <div class="row g-3 align-items-end" *ngIf="feeV2BillingWrite">
+            <div class="col-12 col-md-6 col-lg-4 fees-form-field">
+              <label class="erp-label small" for="feeV2AssignExecFrom">{{ 'fees.v2AssignExecValidFrom' | translate }}</label>
+              <app-erp-date-picker
+                [(ngModel)]="v2AssignExecValidFrom"
+                inputId="feeV2AssignExecFrom"
+                placeholderI18nKey="fees.datePlaceholder"
+              />
+            </div>
+            <div class="col-12 col-md-6 col-lg-4 fees-form-field">
+              <label class="erp-label small" for="feeV2AssignExecTo">{{ 'fees.v2AssignExecValidToOptional' | translate }}</label>
+              <app-erp-date-picker
+                [(ngModel)]="v2AssignExecValidTo"
+                inputId="feeV2AssignExecTo"
+                placeholderI18nKey="fees.datePlaceholder"
+              />
+            </div>
+            <div class="col-12 col-lg-4 fees-form-field">
+              <label class="erp-label small">{{ 'fees.v2RunIdempotencyPh' | translate }}</label>
+              <input class="erp-input w-100" [(ngModel)]="v2AssignExecIdem" />
+              <p class="small text-muted mb-0 mt-1">{{ 'fees.v2RunIdempotencyHelp' | translate }}</p>
+            </div>
+          </div>
+          <div class="row g-3 align-items-center mt-1" *ngIf="feeV2BillingWrite">
+            <div class="col-12 col-md-auto fees-form-field">
+              <label class="small mb-0 d-flex align-items-center gap-2">
+                <input type="checkbox" [(ngModel)]="v2AssignExecForce" /> {{ 'fees.v2AssignmentForce' | translate }}
+              </label>
+            </div>
+            <div class="col-12 col-md-auto ms-md-auto fees-form-field">
+              <button type="button" class="btn-primary-erp btn-sm" [disabled]="v2Busy" (click)="runV2AssignmentExecute()">{{ 'fees.v2AssignmentExecute' | translate }}</button>
+            </div>
+          </div>
+          <div class="fees-table-wrap mt-3" *ngIf="v2AssignPreviewResult as prev">
+            <p class="small text-muted mb-2" *ngIf="prev.rows.length">{{ 'fees.v2PreviewSummary' | translate: { change: (prev.wouldChangeCount ?? 0), total: prev.rows.length } }}</p>
+            <table class="erp-table" *ngIf="prev.rows.length">
+              <thead>
+                <tr>
+                  <th>{{ 'fees.thStudent' | translate }}</th>
+                  <th>{{ 'fees.v2Class' | translate }}</th>
+                  <th>{{ 'fees.v2CurrentStructure' | translate }}</th>
+                  <th>{{ 'fees.v2ProposedStructure' | translate }}</th>
+                  <th>{{ 'fees.v2MatchedRule' | translate }}</th>
+                  <th>{{ 'fees.v2WouldChange' | translate }}</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let pr of prev.rows">
+                  <td>
+                    <div class="fw-semibold">{{ v2StudentDisplayName(pr.studentId) }}</div>
+                    <div class="small text-muted" *ngIf="v2StudentsById.get(pr.studentId)?.admissionNumber">{{ 'fees.v2Adm' | translate }} {{ v2StudentsById.get(pr.studentId)?.admissionNumber }}</div>
+                  </td>
+                  <td>{{ v2ClassDisplayName(pr.classId) }}</td>
+                  <td>{{ v2StructureDisplay(pr.currentFeeStructureId, pr.currentFrozenVersionNo) }}</td>
+                  <td>{{ v2StructureDisplay(pr.proposedFeeStructureId, pr.proposedFrozenVersionNo) }}</td>
+                  <td>{{ pr.matchedRuleCode || '—' }}</td>
+                  <td><span class="badge rounded-pill" [class.text-bg-warning]="pr.wouldChange" [class.text-bg-secondary]="!pr.wouldChange">{{ v2WouldChangeLabel(pr.wouldChange) }}</span></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="erp-card mb-3">
+          <h4 class="fees-v2-panel-title mb-2">{{ 'fees.v2CurrentAssignmentsTitle' | translate }}</h4>
+          <p class="text-muted small fees-panel-lead mb-3">{{ 'fees.v2CurrentAssignmentsDesc' | translate }}</p>
+          <div class="row g-3 align-items-end">
+            <div class="col-12 col-md-6 col-lg-5 fees-form-field">
+              <label class="erp-label small">{{ 'fees.v2FilterStudentOptional' | translate }}</label>
+              <select class="erp-select w-100" [(ngModel)]="v2MapsFilterStudentId">
+                <option [ngValue]="null">{{ 'fees.v2AllStudentsFilter' | translate }}</option>
+                <option *ngFor="let s of v2StudentsSortedForPicker" [ngValue]="s.id">{{ v2StudentOptionLabel(s) }}</option>
+              </select>
+            </div>
+            <div class="col-12 col-md-3 col-lg-2 fees-form-field">
+              <label class="erp-label small fees-field-label-spacer" aria-hidden="true">&nbsp;</label>
+              <button type="button" class="btn-outline-erp btn-sm w-100" (click)="loadV2FeeMaps()">{{ 'fees.refresh' | translate }}</button>
+            </div>
+          </div>
+        </div>
+        <div class="erp-card">
+          <div class="fees-table-wrap">
+            <table class="erp-table">
+              <thead>
+                <tr>
+                  <th>{{ 'fees.thRecordId' | translate }}</th>
+                  <th>{{ 'fees.thStudent' | translate }}</th>
+                  <th>{{ 'fees.v2Class' | translate }}</th>
+                  <th>{{ 'fees.v2FeePlanLabel' | translate }}</th>
+                  <th>{{ 'fees.v2FrozenVersionPh' | translate }}</th>
+                  <th>{{ 'fees.v2ValidFrom' | translate }}</th>
+                  <th>{{ 'fees.v2ValidTo' | translate }}</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let m of v2FeeMaps">
+                  <td>{{ m.id }}</td>
+                  <td>
+                    <div class="fw-semibold">{{ v2StudentDisplayName(m.studentId) }}</div>
+                    <div class="small text-muted" *ngIf="v2StudentsById.get(m.studentId)?.admissionNumber">{{ 'fees.v2Adm' | translate }} {{ v2StudentsById.get(m.studentId)?.admissionNumber }}</div>
+                  </td>
+                  <td>{{ v2ClassDisplayName(m.classId) }}</td>
+                  <td>{{ v2FeeMapPlanName(m.feeStructureId) }}</td>
+                  <td>{{ m.frozenVersionNo }}</td>
+                  <td>{{ m.validFrom }}</td>
+                  <td>{{ m.validTo || '—' }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div *ngIf="tab === 'rulesV2' && feeV2ConfigWrite" class="animate-in">
+        <div class="erp-card mb-3">
+          <h4 class="mb-2">{{ 'fees.v2RulesTitle' | translate }}</h4>
+          <p class="text-muted small mb-3">{{ 'fees.v2RulesDesc' | translate }}</p>
+          <div class="row g-2">
+            <div class="col-md-2"><input class="erp-input" [(ngModel)]="v2RuleForm.ruleCode" [placeholder]="'fees.v2Code' | translate" /></div>
+            <div class="col-md-4"><input class="erp-input" [(ngModel)]="v2RuleForm.ruleName" [placeholder]="'fees.v2Name' | translate" /></div>
+            <div class="col-md-2">
+              <select class="erp-select" [(ngModel)]="v2RuleForm.ruleType">
+                <option value="ASSIGNMENT">ASSIGNMENT</option>
+                <option value="DISCOUNT">DISCOUNT</option>
+                <option value="LATE_FEE">LATE_FEE</option>
+              </select>
+            </div>
+            <div class="col-md-2"><input class="erp-input" type="number" [(ngModel)]="v2RuleForm.priorityNo" [placeholder]="'fees.v2Priority' | translate" /></div>
+            <div class="col-md-2 d-flex align-items-center"><label class="small"><input type="checkbox" [(ngModel)]="v2RuleForm.stopOnMatch" /> {{ 'fees.v2StopOnMatch' | translate }}</label></div>
+          </div>
+          <div class="d-flex gap-2 mt-3">
+            <button type="button" class="btn-primary-erp btn-sm" [disabled]="v2Busy" (click)="saveV2Rule()">{{ 'fees.save' | translate }}</button>
+            <button type="button" class="btn-outline-erp btn-sm" (click)="resetV2RuleForm()">{{ 'fees.cancel' | translate }}</button>
+          </div>
+        </div>
+        <div class="erp-card">
+          <div class="fees-table-wrap">
+            <table class="erp-table">
+              <thead><tr><th>{{ 'fees.v2Code' | translate }}</th><th>{{ 'fees.v2Name' | translate }}</th><th>{{ 'fees.v2Type' | translate }}</th><th>{{ 'fees.v2Priority' | translate }}</th><th>{{ 'fees.thActions' | translate }}</th></tr></thead>
+              <tbody>
+                <tr *ngFor="let r of v2Rules">
+                  <td>{{ r.ruleCode }}</td><td>{{ r.ruleName }}</td><td>{{ r.ruleType }}</td><td>{{ r.priorityNo }}</td>
+                  <td class="fees-actions">
+                    <button type="button" class="btn-outline-erp btn-xs" (click)="openV2RuleLogic(r)">{{ 'fees.v2RuleLogic' | translate }}</button>
+                    <button type="button" class="btn-outline-erp btn-xs" (click)="startEditV2Rule(r)">{{ 'fees.edit' | translate }}</button>
+                    <button type="button" class="btn-outline-erp btn-xs" (click)="deleteV2Rule(r.id)">{{ 'fees.delete' | translate }}</button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div *ngIf="v2RuleLogicRuleId" class="erp-card mt-3">
+          <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
+            <div>
+              <h4 class="fees-v2-panel-title mb-1">{{ 'fees.v2RuleLogicTitle' | translate }}</h4>
+              <p class="text-muted small mb-0">{{ 'fees.v2RuleLogicDesc' | translate }}</p>
+            </div>
+            <button type="button" class="btn-outline-erp btn-sm" (click)="closeV2RuleLogic()">{{ 'fees.close' | translate }}</button>
+          </div>
+          <p *ngIf="v2RuleLogicLoading" class="small text-muted my-2">{{ 'fees.refreshing' | translate }}</p>
+          <div *ngIf="!v2RuleLogicLoading" class="row g-3 mt-1">
+            <div class="col-12 col-lg-6">
+              <div class="d-flex justify-content-between align-items-center mb-2">
+                <span class="small fw-bold">{{ 'fees.v2RuleConditions' | translate }}</span>
+                <button type="button" class="btn-outline-erp btn-xs" (click)="addV2RuleConditionDraft()">{{ 'fees.v2AddLine' | translate }}</button>
+              </div>
+              <div *ngFor="let c of v2RuleConditionDrafts; let ci = index" class="fees-v2-subcard py-2 mb-2">
+                <div class="row g-2">
+                  <div class="col-12 col-md-6"><input class="erp-input w-100" [(ngModel)]="c.fieldName" [placeholder]="'fees.v2CondField' | translate" /></div>
+                  <div class="col-12 col-md-6"><input class="erp-input w-100" [(ngModel)]="c.operator" [placeholder]="'fees.v2CondOp' | translate" /></div>
+                  <div class="col-12 col-md-4"><input class="erp-input w-100" [(ngModel)]="c.valueType" [placeholder]="'fees.v2ValueType' | translate" /></div>
+                  <div class="col-12 col-md-4"><input class="erp-input w-100" [(ngModel)]="c.valueText" [placeholder]="'fees.v2ValueText' | translate" /></div>
+                  <div class="col-12 col-md-4"><input class="erp-input w-100" type="number" [(ngModel)]="c.valueNumber" [placeholder]="'fees.v2ValueNumber' | translate" /></div>
+                  <div class="col-12"><input class="erp-input w-100" [(ngModel)]="c.logicalJoin" [placeholder]="'fees.v2LogicalJoin' | translate" /></div>
+                </div>
+                <button type="button" class="btn-outline-erp btn-xs mt-2" (click)="removeV2RuleConditionDraft(ci)">{{ 'fees.delete' | translate }}</button>
+              </div>
+            </div>
+            <div class="col-12 col-lg-6">
+              <div class="d-flex justify-content-between align-items-center mb-2">
+                <span class="small fw-bold">{{ 'fees.v2RuleActions' | translate }}</span>
+                <button type="button" class="btn-outline-erp btn-xs" (click)="addV2RuleActionDraft()">{{ 'fees.v2AddLine' | translate }}</button>
+              </div>
+              <div *ngFor="let a of v2RuleActionDrafts; let ai = index" class="fees-v2-subcard py-2 mb-2">
+                <div class="row g-2">
+                  <div class="col-12 col-md-6"><input class="erp-input w-100" [(ngModel)]="a.actionType" [placeholder]="'fees.v2ActionType' | translate" /></div>
+                  <div class="col-12 col-md-6"><input class="erp-input w-100" [(ngModel)]="a.targetScope" [placeholder]="'fees.v2TargetScope' | translate" /></div>
+                  <div class="col-12 col-md-4"><input class="erp-input w-100" [(ngModel)]="a.valueType" [placeholder]="'fees.v2ValueType' | translate" /></div>
+                  <div class="col-12 col-md-4"><input class="erp-input w-100" [(ngModel)]="a.valueText" [placeholder]="'fees.v2ValueText' | translate" /></div>
+                  <div class="col-12 col-md-4"><input class="erp-input w-100" type="number" [(ngModel)]="a.valueNumber" [placeholder]="'fees.v2ValueNumber' | translate" /></div>
+                </div>
+                <button type="button" class="btn-outline-erp btn-xs mt-2" (click)="removeV2RuleActionDraft(ai)">{{ 'fees.delete' | translate }}</button>
+              </div>
+            </div>
+          </div>
+          <div class="d-flex gap-2 mt-3" *ngIf="!v2RuleLogicLoading">
+            <button type="button" class="btn-primary-erp btn-sm" [disabled]="v2Busy" (click)="saveV2RuleDefinition()">{{ 'fees.save' | translate }}</button>
+          </div>
+        </div>
+      </div>
+
+      <div *ngIf="tab === 'demandRunsV2' && feeV2FinanceRead" class="animate-in">
+        <div class="erp-card mb-3">
+          <h4 class="mb-2">{{ 'fees.v2DemandRunsTitle' | translate }}</h4>
+          <p class="text-muted small mb-3">{{ 'fees.v2DemandRunsDesc' | translate }}</p>
+          <div class="row g-2">
+            <div class="col-md-2">
+              <select class="erp-select" [(ngModel)]="v2DemandRunForm.runType">
+                <option value="MONTHLY">MONTHLY</option>
+                <option value="ADHOC">ADHOC</option>
+              </select>
+            </div>
+            <div class="col-md-3"><input class="erp-input" [(ngModel)]="v2DemandRunForm.periodKey" [placeholder]="'fees.v2PeriodKey' | translate" /></div>
+            <div class="col-md-3"><input class="erp-input" [(ngModel)]="v2DemandRunForm.idempotencyKey" [placeholder]="'fees.v2Idempotency' | translate" /></div>
+            <div class="col-md-2"><input class="erp-input" [(ngModel)]="v2DemandRunForm.triggerSource" [placeholder]="'fees.v2TriggerSource' | translate" /></div>
+            <div class="col-md-2"><button type="button" class="btn-primary-erp btn-sm w-100" [disabled]="!feeV2BillingWrite" (click)="createV2DemandRun()">{{ 'fees.save' | translate }}</button></div>
+          </div>
+        </div>
+        <div class="erp-card">
+          <div class="fees-table-wrap">
+            <table class="erp-table">
+              <thead><tr><th>{{ 'fees.thRecordId' | translate }}</th><th>{{ 'fees.v2Type' | translate }}</th><th>{{ 'fees.v2PeriodKey' | translate }}</th><th>{{ 'fees.thStatus' | translate }}</th><th>{{ 'fees.v2DemandsPosted' | translate }}</th><th>{{ 'fees.v2Idempotency' | translate }}</th></tr></thead>
+              <tbody>
+                <tr *ngFor="let d of v2DemandRuns">
+                  <td>{{ d.id }}</td><td>{{ d.runType }}</td><td>{{ d.periodKey }}</td><td>{{ d.status }}</td><td>{{ d.demandsPosted ?? '—' }}</td><td>{{ d.idempotencyKey }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div *ngIf="tab === 'demandsV2' && feeV2FinanceRead" class="animate-in fees-assignment-panel">
+        <div
+          *ngIf="v2Message"
+          class="alert alert-dismissible fees-banner py-2 px-3 small mb-2 d-flex align-items-start justify-content-between gap-2"
+          [class.alert-success]="v2MessageOk"
+          [class.alert-danger]="!v2MessageOk"
+          role="alert"
+        >
+          <span class="fees-banner__text flex-grow-1">{{ v2Message }}</span>
+          <button type="button" class="btn-close" [attr.aria-label]="'fees.close' | translate" (click)="clearV2Message()"></button>
+        </div>
+        <div class="erp-card mb-3">
+          <h4 class="fees-v2-panel-title">{{ 'fees.v2DemandsTitle' | translate }}</h4>
+          <p class="text-muted small fees-panel-lead mb-3">{{ 'fees.v2DemandsDesc' | translate }}</p>
+          <div class="row g-3 align-items-end">
+            <div class="col-12 col-md-4 col-lg-3 fees-form-field">
+              <label class="erp-label small">{{ 'fees.v2PickClassForAssignment' | translate }}</label>
+              <select class="erp-select w-100" [(ngModel)]="v2DemandsClassId" (ngModelChange)="onV2DemandsClassChange($event)">
+                <option [ngValue]="null">{{ 'fees.v2ChooseClassPlaceholder' | translate }}</option>
+                <option *ngFor="let cl of classes" [ngValue]="cl.id">{{ cl.name | schoolClassName }}</option>
+              </select>
+            </div>
+            <div class="col-12 col-md-5 col-lg-4 fees-form-field">
+              <label class="erp-label small">{{ 'fees.labelStudent' | translate }}</label>
+              <select class="erp-select w-100" [(ngModel)]="v2DemandsStudentId" [disabled]="!v2DemandsStudentsInClass.length">
+                <option [ngValue]="null">{{ 'fees.v2ChooseStudentPlaceholder' | translate }}</option>
+                <option *ngFor="let st of v2DemandsStudentsInClass" [ngValue]="st.id">{{ v2StudentOptionLabel(st) }}</option>
+              </select>
+            </div>
+            <div class="col-12 col-md-3 col-lg-2 fees-form-field">
+              <label class="erp-label small fees-field-label-spacer" aria-hidden="true">&nbsp;</label>
+              <button type="button" class="btn-outline-erp btn-sm w-100" (click)="loadV2Demands()">{{ 'fees.refresh' | translate }}</button>
+            </div>
+          </div>
+        </div>
+        <div class="erp-card">
+          <div class="fees-table-wrap">
+            <table class="erp-table">
+              <thead><tr><th>{{ 'fees.thRecordId' | translate }}</th><th>{{ 'fees.v2PeriodKey' | translate }}</th><th>{{ 'fees.thDueDate' | translate }}</th><th>{{ 'fees.thAmount' | translate }}</th><th>{{ 'fees.v2Outstanding' | translate }}</th><th>{{ 'fees.thStatus' | translate }}</th></tr></thead>
+              <tbody>
+                <tr *ngFor="let x of v2Demands">
+                  <td>{{ x.id }}</td><td>{{ x.periodKey }}</td><td>{{ x.dueDate }}</td><td>{{ x.netAmount }}</td><td>{{ x.outstandingAmount }}</td><td>{{ x.demandStatus }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div *ngIf="tab === 'discountsV2' && feeV2FinanceRead" class="animate-in fees-assignment-panel">
+        <div
+          *ngIf="v2Message"
+          class="alert alert-dismissible fees-banner py-2 px-3 small mb-2 d-flex align-items-start justify-content-between gap-2"
+          [class.alert-success]="v2MessageOk"
+          [class.alert-danger]="!v2MessageOk"
+          role="alert"
+        >
+          <span class="fees-banner__text flex-grow-1">{{ v2Message }}</span>
+          <button type="button" class="btn-close" [attr.aria-label]="'fees.close' | translate" (click)="clearV2Message()"></button>
+        </div>
+        <div class="erp-card mb-3">
+          <h4 class="fees-v2-panel-title">{{ 'fees.v2DiscountsTitle' | translate }}</h4>
+          <p class="text-muted small fees-panel-lead mb-3">{{ 'fees.v2DiscountsDesc' | translate }}</p>
+          <div class="row g-3 align-items-end mb-3">
+            <div class="col-12 col-md-4 col-lg-3 fees-form-field" *ngIf="!v2DiscountEditingId">
+              <label class="erp-label small">{{ 'fees.v2PickClassForAssignment' | translate }}</label>
+              <select class="erp-select w-100" [(ngModel)]="v2DiscountClassId" (ngModelChange)="onV2DiscountClassChange($event)">
+                <option [ngValue]="null">{{ 'fees.v2ChooseClassPlaceholder' | translate }}</option>
+                <option *ngFor="let cl of classes" [ngValue]="cl.id">{{ cl.name | schoolClassName }}</option>
+              </select>
+            </div>
+            <div class="col-12 col-md-5 col-lg-4 fees-form-field" *ngIf="!v2DiscountEditingId">
+              <label class="erp-label small">{{ 'fees.labelStudent' | translate }}</label>
+              <select class="erp-select w-100" [(ngModel)]="v2DiscountStudentId" (ngModelChange)="onV2DiscountStudentPicked($event)" [disabled]="!v2DiscountStudentsInClass.length">
+                <option [ngValue]="null">{{ 'fees.v2ChooseStudentPlaceholder' | translate }}</option>
+                <option *ngFor="let st of v2DiscountStudentsInClass" [ngValue]="st.id">{{ v2StudentOptionLabel(st) }}</option>
+              </select>
+            </div>
+            <div class="col-12 col-md-3 col-lg-2 fees-form-field">
+              <label class="erp-label small fees-field-label-spacer" aria-hidden="true">&nbsp;</label>
+              <button type="button" class="btn-outline-erp btn-sm w-100" (click)="loadV2Discounts()">{{ 'fees.refresh' | translate }}</button>
+            </div>
+          </div>
+          <div class="fees-v2-subcard" *ngIf="v2DiscountEditingId">
+            <p class="small mb-3"><span class="text-muted">{{ 'fees.v2EditingDiscountFor' | translate }}</span> <strong>{{ v2StudentDisplayName(v2DiscountForm.studentId) }}</strong></p>
+          </div>
+          <div class="fees-v2-subcard fees-assignment-panel">
+            <div class="row g-3">
+              <div class="col-12 col-md-4 col-lg-3 fees-form-field">
+                <label class="erp-label small">{{ 'fees.v2DiscountTypeLabel' | translate }}</label>
+                <select class="erp-select w-100" [(ngModel)]="v2DiscountForm.discountType">
+                  <option value="FLAT">{{ 'fees.v2DiscountFlat' | translate }}</option>
+                  <option value="PERCENTAGE">{{ 'fees.v2DiscountPercent' | translate }}</option>
+                </select>
+              </div>
+              <div class="col-12 col-md-4 col-lg-3 fees-form-field">
+                <label class="erp-label small">{{ 'fees.v2DiscountValue' | translate }}</label>
+                <input class="erp-input w-100" type="number" [(ngModel)]="v2DiscountForm.discountValue" />
+              </div>
+              <div class="col-12 col-md-4 col-lg-3 fees-form-field">
+                <label class="erp-label small">{{ 'fees.v2ComponentScope' | translate }}</label>
+                <input class="erp-input w-100" [(ngModel)]="v2DiscountForm.componentScope" />
+              </div>
+              <div class="col-12 col-md-6 fees-form-field">
+                <label class="erp-label small">{{ 'fees.v2ComponentIdsJsonPh' | translate }}</label>
+                <input class="erp-input w-100" [(ngModel)]="v2DiscountForm.applicableComponentIdsJson" />
+              </div>
+              <div class="col-12 col-md-4 col-lg-3 fees-form-field">
+                <label class="erp-label small" for="feeV2DiscFrom">{{ 'fees.v2ValidFrom' | translate }}</label>
+                <app-erp-date-picker
+                  [(ngModel)]="v2DiscountForm.validFrom"
+                  inputId="feeV2DiscFrom"
+                  placeholderI18nKey="fees.datePlaceholder"
+                />
+              </div>
+              <div class="col-12 col-md-4 col-lg-3 fees-form-field">
+                <label class="erp-label small" for="feeV2DiscTo">{{ 'fees.v2ValidToOptional' | translate }}</label>
+                <app-erp-date-picker
+                  [(ngModel)]="v2DiscountForm.validTo"
+                  inputId="feeV2DiscTo"
+                  placeholderI18nKey="fees.datePlaceholder"
+                />
+              </div>
+              <div class="col-12 fees-form-field">
+                <label class="erp-label small">{{ 'fees.v2Reason' | translate }}</label>
+                <input class="erp-input w-100" [(ngModel)]="v2DiscountForm.reason" />
+              </div>
+            </div>
+            <div class="d-flex gap-2 mt-3">
+              <button type="button" class="btn-primary-erp btn-sm" [disabled]="v2Busy || !feeV2BillingWrite" (click)="saveV2Discount()">{{ 'fees.save' | translate }}</button>
+              <button type="button" class="btn-outline-erp btn-sm" [disabled]="!feeV2BillingWrite" (click)="resetV2DiscountForm()">{{ 'fees.cancel' | translate }}</button>
+            </div>
+          </div>
+        </div>
+        <div class="erp-card">
+          <div class="fees-table-wrap">
+            <table class="erp-table">
+              <thead><tr><th>{{ 'fees.thRecordId' | translate }}</th><th>{{ 'fees.thStudent' | translate }}</th><th>{{ 'fees.v2Type' | translate }}</th><th>{{ 'fees.thAmount' | translate }}</th><th>{{ 'fees.v2ComponentScope' | translate }}</th><th>{{ 'fees.v2ValidFrom' | translate }}</th><th>{{ 'fees.thActions' | translate }}</th></tr></thead>
+              <tbody>
+                <tr *ngFor="let di of v2Discounts">
+                  <td>{{ di.id }}</td>
+                  <td>
+                    <div class="fw-semibold">{{ v2StudentDisplayName(di.studentId) }}</div>
+                    <div class="small text-muted" *ngIf="v2StudentsById.get(di.studentId)?.admissionNumber">{{ 'fees.v2Adm' | translate }} {{ v2StudentsById.get(di.studentId)?.admissionNumber }}</div>
+                  </td>
+                  <td>{{ di.discountType }}</td><td>{{ di.discountValue }}</td><td>{{ di.componentScope }}</td><td>{{ di.validFrom }}</td>
+                  <td class="fees-actions">
+                    <button type="button" class="btn-outline-erp btn-xs" [disabled]="!feeV2BillingWrite" (click)="startEditV2Discount(di)">{{ 'fees.edit' | translate }}</button>
+                    <button type="button" class="btn-outline-erp btn-xs" [disabled]="!feeV2BillingWrite" (click)="deleteV2Discount(di.id)">{{ 'fees.delete' | translate }}</button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div *ngIf="tab === 'phase3Reports' && feeV2FinanceRead" class="animate-in">
+        <div
+          *ngIf="v2Message"
+          class="alert alert-dismissible fees-banner py-2 px-3 small mb-2 d-flex align-items-start justify-content-between gap-2"
+          [class.alert-success]="v2MessageOk"
+          [class.alert-danger]="!v2MessageOk"
+          role="alert"
+        >
+          <span class="fees-banner__text flex-grow-1">{{ v2Message }}</span>
+          <button type="button" class="btn-close" [attr.aria-label]="'fees.close' | translate" (click)="clearV2Message()"></button>
+        </div>
+        <div class="erp-card mb-3">
+          <h4 class="fees-v2-panel-title">{{ 'fees.v3ReportsTitle' | translate }}</h4>
+          <p class="text-muted small fees-panel-lead mb-3">{{ 'fees.v3ReportsDesc' | translate }}</p>
+          <div class="row g-3 align-items-end">
+            <div class="col-12 col-md-3 fees-form-field">
+              <label class="erp-label small" for="feeV3ReportFrom">{{ 'fees.v3DateFrom' | translate }}</label>
+              <app-erp-date-picker [(ngModel)]="v3ReportFrom" inputId="feeV3ReportFrom" placeholderI18nKey="fees.datePlaceholder" />
+            </div>
+            <div class="col-12 col-md-3 fees-form-field">
+              <label class="erp-label small" for="feeV3ReportTo">{{ 'fees.v3DateTo' | translate }}</label>
+              <app-erp-date-picker [(ngModel)]="v3ReportTo" inputId="feeV3ReportTo" placeholderI18nKey="fees.datePlaceholder" />
+            </div>
+            <div class="col-12 col-md-3 col-lg-2 fees-form-field">
+              <label class="erp-label small fees-field-label-spacer" aria-hidden="true">&nbsp;</label>
+              <button type="button" class="btn-primary-erp btn-sm w-100" (click)="loadPhase3Reports()">{{ 'fees.refresh' | translate }}</button>
+            </div>
+          </div>
+          <div *ngIf="v3CollectionSummary" class="fees-v2-subcard mt-3">
+            <div class="row g-2">
+              <div class="col-6 col-md-4"><span class="small text-muted">{{ 'fees.v3TotalCollected' | translate }}</span><div class="fw-bold">{{ v3CollectionSummary.totalCollected }}</div></div>
+              <div class="col-6 col-md-4"><span class="small text-muted">{{ 'fees.v3PaymentCount' | translate }}</span><div class="fw-bold">{{ v3CollectionSummary.paymentCount }}</div></div>
+            </div>
+            <div class="fees-table-wrap mt-2" *ngIf="v3CollectionSummary.byPaymentMode && v3CollectionSummary.byPaymentMode.length">
+              <table class="erp-table">
+                <thead><tr><th>{{ 'fees.v2Type' | translate }}</th><th>{{ 'fees.thAmount' | translate }}</th><th>{{ 'fees.v3PaymentCount' | translate }}</th></tr></thead>
+                <tbody>
+                  <tr *ngFor="let b of v3CollectionSummary.byPaymentMode"><td>{{ b.paymentMode }}</td><td>{{ b.totalAmount }}</td><td>{{ b.paymentCount }}</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+        <div class="erp-card mb-3">
+          <h5 class="small fw-bold mb-2">{{ 'fees.v3DefaultersTitle' | translate }}</h5>
+          <div class="fees-table-wrap">
+            <table class="erp-table">
+              <thead><tr><th>{{ 'fees.thStudent' | translate }}</th><th>{{ 'fees.v2Class' | translate }}</th><th>{{ 'fees.v2Outstanding' | translate }}</th><th>{{ 'fees.v3DemandCount' | translate }}</th><th>{{ 'fees.thDueDate' | translate }}</th></tr></thead>
+              <tbody>
+                <tr *ngFor="let d of v3Defaulters">
+                  <td>
+                    <div class="fw-semibold">{{ v2StudentDisplayName(d.studentId) }}</div>
+                    <div class="small text-muted" *ngIf="v2StudentsById.get(d.studentId)?.admissionNumber">{{ 'fees.v2Adm' | translate }} {{ v2StudentsById.get(d.studentId)?.admissionNumber }}</div>
+                  </td>
+                  <td>{{ v2ClassDisplayName(d.classId) }}</td>
+                  <td>{{ d.totalOutstanding }}</td><td>{{ d.demandCount }}</td><td>{{ d.oldestDueDate }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="erp-card mb-3">
+          <h5 class="small fw-bold mb-2">{{ 'fees.v3ClassOutstandingTitle' | translate }}</h5>
+          <div class="fees-table-wrap">
+            <table class="erp-table">
+              <thead><tr><th>{{ 'fees.v2Class' | translate }}</th><th>{{ 'fees.v2Outstanding' | translate }}</th><th>{{ 'fees.v3TotalDemanded' | translate }}</th></tr></thead>
+              <tbody>
+                <tr *ngFor="let c of v3ClassOutstanding"><td>{{ v2ClassDisplayName(c.classId) }}</td><td>{{ c.totalOutstanding }}</td><td>{{ c.totalDemanded }}</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="erp-card fees-assignment-panel">
+          <h5 class="small fw-bold mb-2">{{ 'fees.v3StatementTitle' | translate }}</h5>
+          <p class="text-muted small fees-panel-lead mb-3">{{ 'fees.v3StatementLead' | translate }}</p>
+          <div class="row g-3 align-items-end">
+            <div class="col-12 col-md-4 col-lg-3 fees-form-field">
+              <label class="erp-label small">{{ 'fees.v2PickClassForAssignment' | translate }}</label>
+              <select class="erp-select w-100" [(ngModel)]="v3StatementClassId" (ngModelChange)="onV3StatementClassChange($event)">
+                <option [ngValue]="null">{{ 'fees.v2ChooseClassPlaceholder' | translate }}</option>
+                <option *ngFor="let cl of classes" [ngValue]="cl.id">{{ cl.name | schoolClassName }}</option>
+              </select>
+            </div>
+            <div class="col-12 col-md-5 col-lg-4 fees-form-field">
+              <label class="erp-label small">{{ 'fees.labelStudent' | translate }}</label>
+              <select class="erp-select w-100" [(ngModel)]="v3StatementStudentId" [disabled]="!v3StatementStudentsInClass.length">
+                <option [ngValue]="null">{{ 'fees.v2ChooseStudentPlaceholder' | translate }}</option>
+                <option *ngFor="let st of v3StatementStudentsInClass" [ngValue]="st.id">{{ v2StudentOptionLabel(st) }}</option>
+              </select>
+            </div>
+            <div class="col-12 col-md-3 col-lg-2 fees-form-field">
+              <label class="erp-label small fees-field-label-spacer" aria-hidden="true">&nbsp;</label>
+              <button type="button" class="btn-outline-erp btn-sm w-100" (click)="loadV3Statement()">{{ 'fees.refresh' | translate }}</button>
+            </div>
+          </div>
+          <div *ngIf="v3Statement" class="fees-v2-subcard mt-3">
+            <p class="small mb-2"><strong>{{ 'fees.v2RunningBalance' | translate }}:</strong> {{ v3Statement.runningBalance }}</p>
+            <div class="fees-table-wrap mb-2">
+              <div class="small fw-bold mb-1">{{ 'fees.v3OpenDemands' | translate }}</div>
+              <table class="erp-table">
+                <thead><tr><th>{{ 'fees.thRecordId' | translate }}</th><th>{{ 'fees.v2PeriodKey' | translate }}</th><th>{{ 'fees.v2Outstanding' | translate }}</th><th>{{ 'fees.thStatus' | translate }}</th></tr></thead>
+                <tbody>
+                  <tr *ngFor="let od of v3Statement.openDemands"><td>{{ od.id }}</td><td>{{ od.periodKey }}</td><td>{{ od.outstandingAmount }}</td><td>{{ od.demandStatus }}</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="fees-table-wrap">
+              <div class="small fw-bold mb-1">{{ 'fees.v3RecentLedger' | translate }}</div>
+              <table class="erp-table">
+                <thead><tr><th>{{ 'fees.v2Type' | translate }}</th><th>{{ 'fees.v2Source' | translate }}</th><th>{{ 'fees.thAmount' | translate }}</th><th>{{ 'fees.v2RunningBalance' | translate }}</th></tr></thead>
+                <tbody>
+                  <tr *ngFor="let le of v3Statement.recentLedger"><td>{{ le.entryType }}</td><td>{{ le.sourceRefCode }}</td><td>{{ le.amount }}</td><td>{{ le.runningBalance }}</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div *ngIf="tab === 'phase3Payments' && feeV2FinanceRead" class="animate-in fees-assignment-panel">
+        <div class="erp-card mb-3">
+          <h4 class="fees-v2-panel-title">{{ 'fees.v3PaymentsTitle' | translate }}</h4>
+          <p class="text-muted small fees-panel-lead mb-3">{{ 'fees.v3PaymentsDesc' | translate }}</p>
+          <div class="row g-3 align-items-end">
+            <div class="col-12 col-md-4 col-lg-3 fees-form-field">
+              <label class="erp-label small">{{ 'fees.v2PickClassForAssignment' | translate }}</label>
+              <select class="erp-select w-100" [(ngModel)]="v3PayRegClassId" (ngModelChange)="onV3PayRegClassChange($event)">
+                <option [ngValue]="null">{{ 'fees.v2ChooseClassPlaceholder' | translate }}</option>
+                <option *ngFor="let cl of classes" [ngValue]="cl.id">{{ cl.name | schoolClassName }}</option>
+              </select>
+            </div>
+            <div class="col-12 col-md-5 col-lg-4 fees-form-field">
+              <label class="erp-label small">{{ 'fees.labelStudentOptional' | translate }}</label>
+              <select class="erp-select w-100" [(ngModel)]="v3PayRegStudentId">
+                <option [ngValue]="null">{{ 'fees.v3PayRegNoStudentFilter' | translate }}</option>
+                <option *ngFor="let st of v3PayRegStudentsInClass" [ngValue]="st.id">{{ v2StudentOptionLabel(st) }}</option>
+              </select>
+              <p class="small text-muted mb-0 mt-1">{{ 'fees.v3PayRegStudentHint' | translate }}</p>
+            </div>
+            <div class="col-12 col-md-4 col-lg-3 fees-form-field">
+              <label class="erp-label small" for="feeV3PayRegFrom">{{ 'fees.v3DateFrom' | translate }}</label>
+              <app-erp-date-picker [(ngModel)]="v3PayRegFrom" inputId="feeV3PayRegFrom" placeholderI18nKey="fees.datePlaceholder" />
+            </div>
+            <div class="col-12 col-md-4 col-lg-3 fees-form-field">
+              <label class="erp-label small" for="feeV3PayRegTo">{{ 'fees.v3DateTo' | translate }}</label>
+              <app-erp-date-picker [(ngModel)]="v3PayRegTo" inputId="feeV3PayRegTo" placeholderI18nKey="fees.datePlaceholder" />
+            </div>
+            <div class="col-12 col-md-3 col-lg-2 fees-form-field">
+              <label class="erp-label small fees-field-label-spacer" aria-hidden="true">&nbsp;</label>
+              <button type="button" class="btn-primary-erp btn-sm w-100" (click)="loadPhase3PaymentRegister()">{{ 'fees.refresh' | translate }}</button>
+            </div>
+          </div>
+        </div>
+        <div class="erp-card mb-3" *ngIf="feeV2OnlineCheckout">
+          <h5 class="small fw-bold mb-2">{{ 'fees.v3RazorpayOrderTitle' | translate }}</h5>
+          <p class="text-muted small fees-panel-lead mb-3">{{ 'fees.v3RazorpayOrderDesc' | translate }}</p>
+          <div class="row g-3 align-items-end">
+            <div class="col-12 col-md-4 col-lg-3 fees-form-field">
+              <label class="erp-label small">{{ 'fees.v2PickClassForAssignment' | translate }}</label>
+              <select class="erp-select w-100" [(ngModel)]="v2AdminRzpClassId" (ngModelChange)="onV2AdminRzpClassChange($event)">
+                <option [ngValue]="null">{{ 'fees.v2ChooseClassPlaceholder' | translate }}</option>
+                <option *ngFor="let cl of classes" [ngValue]="cl.id">{{ cl.name | schoolClassName }}</option>
+              </select>
+            </div>
+            <div class="col-12 col-md-5 col-lg-4 fees-form-field">
+              <label class="erp-label small">{{ 'fees.labelStudent' | translate }}</label>
+              <select class="erp-select w-100" [(ngModel)]="v2AdminRzpStudentId" [disabled]="!v2AdminRzpStudentsInClass.length">
+                <option [ngValue]="null">{{ 'fees.v2ChooseStudentPlaceholder' | translate }}</option>
+                <option *ngFor="let st of v2AdminRzpStudentsInClass" [ngValue]="st.id">{{ v2StudentOptionLabel(st) }}</option>
+              </select>
+            </div>
+            <div class="col-12 col-md-4 col-lg-3 fees-form-field">
+              <label class="erp-label small">{{ 'fees.thAmount' | translate }}</label>
+              <input class="erp-input w-100" type="number" [(ngModel)]="v2AdminRzpAmount" />
+            </div>
+            <div class="col-12 col-md-3 col-lg-2 fees-form-field">
+              <label class="erp-label small fees-field-label-spacer" aria-hidden="true">&nbsp;</label>
+              <button type="button" class="btn-outline-erp btn-sm w-100" [disabled]="v2Busy" (click)="createAdminV2RazorpayOrder()">{{ 'fees.v3CreateRzpOrder' | translate }}</button>
+            </div>
+          </div>
+        </div>
+        <div class="erp-card">
+          <div class="fees-table-wrap">
+            <table class="erp-table">
+              <thead><tr><th>{{ 'fees.thRecordId' | translate }}</th><th>{{ 'fees.thStudent' | translate }}</th><th>{{ 'fees.v3PayNo' | translate }}</th><th>{{ 'fees.v3ReceiptNo' | translate }}</th><th>{{ 'fees.thAmount' | translate }}</th><th>{{ 'fees.v2Type' | translate }}</th><th>{{ 'fees.thStatus' | translate }}</th><th>{{ 'fees.v3PaidAt' | translate }}</th></tr></thead>
+              <tbody>
+                <tr *ngFor="let p of v3PaymentRegister">
+                  <td>{{ p.id }}</td>
+                  <td>
+                    <div class="fw-semibold">{{ v2StudentDisplayName(p.studentId) }}</div>
+                    <div class="small text-muted" *ngIf="v2StudentsById.get(p.studentId)?.admissionNumber">{{ 'fees.v2Adm' | translate }} {{ v2StudentsById.get(p.studentId)?.admissionNumber }}</div>
+                  </td>
+                  <td>{{ p.paymentNo }}</td><td>{{ p.receiptNo || '—' }}</td><td>{{ p.amount }}</td><td>{{ p.paymentMode }}</td><td>{{ p.paymentStatus }}</td><td>{{ p.paymentDate }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div *ngIf="tab === 'phase3Recon' && feeV2FinanceRead" class="animate-in">
+        <div class="erp-card mb-3">
+          <h4 class="fees-v2-panel-title">{{ 'fees.v3ReconTitle' | translate }}</h4>
+          <p class="text-muted small mb-3">{{ 'fees.v3ReconDesc' | translate }}</p>
+          <button type="button" class="btn-primary-erp btn-sm" (click)="loadLedgerReconciliation()">{{ 'fees.refresh' | translate }}</button>
+        </div>
+        <div class="erp-card" *ngIf="v3LedgerRecon as recon">
+          <p class="small text-muted mb-2">{{ 'fees.v3ReconMismatchCount' | translate }}: {{ recon.mismatchCount }}</p>
+          <div class="fees-table-wrap">
+            <table class="erp-table">
+              <thead><tr><th>{{ 'fees.thStudent' | translate }}</th><th>{{ 'fees.v3ReconDemand' | translate }}</th><th>{{ 'fees.v3ReconLedger' | translate }}</th><th>{{ 'fees.v3ReconDelta' | translate }}</th></tr></thead>
+              <tbody>
+                <tr *ngFor="let row of recon.mismatches">
+                  <td>
+                    <div class="fw-semibold">{{ v2StudentDisplayName(row.studentId) }}</div>
+                    <div class="small text-muted" *ngIf="v2StudentsById.get(row.studentId)?.admissionNumber">{{ 'fees.v2Adm' | translate }} {{ v2StudentsById.get(row.studentId)?.admissionNumber }}</div>
+                  </td>
+                  <td>{{ row.demandOutstandingTotal }}</td><td>{{ row.ledgerRunningBalance }}</td><td>{{ row.delta }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div *ngIf="tab === 'phase3Audit' && feeV2FinanceRead" class="animate-in">
+        <div class="erp-card mb-3">
+          <h4 class="fees-v2-panel-title">{{ 'fees.v3AuditTitle' | translate }}</h4>
+          <p class="text-muted small mb-3">{{ 'fees.v3AuditDesc' | translate }}</p>
+          <button type="button" class="btn-outline-erp btn-sm" (click)="loadPhase3Audit()">{{ 'fees.refresh' | translate }}</button>
+        </div>
+        <div class="erp-card">
+          <div class="fees-table-wrap">
+            <table class="erp-table">
+              <thead><tr><th>{{ 'fees.thRecordId' | translate }}</th><th>{{ 'fees.v3Action' | translate }}</th><th>{{ 'fees.v3Entity' | translate }}</th><th>{{ 'fees.v3Actor' | translate }}</th><th>{{ 'fees.v3Detail' | translate }}</th><th>{{ 'fees.v3When' | translate }}</th></tr></thead>
+              <tbody>
+                <tr *ngFor="let a of v3AuditRows">
+                  <td>{{ a.id }}</td><td>{{ a.actionCode }}</td><td>{{ a.entityType }} #{{ a.entityId }}</td><td>{{ a.actorUserId }}</td><td class="small text-break" style="max-width:220px">{{ a.detailJson }}</td><td>{{ a.createdAt }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div *ngIf="tab === 'phase4LateFees' && (feeV2FinanceRead || feeV2ConfigWrite || feeV2BillingWrite)" class="animate-in">
+        <div class="erp-card mb-3">
+          <h4 class="fees-v2-panel-title">{{ 'fees.v4LateTitle' | translate }}</h4>
+          <p class="text-muted small mb-0">{{ 'fees.v4LateDesc' | translate }}</p>
+        </div>
+        <div class="erp-card mb-3">
+          <h5 class="fw-bold mb-2">{{ 'fees.v4PoliciesTitle' | translate }}</h5>
+          <div class="row g-2 mb-3 align-items-end">
+            <div class="col-12 col-md-2" *ngIf="!v4PolicyEditingId">
+              <input class="erp-input w-100" [(ngModel)]="v4PolicyForm.policyCode" [placeholder]="'fees.v4PolicyCode' | translate" />
+            </div>
+            <div class="col-12 col-md-2" *ngIf="v4PolicyEditingId">
+              <div class="small text-muted fw-semibold">{{ v4PolicyForm.policyCode }}</div>
+            </div>
+            <div class="col-12 col-md-2">
+              <input class="erp-input w-100" [(ngModel)]="v4PolicyForm.policyName" [placeholder]="'fees.v4PolicyName' | translate" />
+            </div>
+            <div class="col-6 col-md-1">
+              <input class="erp-input w-100" type="number" min="0" [(ngModel)]="v4PolicyForm.graceDays" [placeholder]="'fees.v4GraceDays' | translate" />
+            </div>
+            <div class="col-12 col-md-2">
+              <select class="erp-select w-100" [(ngModel)]="v4PolicyForm.calculationMode">
+                <option value="FLAT">{{ 'fees.v4ModeFlat' | translate }}</option>
+                <option value="PERCENT_OF_PRINCIPAL">{{ 'fees.v4ModePercent' | translate }}</option>
+              </select>
+            </div>
+            <div class="col-6 col-md-1" *ngIf="v4PolicyForm.calculationMode === 'FLAT'">
+              <input class="erp-input w-100" type="number" min="0" step="0.01" [(ngModel)]="v4PolicyForm.flatAmount" [placeholder]="'fees.v4FlatAmount' | translate" />
+            </div>
+            <div class="col-6 col-md-1" *ngIf="v4PolicyForm.calculationMode === 'PERCENT_OF_PRINCIPAL'">
+              <input class="erp-input w-100" type="number" min="0" step="0.0001" [(ngModel)]="v4PolicyForm.ratePercent" [placeholder]="'fees.v4RatePercent' | translate" />
+            </div>
+            <div class="col-6 col-md-1">
+              <input class="erp-input w-100" type="number" min="0" step="0.01" [(ngModel)]="v4PolicyForm.maxLateAmount" [placeholder]="'fees.v4MaxLate' | translate" />
+            </div>
+            <div class="col-6 col-md-1 d-flex align-items-center">
+              <label class="small d-flex align-items-center gap-1 mb-0"><input type="checkbox" [(ngModel)]="v4PolicyForm.isActive" /> {{ 'fees.v4Active' | translate }}</label>
+            </div>
+            <div class="col-12 col-md-2 d-flex gap-1 flex-wrap">
+              <button type="button" class="btn-primary-erp btn-sm" (click)="saveV4LateFeePolicy()" [disabled]="v2Busy || !feeV2ConfigWrite">{{ 'fees.save' | translate }}</button>
+              <button type="button" class="btn-outline-erp btn-sm" *ngIf="v4PolicyEditingId" (click)="cancelEditV4LateFeePolicy()">{{ 'fees.cancel' | translate }}</button>
+            </div>
+          </div>
+          <div class="fees-table-wrap">
+            <table class="erp-table">
+              <thead>
+                <tr>
+                  <th>{{ 'fees.v2Code' | translate }}</th>
+                  <th>{{ 'fees.v2Name' | translate }}</th>
+                  <th>{{ 'fees.v4GraceDays' | translate }}</th>
+                  <th>{{ 'fees.v4CalcMode' | translate }}</th>
+                  <th>{{ 'fees.thAmount' | translate }}</th>
+                  <th>{{ 'fees.v4MaxLate' | translate }}</th>
+                  <th>{{ 'fees.thStatus' | translate }}</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let p of v4LatePolicies">
+                  <td>{{ p.policyCode }}</td>
+                  <td>{{ p.policyName }}</td>
+                  <td>{{ p.graceDays }}</td>
+                  <td>{{ p.calculationMode }}</td>
+                  <td>{{ p.calculationMode === 'FLAT' ? p.flatAmount : p.ratePercent }}</td>
+                  <td>{{ p.maxLateAmount }}</td>
+                  <td>{{ p.isActive !== false ? ('fees.v4PolicyActive' | translate) : ('fees.v4PolicyInactive' | translate) }}</td>
+                  <td class="text-end">
+                    <button type="button" class="btn-outline-erp btn-xs me-1" (click)="startEditV4LateFeePolicy(p)">{{ 'fees.edit' | translate }}</button>
+                    <button type="button" class="btn-outline-erp btn-xs" (click)="deleteV4LateFeePolicy(p.id)">{{ 'fees.delete' | translate }}</button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="erp-card">
+          <h5 class="fw-bold mb-2">{{ 'fees.v4RunsTitle' | translate }}</h5>
+          <p class="text-muted small mb-2">{{ 'fees.v4RunsDesc' | translate }}</p>
+          <div class="row g-3 mb-3 align-items-end">
+            <div class="col-12 col-md-4 col-lg-3 fees-form-field">
+              <label class="erp-label small">{{ 'fees.v4RunPolicy' | translate }}</label>
+              <select class="erp-select w-100" [(ngModel)]="v4RunForm.feeLateFeePolicyId">
+                <option [ngValue]="0">{{ 'fees.v4PickPolicy' | translate }}</option>
+                <option *ngFor="let pol of v4LatePolicies" [ngValue]="pol.id">{{ pol.policyCode }} — {{ pol.policyName }}</option>
+              </select>
+            </div>
+            <div class="col-12 col-md-4 col-lg-3 fees-form-field">
+              <label class="erp-label small" for="feeV4RunAsOf">{{ 'fees.v4AsOfDate' | translate }}</label>
+              <app-erp-date-picker [(ngModel)]="v4RunForm.asOfDate" inputId="feeV4RunAsOf" placeholderI18nKey="fees.datePlaceholder" />
+            </div>
+            <div class="col-12 col-md-4 col-lg-3 fees-form-field">
+              <label class="erp-label small">{{ 'fees.v2Idempotency' | translate }}</label>
+              <input class="erp-input w-100" [(ngModel)]="v4RunForm.idempotencyKey" [placeholder]="'fees.v2Idempotency' | translate" />
+            </div>
+            <div class="col-12 col-md-auto fees-form-field">
+              <label class="erp-label small fees-field-label-spacer" aria-hidden="true">&nbsp;</label>
+              <div class="d-flex flex-wrap gap-2">
+                <button type="button" class="btn-outline-erp btn-sm" (click)="generateV4RunIdempotencyKey()">{{ 'fees.v4GenIdem' | translate }}</button>
+                <button type="button" class="btn-primary-erp btn-sm" (click)="submitV4LateFeeRun()" [disabled]="v2Busy || !feeV2BillingWrite">{{ 'fees.v4RunSubmit' | translate }}</button>
+              </div>
+            </div>
+          </div>
+          <div class="fees-table-wrap">
+            <table class="erp-table">
+              <thead>
+                <tr>
+                  <th>{{ 'fees.thRecordId' | translate }}</th>
+                  <th>{{ 'fees.v4RunPolicy' | translate }}</th>
+                  <th>{{ 'fees.v4AsOfDate' | translate }}</th>
+                  <th>{{ 'fees.v4DemandsUpdated' | translate }}</th>
+                  <th>{{ 'fees.thStatus' | translate }}</th>
+                  <th>{{ 'fees.v2Idempotency' | translate }}</th>
+                  <th>{{ 'fees.v3When' | translate }}</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let r of v4LateRuns">
+                  <td>{{ r.id }}</td>
+                  <td>{{ r.feeLateFeePolicyId }}</td>
+                  <td>{{ r.asOfDate }}</td>
+                  <td>{{ r.demandsUpdated }}</td>
+                  <td>{{ r.status }}</td>
+                  <td class="small text-break">{{ r.idempotencyKey }}</td>
+                  <td class="small">{{ r.finishedAt || r.startedAt }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div *ngIf="tab === 'ledgerV2' && feeV2FinanceRead" class="animate-in">
+        <div class="erp-card mb-3">
+          <h4 class="mb-2">{{ 'fees.v2LedgerTitle' | translate }}</h4>
+          <p class="text-muted small mb-3">{{ 'fees.v2LedgerDesc' | translate }}</p>
+          <div class="row g-2" *ngIf="feeV2BillingWrite">
+            <div class="col-md-2"><input class="erp-input" type="number" [(ngModel)]="v2PaymentForm.studentId" [placeholder]="'fees.thStudent' | translate" /></div>
+            <div class="col-md-2"><input class="erp-input" type="number" [(ngModel)]="v2PaymentForm.amount" [placeholder]="'fees.thAmount' | translate" /></div>
+            <div class="col-md-2">
+              <select class="erp-select" [(ngModel)]="v2PaymentForm.channelType"><option value="OFFLINE">OFFLINE</option><option value="ONLINE">ONLINE</option></select>
+            </div>
+            <div class="col-md-2">
+              <select class="erp-select" [(ngModel)]="v2PaymentForm.paymentMode"><option value="CASH">CASH</option><option value="UPI">UPI</option><option value="CHEQUE">CHEQUE</option><option value="CARD">CARD</option><option value="NETBANKING">NETBANKING</option></select>
+            </div>
+            <div class="col-md-2"><input class="erp-input" [(ngModel)]="v2PaymentForm.idempotencyKey" [placeholder]="'fees.v2Idempotency' | translate" /></div>
+            <div class="col-md-2 d-flex gap-2">
+              <button type="button" class="btn-primary-erp btn-sm flex-fill" (click)="recordV2Payment()">{{ 'fees.collectConfirm' | translate }}</button>
+            </div>
+          </div>
+          <ng-container *ngIf="v2PaymentResult as pay">
+            <p class="small text-success mt-2" *ngIf="pay.receiptNo">{{ 'fees.v3LastReceipt' | translate }}: <strong>{{ pay.receiptNo }}</strong> ({{ pay.paymentNo }})</p>
+          </ng-container>
+          <div class="row g-2 mt-2">
+            <div class="col-md-3"><input class="erp-input" type="number" [(ngModel)]="v2LedgerStudentId" [placeholder]="'fees.v2LedgerStudentId' | translate" /></div>
+            <div class="col-md-2"><button type="button" class="btn-outline-erp btn-sm w-100" (click)="loadV2Ledger()">{{ 'fees.refresh' | translate }}</button></div>
+          </div>
+          <div class="fees-v2-subcard mt-3" *ngIf="feeV2RefundRequest">
+            <h5 class="small fw-bold mb-2">{{ 'fees.v3RefundTitle' | translate }}</h5>
+            <p class="text-muted small mb-2">{{ 'fees.v3RefundDesc' | translate }}</p>
+            <div class="row g-2">
+              <div class="col-12 col-md-2"><input class="erp-input w-100" type="number" [(ngModel)]="v3RefundForm.studentId" [placeholder]="'fees.v2StudentIdPh' | translate" /></div>
+              <div class="col-12 col-md-2"><input class="erp-input w-100" type="number" [(ngModel)]="v3RefundForm.amount" [placeholder]="'fees.thAmount' | translate" /></div>
+              <div class="col-12 col-md-3"><input class="erp-input w-100" [(ngModel)]="v3RefundForm.idempotencyKey" [placeholder]="'fees.v2Idempotency' | translate" /></div>
+              <div class="col-12 col-md-2"><input class="erp-input w-100" type="number" [(ngModel)]="v3RefundRelatedPaymentId" [placeholder]="'fees.v3RelatedPaymentId' | translate" /></div>
+              <div class="col-12 col-md-3"><input class="erp-input w-100" [(ngModel)]="v3RefundForm.reason" [placeholder]="'fees.v2Reason' | translate" /></div>
+              <div class="col-12 col-md-3 d-flex align-items-center"><label class="small mb-0"><input type="checkbox" [(ngModel)]="v3RefundSubmitForApproval" /> {{ 'fees.v3RefundSubmitApproval' | translate }}</label></div>
+              <div class="col-12 col-md-2 d-flex align-items-end"><button type="button" class="btn-outline-erp btn-sm w-100" [disabled]="v2Busy" (click)="recordV3Refund()">{{ 'fees.v3PostRefund' | translate }}</button></div>
+            </div>
+          </div>
+          <div class="fees-v2-subcard mt-3" *ngIf="feeV2RefundApprove">
+            <h5 class="small fw-bold mb-2">{{ 'fees.v3RefundApproveTitle' | translate }}</h5>
+            <div class="row g-2 align-items-end">
+              <div class="col-12 col-md-3"><input class="erp-input w-100" type="number" [(ngModel)]="v3RefundApproveId" [placeholder]="'fees.v3RefundIdPh' | translate" /></div>
+              <div class="col-12 col-md-3"><button type="button" class="btn-primary-erp btn-sm w-100" [disabled]="v2Busy" (click)="approveV3PendingRefund()">{{ 'fees.v3RefundApprove' | translate }}</button></div>
+            </div>
+          </div>
+        </div>
+        <div class="erp-card">
+          <div class="fees-table-wrap">
+            <table class="erp-table">
+              <thead><tr><th>{{ 'fees.thRecordId' | translate }}</th><th>{{ 'fees.v2Type' | translate }}</th><th>{{ 'fees.v2Source' | translate }}</th><th>{{ 'fees.thAmount' | translate }}</th><th>{{ 'fees.v2RunningBalance' | translate }}</th><th>{{ 'fees.thStatus' | translate }}</th></tr></thead>
+              <tbody>
+                <tr *ngFor="let l of v2LedgerRows">
+                  <td>{{ l.id }}</td><td>{{ l.entryType }}</td><td>{{ l.sourceType }}</td><td>{{ l.amount }}</td><td>{{ l.runningBalance }}</td><td>{{ l.sourceRefCode }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
     </div>
 
     <div class="modal-overlay" *ngIf="structureModal" (click)="structureModal = false">
@@ -928,7 +2141,9 @@ import { formatDateDdMmYyyy } from '../../core/utils/date-format';
           <p class="text-muted small mb-3">{{ 'fees.bulkSectionHelp' | translate }}</p>
 
           <label class="erp-label" for="bulk-due-date">{{ 'fees.bulkDueLabel' | translate }}</label>
-          <input id="bulk-due-date" class="erp-input mb-1" type="date" [(ngModel)]="bulkDueDate" />
+          <div class="mb-1">
+            <app-erp-date-picker [(ngModel)]="bulkDueDate" inputId="bulk-due-date" placeholderI18nKey="fees.datePlaceholder" />
+          </div>
           <p class="text-muted small mb-3">{{ 'fees.bulkDueHelp' | translate }}</p>
 
           <label class="d-flex align-items-start gap-2 mb-3" style="cursor: pointer;">
@@ -1102,7 +2317,22 @@ import { formatDateDdMmYyyy } from '../../core/utils/date-format';
   `
 })
 export class FeesComponent implements OnInit {
-  tab = 'structures';
+  tab:
+    | 'structures'
+    | 'payments'
+    | 'componentsV2'
+    | 'structuresV2'
+    | 'assignmentsV2'
+    | 'rulesV2'
+    | 'demandRunsV2'
+    | 'demandsV2'
+    | 'discountsV2'
+    | 'phase3Reports'
+    | 'phase3Payments'
+    | 'phase3Audit'
+    | 'phase3Recon'
+    | 'phase4LateFees'
+    | 'ledgerV2' = 'componentsV2';
   feeStructures: FeeStructure[] = [];
   paymentsPage: FeePayment[] = [];
   displayPaymentsPage: FeePayment[] = [];
@@ -1122,6 +2352,174 @@ export class FeesComponent implements OnInit {
   feeDeskOps = false;
   /** Razorpay settlement / finance profile banner — mirrors finance settings read/write envelope. */
   canManageFeeFinanceRouting = false;
+  /** Phase-1 canonical fees-v2 desk tabs. */
+  canAccessFeesV2Tabs = false;
+  /** Granular lanes — mirror backend {@code RbacSpel} (JWT may carry coarse {@code SCHOOL_FEES_*} only). */
+  feeV2FinanceRead = false;
+  feeV2ConfigWrite = false;
+  feeV2BillingWrite = false;
+  feeV2RefundRequest = false;
+  feeV2RefundApprove = false;
+  feeV2OnlineCheckout = false;
+  /** Clean rollout: use v2 tabs only in this phase. */
+  showLegacyFeesTabs = false;
+  v2Busy = false;
+  v2Message = '';
+  v2MessageOk = true;
+  v2Components: FeeV2Component[] = [];
+  v2ComponentEditingId: number | null = null;
+  v2ComponentForm: FeeV2CreateComponentRequest = {
+    code: '',
+    name: '',
+    componentType: 'RECURRING',
+    frequency: 'MONTHLY',
+    optionalComponent: false,
+    refundable: false,
+  };
+  v2Rules: FeeV2Rule[] = [];
+  v2RuleEditingId: number | null = null;
+  v2RuleForm: FeeV2CreateRuleRequest = {
+    ruleCode: '',
+    ruleName: '',
+    ruleType: 'ASSIGNMENT',
+    priorityNo: 100,
+    stopOnMatch: false,
+  };
+  v2DemandRuns: FeeV2DemandRun[] = [];
+  v2DemandRunForm: FeeV2CreateDemandRunRequest = {
+    runType: 'MONTHLY',
+    periodKey: '',
+    triggerSource: 'UI_ADMIN',
+    idempotencyKey: '',
+  };
+  v2LedgerStudentId: number | null = null;
+  v2LedgerRows: FeeV2LedgerEntry[] = [];
+  v2PaymentForm: FeeV2RecordPaymentRequest = {
+    studentId: 0,
+    amount: 0,
+    channelType: 'OFFLINE',
+    paymentMode: 'CASH',
+    idempotencyKey: '',
+  };
+  v2PaymentResult: FeeV2RecordPaymentResponse | null = null;
+  v2Structures: FeeV2Structure[] = [];
+  /** Cached students for display names and pickers (fee v2). */
+  v2StudentsById = new Map<number, Student>();
+  v2StudentDirectoryLoaded = false;
+  v2SnapshotStudentsInClass: Student[] = [];
+  v2StructureSaving = false;
+  v2StructureForm: {
+    classId: number | null;
+    structureName: string;
+    versionNo: number;
+    status: 'DRAFT' | 'ACTIVE' | 'ARCHIVED';
+    lines: { feeComponentMasterId: number; amount: number }[];
+  } = {
+    classId: null,
+    structureName: '',
+    versionNo: 1,
+    status: 'DRAFT',
+    lines: [{ feeComponentMasterId: 0, amount: 0 }],
+  };
+  v2MapsFilterStudentId: number | null = null;
+  v2FeeMaps: FeeV2StudentFeeMap[] = [];
+  v2SnapshotForm = {
+    studentId: 0,
+    classId: null as number | null,
+    feeStructureId: 0,
+    frozenVersionNo: 1,
+    assignmentSource: 'MANUAL_UI',
+    validFrom: '',
+    validTo: '',
+  };
+  v2DemandsClassId: number | null = null;
+  v2DemandsStudentsInClass: Student[] = [];
+  v2DemandsStudentId: number | null = null;
+  v2Demands: FeeV2Demand[] = [];
+  v2DiscountClassId: number | null = null;
+  v2DiscountStudentsInClass: Student[] = [];
+  v2DiscountStudentId: number | null = null;
+  v2Discounts: FeeV2Discount[] = [];
+  v2DiscountEditingId: number | null = null;
+  v2DiscountForm: FeeV2CreateDiscountRequest = {
+    studentId: 0,
+    discountType: 'FLAT',
+    discountValue: 0,
+    componentScope: 'ALL',
+    applicableComponentIdsJson: '',
+    validFrom: '',
+    validTo: '',
+    reason: '',
+  };
+  v2RuleLogicRuleId: number | null = null;
+  v2RuleLogicLoading = false;
+  v2RuleConditionDrafts: FeeV2RuleConditionLine[] = [];
+  v2RuleActionDrafts: FeeV2RuleActionLine[] = [];
+  v3CollectionSummary: FeeV2CollectionSummary | null = null;
+  v3Defaulters: FeeV2DefaulterRow[] = [];
+  v3ClassOutstanding: FeeV2ClassOutstanding[] = [];
+  v3ReportFrom = '';
+  v3ReportTo = '';
+  v3StatementClassId: number | null = null;
+  v3StatementStudentsInClass: Student[] = [];
+  v3StatementStudentId: number | null = null;
+  v3Statement: FeeV2StudentStatement | null = null;
+  v3PayRegClassId: number | null = null;
+  v3PayRegStudentsInClass: Student[] = [];
+  v3PayRegStudentId: number | null = null;
+  v3PayRegFrom = '';
+  v3PayRegTo = '';
+  v3PaymentRegister: FeeV2PaymentRegisterRow[] = [];
+  v3AuditRows: FeeV2AuditEvent[] = [];
+  v2AssignPreviewClassId: number | null = null;
+  v2AssignPreviewSectionId: number | null = null;
+  v2AssignPreviewStudentIdsCsv = '';
+  v2AssignPreviewResult: FeeAssignmentPreviewResponse | null = null;
+  v2AssignExecValidFrom = '';
+  v2AssignExecValidTo = '';
+  v2AssignExecIdem = '';
+  v2AssignExecForce = false;
+  v3LedgerRecon: FeeV2LedgerReconciliationReport | null = null;
+  v2AdminRzpClassId: number | null = null;
+  v2AdminRzpStudentsInClass: Student[] = [];
+  v2AdminRzpStudentId: number | null = null;
+  v2AdminRzpAmount: number | null = null;
+  v3RefundForm: FeeV2RecordRefundRequest = {
+    studentId: 0,
+    amount: 0,
+    idempotencyKey: '',
+    reason: '',
+  };
+  v3RefundRelatedPaymentId: number | null = null;
+  v3RefundSubmitForApproval = false;
+  v3RefundApproveId: number | null = null;
+  v4LatePolicies: FeeV2LateFeePolicy[] = [];
+  v4LateRuns: FeeV2LateFeeRun[] = [];
+  v4PolicyEditingId: number | null = null;
+  v4PolicyForm: {
+    policyCode: string;
+    policyName: string;
+    graceDays: number;
+    calculationMode: 'FLAT' | 'PERCENT_OF_PRINCIPAL';
+    flatAmount: number | null;
+    ratePercent: number | null;
+    maxLateAmount: number | null;
+    isActive: boolean;
+  } = {
+    policyCode: '',
+    policyName: '',
+    graceDays: 0,
+    calculationMode: 'FLAT',
+    flatAmount: null,
+    ratePercent: null,
+    maxLateAmount: null,
+    isActive: true,
+  };
+  v4RunForm: { feeLateFeePolicyId: number; asOfDate: string; idempotencyKey: string } = {
+    feeLateFeePolicyId: 0,
+    asOfDate: '',
+    idempotencyKey: '',
+  };
   refreshing = false;
   structureModal = false;
   editingStructureId: number | null = null;
@@ -1186,6 +2584,7 @@ export class FeesComponent implements OnInit {
   constructor(
     private feeService: FeeService,
     private academicService: AcademicService,
+    private studentService: StudentService,
     private auth: AuthService,
     private router: Router,
     private confirmDialog: ConfirmDialogService,
@@ -1257,12 +2656,29 @@ export class FeesComponent implements OnInit {
 
     this.feeDeskOps = this.uiAccess.hasSchoolFeeOfficeDesk();
     this.canManageFeeFinanceRouting = this.uiAccess.hasSchoolSettingsFinanceAccess();
+    this.canAccessFeesV2Tabs = this.uiAccess.hasSchoolFeeOfficeDesk();
+    this.feeV2FinanceRead = this.uiAccess.hasFeeFinanceRead();
+    this.feeV2ConfigWrite = this.uiAccess.hasFeeConfigWrite();
+    this.feeV2BillingWrite = this.uiAccess.hasFeeBillingWrite();
+    this.feeV2RefundRequest = this.uiAccess.hasFeeRefundRequest();
+    this.feeV2RefundApprove = this.uiAccess.hasFeeRefundApprove();
+    this.feeV2OnlineCheckout = this.uiAccess.hasFeeOnlineCheckout();
+    if (this.canAccessFeesV2Tabs && this.feeV2FinanceRead && !this.feeV2ConfigWrite) {
+      this.tab = 'phase3Reports';
+      this.loadPhase3Reports();
+    }
     this.academicService.getClasses().subscribe(c => (this.classes = c || []));
     this.academicService.getAcademicYears().subscribe(y => (this.academicYears = y || []));
-    this.loadStructures();
-    this.loadPaymentsPage();
-    this.loadCollectionSummary();
+    if (this.showLegacyFeesTabs) {
+      this.loadStructures();
+      this.loadPaymentsPage();
+      this.loadCollectionSummary();
+    }
+    this.loadV2HomeData();
     this.refreshFeeFinanceBanner();
+    if (this.canAccessFeesV2Tabs) {
+      this.loadV2StudentDirectory();
+    }
   }
 
   /** Deep link to Settings → Finance & payments → Fee settlement (Razorpay Route). */
@@ -1305,6 +2721,1141 @@ export class FeesComponent implements OnInit {
       error: () => {
         this.refreshing = false;
       }
+    });
+  }
+
+  private loadV2HomeData(): void {
+    if (!this.canAccessFeesV2Tabs) {
+      return;
+    }
+    if (this.feeV2ConfigWrite) {
+      this.loadV2Components();
+      this.loadV2Rules();
+      this.loadV2Structures();
+    }
+    if (this.feeV2FinanceRead) {
+      this.loadV2DemandRuns();
+    }
+  }
+
+  onSelectV2Tab(
+    next: 'structuresV2' | 'assignmentsV2' | 'demandsV2' | 'discountsV2'
+  ): void {
+    this.tab = next;
+    if (next === 'assignmentsV2') {
+      this.loadV2FeeMaps();
+      this.loadV2Structures();
+    }
+  }
+
+  loadV2Structures(): void {
+    if (!this.canAccessFeesV2Tabs) {
+      return;
+    }
+    this.feeService.getV2Structures().subscribe({
+      next: rows => (this.v2Structures = rows || []),
+      error: () => this.setV2Message(this.translate.instant('fees.v2LoadFailed'), false),
+    });
+  }
+
+  addV2StructureLine(): void {
+    this.v2StructureForm.lines.push({ feeComponentMasterId: 0, amount: 0 });
+  }
+
+  removeV2StructureLine(index: number): void {
+    if (this.v2StructureForm.lines.length > 1) {
+      this.v2StructureForm.lines.splice(index, 1);
+    }
+  }
+
+  resetV2StructureForm(): void {
+    this.v2StructureForm = {
+      classId: null,
+      structureName: '',
+      versionNo: 1,
+      status: 'DRAFT',
+      lines: [{ feeComponentMasterId: 0, amount: 0 }],
+    };
+  }
+
+  saveV2Structure(): void {
+    if (this.v2StructureForm.classId == null || !this.v2StructureForm.structureName.trim()) {
+      this.setV2Message(this.translate.instant('fees.v2ValidationRequired'), false);
+      return;
+    }
+    const lines = this.v2StructureForm.lines.filter(l => l.feeComponentMasterId > 0 && Number(l.amount) > 0);
+    if (!lines.length) {
+      this.setV2Message(this.translate.instant('fees.v2StructureLinesInvalid'), false);
+      return;
+    }
+    this.v2StructureSaving = true;
+    this.feeService
+      .createV2Structure({
+        classId: Number(this.v2StructureForm.classId),
+        structureName: this.v2StructureForm.structureName.trim(),
+        versionNo: Number(this.v2StructureForm.versionNo || 1),
+        status: this.v2StructureForm.status,
+        components: lines.map(l => ({
+          feeComponentMasterId: l.feeComponentMasterId,
+          amount: Number(l.amount),
+        })),
+      })
+      .subscribe({
+        next: () => {
+          this.v2StructureSaving = false;
+          this.resetV2StructureForm();
+          this.loadV2Structures();
+          this.setV2Message(this.translate.instant('fees.v2Saved'), true);
+        },
+        error: (e: Error) => {
+          this.v2StructureSaving = false;
+          this.setV2Message(e?.message || this.translate.instant('fees.v2SaveFailed'), false);
+        },
+      });
+  }
+
+  loadV2FeeMaps(): void {
+    this.feeService.getV2StudentFeeMaps(this.v2MapsFilterStudentId ?? undefined).subscribe({
+      next: rows => (this.v2FeeMaps = rows || []),
+      error: () => this.setV2Message(this.translate.instant('fees.v2LoadFailed'), false),
+    });
+  }
+
+  private loadV2StudentDirectory(): void {
+    if (this.v2StudentDirectoryLoaded) return;
+    this.studentService.getStudents().subscribe({
+      next: students => {
+        this.v2StudentsById.clear();
+        for (const s of students || []) {
+          this.v2StudentsById.set(s.id, s);
+        }
+        this.v2StudentDirectoryLoaded = true;
+        this.cdr.markForCheck();
+      },
+      error: () => this.cdr.markForCheck(),
+    });
+  }
+
+  private replenishClassRoster(classId: number | null, sink: (rows: Student[]) => void): void {
+    if (classId == null || classId <= 0) {
+      sink([]);
+      this.cdr.markForCheck();
+      return;
+    }
+    this.studentService.getStudentsByClass(classId).subscribe({
+      next: students => {
+        sink(this.sortActiveStudentsForPicker(students));
+        this.cdr.markForCheck();
+      },
+      error: () => {
+        sink([]);
+        this.cdr.markForCheck();
+      },
+    });
+  }
+
+  private sortActiveStudentsForPicker(students: Student[] | null | undefined): Student[] {
+    const rows = (students || []).filter(s => s.status === 'active');
+    return rows.sort((a, b) => {
+      const an = `${a.firstName} ${a.lastName}`.trim().toLowerCase();
+      const bn = `${b.firstName} ${b.lastName}`.trim().toLowerCase();
+      if (an !== bn) return an < bn ? -1 : 1;
+      return a.id - b.id;
+    });
+  }
+
+  get v2StructuresForSnapshotClass(): FeeV2Structure[] {
+    const cid = this.v2SnapshotForm.classId;
+    if (cid == null || cid <= 0) return [];
+    return this.v2Structures
+      .filter(s => s.classId === cid && s.status !== 'ARCHIVED')
+      .sort((a, b) => a.structureName.localeCompare(b.structureName) || a.versionNo - b.versionNo);
+  }
+
+  get v2AssignPreviewSections(): Section[] {
+    const cid = this.v2AssignPreviewClassId;
+    if (cid == null || cid <= 0) return [];
+    const c = this.classes.find(cl => cl.id === cid);
+    return (c?.sections || []).filter(sec => sec.isActive !== false).sort((a, b) => a.name.localeCompare(b.name));
+  }
+
+  get v2StudentsSortedForPicker(): Student[] {
+    return [...this.v2StudentsById.values()].sort((a, b) => {
+      const an = `${a.firstName} ${a.lastName}`.trim().toLowerCase();
+      const bn = `${b.firstName} ${b.lastName}`.trim().toLowerCase();
+      if (an !== bn) return an < bn ? -1 : 1;
+      return a.id - b.id;
+    });
+  }
+
+  get v2SnapshotFrozenVersionLocked(): boolean {
+    const sid = Number(this.v2SnapshotForm.feeStructureId || 0);
+    if (!sid) return false;
+    return this.v2StructuresForSnapshotClass.some(s => s.id === sid);
+  }
+
+  onV2SnapshotClassChange(classId: number | null): void {
+    this.v2SnapshotForm.classId = classId;
+    this.v2SnapshotForm.studentId = 0;
+    this.v2SnapshotForm.feeStructureId = 0;
+    this.v2SnapshotForm.frozenVersionNo = 1;
+    if (classId == null || classId <= 0) {
+      this.v2SnapshotStudentsInClass = [];
+      this.cdr.markForCheck();
+      return;
+    }
+    this.replenishClassRoster(classId, rows => (this.v2SnapshotStudentsInClass = rows));
+  }
+
+  onV2SnapshotPlanChange(structureId: number): void {
+    this.v2SnapshotForm.feeStructureId = structureId;
+    const s =
+      this.v2StructuresForSnapshotClass.find(x => x.id === structureId) || this.v2Structures.find(x => x.id === structureId);
+    this.v2SnapshotForm.frozenVersionNo = s ? s.versionNo : 1;
+  }
+
+  onV2SnapshotManualStructureIdChange(): void {
+    const sid = Number(this.v2SnapshotForm.feeStructureId || 0);
+    const s = this.v2Structures.find(x => x.id === sid);
+    if (s) this.v2SnapshotForm.frozenVersionNo = s.versionNo;
+  }
+
+  onV2AssignPreviewClassChange(): void {
+    this.v2AssignPreviewSectionId = null;
+  }
+
+  v2StudentOptionLabel(s: Student): string {
+    const name = `${s.firstName || ''} ${s.lastName || ''}`.trim();
+    const roll = s.rollNumber?.trim();
+    const adm = s.admissionNumber?.trim();
+    const base = name || this.translate.instant('fees.v2StudentUnnamed');
+    const extra = [roll ? this.translate.instant('fees.v2RollShort', { r: roll }) : '', adm ? this.translate.instant('fees.v2AdmShort', { a: adm }) : '']
+      .filter(Boolean)
+      .join(' · ');
+    return extra ? `${base} · ${extra}` : base;
+  }
+
+  v2StudentDisplayName(studentId: number): string {
+    const s = this.v2StudentsById.get(studentId);
+    if (!s) return this.translate.instant('fees.v2StudentIdFallback', { id: studentId });
+    const name = `${s.firstName || ''} ${s.lastName || ''}`.trim();
+    return name || this.translate.instant('fees.v2StudentIdFallback', { id: studentId });
+  }
+
+  v2ClassDisplayName(classId: number | null | undefined): string {
+    if (classId == null) return '—';
+    const c = this.classes.find(cl => cl.id === classId);
+    if (!c) return String(classId);
+    return formatSchoolClassName(c.name, this.translate) || c.name;
+  }
+
+  v2StructureDisplay(id?: number | null, ver?: number | null): string {
+    if (id == null || id <= 0) return this.translate.instant('fees.v2NoPlanYet');
+    const s = this.v2Structures.find(x => x.id === id);
+    const v = ver ?? s?.versionNo;
+    if (s) return `${s.structureName} (v${v ?? s.versionNo})`;
+    return this.translate.instant('fees.v2PlanIdShort', { id, v: v ?? '?' });
+  }
+
+  v2FeeMapPlanName(feeStructureId: number): string {
+    const s = this.v2Structures.find(x => x.id === feeStructureId);
+    if (s) return s.structureName;
+    return this.translate.instant('fees.v2PlanIdOnly', { id: feeStructureId });
+  }
+
+  v2WouldChangeLabel(v: boolean | undefined): string {
+    return v ? this.translate.instant('fees.labelYesChange') : this.translate.instant('fees.labelNoChange');
+  }
+
+  onV2DemandsClassChange(classId: number | null): void {
+    this.v2DemandsClassId = classId;
+    this.v2DemandsStudentId = null;
+    this.replenishClassRoster(classId, rows => (this.v2DemandsStudentsInClass = rows));
+  }
+
+  onV2DiscountClassChange(classId: number | null): void {
+    this.v2DiscountClassId = classId;
+    if (!this.v2DiscountEditingId) {
+      this.v2DiscountStudentId = null;
+      this.v2DiscountForm.studentId = 0;
+    }
+    this.replenishClassRoster(classId, rows => (this.v2DiscountStudentsInClass = rows));
+  }
+
+  onV2DiscountStudentPicked(id: number | null): void {
+    const sid = id != null && id > 0 ? id : 0;
+    this.v2DiscountStudentId = sid || null;
+    if (!this.v2DiscountEditingId) {
+      this.v2DiscountForm.studentId = sid;
+    }
+  }
+
+  onV3StatementClassChange(classId: number | null): void {
+    this.v3StatementClassId = classId;
+    this.v3StatementStudentId = null;
+    this.replenishClassRoster(classId, rows => (this.v3StatementStudentsInClass = rows));
+  }
+
+  onV3PayRegClassChange(classId: number | null): void {
+    this.v3PayRegClassId = classId;
+    this.v3PayRegStudentId = null;
+    this.replenishClassRoster(classId, rows => (this.v3PayRegStudentsInClass = rows));
+  }
+
+  onV2AdminRzpClassChange(classId: number | null): void {
+    this.v2AdminRzpClassId = classId;
+    this.v2AdminRzpStudentId = null;
+    this.replenishClassRoster(classId, rows => (this.v2AdminRzpStudentsInClass = rows));
+  }
+
+  saveV2Snapshot(): void {
+    const studentId = Number(this.v2SnapshotForm.studentId || 0);
+    const classId = Number(this.v2SnapshotForm.classId ?? 0);
+    const feeStructureId = Number(this.v2SnapshotForm.feeStructureId || 0);
+    const frozenVersionNo = Number(this.v2SnapshotForm.frozenVersionNo || 1);
+    if (studentId <= 0 || classId <= 0 || feeStructureId <= 0 || !this.v2SnapshotForm.validFrom) {
+      this.setV2Message(this.translate.instant('fees.v2ValidationRequired'), false);
+      return;
+    }
+    const payload = {
+      studentId,
+      classId,
+      feeStructureId,
+      frozenVersionNo,
+      assignmentSource: (this.v2SnapshotForm.assignmentSource || 'MANUAL_UI').trim(),
+      validFrom: this.v2SnapshotForm.validFrom,
+      validTo: this.v2SnapshotForm.validTo?.trim() || undefined,
+    };
+    this.feeService.createV2StudentFeeMapSnapshot(payload).subscribe({
+      next: () => {
+        this.loadV2FeeMaps();
+        this.setV2Message(this.translate.instant('fees.v2Saved'), true);
+      },
+      error: (e: Error) => this.setV2Message(e?.message || this.translate.instant('fees.v2SaveFailed'), false),
+    });
+  }
+
+  loadV2Demands(): void {
+    const studentId = Number(this.v2DemandsStudentId || 0);
+    if (studentId <= 0) {
+      this.setV2Message(this.translate.instant('fees.v2ValidationRequired'), false);
+      return;
+    }
+    this.feeService.getV2StudentDemands(studentId).subscribe({
+      next: rows => (this.v2Demands = rows || []),
+      error: (e: Error) => this.setV2Message(e?.message || this.translate.instant('fees.v2LoadFailed'), false),
+    });
+  }
+
+  loadV2Discounts(): void {
+    const studentId = Number(this.v2DiscountStudentId || 0);
+    if (studentId <= 0) {
+      this.setV2Message(this.translate.instant('fees.v2ValidationRequired'), false);
+      return;
+    }
+    this.feeService.getV2DiscountsForStudent(studentId).subscribe({
+      next: rows => (this.v2Discounts = rows || []),
+      error: () => this.setV2Message(this.translate.instant('fees.v2LoadFailed'), false),
+    });
+  }
+
+  resetV2DiscountForm(): void {
+    this.v2DiscountEditingId = null;
+    this.v2DiscountForm = {
+      studentId: Number(this.v2DiscountStudentId || 0) || 0,
+      discountType: 'FLAT',
+      discountValue: 0,
+      componentScope: 'ALL',
+      applicableComponentIdsJson: '',
+      validFrom: '',
+      validTo: '',
+      reason: '',
+    };
+  }
+
+  startEditV2Discount(row: FeeV2Discount): void {
+    this.v2DiscountEditingId = row.id;
+    this.v2DiscountStudentId = row.studentId;
+    const st = this.v2StudentsById.get(row.studentId);
+    this.v2DiscountClassId = st?.classId ?? null;
+    if (this.v2DiscountClassId != null) {
+      this.replenishClassRoster(this.v2DiscountClassId, rows => (this.v2DiscountStudentsInClass = rows));
+    } else {
+      this.v2DiscountStudentsInClass = [];
+    }
+    this.v2DiscountForm = {
+      studentId: row.studentId,
+      discountType: row.discountType,
+      discountValue: row.discountValue,
+      componentScope: row.componentScope || 'ALL',
+      applicableComponentIdsJson: row.applicableComponentIdsJson || '',
+      validFrom: (row.validFrom || '').slice(0, 10),
+      validTo: row.validTo ? row.validTo.slice(0, 10) : '',
+      reason: row.reason || '',
+    };
+  }
+
+  saveV2Discount(): void {
+    const studentId = Number(this.v2DiscountForm.studentId || 0);
+    if (studentId <= 0 || !this.v2DiscountForm.validFrom) {
+      this.setV2Message(this.translate.instant('fees.v2ValidationRequired'), false);
+      return;
+    }
+    this.v2Busy = true;
+    const base = {
+      discountType: this.v2DiscountForm.discountType,
+      discountValue: Number(this.v2DiscountForm.discountValue || 0),
+      componentScope: (this.v2DiscountForm.componentScope || 'ALL').trim(),
+      applicableComponentIdsJson: this.v2DiscountForm.applicableComponentIdsJson?.trim() || undefined,
+      validFrom: this.v2DiscountForm.validFrom,
+      validTo: this.v2DiscountForm.validTo?.trim() || undefined,
+      reason: this.v2DiscountForm.reason?.trim() || undefined,
+    };
+    const req$ = this.v2DiscountEditingId
+      ? this.feeService.updateV2Discount(this.v2DiscountEditingId, base)
+      : this.feeService.createV2Discount({ ...base, studentId });
+    req$.subscribe({
+      next: () => {
+        this.v2Busy = false;
+        this.resetV2DiscountForm();
+        this.loadV2Discounts();
+        this.setV2Message(this.translate.instant('fees.v2Saved'), true);
+      },
+      error: (e: Error) => {
+        this.v2Busy = false;
+        this.setV2Message(e?.message || this.translate.instant('fees.v2SaveFailed'), false);
+      },
+    });
+  }
+
+  deleteV2Discount(id: number): void {
+    this.feeService.deleteV2Discount(id).subscribe({
+      next: () => {
+        this.loadV2Discounts();
+        this.setV2Message(this.translate.instant('fees.v2Deleted'), true);
+      },
+      error: (e: Error) => this.setV2Message(e?.message || this.translate.instant('fees.v2DeleteFailed'), false),
+    });
+  }
+
+  openV2RuleLogic(rule: FeeV2Rule): void {
+    this.v2RuleLogicRuleId = rule.id;
+    this.v2RuleLogicLoading = true;
+    this.v2RuleConditionDrafts = [];
+    this.v2RuleActionDrafts = [];
+    this.feeService.getV2RuleDefinition(rule.id).subscribe({
+      next: def => {
+        this.v2RuleLogicLoading = false;
+        this.v2RuleConditionDrafts = (def.conditions || []).map(c => ({
+          fieldName: c.fieldName,
+          operator: c.operator,
+          valueType: c.valueType,
+          valueText: c.valueText,
+          valueNumber: c.valueNumber,
+          valueJson: c.valueJson,
+          logicalJoin: c.logicalJoin || 'AND',
+        }));
+        this.v2RuleActionDrafts = (def.actions || []).map(a => ({
+          actionType: a.actionType,
+          targetScope: a.targetScope,
+          valueType: a.valueType,
+          valueNumber: a.valueNumber,
+          valueText: a.valueText,
+          valueJson: a.valueJson,
+        }));
+        if (!this.v2RuleConditionDrafts.length) {
+          this.addV2RuleConditionDraft();
+        }
+        if (!this.v2RuleActionDrafts.length) {
+          this.addV2RuleActionDraft();
+        }
+      },
+      error: (e: Error) => {
+        this.v2RuleLogicLoading = false;
+        this.setV2Message(e?.message || this.translate.instant('fees.v2LoadFailed'), false);
+      },
+    });
+  }
+
+  closeV2RuleLogic(): void {
+    this.v2RuleLogicRuleId = null;
+    this.v2RuleConditionDrafts = [];
+    this.v2RuleActionDrafts = [];
+  }
+
+  addV2RuleConditionDraft(): void {
+    this.v2RuleConditionDrafts.push({
+      fieldName: 'classId',
+      operator: 'EQ',
+      valueType: 'NUMBER',
+      valueText: '',
+      logicalJoin: 'AND',
+    });
+  }
+
+  removeV2RuleConditionDraft(index: number): void {
+    this.v2RuleConditionDrafts.splice(index, 1);
+  }
+
+  addV2RuleActionDraft(): void {
+    this.v2RuleActionDrafts.push({
+      actionType: 'ASSIGN_STRUCTURE',
+      targetScope: 'DEFAULT',
+      valueType: 'TEXT',
+      valueText: '',
+    });
+  }
+
+  removeV2RuleActionDraft(index: number): void {
+    this.v2RuleActionDrafts.splice(index, 1);
+  }
+
+  saveV2RuleDefinition(): void {
+    if (!this.v2RuleLogicRuleId) {
+      return;
+    }
+    this.v2Busy = true;
+    this.feeService
+      .replaceV2RuleDefinition(this.v2RuleLogicRuleId, {
+        conditions: this.v2RuleConditionDrafts.filter(c => c.fieldName?.trim() && c.operator?.trim() && c.valueType?.trim()),
+        actions: this.v2RuleActionDrafts.filter(a => a.actionType?.trim()),
+      })
+      .subscribe({
+        next: () => {
+          this.v2Busy = false;
+          this.setV2Message(this.translate.instant('fees.v2Saved'), true);
+        },
+        error: (e: Error) => {
+          this.v2Busy = false;
+          this.setV2Message(e?.message || this.translate.instant('fees.v2SaveFailed'), false);
+        },
+      });
+  }
+
+  selectPhase3Tab(next: 'phase3Reports' | 'phase3Payments' | 'phase3Audit'): void {
+    this.tab = next;
+    if (next === 'phase3Reports') {
+      this.loadPhase3Reports();
+    } else if (next === 'phase3Payments') {
+      this.loadPhase3PaymentRegister();
+    } else {
+      this.loadPhase3Audit();
+    }
+  }
+
+  selectPhase3ReconTab(): void {
+    this.tab = 'phase3Recon';
+    this.loadLedgerReconciliation();
+  }
+
+  loadLedgerReconciliation(): void {
+    this.feeService.getV2LedgerReconciliation().subscribe({
+      next: r => (this.v3LedgerRecon = r),
+      error: (e: Error) => this.setV2Message(e?.message || this.translate.instant('fees.v2LoadFailed'), false),
+    });
+  }
+
+  runV2AssignmentPreview(): void {
+    const ids = this.v2AssignPreviewStudentIdsCsv
+      .split(/[\s,]+/)
+      .map(s => Number(s.trim()))
+      .filter(n => n > 0);
+    const body: {
+      classId?: number;
+      sectionId?: number;
+      studentIds?: number[];
+    } = {};
+    if (ids.length) {
+      body.studentIds = ids;
+    } else {
+      if (this.v2AssignPreviewClassId != null && this.v2AssignPreviewClassId > 0) {
+        body.classId = this.v2AssignPreviewClassId;
+      }
+      if (this.v2AssignPreviewSectionId != null && this.v2AssignPreviewSectionId > 0) {
+        body.sectionId = this.v2AssignPreviewSectionId;
+      }
+    }
+    if (!body.studentIds?.length && body.classId == null) {
+      this.setV2Message(this.translate.instant('fees.v2ValidationRequired'), false);
+      return;
+    }
+    this.v2Busy = true;
+    this.feeService.previewV2FeeAssignments(body).subscribe({
+      next: r => {
+        this.v2Busy = false;
+        this.v2AssignPreviewResult = r;
+        this.cdr.markForCheck();
+      },
+      error: (e: Error) => {
+        this.v2Busy = false;
+        this.setV2Message(e?.message || this.translate.instant('fees.v2LoadFailed'), false);
+      },
+    });
+  }
+
+  runV2AssignmentExecute(): void {
+    if (!this.v2AssignExecValidFrom?.trim() || !this.v2AssignExecIdem?.trim()) {
+      this.setV2Message(this.translate.instant('fees.v2ValidationRequired'), false);
+      return;
+    }
+    const ids = this.v2AssignPreviewStudentIdsCsv
+      .split(/[\s,]+/)
+      .map(s => Number(s.trim()))
+      .filter(n => n > 0);
+    const body: FeeAssignmentExecuteRequest = {
+      validFrom: this.v2AssignExecValidFrom.trim(),
+      validTo: this.v2AssignExecValidTo?.trim() || undefined,
+      idempotencyKey: this.v2AssignExecIdem.trim(),
+      forceSnapshot: this.v2AssignExecForce,
+      assignmentSource: 'RULE_ENGINE',
+    };
+    if (ids.length) {
+      body.studentIds = ids;
+    } else {
+      if (this.v2AssignPreviewClassId != null && this.v2AssignPreviewClassId > 0) {
+        body.classId = this.v2AssignPreviewClassId;
+      }
+      if (this.v2AssignPreviewSectionId != null && this.v2AssignPreviewSectionId > 0) {
+        body.sectionId = this.v2AssignPreviewSectionId;
+      }
+    }
+    this.v2Busy = true;
+    this.feeService.executeV2FeeAssignments(body).subscribe({
+      next: () => {
+        this.v2Busy = false;
+        this.setV2Message(this.translate.instant('fees.v2Saved'), true);
+        this.loadV2FeeMaps();
+      },
+      error: (e: Error) => {
+        this.v2Busy = false;
+        this.setV2Message(e?.message || this.translate.instant('fees.v2SaveFailed'), false);
+      },
+    });
+  }
+
+  createAdminV2RazorpayOrder(): void {
+    const sid = Number(this.v2AdminRzpStudentId || 0);
+    const amt = Number(this.v2AdminRzpAmount || 0);
+    if (sid <= 0 || amt <= 0) {
+      this.setV2Message(this.translate.instant('fees.v2ValidationRequired'), false);
+      return;
+    }
+    this.v2Busy = true;
+    this.feeService.createV2RazorpayOrder({ studentId: sid, amount: amt }).subscribe({
+      next: r => {
+        this.v2Busy = false;
+        this.setV2Message(
+          this.translate.instant('fees.v3RzpOrderCreated', { orderId: r.orderId || '' }),
+          true
+        );
+      },
+      error: (e: Error) => {
+        this.v2Busy = false;
+        this.setV2Message(e?.message || this.translate.instant('fees.v2SaveFailed'), false);
+      },
+    });
+  }
+
+  approveV3PendingRefund(): void {
+    const rid = Number(this.v3RefundApproveId || 0);
+    if (rid <= 0) {
+      this.setV2Message(this.translate.instant('fees.v2ValidationRequired'), false);
+      return;
+    }
+    this.v2Busy = true;
+    this.feeService.approveV2Refund(rid).subscribe({
+      next: () => {
+        this.v2Busy = false;
+        this.setV2Message(this.translate.instant('fees.v2Saved'), true);
+      },
+      error: (e: Error) => {
+        this.v2Busy = false;
+        this.setV2Message(e?.message || this.translate.instant('fees.v2SaveFailed'), false);
+      },
+    });
+  }
+
+  loadPhase3Reports(): void {
+    const from = this.v3ReportFrom?.trim() || undefined;
+    const to = this.v3ReportTo?.trim() || undefined;
+    this.feeService.getV2CollectionSummary(from, to).subscribe({
+      next: s => (this.v3CollectionSummary = s),
+      error: () => this.setV2Message(this.translate.instant('fees.v2LoadFailed'), false),
+    });
+    this.feeService.getV2Defaulters().subscribe({
+      next: rows => (this.v3Defaulters = rows || []),
+      error: () => this.setV2Message(this.translate.instant('fees.v2LoadFailed'), false),
+    });
+    this.feeService.getV2OutstandingByClass().subscribe({
+      next: rows => (this.v3ClassOutstanding = rows || []),
+      error: () => this.setV2Message(this.translate.instant('fees.v2LoadFailed'), false),
+    });
+  }
+
+  loadV3Statement(): void {
+    const sid = Number(this.v3StatementStudentId || 0);
+    if (sid <= 0) {
+      this.setV2Message(this.translate.instant('fees.v2ValidationRequired'), false);
+      return;
+    }
+    this.feeService.getV2StudentStatement(sid).subscribe({
+      next: s => (this.v3Statement = s),
+      error: (e: Error) => this.setV2Message(e?.message || this.translate.instant('fees.v2LoadFailed'), false),
+    });
+  }
+
+  loadPhase3PaymentRegister(): void {
+    const sid = this.v3PayRegStudentId != null && this.v3PayRegStudentId > 0 ? this.v3PayRegStudentId : undefined;
+    const from = this.v3PayRegFrom?.trim() || undefined;
+    const to = this.v3PayRegTo?.trim() || undefined;
+    this.feeService.getV2PaymentRegister({ studentId: sid, from, to }).subscribe({
+      next: rows => (this.v3PaymentRegister = rows || []),
+      error: () => this.setV2Message(this.translate.instant('fees.v2LoadFailed'), false),
+    });
+  }
+
+  loadPhase3Audit(): void {
+    this.feeService.getV2AuditEvents().subscribe({
+      next: rows => (this.v3AuditRows = rows || []),
+      error: () => this.setV2Message(this.translate.instant('fees.v2LoadFailed'), false),
+    });
+  }
+
+  selectPhase4LateFeeTab(): void {
+    this.tab = 'phase4LateFees';
+    if (!this.v4RunForm.asOfDate) {
+      this.v4RunForm.asOfDate = this.localIsoDate(new Date());
+    }
+    this.loadPhase4LateFeeData();
+  }
+
+  private localIsoDate(d: Date): string {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  }
+
+  loadPhase4LateFeeData(): void {
+    this.feeService.getV2LateFeePolicies().subscribe({
+      next: rows => (this.v4LatePolicies = rows || []),
+      error: () => this.setV2Message(this.translate.instant('fees.v2LoadFailed'), false),
+    });
+    this.feeService.getV2LateFeeRuns().subscribe({
+      next: rows => (this.v4LateRuns = rows || []),
+      error: () => this.setV2Message(this.translate.instant('fees.v2LoadFailed'), false),
+    });
+  }
+
+  resetV4PolicyForm(): void {
+    this.v4PolicyEditingId = null;
+    this.v4PolicyForm = {
+      policyCode: '',
+      policyName: '',
+      graceDays: 0,
+      calculationMode: 'FLAT',
+      flatAmount: null,
+      ratePercent: null,
+      maxLateAmount: null,
+      isActive: true,
+    };
+  }
+
+  startEditV4LateFeePolicy(item: FeeV2LateFeePolicy): void {
+    this.v4PolicyEditingId = item.id;
+    this.v4PolicyForm = {
+      policyCode: item.policyCode,
+      policyName: item.policyName,
+      graceDays: item.graceDays,
+      calculationMode: item.calculationMode,
+      flatAmount: item.flatAmount ?? null,
+      ratePercent: item.ratePercent ?? null,
+      maxLateAmount: item.maxLateAmount ?? null,
+      isActive: item.isActive !== false,
+    };
+  }
+
+  cancelEditV4LateFeePolicy(): void {
+    this.resetV4PolicyForm();
+  }
+
+  saveV4LateFeePolicy(): void {
+    const name = this.v4PolicyForm.policyName?.trim();
+    if (!name) {
+      this.setV2Message(this.translate.instant('fees.v2ValidationRequired'), false);
+      return;
+    }
+    if (!this.v4PolicyEditingId && !this.v4PolicyForm.policyCode?.trim()) {
+      this.setV2Message(this.translate.instant('fees.v2ValidationRequired'), false);
+      return;
+    }
+    if (this.v4PolicyForm.calculationMode === 'FLAT') {
+      const flat = Number(this.v4PolicyForm.flatAmount ?? 0);
+      if (flat <= 0) {
+        this.setV2Message(this.translate.instant('fees.v2ValidationRequired'), false);
+        return;
+      }
+    } else {
+      const rate = Number(this.v4PolicyForm.ratePercent ?? 0);
+      if (rate <= 0) {
+        this.setV2Message(this.translate.instant('fees.v2ValidationRequired'), false);
+        return;
+      }
+    }
+    this.v2Busy = true;
+    const maxLate =
+      this.v4PolicyForm.maxLateAmount != null && !Number.isNaN(Number(this.v4PolicyForm.maxLateAmount))
+        ? Number(this.v4PolicyForm.maxLateAmount)
+        : undefined;
+    const req$ = this.v4PolicyEditingId
+      ? this.feeService.updateV2LateFeePolicy(this.v4PolicyEditingId, this.buildV4UpdatePolicyBody(name, maxLate))
+      : this.feeService.createV2LateFeePolicy(this.buildV4CreatePolicyBody(name, maxLate));
+    req$.subscribe({
+      next: () => {
+        this.v2Busy = false;
+        this.resetV4PolicyForm();
+        this.loadPhase4LateFeeData();
+        this.setV2Message(this.translate.instant('fees.v2Saved'), true);
+      },
+      error: (e: Error) => {
+        this.v2Busy = false;
+        this.setV2Message(e?.message || this.translate.instant('fees.v2SaveFailed'), false);
+      },
+    });
+  }
+
+  private buildV4CreatePolicyBody(policyName: string, maxLate: number | undefined): FeeV2CreateLateFeePolicyRequest {
+    const base: FeeV2CreateLateFeePolicyRequest = {
+      policyCode: this.v4PolicyForm.policyCode.trim(),
+      policyName,
+      graceDays: Math.max(0, Math.floor(Number(this.v4PolicyForm.graceDays ?? 0))),
+      calculationMode: this.v4PolicyForm.calculationMode,
+      isActive: this.v4PolicyForm.isActive,
+    };
+    if (maxLate != null && maxLate > 0) {
+      base.maxLateAmount = maxLate;
+    }
+    if (this.v4PolicyForm.calculationMode === 'FLAT') {
+      base.flatAmount = Number(this.v4PolicyForm.flatAmount ?? 0);
+    } else {
+      base.ratePercent = Number(this.v4PolicyForm.ratePercent ?? 0);
+    }
+    return base;
+  }
+
+  private buildV4UpdatePolicyBody(policyName: string, maxLate: number | undefined): FeeV2UpdateLateFeePolicyRequest {
+    const base: FeeV2UpdateLateFeePolicyRequest = {
+      policyName,
+      graceDays: Math.max(0, Math.floor(Number(this.v4PolicyForm.graceDays ?? 0))),
+      calculationMode: this.v4PolicyForm.calculationMode,
+      isActive: this.v4PolicyForm.isActive,
+    };
+    if (maxLate != null && maxLate > 0) {
+      base.maxLateAmount = maxLate;
+    }
+    if (this.v4PolicyForm.calculationMode === 'FLAT') {
+      base.flatAmount = Number(this.v4PolicyForm.flatAmount ?? 0);
+      base.ratePercent = undefined;
+    } else {
+      base.ratePercent = Number(this.v4PolicyForm.ratePercent ?? 0);
+      base.flatAmount = undefined;
+    }
+    return base;
+  }
+
+  deleteV4LateFeePolicy(id: number): void {
+    this.feeService.deleteV2LateFeePolicy(id).subscribe({
+      next: () => {
+        this.loadPhase4LateFeeData();
+        this.setV2Message(this.translate.instant('fees.v2Deleted'), true);
+      },
+      error: (e: Error) => this.setV2Message(e?.message || this.translate.instant('fees.v2DeleteFailed'), false),
+    });
+  }
+
+  generateV4RunIdempotencyKey(): void {
+    this.v4RunForm.idempotencyKey =
+      typeof crypto !== 'undefined' && 'randomUUID' in crypto
+        ? crypto.randomUUID()
+        : `lf-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+  }
+
+  submitV4LateFeeRun(): void {
+    const policyId = Number(this.v4RunForm.feeLateFeePolicyId || 0);
+    if (policyId <= 0 || !this.v4RunForm.asOfDate || !this.v4RunForm.idempotencyKey?.trim()) {
+      this.setV2Message(this.translate.instant('fees.v2ValidationRequired'), false);
+      return;
+    }
+    this.v2Busy = true;
+    const body: FeeV2CreateLateFeeRunRequest = {
+      feeLateFeePolicyId: policyId,
+      asOfDate: this.v4RunForm.asOfDate,
+      idempotencyKey: this.v4RunForm.idempotencyKey.trim(),
+    };
+    this.feeService.createV2LateFeeRun(body).subscribe({
+      next: () => {
+        this.v2Busy = false;
+        this.loadPhase4LateFeeData();
+        this.setV2Message(this.translate.instant('fees.v2Saved'), true);
+      },
+      error: (e: Error) => {
+        this.v2Busy = false;
+        this.setV2Message(e?.message || this.translate.instant('fees.v2SaveFailed'), false);
+      },
+    });
+  }
+
+  recordV3Refund(): void {
+    const studentId = Number(this.v3RefundForm.studentId || 0);
+    const amount = Number(this.v3RefundForm.amount || 0);
+    if (studentId <= 0 || amount <= 0 || !this.v3RefundForm.idempotencyKey?.trim()) {
+      this.setV2Message(this.translate.instant('fees.v2ValidationRequired'), false);
+      return;
+    }
+    const rel = this.v3RefundRelatedPaymentId != null && this.v3RefundRelatedPaymentId > 0 ? this.v3RefundRelatedPaymentId : undefined;
+    const payload: FeeV2RecordRefundRequest = {
+      studentId,
+      amount,
+      idempotencyKey: this.v3RefundForm.idempotencyKey.trim(),
+      reason: this.v3RefundForm.reason?.trim() || undefined,
+      relatedPaymentId: rel,
+      submitForApproval: this.v3RefundSubmitForApproval ? true : undefined,
+    };
+    this.v2Busy = true;
+    this.feeService.recordV2Refund(payload).subscribe({
+      next: () => {
+        this.v2Busy = false;
+        this.v2LedgerStudentId = studentId;
+        this.loadV2Ledger();
+        this.setV2Message(this.translate.instant('fees.v2Saved'), true);
+      },
+      error: (e: Error) => {
+        this.v2Busy = false;
+        this.setV2Message(e?.message || this.translate.instant('fees.v2SaveFailed'), false);
+      },
+    });
+  }
+
+  private setV2Message(message: string, ok: boolean): void {
+    this.v2Message = message;
+    this.v2MessageOk = ok;
+  }
+
+  clearV2Message(): void {
+    this.v2Message = '';
+    this.cdr.markForCheck();
+  }
+
+  loadV2Components(): void {
+    this.feeService.getV2Components().subscribe({
+      next: rows => (this.v2Components = rows || []),
+      error: () => this.setV2Message(this.translate.instant('fees.v2LoadFailed'), false),
+    });
+  }
+
+  startEditV2Component(item: FeeV2Component): void {
+    this.v2ComponentEditingId = item.id;
+    this.v2ComponentForm = {
+      code: item.code,
+      name: item.name,
+      componentType: item.componentType,
+      frequency: item.frequency,
+      optionalComponent: item.optionalComponent,
+      refundable: item.refundable,
+    };
+  }
+
+  resetV2ComponentForm(): void {
+    this.v2ComponentEditingId = null;
+    this.v2ComponentForm = {
+      code: '',
+      name: '',
+      componentType: 'RECURRING',
+      frequency: 'MONTHLY',
+      optionalComponent: false,
+      refundable: false,
+    };
+  }
+
+  saveV2Component(): void {
+    if (!this.v2ComponentForm.code.trim() || !this.v2ComponentForm.name.trim()) {
+      this.setV2Message(this.translate.instant('fees.v2ValidationRequired'), false);
+      return;
+    }
+    this.v2Busy = true;
+    const payload = {
+      ...this.v2ComponentForm,
+      code: this.v2ComponentForm.code.trim().toUpperCase(),
+      name: this.v2ComponentForm.name.trim(),
+    };
+    const req$ = this.v2ComponentEditingId
+      ? this.feeService.updateV2Component(this.v2ComponentEditingId, {
+          name: payload.name,
+          componentType: payload.componentType,
+          frequency: payload.frequency,
+          optionalComponent: payload.optionalComponent,
+          refundable: payload.refundable,
+        })
+      : this.feeService.createV2Component(payload);
+    req$.subscribe({
+      next: () => {
+        this.v2Busy = false;
+        this.resetV2ComponentForm();
+        this.loadV2Components();
+        this.setV2Message(this.translate.instant('fees.v2Saved'), true);
+      },
+      error: (e: Error) => {
+        this.v2Busy = false;
+        this.setV2Message(e?.message || this.translate.instant('fees.v2SaveFailed'), false);
+      },
+    });
+  }
+
+  deleteV2Component(id: number): void {
+    this.feeService.deleteV2Component(id).subscribe({
+      next: () => {
+        this.loadV2Components();
+        this.setV2Message(this.translate.instant('fees.v2Deleted'), true);
+      },
+      error: (e: Error) => this.setV2Message(e?.message || this.translate.instant('fees.v2DeleteFailed'), false),
+    });
+  }
+
+  loadV2Rules(): void {
+    this.feeService.getV2Rules().subscribe({
+      next: rows => (this.v2Rules = rows || []),
+      error: () => this.setV2Message(this.translate.instant('fees.v2LoadFailed'), false),
+    });
+  }
+
+  startEditV2Rule(item: FeeV2Rule): void {
+    this.v2RuleEditingId = item.id;
+    this.v2RuleForm = {
+      ruleCode: item.ruleCode,
+      ruleName: item.ruleName,
+      ruleType: item.ruleType,
+      priorityNo: item.priorityNo,
+      stopOnMatch: false,
+    };
+  }
+
+  resetV2RuleForm(): void {
+    this.v2RuleEditingId = null;
+    this.v2RuleForm = {
+      ruleCode: '',
+      ruleName: '',
+      ruleType: 'ASSIGNMENT',
+      priorityNo: 100,
+      stopOnMatch: false,
+    };
+  }
+
+  saveV2Rule(): void {
+    if (!this.v2RuleForm.ruleCode.trim() || !this.v2RuleForm.ruleName.trim()) {
+      this.setV2Message(this.translate.instant('fees.v2ValidationRequired'), false);
+      return;
+    }
+    this.v2Busy = true;
+    const payload: FeeV2CreateRuleRequest = {
+      ruleCode: this.v2RuleForm.ruleCode.trim().toUpperCase(),
+      ruleName: this.v2RuleForm.ruleName.trim(),
+      ruleType: this.v2RuleForm.ruleType,
+      priorityNo: Number(this.v2RuleForm.priorityNo || 100),
+      stopOnMatch: !!this.v2RuleForm.stopOnMatch,
+    };
+    const req$ = this.v2RuleEditingId
+      ? this.feeService.updateV2Rule(this.v2RuleEditingId, {
+          ruleName: payload.ruleName,
+          ruleType: payload.ruleType,
+          priorityNo: payload.priorityNo,
+          stopOnMatch: payload.stopOnMatch,
+        })
+      : this.feeService.createV2Rule(payload);
+    req$.subscribe({
+      next: () => {
+        this.v2Busy = false;
+        this.resetV2RuleForm();
+        this.loadV2Rules();
+        this.setV2Message(this.translate.instant('fees.v2Saved'), true);
+      },
+      error: (e: Error) => {
+        this.v2Busy = false;
+        this.setV2Message(e?.message || this.translate.instant('fees.v2SaveFailed'), false);
+      },
+    });
+  }
+
+  deleteV2Rule(id: number): void {
+    this.feeService.deleteV2Rule(id).subscribe({
+      next: () => {
+        this.loadV2Rules();
+        this.setV2Message(this.translate.instant('fees.v2Deleted'), true);
+      },
+      error: (e: Error) => this.setV2Message(e?.message || this.translate.instant('fees.v2DeleteFailed'), false),
+    });
+  }
+
+  loadV2DemandRuns(): void {
+    this.feeService.getV2DemandRuns().subscribe({
+      next: rows => (this.v2DemandRuns = rows || []),
+      error: () => this.setV2Message(this.translate.instant('fees.v2LoadFailed'), false),
+    });
+  }
+
+  createV2DemandRun(): void {
+    if (!this.v2DemandRunForm.periodKey.trim()) {
+      this.setV2Message(this.translate.instant('fees.v2ValidationRequired'), false);
+      return;
+    }
+    const payload: FeeV2CreateDemandRunRequest = {
+      ...this.v2DemandRunForm,
+      periodKey: this.v2DemandRunForm.periodKey.trim(),
+      idempotencyKey: (this.v2DemandRunForm.idempotencyKey || `RUN-${Date.now()}`).trim(),
+      triggerSource: (this.v2DemandRunForm.triggerSource || 'UI_ADMIN').trim(),
+    };
+    this.feeService.createV2DemandRun(payload).subscribe({
+      next: () => {
+        this.v2DemandRunForm.idempotencyKey = '';
+        this.loadV2DemandRuns();
+        this.setV2Message(this.translate.instant('fees.v2Saved'), true);
+      },
+      error: (e: Error) => this.setV2Message(e?.message || this.translate.instant('fees.v2SaveFailed'), false),
+    });
+  }
+
+  loadV2Ledger(): void {
+    const studentId = Number(this.v2LedgerStudentId || 0);
+    if (studentId <= 0) {
+      this.setV2Message(this.translate.instant('fees.v2ValidationRequired'), false);
+      return;
+    }
+    this.feeService.getV2StudentLedger(studentId).subscribe({
+      next: rows => (this.v2LedgerRows = rows || []),
+      error: (e: Error) => this.setV2Message(e?.message || this.translate.instant('fees.v2LoadFailed'), false),
+    });
+  }
+
+  recordV2Payment(): void {
+    const studentId = Number(this.v2PaymentForm.studentId || 0);
+    const amount = Number(this.v2PaymentForm.amount || 0);
+    if (studentId <= 0 || amount <= 0) {
+      this.setV2Message(this.translate.instant('fees.v2ValidationRequired'), false);
+      return;
+    }
+    const payload: FeeV2RecordPaymentRequest = {
+      ...this.v2PaymentForm,
+      studentId,
+      amount,
+      idempotencyKey: (this.v2PaymentForm.idempotencyKey || `PAY-${Date.now()}`).trim(),
+    };
+    this.feeService.recordV2Payment(payload).subscribe({
+      next: r => {
+        this.v2PaymentResult = r;
+        this.v2LedgerStudentId = studentId;
+        this.loadV2Ledger();
+        this.setV2Message(this.translate.instant('fees.v2Saved'), true);
+      },
+      error: (e: Error) => this.setV2Message(e?.message || this.translate.instant('fees.v2SaveFailed'), false),
     });
   }
 

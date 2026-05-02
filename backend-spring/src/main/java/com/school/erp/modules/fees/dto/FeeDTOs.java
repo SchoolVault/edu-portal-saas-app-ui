@@ -1438,6 +1438,8 @@ public class FeeDTOs {
          * Parent UI uses this to swap Pay Now vs pay-at-school without a second round-trip.
          */
         private boolean parentOnlineFeeCheckoutEnabled = true;
+        /** True when this row is derived from fees v2 demands (not legacy {@code fee_payment}). */
+        private Boolean feesV2;
 
         public Long getPaymentId() { return paymentId; }
         public void setPaymentId(Long paymentId) { this.paymentId = paymentId; }
@@ -1477,6 +1479,8 @@ public class FeeDTOs {
         public void setParentOnlineFeeCheckoutEnabled(boolean parentOnlineFeeCheckoutEnabled) {
             this.parentOnlineFeeCheckoutEnabled = parentOnlineFeeCheckoutEnabled;
         }
+        public Boolean getFeesV2() { return feesV2; }
+        public void setFeesV2(Boolean feesV2) { this.feesV2 = feesV2; }
     }
 
     public static class CreateCheckoutSessionRequest {
@@ -1568,6 +1572,11 @@ public class FeeDTOs {
         private BigDecimal discount;
         private BigDecimal lateFee;
         private List<ParentFeeLineItem> lineItems;
+        /**
+         * Synthetic obligation {@code paymentId} keys (one per fee structure touched by this payment) so parent UI can
+         * attach the latest receipt to each fees-v2 obligation card.
+         */
+        private List<Long> parentObligationPaymentIds;
 
         public String getReceiptNumber() { return receiptNumber; }
         public void setReceiptNumber(String receiptNumber) { this.receiptNumber = receiptNumber; }
@@ -1607,6 +1616,10 @@ public class FeeDTOs {
         public void setLateFee(BigDecimal lateFee) { this.lateFee = lateFee; }
         public List<ParentFeeLineItem> getLineItems() { return lineItems; }
         public void setLineItems(List<ParentFeeLineItem> lineItems) { this.lineItems = lineItems; }
+        public List<Long> getParentObligationPaymentIds() { return parentObligationPaymentIds; }
+        public void setParentObligationPaymentIds(List<Long> parentObligationPaymentIds) {
+            this.parentObligationPaymentIds = parentObligationPaymentIds;
+        }
     }
 
     /** Assign one fee structure to all active students in a class (optional section). */

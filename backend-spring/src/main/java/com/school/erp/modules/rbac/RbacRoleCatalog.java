@@ -52,7 +52,8 @@ public final class RbacRoleCatalog {
                             + "SCHOOL_HOSTEL_APPROVAL_WRITE,SCHOOL_HOSTEL_VISITOR_WRITE,SCHOOL_HOSTEL_INCIDENT_WRITE,"
                             + "SCHOOL_LIBRARY_READ,SCHOOL_LIBRARY_WRITE,"
                             + "SCHOOL_LEAVE_SELF_READ,SCHOOL_LEAVE_SELF_APPLY,SCHOOL_LEAVE_APPROVAL_READ,SCHOOL_LEAVE_APPROVAL_WRITE,"
-                            + "SCHOOL_REPORTS_READ,SCHOOL_REPORTS_WRITE,FEE_STRUCTURES_READ",
+                            + "SCHOOL_REPORTS_READ,SCHOOL_REPORTS_WRITE,FEE_STRUCTURES_READ,"
+                            + "FEE_FINANCE_READ,FEE_CONFIG_WRITE,FEE_BILLING_WRITE,FEE_REFUND_REQUEST,FEE_REFUND_APPROVE,FEE_ONLINE_CHECKOUT",
                     true),
             new DefaultSchoolRole(
                     "ACADEMIC_STAFF",
@@ -94,7 +95,8 @@ public final class RbacRoleCatalog {
                     "Fee & accounts desk",
                     "Record collections, fee structures, reminders, and fee-side reports without full tenant admin.",
                     30,
-                    "SCHOOL_FEES_READ,SCHOOL_FEES_WRITE,FEE_STRUCTURES_READ",
+                    "SCHOOL_FEES_READ,SCHOOL_FEES_WRITE,FEE_STRUCTURES_READ,"
+                            + "FEE_FINANCE_READ,FEE_CONFIG_WRITE,FEE_BILLING_WRITE,FEE_REFUND_REQUEST,FEE_REFUND_APPROVE,FEE_ONLINE_CHECKOUT",
                     true),
             new DefaultSchoolRole(
                     "PAYROLL_OFFICE",

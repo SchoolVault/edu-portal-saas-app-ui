@@ -118,6 +118,22 @@ public enum AppPermission {
      */
     FEE_STRUCTURES_READ,
 
+    /**
+     * Fees v2 read lane: ledgers, demands, maps, reports, audit, assignment preview, reconciliation.
+     * Narrower than {@link #SCHOOL_FEES_READ} for auditor-style roles.
+     */
+    FEE_FINANCE_READ,
+    /** Fees v2 configuration lane: components, structures, rules, late-fee policies, manual map snapshot. */
+    FEE_CONFIG_WRITE,
+    /** Fees v2 billing lane: discounts, demand runs, payment recording, rule assignment execute, late-fee runs. */
+    FEE_BILLING_WRITE,
+    /** Submit refund requests (may enter approval workflow). */
+    FEE_REFUND_REQUEST,
+    /** Approve pending refunds before ledger posting. */
+    FEE_REFUND_APPROVE,
+    /** Create Razorpay (or future) checkout sessions against v2 demands. */
+    FEE_ONLINE_CHECKOUT,
+
     // --- Academic staff (teacher baseline) ----------------------------------
     /** Roster, attendance, mark entry, timetable within assigned scope (policy layer applies). */
     ACADEMIC_TEACHER,

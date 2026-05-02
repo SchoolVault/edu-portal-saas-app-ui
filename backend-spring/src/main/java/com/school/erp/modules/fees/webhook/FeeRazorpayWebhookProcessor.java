@@ -7,6 +7,11 @@ import com.school.erp.modules.fees.domain.FeeAttemptStatus;
 import com.school.erp.modules.fees.entity.FeePaymentAttempt;
 import com.school.erp.modules.fees.repository.FeePaymentAttemptRepository;
 import com.school.erp.modules.fees.service.FeeService;
+import com.school.erp.modules.feesv2.service.FeeV2Service;
+import com.school.erp.tenant.AcademicYearContext;
+import com.school.erp.tenant.TenantScopedExecution;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -25,14 +30,17 @@ public class FeeRazorpayWebhookProcessor {
 
     private final FeePaymentAttemptRepository attemptRepository;
     private final FeeService feeService;
+    private final FeeV2Service feeV2Service;
     private final ObjectMapper objectMapper;
 
     public FeeRazorpayWebhookProcessor(
             FeePaymentAttemptRepository attemptRepository,
             FeeService feeService,
+            FeeV2Service feeV2Service,
             ObjectMapper objectMapper) {
         this.attemptRepository = attemptRepository;
         this.feeService = feeService;
+        this.feeV2Service = feeV2Service;
         this.objectMapper = objectMapper;
     }
 
@@ -94,6 +102,10 @@ public class FeeRazorpayWebhookProcessor {
         List<FeePaymentAttempt> candidates = attemptRepository.findByProviderAndProviderOrderIdAndIsDeletedFalse(RAZORPAY, orderId);
         FeePaymentAttempt attempt = resolveAttempt(candidates, pay.path("notes"));
         if (attempt == null) {
+            Outcome feesV2 = tryApplyFeesV2OnlinePayment(pay, orderId, paymentId, amountPaise, currency);
+            if (feesV2 != null) {
+                return feesV2;
+            }
             log.warn("No fee_payment_attempt for Razorpay order_id={}", orderId);
             return new Outcome(Outcome.Type.NO_MATCH, "unknown_order:" + orderId);
         }
@@ -153,6 +165,46 @@ public class FeeRazorpayWebhookProcessor {
         }
         feeService.reconcilePaymentFailedFromWebhook(attempt, rawJson);
         return new Outcome(Outcome.Type.APPLIED, "marked_failed");
+    }
+
+    private Outcome tryApplyFeesV2OnlinePayment(
+            JsonNode pay, String orderId, String paymentId, long amountPaise, String currency) {
+        JsonNode notes = pay.path("notes");
+        if (notes.isMissingNode() || notes.isNull()) {
+            return null;
+        }
+        if (!"true".equalsIgnoreCase(text(notes, "fees_v2"))) {
+            return null;
+        }
+        String tenantId = text(notes, "tenant_id");
+        String ayRaw = text(notes, "academic_year_id");
+        String studentRaw = text(notes, "student_id");
+        if (tenantId == null || tenantId.isBlank() || ayRaw == null || ayRaw.isBlank() || studentRaw == null || studentRaw.isBlank()) {
+            return new Outcome(Outcome.Type.ERROR, "fees_v2_missing_notes");
+        }
+        Long academicYearId = parseLong(ayRaw);
+        Long studentId = parseLong(studentRaw);
+        if (academicYearId == null || studentId == null) {
+            return new Outcome(Outcome.Type.ERROR, "fees_v2_bad_ids");
+        }
+        if (amountPaise <= 0) {
+            return new Outcome(Outcome.Type.ERROR, "fees_v2_bad_amount");
+        }
+        if (feeV2Service.hasRecordedFeesV2RazorpayPayment(tenantId, academicYearId, paymentId)) {
+            return new Outcome(Outcome.Type.DUPLICATE, "fees_v2_payment_already_applied");
+        }
+        BigDecimal amountInr = BigDecimal.valueOf(amountPaise).divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
+        try {
+            TenantScopedExecution.execute(tenantId, null, "TENANT_ADMIN", () -> {
+                AcademicYearContext.setAcademicYearId(academicYearId);
+                feeV2Service.recordPaymentFromRazorpayWebhook(studentId, amountInr, paymentId, orderId);
+                return null;
+            });
+            return new Outcome(Outcome.Type.APPLIED, "fees_v2:" + paymentId);
+        } catch (Exception ex) {
+            log.warn("fees_v2 webhook apply failed: {}", ex.getMessage());
+            return new Outcome(Outcome.Type.ERROR, ex.getClass().getSimpleName());
+        }
     }
 
     private FeePaymentAttempt resolveAttempt(List<FeePaymentAttempt> candidates, JsonNode notes) {

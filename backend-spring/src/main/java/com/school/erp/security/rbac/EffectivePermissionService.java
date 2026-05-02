@@ -69,7 +69,13 @@ public class EffectivePermissionService {
             AppPermission.SCHOOL_LEAVE_SELF_APPLY,
             AppPermission.SCHOOL_LEAVE_APPROVAL_READ,
             AppPermission.SCHOOL_LEAVE_APPROVAL_WRITE,
-            AppPermission.FEE_STRUCTURES_READ
+            AppPermission.FEE_STRUCTURES_READ,
+            AppPermission.FEE_FINANCE_READ,
+            AppPermission.FEE_CONFIG_WRITE,
+            AppPermission.FEE_BILLING_WRITE,
+            AppPermission.FEE_REFUND_REQUEST,
+            AppPermission.FEE_REFUND_APPROVE,
+            AppPermission.FEE_ONLINE_CHECKOUT
     );
 
     private static final Set<AppPermission> TEACHER_BASE = EnumSet.of(

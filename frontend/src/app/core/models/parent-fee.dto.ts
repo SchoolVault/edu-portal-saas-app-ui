@@ -32,6 +32,8 @@ export namespace ParentFeeDtos {
     lineItems: ParentFeeLineItem[];
     /** Tenant capability: false = pay at school only (no gateway checkout). */
     parentOnlineFeeCheckoutEnabled?: boolean;
+    /** True when obligations are built from fees v2 demands (not legacy fee_payment). */
+    feesV2?: boolean;
   }
 
   export interface CreateCheckoutSessionRequest {
@@ -53,6 +55,10 @@ export namespace ParentFeeDtos {
     status: string;
     /** Razorpay Checkout key_id when provider is razorpay. */
     publicKeyId?: string;
+    /**
+     * When true, payment is captured via Razorpay webhook into {@code payment_v2}; do not call confirm API.
+     */
+    feesV2?: boolean;
   }
 
   export interface ConfirmCheckoutRequest {
@@ -81,5 +87,7 @@ export namespace ParentFeeDtos {
     discount: number;
     lateFee: number;
     lineItems: ParentFeeLineItem[];
+    /** Synthetic obligation paymentIds for fees-v2 receipt → card linking. */
+    parentObligationPaymentIds?: number[];
   }
 }

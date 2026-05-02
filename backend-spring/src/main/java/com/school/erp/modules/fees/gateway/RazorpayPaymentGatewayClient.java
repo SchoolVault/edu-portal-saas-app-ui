@@ -280,5 +280,134 @@ public class RazorpayPaymentGatewayClient {
         if ("failed".equals(normalized)) return "FAILED";
         return "PENDING";
     }
+
+    /** Publishable key for Checkout.js (safe to return to authenticated parent/admin clients). */
+    public String getPublishableKey() {
+        return key != null ? key.trim() : "";
+    }
+
+    /**
+     * Creates a Razorpay order for canonical fees-v2 online collection. Notes include {@code fees_v2=true}
+     * so {@link com.school.erp.modules.fees.webhook.FeeRazorpayWebhookProcessor} can post {@code payment_v2}
+     * without a legacy {@code fee_payment_attempt}.
+     */
+    @CircuitBreaker(name = "paymentGateway")
+    @Retry(name = "paymentGateway")
+    public PaymentGatewayClient.GatewayCheckoutSession createFeesV2Order(String tenantId, Long academicYearId, Long studentId, BigDecimal amount) {
+        if (tenantId == null || tenantId.isBlank() || academicYearId == null || studentId == null || amount == null) {
+            throw new BusinessException("tenantId, academicYearId, studentId, and amount are required");
+        }
+        if (amount.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new BusinessException("Amount must be positive");
+        }
+        boolean credsOk = key != null && !key.isBlank() && secret != null && !secret.isBlank();
+        if (!credsOk) {
+            if (fallbackWithoutCredentials) {
+                String orderId = "RAZORPAY-V2-" + UUID.randomUUID().toString().substring(0, 10);
+                String token = "razorpay-token-" + UUID.randomUUID().toString().replace("-", "");
+                String payload = "{\"provider\":\"razorpay\",\"mode\":\"synthetic\",\"feesV2\":true}";
+                log.warn("Razorpay fees-v2 synthetic order (no API credentials).");
+                return new PaymentGatewayClient.GatewayCheckoutSession("razorpay", orderId, token, null, payload);
+            }
+            throw new BusinessException(
+                    "Razorpay is not configured: set RAZORPAY_KEY and RAZORPAY_SECRET on the server.");
+        }
+        String normalizedCurrency = "INR";
+        long amountPaise = amount.setScale(2, RoundingMode.HALF_UP).multiply(BigDecimal.valueOf(100)).longValueExact();
+        String receipt = buildRazorpayReceiptV2(tenantId, academicYearId, studentId);
+        Map<String, Object> notes = new LinkedHashMap<>();
+        notes.put("fees_v2", "true");
+        notes.put("tenant_id", tenantId);
+        notes.put("academic_year_id", String.valueOf(academicYearId));
+        notes.put("student_id", String.valueOf(studentId));
+
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("amount", amountPaise);
+        body.put("currency", normalizedCurrency);
+        body.put("receipt", receipt);
+        body.put("payment_capture", 1);
+        body.put("notes", notes);
+
+        TenantFinanceProfile profile = tenantFinanceProfileRepository.findByTenantIdAndIsDeletedFalse(tenantId).orElse(null);
+        if (profile != null && FeeSettlementMode.ROUTE_LINKED_ACCOUNT.name().equals(profile.getFeeSettlementMode())) {
+            String linked = profile.getRazorpayRouteLinkedAccountId();
+            if (linked == null || linked.isBlank()) {
+                throw new BusinessException("Route settlement is enabled but razorpayRouteLinkedAccountId is missing for this tenant");
+            }
+            int bps = Math.max(0, Math.min(10_000, profile.getPlatformCommissionBps()));
+            if (bps >= 10_000) {
+                throw new BusinessException("platformCommissionBps cannot be 10000 with Route transfers");
+            }
+            long toSchoolPaise = amountPaise * (10_000L - bps) / 10_000L;
+            if (toSchoolPaise <= 0) {
+                throw new BusinessException("Computed Route transfer amount is zero");
+            }
+            if (bps > 0) {
+                log.info("Razorpay Route fees-v2 order: tenant={} linkedAccount={} commissionBps={}", tenantId, linked, bps);
+            }
+            Map<String, Object> transfer = new LinkedHashMap<>();
+            transfer.put("account", linked.trim());
+            transfer.put("amount", toSchoolPaise);
+            transfer.put("currency", normalizedCurrency);
+            List<Map<String, Object>> transfers = new ArrayList<>();
+            transfers.add(transfer);
+            body.put("transfers", transfers);
+        }
+
+        String url = apiBase.replaceAll("/+$", "") + "/v1/orders";
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        String basic = Base64.getEncoder().encodeToString((key.trim() + ":" + secret.trim()).getBytes(StandardCharsets.UTF_8));
+        headers.set(HttpHeaders.AUTHORIZATION, "Basic " + basic);
+        Map<?, ?> res;
+        try {
+            res = restTemplate.postForObject(url, new HttpEntity<>(body, headers), Map.class);
+        } catch (HttpStatusCodeException ex) {
+            String bodySnippet = ex.getResponseBodyAsString();
+            if (bodySnippet != null && bodySnippet.length() > 500) {
+                bodySnippet = bodySnippet.substring(0, 500) + "…";
+            }
+            log.error("Razorpay POST /v1/orders (fees-v2) failed status={} body={}", ex.getStatusCode(), bodySnippet);
+            throw new BusinessException("Razorpay rejected order creation (" + ex.getStatusCode().value() + "): " + bodySnippet);
+        } catch (RestClientException ex) {
+            throw new BusinessException("Could not reach Razorpay API: " + ex.getMessage());
+        }
+        if (res == null || res.get("id") == null) {
+            throw new BusinessException("Razorpay returned no order id");
+        }
+        String orderId = String.valueOf(res.get("id"));
+        String token = "razorpay-token-" + UUID.randomUUID().toString().replace("-", "");
+        try {
+            String rawPayload = objectMapper.writeValueAsString(res);
+            return new PaymentGatewayClient.GatewayCheckoutSession("razorpay", orderId, token, null, rawPayload);
+        } catch (Exception e) {
+            return new PaymentGatewayClient.GatewayCheckoutSession("razorpay", orderId, token, null, String.valueOf(res));
+        }
+    }
+
+    static String buildRazorpayReceiptV2(String tenantId, Long academicYearId, Long studentId) {
+        try {
+            MessageDigest md = MessageDigest.getInstance("SHA-256");
+            md.update((tenantId != null ? tenantId : "").getBytes(StandardCharsets.UTF_8));
+            md.update((byte) '|');
+            md.update(String.valueOf(academicYearId).getBytes(StandardCharsets.UTF_8));
+            md.update((byte) '|');
+            md.update(String.valueOf(studentId).getBytes(StandardCharsets.UTF_8));
+            md.update((byte) '|');
+            md.update(UUID.randomUUID().toString().getBytes(StandardCharsets.UTF_8));
+            byte[] digest = md.digest();
+            StringBuilder sb = new StringBuilder(32);
+            for (int i = 0; i < 16; i++) {
+                sb.append(String.format("%02x", digest[i]));
+            }
+            String out = sb.toString();
+            if (out.length() > RAZORPAY_RECEIPT_MAX_LEN) {
+                throw new IllegalStateException("receipt length invariant broken");
+            }
+            return out;
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException(e);
+        }
+    }
 }
 

@@ -13,6 +13,45 @@ import {
   FeeRefundRequest,
   FeeStructure,
   FeeTransaction,
+  FeeV2AuditEvent,
+  FeeV2ClassOutstanding,
+  FeeV2CollectionSummary,
+  FeeV2Component,
+  FeeV2CreateComponentRequest,
+  FeeV2CreateDemandRunRequest,
+  FeeV2CreateDiscountRequest,
+  FeeV2CreateRuleRequest,
+  FeeV2CreateStructureRequest,
+  FeeV2DefaulterRow,
+  FeeV2Demand,
+  FeeV2DemandRun,
+  FeeV2Discount,
+  FeeV2LateFeePolicy,
+  FeeV2CreateLateFeePolicyRequest,
+  FeeV2UpdateLateFeePolicyRequest,
+  FeeV2CreateLateFeeRunRequest,
+  FeeV2LateFeeRun,
+  FeeV2LedgerEntry,
+  FeeV2PaymentRegisterRow,
+  FeeV2RecordPaymentRequest,
+  FeeV2RecordPaymentResponse,
+  FeeV2RecordRefundRequest,
+  FeeV2RecordRefundResponse,
+  FeeV2Rule,
+  FeeV2RuleActionLine,
+  FeeV2RuleConditionLine,
+  FeeV2RuleDefinition,
+  FeeV2SnapshotFeeMapRequest,
+  FeeV2Structure,
+  FeeV2StudentFeeMap,
+  FeeV2StudentStatement,
+  FeeAssignmentPreviewRequest,
+  FeeAssignmentPreviewResponse,
+  FeeAssignmentExecuteRequest,
+  FeeAssignmentExecuteResponse,
+  FeeV2LedgerReconciliationReport,
+  FeeV2RazorpayOrderRequest,
+  FeeV2RazorpayOrderResponse,
 } from '../models/models';
 import { ApiService, PageResp } from './api.service';
 import { AuthService } from './auth.service';
@@ -483,5 +522,176 @@ export class FeeService {
       note: row.note != null ? String(row.note) : undefined,
       occurredAt: row.occurredAt != null ? String(row.occurredAt) : undefined,
     };
+  }
+
+  getV2Components(): Observable<FeeV2Component[]> {
+    return this.api.get<FeeV2Component[]>('/fees-v2/components');
+  }
+
+  createV2Component(request: FeeV2CreateComponentRequest): Observable<FeeV2Component> {
+    return this.api.post<FeeV2Component>('/fees-v2/components', request);
+  }
+
+  updateV2Component(id: number, request: Omit<FeeV2CreateComponentRequest, 'code'>): Observable<FeeV2Component> {
+    return this.api.put<FeeV2Component>(`/fees-v2/components/${id}`, request);
+  }
+
+  deleteV2Component(id: number): Observable<void> {
+    return this.api.delete<void>(`/fees-v2/components/${id}`);
+  }
+
+  getV2Rules(): Observable<FeeV2Rule[]> {
+    return this.api.get<FeeV2Rule[]>('/fees-v2/rules');
+  }
+
+  createV2Rule(request: FeeV2CreateRuleRequest): Observable<FeeV2Rule> {
+    return this.api.post<FeeV2Rule>('/fees-v2/rules', request);
+  }
+
+  updateV2Rule(id: number, request: Omit<FeeV2CreateRuleRequest, 'ruleCode'> & { ruleStatus?: string }): Observable<FeeV2Rule> {
+    return this.api.put<FeeV2Rule>(`/fees-v2/rules/${id}`, request);
+  }
+
+  deleteV2Rule(id: number): Observable<void> {
+    return this.api.delete<void>(`/fees-v2/rules/${id}`);
+  }
+
+  getV2DemandRuns(): Observable<FeeV2DemandRun[]> {
+    return this.api.get<FeeV2DemandRun[]>('/fees-v2/demand-runs');
+  }
+
+  createV2DemandRun(request: FeeV2CreateDemandRunRequest): Observable<FeeV2DemandRun> {
+    return this.api.post<FeeV2DemandRun>('/fees-v2/demand-runs', request);
+  }
+
+  recordV2Payment(request: FeeV2RecordPaymentRequest): Observable<FeeV2RecordPaymentResponse> {
+    return this.api.post<FeeV2RecordPaymentResponse>('/fees-v2/payments', request);
+  }
+
+  getV2StudentLedger(studentId: number): Observable<FeeV2LedgerEntry[]> {
+    return this.api.get<FeeV2LedgerEntry[]>(`/fees-v2/ledger/students/${studentId}`);
+  }
+
+  getV2Structures(): Observable<FeeV2Structure[]> {
+    return this.api.get<FeeV2Structure[]>('/fees-v2/structures');
+  }
+
+  createV2Structure(request: FeeV2CreateStructureRequest): Observable<FeeV2Structure> {
+    return this.api.post<FeeV2Structure>('/fees-v2/structures', request);
+  }
+
+  getV2StudentFeeMaps(studentId?: number): Observable<FeeV2StudentFeeMap[]> {
+    return this.api.getParams<FeeV2StudentFeeMap[]>('/fees-v2/student-fee-maps', { studentId });
+  }
+
+  createV2StudentFeeMapSnapshot(request: FeeV2SnapshotFeeMapRequest): Observable<{ id: number }> {
+    return this.api.post<{ id: number }>('/fees-v2/student-fee-map/snapshot', request);
+  }
+
+  getV2StudentDemands(studentId: number): Observable<FeeV2Demand[]> {
+    return this.api.get<FeeV2Demand[]>(`/fees-v2/demands/students/${studentId}`);
+  }
+
+  getV2DiscountsForStudent(studentId: number): Observable<FeeV2Discount[]> {
+    return this.api.get<FeeV2Discount[]>(`/fees-v2/discounts/students/${studentId}`);
+  }
+
+  createV2Discount(request: FeeV2CreateDiscountRequest): Observable<FeeV2Discount> {
+    return this.api.post<FeeV2Discount>('/fees-v2/discounts', request);
+  }
+
+  updateV2Discount(
+    id: number,
+    request: Omit<FeeV2CreateDiscountRequest, 'studentId'> & { approvalStatus?: string }
+  ): Observable<FeeV2Discount> {
+    return this.api.put<FeeV2Discount>(`/fees-v2/discounts/${id}`, request);
+  }
+
+  deleteV2Discount(id: number): Observable<void> {
+    return this.api.delete<void>(`/fees-v2/discounts/${id}`);
+  }
+
+  getV2RuleDefinition(ruleId: number): Observable<FeeV2RuleDefinition> {
+    return this.api.get<FeeV2RuleDefinition>(`/fees-v2/rules/${ruleId}/definition`);
+  }
+
+  replaceV2RuleDefinition(ruleId: number, body: { conditions: FeeV2RuleConditionLine[]; actions: FeeV2RuleActionLine[] }): Observable<FeeV2RuleDefinition> {
+    return this.api.put<FeeV2RuleDefinition>(`/fees-v2/rules/${ruleId}/definition`, body);
+  }
+
+  getV2CollectionSummary(from?: string, to?: string): Observable<FeeV2CollectionSummary> {
+    return this.api.getParams<FeeV2CollectionSummary>('/fees-v2/reports/collection-summary', { from, to });
+  }
+
+  getV2Defaulters(): Observable<FeeV2DefaulterRow[]> {
+    return this.api.get<FeeV2DefaulterRow[]>('/fees-v2/reports/defaulters');
+  }
+
+  getV2OutstandingByClass(): Observable<FeeV2ClassOutstanding[]> {
+    return this.api.get<FeeV2ClassOutstanding[]>('/fees-v2/reports/outstanding-by-class');
+  }
+
+  getV2StudentStatement(studentId: number): Observable<FeeV2StudentStatement> {
+    return this.api.get<FeeV2StudentStatement>(`/fees-v2/reports/student-statement/${studentId}`);
+  }
+
+  getV2PaymentRegister(opts: { studentId?: number; from?: string; to?: string }): Observable<FeeV2PaymentRegisterRow[]> {
+    return this.api.getParams<FeeV2PaymentRegisterRow[]>('/fees-v2/payments/register', {
+      studentId: opts.studentId,
+      from: opts.from,
+      to: opts.to,
+    });
+  }
+
+  getV2AuditEvents(): Observable<FeeV2AuditEvent[]> {
+    return this.api.get<FeeV2AuditEvent[]>('/fees-v2/audit-events');
+  }
+
+  recordV2Refund(request: FeeV2RecordRefundRequest): Observable<FeeV2RecordRefundResponse> {
+    return this.api.post<FeeV2RecordRefundResponse>('/fees-v2/refunds', request);
+  }
+
+  getV2LateFeePolicies(): Observable<FeeV2LateFeePolicy[]> {
+    return this.api.get<FeeV2LateFeePolicy[]>('/fees-v2/late-fee-policies');
+  }
+
+  createV2LateFeePolicy(request: FeeV2CreateLateFeePolicyRequest): Observable<FeeV2LateFeePolicy> {
+    return this.api.post<FeeV2LateFeePolicy>('/fees-v2/late-fee-policies', request);
+  }
+
+  updateV2LateFeePolicy(id: number, request: FeeV2UpdateLateFeePolicyRequest): Observable<FeeV2LateFeePolicy> {
+    return this.api.put<FeeV2LateFeePolicy>(`/fees-v2/late-fee-policies/${id}`, request);
+  }
+
+  deleteV2LateFeePolicy(id: number): Observable<void> {
+    return this.api.delete<void>(`/fees-v2/late-fee-policies/${id}`);
+  }
+
+  getV2LateFeeRuns(): Observable<FeeV2LateFeeRun[]> {
+    return this.api.get<FeeV2LateFeeRun[]>('/fees-v2/late-fee-runs');
+  }
+
+  createV2LateFeeRun(request: FeeV2CreateLateFeeRunRequest): Observable<FeeV2LateFeeRun> {
+    return this.api.post<FeeV2LateFeeRun>('/fees-v2/late-fee-runs', request);
+  }
+
+  previewV2FeeAssignments(body: FeeAssignmentPreviewRequest): Observable<FeeAssignmentPreviewResponse> {
+    return this.api.post<FeeAssignmentPreviewResponse>('/fees-v2/fee-assignments/preview', body);
+  }
+
+  executeV2FeeAssignments(body: FeeAssignmentExecuteRequest): Observable<FeeAssignmentExecuteResponse> {
+    return this.api.post<FeeAssignmentExecuteResponse>('/fees-v2/fee-assignments/execute', body);
+  }
+
+  getV2LedgerReconciliation(): Observable<FeeV2LedgerReconciliationReport> {
+    return this.api.get<FeeV2LedgerReconciliationReport>('/fees-v2/reports/ledger-reconciliation');
+  }
+
+  createV2RazorpayOrder(body: FeeV2RazorpayOrderRequest): Observable<FeeV2RazorpayOrderResponse> {
+    return this.api.post<FeeV2RazorpayOrderResponse>('/fees-v2/payments/razorpay-order', body);
+  }
+
+  approveV2Refund(refundId: number): Observable<FeeV2RecordRefundResponse> {
+    return this.api.post<FeeV2RecordRefundResponse>(`/fees-v2/refunds/${refundId}/approve`, {});
   }
 }

@@ -27,6 +27,8 @@ import com.school.erp.modules.fees.repository.FeePaymentRepository;
 import com.school.erp.modules.fees.entity.FeePayment;
 import com.school.erp.modules.fees.dto.FeeDTOs;
 import com.school.erp.modules.fees.service.FeeService;
+import com.school.erp.modules.feesv2.dto.FeeV2DTOs;
+import com.school.erp.modules.feesv2.service.FeeV2Service;
 import com.school.erp.modules.parent.service.ParentPortalReadFacade;
 import com.school.erp.tenant.TenantContext;
 import io.swagger.v3.oas.annotations.Operation;
@@ -37,6 +39,9 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotNull;
+import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.util.HashMap;
@@ -55,6 +60,7 @@ public class ParentController {
     private final FeePaymentRepository feeRepo;
     private final AttendanceRepository attendanceRepo;
     private final FeeService feeService;
+    private final FeeV2Service feeV2Service;
     private final SchoolClassRepository schoolClassRepository;
     private final SectionRepository sectionRepository;
     private final TeacherRepository teacherRepository;
@@ -145,6 +151,21 @@ public class ParentController {
         assertParentOwnsStudent(studentId);
         return ResponseEntity.ok(ApiResponse.ok(feeService.getParentFeeObligations(studentId)));
     }
+
+    @PostMapping("/children/{studentId}/fees-v2/razorpay-order")
+    @Operation(summary = "Create Razorpay order for fees v2 (ledger-backed)",
+            description = "Uses notes that the fees webhook recognizes as fees_v2; payment posts to payment_v2 after capture.")
+    public ResponseEntity<ApiResponse<FeeV2DTOs.FeesV2RazorpayOrderResponse>> createFeesV2RazorpayOrderForChild(
+            @PathVariable Long studentId,
+            @Valid @RequestBody ParentFeesV2RazorpayAmount body) {
+        assertParentOwnsStudent(studentId);
+        FeeV2DTOs.FeesV2RazorpayOrderRequest req = new FeeV2DTOs.FeesV2RazorpayOrderRequest();
+        req.setStudentId(studentId);
+        req.setAmount(body.amount());
+        return ResponseEntity.ok(ApiResponse.ok(feeV2Service.createFeesV2RazorpayOrder(req)));
+    }
+
+    public record ParentFeesV2RazorpayAmount(@NotNull BigDecimal amount) {}
 
     @PostMapping("/payments/checkout-session")
     @Operation(summary = "Create a parent checkout session")
@@ -326,6 +347,7 @@ public class ParentController {
             final FeePaymentRepository feeRepo,
             final AttendanceRepository attendanceRepo,
             final FeeService feeService,
+            final FeeV2Service feeV2Service,
             final SchoolClassRepository schoolClassRepository,
             final SectionRepository sectionRepository,
             final TeacherRepository teacherRepository,
@@ -339,6 +361,7 @@ public class ParentController {
         this.feeRepo = feeRepo;
         this.attendanceRepo = attendanceRepo;
         this.feeService = feeService;
+        this.feeV2Service = feeV2Service;
         this.schoolClassRepository = schoolClassRepository;
         this.sectionRepository = sectionRepository;
         this.teacherRepository = teacherRepository;

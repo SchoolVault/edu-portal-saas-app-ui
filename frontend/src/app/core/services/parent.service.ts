@@ -30,6 +30,7 @@ import {
   Student,
   TimetableEntry,
   TimetableGrid,
+  FeeV2RazorpayOrderResponse,
 } from '../models/models';
 import { runtimeConfig } from '../config/runtime-config';
 import { PAYMENT_PROVIDER_IDS, normalizePaymentProviderId } from '../payment/payment-provider-ids';
@@ -337,6 +338,24 @@ export class ParentService {
       .pipe(map(session => this.normalizeCheckoutSession(session)));
   }
 
+  /**
+   * Canonical fees-v2 Razorpay order (notes include {@code fees_v2}); webhook posts {@code payment_v2}.
+   */
+  createFeesV2RazorpayOrder(studentId: number, amount: number): Observable<FeeV2RazorpayOrderResponse> {
+    if (runtimeConfig.useMocks) {
+      const ts = Date.now();
+      return of({
+        orderId: 'RZP-V2-MOCK-' + ts,
+        keyId: 'rzp_test_mock',
+        amount,
+        currency: 'INR',
+      }).pipe(delay(200));
+    }
+    return this.api.post<FeeV2RazorpayOrderResponse>(`/parent/children/${studentId}/fees-v2/razorpay-order`, {
+      amount,
+    });
+  }
+
   confirmCheckout(
     attemptId: string | number,
     checkoutToken: string,
@@ -449,6 +468,7 @@ export class ParentService {
       })),
       parentOnlineFeeCheckoutEnabled:
         item.parentOnlineFeeCheckoutEnabled !== undefined ? !!item.parentOnlineFeeCheckoutEnabled : true,
+      feesV2: item.feesV2 === true,
     };
   }
 
@@ -476,7 +496,10 @@ export class ParentService {
         name: line.name,
         amount: Number(line.amount ?? 0),
         type: (line.type ?? 'misc').toString().toLowerCase()
-      }))
+      })),
+      parentObligationPaymentIds: Array.isArray(item.parentObligationPaymentIds)
+        ? item.parentObligationPaymentIds.map((id: unknown) => Number(id))
+        : undefined,
     };
   }
 
@@ -491,7 +514,29 @@ export class ParentService {
       checkoutUrl: String(session.checkoutUrl ?? ''),
       status: String(session.status ?? ''),
       publicKeyId: session.publicKeyId != null ? String(session.publicKeyId) : undefined,
+      feesV2: session.feesV2 === true,
     };
+  }
+
+  /**
+   * Parent online pay on the fees-v2 spine: Razorpay order with {@code fees_v2} notes; webhook posts {@code payment_v2}.
+   * Used when admin enables parent online checkout (Settings → Finance).
+   */
+  createFeesV2CheckoutSession(studentId: number, amount: number): Observable<CheckoutSession> {
+    return this.createFeesV2RazorpayOrder(studentId, amount).pipe(
+      map(order => ({
+        attemptId: 0,
+        provider: PAYMENT_PROVIDER_IDS.RAZORPAY,
+        providerOrderId: String(order.orderId ?? ''),
+        checkoutToken: 'FEES_V2',
+        currency: (order.currency || 'INR').toString(),
+        amount: Number(order.amount ?? 0),
+        checkoutUrl: '',
+        status: 'initiated',
+        publicKeyId: order.keyId != null && String(order.keyId).trim() !== '' ? String(order.keyId).trim() : undefined,
+        feesV2: true,
+      }))
+    );
   }
 
   private bootstrapMockReceiptLedger(): void {

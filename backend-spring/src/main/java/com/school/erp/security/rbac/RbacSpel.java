@@ -41,6 +41,28 @@ public final class RbacSpel {
     public static final String SCHOOL_FEES_WRITE =
             "hasAnyAuthority('SCHOOL_FEES_WRITE','TENANT_ADMIN','PLATFORM_ADMIN')";
 
+    /** Canonical fees-v2 read surface (auditor / finance read-only + legacy coarse read). */
+    public static final String FEE_FINANCE_READ =
+            "hasAnyAuthority('FEE_FINANCE_READ','SCHOOL_FEES_READ','SCHOOL_FEES_WRITE','TENANT_ADMIN','PLATFORM_ADMIN')";
+
+    /** Structures, rules, components, late-fee policy configuration. */
+    public static final String FEE_CONFIG_WRITE =
+            "hasAnyAuthority('FEE_CONFIG_WRITE','SCHOOL_FEES_WRITE','TENANT_ADMIN','PLATFORM_ADMIN')";
+
+    /** Operational billing: collections, demand runs, discounts, assignment automation execute. */
+    public static final String FEE_BILLING_WRITE =
+            "hasAnyAuthority('FEE_BILLING_WRITE','SCHOOL_FEES_WRITE','TENANT_ADMIN','PLATFORM_ADMIN')";
+
+    public static final String FEE_REFUND_REQUEST =
+            "hasAnyAuthority('FEE_REFUND_REQUEST','SCHOOL_FEES_WRITE','TENANT_ADMIN','PLATFORM_ADMIN')";
+
+    public static final String FEE_REFUND_APPROVE =
+            "hasAnyAuthority('FEE_REFUND_APPROVE','SCHOOL_FEES_WRITE','TENANT_ADMIN','PLATFORM_ADMIN')";
+
+    /** Cashier / admin-initiated Razorpay order for fees v2 (parents use {@code POST /parent/.../fees-v2/razorpay-order}). */
+    public static final String FEE_ONLINE_CHECKOUT =
+            "hasAnyAuthority('FEE_ONLINE_CHECKOUT','SCHOOL_FEES_WRITE','TENANT_ADMIN','PLATFORM_ADMIN')";
+
     public static final String FEE_STRUCTURES_READ =
             "hasAnyAuthority('FEE_STRUCTURES_READ','SCHOOL_FEES_READ','SCHOOL_FEES_WRITE','TENANT_ADMIN','PLATFORM_ADMIN')";
 

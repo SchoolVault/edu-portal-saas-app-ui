@@ -283,6 +283,10 @@ import { formatDateDdMmYyyy } from '../../core/utils/date-format';
         </div>
 
         <div class="erp-card" *ngIf="tab === 'fees'">
+          <div *ngIf="feePaymentBanner" class="alert alert-success py-2 small mb-3 d-flex justify-content-between align-items-start gap-2">
+            <span>{{ feePaymentBanner }}</span>
+            <button type="button" class="btn btn-link btn-sm p-0 text-nowrap" (click)="feePaymentBanner = null">{{ 'parentPortal.dismiss' | translate }}</button>
+          </div>
           <div *ngIf="feeObligations.length" class="row g-4 align-items-stretch">
             <div class="col-12 col-xl-7">
               <div *ngFor="let obligation of feeObligations" class="erp-card mb-3" style="border: 1px solid var(--clr-border-light); box-shadow: none;">
@@ -607,6 +611,8 @@ export class ParentPortalComponent implements OnInit, OnDestroy {
   /** Inline error for gateway (Stripe unsupported, Razorpay config, etc.). */
   paymentGatewayMessage: string | null = null;
   portalError: string | null = null;
+  /** Shown on the Fees tab after Razorpay success on the fees-v2 spine (webhook finalizes payment). */
+  feePaymentBanner: string | null = null;
   /** Review-step validation for amount vs payable. */
   paymentAmountError: string | null = null;
   private pendingDeepLinkPaymentId: number | null = null;
@@ -891,9 +897,14 @@ export class ParentPortalComponent implements OnInit, OnDestroy {
       next: list => {
         const map = new Map<string, PaymentReceipt>();
         for (const r of list) {
-          const key = String(r.paymentId);
-          if (!map.has(key)) {
-            map.set(key, r);
+          const keys =
+            r.parentObligationPaymentIds?.length ?
+              r.parentObligationPaymentIds.map(id => String(id))
+            : [String(r.paymentId)];
+          for (const key of keys) {
+            if (!map.has(key)) {
+              map.set(key, r);
+            }
           }
         }
         this.receiptLookupByPaymentId = map;
@@ -1010,6 +1021,7 @@ export class ParentPortalComponent implements OnInit, OnDestroy {
     if (!this.isParentOnlineFeeCheckoutEnabled(obligation)) {
       return;
     }
+    this.feePaymentBanner = null;
     this.selectedObligation = obligation;
     this.paymentAmount = obligation.payableNow;
     this.paymentProvider = this.pickDefaultPaymentProvider();
@@ -1064,36 +1076,27 @@ export class ParentPortalComponent implements OnInit, OnDestroy {
         return;
       }
       this.processingPayment = true;
-      const returnUrl =
-        typeof window !== 'undefined' ? `${window.location.origin}/app/parent/children` : '/app/parent/children';
       const amount = Math.round(Number(this.paymentAmount) * 100) / 100;
-      this.parentService
-        .createCheckoutSession({
-          paymentId: this.selectedObligation.paymentId,
-          studentId: coerceApiLongId(this.selectedChild.id, 'student'),
-          amount,
-          provider: PAYMENT_PROVIDER_IDS.RAZORPAY,
-          returnUrl,
-        })
-        .subscribe({
-          next: session => {
-            this.currentCheckoutSession = session;
-            this.lastOrderPreview = { providerOrderId: session.providerOrderId, amount: session.amount };
-            this.processingPayment = false;
-            this.paymentStep = 'confirm';
-            if (session.publicKeyId) {
-              setTimeout(() => this.openRazorpayWidget(), 0);
-            } else {
-              this.paymentGatewayMessage = this.translate.instant('parentPortal.err.orderNoKey');
-            }
-          },
-          error: (e: unknown) => {
-            this.processingPayment = false;
-            const raw = e instanceof Error ? e.message : '';
-            this.paymentGatewayMessage =
-              raw?.trim() || this.translate.instant('parentPortal.err.checkoutFailed');
-          },
-        });
+      const studentId = coerceApiLongId(this.selectedChild.id, 'student');
+      /** Parent “Pay now” is only shown when admin enables online checkout; order uses fees-v2 + webhook settlement. */
+      this.parentService.createFeesV2CheckoutSession(studentId, amount).subscribe({
+        next: session => {
+          this.currentCheckoutSession = session;
+          this.lastOrderPreview = { providerOrderId: session.providerOrderId, amount: session.amount };
+          this.processingPayment = false;
+          this.paymentStep = 'confirm';
+          if (session.publicKeyId) {
+            setTimeout(() => this.openRazorpayWidget(), 0);
+          } else {
+            this.paymentGatewayMessage = this.translate.instant('parentPortal.err.orderNoKey');
+          }
+        },
+        error: (e: unknown) => {
+          this.processingPayment = false;
+          const raw = e instanceof Error ? e.message : '';
+          this.paymentGatewayMessage = raw?.trim() || this.translate.instant('parentPortal.err.checkoutFailed');
+        },
+      });
       return;
     }
 
@@ -1143,6 +1146,16 @@ export class ParentPortalComponent implements OnInit, OnDestroy {
       onSuccess: resp => {
         this.processingPayment = true;
         this.paymentGatewayMessage = null;
+        if (session.feesV2) {
+          this.processingPayment = false;
+          this.feePaymentBanner = this.translate.instant('parentPortal.feesV2PaymentSubmitted');
+          this.closePaymentModal();
+          this.reloadSelectedChild();
+          this.reloadReceiptHistory();
+          this.reloadReceiptLookup();
+          this.cdr.markForCheck();
+          return;
+        }
         this.parentService
           .confirmCheckout(session.attemptId, session.checkoutToken, resp.razorpay_payment_id, resp.razorpay_signature)
           .subscribe({

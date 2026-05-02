@@ -22,6 +22,7 @@ import com.school.erp.modules.fees.repository.*;
 import com.school.erp.modules.finance.service.TenantFinanceProfileService;
 import com.school.erp.modules.fees.pdf.FeeReceiptPdfContext;
 import com.school.erp.modules.fees.pdf.FeeReceiptPdfService;
+import com.school.erp.modules.feesv2.service.FeeV2Service;
 import com.school.erp.modules.settings.repository.TenantConfigRepository;
 import com.school.erp.modules.auth.repository.UserRepository;
 import com.school.erp.modules.guardian.service.GuardianService;
@@ -47,6 +48,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.Duration;
+import java.time.format.DateTimeParseException;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -92,6 +94,7 @@ public class FeeService {
     private final TenantFinanceProfileService tenantFinanceProfileService;
     private final TenantConfigRepository tenantConfigRepository;
     private final FeeReceiptPdfService feeReceiptPdfService;
+    private final FeeV2Service feeV2Service;
 
     @Value("${app.payments.razorpay.key:}")
     private String razorpayPublishableKeyId;
@@ -539,6 +542,10 @@ public class FeeService {
     @Transactional(readOnly = true)
     public List<FeeDTOs.ParentFeeObligationResponse> getParentFeeObligations(Long studentId) {
         assertParentOwnsStudent(studentId);
+        List<FeeDTOs.ParentFeeObligationResponse> v2 = feeV2Service.listParentFeeObligations(studentId);
+        if (!v2.isEmpty()) {
+            return v2;
+        }
         String tenantId = TenantContext.getTenantId();
         boolean parentOnlineCheckout = tenantFinanceProfileService.isParentOnlineFeeCheckoutEnabled(tenantId);
         return paymentRepo.findByTenantIdAndStudentIdAndIsDeletedFalse(tenantId, studentId).stream()
@@ -1125,25 +1132,24 @@ public class FeeService {
     @Transactional(readOnly = true)
     public FeeDTOs.PaymentReceiptResponse getReceipt(String receiptNumber) {
         String tenantId = TenantContext.getTenantId();
-        FeePayment payment = paymentRepo.findByReceiptNumberAndTenantIdAndIsDeletedFalse(receiptNumber, tenantId)
-                .orElseThrow(() -> new ResourceNotFoundException("Receipt not found"));
-        assertParentOwnsStudent(payment.getStudentId());
-        if (!hasRecordedFeeCollection(tenantId, payment.getId())) {
-            throw new ResourceNotFoundException("Receipt not found");
+        Optional<FeePayment> legacy = paymentRepo.findByReceiptNumberAndTenantIdAndIsDeletedFalse(receiptNumber, tenantId);
+        if (legacy.isPresent()) {
+            FeePayment payment = legacy.get();
+            assertParentOwnsStudent(payment.getStudentId());
+            if (!hasRecordedFeeCollection(tenantId, payment.getId())) {
+                throw new ResourceNotFoundException("Receipt not found");
+            }
+            return toReceiptResponse(payment, latestSuccessAttempt(tenantId, payment.getId()));
         }
-        return toReceiptResponse(payment, latestSuccessAttempt(tenantId, payment.getId()));
+        FeeDTOs.PaymentReceiptResponse v2 = feeV2Service.getParentPaymentReceiptOrThrow(receiptNumber);
+        assertParentOwnsStudent(v2.getStudentId());
+        return v2;
     }
 
     @Transactional(readOnly = true)
     public byte[] getParentFeeReceiptPdf(String receiptNumber) {
+        FeeDTOs.PaymentReceiptResponse r = getReceipt(receiptNumber);
         String tenantId = TenantContext.getTenantId();
-        FeePayment payment = paymentRepo.findByReceiptNumberAndTenantIdAndIsDeletedFalse(receiptNumber, tenantId)
-                .orElseThrow(() -> new ResourceNotFoundException("Receipt not found"));
-        assertParentOwnsStudent(payment.getStudentId());
-        if (!hasRecordedFeeCollection(tenantId, payment.getId())) {
-            throw new ResourceNotFoundException("Receipt not found");
-        }
-        FeeDTOs.PaymentReceiptResponse r = toReceiptResponse(payment, latestSuccessAttempt(tenantId, payment.getId()));
         FeeReceiptPdfContext ctx = FeeReceiptPdfContext.fromTenantConfig(tenantConfigRepository.findByTenantId(tenantId).orElse(null));
         return feeReceiptPdfService.build(r, ctx);
     }
@@ -1155,7 +1161,7 @@ public class FeeService {
     public List<FeeDTOs.PaymentReceiptResponse> listParentReceipts(Long studentId, LocalDate from, LocalDate to) {
         assertParentOwnsStudent(studentId);
         String tenantId = TenantContext.getTenantId();
-        return paymentRepo.findByTenantIdAndStudentIdAndIsDeletedFalse(tenantId, studentId).stream()
+        List<FeeDTOs.PaymentReceiptResponse> legacyRows = paymentRepo.findByTenantIdAndStudentIdAndIsDeletedFalse(tenantId, studentId).stream()
                 .filter(p -> p.getReceiptNumber() != null && !p.getReceiptNumber().isBlank())
                 .filter(p -> hasRecordedFeeCollection(tenantId, p.getId()))
                 .filter(p -> p.getPaymentDate() != null
@@ -1164,6 +1170,26 @@ public class FeeService {
                 .sorted(Comparator.comparing(FeePayment::getPaymentDate).reversed())
                 .map(p -> toReceiptResponse(p, latestSuccessAttempt(tenantId, p.getId())))
                 .collect(Collectors.toList());
+        List<FeeDTOs.PaymentReceiptResponse> v2Rows = feeV2Service.listParentPaymentReceipts(studentId, from, to);
+        List<FeeDTOs.PaymentReceiptResponse> merged = new ArrayList<>(legacyRows.size() + v2Rows.size());
+        merged.addAll(legacyRows);
+        merged.addAll(v2Rows);
+        merged.sort(Comparator.comparing(
+                        FeeService::parseParentReceiptPaymentDate,
+                        Comparator.nullsLast(Comparator.reverseOrder())));
+        return merged;
+    }
+
+    private static LocalDate parseParentReceiptPaymentDate(FeeDTOs.PaymentReceiptResponse r) {
+        if (r == null || r.getPaymentDate() == null || r.getPaymentDate().isBlank()) {
+            return null;
+        }
+        String raw = r.getPaymentDate();
+        try {
+            return LocalDate.parse(raw.length() >= 10 ? raw.substring(0, 10) : raw);
+        } catch (DateTimeParseException e) {
+            return null;
+        }
     }
 
     private boolean hasRecordedFeeCollection(String tenantId, Long feePaymentId) {
@@ -1414,7 +1440,8 @@ public class FeeService {
             final FinancialAuditService financialAuditService,
             final TenantFinanceProfileService tenantFinanceProfileService,
             final TenantConfigRepository tenantConfigRepository,
-            final FeeReceiptPdfService feeReceiptPdfService) {
+            final FeeReceiptPdfService feeReceiptPdfService,
+            final FeeV2Service feeV2Service) {
         this.structureRepo = structureRepo;
         this.componentRepo = componentRepo;
         this.paymentRepo = paymentRepo;
@@ -1434,6 +1461,7 @@ public class FeeService {
         this.tenantFinanceProfileService = tenantFinanceProfileService;
         this.tenantConfigRepository = tenantConfigRepository;
         this.feeReceiptPdfService = feeReceiptPdfService;
+        this.feeV2Service = feeV2Service;
     }
 
     private String normalizedOperationKey(String incoming, String prefix, Long id, BigDecimal amount) {
