@@ -32,6 +32,9 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     boolean existsByPhoneAndTenantIdAndIsDeletedFalse(String phone, String tenantId);
 
+    /** Platform onboarding: block reusing the same handset across different school admin accounts. */
+    boolean existsByPhoneAndRoleAndIsDeletedFalse(String phone, Enums.Role role);
+
     boolean existsByEmailAndTenantIdAndIsDeletedFalse(String email, String tenantId);
 
     boolean existsByEmailAndTenantId(String email, String tenantId);

@@ -509,20 +509,42 @@ public class TeacherService {
     }
 
     private static boolean isAdminActor(String role) {
-        return role != null && role.trim().equalsIgnoreCase("ADMIN");
+        if (role == null) {
+            return false;
+        }
+        String r = role.trim().toUpperCase(Locale.ROOT);
+        return "ADMIN".equals(r) || "SUPER_ADMIN".equals(r);
     }
 
-    private static boolean hasSensitiveAdminEdit(TeacherDTOs.UpdateRequest req, Teacher current) {
+    /**
+     * Admins may change school-assignment fields only. Detects real edits to contact/payroll fields so a full
+     * PUT/PATCH body that echoes unchanged bank/contact data does not trip validation.
+     */
+    private boolean hasSensitiveAdminEdit(TeacherDTOs.UpdateRequest req, Teacher current) {
         boolean emailChanged = req.getEmail() != null
                 && !req.getEmail().trim().equalsIgnoreCase(current.getEmail() != null ? current.getEmail().trim() : "");
-        boolean phoneChanged = req.getPhone() != null
-                && !req.getPhone().trim().equals(current.getPhone() != null ? current.getPhone().trim() : "");
-        return emailChanged
-                || phoneChanged
-                || req.getBankAccountHolder() != null
-                || req.getBankName() != null
-                || req.getBankAccountNumber() != null
-                || req.getBankIfsc() != null;
+
+        boolean phoneChanged = false;
+        if (req.getPhone() != null) {
+            String rawReq = req.getPhone().trim();
+            String curRaw = current.getPhone() == null ? "" : current.getPhone().trim();
+            if (rawReq.isEmpty()) {
+                phoneChanged = !curRaw.isEmpty();
+            } else {
+                phoneChanged = !InternationalPhone.samePortalPhone(rawReq, curRaw);
+            }
+        }
+
+        boolean bankHolderChanged = req.getBankAccountHolder() != null
+                && !Objects.equals(trimToNull(req.getBankAccountHolder()), trimToNull(current.getBankAccountHolder()));
+        boolean bankNameChanged = req.getBankName() != null
+                && !Objects.equals(trimToNull(req.getBankName()), trimToNull(current.getBankName()));
+        boolean bankNumberChanged = req.getBankAccountNumber() != null
+                && !Objects.equals(trimToNull(req.getBankAccountNumber()), trimToNull(current.getBankAccountNumber()));
+        boolean bankIfscChanged = req.getBankIfsc() != null
+                && !Objects.equals(normalizeIfsc(req.getBankIfsc()), normalizeIfsc(current.getBankIfsc()));
+
+        return emailChanged || phoneChanged || bankHolderChanged || bankNameChanged || bankNumberChanged || bankIfscChanged;
     }
 
     @Transactional

@@ -349,9 +349,17 @@ type ParentTimetableContract = {
               <option *ngFor="let sec of sections" [ngValue]="sec.id">{{ sec.name }}</option>
             </select>
           </div>
-          <div class="col-md-4" *ngIf="selectedClassTeacherName">
+          <div class="col-md-3" *ngIf="selectedClassTeacherName">
             <label class="erp-label">{{ 'timetable.labelClassTeacher' | translate }}</label>
             <input class="erp-input" [value]="selectedClassTeacherName" readonly />
+          </div>
+          <div class="col-md-3">
+            <label class="erp-label">{{ 'timetable.labelSessionDate' | translate }}</label>
+            <app-erp-date-picker
+              [(ngModel)]="classViewDate"
+              (ngModelChange)="onClassViewDateChange()"
+              placeholderI18nKey="timetable.datePlaceholderCover"
+            />
           </div>
         </div>
         <div class="row g-3 align-items-end" *ngIf="scheduleScope === 'teacher'">
@@ -395,7 +403,7 @@ type ParentTimetableContract = {
         </p>
       </div>
 
-      <div class="erp-card mb-4 animate-in" *ngIf="showTeacherScheduleEmptyHint">
+      <div class="erp-card mb-4 animate-in" *ngIf="showTeacherScheduleEmptyHint || showClassScheduleEmptyHint">
         <p class="text-muted mb-0 small">{{ 'timetable.emptyTeacherSession' | translate }}</p>
       </div>
 
@@ -617,7 +625,15 @@ type ParentTimetableContract = {
             </div>
             <div class="col-md-6">
               <label class="erp-label">{{ 'timetable.labelSubject' | translate }}</label>
-              <input class="erp-input" [(ngModel)]="entryForm.subjectName" />
+              <input
+                class="erp-input"
+                [(ngModel)]="entryForm.subjectName"
+                [attr.list]="subjectCatalogNames.length ? 'timetable-slot-subject-options' : null"
+                name="slotSubject"
+              />
+              <datalist id="timetable-slot-subject-options">
+                <option *ngFor="let n of subjectCatalogNames" [value]="n"></option>
+              </datalist>
             </div>
             <ng-container *ngIf="scheduleScope === 'teacher'">
               <div class="col-md-6">
@@ -629,18 +645,54 @@ type ParentTimetableContract = {
               <div class="col-md-6">
                 <label class="erp-label">{{ 'timetable.labelSection' | translate }}</label>
                 <select class="erp-select" [(ngModel)]="entryForm.sectionId">
-                  <option [ngValue]="null">{{ 'timetable.sectionWholeClass' | translate }}</option>
+                  <option *ngIf="entryFormSections.length === 0" [ngValue]="null">{{ 'timetable.sectionWholeClass' | translate }}</option>
                   <option *ngFor="let sec of entryFormSections" [ngValue]="sec.id">{{ sec.name }}</option>
                 </select>
               </div>
             </ng-container>
-            <div class="col-md-6">
-              <label class="erp-label">{{ 'timetable.labelStart' | translate }}</label>
-              <input class="erp-input" type="time" [(ngModel)]="entryForm.startTime" />
-            </div>
-            <div class="col-md-6">
-              <label class="erp-label">{{ 'timetable.labelEnd' | translate }}</label>
-              <input class="erp-input" type="time" [(ngModel)]="entryForm.endTime" />
+            <div class="col-12">
+              <label class="erp-label">{{ 'timetable.timePicker12hTitle' | translate }}</label>
+              <div class="d-flex flex-wrap gap-3 align-items-end mb-2">
+                <div>
+                  <span class="small text-muted d-block mb-1">{{ 'timetable.labelStart' | translate }}</span>
+                  <div class="d-flex gap-1 align-items-center flex-wrap">
+                    <select class="erp-select" style="min-width: 4.25rem" [(ngModel)]="modalTime12.startH" name="slotSh">
+                      <option *ngFor="let h of modalHours12" [ngValue]="h">{{ h }}</option>
+                    </select>
+                    <span class="text-muted">:</span>
+                    <select class="erp-select" style="min-width: 4.25rem" [(ngModel)]="modalTime12.startM" name="slotSm">
+                      <option *ngFor="let m of modalMinuteOptions" [ngValue]="m">{{ m }}</option>
+                    </select>
+                    <select class="erp-select" style="min-width: 4.5rem" [(ngModel)]="modalTime12.startAp" name="slotSap">
+                      <option ngValue="AM">AM</option>
+                      <option ngValue="PM">PM</option>
+                    </select>
+                  </div>
+                </div>
+                <div>
+                  <span class="small text-muted d-block mb-1">{{ 'timetable.labelEnd' | translate }}</span>
+                  <div class="d-flex gap-1 align-items-center flex-wrap">
+                    <select class="erp-select" style="min-width: 4.25rem" [(ngModel)]="modalTime12.endH" name="slotEh">
+                      <option *ngFor="let h of modalHours12" [ngValue]="h">{{ h }}</option>
+                    </select>
+                    <span class="text-muted">:</span>
+                    <select class="erp-select" style="min-width: 4.25rem" [(ngModel)]="modalTime12.endM" name="slotEm">
+                      <option *ngFor="let m of modalMinuteOptions" [ngValue]="m">{{ m }}</option>
+                    </select>
+                    <select class="erp-select" style="min-width: 4.5rem" [(ngModel)]="modalTime12.endAp" name="slotEap">
+                      <option ngValue="AM">AM</option>
+                      <option ngValue="PM">PM</option>
+                    </select>
+                  </div>
+                </div>
+                <button type="button" class="btn-primary-erp btn-sm" (click)="applyModal12hTimes()">
+                  {{ 'timetable.applyTimes' | translate }}
+                </button>
+              </div>
+              <p class="small text-muted mb-0">
+                {{ 'timetable.storedTimesHint' | translate }}
+                <strong class="text-body">{{ entryForm.startTime }} – {{ entryForm.endTime }}</strong>
+              </p>
             </div>
             <div class="col-md-12">
               <label class="erp-label">{{ 'timetable.labelRoom' | translate }}</label>
@@ -691,10 +743,27 @@ export class TimetableComponent implements OnInit {
   editingEntryId: number | null = null;
   dayOptions = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
   entryForm: TimetableEntryForm = this.defaultEntryForm();
+  /** Subject names from catalog (Add/Edit slot — picklist + free text via datalist). */
+  subjectCatalogNames: string[] = [];
+  /** 12-hour clock controls for the slot modal; applied explicitly so users confirm times. */
+  modalTime12 = {
+    startH: '8',
+    startM: '00',
+    startAp: 'AM' as 'AM' | 'PM',
+    endH: '8',
+    endM: '45',
+    endAp: 'AM' as 'AM' | 'PM',
+  };
+  readonly modalHours12 = ['12', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11'];
+  readonly modalMinuteOptions = Array.from({ length: 60 }, (_, i) => String(i).padStart(2, '0'));
   /** Local calendar date (YYYY-MM-DD); avoids UTC drift from `toISOString()` for “today”. */
   teacherViewDate = '';
+  /** Same semantics as {@link #teacherViewDate}: which calendar day’s recurring rows to show in “by class” classic (day) layout. */
+  classViewDate = '';
   /** Raw API rows for “by teacher” scope (classic view may show one weekday; week matrix uses the full week). */
   private teacherScheduleRows: TimetableEntry[] = [];
+  /** Full week entries for “by class” before day vs week layout filtering. */
+  private classScheduleRows: TimetableEntry[] = [];
 
   constructor(
     private timetableService: TimetableService,
@@ -781,6 +850,7 @@ export class TimetableComponent implements OnInit {
     this.translate.onLangChange.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => this.cdr.markForCheck());
 
     this.teacherViewDate = this.defaultTeacherSessionCalendarDate();
+    this.classViewDate = this.defaultTeacherSessionCalendarDate();
 
     const r = this.auth.getNormalizedRole();
     this.isAdmin = this.uiAccess.hasAcademicDeskAdminAccess();
@@ -825,6 +895,14 @@ export class TimetableComponent implements OnInit {
     if (this.isAdmin && this.timetableSection === 'covers') {
       this.bootstrapCoversAdmin();
     }
+    this.academicService.getSubjectCatalog().subscribe({
+      next: cat => {
+        this.subjectCatalogNames = [...new Set(cat.map(s => (s.name ?? '').trim()).filter(Boolean))].sort((a, b) =>
+          a.localeCompare(b)
+        );
+      },
+      error: () => (this.subjectCatalogNames = []),
+    });
   }
 
   setTimetableSection(section: 'schedule' | 'covers'): void {
@@ -973,10 +1051,25 @@ export class TimetableComponent implements OnInit {
     );
   }
 
+  /** Classic “today” layout for class scope when the chosen calendar day has no Mon–Sat row (e.g. Sunday). */
+  get showClassScheduleEmptyHint(): boolean {
+    return (
+      this.scheduleScope === 'class' &&
+      !this.isParent &&
+      this.layout === 'dayRows' &&
+      this.selectedClassId != null &&
+      (this.sections.length === 0 || this.selectedSectionId != null) &&
+      (this.grid?.days?.length ?? 0) === 0
+    );
+  }
+
   setTimetableLayout(next: 'dayRows' | 'periodRows'): void {
     this.layout = next;
     if (this.scheduleScope === 'teacher' && this.selectedTeacherId != null && this.teacherScheduleRows.length) {
       this.applyTeacherScopeViewModel();
+    }
+    if (this.scheduleScope === 'class' && this.classScheduleRows.length) {
+      this.applyClassScopeViewModel();
     }
   }
 
@@ -1137,6 +1230,7 @@ export class TimetableComponent implements OnInit {
     this.entries = [];
     this.grid = null;
     this.teacherScheduleRows = [];
+    this.classScheduleRows = [];
     if (scope === 'class') {
       this.selectedTeacherId = null;
       if (this.selectedClassId != null && (this.sections.length === 0 || this.selectedSectionId != null)) {
@@ -1168,11 +1262,17 @@ export class TimetableComponent implements OnInit {
     }
   }
 
+  onClassViewDateChange(): void {
+    if (this.scheduleScope === 'class' && this.classScheduleRows.length) {
+      this.applyClassScopeViewModel();
+    }
+  }
+
   private loadTeacherTimetable(): void {
     if (this.selectedTeacherId == null) {
       return;
     }
-    this.timetableService.getByTeacher(this.selectedTeacherId, this.teacherViewDate).subscribe({
+    this.timetableService.getByTeacher(this.selectedTeacherId, this.resolveTeacherViewCalendarDate()).subscribe({
       next: rows => {
         this.teacherScheduleRows = rows ?? [];
         this.applyTeacherScopeViewModel();
@@ -1194,10 +1294,41 @@ export class TimetableComponent implements OnInit {
       this.entries = raw.filter(e => this.timetableService.isIndianSchoolTeachingDayName(e.day));
       this.grid = this.timetableService.toSchoolWeekMatrixGrid(this.entries);
     } else {
-      const dow = this.weekdayEnglishFromIsoDate(this.teacherViewDate);
+      const dow = this.weekdayEnglishFromIsoDate(this.resolveTeacherViewCalendarDate());
       this.entries = raw.filter(e => this.normalizeDay(e.day) === this.normalizeDay(dow));
-      this.grid = this.timetableService.toGridFromEntries(this.entries);
+      this.grid = this.timetableService.toGridFromEntries(this.entries, { restrictToWeekdays: [dow] });
     }
+  }
+
+  /**
+   * “By class” schedule: week matrix uses all Mon–Sat rows; classic (day) layout uses the selected session date’s weekday only
+   * — same model as {@link #applyTeacherScopeViewModel} without a second HTTP round-trip.
+   */
+  private applyClassScopeViewModel(): void {
+    const raw = this.classScheduleRows;
+    if (!raw.length) {
+      this.entries = [];
+      this.grid = null;
+      return;
+    }
+    if (this.layout === 'periodRows') {
+      this.entries = raw.filter(e => this.timetableService.isIndianSchoolTeachingDayName(e.day));
+      this.grid = this.timetableService.toSchoolWeekMatrixGrid(this.entries);
+    } else {
+      const dow = this.weekdayEnglishFromIsoDate(this.resolveClassViewCalendarDate());
+      this.entries = raw.filter(e => this.normalizeDay(e.day) === this.normalizeDay(dow));
+      this.grid = this.timetableService.toGridFromEntries(this.entries, { restrictToWeekdays: [dow] });
+    }
+  }
+
+  private resolveTeacherViewCalendarDate(): string {
+    const raw = (this.teacherViewDate ?? '').trim();
+    return raw.length ? raw : this.defaultTeacherSessionCalendarDate();
+  }
+
+  private resolveClassViewCalendarDate(): string {
+    const raw = (this.classViewDate ?? '').trim();
+    return raw.length ? raw : this.defaultTeacherSessionCalendarDate();
   }
 
   private weekdayEnglishFromIsoDate(iso: string): string {
@@ -1220,6 +1351,7 @@ export class TimetableComponent implements OnInit {
     this.selectedSectionId = null;
     this.entries = [];
     this.grid = null;
+    this.classScheduleRows = [];
     if (this.selectedClassId != null && this.sections.length === 0) {
       this.loadTimetable();
     }
@@ -1263,15 +1395,13 @@ export class TimetableComponent implements OnInit {
     if (this.selectedClassId == null) return;
     if (this.sections.length > 0 && this.selectedSectionId == null) return;
     const sectionArg = this.sections.length > 0 ? this.selectedSectionId! : undefined;
-    forkJoin({
-      entries: this.timetableService.getByClassAndSection(this.selectedClassId, sectionArg),
-      grid: this.timetableService.getGrid(this.selectedClassId, sectionArg),
-    }).subscribe({
-      next: ({ entries, grid }) => {
-        this.entries = entries ?? [];
-        this.grid = grid ?? null;
+    this.timetableService.getByClassAndSection(this.selectedClassId, sectionArg).subscribe({
+      next: rows => {
+        this.classScheduleRows = rows ?? [];
+        this.applyClassScopeViewModel();
       },
       error: () => {
+        this.classScheduleRows = [];
         this.entries = [];
         this.grid = null;
       },
@@ -1296,6 +1426,7 @@ export class TimetableComponent implements OnInit {
       this.entryForm.sectionId = this.entryFormSections[0]?.id ?? null;
     }
     this.showModal = true;
+    this.syncModal12hFromEntryForm();
   }
 
   openEditModal(entry: TimetableEntry): void {
@@ -1305,6 +1436,7 @@ export class TimetableComponent implements OnInit {
     this.editingEntryId = entry.id;
     this.entryForm = { ...entry };
     this.showModal = true;
+    this.syncModal12hFromEntryForm();
   }
 
   closeModal(): void {
@@ -1320,7 +1452,61 @@ export class TimetableComponent implements OnInit {
   }
 
   saveEntry(): void {
+    this.applyModal12hTimes();
     this.persistTimetableSlot(undefined);
+  }
+
+  applyModal12hTimes(): void {
+    this.entryForm.startTime = this.join12HourTo24(this.modalTime12.startH, this.modalTime12.startM, this.modalTime12.startAp);
+    this.entryForm.endTime = this.join12HourTo24(this.modalTime12.endH, this.modalTime12.endM, this.modalTime12.endAp);
+    this.cdr.markForCheck();
+  }
+
+  private syncModal12hFromEntryForm(): void {
+    const s = this.entryForm.startTime || '08:00';
+    const e = this.entryForm.endTime || '08:45';
+    const a = this.split24HourTo12(s);
+    const b = this.split24HourTo12(e);
+    this.modalTime12 = {
+      startH: a.h,
+      startM: a.m,
+      startAp: a.ap,
+      endH: b.h,
+      endM: b.m,
+      endAp: b.ap,
+    };
+  }
+
+  private split24HourTo12(t: string): { h: string; m: string; ap: 'AM' | 'PM' } {
+    const raw = (t || '00:00').trim();
+    const [hs, ms] = raw.split(':');
+    let rh = Number(hs);
+    const rm = Math.min(59, Math.max(0, Number(ms) || 0));
+    if (!Number.isFinite(rh) || rh < 0 || rh > 23) {
+      rh = 8;
+    }
+    const ap: 'AM' | 'PM' = rh >= 12 ? 'PM' : 'AM';
+    let h12 = rh % 12;
+    if (h12 === 0) {
+      h12 = 12;
+    }
+    return { h: String(h12), m: String(rm).padStart(2, '0'), ap };
+  }
+
+  private join12HourTo24(h: string, m: string, ap: 'AM' | 'PM'): string {
+    let hh = parseInt(h, 10);
+    const mm = Math.min(59, Math.max(0, parseInt(m, 10) || 0));
+    if (!Number.isFinite(hh) || hh < 1 || hh > 12) {
+      hh = 8;
+    }
+    if (ap === 'AM') {
+      if (hh === 12) {
+        hh = 0;
+      }
+    } else if (hh !== 12) {
+      hh += 12;
+    }
+    return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
   }
 
   private warnInvalidTimetableInput(messageKey: string): void {

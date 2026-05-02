@@ -14,10 +14,12 @@ import {
   ApplyTeacherScheduleOnboardingRequest,
   SchoolClass,
   Teacher,
+  TeacherScheduleValidationIssue,
   TimetableEntry,
   ValidateTeacherScheduleOnboardingResponse,
   type TimetableConflictPayload,
 } from '../../core/models/models';
+import { formatSchoolClassDisplayName } from '../../core/i18n/school-class-display';
 import {
   buildTimetableConflictDialogStrings,
   createTimetableConflictHumanLabels,
@@ -194,17 +196,20 @@ interface DraftSlot {
       <div class="erp-card mb-3" *ngIf="teacherId">
         <h4 class="erp-card-title mb-2">{{ 'timetableOnboarding.step2' | translate }}</h4>
         <p class="small text-muted mb-3">{{ 'timetableOnboarding.homeroomHelp' | translate }}</p>
+        <p *ngIf="catalogHomeroomLocked" class="small mb-2" style="color: var(--clr-text-secondary);">
+          {{ 'timetableOnboarding.homeroomLockedHint' | translate }}
+        </p>
         <div class="row g-3 align-items-end">
           <div class="col-md-4">
             <label class="erp-label">{{ 'timetable.labelClass' | translate }}</label>
-            <select class="erp-select" [(ngModel)]="hmClassId" (ngModelChange)="onHmClassChange()">
+            <select class="erp-select" [(ngModel)]="hmClassId" (ngModelChange)="onHmClassChange()" [disabled]="catalogHomeroomLocked">
               <option [ngValue]="null">{{ 'timetable.selectClass' | translate }}</option>
               <option *ngFor="let c of classes" [ngValue]="c.id">{{ c.name }}</option>
             </select>
           </div>
           <div class="col-md-4" *ngIf="hmClassHasSections">
             <label class="erp-label">{{ 'timetable.labelSection' | translate }}</label>
-            <select class="erp-select" [(ngModel)]="hmSectionId">
+            <select class="erp-select" [(ngModel)]="hmSectionId" [disabled]="catalogHomeroomLocked">
               <option [ngValue]="null">{{ 'timetable.selectSection' | translate }}</option>
               <option *ngFor="let s of hmSections" [ngValue]="s.id">{{ s.name }}</option>
             </select>
@@ -285,11 +290,31 @@ interface DraftSlot {
                 </td>
                 <td style="min-width: 120px;">
                   <select class="erp-select" [(ngModel)]="r.sectionId" [disabled]="!draftSections(r).length">
-                    <option [ngValue]="null">{{ 'timetable.sectionWholeClass' | translate }}</option>
+                    <option *ngIf="draftSections(r).length === 0" [ngValue]="null">{{ 'timetable.sectionWholeClass' | translate }}</option>
                     <option *ngFor="let s of draftSections(r)" [ngValue]="s.id">{{ s.name }}</option>
                   </select>
                 </td>
-                <td><input type="text" class="erp-input" [(ngModel)]="r.subjectName" erpI18nPh="timetableOnboarding.phSubject" /></td>
+                <td style="min-width: 160px;">
+                  <select
+                    *ngIf="subjectCatalogNames.length"
+                    class="erp-select mb-1"
+                    [ngModel]="draftSubjectSelectValue(r)"
+                    (ngModelChange)="onDraftSubjectSelect(r, $event)"
+                    [name]="'onbSubjSel' + r.key"
+                  >
+                    <option [ngValue]="''">{{ 'timetable.selectSubject' | translate }}</option>
+                    <option *ngFor="let n of subjectCatalogNames" [ngValue]="n">{{ n }}</option>
+                    <option [ngValue]="CUSTOM_SUBJECT_SENTINEL">{{ 'teachers.category.other' | translate }}</option>
+                  </select>
+                  <input
+                    type="text"
+                    class="erp-input"
+                    [(ngModel)]="r.subjectName"
+                    [name]="'onbSubj' + r.key"
+                    erpI18nPh="timetableOnboarding.phSubject"
+                    *ngIf="!subjectCatalogNames.length || draftSubjectSelectValue(r) === CUSTOM_SUBJECT_SENTINEL"
+                  />
+                </td>
                 <td><input type="text" class="erp-input" [(ngModel)]="r.room" erpI18nPh="timetableOnboarding.phRoom" /></td>
                 <td>
                   <button type="button" class="btn-outline-erp btn-xs" (click)="removeRow(r)">{{ 'timetable.deleteShort' | translate }}</button>
@@ -316,8 +341,15 @@ interface DraftSlot {
   `,
 })
 export class TeacherScheduleOnboardingComponent implements OnInit, OnDestroy {
+  /** Picklist sentinel: free-text subject (not in school catalog). */
+  readonly CUSTOM_SUBJECT_SENTINEL = '__erp_custom_subject__';
+
   teachers: Teacher[] = [];
   classes: SchoolClass[] = [];
+  /** Sorted unique subject names from {@link AcademicService#getSubjectCatalog} for slot picklists. */
+  subjectCatalogNames: string[] = [];
+  /** True when homeroom was resolved from an existing class-teacher assignment — fields stay fixed to avoid accidental edits. */
+  catalogHomeroomLocked = false;
   teacherId: number | null = null;
   hmClassId: number | null = null;
   hmSectionId: number | null = null;
@@ -348,10 +380,14 @@ export class TeacherScheduleOnboardingComponent implements OnInit, OnDestroy {
     forkJoin({
       teachers: this.teacherService.getTeachersPage({ page: 0, size: 500 }),
       classes: this.academic.getClasses(),
+      catalog: this.academic.getSubjectCatalog(),
     }).subscribe({
-      next: ({ teachers, classes }) => {
+      next: ({ teachers, classes, catalog }) => {
         this.teachers = teachers.content ?? [];
         this.classes = classes;
+        this.subjectCatalogNames = [...new Set(catalog.map(s => (s.name ?? '').trim()).filter(Boolean))].sort((a, b) =>
+          a.localeCompare(b)
+        );
       },
     });
   }
@@ -401,6 +437,7 @@ export class TeacherScheduleOnboardingComponent implements OnInit, OnDestroy {
     this.lastError = '';
     this.dismissSuccessToast();
     this.removedEntryIds = [];
+    this.catalogHomeroomLocked = false;
     this.hmClassId = null;
     this.hmSectionId = null;
     if (!this.teacherId) {
@@ -409,6 +446,27 @@ export class TeacherScheduleOnboardingComponent implements OnInit, OnDestroy {
     }
     this.prefillHomeroomFromCatalog();
     this.reloadFromServer();
+  }
+
+  draftSubjectSelectValue(r: DraftSlot): string {
+    const n = (r.subjectName ?? '').trim();
+    if (!n) {
+      return '';
+    }
+    if (this.subjectCatalogNames.includes(n)) {
+      return n;
+    }
+    return this.CUSTOM_SUBJECT_SENTINEL;
+  }
+
+  onDraftSubjectSelect(r: DraftSlot, v: string): void {
+    if (v === this.CUSTOM_SUBJECT_SENTINEL) {
+      if (this.subjectCatalogNames.includes((r.subjectName ?? '').trim())) {
+        r.subjectName = '';
+      }
+      return;
+    }
+    r.subjectName = v;
   }
 
   onHmClassChange(): void {
@@ -422,24 +480,28 @@ export class TeacherScheduleOnboardingComponent implements OnInit, OnDestroy {
 
   prefillHomeroomFromCatalog(): void {
     if (!this.teacherId) {
+      this.catalogHomeroomLocked = false;
       return;
     }
     for (const c of this.classes) {
       if (!c.sections?.length && c.classTeacherId === this.teacherId) {
         this.hmClassId = c.id;
         this.hmSectionId = null;
+        this.catalogHomeroomLocked = true;
         return;
       }
       for (const s of c.sections ?? []) {
         if (s.classTeacherId === this.teacherId) {
           this.hmClassId = c.id;
           this.hmSectionId = s.id;
+          this.catalogHomeroomLocked = true;
           return;
         }
       }
     }
     this.hmClassId = null;
     this.hmSectionId = null;
+    this.catalogHomeroomLocked = false;
   }
 
   reloadFromServer(): void {
@@ -568,7 +630,6 @@ export class TeacherScheduleOnboardingComponent implements OnInit, OnDestroy {
         next: validation => {
           this.saving = false;
           if (!validation.valid) {
-            this.lastError = this.translate.instant('timetableOnboarding.validationBlocked');
             this.openValidationBlockedDialog(validation);
             return;
           }
@@ -836,18 +897,33 @@ export class TeacherScheduleOnboardingComponent implements OnInit, OnDestroy {
   }
 
   private openValidationBlockedDialog(validation: ValidateTeacherScheduleOnboardingResponse): void {
-    const details = [
+    this.lastError = '';
+    const issues = validation.issues ?? [];
+    const max = 45;
+    const shown = issues.slice(0, max);
+    const teacherLabel =
+      validation.teacherName?.trim() ||
+      this.translate.instant('timetableOnboarding.validationBlockedTeacherFallback');
+    const details: string[] = [
       this.translate.instant('timetableOnboarding.validationBlockedLead'),
-      ...validation.issues.slice(0, 12).map(i => this.describeValidationIssue(i)),
+      ...shown.map((i, idx) => `${idx + 1}. ${this.formatValidationIssuePlain(i)}`),
     ];
+    if (issues.length > max) {
+      details.push(this.translate.instant('timetableOnboarding.validationBlockedTruncated', { count: issues.length - max }));
+    }
+    details.push(this.translate.instant('timetableOnboarding.validationBlockedFooterTip'));
     this.confirmDialog
       .confirm({
         title: this.translate.instant('timetableOnboarding.validationBlockedTitle'),
-        message: this.translate.instant('timetableOnboarding.validationBlockedMessage'),
+        message: this.translate.instant('timetableOnboarding.validationBlockedMessage', {
+          teacher: teacherLabel,
+          count: issues.length,
+        }),
         details,
         confirmLabel: this.translate.instant('timetableOnboarding.validationBlockedAcknowledge'),
         cancelLabel: '',
         variant: 'warning',
+        wide: true,
       })
       .pipe(take(1))
       .subscribe(() => undefined);
@@ -870,7 +946,7 @@ export class TeacherScheduleOnboardingComponent implements OnInit, OnDestroy {
 
   private buildClientWarningsForSummary(validation?: ValidateTeacherScheduleOnboardingResponse): string[] {
     if (validation?.issues?.length) {
-      return validation.issues.slice(0, 4).map(i => this.describeValidationIssue(i));
+      return validation.issues.slice(0, 4).map(i => this.formatValidationIssuePlain(i));
     }
     const out: string[] = [];
     const teacherKeys = new Set<string>();
@@ -937,25 +1013,92 @@ export class TeacherScheduleOnboardingComponent implements OnInit, OnDestroy {
     return out;
   }
 
-  private describeValidationIssue(i: {
-    code?: string;
-    message?: string;
-    conflictType?: string;
-    day?: string;
-    period?: number;
-    classId?: number;
-    sectionId?: number | null;
-    room?: string;
-  }): string {
-    const where = [i.day, i.period != null ? `P${i.period}` : ''].filter(Boolean).join(' ');
-    const cls = i.classId != null ? this.classes.find(c => c.id === i.classId) : undefined;
-    const sec = i.sectionId != null ? cls?.sections?.find(s => s.id === i.sectionId) : undefined;
-    const classSection = cls
-      ? `${cls.name}${sec ? `-${sec.name}` : ''}`
-      : i.classId != null
-        ? String(i.classId)
+  private formatValidationIssuePlain(i: TeacherScheduleValidationIssue): string {
+    const ct = (i.conflictType ?? '').toUpperCase();
+    const code = (i.code ?? '').toUpperCase();
+    const day = this.weekdayDisplayFromIssue(i.day);
+    const period = i.period != null && i.period > 0 ? i.period : null;
+    const periodLabel =
+      period != null ? this.translate.instant('timetableOnboarding.issuePeriodLabel', { period }) : '—';
+    const roomRaw = (i.room ?? '').trim();
+    const room = roomRaw || this.translate.instant('timetableOnboarding.issueRoomUnknown');
+    const otherClass = this.formatClassSectionFromIssue(i.classId, i.sectionId);
+    const ref =
+      i.existingEntryId != null
+        ? this.translate.instant('timetableOnboarding.issueRef', { id: i.existingEntryId })
         : '';
-    const scope = [where, classSection, i.room ? `Room ${i.room}` : ''].filter(Boolean).join(' · ');
-    return scope ? `${i.message ?? i.code ?? 'Validation issue'} (${scope})` : i.message ?? i.code ?? 'Validation issue';
+
+    if (ct === 'ROOM_DOUBLE_BOOKED') {
+      return (
+        this.translate.instant('timetableOnboarding.issueRoomDoubleBooked', {
+          day,
+          period: period ?? '—',
+          room: roomRaw || room,
+          otherClass,
+        }) + (ref ? ` ${ref}` : '')
+      );
+    }
+    if (ct === 'TEACHER_DOUBLE_BOOKED') {
+      return (
+        this.translate.instant('timetableOnboarding.issueTeacherDoubleBooked', {
+          day,
+          period: period ?? '—',
+          otherClass,
+        }) + (ref ? ` ${ref}` : '')
+      );
+    }
+    if (ct === 'CLASS_PERIOD_OCCUPIED') {
+      return (
+        this.translate.instant('timetableOnboarding.issueClassPeriodOccupied', {
+          day,
+          period: period ?? '—',
+          otherClass,
+        }) + (ref ? ` ${ref}` : '')
+      );
+    }
+
+    if (code === 'REQUEST_ROOM_DOUBLE_BOOKED') {
+      return this.translate.instant('timetableOnboarding.issueRequestRoomDoubleBooked', {
+        day,
+        period: periodLabel,
+        room: roomRaw || room,
+      });
+    }
+    if (code === 'REQUEST_TEACHER_DOUBLE_BOOKED') {
+      return this.translate.instant('timetableOnboarding.issueRequestTeacherDoubleBooked', { day, period: periodLabel });
+    }
+    if (code === 'REQUEST_DUPLICATE_CLASS_SLOT') {
+      return this.translate.instant('timetableOnboarding.issueRequestDuplicateSlot', { day, period: periodLabel });
+    }
+
+    const where = [day, period != null ? periodLabel : '', otherClass !== '—' ? otherClass : '', roomRaw].filter(Boolean).join(' · ');
+    const base = (i.message || i.code || this.translate.instant('timetableOnboarding.issueUnknown')).trim();
+    return where ? `${base} (${where})` : base;
+  }
+
+  private weekdayDisplayFromIssue(raw?: string): string {
+    const d = (raw ?? '').trim().toLowerCase();
+    if (!d) {
+      return '—';
+    }
+    const key = `timetable.days.${d}`;
+    const tr = this.translate.instant(key);
+    return tr !== key ? tr : raw!.charAt(0) + raw!.slice(1).toLowerCase();
+  }
+
+  private formatClassSectionFromIssue(classId?: number, sectionId?: number | null): string {
+    if (classId == null) {
+      return '—';
+    }
+    const cls = this.classes.find(c => c.id === classId);
+    const cname = formatSchoolClassDisplayName(classId, cls?.name?.trim(), this.translate);
+    if (!cls?.sections?.length) {
+      return cname;
+    }
+    if (sectionId == null) {
+      return cname;
+    }
+    const sec = cls.sections.find(s => s.id === sectionId);
+    return sec ? `${cname} - ${sec.name}` : cname;
   }
 }

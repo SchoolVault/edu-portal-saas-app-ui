@@ -53,8 +53,9 @@ export class PayrollService {
 
   getStructures(): Observable<SalaryStructure[]> {
     if (runtimeConfig.useMocks) {
+      const overrideIds = new Set(this.mockCreatedStructures.map(s => s.id));
       const merged = [
-        ...MOCK_PAYROLL_STRUCTURES.map(s => ({
+        ...MOCK_PAYROLL_STRUCTURES.filter(s => !overrideIds.has(s.id)).map(s => ({
           ...s,
           allowances: s.allowances.map(a => ({ ...a })),
           deductions: s.deductions.map(d => ({ ...d })),
@@ -111,6 +112,49 @@ export class PayrollService {
       deductions: ded.map(d => ({ name: d.name.trim(), amount: d.amount })),
     };
     return this.api.post<any>('/payroll/structures', body).pipe(map(s => this.normalizeStructure(s)));
+  }
+
+  updateSalaryStructure(
+    structureId: number,
+    payload: { teacherId: number; teacherName: string; basicSalary: number; allowances: { name: string; amount: number }[]; deductions: { name: string; amount: number }[] }
+  ): Observable<SalaryStructure> {
+    const allow = payload.allowances ?? [];
+    const ded = payload.deductions ?? [];
+    if (runtimeConfig.useMocks) {
+      const net =
+        Number(payload.basicSalary) +
+        allow.reduce((s, a) => s + Number(a.amount), 0) -
+        ded.reduce((s, d) => s + Number(d.amount), 0);
+      const list = this.mockCreatedStructures;
+      let idx = list.findIndex(s => s.id === structureId);
+      let base: SalaryStructure | undefined = idx >= 0 ? list[idx] : MOCK_PAYROLL_STRUCTURES.find(s => s.id === structureId);
+      if (!base) {
+        return throwError(() => new Error('Salary structure not found'));
+      }
+      const updated: SalaryStructure = {
+        ...base,
+        teacherId: payload.teacherId,
+        teacherName: payload.teacherName.trim(),
+        basicSalary: Number(payload.basicSalary),
+        allowances: allow.map(a => ({ ...a })),
+        deductions: ded.map(d => ({ ...d })),
+        netSalary: net,
+      };
+      if (idx >= 0) {
+        list[idx] = updated;
+      } else {
+        list.push(updated);
+      }
+      return of({ ...updated });
+    }
+    const body = {
+      teacherId: payload.teacherId,
+      teacherName: payload.teacherName.trim(),
+      basicSalary: payload.basicSalary,
+      allowances: allow.map(a => ({ name: a.name.trim(), amount: a.amount })),
+      deductions: ded.map(d => ({ name: d.name.trim(), amount: d.amount })),
+    };
+    return this.api.put<any>(`/payroll/structures/${structureId}`, body).pipe(map(s => this.normalizeStructure(s)));
   }
 
   getTeacherPaymentDetails(): Observable<TeacherPaymentDetails[]> {

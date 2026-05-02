@@ -367,7 +367,8 @@ import { formatDateDdMmYyyy } from '../../core/utils/date-format';
                 ><th>{{ 'payroll.thBasic' | translate }}</th
                 ><th>{{ 'payroll.thAllowances' | translate }}</th
                 ><th>{{ 'payroll.thDeductions' | translate }}</th
-                ><th>{{ 'payroll.thNet' | translate }}</th></tr
+                ><th>{{ 'payroll.thNet' | translate }}</th
+                ><th class="text-end">{{ 'payroll.thActions' | translate }}</th></tr
               ></thead
             >
             <tbody>
@@ -377,6 +378,11 @@ import { formatDateDdMmYyyy } from '../../core/utils/date-format';
                 <td style="color: var(--clr-success);">+₹{{ getAllowanceTotal(s) | number:'1.0-0':'en-IN' }}</td>
                 <td style="color: var(--clr-danger);">-₹{{ getDeductionTotal(s) | number:'1.0-0':'en-IN' }}</td>
                 <td><strong>₹{{ s.netSalary | number:'1.0-0':'en-IN' }}</strong></td>
+                <td class="text-end">
+                  <button type="button" class="btn-outline-erp btn-xs" (click)="openSalaryStructureEdit(s)" data-testid="payroll-edit-structure-btn">
+                    <i class="bi bi-pencil"></i> {{ 'payroll.editStructure' | translate }}
+                  </button>
+                </td>
               </tr>
             </tbody>
           </table>
@@ -467,13 +473,13 @@ import { formatDateDdMmYyyy } from '../../core/utils/date-format';
       <div class="modal-overlay" *ngIf="salaryStructureModal" (click)="closeSalaryStructureModal()">
         <div class="modal-content-erp modal-lg" style="max-width: 640px;" (click)="$event.stopPropagation()" data-testid="payroll-structure-modal">
           <div class="modal-header-erp">
-            <h3>{{ 'payroll.structureModalTitle' | translate }}</h3>
+            <h3>{{ (editingStructureId != null ? 'payroll.structureModalTitleEdit' : 'payroll.structureModalTitle') | translate }}</h3>
             <button type="button" class="btn-icon" (click)="closeSalaryStructureModal()"><i class="bi bi-x-lg"></i></button>
           </div>
           <div class="modal-body-erp">
             <p class="text-muted small mb-3">{{ 'payroll.structureModalLead' | translate }}</p>
             <label class="erp-label">{{ 'payroll.structureLabelTeacher' | translate }}</label>
-            <select class="erp-select mb-3" [(ngModel)]="structureForm.teacherId" [disabled]="structureTeachersLoading">
+            <select class="erp-select mb-3" [(ngModel)]="structureForm.teacherId" [disabled]="structureTeachersLoading || editingStructureId != null">
               <option [ngValue]="null">{{ 'payroll.structureSelectTeacher' | translate }}</option>
               <option *ngFor="let opt of structureTeacherOptions" [ngValue]="opt.id">{{ opt.name }}</option>
             </select>
@@ -976,6 +982,8 @@ export class PayrollComponent implements OnInit {
 
   /** Fee-style modal: define basic + optional allowance/deduction lines for one teacher (per backend contract). */
   salaryStructureModal = false;
+  /** When set, modal saves via {@link PayrollService.updateSalaryStructure} instead of create. */
+  editingStructureId: number | null = null;
   salaryStructureSuccess = '';
   structureTeachersLoading = false;
   structureSaving = false;
@@ -1733,6 +1741,7 @@ export class PayrollComponent implements OnInit {
     if (!this.canManagePayrollDesk) {
       return;
     }
+    this.editingStructureId = null;
     this.salaryStructureSuccess = '';
     this.structureFormError = '';
     this.resetSalaryStructureForm();
@@ -1767,8 +1776,33 @@ export class PayrollComponent implements OnInit {
 
   closeSalaryStructureModal(): void {
     this.salaryStructureModal = false;
+    this.editingStructureId = null;
     this.structureFormError = '';
     this.structureTeachersLoading = false;
+  }
+
+  openSalaryStructureEdit(row: SalaryStructure): void {
+    if (!this.canManagePayrollDesk) {
+      return;
+    }
+    this.salaryStructureSuccess = '';
+    this.structureFormError = '';
+    this.editingStructureId = row.id;
+    this.structureForm = {
+      teacherId: row.teacherId,
+      basicSalary: row.basicSalary,
+      allowances: (row.allowances ?? []).map(a => ({ name: a.name, amount: a.amount })),
+      deductions: (row.deductions ?? []).map(d => ({ name: d.name, amount: d.amount })),
+    };
+    this.structureTeacherOptions = [
+      {
+        id: row.teacherId,
+        name: row.teacherName?.trim() || `Teacher #${row.teacherId}`,
+      },
+    ];
+    this.structureTeachersLoading = false;
+    this.salaryStructureModal = true;
+    this.cdr.markForCheck();
   }
 
   private resetSalaryStructureForm(): void {
@@ -1829,28 +1863,32 @@ export class PayrollComponent implements OnInit {
       }
     }
     this.structureSaving = true;
-    this.payrollService
-      .createSalaryStructure({
-        teacherId: tid,
-        teacherName,
-        basicSalary: basic,
-        allowances: allow,
-        deductions: ded,
-      })
-      .subscribe({
-        next: () => {
-          this.structureSaving = false;
-          this.salaryStructureModal = false;
-          this.salaryStructureSuccess = this.translate.instant('payroll.structureSaved');
-          this.refreshPayroll();
-          this.cdr.markForCheck();
-        },
-        error: (err: unknown) => {
-          this.structureSaving = false;
-          this.structureFormError = this.resolveUiErrorMessage(err, 'payroll.structureSaveFailed');
-          this.cdr.markForCheck();
-        },
-      });
+    const payload = {
+      teacherId: tid,
+      teacherName,
+      basicSalary: basic,
+      allowances: allow,
+      deductions: ded,
+    };
+    const req =
+      this.editingStructureId != null
+        ? this.payrollService.updateSalaryStructure(this.editingStructureId, payload)
+        : this.payrollService.createSalaryStructure(payload);
+    req.subscribe({
+      next: () => {
+        this.structureSaving = false;
+        this.salaryStructureModal = false;
+        this.editingStructureId = null;
+        this.salaryStructureSuccess = this.translate.instant('payroll.structureSaved');
+        this.refreshPayroll();
+        this.cdr.markForCheck();
+      },
+      error: (err: unknown) => {
+        this.structureSaving = false;
+        this.structureFormError = this.resolveUiErrorMessage(err, 'payroll.structureSaveFailed');
+        this.cdr.markForCheck();
+      },
+    });
   }
 
   disbursementStatusLabel(status: string): string {

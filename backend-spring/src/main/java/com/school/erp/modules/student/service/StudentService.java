@@ -257,6 +257,9 @@ public class StudentService {
                 current.setClassId(request.getClassId());
                 current.setSectionId(normalizedSectionId);
                 current.setRollNumber(request.getRollNumber());
+                if (request.getAdmissionDate() != null) {
+                    current.setAdmissionDate(request.getAdmissionDate());
+                }
                 current.setParentId(request.getParentId());
                 current.setParentName(request.getParentName());
                 current.setAddress(request.getAddress());

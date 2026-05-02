@@ -158,6 +158,14 @@ public class AcademicController {
         return ResponseEntity.ok(ApiResponse.ok(service.getSubjectCatalog()));
     }
 
+    @PostMapping("/subjects/catalog/register")
+    @PreAuthorize(RbacSpel.ACADEMIC_DESK_ADMIN)
+    @Operation(summary = "Register subject names in catalog", description = "Persists custom subject names for this school; idempotent when a name already exists (case-insensitive).")
+    public ResponseEntity<ApiResponse<AcademicDTOs.SubjectCatalogRegisterResult>> registerSubjectCatalogNames(
+            @Valid @RequestBody AcademicMutationRequests.RegisterSubjectCatalogNamesRequest req) {
+        return ResponseEntity.ok(ApiResponse.ok(service.registerSubjectCatalogNames(req.getNames())));
+    }
+
     @GetMapping("/promotion/preview")
     @PreAuthorize(RbacSpel.ACADEMIC_DESK_ADMIN)
     @Operation(summary = "Preview class promotion", description = "Returns target class and eligible students for promotion")

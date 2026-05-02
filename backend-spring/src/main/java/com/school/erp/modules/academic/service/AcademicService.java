@@ -27,6 +27,7 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -76,6 +77,122 @@ public class AcademicService {
         return rows.stream()
                 .map(s -> new AcademicDTOs.SubjectCatalogItem(s.getId(), s.getCode(), s.getName(), s.getCategory()))
                 .collect(Collectors.toList());
+    }
+
+    /**
+     * Persists new subject names into the tenant catalog (idempotent per name, case-insensitive).
+     * If the tenant has no catalog rows yet, platform default subjects are materialized first so the school
+     * does not “lose” the standard list when adding the first custom entry.
+     */
+    @Transactional
+    public AcademicDTOs.SubjectCatalogRegisterResult registerSubjectCatalogNames(List<String> rawNames) {
+        String tenantId = TenantContext.getTenantId();
+        if (rawNames == null || rawNames.isEmpty()) {
+            return new AcademicDTOs.SubjectCatalogRegisterResult(0, 0);
+        }
+        LinkedHashSet<String> distinct = new LinkedHashSet<>();
+        for (String raw : rawNames) {
+            if (raw == null) {
+                continue;
+            }
+            String t = raw.trim();
+            if (t.isEmpty()) {
+                continue;
+            }
+            if (t.length() > 120) {
+                throw new BusinessException("Subject name too long (max 120 characters).");
+            }
+            distinct.add(t);
+        }
+        if (distinct.isEmpty()) {
+            return new AcademicDTOs.SubjectCatalogRegisterResult(0, 0);
+        }
+        if (distinct.size() > 40) {
+            throw new BusinessException("At most 40 subject names per request.");
+        }
+        if (academicSubjectRepo.countByTenantIdAndIsDeletedFalse(tenantId) == 0) {
+            materializeDefaultSubjectCatalogRows(tenantId);
+        }
+        int added = 0;
+        int skipped = 0;
+        int maxSort = academicSubjectRepo.findByTenantIdAndIsDeletedFalseOrderBySortOrderAscNameAsc(tenantId).stream()
+                .mapToInt(AcademicSubject::getSortOrder)
+                .max()
+                .orElse(0);
+        for (String name : distinct) {
+            if (academicSubjectRepo.existsByTenantIdAndNameIgnoreCaseAndIsDeletedFalse(tenantId, name)) {
+                skipped++;
+                continue;
+            }
+            AcademicSubject row = new AcademicSubject();
+            row.setTenantId(tenantId);
+            row.setName(name);
+            row.setCode(deriveSubjectCode(name, tenantId));
+            row.setCategory("Other");
+            maxSort += 10;
+            row.setSortOrder(maxSort);
+            row.setIsDeleted(false);
+            academicSubjectRepo.save(row);
+            added++;
+        }
+        evictSubjectCatalogCache();
+        log.info("Subject catalog register tenant={} added={} skippedDuplicates={}", tenantId, added, skipped);
+        return new AcademicDTOs.SubjectCatalogRegisterResult(added, skipped);
+    }
+
+    private void materializeDefaultSubjectCatalogRows(String tenantId) {
+        int idx = 0;
+        for (AcademicDTOs.SubjectCatalogItem d : DEFAULT_SUBJECT_CATALOG) {
+            idx++;
+            if (academicSubjectRepo.existsByTenantIdAndNameIgnoreCaseAndIsDeletedFalse(tenantId, d.getName())) {
+                continue;
+            }
+            AcademicSubject a = new AcademicSubject();
+            a.setTenantId(tenantId);
+            a.setCode(d.getCode());
+            a.setName(d.getName());
+            a.setCategory(d.getCategory());
+            a.setSortOrder(idx * 10);
+            a.setIsDeleted(false);
+            academicSubjectRepo.save(a);
+        }
+    }
+
+    private String deriveSubjectCode(String displayName, String tenantId) {
+        StringBuilder sb = new StringBuilder();
+        for (char c : displayName.toCharArray()) {
+            if (sb.length() >= 8) {
+                break;
+            }
+            if (Character.isLetterOrDigit(c)) {
+                sb.append(Character.toUpperCase(c));
+            }
+        }
+        String base = sb.length() >= 2 ? sb.toString() : "SUBJ";
+        if (base.length() > 8) {
+            base = base.substring(0, 8);
+        }
+        String candidate = base;
+        int i = 0;
+        while (academicSubjectRepo.existsByTenantIdAndCodeAndIsDeletedFalse(tenantId, candidate)) {
+            i++;
+            String suffix = String.valueOf(i);
+            candidate = base.length() + suffix.length() > 8 ? base.substring(0, Math.max(1, 8 - suffix.length())) + suffix : base + suffix;
+            if (candidate.length() > 40) {
+                candidate = candidate.substring(0, 40);
+            }
+        }
+        return candidate.length() > 40 ? candidate.substring(0, 40) : candidate;
+    }
+
+    private void evictSubjectCatalogCache() {
+        cacheService.ifAvailable(cs -> {
+            String tid = TenantContext.getTenantId();
+            if (tid == null || tid.isBlank()) {
+                tid = "_no_tenant_";
+            }
+            cs.evict(CacheRegion.ACADEMIC_CATALOG, tid + ":getSubjectCatalog");
+        });
     }
 
     // ========== ACADEMIC YEARS ==========

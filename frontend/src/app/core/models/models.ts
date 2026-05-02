@@ -652,6 +652,8 @@ export interface AdminDashboardData {
   dataComputedAt?: string;
   totalStudents: number;
   totalTeachers: number;
+  /** Backend echo: TODAY | WEEK_TO_DATE | MONTH_TO_DATE */
+  attendanceOverviewScope?: string;
   feesCollected: number;
   feesPending: number;
   collectionRate: number;

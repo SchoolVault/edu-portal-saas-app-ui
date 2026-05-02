@@ -7,6 +7,7 @@ import com.school.erp.common.exception.ResourceNotFoundException;
 import com.school.erp.config.CacheConfig;
 import com.school.erp.modules.auth.repository.UserRepository;
 import com.school.erp.modules.notification.service.NotificationService;
+import com.school.erp.modules.reports.dto.AdminAttendanceOverviewScope;
 import com.school.erp.modules.reports.dto.ParentDashboardDtos;
 import com.school.erp.modules.reports.dto.ReportDashboardDTOs;
 import com.school.erp.modules.reports.dto.ReportModuleDTOs;
@@ -120,9 +121,13 @@ public class ReportService {
     }
 
     @Transactional
-    public ReportDashboardDTOs.AdminDashboardResponse getAdminDashboard() {
-        return timedReportRead("dashboard.admin", () ->
-                dashboardSnapshotService.getAdminSnapshotOrRefresh(reportQueryPort::getAdminDashboard),
+    public ReportDashboardDTOs.AdminDashboardResponse getAdminDashboard(String attendanceOverviewScopeRaw) {
+        AdminAttendanceOverviewScope scope = AdminAttendanceOverviewScope.fromQueryParam(attendanceOverviewScopeRaw);
+        return timedReportRead(
+                "dashboard.admin",
+                () ->
+                        dashboardSnapshotService.getAdminSnapshotOrRefresh(
+                                scope.name(), () -> reportQueryPort.getAdminDashboard(scope)),
                 out -> out != null && out.getRecentActivities() != null ? out.getRecentActivities().size() : 0);
     }
 
@@ -658,7 +663,7 @@ public class ReportService {
 
     private void selfWarmupForTenant() {
         this.getDashboardKPIs();
-        this.getAdminDashboard();
+        this.getAdminDashboard(null);
     }
 
     private List<Map<String, Object>> resolveReportRows(String reportType, Map<String, Object> filters) {

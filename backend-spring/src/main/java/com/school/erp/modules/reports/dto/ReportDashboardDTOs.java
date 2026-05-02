@@ -241,6 +241,8 @@ public class ReportDashboardDTOs {
         private List<ActivityItem> recentActivities = new ArrayList<>();
         private List<UpcomingEvent> upcomingEvents = new ArrayList<>();
         private List<ClassHomeroomGap> classesWithoutHomeroomTeacher = new ArrayList<>();
+        /** Echo of {@link com.school.erp.modules.reports.dto.AdminAttendanceOverviewScope} for clients (i18n / chips). */
+        private String attendanceOverviewScope = "MONTH_TO_DATE";
 
         public String getDataComputedAt() {
             return dataComputedAt;
@@ -336,6 +338,14 @@ public class ReportDashboardDTOs {
 
         public void setClassesWithoutHomeroomTeacher(final List<ClassHomeroomGap> classesWithoutHomeroomTeacher) {
             this.classesWithoutHomeroomTeacher = classesWithoutHomeroomTeacher;
+        }
+
+        public String getAttendanceOverviewScope() {
+            return attendanceOverviewScope;
+        }
+
+        public void setAttendanceOverviewScope(final String attendanceOverviewScope) {
+            this.attendanceOverviewScope = attendanceOverviewScope;
         }
     }
 

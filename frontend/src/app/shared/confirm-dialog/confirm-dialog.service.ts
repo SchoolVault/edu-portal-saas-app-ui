@@ -11,6 +11,8 @@ export interface ConfirmDialogOptions {
   confirmLabel?: string;
   cancelLabel?: string;
   variant?: ConfirmDialogVariant;
+  /** Wider panel + scrollable detail list (e.g. timetable validation with many rows). */
+  wide?: boolean;
 }
 
 @Injectable({ providedIn: 'root' })

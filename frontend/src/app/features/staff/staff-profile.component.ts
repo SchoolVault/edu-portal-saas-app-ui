@@ -33,7 +33,7 @@ import { OperationsService } from '../../core/services/operations.service';
         </div>
       </div>
 
-      <div class="erp-card mb-3">
+      <div class="erp-card mb-3" [class.erp-readonly-profile]="!editing">
         <div class="row g-3">
           <div class="col-md-6">
             <label class="erp-label">Full name</label>

@@ -22,6 +22,7 @@ import com.school.erp.modules.communication.repository.CommunicationEventReposit
 import com.school.erp.modules.communication.entity.CommunicationEvent;
 import com.school.erp.modules.communication.domain.CommunicationEventStatus;
 import com.school.erp.modules.notification.repository.NotificationRepository;
+import com.school.erp.modules.reports.dto.AdminAttendanceOverviewScope;
 import com.school.erp.modules.reports.dto.ParentDashboardDtos;
 import com.school.erp.modules.reports.dto.ReportDashboardDTOs;
 import com.school.erp.modules.reports.port.ReportQueryPort;
@@ -47,6 +48,7 @@ import org.springframework.data.domain.Pageable;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.time.YearMonth;
 import java.time.format.TextStyle;
@@ -103,13 +105,16 @@ public class OltpReportQueryAdapter implements ReportQueryPort {
     }
 
     @Transactional(readOnly = true)
-    public ReportDashboardDTOs.AdminDashboardResponse getAdminDashboard() {
+    public ReportDashboardDTOs.AdminDashboardResponse getAdminDashboard(AdminAttendanceOverviewScope attendanceOverviewScope) {
         String tenantId = TenantContext.getTenantId();
-        log.debug("Building admin dashboard tenantId={}", tenantId);
+        AdminAttendanceOverviewScope scope =
+                attendanceOverviewScope != null ? attendanceOverviewScope : AdminAttendanceOverviewScope.MONTH_TO_DATE;
+        log.debug("Building admin dashboard tenantId={} attendanceScope={}", tenantId, scope);
         LocalDate today = LocalDate.now();
         var payments = feePaymentRepo.findByTenantIdAndIsDeletedFalse(tenantId);
 
         ReportDashboardDTOs.AdminDashboardResponse response = new ReportDashboardDTOs.AdminDashboardResponse();
+        response.setAttendanceOverviewScope(scope.name());
         response.setTotalStudents(studentRepo.countByTenantIdAndIsDeletedFalse(tenantId));
         response.setTotalTeachers(teacherRepo.countByTenantIdAndIsDeletedFalse(tenantId));
         response.setFeesCollected(payments.stream().mapToDouble(p -> p.getPaidAmount() != null ? p.getPaidAmount().doubleValue() : 0).sum());
@@ -117,7 +122,7 @@ public class OltpReportQueryAdapter implements ReportQueryPort {
         response.setCollectionRate(response.getFeesCollected() + response.getFeesPending() > 0 ? Math.round((response.getFeesCollected() / (response.getFeesCollected() + response.getFeesPending())) * 100) : 0);
         response.setMonthlyAdmissions(buildMonthlyAdmissions(tenantId));
         response.setMonthlyCollections(buildMonthlyCollections(payments));
-        response.setAttendanceOverview(buildAttendanceOverview(tenantId, today));
+        response.setAttendanceOverview(buildAttendanceOverview(tenantId, today, scope));
         List<ReportDashboardDTOs.ActivityItem> activities = buildAdminRecentActivities(tenantId, today, 8);
         response.setRecentActivities(activities);
         response.setUpcomingEvents(buildAdminUpcomingEvents(tenantId, today, 8));
@@ -1213,19 +1218,38 @@ public class OltpReportQueryAdapter implements ReportQueryPort {
             months.add(month);
             monthlyCounts.put(month, 0L);
         }
-        for (var student : studentRepo.findByTenantIdAndIsDeletedFalse(tenantId, Pageable.unpaged()).getContent()) {
-            LocalDate referenceDate = student.getAdmissionDate() != null ? student.getAdmissionDate() : (student.getCreatedAt() != null ? student.getCreatedAt().toLocalDate() : null);
-            if (referenceDate == null) {
+        if (months.isEmpty()) {
+            return List.of();
+        }
+        LocalDate windowStart = months.get(0).atDay(1);
+        LocalDate windowEnd = months.get(months.size() - 1).atEndOfMonth();
+        LocalDateTime createdFrom = windowStart.atStartOfDay();
+        LocalDateTime createdToExclusive = windowEnd.plusDays(1).atStartOfDay();
+        List<Student> admittedInWindow = studentRepo.findForAdmissionsDashboardWindow(
+                tenantId, windowStart, windowEnd, createdFrom, createdToExclusive);
+        for (Student student : admittedInWindow) {
+            LocalDate admission = student.getAdmissionDate();
+            LocalDate createdDay = student.getCreatedAt() != null ? student.getCreatedAt().toLocalDate() : null;
+            LocalDate bucketDate = null;
+            if (admission != null && !admission.isBefore(windowStart) && !admission.isAfter(windowEnd)) {
+                bucketDate = admission;
+            } else if (createdDay != null && !createdDay.isBefore(windowStart) && !createdDay.isAfter(windowEnd)) {
+                bucketDate = createdDay;
+            }
+            if (bucketDate == null) {
                 continue;
             }
-            YearMonth month = YearMonth.from(referenceDate);
+            YearMonth month = YearMonth.from(bucketDate);
             if (!monthlyCounts.containsKey(month)) {
                 continue;
             }
             monthlyCounts.put(month, monthlyCounts.get(month) + 1);
         }
+        DateTimeFormatter monthYearLabel = DateTimeFormatter.ofPattern("MMM yyyy", Locale.ENGLISH);
         return months.stream()
-                .map(month -> new ReportDashboardDTOs.MetricPoint(month.getMonth().getDisplayName(TextStyle.SHORT, Locale.ENGLISH), monthlyCounts.getOrDefault(month, 0L)))
+                .map(month -> new ReportDashboardDTOs.MetricPoint(
+                        month.atDay(1).format(monthYearLabel),
+                        monthlyCounts.getOrDefault(month, 0L)))
                 .collect(Collectors.toList());
     }
 
@@ -1254,13 +1278,44 @@ public class OltpReportQueryAdapter implements ReportQueryPort {
                 .collect(Collectors.toList());
     }
 
-    private ReportDashboardDTOs.AttendanceOverview buildAttendanceOverview(String tenantId, LocalDate date) {
+    private ReportDashboardDTOs.AttendanceOverview buildAttendanceOverview(
+            String tenantId, LocalDate today, AdminAttendanceOverviewScope scope) {
+        LocalDate from =
+                switch (scope) {
+                    case TODAY -> today;
+                    case WEEK_TO_DATE -> today.with(DayOfWeek.MONDAY);
+                    case MONTH_TO_DATE -> today.withDayOfMonth(1);
+                };
+        if (from.isAfter(today)) {
+            from = today;
+        }
         ReportDashboardDTOs.AttendanceOverview overview = new ReportDashboardDTOs.AttendanceOverview();
-        overview.setTotal(attendanceRepo.countByTenantIdAndDate(tenantId, date));
-        overview.setPresent(attendanceRepo.countByTenantIdAndDateAndStatus(tenantId, date, com.school.erp.common.enums.Enums.AttendanceStatus.PRESENT));
-        overview.setAbsent(attendanceRepo.countByTenantIdAndDateAndStatus(tenantId, date, com.school.erp.common.enums.Enums.AttendanceStatus.ABSENT));
-        overview.setLate(attendanceRepo.countByTenantIdAndDateAndStatus(tenantId, date, com.school.erp.common.enums.Enums.AttendanceStatus.LATE));
-        overview.setExcused(attendanceRepo.countByTenantIdAndDateAndStatus(tenantId, date, com.school.erp.common.enums.Enums.AttendanceStatus.EXCUSED));
+        List<Object[]> rows = attendanceRepo.countByStatusForTenantAndDateRange(tenantId, from, today);
+        long present = 0;
+        long absent = 0;
+        long late = 0;
+        long excused = 0;
+        for (Object[] row : rows) {
+            if (row.length < 2 || row[0] == null || row[1] == null) {
+                continue;
+            }
+            Enums.AttendanceStatus st = (Enums.AttendanceStatus) row[0];
+            long c = ((Number) row[1]).longValue();
+            switch (st) {
+                case PRESENT -> present += c;
+                case ABSENT -> absent += c;
+                case LATE -> late += c;
+                case EXCUSED -> excused += c;
+                default -> {
+                    /* ignore unknown */
+                }
+            }
+        }
+        overview.setPresent(present);
+        overview.setAbsent(absent);
+        overview.setLate(late);
+        overview.setExcused(excused);
+        overview.setTotal(present + absent + late + excused);
         return overview;
     }
 

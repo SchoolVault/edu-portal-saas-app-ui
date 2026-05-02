@@ -265,7 +265,7 @@ interface DashboardChartPalette {
               <div class="erp-card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
                 <div>
                   <h3 class="erp-card-title mb-0">{{ 'dashboard.admin.attendanceOverview' | translate }}</h3>
-                  <p class="text-muted mb-0 small">{{ 'dashboard.admin.attendanceScopeMonthToDate' | translate }}</p>
+                  <p class="text-muted mb-0 small mt-1">{{ 'dashboard.admin.attendanceMonthlyLead' | translate }}</p>
                 </div>
                 <div class="d-flex flex-wrap gap-2 small">
                   <label class="d-flex align-items-center gap-1 mb-0" style="cursor: pointer;" [attr.title]="'dashboard.admin.slicePresent' | translate">
@@ -740,7 +740,6 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
   adminUpcomingSize = 8;
   adminRecentTotal = 0;
   adminUpcomingTotal = 0;
-
   /** Max selectable month for homeroom picker (current calendar month). */
   get teacherHomeroomMaxYm(): string {
     return new Date().toISOString().slice(0, 7);
@@ -1152,6 +1151,7 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   private buildAdminKpis(dashboard: AdminDashboardData): DashboardAdminKpi[] {
+    const attendanceSubKey = 'dashboard.admin.kpi.attendanceLoggedSubMonth';
     return [
       {
         labelKey: 'dashboard.admin.kpi.totalStudents',
@@ -1162,12 +1162,12 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
         subtextKey: 'dashboard.admin.kpi.totalStudentsSub',
       },
       {
-        labelKey: 'dashboard.admin.kpi.totalTeachers',
+        labelKey: 'dashboard.admin.kpi.totalStaff',
         value: String(dashboard.totalTeachers),
         icon: 'bi-person-badge-fill',
         bgColor: 'rgba(192,92,61,0.1)',
         color: '#C05C3D',
-        subtextKey: 'dashboard.admin.kpi.totalTeachersSub',
+        subtextKey: 'dashboard.admin.kpi.totalStaffSub',
       },
       {
         labelKey: 'dashboard.admin.kpi.feesCollected',
@@ -1184,7 +1184,7 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
         icon: 'bi-calendar-check-fill',
         bgColor: 'rgba(2,132,199,0.1)',
         color: '#0284C7',
-        subtextKey: 'dashboard.admin.kpi.attendanceLoggedSub',
+        subtextKey: attendanceSubKey,
       },
     ];
   }

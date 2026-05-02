@@ -18,9 +18,11 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -73,6 +75,7 @@ public class DirectoryService {
         if (kinds.contains("staff")) {
             merged.addAll(matchStaff(tenantId, q));
         }
+        merged = dedupeDirectoryEntries(merged);
         merged.sort(Comparator.comparing(DirectoryDTOs.Entry::getDisplayName, String.CASE_INSENSITIVE_ORDER));
         res.setResults(merged);
         log.info("Directory search tenant={} qLen={} hits={}", tenantId, q.length(), merged.size());
@@ -122,6 +125,52 @@ public class DirectoryService {
     private static boolean contains(String a, String b, String extra, String q) {
         String blob = ((a != null ? a : "") + " " + (b != null ? b : "") + " " + (extra != null ? extra : "")).toLowerCase(Locale.ROOT);
         return blob.contains(q);
+    }
+
+    /**
+     * One row per portal identity: same {@code chatUserId} (or same email) should not list teacher + staff twice.
+     */
+    private List<DirectoryDTOs.Entry> dedupeDirectoryEntries(List<DirectoryDTOs.Entry> merged) {
+        Map<String, DirectoryDTOs.Entry> byPortalUser = new LinkedHashMap<>();
+        List<DirectoryDTOs.Entry> withoutPortalKey = new ArrayList<>();
+        for (DirectoryDTOs.Entry e : merged) {
+            String uid = e.getChatUserId();
+            if (uid == null || uid.isBlank()) {
+                withoutPortalKey.add(e);
+                continue;
+            }
+            byPortalUser.merge(uid, e, DirectoryService::preferDirectoryEntryKind);
+        }
+        Map<String, DirectoryDTOs.Entry> byEmail = new LinkedHashMap<>();
+        List<DirectoryDTOs.Entry> leftover = new ArrayList<>();
+        for (DirectoryDTOs.Entry e : withoutPortalKey) {
+            String em = e.getEmail() != null ? e.getEmail().trim().toLowerCase(Locale.ROOT) : "";
+            if (em.isEmpty()) {
+                leftover.add(e);
+                continue;
+            }
+            byEmail.merge(em, e, DirectoryService::preferDirectoryEntryKind);
+        }
+        List<DirectoryDTOs.Entry> out = new ArrayList<>(byPortalUser.values());
+        out.addAll(byEmail.values());
+        out.addAll(leftover);
+        return out;
+    }
+
+    private static DirectoryDTOs.Entry preferDirectoryEntryKind(DirectoryDTOs.Entry a, DirectoryDTOs.Entry b) {
+        return directoryKindRank(a.getKind()) <= directoryKindRank(b.getKind()) ? a : b;
+    }
+
+    private static int directoryKindRank(String kind) {
+        if (kind == null) {
+            return 9;
+        }
+        return switch (kind.toLowerCase(Locale.ROOT)) {
+            case "teacher" -> 0;
+            case "student" -> 1;
+            case "staff" -> 2;
+            default -> 5;
+        };
     }
 
     private DirectoryDTOs.Entry toTeacherEntry(Teacher t) {

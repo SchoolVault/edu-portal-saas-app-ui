@@ -10,4 +10,10 @@ public interface AcademicSubjectRepository extends JpaRepository<AcademicSubject
     List<AcademicSubject> findByTenantIdAndIsDeletedFalseOrderBySortOrderAscNameAsc(String tenantId);
 
     boolean existsByTenantIdAndNameAndIsDeletedFalse(String tenantId, String name);
+
+    boolean existsByTenantIdAndNameIgnoreCaseAndIsDeletedFalse(String tenantId, String name);
+
+    boolean existsByTenantIdAndCodeAndIsDeletedFalse(String tenantId, String code);
+
+    long countByTenantIdAndIsDeletedFalse(String tenantId);
 }

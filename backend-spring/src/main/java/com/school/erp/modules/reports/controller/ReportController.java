@@ -32,8 +32,9 @@ public class ReportController {
     @GetMapping("/dashboard/admin")
     @PreAuthorize(RbacSpel.REPORT_LIBRARY_DESK)
     @Operation(summary = "Get admin dashboard", description = "Returns KPI, chart, activity, and upcoming event data for the admin dashboard")
-    public ResponseEntity<ApiResponse<ReportDashboardDTOs.AdminDashboardResponse>> getAdminDashboard() {
-        return ResponseEntity.ok(ApiResponse.ok(reportService.getAdminDashboard()));
+    public ResponseEntity<ApiResponse<ReportDashboardDTOs.AdminDashboardResponse>> getAdminDashboard(
+            @RequestParam(name = "attendanceOverviewScope", required = false) String attendanceOverviewScope) {
+        return ResponseEntity.ok(ApiResponse.ok(reportService.getAdminDashboard(attendanceOverviewScope)));
     }
 
     @GetMapping("/dashboard/admin/recent-activities")

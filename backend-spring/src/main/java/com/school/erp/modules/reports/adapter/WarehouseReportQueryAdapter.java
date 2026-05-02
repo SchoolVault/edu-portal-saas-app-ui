@@ -1,5 +1,6 @@
 package com.school.erp.modules.reports.adapter;
 
+import com.school.erp.modules.reports.dto.AdminAttendanceOverviewScope;
 import com.school.erp.modules.reports.dto.ParentDashboardDtos;
 import com.school.erp.modules.reports.dto.ReportDashboardDTOs;
 import com.school.erp.modules.reports.port.ReportQueryPort;
@@ -76,13 +77,14 @@ public class WarehouseReportQueryAdapter implements ReportQueryPort {
     }
 
     @Override
-    public ReportDashboardDTOs.AdminDashboardResponse getAdminDashboard() {
+    public ReportDashboardDTOs.AdminDashboardResponse getAdminDashboard(AdminAttendanceOverviewScope attendanceOverviewScope) {
         String tenantId = TenantContext.getTenantId();
+        AdminAttendanceOverviewScope scope =
+                attendanceOverviewScope != null ? attendanceOverviewScope : AdminAttendanceOverviewScope.MONTH_TO_DATE;
         try {
-            ReportDashboardDTOs.AdminDashboardResponse out = oltp.getAdminDashboard();
+            ReportDashboardDTOs.AdminDashboardResponse out = oltp.getAdminDashboard(scope);
             warehouseJdbc.query("""
-                            SELECT total_students, total_teachers, fees_collected, fees_pending,
-                                   attendance_total, attendance_present, attendance_absent, attendance_late, attendance_excused
+                            SELECT total_students, total_teachers, fees_collected, fees_pending
                             FROM wh_dashboard_daily_metrics
                             WHERE tenant_id = ?
                             ORDER BY metric_date DESC
@@ -99,19 +101,12 @@ public class WarehouseReportQueryAdapter implements ReportQueryPort {
                         out.setFeesCollected(collected);
                         out.setFeesPending(pending);
                         out.setCollectionRate(collected + pending > 0 ? Math.round((collected / (collected + pending)) * 100) : 0);
-                        ReportDashboardDTOs.AttendanceOverview overview = new ReportDashboardDTOs.AttendanceOverview();
-                        overview.setTotal(rs.getLong("attendance_total"));
-                        overview.setPresent(rs.getLong("attendance_present"));
-                        overview.setAbsent(rs.getLong("attendance_absent"));
-                        overview.setLate(rs.getLong("attendance_late"));
-                        overview.setExcused(rs.getLong("attendance_excused"));
-                        out.setAttendanceOverview(overview);
                         return null;
                     }, tenantId);
             return out;
         } catch (Exception ex) {
             log.warn("Warehouse admin dashboard read failed; fallback to OLTP tenantId={}", tenantId, ex);
-            return oltp.getAdminDashboard();
+            return oltp.getAdminDashboard(scope);
         }
     }
 

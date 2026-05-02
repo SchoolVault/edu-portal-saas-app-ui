@@ -1072,4 +1072,34 @@ public class AcademicDTOs {
             this.category = category;
         }
     }
+
+    /** Result of {@link com.school.erp.modules.academic.service.AcademicService#registerSubjectCatalogNames}. */
+    public static class SubjectCatalogRegisterResult {
+        private int added;
+        private int skipped;
+
+        public SubjectCatalogRegisterResult() {
+        }
+
+        public SubjectCatalogRegisterResult(int added, int skipped) {
+            this.added = added;
+            this.skipped = skipped;
+        }
+
+        public int getAdded() {
+            return added;
+        }
+
+        public void setAdded(int added) {
+            this.added = added;
+        }
+
+        public int getSkipped() {
+            return skipped;
+        }
+
+        public void setSkipped(int skipped) {
+            this.skipped = skipped;
+        }
+    }
 }
