@@ -50,6 +50,8 @@ import {
   CacheClearRequest,
   CacheRegionOption,
   OnboardSchoolRequest,
+  UpdateSchoolAdminRequest,
+  UpdateSchoolWorkspaceRequest,
 } from '../models/models';
 
 @Injectable({ providedIn: 'root' })
@@ -274,6 +276,80 @@ export class PlatformService {
       }).pipe(delay(180));
     }
     return this.api.get<PlatformSchoolDetail>(`/platform/schools/${tenantId}/detail`);
+  }
+
+  updateSchoolWorkspaceProfile(
+    tenantId: string,
+    body: UpdateSchoolWorkspaceRequest
+  ): Observable<PlatformSchoolSummary> {
+    if (runtimeConfig.useMocks) {
+      const idx = this.mockSchools.findIndex(s => s.tenantId === tenantId);
+      if (idx < 0) {
+        return throwError(() => new Error('School not found'));
+      }
+      const cur: PlatformSchoolSummary = { ...this.mockSchools[idx] };
+      if (body.schoolName != null && body.schoolName.trim() !== '') {
+        cur.schoolName = body.schoolName.trim();
+      }
+      if (body.schoolCode != null && body.schoolCode.trim() !== '') {
+        cur.schoolCode = body.schoolCode.trim().toUpperCase();
+      }
+      if (body.email !== undefined) {
+        cur.email = body.email.trim() || undefined;
+      }
+      if (body.phone !== undefined) {
+        cur.phone = body.phone.trim() || undefined;
+      }
+      if (body.address !== undefined) {
+        cur.address = body.address.trim() || undefined;
+      }
+      if (body.primaryColor != null && body.primaryColor.trim() !== '') {
+        cur.primaryColor = body.primaryColor.trim();
+      }
+      if (body.secondaryColor != null && body.secondaryColor.trim() !== '') {
+        cur.secondaryColor = body.secondaryColor.trim();
+      }
+      this.mockSchools = [...this.mockSchools.slice(0, idx), cur, ...this.mockSchools.slice(idx + 1)];
+      return of({ ...cur }).pipe(delay(140));
+    }
+    return this.api.put<PlatformSchoolSummary>(
+      `/platform/schools/${encodeURIComponent(tenantId)}/profile`,
+      body
+    );
+  }
+
+  updateSchoolAdminProfile(
+    tenantId: string,
+    userId: number,
+    body: UpdateSchoolAdminRequest
+  ): Observable<PlatformSchoolAdmin> {
+    if (runtimeConfig.useMocks) {
+      const list = this.mockAdmins[tenantId];
+      if (!list?.length) {
+        return throwError(() => new Error('No admins for workspace'));
+      }
+      const idx = list.findIndex(a => String(a.id) === String(userId));
+      if (idx < 0) {
+        return throwError(() => new Error('Admin not found'));
+      }
+      const next = { ...list[idx] };
+      if (body.name != null && body.name.trim() !== '') {
+        next.name = body.name.trim();
+      }
+      if (body.email != null && body.email.trim() !== '') {
+        next.email = body.email.trim();
+      }
+      if (body.phone !== undefined) {
+        next.phone = body.phone.trim() || undefined;
+      }
+      const admins = [...list.slice(0, idx), next, ...list.slice(idx + 1)];
+      this.mockAdmins = { ...this.mockAdmins, [tenantId]: admins };
+      return of({ ...next }).pipe(delay(120));
+    }
+    return this.api.put<PlatformSchoolAdmin>(
+      `/platform/schools/${encodeURIComponent(tenantId)}/admins/${userId}`,
+      body
+    );
   }
 
   getSchoolFinanceProfile(tenantId: string): Observable<TenantFinanceProfile> {

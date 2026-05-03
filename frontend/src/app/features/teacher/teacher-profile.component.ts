@@ -346,7 +346,7 @@ export class TeacherProfileComponent implements OnInit, OnDestroy {
       .pipe(filter(Boolean))
       .subscribe(() => {
         this.lifecycleBusy = true;
-        this.teacherService.deleteTeacher(this.teacher!.id).subscribe({
+        this.teacherService.updateTeacherStatus(this.teacher!.id, 'inactive').subscribe({
           next: () => {
             this.lifecycleBusy = false;
             this.router.navigate(['/app/teachers']);

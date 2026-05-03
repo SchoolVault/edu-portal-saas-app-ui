@@ -87,4 +87,9 @@ public class TenantFeatureRolloutService {
             flagsCache.evict(tenantId + ":getFeatureFlags");
         }
     }
+
+    /** Evict merged settings / feature-flag caches after tenant workspace metadata changes (platform or school admin). */
+    public void evictTenantSettingsCaches(String tenantId) {
+        evictSettingsSnapshot(tenantId);
+    }
 }

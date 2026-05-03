@@ -25,6 +25,7 @@ import {
   createTimetableConflictHumanLabels,
 } from '../../core/timetable/timetable-conflict-dialog.builder';
 import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directives';
+import { RouterModule } from '@angular/router';
 
 type DayApi = 'MONDAY' | 'TUESDAY' | 'WEDNESDAY' | 'THURSDAY' | 'FRIDAY' | 'SATURDAY';
 
@@ -47,7 +48,7 @@ interface DraftSlot {
 @Component({
   selector: 'app-teacher-schedule-onboarding',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink, TranslateModule, ErpI18nPhDirective],
+  imports: [CommonModule, FormsModule, RouterLink, RouterModule, TranslateModule, ErpI18nPhDirective],
   styles: [
     `
       .onb-hero {
@@ -256,7 +257,6 @@ interface DraftSlot {
                       (ngModelChange)="setTimePart(r, 'start', 'hour', $event)">
                       <option *ngFor="let h of hourOptions" [ngValue]="h">{{ h }}</option>
                     </select>
-                    <span class="onb-time-sep">:</span>
                     <select
                       class="erp-select onb-time-part"
                       [ngModel]="getTimePart(r.startTime, 'minute')"
@@ -273,7 +273,6 @@ interface DraftSlot {
                       (ngModelChange)="setTimePart(r, 'end', 'hour', $event)">
                       <option *ngFor="let h of hourOptions" [ngValue]="h">{{ h }}</option>
                     </select>
-                    <span class="onb-time-sep">:</span>
                     <select
                       class="erp-select onb-time-part"
                       [ngModel]="getTimePart(r.endTime, 'minute')"
@@ -298,22 +297,16 @@ interface DraftSlot {
                   <select
                     *ngIf="subjectCatalogNames.length"
                     class="erp-select mb-1"
-                    [ngModel]="draftSubjectSelectValue(r)"
-                    (ngModelChange)="onDraftSubjectSelect(r, $event)"
+                    [(ngModel)]="r.subjectName"
                     [name]="'onbSubjSel' + r.key"
                   >
                     <option [ngValue]="''">{{ 'timetable.selectSubject' | translate }}</option>
                     <option *ngFor="let n of subjectCatalogNames" [ngValue]="n">{{ n }}</option>
-                    <option [ngValue]="CUSTOM_SUBJECT_SENTINEL">{{ 'teachers.category.other' | translate }}</option>
                   </select>
-                  <input
-                    type="text"
-                    class="erp-input"
-                    [(ngModel)]="r.subjectName"
-                    [name]="'onbSubj' + r.key"
-                    erpI18nPh="timetableOnboarding.phSubject"
-                    *ngIf="!subjectCatalogNames.length || draftSubjectSelectValue(r) === CUSTOM_SUBJECT_SENTINEL"
-                  />
+                  <p *ngIf="!subjectCatalogNames.length" class="small mb-0" style="color: var(--clr-warning);">
+                    {{ 'timetable.subjectCatalogEmpty' | translate }}
+                    <a routerLink="/app/academic" fragment="erp-subject-catalog" class="text-nowrap">{{ 'timetable.manageSubjectCatalog' | translate }}</a>
+                  </p>
                 </td>
                 <td><input type="text" class="erp-input" [(ngModel)]="r.room" erpI18nPh="timetableOnboarding.phRoom" /></td>
                 <td>
@@ -341,9 +334,6 @@ interface DraftSlot {
   `,
 })
 export class TeacherScheduleOnboardingComponent implements OnInit, OnDestroy {
-  /** Picklist sentinel: free-text subject (not in school catalog). */
-  readonly CUSTOM_SUBJECT_SENTINEL = '__erp_custom_subject__';
-
   teachers: Teacher[] = [];
   classes: SchoolClass[] = [];
   /** Sorted unique subject names from {@link AcademicService#getSubjectCatalog} for slot picklists. */
@@ -448,27 +438,6 @@ export class TeacherScheduleOnboardingComponent implements OnInit, OnDestroy {
     this.reloadFromServer();
   }
 
-  draftSubjectSelectValue(r: DraftSlot): string {
-    const n = (r.subjectName ?? '').trim();
-    if (!n) {
-      return '';
-    }
-    if (this.subjectCatalogNames.includes(n)) {
-      return n;
-    }
-    return this.CUSTOM_SUBJECT_SENTINEL;
-  }
-
-  onDraftSubjectSelect(r: DraftSlot, v: string): void {
-    if (v === this.CUSTOM_SUBJECT_SENTINEL) {
-      if (this.subjectCatalogNames.includes((r.subjectName ?? '').trim())) {
-        r.subjectName = '';
-      }
-      return;
-    }
-    r.subjectName = v;
-  }
-
   onHmClassChange(): void {
     const c = this.hmClass;
     if (!c?.sections?.length) {
@@ -529,6 +498,7 @@ export class TeacherScheduleOnboardingComponent implements OnInit, OnDestroy {
   private entryToDraft(e: TimetableEntry): DraftSlot {
     const day = (e.day || 'Monday').toUpperCase() as DayApi;
     const fallback = this.periodWindowText(e.period);
+    const aligned = this.resolveSubjectCatalogName(e.subjectName);
     return {
       key: `e-${e.id}`,
       existingEntryId: e.id,
@@ -538,9 +508,17 @@ export class TeacherScheduleOnboardingComponent implements OnInit, OnDestroy {
       endTime: this.toHmTime(e.endTime) || fallback.end,
       classId: e.classId,
       sectionId: e.sectionId > 0 ? e.sectionId : null,
-      subjectName: e.subjectName,
+      subjectName: aligned ?? (this.subjectCatalogNames.length ? '' : (e.subjectName ?? '')),
       room: e.room || '',
     };
+  }
+
+  private resolveSubjectCatalogName(raw: string | null | undefined): string | null {
+    const t = (raw ?? '').trim();
+    if (!t) {
+      return null;
+    }
+    return this.subjectCatalogNames.find(n => n.toLowerCase() === t.toLowerCase()) ?? null;
   }
 
   addDraftRow(): void {
@@ -618,7 +596,7 @@ export class TeacherScheduleOnboardingComponent implements OnInit, OnDestroy {
         endTime: r.endTime?.trim() || null,
         classId: r.classId!,
         sectionId: r.sectionId,
-        subjectName: r.subjectName.trim(),
+        subjectName: this.resolveSubjectCatalogName(r.subjectName.trim()) ?? r.subjectName.trim(),
         room: r.room?.trim() || null,
         replaceTimetableEntryId: r.replaceTimetableEntryId ?? undefined,
       })),
@@ -787,12 +765,19 @@ export class TeacherScheduleOnboardingComponent implements OnInit, OnDestroy {
   private validateDraftRowsBeforeSave(): string | null {
     const uniqueSlotKeys = new Set<string>();
     const uniqueTeacherPeriodKeys = new Set<string>();
+    if (!this.subjectCatalogNames.length) {
+      return 'timetableOnboarding.errSubjectCatalogEmpty';
+    }
     for (const row of this.draftRows) {
       if (row.classId == null) {
         return 'timetableOnboarding.errClassRequired';
       }
       if (!row.subjectName.trim()) {
         return 'timetableOnboarding.errSubjectRequired';
+      }
+      const subj = row.subjectName.trim();
+      if (!this.subjectCatalogNames.some(n => n.toLowerCase() === subj.toLowerCase())) {
+        return 'timetableOnboarding.errSubjectNotInCatalog';
       }
       if (row.period < 1 || row.period > 12) {
         return 'timetableOnboarding.errPeriodRange';

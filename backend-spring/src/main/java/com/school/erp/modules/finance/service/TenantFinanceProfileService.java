@@ -55,7 +55,7 @@ public class TenantFinanceProfileService {
             n.setIsDeleted(false);
             n.setPaymentRoutingOnboardingStatus(PaymentRoutingOnboardingStatus.NOT_REQUIRED.name());
             n.setPlatformCommissionBps(0);
-            n.setParentOnlineFeeCheckoutEnabled(true);
+            // Offline-first default matches DB column default / {@link TenantFinanceProfile}; syncParentOnlineCheckoutWithSettlementMode derives checkout flag from mode.
             n.setPayrollDigitalPayoutEnabled(false);
             return n;
         });

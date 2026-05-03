@@ -793,7 +793,7 @@ import { formatDateDdMmYyyy } from '../../core/utils/date-format';
                       {{ 'fees.viewLedger' | translate }}
                     </button>
                     <button
-                      *ngIf="feeDeskOps && p.paidAmount > 0"
+                      *ngIf="feesRefundUiEnabled && feeDeskOps && p.paidAmount > 0"
                       type="button"
                       class="btn-outline-erp btn-xs fees-btn-refund"
                       (click)="openRefundPanel(p)"
@@ -1008,7 +1008,15 @@ import { formatDateDdMmYyyy } from '../../core/utils/date-format';
               <div class="fees-tx-filter" *ngIf="ledgerTransactions.length">
                 <button type="button" class="btn-outline-erp btn-xs" [class.active]="txFilter === 'all'" (click)="setTxFilter('all')">{{ 'fees.txFilterAll' | translate }}</button>
                 <button type="button" class="btn-outline-erp btn-xs" [class.active]="txFilter === 'payment'" (click)="setTxFilter('payment')">{{ 'fees.txFilterPayments' | translate }}</button>
-                <button type="button" class="btn-outline-erp btn-xs" [class.active]="txFilter === 'refund'" (click)="setTxFilter('refund')">{{ 'fees.txFilterRefunds' | translate }}</button>
+                <button
+                  *ngIf="feesRefundUiEnabled"
+                  type="button"
+                  class="btn-outline-erp btn-xs"
+                  [class.active]="txFilter === 'refund'"
+                  (click)="setTxFilter('refund')"
+                >
+                  {{ 'fees.txFilterRefunds' | translate }}
+                </button>
               </div>
               <div class="fees-tx-timeline" *ngIf="filteredLedgerTransactions.length; else emptyTimeline">
                 <div class="fees-tx-item" *ngFor="let tx of filteredLedgerTransactions">
@@ -1023,7 +1031,7 @@ import { formatDateDdMmYyyy } from '../../core/utils/date-format';
                     <div *ngIf="tx.occurredAt">{{ formatDate(tx.occurredAt) }}</div>
                     <div *ngIf="tx.note">{{ tx.note }}</div>
                   </div>
-                  <div class="d-flex gap-2 mt-2" *ngIf="feeDeskOps">
+                  <div class="d-flex gap-2 mt-2" *ngIf="feesRefundUiEnabled && feeDeskOps">
                     <button
                       *ngIf="tx.eventType === 'REFUND_REQUESTED'"
                       type="button"
@@ -1045,7 +1053,7 @@ import { formatDateDdMmYyyy } from '../../core/utils/date-format';
                 </div>
               </ng-template>
 
-              <div class="fees-refund-panel" *ngIf="feeDeskOps && refundTargetPayment">
+              <div class="fees-refund-panel" *ngIf="feesRefundUiEnabled && feeDeskOps && refundTargetPayment">
                 <div *ngIf="refundNotice" class="fees-refund-toast" [class.fees-refund-toast--ok]="refundNoticeOk" [class.fees-refund-toast--err]="!refundNoticeOk">
                   {{ refundNotice }}
                 </div>
@@ -1120,6 +1128,8 @@ export class FeesComponent implements OnInit {
   academicYears: AcademicYear[] = [];
   /** Fee collection, refunds, structures, reminders — mirrors fees read/write atoms + tenant/platform operators. */
   feeDeskOps = false;
+  /** In-product refund flows disabled until online gateway settlement is fully rolled out. */
+  readonly feesRefundUiEnabled = false;
   /** Razorpay settlement / finance profile banner — mirrors finance settings read/write envelope. */
   canManageFeeFinanceRouting = false;
   refreshing = false;
@@ -1693,6 +1703,9 @@ export class FeesComponent implements OnInit {
   }
 
   openStudentLedgerModal(payment: FeePayment): void {
+    if (!this.feesRefundUiEnabled && this.txFilter === 'refund') {
+      this.txFilter = 'all';
+    }
     this.ledgerStudentName = payment.studentName;
     this.studentLedgerModal = true;
     this.ledgerRows = [];
@@ -1797,6 +1810,9 @@ export class FeesComponent implements OnInit {
   }
 
   openRefundPanel(payment: FeePayment): void {
+    if (!this.feesRefundUiEnabled) {
+      return;
+    }
     this.openStudentLedgerModal(payment);
     this.refundTargetPayment = payment;
     this.refundAmount = Math.max(0, Math.floor(Number(payment.paidAmount || 0)));
@@ -1896,6 +1912,9 @@ export class FeesComponent implements OnInit {
   }
 
   setTxFilter(next: 'all' | 'payment' | 'refund'): void {
+    if (!this.feesRefundUiEnabled && next === 'refund') {
+      next = 'all';
+    }
     this.txFilter = next;
   }
 

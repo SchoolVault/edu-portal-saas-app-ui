@@ -133,7 +133,7 @@ import { ImportExportService } from '../../core/services/import-export.service';
         <p class="mb-0 text-danger">{{ error }}</p>
       </div>
 
-      <div class="erp-card" *ngIf="!error && !pagedResults.length && searched && !loading">
+      <div class="erp-card" *ngIf="!error && activeTab === 'all' && !pagedResults.length && searched && !loading">
         <div class="empty-state py-4">
           <i class="bi bi-search"></i>
           <h3>{{ 'directory.emptyTitle' | translate }}</h3>
@@ -141,7 +141,7 @@ import { ImportExportService } from '../../core/services/import-export.service';
         </div>
       </div>
 
-      <div class="erp-card p-0 overflow-hidden" *ngIf="pagedResults.length && searched">
+      <div class="erp-card p-0 overflow-hidden" *ngIf="activeTab === 'all' && pagedResults.length && searched">
         <div class="table-responsive">
           <table class="erp-table mb-0">
           <thead>
@@ -213,7 +213,7 @@ import { ImportExportService } from '../../core/services/import-export.service';
                     <button *ngIf="s.isActive === false" type="button" class="btn-icon" (click)="setStaffStatus(s, 'active')" [title]="'directory.staffActivate' | translate">
                       <i class="bi bi-person-check" style="color: var(--clr-success);"></i>
                     </button>
-                    <button *ngIf="s.isActive === false" type="button" class="btn-icon" (click)="deleteStaffPermanently(s)" [title]="'directory.staffDeletePermanent' | translate">
+                    <button *ngIf="s.isActive === false" type="button" class="btn-icon" (click)="archiveStaffRow(s)" [title]="'directory.staffDeleteArchive' | translate">
                       <i class="bi bi-trash" style="color: var(--clr-danger);"></i>
                     </button>
                   </div>
@@ -319,11 +319,23 @@ export class DirectoryComponent implements OnInit {
     if (this.activeTab === tab) return;
     this.activeTab = tab;
     this.pageIndex = 0;
-    if (this.query.trim().length >= 2) {
-      this.runSearch();
+    const q = this.query.trim();
+    if (q.length >= 2) {
+      if (tab === 'all') {
+        if (this.directoryUsesServerPaging) {
+          this.fetchDirectoryPage();
+        } else {
+          this.runSearch();
+        }
+      } else {
+        this.staffPageIndex = 0;
+        this.refreshStaffList();
+      }
     }
     if (tab === 'staff') {
-      this.refreshStaffList();
+      this.pagedResults = [];
+      this.searched = false;
+      this.totalFromServer = 0;
     }
   }
 
@@ -520,21 +532,22 @@ export class DirectoryComponent implements OnInit {
       });
   }
 
-  deleteStaffPermanently(row: OperationalStaffRow): void {
+  /** Soft-delete / archive — removes row from active and inactive lists (ERP-style lifecycle final step). */
+  archiveStaffRow(row: OperationalStaffRow): void {
     this.confirmDialog
       .confirm({
-        title: this.translate.instant('directory.lifecycleConfirm.deletePermanent.title'),
-        message: this.translate.instant('directory.lifecycleConfirm.deletePermanent.message', { name: row.fullName }),
+        title: this.translate.instant('directory.lifecycleConfirm.deleteSoft.title'),
+        message: this.translate.instant('directory.lifecycleConfirm.deleteSoft.message', { name: row.fullName }),
         details: [
-          this.translate.instant('directory.lifecycleConfirm.deletePermanent.detailHidden'),
-          this.translate.instant('directory.lifecycleConfirm.deletePermanent.detailFinal'),
+          this.translate.instant('directory.lifecycleConfirm.deleteSoft.detailHidden'),
+          this.translate.instant('directory.lifecycleConfirm.deleteSoft.detailRetention'),
         ],
         variant: 'danger',
-        confirmLabel: this.translate.instant('directory.lifecycleConfirm.deletePermanent.confirm'),
+        confirmLabel: this.translate.instant('directory.lifecycleConfirm.deleteSoft.confirm'),
       })
       .pipe(filter(Boolean))
       .subscribe(() => {
-        this.operationsService.deleteStaff(row.id, true).subscribe({
+        this.operationsService.deleteStaff(row.id, false).subscribe({
           next: () => this.refreshStaffList(),
           error: (e: Error) => {
             this.error = e?.message || this.translate.instant('directory.searchFailed');
