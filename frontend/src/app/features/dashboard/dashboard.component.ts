@@ -265,7 +265,7 @@ interface DashboardChartPalette {
               <div class="erp-card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
                 <div>
                   <h3 class="erp-card-title mb-0">{{ 'dashboard.admin.attendanceOverview' | translate }}</h3>
-                  <p class="text-muted mb-0 small mt-1">{{ 'dashboard.admin.attendanceMonthlyLead' | translate }}</p>
+
                 </div>
                 <div class="d-flex flex-wrap gap-2 small">
                   <label class="d-flex align-items-center gap-1 mb-0" style="cursor: pointer;" [attr.title]="'dashboard.admin.slicePresent' | translate">
@@ -287,6 +287,7 @@ interface DashboardChartPalette {
                 </div>
               </div>
               <div class="chart-container" style="height: 220px;"><canvas #attendanceChart></canvas></div>
+              <p class="text-muted mb-0 small mt-1" style="display: flex; justify-content: center; padding-top: 30px; font-weight: 600;" >{{ 'dashboard.admin.attendanceMonthlyLead' | translate }}</p>
             </div>
           </div>
         </div>
@@ -1421,6 +1422,10 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
 
     const monthlyAdmissions = this.adminDashboard.monthlyAdmissions ?? [];
     const monthlyCollections = this.adminDashboard.monthlyCollections ?? [];
+    /** Same month labels for both series (backend aligns lengths; we pad defensively). */
+    const intakeLabels = monthlyAdmissions.map(point => point.label);
+    const admissionsCounts = monthlyAdmissions.map(point => Number(point.value));
+    const feeAmounts = intakeLabels.map((_, i) => Number(monthlyCollections[i]?.value ?? 0));
     const overview = this.adminDashboard.attendanceOverview ?? {
       total: 0,
       present: 0,
@@ -1431,27 +1436,80 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
 
     const t = (k: string) => this.translate.instant(k);
     const p = this.chartPalette;
+    /**
+     * Admissions are headcounts; fees are INR — a single shared Y axis hides the smaller series.
+     * Dual axes: left = intake counts, right = collections (tooltips still show full INR).
+     */
     this.combinedTrendChart = new Chart(this.combinedTrendChartRef.nativeElement, {
       type: 'bar',
       data: {
-        labels: monthlyAdmissions.map(point => point.label),
+        labels: intakeLabels,
         datasets: [
-          { label: t('dashboard.chart.admissions'), data: monthlyAdmissions.map(point => Number(point.value)), backgroundColor: p.admissionsBar, borderRadius: 6, barPercentage: 0.55, hidden: !this.showAdmissionsSeries },
-          { label: t('dashboard.chart.feeCollection'), data: monthlyCollections.map(point => Number(point.value)), backgroundColor: p.feeBar, borderRadius: 6, barPercentage: 0.55, hidden: !this.showFeesSeries }
-        ]
+          {
+            label: t('dashboard.chart.admissions'),
+            data: admissionsCounts,
+            backgroundColor: p.admissionsBar,
+            borderRadius: 6,
+            barPercentage: 0.72,
+            categoryPercentage: 0.62,
+            yAxisID: 'y',
+            hidden: !this.showAdmissionsSeries,
+          },
+          {
+            label: t('dashboard.chart.feeCollection'),
+            data: feeAmounts,
+            backgroundColor: p.feeBar,
+            borderRadius: 6,
+            barPercentage: 0.72,
+            categoryPercentage: 0.62,
+            yAxisID: 'y1',
+            hidden: !this.showFeesSeries,
+          },
+        ],
       },
       options: {
         responsive: true,
         maintainAspectRatio: false,
+        interaction: { mode: 'index', intersect: false },
         plugins: {
           legend: { position: 'top', labels: { color: p.text }, onClick: () => void 0 },
-          tooltip: { backgroundColor: p.tooltipBg, titleColor: p.tooltipText, bodyColor: p.tooltipText },
+          tooltip: {
+            backgroundColor: p.tooltipBg,
+            titleColor: p.tooltipText,
+            bodyColor: p.tooltipText,
+            callbacks: {
+              label: ctx => {
+                const raw = ctx.parsed.y;
+                const label = ctx.dataset.label ?? '';
+                if (ctx.datasetIndex === 1) {
+                  return `${label}: ${this.asCurrency(Number(raw))}`;
+                }
+                return `${label}: ${raw}`;
+              },
+            },
+          },
         },
         scales: {
           x: { grid: { color: p.grid }, ticks: { color: p.muted } },
-          y: { beginAtZero: true, grid: { color: p.grid }, ticks: { color: p.muted } }
-        }
-      }
+          y: {
+            type: 'linear',
+            position: 'left',
+            beginAtZero: true,
+            grid: { color: p.grid },
+            ticks: { color: p.muted, precision: 0 },
+          },
+          y1: {
+            type: 'linear',
+            position: 'right',
+            beginAtZero: true,
+            grid: { drawOnChartArea: false },
+            ticks: {
+              color: p.muted,
+              callback: v => this.formatFeeAxisTick(Number(v)),
+            },
+          },
+        },
+      },
     });
 
     this.attendanceChart = new Chart(this.attendanceChartRef.nativeElement, {
@@ -1587,6 +1645,24 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
 
   private asCurrency(value: number): string {
     return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(value || 0);
+  }
+
+  /** Compact INR for the fee-series Y axis (counts stay on the left axis). */
+  private formatFeeAxisTick(value: number): string {
+    if (!Number.isFinite(value)) {
+      return '';
+    }
+    const abs = Math.abs(value);
+    if (abs >= 1e7) {
+      return `₹${(value / 1e7).toFixed(1)}Cr`;
+    }
+    if (abs >= 1e5) {
+      return `₹${(value / 1e5).toFixed(1)}L`;
+    }
+    if (abs >= 1e3) {
+      return `₹${Math.round(value / 1e3)}k`;
+    }
+    return this.asCurrency(value);
   }
 
   private homeroomRosterHintForChart(): number {
