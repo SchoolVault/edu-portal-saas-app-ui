@@ -79,12 +79,14 @@ public class OperationsController {
 
     @DeleteMapping("/staff/{id}")
     @PreAuthorize(RbacSpel.SCHOOL_OPERATIONS_WRITE)
-    @Operation(summary = "Remove operational staff", description = "Soft-delete by default. permanent=true purges the row only when no user or transport link exists.")
+    @Operation(summary = "Remove operational staff",
+            description = "Default (permanent=false): soft-delete / archive — hidden from active and inactive lists. "
+                    + "permanent=true physically deletes only when no linked user or transport route.")
     public ResponseEntity<ApiResponse<Void>> deleteStaff(
             @PathVariable Long id,
             @RequestParam(name = "permanent", defaultValue = "false") boolean permanent) {
         operationsService.deleteStaff(id, permanent);
-        return ResponseEntity.ok(ApiResponse.ok(null, permanent ? "Permanently removed" : "Marked inactive"));
+        return ResponseEntity.ok(ApiResponse.ok(null, permanent ? "Permanently removed" : "Archived (soft-deleted)"));
     }
 
     @GetMapping("/visitors")

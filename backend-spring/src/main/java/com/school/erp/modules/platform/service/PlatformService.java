@@ -6,6 +6,7 @@ import com.school.erp.common.export.SchoolExportBranding;
 import com.school.erp.common.enums.Enums;
 import com.school.erp.common.exception.BusinessException;
 import com.school.erp.common.exception.ResourceNotFoundException;
+import com.school.erp.common.util.InternationalPhone;
 import com.school.erp.modules.auth.entity.User;
 import com.school.erp.modules.auth.dto.AuthManagementDTOs;
 import com.school.erp.modules.auth.repository.UserRepository;
@@ -22,6 +23,7 @@ import com.school.erp.modules.reports.service.ReportBinaryStorageService;
 import com.school.erp.modules.reports.service.ReportPerformanceMetricsService;
 import com.school.erp.modules.settings.entity.TenantConfig;
 import com.school.erp.modules.settings.repository.TenantConfigRepository;
+import com.school.erp.modules.settings.service.TenantFeatureRolloutService;
 import com.school.erp.modules.student.repository.StudentRepository;
 import com.school.erp.modules.teacher.repository.TeacherRepository;
 import com.school.erp.tenant.TenantContext;
@@ -55,6 +57,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.stream.Collectors;
@@ -67,6 +71,7 @@ public class PlatformService {
     private static final Logger log = LoggerFactory.getLogger(PlatformService.class);
 
     private final TenantConfigRepository tenantConfigRepository;
+    private final TenantFeatureRolloutService tenantFeatureRolloutService;
     private final UserRepository userRepository;
     private final StudentRepository studentRepository;
     private final TeacherRepository teacherRepository;
@@ -952,6 +957,122 @@ public class PlatformService {
         return out;
     }
 
+    /**
+     * Super-admin: fix school code / campus contact on {@code tenant_configs} before imports; keeps portal users'
+     * denormalized {@code school_code} aligned when the workspace code changes.
+     */
+    @Transactional
+    public PlatformDTOs.SchoolSummary updateSchoolWorkspaceProfile(String tenantId, PlatformDTOs.UpdateSchoolWorkspaceRequest req) {
+        if (req == null) {
+            throw new BusinessException("Request body is required");
+        }
+        TenantConfig tc = requireTenant(tenantId);
+        boolean touched = false;
+        if (req.getSchoolName() != null && !req.getSchoolName().isBlank()) {
+            tc.setSchoolName(req.getSchoolName().trim());
+            touched = true;
+        }
+        if (req.getSchoolCode() != null && !req.getSchoolCode().isBlank()) {
+            String normalized = req.getSchoolCode().trim().toUpperCase(Locale.ROOT);
+            if (!normalized.equals(tc.getSchoolCode())) {
+                Optional<TenantConfig> holder = tenantConfigRepository.findBySchoolCode(normalized);
+                if (holder.isPresent() && !tenantId.equals(holder.get().getTenantId())) {
+                    throw new BusinessException("School code is already assigned to another workspace.");
+                }
+                tc.setSchoolCode(normalized);
+                List<User> tenantUsers = userRepository.findByTenantIdAndIsDeletedFalseOrderByNameAsc(tenantId);
+                for (User u : tenantUsers) {
+                    u.setSchoolCode(normalized);
+                }
+                userRepository.saveAll(tenantUsers);
+            }
+            touched = true;
+        }
+        if (req.getEmail() != null) {
+            tc.setEmail(req.getEmail().isBlank() ? null : req.getEmail().trim());
+            touched = true;
+        }
+        if (req.getPhone() != null) {
+            tc.setPhone(req.getPhone().isBlank() ? null : req.getPhone().trim());
+            touched = true;
+        }
+        if (req.getAddress() != null) {
+            tc.setAddress(req.getAddress().isBlank() ? null : req.getAddress().trim());
+            touched = true;
+        }
+        if (req.getPrimaryColor() != null && !req.getPrimaryColor().isBlank()) {
+            tc.setPrimaryColor(req.getPrimaryColor().trim());
+            touched = true;
+        }
+        if (req.getSecondaryColor() != null && !req.getSecondaryColor().isBlank()) {
+            tc.setSecondaryColor(req.getSecondaryColor().trim());
+            touched = true;
+        }
+        if (!touched) {
+            throw new BusinessException("Provide at least one field to update.");
+        }
+        tenantConfigRepository.save(tc);
+        tenantFeatureRolloutService.evictTenantSettingsCaches(tenantId);
+        log.info("School workspace profile updated tenantId={}", tenantId);
+        return toSchoolSummary(tc);
+    }
+
+    /**
+     * Super-admin: correct campus admin display name / email / phone after a mistaken onboarding entry.
+     */
+    @Transactional
+    public PlatformDTOs.SchoolAdminSummary updateSchoolAdminProfile(String tenantId, Long userId, PlatformDTOs.UpdateSchoolAdminRequest req) {
+        if (req == null) {
+            throw new BusinessException("Request body is required");
+        }
+        User admin = userRepository.findById(userId)
+                .filter(user -> tenantId.equals(user.getTenantId())
+                        && user.getRole() == Enums.Role.ADMIN
+                        && !Boolean.TRUE.equals(user.getIsDeleted()))
+                .orElseThrow(() -> new ResourceNotFoundException("User", userId));
+        boolean touched = false;
+        if (req.getName() != null && !req.getName().isBlank()) {
+            admin.setName(req.getName().trim());
+            touched = true;
+        }
+        if (req.getEmail() != null && !req.getEmail().isBlank()) {
+            String em = req.getEmail().trim();
+            userRepository.findByEmailAndTenantIdAndIsDeletedFalse(em, tenantId)
+                    .filter(other -> !Objects.equals(other.getId(), userId))
+                    .ifPresent(other -> {
+                        throw new BusinessException("Another user in this workspace already uses that email.");
+                    });
+            admin.setEmail(em);
+            touched = true;
+        }
+        if (req.getPhone() != null) {
+            if (req.getPhone().isBlank()) {
+                admin.setPhone(null);
+            } else {
+                String canonical = InternationalPhone.canonical(req.getPhone().trim());
+                if (canonical == null) {
+                    throw new BusinessException(InternationalPhone.invalidMessage());
+                }
+                userRepository.findByTenantIdAndIsDeletedFalseOrderByNameAsc(tenantId).stream()
+                        .filter(u -> !Objects.equals(u.getId(), userId))
+                        .filter(u -> canonical.equals(u.getPhone()))
+                        .findAny()
+                        .ifPresent(u -> {
+                            throw new BusinessException("Another user in this workspace already uses that phone number.");
+                        });
+                admin.setPhone(canonical);
+            }
+            touched = true;
+        }
+        if (!touched) {
+            throw new BusinessException("Provide at least one field to update.");
+        }
+        userRepository.save(admin);
+        tenantFeatureRolloutService.evictTenantSettingsCaches(tenantId);
+        log.info("School admin profile updated tenantId={} userId={}", tenantId, userId);
+        return toAdminSummary(admin);
+    }
+
     private static Enums.NotificationType parseNotificationType(String raw) {
         if (raw == null || raw.isBlank()) {
             return Enums.NotificationType.INFO;
@@ -1116,6 +1237,7 @@ public class PlatformService {
 
     public PlatformService(
             TenantConfigRepository tenantConfigRepository,
+            TenantFeatureRolloutService tenantFeatureRolloutService,
             UserRepository userRepository,
             StudentRepository studentRepository,
             TeacherRepository teacherRepository,
@@ -1131,6 +1253,7 @@ public class PlatformService {
             DataSource dataSource
     ) {
         this.tenantConfigRepository = tenantConfigRepository;
+        this.tenantFeatureRolloutService = tenantFeatureRolloutService;
         this.userRepository = userRepository;
         this.studentRepository = studentRepository;
         this.teacherRepository = teacherRepository;

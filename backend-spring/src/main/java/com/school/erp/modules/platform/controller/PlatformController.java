@@ -105,6 +105,25 @@ public class PlatformController {
         return ResponseEntity.ok(ApiResponse.ok(platformService.getSchoolDetail(tenantId)));
     }
 
+    @PutMapping("/schools/{tenantId}/profile")
+    @Operation(summary = "Update workspace school code, contact, and branding (before or after CSV onboarding)")
+    public ResponseEntity<ApiResponse<PlatformDTOs.SchoolSummary>> updateSchoolWorkspaceProfile(
+            @PathVariable String tenantId,
+            @Valid @RequestBody PlatformDTOs.UpdateSchoolWorkspaceRequest request) {
+        return ResponseEntity.ok(ApiResponse.ok(
+                platformService.updateSchoolWorkspaceProfile(tenantId, request), "Workspace profile updated"));
+    }
+
+    @PutMapping("/schools/{tenantId}/admins/{userId}")
+    @Operation(summary = "Correct campus admin name, email, or phone for a school workspace")
+    public ResponseEntity<ApiResponse<PlatformDTOs.SchoolAdminSummary>> updateSchoolAdminProfile(
+            @PathVariable String tenantId,
+            @PathVariable Long userId,
+            @Valid @RequestBody PlatformDTOs.UpdateSchoolAdminRequest request) {
+        return ResponseEntity.ok(ApiResponse.ok(
+                platformService.updateSchoolAdminProfile(tenantId, userId, request), "Campus admin updated"));
+    }
+
     @GetMapping("/schools/{tenantId}/finance-profile")
     @Operation(
             summary = "Read tenant finance / Route profile (platform verification)",

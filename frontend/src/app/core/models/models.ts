@@ -734,6 +734,23 @@ export interface PlatformSchoolDetail {
   subscriptionStatus: string;
 }
 
+/** Super-admin PATCH payload — optional fields; blank strings omitted client-side. */
+export interface UpdateSchoolWorkspaceRequest {
+  schoolName?: string;
+  schoolCode?: string;
+  email?: string;
+  phone?: string;
+  address?: string;
+  primaryColor?: string;
+  secondaryColor?: string;
+}
+
+export interface UpdateSchoolAdminRequest {
+  name?: string;
+  email?: string;
+  phone?: string;
+}
+
 export interface PlatformPurgeJob {
   id: string;
   tenantId: string;

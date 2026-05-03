@@ -61,10 +61,39 @@
       "activate": "Activate workspace",
       "refresh": "Refresh"
     },
+    "workspaceProfile": {
+      "title": "Workspace profile",
+      "lead": "Correct school code, office email, or branding before staff run CSV imports — keeps login hints and exports aligned.",
+      "edit": "Edit details",
+      "done": "Close editor",
+      "schoolName": "School name",
+      "schoolCode": "School code",
+      "email": "Office email",
+      "phone": "Office phone",
+      "address": "Address",
+      "primaryColor": "Primary colour (hex)",
+      "secondaryColor": "Secondary colour (hex)",
+      "save": "Save workspace",
+      "saving": "Saving…",
+      "discard": "Discard",
+      "saved": "Workspace profile updated.",
+      "err": "Could not save workspace profile."
+    },
     "adminCols": {
       "name": "Name",
       "email": "Email",
-      "status": "Status"
+      "status": "Status",
+      "actions": "Actions"
+    },
+    "adminEdit": {
+      "toggle": "Edit campus admin",
+      "name": "Display name",
+      "phone": "Phone",
+      "save": "Save admin",
+      "saving": "Saving…",
+      "cancel": "Cancel",
+      "saved": "Campus admin updated.",
+      "err": "Could not save admin."
     },
     "messages": {
       "suspended": "Workspace suspended; all users in this tenant were deactivated.",
@@ -800,7 +829,7 @@
         "attendanceLoggedSub": "In selected period",
         "attendanceLoggedSubToday": "Records marked today",
         "attendanceLoggedSubWeek": "Mon–today, all classes",
-        "attendanceLoggedSubMonth": "1st–today, all classes"
+        "attendanceLoggedSubMonth": "Across All Classes/Sections"
       },
       "insight": {
         "sixMonth": "Six-month intake",
@@ -1162,6 +1191,12 @@
         "detailIrreversible": "This action is sensitive and should be done only after checking section and student dependencies.",
         "confirm": "Yes, delete class"
       },
+      "createClass": {
+        "conflictTitle": "Move class teacher from another homeroom?",
+        "conflictMessage": "{{teacher}} will become the class teacher for the new class “{{newClass}}”.",
+        "conflictDetail": "Their previous homeroom assignment will be cleared when you continue — you can assign another teacher there later.",
+        "conflictStripTitle": "Homeroom already assigned"
+      },
       "classTeacher": {
         "unknownTeacher": "Unknown teacher",
         "removeTitle": "Remove class teacher?",
@@ -1198,6 +1233,18 @@
       "classDeleteFailed": "Unable to delete class. Ensure no active sections or students remain.",
       "classLifecycleFailed": "Unable to update class lifecycle state right now. Please try again.",
       "sectionLifecycleFailed": "Unable to update section lifecycle state right now. Please try again."
+    },
+    "subjectCatalog": {
+      "title": "Subject catalog",
+      "lead": "These subjects are shared across timetables, slot editor, and teacher profiles. Add your school’s master list here so staff pick from one list everywhere.",
+      "addLabel": "Add subject",
+      "addPlaceholder": "e.g. Mathematics",
+      "addBtn": "Add to catalog",
+      "adding": "Adding…",
+      "empty": "No subjects in the catalog yet.",
+      "addedToast": "Subject added to the catalog.",
+      "duplicateToast": "That subject is already in your catalog.",
+      "addFailed": "Could not add the subject. Try again."
     }
   },
   "directory": {
@@ -1229,7 +1276,7 @@
     "exportTimeout": "Export is taking longer than expected. Please retry shortly.",
     "staffActivate": "Activate",
     "staffDeactivate": "Deactivate",
-    "staffDeletePermanent": "Delete permanently",
+    "staffDeleteArchive": "Archive — remove from inactive list",
     "lifecycleConfirm": {
       "deactivate": {
         "title": "Move staff to inactive?",
@@ -1244,6 +1291,13 @@
         "detailVisible": "This record will be visible in Active filter.",
         "detailReversible": "You can mark this record inactive again.",
         "confirm": "Yes, reactivate"
+      },
+      "deleteSoft": {
+        "title": "Archive this staff record?",
+        "message": "{{name}} will be soft-deleted and hidden from Active and Inactive lists.",
+        "detailHidden": "The row stays in the database for audit; platform retention jobs may purge later.",
+        "detailRetention": "Use after reviewing inactive records — same pattern as teachers and students.",
+        "confirm": "Yes, archive"
       },
       "deletePermanent": {
         "title": "Delete staff permanently?",
@@ -1293,7 +1347,7 @@
       "view": "View",
       "edit": "Edit",
       "delete": "Delete",
-      "deletePermanent": "Delete permanently",
+      "deletePermanent": "Archive record",
       "showing": "Showing {{from}} to {{to}} of {{total}}",
       "confirmDelete": {
         "title": "Remove student from directory?",
@@ -1313,11 +1367,11 @@
           "confirm": "Yes, reactivate"
         },
         "deletePermanent": {
-          "title": "Delete student permanently?",
-          "message": "{{name}} will be permanently removed from this directory.",
-          "detailHidden": "After this, it will not appear in Active or Inactive lists.",
-          "detailFinal": "Use this only after final review and confirmation.",
-          "confirm": "Yes, delete permanently"
+          "title": "Archive student record?",
+          "message": "{{name}} will be soft-deleted and hidden from Active and Inactive lists.",
+          "detailHidden": "Historical rows remain for audit until retention policies apply.",
+          "detailFinal": "Use after confirming this enrolment should leave operational lists.",
+          "confirm": "Yes, archive"
         }
       }
     },
@@ -1544,7 +1598,7 @@
       "edit": "Edit",
       "deactivate": "Deactivate",
       "reactivate": "Reactivate",
-      "deletePermanent": "Delete permanently",
+      "deletePermanent": "Archive record",
       "confirmDelete": {
         "title": "Remove teacher?",
         "message": "{{name}} will be deactivated and removed from staff lists. Homeroom assignments for this teacher are cleared in the backend.",
@@ -1563,11 +1617,11 @@
           "confirm": "Yes, reactivate"
         },
         "deletePermanent": {
-          "title": "Delete teacher permanently?",
-          "message": "{{name}} will be permanently removed from this directory.",
-          "detailHidden": "After this, it will not appear in Active or Inactive lists.",
-          "detailFinal": "Use this only after final admin review.",
-          "confirm": "Yes, delete permanently"
+          "title": "Archive teacher record?",
+          "message": "{{name}} will be soft-deleted and hidden from Active and Inactive lists.",
+          "detailHidden": "Homeroom links are cleared; audit history may be retained until retention jobs run.",
+          "detailFinal": "Use after the teacher has been inactive and you are ready to remove them from roster views.",
+          "confirm": "Yes, archive"
         }
       }
     },
@@ -1621,8 +1675,8 @@
       "teacherRecordId": "Teacher record ID",
       "linkedLogin": "Linked login",
       "linkedYes": "Yes (staff portal)",
-      "adminMetadata": "Admin metadata",
-      "adminMetadataLead": "Sensitive employment and payout metadata is visible to school administrators only.",
+      "adminMetadata": "Personal details",
+      "adminMetadataLead": "Sensitive employment and payout information below is visible to school administrators only.",
       "bankAccountHolder": "Bank account holder",
       "bankName": "Bank name",
       "bankAccountNumber": "Bank account number",
@@ -1760,7 +1814,11 @@
     "validationTitle": "Check timetable details",
     "validationAcknowledge": "Okay",
     "validationTeacherRequired": "Please select a teacher before saving this slot.",
-    "validationSubjectRequired": "Please enter a subject before saving this slot.",
+    "validationSubjectRequired": "Please select a subject before saving this slot.",
+    "validationSubjectCatalogEmpty": "Add at least one subject in Academic management (Subject catalog) before creating timetable slots.",
+    "validationSubjectNotInCatalog": "Please choose a subject from your school’s subject catalog (no free typing).",
+    "subjectCatalogEmpty": "No subjects in the school catalog yet.",
+    "manageSubjectCatalog": "Open subject catalog",
     "validationTimeRange": "Start time must be earlier than end time.",
     "validationPeriodRange": "Period must be between 1 and 12.",
     "validationClassSectionRequired": "Please select class and section before saving this slot.",
@@ -1882,6 +1940,8 @@
     "errSectionRequired": "This class has sections — choose a section for homeroom.",
     "errClassRequired": "Select a class for each row before saving.",
     "errSubjectRequired": "Subject is required for every row.",
+    "errSubjectCatalogEmpty": "Add subjects under Academic → Subject catalog before assigning periods.",
+    "errSubjectNotInCatalog": "Every row must use a subject from your school catalog.",
     "errPeriodRange": "Period must be between 1 and 12.",
     "errTimeRequired": "Start and end time are required for each row.",
     "errTimeRange": "Start time must be earlier than end time.",

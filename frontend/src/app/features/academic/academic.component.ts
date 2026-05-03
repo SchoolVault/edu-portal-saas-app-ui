@@ -11,6 +11,7 @@ import {
   PromotionSplitPreview,
   SchoolClass,
   Section,
+  SubjectCatalogItem,
   Teacher,
 } from '../../core/models/models';
 import { filter } from 'rxjs/operators';
@@ -18,6 +19,7 @@ import { ErpDatePickerComponent } from '../../shared/erp-date-picker/erp-date-pi
 import { ConfirmDialogService } from '../../shared/confirm-dialog/confirm-dialog.service';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directives';
+import { RouterModule } from '@angular/router';
 
 /** Existing homeroom slot the selected teacher would be moved from (class + optional section). */
 interface HomeroomTeacherConflictSlot {
@@ -28,7 +30,7 @@ interface HomeroomTeacherConflictSlot {
 @Component({
   selector: 'app-academic',
   standalone: true,
-  imports: [CommonModule, FormsModule, ErpDatePickerComponent, TranslateModule, ErpI18nPhDirective],
+  imports: [CommonModule, FormsModule, RouterModule, ErpDatePickerComponent, TranslateModule, ErpI18nPhDirective],
   styles: [
     `
       .academic-help-text {
@@ -325,6 +327,24 @@ interface HomeroomTeacherConflictSlot {
           </div>
         </div>
 
+        <div *ngIf="canManageAcademic" id="erp-subject-catalog" class="erp-card mb-3">
+          <h4 class="erp-card-title mb-2" style="font-size: 16px;">{{ 'academic.subjectCatalog.title' | translate }}</h4>
+          <p class="text-muted small mb-3">{{ 'academic.subjectCatalog.lead' | translate }}</p>
+          <div class="d-flex flex-wrap gap-2 align-items-end mb-3">
+            <div class="flex-grow-1" style="min-width: min(100%, 240px);">
+              <label class="erp-label">{{ 'academic.subjectCatalog.addLabel' | translate }}</label>
+              <input class="erp-input" [(ngModel)]="newCatalogSubjectName" erpI18nPh="academic.subjectCatalog.addPlaceholder" />
+            </div>
+            <button type="button" class="btn-primary-erp btn-sm" [disabled]="subjectCatalogSaving" (click)="registerCatalogSubject()">
+              {{ subjectCatalogSaving ? ('academic.subjectCatalog.adding' | translate) : ('academic.subjectCatalog.addBtn' | translate) }}
+            </button>
+          </div>
+          <div class="d-flex flex-wrap gap-1 align-items-center">
+            <span *ngFor="let s of subjectCatalogItems" class="badge-erp badge-neutral">{{ s.name }}</span>
+            <span *ngIf="!subjectCatalogItems.length" class="text-muted small">{{ 'academic.subjectCatalog.empty' | translate }}</span>
+          </div>
+        </div>
+
         <div class="row g-4">
           <div class="col-md-6 col-lg-4" *ngFor="let cls of filteredClasses">
             <div
@@ -565,6 +585,19 @@ interface HomeroomTeacherConflictSlot {
               <input type="number" class="erp-input" [(ngModel)]="newClass.sectionCapacity" min="1"></div>
             <div class="erp-form-group"><label class="erp-label">{{ 'academic.modal.classTeacherOpt' | translate }}</label>
               <select class="erp-select" [(ngModel)]="newClass.classTeacherId"><option [ngValue]="null">{{ 'academic.modal.later' | translate }}</option><option *ngFor="let t of teachersForHomeroom" [ngValue]="t.id">{{ t.firstName }} {{ t.lastName }}</option></select></div>
+            <div *ngIf="createClassHomeroomConflict as ch" class="academic-homeroom-strip rounded-2 p-3 mb-0 mt-2">
+              <strong class="academic-homeroom-strip__title d-block mb-1">{{ 'academic.confirm.createClass.conflictStripTitle' | translate }}</strong>
+              <p class="academic-homeroom-strip__text mb-0 small">
+                {{
+                  'academic.confirm.classTeacher.detailWillMoveFrom'
+                    | translate
+                      : {
+                          teacher: createClassSelectedTeacherDisplayName,
+                          homeroomLabel: formatHomeroomConflictLabel(ch),
+                        }
+                }}
+              </p>
+            </div>
           </div>
           <div class="modal-footer-erp">
             <button type="button" class="btn-outline-erp" (click)="showCreateClass = false">{{ 'academic.modal.cancel' | translate }}</button>
@@ -686,6 +719,10 @@ export class AcademicComponent implements OnInit {
     sectionCapacity: number;
     classTeacherId: number | null;
   } = { name: '', academicYearId: null, sectionNamesText: '', sectionCapacity: 40, classTeacherId: null };
+  /** Tenant subject master for timetables and teacher skills (see {@link AcademicService#getSubjectCatalog}). */
+  subjectCatalogItems: SubjectCatalogItem[] = [];
+  newCatalogSubjectName = '';
+  subjectCatalogSaving = false;
   editClassForm = { name: '' };
   showAddSection = false;
   sectionClassId: number | null = null;
@@ -735,6 +772,7 @@ export class AcademicComponent implements OnInit {
     this.canManageAcademic = this.uiAccess.hasAcademicDeskAdminAccess();
     if (this.canManageAcademic) {
       this.tab = 'classes';
+      this.refreshSubjectCatalog();
     }
     this.reloadData();
     this.teacherService.getTeachers().subscribe(list => {
@@ -744,6 +782,41 @@ export class AcademicComponent implements OnInit {
       this.linkedTeacherRecordId = row?.id ?? null;
     });
     this.auth.fetchProfileSummary().subscribe({ error: () => void 0 });
+  }
+
+  private refreshSubjectCatalog(): void {
+    this.academicService.getSubjectCatalog().subscribe({
+      next: rows => {
+        this.subjectCatalogItems = [...(rows ?? [])].sort((a, b) =>
+          (a.name ?? '').localeCompare(b.name ?? '', undefined, { sensitivity: 'base' })
+        );
+      },
+      error: () => {
+        this.subjectCatalogItems = [];
+      },
+    });
+  }
+
+  registerCatalogSubject(): void {
+    const raw = this.newCatalogSubjectName.trim();
+    if (!raw || this.subjectCatalogSaving) {
+      return;
+    }
+    this.subjectCatalogSaving = true;
+    this.academicService.registerSubjectCatalogNames([raw]).subscribe({
+      next: res => {
+        this.subjectCatalogSaving = false;
+        this.newCatalogSubjectName = '';
+        this.refreshSubjectCatalog();
+        if (res?.added) {
+          this.showValidationWarning(this.translate.instant('academic.subjectCatalog.addedToast'));
+        }
+      },
+      error: () => {
+        this.subjectCatalogSaving = false;
+        this.showValidationWarning(this.translate.instant('academic.subjectCatalog.addFailed'));
+      },
+    });
   }
 
   get filteredClasses(): SchoolClass[] {
@@ -779,6 +852,39 @@ export class AcademicComponent implements OnInit {
       return true;
     }
     return false;
+  }
+
+  /**
+   * Selected class teacher for the new class already has a homeroom elsewhere — saving will move them.
+   */
+  get createClassHomeroomConflict(): HomeroomTeacherConflictSlot | null {
+    const tid = this.newClass.classTeacherId;
+    if (tid == null) {
+      return null;
+    }
+    for (const c of this.classes) {
+      if (!c.sections?.length) {
+        if (c.classTeacherId === tid) {
+          return { cls: c, section: null };
+        }
+        continue;
+      }
+      for (const s of c.sections) {
+        if (s.classTeacherId === tid) {
+          return { cls: c, section: s };
+        }
+      }
+    }
+    return null;
+  }
+
+  get createClassSelectedTeacherDisplayName(): string {
+    const tid = this.newClass.classTeacherId;
+    if (tid == null) {
+      return '';
+    }
+    const t = this.teachers.find(x => x.id === tid);
+    return t ? `${t.firstName} ${t.lastName}`.trim() : '';
   }
 
   /** Teacher is already homeroom on another slot (backend/mock will reassign when saving). */
@@ -920,6 +1026,43 @@ export class AcademicComponent implements OnInit {
     );
     if (duplicateName) {
       this.showValidationWarning(this.translate.instant('academic.errors.duplicateClassName'));
+      return;
+    }
+    const conflict = this.createClassHomeroomConflict;
+    const t =
+      this.newClass.classTeacherId != null
+        ? this.teachers.find(x => x.id === this.newClass.classTeacherId)
+        : undefined;
+    if (conflict && t) {
+      const details: string[] = [
+        this.translate.instant('academic.confirm.classTeacher.detailWillMoveFrom', {
+          teacher: `${t.firstName} ${t.lastName}`.trim(),
+          homeroomLabel: this.formatHomeroomConflictLabel(conflict),
+        }),
+        this.translate.instant('academic.confirm.createClass.conflictDetail'),
+      ];
+      this.confirmDialog
+        .confirm({
+          title: this.translate.instant('academic.confirm.createClass.conflictTitle'),
+          message: this.translate.instant('academic.confirm.createClass.conflictMessage', {
+            teacher: `${t.firstName} ${t.lastName}`.trim(),
+            newClass: n,
+          }),
+          details,
+          variant: 'warning',
+          confirmLabel: this.translate.instant('academic.confirm.classTeacher.confirm'),
+          cancelLabel: this.translate.instant('academic.modal.cancel'),
+        })
+        .pipe(filter(Boolean))
+        .subscribe(() => this.executeCreateClass());
+      return;
+    }
+    this.executeCreateClass();
+  }
+
+  private executeCreateClass(): void {
+    const n = this.newClass.name.trim();
+    if (!n || this.newClass.academicYearId == null) {
       return;
     }
     const names = this.newClass.sectionNamesText.split(/[,;\n]+/).map(s => s.trim()).filter(Boolean);

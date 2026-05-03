@@ -75,8 +75,12 @@ public class OperationsService {
 
     /**
      * Remove operational staff.
-     * Default behavior is lifecycle-safe deactivate (record remains visible in inactive lists and can be restored).
-     * Permanent delete is allowed only when the row has no linked ERP user and no transport route (e.g. ad-hoc driver record).
+     * <ul>
+     *   <li>{@code permanent=false} — ERP-style <strong>soft delete</strong>: row is archived ({@code is_deleted}),
+     *       hidden from active and inactive lists; use only after the record is inactive or when purging from ops hub.</li>
+     *   <li>{@code permanent=true} — physical row removal allowed only when no linked ERP user and no transport route
+     *       (legacy orphan cleanup).</li>
+     * </ul>
      */
     @Transactional
     public void deleteStaff(Long id, boolean permanent) {
@@ -90,7 +94,7 @@ public class OperationsService {
             staffRepo.delete(e);
             return;
         }
-        e.setIsActive(false);
+        e.markSoftDeleted();
         e.setUpdatedBy(TenantContext.getUserId() != null ? TenantContext.getUserId().toString() : null);
         staffRepo.save(e);
     }

@@ -161,14 +161,18 @@ public class DirectoryService {
         return directoryKindRank(a.getKind()) <= directoryKindRank(b.getKind()) ? a : b;
     }
 
+    /**
+     * Lower rank wins merges when the same portal user appears as multiple roster kinds.
+     * Prefer {@code staff} over {@code teacher} so operational desk identities are not mislabeled as faculty.
+     */
     private static int directoryKindRank(String kind) {
         if (kind == null) {
             return 9;
         }
         return switch (kind.toLowerCase(Locale.ROOT)) {
-            case "teacher" -> 0;
-            case "student" -> 1;
-            case "staff" -> 2;
+            case "staff" -> 0;
+            case "teacher" -> 1;
+            case "student" -> 2;
             default -> 5;
         };
     }

@@ -795,7 +795,7 @@
         "attendanceLoggedSub": "चयनित अवधि में",
         "attendanceLoggedSubToday": "आज दर्ज रिकॉर्ड",
         "attendanceLoggedSubWeek": "सोमवार–आज, सभी कक्षाएँ",
-        "attendanceLoggedSubMonth": "1 तारीख–आज तक, सभी कक्षाएँ"
+        "attendanceLoggedSubMonth": "सभी कक्षाओं/खंडों में"
       },
       "insight": {
         "sixMonth": "छह माह का प्रवेश",
@@ -1157,6 +1157,12 @@
         "detailIrreversible": "यह संवेदनशील कार्रवाई है; पहले खंड और विद्यार्थी निर्भरताएँ जांच लें।",
         "confirm": "हाँ, कक्षा हटाएँ"
       },
+      "createClass": {
+        "conflictTitle": "क्या कक्षा शिक्षक को दूसरे होमरूम से हटाना है?",
+        "conflictMessage": "{{teacher}} नई कक्षा “{{newClass}}” के कक्षा शिक्षक बन जाएँगे।",
+        "conflictDetail": "आगे बढ़ने पर उनका पिछला होमरूम असाइनमेंट हट जाएगा — बाद में वहां दूसरा शिक्षक नियुक्त कर सकते हैं।",
+        "conflictStripTitle": "होमरूम पहले से असाइन है"
+      },
       "classTeacher": {
         "unknownTeacher": "अज्ञात शिक्षक",
         "removeTitle": "कक्षा शिक्षक हटाएँ?",
@@ -1193,6 +1199,18 @@
       "classDeleteFailed": "कक्षा हटाई नहीं जा सकी। सुनिश्चित करें कि कोई सक्रिय खंड या विद्यार्थी शेष नहीं है।",
       "classLifecycleFailed": "कक्षा की जीवनचक्र स्थिति अभी अपडेट नहीं हो सकी। कृपया पुनः प्रयास करें।",
       "sectionLifecycleFailed": "खंड की जीवनचक्र स्थिति अभी अपडेट नहीं हो सकी। कृपया पुनः प्रयास करें।"
+    },
+    "subjectCatalog": {
+      "title": "विषय सूची (कैटलॉग)",
+      "lead": "ये विषय समय सारणी, स्लॉट संपादक और शिक्षक प्रोफ़ाइल में साझा होते हैं। स्टाफ़ को एक ही सूची दिखाने के लिए अपने स्कूल की मास्टर सूचि यहाँ जोड़ें।",
+      "addLabel": "विषय जोड़ें",
+      "addPlaceholder": "उदा. गणित",
+      "addBtn": "कैटलॉग में जोड़ें",
+      "adding": "जोड़ा जा रहा है…",
+      "empty": "अभी कैटलॉग में कोई विषय नहीं।",
+      "addedToast": "विषय कैटलॉग में जोड़ा गया।",
+      "duplicateToast": "यह विषय आपके कैटलॉग में पहले से है।",
+      "addFailed": "विषय नहीं जोड़ा जा सका। पुनः प्रयास करें।"
     }
   },
   "directory": {
@@ -1616,8 +1634,8 @@
       "teacherRecordId": "शिक्षक रिकॉर्ड आईडी",
       "linkedLogin": "लिंक्ड लॉगिन",
       "linkedYes": "हाँ (स्टाफ़ पोर्टल)",
-      "adminMetadata": "प्रशासक मेटाडेटा",
-      "adminMetadataLead": "संवेदनशील सेवा और भुगतान संबंधी विवरण केवल स्कूल प्रशासकों को दिखते हैं।",
+      "adminMetadata": "व्यक्तिगत विवरण",
+      "adminMetadataLead": "नीचे संवेदनशील सेवा और भुगतान संबंधी जानकारी केवल स्कूल प्रशासकों को दिखती है।",
       "bankAccountHolder": "बैंक खाता धारक",
       "bankName": "बैंक का नाम",
       "bankAccountNumber": "बैंक खाता संख्या",
@@ -1753,7 +1771,11 @@
     "validationTitle": "समय सारणी विवरण जांचें",
     "validationAcknowledge": "ठीक है",
     "validationTeacherRequired": "स्लॉट सहेजने से पहले शिक्षक चुनें।",
-    "validationSubjectRequired": "स्लॉट सहेजने से पहले विषय दर्ज करें।",
+    "validationSubjectRequired": "स्लॉट सहेजने से पहले सूची से विषय चुनें।",
+    "validationSubjectCatalogEmpty": "समय सारणी स्लॉट बनाने से पहले शैक्षणिक प्रबंधन में कम से कम एक विषय (विषय कैटलॉग) जोड़ें।",
+    "validationSubjectNotInCatalog": "कृपया अपने स्कूल के विषय कैटलॉग से विषय चुनें (मुक्त टाइपिंग नहीं)।",
+    "subjectCatalogEmpty": "स्कूल कैटलॉग में अभी कोई विषय नहीं।",
+    "manageSubjectCatalog": "विषय कैटलॉग खोलें",
     "validationTimeRange": "प्रारंभ समय, समाप्ति समय से पहले होना चाहिए।",
     "validationPeriodRange": "पीरियड 1 से 12 के बीच होना चाहिए।",
     "validationClassSectionRequired": "स्लॉट सहेजने से पहले कक्षा और खंड चुनें।",
@@ -1875,6 +1897,8 @@
     "errSectionRequired": "इस कक्षा में खंड हैं — होमरूम के लिए खंड चुनें।",
     "errClassRequired": "सहेजने से पहले हर पंक्ति के लिए कक्षा चुनें।",
     "errSubjectRequired": "हर पंक्ति में विषय अनिवार्य है।",
+    "errSubjectCatalogEmpty": "अवधियाँ असाइन करने से पहले शैक्षणिक → विषय कैटलॉग में विषय जोड़ें।",
+    "errSubjectNotInCatalog": "हर पंक्ति स्कूल के विषय कैटलॉग से होनी चाहिए।",
     "errPeriodRange": "पीरियड 1 से 12 के बीच होना चाहिए।",
     "errTimeRequired": "हर पंक्ति में प्रारंभ और समाप्ति समय आवश्यक है।",
     "errTimeRange": "प्रारंभ समय, समाप्ति समय से पहले होना चाहिए।",

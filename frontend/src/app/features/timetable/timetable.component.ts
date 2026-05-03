@@ -20,6 +20,7 @@ import { filter, take } from 'rxjs/operators';
 import { SchoolClassNamePipe } from '../../core/i18n/school-class-name.pipe';
 import { formatSchoolClassDisplayName, formatSchoolClassName } from '../../core/i18n/school-class-display';
 import { ConfirmDialogService } from '../../shared/confirm-dialog/confirm-dialog.service';
+import { RouterModule } from '@angular/router';
 import { SchedulingConflictError } from '../../core/errors/scheduling-conflict.error';
 import { TimetableConflictError } from '../../core/errors/timetable-conflict.error';
 import {
@@ -41,7 +42,7 @@ type ParentTimetableContract = {
 @Component({
   selector: 'app-timetable',
   standalone: true,
-  imports: [CommonModule, FormsModule, ErpDatePickerComponent, ErpI18nPhDirective, TranslateModule, SchoolClassNamePipe],
+  imports: [CommonModule, FormsModule, RouterModule, ErpDatePickerComponent, ErpI18nPhDirective, TranslateModule, SchoolClassNamePipe],
   styles: [
     `
       /* Slot tiles: soft tints + left accent using app tokens (light + dark themes). */
@@ -625,15 +626,14 @@ type ParentTimetableContract = {
             </div>
             <div class="col-md-6">
               <label class="erp-label">{{ 'timetable.labelSubject' | translate }}</label>
-              <input
-                class="erp-input"
-                [(ngModel)]="entryForm.subjectName"
-                [attr.list]="subjectCatalogNames.length ? 'timetable-slot-subject-options' : null"
-                name="slotSubject"
-              />
-              <datalist id="timetable-slot-subject-options">
-                <option *ngFor="let n of subjectCatalogNames" [value]="n"></option>
-              </datalist>
+              <select class="erp-select" [(ngModel)]="entryForm.subjectName" name="slotSubjectSel">
+                <option [ngValue]="''">{{ 'timetable.selectSubject' | translate }}</option>
+                <option *ngFor="let n of subjectCatalogNames" [ngValue]="n">{{ n }}</option>
+              </select>
+              <p *ngIf="!subjectCatalogNames.length" class="small mb-1 mt-1" style="color: var(--clr-warning);">
+                {{ 'timetable.subjectCatalogEmpty' | translate }}
+                <a routerLink="/app/academic" fragment="erp-subject-catalog" class="ms-1">{{ 'timetable.manageSubjectCatalog' | translate }}</a>
+              </p>
             </div>
             <ng-container *ngIf="scheduleScope === 'teacher'">
               <div class="col-md-6">
@@ -655,11 +655,10 @@ type ParentTimetableContract = {
               <div class="d-flex flex-wrap gap-3 align-items-end mb-2">
                 <div>
                   <span class="small text-muted d-block mb-1">{{ 'timetable.labelStart' | translate }}</span>
-                  <div class="d-flex gap-1 align-items-center flex-wrap">
+                  <div class="d-flex gap-1 align-items-center flex-wrap timetable-slot-time-row">
                     <select class="erp-select" style="min-width: 4.25rem" [(ngModel)]="modalTime12.startH" name="slotSh">
                       <option *ngFor="let h of modalHours12" [ngValue]="h">{{ h }}</option>
                     </select>
-                    <span class="text-muted">:</span>
                     <select class="erp-select" style="min-width: 4.25rem" [(ngModel)]="modalTime12.startM" name="slotSm">
                       <option *ngFor="let m of modalMinuteOptions" [ngValue]="m">{{ m }}</option>
                     </select>
@@ -671,11 +670,10 @@ type ParentTimetableContract = {
                 </div>
                 <div>
                   <span class="small text-muted d-block mb-1">{{ 'timetable.labelEnd' | translate }}</span>
-                  <div class="d-flex gap-1 align-items-center flex-wrap">
+                  <div class="d-flex gap-1 align-items-center flex-wrap timetable-slot-time-row">
                     <select class="erp-select" style="min-width: 4.25rem" [(ngModel)]="modalTime12.endH" name="slotEh">
                       <option *ngFor="let h of modalHours12" [ngValue]="h">{{ h }}</option>
                     </select>
-                    <span class="text-muted">:</span>
                     <select class="erp-select" style="min-width: 4.25rem" [(ngModel)]="modalTime12.endM" name="slotEm">
                       <option *ngFor="let m of modalMinuteOptions" [ngValue]="m">{{ m }}</option>
                     </select>
@@ -689,7 +687,7 @@ type ParentTimetableContract = {
                   {{ 'timetable.applyTimes' | translate }}
                 </button>
               </div>
-              <p class="small text-muted mb-0">
+              <p class="small text-muted mb-0" *ngIf="slotModalTimesApplied">
                 {{ 'timetable.storedTimesHint' | translate }}
                 <strong class="text-body">{{ entryForm.startTime }} – {{ entryForm.endTime }}</strong>
               </p>
@@ -743,8 +741,10 @@ export class TimetableComponent implements OnInit {
   editingEntryId: number | null = null;
   dayOptions = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
   entryForm: TimetableEntryForm = this.defaultEntryForm();
-  /** Subject names from catalog (Add/Edit slot — picklist + free text via datalist). */
+  /** Subject names from catalog (Add/Edit slot — strict picklist). */
   subjectCatalogNames: string[] = [];
+  /** Shown only after the user clicks “Apply times” (or when editing an existing saved slot). */
+  slotModalTimesApplied = false;
   /** 12-hour clock controls for the slot modal; applied explicitly so users confirm times. */
   modalTime12 = {
     startH: '8',
@@ -1418,6 +1418,7 @@ export class TimetableComponent implements OnInit {
       return;
     }
     this.editingEntryId = null;
+    this.slotModalTimesApplied = false;
     this.entryForm = this.defaultEntryForm();
     if (this.scheduleScope === 'teacher') {
       this.entryForm.teacherId = this.selectedTeacherId ?? undefined;
@@ -1435,12 +1436,27 @@ export class TimetableComponent implements OnInit {
     }
     this.editingEntryId = entry.id;
     this.entryForm = { ...entry };
+    const aligned = this.resolveSubjectCatalogName(this.entryForm.subjectName ?? '');
+    if (aligned != null) {
+      this.entryForm.subjectName = aligned;
+    }
+    this.slotModalTimesApplied = true;
     this.showModal = true;
     this.syncModal12hFromEntryForm();
   }
 
+  /** Aligns persisted subject text with the canonical catalog spelling for the subject dropdown. */
+  private resolveSubjectCatalogName(raw: string): string | null {
+    const t = (raw ?? '').trim();
+    if (!t) {
+      return null;
+    }
+    return this.subjectCatalogNames.find(n => n.toLowerCase() === t.toLowerCase()) ?? null;
+  }
+
   closeModal(): void {
     this.showModal = false;
+    this.slotModalTimesApplied = false;
     this.entryForm = this.defaultEntryForm();
     this.editingEntryId = null;
   }
@@ -1459,6 +1475,7 @@ export class TimetableComponent implements OnInit {
   applyModal12hTimes(): void {
     this.entryForm.startTime = this.join12HourTo24(this.modalTime12.startH, this.modalTime12.startM, this.modalTime12.startAp);
     this.entryForm.endTime = this.join12HourTo24(this.modalTime12.endH, this.modalTime12.endM, this.modalTime12.endAp);
+    this.slotModalTimesApplied = true;
     this.cdr.markForCheck();
   }
 
@@ -1529,6 +1546,15 @@ export class TimetableComponent implements OnInit {
     }
     if (!payload.subjectName.trim()) {
       this.warnInvalidTimetableInput('timetable.validationSubjectRequired');
+      return false;
+    }
+    if (this.subjectCatalogNames.length === 0) {
+      this.warnInvalidTimetableInput('timetable.validationSubjectCatalogEmpty');
+      return false;
+    }
+    const subj = payload.subjectName.trim();
+    if (!this.subjectCatalogNames.some(n => n.toLowerCase() === subj.toLowerCase())) {
+      this.warnInvalidTimetableInput('timetable.validationSubjectNotInCatalog');
       return false;
     }
     if (!payload.startTime || !payload.endTime || payload.startTime >= payload.endTime) {
@@ -1607,7 +1633,8 @@ export class TimetableComponent implements OnInit {
       period: Number(this.entryForm.period || 1),
       startTime: this.entryForm.startTime || '',
       endTime: this.entryForm.endTime || '',
-      subjectName: this.entryForm.subjectName || '',
+      subjectName:
+        this.resolveSubjectCatalogName(this.entryForm.subjectName || '') ?? (this.entryForm.subjectName || '').trim(),
       teacherId,
       teacherName: this.entryForm.teacherName || '',
       room: this.entryForm.room || '',
