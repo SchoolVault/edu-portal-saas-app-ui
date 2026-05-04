@@ -29,7 +29,12 @@ import {
 const DEMO_HOMEROOM_CLASS_ID = 8;
 const DEMO_HOMEROOM_SECTION_ID = 801;
 const DEMO_HOMEROOM_STUDENT_COUNT = mockStudentsInSection(DEMO_HOMEROOM_CLASS_ID, DEMO_HOMEROOM_SECTION_ID).length;
-import { eachDateInclusive, mockAttendanceStatusFor, mockTenantAttendanceOverviewForMonth } from './attendance.mock-data';
+import {
+  eachDateInclusive,
+  mockAttendanceStatusFor,
+  mockTenantAttendanceOverviewForMonth,
+  mockTenantAttendanceOverviewForToday,
+} from './attendance.mock-data';
 
 const DEMO_TEACHER_RECORD_ID = 1;
 
@@ -256,9 +261,11 @@ export const MOCK_TEACHER_DASHBOARD: TeacherDashboardData = {
 };
 
 const adminMonthOverview = () => mockTenantAttendanceOverviewForMonth(currentMonthYm());
+const adminTodayOverview = () => mockTenantAttendanceOverviewForToday();
 
 export const MOCK_ADMIN_DASHBOARD: AdminDashboardData = (() => {
   const att = adminMonthOverview();
+  const attToday = adminTodayOverview();
   return {
     totalStudents: mockActiveStudentCount(),
     totalTeachers: MOCK_TEACHERS.filter(t => t.status === 'active').length,
@@ -281,6 +288,13 @@ export const MOCK_ADMIN_DASHBOARD: AdminDashboardData = (() => {
       { label: 'Jan', value: 55000 },
       { label: 'Feb', value: 47000 },
     ],
+    attendanceToday: {
+      total: attToday.total,
+      present: attToday.present,
+      absent: attToday.absent,
+      late: attToday.late,
+      excused: attToday.excused,
+    },
     attendanceOverview: {
       total: att.total,
       present: att.present,

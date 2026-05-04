@@ -282,10 +282,10 @@ public class TransportService {
         if (raw == null || raw.isBlank()) {
             return null;
         }
-        String canonical = InternationalPhone.canonical(raw);
-        if (canonical == null) {
-            throw new BusinessException(InternationalPhone.invalidMessage());
+        String national = InternationalPhone.nationalIndiaMobile10(raw.trim());
+        if (national == null) {
+            throw new BusinessException(InternationalPhone.importPhoneInvalidMessage());
         }
-        return canonical;
+        return national;
     }
 }

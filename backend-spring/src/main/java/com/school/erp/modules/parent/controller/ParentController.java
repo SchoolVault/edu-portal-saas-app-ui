@@ -28,6 +28,7 @@ import com.school.erp.modules.fees.entity.FeePayment;
 import com.school.erp.modules.fees.dto.FeeDTOs;
 import com.school.erp.modules.fees.service.FeeService;
 import com.school.erp.modules.parent.service.ParentPortalReadFacade;
+import com.school.erp.modules.settings.repository.TenantConfigRepository;
 import com.school.erp.tenant.TenantContext;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -62,6 +63,7 @@ public class ParentController {
     private final TimetableService timetableService;
     private final ParentPortalReadFacade parentPortalReadFacade;
     private final StudentEnrolmentDisplayService studentEnrolmentDisplayService;
+    private final TenantConfigRepository tenantConfigRepository;
 
     @GetMapping("/exams")
     @Operation(summary = "Exams for your children only",
@@ -92,6 +94,7 @@ public class ParentController {
                 .collect(Collectors.toList());
         studentEnrolmentDisplayService.enrichClassSectionDisplay(tenantId, children);
         enrichHomeroomFromSchoolClass(tenantId, children);
+        enrichSchoolEmailForParentPortal(tenantId, children);
         return ResponseEntity.ok(ApiResponse.ok(children));
     }
 
@@ -260,6 +263,49 @@ public class ParentController {
     /**
      * Fills {@code homeroomTeacherUserId} / {@code homeroomTeacherName} from the student's class row so the JSON matches parent-portal mocks.
      */
+    /**
+     * Populates {@code schoolEmail} for parent settings: uses stored student email when set; otherwise derives
+     * {@code {admission}@{domain}} from the tenant’s configured school contact email domain.
+     */
+    private void enrichSchoolEmailForParentPortal(String tenantId, List<Student> children) {
+        if (children == null || children.isEmpty()) {
+            return;
+        }
+        String domain = tenantConfigRepository.findByTenantId(tenantId)
+                .map(c -> extractEmailDomain(c.getEmail()))
+                .orElse(null);
+        for (Student s : children) {
+            String stored = s.getEmail() != null ? s.getEmail().trim() : "";
+            if (!stored.isEmpty()) {
+                s.setSchoolEmail(stored);
+            } else if (domain != null && !domain.isBlank() && s.getAdmissionNumber() != null) {
+                String local = admissionToEmailLocalPart(s.getAdmissionNumber());
+                if (!local.isEmpty()) {
+                    s.setSchoolEmail(local + "@" + domain.toLowerCase());
+                }
+            }
+        }
+    }
+
+    private static String extractEmailDomain(String email) {
+        if (email == null) {
+            return null;
+        }
+        String t = email.trim();
+        int at = t.lastIndexOf('@');
+        if (at <= 0 || at >= t.length() - 1) {
+            return null;
+        }
+        return t.substring(at + 1).trim();
+    }
+
+    private static String admissionToEmailLocalPart(String admissionNumber) {
+        if (admissionNumber == null) {
+            return "";
+        }
+        return admissionNumber.trim().toLowerCase().replaceAll("[^a-z0-9._-]+", "");
+    }
+
     private void enrichHomeroomFromSchoolClass(String tenantId, List<Student> children) {
         if (children == null || children.isEmpty()) {
             return;
@@ -332,7 +378,8 @@ public class ParentController {
             final UserRepository userRepository,
             final TimetableService timetableService,
             final ParentPortalReadFacade parentPortalReadFacade,
-            final StudentEnrolmentDisplayService studentEnrolmentDisplayService) {
+            final StudentEnrolmentDisplayService studentEnrolmentDisplayService,
+            final TenantConfigRepository tenantConfigRepository) {
         this.studentRepo = studentRepo;
         this.guardianService = guardianService;
         this.examService = examService;
@@ -346,5 +393,6 @@ public class ParentController {
         this.timetableService = timetableService;
         this.parentPortalReadFacade = parentPortalReadFacade;
         this.studentEnrolmentDisplayService = studentEnrolmentDisplayService;
+        this.tenantConfigRepository = tenantConfigRepository;
     }
 }

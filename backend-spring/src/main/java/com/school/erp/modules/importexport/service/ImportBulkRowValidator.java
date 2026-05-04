@@ -15,6 +15,7 @@ import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
 import java.time.format.DateTimeParseException;
 import java.util.HashSet;
+import java.util.List;
 import java.util.LinkedHashSet;
 import java.util.Locale;
 import java.util.Map;
@@ -156,8 +157,8 @@ public class ImportBulkRowValidator {
         if (teacherEmail != null && !EMAIL_LENIENT.matcher(teacherEmail).matches()) {
             throw new BusinessException("Invalid email format in teacheremail column");
         }
-        if (teacherPhoneRaw != null && InternationalPhone.canonical(teacherPhoneRaw) == null) {
-            throw new BusinessException(InternationalPhone.invalidMessage());
+        if (teacherPhoneRaw != null && InternationalPhone.nationalIndiaMobile10(teacherPhoneRaw) == null) {
+            throw new BusinessException(InternationalPhone.importPhoneInvalidMessage());
         }
         if (blankToNull(value(row, "subjectname")) == null) {
             throw new BusinessException("subjectname is required");
@@ -193,9 +194,9 @@ public class ImportBulkRowValidator {
             teacherRepository.findByIdAndTenantIdAndIsDeletedFalse(teacherId, tenantId)
                     .orElseThrow(() -> new BusinessException("Teacher not found for teacherid: " + teacherId));
         } else if (teacherPhoneRaw != null) {
-            String canon = InternationalPhone.canonical(teacherPhoneRaw);
-            teacherRepository.findByTenantIdAndPhoneAndIsDeletedFalse(tenantId, canon)
-                    .orElseThrow(() -> new BusinessException("Teacher not found for teacherphone: " + canon));
+            List<String> keys = InternationalPhone.importPhoneLookupKeys(teacherPhoneRaw);
+            teacherRepository.findFirstByTenantIdAndPhoneInAndIsDeletedFalseOrderByIdAsc(tenantId, keys)
+                    .orElseThrow(() -> new BusinessException("Teacher not found for teacherphone: " + teacherPhoneRaw));
         } else if (teacherEmail != null) {
             teacherRepository.findByTenantIdAndEmailIgnoreCaseAndIsDeletedFalse(tenantId, teacherEmail)
                     .orElseThrow(() -> new BusinessException("Teacher not found for teacheremail: " + teacherEmail));
@@ -206,6 +207,10 @@ public class ImportBulkRowValidator {
         StudentImportCanonicalRow.normalize(row);
         if (blank(value(row, "first_name", "firstname")) || blank(value(row, "last_name", "lastname"))) {
             throw new BusinessException("first_name and last_name are required");
+        }
+        String studentPhone = blankToNull(value(row, "phone"));
+        if (studentPhone != null && InternationalPhone.nationalIndiaMobile10(studentPhone) == null) {
+            throw new BusinessException(InternationalPhone.importPhoneInvalidMessage());
         }
         String email = blankToNull(value(row, "email"));
         if (email != null && !EMAIL_LENIENT.matcher(email).matches()) {
@@ -219,8 +224,8 @@ public class ImportBulkRowValidator {
         if (parentPhone == null) {
             throw new BusinessException("primary_guardian_phone (or parentphone) is required");
         }
-        if (InternationalPhone.canonical(parentPhone) == null) {
-            throw new BusinessException(InternationalPhone.invalidMessage());
+        if (InternationalPhone.nationalIndiaMobile10(parentPhone) == null) {
+            throw new BusinessException(InternationalPhone.importPhoneInvalidMessage());
         }
         parseOptionalLocalDate(value(row, "dateofbirth"), "date_of_birth");
         parseOptionalLocalDate(value(row, "admissiondate"), "admission_date");
@@ -275,8 +280,8 @@ public class ImportBulkRowValidator {
         if (phone == null) {
             throw new BusinessException("phone is required");
         }
-        if (InternationalPhone.canonical(phone) == null) {
-            throw new BusinessException(InternationalPhone.invalidMessage());
+        if (InternationalPhone.nationalIndiaMobile10(phone) == null) {
+            throw new BusinessException(InternationalPhone.importPhoneInvalidMessage());
         }
         String email = blankToNull(value(row, "email"));
         if (email != null && !EMAIL_LENIENT.matcher(email).matches()) {

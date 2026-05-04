@@ -2,25 +2,26 @@ import { ChangeDetectorRef, Component, DestroyRef, OnInit, inject } from '@angul
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { RouterModule } from '@angular/router';
+import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { DirectoryEntry, DirectoryService } from '../../core/services/directory.service';
 import { runtimeConfig } from '../../core/config/runtime-config';
 import { ErpPaginationComponent } from '../../shared/erp-pagination/erp-pagination.component';
 import { DEFAULT_ERP_PAGE_SIZE } from '../../core/constants/pagination.constants';
 import { sliceToPage } from '../../core/utils/paginate';
-import { ErpI18nPhDirective, ErpI18nTextDirective } from '../../shared/erp-i18n/erp-i18n-host.directives';
+import { ErpI18nTextDirective } from '../../shared/erp-i18n/erp-i18n-host.directives';
 import { OperationsService } from '../../core/services/operations.service';
 import { OperationalStaffRow } from '../../core/models/operations.models';
 import { UiAccessService } from '../../core/services/ui-access.service';
 import { ConfirmDialogService } from '../../shared/confirm-dialog/confirm-dialog.service';
-import { filter } from 'rxjs/operators';
+import { filter, map, skip } from 'rxjs/operators';
+import { distinctUntilChanged } from 'rxjs';
 import { ImportExportService } from '../../core/services/import-export.service';
 
 @Component({
   selector: 'app-directory',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterModule, TranslateModule, ErpPaginationComponent, ErpI18nPhDirective, ErpI18nTextDirective],
+  imports: [CommonModule, FormsModule, RouterModule, TranslateModule, ErpPaginationComponent, ErpI18nTextDirective],
   styles: [`
     .directory-toolbar-inline {
       display: flex;
@@ -71,7 +72,8 @@ import { ImportExportService } from '../../core/services/import-export.service';
         <div>
           <h2 style="font-size: 24px; font-weight: 800;">{{ 'directory.pageTitle' | translate }}</h2>
           <p class="text-muted mb-0" style="font-size: 13px;">
-            {{ 'directory.pageLead' | translate }}
+            <ng-container *ngIf="activeTab !== 'staff'">{{ 'directory.pageLead' | translate }}</ng-container>
+            <ng-container *ngIf="activeTab === 'staff'">{{ 'staff.list.lead' | translate }}</ng-container>
           </p>
         </div>
       </div>
@@ -88,12 +90,13 @@ import { ImportExportService } from '../../core/services/import-export.service';
 
         <div class="directory-toolbar-inline">
           <div class="directory-search-inline">
-            <label class="erp-label" erpI18nText="directory.searchLabel"></label>
+            <label class="erp-label" *ngIf="activeTab === 'all'" erpI18nText="directory.searchLabel"></label>
+            <label class="erp-label" *ngIf="activeTab === 'staff'" [attr.title]="('staff.list.searchPlaceholder' | translate)" style="white-space: nowrap;">{{ ('directory.staffToolbarSearchShort' | translate) }}</label>
             <input
               class="erp-input"
               [(ngModel)]="query"
               (ngModelChange)="onQueryChange()"
-              erpI18nPh="directory.searchPlaceholder"
+              [attr.placeholder]="((activeTab === 'staff' ? 'staff.list.searchPlaceholder' : 'directory.searchPlaceholder') | translate)"
               data-testid="directory-search-input"
             />
           </div>
@@ -103,18 +106,21 @@ import { ImportExportService } from '../../core/services/import-export.service';
                 class="erp-select directory-status-select"
                 [(ngModel)]="staffStatusFilter"
                 (change)="refreshStaffList()"
-                [attr.aria-label]="'directory.staffStatus' | translate"
+                [attr.aria-label]="'staff.list.thStatus' | translate"
               >
-                <option value="active">{{ 'directory.staffActive' | translate }}</option>
-                <option value="inactive">{{ 'directory.staffInactive' | translate }}</option>
+                <option value="active">{{ 'staff.list.statusActive' | translate }}</option>
+                <option value="inactive">{{ 'staff.list.statusInactive' | translate }}</option>
               </select>
             </div>
-            <button *ngIf="activeTab === 'staff'" type="button" class="btn-outline-erp directory-refresh-btn" (click)="refreshStaffList()">
-              <i class="bi bi-arrow-clockwise"></i> {{ 'directory.staffRefresh' | translate }}
+            <button *ngIf="activeTab === 'staff'" type="button" class="btn-outline-erp directory-refresh-btn" (click)="refreshStaffList()" [disabled]="staffLoading">
+              <i class="bi bi-arrow-clockwise"></i> {{ 'staff.list.refresh' | translate }}
             </button>
             <button *ngIf="activeTab === 'staff' && canManageStaff" type="button" class="btn-outline-erp directory-refresh-btn" (click)="exportCanonicalStaffCsv()">
-              <i class="bi bi-download"></i> {{ 'directory.exportCsv' | translate }}
+              <i class="bi bi-download"></i> {{ 'staff.list.exportCsv' | translate }}
             </button>
+            <a *ngIf="activeTab === 'staff' && canManageStaff" routerLink="/app/staff/new" class="btn-primary-erp directory-refresh-btn" data-testid="directory-add-staff">
+              <i class="bi bi-plus-lg"></i> {{ 'staff.list.add' | translate }}
+            </a>
             <button *ngIf="activeTab !== 'staff'" type="button" class="btn-primary-erp" (click)="runSearch()" [disabled]="loading || query.trim().length < 2">
               {{ loading ? ('directory.searching' | translate) : ('directory.search' | translate) }}
             </button>
@@ -126,7 +132,7 @@ import { ImportExportService } from '../../core/services/import-export.service';
             <button type="button" class="btn-close" [attr.aria-label]="'directory.closeAlert' | translate" (click)="clearStaffExportMessage()"></button>
           </div>
         </div>
-        <p class="text-muted small mb-0 mt-2">{{ 'directory.tip' | translate }}</p>
+        <p *ngIf="activeTab === 'all'" class="text-muted small mb-0 mt-2">{{ 'directory.tip' | translate }}</p>
       </div>
 
       <div class="erp-card" *ngIf="error" style="border-color: var(--clr-danger);">
@@ -181,21 +187,30 @@ import { ImportExportService } from '../../core/services/import-export.service';
         </div>
       </div>
 
-      <div class="erp-card p-0 overflow-hidden" *ngIf="activeTab === 'staff' && pagedStaff.length">
+      <div class="erp-card p-0 overflow-hidden" *ngIf="activeTab === 'staff'" data-testid="directory-staff-pane">
         <div class="table-responsive">
-          <table class="erp-table mb-0">
+          <table class="erp-table mb-0" data-testid="directory-staff-table">
             <thead>
               <tr>
-                <th>{{ 'directory.thName' | translate }}</th>
-                <th>{{ 'directory.thDetails' | translate }}</th>
-                <th>{{ 'directory.thContact' | translate }}</th>
-                <th>{{ 'directory.staffStatus' | translate }}</th>
-                <th></th>
+                <th>{{ 'staff.list.thName' | translate }}</th>
+                <th>{{ 'staff.list.thRole' | translate }}</th>
+                <th>{{ 'staff.list.thContact' | translate }}</th>
+                <th>{{ 'staff.list.thStatus' | translate }}</th>
+                <th class="text-end" *ngIf="canManageStaff">{{ 'staff.list.thActions' | translate }}</th>
               </tr>
             </thead>
             <tbody>
-              <tr *ngFor="let s of pagedStaff">
-                <td><strong>{{ s.fullName }}</strong></td>
+              <tr *ngIf="staffLoading">
+                <td [attr.colspan]="staffTableSpan" class="text-center text-muted py-4">{{ 'staff.list.loading' | translate }}</td>
+              </tr>
+              <tr *ngIf="!staffLoading && !pagedStaff.length">
+                <td [attr.colspan]="staffTableSpan" class="text-center text-muted py-5">{{ 'staff.list.empty' | translate }}</td>
+              </tr>
+              <tr *ngFor="let s of pagedStaff" [attr.data-testid]="'directory-staff-row-' + s.id">
+                <td>
+                  <strong>{{ s.fullName }}</strong>
+                  <div *ngIf="s.employeeCode" class="small text-muted">{{ s.employeeCode }}</div>
+                </td>
                 <td class="text-muted small">{{ s.staffRole || ('directory.emDash' | translate) }}</td>
                 <td class="small">{{ s.email || s.phone || ('directory.emDash' | translate) }}</td>
                 <td>
@@ -203,10 +218,10 @@ import { ImportExportService } from '../../core/services/import-export.service';
                     {{ s.isActive !== false ? ('directory.staffActive' | translate) : ('directory.staffInactive' | translate) }}
                   </span>
                 </td>
-                <td class="text-end">
-                  <div class="d-flex gap-1 justify-content-end" *ngIf="canManageStaff">
-                    <a [routerLink]="['/app/staff', s.id]" class="btn-icon" [title]="'directory.open' | translate"><i class="bi bi-eye"></i></a>
-                    <a [routerLink]="['/app/staff', s.id, 'edit']" class="btn-icon" [title]="'directory.open' | translate"><i class="bi bi-pencil"></i></a>
+                <td *ngIf="canManageStaff" class="text-end">
+                  <div class="d-flex gap-1 justify-content-end">
+                    <a [routerLink]="['/app/staff', s.id]" class="btn-icon" [title]="'staff.list.view' | translate"><i class="bi bi-eye"></i></a>
+                    <a [routerLink]="['/app/staff', s.id, 'edit']" class="btn-icon" [title]="'staff.list.edit' | translate"><i class="bi bi-pencil"></i></a>
                     <button *ngIf="s.isActive !== false" type="button" class="btn-icon" (click)="setStaffStatus(s, 'inactive')" [title]="'directory.staffDeactivate' | translate">
                       <i class="bi bi-person-dash" style="color: var(--clr-warning);"></i>
                     </button>
@@ -222,7 +237,7 @@ import { ImportExportService } from '../../core/services/import-export.service';
             </tbody>
           </table>
         </div>
-        <div class="px-3 pb-2">
+        <div class="px-3 pb-2" *ngIf="staffTotal > 0">
           <app-erp-pagination
             [totalElements]="staffTotal"
             [pageIndex]="staffPageIndex"
@@ -231,6 +246,7 @@ import { ImportExportService } from '../../core/services/import-export.service';
             (pageSizeChange)="onStaffPageSizeChange($event)"
           />
         </div>
+        <p *ngIf="staffLoadError" class="text-danger small px-3 pb-3 mb-0">{{ staffLoadError }}</p>
       </div>
     </div>
   `,
@@ -254,6 +270,8 @@ export class DirectoryComponent implements OnInit {
   staffStatusFilter: 'active' | 'inactive' = 'active';
   staffExportMessage = '';
   staffExportMessageOk = true;
+  staffLoading = false;
+  staffLoadError = '';
   private debounceTimer: ReturnType<typeof setTimeout> | null = null;
   private readonly destroyRef = inject(DestroyRef);
 
@@ -264,11 +282,17 @@ export class DirectoryComponent implements OnInit {
     private translate: TranslateService,
     private cdr: ChangeDetectorRef,
     private confirmDialog: ConfirmDialogService,
-    private importExport: ImportExportService
+    private importExport: ImportExportService,
+    private route: ActivatedRoute,
+    private router: Router
   ) {}
 
   get canManageStaff(): boolean {
-    return this.uiAccess.hasAcademicDeskAdminAccess();
+    return this.uiAccess.hasDirectoryDeskWriteAccess();
+  }
+
+  get staffTableSpan(): number {
+    return this.canManageStaff ? 5 : 4;
   }
 
   get directoryUsesServerPaging(): boolean {
@@ -281,6 +305,57 @@ export class DirectoryComponent implements OnInit {
 
   ngOnInit(): void {
     this.translate.onLangChange.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => this.cdr.markForCheck());
+
+    const snapshotTab =
+      this.route.snapshot.queryParamMap.get('tab')?.toLowerCase() === 'staff'
+        ? ('staff' as const)
+        : ('all' as const);
+    this.activeTab = snapshotTab;
+    if (snapshotTab === 'staff') {
+      this.pagedResults = [];
+      this.searched = false;
+      this.totalFromServer = 0;
+      this.staffPageIndex = 0;
+      this.refreshStaffList();
+    }
+
+    this.route.queryParamMap
+      .pipe(
+        map(q => ((q.get('tab') ?? '').toLowerCase() === 'staff' ? 'staff' : 'all') as 'staff' | 'all'),
+        distinctUntilChanged(),
+        skip(1),
+        takeUntilDestroyed(this.destroyRef)
+      )
+      .subscribe(tab => {
+        const prevTab = this.activeTab;
+        this.activeTab = tab;
+        if (tab === 'staff') {
+          this.pagedResults = [];
+          this.searched = false;
+          this.totalFromServer = 0;
+          if (prevTab !== 'staff') {
+            this.staffPageIndex = 0;
+          }
+          this.refreshStaffList();
+          return;
+        }
+        this.staffLoading = false;
+        this.staffRows = [];
+        this.pagedStaff = [];
+        this.staffTotal = 0;
+        this.staffLoadError = '';
+        this.staffExportMessage = '';
+        const qText = this.query.trim();
+        if (qText.length >= 2) {
+          this.pageIndex = 0;
+          if (this.directoryUsesServerPaging) {
+            this.fetchDirectoryPage();
+          } else {
+            this.runSearch();
+          }
+        }
+        this.cdr.markForCheck();
+      });
   }
 
   kindLabel(kind: string): string {
@@ -316,27 +391,12 @@ export class DirectoryComponent implements OnInit {
   }
 
   setTab(tab: 'all' | 'staff'): void {
-    if (this.activeTab === tab) return;
-    this.activeTab = tab;
-    this.pageIndex = 0;
-    const q = this.query.trim();
-    if (q.length >= 2) {
-      if (tab === 'all') {
-        if (this.directoryUsesServerPaging) {
-          this.fetchDirectoryPage();
-        } else {
-          this.runSearch();
-        }
-      } else {
-        this.staffPageIndex = 0;
-        this.refreshStaffList();
-      }
-    }
-    if (tab === 'staff') {
-      this.pagedResults = [];
-      this.searched = false;
-      this.totalFromServer = 0;
-    }
+    void this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: { tab: tab === 'staff' ? 'staff' : null },
+      queryParamsHandling: 'merge',
+      replaceUrl: true,
+    });
   }
 
   runSearch(): void {
@@ -428,6 +488,8 @@ export class DirectoryComponent implements OnInit {
   }
 
   refreshStaffList(): void {
+    this.staffLoading = true;
+    this.staffLoadError = '';
     this.operationsService
       .listStaffPageWithFilters(
         this.staffPageIndex,
@@ -442,12 +504,16 @@ export class DirectoryComponent implements OnInit {
           this.staffTotal = p.totalElements || 0;
           this.staffPageIndex = p.page || 0;
           this.staffPageSize = p.size || this.staffPageSize;
+          this.staffLoading = false;
           this.cdr.markForCheck();
         },
-        error: () => {
+        error: (e: Error) => {
+          this.staffLoading = false;
           this.staffRows = [];
           this.pagedStaff = [];
           this.staffTotal = 0;
+          this.staffLoadError = e?.message || this.translate.instant('staff.list.loadError');
+          this.cdr.markForCheck();
         },
       });
   }

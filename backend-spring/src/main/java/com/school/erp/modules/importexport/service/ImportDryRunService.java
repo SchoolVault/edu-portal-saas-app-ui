@@ -246,10 +246,10 @@ public class ImportDryRunService {
             }
             String parentPhone = trimToNull(value(row, "parentphone", "primary_guardian_phone"));
             if (parentPhone != null) {
-                String canonical = InternationalPhone.canonical(parentPhone);
-                if (canonical != null) {
+                String national = InternationalPhone.nationalIndiaMobile10(parentPhone);
+                if (national != null) {
                     String email = trimToNull(value(row, "parentemail", "primary_guardian_email"));
-                    String priorEmail = parentPhoneToEmail.putIfAbsent(canonical, email != null ? email.toLowerCase(Locale.ROOT) : "");
+                    String priorEmail = parentPhoneToEmail.putIfAbsent(national, email != null ? email.toLowerCase(Locale.ROOT) : "");
                     if (priorEmail != null && email != null && !priorEmail.isBlank() && !priorEmail.equalsIgnoreCase(email)) {
                         return "Same parentphone appears with different parentemail values in file; keep one household identity.";
                     }
@@ -257,9 +257,9 @@ public class ImportDryRunService {
             }
         } else if (jobType == ImportJobType.TEACHERS || jobType == ImportJobType.STAFF) {
             String phone = trimToNull(value(row, "phone"));
-            String canonical = phone != null ? InternationalPhone.canonical(phone) : null;
-            if (canonical != null) {
-                Integer previous = seenTeacherPhone.putIfAbsent(canonical, lineIndex);
+            String national = phone != null ? InternationalPhone.nationalIndiaMobile10(phone) : null;
+            if (national != null) {
+                Integer previous = seenTeacherPhone.putIfAbsent(national, lineIndex);
                 if (previous != null) {
                     String kind = jobType == ImportJobType.STAFF ? "staff" : "teacher";
                     return "Duplicate " + kind + " phone in file (line #" + previous + ").";

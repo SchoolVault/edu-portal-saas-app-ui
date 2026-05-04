@@ -8,6 +8,12 @@ import { UiAccessService } from '../../core/services/ui-access.service';
 import { NAV_ITEMS, NavItem } from '../../core/config/app-constants';
 import { BRAND_LOGO_SRC } from '../../core/config/brand-assets';
 
+/**
+ * Standalone roster for non-teaching staff was folded into Directory → Staff (`/app/directory?tab=staff`).
+ * Profile/create routes remain `/app/staff/...`; this legacy list shell must never appear as its own sidebar row.
+ */
+const SIDEBAR_EXCLUDED_NAV_ROUTES = new Set<string>(['/app/staff']);
+
 @Component({
   selector: 'app-sidebar',
   standalone: true,
@@ -64,7 +70,12 @@ export class SidebarComponent implements OnInit {
   }
 
   private rebuildNav(): void {
-    this.filteredItems = NAV_ITEMS.filter(item => this.uiAccess.isNavItemVisible(item));
+    this.filteredItems = NAV_ITEMS.filter(
+      item =>
+        item.labelKey !== 'nav.staff' &&
+        !SIDEBAR_EXCLUDED_NAV_ROUTES.has(item.route.trim()) &&
+        this.uiAccess.isNavItemVisible(item)
+    );
     const sectionSet = new Set(this.filteredItems.map(i => i.sectionKey));
     this.sectionKeys = Array.from(sectionSet);
   }

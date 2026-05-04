@@ -16,7 +16,6 @@ import {
 } from '../../core/services/import-export.service';
 import { ErpPaginationComponent } from '../../shared/erp-pagination/erp-pagination.component';
 import { ErpDatePickerComponent } from '../../shared/erp-date-picker/erp-date-picker.component';
-import { ErpIntlPhoneRowComponent } from '../../shared/erp-phone-intl/erp-intl-phone-row.component';
 import { DEFAULT_ERP_PAGE_SIZE } from '../../core/constants/pagination.constants';
 import { sliceToPage } from '../../core/utils/paginate';
 import { AuthService } from '../../core/services/auth.service';
@@ -56,7 +55,7 @@ const REQUIRED_IMPORT_FIELDS: Record<string, string[]> = {
 @Component({
   selector: 'app-import-export',
   standalone: true,
-  imports: [CommonModule, FormsModule, TranslateModule, ErpPaginationComponent, ErpDatePickerComponent, ErpIntlPhoneRowComponent],
+  imports: [CommonModule, FormsModule, TranslateModule, ErpPaginationComponent, ErpDatePickerComponent],
   template: `
     <div class="ie-page" data-testid="import-export-page">
       <!-- Hero -->
@@ -796,13 +795,20 @@ const REQUIRED_IMPORT_FIELDS: Record<string, string[]> = {
               <p *ngIf="showOnboardFieldError('adminEmail')" class="text-danger mb-0 mt-1 small">{{ getOnboardFieldError('adminEmail') | translate }}</p>
             </div>
             <div class="erp-form-group mb-2">
-              <label class="erp-label">{{ 'signup.phone' | translate }}</label>
-              <erp-intl-phone-row
-                idPrefix="onboard-phone"
-                namePrefix="onboardPhone"
-                testIdPrefix="onboard-phone"
-                [canonicalPhone]="onboardForm.phone || ''"
-                (canonicalPhoneChange)="onOnboardCanonicalPhone($event)"
+              <label class="erp-label" for="onboard-phone-national">{{ 'signup.phone' | translate }}</label>
+              <input
+                id="onboard-phone-national"
+                type="text"
+                class="erp-input"
+                [class.erp-input--invalid]="showOnboardFieldError('phone')"
+                inputmode="numeric"
+                autocomplete="tel-national"
+                maxlength="10"
+                name="onboardPhoneNational"
+                [ngModel]="onboardPhoneNational"
+                (ngModelChange)="onOnboardNationalPhoneChange($event)"
+                (blur)="markOnboardFieldTouched('phone')"
+                [placeholder]="'login.phoneNationalPlaceholder' | translate"
               />
               <p *ngIf="!showOnboardFieldError('phone')" class="text-muted mb-0 mt-1 small">{{ 'signup.phoneHintAdmin' | translate }}</p>
               <p *ngIf="showOnboardFieldError('phone')" class="text-danger mb-0 mt-1 small">{{ getOnboardFieldError('phone') | translate }}</p>
@@ -1618,6 +1624,8 @@ export class ImportExportComponent implements OnInit, OnDestroy {
   onboardTouched: Partial<Record<OnboardSchoolField, boolean>> = {};
   onboardingAcademicYearOptions: Array<{ label: string; academicYearStartDate: string; academicYearEndDate: string }> = [];
   onboardForm: OnboardSchoolRequest = this.createEmptyOnboardForm();
+  /** UI digits only; {@link onboardForm}.phone is 10-digit national for the API. */
+  onboardPhoneNational = '';
   private liveRefreshTimer: ReturnType<typeof setInterval> | null = null;
 
   constructor(
@@ -2375,6 +2383,7 @@ export class ImportExportComponent implements OnInit, OnDestroy {
   openOnboardModal(): void {
     this.onboardModalOpen = true;
     this.onboardForm = this.createEmptyOnboardForm();
+    this.onboardPhoneNational = '';
     this.onboardError = '';
     this.onboardSuccess = '';
     this.onboardValidationErrors = {};
@@ -2444,8 +2453,10 @@ export class ImportExportComponent implements OnInit, OnDestroy {
     this.onboardValidationErrors = this.validateOnboardForm();
   }
 
-  onOnboardCanonicalPhone(value: string): void {
-    this.onboardForm.phone = value;
+  onOnboardNationalPhoneChange(raw: string): void {
+    const d = String(raw ?? '').replace(/\D/g, '').slice(0, 10);
+    this.onboardPhoneNational = d;
+    this.onboardForm.phone = d.length === 10 ? d : '';
     this.onOnboardFieldInput('phone');
   }
 
@@ -2556,6 +2567,7 @@ export class ImportExportComponent implements OnInit, OnDestroy {
         this.globalFlowMessageOk = true;
         this.closeOnboardModal();
         this.onboardForm = this.createEmptyOnboardForm();
+        this.onboardPhoneNational = '';
         this.onboardValidationErrors = {};
         this.onboardTouched = {};
         this.showTempPassword = false;

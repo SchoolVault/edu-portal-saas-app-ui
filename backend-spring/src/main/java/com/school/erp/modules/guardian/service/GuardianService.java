@@ -1,8 +1,12 @@
 package com.school.erp.modules.guardian.service;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.school.erp.common.exception.BusinessException;
 import com.school.erp.common.exception.DuplicateResourceException;
 import com.school.erp.common.exception.ResourceNotFoundException;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.school.erp.common.util.InternationalPhone;
+import com.school.erp.common.util.PhoneNormalization;
 import com.school.erp.modules.guardian.dto.GuardianDTOs;
 import com.school.erp.modules.guardian.entity.Guardian;
 import com.school.erp.modules.guardian.entity.StudentGuardianMapping;
@@ -86,9 +90,15 @@ public class GuardianService {
             return List.of();
         }
         String t = TenantContext.getTenantId();
-        String normalized = phone.trim();
-        log.debug("Searching guardians by phone (tenant={}, normalized length={})", t, normalized.length());
-        List<GuardianDTOs.GuardianResponse> list = guardianRepository.findByTenantIdAndPrimaryPhoneAndIsDeletedFalse(t, normalized).stream()
+        List<String> keys = InternationalPhone.portalPhoneLookupKeys(phone.trim());
+        if (keys.isEmpty()) {
+            log.debug("Guardian search skipped: no lookup keys for input");
+            return List.of();
+        }
+        log.debug("Searching guardians by phone keys (tenant={}, keyCount={})", t, keys.size());
+        List<GuardianDTOs.GuardianResponse> list = guardianRepository
+                .findByTenantIdAndPrimaryPhoneInAndIsDeletedFalse(t, keys)
+                .stream()
                 .map(this::toGuardianResponse)
                 .toList();
         log.info("Guardian phone search tenant={} matches={}", t, list.size());
@@ -120,13 +130,40 @@ public class GuardianService {
         log.info("Updating guardian id={}", id);
         Guardian g =
                 guardianRepository.findByIdAndTenantIdAndIsDeletedFalse(id, TenantContext.getTenantId()).orElseThrow(() -> new ResourceNotFoundException("Guardian", id));
-        if (req.getFullName() != null) g.setFullName(req.getFullName());
-        if (req.getOccupation() != null) g.setOccupation(req.getOccupation());
-        if (req.getPrimaryPhone() != null) g.setPrimaryPhone(req.getPrimaryPhone());
-        if (req.getPhonesJson() != null) g.setPhonesJson(req.getPhonesJson());
-        if (req.getEmailsJson() != null) g.setEmailsJson(req.getEmailsJson());
-        if (req.getUserId() != null) g.setUserId(req.getUserId());
-        if (req.getAttributesJson() != null) g.setAttributesJson(req.getAttributesJson());
+        if (req.getFullName() != null) {
+            g.setFullName(req.getFullName());
+        }
+        if (req.getOccupation() != null) {
+            g.setOccupation(req.getOccupation());
+        }
+        if (req.getPrimaryPhone() != null) {
+            String raw = req.getPrimaryPhone().trim();
+            if (raw.isEmpty()) {
+                g.setPrimaryPhone(null);
+                if (req.getPhonesJson() == null) {
+                    g.setPhonesJson(null);
+                }
+            } else {
+                String resolved = normalizePrimaryPhoneForStorage(raw);
+                assertHandsetUniqueAmongGuardians(g.getTenantId(), id, resolved);
+                g.setPrimaryPhone(resolved);
+                if (req.getPhonesJson() == null) {
+                    applyDefaultPhonesJson(g, resolved);
+                }
+            }
+        }
+        if (req.getPhonesJson() != null) {
+            g.setPhonesJson(req.getPhonesJson().isBlank() ? null : req.getPhonesJson());
+        }
+        if (req.getEmailsJson() != null) {
+            g.setEmailsJson(req.getEmailsJson());
+        }
+        if (req.getUserId() != null) {
+            g.setUserId(req.getUserId());
+        }
+        if (req.getAttributesJson() != null) {
+            g.setAttributesJson(req.getAttributesJson());
+        }
         GuardianDTOs.GuardianResponse updated = toGuardianResponse(guardianRepository.save(g));
         log.info("Updated guardian id={}", id);
         return updated;
@@ -278,11 +315,64 @@ public class GuardianService {
     private void applyCreate(Guardian g, GuardianDTOs.CreateGuardianRequest req) {
         g.setFullName(req.getFullName());
         g.setOccupation(req.getOccupation());
-        g.setPrimaryPhone(req.getPrimaryPhone());
-        g.setPhonesJson(req.getPhonesJson());
+        String tenantId = g.getTenantId();
+        String resolved = normalizePrimaryPhoneForStorage(req.getPrimaryPhone());
+        assertHandsetUniqueAmongGuardians(tenantId, null, resolved);
+        g.setPrimaryPhone(resolved);
+        if (req.getPhonesJson() != null && !req.getPhonesJson().isBlank()) {
+            g.setPhonesJson(req.getPhonesJson());
+        } else {
+            applyDefaultPhonesJson(g, resolved);
+        }
         g.setEmailsJson(req.getEmailsJson());
         g.setUserId(req.getUserId());
         g.setAttributesJson(req.getAttributesJson());
+    }
+
+    /**
+     * {@code null} = no phone; {@code UNLINKED_*} = portal placeholder; else strict India mobile national 10 digits.
+     */
+    private static String normalizePrimaryPhoneForStorage(String raw) {
+        String t = PhoneNormalization.trimToNull(raw);
+        if (t == null) {
+            return null;
+        }
+        if (t.startsWith("UNLINKED_")) {
+            return t;
+        }
+        String national = InternationalPhone.nationalIndiaMobile10(t);
+        if (national == null) {
+            throw new BusinessException(InternationalPhone.importPhoneInvalidMessage());
+        }
+        return national;
+    }
+
+    private void assertHandsetUniqueAmongGuardians(String tenantId, Long excludeGuardianId, String storedPrimary) {
+        if (storedPrimary == null || storedPrimary.startsWith("UNLINKED_")) {
+            return;
+        }
+        List<String> keys = InternationalPhone.portalPhoneLookupKeys(storedPrimary);
+        if (keys.isEmpty()) {
+            return;
+        }
+        for (Guardian other : guardianRepository.findByTenantIdAndPrimaryPhoneInAndIsDeletedFalse(tenantId, keys)) {
+            if (excludeGuardianId != null && other.getId().equals(excludeGuardianId)) {
+                continue;
+            }
+            throw new DuplicateResourceException("A guardian with this mobile number already exists in this school");
+        }
+    }
+
+    private void applyDefaultPhonesJson(Guardian g, String resolvedPrimary) {
+        if (resolvedPrimary == null || resolvedPrimary.startsWith("UNLINKED_")) {
+            g.setPhonesJson(null);
+            return;
+        }
+        try {
+            g.setPhonesJson(objectMapper.writeValueAsString(List.of(resolvedPrimary)));
+        } catch (JsonProcessingException e) {
+            throw new IllegalStateException("guardian phones_json", e);
+        }
     }
 
     private GuardianDTOs.GuardianResponse toGuardianResponse(Guardian g) {

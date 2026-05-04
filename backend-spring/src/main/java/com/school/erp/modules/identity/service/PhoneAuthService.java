@@ -23,6 +23,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Locale;
 
 /**
@@ -46,10 +47,11 @@ public class PhoneAuthService {
     @Transactional
     public AuthDTOs.LoginResponse loginWithOtpExchange(PhoneAuthDTOs.PhoneLoginRequest request) {
         String schoolCode = request.getSchoolCode().trim().toUpperCase(Locale.ROOT);
-        String phone = InternationalPhone.canonical(request.getPhone().trim());
-        if (phone == null) {
-            throw new BusinessException(InternationalPhone.invalidMessage());
+        String national = InternationalPhone.nationalIndiaMobile10(request.getPhone().trim());
+        if (national == null) {
+            throw new BusinessException(InternationalPhone.importPhoneInvalidMessage());
         }
+        List<String> phoneKeys = InternationalPhone.compatibleLookupKeys("+91-" + national);
         String token = request.getVerificationToken().trim();
 
         String tenantId = schoolCodeTenantResolver.resolveTenantId(schoolCode);
@@ -60,7 +62,7 @@ public class PhoneAuthService {
         });
 
         OtpVerification otp = otpVerificationRepository
-                .findByExchangeTokenAndPhoneAndTenantIdAndIsDeletedFalse(token, phone, tenantId)
+                .findByExchangeTokenAndPhoneInAndTenantIdAndIsDeletedFalse(token, phoneKeys, tenantId)
                 .orElseThrow(() -> new UnauthorizedException("Invalid or expired verification. Request a new OTP."));
 
         if (otp.getStatus() != OtpStatus.VERIFIED || otp.getVerifiedAt() == null) {
@@ -70,7 +72,7 @@ public class PhoneAuthService {
             throw new UnauthorizedException("Verification expired. Request a new OTP.");
         }
 
-        User user = loadUserForPhoneAndSchoolOrThrow(schoolCode, phone, tenantId);
+        User user = loadUserForPhoneAndSchoolOrThrow(schoolCode, phoneKeys, tenantId);
         if (!Boolean.TRUE.equals(user.getPhoneVerified())) {
             user.setPhoneVerified(true);
             userRepository.save(user);
@@ -86,15 +88,16 @@ public class PhoneAuthService {
     @Transactional
     public PhoneAuthDTOs.PasswordResetResponse resetPasswordWithOtpExchange(PhoneAuthDTOs.PasswordResetRequest request) {
         String schoolCode = request.getSchoolCode().trim().toUpperCase(Locale.ROOT);
-        String phone = InternationalPhone.canonical(request.getPhone().trim());
-        if (phone == null) {
-            throw new BusinessException(InternationalPhone.invalidMessage());
+        String national = InternationalPhone.nationalIndiaMobile10(request.getPhone().trim());
+        if (national == null) {
+            throw new BusinessException(InternationalPhone.importPhoneInvalidMessage());
         }
+        List<String> phoneKeys = InternationalPhone.compatibleLookupKeys("+91-" + national);
         String token = request.getVerificationToken().trim();
 
         String tenantId = schoolCodeTenantResolver.resolveTenantId(schoolCode);
         OtpVerification otp = otpVerificationRepository
-                .findByExchangeTokenAndPhoneAndTenantIdAndIsDeletedFalse(token, phone, tenantId)
+                .findByExchangeTokenAndPhoneInAndTenantIdAndIsDeletedFalse(token, phoneKeys, tenantId)
                 .orElseThrow(() -> new UnauthorizedException("Invalid or expired verification. Request a new OTP."));
 
         if (otp.getPurpose() != OtpPurpose.PASSWORD_RESET || otp.getStatus() != OtpStatus.VERIFIED || otp.getVerifiedAt() == null) {
@@ -104,7 +107,7 @@ public class PhoneAuthService {
             throw new UnauthorizedException("Verification expired. Request a new OTP.");
         }
 
-        User user = loadUserForPhoneAndSchoolOrThrow(schoolCode, phone, tenantId);
+        User user = loadUserForPhoneAndSchoolOrThrow(schoolCode, phoneKeys, tenantId);
         if (!Boolean.TRUE.equals(user.getPhoneVerified())) {
             user.setPhoneVerified(true);
         }
@@ -130,10 +133,9 @@ public class PhoneAuthService {
         refreshTokenRepository.save(token);
     }
 
-    private User loadUserForPhoneAndSchoolOrThrow(String schoolCode, String canonicalPhone, String tenantId) {
+    private User loadUserForPhoneAndSchoolOrThrow(String schoolCode, List<String> phoneKeys, String tenantId) {
         User user = userRepository
-                .findFirstBySchoolCodeAndPhoneInAndIsDeletedFalseOrderByIdAsc(
-                        schoolCode, InternationalPhone.compatibleLookupKeys(canonicalPhone))
+                .findFirstBySchoolCodeAndPhoneInAndIsDeletedFalseOrderByIdAsc(schoolCode, phoneKeys)
                 .orElseThrow(() -> new UnauthorizedException("No account for this phone and school code"));
         if (!user.getTenantId().equals(tenantId)) {
             throw new UnauthorizedException("No account for this phone and school code");

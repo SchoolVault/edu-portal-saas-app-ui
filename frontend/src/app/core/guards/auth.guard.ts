@@ -9,6 +9,12 @@ import { AuthService } from '../services/auth.service';
 import { SettingsService } from '../services/settings.service';
 import { UiAccessService } from '../services/ui-access.service';
 
+/**
+ * Canonical staff roster lives under {@code DirectoryComponent} Staff tab ({@code ?tab=staff}).
+ * Run after {@code adminOnlyGuard} and {@code featureModuleGuard}.
+ */
+export const staffDirectoryListRedirectGuard: CanActivateFn = () => inject(Router).createUrlTree(['/app/directory'], { queryParams: { tab: 'staff' } });
+
 /** Timetable UI — aligned with roster read + parent portal (see {@code TimetableController}). */
 export const timetableAccessGuard: CanActivateFn = () => {
   const auth = inject(AuthService);

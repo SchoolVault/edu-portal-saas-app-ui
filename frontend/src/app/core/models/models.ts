@@ -177,6 +177,8 @@ export interface Student {
   firstName: string;
   lastName: string;
   email: string;
+  /** School-issued mailbox shown to parents (portal); may be derived server-side. */
+  schoolEmail?: string;
   phone: string;
   dateOfBirth: string;
   gender: string;
@@ -659,6 +661,8 @@ export interface AdminDashboardData {
   collectionRate: number;
   monthlyAdmissions: DashboardMetricPoint[];
   monthlyCollections: DashboardMetricPoint[];
+  /** Calendar-day roll-up for admin KPI (resets daily); optional for older cached payloads. */
+  attendanceToday?: DashboardAttendanceOverview;
   attendanceOverview: DashboardAttendanceOverview;
   recentActivities: DashboardActivityItem[];
   upcomingEvents: DashboardUpcomingEvent[];

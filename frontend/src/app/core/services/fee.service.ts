@@ -443,6 +443,11 @@ export class FeeService {
 
   private normalizePayment(payment: any): FeePayment {
     const lineItems = payment.lineItems ?? payment.line_items;
+    const payDateRaw = payment.paymentDate ?? payment.payment_date;
+    const paymentDate =
+      payDateRaw != null && String(payDateRaw).trim() !== ''
+        ? String(payDateRaw).slice(0, 10)
+        : undefined;
     return {
       ...payment,
       id: Number(payment.id),
@@ -455,6 +460,7 @@ export class FeeService {
       dueAmount: Number(payment.dueAmount ?? 0),
       discount: Number(payment.discount ?? 0),
       lateFee: Number(payment.lateFee ?? 0),
+      paymentDate,
       tenantId: payment.tenantId ?? '',
       status: payment.status,
       lineItems: Array.isArray(lineItems)

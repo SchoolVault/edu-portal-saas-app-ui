@@ -46,17 +46,43 @@ public class SettingsService {
         String t = TenantContext.getTenantId();
         TenantConfig config = repo.findByTenantId(t).orElse(new TenantConfig());
         config.setTenantId(t);
-        if (update.getSchoolName() != null) config.setSchoolName(update.getSchoolName());
-        if (update.getAddress() != null) config.setAddress(update.getAddress());
-        if (update.getPhone() != null) config.setPhone(update.getPhone());
-        if (update.getEmail() != null) config.setEmail(update.getEmail());
-        if (update.getPrimaryColor() != null) config.setPrimaryColor(update.getPrimaryColor());
-        if (update.getSecondaryColor() != null) config.setSecondaryColor(update.getSecondaryColor());
-        if (update.getLogo() != null) config.setLogo(update.getLogo());
-        if (update.getFeaturesJson() != null) config.setFeaturesJson(update.getFeaturesJson());
-        if (update.getLeaveSmsApplyTemplate() != null) config.setLeaveSmsApplyTemplate(update.getLeaveSmsApplyTemplate());
-        if (update.getLeaveSmsDecisionTemplate() != null) config.setLeaveSmsDecisionTemplate(update.getLeaveSmsDecisionTemplate());
-        if (update.getLibraryFinePerDay() != null) config.setLibraryFinePerDay(update.getLibraryFinePerDay());
+        if (update.getSchoolName() != null) {
+            config.setSchoolName(update.getSchoolName());
+        }
+        if (update.getAddress() != null) {
+            config.setAddress(update.getAddress());
+        }
+        if (update.getPhone() != null) {
+            config.setPhone(update.getPhone());
+        }
+        if (update.getEmail() != null) {
+            config.setEmail(update.getEmail());
+        }
+        if (update.getPrimaryColor() != null) {
+            config.setPrimaryColor(update.getPrimaryColor());
+        }
+        if (update.getSecondaryColor() != null) {
+            config.setSecondaryColor(update.getSecondaryColor());
+        }
+        if (update.getLogo() != null) {
+            config.setLogo(update.getLogo());
+        }
+        if (update.getFeaturesJson() != null) {
+            config.setFeaturesJson(update.getFeaturesJson());
+        }
+        if (update.getLeaveSmsApplyTemplate() != null) {
+            config.setLeaveSmsApplyTemplate(update.getLeaveSmsApplyTemplate());
+        }
+        if (update.getLeaveSmsDecisionTemplate() != null) {
+            config.setLeaveSmsDecisionTemplate(update.getLeaveSmsDecisionTemplate());
+        }
+        if (update.getLibraryFinePerDay() != null) {
+            config.setLibraryFinePerDay(update.getLibraryFinePerDay());
+        }
+        /*
+         * Intentionally no automatic sync into ADMIN {@link com.school.erp.modules.auth.entity.User} rows.
+         * Tenant config phone/email are school-level public listings; administrator login identity stays on the User.
+         */
         return repo.save(config);
     }
 

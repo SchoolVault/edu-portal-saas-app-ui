@@ -127,6 +127,7 @@ export class ParentService {
       rollNumber: child.rollNumber ?? '',
       admissionNumber: child.admissionNumber ?? '',
       admissionDate: child.admissionDate ?? '',
+      schoolEmail: child.schoolEmail ?? undefined,
       parentName: child.parentName ?? '',
       address: child.address ?? '',
       bloodGroup: child.bloodGroup ?? '',

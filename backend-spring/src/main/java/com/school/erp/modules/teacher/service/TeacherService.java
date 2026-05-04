@@ -147,21 +147,22 @@ public class TeacherService {
         if (email == null || email.isBlank()) {
             throw new BusinessException("email is required");
         }
-        String canonicalPhone = InternationalPhone.canonical(req.getPhone() != null ? req.getPhone().trim() : null);
-        if (canonicalPhone == null) {
-            throw new BusinessException(InternationalPhone.invalidMessage());
+        String nationalPhone = InternationalPhone.nationalIndiaMobile10(req.getPhone() != null ? req.getPhone().trim() : null);
+        if (nationalPhone == null) {
+            throw new BusinessException(InternationalPhone.importPhoneInvalidMessage());
         }
+        List<String> phoneKeys = InternationalPhone.compatibleLookupKeys("+91-" + nationalPhone);
         if (repo.existsByTenantIdAndEmailAndIsDeletedFalse(tenantId, email)) {
             throw new DuplicateResourceException("Teacher email already exists: " + email);
         }
-        if (repo.existsByTenantIdAndPhoneAndIsDeletedFalse(tenantId, canonicalPhone)) {
-            throw new DuplicateResourceException("Teacher phone already exists: " + canonicalPhone);
+        if (repo.existsByTenantIdAndPhoneInAndIsDeletedFalse(tenantId, phoneKeys)) {
+            throw new DuplicateResourceException("Teacher phone already exists: " + nationalPhone);
         }
         Teacher t = Teacher.builder()
                 .firstName(req.getFirstName())
                 .lastName(req.getLastName())
                 .email(email)
-                .phone(canonicalPhone)
+                .phone(nationalPhone)
                 .qualification(req.getQualification())
                 .specialization(req.getSpecialization())
                 .joinDate(req.getJoinDate())
@@ -180,12 +181,12 @@ public class TeacherService {
                 tenantId,
                 email,
                 display,
-                canonicalPhone,
+                nationalPhone,
                 Enums.Role.TEACHER,
                 null);
         t.setUserId(provision.userId());
         repo.save(t);
-        sendTeacherPortalCredentialsNotification(tenantId, provision.userId(), email, canonicalPhone);
+        sendTeacherPortalCredentialsNotification(tenantId, provision.userId(), email, nationalPhone);
         if (provision.createdNew()) {
             notifyAdminsOnTeacherOnboarding(tenantId);
         }
@@ -206,15 +207,16 @@ public class TeacherService {
         if (email != null && email.isBlank()) {
             email = null;
         }
-        String canonicalPhone = InternationalPhone.canonical(req.getPhone() != null ? req.getPhone().trim() : null);
-        if (canonicalPhone == null) {
-            throw new BusinessException(InternationalPhone.invalidMessage());
+        String importPhone = InternationalPhone.nationalIndiaMobile10(req.getPhone() != null ? req.getPhone().trim() : null);
+        if (importPhone == null) {
+            throw new BusinessException(InternationalPhone.importPhoneInvalidMessage());
         }
+        List<String> phoneKeys = InternationalPhone.importPhoneLookupKeys(importPhone);
         if (email != null && repo.existsByTenantIdAndEmailAndIsDeletedFalse(tenantId, email)) {
             throw new DuplicateResourceException("Teacher email already exists: " + email);
         }
-        if (repo.existsByTenantIdAndPhoneAndIsDeletedFalse(tenantId, canonicalPhone)) {
-            throw new DuplicateResourceException("Teacher phone already exists: " + canonicalPhone);
+        if (repo.existsByTenantIdAndPhoneInAndIsDeletedFalse(tenantId, phoneKeys)) {
+            throw new DuplicateResourceException("Teacher phone already exists: " + importPhone);
         }
         if (employeeCode != null && repo.existsByTenantIdAndEmployeeCodeAndIsDeletedFalse(tenantId, employeeCode)) {
             throw new DuplicateResourceException("Teacher employee code already exists: " + employeeCode);
@@ -223,7 +225,7 @@ public class TeacherService {
                 .firstName(req.getFirstName())
                 .lastName(req.getLastName())
                 .email(email)
-                .phone(canonicalPhone)
+                .phone(importPhone)
                 .qualification(req.getQualification())
                 .specialization(req.getSpecialization())
                 .joinDate(req.getJoinDate())
@@ -244,7 +246,7 @@ public class TeacherService {
         if (createPortal) {
             String display = req.getFirstName() + " " + req.getLastName();
             PortalUserProvisioningService.ProvisionResult pr = portalUserProvisioningService.ensureStaffUser(
-                    tenantId, email, display.trim(), req.getPhone(), portalRole);
+                    tenantId, email, display.trim(), importPhone, portalRole);
             t.setUserId(pr.userId());
             repo.save(t);
         }
@@ -270,12 +272,13 @@ public class TeacherService {
         if (email != null && email.isBlank()) {
             email = null;
         }
-        String canonicalPhone = InternationalPhone.canonical(req.getPhone() != null ? req.getPhone().trim() : null);
-        if (canonicalPhone == null) {
-            throw new BusinessException(InternationalPhone.invalidMessage());
+        String importPhone = InternationalPhone.nationalIndiaMobile10(req.getPhone() != null ? req.getPhone().trim() : null);
+        if (importPhone == null) {
+            throw new BusinessException(InternationalPhone.importPhoneInvalidMessage());
         }
-        String naturalKey = employeeCode != null ? "EMPLOYEE_CODE:" + employeeCode : "PHONE:" + canonicalPhone;
-        Optional<Teacher> existing = resolveExistingTeacherForImport(tenantId, employeeCode, email, canonicalPhone);
+        List<String> importPhoneKeys = InternationalPhone.importPhoneLookupKeys(importPhone);
+        String naturalKey = employeeCode != null ? "EMPLOYEE_CODE:" + employeeCode : "PHONE:" + importPhone;
+        Optional<Teacher> existing = resolveExistingTeacherForImport(tenantId, employeeCode, email, importPhoneKeys);
         if (existing.isEmpty()) {
             TeacherDTOs.Response created = createForBulkImport(req, false, portalRole, libraryStaffRole);
             if (createPortal) {
@@ -295,7 +298,7 @@ public class TeacherService {
             if (employeeCode != null) {
                 throw new DuplicateResourceException("Teacher with this employee code already exists: " + employeeCode);
             }
-            throw new DuplicateResourceException("Teacher with this phone already exists: " + canonicalPhone);
+            throw new DuplicateResourceException("Teacher with this phone already exists: " + importPhone);
         }
         if (policy == BulkImportRowPolicy.SKIP_IF_EXISTS) {
             Teacher teacher = existing.get();
@@ -332,7 +335,7 @@ public class TeacherService {
                 });
                 teacher.setEmail(normalizedEmail);
             }
-            teacher.setPhone(canonicalPhone);
+            teacher.setPhone(importPhone);
             teacher.setQualification(req.getQualification());
             teacher.setSpecialization(req.getSpecialization());
             teacher.setJoinDate(req.getJoinDate());
@@ -403,11 +406,11 @@ public class TeacherService {
             if (raw.isEmpty()) {
                 t.setPhone(null);
             } else {
-                String canonicalPhone = InternationalPhone.canonical(raw);
-                if (canonicalPhone == null) {
-                    throw new BusinessException(InternationalPhone.invalidMessage());
+                String nationalPhone = InternationalPhone.nationalIndiaMobile10(raw);
+                if (nationalPhone == null) {
+                    throw new BusinessException(InternationalPhone.importPhoneInvalidMessage());
                 }
-                t.setPhone(canonicalPhone);
+                t.setPhone(nationalPhone);
             }
         }
         if (req.getQualification() != null) t.setQualification(req.getQualification());
@@ -467,8 +470,9 @@ public class TeacherService {
         }
         String previousPhone = linkedUser.getPhone();
         if (teacher.getPhone() != null && !teacher.getPhone().isBlank()) {
-            for (String key : InternationalPhone.compatibleLookupKeys(teacher.getPhone())) {
-                if (!key.equals(linkedUser.getPhone()) && userRepository.existsByPhoneAndTenantIdAndIsDeletedFalse(key, tenantId)) {
+            for (String key : InternationalPhone.portalPhoneLookupKeys(teacher.getPhone())) {
+                if (!InternationalPhone.samePortalPhone(key, linkedUser.getPhone())
+                        && userRepository.existsByPhoneAndTenantIdAndIsDeletedFalse(key, tenantId)) {
                     throw new DuplicateResourceException("User phone already exists in this school: " + teacher.getPhone());
                 }
             }
@@ -484,7 +488,7 @@ public class TeacherService {
             String tenantId,
             String employeeCode,
             String email,
-            String canonicalPhone) {
+            List<String> phoneLookupKeys) {
         if (employeeCode != null) {
             Optional<Teacher> byCode = repo.findByTenantIdAndEmployeeCodeAndIsDeletedFalse(tenantId, employeeCode);
             if (byCode.isPresent()) {
@@ -497,7 +501,10 @@ public class TeacherService {
                 return byEmail;
             }
         }
-        return repo.findByTenantIdAndPhoneAndIsDeletedFalse(tenantId, canonicalPhone);
+        if (phoneLookupKeys == null || phoneLookupKeys.isEmpty()) {
+            return Optional.empty();
+        }
+        return repo.findFirstByTenantIdAndPhoneInAndIsDeletedFalseOrderByIdAsc(tenantId, phoneLookupKeys);
     }
 
     private static String normalizeEmployeeCode(String rawEmployeeCode) {

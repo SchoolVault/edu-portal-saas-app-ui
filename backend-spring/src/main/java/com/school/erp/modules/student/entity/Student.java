@@ -62,6 +62,11 @@ public class Student extends BaseEntity {
     private Long homeroomTeacherUserId;
     @Transient
     private String homeroomTeacherName;
+    /**
+     * Parent-portal display: official school-issued address (stored email when present, otherwise derived from tenant contact domain + admission id).
+     */
+    @Transient
+    private String schoolEmail;
 
 
     public static class StudentBuilder {
@@ -344,6 +349,14 @@ public class Student extends BaseEntity {
 
     public String getHomeroomTeacherName() {
         return this.homeroomTeacherName;
+    }
+
+    public String getSchoolEmail() {
+        return this.schoolEmail;
+    }
+
+    public void setSchoolEmail(final String schoolEmail) {
+        this.schoolEmail = schoolEmail;
     }
 
     public void setFirstName(final String firstName) {

@@ -11,6 +11,12 @@ export interface OperationalStaffRow {
   notes?: string;
 }
 
+/** Fields only sent on POST/PUT to provision a portal login (same semantics as CSV {@code create_portal}). */
+export type OperationalStaffPortalWrite = {
+  createPortal?: boolean;
+  portalPassword?: string;
+};
+
 export interface VisitorLogRow {
   id: string;
   visitorName: string;

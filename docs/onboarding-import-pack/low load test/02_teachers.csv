@@ -1,6 +1,6 @@
 academic_year_id (R),import_mode (O),employee_code (R),first_name (R),last_name (R),phone (R),join_date (O),status (O),email (O),gender (O),dob (O),qualification (O),specialization (O),department (O),subjects (O),can_class_teacher (O),class_teacher_slot (O),create_portal (O),portal_password (O),portal_role (O),library_role (O),school_role_codes (O),notify_credentials (O),salary (O),bank_account_holder (O),bank_name (O),bank_account_number (O),bank_ifsc (O)
-CURRENT,UPSERT,T001,Ramesh,Sharma,+919800000001,2024-04-01,ACTIVE,ramesh.sharma@bvpsnoida62.edu.in,,,M.Ed,Mathematics,Mathematics,Mathematics|Physics,Y,Class 6-A,Y,,TEACHER,,ACADEMIC_STAFF,N,45000,,,,
-CURRENT,UPSERT,T002,Sunita,Nair,+919800000002,2024-04-01,ACTIVE,sunita.nair@bvpsnoida62.edu.in,,,B.Ed,English,English,English|Hindi,Y,6B,Y,,TEACHER,,ACADEMIC_STAFF,N,42000,,,,
-CURRENT,UPSERT,T003,Vikram,Singh,+919800000003,2024-04-01,ACTIVE,vikram.singh@bvpsnoida62.edu.in,,,B.Sc,Science,Science,Science,Y,Class 10,Y,,T,,ACADEMIC_STAFF,N,40000,,,,
-CURRENT,UPSERT,T004,Asha,Devi,+919800000004,2024-04-01,ACTIVE,asha.devi@bvpsnoida62.edu.in,,,M.A,Tamil,Tamil,Tamil,N,,Y,,TEACHER,,ACADEMIC_STAFF,N,38000,,,,
-CURRENT,CREATE_ONLY,T005,Kiran,Patel,+919800000005,2024-04-01,ACTIVE,kiran.patel@bvpsnoida62.edu.in,,,MCA,Computer,Computer,Computer Science,Y,Class 8-B,Y,Welcome@123,TEACHER,,ACADEMIC_STAFF,Y,50000,,,,
+CURRENT,UPSERT,T001,Ramesh,Sharma,9800000001,2024-04-01,ACTIVE,ramesh.sharma@bvpsnoida62.edu.in,,,M.Ed,Mathematics,Mathematics,Mathematics|Physics,Y,Class 6-A,Y,,TEACHER,,ACADEMIC_STAFF,N,45000,,,,
+CURRENT,UPSERT,T002,Sunita,Nair,9800000002,2024-04-01,ACTIVE,sunita.nair@bvpsnoida62.edu.in,,,B.Ed,English,English,English|Hindi,Y,6B,Y,,TEACHER,,ACADEMIC_STAFF,N,42000,,,,
+CURRENT,UPSERT,T003,Vikram,Singh,9800000003,2024-04-01,ACTIVE,vikram.singh@bvpsnoida62.edu.in,,,B.Sc,Science,Science,Science,Y,Class 10,Y,,T,,ACADEMIC_STAFF,N,40000,,,,
+CURRENT,UPSERT,T004,Asha,Devi,9800000004,2024-04-01,ACTIVE,asha.devi@bvpsnoida62.edu.in,,,M.A,Tamil,Tamil,Tamil,N,,Y,,TEACHER,,ACADEMIC_STAFF,N,38000,,,,
+CURRENT,CREATE_ONLY,T005,Kiran,Patel,9800000005,2024-04-01,ACTIVE,kiran.patel@bvpsnoida62.edu.in,,,MCA,Computer,Computer,Computer Science,Y,Class 8-B,Y,Welcome@123,TEACHER,,ACADEMIC_STAFF,Y,50000,,,,

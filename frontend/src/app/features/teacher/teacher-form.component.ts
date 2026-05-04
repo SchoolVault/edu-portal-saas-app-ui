@@ -16,6 +16,7 @@ import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directives';
 import { ConfirmDialogService } from '../../shared/confirm-dialog/confirm-dialog.service';
 import { normalizeIndianMobileTenDigits } from '../../core/utils/indian-mobile';
+import { isValidIndiaMobileTen } from '../../core/validation/phone.validation';
 @Component({
   selector: 'app-teacher-form',
   standalone: true,
@@ -377,6 +378,6 @@ export class TeacherFormComponent implements OnInit, OnDestroy {
   }
 
   private isValidTenDigitPhone(value: string | null | undefined): boolean {
-    return /^\d{10}$/.test((value ?? '').trim());
+    return isValidIndiaMobileTen(value);
   }
 }

@@ -472,14 +472,14 @@ public class NotificationOutboxService implements NotificationDispatchPort {
             return;
         }
         if ("SMS".equals(channel) || "WHATSAPP".equals(channel)) {
-            String canonical = InternationalPhone.canonical(row.getRecipientPhoneE164());
-            if (canonical == null) {
+            String smsTo = InternationalPhone.toSmsAddressFromStoredOrInput(row.getRecipientPhoneE164());
+            if (smsTo == null) {
                 row.setProviderStatus("FAILED");
                 row.setProviderErrorCode("INVALID_PHONE");
-                throw new IllegalArgumentException("Recipient phone is not valid canonical E.164 format");
+                throw new IllegalArgumentException("Recipient phone is not a valid India mobile (10 digits) or legacy international form");
             }
             SmsRequest smsRequest = SmsRequest.builder()
-                    .to(InternationalPhone.toSmsAddress(canonical))
+                    .to(smsTo)
                     .message(row.getBodyText())
                     .tenantId(row.getTenantId())
                     .correlationId(row.getCorrelationId())

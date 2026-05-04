@@ -566,7 +566,7 @@ public class DemoDataSeedService {
         superAdmin.setName("Platform Super Admin");
         superAdmin.setEmail(email);
         superAdmin.setPassword(BCRYPT_ADMIN123);
-        superAdmin.setPhone("+91-11-2800-0000");
+        superAdmin.setPhone("9800000001");
         superAdmin.setRole(Enums.Role.SUPER_ADMIN);
         superAdmin.setSchoolCode(schoolCode);
         superAdmin.setEmailVerified(true);
@@ -607,7 +607,7 @@ public class DemoDataSeedService {
         // STEP 2: Admin User
         log.info("  [2/15] Admin User...");
         User adminUser = createUser(tenantId, schoolCode, "School Admin", "admin@" + email.split("@")[1],
-                                    Enums.Role.ADMIN, "+91-" + phone.substring(4, 14));
+                                    Enums.Role.ADMIN, "9810001001");
         pauseForResourceManagement();
 
         // STEP 3: Academic Year
@@ -1414,7 +1414,7 @@ public class DemoDataSeedService {
         if (preferredPhone == null || preferredPhone.isBlank()) {
             return null;
         }
-        String candidate = InternationalPhone.canonical(preferredPhone.trim());
+        String candidate = InternationalPhone.nationalIndiaMobile10(preferredPhone.trim());
         if (candidate == null) {
             throw new IllegalStateException("Demo seed generated invalid phone: " + preferredPhone);
         }
@@ -1423,23 +1423,17 @@ public class DemoDataSeedService {
         }
         long h = Objects.hash(tenantId, uniquenessSalt);
         for (int i = 0; i < 2000; i++) {
-            String next = InternationalPhone.canonical(
-                    "+91-9" + String.format("%09d", Math.floorMod(h + (long) i * 7919L, 1_000_000_000L))
-            );
-            if (next != null && !phoneExistsForTenant(tenantId, next)) {
-                return next;
+            String nextNational = "9" + String.format("%09d", Math.floorMod(h + (long) i * 7919L, 1_000_000_000L));
+            if (InternationalPhone.nationalIndiaMobile10(nextNational) != null && !phoneExistsForTenant(tenantId, nextNational)) {
+                return nextNational;
             }
         }
         throw new IllegalStateException("Could not allocate unique phone for tenant " + tenantId);
     }
 
-    private boolean phoneExistsForTenant(String tenantId, String canonicalPhone) {
-        for (String key : InternationalPhone.compatibleLookupKeys(canonicalPhone)) {
-            if (userRepository.existsByPhoneAndTenantIdAndIsDeletedFalse(key, tenantId)) {
-                return true;
-            }
-        }
-        return false;
+    private boolean phoneExistsForTenant(String tenantId, String national10) {
+        return userRepository.existsByTenantIdAndPhoneInAndIsDeletedFalse(
+                tenantId, InternationalPhone.compatibleLookupKeys("+91-" + national10));
     }
 
     /**
@@ -1584,7 +1578,7 @@ public class DemoDataSeedService {
             t.setFirstName(firstName);
             t.setLastName(lastName);
             t.setEmail(email);
-            t.setPhone(phone);
+            t.setPhone(teacherUser.getPhone());
             t.setQualification(random.nextBoolean() ? "M.Ed, B.Sc" : "B.Ed, M.A");
             t.setSpecialization(subjects.get(0));
             t.setJoinDate(LocalDate.of(2015 + random.nextInt(10), 1 + random.nextInt(12), 1 + random.nextInt(28)));
@@ -2675,7 +2669,7 @@ public class DemoDataSeedService {
             TransportDriver driver = new TransportDriver();
             driver.setTenantId(tenantId);
             driver.setFullName("Driver Name " + routeNum);
-            driver.setPhone("+91-9100000" + routeNum + "00");
+            driver.setPhone("910000010" + routeNum);
             driver.setLicenseNumber("DL" + routeNum + "234567890");
             driver.setIsDeleted(false);
             driver = transportDriverRepository.save(driver);

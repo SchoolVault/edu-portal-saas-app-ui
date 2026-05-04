@@ -11,6 +11,7 @@ import com.school.erp.modules.timetable.repository.TimetableRepository;
 import com.school.erp.tenant.TenantContext;
 import org.springframework.stereotype.Component;
 
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
@@ -86,8 +87,8 @@ public class ImportCreateOnlyDuplicateEvaluator {
             }
             case TEACHERS, STAFF -> {
                 String phone = trimToNull(row.get("phone"));
-                String canonical = phone != null ? InternationalPhone.canonical(phone) : null;
-                yield canonical != null;
+                String national = phone != null ? InternationalPhone.nationalIndiaMobile10(phone) : null;
+                yield national != null;
             }
             case FEE_STRUCTURES -> {
                 try {
@@ -126,11 +127,11 @@ public class ImportCreateOnlyDuplicateEvaluator {
         if (phone == null) {
             return false;
         }
-        String canonical = InternationalPhone.canonical(phone);
-        if (canonical == null) {
+        List<String> keys = InternationalPhone.importPhoneLookupKeys(phone);
+        if (keys.isEmpty()) {
             return false;
         }
-        return teacherRepository.findByTenantIdAndPhoneAndIsDeletedFalse(tenant, canonical).isPresent();
+        return teacherRepository.findFirstByTenantIdAndPhoneInAndIsDeletedFalseOrderByIdAsc(tenant, keys).isPresent();
     }
 
     private boolean feeCreateOnlyWouldCollide(String tenant, Map<String, String> row) {

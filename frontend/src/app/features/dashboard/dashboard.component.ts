@@ -1152,7 +1152,8 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   private buildAdminKpis(dashboard: AdminDashboardData): DashboardAdminKpi[] {
-    const attendanceSubKey = 'dashboard.admin.kpi.attendanceLoggedSubMonth';
+    const attendanceSubKey = 'dashboard.admin.kpi.attendanceLoggedSubToday';
+    const attendanceKpiCount = Number(dashboard.attendanceToday?.total ?? 0);
     return [
       {
         labelKey: 'dashboard.admin.kpi.totalStudents',
@@ -1181,7 +1182,7 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
       },
       {
         labelKey: 'dashboard.admin.kpi.attendanceLogged',
-        value: String(dashboard.attendanceOverview?.total ?? 0),
+        value: String(attendanceKpiCount),
         icon: 'bi-calendar-check-fill',
         bgColor: 'rgba(2,132,199,0.1)',
         color: '#0284C7',

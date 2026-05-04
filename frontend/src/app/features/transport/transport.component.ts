@@ -17,6 +17,7 @@ import { StudentService } from '../../core/services/student.service';
 import { Student } from '../../core/models/models';
 import { AuthService } from '../../core/services/auth.service';
 import { UiAccessService } from '../../core/services/ui-access.service';
+import { isValidIndiaMobileTen } from '../../core/validation/phone.validation';
 
 @Component({
   selector: 'app-transport',
@@ -1040,6 +1041,6 @@ export class TransportComponent implements OnInit {
   }
 
   private isValidTenDigitPhone(value: string | null | undefined): boolean {
-    return /^\d{10}$/.test((value ?? '').trim());
+    return isValidIndiaMobileTen(value);
   }
 }

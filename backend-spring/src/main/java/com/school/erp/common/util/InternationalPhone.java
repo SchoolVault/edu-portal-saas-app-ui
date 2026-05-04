@@ -1,5 +1,6 @@
 package com.school.erp.common.util;
 
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -7,9 +8,9 @@ import java.util.Locale;
 import java.util.Set;
 
 /**
- * Canonical portal phone format: {@code +{country}-{national}} where national is exactly 10 digits
- * (e.g. {@code +91-9876543210}).
- * Used for OTP, password reset, and user lookup so UI + API + DB stay aligned.
+ * India-first portal phones: stored as exactly 10 national digits ({@code 9876543210}).
+ * Legacy rows may still hold {@code +91-9876543210} or compact forms; use {@link #portalPhoneLookupKeys}
+ * for tenant lookups. SMS gateways still receive {@code +91} E.164 without hyphen.
  */
 public final class InternationalPhone {
 
@@ -62,6 +63,12 @@ public final class InternationalPhone {
         if (digits.length() == 10) {
             return "+91-" + digits;
         }
+        if (digits.length() == 11 && digits.startsWith("0")) {
+            String national = digits.substring(1);
+            if (national.length() == 10) {
+                return "+91-" + national;
+            }
+        }
         if (digits.length() == 12 && digits.startsWith("91")) {
             return "+91-" + digits.substring(2);
         }
@@ -100,7 +107,111 @@ public final class InternationalPhone {
     }
 
     public static String invalidMessage() {
-        return "Invalid phone format. Use exactly 10 digits (or +<country>-<10-digit-number>), e.g. +91-9876543210.";
+        return importPhoneInvalidMessage();
+    }
+
+    /**
+     * Bulk import / CSV: accept 10-digit India mobiles only (optional +91 / spaces in the sheet).
+     * Stored value is {@code national} digits only — no {@code +91-} prefix. Interactive APIs may still use
+     * {@link #canonical(String)} for OTP/login payloads; {@link #compatibleLookupKeys} bridges both.
+     */
+    public static String nationalIndiaMobile10(String raw) {
+        if (raw == null) {
+            return null;
+        }
+        String t = normalizeSpreadsheetPhoneToken(raw.trim());
+        if (t.isEmpty()) {
+            return null;
+        }
+        String digits = t.replaceAll("\\D", "");
+        if (digits.length() == 11 && digits.startsWith("0")) {
+            digits = digits.substring(1);
+        }
+        if (digits.length() == 12 && digits.startsWith("91")) {
+            digits = digits.substring(2);
+        }
+        if (digits.length() == 10 && digits.matches("^[6-9]\\d{9}$")) {
+            return digits;
+        }
+        return null;
+    }
+
+    public static String importPhoneInvalidMessage() {
+        return "Invalid India mobile for import. Use exactly 10 digits (6–9 as first digit). "
+                + "Optional +91 or spaces in the sheet; do not use country code alone without the full number.";
+    }
+
+    /**
+     * Keys to find rows regardless of whether the DB has 10-digit national or legacy {@code +91-…} values.
+     */
+    public static List<String> importPhoneLookupKeys(String raw) {
+        String national = nationalIndiaMobile10(raw);
+        if (national == null) {
+            return List.of();
+        }
+        return compatibleLookupKeys("+91-" + national);
+    }
+
+    /**
+     * Keys to match user/teacher rows whether the DB value is legacy canonical, compact, or 10-digit national.
+     */
+    public static List<String> portalPhoneLookupKeys(String storedOrInput) {
+        if (storedOrInput == null) {
+            return List.of();
+        }
+        String t = storedOrInput.trim();
+        if (t.isEmpty()) {
+            return List.of();
+        }
+        if (t.matches(CANONICAL_PATTERN)) {
+            return compatibleLookupKeys(t);
+        }
+        String national = nationalIndiaMobile10(t);
+        if (national != null) {
+            return compatibleLookupKeys("+91-" + national);
+        }
+        String c = canonical(t);
+        if (c != null) {
+            return compatibleLookupKeys(c);
+        }
+        return List.of(t);
+    }
+
+    /**
+     * SMS {@code to} address ({@code +CCNNNN…}, no hyphen). Accepts stored national 10, legacy canonical, or pasted forms.
+     */
+    public static String toSmsAddressFromStoredOrInput(String rawOrStored) {
+        if (rawOrStored == null || rawOrStored.isBlank()) {
+            return null;
+        }
+        String national = nationalIndiaMobile10(rawOrStored.trim());
+        if (national != null) {
+            return toSmsAddress("+91-" + national);
+        }
+        String c = canonical(rawOrStored.trim());
+        return c == null ? null : toSmsAddress(c);
+    }
+
+    private static String normalizeSpreadsheetPhoneToken(String t) {
+        if (t.isEmpty()) {
+            return t;
+        }
+        if (t.matches("^\\d+\\.0+$")) {
+            return t.replaceAll("\\.0+$", "");
+        }
+        if (t.contains("E") || t.contains("e")) {
+            try {
+                String plain = new BigDecimal(t.trim()).toPlainString();
+                int dot = plain.indexOf('.');
+                if (dot >= 0 && plain.substring(dot + 1).replace("0", "").isEmpty()) {
+                    return plain.substring(0, dot);
+                }
+                return plain;
+            } catch (Exception ignored) {
+                return t;
+            }
+        }
+        return t;
     }
 
     /**

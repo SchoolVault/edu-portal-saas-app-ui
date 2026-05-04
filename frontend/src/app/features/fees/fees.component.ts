@@ -771,7 +771,7 @@ import { formatDateDdMmYyyy } from '../../core/utils/date-format';
                   ><th>{{ 'fees.thDue' | translate }}</th
                   ><th>{{ 'fees.thDueDate' | translate }}</th
                   ><th>{{ 'fees.thStatus' | translate }}</th
-                  ><th>{{ 'fees.thReceipt' | translate }}</th
+                  ><th>{{ 'fees.thPaymentDate' | translate }}</th
                   ><th>{{ 'fees.thActions' | translate }}</th></tr
                 >
               </thead>
@@ -787,7 +787,7 @@ import { formatDateDdMmYyyy } from '../../core/utils/date-format';
                       {{ feeStatusLabel(p.status) }}
                     </span>
                   </td>
-                  <td>{{ p.receiptNumber || '-' }}</td>
+                  <td>{{ formatPaymentDateCell(p) }}</td>
                   <td class="fees-actions">
                     <button type="button" class="btn-outline-erp btn-xs fees-btn-ledger" (click)="openStudentLedgerModal(p)">
                       {{ 'fees.viewLedger' | translate }}
@@ -983,7 +983,7 @@ import { formatDateDdMmYyyy } from '../../core/utils/date-format';
                       <th>{{ 'fees.thDue' | translate }}</th>
                       <th>{{ 'fees.thDueDate' | translate }}</th>
                       <th>{{ 'fees.thStatus' | translate }}</th>
-                      <th>{{ 'fees.thReceipt' | translate }}</th>
+                      <th>{{ 'fees.thPaymentDate' | translate }}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -993,7 +993,7 @@ import { formatDateDdMmYyyy } from '../../core/utils/date-format';
                       <td>₹{{ row.dueAmount | number:'1.0-0':'en-IN' }}</td>
                       <td>{{ formatDate(row.dueDate) }}</td>
                       <td>{{ feeStatusLabel(row.status) }}</td>
-                      <td>{{ row.receiptNumber || '-' }}</td>
+                      <td>{{ formatPaymentDateCell(row) }}</td>
                     </tr>
                   </tbody>
                 </table>
@@ -1191,6 +1191,15 @@ export class FeesComponent implements OnInit {
   formatDate(raw: string | null | undefined): string {
     return formatDateDdMmYyyy(raw);
   }
+
+  formatPaymentDateCell(p: FeePayment): string {
+    const paid = Number(p.paidAmount) || 0;
+    if (paid <= 0) {
+      return this.translate.instant('fees.paymentDatePending');
+    }
+    const d = this.formatDate(p.paymentDate);
+    return d || this.translate.instant('fees.paymentDatePending');
+  }
   private readonly uiAccess = inject(UiAccessService);
 
   constructor(
@@ -1253,7 +1262,8 @@ export class FeesComponent implements OnInit {
 
   get effectiveCollectionRatePct(): number {
     if (this.collectionSummary) {
-      return (this.collectionSummary.collectionRate || 0) * 100;
+      // Server sends collectionRate already as a 0–100 percentage (see FeeService.getCollectionSummary).
+      return this.collectionSummary.collectionRate || 0;
     }
     return this.collectionRatePct;
   }
@@ -1744,10 +1754,10 @@ export class FeesComponent implements OnInit {
       r.dueAmount,
       r.dueDate,
       r.status,
-      r.receiptNumber || '',
+      this.formatPaymentDateCell(r),
       r.paymentMethod || '',
     ]);
-    const headers = ['student', 'amount', 'paid', 'due', 'dueDate', 'status', 'receipt', 'paymentMethod'];
+    const headers = ['student', 'amount', 'paid', 'due', 'dueDate', 'status', 'paymentDate', 'paymentMethod'];
     const table: string[][] = [headers, ...rows.map(r => r.map(c => String(c ?? '')))];
     downloadCsvDocument(
       `fees-payment-records-${new Date().toISOString().slice(0, 10)}.csv`,
@@ -1764,10 +1774,10 @@ export class FeesComponent implements OnInit {
       r.dueAmount,
       r.dueDate,
       r.status,
-      r.receiptNumber || '',
+      this.formatPaymentDateCell(r),
       r.paymentMethod || '',
     ]);
-    const headers = ['student', 'amount', 'paid', 'due', 'dueDate', 'status', 'receipt', 'paymentMethod'];
+    const headers = ['student', 'amount', 'paid', 'due', 'dueDate', 'status', 'paymentDate', 'paymentMethod'];
     const table: string[][] = [headers, ...rows.map(r => r.map(c => String(c ?? '')))];
     downloadCsvDocument(
       `student-payment-history-${(this.ledgerStudentName || 'student').replace(/\s+/g, '-').toLowerCase()}-${new Date().toISOString().slice(0, 10)}.csv`,

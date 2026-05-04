@@ -123,6 +123,7 @@ public class OltpReportQueryAdapter implements ReportQueryPort {
         response.setMonthlyAdmissions(buildMonthlyAdmissions(tenantId));
         response.setMonthlyCollections(buildMonthlyCollections(payments));
         response.setAttendanceOverview(buildAttendanceOverview(tenantId, today, scope));
+        response.setAttendanceToday(buildAttendanceOverview(tenantId, today, AdminAttendanceOverviewScope.TODAY));
         List<ReportDashboardDTOs.ActivityItem> activities = buildAdminRecentActivities(tenantId, today, 8);
         response.setRecentActivities(activities);
         response.setUpcomingEvents(buildAdminUpcomingEvents(tenantId, today, 8));

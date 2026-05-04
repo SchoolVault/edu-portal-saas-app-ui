@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -39,6 +40,8 @@ public interface OperationalStaffRepository extends JpaRepository<OperationalSta
     Optional<OperationalStaff> findByTenantIdAndEmailIgnoreCaseAndIsDeletedFalse(String tenantId, String email);
 
     Optional<OperationalStaff> findByTenantIdAndPhoneAndIsDeletedFalse(String tenantId, String phone);
+
+    Optional<OperationalStaff> findFirstByTenantIdAndPhoneInAndIsDeletedFalseOrderByIdAsc(String tenantId, Collection<String> phones);
 
     long countByTenantIdAndIsDeletedFalse(String tenantId);
 }

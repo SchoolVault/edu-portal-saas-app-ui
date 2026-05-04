@@ -44,7 +44,6 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 import java.io.IOException;
 import java.lang.management.ManagementFactory;
 import java.lang.management.MemoryMXBean;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.FileStore;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -958,8 +957,9 @@ public class PlatformService {
     }
 
     /**
-     * Super-admin: fix school code / campus contact on {@code tenant_configs} before imports; keeps portal users'
-     * denormalized {@code school_code} aligned when the workspace code changes.
+     * Super-admin: fix school code / campus public contact on {@code tenant_configs} before imports; keeps portal
+     * users' denormalized {@code school_code} aligned when the workspace code changes.
+     * Does not modify administrator {@link User} login identities (decoupled from school listing contact).
      */
     @Transactional
     public PlatformDTOs.SchoolSummary updateSchoolWorkspaceProfile(String tenantId, PlatformDTOs.UpdateSchoolWorkspaceRequest req) {
@@ -1019,6 +1019,7 @@ public class PlatformService {
 
     /**
      * Super-admin: correct campus admin display name / email / phone after a mistaken onboarding entry.
+     * Does not rewrite {@link TenantConfig} school listing email/phone (decoupled from login identity).
      */
     @Transactional
     public PlatformDTOs.SchoolAdminSummary updateSchoolAdminProfile(String tenantId, Long userId, PlatformDTOs.UpdateSchoolAdminRequest req) {
@@ -1049,18 +1050,18 @@ public class PlatformService {
             if (req.getPhone().isBlank()) {
                 admin.setPhone(null);
             } else {
-                String canonical = InternationalPhone.canonical(req.getPhone().trim());
-                if (canonical == null) {
-                    throw new BusinessException(InternationalPhone.invalidMessage());
+                String national = InternationalPhone.nationalIndiaMobile10(req.getPhone().trim());
+                if (national == null) {
+                    throw new BusinessException(InternationalPhone.importPhoneInvalidMessage());
                 }
-                userRepository.findByTenantIdAndIsDeletedFalseOrderByNameAsc(tenantId).stream()
+                List<String> keys = InternationalPhone.compatibleLookupKeys("+91-" + national);
+                userRepository
+                        .findFirstByTenantIdAndPhoneInAndIsDeletedFalseOrderByIdAsc(tenantId, keys)
                         .filter(u -> !Objects.equals(u.getId(), userId))
-                        .filter(u -> canonical.equals(u.getPhone()))
-                        .findAny()
                         .ifPresent(u -> {
                             throw new BusinessException("Another user in this workspace already uses that phone number.");
                         });
-                admin.setPhone(canonical);
+                admin.setPhone(national);
             }
             touched = true;
         }

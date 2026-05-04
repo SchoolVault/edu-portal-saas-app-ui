@@ -16,6 +16,7 @@ import {
   FeeReminderRow,
   GatePassRow,
   InventoryRow,
+  OperationalStaffPortalWrite,
   OperationalStaffRow,
   PayrollAccrualSummary,
   VisitorLogRow,
@@ -119,11 +120,24 @@ export class OperationsService {
     return this.api.get<OperationalStaffRow>(`/operations/staff/${encodeURIComponent(id)}`).pipe(map(r => this.normalizeStaffRow(r)));
   }
 
-  updateStaff(id: string, body: Partial<OperationalStaffRow>): Observable<OperationalStaffRow> {
+  updateStaff(id: string, body: Partial<OperationalStaffRow> & OperationalStaffPortalWrite): Observable<OperationalStaffRow> {
     if (runtimeConfig.useMocks) {
       const idx = this.mockStaff.findIndex(s => s.id === id);
       if (idx < 0) return throwError(() => new Error('Staff record not found.'));
-      const next = { ...this.mockStaff[idx], ...body };
+      let next = { ...this.mockStaff[idx], ...body };
+      if (body.createPortal === true) {
+        if (!next.phone?.trim()) {
+          return throwError(() => new Error('Phone is required when creating a staff portal login.'));
+        }
+        const pwd = body.portalPassword?.trim();
+        if (pwd && pwd.length < 8) {
+          return throwError(() => new Error('Portal password must be at least 8 characters when provided.'));
+        }
+        if (!next.userId) {
+          const numId = Number(next.id);
+          next = { ...next, userId: String(Number.isFinite(numId) ? 770000 + numId : 770000 + idx) };
+        }
+      }
       this.mockStaff = [...this.mockStaff.slice(0, idx), next, ...this.mockStaff.slice(idx + 1)];
       return of(next).pipe(delay(160));
     }
@@ -135,6 +149,8 @@ export class OperationsService {
         email: body.email,
         employeeCode: body.employeeCode,
         notes: body.notes,
+        createPortal: body.createPortal,
+        portalPassword: body.portalPassword?.trim() ? body.portalPassword.trim() : undefined,
       })
       .pipe(map(r => this.normalizeStaffRow(r)));
   }
@@ -163,23 +179,35 @@ export class OperationsService {
     return this.api.delete<void>(`/operations/staff/${id}?permanent=${permanent ? 'true' : 'false'}`);
   }
 
-  createStaff(body: Partial<OperationalStaffRow>): Observable<OperationalStaffRow> {
+  createStaff(body: Partial<OperationalStaffRow> & OperationalStaffPortalWrite): Observable<OperationalStaffRow> {
     if (runtimeConfig.useMocks) {
+      if (body.createPortal === true && !body.phone?.trim()) {
+        return throwError(() => new Error('Phone is required when creating a staff portal login.'));
+      }
+      const pwd = body.portalPassword?.trim();
+      if (body.createPortal === true && pwd && pwd.length < 8) {
+        return throwError(() => new Error('Portal password must be at least 8 characters when provided.'));
+      }
+      const nid = String(this.nextId++);
       const row: OperationalStaffRow = {
-        id: String(this.nextId++),
+        id: nid,
         staffRole: body.staffRole || 'OTHER',
         fullName: body.fullName || '',
         phone: body.phone,
         email: body.email,
         employeeCode: body.employeeCode,
-        userId: body.userId,
+        userId: body.createPortal === true && body.phone ? String(880000 + Number(nid) || 0) : undefined,
         transportRouteId: body.transportRouteId,
         notes: body.notes,
       };
       this.mockStaff = [...this.mockStaff, row];
       return of(row).pipe(delay(200));
     }
-    return this.api.post<OperationalStaffRow>('/operations/staff', body).pipe(map(r => this.normalizeStaffRow(r)));
+    const payload = {
+      ...body,
+      portalPassword: body.portalPassword?.trim() ? body.portalPassword.trim() : undefined,
+    };
+    return this.api.post<OperationalStaffRow>('/operations/staff', payload).pipe(map(r => this.normalizeStaffRow(r)));
   }
 
   listVisitors(): Observable<VisitorLogRow[]> {

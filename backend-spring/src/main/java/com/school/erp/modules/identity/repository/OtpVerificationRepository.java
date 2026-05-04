@@ -10,6 +10,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -20,12 +21,12 @@ public interface OtpVerificationRepository extends JpaRepository<OtpVerification
      * Find latest pending OTP for phone and purpose.
      */
     @Query("SELECT o FROM OtpVerification o " +
-           "WHERE o.phone = :phone AND o.tenantId = :tenantId " +
+           "WHERE o.phone IN :phones AND o.tenantId = :tenantId " +
            "AND o.purpose = :purpose AND o.status = :status " +
            "AND o.expiresAt > :now AND o.isDeleted = false " +
            "ORDER BY o.createdAt DESC LIMIT 1")
     Optional<OtpVerification> findLatestPendingOtp(
-        @Param("phone") String phone,
+        @Param("phones") Collection<String> phones,
         @Param("tenantId") String tenantId,
         @Param("purpose") OtpPurpose purpose,
         @Param("status") OtpStatus status,
@@ -35,11 +36,11 @@ public interface OtpVerificationRepository extends JpaRepository<OtpVerification
      * Find all OTPs for a phone number (for rate limiting).
      */
     @Query("SELECT o FROM OtpVerification o " +
-           "WHERE o.phone = :phone AND o.tenantId = :tenantId " +
+           "WHERE o.phone IN :phones AND o.tenantId = :tenantId " +
            "AND o.createdAt > :since AND o.isDeleted = false " +
            "ORDER BY o.createdAt DESC")
-    List<OtpVerification> findRecentOtpsByPhone(
-        @Param("phone") String phone,
+    List<OtpVerification> findRecentOtpsByPhoneIn(
+        @Param("phones") Collection<String> phones,
         @Param("tenantId") String tenantId,
         @Param("since") LocalDateTime since);
 
@@ -89,6 +90,6 @@ public interface OtpVerificationRepository extends JpaRepository<OtpVerification
      */
     Optional<OtpVerification> findByRequestIdAndIsDeletedFalse(String requestId);
 
-    Optional<OtpVerification> findByExchangeTokenAndPhoneAndTenantIdAndIsDeletedFalse(
-            String exchangeToken, String phone, String tenantId);
+    Optional<OtpVerification> findByExchangeTokenAndPhoneInAndTenantIdAndIsDeletedFalse(
+            String exchangeToken, Collection<String> phones, String tenantId);
 }
