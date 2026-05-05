@@ -432,6 +432,9 @@ public class AuthService {
         userRepository.save(user);
         if (user.getRole() == Enums.Role.PARENT) {
             guardianLinkSyncService.syncGuardianDirectoryForPortalUser(tenantId, userId);
+            if (request.getName() != null) {
+                propagateParentNameToLinkedStudents(tenantId, userId, user.getName());
+            }
         }
         return toProfile(user);
     }
@@ -567,6 +570,9 @@ public class AuthService {
         if (user.getRole() == Enums.Role.PARENT
                 && (request.getPhone() != null || request.getEmail() != null || request.getName() != null)) {
             guardianLinkSyncService.syncGuardianDirectoryForPortalUser(tenantId, userId);
+            if (request.getName() != null) {
+                propagateParentNameToLinkedStudents(tenantId, userId, user.getName());
+            }
         } else if ((user.getRole() == Enums.Role.SCHOOL_STAFF || user.getRole() == Enums.Role.LIBRARY_STAFF)
                 && (request.getPhone() != null || request.getEmail() != null || request.getName() != null)) {
             operationalStaffRepository.findByTenantIdAndUserIdAndIsDeletedFalse(tenantId, userId).ifPresent(staff -> {
@@ -583,6 +589,32 @@ public class AuthService {
             });
         }
         return toPersonalProfile(user);
+    }
+
+    /**
+     * Keeps {@code students.parent_name} aligned with parent profile edits so admin, parent, and teacher views
+     * all render the same guardian display name.
+     */
+    private void propagateParentNameToLinkedStudents(String tenantId, Long parentUserId, String parentName) {
+        if (tenantId == null || parentUserId == null || parentName == null || parentName.isBlank()) {
+            return;
+        }
+        String normalized = parentName.trim();
+        List<com.school.erp.modules.student.entity.Student> linked =
+                studentRepository.findByTenantIdAndParentIdAndIsDeletedFalse(tenantId, parentUserId);
+        boolean touched = false;
+        for (com.school.erp.modules.student.entity.Student row : linked) {
+            if (row == null || row.getId() == null) {
+                continue;
+            }
+            if (!normalized.equals(row.getParentName())) {
+                row.setParentName(normalized);
+                touched = true;
+            }
+        }
+        if (touched) {
+            studentRepository.saveAll(linked);
+        }
     }
 
     @Transactional

@@ -1198,12 +1198,20 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
       hmLabel ||
       (ct ? `${ct.className?.trim() || ''}${ct.sectionName ? ' · ' + ct.sectionName : ''}`.trim() : '');
     const todayIso = localIsoDateString();
+    const profileHomeroom = this.authService.getProfileSummarySnapshot()?.classTeacherOf?.[0];
+    const effectiveClassId = profileHomeroom?.classId ?? ct?.classId ?? null;
+    const effectiveSectionId =
+      profileHomeroom?.classId != null &&
+      ct?.classId != null &&
+      String(profileHomeroom.classId) !== String(ct.classId)
+        ? profileHomeroom.sectionId ?? null
+        : profileHomeroom?.sectionId ?? ct?.sectionId ?? null;
     const homeroomScopeParams: Record<string, string> | undefined =
-      ct?.classId != null && ct.sectionId != null
-        ? { classId: String(ct.classId), sectionId: String(ct.sectionId) }
-        : ct?.classId != null
-          ? { classId: String(ct.classId) }
-          : undefined;
+      effectiveClassId != null
+        ? effectiveSectionId != null
+          ? { classId: String(effectiveClassId), sectionId: String(effectiveSectionId) }
+          : { classId: String(effectiveClassId) }
+        : undefined;
     const attendanceQuery: Record<string, string> = { ...(homeroomScopeParams ?? {}), date: todayIso };
     const rosterStrength =
       ct != null && ct.totalStudents != null && ct.totalStudents > 0 ? ct.totalStudents : dashboard.studentsAssigned;

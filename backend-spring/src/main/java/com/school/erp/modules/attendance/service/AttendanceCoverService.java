@@ -85,6 +85,30 @@ public class AttendanceCoverService {
     @Transactional
     public AttendanceCoverDTOs.Response create(AttendanceCoverDTOs.CreateRequest req) {
         String t = TenantContext.getTenantId();
+        if (req.getClassId() == null) {
+            throw new BusinessException("Class is required.");
+        }
+        if (req.getCoveringTeacherId() == null) {
+            throw new BusinessException("Substitute teacher is required.");
+        }
+        if (req.getCoverDate() == null) {
+            throw new BusinessException("Cover date is required.");
+        }
+        if (req.getCoverDate().isBefore(LocalDate.now())) {
+            throw new BusinessException("Cover date cannot be in the past.");
+        }
+        if (req.getPeriodNumber() == null) {
+            throw new BusinessException("Period is required.");
+        }
+        if (req.getPeriodNumber() < 1 || req.getPeriodNumber() > 12) {
+            throw new BusinessException("Period must be between 1 and 12.");
+        }
+        boolean classHasSections = !sectionRepository
+                .findByTenantIdAndClassIdAndIsDeletedFalse(t, req.getClassId())
+                .isEmpty();
+        if (classHasSections && req.getSectionId() == null) {
+            throw new BusinessException("Section is required for this class.");
+        }
         List<AttendanceCoverAssignment> sameClassDay = coverRepo.findByTenantIdAndCoverDateAndClassIdAndIsDeletedFalseOrderByIdAsc(
                 t, req.getCoverDate(), req.getClassId());
 
@@ -127,18 +151,19 @@ public class AttendanceCoverService {
                     "status=CANCELLED");
         }
 
-        Long effectiveRegularTeacherId = req.getRegularTeacherId();
-        if (effectiveRegularTeacherId == null
-                && req.getPeriodNumber() != null
-                && req.getPeriodNumber() > 0) {
-            effectiveRegularTeacherId = resolveRegularTeacherFromTimetable(
-                            t,
-                            req.getCoverDate(),
-                            req.getClassId(),
-                            req.getSectionId(),
-                            req.getPeriodNumber())
-                    .orElse(null);
+        Optional<TimetableEntry> regularSlotOpt = resolveRegularTimetableSlot(
+                t,
+                req.getCoverDate(),
+                req.getClassId(),
+                req.getSectionId(),
+                req.getPeriodNumber());
+        if (regularSlotOpt.isEmpty()) {
+            throw new BusinessException("No regular timetable slot exists for the selected class, section, date, and period.");
         }
+        TimetableEntry regularSlot = regularSlotOpt.get();
+        Long effectiveRegularTeacherId = req.getRegularTeacherId() != null
+                ? req.getRegularTeacherId()
+                : regularSlot.getTeacherId();
         if (effectiveRegularTeacherId != null
                 && req.getCoveringTeacherId() != null
                 && Objects.equals(effectiveRegularTeacherId, req.getCoveringTeacherId())) {
@@ -154,7 +179,7 @@ public class AttendanceCoverService {
         e.setRegularTeacherId(effectiveRegularTeacherId);
         e.setCoveringTeacherId(req.getCoveringTeacherId());
         e.setReason(req.getReason());
-        e.setTimetableEntryId(req.getTimetableEntryId());
+        e.setTimetableEntryId(regularSlot.getId());
         e.setStatus("ACTIVE");
         e.setCreatedBy(TenantContext.getUserId() != null ? TenantContext.getUserId().toString() : null);
         coverRepo.save(e);
@@ -200,7 +225,7 @@ public class AttendanceCoverService {
                 "status=CANCELLED");
     }
 
-    private Optional<Long> resolveRegularTeacherFromTimetable(
+    private Optional<TimetableEntry> resolveRegularTimetableSlot(
             String tenantId,
             LocalDate coverDate,
             Long classId,
@@ -214,9 +239,7 @@ public class AttendanceCoverService {
             return Optional.empty();
         }
         Enums.DayOfWeek day = Enums.DayOfWeek.valueOf(javaDow.name());
-        return timetableRepository
-                .findFirstByTenantAndClassSectionDayPeriod(tenantId, classId, sectionId, day, period)
-                .map(TimetableEntry::getTeacherId);
+        return timetableRepository.findFirstByTenantAndClassSectionDayPeriod(tenantId, classId, sectionId, day, period);
     }
 
     private AttendanceCoverDTOs.ConflictPayload buildConflictPayload(String tenantId, AttendanceCoverAssignment block, LocalDate coverDate) {

@@ -55,6 +55,10 @@ import { ImportExportService } from '../../core/services/import-export.service';
       margin-bottom: 4px !important;
     }
     @media (max-width: 768px) {
+      .directory-toolbar-inline {
+        flex-direction: column;
+        align-items: stretch;
+      }
       .directory-search-inline,
       .directory-status-inline {
         width: 100%;
@@ -63,6 +67,12 @@ import { ImportExportService } from '../../core/services/import-export.service';
       .directory-actions-inline {
         margin-left: 0;
         width: 100%;
+        flex-wrap: wrap;
+        justify-content: flex-start;
+      }
+      .directory-refresh-btn {
+        flex: 1 1 auto;
+        min-width: min(160px, 100%);
       }
     }
   `],

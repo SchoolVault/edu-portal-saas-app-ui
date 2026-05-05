@@ -11,6 +11,7 @@ import com.school.erp.modules.academic.repository.SchoolClassRepository;
 import com.school.erp.modules.academic.repository.SectionRepository;
 import com.school.erp.modules.attendance.entity.AttendanceCoverAssignment;
 import com.school.erp.modules.attendance.repository.AttendanceCoverAssignmentRepository;
+import com.school.erp.modules.teacher.entity.Teacher;
 import com.school.erp.modules.teacher.repository.TeacherRepository;
 import com.school.erp.modules.timetable.dto.TeacherScheduleSlot;
 import com.school.erp.modules.timetable.dto.TimetableDTOs;
@@ -299,6 +300,41 @@ public class TimetableService {
             evictTimetableEntryCaches(e, null);
         }
         return saved;
+    }
+
+    /**
+     * Keeps denormalized {@link TimetableEntry#getTeacherName()} aligned when a teacher's legal/display name changes,
+     * so grids and exports stay consistent without requiring manual slot edits.
+     */
+    @Transactional
+    public void refreshDenormalizedTeacherNames(Long teacherId) {
+        if (teacherId == null) {
+            return;
+        }
+        String t = TenantContext.getTenantId();
+        Optional<Teacher> opt = teacherRepository.findByIdAndTenantIdAndIsDeletedFalse(teacherId, t);
+        if (opt.isEmpty()) {
+            return;
+        }
+        String full = (opt.get().getFirstName() + " " + opt.get().getLastName()).trim();
+        if (full.isBlank()) {
+            return;
+        }
+        List<TimetableEntry> rows = repo.findByTenantIdAndTeacherIdAndIsDeletedFalse(t, teacherId);
+        int updated = 0;
+        for (TimetableEntry e : rows) {
+            if (Objects.equals(full, e.getTeacherName())) {
+                continue;
+            }
+            TimetableEntry before = snapshotEntry(e);
+            e.setTeacherName(full);
+            repo.save(e);
+            evictTimetableEntryCaches(e, before);
+            updated++;
+        }
+        if (updated > 0) {
+            log.info("Refreshed timetable teacherName rows={} teacherId={} tenantId={}", updated, teacherId, t);
+        }
     }
 
     @Transactional

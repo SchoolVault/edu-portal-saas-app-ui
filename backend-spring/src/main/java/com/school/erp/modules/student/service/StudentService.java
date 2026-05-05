@@ -10,6 +10,7 @@ import com.school.erp.common.importer.BulkImportRowPolicy;
 import com.school.erp.common.importer.ImportLineOutcome;
 import com.school.erp.common.importer.LineApplyResult;
 import com.school.erp.common.importer.ZipCsvImportUtil;
+import com.school.erp.common.util.InternationalPhone;
 import com.school.erp.modules.academic.entity.Section;
 import com.school.erp.modules.academic.repository.SchoolClassRepository;
 import com.school.erp.modules.academic.repository.SectionRepository;
@@ -194,6 +195,8 @@ public class StudentService {
         student.setTenantId(tenantId);
         student.setCreatedBy(TenantContext.getUserId() != null ? TenantContext.getUserId().toString() : null);
         studentPersistence.save(student);
+        propagateParentDisplayNameToLinkedStudents(tenantId, student.getParentId(), student.getParentName());
+        syncLinkedPortalUsersForStudentAggregate(tenantId, student);
         log.info("Student created: {} {} [{}]", student.getFirstName(), student.getLastName(), student.getAdmissionNumber());
         sendParentOnboardingForManualCreate(tenantId, request.getParentEmail(), request.getParentPhone(), parentProvision);
         guardianLinkSyncService.syncForStudent(student);
@@ -363,6 +366,8 @@ public class StudentService {
         }
         student.setUpdatedBy(TenantContext.getUserId() != null ? TenantContext.getUserId().toString() : null);
         studentPersistence.save(student);
+        propagateParentDisplayNameToLinkedStudents(tenantId, student.getParentId(), student.getParentName());
+        syncLinkedPortalUsersForStudentAggregate(tenantId, student);
         guardianLinkSyncService.syncForStudent(student);
         boolean classChanged = !java.util.Objects.equals(priorClassId, student.getClassId());
         boolean sectionChanged = !java.util.Objects.equals(priorSectionId, student.getSectionId());
@@ -586,7 +591,9 @@ public class StudentService {
             Boolean createParentPortal,
             Student student) {
         if (explicitParentId != null) {
-            if ((parentPhone != null && !parentPhone.isBlank()) || (parentEmail != null && !parentEmail.isBlank())) {
+            if ((parentPhone != null && !parentPhone.isBlank())
+                    || (parentEmail != null && !parentEmail.isBlank())
+                    || (parentName != null && !parentName.isBlank())) {
                 portalUserProvisioningService.mergeImportedContactOntoParentUser(
                         tenantId, explicitParentId, parentName, parentEmail, parentPhone);
             }
@@ -610,6 +617,116 @@ public class StudentService {
             student.setParentName(parentName.trim());
         }
         return parentProvision;
+    }
+
+    /**
+     * Keeps legacy denormalized {@code students.parent_name} consistent across siblings when the same parent account
+     * is edited from one student row.
+     */
+    private void propagateParentDisplayNameToLinkedStudents(String tenantId, Long parentId, String parentName) {
+        String normalized = blankToNull(parentName);
+        if (tenantId == null || parentId == null || normalized == null) {
+            return;
+        }
+        List<Student> siblings = studentPersistence.findByTenantIdAndParentIdAndIsDeletedFalse(tenantId, parentId);
+        boolean touched = false;
+        for (Student row : siblings) {
+            if (row == null || row.getId() == null) {
+                continue;
+            }
+            if (!normalized.equals(row.getParentName())) {
+                row.setParentName(normalized);
+                touched = true;
+            }
+        }
+        if (touched) {
+            studentPersistence.saveAll(siblings);
+        }
+    }
+
+    /**
+     * Aligns portal {@code users} identity rows with student aggregate edits (admin CRUD/import and parent-link edits),
+     * so dashboard/header/profile all show a single source of truth.
+     */
+    private void syncLinkedPortalUsersForStudentAggregate(String tenantId, Student student) {
+        if (tenantId == null || student == null) {
+            return;
+        }
+        syncLinkedStudentPortalUserIdentity(tenantId, student);
+        syncLinkedParentPortalUserDisplayName(tenantId, student.getParentId(), student.getParentName());
+    }
+
+    private void syncLinkedStudentPortalUserIdentity(String tenantId, Student student) {
+        if (student == null) {
+            return;
+        }
+        String fullName = (blankToNull(student.getFirstName()) == null ? "" : student.getFirstName().trim())
+                + (blankToNull(student.getLastName()) == null ? "" : " " + student.getLastName().trim());
+        String normalizedName = blankToNull(fullName);
+        String normalizedEmail = blankToNull(student.getEmail());
+        String normalizedPhone = blankToNull(student.getPhone());
+
+        User linked = null;
+        if (student.getId() != null) {
+            linked = userRepository.findByIdAndTenantIdAndIsDeletedFalse(student.getId(), tenantId)
+                    .filter(u -> u.getRole() == Enums.Role.STUDENT)
+                    .orElse(null);
+        }
+        if (linked == null && normalizedEmail != null) {
+            linked = userRepository.findByEmailAndTenantIdAndIsDeletedFalse(normalizedEmail, tenantId)
+                    .filter(u -> u.getRole() == Enums.Role.STUDENT)
+                    .orElse(null);
+        }
+        if (linked == null && normalizedPhone != null) {
+            String national = InternationalPhone.nationalIndiaMobile10(normalizedPhone);
+            if (national != null) {
+                linked = userRepository
+                        .findFirstByTenantIdAndPhoneInAndIsDeletedFalseOrderByIdAsc(
+                                tenantId, InternationalPhone.compatibleLookupKeys("+91-" + national))
+                        .filter(u -> u.getRole() == Enums.Role.STUDENT)
+                        .orElse(null);
+            }
+        }
+        if (linked == null) {
+            return;
+        }
+        boolean touched = false;
+        if (normalizedName != null && !normalizedName.equals(linked.getName())) {
+            linked.setName(normalizedName);
+            touched = true;
+        }
+        if (normalizedEmail != null && !normalizedEmail.equalsIgnoreCase(linked.getEmail())) {
+            linked.setEmail(normalizedEmail);
+            linked.setEmailVerified(false);
+            touched = true;
+        }
+        if (normalizedPhone != null) {
+            String national = InternationalPhone.nationalIndiaMobile10(normalizedPhone);
+            if (national != null && !InternationalPhone.samePortalPhone(national, linked.getPhone())) {
+                linked.setPhone(national);
+                linked.setPhoneVerified(false);
+                touched = true;
+            }
+        }
+        if (touched) {
+            userRepository.save(linked);
+        }
+    }
+
+    private void syncLinkedParentPortalUserDisplayName(String tenantId, Long parentId, String parentName) {
+        String normalizedName = blankToNull(parentName);
+        if (tenantId == null || parentId == null || normalizedName == null) {
+            return;
+        }
+        userRepository.findByIdAndTenantIdAndIsDeletedFalse(parentId, tenantId).ifPresent(parentUser -> {
+            if (parentUser.getRole() != Enums.Role.PARENT) {
+                return;
+            }
+            if (!normalizedName.equals(parentUser.getName())) {
+                parentUser.setName(normalizedName);
+                userRepository.save(parentUser);
+            }
+        });
     }
 
     private void sendParentOnboardingForManualCreate(

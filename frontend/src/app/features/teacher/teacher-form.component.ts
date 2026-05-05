@@ -337,6 +337,17 @@ export class TeacherFormComponent implements OnInit, OnDestroy {
     pipeline$.subscribe({
       next: () => {
         this.saving = false;
+        const cu = this.auth.getCurrentUser();
+        if (cu?.role === 'teacher' && this.isEdit && payload.id) {
+          const em = (cu.email ?? '').trim().toLowerCase();
+          const pm = (cu.phone ?? '').trim();
+          const samePortalAccount =
+            (!!em && em === (payload.email ?? '').trim().toLowerCase()) ||
+            (!!pm && pm === (payload.phone ?? '').trim());
+          if (samePortalAccount) {
+            this.auth.fetchProfileSummary().subscribe({ error: () => void 0 });
+          }
+        }
         if (this.isEdit && payload.id) {
           const emailChanged = (payload.email ?? '').trim().toLowerCase() !== this.initialTeacherEmail;
           const phoneChanged = (payload.phone ?? '').trim() !== this.initialTeacherPhone;

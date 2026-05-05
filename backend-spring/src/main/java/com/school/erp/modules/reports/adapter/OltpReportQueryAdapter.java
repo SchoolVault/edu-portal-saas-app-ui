@@ -255,7 +255,8 @@ public class OltpReportQueryAdapter implements ReportQueryPort {
         if (!response.getClassTeacherOf().isEmpty()) {
             response.setStudentsAssigned(response.getClassTeacherOf().get(0).getTotalStudents());
         } else {
-            response.setStudentsAssigned(classIds.isEmpty() ? 0 : studentIds.size());
+            // KPI semantics: "Students in my class" refers to active homeroom only, not full timetable reach.
+            response.setStudentsAssigned(0);
         }
 
         boolean homeroomMarked = false;

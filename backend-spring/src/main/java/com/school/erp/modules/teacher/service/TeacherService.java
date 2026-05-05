@@ -15,10 +15,8 @@ import com.school.erp.modules.auth.repository.UserRepository;
 import com.school.erp.modules.auth.service.PortalUserProvisioningService;
 import com.school.erp.modules.notification.service.NotificationService;
 import com.school.erp.modules.settings.repository.TenantConfigRepository;
-import com.school.erp.modules.academic.entity.ClassTeacherAssignment;
 import com.school.erp.modules.academic.entity.SchoolClass;
 import com.school.erp.modules.academic.entity.Section;
-import com.school.erp.modules.academic.repository.ClassTeacherAssignmentRepository;
 import com.school.erp.modules.academic.repository.SchoolClassRepository;
 import com.school.erp.modules.academic.repository.SectionRepository;
 import com.school.erp.common.jpa.EntitySnapshotCollections;
@@ -28,6 +26,7 @@ import com.school.erp.modules.teacher.dto.TeacherDTOs;
 import com.school.erp.modules.teacher.entity.Teacher;
 import com.school.erp.modules.teacher.repository.TeacherRepository;
 import com.school.erp.modules.reports.service.DashboardSnapshotInvalidationService;
+import com.school.erp.modules.timetable.service.TimetableService;
 import com.school.erp.cache.CacheService;
 import com.school.erp.config.CacheConfig;
 import com.school.erp.platform.port.NotificationDispatchPort;
@@ -65,7 +64,6 @@ public class TeacherService {
     private final TeacherRepository repo;
     private final SchoolClassRepository schoolClassRepository;
     private final SectionRepository sectionRepository;
-    private final ClassTeacherAssignmentRepository classTeacherAssignmentRepository;
     private final PortalUserProvisioningService portalUserProvisioningService;
     private final UserRepository userRepository;
     private final UserSchoolRoleAssignmentRepository userSchoolRoleAssignmentRepository;
@@ -73,6 +71,7 @@ public class TeacherService {
     private final NotificationDispatchPort notificationDispatchPort;
     private final TenantConfigRepository tenantConfigRepository;
     private final ObjectProvider<CacheService> cacheService;
+    private final ObjectProvider<TimetableService> timetableService;
     private final DashboardSnapshotInvalidationService dashboardSnapshotInvalidationService;
 
     @Cacheable(cacheNames = CacheConfig.TEACHER_DIRECTORY, keyGenerator = "tenantMethodParamsKeyGenerator", unless = "#result == null")
@@ -356,6 +355,8 @@ public class TeacherService {
             try {
                 repo.save(teacher);
                 syncLinkedPortalUserIdentity(tenantId, teacher, previousEmail);
+                propagateTeacherDisplayNameToHomeroomFkRows(tenantId, teacher);
+                timetableService.ifAvailable(ts -> ts.refreshDenormalizedTeacherNames(teacher.getId()));
             } catch (DataIntegrityViolationException ex) {
                 throw new BusinessException("Duplicate contact values are not allowed for this school.");
             }
@@ -437,6 +438,8 @@ public class TeacherService {
         try {
             repo.save(t);
             syncLinkedPortalUserIdentity(tenantId, t, previousEmail);
+            propagateTeacherDisplayNameToHomeroomFkRows(tenantId, t);
+            timetableService.ifAvailable(ts -> ts.refreshDenormalizedTeacherNames(t.getId()));
         } catch (DataIntegrityViolationException ex) {
             throw new BusinessException("Duplicate contact values are not allowed for this school.");
         } catch (DuplicateResourceException | BusinessException ex) {
@@ -448,6 +451,31 @@ public class TeacherService {
         log.info("Teacher updated id={}", id);
         evictTeacherDirectoryCache();
         return toRes(t, homeroomClassNamesForTeacher(tenantId, t.getId()));
+    }
+
+    /**
+     * Denormalized {@code class_teacher_name} on classes/sections — keep in sync when the teacher's display name changes.
+     */
+    private void propagateTeacherDisplayNameToHomeroomFkRows(String tenantId, Teacher teacher) {
+        if (teacher.getId() == null) {
+            return;
+        }
+        String label = (teacher.getFirstName() + " " + teacher.getLastName()).trim();
+        if (label.isBlank()) {
+            return;
+        }
+        for (SchoolClass c : schoolClassRepository.findByTenantIdAndClassTeacherIdAndIsDeletedFalse(tenantId, teacher.getId())) {
+            if (!label.equals(c.getClassTeacherName())) {
+                c.setClassTeacherName(label);
+                schoolClassRepository.save(c);
+            }
+        }
+        for (Section sec : sectionRepository.findByTenantIdAndClassTeacherIdAndIsDeletedFalse(tenantId, teacher.getId())) {
+            if (!label.equals(sec.getClassTeacherName())) {
+                sec.setClassTeacherName(label);
+                sectionRepository.save(sec);
+            }
+        }
     }
 
     private void syncLinkedPortalUserIdentity(String tenantId, Teacher teacher, String previousEmail) {
@@ -480,6 +508,10 @@ public class TeacherService {
         linkedUser.setPhone(teacher.getPhone());
         if (teacher.getPhone() != null && !teacher.getPhone().equals(previousPhone)) {
             linkedUser.setPhoneVerified(false);
+        }
+        String displayName = (teacher.getFirstName() + " " + teacher.getLastName()).trim();
+        if (!displayName.isBlank()) {
+            linkedUser.setName(displayName);
         }
         userRepository.save(linkedUser);
     }
@@ -780,12 +812,11 @@ public class TeacherService {
     }
 
     /**
-     * Homeroom labels per teacher: merge {@code school_classes}/{@code sections} class-teacher columns
-     * with active {@link ClassTeacherAssignment} rows so directory UI stays aligned with academic year assignments.
+     * Homeroom labels per teacher from {@code school_classes}/{@code sections} class-teacher columns only —
+     * single source of truth for “current” homeroom (exclusive assignment is enforced in {@code AcademicService}).
      */
     private Map<Long, List<String>> homeroomClassNamesByTeacherId(String tenantId) {
         Map<Long, LinkedHashSet<String>> acc = new HashMap<>();
-        LocalDate today = LocalDate.now();
 
         List<SchoolClass> classes = schoolClassRepository.findByTenantIdAndIsDeletedFalseOrderByGrade(tenantId);
         for (SchoolClass c : classes) {
@@ -804,11 +835,6 @@ public class TeacherService {
             }
         }
 
-        for (ClassTeacherAssignment a : classTeacherAssignmentRepository.findAllActiveOnOrAfter(tenantId, today)) {
-            homeroomLabelForAssignment(tenantId, a).ifPresent(label ->
-                    acc.computeIfAbsent(a.getTeacherId(), k -> new LinkedHashSet<>()).add(label));
-        }
-
         Map<Long, List<String>> map = new HashMap<>();
         for (Map.Entry<Long, LinkedHashSet<String>> e : acc.entrySet()) {
             ArrayList<String> sorted = new ArrayList<>(e.getValue());
@@ -819,12 +845,7 @@ public class TeacherService {
     }
 
     private List<String> homeroomClassNamesForTeacher(String tenantId, Long teacherPk) {
-        LinkedHashSet<String> acc = new LinkedHashSet<>();
-        homeroomClassNamesForTeacherFromSectionColumns(tenantId, teacherPk).forEach(acc::add);
-        for (ClassTeacherAssignment a : classTeacherAssignmentRepository.findActiveForTeacher(tenantId, teacherPk, LocalDate.now())) {
-            homeroomLabelForAssignment(tenantId, a).ifPresent(acc::add);
-        }
-        ArrayList<String> out = new ArrayList<>(acc);
+        List<String> out = new ArrayList<>(homeroomClassNamesForTeacherFromSectionColumns(tenantId, teacherPk));
         Collections.sort(out);
         return out;
     }
@@ -844,23 +865,9 @@ public class TeacherService {
         return out;
     }
 
-    private Optional<String> homeroomLabelForAssignment(String tenantId, ClassTeacherAssignment a) {
-        Optional<SchoolClass> oc = schoolClassRepository.findByIdAndTenantIdAndIsDeletedFalse(a.getClassId(), tenantId);
-        if (oc.isEmpty()) {
-            return Optional.empty();
-        }
-        SchoolClass c = oc.get();
-        if (a.getSectionId() == null) {
-            return Optional.of(c.getName());
-        }
-        return sectionRepository.findByIdAndTenantIdAndIsDeletedFalse(a.getSectionId(), tenantId)
-                .map(sec -> c.getName() + "-" + sec.getName());
-    }
-
     public TeacherService(final TeacherRepository repo,
                           final SchoolClassRepository schoolClassRepository,
                           final SectionRepository sectionRepository,
-                          final ClassTeacherAssignmentRepository classTeacherAssignmentRepository,
                           final PortalUserProvisioningService portalUserProvisioningService,
                           final UserRepository userRepository,
                           final UserSchoolRoleAssignmentRepository userSchoolRoleAssignmentRepository,
@@ -868,11 +875,11 @@ public class TeacherService {
                           final NotificationDispatchPort notificationDispatchPort,
                           final TenantConfigRepository tenantConfigRepository,
                           final ObjectProvider<CacheService> cacheService,
+                          final ObjectProvider<TimetableService> timetableService,
                           final DashboardSnapshotInvalidationService dashboardSnapshotInvalidationService) {
         this.repo = repo;
         this.schoolClassRepository = schoolClassRepository;
         this.sectionRepository = sectionRepository;
-        this.classTeacherAssignmentRepository = classTeacherAssignmentRepository;
         this.portalUserProvisioningService = portalUserProvisioningService;
         this.userRepository = userRepository;
         this.userSchoolRoleAssignmentRepository = userSchoolRoleAssignmentRepository;
@@ -880,6 +887,7 @@ public class TeacherService {
         this.notificationDispatchPort = notificationDispatchPort;
         this.tenantConfigRepository = tenantConfigRepository;
         this.cacheService = cacheService;
+        this.timetableService = timetableService;
         this.dashboardSnapshotInvalidationService = dashboardSnapshotInvalidationService;
     }
 

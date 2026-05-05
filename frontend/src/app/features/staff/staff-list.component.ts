@@ -59,7 +59,7 @@ import { filter } from 'rxjs/operators';
             />
           </div>
           <div class="d-flex gap-2 align-items-end">
-            <select class="erp-select" style="min-width: 160px;" [(ngModel)]="statusFilter" (ngModelChange)="reload()">
+            <select class="erp-select staff-list-status-select" [(ngModel)]="statusFilter" (ngModelChange)="reload()">
               <option value="active">{{ 'staff.list.statusActive' | translate }}</option>
               <option value="inactive">{{ 'staff.list.statusInactive' | translate }}</option>
             </select>
@@ -141,6 +141,9 @@ import { filter } from 'rxjs/operators';
         border: 1px solid color-mix(in srgb, var(--clr-border) 82%, var(--clr-primary) 18%);
         border-radius: 14px;
       }
+      .staff-list-status-select {
+        min-width: 160px;
+      }
       .search-input-wrapper {
         display: flex;
         align-items: center;
@@ -150,6 +153,21 @@ import { filter } from 'rxjs/operators';
       }
       .search-input-wrapper .erp-input {
         flex: 1;
+      }
+      @media (max-width: 768px) {
+        .staff-list-page .erp-filter-toolbar {
+          flex-direction: column;
+          align-items: stretch;
+        }
+        .staff-list-page .erp-filter-toolbar .erp-filter-toolbar__search {
+          flex: 1 1 auto;
+          min-width: 0;
+          max-width: none;
+        }
+        .staff-list-page .erp-filter-toolbar .erp-select {
+          width: 100%;
+          min-width: 0 !important;
+        }
       }
     `,
   ],

@@ -636,7 +636,7 @@ import { formatDateDdMmYyyy } from '../../core/utils/date-format';
                 <h4 style="font-size: 15px; font-weight: 700;">{{ fs.name }}</h4>
                 <span class="fees-structure-total">₹{{ fs.totalAmount | number:'1.0-0':'en-IN' }}</span>
               </div>
-              <div class="text-muted small mb-2">{{ fs.className | schoolClassName }} · {{ 'fees.yearPrefix' | translate }} {{ fs.academicYearId }}</div>
+              <div class="text-muted small mb-2">{{ fs.className | schoolClassName }} · {{ academicYearLabel(fs.academicYearId) }}</div>
               <div *ngFor="let comp of fs.components" class="d-flex justify-content-between align-items-center" style="padding: 6px 0; border-bottom: 1px solid var(--clr-border-light); font-size: 13px;">
                 <span>
                   <span class="badge-erp badge-neutral me-1" style="font-size: 10px;">{{ ('fees.componentType.' + comp.type) | translate }}</span>
@@ -1199,6 +1199,20 @@ export class FeesComponent implements OnInit {
     }
     const d = this.formatDate(p.paymentDate);
     return d || this.translate.instant('fees.paymentDatePending');
+  }
+
+  /** Prefer catalog academic year name (e.g. 2024–25); fallback while list loads. */
+  academicYearLabel(id: number | null | undefined): string {
+    if (id == null || !Number.isFinite(Number(id))) {
+      return '';
+    }
+    const nid = Number(id);
+    const row = this.academicYears.find(y => y.id === nid);
+    const name = row?.name?.trim();
+    if (name) {
+      return name;
+    }
+    return `${this.translate.instant('fees.yearPrefix')} ${nid}`;
   }
   private readonly uiAccess = inject(UiAccessService);
 
