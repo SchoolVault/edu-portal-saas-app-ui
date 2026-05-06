@@ -5,12 +5,19 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { PlatformService } from '../../core/services/platform.service';
-import { PlatformPurgeJob, PlatformSchoolAdmin, PlatformSchoolDetail, PlatformSchoolSummary } from '../../core/models/models';
+import {
+  PlatformPurgeJob,
+  PlatformSchoolAdmin,
+  PlatformSchoolDetail,
+  PlatformSchoolSummary,
+  UpdateSchoolAdminRequest,
+} from '../../core/models/models';
 import { forkJoin, of, Subject } from 'rxjs';
 import { catchError, debounceTime, distinctUntilChanged } from 'rxjs/operators';
 import { TenantFinanceProfile } from '../../core/services/settings.service';
 import { ErpPaginationComponent } from '../../shared/erp-pagination/erp-pagination.component';
 import { DEFAULT_ERP_PAGE_SIZE } from '../../core/constants/pagination.constants';
+import { digitsOnlyIndiaMobile, displayIndiaMobileTenFromApi, isValidIndiaMobileTen } from '../../core/validation/phone.validation';
 
 @Component({
   selector: 'app-platform-schools',
@@ -239,56 +246,36 @@ import { DEFAULT_ERP_PAGE_SIZE } from '../../core/constants/pagination.constants
                         <tr>
                           <th>{{ 'platformSchools.adminCols.name' | translate }}</th>
                           <th>{{ 'platformSchools.adminCols.email' | translate }}</th>
+                          <th>{{ 'platformSchools.adminCols.phone' | translate }}</th>
                           <th>{{ 'platformSchools.adminCols.status' | translate }}</th>
                           <th class="text-end">{{ 'platformSchools.adminCols.actions' | translate }}</th>
                         </tr>
                       </thead>
                       <tbody>
-                        <ng-container *ngFor="let a of detail.admins">
-                          <tr>
-                            <td class="fw-semibold">{{ a.name }}</td>
-                            <td class="platform-muted-sm">{{ a.email }}</td>
-                            <td>
-                              <span class="badge-erp" [ngClass]="a.active ? 'badge-success' : 'badge-warning'">
-                                {{ a.active ? ('platformSchools.active' | translate) : ('platformSchools.inactive' | translate) }}
-                              </span>
-                            </td>
-                            <td class="text-end">
-                              <button type="button" class="btn-icon" (click)="toggleAdminEdit(a)" [attr.aria-label]="'platformSchools.adminEdit.toggle' | translate">
-                                <i class="bi" [ngClass]="editingAdminId === a.id ? 'bi-chevron-up' : 'bi-pencil'"></i>
-                              </button>
-                            </td>
-                          </tr>
-                          <tr *ngIf="editingAdminId === a.id">
-                            <td colspan="4" style="background: color-mix(in srgb, var(--clr-surface-alt) 88%, transparent); border-bottom: 1px solid var(--clr-border-light);">
-                              <div class="py-3 px-2">
-                                <div class="row g-2">
-                                  <div class="col-md-4">
-                                    <label class="erp-label small">{{ 'platformSchools.adminEdit.name' | translate }}</label>
-                                    <input class="erp-input" [(ngModel)]="adminEditForm.name" />
-                                  </div>
-                                  <div class="col-md-4">
-                                    <label class="erp-label small">{{ 'platformSchools.adminCols.email' | translate }}</label>
-                                    <input type="email" class="erp-input" [(ngModel)]="adminEditForm.email" />
-                                  </div>
-                                  <div class="col-md-4">
-                                    <label class="erp-label small">{{ 'platformSchools.adminEdit.phone' | translate }}</label>
-                                    <input class="erp-input" [(ngModel)]="adminEditForm.phone" />
-                                  </div>
-                                </div>
-                                <div class="d-flex gap-2 mt-2">
-                                  <button type="button" class="btn-primary-erp btn-sm" (click)="saveAdminEdit(a)" [disabled]="adminEditSaving">
-                                    {{ adminEditSaving ? ('platformSchools.adminEdit.saving' | translate) : ('platformSchools.adminEdit.save' | translate) }}
-                                  </button>
-                                  <button type="button" class="btn-outline-erp btn-sm" (click)="cancelAdminEdit()" [disabled]="adminEditSaving">{{ 'platformSchools.adminEdit.cancel' | translate }}</button>
-                                </div>
-                                <p *ngIf="adminEditErr" class="text-danger small mt-2 mb-0">{{ adminEditErr }}</p>
-                              </div>
-                            </td>
-                          </tr>
-                        </ng-container>
+                        <tr *ngFor="let a of detail.admins">
+                          <td class="fw-semibold">{{ a.name }}</td>
+                          <td class="platform-muted-sm">{{ a.email }}</td>
+                          <td class="platform-muted-sm">{{ formatAdminPhone(a) }}</td>
+                          <td>
+                            <span class="badge-erp" [ngClass]="a.active ? 'badge-success' : 'badge-warning'">
+                              {{ a.active ? ('platformSchools.active' | translate) : ('platformSchools.inactive' | translate) }}
+                            </span>
+                          </td>
+                          <td class="text-end">
+                            <button
+                              type="button"
+                              class="btn-outline-erp btn-sm btn-icon-touch"
+                              (click)="openAdminEditModal(a); $event.stopPropagation()"
+                              [disabled]="busy || adminEditSaving || detailLoading"
+                              [attr.title]="'platformSchools.adminEdit.toggleAria' | translate"
+                              [attr.aria-label]="'platformSchools.adminEdit.toggleAria' | translate"
+                            >
+                              <i class="bi bi-pencil-square" aria-hidden="true"></i>
+                            </button>
+                          </td>
+                        </tr>
                         <tr *ngIf="detail.admins.length === 0">
-                          <td colspan="4" class="text-muted platform-muted-sm">{{ 'platformSchools.noAdmins' | translate }}</td>
+                          <td colspan="5" class="text-muted platform-muted-sm">{{ 'platformSchools.noAdmins' | translate }}</td>
                         </tr>
                       </tbody>
                     </table>
@@ -387,6 +374,36 @@ import { DEFAULT_ERP_PAGE_SIZE } from '../../core/constants/pagination.constants
           <div class="modal-footer-erp">
             <button type="button" class="btn-outline-erp" (click)="closeActivateModal()">{{ 'platformSchools.modal.cancel' | translate }}</button>
             <button type="button" class="btn-primary-erp" (click)="confirmActivate()" [disabled]="busy">{{ 'platformSchools.actions.activate' | translate }}</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Campus admin portal profile -->
+      <div class="modal-overlay modal-overlay-viewport" *ngIf="adminEditModalOpen" (click)="closeAdminEditModal()">
+        <div class="modal-content-erp modal-narrow" (click)="$event.stopPropagation()">
+          <div class="modal-header-erp">
+            <h3>{{ 'platformSchools.adminEdit.modalTitle' | translate }}</h3>
+            <button type="button" class="btn-icon" (click)="closeAdminEditModal()" [attr.aria-label]="'platformSchools.modal.closeAria' | translate"><i class="bi bi-x-lg"></i></button>
+          </div>
+          <div class="modal-body-erp">
+            <p class="text-muted mb-3" style="font-size: 13px; line-height: 1.5;">{{ 'platformSchools.adminEdit.modalLead' | translate }}</p>
+            <div class="erp-form-group mb-2">
+              <label class="erp-label small">{{ 'platformSchools.adminEdit.name' | translate }}</label>
+              <input type="text" class="erp-input" [(ngModel)]="adminEditForm.name" autocomplete="name" />
+            </div>
+            <div class="erp-form-group mb-2">
+              <label class="erp-label small">{{ 'platformSchools.adminEdit.email' | translate }}</label>
+              <input type="email" class="erp-input" [(ngModel)]="adminEditForm.email" autocomplete="email" />
+            </div>
+            <div class="erp-form-group mb-0">
+              <label class="erp-label small">{{ 'platformSchools.adminEdit.phone' | translate }}</label>
+              <input type="tel" class="erp-input" [(ngModel)]="adminEditForm.phone" inputmode="numeric" maxlength="13" autocomplete="tel" placeholder="9876543210" />
+            </div>
+            <p *ngIf="adminEditErr" class="text-danger small mt-3 mb-0">{{ adminEditErr }}</p>
+          </div>
+          <div class="modal-footer-erp">
+            <button type="button" class="btn-outline-erp" (click)="closeAdminEditModal()" [disabled]="adminEditSaving">{{ 'platformSchools.adminEdit.cancel' | translate }}</button>
+            <button type="button" class="btn-primary-erp" (click)="saveAdminProfile()" [disabled]="adminEditSaving">{{ adminEditSaving ? ('platformSchools.adminEdit.saving' | translate) : ('platformSchools.adminEdit.save' | translate) }}</button>
           </div>
         </div>
       </div>
@@ -680,6 +697,14 @@ import { DEFAULT_ERP_PAGE_SIZE } from '../../core/constants/pagination.constants
     }
     .modal-narrow { max-width: 480px; width: 100%; }
     .modal-purge { max-width: 520px; width: 100%; }
+    .btn-icon-touch {
+      min-width: 36px;
+      min-height: 36px;
+      padding: 0 10px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
     @media (max-width: 768px) {
       .platform-page-title { font-size: 22px; }
       .platform-page-lead { font-size: 12px; }
@@ -746,10 +771,14 @@ export class PlatformSchoolsComponent implements OnInit {
     primaryColor: '',
     secondaryColor: '',
   };
-  editingAdminId: string | null = null;
-  adminEditForm = { name: '', email: '', phone: '' };
+
+  adminEditModalOpen = false;
   adminEditSaving = false;
   adminEditErr = '';
+  adminEditForm = { name: '', email: '', phone: '' };
+  /** True when API returned any non-empty phone (so clearing the input sends an explicit unset). */
+  private adminEditHadStoredPhone = false;
+  private adminEditingUserId: string | null = null;
 
   private readonly destroyRef = inject(DestroyRef);
 
@@ -838,8 +867,6 @@ export class PlatformSchoolsComponent implements OnInit {
         this.syncWorkspaceFormFromDetail();
         this.workspaceProfileEditing = false;
         this.workspaceProfileErr = '';
-        this.editingAdminId = null;
-        this.adminEditErr = '';
         this.cdr.markForCheck();
       },
       error: e => {
@@ -880,6 +907,86 @@ export class PlatformSchoolsComponent implements OnInit {
     this.syncWorkspaceFormFromDetail();
   }
 
+  formatAdminPhone(a: Pick<PlatformSchoolAdmin, 'phone'>): string {
+    const raw = displayIndiaMobileTenFromApi(a.phone);
+    return raw || '—';
+  }
+
+  openAdminEditModal(admin: PlatformSchoolAdmin): void {
+    this.adminEditingUserId = admin.id;
+    const shown = digitsOnlyIndiaMobile(displayIndiaMobileTenFromApi(admin.phone));
+    this.adminEditHadStoredPhone = !!String(admin.phone ?? '').trim();
+    this.adminEditForm = {
+      name: (admin.name ?? '').trim(),
+      email: (admin.email ?? '').trim(),
+      phone: shown,
+    };
+    this.adminEditErr = '';
+    this.adminEditModalOpen = true;
+  }
+
+  closeAdminEditModal(): void {
+    if (this.adminEditSaving) {
+      return;
+    }
+    this.adminEditModalOpen = false;
+    this.adminEditingUserId = null;
+    this.adminEditErr = '';
+  }
+
+  saveAdminProfile(): void {
+    if (!this.selected || !this.adminEditingUserId) {
+      return;
+    }
+    const name = this.adminEditForm.name.trim();
+    const email = this.adminEditForm.email.trim();
+    const digits = digitsOnlyIndiaMobile(this.adminEditForm.phone);
+    if (!name) {
+      this.adminEditErr = this.translate.instant('platformSchools.adminEdit.validationName');
+      return;
+    }
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      this.adminEditErr = this.translate.instant('platformSchools.adminEdit.validationEmail');
+      return;
+    }
+    if (digits && !isValidIndiaMobileTen(digits)) {
+      this.adminEditErr = this.translate.instant('platformSchools.adminEdit.validationPhone');
+      return;
+    }
+    let phoneField: string | undefined;
+    if (!digits) {
+      phoneField = this.adminEditHadStoredPhone ? '' : undefined;
+    } else {
+      phoneField = digits;
+    }
+    const body: UpdateSchoolAdminRequest = { name, email };
+    if (phoneField !== undefined) {
+      body.phone = phoneField;
+    }
+    this.adminEditSaving = true;
+    this.adminEditErr = '';
+    this.platform.updateSchoolAdminProfile(this.selected.tenantId, Number(this.adminEditingUserId), body).subscribe({
+      next: updated => {
+        this.adminEditSaving = false;
+        if (this.detail?.admins) {
+          const id = String(this.adminEditingUserId);
+          this.detail = {
+            ...this.detail,
+            admins: this.detail.admins.map(x => (String(x.id) === id ? { ...x, ...updated } : x)),
+          };
+        }
+        this.closeAdminEditModal();
+        this.actionMessage = this.translate.instant('platformSchools.adminEdit.saved');
+        this.cdr.markForCheck();
+      },
+      error: (e: Error) => {
+        this.adminEditSaving = false;
+        this.adminEditErr = e?.message || this.translate.instant('platformSchools.adminEdit.err');
+        this.cdr.markForCheck();
+      },
+    });
+  }
+
   saveWorkspaceProfile(): void {
     if (!this.selected) {
       return;
@@ -915,60 +1022,6 @@ export class PlatformSchoolsComponent implements OnInit {
         error: (e: Error) => {
           this.workspaceProfileErr = e?.message || this.translate.instant('platformSchools.workspaceProfile.err');
           this.workspaceProfileSaving = false;
-          this.cdr.markForCheck();
-        },
-      });
-  }
-
-  toggleAdminEdit(admin: PlatformSchoolAdmin): void {
-    if (this.editingAdminId === admin.id) {
-      this.editingAdminId = null;
-      this.adminEditErr = '';
-      return;
-    }
-    this.editingAdminId = admin.id;
-    this.adminEditForm = {
-      name: admin.name ?? '',
-      email: admin.email ?? '',
-      phone: admin.phone ?? '',
-    };
-    this.adminEditErr = '';
-  }
-
-  cancelAdminEdit(): void {
-    this.editingAdminId = null;
-    this.adminEditErr = '';
-  }
-
-  saveAdminEdit(admin: PlatformSchoolAdmin): void {
-    if (!this.selected) {
-      return;
-    }
-    this.adminEditSaving = true;
-    this.adminEditErr = '';
-    const uid = Number(admin.id);
-    this.platform
-      .updateSchoolAdminProfile(this.selected.tenantId, uid, {
-        name: this.adminEditForm.name.trim() || undefined,
-        email: this.adminEditForm.email.trim() || undefined,
-        phone: this.adminEditForm.phone.trim(),
-      })
-      .subscribe({
-        next: updated => {
-          this.adminEditSaving = false;
-          if (this.detail?.admins?.length) {
-            this.detail = {
-              ...this.detail,
-              admins: this.detail.admins.map(x => (String(x.id) === String(updated.id) ? { ...x, ...updated } : x)),
-            };
-          }
-          this.editingAdminId = null;
-          this.actionMessage = this.translate.instant('platformSchools.adminEdit.saved');
-          this.cdr.markForCheck();
-        },
-        error: (e: Error) => {
-          this.adminEditErr = e?.message || this.translate.instant('platformSchools.adminEdit.err');
-          this.adminEditSaving = false;
           this.cdr.markForCheck();
         },
       });

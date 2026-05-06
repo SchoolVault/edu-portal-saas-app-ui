@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -82,6 +83,10 @@ public interface TeacherRepository extends JpaRepository<Teacher, Long> {
     Optional<Teacher> findByTenantIdAndEmailIgnoreCaseAndIsDeletedFalse(String tenantId, String email);
 
     Optional<Teacher> findByTenantIdAndPhoneAndIsDeletedFalse(String tenantId, String phone);
+
+    Optional<Teacher> findFirstByTenantIdAndPhoneInAndIsDeletedFalseOrderByIdAsc(String tenantId, Collection<String> phones);
+
+    boolean existsByTenantIdAndPhoneInAndIsDeletedFalse(String tenantId, Collection<String> phones);
     Optional<Teacher> findByTenantIdAndEmployeeCodeAndIsDeletedFalse(String tenantId, String employeeCode);
 
     boolean existsByTenantIdAndPhoneAndIsDeletedFalse(String tenantId, String phone);

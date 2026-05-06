@@ -56,6 +56,9 @@ import { ImportExportService } from '../../core/services/import-export.service';
         gap: 8px;
         flex-wrap: wrap;
       }
+      .student-list-filter-select {
+        width: 170px;
+      }
       .student-list-table-wrap {
         width: 100%;
         max-width: 100%;
@@ -82,6 +85,16 @@ import { ImportExportService } from '../../core/services/import-export.service';
         background: color-mix(in srgb, var(--clr-primary) 12%, var(--clr-surface));
       }
       @media (max-width: 768px) {
+        .student-list-filter-row {
+          flex-direction: column;
+          align-items: stretch;
+        }
+        .student-list-filter-group {
+          width: 100%;
+        }
+        .student-list-filter-select {
+          width: 100%;
+        }
         .student-list-search {
           min-width: 100%;
           max-width: 100%;
@@ -137,23 +150,22 @@ import { ImportExportService } from '../../core/services/import-export.service';
                    (input)="onSearchInput()" data-testid="student-search-input">
           </div>
           <div class="student-list-filter-group erp-filter-toolbar__actions">
-            <select class="erp-select" style="width: 170px;" [(ngModel)]="classFilter" (change)="onClassOrStatusChange()" data-testid="class-filter">
+            <select class="erp-select student-list-filter-select" [(ngModel)]="classFilter" (ngModelChange)="onClassFilterChange($event)" data-testid="class-filter">
               <option *ngFor="let c of classOptions" [value]="c.value">{{ c.value === '' ? ('students.list.allClasses' | translate) : classDisplayName(c.label) }}</option>
             </select>
             <select
-              class="erp-select"
-              style="width: 170px;"
+              class="erp-select student-list-filter-select"
               [(ngModel)]="sectionFilter"
-              (change)="onClassOrStatusChange()"
+              (ngModelChange)="onSectionFilterChange($event)"
               [disabled]="sectionFilterDisabled"
               data-testid="section-filter"
             >
               <option value="">
                 {{ sectionFilterDisabled ? ('students.list.selectSection' | translate) : ('students.list.allSections' | translate) }}
               </option>
-              <option *ngFor="let s of sectionOptions" [value]="s.value">{{ s.label }}</option>
+              <option *ngFor="let s of sectionOptions; trackBy: trackBySectionOptionValue" [value]="s.value">{{ s.label }}</option>
             </select>
-            <select class="erp-select" style="width: 170px;" [(ngModel)]="statusFilter" (change)="onClassOrStatusChange()" data-testid="status-filter">
+            <select class="erp-select student-list-filter-select" [(ngModel)]="statusFilter" (ngModelChange)="onStatusFilterChange($event)" data-testid="status-filter">
               <option value="">{{ 'students.list.allStatus' | translate }}</option>
               <option value="active">{{ 'students.enums.status.active' | translate }}</option>
               <option *ngIf="canViewInactive" value="inactive">{{ 'students.enums.status.inactive' | translate }}</option>
@@ -298,6 +310,8 @@ export class StudentListComponent implements OnInit, OnDestroy {
   private readonly searchDebounced$ = new Subject<void>();
   /** Ignores stale HTTP responses when a newer list request was started. */
   private studentsListRequestSeq = 0;
+  /** True when route carries homeroom-focused class filtering (dashboard deep-link). */
+  private hasHomeroomRouteClassHint = false;
 
   constructor(
     private studentService: StudentService,
@@ -329,12 +343,30 @@ export class StudentListComponent implements OnInit, OnDestroy {
       return [];
     }
     const cls = this.allClasses.find(c => c.id === classId);
-    const sections = [...(cls?.sections ?? [])].sort((a, b) => a.name.localeCompare(b.name));
-    return sections.map(s => ({ value: String(s.id), label: s.name }));
+    const fromClass = (cls?.sections ?? []).map(s => ({ value: String(s.id), label: s.name }));
+    const fromRows = this.collectSectionOptionsFromRowsForClass(classId);
+    const merged = new Map<string, string>();
+    for (const item of [...fromClass, ...fromRows]) {
+      const key = String(item.value);
+      const label = (item.label ?? '').trim();
+      if (!key || key === '0' || !label) {
+        continue;
+      }
+      if (!merged.has(key)) {
+        merged.set(key, label);
+      }
+    }
+    return [...merged.entries()]
+      .map(([value, label]) => ({ value, label }))
+      .sort((a, b) => a.label.localeCompare(b.label));
   }
 
   get sectionFilterDisabled(): boolean {
     return !this.classFilter || this.sectionOptions.length === 0;
+  }
+
+  trackBySectionOptionValue(_: number, item: { value: string; label: string }): string {
+    return String(item.value);
   }
 
   statusLabel(status: string): string {
@@ -392,12 +424,132 @@ export class StudentListComponent implements OnInit, OnDestroy {
     const q = this.route.snapshot.queryParamMap;
     const cid = q.get('classId');
     const sid = q.get('sectionId');
+    this.hasHomeroomRouteClassHint = !!cid && /^\d+$/.test(cid);
     if (cid && /^\d+$/.test(cid)) {
       this.classFilter = cid;
     } else {
       this.classFilter = '';
     }
-    this.sectionFilter = sid && /^\d+$/.test(sid) ? sid : '';
+    if (sid && /^\d+$/.test(sid)) {
+      this.sectionFilter = sid;
+      return;
+    }
+    this.sectionFilter = '';
+    const profileHomeroom = this.auth.getProfileSummarySnapshot()?.classTeacherOf?.[0];
+    if (
+      this.hasHomeroomRouteClassHint &&
+      profileHomeroom?.classId != null &&
+      String(profileHomeroom.classId) === this.classFilter &&
+      profileHomeroom.sectionId != null
+    ) {
+      this.sectionFilter = String(profileHomeroom.sectionId);
+    }
+  }
+
+  /**
+   * Teacher deep-links may already return homeroom-scoped rows from the backend while section dropdown stays blank.
+   * Sync the visible section filter when exactly one section is present in fetched rows.
+   */
+  private syncHomeroomSectionFilterFromRows(rows: Student[]): void {
+    if (
+      !this.hasHomeroomRouteClassHint ||
+      (this.auth.getNormalizedRole() ?? '').toLowerCase() !== 'teacher' ||
+      !this.classFilter ||
+      !!this.sectionFilter ||
+      !rows?.length
+    ) {
+      return;
+    }
+    const sectionIds = [...new Set(
+      rows
+        .map(r => Number(r.sectionId))
+        .filter(id => Number.isFinite(id) && id > 0)
+    )];
+    if (sectionIds.length !== 1) {
+      return;
+    }
+    const candidate = String(sectionIds[0]);
+    if (this.sectionOptions.some(s => s.value === candidate)) {
+      this.sectionFilter = candidate;
+    }
+  }
+
+  /**
+   * Fallback section options from current roster rows for the selected class.
+   * Covers deep-link cases where class metadata sections lag behind row payload.
+   */
+  private collectSectionOptionsFromRowsForClass(classId: number): { value: string; label: string }[] {
+    const pool = [...(this.paginatedStudents ?? []), ...(this.filteredStudents ?? []), ...(this.students ?? [])];
+    const merged = new Map<string, string>();
+    for (const row of pool) {
+      if (Number(row.classId) !== Number(classId)) {
+        continue;
+      }
+      const sid = Number(row.sectionId);
+      const sname = (row.sectionName ?? '').trim();
+      if (!Number.isFinite(sid) || sid <= 0 || !sname) {
+        continue;
+      }
+      const key = String(sid);
+      if (!merged.has(key)) {
+        merged.set(key, sname);
+      }
+    }
+    return [...merged.entries()].map(([value, label]) => ({ value, label }));
+  }
+
+  /**
+   * Keeps section dropdown selection consistent with deep-link scope and fetched roster rows.
+   * Handles cases where backend rows are correctly section-scoped but the select model is unmatched.
+   */
+  private reconcileSectionFilterUi(rows: Student[]): void {
+    if (!this.classFilter) {
+      this.sectionFilter = '';
+      return;
+    }
+    const options = this.sectionOptions;
+    if (!options.length) {
+      // Keep current value while async options/data are still stabilizing.
+      return;
+    }
+    const hasValidCurrent =
+      !!this.sectionFilter && options.some(o => String(o.value) === String(this.sectionFilter));
+    if (hasValidCurrent) {
+      return;
+    }
+    const ids = [...new Set(
+      rows
+        .map(r => Number(r.sectionId))
+        .filter(id => Number.isFinite(id) && id > 0)
+        .map(id => String(id))
+    )];
+    if (ids.length === 1 && options.some(o => o.value === ids[0])) {
+      this.sectionFilter = ids[0];
+      return;
+    }
+    const names = [...new Set(
+      rows
+        .map(r => (r.sectionName ?? '').trim().toLowerCase())
+        .filter(Boolean)
+    )];
+    if (names.length === 1) {
+      const byName = options.find(o => o.label.trim().toLowerCase() === names[0]);
+      if (byName) {
+        this.sectionFilter = byName.value;
+        return;
+      }
+    }
+    const profileHomeroom = this.auth.getProfileSummarySnapshot()?.classTeacherOf?.[0];
+    if (
+      profileHomeroom?.classId != null &&
+      String(profileHomeroom.classId) === this.classFilter &&
+      profileHomeroom.sectionId != null
+    ) {
+      const byProfile = String(profileHomeroom.sectionId);
+      if (options.some(o => o.value === byProfile)) {
+        this.sectionFilter = byProfile;
+      }
+    }
   }
 
   ngOnDestroy(): void {
@@ -412,10 +564,34 @@ export class StudentListComponent implements OnInit, OnDestroy {
     }
   }
 
-  onClassOrStatusChange(): void {
-    if (!this.classFilter || this.sectionFilterDisabled || !this.sectionOptions.some(s => s.value === this.sectionFilter)) {
+  onClassFilterChange(nextValue: string): void {
+    this.classFilter = nextValue ?? '';
+    const hasSelectedSection = !!this.sectionFilter;
+    const selectedStillValid =
+      hasSelectedSection && this.sectionOptions.some(s => String(s.value) === String(this.sectionFilter));
+    if (!this.classFilter || !selectedStillValid) {
       this.sectionFilter = '';
     }
+    if (this.useServerPaging) {
+      this.pageIndex = 0;
+      this.fetchStudentsPage();
+    } else {
+      this.filterStudents();
+    }
+  }
+
+  onSectionFilterChange(nextValue: string): void {
+    this.sectionFilter = nextValue ?? '';
+    if (this.useServerPaging) {
+      this.pageIndex = 0;
+      this.fetchStudentsPage();
+    } else {
+      this.filterStudents();
+    }
+  }
+
+  onStatusFilterChange(nextValue: string): void {
+    this.statusFilter = nextValue ?? '';
     if (this.useServerPaging) {
       this.pageIndex = 0;
       this.fetchStudentsPage();
@@ -538,6 +714,8 @@ export class StudentListComponent implements OnInit, OnDestroy {
             if (seq !== this.studentsListRequestSeq) return;
             this.serverTotal = page.totalElements;
             this.paginatedStudents = page.content;
+            this.syncHomeroomSectionFilterFromRows(page.content);
+            this.reconcileSectionFilterUi(page.content);
             this.pageIndex = page.page;
             this.pageSize = page.size;
             this.loadingStudents = false;

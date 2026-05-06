@@ -123,6 +123,7 @@ public class OltpReportQueryAdapter implements ReportQueryPort {
         response.setMonthlyAdmissions(buildMonthlyAdmissions(tenantId));
         response.setMonthlyCollections(buildMonthlyCollections(payments));
         response.setAttendanceOverview(buildAttendanceOverview(tenantId, today, scope));
+        response.setAttendanceToday(buildAttendanceOverview(tenantId, today, AdminAttendanceOverviewScope.TODAY));
         List<ReportDashboardDTOs.ActivityItem> activities = buildAdminRecentActivities(tenantId, today, 8);
         response.setRecentActivities(activities);
         response.setUpcomingEvents(buildAdminUpcomingEvents(tenantId, today, 8));
@@ -254,7 +255,8 @@ public class OltpReportQueryAdapter implements ReportQueryPort {
         if (!response.getClassTeacherOf().isEmpty()) {
             response.setStudentsAssigned(response.getClassTeacherOf().get(0).getTotalStudents());
         } else {
-            response.setStudentsAssigned(classIds.isEmpty() ? 0 : studentIds.size());
+            // KPI semantics: "Students in my class" refers to active homeroom only, not full timetable reach.
+            response.setStudentsAssigned(0);
         }
 
         boolean homeroomMarked = false;

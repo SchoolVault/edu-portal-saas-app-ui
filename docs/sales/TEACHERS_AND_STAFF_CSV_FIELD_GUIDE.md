@@ -15,7 +15,7 @@ This matches **`ImportCanonicalFieldCatalog`**, **`ImportBulkRowValidator`**, an
 | `firstname` | **Required** | Text |
 | `lastname` | **Required** | Text |
 | `email` | Optional | If `portalpassword` is set, **email is required** |
-| `phone` | **Required** | E.164-style; for India e.g. `+9198xxxxxxxxx` |
+| `phone` | **Required** | **10-digit Indian mobile** in the CSV (no `+91` / E.164 in the sheet); imports normalize internally. Example: `9876543210` |
 | `qualification` | Optional | e.g. B.Ed, M.Ed |
 | `specialization` | Optional | e.g. Mathematics, English |
 | `joindate` | Optional | `yyyy-MM-dd` |

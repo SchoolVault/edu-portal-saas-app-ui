@@ -14,6 +14,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.security.SecureRandom;
+import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 
@@ -53,10 +54,14 @@ public class PortalUserProvisioningService {
      */
     @Transactional
     public ProvisionResult ensureParentUserForImport(String tenantId, String name, String email, String phone, String parentCode) {
-        String normPhone = PhoneNormalization.trimToNull(phone);
-        if (normPhone == null) {
+        if (phone == null || phone.isBlank()) {
             throw new BusinessException("parentphone is required to create or link a parent portal user");
         }
+        String nationalPhone = InternationalPhone.nationalIndiaMobile10(phone);
+        if (nationalPhone == null) {
+            throw new BusinessException(InternationalPhone.importPhoneInvalidMessage());
+        }
+        List<String> phoneKeys = InternationalPhone.compatibleLookupKeys("+91-" + nationalPhone);
         String normalizedParentCode = normalizeParentCode(parentCode);
         String normalizedEmail = email != null ? email.trim().toLowerCase(Locale.ROOT) : null;
         if (normalizedEmail != null && normalizedEmail.isBlank()) {
@@ -69,7 +74,7 @@ public class PortalUserProvisioningService {
                 if (u.getRole() != Enums.Role.PARENT) {
                     throw new BusinessException("This parent_code is already linked to a non-parent account in this school");
                 }
-                applyImportedParentContactChanges(u, tenantId, normalizedEmail, normPhone);
+                applyImportedParentContactChanges(u, tenantId, normalizedEmail, nationalPhone);
                 if (name != null && !name.isBlank()) {
                     u.setName(name.trim());
                 }
@@ -77,7 +82,7 @@ public class PortalUserProvisioningService {
                 return new ProvisionResult(u.getId(), null, false);
             }
         }
-        Optional<User> byPhone = userRepository.findByPhoneAndTenantIdAndIsDeletedFalse(normPhone, tenantId);
+        Optional<User> byPhone = userRepository.findFirstByTenantIdAndPhoneInAndIsDeletedFalseOrderByIdAsc(tenantId, phoneKeys);
         if (byPhone.isPresent()) {
             User u = byPhone.get();
             if (u.getRole() != Enums.Role.PARENT) {
@@ -90,7 +95,7 @@ public class PortalUserProvisioningService {
                 u.setParentCode(normalizedParentCode);
             }
             ensureParentUserHasCode(tenantId, u);
-            applyImportedParentContactChanges(u, tenantId, normalizedEmail, normPhone);
+            applyImportedParentContactChanges(u, tenantId, normalizedEmail, nationalPhone);
             if (name != null && !name.isBlank()) {
                 u.setName(name.trim());
             }
@@ -108,7 +113,7 @@ public class PortalUserProvisioningService {
                 .name(name != null && !name.isBlank() ? name.trim() : "Parent")
                 .email(null)
                 .password(passwordEncoder.encode(plain))
-                .phone(normPhone)
+                .phone(nationalPhone)
                 .role(Enums.Role.PARENT)
                 .schoolCode(schoolCode)
                 .build();
@@ -146,10 +151,11 @@ public class PortalUserProvisioningService {
         if (role != Enums.Role.TEACHER && role != Enums.Role.LIBRARY_STAFF && role != Enums.Role.SCHOOL_STAFF) {
             throw new IllegalArgumentException("Unsupported portal role: " + role);
         }
-        String canonicalPhone = InternationalPhone.canonical(phone != null ? phone.trim() : null);
-        if (canonicalPhone == null) {
-            throw new BusinessException(InternationalPhone.invalidMessage());
+        String nationalPhone = InternationalPhone.nationalIndiaMobile10(phone != null ? phone : null);
+        if (nationalPhone == null) {
+            throw new BusinessException(InternationalPhone.importPhoneInvalidMessage());
         }
+        List<String> phoneKeys = InternationalPhone.compatibleLookupKeys("+91-" + nationalPhone);
         String normalizedEmail = email != null ? email.trim().toLowerCase(Locale.ROOT) : null;
         String explicitPassword = importPassword != null ? importPassword.trim() : null;
         if (explicitPassword != null && explicitPassword.isEmpty()) {
@@ -165,12 +171,15 @@ public class PortalUserProvisioningService {
                 if (user.getRole() != role) {
                     throw new BusinessException("Email already registered with a different role in this school: " + normalizedEmail);
                 }
-                if (!canonicalPhone.equals(user.getPhone()) && userRepository.existsByPhoneAndTenantIdAndIsDeletedFalse(canonicalPhone, tenantId)) {
-                    throw new DuplicateResourceException("This mobile number is already registered for this school workspace");
+                boolean phoneChanged = user.getPhone() == null || !InternationalPhone.samePortalPhone(nationalPhone, user.getPhone());
+                if (phoneChanged) {
+                    Optional<User> otherPhone = userRepository.findFirstByTenantIdAndPhoneInAndIsDeletedFalseOrderByIdAsc(tenantId, phoneKeys);
+                    if (otherPhone.isPresent() && !otherPhone.get().getId().equals(user.getId())) {
+                        throw new DuplicateResourceException("This mobile number is already registered for this school workspace");
+                    }
                 }
                 boolean emailChanged = user.getEmail() == null || !normalizedEmail.equalsIgnoreCase(user.getEmail());
-                boolean phoneChanged = user.getPhone() == null || !canonicalPhone.equals(user.getPhone());
-                user.setPhone(canonicalPhone);
+                user.setPhone(nationalPhone);
                 if (emailChanged) {
                     user.setEmailVerified(false);
                 }
@@ -184,13 +193,13 @@ public class PortalUserProvisioningService {
                 return new ProvisionResult(user.getId(), explicitPassword, false);
             }
         }
-        Optional<User> byPhone = userRepository.findByPhoneAndTenantIdAndIsDeletedFalse(canonicalPhone, tenantId);
+        Optional<User> byPhone = userRepository.findFirstByTenantIdAndPhoneInAndIsDeletedFalseOrderByIdAsc(tenantId, phoneKeys);
         if (byPhone.isPresent()) {
             User user = byPhone.get();
             if (user.getRole() != role) {
                 throw new BusinessException("This mobile number is already registered with a different role in this school");
             }
-            boolean phoneChanged = user.getPhone() == null || !canonicalPhone.equals(user.getPhone());
+            boolean phoneChanged = user.getPhone() == null || !InternationalPhone.samePortalPhone(nationalPhone, user.getPhone());
             if (normalizedEmail != null && user.getEmail() == null) {
                 if (userRepository.existsByEmailAndTenantIdAndIsDeletedFalse(normalizedEmail, tenantId)) {
                     throw new DuplicateResourceException("User email already exists in this school: " + normalizedEmail);
@@ -215,7 +224,7 @@ public class PortalUserProvisioningService {
                 .name(name != null && !name.isBlank() ? name.trim() : "Staff")
                 .email(normalizedEmail)
                 .password(passwordEncoder.encode(storedPassword))
-                .phone(canonicalPhone)
+                .phone(nationalPhone)
                 .role(role)
                 .schoolCode(schoolCode)
                 .build();
@@ -241,8 +250,12 @@ public class PortalUserProvisioningService {
         String schoolCode = tenantConfigRepository.findByTenantId(tenantId)
                 .map(c -> c.getSchoolCode())
                 .orElseThrow(() -> new com.school.erp.common.exception.ResourceNotFoundException("Tenant settings not found"));
-        String normPhone = PhoneNormalization.trimToNull(phone);
-        if (normPhone != null && userRepository.existsByPhoneAndTenantIdAndIsDeletedFalse(normPhone, tenantId)) {
+        String nationalPhone = InternationalPhone.nationalIndiaMobile10(phone);
+        if (nationalPhone == null) {
+            throw new BusinessException(InternationalPhone.importPhoneInvalidMessage());
+        }
+        List<String> staffKeys = InternationalPhone.compatibleLookupKeys("+91-" + nationalPhone);
+        if (userRepository.existsByTenantIdAndPhoneInAndIsDeletedFalse(tenantId, staffKeys)) {
             throw new DuplicateResourceException("This mobile number is already registered for this school workspace");
         }
         String plain = randomPassword(12);
@@ -250,7 +263,7 @@ public class PortalUserProvisioningService {
                 .name(name != null && !name.isBlank() ? name.trim() : normalizedEmail)
                 .email(normalizedEmail)
                 .password(passwordEncoder.encode(plain))
-                .phone(normPhone)
+                .phone(nationalPhone)
                 .role(role)
                 .schoolCode(schoolCode)
                 .build();
@@ -360,12 +373,17 @@ public class PortalUserProvisioningService {
             }
         }
         if (normalizedPhone != null) {
-            Optional<User> userByPhone = userRepository.findByPhoneAndTenantIdAndIsDeletedFalse(normalizedPhone, tenantId);
+            String national = InternationalPhone.nationalIndiaMobile10(normalizedPhone);
+            if (national == null) {
+                throw new BusinessException(InternationalPhone.importPhoneInvalidMessage());
+            }
+            List<String> keys = InternationalPhone.compatibleLookupKeys("+91-" + national);
+            Optional<User> userByPhone = userRepository.findFirstByTenantIdAndPhoneInAndIsDeletedFalseOrderByIdAsc(tenantId, keys);
             if (userByPhone.isPresent() && !userByPhone.get().getId().equals(user.getId())) {
                 throw new DuplicateResourceException("This mobile number is already registered for this school workspace");
             }
-            if (user.getPhone() == null || !normalizedPhone.equals(user.getPhone())) {
-                user.setPhone(normalizedPhone);
+            if (user.getPhone() == null || !InternationalPhone.samePortalPhone(national, user.getPhone())) {
+                user.setPhone(national);
                 user.setPhoneVerified(false);
             }
         }

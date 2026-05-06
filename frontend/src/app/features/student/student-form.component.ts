@@ -19,6 +19,7 @@ import { formatSchoolClassName } from '../../core/i18n/school-class-display';
 import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directives';
 import { UserFacingHttpError } from '../../core/http/user-facing-http-error';
 import { StudentGuardianMapping } from '../../core/models/models';
+import { isValidIndiaMobileTen } from '../../core/validation/phone.validation';
 
 @Component({
   selector: 'app-student-form',
@@ -824,7 +825,7 @@ export class StudentFormComponent implements OnInit, OnDestroy {
   }
 
   private isValidTenDigitPhone(value: string | null | undefined): boolean {
-    return /^\d{10}$/.test((value ?? '').trim());
+    return isValidIndiaMobileTen(value);
   }
 
   ngOnDestroy(): void {

@@ -1,0 +1,38 @@
+Phase4 production-mini E2E pack (50 staff, classes 1–12)
+============================================================
+
+Use a dedicated test tenant. All emails use domain:
+  vidyaniketan-e2e.import.edu.in
+
+Portal passwords (when create_portal = Y):
+  Teachers: Vne2e@T001 … Vne2e@T032
+  Staff:      Vne2e@S001 … Vne2e@S018
+
+Counts
+------
+  • Classes/sections: same layout as phase4-production-mini-1to12 (1–5 whole-class; 6–12 with sections).
+  • Teachers: 32 (T001–T032) — 24 homeroom/academic from mini pack + 8 enrichment (T025–T032) with SATURDAY timetable rows.
+  • Staff: 18 (S001–S018) — non-teaching roles (library, office, ops, etc.).
+  • Students: 119 — includes one QA smoke row (Smoke ContactChild) with guardian.qa.vne@… and notify_credentials N.
+  • Timetable: phase4 mini rows + 8 SATURDAY enrichment lines referencing T025–T032.
+
+Import order (matches Import/Export wizard sequence badges)
+------------------------------------------------------------
+  1. Job CLASSES          → 01_classes_sections.csv
+  2. Job TEACHERS         → 02_teachers.csv
+  3. Job STAFF            → 03_staff.csv
+  4. Job STUDENTS         → 03_students.csv
+  5. Job TIMETABLE        → 04_timetable.csv
+  6. Job FEE_STRUCTURES   → 05_fee_structures.csv
+
+Second pass (homeroom / class-teacher slots on teachers already imported):
+  7. Job TEACHERS again (UPSERT) → 06_class_teacher_assignment_second_pass.csv
+     Same columns as teachers; rows include class_teacher_slot filled for homerooms.
+
+Regenerating from source pack
+-----------------------------
+From repo root:
+
+  python3 docs/onboarding-import-pack/phase4-production-mini-1to12-50staff-e2e/build_pack.py
+
+Source of truth: docs/onboarding-import-pack/phase4-production-mini-1to12/

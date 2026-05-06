@@ -64,21 +64,22 @@ public class OtpService {
     public PhoneAuthDTOs.SendOtpResponse sendOtp(PhoneAuthDTOs.SendOtpRequest request) {
         String tenantId = schoolCodeTenantResolver.resolveTenantId(request.getSchoolCode());
         String requestId = request.getRequestId() != null ? request.getRequestId() : UUID.randomUUID().toString();
-        String phone = InternationalPhone.canonical(request.getPhone().trim());
-        if (phone == null) {
+        String national = InternationalPhone.nationalIndiaMobile10(request.getPhone().trim());
+        if (national == null) {
             log.warn("OTP send rejected: invalid phone raw={}", request.getPhone());
             return PhoneAuthDTOs.SendOtpResponse.builder()
                     .success(false)
-                    .message(InternationalPhone.invalidMessage())
+                    .message(InternationalPhone.importPhoneInvalidMessage())
                     .requestId(requestId)
                     .canRetryAfterSeconds(0L)
                     .build();
         }
+        List<String> phoneKeys = InternationalPhone.compatibleLookupKeys("+91-" + national);
 
-        log.info("OTP send phone={} purpose={} tenantId={} requestId={}", phone, request.getPurpose(), tenantId, requestId);
+        log.info("OTP send phone={} purpose={} tenantId={} requestId={}", national, request.getPurpose(), tenantId, requestId);
 
-        if (!checkRateLimit(phone, tenantId)) {
-            log.warn("OTP rate limit exceeded phone={}", phone);
+        if (!checkRateLimit(phoneKeys, tenantId)) {
+            log.warn("OTP rate limit exceeded phone={}", national);
             return PhoneAuthDTOs.SendOtpResponse.builder()
                     .success(false)
                     .message("Too many OTP requests. Please try again later.")
@@ -88,7 +89,7 @@ public class OtpService {
         }
 
         Optional<OtpVerification> recentOtp = otpVerificationRepository.findLatestPendingOtp(
-                phone,
+                phoneKeys,
                 tenantId,
                 OtpPurpose.valueOf(request.getPurpose().toUpperCase()),
                 OtpStatus.PENDING,
@@ -99,7 +100,7 @@ public class OtpService {
             long secondsSinceLastOtp = java.time.Duration.between(recentOtp.get().getSentAt(), LocalDateTime.now()).getSeconds();
             if (secondsSinceLastOtp < resendCooldownSeconds) {
                 long remainingSeconds = resendCooldownSeconds - secondsSinceLastOtp;
-                log.warn("OTP cooldown active phone={} remainingSeconds={}", phone, remainingSeconds);
+                log.warn("OTP cooldown active phone={} remainingSeconds={}", national, remainingSeconds);
                 return PhoneAuthDTOs.SendOtpResponse.builder()
                         .success(false)
                         .message("Please wait before requesting another OTP.")
@@ -114,7 +115,7 @@ public class OtpService {
 
         OtpVerification otpVerification = OtpVerification.builder()
                 .tenantId(tenantId)
-                .phone(phone)
+                .phone(national)
                 .otpCode(otpCode)
                 .otpHash(otpHash)
                 .purpose(OtpPurpose.valueOf(request.getPurpose().toUpperCase()))
@@ -137,7 +138,7 @@ public class OtpService {
         );
 
         SmsRequest smsRequest = SmsRequest.builder()
-                .to(InternationalPhone.toSmsAddress(phone))
+                .to(InternationalPhone.toSmsAddress("+91-" + national))
                 .message(message)
                 .tenantId(tenantId)
                 .correlationId(requestId)
@@ -174,20 +175,21 @@ public class OtpService {
     @Transactional
     public PhoneAuthDTOs.VerifyOtpResponse verifyOtp(PhoneAuthDTOs.VerifyOtpRequest request) {
         String tenantId = schoolCodeTenantResolver.resolveTenantId(request.getSchoolCode());
-        String phone = InternationalPhone.canonical(request.getPhone().trim());
-        if (phone == null) {
+        String national = InternationalPhone.nationalIndiaMobile10(request.getPhone().trim());
+        if (national == null) {
             log.warn("OTP verify rejected: invalid phone");
             return PhoneAuthDTOs.VerifyOtpResponse.builder()
                     .verified(false)
-                    .message(InternationalPhone.invalidMessage())
+                    .message(InternationalPhone.importPhoneInvalidMessage())
                     .remainingAttempts(0)
                     .build();
         }
+        List<String> phoneKeys = InternationalPhone.compatibleLookupKeys("+91-" + national);
 
-        log.info("OTP verify phone={} purpose={} tenantId={}", phone, request.getPurpose(), tenantId);
+        log.info("OTP verify phone={} purpose={} tenantId={}", national, request.getPurpose(), tenantId);
 
         Optional<OtpVerification> otpOpt = otpVerificationRepository.findLatestPendingOtp(
-                phone,
+                phoneKeys,
                 tenantId,
                 OtpPurpose.valueOf(request.getPurpose().toUpperCase()),
                 OtpStatus.PENDING,
@@ -195,7 +197,7 @@ public class OtpService {
         );
 
         if (otpOpt.isEmpty()) {
-            log.warn("OTP verify no pending record phone={}", phone);
+            log.warn("OTP verify no pending record phone={}", national);
             return PhoneAuthDTOs.VerifyOtpResponse.builder()
                     .verified(false)
                     .message("Invalid or expired OTP. Please request a new one.")
@@ -233,7 +235,7 @@ public class OtpService {
             otp.setExchangeToken(exchange);
             otpVerificationRepository.save(otp);
 
-            log.info("OTP verified phone={} tenantId={}", phone, tenantId);
+            log.info("OTP verified phone={} tenantId={}", national, tenantId);
 
             return PhoneAuthDTOs.VerifyOtpResponse.builder()
                     .verified(true)
@@ -247,7 +249,7 @@ public class OtpService {
         otpVerificationRepository.save(otp);
 
         int remainingAttempts = otp.getMaxAttempts() - otp.getAttempts();
-        log.warn("OTP mismatch phone={} remainingAttempts={}", phone, remainingAttempts);
+        log.warn("OTP mismatch phone={} remainingAttempts={}", national, remainingAttempts);
 
         return PhoneAuthDTOs.VerifyOtpResponse.builder()
                 .verified(false)
@@ -264,9 +266,9 @@ public class OtpService {
         return otp.toString();
     }
 
-    private boolean checkRateLimit(String phone, String tenantId) {
+    private boolean checkRateLimit(List<String> phoneKeys, String tenantId) {
         LocalDateTime windowStart = LocalDateTime.now().minusMinutes(rateLimitWindowMinutes);
-        List<OtpVerification> recentOtps = otpVerificationRepository.findRecentOtpsByPhone(phone, tenantId, windowStart);
+        List<OtpVerification> recentOtps = otpVerificationRepository.findRecentOtpsByPhoneIn(phoneKeys, tenantId, windowStart);
         return recentOtps.size() < rateLimitMaxRequests;
     }
 

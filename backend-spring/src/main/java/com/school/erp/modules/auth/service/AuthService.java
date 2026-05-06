@@ -83,13 +83,13 @@ public class AuthService {
         User user;
         boolean emailLogin = request.getPhone() == null || request.getPhone().isBlank();
         if (request.getPhone() != null && !request.getPhone().isBlank()) {
-            String canonicalPhone = InternationalPhone.canonical(request.getPhone().trim());
-            if (canonicalPhone == null) {
-                throw new BusinessException(InternationalPhone.invalidMessage());
+            String nationalPhone = InternationalPhone.nationalIndiaMobile10(request.getPhone().trim());
+            if (nationalPhone == null) {
+                throw new BusinessException(InternationalPhone.importPhoneInvalidMessage());
             }
             user = userRepository
                     .findFirstBySchoolCodeAndPhoneInAndIsDeletedFalseOrderByIdAsc(
-                            schoolCode, InternationalPhone.compatibleLookupKeys(canonicalPhone))
+                            schoolCode, InternationalPhone.compatibleLookupKeys("+91-" + nationalPhone))
                     .orElseThrow(() -> new UnauthorizedException("Invalid credentials or school code"));
         } else {
             user = userRepository.findByEmailAndSchoolCodeAndIsDeletedFalse(request.getEmail().trim().toLowerCase(Locale.ROOT), schoolCode)
@@ -156,15 +156,14 @@ public class AuthService {
         if (userRepository.existsByEmailAndTenantId(request.getEmail(), tenantId)) throw new DuplicateResourceException("Email already registered in this school");
         String regPhone = request.getPhone() == null || request.getPhone().isBlank()
                 ? null
-                : InternationalPhone.canonical(request.getPhone().trim());
+                : InternationalPhone.nationalIndiaMobile10(request.getPhone().trim());
         if (request.getPhone() != null && !request.getPhone().isBlank() && regPhone == null) {
-            throw new BusinessException(InternationalPhone.invalidMessage());
+            throw new BusinessException(InternationalPhone.importPhoneInvalidMessage());
         }
         if (regPhone != null) {
-            for (String key : InternationalPhone.compatibleLookupKeys(regPhone)) {
-                if (userRepository.existsByPhoneAndTenantIdAndIsDeletedFalse(key, tenantId)) {
-                    throw new DuplicateResourceException("This mobile number is already registered in this school");
-                }
+            if (userRepository.existsByTenantIdAndPhoneInAndIsDeletedFalse(
+                    tenantId, InternationalPhone.compatibleLookupKeys("+91-" + regPhone))) {
+                throw new DuplicateResourceException("This mobile number is already registered in this school");
             }
         }
         TenantConfig tenantConfig = tenantConfigRepository.findByTenantId(tenantId).orElseThrow(() -> new ResourceNotFoundException("Tenant settings not configured"));
@@ -205,14 +204,15 @@ public class AuthService {
         }
         String tenantId = buildTenantId(normalizedSchoolCode);
 
-        String adminPhone = InternationalPhone.canonical(request.getPhone().trim());
+        String adminPhone = InternationalPhone.nationalIndiaMobile10(request.getPhone().trim());
         if (adminPhone == null) {
-            throw new BusinessException(InternationalPhone.invalidMessage());
+            throw new BusinessException(InternationalPhone.importPhoneInvalidMessage());
         }
-        for (String key : InternationalPhone.compatibleLookupKeys(adminPhone)) {
-            if (userRepository.existsByPhoneAndTenantIdAndIsDeletedFalse(key, tenantId)) {
-                throw new DuplicateResourceException("This mobile number is already registered in this school");
-            }
+        List<String> adminKeys = InternationalPhone.compatibleLookupKeys("+91-" + adminPhone);
+        if (userRepository.existsByTenantIdAndPhoneInAndIsDeletedFalse(tenantId, adminKeys)) {
+            throw new DuplicateResourceException("This mobile number is already registered in this school");
+        }
+        for (String key : adminKeys) {
             if (userRepository.existsByPhoneAndRoleAndIsDeletedFalse(key, com.school.erp.common.enums.Enums.Role.ADMIN)) {
                 throw new DuplicateResourceException("This mobile number is already assigned to another school administrator");
             }
@@ -386,16 +386,16 @@ public class AuthService {
             user.setName(name);
         }
         if (request.getPhone() != null) {
-            String canonicalPhone = request.getPhone().isBlank() ? null : InternationalPhone.canonical(request.getPhone().trim());
-            if (!request.getPhone().isBlank() && canonicalPhone == null) {
-                throw new BusinessException(InternationalPhone.invalidMessage());
+            String nationalPhone = request.getPhone().isBlank() ? null : InternationalPhone.nationalIndiaMobile10(request.getPhone().trim());
+            if (!request.getPhone().isBlank() && nationalPhone == null) {
+                throw new BusinessException(InternationalPhone.importPhoneInvalidMessage());
             }
-            if (canonicalPhone != null) {
-                ensurePhoneNotUsedByAnotherUser(tenantId, userId, canonicalPhone);
+            if (nationalPhone != null) {
+                ensurePhoneNotUsedByAnotherUser(tenantId, userId, nationalPhone);
             }
             String priorPhone = user.getPhone();
-            user.setPhone(canonicalPhone);
-            if (!Objects.equals(priorPhone, canonicalPhone)) {
+            user.setPhone(nationalPhone);
+            if (!Objects.equals(priorPhone, nationalPhone)) {
                 user.setPhoneVerified(false);
             }
         }
@@ -432,6 +432,9 @@ public class AuthService {
         userRepository.save(user);
         if (user.getRole() == Enums.Role.PARENT) {
             guardianLinkSyncService.syncGuardianDirectoryForPortalUser(tenantId, userId);
+            if (request.getName() != null) {
+                propagateParentNameToLinkedStudents(tenantId, userId, user.getName());
+            }
         }
         return toProfile(user);
     }
@@ -461,16 +464,16 @@ public class AuthService {
             user.setAvatar(trimToNull(request.getAvatar()));
         }
         if (request.getPhone() != null) {
-            String canonicalPhone = request.getPhone().isBlank() ? null : InternationalPhone.canonical(request.getPhone().trim());
-            if (!request.getPhone().isBlank() && canonicalPhone == null) {
-                throw new BusinessException(InternationalPhone.invalidMessage());
+            String nationalPhone = request.getPhone().isBlank() ? null : InternationalPhone.nationalIndiaMobile10(request.getPhone().trim());
+            if (!request.getPhone().isBlank() && nationalPhone == null) {
+                throw new BusinessException(InternationalPhone.importPhoneInvalidMessage());
             }
-            if (canonicalPhone != null) {
-                ensurePhoneNotUsedByAnotherUser(tenantId, userId, canonicalPhone);
+            if (nationalPhone != null) {
+                ensurePhoneNotUsedByAnotherUser(tenantId, userId, nationalPhone);
             }
             String priorPhone = user.getPhone();
-            user.setPhone(canonicalPhone);
-            if (!Objects.equals(priorPhone, canonicalPhone)) {
+            user.setPhone(nationalPhone);
+            if (!Objects.equals(priorPhone, nationalPhone)) {
                 user.setPhoneVerified(false);
             }
         }
@@ -567,6 +570,9 @@ public class AuthService {
         if (user.getRole() == Enums.Role.PARENT
                 && (request.getPhone() != null || request.getEmail() != null || request.getName() != null)) {
             guardianLinkSyncService.syncGuardianDirectoryForPortalUser(tenantId, userId);
+            if (request.getName() != null) {
+                propagateParentNameToLinkedStudents(tenantId, userId, user.getName());
+            }
         } else if ((user.getRole() == Enums.Role.SCHOOL_STAFF || user.getRole() == Enums.Role.LIBRARY_STAFF)
                 && (request.getPhone() != null || request.getEmail() != null || request.getName() != null)) {
             operationalStaffRepository.findByTenantIdAndUserIdAndIsDeletedFalse(tenantId, userId).ifPresent(staff -> {
@@ -583,6 +589,32 @@ public class AuthService {
             });
         }
         return toPersonalProfile(user);
+    }
+
+    /**
+     * Keeps {@code students.parent_name} aligned with parent profile edits so admin, parent, and teacher views
+     * all render the same guardian display name.
+     */
+    private void propagateParentNameToLinkedStudents(String tenantId, Long parentUserId, String parentName) {
+        if (tenantId == null || parentUserId == null || parentName == null || parentName.isBlank()) {
+            return;
+        }
+        String normalized = parentName.trim();
+        List<com.school.erp.modules.student.entity.Student> linked =
+                studentRepository.findByTenantIdAndParentIdAndIsDeletedFalse(tenantId, parentUserId);
+        boolean touched = false;
+        for (com.school.erp.modules.student.entity.Student row : linked) {
+            if (row == null || row.getId() == null) {
+                continue;
+            }
+            if (!normalized.equals(row.getParentName())) {
+                row.setParentName(normalized);
+                touched = true;
+            }
+        }
+        if (touched) {
+            studentRepository.saveAll(linked);
+        }
     }
 
     @Transactional
@@ -664,19 +696,19 @@ public class AuthService {
         Long userId = TenantContext.getUserId();
         User user = userRepository.findByIdAndTenantIdAndIsDeletedFalse(userId, tenantId)
                 .orElseThrow(() -> new ResourceNotFoundException("User", userId));
-        String canonicalPhone = InternationalPhone.canonical(request.getPhone().trim());
-        if (canonicalPhone == null) {
-            throw new BusinessException(InternationalPhone.invalidMessage());
+        String nationalPhone = InternationalPhone.nationalIndiaMobile10(request.getPhone().trim());
+        if (nationalPhone == null) {
+            throw new BusinessException(InternationalPhone.importPhoneInvalidMessage());
         }
-        ensurePhoneNotUsedByAnotherUser(tenantId, userId, canonicalPhone);
+        ensurePhoneNotUsedByAnotherUser(tenantId, userId, nationalPhone);
         String oldPhone = user.getPhone();
-        user.setPhone(canonicalPhone);
+        user.setPhone(nationalPhone);
         user.setPhoneVerified(false);
         userRepository.save(user);
         List<com.school.erp.modules.teacher.entity.Teacher> linkedTeachersForPhone =
                 teacherRepository.findAllByTenantIdAndUserIdAndIsDeletedFalseOrderByIdAsc(tenantId, userId);
         for (com.school.erp.modules.teacher.entity.Teacher teacher : linkedTeachersForPhone) {
-            teacher.setPhone(canonicalPhone);
+            teacher.setPhone(nationalPhone);
         }
         if (!linkedTeachersForPhone.isEmpty()) {
             teacherRepository.saveAll(linkedTeachersForPhone);
@@ -688,7 +720,7 @@ public class AuthService {
                 userId,
                 "USER",
                 oldPhone,
-                canonicalPhone);
+                nationalPhone);
         AuthIdentityDTOs.IdentityUpdateResponse out = new AuthIdentityDTOs.IdentityUpdateResponse();
         out.setUser(toProfile(user));
         out.setMessage("Phone updated. Verify with OTP on next login.");
@@ -796,13 +828,17 @@ public class AuthService {
         return score;
     }
 
-    private void ensurePhoneNotUsedByAnotherUser(String tenantId, Long currentUserId, String canonicalPhone) {
-        for (String key : InternationalPhone.compatibleLookupKeys(canonicalPhone)) {
-            User existing = userRepository.findByPhoneAndTenantIdAndIsDeletedFalse(key, tenantId).orElse(null);
-            if (existing != null && !Objects.equals(existing.getId(), currentUserId)) {
-                throw new DuplicateResourceException("This mobile number is already registered in this school");
-            }
+    private void ensurePhoneNotUsedByAnotherUser(String tenantId, Long currentUserId, String national10) {
+        if (national10 == null) {
+            return;
         }
+        List<String> keys = InternationalPhone.compatibleLookupKeys("+91-" + national10);
+        userRepository
+                .findFirstByTenantIdAndPhoneInAndIsDeletedFalseOrderByIdAsc(tenantId, keys)
+                .filter(u -> !Objects.equals(u.getId(), currentUserId))
+                .ifPresent(u -> {
+                    throw new DuplicateResourceException("This mobile number is already registered in this school");
+                });
     }
 
     private String permissionCsvForToken(User user) {

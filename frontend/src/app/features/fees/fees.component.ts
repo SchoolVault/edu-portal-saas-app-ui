@@ -636,7 +636,7 @@ import { formatDateDdMmYyyy } from '../../core/utils/date-format';
                 <h4 style="font-size: 15px; font-weight: 700;">{{ fs.name }}</h4>
                 <span class="fees-structure-total">₹{{ fs.totalAmount | number:'1.0-0':'en-IN' }}</span>
               </div>
-              <div class="text-muted small mb-2">{{ fs.className | schoolClassName }} · {{ 'fees.yearPrefix' | translate }} {{ fs.academicYearId }}</div>
+              <div class="text-muted small mb-2">{{ fs.className | schoolClassName }} · {{ academicYearLabel(fs.academicYearId) }}</div>
               <div *ngFor="let comp of fs.components" class="d-flex justify-content-between align-items-center" style="padding: 6px 0; border-bottom: 1px solid var(--clr-border-light); font-size: 13px;">
                 <span>
                   <span class="badge-erp badge-neutral me-1" style="font-size: 10px;">{{ ('fees.componentType.' + comp.type) | translate }}</span>
@@ -771,7 +771,7 @@ import { formatDateDdMmYyyy } from '../../core/utils/date-format';
                   ><th>{{ 'fees.thDue' | translate }}</th
                   ><th>{{ 'fees.thDueDate' | translate }}</th
                   ><th>{{ 'fees.thStatus' | translate }}</th
-                  ><th>{{ 'fees.thReceipt' | translate }}</th
+                  ><th>{{ 'fees.thPaymentDate' | translate }}</th
                   ><th>{{ 'fees.thActions' | translate }}</th></tr
                 >
               </thead>
@@ -787,7 +787,7 @@ import { formatDateDdMmYyyy } from '../../core/utils/date-format';
                       {{ feeStatusLabel(p.status) }}
                     </span>
                   </td>
-                  <td>{{ p.receiptNumber || '-' }}</td>
+                  <td>{{ formatPaymentDateCell(p) }}</td>
                   <td class="fees-actions">
                     <button type="button" class="btn-outline-erp btn-xs fees-btn-ledger" (click)="openStudentLedgerModal(p)">
                       {{ 'fees.viewLedger' | translate }}
@@ -983,7 +983,7 @@ import { formatDateDdMmYyyy } from '../../core/utils/date-format';
                       <th>{{ 'fees.thDue' | translate }}</th>
                       <th>{{ 'fees.thDueDate' | translate }}</th>
                       <th>{{ 'fees.thStatus' | translate }}</th>
-                      <th>{{ 'fees.thReceipt' | translate }}</th>
+                      <th>{{ 'fees.thPaymentDate' | translate }}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -993,7 +993,7 @@ import { formatDateDdMmYyyy } from '../../core/utils/date-format';
                       <td>₹{{ row.dueAmount | number:'1.0-0':'en-IN' }}</td>
                       <td>{{ formatDate(row.dueDate) }}</td>
                       <td>{{ feeStatusLabel(row.status) }}</td>
-                      <td>{{ row.receiptNumber || '-' }}</td>
+                      <td>{{ formatPaymentDateCell(row) }}</td>
                     </tr>
                   </tbody>
                 </table>
@@ -1191,6 +1191,29 @@ export class FeesComponent implements OnInit {
   formatDate(raw: string | null | undefined): string {
     return formatDateDdMmYyyy(raw);
   }
+
+  formatPaymentDateCell(p: FeePayment): string {
+    const paid = Number(p.paidAmount) || 0;
+    if (paid <= 0) {
+      return this.translate.instant('fees.paymentDatePending');
+    }
+    const d = this.formatDate(p.paymentDate);
+    return d || this.translate.instant('fees.paymentDatePending');
+  }
+
+  /** Prefer catalog academic year name (e.g. 2024–25); fallback while list loads. */
+  academicYearLabel(id: number | null | undefined): string {
+    if (id == null || !Number.isFinite(Number(id))) {
+      return '';
+    }
+    const nid = Number(id);
+    const row = this.academicYears.find(y => y.id === nid);
+    const name = row?.name?.trim();
+    if (name) {
+      return name;
+    }
+    return `${this.translate.instant('fees.yearPrefix')} ${nid}`;
+  }
   private readonly uiAccess = inject(UiAccessService);
 
   constructor(
@@ -1253,7 +1276,8 @@ export class FeesComponent implements OnInit {
 
   get effectiveCollectionRatePct(): number {
     if (this.collectionSummary) {
-      return (this.collectionSummary.collectionRate || 0) * 100;
+      // Server sends collectionRate already as a 0–100 percentage (see FeeService.getCollectionSummary).
+      return this.collectionSummary.collectionRate || 0;
     }
     return this.collectionRatePct;
   }
@@ -1744,10 +1768,10 @@ export class FeesComponent implements OnInit {
       r.dueAmount,
       r.dueDate,
       r.status,
-      r.receiptNumber || '',
+      this.formatPaymentDateCell(r),
       r.paymentMethod || '',
     ]);
-    const headers = ['student', 'amount', 'paid', 'due', 'dueDate', 'status', 'receipt', 'paymentMethod'];
+    const headers = ['student', 'amount', 'paid', 'due', 'dueDate', 'status', 'paymentDate', 'paymentMethod'];
     const table: string[][] = [headers, ...rows.map(r => r.map(c => String(c ?? '')))];
     downloadCsvDocument(
       `fees-payment-records-${new Date().toISOString().slice(0, 10)}.csv`,
@@ -1764,10 +1788,10 @@ export class FeesComponent implements OnInit {
       r.dueAmount,
       r.dueDate,
       r.status,
-      r.receiptNumber || '',
+      this.formatPaymentDateCell(r),
       r.paymentMethod || '',
     ]);
-    const headers = ['student', 'amount', 'paid', 'due', 'dueDate', 'status', 'receipt', 'paymentMethod'];
+    const headers = ['student', 'amount', 'paid', 'due', 'dueDate', 'status', 'paymentDate', 'paymentMethod'];
     const table: string[][] = [headers, ...rows.map(r => r.map(c => String(c ?? '')))];
     downloadCsvDocument(
       `student-payment-history-${(this.ledgerStudentName || 'student').replace(/\s+/g, '-').toLowerCase()}-${new Date().toISOString().slice(0, 10)}.csv`,

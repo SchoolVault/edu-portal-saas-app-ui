@@ -1,6 +1,6 @@
 /**
  * 10-digit national number for India-focused forms (single local field, no country picker).
- * Aligns with backend InternationalPhone.canonical() for +91 numbers.
+ * Aligns with backend {@code InternationalPhone.nationalIndiaMobile10} (strict 6–9 first digit on save).
  */
 export function normalizeIndianMobileTenDigits(value: string | null | undefined): string {
   const digits = (value ?? '').replace(/\D/g, '');

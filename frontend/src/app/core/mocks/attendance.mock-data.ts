@@ -182,6 +182,35 @@ export function mockTenantAttendanceOverviewForMonth(monthYm: string): {
   return { total, present, absent, late, excused };
 }
 
+/** Single calendar day (today) — aligned with admin KPI that resets daily. */
+export function mockTenantAttendanceOverviewForToday(): {
+  total: number;
+  present: number;
+  absent: number;
+  late: number;
+  excused: number;
+} {
+  const today = new Date().toISOString().slice(0, 10);
+  let present = 0;
+  let absent = 0;
+  let late = 0;
+  let excused = 0;
+  for (const s of mockActiveStudents()) {
+    const st = mockAttendanceStatusFor(s.id, today);
+    if (st === 'present') {
+      present++;
+    } else if (st === 'absent') {
+      absent++;
+    } else if (st === 'late') {
+      late++;
+    } else {
+      excused++;
+    }
+  }
+  const total = present + absent + late + excused;
+  return { total, present, absent, late, excused };
+}
+
 /** Report grid: one row per active student in class for the calendar month. */
 export function buildMockReportAttendanceSummaryForClassMonth(classId: number, monthYm: string): AttendanceSummaryRow[] {
   const range = monthRangeYm(monthYm);

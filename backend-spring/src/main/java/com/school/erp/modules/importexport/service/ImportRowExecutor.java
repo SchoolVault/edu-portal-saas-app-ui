@@ -227,7 +227,8 @@ public class ImportRowExecutor {
         request.setFirstName(required(row, "firstname"));
         request.setLastName(required(row, "lastname"));
         request.setEmail(blankToNull(row.get("email")));
-        request.setPhone(blankToNull(row.get("phone")));
+        String rawStudentPhone = blankToNull(row.get("phone"));
+        request.setPhone(rawStudentPhone != null ? InternationalPhone.nationalIndiaMobile10(rawStudentPhone) : null);
         request.setDateOfBirth(parseDate(row.get("dateofbirth")));
         request.setGender(parseGender(row.get("gender")));
         request.setClassId(placement.classId());
@@ -242,6 +243,9 @@ public class ImportRowExecutor {
 
         String parentEmail = blankToNull(value(row, "parentemail"));
         String parentPhone = blankToNull(value(row, "parentphone"));
+        if (parentPhone != null) {
+            parentPhone = InternationalPhone.nationalIndiaMobile10(parentPhone);
+        }
         String parentCode = blankToNull(value(row, "parentcode", "parent_code", "primary_guardian_code"));
 
         PortalUserProvisioningService.ProvisionResult parentProvision = null;
@@ -300,18 +304,18 @@ public class ImportRowExecutor {
 
     private void handleTeacher(ImportJob job, ImportJobLine line, Map<String, String> row, boolean staffImport) {
         String tenantId = TenantContext.getTenantId();
-        String canonicalPhone = canonicalPhoneRequired(value(row, "phone"));
+        String importNationalPhone = importPhoneNationalRequired(value(row, "phone"));
         String loginEmail = normalizeEmailOptional(value(row, "email"));
         String importPassword = blankToNull(value(row, "portal_password", "portalpassword"));
         boolean notifyCredentials = truthy(value(row, "notify_credentials", "notifycredentials"));
-        User portalBefore = notifyCredentials ? findPortalUserBeforeTeacherImport(tenantId, loginEmail, canonicalPhone) : null;
+        User portalBefore = notifyCredentials ? findPortalUserBeforeTeacherImport(tenantId, loginEmail, importNationalPhone) : null;
 
         TeacherDTOs.CreateRequest request = new TeacherDTOs.CreateRequest();
         request.setEmployeeCode(blankToNull(value(row, "employee_code")));
         request.setFirstName(requiredAny(row, "first_name", "firstname"));
         request.setLastName(requiredAny(row, "last_name", "lastname"));
         request.setEmail(loginEmail);
-        request.setPhone(canonicalPhone);
+        request.setPhone(importNationalPhone);
         request.setQualification(blankToNull(value(row, "qualification")));
         request.setSpecialization(blankToNull(value(row, "specialization", "department")));
         request.setJoinDate(parseDate(value(row, "join_date", "joindate")));
@@ -350,7 +354,7 @@ public class ImportRowExecutor {
                 libRole,
                 policy,
                 loginEmail,
-                canonicalPhone,
+                importNationalPhone,
                 importPassword);
         TeacherDTOs.Response created = applied.value();
         Enums.TeacherStatus teacherStatus = parseTeacherStatus(value(row, "status"));
@@ -374,7 +378,7 @@ public class ImportRowExecutor {
         importLedgerWriteService.recordLine(job, line, applied.outcome(), teacherLedgerType, created.getId(), applied.naturalKey());
         assignOptionalClassTeacherSlot(row, created.getId(), portalRole, staffImport);
         if (staffImport) {
-            upsertOperationalStaffMirror(row, created, portalRole, canonicalPhone, loginEmail);
+            upsertOperationalStaffMirror(row, created, portalRole, importNationalPhone, loginEmail);
         }
 
         if (createPortal && notifyCredentials && created.getUserId() != null) {
@@ -386,12 +390,12 @@ public class ImportRowExecutor {
             }
             SchoolIdentity school = loadSchoolIdentity(tenantId);
             String body = portalChange.newlyProvisioned()
-                    ? teacherCredentialMessage(school.name(), school.code(), loginEmail, canonicalPhone, importPassword, portalRole)
+                    ? teacherCredentialMessage(school.name(), school.code(), loginEmail, importNationalPhone, importPassword, portalRole)
                     : teacherCredentialsUpdatedMessage(
                     school.name(),
                     school.code(),
                     portalAfter != null ? portalAfter.getEmail() : loginEmail,
-                    portalAfter != null ? portalAfter.getPhone() : canonicalPhone,
+                    portalAfter != null ? portalAfter.getPhone() : importNationalPhone,
                     portalRole,
                     portalChange.emailChanged(),
                     portalChange.phoneChanged());
@@ -399,7 +403,7 @@ public class ImportRowExecutor {
             notificationService.createNotification(tenantId, created.getUserId(), credentialTitle,
                     body, Enums.NotificationType.INFO, "/app/dashboard");
             notificationDispatchPort.enqueue(tenantId, "STAFF_PORTAL_CREDENTIALS", "SMS", created.getUserId(),
-                    canonicalPhone, credentialTitle, body,
+                    importNationalPhone, credentialTitle, body,
                     "import-job-" + job.getId() + "-line-" + line.getId(), "import-" + job.getId(),
                     NotificationDispatchAttributes.inheritFromThread());
             if (portalChange.newlyProvisioned()) {
@@ -417,7 +421,7 @@ public class ImportRowExecutor {
             Map<String, String> row,
             TeacherDTOs.Response created,
             Enums.Role portalRole,
-            String canonicalPhone,
+            String importNationalPhone,
             String loginEmail) {
         String tenantId = TenantContext.getTenantId();
         Long userId = created.getUserId();
@@ -439,8 +443,11 @@ public class ImportRowExecutor {
         if (existing.isEmpty() && loginEmail != null) {
             existing = operationalStaffRepository.findByTenantIdAndEmailIgnoreCaseAndIsDeletedFalse(tenantId, loginEmail);
         }
-        if (existing.isEmpty() && canonicalPhone != null) {
-            existing = operationalStaffRepository.findByTenantIdAndPhoneAndIsDeletedFalse(tenantId, canonicalPhone);
+        if (existing.isEmpty() && importNationalPhone != null) {
+            List<String> phoneKeys = InternationalPhone.importPhoneLookupKeys(importNationalPhone);
+            if (!phoneKeys.isEmpty()) {
+                existing = operationalStaffRepository.findFirstByTenantIdAndPhoneInAndIsDeletedFalseOrderByIdAsc(tenantId, phoneKeys);
+            }
         }
         OperationalStaff staff = existing.orElseGet(OperationalStaff::new);
         if (staff.getId() == null) {
@@ -451,7 +458,7 @@ public class ImportRowExecutor {
         staff.setIsActive(true);
         staff.setStaffRole(staffRole);
         staff.setFullName(fullName);
-        staff.setPhone(canonicalPhone);
+        staff.setPhone(importNationalPhone);
         staff.setEmail(loginEmail);
         staff.setEmployeeCode(employeeCode);
         staff.setUserId(userId);
@@ -851,12 +858,12 @@ public class ImportRowExecutor {
                     .orElseThrow(() -> new BusinessException("Teacher not found for teacherid: " + teacherId));
         }
         if (teacherPhone != null) {
-            String canonical = InternationalPhone.canonical(teacherPhone);
-            if (canonical == null) {
-                throw new BusinessException(InternationalPhone.invalidMessage());
+            List<String> keys = InternationalPhone.importPhoneLookupKeys(teacherPhone);
+            if (keys.isEmpty()) {
+                throw new BusinessException(InternationalPhone.importPhoneInvalidMessage());
             }
-            return teacherRepository.findByTenantIdAndPhoneAndIsDeletedFalse(tenantId, canonical)
-                    .orElseThrow(() -> new BusinessException("Teacher not found for teacherphone: " + canonical));
+            return teacherRepository.findFirstByTenantIdAndPhoneInAndIsDeletedFalseOrderByIdAsc(tenantId, keys)
+                    .orElseThrow(() -> new BusinessException("Teacher not found for teacherphone: " + teacherPhone));
         }
         if (teacherEmail != null) {
             return teacherRepository.findByTenantIdAndEmailIgnoreCaseAndIsDeletedFalse(tenantId, teacherEmail)
@@ -924,14 +931,21 @@ public class ImportRowExecutor {
         return sb.toString();
     }
 
-    private User findPortalUserBeforeTeacherImport(String tenantId, String loginEmail, String canonicalPhone) {
+    private User findPortalUserBeforeTeacherImport(String tenantId, String loginEmail, String importNationalPhone) {
         if (loginEmail != null) {
             User byEmail = userRepository.findByEmailAndTenantIdAndIsDeletedFalse(loginEmail, tenantId).orElse(null);
             if (byEmail != null) {
                 return byEmail;
             }
         }
-        return userRepository.findByPhoneAndTenantIdAndIsDeletedFalse(canonicalPhone, tenantId).orElse(null);
+        if (importNationalPhone == null) {
+            return null;
+        }
+        List<String> keys = InternationalPhone.importPhoneLookupKeys(importNationalPhone);
+        if (keys.isEmpty()) {
+            return null;
+        }
+        return userRepository.findFirstByTenantIdAndPhoneInAndIsDeletedFalseOrderByIdAsc(tenantId, keys).orElse(null);
     }
 
     private static PortalContactChange detectPortalContactChange(User before, User after) {
@@ -1084,16 +1098,16 @@ public class ImportRowExecutor {
         return normalized != null ? normalized.toLowerCase(Locale.ROOT) : null;
     }
 
-    private static String canonicalPhoneRequired(String value) {
+    private static String importPhoneNationalRequired(String value) {
         String raw = blankToNull(value);
         if (raw == null) {
             throw new BusinessException("phone is required");
         }
-        String canonical = InternationalPhone.canonical(raw);
-        if (canonical == null) {
-            throw new BusinessException(InternationalPhone.invalidMessage());
+        String national = InternationalPhone.nationalIndiaMobile10(raw);
+        if (national == null) {
+            throw new BusinessException(InternationalPhone.importPhoneInvalidMessage());
         }
-        return canonical;
+        return national;
     }
 
     private static Long parseLong(String value) {

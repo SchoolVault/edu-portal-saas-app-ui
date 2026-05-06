@@ -23,5 +23,9 @@ public enum ApiErrorCode {
     SCHEDULING_CONFLICT,
     /** Recurring timetable: class period taken or teacher double-booked; client may pass replaceTimetableEntryId. */
     TIMETABLE_SLOT_CONFLICT,
+    /** Operational staff portal provisioning: India mobile required when create/provision portal is requested. */
+    STAFF_PORTAL_PHONE_REQUIRED,
+    /** Optional portal password shorter than minimum when provided. */
+    STAFF_PORTAL_PASSWORD_TOO_SHORT,
     INTERNAL_ERROR
 }

@@ -467,6 +467,7 @@ export class HeaderComponent implements OnInit, OnDestroy {
       leave: 'header.title.leave',
       reports: 'header.title.reports',
       directory: 'header.title.directory',
+      staff: 'header.title.staff',
       operations: 'header.title.operationsHub',
       transport: 'header.title.transport',
       library: 'header.title.library',

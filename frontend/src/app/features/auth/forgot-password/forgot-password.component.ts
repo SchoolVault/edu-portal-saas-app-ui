@@ -13,22 +13,21 @@ import {
   validatePasswordResetVerify,
 } from '../../../core/validation';
 import { ErpI18nPhDirective } from '../../../shared/erp-i18n/erp-i18n-host.directives';
-import { ErpIntlPhoneRowComponent } from '../../../shared/erp-phone-intl/erp-intl-phone-row.component';
-import { BRAND_LOGO_SRC } from '../../../core/config/brand-assets';
+import { AUTH_LOGIN_FORM_LOGO_SRC, AUTH_LOGIN_HERO_IMAGE_SRC } from '../../../core/config/brand-assets';
 
 type ResetStep = 'identify' | 'verify' | 'new_password' | 'done';
 
 @Component({
   selector: 'app-forgot-password',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterModule, TranslateModule, ErpI18nPhDirective, ErpIntlPhoneRowComponent],
+  imports: [CommonModule, FormsModule, RouterModule, TranslateModule, ErpI18nPhDirective],
   template: `
     <div class="login-container" data-testid="forgot-password-page">
       <div class="login-left">
         <div class="login-form-wrapper reset-shell animate-in">
           <a routerLink="/login" class="reset-back-link"><i class="bi bi-arrow-left"></i> {{ 'forgotPassword.backToLogin' | translate }}</a>
           <div class="login-logo reset-logo">
-            <img [src]="brandLogoSrc" alt="School Vault" width="44" height="44" />
+            <img [src]="loginFormLogoSrc" alt="" width="44" height="44" />
             <h1>SchoolVault</h1>
           </div>
           <div class="reset-kicker">{{ 'forgotPassword.kicker' | translate }}</div>
@@ -71,15 +70,23 @@ type ResetStep = 'identify' | 'verify' | 'new_password' | 'done';
             </div>
 
             <div class="erp-form-group">
-              <label class="erp-label">{{ 'forgotPassword.mobile' | translate }}</label>
-              <erp-intl-phone-row
-                idPrefix="fp-phone"
-                namePrefix="forgotPhone"
-                testIdPrefix="forgot-phone"
-                [canonicalPhone]="phone"
-                (canonicalPhoneChange)="onForgotCanonicalPhone($event)"
+              <label class="erp-label" for="fp-phone-national">{{ 'forgotPassword.mobile' | translate }}</label>
+              <input
+                id="fp-phone-national"
+                type="text"
+                class="erp-input"
+                [class.erp-input--error]="!!fieldErrors.phone"
+                inputmode="numeric"
+                autocomplete="tel-national"
+                maxlength="10"
+                name="forgotPhoneNational"
+                [ngModel]="phoneNationalDigits"
+                (ngModelChange)="onForgotNationalPhoneChange($event)"
                 [disabled]="step !== 'identify'"
+                erpI18nPh="login.phoneNationalPlaceholder"
+                data-testid="forgot-phone-national"
               />
+              <p *ngIf="step === 'identify'" class="text-muted small mb-0 mt-1">{{ 'auth.phoneIndiaTenDigitHint' | translate }}</p>
               <div class="field-error" *ngIf="fieldErrors.phone" role="alert">{{ fieldErrors.phone | translate }}</div>
             </div>
 
@@ -183,7 +190,7 @@ type ResetStep = 'identify' | 'verify' | 'new_password' | 'done';
         </div>
       </div>
       <div class="login-right">
-        <img [src]="brandLogoSrc" alt="" />
+        <img [src]="loginHeroImageSrc" alt="" />
         <div class="login-right-overlay">
           <div class="login-right-text" lang="en" dir="ltr">
             <h2>{{ 'forgotPassword.heroTitle' | translate }}</h2>
@@ -214,10 +221,13 @@ type ResetStep = 'identify' | 'verify' | 'new_password' | 'done';
   `]
 })
 export class ForgotPasswordComponent implements OnInit, OnDestroy {
-  readonly brandLogoSrc = BRAND_LOGO_SRC;
+  /** Same visuals as login: form mark + hero photo on the right (not `/schoolvault-icon.png`). */
+  readonly loginFormLogoSrc = AUTH_LOGIN_FORM_LOGO_SRC;
+  readonly loginHeroImageSrc = AUTH_LOGIN_HERO_IMAGE_SRC;
 
   step: ResetStep = 'identify';
   schoolCode = '';
+  phoneNationalDigits = '';
   phone = '';
   otp = '';
   password = '';
@@ -258,8 +268,10 @@ export class ForgotPasswordComponent implements OnInit, OnDestroy {
     this.clearRedirectTimer();
   }
 
-  onForgotCanonicalPhone(value: string): void {
-    this.phone = value;
+  onForgotNationalPhoneChange(raw: string): void {
+    const d = String(raw ?? '').replace(/\D/g, '').slice(0, 10);
+    this.phoneNationalDigits = d;
+    this.phone = d.length === 10 ? d : '';
     this.clearField('phone');
   }
 
@@ -385,6 +397,8 @@ export class ForgotPasswordComponent implements OnInit, OnDestroy {
 
   restart(): void {
     this.step = 'identify';
+    this.phoneNationalDigits = '';
+    this.phone = '';
     this.otp = '';
     this.password = '';
     this.confirmPassword = '';

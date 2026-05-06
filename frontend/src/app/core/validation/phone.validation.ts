@@ -1,43 +1,44 @@
-/** Canonical portal handset: +{country}-{10-digit-national} (matches backend strict policy). */
+/**
+ * India portal mobile: store and transmit exactly 10 national digits (first digit 6–9).
+ * Legacy API values may still be {@code +CC-XXXXXXXXXX}; normalize for display and forms.
+ */
+
+/** @deprecated Prefer {@link isValidIndiaMobileTen} — kept for rare non-India paths in mocks. */
 export const CANONICAL_INTL_PHONE = /^\+\d{1,4}-\d{10}$/;
 
-/** Legacy / pasted values still accepted by backend normalizer — prefer {@link isValidCanonicalIntlPhone} for new UI. */
-const LOGIN_PHONE_LEGACY_PATTERN = /^[+]?[0-9\s\-]{8,32}$/;
-
+/** @deprecated */
 export function isValidCanonicalIntlPhone(value: string): boolean {
   return CANONICAL_INTL_PHONE.test((value ?? '').trim());
 }
 
-export function buildCanonicalIntlPhone(dialCode: string, nationalDigits: string): string {
-  const d = (dialCode ?? '').replace(/\D/g, '');
-  const n = (nationalDigits ?? '').replace(/\D/g, '');
-  if (!d || !n) {
-    return '';
-  }
-  if (n.length !== 10) {
-    return '';
-  }
-  if (d.length < 1 || d.length > 4) {
-    return '';
-  }
-  return `+${d}-${n}`;
+/** Strict India mobile: 10 digits, first digit 6–9 (matches backend {@code nationalIndiaMobile10}). */
+export function isValidIndiaMobileTen(value: string | null | undefined): boolean {
+  return /^[6-9]\d{9}$/.test(String(value ?? '').trim());
 }
 
-export function splitCanonicalIntlPhone(value: string): { dial: string; national: string } {
-  const m = (value ?? '').trim().match(/^\+(\d{1,4})-(\d{10})$/);
-  if (m) {
-    return { dial: m[1], national: m[2] };
+/**
+ * Normalize user typing / pasted values toward 10 national digits (best effort before strict validation).
+ */
+export function digitsOnlyIndiaMobile(raw: string | null | undefined): string {
+  let d = String(raw ?? '').replace(/\D/g, '');
+  if (d.length === 12 && d.startsWith('91')) {
+    d = d.slice(2);
   }
-  return { dial: '91', national: '' };
+  if (d.length === 11 && d.startsWith('0')) {
+    d = d.slice(1);
+  }
+  return d.slice(0, 10);
 }
 
-export function isValidLoginPhone(value: string): boolean {
-  const s = (value ?? '').trim();
+/** Show 10-digit national in inputs when API returns national or legacy {@code +91-…}. */
+export function displayIndiaMobileTenFromApi(stored: string | null | undefined): string {
+  const s = (stored ?? '').trim();
   if (!s) {
-    return false;
+    return '';
   }
-  if (isValidCanonicalIntlPhone(s)) {
-    return true;
+  const canonical = s.match(/^\+(\d{1,4})-(\d{10})$/);
+  if (canonical?.[2]) {
+    return canonical[2];
   }
-  return LOGIN_PHONE_LEGACY_PATTERN.test(s);
+  return digitsOnlyIndiaMobile(s);
 }

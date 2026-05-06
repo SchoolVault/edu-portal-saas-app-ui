@@ -21,19 +21,18 @@ import {
 } from '../../../core/validation/onboard-school-form.validation';
 import { AuthMarketingBandComponent } from '../auth-marketing/auth-marketing-band.component';
 import { ErpI18nPhDirective } from '../../../shared/erp-i18n/erp-i18n-host.directives';
-import { ErpIntlPhoneRowComponent } from '../../../shared/erp-phone-intl/erp-intl-phone-row.component';
-import { BRAND_LOGO_SRC } from '../../../core/config/brand-assets';
+import { AUTH_LOGIN_FORM_LOGO_SRC, AUTH_LOGIN_HERO_IMAGE_SRC } from '../../../core/config/brand-assets';
 
 @Component({
   selector: 'app-signup',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterModule, TranslateModule, AuthMarketingBandComponent, ErpI18nPhDirective, ErpIntlPhoneRowComponent],
+  imports: [CommonModule, FormsModule, RouterModule, TranslateModule, AuthMarketingBandComponent, ErpI18nPhDirective],
   template: `
     <div class="login-container" data-testid="signup-page">
       <div class="login-left">
         <div class="login-form-wrapper animate-in">
           <div class="login-logo">
-            <img [src]="brandLogoSrc" alt="School Vault" width="44" height="44" />
+            <img [src]="loginFormLogoSrc" alt="" width="44" height="44" />
             <h1>SchoolVault</h1>
           </div>
           <h2 class="login-title">{{ 'signup.title' | translate }}</h2>
@@ -103,13 +102,22 @@ import { BRAND_LOGO_SRC } from '../../../core/config/brand-assets';
               </div>
             </div>
             <div class="erp-form-group">
-              <label class="erp-label">{{ 'signup.phone' | translate }}</label>
-              <erp-intl-phone-row
-                idPrefix="su-phone"
-                namePrefix="signupPhone"
-                testIdPrefix="signup-phone"
-                [canonicalPhone]="form.phone"
-                (canonicalPhoneChange)="onSignupCanonicalPhone($event)"
+              <label class="erp-label" for="su-phone-national">{{ 'signup.phone' | translate }}</label>
+              <input
+                id="su-phone-national"
+                type="text"
+                class="erp-input"
+                [class.erp-input--error]="!!fieldErrors.phone"
+                inputmode="numeric"
+                autocomplete="tel-national"
+                maxlength="10"
+                name="signupPhoneNational"
+                [ngModel]="phoneNationalDigits"
+                (ngModelChange)="onSignupNationalPhoneChange($event)"
+                erpI18nPh="login.phoneNationalPlaceholder"
+                data-testid="signup-phone-national"
+                [attr.aria-invalid]="!!fieldErrors.phone"
+                [attr.aria-describedby]="fieldErrors.phone ? 'su-err-phone' : null"
               />
               <div id="su-err-phone" class="field-error" *ngIf="fieldErrors.phone" role="alert">
                 {{ fieldErrors.phone | translate: interp('phone') }}
@@ -192,7 +200,7 @@ import { BRAND_LOGO_SRC } from '../../../core/config/brand-assets';
         </div>
       </div>
       <div class="login-right">
-        <img [src]="brandLogoSrc" alt="" />
+        <img [src]="loginHeroImageSrc" alt="" />
         <div class="login-right-overlay">
           <div class="login-right-text" lang="en" dir="ltr">
             <h2>{{ heroEn.title }}</h2>
@@ -214,7 +222,8 @@ import { BRAND_LOGO_SRC } from '../../../core/config/brand-assets';
   ]
 })
 export class SignupComponent {
-  readonly brandLogoSrc = BRAND_LOGO_SRC;
+  readonly loginFormLogoSrc = AUTH_LOGIN_FORM_LOGO_SRC;
+  readonly loginHeroImageSrc = AUTH_LOGIN_HERO_IMAGE_SRC;
 
   readonly heroEn = {
     title: 'Trusted operations layer',
@@ -238,6 +247,8 @@ export class SignupComponent {
     address: ''
   };
 
+  phoneNationalDigits = '';
+
   fieldErrors: FieldErrors<OnboardSchoolField> = {};
   /** Interpolation params for `signup.validation.*` messages that use {{min}}/{{max}}. */
   private fieldInterp: Partial<Record<OnboardSchoolField, Record<string, number>>> = {};
@@ -258,8 +269,10 @@ export class SignupComponent {
     return this.fieldInterp[field] ?? {};
   }
 
-  onSignupCanonicalPhone(value: string): void {
-    this.form.phone = value;
+  onSignupNationalPhoneChange(raw: string): void {
+    const d = String(raw ?? '').replace(/\D/g, '').slice(0, 10);
+    this.phoneNationalDigits = d;
+    this.form.phone = d.length === 10 ? d : '';
     this.clearField('phone');
   }
 

@@ -16,6 +16,7 @@ import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directives';
 import { ConfirmDialogService } from '../../shared/confirm-dialog/confirm-dialog.service';
 import { normalizeIndianMobileTenDigits } from '../../core/utils/indian-mobile';
+import { isValidIndiaMobileTen } from '../../core/validation/phone.validation';
 @Component({
   selector: 'app-teacher-form',
   standalone: true,
@@ -336,6 +337,17 @@ export class TeacherFormComponent implements OnInit, OnDestroy {
     pipeline$.subscribe({
       next: () => {
         this.saving = false;
+        const cu = this.auth.getCurrentUser();
+        if (cu?.role === 'teacher' && this.isEdit && payload.id) {
+          const em = (cu.email ?? '').trim().toLowerCase();
+          const pm = (cu.phone ?? '').trim();
+          const samePortalAccount =
+            (!!em && em === (payload.email ?? '').trim().toLowerCase()) ||
+            (!!pm && pm === (payload.phone ?? '').trim());
+          if (samePortalAccount) {
+            this.auth.fetchProfileSummary().subscribe({ error: () => void 0 });
+          }
+        }
         if (this.isEdit && payload.id) {
           const emailChanged = (payload.email ?? '').trim().toLowerCase() !== this.initialTeacherEmail;
           const phoneChanged = (payload.phone ?? '').trim() !== this.initialTeacherPhone;
@@ -377,6 +389,6 @@ export class TeacherFormComponent implements OnInit, OnDestroy {
   }
 
   private isValidTenDigitPhone(value: string | null | undefined): boolean {
-    return /^\d{10}$/.test((value ?? '').trim());
+    return isValidIndiaMobileTen(value);
   }
 }

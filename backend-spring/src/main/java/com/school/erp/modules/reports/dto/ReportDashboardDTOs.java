@@ -238,6 +238,8 @@ public class ReportDashboardDTOs {
         private List<MetricPoint> monthlyAdmissions = new ArrayList<>();
         private List<MetricPoint> monthlyCollections = new ArrayList<>();
         private AttendanceOverview attendanceOverview;
+        /** P/A/L/E counts for the calendar day only — admin KPI "attendance logged" (resets at midnight). */
+        private AttendanceOverview attendanceToday;
         private List<ActivityItem> recentActivities = new ArrayList<>();
         private List<UpcomingEvent> upcomingEvents = new ArrayList<>();
         private List<ClassHomeroomGap> classesWithoutHomeroomTeacher = new ArrayList<>();
@@ -314,6 +316,14 @@ public class ReportDashboardDTOs {
 
         public void setAttendanceOverview(final AttendanceOverview attendanceOverview) {
             this.attendanceOverview = attendanceOverview;
+        }
+
+        public AttendanceOverview getAttendanceToday() {
+            return attendanceToday;
+        }
+
+        public void setAttendanceToday(final AttendanceOverview attendanceToday) {
+            this.attendanceToday = attendanceToday;
         }
 
         public List<ActivityItem> getRecentActivities() {

@@ -108,6 +108,10 @@ public class OperationsDTOs {
         private Long userId;
         private Long transportRouteId;
         private String notes;
+        /** When true, creates/links a portal {@code User} (same pathway as CSV import {@code create_portal}). Requires valid India mobile. */
+        private Boolean createPortal;
+        /** Optional initial password when {@link #createPortal} is true; if omitted the system assigns one (OTP login remains available). Min 8 characters when provided. */
+        private String portalPassword;
 
         public String getStaffRole() {
             return staffRole;
@@ -172,6 +176,22 @@ public class OperationsDTOs {
         public void setNotes(String notes) {
             this.notes = notes;
         }
+
+        public Boolean getCreatePortal() {
+            return createPortal;
+        }
+
+        public void setCreatePortal(Boolean createPortal) {
+            this.createPortal = createPortal;
+        }
+
+        public String getPortalPassword() {
+            return portalPassword;
+        }
+
+        public void setPortalPassword(String portalPassword) {
+            this.portalPassword = portalPassword;
+        }
     }
 
     public static class OperationalStaffUpdateRequest {
@@ -181,6 +201,10 @@ public class OperationsDTOs {
         private String email;
         private String employeeCode;
         private String notes;
+        /** Provision a portal user when absent; ignored if operational staff row already links {@code userId}. */
+        private Boolean createPortal;
+        /** Optional password when provisioning; min 8 characters when provided. */
+        private String portalPassword;
 
         public String getStaffRole() { return staffRole; }
         public void setStaffRole(String staffRole) { this.staffRole = staffRole; }
@@ -194,6 +218,10 @@ public class OperationsDTOs {
         public void setEmployeeCode(String employeeCode) { this.employeeCode = employeeCode; }
         public String getNotes() { return notes; }
         public void setNotes(String notes) { this.notes = notes; }
+        public Boolean getCreatePortal() { return createPortal; }
+        public void setCreatePortal(Boolean createPortal) { this.createPortal = createPortal; }
+        public String getPortalPassword() { return portalPassword; }
+        public void setPortalPassword(String portalPassword) { this.portalPassword = portalPassword; }
     }
 
     public static class VisitorLogResponse {

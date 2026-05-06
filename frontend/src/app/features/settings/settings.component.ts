@@ -18,6 +18,7 @@ import { ParentSelectionService } from '../../core/services/parent-selection.ser
 import { SchoolClassNamePipe } from '../../core/i18n/school-class-name.pipe';
 import { ConfirmDialogService } from '../../shared/confirm-dialog/confirm-dialog.service';
 import { SettingsRbacPanelComponent } from './settings-rbac-panel.component';
+import { displayIndiaMobileTenFromApi, isValidIndiaMobileTen } from '../../core/validation/phone.validation';
 
 type SettingsFeatureToggleView = {
   enabled: boolean;
@@ -87,7 +88,8 @@ type SettingsFeatureToggleView = {
         <header class="settings-profile-root__header settings-page__section-head">
           <h2 class="settings-page__section-title settings-page__section-title--flush">{{ 'settings.profileTitle' | translate }}</h2>
           <p class="settings-profile-root__lead">
-            {{ 'settings.profileLead' | translate }}
+            <ng-container *ngIf="isTenantAdmin">{{ 'settings.profileLeadTenantAdmin' | translate }}</ng-container>
+            <ng-container *ngIf="!isTenantAdmin">{{ 'settings.profileLead' | translate }}</ng-container>
           </p>
         </header>
 
@@ -130,7 +132,7 @@ type SettingsFeatureToggleView = {
                     <dd><code class="settings-profile-code">{{ schoolCode }}</code></dd>
                   </div>
                   <div class="settings-profile-hero__meta-row">
-                    <dt>{{ 'settings.labelContactPhone' | translate }}</dt>
+                    <dt>{{ 'settings.heroPortalMobileLabel' | translate }}</dt>
                     <dd>{{ u.phone || ('exams.dash' | translate) }}</dd>
                   </div>
                 </dl>
@@ -174,7 +176,7 @@ type SettingsFeatureToggleView = {
                     <dd><code class="settings-profile-code">{{ schoolCode }}</code></dd>
                   </div>
                   <div class="settings-profile-hero__meta-row">
-                    <dt>{{ 'settings.labelContactPhone' | translate }}</dt>
+                    <dt>{{ 'settings.heroPortalMobileLabel' | translate }}</dt>
                     <dd>{{ u.phone || ('exams.dash' | translate) }}</dd>
                   </div>
                 </dl>
@@ -216,7 +218,7 @@ type SettingsFeatureToggleView = {
                       <dd><code class="settings-profile-code">{{ schoolCode }}</code></dd>
                     </div>
                     <div class="settings-profile-hero__meta-row">
-                      <dt>{{ 'settings.labelContactPhone' | translate }}</dt>
+                      <dt>{{ 'settings.heroPortalMobileLabel' | translate }}</dt>
                       <dd>{{ u.phone || ('exams.dash' | translate) }}</dd>
                     </div>
                   </dl>
@@ -264,7 +266,7 @@ type SettingsFeatureToggleView = {
                   <div><dt>{{ 'settings.dtAdmissionDate' | translate }}</dt><dd>{{ ch.admissionDate || ('exams.dash' | translate) }}</dd></div>
                   <div><dt>{{ 'settings.dtStatus' | translate }}</dt><dd class="text-capitalize">{{ ch.status }}</dd></div>
                   <div><dt>{{ 'settings.dtHomeroomTeacher' | translate }}</dt><dd>{{ ch.homeroomTeacherName || ('exams.dash' | translate) }}</dd></div>
-                  <div><dt>{{ 'settings.labelSchoolEmail' | translate }}</dt><dd>{{ ch.email || ('exams.dash' | translate) }}</dd></div>
+                  <div><dt>{{ 'settings.labelSchoolEmail' | translate }}</dt><dd>{{ ch.schoolEmail || ch.email || ('exams.dash' | translate) }}</dd></div>
                 </dl>
               </div>
 
@@ -561,12 +563,13 @@ type SettingsFeatureToggleView = {
 
       <div *ngIf="tab === 'general'" class="erp-card animate-in">
         <h2 class="settings-page__section-title">{{ 'settings.schoolInfoTitle' | translate }}</h2>
+        <p *ngIf="isTenantAdmin" class="settings-page__intro settings-page__intro--tight text-muted mb-3">{{ 'settings.generalSchoolContactVsProfileHint' | translate }}</p>
         <ng-container *ngIf="isTenantAdmin">
           <div class="row g-3">
             <div class="col-md-6"><div class="erp-form-group"><label class="erp-label">{{ 'settings.labelSchoolName' | translate }}</label><input type="text" class="erp-input" [(ngModel)]="schoolName" data-testid="school-name-input"></div></div>
             <div class="col-md-6"><div class="erp-form-group"><label class="erp-label">{{ 'settings.labelSchoolCode' | translate }}</label><input type="text" class="erp-input" [(ngModel)]="schoolCode" disabled [title]="'settings.schoolCodeTitle' | translate"></div></div>
-            <div class="col-md-6"><div class="erp-form-group"><label class="erp-label">{{ 'settings.labelEmail' | translate }}</label><input type="email" class="erp-input" [(ngModel)]="schoolEmail"></div></div>
-            <div class="col-md-6"><div class="erp-form-group"><label class="erp-label">{{ 'settings.labelPhone' | translate }}</label><input type="text" class="erp-input" [(ngModel)]="schoolPhone"></div></div>
+            <div class="col-md-6"><div class="erp-form-group"><label class="erp-label">{{ 'settings.labelSchoolPublicEmail' | translate }}</label><input type="email" class="erp-input" [(ngModel)]="schoolEmail"></div></div>
+            <div class="col-md-6"><div class="erp-form-group"><label class="erp-label">{{ 'settings.labelSchoolPublicPhone' | translate }}</label><input type="text" class="erp-input" [(ngModel)]="schoolPhone"></div></div>
             <div class="col-12"><div class="erp-form-group"><label class="erp-label">{{ 'settings.labelAddress' | translate }}</label><textarea class="erp-input erp-textarea settings-page__textarea-address" [(ngModel)]="schoolAddress"></textarea></div></div>
           </div>
           <div class="d-flex justify-content-end align-items-center flex-wrap gap-2 mt-3">
@@ -580,8 +583,8 @@ type SettingsFeatureToggleView = {
           <dl class="settings-readonly-grid row g-3 mb-0">
             <div class="col-md-6"><dt class="erp-label">{{ 'settings.labelSchoolName' | translate }}</dt><dd class="settings-ro-value">{{ schoolName }}</dd></div>
             <div class="col-md-6"><dt class="erp-label">{{ 'settings.labelSchoolCode' | translate }}</dt><dd class="settings-ro-value"><code class="settings-profile-code">{{ schoolCode }}</code></dd></div>
-            <div class="col-md-6"><dt class="erp-label">{{ 'settings.labelEmail' | translate }}</dt><dd class="settings-ro-value">{{ schoolEmail || ('exams.dash' | translate) }}</dd></div>
-            <div class="col-md-6"><dt class="erp-label">{{ 'settings.labelPhone' | translate }}</dt><dd class="settings-ro-value">{{ schoolPhone || ('exams.dash' | translate) }}</dd></div>
+            <div class="col-md-6"><dt class="erp-label">{{ 'settings.labelSchoolPublicEmail' | translate }}</dt><dd class="settings-ro-value">{{ schoolEmail || ('exams.dash' | translate) }}</dd></div>
+            <div class="col-md-6"><dt class="erp-label">{{ 'settings.labelSchoolPublicPhone' | translate }}</dt><dd class="settings-ro-value">{{ schoolPhone || ('exams.dash' | translate) }}</dd></div>
             <div class="col-12"><dt class="erp-label">{{ 'settings.labelAddress' | translate }}</dt><dd class="settings-ro-value settings-page__prewrap">{{ schoolAddress || ('exams.dash' | translate) }}</dd></div>
           </dl>
         </ng-container>
@@ -2169,7 +2172,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
   private syncAccountDrafts(): void {
     const u = this.profileUser ?? this.auth.getCurrentUser();
     this.profileDraftName = u?.name ?? '';
-    this.profileDraftPhone = u?.phone ?? '';
+    this.profileDraftPhone = displayIndiaMobileTenFromApi(u?.phone ?? '');
     this.profileDraftEmail = u?.email ?? '';
     this.profileDraftNewPassword = '';
     this.profileDraftConfirmPassword = '';
@@ -2298,7 +2301,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
   private buildIdentityImpactChangeDetails(requestedEmail: string, requestedPhone: string): string[] {
     const normalizedRequestedEmail = requestedEmail.toLowerCase();
     const currentEmail = (this.profileUser?.email ?? '').trim().toLowerCase();
-    const currentPhone = (this.profileUser?.phone ?? '').trim();
+    const currentPhone = displayIndiaMobileTenFromApi(this.profileUser?.phone ?? '');
     const details: string[] = [];
     if (normalizedRequestedEmail !== currentEmail) {
       details.push(this.translate.instant('settings.identityImpactEmailLine'));
@@ -2468,7 +2471,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
   }
 
   private isValidTenDigitPhone(raw: string): boolean {
-    return /^\d{10}$/.test(raw);
+    return isValidIndiaMobileTen(raw);
   }
 
   private onProfileSaveComplete(): void {

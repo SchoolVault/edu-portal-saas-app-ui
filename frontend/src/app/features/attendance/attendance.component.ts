@@ -137,10 +137,6 @@ import { localIsoDateString } from '../../core/utils/local-date';
         </div>
         <div *ngIf="saveSuccessFlash" class="alert alert-success py-2 small mb-0 mt-2" role="status">{{ saveSuccessFlash }}</div>
         <div *ngIf="saveError" class="alert alert-danger py-2 small mb-0 mt-2">{{ saveError }}</div>
-        <p *ngIf="isAdmin && !adminPastAuditView" class="text-muted small mb-0 mt-3" style="line-height: 1.5;">
-          <i class="bi bi-shield-check me-1"></i>
-          {{ 'attendance.hintAdminConfirm' | translate }}
-        </p>
       </div>
 
       <div class="erp-card animate-in animate-in-delay-2" *ngIf="records.length > 0">

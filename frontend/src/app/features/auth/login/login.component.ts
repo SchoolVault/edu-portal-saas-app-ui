@@ -16,7 +16,7 @@ import {
 } from '../../../core/validation';
 import { AuthMarketingBandComponent } from '../auth-marketing/auth-marketing-band.component';
 import { ErpI18nPhDirective } from '../../../shared/erp-i18n/erp-i18n-host.directives';
-import { ErpIntlPhoneRowComponent } from '../../../shared/erp-phone-intl/erp-intl-phone-row.component';
+import { AUTH_LOGIN_FORM_LOGO_SRC, AUTH_LOGIN_HERO_IMAGE_SRC } from '../../../core/config/brand-assets';
 
 type LoginAuthMode = 'email_password' | 'phone_otp';
 type PhoneFlowStep = 'idle' | 'otp_sent';
@@ -24,7 +24,7 @@ type PhoneFlowStep = 'idle' | 'otp_sent';
 @Component({
   selector: 'app-login',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterModule, TranslateModule, AuthMarketingBandComponent, ErpI18nPhDirective, ErpIntlPhoneRowComponent],
+  imports: [CommonModule, FormsModule, RouterModule, TranslateModule, AuthMarketingBandComponent, ErpI18nPhDirective],
   template: `
     <div class="login-container" data-testid="login-page">
       <div class="login-left">
@@ -132,14 +132,24 @@ type PhoneFlowStep = 'idle' | 'otp_sent';
 
             <ng-container *ngIf="authMode === 'phone_otp'">
               <div class="erp-form-group" *ngIf="phoneFlowStep === 'idle'">
-                <label class="erp-label">{{ 'login.phone' | translate }}</label>
-                <erp-intl-phone-row
-                  idPrefix="lg-phone"
-                  namePrefix="loginPhone"
-                  testIdPrefix="login-phone"
-                  [canonicalPhone]="phone"
-                  (canonicalPhoneChange)="onLoginCanonicalPhone($event)"
+                <label class="erp-label" for="lg-phone-national">{{ 'login.phone' | translate }}</label>
+                <input
+                  id="lg-phone-national"
+                  type="text"
+                  class="erp-input"
+                  [class.erp-input--error]="!!fieldErrors.phone"
+                  inputmode="numeric"
+                  autocomplete="tel-national"
+                  maxlength="10"
+                  name="loginPhoneNational"
+                  [ngModel]="phoneNationalDigits"
+                  (ngModelChange)="onLoginNationalPhoneChange($event)"
+                  erpI18nPh="login.phoneNationalPlaceholder"
+                  data-testid="login-phone-national"
+                  [attr.aria-invalid]="!!fieldErrors.phone"
+                  [attr.aria-describedby]="fieldErrors.phone ? 'lg-err-phone' : null"
                 />
+                <p class="text-muted small mb-0 mt-1">{{ 'auth.phoneIndiaTenDigitHint' | translate }}</p>
                 <div id="lg-err-phone" class="field-error" *ngIf="fieldErrors.phone" role="alert">{{ fieldErrors.phone | translate }}</div>
               </div>
               <div class="erp-form-group" *ngIf="phoneFlowStep === 'otp_sent'">
@@ -250,11 +260,8 @@ export class LoginComponent implements OnInit, OnDestroy {
       'Manage admissions, academics, fees, attendance and more — from one unified platform for modern schools.',
   } as const;
 
-  /** Login-only assets (pre–single-asset branding); sidebar/auth shell still use `BRAND_LOGO_SRC`. */
-  readonly loginFormLogoSrc =
-    'https://static.prod-images.emergentagent.com/jobs/9a0eef39-d991-4ee9-b692-a0f34292613c/images/327dafae8a43bdee0145f51e32a05747aa82374ad2bb3b35ccfdb8cc1130bd22.png';
-  readonly loginHeroImageSrc =
-    'https://static.prod-images.emergentagent.com/jobs/9a0eef39-d991-4ee9-b692-a0f34292613c/images/39ade40298c502bd4785354a93143be5e368f4457b5f0aee6cbf5d84e82fe503.png';
+  readonly loginFormLogoSrc = AUTH_LOGIN_FORM_LOGO_SRC;
+  readonly loginHeroImageSrc = AUTH_LOGIN_HERO_IMAGE_SRC;
 
   authMode: LoginAuthMode = 'email_password';
   phoneFlowStep: PhoneFlowStep = 'idle';
@@ -262,6 +269,8 @@ export class LoginComponent implements OnInit, OnDestroy {
   email = '';
   password = '';
   schoolCode = '';
+  /** UI: 10-digit India mobile; API uses {@link phone} (+91-… canonical). */
+  phoneNationalDigits = '';
   phone = '';
   otp = '';
   devOtpHint = '';
@@ -330,6 +339,8 @@ export class LoginComponent implements OnInit, OnDestroy {
     this.devOtpHint = '';
     this.verificationToken = '';
     this.otp = '';
+    this.phoneNationalDigits = '';
+    this.phone = '';
     this.clearResendTimer();
     this.resendCountdown = 0;
     if (mode === 'email_password') {
@@ -337,8 +348,10 @@ export class LoginComponent implements OnInit, OnDestroy {
     }
   }
 
-  onLoginCanonicalPhone(value: string): void {
-    this.phone = value;
+  onLoginNationalPhoneChange(raw: string): void {
+    const d = String(raw ?? '').replace(/\D/g, '').slice(0, 10);
+    this.phoneNationalDigits = d;
+    this.phone = d.length === 10 ? d : '';
     this.clearField('phone');
   }
 
@@ -520,6 +533,8 @@ export class LoginComponent implements OnInit, OnDestroy {
 
   onChangePhone(): void {
     this.phoneFlowStep = 'idle';
+    this.phoneNationalDigits = '';
+    this.phone = '';
     this.otp = '';
     this.devOtpHint = '';
     this.verificationToken = '';

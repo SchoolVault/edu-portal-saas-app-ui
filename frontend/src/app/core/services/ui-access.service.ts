@@ -398,6 +398,15 @@ export class UiAccessService {
     );
   }
 
+  /** Create/update staff rows, exports, and lifecycle actions on the directory desk. */
+  hasDirectoryDeskWriteAccess(): boolean {
+    return this.hasAnyPermission(
+      AppPermission.SCHOOL_DIRECTORY_WRITE,
+      AppPermission.TENANT_ADMIN,
+      AppPermission.PLATFORM_ADMIN
+    );
+  }
+
   hasBaselineSchoolStaffPortal(): boolean {
     return this.auth.hasAppPermission(AppPermission.PORTAL_SCHOOL_STAFF);
   }

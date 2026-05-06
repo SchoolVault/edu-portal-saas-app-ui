@@ -27,6 +27,7 @@ import {
   buildTimetableConflictDialogStrings,
   createTimetableConflictHumanLabels,
 } from '../../core/timetable/timetable-conflict-dialog.builder';
+import { formatDateDdMmYyyy } from '../../core/utils/date-format';
 
 type TimetableEntryForm = Omit<Partial<TimetableEntry>, 'teacherId' | 'classId' | 'sectionId'> & {
   teacherId?: number | null;
@@ -518,40 +519,47 @@ type ParentTimetableContract = {
             <app-erp-date-picker
               [(ngModel)]="coverDate"
               (ngModelChange)="reloadCoversAdmin()"
+              [minDate]="todayIso"
               placeholderI18nKey="operations.covers.phCoverDate"
             />
           </div>
           <div class="col-md-2">
             <label class="erp-label">{{ 'operations.covers.labelClass' | translate }}</label>
-            <select class="erp-select" [(ngModel)]="coverForm.classId" (change)="coverForm.sectionId = null">
+            <select class="erp-select" [(ngModel)]="coverForm.classId" (change)="onCoverClassChanged()">
               <option [ngValue]="null">{{ 'operations.covers.select' | translate }}</option>
               <option *ngFor="let c of classes" [ngValue]="c.id">{{ c.name | schoolClassName }}</option>
             </select>
           </div>
           <div class="col-md-2">
             <label class="erp-label">{{ 'operations.covers.labelSection' | translate }}</label>
-            <select class="erp-select" [(ngModel)]="coverForm.sectionId">
-              <option [ngValue]="null">{{ 'operations.covers.allSections' | translate }}</option>
+            <select
+              class="erp-select"
+              [(ngModel)]="coverForm.sectionId"
+              [compareWith]="compareCoverSectionIds"
+              (ngModelChange)="refreshCoverRegularTeacher()"
+            >
+              <!-- With sections: explicit null option so the browser does not show the first section while ngModel stays null. -->
+              <option *ngIf="coverSections.length > 0" [ngValue]="null">{{ 'operations.covers.select' | translate }}</option>
+              <option *ngIf="coverSections.length === 0" [ngValue]="null">{{ 'timetable.sectionWholeClass' | translate }}</option>
               <option *ngFor="let s of coverSections" [ngValue]="s.id">{{ s.name }}</option>
             </select>
           </div>
           <div class="col-md-2">
             <label class="erp-label">{{ 'operations.covers.labelPeriod' | translate }}</label>
-            <input
-              type="number"
-              min="1"
-              max="12"
-              class="erp-input"
-              [(ngModel)]="coverForm.periodNumber"
-              erpI18nPh="operations.covers.phPeriod"
-              [title]="'operations.covers.periodTitle' | translate"
-            />
+            <select class="erp-select" [(ngModel)]="coverForm.periodNumber" (ngModelChange)="refreshCoverRegularTeacher()">
+              <option [ngValue]="null">{{ 'operations.covers.select' | translate }}</option>
+              <option *ngFor="let p of coverPeriodOptions" [ngValue]="p">{{ p }}</option>
+            </select>
           </div>
-          <div class="col-md-4">
-            <label class="erp-label">{{ 'operations.covers.labelCoveringTeacher' | translate }}</label>
+          <div class="col-md-2">
+            <label class="erp-label">{{ 'operations.covers.labelRegularTeacher' | translate }}</label>
+            <input class="erp-input" [value]="coverSlotRegularTeacherName" readonly />
+          </div>
+          <div class="col-md-2">
+            <label class="erp-label">{{ 'operations.covers.labelSubstituteTeacher' | translate }}</label>
             <select class="erp-select" [(ngModel)]="coverForm.coveringTeacherId">
               <option [ngValue]="null">{{ 'operations.covers.select' | translate }}</option>
-              <option *ngFor="let te of teachers" [ngValue]="te.id">{{ te.firstName }} {{ te.lastName }}</option>
+              <option *ngFor="let te of coverTeachersForDropdown" [ngValue]="te.id">{{ te.firstName }} {{ te.lastName }}</option>
             </select>
           </div>
         </div>
@@ -569,17 +577,19 @@ type ParentTimetableContract = {
               <th>{{ 'operations.covers.thClass' | translate }}</th>
               <th>{{ 'operations.covers.thSection' | translate }}</th>
               <th>{{ 'operations.covers.thPeriod' | translate }}</th>
+              <th>{{ 'operations.covers.labelRegularTeacher' | translate }}</th>
               <th>{{ 'operations.covers.thCovering' | translate }}</th>
               <th>{{ 'operations.covers.thStatus' | translate }}</th>
-              <th></th>
+              <th>{{ 'students.list.thActions' | translate }}</th>
             </tr>
           </thead>
           <tbody>
             <tr *ngFor="let c of coversAdmin">
-              <td>{{ c.coverDate }}</td>
+              <td>{{ formatCoverTableDate(c.coverDate) }}</td>
               <td>{{ coverRowClassDisplay(c) | schoolClassName }}</td>
               <td>{{ coverRowSectionDisplay(c) }}</td>
               <td>{{ c.periodNumber ?? ('transport.dash' | translate) }}</td>
+              <td>{{ coverRowRegularTeacherDisplay(c) }}</td>
               <td>{{ coverRowTeacherDisplay(c) }}</td>
               <td>{{ c.status }}</td>
               <td>
@@ -737,6 +747,9 @@ export class TimetableComponent implements OnInit {
   };
   coversAdmin: AttendanceCoverRow[] = [];
   coverAdminError = '';
+  /** Timetable teacher scheduled for the selected class/section/period on the cover date (excluded from covering dropdown). */
+  coverSlotRegularTeacherId: number | null = null;
+  coverPeriodOptions: number[] = [];
   showModal = false;
   editingEntryId: number | null = null;
   dayOptions = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -784,6 +797,44 @@ export class TimetableComponent implements OnInit {
     return cls?.sections?.map(s => ({ id: s.id, name: s.name })) ?? [];
   }
 
+  get coverTeachersForDropdown(): Teacher[] {
+    const skip = this.coverSlotRegularTeacherId;
+    if (skip == null) {
+      return this.teachers;
+    }
+    return this.teachers.filter(t => Number(t.id) !== Number(skip));
+  }
+
+  get coverSlotRegularTeacherName(): string {
+    if (this.coverSlotRegularTeacherId == null) {
+      return this.translate.instant('operations.covers.notAvailable');
+    }
+    const t = this.teachers.find(x => Number(x.id) === Number(this.coverSlotRegularTeacherId));
+    return t ? `${t.firstName} ${t.lastName}`.trim() : this.translate.instant('operations.covers.notAvailable');
+  }
+
+  formatCoverTableDate(raw: string | null | undefined): string {
+    return formatDateDdMmYyyy(raw) || '—';
+  }
+
+  onCoverClassChanged(): void {
+    const cls = this.classes.find(c => c.id === this.coverForm.classId);
+    const secs = cls?.sections ?? [];
+    if (secs.length === 1) {
+      this.coverForm.sectionId = secs[0].id;
+    } else {
+      this.coverForm.sectionId = null;
+    }
+    this.refreshCoverRegularTeacher();
+  }
+
+  /** Aligns select ngModel with option values when API/mock mixes number vs string ids. */
+  compareCoverSectionIds(a: number | null | undefined, b: number | null | undefined): boolean {
+    if (a == null && b == null) return true;
+    if (a == null || b == null) return false;
+    return Number(a) === Number(b);
+  }
+
   get entryFormSections(): { id: number; name: string }[] {
     const cid = this.entryForm.classId ?? undefined;
     const c = cid != null ? this.classes.find(x => x.id === cid) : undefined;
@@ -829,6 +880,66 @@ export class TimetableComponent implements OnInit {
   coverRowTeacherDisplay(row: AttendanceCoverRow): string {
     const t = this.teachers.find(x => x.id === row.coveringTeacherId);
     return t ? `${t.firstName} ${t.lastName}`.trim() : String(row.coveringTeacherId);
+  }
+
+  coverRowRegularTeacherDisplay(row: AttendanceCoverRow): string {
+    if (row.regularTeacherId == null) {
+      return this.translate.instant('operations.covers.notAvailable');
+    }
+    const t = this.teachers.find(x => x.id === row.regularTeacherId);
+    return t ? `${t.firstName} ${t.lastName}`.trim() : String(row.regularTeacherId);
+  }
+
+  /** Resolve the regular teacher from the recurring timetable for the cover form (local calendar weekday + period). */
+  refreshCoverRegularTeacher(): void {
+    this.coverSlotRegularTeacherId = null;
+    this.coverPeriodOptions = [];
+    const cid = this.coverForm.classId;
+    if (cid == null) {
+      this.clearCoverTeacherIfInvalid();
+      return;
+    }
+    const cls = this.classes.find(c => c.id === cid);
+    const hasSecs = (cls?.sections?.length ?? 0) > 0;
+    if (hasSecs && this.coverForm.sectionId == null) {
+      this.clearCoverTeacherIfInvalid();
+      return;
+    }
+    const secParam = hasSecs ? this.coverForm.sectionId! : undefined;
+    this.timetableService.getByClassAndSection(cid, secParam).subscribe({
+      next: entries => {
+        this.coverPeriodOptions = this.timetableService.listPeriodsForCoverDate(entries, this.coverDate);
+        const currentPeriod = this.coverForm.periodNumber != null ? Number(this.coverForm.periodNumber) : null;
+        if (currentPeriod == null || !this.coverPeriodOptions.includes(currentPeriod)) {
+          this.coverForm.periodNumber = this.coverPeriodOptions.length === 1 ? this.coverPeriodOptions[0] : null;
+        }
+        const period = Number(this.coverForm.periodNumber);
+        const tid = Number.isFinite(period) && period > 0
+          ? this.timetableService.findRegularTeacherIdForCoverSlot(entries, this.coverDate, period)
+          : null;
+        this.coverSlotRegularTeacherId = tid;
+        if (tid != null && Number(this.coverForm.coveringTeacherId) === Number(tid)) {
+          this.coverForm.coveringTeacherId = null;
+        }
+        this.clearCoverTeacherIfInvalid();
+        this.cdr.markForCheck();
+      },
+      error: () => {
+        this.coverSlotRegularTeacherId = null;
+        this.coverPeriodOptions = [];
+        this.coverForm.periodNumber = null;
+        this.clearCoverTeacherIfInvalid();
+        this.cdr.markForCheck();
+      },
+    });
+  }
+
+  private clearCoverTeacherIfInvalid(): void {
+    const allowed = new Set(this.coverTeachersForDropdown.map(t => Number(t.id)));
+    const cur = this.coverForm.coveringTeacherId;
+    if (cur != null && !allowed.has(Number(cur))) {
+      this.coverForm.coveringTeacherId = null;
+    }
   }
 
   private buildCoverConflictLocationLine(c: AttendanceCoverConflictPayload): string {
@@ -938,6 +1049,7 @@ export class TimetableComponent implements OnInit {
 
   reloadCoversAdmin(): void {
     this.coverAdminError = '';
+    this.refreshCoverRegularTeacher();
     this.operations.listAttendanceCoversAdmin(this.coverDate).subscribe({
       next: rows => (this.coversAdmin = rows || []),
       error: (e: Error) => {
@@ -946,14 +1058,45 @@ export class TimetableComponent implements OnInit {
     });
   }
 
+  /** Local calendar “today” for min-date validation (cover assignments are forward-looking). */
+  get todayIso(): string {
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  }
+
   submitCover(): void {
     this.coverAdminError = '';
+    if (this.coverDate && this.coverDate < this.todayIso) {
+      this.coverAdminError = this.translate.instant('operations.covers.pastDateNotAllowed');
+      return;
+    }
     if (this.coverForm.classId == null || this.coverForm.coveringTeacherId == null) {
       this.warnInvalidTimetableInput('timetable.validationClassSectionRequired');
       return;
     }
-    if (this.coverForm.periodNumber != null && (this.coverForm.periodNumber < 1 || this.coverForm.periodNumber > 12)) {
-      this.warnInvalidTimetableInput('timetable.validationPeriodRange');
+    const cls = this.classes.find(c => c.id === this.coverForm.classId);
+    const secId = this.coverForm.sectionId;
+    const sectionChosen = secId != null && Number(secId) > 0;
+    if ((cls?.sections?.length ?? 0) > 0 && !sectionChosen) {
+      this.coverAdminError = this.translate.instant('operations.covers.sectionRequired');
+      return;
+    }
+    if (this.coverForm.periodNumber == null) {
+      this.coverAdminError = this.translate.instant('operations.covers.periodRequired');
+      return;
+    }
+    if (
+      this.coverSlotRegularTeacherId != null &&
+      Number(this.coverForm.coveringTeacherId) === Number(this.coverSlotRegularTeacherId)
+    ) {
+      this.coverAdminError = this.translate.instant('operations.covers.sameAsAbsentTeacher');
+      return;
+    }
+    if (!this.coverPeriodOptions.includes(Number(this.coverForm.periodNumber))) {
+      this.coverAdminError = this.translate.instant('operations.covers.periodUnavailable');
       return;
     }
     this.createCoverWithOptionalReplace(undefined);
@@ -967,6 +1110,7 @@ export class TimetableComponent implements OnInit {
         coverDate: this.coverDate,
         classId: this.coverForm.classId!,
         sectionId: this.coverForm.sectionId ?? undefined,
+        regularTeacherId: this.coverSlotRegularTeacherId ?? undefined,
         coveringTeacherId: this.coverForm.coveringTeacherId!,
         reason: this.coverForm.reason,
         periodNumber: period,

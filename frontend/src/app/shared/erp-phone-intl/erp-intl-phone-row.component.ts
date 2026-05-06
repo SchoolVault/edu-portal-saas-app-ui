@@ -2,42 +2,27 @@ import { Component, EventEmitter, Input, Output } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { TranslateModule } from '@ngx-translate/core';
-import { buildCanonicalIntlPhone, splitCanonicalIntlPhone } from '../../core/validation/phone.validation';
+import { digitsOnlyIndiaMobile, displayIndiaMobileTenFromApi } from '../../core/validation/phone.validation';
 
-export interface ErpCountryDialOption {
-  dial: string;
-  labelKey: string;
-}
-
+/**
+ * Single-field India mobile (10 digits). Emits national digits only — no country code in the model.
+ * Optional legacy {@code +91-…} in {@link phone10} input is shown as 10 digits.
+ */
 @Component({
   selector: 'erp-intl-phone-row',
   standalone: true,
   imports: [CommonModule, FormsModule, TranslateModule],
   template: `
-    <div class="erp-intl-phone-row" [class.erp-intl-phone-row--disabled]="disabled">
-      <div class="erp-intl-phone-row__field">
-        <label class="erp-label" [attr.for]="idPrefix + '-cc'">{{ 'phoneIntl.countryCode' | translate }}</label>
-        <select
-          class="erp-select"
-          [id]="idPrefix + '-cc'"
-          [name]="namePrefix + 'Dial'"
-          [(ngModel)]="dialCode"
-          (ngModelChange)="onChange()"
-          [disabled]="disabled"
-          [attr.data-testid]="testIdPrefix + '-dial'"
-        >
-          <option *ngFor="let o of countryOptions" [value]="o.dial">{{ o.labelKey | translate }}</option>
-        </select>
-      </div>
-      <div class="erp-intl-phone-row__field erp-intl-phone-row__field--grow">
-        <label class="erp-label" [attr.for]="idPrefix + '-nat'">{{ 'phoneIntl.mobileNumber' | translate }}</label>
+    <div class="erp-india-mobile" [class.erp-india-mobile--disabled]="disabled">
+      <div class="erp-india-mobile__field">
+        <label class="erp-label" [attr.for]="idPrefix + '-mob'">{{ 'phoneIntl.mobileNumber' | translate }}</label>
         <input
-          [id]="idPrefix + '-nat'"
+          [id]="idPrefix + '-mob'"
           type="tel"
           class="erp-input"
-          [name]="namePrefix + 'National'"
+          [name]="namePrefix + 'Mobile'"
           [(ngModel)]="nationalDigits"
-          (ngModelChange)="onChange()"
+          (ngModelChange)="onDigitsChange($event)"
           [disabled]="disabled"
           inputmode="numeric"
           autocomplete="tel-national"
@@ -46,79 +31,51 @@ export interface ErpCountryDialOption {
           [attr.data-testid]="testIdPrefix + '-national'"
         />
       </div>
+      <p class="text-muted small mb-0 mt-1">{{ 'auth.phoneIndiaTenDigitHint' | translate }}</p>
     </div>
-    <p class="erp-intl-phone-row__preview text-muted small mb-0 mt-1" *ngIf="preview">
-      {{ 'phoneIntl.willSendAs' | translate }} <strong>{{ preview }}</strong>
-    </p>
   `,
   styles: [
     `
-      .erp-intl-phone-row {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 12px;
-        align-items: flex-end;
+      .erp-india-mobile__field {
+        max-width: 320px;
       }
-      .erp-intl-phone-row--disabled {
+      .erp-india-mobile--disabled {
         opacity: 0.65;
         pointer-events: none;
-      }
-      .erp-intl-phone-row__field {
-        flex: 0 0 auto;
-        min-width: 120px;
-      }
-      .erp-intl-phone-row__field--grow {
-        flex: 1 1 180px;
-        min-width: 0;
-      }
-      .erp-intl-phone-row__preview strong {
-        font-weight: 700;
-        color: var(--clr-text-secondary);
-        letter-spacing: 0.02em;
       }
     `
   ]
 })
 export class ErpIntlPhoneRowComponent {
-  /** Stable ids for a11y when multiple rows exist on a page */
-  @Input() idPrefix = 'intl-phone';
-  @Input() namePrefix = 'intlPhone';
-  @Input() testIdPrefix = 'intl-phone';
+  @Input() idPrefix = 'in-phone';
+  @Input() namePrefix = 'inPhone';
+  @Input() testIdPrefix = 'in-phone';
   @Input() disabled = false;
-  /** Canonical {@code +CC-nnn} from parent */
+
+  /** 10-digit national, or legacy {@code +91-…} from API — normalized for display. */
   @Input()
-  set canonicalPhone(v: string | null | undefined) {
-    const next = (v ?? '').trim();
+  set phone10(v: string | null | undefined) {
+    const shown = displayIndiaMobileTenFromApi(v ?? '');
+    if (shown === this.nationalDigits) {
+      return;
+    }
+    this.nationalDigits = shown;
+    this.lastEmitted = shown.length === 10 ? shown : '';
+  }
+
+  @Output() phone10Change = new EventEmitter<string>();
+
+  nationalDigits = '';
+  private lastEmitted = '';
+
+  onDigitsChange(raw: string): void {
+    const d = digitsOnlyIndiaMobile(raw);
+    this.nationalDigits = d;
+    const next = d.length === 10 ? d : '';
     if (next === this.lastEmitted) {
       return;
     }
-    const split = splitCanonicalIntlPhone(next);
-    this.dialCode = split.dial || '91';
-    this.nationalDigits = split.national;
-    this.refreshPreview();
-  }
-
-  @Output() canonicalPhoneChange = new EventEmitter<string>();
-
-  readonly countryOptions: ErpCountryDialOption[] = [
-    { dial: '91', labelKey: 'phoneIntl.country.in' },
-    { dial: '1', labelKey: 'phoneIntl.country.us' }
-  ];
-
-  dialCode = '91';
-  nationalDigits = '';
-  preview = '';
-  private lastEmitted = '';
-
-  onChange(): void {
-    const canonical = buildCanonicalIntlPhone(this.dialCode, this.nationalDigits);
-    this.refreshPreview();
-    this.lastEmitted = canonical;
-    this.canonicalPhoneChange.emit(canonical);
-  }
-
-  private refreshPreview(): void {
-    const c = buildCanonicalIntlPhone(this.dialCode, this.nationalDigits);
-    this.preview = c || '';
+    this.lastEmitted = next;
+    this.phone10Change.emit(next);
   }
 }

@@ -15,10 +15,8 @@ import com.school.erp.modules.auth.repository.UserRepository;
 import com.school.erp.modules.auth.service.PortalUserProvisioningService;
 import com.school.erp.modules.notification.service.NotificationService;
 import com.school.erp.modules.settings.repository.TenantConfigRepository;
-import com.school.erp.modules.academic.entity.ClassTeacherAssignment;
 import com.school.erp.modules.academic.entity.SchoolClass;
 import com.school.erp.modules.academic.entity.Section;
-import com.school.erp.modules.academic.repository.ClassTeacherAssignmentRepository;
 import com.school.erp.modules.academic.repository.SchoolClassRepository;
 import com.school.erp.modules.academic.repository.SectionRepository;
 import com.school.erp.common.jpa.EntitySnapshotCollections;
@@ -28,6 +26,7 @@ import com.school.erp.modules.teacher.dto.TeacherDTOs;
 import com.school.erp.modules.teacher.entity.Teacher;
 import com.school.erp.modules.teacher.repository.TeacherRepository;
 import com.school.erp.modules.reports.service.DashboardSnapshotInvalidationService;
+import com.school.erp.modules.timetable.service.TimetableService;
 import com.school.erp.cache.CacheService;
 import com.school.erp.config.CacheConfig;
 import com.school.erp.platform.port.NotificationDispatchPort;
@@ -65,7 +64,6 @@ public class TeacherService {
     private final TeacherRepository repo;
     private final SchoolClassRepository schoolClassRepository;
     private final SectionRepository sectionRepository;
-    private final ClassTeacherAssignmentRepository classTeacherAssignmentRepository;
     private final PortalUserProvisioningService portalUserProvisioningService;
     private final UserRepository userRepository;
     private final UserSchoolRoleAssignmentRepository userSchoolRoleAssignmentRepository;
@@ -73,6 +71,7 @@ public class TeacherService {
     private final NotificationDispatchPort notificationDispatchPort;
     private final TenantConfigRepository tenantConfigRepository;
     private final ObjectProvider<CacheService> cacheService;
+    private final ObjectProvider<TimetableService> timetableService;
     private final DashboardSnapshotInvalidationService dashboardSnapshotInvalidationService;
 
     @Cacheable(cacheNames = CacheConfig.TEACHER_DIRECTORY, keyGenerator = "tenantMethodParamsKeyGenerator", unless = "#result == null")
@@ -147,21 +146,22 @@ public class TeacherService {
         if (email == null || email.isBlank()) {
             throw new BusinessException("email is required");
         }
-        String canonicalPhone = InternationalPhone.canonical(req.getPhone() != null ? req.getPhone().trim() : null);
-        if (canonicalPhone == null) {
-            throw new BusinessException(InternationalPhone.invalidMessage());
+        String nationalPhone = InternationalPhone.nationalIndiaMobile10(req.getPhone() != null ? req.getPhone().trim() : null);
+        if (nationalPhone == null) {
+            throw new BusinessException(InternationalPhone.importPhoneInvalidMessage());
         }
+        List<String> phoneKeys = InternationalPhone.compatibleLookupKeys("+91-" + nationalPhone);
         if (repo.existsByTenantIdAndEmailAndIsDeletedFalse(tenantId, email)) {
             throw new DuplicateResourceException("Teacher email already exists: " + email);
         }
-        if (repo.existsByTenantIdAndPhoneAndIsDeletedFalse(tenantId, canonicalPhone)) {
-            throw new DuplicateResourceException("Teacher phone already exists: " + canonicalPhone);
+        if (repo.existsByTenantIdAndPhoneInAndIsDeletedFalse(tenantId, phoneKeys)) {
+            throw new DuplicateResourceException("Teacher phone already exists: " + nationalPhone);
         }
         Teacher t = Teacher.builder()
                 .firstName(req.getFirstName())
                 .lastName(req.getLastName())
                 .email(email)
-                .phone(canonicalPhone)
+                .phone(nationalPhone)
                 .qualification(req.getQualification())
                 .specialization(req.getSpecialization())
                 .joinDate(req.getJoinDate())
@@ -180,12 +180,12 @@ public class TeacherService {
                 tenantId,
                 email,
                 display,
-                canonicalPhone,
+                nationalPhone,
                 Enums.Role.TEACHER,
                 null);
         t.setUserId(provision.userId());
         repo.save(t);
-        sendTeacherPortalCredentialsNotification(tenantId, provision.userId(), email, canonicalPhone);
+        sendTeacherPortalCredentialsNotification(tenantId, provision.userId(), email, nationalPhone);
         if (provision.createdNew()) {
             notifyAdminsOnTeacherOnboarding(tenantId);
         }
@@ -206,15 +206,16 @@ public class TeacherService {
         if (email != null && email.isBlank()) {
             email = null;
         }
-        String canonicalPhone = InternationalPhone.canonical(req.getPhone() != null ? req.getPhone().trim() : null);
-        if (canonicalPhone == null) {
-            throw new BusinessException(InternationalPhone.invalidMessage());
+        String importPhone = InternationalPhone.nationalIndiaMobile10(req.getPhone() != null ? req.getPhone().trim() : null);
+        if (importPhone == null) {
+            throw new BusinessException(InternationalPhone.importPhoneInvalidMessage());
         }
+        List<String> phoneKeys = InternationalPhone.importPhoneLookupKeys(importPhone);
         if (email != null && repo.existsByTenantIdAndEmailAndIsDeletedFalse(tenantId, email)) {
             throw new DuplicateResourceException("Teacher email already exists: " + email);
         }
-        if (repo.existsByTenantIdAndPhoneAndIsDeletedFalse(tenantId, canonicalPhone)) {
-            throw new DuplicateResourceException("Teacher phone already exists: " + canonicalPhone);
+        if (repo.existsByTenantIdAndPhoneInAndIsDeletedFalse(tenantId, phoneKeys)) {
+            throw new DuplicateResourceException("Teacher phone already exists: " + importPhone);
         }
         if (employeeCode != null && repo.existsByTenantIdAndEmployeeCodeAndIsDeletedFalse(tenantId, employeeCode)) {
             throw new DuplicateResourceException("Teacher employee code already exists: " + employeeCode);
@@ -223,7 +224,7 @@ public class TeacherService {
                 .firstName(req.getFirstName())
                 .lastName(req.getLastName())
                 .email(email)
-                .phone(canonicalPhone)
+                .phone(importPhone)
                 .qualification(req.getQualification())
                 .specialization(req.getSpecialization())
                 .joinDate(req.getJoinDate())
@@ -244,7 +245,7 @@ public class TeacherService {
         if (createPortal) {
             String display = req.getFirstName() + " " + req.getLastName();
             PortalUserProvisioningService.ProvisionResult pr = portalUserProvisioningService.ensureStaffUser(
-                    tenantId, email, display.trim(), req.getPhone(), portalRole);
+                    tenantId, email, display.trim(), importPhone, portalRole);
             t.setUserId(pr.userId());
             repo.save(t);
         }
@@ -270,12 +271,13 @@ public class TeacherService {
         if (email != null && email.isBlank()) {
             email = null;
         }
-        String canonicalPhone = InternationalPhone.canonical(req.getPhone() != null ? req.getPhone().trim() : null);
-        if (canonicalPhone == null) {
-            throw new BusinessException(InternationalPhone.invalidMessage());
+        String importPhone = InternationalPhone.nationalIndiaMobile10(req.getPhone() != null ? req.getPhone().trim() : null);
+        if (importPhone == null) {
+            throw new BusinessException(InternationalPhone.importPhoneInvalidMessage());
         }
-        String naturalKey = employeeCode != null ? "EMPLOYEE_CODE:" + employeeCode : "PHONE:" + canonicalPhone;
-        Optional<Teacher> existing = resolveExistingTeacherForImport(tenantId, employeeCode, email, canonicalPhone);
+        List<String> importPhoneKeys = InternationalPhone.importPhoneLookupKeys(importPhone);
+        String naturalKey = employeeCode != null ? "EMPLOYEE_CODE:" + employeeCode : "PHONE:" + importPhone;
+        Optional<Teacher> existing = resolveExistingTeacherForImport(tenantId, employeeCode, email, importPhoneKeys);
         if (existing.isEmpty()) {
             TeacherDTOs.Response created = createForBulkImport(req, false, portalRole, libraryStaffRole);
             if (createPortal) {
@@ -295,7 +297,7 @@ public class TeacherService {
             if (employeeCode != null) {
                 throw new DuplicateResourceException("Teacher with this employee code already exists: " + employeeCode);
             }
-            throw new DuplicateResourceException("Teacher with this phone already exists: " + canonicalPhone);
+            throw new DuplicateResourceException("Teacher with this phone already exists: " + importPhone);
         }
         if (policy == BulkImportRowPolicy.SKIP_IF_EXISTS) {
             Teacher teacher = existing.get();
@@ -332,7 +334,7 @@ public class TeacherService {
                 });
                 teacher.setEmail(normalizedEmail);
             }
-            teacher.setPhone(canonicalPhone);
+            teacher.setPhone(importPhone);
             teacher.setQualification(req.getQualification());
             teacher.setSpecialization(req.getSpecialization());
             teacher.setJoinDate(req.getJoinDate());
@@ -353,6 +355,8 @@ public class TeacherService {
             try {
                 repo.save(teacher);
                 syncLinkedPortalUserIdentity(tenantId, teacher, previousEmail);
+                propagateTeacherDisplayNameToHomeroomFkRows(tenantId, teacher);
+                timetableService.ifAvailable(ts -> ts.refreshDenormalizedTeacherNames(teacher.getId()));
             } catch (DataIntegrityViolationException ex) {
                 throw new BusinessException("Duplicate contact values are not allowed for this school.");
             }
@@ -403,11 +407,11 @@ public class TeacherService {
             if (raw.isEmpty()) {
                 t.setPhone(null);
             } else {
-                String canonicalPhone = InternationalPhone.canonical(raw);
-                if (canonicalPhone == null) {
-                    throw new BusinessException(InternationalPhone.invalidMessage());
+                String nationalPhone = InternationalPhone.nationalIndiaMobile10(raw);
+                if (nationalPhone == null) {
+                    throw new BusinessException(InternationalPhone.importPhoneInvalidMessage());
                 }
-                t.setPhone(canonicalPhone);
+                t.setPhone(nationalPhone);
             }
         }
         if (req.getQualification() != null) t.setQualification(req.getQualification());
@@ -434,6 +438,8 @@ public class TeacherService {
         try {
             repo.save(t);
             syncLinkedPortalUserIdentity(tenantId, t, previousEmail);
+            propagateTeacherDisplayNameToHomeroomFkRows(tenantId, t);
+            timetableService.ifAvailable(ts -> ts.refreshDenormalizedTeacherNames(t.getId()));
         } catch (DataIntegrityViolationException ex) {
             throw new BusinessException("Duplicate contact values are not allowed for this school.");
         } catch (DuplicateResourceException | BusinessException ex) {
@@ -445,6 +451,31 @@ public class TeacherService {
         log.info("Teacher updated id={}", id);
         evictTeacherDirectoryCache();
         return toRes(t, homeroomClassNamesForTeacher(tenantId, t.getId()));
+    }
+
+    /**
+     * Denormalized {@code class_teacher_name} on classes/sections — keep in sync when the teacher's display name changes.
+     */
+    private void propagateTeacherDisplayNameToHomeroomFkRows(String tenantId, Teacher teacher) {
+        if (teacher.getId() == null) {
+            return;
+        }
+        String label = (teacher.getFirstName() + " " + teacher.getLastName()).trim();
+        if (label.isBlank()) {
+            return;
+        }
+        for (SchoolClass c : schoolClassRepository.findByTenantIdAndClassTeacherIdAndIsDeletedFalse(tenantId, teacher.getId())) {
+            if (!label.equals(c.getClassTeacherName())) {
+                c.setClassTeacherName(label);
+                schoolClassRepository.save(c);
+            }
+        }
+        for (Section sec : sectionRepository.findByTenantIdAndClassTeacherIdAndIsDeletedFalse(tenantId, teacher.getId())) {
+            if (!label.equals(sec.getClassTeacherName())) {
+                sec.setClassTeacherName(label);
+                sectionRepository.save(sec);
+            }
+        }
     }
 
     private void syncLinkedPortalUserIdentity(String tenantId, Teacher teacher, String previousEmail) {
@@ -467,8 +498,9 @@ public class TeacherService {
         }
         String previousPhone = linkedUser.getPhone();
         if (teacher.getPhone() != null && !teacher.getPhone().isBlank()) {
-            for (String key : InternationalPhone.compatibleLookupKeys(teacher.getPhone())) {
-                if (!key.equals(linkedUser.getPhone()) && userRepository.existsByPhoneAndTenantIdAndIsDeletedFalse(key, tenantId)) {
+            for (String key : InternationalPhone.portalPhoneLookupKeys(teacher.getPhone())) {
+                if (!InternationalPhone.samePortalPhone(key, linkedUser.getPhone())
+                        && userRepository.existsByPhoneAndTenantIdAndIsDeletedFalse(key, tenantId)) {
                     throw new DuplicateResourceException("User phone already exists in this school: " + teacher.getPhone());
                 }
             }
@@ -477,6 +509,10 @@ public class TeacherService {
         if (teacher.getPhone() != null && !teacher.getPhone().equals(previousPhone)) {
             linkedUser.setPhoneVerified(false);
         }
+        String displayName = (teacher.getFirstName() + " " + teacher.getLastName()).trim();
+        if (!displayName.isBlank()) {
+            linkedUser.setName(displayName);
+        }
         userRepository.save(linkedUser);
     }
 
@@ -484,7 +520,7 @@ public class TeacherService {
             String tenantId,
             String employeeCode,
             String email,
-            String canonicalPhone) {
+            List<String> phoneLookupKeys) {
         if (employeeCode != null) {
             Optional<Teacher> byCode = repo.findByTenantIdAndEmployeeCodeAndIsDeletedFalse(tenantId, employeeCode);
             if (byCode.isPresent()) {
@@ -497,7 +533,10 @@ public class TeacherService {
                 return byEmail;
             }
         }
-        return repo.findByTenantIdAndPhoneAndIsDeletedFalse(tenantId, canonicalPhone);
+        if (phoneLookupKeys == null || phoneLookupKeys.isEmpty()) {
+            return Optional.empty();
+        }
+        return repo.findFirstByTenantIdAndPhoneInAndIsDeletedFalseOrderByIdAsc(tenantId, phoneLookupKeys);
     }
 
     private static String normalizeEmployeeCode(String rawEmployeeCode) {
@@ -773,12 +812,11 @@ public class TeacherService {
     }
 
     /**
-     * Homeroom labels per teacher: merge {@code school_classes}/{@code sections} class-teacher columns
-     * with active {@link ClassTeacherAssignment} rows so directory UI stays aligned with academic year assignments.
+     * Homeroom labels per teacher from {@code school_classes}/{@code sections} class-teacher columns only —
+     * single source of truth for “current” homeroom (exclusive assignment is enforced in {@code AcademicService}).
      */
     private Map<Long, List<String>> homeroomClassNamesByTeacherId(String tenantId) {
         Map<Long, LinkedHashSet<String>> acc = new HashMap<>();
-        LocalDate today = LocalDate.now();
 
         List<SchoolClass> classes = schoolClassRepository.findByTenantIdAndIsDeletedFalseOrderByGrade(tenantId);
         for (SchoolClass c : classes) {
@@ -797,11 +835,6 @@ public class TeacherService {
             }
         }
 
-        for (ClassTeacherAssignment a : classTeacherAssignmentRepository.findAllActiveOnOrAfter(tenantId, today)) {
-            homeroomLabelForAssignment(tenantId, a).ifPresent(label ->
-                    acc.computeIfAbsent(a.getTeacherId(), k -> new LinkedHashSet<>()).add(label));
-        }
-
         Map<Long, List<String>> map = new HashMap<>();
         for (Map.Entry<Long, LinkedHashSet<String>> e : acc.entrySet()) {
             ArrayList<String> sorted = new ArrayList<>(e.getValue());
@@ -812,12 +845,7 @@ public class TeacherService {
     }
 
     private List<String> homeroomClassNamesForTeacher(String tenantId, Long teacherPk) {
-        LinkedHashSet<String> acc = new LinkedHashSet<>();
-        homeroomClassNamesForTeacherFromSectionColumns(tenantId, teacherPk).forEach(acc::add);
-        for (ClassTeacherAssignment a : classTeacherAssignmentRepository.findActiveForTeacher(tenantId, teacherPk, LocalDate.now())) {
-            homeroomLabelForAssignment(tenantId, a).ifPresent(acc::add);
-        }
-        ArrayList<String> out = new ArrayList<>(acc);
+        List<String> out = new ArrayList<>(homeroomClassNamesForTeacherFromSectionColumns(tenantId, teacherPk));
         Collections.sort(out);
         return out;
     }
@@ -837,23 +865,9 @@ public class TeacherService {
         return out;
     }
 
-    private Optional<String> homeroomLabelForAssignment(String tenantId, ClassTeacherAssignment a) {
-        Optional<SchoolClass> oc = schoolClassRepository.findByIdAndTenantIdAndIsDeletedFalse(a.getClassId(), tenantId);
-        if (oc.isEmpty()) {
-            return Optional.empty();
-        }
-        SchoolClass c = oc.get();
-        if (a.getSectionId() == null) {
-            return Optional.of(c.getName());
-        }
-        return sectionRepository.findByIdAndTenantIdAndIsDeletedFalse(a.getSectionId(), tenantId)
-                .map(sec -> c.getName() + "-" + sec.getName());
-    }
-
     public TeacherService(final TeacherRepository repo,
                           final SchoolClassRepository schoolClassRepository,
                           final SectionRepository sectionRepository,
-                          final ClassTeacherAssignmentRepository classTeacherAssignmentRepository,
                           final PortalUserProvisioningService portalUserProvisioningService,
                           final UserRepository userRepository,
                           final UserSchoolRoleAssignmentRepository userSchoolRoleAssignmentRepository,
@@ -861,11 +875,11 @@ public class TeacherService {
                           final NotificationDispatchPort notificationDispatchPort,
                           final TenantConfigRepository tenantConfigRepository,
                           final ObjectProvider<CacheService> cacheService,
+                          final ObjectProvider<TimetableService> timetableService,
                           final DashboardSnapshotInvalidationService dashboardSnapshotInvalidationService) {
         this.repo = repo;
         this.schoolClassRepository = schoolClassRepository;
         this.sectionRepository = sectionRepository;
-        this.classTeacherAssignmentRepository = classTeacherAssignmentRepository;
         this.portalUserProvisioningService = portalUserProvisioningService;
         this.userRepository = userRepository;
         this.userSchoolRoleAssignmentRepository = userSchoolRoleAssignmentRepository;
@@ -873,6 +887,7 @@ public class TeacherService {
         this.notificationDispatchPort = notificationDispatchPort;
         this.tenantConfigRepository = tenantConfigRepository;
         this.cacheService = cacheService;
+        this.timetableService = timetableService;
         this.dashboardSnapshotInvalidationService = dashboardSnapshotInvalidationService;
     }
 

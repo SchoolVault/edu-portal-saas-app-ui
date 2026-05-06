@@ -1,9 +1,12 @@
 package com.school.erp.modules.operations.service;
 
 import com.school.erp.common.dto.PageResponse;
+import com.school.erp.common.enums.Enums;
+import com.school.erp.common.exception.ApiErrorCode;
 import com.school.erp.common.exception.BusinessException;
 import com.school.erp.common.exception.ResourceNotFoundException;
 import com.school.erp.common.util.InternationalPhone;
+import com.school.erp.modules.auth.service.PortalUserProvisioningService;
 import com.school.erp.modules.operations.dto.OperationsDTOs;
 import com.school.erp.modules.operations.entity.*;
 import com.school.erp.modules.operations.repository.*;
@@ -18,6 +21,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeParseException;
 import java.time.format.DateTimeFormatter;
+import java.util.Locale;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -31,18 +35,21 @@ public class OperationsService {
     private final GatePassRepository gatePassRepo;
     private final InventoryItemRepository inventoryRepo;
     private final FeeReminderQueueRepository feeReminderRepo;
+    private final PortalUserProvisioningService portalUserProvisioningService;
 
     public OperationsService(
             OperationalStaffRepository staffRepo,
             VisitorLogRepository visitorRepo,
             GatePassRepository gatePassRepo,
             InventoryItemRepository inventoryRepo,
-            FeeReminderQueueRepository feeReminderRepo) {
+            FeeReminderQueueRepository feeReminderRepo,
+            PortalUserProvisioningService portalUserProvisioningService) {
         this.staffRepo = staffRepo;
         this.visitorRepo = visitorRepo;
         this.gatePassRepo = gatePassRepo;
         this.inventoryRepo = inventoryRepo;
         this.feeReminderRepo = feeReminderRepo;
+        this.portalUserProvisioningService = portalUserProvisioningService;
     }
 
     // --- operational staff ---
@@ -63,12 +70,23 @@ public class OperationsService {
         e.setStaffRole(req.getStaffRole().trim().toUpperCase());
         e.setFullName(req.getFullName().trim());
         e.setPhone(canonicalPhoneOptional(req.getPhone()));
-        e.setEmail(req.getEmail());
+        e.setEmail(blankToNull(req.getEmail()));
         e.setEmployeeCode(req.getEmployeeCode());
-        e.setUserId(req.getUserId());
         e.setTransportRouteId(req.getTransportRouteId());
         e.setNotes(req.getNotes());
         e.setCreatedBy(TenantContext.getUserId() != null ? TenantContext.getUserId().toString() : null);
+
+        Long linkedUserId = req.getUserId();
+        if (Boolean.TRUE.equals(req.getCreatePortal())) {
+            linkedUserId = provisionOperationalStaffPortalRow(
+                    TenantContext.getTenantId(),
+                    e.getFullName(),
+                    e.getStaffRole(),
+                    e.getPhone(),
+                    e.getEmail(),
+                    req.getPortalPassword());
+        }
+        e.setUserId(linkedUserId);
         staffRepo.save(e);
         return toStaffResponse(e);
     }
@@ -261,9 +279,21 @@ public class OperationsService {
         if (req.getStaffRole() != null && !req.getStaffRole().isBlank()) e.setStaffRole(req.getStaffRole().trim().toUpperCase());
         if (req.getFullName() != null && !req.getFullName().isBlank()) e.setFullName(req.getFullName().trim());
         if (req.getPhone() != null) e.setPhone(canonicalPhoneOptional(req.getPhone()));
-        if (req.getEmail() != null) e.setEmail(req.getEmail().trim());
+        if (req.getEmail() != null) e.setEmail(blankToNull(req.getEmail()));
         if (req.getEmployeeCode() != null) e.setEmployeeCode(req.getEmployeeCode().trim());
         if (req.getNotes() != null) e.setNotes(req.getNotes().trim());
+
+        if (Boolean.TRUE.equals(req.getCreatePortal()) && e.getUserId() == null) {
+            Long uid = provisionOperationalStaffPortalRow(
+                    TenantContext.getTenantId(),
+                    e.getFullName(),
+                    e.getStaffRole(),
+                    e.getPhone(),
+                    e.getEmail(),
+                    req.getPortalPassword());
+            e.setUserId(uid);
+        }
+
         e.setUpdatedBy(TenantContext.getUserId() != null ? TenantContext.getUserId().toString() : null);
         staffRepo.save(e);
         return toStaffResponse(e);
@@ -430,10 +460,87 @@ public class OperationsService {
         if (raw == null || raw.isBlank()) {
             return null;
         }
-        String canonical = InternationalPhone.canonical(raw);
-        if (canonical == null) {
-            throw new BusinessException(InternationalPhone.invalidMessage());
+        String national = InternationalPhone.nationalIndiaMobile10(raw.trim());
+        if (national == null) {
+            throw new BusinessException(InternationalPhone.importPhoneInvalidMessage());
         }
-        return canonical;
+        return national;
+    }
+
+    /**
+     * Mirrors import pipeline {@link com.school.erp.modules.auth.service.PortalUserProvisioningService#ensureStaffUserForImport}:
+     * creates or links a {@link com.school.erp.modules.auth.entity.User} and returns its id for {@code operational_staff.user_id}.
+     */
+    private Long provisionOperationalStaffPortalRow(
+            String tenantId,
+            String fullName,
+            String staffRoleCode,
+            String nationalPhoneStored,
+            String emailRaw,
+            String portalPasswordRaw) {
+        if (nationalPhoneStored == null || nationalPhoneStored.isBlank()) {
+            throw new BusinessException(
+                    "Phone is required to create a staff portal login.",
+                    ApiErrorCode.STAFF_PORTAL_PHONE_REQUIRED);
+        }
+        validateOptionalPortalPassword(portalPasswordRaw);
+        String normalizedEmail = normalizeEmailForPortal(emailRaw);
+        Enums.Role portalRole = portalRoleFromOperationalStaffRoleCode(staffRoleCode);
+        return portalUserProvisioningService
+                .ensureStaffUserForImport(
+                        tenantId,
+                        normalizedEmail,
+                        fullName,
+                        nationalPhoneStored,
+                        portalRole,
+                        blankToNull(portalPasswordRaw))
+                .userId();
+    }
+
+    private static String blankToNull(String s) {
+        if (s == null) {
+            return null;
+        }
+        String t = s.trim();
+        return t.isEmpty() ? null : t;
+    }
+
+    private static String normalizeEmailForPortal(String emailRaw) {
+        String t = blankToNull(emailRaw);
+        if (t == null) {
+            return null;
+        }
+        return t.toLowerCase(Locale.ROOT);
+    }
+
+    private static void validateOptionalPortalPassword(String portalPasswordRaw) {
+        if (portalPasswordRaw == null || portalPasswordRaw.isBlank()) {
+            return;
+        }
+        String pwd = portalPasswordRaw.trim();
+        if (pwd.length() < 8) {
+            throw new BusinessException(
+                    "Portal password must be at least 8 characters when provided.",
+                    ApiErrorCode.STAFF_PORTAL_PASSWORD_TOO_SHORT);
+        }
+    }
+
+    /**
+     * Map free-text ops role codes (often aligned with CSV {@code portal_role}) to portal JWT role.
+     */
+    private static Enums.Role portalRoleFromOperationalStaffRoleCode(String staffRole) {
+        if (staffRole == null || staffRole.isBlank()) {
+            return Enums.Role.SCHOOL_STAFF;
+        }
+        String n = staffRole.trim().toUpperCase(Locale.ROOT);
+        return switch (n) {
+            case "LIBRARY", "LIBRARY_STAFF", "LIB", "LIBRARIAN" -> Enums.Role.LIBRARY_STAFF;
+            default -> {
+                if (n.startsWith("LIBRARY")) {
+                    yield Enums.Role.LIBRARY_STAFF;
+                }
+                yield Enums.Role.SCHOOL_STAFF;
+            }
+        };
     }
 }

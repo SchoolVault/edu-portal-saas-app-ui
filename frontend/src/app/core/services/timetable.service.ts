@@ -85,6 +85,55 @@ export class TimetableService {
   }
 
   /**
+   * Who is scheduled on the recurring (non-cover) timetable for this class section, calendar day, and period.
+   * Used by attendance-cover UI to hide the absent teacher from the substitute dropdown.
+   * Skips {@code scheduleSource === 'COVER'} rows so the first matching entry is not a prior substitute.
+   */
+  findRegularTeacherIdForCoverSlot(
+    entries: TimetableEntry[],
+    coverDateIso: string,
+    period: number | string | null | undefined
+  ): number | null {
+    const p = Number(period);
+    if (!Number.isFinite(p) || p < 1) {
+      return null;
+    }
+    const trimmed = (coverDateIso ?? '').trim();
+    if (!trimmed) {
+      return null;
+    }
+    const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const dayTitle = days[new Date(trimmed + 'T12:00:00').getDay()];
+    const dayNorm = this.normalizeWeekdayTitle(dayTitle);
+    const pool = entries.filter(e => e.scheduleSource !== 'COVER');
+    const hit = pool.find(
+      e => this.normalizeWeekdayTitle(e.day) === dayNorm && Number(e.period) === p
+    );
+    const tid = hit?.teacherId;
+    return tid != null && Number(tid) > 0 ? Number(tid) : null;
+  }
+
+  /** Distinct period numbers that have a recurring slot on the selected cover date (Mon-Sat). */
+  listPeriodsForCoverDate(entries: TimetableEntry[], coverDateIso: string): number[] {
+    const trimmed = (coverDateIso ?? '').trim();
+    if (!trimmed) {
+      return [];
+    }
+    const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const dayTitle = days[new Date(trimmed + 'T12:00:00').getDay()];
+    const dayNorm = this.normalizeWeekdayTitle(dayTitle);
+    if (!this.isIndianSchoolTeachingDayName(dayNorm)) {
+      return [];
+    }
+    return [...new Set(
+      entries
+        .filter(e => e.scheduleSource !== 'COVER' && this.normalizeWeekdayTitle(e.day) === dayNorm)
+        .map(e => Number(e.period))
+        .filter(p => Number.isFinite(p) && p > 0)
+    )].sort((a, b) => a - b);
+  }
+
+  /**
    * Teacher “week matrix”: columns are always Monday → Saturday in order, even if the first populated
    * slot is mid-week (fixes Tuesday-first columns when Monday has no row for that teacher).
    */
