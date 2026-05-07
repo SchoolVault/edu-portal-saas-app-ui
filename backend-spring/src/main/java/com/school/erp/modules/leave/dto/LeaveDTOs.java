@@ -9,6 +9,7 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 
 /**
@@ -144,6 +145,10 @@ public final class LeaveDTOs {
         private Enums.LeaveStatus status;
         private Long approverUserId;
         private String approverRemarks;
+        private Integer approvalStep;
+        private Integer approvalStepTotal;
+        private LocalDateTime approvalSlaDueAt;
+        private Integer approvalEscalationCount;
         @Schema(implementation = Enums.LeaveDayUnit.class)
         private Enums.LeaveDayUnit dayUnit;
 
@@ -249,6 +254,38 @@ public final class LeaveDTOs {
 
         public void setApproverRemarks(String approverRemarks) {
             this.approverRemarks = approverRemarks;
+        }
+
+        public Integer getApprovalStep() {
+            return approvalStep;
+        }
+
+        public void setApprovalStep(Integer approvalStep) {
+            this.approvalStep = approvalStep;
+        }
+
+        public Integer getApprovalStepTotal() {
+            return approvalStepTotal;
+        }
+
+        public void setApprovalStepTotal(Integer approvalStepTotal) {
+            this.approvalStepTotal = approvalStepTotal;
+        }
+
+        public LocalDateTime getApprovalSlaDueAt() {
+            return approvalSlaDueAt;
+        }
+
+        public void setApprovalSlaDueAt(LocalDateTime approvalSlaDueAt) {
+            this.approvalSlaDueAt = approvalSlaDueAt;
+        }
+
+        public Integer getApprovalEscalationCount() {
+            return approvalEscalationCount;
+        }
+
+        public void setApprovalEscalationCount(Integer approvalEscalationCount) {
+            this.approvalEscalationCount = approvalEscalationCount;
         }
 
         public Enums.LeaveDayUnit getDayUnit() {

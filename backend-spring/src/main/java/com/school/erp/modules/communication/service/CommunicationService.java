@@ -27,6 +27,7 @@ import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -409,6 +410,22 @@ public class CommunicationService {
         String t = TenantContext.getTenantId();
         Long userId = TenantContext.getUserId();
         return msgRepo.findConversation(t, userId, otherUserId).stream().map(this::toMsgResponse).collect(Collectors.toList());
+    }
+
+    @Transactional(readOnly = true)
+    public PageResponse<CommunicationDTOs.MessageResponse> getMyMessagesPaged(int page, int size) {
+        String t = TenantContext.getTenantId();
+        Long userId = TenantContext.getUserId();
+        Pageable pageable = PageRequest.of(Math.max(page, 0), Math.max(1, Math.min(size, 100)), Sort.by(Sort.Direction.DESC, "createdAt"));
+        return PageResponse.fromSpringPage(msgRepo.findUserMessagesPage(t, userId, pageable).map(this::toMsgResponse));
+    }
+
+    @Transactional(readOnly = true)
+    public PageResponse<CommunicationDTOs.MessageResponse> getConversationPaged(Long otherUserId, int page, int size) {
+        String t = TenantContext.getTenantId();
+        Long userId = TenantContext.getUserId();
+        Pageable pageable = PageRequest.of(Math.max(page, 0), Math.max(1, Math.min(size, 100)), Sort.by(Sort.Direction.ASC, "createdAt"));
+        return PageResponse.fromSpringPage(msgRepo.findConversationPage(t, userId, otherUserId, pageable).map(this::toMsgResponse));
     }
 
     @Transactional

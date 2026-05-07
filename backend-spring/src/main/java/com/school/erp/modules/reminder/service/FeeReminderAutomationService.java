@@ -8,6 +8,7 @@ import com.school.erp.modules.settings.repository.TenantConfigRepository;
 import com.school.erp.modules.settings.service.TenantFeatureFlagsService;
 import com.school.erp.modules.student.entity.Student;
 import com.school.erp.modules.student.port.StudentPersistencePort;
+import com.school.erp.modules.fees.dto.FeeDTOs;
 import com.school.erp.platform.port.NotificationDispatchPort;
 import com.school.erp.platform.port.NotificationDispatchAttributes;
 import com.school.erp.tenant.AcademicYearContext;
@@ -18,6 +19,7 @@ import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Locale;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -39,6 +41,7 @@ public class FeeReminderAutomationService {
     private final TenantFeatureFlagsService featureFlagsService;
     private final TenantConfigRepository tenantConfigRepository;
     private final CurrentAcademicYearResolver currentAcademicYearResolver;
+    private final String feeReminderCron;
 
     public FeeReminderAutomationService(
             FeePaymentRepository feePaymentRepository,
@@ -46,13 +49,15 @@ public class FeeReminderAutomationService {
             NotificationDispatchPort notificationDispatchPort,
             TenantFeatureFlagsService featureFlagsService,
             TenantConfigRepository tenantConfigRepository,
-            CurrentAcademicYearResolver currentAcademicYearResolver) {
+            CurrentAcademicYearResolver currentAcademicYearResolver,
+            @org.springframework.beans.factory.annotation.Value("${app.jobs.fee-reminder-cron:0 15 8 * * *}") String feeReminderCron) {
         this.feePaymentRepository = feePaymentRepository;
         this.studentPersistence = studentPersistence;
         this.notificationDispatchPort = notificationDispatchPort;
         this.featureFlagsService = featureFlagsService;
         this.tenantConfigRepository = tenantConfigRepository;
         this.currentAcademicYearResolver = currentAcademicYearResolver;
+        this.feeReminderCron = feeReminderCron;
     }
 
     /** Call after a new {@link FeePayment} row is persisted with outstanding balance. */
@@ -251,5 +256,36 @@ public class FeeReminderAutomationService {
         }
         LocalTime now = LocalTime.now();
         return !now.isBefore(WORK_START) && now.isBefore(WORK_END);
+    }
+
+    public FeeDTOs.FeeReminderOpsSnapshot getOpsSnapshot(String tenantId, String roleHint) {
+        LocalDate today = LocalDate.now();
+        int upcoming = 0;
+        int overdue = 0;
+        int critical = 0;
+        for (FeePayment p : feePaymentRepository.findByTenantIdAndIsDeletedFalse(tenantId)) {
+            if (!hasOutstanding(p) || p.getDueDate() == null) {
+                continue;
+            }
+            long days = ChronoUnit.DAYS.between(p.getDueDate(), today);
+            if (days > 0) {
+                overdue++;
+                if (days > 30) {
+                    critical++;
+                }
+            } else if (days >= -10) {
+                upcoming++;
+            }
+        }
+        FeeDTOs.FeeReminderOpsSnapshot out = new FeeDTOs.FeeReminderOpsSnapshot();
+        out.setUpcomingDueCount(upcoming);
+        out.setOverdueCount(overdue);
+        out.setCriticalCount(critical);
+        out.setWorkingHoursStart(WORK_START.getHour());
+        out.setWorkingHoursEnd(WORK_END.getHour());
+        out.setCronExpression(feeReminderCron);
+        out.setInWorkingWindowNow(inWorkingHoursWeekday(today));
+        out.setRoleHint(roleHint == null ? "fee_desk" : roleHint.trim().toLowerCase(Locale.ROOT));
+        return out;
     }
 }

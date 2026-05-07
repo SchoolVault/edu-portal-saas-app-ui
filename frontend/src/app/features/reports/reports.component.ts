@@ -27,7 +27,7 @@ import {
   Section,
   SectionSummaryRow,
   Student,
-  StudentPerformanceRow,
+  StudentPerformanceRow, AcademicYear,
   TeacherWorkloadRow
 } from '../../core/models/models';
 import { buildCsvSchoolLine, downloadCsvDocument, type CsvDocumentMeta } from '../../core/utils/csv-export.util';
@@ -60,15 +60,17 @@ import { formatDateDdMmYyyy } from '../../core/utils/date-format';
           <h2 class="reports-page-title">{{ 'reports.pageTitle' | translate }}</h2>
           <p class="reports-page-lead text-muted mb-0">{{ 'reports.lead' | translate }}</p>
         </div>
-        <button type="button" class="btn-outline-erp btn-sm" (click)="refreshAllReports()"><i class="bi bi-arrow-clockwise"></i> {{ 'reports.refresh' | translate }}</button>
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+          <span class="badge bg-light text-dark border reports-header-year-badge">{{ 'reports.currentAcademicYearPill' | translate:{ name: currentAcademicYearName } }}</span>
+          <button type="button" class="btn-outline-erp btn-sm" (click)="refreshAllReports()"><i class="bi bi-arrow-clockwise"></i> {{ 'reports.refresh' | translate }}</button>
+        </div>
       </div>
 
       <div class="erp-tabs animate-in">
         <button class="erp-tab" [class.active]="tab === 'performance'" (click)="tab = 'performance'; loadPerformance()">{{ 'reports.tab.performance' | translate }}</button>
         <button class="erp-tab" [class.active]="tab === 'attendance'" (click)="tab = 'attendance'; loadAttendance()">{{ 'reports.tab.attendance' | translate }}</button>
         <button class="erp-tab" [class.active]="tab === 'fees'" (click)="tab = 'fees'; loadFees()">{{ 'reports.tab.fees' | translate }}</button>
-        <button class="erp-tab" [class.active]="tab === 'class'" (click)="tab = 'class'; loadClassSummary()">{{ 'reports.tab.class' | translate }}</button>
-        <button class="erp-tab" [class.active]="tab === 'section'" (click)="tab = 'section'; loadSectionSummary()">{{ 'reports.tab.section' | translate }}</button>
+        <button class="erp-tab" [class.active]="tab === 'class'" (click)="tab = 'class'; loadClassAndSectionSummary()">{{ 'reports.tab.classSection' | translate }}</button>
         <button class="erp-tab" [class.active]="tab === 'teacher'" (click)="tab = 'teacher'; loadTeacherWorkload()">{{ 'reports.tab.teacher' | translate }}</button>
         <button class="erp-tab" [class.active]="tab === 'report-card'" (click)="tab = 'report-card'; loadReportCard()">{{ 'reports.tab.reportCard' | translate }}</button>
         <button class="erp-tab" [class.active]="tab === 'designer'" (click)="tab = 'designer'; loadReportDesignerData()">{{ 'reports.tab.designer' | translate }}</button>
@@ -91,16 +93,12 @@ import { formatDateDdMmYyyy } from '../../core/utils/date-format';
         </div>
         <div class="erp-card mb-4" *ngIf="showTemplateSetup">
           <div class="row g-3 reports-template-editor-row">
-            <div class="col-md-3">
-              <label class="erp-label">{{ 'reports.templateCode' | translate }}</label>
-              <input class="erp-input" [(ngModel)]="templateDraft.templateCode" />
-              <p class="text-muted small mb-0 mt-1">{{ 'reports.designer.templateCodeHint' | translate }}</p>
-            </div>
-            <div class="col-md-3">
+            <div class="col-md-4">
               <label class="erp-label">{{ 'reports.templateName' | translate }}</label>
-              <input class="erp-input" [(ngModel)]="templateDraft.name" />
+              <input class="erp-input" [(ngModel)]="templateDraft.name" [placeholder]="'reports.designer.templateNamePh' | translate" />
+              <p class="text-muted small mb-0 mt-1">{{ 'reports.designer.templateNameHint' | translate }}</p>
             </div>
-            <div class="col-md-2">
+            <div class="col-md-3">
               <label class="erp-label">{{ 'reports.packCode' | translate }}</label>
               <select class="erp-select" [(ngModel)]="templateDraft.packCode">
                 <option value="CBSE">CBSE</option>
@@ -110,7 +108,7 @@ import { formatDateDdMmYyyy } from '../../core/utils/date-format';
               </select>
               <p class="text-muted small mb-0 mt-1">{{ 'reports.designer.packHint' | translate }}</p>
             </div>
-            <div class="col-md-2">
+            <div class="col-md-3">
               <label class="erp-label">{{ 'reports.format' | translate }}</label>
               <select class="erp-select" [(ngModel)]="templateDraft.defaultFormat">
                 <option value="PDF">PDF</option>
@@ -121,16 +119,38 @@ import { formatDateDdMmYyyy } from '../../core/utils/date-format';
               <label class="erp-label reports-template-save-label-spacer" aria-hidden="true">&nbsp;</label>
               <button type="button" class="btn-outline-erp btn-sm w-100 reports-template-save-btn" (click)="saveTemplateDraft()">{{ 'reports.saveTemplate' | translate }}</button>
             </div>
+            <div class="col-md-6">
+              <label class="erp-label small">{{ 'reports.templateCode' | translate }}</label>
+              <input class="erp-input" [value]="templateCodePreview" readonly />
+              <p class="text-muted small mb-0 mt-1">{{ 'reports.designer.templateCodeAutoHint' | translate }}</p>
+            </div>
+            <div class="col-md-6">
+              <label class="erp-label small">{{ 'reports.designer.useCustomTemplateCode' | translate }}</label>
+              <div class="d-flex align-items-center gap-2">
+                <input type="checkbox" [(ngModel)]="useCustomTemplateCode" />
+                <input class="erp-input" [(ngModel)]="templateDraft.templateCode" [disabled]="!useCustomTemplateCode" />
+              </div>
+            </div>
           </div>
           <div class="row g-3 mt-1">
             <div class="col-md-4">
-              <label class="erp-label small">{{ 'reports.columnsCsv' | translate }}</label>
-              <input class="erp-input" [(ngModel)]="templateColumnsCsv" />
+              <label class="erp-label small">{{ 'reports.designer.columnsTitle' | translate }}</label>
+              <div class="reports-checklist">
+                <label class="reports-checklist-item" *ngFor="let col of availableTemplateColumns">
+                  <input type="checkbox" [checked]="isTemplateColumnSelected(col.key)" (change)="toggleTemplateColumn(col.key, $any($event.target).checked)" />
+                  <span>{{ col.labelKey | translate }}</span>
+                </label>
+              </div>
               <p class="text-muted small mb-0 mt-1">{{ 'reports.designer.columnsHint' | translate }}</p>
             </div>
             <div class="col-md-4">
-              <label class="erp-label small">{{ 'reports.boardSectionsCsv' | translate }}</label>
-              <input class="erp-input" [(ngModel)]="templateSectionsCsv" />
+              <label class="erp-label small">{{ 'reports.designer.boardSectionsTitle' | translate }}</label>
+              <div class="reports-checklist">
+                <label class="reports-checklist-item" *ngFor="let section of boardSectionCatalog">
+                  <input type="checkbox" [checked]="isBoardSectionSelected(section.value)" (change)="toggleBoardSection(section.value, $any($event.target).checked)" />
+                  <span>{{ section.labelKey | translate }}</span>
+                </label>
+              </div>
             </div>
             <div class="col-md-4">
               <label class="erp-label small">{{ 'reports.promotionMinPct' | translate }}</label>
@@ -155,37 +175,55 @@ import { formatDateDdMmYyyy } from '../../core/utils/date-format';
           </div>
 
           <div class="row g-3" *ngIf="designerWizardStep === 1">
-            <div class="col-md-3">
+            <div class="col-12">
+              <label class="erp-label small mb-1">{{ 'reports.designer.quickPresets' | translate }}</label>
+              <div class="reports-preset-row">
+                <button type="button" class="btn-outline-erp btn-sm" (click)="applyDesignerPreset('CLASS_SECTION')">{{ 'reports.designer.presetClassSectionWise' | translate }}</button>
+                <button type="button" class="btn-outline-erp btn-sm" (click)="applyDesignerPreset('TEACHER')">{{ 'reports.designer.presetTeacherWise' | translate }}</button>
+                <button type="button" class="btn-outline-erp btn-sm" (click)="applyDesignerPreset('FEE')">{{ 'reports.designer.presetFeeCollection' | translate }}</button>
+                <button type="button" class="btn-outline-erp btn-sm" (click)="applyDesignerPreset('REPORT_CARD')">{{ 'reports.designer.presetReportCard' | translate }}</button>
+              </div>
+            </div>
+            <div class="col-md-4">
+              <label class="erp-label">{{ 'reports.reportType' | translate }}</label>
+              <select class="erp-select" [(ngModel)]="designerReportType" (ngModelChange)="onDesignerReportTypeChange()">
+                <option *ngFor="let rt of reportTypes" [ngValue]="rt">{{ reportTypeLabel(rt) }}</option>
+              </select>
+            </div>
+            <div class="col-md-4" *ngIf="designerNeedsClass">
               <label class="erp-label small">{{ 'reports.labelClass' | translate }}</label>
               <select class="erp-select" [(ngModel)]="designerClassId" (change)="onDesignerClassChange()">
                 <option [ngValue]="null">-</option>
                 <option *ngFor="let cls of classes" [ngValue]="cls.id">{{ cls.name | schoolClassName }}</option>
               </select>
             </div>
-            <div class="col-md-3">
+            <div class="col-md-4" *ngIf="designerShowsSectionFilter">
               <label class="erp-label small">{{ 'reports.labelSection' | translate }}</label>
               <select class="erp-select" [(ngModel)]="designerSectionId">
                 <option [ngValue]="null">{{ 'reports.allSections' | translate }}</option>
                 <option *ngFor="let section of designerSections" [ngValue]="section.id">{{ section.name }}</option>
               </select>
             </div>
-            <div class="col-md-3">
+            <div class="col-md-4" *ngIf="designerNeedsExam">
               <label class="erp-label small">{{ 'reports.labelExam' | translate }}</label>
               <select class="erp-select" [(ngModel)]="designerExamId">
                 <option [ngValue]="null">-</option>
                 <option *ngFor="let exam of exams" [ngValue]="exam.id">{{ exam.name }}</option>
               </select>
             </div>
-            <div class="col-md-3">
+            <div class="col-md-4" *ngIf="designerNeedsStudent">
               <label class="erp-label small">{{ 'reports.labelStudent' | translate }}</label>
               <select class="erp-select" [(ngModel)]="designerStudentId">
                 <option [ngValue]="null">-</option>
                 <option *ngFor="let student of designerStudentOptions" [ngValue]="student.id">{{ student.firstName }} {{ student.lastName }}</option>
               </select>
             </div>
-            <div class="col-md-3">
+            <div class="col-md-4" *ngIf="designerNeedsMonth">
               <label class="erp-label small">{{ 'reports.labelMonth' | translate }}</label>
               <app-erp-month-picker [(ngModel)]="designerMonth" placeholderI18nKey="reports.monthPlaceholder" />
+            </div>
+            <div class="col-12" *ngIf="designerStepValidationMessage">
+              <p class="text-muted small mb-0">{{ designerStepValidationMessage | translate }}</p>
             </div>
           </div>
 
@@ -198,12 +236,6 @@ import { formatDateDdMmYyyy } from '../../core/utils/date-format';
                   <option *ngFor="let t of reportTemplates" [ngValue]="t.id">{{ t.name }} ({{ reportTypeLabel(t.reportType) }})</option>
                 </select>
                 <!-- <p class="text-muted small mb-0 mt-1">{{ 'reports.designer.savedTemplateHint' | translate }}</p> -->
-              </div>
-              <div class="col-md-4">
-                <label class="erp-label">{{ 'reports.reportType' | translate }}</label>
-                <select class="erp-select" [(ngModel)]="designerReportType">
-                  <option *ngFor="let rt of reportTypes" [ngValue]="rt">{{ reportTypeLabel(rt) }}</option>
-                </select>
               </div>
               <div class="col-md-4">
                 <label class="erp-label">{{ 'reports.format' | translate }}</label>
@@ -229,6 +261,38 @@ import { formatDateDdMmYyyy } from '../../core/utils/date-format';
                   <div><strong>{{ 'reports.labelExam' | translate }}:</strong> {{ designerExamDisplay }}</div>
                   <div><strong>{{ 'reports.reportType' | translate }}:</strong> {{ reportTypeLabel(designerReportType) }}</div>
                   <div><strong>{{ 'reports.format' | translate }}:</strong> {{ designerFormat }}</div>
+                </div>
+                <div class="row g-2 mt-2">
+                  <div class="col-sm-6 col-lg-4" *ngIf="designerNeedsClass">
+                    <div class="reports-review-chip">
+                      <div class="text-muted small">{{ 'reports.labelClass' | translate }}</div>
+                      <strong>{{ designerClassDisplay }}</strong>
+                    </div>
+                  </div>
+                  <div class="col-sm-6 col-lg-4" *ngIf="designerShowsSectionFilter">
+                    <div class="reports-review-chip">
+                      <div class="text-muted small">{{ 'reports.labelSection' | translate }}</div>
+                      <strong>{{ designerSectionDisplay }}</strong>
+                    </div>
+                  </div>
+                  <div class="col-sm-6 col-lg-4" *ngIf="designerNeedsExam">
+                    <div class="reports-review-chip">
+                      <div class="text-muted small">{{ 'reports.labelExam' | translate }}</div>
+                      <strong>{{ designerExamDisplay }}</strong>
+                    </div>
+                  </div>
+                  <div class="col-sm-6 col-lg-4" *ngIf="designerNeedsMonth">
+                    <div class="reports-review-chip">
+                      <div class="text-muted small">{{ 'reports.labelMonth' | translate }}</div>
+                      <strong>{{ designerMonth || '-' }}</strong>
+                    </div>
+                  </div>
+                  <div class="col-sm-6 col-lg-4" *ngIf="designerNeedsStudent">
+                    <div class="reports-review-chip">
+                      <div class="text-muted small">{{ 'reports.labelStudent' | translate }}</div>
+                      <strong>{{ designerStudentDisplay }}</strong>
+                    </div>
+                  </div>
                 </div>
               </div>
               <div class="col-md-4">
@@ -265,7 +329,8 @@ import { formatDateDdMmYyyy } from '../../core/utils/date-format';
             <button type="button" class="btn-outline-erp btn-sm" (click)="previousDesignerStep()" [disabled]="designerWizardStep === 1">
               {{ 'reports.designer.back' | translate }}
             </button>
-            <button type="button" class="btn-outline-erp btn-sm" (click)="nextDesignerStep()" *ngIf="designerWizardStep < 3">
+            <button type="button" class="btn-outline-erp btn-sm" (click)="nextDesignerStep()" *ngIf="designerWizardStep < 3" [disabled]="designerWizardStep === 1 && !isDesignerStepOneValid">
+              <span *ngIf="designerWizardStep === 1 && !isDesignerStepOneValid" class="me-1">!</span>
               {{ 'reports.designer.next' | translate }}
             </button>
           </div>
@@ -279,10 +344,9 @@ import { formatDateDdMmYyyy } from '../../core/utils/date-format';
             </div>
           </div>
           <table class="erp-table" *ngIf="reportJobs.length">
-            <thead><tr><th>ID</th><th>{{ 'reports.reportType' | translate }}</th><th>{{ 'reports.format' | translate }}</th><th>{{ 'reports.th.status' | translate }}</th><th>{{ 'reports.workflowState' | translate }}</th><th>{{ 'reports.generatedAt' | translate }}</th><th>{{ 'reports.download' | translate }}</th></tr></thead>
+            <thead><tr><th>{{ 'reports.reportType' | translate }}</th><th>{{ 'reports.format' | translate }}</th><th>{{ 'reports.th.status' | translate }}</th><th>{{ 'reports.workflowState' | translate }}</th><th>{{ 'reports.generatedAt' | translate }}</th><th>{{ 'reports.download' | translate }}</th></tr></thead>
             <tbody>
               <tr *ngFor="let j of reportJobs">
-                <td>{{ j.id }}</td>
                 <td>{{ reportTypeLabel(j.reportType) }}</td>
                 <td>{{ j.format }}</td>
                 <td>{{ reportJobStatusLabel(j.status) }}</td>
@@ -295,6 +359,9 @@ import { formatDateDdMmYyyy } from '../../core/utils/date-format';
                     </button>
                     <button *ngIf="j.status === 'FAILED'" type="button" class="btn-outline-erp btn-sm" (click)="retryReportJob(j)">
                       {{ 'reports.retry' | translate }}
+                    </button>
+                    <button *ngIf="j.status === 'QUEUED' || j.status === 'RUNNING' || j.status === 'RETRY'" type="button" class="btn-outline-erp btn-sm" (click)="cancelReportJob(j)">
+                      {{ 'reports.cancel' | translate }}
                     </button>
                     <button *ngIf="j.status === 'COMPLETED' && (j.workflowState || 'DRAFT') === 'DRAFT'" type="button" class="btn-outline-erp btn-sm" (click)="approveReportJob(j)">
                       {{ 'reports.approve' | translate }}
@@ -317,7 +384,7 @@ import { formatDateDdMmYyyy } from '../../core/utils/date-format';
             </tbody>
           </table>
           <div *ngIf="selectedDispatchJobId != null" class="mt-3">
-            <h5 class="mb-2">{{ 'reports.dispatches' | translate }} · #{{ selectedDispatchJobId }}</h5>
+            <h5 class="mb-2">{{ 'reports.dispatches' | translate }}</h5>
             <table class="erp-table" *ngIf="dispatchRows.length">
               <thead><tr><th>{{ 'reports.th.status' | translate }}</th><th>{{ 'reports.shareRole' | translate }}</th><th>{{ 'reports.shareLocale' | translate }}</th><th>{{ 'reports.shareChannel' | translate }}</th><th>{{ 'reports.generatedAt' | translate }}</th></tr></thead>
               <tbody>
@@ -332,7 +399,7 @@ import { formatDateDdMmYyyy } from '../../core/utils/date-format';
             </table>
           </div>
           <div *ngIf="selectedSnapshotJobId != null" class="mt-3">
-            <h5 class="mb-2">{{ 'reports.snapshots' | translate }} · #{{ selectedSnapshotJobId }}</h5>
+            <h5 class="mb-2">{{ 'reports.snapshots' | translate }}</h5>
             <table class="erp-table" *ngIf="snapshotRows.length">
               <thead><tr><th>{{ 'reports.versionNo' | translate }}</th><th>{{ 'reports.th.status' | translate }}</th><th>{{ 'reports.generatedAt' | translate }}</th><th>{{ 'reports.rollback' | translate }}</th></tr></thead>
               <tbody>
@@ -346,9 +413,9 @@ import { formatDateDdMmYyyy } from '../../core/utils/date-format';
             </table>
           </div>
           <div *ngIf="selectedEventJobId != null" class="mt-3">
-            <h5 class="mb-2">{{ 'reports.events' | translate }} · #{{ selectedEventJobId }}</h5>
+            <h5 class="mb-2">{{ 'reports.events' | translate }}</h5>
             <table class="erp-table" *ngIf="workflowEvents.length">
-              <thead><tr><th>{{ 'reports.eventCode' | translate }}</th><th>{{ 'reports.workflowState' | translate }}</th><th>{{ 'reports.generatedAt' | translate }}</th><th>{{ 'reports.th.status' | translate }}</th></tr></thead>
+              <thead><tr><th>{{ 'reports.eventsFriendly' | translate }}</th><th>{{ 'reports.workflowState' | translate }}</th><th>{{ 'reports.generatedAt' | translate }}</th><th>{{ 'reports.th.status' | translate }}</th></tr></thead>
               <tbody>
                 <tr *ngFor="let e of workflowEvents">
                   <td>{{ reportEventLabel(e.eventCode) }}</td>
@@ -394,6 +461,45 @@ import { formatDateDdMmYyyy } from '../../core/utils/date-format';
               <input type="search" class="erp-input" erpI18nPh="reports.filter.performancePh" [(ngModel)]="perfSearch" (ngModelChange)="onPerfSearchChange()" />
             </div>
             <button type="button" class="btn-outline-erp btn-sm erp-filter-toolbar__action" (click)="exportPerformanceCsv()"><i class="bi bi-download"></i> {{ 'reports.exportCsv' | translate }}</button>
+          </div>
+          <div class="row g-3 mb-3">
+            <div class="col-lg-6">
+              <div class="erp-card p-3 h-100 reports-highlight-card">
+                <h5 class="erp-card-title mb-2">{{ 'reports.topPerformersTitle' | translate }}</h5>
+                <p class="small mb-2 reports-highlight-badge" *ngIf="performanceHighlightsAcademicYearId != null">
+                  {{ 'reports.academicYearBadge' | translate:{ id: performanceAcademicYearLabel } }}
+                </p>
+                <div *ngIf="performanceTopRows.length; else noTopRows">
+                  <div class="d-flex justify-content-between align-items-center py-1 border-bottom reports-highlight-row" *ngFor="let row of performanceTopRows; let i = index">
+                    <div>
+                      <strong>{{ i + 1 }}. {{ row.studentName }}</strong>
+                      <div class="text-muted small">{{ row.grade }}</div>
+                    </div>
+                    <div class="fw-semibold">{{ row.percentage | number:'1.0-1' }}%</div>
+                  </div>
+                </div>
+                <ng-template #noTopRows>
+                  <p class="text-muted small mb-0">{{ 'reports.noData' | translate }}</p>
+                </ng-template>
+              </div>
+            </div>
+            <div class="col-lg-6">
+              <div class="erp-card p-3 h-100 reports-highlight-card">
+                <h5 class="erp-card-title mb-2">{{ 'reports.lowPerformersTitle' | translate }}</h5>
+                <div *ngIf="performanceLowRows.length; else noLowRows">
+                  <div class="d-flex justify-content-between align-items-center py-1 border-bottom reports-highlight-row" *ngFor="let row of performanceLowRows; let i = index">
+                    <div>
+                      <strong>{{ i + 1 }}. {{ row.studentName }}</strong>
+                      <div class="text-muted small">{{ row.grade }}</div>
+                    </div>
+                    <div class="fw-semibold">{{ row.percentage | number:'1.0-1' }}%</div>
+                  </div>
+                </div>
+                <ng-template #noLowRows>
+                  <p class="text-muted small mb-0">{{ 'reports.noData' | translate }}</p>
+                </ng-template>
+              </div>
+            </div>
           </div>
           <p *ngIf="performanceRows.length && !perfFilteredTotal" class="text-muted small mb-2">{{ 'reports.noMatches' | translate }}</p>
           <table class="erp-table" *ngIf="perfFilteredTotal">
@@ -537,6 +643,7 @@ import { formatDateDdMmYyyy } from '../../core/utils/date-format';
 
       <div *ngIf="tab === 'class'" class="animate-in">
         <div class="erp-card">
+          <h4 class="erp-card-title mb-2">{{ 'reports.classOverviewTitle' | translate }}</h4>
           <div class="erp-filter-toolbar mb-2">
             <div *ngIf="!reportServerPaging" class="erp-filter-toolbar__search">
               <label class="erp-label small mb-1" erpI18nText="reports.filter.class"></label>
@@ -550,7 +657,7 @@ import { formatDateDdMmYyyy } from '../../core/utils/date-format';
             <tbody>
               <tr *ngFor="let row of pagedClassSummaryRows">
                 <td><strong>{{ row.className | schoolClassName }}</strong></td>
-                <td>{{ row.sections }}</td>
+                <td>{{ classSectionLabels(row) }}</td>
                 <td>{{ row.totalStudents }}</td>
                 <td>{{ row.attendancePercentage | number:'1.0-1' }}%</td>
                 <td>{{ row.performancePercentage | number:'1.0-1' }}%</td>
@@ -569,10 +676,8 @@ import { formatDateDdMmYyyy } from '../../core/utils/date-format';
             (pageSizeChange)="onRepPageSize($event, 'class')"
           />
         </div>
-      </div>
-
-      <div *ngIf="tab === 'section'" class="animate-in">
-        <div class="erp-card">
+        <div class="erp-card mt-3">
+          <h4 class="erp-card-title mb-2">{{ 'reports.sectionOverviewTitle' | translate }}</h4>
           <div class="erp-filter-toolbar mb-2">
             <div *ngIf="!reportServerPaging" class="erp-filter-toolbar__search">
               <label class="erp-label small mb-1" erpI18nText="reports.filter.section"></label>
@@ -684,9 +789,10 @@ import { formatDateDdMmYyyy } from '../../core/utils/date-format';
           </div>
           <p *ngIf="reportCard.subjects.length && !rcSubFilteredTotal" class="text-muted small mb-2">{{ 'reports.noMatches' | translate }}</p>
           <table class="erp-table" *ngIf="rcSubFilteredTotal">
-            <thead><tr><th>{{ 'reports.th.subject' | translate }}</th><th>{{ 'reports.th.marks' | translate }}</th><th>{{ 'reports.th.maxMarks' | translate }}</th><th>{{ 'reports.th.grade' | translate }}</th></tr></thead>
+            <thead><tr><th *ngIf="selectedExamId == null">{{ 'reports.th.exam' | translate }}</th><th>{{ 'reports.th.subject' | translate }}</th><th>{{ 'reports.th.marks' | translate }}</th><th>{{ 'reports.th.maxMarks' | translate }}</th><th>{{ 'reports.th.grade' | translate }}</th></tr></thead>
             <tbody>
               <tr *ngFor="let subject of pagedReportCardSubjects">
+                <td *ngIf="selectedExamId == null">{{ examNameForMark(subject.examId) }}</td>
                 <td><strong>{{ subject.subjectName }}</strong></td>
                 <td>{{ subject.marksObtained }}</td>
                 <td>{{ subject.maxMarks }}</td>
@@ -733,7 +839,7 @@ import { formatDateDdMmYyyy } from '../../core/utils/date-format';
                 <option *ngFor="let cls of classes" [ngValue]="cls.id">{{ cls.name | schoolClassName }}</option>
               </select>
             </div>
-            <div class="col-md-4">
+            <div class="col-md-4" *ngIf="designerClassHasSections">
               <label class="erp-label">{{ 'reports.labelSection' | translate }}</label>
               <select class="erp-select" [(ngModel)]="designerSectionId">
                 <option [ngValue]="null">{{ 'reports.allSections' | translate }}</option>
@@ -907,6 +1013,51 @@ import { formatDateDdMmYyyy } from '../../core/utils/date-format';
     .reports-job-actions .btn-outline-erp {
       border-radius: 999px;
     }
+    .reports-highlight-card {
+      border: 1px solid color-mix(in srgb, var(--clr-border) 70%, var(--clr-primary) 30%);
+      box-shadow: 0 6px 16px color-mix(in srgb, var(--clr-primary) 12%, transparent);
+    }
+    .reports-highlight-badge {
+      display: inline-flex;
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: color-mix(in srgb, var(--clr-primary) 14%, var(--clr-surface));
+      color: color-mix(in srgb, var(--clr-text) 76%, var(--clr-primary) 24%);
+      font-weight: 600;
+    }
+    .reports-highlight-row:last-child {
+      border-bottom: 0 !important;
+    }
+    .reports-preset-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 6px;
+    }
+    .reports-review-chip {
+      border: 1px solid color-mix(in srgb, var(--clr-border) 74%, var(--clr-primary) 26%);
+      border-radius: 10px;
+      padding: 8px 10px;
+      background: color-mix(in srgb, var(--clr-primary) 7%, var(--clr-surface));
+      min-height: 58px;
+    }
+    .reports-checklist {
+      display: grid;
+      gap: 6px;
+      max-height: 180px;
+      overflow: auto;
+      padding: 8px;
+      border: 1px solid color-mix(in srgb, var(--clr-border) 74%, var(--clr-primary) 26%);
+      border-radius: 10px;
+      background: color-mix(in srgb, var(--clr-surface) 96%, var(--clr-primary) 4%);
+    }
+    .reports-checklist-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      color: var(--clr-text);
+    }
     .reports-template-save-label-spacer {
       visibility: hidden;
       margin-bottom: 0.25rem;
@@ -916,6 +1067,11 @@ import { formatDateDdMmYyyy } from '../../core/utils/date-format';
     }
     .reports-export-btn {
       margin-left: auto;
+    }
+    .reports-header-year-badge {
+      font-size: 0.9rem;
+      font-weight: 600;
+      padding: 0.48rem 0.8rem;
     }
     @media (max-width: 768px) {
       .erp-table { font-size: 12px; }
@@ -930,6 +1086,9 @@ import { formatDateDdMmYyyy } from '../../core/utils/date-format';
       .reports-wizard-steps span { width: 26px; height: 26px; font-size: 12px; }
       .erp-card {
         border-radius: 12px;
+      }
+      .reports-preset-row .btn-outline-erp.btn-sm {
+        flex: 1 1 calc(50% - 8px);
       }
     }
     @media (max-width: 576px) {
@@ -958,7 +1117,12 @@ export class ReportsComponent implements OnInit {
   selectedAttendanceSectionId: number | null = null;
   selectedFeeSectionId: number | null = null;
   selectedReportCardSectionId: number | null = null;
+  academicYears: AcademicYear[] = [];
+  selectedReportAcademicYearId: number | null = null;
   performanceRows: StudentPerformanceRow[] = [];
+  performanceTopRows: StudentPerformanceRow[] = [];
+  performanceLowRows: StudentPerformanceRow[] = [];
+  performanceHighlightsAcademicYearId: number | null = null;
   attendanceRows: AttendanceSummaryRow[] = [];
   feeRows: FeePayment[] = [];
   classSummaryRows: ClassSummaryRow[] = [];
@@ -1023,8 +1187,27 @@ export class ReportsComponent implements OnInit {
     layoutConfig: {},
     filterSchema: {},
   };
-  templateColumnsCsv = 'studentName,totalMarks,percentage,grade';
-  templateSectionsCsv = 'Scholastic,Co-Scholastic';
+  useCustomTemplateCode = false;
+  selectedTemplateColumns: string[] = ['studentName', 'totalMarks', 'percentage', 'grade'];
+  selectedBoardSections: string[] = ['Scholastic', 'Co-Scholastic'];
+  readonly templateColumnCatalog: Array<{ key: string; labelKey: string; reportTypes: string[] }> = [
+    { key: 'studentName', labelKey: 'reports.designer.field.studentName', reportTypes: ['STUDENT_PERFORMANCE', 'REPORT_CARD'] },
+    { key: 'rollNo', labelKey: 'reports.designer.field.rollNo', reportTypes: ['STUDENT_PERFORMANCE', 'REPORT_CARD'] },
+    { key: 'className', labelKey: 'reports.designer.field.className', reportTypes: ['STUDENT_PERFORMANCE', 'ATTENDANCE_SUMMARY', 'FEE_COLLECTION', 'CLASS_SUMMARY', 'SECTION_SUMMARY', 'REPORT_CARD'] },
+    { key: 'sectionName', labelKey: 'reports.designer.field.sectionName', reportTypes: ['STUDENT_PERFORMANCE', 'ATTENDANCE_SUMMARY', 'SECTION_SUMMARY', 'REPORT_CARD'] },
+    { key: 'totalMarks', labelKey: 'reports.designer.field.totalMarks', reportTypes: ['STUDENT_PERFORMANCE', 'REPORT_CARD'] },
+    { key: 'percentage', labelKey: 'reports.designer.field.percentage', reportTypes: ['STUDENT_PERFORMANCE', 'ATTENDANCE_SUMMARY', 'REPORT_CARD'] },
+    { key: 'grade', labelKey: 'reports.designer.field.grade', reportTypes: ['STUDENT_PERFORMANCE', 'REPORT_CARD'] },
+    { key: 'attendancePercentage', labelKey: 'reports.designer.field.attendancePercentage', reportTypes: ['ATTENDANCE_SUMMARY'] },
+    { key: 'paidAmount', labelKey: 'reports.designer.field.paidAmount', reportTypes: ['FEE_COLLECTION'] },
+    { key: 'dueAmount', labelKey: 'reports.designer.field.dueAmount', reportTypes: ['FEE_COLLECTION'] },
+  ];
+  readonly boardSectionCatalog: Array<{ value: string; labelKey: string }> = [
+    { value: 'Scholastic', labelKey: 'reports.designer.section.scholastic' },
+    { value: 'Co-Scholastic', labelKey: 'reports.designer.section.coScholastic' },
+    { value: 'Attendance', labelKey: 'reports.designer.section.attendance' },
+    { value: 'Teacher Remarks', labelKey: 'reports.designer.section.teacherRemarks' },
+  ];
   templatePromotionMinPct = 33;
   designerReportType = 'STUDENT_PERFORMANCE';
   designerFormat: 'PDF' | 'CSV' = 'PDF';
@@ -1049,6 +1232,7 @@ export class ReportsComponent implements OnInit {
     'CLASS_SUMMARY',
     'SECTION_SUMMARY',
     'TEACHER_WORKLOAD',
+    'REPORT_CARD',
   ];
 
   private readonly destroyRef = inject(DestroyRef);
@@ -1157,13 +1341,67 @@ export class ReportsComponent implements OnInit {
   }
 
   get canGenerateDesignerReport(): boolean {
-    if (this.designerReportType === 'STUDENT_PERFORMANCE') {
-      return this.designerClassId != null && this.designerExamId != null;
-    }
-    if (this.designerReportType === 'ATTENDANCE_SUMMARY') {
-      return this.designerClassId != null && !!this.designerMonth;
-    }
+    if (this.designerNeedsClass && this.designerClassId == null) return false;
+    if (this.designerNeedsExam && this.designerExamId == null) return false;
+    if (this.designerNeedsMonth && !this.designerMonth) return false;
     return true;
+  }
+
+  get templateCodePreview(): string {
+    const generated = this.generateTemplateCode(this.templateDraft.name);
+    if (this.useCustomTemplateCode) {
+      return this.normalizeTemplateCode(this.templateDraft.templateCode || generated);
+    }
+    return generated;
+  }
+
+  get availableTemplateColumns(): Array<{ key: string; labelKey: string; reportTypes: string[] }> {
+    return this.templateColumnCatalog.filter(col => col.reportTypes.includes(this.designerReportType));
+  }
+
+  get isDesignerStepOneValid(): boolean {
+    if (this.designerNeedsClass && this.designerClassId == null) return false;
+    if (this.designerNeedsExam && this.designerExamId == null) return false;
+    if (this.designerNeedsMonth && !this.designerMonth) return false;
+    if (this.designerNeedsStudent && this.designerStudentId == null) return false;
+    return true;
+  }
+
+  get designerStepValidationMessage(): string {
+    if (this.designerWizardStep !== 1 || this.isDesignerStepOneValid) return '';
+    if (this.designerNeedsClass && this.designerClassId == null) return 'reports.designer.validationClass';
+    if (this.designerNeedsExam && this.designerExamId == null) return 'reports.designer.validationExam';
+    if (this.designerNeedsMonth && !this.designerMonth) return 'reports.designer.validationMonth';
+    if (this.designerNeedsStudent && this.designerStudentId == null) return 'reports.designer.validationStudent';
+    return '';
+  }
+
+  get designerNeedsClass(): boolean {
+    return ['STUDENT_PERFORMANCE', 'ATTENDANCE_SUMMARY', 'REPORT_CARD', 'FEE_COLLECTION'].includes(this.designerReportType);
+  }
+
+  get designerNeedsSection(): boolean {
+    return ['STUDENT_PERFORMANCE', 'ATTENDANCE_SUMMARY', 'REPORT_CARD', 'FEE_COLLECTION'].includes(this.designerReportType);
+  }
+
+  get designerClassHasSections(): boolean {
+    return this.designerSections.length > 0;
+  }
+
+  get designerShowsSectionFilter(): boolean {
+    return this.designerNeedsSection && this.designerClassHasSections;
+  }
+
+  get designerNeedsExam(): boolean {
+    return ['STUDENT_PERFORMANCE', 'REPORT_CARD'].includes(this.designerReportType);
+  }
+
+  get designerNeedsStudent(): boolean {
+    return this.designerReportType === 'REPORT_CARD';
+  }
+
+  get designerNeedsMonth(): boolean {
+    return this.designerReportType === 'ATTENDANCE_SUMMARY';
   }
 
   get canRunInsights(): boolean {
@@ -1184,6 +1422,28 @@ export class ReportsComponent implements OnInit {
 
   get designerExamDisplay(): string {
     return this.exams.find(e => e.id === this.designerExamId)?.name ?? '-';
+  }
+
+  get designerStudentDisplay(): string {
+    const student = this.designerStudentOptions.find(s => s.id === this.designerStudentId);
+    return student ? `${student.firstName} ${student.lastName}` : '-';
+  }
+
+  get performanceAcademicYearLabel(): string {
+    if (this.performanceHighlightsAcademicYearId == null) {
+      return '-';
+    }
+    const year = this.academicYears.find(y => y.id === this.performanceHighlightsAcademicYearId);
+    return year?.name ?? this.translate.instant('reports.scopeCurrentYear');
+  }
+
+  get currentAcademicYearName(): string {
+    const current = this.academicYears.find(y => y.isCurrent);
+    if (current?.name) {
+      return current.name;
+    }
+    const selected = this.academicYears.find(y => y.id === this.selectedReportAcademicYearId);
+    return selected?.name ?? '-';
   }
 
   get insightsWizardTitle(): string {
@@ -1214,10 +1474,21 @@ export class ReportsComponent implements OnInit {
 
   ngOnInit(): void {
     this.translate.onLangChange.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => this.cdr.markForCheck());
+    this.reportService.setAcademicYearScope('current', this.selectedReportAcademicYearId);
     this.refreshAllReports();
   }
 
   refreshAllReports(): void {
+    this.academicService.getAcademicYears().subscribe(years => {
+      this.academicYears = years ?? [];
+      if (this.selectedReportAcademicYearId == null) {
+        this.selectedReportAcademicYearId =
+          this.academicYears.find(y => y.isCurrent)?.id
+          ?? this.academicYears[0]?.id
+          ?? null;
+      }
+      this.reportService.setAcademicYearScope('current', this.selectedReportAcademicYearId);
+    });
     this.academicService.getClasses().subscribe(classes => {
       this.classes = classes;
       if (this.selectedClassId == null && classes[0]?.id != null) {
@@ -1313,6 +1584,27 @@ export class ReportsComponent implements OnInit {
   onDesignerClassChange(): void {
     this.designerSectionId = null;
     this.designerStudentId = null;
+    this.normalizeClassSectionReportType();
+  }
+
+  onDesignerReportTypeChange(): void {
+    this.designerSectionId = null;
+    this.designerStudentId = null;
+    if (!this.designerNeedsExam) {
+      this.designerExamId = null;
+    }
+    if (!this.designerNeedsMonth) {
+      this.designerMonth = new Date().toISOString().slice(0, 7);
+    }
+    this.applyDefaultTemplateColumnsForReportType(this.designerReportType);
+  }
+
+  applyDesignerPreset(preset: 'CLASS_SECTION' | 'TEACHER' | 'FEE' | 'REPORT_CARD'): void {
+    if (preset === 'CLASS_SECTION') this.designerReportType = this.classSectionReportTypeForCurrentClass();
+    else if (preset === 'TEACHER') this.designerReportType = 'TEACHER_WORKLOAD';
+    else if (preset === 'FEE') this.designerReportType = 'FEE_COLLECTION';
+    else this.designerReportType = 'REPORT_CARD';
+    this.onDesignerReportTypeChange();
   }
 
   loadPerformance(): void {
@@ -1321,6 +1613,11 @@ export class ReportsComponent implements OnInit {
       this.performanceRows = rows;
       this.perfPageIndex = 0;
       this.applyPerfPaging();
+    });
+    this.reportService.getStudentPerformanceHighlights(this.selectedClassId, this.selectedExamId, this.selectedPerformanceSectionId, 3).subscribe(highlights => {
+      this.performanceTopRows = highlights.topPerformers ?? [];
+      this.performanceLowRows = highlights.lowPerformers ?? [];
+      this.performanceHighlightsAcademicYearId = highlights.academicYearId ?? null;
     });
   }
 
@@ -1364,6 +1661,11 @@ export class ReportsComponent implements OnInit {
       if (resetPage) this.classRepPageIndex = 0;
       this.applyClassRepPaging();
     });
+  }
+
+  loadClassAndSectionSummary(): void {
+    this.loadClassSummary(true);
+    this.loadSectionSummary(true);
   }
 
   loadSectionSummary(resetPage = true): void {
@@ -1422,6 +1724,13 @@ export class ReportsComponent implements OnInit {
     if (!student) return '-';
     const className = student.className ?? '-';
     return student.sectionName ? `${className} - ${student.sectionName}` : className;
+  }
+
+  examNameForMark(examId: number | undefined): string {
+    if (examId == null) {
+      return '-';
+    }
+    return this.exams.find(exam => exam.id === examId)?.name ?? `${this.translate.instant('reports.labelExam')} ${examId}`;
   }
 
   applyPerfPaging(): void {
@@ -1728,7 +2037,7 @@ export class ReportsComponent implements OnInit {
         ],
         ...data.map(r => [
           r.className,
-          String(r.sections),
+          this.classSectionLabels(r),
           String(r.totalStudents),
           String(r.attendancePercentage),
           String(r.performancePercentage),
@@ -1787,18 +2096,62 @@ export class ReportsComponent implements OnInit {
   exportReportCardCsv(): void {
     if (!this.reportCard) return;
     const t = this.translate.instant.bind(this.translate);
+    const isAllExams = this.selectedExamId == null;
     const rows: string[][] = [
       [t('reports.csv.reportCard.student'), t('reports.csv.reportCard.overallPct'), t('reports.csv.reportCard.overallGrade')],
       [this.reportCard.studentName, String(this.reportCard.overallPercentage), this.reportCard.overallGrade],
       [],
-      [
-        t('reports.csv.reportCard.subject'),
-        t('reports.csv.reportCard.marks'),
-        t('reports.csv.reportCard.maxMarks'),
-        t('reports.csv.reportCard.grade'),
-      ],
-      ...this.reportCard.subjects.map(s => [s.subjectName, String(s.marksObtained), String(s.maxMarks), s.grade])
     ];
+    if (!isAllExams) {
+      rows.push(
+        [
+          t('reports.csv.reportCard.subject'),
+          t('reports.csv.reportCard.marks'),
+          t('reports.csv.reportCard.maxMarks'),
+          t('reports.csv.reportCard.grade'),
+        ],
+        ...this.reportCard.subjects.map(s => [s.subjectName, String(s.marksObtained), String(s.maxMarks), s.grade])
+      );
+    } else {
+      const grouped = new Map<number, typeof this.reportCard.subjects>();
+      for (const mark of this.reportCard.subjects) {
+        const key = mark.examId ?? 0;
+        const list = grouped.get(key) ?? [];
+        list.push(mark);
+        grouped.set(key, list);
+      }
+      Array.from(grouped.keys()).sort((a, b) => a - b).forEach(examId => {
+        const marks = grouped.get(examId) ?? [];
+        const examTotal = marks.reduce((sum, row) => sum + Number(row.marksObtained || 0), 0);
+        const examMax = marks.reduce((sum, row) => sum + Number(row.maxMarks || 0), 0);
+        const examPct = examMax > 0 ? Math.round((examTotal / examMax) * 1000) / 10 : 0;
+        rows.push([`${t('reports.csv.reportCard.exam')}: ${this.examNameForMark(examId)}`]);
+        rows.push([
+          t('reports.csv.reportCard.subject'),
+          t('reports.csv.reportCard.marks'),
+          t('reports.csv.reportCard.maxMarks'),
+          t('reports.csv.reportCard.grade'),
+          t('reports.th.pct'),
+        ]);
+        rows.push(
+          ...marks.map(s => [
+            s.subjectName,
+            String(s.marksObtained),
+            String(s.maxMarks),
+            s.grade,
+            String(s.maxMarks > 0 ? Math.round(((s.marksObtained / s.maxMarks) * 100) * 10) / 10 : 0),
+          ])
+        );
+        rows.push([
+          t('reports.csv.reportCard.examSubtotal'),
+          String(examTotal),
+          String(examMax),
+          '',
+          String(examPct),
+        ]);
+        rows.push([]);
+      });
+    }
     downloadCsvDocument(this.datedReportCsvName(`report-card-${this.reportCard.studentId}`), this.reportCsvMeta('reports.csvDocumentTitle.reportCard'), rows);
   }
 
@@ -1807,8 +2160,7 @@ export class ReportsComponent implements OnInit {
       case 'performance': this.loadPerformance(); break;
       case 'attendance': this.loadAttendance(); break;
       case 'fees': this.loadFees(); break;
-      case 'class': this.loadClassSummary(); break;
-      case 'section': this.loadSectionSummary(); break;
+      case 'class': this.loadClassAndSectionSummary(); break;
       case 'teacher': this.loadTeacherWorkload(); break;
       case 'report-card': this.loadReportCard(); break;
       case 'designer': this.loadReportDesignerData(); break;
@@ -1869,6 +2221,7 @@ export class ReportsComponent implements OnInit {
 
   nextDesignerStep(): void {
     if (this.designerWizardStep >= 3) return;
+    if (this.designerWizardStep === 1 && !this.isDesignerStepOneValid) return;
     this.designerWizardStep += 1;
   }
 
@@ -1907,6 +2260,10 @@ export class ReportsComponent implements OnInit {
 
   retryReportJob(job: ReportGenerationJob): void {
     this.reportService.retryReportJob(job.id).subscribe(() => this.loadReportJobs());
+  }
+
+  cancelReportJob(job: ReportGenerationJob): void {
+    this.reportService.cancelReportJob(job.id).subscribe(() => this.loadReportJobs());
   }
 
   loadDispatchesForJob(job: ReportGenerationJob): void {
@@ -1992,18 +2349,26 @@ export class ReportsComponent implements OnInit {
   }
 
   saveTemplateDraft(): void {
+    if (!this.selectedTemplateColumns.length) {
+      return;
+    }
+    if (!this.selectedBoardSections.length) {
+      return;
+    }
+    const resolvedTemplateCode = this.templateCodePreview;
     const payload: ReportTemplateDefinition = {
       ...this.templateDraft,
+      templateCode: resolvedTemplateCode,
       reportType: this.designerReportType,
       defaultFormat: this.designerFormat,
-      boardSections: this.csvList(this.templateSectionsCsv).map((name, idx) => ({ name, order: idx + 1 })),
+      boardSections: this.selectedBoardSections.map((name, idx) => ({ name, order: idx + 1 })),
       remarksConfig: { enabled: true, mode: 'TEACHER_REMARK' },
       promotionConfig: { enabled: true, minOverallPct: Number(this.templatePromotionMinPct || 0) },
       layoutConfig: {
-        columns: this.csvList(this.templateColumnsCsv),
+        columns: [...this.selectedTemplateColumns],
       },
       filterSchema: {
-        required: ['classId', 'examId'],
+        required: this.requiredFiltersForReportType(this.designerReportType),
       },
     };
     this.reportService.upsertTemplate(payload).subscribe(() => this.loadReportDesignerData());
@@ -2016,11 +2381,92 @@ export class ReportsComponent implements OnInit {
   private applyTemplateSelection(template: ReportTemplateDefinition): void {
     this.templateDraft = { ...template };
     const cols = (template.layoutConfig?.['columns'] as string[] | undefined) ?? [];
-    this.templateColumnsCsv = cols.join(',');
+    this.selectedTemplateColumns = cols.length ? cols : this.selectedTemplateColumns;
     const sections = (template.boardSections ?? []).map(x => String(x['name'] ?? '')).filter(Boolean);
-    if (sections.length) this.templateSectionsCsv = sections.join(',');
+    if (sections.length) this.selectedBoardSections = sections;
     const minPct = template.promotionConfig?.['minOverallPct'];
     this.templatePromotionMinPct = Number(minPct ?? this.templatePromotionMinPct);
+  }
+
+  toggleTemplateColumn(columnKey: string, checked: boolean): void {
+    const set = new Set(this.selectedTemplateColumns);
+    if (checked) set.add(columnKey);
+    else set.delete(columnKey);
+    this.selectedTemplateColumns = Array.from(set);
+  }
+
+  toggleBoardSection(sectionName: string, checked: boolean): void {
+    const set = new Set(this.selectedBoardSections);
+    if (checked) set.add(sectionName);
+    else set.delete(sectionName);
+    this.selectedBoardSections = Array.from(set);
+  }
+
+  isTemplateColumnSelected(columnKey: string): boolean {
+    return this.selectedTemplateColumns.includes(columnKey);
+  }
+
+  isBoardSectionSelected(sectionName: string): boolean {
+    return this.selectedBoardSections.includes(sectionName);
+  }
+
+  classSectionLabels(row: ClassSummaryRow): string {
+    const labelsFromClass = (this.classes.find(cls => cls.id === row.classId)?.sections ?? [])
+      .map(section => section.name?.trim())
+      .filter((name): name is string => Boolean(name));
+    if (labelsFromClass.length) {
+      return labelsFromClass.join(', ');
+    }
+
+    const labelsFromSummary = this.sectionRows
+      .filter(section => section.classId === row.classId)
+      .map(section => section.sectionName?.trim())
+      .filter((name): name is string => Boolean(name));
+    if (labelsFromSummary.length) {
+      return labelsFromSummary.join(', ');
+    }
+
+    return String(row.sections ?? 0);
+  }
+
+  private applyDefaultTemplateColumnsForReportType(reportType: string): void {
+    const defaults: Record<string, string[]> = {
+      STUDENT_PERFORMANCE: ['studentName', 'className', 'totalMarks', 'percentage', 'grade'],
+      ATTENDANCE_SUMMARY: ['studentName', 'className', 'sectionName', 'attendancePercentage'],
+      FEE_COLLECTION: ['studentName', 'className', 'paidAmount', 'dueAmount'],
+      CLASS_SUMMARY: ['className', 'percentage'],
+      SECTION_SUMMARY: ['className', 'sectionName', 'percentage'],
+      TEACHER_WORKLOAD: ['className'],
+      REPORT_CARD: ['studentName', 'className', 'totalMarks', 'grade', 'percentage'],
+    };
+    this.selectedTemplateColumns = defaults[reportType] ?? ['studentName', 'percentage'];
+  }
+
+  private generateTemplateCode(name: string): string {
+    const base = (name || 'school_report_template')
+      .trim()
+      .toUpperCase()
+      .replace(/[^A-Z0-9]+/g, '_')
+      .replace(/^_+|_+$/g, '')
+      .slice(0, 48);
+    return `${base || 'SCHOOL_REPORT_TEMPLATE'}_V1`;
+  }
+
+  private normalizeTemplateCode(raw: string): string {
+    return (raw || '')
+      .trim()
+      .toUpperCase()
+      .replace(/[^A-Z0-9_]+/g, '_')
+      .replace(/^_+|_+$/g, '')
+      .slice(0, 60);
+  }
+
+  private requiredFiltersForReportType(reportType: string): string[] {
+    if (reportType === 'STUDENT_PERFORMANCE') return ['classId', 'examId'];
+    if (reportType === 'ATTENDANCE_SUMMARY') return ['classId', 'month'];
+    if (reportType === 'FEE_COLLECTION') return ['classId'];
+    if (reportType === 'REPORT_CARD') return ['classId', 'examId', 'studentId'];
+    return [];
   }
 
   private csvList(raw: string): string[] {
@@ -2045,5 +2491,16 @@ export class ReportsComponent implements OnInit {
       return [];
     }
     return this.classes.find(cls => cls.id === classId)?.sections ?? [];
+  }
+
+  private classSectionReportTypeForCurrentClass(): string {
+    return this.sectionsForClass(this.designerClassId).length > 0 ? 'SECTION_SUMMARY' : 'CLASS_SUMMARY';
+  }
+
+  private normalizeClassSectionReportType(): void {
+    if (!['CLASS_SUMMARY', 'SECTION_SUMMARY'].includes(this.designerReportType)) {
+      return;
+    }
+    this.designerReportType = this.classSectionReportTypeForCurrentClass();
   }
 }

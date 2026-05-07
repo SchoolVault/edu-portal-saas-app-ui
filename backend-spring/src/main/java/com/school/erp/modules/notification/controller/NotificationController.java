@@ -85,14 +85,14 @@ public class NotificationController {
     }
 
     @PostMapping("/ops/dead-letter/{id}/replay")
-    @PreAuthorize(RbacSpel.SCHOOL_COMMUNICATION_WRITE)
+    @PreAuthorize(RbacSpel.SCHOOL_COMMUNICATION_PUBLISH)
     @Operation(summary = "Replay dead-letter entry")
     public ResponseEntity<ApiResponse<NotificationOpsDTOs.ReplayResult>> replayOne(@PathVariable Long id) {
         return ResponseEntity.ok(ApiResponse.ok(outboxService.replayDeadLetter(id), "Replay requested"));
     }
 
     @PostMapping("/ops/dead-letter/replay-by-campaign/{campaignId}")
-    @PreAuthorize(RbacSpel.SCHOOL_COMMUNICATION_WRITE)
+    @PreAuthorize(RbacSpel.SCHOOL_COMMUNICATION_PUBLISH)
     @Operation(summary = "Replay dead-letter entries for campaign")
     public ResponseEntity<ApiResponse<NotificationOpsDTOs.ReplayResult>> replayByCampaign(
             @PathVariable String campaignId,
@@ -110,7 +110,7 @@ public class NotificationController {
     }
 
     @PostMapping("/ops/email/test")
-    @PreAuthorize(RbacSpel.SCHOOL_COMMUNICATION_WRITE)
+    @PreAuthorize(RbacSpel.SCHOOL_COMMUNICATION_PUBLISH)
     @Operation(summary = "Queue a test transactional email via outbox EMAIL channel")
     public ResponseEntity<ApiResponse<Void>> queueEmailTest(
             @Valid @RequestBody NotificationOpsDTOs.EmailTestRequest request) {

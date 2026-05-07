@@ -20,6 +20,12 @@ public class Book extends BaseEntity {
     private Integer availableCopies;
     @Column(name = "shelf_location", length = 20)
     private String shelfLocation;
+    @Column(name = "accession_no", length = 60)
+    private String accessionNo;
+    @Column(name = "lost_copies")
+    private Integer lostCopies;
+    @Column(name = "written_off_copies")
+    private Integer writtenOffCopies;
 
     public Book() {
     }
@@ -88,5 +94,29 @@ public class Book extends BaseEntity {
 
     public void setShelfLocation(String shelfLocation) {
         this.shelfLocation = shelfLocation;
+    }
+
+    public String getAccessionNo() {
+        return accessionNo;
+    }
+
+    public void setAccessionNo(String accessionNo) {
+        this.accessionNo = accessionNo;
+    }
+
+    public Integer getLostCopies() {
+        return lostCopies;
+    }
+
+    public void setLostCopies(Integer lostCopies) {
+        this.lostCopies = lostCopies;
+    }
+
+    public Integer getWrittenOffCopies() {
+        return writtenOffCopies;
+    }
+
+    public void setWrittenOffCopies(Integer writtenOffCopies) {
+        this.writtenOffCopies = writtenOffCopies;
     }
 }

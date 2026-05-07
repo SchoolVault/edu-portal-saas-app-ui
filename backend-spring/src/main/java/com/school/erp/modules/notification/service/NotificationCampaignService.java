@@ -185,6 +185,21 @@ public class NotificationCampaignService {
     }
 
     @Transactional(readOnly = true)
+    public Map<String, CampaignDTOs.CampaignAnalyticsResponse> analyticsBatch(Set<String> campaignIds) {
+        if (campaignIds == null || campaignIds.isEmpty()) {
+            throw new BusinessException("campaignIds is required.");
+        }
+        Map<String, CampaignDTOs.CampaignAnalyticsResponse> out = new LinkedHashMap<>();
+        for (String id : campaignIds) {
+            if (id == null || id.isBlank()) {
+                continue;
+            }
+            out.put(id, analytics(id));
+        }
+        return out;
+    }
+
+    @Transactional(readOnly = true)
     public List<CampaignDTOs.CampaignTemplateResponse> listTemplates() {
         return templateService.listTemplates();
     }

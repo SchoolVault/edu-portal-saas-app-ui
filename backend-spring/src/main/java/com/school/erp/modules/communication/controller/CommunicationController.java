@@ -159,6 +159,14 @@ public class CommunicationController {
         return ResponseEntity.ok(ApiResponse.ok(campaignService.analytics(campaignId)));
     }
 
+    @PostMapping("/campaigns/analytics/batch")
+    @PreAuthorize(RbacSpel.SCHOOL_COMMUNICATION_READ)
+    @Operation(summary = "Campaign analytics batch", description = "Fetch analytics for multiple campaignIds in one request.")
+    public ResponseEntity<ApiResponse<java.util.Map<String, CampaignDTOs.CampaignAnalyticsResponse>>> campaignAnalyticsBatch(
+            @Valid @RequestBody CampaignDTOs.CampaignAnalyticsBatchRequest req) {
+        return ResponseEntity.ok(ApiResponse.ok(campaignService.analyticsBatch(req.getCampaignIds())));
+    }
+
     @GetMapping("/campaign-templates")
     @PreAuthorize(RbacSpel.SCHOOL_COMMUNICATION_READ)
     @Operation(summary = "List campaign templates")
@@ -199,10 +207,29 @@ public class CommunicationController {
     }
 
     @PostMapping("/messages")
-    @PreAuthorize(RbacSpel.COMMUNICATION_INBOX_READ)
+    @PreAuthorize(RbacSpel.SCHOOL_COMMUNICATION_MESSAGE_SEND)
     @Operation(summary = "Send message", description = "Send message to another user (teacher-parent communication)")
     public ResponseEntity<ApiResponse<CommunicationDTOs.MessageResponse>> sendMessage(@Valid @RequestBody CommunicationDTOs.SendMessageRequest req) {
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.created(service.sendMessage(req)));
+    }
+
+    @GetMapping("/messages/paged")
+    @PreAuthorize(RbacSpel.COMMUNICATION_INBOX_READ)
+    @Operation(summary = "Get my messages (paged)")
+    public ResponseEntity<ApiResponse<PageResponse<CommunicationDTOs.MessageResponse>>> getMessagesPaged(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return ResponseEntity.ok(ApiResponse.ok(service.getMyMessagesPaged(page, size)));
+    }
+
+    @GetMapping("/messages/conversation/{otherUserId}/paged")
+    @PreAuthorize(RbacSpel.COMMUNICATION_INBOX_READ)
+    @Operation(summary = "Get conversation (paged)")
+    public ResponseEntity<ApiResponse<PageResponse<CommunicationDTOs.MessageResponse>>> getConversationPaged(
+            @PathVariable Long otherUserId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "30") int size) {
+        return ResponseEntity.ok(ApiResponse.ok(service.getConversationPaged(otherUserId, page, size)));
     }
 
     @PutMapping("/messages/{id}/read")

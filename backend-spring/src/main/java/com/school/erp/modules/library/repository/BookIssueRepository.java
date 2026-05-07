@@ -85,4 +85,14 @@ public interface BookIssueRepository extends JpaRepository<BookIssue, Long> {
             ORDER BY i.dueDate ASC
             """)
     Page<BookIssue> pageOverdue(@Param("t") String t, @Param("today") LocalDate today, Pageable pageable);
+
+    long countByTenantIdAndBorrowerTypeAndBorrowerRefIdAndStatusAndIsDeletedFalse(
+            String tenantId, Enums.LibraryBorrowerType borrowerType, Long borrowerRefId, Enums.BookIssueStatus status);
+
+    @Query("""
+            SELECT i FROM BookIssue i WHERE i.tenantId = :t AND (i.isDeleted = false OR i.isDeleted IS NULL)
+              AND i.status = 'ISSUED' AND i.dueDate <= :targetDate
+            ORDER BY i.dueDate ASC
+            """)
+    List<BookIssue> findIssueReminders(@Param("t") String tenantId, @Param("targetDate") LocalDate targetDate);
 }

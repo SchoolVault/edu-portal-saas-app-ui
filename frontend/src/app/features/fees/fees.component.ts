@@ -34,6 +34,7 @@ import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directiv
 import { buildCsvSchoolLine, downloadCsvDocument } from '../../core/utils/csv-export.util';
 import { ImportExportService } from '../../core/services/import-export.service';
 import { formatDateDdMmYyyy } from '../../core/utils/date-format';
+import { runtimeConfig } from '../../core/config/runtime-config';
 
 @Component({
   selector: 'app-fees',
@@ -41,7 +42,6 @@ import { formatDateDdMmYyyy } from '../../core/utils/date-format';
   imports: [CommonModule, FormsModule, TranslateModule, SchoolClassNamePipe, ErpPaginationComponent, ErpI18nPhDirective],
   styles: [`
     .fees-page {
-      width: 100%;
       max-width: 100%;
       min-width: 0;
     }
@@ -114,20 +114,17 @@ import { formatDateDdMmYyyy } from '../../core/utils/date-format';
     .fees-toolbar-group {
       min-width: 150px;
     }
-    .fees-toolbar-group--class,
-    .fees-toolbar-group--section {
-      min-width: 170px;
-    }
     .fees-toolbar-right {
       margin-left: auto;
       display: flex;
       flex-wrap: wrap;
       align-items: end;
+      justify-content: flex-end;
       gap: 10px;
     }
     .fees-search-block {
-      min-width: 220px;
-      max-width: 380px;
+      min-width: 280px;
+      max-width: 420px;
     }
     .fees-search-block .erp-input,
     .fees-toolbar .erp-select,
@@ -698,16 +695,19 @@ import { formatDateDdMmYyyy } from '../../core/utils/date-format';
         </div>
         <div class="erp-card fees-payments-shell">
           <div class="fees-toolbar">
-            <div class="search-input-wrapper flex-grow-1 fees-search-block">
-              <i class="bi bi-search"></i>
-              <input
-                type="text"
-                class="erp-input"
-                erpI18nPh="fees.searchPaymentsPlaceholder"
-                [(ngModel)]="paymentSearch"
-                (ngModelChange)="schedulePaymentSearch()"
-                data-testid="payments-search"
-              />
+            <div class="fees-toolbar-group fees-search-block">
+                <label class="erp-label d-block mb-1">{{ 'fees.searchPayments' | translate }}</label>
+                <div class="search-input-wrapper">
+                  <i class="bi bi-search"></i>
+                  <input
+                    type="text"
+                    class="erp-input"
+                    erpI18nPh="fees.searchPaymentsPlaceholder"
+                    [(ngModel)]="paymentSearch"
+                    (ngModelChange)="schedulePaymentSearch()"
+                    data-testid="payments-search"
+                  />
+                </div>
             </div>
             <div class="fees-toolbar-right">
               <div class="fees-toolbar-group">
@@ -720,27 +720,11 @@ import { formatDateDdMmYyyy } from '../../core/utils/date-format';
                   <option value="overdue">{{ 'fees.statusOverdue' | translate }}</option>
                 </select>
               </div>
-              <div class="fees-toolbar-group fees-toolbar-group--class">
-                <label class="erp-label d-block mb-1">{{ 'fees.labelClass' | translate }}</label>
-                <select class="erp-select w-100" [(ngModel)]="classFilterId" (ngModelChange)="onPaymentClassFilterChange()">
-                  <option [ngValue]="null">{{ 'fees.allClasses' | translate }}</option>
-                  <option *ngFor="let classItem of paymentFilterClasses" [ngValue]="classItem.id">
-                    {{ classItem.name | schoolClassName }}
-                  </option>
-                </select>
-              </div>
-              <div class="fees-toolbar-group fees-toolbar-group--section">
-                <label class="erp-label d-block mb-1">{{ 'fees.labelSection' | translate }}</label>
-                <select
-                  class="erp-select w-100"
-                  [(ngModel)]="sectionFilterId"
-                  (ngModelChange)="onPaymentSectionFilterChange()"
-                  [disabled]="classFilterId == null"
-                >
-                  <option [ngValue]="null">{{ 'fees.allSections' | translate }}</option>
-                  <option *ngFor="let section of paymentFilterSections" [ngValue]="section.id">
-                    {{ section.name }}
-                  </option>
+              <div class="fees-toolbar-group">
+                <label class="erp-label d-block mb-1">{{ 'fees.labelAcademicYear' | translate }}</label>
+                <select class="erp-select w-100" [(ngModel)]="paymentAcademicYearId" (ngModelChange)="onPaymentAcademicYearChange()">
+                  <option [ngValue]="null">{{ 'fees.allYears' | translate }}</option>
+                  <option *ngFor="let y of academicYears" [ngValue]="y.id">{{ y.name }}</option>
                 </select>
               </div>
               <div class="fees-toolbar-group">
@@ -841,55 +825,90 @@ import { formatDateDdMmYyyy } from '../../core/utils/date-format';
           <button type="button" class="btn-icon" (click)="structureModal = false"><i class="bi bi-x-lg"></i></button>
         </div>
         <div class="modal-body-erp">
-          <label class="erp-label">{{ 'fees.labelStructureName' | translate }}</label>
-          <input class="erp-input mb-2" [(ngModel)]="structureForm.name" erpI18nPh="fees.structureNamePh" />
-
-          <div class="row g-2">
-            <div class="col-md-6">
-              <label class="erp-label">{{ 'fees.labelClass' | translate }}</label>
-              <select class="erp-select mb-2" [(ngModel)]="structureForm.classId" (ngModelChange)="syncClassName()">
-                <option [ngValue]="null">{{ 'fees.selectClass' | translate }}</option>
-                <option *ngFor="let c of classes" [ngValue]="c.id">{{ c.name | schoolClassName }}</option>
-              </select>
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <div class="small text-muted">
+              {{ 'fees.structureStepCounter' | translate: { step: structureWizardStep, total: 3 } }}
             </div>
-            <div class="col-md-6">
-              <label class="erp-label">{{ 'fees.labelAcademicYear' | translate }}</label>
-              <select class="erp-select mb-2" [(ngModel)]="structureForm.academicYearId">
-                <option [ngValue]="null">{{ 'fees.selectYear' | translate }}</option>
-                <option *ngFor="let y of academicYears" [ngValue]="y.id">{{ y.name }}</option>
-              </select>
+            <div class="small">
+              <strong>{{ ('fees.structureStepTitle' + structureWizardStep) | translate }}</strong>
             </div>
           </div>
 
-          <div class="d-flex justify-content-between align-items-center mb-2">
-            <label class="erp-label mb-0">{{ 'fees.components' | translate }}</label>
-            <button type="button" class="btn-outline-erp btn-xs" (click)="addComponentRow()"><i class="bi bi-plus"></i> {{ 'fees.addLine' | translate }}</button>
-          </div>
-          <div *ngFor="let row of structureForm.components; let i = index" class="row g-2 align-items-end mb-2">
-            <div class="col-md-4">
-              <input class="erp-input" [(ngModel)]="row.name" erpI18nPh="fees.labelPlaceholder" />
+          <ng-container *ngIf="structureWizardStep === 1">
+            <label class="erp-label">{{ 'fees.labelStructureName' | translate }}</label>
+            <input class="erp-input mb-2" [(ngModel)]="structureForm.name" erpI18nPh="fees.structureNamePh" />
+
+            <div class="row g-2">
+              <div class="col-md-6">
+                <label class="erp-label">{{ 'fees.labelClass' | translate }}</label>
+                <select class="erp-select mb-2" [(ngModel)]="structureForm.classId" (ngModelChange)="syncClassName()">
+                  <option [ngValue]="null">{{ 'fees.selectClass' | translate }}</option>
+                  <option *ngFor="let c of classes" [ngValue]="c.id">{{ c.name | schoolClassName }}</option>
+                </select>
+              </div>
+              <div class="col-md-6">
+                <label class="erp-label">{{ 'fees.labelAcademicYear' | translate }}</label>
+                <select class="erp-select mb-2" [(ngModel)]="structureForm.academicYearId">
+                  <option [ngValue]="null">{{ 'fees.selectYear' | translate }}</option>
+                  <option *ngFor="let y of academicYears" [ngValue]="y.id">{{ y.name }}</option>
+                </select>
+              </div>
             </div>
-            <div class="col-md-3">
-              <select class="erp-select" [(ngModel)]="row.type">
-                <option *ngFor="let t of componentTypeIds" [value]="t">{{ ('fees.componentType.' + t) | translate }}</option>
-              </select>
+            <p class="text-muted small mb-0">{{ structureClassScopeHint }}</p>
+          </ng-container>
+
+          <ng-container *ngIf="structureWizardStep === 2">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+              <label class="erp-label mb-0">{{ 'fees.components' | translate }}</label>
+              <button type="button" class="btn-outline-erp btn-xs" (click)="addComponentRow()"><i class="bi bi-plus"></i> {{ 'fees.addLine' | translate }}</button>
             </div>
-            <div class="col-md-3">
-              <input class="erp-input" type="number" min="0" step="1" [(ngModel)]="row.amount" placeholder="₹" />
+            <div *ngFor="let row of structureForm.components; let i = index" class="row g-2 align-items-end mb-2">
+              <div class="col-md-4">
+                <input class="erp-input" [(ngModel)]="row.name" erpI18nPh="fees.labelPlaceholder" />
+              </div>
+              <div class="col-md-3">
+                <select class="erp-select" [(ngModel)]="row.type">
+                  <option *ngFor="let t of componentTypeIds" [value]="t">{{ ('fees.componentType.' + t) | translate }}</option>
+                </select>
+              </div>
+              <div class="col-md-3">
+                <input class="erp-input" type="number" min="0" step="1" [(ngModel)]="row.amount" placeholder="₹" />
+              </div>
+              <div class="col-md-2">
+                <button type="button" class="btn-icon" [disabled]="structureForm.components.length < 2" (click)="removeComponentRow(i)" [title]="'fees.removeLineTitle' | translate"><i class="bi bi-trash text-danger"></i></button>
+              </div>
             </div>
-            <div class="col-md-2">
-              <button type="button" class="btn-icon" [disabled]="structureForm.components.length < 2" (click)="removeComponentRow(i)" [title]="'fees.removeLineTitle' | translate"><i class="bi bi-trash text-danger"></i></button>
+            <div class="d-flex justify-content-between align-items-center mt-2 p-2 rounded-2" style="background: var(--clr-surface-muted); border: 1px solid var(--clr-border);">
+              <strong>{{ 'fees.total' | translate }}</strong>
+              <strong style="color: var(--clr-primary); font-size: 18px;">₹{{ draftTotal | number:'1.0-0':'en-IN' }}</strong>
             </div>
-          </div>
-          <div class="d-flex justify-content-between align-items-center mt-2 p-2 rounded-2" style="background: var(--clr-surface-muted); border: 1px solid var(--clr-border);">
-            <strong>{{ 'fees.total' | translate }}</strong>
-            <strong style="color: var(--clr-primary); font-size: 18px;">₹{{ draftTotal | number:'1.0-0':'en-IN' }}</strong>
-          </div>
+          </ng-container>
+
+          <ng-container *ngIf="structureWizardStep === 3">
+            <div class="p-3 rounded-2" style="background: var(--clr-surface-muted); border: 1px solid var(--clr-border);">
+              <div class="small text-muted mb-1">{{ 'fees.labelStructureName' | translate }}</div>
+              <div class="fw-bold mb-2">{{ structureForm.name || '-' }}</div>
+              <div class="small text-muted mb-1">{{ 'fees.labelClass' | translate }} · {{ 'fees.labelAcademicYear' | translate }}</div>
+              <div class="mb-2">{{ structureForm.className | schoolClassName }} · {{ academicYearLabel(structureForm.academicYearId) || '-' }}</div>
+              <div class="small text-muted mb-1">{{ 'fees.components' | translate }}</div>
+              <ul class="mb-2 ps-3">
+                <li *ngFor="let row of structureForm.components">{{ row.name || '-' }} — ₹{{ row.amount || 0 }}</li>
+              </ul>
+              <div class="d-flex justify-content-between fw-bold">
+                <span>{{ 'fees.total' | translate }}</span>
+                <span>₹{{ draftTotal | number:'1.0-0':'en-IN' }}</span>
+              </div>
+              <p class="text-muted small mb-0 mt-2">{{ 'fees.structureReviewHint' | translate }}</p>
+            </div>
+          </ng-container>
+
           <p *ngIf="structureError" class="text-danger small mt-2 mb-0">{{ structureError }}</p>
         </div>
         <div class="modal-footer-erp">
           <button type="button" class="btn-outline-erp" (click)="structureModal = false">{{ 'fees.cancel' | translate }}</button>
-          <button type="button" class="btn-primary-erp" [disabled]="savingStructure" (click)="saveStructure()">{{ savingStructure ? ('fees.saving' | translate) : ('fees.save' | translate) }}</button>
+          <button type="button" class="btn-outline-erp" *ngIf="structureWizardStep > 1" (click)="previousStructureWizardStep()">{{ 'fees.back' | translate }}</button>
+          <button type="button" class="btn-outline-erp" *ngIf="structureWizardStep < 3" (click)="nextStructureWizardStep()">{{ 'fees.next' | translate }}</button>
+          <button type="button" class="btn-primary-erp" *ngIf="structureWizardStep === 3" [disabled]="savingStructure || !isStructureWizardReadyToSave" (click)="saveStructure()">{{ savingStructure ? ('fees.saving' | translate) : ('fees.save' | translate) }}</button>
         </div>
       </div>
     </div>
@@ -997,6 +1016,15 @@ import { formatDateDdMmYyyy } from '../../core/utils/date-format';
                     </tr>
                   </tbody>
                 </table>
+                <app-erp-pagination
+                  *ngIf="ledgerTotal > ledgerPageSize"
+                  class="d-block mt-2"
+                  [totalElements]="ledgerTotal"
+                  [pageIndex]="ledgerPageIndex"
+                  [pageSize]="ledgerPageSize"
+                  (pageIndexChange)="onLedgerPageIndexChange($event)"
+                  (pageSizeChange)="onLedgerPageSizeChange($event)"
+                />
               </div>
               <div *ngIf="!ledgerRows.length" class="fees-empty-state">
                 <i class="bi bi-receipt-cutoff"></i>{{ 'fees.emptyLedger' | translate }}
@@ -1096,6 +1124,7 @@ import { formatDateDdMmYyyy } from '../../core/utils/date-format';
             <option value="UPI">{{ 'fees.methodUpi' | translate }}</option>
             <option value="ONLINE">{{ 'fees.methodOnline' | translate }}</option>
             <option value="CHEQUE">{{ 'fees.methodCheque' | translate }}</option>
+            <option value="WAIVER">{{ 'fees.methodWaiver' | translate }}</option>
           </select>
           <p *ngIf="collectError" class="text-danger small mb-0">{{ collectError }}</p>
         </div>
@@ -1124,6 +1153,7 @@ export class FeesComponent implements OnInit {
   sortBy: 'dueDateAsc' | 'dueDateDesc' | 'dueAmountDesc' | 'studentAsc' = 'dueDateAsc';
   classFilterId: number | null = null;
   sectionFilterId: number | null = null;
+  paymentAcademicYearId: number | null = null;
   classes: SchoolClass[] = [];
   academicYears: AcademicYear[] = [];
   /** Fee collection, refunds, structures, reminders — mirrors fees read/write atoms + tenant/platform operators. */
@@ -1134,6 +1164,7 @@ export class FeesComponent implements OnInit {
   canManageFeeFinanceRouting = false;
   refreshing = false;
   structureModal = false;
+  structureWizardStep = 1;
   editingStructureId: number | null = null;
   structureError = '';
   savingStructure = false;
@@ -1160,6 +1191,10 @@ export class FeesComponent implements OnInit {
   ledgerLoading = false;
   ledgerRows: FeePayment[] = [];
   ledgerStudentName = '';
+  ledgerStudentId: number | null = null;
+  ledgerTotal = 0;
+  ledgerPageIndex = 0;
+  ledgerPageSize = 8;
   ledgerSelectedPaymentId: number | null = null;
   ledgerTransactions: FeeTransaction[] = [];
   txFilter: 'all' | 'payment' | 'refund' = 'all';
@@ -1242,6 +1277,44 @@ export class FeesComponent implements OnInit {
     return this.structureForm.components.reduce((s, c) => s + (Number(c.amount) || 0), 0);
   }
 
+  get structureClassScopeHint(): string {
+    const selectedClass = this.classes.find(c => c.id === this.structureForm.classId);
+    const sectionCount = selectedClass?.sections?.length ?? 0;
+    if (!selectedClass) {
+      return '';
+    }
+    if (sectionCount > 0) {
+      return this.translate.instant('fees.structureClassHasSectionsHint', { count: sectionCount });
+    }
+    return this.translate.instant('fees.structureClassNoSectionsHint');
+  }
+
+  get isStructureStepOneValid(): boolean {
+    return !!this.structureForm.name.trim()
+      && this.structureForm.classId != null
+      && this.structureForm.academicYearId != null;
+  }
+
+  get isStructureStepTwoValid(): boolean {
+    const comps: FeeComponent[] = this.structureForm.components
+      .filter(c => c.name.trim().length > 0)
+      .map(c => ({ name: c.name.trim(), amount: Number(c.amount) || 0, type: c.type }));
+    if (!comps.length) return false;
+    if (comps.some(c => Number(c.amount) < 0)) return false;
+    if (comps.every(c => Number(c.amount) === 0)) return false;
+    const seen = new Set<string>();
+    for (const c of comps) {
+      const key = c.name.trim().toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+    }
+    return true;
+  }
+
+  get isStructureWizardReadyToSave(): boolean {
+    return this.isStructureStepOneValid && this.isStructureStepTwoValid;
+  }
+
   get collectedAmount(): number {
     return this.paymentsPage.reduce((sum, p) => sum + (Number(p.paidAmount) || 0), 0);
   }
@@ -1292,7 +1365,12 @@ export class FeesComponent implements OnInit {
     this.feeDeskOps = this.uiAccess.hasSchoolFeeOfficeDesk();
     this.canManageFeeFinanceRouting = this.uiAccess.hasSchoolSettingsFinanceAccess();
     this.academicService.getClasses().subscribe(c => (this.classes = c || []));
-    this.academicService.getAcademicYears().subscribe(y => (this.academicYears = y || []));
+    this.academicService.getAcademicYears().subscribe(y => {
+      this.academicYears = y || [];
+      if (this.paymentAcademicYearId == null) {
+        this.paymentAcademicYearId = this.academicYears.find(year => year.isCurrent)?.id ?? null;
+      }
+    });
     this.loadStructures();
     this.loadPaymentsPage();
     this.loadCollectionSummary();
@@ -1408,6 +1486,7 @@ export class FeesComponent implements OnInit {
         q: this.paymentSearch || undefined,
         classId: this.classFilterId ?? undefined,
         sectionId: this.sectionFilterId ?? undefined,
+        academicYearId: this.paymentAcademicYearId ?? undefined,
       })
       .subscribe({
         next: pr => {
@@ -1493,6 +1572,11 @@ export class FeesComponent implements OnInit {
     this.loadPaymentsPage();
   }
 
+  onPaymentAcademicYearChange(): void {
+    this.paymentPageIndex = 0;
+    this.loadPaymentsPage();
+  }
+
   get paymentFilterClasses(): SchoolClass[] {
     return [...this.classes].sort((a, b) => (a.name || '').localeCompare(b.name || ''));
   }
@@ -1531,6 +1615,7 @@ export class FeesComponent implements OnInit {
 
   openStructureModal(fs?: FeeStructure): void {
     this.structureError = '';
+    this.structureWizardStep = 1;
     this.editingStructureId = fs?.id ?? null;
     if (fs) {
       this.structureForm = {
@@ -1556,6 +1641,34 @@ export class FeesComponent implements OnInit {
 
   removeComponentRow(i: number): void {
     this.structureForm.components.splice(i, 1);
+  }
+
+  nextStructureWizardStep(): void {
+    this.structureError = '';
+    if (this.structureWizardStep === 1 && !this.isStructureStepOneValid) {
+      if (!this.structureForm.name.trim()) this.structureError = this.translate.instant('fees.errName');
+      else if (this.structureForm.classId == null) this.structureError = this.translate.instant('fees.errClass');
+      else if (this.structureForm.academicYearId == null) this.structureError = this.translate.instant('fees.errYear');
+      return;
+    }
+    if (this.structureWizardStep === 2 && !this.isStructureStepTwoValid) {
+      if (this.structureForm.components.filter(c => c.name.trim().length > 0).length === 0) {
+        this.structureError = this.translate.instant('fees.errComponents');
+      } else if (this.structureForm.components.some(c => Number(c.amount) < 0)) {
+        this.structureError = this.translate.instant('fees.errComponentNegative');
+      } else if (this.draftTotal <= 0) {
+        this.structureError = this.translate.instant('fees.errTotalZero');
+      } else {
+        this.structureError = this.translate.instant('fees.errDuplicateComponent');
+      }
+      return;
+    }
+    this.structureWizardStep = Math.min(3, this.structureWizardStep + 1);
+  }
+
+  previousStructureWizardStep(): void {
+    this.structureError = '';
+    this.structureWizardStep = Math.max(1, this.structureWizardStep - 1);
   }
 
   saveStructure(): void {
@@ -1731,25 +1844,15 @@ export class FeesComponent implements OnInit {
       this.txFilter = 'all';
     }
     this.ledgerStudentName = payment.studentName;
+    this.ledgerStudentId = payment.studentId;
     this.studentLedgerModal = true;
     this.ledgerRows = [];
+    this.ledgerTotal = 0;
+    this.ledgerPageIndex = 0;
     this.ledgerTransactions = [];
     this.ledgerSelectedPaymentId = null;
     this.refundTargetPayment = null;
-    this.ledgerLoading = true;
-    this.feeService.getStudentPayments(payment.studentId).subscribe({
-      next: rows => {
-        this.ledgerRows = rows || [];
-        if (this.ledgerRows.length) {
-          this.selectLedgerRow(this.ledgerRows[0]);
-        }
-        this.ledgerLoading = false;
-      },
-      error: () => {
-        this.ledgerRows = [];
-        this.ledgerLoading = false;
-      },
-    });
+    this.loadLedgerPage();
   }
 
   private feeCsvMeta(documentTitleKey: string) {
@@ -1761,6 +1864,29 @@ export class FeesComponent implements OnInit {
   }
 
   exportPaymentsCsv(): void {
+    if (!runtimeConfig.useMocks) {
+      this.feeService.downloadPaymentsCsv({
+        status: this.statusFilter || undefined,
+        q: this.paymentSearch || undefined,
+        classId: this.classFilterId ?? undefined,
+        sectionId: this.sectionFilterId ?? undefined,
+        academicYearId: this.paymentAcademicYearId ?? undefined,
+      }).subscribe({
+        next: blob => {
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `fees-payment-records-${new Date().toISOString().slice(0, 10)}.csv`;
+          a.click();
+          URL.revokeObjectURL(url);
+        },
+        error: () => {
+          this.operationMessage = this.translate.instant('fees.exportFailed');
+          this.operationMessageOk = false;
+        },
+      });
+      return;
+    }
     const rows = this.displayPaymentsPage.map(r => [
       r.studentName,
       r.amount,
@@ -1804,6 +1930,9 @@ export class FeesComponent implements OnInit {
     this.studentLedgerModal = false;
     this.ledgerLoading = false;
     this.ledgerRows = [];
+    this.ledgerStudentId = null;
+    this.ledgerTotal = 0;
+    this.ledgerPageIndex = 0;
     this.ledgerTransactions = [];
     this.ledgerSelectedPaymentId = null;
     this.ledgerStudentName = '';
@@ -1814,6 +1943,17 @@ export class FeesComponent implements OnInit {
     this.refundError = '';
     this.refundNotice = '';
     this.txFilter = 'all';
+  }
+
+  onLedgerPageIndexChange(idx: number): void {
+    this.ledgerPageIndex = idx;
+    this.loadLedgerPage();
+  }
+
+  onLedgerPageSizeChange(size: number): void {
+    this.ledgerPageSize = size;
+    this.ledgerPageIndex = 0;
+    this.loadLedgerPage();
   }
 
   selectLedgerRow(row: FeePayment): void {
@@ -1950,6 +2090,39 @@ export class FeesComponent implements OnInit {
       const type = (tx.eventType || '').toUpperCase();
       const isRefund = type.startsWith('REFUND_');
       return this.txFilter === 'refund' ? isRefund : !isRefund;
+    });
+  }
+
+  private loadLedgerPage(): void {
+    if (this.ledgerStudentId == null) {
+      return;
+    }
+    this.ledgerLoading = true;
+    this.feeService.getStudentPaymentsPage(this.ledgerStudentId, {
+      page: this.ledgerPageIndex,
+      size: this.ledgerPageSize,
+      academicYearId: this.paymentAcademicYearId ?? undefined,
+    }).subscribe({
+      next: pr => {
+        this.ledgerRows = pr.content ?? [];
+        this.ledgerTotal = pr.totalElements ?? 0;
+        this.ledgerPageIndex = pr.page ?? 0;
+        if (this.ledgerRows.length) {
+          const keep = this.ledgerRows.find(row => row.id === this.ledgerSelectedPaymentId) ?? this.ledgerRows[0];
+          this.selectLedgerRow(keep);
+        } else {
+          this.ledgerTransactions = [];
+          this.ledgerSelectedPaymentId = null;
+        }
+        this.ledgerLoading = false;
+      },
+      error: () => {
+        this.ledgerRows = [];
+        this.ledgerTransactions = [];
+        this.ledgerSelectedPaymentId = null;
+        this.ledgerTotal = 0;
+        this.ledgerLoading = false;
+      },
     });
   }
 

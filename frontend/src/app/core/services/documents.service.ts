@@ -12,15 +12,18 @@ import { sliceToPage } from '../utils/paginate';
 export class DocumentsService {
   constructor(private api: ApiService) {}
 
-  list(category?: string): Observable<DocumentRecord[]> {
+  list(category?: string, academicYearId?: number): Observable<DocumentRecord[]> {
     if (runtimeConfig.useMocks) {
       return of(MOCK_DOCUMENTS_LIST.map(d => ({ ...d })));
     }
-    const q = category ? `?category=${encodeURIComponent(category)}` : '';
+    const params = new URLSearchParams();
+    if (category) params.set('category', category);
+    if (academicYearId != null) params.set('academicYearId', String(academicYearId));
+    const q = params.toString() ? `?${params.toString()}` : '';
     return this.api.get<any[]>(`/documents${q}`).pipe(map(list => list.map(d => this.normalizeDoc(d))));
   }
 
-  listPaged(opts: { page?: number; size?: number; category?: string; q?: string }): Observable<PageResp<DocumentRecord>> {
+  listPaged(opts: { page?: number; size?: number; category?: string; academicYearId?: number; q?: string }): Observable<PageResp<DocumentRecord>> {
     const page = opts.page ?? 0;
     const size = opts.size ?? DEFAULT_ERP_PAGE_SIZE;
     if (!runtimeConfig.useMocks) {
@@ -29,6 +32,7 @@ export class DocumentsService {
           page,
           size,
           category: opts.category?.trim() || undefined,
+          academicYearId: opts.academicYearId ?? undefined,
           q: opts.q?.trim() || undefined,
         })
         .pipe(map(p => ({ ...p, content: p.content.map((d: any) => this.normalizeDoc(d)) })));
@@ -45,18 +49,41 @@ export class DocumentsService {
     return of(sliceToPage(rows, page, size)).pipe(delay(200));
   }
 
-  uploadMeta(body: { name: string; fileType: string; category: string; fileSize?: string; fileUrl?: string }): Observable<DocumentRecord> {
+  upload(body: {
+    file: File;
+    name?: string;
+    category?: string;
+    ownerType?: string;
+    ownerId?: number;
+    academicYearId?: number;
+    visibilityScope?: string;
+  }): Observable<DocumentRecord> {
     if (runtimeConfig.useMocks) {
-      return of({ id: 'd-new', name: body.name, type: body.fileType, category: body.category, uploadedBy: 'me', uploadDate: new Date().toISOString().slice(0, 10), size: body.fileSize ?? '', fileUrl: body.fileUrl, tenantId: '' });
+      return of({
+        id: 'd-new',
+        name: body.name || body.file.name,
+        type: (body.file.name.split('.').pop() || '').toUpperCase(),
+        category: (body.category || 'general').toLowerCase(),
+        uploadedBy: 'me',
+        uploadDate: new Date().toISOString().slice(0, 10),
+        size: `${Math.round(body.file.size / 1024)} KB`,
+        academicYearId: body.academicYearId ?? null,
+        tenantId: '',
+      });
     }
-    const payload: any = {
-      name: body.name,
-      fileType: body.fileType,
-      category: body.category.toUpperCase(),
-      fileSize: body.fileSize,
-      fileUrl: body.fileUrl
-    };
-    return this.api.post<any>('/documents', payload).pipe(map(d => this.normalizeDoc(d)));
+    const form = new FormData();
+    form.append('file', body.file);
+    if (body.name?.trim()) form.append('name', body.name.trim());
+    if (body.category?.trim()) form.append('category', body.category.trim().toUpperCase());
+    if (body.ownerType?.trim()) form.append('ownerType', body.ownerType.trim().toUpperCase());
+    if (body.ownerId != null) form.append('ownerId', String(body.ownerId));
+    if (body.academicYearId != null) form.append('academicYearId', String(body.academicYearId));
+    if (body.visibilityScope?.trim()) form.append('visibilityScope', body.visibilityScope.trim().toUpperCase());
+    return this.api.post<any>('/documents/upload', form).pipe(map(d => this.normalizeDoc(d)));
+  }
+
+  downloadUrl(doc: DocumentRecord): string {
+    return doc.fileUrl || `${this.api.getBaseUrl()}/documents/${encodeURIComponent(doc.id)}/download`;
   }
 
   delete(id: string): Observable<void> {
@@ -73,6 +100,8 @@ export class DocumentsService {
       uploadedBy: d.uploadedBy ?? '',
       uploadDate: d.createdAt ? String(d.createdAt).slice(0, 10) : '',
       size: d.fileSize ?? '',
+      academicYearId: d.academicYearId != null ? Number(d.academicYearId) : null,
+      checksumSha256: d.checksumSha256 ?? undefined,
       fileUrl: d.fileUrl,
       tenantId: d.tenantId ?? ''
     };

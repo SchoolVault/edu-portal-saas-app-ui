@@ -44,15 +44,19 @@ public final class RbacRoleCatalog {
                             + "SCHOOL_PAYROLL_READ,SCHOOL_PAYROLL_WRITE,SCHOOL_SETTINGS_CORE_READ,SCHOOL_SETTINGS_CORE_WRITE,"
                             + "SCHOOL_GUARDIAN_READ,SCHOOL_GUARDIAN_WRITE,SCHOOL_STUDENT_READ,SCHOOL_STUDENT_WRITE,"
                             + "SCHOOL_EXAMS_READ,SCHOOL_EXAMS_WRITE,SCHOOL_IMPORT_EXPORT_READ,SCHOOL_IMPORT_EXPORT_WRITE,"
-                            + "SCHOOL_COMMUNICATION_READ,SCHOOL_COMMUNICATION_WRITE,SCHOOL_OPERATIONS_READ,SCHOOL_OPERATIONS_WRITE,SCHOOL_ACADEMIC_READ,SCHOOL_ACADEMIC_WRITE,"
+                            + "SCHOOL_COMMUNICATION_READ,SCHOOL_COMMUNICATION_WRITE,SCHOOL_COMMUNICATION_PUBLISH,SCHOOL_COMMUNICATION_MESSAGE_SEND,"
+                            + "SCHOOL_DOCUMENTS_READ,SCHOOL_DOCUMENTS_WRITE,"
+                            + "SCHOOL_OPERATIONS_READ,SCHOOL_OPERATIONS_WRITE,SCHOOL_ACADEMIC_READ,SCHOOL_ACADEMIC_WRITE,"
                             + "SCHOOL_RBAC_READ,SCHOOL_RBAC_WRITE,SCHOOL_CHAT_READ,SCHOOL_CHAT_WRITE,"
                             + "SCHOOL_DIRECTORY_READ,SCHOOL_DIRECTORY_WRITE,"
                             + "SCHOOL_TRANSPORT_READ,SCHOOL_TRANSPORT_WRITE,"
                             + "SCHOOL_HOSTEL_READ,SCHOOL_HOSTEL_WRITE,SCHOOL_HOSTEL_BILLING_READ,SCHOOL_HOSTEL_BILLING_WRITE,"
                             + "SCHOOL_HOSTEL_APPROVAL_WRITE,SCHOOL_HOSTEL_VISITOR_WRITE,SCHOOL_HOSTEL_INCIDENT_WRITE,"
                             + "SCHOOL_LIBRARY_READ,SCHOOL_LIBRARY_WRITE,"
+                            + "SCHOOL_LIBRARY_ANALYTICS_READ,SCHOOL_LIBRARY_POLICY_WRITE,SCHOOL_LIBRARY_RESERVATION_WRITE,SCHOOL_LIBRARY_INVENTORY_WRITE,SCHOOL_LIBRARY_REMINDER_READ,"
                             + "SCHOOL_LEAVE_SELF_READ,SCHOOL_LEAVE_SELF_APPLY,SCHOOL_LEAVE_APPROVAL_READ,SCHOOL_LEAVE_APPROVAL_WRITE,"
-                            + "SCHOOL_REPORTS_READ,SCHOOL_REPORTS_WRITE,FEE_STRUCTURES_READ",
+                            + "SCHOOL_REPORTS_READ,SCHOOL_REPORTS_WRITE,FEE_STRUCTURES_READ,"
+                            + "FEE_FINANCE_READ,FEE_CONFIG_WRITE,FEE_BILLING_WRITE,FEE_REFUND_REQUEST,FEE_REFUND_APPROVE,FEE_ONLINE_CHECKOUT",
                     true),
             new DefaultSchoolRole(
                     "ACADEMIC_STAFF",
@@ -73,7 +77,7 @@ public final class RbacRoleCatalog {
                     "Communication & notification desk",
                     "Announcements, campaigns, inbox operations analytics, and notification delivery retries.",
                     28,
-                    "SCHOOL_COMMUNICATION_READ,SCHOOL_COMMUNICATION_WRITE",
+                    "SCHOOL_COMMUNICATION_READ,SCHOOL_COMMUNICATION_WRITE,SCHOOL_COMMUNICATION_PUBLISH,SCHOOL_COMMUNICATION_MESSAGE_SEND",
                     true),
             new DefaultSchoolRole(
                     "OPERATIONS_DESK",
@@ -94,7 +98,8 @@ public final class RbacRoleCatalog {
                     "Fee & accounts desk",
                     "Record collections, fee structures, reminders, and fee-side reports without full tenant admin.",
                     30,
-                    "SCHOOL_FEES_READ,SCHOOL_FEES_WRITE,FEE_STRUCTURES_READ",
+                    "SCHOOL_FEES_READ,SCHOOL_FEES_WRITE,FEE_STRUCTURES_READ,"
+                            + "FEE_FINANCE_READ,FEE_CONFIG_WRITE,FEE_BILLING_WRITE,FEE_REFUND_REQUEST,FEE_REFUND_APPROVE,FEE_ONLINE_CHECKOUT",
                     true),
             new DefaultSchoolRole(
                     "PAYROLL_OFFICE",
@@ -115,7 +120,7 @@ public final class RbacRoleCatalog {
                     "Library operations",
                     "Catalog, circulation, and accruals tied to the library module.",
                     60,
-                    "SCHOOL_LIBRARY_READ,SCHOOL_LIBRARY_WRITE,FEE_STRUCTURES_READ",
+                    "SCHOOL_LIBRARY_READ,SCHOOL_LIBRARY_WRITE,SCHOOL_LIBRARY_ANALYTICS_READ,SCHOOL_LIBRARY_POLICY_WRITE,SCHOOL_LIBRARY_RESERVATION_WRITE,SCHOOL_LIBRARY_INVENTORY_WRITE,SCHOOL_LIBRARY_REMINDER_READ,FEE_STRUCTURES_READ",
                     true),
             new DefaultSchoolRole(
                     "TENANT_SETTINGS",

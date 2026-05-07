@@ -632,4 +632,168 @@ public class LibraryDTOs {
             return status;
         }
     }
+
+    public static class LibraryFinePolicyRequest {
+        @NotNull
+        private Enums.LibraryBorrowerType borrowerType;
+        private BigDecimal finePerDay;
+        private Integer graceDays;
+        private Integer maxBooks;
+        private Integer maxBorrowDays;
+
+        public Enums.LibraryBorrowerType getBorrowerType() { return borrowerType; }
+        public void setBorrowerType(Enums.LibraryBorrowerType borrowerType) { this.borrowerType = borrowerType; }
+        public BigDecimal getFinePerDay() { return finePerDay; }
+        public void setFinePerDay(BigDecimal finePerDay) { this.finePerDay = finePerDay; }
+        public Integer getGraceDays() { return graceDays; }
+        public void setGraceDays(Integer graceDays) { this.graceDays = graceDays; }
+        public Integer getMaxBooks() { return maxBooks; }
+        public void setMaxBooks(Integer maxBooks) { this.maxBooks = maxBooks; }
+        public Integer getMaxBorrowDays() { return maxBorrowDays; }
+        public void setMaxBorrowDays(Integer maxBorrowDays) { this.maxBorrowDays = maxBorrowDays; }
+    }
+
+    public static class LibraryFinePolicyResponse extends LibraryFinePolicyRequest {
+        private Long id;
+        public Long getId() { return id; }
+        public void setId(Long id) { this.id = id; }
+    }
+
+    public static class LibraryReservationRequest {
+        @NotNull
+        private Long bookId;
+        @NotNull
+        private Enums.LibraryBorrowerType borrowerType;
+        @NotNull
+        private Long borrowerRefId;
+        private Long borrowerUserId;
+        private String borrowerDisplayName;
+        private Integer holdHours;
+        private String note;
+        public Long getBookId() { return bookId; }
+        public void setBookId(Long bookId) { this.bookId = bookId; }
+        public Enums.LibraryBorrowerType getBorrowerType() { return borrowerType; }
+        public void setBorrowerType(Enums.LibraryBorrowerType borrowerType) { this.borrowerType = borrowerType; }
+        public Long getBorrowerRefId() { return borrowerRefId; }
+        public void setBorrowerRefId(Long borrowerRefId) { this.borrowerRefId = borrowerRefId; }
+        public Long getBorrowerUserId() { return borrowerUserId; }
+        public void setBorrowerUserId(Long borrowerUserId) { this.borrowerUserId = borrowerUserId; }
+        public String getBorrowerDisplayName() { return borrowerDisplayName; }
+        public void setBorrowerDisplayName(String borrowerDisplayName) { this.borrowerDisplayName = borrowerDisplayName; }
+        public Integer getHoldHours() { return holdHours; }
+        public void setHoldHours(Integer holdHours) { this.holdHours = holdHours; }
+        public String getNote() { return note; }
+        public void setNote(String note) { this.note = note; }
+    }
+
+    public static class LibraryReservationResponse {
+        private Long id;
+        private Long bookId;
+        private String bookTitle;
+        private Enums.LibraryBorrowerType borrowerType;
+        private Long borrowerRefId;
+        private Long borrowerUserId;
+        private String borrowerDisplayName;
+        private String status;
+        private String requestedAt;
+        private String expiresAt;
+        private Long fulfilledIssueId;
+        private String note;
+        public Long getId() { return id; }
+        public void setId(Long id) { this.id = id; }
+        public Long getBookId() { return bookId; }
+        public void setBookId(Long bookId) { this.bookId = bookId; }
+        public String getBookTitle() { return bookTitle; }
+        public void setBookTitle(String bookTitle) { this.bookTitle = bookTitle; }
+        public Enums.LibraryBorrowerType getBorrowerType() { return borrowerType; }
+        public void setBorrowerType(Enums.LibraryBorrowerType borrowerType) { this.borrowerType = borrowerType; }
+        public Long getBorrowerRefId() { return borrowerRefId; }
+        public void setBorrowerRefId(Long borrowerRefId) { this.borrowerRefId = borrowerRefId; }
+        public Long getBorrowerUserId() { return borrowerUserId; }
+        public void setBorrowerUserId(Long borrowerUserId) { this.borrowerUserId = borrowerUserId; }
+        public String getBorrowerDisplayName() { return borrowerDisplayName; }
+        public void setBorrowerDisplayName(String borrowerDisplayName) { this.borrowerDisplayName = borrowerDisplayName; }
+        public String getStatus() { return status; }
+        public void setStatus(String status) { this.status = status; }
+        public String getRequestedAt() { return requestedAt; }
+        public void setRequestedAt(String requestedAt) { this.requestedAt = requestedAt; }
+        public String getExpiresAt() { return expiresAt; }
+        public void setExpiresAt(String expiresAt) { this.expiresAt = expiresAt; }
+        public Long getFulfilledIssueId() { return fulfilledIssueId; }
+        public void setFulfilledIssueId(Long fulfilledIssueId) { this.fulfilledIssueId = fulfilledIssueId; }
+        public String getNote() { return note; }
+        public void setNote(String note) { this.note = note; }
+    }
+
+    public static class LibraryInventoryAdjustRequest {
+        @NotNull
+        private Long bookId;
+        @NotNull
+        private String action;
+        @NotNull
+        private Integer quantity;
+        private String note;
+        public Long getBookId() { return bookId; }
+        public void setBookId(Long bookId) { this.bookId = bookId; }
+        public String getAction() { return action; }
+        public void setAction(String action) { this.action = action; }
+        public Integer getQuantity() { return quantity; }
+        public void setQuantity(Integer quantity) { this.quantity = quantity; }
+        public String getNote() { return note; }
+        public void setNote(String note) { this.note = note; }
+    }
+
+    public static class LibraryInventoryLedgerResponse {
+        private Long id;
+        private Long bookId;
+        private String bookTitle;
+        private String action;
+        private Integer quantity;
+        private Integer totalCopiesAfter;
+        private Integer availableCopiesAfter;
+        private String note;
+        private String createdAt;
+        public Long getId() { return id; }
+        public void setId(Long id) { this.id = id; }
+        public Long getBookId() { return bookId; }
+        public void setBookId(Long bookId) { this.bookId = bookId; }
+        public String getBookTitle() { return bookTitle; }
+        public void setBookTitle(String bookTitle) { this.bookTitle = bookTitle; }
+        public String getAction() { return action; }
+        public void setAction(String action) { this.action = action; }
+        public Integer getQuantity() { return quantity; }
+        public void setQuantity(Integer quantity) { this.quantity = quantity; }
+        public Integer getTotalCopiesAfter() { return totalCopiesAfter; }
+        public void setTotalCopiesAfter(Integer totalCopiesAfter) { this.totalCopiesAfter = totalCopiesAfter; }
+        public Integer getAvailableCopiesAfter() { return availableCopiesAfter; }
+        public void setAvailableCopiesAfter(Integer availableCopiesAfter) { this.availableCopiesAfter = availableCopiesAfter; }
+        public String getNote() { return note; }
+        public void setNote(String note) { this.note = note; }
+        public String getCreatedAt() { return createdAt; }
+        public void setCreatedAt(String createdAt) { this.createdAt = createdAt; }
+    }
+
+    public static class LibraryAnalyticsSnapshot {
+        private int totalTitles;
+        private int totalCopies;
+        private int copiesAvailable;
+        private int issuedCount;
+        private int overdueCount;
+        private int reservedCount;
+        private BigDecimal outstandingFine;
+        public int getTotalTitles() { return totalTitles; }
+        public void setTotalTitles(int totalTitles) { this.totalTitles = totalTitles; }
+        public int getTotalCopies() { return totalCopies; }
+        public void setTotalCopies(int totalCopies) { this.totalCopies = totalCopies; }
+        public int getCopiesAvailable() { return copiesAvailable; }
+        public void setCopiesAvailable(int copiesAvailable) { this.copiesAvailable = copiesAvailable; }
+        public int getIssuedCount() { return issuedCount; }
+        public void setIssuedCount(int issuedCount) { this.issuedCount = issuedCount; }
+        public int getOverdueCount() { return overdueCount; }
+        public void setOverdueCount(int overdueCount) { this.overdueCount = overdueCount; }
+        public int getReservedCount() { return reservedCount; }
+        public void setReservedCount(int reservedCount) { this.reservedCount = reservedCount; }
+        public BigDecimal getOutstandingFine() { return outstandingFine; }
+        public void setOutstandingFine(BigDecimal outstandingFine) { this.outstandingFine = outstandingFine; }
+    }
 }

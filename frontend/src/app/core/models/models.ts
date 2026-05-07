@@ -1013,6 +1013,13 @@ export interface StudentPerformanceRow {
   rank: number;
 }
 
+export interface ReportPerformanceHighlights {
+  academicYearId?: number | null;
+  topPerformers: StudentPerformanceRow[];
+  lowPerformers: StudentPerformanceRow[];
+  totalStudents: number;
+}
+
 export interface AttendanceSummaryRow {
   studentId: number;
   studentName: string;
@@ -1218,6 +1225,29 @@ export interface FeeCollectionSummary {
   collectionRate: number;
 }
 
+export interface FeeDefaulter {
+  paymentId: number;
+  studentId: number;
+  studentName: string;
+  dueAmount: number;
+  dueDate?: string;
+  daysOverdue: number;
+  escalationBand: 'upcoming' | 'soft' | 'medium' | 'critical';
+  status: string;
+  academicYearId?: number;
+}
+
+export interface FeeReminderOpsSnapshot {
+  upcomingDueCount: number;
+  overdueCount: number;
+  criticalCount: number;
+  workingHoursStart: number;
+  workingHoursEnd: number;
+  cronExpression: string;
+  inWorkingWindowNow: boolean;
+  roleHint: string;
+}
+
 /** Mirrors {@code FeeDTOs.BulkAssignFeesRequest}. */
 export interface BulkAssignFeesRequest {
   feeStructureId: number;
@@ -1276,6 +1306,430 @@ export interface FeeRefundExecuteRequest {
   providerRefundId?: string;
   note?: string;
   operationKey?: string;
+}
+
+export interface FeeV2Component {
+  id: number;
+  code: string;
+  name: string;
+  componentType: 'RECURRING' | 'ONE_TIME';
+  frequency: 'MONTHLY' | 'QUARTERLY' | 'YEARLY' | 'CUSTOM';
+  optionalComponent: boolean;
+  refundable: boolean;
+}
+
+export interface FeeV2CreateComponentRequest {
+  code: string;
+  name: string;
+  componentType: 'RECURRING' | 'ONE_TIME';
+  frequency: 'MONTHLY' | 'QUARTERLY' | 'YEARLY' | 'CUSTOM';
+  optionalComponent?: boolean;
+  refundable?: boolean;
+}
+
+export interface FeeV2Rule {
+  id: number;
+  ruleCode: string;
+  ruleName: string;
+  ruleType: 'ASSIGNMENT' | 'LATE_FEE' | 'DISCOUNT';
+  priorityNo: number;
+  ruleStatus: string;
+}
+
+export interface FeeV2CreateRuleRequest {
+  ruleCode: string;
+  ruleName: string;
+  ruleType: 'ASSIGNMENT' | 'LATE_FEE' | 'DISCOUNT';
+  priorityNo?: number;
+  stopOnMatch?: boolean;
+}
+
+export interface FeeV2DemandRun {
+  id: number;
+  runType: 'MONTHLY' | 'ADHOC';
+  periodKey: string;
+  status: 'INITIATED' | 'COMPLETED' | 'FAILED';
+  idempotencyKey: string;
+  demandsPosted?: number;
+}
+
+export interface FeeV2CreateDemandRunRequest {
+  runType: 'MONTHLY' | 'ADHOC';
+  periodKey: string;
+  triggerSource: string;
+  idempotencyKey: string;
+  runMetadataJson?: string;
+}
+
+export interface FeeV2PaymentAllocation {
+  feeDemandId?: number;
+  allocationType: 'DEMAND' | 'ADVANCE';
+  amountAllocated: number;
+}
+
+export interface FeeV2RecordPaymentRequest {
+  studentId: number;
+  amount: number;
+  channelType: 'ONLINE' | 'OFFLINE';
+  paymentMode: 'UPI' | 'CARD' | 'NETBANKING' | 'CASH' | 'CHEQUE';
+  idempotencyKey: string;
+  externalRefId?: string;
+  instrumentRef?: string;
+}
+
+export interface FeeV2RecordPaymentResponse {
+  paymentId: number;
+  paymentNo: string;
+  receiptNo?: string;
+  paymentStatus: 'INITIATED' | 'SUCCESS' | 'FAILED' | 'REVERSED';
+  amount: number;
+  allocations: FeeV2PaymentAllocation[];
+}
+
+export interface FeeV2LedgerEntry {
+  id: number;
+  entryType: 'DEBIT' | 'CREDIT';
+  sourceType: 'FEE_DEMAND' | 'PAYMENT' | 'REFUND' | 'ADJUSTMENT';
+  sourceRefId?: number;
+  sourceRefCode?: string;
+  amount: number;
+  signedAmount: number;
+  runningBalance: number;
+  narrative?: string;
+  txnTime?: string;
+}
+
+export interface FeeV2StructureLine {
+  feeComponentMasterId: number;
+  amount: number;
+  frequencyOverride?: 'MONTHLY' | 'QUARTERLY' | 'YEARLY' | 'CUSTOM';
+  optionalOverride?: boolean;
+}
+
+export interface FeeV2Structure {
+  id: number;
+  classId: number;
+  structureName: string;
+  versionNo: number;
+  status: 'DRAFT' | 'ACTIVE' | 'ARCHIVED';
+  components: FeeV2StructureLine[];
+}
+
+export interface FeeV2CreateStructureRequest {
+  classId: number;
+  structureName: string;
+  versionNo: number;
+  status?: 'DRAFT' | 'ACTIVE' | 'ARCHIVED';
+  ruleExpression?: string;
+  components: FeeV2StructureLine[];
+}
+
+export interface FeeV2StudentFeeMap {
+  id: number;
+  studentId: number;
+  classId: number;
+  feeStructureId: number;
+  frozenVersionNo: number;
+  assignmentSource: string;
+  assignedAt?: string;
+  validFrom: string;
+  validTo?: string;
+}
+
+export interface FeeV2SnapshotFeeMapRequest {
+  studentId: number;
+  classId: number;
+  feeStructureId: number;
+  frozenVersionNo: number;
+  assignmentSource: string;
+  validFrom: string;
+  validTo?: string;
+  snapshotJson?: string;
+}
+
+export interface FeeV2Demand {
+  id: number;
+  studentId: number;
+  classId: number;
+  feeComponentMasterId: number;
+  feeStructureId: number;
+  demandRunId: number;
+  periodKey: string;
+  dueDate: string;
+  principalAmount: number;
+  discountAmount: number;
+  lateFeeAmount: number;
+  netAmount: number;
+  outstandingAmount: number;
+  demandStatus: 'PENDING' | 'PARTIAL' | 'PAID' | 'OVERDUE';
+}
+
+export interface FeeV2Discount {
+  id: number;
+  studentId: number;
+  discountType: 'FLAT' | 'PERCENTAGE';
+  discountValue: number;
+  componentScope: string;
+  applicableComponentIdsJson?: string;
+  validFrom: string;
+  validTo?: string;
+  approvalStatus: string;
+  reason?: string;
+}
+
+export interface FeeV2CreateDiscountRequest {
+  studentId: number;
+  discountType: 'FLAT' | 'PERCENTAGE';
+  discountValue: number;
+  componentScope?: string;
+  applicableComponentIdsJson?: string;
+  validFrom: string;
+  validTo?: string;
+  reason?: string;
+}
+
+export interface FeeV2RuleConditionLine {
+  conditionOrder?: number;
+  fieldName: string;
+  operator: string;
+  valueType: string;
+  valueText?: string;
+  valueNumber?: number;
+  valueJson?: string;
+  logicalJoin?: string;
+}
+
+export interface FeeV2RuleActionLine {
+  actionOrder?: number;
+  actionType: string;
+  targetScope?: string;
+  valueType?: string;
+  valueNumber?: number;
+  valueText?: string;
+  valueJson?: string;
+}
+
+export interface FeeV2RuleDefinition {
+  rule: FeeV2Rule;
+  conditions: Array<{
+    id: number;
+    conditionOrder: number;
+    fieldName: string;
+    operator: string;
+    valueType: string;
+    valueText?: string;
+    valueNumber?: number;
+    valueJson?: string;
+    logicalJoin: string;
+  }>;
+  actions: Array<{
+    id: number;
+    actionOrder: number;
+    actionType: string;
+    targetScope?: string;
+    valueType?: string;
+    valueNumber?: number;
+    valueText?: string;
+    valueJson?: string;
+  }>;
+}
+
+export interface FeeV2PaymentModeBreakdown {
+  paymentMode: string;
+  totalAmount: number;
+  paymentCount: number;
+}
+
+export interface FeeV2CollectionSummary {
+  totalCollected: number;
+  paymentCount: number;
+  fromDate?: string;
+  toDate?: string;
+  byPaymentMode: FeeV2PaymentModeBreakdown[];
+}
+
+export interface FeeV2DefaulterRow {
+  studentId: number;
+  classId: number;
+  totalOutstanding: number;
+  demandCount: number;
+  oldestDueDate: string;
+}
+
+export interface FeeV2ClassOutstanding {
+  classId: number;
+  totalOutstanding: number;
+  totalDemanded: number;
+}
+
+export interface FeeV2PaymentRegisterRow {
+  id: number;
+  studentId: number;
+  paymentNo: string;
+  paymentStatus: string;
+  channelType: string;
+  paymentMode: string;
+  amount: number;
+  paymentDate?: string;
+  receiptNo?: string;
+  idempotencyKey: string;
+}
+
+export interface FeeV2AuditEvent {
+  id: number;
+  actorUserId?: number;
+  actionCode: string;
+  entityType: string;
+  entityId?: number;
+  correlationId?: string;
+  detailJson?: string;
+  createdAt?: string;
+}
+
+export interface FeeV2RecordRefundRequest {
+  studentId: number;
+  amount: number;
+  idempotencyKey: string;
+  reason?: string;
+  relatedPaymentId?: number;
+  submitForApproval?: boolean;
+}
+
+export interface FeeV2RecordRefundResponse {
+  refundId: number;
+  refundNo: string;
+  refundStatus: string;
+  amount: number;
+  approvalStatus?: string;
+}
+
+export interface FeeV2RazorpayOrderRequest {
+  studentId: number;
+  amount: number;
+}
+
+export interface FeeV2RazorpayOrderResponse {
+  orderId: string;
+  keyId: string;
+  amount: number;
+  currency: string;
+}
+
+export interface FeeAssignmentPreviewRequest {
+  classId?: number;
+  sectionId?: number;
+  studentIds?: number[];
+  ruleCodes?: string[];
+}
+
+export interface FeeAssignmentPreviewRow {
+  studentId: number;
+  classId?: number;
+  sectionId?: number;
+  admissionNumber?: string;
+  currentFeeStructureId?: number;
+  currentFrozenVersionNo?: number;
+  proposedFeeStructureId?: number;
+  proposedFrozenVersionNo?: number;
+  matchedRuleCode?: string;
+  wouldChange?: boolean;
+  skipReason?: string;
+}
+
+export interface FeeAssignmentPreviewResponse {
+  rows: FeeAssignmentPreviewRow[];
+  wouldChangeCount?: number;
+  noMatchCount?: number;
+}
+
+export interface FeeAssignmentExecuteRequest {
+  classId?: number;
+  sectionId?: number;
+  studentIds?: number[];
+  ruleCodes?: string[];
+  validFrom: string;
+  validTo?: string;
+  idempotencyKey: string;
+  forceSnapshot?: boolean;
+  runMetadataJson?: string;
+  assignmentSource?: string;
+}
+
+export interface FeeAssignmentExecuteResponse {
+  runId: number;
+  mapsApplied?: number;
+  studentsSkipped?: number;
+  idempotencyKey: string;
+}
+
+export interface FeeV2LedgerReconciliationRow {
+  studentId: number;
+  demandOutstandingTotal: number;
+  ledgerRunningBalance: number;
+  delta: number;
+}
+
+export interface FeeV2LedgerReconciliationReport {
+  mismatches: FeeV2LedgerReconciliationRow[];
+  mismatchCount: number;
+}
+
+export interface FeeV2LateFeePolicy {
+  id: number;
+  policyCode: string;
+  policyName: string;
+  graceDays: number;
+  calculationMode: 'FLAT' | 'PERCENT_OF_PRINCIPAL';
+  flatAmount?: number;
+  ratePercent?: number;
+  maxLateAmount?: number;
+  isActive?: boolean;
+}
+
+export interface FeeV2CreateLateFeePolicyRequest {
+  policyCode: string;
+  policyName: string;
+  graceDays: number;
+  calculationMode: 'FLAT' | 'PERCENT_OF_PRINCIPAL';
+  flatAmount?: number;
+  ratePercent?: number;
+  maxLateAmount?: number;
+  isActive?: boolean;
+}
+
+export interface FeeV2UpdateLateFeePolicyRequest {
+  policyName: string;
+  graceDays: number;
+  calculationMode: 'FLAT' | 'PERCENT_OF_PRINCIPAL';
+  flatAmount?: number;
+  ratePercent?: number;
+  maxLateAmount?: number;
+  isActive?: boolean;
+}
+
+export interface FeeV2CreateLateFeeRunRequest {
+  feeLateFeePolicyId: number;
+  asOfDate: string;
+  idempotencyKey: string;
+  runMetadataJson?: string;
+}
+
+export interface FeeV2LateFeeRun {
+  id: number;
+  feeLateFeePolicyId: number;
+  asOfDate: string;
+  status: 'INITIATED' | 'COMPLETED' | 'FAILED';
+  idempotencyKey: string;
+  demandsUpdated?: number;
+  startedAt?: string;
+  finishedAt?: string;
+}
+
+export interface FeeV2StudentStatement {
+  studentId: number;
+  runningBalance: number;
+  openDemands: FeeV2Demand[];
+  recentLedger: FeeV2LedgerEntry[];
 }
 
 /** @see ParentFeeDtos — mirrors {@code FeeDTOs.ParentFeeLineItem}. */
@@ -1716,6 +2170,8 @@ export interface DocumentRecord {
   uploadedBy: string;
   uploadDate: string;
   size: string;
+  academicYearId?: number | null;
+  checksumSha256?: string;
   /** Download / preview URL when backend provides signed or static path. */
   fileUrl?: string;
   tenantId: string;

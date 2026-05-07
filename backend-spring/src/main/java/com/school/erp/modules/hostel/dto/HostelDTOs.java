@@ -1329,4 +1329,87 @@ public class HostelDTOs {
         public String getCreatedAt() { return createdAt; }
         public void setCreatedAt(String createdAt) { this.createdAt = createdAt; }
     }
+
+    public static class IncidentPolicyRequest {
+        @NotNull
+        private String incidentType;
+        @NotNull
+        private String severity;
+        @NotNull
+        private Integer slaMinutes;
+        @NotNull
+        private Integer escalationAfterMinutes;
+
+        public String getIncidentType() { return incidentType; }
+        public void setIncidentType(String incidentType) { this.incidentType = incidentType; }
+        public String getSeverity() { return severity; }
+        public void setSeverity(String severity) { this.severity = severity; }
+        public Integer getSlaMinutes() { return slaMinutes; }
+        public void setSlaMinutes(Integer slaMinutes) { this.slaMinutes = slaMinutes; }
+        public Integer getEscalationAfterMinutes() { return escalationAfterMinutes; }
+        public void setEscalationAfterMinutes(Integer escalationAfterMinutes) { this.escalationAfterMinutes = escalationAfterMinutes; }
+    }
+
+    public static class IncidentPolicyResponse {
+        private Long id;
+        private String incidentType;
+        private String severity;
+        private Integer slaMinutes;
+        private Integer escalationAfterMinutes;
+
+        public Long getId() { return id; }
+        public void setId(Long id) { this.id = id; }
+        public String getIncidentType() { return incidentType; }
+        public void setIncidentType(String incidentType) { this.incidentType = incidentType; }
+        public String getSeverity() { return severity; }
+        public void setSeverity(String severity) { this.severity = severity; }
+        public Integer getSlaMinutes() { return slaMinutes; }
+        public void setSlaMinutes(Integer slaMinutes) { this.slaMinutes = slaMinutes; }
+        public Integer getEscalationAfterMinutes() { return escalationAfterMinutes; }
+        public void setEscalationAfterMinutes(Integer escalationAfterMinutes) { this.escalationAfterMinutes = escalationAfterMinutes; }
+    }
+
+    public static class HostelAnalyticsSnapshot {
+        private Integer occupancyPct;
+        private Integer overcrowdedRooms;
+        private Integer nearCapacityRooms;
+        private Integer openIncidents;
+        private Integer escalatedIncidents;
+        private Integer avgIncidentSlaMinutes;
+
+        public Integer getOccupancyPct() { return occupancyPct; }
+        public void setOccupancyPct(Integer occupancyPct) { this.occupancyPct = occupancyPct; }
+        public Integer getOvercrowdedRooms() { return overcrowdedRooms; }
+        public void setOvercrowdedRooms(Integer overcrowdedRooms) { this.overcrowdedRooms = overcrowdedRooms; }
+        public Integer getNearCapacityRooms() { return nearCapacityRooms; }
+        public void setNearCapacityRooms(Integer nearCapacityRooms) { this.nearCapacityRooms = nearCapacityRooms; }
+        public Integer getOpenIncidents() { return openIncidents; }
+        public void setOpenIncidents(Integer openIncidents) { this.openIncidents = openIncidents; }
+        public Integer getEscalatedIncidents() { return escalatedIncidents; }
+        public void setEscalatedIncidents(Integer escalatedIncidents) { this.escalatedIncidents = escalatedIncidents; }
+        public Integer getAvgIncidentSlaMinutes() { return avgIncidentSlaMinutes; }
+        public void setAvgIncidentSlaMinutes(Integer avgIncidentSlaMinutes) { this.avgIncidentSlaMinutes = avgIncidentSlaMinutes; }
+    }
+
+    public static class OccupancyRecommendation {
+        private Long fromRoomId;
+        private String fromRoomNumber;
+        private Long toRoomId;
+        private String toRoomNumber;
+        private Integer occupancyPressureDiff;
+        private String rationale;
+
+        public Long getFromRoomId() { return fromRoomId; }
+        public void setFromRoomId(Long fromRoomId) { this.fromRoomId = fromRoomId; }
+        public String getFromRoomNumber() { return fromRoomNumber; }
+        public void setFromRoomNumber(String fromRoomNumber) { this.fromRoomNumber = fromRoomNumber; }
+        public Long getToRoomId() { return toRoomId; }
+        public void setToRoomId(Long toRoomId) { this.toRoomId = toRoomId; }
+        public String getToRoomNumber() { return toRoomNumber; }
+        public void setToRoomNumber(String toRoomNumber) { this.toRoomNumber = toRoomNumber; }
+        public Integer getOccupancyPressureDiff() { return occupancyPressureDiff; }
+        public void setOccupancyPressureDiff(Integer occupancyPressureDiff) { this.occupancyPressureDiff = occupancyPressureDiff; }
+        public String getRationale() { return rationale; }
+        public void setRationale(String rationale) { this.rationale = rationale; }
+    }
 }

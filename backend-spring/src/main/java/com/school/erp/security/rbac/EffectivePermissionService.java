@@ -44,6 +44,8 @@ public class EffectivePermissionService {
             AppPermission.SCHOOL_IMPORT_EXPORT_WRITE,
             AppPermission.SCHOOL_COMMUNICATION_READ,
             AppPermission.SCHOOL_COMMUNICATION_WRITE,
+            AppPermission.SCHOOL_DOCUMENTS_READ,
+            AppPermission.SCHOOL_DOCUMENTS_WRITE,
             AppPermission.SCHOOL_DIRECTORY_READ,
             AppPermission.SCHOOL_DIRECTORY_WRITE,
             AppPermission.SCHOOL_OPERATIONS_READ,
@@ -69,7 +71,13 @@ public class EffectivePermissionService {
             AppPermission.SCHOOL_LEAVE_SELF_APPLY,
             AppPermission.SCHOOL_LEAVE_APPROVAL_READ,
             AppPermission.SCHOOL_LEAVE_APPROVAL_WRITE,
-            AppPermission.FEE_STRUCTURES_READ
+            AppPermission.FEE_STRUCTURES_READ,
+            AppPermission.FEE_FINANCE_READ,
+            AppPermission.FEE_CONFIG_WRITE,
+            AppPermission.FEE_BILLING_WRITE,
+            AppPermission.FEE_REFUND_REQUEST,
+            AppPermission.FEE_REFUND_APPROVE,
+            AppPermission.FEE_ONLINE_CHECKOUT
     );
 
     private static final Set<AppPermission> TEACHER_BASE = EnumSet.of(

@@ -2,29 +2,38 @@ package com.school.erp.modules.documents.service;
 
 import com.school.erp.common.dto.PageResponse;
 import com.school.erp.common.enums.Enums;
+import com.school.erp.common.exception.BusinessException;
 import com.school.erp.common.exception.ResourceNotFoundException;
 import com.school.erp.common.exception.UnauthorizedException;
+import com.school.erp.modules.academic.service.CurrentAcademicYearResolver;
 import com.school.erp.modules.documents.entity.Document;
 import com.school.erp.modules.documents.repository.DocumentRepository;
 import com.school.erp.platform.port.FileStoragePort;
 import com.school.erp.tenant.TenantContext;
+import org.springframework.core.io.Resource;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
+import java.util.Locale;
+import java.util.UUID;
 
 @Service
 public class DocumentService {
     private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(DocumentService.class);
     private final DocumentRepository repo;
     private final FileStoragePort fileStoragePort;
+    private final DocumentBinaryStoreService binaryStoreService;
+    private final CurrentAcademicYearResolver currentAcademicYearResolver;
 
     @Transactional(readOnly = true)
-    public List<Document> getDocuments(String category, String ownerType, Long ownerId) {
+    public List<Document> getDocuments(String category, String ownerType, Long ownerId, Long academicYearId) {
         String t = TenantContext.getTenantId();
+        Long effectiveAcademicYearId = resolveAcademicYearOrCurrent(academicYearId, t);
         log.debug("Listing documents tenantId={} category={} ownerType={} ownerId={}", t, category, ownerType, ownerId);
         List<Document> docs;
         if (ownerType != null && !ownerType.isBlank() && ownerId != null) {
@@ -37,6 +46,9 @@ public class DocumentService {
         } else {
             docs = repo.findByTenantIdAndIsDeletedFalse(t);
         }
+        if (effectiveAcademicYearId != null) {
+            docs = docs.stream().filter(d -> effectiveAcademicYearId.equals(d.getAcademicYearId())).toList();
+        }
         if (category != null && !category.isBlank()) {
             docs = docs.stream().filter(d -> category.equalsIgnoreCase(d.getCategory() != null ? d.getCategory().name() : "")).toList();
         }
@@ -45,8 +57,9 @@ public class DocumentService {
     }
 
     @Transactional(readOnly = true)
-    public PageResponse<Document> getDocumentsPaged(int page, int size, String category, String ownerType, Long ownerId, String q) {
+    public PageResponse<Document> getDocumentsPaged(int page, int size, String category, String ownerType, Long ownerId, Long academicYearId, String q) {
         String t = TenantContext.getTenantId();
+        Long effectiveAcademicYearId = resolveAcademicYearOrCurrent(academicYearId, t);
         Enums.DocumentCategory cat = null;
         if (category != null && !category.isBlank()) {
             try {
@@ -66,9 +79,69 @@ public class DocumentService {
             }
         }
         String qq = q == null || q.isBlank() ? "" : q.trim();
-        Page<Document> pg = repo.pageFiltered(t, cat, ot, oid, qq, PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt")));
+        Page<Document> pg = repo.pageFiltered(t, cat, effectiveAcademicYearId, ot, oid, qq, PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt")));
         log.info("Documents paged page={} total={}", page, pg.getTotalElements());
         return PageResponse.of(pg.getContent(), page, size, pg.getTotalElements());
+    }
+
+    @Transactional
+    public Document uploadBinary(MultipartFile file,
+                                 String name,
+                                 String category,
+                                 String ownerType,
+                                 Long ownerId,
+                                 Long academicYearId,
+                                 String visibilityScope,
+                                 Long parentFolderId,
+                                 String tagsJson) {
+        if (file == null || file.isEmpty()) {
+            throw new BusinessException("File is required.");
+        }
+        String originalName = file.getOriginalFilename() == null ? "document.bin" : file.getOriginalFilename().trim();
+        String finalName = (name == null || name.isBlank()) ? originalName : name.trim();
+        String tenantId = TenantContext.getTenantId();
+        Long effectiveAcademicYearId = resolveAcademicYearOrCurrent(academicYearId, tenantId);
+        Enums.DocumentCategory cat = parseCategory(category);
+        Enums.DocumentOwnerType ot = parseOwnerType(ownerType);
+        Enums.DocumentVisibilityScope vs = parseVisibilityScope(visibilityScope);
+        String storageKey = fileStoragePort.buildObjectKey(tenantId, cat.name().toLowerCase(Locale.ROOT), UUID.randomUUID() + "_" + originalName);
+        DocumentBinaryStoreService.StoredFile stored = binaryStoreService.store(tenantId, effectiveAcademicYearId, storageKey, file);
+
+        Document doc = new Document();
+        doc.setTenantId(tenantId);
+        doc.setName(finalName);
+        doc.setCategory(cat);
+        doc.setFileType(guessFileType(file.getOriginalFilename()));
+        doc.setUploadedBy(TenantContext.getUserId() != null ? TenantContext.getUserId().toString() : "system");
+        doc.setOwnerType(ot);
+        doc.setOwnerId(ownerId);
+        doc.setAcademicYearId(effectiveAcademicYearId);
+        doc.setVisibilityScope(vs);
+        doc.setParentFolderId(parentFolderId);
+        doc.setTagsJson(tagsJson);
+        doc.setStorageKey(storageKey);
+        doc.setMimeType(stored.mimeType());
+        doc.setSizeBytes(stored.sizeBytes());
+        doc.setFileSize(formatSizeLabel(stored.sizeBytes()));
+        doc.setChecksumSha256(stored.checksumSha256());
+        doc.setFileUrl(null);
+        doc.setFileVersion(1);
+        Document saved = repo.save(doc);
+        saved.setFileUrl("/api/v1/documents/" + saved.getId() + "/download");
+        return repo.save(saved);
+    }
+
+    @Transactional(readOnly = true)
+    public Resource loadBinary(Long id) {
+        Document doc = repo.findByIdAndTenantIdAndIsDeletedFalse(id, TenantContext.getTenantId())
+                .orElseThrow(() -> new ResourceNotFoundException("Document", id));
+        return binaryStoreService.load(doc.getTenantId(), doc.getAcademicYearId(), doc.getStorageKey());
+    }
+
+    @Transactional(readOnly = true)
+    public Document getById(Long id) {
+        return repo.findByIdAndTenantIdAndIsDeletedFalse(id, TenantContext.getTenantId())
+                .orElseThrow(() -> new ResourceNotFoundException("Document", id));
     }
 
     @Transactional
@@ -131,8 +204,63 @@ public class DocumentService {
         log.info("Document soft-deleted id={}", id);
     }
 
-    public DocumentService(final DocumentRepository repo, final FileStoragePort fileStoragePort) {
+    public DocumentService(final DocumentRepository repo,
+                           final FileStoragePort fileStoragePort,
+                           final DocumentBinaryStoreService binaryStoreService,
+                           final CurrentAcademicYearResolver currentAcademicYearResolver) {
         this.repo = repo;
         this.fileStoragePort = fileStoragePort;
+        this.binaryStoreService = binaryStoreService;
+        this.currentAcademicYearResolver = currentAcademicYearResolver;
+    }
+
+    private Long resolveAcademicYearOrCurrent(Long requestedAcademicYearId, String tenantId) {
+        if (requestedAcademicYearId != null) {
+            return requestedAcademicYearId;
+        }
+        Long currentAcademicYearId = currentAcademicYearResolver.resolveCurrentAcademicYearId(tenantId);
+        if (currentAcademicYearId != null) {
+            return currentAcademicYearId;
+        }
+        return null;
+    }
+
+    private static String formatSizeLabel(long sizeBytes) {
+        double mb = sizeBytes / (1024.0 * 1024.0);
+        if (mb >= 1.0) return String.format(Locale.ROOT, "%.2f MB", mb);
+        double kb = sizeBytes / 1024.0;
+        return String.format(Locale.ROOT, "%.1f KB", kb);
+    }
+
+    private static String guessFileType(String fileName) {
+        if (fileName == null || !fileName.contains(".")) return "BIN";
+        return fileName.substring(fileName.lastIndexOf('.') + 1).toUpperCase(Locale.ROOT);
+    }
+
+    private static Enums.DocumentCategory parseCategory(String category) {
+        if (category == null || category.isBlank()) return Enums.DocumentCategory.GENERAL;
+        try {
+            return Enums.DocumentCategory.valueOf(category.trim().toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException ex) {
+            throw new BusinessException("Invalid document category.");
+        }
+    }
+
+    private static Enums.DocumentOwnerType parseOwnerType(String ownerType) {
+        if (ownerType == null || ownerType.isBlank()) return null;
+        try {
+            return Enums.DocumentOwnerType.valueOf(ownerType.trim().toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException ex) {
+            throw new BusinessException("Invalid owner type.");
+        }
+    }
+
+    private static Enums.DocumentVisibilityScope parseVisibilityScope(String visibilityScope) {
+        if (visibilityScope == null || visibilityScope.isBlank()) return Enums.DocumentVisibilityScope.PRIVATE;
+        try {
+            return Enums.DocumentVisibilityScope.valueOf(visibilityScope.trim().toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException ex) {
+            throw new BusinessException("Invalid visibility scope.");
+        }
     }
 }

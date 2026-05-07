@@ -5,6 +5,7 @@ import com.school.erp.common.enums.Enums;
 import com.school.erp.common.exception.BusinessException;
 import com.school.erp.common.exception.ResourceNotFoundException;
 import com.school.erp.config.CacheConfig;
+import com.school.erp.modules.academic.service.CurrentAcademicYearResolver;
 import com.school.erp.modules.auth.repository.UserRepository;
 import com.school.erp.modules.notification.service.NotificationService;
 import com.school.erp.modules.reports.dto.AdminAttendanceOverviewScope;
@@ -28,9 +29,11 @@ import com.school.erp.modules.reports.repository.ReportTemplateRepository;
 import com.school.erp.modules.reports.repository.ReportWorkflowEventLogRepository;
 import com.school.erp.modules.reports.repository.DashboardSnapshotRepository;
 import com.school.erp.modules.student.repository.StudentRepository;
+import com.school.erp.tenant.AcademicYearContext;
 import com.school.erp.tenant.TenantContext;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
@@ -57,6 +60,11 @@ import java.util.function.Supplier;
  */
 @Service
 public class ReportService {
+    @Value("${app.reports.jobs.async-default:true}")
+    private boolean asyncDefault;
+
+    @Value("${app.reports.export.max-rows:25000}")
+    private int maxExportRows;
 
     private final ReportQueryPort reportQueryPort;
     private final ReportTemplateRepository reportTemplateRepository;
@@ -75,6 +83,7 @@ public class ReportService {
     private final DashboardSnapshotRepository dashboardSnapshotRepository;
     private final ReportPerformanceMetricsService reportPerformanceMetricsService;
     private final ReportBinaryStorageService reportBinaryStorageService;
+    private final CurrentAcademicYearResolver currentAcademicYearResolver;
 
     public ReportService(
             ReportQueryPort reportQueryPort,
@@ -93,7 +102,8 @@ public class ReportService {
             DashboardSnapshotService dashboardSnapshotService,
             DashboardSnapshotRepository dashboardSnapshotRepository,
             ReportPerformanceMetricsService reportPerformanceMetricsService,
-            ReportBinaryStorageService reportBinaryStorageService) {
+            ReportBinaryStorageService reportBinaryStorageService,
+            CurrentAcademicYearResolver currentAcademicYearResolver) {
         this.reportQueryPort = reportQueryPort;
         this.reportTemplateRepository = reportTemplateRepository;
         this.reportGenerationJobRepository = reportGenerationJobRepository;
@@ -111,6 +121,7 @@ public class ReportService {
         this.dashboardSnapshotRepository = dashboardSnapshotRepository;
         this.reportPerformanceMetricsService = reportPerformanceMetricsService;
         this.reportBinaryStorageService = reportBinaryStorageService;
+        this.currentAcademicYearResolver = currentAcademicYearResolver;
     }
 
     @Transactional
@@ -177,6 +188,27 @@ public class ReportService {
     @Transactional(readOnly = true)
     public List<Map<String, Object>> getStudentPerformanceReport(Long classId, Long examId, Long sectionId) {
         return filterRowsBySection(reportQueryPort.getStudentPerformanceReport(classId, examId), classId, sectionId);
+    }
+
+    @Cacheable(cacheNames = CacheConfig.REPORT_RESULTS, keyGenerator = "tenantMethodParamsKeyGenerator", unless = "#result == null")
+    @Transactional(readOnly = true)
+    public Map<String, Object> getStudentPerformanceHighlights(Long classId, Long examId, Long sectionId, int limit) {
+        int safeLimit = Math.max(1, Math.min(limit, 10));
+        List<Map<String, Object>> rows = getStudentPerformanceReport(classId, examId, sectionId);
+        List<Map<String, Object>> sorted = rows.stream()
+                .sorted((a, b) -> Double.compare(readDouble(b, "percentage"), readDouble(a, "percentage")))
+                .toList();
+        List<Map<String, Object>> topPerformers = sorted.stream().limit(safeLimit).toList();
+        List<Map<String, Object>> lowPerformers = sorted.stream()
+                .sorted((a, b) -> Double.compare(readDouble(a, "percentage"), readDouble(b, "percentage")))
+                .limit(safeLimit)
+                .toList();
+        java.util.LinkedHashMap<String, Object> out = new java.util.LinkedHashMap<>();
+        out.put("academicYearId", AcademicYearContext.getAcademicYearId());
+        out.put("topPerformers", topPerformers);
+        out.put("lowPerformers", lowPerformers);
+        out.put("totalStudents", rows.size());
+        return out;
     }
 
     @Cacheable(cacheNames = CacheConfig.REPORT_RESULTS, keyGenerator = "tenantMethodParamsKeyGenerator", unless = "#result == null")
@@ -275,6 +307,7 @@ public class ReportService {
         reportGenerationJobRepository.findByTenantIdAndRequestIdAndIsDeletedFalse(tenantId, requestId)
                 .ifPresent(existing -> { throw new BusinessException("Duplicate report requestId for tenant."); });
         LocalDateTime scheduleAt = parseScheduleAt(req.getScheduleAt());
+        boolean asyncRequested = req.getAsync() != null ? req.getAsync() : asyncDefault;
         if (req.getTemplateId() != null) {
             reportTemplateRepository.findByIdAndTenantIdAndIsDeletedFalse(req.getTemplateId(), tenantId)
                     .orElseThrow(() -> new ResourceNotFoundException("ReportTemplate", req.getTemplateId()));
@@ -287,8 +320,8 @@ public class ReportService {
         job.setFormat(format);
         job.setFilterJson(writeJson(filters));
         job.setShareConfigJson(writeJson(req.getShareConfig()));
-        job.setScheduleAt(scheduleAt);
-        job.setStatus(scheduleAt == null ? "RUNNING" : "QUEUED");
+        job.setScheduleAt(scheduleAt != null ? scheduleAt : LocalDateTime.now());
+        job.setStatus("QUEUED");
         job.setWorkflowState("DRAFT");
         job.setWorkflowNote(null);
         job.setCreatorUserId(TenantContext.getUserId());
@@ -298,7 +331,8 @@ public class ReportService {
         job.setMaxAttempts(3);
         reportGenerationJobRepository.save(job);
         logWorkflowEvent(job, "JOB_CREATED", null, "DRAFT", "Report request accepted", Map.of("requestId", requestId));
-        if (scheduleAt == null) {
+        reportPerformanceMetricsService.recordJobEvent("JOB_CREATED");
+        if (!asyncRequested && scheduleAt == null) {
             executeJobNow(job);
         }
         return toReportJobOut(job);
@@ -342,6 +376,23 @@ public class ReportService {
         job.setScheduleAt(LocalDateTime.now());
         reportGenerationJobRepository.save(job);
         logWorkflowEvent(job, "JOB_RETRY_QUEUED", null, "DRAFT", "Retry requested", Map.of());
+        reportPerformanceMetricsService.recordJobEvent("JOB_RETRY_QUEUED");
+        return toReportJobOut(job);
+    }
+
+    @Transactional
+    public ReportModuleDTOs.ReportJobResponse cancelReportJob(Long id) {
+        ReportGenerationJob job = reportGenerationJobRepository.findByIdAndTenantIdAndIsDeletedFalse(id, TenantContext.getTenantId())
+                .orElseThrow(() -> new ResourceNotFoundException("ReportGenerationJob", id));
+        String status = job.getStatus() != null ? job.getStatus().toUpperCase(Locale.ROOT) : "";
+        if (!List.of("QUEUED", "RUNNING", "RETRY").contains(status)) {
+            throw new BusinessException("Only queued, running, or retry jobs can be cancelled.");
+        }
+        job.setStatus("CANCELLED");
+        job.setNextRetryAt(null);
+        reportGenerationJobRepository.save(job);
+        logWorkflowEvent(job, "JOB_CANCELLED", null, job.getWorkflowState(), "Cancelled by user", Map.of());
+        reportPerformanceMetricsService.recordJobEvent("JOB_CANCELLED");
         return toReportJobOut(job);
     }
 
@@ -793,8 +844,17 @@ public class ReportService {
 
     private void executeJobNow(ReportGenerationJob job) {
         try {
+            if ("CANCELLED".equalsIgnoreCase(job.getStatus())) {
+                return;
+            }
             job.setStatus("RUNNING");
+            reportGenerationJobRepository.save(job);
+            reportPerformanceMetricsService.recordJobEvent("JOB_RUNNING");
             List<Map<String, Object>> rows = resolveReportRows(job.getReportType(), readJsonMap(job.getFilterJson()));
+            int safeMaxRows = Math.max(1000, Math.min(maxExportRows, 250_000));
+            if (rows.size() > safeMaxRows) {
+                throw new BusinessException("Report row limit exceeded for export. Narrow filters or schedule segmented exports.");
+            }
             ReportExportService.RenderedReport rendered =
                     reportExportService.render(job.getReportType(), job.getFormat(), rows, job.getTenantId());
             job.setFileName(rendered.fileName());
@@ -821,6 +881,7 @@ public class ReportService {
             job.setNextRetryAt(null);
             reportGenerationJobRepository.save(job);
             logWorkflowEvent(job, "JOB_COMPLETED", null, job.getWorkflowState(), null, Map.of("rows", rows.size()));
+            reportPerformanceMetricsService.recordJobEvent("JOB_COMPLETED");
             createDispatchesForJob(job);
         } catch (Exception ex) {
             int nextAttempts = (job.getAttempts() != null ? job.getAttempts() : 0) + 1;
@@ -830,9 +891,11 @@ public class ReportService {
             if (nextAttempts >= (job.getMaxAttempts() != null ? job.getMaxAttempts() : 3)) {
                 job.setStatus("FAILED");
                 job.setNextRetryAt(null);
+                reportPerformanceMetricsService.recordJobEvent("JOB_FAILED");
             } else {
                 job.setStatus("RETRY");
                 job.setNextRetryAt(LocalDateTime.now().plusMinutes(backoffMinutes(nextAttempts)));
+                reportPerformanceMetricsService.recordJobEvent("JOB_RETRY");
             }
             reportGenerationJobRepository.save(job);
             logWorkflowEvent(job, "JOB_FAILED", null, job.getWorkflowState(), err, Map.of("attempts", nextAttempts, "status", job.getStatus()));
@@ -866,9 +929,14 @@ public class ReportService {
     }
 
     private void processDispatch(ReportShareDispatch d, LocalDateTime now) {
+        Long previousAcademicYearId = AcademicYearContext.getAcademicYearId();
         try {
             ReportGenerationJob job = reportGenerationJobRepository.findByIdAndTenantIdAndIsDeletedFalse(d.getReportJobId(), d.getTenantId())
                     .orElseThrow(() -> new ResourceNotFoundException("ReportGenerationJob", d.getReportJobId()));
+            Long dispatchAcademicYearId = resolveDispatchAcademicYearId(job);
+            if (dispatchAcademicYearId != null) {
+                AcademicYearContext.setAcademicYearId(dispatchAcademicYearId);
+            }
             String templateCode = d.getTemplateCode() != null ? d.getTemplateCode() : "REPORT_SHARED_DEFAULT";
             ReportNotificationTemplate tpl = reportNotificationTemplateRepository
                     .findByTenantIdAndTemplateCodeAndTargetRoleAndLocaleCodeAndChannelAndIsDeletedFalse(
@@ -900,7 +968,22 @@ public class ReportService {
                 d.setStatus("RETRY");
                 d.setNextRetryAt(now.plusMinutes(backoffMinutes(nextAttempts)));
             }
+        } finally {
+            if (previousAcademicYearId != null) {
+                AcademicYearContext.setAcademicYearId(previousAcademicYearId);
+            } else {
+                AcademicYearContext.clear();
+            }
         }
+    }
+
+    private Long resolveDispatchAcademicYearId(ReportGenerationJob job) {
+        Map<String, Object> filters = readJsonMap(job.getFilterJson());
+        Long filterAcademicYearId = readLong(filters, "academicYearId", false);
+        if (filterAcademicYearId != null) {
+            return filterAcademicYearId;
+        }
+        return currentAcademicYearResolver.resolveCurrentAcademicYearId(job.getTenantId());
     }
 
     private ReportNotificationTemplate defaultNotificationTemplate(String tenantId, String templateCode, String role, String locale, String channel) {

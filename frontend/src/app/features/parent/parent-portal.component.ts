@@ -1067,32 +1067,32 @@ export class ParentPortalComponent implements OnInit, OnDestroy {
       const returnUrl =
         typeof window !== 'undefined' ? `${window.location.origin}/app/parent/children` : '/app/parent/children';
       const amount = Math.round(Number(this.paymentAmount) * 100) / 100;
+      const studentId = coerceApiLongId(this.selectedChild.id, 'student');
       this.parentService
         .createCheckoutSession({
           paymentId: this.selectedObligation.paymentId,
-          studentId: coerceApiLongId(this.selectedChild.id, 'student'),
+          studentId,
           amount,
           provider: PAYMENT_PROVIDER_IDS.RAZORPAY,
           returnUrl,
         })
         .subscribe({
-          next: session => {
-            this.currentCheckoutSession = session;
-            this.lastOrderPreview = { providerOrderId: session.providerOrderId, amount: session.amount };
-            this.processingPayment = false;
-            this.paymentStep = 'confirm';
-            if (session.publicKeyId) {
-              setTimeout(() => this.openRazorpayWidget(), 0);
-            } else {
-              this.paymentGatewayMessage = this.translate.instant('parentPortal.err.orderNoKey');
-            }
-          },
-          error: (e: unknown) => {
-            this.processingPayment = false;
-            const raw = e instanceof Error ? e.message : '';
-            this.paymentGatewayMessage =
-              raw?.trim() || this.translate.instant('parentPortal.err.checkoutFailed');
-          },
+        next: session => {
+          this.currentCheckoutSession = session;
+          this.lastOrderPreview = { providerOrderId: session.providerOrderId, amount: session.amount };
+          this.processingPayment = false;
+          this.paymentStep = 'confirm';
+          if (session.publicKeyId) {
+            setTimeout(() => this.openRazorpayWidget(), 0);
+          } else {
+            this.paymentGatewayMessage = this.translate.instant('parentPortal.err.orderNoKey');
+          }
+        },
+        error: (e: unknown) => {
+          this.processingPayment = false;
+          const raw = e instanceof Error ? e.message : '';
+          this.paymentGatewayMessage = raw?.trim() || this.translate.instant('parentPortal.err.checkoutFailed');
+        },
         });
       return;
     }

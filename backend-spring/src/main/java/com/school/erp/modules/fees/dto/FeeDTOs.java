@@ -1832,4 +1832,63 @@ public class FeeDTOs {
         public String getOperationKey() { return operationKey; }
         public void setOperationKey(String operationKey) { this.operationKey = operationKey; }
     }
+
+    public static class FeeDefaulterRow {
+        private Long paymentId;
+        private Long studentId;
+        private String studentName;
+        private BigDecimal dueAmount;
+        private LocalDate dueDate;
+        private Integer daysOverdue;
+        private String escalationBand;
+        private String status;
+        private Long academicYearId;
+
+        public Long getPaymentId() { return paymentId; }
+        public void setPaymentId(Long paymentId) { this.paymentId = paymentId; }
+        public Long getStudentId() { return studentId; }
+        public void setStudentId(Long studentId) { this.studentId = studentId; }
+        public String getStudentName() { return studentName; }
+        public void setStudentName(String studentName) { this.studentName = studentName; }
+        public BigDecimal getDueAmount() { return dueAmount; }
+        public void setDueAmount(BigDecimal dueAmount) { this.dueAmount = dueAmount; }
+        public LocalDate getDueDate() { return dueDate; }
+        public void setDueDate(LocalDate dueDate) { this.dueDate = dueDate; }
+        public Integer getDaysOverdue() { return daysOverdue; }
+        public void setDaysOverdue(Integer daysOverdue) { this.daysOverdue = daysOverdue; }
+        public String getEscalationBand() { return escalationBand; }
+        public void setEscalationBand(String escalationBand) { this.escalationBand = escalationBand; }
+        public String getStatus() { return status; }
+        public void setStatus(String status) { this.status = status; }
+        public Long getAcademicYearId() { return academicYearId; }
+        public void setAcademicYearId(Long academicYearId) { this.academicYearId = academicYearId; }
+    }
+
+    public static class FeeReminderOpsSnapshot {
+        private Integer upcomingDueCount;
+        private Integer overdueCount;
+        private Integer criticalCount;
+        private Integer workingHoursStart;
+        private Integer workingHoursEnd;
+        private String cronExpression;
+        private Boolean inWorkingWindowNow;
+        private String roleHint;
+
+        public Integer getUpcomingDueCount() { return upcomingDueCount; }
+        public void setUpcomingDueCount(Integer upcomingDueCount) { this.upcomingDueCount = upcomingDueCount; }
+        public Integer getOverdueCount() { return overdueCount; }
+        public void setOverdueCount(Integer overdueCount) { this.overdueCount = overdueCount; }
+        public Integer getCriticalCount() { return criticalCount; }
+        public void setCriticalCount(Integer criticalCount) { this.criticalCount = criticalCount; }
+        public Integer getWorkingHoursStart() { return workingHoursStart; }
+        public void setWorkingHoursStart(Integer workingHoursStart) { this.workingHoursStart = workingHoursStart; }
+        public Integer getWorkingHoursEnd() { return workingHoursEnd; }
+        public void setWorkingHoursEnd(Integer workingHoursEnd) { this.workingHoursEnd = workingHoursEnd; }
+        public String getCronExpression() { return cronExpression; }
+        public void setCronExpression(String cronExpression) { this.cronExpression = cronExpression; }
+        public Boolean getInWorkingWindowNow() { return inWorkingWindowNow; }
+        public void setInWorkingWindowNow(Boolean inWorkingWindowNow) { this.inWorkingWindowNow = inWorkingWindowNow; }
+        public String getRoleHint() { return roleHint; }
+        public void setRoleHint(String roleHint) { this.roleHint = roleHint; }
+    }
 }

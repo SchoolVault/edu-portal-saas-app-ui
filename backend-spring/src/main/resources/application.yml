@@ -173,6 +173,8 @@ app:
       enabled: ${APP_FEES_RECON_ENABLED:true}
       poll-interval-ms: ${APP_FEES_RECON_POLL_MS:300000}
       stale-timeout-minutes: ${APP_FEES_STALE_TIMEOUT_MIN:15}
+    export:
+      max-rows: ${APP_FEES_EXPORT_MAX_ROWS:20000}
 
   payroll:
     payout:
@@ -227,6 +229,18 @@ app:
         secret-key: ${AWS_SES_SECRET_KEY:}
     webhook:
       url: ${APP_INTEGRATION_WEBHOOK_URL:}
+
+  leave:
+    workflow:
+      sla-hours: ${APP_LEAVE_WORKFLOW_SLA_HOURS:24}
+      multi-step-threshold-days: ${APP_LEAVE_WORKFLOW_MULTI_STEP_THRESHOLD_DAYS:3}
+      max-escalation-count: ${APP_LEAVE_WORKFLOW_MAX_ESCALATION_COUNT:5}
+      escalation:
+        enabled: ${APP_LEAVE_WORKFLOW_ESCALATION_ENABLED:true}
+        cron: ${APP_LEAVE_WORKFLOW_ESCALATION_CRON:0 */15 * * * *}
+    reliability:
+      enabled: ${APP_LEAVE_RELIABILITY_ENABLED:true}
+      cron: ${APP_LEAVE_RELIABILITY_CRON:0 0 3 * * MON}
 
   communication:
     events:
@@ -429,6 +443,12 @@ app:
       medium-severity-sla-minutes: ${APP_HOSTEL_INCIDENT_SLA_MEDIUM_MIN:240}
       high-severity-sla-minutes: ${APP_HOSTEL_INCIDENT_SLA_HIGH_MIN:120}
       critical-severity-sla-minutes: ${APP_HOSTEL_INCIDENT_SLA_CRITICAL_MIN:60}
+    analytics:
+      export:
+        max-rows: ${APP_HOSTEL_ANALYTICS_EXPORT_MAX_ROWS:5000}
+  library:
+    export:
+      max-rows: ${APP_LIBRARY_EXPORT_MAX_ROWS:10000}
 
   audit:
     retention:
@@ -445,6 +465,7 @@ app:
 
   storage:
     public-base-url: ${APP_STORAGE_PUBLIC_BASE_URL:http://localhost:8080/api/v1/documents/download/}
+    documents-root: ${APP_STORAGE_DOCUMENTS_ROOT:./data/documents}
 
   chat:
     # jpa = MySQL (default). mongo = MongoDB (set spring.data.mongodb.uri and APP_CHAT_MESSAGE_STORE=mongo).
@@ -464,6 +485,12 @@ app:
       microcache-ttl-seconds: ${APP_REPORTS_MICROCACHE_TTL_SECONDS:15}
       # Real-time guard for dashboard APIs. Use exact names or wildcard prefixes (e.g., DASHBOARD_*).
       realtime-snapshot-types: ${APP_REPORTS_REALTIME_SNAPSHOT_TYPES:DASHBOARD_*}
+    jobs:
+      # true = report generate API defaults to queued async execution unless caller opts out.
+      async-default: ${APP_REPORTS_JOBS_ASYNC_DEFAULT:true}
+    export:
+      # hard safety cap per rendered file to avoid memory/latency spikes on large datasets.
+      max-rows: ${APP_REPORTS_EXPORT_MAX_ROWS:25000}
 
   lifecycle:
     purge:
@@ -497,6 +524,16 @@ app:
     warm-window-years: ${APP_DATA_LIFECYCLE_WARM_WINDOW_YEARS:3}
     archive-after-years: ${APP_DATA_LIFECYCLE_ARCHIVE_AFTER_YEARS:5}
     cold-reads-read-only: ${APP_DATA_LIFECYCLE_COLD_READS_READ_ONLY:true}
+
+  transport:
+    ops:
+      dlq-retry-cron: ${APP_TRANSPORT_OPS_DLQ_RETRY_CRON:0 */5 * * * *}
+      dlq-retry-batch-size: ${APP_TRANSPORT_OPS_DLQ_RETRY_BATCH_SIZE:25}
+      dlq-max-retries: ${APP_TRANSPORT_OPS_DLQ_MAX_RETRIES:5}
+      hot-retention-days: ${APP_TRANSPORT_OPS_HOT_RETENTION_DAYS:30}
+      warm-retention-days: ${APP_TRANSPORT_OPS_WARM_RETENTION_DAYS:180}
+      escalation-cron: ${APP_TRANSPORT_OPS_ESCALATION_CRON:0 */10 * * * *}
+      retention-cron: ${APP_TRANSPORT_OPS_RETENTION_CRON:0 25 2 * * *}
 
   observability:
     api-timing:

@@ -13,7 +13,11 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Arrays;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/v1/operations")
@@ -31,6 +35,34 @@ public class OperationsController {
     @Operation(summary = "List operational staff (non-teaching roles)")
     public ResponseEntity<ApiResponse<List<OperationsDTOs.OperationalStaffResponse>>> listStaff() {
         return ResponseEntity.ok(ApiResponse.ok(operationsService.listStaff()));
+    }
+
+    @GetMapping("/global-search")
+    @RequireTenantFeature("operationsHub")
+    @PreAuthorize(RbacSpel.SCHOOL_OPERATIONS_READ)
+    @Operation(summary = "Global search across operations datasets")
+    public ResponseEntity<ApiResponse<OperationsDTOs.GlobalSearchResponse>> globalSearch(
+            @RequestParam("q") String q,
+            @RequestParam(name = "scopes", required = false) String scopesCsv,
+            @RequestParam(name = "limitPerScope", defaultValue = "5") int limitPerScope) {
+        Set<String> scopes = null;
+        if (scopesCsv != null && !scopesCsv.isBlank()) {
+            scopes = Arrays.stream(scopesCsv.split(","))
+                    .map(String::trim)
+                    .filter(s -> !s.isEmpty())
+                    .collect(Collectors.toCollection(LinkedHashSet::new));
+        }
+        return ResponseEntity.ok(ApiResponse.ok(operationsService.globalSearch(q, scopes, limitPerScope)));
+    }
+
+    @GetMapping("/global-search/activity")
+    @RequireTenantFeature("operationsHub")
+    @PreAuthorize(RbacSpel.SCHOOL_OPERATIONS_READ)
+    @Operation(summary = "Recent global search activity stream")
+    public ResponseEntity<ApiResponse<PageResponse<OperationsDTOs.GlobalSearchActivityRow>>> globalSearchActivity(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return ResponseEntity.ok(ApiResponse.ok(operationsService.listGlobalSearchActivity(page, size)));
     }
 
     @GetMapping("/staff/paged")

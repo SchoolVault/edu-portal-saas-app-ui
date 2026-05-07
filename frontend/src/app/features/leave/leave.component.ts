@@ -225,8 +225,15 @@ import { runtimeConfig } from '../../core/config/runtime-config';
             <span class="badge-erp" [class.badge-info]="r.status === 'PENDING'" [class.badge-success]="r.status === 'APPROVED'" [class.badge-danger]="r.status === 'REJECTED'" [class.badge-neutral]="r.status === 'CANCELLED'">{{ leaveStatusLabel(r.status) }}</span>
           </div>
           <div class="small text-muted">{{ r.startDate }} → {{ r.endDate }} · {{ dayUnitLabel(r.dayUnit) }}</div>
+          <div class="small text-muted" *ngIf="r.approvalStep && r.approvalStepTotal">
+            {{ 'leave.stepProgress' | translate:{ step: r.approvalStep, total: r.approvalStepTotal } }}
+            <span *ngIf="r.approvalSlaDueAt"> · {{ 'leave.slaDue' | translate:{ dt: (r.approvalSlaDueAt | date:'medium') } }}</span>
+          </div>
           <div *ngIf="r.reason" class="small mt-1">{{ r.reason }}</div>
           <div *ngIf="r.approverRemarks" class="small text-muted mt-1">{{ 'leave.approverLabel' | translate }}: {{ r.approverRemarks }}</div>
+          <div *ngIf="r.status === 'PENDING'" class="mt-2">
+            <button type="button" class="btn-outline-erp btn-sm" (click)="cancelMine(r)">{{ 'leave.cancelRequest' | translate }}</button>
+          </div>
         </div>
       </div>
       <app-erp-pagination
@@ -259,8 +266,12 @@ import { runtimeConfig } from '../../core/config/runtime-config';
               <span class="badge-erp" [class.badge-info]="r.status === 'PENDING'" [class.badge-success]="r.status === 'APPROVED'" [class.badge-danger]="r.status === 'REJECTED'" [class.badge-neutral]="r.status === 'CANCELLED'">{{ leaveStatusLabel(r.status) }}</span>
             </div>
             <div class="small text-muted">{{ r.startDate }} → {{ r.endDate }} · {{ dayUnitLabel(r.dayUnit) }}</div>
+            <div class="small text-muted" *ngIf="r.approvalStep && r.approvalStepTotal">
+              {{ 'leave.stepProgress' | translate:{ step: r.approvalStep, total: r.approvalStepTotal } }}
+              <span *ngIf="r.approvalEscalationCount && r.approvalEscalationCount > 0"> · {{ 'leave.escalationCount' | translate:{ n: r.approvalEscalationCount } }}</span>
+            </div>
             <div *ngIf="r.status === 'PENDING' && isApprover" class="mt-2 d-flex gap-2 flex-wrap">
-              <button type="button" class="btn-primary-erp btn-sm" (click)="decide(r, true)">{{ 'leave.approve' | translate }}</button>
+              <button type="button" class="btn-primary-erp btn-sm" (click)="decide(r, true)">{{ approveLabel(r) }}</button>
               <button type="button" class="btn-outline-erp btn-sm" (click)="decide(r, false)">{{ 'leave.reject' | translate }}</button>
             </div>
           </div>
@@ -642,6 +653,15 @@ export class LeaveComponent implements OnInit {
 
   submit(): void {
     this.submitError = '';
+    if (this.form.startDate && this.form.endDate) {
+      const start = new Date(this.form.startDate).getTime();
+      const end = new Date(this.form.endDate).getTime();
+      if (Number.isFinite(start) && Number.isFinite(end) && end < start) {
+        this.submitError = this.translate.instant('leave.errDateRange');
+        this.cdr.markForCheck();
+        return;
+      }
+    }
     this.leave
       .submit({
         leaveType: this.form.leaveType,
@@ -665,5 +685,18 @@ export class LeaveComponent implements OnInit {
 
   decide(r: LeaveRequestRow, approve: boolean): void {
     this.leave.decide(r.id, approve).subscribe(() => this.refresh());
+  }
+
+  approveLabel(r: LeaveRequestRow): string {
+    const step = Number(r.approvalStep ?? 1);
+    const total = Number(r.approvalStepTotal ?? 1);
+    if (total > 1 && step < total) {
+      return this.translate.instant('leave.approveStep');
+    }
+    return this.translate.instant('leave.approveFinal');
+  }
+
+  cancelMine(r: LeaveRequestRow): void {
+    this.leave.cancel(r.id).subscribe(() => this.refresh());
   }
 }

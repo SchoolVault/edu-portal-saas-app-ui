@@ -477,7 +477,7 @@ export class ParentService {
         name: line.name,
         amount: Number(line.amount ?? 0),
         type: (line.type ?? 'misc').toString().toLowerCase()
-      }))
+      })),
     };
   }
 

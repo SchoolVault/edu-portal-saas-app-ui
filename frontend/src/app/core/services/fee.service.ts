@@ -6,7 +6,9 @@ import { MOCK_STUDENTS } from '../mocks/students.mock-data';
 import {
   BulkAssignFeesRequest,
   BulkAssignFeesResponse,
+  FeeDefaulter,
   FeeCollectionSummary,
+  FeeReminderOpsSnapshot,
   FeePayment,
   FeeRefundDecisionRequest,
   FeeRefundExecuteRequest,
@@ -64,6 +66,7 @@ export class FeeService {
     q?: string;
     classId?: number;
     sectionId?: number;
+    academicYearId?: number;
   }): Observable<PageResp<FeePayment>> {
     const page = opts.page ?? 0;
     const size = opts.size ?? DEFAULT_ERP_PAGE_SIZE;
@@ -71,6 +74,7 @@ export class FeeService {
     const status = opts.status?.trim() || '';
     const classId = opts.classId;
     const sectionId = opts.sectionId;
+    const academicYearId = opts.academicYearId;
 
     if (!runtimeConfig.useMocks) {
       const statusParam = status ? status.toUpperCase() : undefined;
@@ -82,6 +86,7 @@ export class FeeService {
           q: opts.q?.trim() || undefined,
           classId: classId ?? undefined,
           sectionId: sectionId ?? undefined,
+          academicYearId: academicYearId ?? undefined,
         })
         .pipe(map(pr => ({ ...pr, content: pr.content.map(item => this.normalizePayment(item as any)) })));
     }
@@ -117,6 +122,125 @@ export class FeeService {
       return this.api.get<any[]>(`/fees/payments/student/${studentId}`).pipe(map(payments => payments.map(item => this.normalizePayment(item))));
     }
     return of(this.payments.filter(p => p.studentId === studentId)).pipe(delay(300));
+  }
+
+  getStudentPaymentsPage(studentId: number, opts: { page?: number; size?: number; academicYearId?: number }): Observable<PageResp<FeePayment>> {
+    const page = opts.page ?? 0;
+    const size = opts.size ?? DEFAULT_ERP_PAGE_SIZE;
+    if (!runtimeConfig.useMocks) {
+      return this.api.getPageParams<FeePayment>(`/fees/payments/student/${studentId}/paged`, {
+        page,
+        size,
+        academicYearId: opts.academicYearId ?? undefined,
+      }).pipe(map(pr => ({ ...pr, content: pr.content.map(item => this.normalizePayment(item as any)) })));
+    }
+    return this.getStudentPayments(studentId).pipe(map(rows => sliceToPage(rows, page, size)));
+  }
+
+  getDefaultersPage(opts: {
+    page?: number;
+    size?: number;
+    window?: 'all' | 'upcoming' | 'overdue';
+    band?: 'all' | 'upcoming' | 'soft' | 'medium' | 'critical';
+    classId?: number;
+    sectionId?: number;
+    academicYearId?: number;
+  }): Observable<PageResp<FeeDefaulter>> {
+    const page = opts.page ?? 0;
+    const size = opts.size ?? DEFAULT_ERP_PAGE_SIZE;
+    if (!runtimeConfig.useMocks) {
+      return this.api.getPageParams<FeeDefaulter>('/fees/defaulters/paged', {
+        page,
+        size,
+        window: opts.window ?? 'all',
+        band: opts.band ?? 'all',
+        classId: opts.classId ?? undefined,
+        sectionId: opts.sectionId ?? undefined,
+        academicYearId: opts.academicYearId ?? undefined,
+      }).pipe(map(pr => ({
+        ...pr,
+        content: (pr.content ?? []).map((row: any) => ({
+          paymentId: Number(row.paymentId),
+          studentId: Number(row.studentId),
+          studentName: row.studentName ?? '',
+          dueAmount: Number(row.dueAmount ?? 0),
+          dueDate: row.dueDate ?? '',
+          daysOverdue: Number(row.daysOverdue ?? 0),
+          escalationBand: row.escalationBand ?? 'soft',
+          status: row.status ?? 'unpaid',
+          academicYearId: row.academicYearId != null ? Number(row.academicYearId) : undefined,
+        })),
+      })));
+    }
+    return this.getPaymentsPage({
+      page,
+      size,
+      classId: opts.classId,
+      sectionId: opts.sectionId,
+      academicYearId: opts.academicYearId,
+    }).pipe(map(pr => {
+      const rows: FeeDefaulter[] = pr.content
+        .filter(p => Number(p.dueAmount) > 0)
+        .map(p => {
+          const daysOverdue = p.dueDate ? Math.floor((Date.now() - Date.parse(p.dueDate)) / 86400000) : 0;
+          const escalationBand: FeeDefaulter['escalationBand'] =
+            daysOverdue <= 0 ? 'upcoming' : daysOverdue <= 7 ? 'soft' : daysOverdue <= 30 ? 'medium' : 'critical';
+          return {
+            paymentId: p.id,
+            studentId: p.studentId,
+            studentName: p.studentName,
+            dueAmount: p.dueAmount,
+            dueDate: p.dueDate,
+            daysOverdue,
+            escalationBand,
+            status: p.status,
+          };
+        });
+      return { ...pr, content: rows };
+    }));
+  }
+
+  getReminderOpsSnapshot(roleView: 'fee_desk' | 'admin' | 'principal'): Observable<FeeReminderOpsSnapshot> {
+    if (!runtimeConfig.useMocks) {
+      return this.api.get<any>(`/fees/reminders/ops-snapshot?roleView=${encodeURIComponent(roleView)}`).pipe(
+        map(raw => ({
+          upcomingDueCount: Number(raw.upcomingDueCount ?? 0),
+          overdueCount: Number(raw.overdueCount ?? 0),
+          criticalCount: Number(raw.criticalCount ?? 0),
+          workingHoursStart: Number(raw.workingHoursStart ?? 9),
+          workingHoursEnd: Number(raw.workingHoursEnd ?? 18),
+          cronExpression: String(raw.cronExpression ?? ''),
+          inWorkingWindowNow: Boolean(raw.inWorkingWindowNow),
+          roleHint: String(raw.roleHint ?? roleView),
+        }))
+      );
+    }
+    return of({
+      upcomingDueCount: 0,
+      overdueCount: 0,
+      criticalCount: 0,
+      workingHoursStart: 9,
+      workingHoursEnd: 18,
+      cronExpression: '0 15 8 * * *',
+      inWorkingWindowNow: true,
+      roleHint: roleView,
+    });
+  }
+
+  downloadPaymentsCsv(query: {
+    status?: string;
+    q?: string;
+    classId?: number;
+    sectionId?: number;
+    academicYearId?: number;
+  }): Observable<Blob> {
+    return this.api.getBlobParams('/fees/payments/export.csv', {
+      status: query.status ? query.status.toUpperCase() : undefined,
+      q: query.q?.trim() || undefined,
+      classId: query.classId ?? undefined,
+      sectionId: query.sectionId ?? undefined,
+      academicYearId: query.academicYearId ?? undefined,
+    });
   }
 
   getCollectionSummary(): Observable<FeeCollectionSummary> {

@@ -31,6 +31,10 @@ export interface LeaveRequestRow {
   status: string;
   approverUserId?: number | null;
   approverRemarks?: string | null;
+  approvalStep?: number | null;
+  approvalStepTotal?: number | null;
+  approvalSlaDueAt?: string | null;
+  approvalEscalationCount?: number | null;
   dayUnit?: LeaveDayUnit;
 }
 
@@ -145,6 +149,10 @@ export class LeaveService {
       endDate: body.endDate,
       reason: body.reason,
       status: 'PENDING',
+      approvalStep: 1,
+      approvalStepTotal: countUnitsFromDates(body.startDate, body.endDate) > 3 ? 2 : 1,
+      approvalSlaDueAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+      approvalEscalationCount: 0,
       dayUnit: body.dayUnit ?? 'FULL_DAY',
       studentId: body.studentId,
       teacherId: body.teacherId
@@ -291,9 +299,18 @@ export class LeaveService {
     const row = MOCK_REQUESTS.find(r => r.id === id);
     if (row) {
       const prev = row.status;
-      row.status = approve ? 'APPROVED' : 'REJECTED';
       row.approverRemarks = approverRemarks ?? null;
       row.approverUserId = this.mockUserNumId();
+      const step = Math.max(1, Number(row.approvalStep ?? 1));
+      const total = Math.max(1, Number(row.approvalStepTotal ?? 1));
+      if (approve && step < total) {
+        row.status = 'PENDING';
+        row.approvalStep = step + 1;
+        row.approvalSlaDueAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+        return of(normalizeLeaveRequestRow(row)).pipe(delay(220));
+      }
+      row.status = approve ? 'APPROVED' : 'REJECTED';
+      row.approvalSlaDueAt = null;
       const units = countMockUnits(row);
       if (row.status === 'APPROVED' && prev !== 'APPROVED') {
         MOCK_LEDGER.unshift({
@@ -326,6 +343,19 @@ export class LeaveService {
       }
     }
     return of(row ? normalizeLeaveRequestRow(row) : ({} as LeaveRequestRow)).pipe(delay(300));
+  }
+
+  cancel(id: number, reason?: string): Observable<LeaveRequestRow> {
+    if (!runtimeConfig.useMocks) {
+      const q = reason?.trim() ? `?reason=${encodeURIComponent(reason.trim())}` : '';
+      return this.api.put<LeaveRequestRow>(`/leave/requests/${id}/cancel${q}`, {}).pipe(map(normalizeLeaveRequestRow));
+    }
+    const row = MOCK_REQUESTS.find(r => r.id === id);
+    if (row && row.status === 'PENDING' && row.applicantUserId === this.mockUserNumId()) {
+      row.status = 'CANCELLED';
+      row.approverRemarks = reason?.trim() || row.approverRemarks || null;
+    }
+    return of(row ? normalizeLeaveRequestRow(row) : ({} as LeaveRequestRow)).pipe(delay(180));
   }
 
   /** Tenant policy (same shape as localStorage mock); teachers and admins may GET. */
@@ -404,4 +434,10 @@ function countMockUnits(r: LeaveRequestRow): number {
   const span = Math.max(1, Math.round((end - start) / 86400000) + 1);
   if (r.dayUnit && r.dayUnit !== 'FULL_DAY' && span <= 1) return 1;
   return span;
+}
+
+function countUnitsFromDates(startDate: string, endDate: string): number {
+  const start = new Date(startDate).getTime();
+  const end = new Date(endDate).getTime();
+  return Math.max(1, Math.round((end - start) / 86400000) + 1);
 }

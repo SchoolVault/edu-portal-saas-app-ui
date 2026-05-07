@@ -94,6 +94,18 @@ public class ReportController {
         return ResponseEntity.ok(ApiResponse.ok(reportService.getStudentPerformanceReport(classId, examId, sectionId)));
     }
 
+    @GetMapping("/student-performance/highlights")
+    @RequireTenantFeature("reports")
+    @PreAuthorize(RbacSpel.SCHOOL_REPORTS_READ)
+    @Operation(summary = "Student performance highlights", description = "Top performers and needs-support rows for selected class/section/exam")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> studentPerformanceHighlights(
+            @RequestParam Long classId,
+            @RequestParam Long examId,
+            @RequestParam(required = false) Long sectionId,
+            @RequestParam(defaultValue = "3") int limit) {
+        return ResponseEntity.ok(ApiResponse.ok(reportService.getStudentPerformanceHighlights(classId, examId, sectionId, limit)));
+    }
+
     @GetMapping("/attendance-summary")
     @RequireTenantFeature("reports")
     @PreAuthorize(RbacSpel.SCHOOL_REPORTS_READ)
@@ -199,6 +211,14 @@ public class ReportController {
     @Operation(summary = "Retry failed report generation job")
     public ResponseEntity<ApiResponse<ReportModuleDTOs.ReportJobResponse>> retryJob(@PathVariable Long jobId) {
         return ResponseEntity.ok(ApiResponse.ok(reportService.retryReportJob(jobId)));
+    }
+
+    @PutMapping("/jobs/{jobId}/cancel")
+    @RequireTenantFeature("reports")
+    @PreAuthorize(RbacSpel.SCHOOL_REPORTS_WRITE)
+    @Operation(summary = "Cancel queued/running report job")
+    public ResponseEntity<ApiResponse<ReportModuleDTOs.ReportJobResponse>> cancelJob(@PathVariable Long jobId) {
+        return ResponseEntity.ok(ApiResponse.ok(reportService.cancelReportJob(jobId)));
     }
 
     @GetMapping("/jobs")

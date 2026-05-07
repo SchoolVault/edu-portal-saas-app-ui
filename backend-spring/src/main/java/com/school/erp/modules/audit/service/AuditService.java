@@ -15,6 +15,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
@@ -53,7 +54,7 @@ public class AuditService implements AuditTrailPort {
      * Log an action - can be called from any service
      */
     @Override
-    @Transactional
+    @Transactional(propagation = Propagation.REQUIRES_NEW, readOnly = false)
     public void logAction(Enums.AuditAction action, String module, String description, Long entityId, String entityType, String oldValue, String newValue) {
         String t = TenantContext.getTenantId();
         Long userId = TenantContext.getUserId();

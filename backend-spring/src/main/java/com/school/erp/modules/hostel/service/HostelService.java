@@ -12,6 +12,7 @@ import com.school.erp.modules.hostel.entity.HostelAllocation;
 import com.school.erp.modules.hostel.entity.HostelBillingProfile;
 import com.school.erp.modules.hostel.entity.HostelGatePassRequest;
 import com.school.erp.modules.hostel.entity.HostelIncidentLog;
+import com.school.erp.modules.hostel.entity.HostelIncidentPolicy;
 import com.school.erp.modules.hostel.entity.HostelAuditLog;
 import com.school.erp.modules.hostel.entity.HostelBillingRunLedger;
 import com.school.erp.modules.hostel.entity.HostelBookingRequest;
@@ -21,6 +22,7 @@ import com.school.erp.modules.hostel.repository.HostelAuditLogRepository;
 import com.school.erp.modules.hostel.repository.HostelBillingRunLedgerRepository;
 import com.school.erp.modules.hostel.repository.HostelBookingRequestRepository;
 import com.school.erp.modules.hostel.repository.HostelIncidentLogRepository;
+import com.school.erp.modules.hostel.repository.HostelIncidentPolicyRepository;
 import com.school.erp.modules.hostel.repository.HostelAllocationRepository;
 import com.school.erp.modules.hostel.repository.HostelBillingProfileRepository;
 import com.school.erp.modules.hostel.repository.HostelGatePassRequestRepository;
@@ -38,15 +40,26 @@ import com.school.erp.tenant.TenantQueryPolicy;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import com.lowagie.text.Document;
+import com.lowagie.text.PageSize;
+import com.lowagie.text.Paragraph;
+import com.lowagie.text.pdf.PdfWriter;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.io.ByteArrayOutputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
 import java.util.Map;
+import java.util.Set;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 @Service
@@ -67,6 +80,7 @@ public class HostelService {
     private final HostelGatePassRequestRepository gatePassRepo;
     private final HostelVisitorEntryRepository visitorEntryRepo;
     private final HostelIncidentLogRepository incidentRepo;
+    private final HostelIncidentPolicyRepository incidentPolicyRepository;
     private final HostelAuditLogRepository auditLogRepository;
     private final HostelBillingRunLedgerRepository billingRunLedgerRepository;
     private final HostelBookingRequestRepository bookingRequestRepository;
@@ -75,6 +89,8 @@ public class HostelService {
     private final UserRepository userRepository;
     private final NotificationService notificationService;
     private final HostelIncidentSlaProperties hostelIncidentSlaProperties;
+    @Value("${app.hostel.analytics.export.max-rows:5000}")
+    private int hostelAnalyticsExportMaxRows;
 
     @Transactional(readOnly = true)
     public List<HostelDTOs.HostelSummary> listHostels() {
@@ -478,6 +494,175 @@ public class HostelService {
         return rows.stream().map(this::toIncidentResponse).toList();
     }
 
+    @Transactional(readOnly = true)
+    public HostelDTOs.HostelAnalyticsSnapshot getAnalyticsSnapshot() {
+        String t = TenantContext.getTenantId();
+        List<HostelRoom> rooms = roomRepo.findByTenantIdAndIsDeletedFalse(t);
+        int totalCap = rooms.stream().mapToInt(r -> r.getCapacity() != null ? r.getCapacity() : 0).sum();
+        int totalOcc = rooms.stream().mapToInt(r -> r.getOccupancy() != null ? r.getOccupancy() : 0).sum();
+        int occPct = totalCap <= 0 ? 0 : (int) Math.round((totalOcc * 100.0) / totalCap);
+        int overcrowded = (int) rooms.stream().filter(r -> pressurePct(r) >= 100).count();
+        int nearCapacity = (int) rooms.stream().filter(r -> pressurePct(r) >= 80 && pressurePct(r) < 100).count();
+
+        List<HostelIncidentLog> incidents = incidentRepo.findByTenantIdAndIsDeletedFalseOrderByCreatedAtDesc(t);
+        int open = (int) incidents.stream().filter(i -> "OPEN".equalsIgnoreCase(i.getStatus())).count();
+        int escalated = (int) incidents.stream().filter(i -> "ESCALATED".equalsIgnoreCase(i.getStatus())).count();
+        int avgSlaMinutes = (int) Math.round(incidents.stream()
+                .filter(i -> i.getOccurredAt() != null && i.getSlaDueAt() != null)
+                .mapToLong(i -> java.time.Duration.between(i.getOccurredAt(), i.getSlaDueAt()).toMinutes())
+                .average().orElse(0));
+
+        HostelDTOs.HostelAnalyticsSnapshot out = new HostelDTOs.HostelAnalyticsSnapshot();
+        out.setOccupancyPct(occPct);
+        out.setOvercrowdedRooms(overcrowded);
+        out.setNearCapacityRooms(nearCapacity);
+        out.setOpenIncidents(open);
+        out.setEscalatedIncidents(escalated);
+        out.setAvgIncidentSlaMinutes(avgSlaMinutes);
+        return out;
+    }
+
+    @Transactional(readOnly = true)
+    public List<HostelDTOs.OccupancyRecommendation> recommendOccupancyRebalance() {
+        String t = TenantContext.getTenantId();
+        List<HostelRoom> rooms = roomRepo.findByTenantIdAndIsDeletedFalse(t);
+        List<HostelRoom> crowded = rooms.stream()
+                .filter(r -> pressurePct(r) >= 90)
+                .sorted(java.util.Comparator.comparingInt(this::pressurePct).reversed())
+                .toList();
+        List<HostelRoom> underUsed = rooms.stream()
+                .filter(r -> pressurePct(r) <= 60)
+                .sorted(java.util.Comparator.comparingInt(this::pressurePct))
+                .toList();
+        List<HostelIncidentLog> incidents = incidentRepo.findByTenantIdAndIsDeletedFalseOrderByCreatedAtDesc(t);
+        Map<Long, Long> activeRoomByStudent = allocRepo.findByTenantIdAndIsDeletedFalse(t).stream()
+                .filter(a -> a.getStudentId() != null && a.getRoomId() != null)
+                .filter(a -> a.getStatus() == Enums.HostelAllocationStatus.ACTIVE)
+                .collect(Collectors.toMap(HostelAllocation::getStudentId, HostelAllocation::getRoomId, (a, b) -> a));
+        Map<Long, Integer> roomIncidentRisk = new HashMap<>();
+        for (HostelIncidentLog incident : incidents) {
+            if (!"OPEN".equalsIgnoreCase(incident.getStatus()) && !"ESCALATED".equalsIgnoreCase(incident.getStatus())) continue;
+            if (incident.getStudentId() == null) continue;
+            Long roomId = activeRoomByStudent.get(incident.getStudentId());
+            if (roomId == null) continue;
+            int weight = "CRITICAL".equalsIgnoreCase(incident.getSeverity()) ? 4
+                    : "HIGH".equalsIgnoreCase(incident.getSeverity()) ? 3 : 1;
+            roomIncidentRisk.merge(roomId, weight, Integer::sum);
+        }
+        int n = Math.min(crowded.size(), underUsed.size());
+        List<HostelDTOs.OccupancyRecommendation> out = new java.util.ArrayList<>();
+        Set<Long> usedTargets = new HashSet<>();
+        for (HostelRoom from : crowded) {
+            HostelRoom to = underUsed.stream()
+                    .filter(u -> !usedTargets.contains(u.getId()))
+                    .min(java.util.Comparator.comparingInt(u -> candidatePenalty(from, u, roomIncidentRisk)))
+                    .orElse(null);
+            if (to == null) {
+                continue;
+            }
+            HostelDTOs.OccupancyRecommendation row = new HostelDTOs.OccupancyRecommendation();
+            row.setFromRoomId(from.getId());
+            row.setFromRoomNumber(from.getRoomNumber());
+            row.setToRoomId(to.getId());
+            row.setToRoomNumber(to.getRoomNumber());
+            row.setOccupancyPressureDiff(Math.max(0, pressurePct(from) - pressurePct(to)));
+            int risk = roomIncidentRisk.getOrDefault(from.getId(), 0);
+            StringBuilder rationale = new StringBuilder("Move from crowded room to reduce pressure.");
+            if (sameHostel(from, to)) rationale.append(" Same hostel keeps gender scope consistent.");
+            if (Objects.equals(from.getBlock(), to.getBlock())) rationale.append(" Same block preferred.");
+            if (Objects.equals(from.getFloor(), to.getFloor())) rationale.append(" Same floor preferred.");
+            if (risk > 0) rationale.append(" Incident history weight applied.");
+            row.setRationale(rationale.toString());
+            out.add(row);
+            usedTargets.add(to.getId());
+            if (out.size() >= n) break;
+        }
+        return out;
+    }
+
+    @Transactional(readOnly = true)
+    public List<HostelDTOs.IncidentPolicyResponse> listIncidentPolicies() {
+        String t = TenantContext.getTenantId();
+        return incidentPolicyRepository.findByTenantIdAndIsDeletedFalseOrderByIncidentTypeAsc(t).stream()
+                .map(this::toPolicyResponse)
+                .toList();
+    }
+
+    @Transactional
+    public HostelDTOs.IncidentPolicyResponse upsertIncidentPolicy(HostelDTOs.IncidentPolicyRequest req) {
+        String t = TenantContext.getTenantId();
+        String type = req.getIncidentType().trim().toUpperCase(Locale.ROOT);
+        HostelIncidentPolicy row = incidentPolicyRepository.findByTenantIdAndIncidentTypeAndIsDeletedFalse(t, type)
+                .orElseGet(HostelIncidentPolicy::new);
+        row.setTenantId(t);
+        row.setIncidentType(type);
+        row.setSeverity(req.getSeverity().trim().toUpperCase(Locale.ROOT));
+        row.setSlaMinutes(Math.max(1, req.getSlaMinutes()));
+        row.setEscalationAfterMinutes(Math.max(1, req.getEscalationAfterMinutes()));
+        return toPolicyResponse(incidentPolicyRepository.save(row));
+    }
+
+    @Transactional(readOnly = true)
+    public byte[] exportAnalyticsCsv() {
+        String t = TenantContext.getTenantId();
+        List<HostelIncidentLog> incidents = incidentRepo.findByTenantIdAndIsDeletedFalseOrderByCreatedAtDesc(t);
+        if (incidents.size() > hostelAnalyticsExportMaxRows) {
+            throw new BusinessException("Too many rows to export. Apply filters or increase export limit.");
+        }
+        HostelDTOs.HostelAnalyticsSnapshot snap = getAnalyticsSnapshot();
+        List<HostelDTOs.OccupancyRecommendation> recs = recommendOccupancyRebalance();
+        StringBuilder sb = new StringBuilder();
+        sb.append("metric,value\n");
+        sb.append("occupancy_pct,").append(snap.getOccupancyPct()).append('\n');
+        sb.append("overcrowded_rooms,").append(snap.getOvercrowdedRooms()).append('\n');
+        sb.append("near_capacity_rooms,").append(snap.getNearCapacityRooms()).append('\n');
+        sb.append("open_incidents,").append(snap.getOpenIncidents()).append('\n');
+        sb.append("escalated_incidents,").append(snap.getEscalatedIncidents()).append('\n');
+        sb.append("avg_incident_sla_minutes,").append(snap.getAvgIncidentSlaMinutes()).append('\n');
+        sb.append('\n');
+        sb.append("from_room,to_room,pressure_diff,rationale\n");
+        for (HostelDTOs.OccupancyRecommendation r : recs) {
+            sb.append(csv(r.getFromRoomNumber())).append(',')
+                    .append(csv(r.getToRoomNumber())).append(',')
+                    .append(r.getOccupancyPressureDiff()).append(',')
+                    .append(csv(r.getRationale())).append('\n');
+        }
+        return sb.toString().getBytes(StandardCharsets.UTF_8);
+    }
+
+    @Transactional(readOnly = true)
+    public byte[] exportAnalyticsPdf() {
+        HostelDTOs.HostelAnalyticsSnapshot snap = getAnalyticsSnapshot();
+        List<HostelDTOs.OccupancyRecommendation> recs = recommendOccupancyRebalance();
+        try {
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            Document doc = new Document(PageSize.A4, 36, 36, 36, 36);
+            PdfWriter.getInstance(doc, out);
+            doc.open();
+            doc.add(new Paragraph("Hostel Analytics Snapshot"));
+            doc.add(new Paragraph("Occupancy %: " + snap.getOccupancyPct()));
+            doc.add(new Paragraph("Overcrowded rooms: " + snap.getOvercrowdedRooms()));
+            doc.add(new Paragraph("Near capacity rooms: " + snap.getNearCapacityRooms()));
+            doc.add(new Paragraph("Open incidents: " + snap.getOpenIncidents()));
+            doc.add(new Paragraph("Escalated incidents: " + snap.getEscalatedIncidents()));
+            doc.add(new Paragraph("Average incident SLA (min): " + snap.getAvgIncidentSlaMinutes()));
+            doc.add(new Paragraph(" "));
+            doc.add(new Paragraph("Occupancy Rebalance Suggestions"));
+            if (recs.isEmpty()) {
+                doc.add(new Paragraph("No recommendations currently."));
+            } else {
+                for (HostelDTOs.OccupancyRecommendation r : recs) {
+                    doc.add(new Paragraph("- Move from room " + r.getFromRoomNumber() + " to " + r.getToRoomNumber()
+                            + " (pressure diff " + r.getOccupancyPressureDiff() + ")"));
+                }
+            }
+            doc.close();
+            return out.toByteArray();
+        } catch (Exception ex) {
+            throw new BusinessException("Unable to generate hostel analytics PDF");
+        }
+    }
+
     @Transactional
     public HostelDTOs.IncidentResponse createIncident(HostelDTOs.IncidentRequest req) {
         String t = TenantContext.getTenantId();
@@ -491,8 +676,11 @@ public class HostelService {
         row.setOccurredAt(req.getOccurredAt() != null ? req.getOccurredAt() : LocalDateTime.now());
         int slaMin = req.getSlaMinutes() != null && req.getSlaMinutes() > 0
                 ? req.getSlaMinutes()
-                : defaultSlaMinutesBySeverity(row.getSeverity());
+                : resolveIncidentSlaMinutes(row.getIncidentType(), row.getSeverity());
+        int escalationAfterMinutes = resolveIncidentEscalationAfterMinutes(row.getIncidentType(), row.getSeverity());
         row.setSlaDueAt(row.getOccurredAt().plusMinutes(slaMin));
+        row.setEscalationCount(0);
+        row.setNextEscalationAt(row.getOccurredAt().plusMinutes(escalationAfterMinutes));
         row.setStatus("OPEN");
         HostelIncidentLog saved = incidentRepo.save(row);
         audit("HOSTEL_INCIDENT_CREATED", "HOSTEL_INCIDENT", saved.getId(), "Incident logged",
@@ -512,6 +700,10 @@ public class HostelService {
         row.setStatus("ESCALATED");
         row.setEscalatedAt(LocalDateTime.now());
         row.setEscalationLevel(lvl);
+        int count = row.getEscalationCount() != null ? row.getEscalationCount() : 0;
+        row.setEscalationCount(count + 1);
+        row.setNextEscalationAt(LocalDateTime.now().plusMinutes(
+                resolveIncidentEscalationAfterMinutes(row.getIncidentType(), row.getSeverity())));
         HostelIncidentLog saved = incidentRepo.save(row);
         applyIncidentEscalationHooks(saved, lvl, req != null ? req.getNote() : null);
         return toIncidentResponse(saved);
@@ -524,6 +716,7 @@ public class HostelService {
         String reason = sanitizeResolutionReason(req != null ? req.getResolutionReason() : null);
         row.setResolutionReason(reason);
         row.setResolutionNote(req != null ? req.getNote() : null);
+        row.setNextEscalationAt(null);
         HostelIncidentLog saved = incidentRepo.save(row);
         audit("HOSTEL_INCIDENT_RESOLVED", "HOSTEL_INCIDENT", saved.getId(),
                 "Incident marked resolved", Map.of("status", saved.getStatus(), "resolutionReason", reason));
@@ -871,20 +1064,32 @@ public class HostelService {
             return 0;
         }
         LocalDateTime now = LocalDateTime.now();
-        int escalated = 0;
-        List<HostelIncidentLog> open = incidentRepo.findByTenantIdAndIsDeletedFalseOrderByCreatedAtDesc(t).stream()
-                .filter(i -> "OPEN".equalsIgnoreCase(i.getStatus()))
-                .filter(i -> i.getSlaDueAt() != null && i.getSlaDueAt().isBefore(now))
+        int escalatedCount = 0;
+        List<HostelIncidentLog> candidates = incidentRepo.findByTenantIdAndIsDeletedFalseOrderByCreatedAtDesc(t).stream()
+                .filter(i -> !"RESOLVED".equalsIgnoreCase(i.getStatus()))
                 .toList();
-        for (HostelIncidentLog row : open) {
+        for (HostelIncidentLog row : candidates) {
+            boolean slaBreached = "OPEN".equalsIgnoreCase(row.getStatus())
+                    && row.getSlaDueAt() != null
+                    && !row.getSlaDueAt().isAfter(now);
+            boolean followupDue = "ESCALATED".equalsIgnoreCase(row.getStatus())
+                    && row.getNextEscalationAt() != null
+                    && !row.getNextEscalationAt().isAfter(now);
+            if (!slaBreached && !followupDue) {
+                continue;
+            }
+            String nextLevel = slaBreached ? "SLA_BREACH" : nextEscalationLevel(row.getEscalationLevel(), row.getEscalationCount());
             row.setStatus("ESCALATED");
             row.setEscalatedAt(now);
-            row.setEscalationLevel("SLA_BREACH");
+            row.setEscalationLevel(nextLevel);
+            int count = row.getEscalationCount() != null ? row.getEscalationCount() : 0;
+            row.setEscalationCount(count + 1);
+            row.setNextEscalationAt(now.plusMinutes(resolveIncidentEscalationAfterMinutes(row.getIncidentType(), row.getSeverity())));
             HostelIncidentLog saved = incidentRepo.save(row);
-            applyIncidentEscalationHooks(saved, "SLA_BREACH", "SLA timer breached");
-            escalated++;
+            applyIncidentEscalationHooks(saved, nextLevel, slaBreached ? "SLA timer breached" : "Follow-up escalation due");
+            escalatedCount++;
         }
-        return escalated;
+        return escalatedCount;
     }
 
     private LocalDate nextDueDate(LocalDate from, String cadenceRaw) {
@@ -906,6 +1111,85 @@ public class HostelService {
         };
     }
 
+    private int resolveIncidentSlaMinutes(String incidentTypeRaw, String severityRaw) {
+        String t = TenantContext.getTenantId();
+        String type = incidentTypeRaw == null ? "" : incidentTypeRaw.trim().toUpperCase(Locale.ROOT);
+        if (!type.isBlank()) {
+            HostelIncidentPolicy p = incidentPolicyRepository.findByTenantIdAndIncidentTypeAndIsDeletedFalse(t, type).orElse(null);
+            if (p != null && p.getSlaMinutes() != null && p.getSlaMinutes() > 0) {
+                return p.getSlaMinutes();
+            }
+        }
+        return defaultSlaMinutesBySeverity(severityRaw);
+    }
+
+    private int resolveIncidentEscalationAfterMinutes(String incidentTypeRaw, String severityRaw) {
+        String t = TenantContext.getTenantId();
+        String type = incidentTypeRaw == null ? "" : incidentTypeRaw.trim().toUpperCase(Locale.ROOT);
+        if (!type.isBlank()) {
+            HostelIncidentPolicy p = incidentPolicyRepository.findByTenantIdAndIncidentTypeAndIsDeletedFalse(t, type).orElse(null);
+            if (p != null && p.getEscalationAfterMinutes() != null && p.getEscalationAfterMinutes() > 0) {
+                return p.getEscalationAfterMinutes();
+            }
+        }
+        int fallback = Math.max(15, defaultSlaMinutesBySeverity(severityRaw) / 2);
+        return Math.min(fallback, 180);
+    }
+
+    private String nextEscalationLevel(String currentLevel, Integer count) {
+        int currentCount = count != null ? count : 0;
+        if (currentLevel == null || currentLevel.isBlank() || "SLA_BREACH".equalsIgnoreCase(currentLevel)) {
+            return "LEVEL_1";
+        }
+        if (currentLevel.matches("LEVEL_\\d+")) {
+            try {
+                int levelNo = Integer.parseInt(currentLevel.substring("LEVEL_".length()));
+                return "LEVEL_" + Math.min(levelNo + 1, 5);
+            } catch (NumberFormatException ignored) {
+            }
+        }
+        return "LEVEL_" + Math.min(currentCount + 1, 5);
+    }
+
+    private int candidatePenalty(HostelRoom from, HostelRoom to, Map<Long, Integer> roomIncidentRisk) {
+        int score = Math.max(0, pressurePct(to) - 60);
+        if (!sameHostel(from, to)) score += 8;
+        if (!Objects.equals(from.getBlock(), to.getBlock())) score += 5;
+        if (!Objects.equals(from.getFloor(), to.getFloor())) score += 3;
+        score += roomIncidentRisk.getOrDefault(from.getId(), 0) * 2;
+        score -= roomIncidentRisk.getOrDefault(to.getId(), 0);
+        return score;
+    }
+
+    private boolean sameHostel(HostelRoom a, HostelRoom b) {
+        return Objects.equals(a.getHostelId(), b.getHostelId());
+    }
+
+    private String csv(String raw) {
+        String v = raw == null ? "" : raw;
+        if (v.contains(",") || v.contains("\"") || v.contains("\n")) {
+            return "\"" + v.replace("\"", "\"\"") + "\"";
+        }
+        return v;
+    }
+
+    private int pressurePct(HostelRoom r) {
+        int cap = r.getCapacity() != null ? r.getCapacity() : 0;
+        int occ = r.getOccupancy() != null ? r.getOccupancy() : 0;
+        if (cap <= 0) return 0;
+        return (int) Math.round((occ * 100.0) / cap);
+    }
+
+    private HostelDTOs.IncidentPolicyResponse toPolicyResponse(HostelIncidentPolicy row) {
+        HostelDTOs.IncidentPolicyResponse out = new HostelDTOs.IncidentPolicyResponse();
+        out.setId(row.getId());
+        out.setIncidentType(row.getIncidentType());
+        out.setSeverity(row.getSeverity());
+        out.setSlaMinutes(row.getSlaMinutes());
+        out.setEscalationAfterMinutes(row.getEscalationAfterMinutes());
+        return out;
+    }
+
     private String sanitizeResolutionReason(String reasonRaw) {
         String candidate = (reasonRaw == null || reasonRaw.isBlank())
                 ? "OTHER"
@@ -921,6 +1205,7 @@ public class HostelService {
             final HostelGatePassRequestRepository gatePassRepo,
             final HostelVisitorEntryRepository visitorEntryRepo,
             final HostelIncidentLogRepository incidentRepo,
+            final HostelIncidentPolicyRepository incidentPolicyRepository,
             final HostelAuditLogRepository auditLogRepository,
             final HostelBillingRunLedgerRepository billingRunLedgerRepository,
             final HostelBookingRequestRepository bookingRequestRepository,
@@ -936,6 +1221,7 @@ public class HostelService {
         this.gatePassRepo = gatePassRepo;
         this.visitorEntryRepo = visitorEntryRepo;
         this.incidentRepo = incidentRepo;
+        this.incidentPolicyRepository = incidentPolicyRepository;
         this.auditLogRepository = auditLogRepository;
         this.billingRunLedgerRepository = billingRunLedgerRepository;
         this.bookingRequestRepository = bookingRequestRepository;

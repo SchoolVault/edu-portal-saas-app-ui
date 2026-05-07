@@ -71,6 +71,31 @@ export interface PayrollAccrualSummary {
   notes?: string[];
 }
 
+export interface OperationsSearchResultRow {
+  scope: 'staff' | 'visitors' | 'gate' | 'inventory' | 'reminders' | string;
+  recordId: string;
+  title: string;
+  subtitle?: string;
+  status?: string;
+  routeHint?: string;
+  metadata?: Record<string, unknown>;
+}
+
+export interface OperationsGlobalSearchResponse {
+  query: string;
+  scopes: string[];
+  total: number;
+  totalsByScope: Record<string, number>;
+  rows: OperationsSearchResultRow[];
+}
+
+export interface OperationsSearchActivityRow {
+  at?: string;
+  actorUserId?: number | null;
+  actorName?: string;
+  description?: string;
+}
+
 export interface AttendanceCoverRow {
   id: number;
   coverDate: string;
@@ -146,6 +171,7 @@ export interface CreateAttendanceCoverRequest {
 }
 
 export type OperationsTab =
+  | 'search'
   | 'staff'
   | 'visitors'
   | 'gate'

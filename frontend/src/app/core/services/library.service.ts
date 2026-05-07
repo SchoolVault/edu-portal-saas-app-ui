@@ -24,6 +24,37 @@ function withDerivedStatus(issue: BookIssue): BookIssue {
 }
 
 export type LibraryCatalogFilter = 'active' | 'inactive' | 'all';
+export interface LibraryFinePolicy {
+  id?: number;
+  borrowerType: 'STUDENT' | 'STAFF' | 'GUARDIAN' | 'OTHER';
+  finePerDay: number;
+  graceDays: number;
+  maxBooks: number;
+  maxBorrowDays: number;
+}
+export interface LibraryReservation {
+  id: number;
+  bookId: number;
+  bookTitle: string;
+  borrowerType: string;
+  borrowerRefId?: number;
+  borrowerUserId?: number;
+  borrowerDisplayName?: string;
+  status: string;
+  requestedAt?: string;
+  expiresAt?: string;
+  fulfilledIssueId?: number;
+  note?: string;
+}
+export interface LibraryAnalyticsSnapshot {
+  totalTitles: number;
+  totalCopies: number;
+  copiesAvailable: number;
+  issuedCount: number;
+  overdueCount: number;
+  reservedCount: number;
+  outstandingFine: number;
+}
 
 @Injectable({ providedIn: 'root' })
 export class LibraryService {
@@ -275,6 +306,71 @@ export class LibraryService {
     if (opts?.returnDate) body.returnDate = opts.returnDate;
     if (opts?.finePerDay != null) body.finePerDay = opts.finePerDay;
     return this.api.put<any>(`/library/issues/${iid}/return`, body).pipe(map(i => this.normalizeIssue(i)));
+  }
+
+  listFinePolicies(): Observable<LibraryFinePolicy[]> {
+    if (runtimeConfig.useMocks) return of([]);
+    return this.api.get<LibraryFinePolicy[]>('/library/policies/fine');
+  }
+
+  upsertFinePolicy(body: LibraryFinePolicy): Observable<LibraryFinePolicy> {
+    if (runtimeConfig.useMocks) return of(body);
+    return this.api.put<LibraryFinePolicy>('/library/policies/fine', body);
+  }
+
+  listReservations(status?: string): Observable<LibraryReservation[]> {
+    if (runtimeConfig.useMocks) return of([]);
+    const qp = status ? `?status=${encodeURIComponent(status)}` : '';
+    return this.api.get<LibraryReservation[]>(`/library/reservations${qp}`);
+  }
+
+  createReservation(body: {
+    bookId: number;
+    borrowerType: 'STUDENT' | 'STAFF' | 'GUARDIAN' | 'OTHER';
+    borrowerRefId: number;
+    borrowerUserId?: number;
+    borrowerDisplayName?: string;
+    holdHours?: number;
+    note?: string;
+  }): Observable<LibraryReservation> {
+    if (runtimeConfig.useMocks) return of({ id: Date.now(), bookId: body.bookId, bookTitle: '', borrowerType: body.borrowerType, status: 'PENDING' });
+    return this.api.post<LibraryReservation>('/library/reservations', body);
+  }
+
+  cancelReservation(id: number): Observable<LibraryReservation> {
+    if (runtimeConfig.useMocks) return of({ id, bookId: 0, bookTitle: '', borrowerType: 'STUDENT', status: 'CANCELLED' });
+    return this.api.put<LibraryReservation>(`/library/reservations/${id}/cancel`, {});
+  }
+
+  fulfillReservation(id: number, dueDays?: number): Observable<LibraryReservation> {
+    if (runtimeConfig.useMocks) return of({ id, bookId: 0, bookTitle: '', borrowerType: 'STUDENT', status: 'FULFILLED' });
+    const qp = dueDays != null ? `?dueDays=${encodeURIComponent(String(dueDays))}` : '';
+    return this.api.put<LibraryReservation>(`/library/reservations/${id}/fulfill${qp}`, {});
+  }
+
+  adjustInventory(body: { bookId: number; action: 'ACCESSION' | 'LOSS' | 'WRITE_OFF' | 'ADJUSTMENT_PLUS' | 'ADJUSTMENT_MINUS'; quantity: number; note?: string; }): Observable<any> {
+    if (runtimeConfig.useMocks) return of(body);
+    return this.api.post<any>('/library/inventory/adjust', body);
+  }
+
+  analyticsSnapshot(): Observable<LibraryAnalyticsSnapshot> {
+    if (runtimeConfig.useMocks) return of({ totalTitles: 0, totalCopies: 0, copiesAvailable: 0, issuedCount: 0, overdueCount: 0, reservedCount: 0, outstandingFine: 0 });
+    return this.api.get<LibraryAnalyticsSnapshot>('/library/analytics/snapshot').pipe(
+      map(x => ({ ...x, outstandingFine: Number((x as any).outstandingFine ?? 0) }))
+    );
+  }
+
+  dueReminders(days = 7): Observable<BookIssue[]> {
+    if (runtimeConfig.useMocks) return of([]);
+    return this.api.get<any[]>(`/library/reminders/due?dueInDays=${encodeURIComponent(String(days))}`).pipe(map(list => (list || []).map(i => this.normalizeIssue(i))));
+  }
+
+  exportAnalyticsCsv(): Observable<Blob> {
+    return this.api.getBlob('/library/analytics/export.csv');
+  }
+
+  exportAnalyticsPdf(): Observable<Blob> {
+    return this.api.getBlob('/library/analytics/export.pdf');
   }
 
   private normalizeBook(b: any): Book {

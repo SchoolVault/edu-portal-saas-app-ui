@@ -104,6 +104,10 @@ export interface CampaignAnalyticsResponse {
   deadLetter: number;
 }
 
+export interface CampaignAnalyticsBatchRequest {
+  campaignIds: string[];
+}
+
 export interface DeadLetterItem {
   id: number;
   eventType: string;
@@ -274,6 +278,30 @@ export class CommunicationService {
       retry: 5,
       deadLetter: 1,
     }).pipe(delay(150));
+  }
+
+  getCampaignAnalyticsBatch(campaignIds: string[]): Observable<Record<string, CampaignAnalyticsResponse>> {
+    const ids = (campaignIds || []).filter(Boolean);
+    if (!ids.length) {
+      return of({});
+    }
+    if (!runtimeConfig.useMocks) {
+      return this.api.post<Record<string, CampaignAnalyticsResponse>>('/communication/campaigns/analytics/batch', {
+        campaignIds: ids,
+      } as CampaignAnalyticsBatchRequest);
+    }
+    const out: Record<string, CampaignAnalyticsResponse> = {};
+    ids.forEach(id => {
+      out[id] = {
+        campaignId: id,
+        statusCounts: { SENT: 100, RETRY: 5, DEAD_LETTER: 1 },
+        total: 106,
+        sent: 100,
+        retry: 5,
+        deadLetter: 1,
+      };
+    });
+    return of(out).pipe(delay(120));
   }
 
   getDeadLetterPage(page = 0, size = 20): Observable<PageResp<DeadLetterItem>> {

@@ -4,8 +4,10 @@ import { map } from 'rxjs/operators';
 import {
   AttendanceSummaryRow,
   ClassSummaryRow,
+  ReportPerformanceHighlights,
   ReportGenerationJob,
   ReportCard,
+  MarkRecord,
   ReportPublicationSnapshot,
   ReportAnalyticsPack,
   ReportAnalyticsPackConfig,
@@ -32,7 +34,29 @@ import { runtimeConfig } from '../config/runtime-config';
 
 @Injectable({ providedIn: 'root' })
 export class ReportService {
+  private academicYearScope: 'current' | 'all' = 'current';
+  private selectedAcademicYearId: number | null = null;
+
   constructor(private api: ApiService) {}
+
+  setAcademicYearScope(scope: 'current' | 'all', academicYearId?: number | null): void {
+    this.academicYearScope = scope;
+    this.selectedAcademicYearId = academicYearId ?? null;
+  }
+
+  private appendAcademicYearParams(params: URLSearchParams): void {
+    params.set('academicYearScope', this.academicYearScope);
+    if (this.academicYearScope === 'current' && this.selectedAcademicYearId != null) {
+      params.set('academicYearId', String(this.selectedAcademicYearId));
+    }
+  }
+
+  private academicYearPageParams(): Record<string, string | number | undefined> {
+    return {
+      academicYearScope: this.academicYearScope,
+      academicYearId: this.academicYearScope === 'current' ? (this.selectedAcademicYearId ?? undefined) : undefined,
+    };
+  }
 
   getStudentPerformance(classId: number, examId: number, sectionId?: number | null): Observable<StudentPerformanceRow[]> {
     if (runtimeConfig.useMocks) {
@@ -49,6 +73,7 @@ export class ReportService {
     if (sectionId != null) {
       query.set('sectionId', String(sectionId));
     }
+    this.appendAcademicYearParams(query);
     return this.api.get<any[]>(`/reports/student-performance?${query.toString()}`).pipe(
       map(rows =>
         rows.map(row => ({
@@ -65,6 +90,57 @@ export class ReportService {
     );
   }
 
+  getStudentPerformanceHighlights(classId: number, examId: number, sectionId?: number | null, limit = 3): Observable<ReportPerformanceHighlights> {
+    if (runtimeConfig.useMocks) {
+      return this.getStudentPerformance(classId, examId, sectionId).pipe(
+        map(rows => {
+          const sortedDesc = [...rows].sort((a, b) => b.percentage - a.percentage);
+          const sortedAsc = [...rows].sort((a, b) => a.percentage - b.percentage);
+          return {
+            academicYearId: null,
+            topPerformers: sortedDesc.slice(0, limit),
+            lowPerformers: sortedAsc.slice(0, limit),
+            totalStudents: rows.length,
+          };
+        })
+      );
+    }
+    const query = new URLSearchParams();
+    query.set('classId', String(classId));
+    query.set('examId', String(examId));
+    if (sectionId != null) {
+      query.set('sectionId', String(sectionId));
+    }
+    query.set('limit', String(limit));
+    this.appendAcademicYearParams(query);
+    return this.api.get<any>(`/reports/student-performance/highlights?${query.toString()}`).pipe(
+      map(raw => ({
+        academicYearId: raw?.academicYearId != null ? Number(raw.academicYearId) : null,
+        topPerformers: (raw?.topPerformers ?? []).map((row: any) => ({
+          studentId: Number(row.studentId),
+          studentName: row.studentName,
+          subjects: row.subjects ?? {},
+          totalMarks: Number(row.totalMarks ?? 0),
+          totalMax: Number(row.totalMax ?? 0),
+          percentage: Number(row.percentage ?? 0),
+          grade: row.grade ?? '',
+          rank: Number(row.rank ?? 0),
+        })),
+        lowPerformers: (raw?.lowPerformers ?? []).map((row: any) => ({
+          studentId: Number(row.studentId),
+          studentName: row.studentName,
+          subjects: row.subjects ?? {},
+          totalMarks: Number(row.totalMarks ?? 0),
+          totalMax: Number(row.totalMax ?? 0),
+          percentage: Number(row.percentage ?? 0),
+          grade: row.grade ?? '',
+          rank: Number(row.rank ?? 0),
+        })),
+        totalStudents: Number(raw?.totalStudents ?? 0),
+      }))
+    );
+  }
+
   getAttendanceSummary(classId: number, month: string, sectionId?: number | null): Observable<AttendanceSummaryRow[]> {
     if (runtimeConfig.useMocks) {
       return of(buildMockReportAttendanceSummary(classId, month).map(r => ({ ...r }))).pipe();
@@ -75,6 +151,7 @@ export class ReportService {
     if (sectionId != null) {
       query.set('sectionId', String(sectionId));
     }
+    this.appendAcademicYearParams(query);
     return this.api.get<any[]>(`/reports/attendance-summary?${query.toString()}`).pipe(
       map(rows =>
         rows.map(row => ({
@@ -95,7 +172,9 @@ export class ReportService {
     if (runtimeConfig.useMocks) {
       return of(buildMockClassSummary().map(r => ({ ...r }))).pipe();
     }
-    return this.api.get<any[]>('/reports/class-summary').pipe(
+    const query = new URLSearchParams();
+    this.appendAcademicYearParams(query);
+    return this.api.get<any[]>(`/reports/class-summary?${query.toString()}`).pipe(
       map(rows =>
         rows.map(row => ({
           classId: Number(row.classId),
@@ -114,7 +193,7 @@ export class ReportService {
 
   getClassSummaryPage(page = 0, size = DEFAULT_ERP_PAGE_SIZE): Observable<PageResp<ClassSummaryRow>> {
     if (!runtimeConfig.useMocks) {
-      return this.api.getPageParams<any>('/reports/class-summary/paged', { page, size }).pipe(
+      return this.api.getPageParams<any>('/reports/class-summary/paged', { page, size, ...this.academicYearPageParams() }).pipe(
         map(p => ({
           ...p,
           content: p.content.map(row => ({
@@ -138,7 +217,9 @@ export class ReportService {
     if (runtimeConfig.useMocks) {
       return of(buildMockSectionSummary().map(r => ({ ...r }))).pipe();
     }
-    return this.api.get<any[]>('/reports/section-summary').pipe(
+    const query = new URLSearchParams();
+    this.appendAcademicYearParams(query);
+    return this.api.get<any[]>(`/reports/section-summary?${query.toString()}`).pipe(
       map(rows =>
         rows.map(row => ({
           sectionId: Number(row.sectionId),
@@ -154,7 +235,7 @@ export class ReportService {
 
   getSectionSummaryPage(page = 0, size = DEFAULT_ERP_PAGE_SIZE): Observable<PageResp<SectionSummaryRow>> {
     if (!runtimeConfig.useMocks) {
-      return this.api.getPageParams<any>('/reports/section-summary/paged', { page, size }).pipe(
+      return this.api.getPageParams<any>('/reports/section-summary/paged', { page, size, ...this.academicYearPageParams() }).pipe(
         map(p => ({
           ...p,
           content: p.content.map(row => ({
@@ -175,7 +256,9 @@ export class ReportService {
     if (runtimeConfig.useMocks) {
       return of(buildMockTeacherWorkload().map(r => ({ ...r, subjects: [...r.subjects] }))).pipe();
     }
-    return this.api.get<any[]>('/reports/teacher-workload').pipe(
+    const query = new URLSearchParams();
+    this.appendAcademicYearParams(query);
+    return this.api.get<any[]>(`/reports/teacher-workload?${query.toString()}`).pipe(
       map(rows =>
         rows.map(row => ({
           teacherId: Number(row.teacherId),
@@ -193,7 +276,7 @@ export class ReportService {
 
   getTeacherWorkloadPage(page = 0, size = DEFAULT_ERP_PAGE_SIZE): Observable<PageResp<TeacherWorkloadRow>> {
     if (!runtimeConfig.useMocks) {
-      return this.api.getPageParams<any>('/reports/teacher-workload/paged', { page, size }).pipe(
+      return this.api.getPageParams<any>('/reports/teacher-workload/paged', { page, size, ...this.academicYearPageParams() }).pipe(
         map(p => ({
           ...p,
           content: p.content.map(row => ({
@@ -225,6 +308,7 @@ export class ReportService {
     const query = new URLSearchParams();
     if (classId != null) query.set('classId', String(classId));
     if (sectionId != null) query.set('sectionId', String(sectionId));
+    this.appendAcademicYearParams(query);
     const qs = query.toString();
     return this.api.get(`/reports/fee-collection${qs ? `?${qs}` : ''}`);
   }
@@ -241,14 +325,16 @@ export class ReportService {
       map(card => ({
         studentId: Number(card.studentId),
         studentName: card.studentName,
-        subjects: (card.subjects ?? []).map((mark: any) => ({
-          ...mark,
-          id: Number(mark.id),
-          examId: Number(mark.examId),
-          studentId: Number(mark.studentId),
-          classId: mark.classId != null ? Number(mark.classId) : 0,
-          tenantId: mark.tenantId ?? ''
-        })),
+        subjects: (card.subjects ?? [])
+          .map((mark: any) => ({
+            ...mark,
+            id: Number(mark.id),
+            examId: Number(mark.examId),
+            studentId: Number(mark.studentId),
+            classId: mark.classId != null ? Number(mark.classId) : 0,
+            tenantId: mark.tenantId ?? ''
+          }))
+          .sort((a: MarkRecord, b: MarkRecord) => (a.examId - b.examId) || a.subjectName.localeCompare(b.subjectName)),
         totalMarks: Number(card.totalMarks ?? 0),
         totalMaxMarks: Number(card.totalMaxMarks ?? 0),
         overallPercentage: Number(card.overallPercentage ?? 0),
@@ -335,6 +421,21 @@ export class ReportService {
       });
     }
     return this.api.put<ReportGenerationJob>(`/reports/jobs/${jobId}/retry`, {});
+  }
+
+  cancelReportJob(jobId: number): Observable<ReportGenerationJob> {
+    if (runtimeConfig.useMocks) {
+      return of({
+        id: jobId,
+        requestId: `cancel-${Date.now()}`,
+        reportType: 'STUDENT_PERFORMANCE',
+        format: 'PDF',
+        status: 'CANCELLED',
+        createdAt: new Date().toISOString(),
+        workflowState: 'DRAFT',
+      });
+    }
+    return this.api.put<ReportGenerationJob>(`/reports/jobs/${jobId}/cancel`, {});
   }
 
   listDispatches(jobId: number, page = 0, size = DEFAULT_ERP_PAGE_SIZE): Observable<PageResp<ReportShareDispatch>> {

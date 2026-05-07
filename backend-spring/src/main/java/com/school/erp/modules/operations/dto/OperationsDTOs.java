@@ -2,9 +2,71 @@ package com.school.erp.modules.operations.dto;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Map;
 
 /** Request/response shapes for school operations (staff, visitors, inventory, reminders, payroll accrual stub). */
 public class OperationsDTOs {
+
+    /** Scoped global search row for operations workspace. */
+    public static class GlobalSearchResultRow {
+        private String scope;
+        private String recordId;
+        private String title;
+        private String subtitle;
+        private String status;
+        private String routeHint;
+        private Map<String, Object> metadata;
+
+        public String getScope() { return scope; }
+        public void setScope(String scope) { this.scope = scope; }
+        public String getRecordId() { return recordId; }
+        public void setRecordId(String recordId) { this.recordId = recordId; }
+        public String getTitle() { return title; }
+        public void setTitle(String title) { this.title = title; }
+        public String getSubtitle() { return subtitle; }
+        public void setSubtitle(String subtitle) { this.subtitle = subtitle; }
+        public String getStatus() { return status; }
+        public void setStatus(String status) { this.status = status; }
+        public String getRouteHint() { return routeHint; }
+        public void setRouteHint(String routeHint) { this.routeHint = routeHint; }
+        public Map<String, Object> getMetadata() { return metadata; }
+        public void setMetadata(Map<String, Object> metadata) { this.metadata = metadata; }
+    }
+
+    public static class GlobalSearchResponse {
+        private String query;
+        private List<String> scopes;
+        private int total;
+        private Map<String, Long> totalsByScope;
+        private List<GlobalSearchResultRow> rows;
+
+        public String getQuery() { return query; }
+        public void setQuery(String query) { this.query = query; }
+        public List<String> getScopes() { return scopes; }
+        public void setScopes(List<String> scopes) { this.scopes = scopes; }
+        public int getTotal() { return total; }
+        public void setTotal(int total) { this.total = total; }
+        public Map<String, Long> getTotalsByScope() { return totalsByScope; }
+        public void setTotalsByScope(Map<String, Long> totalsByScope) { this.totalsByScope = totalsByScope; }
+        public List<GlobalSearchResultRow> getRows() { return rows; }
+        public void setRows(List<GlobalSearchResultRow> rows) { this.rows = rows; }
+    }
+
+    public static class GlobalSearchActivityRow {
+        private String at;
+        private Long actorUserId;
+        private String actorName;
+        private String description;
+
+        public String getAt() { return at; }
+        public void setAt(String at) { this.at = at; }
+        public Long getActorUserId() { return actorUserId; }
+        public void setActorUserId(Long actorUserId) { this.actorUserId = actorUserId; }
+        public String getActorName() { return actorName; }
+        public void setActorName(String actorName) { this.actorName = actorName; }
+        public String getDescription() { return description; }
+        public void setDescription(String description) { this.description = description; }
+    }
 
     public static class OperationalStaffResponse {
         private Long id;

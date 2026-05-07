@@ -35,6 +35,10 @@ public class HostelIncidentLog extends BaseEntity {
     private LocalDateTime escalatedAt;
     @Column(name = "escalation_level", length = 30)
     private String escalationLevel;
+    @Column(name = "escalation_count")
+    private Integer escalationCount;
+    @Column(name = "next_escalation_at")
+    private LocalDateTime nextEscalationAt;
     @Column(name = "resolution_note", length = 500)
     private String resolutionNote;
     @Column(name = "resolution_reason", length = 80)
@@ -112,6 +116,22 @@ public class HostelIncidentLog extends BaseEntity {
 
     public void setEscalationLevel(String escalationLevel) {
         this.escalationLevel = escalationLevel;
+    }
+
+    public Integer getEscalationCount() {
+        return escalationCount;
+    }
+
+    public void setEscalationCount(Integer escalationCount) {
+        this.escalationCount = escalationCount;
+    }
+
+    public LocalDateTime getNextEscalationAt() {
+        return nextEscalationAt;
+    }
+
+    public void setNextEscalationAt(LocalDateTime nextEscalationAt) {
+        this.nextEscalationAt = nextEscalationAt;
     }
 
     public String getResolutionNote() {

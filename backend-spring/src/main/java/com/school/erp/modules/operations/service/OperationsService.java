@@ -7,12 +7,15 @@ import com.school.erp.common.exception.BusinessException;
 import com.school.erp.common.exception.ResourceNotFoundException;
 import com.school.erp.common.util.InternationalPhone;
 import com.school.erp.modules.auth.service.PortalUserProvisioningService;
+import com.school.erp.modules.audit.repository.AuditLogRepository;
+import com.school.erp.modules.fees.repository.FeePaymentRepository;
 import com.school.erp.modules.operations.dto.OperationsDTOs;
 import com.school.erp.modules.operations.entity.*;
 import com.school.erp.modules.operations.repository.*;
 import com.school.erp.tenant.TenantContext;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -21,8 +24,13 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeParseException;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.Locale;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
@@ -36,6 +44,8 @@ public class OperationsService {
     private final InventoryItemRepository inventoryRepo;
     private final FeeReminderQueueRepository feeReminderRepo;
     private final PortalUserProvisioningService portalUserProvisioningService;
+    private final AuditLogRepository auditLogRepository;
+    private final FeePaymentRepository feePaymentRepository;
 
     public OperationsService(
             OperationalStaffRepository staffRepo,
@@ -43,13 +53,88 @@ public class OperationsService {
             GatePassRepository gatePassRepo,
             InventoryItemRepository inventoryRepo,
             FeeReminderQueueRepository feeReminderRepo,
-            PortalUserProvisioningService portalUserProvisioningService) {
+            PortalUserProvisioningService portalUserProvisioningService,
+            AuditLogRepository auditLogRepository,
+            FeePaymentRepository feePaymentRepository) {
         this.staffRepo = staffRepo;
         this.visitorRepo = visitorRepo;
         this.gatePassRepo = gatePassRepo;
         this.inventoryRepo = inventoryRepo;
         this.feeReminderRepo = feeReminderRepo;
         this.portalUserProvisioningService = portalUserProvisioningService;
+        this.auditLogRepository = auditLogRepository;
+        this.feePaymentRepository = feePaymentRepository;
+    }
+
+    @Transactional(readOnly = true)
+    public OperationsDTOs.GlobalSearchResponse globalSearch(String q, Set<String> scopes, int limitPerScope) {
+        String tenantId = TenantContext.getTenantId();
+        String query = q == null ? "" : q.trim();
+        if (query.length() < 2) {
+            throw new BusinessException("Search query must be at least 2 characters");
+        }
+        if (query.length() > 80) {
+            query = query.substring(0, 80);
+        }
+        int safeLimit = Math.max(1, Math.min(limitPerScope, 25));
+        Set<String> requestedScopes = normalizeSearchScopes(scopes);
+        Pageable pageable = PageRequest.of(0, safeLimit);
+
+        List<OperationsDTOs.GlobalSearchResultRow> rows = new ArrayList<>();
+        Map<String, Long> totalsByScope = new LinkedHashMap<>();
+
+        if (requestedScopes.contains("staff")) {
+            var page = staffRepo.searchStaff(tenantId, query, null, pageable);
+            totalsByScope.put("staff", page.getTotalElements());
+            page.getContent().forEach(s -> rows.add(toSearchRow(s)));
+        }
+        if (requestedScopes.contains("visitors")) {
+            var page = visitorRepo.searchByTenantAndQuery(tenantId, query, pageable);
+            totalsByScope.put("visitors", page.getTotalElements());
+            page.getContent().forEach(v -> rows.add(toSearchRow(v)));
+        }
+        if (requestedScopes.contains("gate")) {
+            var page = gatePassRepo.searchByTenantAndQuery(tenantId, query, pageable);
+            totalsByScope.put("gate", page.getTotalElements());
+            page.getContent().forEach(g -> rows.add(toSearchRow(g)));
+        }
+        if (requestedScopes.contains("inventory")) {
+            var page = inventoryRepo.searchByTenantAndQuery(tenantId, query, pageable);
+            totalsByScope.put("inventory", page.getTotalElements());
+            page.getContent().forEach(i -> rows.add(toSearchRow(i)));
+        }
+        if (requestedScopes.contains("reminders")) {
+            var page = feeReminderRepo.searchByTenantAndQuery(tenantId, query, pageable);
+            totalsByScope.put("reminders", page.getTotalElements());
+            page.getContent().forEach(r -> rows.add(toSearchRow(r)));
+        }
+
+        OperationsDTOs.GlobalSearchResponse response = new OperationsDTOs.GlobalSearchResponse();
+        response.setQuery(query);
+        response.setScopes(new ArrayList<>(requestedScopes));
+        response.setTotalsByScope(totalsByScope);
+        response.setRows(rows);
+        response.setTotal(rows.size());
+        return response;
+    }
+
+    @Transactional(readOnly = true)
+    public PageResponse<OperationsDTOs.GlobalSearchActivityRow> listGlobalSearchActivity(int page, int size) {
+        int safePage = Math.max(page, 0);
+        int safeSize = Math.min(Math.max(size, 1), 100);
+        var logs = auditLogRepository.findByTenantIdAndModuleAndIsDeletedFalse(
+                TenantContext.getTenantId(),
+                "OPERATIONS_SEARCH",
+                PageRequest.of(safePage, safeSize, Sort.by(Sort.Direction.DESC, "createdAt")));
+        List<OperationsDTOs.GlobalSearchActivityRow> rows = logs.getContent().stream().map(a -> {
+            OperationsDTOs.GlobalSearchActivityRow r = new OperationsDTOs.GlobalSearchActivityRow();
+            r.setAt(a.getCreatedAt() != null ? ISO_DT.format(a.getCreatedAt()) : null);
+            r.setActorUserId(a.getUserId());
+            r.setActorName(a.getUserName());
+            r.setDescription(a.getDescription());
+            return r;
+        }).toList();
+        return PageResponse.of(rows, safePage, safeSize, logs.getTotalElements());
     }
 
     // --- operational staff ---
@@ -352,6 +437,7 @@ public class OperationsService {
         if (req.getStudentId() == null) {
             throw new BusinessException("studentId is required");
         }
+        String tenantId = TenantContext.getTenantId();
         LocalDate parsedDueDate = null;
         if (req.getDueDate() != null && !req.getDueDate().trim().isEmpty()) {
             try {
@@ -360,8 +446,21 @@ public class OperationsService {
                 throw new BusinessException("Invalid due date format. Please refresh and try again.");
             }
         }
+        if (req.getFeePaymentId() != null) {
+            var payment = feePaymentRepository.findByIdAndTenantIdAndIsDeletedFalse(req.getFeePaymentId(), tenantId)
+                    .orElseThrow(() -> new ResourceNotFoundException("FeePayment", req.getFeePaymentId()));
+            if (!req.getStudentId().equals(payment.getStudentId())) {
+                throw new BusinessException("Reminder scope mismatch. Please refresh and retry.");
+            }
+            if (payment.getDueAmount() == null || payment.getDueAmount().compareTo(BigDecimal.ZERO) <= 0) {
+                throw new BusinessException("No pending due for this fee record.");
+            }
+            if (parsedDueDate == null && payment.getDueDate() != null) {
+                parsedDueDate = payment.getDueDate();
+            }
+        }
         FeeReminderQueue q = new FeeReminderQueue();
-        q.setTenantId(TenantContext.getTenantId());
+        q.setTenantId(tenantId);
         q.setStudentId(req.getStudentId());
         q.setFeePaymentId(req.getFeePaymentId());
         q.setDueDate(parsedDueDate);
@@ -454,6 +553,92 @@ public class OperationsService {
         r.setSentAt(q.getSentAt() != null ? ISO_DT.format(q.getSentAt()) : null);
         r.setLastError(q.getLastError());
         return r;
+    }
+
+    private Set<String> normalizeSearchScopes(Set<String> scopes) {
+        Set<String> defaults = Set.of("staff", "visitors", "gate", "inventory", "reminders");
+        if (scopes == null || scopes.isEmpty()) {
+            return new LinkedHashSet<>(defaults);
+        }
+        Set<String> normalized = scopes.stream()
+                .filter(s -> s != null && !s.isBlank())
+                .map(s -> s.trim().toLowerCase(Locale.ROOT))
+                .filter(defaults::contains)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+        return normalized.isEmpty() ? new LinkedHashSet<>(defaults) : normalized;
+    }
+
+    private OperationsDTOs.GlobalSearchResultRow toSearchRow(OperationalStaff s) {
+        OperationsDTOs.GlobalSearchResultRow row = new OperationsDTOs.GlobalSearchResultRow();
+        row.setScope("staff");
+        row.setRecordId(String.valueOf(s.getId()));
+        row.setTitle(s.getFullName());
+        row.setSubtitle((s.getStaffRole() != null ? s.getStaffRole() : "STAFF")
+                + (s.getEmployeeCode() != null ? " • " + s.getEmployeeCode() : ""));
+        row.setStatus(Boolean.TRUE.equals(s.getIsActive()) ? "ACTIVE" : "INACTIVE");
+        row.setRouteHint("/app/staff/" + s.getId());
+        row.setMetadata(Map.of(
+                "phone", s.getPhone() != null ? s.getPhone() : "",
+                "email", s.getEmail() != null ? s.getEmail() : ""));
+        return row;
+    }
+
+    private OperationsDTOs.GlobalSearchResultRow toSearchRow(VisitorLog v) {
+        OperationsDTOs.GlobalSearchResultRow row = new OperationsDTOs.GlobalSearchResultRow();
+        row.setScope("visitors");
+        row.setRecordId(String.valueOf(v.getId()));
+        row.setTitle(v.getVisitorName());
+        row.setSubtitle((v.getHostName() != null ? v.getHostName() : "Host N/A")
+                + (v.getPurpose() != null ? " • " + v.getPurpose() : ""));
+        row.setStatus(v.getStatus());
+        row.setRouteHint("/app/operations?tab=visitors");
+        row.setMetadata(Map.of("badgeNo", v.getBadgeNo() != null ? v.getBadgeNo() : ""));
+        return row;
+    }
+
+    private OperationsDTOs.GlobalSearchResultRow toSearchRow(GatePass g) {
+        OperationsDTOs.GlobalSearchResultRow row = new OperationsDTOs.GlobalSearchResultRow();
+        row.setScope("gate");
+        row.setRecordId(String.valueOf(g.getId()));
+        row.setTitle(g.getIssuedToName());
+        row.setSubtitle((g.getValidFrom() != null ? g.getValidFrom() : "N/A")
+                + " → " + (g.getValidTo() != null ? g.getValidTo() : "N/A"));
+        row.setStatus(g.getStatus());
+        row.setRouteHint("/app/operations?tab=gate");
+        row.setMetadata(Map.of("purpose", g.getPurpose() != null ? g.getPurpose() : ""));
+        return row;
+    }
+
+    private OperationsDTOs.GlobalSearchResultRow toSearchRow(InventoryItem i) {
+        OperationsDTOs.GlobalSearchResultRow row = new OperationsDTOs.GlobalSearchResultRow();
+        row.setScope("inventory");
+        row.setRecordId(String.valueOf(i.getId()));
+        row.setTitle(i.getName());
+        row.setSubtitle((i.getSku() != null ? i.getSku() : "")
+                + (i.getCategory() != null ? " • " + i.getCategory() : ""));
+        row.setStatus((i.getQuantityOnHand() != null && i.getReorderLevel() != null && i.getQuantityOnHand() <= i.getReorderLevel())
+                ? "LOW_STOCK"
+                : "OK");
+        row.setRouteHint("/app/operations?tab=inventory");
+        row.setMetadata(Map.of(
+                "quantityOnHand", i.getQuantityOnHand() != null ? i.getQuantityOnHand() : 0,
+                "reorderLevel", i.getReorderLevel() != null ? i.getReorderLevel() : 0));
+        return row;
+    }
+
+    private OperationsDTOs.GlobalSearchResultRow toSearchRow(FeeReminderQueue r) {
+        OperationsDTOs.GlobalSearchResultRow row = new OperationsDTOs.GlobalSearchResultRow();
+        row.setScope("reminders");
+        row.setRecordId(String.valueOf(r.getId()));
+        row.setTitle("Student #" + r.getStudentId());
+        row.setSubtitle((r.getChannel() != null ? r.getChannel() : "CHANNEL")
+                + (r.getDueDate() != null ? " • Due " + r.getDueDate() : ""));
+        row.setStatus(r.getStatus());
+        row.setRouteHint("/app/operations?tab=reminders");
+        row.setMetadata(Map.of(
+                "feePaymentId", r.getFeePaymentId() != null ? r.getFeePaymentId() : 0,
+                "scheduledAt", r.getScheduledAt() != null ? ISO_DT.format(r.getScheduledAt()) : ""));
+        return row;
     }
 
     private String canonicalPhoneOptional(String raw) {

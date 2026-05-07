@@ -3,7 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { Book, BookIssue, Student } from '../../core/models/models';
-import { LibraryCatalogFilter, LibraryService } from '../../core/services/library.service';
+import { LibraryAnalyticsSnapshot, LibraryCatalogFilter, LibraryFinePolicy, LibraryReservation, LibraryService } from '../../core/services/library.service';
 import { StudentService } from '../../core/services/student.service';
 import { UiAccessService } from '../../core/services/ui-access.service';
 import { debounceTime, filter } from 'rxjs/operators';
@@ -179,6 +179,62 @@ import { SchoolClassNamePipe } from '../../core/i18n/school-class-name.pipe';
           />
         </div>
       </div>
+      <div class="erp-card mt-4 animate-in" *ngIf="canLibraryOpsRead">
+        <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
+          <h4 class="erp-card-title mb-0">Library Ops</h4>
+          <div class="d-flex gap-2 flex-wrap">
+            <button type="button" class="btn-outline-erp btn-sm" (click)="reloadOps()">Refresh</button>
+            <button type="button" class="btn-outline-erp btn-sm" (click)="downloadAnalytics('csv')">Export CSV</button>
+            <button type="button" class="btn-outline-erp btn-sm" (click)="downloadAnalytics('pdf')">Export PDF</button>
+          </div>
+        </div>
+        <div class="row g-3 mb-3">
+          <div class="col-md-2"><div class="small text-muted">Titles</div><div class="h5 mb-0">{{ analytics.totalTitles }}</div></div>
+          <div class="col-md-2"><div class="small text-muted">Copies</div><div class="h5 mb-0">{{ analytics.totalCopies }}</div></div>
+          <div class="col-md-2"><div class="small text-muted">Available</div><div class="h5 mb-0">{{ analytics.copiesAvailable }}</div></div>
+          <div class="col-md-2"><div class="small text-muted">Issued</div><div class="h5 mb-0">{{ analytics.issuedCount }}</div></div>
+          <div class="col-md-2"><div class="small text-muted">Overdue</div><div class="h5 mb-0">{{ analytics.overdueCount }}</div></div>
+          <div class="col-md-2"><div class="small text-muted">Pending reservations</div><div class="h5 mb-0">{{ analytics.reservedCount }}</div></div>
+        </div>
+        <div class="row g-2 mb-3">
+          <div class="col-md-2">
+            <select class="erp-select" [(ngModel)]="finePolicyForm.borrowerType">
+              <option value="STUDENT">Student</option><option value="STAFF">Staff</option><option value="GUARDIAN">Guardian</option><option value="OTHER">Other</option>
+            </select>
+          </div>
+          <div class="col-md-2"><input class="erp-input" type="number" [(ngModel)]="finePolicyForm.finePerDay" placeholder="Fine/day" /></div>
+          <div class="col-md-2"><input class="erp-input" type="number" [(ngModel)]="finePolicyForm.graceDays" placeholder="Grace days" /></div>
+          <div class="col-md-2"><input class="erp-input" type="number" [(ngModel)]="finePolicyForm.maxBooks" placeholder="Max books" /></div>
+          <div class="col-md-2"><input class="erp-input" type="number" [(ngModel)]="finePolicyForm.maxBorrowDays" placeholder="Max days" /></div>
+          <div class="col-md-2"><button type="button" class="btn-primary-erp btn-sm w-100" [disabled]="!canLibraryPolicyWrite" (click)="saveFinePolicy()">Save policy</button></div>
+        </div>
+        <div class="row g-2 mb-3">
+          <div class="col-md-2"><select class="erp-select" [(ngModel)]="inventoryForm.bookId"><option [ngValue]="null">Book</option><option *ngFor="let b of books" [ngValue]="b.id">{{ b.title }}</option></select></div>
+          <div class="col-md-2"><select class="erp-select" [(ngModel)]="inventoryForm.action"><option value="ACCESSION">Accession</option><option value="LOSS">Loss</option><option value="WRITE_OFF">Write-off</option></select></div>
+          <div class="col-md-2"><input class="erp-input" type="number" [(ngModel)]="inventoryForm.quantity" min="1" placeholder="Qty" /></div>
+          <div class="col-md-4"><input class="erp-input" [(ngModel)]="inventoryForm.note" placeholder="Note (optional)" /></div>
+          <div class="col-md-2"><button type="button" class="btn-outline-erp btn-sm w-100" [disabled]="!canLibraryInventoryWrite" (click)="saveInventory()">Update stock</button></div>
+        </div>
+        <div class="row g-2 mb-2">
+          <div class="col-md-2"><select class="erp-select" [(ngModel)]="reservationForm.bookId"><option [ngValue]="null">Book</option><option *ngFor="let b of books" [ngValue]="b.id">{{ b.title }}</option></select></div>
+          <div class="col-md-2"><select class="erp-select" [(ngModel)]="reservationForm.borrowerRefId"><option [ngValue]="null">Student</option><option *ngFor="let s of students" [ngValue]="s.id">{{ s.firstName }} {{ s.lastName }}</option></select></div>
+          <div class="col-md-2"><input class="erp-input" type="number" [(ngModel)]="reservationForm.holdHours" min="2" placeholder="Hold hrs" /></div>
+          <div class="col-md-4"><input class="erp-input" [(ngModel)]="reservationForm.note" placeholder="Reservation note" /></div>
+          <div class="col-md-2"><button type="button" class="btn-outline-erp btn-sm w-100" [disabled]="!canCirculateBooks" (click)="createReservation()">Reserve</button></div>
+        </div>
+        <table class="erp-table mb-0">
+          <thead><tr><th>Book</th><th>Borrower</th><th>Status</th><th>Expire</th><th>Actions</th></tr></thead>
+          <tbody>
+            <tr *ngFor="let r of reservations">
+              <td>{{ r.bookTitle }}</td><td>{{ r.borrowerDisplayName || r.borrowerRefId }}</td><td>{{ r.status }}</td><td>{{ r.expiresAt || '-' }}</td>
+              <td>
+                <button type="button" class="btn-outline-erp btn-xs" *ngIf="r.status === 'PENDING' && canCirculateBooks" (click)="fulfillReservation(r.id)">Fulfill</button>
+                <button type="button" class="btn-outline-erp btn-xs ms-1" *ngIf="r.status === 'PENDING' && canCirculateBooks" (click)="cancelReservation(r.id)">Cancel</button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
     </div>
 
     <div class="modal-overlay" *ngIf="bookModal" (click)="bookModal = false">
@@ -270,6 +326,9 @@ export class LibraryComponent implements OnInit, OnDestroy {
   canManageCatalog = false;
   /** Issue and return — same cohort as circulation on the API (LIBRARY_MANAGE or LIBRARY_CIRCULATION), not all teachers. */
   canCirculateBooks = false;
+  canLibraryOpsRead = false;
+  canLibraryPolicyWrite = false;
+  canLibraryInventoryWrite = false;
   canUseMemberLane = false;
   readOnlyHintVisible = false;
   refreshing = false;
@@ -280,6 +339,12 @@ export class LibraryComponent implements OnInit, OnDestroy {
   issueError = '';
   returnIssue: BookIssue | null = null;
   returnForm = { returnDate: '', finePerDay: '' as string | number };
+  analytics: LibraryAnalyticsSnapshot = { totalTitles: 0, totalCopies: 0, copiesAvailable: 0, issuedCount: 0, overdueCount: 0, reservedCount: 0, outstandingFine: 0 };
+  finePolicies: LibraryFinePolicy[] = [];
+  finePolicyForm: LibraryFinePolicy = { borrowerType: 'STUDENT', finePerDay: 10, graceDays: 0, maxBooks: 3, maxBorrowDays: 14 };
+  reservations: LibraryReservation[] = [];
+  reservationForm = { bookId: null as number | null, borrowerRefId: null as number | null, holdHours: 48, note: '' };
+  inventoryForm = { bookId: null as number | null, action: 'ACCESSION' as 'ACCESSION' | 'LOSS' | 'WRITE_OFF', quantity: 1, note: '' };
 
   private readonly booksSearch$ = new Subject<void>();
   private readonly subs = new Subscription();
@@ -319,12 +384,16 @@ export class LibraryComponent implements OnInit, OnDestroy {
     const hasLibraryDeskLane = this.uiAccess.hasLibraryDeskLaneAccess();
     this.canManageCatalog = this.uiAccess.hasLibraryCatalogWriteAccess();
     this.canCirculateBooks = hasLibraryDeskLane && this.uiAccess.hasLibraryCirculationDeskAccess();
+    this.canLibraryOpsRead = hasLibraryDeskLane;
+    this.canLibraryPolicyWrite = this.uiAccess.hasLibraryPolicyWriteAccess();
+    this.canLibraryInventoryWrite = this.uiAccess.hasLibraryInventoryWriteAccess();
     this.canUseMemberLane = this.uiAccess.hasLibraryMemberReadAccess();
     this.readOnlyHintVisible = !this.canManageCatalog && !this.canCirculateBooks;
     this.rebuildCategories();
     this.loadBooks();
     if (this.canCirculateBooks) {
       this.studentService.getStudents().subscribe(s => (this.students = s || []));
+      this.reloadOps();
     }
   }
 
@@ -346,11 +415,13 @@ export class LibraryComponent implements OnInit, OnDestroy {
         this.students = s || [];
         this.loadBooks();
         this.loadIssues();
+        this.reloadOps();
         this.refreshing = false;
       },
       error: () => {
         this.loadBooks();
         this.loadIssues();
+        this.reloadOps();
         this.refreshing = false;
       }
     });
@@ -606,5 +677,74 @@ export class LibraryComponent implements OnInit, OnDestroy {
         },
         error: (e: Error) => alert(e?.message || this.translate.instant('library.errReturnFailed'))
       });
+  }
+
+  reloadOps(): void {
+    if (!this.canCirculateBooks) return;
+    this.libraryService.analyticsSnapshot().subscribe(x => (this.analytics = x));
+    this.libraryService.listFinePolicies().subscribe(x => (this.finePolicies = x || []));
+    this.libraryService.listReservations('PENDING').subscribe(x => (this.reservations = x || []));
+  }
+
+  saveFinePolicy(): void {
+    this.libraryService.upsertFinePolicy(this.finePolicyForm).subscribe(() => this.reloadOps());
+  }
+
+  saveInventory(): void {
+    if (this.inventoryForm.bookId == null) return;
+    this.libraryService.adjustInventory({
+      bookId: this.inventoryForm.bookId,
+      action: this.inventoryForm.action,
+      quantity: Number(this.inventoryForm.quantity || 1),
+      note: this.inventoryForm.note || undefined,
+    }).subscribe(() => {
+      this.inventoryForm.note = '';
+      this.loadBooks();
+      this.reloadOps();
+    });
+  }
+
+  createReservation(): void {
+    if (this.reservationForm.bookId == null || this.reservationForm.borrowerRefId == null) return;
+    const s = this.students.find(x => x.id === this.reservationForm.borrowerRefId);
+    this.libraryService.createReservation({
+      bookId: this.reservationForm.bookId,
+      borrowerType: 'STUDENT',
+      borrowerRefId: this.reservationForm.borrowerRefId,
+      borrowerDisplayName: s ? `${s.firstName} ${s.lastName}`.trim() : undefined,
+      holdHours: Number(this.reservationForm.holdHours || 48),
+      note: this.reservationForm.note || undefined,
+    }).subscribe(() => {
+      this.reservationForm.note = '';
+      this.reloadOps();
+    });
+  }
+
+  fulfillReservation(id: number): void {
+    this.libraryService.fulfillReservation(id).subscribe(() => {
+      this.loadBooks();
+      this.loadIssues();
+      this.reloadOps();
+    });
+  }
+
+  cancelReservation(id: number): void {
+    this.libraryService.cancelReservation(id).subscribe(() => this.reloadOps());
+  }
+
+  downloadAnalytics(format: 'csv' | 'pdf'): void {
+    const req = format === 'csv' ? this.libraryService.exportAnalyticsCsv() : this.libraryService.exportAnalyticsPdf();
+    req.subscribe(blob => this.saveBlob(blob, `library-analytics-${new Date().toISOString().slice(0, 10)}.${format}`));
+  }
+
+  private saveBlob(blob: Blob, filename: string): void {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   }
 }

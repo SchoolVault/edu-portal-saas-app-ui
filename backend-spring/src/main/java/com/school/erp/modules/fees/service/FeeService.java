@@ -5,6 +5,7 @@ import com.school.erp.common.enums.Enums;
 import com.school.erp.common.exception.BusinessException;
 import com.school.erp.common.exception.ResourceNotFoundException;
 import com.school.erp.common.exception.UnauthorizedException;
+import com.school.erp.common.export.CsvExportSupport;
 import com.school.erp.common.importer.BulkImportRowPolicy;
 import com.school.erp.common.importer.ImportLineOutcome;
 import com.school.erp.common.importer.LineApplyResult;
@@ -69,6 +70,8 @@ public class FeeService {
     private static final int BULK_ASSIGN_MAX_STUDENTS = 2000;
     private static final int BULK_ASSIGN_SKIPPED_CAP = 100;
     private static final int BULK_ASSIGN_CREATED_SAMPLE = 25;
+    @Value("${app.fees.export.max-rows:20000}")
+    private int feesExportMaxRows;
     /** Ledger rows that mean money was actually collected (parent receipt / PDF allowed). */
     private static final List<String> PARENT_RECEIPT_LEDGER_EVENTS = List.of(
             FeeTransactionType.PAYMENT_CAPTURED,
@@ -278,11 +281,43 @@ public class FeeService {
      * Paged fee ledger for admin UI (matches frontend {@code PageResp} / {@link PageResponse}).
      */
     @Transactional(readOnly = true)
-    public PageResponse<FeeDTOs.FeePaymentResponse> getPaymentsPaged(int page, int size, Enums.FeeStatus status, String q) {
+    public PageResponse<FeeDTOs.FeePaymentResponse> getPaymentsPaged(
+            int page,
+            int size,
+            Enums.FeeStatus status,
+            String q,
+            Long classId,
+            Long sectionId,
+            Long academicYearId) {
         String t = TenantContext.getTenantId();
         int safeSize = Math.min(Math.max(size, 1), 200);
         int safePage = Math.max(page, 0);
         List<FeePayment> payments = status != null ? paymentRepo.findByTenantIdAndStatusAndIsDeletedFalse(t, status) : paymentRepo.findByTenantIdAndIsDeletedFalse(t);
+        if (academicYearId != null) {
+            payments = payments.stream()
+                    .filter(p -> academicYearId.equals(p.getAcademicYearId()))
+                    .collect(Collectors.toList());
+        }
+        if (classId != null || sectionId != null) {
+            List<Long> ids = payments.stream().map(FeePayment::getStudentId).filter(Objects::nonNull).distinct().collect(Collectors.toList());
+            var studentMap = studentPersistence.findByTenantIdAndIdInAndIsDeletedFalse(t, ids).stream()
+                    .collect(Collectors.toMap(Student::getId, s -> s));
+            payments = payments.stream()
+                    .filter(p -> {
+                        Student s = studentMap.get(p.getStudentId());
+                        if (s == null) {
+                            return false;
+                        }
+                        if (classId != null && !classId.equals(s.getClassId())) {
+                            return false;
+                        }
+                        if (sectionId != null && !sectionId.equals(s.getSectionId())) {
+                            return false;
+                        }
+                        return true;
+                    })
+                    .collect(Collectors.toList());
+        }
         String needle = q == null ? "" : q.trim().toLowerCase(Locale.ROOT);
         List<FeePayment> filtered = payments.stream()
                 .sorted(Comparator.comparing(FeePayment::getId).reversed())
@@ -303,9 +338,143 @@ public class FeeService {
         return paymentRepo.findByTenantIdAndStudentIdAndIsDeletedFalse(TenantContext.getTenantId(), studentId).stream().map(this::toPaymentResponse).collect(Collectors.toList());
     }
 
+    @Transactional(readOnly = true)
+    public PageResponse<FeeDTOs.FeePaymentResponse> getStudentPaymentsPaged(Long studentId, int page, int size, Long academicYearId) {
+        String tenantId = TenantContext.getTenantId();
+        int safeSize = Math.min(Math.max(size, 1), 100);
+        int safePage = Math.max(page, 0);
+        List<FeePayment> rows = paymentRepo.findByTenantIdAndStudentIdAndIsDeletedFalse(tenantId, studentId).stream()
+                .filter(p -> academicYearId == null || academicYearId.equals(p.getAcademicYearId()))
+                .sorted(Comparator.comparing(FeePayment::getId).reversed())
+                .collect(Collectors.toList());
+        long total = rows.size();
+        int from = (int) Math.min((long) safePage * safeSize, total);
+        int to = (int) Math.min(from + safeSize, total);
+        List<FeeDTOs.FeePaymentResponse> content = rows.subList(from, to).stream()
+                .map(this::toPaymentResponse)
+                .collect(Collectors.toList());
+        return PageResponse.of(content, safePage, safeSize, total);
+    }
+
+    @Transactional(readOnly = true)
+    public PageResponse<FeeDTOs.FeeDefaulterRow> getDefaultersPaged(
+            int page,
+            int size,
+            String window,
+            String band,
+            Long classId,
+            Long sectionId,
+            Long academicYearId) {
+        String tenantId = TenantContext.getTenantId();
+        int safeSize = Math.min(Math.max(size, 1), 200);
+        int safePage = Math.max(page, 0);
+        LocalDate today = LocalDate.now();
+        String normalizedWindow = window == null ? "all" : window.trim().toLowerCase(Locale.ROOT);
+        String normalizedBand = band == null ? "all" : band.trim().toLowerCase(Locale.ROOT);
+
+        List<FeePayment> payments = paymentRepo.findByTenantIdAndIsDeletedFalse(tenantId).stream()
+                .filter(p -> p.getDueAmount() != null && p.getDueAmount().compareTo(BigDecimal.ZERO) > 0)
+                .filter(p -> academicYearId == null || academicYearId.equals(p.getAcademicYearId()))
+                .collect(Collectors.toList());
+        if (classId != null || sectionId != null) {
+            List<Long> ids = payments.stream().map(FeePayment::getStudentId).filter(Objects::nonNull).distinct().collect(Collectors.toList());
+            var studentMap = studentPersistence.findByTenantIdAndIdInAndIsDeletedFalse(tenantId, ids).stream()
+                    .collect(Collectors.toMap(Student::getId, s -> s));
+            payments = payments.stream().filter(p -> {
+                Student st = studentMap.get(p.getStudentId());
+                if (st == null) {
+                    return false;
+                }
+                if (classId != null && !classId.equals(st.getClassId())) {
+                    return false;
+                }
+                if (sectionId != null && !sectionId.equals(st.getSectionId())) {
+                    return false;
+                }
+                return true;
+            }).collect(Collectors.toList());
+        }
+
+        List<FeeDTOs.FeeDefaulterRow> rows = payments.stream()
+                .map(p -> toDefaulterRow(p, today))
+                .filter(r -> {
+                    if ("upcoming".equals(normalizedWindow)) {
+                        return r.getDaysOverdue() <= 0 && r.getDaysOverdue() >= -10;
+                    }
+                    if ("overdue".equals(normalizedWindow)) {
+                        return r.getDaysOverdue() > 0;
+                    }
+                    return true;
+                })
+                .filter(r -> "all".equals(normalizedBand) || normalizedBand.equalsIgnoreCase(r.getEscalationBand()))
+                .sorted(Comparator
+                        .comparing(FeeDTOs.FeeDefaulterRow::getDaysOverdue).reversed()
+                        .thenComparing(FeeDTOs.FeeDefaulterRow::getDueAmount, Comparator.nullsLast(Comparator.reverseOrder()))
+                        .thenComparing(FeeDTOs.FeeDefaulterRow::getStudentName, Comparator.nullsLast(String.CASE_INSENSITIVE_ORDER)))
+                .collect(Collectors.toList());
+
+        long total = rows.size();
+        int from = (int) Math.min((long) safePage * safeSize, total);
+        int to = (int) Math.min(from + safeSize, total);
+        return PageResponse.of(rows.subList(from, to), safePage, safeSize, total);
+    }
+
+    @Transactional(readOnly = true)
+    public byte[] exportPaymentsCsv(Long classId, Long sectionId, Long academicYearId, String q, Enums.FeeStatus status) {
+        String tenantId = TenantContext.getTenantId();
+        List<FeePayment> payments = status != null
+                ? paymentRepo.findByTenantIdAndStatusAndIsDeletedFalse(tenantId, status)
+                : paymentRepo.findByTenantIdAndIsDeletedFalse(tenantId);
+        if (academicYearId != null) {
+            payments = payments.stream().filter(p -> academicYearId.equals(p.getAcademicYearId())).collect(Collectors.toList());
+        }
+        if (classId != null || sectionId != null) {
+            List<Long> ids = payments.stream().map(FeePayment::getStudentId).filter(Objects::nonNull).distinct().collect(Collectors.toList());
+            var studentMap = studentPersistence.findByTenantIdAndIdInAndIsDeletedFalse(tenantId, ids).stream()
+                    .collect(Collectors.toMap(Student::getId, s -> s));
+            payments = payments.stream().filter(p -> {
+                Student s = studentMap.get(p.getStudentId());
+                if (s == null) return false;
+                if (classId != null && !classId.equals(s.getClassId())) return false;
+                if (sectionId != null && !sectionId.equals(s.getSectionId())) return false;
+                return true;
+            }).collect(Collectors.toList());
+        }
+        String needle = q == null ? "" : q.trim().toLowerCase(Locale.ROOT);
+        if (!needle.isBlank()) {
+            payments = payments.stream()
+                    .filter(p -> p.getStudentName() != null && p.getStudentName().toLowerCase(Locale.ROOT).contains(needle))
+                    .collect(Collectors.toList());
+        }
+        if (payments.size() > Math.max(1, feesExportMaxRows)) {
+            throw new BusinessException("Export row limit exceeded. Narrow filters and retry.");
+        }
+        StringBuilder sb = new StringBuilder();
+        sb.append("Student,Amount,Paid,Due,Due Date,Status,Payment Date,Method,Receipt,Academic Year ID\n");
+        for (FeePayment row : payments.stream().sorted(Comparator.comparing(FeePayment::getId).reversed()).toList()) {
+            sb.append(CsvExportSupport.escapeField(row.getStudentName())).append(',')
+                    .append(CsvExportSupport.escapeField(String.valueOf(row.getAmount()))).append(',')
+                    .append(CsvExportSupport.escapeField(String.valueOf(row.getPaidAmount()))).append(',')
+                    .append(CsvExportSupport.escapeField(String.valueOf(row.getDueAmount()))).append(',')
+                    .append(CsvExportSupport.escapeField(String.valueOf(row.getDueDate()))).append(',')
+                    .append(CsvExportSupport.escapeField(row.getStatus() != null ? row.getStatus().name() : "")).append(',')
+                    .append(CsvExportSupport.escapeField(String.valueOf(row.getPaymentDate()))).append(',')
+                    .append(CsvExportSupport.escapeField(String.valueOf(row.getPaymentMethod()))).append(',')
+                    .append(CsvExportSupport.escapeField(String.valueOf(row.getReceiptNumber()))).append(',')
+                    .append(CsvExportSupport.escapeField(String.valueOf(row.getAcademicYearId())))
+                    .append('\n');
+        }
+        return CsvExportSupport.utf8BomBytes(sb.toString());
+    }
+
     @Transactional
     public FeeDTOs.FeePaymentResponse recordPayment(FeeDTOs.RecordPaymentRequest req) {
         String t = TenantContext.getTenantId();
+        BigDecimal amountPosted = req.getPaymentAmount() != null ? req.getPaymentAmount() : BigDecimal.ZERO;
+        if (amountPosted.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new BusinessException("Payment amount must be greater than zero.");
+        }
+        String normalizedMethod = normalizePaymentMethod(req.getPaymentMethod());
         // Find existing payment record or create new
         FeePayment payment;
         if (req.getPaymentId() != null) {
@@ -314,33 +483,54 @@ public class FeeService {
             } else {
                 payment = paymentRepo.findByIdAndTenantIdAndIsDeletedFalse(req.getPaymentId(), t).orElseThrow(() -> new ResourceNotFoundException("Payment", req.getPaymentId()));
             }
-            // Update existing - add to paid amount
-            BigDecimal newPaid = payment.getPaidAmount().add(req.getPaymentAmount());
-            payment.setPaidAmount(newPaid);
-            payment.setDueAmount(payment.getAmount().subtract(newPaid).max(BigDecimal.ZERO));
+            if (isWaiverMethod(normalizedMethod)) {
+                BigDecimal newDiscount = (payment.getDiscount() != null ? payment.getDiscount() : BigDecimal.ZERO).add(amountPosted);
+                payment.setDiscount(newDiscount);
+                payment.setDueAmount(payment.getDueAmount().subtract(amountPosted).max(BigDecimal.ZERO));
+            } else {
+                // Update existing - add to paid amount
+                BigDecimal newPaid = payment.getPaidAmount().add(amountPosted);
+                payment.setPaidAmount(newPaid);
+                payment.setDueAmount(payment.getAmount().subtract(newPaid).max(BigDecimal.ZERO));
+            }
         } else {
             // New payment record
-            payment = FeePayment.builder().studentId(req.getStudentId()).studentName(req.getStudentName()).feeStructureId(req.getFeeStructureId()).amount(req.getTotalAmount()).paidAmount(req.getPaymentAmount()).dueAmount(req.getTotalAmount().subtract(req.getPaymentAmount()).max(BigDecimal.ZERO)).dueDate(req.getDueDate()).discount(req.getDiscount() != null ? req.getDiscount() : BigDecimal.ZERO).lateFee(BigDecimal.ZERO).build();
+            BigDecimal seedDiscount = req.getDiscount() != null ? req.getDiscount() : BigDecimal.ZERO;
+            BigDecimal seedPaid = isWaiverMethod(normalizedMethod) ? BigDecimal.ZERO : amountPosted;
+            BigDecimal seedDue = req.getTotalAmount().subtract(seedPaid).max(BigDecimal.ZERO);
+            if (isWaiverMethod(normalizedMethod)) {
+                seedDiscount = seedDiscount.add(amountPosted);
+                seedDue = seedDue.subtract(amountPosted).max(BigDecimal.ZERO);
+            }
+            payment = FeePayment.builder().studentId(req.getStudentId()).studentName(req.getStudentName()).feeStructureId(req.getFeeStructureId()).amount(req.getTotalAmount()).paidAmount(seedPaid).dueAmount(seedDue).dueDate(req.getDueDate()).discount(seedDiscount).lateFee(BigDecimal.ZERO).build();
             payment.setTenantId(t);
         }
-        applyDueDateLateFeeAndStatus(payment);
-        // Set payment date and receipt
-        payment.setPaymentDate(LocalDate.now());
-        if (payment.getReceiptNumber() == null) {
-            payment.setReceiptNumber("REC-" + t.toUpperCase() + "-" + System.currentTimeMillis());
+        if (amountPosted.compareTo(payment.getAmount()) > 0) {
+            throw new BusinessException("Posted amount cannot exceed total amount.");
         }
-        payment.setPaymentMethod(req.getPaymentMethod() != null ? req.getPaymentMethod() : "CASH");
+        applyDueDateLateFeeAndStatus(payment);
+        // Set payment date and receipt for monetary methods only.
+        if (isWaiverMethod(normalizedMethod)) {
+            payment.setPaymentDate(null);
+            payment.setReceiptNumber(null);
+        } else {
+            payment.setPaymentDate(LocalDate.now());
+            if (payment.getReceiptNumber() == null || payment.getReceiptNumber().isBlank()) {
+                payment.setReceiptNumber(generateReceiptNumber(t));
+            }
+        }
+        payment.setPaymentMethod(normalizedMethod);
         paymentRepo.save(payment);
         appendFeeTransaction(
                 payment,
                 null,
-                FeeTransactionType.PAYMENT_MANUAL_POSTED,
+                isWaiverMethod(normalizedMethod) ? FeeTransactionType.WAIVER_GRANTED : FeeTransactionType.PAYMENT_MANUAL_POSTED,
                 "POSTED",
-                req.getPaymentAmount(),
+                amountPosted,
                 null,
                 null,
                 "manual-" + payment.getId() + "-" + System.currentTimeMillis(),
-                "Manual fee payment recorded");
+                isWaiverMethod(normalizedMethod) ? "Fee waiver recorded" : "Manual fee payment recorded");
         recomputePaymentAggregate(payment);
         paymentRepo.save(payment);
         if (req.getPaymentId() == null
@@ -348,21 +538,74 @@ public class FeeService {
                 && payment.getDueAmount().compareTo(BigDecimal.ZERO) > 0) {
             feeReminderAutomationService.onFeeAssigned(t, payment);
         }
-        log.info("Payment recorded: student={} amount={} status={}", payment.getStudentId(), req.getPaymentAmount(), payment.getStatus());
+        log.info("Payment recorded: student={} amount={} method={} status={}", payment.getStudentId(), amountPosted, normalizedMethod, payment.getStatus());
         domainEventPublisher.publish(new FeePaymentRecordedEvent(
                 t,
                 payment.getId(),
                 payment.getStudentId(),
                 payment.getStudentName(),
-                req.getPaymentAmount(),
+                amountPosted,
                 payment.getStatus() != null ? payment.getStatus().name() : "UNKNOWN",
                 payment.getReceiptNumber(),
                 Instant.now()));
-        if (req.getPaymentAmount() != null && req.getPaymentAmount().compareTo(BigDecimal.ZERO) > 0) {
-            enqueueManualFeeRecordedParentChannels(t, payment, req.getPaymentAmount());
+        if (!isWaiverMethod(normalizedMethod) && amountPosted.compareTo(BigDecimal.ZERO) > 0) {
+            enqueueManualFeeRecordedParentChannels(t, payment, amountPosted);
         }
         invalidateDashboardSnapshots("fee_record_payment");
         return toPaymentResponse(payment);
+    }
+
+    private static String normalizePaymentMethod(String method) {
+        String m = method == null ? "" : method.trim().toUpperCase(Locale.ROOT);
+        if (m.isBlank()) {
+            return "CASH";
+        }
+        return switch (m) {
+            case "CASH", "ONLINE", "CHEQUE", "UPI", "WAIVER" -> m;
+            default -> "CASH";
+        };
+    }
+
+    private static boolean isWaiverMethod(String method) {
+        return "WAIVER".equalsIgnoreCase(method);
+    }
+
+    private static String generateReceiptNumber(String tenantId) {
+        String tenantTag = tenantId == null ? "TENANT" : tenantId.trim().toUpperCase(Locale.ROOT).replaceAll("[^A-Z0-9]", "");
+        if (tenantTag.isBlank()) {
+            tenantTag = "TENANT";
+        }
+        String datePart = LocalDate.now().format(java.time.format.DateTimeFormatter.BASIC_ISO_DATE);
+        String rand = UUID.randomUUID().toString().replace("-", "").substring(0, 8).toUpperCase(Locale.ROOT);
+        return "REC-" + tenantTag + "-" + datePart + "-" + rand;
+    }
+
+    private FeeDTOs.FeeDefaulterRow toDefaulterRow(FeePayment payment, LocalDate today) {
+        FeeDTOs.FeeDefaulterRow out = new FeeDTOs.FeeDefaulterRow();
+        out.setPaymentId(payment.getId());
+        out.setStudentId(payment.getStudentId());
+        out.setStudentName(payment.getStudentName());
+        out.setDueAmount(payment.getDueAmount() != null ? payment.getDueAmount() : BigDecimal.ZERO);
+        out.setDueDate(payment.getDueDate());
+        long daysOverdue = payment.getDueDate() == null ? 0 : ChronoUnit.DAYS.between(payment.getDueDate(), today);
+        out.setDaysOverdue((int) daysOverdue);
+        out.setEscalationBand(resolveEscalationBand(daysOverdue));
+        out.setStatus(payment.getStatus() != null ? payment.getStatus().name().toLowerCase(Locale.ROOT) : "unpaid");
+        out.setAcademicYearId(payment.getAcademicYearId());
+        return out;
+    }
+
+    private static String resolveEscalationBand(long daysOverdue) {
+        if (daysOverdue <= 0) {
+            return "upcoming";
+        }
+        if (daysOverdue <= 7) {
+            return "soft";
+        }
+        if (daysOverdue <= 30) {
+            return "medium";
+        }
+        return "critical";
     }
 
     /**

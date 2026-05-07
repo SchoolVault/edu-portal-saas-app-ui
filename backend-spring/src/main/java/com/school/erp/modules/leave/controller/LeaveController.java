@@ -77,6 +77,15 @@ public class LeaveController {
         return ResponseEntity.ok(ApiResponse.ok(leaveService.decide(id, req)));
     }
 
+    @PutMapping("/requests/{id}/cancel")
+    @PreAuthorize(RbacSpel.SCHOOL_LEAVE_SELF_APPLY)
+    @Operation(summary = "Cancel own pending leave request")
+    public ResponseEntity<ApiResponse<LeaveDTOs.LeaveResponse>> cancelMine(
+            @PathVariable Long id,
+            @RequestParam(required = false) String reason) {
+        return ResponseEntity.ok(ApiResponse.ok(leaveService.cancelMine(id, reason)));
+    }
+
     @GetMapping("/balance")
     @PreAuthorize(RbacSpel.SCHOOL_LEAVE_SELF_READ)
     @Operation(summary = "Leave entitlement snapshot for the signed-in user")

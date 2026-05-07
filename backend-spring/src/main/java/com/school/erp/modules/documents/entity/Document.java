@@ -45,6 +45,10 @@ public class Document extends BaseEntity {
     private Long sizeBytes;
     @Column(name = "storage_key", length = 500)
     private String storageKey;
+    @Column(name = "academic_year_id")
+    private Long academicYearId;
+    @Column(name = "checksum_sha256", length = 64)
+    private String checksumSha256;
     @Column(name = "parent_folder_id")
     private Long parentFolderId;
     @Column(name = "tags_json", columnDefinition = "json")
@@ -232,6 +236,22 @@ public class Document extends BaseEntity {
 
     public Long getParentFolderId() {
         return parentFolderId;
+    }
+
+    public Long getAcademicYearId() {
+        return academicYearId;
+    }
+
+    public void setAcademicYearId(Long academicYearId) {
+        this.academicYearId = academicYearId;
+    }
+
+    public String getChecksumSha256() {
+        return checksumSha256;
+    }
+
+    public void setChecksumSha256(String checksumSha256) {
+        this.checksumSha256 = checksumSha256;
     }
 
     public void setParentFolderId(Long parentFolderId) {
