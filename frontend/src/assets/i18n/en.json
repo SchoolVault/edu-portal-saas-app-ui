@@ -1734,6 +1734,7 @@
     "pageTitle": "Attendance",
     "pageLead": "Mark and manage daily attendance",
     "scopeBadge": "Your class",
+    "scopeHomeroomClassOnly": "{{class}}",
     "scopeHomeroomLine": "{{class}} · Section {{section}}",
     "scopeLead": "Your homeroom class and section are selected automatically. Change below if you are covering another group.",
     "refresh": "Refresh",

@@ -370,7 +370,7 @@ export class AttendanceComponent implements OnInit {
       return '';
     }
     if (!cls.sections?.length) {
-      return this.translate.instant('attendance.scopeHomeroomLine', { class: cls.name, section: '—' });
+      return this.translate.instant('attendance.scopeHomeroomClassOnly', { class: cls.name });
     }
     const sec = this.homeroomSectionId != null ? cls.sections.find(s => s.id === this.homeroomSectionId) : undefined;
     const sn = sec?.name?.trim() || '—';
