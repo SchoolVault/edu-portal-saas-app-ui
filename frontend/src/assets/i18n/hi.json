@@ -1722,6 +1722,7 @@
     "pageTitle": "उपस्थिति",
     "pageLead": "दैनिक उपस्थिति दर्ज और प्रबंधित करें",
     "scopeBadge": "आपकी कक्षा",
+    "scopeHomeroomClassOnly": "{{class}}",
     "scopeHomeroomLine": "{{class}} · खंड {{section}}",
     "scopeLead": "आपकी होमरूम कक्षा और खंड स्वतः चुने गए हैं। यदि आप किसी अन्य समूह की जगह ले रहे हैं तो नीचे बदलें।",
     "refresh": "रीफ़्रेश",
