@@ -64,7 +64,9 @@ public class ImportBulkRowValidator {
             case TEACHERS -> validateTeacherOrStaffRow(row, false);
             case STAFF -> validateTeacherOrStaffRow(row, true);
             case CLASSES -> validateClassRow(row);
-            case TIMETABLE -> validateTimetableRow(row, resolveStudentPlacement);
+            // Timetable must always resolve class/section on every row (not optional like students):
+            // wrong/missing section would UPSERT the wrong DB key and bypass teacher uniqueness checks until flush.
+            case TIMETABLE -> validateTimetableRow(row, true);
             case FEE_STRUCTURES -> validateFeeStructureRow(row);
             default -> throw new BusinessException("Unsupported job type");
         }
@@ -160,8 +162,8 @@ public class ImportBulkRowValidator {
         if (teacherPhoneRaw != null && InternationalPhone.nationalIndiaMobile10(teacherPhoneRaw) == null) {
             throw new BusinessException(InternationalPhone.importPhoneInvalidMessage());
         }
-        if (blankToNull(value(row, "subjectname")) == null) {
-            throw new BusinessException("subjectname is required");
+        if (blankToNull(value(row, "subjectname")) == null && blankToNull(value(row, "subject_code", "subjectcode")) == null) {
+            throw new BusinessException("subject_name (or legacy subjectname) or subject_code is required");
         }
         String day = blankToNull(value(row, "dayofweek"));
         if (day == null) {

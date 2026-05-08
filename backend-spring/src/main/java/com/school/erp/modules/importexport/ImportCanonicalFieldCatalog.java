@@ -39,7 +39,7 @@ public final class ImportCanonicalFieldCatalog {
             ImportJobType.TIMETABLE, List.of(
                     "academic_year_id", "import_mode",
                     "teacher_ref_type", "teacher_ref",
-                    "class_ref", "section_ref", "subject_code",
+                    "class_ref", "section_ref", "subject_name", "subject_code",
                     "day_of_week", "period_no", "start_time", "end_time", "room_code"),
             ImportJobType.FEE_STRUCTURES, List.of(
                     "name", "class_id", "class_name", "academic_year_id",

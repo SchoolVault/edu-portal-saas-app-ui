@@ -48,7 +48,8 @@ const REQUIRED_IMPORT_FIELDS: Record<string, string[]> = {
   TEACHERS: ['first_name', 'last_name', 'phone'],
   STAFF: ['first_name', 'last_name', 'phone'],
   CLASSES: ['class_name', 'grade'],
-  TIMETABLE: ['teacher_ref', 'class_ref', 'subject_code', 'day_of_week', 'period_no', 'start_time', 'end_time'],
+  // subject: at least one of subject_name / legacy subjectname / subject_code (validated in mappingIncomplete)
+  TIMETABLE: ['teacher_ref', 'class_ref', 'day_of_week', 'period_no', 'start_time', 'end_time'],
   FEE_STRUCTURES: ['name', 'class_name', 'academic_year_id', 'component_spec'],
 };
 
@@ -1646,6 +1647,12 @@ export class ImportExportComponent implements OnInit, OnDestroy {
       const hasBase = mapped.has('name') && mapped.has('academic_year_id') && mapped.has('component_spec');
       const hasClassRef = mapped.has('class_id') || mapped.has('class_name');
       return !(hasBase && hasClassRef);
+    }
+    if (this.jobType === 'TIMETABLE') {
+      const hasSubject =
+        mapped.has('subject_name') || mapped.has('subjectname') || mapped.has('subject_code');
+      const req = REQUIRED_IMPORT_FIELDS[this.jobType] ?? [];
+      return !hasSubject || req.some(f => !mapped.has(f));
     }
     const req = REQUIRED_IMPORT_FIELDS[this.jobType] ?? [];
     return req.some(f => !mapped.has(f));

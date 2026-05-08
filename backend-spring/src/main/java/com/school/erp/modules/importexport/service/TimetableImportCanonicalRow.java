@@ -22,7 +22,16 @@ public final class TimetableImportCanonicalRow {
         mergeInto(row, "starttime", "start_time", "starttime");
         mergeInto(row, "endtime", "end_time", "endtime");
         mergeInto(row, "room", "room_code", "room");
-        mergeInto(row, "subjectname", "subject_code", "subject_name", "subjectname");
+        // Display/timetable subject label: do not collapse subject_code into subjectname — code is normalized separately for catalog lookups.
+        mergeInto(row, "subjectname", "subject_name", "subjectname");
+        mergeInto(row, "subject_code", "subject_code", "subjectcode");
+        // ERP timetable template often supplies only subject_code (may hold display name or mnemonic); mirror for legacy rows/validators.
+        if (pickFirstNonBlank(row, "subjectname") == null) {
+            String subjectFromCode = pickFirstNonBlank(row, "subject_code", "subjectcode");
+            if (subjectFromCode != null) {
+                row.put("subjectname", subjectFromCode);
+            }
+        }
         mergeInto(row, "classid", "class_id", "classid");
         mergeInto(row, "sectionid", "section_id", "sectionid");
         mergeInto(row, "classname", "class_ref", "class_name", "classname");

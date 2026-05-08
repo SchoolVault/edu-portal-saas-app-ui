@@ -785,6 +785,9 @@ public class ImportRowExecutor {
             throw new BusinessException("starttime must be earlier than endtime");
         }
 
+        String subjectDisplayInput = blankToNull(value(row, "subjectname"));
+        String subjectCodeInput = blankToNull(value(row, "subject_code", "subjectcode"));
+        String canonicalSubjectName = academicService.ensureSubjectCatalogFromTimetableImport(subjectDisplayInput, subjectCodeInput);
         TimetableEntry upsert = TimetableEntry.builder()
                 .classId(placement.classId())
                 .sectionId(placement.sectionId())
@@ -792,7 +795,7 @@ public class ImportRowExecutor {
                 .period(period)
                 .startTime(startTime)
                 .endTime(endTime)
-                .subjectName(required(row, "subjectname"))
+                .subjectName(canonicalSubjectName)
                 .teacherId(teacher.getId())
                 .teacherName((teacher.getFirstName() + " " + teacher.getLastName()).trim())
                 .room(blankToNull(row.get("room")))
@@ -802,7 +805,13 @@ public class ImportRowExecutor {
 
         final boolean[] wasUpdate = {false};
         var existingOpt = timetableRepository
-                .findFirstByTenantAndClassSectionDayPeriod(tenantId, placement.classId(), placement.sectionId(), day, period);
+                .findFirstByTenantAndClassSectionDayPeriodAndAcademicYear(
+                        tenantId,
+                        placement.classId(),
+                        placement.sectionId(),
+                        day,
+                        period,
+                        academicYearId);
         TimetableEntry saved;
         if (existingOpt.isPresent()) {
             TimetableEntry existing = existingOpt.get();

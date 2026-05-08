@@ -29,6 +29,20 @@ public interface TimetableRepository extends JpaRepository<TimetableEntry, Long>
             @Param("day") Enums.DayOfWeek day,
             @Param("period") Integer period);
 
+    @Query("SELECT e FROM TimetableEntry e WHERE e.tenantId = :tenantId AND e.classId = :classId AND e.isDeleted = false "
+            + "AND ((:sectionId IS NULL AND e.sectionId IS NULL) OR (:sectionId IS NOT NULL AND e.sectionId = :sectionId)) "
+            + "AND e.day = :day AND e.period = :period "
+            + "AND ((:academicYearId IS NULL AND e.academicYearId IS NULL) OR "
+            + "(:academicYearId IS NOT NULL AND e.academicYearId = :academicYearId)) "
+            + "ORDER BY e.id ASC")
+    Optional<TimetableEntry> findFirstByTenantAndClassSectionDayPeriodAndAcademicYear(
+            @Param("tenantId") String tenantId,
+            @Param("classId") Long classId,
+            @Param("sectionId") Long sectionId,
+            @Param("day") Enums.DayOfWeek day,
+            @Param("period") Integer period,
+            @Param("academicYearId") Long academicYearId);
+
     Optional<TimetableEntry> findByIdAndTenantIdAndIsDeletedFalse(Long id, String tenantId);
 
     @Query("SELECT e FROM TimetableEntry e WHERE e.tenantId = :tenantId AND e.isDeleted = false "
