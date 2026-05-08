@@ -12,6 +12,8 @@ import com.lowagie.text.pdf.PdfWriter;
 import com.school.erp.modules.fees.dto.FeeDTOs;
 import java.io.ByteArrayOutputStream;
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -38,8 +40,11 @@ public class FeeReceiptPdfService {
             PdfWriter.getInstance(doc, out);
             doc.open();
 
-            doc.add(new Paragraph("School fee receipt", titleFont));
-            doc.add(new Paragraph("Official record of fee credited to the student ledger.", smallFont));
+            Paragraph title = new Paragraph("School fee receipt", titleFont);
+            title.setAlignment(Element.ALIGN_CENTER);
+            doc.add(title);
+            doc.add(new Paragraph("Simple fee payment summary for school and parent records.", smallFont));
+            doc.add(new Paragraph("Generated on: " + LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd MMM yyyy, hh:mm a")), smallFont));
             doc.add(new Paragraph(" "));
 
             PdfPTable schoolBlock = new PdfPTable(1);
@@ -78,8 +83,8 @@ public class FeeReceiptPdfService {
             meta.addCell(cell(safe(r.getClassName()), bodyFont, false));
             meta.addCell(cell("Fee plan", headFont, true));
             meta.addCell(cell(safe(r.getFeeStructureName()), bodyFont, false));
-            meta.addCell(cell("Ledger status", headFont, true));
-            meta.addCell(cell(ledgerStatus(r), bodyFont, false));
+            meta.addCell(cell("Payment status", headFont, true));
+            meta.addCell(cell(paymentStatusLabel(r), bodyFont, false));
             meta.addCell(cell("Payment date", headFont, true));
             meta.addCell(cell(safe(r.getPaymentDate()), bodyFont, false));
             if (r.getDueDate() != null && !r.getDueDate().isBlank()) {
@@ -115,6 +120,28 @@ public class FeeReceiptPdfService {
             doc.add(lines);
             doc.add(new Paragraph(" "));
 
+            PdfPTable entries = new PdfPTable(5);
+            entries.setWidthPercentage(100);
+            entries.setWidths(new float[] {1.6f, 1.2f, 1f, 1f, 1f});
+            entries.addCell(cell("Date & time", headFont, true));
+            entries.addCell(cell("Update", headFont, true));
+            entries.addCell(cell("Amount", headFont, true));
+            entries.addCell(cell("Paid till now", headFont, true));
+            entries.addCell(cell("Remaining due", headFont, true));
+            if (r.getEntries() == null || r.getEntries().isEmpty()) {
+                entries.addCell(cell("No payment updates available.", bodyFont, false, 5));
+            } else {
+                for (FeeDTOs.PaymentReceiptResponse.PaymentReceiptEntry entry : r.getEntries()) {
+                    entries.addCell(cell(safe(entry.getOccurredAt()), bodyFont, false));
+                    entries.addCell(cell(safe(entry.getLabel()), bodyFont, false));
+                    entries.addCell(cell(money(entry.getAmount()), bodyFont, false));
+                    entries.addCell(cell(money(entry.getRunningPaidAmount()), bodyFont, false));
+                    entries.addCell(cell(money(entry.getRunningDueAmount()), bodyFont, false));
+                }
+            }
+            doc.add(entries);
+            doc.add(new Paragraph(" "));
+
             PdfPTable totals = new PdfPTable(2);
             totals.setWidthPercentage(62);
             totals.setHorizontalAlignment(Element.ALIGN_LEFT);
@@ -124,17 +151,17 @@ public class FeeReceiptPdfService {
             totals.addCell(cell(money(r.getDiscount()), bodyFont, false));
             totals.addCell(cell("Late fee", headFont, true));
             totals.addCell(cell(money(r.getLateFee()), bodyFont, false));
-            totals.addCell(cell("Amount credited (this receipt)", headFont, true));
+            totals.addCell(cell("Amount paid in this receipt", headFont, true));
             totals.addCell(cell(money(r.getAmountPaid()), headFont, false));
             totals.addCell(cell("Paid to date", headFont, true));
             totals.addCell(cell(money(r.getPaidAmount()), bodyFont, false));
-            totals.addCell(cell("Outstanding", headFont, true));
+            totals.addCell(cell("Amount still due", headFont, true));
             totals.addCell(cell(money(r.getDueAmount()), headFont, false));
             doc.add(totals);
 
             doc.add(new Paragraph(" "));
             doc.add(new Paragraph(
-                    "This receipt reflects the school fee ledger as of the payment date above. For queries, contact school finance.",
+                    "This receipt shows all payments made so far and the remaining due amount as of the date above. For help, contact the school fees desk.",
                     smallFont));
 
             doc.close();
@@ -147,16 +174,16 @@ public class FeeReceiptPdfService {
         }
     }
 
-    private static String ledgerStatus(FeeDTOs.PaymentReceiptResponse r) {
+    private static String paymentStatusLabel(FeeDTOs.PaymentReceiptResponse r) {
         BigDecimal due = r.getDueAmount();
         if (due == null || due.compareTo(BigDecimal.ZERO) <= 0) {
             return "Paid in full";
         }
         BigDecimal paid = r.getPaidAmount();
         if (paid != null && paid.compareTo(BigDecimal.ZERO) > 0) {
-            return "Partially paid — outstanding balance remains";
+            return "Partially paid";
         }
-        return "Posted";
+        return "Payment pending";
     }
 
     private static PdfPCell cell(String text, Font font, boolean header) {

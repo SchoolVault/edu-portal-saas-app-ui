@@ -456,6 +456,11 @@ export class ParentService {
   private normalizeReceipt(item: any): PaymentReceipt {
     return {
       receiptNumber: item.receiptNumber,
+      schoolName: item.schoolName,
+      schoolCode: item.schoolCode,
+      schoolAddress: item.schoolAddress,
+      schoolPhone: item.schoolPhone,
+      schoolEmail: item.schoolEmail,
       paymentId: Number(item.paymentId),
       studentId: Number(item.studentId),
       studentName: item.studentName,

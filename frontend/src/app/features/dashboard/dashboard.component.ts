@@ -189,10 +189,105 @@ interface DashboardChartPalette {
       .dashboard-table-wrap .erp-table {
         min-width: 620px;
       }
+      .attendance-overview-header {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        align-items: stretch !important;
+      }
+      .attendance-overview-header__top {
+        display: flex;
+        flex-wrap: nowrap;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 12px;
+        min-width: 0;
+        width: 100%;
+      }
+      .attendance-overview-header__left {
+        flex: 1 1 auto;
+        min-width: 0;
+        display: flex;
+        align-items: flex-start;
+      }
+      .attendance-overview-header__left .erp-card-title {
+        margin: 0;
+        line-height: 1.2;
+        white-space: nowrap;
+      }
+      .attendance-overview-header__month {
+        flex: 0 0 156px;
+        width: 156px;
+        min-width: 156px;
+        margin-left: auto;
+        align-self: flex-start;
+      }
+      .attendance-overview-header__month app-erp-month-picker {
+        display: block;
+      }
+      .attendance-overview-header__slices {
+        width: 100%;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        align-items: center;
+        justify-content: flex-start;
+        padding-top: 2px;
+      }
+      .attendance-overview-slice-toggle {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        margin: 0;
+        cursor: pointer;
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--clr-text-muted);
+        line-height: 1;
+      }
+      .attendance-overview-slice-toggle input {
+        margin: 0;
+      }
+      .attendance-overview-ring-shell {
+        padding: 8px 6px 2px;
+      }
+      .attendance-overview-legend {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 16px;
+        flex-wrap: wrap;
+        font-size: 13px;
+        color: var(--clr-text-muted);
+      }
+      .attendance-overview-legend__swatch {
+        width: 30px;
+        height: 8px;
+        border-radius: 999px;
+      }
       @media (max-width: 992px) {
         .chart-container {
           min-height: 220px;
           height: auto !important;
+        }
+        .attendance-overview-header__top {
+          flex-direction: column;
+          align-items: stretch;
+        }
+        .attendance-overview-header__month {
+          flex: 1 1 auto;
+          width: 100%;
+          min-width: 0;
+          justify-self: stretch;
+          margin-left: 0;
+        }
+        .attendance-overview-header__left {
+          max-width: 100%;
+        }
+        .attendance-overview-header__left .erp-card-title {
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
         }
       }
       @media (max-width: 576px) {
@@ -211,6 +306,13 @@ interface DashboardChartPalette {
         }
         .dashboard-table-wrap .erp-table {
           min-width: 560px;
+        }
+        .attendance-overview-header__month {
+          width: 100%;
+          justify-self: stretch;
+        }
+        .attendance-overview-header__slices {
+          justify-content: flex-start;
         }
       }
     `,
@@ -262,32 +364,63 @@ interface DashboardChartPalette {
           </div>
           <div class="col-lg-4">
             <div class="erp-card" style="height: 100%;">
-              <div class="erp-card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
-                <div>
-                  <h3 class="erp-card-title mb-0">{{ 'dashboard.admin.attendanceOverview' | translate }}</h3>
-
+              <div class="erp-card-header attendance-overview-header">
+                <div class="attendance-overview-header__top">
+                  <div class="attendance-overview-header__left">
+                    <h3 class="erp-card-title mb-0">{{ 'dashboard.admin.attendanceOverview' | translate }}</h3>
+                  </div>
+                  <div class="attendance-overview-header__month">
+                    <app-erp-month-picker
+                      inputId="admin-attendance-month"
+                      dataTestId="admin-attendance-month"
+                      [(ngModel)]="adminAttendanceMonth"
+                      (ngModelChange)="onAdminAttendanceMonthChange()"
+                      placeholderI18nKey="dashboard.admin.attendanceMonthPh"
+                      [maxYm]="adminAttendanceMonthMaxYm"
+                      yearNavMode="plain"
+                    />
+                  </div>
                 </div>
-                <div class="d-flex flex-wrap gap-2 small">
-                  <label class="d-flex align-items-center gap-1 mb-0" style="cursor: pointer;" [attr.title]="'dashboard.admin.slicePresent' | translate">
+                <div class="attendance-overview-header__slices">
+                  <label class="attendance-overview-slice-toggle" [attr.title]="'dashboard.admin.slicePresent' | translate">
                     <input type="checkbox" [(ngModel)]="attSlicePresent" (change)="updateAttendanceChart()" />
                     P
                   </label>
-                  <label class="d-flex align-items-center gap-1 mb-0" style="cursor: pointer;" [attr.title]="'dashboard.admin.sliceAbsent' | translate">
+                  <label class="attendance-overview-slice-toggle" [attr.title]="'dashboard.admin.sliceAbsent' | translate">
                     <input type="checkbox" [(ngModel)]="attSliceAbsent" (change)="updateAttendanceChart()" />
                     A
                   </label>
-                  <label class="d-flex align-items-center gap-1 mb-0" style="cursor: pointer;" [attr.title]="'dashboard.admin.sliceLate' | translate">
+                  <label class="attendance-overview-slice-toggle" [attr.title]="'dashboard.admin.sliceLate' | translate">
                     <input type="checkbox" [(ngModel)]="attSliceLate" (change)="updateAttendanceChart()" />
                     L
                   </label>
-                  <label class="d-flex align-items-center gap-1 mb-0" style="cursor: pointer;" [attr.title]="'dashboard.admin.sliceExcused' | translate">
+                  <label class="attendance-overview-slice-toggle" [attr.title]="'dashboard.admin.sliceExcused' | translate">
                     <input type="checkbox" [(ngModel)]="attSliceExcused" (change)="updateAttendanceChart()" />
                     E
                   </label>
                 </div>
               </div>
-              <div class="chart-container" style="height: 220px;"><canvas #attendanceChart></canvas></div>
-              <p class="text-muted mb-0 small mt-1" style="display: flex; justify-content: center; padding-top: 30px; font-weight: 600;" >{{ 'dashboard.admin.attendanceMonthlyLead' | translate }}</p>
+              <div class="attendance-overview-ring-shell">
+                <div class="attendance-overview-legend">
+                  <span class="d-inline-flex align-items-center gap-2">
+                    <span class="attendance-overview-legend__swatch" [style.background]="chartPalette.present"></span>
+                    {{ 'dashboard.chart.present' | translate }}
+                  </span>
+                  <span class="d-inline-flex align-items-center gap-2">
+                    <span class="attendance-overview-legend__swatch" [style.background]="chartPalette.absent"></span>
+                    {{ 'dashboard.chart.absent' | translate }}
+                  </span>
+                  <span class="d-inline-flex align-items-center gap-2">
+                    <span class="attendance-overview-legend__swatch" [style.background]="chartPalette.late"></span>
+                    {{ 'dashboard.chart.late' | translate }}
+                  </span>
+                  <span class="d-inline-flex align-items-center gap-2">
+                    <span class="attendance-overview-legend__swatch" [style.background]="chartPalette.excused"></span>
+                    {{ 'dashboard.chart.excused' | translate }}
+                  </span>
+                </div>
+                <div class="chart-container" style="height: 220px;"><canvas #attendanceChart></canvas></div>
+              </div>
             </div>
           </div>
         </div>
@@ -711,6 +844,7 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
   attSliceAbsent = true;
   attSliceLate = true;
   attSliceExcused = true;
+  adminAttendanceMonth = new Date().toISOString().slice(0, 7);
   private combinedTrendChart?: Chart;
   private attendanceChart?: Chart;
   private admissionsTrendChart?: Chart;
@@ -743,6 +877,10 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
   adminUpcomingTotal = 0;
   /** Max selectable month for homeroom picker (current calendar month). */
   get teacherHomeroomMaxYm(): string {
+    return new Date().toISOString().slice(0, 7);
+  }
+
+  get adminAttendanceMonthMaxYm(): string {
     return new Date().toISOString().slice(0, 7);
   }
 
@@ -898,9 +1036,10 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
     };
     const runRefresh = () => {
       if (this.showAdminAnalyticsHome) {
-        this.dashboardService.getAdminDashboard().subscribe({
+        this.dashboardService.getAdminDashboard(undefined, this.adminAttendanceMonth).subscribe({
           next: dashboard => {
             this.adminDashboard = dashboard;
+            this.adminAttendanceMonth = dashboard.attendanceOverviewMonth ?? this.adminAttendanceMonth;
             this.adminKPIs = this.buildAdminKpis(dashboard);
             this.admissionInsights = this.buildAdmissionInsights(dashboard);
             this.loadAdminDashboardFeeds(false);
@@ -957,9 +1096,10 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
   private loadDashboard(): void {
     this.loading = true;
     if (this.showAdminAnalyticsHome) {
-      this.dashboardService.getAdminDashboard().subscribe({
+      this.dashboardService.getAdminDashboard(undefined, this.adminAttendanceMonth).subscribe({
         next: dashboard => {
           this.adminDashboard = dashboard;
+          this.adminAttendanceMonth = dashboard.attendanceOverviewMonth ?? this.adminAttendanceMonth;
           this.adminKPIs = this.buildAdminKpis(dashboard);
           this.admissionInsights = this.buildAdmissionInsights(dashboard);
           this.loadAdminDashboardFeeds(true);
@@ -1154,6 +1294,9 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
   private buildAdminKpis(dashboard: AdminDashboardData): DashboardAdminKpi[] {
     const attendanceSubKey = 'dashboard.admin.kpi.attendanceLoggedSubToday';
     const attendanceKpiCount = Number(dashboard.attendanceToday?.total ?? 0);
+    const monthlyCollected = Number(dashboard.feesCollectedMonthly ?? dashboard.feesCollected ?? 0);
+    const monthlyRate = Number(dashboard.collectionRateMonthly ?? dashboard.collectionRate ?? 0);
+    const yearlyCollected = Number(dashboard.feesCollectedYearly ?? dashboard.feesCollected ?? 0);
     return [
       {
         labelKey: 'dashboard.admin.kpi.totalStudents',
@@ -1172,13 +1315,13 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
         subtextKey: 'dashboard.admin.kpi.totalStaffSub',
       },
       {
-        labelKey: 'dashboard.admin.kpi.feesCollected',
-        value: this.asCurrency(dashboard.feesCollected),
+        labelKey: 'dashboard.admin.kpi.feesCollectedMonthly',
+        value: this.asCurrency(monthlyCollected),
         icon: 'bi-credit-card-fill',
         bgColor: 'rgba(5,150,105,0.1)',
         color: '#059669',
-        subtextKey: 'dashboard.admin.kpi.feesCollectedSub',
-        subtextParams: { rate: dashboard.collectionRate },
+        subtextKey: 'dashboard.admin.kpi.feesCollectedMonthlySub',
+        subtextParams: { rate: monthlyRate, ytd: this.asCurrency(yearlyCollected) },
       },
       {
         labelKey: 'dashboard.admin.kpi.attendanceLogged',
@@ -1410,6 +1553,27 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
     this.applyAttendanceVisibility();
   }
 
+  onAdminAttendanceMonthChange(): void {
+    if (this.loading || this.refreshing || !this.showAdminAnalyticsHome) {
+      return;
+    }
+    this.refreshing = true;
+    this.dashboardService.getAdminDashboard(undefined, this.adminAttendanceMonth).subscribe({
+      next: dashboard => {
+        this.adminDashboard = dashboard;
+        this.adminAttendanceMonth = dashboard.attendanceOverviewMonth ?? this.adminAttendanceMonth;
+        this.adminKPIs = this.buildAdminKpis(dashboard);
+        this.admissionInsights = this.buildAdmissionInsights(dashboard);
+        this.refreshing = false;
+        this.cdr.detectChanges();
+        this.initAdminCharts();
+      },
+      error: () => {
+        this.refreshing = false;
+      },
+    });
+  }
+
   private applyAttendanceVisibility(): void {
     if (!this.attendanceChart) return;
     const flags = [this.attSlicePresent, this.attSliceAbsent, this.attSliceLate, this.attSliceExcused];
@@ -1541,7 +1705,7 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
         maintainAspectRatio: false,
         cutout: '70%',
         plugins: {
-          legend: { labels: { color: p.text }, onClick: () => void 0 },
+          legend: { display: false },
           tooltip: { backgroundColor: p.tooltipBg, titleColor: p.tooltipText, bodyColor: p.tooltipText },
         }
       }

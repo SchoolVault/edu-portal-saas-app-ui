@@ -77,12 +77,15 @@ public class WarehouseReportQueryAdapter implements ReportQueryPort {
     }
 
     @Override
-    public ReportDashboardDTOs.AdminDashboardResponse getAdminDashboard(AdminAttendanceOverviewScope attendanceOverviewScope) {
+    public ReportDashboardDTOs.AdminDashboardResponse getAdminDashboard(
+            AdminAttendanceOverviewScope attendanceOverviewScope,
+            String attendanceOverviewMonth) {
         String tenantId = TenantContext.getTenantId();
         AdminAttendanceOverviewScope scope =
                 attendanceOverviewScope != null ? attendanceOverviewScope : AdminAttendanceOverviewScope.MONTH_TO_DATE;
         try {
-            ReportDashboardDTOs.AdminDashboardResponse out = oltp.getAdminDashboard(scope);
+            String monthToken = normalizeMonth(attendanceOverviewMonth);
+            ReportDashboardDTOs.AdminDashboardResponse out = oltp.getAdminDashboard(scope, monthToken);
             warehouseJdbc.query("""
                             SELECT total_students, total_teachers, fees_collected, fees_pending
                             FROM wh_dashboard_daily_metrics
@@ -106,7 +109,7 @@ public class WarehouseReportQueryAdapter implements ReportQueryPort {
             return out;
         } catch (Exception ex) {
             log.warn("Warehouse admin dashboard read failed; fallback to OLTP tenantId={}", tenantId, ex);
-            return oltp.getAdminDashboard(scope);
+            return oltp.getAdminDashboard(scope, normalizeMonth(attendanceOverviewMonth));
         }
     }
 

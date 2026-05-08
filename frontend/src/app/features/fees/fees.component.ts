@@ -12,6 +12,7 @@ import { filter } from 'rxjs/operators';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { SchoolClassNamePipe } from '../../core/i18n/school-class-name.pipe';
 import { ErpPaginationComponent } from '../../shared/erp-pagination/erp-pagination.component';
+import { ErpMonthPickerComponent } from '../../shared/erp-month-picker/erp-month-picker.component';
 import { DEFAULT_ERP_PAGE_SIZE } from '../../core/constants/pagination.constants';
 import { formatSchoolClassName } from '../../core/i18n/school-class-display';
 import {
@@ -38,7 +39,7 @@ import { formatDateDdMmYyyy } from '../../core/utils/date-format';
 @Component({
   selector: 'app-fees',
   standalone: true,
-  imports: [CommonModule, FormsModule, TranslateModule, SchoolClassNamePipe, ErpPaginationComponent, ErpI18nPhDirective],
+  imports: [CommonModule, FormsModule, TranslateModule, SchoolClassNamePipe, ErpPaginationComponent, ErpMonthPickerComponent, ErpI18nPhDirective],
   styles: [`
     .fees-page {
       width: 100%;
@@ -744,6 +745,18 @@ import { formatDateDdMmYyyy } from '../../core/utils/date-format';
                 </select>
               </div>
               <div class="fees-toolbar-group">
+                <label class="erp-label d-block mb-1">{{ 'fees.labelMonth' | translate }}</label>
+                <app-erp-month-picker
+                  inputId="fees-payment-month"
+                  dataTestId="fees-payment-month"
+                  [(ngModel)]="paymentMonth"
+                  (ngModelChange)="onPaymentMonthChange()"
+                  placeholderI18nKey="fees.monthPlaceholder"
+                  [maxYm]="paymentMonthMaxYm"
+                  yearNavMode="plain"
+                />
+              </div>
+              <div class="fees-toolbar-group">
                 <label class="erp-label d-block mb-1">{{ 'fees.sortBy' | translate }}</label>
                 <select class="erp-select w-100" [(ngModel)]="sortBy" (ngModelChange)="applyClientView()">
                   <option value="dueDateAsc">{{ 'fees.sortDueDateAsc' | translate }}</option>
@@ -753,7 +766,6 @@ import { formatDateDdMmYyyy } from '../../core/utils/date-format';
                 </select>
               </div>
               <div class="fees-toolbar-actions">
-                <button type="button" class="btn-outline-erp btn-sm" (click)="loadPaymentsPage()"><i class="bi bi-arrow-clockwise"></i> {{ 'fees.refresh' | translate }}</button>
                 <button type="button" class="btn-outline-erp btn-sm" (click)="exportPaymentsCsv()"><i class="bi bi-download"></i> {{ 'fees.exportPayments' | translate }}</button>
               </div>
             </div>
@@ -1071,6 +1083,14 @@ import { formatDateDdMmYyyy } from '../../core/utils/date-format';
         </div>
         <div class="modal-footer-erp">
           <button *ngIf="ledgerRows.length" type="button" class="btn-outline-erp" (click)="exportStudentLedgerCsv()">{{ 'fees.exportLedger' | translate }}</button>
+          <button
+            *ngIf="selectedLedgerPayment?.receiptNumber && (selectedLedgerPayment?.paidAmount || 0) > 0"
+            type="button"
+            class="btn-outline-erp"
+            (click)="downloadPaymentReceipt(selectedLedgerPayment!)"
+          >
+            {{ 'fees.downloadReceipt' | translate }}
+          </button>
           <button type="button" class="btn-outline-erp" (click)="closeStudentLedgerModal()">{{ 'fees.close' | translate }}</button>
         </div>
       </div>
@@ -1124,6 +1144,7 @@ export class FeesComponent implements OnInit {
   sortBy: 'dueDateAsc' | 'dueDateDesc' | 'dueAmountDesc' | 'studentAsc' = 'dueDateAsc';
   classFilterId: number | null = null;
   sectionFilterId: number | null = null;
+  paymentMonth = new Date().toISOString().slice(0, 7);
   classes: SchoolClass[] = [];
   academicYears: AcademicYear[] = [];
   /** Fee collection, refunds, structures, reminders — mirrors fees read/write atoms + tenant/platform operators. */
@@ -1187,6 +1208,9 @@ export class FeesComponent implements OnInit {
   componentTypeIds = ['tuition', 'transport', 'hostel', 'uniform', 'library', 'lab', 'sports', 'misc'] as const;
 
   private readonly destroyRef = inject(DestroyRef);
+  get paymentMonthMaxYm(): string {
+    return new Date().toISOString().slice(0, 7);
+  }
 
   formatDate(raw: string | null | undefined): string {
     return formatDateDdMmYyyy(raw);
@@ -1400,14 +1424,17 @@ export class FeesComponent implements OnInit {
 
   loadPaymentsPage(): void {
     this.paymentsLoading = true;
+    const classId = this.normalizedFilterId(this.classFilterId);
+    const sectionId = this.normalizedFilterId(this.sectionFilterId);
     this.feeService
       .getPaymentsPage({
         page: this.paymentPageIndex,
         size: this.paymentPageSize,
         status: this.statusFilter || undefined,
         q: this.paymentSearch || undefined,
-        classId: this.classFilterId ?? undefined,
-        sectionId: this.sectionFilterId ?? undefined,
+        classId: classId ?? undefined,
+        sectionId: sectionId ?? undefined,
+        month: this.paymentMonth,
       })
       .subscribe({
         next: pr => {
@@ -1446,7 +1473,13 @@ export class FeesComponent implements OnInit {
   }
 
   loadCollectionSummary(): void {
-    this.feeService.getCollectionSummary().subscribe({
+    const classId = this.normalizedFilterId(this.classFilterId);
+    const sectionId = this.normalizedFilterId(this.sectionFilterId);
+    this.feeService.getCollectionSummary({
+      classId: classId ?? undefined,
+      sectionId: sectionId ?? undefined,
+      month: this.paymentMonth,
+    }).subscribe({
       next: s => (this.collectionSummary = s),
       error: () => (this.collectionSummary = null),
     });
@@ -1474,6 +1507,8 @@ export class FeesComponent implements OnInit {
   }
 
   onPaymentClassFilterChange(): void {
+    this.classFilterId = this.normalizedFilterId(this.classFilterId);
+    this.sectionFilterId = this.normalizedFilterId(this.sectionFilterId);
     const classExists = this.paymentFilterClasses.some(c => c.id === this.classFilterId);
     if (!classExists) {
       this.classFilterId = null;
@@ -1489,6 +1524,12 @@ export class FeesComponent implements OnInit {
   }
 
   onPaymentSectionFilterChange(): void {
+    this.sectionFilterId = this.normalizedFilterId(this.sectionFilterId);
+    this.paymentPageIndex = 0;
+    this.loadPaymentsPage();
+  }
+
+  onPaymentMonthChange(): void {
     this.paymentPageIndex = 0;
     this.loadPaymentsPage();
   }
@@ -1503,6 +1544,13 @@ export class FeesComponent implements OnInit {
     }
     const selectedClass = this.classes.find(c => c.id === this.classFilterId);
     return [...(selectedClass?.sections ?? [])].sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+  }
+
+  get selectedLedgerPayment(): FeePayment | null {
+    if (this.ledgerSelectedPaymentId == null) {
+      return this.ledgerRows[0] ?? null;
+    }
+    return this.ledgerRows.find(row => row.id === this.ledgerSelectedPaymentId) ?? null;
   }
 
   onPaymentPageSizeChange(size: number): void {
@@ -1741,7 +1789,8 @@ export class FeesComponent implements OnInit {
       next: rows => {
         this.ledgerRows = rows || [];
         if (this.ledgerRows.length) {
-          this.selectLedgerRow(this.ledgerRows[0]);
+          const clickedRow = this.ledgerRows.find(row => row.id === payment.id);
+          this.selectLedgerRow(clickedRow || this.ledgerRows[0]);
         }
         this.ledgerLoading = false;
       },
@@ -1778,6 +1827,34 @@ export class FeesComponent implements OnInit {
       this.feeCsvMeta('fees.csvDocumentTitle.paymentRecords'),
       table
     );
+  }
+
+  downloadPaymentReceipt(payment: FeePayment): void {
+    const receiptNumber = payment.receiptNumber?.trim();
+    if (!receiptNumber) {
+      return;
+    }
+    this.feeService.getSchoolReceiptPdf(receiptNumber).subscribe({
+      next: blob => {
+        const url = URL.createObjectURL(blob);
+        const anchor = document.createElement('a');
+        anchor.href = url;
+        anchor.download = `${receiptNumber}.pdf`;
+        anchor.click();
+        URL.revokeObjectURL(url);
+      },
+      error: () => {
+        this.setReminderMessage(this.translate.instant('fees.receiptDownloadFailed'), false);
+      },
+    });
+  }
+
+  private normalizedFilterId(value: number | null): number | null {
+    if (value == null) {
+      return null;
+    }
+    const next = Number(value);
+    return Number.isFinite(next) ? next : null;
   }
 
   exportStudentLedgerCsv(): void {

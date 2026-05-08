@@ -22,16 +22,18 @@ import {
 export class DashboardService {
   constructor(private api: ApiService, private parentService: ParentService) {}
 
-  getAdminDashboard(attendanceOverviewScope?: string | null): Observable<AdminDashboardData> {
+  getAdminDashboard(attendanceOverviewScope?: string | null, attendanceOverviewMonth?: string | null): Observable<AdminDashboardData> {
     if (runtimeConfig.useMocks) {
       return of({
         ...MOCK_ADMIN_DASHBOARD,
         dataComputedAt: new Date().toISOString(),
         attendanceOverviewScope: attendanceOverviewScope ?? 'MONTH_TO_DATE',
+        attendanceOverviewMonth: attendanceOverviewMonth ?? new Date().toISOString().slice(0, 7),
       }).pipe();
     }
     return this.api.getParams<AdminDashboardData>('/reports/dashboard/admin', {
       attendanceOverviewScope: attendanceOverviewScope?.trim() || undefined,
+      attendanceOverviewMonth: attendanceOverviewMonth?.trim() || undefined,
     });
   }
 

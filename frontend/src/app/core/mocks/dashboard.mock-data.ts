@@ -272,6 +272,12 @@ export const MOCK_ADMIN_DASHBOARD: AdminDashboardData = (() => {
     feesCollected: 284000,
     feesPending: 46300,
     collectionRate: 86,
+    feesCollectedMonthly: 47000,
+    feesPendingMonthly: 8200,
+    collectionRateMonthly: 85,
+    feesCollectedYearly: 284000,
+    feesPendingYearly: 46300,
+    collectionRateYearly: 86,
     monthlyAdmissions: [
       { label: 'Sep', value: 42 },
       { label: 'Oct', value: 35 },

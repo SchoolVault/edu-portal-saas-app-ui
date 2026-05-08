@@ -105,25 +105,64 @@ public class OltpReportQueryAdapter implements ReportQueryPort {
     }
 
     @Transactional(readOnly = true)
-    public ReportDashboardDTOs.AdminDashboardResponse getAdminDashboard(AdminAttendanceOverviewScope attendanceOverviewScope) {
+    public ReportDashboardDTOs.AdminDashboardResponse getAdminDashboard(
+            AdminAttendanceOverviewScope attendanceOverviewScope,
+            String attendanceOverviewMonth) {
         String tenantId = TenantContext.getTenantId();
         AdminAttendanceOverviewScope scope =
                 attendanceOverviewScope != null ? attendanceOverviewScope : AdminAttendanceOverviewScope.MONTH_TO_DATE;
+        YearMonth selectedMonth = normalizeMonth(attendanceOverviewMonth);
         log.debug("Building admin dashboard tenantId={} attendanceScope={}", tenantId, scope);
         LocalDate today = LocalDate.now();
+        LocalDate monthStart = today.withDayOfMonth(1);
+        LocalDate selectedMonthStart = selectedMonth.atDay(1);
+        LocalDate selectedMonthEnd = selectedMonth.atEndOfMonth();
+        LocalDate selectedMonthEffectiveEnd = selectedMonthEnd.isAfter(today) ? today : selectedMonthEnd;
+        LocalDate yearStart = today.withDayOfYear(1);
         var payments = feePaymentRepo.findByTenantIdAndIsDeletedFalse(tenantId);
 
         ReportDashboardDTOs.AdminDashboardResponse response = new ReportDashboardDTOs.AdminDashboardResponse();
         response.setAttendanceOverviewScope(scope.name());
+        response.setAttendanceOverviewMonth(selectedMonth.toString());
         response.setTotalStudents(studentRepo.countByTenantIdAndIsDeletedFalse(tenantId));
         response.setTotalTeachers(teacherRepo.countByTenantIdAndIsDeletedFalse(tenantId));
         response.setFeesCollected(payments.stream().mapToDouble(p -> p.getPaidAmount() != null ? p.getPaidAmount().doubleValue() : 0).sum());
         response.setFeesPending(payments.stream().mapToDouble(p -> p.getDueAmount() != null ? p.getDueAmount().doubleValue() : 0).sum());
         response.setCollectionRate(response.getFeesCollected() + response.getFeesPending() > 0 ? Math.round((response.getFeesCollected() / (response.getFeesCollected() + response.getFeesPending())) * 100) : 0);
+        double monthCollected = 0d;
+        double monthPending = 0d;
+        double yearCollected = 0d;
+        double yearPending = 0d;
+        for (FeePayment payment : payments) {
+            LocalDate referenceDate = payment.getPaymentDate() != null
+                    ? payment.getPaymentDate()
+                    : (payment.getCreatedAt() != null ? payment.getCreatedAt().toLocalDate() : null);
+            if (referenceDate == null) {
+                continue;
+            }
+            double paid = payment.getPaidAmount() != null ? payment.getPaidAmount().doubleValue() : 0d;
+            double due = payment.getDueAmount() != null ? payment.getDueAmount().doubleValue() : 0d;
+            if (!referenceDate.isBefore(monthStart) && !referenceDate.isAfter(today)) {
+                monthCollected += paid;
+                monthPending += due;
+            }
+            if (!referenceDate.isBefore(yearStart) && !referenceDate.isAfter(today)) {
+                yearCollected += paid;
+                yearPending += due;
+            }
+        }
+        response.setFeesCollectedMonthly(monthCollected);
+        response.setFeesPendingMonthly(monthPending);
+        response.setCollectionRateMonthly(
+                monthCollected + monthPending > 0 ? Math.round((monthCollected / (monthCollected + monthPending)) * 100) : 0);
+        response.setFeesCollectedYearly(yearCollected);
+        response.setFeesPendingYearly(yearPending);
+        response.setCollectionRateYearly(
+                yearCollected + yearPending > 0 ? Math.round((yearCollected / (yearCollected + yearPending)) * 100) : 0);
         response.setMonthlyAdmissions(buildMonthlyAdmissions(tenantId));
         response.setMonthlyCollections(buildMonthlyCollections(payments));
-        response.setAttendanceOverview(buildAttendanceOverview(tenantId, today, scope));
-        response.setAttendanceToday(buildAttendanceOverview(tenantId, today, AdminAttendanceOverviewScope.TODAY));
+        response.setAttendanceOverview(buildAttendanceOverview(tenantId, today, scope, selectedMonthStart, selectedMonthEffectiveEnd));
+        response.setAttendanceToday(buildAttendanceOverview(tenantId, today, AdminAttendanceOverviewScope.TODAY, null, null));
         List<ReportDashboardDTOs.ActivityItem> activities = buildAdminRecentActivities(tenantId, today, 8);
         response.setRecentActivities(activities);
         response.setUpcomingEvents(buildAdminUpcomingEvents(tenantId, today, 8));
@@ -1281,18 +1320,25 @@ public class OltpReportQueryAdapter implements ReportQueryPort {
     }
 
     private ReportDashboardDTOs.AttendanceOverview buildAttendanceOverview(
-            String tenantId, LocalDate today, AdminAttendanceOverviewScope scope) {
+            String tenantId,
+            LocalDate today,
+            AdminAttendanceOverviewScope scope,
+            LocalDate selectedMonthStart,
+            LocalDate selectedMonthEnd) {
         LocalDate from =
                 switch (scope) {
                     case TODAY -> today;
                     case WEEK_TO_DATE -> today.with(DayOfWeek.MONDAY);
-                    case MONTH_TO_DATE -> today.withDayOfMonth(1);
+                    case MONTH_TO_DATE -> selectedMonthStart != null ? selectedMonthStart : today.withDayOfMonth(1);
                 };
-        if (from.isAfter(today)) {
-            from = today;
+        LocalDate end = scope == AdminAttendanceOverviewScope.MONTH_TO_DATE && selectedMonthEnd != null
+                ? selectedMonthEnd
+                : today;
+        if (from.isAfter(end)) {
+            from = end;
         }
         ReportDashboardDTOs.AttendanceOverview overview = new ReportDashboardDTOs.AttendanceOverview();
-        List<Object[]> rows = attendanceRepo.countByStatusForTenantAndDateRange(tenantId, from, today);
+        List<Object[]> rows = attendanceRepo.countByStatusForTenantAndDateRange(tenantId, from, end);
         long present = 0;
         long absent = 0;
         long late = 0;
@@ -1319,6 +1365,17 @@ public class OltpReportQueryAdapter implements ReportQueryPort {
         overview.setExcused(excused);
         overview.setTotal(present + absent + late + excused);
         return overview;
+    }
+
+    private YearMonth normalizeMonth(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return YearMonth.now();
+        }
+        try {
+            return YearMonth.parse(raw.trim());
+        } catch (Exception ex) {
+            return YearMonth.now();
+        }
     }
 
     private List<ReportDashboardDTOs.UpcomingEvent> buildAdminUpcomingEvents(String tenantId, LocalDate today, int limit) {

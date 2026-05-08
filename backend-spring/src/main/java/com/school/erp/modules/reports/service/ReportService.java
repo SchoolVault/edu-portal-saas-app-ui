@@ -121,13 +121,17 @@ public class ReportService {
     }
 
     @Transactional
-    public ReportDashboardDTOs.AdminDashboardResponse getAdminDashboard(String attendanceOverviewScopeRaw) {
+    public ReportDashboardDTOs.AdminDashboardResponse getAdminDashboard(
+            String attendanceOverviewScopeRaw,
+            String attendanceOverviewMonth) {
         AdminAttendanceOverviewScope scope = AdminAttendanceOverviewScope.fromQueryParam(attendanceOverviewScopeRaw);
+        String monthToken = normalizeMonth(attendanceOverviewMonth);
         return timedReportRead(
                 "dashboard.admin",
                 () ->
                         dashboardSnapshotService.getAdminSnapshotOrRefresh(
-                                scope.name(), () -> reportQueryPort.getAdminDashboard(scope)),
+                                scope.name() + "|" + monthToken,
+                                () -> reportQueryPort.getAdminDashboard(scope, monthToken)),
                 out -> out != null && out.getRecentActivities() != null ? out.getRecentActivities().size() : 0);
     }
 
@@ -663,7 +667,18 @@ public class ReportService {
 
     private void selfWarmupForTenant() {
         this.getDashboardKPIs();
-        this.getAdminDashboard(null);
+        this.getAdminDashboard(null, null);
+    }
+
+    private String normalizeMonth(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return java.time.YearMonth.now().toString();
+        }
+        try {
+            return java.time.YearMonth.parse(raw.trim()).toString();
+        } catch (Exception ex) {
+            return java.time.YearMonth.now().toString();
+        }
     }
 
     private List<Map<String, Object>> resolveReportRows(String reportType, Map<String, Object> filters) {
