@@ -107,22 +107,23 @@ public class CompositeNotificationService implements NotificationService {
     private String buildWelcomeMessage(WelcomeCredentialsRequest req) {
         String portalUrl = "https://school.portal";
 
+        // Do not include plaintext passwords in SMS — use school code + login id and in-app / forgot-password flows instead.
         return switch (req.getRole()) {
             case TEACHER -> String.format(
-                    "Welcome to %s!\n\nYour teacher portal access:\nPhone: %s\nPassword: %s\nSchool Code: %s\n\nLogin at: %s\n\nFor security, please change your password after first login.",
-                    req.getSchoolName(), req.getUsername(), req.getPassword(), req.getSchoolCode(), portalUrl);
+                    "Welcome to %s!\n\nYour teacher portal access:\nPhone: %s\nSchool Code: %s\n\nLogin at: %s\n\nFor security, please change your password after first login.",
+                    req.getSchoolName(), req.getUsername(), req.getSchoolCode(), portalUrl);
             case GUARDIAN -> String.format(
-                    "Welcome to %s Parent Portal!\n\nYour access credentials:\nPhone: %s\nPassword: %s\nSchool Code: %s\n\nLogin at: %s\n\nTrack your child's attendance, grades, fees, and more!",
-                    req.getSchoolName(), req.getUsername(), req.getPassword(), req.getSchoolCode(), portalUrl);
+                    "Welcome to %s Parent Portal!\n\nYour access credentials:\nPhone: %s\nSchool Code: %s\n\nLogin at: %s\n\nTrack your child's attendance, grades, fees, and more!",
+                    req.getSchoolName(), req.getUsername(), req.getSchoolCode(), portalUrl);
             case STUDENT -> String.format(
-                    "Welcome to %s Student Portal!\n\nYour login details:\nUsername: %s\nPassword: %s\nSchool Code: %s\n\nAccess at: %s\n\nView assignments, timetables, and exam schedules.",
-                    req.getSchoolName(), req.getUsername(), req.getPassword(), req.getSchoolCode(), portalUrl);
+                    "Welcome to %s Student Portal!\n\nYour login details:\nUsername: %s\nSchool Code: %s\n\nAccess at: %s\n\nView assignments, timetables, and exam schedules.",
+                    req.getSchoolName(), req.getUsername(), req.getSchoolCode(), portalUrl);
             case LIBRARY_STAFF -> String.format(
-                    "Welcome to %s Library System!\n\nYour staff access:\nPhone: %s\nPassword: %s\nSchool Code: %s\n\nLogin at: %s",
-                    req.getSchoolName(), req.getUsername(), req.getPassword(), req.getSchoolCode(), portalUrl);
+                    "Welcome to %s Library System!\n\nYour staff access:\nPhone: %s\nSchool Code: %s\n\nLogin at: %s",
+                    req.getSchoolName(), req.getUsername(), req.getSchoolCode(), portalUrl);
             default -> String.format(
-                    "Welcome to %s!\n\nLogin: %s\nPassword: %s\nSchool Code: %s\n\nPortal: %s",
-                    req.getSchoolName(), req.getUsername(), req.getPassword(), req.getSchoolCode(), portalUrl);
+                    "Welcome to %s!\n\nLogin: %s\nSchool Code: %s\n\nPortal: %s",
+                    req.getSchoolName(), req.getUsername(), req.getSchoolCode(), portalUrl);
         };
     }
 }
