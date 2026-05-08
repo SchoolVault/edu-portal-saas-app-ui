@@ -181,6 +181,7 @@ public class ImportDryRunService {
                     String existing = trimToNull(res.getAdvisoryMessage());
                     res.setAdvisoryMessage(existing == null ? timetableAdvisory : existing + " " + timetableAdvisory);
                 }
+                appendTimetableTeacherDirectoryAdvisory(res);
             }
             if (importRuntimeProperties.isCreateOnlyDuplicateBlockEnabled() && createOnlyEval[0] > 0) {
                 double ratio = (double) createOnlyHit[0] / (double) createOnlyEval[0];
@@ -371,6 +372,30 @@ public class ImportDryRunService {
             }
         }
         return null;
+    }
+
+    /**
+     * When timetable dry-run hits “teacher not found”, the usual cause is importing timetable before
+     * the Teachers job populated {@code teacher.employee_code} for this tenant—not a bad CSV by itself.
+     */
+    private static void appendTimetableTeacherDirectoryAdvisory(ImportExportDTOs.DryRunResponse res) {
+        if (res.getSampleErrors() == null || res.getSampleErrors().isEmpty()) {
+            return;
+        }
+        boolean teacherFk = res.getSampleErrors().stream()
+                .map(ImportExportDTOs.DryRunRowError::getMessage)
+                .filter(java.util.Objects::nonNull)
+                .anyMatch(m -> {
+                    String s = m.toLowerCase(Locale.ROOT);
+                    return s.contains("teacher not found");
+                });
+        if (!teacherFk) {
+            return;
+        }
+        String hint = "Timetable rows match teacher_ref against teachers already stored for this school "
+                + "(employee code / phone / email). Import the Teachers CSV successfully first, then retry.";
+        String existing = trimToNull(res.getAdvisoryMessage());
+        res.setAdvisoryMessage(existing == null ? hint : existing + " " + hint);
     }
 
     private static String categorizeDryRunError(String message) {

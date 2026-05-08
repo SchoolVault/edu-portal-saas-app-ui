@@ -1,0 +1,11 @@
+name (R),class_id (O),class_name (R),academic_year_id (R),component_spec (R),import_mode (O)
+Class 1 Annual Fee,,Class 1,CURRENT,Tuition:22350:TUITION|Activity:1925:MISC|Lab:600:LAB|Sports:1500:SPORTS|Annual:2700:MISC|Transport:0:TRANSPORT,UPSERT
+Class 2 Annual Fee,,Class 2,CURRENT,Tuition:24200:TUITION|Activity:2050:MISC|Lab:600:LAB|Sports:1600:SPORTS|Annual:2900:MISC|Transport:0:TRANSPORT,UPSERT
+Class 3 Annual Fee,,Class 3,CURRENT,Tuition:26050:TUITION|Activity:2175:MISC|Lab:1650:LAB|Sports:1700:SPORTS|Annual:3100:MISC|Transport:0:TRANSPORT,UPSERT
+Class 4 Annual Fee,,Class 4,CURRENT,Tuition:27900:TUITION|Activity:2300:MISC|Lab:1900:LAB|Sports:1800:SPORTS|Annual:3300:MISC|Transport:0:TRANSPORT,UPSERT
+Class 5 Annual Fee,,Class 5,CURRENT,Tuition:29750:TUITION|Activity:2425:MISC|Lab:2150:LAB|Sports:1900:SPORTS|Annual:3500:MISC|Transport:0:TRANSPORT,UPSERT
+Class 6 Annual Fee,,Class 6,CURRENT,Tuition:31600:TUITION|Activity:2550:MISC|Lab:2400:LAB|Sports:2000:SPORTS|Annual:3700:MISC|Transport:0:TRANSPORT,UPSERT
+Class 7 Annual Fee,,Class 7,CURRENT,Tuition:33450:TUITION|Activity:2675:MISC|Lab:2650:LAB|Sports:2100:SPORTS|Annual:3900:MISC|Transport:0:TRANSPORT,UPSERT
+Class 8 Annual Fee,,Class 8,CURRENT,Tuition:35300:TUITION|Activity:2800:MISC|Lab:2900:LAB|Sports:2200:SPORTS|Annual:4100:MISC|Transport:0:TRANSPORT,UPSERT
+Class 9 Annual Fee,,Class 9,CURRENT,Tuition:37150:TUITION|Activity:2925:MISC|Lab:3150:LAB|Sports:2300:SPORTS|Annual:4300:MISC|Transport:0:TRANSPORT,UPSERT
+Class 10 Annual Fee,,Class 10,CURRENT,Tuition:39000:TUITION|Activity:3050:MISC|Lab:3400:LAB|Sports:2400:SPORTS|Annual:4500:MISC|Transport:0:TRANSPORT,UPSERT

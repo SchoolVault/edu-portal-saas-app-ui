@@ -46,8 +46,17 @@ public final class ImportFieldGuideCatalog {
                 guide("create_portal", false, "Y/N portal account creation.", "Y"),
                 guide("portal_password", false, "Optional initial password.", "School@2026"),
                 guide("portal_role", false, "TEACHER / SCHOOL_STAFF / LIBRARY_STAFF.", "TEACHER"),
-                guide("library_role", false, "Library role when portal_role is library.", "LIBRARIAN"),
-                guide("school_role_codes", false, "Comma-separated RBAC role codes.", "ACADEMIC_STAFF,FEE_OFFICE"),
+                guide(
+                        "library_role",
+                        false,
+                        "Only when portal_role is LIBRARY_STAFF: ASSISTANT / LIBRARIAN / HEAD / AUTO / blank. "
+                                + "Do not put RBAC duty codes here (FEE_OFFICE, TRANSPORT_LOGISTICS, LIBRARY_OPERATIONS belong in school_role_codes).",
+                        "LIBRARIAN"),
+                guide(
+                        "school_role_codes",
+                        false,
+                        "Comma-separated RBAC duty codes from Settings → access roles. Quote the CSV cell when it contains commas.",
+                        "\"FEE_OFFICE,BASE_SCHOOL_STAFF\""),
                 guide("notify_credentials", false, "Y/N credential notification.", "N"),
                 guide("salary", false, "Numeric salary amount.", "45000"),
                 guide("bank_account_holder", false, "Bank account holder name.", "Amit Sharma"),

@@ -295,13 +295,13 @@ interface DraftSlot {
                 </td>
                 <td style="min-width: 160px;">
                   <select
-                    *ngIf="subjectCatalogNames.length"
+                    *ngIf="subjectCatalogNames.length || (r.subjectName || '').trim().length"
                     class="erp-select mb-1"
                     [(ngModel)]="r.subjectName"
                     [name]="'onbSubjSel' + r.key"
                   >
                     <option [ngValue]="''">{{ 'timetable.selectSubject' | translate }}</option>
-                    <option *ngFor="let n of subjectCatalogNames" [ngValue]="n">{{ n }}</option>
+                    <option *ngFor="let n of subjectSelectOptions(r)" [ngValue]="n">{{ n }}</option>
                   </select>
                   <p *ngIf="!subjectCatalogNames.length" class="small mb-0" style="color: var(--clr-warning);">
                     {{ 'timetable.subjectCatalogEmpty' | translate }}
@@ -498,7 +498,8 @@ export class TeacherScheduleOnboardingComponent implements OnInit, OnDestroy {
   private entryToDraft(e: TimetableEntry): DraftSlot {
     const day = (e.day || 'Monday').toUpperCase() as DayApi;
     const fallback = this.periodWindowText(e.period);
-    const aligned = this.resolveSubjectCatalogName(e.subjectName);
+    const trimmedSubject = (e.subjectName ?? '').trim();
+    const aligned = this.resolveSubjectCatalogName(trimmedSubject);
     return {
       key: `e-${e.id}`,
       existingEntryId: e.id,
@@ -508,9 +509,35 @@ export class TeacherScheduleOnboardingComponent implements OnInit, OnDestroy {
       endTime: this.toHmTime(e.endTime) || fallback.end,
       classId: e.classId,
       sectionId: e.sectionId > 0 ? e.sectionId : null,
-      subjectName: aligned ?? (this.subjectCatalogNames.length ? '' : (e.subjectName ?? '')),
+      /** Keep persisted label when catalog match fails so the select isn’t stuck on “Select subject”. */
+      subjectName: aligned ?? trimmedSubject,
       room: e.room || '',
     };
+  }
+
+  /**
+   * Options for each row’s subject select: catalog plus the row’s current value if it isn’t listed
+   * (common when imports use a spelling not yet in Academic → Subject catalog).
+   */
+  subjectSelectOptions(r: DraftSlot): string[] {
+    const catalog = this.subjectCatalogNames;
+    const cur = (r.subjectName || '').trim();
+    if (!cur) {
+      return catalog;
+    }
+    if (catalog.some(n => this.subjectNamesEquivalent(n, cur))) {
+      return catalog;
+    }
+    return [...catalog, cur].sort((a, b) => a.localeCompare(b));
+  }
+
+  /** Match subject labels for picker vs API/import text (trim + collapse spaces, case‑insensitive). */
+  private subjectNamesEquivalent(a: string, b: string): boolean {
+    return this.normalizeSubjectLabel(a) === this.normalizeSubjectLabel(b);
+  }
+
+  private normalizeSubjectLabel(raw: string): string {
+    return raw.trim().replace(/\s+/g, ' ').toLowerCase();
   }
 
   private resolveSubjectCatalogName(raw: string | null | undefined): string | null {
@@ -518,7 +545,9 @@ export class TeacherScheduleOnboardingComponent implements OnInit, OnDestroy {
     if (!t) {
       return null;
     }
-    return this.subjectCatalogNames.find(n => n.toLowerCase() === t.toLowerCase()) ?? null;
+    const key = this.normalizeSubjectLabel(t);
+    const hit = this.subjectCatalogNames.find(n => this.normalizeSubjectLabel(n) === key);
+    return hit ?? null;
   }
 
   addDraftRow(): void {

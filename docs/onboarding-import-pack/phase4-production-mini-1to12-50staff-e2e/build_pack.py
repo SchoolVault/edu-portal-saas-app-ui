@@ -23,8 +23,6 @@ PASS_PREFIX = "Vne2e"
 T_PHONES = [f"98194{i:05d}" for i in range(1, 33)]
 # Staff phones S001–S018
 S_PHONES = [f"98195{i:05d}" for i in range(1, 19)]
-# Parent phones — distinct from staff/teachers (98206xxxxxx)
-PARENT_PHONES = {str(i): f"98206{i:05d}" for i in range(1, 10)}
 
 
 def patch_teacher_line(parts: list[str]) -> list[str]:
@@ -114,32 +112,21 @@ def patch_staff_line(parts: list[str]) -> list[str]:
     return parts
 
 
-def patch_student_row(row: dict[str, str]) -> dict[str, str]:
-    """Remap guardian emails/phones off phase4 seed domain and shared phones."""
+def patch_student_row(row: dict[str, str], *, row_index: int) -> dict[str, str]:
+    """Remap guardian emails/phones off phase4 seed domain; one distinct parent login per CSV row."""
     out = dict(row)
     em = (out.get("primary_guardian_email (O)", "") or "").strip()
-    original_em = em
 
     if "yopmail.com" in em.lower():
         out["primary_guardian_email (O)"] = f"guardian.qa.vne@{DOMAIN}"
-    elif "sunrisepublicschool.in" in em:
-        local = em.split("@")[0]
-        if local.startswith("parent"):
-            tail = "".join(ch for ch in local if ch.isdigit())
-            out["primary_guardian_email (O)"] = f"parent.vne.{tail}@{DOMAIN}"
-        else:
-            out["primary_guardian_email (O)"] = f"{local}@{DOMAIN}"
-
-    ph = (out.get("primary_guardian_phone (R)", "") or "").strip()
-    if ph.startswith("981700000"):
-        last = ph[-1]
-        if last.isdigit():
-            out["primary_guardian_phone (R)"] = PARENT_PHONES.get(last, f"982060000{last}")
-
-    # If QA row phone left unusual, keep distinct
-    if "yopmail.com" in original_em.lower() and not out.get("primary_guardian_phone (R)", "").startswith("98206"):
         out["primary_guardian_phone (R)"] = "9820600999"
+        return out
 
+    if "sunrisepublicschool.in" in em:
+        local = em.split("@")[0].strip()
+        out["primary_guardian_email (O)"] = f"{local}@{DOMAIN}"
+
+    out["primary_guardian_phone (R)"] = str(9821600001 + row_index)
     return out
 
 
@@ -276,7 +263,7 @@ def main() -> None:
         fieldnames = r.fieldnames
         assert fieldnames
         st_out = list(r)
-    patched = [patch_student_row(row) for row in st_out]
+    patched = [patch_student_row(row, row_index=i) for i, row in enumerate(st_out)]
     with (out_dir / "03_students.csv").open("w", newline="", encoding="utf-8") as f:
         w = csv.DictWriter(f, fieldnames=fieldnames)
         w.writeheader()

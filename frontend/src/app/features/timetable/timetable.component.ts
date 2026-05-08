@@ -15,8 +15,8 @@ import { AttendanceCoverConflictPayload, AttendanceCoverRow } from '../../core/m
 import { ErpDatePickerComponent } from '../../shared/erp-date-picker/erp-date-picker.component';
 import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directives';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
-import { forkJoin } from 'rxjs';
-import { filter, take } from 'rxjs/operators';
+import { forkJoin, of } from 'rxjs';
+import { catchError, filter, take } from 'rxjs/operators';
 import { SchoolClassNamePipe } from '../../core/i18n/school-class-name.pipe';
 import { formatSchoolClassDisplayName, formatSchoolClassName } from '../../core/i18n/school-class-display';
 import { ConfirmDialogService } from '../../shared/confirm-dialog/confirm-dialog.service';
@@ -28,6 +28,13 @@ import {
   createTimetableConflictHumanLabels,
 } from '../../core/timetable/timetable-conflict-dialog.builder';
 import { formatDateDdMmYyyy } from '../../core/utils/date-format';
+import { UserFacingHttpError } from '../../core/http/user-facing-http-error';
+import {
+  detectTimetableLocalViolations,
+  sameTimetableClassSection,
+  type TimetableLocalViolation,
+  type TimetableLocalViolationKind,
+} from '../../core/timetable/timetable-recurring-slot.validation';
 
 type TimetableEntryForm = Omit<Partial<TimetableEntry>, 'teacherId' | 'classId' | 'sectionId'> & {
   teacherId?: number | null;
@@ -121,6 +128,16 @@ type ParentTimetableContract = {
       }
       .timetable-slot-cell--week .timetable-slot-time {
         font-size: 10px;
+      }
+      .timetable-toast {
+        position: fixed;
+        right: 18px;
+        bottom: 18px;
+        z-index: 1200;
+        min-width: min(360px, calc(100vw - 24px));
+        max-width: min(460px, calc(100vw - 24px));
+        border-radius: var(--radius-md);
+        box-shadow: 0 10px 28px color-mix(in srgb, var(--clr-text) 18%, transparent);
       }
       .btn-group-erp .active-layout {
         background: var(--clr-primary);
@@ -231,6 +248,15 @@ type ParentTimetableContract = {
         margin-top: 3px;
       }
       @media (max-width: 767.98px) {
+        .timetable-toast {
+          right: 12px;
+          left: 12px;
+          bottom: 12px;
+          min-width: unset;
+          max-width: unset;
+        }
+      }
+      @media (max-width: 767.98px) {
         .timetable-page-title {
           font-size: 20px;
         }
@@ -265,6 +291,12 @@ type ParentTimetableContract = {
   ],
   template: `
     <div data-testid="timetable-page">
+      <div *ngIf="toastMessage" class="alert alert-success timetable-toast mb-0 py-2 px-3" role="status">
+        <div class="d-flex justify-content-between align-items-start gap-2">
+          <span>{{ toastMessage }}</span>
+          <button type="button" class="btn-close" (click)="clearToast()" [attr.aria-label]="'timetable.closeToast' | translate"></button>
+        </div>
+      </div>
       <div
         class="timetable-page-heading mb-4 animate-in d-flex flex-column flex-lg-row gap-3 align-items-stretch align-items-lg-center justify-content-lg-between"
       >
@@ -300,7 +332,13 @@ type ParentTimetableContract = {
             <button type="button" class="btn-outline-erp btn-sm" (click)="refreshTimetable()">
               <i class="bi bi-arrow-clockwise"></i> {{ 'timetable.refresh' | translate }}
             </button>
-            <button *ngIf="canMutateTimetable" class="btn-primary-erp btn-sm" [disabled]="!canEditTimetable()" (click)="openCreateModal()">
+            <button
+              *ngIf="canMutateTimetable && scheduleScope === 'class'"
+              class="btn-primary-erp btn-sm"
+              [disabled]="!canEditTimetable()"
+              (click)="openCreateModal()"
+              type="button"
+            >
               <i class="bi bi-plus-lg"></i> {{ 'timetable.addSlot' | translate }}
             </button>
           </div>
@@ -463,7 +501,17 @@ type ParentTimetableContract = {
       <div class="erp-card mb-4 timetable-calendar-week animate-in" *ngIf="grid?.days?.length && layout === 'periodRows'">
         <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
           <h4 class="erp-card-title mb-0" style="font-size: 15px;">{{ 'timetable.weekMatrixTitle' | translate }}</h4>
-          <span *ngIf="!isParent" class="text-muted small">{{ 'timetable.weekMatrixSubtitle' | translate }}</span>
+          <div class="d-flex align-items-center flex-wrap gap-2">
+            <span *ngIf="!isParent" class="text-muted small">{{ 'timetable.weekMatrixSubtitle' | translate }}</span>
+            <button
+              *ngIf="canMutateTimetable && canEditTimetable() && scheduleScope === 'class'"
+              type="button"
+              class="btn-outline-erp btn-xs"
+              (click)="addPeriodRow()"
+            >
+              <i class="bi bi-plus-lg"></i> {{ 'timetable.addPeriodRow' | translate }}
+            </button>
+          </div>
         </div>
         <div class="timetable-classic-scroll">
           <table class="erp-table timetable-calendar">
@@ -474,9 +522,19 @@ type ParentTimetableContract = {
               </tr>
             </thead>
             <tbody>
-              <tr *ngFor="let period of grid?.periods">
+              <tr *ngFor="let period of periodRowsForWeekView">
                 <td>
-                  <strong>{{ 'timetable.gridPeriodShort' | translate: { n: period } }}</strong>
+                  <div class="d-flex align-items-center justify-content-between gap-2">
+                    <strong>{{ 'timetable.gridPeriodShort' | translate: { n: period } }}</strong>
+                    <button
+                      *ngIf="canMutateTimetable && canEditTimetable() && scheduleScope === 'class'"
+                      type="button"
+                      class="btn-outline-erp btn-xs"
+                      (click)="requestRemovePeriodRow(period)"
+                    >
+                      {{ 'timetable.removeRow' | translate }}
+                    </button>
+                  </div>
                 </td>
                 <td *ngFor="let day of grid?.days">
                   <ng-container *ngIf="getEntry(day, period) as entry; else emptyCal">
@@ -777,6 +835,10 @@ export class TimetableComponent implements OnInit {
   private teacherScheduleRows: TimetableEntry[] = [];
   /** Full week entries for “by class” before day vs week layout filtering. */
   private classScheduleRows: TimetableEntry[] = [];
+  /** Admin-added empty period rows (so new slots can be added before backend has rows for that period). */
+  private manualPeriodRows = new Set<number>();
+  toastMessage = '';
+  private toastClearTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(
     private timetableService: TimetableService,
@@ -1371,6 +1433,7 @@ export class TimetableComponent implements OnInit {
 
   setScheduleScope(scope: 'class' | 'teacher'): void {
     this.scheduleScope = scope;
+    this.manualPeriodRows.clear();
     this.entries = [];
     this.grid = null;
     this.teacherScheduleRows = [];
@@ -1394,6 +1457,7 @@ export class TimetableComponent implements OnInit {
     this.entries = [];
     this.grid = null;
     this.teacherScheduleRows = [];
+    this.manualPeriodRows.clear();
     if (this.selectedTeacherId == null) {
       return;
     }
@@ -1496,6 +1560,7 @@ export class TimetableComponent implements OnInit {
     this.entries = [];
     this.grid = null;
     this.classScheduleRows = [];
+    this.manualPeriodRows.clear();
     if (this.selectedClassId != null && this.sections.length === 0) {
       this.loadTimetable();
     }
@@ -1557,21 +1622,50 @@ export class TimetableComponent implements OnInit {
     return this.entries.find(entry => this.normalizeDay(entry.day) === nd && entry.period === period);
   }
 
+  /**
+   * “Add Slot” — class/section scoped only so admins attach a recurring weekly lesson to one class timetable
+   * (teacher’s personal schedule derives from these rows). Intro dialog explains behaviour before opening the form.
+   */
   openCreateModal(): void {
-    if (!this.canMutateTimetable) {
+    if (!this.canMutateTimetable || this.scheduleScope !== 'class' || !this.canEditTimetable()) {
       return;
     }
+    const details = this.buildAddSlotIntroDetails();
+    this.confirmDialog
+      .confirm({
+        title: this.translate.instant('timetable.addSlotIntroTitle'),
+        message: this.translate.instant('timetable.addSlotIntroMessage'),
+        details,
+        variant: 'primary',
+        confirmLabel: this.translate.instant('timetable.addSlotIntroContinue'),
+        cancelLabel: this.translate.instant('timetable.addSlotIntroCancel'),
+      })
+      .pipe(filter(Boolean), take(1))
+      .subscribe(() => this.openCreateModalAfterIntroAck());
+  }
+
+  private openCreateModalAfterIntroAck(): void {
     this.editingEntryId = null;
     this.slotModalTimesApplied = false;
     this.entryForm = this.defaultEntryForm();
-    if (this.scheduleScope === 'teacher') {
-      this.entryForm.teacherId = this.selectedTeacherId ?? undefined;
-      this.syncTeacherName();
-      this.entryForm.classId = this.classes[0]?.id ?? null;
-      this.entryForm.sectionId = this.entryFormSections[0]?.id ?? null;
-    }
     this.showModal = true;
     this.syncModal12hFromEntryForm();
+  }
+
+  /** Short context lines for “Add Slot” intro (class/section scope + recurring + conflict rules). */
+  private buildAddSlotIntroDetails(): string[] {
+    const labels = createTimetableConflictHumanLabels(this.classes, this.translate);
+    const cid = this.selectedClassId;
+    const clazz = cid != null ? labels.classDisplayName(cid) : '—';
+    const sectionLabel = labels.sectionDisplayForClass(
+      cid,
+      this.sections.length > 0 ? this.selectedSectionId : undefined
+    );
+    return [
+      this.translate.instant('timetable.addSlotIntroDetailScope', { clazz, section: sectionLabel }),
+      this.translate.instant('timetable.addSlotIntroDetailRecurring'),
+      this.translate.instant('timetable.addSlotIntroDetailConflicts'),
+    ];
   }
 
   openEditModal(entry: TimetableEntry): void {
@@ -1595,7 +1689,12 @@ export class TimetableComponent implements OnInit {
     if (!t) {
       return null;
     }
-    return this.subjectCatalogNames.find(n => n.toLowerCase() === t.toLowerCase()) ?? null;
+    const key = this.normalizeSubjectLabel(t);
+    return this.subjectCatalogNames.find(n => this.normalizeSubjectLabel(n) === key) ?? null;
+  }
+
+  private normalizeSubjectLabel(s: string): string {
+    return s.trim().replace(/\s+/g, ' ').toLowerCase();
   }
 
   closeModal(): void {
@@ -1683,7 +1782,12 @@ export class TimetableComponent implements OnInit {
       .subscribe();
   }
 
-  private validateTimetablePayload(payload: TimetableEntry): boolean {
+  /**
+   * Fast client checks (required fields, catalog, clock order). Period/teacher/room clashes
+   * and overlapping times are evaluated in {@link persistTimetableSlot} using a school-wide fetch
+   * so “by class” and “by teacher” flows see the same rules as the server.
+   */
+  private validateTimetableBasic(payload: TimetableEntry): boolean {
     if (!payload.teacherId) {
       this.warnInvalidTimetableInput('timetable.validationTeacherRequired');
       return false;
@@ -1697,7 +1801,8 @@ export class TimetableComponent implements OnInit {
       return false;
     }
     const subj = payload.subjectName.trim();
-    if (!this.subjectCatalogNames.some(n => n.toLowerCase() === subj.toLowerCase())) {
+    const sk = this.normalizeSubjectLabel(subj);
+    if (!this.subjectCatalogNames.some(n => this.normalizeSubjectLabel(n) === sk)) {
       this.warnInvalidTimetableInput('timetable.validationSubjectNotInCatalog');
       return false;
     }
@@ -1713,31 +1818,247 @@ export class TimetableComponent implements OnInit {
       this.warnInvalidTimetableInput('timetable.validationClassSectionRequired');
       return false;
     }
-    const duplicateClassSlot = this.entries.some(
-      e =>
-        e.id !== payload.id &&
-        this.normalizeDay(e.day) === this.normalizeDay(payload.day) &&
-        e.period === payload.period &&
-        e.classId === payload.classId &&
-        (e.sectionId ?? 0) === (payload.sectionId ?? 0)
-    );
-    if (duplicateClassSlot) {
-      this.warnInvalidTimetableInput('timetable.validationClassSlotConflict');
-      return false;
-    }
-    const duplicateTeacherSlot = this.teacherScheduleRows.some(
-      e =>
-        e.id !== payload.id &&
-        this.normalizeDay(e.day) === this.normalizeDay(payload.day) &&
-        e.period === payload.period &&
-        e.teacherId === payload.teacherId &&
-        !this.isCoverRow(e)
-    );
-    if (duplicateTeacherSlot) {
-      this.warnInvalidTimetableInput('timetable.validationTeacherSlotConflict');
-      return false;
-    }
     return true;
+  }
+
+  private localViolationHintKey(kind: TimetableLocalViolationKind): string {
+    const map: Record<TimetableLocalViolationKind, string> = {
+      CLASS_PERIOD: 'timetable.localViolationHintClassPeriod',
+      TEACHER_PERIOD: 'timetable.localViolationHintTeacherPeriod',
+      ROOM_PERIOD: 'timetable.localViolationHintRoomPeriod',
+      CLASS_TIME: 'timetable.localViolationHintClassTime',
+      TEACHER_TIME: 'timetable.localViolationHintTeacherTime',
+      ROOM_TIME: 'timetable.localViolationHintRoomTime',
+    };
+    return map[kind];
+  }
+
+  private localViolationSummaryKey(kind: TimetableLocalViolationKind): string {
+    const map: Record<TimetableLocalViolationKind, string> = {
+      CLASS_PERIOD: 'timetable.localViolationSummaryClassPeriod',
+      TEACHER_PERIOD: 'timetable.localViolationSummaryTeacherPeriod',
+      ROOM_PERIOD: 'timetable.localViolationSummaryRoomPeriod',
+      CLASS_TIME: 'timetable.localViolationSummaryClassTime',
+      TEACHER_TIME: 'timetable.localViolationSummaryTeacherTime',
+      ROOM_TIME: 'timetable.localViolationSummaryRoomTime',
+    };
+    return map[kind];
+  }
+
+  private showLocalTimetableViolationDialog(violation: TimetableLocalViolation, candidate: TimetableEntry): void {
+    const labels = createTimetableConflictHumanLabels(this.classes, this.translate);
+    const b = violation.blocking;
+    const dayLabel = this.weekdayLabel(candidate.day);
+    const summary = this.translate.instant(this.localViolationSummaryKey(violation.kind), {
+      day: dayLabel,
+      period: String(candidate.period),
+      yourTime: `${candidate.startTime}–${candidate.endTime}`,
+      otherTime: `${b.startTime}–${b.endTime}`,
+    });
+    const whenBlocking = this.translate.instant('timetable.localViolationBlockingWhen', {
+      day: this.weekdayLabel(b.day),
+      period: String(b.period),
+      start: b.startTime || '',
+      end: b.endTime || '',
+    });
+    const roomDash = this.translate.instant('transport.dash');
+    const blockingLine = this.translate.instant('timetable.localViolationBlockingLine', {
+      subject: (b.subjectName || '').trim() || roomDash,
+      teacher: (b.teacherName || '').trim() || roomDash,
+      clazz: labels.classDisplayName(b.classId),
+      section: labels.sectionDisplayForClass(b.classId, b.sectionId ?? null),
+      when: whenBlocking,
+      room: (b.room || '').trim() || roomDash,
+    });
+    const details = [
+      this.translate.instant('timetable.localViolationLead'),
+      this.translate.instant('timetable.localViolationBlockingHeading'),
+      blockingLine,
+      this.translate.instant('timetable.localViolationWhatToDo'),
+      this.translate.instant(this.localViolationHintKey(violation.kind)),
+    ];
+    this.confirmDialog
+      .confirm({
+        title: this.translate.instant('timetable.localViolationTitle'),
+        message: summary,
+        details,
+        variant: 'warning',
+        confirmLabel: this.translate.instant('timetable.validationAcknowledge'),
+        cancelLabel: '',
+      })
+      .pipe(take(1))
+      .subscribe();
+  }
+
+  get periodRowsForWeekView(): number[] {
+    const base = this.grid?.periods ?? [];
+    const merged = new Set<number>(base.filter(p => Number.isFinite(p) && p > 0));
+    this.manualPeriodRows.forEach(p => {
+      if (Number.isFinite(p) && p > 0) {
+        merged.add(p);
+      }
+    });
+    return [...merged].sort((a, b) => a - b);
+  }
+
+  addPeriodRow(): void {
+    if (!this.canMutateTimetable || !this.canEditTimetable()) {
+      return;
+    }
+    const current = this.periodRowsForWeekView;
+    const nextPeriod = current.length ? Math.max(...current) + 1 : 1;
+    if (nextPeriod > 12) {
+      this.confirmDialog
+        .confirm({
+          title: this.translate.instant('timetable.periodRowLimitTitle'),
+          message: this.translate.instant('timetable.periodRowLimitMessage'),
+          variant: 'warning',
+          confirmLabel: this.translate.instant('timetable.validationAcknowledge'),
+          cancelLabel: '',
+        })
+        .pipe(take(1))
+        .subscribe();
+      return;
+    }
+    this.manualPeriodRows.add(nextPeriod);
+    this.showToast(this.translate.instant('timetable.addPeriodRowToast', { period: nextPeriod }));
+    this.cdr.markForCheck();
+  }
+
+  requestRemovePeriodRow(period: number): void {
+    if (!this.canMutateTimetable || !this.canEditTimetable() || this.scheduleScope !== 'class') {
+      return;
+    }
+    const rowsToDelete = this.classScheduleRows.filter(e => Number(e.period) === Number(period) && !this.isCoverRow(e));
+    const hasRows = rowsToDelete.length > 0;
+    const affectedTeachers = [...new Set(rowsToDelete.map(r => (r.teacherName || '').trim()).filter(Boolean))];
+    const details = hasRows
+      ? [
+          this.translate.instant('timetable.removePeriodRowDetailCount', {
+            count: rowsToDelete.length,
+            period,
+          }),
+          this.translate.instant('timetable.removePeriodRowDetailTeachers', {
+            count: affectedTeachers.length,
+          }),
+          this.translate.instant('timetable.removePeriodRowDetailTeacherNames', {
+            names: affectedTeachers.slice(0, 3).join(', ') || '—',
+          }),
+          this.translate.instant('timetable.removePeriodRowDetailUndoHint'),
+        ]
+      : [this.translate.instant('timetable.removePeriodRowDetailEmpty', { period })];
+    this.confirmDialog
+      .confirm({
+        title: this.translate.instant('timetable.removePeriodRowTitle', { period }),
+        message: this.translate.instant(
+          hasRows ? 'timetable.removePeriodRowMessageWithSlots' : 'timetable.removePeriodRowMessageWithoutSlots',
+          { period }
+        ),
+        details,
+        variant: hasRows ? 'danger' : 'warning',
+        confirmLabel: this.translate.instant(hasRows ? 'timetable.removePeriodRowConfirm' : 'timetable.removeRow'),
+        cancelLabel: this.translate.instant('timetable.conflictKeep'),
+      })
+      .pipe(filter(Boolean), take(1))
+      .subscribe(() => {
+        if (!hasRows) {
+          this.manualPeriodRows.delete(period);
+          this.showToast(this.translate.instant('timetable.removePeriodRowToastEmpty', { period }));
+          this.cdr.markForCheck();
+          return;
+        }
+        const uniqueIds = [...new Set(rowsToDelete.map(r => r.id))];
+        this.timetableService.deleteTimetableEntriesByIds(uniqueIds).subscribe({
+          next: res => {
+            this.manualPeriodRows.delete(period);
+            this.reloadCurrentScheduleView();
+
+            if (res.firstErrorMessage) {
+              const partial = res.deletedCount > 0;
+              this.confirmDialog
+                .confirm({
+                  title: this.translate.instant(
+                    partial ? 'timetable.removePeriodRowPartialTitle' : 'timetable.removePeriodRowFailedTitle'
+                  ),
+                  message: this.translate.instant(
+                    partial ? 'timetable.removePeriodRowPartialMessage' : 'timetable.removePeriodRowFailedDetail',
+                    {
+                      period,
+                      deleted: res.deletedCount,
+                      detail: res.firstErrorMessage,
+                    }
+                  ),
+                  details: [
+                    this.translate.instant('timetable.removePeriodRowRefreshHint'),
+                    this.translate.instant('timetable.removePeriodRowPartialStats', {
+                      deleted: res.deletedCount,
+                      missing: res.notFoundCount,
+                      planned: uniqueIds.length,
+                    }),
+                  ],
+                  variant: partial ? 'warning' : 'danger',
+                  confirmLabel: this.translate.instant('timetable.validationAcknowledge'),
+                  cancelLabel: '',
+                })
+                .pipe(take(1))
+                .subscribe();
+              return;
+            }
+
+            if (res.deletedCount > 0 && res.notFoundCount > 0) {
+              this.showToast(
+                this.translate.instant('timetable.removePeriodRowToastWithNotFound', {
+                  slots: res.deletedCount,
+                  missing: res.notFoundCount,
+                  teachers: affectedTeachers.length,
+                  period,
+                })
+              );
+            } else if (res.deletedCount > 0) {
+              this.showToast(
+                this.translate.instant('timetable.removePeriodRowToastWithImpacts', {
+                  slots: res.deletedCount,
+                  teachers: affectedTeachers.length,
+                  period,
+                })
+              );
+            } else if (res.notFoundCount > 0) {
+              this.showToast(this.translate.instant('timetable.removePeriodRowToastAllAlreadyGone', { period }));
+            }
+          },
+          error: () => {
+            this.confirmDialog
+              .confirm({
+                title: this.translate.instant('timetable.removePeriodRowFailedTitle'),
+                message: this.translate.instant('timetable.removePeriodRowFailedMessage'),
+                variant: 'warning',
+                confirmLabel: this.translate.instant('timetable.validationAcknowledge'),
+                cancelLabel: '',
+              })
+              .pipe(take(1))
+              .subscribe();
+          },
+        });
+      });
+  }
+
+  clearToast(): void {
+    this.toastMessage = '';
+    if (this.toastClearTimer) {
+      clearTimeout(this.toastClearTimer);
+      this.toastClearTimer = null;
+    }
+  }
+
+  private showToast(message: string): void {
+    this.clearToast();
+    this.toastMessage = message;
+    this.toastClearTimer = setTimeout(() => {
+      this.toastMessage = '';
+      this.toastClearTimer = null;
+      this.cdr.markForCheck();
+    }, 5500);
+    this.cdr.markForCheck();
   }
 
   /**
@@ -1763,13 +2084,11 @@ export class TimetableComponent implements OnInit {
     return { classId, sectionId };
   }
 
-  private persistTimetableSlot(replaceTimetableEntryId?: number): void {
-    if (!this.canMutateTimetable) {
-      return;
-    }
+  /** Payload as sent to timetable create/update (single source for validation + save confirm). */
+  private buildPersistPayload(): TimetableEntry {
     const { classId, sectionId } = this.getEffectiveSlotClassSectionForSave();
     const teacherId = this.entryForm.teacherId ?? 0;
-    const payload: TimetableEntry = {
+    return {
       id: this.editingEntryId ?? 0,
       classId,
       sectionId,
@@ -1784,28 +2103,150 @@ export class TimetableComponent implements OnInit {
       room: this.entryForm.room || '',
       tenantId: '',
     };
-    const request$ =
-      this.validateTimetablePayload(payload)
-        ? this.editingEntryId != null
-          ? this.timetableService.updateEntry(this.editingEntryId, payload, replaceTimetableEntryId)
-          : this.timetableService.addEntry(payload, replaceTimetableEntryId)
-        : null;
-    if (!request$) {
+  }
+
+  /** User-facing bullets before persisting a new class-scoped recurring slot (after validation passes). */
+  private buildAddSlotPersistConfirmDetails(payload: TimetableEntry): string[] {
+    const labels = createTimetableConflictHumanLabels(this.classes, this.translate);
+    const dow = this.weekdayLabel(payload.day);
+    const teacher = payload.teacherName?.trim() || this.translate.instant('timetable.addSlotPersistTeacherUnset');
+    const room = payload.room?.trim() || this.translate.instant('transport.dash');
+    const clazz = labels.classDisplayName(payload.classId);
+    const sec = labels.sectionDisplayForClass(payload.classId, payload.sectionId ?? null);
+    return [
+      this.translate.instant('timetable.addSlotPersistDetailClassSection', { clazz, section: sec }),
+      this.translate.instant('timetable.addSlotPersistDetailWhen', {
+        day: dow,
+        period: payload.period,
+        start: payload.startTime,
+        end: payload.endTime,
+      }),
+      this.translate.instant('timetable.addSlotPersistDetailSubjectTeacher', {
+        subject: payload.subjectName,
+        teacher,
+      }),
+      this.translate.instant('timetable.addSlotPersistDetailRoom', { room }),
+      this.translate.instant('timetable.addSlotPersistDetailEffect'),
+      this.translate.instant('timetable.addSlotPersistDetailConflictsHint'),
+    ];
+  }
+
+  private persistTimetableSlot(
+    replaceTimetableEntryId?: number,
+    persistOpts?: { skipNewSlotUserConfirm?: boolean }
+  ): void {
+    if (!this.canMutateTimetable) {
       return;
     }
-    request$.subscribe({
-      next: () => {
-        this.closeModal();
-        this.reloadCurrentScheduleView();
-      },
-      error: (e: unknown) => {
-        if (e instanceof TimetableConflictError) {
-          this.promptTimetableConflictReplace(e);
-          return;
-        }
-        console.error(e);
-      },
-    });
+
+    const runPersist = (): void => {
+      const execPayload = this.buildPersistPayload();
+      if (!this.validateTimetableBasic(execPayload)) {
+        return;
+      }
+
+      const finishWithRequest = (): void => {
+        const request$ =
+          this.editingEntryId != null
+            ? this.timetableService.updateEntry(this.editingEntryId, execPayload, replaceTimetableEntryId)
+            : this.timetableService.addEntry(execPayload, replaceTimetableEntryId);
+        request$.subscribe({
+          next: () => {
+            this.manualPeriodRows.add(execPayload.period);
+            this.closeModal();
+            this.reloadCurrentScheduleView();
+          },
+          error: (e: unknown) => {
+            if (e instanceof TimetableConflictError) {
+              this.promptTimetableConflictReplace(e);
+              return;
+            }
+            if (e instanceof UserFacingHttpError && e.httpStatus === 409) {
+              this.confirmDialog
+                .confirm({
+                  title: this.translate.instant('timetable.genericConflictTitle'),
+                  message: this.translate.instant('timetable.genericConflictMessage'),
+                  details: [
+                    this.translate.instant('timetable.genericConflictDetailAction'),
+                    e.message || this.translate.instant('timetable.genericConflictDetailFallback'),
+                  ],
+                  variant: 'warning',
+                  confirmLabel: this.translate.instant('timetable.validationAcknowledge'),
+                  cancelLabel: '',
+                })
+                .pipe(take(1))
+                .subscribe();
+              return;
+            }
+            console.error(e);
+          },
+        });
+      };
+
+      const ignoreIds = new Set<number>();
+      if (replaceTimetableEntryId != null && replaceTimetableEntryId > 0) {
+        ignoreIds.add(replaceTimetableEntryId);
+      }
+
+      forkJoin({
+        teacherRows: this.timetableService.getByTeacher(execPayload.teacherId).pipe(catchError(() => of<TimetableEntry[]>([]))),
+        globalRows: this.timetableService.getAll().pipe(catchError(() => of<TimetableEntry[]>([]))),
+      })
+        .pipe(take(1))
+        .subscribe({
+          next: ({ teacherRows, globalRows }) => {
+            const global = globalRows ?? [];
+            const classScoped =
+              this.scheduleScope === 'class'
+                ? this.classScheduleRows
+                : global.filter(e => sameTimetableClassSection(e, execPayload));
+
+            const violation = detectTimetableLocalViolations(execPayload, {
+              classScopedRows: classScoped,
+              teacherScopedRows: teacherRows ?? [],
+              globalRows: global,
+              ignoreEntryIds: ignoreIds,
+            });
+            if (violation) {
+              this.showLocalTimetableViolationDialog(violation, execPayload);
+              return;
+            }
+            finishWithRequest();
+          },
+          error: () => {
+            finishWithRequest();
+          },
+        });
+    };
+
+    const isCreate = this.editingEntryId == null;
+    const needsSaveConfirm =
+      isCreate &&
+      this.scheduleScope === 'class' &&
+      !persistOpts?.skipNewSlotUserConfirm &&
+      replaceTimetableEntryId == null;
+
+    const snapshot = this.buildPersistPayload();
+    if (!this.validateTimetableBasic(snapshot)) {
+      return;
+    }
+
+    if (needsSaveConfirm) {
+      this.confirmDialog
+        .confirm({
+          title: this.translate.instant('timetable.addSlotPersistTitle'),
+          message: this.translate.instant('timetable.addSlotPersistMessage'),
+          details: this.buildAddSlotPersistConfirmDetails(snapshot),
+          variant: 'primary',
+          confirmLabel: this.translate.instant('timetable.addSlotPersistConfirm'),
+          cancelLabel: this.translate.instant('timetable.conflictKeep'),
+        })
+        .pipe(filter(Boolean), take(1))
+        .subscribe(() => runPersist());
+      return;
+    }
+
+    runPersist();
   }
 
   private promptTimetableConflictReplace(err: TimetableConflictError): void {
@@ -1824,7 +2265,9 @@ export class TimetableComponent implements OnInit {
         variant: 'warning',
       })
       .pipe(filter(Boolean), take(1))
-      .subscribe(() => this.persistTimetableSlot(err.conflict.existingEntryId));
+      .subscribe(() =>
+        this.persistTimetableSlot(err.conflict.existingEntryId, { skipNewSlotUserConfirm: true })
+      );
   }
 
   deleteEntry(id: number): void {

@@ -486,9 +486,30 @@ public class ImportBulkRowValidator {
         try {
             Enums.LibraryStaffRole.valueOf(normalized);
         } catch (IllegalArgumentException ex) {
-            throw new BusinessException("Invalid libraryrole: " + raw);
+            throw new BusinessException("Invalid libraryrole: " + raw + libraryRoleMisplacementHint(normalized));
         }
     }
+
+    /**
+     * Common onboarding mistake: tenant RBAC duty codes are placed in library_role instead of school_role_codes.
+     * Valid library_role values when set: ASSISTANT, LIBRARIAN, HEAD, AUTO ({@link Enums.LibraryStaffRole}).
+     */
+    private static String libraryRoleMisplacementHint(String normalized) {
+        if (dutyCodesOftenPlacedInLibraryRoleColumn.contains(normalized)) {
+            return " — use school_role_codes for RBAC duties (comma-separated); leave library_role blank"
+                    + " unless portal_role is LIBRARY_STAFF (then use ASSISTANT / LIBRARIAN / HEAD / AUTO).";
+        }
+        return "";
+    }
+
+    private static final Set<String> dutyCodesOftenPlacedInLibraryRoleColumn = Set.of(
+            "BASE_SCHOOL_STAFF",
+            "FEE_OFFICE",
+            "TRANSPORT_LOGISTICS",
+            "LIBRARY_OPERATIONS",
+            "ACADEMIC_STAFF",
+            "EXAM_OFFICE",
+            "OPERATIONS_DESK");
 
     private static void parseOptionalTeacherStatus(String raw) {
         String n = blankToNull(raw);
