@@ -1549,7 +1549,37 @@ public class FeeDTOs {
     }
 
     public static class PaymentReceiptResponse {
+        public static class PaymentReceiptEntry {
+            private String eventType;
+            private String label;
+            private String occurredAt;
+            private BigDecimal amount;
+            private BigDecimal runningPaidAmount;
+            private BigDecimal runningDueAmount;
+            private String note;
+
+            public String getEventType() { return eventType; }
+            public void setEventType(String eventType) { this.eventType = eventType; }
+            public String getLabel() { return label; }
+            public void setLabel(String label) { this.label = label; }
+            public String getOccurredAt() { return occurredAt; }
+            public void setOccurredAt(String occurredAt) { this.occurredAt = occurredAt; }
+            public BigDecimal getAmount() { return amount; }
+            public void setAmount(BigDecimal amount) { this.amount = amount; }
+            public BigDecimal getRunningPaidAmount() { return runningPaidAmount; }
+            public void setRunningPaidAmount(BigDecimal runningPaidAmount) { this.runningPaidAmount = runningPaidAmount; }
+            public BigDecimal getRunningDueAmount() { return runningDueAmount; }
+            public void setRunningDueAmount(BigDecimal runningDueAmount) { this.runningDueAmount = runningDueAmount; }
+            public String getNote() { return note; }
+            public void setNote(String note) { this.note = note; }
+        }
+
         private String receiptNumber;
+        private String schoolName;
+        private String schoolCode;
+        private String schoolAddress;
+        private String schoolPhone;
+        private String schoolEmail;
         private Long paymentId;
         private Long studentId;
         private String studentName;
@@ -1568,9 +1598,20 @@ public class FeeDTOs {
         private BigDecimal discount;
         private BigDecimal lateFee;
         private List<ParentFeeLineItem> lineItems;
+        private List<PaymentReceiptEntry> entries;
 
         public String getReceiptNumber() { return receiptNumber; }
         public void setReceiptNumber(String receiptNumber) { this.receiptNumber = receiptNumber; }
+        public String getSchoolName() { return schoolName; }
+        public void setSchoolName(String schoolName) { this.schoolName = schoolName; }
+        public String getSchoolCode() { return schoolCode; }
+        public void setSchoolCode(String schoolCode) { this.schoolCode = schoolCode; }
+        public String getSchoolAddress() { return schoolAddress; }
+        public void setSchoolAddress(String schoolAddress) { this.schoolAddress = schoolAddress; }
+        public String getSchoolPhone() { return schoolPhone; }
+        public void setSchoolPhone(String schoolPhone) { this.schoolPhone = schoolPhone; }
+        public String getSchoolEmail() { return schoolEmail; }
+        public void setSchoolEmail(String schoolEmail) { this.schoolEmail = schoolEmail; }
         public Long getPaymentId() { return paymentId; }
         public void setPaymentId(Long paymentId) { this.paymentId = paymentId; }
         public Long getStudentId() { return studentId; }
@@ -1607,6 +1648,8 @@ public class FeeDTOs {
         public void setLateFee(BigDecimal lateFee) { this.lateFee = lateFee; }
         public List<ParentFeeLineItem> getLineItems() { return lineItems; }
         public void setLineItems(List<ParentFeeLineItem> lineItems) { this.lineItems = lineItems; }
+        public List<PaymentReceiptEntry> getEntries() { return entries; }
+        public void setEntries(List<PaymentReceiptEntry> entries) { this.entries = entries; }
     }
 
     /** Assign one fee structure to all active students in a class (optional section). */

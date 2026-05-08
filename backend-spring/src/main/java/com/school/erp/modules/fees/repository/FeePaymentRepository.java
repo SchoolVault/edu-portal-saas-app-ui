@@ -2,6 +2,7 @@ package com.school.erp.modules.fees.repository;
 
 import com.school.erp.common.enums.Enums;
 import com.school.erp.modules.fees.entity.FeePayment;
+import com.school.erp.modules.student.entity.Student;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -18,6 +19,51 @@ public interface FeePaymentRepository extends JpaRepository<FeePayment, Long> {
     List<FeePayment> findByTenantIdAndStatusAndIsDeletedFalse(String tenantId, Enums.FeeStatus status);
 
     List<FeePayment> findByTenantIdAndStudentIdAndIsDeletedFalse(String tenantId, Long studentId);
+
+    @Query("""
+            select f
+            from FeePayment f, FeeStructure fs
+            where f.tenantId = :tenantId
+              and f.isDeleted = false
+              and fs.tenantId = :tenantId
+              and fs.isDeleted = false
+              and fs.id = f.feeStructureId
+              and (:status is null or f.status = :status)
+              and (:classId is null or fs.classId = :classId)
+              and (
+                :sectionId is null
+                or exists (
+                  select 1
+                  from Student s
+                  where s.tenantId = :tenantId
+                    and s.isDeleted = false
+                    and s.id = f.studentId
+                    and s.sectionId = :sectionId
+                )
+              )
+              and (
+                :monthStart is null
+                or (
+                  coalesce(f.paymentDate, function('date', f.createdAt), f.dueDate) is not null
+                  and coalesce(f.paymentDate, function('date', f.createdAt), f.dueDate) >= :monthStart
+                  and coalesce(f.paymentDate, function('date', f.createdAt), f.dueDate) <= :monthEnd
+                )
+              )
+              and (
+                :q is null
+                or :q = ''
+                or lower(coalesce(f.studentName, '')) like lower(concat('%', :q, '%'))
+              )
+            order by f.id desc
+            """)
+    List<FeePayment> findFilteredForDashboard(
+            @Param("tenantId") String tenantId,
+            @Param("status") Enums.FeeStatus status,
+            @Param("q") String q,
+            @Param("classId") Long classId,
+            @Param("sectionId") Long sectionId,
+            @Param("monthStart") LocalDate monthStart,
+            @Param("monthEnd") LocalDate monthEnd);
 
     Optional<FeePayment> findByIdAndTenantIdAndIsDeletedFalse(Long id, String tenantId);
 

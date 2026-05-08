@@ -82,6 +82,15 @@
 
 * { box-sizing: border-box; }
 
+/* Universal media safety: prevents overflow on narrow devices across all modules/roles. */
+img,
+svg,
+canvas,
+video,
+iframe {
+  max-width: 100%;
+}
+
 html, body {
   height: 100%;
   margin: 0;
@@ -98,6 +107,48 @@ html, body {
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+/*
+ * Desktop density tuning:
+ * Users reported current layout feels oversized at 100% browser zoom and looks optimal around 80%.
+ * This compact profile reduces base typography/spacing on laptop+ while keeping mobile untouched.
+ */
+@media (min-width: 1024px) {
+  html {
+    font-size: 93.75%; /* 16px -> 15px base */
+  }
+  body {
+    font-size: 13px;
+  }
+  .main-content {
+    padding: 20px;
+  }
+  .erp-card,
+  .stat-card {
+    padding: 20px;
+  }
+  .erp-card-header {
+    margin-bottom: 16px;
+  }
+  .erp-card-title {
+    font-size: 15px;
+  }
+  .page-title {
+    font-size: 17px;
+  }
+  .btn-primary-erp,
+  .btn-secondary-erp,
+  .btn-outline-erp {
+    padding: 9px 20px;
+    font-size: 13px;
+  }
+  .erp-input,
+  .erp-select {
+    font-size: 13px;
+    padding-top: 9px;
+    padding-bottom: 9px;
+  }
 }
 
 h1, h2, h3, h4, h5, h6 {
@@ -393,6 +444,7 @@ a:hover {
   flex: 1;
   padding: 24px;
   min-width: 0;
+  overflow-x: hidden;
 }
 
 .profile-summary-card {
@@ -2243,6 +2295,34 @@ select.erp-select:disabled {
   }
   .main-content { padding: 16px; }
   .stat-value { font-size: 22px; }
+
+  /* Cross-module safety: card headers/actions wrap instead of clipping on phones/tablets. */
+  .erp-card-header {
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: flex-start;
+  }
+  .erp-card-header > * {
+    min-width: 0;
+  }
+
+  /* Better tap ergonomics on mobile-heavy usage. */
+  .btn-primary-erp,
+  .btn-secondary-erp,
+  .btn-outline-erp,
+  .erp-input,
+  .erp-select {
+    min-height: 40px;
+  }
+
+  /* Wide tables should scroll, not break layout. */
+  .erp-table-scroll {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .erp-table {
+    min-width: 620px;
+  }
 }
 
 @media (max-width: 576px) {

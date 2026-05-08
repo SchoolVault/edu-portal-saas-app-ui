@@ -47,6 +47,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.Duration;
+import java.time.YearMonth;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -278,17 +279,29 @@ public class FeeService {
      * Paged fee ledger for admin UI (matches frontend {@code PageResp} / {@link PageResponse}).
      */
     @Transactional(readOnly = true)
-    public PageResponse<FeeDTOs.FeePaymentResponse> getPaymentsPaged(int page, int size, Enums.FeeStatus status, String q) {
+    public PageResponse<FeeDTOs.FeePaymentResponse> getPaymentsPaged(
+            int page,
+            int size,
+            Enums.FeeStatus status,
+            String q,
+            Long classId,
+            Long sectionId,
+            String month) {
         String t = TenantContext.getTenantId();
         int safeSize = Math.min(Math.max(size, 1), 200);
         int safePage = Math.max(page, 0);
-        List<FeePayment> payments = status != null ? paymentRepo.findByTenantIdAndStatusAndIsDeletedFalse(t, status) : paymentRepo.findByTenantIdAndIsDeletedFalse(t);
-        String needle = q == null ? "" : q.trim().toLowerCase(Locale.ROOT);
-        List<FeePayment> filtered = payments.stream()
-                .sorted(Comparator.comparing(FeePayment::getId).reversed())
-                .filter(p -> needle.isEmpty()
-                        || (p.getStudentName() != null && p.getStudentName().toLowerCase(Locale.ROOT).contains(needle)))
-                .collect(Collectors.toList());
+        YearMonth ym = parseYearMonthOrCurrent(month);
+        LocalDate monthStart = ym.atDay(1);
+        LocalDate monthEnd = ym.atEndOfMonth();
+        String needle = q == null ? "" : q.trim();
+        List<FeePayment> filtered = paymentRepo.findFilteredForDashboard(
+                t,
+                status,
+                needle.isBlank() ? null : needle,
+                classId,
+                sectionId,
+                monthStart,
+                monthEnd);
         long total = filtered.size();
         int from = (int) Math.min((long) safePage * safeSize, total);
         int to = (int) Math.min(from + safeSize, total);
@@ -526,14 +539,35 @@ public class FeeService {
 
     // ========== REPORTS ==========
     @Transactional(readOnly = true)
-    public FeeDTOs.FeeCollectionSummary getCollectionSummary() {
+    public FeeDTOs.FeeCollectionSummary getCollectionSummary(Long classId, Long sectionId, String month) {
         String t = TenantContext.getTenantId();
-        List<FeePayment> all = paymentRepo.findByTenantIdAndIsDeletedFalse(t);
+        YearMonth ym = parseYearMonthOrCurrent(month);
+        LocalDate monthStart = ym.atDay(1);
+        LocalDate monthEnd = ym.atEndOfMonth();
+        List<FeePayment> all = paymentRepo.findFilteredForDashboard(
+                t,
+                null,
+                null,
+                classId,
+                sectionId,
+                monthStart,
+                monthEnd);
         BigDecimal collected = all.stream().map(p -> p.getPaidAmount() != null ? p.getPaidAmount() : BigDecimal.ZERO).reduce(BigDecimal.ZERO, BigDecimal::add);
         BigDecimal pending = all.stream().map(p -> p.getDueAmount() != null ? p.getDueAmount() : BigDecimal.ZERO).reduce(BigDecimal.ZERO, BigDecimal::add);
         BigDecimal total = collected.add(pending);
         long overdue = all.stream().filter(p -> p.getStatus() == Enums.FeeStatus.OVERDUE).count();
         return FeeDTOs.FeeCollectionSummary.builder().totalCollected(collected).totalPending(pending).totalStudents((long) all.size()).overdueCount(overdue).collectionRate(total.compareTo(BigDecimal.ZERO) > 0 ? collected.multiply(BigDecimal.valueOf(100)).divide(total, 1, java.math.RoundingMode.HALF_UP).doubleValue() : 0).build();
+    }
+
+    private YearMonth parseYearMonthOrCurrent(String monthRaw) {
+        if (monthRaw == null || monthRaw.isBlank()) {
+            return YearMonth.now();
+        }
+        try {
+            return YearMonth.parse(monthRaw.trim());
+        } catch (Exception ex) {
+            return YearMonth.now();
+        }
     }
 
     @Transactional(readOnly = true)
@@ -1128,7 +1162,7 @@ public class FeeService {
         FeePayment payment = paymentRepo.findByReceiptNumberAndTenantIdAndIsDeletedFalse(receiptNumber, tenantId)
                 .orElseThrow(() -> new ResourceNotFoundException("Receipt not found"));
         assertParentOwnsStudent(payment.getStudentId());
-        if (!hasRecordedFeeCollection(tenantId, payment.getId())) {
+        if (!isReceiptVisibleForUsers(tenantId, payment)) {
             throw new ResourceNotFoundException("Receipt not found");
         }
         return toReceiptResponse(payment, latestSuccessAttempt(tenantId, payment.getId()));
@@ -1140,7 +1174,20 @@ public class FeeService {
         FeePayment payment = paymentRepo.findByReceiptNumberAndTenantIdAndIsDeletedFalse(receiptNumber, tenantId)
                 .orElseThrow(() -> new ResourceNotFoundException("Receipt not found"));
         assertParentOwnsStudent(payment.getStudentId());
-        if (!hasRecordedFeeCollection(tenantId, payment.getId())) {
+        if (!isReceiptVisibleForUsers(tenantId, payment)) {
+            throw new ResourceNotFoundException("Receipt not found");
+        }
+        FeeDTOs.PaymentReceiptResponse r = toReceiptResponse(payment, latestSuccessAttempt(tenantId, payment.getId()));
+        FeeReceiptPdfContext ctx = FeeReceiptPdfContext.fromTenantConfig(tenantConfigRepository.findByTenantId(tenantId).orElse(null));
+        return feeReceiptPdfService.build(r, ctx);
+    }
+
+    @Transactional(readOnly = true)
+    public byte[] getSchoolFeeReceiptPdf(String receiptNumber) {
+        String tenantId = TenantContext.getTenantId();
+        FeePayment payment = paymentRepo.findByReceiptNumberAndTenantIdAndIsDeletedFalse(receiptNumber, tenantId)
+                .orElseThrow(() -> new ResourceNotFoundException("Receipt not found"));
+        if (!isReceiptVisibleForUsers(tenantId, payment)) {
             throw new ResourceNotFoundException("Receipt not found");
         }
         FeeDTOs.PaymentReceiptResponse r = toReceiptResponse(payment, latestSuccessAttempt(tenantId, payment.getId()));
@@ -1157,7 +1204,7 @@ public class FeeService {
         String tenantId = TenantContext.getTenantId();
         return paymentRepo.findByTenantIdAndStudentIdAndIsDeletedFalse(tenantId, studentId).stream()
                 .filter(p -> p.getReceiptNumber() != null && !p.getReceiptNumber().isBlank())
-                .filter(p -> hasRecordedFeeCollection(tenantId, p.getId()))
+                .filter(p -> isReceiptVisibleForUsers(tenantId, p))
                 .filter(p -> p.getPaymentDate() != null
                         && !p.getPaymentDate().isBefore(from)
                         && !p.getPaymentDate().isAfter(to))
@@ -1169,6 +1216,16 @@ public class FeeService {
     private boolean hasRecordedFeeCollection(String tenantId, Long feePaymentId) {
         return feeTransactionRepository.existsByTenantIdAndFeePaymentIdAndIsDeletedFalseAndEventTypeIn(
                 tenantId, feePaymentId, PARENT_RECEIPT_LEDGER_EVENTS);
+    }
+
+    private boolean isReceiptVisibleForUsers(String tenantId, FeePayment payment) {
+        if (payment.getReceiptNumber() == null || payment.getReceiptNumber().isBlank()) {
+            return false;
+        }
+        if (hasRecordedFeeCollection(tenantId, payment.getId())) {
+            return true;
+        }
+        return payment.getPaidAmount() != null && payment.getPaidAmount().compareTo(BigDecimal.ZERO) > 0;
     }
 
     private FeePaymentAttempt latestSuccessAttempt(String tenantId, Long feePaymentId) {
@@ -1366,10 +1423,17 @@ public class FeeService {
 
     private FeeDTOs.PaymentReceiptResponse toReceiptResponse(FeePayment payment, FeePaymentAttempt attempt) {
         FeeDTOs.PaymentReceiptResponse response = new FeeDTOs.PaymentReceiptResponse();
+        FeeReceiptPdfContext schoolCtx = FeeReceiptPdfContext.fromTenantConfig(
+                tenantConfigRepository.findByTenantId(payment.getTenantId()).orElse(null));
         FeeStructure structure = payment.getFeeStructureId() != null
                 ? structureRepo.findByIdAndTenantIdAndIsDeletedFalse(payment.getFeeStructureId(), payment.getTenantId()).orElse(null)
                 : null;
         response.setReceiptNumber(payment.getReceiptNumber());
+        response.setSchoolName(schoolCtx.schoolName());
+        response.setSchoolCode(schoolCtx.schoolCode());
+        response.setSchoolAddress(schoolCtx.schoolAddress());
+        response.setSchoolPhone(schoolCtx.schoolPhone());
+        response.setSchoolEmail(schoolCtx.schoolEmail());
         response.setPaymentId(payment.getId());
         response.setStudentId(payment.getStudentId());
         response.setStudentName(payment.getStudentName());
@@ -1388,7 +1452,62 @@ public class FeeService {
         response.setDiscount(payment.getDiscount() != null ? payment.getDiscount() : BigDecimal.ZERO);
         response.setLateFee(payment.getLateFee() != null ? payment.getLateFee() : BigDecimal.ZERO);
         response.setLineItems(getLineItems(payment.getTenantId(), payment.getFeeStructureId()));
+        response.setEntries(buildReceiptEntries(payment));
         return response;
+    }
+
+    private List<FeeDTOs.PaymentReceiptResponse.PaymentReceiptEntry> buildReceiptEntries(FeePayment payment) {
+        List<FeeTransaction> rows = feeTransactionRepository.findByTenantIdAndFeePaymentIdAndIsDeletedFalseOrderByCreatedAtAsc(
+                payment.getTenantId(), payment.getId());
+        BigDecimal runningPaid = BigDecimal.ZERO;
+        BigDecimal baseTotal = payment.getAmount() != null ? payment.getAmount() : BigDecimal.ZERO;
+        BigDecimal lateFee = payment.getLateFee() != null ? payment.getLateFee() : BigDecimal.ZERO;
+        BigDecimal runningDue = baseTotal.add(lateFee);
+        List<FeeDTOs.PaymentReceiptResponse.PaymentReceiptEntry> out = new ArrayList<>();
+        for (FeeTransaction tx : rows) {
+            String type = tx.getEventType();
+            boolean addPayment = FeeTransactionType.PAYMENT_CAPTURED.equals(type)
+                    || FeeTransactionType.PAYMENT_MANUAL_POSTED.equals(type);
+            boolean addRefund = FeeTransactionType.REFUND_EXECUTED.equals(type)
+                    || FeeTransactionType.PROVIDER_REFUND_SETTLED.equals(type);
+            if (!addPayment && !addRefund) {
+                continue;
+            }
+            BigDecimal amount = tx.getAmount() != null ? tx.getAmount() : BigDecimal.ZERO;
+            if (addPayment) {
+                runningPaid = runningPaid.add(amount);
+            } else {
+                runningPaid = runningPaid.subtract(amount);
+            }
+            if (runningPaid.compareTo(BigDecimal.ZERO) < 0) {
+                runningPaid = BigDecimal.ZERO;
+            }
+            runningDue = baseTotal.add(lateFee).subtract(runningPaid);
+            if (runningDue.compareTo(BigDecimal.ZERO) < 0) {
+                runningDue = BigDecimal.ZERO;
+            }
+            FeeDTOs.PaymentReceiptResponse.PaymentReceiptEntry e = new FeeDTOs.PaymentReceiptResponse.PaymentReceiptEntry();
+            e.setEventType(type);
+            e.setLabel(addPayment ? "Payment received" : "Refund adjustment");
+            e.setOccurredAt(tx.getOccurredAt() != null ? tx.getOccurredAt().toString() : null);
+            e.setAmount(amount);
+            e.setRunningPaidAmount(runningPaid);
+            e.setRunningDueAmount(runningDue);
+            e.setNote(tx.getNote());
+            out.add(e);
+        }
+        if (out.isEmpty() && payment.getPaidAmount() != null && payment.getPaidAmount().compareTo(BigDecimal.ZERO) > 0) {
+            FeeDTOs.PaymentReceiptResponse.PaymentReceiptEntry legacy = new FeeDTOs.PaymentReceiptResponse.PaymentReceiptEntry();
+            legacy.setEventType("LEGACY_PAYMENT");
+            legacy.setLabel("Payment received");
+            legacy.setOccurredAt(payment.getPaymentDate() != null ? payment.getPaymentDate().toString() : null);
+            legacy.setAmount(payment.getPaidAmount());
+            legacy.setRunningPaidAmount(payment.getPaidAmount());
+            legacy.setRunningDueAmount(payment.getDueAmount() != null ? payment.getDueAmount() : BigDecimal.ZERO);
+            legacy.setNote("Legacy payment record");
+            out.add(legacy);
+        }
+        return out;
     }
 
     private void invalidateDashboardSnapshots(String reason) {

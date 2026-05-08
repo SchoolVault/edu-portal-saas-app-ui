@@ -232,9 +232,24 @@ public class ReportDashboardDTOs {
         private String dataComputedAt;
         private long totalStudents;
         private long totalTeachers;
+        /** Running cumulative collection across all recorded fee payments. */
         private double feesCollected;
+        /** Running cumulative pending amount across all recorded fee ledgers. */
         private double feesPending;
+        /** Cumulative collection rate derived from {@link #feesCollected} and {@link #feesPending}. */
         private long collectionRate;
+        /** Collected amount for the current calendar month (admin home KPI primary). */
+        private double feesCollectedMonthly;
+        /** Pending amount tied to current-month fee ledgers (KPI denominator context). */
+        private double feesPendingMonthly;
+        /** Monthly collection rate derived from month-scoped collected/pending totals. */
+        private long collectionRateMonthly;
+        /** Collected amount for current calendar year (secondary context / leadership trend). */
+        private double feesCollectedYearly;
+        /** Pending amount tied to current-year fee ledgers. */
+        private double feesPendingYearly;
+        /** Year-to-date collection rate derived from year-scoped collected/pending totals. */
+        private long collectionRateYearly;
         private List<MetricPoint> monthlyAdmissions = new ArrayList<>();
         private List<MetricPoint> monthlyCollections = new ArrayList<>();
         private AttendanceOverview attendanceOverview;
@@ -245,6 +260,8 @@ public class ReportDashboardDTOs {
         private List<ClassHomeroomGap> classesWithoutHomeroomTeacher = new ArrayList<>();
         /** Echo of {@link com.school.erp.modules.reports.dto.AdminAttendanceOverviewScope} for clients (i18n / chips). */
         private String attendanceOverviewScope = "MONTH_TO_DATE";
+        /** Echo of selected attendance month filter (YYYY-MM). */
+        private String attendanceOverviewMonth;
 
         public String getDataComputedAt() {
             return dataComputedAt;
@@ -292,6 +309,54 @@ public class ReportDashboardDTOs {
 
         public void setCollectionRate(final long collectionRate) {
             this.collectionRate = collectionRate;
+        }
+
+        public double getFeesCollectedMonthly() {
+            return feesCollectedMonthly;
+        }
+
+        public void setFeesCollectedMonthly(double feesCollectedMonthly) {
+            this.feesCollectedMonthly = feesCollectedMonthly;
+        }
+
+        public double getFeesPendingMonthly() {
+            return feesPendingMonthly;
+        }
+
+        public void setFeesPendingMonthly(double feesPendingMonthly) {
+            this.feesPendingMonthly = feesPendingMonthly;
+        }
+
+        public long getCollectionRateMonthly() {
+            return collectionRateMonthly;
+        }
+
+        public void setCollectionRateMonthly(long collectionRateMonthly) {
+            this.collectionRateMonthly = collectionRateMonthly;
+        }
+
+        public double getFeesCollectedYearly() {
+            return feesCollectedYearly;
+        }
+
+        public void setFeesCollectedYearly(double feesCollectedYearly) {
+            this.feesCollectedYearly = feesCollectedYearly;
+        }
+
+        public double getFeesPendingYearly() {
+            return feesPendingYearly;
+        }
+
+        public void setFeesPendingYearly(double feesPendingYearly) {
+            this.feesPendingYearly = feesPendingYearly;
+        }
+
+        public long getCollectionRateYearly() {
+            return collectionRateYearly;
+        }
+
+        public void setCollectionRateYearly(long collectionRateYearly) {
+            this.collectionRateYearly = collectionRateYearly;
         }
 
         public List<MetricPoint> getMonthlyAdmissions() {
@@ -356,6 +421,14 @@ public class ReportDashboardDTOs {
 
         public void setAttendanceOverviewScope(final String attendanceOverviewScope) {
             this.attendanceOverviewScope = attendanceOverviewScope;
+        }
+
+        public String getAttendanceOverviewMonth() {
+            return attendanceOverviewMonth;
+        }
+
+        public void setAttendanceOverviewMonth(String attendanceOverviewMonth) {
+            this.attendanceOverviewMonth = attendanceOverviewMonth;
         }
     }
 
