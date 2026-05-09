@@ -29,6 +29,18 @@ public final class TabularImportStreamReader {
 
     private static final DataFormatter XLSX_FORMATTER = new DataFormatter();
 
+    /**
+     * Onboarding/templates often append {@code " (R)"} / {@code " (O)"} to headers. Row maps must use plain keys so
+     * identity column mapping and validators resolve {@code subject_code}, etc.
+     */
+    static String normalizeImportedHeaderLabel(String raw) {
+        if (raw == null) {
+            return "";
+        }
+        String h = raw.trim().toLowerCase(Locale.ROOT);
+        return h.replaceFirst("\\s*\\([ro]\\)\\s*$", "").trim();
+    }
+
     @FunctionalInterface
     public interface RowBatchSink {
         /**
@@ -70,7 +82,8 @@ public final class TabularImportStreamReader {
             }
             headerLine = CsvExportSupport.stripLeadingBom(headerLine);
             List<String> headers = TabularImportFileReader.parseCsvLine(headerLine).stream()
-                    .map(h -> h.trim().toLowerCase(Locale.ROOT))
+                    .map(TabularImportStreamReader::normalizeImportedHeaderLabel)
+                    .filter(h -> !h.isBlank())
                     .toList();
             List<Map<String, String>> batch = new ArrayList<>(batchSize);
             int dataRowCount = 0;
@@ -161,7 +174,7 @@ public final class TabularImportStreamReader {
             for (int c = 0; c < lastCell; c++) {
                 Cell cell = headerRow.getCell(c);
                 String raw = cell != null ? XLSX_FORMATTER.formatCellValue(cell).trim() : "";
-                headers.add(raw.toLowerCase(Locale.ROOT));
+                headers.add(normalizeImportedHeaderLabel(raw));
             }
             int lastRowNum = sheet.getLastRowNum();
             List<Map<String, String>> batch = new ArrayList<>(batchSize);
@@ -276,7 +289,7 @@ public final class TabularImportStreamReader {
             }
             String bomStripped = headerLine.charAt(0) == '\uFEFF' ? headerLine.substring(1) : headerLine;
             return TabularImportFileReader.parseCsvLine(bomStripped).stream()
-                    .map(h -> h.trim().toLowerCase(Locale.ROOT))
+                    .map(TabularImportStreamReader::normalizeImportedHeaderLabel)
                     .filter(h -> !h.isBlank())
                     .toList();
         }
@@ -297,8 +310,9 @@ public final class TabularImportStreamReader {
             for (int c = 0; c < lastCell; c++) {
                 Cell cell = headerRow.getCell(c);
                 String raw = cell != null ? XLSX_FORMATTER.formatCellValue(cell).trim() : "";
-                if (!raw.isBlank()) {
-                    headers.add(raw.toLowerCase(Locale.ROOT));
+                String norm = normalizeImportedHeaderLabel(raw);
+                if (!norm.isBlank()) {
+                    headers.add(norm);
                 }
             }
             return headers;

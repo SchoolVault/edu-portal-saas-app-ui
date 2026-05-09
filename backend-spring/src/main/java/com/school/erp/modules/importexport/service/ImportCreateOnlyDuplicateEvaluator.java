@@ -175,8 +175,11 @@ public class ImportCreateOnlyDuplicateEvaluator {
                 return false;
             }
             Enums.DayOfWeek day = Enums.DayOfWeek.valueOf(dayRaw.toUpperCase(Locale.ROOT));
+            Long academicYearId =
+                    academicResolver.resolveAcademicYearId(value(row, "academic_year_id", "academicyearid"));
             return timetableRepository
-                    .findFirstByTenantAndClassSectionDayPeriod(tenant, placement.classId(), placement.sectionId(), day, period)
+                    .findFirstByTenantAndClassSectionDayPeriodAndAcademicYear(
+                            tenant, placement.classId(), placement.sectionId(), day, period, academicYearId)
                     .isPresent();
         } catch (Exception e) {
             return false;

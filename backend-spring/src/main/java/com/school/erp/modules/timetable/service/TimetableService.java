@@ -19,6 +19,7 @@ import com.school.erp.modules.timetable.entity.TimetableEntry;
 import com.school.erp.modules.timetable.policy.TimetableSlotConflictResolver;
 import com.school.erp.modules.timetable.policy.TimetableSlotConflictResolver.Conflict;
 import com.school.erp.modules.timetable.repository.TimetableRepository;
+import com.school.erp.tenant.AcademicYearContext;
 import com.school.erp.tenant.TenantContext;
 import com.school.erp.cache.CacheService;
 import com.school.erp.cache.CacheService.CacheRegion;
@@ -276,6 +277,7 @@ public class TimetableService {
     public TimetableEntry createEntry(TimetableEntry entry, Long replaceTimetableEntryId) {
         String t = TenantContext.getTenantId();
         log.info("Creating timetable slot classId={} day={} period={} replaceId={}", entry.getClassId(), entry.getDay(), entry.getPeriod(), replaceTimetableEntryId);
+        applyEffectiveAcademicYearFromRequestContext(entry);
         validateTimetableEntryRules(entry);
         assertNoTimetableConflictOrReplace(t, entry, null, replaceTimetableEntryId);
         entry.setTenantId(t);
@@ -291,6 +293,7 @@ public class TimetableService {
         log.info("Batch creating timetable rows count={}", entries.size());
         entries.forEach(e -> e.setTenantId(t));
         for (TimetableEntry e : entries) {
+            applyEffectiveAcademicYearFromRequestContext(e);
             validateTimetableEntryRules(e);
             assertNoTimetableConflictOrReplace(t, e, null, null);
         }
@@ -367,6 +370,10 @@ public class TimetableService {
         if (update.getRoom() != null) entry.setRoom(update.getRoom());
         if (update.getStartTime() != null) entry.setStartTime(update.getStartTime());
         if (update.getEndTime() != null) entry.setEndTime(update.getEndTime());
+        if (update.getAcademicYearId() != null) {
+            entry.setAcademicYearId(update.getAcademicYearId());
+        }
+        applyEffectiveAcademicYearFromRequestContext(entry);
         validateTimetableEntryRules(entry);
         assertNoTimetableConflictOrReplace(t, entry, id, replaceTimetableEntryId);
         TimetableEntry saved = repo.save(entry);
@@ -381,14 +388,24 @@ public class TimetableService {
      */
     private void assertNoTimetableConflictOrReplace(
             String tenantId, TimetableEntry candidate, Long excludeEntryId, Long replaceTimetableEntryId) {
-        List<TimetableEntry> classRows = repo.findForTenantClassAndOptionalSection(tenantId, candidate.getClassId(), candidate.getSectionId());
-        List<TimetableEntry> teacherRows = candidate.getTeacherId() != null
-                ? repo.findByTenantIdAndTeacherIdAndIsDeletedFalse(tenantId, candidate.getTeacherId())
-                : List.of();
+        // Same transaction (e.g. ALL_OR_NOTHING timetable import): prior lines may have pending Hibernate state.
+        // Flush so teacher/class/room conflict queries see the latest DB snapshot.
+        repo.flush();
+        Long ayScope = effectiveAcademicYearForConflict(candidate);
+        List<TimetableEntry> classRows = timetableRowsMatchingAcademicYear(
+                repo.findForTenantClassAndOptionalSection(tenantId, candidate.getClassId(), candidate.getSectionId()),
+                ayScope);
+        List<TimetableEntry> teacherRows =
+                candidate.getTeacherId() != null
+                        ? timetableRowsMatchingAcademicYear(
+                                repo.findByTenantIdAndTeacherIdAndIsDeletedFalse(tenantId, candidate.getTeacherId()),
+                                ayScope)
+                        : List.of();
         String room = candidate.getRoom() != null ? candidate.getRoom().trim() : "";
-        List<TimetableEntry> roomRows = !room.isBlank()
-                ? repo.findByTenantAndRoomIgnoreCase(tenantId, room)
-                : List.of();
+        List<TimetableEntry> roomRows =
+                !room.isBlank()
+                        ? timetableRowsMatchingAcademicYear(repo.findByTenantAndRoomIgnoreCase(tenantId, room), ayScope)
+                        : List.of();
 
         Optional<Conflict> conflict = TimetableSlotConflictResolver.resolve(
                 classRows,
@@ -411,11 +428,18 @@ public class TimetableService {
             }
             softDeleteBlockingEntry(tenantId, replaceTimetableEntryId);
             Optional<Conflict> again = TimetableSlotConflictResolver.resolve(
-                    repo.findForTenantClassAndOptionalSection(tenantId, candidate.getClassId(), candidate.getSectionId()),
+                    timetableRowsMatchingAcademicYear(
+                            repo.findForTenantClassAndOptionalSection(tenantId, candidate.getClassId(), candidate.getSectionId()),
+                            ayScope),
                     candidate.getTeacherId() != null
-                            ? repo.findByTenantIdAndTeacherIdAndIsDeletedFalse(tenantId, candidate.getTeacherId())
+                            ? timetableRowsMatchingAcademicYear(
+                                    repo.findByTenantIdAndTeacherIdAndIsDeletedFalse(tenantId, candidate.getTeacherId()),
+                                    ayScope)
                             : List.of(),
-                    !room.isBlank() ? repo.findByTenantAndRoomIgnoreCase(tenantId, room) : List.of(),
+                    !room.isBlank()
+                            ? timetableRowsMatchingAcademicYear(
+                                    repo.findByTenantAndRoomIgnoreCase(tenantId, room), ayScope)
+                            : List.of(),
                     candidate.getDay(),
                     candidate.getPeriod(),
                     candidate.getTeacherId(),
@@ -437,6 +461,40 @@ public class TimetableService {
                     ApiErrorCode.TIMETABLE_SLOT_CONFLICT,
                     buildTimetableConflictPayload(c));
         }
+    }
+
+    /**
+     * Conflict checks run before {@code save()}, while {@code AcademicYearScopeGuardListener}
+     * may still set {@code academicYearId} only at persist time. Use request-scoped academic year when the row is not
+     * yet populated but {@link AcademicYearContext} is set (imports, API with year header).
+     */
+    private static Long effectiveAcademicYearForConflict(TimetableEntry candidate) {
+        Long onRow = candidate.getAcademicYearId();
+        return onRow != null ? onRow : AcademicYearContext.getAcademicYearId();
+    }
+
+    /**
+     * Align in-memory timetable row before validation/conflict detection with what will be written.
+     */
+    private static void applyEffectiveAcademicYearFromRequestContext(TimetableEntry entry) {
+        if (entry.getAcademicYearId() != null) {
+            return;
+        }
+        Long ctx = AcademicYearContext.getAcademicYearId();
+        if (ctx != null) {
+            entry.setAcademicYearId(ctx);
+        }
+    }
+
+    /**
+     * DB uniqueness on teacher/class/room slots is scoped by {@link TimetableEntry#getAcademicYearId()}.
+     * Conflict checks must match that scope so we do not miss real duplicates or flag cross-year slots.
+     */
+    private static List<TimetableEntry> timetableRowsMatchingAcademicYear(List<TimetableEntry> rows, Long academicYearId) {
+        if (academicYearId == null) {
+            return rows;
+        }
+        return rows.stream().filter(e -> Objects.equals(e.getAcademicYearId(), academicYearId)).toList();
     }
 
     private static String humanTimetableConflictMessage(TimetableSlotConflictResolver.Kind kind) {

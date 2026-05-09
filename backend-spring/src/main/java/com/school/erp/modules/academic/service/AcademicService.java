@@ -29,6 +29,8 @@ import java.util.Comparator;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -138,6 +140,180 @@ public class AcademicService {
         evictSubjectCatalogCache();
         log.info("Subject catalog register tenant={} added={} skippedDuplicates={}", tenantId, added, skipped);
         return new AcademicDTOs.SubjectCatalogRegisterResult(added, skipped);
+    }
+
+    /**
+     * Ensures the tenant {@code academic_subjects} catalog contains the subject referenced by a timetable import row.
+     * Returns the canonical display name to persist on {@code TimetableEntry.subjectName} so UI and catalog stay aligned.
+     * <p>
+     * Behaviour is similar to school ERP “subject master” auto-provisioning: code (when present) acts as the stable
+     * business key; display name is validated against the catalog when both are supplied.
+     */
+    @Transactional
+    public String ensureSubjectCatalogFromTimetableImport(String displayNameNullable, String importCodeNullable) {
+        final String tenantId = TenantContext.getTenantId();
+        String nameIn = displayNameNullable != null ? displayNameNullable.trim() : null;
+        String codeIn = importCodeNullable != null ? importCodeNullable.trim().toUpperCase(Locale.ROOT) : null;
+        if (nameIn != null && nameIn.isEmpty()) {
+            nameIn = null;
+        }
+        if (codeIn != null && codeIn.isEmpty()) {
+            codeIn = null;
+        }
+        if (nameIn != null && nameIn.length() > 120) {
+            throw new BusinessException("subject name too long (max 120 characters).");
+        }
+        if (codeIn != null && codeIn.length() > 40) {
+            throw new BusinessException("subject_code too long (max 40 characters).");
+        }
+        if (nameIn == null && codeIn == null) {
+            throw new BusinessException("Provide subject_name/subjectname or subject_code.");
+        }
+        if (academicSubjectRepo.countByTenantIdAndIsDeletedFalse(tenantId) == 0) {
+            materializeDefaultSubjectCatalogRows(tenantId);
+        }
+        if (codeIn != null) {
+            Optional<AcademicSubject> byCode = academicSubjectRepo.findFirstByTenantIdAndCodeIgnoreCaseAndIsDeletedFalse(tenantId, codeIn);
+            if (byCode.isPresent()) {
+                AcademicSubject s = byCode.get();
+                if (nameIn != null && !s.getName().equalsIgnoreCase(nameIn)) {
+                    throw new BusinessException(
+                            "subject_code \"" + codeIn + "\" is already mapped to \"" + s.getName()
+                                    + "\"; subject_name does not match.");
+                }
+                return s.getName();
+            }
+        }
+        String resolvedDisplay = nameIn;
+        if (resolvedDisplay == null) {
+            resolvedDisplay = defaultSubjectNameFromPlatformCode(codeIn);
+        }
+        if (resolvedDisplay == null) {
+            resolvedDisplay = codeIn;
+        }
+        Optional<AcademicSubject> existing = academicSubjectRepo.findFirstByTenantIdAndNameIgnoreCaseAndIsDeletedFalse(
+                tenantId, resolvedDisplay);
+        if (existing.isPresent()) {
+            AcademicSubject s = existing.get();
+            if (codeIn != null) {
+                boolean codeEchoesSubjectNameOnly = codesImportColumnDuplicatedDisplayLabel(nameIn, importCodeNullable);
+                if (!codeEchoesSubjectNameOnly) {
+                    Optional<AcademicSubject> codeOccupant =
+                            academicSubjectRepo.findFirstByTenantIdAndCodeIgnoreCaseAndIsDeletedFalse(tenantId, codeIn);
+                    if (codeOccupant.isPresent() && !codeOccupant.get().getId().equals(s.getId())) {
+                        throw new BusinessException(
+                                "subject_code \"" + codeIn + "\" already belongs to subject \""
+                                        + codeOccupant.get().getName() + "\" (this row is \"" + s.getName() + "\").");
+                    }
+                    String existingCode = s.getCode();
+                    if (existingCode == null || existingCode.isBlank()) {
+                        s.setCode(allocateUniqueExplicitImportedCode(tenantId, codeIn));
+                        academicSubjectRepo.save(s);
+                        evictSubjectCatalogCache();
+                    } else if (!existingCode.equalsIgnoreCase(codeIn)) {
+                        String adopted = allocateUniqueExplicitImportedCode(tenantId, codeIn);
+                        s.setCode(adopted);
+                        academicSubjectRepo.save(s);
+                        evictSubjectCatalogCache();
+                        log.info(
+                                "Timetable import adopted catalog code tenant={} subject=\"{}\" {} -> {}",
+                                tenantId,
+                                s.getName(),
+                                existingCode,
+                                adopted);
+                    }
+                }
+            }
+            return s.getName();
+        }
+        String resolvedCode;
+        if (codeIn != null && !codesImportColumnDuplicatedDisplayLabel(resolvedDisplay, importCodeNullable)) {
+            resolvedCode = allocateUniqueExplicitImportedCode(tenantId, codeIn);
+        } else {
+            resolvedCode = deriveSubjectCode(resolvedDisplay, tenantId);
+        }
+        AcademicSubject row = new AcademicSubject();
+        row.setTenantId(tenantId);
+        row.setName(resolvedDisplay);
+        row.setCode(resolvedCode);
+        row.setCategory(inferCatalogCategoryFromSubjectName(resolvedDisplay));
+        row.setSortOrder(nextSubjectCatalogSortOrder(tenantId));
+        row.setIsDeleted(false);
+        academicSubjectRepo.save(row);
+        evictSubjectCatalogCache();
+        log.info("Timetable import auto-provisioned catalog subject tenant={} name=\"{}\" code={}", tenantId, resolvedDisplay, resolvedCode);
+        return resolvedDisplay;
+    }
+
+    /** Many CSV packs repeat the visible subject title in {@code subject_code}; uppercasing it is not an alternate ERP code. */
+    private static boolean codesImportColumnDuplicatedDisplayLabel(String nameIn, String importCodeRawNullable) {
+        if (nameIn == null || importCodeRawNullable == null) {
+            return false;
+        }
+        return nameIn.trim().equalsIgnoreCase(importCodeRawNullable.trim());
+    }
+
+    /**
+     * Inverse of platform default codes (used when a row supplies only {@code subject_code} before DB materialization).
+     */
+    private static String defaultSubjectNameFromPlatformCode(String codeUpper) {
+        if (codeUpper == null) {
+            return null;
+        }
+        for (AcademicDTOs.SubjectCatalogItem d : DEFAULT_SUBJECT_CATALOG) {
+            if (codeUpper.equalsIgnoreCase(d.getCode())) {
+                return d.getName();
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Allocates {@code requestedUpper} when free (case-insensitive); otherwise appends numeric suffixes until unique.
+     */
+    private String allocateUniqueExplicitImportedCode(String tenantId, String requestedUpper) {
+        String base = requestedUpper.length() > 40 ? requestedUpper.substring(0, 40) : requestedUpper;
+        String candidate = base;
+        int i = 0;
+        while (true) {
+            Optional<AcademicSubject> clash = academicSubjectRepo.findFirstByTenantIdAndCodeIgnoreCaseAndIsDeletedFalse(tenantId, candidate);
+            if (clash.isEmpty()) {
+                return candidate;
+            }
+            i++;
+            String suffix = String.valueOf(i);
+            int maxBase = Math.max(1, 40 - suffix.length());
+            String trimmedBase = base.length() > maxBase ? base.substring(0, maxBase) : base;
+            candidate = trimmedBase + suffix;
+        }
+    }
+
+    private static String inferCatalogCategoryFromSubjectName(String name) {
+        String n = name.toLowerCase(Locale.ROOT);
+        if (n.contains("math") || n.contains("physics") || n.contains("chemistry") || n.contains("biology")
+                || n.contains("science") || n.contains("computer") || n.contains("evs") || n.contains("stem")) {
+            return "STEM";
+        }
+        if (n.contains("english") || n.contains("hindi") || n.contains("sanskrit") || n.contains("language")
+                || n.contains("french") || n.contains("literature")) {
+            return "Languages";
+        }
+        if (n.contains("social") || n.contains("history") || n.contains("civics") || n.contains("geography")
+                || n.contains("economics") || n.contains("political")) {
+            return "Social Studies";
+        }
+        if (n.contains("art") || n.contains("music") || n.contains("dance") || n.contains("physical")
+                || n.contains("yoga") || n.contains("sport") || n.contains("moral")) {
+            return "Arts";
+        }
+        return "General";
+    }
+
+    private int nextSubjectCatalogSortOrder(String tenantId) {
+        return academicSubjectRepo.findByTenantIdAndIsDeletedFalseOrderBySortOrderAscNameAsc(tenantId).stream()
+                .mapToInt(AcademicSubject::getSortOrder)
+                .max()
+                .orElse(0) + 10;
     }
 
     private void materializeDefaultSubjectCatalogRows(String tenantId) {
