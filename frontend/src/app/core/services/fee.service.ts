@@ -67,6 +67,7 @@ export class FeeService {
     classId?: number;
     sectionId?: number;
     academicYearId?: number;
+    month?: string;
   }): Observable<PageResp<FeePayment>> {
     const page = opts.page ?? 0;
     const size = opts.size ?? DEFAULT_ERP_PAGE_SIZE;
@@ -87,10 +88,10 @@ export class FeeService {
           classId: classId ?? undefined,
           sectionId: sectionId ?? undefined,
           academicYearId: academicYearId ?? undefined,
+          month: opts.month?.trim() || undefined,
         })
         .pipe(map(pr => ({ ...pr, content: pr.content.map(item => this.normalizePayment(item as any)) })));
     }
-
     let rows = [...this.payments];
     if (status) {
       rows = rows.filter(p => p.status === status);
@@ -108,6 +109,17 @@ export class FeeService {
       rows = rows.filter(p => {
         const student = MOCK_STUDENTS.find(s => s.id === p.studentId);
         return student?.sectionId === sectionId;
+      });
+    }
+    if (opts.month && /^\d{4}-\d{2}$/.test(opts.month)) {
+      const [year, month] = opts.month.split('-').map(Number);
+      rows = rows.filter(p => {
+        const referenceDate = p.paymentDate || p.dueDate;
+        if (!referenceDate) {
+          return false;
+        }
+        const dt = new Date(`${referenceDate}T00:00:00`);
+        return dt.getFullYear() === year && dt.getMonth() + 1 === month;
       });
     }
     rows.sort((a, b) => b.id - a.id);
@@ -243,9 +255,13 @@ export class FeeService {
     });
   }
 
-  getCollectionSummary(): Observable<FeeCollectionSummary> {
+  getCollectionSummary(opts?: { classId?: number; sectionId?: number; month?: string }): Observable<FeeCollectionSummary> {
     if (!runtimeConfig.useMocks) {
-      return this.api.get<FeeCollectionSummary>('/fees/collection-summary').pipe(
+      return this.api.getParams<FeeCollectionSummary>('/fees/collection-summary', {
+        classId: opts?.classId ?? undefined,
+        sectionId: opts?.sectionId ?? undefined,
+        month: opts?.month?.trim() || undefined,
+      }).pipe(
         map((s: any) => ({
           totalCollected: Number(s.totalCollected ?? 0),
           totalPending: Number(s.totalPending ?? 0),
@@ -255,11 +271,35 @@ export class FeeService {
         }))
       );
     }
-    const totalCollected = this.payments.reduce((sum, p) => sum + (Number(p.paidAmount) || 0), 0);
-    const totalPending = this.payments.reduce((sum, p) => sum + (Number(p.dueAmount) || 0), 0);
-    const overdueCount = this.payments.filter(p => p.status === 'overdue').length;
-    const uniqueStudents = new Set(this.payments.map(p => p.studentId)).size;
-    const billed = this.payments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+    let rows = [...this.payments];
+    if (opts?.month && /^\d{4}-\d{2}$/.test(opts.month)) {
+      const [year, month] = opts.month.split('-').map(Number);
+      rows = rows.filter(p => {
+        const referenceDate = p.paymentDate || p.dueDate;
+        if (!referenceDate) {
+          return false;
+        }
+        const dt = new Date(`${referenceDate}T00:00:00`);
+        return dt.getFullYear() === year && dt.getMonth() + 1 === month;
+      });
+    }
+    if (opts?.classId != null) {
+      rows = rows.filter(p => {
+        const student = MOCK_STUDENTS.find(s => s.id === p.studentId);
+        return student?.classId === opts.classId;
+      });
+    }
+    if (opts?.sectionId != null) {
+      rows = rows.filter(p => {
+        const student = MOCK_STUDENTS.find(s => s.id === p.studentId);
+        return student?.sectionId === opts.sectionId;
+      });
+    }
+    const totalCollected = rows.reduce((sum, p) => sum + (Number(p.paidAmount) || 0), 0);
+    const totalPending = rows.reduce((sum, p) => sum + (Number(p.dueAmount) || 0), 0);
+    const overdueCount = rows.filter(p => p.status === 'overdue').length;
+    const uniqueStudents = new Set(rows.map(p => p.studentId)).size;
+    const billed = rows.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
     return of({
       totalCollected,
       totalPending,
@@ -396,6 +436,24 @@ export class FeeService {
       dueDate: req.dueDate ?? null,
       channel: req.channel ?? 'SMS',
     });
+  }
+
+  getSchoolReceiptPdf(receiptNumber: string): Observable<Blob> {
+    if (runtimeConfig.useMocks) {
+      return of(this.mockFeeReceiptPdfBlob()).pipe(delay(100));
+    }
+    return this.api.getBlob(`/fees/payments/receipts/${encodeURIComponent(receiptNumber)}/pdf`);
+  }
+
+  private mockFeeReceiptPdfBlob(): Blob {
+    const b64 =
+      'JVBERi0xLjEKMSAwIG9iago8PCAvVHlwZSAvQ2F0YWxvZyAvUGFnZXMgMiAwIFIgPj4KZW5kb2JqCjIgMCBvYmoKPDwgL1R5cGUgL1BhZ2VzIC9LaWRzIFszIDAgUl0gL0NvdW50IDEgPj4KZW5kb2JqCjMgMCBvYmoKPDwgL1R5cGUgL1BhZ2UgL1BhcmVudCAyIDAgUiAvTWVkaWFCb3ggWzAgMCA2MTIgNzkyXSA+PgplbmRvYmoKeHJlZgowIDQKMDAwMDAwMDAwMCA2NTUzNSBmIAowMDAwMDAwMDA5IDAwMDAwIG4gCjAwMDAwMDAwNTggMDAwMDAgbiAKMDAwMDAwMDExNSAwMDAwMCBuIAp0cmFpbGVyCjw8IC9TaXplIDQgL1Jvb3QgMSAwIFIgPj4Kc3RhcnR4cmVmCjE4NgolJUVPRgo=';
+    const bin = atob(b64);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) {
+      bytes[i] = bin.charCodeAt(i);
+    }
+    return new Blob([bytes], { type: 'application/pdf' });
   }
 
   getPaymentTransactions(paymentId: number): Observable<FeeTransaction[]> {

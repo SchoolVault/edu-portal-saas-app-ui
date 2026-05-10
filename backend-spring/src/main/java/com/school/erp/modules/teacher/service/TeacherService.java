@@ -529,14 +529,32 @@ public class TeacherService {
         }
         if (email != null) {
             Optional<Teacher> byEmail = repo.findByTenantIdAndEmailIgnoreCaseAndIsDeletedFalse(tenantId, email);
-            if (byEmail.isPresent()) {
+            if (byEmail.isPresent() && employeeCodesCompatibleForImportMerge(employeeCode, byEmail.get().getEmployeeCode())) {
                 return byEmail;
             }
         }
         if (phoneLookupKeys == null || phoneLookupKeys.isEmpty()) {
             return Optional.empty();
         }
-        return repo.findFirstByTenantIdAndPhoneInAndIsDeletedFalseOrderByIdAsc(tenantId, phoneLookupKeys);
+        Optional<Teacher> byPhone = repo.findFirstByTenantIdAndPhoneInAndIsDeletedFalseOrderByIdAsc(tenantId, phoneLookupKeys);
+        if (byPhone.isPresent() && !employeeCodesCompatibleForImportMerge(employeeCode, byPhone.get().getEmployeeCode())) {
+            return Optional.empty();
+        }
+        return byPhone;
+    }
+
+    /**
+     * Email/phone merges are for the same person updating contact or backfilling employee_code.
+     * If both rows carry different non-empty employee codes, they must stay distinct directory rows
+     * (synthetic packs sometimes reuse a display email across multiple codes—merging would overwrite codes
+     * and break timetable EMPLOYEE_CODE lookups).
+     */
+    private static boolean employeeCodesCompatibleForImportMerge(String normalizedIncoming, String rawExisting) {
+        String existing = normalizeEmployeeCode(rawExisting);
+        if (normalizedIncoming == null || existing == null) {
+            return true;
+        }
+        return normalizedIncoming.equals(existing);
     }
 
     private static String normalizeEmployeeCode(String rawEmployeeCode) {

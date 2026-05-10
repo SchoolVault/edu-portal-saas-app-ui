@@ -105,12 +105,12 @@ import { formatDateDdMmYyyy } from '../../core/utils/date-format';
             <span class="badge-erp badge-success">{{ statusLabel(student.status) }}</span>
             <hr style="border-color: var(--clr-border); margin: 20px 0;">
             <div style="text-align: left;">
-              <div class="mb-3"><span style="font-size: 12px; color: var(--clr-text-muted); display: block;">{{ 'students.profile.email' | translate }}</span><strong>{{ student.email }}</strong></div>
-              <div class="mb-3"><span style="font-size: 12px; color: var(--clr-text-muted); display: block;">{{ 'students.profile.phone' | translate }}</span><strong>{{ student.phone }}</strong></div>
-              <div class="mb-3"><span style="font-size: 12px; color: var(--clr-text-muted); display: block;">{{ 'students.profile.dob' | translate }}</span><strong>{{ formatDate(student.dateOfBirth) }}</strong></div>
-              <div class="mb-3"><span style="font-size: 12px; color: var(--clr-text-muted); display: block;">{{ 'students.form.bloodGroup' | translate }}</span><strong>{{ student.bloodGroup }}</strong></div>
-              <div class="mb-3"><span style="font-size: 12px; color: var(--clr-text-muted); display: block;">{{ 'students.profile.gender' | translate }}</span><strong>{{ genderLabel(student.gender) }}</strong></div>
-              <div><span style="font-size: 12px; color: var(--clr-text-muted); display: block;">{{ 'students.profile.address' | translate }}</span><strong>{{ student.address }}</strong></div>
+              <div class="mb-3" *ngIf="profileFieldVisibility.email"><span style="font-size: 12px; color: var(--clr-text-muted); display: block;">{{ 'students.profile.email' | translate }}</span><strong>{{ student.email }}</strong></div>
+              <div class="mb-3" *ngIf="profileFieldVisibility.phone"><span style="font-size: 12px; color: var(--clr-text-muted); display: block;">{{ 'students.profile.phone' | translate }}</span><strong>{{ student.phone }}</strong></div>
+              <div class="mb-3" *ngIf="profileFieldVisibility.dob"><span style="font-size: 12px; color: var(--clr-text-muted); display: block;">{{ 'students.profile.dob' | translate }}</span><strong>{{ formatDate(student.dateOfBirth) }}</strong></div>
+              <div class="mb-3" *ngIf="profileFieldVisibility.bloodGroup"><span style="font-size: 12px; color: var(--clr-text-muted); display: block;">{{ 'students.form.bloodGroup' | translate }}</span><strong>{{ student.bloodGroup }}</strong></div>
+              <div class="mb-3" *ngIf="profileFieldVisibility.gender"><span style="font-size: 12px; color: var(--clr-text-muted); display: block;">{{ 'students.profile.gender' | translate }}</span><strong>{{ genderLabel(student.gender) }}</strong></div>
+              <div *ngIf="profileFieldVisibility.address"><span style="font-size: 12px; color: var(--clr-text-muted); display: block;">{{ 'students.profile.address' | translate }}</span><strong>{{ student.address }}</strong></div>
             </div>
           </div>
         </div>
@@ -149,6 +149,19 @@ import { formatDateDdMmYyyy } from '../../core/utils/date-format';
   `
 })
 export class StudentProfileComponent implements OnInit, OnDestroy {
+  /**
+   * Central toggle map for identity-card fields.
+   * Keep keys stable so future tenant/policy-driven visibility can plug in here.
+   */
+  readonly profileFieldVisibility = {
+    email: false,
+    phone: false,
+    dob: true,
+    bloodGroup: true,
+    gender: true,
+    address: true,
+  } as const;
+
   student: Student | null = null;
   lifecycleBusy = false;
   guardianMappings: StudentGuardianMapping[] = [];

@@ -281,7 +281,7 @@ public class ImportRowExecutor {
                 return;
             }
             SchoolIdentity school = loadSchoolIdentity(tenantId);
-            String body = credentialMessage(school.name(), school.code(), parentEmail, parentPhone, parentProvision.plainPassword(), true);
+            String body = credentialMessage(school.name(), school.code(), parentEmail, parentPhone, true);
             String parentCredentialTitle = parentCredentialNotificationTitle();
             notificationService.createNotification(tenantId, parentProvision.userId(), parentCredentialTitle,
                     body, Enums.NotificationType.INFO, "/app/parent/children");
@@ -390,7 +390,7 @@ public class ImportRowExecutor {
             }
             SchoolIdentity school = loadSchoolIdentity(tenantId);
             String body = portalChange.newlyProvisioned()
-                    ? teacherCredentialMessage(school.name(), school.code(), loginEmail, importNationalPhone, importPassword, portalRole)
+                    ? teacherCredentialMessage(school.name(), school.code(), loginEmail, importNationalPhone, portalRole)
                     : teacherCredentialsUpdatedMessage(
                     school.name(),
                     school.code(),
@@ -785,6 +785,9 @@ public class ImportRowExecutor {
             throw new BusinessException("starttime must be earlier than endtime");
         }
 
+        String subjectDisplayInput = blankToNull(value(row, "subjectname"));
+        String subjectCodeInput = blankToNull(value(row, "subject_code", "subjectcode"));
+        String canonicalSubjectName = academicService.ensureSubjectCatalogFromTimetableImport(subjectDisplayInput, subjectCodeInput);
         TimetableEntry upsert = TimetableEntry.builder()
                 .classId(placement.classId())
                 .sectionId(placement.sectionId())
@@ -792,7 +795,7 @@ public class ImportRowExecutor {
                 .period(period)
                 .startTime(startTime)
                 .endTime(endTime)
-                .subjectName(required(row, "subjectname"))
+                .subjectName(canonicalSubjectName)
                 .teacherId(teacher.getId())
                 .teacherName((teacher.getFirstName() + " " + teacher.getLastName()).trim())
                 .room(blankToNull(row.get("room")))
@@ -802,7 +805,13 @@ public class ImportRowExecutor {
 
         final boolean[] wasUpdate = {false};
         var existingOpt = timetableRepository
-                .findFirstByTenantAndClassSectionDayPeriod(tenantId, placement.classId(), placement.sectionId(), day, period);
+                .findFirstByTenantAndClassSectionDayPeriodAndAcademicYear(
+                        tenantId,
+                        placement.classId(),
+                        placement.sectionId(),
+                        day,
+                        period,
+                        academicYearId);
         TimetableEntry saved;
         if (existingOpt.isPresent()) {
             TimetableEntry existing = existingOpt.get();
@@ -877,14 +886,13 @@ public class ImportRowExecutor {
             String schoolCode,
             String email,
             String phone,
-            String plainPassword,
             boolean createdNew) {
         String schoolLine = schoolIdentityLine(schoolName, schoolCode);
         String maskedPhone = phone != null && !phone.isBlank() ? phone : "your registered mobile";
-        if (createdNew && email != null && !email.isBlank() && plainPassword != null) {
+        // Never embed plaintext passwords in SMS/in-app onboarding — users set password via Profile > Security / Forgot password.
+        if (createdNew && email != null && !email.isBlank()) {
             return "Welcome to the Parent Portal. " + schoolLine
-                    + " Login details: Mobile OTP on " + maskedPhone + "; Email login " + email
-                    + "; Temporary password " + plainPassword + ". "
+                    + " Login details: Mobile OTP on " + maskedPhone + "; Email login " + email + ". "
                     + "Please sign in, verify your email in Profile > Security, and change your password immediately.";
         }
         if (createdNew) {
@@ -902,7 +910,6 @@ public class ImportRowExecutor {
             String schoolCode,
             String loginEmail,
             String phone,
-            String providedPassword,
             Enums.Role portalRole) {
         String persona =
                 portalRole == Enums.Role.LIBRARY_STAFF
@@ -919,15 +926,11 @@ public class ImportRowExecutor {
         }
         if (loginEmail != null && !loginEmail.isBlank()) {
             sb.append("Email login: ").append(loginEmail).append(". ");
-            if (providedPassword != null && !providedPassword.isBlank()) {
-                sb.append("Temporary password: ").append(providedPassword).append(". ");
-            } else {
-                sb.append("Set your password from Profile > Security after email verification, or use Forgot password. ");
-            }
+            sb.append("Set your password from Profile > Security after email verification, or use Forgot password. ");
         } else {
             sb.append("No email login on file; sign in with mobile OTP until email is added and verified. ");
         }
-        sb.append("For security, change temporary credentials after first login.");
+        sb.append("For security, set a strong password after email verification.");
         return sb.toString();
     }
 

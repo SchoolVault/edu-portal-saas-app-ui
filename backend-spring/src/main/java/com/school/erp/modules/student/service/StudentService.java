@@ -739,13 +739,7 @@ public class StudentService {
         }
         SchoolIdentity school = loadSchoolIdentity(tenantId);
         String title = "Parent Portal Access Credentials";
-        String body = parentCredentialMessage(
-                school.name(),
-                school.code(),
-                parentEmail,
-                parentPhone,
-                parentProvision.plainPassword(),
-                true);
+        String body = parentCredentialMessage(school.name(), school.code(), parentEmail, parentPhone, true);
         notificationService.createNotification(
                 tenantId,
                 parentProvision.userId(),
@@ -802,18 +796,13 @@ public class StudentService {
     }
 
     private static String parentCredentialMessage(
-            String schoolName,
-            String schoolCode,
-            String email,
-            String phone,
-            String plainPassword,
-            boolean createdNew) {
+            String schoolName, String schoolCode, String email, String phone, boolean createdNew) {
         String schoolLine = schoolIdentityLine(schoolName, schoolCode);
         String maskedPhone = phone != null && !phone.isBlank() ? phone : "your registered mobile";
-        if (createdNew && email != null && !email.isBlank() && plainPassword != null) {
+        // Never embed plaintext passwords in SMS/in-app onboarding.
+        if (createdNew && email != null && !email.isBlank()) {
             return "Welcome to the Parent Portal. " + schoolLine
-                    + " Login details: Mobile OTP on " + maskedPhone + "; Email login " + email
-                    + "; Temporary password " + plainPassword + ". "
+                    + " Login details: Mobile OTP on " + maskedPhone + "; Email login " + email + ". "
                     + "Please sign in, verify your email in Profile > Security, and change your password immediately.";
         }
         if (createdNew) {

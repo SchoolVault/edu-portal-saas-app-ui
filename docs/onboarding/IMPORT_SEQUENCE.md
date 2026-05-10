@@ -7,7 +7,7 @@ This document describes the **sequence** in which CSV/ZIP bulk imports should be
 1. **Tenant / school workspace** — Super admin or first-time signup creates the school (`TenantConfig`, admin user, school code). All later rows are scoped by `tenant_id`.
 2. **Academic year** — At least one `AcademicYear`; mark the current year before timetabling and class placement.
 3. **Classes** — Import `CLASSES` (`classes.csv` in ZIP) **or** create classes in the UI. Optional **sections** in the same row (`sections` column, pipe-separated, e.g. `A|B|C`). Classes without sections are valid; sections can be added later via Academic UI.
-4. **Subject catalog** (optional) — If you rely on named subjects from seed or UI, align before teacher subjects and assignments.
+4. **Subject catalog** (optional up front) — You can pre-seed `/academic/subjects` or rely on **timetable import**: each line **upserts** the tenant subject master (`academic_subjects`) from **`subject_name`** (required for new packs) plus optional **`subject_code`** (short stable mnemonic, e.g. `MATH`). If `subject_code` repeats the same text as `subject_name`, the importer treats it as a duplicate label (not a conflicting code). **Golden path for scale:** keep one row per subject in the catalog (name + code), use the **same** names/codes in timetable CSVs and UI — no duplicate “Mathematics” vs “MATHEMATICS” codes.
 
 ## 2. People who anchor rosters
 
@@ -20,7 +20,7 @@ This document describes the **sequence** in which CSV/ZIP bulk imports should be
 
 ## 4. Dependent academic and operations data
 
-8. **Timetable** — Import `TIMETABLE` (`timetable.csv`) after classes/sections + teachers are present. Re-import is idempotent per class-section + day + period (updates slot instead of creating duplicates).
+8. **Timetable** — Import `TIMETABLE` (`timetable.csv`) after classes/sections + teachers are present. Re-import is idempotent per class-section + day + period (updates slot instead of creating duplicates). **Subjects** on each row sync the catalog: prefer **`subject_name`** + **`subject_code`** together; legacy single-column `subjectname` / `subject_code`-only rows still work. Template headers may end with ` (R)` / ` (O)`; the reader normalizes them to plain field keys. **Lite packs** default to **Rule A** (fixed period columns Mon–Fri); generator can switch to **Rule B** via `LITE_TIMETABLE_STRATEGY` in `generate_india_school_lite_100_packs.py` (future school-level API can mirror the same enum for live timetabling).
 9. **Fee structures** — Import `FEE_STRUCTURES` (`fee-structures.csv`) to create/update class-wise fee structures in bulk. Re-import is idempotent by `class + academic year + structure name`.
 10. **Attendance, transport, etc.** — After rosters and timetable/fees setup, continue module-specific setup.
 

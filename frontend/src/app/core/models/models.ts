@@ -656,9 +656,22 @@ export interface AdminDashboardData {
   totalTeachers: number;
   /** Backend echo: TODAY | WEEK_TO_DATE | MONTH_TO_DATE */
   attendanceOverviewScope?: string;
+  /** Backend echo: selected admin attendance month filter (YYYY-MM). */
+  attendanceOverviewMonth?: string;
+  /** Running cumulative collection (all-time in current dataset). */
   feesCollected: number;
+  /** Running cumulative pending amount. */
   feesPending: number;
+  /** Cumulative collection rate. */
   collectionRate: number;
+  /** Current calendar-month collection (primary admin KPI). */
+  feesCollectedMonthly?: number;
+  feesPendingMonthly?: number;
+  collectionRateMonthly?: number;
+  /** Current calendar-year collection (secondary/YTD context). */
+  feesCollectedYearly?: number;
+  feesPendingYearly?: number;
+  collectionRateYearly?: number;
   monthlyAdmissions: DashboardMetricPoint[];
   monthlyCollections: DashboardMetricPoint[];
   /** Calendar-day roll-up for admin KPI (resets daily); optional for older cached payloads. */

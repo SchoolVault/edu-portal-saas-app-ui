@@ -462,7 +462,8 @@ export class CommunicationComponent implements OnInit {
 
   /** Read-only comm desk users can inspect ops dashboard even without publish rights. */
   get canViewOpsDashboard(): boolean {
-    return this.uiAccess.hasCommunicationDeskReadAccess();
+    const role = (this.auth.getNormalizedRole() || '').toUpperCase();
+    return this.uiAccess.hasCommunicationDeskReadAccess() && role !== 'ADMIN';
   }
 
   get hasActiveFilters(): boolean {

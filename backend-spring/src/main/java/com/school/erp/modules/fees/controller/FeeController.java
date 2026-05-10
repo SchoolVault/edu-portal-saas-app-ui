@@ -13,8 +13,8 @@ import com.school.erp.security.rbac.RbacSpel;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -76,8 +76,21 @@ public class FeeController {
             @RequestParam(required = false) String q,
             @RequestParam(required = false) Long classId,
             @RequestParam(required = false) Long sectionId,
-            @RequestParam(required = false) Long academicYearId) {
-        return ResponseEntity.ok(ApiResponse.ok(service.getPaymentsPaged(page, size, status, q, classId, sectionId, academicYearId)));
+            @RequestParam(required = false) Long academicYearId,
+            @RequestParam(required = false) String month) {
+        return ResponseEntity.ok(ApiResponse.ok(service.getPaymentsPaged(
+                page, size, status, q, classId, sectionId, academicYearId, month)));
+    }
+
+    @GetMapping(value = "/payments/receipts/{receiptNumber}/pdf", produces = MediaType.APPLICATION_PDF_VALUE)
+    @PreAuthorize(RbacSpel.SCHOOL_FEES_READ)
+    @Operation(summary = "Download fee receipt PDF", description = "School/admin receipt copy with line-item breakdown and branding.")
+    public ResponseEntity<byte[]> getSchoolReceiptPdf(@PathVariable String receiptNumber) {
+        byte[] data = service.getSchoolFeeReceiptPdf(receiptNumber);
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + receiptNumber + ".pdf\"")
+                .contentType(MediaType.APPLICATION_PDF)
+                .body(data);
     }
 
     @GetMapping("/payments/student/{studentId}")
@@ -155,8 +168,11 @@ public class FeeController {
     @GetMapping("/collection-summary")
     @PreAuthorize(RbacSpel.SCHOOL_FEES_READ)
     @Operation(summary = "Fee collection summary", description = "Total collected, pending, overdue count, collection rate")
-    public ResponseEntity<ApiResponse<FeeDTOs.FeeCollectionSummary>> getCollectionSummary() {
-        return ResponseEntity.ok(ApiResponse.ok(service.getCollectionSummary()));
+    public ResponseEntity<ApiResponse<FeeDTOs.FeeCollectionSummary>> getCollectionSummary(
+            @RequestParam(required = false) Long classId,
+            @RequestParam(required = false) Long sectionId,
+            @RequestParam(required = false) String month) {
+        return ResponseEntity.ok(ApiResponse.ok(service.getCollectionSummary(classId, sectionId, month)));
     }
 
     @PostMapping("/payments/reminders")

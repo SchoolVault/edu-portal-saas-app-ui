@@ -1,7 +1,7 @@
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
-import { Observable, of, throwError, timer } from 'rxjs';
-import { catchError, delay, map, switchMap } from 'rxjs/operators';
+import { Observable, from, of, throwError, timer } from 'rxjs';
+import { catchError, concatMap, delay, map, reduce, switchMap } from 'rxjs/operators';
 import {
   ApplyTeacherScheduleOnboardingRequest,
   ApplyTeacherScheduleOnboardingResponse,
@@ -19,6 +19,15 @@ import { runtimeConfig } from '../config/runtime-config';
 import { MOCK_TIMETABLE_ENTRIES } from '../mocks/timetable.mock-data';
 import { TimetableConflictError } from '../errors/timetable-conflict.error';
 import { UserFacingHttpError } from '../http/user-facing-http-error';
+
+/** Result of best-effort sequential deletes (bulk period row cleanup, onboarding, future flows). */
+export interface TimetableBulkDeleteResult {
+  deletedCount: number;
+  /** Count of 404s treated as already removed (duplicate ids in UI list or prior delete). */
+  notFoundCount: number;
+  /** First non-404 failure message, if any; some rows may still have been deleted before the failure. */
+  firstErrorMessage?: string;
+}
 
 /** Mon–Sat working week (typical Indian school). Sunday is not a teaching day in this product model. */
 export const INDIAN_SCHOOL_WEEK_DAYS: readonly string[] = [
@@ -136,14 +145,21 @@ export class TimetableService {
   /**
    * Teacher “week matrix”: columns are always Monday → Saturday in order, even if the first populated
    * slot is mid-week (fixes Tuesday-first columns when Monday has no row for that teacher).
+   *
+   * Period rows are **only those that still have slots** — not a dense 1..N range — so admins do not see
+   * “ghost” period rows after removing every slot for a period (class + teacher views stay CRUD-aligned).
    */
   toSchoolWeekMatrixGrid(entries: TimetableEntry[]): TimetableGrid {
     const monSatOnly = entries.filter(e => this.isIndianSchoolTeachingDayName(e.day));
     const classId = monSatOnly[0]?.classId ?? entries[0]?.classId ?? 0;
     const sectionId = monSatOnly[0]?.sectionId ?? entries[0]?.sectionId ?? 0;
-    const periodNums = monSatOnly.map(e => e.period).filter(p => p > 0);
-    const hi = periodNums.length ? Math.min(8, Math.max(6, Math.max(...periodNums))) : 6;
-    const usePeriods = Array.from({ length: hi }, (_, i) => i + 1);
+    const usePeriods = [
+      ...new Set(
+        monSatOnly
+          .map(e => Number(e.period))
+          .filter(p => Number.isFinite(p) && p > 0)
+      ),
+    ].sort((a, b) => a - b);
     const useDays = [...INDIAN_SCHOOL_WEEK_DAYS];
     const grid: Record<string, Record<number, TimetableGridSlot>> = {};
     for (const d of useDays) {
@@ -505,10 +521,48 @@ export class TimetableService {
 
   deleteEntry(id: number): Observable<void> {
     if (!runtimeConfig.useMocks) {
-      return this.api.delete<void>(`/timetable/${id}`);
+      return this.api.delete<void>(`/timetable/${encodeURIComponent(String(id))}`);
     }
     this.entries = this.entries.filter(entry => entry.id !== id);
     return of(void 0).pipe(delay(200));
+  }
+
+  /**
+   * Deletes many timetable rows in order — avoids {@link forkJoin} failing the whole batch on one duplicate/404,
+   * and keeps UI/data consistent after imports or retries.
+   */
+  deleteTimetableEntriesByIds(ids: readonly number[]): Observable<TimetableBulkDeleteResult> {
+    const unique = [...new Set(ids.map(id => Number(id)).filter(id => Number.isFinite(id) && id > 0))];
+    if (!unique.length) {
+      return of({ deletedCount: 0, notFoundCount: 0 });
+    }
+    return from(unique).pipe(
+      concatMap(id =>
+        this.deleteEntry(id).pipe(
+          map(() => ({ deletedCount: 1, notFoundCount: 0, firstErrorMessage: undefined as string | undefined })),
+          catchError((e: unknown) => {
+            if (e instanceof UserFacingHttpError && e.httpStatus === 404) {
+              return of({ deletedCount: 0, notFoundCount: 1, firstErrorMessage: undefined });
+            }
+            const msg = e instanceof Error ? e.message : 'Failed to delete timetable slot';
+            return of({ deletedCount: 0, notFoundCount: 0, firstErrorMessage: msg });
+          })
+        )
+      ),
+      reduce(
+        (acc, chunk) => ({
+          deletedCount: acc.deletedCount + chunk.deletedCount,
+          notFoundCount: acc.notFoundCount + chunk.notFoundCount,
+          firstErrorMessage: acc.firstErrorMessage ?? chunk.firstErrorMessage,
+        }),
+        { deletedCount: 0, notFoundCount: 0, firstErrorMessage: undefined as string | undefined }
+      ),
+      map(r => ({
+        deletedCount: r.deletedCount,
+        notFoundCount: r.notFoundCount,
+        firstErrorMessage: r.firstErrorMessage,
+      }))
+    );
   }
 
   /**

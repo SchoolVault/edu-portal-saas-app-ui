@@ -20,7 +20,9 @@ public interface ReportQueryPort {
 
     Map<String, Object> getDashboardKPIs();
 
-    ReportDashboardDTOs.AdminDashboardResponse getAdminDashboard(AdminAttendanceOverviewScope attendanceOverviewScope);
+    ReportDashboardDTOs.AdminDashboardResponse getAdminDashboard(
+            AdminAttendanceOverviewScope attendanceOverviewScope,
+            String attendanceOverviewMonth);
 
     Page<ReportDashboardDTOs.ActivityItem> getAdminRecentActivities(
             String q,

@@ -63,6 +63,11 @@ export namespace ParentFeeDtos {
 
   export interface PaymentReceiptResponse {
     receiptNumber: string;
+    schoolName?: string;
+    schoolCode?: string;
+    schoolAddress?: string;
+    schoolPhone?: string;
+    schoolEmail?: string;
     paymentId: number;
     studentId: number;
     studentName: string;

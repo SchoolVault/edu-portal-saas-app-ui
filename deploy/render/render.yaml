@@ -1,0 +1,63 @@
+services:
+  - type: web
+    name: edu-portal-backend
+    env: docker
+    rootDir: backend-spring
+    dockerfilePath: ./Dockerfile
+    plan: standard
+    autoDeploy: true
+    healthCheckPath: /actuator/health
+    envVars:
+      - key: SPRING_PROFILES_ACTIVE
+        value: prod
+      - key: JPA_DDL_AUTO
+        value: validate
+      - key: FLYWAY_ENABLED
+        value: "true"
+      - key: FLYWAY_VALIDATE_ON_MIGRATE
+        value: "true"
+      - key: CACHE_TYPE
+        value: redis
+      - key: REDIS_SSL
+        value: "true"
+      - key: APP_PUBLIC_SPA_BASE_URL
+        value: https://edu-portal-frontend.onrender.com
+      - key: DEV_DB_URL
+        sync: false
+      - key: DEV_DB_USERNAME
+        sync: false
+      - key: DEV_DB_PASSWORD
+        sync: false
+      - key: REDIS_HOST
+        sync: false
+      - key: REDIS_PORT
+        sync: false
+      - key: REDIS_USERNAME
+        sync: false
+      - key: REDIS_PASSWORD
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: APP_INTERNAL_JOB_KEY
+        sync: false
+      - key: SENDGRID_API_KEY
+        sync: false
+      - key: BREVO_API_KEY
+        sync: false
+      - key: AWS_SES_ACCESS_KEY
+        sync: false
+      - key: AWS_SES_SECRET_KEY
+        sync: false
+
+  - type: static_site
+    name: edu-portal-frontend
+    rootDir: frontend
+    buildCommand: npm ci && npm run build:render
+    publishPath: dist/school-erp/browser
+    pullRequestPreviewsEnabled: true
+    envVars:
+      - key: API_URL
+        value: https://edu-portal-backend.onrender.com/api/v1
+      - key: WEBSOCKET_URL
+        value: wss://edu-portal-backend.onrender.com/ws
+

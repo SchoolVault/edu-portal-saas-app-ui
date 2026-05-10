@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: edu-portal-frontend-config
+  namespace: edu-portal
+data:
+  API_URL: "https://edu-portal-backend.onrender.com/api/v1"
+  WEBSOCKET_URL: "wss://edu-portal-backend.onrender.com/ws"
+
