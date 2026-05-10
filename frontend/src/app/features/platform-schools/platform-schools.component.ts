@@ -5,35 +5,48 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { PlatformService } from '../../core/services/platform.service';
-import { PlatformPurgeJob, PlatformSchoolDetail, PlatformSchoolSummary } from '../../core/models/models';
-import { forkJoin, Subject } from 'rxjs';
-import { debounceTime, distinctUntilChanged } from 'rxjs/operators';
+import {
+  PlatformPurgeJob,
+  PlatformSchoolAdmin,
+  PlatformSchoolDetail,
+  PlatformSchoolSummary,
+  UpdateSchoolAdminRequest,
+} from '../../core/models/models';
+import { forkJoin, of, Subject } from 'rxjs';
+import { catchError, debounceTime, distinctUntilChanged } from 'rxjs/operators';
+import { TenantFinanceProfile } from '../../core/services/settings.service';
 import { ErpPaginationComponent } from '../../shared/erp-pagination/erp-pagination.component';
 import { DEFAULT_ERP_PAGE_SIZE } from '../../core/constants/pagination.constants';
+import { digitsOnlyIndiaMobile, displayIndiaMobileTenFromApi, isValidIndiaMobileTen } from '../../core/validation/phone.validation';
 
 @Component({
   selector: 'app-platform-schools',
   standalone: true,
   imports: [CommonModule, FormsModule, RouterLink, TranslateModule, ErpPaginationComponent],
   template: `
-    <div class="platform-schools-root" data-testid="platform-schools-page">
+    <div class="platform-schools-root platform-shell" data-testid="platform-schools-page">
       <div class="platform-page-inner animate-in">
-        <div class="d-flex justify-content-between align-items-end mb-4 flex-wrap gap-3">
+        <div class="erp-filter-toolbar mb-4">
           <div>
             <div class="badge-erp badge-info mb-2">{{ 'platformSchools.badge' | translate }}</div>
             <h2 class="platform-page-title">{{ 'platformSchools.pageTitle' | translate }}</h2>
             <p class="text-muted mb-0 platform-page-lead">{{ 'platformSchools.lead' | translate }}</p>
           </div>
-          <a routerLink="/app/super-admin" class="btn-outline-erp btn-sm"><i class="bi bi-arrow-left me-1"></i>{{ 'platformSchools.backOverview' | translate }}</a>
+          <div class="erp-filter-toolbar__actions">
+            <button type="button" class="btn-outline-erp btn-sm" (click)="refreshPageData()" [disabled]="detailLoading || purgeHistoryLoading || busy">
+              <i class="bi bi-arrow-clockwise me-1"></i>{{ 'platformSchools.actions.refresh' | translate }}
+            </button>
+            <a routerLink="/app/super-admin" class="btn-outline-erp btn-sm"><i class="bi bi-arrow-left me-1"></i>{{ 'platformSchools.backOverview' | translate }}</a>
+          </div>
         </div>
 
         <div *ngIf="loadError" class="alert alert-danger py-2 mb-3">{{ loadError }}</div>
         <div *ngIf="actionMessage" class="alert alert-success py-2 mb-3">{{ actionMessage }}</div>
         <div *ngIf="actionError" class="alert alert-danger py-2 mb-3">{{ actionError }}</div>
 
-        <div class="row g-4 align-items-start">
+        <div class="row g-4 align-items-start platform-main-grid">
           <div class="col-lg-5">
-            <div class="erp-card platform-card">
+            <div class="erp-card platform-card platform-card-elevated h-100">
               <div class="erp-card-header platform-card-header flex-wrap gap-2">
                 <div>
                   <h3 class="erp-card-title mb-0">{{ 'platformSchools.workspaces' | translate }}</h3>
@@ -42,7 +55,7 @@ import { DEFAULT_ERP_PAGE_SIZE } from '../../core/constants/pagination.constants
               </div>
               <div class="px-3 pt-2 pb-0">
                 <label class="erp-label small mb-1">{{ 'platformSchools.search' | translate }}</label>
-                <input type="search" class="erp-input" [(ngModel)]="schoolSearchInput" (ngModelChange)="schoolSearch$.next($event)" [placeholder]="'platformSchools.searchPh' | translate" />
+                <input type="search" class="erp-input" style="max-width: 360px;" [(ngModel)]="schoolSearchInput" (ngModelChange)="schoolSearch$.next($event)" [placeholder]="'platformSchools.searchPh' | translate" />
               </div>
               <div class="platform-table-wrap">
                 <table class="erp-table platform-table mb-0">
@@ -59,7 +72,7 @@ import { DEFAULT_ERP_PAGE_SIZE } from '../../core/constants/pagination.constants
                         <div class="platform-muted-xs">{{ s.schoolCode }}</div>
                       </td>
                       <td class="platform-muted-sm">
-                        {{ 'platformSchools.rollup' | translate: { stu: (s.studentCount | number), tch: s.teacherCount, adm: s.adminCount } }}
+                        <span class="platform-rollup-text">{{ formatWorkspaceRollup(s) }}</span>
                       </td>
                       <td>
                         <span class="badge-erp" [ngClass]="s.active ? 'badge-success' : 'badge-warning'">
@@ -83,18 +96,18 @@ import { DEFAULT_ERP_PAGE_SIZE } from '../../core/constants/pagination.constants
           </div>
 
           <div class="col-lg-7">
-            <div class="erp-card platform-card platform-detail-card">
+            <div class="erp-card platform-card platform-card-elevated platform-detail-card h-100">
               <div class="erp-card-header platform-card-header">
-                <h3 class="erp-card-title mb-0">Workspace detail</h3>
+                <h3 class="erp-card-title mb-0">{{ 'platformSchools.detailTitle' | translate }}</h3>
               </div>
 
               <div *ngIf="!selected" class="empty-state" style="padding: 48px 24px;">
                 <i class="bi bi-building"></i>
-                <h3>Select a school</h3>
-                <p>Metrics, admins, and lifecycle actions appear here.</p>
+                <h3>{{ 'platformSchools.emptyTitle' | translate }}</h3>
+                <p>{{ 'platformSchools.emptyLead' | translate }}</p>
               </div>
 
-              <div *ngIf="selected && detailLoading" class="platform-detail-body text-muted">Loading…</div>
+              <div *ngIf="selected && detailLoading" class="platform-detail-body text-muted">{{ 'platformSchools.loading' | translate }}</div>
 
               <div *ngIf="selected && !detailLoading && detail" class="platform-detail-body">
                 <div class="platform-hero" [style.border-left-color]="detail.school.primaryColor || 'var(--clr-primary)'">
@@ -119,56 +132,150 @@ import { DEFAULT_ERP_PAGE_SIZE } from '../../core/constants/pagination.constants
                   <div class="platform-stat-tile">
                     <div class="platform-stat-icon"><i class="bi bi-people-fill"></i></div>
                     <div class="platform-stat-value">{{ detail.school.studentCount | number }}</div>
-                    <div class="platform-stat-label">Students</div>
+                    <div class="platform-stat-label">{{ 'platformSchools.stats.students' | translate }}</div>
                   </div>
                   <div class="platform-stat-tile">
                     <div class="platform-stat-icon"><i class="bi bi-person-badge-fill"></i></div>
                     <div class="platform-stat-value">{{ detail.school.teacherCount | number }}</div>
-                    <div class="platform-stat-label">Teachers</div>
+                    <div class="platform-stat-label">{{ 'platformSchools.stats.teachers' | translate }}</div>
                   </div>
                   <div class="platform-stat-tile">
                     <div class="platform-stat-icon"><i class="bi bi-shield-lock-fill"></i></div>
                     <div class="platform-stat-value">{{ detail.school.adminCount | number }}</div>
-                    <div class="platform-stat-label">Admins</div>
+                    <div class="platform-stat-label">{{ 'platformSchools.stats.admins' | translate }}</div>
                   </div>
                   <div class="platform-stat-tile">
                     <div class="platform-stat-icon"><i class="bi bi-person-vcard-fill"></i></div>
                     <div class="platform-stat-value">{{ detail.parentUserCount | number }}</div>
-                    <div class="platform-stat-label">Parent accounts</div>
+                    <div class="platform-stat-label">{{ 'platformSchools.stats.parentAccounts' | translate }}</div>
                   </div>
                 </div>
 
                 <div class="platform-actions">
                   <button type="button" class="btn-outline-erp btn-sm" (click)="openSuspendModal()" [disabled]="busy || !detail.school.active">
-                    <i class="bi bi-pause-circle me-1"></i>Suspend workspace
+                    <i class="bi bi-pause-circle me-1"></i>{{ 'platformSchools.actions.suspend' | translate }}
                   </button>
                   <button type="button" class="btn-outline-erp btn-sm" (click)="openActivateModal()" [disabled]="busy || detail.school.active">
-                    <i class="bi bi-play-circle me-1"></i>Activate workspace
+                    <i class="bi bi-play-circle me-1"></i>{{ 'platformSchools.actions.activate' | translate }}
                   </button>
                   <button type="button" class="btn-outline-erp btn-sm" (click)="refreshDetail()" [disabled]="busy">
-                    <i class="bi bi-arrow-clockwise me-1"></i>Refresh
+                    <i class="bi bi-arrow-clockwise me-1"></i>{{ 'platformSchools.actions.refresh' | translate }}
                   </button>
                 </div>
 
                 <div class="platform-section">
-                  <h5 class="platform-section-title">Campus admins</h5>
+                  <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-1">
+                    <h5 class="platform-section-title mb-0">{{ 'platformSchools.workspaceProfile.title' | translate }}</h5>
+                    <button type="button" class="btn-outline-erp btn-sm" (click)="toggleWorkspaceEdit()" [disabled]="busy || workspaceProfileSaving">
+                      <i class="bi bi-pencil-square me-1" *ngIf="!workspaceProfileEditing"></i>{{ (workspaceProfileEditing ? 'platformSchools.workspaceProfile.done' : 'platformSchools.workspaceProfile.edit') | translate }}
+                    </button>
+                  </div>
+                  <p class="text-muted small mb-3">{{ 'platformSchools.workspaceProfile.lead' | translate }}</p>
+                  <div *ngIf="workspaceProfileEditing" class="platform-info-panel">
+                    <div class="row g-3">
+                      <div class="col-md-6">
+                        <label class="erp-label small">{{ 'platformSchools.workspaceProfile.schoolName' | translate }}</label>
+                        <input class="erp-input" [(ngModel)]="workspaceForm.schoolName" autocomplete="organization" />
+                      </div>
+                      <div class="col-md-6">
+                        <label class="erp-label small">{{ 'platformSchools.workspaceProfile.schoolCode' | translate }}</label>
+                        <input class="erp-input" [(ngModel)]="workspaceForm.schoolCode" autocomplete="off" />
+                      </div>
+                      <div class="col-md-6">
+                        <label class="erp-label small">{{ 'platformSchools.workspaceProfile.email' | translate }}</label>
+                        <input type="email" class="erp-input" [(ngModel)]="workspaceForm.email" autocomplete="email" />
+                      </div>
+                      <div class="col-md-6">
+                        <label class="erp-label small">{{ 'platformSchools.workspaceProfile.phone' | translate }}</label>
+                        <input class="erp-input" [(ngModel)]="workspaceForm.phone" autocomplete="tel" />
+                      </div>
+                      <div class="col-12">
+                        <label class="erp-label small">{{ 'platformSchools.workspaceProfile.address' | translate }}</label>
+                        <input class="erp-input" [(ngModel)]="workspaceForm.address" autocomplete="street-address" />
+                      </div>
+                      <div class="col-md-6">
+                        <label class="erp-label small">{{ 'platformSchools.workspaceProfile.primaryColor' | translate }}</label>
+                        <input class="erp-input" [(ngModel)]="workspaceForm.primaryColor" placeholder="#1B3A30" />
+                      </div>
+                      <div class="col-md-6">
+                        <label class="erp-label small">{{ 'platformSchools.workspaceProfile.secondaryColor' | translate }}</label>
+                        <input class="erp-input" [(ngModel)]="workspaceForm.secondaryColor" />
+                      </div>
+                    </div>
+                    <div class="d-flex flex-wrap gap-2 mt-3">
+                      <button type="button" class="btn-primary-erp btn-sm" (click)="saveWorkspaceProfile()" [disabled]="workspaceProfileSaving">
+                        {{ workspaceProfileSaving ? ('platformSchools.workspaceProfile.saving' | translate) : ('platformSchools.workspaceProfile.save' | translate) }}
+                      </button>
+                      <button type="button" class="btn-outline-erp btn-sm" (click)="cancelWorkspaceEdit()" [disabled]="workspaceProfileSaving">{{ 'platformSchools.workspaceProfile.discard' | translate }}</button>
+                    </div>
+                    <p *ngIf="workspaceProfileErr" class="text-danger small mt-2 mb-0">{{ workspaceProfileErr }}</p>
+                  </div>
+                </div>
+
+                <div class="platform-section" *ngIf="schoolFinanceProfile as fp">
+                  <h5 class="platform-section-title">{{ 'platformSchools.financeRouteTitle' | translate }}</h5>
+                  <p class="text-muted small mb-2">{{ 'platformSchools.financeRouteLead' | translate }}</p>
+                  <div class="platform-info-panel mb-3">
+                    <div class="platform-impact-grid">
+                      <div><strong>{{ 'platformSchools.financeRouteMode' | translate }}:</strong> {{ fp.feeSettlementMode }}</div>
+                      <div><strong>{{ 'platformSchools.financeRouteOnboarding' | translate }}:</strong> {{ fp.paymentRoutingOnboardingStatus || '—' }}</div>
+                      <div><strong>{{ 'platformSchools.financeRouteLinked' | translate }}:</strong> {{ fp.razorpayRouteLinkedAccountId || fp.razorpayRouteLinkedAccountMasked || '—' }}</div>
+                      <div><strong>{{ 'platformSchools.financeRouteBps' | translate }}:</strong> {{ fp.platformCommissionBps | number }}</div>
+                      <div *ngIf="fp.paymentRoutingSubmittedAt"><strong>{{ 'platformSchools.financeRouteSubmitted' | translate }}:</strong> {{ fp.paymentRoutingSubmittedAt | date: 'medium' }}</div>
+                      <div *ngIf="fp.paymentRoutingLiveAt"><strong>{{ 'platformSchools.financeRouteLive' | translate }}:</strong> {{ fp.paymentRoutingLiveAt | date: 'medium' }}</div>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    class="btn-primary-erp btn-sm"
+                    *ngIf="fp.feeSettlementMode === 'ROUTE_LINKED_ACCOUNT' && fp.paymentRoutingOnboardingStatus === 'SUBMITTED'"
+                    (click)="approveRouteLive()"
+                    [disabled]="busy || financeApproveBusy"
+                  >
+                    {{ financeApproveBusy ? ('platformSchools.financeApproveLiveBusy' | translate) : ('platformSchools.financeApproveLive' | translate) }}
+                  </button>
+                  <p *ngIf="financeApproveMsg" class="text-success small mt-2 mb-0">{{ financeApproveMsg }}</p>
+                  <p *ngIf="financeApproveErr" class="text-danger small mt-2 mb-0">{{ financeApproveErr }}</p>
+                </div>
+
+                <div class="platform-section">
+                  <h5 class="platform-section-title">{{ 'platformSchools.adminsTitle' | translate }}</h5>
                   <div class="platform-table-wrap">
                     <table class="erp-table platform-table mb-0">
                       <thead>
-                        <tr><th>Name</th><th>Email</th><th>Status</th></tr>
+                        <tr>
+                          <th>{{ 'platformSchools.adminCols.name' | translate }}</th>
+                          <th>{{ 'platformSchools.adminCols.email' | translate }}</th>
+                          <th>{{ 'platformSchools.adminCols.phone' | translate }}</th>
+                          <th>{{ 'platformSchools.adminCols.status' | translate }}</th>
+                          <th class="text-end">{{ 'platformSchools.adminCols.actions' | translate }}</th>
+                        </tr>
                       </thead>
                       <tbody>
                         <tr *ngFor="let a of detail.admins">
                           <td class="fw-semibold">{{ a.name }}</td>
                           <td class="platform-muted-sm">{{ a.email }}</td>
+                          <td class="platform-muted-sm">{{ formatAdminPhone(a) }}</td>
                           <td>
                             <span class="badge-erp" [ngClass]="a.active ? 'badge-success' : 'badge-warning'">
-                              {{ a.active ? 'Active' : 'Inactive' }}
+                              {{ a.active ? ('platformSchools.active' | translate) : ('platformSchools.inactive' | translate) }}
                             </span>
+                          </td>
+                          <td class="text-end">
+                            <button
+                              type="button"
+                              class="btn-outline-erp btn-sm btn-icon-touch"
+                              (click)="openAdminEditModal(a); $event.stopPropagation()"
+                              [disabled]="busy || adminEditSaving || detailLoading"
+                              [attr.title]="'platformSchools.adminEdit.toggleAria' | translate"
+                              [attr.aria-label]="'platformSchools.adminEdit.toggleAria' | translate"
+                            >
+                              <i class="bi bi-pencil-square" aria-hidden="true"></i>
+                            </button>
                           </td>
                         </tr>
                         <tr *ngIf="detail.admins.length === 0">
-                          <td colspan="3" class="text-muted platform-muted-sm">No campus admins listed.</td>
+                          <td colspan="5" class="text-muted platform-muted-sm">{{ 'platformSchools.noAdmins' | translate }}</td>
                         </tr>
                       </tbody>
                     </table>
@@ -178,34 +285,57 @@ import { DEFAULT_ERP_PAGE_SIZE } from '../../core/constants/pagination.constants
                 <div class="platform-section" *ngIf="detail.school.active">
                   <div class="platform-info-panel">
                     <i class="bi bi-info-circle me-2"></i>
-                    <strong>Data purge</strong> is locked while the workspace is active. Suspend the school first; then you can start the deletion workflow with explicit confirmations.
+                    <strong>{{ 'platformSchools.purge.lockedTitle' | translate }}</strong> {{ 'platformSchools.purge.lockedLead' | translate }}
                   </div>
                 </div>
 
                 <div class="platform-section" *ngIf="!detail.school.active">
-                  <h5 class="platform-section-title text-danger">Permanent data removal</h5>
+                  <h5 class="platform-section-title text-danger">{{ 'platformSchools.purge.title' | translate }}</h5>
                   <div class="platform-danger-panel">
-                    <p class="mb-2"><strong>This is not archival.</strong> Queuing a purge starts an asynchronous job that removes this tenant’s academic, financial, and user data from the platform database. Other schools are not affected.</p>
+                    <p class="mb-2"><strong>{{ 'platformSchools.purge.notArchiveTitle' | translate }}</strong> {{ 'platformSchools.purge.notArchiveLead' | translate }}</p>
                     <ul class="platform-danger-list mb-3">
-                      <li>No automatic backup is created by this action.</li>
-                      <li>Recovery typically requires restoring from your own database backups, if they exist.</li>
-                      <li>All users for this school remain unable to sign in until the row is removed.</li>
+                      <li>{{ 'platformSchools.purge.warning1' | translate }}</li>
+                      <li>{{ 'platformSchools.purge.warning2' | translate }}</li>
+                      <li>{{ 'platformSchools.purge.warning3' | translate }}</li>
                     </ul>
                     <button type="button" class="btn-danger-erp btn-sm" (click)="openPurgeModal()" [disabled]="busy">
-                      <i class="bi bi-exclamation-octagon me-1"></i>Start deletion workflow…
+                      <i class="bi bi-exclamation-octagon me-1"></i>{{ 'platformSchools.purge.startWorkflow' | translate }}
                     </button>
                   </div>
                 </div>
 
                 <div class="platform-section" *ngIf="purgeJobs.length">
-                  <h5 class="platform-section-title">Recent purge jobs</h5>
+                  <h5 class="platform-section-title">{{ 'platformSchools.purge.recentJobs' | translate }}</h5>
                   <ul class="platform-job-list mb-0">
-                    <li *ngFor="let j of purgeJobs">
+                    <li *ngFor="let j of purgeJobs"
+                        (click)="selectedPurgeJob = j"
+                        [class.platform-job-list-active]="selectedPurgeJob?.id === j.id">
                       <span class="badge-erp badge-info text-uppercase" style="font-size: 10px;">{{ j.status }}</span>
-                      <span *ngIf="j.rowsDeletedEstimate" class="platform-muted-sm ms-2">~{{ j.rowsDeletedEstimate | number }} rows affected</span>
+                      <span class="platform-muted-xs ms-2" *ngIf="j.createdAt">{{ j.createdAt | date: 'medium' }}</span>
+                      <span *ngIf="j.rowsDeletedEstimate" class="platform-muted-sm ms-2">{{ 'platformSchools.purge.rowsAffected' | translate: { rows: (j.rowsDeletedEstimate | number) } }}</span>
                       <span *ngIf="j.errorMessage" class="text-danger ms-2">{{ j.errorMessage }}</span>
                     </li>
                   </ul>
+                </div>
+                <div class="platform-section" *ngIf="selectedPurgeJob">
+                  <h5 class="platform-section-title">{{ 'platformSchools.purge.jobDetails' | translate }}</h5>
+                  <div class="platform-info-panel">
+                    <div class="platform-impact-grid">
+                      <div><strong>{{ 'platformSchools.purge.duration' | translate }}:</strong> {{ formatDurationMs(selectedPurgeJob.executionDurationMs) }}</div>
+                      <div><strong>{{ 'platformSchools.purge.startedAt' | translate }}:</strong> {{ selectedPurgeJob.startedAt ? (selectedPurgeJob.startedAt | date: 'medium') : '—' }}</div>
+                      <div><strong>{{ 'platformSchools.purge.completedAt' | translate }}:</strong> {{ selectedPurgeJob.completedAt ? (selectedPurgeJob.completedAt | date: 'medium') : '—' }}</div>
+                      <div><strong>{{ 'platformSchools.purge.initiatedBy' | translate }}:</strong> {{ selectedPurgeJob.requestedByDisplayName || selectedPurgeJob.requestedByPrincipal || '—' }}</div>
+                      <div><strong>{{ 'platformSchools.purge.role' | translate }}:</strong> {{ selectedPurgeJob.requestedByRole || '—' }}</div>
+                      <div><strong>{{ 'platformSchools.purge.affectedUsers' | translate }}:</strong>
+                        {{ (selectedPurgeJob.affectedStudents || 0) + (selectedPurgeJob.affectedTeachers || 0) + (selectedPurgeJob.affectedAdmins || 0) + (selectedPurgeJob.affectedParentAccounts || 0) | number }}
+                      </div>
+                    </div>
+                    <div class="d-flex justify-content-end mt-3">
+                      <button type="button" class="btn-outline-erp btn-sm" (click)="downloadPurgeCsv(selectedPurgeJob)" [disabled]="busy">
+                        <i class="bi bi-download me-1"></i>{{ 'platformSchools.purge.downloadCsv' | translate }}
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -217,16 +347,16 @@ import { DEFAULT_ERP_PAGE_SIZE } from '../../core/constants/pagination.constants
       <div class="modal-overlay modal-overlay-viewport" *ngIf="suspendModalOpen" (click)="closeSuspendModal()">
         <div class="modal-content-erp modal-narrow" (click)="$event.stopPropagation()">
           <div class="modal-header-erp">
-            <h3>Suspend workspace?</h3>
-            <button type="button" class="btn-icon" (click)="closeSuspendModal()" aria-label="Close"><i class="bi bi-x-lg"></i></button>
+            <h3>{{ 'platformSchools.modal.suspendTitle' | translate }}</h3>
+            <button type="button" class="btn-icon" (click)="closeSuspendModal()" [attr.aria-label]="'platformSchools.modal.closeAria' | translate"><i class="bi bi-x-lg"></i></button>
           </div>
           <div class="modal-body-erp">
-            <p class="mb-2">All user accounts in <strong>{{ detail?.school?.schoolName }}</strong> will be deactivated immediately. Nobody from this school can sign in until you activate the workspace again and re-enable individuals.</p>
-            <p class="text-muted mb-0" style="font-size: 13px;">Billing and subscription changes are handled separately in your commercial workflow.</p>
+            <p class="mb-2">{{ 'platformSchools.modal.suspendLead' | translate: { school: detail?.school?.schoolName } }}</p>
+            <p class="text-muted mb-0" style="font-size: 13px;">{{ 'platformSchools.modal.suspendNote' | translate }}</p>
           </div>
           <div class="modal-footer-erp">
-            <button type="button" class="btn-outline-erp" (click)="closeSuspendModal()">Cancel</button>
-            <button type="button" class="btn-primary-erp" (click)="confirmSuspend()" [disabled]="busy">Suspend workspace</button>
+            <button type="button" class="btn-outline-erp" (click)="closeSuspendModal()">{{ 'platformSchools.modal.cancel' | translate }}</button>
+            <button type="button" class="btn-primary-erp" (click)="confirmSuspend()" [disabled]="busy">{{ 'platformSchools.actions.suspend' | translate }}</button>
           </div>
         </div>
       </div>
@@ -235,15 +365,45 @@ import { DEFAULT_ERP_PAGE_SIZE } from '../../core/constants/pagination.constants
       <div class="modal-overlay modal-overlay-viewport" *ngIf="activateModalOpen" (click)="closeActivateModal()">
         <div class="modal-content-erp modal-narrow" (click)="$event.stopPropagation()">
           <div class="modal-header-erp">
-            <h3>Activate workspace?</h3>
-            <button type="button" class="btn-icon" (click)="closeActivateModal()" aria-label="Close"><i class="bi bi-x-lg"></i></button>
+            <h3>{{ 'platformSchools.modal.activateTitle' | translate }}</h3>
+            <button type="button" class="btn-icon" (click)="closeActivateModal()" [attr.aria-label]="'platformSchools.modal.closeAria' | translate"><i class="bi bi-x-lg"></i></button>
           </div>
           <div class="modal-body-erp">
-            <p class="mb-0">The school may resume operations at the platform level. <strong>Campus admins stay inactive</strong> until you turn each account back on—this avoids surprise access after a suspension.</p>
+            <p class="mb-0">{{ 'platformSchools.modal.activateLead' | translate }}</p>
           </div>
           <div class="modal-footer-erp">
-            <button type="button" class="btn-outline-erp" (click)="closeActivateModal()">Cancel</button>
-            <button type="button" class="btn-primary-erp" (click)="confirmActivate()" [disabled]="busy">Activate workspace</button>
+            <button type="button" class="btn-outline-erp" (click)="closeActivateModal()">{{ 'platformSchools.modal.cancel' | translate }}</button>
+            <button type="button" class="btn-primary-erp" (click)="confirmActivate()" [disabled]="busy">{{ 'platformSchools.actions.activate' | translate }}</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Campus admin portal profile -->
+      <div class="modal-overlay modal-overlay-viewport" *ngIf="adminEditModalOpen" (click)="closeAdminEditModal()">
+        <div class="modal-content-erp modal-narrow" (click)="$event.stopPropagation()">
+          <div class="modal-header-erp">
+            <h3>{{ 'platformSchools.adminEdit.modalTitle' | translate }}</h3>
+            <button type="button" class="btn-icon" (click)="closeAdminEditModal()" [attr.aria-label]="'platformSchools.modal.closeAria' | translate"><i class="bi bi-x-lg"></i></button>
+          </div>
+          <div class="modal-body-erp">
+            <p class="text-muted mb-3" style="font-size: 13px; line-height: 1.5;">{{ 'platformSchools.adminEdit.modalLead' | translate }}</p>
+            <div class="erp-form-group mb-2">
+              <label class="erp-label small">{{ 'platformSchools.adminEdit.name' | translate }}</label>
+              <input type="text" class="erp-input" [(ngModel)]="adminEditForm.name" autocomplete="name" />
+            </div>
+            <div class="erp-form-group mb-2">
+              <label class="erp-label small">{{ 'platformSchools.adminEdit.email' | translate }}</label>
+              <input type="email" class="erp-input" [(ngModel)]="adminEditForm.email" autocomplete="email" />
+            </div>
+            <div class="erp-form-group mb-0">
+              <label class="erp-label small">{{ 'platformSchools.adminEdit.phone' | translate }}</label>
+              <input type="tel" class="erp-input" [(ngModel)]="adminEditForm.phone" inputmode="numeric" maxlength="13" autocomplete="tel" placeholder="9876543210" />
+            </div>
+            <p *ngIf="adminEditErr" class="text-danger small mt-3 mb-0">{{ adminEditErr }}</p>
+          </div>
+          <div class="modal-footer-erp">
+            <button type="button" class="btn-outline-erp" (click)="closeAdminEditModal()" [disabled]="adminEditSaving">{{ 'platformSchools.adminEdit.cancel' | translate }}</button>
+            <button type="button" class="btn-primary-erp" (click)="saveAdminProfile()" [disabled]="adminEditSaving">{{ adminEditSaving ? ('platformSchools.adminEdit.saving' | translate) : ('platformSchools.adminEdit.save' | translate) }}</button>
           </div>
         </div>
       </div>
@@ -252,30 +412,153 @@ import { DEFAULT_ERP_PAGE_SIZE } from '../../core/constants/pagination.constants
       <div class="modal-overlay modal-overlay-viewport" *ngIf="purgeModalOpen" (click)="closePurgeModal()">
         <div class="modal-content-erp modal-purge" (click)="$event.stopPropagation()">
           <div class="modal-header-erp border-danger" style="border-bottom-width: 2px;">
-            <h3 class="text-danger mb-0"><i class="bi bi-exclamation-triangle-fill me-2"></i>Confirm permanent deletion</h3>
-            <button type="button" class="btn-icon" (click)="closePurgeModal()" aria-label="Close"><i class="bi bi-x-lg"></i></button>
+            <h3 class="text-danger mb-0"><i class="bi bi-exclamation-triangle-fill me-2"></i>{{ 'platformSchools.modal.purgeTitle' | translate }}</h3>
+            <button type="button" class="btn-icon" (click)="closePurgeModal()" [attr.aria-label]="'platformSchools.modal.closeAria' | translate"><i class="bi bi-x-lg"></i></button>
           </div>
           <div class="modal-body-erp">
-            <p class="fw-semibold mb-2">You are about to queue a hard delete for <strong>{{ detail?.school?.schoolName }}</strong> (code <strong>{{ detail?.school?.schoolCode }}</strong>).</p>
+            <p class="fw-semibold mb-2">{{ 'platformSchools.modal.purgeLead' | translate: { school: detail?.school?.schoolName, code: detail?.school?.schoolCode } }}</p>
+            <div class="platform-impact-box mb-3">
+              <div class="platform-impact-title">{{ 'platformSchools.modal.impactTitle' | translate }}</div>
+              <p class="platform-impact-lead mb-2">{{ 'platformSchools.modal.impactLead' | translate }}</p>
+              <div class="platform-impact-grid">
+                <div class="platform-impact-item">
+                  <span class="platform-impact-label">{{ 'platformSchools.stats.students' | translate }}</span>
+                  <strong>{{ detail?.school?.studentCount || 0 | number }}</strong>
+                </div>
+                <div class="platform-impact-item">
+                  <span class="platform-impact-label">{{ 'platformSchools.stats.teachers' | translate }}</span>
+                  <strong>{{ detail?.school?.teacherCount || 0 | number }}</strong>
+                </div>
+                <div class="platform-impact-item">
+                  <span class="platform-impact-label">{{ 'platformSchools.stats.admins' | translate }}</span>
+                  <strong>{{ detail?.school?.adminCount || 0 | number }}</strong>
+                </div>
+                <div class="platform-impact-item">
+                  <span class="platform-impact-label">{{ 'platformSchools.stats.parentAccounts' | translate }}</span>
+                  <strong>{{ detail?.parentUserCount || 0 | number }}</strong>
+                </div>
+              </div>
+            </div>
+            <ol class="platform-danger-list mb-3">
+              <li><strong>{{ 'platformSchools.modal.step1Title' | translate }}</strong> — {{ 'platformSchools.modal.step1Lead' | translate }}</li>
+              <li><strong>{{ 'platformSchools.modal.step2Title' | translate }}</strong> — {{ 'platformSchools.modal.step2Lead' | translate }}</li>
+              <li><strong>{{ 'platformSchools.modal.step3Title' | translate }}</strong> — {{ 'platformSchools.modal.step3Lead' | translate }}</li>
+            </ol>
             <ul class="platform-danger-list mb-3">
-              <li>All operational data for this tenant will be removed from the application database.</li>
-              <li>There is <strong>no in-app undo</strong> and <strong>no platform-managed backup</strong> from this button.</li>
-              <li>If you need retention for compliance, stop and export or backup through your DBA <em>before</em> proceeding.</li>
+              <li>{{ 'platformSchools.modal.purgeWarning1' | translate }}</li>
+              <li>{{ 'platformSchools.modal.purgeWarning2' | translate }}</li>
+              <li>{{ 'platformSchools.modal.purgeWarning3' | translate }}</li>
             </ul>
             <div class="erp-form-group mb-3">
-              <label class="erp-label">Type the school code to confirm</label>
+              <label class="erp-label">{{ 'platformSchools.modal.confirmCodeLabel' | translate }}</label>
               <input type="text" class="erp-input" [(ngModel)]="purgeModalCode" autocomplete="off" [placeholder]="detail?.school?.schoolCode || ''" />
             </div>
             <label class="platform-check d-flex align-items-start gap-2">
-              <input type="checkbox" [(ngModel)]="purgeUnderstand" class="mt-1" />
-              <span>I understand this action is irreversible, data will be gone from this environment, and I am authorized to proceed.</span>
+              <input type="checkbox" [(ngModel)]="purgeChecks.irreversible" class="mt-1" />
+              <span>{{ 'platformSchools.modal.checkIrreversible' | translate }}</span>
+            </label>
+            <label class="platform-check d-flex align-items-start gap-2 mt-2">
+              <input type="checkbox" [(ngModel)]="purgeChecks.backup" class="mt-1" />
+              <span>{{ 'platformSchools.modal.checkBackup' | translate }}</span>
+            </label>
+            <label class="platform-check d-flex align-items-start gap-2 mt-2">
+              <input type="checkbox" [(ngModel)]="purgeChecks.authorized" class="mt-1" />
+              <span>{{ 'platformSchools.modal.checkAuthorized' | translate }}</span>
             </label>
             <p *ngIf="purgeModalError" class="text-danger mt-3 mb-0" style="font-size: 13px;">{{ purgeModalError }}</p>
           </div>
           <div class="modal-footer-erp">
-            <button type="button" class="btn-outline-erp" (click)="closePurgeModal()">Cancel</button>
-            <button type="button" class="btn-danger-erp" (click)="confirmPurgeFromModal()" [disabled]="busy">Queue purge job</button>
+            <button type="button" class="btn-outline-erp" (click)="closePurgeModal()">{{ 'platformSchools.modal.cancel' | translate }}</button>
+            <button type="button" class="btn-danger-erp" (click)="confirmPurgeFromModal()" [disabled]="busy">{{ 'platformSchools.modal.queuePurge' | translate }}</button>
           </div>
+        </div>
+      </div>
+
+      <div class="platform-history-section mt-4">
+        <div class="erp-card platform-card platform-card-elevated">
+          <div class="erp-card-header platform-card-header">
+            <div>
+              <h3 class="erp-card-title mb-0">{{ 'platformSchools.purge.historyTitle' | translate }}</h3>
+              <p class="text-muted mb-0 small">{{ 'platformSchools.purge.historyLead' | translate }}</p>
+            </div>
+          </div>
+          <div class="p-3 pb-2">
+            <div class="erp-filter-toolbar platform-history-toolbar">
+              <div class="erp-filter-toolbar__search">
+                <div>
+                  <label class="erp-label small mb-1">{{ 'platformSchools.purge.searchLabel' | translate }}</label>
+                  <input
+                    type="search"
+                    class="erp-input"
+                    [(ngModel)]="purgeHistorySearchInput"
+                    (ngModelChange)="onPurgeHistorySearchChange($event)"
+                    [placeholder]="'platformSchools.purge.searchPh' | translate"
+                  />
+                </div>
+              </div>
+              <div class="erp-filter-toolbar__actions">
+                <select class="erp-select erp-filter-toolbar__action" [(ngModel)]="purgeHistoryStatus" (ngModelChange)="onPurgeHistoryStatusChange($event)">
+                  <option value="">{{ 'platformSchools.purge.statusAll' | translate }}</option>
+                  <option value="QUEUED">{{ 'platformSchools.purge.statusQueued' | translate }}</option>
+                  <option value="RUNNING">{{ 'platformSchools.purge.statusRunning' | translate }}</option>
+                  <option value="COMPLETED">{{ 'platformSchools.purge.statusCompleted' | translate }}</option>
+                  <option value="FAILED">{{ 'platformSchools.purge.statusFailed' | translate }}</option>
+                </select>
+                <button type="button" class="btn-outline-erp btn-sm erp-filter-toolbar__action" (click)="loadGlobalPurgeHistory()" [disabled]="busy || purgeHistoryLoading">
+                  <i class="bi bi-arrow-clockwise me-1"></i>{{ 'platformSchools.actions.refresh' | translate }}
+                </button>
+              </div>
+            </div>
+          </div>
+          <div class="platform-table-wrap">
+            <table class="erp-table platform-table platform-purge-table mb-0">
+              <thead>
+                <tr>
+                  <th>{{ 'platformSchools.purge.colStatus' | translate }}</th>
+                  <th>{{ 'platformSchools.purge.colSchool' | translate }}</th>
+                  <th>{{ 'platformSchools.purge.colCode' | translate }}</th>
+                  <th>{{ 'platformSchools.purge.colTenant' | translate }}</th>
+                  <th>{{ 'platformSchools.purge.colCreated' | translate }}</th>
+                  <th>{{ 'platformSchools.purge.colCompleted' | translate }}</th>
+                  <th>{{ 'platformSchools.purge.colRows' | translate }}</th>
+                  <th>{{ 'platformSchools.purge.colAction' | translate }}</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngIf="purgeHistoryLoading">
+                  <td colspan="8" class="text-muted">{{ 'platformSchools.loading' | translate }}</td>
+                </tr>
+                <tr *ngFor="let job of globalPurgeJobs" (click)="selectedPurgeJob = job" class="platform-table-row">
+                  <td>
+                    <span class="badge-erp text-uppercase" [ngClass]="purgeStatusBadge(job.status)">{{ job.status }}</span>
+                  </td>
+                  <td>{{ job.schoolName || '—' }}</td>
+                  <td>{{ job.schoolCode || '—' }}</td>
+                  <td><span class="platform-muted-xs">{{ job.tenantId }}</span></td>
+                  <td>{{ job.createdAt ? (job.createdAt | date: 'short') : '—' }}</td>
+                  <td>{{ job.completedAt ? (job.completedAt | date: 'short') : '—' }}</td>
+                  <td>{{ (job.rowsDeletedEstimate || 0) | number }}</td>
+                  <td>
+                    <button type="button" class="btn-outline-erp btn-sm" (click)="downloadPurgeCsv(job); $event.stopPropagation()" [disabled]="busy">
+                      <i class="bi bi-download me-1"></i>{{ 'platformSchools.purge.downloadCsv' | translate }}
+                    </button>
+                  </td>
+                </tr>
+                <tr *ngIf="!purgeHistoryLoading && globalPurgeJobs.length === 0">
+                  <td colspan="8" class="text-muted">{{ 'platformSchools.purge.historyEmpty' | translate }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <app-erp-pagination
+            *ngIf="globalPurgeJobsTotal > 0"
+            class="d-block px-3 pb-3"
+            [totalElements]="globalPurgeJobsTotal"
+            [pageIndex]="globalPurgePageIndex"
+            [pageSize]="globalPurgePageSize"
+            (pageIndexChange)="onGlobalPurgePageIndex($event)"
+            (pageSizeChange)="onGlobalPurgePageSize($event)"
+          />
         </div>
       </div>
     </div>
@@ -284,8 +567,18 @@ import { DEFAULT_ERP_PAGE_SIZE } from '../../core/constants/pagination.constants
     :host { display: block; }
     .platform-schools-root { position: relative; }
     .platform-page-inner { max-width: 1200px; margin: 0 auto; }
+    .platform-shell { padding-bottom: 10px; }
+    .platform-main-grid { margin-bottom: 6px; }
     .platform-page-title { font-size: 26px; font-weight: 800; margin-bottom: 4px; }
     .platform-page-lead { font-size: 13px; max-width: 52rem; line-height: 1.5; }
+    .platform-card-elevated {
+      background: linear-gradient(
+        180deg,
+        color-mix(in srgb, var(--clr-surface) 94%, var(--clr-primary) 6%) 0%,
+        var(--clr-surface) 100%
+      );
+      box-shadow: 0 10px 26px color-mix(in srgb, var(--clr-bg) 65%, transparent);
+    }
     .platform-card-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
     .platform-detail-card { min-height: 480px; }
     .platform-detail-body { padding: 24px; }
@@ -296,10 +589,11 @@ import { DEFAULT_ERP_PAGE_SIZE } from '../../core/constants/pagination.constants
     .platform-table-row { cursor: pointer; transition: background 0.15s ease; }
     .platform-table-row:hover { background: var(--clr-hover); }
     .platform-table-row-active { background: var(--clr-surface-alt) !important; }
+    .platform-rollup-text { white-space: nowrap; }
     .platform-hero {
       border-left: 4px solid var(--clr-primary);
       padding: 16px 18px;
-      background: var(--clr-surface-alt);
+      background: color-mix(in srgb, var(--clr-primary) 8%, var(--clr-surface));
       border-radius: var(--radius-lg);
       margin-bottom: 20px;
     }
@@ -307,7 +601,7 @@ import { DEFAULT_ERP_PAGE_SIZE } from '../../core/constants/pagination.constants
     .platform-pill {
       font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em;
       padding: 6px 12px; border-radius: 999px;
-      background: rgba(27, 58, 48, 0.12); color: var(--clr-primary);
+      background: color-mix(in srgb, var(--clr-primary) 14%, var(--clr-surface)); color: var(--clr-primary);
     }
     .platform-pill-muted { background: var(--clr-border-light); color: var(--clr-text-muted); }
     .platform-stat-grid {
@@ -336,14 +630,14 @@ import { DEFAULT_ERP_PAGE_SIZE } from '../../core/constants/pagination.constants
       font-size: 13px;
       padding: 14px 16px;
       border-radius: var(--radius-lg);
-      background: rgba(2, 132, 199, 0.08);
-      border: 1px solid rgba(2, 132, 199, 0.25);
+      background: color-mix(in srgb, var(--clr-info) 10%, var(--clr-surface));
+      border: 1px solid color-mix(in srgb, var(--clr-info) 26%, var(--clr-border));
       display: flex;
       align-items: flex-start;
     }
     .platform-danger-panel {
-      border: 1px solid rgba(220, 38, 38, 0.35);
-      background: rgba(220, 38, 38, 0.06);
+      border: 1px solid color-mix(in srgb, var(--clr-danger) 30%, var(--clr-border));
+      background: color-mix(in srgb, var(--clr-danger) 8%, var(--clr-surface));
       border-radius: var(--radius-lg);
       padding: 16px 18px;
       font-size: 14px;
@@ -352,11 +646,80 @@ import { DEFAULT_ERP_PAGE_SIZE } from '../../core/constants/pagination.constants
     .platform-danger-list { padding-left: 1.2rem; margin: 0; font-size: 13px; }
     .platform-danger-list li { margin-bottom: 6px; }
     .platform-job-list { list-style: none; padding: 0; margin: 0; font-size: 13px; }
-    .platform-job-list li { padding: 8px 0; border-bottom: 1px solid var(--clr-border-light); }
+    .platform-job-list li { padding: 8px 10px; border-bottom: 1px solid var(--clr-border-light); cursor: pointer; border-radius: 10px; }
     .platform-job-list li:last-child { border-bottom: none; }
+    .platform-job-list-active { background: color-mix(in srgb, var(--clr-primary) 10%, transparent); }
+    .platform-history-section .erp-card-header p {
+      max-width: 760px;
+    }
+    .platform-history-toolbar { align-items: end; }
+    .platform-purge-table {
+      min-width: 980px;
+    }
     .platform-check { font-size: 13px; line-height: 1.45; cursor: pointer; }
+    .platform-impact-box {
+      border: 1px solid color-mix(in srgb, var(--clr-border-light) 75%, var(--clr-primary) 25%);
+      border-radius: var(--radius-lg);
+      background: color-mix(in srgb, var(--clr-surface-alt) 72%, var(--clr-surface) 28%);
+      padding: 12px 14px;
+    }
+    .platform-impact-title {
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: var(--clr-text-muted);
+      margin-bottom: 4px;
+    }
+    .platform-impact-lead {
+      font-size: 12px;
+      color: var(--clr-text-secondary);
+    }
+    .platform-impact-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+    }
+    .platform-impact-item {
+      border: 1px solid var(--clr-border-light);
+      border-radius: 10px;
+      padding: 8px 10px;
+      background: var(--clr-surface);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+    }
+    .platform-impact-label {
+      color: var(--clr-text-muted);
+      font-size: 12px;
+    }
     .modal-narrow { max-width: 480px; width: 100%; }
     .modal-purge { max-width: 520px; width: 100%; }
+    .btn-icon-touch {
+      min-width: 36px;
+      min-height: 36px;
+      padding: 0 10px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+    @media (max-width: 768px) {
+      .platform-page-title { font-size: 22px; }
+      .platform-page-lead { font-size: 12px; }
+      .platform-table th,
+      .platform-table td {
+        padding: 10px 8px;
+      }
+      .platform-rollup-text {
+        white-space: normal;
+        line-height: 1.35;
+      }
+      .platform-impact-grid {
+        grid-template-columns: 1fr;
+      }
+    }
   `]
 })
 export class PlatformSchoolsComponent implements OnInit {
@@ -369,8 +732,21 @@ export class PlatformSchoolsComponent implements OnInit {
   readonly schoolSearch$ = new Subject<string>();
   selected: PlatformSchoolSummary | null = null;
   detail: PlatformSchoolDetail | null = null;
+  schoolFinanceProfile: TenantFinanceProfile | null = null;
   detailLoading = false;
+  financeApproveBusy = false;
+  financeApproveMsg = '';
+  financeApproveErr = '';
   purgeJobs: PlatformPurgeJob[] = [];
+  selectedPurgeJob: PlatformPurgeJob | null = null;
+  globalPurgeJobs: PlatformPurgeJob[] = [];
+  globalPurgeJobsTotal = 0;
+  globalPurgePageIndex = 0;
+  globalPurgePageSize = DEFAULT_ERP_PAGE_SIZE;
+  purgeHistorySearchInput = '';
+  purgeHistoryQuery = '';
+  purgeHistoryStatus = '';
+  purgeHistoryLoading = false;
   busy = false;
   loadError = '';
   actionMessage = '';
@@ -380,8 +756,29 @@ export class PlatformSchoolsComponent implements OnInit {
   activateModalOpen = false;
   purgeModalOpen = false;
   purgeModalCode = '';
-  purgeUnderstand = false;
+  purgeChecks = { irreversible: false, backup: false, authorized: false };
   purgeModalError = '';
+
+  workspaceProfileEditing = false;
+  workspaceProfileSaving = false;
+  workspaceProfileErr = '';
+  workspaceForm = {
+    schoolName: '',
+    schoolCode: '',
+    email: '',
+    phone: '',
+    address: '',
+    primaryColor: '',
+    secondaryColor: '',
+  };
+
+  adminEditModalOpen = false;
+  adminEditSaving = false;
+  adminEditErr = '';
+  adminEditForm = { name: '', email: '', phone: '' };
+  /** True when API returned any non-empty phone (so clearing the input sends an explicit unset). */
+  private adminEditHadStoredPhone = false;
+  private adminEditingUserId: string | null = null;
 
   private readonly destroyRef = inject(DestroyRef);
 
@@ -400,7 +797,17 @@ export class PlatformSchoolsComponent implements OnInit {
         this.schoolPageIndex = 0;
         this.loadSchoolsPage();
       });
+    this.purgeHistorySearchInput = '';
+    this.purgeHistoryQuery = '';
+    this.refreshPageData();
+  }
+
+  refreshPageData(): void {
     this.loadSchoolsPage();
+    this.loadGlobalPurgeHistory();
+    if (this.selected) {
+      this.refreshDetail();
+    }
   }
 
   loadSchoolsPage(): void {
@@ -440,20 +847,204 @@ export class PlatformSchoolsComponent implements OnInit {
     if (!this.selected) {
       return;
     }
+    this.clearFeedback();
+    this.financeApproveMsg = '';
+    this.financeApproveErr = '';
     this.detailLoading = true;
     this.detail = null;
+    this.schoolFinanceProfile = null;
     forkJoin({
       detail: this.platform.getSchoolDetail(this.selected.tenantId),
-      jobs: this.platform.listPurgeJobs(this.selected.tenantId)
+      jobs: this.platform.listPurgeJobs(this.selected.tenantId),
+      financeProfile: this.platform.getSchoolFinanceProfile(this.selected.tenantId).pipe(catchError(() => of(null)))
     }).subscribe({
-      next: ({ detail, jobs }) => {
+      next: ({ detail, jobs, financeProfile }) => {
         this.detail = detail;
         this.purgeJobs = jobs;
+        this.selectedPurgeJob = jobs[0] ?? null;
+        this.schoolFinanceProfile = financeProfile;
         this.detailLoading = false;
+        this.syncWorkspaceFormFromDetail();
+        this.workspaceProfileEditing = false;
+        this.workspaceProfileErr = '';
+        this.cdr.markForCheck();
       },
       error: e => {
         this.detailLoading = false;
-        this.actionError = e?.message || 'Could not load school detail.';
+        this.actionError = e?.message || this.translate.instant('platformSchools.detailLoadError');
+        this.cdr.markForCheck();
+      }
+    });
+  }
+
+  syncWorkspaceFormFromDetail(): void {
+    const s = this.detail?.school;
+    if (!s) {
+      return;
+    }
+    this.workspaceForm = {
+      schoolName: s.schoolName ?? '',
+      schoolCode: s.schoolCode ?? '',
+      email: s.email ?? '',
+      phone: s.phone ?? '',
+      address: s.address ?? '',
+      primaryColor: s.primaryColor ?? '',
+      secondaryColor: s.secondaryColor ?? '',
+    };
+  }
+
+  toggleWorkspaceEdit(): void {
+    this.workspaceProfileEditing = !this.workspaceProfileEditing;
+    this.workspaceProfileErr = '';
+    if (this.workspaceProfileEditing) {
+      this.syncWorkspaceFormFromDetail();
+    }
+  }
+
+  cancelWorkspaceEdit(): void {
+    this.workspaceProfileEditing = false;
+    this.workspaceProfileErr = '';
+    this.syncWorkspaceFormFromDetail();
+  }
+
+  formatAdminPhone(a: Pick<PlatformSchoolAdmin, 'phone'>): string {
+    const raw = displayIndiaMobileTenFromApi(a.phone);
+    return raw || '—';
+  }
+
+  openAdminEditModal(admin: PlatformSchoolAdmin): void {
+    this.adminEditingUserId = admin.id;
+    const shown = digitsOnlyIndiaMobile(displayIndiaMobileTenFromApi(admin.phone));
+    this.adminEditHadStoredPhone = !!String(admin.phone ?? '').trim();
+    this.adminEditForm = {
+      name: (admin.name ?? '').trim(),
+      email: (admin.email ?? '').trim(),
+      phone: shown,
+    };
+    this.adminEditErr = '';
+    this.adminEditModalOpen = true;
+  }
+
+  closeAdminEditModal(): void {
+    if (this.adminEditSaving) {
+      return;
+    }
+    this.adminEditModalOpen = false;
+    this.adminEditingUserId = null;
+    this.adminEditErr = '';
+  }
+
+  saveAdminProfile(): void {
+    if (!this.selected || !this.adminEditingUserId) {
+      return;
+    }
+    const name = this.adminEditForm.name.trim();
+    const email = this.adminEditForm.email.trim();
+    const digits = digitsOnlyIndiaMobile(this.adminEditForm.phone);
+    if (!name) {
+      this.adminEditErr = this.translate.instant('platformSchools.adminEdit.validationName');
+      return;
+    }
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      this.adminEditErr = this.translate.instant('platformSchools.adminEdit.validationEmail');
+      return;
+    }
+    if (digits && !isValidIndiaMobileTen(digits)) {
+      this.adminEditErr = this.translate.instant('platformSchools.adminEdit.validationPhone');
+      return;
+    }
+    let phoneField: string | undefined;
+    if (!digits) {
+      phoneField = this.adminEditHadStoredPhone ? '' : undefined;
+    } else {
+      phoneField = digits;
+    }
+    const body: UpdateSchoolAdminRequest = { name, email };
+    if (phoneField !== undefined) {
+      body.phone = phoneField;
+    }
+    this.adminEditSaving = true;
+    this.adminEditErr = '';
+    this.platform.updateSchoolAdminProfile(this.selected.tenantId, Number(this.adminEditingUserId), body).subscribe({
+      next: updated => {
+        this.adminEditSaving = false;
+        if (this.detail?.admins) {
+          const id = String(this.adminEditingUserId);
+          this.detail = {
+            ...this.detail,
+            admins: this.detail.admins.map(x => (String(x.id) === id ? { ...x, ...updated } : x)),
+          };
+        }
+        this.closeAdminEditModal();
+        this.actionMessage = this.translate.instant('platformSchools.adminEdit.saved');
+        this.cdr.markForCheck();
+      },
+      error: (e: Error) => {
+        this.adminEditSaving = false;
+        this.adminEditErr = e?.message || this.translate.instant('platformSchools.adminEdit.err');
+        this.cdr.markForCheck();
+      },
+    });
+  }
+
+  saveWorkspaceProfile(): void {
+    if (!this.selected) {
+      return;
+    }
+    this.workspaceProfileSaving = true;
+    this.workspaceProfileErr = '';
+    const f = this.workspaceForm;
+    this.platform
+      .updateSchoolWorkspaceProfile(this.selected.tenantId, {
+        schoolName: f.schoolName.trim() || undefined,
+        schoolCode: f.schoolCode.trim() || undefined,
+        email: f.email.trim(),
+        phone: f.phone.trim(),
+        address: f.address.trim(),
+        primaryColor: f.primaryColor.trim() || undefined,
+        secondaryColor: f.secondaryColor.trim() || undefined,
+      })
+      .subscribe({
+        next: summary => {
+          this.workspaceProfileSaving = false;
+          if (this.detail) {
+            this.detail = { ...this.detail, school: { ...this.detail.school, ...summary } };
+          }
+          if (this.selected) {
+            this.selected = { ...this.selected, ...summary };
+          }
+          this.syncWorkspaceFormFromDetail();
+          this.workspaceProfileEditing = false;
+          this.actionMessage = this.translate.instant('platformSchools.workspaceProfile.saved');
+          this.loadSchoolsPage();
+          this.cdr.markForCheck();
+        },
+        error: (e: Error) => {
+          this.workspaceProfileErr = e?.message || this.translate.instant('platformSchools.workspaceProfile.err');
+          this.workspaceProfileSaving = false;
+          this.cdr.markForCheck();
+        },
+      });
+  }
+
+  approveRouteLive(): void {
+    if (!this.selected) {
+      return;
+    }
+    this.financeApproveMsg = '';
+    this.financeApproveErr = '';
+    this.financeApproveBusy = true;
+    this.platform.approveSchoolFinanceProfileLive(this.selected.tenantId).subscribe({
+      next: fp => {
+        this.schoolFinanceProfile = fp;
+        this.financeApproveBusy = false;
+        this.financeApproveMsg = this.translate.instant('platformSchools.financeApproveLiveOk');
+        this.cdr.markForCheck();
+      },
+      error: e => {
+        this.financeApproveBusy = false;
+        this.financeApproveErr = e?.message || this.translate.instant('platformSchools.financeApproveLiveErr');
+        this.cdr.markForCheck();
       }
     });
   }
@@ -470,13 +1061,13 @@ export class PlatformSchoolsComponent implements OnInit {
     this.busy = true;
     this.platform.suspendSchoolWorkspace(this.selected.tenantId).subscribe({
       next: () => {
-        this.actionMessage = 'Workspace suspended; all users in this tenant were deactivated.';
+        this.actionMessage = this.translate.instant('platformSchools.messages.suspended');
         this.busy = false;
         this.closeSuspendModal();
         this.patchSelectedActive(false);
         this.refreshDetail();
       },
-      error: e => { this.actionError = e?.message || 'Suspend failed'; this.busy = false; }
+      error: e => { this.actionError = e?.message || this.translate.instant('platformSchools.messages.suspendFailed'); this.busy = false; }
     });
   }
 
@@ -492,19 +1083,19 @@ export class PlatformSchoolsComponent implements OnInit {
     this.busy = true;
     this.platform.activateSchoolWorkspace(this.selected.tenantId).subscribe({
       next: () => {
-        this.actionMessage = 'Workspace activated. Re-enable campus admins individually as needed.';
+        this.actionMessage = this.translate.instant('platformSchools.messages.activated');
         this.busy = false;
         this.closeActivateModal();
         this.patchSelectedActive(true);
         this.refreshDetail();
       },
-      error: e => { this.actionError = e?.message || 'Activate failed'; this.busy = false; }
+      error: e => { this.actionError = e?.message || this.translate.instant('platformSchools.messages.activateFailed'); this.busy = false; }
     });
   }
 
   openPurgeModal(): void {
     this.purgeModalCode = '';
-    this.purgeUnderstand = false;
+    this.purgeChecks = { irreversible: false, backup: false, authorized: false };
     this.purgeModalError = '';
     this.purgeModalOpen = true;
   }
@@ -516,27 +1107,31 @@ export class PlatformSchoolsComponent implements OnInit {
   confirmPurgeFromModal(): void {
     this.purgeModalError = '';
     if (!this.selected || !this.detail) return;
-    if (!this.purgeUnderstand) {
-      this.purgeModalError = 'Please confirm that you understand this action is irreversible.';
+    if (!this.purgeChecks.irreversible || !this.purgeChecks.backup || !this.purgeChecks.authorized) {
+      this.purgeModalError = this.translate.instant('platformSchools.modal.checklistRequired');
       return;
     }
     const expected = (this.detail.school.schoolCode || '').trim().toUpperCase();
     const got = (this.purgeModalCode || '').trim().toUpperCase();
     if (!got || got !== expected) {
-      this.purgeModalError = 'School code does not match. Type it exactly as shown for this school.';
+      this.purgeModalError = this.translate.instant('platformSchools.modal.codeMismatch');
       return;
     }
     this.clearFeedback();
     this.busy = true;
     this.platform.requestTenantDataPurge(this.selected.tenantId, this.purgeModalCode.trim()).subscribe({
       next: () => {
-        this.actionMessage = 'Purge job queued. Status updates appear below; allow a few seconds then refresh.';
+        this.actionMessage = this.translate.instant('platformSchools.purge.jobQueued');
         this.busy = false;
         this.closePurgeModal();
-        setTimeout(() => this.refreshDetail(), 1800);
+        setTimeout(() => {
+          this.loadSchoolsPage();
+          this.refreshDetail();
+          this.loadGlobalPurgeHistory();
+        }, 1800);
       },
       error: e => {
-        this.actionError = e?.message || 'Purge request failed';
+        this.actionError = e?.message || this.translate.instant('platformSchools.purge.requestFailed');
         this.busy = false;
       }
     });
@@ -551,5 +1146,118 @@ export class PlatformSchoolsComponent implements OnInit {
   private clearFeedback(): void {
     this.actionMessage = '';
     this.actionError = '';
+  }
+
+  formatDurationMs(durationMs?: number | null): string {
+    if (!durationMs || durationMs <= 0) {
+      return '—';
+    }
+    const seconds = Math.round(durationMs / 1000);
+    if (seconds < 60) {
+      return `${seconds}s`;
+    }
+    const mins = Math.floor(seconds / 60);
+    const rem = seconds % 60;
+    return `${mins}m ${rem}s`;
+  }
+
+  downloadPurgeCsv(job: PlatformPurgeJob): void {
+    const targetTenantId = job.tenantId || this.selected?.tenantId;
+    if (!targetTenantId) {
+      return;
+    }
+    this.clearFeedback();
+    this.busy = true;
+    this.platform.exportPurgeJobCsv(targetTenantId, job.id).subscribe({
+      next: blob => {
+        const url = URL.createObjectURL(blob);
+        const anchor = document.createElement('a');
+        anchor.href = url;
+        anchor.download = `purge-job-${job.id}.csv`;
+        anchor.click();
+        URL.revokeObjectURL(url);
+        this.actionMessage = this.translate.instant('platformSchools.purge.exportReady');
+        this.busy = false;
+      },
+      error: e => {
+        this.actionError = e?.message || this.translate.instant('platformSchools.purge.exportFailed');
+        this.busy = false;
+      }
+    });
+  }
+
+  onPurgeHistorySearchChange(value: string): void {
+    this.purgeHistoryQuery = (value || '').trim();
+    this.globalPurgePageIndex = 0;
+    this.loadGlobalPurgeHistory();
+  }
+
+  onPurgeHistoryStatusChange(value: string): void {
+    this.purgeHistoryStatus = (value || '').trim().toUpperCase();
+    this.globalPurgePageIndex = 0;
+    this.loadGlobalPurgeHistory();
+  }
+
+  onGlobalPurgePageIndex(index: number): void {
+    this.globalPurgePageIndex = index;
+    this.loadGlobalPurgeHistory();
+  }
+
+  onGlobalPurgePageSize(size: number): void {
+    this.globalPurgePageSize = size;
+    this.globalPurgePageIndex = 0;
+    this.loadGlobalPurgeHistory();
+  }
+
+  loadGlobalPurgeHistory(): void {
+    this.purgeHistoryLoading = true;
+    this.platform
+      .listGlobalPurgeJobs(
+        this.globalPurgePageIndex,
+        this.globalPurgePageSize,
+        this.purgeHistoryQuery || undefined,
+        this.purgeHistoryStatus || undefined
+      )
+      .subscribe({
+        next: page => {
+          this.globalPurgeJobs = page.content;
+          this.globalPurgeJobsTotal = page.totalElements;
+          this.globalPurgePageIndex = page.page;
+          this.purgeHistoryLoading = false;
+        },
+        error: e => {
+          this.purgeHistoryLoading = false;
+          this.actionError = e?.message || this.translate.instant('platformSchools.detailLoadError');
+        }
+      });
+  }
+
+  purgeStatusBadge(status: string): string {
+    const normalizedStatus = (status || '').toUpperCase();
+    if (normalizedStatus === 'COMPLETED') return 'badge-success';
+    if (normalizedStatus === 'FAILED') return 'badge-danger';
+    if (normalizedStatus === 'RUNNING') return 'badge-warning';
+    return 'badge-info';
+  }
+
+  /**
+   * Human-readable counts for sales/support users (avoids short technical abbreviations).
+   */
+  formatWorkspaceRollup(school: Pick<PlatformSchoolSummary, 'studentCount' | 'teacherCount' | 'adminCount'>): string {
+    const student = this.translate.instant('platformSchools.rollupStudent', {
+      count: this.formatLocalizedCount(school.studentCount),
+    });
+    const teacher = this.translate.instant('platformSchools.rollupTeacher', {
+      count: this.formatLocalizedCount(school.teacherCount),
+    });
+    const admin = this.translate.instant('platformSchools.rollupAdmin', {
+      count: this.formatLocalizedCount(school.adminCount),
+    });
+    return [student, teacher, admin].join(' · ');
+  }
+
+  private formatLocalizedCount(value: number): string {
+    const locale = this.translate.currentLang?.toLowerCase().startsWith('hi') ? 'hi-IN' : 'en-IN';
+    return new Intl.NumberFormat(locale).format(value || 0);
   }
 }

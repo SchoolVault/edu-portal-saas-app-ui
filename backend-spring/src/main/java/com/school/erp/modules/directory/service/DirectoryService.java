@@ -2,7 +2,6 @@ package com.school.erp.modules.directory.service;
 
 import com.school.erp.common.dto.PageResponse;
 import com.school.erp.common.enums.Enums;
-import com.school.erp.modules.auth.entity.User;
 import com.school.erp.modules.auth.repository.UserRepository;
 import com.school.erp.modules.directory.dto.DirectoryDTOs;
 import com.school.erp.modules.operations.entity.OperationalStaff;
@@ -19,9 +18,11 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -30,6 +31,7 @@ public class DirectoryService {
 
     private static final Logger log = LoggerFactory.getLogger(DirectoryService.class);
     private static final int CAP_PER_KIND = 25;
+    private static final Set<String> ALLOWED_KINDS = Set.of("teacher", "student", "staff");
 
     private final TeacherRepository teacherRepository;
     private final StudentRepository studentRepository;
@@ -57,8 +59,11 @@ public class DirectoryService {
             return res;
         }
         Set<String> kinds = kindsFilter == null || kindsFilter.isEmpty()
-                ? Set.of("teacher", "student", "staff", "user")
-                : kindsFilter.stream().map(k -> k.toLowerCase(Locale.ROOT)).collect(Collectors.toCollection(LinkedHashSet::new));
+                ? ALLOWED_KINDS
+                : kindsFilter.stream()
+                        .map(k -> k.toLowerCase(Locale.ROOT))
+                        .filter(ALLOWED_KINDS::contains)
+                        .collect(Collectors.toCollection(LinkedHashSet::new));
 
         List<DirectoryDTOs.Entry> merged = new ArrayList<>();
         if (kinds.contains("teacher")) {
@@ -70,9 +75,7 @@ public class DirectoryService {
         if (kinds.contains("staff")) {
             merged.addAll(matchStaff(tenantId, q));
         }
-        if (kinds.contains("user")) {
-            merged.addAll(matchUsers(tenantId, q));
-        }
+        merged = dedupeDirectoryEntries(merged);
         merged.sort(Comparator.comparing(DirectoryDTOs.Entry::getDisplayName, String.CASE_INSENSITIVE_ORDER));
         res.setResults(merged);
         log.info("Directory search tenant={} qLen={} hits={}", tenantId, q.length(), merged.size());
@@ -114,22 +117,64 @@ public class DirectoryService {
     private List<DirectoryDTOs.Entry> matchStaff(String tenantId, String q) {
         return operationalStaffRepository.findByTenantIdAndIsDeletedFalseOrderByFullNameAsc(tenantId).stream()
                 .filter(s -> contains(s.getFullName(), null, s.getEmail(), q))
-                .limit(CAP_PER_KIND)
                 .map(this::toStaffEntry)
-                .collect(Collectors.toList());
-    }
-
-    private List<DirectoryDTOs.Entry> matchUsers(String tenantId, String q) {
-        return userRepository.findByTenantIdAndIsDeletedFalseOrderByNameAsc(tenantId).stream()
-                .filter(u -> contains(u.getName(), null, u.getEmail(), q))
                 .limit(CAP_PER_KIND)
-                .map(this::toUserEntry)
                 .collect(Collectors.toList());
     }
 
     private static boolean contains(String a, String b, String extra, String q) {
         String blob = ((a != null ? a : "") + " " + (b != null ? b : "") + " " + (extra != null ? extra : "")).toLowerCase(Locale.ROOT);
         return blob.contains(q);
+    }
+
+    /**
+     * One row per portal identity: same {@code chatUserId} (or same email) should not list teacher + staff twice.
+     */
+    private List<DirectoryDTOs.Entry> dedupeDirectoryEntries(List<DirectoryDTOs.Entry> merged) {
+        Map<String, DirectoryDTOs.Entry> byPortalUser = new LinkedHashMap<>();
+        List<DirectoryDTOs.Entry> withoutPortalKey = new ArrayList<>();
+        for (DirectoryDTOs.Entry e : merged) {
+            String uid = e.getChatUserId();
+            if (uid == null || uid.isBlank()) {
+                withoutPortalKey.add(e);
+                continue;
+            }
+            byPortalUser.merge(uid, e, DirectoryService::preferDirectoryEntryKind);
+        }
+        Map<String, DirectoryDTOs.Entry> byEmail = new LinkedHashMap<>();
+        List<DirectoryDTOs.Entry> leftover = new ArrayList<>();
+        for (DirectoryDTOs.Entry e : withoutPortalKey) {
+            String em = e.getEmail() != null ? e.getEmail().trim().toLowerCase(Locale.ROOT) : "";
+            if (em.isEmpty()) {
+                leftover.add(e);
+                continue;
+            }
+            byEmail.merge(em, e, DirectoryService::preferDirectoryEntryKind);
+        }
+        List<DirectoryDTOs.Entry> out = new ArrayList<>(byPortalUser.values());
+        out.addAll(byEmail.values());
+        out.addAll(leftover);
+        return out;
+    }
+
+    private static DirectoryDTOs.Entry preferDirectoryEntryKind(DirectoryDTOs.Entry a, DirectoryDTOs.Entry b) {
+        return directoryKindRank(a.getKind()) <= directoryKindRank(b.getKind()) ? a : b;
+    }
+
+    /**
+     * Lower rank wins merges when the same portal user appears as multiple roster kinds.
+     * Prefer {@code staff} over {@code teacher} so operational desk identities are not mislabeled as faculty.
+     */
+    private static int directoryKindRank(String kind) {
+        if (kind == null) {
+            return 9;
+        }
+        return switch (kind.toLowerCase(Locale.ROOT)) {
+            case "staff" -> 0;
+            case "teacher" -> 1;
+            case "student" -> 2;
+            default -> 5;
+        };
     }
 
     private DirectoryDTOs.Entry toTeacherEntry(Teacher t) {
@@ -190,7 +235,7 @@ public class DirectoryService {
         e.setSubtitle(s.getStaffRole() != null ? s.getStaffRole() : "Operations");
         e.setEmail(s.getEmail());
         e.setPhone(s.getPhone());
-        e.setDeepLink("/app/operations");
+        e.setDeepLink("/app/staff/" + s.getId());
         if (s.getUserId() != null) {
             e.setChatUserId(String.valueOf(s.getUserId()));
             e.setChatTargetRole("STAFF");
@@ -198,19 +243,4 @@ public class DirectoryService {
         return e;
     }
 
-    private DirectoryDTOs.Entry toUserEntry(User u) {
-        DirectoryDTOs.Entry e = new DirectoryDTOs.Entry();
-        e.setKind("user");
-        e.setId(u.getId());
-        e.setDisplayName(u.getName());
-        e.setSubtitle(u.getRole() != null ? u.getRole().name() : "User");
-        e.setEmail(u.getEmail());
-        e.setPhone(u.getPhone());
-        e.setDeepLink("/app/settings");
-        e.setChatUserId(String.valueOf(u.getId()));
-        if (u.getRole() != null) {
-            e.setChatTargetRole(u.getRole().name());
-        }
-        return e;
-    }
 }

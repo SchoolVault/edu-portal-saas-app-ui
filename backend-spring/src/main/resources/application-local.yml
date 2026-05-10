@@ -7,6 +7,10 @@
 # Contrast: profile "dev" = MySQL only, no Redis/Rabbit (fastest IDE debugging).
 
 app:
+  auth:
+    email-verification:
+      public-spa-base-url: ${AUTH_EMAIL_VER_PUBLIC_SPA_BASE_URL:${APP_PUBLIC_SPA_BASE_URL:http://localhost:4200}}
+      expose-plain-token-in-api-response: ${AUTH_EMAIL_EXPOSE_TOKEN:true}
   demo-seed:
     enabled: true
   # Optional: short access JWT for local session testing (uncomment). Default is in application.yml (e.g. 24h).

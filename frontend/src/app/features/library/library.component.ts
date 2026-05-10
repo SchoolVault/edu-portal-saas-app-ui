@@ -5,8 +5,7 @@ import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { Book, BookIssue, Student } from '../../core/models/models';
 import { LibraryCatalogFilter, LibraryService } from '../../core/services/library.service';
 import { StudentService } from '../../core/services/student.service';
-import { TeacherService } from '../../core/services/teacher.service';
-import { AuthService } from '../../core/services/auth.service';
+import { UiAccessService } from '../../core/services/ui-access.service';
 import { debounceTime, filter } from 'rxjs/operators';
 import { Subject, Subscription } from 'rxjs';
 import { ErpDatePickerComponent } from '../../shared/erp-date-picker/erp-date-picker.component';
@@ -16,11 +15,12 @@ import { DEFAULT_ERP_PAGE_SIZE } from '../../core/constants/pagination.constants
 import { sliceToPage } from '../../core/utils/paginate';
 import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directives';
 import { runtimeConfig } from '../../core/config/runtime-config';
+import { SchoolClassNamePipe } from '../../core/i18n/school-class-name.pipe';
 
 @Component({
   selector: 'app-library',
   standalone: true,
-  imports: [CommonModule, FormsModule, ErpDatePickerComponent, TranslateModule, ErpPaginationComponent, ErpI18nPhDirective],
+  imports: [CommonModule, FormsModule, ErpDatePickerComponent, TranslateModule, ErpPaginationComponent, ErpI18nPhDirective, SchoolClassNamePipe],
   styleUrl: './library.component.css',
   template: `
     <div data-testid="library-page">
@@ -33,13 +33,13 @@ import { runtimeConfig } from '../../core/config/runtime-config';
           <button type="button" class="btn-outline-erp btn-sm" (click)="refreshAll()" [disabled]="refreshing">
             <i class="bi bi-arrow-clockwise"></i> {{ refreshing ? ('library.refreshing' | translate) : ('library.refresh' | translate) }}
           </button>
-          <button *ngIf="canManageLibrary" type="button" class="btn-primary-erp btn-sm" data-testid="add-book-btn" (click)="openBookModal()">
+          <button *ngIf="canManageCatalog" type="button" class="btn-primary-erp btn-sm" data-testid="add-book-btn" (click)="openBookModal()">
             <i class="bi bi-plus-lg"></i> {{ 'library.addBook' | translate }}
           </button>
         </div>
       </div>
       <div *ngIf="readOnlyHintVisible" class="alert alert-info py-2 small mb-3" style="border-radius: var(--radius-md);">
-        <i class="bi bi-info-circle me-1"></i>{{ 'library.readOnlyHint' | translate }}
+        <i class="bi bi-info-circle me-1"></i>{{ libraryReadOnlyKey | translate }}
       </div>
       <div class="erp-tabs animate-in">
         <button type="button" class="erp-tab" [class.active]="tab === 'catalog'" (click)="tab = 'catalog'; loadBooks()">{{ 'library.tabCatalog' | translate }}</button>
@@ -47,22 +47,22 @@ import { runtimeConfig } from '../../core/config/runtime-config';
       </div>
       <div *ngIf="tab === 'catalog'" class="animate-in">
         <div class="erp-card">
-          <div class="d-flex flex-wrap gap-3 align-items-end mb-3 w-100">
-            <div class="search-input-wrapper flex-grow-1" style="min-width: 200px; max-width: 420px;">
+          <div class="erp-filter-toolbar mb-3 w-100">
+            <div class="search-input-wrapper erp-filter-toolbar__search">
               <i class="bi bi-search"></i>
               <input type="text" class="erp-input" erpI18nPh="library.searchPlaceholder" [(ngModel)]="searchTerm" (input)="onBookSearchInput()" data-testid="book-search">
             </div>
-            <div class="d-flex flex-wrap gap-2 align-items-end ms-md-auto">
+            <div class="erp-filter-toolbar__actions">
               <div>
                 <label class="erp-label d-block mb-1 small">{{ 'library.labelCategory' | translate }}</label>
-                <select class="erp-select" style="min-width: 168px;" [(ngModel)]="catalogCategory" (change)="loadBooks()" [attr.aria-label]="'library.labelCategory' | translate">
+                <select class="erp-select" style="width: 170px;" [(ngModel)]="catalogCategory" (change)="loadBooks()" [attr.aria-label]="'library.labelCategory' | translate">
                   <option value="">{{ 'library.allCategories' | translate }}</option>
                   <option *ngFor="let c of bookCategories" [value]="c">{{ c }}</option>
                 </select>
               </div>
               <div>
                 <label class="erp-label d-block mb-1 small">{{ 'library.labelCatalog' | translate }}</label>
-                <select class="erp-select" style="min-width: 148px;" [(ngModel)]="catalogFilter" (change)="loadBooks()" [attr.aria-label]="'library.labelCatalog' | translate">
+                <select class="erp-select" style="width: 170px;" [(ngModel)]="catalogFilter" (change)="loadBooks()" [attr.aria-label]="'library.labelCatalog' | translate">
                   <option value="active">{{ 'library.catalogActive' | translate }}</option>
                   <option value="inactive">{{ 'library.catalogInactive' | translate }}</option>
                   <option value="all">{{ 'library.catalogAll' | translate }}</option>
@@ -70,11 +70,12 @@ import { runtimeConfig } from '../../core/config/runtime-config';
               </div>
             </div>
           </div>
+          <div class="erp-table-scroll">
           <table class="erp-table library-books-table" data-testid="books-table">
             <thead>
               <tr>
                 <th>{{ 'library.thTitle' | translate }}</th><th>{{ 'library.thAuthor' | translate }}</th><th>{{ 'library.thIsbn' | translate }}</th><th class="library-category-cell">{{ 'library.thCategory' | translate }}</th><th>{{ 'library.thCopies' | translate }}</th><th>{{ 'library.thOnLoan' | translate }}</th><th class="library-status-cell">{{ 'library.thStatus' | translate }}</th><th>{{ 'library.thShelf' | translate }}</th>
-                <th *ngIf="canManageLibrary">{{ 'library.thActions' | translate }}</th>
+                <th *ngIf="canManageCatalog || canCirculateBooks">{{ 'library.thActions' | translate }}</th>
               </tr>
             </thead>
             <tbody>
@@ -101,21 +102,21 @@ import { runtimeConfig } from '../../core/config/runtime-config';
                   </div>
                 </td>
                 <td>{{ b.shelfLocation }}</td>
-                <td *ngIf="canManageLibrary" class="text-nowrap">
+                <td *ngIf="canManageCatalog || canCirculateBooks" class="text-nowrap">
                   <button
-                    *ngIf="b.catalogActive !== false && b.availableCopies > 0"
+                    *ngIf="canCirculateBooks && b.catalogActive !== false && b.availableCopies > 0"
                     type="button"
                     class="btn-outline-erp btn-xs"
                     (click)="openIssueModal(b)"
                   >{{ 'library.issue' | translate }}</button>
                   <button
-                    *ngIf="b.catalogActive !== false"
+                    *ngIf="canManageCatalog && b.catalogActive !== false"
                     type="button"
                     class="btn-outline-erp btn-xs ms-1"
                     (click)="deactivateBook(b)"
                   >{{ 'library.remove' | translate }}</button>
                   <button
-                    *ngIf="b.catalogActive === false"
+                    *ngIf="canManageCatalog && b.catalogActive === false"
                     type="button"
                     class="btn-outline-erp btn-xs"
                     (click)="reactivateBook(b)"
@@ -124,6 +125,7 @@ import { runtimeConfig } from '../../core/config/runtime-config';
               </tr>
             </tbody>
           </table>
+          </div>
           <p *ngIf="!books.length" class="text-muted small mb-0">{{ 'library.emptyFilters' | translate }}</p>
           <app-erp-pagination
             *ngIf="booksTotal > 0"
@@ -137,20 +139,21 @@ import { runtimeConfig } from '../../core/config/runtime-config';
       </div>
       <div *ngIf="tab === 'issued'" class="animate-in">
         <div class="erp-card">
-          <div class="d-flex flex-wrap gap-2 align-items-end mb-3">
+          <div class="erp-filter-toolbar mb-3">
             <div>
               <label class="erp-label d-block mb-1 small">{{ 'library.labelIssueStatus' | translate }}</label>
-              <select class="erp-select" style="min-width: 180px;" [(ngModel)]="issueStatusFilter" (change)="loadIssues()">
+              <select class="erp-select" style="width: 180px;" [(ngModel)]="issueStatusFilter" (change)="loadIssues()">
                 <option value="">{{ 'library.issueFilterAll' | translate }}</option>
                 <option value="issued">{{ 'library.issueFilterIssued' | translate }}</option>
                 <option value="overdue">{{ 'library.issueFilterOverdue' | translate }}</option>
                 <option value="returned">{{ 'library.issueFilterReturned' | translate }}</option>
               </select>
             </div>
-            <button type="button" class="btn-outline-erp btn-sm" (click)="loadIssues()"><i class="bi bi-arrow-clockwise"></i> {{ 'library.refresh' | translate }}</button>
+            <button type="button" class="btn-outline-erp btn-sm erp-filter-toolbar__action" (click)="loadIssues()"><i class="bi bi-arrow-clockwise"></i> {{ 'library.refresh' | translate }}</button>
           </div>
+          <div class="erp-table-scroll">
           <table class="erp-table library-issues-table" data-testid="issued-books-table">
-            <thead><tr><th>{{ 'library.thBook' | translate }}</th><th>{{ 'library.thStudent' | translate }}</th><th>{{ 'library.thIssue' | translate }}</th><th>{{ 'library.thDue' | translate }}</th><th class="library-issue-status-cell">{{ 'library.thStatus' | translate }}</th><th>{{ 'library.thFine' | translate }}</th><th *ngIf="canManageLibrary">{{ 'library.thReturn' | translate }}</th></tr></thead>
+            <thead><tr><th>{{ 'library.thBook' | translate }}</th><th>{{ 'library.thStudent' | translate }}</th><th>{{ 'library.thIssue' | translate }}</th><th>{{ 'library.thDue' | translate }}</th><th class="library-issue-status-cell">{{ 'library.thStatus' | translate }}</th><th>{{ 'library.thFine' | translate }}</th><th *ngIf="canCirculateBooks">{{ 'library.thReturn' | translate }}</th></tr></thead>
             <tbody>
               <tr *ngFor="let issue of issues">
                 <td><strong>{{ issue.bookTitle }}</strong></td>
@@ -159,12 +162,13 @@ import { runtimeConfig } from '../../core/config/runtime-config';
                 <td>{{ issue.dueDate }}</td>
                 <td class="library-issue-status-cell"><span class="badge-erp library-status-pill" [ngClass]="{'badge-success': issue.status === 'returned', 'badge-info': issue.status === 'issued', 'badge-danger': issue.status === 'overdue'}">{{ issueStatusLabel(issue.status) }}</span></td>
                 <td [style.color]="issue.fine > 0 ? 'var(--clr-danger)' : ''">₹{{ issue.fine | number:'1.2-2':'en-IN' }}</td>
-                <td *ngIf="canManageLibrary">
+                <td *ngIf="canCirculateBooks">
                   <button *ngIf="issue.status === 'issued' || issue.status === 'overdue'" type="button" class="btn-outline-erp btn-xs" (click)="openReturnModal(issue)">{{ 'library.return' | translate }}</button>
                 </td>
               </tr>
             </tbody>
           </table>
+          </div>
           <app-erp-pagination
             *ngIf="issuesTotal > 0"
             [totalElements]="issuesTotal"
@@ -228,7 +232,7 @@ import { runtimeConfig } from '../../core/config/runtime-config';
           <label class="erp-label">{{ 'library.thStudent' | translate }}</label>
           <select class="erp-select mb-2" [(ngModel)]="issueForm.studentId" (ngModelChange)="syncIssueStudent()">
             <option [ngValue]="null">{{ 'library.selectStudent' | translate }}</option>
-            <option *ngFor="let s of students" [ngValue]="s.id">{{ s.firstName }} {{ s.lastName }} · {{ s.className }}</option>
+            <option *ngFor="let s of students" [ngValue]="s.id">{{ s.firstName }} {{ s.lastName }} · {{ s.className | schoolClassName }}</option>
           </select>
           <label class="erp-label">{{ 'library.labelDueDays' | translate }}</label>
           <input class="erp-input mb-2" type="number" min="1" [(ngModel)]="issueForm.dueDays">
@@ -262,7 +266,11 @@ export class LibraryComponent implements OnInit, OnDestroy {
   issuePageIndex = 0;
   issuePageSize = DEFAULT_ERP_PAGE_SIZE;
   students: Student[] = [];
-  canManageLibrary = false;
+  /** Add / remove / restore catalog rows — admin, library_staff login, or teacher with library duty / JWT LIBRARY_MANAGE. */
+  canManageCatalog = false;
+  /** Issue and return — same cohort as circulation on the API (LIBRARY_MANAGE or LIBRARY_CIRCULATION), not all teachers. */
+  canCirculateBooks = false;
+  canUseMemberLane = false;
   readOnlyHintVisible = false;
   refreshing = false;
   bookModal = false;
@@ -281,11 +289,14 @@ export class LibraryComponent implements OnInit, OnDestroy {
   constructor(
     private libraryService: LibraryService,
     private studentService: StudentService,
-    private teacherService: TeacherService,
-    private authService: AuthService,
+    private uiAccess: UiAccessService,
     private confirmDialog: ConfirmDialogService,
     private translate: TranslateService
   ) {}
+
+  get libraryReadOnlyKey(): string {
+    return this.canUseMemberLane ? 'library.readOnlyHintMember' : 'library.readOnlyHintTeacher';
+  }
 
   issueStatusLabel(raw: string): string {
     const k = `library.issueStatus.${raw}`;
@@ -305,23 +316,16 @@ export class LibraryComponent implements OnInit, OnDestroy {
         this.fetchBooksPage();
       })
     );
-    const r = (this.authService.getCurrentUser()?.role ?? '').toLowerCase();
-    this.readOnlyHintVisible = false;
-    if (r === 'admin' || r === 'super_admin') {
-      this.canManageLibrary = true;
-    } else if (r === 'teacher') {
-      const me = this.authService.getCurrentUser();
-      this.teacherService.getTeachers().subscribe(list => {
-        const row = (list || []).find(t => t.userId === me?.id);
-        this.canManageLibrary = !!row?.libraryStaffRole;
-        this.readOnlyHintVisible = !this.canManageLibrary;
-      });
-    } else {
-      this.canManageLibrary = false;
-    }
+    const hasLibraryDeskLane = this.uiAccess.hasLibraryDeskLaneAccess();
+    this.canManageCatalog = this.uiAccess.hasLibraryCatalogWriteAccess();
+    this.canCirculateBooks = hasLibraryDeskLane && this.uiAccess.hasLibraryCirculationDeskAccess();
+    this.canUseMemberLane = this.uiAccess.hasLibraryMemberReadAccess();
+    this.readOnlyHintVisible = !this.canManageCatalog && !this.canCirculateBooks;
     this.rebuildCategories();
     this.loadBooks();
-    this.studentService.getStudents().subscribe(s => (this.students = s || []));
+    if (this.canCirculateBooks) {
+      this.studentService.getStudents().subscribe(s => (this.students = s || []));
+    }
   }
 
   onLoan(b: Book): number {
@@ -331,6 +335,12 @@ export class LibraryComponent implements OnInit, OnDestroy {
   refreshAll(): void {
     this.refreshing = true;
     this.rebuildCategories();
+    if (!this.canCirculateBooks) {
+      this.loadBooks();
+      this.loadIssues();
+      this.refreshing = false;
+      return;
+    }
     this.studentService.getStudents().subscribe({
       next: s => {
         this.students = s || [];
@@ -433,7 +443,10 @@ export class LibraryComponent implements OnInit, OnDestroy {
       this.fetchIssuesPage();
       return;
     }
-    this.libraryService.listIssues(this.issueStatusFilter || undefined).subscribe(i => {
+    const loader = this.canCirculateBooks
+      ? this.libraryService.listIssues.bind(this.libraryService)
+      : this.libraryService.listMyIssues.bind(this.libraryService);
+    loader(this.issueStatusFilter || undefined).subscribe(i => {
       this.issuesFull = i || [];
       this.issuePageIndex = 0;
       this.applyIssuesPage();
@@ -442,8 +455,10 @@ export class LibraryComponent implements OnInit, OnDestroy {
 
   private fetchIssuesPage(): void {
     const seq = ++this.issuesReqSeq;
-    this.libraryService
-      .getIssuesPage({
+    const loader = this.canCirculateBooks
+      ? this.libraryService.getIssuesPage.bind(this.libraryService)
+      : this.libraryService.getMyIssuesPage.bind(this.libraryService);
+    loader({
         page: this.issuePageIndex,
         size: this.issuePageSize,
         status: this.issueStatusFilter || undefined,

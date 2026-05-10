@@ -2,7 +2,9 @@ package com.school.erp.modules.chat.service;
 
 import com.school.erp.common.enums.Enums;
 import com.school.erp.modules.academic.entity.SchoolClass;
+import com.school.erp.modules.academic.entity.Section;
 import com.school.erp.modules.academic.repository.SchoolClassRepository;
+import com.school.erp.modules.academic.repository.SectionRepository;
 import com.school.erp.modules.auth.entity.User;
 import com.school.erp.modules.auth.repository.UserRepository;
 import com.school.erp.modules.chat.dto.ChatDirectoryDTOs;
@@ -35,6 +37,7 @@ public class ChatDirectoryService {
 
     private final StudentRepository studentRepository;
     private final SchoolClassRepository classRepository;
+    private final SectionRepository sectionRepository;
     private final UserRepository userRepository;
     private final TeacherRepository teacherRepository;
     private final GuardianService guardianService;
@@ -112,11 +115,11 @@ public class ChatDirectoryService {
             return out;
         }
         List<SchoolClass> classes = classRepository.findByTenantIdAndIsDeletedFalseOrderByGrade(tenantId).stream()
-                .filter(c -> Objects.equals(c.getClassTeacherId(), teacher.getId()) || Objects.equals(c.getClassTeacherId(), teacherUserId))
+                .filter(c -> teacherIsHomeroomForClass(teacher.getId(), c, tenantId))
                 .collect(Collectors.toList());
         for (SchoolClass c : classes) {
             for (Student s : studentRepository.findByTenantIdAndClassIdAndIsDeletedFalse(tenantId, c.getId())) {
-                if (s.getParentId() != null) {
+                if (s.getParentId() != null && studentIsInHomeroomOfTeacher(s, c, teacher.getId(), tenantId)) {
                     out.add(s.getParentId());
                 }
             }
@@ -134,10 +137,14 @@ public class ChatDirectoryService {
         Set<Long> out = new HashSet<>();
         for (Student s : kids) {
             SchoolClass c = s.getClassId() != null ? classMap.get(s.getClassId()) : null;
-            if (c == null || c.getClassTeacherId() == null) {
+            if (c == null) {
                 continue;
             }
-            teacherRepository.findByIdAndTenantIdAndIsDeletedFalse(c.getClassTeacherId(), tenantId)
+            Long teacherPk = resolveHomeroomTeacherPk(s, c, tenantId);
+            if (teacherPk == null) {
+                continue;
+            }
+            teacherRepository.findByIdAndTenantIdAndIsDeletedFalse(teacherPk, tenantId)
                     .map(Teacher::getUserId)
                     .ifPresent(out::add);
         }
@@ -152,12 +159,15 @@ public class ChatDirectoryService {
         }
 
         List<SchoolClass> classes = classRepository.findByTenantIdAndIsDeletedFalseOrderByGrade(tenantId).stream()
-                .filter(c -> Objects.equals(c.getClassTeacherId(), teacher.getId()) || Objects.equals(c.getClassTeacherId(), userId))
+                .filter(c -> teacherIsHomeroomForClass(teacher.getId(), c, tenantId))
                 .collect(Collectors.toList());
 
-        // existing schema: students link to classId/sectionId; this roster currently uses class-only grouping.
         Map<Long, List<Student>> studentsByClass = classes.stream()
-                .collect(Collectors.toMap(SchoolClass::getId, c -> studentRepository.findByTenantIdAndClassIdAndIsDeletedFalse(tenantId, c.getId())));
+                .collect(Collectors.toMap(
+                        SchoolClass::getId,
+                        c -> studentRepository.findByTenantIdAndClassIdAndIsDeletedFalse(tenantId, c.getId()).stream()
+                                .filter(s -> studentIsInHomeroomOfTeacher(s, c, teacher.getId(), tenantId))
+                                .collect(Collectors.toList())));
 
         // Build parent cards via Student.parentId -> User
         List<Long> parentIds = studentsByClass.values().stream()
@@ -209,10 +219,7 @@ public class ChatDirectoryService {
                 .stream().collect(Collectors.toMap(SchoolClass::getId, c -> c, (a, b) -> a));
 
         List<Long> classTeacherTeacherPks = kids.stream()
-                .map(Student::getClassId)
-                .map(classMap::get)
-                .filter(Objects::nonNull)
-                .map(SchoolClass::getClassTeacherId)
+                .map(s -> resolveHomeroomTeacherPk(s, s.getClassId() != null ? classMap.get(s.getClassId()) : null, tenantId))
                 .filter(Objects::nonNull)
                 .distinct()
                 .collect(Collectors.toList());
@@ -234,8 +241,9 @@ public class ChatDirectoryService {
                     r.setClassName(c != null ? c.getName() : null);
                     r.setSectionId(s.getSectionId());
                     r.setSectionName(null);
-                    if (c != null && c.getClassTeacherId() != null) {
-                        User u = homeroomTeacherUserByTeacherPk.get(c.getClassTeacherId());
+                    Long pk = resolveHomeroomTeacherPk(s, c, tenantId);
+                    if (pk != null) {
+                        User u = homeroomTeacherUserByTeacherPk.get(pk);
                         if (u != null) {
                             r.setClassTeacher(new ChatDirectoryDTOs.UserCard(u.getId(), u.getName(), u.getRole() != null ? u.getRole().name() : "TEACHER"));
                         }
@@ -246,13 +254,45 @@ public class ChatDirectoryService {
                 .collect(Collectors.toList());
     }
 
+    private boolean teacherIsHomeroomForClass(Long teacherPk, SchoolClass c, String tenantId) {
+        if (c.getClassTeacherId() != null && Objects.equals(c.getClassTeacherId(), teacherPk)) {
+            return true;
+        }
+        return sectionRepository.findByTenantIdAndClassIdAndIsDeletedFalse(tenantId, c.getId()).stream()
+                .anyMatch(sec -> Objects.equals(sec.getClassTeacherId(), teacherPk));
+    }
+
+    private boolean studentIsInHomeroomOfTeacher(Student st, SchoolClass c, Long teacherPk, String tenantId) {
+        if (st.getSectionId() != null) {
+            return sectionRepository.findByIdAndTenantIdAndIsDeletedFalse(st.getSectionId(), tenantId)
+                    .map(sec -> Objects.equals(sec.getClassTeacherId(), teacherPk))
+                    .orElse(false);
+        }
+        return Objects.equals(c.getClassTeacherId(), teacherPk);
+    }
+
+    private Long resolveHomeroomTeacherPk(Student s, SchoolClass c, String tenantId) {
+        if (c == null) {
+            return null;
+        }
+        if (s.getSectionId() != null) {
+            return sectionRepository.findByIdAndTenantIdAndIsDeletedFalse(s.getSectionId(), tenantId)
+                    .map(Section::getClassTeacherId)
+                    .filter(Objects::nonNull)
+                    .orElse(c.getClassTeacherId());
+        }
+        return c.getClassTeacherId();
+    }
+
     public ChatDirectoryService(StudentRepository studentRepository,
                                SchoolClassRepository classRepository,
+                               SectionRepository sectionRepository,
                                UserRepository userRepository,
                                TeacherRepository teacherRepository,
                                GuardianService guardianService) {
         this.studentRepository = studentRepository;
         this.classRepository = classRepository;
+        this.sectionRepository = sectionRepository;
         this.userRepository = userRepository;
         this.teacherRepository = teacherRepository;
         this.guardianService = guardianService;

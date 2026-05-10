@@ -5,7 +5,14 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { debounceTime } from 'rxjs/operators';
 import { Subject, Subscription } from 'rxjs';
-import { LeaveBalanceSummary, LeaveDayUnit, LeaveRequestRow, LeaveService } from '../../core/services/leave.service';
+import {
+  BulkLeaveAllocationRequest,
+  LeaveBalanceSummary,
+  LeaveDayUnit,
+  LeaveLedgerEntry,
+  LeaveRequestRow,
+  LeaveService
+} from '../../core/services/leave.service';
 import {
   LEAVE_OTHER_REASON_MIN_LEN,
   leaveStatusI18nKey,
@@ -13,7 +20,9 @@ import {
   translateLeaveLookup,
 } from '../../core/leave/leave-api.contract';
 import { resolveLeaveSubmitError } from '../../core/leave/leave-api.error';
+import { readLeaveEntitlementPolicy, writeLeaveEntitlementPolicy, type LeaveEntitlementPolicy } from '../../core/leave/leave-policy.storage';
 import { AuthService } from '../../core/services/auth.service';
+import { UiAccessService } from '../../core/services/ui-access.service';
 import { ErpDatePickerComponent } from '../../shared/erp-date-picker/erp-date-picker.component';
 import { ErpPaginationComponent } from '../../shared/erp-pagination/erp-pagination.component';
 import { ErpI18nPhDirective, ErpI18nTextDirective } from '../../shared/erp-i18n/erp-i18n-host.directives';
@@ -41,32 +50,119 @@ import { runtimeConfig } from '../../core/config/runtime-config';
       </div>
       <p class="text-muted" style="font-size: 13px;">{{ 'leave.lead' | translate }}</p>
 
+      <div class="erp-card mt-3 mb-4" *ngIf="isApprover">
+        <h3 style="font-size: 15px; font-weight: 700;">{{ 'leave.policyCardTitle' | translate }}</h3>
+        <p class="small text-muted mb-2">{{ 'leave.policyCardHint' | translate }}</p>
+        <div class="row g-2 align-items-end">
+          <div class="col-6 col-md-3">
+            <label class="erp-label">{{ 'leave.policyAnnual' | translate }}</label>
+            <input type="number" min="0" class="erp-input" [(ngModel)]="policyDraft.annualEntitled" />
+          </div>
+          <div class="col-6 col-md-3">
+            <label class="erp-label">{{ 'leave.policySick' | translate }}</label>
+            <input type="number" min="0" class="erp-input" [(ngModel)]="policyDraft.sickEntitled" />
+          </div>
+          <div class="col-6 col-md-3">
+            <label class="erp-label">{{ 'leave.policyCasual' | translate }}</label>
+            <input type="number" min="0" class="erp-input" [(ngModel)]="policyDraft.casualEntitled" />
+          </div>
+          <div class="col-12 col-md-3">
+            <label class="erp-label">{{ 'leave.policyYearLabel' | translate }}</label>
+            <input type="text" class="erp-input" [(ngModel)]="policyDraft.policyYearLabel" />
+          </div>
+        </div>
+        <p *ngIf="policySaveError" class="text-danger small mb-0 mt-2">{{ policySaveError }}</p>
+        <button type="button" class="btn-primary-erp mt-3" (click)="saveLeavePolicy()">{{ 'leave.policySave' | translate }}</button>
+      </div>
+
+      <div class="erp-card mt-3 mb-4" *ngIf="isApprover">
+        <h3 style="font-size: 15px; font-weight: 700;">{{ 'leave.bulkAllocationTitle' | translate }}</h3>
+        <p class="small text-muted mb-2">{{ 'leave.bulkAllocationHint' | translate }}</p>
+        <div class="row g-2 align-items-end">
+          <div class="col-6 col-md-3">
+            <label class="erp-label">{{ 'leave.policyYearLabel' | translate }}</label>
+            <input type="text" class="erp-input" [(ngModel)]="allocationDraft.policyYearLabel" />
+          </div>
+          <div class="col-6 col-md-3">
+            <label class="erp-label">{{ 'leave.policyAnnual' | translate }}</label>
+            <input type="number" min="0" class="erp-input" [(ngModel)]="allocationDraft.annualOpening" />
+          </div>
+          <div class="col-6 col-md-3">
+            <label class="erp-label">{{ 'leave.policySick' | translate }}</label>
+            <input type="number" min="0" class="erp-input" [(ngModel)]="allocationDraft.sickOpening" />
+          </div>
+          <div class="col-6 col-md-3">
+            <label class="erp-label">{{ 'leave.policyCasual' | translate }}</label>
+            <input type="number" min="0" class="erp-input" [(ngModel)]="allocationDraft.casualOpening" />
+          </div>
+          <div class="col-12 col-md-6">
+            <label class="erp-label">{{ 'leave.bulkRoleFilter' | translate }}</label>
+            <select class="erp-select" [(ngModel)]="allocationDraft.roleFilters">
+              <option [ngValue]="['TEACHER']">{{ 'leave.bulkRoleTeachers' | translate }}</option>
+              <option [ngValue]="['TEACHER','SCHOOL_STAFF','LIBRARY_STAFF']">{{ 'leave.bulkRoleAllStaff' | translate }}</option>
+            </select>
+          </div>
+          <div class="col-12 col-md-6">
+            <label class="erp-label">{{ 'leave.labelReason' | translate }}</label>
+            <input type="text" class="erp-input" [(ngModel)]="allocationDraft.notes" />
+          </div>
+        </div>
+        <div class="form-check mt-2">
+          <input class="form-check-input" type="checkbox" id="leaveOverwriteYear" [(ngModel)]="allocationDraft.overwriteExistingYear" />
+          <label class="form-check-label small" for="leaveOverwriteYear">{{ 'leave.bulkOverwrite' | translate }}</label>
+        </div>
+        <p *ngIf="allocationSaveError" class="text-danger small mb-0 mt-2">{{ allocationSaveError }}</p>
+        <p *ngIf="allocationSaveInfo" class="text-success small mb-0 mt-2">{{ allocationSaveInfo }}</p>
+        <button type="button" class="btn-primary-erp mt-3" (click)="allocateEntitlements()">{{ 'leave.bulkAllocateAction' | translate }}</button>
+      </div>
+
       <div class="erp-card mt-3 mb-4" *ngIf="balance as b">
         <h3 style="font-size: 15px; font-weight: 700;">{{ 'leave.balanceTitle' | translate }}</h3>
+        <p *ngIf="policyPeriodLine" class="small text-muted mb-2">{{ policyPeriodLine }}</p>
         <div class="row g-3 mt-1">
           <div class="col-md-4">
             <div class="balance-pill">
               <div class="small text-muted">{{ 'leave.annual' | translate }}</div>
-              <div class="balance-val">{{ b.annualEntitled - b.annualUsed }} <span class="text-muted small">/ {{ b.annualEntitled }} {{ 'leave.leftSuffix' | translate }}</span></div>
+              <div class="balance-val">{{ b.annualRemaining ?? (b.annualEntitled - b.annualUsed) }} <span class="text-muted small">/ {{ b.annualEntitled }} {{ 'leave.leftSuffix' | translate }}</span></div>
               <div class="small text-muted">{{ 'leave.usedLine' | translate: { n: b.annualUsed } }}</div>
             </div>
           </div>
           <div class="col-md-4">
             <div class="balance-pill">
               <div class="small text-muted">{{ 'leave.sick' | translate }}</div>
-              <div class="balance-val">{{ b.sickEntitled - b.sickUsed }} <span class="text-muted small">/ {{ b.sickEntitled }}</span></div>
+              <div class="balance-val">{{ b.sickRemaining ?? (b.sickEntitled - b.sickUsed) }} <span class="text-muted small">/ {{ b.sickEntitled }}</span></div>
               <div class="small text-muted">{{ 'leave.usedLine' | translate: { n: b.sickUsed } }}</div>
             </div>
           </div>
           <div class="col-md-4">
             <div class="balance-pill">
               <div class="small text-muted">{{ 'leave.casual' | translate }}</div>
-              <div class="balance-val">{{ b.casualEntitled - b.casualUsed }} <span class="text-muted small">/ {{ b.casualEntitled }}</span></div>
+              <div class="balance-val">{{ b.casualRemaining ?? (b.casualEntitled - b.casualUsed) }} <span class="text-muted small">/ {{ b.casualEntitled }}</span></div>
               <div class="small text-muted">{{ 'leave.usedLine' | translate: { n: b.casualUsed } }}</div>
             </div>
           </div>
         </div>
         <p class="small text-muted mb-0 mt-2">{{ 'leave.balanceFootnote' | translate }}</p>
+      </div>
+
+      <div class="erp-card mt-3 mb-4">
+        <h3 style="font-size: 15px; font-weight: 700;">{{ 'leave.ledgerTitle' | translate }}</h3>
+        <p class="small text-muted mb-2">{{ 'leave.ledgerHint' | translate }}</p>
+        <p *ngIf="!ledgerRows.length" class="text-muted small mb-0">{{ 'leave.ledgerEmpty' | translate }}</p>
+        <div class="leave-scroll-region leave-scroll-region--ledger">
+          <div *ngFor="let e of ledgerRows" class="ledger-row">
+            <div class="d-flex justify-content-between align-items-center gap-2">
+              <div>
+                <div class="fw-semibold">{{ e.leaveType }} · {{ e.entryType }}</div>
+                <div class="small text-muted">{{ e.policyYearLabel || 'CURRENT' }} · {{ e.effectiveDate || e.createdAt }}</div>
+              </div>
+              <span class="badge-erp" [class.badge-success]="(e.signedUnits || 0) > 0" [class.badge-danger]="(e.signedUnits || 0) < 0">
+                {{ (e.signedUnits || 0) > 0 ? '+' : '' }}{{ e.signedUnits }}
+              </span>
+            </div>
+            <div *ngIf="e.notes" class="small text-muted mt-1">{{ e.notes }}</div>
+          </div>
+        </div>
       </div>
 
       <div class="erp-card mt-3 mb-4">
@@ -122,14 +218,16 @@ import { runtimeConfig } from '../../core/config/runtime-config';
       </div>
       <p *ngIf="mineFilteredTotal === 0 && !mineSearch" class="text-muted small">{{ 'leave.emptyMine' | translate }}</p>
       <p *ngIf="mineFilteredTotal === 0 && mineSearch" class="text-muted small">{{ 'leave.noMatches' | translate }}</p>
-      <div *ngFor="let r of pagedMine" class="erp-card mb-2">
-        <div class="d-flex justify-content-between flex-wrap gap-2">
-          <span class="fw-semibold">{{ leaveTypeLabel(r.leaveType) }}</span>
-          <span class="badge-erp" [class.badge-info]="r.status === 'PENDING'" [class.badge-success]="r.status === 'APPROVED'" [class.badge-danger]="r.status === 'REJECTED'" [class.badge-neutral]="r.status === 'CANCELLED'">{{ leaveStatusLabel(r.status) }}</span>
+      <div class="leave-scroll-region leave-scroll-region--mine">
+        <div *ngFor="let r of pagedMine" class="erp-card mb-2">
+          <div class="d-flex justify-content-between flex-wrap gap-2">
+            <span class="fw-semibold">{{ leaveTypeLabel(r.leaveType) }}</span>
+            <span class="badge-erp" [class.badge-info]="r.status === 'PENDING'" [class.badge-success]="r.status === 'APPROVED'" [class.badge-danger]="r.status === 'REJECTED'" [class.badge-neutral]="r.status === 'CANCELLED'">{{ leaveStatusLabel(r.status) }}</span>
+          </div>
+          <div class="small text-muted">{{ r.startDate }} → {{ r.endDate }} · {{ dayUnitLabel(r.dayUnit) }}</div>
+          <div *ngIf="r.reason" class="small mt-1">{{ r.reason }}</div>
+          <div *ngIf="r.approverRemarks" class="small text-muted mt-1">{{ 'leave.approverLabel' | translate }}: {{ r.approverRemarks }}</div>
         </div>
-        <div class="small text-muted">{{ r.startDate }} → {{ r.endDate }} · {{ dayUnitLabel(r.dayUnit) }}</div>
-        <div *ngIf="r.reason" class="small mt-1">{{ r.reason }}</div>
-        <div *ngIf="r.approverRemarks" class="small text-muted mt-1">{{ 'leave.approverLabel' | translate }}: {{ r.approverRemarks }}</div>
       </div>
       <app-erp-pagination
         *ngIf="mineFilteredTotal > 0"
@@ -151,18 +249,20 @@ import { runtimeConfig } from '../../core/config/runtime-config';
         </div>
         <p *ngIf="allFilteredTotal === 0 && !allSearch" class="text-muted small">{{ 'leave.emptyAll' | translate }}</p>
         <p *ngIf="allFilteredTotal === 0 && allSearch" class="text-muted small">{{ 'leave.noMatches' | translate }}</p>
-        <div *ngFor="let r of pagedAll" class="erp-card mb-2">
-          <div class="d-flex justify-content-between flex-wrap gap-2">
-            <div>
-              <span class="fw-semibold">{{ leaveTypeLabel(r.leaveType) }}</span>
-              <span class="text-muted small ms-2">{{ 'leave.applicantMeta' | translate: { id: r.applicantUserId, role: r.applicantRole } }}</span>
+        <div class="leave-scroll-region leave-scroll-region--team">
+          <div *ngFor="let r of pagedAll" class="erp-card mb-2">
+            <div class="d-flex justify-content-between flex-wrap gap-2">
+              <div>
+                <span class="fw-semibold">{{ leaveTypeLabel(r.leaveType) }}</span>
+                <span class="text-muted small ms-2">{{ applicantLine(r) }}</span>
+              </div>
+              <span class="badge-erp" [class.badge-info]="r.status === 'PENDING'" [class.badge-success]="r.status === 'APPROVED'" [class.badge-danger]="r.status === 'REJECTED'" [class.badge-neutral]="r.status === 'CANCELLED'">{{ leaveStatusLabel(r.status) }}</span>
             </div>
-            <span class="badge-erp" [class.badge-info]="r.status === 'PENDING'" [class.badge-success]="r.status === 'APPROVED'" [class.badge-danger]="r.status === 'REJECTED'" [class.badge-neutral]="r.status === 'CANCELLED'">{{ leaveStatusLabel(r.status) }}</span>
-          </div>
-          <div class="small text-muted">{{ r.startDate }} → {{ r.endDate }} · {{ dayUnitLabel(r.dayUnit) }}</div>
-          <div *ngIf="r.status === 'PENDING' && isApprover" class="mt-2 d-flex gap-2 flex-wrap">
-            <button type="button" class="btn-primary-erp btn-sm" (click)="decide(r, true)">{{ 'leave.approve' | translate }}</button>
-            <button type="button" class="btn-outline-erp btn-sm" (click)="decide(r, false)">{{ 'leave.reject' | translate }}</button>
+            <div class="small text-muted">{{ r.startDate }} → {{ r.endDate }} · {{ dayUnitLabel(r.dayUnit) }}</div>
+            <div *ngIf="r.status === 'PENDING' && isApprover" class="mt-2 d-flex gap-2 flex-wrap">
+              <button type="button" class="btn-primary-erp btn-sm" (click)="decide(r, true)">{{ 'leave.approve' | translate }}</button>
+              <button type="button" class="btn-outline-erp btn-sm" (click)="decide(r, false)">{{ 'leave.reject' | translate }}</button>
+            </div>
           </div>
         </div>
         <app-erp-pagination
@@ -187,6 +287,20 @@ import { runtimeConfig } from '../../core/config/runtime-config';
         background: var(--clr-surface-muted);
       }
       .balance-val { font-size: 20px; font-weight: 800; color: var(--clr-text); }
+      .ledger-row {
+        border: 1px solid var(--clr-border);
+        border-radius: var(--radius-md);
+        padding: 10px 12px;
+        background: var(--clr-surface-muted);
+        margin-bottom: 8px;
+      }
+      .leave-scroll-region {
+        overflow-y: auto;
+        padding-right: 2px;
+      }
+      .leave-scroll-region--mine { max-height: 360px; }
+      .leave-scroll-region--team { max-height: 420px; }
+      .leave-scroll-region--ledger { max-height: 300px; }
     `
   ]
 })
@@ -213,12 +327,23 @@ export class LeaveComponent implements OnInit {
   mineFilteredTotal = 0;
   allFilteredTotal = 0;
   balance: LeaveBalanceSummary | null = null;
+  policyDraft: LeaveEntitlementPolicy = readLeaveEntitlementPolicy();
+  policySaveError = '';
+  allocationSaveError = '';
+  allocationSaveInfo = '';
   submitError = '';
+  ledgerRows: LeaveLedgerEntry[] = [];
+  allocationDraft: BulkLeaveAllocationRequest = {
+    roleFilters: ['TEACHER'],
+    overwriteExistingYear: false,
+    notes: 'Academic year opening allocation'
+  };
   readonly otherReasonMin = LEAVE_OTHER_REASON_MIN_LEN;
 
   private readonly translate = inject(TranslateService);
   private readonly cdr = inject(ChangeDetectorRef);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly uiAccess = inject(UiAccessService);
   private readonly mineSearch$ = new Subject<void>();
   private readonly allSearch$ = new Subject<void>();
   private readonly subs = new Subscription();
@@ -231,12 +356,29 @@ export class LeaveComponent implements OnInit {
   ) {}
 
   get isApprover(): boolean {
-    return this.auth.getRole() === 'admin';
+    return this.uiAccess.hasLeaveApprovalAccess();
   }
 
+  /** Shown under balance title when a policy year label is configured (mock or API). */
+  get policyPeriodLine(): string {
+    const y = this.policyDraft?.policyYearLabel?.trim();
+    if (!y) {
+      return '';
+    }
+    return this.translate.instant('leave.policyPeriodLine', { y });
+  }
+
+  /** Team queue is for school admins only; teachers use “My requests”. */
   get canSeeDirectory(): boolean {
-    const r = this.auth.getRole();
-    return r === 'admin' || r === 'teacher';
+    return this.uiAccess.hasLeaveApprovalAccess();
+  }
+
+  applicantLine(r: LeaveRequestRow): string {
+    const name = (r.applicantDisplayName || '').trim();
+    if (name) {
+      return this.translate.instant('leave.applicantMetaName', { name, role: r.applicantRole });
+    }
+    return this.translate.instant('leave.applicantMeta', { id: r.applicantUserId, role: r.applicantRole });
   }
 
   get canSubmit(): boolean {
@@ -269,6 +411,47 @@ export class LeaveComponent implements OnInit {
     this.refresh();
   }
 
+  saveLeavePolicy(): void {
+    this.policySaveError = '';
+    const payload: LeaveEntitlementPolicy = {
+      annualEntitled: Math.max(0, Math.floor(Number(this.policyDraft.annualEntitled) || 0)),
+      sickEntitled: Math.max(0, Math.floor(Number(this.policyDraft.sickEntitled) || 0)),
+      casualEntitled: Math.max(0, Math.floor(Number(this.policyDraft.casualEntitled) || 0)),
+      policyYearLabel: (this.policyDraft.policyYearLabel ?? '').trim() || undefined,
+    };
+    if (runtimeConfig.useMocks) {
+      writeLeaveEntitlementPolicy(payload);
+      this.policyDraft = { ...readLeaveEntitlementPolicy() };
+      this.refresh();
+      return;
+    }
+    this.leave.updateEntitlementPolicy(payload).subscribe({
+      next: () => this.refresh(),
+      error: (e: unknown) => {
+        this.policySaveError = resolveLeaveSubmitError(e, this.translate);
+        this.cdr.markForCheck();
+      },
+    });
+  }
+
+  allocateEntitlements(): void {
+    this.allocationSaveError = '';
+    this.allocationSaveInfo = '';
+    this.leave.bulkAllocateEntitlements(this.allocationDraft).subscribe({
+      next: res => {
+        this.allocationSaveInfo = this.translate.instant('leave.bulkAllocationSaved', {
+          allocated: res.allocatedUsers,
+          skipped: res.skippedUsers
+        });
+        this.refresh();
+      },
+      error: (e: unknown) => {
+        this.allocationSaveError = resolveLeaveSubmitError(e, this.translate);
+        this.cdr.markForCheck();
+      }
+    });
+  }
+
   dayUnitLabel(u?: LeaveDayUnit): string {
     const unit = u ?? 'FULL_DAY';
     const shortKey = `leave.dayUnit._short_${unit}`;
@@ -292,7 +475,23 @@ export class LeaveComponent implements OnInit {
   }
 
   refresh(): void {
-    this.leave.getBalance().subscribe(b => (this.balance = b));
+    this.leave.getEntitlementPolicy().subscribe(p => {
+      this.policyDraft = {
+        annualEntitled: p.annualEntitled,
+        sickEntitled: p.sickEntitled,
+        casualEntitled: p.casualEntitled,
+        policyYearLabel: p.policyYearLabel,
+      };
+      this.cdr.markForCheck();
+    });
+    this.leave.getBalance().subscribe(b => {
+      this.balance = b;
+      this.cdr.markForCheck();
+    });
+    this.leave.listMyLedger().subscribe(rows => {
+      this.ledgerRows = rows || [];
+      this.cdr.markForCheck();
+    });
     if (this.useServerPaging) {
       this.minePageIndex = 0;
       this.fetchMinePage();
@@ -360,6 +559,7 @@ export class LeaveComponent implements OnInit {
       r.status,
       String(r.applicantUserId),
       r.applicantRole,
+      r.applicantDisplayName,
     ]
       .filter(Boolean)
       .join(' ')

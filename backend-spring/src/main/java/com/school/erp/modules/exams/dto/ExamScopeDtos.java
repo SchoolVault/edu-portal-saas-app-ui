@@ -83,6 +83,8 @@ public final class ExamScopeDtos {
         private Long classId;
         private Long sectionId;
         private String subjectName;
+        private String paperType;
+        private String invigilatorName;
         private String examDate;
         private String startTime;
         private String endTime;
@@ -111,6 +113,22 @@ public final class ExamScopeDtos {
 
         public void setSubjectName(String subjectName) {
             this.subjectName = subjectName;
+        }
+
+        public String getPaperType() {
+            return paperType;
+        }
+
+        public void setPaperType(String paperType) {
+            this.paperType = paperType;
+        }
+
+        public String getInvigilatorName() {
+            return invigilatorName;
+        }
+
+        public void setInvigilatorName(String invigilatorName) {
+            this.invigilatorName = invigilatorName;
         }
 
         public String getExamDate() {
@@ -161,6 +179,8 @@ public final class ExamScopeDtos {
         private String className;
         private String sectionName;
         private String subjectName;
+        private String paperType;
+        private String invigilatorName;
         private String examDate;
         private String startTime;
         private String endTime;
@@ -213,6 +233,22 @@ public final class ExamScopeDtos {
 
         public void setSubjectName(String subjectName) {
             this.subjectName = subjectName;
+        }
+
+        public String getPaperType() {
+            return paperType;
+        }
+
+        public void setPaperType(String paperType) {
+            this.paperType = paperType;
+        }
+
+        public String getInvigilatorName() {
+            return invigilatorName;
+        }
+
+        public void setInvigilatorName(String invigilatorName) {
+            this.invigilatorName = invigilatorName;
         }
 
         public String getExamDate() {

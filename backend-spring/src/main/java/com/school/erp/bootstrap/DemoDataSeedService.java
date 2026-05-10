@@ -3,6 +3,7 @@ package com.school.erp.bootstrap;
 import com.school.erp.common.enums.Enums;
 import com.school.erp.modules.academic.entity.*;
 import com.school.erp.modules.academic.repository.*;
+import com.school.erp.modules.academic.service.CurrentAcademicYearResolver;
 import com.school.erp.modules.attendance.entity.AttendanceRecord;
 import com.school.erp.modules.attendance.repository.AttendanceRepository;
 import com.school.erp.modules.auth.entity.User;
@@ -21,6 +22,10 @@ import com.school.erp.modules.fees.entity.FeeStructure;
 import com.school.erp.modules.fees.repository.FeeComponentRepository;
 import com.school.erp.modules.fees.repository.FeePaymentRepository;
 import com.school.erp.modules.fees.repository.FeeStructureRepository;
+import com.school.erp.modules.finance.domain.FeeSettlementMode;
+import com.school.erp.modules.finance.domain.PaymentRoutingOnboardingStatus;
+import com.school.erp.modules.finance.entity.TenantFinanceProfile;
+import com.school.erp.modules.finance.repository.TenantFinanceProfileRepository;
 import com.school.erp.modules.guardian.entity.Guardian;
 import com.school.erp.modules.guardian.entity.StudentGuardianMapping;
 import com.school.erp.modules.guardian.repository.GuardianRepository;
@@ -31,16 +36,28 @@ import com.school.erp.modules.hostel.entity.HostelRoom;
 import com.school.erp.modules.hostel.repository.HostelAllocationRepository;
 import com.school.erp.modules.hostel.repository.HostelRepository;
 import com.school.erp.modules.hostel.repository.HostelRoomRepository;
+import com.school.erp.modules.leave.entity.LeaveEntitlementPolicy;
 import com.school.erp.modules.leave.entity.LeaveRequest;
+import com.school.erp.modules.leave.repository.LeaveEntitlementPolicyRepository;
 import com.school.erp.modules.leave.repository.LeaveRequestRepository;
 import com.school.erp.modules.library.entity.Book;
 import com.school.erp.modules.library.entity.BookIssue;
 import com.school.erp.modules.library.repository.BookIssueRepository;
 import com.school.erp.modules.library.repository.BookRepository;
+import com.school.erp.modules.rbac.RbacRoleCatalog;
+import com.school.erp.modules.rbac.audit.RbacAuditModule;
+import com.school.erp.modules.rbac.entity.SchoolRole;
+import com.school.erp.modules.rbac.entity.UserSchoolRoleAssignment;
+import com.school.erp.modules.rbac.repository.SchoolRoleRepository;
+import com.school.erp.modules.rbac.repository.UserSchoolRoleAssignmentRepository;
+import com.school.erp.modules.rbac.service.RbacTenantBootstrapService;
+import com.school.erp.security.rbac.SlimJwtAuthorityCache;
 import com.school.erp.bootstrap.demo.DemoExtendedTablesSeed;
 import com.school.erp.modules.chat.repository.ChatConversationRepository;
 import com.school.erp.modules.chat.repository.ChatMessageRepository;
 import com.school.erp.modules.chat.repository.ChatParticipantRepository;
+import com.school.erp.modules.audit.entity.AuditLog;
+import com.school.erp.modules.audit.repository.AuditLogRepository;
 import com.school.erp.modules.fees.entity.PaymentWebhookEvent;
 import com.school.erp.modules.fees.repository.PaymentWebhookEventRepository;
 import com.school.erp.modules.importexport.ImportJobConstants;
@@ -54,6 +71,9 @@ import com.school.erp.modules.notification.repository.NotificationOutboxReposito
 import com.school.erp.modules.notification.repository.NotificationRepository;
 import com.school.erp.modules.payroll.repository.SalaryDisbursementAttemptRepository;
 import com.school.erp.platform.port.NotificationDispatchPort;
+import com.school.erp.platform.port.NotificationDispatchAttributes;
+import com.school.erp.tenant.AcademicYearContext;
+import com.school.erp.tenant.hibernate.AcademicYearScopedFilter;
 import com.school.erp.modules.payroll.entity.SalaryDisbursementAttempt;
 import com.school.erp.modules.payroll.entity.Payslip;
 import com.school.erp.modules.payroll.entity.SalaryComponent;
@@ -61,6 +81,20 @@ import com.school.erp.modules.payroll.entity.SalaryStructure;
 import com.school.erp.modules.payroll.repository.PayslipRepository;
 import com.school.erp.modules.payroll.repository.SalaryComponentRepository;
 import com.school.erp.modules.payroll.repository.SalaryStructureRepository;
+import com.school.erp.modules.reports.entity.ReportAnalyticsPackConfig;
+import com.school.erp.modules.reports.entity.ReportGenerationJob;
+import com.school.erp.modules.reports.entity.ReportNotificationTemplate;
+import com.school.erp.modules.reports.entity.ReportPublicationSnapshot;
+import com.school.erp.modules.reports.entity.ReportShareDispatch;
+import com.school.erp.modules.reports.entity.ReportTemplate;
+import com.school.erp.modules.reports.entity.ReportWorkflowEventLog;
+import com.school.erp.modules.reports.repository.ReportAnalyticsPackConfigRepository;
+import com.school.erp.modules.reports.repository.ReportGenerationJobRepository;
+import com.school.erp.modules.reports.repository.ReportNotificationTemplateRepository;
+import com.school.erp.modules.reports.repository.ReportPublicationSnapshotRepository;
+import com.school.erp.modules.reports.repository.ReportShareDispatchRepository;
+import com.school.erp.modules.reports.repository.ReportTemplateRepository;
+import com.school.erp.modules.reports.repository.ReportWorkflowEventLogRepository;
 import com.school.erp.modules.settings.entity.TenantConfig;
 import com.school.erp.modules.settings.repository.TenantConfigRepository;
 import com.school.erp.modules.student.entity.Student;
@@ -71,14 +105,19 @@ import com.school.erp.modules.timetable.entity.TimetableEntry;
 import com.school.erp.modules.timetable.repository.TimetableRepository;
 import com.school.erp.modules.transport.entity.*;
 import com.school.erp.modules.transport.repository.*;
+import com.school.erp.common.util.InternationalPhone;
 import jakarta.persistence.EntityManager;
+import org.hibernate.Session;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Profile;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -93,8 +132,8 @@ import java.util.stream.Collectors;
  * COMPREHENSIVE DEMO DATA SEED SERVICE FOR SCHOOL ERP
  * ═══════════════════════════════════════════════════════════════════════════════════════════════
  *
- * Seeds TWO realistic Indian schools with COMPLETE data for classes 6-12 for comprehensive
- * end-to-end testing across ALL roles and modules.
+ * Seeds a realistic Indian school with COMPLETE data for classes 1–12 (mixed single/dual sections)
+ * for end-to-end testing across ALL roles and modules.
  *
  * ⚠️  OPTIMIZED FOR RENDER FREE TIER (0.1 CPU, 512MB RAM)
  * - Reduced data volume by ~90%
@@ -102,18 +141,19 @@ import java.util.stream.Collectors;
  * - Batch processing with memory flushes every 20 entities
  * - EntityManager flush/clear after each major operation
  *
- * SCHOOL 1: Delhi Public School (DPS-DLH) - New Delhi
- * SCHOOL 2: Kendriya Vidyalaya (KV-MUM) - Mumbai
+ * SCHOOL: Delhi Public School (DPS-DLH) - New Delhi
  *
  * Each school includes:
- * ├── Classes: 6, 7, 8, 9, 10, 11, 12 (7 classes)
- * ├── Sections: A, B per class (2 sections × 7 classes = 14 sections)
- * ├── Students: ~7-8 per section (~100 students total per school)
+ * ├── Classes: grades 1–12; odd grades one section (A), even grades sections A+B (Indian-style mix)
+ * ├── Students: configurable per section (default 20) — fee mix includes PAID / PARTIAL / UNPAID for desk QA
  * ├── Teachers: 36 teachers (enough breadth for demo timetables without teacher double-booking per slot)
  * ├── Guardians: Father + Mother for each student (proper mapping)
  * ├── QA parent: one dedicated {@code qa.multichild.parent@parent.<schoolCode>.edu.in} with four linked
  * │   active students (different classes where possible) for multi-child E2E / parent-portal QA
  * ├── Users: ADMIN, TEACHERS, PARENTS, LIBRARY_STAFF with login credentials
+ * ├── RBAC: {@link RbacTenantBootstrapService} backfill + {@code school_staff} desk demo logins (base-only, fee,
+ * │   exam, payroll, finance settings, library, transport/hostel logistics, custom bundle) for permission QA
+ * ├── Finance: {@link TenantFinanceProfile} seeded for platform-merchant flow
  * ├── Academic: Subjects, Teacher Assignments (Class + Subject)
  * ├── Fees: Fee structures, components, payments (PAID, PARTIAL, UNPAID examples)
  * ├── Exams: Multiple exams with schedules, mark records
@@ -123,7 +163,8 @@ import java.util.stream.Collectors;
  * ├── Library: 30 books, 10 book issues
  * ├── Hostel: 2 hostels, 8 rooms per hostel, student allocations
  * ├── Payroll: Teacher salary structures, components, payslips (last 3 months)
- * ├── Communication: 3 announcements, 5 direct messages
+ * ├── Communication: audience-scoped announcements (ALL / PARENTS / TEACHERS / CLASS / SECTION), homeroom-only
+ * │   direct messages, and [DEMO] in-app notifications on QA parent + one homeroom teacher
  * ├── Documents: 5 sample documents for testing
  * └── Leave: Leave requests (5 teacher + 10 student examples)
  *
@@ -146,10 +187,19 @@ public class DemoDataSeedService {
 
     private static final String QA_MULTICHILD_EMAIL_LOCAL = "qa.multichild.parent";
 
-    private static final String FEATURES_JSON = "{\"chat\":true,\"transport\":true,\"library\":true,\"hostel\":true,"
+    /** Phase-1 demo: enable modular surfaces so seeded transport/library/hostel/import rows are reachable from UI. */
+    private static final String FEATURES_JSON = "{\"chat\":false,\"transport\":true,\"library\":true,\"hostel\":true,"
             + "\"operationsHub\":true,\"importExport\":true,\"directory\":true,"
             + "\"payroll\":true,\"documents\":true,\"audit\":true,\"communication\":true,\"reports\":true,\"student\":true,\"teacher\":true,"
-            + "\"attendance\":true,\"fees\":true}";
+            + "\"attendance\":true,\"fees\":true,\"leave\":true}";
+
+    private static final int DEMO_MIN_GRADE = 1;
+    private static final int DEMO_MAX_GRADE = 12;
+
+    /** Even grades → sections A+B; odd grades → single section A (whole-class where no B). */
+    private static boolean demoGradeUsesTwoSections(int grade) {
+        return grade % 2 == 0;
+    }
 
     // Realistic Indian name pools for data generation
     private static final String[] MALE_FIRST_NAMES = {
@@ -227,24 +277,54 @@ public class DemoDataSeedService {
     private final MessageRepository messageRepository;
     private final DocumentRepository documentRepository;
     private final LeaveRequestRepository leaveRequestRepository;
+    private final LeaveEntitlementPolicyRepository leaveEntitlementPolicyRepository;
     private final NotificationRepository notificationRepository;
     private final ChatConversationRepository chatConversationRepository;
     private final ChatParticipantRepository chatParticipantRepository;
     private final ChatMessageRepository chatMessageRepository;
     private final ImportJobRepository importJobRepository;
     private final ImportJobLineRepository importJobLineRepository;
+    private final AuditLogRepository auditLogRepository;
     private final NotificationOutboxRepository notificationOutboxRepository;
     private final NotificationDispatchPort notificationDispatchPort;
     private final SalaryDisbursementAttemptRepository salaryDisbursementAttemptRepository;
     private final PaymentWebhookEventRepository paymentWebhookEventRepository;
+    private final ExamTemplateRepository examTemplateRepository;
+    private final ExamTemplateComponentRepository examTemplateComponentRepository;
+    private final ExamNotificationJobRepository examNotificationJobRepository;
+    private final ExamEventLogRepository examEventLogRepository;
+    private final ExamBulkOperationLogRepository examBulkOperationLogRepository;
+    private final ReportTemplateRepository reportTemplateRepository;
+    private final ReportGenerationJobRepository reportGenerationJobRepository;
+    private final ReportNotificationTemplateRepository reportNotificationTemplateRepository;
+    private final ReportShareDispatchRepository reportShareDispatchRepository;
+    private final ReportPublicationSnapshotRepository reportPublicationSnapshotRepository;
+    private final ReportWorkflowEventLogRepository reportWorkflowEventLogRepository;
+    private final ReportAnalyticsPackConfigRepository reportAnalyticsPackConfigRepository;
+    private final RbacTenantBootstrapService rbacTenantBootstrapService;
+    private final SchoolRoleRepository schoolRoleRepository;
+    private final UserSchoolRoleAssignmentRepository userSchoolRoleAssignmentRepository;
+    private final TenantFinanceProfileRepository tenantFinanceProfileRepository;
     private final DemoExtendedTablesSeed demoExtendedTablesSeed;
+    private final CurrentAcademicYearResolver currentAcademicYearResolver;
+    private final SlimJwtAuthorityCache slimJwtAuthorityCache;
     private final EntityManager entityManager;
 
-    /** Pause duration between major steps (in milliseconds) to avoid overwhelming Render free tier */
-    private static final long STEP_PAUSE_MS = 1000; // 1 second between steps
+    /** Pause duration between major steps to avoid CPU spikes on free tier. */
+    @Value("${app.demo-seed.step-pause-ms:800}")
+    private long stepPauseMs;
 
-    /** Batch size for entity manager flush/clear operations */
-    private static final int BATCH_SIZE = 20;
+    /** Batch size for entity manager flush/clear operations. */
+    @Value("${app.demo-seed.batch-size:20}")
+    private int batchSize;
+
+    /** Teacher count per school; keep enough for timetable + homeroom coverage. */
+    @Value("${app.demo-seed.teacher-count:36}")
+    private int teacherCount;
+
+    /** Students per section for demo roster density (~Indian CBSE section strength). */
+    @Value("${app.demo-seed.students-per-section:20}")
+    private int studentsPerSection;
 
     public DemoDataSeedService(
             TenantConfigRepository tenantConfigRepository,
@@ -285,18 +365,38 @@ public class DemoDataSeedService {
             MessageRepository messageRepository,
             DocumentRepository documentRepository,
             LeaveRequestRepository leaveRequestRepository,
+            LeaveEntitlementPolicyRepository leaveEntitlementPolicyRepository,
             NotificationRepository notificationRepository,
             ChatConversationRepository chatConversationRepository,
             ChatParticipantRepository chatParticipantRepository,
             ChatMessageRepository chatMessageRepository,
             ImportJobRepository importJobRepository,
             ImportJobLineRepository importJobLineRepository,
+            AuditLogRepository auditLogRepository,
             NotificationOutboxRepository notificationOutboxRepository,
             NotificationDispatchPort notificationDispatchPort,
             SalaryDisbursementAttemptRepository salaryDisbursementAttemptRepository,
             PaymentWebhookEventRepository paymentWebhookEventRepository,
+            ExamTemplateRepository examTemplateRepository,
+            ExamTemplateComponentRepository examTemplateComponentRepository,
+            ExamNotificationJobRepository examNotificationJobRepository,
+            ExamEventLogRepository examEventLogRepository,
+            ExamBulkOperationLogRepository examBulkOperationLogRepository,
+            ReportTemplateRepository reportTemplateRepository,
+            ReportGenerationJobRepository reportGenerationJobRepository,
+            ReportNotificationTemplateRepository reportNotificationTemplateRepository,
+            ReportShareDispatchRepository reportShareDispatchRepository,
+            ReportPublicationSnapshotRepository reportPublicationSnapshotRepository,
+            ReportWorkflowEventLogRepository reportWorkflowEventLogRepository,
+            ReportAnalyticsPackConfigRepository reportAnalyticsPackConfigRepository,
+            RbacTenantBootstrapService rbacTenantBootstrapService,
+            SchoolRoleRepository schoolRoleRepository,
+            UserSchoolRoleAssignmentRepository userSchoolRoleAssignmentRepository,
+            TenantFinanceProfileRepository tenantFinanceProfileRepository,
             EntityManager entityManager,
-            DemoExtendedTablesSeed demoExtendedTablesSeed) {
+            SlimJwtAuthorityCache slimJwtAuthorityCache,
+            DemoExtendedTablesSeed demoExtendedTablesSeed,
+            CurrentAcademicYearResolver currentAcademicYearResolver) {
         this.tenantConfigRepository = tenantConfigRepository;
         this.userRepository = userRepository;
         this.academicYearRepository = academicYearRepository;
@@ -335,17 +435,37 @@ public class DemoDataSeedService {
         this.messageRepository = messageRepository;
         this.documentRepository = documentRepository;
         this.leaveRequestRepository = leaveRequestRepository;
+        this.leaveEntitlementPolicyRepository = leaveEntitlementPolicyRepository;
         this.notificationRepository = notificationRepository;
         this.chatConversationRepository = chatConversationRepository;
         this.chatParticipantRepository = chatParticipantRepository;
         this.chatMessageRepository = chatMessageRepository;
         this.importJobRepository = importJobRepository;
         this.importJobLineRepository = importJobLineRepository;
+        this.auditLogRepository = auditLogRepository;
         this.notificationOutboxRepository = notificationOutboxRepository;
         this.notificationDispatchPort = notificationDispatchPort;
         this.salaryDisbursementAttemptRepository = salaryDisbursementAttemptRepository;
         this.paymentWebhookEventRepository = paymentWebhookEventRepository;
+        this.examTemplateRepository = examTemplateRepository;
+        this.examTemplateComponentRepository = examTemplateComponentRepository;
+        this.examNotificationJobRepository = examNotificationJobRepository;
+        this.examEventLogRepository = examEventLogRepository;
+        this.examBulkOperationLogRepository = examBulkOperationLogRepository;
+        this.reportTemplateRepository = reportTemplateRepository;
+        this.reportGenerationJobRepository = reportGenerationJobRepository;
+        this.reportNotificationTemplateRepository = reportNotificationTemplateRepository;
+        this.reportShareDispatchRepository = reportShareDispatchRepository;
+        this.reportPublicationSnapshotRepository = reportPublicationSnapshotRepository;
+        this.reportWorkflowEventLogRepository = reportWorkflowEventLogRepository;
+        this.reportAnalyticsPackConfigRepository = reportAnalyticsPackConfigRepository;
+        this.rbacTenantBootstrapService = rbacTenantBootstrapService;
+        this.schoolRoleRepository = schoolRoleRepository;
+        this.userSchoolRoleAssignmentRepository = userSchoolRoleAssignmentRepository;
+        this.tenantFinanceProfileRepository = tenantFinanceProfileRepository;
+        this.slimJwtAuthorityCache = slimJwtAuthorityCache;
         this.demoExtendedTablesSeed = demoExtendedTablesSeed;
+        this.currentAcademicYearResolver = currentAcademicYearResolver;
         this.entityManager = entityManager;
     }
 
@@ -375,19 +495,6 @@ public class DemoDataSeedService {
                 log.info("→ School 1 (DPS-DLH) already exists");
             }
 
-            // 3. School 2: Kendriya Vidyalaya
-            if (!tenantConfigRepository.existsBySchoolCode("KV-MUM")) {
-                log.info("→ Seeding School 2: Kendriya Vidyalaya (KV-MUM)");
-                seedSchool("KV-MUM",
-                          "tenant_kv_mumbai_7p5n3x8q",
-                          "Kendriya Vidyalaya No. 1",
-                          "INS Hamla, Marve Road, Malad West, Mumbai 400095, Maharashtra",
-                          "+91-22-2844-6633",
-                          "kvmumbai1@gmail.com");
-            } else {
-                log.info("→ School 2 (KV-MUM) already exists");
-            }
-
             log.info("══════════════════════════════════════════════════════════════");
             log.info("  ✅ DEMO DATA SEED COMPLETE");
             log.info("  All users password: admin123");
@@ -396,6 +503,9 @@ public class DemoDataSeedService {
 
             // Print credentials summary
             printCredentialsSummary();
+
+            // Operations / inventory / gate / covers — idempotent per tenant (inventory marker SKU)
+            applyExtendedDemoSeedsForConfiguredSchools();
 
         } catch (Exception e) {
             log.error("══════════════════════════════════════════════════════════════");
@@ -416,6 +526,33 @@ public class DemoDataSeedService {
     // PLATFORM SUPER ADMIN
     // ═══════════════════════════════════════════════════════════════════════════════════════════
 
+    private void applyExtendedDemoSeedsForConfiguredSchools() {
+        List<TenantConfig> demoTenants = tenantConfigRepository.findAll().stream()
+                .filter(tc -> !Boolean.TRUE.equals(tc.getIsDeleted()))
+                .filter(tc -> tc.getTenantId() != null && !"SUPER_ADMIN_PLATFORM".equals(tc.getTenantId()))
+                .toList();
+        for (TenantConfig tc : demoTenants) {
+            Long previousAcademicYearId = AcademicYearContext.getAcademicYearId();
+            try {
+                Long tenantAcademicYearId = currentAcademicYearResolver.resolveCurrentAcademicYearId(tc.getTenantId());
+                if (tenantAcademicYearId == null) {
+                    log.warn("Extended demo seed for {} skipped: no current academic year resolved", tc.getSchoolCode());
+                    continue;
+                }
+                AcademicYearContext.setAcademicYearId(tenantAcademicYearId);
+                demoExtendedTablesSeed.seedExtendedModuleRows(tc.getTenantId(), tc.getSchoolCode());
+            } catch (Exception e) {
+                log.warn("Extended demo seed for {} skipped or failed: {}", tc.getSchoolCode(), e.getMessage());
+            } finally {
+                if (previousAcademicYearId == null) {
+                    AcademicYearContext.clear();
+                } else {
+                    AcademicYearContext.setAcademicYearId(previousAcademicYearId);
+                }
+            }
+        }
+    }
+
     private void seedPlatformSuperAdmin() {
         String email = "superadmin@schoolerp.com";
         String platformTenant = "SUPER_ADMIN_PLATFORM";
@@ -429,9 +566,13 @@ public class DemoDataSeedService {
         superAdmin.setName("Platform Super Admin");
         superAdmin.setEmail(email);
         superAdmin.setPassword(BCRYPT_ADMIN123);
-        superAdmin.setPhone("+91-11-2800-0000");
+        superAdmin.setPhone("9800000001");
         superAdmin.setRole(Enums.Role.SUPER_ADMIN);
         superAdmin.setSchoolCode(schoolCode);
+        superAdmin.setEmailVerified(true);
+        superAdmin.setPhoneVerified(true);
+        superAdmin.setPasswordChangedAt(LocalDateTime.now().minusDays(30));
+        superAdmin.setLastLoginAt(LocalDateTime.now().minusDays(1));
         superAdmin.setIsActive(true);
         superAdmin.setIsDeleted(false);
         userRepository.save(superAdmin);
@@ -460,21 +601,30 @@ public class DemoDataSeedService {
         // STEP 1: Tenant Config
         log.info("  [1/15] Tenant Config...");
         TenantConfig config = createTenantConfig(tenantId, schoolCode, schoolName, address, phone, email);
+        createLeaveEntitlementPolicy(tenantId);
         pauseForResourceManagement();
 
         // STEP 2: Admin User
         log.info("  [2/15] Admin User...");
         User adminUser = createUser(tenantId, schoolCode, "School Admin", "admin@" + email.split("@")[1],
-                                    Enums.Role.ADMIN, "+91-" + phone.substring(4, 14));
+                                    Enums.Role.ADMIN, "9810001001");
         pauseForResourceManagement();
 
         // STEP 3: Academic Year
         log.info("  [3/15] Academic Year...");
-        AcademicYear academicYear = createAcademicYear(tenantId, "2025-2026",
-                                                       LocalDate.of(2025, 4, 1),
-                                                       LocalDate.of(2026, 3, 31),
+        AcademicYear academicYear = createAcademicYear(tenantId, "2026-2027",
+                                                       LocalDate.of(2026, 4, 1),
+                                                       LocalDate.of(2027, 3, 31),
                                                        true);
         pauseForResourceManagement();
+        Long previousAcademicYearId = AcademicYearContext.getAcademicYearId();
+        AcademicYearContext.setAcademicYearId(academicYear.getId());
+        // Transaction already started at seedIfNeeded entry; enable year filter explicitly now
+        // so subsequent scoped repository queries carry academic_year_id constraints.
+        entityManager.unwrap(Session.class)
+                .enableFilter(AcademicYearScopedFilter.NAME)
+                .setParameter("academicYearId", academicYear.getId());
+        try {
 
         // STEP 4: Academic Subjects (common across all classes)
         log.info("  [4/15] Academic Subjects...");
@@ -485,17 +635,17 @@ public class DemoDataSeedService {
         // STEP 5: Teachers — 36 so Mon–Sat × 6 periods can assign distinct teachers across ~14 sections
         // (one teacher per (day,period) tenant-wide while teacher_id is set; see uq_tt_active_teacher_slot / V20).
         log.info("  [5/15] Teachers...");
-        List<Teacher> teachers = createTeachers(tenantId, schoolCode, 36, random);
+        List<Teacher> teachers = createTeachers(tenantId, schoolCode, normalizedTeacherCount(), random);
         flushAndClear(); // Clear memory after creating teachers
         pauseForResourceManagement();
 
-        // STEP 6: Classes & Sections (Classes 6-12, Sections A, B - optimized for Render)
+        // STEP 6: Classes & Sections (grades 1–12, mixed sections — optimized for Render)
         log.info("  [6/15] Classes & Sections...");
         Map<Integer, List<ClassSectionPair>> classesMap = createClassesAndSections(tenantId, academicYear.getId(), teachers, random);
         flushAndClear(); // Clear memory after creating classes
         pauseForResourceManagement();
 
-        // STEP 7: Students with Guardians (7-8 per section = ~100 total - optimized for Render)
+        // STEP 7: Students with Guardians (8 per section — full section rosters for directory / module QA)
         log.info("  [7/15] Students & Guardians...");
         List<Student> allStudents = createStudentsWithGuardians(tenantId, schoolCode, classesMap, random);
         log.info("  [7/15] ✓ Created {} students with guardians", allStudents.size());
@@ -518,7 +668,8 @@ public class DemoDataSeedService {
 
         // STEP 10: Exams & Mark Records
         log.info("  [10/15] Exams & Marks...");
-        createExamsAndMarks(tenantId, academicYear.getId(), classesMap, allStudents, random);
+        List<Exam> seededExams = createExamsAndMarks(tenantId, academicYear.getId(), classesMap, allStudents, random);
+        createExamAndReportModuleSeedData(tenantId, academicYear.getId(), classesMap, allStudents, teachers, seededExams, random);
         log.info("  [10/15] ✓ Created exams and mark records");
         flushAndClear(); // Critical: Clear memory after marks
         pauseForResourceManagement();
@@ -559,7 +710,7 @@ public class DemoDataSeedService {
         flushAndClear();
         pauseForResourceManagement();
 
-        createCommunication(tenantId, adminUser, teachers, allStudents, random);
+        createCommunication(tenantId, schoolCode, adminUser, teachers, random);
         flushAndClear();
         pauseForResourceManagement();
 
@@ -569,14 +720,35 @@ public class DemoDataSeedService {
 
         createLeaveRequests(tenantId, teachers, allStudents, random);
         flushAndClear();
+        pauseForResourceManagement();
 
+        seedIdentityStateFixtures(tenantId, schoolCode);
+        flushAndClear();
+        pauseForResourceManagement();
+
+        seedShowcaseSupplementaryRows(tenantId, schoolCode);
+        createMeaningfulAuditTrailSeed(tenantId, schoolCode, adminUser, teachers, allStudents);
+        rbacTenantBootstrapService.ensureTenantSeeded(tenantId);
+        seedRbacNarrowRoleDemoPersonas(tenantId, schoolCode);
+        seedRbacModuleAuditStubs(tenantId, schoolCode, adminUser);
+        seedTenantFinanceProfileIfMissing(tenantId, schoolCode);
+        flushAndClear();
+
+        int sectionCount = classesMap.values().stream().mapToInt(List::size).sum();
         log.info("══════════════════════════════════════════════════════════════");
         log.info("✅ School {} SEEDED SUCCESSFULLY!", schoolCode);
         log.info("   Students: {}", allStudents.size());
         log.info("   Teachers: {}", teachers.size());
-        log.info("   Classes: 7 (grades 6-12)");
-        log.info("   Sections: 14 (A, B per class)");
+        log.info("   Classes: {} (grades {}–{})", classesMap.size(), DEMO_MIN_GRADE, DEMO_MAX_GRADE);
+        log.info("   Sections: {} (odd grades: A only; even grades: A+B)", sectionCount);
         log.info("══════════════════════════════════════════════════════════════");
+        } finally {
+            if (previousAcademicYearId == null) {
+                AcademicYearContext.clear();
+            } else {
+                AcademicYearContext.setAcademicYearId(previousAcademicYearId);
+            }
+        }
     }
 
     // ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -588,7 +760,9 @@ public class DemoDataSeedService {
      */
     private void pauseForResourceManagement() {
         try {
-            Thread.sleep(STEP_PAUSE_MS);
+            if (stepPauseMs > 0) {
+                Thread.sleep(stepPauseMs);
+            }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             log.warn("Pause interrupted: {}", e.getMessage());
@@ -603,6 +777,219 @@ public class DemoDataSeedService {
         seedNotificationOutboxShowcase(tenantId, schoolCode);
         seedPayslipAndSalaryDisbursementDemo(tenantId, schoolCode);
         seedPaymentWebhookDemoRow(tenantId, schoolCode);
+    }
+
+    private void createMeaningfulAuditTrailSeed(String tenantId, String schoolCode, User adminUser,
+                                                List<Teacher> teachers, List<Student> students) {
+        if (auditLogRepository.findByTenantIdAndIsDeletedFalse(tenantId, org.springframework.data.domain.Pageable.ofSize(1))
+                .getTotalElements() > 0) {
+            return;
+        }
+        Student sampleStudent = students.isEmpty() ? null : students.get(0);
+        Teacher classTeacher = teachers.isEmpty() ? null : teachers.get(0);
+        Teacher coveringTeacher = teachers.size() > 1 ? teachers.get(1) : classTeacher;
+        Long classTeacherUserId = classTeacher != null ? classTeacher.getUserId() : null;
+        Long coveringTeacherUserId = coveringTeacher != null ? coveringTeacher.getUserId() : null;
+        String classScope = sampleStudent == null
+                ? "Class 7-A"
+                : ("Class " + sampleStudent.getClassId() + (sampleStudent.getSectionId() != null ? ", Section " + sampleStudent.getSectionId() : ""));
+        String adminName = adminUser != null && adminUser.getName() != null ? adminUser.getName() : "School Admin";
+        String classTeacherName = classTeacher != null ? (classTeacher.getFirstName() + " " + classTeacher.getLastName()).trim() : "Class Teacher";
+        String coveringName = coveringTeacher != null ? (coveringTeacher.getFirstName() + " " + coveringTeacher.getLastName()).trim() : "Cover Teacher";
+        String studentName = sampleStudent != null ? (sampleStudent.getFirstName() + " " + sampleStudent.getLastName()).trim() : "Student";
+        Long studentId = sampleStudent != null ? sampleStudent.getId() : null;
+        Long teacherId = classTeacher != null ? classTeacher.getId() : null;
+
+        List<AuditLog> rows = new ArrayList<>();
+        rows.add(buildAuditRow(tenantId, Enums.AuditAction.LOGIN, "Auth",
+                adminName + " logged in to " + schoolCode + " workspace.", adminUser != null ? adminUser.getId() : null, adminName, null, "User"));
+        rows.add(buildAuditRow(tenantId, Enums.AuditAction.UPDATE, "Attendance",
+                classTeacherName + " marked attendance for " + classScope + " (today).", classTeacherUserId, classTeacherName, teacherId, "AttendanceRecord"));
+        rows.add(buildAuditRow(tenantId, Enums.AuditAction.UPDATE, "Attendance",
+                coveringName + " marked attendance for " + classScope + " on behalf of class teacher " + classTeacherName + ".", coveringTeacherUserId, coveringName, teacherId, "AttendanceCoverAssignment"));
+        rows.add(buildAuditRow(tenantId, Enums.AuditAction.UPDATE, "Fees",
+                adminName + " recorded a partial fee payment for " + studentName + ".", adminUser != null ? adminUser.getId() : null, adminName, studentId, "FeePayment"));
+        rows.add(buildAuditRow(tenantId, Enums.AuditAction.CREATE, "Exams",
+                adminName + " published Mid-Term exam timetable for " + classScope + ".", adminUser != null ? adminUser.getId() : null, adminName, null, "Exam"));
+        rows.add(buildAuditRow(tenantId, Enums.AuditAction.UPDATE, "Reports",
+                adminName + " approved and published report cards for " + classScope + ".", adminUser != null ? adminUser.getId() : null, adminName, null, "ReportGenerationJob"));
+        rows.add(buildAuditRow(tenantId, Enums.AuditAction.CREATE, "Communication",
+                adminName + " broadcast an announcement to parents about PTM timing changes.", adminUser != null ? adminUser.getId() : null, adminName, null, "Announcement"));
+        rows.add(buildAuditRow(tenantId, Enums.AuditAction.UPDATE, "Timetable",
+                adminName + " adjusted timetable slot for " + classScope + " to resolve a period conflict.", adminUser != null ? adminUser.getId() : null, adminName, teacherId, "TimetableEntry"));
+        rows.add(buildAuditRow(tenantId, Enums.AuditAction.CREATE, "Operations",
+                adminName + " issued a gate pass for " + studentName + " (medical appointment).", adminUser != null ? adminUser.getId() : null, adminName, studentId, "GatePass"));
+        rows.add(buildAuditRow(tenantId, Enums.AuditAction.UPDATE, "Payroll",
+                adminName + " completed monthly payroll disbursement for teaching staff.", adminUser != null ? adminUser.getId() : null, adminName, teacherId, "Payslip"));
+        auditLogRepository.saveAll(rows);
+    }
+
+    private AuditLog buildAuditRow(String tenantId, Enums.AuditAction action, String module,
+                                   String description, Long userId, String userName,
+                                   Long entityId, String entityType) {
+        AuditLog row = AuditLog.builder()
+                .action(action)
+                .module(module)
+                .description(description)
+                .userId(userId)
+                .userName(userName)
+                .ipAddress("system")
+                .entityId(entityId)
+                .entityType(entityType)
+                .build();
+        row.setTenantId(tenantId);
+        return row;
+    }
+
+    private static final String DEMO_CUSTOM_SCHOOL_ROLE_CODE = "DEMO_CUSTOM_FEE_REVIEW";
+
+    /**
+     * Desk QA logins use {@link Enums.Role#SCHOOL_STAFF} with one stacked {@link SchoolRole} each (same contract as
+     * CSV import / RBAC settings UI). Effective permissions = {@code PORTAL_SCHOOL_STAFF} baseline + role CSV.
+     */
+    private void seedRbacNarrowRoleDemoPersonas(String tenantId, String schoolCode) {
+        String domain = tenantConfigRepository.findByTenantId(tenantId)
+                .map(TenantConfig::getEmail)
+                .filter(e -> e != null && e.contains("@"))
+                .map(e -> e.substring(e.indexOf('@') + 1).trim())
+                .filter(d -> !d.isBlank())
+                .orElse("school.local");
+
+        SchoolRole customRole = ensureDemoCustomFeeReviewRole(tenantId);
+        if (customRole == null) {
+            log.warn("  RBAC narrow demo: custom school role not available tenantId={}", tenantId);
+        }
+
+        record Persona(String emailLocal, String fullName, String schoolRoleCode, boolean useCustomRole) {}
+
+        List<Persona> personas = List.of(
+                new Persona("staff.base.only", "Demo Base Staff " + schoolCode, RbacRoleCatalog.CODE_BASE_SCHOOL_STAFF, false),
+                new Persona("fee.desk.demo", "Demo Fee Desk " + schoolCode, RbacRoleCatalog.CODE_FEE_OFFICE, false),
+                new Persona("exam.desk.demo", "Demo Exam Desk " + schoolCode, RbacRoleCatalog.CODE_EXAM_OFFICE, false),
+                new Persona("payroll.desk.demo", "Demo Payroll Desk " + schoolCode, RbacRoleCatalog.CODE_PAYROLL_OFFICE, false),
+                new Persona("finance.settings.demo", "Demo Finance & Settings " + schoolCode, RbacRoleCatalog.CODE_TENANT_SETTINGS, false),
+                new Persona("library.desk.demo", "Demo Library Desk " + schoolCode, RbacRoleCatalog.CODE_LIBRARY_OPERATIONS, false),
+                new Persona(
+                        "logistics.desk.demo",
+                        "Demo Transport & Hostel Desk " + schoolCode,
+                        RbacRoleCatalog.CODE_TRANSPORT_HOSTEL_LOGISTICS,
+                        false),
+                new Persona(
+                        "transport.desk.demo",
+                        "Demo Transport Desk " + schoolCode,
+                        RbacRoleCatalog.CODE_TRANSPORT_LOGISTICS,
+                        false),
+                new Persona(
+                        "hostel.desk.demo",
+                        "Demo Hostel Desk " + schoolCode,
+                        RbacRoleCatalog.CODE_HOSTEL_RESIDENCE_DESK,
+                        false),
+                new Persona("rbac.custom.demo", "Demo Custom Bundle " + schoolCode, null, true));
+        int phoneSlot = 0;
+        for (Persona p : personas) {
+            if (p.useCustomRole() && customRole == null) {
+                continue;
+            }
+            String email = p.emailLocal() + "@" + domain;
+            String preferredPhone = "+91-73" + String.format("%08d", 4_200_000 + phoneSlot++);
+            User u = createUser(
+                    tenantId, schoolCode, p.fullName(), email, Enums.Role.SCHOOL_STAFF, preferredPhone);
+            userSchoolRoleAssignmentRepository.deleteByTenantIdAndUserId(tenantId, u.getId());
+            if (p.useCustomRole()) {
+                linkUserToSchoolRole(tenantId, u.getId(), customRole);
+            } else {
+                schoolRoleRepository
+                        .findByTenantIdAndCodeAndIsDeletedFalse(tenantId, p.schoolRoleCode())
+                        .ifPresent(r -> linkUserToSchoolRole(tenantId, u.getId(), r));
+            }
+            slimJwtAuthorityCache.evictForUser(tenantId, u.getId());
+        }
+    }
+
+    private void linkUserToSchoolRole(String tenantId, Long userId, SchoolRole role) {
+        if (userId == null || role == null) {
+            return;
+        }
+        UserSchoolRoleAssignment a = new UserSchoolRoleAssignment();
+        a.setTenantId(tenantId);
+        a.setUserId(userId);
+        a.setSchoolRole(role);
+        a.setCreatedAt(LocalDateTime.now());
+        userSchoolRoleAssignmentRepository.save(a);
+    }
+
+    private SchoolRole ensureDemoCustomFeeReviewRole(String tenantId) {
+        return schoolRoleRepository
+                .findByTenantIdAndCodeAndIsDeletedFalse(tenantId, DEMO_CUSTOM_SCHOOL_ROLE_CODE)
+                .orElseGet(() -> {
+                    SchoolRole e = new SchoolRole();
+                    e.setTenantId(tenantId);
+                    e.setIsActive(true);
+                    e.setIsDeleted(false);
+                    e.setCode(DEMO_CUSTOM_SCHOOL_ROLE_CODE);
+                    e.setName("Demo: fee + school reports (custom bundle)");
+                    e.setDescription("Seeded for RBAC E2E — narrow custom bundle distinct from FEE_OFFICE / EXAM_OFFICE templates.");
+                    e.setSortOrder(900);
+                    e.setSystemRole(false);
+                    e.setPermissionsCsv("FEE_STRUCTURES_READ,SCHOOL_REPORTS_READ");
+                    return schoolRoleRepository.save(e);
+                });
+    }
+
+    private void seedRbacModuleAuditStubs(String tenantId, String schoolCode, User adminUser) {
+        if (auditLogRepository
+                .findByTenantIdAndModuleAndIsDeletedFalse(tenantId, RbacAuditModule.CODE, PageRequest.of(0, 1))
+                .getTotalElements() > 0) {
+            return;
+        }
+        String adminName = adminUser != null && adminUser.getName() != null ? adminUser.getName() : "School Admin";
+        List<AuditLog> rows = List.of(
+                buildAuditRow(
+                        tenantId,
+                        Enums.AuditAction.UPDATE,
+                        RbacAuditModule.CODE,
+                        adminName + " adjusted school role assignment for a staff user (" + schoolCode + ").",
+                        adminUser != null ? adminUser.getId() : null,
+                        adminName,
+                        null,
+                        "RbacUserSchoolRoleView"),
+                buildAuditRow(
+                        tenantId,
+                        Enums.AuditAction.CREATE,
+                        RbacAuditModule.CODE,
+                        "Seeded custom school role " + DEMO_CUSTOM_SCHOOL_ROLE_CODE + " (demo bundle).",
+                        adminUser != null ? adminUser.getId() : null,
+                        adminName,
+                        null,
+                        "RbacSchoolRoleView"));
+        auditLogRepository.saveAll(rows);
+    }
+
+    /**
+     * One row per tenant for fee settlement defaults. Skips if a profile already exists.
+     */
+    private void seedTenantFinanceProfileIfMissing(String tenantId, String schoolCode) {
+        if (tenantFinanceProfileRepository.findByTenantIdAndIsDeletedFalse(tenantId).isPresent()) {
+            return;
+        }
+        TenantFinanceProfile p = new TenantFinanceProfile();
+        p.setTenantId(tenantId);
+        p.setIsActive(true);
+        p.setIsDeleted(false);
+        p.setPlatformCommissionBps(0);
+        p.setPayrollDigitalPayoutEnabled(false);
+        if ("DPS-DLH".equals(schoolCode)) {
+            p.setFeeSettlementMode(FeeSettlementMode.PLATFORM_MERCHANT.name());
+            p.setPaymentRoutingOnboardingStatus(PaymentRoutingOnboardingStatus.NOT_REQUIRED.name());
+            p.setParentOnlineFeeCheckoutEnabled(true);
+            p.setFinanceNotes("Demo seed: platform merchant fee settlement; parent online checkout (no school Route onboarding).");
+        } else {
+            p.setFeeSettlementMode(FeeSettlementMode.OFFLINE_SCHOOL_COLLECTION.name());
+            p.setPaymentRoutingOnboardingStatus(PaymentRoutingOnboardingStatus.NOT_REQUIRED.name());
+            p.setParentOnlineFeeCheckoutEnabled(false);
+            p.setFinanceNotes("Demo seed: offline / counter collection.");
+        }
+        tenantFinanceProfileRepository.save(p);
     }
 
     private void seedAcademicSubjectCatalogIfMissing(String tenantId) {
@@ -648,7 +1035,8 @@ public class DemoDataSeedService {
                 "Fee balance — gentle reminder",
                 "Demo: term fee balance can be cleared via the parent portal.",
                 "demo:v3:fee_email:" + schoolCode,
-                "seed-fee-email");
+                "seed-fee-email",
+                NotificationDispatchAttributes.inheritFromThread());
         notificationDispatchPort.enqueue(
                 tenantId,
                 "FEE_REMINDER",
@@ -658,7 +1046,8 @@ public class DemoDataSeedService {
                 "Fee reminder",
                 "Demo: pay online or visit the accounts office.",
                 "demo:v3:fee_wa:" + schoolCode,
-                "seed-fee-wa");
+                "seed-fee-wa",
+                NotificationDispatchAttributes.inheritFromThread());
         notificationDispatchPort.enqueue(
                 tenantId,
                 "FEE_REMINDER",
@@ -668,7 +1057,8 @@ public class DemoDataSeedService {
                 "In-app: fee due",
                 "Demo notification delivered via outbox (IN_APP channel).",
                 "demo:v3:fee_inapp:" + schoolCode,
-                "seed-fee-inapp");
+                "seed-fee-inapp",
+                NotificationDispatchAttributes.inheritFromThread());
 
         String dedupeSent = "demo:v3:sent_sms:" + schoolCode;
         if (!notificationOutboxRepository.existsByTenantIdAndDedupeKeyAndIsDeletedFalse(tenantId, dedupeSent)) {
@@ -935,6 +1325,21 @@ public class DemoDataSeedService {
         return tenantConfigRepository.save(cfg);
     }
 
+    private void createLeaveEntitlementPolicy(String tenantId) {
+        if (leaveEntitlementPolicyRepository.findByTenantIdAndIsDeletedFalse(tenantId).isPresent()) {
+            return;
+        }
+        LeaveEntitlementPolicy p = new LeaveEntitlementPolicy();
+        p.setTenantId(tenantId);
+        p.setAnnualEntitled(24);
+        p.setSickEntitled(12);
+        p.setCasualEntitled(12);
+        p.setPolicyYearLabel("2026-2027");
+        p.setIsActive(true);
+        p.setIsDeleted(false);
+        leaveEntitlementPolicyRepository.save(p);
+    }
+
     private User createUser(String tenantId, String schoolCode, String name, String email,
                            Enums.Role role, String phone) {
         if (userRepository.existsByEmailAndTenantIdAndIsDeletedFalse(email, tenantId)) {
@@ -951,9 +1356,53 @@ public class DemoDataSeedService {
         u.setPhone(uniquePhone);
         u.setRole(role);
         u.setSchoolCode(schoolCode);
+        u.setEmailVerified(true);
+        u.setPhoneVerified(uniquePhone != null && !uniquePhone.isBlank());
+        u.setPasswordChangedAt(LocalDateTime.now().minusDays(10));
+        u.setLastLoginAt(LocalDateTime.now().minusDays(1));
         u.setIsActive(true);
         u.setIsDeleted(false);
         return userRepository.save(u);
+    }
+
+    private void seedIdentityStateFixtures(String tenantId, String schoolCode) {
+        String domain = tenantConfigRepository.findByTenantId(tenantId)
+                .map(TenantConfig::getEmail)
+                .filter(e -> e != null && e.contains("@"))
+                .map(e -> e.substring(e.indexOf('@') + 1).trim())
+                .filter(d -> !d.isBlank())
+                .orElse("school.local");
+
+        String teacherEmail = "qa.identity.teacher+" + schoolCode.toLowerCase(Locale.ROOT) + "@" + domain;
+        User teacherFixture = userRepository.findByEmailAndTenantIdAndIsDeletedFalse(teacherEmail, tenantId)
+                .orElseGet(() -> createUser(
+                        tenantId,
+                        schoolCode,
+                        "QA Identity Teacher " + schoolCode,
+                        teacherEmail,
+                        Enums.Role.TEACHER,
+                        "+91-8100000777"));
+        teacherFixture.setEmailVerified(false);
+        teacherFixture.setPhoneVerified(true);
+        teacherFixture.setPassword(BCRYPT_ADMIN123);
+        teacherFixture.setPasswordChangedAt(LocalDateTime.now().minusDays(3));
+        userRepository.save(teacherFixture);
+
+        String parentEmail = "qa.identity.parent+" + schoolCode.toLowerCase(Locale.ROOT) + "@" + domain;
+        User parentFixture = userRepository.findByEmailAndTenantIdAndIsDeletedFalse(parentEmail, tenantId)
+                .orElseGet(() -> createUser(
+                        tenantId,
+                        schoolCode,
+                        "QA Identity Parent " + schoolCode,
+                        parentEmail,
+                        Enums.Role.PARENT,
+                        "+91-9100000888"));
+        parentFixture.setEmailVerified(true);
+        parentFixture.setPhoneVerified(true);
+        parentFixture.setPassword("");
+        parentFixture.setPasswordChangedAt(null);
+        parentFixture.setLastLoginAt(LocalDateTime.now().minusDays(20));
+        userRepository.save(parentFixture);
     }
 
     /**
@@ -965,18 +1414,34 @@ public class DemoDataSeedService {
         if (preferredPhone == null || preferredPhone.isBlank()) {
             return null;
         }
-        String candidate = preferredPhone.trim();
-        if (!userRepository.existsByPhoneAndTenantIdAndIsDeletedFalse(candidate, tenantId)) {
+        String candidate = InternationalPhone.nationalIndiaMobile10(preferredPhone.trim());
+        if (candidate == null) {
+            throw new IllegalStateException("Demo seed generated invalid phone: " + preferredPhone);
+        }
+        if (!phoneExistsForTenant(tenantId, candidate)) {
             return candidate;
         }
         long h = Objects.hash(tenantId, uniquenessSalt);
         for (int i = 0; i < 2000; i++) {
-            String next = "+91-9" + String.format("%09d", Math.floorMod(h + (long) i * 7919L, 1_000_000_000L));
-            if (!userRepository.existsByPhoneAndTenantIdAndIsDeletedFalse(next, tenantId)) {
-                return next;
+            String nextNational = "9" + String.format("%09d", Math.floorMod(h + (long) i * 7919L, 1_000_000_000L));
+            if (InternationalPhone.nationalIndiaMobile10(nextNational) != null && !phoneExistsForTenant(tenantId, nextNational)) {
+                return nextNational;
             }
         }
         throw new IllegalStateException("Could not allocate unique phone for tenant " + tenantId);
+    }
+
+    private boolean phoneExistsForTenant(String tenantId, String national10) {
+        return userRepository.existsByTenantIdAndPhoneInAndIsDeletedFalse(
+                tenantId, InternationalPhone.compatibleLookupKeys("+91-" + national10));
+    }
+
+    /**
+     * Enough homerooms + timetable diversity for up to ~18 sections (grades 1–12 mixed) without starving
+     * {@code uq_tt_active_teacher_slot} subject-specialization picks.
+     */
+    private int normalizedTeacherCount() {
+        return Math.max(56, teacherCount);
     }
 
     /**
@@ -993,8 +1458,38 @@ public class DemoDataSeedService {
                     g.setOccupation(occupation);
                     g.setUserId(portalUser.getId());
                     g.setIsDeleted(false);
+                    if (portalUser.getEmail() != null && !portalUser.getEmail().isBlank()) {
+                        g.setEmailsJson("[" + jsonStringLiteral(portalUser.getEmail()) + "]");
+                    }
+                    String altLine = alternateDemoPhoneLine(portalUser.getPhone());
+                    if (altLine != null) {
+                        g.setPhonesJson("[" + jsonStringLiteral(altLine) + "]");
+                    }
                     return guardianRepository.save(g);
                 });
+    }
+
+    /** JSON string literal content (quoted) for simple one-field arrays in demo JSON columns. */
+    private static String jsonStringLiteral(String raw) {
+        if (raw == null) {
+            return "\"\"";
+        }
+        String esc = raw.replace("\\", "\\\\").replace("\"", "\\\"");
+        return "\"" + esc + "\"";
+    }
+
+    /** Second contact line for seed data — distinct from {@code primary_phone} so UI can show “alternate” numbers. */
+    private static String alternateDemoPhoneLine(String primary) {
+        if (primary == null || primary.length() < 2) {
+            return null;
+        }
+        char last = primary.charAt(primary.length() - 1);
+        if (Character.isDigit(last)) {
+            int d = Character.digit(last, 10);
+            char next = Character.forDigit((d + 1) % 10, 10);
+            return primary.substring(0, primary.length() - 1) + next;
+        }
+        return primary + "0";
     }
 
     /** Deterministic +91 mobile per student so {@code uk_users_tenant_phone_active} is not violated by RNG. */
@@ -1053,21 +1548,24 @@ public class DemoDataSeedService {
     private List<Teacher> createTeachers(String tenantId, String schoolCode, int count, Random random) {
         List<Teacher> teachers = new ArrayList<>();
         String[] teacherSubjects = {"Mathematics", "Science", "English", "Hindi", "Social Studies",
-                                    "Physics", "Chemistry", "Biology", "Computer Science", "Physical Education"};
+                                    "Physics", "Chemistry", "Biology", "Computer Science", "Physical Education", "Art"};
 
         for (int i = 0; i < count; i++) {
             String firstName = (i % 2 == 0) ? MALE_FIRST_NAMES[i % MALE_FIRST_NAMES.length]
                                             : FEMALE_FIRST_NAMES[i % FEMALE_FIRST_NAMES.length];
             String lastName = LAST_NAMES[i % LAST_NAMES.length];
-            String email = firstName.toLowerCase() + "." + lastName.toLowerCase() + "@" + schoolCode.toLowerCase() + ".edu.in";
+            // Disambiguate with index — name pairs repeat when i wraps name-array lengths (else one User → two Teacher rows).
+            String email = firstName.toLowerCase(Locale.ROOT) + "." + lastName.toLowerCase(Locale.ROOT)
+                    + ".t" + i + "@" + schoolCode.toLowerCase(Locale.ROOT) + ".edu.in";
             // +91-8… space: avoids clashing with parent phones (+91-9…) used in stableDemoParentPhone / V15 index
             String phone = "+91-8" + String.format("%09d", Math.floorMod(Objects.hash(tenantId, email), 1_000_000_000L));
 
-            // Assign 1-2 subjects per teacher
+            // One teaching subject per classroom teacher (Indian school); library staff teach Library only.
             List<String> subjects = new ArrayList<>();
-            subjects.add(teacherSubjects[i % teacherSubjects.length]);
-            if (random.nextBoolean()) {
-                subjects.add(teacherSubjects[(i + 1) % teacherSubjects.length]);
+            if (i == count - 2 || i == count - 1) {
+                subjects.add("Library");
+            } else {
+                subjects.add(teacherSubjects[i % teacherSubjects.length]);
             }
 
             // Create user for teacher
@@ -1080,7 +1578,7 @@ public class DemoDataSeedService {
             t.setFirstName(firstName);
             t.setLastName(lastName);
             t.setEmail(email);
-            t.setPhone(phone);
+            t.setPhone(teacherUser.getPhone());
             t.setQualification(random.nextBoolean() ? "M.Ed, B.Sc" : "B.Ed, M.A");
             t.setSpecialization(subjects.get(0));
             t.setJoinDate(LocalDate.of(2015 + random.nextInt(10), 1 + random.nextInt(12), 1 + random.nextInt(28)));
@@ -1090,13 +1588,18 @@ public class DemoDataSeedService {
             t.setSubjects(subjects);
             t.setBankAccountHolder(firstName + " " + lastName);
             t.setBankName(random.nextBoolean() ? "HDFC Bank" : "ICICI Bank");
-            t.setBankAccountNumber("ACC" + (100000000000L + random.nextLong(900000000000L)));
+            t.setBankAccountNumber(String.valueOf(100000000000L + random.nextLong(900000000000L)));
             t.setBankIfsc(random.nextBoolean() ? "HDFC0001234" : "ICIC0005678");
             t.setIsDeleted(false);
 
-            // Assign library role to 2 teachers
-            if (i == 0) t.setLibraryStaffRole(Enums.LibraryStaffRole.LIBRARIAN);
-            if (i == 1) t.setLibraryStaffRole(Enums.LibraryStaffRole.ASSISTANT);
+            // Library duty: attach to late-index teachers only. Early rows use predictable name pools
+            // (e.g. i==1 → "Ananya Verma"); those accounts must stay ordinary classroom teachers for UX demos.
+            if (i == count - 2) {
+                t.setLibraryStaffRole(Enums.LibraryStaffRole.LIBRARIAN);
+            }
+            if (i == count - 1) {
+                t.setLibraryStaffRole(Enums.LibraryStaffRole.ASSISTANT);
+            }
 
             teachers.add(teacherRepository.save(t));
         }
@@ -1108,31 +1611,33 @@ public class DemoDataSeedService {
                                                                           List<Teacher> teachers, Random random) {
         Map<Integer, List<ClassSectionPair>> classesMap = new HashMap<>();
 
-        // Create classes 6-12 (optimized for Render free tier - 7 classes instead of 9)
-        for (int grade = 6; grade <= 12; grade++) {
+        /** One distinct homeroom teacher per section (matches product rule: one class-teacher slot per teacher). */
+        int homeroomOrdinal = 0;
+        for (int grade = DEMO_MIN_GRADE; grade <= DEMO_MAX_GRADE; grade++) {
             List<ClassSectionPair> sectionsForGrade = new ArrayList<>();
-
-            // Assign a class teacher (homeroom) for each grade
-            Teacher classTeacher = teachers.get((grade - 6) % teachers.size());
 
             SchoolClass schoolClass = new SchoolClass();
             schoolClass.setTenantId(tenantId);
             schoolClass.setName("Class " + grade);
             schoolClass.setGrade(grade);
             schoolClass.setAcademicYearId(academicYearId);
-            schoolClass.setClassTeacherId(classTeacher.getId());
-            schoolClass.setClassTeacherName(classTeacher.getFirstName() + " " + classTeacher.getLastName());
             schoolClass.setIsDeleted(false);
             schoolClass = schoolClassRepository.save(schoolClass);
 
-            // Create sections A, B only (optimized for Render - 2 sections instead of 3)
-            for (String sectionName : new String[]{"A", "B"}) {
+            String[] sectionLetters = demoGradeUsesTwoSections(grade) ? new String[]{"A", "B"} : new String[]{"A"};
+            for (String sectionName : sectionLetters) {
+                if (homeroomOrdinal >= teachers.size()) {
+                    throw new IllegalStateException("Demo seed: not enough teachers for unique homeroom per section");
+                }
+                Teacher sectionTeacher = teachers.get(homeroomOrdinal++);
                 Section section = new Section();
                 section.setTenantId(tenantId);
                 section.setName(sectionName);
                 section.setClassId(schoolClass.getId());
-                section.setCapacity(30);
-                section.setStudentCount(7 + random.nextInt(2)); // 7-8 students per section (optimized for Render)
+                section.setCapacity(Math.max(30, studentsPerSection + 10));
+                section.setStudentCount(Math.max(6, studentsPerSection));
+                section.setClassTeacherId(sectionTeacher.getId());
+                section.setClassTeacherName(sectionTeacher.getFirstName() + " " + sectionTeacher.getLastName());
                 section.setIsDeleted(false);
                 section = sectionRepository.save(section);
 
@@ -1152,7 +1657,7 @@ public class DemoDataSeedService {
         int admissionCounter = 1000;
         int entityCounter = 0; // For batch processing
 
-        for (int grade = 6; grade <= 12; grade++) {
+        for (int grade = DEMO_MIN_GRADE; grade <= DEMO_MAX_GRADE; grade++) {
             List<ClassSectionPair> sections = classesMap.get(grade);
 
             for (ClassSectionPair pair : sections) {
@@ -1169,8 +1674,9 @@ public class DemoDataSeedService {
                     String schoolCodeLower = schoolCode.toLowerCase();
                     String admToken = admissionNumber.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]", "");
 
-                    // Calculate age-appropriate birth year
-                    int birthYear = 2026 - grade - 6; // Rough age calculation
+                    // Age-appropriate DOB: class 12 ~17–18 yrs, class 1 ~6 yrs (academic year 2026–27)
+                    int approxAgeYears = 5 + (DEMO_MAX_GRADE - grade);
+                    int birthYear = 2026 - approxAgeYears;
                     LocalDate dob = LocalDate.of(birthYear, 1 + random.nextInt(12), 1 + random.nextInt(28));
 
                     // Create guardians (Father + Mother)
@@ -1238,9 +1744,9 @@ public class DemoDataSeedService {
 
                     allStudents.add(student);
 
-                    // Batch processing: flush and clear every BATCH_SIZE students to manage memory
+                    // Batch processing: flush and clear every batchSize students to manage memory
                     entityCounter++;
-                    if (entityCounter % BATCH_SIZE == 0) {
+                    if (entityCounter % batchSize == 0) {
                         flushAndClear();
                         log.debug("  Processed {} students, flushed memory", entityCounter);
                     }
@@ -1262,7 +1768,7 @@ public class DemoDataSeedService {
         mapping.setGuardianId(guardianId);
         mapping.setRelationType(relationType);
         mapping.setIsPrimary(isPrimary);
-        mapping.setIsEmergencyContact(isPrimary);
+        mapping.setIsEmergencyContact(true);
         mapping.setEffectiveFrom(LocalDate.of(2025, 4, 1));
         mapping.setIsDeleted(false);
         studentGuardianMappingRepository.save(mapping);
@@ -1355,7 +1861,7 @@ public class DemoDataSeedService {
 
         int teacherIdx = 0;
 
-        for (int grade = 6; grade <= 12; grade++) {
+        for (int grade = DEMO_MIN_GRADE; grade <= DEMO_MAX_GRADE; grade++) {
             List<ClassSectionPair> sections = classesMap.get(grade);
 
             for (ClassSectionPair pair : sections) {
@@ -1365,7 +1871,7 @@ public class DemoDataSeedService {
                 cta.setAcademicYearId(academicYearId);
                 cta.setClassId(pair.schoolClass.getId());
                 cta.setSectionId(pair.section.getId());
-                cta.setTeacherId(pair.schoolClass.getClassTeacherId());
+                cta.setTeacherId(pair.section.getClassTeacherId());
                 cta.setEffectiveFrom(LocalDate.of(2025, 4, 1));
                 cta.setIsDeleted(false);
                 classTeacherAssignmentRepository.save(cta);
@@ -1397,7 +1903,7 @@ public class DemoDataSeedService {
         Map<Long, FeeStructure> feeStructureMap = new HashMap<>();
 
         // Create fee structures for each class
-        for (int grade = 6; grade <= 12; grade++) {
+        for (int grade = DEMO_MIN_GRADE; grade <= DEMO_MAX_GRADE; grade++) {
             List<ClassSectionPair> sections = classesMap.get(grade);
             SchoolClass schoolClass = sections.get(0).schoolClass;
 
@@ -1430,27 +1936,40 @@ public class DemoDataSeedService {
         }
 
         // Create fee payments for all students
+        // Keep a guaranteed unsettled subset so checkout/settlement behavior is always testable.
+        int totalStudents = allStudents.size();
+        int forcedUnpaidCount = Math.max(12, totalStudents / 5);      // ~20%
+        int forcedPartialCount = Math.max(12, totalStudents / 5);     // ~20%
         long receiptCounter = System.currentTimeMillis(); // Start counter with current timestamp
         int paymentCounter = 0; // For batch processing
+        int studentIndex = 0;
         for (Student student : allStudents) {
             FeeStructure fs = feeStructureMap.get(student.getClassId());
             if (fs == null) continue;
 
-            // Random payment status: 60% PAID, 25% PARTIAL, 15% UNPAID
+            // Deterministic unsettled slice first, then random distribution for the rest.
             int statusRoll = random.nextInt(100);
             Enums.FeeStatus feeStatus;
             BigDecimal paidAmount;
             BigDecimal dueAmount;
 
-            if (statusRoll < 60) {
+            if (studentIndex < forcedUnpaidCount) {
+                feeStatus = Enums.FeeStatus.UNPAID;
+                paidAmount = BigDecimal.ZERO;
+                dueAmount = fs.getTotalAmount();
+            } else if (studentIndex < (forcedUnpaidCount + forcedPartialCount)) {
+                feeStatus = Enums.FeeStatus.PARTIAL;
+                paidAmount = fs.getTotalAmount().multiply(new BigDecimal("0.35")).setScale(2, RoundingMode.HALF_UP);
+                dueAmount = fs.getTotalAmount().subtract(paidAmount);
+            } else if (statusRoll < 55) {
                 // PAID
                 feeStatus = Enums.FeeStatus.PAID;
                 paidAmount = fs.getTotalAmount();
                 dueAmount = BigDecimal.ZERO;
-            } else if (statusRoll < 85) {
+            } else if (statusRoll < 80) {
                 // PARTIAL
                 feeStatus = Enums.FeeStatus.PARTIAL;
-                paidAmount = fs.getTotalAmount().multiply(new BigDecimal("0.5"));
+                paidAmount = fs.getTotalAmount().multiply(new BigDecimal("0.5")).setScale(2, RoundingMode.HALF_UP);
                 dueAmount = fs.getTotalAmount().subtract(paidAmount);
             } else {
                 // UNPAID
@@ -1480,12 +1999,13 @@ public class DemoDataSeedService {
             payment.setIsDeleted(false);
             feePaymentRepository.save(payment);
 
-            // Batch processing: flush and clear every BATCH_SIZE payments to manage memory
+            // Batch processing: flush and clear every batchSize payments to manage memory
             paymentCounter++;
-            if (paymentCounter % BATCH_SIZE == 0) {
+            if (paymentCounter % batchSize == 0) {
                 flushAndClear();
                 log.debug("  Processed {} fee payments, flushed memory", paymentCounter);
             }
+            studentIndex++;
         }
     }
 
@@ -1501,9 +2021,9 @@ public class DemoDataSeedService {
         feeComponentRepository.save(fc);
     }
 
-    private void createExamsAndMarks(String tenantId, Long academicYearId,
-                                    Map<Integer, List<ClassSectionPair>> classesMap,
-                                    List<Student> allStudents, Random random) {
+    private List<Exam> createExamsAndMarks(String tenantId, Long academicYearId,
+                                           Map<Integer, List<ClassSectionPair>> classesMap,
+                                           List<Student> allStudents, Random random) {
         String[] examNames = {"Unit Test 1", "Mid-Term Exam", "Unit Test 2", "Final Exam"};
         LocalDate[] examDates = {
             LocalDate.of(2025, 6, 15),
@@ -1513,6 +2033,7 @@ public class DemoDataSeedService {
         };
         String[] subjects = {"Mathematics", "Science", "English", "Hindi", "Social Studies"};
 
+        List<Exam> seededExams = new ArrayList<>();
         for (int examIdx = 0; examIdx < examNames.length; examIdx++) {
             Exam exam = new Exam();
             exam.setTenantId(tenantId);
@@ -1522,11 +2043,14 @@ public class DemoDataSeedService {
             exam.setEndDate(examDates[examIdx].plusDays(7));
             exam.setStatus(examIdx <= 1 ? Enums.ExamStatus.COMPLETED : Enums.ExamStatus.UPCOMING);
             exam.setResultsPublished(examIdx == 0); // Only first exam results published
+            exam.setWorkflowState(examIdx == 0 ? "PUBLISHED" : "APPROVED");
+            exam.setWorkflowNote("Demo seeded exam lifecycle");
             exam.setIsDeleted(false);
             exam = examRepository.save(exam);
+            seededExams.add(exam);
 
             // Add all classes to exam scope
-            for (int grade = 6; grade <= 12; grade++) {
+            for (int grade = DEMO_MIN_GRADE; grade <= DEMO_MAX_GRADE; grade++) {
                 List<ClassSectionPair> sections = classesMap.get(grade);
                 for (ClassSectionPair pair : sections) {
                     ExamClassScope scope = new ExamClassScope();
@@ -1581,9 +2105,9 @@ public class DemoDataSeedService {
                         mr.setIsDeleted(false);
                         markRecordRepository.save(mr);
 
-                        // Batch processing: flush and clear every BATCH_SIZE marks to manage memory
+                        // Batch processing: flush and clear every batchSize marks to manage memory
                         markCounter++;
-                        if (markCounter % BATCH_SIZE == 0) {
+                        if (markCounter % batchSize == 0) {
                             flushAndClear();
                             log.debug("  Processed {} mark records, flushed memory", markCounter);
                         }
@@ -1591,6 +2115,314 @@ public class DemoDataSeedService {
                 }
             }
         }
+        return seededExams;
+    }
+
+    private void createExamAndReportModuleSeedData(
+            String tenantId,
+            Long academicYearId,
+            Map<Integer, List<ClassSectionPair>> classesMap,
+            List<Student> allStudents,
+            List<Teacher> teachers,
+            List<Exam> seededExams,
+            Random random) {
+        List<User> adminUsers = userRepository.findByTenantIdAndRoleAndIsDeletedFalse(tenantId, Enums.Role.ADMIN);
+        User creator = adminUsers.isEmpty() ? null : adminUsers.get(0);
+        User approver = adminUsers.size() > 1 ? adminUsers.get(1) : creator;
+        User publisher = creator;
+        if (!teachers.isEmpty()) {
+            publisher = userRepository.findByEmailAndTenantIdAndIsDeletedFalse(teachers.get(0).getEmail(), tenantId).orElse(creator);
+        }
+        if (!seededExams.isEmpty()) {
+            seedExamOperationalData(tenantId, academicYearId, classesMap, seededExams.get(0), creator);
+        }
+        seedReportOperationalData(tenantId, allStudents, seededExams, creator, approver, publisher, random);
+    }
+
+    private void seedExamOperationalData(
+            String tenantId,
+            Long academicYearId,
+            Map<Integer, List<ClassSectionPair>> classesMap,
+            Exam anchorExam,
+            User actor) {
+        List<ExamTemplate> templates = examTemplateRepository.findByTenantIdAndIsDeletedFalseOrderByNameAsc(tenantId);
+        if (templates.isEmpty()) {
+            ExamTemplate template = new ExamTemplate();
+            template.setTenantId(tenantId);
+            template.setName("CBSE Term Pattern Template");
+            template.setBoardType("CBSE");
+            template.setClassBand("1-12");
+            template.setDefaultMarkingScheme("THEORY_PRACTICAL");
+            template.setRulesJson("{\"maxPapersPerDay\":1,\"requiresRoom\":true,\"requiresInvigilator\":true}");
+            template.setIsDeleted(false);
+            template = examTemplateRepository.save(template);
+
+            ExamTemplateComponent theory = new ExamTemplateComponent();
+            theory.setTenantId(tenantId);
+            theory.setTemplateId(template.getId());
+            theory.setComponentCode("THEORY");
+            theory.setComponentLabel("Theory");
+            theory.setMaxMarks(BigDecimal.valueOf(80d));
+            theory.setWeightagePct(BigDecimal.valueOf(80d));
+            theory.setOptional(false);
+            theory.setRuleJson("{\"minPassMarks\":26}");
+            theory.setIsDeleted(false);
+            examTemplateComponentRepository.save(theory);
+
+            ExamTemplateComponent practical = new ExamTemplateComponent();
+            practical.setTenantId(tenantId);
+            practical.setTemplateId(template.getId());
+            practical.setComponentCode("PRACTICAL");
+            practical.setComponentLabel("Practical");
+            practical.setMaxMarks(BigDecimal.valueOf(20d));
+            practical.setWeightagePct(BigDecimal.valueOf(20d));
+            practical.setOptional(false);
+            practical.setRuleJson("{\"minPassMarks\":7}");
+            practical.setIsDeleted(false);
+            examTemplateComponentRepository.save(practical);
+        }
+
+        if (examNotificationJobRepository
+                .findByTenantIdAndExamIdAndIsDeletedFalseOrderByCreatedAtDesc(tenantId, anchorExam.getId(), org.springframework.data.domain.PageRequest.of(0, 1))
+                .isEmpty()) {
+            ExamNotificationJob job = new ExamNotificationJob();
+            job.setTenantId(tenantId);
+            job.setExamId(anchorExam.getId());
+            job.setEventType("RESULT_PUBLISH_READY");
+            job.setTargetRole("PARENT");
+            job.setLocaleCode("en");
+            job.setStatus("PENDING");
+            job.setAttempts(0);
+            job.setMaxAttempts(5);
+            job.setPayloadJson("{\"examName\":\"" + anchorExam.getName() + "\",\"academicYearId\":" + academicYearId + "}");
+            job.setIsDeleted(false);
+            examNotificationJobRepository.save(job);
+        }
+
+        ExamEventLog eventLog = new ExamEventLog();
+        eventLog.setTenantId(tenantId);
+        eventLog.setExamId(anchorExam.getId());
+        eventLog.setEventType("SEED_EXAM_WORKFLOW_INITIALIZED");
+        eventLog.setActorUserId(actor != null ? actor.getId() : null);
+        eventLog.setActorRole(actor != null && actor.getRole() != null ? actor.getRole().name() : "ADMIN");
+        eventLog.setPayloadJson("{\"source\":\"demo-seed\",\"classBands\":" + classesMap.size() + "}");
+        eventLog.setIsDeleted(false);
+        examEventLogRepository.save(eventLog);
+
+        ExamBulkOperationLog bulk = examBulkOperationLogRepository
+                .findByTenantIdAndOperationTypeAndRequestIdAndIsDeletedFalse(tenantId, "SAVE_MARKS", "seed-marks-" + anchorExam.getId())
+                .orElseGet(ExamBulkOperationLog::new);
+        bulk.setTenantId(tenantId);
+        bulk.setOperationType("SAVE_MARKS");
+        bulk.setRequestId("seed-marks-" + anchorExam.getId());
+        bulk.setExamId(anchorExam.getId());
+        bulk.setStatus("COMPLETED");
+        bulk.setResponseJson("{\"saved\":true,\"rows\":true}");
+        bulk.setIsDeleted(false);
+        examBulkOperationLogRepository.save(bulk);
+    }
+
+    private void seedReportOperationalData(
+            String tenantId,
+            List<Student> allStudents,
+            List<Exam> seededExams,
+            User creator,
+            User approver,
+            User publisher,
+            Random random) {
+        ReportTemplate template = reportTemplateRepository.findByTenantIdAndTemplateCodeAndIsDeletedFalse(tenantId, "DEMO_ACADEMIC_PERFORMANCE_V1")
+                .orElseGet(() -> {
+                    ReportTemplate t = new ReportTemplate();
+                    t.setTenantId(tenantId);
+                    t.setTemplateCode("DEMO_ACADEMIC_PERFORMANCE_V1");
+                    t.setName("Demo Academic Performance Report");
+                    t.setReportType("STUDENT_PERFORMANCE");
+                    t.setDefaultFormat("PDF");
+                    t.setPackCode("CBSE");
+                    t.setLayoutConfigJson("{\"columns\":[\"studentName\",\"totalMarks\",\"percentage\",\"grade\"]}");
+                    t.setFilterSchemaJson("{\"required\":[\"classId\",\"examId\"]}");
+                    t.setSystemTemplate(true);
+                    t.setIsDeleted(false);
+                    return reportTemplateRepository.save(t);
+                });
+
+        ensureReportNotificationTemplate(tenantId, "REPORT_SHARED_DEFAULT", "IN_APP", "PARENT", "en",
+                "Report available: {{reportType}}", "Your school shared {{reportType}}. Download from reports.");
+        ensureReportNotificationTemplate(tenantId, "REPORT_SHARED_DEFAULT", "IN_APP", "PARENT", "hi",
+                "रिपोर्ट उपलब्ध: {{reportType}}", "स्कूल ने {{reportType}} साझा किया है। रिपोर्ट अनुभाग से डाउनलोड करें।");
+
+        Long classId = allStudents.isEmpty() ? 0L : allStudents.get(0).getClassId();
+        Long examId = seededExams.isEmpty() ? 0L : seededExams.get(0).getId();
+
+        ReportGenerationJob published = createReportJob(tenantId, template.getId(), "seed-report-published-" + tenantId,
+                "COMPLETED", "PUBLISHED", creator, approver, publisher, classId, examId, true, random);
+        ReportGenerationJob approved = createReportJob(tenantId, template.getId(), "seed-report-approved-" + tenantId,
+                "COMPLETED", "APPROVED", creator, approver, null, classId, examId, false, random);
+        createReportJob(tenantId, template.getId(), "seed-report-draft-" + tenantId,
+                "COMPLETED", "DRAFT", creator, null, null, classId, examId, false, random);
+        ReportGenerationJob failed = createReportJob(tenantId, template.getId(), "seed-report-failed-" + tenantId,
+                "FAILED", "DRAFT", creator, null, null, classId, examId, false, random);
+        failed.setAttempts(3);
+        failed.setMaxAttempts(3);
+        failed.setLastError("Seeded demo failure for retry test.");
+        failed.setNextRetryAt(null);
+        reportGenerationJobRepository.save(failed);
+
+        createWorkflowLog(tenantId, published.getId(), "JOB_CREATED", null, "DRAFT", creator, "Seeded published flow.");
+        createWorkflowLog(tenantId, approved.getId(), "JOB_APPROVED", "DRAFT", "APPROVED", approver, "Seeded approval flow.");
+        createWorkflowLog(tenantId, published.getId(), "JOB_PUBLISHED", "APPROVED", "PUBLISHED", publisher, "Seeded publication flow.");
+        createWorkflowLog(tenantId, failed.getId(), "JOB_FAILED", "RUNNING", "DRAFT", creator, "Seeded failure flow.");
+
+        if (reportPublicationSnapshotRepository.findByTenantIdAndReportJobIdAndIsDeletedFalseOrderByVersionNoDesc(tenantId, published.getId()).isEmpty()) {
+            ReportPublicationSnapshot v1 = new ReportPublicationSnapshot();
+            v1.setTenantId(tenantId);
+            v1.setReportJobId(published.getId());
+            v1.setVersionNo(1);
+            v1.setSnapshotType("PUBLISH");
+            v1.setSnapshotJson("{\"workflowState\":\"PUBLISHED\",\"note\":\"v1\"}");
+            v1.setNote("Initial publication snapshot");
+            v1.setPublishedAt(LocalDateTime.now().minusDays(1));
+            v1.setIsDeleted(false);
+            reportPublicationSnapshotRepository.save(v1);
+
+            ReportPublicationSnapshot v2 = new ReportPublicationSnapshot();
+            v2.setTenantId(tenantId);
+            v2.setReportJobId(published.getId());
+            v2.setVersionNo(2);
+            v2.setSnapshotType("ROLLBACK");
+            v2.setSnapshotJson("{\"workflowState\":\"PUBLISHED\",\"note\":\"rollback-ready\"}");
+            v2.setNote("Rollback candidate snapshot");
+            v2.setPublishedAt(LocalDateTime.now());
+            v2.setIsDeleted(false);
+            reportPublicationSnapshotRepository.save(v2);
+        }
+
+        ReportShareDispatch dispatch = new ReportShareDispatch();
+        dispatch.setTenantId(tenantId);
+        dispatch.setReportJobId(published.getId());
+        dispatch.setChannel("IN_APP");
+        dispatch.setTargetRole("PARENT");
+        dispatch.setLocaleCode("en");
+        dispatch.setTemplateCode("REPORT_SHARED_DEFAULT");
+        dispatch.setStatus("SENT");
+        dispatch.setAttempts(1);
+        dispatch.setMaxAttempts(5);
+        dispatch.setDeliveredCount(Math.max(1, allStudents.size() / 2));
+        dispatch.setIsDeleted(false);
+        reportShareDispatchRepository.save(dispatch);
+
+        seedAnalyticsPackConfig(tenantId, "CBSE", 85d, 60d, 75d);
+        seedAnalyticsPackConfig(tenantId, "ICSE", 80d, 55d, 75d);
+        seedAnalyticsPackConfig(tenantId, "STATE", 75d, 50d, 70d);
+        seedAnalyticsPackConfig(tenantId, "CUSTOM", 82d, 57d, 74d);
+    }
+
+    private ReportGenerationJob createReportJob(
+            String tenantId,
+            Long templateId,
+            String requestId,
+            String status,
+            String workflowState,
+            User creator,
+            User approver,
+            User publisher,
+            Long classId,
+            Long examId,
+            boolean includeFile,
+            Random random) {
+        ReportGenerationJob existing = reportGenerationJobRepository.findByTenantIdAndRequestIdAndIsDeletedFalse(tenantId, requestId).orElse(null);
+        if (existing != null) {
+            return existing;
+        }
+        ReportGenerationJob job = new ReportGenerationJob();
+        job.setTenantId(tenantId);
+        job.setRequestId(requestId);
+        job.setTemplateId(templateId);
+        job.setReportType("STUDENT_PERFORMANCE");
+        job.setFormat("PDF");
+        job.setFilterJson("{\"classId\":" + classId + ",\"examId\":" + examId + "}");
+        job.setShareConfigJson("{\"channels\":[\"IN_APP\"],\"targetRoles\":[\"PARENT\"],\"locales\":[\"en\"],\"templateCode\":\"REPORT_SHARED_DEFAULT\"}");
+        job.setStatus(status);
+        job.setWorkflowState(workflowState);
+        job.setWorkflowNote("Demo seeded state " + workflowState);
+        job.setAttempts(0);
+        job.setMaxAttempts(3);
+        job.setCreatorUserId(creator != null ? creator.getId() : null);
+        job.setApproverUserId(approver != null ? approver.getId() : null);
+        job.setPublisherUserId(publisher != null ? publisher.getId() : null);
+        job.setGeneratedAt(LocalDateTime.now().minusHours(8 + random.nextInt(18)));
+        if ("APPROVED".equals(workflowState) || "PUBLISHED".equals(workflowState)) {
+            job.setApprovedAt(LocalDateTime.now().minusHours(2));
+        }
+        if ("PUBLISHED".equals(workflowState)) {
+            job.setPublishedAt(LocalDateTime.now().minusHours(1));
+            job.setLastPublishIdempotencyKey("seed-publish-" + requestId);
+        }
+        if ("APPROVED".equals(workflowState)) {
+            job.setLastApproveIdempotencyKey("seed-approve-" + requestId);
+        }
+        if (includeFile) {
+            byte[] content = ("Demo report payload for " + requestId).getBytes(java.nio.charset.StandardCharsets.UTF_8);
+            job.setFileName("report-" + requestId + ".pdf");
+            job.setContentType("application/pdf");
+            job.setFileContent(content);
+            job.setContentSizeBytes((long) content.length);
+        }
+        job.setIsDeleted(false);
+        return reportGenerationJobRepository.save(job);
+    }
+
+    private void createWorkflowLog(String tenantId, Long jobId, String eventCode, String fromState, String toState, User actor, String note) {
+        ReportWorkflowEventLog row = new ReportWorkflowEventLog();
+        row.setTenantId(tenantId);
+        row.setReportJobId(jobId);
+        row.setActorUserId(actor != null ? actor.getId() : null);
+        row.setActorRole(actor != null && actor.getRole() != null ? actor.getRole().name() : "ADMIN");
+        row.setEventCode(eventCode);
+        row.setFromState(fromState);
+        row.setToState(toState);
+        row.setNote(note);
+        row.setEventMetaJson("{\"source\":\"demo-seed\"}");
+        row.setOccurredAt(LocalDateTime.now().minusMinutes(20));
+        row.setIsDeleted(false);
+        reportWorkflowEventLogRepository.save(row);
+    }
+
+    private void ensureReportNotificationTemplate(
+            String tenantId,
+            String templateCode,
+            String channel,
+            String role,
+            String locale,
+            String title,
+            String message) {
+        if (reportNotificationTemplateRepository
+                .findByTenantIdAndTemplateCodeAndTargetRoleAndLocaleCodeAndChannelAndIsDeletedFalse(tenantId, templateCode, role, locale, channel)
+                .isPresent()) {
+            return;
+        }
+        ReportNotificationTemplate template = new ReportNotificationTemplate();
+        template.setTenantId(tenantId);
+        template.setTemplateCode(templateCode);
+        template.setChannel(channel);
+        template.setTargetRole(role);
+        template.setLocaleCode(locale);
+        template.setTitleTemplate(title);
+        template.setMessageTemplate(message);
+        template.setIsDeleted(false);
+        reportNotificationTemplateRepository.save(template);
+    }
+
+    private void seedAnalyticsPackConfig(String tenantId, String packCode, double excellentPct, double laggingPct, double minAttendancePct) {
+        ReportAnalyticsPackConfig config = reportAnalyticsPackConfigRepository
+                .findByTenantIdAndPackCodeAndIsDeletedFalse(tenantId, packCode)
+                .orElseGet(ReportAnalyticsPackConfig::new);
+        config.setTenantId(tenantId);
+        config.setPackCode(packCode);
+        config.setConfigJson("{\"excellentPct\":" + excellentPct + ",\"laggingPct\":" + laggingPct + ",\"promotionMinAttendance\":" + minAttendancePct + "}");
+        config.setFormulaJson("{\"promotionFormula\":\"performancePct >= 33 && attendancePct >= promotionMinAttendance\"}");
+        config.setIsDeleted(false);
+        reportAnalyticsPackConfigRepository.save(config);
     }
 
     private void createAttendance(String tenantId, List<Student> allStudents,
@@ -1623,9 +2455,9 @@ public class DemoDataSeedService {
                 ar.setIsDeleted(false);
                 attendanceRepository.save(ar);
 
-                // Batch processing: flush and clear every BATCH_SIZE records to manage memory
+                // Batch processing: flush and clear every batchSize records to manage memory
                 attendanceCounter++;
-                if (attendanceCounter % BATCH_SIZE == 0) {
+                if (attendanceCounter % batchSize == 0) {
                     flushAndClear();
                     log.debug("  Processed {} attendance records, flushed memory", attendanceCounter);
                 }
@@ -1633,93 +2465,191 @@ public class DemoDataSeedService {
         }
     }
 
+    /**
+     * Seeds a full Mon–Sat timetable (Indian school week) with eight periods per day.
+     * <p>Iteration is <strong>slot-major</strong> (day → period → all class/sections): for each (day, period) we assign
+     * distinct teachers across sections, so with 36 teachers and 14 demo sections every slot stays fully staffed
+     * (no “Unassigned” rows from teacher pool exhaustion — the previous section-major loop starved later sections).</p>
+     */
+    private static final int DEMO_TIMETABLE_PERIODS_PER_DAY = 8;
+
+    /**
+     * Rotating subject labels — must match {@link #createTeachers} specialization pool (one subject per teacher).
+     * Excludes Library (assigned only on the dedicated library slot).
+     */
+    private static final String[] DEMO_TIMETABLE_SUBJECTS = {
+            "Mathematics", "Science", "English", "Hindi", "Social Studies",
+            "Physics", "Chemistry", "Biology", "Computer Science", "Physical Education", "Art"
+    };
+
     private void createTimetables(String tenantId, Long academicYearId,
                                  Map<Integer, List<ClassSectionPair>> classesMap,
                                  List<Teacher> teachers, Random random) {
-        String[] subjects = {"Mathematics", "Science", "English", "Hindi", "Social Studies",
-                            "Physical Education", "Computer Science", "Art"};
-        Enums.DayOfWeek[] days = {Enums.DayOfWeek.MONDAY, Enums.DayOfWeek.TUESDAY,
-                                 Enums.DayOfWeek.WEDNESDAY, Enums.DayOfWeek.THURSDAY,
-                                 Enums.DayOfWeek.FRIDAY, Enums.DayOfWeek.SATURDAY};
+        Enums.DayOfWeek[] days = {
+                Enums.DayOfWeek.MONDAY, Enums.DayOfWeek.TUESDAY, Enums.DayOfWeek.WEDNESDAY,
+                Enums.DayOfWeek.THURSDAY, Enums.DayOfWeek.FRIDAY, Enums.DayOfWeek.SATURDAY
+        };
+
+        List<ClassSectionPair> allPairs = new ArrayList<>();
+        for (int grade = DEMO_MIN_GRADE; grade <= DEMO_MAX_GRADE; grade++) {
+            List<ClassSectionPair> sections = classesMap.get(grade);
+            if (sections != null) {
+                allPairs.addAll(sections);
+            }
+        }
+
+        int libraryPairIndex = 0;
+        for (int si = 0; si < allPairs.size(); si++) {
+            ClassSectionPair p = allPairs.get(si);
+            int g = p.schoolClass.getGrade() != null ? p.schoolClass.getGrade() : 0;
+            if (g >= 6 && p.section.getName() != null && "A".equalsIgnoreCase(p.section.getName().trim())) {
+                libraryPairIndex = si;
+                break;
+            }
+        }
 
         /** One teacher at most per (weekday, period) tenant-wide — matches {@code uq_tt_active_teacher_slot}. */
         Map<String, Set<Long>> teacherBusyBySlotKey = new HashMap<>();
-        int timetableCounter = 0; // For batch processing
+        int timetableCounter = 0;
+        int globalCellOrdinal = 0;
 
-        for (int grade = 6; grade <= 12; grade++) {
-            List<ClassSectionPair> sections = classesMap.get(grade);
-            if (sections == null) {
-                continue;
-            }
+        for (Enums.DayOfWeek day : days) {
+            for (int period = 1; period <= DEMO_TIMETABLE_PERIODS_PER_DAY; period++) {
+                String slotKey = day.name() + "|" + period;
+                Set<Long> busyThisSlot = teacherBusyBySlotKey.computeIfAbsent(slotKey, k -> new HashSet<>());
+                int sectionOrdinal = 0;
+                for (ClassSectionPair pair : allPairs) {
+                    int grade = pair.schoolClass.getGrade() != null ? pair.schoolClass.getGrade() : 6;
+                    LocalTime startTime = LocalTime.of(8, 0).plusMinutes((long) (period - 1) * 45);
+                    LocalTime endTime = startTime.plusMinutes(45);
 
-            for (ClassSectionPair pair : sections) {
-                int subjectIdx = 0;
-
-                // 6 periods per day, 6 days a week
-                for (Enums.DayOfWeek day : days) {
-                    for (int period = 1; period <= 6; period++) {
-                        LocalTime startTime = LocalTime.of(8, 30).plusMinutes((period - 1) * 50);
-                        LocalTime endTime = startTime.plusMinutes(45);
-
-                        String subject = subjects[subjectIdx % subjects.length];
-                        String slotKey = day.name() + "|" + period;
-                        Set<Long> busyThisSlot = teacherBusyBySlotKey.computeIfAbsent(slotKey, k -> new HashSet<>());
-                        Teacher teacher = pickTeacherFreeForTimetableSlot(teachers, busyThisSlot, random);
-
-                        TimetableEntry tte = new TimetableEntry();
-                        tte.setTenantId(tenantId);
-                        tte.setAcademicYearId(academicYearId);
-                        tte.setClassId(pair.schoolClass.getId());
-                        tte.setSectionId(pair.section.getId());
-                        tte.setDay(day);
-                        tte.setPeriod(period);
-                        tte.setStartTime(startTime);
-                        tte.setEndTime(endTime);
-                        tte.setSubjectName(subject);
-                        if (teacher != null) {
-                            busyThisSlot.add(teacher.getId());
-                            tte.setTeacherId(teacher.getId());
-                            tte.setTeacherName(teacher.getFirstName() + " " + teacher.getLastName());
+                    boolean librarySlot =
+                            period == DEMO_TIMETABLE_PERIODS_PER_DAY && sectionOrdinal == libraryPairIndex;
+                    String subject;
+                    Teacher teacher;
+                    if (librarySlot) {
+                        subject = "Library";
+                        teacher = pickTeacherForTimetableSubject(teachers, subject, busyThisSlot, random);
+                    } else if (day == Enums.DayOfWeek.MONDAY
+                            && period == 1
+                            && pair.section.getClassTeacherId() != null) {
+                        Teacher hm = teachers.stream()
+                                .filter(t -> pair.section.getClassTeacherId().equals(t.getId()))
+                                .findFirst()
+                                .orElse(null);
+                        if (hm != null && !busyThisSlot.contains(hm.getId())) {
+                            teacher = hm;
+                            subject = primaryTimetableSubjectForHomeroom(hm);
                         } else {
-                            tte.setTeacherId(null);
-                            tte.setTeacherName("Unassigned (no free teacher for slot)");
-                            log.warn(
-                                    "Demo seed: no unused teacher for slot {} (class {} section {}); "
-                                            + "left teacher unset to satisfy uq_tt_active_teacher_slot",
-                                    slotKey,
-                                    pair.schoolClass.getId(),
-                                    pair.section.getId());
+                            subject = DEMO_TIMETABLE_SUBJECTS[
+                                    Math.floorMod(globalCellOrdinal + sectionOrdinal, DEMO_TIMETABLE_SUBJECTS.length)];
+                            teacher = pickTeacherForTimetableSubject(teachers, subject, busyThisSlot, random);
                         }
+                    } else {
+                        subject = DEMO_TIMETABLE_SUBJECTS[
+                                Math.floorMod(globalCellOrdinal + sectionOrdinal, DEMO_TIMETABLE_SUBJECTS.length)];
+                        teacher = pickTeacherForTimetableSubject(teachers, subject, busyThisSlot, random);
+                    }
+
+                    TimetableEntry tte = new TimetableEntry();
+                    tte.setTenantId(tenantId);
+                    tte.setAcademicYearId(academicYearId);
+                    tte.setClassId(pair.schoolClass.getId());
+                    tte.setSectionId(pair.section.getId());
+                    tte.setDay(day);
+                    tte.setPeriod(period);
+                    tte.setStartTime(startTime);
+                    tte.setEndTime(endTime);
+                    tte.setSubjectName(subject);
+                    if (teacher != null) {
+                        busyThisSlot.add(teacher.getId());
+                        tte.setTeacherId(teacher.getId());
+                        tte.setTeacherName(teacher.getFirstName() + " " + teacher.getLastName());
+                    } else {
+                        tte.setTeacherId(null);
+                        tte.setTeacherName("Unassigned (no free teacher for slot)");
+                        log.warn(
+                                "Demo seed: no matching free teacher for subject {} slot {} (class {} section {}); "
+                                        + "left teacher unset to satisfy uq_tt_active_teacher_slot",
+                                subject,
+                                slotKey,
+                                pair.schoolClass.getId(),
+                                pair.section.getId());
+                    }
+                    if (librarySlot) {
+                        tte.setRoom("Library");
+                    } else {
                         tte.setRoom("Room " + (100 + grade * 10 + period));
-                        tte.setIsDeleted(false);
-                        timetableRepository.save(tte);
+                    }
+                    tte.setIsDeleted(false);
+                    timetableRepository.save(tte);
 
-                        // Batch processing: flush and clear every BATCH_SIZE entries to manage memory
-                        timetableCounter++;
-                        if (timetableCounter % BATCH_SIZE == 0) {
-                            flushAndClear();
-                            log.debug("  Processed {} timetable entries, flushed memory", timetableCounter);
-                        }
-
-                        subjectIdx++;
+                    timetableCounter++;
+                    sectionOrdinal++;
+                    if (timetableCounter % batchSize == 0) {
+                        flushAndClear();
+                        log.debug("  Processed {} timetable entries, flushed memory", timetableCounter);
                     }
                 }
+                globalCellOrdinal += allPairs.size();
             }
         }
+        log.info("  Timetable seed: {} rows ({} sections × {} days × {} periods), Mon–Sat, 08:00 start; "
+                        + "Mon P1 uses each section's homeroom teacher where possible",
+                timetableCounter, allPairs.size(), days.length, DEMO_TIMETABLE_PERIODS_PER_DAY);
     }
 
     /**
-     * Picks a teacher not yet used for the same (day, period) elsewhere in this seed run — matches
-     * {@code uq_tt_active_teacher_slot} (one active row per teacher per slot). Returns {@code null} when every
-     * teacher is already booked for that slot; callers must leave {@code teacher_id} unset rather than reusing a
-     * teacher (which would violate the DB unique index).
+     * First-period Monday anchor for class-teacher sections: subject label for demo timetables.
      */
-    private Teacher pickTeacherFreeForTimetableSlot(List<Teacher> teachers, Set<Long> busyThisSlot, Random random) {
-        List<Teacher> free = teachers.stream().filter(t -> !busyThisSlot.contains(t.getId())).collect(Collectors.toList());
-        if (free.isEmpty()) {
-            return null;
+    private String primaryTimetableSubjectForHomeroom(Teacher hm) {
+        String spec = Optional.ofNullable(hm.getSpecialization()).orElse("").trim();
+        if (!spec.isEmpty()) {
+            return spec;
         }
-        return free.get(random.nextInt(free.size()));
+        if (hm.getSubjects() != null) {
+            for (String s : hm.getSubjects()) {
+                if (s != null && !s.isBlank()) {
+                    return s.trim();
+                }
+            }
+        }
+        return "Value Education";
+    }
+
+    /**
+     * Picks a teacher who can teach {@code subjectName}, not yet used for the same (day, period) — matches
+     * {@code uq_tt_active_teacher_slot}. Library staff only appear on Library; classroom teachers never on Library.
+     */
+    private Teacher pickTeacherForTimetableSubject(
+            List<Teacher> teachers, String subjectName, Set<Long> busyThisSlot, Random random) {
+        List<Teacher> eligible = teachers.stream()
+                .filter(t -> !busyThisSlot.contains(t.getId()))
+                .filter(t -> teacherMatchesTimetableSubject(t, subjectName))
+                .collect(Collectors.toList());
+        if (!eligible.isEmpty()) {
+            return eligible.get(random.nextInt(eligible.size()));
+        }
+        return null;
+    }
+
+    /**
+     * Strict match: classroom teachers are assigned only to slots whose label equals their {@link Teacher#getSpecialization()}.
+     * Library staff only for Library. No fallback to random teachers — avoids wrong subject on a teacher’s row.
+     */
+    private boolean teacherMatchesTimetableSubject(Teacher t, String subjectName) {
+        if (subjectName == null || subjectName.isBlank()) {
+            return false;
+        }
+        if ("Library".equalsIgnoreCase(subjectName.trim())) {
+            return t.getLibraryStaffRole() != null;
+        }
+        if (t.getLibraryStaffRole() != null) {
+            return false;
+        }
+        String want = subjectName.trim();
+        String spec = Optional.ofNullable(t.getSpecialization()).orElse("").trim();
+        return spec.equalsIgnoreCase(want);
     }
 
     private void createTransport(String tenantId, List<Student> allStudents, Random random) {
@@ -1739,7 +2669,7 @@ public class DemoDataSeedService {
             TransportDriver driver = new TransportDriver();
             driver.setTenantId(tenantId);
             driver.setFullName("Driver Name " + routeNum);
-            driver.setPhone("+91-9100000" + routeNum + "00");
+            driver.setPhone("910000010" + routeNum);
             driver.setLicenseNumber("DL" + routeNum + "234567890");
             driver.setIsDeleted(false);
             driver = transportDriverRepository.save(driver);
@@ -1774,11 +2704,12 @@ public class DemoDataSeedService {
                 routeStopRepository.save(stop);
             }
 
-            // Assign ~8 students per route (optimized for Render free tier)
+            // Assign students spread across the roster (classId is a DB FK, not a grade label)
             List<Student> routeStudents = allStudents.stream()
                 .filter(s -> s.getId() != null)
-                .filter(s -> s.getClassId() >= 6 && s.getClassId() <= 12) // Classes 6-12
-                .limit(8)
+                .sorted(Comparator.comparing(Student::getId))
+                .skip((long) (routeNum - 1) * 12L)
+                .limit(12)
                 .toList();
 
             for (Student student : routeStudents) {
@@ -1928,7 +2859,7 @@ public class DemoDataSeedService {
                 final int targetHostelIdx = hostelIdx;
                 List<Student> eligibleStudents = allStudents.stream()
                     .filter(s -> s.getGender() == targetGender)
-                    .filter(s -> s.getClassId() % 2 == targetHostelIdx) // Simple filter
+                    .filter(s -> Math.floorMod(Objects.hash(s.getId(), targetHostelIdx), 2) == 0)
                     .limit(allocations)
                     .collect(Collectors.toList());
 
@@ -1987,8 +2918,8 @@ public class DemoDataSeedService {
             saveSalaryComponent(tenantId, ss.getId(), "TDS", tds, Enums.SalaryComponentType.DEDUCTION);
             saveSalaryComponent(tenantId, ss.getId(), "Provident Fund", pf, Enums.SalaryComponentType.DEDUCTION);
 
-            // Create payslips for last 3 months
-            for (int monthBack = 2; monthBack >= 0; monthBack--) {
+            // Create historical payslips only (exclude current + previous month so demo can test fresh generation).
+            for (int monthBack = 4; monthBack >= 2; monthBack--) {
                 YearMonth payrollMonth = currentMonth.minusMonths(monthBack);
 
                 Payslip payslip = new Payslip();
@@ -2002,8 +2933,8 @@ public class DemoDataSeedService {
                 payslip.setTotalAllowances(totalAllowances);
                 payslip.setTotalDeductions(totalDeductions);
                 payslip.setNetSalary(netSalary);
-                payslip.setStatus(monthBack == 0 ? Enums.PayslipStatus.GENERATED : Enums.PayslipStatus.PAID);
-                payslip.setPaymentDate(monthBack == 0 ? null : payrollMonth.atEndOfMonth());
+                payslip.setStatus(Enums.PayslipStatus.PAID);
+                payslip.setPaymentDate(payrollMonth.atEndOfMonth());
                 payslip.setIsDeleted(false);
                 payslipRepository.save(payslip);
             }
@@ -2022,48 +2953,230 @@ public class DemoDataSeedService {
         salaryComponentRepository.save(sc);
     }
 
-    private void createCommunication(String tenantId, User adminUser, List<Teacher> teachers,
-                                    List<Student> allStudents, Random random) {
-        // Create 3 announcements (optimized for Render free tier)
-        String[][] announcementData = {
-            {"School Reopening Notice", "School will reopen on April 1st, 2025. All students must report by 8:00 AM."},
-            {"Parent-Teacher Meeting", "Parent-Teacher Meeting scheduled for May 15th. Parents are requested to attend."},
-            {"Mid-Term Exam Schedule", "Mid-Term Examinations will commence from August 20th. Exam schedule attached."}
-        };
+    private void createCommunication(String tenantId, String schoolCode, User adminUser, List<Teacher> teachers,
+                                    Random random) {
+        /*
+         * Announcements: match production audience rules (see CommunicationService / findForAudience).
+         * - ALL / TEACHERS / PARENTS / CLASS / SECTION rows so teacher vs parent regression sees correct boards.
+         * Repository save does not run CommunicationService fan-out — no stray in-app rows from seed.
+         */
+        saveSeedAnnouncement(tenantId, adminUser,
+                "School reopening — April 2026",
+                "School reopens Monday 6 April 2026. All students must report by 8:00 AM. Transport routes are unchanged unless notified separately.",
+                Enums.TargetAudience.ALL, null, null);
+        saveSeedAnnouncement(tenantId, adminUser,
+                "Parent–Teacher Meeting — May 2026",
+                "Quarterly PTM is scheduled for Saturday 16 May 2026. Slots will open in the parent portal two weeks prior.",
+                Enums.TargetAudience.ALL, null, null);
+        saveSeedAnnouncement(tenantId, adminUser,
+                "Mid-term examination schedule",
+                "Mid-term examinations for the current academic year begin 18 August 2026. Detailed timetables are published under Exams.",
+                Enums.TargetAudience.ALL, null, null);
 
-        for (String[] data : announcementData) {
-            Announcement announcement = new Announcement();
-            announcement.setTenantId(tenantId);
-            announcement.setTitle(data[0]);
-            announcement.setContent(data[1]);
-            announcement.setAuthor(adminUser.getName());
-            announcement.setAuthorRole(adminUser.getRole().toString());
-            announcement.setTargetAudience(Enums.TargetAudience.ALL);
-            announcement.setIsDeleted(false);
-            announcementRepository.save(announcement);
+        saveSeedAnnouncement(tenantId, adminUser,
+                "[Parents] Term fee — payment window",
+                "This notice is for parents and guardians only: the online fee window for Term II opens 1 May 2026. Staff do not need to take action.",
+                Enums.TargetAudience.PARENTS, null, null);
+        saveSeedAnnouncement(tenantId, adminUser,
+                "[Parents] Student well-being survey",
+                "Parents only: please complete the anonymous well-being survey linked from the parent portal by 30 June 2026.",
+                Enums.TargetAudience.PARENTS, null, null);
+
+        saveSeedAnnouncement(tenantId, adminUser,
+                "[Faculty] Fire drill briefing — mandatory",
+                "All teaching staff: mandatory 20-minute briefing on updated evacuation routes. Attendance will be recorded.",
+                Enums.TargetAudience.TEACHERS, null, null);
+        saveSeedAnnouncement(tenantId, adminUser,
+                "[Faculty] Exam invigilation — sign-up",
+                "Teachers: invigilation slots for mid-terms are open. Please confirm at least two slots via the academic office.",
+                Enums.TargetAudience.TEACHERS, null, null);
+
+        List<SchoolClass> classes = schoolClassRepository.findByTenantIdAndIsDeletedFalseOrderByGrade(tenantId);
+        SchoolClass classForBroadcast = classes.stream()
+                .filter(c -> c.getGrade() != null && c.getGrade() == 9)
+                .findFirst()
+                .orElseGet(() -> classes.stream().findFirst().orElse(null));
+        if (classForBroadcast != null) {
+            saveSeedAnnouncement(tenantId, adminUser,
+                    "[Class " + classForBroadcast.getGrade() + "] Field trip — consent required",
+                    "This announcement targets one class only. Parents of students in this class should submit consent in the portal by the date stated in the circular.",
+                    Enums.TargetAudience.CLASS, classForBroadcast.getId(), null);
+            List<Section> secs = sectionRepository.findByTenantIdAndClassIdAndIsDeletedFalse(tenantId, classForBroadcast.getId());
+            if (!secs.isEmpty()) {
+                Section sec = secs.get(0);
+                saveSeedAnnouncement(tenantId, adminUser,
+                        "[Section " + sec.getName() + "] Lab safety reminder",
+                        "Students in this section: lab coats are mandatory from next week. Class teachers please reinforce before practicals.",
+                        Enums.TargetAudience.SECTION, classForBroadcast.getId(), sec.getId());
+            }
+        } else {
+            log.warn("  [Communication] No school class rows — skipping CLASS/SECTION demo announcements");
         }
 
-        // Create 5 direct messages (teacher to parent - optimized for Render)
-        for (int i = 0; i < 5; i++) {
-            Student student = allStudents.get(random.nextInt(allStudents.size()));
-            Teacher teacher = teachers.get(random.nextInt(teachers.size()));
+        seedDemoInAppNotifications(tenantId, schoolCode);
 
-            // Get parent user
-            User parentUser = userRepository.findByIdAndTenantIdAndIsDeletedFalse(student.getParentId(), tenantId).orElse(null);
-            if (parentUser == null) continue;
-
+        /*
+         * Direct messages: only homeroom teacher → parent of a student in that class (matches ChatDirectory / messaging policy).
+         * Random teacher/parent pairs would fail authorization in production.
+         */
+        SchoolClass homeroomClass = null;
+        Section homeroomSection = null;
+        outer:
+        for (SchoolClass c : classes) {
+            for (Section sec : sectionRepository.findByTenantIdAndClassIdAndIsDeletedFalse(tenantId, c.getId())) {
+                if (sec.getClassTeacherId() != null) {
+                    homeroomClass = c;
+                    homeroomSection = sec;
+                    break outer;
+                }
+            }
+        }
+        if (homeroomClass == null) {
+            homeroomClass = classes.stream().filter(cl -> cl.getClassTeacherId() != null).findFirst().orElse(null);
+        }
+        if (homeroomClass == null) {
+            log.warn("  [Communication] No class/section with homeroom teacher — skipping demo direct messages");
+            return;
+        }
+        Long homeroomTeacherPk = homeroomSection != null ? homeroomSection.getClassTeacherId() : homeroomClass.getClassTeacherId();
+        Optional<Teacher> homeroomTeacherOpt = teacherRepository.findByIdAndTenantIdAndIsDeletedFalse(homeroomTeacherPk, tenantId);
+        if (homeroomTeacherOpt.isEmpty()) {
+            log.warn("  [Communication] Homeroom teacher id {} not found — skipping demo direct messages", homeroomTeacherPk);
+            return;
+        }
+        Teacher homeroomTeacher = homeroomTeacherOpt.get();
+        List<Student> inClass = homeroomSection != null
+                ? studentRepository.findByTenantIdAndClassIdAndSectionIdAndIsDeletedFalse(tenantId, homeroomClass.getId(), homeroomSection.getId())
+                : studentRepository.findByTenantIdAndClassIdAndIsDeletedFalse(tenantId, homeroomClass.getId());
+        LinkedHashSet<Long> distinctParentIds = new LinkedHashSet<>();
+        for (Student st : inClass) {
+            if (st.getParentId() != null) {
+                distinctParentIds.add(st.getParentId());
+            }
+        }
+        int n = 0;
+        for (Long parentId : distinctParentIds) {
+            if (n >= 5) {
+                break;
+            }
+            User parentUser = userRepository.findByIdAndTenantIdAndIsDeletedFalse(parentId, tenantId).orElse(null);
+            if (parentUser == null) {
+                continue;
+            }
+            Student anyChild = inClass.stream().filter(s -> parentId.equals(s.getParentId())).findFirst().orElse(null);
+            String childFirst = anyChild != null ? anyChild.getFirstName() : "your child";
             Message message = new Message();
             message.setTenantId(tenantId);
-            message.setSenderId(teacher.getUserId());
-            message.setSenderName(teacher.getFirstName() + " " + teacher.getLastName());
+            message.setSenderId(homeroomTeacher.getUserId());
+            message.setSenderName(homeroomTeacher.getFirstName() + " " + homeroomTeacher.getLastName());
             message.setSenderRole(Enums.Role.TEACHER.toString());
             message.setReceiverId(parentUser.getId());
             message.setReceiverName(parentUser.getName());
-            message.setContent("Dear Parent, Your child " + student.getFirstName() + " is doing well in class. Please encourage regular attendance.");
+            message.setContent("Dear Parent, " + childFirst + " is progressing well in "
+                    + homeroomClass.getName() + ". Please encourage regular attendance and punctuality.");
             message.setIsRead(random.nextBoolean());
             message.setIsDeleted(false);
             messageRepository.save(message);
+            n++;
         }
+    }
+
+    private void saveSeedAnnouncement(
+            String tenantId,
+            User adminUser,
+            String title,
+            String content,
+            Enums.TargetAudience audience,
+            Long targetClassId,
+            Long targetSectionId) {
+        if (announcementRepository.existsByTenantIdAndIsDeletedFalseAndTitleIgnoreCaseAndTargetAudienceAndTargetClassIdAndTargetSectionId(
+                tenantId, title, audience, targetClassId, targetSectionId)) {
+            return;
+        }
+        Announcement announcement = new Announcement();
+        announcement.setTenantId(tenantId);
+        announcement.setTitle(title);
+        announcement.setContent(content);
+        announcement.setAuthor(adminUser.getName());
+        announcement.setAuthorRole(adminUser.getRole().toString());
+        announcement.setTargetAudience(audience);
+        announcement.setTargetClassId(targetClassId);
+        announcement.setTargetSectionId(targetSectionId);
+        announcement.setIsDeleted(false);
+        announcementRepository.save(announcement);
+    }
+
+    /**
+     * In-app rows are always per {@code user_id}; keep parent-only copy on parents and staff copy on a homeroom teacher.
+     */
+    private void seedDemoInAppNotifications(String tenantId, String schoolCode) {
+        String qaEmail = QA_MULTICHILD_EMAIL_LOCAL + "@parent." + schoolCode.toLowerCase(Locale.ROOT) + ".edu.in";
+        userRepository.findByEmailAndTenantIdAndIsDeletedFalse(qaEmail, tenantId).ifPresent(parentUser -> {
+            persistDemoInAppNotification(tenantId, parentUser.getId(),
+                    "[DEMO] Parent: fee statement",
+                    "Sample in-app row for parents only (not a teacher inbox). Clear dues via Fees → Payments.",
+                    Enums.NotificationType.INFO, false, "/app/parent/children");
+            persistDemoInAppNotification(tenantId, parentUser.getId(),
+                    "[DEMO] Parent: transport circular",
+                    "Sample read notification for unread-count regression.",
+                    Enums.NotificationType.INFO, true, "/app/inbox");
+        });
+
+        java.util.Optional<Teacher> anyHomeroomTeacher = java.util.Optional.empty();
+        for (SchoolClass c : schoolClassRepository.findByTenantIdAndIsDeletedFalseOrderByGrade(tenantId)) {
+            for (Section sec : sectionRepository.findByTenantIdAndClassIdAndIsDeletedFalse(tenantId, c.getId())) {
+                if (sec.getClassTeacherId() != null) {
+                    anyHomeroomTeacher = teacherRepository.findByIdAndTenantIdAndIsDeletedFalse(sec.getClassTeacherId(), tenantId);
+                    if (anyHomeroomTeacher.isPresent()) {
+                        break;
+                    }
+                }
+            }
+            if (anyHomeroomTeacher.isPresent()) {
+                break;
+            }
+        }
+        if (anyHomeroomTeacher.isEmpty()) {
+            anyHomeroomTeacher = schoolClassRepository.findByTenantIdAndIsDeletedFalseOrderByGrade(tenantId).stream()
+                    .filter(c -> c.getClassTeacherId() != null)
+                    .findFirst()
+                    .flatMap(c -> teacherRepository.findByIdAndTenantIdAndIsDeletedFalse(c.getClassTeacherId(), tenantId));
+        }
+        anyHomeroomTeacher.ifPresent(t -> {
+                    persistDemoInAppNotification(tenantId, t.getUserId(),
+                            "[DEMO] Teacher: invigilation reminder",
+                            "Sample unread staff notification (homeroom teacher).",
+                            Enums.NotificationType.WARNING, false, "/app/inbox");
+                    persistDemoInAppNotification(tenantId, t.getUserId(),
+                            "[DEMO] Teacher: timetable published",
+                            "Sample read staff notification for bell badge math.",
+                            Enums.NotificationType.SUCCESS, true, "/app/timetable");
+        });
+    }
+
+    private void persistDemoInAppNotification(
+            String tenantId,
+            Long userId,
+            String title,
+            String message,
+            Enums.NotificationType type,
+            boolean read,
+            String link) {
+        if (notificationRepository.existsByTenantIdAndUserIdAndIsDeletedFalseAndTitleAndMessageAndLink(
+                tenantId, userId, title, message, link)) {
+            return;
+        }
+        Notification n = Notification.builder()
+                .title(title)
+                .message(message)
+                .type(type)
+                .userId(userId)
+                .isRead(read)
+                .link(link)
+                .build();
+        n.setTenantId(tenantId);
+        n.setIsDeleted(false);
+        notificationRepository.save(n);
     }
 
     private void createDocuments(String tenantId, List<Student> allStudents,
@@ -2174,7 +3287,7 @@ public class DemoDataSeedService {
         log.info("PLATFORM SUPER ADMIN:");
         log.info("  Email: superadmin@schoolerp.com");
         log.info("");
-        log.info("SCHOOL 1: Delhi Public School (DPS-DLH)");
+        log.info("SCHOOL: Delhi Public School (DPS-DLH)");
         log.info("  School Code: DPS-DLH  |  Tenant: tenant_dps_delhi_9x4k7m2p");
         log.info("  Admin: admin@dpsdel.edu.in");
         log.info("  Teachers (10, password admin123): aarav.sharma / ananya.verma / aditya.singh / pari.kumar /");
@@ -2182,12 +3295,19 @@ public class DemoDataSeedService {
         log.info("  Parents: see DEMO_CREDENTIALS.md (emails include .father./.mother. + admission token)");
         log.info("  QA multi-child parent (4+ children, same password admin123): qa.multichild.parent@parent.dps-dlh.edu.in");
         log.info("");
-        log.info("SCHOOL 2: Kendriya Vidyalaya (KV-MUM)");
-        log.info("  School Code: KV-MUM  |  Tenant: tenant_kv_mumbai_7p5n3x8q");
-        log.info("  Admin: admin@kvmumbai1.gmail.com");
-        log.info("  Teachers: same local-parts as DPS-DLH with @kv-mum.edu.in");
-        log.info("  Parents: same pattern with @parent.kv-mum.edu.in (see DEMO_CREDENTIALS.md)");
-        log.info("  QA multi-child parent: qa.multichild.parent@parent.kv-mum.edu.in");
+        log.info("TENANT FINANCE (fee settlement; Settings → Finance & collections):");
+        log.info("  DPS-DLH: PLATFORM_MERCHANT, Route onboarding N/A, parent online checkout enabled (demo).");
+        log.info("SCHOOL_STAFF + STACKED SCHOOL ROLES (password admin123; office email domain):");
+        log.info("  BASE_ONLY:         staff.base.only@<office-domain>   (BASE_SCHOOL_STAFF — assign more roles in UI)");
+        log.info("  FEE_OFFICE:        fee.desk.demo@<office-domain>");
+        log.info("  EXAM_OFFICE:       exam.desk.demo@<office-domain>");
+        log.info("  PAYROLL_OFFICE:    payroll.desk.demo@<office-domain>");
+        log.info("  TENANT_SETTINGS:   finance.settings.demo@<office-domain>");
+        log.info("  LIBRARY:           library.desk.demo@<office-domain>");
+        log.info("  TRANSPORT+HOSTEL:  logistics.desk.demo@<office-domain>  (TRANSPORT_HOSTEL_LOGISTICS combined)");
+        log.info("  TRANSPORT_ONLY:    transport.desk.demo@<office-domain>  (TRANSPORT_LOGISTICS)");
+        log.info("  HOSTEL_ONLY:       hostel.desk.demo@<office-domain>  (HOSTEL_RESIDENCE_DESK)");
+        log.info("  Custom bundle:     rbac.custom.demo@<office-domain>  (role " + DEMO_CUSTOM_SCHOOL_ROLE_CODE + ")");
         log.info("");
         log.info("QA multi-child E2E: see docs/DEMO_QA_MULTI_CHILD_PARENT.md");
         log.info("For complete list of all credentials, see DEMO_CREDENTIALS.md file");

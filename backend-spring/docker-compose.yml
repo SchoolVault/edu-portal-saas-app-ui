@@ -17,6 +17,8 @@ services:
       - RABBITMQ_PORT=5672
       - JWT_SECRET=c2Nob29sLWVycC1zZWNyZXQta2V5LWZvci1qd3QtdG9rZW4tZ2VuZXJhdGlvbi0yMDI2
       - CORS_ORIGINS=http://localhost:3000,http://localhost:4200
+      # Host browser → ng serve (or static) on 4200; used to build /verify-email?token=… links
+      - AUTH_EMAIL_VER_PUBLIC_SPA_BASE_URL=http://localhost:4200
     depends_on:
       mysql:
         condition: service_healthy

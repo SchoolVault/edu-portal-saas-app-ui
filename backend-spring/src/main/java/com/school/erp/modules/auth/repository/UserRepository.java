@@ -27,7 +27,17 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     Optional<User> findByPhoneAndTenantIdAndIsDeletedFalse(String phone, String tenantId);
 
+    Optional<User> findFirstByTenantIdAndPhoneInAndIsDeletedFalseOrderByIdAsc(String tenantId, Collection<String> phones);
+
+    boolean existsByTenantIdAndPhoneInAndIsDeletedFalse(String tenantId, Collection<String> phones);
+    Optional<User> findByTenantIdAndParentCodeAndIsDeletedFalse(String tenantId, String parentCode);
+
+    boolean existsByTenantIdAndParentCodeAndIsDeletedFalse(String tenantId, String parentCode);
+
     boolean existsByPhoneAndTenantIdAndIsDeletedFalse(String phone, String tenantId);
+
+    /** Platform onboarding: block reusing the same handset across different school admin accounts. */
+    boolean existsByPhoneAndRoleAndIsDeletedFalse(String phone, Enums.Role role);
 
     boolean existsByEmailAndTenantIdAndIsDeletedFalse(String email, String tenantId);
 
@@ -35,11 +45,14 @@ public interface UserRepository extends JpaRepository<User, Long> {
     Optional<User> findByIdAndTenantIdAndIsDeletedFalse(Long id, String tenantId);
 
     Optional<User> findByIdAndIsDeletedFalse(Long id);
+    List<User> findByTenantIdAndIdInAndIsDeletedFalse(String tenantId, Collection<Long> ids);
     List<User> findByTenantIdAndRoleAndIsDeletedFalse(String tenantId, Enums.Role role);
     long countByRoleAndIsDeletedFalse(Enums.Role role);
     long countByTenantIdAndRoleAndIsDeletedFalse(String tenantId, Enums.Role role);
 
     List<User> findByTenantIdAndIsDeletedFalseOrderByNameAsc(String tenantId);
+
+    List<User> findByTenantIdAndRoleInAndIsDeletedFalseOrderByNameAsc(String tenantId, Collection<Enums.Role> roles);
 
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("UPDATE User u SET u.isActive = false WHERE u.tenantId = :tenantId AND u.isDeleted = false")

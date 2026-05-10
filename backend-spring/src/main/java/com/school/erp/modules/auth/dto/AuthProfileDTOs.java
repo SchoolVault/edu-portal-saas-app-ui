@@ -9,6 +9,7 @@ public class AuthProfileDTOs {
     public static class ClassTeacherAssignment {
         private String classId;
         private String className;
+        private String sectionId;
         private String sectionName;
         private long totalStudents;
 
@@ -16,6 +17,8 @@ public class AuthProfileDTOs {
         public void setClassId(String classId) { this.classId = classId; }
         public String getClassName() { return className; }
         public void setClassName(String className) { this.className = className; }
+        public String getSectionId() { return sectionId; }
+        public void setSectionId(String sectionId) { this.sectionId = sectionId; }
         public String getSectionName() { return sectionName; }
         public void setSectionName(String sectionName) { this.sectionName = sectionName; }
         public long getTotalStudents() { return totalStudents; }
@@ -45,13 +48,18 @@ public class AuthProfileDTOs {
         private String specialization;
         private Long childCount;
         private Long assignedClassCount;
+        /** Distinct students across timetable-linked classes (timetable scope). */
+        private Long assignedStudentCount;
         private Long subjectCount;
         private Long managedStudentCount;
         private Long managedTeacherCount;
+        private Long managedStaffCount;
         /** Populated for SUPER_ADMIN: active (non-deleted) school workspaces. */
         private int platformWorkspaceCount;
         /** Populated for TEACHER: classes where this teacher is the class teacher. */
         private List<ClassTeacherAssignment> classTeacherOf;
+        /** TEACHER: primary subject line for shell (first listed subject, else specialization). */
+        private String primaryTeachingSubject;
 
         public Long getId() { return id; }
         public void setId(Long id) { this.id = id; }
@@ -93,15 +101,22 @@ public class AuthProfileDTOs {
         public void setChildCount(Long childCount) { this.childCount = childCount; }
         public Long getAssignedClassCount() { return assignedClassCount; }
         public void setAssignedClassCount(Long assignedClassCount) { this.assignedClassCount = assignedClassCount; }
+        public Long getAssignedStudentCount() { return assignedStudentCount; }
+        public void setAssignedStudentCount(Long assignedStudentCount) { this.assignedStudentCount = assignedStudentCount; }
         public Long getSubjectCount() { return subjectCount; }
         public void setSubjectCount(Long subjectCount) { this.subjectCount = subjectCount; }
         public Long getManagedStudentCount() { return managedStudentCount; }
         public void setManagedStudentCount(Long managedStudentCount) { this.managedStudentCount = managedStudentCount; }
         public Long getManagedTeacherCount() { return managedTeacherCount; }
         public void setManagedTeacherCount(Long managedTeacherCount) { this.managedTeacherCount = managedTeacherCount; }
+        public Long getManagedStaffCount() { return managedStaffCount; }
+        public void setManagedStaffCount(Long managedStaffCount) { this.managedStaffCount = managedStaffCount; }
         public int getPlatformWorkspaceCount() { return platformWorkspaceCount; }
         public void setPlatformWorkspaceCount(int platformWorkspaceCount) { this.platformWorkspaceCount = platformWorkspaceCount; }
         public List<ClassTeacherAssignment> getClassTeacherOf() { return classTeacherOf; }
         public void setClassTeacherOf(List<ClassTeacherAssignment> classTeacherOf) { this.classTeacherOf = classTeacherOf; }
+
+        public String getPrimaryTeachingSubject() { return primaryTeachingSubject; }
+        public void setPrimaryTeachingSubject(String primaryTeachingSubject) { this.primaryTeachingSubject = primaryTeachingSubject; }
     }
 }

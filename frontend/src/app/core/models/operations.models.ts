@@ -1,5 +1,6 @@
 export interface OperationalStaffRow {
   id: string;
+  isActive?: boolean;
   staffRole: string;
   fullName: string;
   phone?: string;
@@ -9,6 +10,12 @@ export interface OperationalStaffRow {
   transportRouteId?: string;
   notes?: string;
 }
+
+/** Fields only sent on POST/PUT to provision a portal login (same semantics as CSV {@code create_portal}). */
+export type OperationalStaffPortalWrite = {
+  createPortal?: boolean;
+  portalPassword?: string;
+};
 
 export interface VisitorLogRow {
   id: string;
@@ -76,6 +83,45 @@ export interface AttendanceCoverRow {
   status: string;
 }
 
+export interface AttendanceCoverAuditRow {
+  id: string;
+  at: string;
+  action: 'CREATED' | 'REPLACED' | 'CANCELLED';
+  actorUserId?: number | null;
+  actorName?: string;
+  coverDate: string;
+  classId: number;
+  sectionId?: number | null;
+  periodNumber?: number | null;
+  coveringTeacherId?: number | null;
+  replacedCoverAssignmentId?: number | null;
+  cancelledCoverAssignmentId?: number | null;
+  reason?: string;
+  before?: {
+    coverAssignmentId?: number | null;
+    coveringTeacherId?: number | null;
+    reason?: string | null;
+  };
+  after?: {
+    coverAssignmentId?: number | null;
+    coveringTeacherId?: number | null;
+    reason?: string | null;
+  };
+}
+
+/** Audit row when a teacher marks attendance outside their homeroom (proxy / substitute). */
+export interface AttendanceProxyAuditRow {
+  id?: string;
+  at: string;
+  actorUserId: number;
+  actorName?: string;
+  classId: number;
+  sectionId: number;
+  sessionDate: string;
+  studentCount: number;
+  context: 'PROXY_MARK' | 'SUBSTITUTE_COVER';
+}
+
 /** Mirrors {@code AttendanceCoverDTOs.ConflictPayload} from the API for 409 scheduling conflicts. */
 export interface AttendanceCoverConflictPayload {
   existingCoverAssignmentId: number;
@@ -104,5 +150,6 @@ export type OperationsTab =
   | 'visitors'
   | 'gate'
   | 'inventory'
+  | 'covers'
   | 'reminders'
   | 'payroll';

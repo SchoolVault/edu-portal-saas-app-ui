@@ -20,6 +20,13 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
 
     Optional<Notification> findByIdAndTenantIdAndUserIdAndIsDeletedFalse(Long id, String tenantId, Long userId);
 
+    boolean existsByTenantIdAndUserIdAndIsDeletedFalseAndTitleAndMessageAndLink(
+            String tenantId,
+            Long userId,
+            String title,
+            String message,
+            String link);
+
     @Modifying
     @Query("DELETE FROM Notification n WHERE n.tenantId = :tenantId AND n.isDeleted = true AND n.deletedAt IS NOT NULL AND n.deletedAt < :cutoff")
     int deleteSoftDeletedBeforeForTenant(@Param("tenantId") String tenantId, @Param("cutoff") LocalDateTime cutoff);

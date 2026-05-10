@@ -30,6 +30,8 @@ export namespace ParentFeeDtos {
     lateFee: number;
     payableNow: number;
     lineItems: ParentFeeLineItem[];
+    /** Tenant capability: false = pay at school only (no gateway checkout). */
+    parentOnlineFeeCheckoutEnabled?: boolean;
   }
 
   export interface CreateCheckoutSessionRequest {
@@ -61,6 +63,11 @@ export namespace ParentFeeDtos {
 
   export interface PaymentReceiptResponse {
     receiptNumber: string;
+    schoolName?: string;
+    schoolCode?: string;
+    schoolAddress?: string;
+    schoolPhone?: string;
+    schoolEmail?: string;
     paymentId: number;
     studentId: number;
     studentName: string;

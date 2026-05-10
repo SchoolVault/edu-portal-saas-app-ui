@@ -1,6 +1,7 @@
 # REL (release / QA sign-off) — same shape as prod: full Redis + Rabbit + strict security flags.
 # Render / K8s: set SPRING_PROFILES_ACTIVE=rel (or rel-with-demo-seed for one-time demo seed).
 # One-time demo tenant: SPRING_PROFILES_ACTIVE=rel,demo-seed (demo-seed last) or profile group rel-with-demo-seed.
+# Email verification: AUTH_EMAIL_VER_PUBLIC_SPA_BASE_URL (or APP_PUBLIC_SPA_BASE_URL) = public SPA origin.
 app:
   demo-seed:
     enabled: false
@@ -22,6 +23,7 @@ spring:
     show-sql: false
 
   cache:
+    type: redis
     redis:
       key-prefix: ${CACHE_REDIS_KEY_PREFIX:sv::}
 

@@ -26,8 +26,14 @@ public class TenantConfig extends BaseEntity {
     private String secondaryColor;
     @Column(name = "features_json", columnDefinition = "TEXT")
     private String featuresJson;
+    @Column(name = "leave_sms_apply_template", length = 1000)
+    private String leaveSmsApplyTemplate;
+    @Column(name = "leave_sms_decision_template", length = 1000)
+    private String leaveSmsDecisionTemplate;
     @Column(name = "library_fine_per_day", precision = 10, scale = 2)
     private BigDecimal libraryFinePerDay = new BigDecimal("10.00");
+    @Column(name = "library_borrower_policy_json", columnDefinition = "TEXT")
+    private String libraryBorrowerPolicyJson;
 
 
     public static class TenantConfigBuilder {
@@ -170,8 +176,32 @@ public class TenantConfig extends BaseEntity {
         return libraryFinePerDay;
     }
 
+    public String getLeaveSmsApplyTemplate() {
+        return leaveSmsApplyTemplate;
+    }
+
+    public void setLeaveSmsApplyTemplate(String leaveSmsApplyTemplate) {
+        this.leaveSmsApplyTemplate = leaveSmsApplyTemplate;
+    }
+
+    public String getLeaveSmsDecisionTemplate() {
+        return leaveSmsDecisionTemplate;
+    }
+
+    public void setLeaveSmsDecisionTemplate(String leaveSmsDecisionTemplate) {
+        this.leaveSmsDecisionTemplate = leaveSmsDecisionTemplate;
+    }
+
     public void setLibraryFinePerDay(BigDecimal libraryFinePerDay) {
         this.libraryFinePerDay = libraryFinePerDay;
+    }
+
+    public String getLibraryBorrowerPolicyJson() {
+        return libraryBorrowerPolicyJson;
+    }
+
+    public void setLibraryBorrowerPolicyJson(String libraryBorrowerPolicyJson) {
+        this.libraryBorrowerPolicyJson = libraryBorrowerPolicyJson;
     }
 
     public void setSchoolName(final String schoolName) {

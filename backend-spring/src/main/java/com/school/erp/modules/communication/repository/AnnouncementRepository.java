@@ -26,6 +26,21 @@ public interface AnnouncementRepository extends JpaRepository<Announcement, Long
 
     Optional<Announcement> findByIdAndTenantIdAndIsDeletedFalse(Long id, String tenantId);
 
+    boolean existsByTenantIdAndIsDeletedFalseAndTitleIgnoreCaseAndTargetAudienceAndTargetClassIdAndTargetSectionIdAndCreatedAtAfter(
+            String tenantId,
+            String title,
+            com.school.erp.common.enums.Enums.TargetAudience targetAudience,
+            Long targetClassId,
+            Long targetSectionId,
+            LocalDateTime createdAtAfter);
+
+    boolean existsByTenantIdAndIsDeletedFalseAndTitleIgnoreCaseAndTargetAudienceAndTargetClassIdAndTargetSectionId(
+            String tenantId,
+            String title,
+            com.school.erp.common.enums.Enums.TargetAudience targetAudience,
+            Long targetClassId,
+            Long targetSectionId);
+
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("""
             UPDATE Announcement a SET a.isDeleted = true, a.deletedAt = :now
@@ -40,9 +55,9 @@ public interface AnnouncementRepository extends JpaRepository<Announcement, Long
             select a from Announcement a
             where a.tenantId = :tenantId and a.isDeleted = false
               and (
-                a.targetAudience = 'ALL'
-                or (a.targetAudience = 'TEACHERS' and (:role = 'TEACHER' or :role = 'ADMIN' or :role = 'LIBRARY_STAFF' or :role = 'SUPER_ADMIN'))
-                or (a.targetAudience = 'PARENTS' and (:role = 'PARENT' or :role = 'ADMIN' or :role = 'LIBRARY_STAFF' or :role = 'SUPER_ADMIN'))
+                (a.targetAudience = 'ALL' and (:role = 'ADMIN' or :role = 'SUPER_ADMIN'))
+                or (a.targetAudience = 'TEACHERS' and (:role = 'TEACHER' or :role = 'ADMIN' or :role = 'LIBRARY_STAFF' or :role = 'SCHOOL_STAFF' or :role = 'SUPER_ADMIN'))
+                or (a.targetAudience = 'PARENTS' and (:role = 'PARENT' or :role = 'ADMIN' or :role = 'LIBRARY_STAFF' or :role = 'SCHOOL_STAFF' or :role = 'SUPER_ADMIN'))
                 or (a.targetAudience = 'CLASS' and a.targetClassId in :classIds)
                 or (a.targetAudience = 'SECTION' and a.targetSectionId in :sectionIds)
               )
@@ -57,9 +72,9 @@ public interface AnnouncementRepository extends JpaRepository<Announcement, Long
             select a from Announcement a
             where a.tenantId = :tenantId and a.isDeleted = false
               and (
-                a.targetAudience = 'ALL'
-                or (a.targetAudience = 'TEACHERS' and (:role = 'TEACHER' or :role = 'ADMIN' or :role = 'LIBRARY_STAFF' or :role = 'SUPER_ADMIN'))
-                or (a.targetAudience = 'PARENTS' and (:role = 'PARENT' or :role = 'ADMIN' or :role = 'LIBRARY_STAFF' or :role = 'SUPER_ADMIN'))
+                (a.targetAudience = 'ALL' and (:role = 'ADMIN' or :role = 'SUPER_ADMIN'))
+                or (a.targetAudience = 'TEACHERS' and (:role = 'TEACHER' or :role = 'ADMIN' or :role = 'LIBRARY_STAFF' or :role = 'SCHOOL_STAFF' or :role = 'SUPER_ADMIN'))
+                or (a.targetAudience = 'PARENTS' and (:role = 'PARENT' or :role = 'ADMIN' or :role = 'LIBRARY_STAFF' or :role = 'SCHOOL_STAFF' or :role = 'SUPER_ADMIN'))
                 or (a.targetAudience = 'CLASS' and a.targetClassId in :classIds)
                 or (a.targetAudience = 'SECTION' and a.targetSectionId in :sectionIds)
               )
@@ -70,9 +85,9 @@ public interface AnnouncementRepository extends JpaRepository<Announcement, Long
             select count(a) from Announcement a
             where a.tenantId = :tenantId and a.isDeleted = false
               and (
-                a.targetAudience = 'ALL'
-                or (a.targetAudience = 'TEACHERS' and (:role = 'TEACHER' or :role = 'ADMIN' or :role = 'LIBRARY_STAFF' or :role = 'SUPER_ADMIN'))
-                or (a.targetAudience = 'PARENTS' and (:role = 'PARENT' or :role = 'ADMIN' or :role = 'LIBRARY_STAFF' or :role = 'SUPER_ADMIN'))
+                (a.targetAudience = 'ALL' and (:role = 'ADMIN' or :role = 'SUPER_ADMIN'))
+                or (a.targetAudience = 'TEACHERS' and (:role = 'TEACHER' or :role = 'ADMIN' or :role = 'LIBRARY_STAFF' or :role = 'SCHOOL_STAFF' or :role = 'SUPER_ADMIN'))
+                or (a.targetAudience = 'PARENTS' and (:role = 'PARENT' or :role = 'ADMIN' or :role = 'LIBRARY_STAFF' or :role = 'SCHOOL_STAFF' or :role = 'SUPER_ADMIN'))
                 or (a.targetAudience = 'CLASS' and a.targetClassId in :classIds)
                 or (a.targetAudience = 'SECTION' and a.targetSectionId in :sectionIds)
               )

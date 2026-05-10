@@ -358,13 +358,14 @@ public class TimetableDTOs {
      * Returned with HTTP 409 when a new or updated slot collides with an existing non-deleted row.
      */
     public static class TimetableConflictPayload {
-        /** {@code CLASS_PERIOD_OCCUPIED} or {@code TEACHER_DOUBLE_BOOKED}. */
+        /** {@code CLASS_PERIOD_OCCUPIED}, {@code TEACHER_DOUBLE_BOOKED}, or {@code ROOM_DOUBLE_BOOKED}. */
         private String conflictType;
         private Long existingEntryId;
         private String day;
         private Integer period;
         private String subjectName;
         private String teacherName;
+        private String room;
         private Long classId;
         private Long sectionId;
         /** For {@code TEACHER_DOUBLE_BOOKED}: where the teacher is already booked. */
@@ -417,6 +418,14 @@ public class TimetableDTOs {
 
         public void setTeacherName(String teacherName) {
             this.teacherName = teacherName;
+        }
+
+        public String getRoom() {
+            return room;
+        }
+
+        public void setRoom(String room) {
+            this.room = room;
         }
 
         public Long getClassId() {

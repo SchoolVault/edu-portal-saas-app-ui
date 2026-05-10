@@ -15,12 +15,21 @@ public class Section extends BaseEntity {
     @Column(name = "student_count")
     private Integer studentCount = 0;
 
+    /** Homeroom / class teacher when this class is split into sections (Indian school model). */
+    @Column(name = "class_teacher_id")
+    private Long classTeacherId;
+
+    @Column(name = "class_teacher_name", length = 200)
+    private String classTeacherName;
+
 
     public static class SectionBuilder {
         private String name;
         private Long classId;
         private Integer capacity;
         private Integer studentCount;
+        private Long classTeacherId;
+        private String classTeacherName;
 
         SectionBuilder() {
         }
@@ -57,13 +66,23 @@ public class Section extends BaseEntity {
             return this;
         }
 
+        public Section.SectionBuilder classTeacherId(final Long classTeacherId) {
+            this.classTeacherId = classTeacherId;
+            return this;
+        }
+
+        public Section.SectionBuilder classTeacherName(final String classTeacherName) {
+            this.classTeacherName = classTeacherName;
+            return this;
+        }
+
         public Section build() {
-            return new Section(this.name, this.classId, this.capacity, this.studentCount);
+            return new Section(this.name, this.classId, this.capacity, this.studentCount, this.classTeacherId, this.classTeacherName);
         }
 
         @Override
         public String toString() {
-            return "Section.SectionBuilder(name=" + this.name + ", classId=" + this.classId + ", capacity=" + this.capacity + ", studentCount=" + this.studentCount + ")";
+            return "Section.SectionBuilder(name=" + this.name + ", classId=" + this.classId + ", capacity=" + this.capacity + ", studentCount=" + this.studentCount + ", classTeacherId=" + this.classTeacherId + ", classTeacherName=" + this.classTeacherName + ")";
         }
     }
 
@@ -87,6 +106,14 @@ public class Section extends BaseEntity {
         return this.studentCount;
     }
 
+    public Long getClassTeacherId() {
+        return this.classTeacherId;
+    }
+
+    public String getClassTeacherName() {
+        return this.classTeacherName;
+    }
+
     public void setName(final String name) {
         this.name = name;
     }
@@ -103,6 +130,14 @@ public class Section extends BaseEntity {
         this.studentCount = studentCount;
     }
 
+    public void setClassTeacherId(final Long classTeacherId) {
+        this.classTeacherId = classTeacherId;
+    }
+
+    public void setClassTeacherName(final String classTeacherName) {
+        this.classTeacherName = classTeacherName;
+    }
+
     public Section() {
     }
 
@@ -111,5 +146,20 @@ public class Section extends BaseEntity {
         this.classId = classId;
         this.capacity = capacity;
         this.studentCount = studentCount;
+    }
+
+    public Section(
+            final String name,
+            final Long classId,
+            final Integer capacity,
+            final Integer studentCount,
+            final Long classTeacherId,
+            final String classTeacherName) {
+        this.name = name;
+        this.classId = classId;
+        this.capacity = capacity;
+        this.studentCount = studentCount;
+        this.classTeacherId = classTeacherId;
+        this.classTeacherName = classTeacherName;
     }
 }

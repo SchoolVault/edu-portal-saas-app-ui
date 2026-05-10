@@ -7,7 +7,12 @@
  */
 export const environment = {
   production: false,
-  useMocks: true,
+  useMocks: false,
+  /**
+   * When true, Settings → Roles & access uses in-memory RBAC data (see {@link ../core/mocks/rbac.mock-data}).
+   * Set false to exercise the same DTOs against the live Spring `/api/v1/rbac/*` APIs.
+   */
+  useRbacMocks: false,
   apiUrl: 'http://localhost:8080/api/v1',
   /** Dev-friendly TTLs; use 60_000 + 60_000 only when testing expiry flows. */
   mockSessionAccessTtlMs: 86_400_000,

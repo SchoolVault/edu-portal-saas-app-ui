@@ -1,0 +1,401 @@
+academic_year_id (R),import_mode (O),first_name (R),last_name (R),gender (O),date_of_birth (O),student_email (O),class_id (O),section_id (O),classname (R),sectionname (O),roll_number (O),admission_number (R),admission_date (O),primary_guardian_relation (O),primary_guardian_name (R),primary_guardian_email (O),primary_guardian_phone (R),parent_id (O),create_parent_portal (O),notify_credentials (O),address (O),blood_group (O)
+CURRENT,UPSERT,Aarav,Sharma,female,2009-04-14,,AUTO,AUTO,Class 5,A,1,ADM2026-0001,2026-04-05,,Rajesh Sharma,rajesh.sharma.001.parent@gmail.com,9877705001,AUTO,Y,Y,2 Civil Lines,B+
+CURRENT,UPSERT,Vivaan,Sharma,male,2009-04-27,,AUTO,AUTO,Class 5,A,2,ADM2026-0002,2026-04-05,,Amit Sharma,amit.sharma.002.parent@gmail.com,9877705002,AUTO,Y,N,3 Model Town,O+
+CURRENT,UPSERT,Aditya,Sharma,female,2009-05-10,,AUTO,AUTO,Class 5,A,3,ADM2026-0003,2026-04-05,,Suresh Sharma,suresh.sharma.003.parent@gmail.com,9877705003,AUTO,Y,N,4 Nehru Nagar,AB+
+CURRENT,UPSERT,Vihaan,Sharma,male,2009-05-23,vihaan.sharma.004@student.shantiniketanpublicschool.in,AUTO,AUTO,Class 5,A,4,ADM2026-0004,2026-04-05,,Prakash Sharma,prakash.sharma.004.parent@gmail.com,9877705004,AUTO,Y,N,5 Shastri Nagar,A-
+CURRENT,UPSERT,Arjun,Sharma,female,2009-06-05,,AUTO,AUTO,Class 5,A,5,ADM2026-0005,2026-04-05,,Vijay Sharma,vijay.sharma.005.parent@gmail.com,9877705005,AUTO,Y,N,6 Green Park,B-
+CURRENT,UPSERT,Sai,Sharma,male,2009-06-18,,AUTO,AUTO,Class 5,A,6,ADM2026-0006,2026-04-05,,Manoj Sharma,manoj.sharma.006.parent@gmail.com,9877705006,AUTO,Y,N,7 Rajendra Colony,O-
+CURRENT,UPSERT,Arnav,Sharma,female,2009-07-01,,AUTO,AUTO,Class 5,A,7,ADM2026-0007,2026-04-05,,Anil Sharma,anil.sharma.007.parent@gmail.com,9877705007,AUTO,Y,N,8 Lake View Road,AB-
+CURRENT,UPSERT,Ayaan,Sharma,male,2009-07-14,ayaan.sharma.008@student.shantiniketanpublicschool.in,AUTO,AUTO,Class 5,A,8,ADM2026-0008,2026-04-05,,Sanjay Sharma,sanjay.sharma.008.parent@gmail.com,9877705008,AUTO,Y,N,9 Park Street,A+
+CURRENT,UPSERT,Krishna,Sharma,female,2009-07-27,,AUTO,AUTO,Class 5,A,9,ADM2026-0009,2026-04-05,,Deepak Sharma,deepak.sharma.009.parent@gmail.com,9877705009,AUTO,Y,N,10 Hill Crest,B+
+CURRENT,UPSERT,Ishaan,Sharma,male,2009-08-09,,AUTO,AUTO,Class 5,A,10,ADM2026-0010,2026-04-05,,Ashok Sharma,ashok.sharma.010.parent@gmail.com,9877705010,AUTO,Y,N,11 MG Road,O+
+CURRENT,UPSERT,Shaurya,Sharma,female,2009-08-22,,AUTO,AUTO,Class 5,A,11,ADM2026-0011,2026-04-05,,Sunita Sharma,sunita.sharma.011.parent@gmail.com,9877705011,AUTO,Y,N,12 Civil Lines,AB+
+CURRENT,UPSERT,Atharv,Sharma,male,2009-09-04,atharv.sharma.012@student.shantiniketanpublicschool.in,AUTO,AUTO,Class 5,A,12,ADM2026-0012,2026-04-05,,Rekha Sharma,rekha.sharma.012.parent@gmail.com,9877705012,AUTO,Y,N,13 Model Town,A-
+CURRENT,UPSERT,Pranav,Sharma,female,2009-09-17,,AUTO,AUTO,Class 5,A,13,ADM2026-0013,2026-04-05,,Kavita Sharma,kavita.sharma.013.parent@gmail.com,9877705013,AUTO,Y,N,14 Nehru Nagar,B-
+CURRENT,UPSERT,Kabir,Sharma,male,2009-09-30,,AUTO,AUTO,Class 5,A,14,ADM2026-0014,2026-04-05,,Meena Sharma,meena.sharma.014.parent@gmail.com,9877705014,AUTO,Y,N,15 Shastri Nagar,O-
+CURRENT,UPSERT,Reyansh,Sharma,female,2009-10-13,,AUTO,AUTO,Class 5,A,15,ADM2026-0015,2026-04-05,,Neeta Sharma,neeta.sharma.015.parent@gmail.com,9877705015,AUTO,Y,N,16 Green Park,AB-
+CURRENT,UPSERT,Rohan,Sharma,male,2009-10-26,rohan.sharma.016@student.shantiniketanpublicschool.in,AUTO,AUTO,Class 5,A,16,ADM2026-0016,2026-04-05,,Seema Sharma,seema.sharma.016.parent@gmail.com,9877705016,AUTO,Y,N,17 Rajendra Colony,A+
+CURRENT,UPSERT,Veer,Sharma,female,2009-11-08,,AUTO,AUTO,Class 5,A,17,ADM2026-0017,2026-04-05,,Rita Sharma,rita.sharma.017.parent@gmail.com,9877705017,AUTO,Y,N,18 Lake View Road,B+
+CURRENT,UPSERT,Yash,Sharma,male,2009-11-21,,AUTO,AUTO,Class 5,A,18,ADM2026-0018,2026-04-05,,Geeta Sharma,geeta.sharma.018.parent@gmail.com,9877705018,AUTO,Y,N,19 Park Street,O+
+CURRENT,UPSERT,Aarush,Sharma,female,2009-12-04,,AUTO,AUTO,Class 5,A,19,ADM2026-0019,2026-04-05,,Anita Sharma,anita.sharma.019.parent@gmail.com,9877705019,AUTO,Y,N,20 Hill Crest,AB+
+CURRENT,UPSERT,Dev,Sharma,male,2009-12-17,dev.sharma.020@student.shantiniketanpublicschool.in,AUTO,AUTO,Class 5,A,20,ADM2026-0020,2026-04-05,,Priya Sharma,priya.sharma.020.parent@gmail.com,9877705020,AUTO,Y,N,21 MG Road,A-
+CURRENT,UPSERT,Aadhya,Sharma,female,2009-12-30,,AUTO,AUTO,Class 5,A,21,ADM2026-0021,2026-04-05,,Rajesh Sharma,rajesh.sharma.021.parent@gmail.com,9877705021,AUTO,Y,N,22 Civil Lines,B-
+CURRENT,UPSERT,Ananya,Sharma,male,2010-01-12,,AUTO,AUTO,Class 5,A,22,ADM2026-0022,2026-04-05,,Amit Sharma,amit.sharma.022.parent@gmail.com,9877705022,AUTO,Y,N,23 Model Town,O-
+CURRENT,UPSERT,Diya,Sharma,female,2010-01-25,,AUTO,AUTO,Class 5,A,23,ADM2026-0023,2026-04-05,,Suresh Sharma,suresh.sharma.023.parent@gmail.com,9877705023,AUTO,Y,N,24 Nehru Nagar,AB-
+CURRENT,UPSERT,Pari,Sharma,male,2010-02-07,pari.sharma.024@student.shantiniketanpublicschool.in,AUTO,AUTO,Class 5,A,24,ADM2026-0024,2026-04-05,,Prakash Sharma,prakash.sharma.024.parent@gmail.com,9877705024,AUTO,Y,N,25 Shastri Nagar,A+
+CURRENT,UPSERT,Saanvi,Sharma,female,2010-02-20,,AUTO,AUTO,Class 5,A,25,ADM2026-0025,2026-04-05,,Vijay Sharma,vijay.sharma.025.parent@gmail.com,9877705025,AUTO,Y,N,26 Green Park,B+
+CURRENT,UPSERT,Sara,Sharma,male,2010-03-05,,AUTO,AUTO,Class 5,B,1,ADM2026-0026,2026-04-05,,Manoj Sharma,manoj.sharma.026.parent@gmail.com,9877705026,AUTO,Y,N,27 Rajendra Colony,O+
+CURRENT,UPSERT,Prisha,Sharma,female,2010-03-18,,AUTO,AUTO,Class 5,B,2,ADM2026-0027,2026-04-05,,Anil Sharma,anil.sharma.027.parent@gmail.com,9877705027,AUTO,Y,N,28 Lake View Road,AB+
+CURRENT,UPSERT,Myra,Sharma,male,2010-03-31,myra.sharma.028@student.shantiniketanpublicschool.in,AUTO,AUTO,Class 5,B,3,ADM2026-0028,2026-04-05,,Sanjay Sharma,sanjay.sharma.028.parent@gmail.com,9877705028,AUTO,Y,N,29 Park Street,A-
+CURRENT,UPSERT,Navya,Sharma,female,2010-04-13,,AUTO,AUTO,Class 5,B,4,ADM2026-0029,2026-04-05,,Deepak Sharma,deepak.sharma.029.parent@gmail.com,9877705029,AUTO,Y,N,30 Hill Crest,B-
+CURRENT,UPSERT,Avni,Sharma,male,2010-04-26,,AUTO,AUTO,Class 5,B,5,ADM2026-0030,2026-04-05,,Ashok Sharma,ashok.sharma.030.parent@gmail.com,9877705030,AUTO,Y,N,31 MG Road,O-
+CURRENT,UPSERT,Kiara,Sharma,female,2010-05-09,,AUTO,AUTO,Class 5,B,6,ADM2026-0031,2026-04-05,,Sunita Sharma,sunita.sharma.031.parent@gmail.com,9877705031,AUTO,Y,N,32 Civil Lines,AB-
+CURRENT,UPSERT,Riya,Sharma,male,2010-05-22,riya.sharma.032@student.shantiniketanpublicschool.in,AUTO,AUTO,Class 5,B,7,ADM2026-0032,2026-04-05,,Rekha Sharma,rekha.sharma.032.parent@gmail.com,9877705032,AUTO,Y,N,33 Model Town,A+
+CURRENT,UPSERT,Tanya,Sharma,female,2010-06-04,,AUTO,AUTO,Class 5,B,8,ADM2026-0033,2026-04-05,,Kavita Sharma,kavita.sharma.033.parent@gmail.com,9877705033,AUTO,Y,N,34 Nehru Nagar,B+
+CURRENT,UPSERT,Ishita,Sharma,male,2010-06-17,,AUTO,AUTO,Class 5,B,9,ADM2026-0034,2026-04-05,,Meena Sharma,meena.sharma.034.parent@gmail.com,9877705034,AUTO,Y,N,35 Shastri Nagar,O+
+CURRENT,UPSERT,Jiya,Sharma,female,2010-06-30,,AUTO,AUTO,Class 5,B,10,ADM2026-0035,2026-04-05,,Neeta Sharma,neeta.sharma.035.parent@gmail.com,9877705035,AUTO,Y,N,36 Green Park,AB+
+CURRENT,UPSERT,Anvi,Sharma,male,2010-07-13,anvi.sharma.036@student.shantiniketanpublicschool.in,AUTO,AUTO,Class 5,B,11,ADM2026-0036,2026-04-05,,Seema Sharma,seema.sharma.036.parent@gmail.com,9877705036,AUTO,Y,N,37 Rajendra Colony,A-
+CURRENT,UPSERT,Ira,Sharma,female,2010-07-26,,AUTO,AUTO,Class 5,B,12,ADM2026-0037,2026-04-05,,Rita Sharma,rita.sharma.037.parent@gmail.com,9877705037,AUTO,Y,N,38 Lake View Road,B-
+CURRENT,UPSERT,Pihu,Sharma,male,2010-08-08,,AUTO,AUTO,Class 5,B,13,ADM2026-0038,2026-04-05,,Geeta Sharma,geeta.sharma.038.parent@gmail.com,9877705038,AUTO,Y,N,39 Park Street,O-
+CURRENT,UPSERT,Aanya,Sharma,female,2010-08-21,,AUTO,AUTO,Class 5,B,14,ADM2026-0039,2026-04-05,,Anita Sharma,anita.sharma.039.parent@gmail.com,9877705039,AUTO,Y,N,40 Hill Crest,AB-
+CURRENT,UPSERT,Shanaya,Sharma,male,2010-09-03,shanaya.sharma.040@student.shantiniketanpublicschool.in,AUTO,AUTO,Class 5,B,15,ADM2026-0040,2026-04-05,,Priya Sharma,priya.sharma.040.parent@gmail.com,9877705040,AUTO,Y,N,41 MG Road,A+
+CURRENT,UPSERT,Aarav,Verma,female,2010-09-16,,AUTO,AUTO,Class 5,B,16,ADM2026-0041,2026-04-05,,Rajesh Verma,rajesh.verma.041.parent@gmail.com,9877705041,AUTO,Y,N,42 Civil Lines,B+
+CURRENT,UPSERT,Vivaan,Verma,male,2010-09-29,,AUTO,AUTO,Class 5,B,17,ADM2026-0042,2026-04-05,,Amit Verma,amit.verma.042.parent@gmail.com,9877705042,AUTO,Y,N,43 Model Town,O+
+CURRENT,UPSERT,Aditya,Verma,female,2010-10-12,,AUTO,AUTO,Class 5,B,18,ADM2026-0043,2026-04-05,,Suresh Verma,suresh.verma.043.parent@gmail.com,9877705043,AUTO,Y,N,44 Nehru Nagar,AB+
+CURRENT,UPSERT,Vihaan,Verma,male,2010-10-25,vihaan.verma.044@student.shantiniketanpublicschool.in,AUTO,AUTO,Class 5,B,19,ADM2026-0044,2026-04-05,,Prakash Verma,prakash.verma.044.parent@gmail.com,9877705044,AUTO,Y,N,45 Shastri Nagar,A-
+CURRENT,UPSERT,Arjun,Verma,female,2010-11-07,,AUTO,AUTO,Class 5,B,20,ADM2026-0045,2026-04-05,,Vijay Verma,vijay.verma.045.parent@gmail.com,9877705045,AUTO,Y,N,46 Green Park,B-
+CURRENT,UPSERT,Sai,Verma,male,2010-11-20,,AUTO,AUTO,Class 5,B,21,ADM2026-0046,2026-04-05,,Manoj Verma,manoj.verma.046.parent@gmail.com,9877705046,AUTO,Y,N,47 Rajendra Colony,O-
+CURRENT,UPSERT,Arnav,Verma,female,2010-12-03,,AUTO,AUTO,Class 5,B,22,ADM2026-0047,2026-04-05,,Anil Verma,anil.verma.047.parent@gmail.com,9877705047,AUTO,Y,N,48 Lake View Road,AB-
+CURRENT,UPSERT,Ayaan,Verma,male,2010-12-16,ayaan.verma.048@student.shantiniketanpublicschool.in,AUTO,AUTO,Class 5,B,23,ADM2026-0048,2026-04-05,,Sanjay Verma,sanjay.verma.048.parent@gmail.com,9877705048,AUTO,Y,N,49 Park Street,A+
+CURRENT,UPSERT,Krishna,Verma,female,2010-12-29,,AUTO,AUTO,Class 5,B,24,ADM2026-0049,2026-04-05,,Deepak Verma,deepak.verma.049.parent@gmail.com,9877705049,AUTO,Y,N,50 Hill Crest,B+
+CURRENT,UPSERT,Ishaan,Verma,male,2011-01-11,,AUTO,AUTO,Class 5,B,25,ADM2026-0050,2026-04-05,,Ashok Verma,ashok.verma.050.parent@gmail.com,9877705050,AUTO,Y,N,51 MG Road,O+
+CURRENT,UPSERT,Shaurya,Verma,female,2011-01-24,,AUTO,AUTO,Class 6,A,1,ADM2026-0051,2026-04-05,,Sunita Verma,sunita.verma.051.parent@gmail.com,9877705051,AUTO,Y,N,52 Civil Lines,AB+
+CURRENT,UPSERT,Atharv,Verma,male,2011-02-06,atharv.verma.052@student.shantiniketanpublicschool.in,AUTO,AUTO,Class 6,A,2,ADM2026-0052,2026-04-05,,Rekha Verma,rekha.verma.052.parent@gmail.com,9877705052,AUTO,Y,N,53 Model Town,A-
+CURRENT,UPSERT,Pranav,Verma,female,2011-02-19,,AUTO,AUTO,Class 6,A,3,ADM2026-0053,2026-04-05,,Kavita Verma,kavita.verma.053.parent@gmail.com,9877705053,AUTO,Y,N,54 Nehru Nagar,B-
+CURRENT,UPSERT,Kabir,Verma,male,2011-03-04,,AUTO,AUTO,Class 6,A,4,ADM2026-0054,2026-04-05,,Meena Verma,meena.verma.054.parent@gmail.com,9877705054,AUTO,Y,N,55 Shastri Nagar,O-
+CURRENT,UPSERT,Reyansh,Verma,female,2011-03-17,,AUTO,AUTO,Class 6,A,5,ADM2026-0055,2026-04-05,,Neeta Verma,neeta.verma.055.parent@gmail.com,9877705055,AUTO,Y,N,56 Green Park,AB-
+CURRENT,UPSERT,Rohan,Verma,male,2011-03-30,rohan.verma.056@student.shantiniketanpublicschool.in,AUTO,AUTO,Class 6,A,6,ADM2026-0056,2026-04-05,,Seema Verma,seema.verma.056.parent@gmail.com,9877705056,AUTO,Y,N,57 Rajendra Colony,A+
+CURRENT,UPSERT,Veer,Verma,female,2011-04-12,,AUTO,AUTO,Class 6,A,7,ADM2026-0057,2026-04-05,,Rita Verma,rita.verma.057.parent@gmail.com,9877705057,AUTO,Y,N,58 Lake View Road,B+
+CURRENT,UPSERT,Yash,Verma,male,2011-04-25,,AUTO,AUTO,Class 6,A,8,ADM2026-0058,2026-04-05,,Geeta Verma,geeta.verma.058.parent@gmail.com,9877705058,AUTO,Y,N,59 Park Street,O+
+CURRENT,UPSERT,Aarush,Verma,female,2011-05-08,,AUTO,AUTO,Class 6,A,9,ADM2026-0059,2026-04-05,,Anita Verma,anita.verma.059.parent@gmail.com,9877705059,AUTO,Y,N,60 Hill Crest,AB+
+CURRENT,UPSERT,Dev,Verma,male,2011-05-21,dev.verma.060@student.shantiniketanpublicschool.in,AUTO,AUTO,Class 6,A,10,ADM2026-0060,2026-04-05,,Priya Verma,priya.verma.060.parent@gmail.com,9877705060,AUTO,Y,N,61 MG Road,A-
+CURRENT,UPSERT,Aadhya,Verma,female,2011-06-03,,AUTO,AUTO,Class 6,A,11,ADM2026-0061,2026-04-05,,Rajesh Verma,rajesh.verma.061.parent@gmail.com,9877705061,AUTO,Y,N,62 Civil Lines,B-
+CURRENT,UPSERT,Ananya,Verma,male,2011-06-16,,AUTO,AUTO,Class 6,A,12,ADM2026-0062,2026-04-05,,Amit Verma,amit.verma.062.parent@gmail.com,9877705062,AUTO,Y,N,63 Model Town,O-
+CURRENT,UPSERT,Diya,Verma,female,2011-06-29,,AUTO,AUTO,Class 6,A,13,ADM2026-0063,2026-04-05,,Suresh Verma,suresh.verma.063.parent@gmail.com,9877705063,AUTO,Y,N,64 Nehru Nagar,AB-
+CURRENT,UPSERT,Pari,Verma,male,2011-07-12,pari.verma.064@student.shantiniketanpublicschool.in,AUTO,AUTO,Class 6,A,14,ADM2026-0064,2026-04-05,,Prakash Verma,prakash.verma.064.parent@gmail.com,9877705064,AUTO,Y,N,65 Shastri Nagar,A+
+CURRENT,UPSERT,Saanvi,Verma,female,2011-07-25,,AUTO,AUTO,Class 6,A,15,ADM2026-0065,2026-04-05,,Vijay Verma,vijay.verma.065.parent@gmail.com,9877705065,AUTO,Y,N,66 Green Park,B+
+CURRENT,UPSERT,Sara,Verma,male,2011-08-07,,AUTO,AUTO,Class 6,A,16,ADM2026-0066,2026-04-05,,Manoj Verma,manoj.verma.066.parent@gmail.com,9877705066,AUTO,Y,N,67 Rajendra Colony,O+
+CURRENT,UPSERT,Prisha,Verma,female,2011-08-20,,AUTO,AUTO,Class 6,A,17,ADM2026-0067,2026-04-05,,Anil Verma,anil.verma.067.parent@gmail.com,9877705067,AUTO,Y,N,68 Lake View Road,AB+
+CURRENT,UPSERT,Myra,Verma,male,2011-09-02,myra.verma.068@student.shantiniketanpublicschool.in,AUTO,AUTO,Class 6,A,18,ADM2026-0068,2026-04-05,,Sanjay Verma,sanjay.verma.068.parent@gmail.com,9877705068,AUTO,Y,N,69 Park Street,A-
+CURRENT,UPSERT,Navya,Verma,female,2011-09-15,,AUTO,AUTO,Class 6,A,19,ADM2026-0069,2026-04-05,,Deepak Verma,deepak.verma.069.parent@gmail.com,9877705069,AUTO,Y,N,70 Hill Crest,B-
+CURRENT,UPSERT,Avni,Verma,male,2011-09-28,,AUTO,AUTO,Class 6,A,20,ADM2026-0070,2026-04-05,,Ashok Verma,ashok.verma.070.parent@gmail.com,9877705070,AUTO,Y,N,71 MG Road,O-
+CURRENT,UPSERT,Kiara,Verma,female,2011-10-11,,AUTO,AUTO,Class 6,A,21,ADM2026-0071,2026-04-05,,Sunita Verma,sunita.verma.071.parent@gmail.com,9877705071,AUTO,Y,N,72 Civil Lines,AB-
+CURRENT,UPSERT,Riya,Verma,male,2011-10-24,riya.verma.072@student.shantiniketanpublicschool.in,AUTO,AUTO,Class 6,A,22,ADM2026-0072,2026-04-05,,Rekha Verma,rekha.verma.072.parent@gmail.com,9877705072,AUTO,Y,N,73 Model Town,A+
+CURRENT,UPSERT,Tanya,Verma,female,2011-11-06,,AUTO,AUTO,Class 6,A,23,ADM2026-0073,2026-04-05,,Kavita Verma,kavita.verma.073.parent@gmail.com,9877705073,AUTO,Y,N,74 Nehru Nagar,B+
+CURRENT,UPSERT,Ishita,Verma,male,2011-11-19,,AUTO,AUTO,Class 6,A,24,ADM2026-0074,2026-04-05,,Meena Verma,meena.verma.074.parent@gmail.com,9877705074,AUTO,Y,N,75 Shastri Nagar,O+
+CURRENT,UPSERT,Jiya,Verma,female,2011-12-02,,AUTO,AUTO,Class 6,A,25,ADM2026-0075,2026-04-05,,Neeta Verma,neeta.verma.075.parent@gmail.com,9877705075,AUTO,Y,N,76 Green Park,AB+
+CURRENT,UPSERT,Anvi,Verma,male,2011-12-15,anvi.verma.076@student.shantiniketanpublicschool.in,AUTO,AUTO,Class 6,B,1,ADM2026-0076,2026-04-05,,Seema Verma,seema.verma.076.parent@gmail.com,9877705076,AUTO,Y,N,77 Rajendra Colony,A-
+CURRENT,UPSERT,Ira,Verma,female,2011-12-28,,AUTO,AUTO,Class 6,B,2,ADM2026-0077,2026-04-05,,Rita Verma,rita.verma.077.parent@gmail.com,9877705077,AUTO,Y,N,78 Lake View Road,B-
+CURRENT,UPSERT,Pihu,Verma,male,2012-01-10,,AUTO,AUTO,Class 6,B,3,ADM2026-0078,2026-04-05,,Geeta Verma,geeta.verma.078.parent@gmail.com,9877705078,AUTO,Y,N,79 Park Street,O-
+CURRENT,UPSERT,Aanya,Verma,female,2012-01-23,,AUTO,AUTO,Class 6,B,4,ADM2026-0079,2026-04-05,,Anita Verma,anita.verma.079.parent@gmail.com,9877705079,AUTO,Y,N,80 Hill Crest,AB-
+CURRENT,UPSERT,Shanaya,Verma,male,2012-02-05,shanaya.verma.080@student.shantiniketanpublicschool.in,AUTO,AUTO,Class 6,B,5,ADM2026-0080,2026-04-05,,Priya Verma,priya.verma.080.parent@gmail.com,9877705080,AUTO,Y,N,81 MG Road,A+
+CURRENT,UPSERT,Aarav,Singh,female,2012-02-18,,AUTO,AUTO,Class 6,B,6,ADM2026-0081,2026-04-05,,Rajesh Singh,rajesh.singh.081.parent@gmail.com,9877705081,AUTO,Y,N,82 Civil Lines,B+
+CURRENT,UPSERT,Vivaan,Singh,male,2012-03-02,,AUTO,AUTO,Class 6,B,7,ADM2026-0082,2026-04-05,,Amit Singh,amit.singh.082.parent@gmail.com,9877705082,AUTO,Y,N,83 Model Town,O+
+CURRENT,UPSERT,Aditya,Singh,female,2012-03-15,,AUTO,AUTO,Class 6,B,8,ADM2026-0083,2026-04-05,,Suresh Singh,suresh.singh.083.parent@gmail.com,9877705083,AUTO,Y,N,84 Nehru Nagar,AB+
+CURRENT,UPSERT,Vihaan,Singh,male,2012-03-28,vihaan.singh.084@student.shantiniketanpublicschool.in,AUTO,AUTO,Class 6,B,9,ADM2026-0084,2026-04-05,,Prakash Singh,prakash.singh.084.parent@gmail.com,9877705084,AUTO,Y,N,85 Shastri Nagar,A-
+CURRENT,UPSERT,Arjun,Singh,female,2012-04-10,,AUTO,AUTO,Class 6,B,10,ADM2026-0085,2026-04-05,,Vijay Singh,vijay.singh.085.parent@gmail.com,9877705085,AUTO,Y,N,86 Green Park,B-
+CURRENT,UPSERT,Sai,Singh,male,2012-04-23,,AUTO,AUTO,Class 6,B,11,ADM2026-0086,2026-04-05,,Manoj Singh,manoj.singh.086.parent@gmail.com,9877705086,AUTO,Y,N,87 Rajendra Colony,O-
+CURRENT,UPSERT,Arnav,Singh,female,2012-05-06,,AUTO,AUTO,Class 6,B,12,ADM2026-0087,2026-04-05,,Anil Singh,anil.singh.087.parent@gmail.com,9877705087,AUTO,Y,N,88 Lake View Road,AB-
+CURRENT,UPSERT,Ayaan,Singh,male,2012-05-19,ayaan.singh.088@student.shantiniketanpublicschool.in,AUTO,AUTO,Class 6,B,13,ADM2026-0088,2026-04-05,,Sanjay Singh,sanjay.singh.088.parent@gmail.com,9877705088,AUTO,Y,N,89 Park Street,A+
+CURRENT,UPSERT,Krishna,Singh,female,2012-06-01,,AUTO,AUTO,Class 6,B,14,ADM2026-0089,2026-04-05,,Deepak Singh,deepak.singh.089.parent@gmail.com,9877705089,AUTO,Y,N,90 Hill Crest,B+
+CURRENT,UPSERT,Ishaan,Singh,male,2012-06-14,,AUTO,AUTO,Class 6,B,15,ADM2026-0090,2026-04-05,,Ashok Singh,ashok.singh.090.parent@gmail.com,9877705090,AUTO,Y,N,91 MG Road,O+
+CURRENT,UPSERT,Shaurya,Singh,female,2012-06-27,,AUTO,AUTO,Class 6,B,16,ADM2026-0091,2026-04-05,,Sunita Singh,sunita.singh.091.parent@gmail.com,9877705091,AUTO,Y,N,92 Civil Lines,AB+
+CURRENT,UPSERT,Atharv,Singh,male,2012-07-10,atharv.singh.092@student.shantiniketanpublicschool.in,AUTO,AUTO,Class 6,B,17,ADM2026-0092,2026-04-05,,Rekha Singh,rekha.singh.092.parent@gmail.com,9877705092,AUTO,Y,N,93 Model Town,A-
+CURRENT,UPSERT,Pranav,Singh,female,2012-07-23,,AUTO,AUTO,Class 6,B,18,ADM2026-0093,2026-04-05,,Kavita Singh,kavita.singh.093.parent@gmail.com,9877705093,AUTO,Y,N,94 Nehru Nagar,B-
+CURRENT,UPSERT,Kabir,Singh,male,2012-08-05,,AUTO,AUTO,Class 6,B,19,ADM2026-0094,2026-04-05,,Meena Singh,meena.singh.094.parent@gmail.com,9877705094,AUTO,Y,N,95 Shastri Nagar,O-
+CURRENT,UPSERT,Reyansh,Singh,female,2012-08-18,,AUTO,AUTO,Class 6,B,20,ADM2026-0095,2026-04-05,,Neeta Singh,neeta.singh.095.parent@gmail.com,9877705095,AUTO,Y,N,96 Green Park,AB-
+CURRENT,UPSERT,Rohan,Singh,male,2012-08-31,rohan.singh.096@student.shantiniketanpublicschool.in,AUTO,AUTO,Class 6,B,21,ADM2026-0096,2026-04-05,,Seema Singh,seema.singh.096.parent@gmail.com,9877705096,AUTO,Y,N,97 Rajendra Colony,A+
+CURRENT,UPSERT,Veer,Singh,female,2012-09-13,,AUTO,AUTO,Class 6,B,22,ADM2026-0097,2026-04-05,,Rita Singh,rita.singh.097.parent@gmail.com,9877705097,AUTO,Y,N,98 Lake View Road,B+
+CURRENT,UPSERT,Yash,Singh,male,2012-09-26,,AUTO,AUTO,Class 6,B,23,ADM2026-0098,2026-04-05,,Geeta Singh,geeta.singh.098.parent@gmail.com,9877705098,AUTO,Y,N,99 Park Street,O+
+CURRENT,UPSERT,Aarush,Singh,female,2012-10-09,,AUTO,AUTO,Class 6,B,24,ADM2026-0099,2026-04-05,,Anita Singh,anita.singh.099.parent@gmail.com,9877705099,AUTO,Y,N,100 Hill Crest,AB+
+CURRENT,UPSERT,Dev,Singh,male,2012-10-22,dev.singh.100@student.shantiniketanpublicschool.in,AUTO,AUTO,Class 6,B,25,ADM2026-0100,2026-04-05,,Priya Singh,priya.singh.100.parent@gmail.com,9877705100,AUTO,Y,N,101 MG Road,A-
+CURRENT,UPSERT,Aadhya,Singh,female,2012-11-04,,AUTO,AUTO,Class 7,A,1,ADM2026-0101,2026-04-05,,Rajesh Singh,rajesh.singh.101.parent@gmail.com,9877705101,AUTO,Y,N,102 Civil Lines,B-
+CURRENT,UPSERT,Ananya,Singh,male,2012-11-17,,AUTO,AUTO,Class 7,A,2,ADM2026-0102,2026-04-05,,Amit Singh,amit.singh.102.parent@gmail.com,9877705102,AUTO,Y,N,103 Model Town,O-
+CURRENT,UPSERT,Diya,Singh,female,2012-11-30,,AUTO,AUTO,Class 7,A,3,ADM2026-0103,2026-04-05,,Suresh Singh,suresh.singh.103.parent@gmail.com,9877705103,AUTO,Y,N,104 Nehru Nagar,AB-
+CURRENT,UPSERT,Pari,Singh,male,2012-12-13,pari.singh.104@student.shantiniketanpublicschool.in,AUTO,AUTO,Class 7,A,4,ADM2026-0104,2026-04-05,,Prakash Singh,prakash.singh.104.parent@gmail.com,9877705104,AUTO,Y,N,105 Shastri Nagar,A+
+CURRENT,UPSERT,Saanvi,Singh,female,2012-12-26,,AUTO,AUTO,Class 7,A,5,ADM2026-0105,2026-04-05,,Vijay Singh,vijay.singh.105.parent@gmail.com,9877705105,AUTO,Y,N,106 Green Park,B+
+CURRENT,UPSERT,Sara,Singh,male,2013-01-08,,AUTO,AUTO,Class 7,A,6,ADM2026-0106,2026-04-05,,Manoj Singh,manoj.singh.106.parent@gmail.com,9877705106,AUTO,Y,N,107 Rajendra Colony,O+
+CURRENT,UPSERT,Prisha,Singh,female,2013-01-21,,AUTO,AUTO,Class 7,A,7,ADM2026-0107,2026-04-05,,Anil Singh,anil.singh.107.parent@gmail.com,9877705107,AUTO,Y,N,108 Lake View Road,AB+
+CURRENT,UPSERT,Myra,Singh,male,2013-02-03,myra.singh.108@student.shantiniketanpublicschool.in,AUTO,AUTO,Class 7,A,8,ADM2026-0108,2026-04-05,,Sanjay Singh,sanjay.singh.108.parent@gmail.com,9877705108,AUTO,Y,N,109 Park Street,A-
+CURRENT,UPSERT,Navya,Singh,female,2013-02-16,,AUTO,AUTO,Class 7,A,9,ADM2026-0109,2026-04-05,,Deepak Singh,deepak.singh.109.parent@gmail.com,9877705109,AUTO,Y,N,110 Hill Crest,B-
+CURRENT,UPSERT,Avni,Singh,male,2013-03-01,,AUTO,AUTO,Class 7,A,10,ADM2026-0110,2026-04-05,,Ashok Singh,ashok.singh.110.parent@gmail.com,9877705110,AUTO,Y,N,111 MG Road,O-
+CURRENT,UPSERT,Kiara,Singh,female,2013-03-14,,AUTO,AUTO,Class 7,A,11,ADM2026-0111,2026-04-05,,Sunita Singh,sunita.singh.111.parent@gmail.com,9877705111,AUTO,Y,N,112 Civil Lines,AB-
+CURRENT,UPSERT,Riya,Singh,male,2013-03-27,riya.singh.112@student.shantiniketanpublicschool.in,AUTO,AUTO,Class 7,A,12,ADM2026-0112,2026-04-05,,Rekha Singh,rekha.singh.112.parent@gmail.com,9877705112,AUTO,Y,N,113 Model Town,A+
+CURRENT,UPSERT,Tanya,Singh,female,2013-04-09,,AUTO,AUTO,Class 7,A,13,ADM2026-0113,2026-04-05,,Kavita Singh,kavita.singh.113.parent@gmail.com,9877705113,AUTO,Y,N,114 Nehru Nagar,B+
+CURRENT,UPSERT,Ishita,Singh,male,2013-04-22,,AUTO,AUTO,Class 7,A,14,ADM2026-0114,2026-04-05,,Meena Singh,meena.singh.114.parent@gmail.com,9877705114,AUTO,Y,N,115 Shastri Nagar,O+
+CURRENT,UPSERT,Jiya,Singh,female,2013-05-05,,AUTO,AUTO,Class 7,A,15,ADM2026-0115,2026-04-05,,Neeta Singh,neeta.singh.115.parent@gmail.com,9877705115,AUTO,Y,N,116 Green Park,AB+
+CURRENT,UPSERT,Anvi,Singh,male,2013-05-18,anvi.singh.116@student.shantiniketanpublicschool.in,AUTO,AUTO,Class 7,A,16,ADM2026-0116,2026-04-05,,Seema Singh,seema.singh.116.parent@gmail.com,9877705116,AUTO,Y,N,117 Rajendra Colony,A-
+CURRENT,UPSERT,Ira,Singh,female,2013-05-31,,AUTO,AUTO,Class 7,A,17,ADM2026-0117,2026-04-05,,Rita Singh,rita.singh.117.parent@gmail.com,9877705117,AUTO,Y,N,118 Lake View Road,B-
+CURRENT,UPSERT,Pihu,Singh,male,2013-06-13,,AUTO,AUTO,Class 7,A,18,ADM2026-0118,2026-04-05,,Geeta Singh,geeta.singh.118.parent@gmail.com,9877705118,AUTO,Y,N,119 Park Street,O-
+CURRENT,UPSERT,Aanya,Singh,female,2013-06-26,,AUTO,AUTO,Class 7,A,19,ADM2026-0119,2026-04-05,,Anita Singh,anita.singh.119.parent@gmail.com,9877705119,AUTO,Y,N,120 Hill Crest,AB-
+CURRENT,UPSERT,Shanaya,Singh,male,2013-07-09,shanaya.singh.120@student.shantiniketanpublicschool.in,AUTO,AUTO,Class 7,A,20,ADM2026-0120,2026-04-05,,Priya Singh,priya.singh.120.parent@gmail.com,9877705120,AUTO,Y,N,121 MG Road,A+
+CURRENT,UPSERT,Aarav,Kumar,female,2013-07-22,,AUTO,AUTO,Class 7,A,21,ADM2026-0121,2026-04-05,,Rajesh Kumar,rajesh.kumar.121.parent@gmail.com,9877705121,AUTO,Y,N,122 Civil Lines,B+
+CURRENT,UPSERT,Vivaan,Kumar,male,2013-08-04,,AUTO,AUTO,Class 7,A,22,ADM2026-0122,2026-04-05,,Amit Kumar,amit.kumar.122.parent@gmail.com,9877705122,AUTO,Y,N,123 Model Town,O+
+CURRENT,UPSERT,Aditya,Kumar,female,2013-08-17,,AUTO,AUTO,Class 7,A,23,ADM2026-0123,2026-04-05,,Suresh Kumar,suresh.kumar.123.parent@gmail.com,9877705123,AUTO,Y,N,124 Nehru Nagar,AB+
+CURRENT,UPSERT,Vihaan,Kumar,male,2013-08-30,vihaan.kumar.124@student.shantiniketanpublicschool.in,AUTO,AUTO,Class 7,A,24,ADM2026-0124,2026-04-05,,Prakash Kumar,prakash.kumar.124.parent@gmail.com,9877705124,AUTO,Y,N,125 Shastri Nagar,A-
+CURRENT,UPSERT,Arjun,Kumar,female,2013-09-12,,AUTO,AUTO,Class 7,A,25,ADM2026-0125,2026-04-05,,Vijay Kumar,vijay.kumar.125.parent@gmail.com,9877705125,AUTO,Y,N,126 Green Park,B-
+CURRENT,UPSERT,Sai,Kumar,male,2013-09-25,,AUTO,AUTO,Class 7,B,1,ADM2026-0126,2026-04-05,,Manoj Kumar,manoj.kumar.126.parent@gmail.com,9877705126,AUTO,Y,N,127 Rajendra Colony,O-
+CURRENT,UPSERT,Arnav,Kumar,female,2013-10-08,,AUTO,AUTO,Class 7,B,2,ADM2026-0127,2026-04-05,,Anil Kumar,anil.kumar.127.parent@gmail.com,9877705127,AUTO,Y,N,128 Lake View Road,AB-
+CURRENT,UPSERT,Ayaan,Kumar,male,2013-10-21,ayaan.kumar.128@student.shantiniketanpublicschool.in,AUTO,AUTO,Class 7,B,3,ADM2026-0128,2026-04-05,,Sanjay Kumar,sanjay.kumar.128.parent@gmail.com,9877705128,AUTO,Y,N,129 Park Street,A+
+CURRENT,UPSERT,Krishna,Kumar,female,2013-11-03,,AUTO,AUTO,Class 7,B,4,ADM2026-0129,2026-04-05,,Deepak Kumar,deepak.kumar.129.parent@gmail.com,9877705129,AUTO,Y,N,130 Hill Crest,B+
+CURRENT,UPSERT,Ishaan,Kumar,male,2013-11-16,,AUTO,AUTO,Class 7,B,5,ADM2026-0130,2026-04-05,,Ashok Kumar,ashok.kumar.130.parent@gmail.com,9877705130,AUTO,Y,N,131 MG Road,O+
+CURRENT,UPSERT,Shaurya,Kumar,female,2013-11-29,,AUTO,AUTO,Class 7,B,6,ADM2026-0131,2026-04-05,,Sunita Kumar,sunita.kumar.131.parent@gmail.com,9877705131,AUTO,Y,N,132 Civil Lines,AB+
+CURRENT,UPSERT,Atharv,Kumar,male,2013-12-12,atharv.kumar.132@student.shantiniketanpublicschool.in,AUTO,AUTO,Class 7,B,7,ADM2026-0132,2026-04-05,,Rekha Kumar,rekha.kumar.132.parent@gmail.com,9877705132,AUTO,Y,N,133 Model Town,A-
+CURRENT,UPSERT,Pranav,Kumar,female,2013-12-25,,AUTO,AUTO,Class 7,B,8,ADM2026-0133,2026-04-05,,Kavita Kumar,kavita.kumar.133.parent@gmail.com,9877705133,AUTO,Y,N,134 Nehru Nagar,B-
+CURRENT,UPSERT,Kabir,Kumar,male,2014-01-07,,AUTO,AUTO,Class 7,B,9,ADM2026-0134,2026-04-05,,Meena Kumar,meena.kumar.134.parent@gmail.com,9877705134,AUTO,Y,N,135 Shastri Nagar,O-
+CURRENT,UPSERT,Reyansh,Kumar,female,2014-01-20,,AUTO,AUTO,Class 7,B,10,ADM2026-0135,2026-04-05,,Neeta Kumar,neeta.kumar.135.parent@gmail.com,9877705135,AUTO,Y,N,136 Green Park,AB-
+CURRENT,UPSERT,Rohan,Kumar,male,2014-02-02,rohan.kumar.136@student.shantiniketanpublicschool.in,AUTO,AUTO,Class 7,B,11,ADM2026-0136,2026-04-05,,Seema Kumar,seema.kumar.136.parent@gmail.com,9877705136,AUTO,Y,N,137 Rajendra Colony,A+
+CURRENT,UPSERT,Veer,Kumar,female,2014-02-15,,AUTO,AUTO,Class 7,B,12,ADM2026-0137,2026-04-05,,Rita Kumar,rita.kumar.137.parent@gmail.com,9877705137,AUTO,Y,N,138 Lake View Road,B+
+CURRENT,UPSERT,Yash,Kumar,male,2014-02-28,,AUTO,AUTO,Class 7,B,13,ADM2026-0138,2026-04-05,,Geeta Kumar,geeta.kumar.138.parent@gmail.com,9877705138,AUTO,Y,N,139 Park Street,O+
+CURRENT,UPSERT,Aarush,Kumar,female,2014-03-13,,AUTO,AUTO,Class 7,B,14,ADM2026-0139,2026-04-05,,Anita Kumar,anita.kumar.139.parent@gmail.com,9877705139,AUTO,Y,N,140 Hill Crest,AB+
+CURRENT,UPSERT,Dev,Kumar,male,2014-03-26,dev.kumar.140@student.shantiniketanpublicschool.in,AUTO,AUTO,Class 7,B,15,ADM2026-0140,2026-04-05,,Priya Kumar,priya.kumar.140.parent@gmail.com,9877705140,AUTO,Y,N,141 MG Road,A-
+CURRENT,UPSERT,Aadhya,Kumar,female,2014-04-08,,AUTO,AUTO,Class 7,B,16,ADM2026-0141,2026-04-05,,Rajesh Kumar,rajesh.kumar.141.parent@gmail.com,9877705141,AUTO,Y,N,142 Civil Lines,B-
+CURRENT,UPSERT,Ananya,Kumar,male,2014-04-21,,AUTO,AUTO,Class 7,B,17,ADM2026-0142,2026-04-05,,Amit Kumar,amit.kumar.142.parent@gmail.com,9877705142,AUTO,Y,N,143 Model Town,O-
+CURRENT,UPSERT,Diya,Kumar,female,2014-05-04,,AUTO,AUTO,Class 7,B,18,ADM2026-0143,2026-04-05,,Suresh Kumar,suresh.kumar.143.parent@gmail.com,9877705143,AUTO,Y,N,144 Nehru Nagar,AB-
+CURRENT,UPSERT,Pari,Kumar,male,2014-05-17,pari.kumar.144@student.shantiniketanpublicschool.in,AUTO,AUTO,Class 7,B,19,ADM2026-0144,2026-04-05,,Prakash Kumar,prakash.kumar.144.parent@gmail.com,9877705144,AUTO,Y,N,145 Shastri Nagar,A+
+CURRENT,UPSERT,Saanvi,Kumar,female,2014-05-30,,AUTO,AUTO,Class 7,B,20,ADM2026-0145,2026-04-05,,Vijay Kumar,vijay.kumar.145.parent@gmail.com,9877705145,AUTO,Y,N,146 Green Park,B+
+CURRENT,UPSERT,Sara,Kumar,male,2014-06-12,,AUTO,AUTO,Class 7,B,21,ADM2026-0146,2026-04-05,,Manoj Kumar,manoj.kumar.146.parent@gmail.com,9877705146,AUTO,Y,N,147 Rajendra Colony,O+
+CURRENT,UPSERT,Prisha,Kumar,female,2014-06-25,,AUTO,AUTO,Class 7,B,22,ADM2026-0147,2026-04-05,,Anil Kumar,anil.kumar.147.parent@gmail.com,9877705147,AUTO,Y,N,148 Lake View Road,AB+
+CURRENT,UPSERT,Myra,Kumar,male,2014-07-08,myra.kumar.148@student.shantiniketanpublicschool.in,AUTO,AUTO,Class 7,B,23,ADM2026-0148,2026-04-05,,Sanjay Kumar,sanjay.kumar.148.parent@gmail.com,9877705148,AUTO,Y,N,149 Park Street,A-
+CURRENT,UPSERT,Navya,Kumar,female,2014-07-21,,AUTO,AUTO,Class 7,B,24,ADM2026-0149,2026-04-05,,Deepak Kumar,deepak.kumar.149.parent@gmail.com,9877705149,AUTO,Y,N,150 Hill Crest,B-
+CURRENT,UPSERT,Avni,Kumar,male,2014-08-03,,AUTO,AUTO,Class 7,B,25,ADM2026-0150,2026-04-05,,Ashok Kumar,ashok.kumar.150.parent@gmail.com,9877705150,AUTO,Y,N,151 MG Road,O-
+CURRENT,UPSERT,Kiara,Kumar,female,2014-08-16,,AUTO,AUTO,Class 8,A,1,ADM2026-0151,2026-04-05,,Sunita Kumar,sunita.kumar.151.parent@gmail.com,9877705151,AUTO,Y,N,152 Civil Lines,AB-
+CURRENT,UPSERT,Riya,Kumar,male,2014-08-29,riya.kumar.152@student.shantiniketanpublicschool.in,AUTO,AUTO,Class 8,A,2,ADM2026-0152,2026-04-05,,Rekha Kumar,rekha.kumar.152.parent@gmail.com,9877705152,AUTO,Y,N,153 Model Town,A+
+CURRENT,UPSERT,Tanya,Kumar,female,2014-09-11,,AUTO,AUTO,Class 8,A,3,ADM2026-0153,2026-04-05,,Kavita Kumar,kavita.kumar.153.parent@gmail.com,9877705153,AUTO,Y,N,154 Nehru Nagar,B+
+CURRENT,UPSERT,Ishita,Kumar,male,2014-09-24,,AUTO,AUTO,Class 8,A,4,ADM2026-0154,2026-04-05,,Meena Kumar,meena.kumar.154.parent@gmail.com,9877705154,AUTO,Y,N,155 Shastri Nagar,O+
+CURRENT,UPSERT,Jiya,Kumar,female,2014-10-07,,AUTO,AUTO,Class 8,A,5,ADM2026-0155,2026-04-05,,Neeta Kumar,neeta.kumar.155.parent@gmail.com,9877705155,AUTO,Y,N,156 Green Park,AB+
+CURRENT,UPSERT,Anvi,Kumar,male,2014-10-20,anvi.kumar.156@student.shantiniketanpublicschool.in,AUTO,AUTO,Class 8,A,6,ADM2026-0156,2026-04-05,,Seema Kumar,seema.kumar.156.parent@gmail.com,9877705156,AUTO,Y,N,157 Rajendra Colony,A-
+CURRENT,UPSERT,Ira,Kumar,female,2014-11-02,,AUTO,AUTO,Class 8,A,7,ADM2026-0157,2026-04-05,,Rita Kumar,rita.kumar.157.parent@gmail.com,9877705157,AUTO,Y,N,158 Lake View Road,B-
+CURRENT,UPSERT,Pihu,Kumar,male,2014-11-15,,AUTO,AUTO,Class 8,A,8,ADM2026-0158,2026-04-05,,Geeta Kumar,geeta.kumar.158.parent@gmail.com,9877705158,AUTO,Y,N,159 Park Street,O-
+CURRENT,UPSERT,Aanya,Kumar,female,2014-11-28,,AUTO,AUTO,Class 8,A,9,ADM2026-0159,2026-04-05,,Anita Kumar,anita.kumar.159.parent@gmail.com,9877705159,AUTO,Y,N,160 Hill Crest,AB-
+CURRENT,UPSERT,Shanaya,Kumar,male,2014-12-11,shanaya.kumar.160@student.shantiniketanpublicschool.in,AUTO,AUTO,Class 8,A,10,ADM2026-0160,2026-04-05,,Priya Kumar,priya.kumar.160.parent@gmail.com,9877705160,AUTO,Y,N,161 MG Road,A+
+CURRENT,UPSERT,Aarav,Gupta,female,2014-12-24,,AUTO,AUTO,Class 8,A,11,ADM2026-0161,2026-04-05,,Rajesh Gupta,rajesh.gupta.161.parent@gmail.com,9877705161,AUTO,Y,N,162 Civil Lines,B+
+CURRENT,UPSERT,Vivaan,Gupta,male,2015-01-06,,AUTO,AUTO,Class 8,A,12,ADM2026-0162,2026-04-05,,Amit Gupta,amit.gupta.162.parent@gmail.com,9877705162,AUTO,Y,N,163 Model Town,O+
+CURRENT,UPSERT,Aditya,Gupta,female,2015-01-19,,AUTO,AUTO,Class 8,A,13,ADM2026-0163,2026-04-05,,Suresh Gupta,suresh.gupta.163.parent@gmail.com,9877705163,AUTO,Y,N,164 Nehru Nagar,AB+
+CURRENT,UPSERT,Vihaan,Gupta,male,2015-02-01,vihaan.gupta.164@student.shantiniketanpublicschool.in,AUTO,AUTO,Class 8,A,14,ADM2026-0164,2026-04-05,,Prakash Gupta,prakash.gupta.164.parent@gmail.com,9877705164,AUTO,Y,N,165 Shastri Nagar,A-
+CURRENT,UPSERT,Arjun,Gupta,female,2015-02-14,,AUTO,AUTO,Class 8,A,15,ADM2026-0165,2026-04-05,,Vijay Gupta,vijay.gupta.165.parent@gmail.com,9877705165,AUTO,Y,N,166 Green Park,B-
+CURRENT,UPSERT,Sai,Gupta,male,2015-02-27,,AUTO,AUTO,Class 8,A,16,ADM2026-0166,2026-04-05,,Manoj Gupta,manoj.gupta.166.parent@gmail.com,9877705166,AUTO,Y,N,167 Rajendra Colony,O-
+CURRENT,UPSERT,Arnav,Gupta,female,2015-03-12,,AUTO,AUTO,Class 8,A,17,ADM2026-0167,2026-04-05,,Anil Gupta,anil.gupta.167.parent@gmail.com,9877705167,AUTO,Y,N,168 Lake View Road,AB-
+CURRENT,UPSERT,Ayaan,Gupta,male,2015-03-25,ayaan.gupta.168@student.shantiniketanpublicschool.in,AUTO,AUTO,Class 8,A,18,ADM2026-0168,2026-04-05,,Sanjay Gupta,sanjay.gupta.168.parent@gmail.com,9877705168,AUTO,Y,N,169 Park Street,A+
+CURRENT,UPSERT,Krishna,Gupta,female,2015-04-07,,AUTO,AUTO,Class 8,A,19,ADM2026-0169,2026-04-05,,Deepak Gupta,deepak.gupta.169.parent@gmail.com,9877705169,AUTO,Y,N,170 Hill Crest,B+
+CURRENT,UPSERT,Ishaan,Gupta,male,2015-04-20,,AUTO,AUTO,Class 8,A,20,ADM2026-0170,2026-04-05,,Ashok Gupta,ashok.gupta.170.parent@gmail.com,9877705170,AUTO,Y,N,171 MG Road,O+
+CURRENT,UPSERT,Shaurya,Gupta,female,2015-05-03,,AUTO,AUTO,Class 8,A,21,ADM2026-0171,2026-04-05,,Sunita Gupta,sunita.gupta.171.parent@gmail.com,9877705171,AUTO,Y,N,172 Civil Lines,AB+
+CURRENT,UPSERT,Atharv,Gupta,male,2015-05-16,atharv.gupta.172@student.shantiniketanpublicschool.in,AUTO,AUTO,Class 8,A,22,ADM2026-0172,2026-04-05,,Rekha Gupta,rekha.gupta.172.parent@gmail.com,9877705172,AUTO,Y,N,173 Model Town,A-
+CURRENT,UPSERT,Pranav,Gupta,female,2015-05-29,,AUTO,AUTO,Class 8,A,23,ADM2026-0173,2026-04-05,,Kavita Gupta,kavita.gupta.173.parent@gmail.com,9877705173,AUTO,Y,N,174 Nehru Nagar,B-
+CURRENT,UPSERT,Kabir,Gupta,male,2015-06-11,,AUTO,AUTO,Class 8,A,24,ADM2026-0174,2026-04-05,,Meena Gupta,meena.gupta.174.parent@gmail.com,9877705174,AUTO,Y,N,175 Shastri Nagar,O-
+CURRENT,UPSERT,Reyansh,Gupta,female,2015-06-24,,AUTO,AUTO,Class 8,A,25,ADM2026-0175,2026-04-05,,Neeta Gupta,neeta.gupta.175.parent@gmail.com,9877705175,AUTO,Y,N,176 Green Park,AB-
+CURRENT,UPSERT,Rohan,Gupta,male,2015-07-07,rohan.gupta.176@student.shantiniketanpublicschool.in,AUTO,AUTO,Class 8,B,1,ADM2026-0176,2026-04-05,,Seema Gupta,seema.gupta.176.parent@gmail.com,9877705176,AUTO,Y,N,177 Rajendra Colony,A+
+CURRENT,UPSERT,Veer,Gupta,female,2015-07-20,,AUTO,AUTO,Class 8,B,2,ADM2026-0177,2026-04-05,,Rita Gupta,rita.gupta.177.parent@gmail.com,9877705177,AUTO,Y,N,178 Lake View Road,B+
+CURRENT,UPSERT,Yash,Gupta,male,2015-08-02,,AUTO,AUTO,Class 8,B,3,ADM2026-0178,2026-04-05,,Geeta Gupta,geeta.gupta.178.parent@gmail.com,9877705178,AUTO,Y,N,179 Park Street,O+
+CURRENT,UPSERT,Aarush,Gupta,female,2015-08-15,,AUTO,AUTO,Class 8,B,4,ADM2026-0179,2026-04-05,,Anita Gupta,anita.gupta.179.parent@gmail.com,9877705179,AUTO,Y,N,180 Hill Crest,AB+
+CURRENT,UPSERT,Dev,Gupta,male,2015-08-28,dev.gupta.180@student.shantiniketanpublicschool.in,AUTO,AUTO,Class 8,B,5,ADM2026-0180,2026-04-05,,Priya Gupta,priya.gupta.180.parent@gmail.com,9877705180,AUTO,Y,N,1 MG Road,A-
+CURRENT,UPSERT,Aadhya,Gupta,female,2015-09-10,,AUTO,AUTO,Class 8,B,6,ADM2026-0181,2026-04-05,,Rajesh Gupta,rajesh.gupta.181.parent@gmail.com,9877705181,AUTO,Y,N,2 Civil Lines,B-
+CURRENT,UPSERT,Ananya,Gupta,male,2015-09-23,,AUTO,AUTO,Class 8,B,7,ADM2026-0182,2026-04-05,,Amit Gupta,amit.gupta.182.parent@gmail.com,9877705182,AUTO,Y,N,3 Model Town,O-
+CURRENT,UPSERT,Diya,Gupta,female,2015-10-06,,AUTO,AUTO,Class 8,B,8,ADM2026-0183,2026-04-05,,Suresh Gupta,suresh.gupta.183.parent@gmail.com,9877705183,AUTO,Y,N,4 Nehru Nagar,AB-
+CURRENT,UPSERT,Pari,Gupta,male,2015-10-19,pari.gupta.184@student.shantiniketanpublicschool.in,AUTO,AUTO,Class 8,B,9,ADM2026-0184,2026-04-05,,Prakash Gupta,prakash.gupta.184.parent@gmail.com,9877705184,AUTO,Y,N,5 Shastri Nagar,A+
+CURRENT,UPSERT,Saanvi,Gupta,female,2015-11-01,,AUTO,AUTO,Class 8,B,10,ADM2026-0185,2026-04-05,,Vijay Gupta,vijay.gupta.185.parent@gmail.com,9877705185,AUTO,Y,N,6 Green Park,B+
+CURRENT,UPSERT,Sara,Gupta,male,2015-11-14,,AUTO,AUTO,Class 8,B,11,ADM2026-0186,2026-04-05,,Manoj Gupta,manoj.gupta.186.parent@gmail.com,9877705186,AUTO,Y,N,7 Rajendra Colony,O+
+CURRENT,UPSERT,Prisha,Gupta,female,2015-11-27,,AUTO,AUTO,Class 8,B,12,ADM2026-0187,2026-04-05,,Anil Gupta,anil.gupta.187.parent@gmail.com,9877705187,AUTO,Y,N,8 Lake View Road,AB+
+CURRENT,UPSERT,Myra,Gupta,male,2015-12-10,myra.gupta.188@student.shantiniketanpublicschool.in,AUTO,AUTO,Class 8,B,13,ADM2026-0188,2026-04-05,,Sanjay Gupta,sanjay.gupta.188.parent@gmail.com,9877705188,AUTO,Y,N,9 Park Street,A-
+CURRENT,UPSERT,Navya,Gupta,female,2015-12-23,,AUTO,AUTO,Class 8,B,14,ADM2026-0189,2026-04-05,,Deepak Gupta,deepak.gupta.189.parent@gmail.com,9877705189,AUTO,Y,N,10 Hill Crest,B-
+CURRENT,UPSERT,Avni,Gupta,male,2016-01-05,,AUTO,AUTO,Class 8,B,15,ADM2026-0190,2026-04-05,,Ashok Gupta,ashok.gupta.190.parent@gmail.com,9877705190,AUTO,Y,N,11 MG Road,O-
+CURRENT,UPSERT,Kiara,Gupta,female,2016-01-18,,AUTO,AUTO,Class 8,B,16,ADM2026-0191,2026-04-05,,Sunita Gupta,sunita.gupta.191.parent@gmail.com,9877705191,AUTO,Y,N,12 Civil Lines,AB-
+CURRENT,UPSERT,Riya,Gupta,male,2016-01-31,riya.gupta.192@student.shantiniketanpublicschool.in,AUTO,AUTO,Class 8,B,17,ADM2026-0192,2026-04-05,,Rekha Gupta,rekha.gupta.192.parent@gmail.com,9877705192,AUTO,Y,N,13 Model Town,A+
+CURRENT,UPSERT,Tanya,Gupta,female,2016-02-13,,AUTO,AUTO,Class 8,B,18,ADM2026-0193,2026-04-05,,Kavita Gupta,kavita.gupta.193.parent@gmail.com,9877705193,AUTO,Y,N,14 Nehru Nagar,B+
+CURRENT,UPSERT,Ishita,Gupta,male,2016-02-26,,AUTO,AUTO,Class 8,B,19,ADM2026-0194,2026-04-05,,Meena Gupta,meena.gupta.194.parent@gmail.com,9877705194,AUTO,Y,N,15 Shastri Nagar,O+
+CURRENT,UPSERT,Jiya,Gupta,female,2016-03-10,,AUTO,AUTO,Class 8,B,20,ADM2026-0195,2026-04-05,,Neeta Gupta,neeta.gupta.195.parent@gmail.com,9877705195,AUTO,Y,N,16 Green Park,AB+
+CURRENT,UPSERT,Anvi,Gupta,male,2016-03-23,anvi.gupta.196@student.shantiniketanpublicschool.in,AUTO,AUTO,Class 8,B,21,ADM2026-0196,2026-04-05,,Seema Gupta,seema.gupta.196.parent@gmail.com,9877705196,AUTO,Y,N,17 Rajendra Colony,A-
+CURRENT,UPSERT,Ira,Gupta,female,2016-04-05,,AUTO,AUTO,Class 8,B,22,ADM2026-0197,2026-04-05,,Rita Gupta,rita.gupta.197.parent@gmail.com,9877705197,AUTO,Y,N,18 Lake View Road,B-
+CURRENT,UPSERT,Pihu,Gupta,male,2016-04-18,,AUTO,AUTO,Class 8,B,23,ADM2026-0198,2026-04-05,,Geeta Gupta,geeta.gupta.198.parent@gmail.com,9877705198,AUTO,Y,N,19 Park Street,O-
+CURRENT,UPSERT,Aanya,Gupta,female,2016-05-01,,AUTO,AUTO,Class 8,B,24,ADM2026-0199,2026-04-05,,Anita Gupta,anita.gupta.199.parent@gmail.com,9877705199,AUTO,Y,N,20 Hill Crest,AB-
+CURRENT,UPSERT,Shanaya,Gupta,male,2016-05-14,shanaya.gupta.200@student.shantiniketanpublicschool.in,AUTO,AUTO,Class 8,B,25,ADM2026-0200,2026-04-05,,Priya Gupta,priya.gupta.200.parent@gmail.com,9877705200,AUTO,Y,N,21 MG Road,A+
+CURRENT,UPSERT,Aarav,Agarwal,female,2016-05-27,,AUTO,AUTO,Class 9,A,1,ADM2026-0201,2026-04-05,,Rajesh Agarwal,rajesh.agarwal.201.parent@gmail.com,9877705201,AUTO,Y,N,22 Civil Lines,B+
+CURRENT,UPSERT,Vivaan,Agarwal,male,2016-06-09,,AUTO,AUTO,Class 9,A,2,ADM2026-0202,2026-04-05,,Amit Agarwal,amit.agarwal.202.parent@gmail.com,9877705202,AUTO,Y,N,23 Model Town,O+
+CURRENT,UPSERT,Aditya,Agarwal,female,2016-06-22,,AUTO,AUTO,Class 9,A,3,ADM2026-0203,2026-04-05,,Suresh Agarwal,suresh.agarwal.203.parent@gmail.com,9877705203,AUTO,Y,N,24 Nehru Nagar,AB+
+CURRENT,UPSERT,Vihaan,Agarwal,male,2016-07-05,vihaan.agarwal.204@student.shantiniketanpublicschool.in,AUTO,AUTO,Class 9,A,4,ADM2026-0204,2026-04-05,,Prakash Agarwal,prakash.agarwal.204.parent@gmail.com,9877705204,AUTO,Y,N,25 Shastri Nagar,A-
+CURRENT,UPSERT,Arjun,Agarwal,female,2016-07-18,,AUTO,AUTO,Class 9,A,5,ADM2026-0205,2026-04-05,,Vijay Agarwal,vijay.agarwal.205.parent@gmail.com,9877705205,AUTO,Y,N,26 Green Park,B-
+CURRENT,UPSERT,Sai,Agarwal,male,2016-07-31,,AUTO,AUTO,Class 9,A,6,ADM2026-0206,2026-04-05,,Manoj Agarwal,manoj.agarwal.206.parent@gmail.com,9877705206,AUTO,Y,N,27 Rajendra Colony,O-
+CURRENT,UPSERT,Arnav,Agarwal,female,2016-08-13,,AUTO,AUTO,Class 9,A,7,ADM2026-0207,2026-04-05,,Anil Agarwal,anil.agarwal.207.parent@gmail.com,9877705207,AUTO,Y,N,28 Lake View Road,AB-
+CURRENT,UPSERT,Ayaan,Agarwal,male,2016-08-26,ayaan.agarwal.208@student.shantiniketanpublicschool.in,AUTO,AUTO,Class 9,A,8,ADM2026-0208,2026-04-05,,Sanjay Agarwal,sanjay.agarwal.208.parent@gmail.com,9877705208,AUTO,Y,N,29 Park Street,A+
+CURRENT,UPSERT,Krishna,Agarwal,female,2016-09-08,,AUTO,AUTO,Class 9,A,9,ADM2026-0209,2026-04-05,,Deepak Agarwal,deepak.agarwal.209.parent@gmail.com,9877705209,AUTO,Y,N,30 Hill Crest,B+
+CURRENT,UPSERT,Ishaan,Agarwal,male,2016-09-21,,AUTO,AUTO,Class 9,A,10,ADM2026-0210,2026-04-05,,Ashok Agarwal,ashok.agarwal.210.parent@gmail.com,9877705210,AUTO,Y,N,31 MG Road,O+
+CURRENT,UPSERT,Shaurya,Agarwal,female,2016-10-04,,AUTO,AUTO,Class 9,A,11,ADM2026-0211,2026-04-05,,Sunita Agarwal,sunita.agarwal.211.parent@gmail.com,9877705211,AUTO,Y,N,32 Civil Lines,AB+
+CURRENT,UPSERT,Atharv,Agarwal,male,2016-10-17,atharv.agarwal.212@student.shantiniketanpublicschool.in,AUTO,AUTO,Class 9,A,12,ADM2026-0212,2026-04-05,,Rekha Agarwal,rekha.agarwal.212.parent@gmail.com,9877705212,AUTO,Y,N,33 Model Town,A-
+CURRENT,UPSERT,Pranav,Agarwal,female,2016-10-30,,AUTO,AUTO,Class 9,A,13,ADM2026-0213,2026-04-05,,Kavita Agarwal,kavita.agarwal.213.parent@gmail.com,9877705213,AUTO,Y,N,34 Nehru Nagar,B-
+CURRENT,UPSERT,Kabir,Agarwal,male,2016-11-12,,AUTO,AUTO,Class 9,A,14,ADM2026-0214,2026-04-05,,Meena Agarwal,meena.agarwal.214.parent@gmail.com,9877705214,AUTO,Y,N,35 Shastri Nagar,O-
+CURRENT,UPSERT,Reyansh,Agarwal,female,2016-11-25,,AUTO,AUTO,Class 9,A,15,ADM2026-0215,2026-04-05,,Neeta Agarwal,neeta.agarwal.215.parent@gmail.com,9877705215,AUTO,Y,N,36 Green Park,AB-
+CURRENT,UPSERT,Rohan,Agarwal,male,2016-12-08,rohan.agarwal.216@student.shantiniketanpublicschool.in,AUTO,AUTO,Class 9,A,16,ADM2026-0216,2026-04-05,,Seema Agarwal,seema.agarwal.216.parent@gmail.com,9877705216,AUTO,Y,N,37 Rajendra Colony,A+
+CURRENT,UPSERT,Veer,Agarwal,female,2016-12-21,,AUTO,AUTO,Class 9,A,17,ADM2026-0217,2026-04-05,,Rita Agarwal,rita.agarwal.217.parent@gmail.com,9877705217,AUTO,Y,N,38 Lake View Road,B+
+CURRENT,UPSERT,Yash,Agarwal,male,2017-01-03,,AUTO,AUTO,Class 9,A,18,ADM2026-0218,2026-04-05,,Geeta Agarwal,geeta.agarwal.218.parent@gmail.com,9877705218,AUTO,Y,N,39 Park Street,O+
+CURRENT,UPSERT,Aarush,Agarwal,female,2017-01-16,,AUTO,AUTO,Class 9,A,19,ADM2026-0219,2026-04-05,,Anita Agarwal,anita.agarwal.219.parent@gmail.com,9877705219,AUTO,Y,N,40 Hill Crest,AB+
+CURRENT,UPSERT,Dev,Agarwal,male,2017-01-29,dev.agarwal.220@student.shantiniketanpublicschool.in,AUTO,AUTO,Class 9,A,20,ADM2026-0220,2026-04-05,,Priya Agarwal,priya.agarwal.220.parent@gmail.com,9877705220,AUTO,Y,N,41 MG Road,A-
+CURRENT,UPSERT,Aadhya,Agarwal,female,2017-02-11,,AUTO,AUTO,Class 9,A,21,ADM2026-0221,2026-04-05,,Rajesh Agarwal,rajesh.agarwal.221.parent@gmail.com,9877705221,AUTO,Y,N,42 Civil Lines,B-
+CURRENT,UPSERT,Ananya,Agarwal,male,2017-02-24,,AUTO,AUTO,Class 9,A,22,ADM2026-0222,2026-04-05,,Amit Agarwal,amit.agarwal.222.parent@gmail.com,9877705222,AUTO,Y,N,43 Model Town,O-
+CURRENT,UPSERT,Diya,Agarwal,female,2017-03-09,,AUTO,AUTO,Class 9,A,23,ADM2026-0223,2026-04-05,,Suresh Agarwal,suresh.agarwal.223.parent@gmail.com,9877705223,AUTO,Y,N,44 Nehru Nagar,AB-
+CURRENT,UPSERT,Pari,Agarwal,male,2017-03-22,pari.agarwal.224@student.shantiniketanpublicschool.in,AUTO,AUTO,Class 9,A,24,ADM2026-0224,2026-04-05,,Prakash Agarwal,prakash.agarwal.224.parent@gmail.com,9877705224,AUTO,Y,N,45 Shastri Nagar,A+
+CURRENT,UPSERT,Saanvi,Agarwal,female,2017-04-04,,AUTO,AUTO,Class 9,A,25,ADM2026-0225,2026-04-05,,Vijay Agarwal,vijay.agarwal.225.parent@gmail.com,9877705225,AUTO,Y,N,46 Green Park,B+
+CURRENT,UPSERT,Sara,Agarwal,male,2017-04-17,,AUTO,AUTO,Class 9,B,1,ADM2026-0226,2026-04-05,,Manoj Agarwal,manoj.agarwal.226.parent@gmail.com,9877705226,AUTO,Y,N,47 Rajendra Colony,O+
+CURRENT,UPSERT,Prisha,Agarwal,female,2017-04-30,,AUTO,AUTO,Class 9,B,2,ADM2026-0227,2026-04-05,,Anil Agarwal,anil.agarwal.227.parent@gmail.com,9877705227,AUTO,Y,N,48 Lake View Road,AB+
+CURRENT,UPSERT,Myra,Agarwal,male,2017-05-13,myra.agarwal.228@student.shantiniketanpublicschool.in,AUTO,AUTO,Class 9,B,3,ADM2026-0228,2026-04-05,,Sanjay Agarwal,sanjay.agarwal.228.parent@gmail.com,9877705228,AUTO,Y,N,49 Park Street,A-
+CURRENT,UPSERT,Navya,Agarwal,female,2017-05-26,,AUTO,AUTO,Class 9,B,4,ADM2026-0229,2026-04-05,,Deepak Agarwal,deepak.agarwal.229.parent@gmail.com,9877705229,AUTO,Y,N,50 Hill Crest,B-
+CURRENT,UPSERT,Avni,Agarwal,male,2017-06-08,,AUTO,AUTO,Class 9,B,5,ADM2026-0230,2026-04-05,,Ashok Agarwal,ashok.agarwal.230.parent@gmail.com,9877705230,AUTO,Y,N,51 MG Road,O-
+CURRENT,UPSERT,Kiara,Agarwal,female,2017-06-21,,AUTO,AUTO,Class 9,B,6,ADM2026-0231,2026-04-05,,Sunita Agarwal,sunita.agarwal.231.parent@gmail.com,9877705231,AUTO,Y,N,52 Civil Lines,AB-
+CURRENT,UPSERT,Riya,Agarwal,male,2017-07-04,riya.agarwal.232@student.shantiniketanpublicschool.in,AUTO,AUTO,Class 9,B,7,ADM2026-0232,2026-04-05,,Rekha Agarwal,rekha.agarwal.232.parent@gmail.com,9877705232,AUTO,Y,N,53 Model Town,A+
+CURRENT,UPSERT,Tanya,Agarwal,female,2017-07-17,,AUTO,AUTO,Class 9,B,8,ADM2026-0233,2026-04-05,,Kavita Agarwal,kavita.agarwal.233.parent@gmail.com,9877705233,AUTO,Y,N,54 Nehru Nagar,B+
+CURRENT,UPSERT,Ishita,Agarwal,male,2017-07-30,,AUTO,AUTO,Class 9,B,9,ADM2026-0234,2026-04-05,,Meena Agarwal,meena.agarwal.234.parent@gmail.com,9877705234,AUTO,Y,N,55 Shastri Nagar,O+
+CURRENT,UPSERT,Jiya,Agarwal,female,2017-08-12,,AUTO,AUTO,Class 9,B,10,ADM2026-0235,2026-04-05,,Neeta Agarwal,neeta.agarwal.235.parent@gmail.com,9877705235,AUTO,Y,N,56 Green Park,AB+
+CURRENT,UPSERT,Anvi,Agarwal,male,2017-08-25,anvi.agarwal.236@student.shantiniketanpublicschool.in,AUTO,AUTO,Class 9,B,11,ADM2026-0236,2026-04-05,,Seema Agarwal,seema.agarwal.236.parent@gmail.com,9877705236,AUTO,Y,N,57 Rajendra Colony,A-
+CURRENT,UPSERT,Ira,Agarwal,female,2017-09-07,,AUTO,AUTO,Class 9,B,12,ADM2026-0237,2026-04-05,,Rita Agarwal,rita.agarwal.237.parent@gmail.com,9877705237,AUTO,Y,N,58 Lake View Road,B-
+CURRENT,UPSERT,Pihu,Agarwal,male,2017-09-20,,AUTO,AUTO,Class 9,B,13,ADM2026-0238,2026-04-05,,Geeta Agarwal,geeta.agarwal.238.parent@gmail.com,9877705238,AUTO,Y,N,59 Park Street,O-
+CURRENT,UPSERT,Aanya,Agarwal,female,2017-10-03,,AUTO,AUTO,Class 9,B,14,ADM2026-0239,2026-04-05,,Anita Agarwal,anita.agarwal.239.parent@gmail.com,9877705239,AUTO,Y,N,60 Hill Crest,AB-
+CURRENT,UPSERT,Shanaya,Agarwal,male,2017-10-16,shanaya.agarwal.240@student.shantiniketanpublicschool.in,AUTO,AUTO,Class 9,B,15,ADM2026-0240,2026-04-05,,Priya Agarwal,priya.agarwal.240.parent@gmail.com,9877705240,AUTO,Y,N,61 MG Road,A+
+CURRENT,UPSERT,Aarav,Reddy,female,2017-10-29,,AUTO,AUTO,Class 9,B,16,ADM2026-0241,2026-04-05,,Rajesh Reddy,rajesh.reddy.241.parent@gmail.com,9877705241,AUTO,Y,N,62 Civil Lines,B+
+CURRENT,UPSERT,Vivaan,Reddy,male,2017-11-11,,AUTO,AUTO,Class 9,B,17,ADM2026-0242,2026-04-05,,Amit Reddy,amit.reddy.242.parent@gmail.com,9877705242,AUTO,Y,N,63 Model Town,O+
+CURRENT,UPSERT,Aditya,Reddy,female,2017-11-24,,AUTO,AUTO,Class 9,B,18,ADM2026-0243,2026-04-05,,Suresh Reddy,suresh.reddy.243.parent@gmail.com,9877705243,AUTO,Y,N,64 Nehru Nagar,AB+
+CURRENT,UPSERT,Vihaan,Reddy,male,2017-12-07,vihaan.reddy.244@student.shantiniketanpublicschool.in,AUTO,AUTO,Class 9,B,19,ADM2026-0244,2026-04-05,,Prakash Reddy,prakash.reddy.244.parent@gmail.com,9877705244,AUTO,Y,N,65 Shastri Nagar,A-
+CURRENT,UPSERT,Arjun,Reddy,female,2017-12-20,,AUTO,AUTO,Class 9,B,20,ADM2026-0245,2026-04-05,,Vijay Reddy,vijay.reddy.245.parent@gmail.com,9877705245,AUTO,Y,N,66 Green Park,B-
+CURRENT,UPSERT,Sai,Reddy,male,2018-01-02,,AUTO,AUTO,Class 9,B,21,ADM2026-0246,2026-04-05,,Manoj Reddy,manoj.reddy.246.parent@gmail.com,9877705246,AUTO,Y,N,67 Rajendra Colony,O-
+CURRENT,UPSERT,Arnav,Reddy,female,2018-01-15,,AUTO,AUTO,Class 9,B,22,ADM2026-0247,2026-04-05,,Anil Reddy,anil.reddy.247.parent@gmail.com,9877705247,AUTO,Y,N,68 Lake View Road,AB-
+CURRENT,UPSERT,Ayaan,Reddy,male,2018-01-28,ayaan.reddy.248@student.shantiniketanpublicschool.in,AUTO,AUTO,Class 9,B,23,ADM2026-0248,2026-04-05,,Sanjay Reddy,sanjay.reddy.248.parent@gmail.com,9877705248,AUTO,Y,N,69 Park Street,A+
+CURRENT,UPSERT,Krishna,Reddy,female,2018-02-10,,AUTO,AUTO,Class 9,B,24,ADM2026-0249,2026-04-05,,Deepak Reddy,deepak.reddy.249.parent@gmail.com,9877705249,AUTO,Y,N,70 Hill Crest,B+
+CURRENT,UPSERT,Ishaan,Reddy,male,2018-02-23,,AUTO,AUTO,Class 9,B,25,ADM2026-0250,2026-04-05,,Ashok Reddy,ashok.reddy.250.parent@gmail.com,9877705250,AUTO,Y,N,71 MG Road,O+
+CURRENT,UPSERT,Shaurya,Reddy,female,2018-03-08,,AUTO,AUTO,Class 10,A,1,ADM2026-0251,2026-04-05,,Sunita Reddy,sunita.reddy.251.parent@gmail.com,9877705251,AUTO,Y,N,72 Civil Lines,AB+
+CURRENT,UPSERT,Atharv,Reddy,male,2018-03-21,atharv.reddy.252@student.shantiniketanpublicschool.in,AUTO,AUTO,Class 10,A,2,ADM2026-0252,2026-04-05,,Rekha Reddy,rekha.reddy.252.parent@gmail.com,9877705252,AUTO,Y,N,73 Model Town,A-
+CURRENT,UPSERT,Pranav,Reddy,female,2018-04-03,,AUTO,AUTO,Class 10,A,3,ADM2026-0253,2026-04-05,,Kavita Reddy,kavita.reddy.253.parent@gmail.com,9877705253,AUTO,Y,N,74 Nehru Nagar,B-
+CURRENT,UPSERT,Kabir,Reddy,male,2018-04-16,,AUTO,AUTO,Class 10,A,4,ADM2026-0254,2026-04-05,,Meena Reddy,meena.reddy.254.parent@gmail.com,9877705254,AUTO,Y,N,75 Shastri Nagar,O-
+CURRENT,UPSERT,Reyansh,Reddy,female,2018-04-29,,AUTO,AUTO,Class 10,A,5,ADM2026-0255,2026-04-05,,Neeta Reddy,neeta.reddy.255.parent@gmail.com,9877705255,AUTO,Y,N,76 Green Park,AB-
+CURRENT,UPSERT,Rohan,Reddy,male,2018-05-12,rohan.reddy.256@student.shantiniketanpublicschool.in,AUTO,AUTO,Class 10,A,6,ADM2026-0256,2026-04-05,,Seema Reddy,seema.reddy.256.parent@gmail.com,9877705256,AUTO,Y,N,77 Rajendra Colony,A+
+CURRENT,UPSERT,Veer,Reddy,female,2018-05-25,,AUTO,AUTO,Class 10,A,7,ADM2026-0257,2026-04-05,,Rita Reddy,rita.reddy.257.parent@gmail.com,9877705257,AUTO,Y,N,78 Lake View Road,B+
+CURRENT,UPSERT,Yash,Reddy,male,2018-06-07,,AUTO,AUTO,Class 10,A,8,ADM2026-0258,2026-04-05,,Geeta Reddy,geeta.reddy.258.parent@gmail.com,9877705258,AUTO,Y,N,79 Park Street,O+
+CURRENT,UPSERT,Aarush,Reddy,female,2018-06-20,,AUTO,AUTO,Class 10,A,9,ADM2026-0259,2026-04-05,,Anita Reddy,anita.reddy.259.parent@gmail.com,9877705259,AUTO,Y,N,80 Hill Crest,AB+
+CURRENT,UPSERT,Dev,Reddy,male,2018-07-03,dev.reddy.260@student.shantiniketanpublicschool.in,AUTO,AUTO,Class 10,A,10,ADM2026-0260,2026-04-05,,Priya Reddy,priya.reddy.260.parent@gmail.com,9877705260,AUTO,Y,N,81 MG Road,A-
+CURRENT,UPSERT,Aadhya,Reddy,female,2018-07-16,,AUTO,AUTO,Class 10,A,11,ADM2026-0261,2026-04-05,,Rajesh Reddy,rajesh.reddy.261.parent@gmail.com,9877705261,AUTO,Y,N,82 Civil Lines,B-
+CURRENT,UPSERT,Ananya,Reddy,male,2018-07-29,,AUTO,AUTO,Class 10,A,12,ADM2026-0262,2026-04-05,,Amit Reddy,amit.reddy.262.parent@gmail.com,9877705262,AUTO,Y,N,83 Model Town,O-
+CURRENT,UPSERT,Diya,Reddy,female,2018-08-11,,AUTO,AUTO,Class 10,A,13,ADM2026-0263,2026-04-05,,Suresh Reddy,suresh.reddy.263.parent@gmail.com,9877705263,AUTO,Y,N,84 Nehru Nagar,AB-
+CURRENT,UPSERT,Pari,Reddy,male,2018-08-24,pari.reddy.264@student.shantiniketanpublicschool.in,AUTO,AUTO,Class 10,A,14,ADM2026-0264,2026-04-05,,Prakash Reddy,prakash.reddy.264.parent@gmail.com,9877705264,AUTO,Y,N,85 Shastri Nagar,A+
+CURRENT,UPSERT,Saanvi,Reddy,female,2018-09-06,,AUTO,AUTO,Class 10,A,15,ADM2026-0265,2026-04-05,,Vijay Reddy,vijay.reddy.265.parent@gmail.com,9877705265,AUTO,Y,N,86 Green Park,B+
+CURRENT,UPSERT,Sara,Reddy,male,2018-09-19,,AUTO,AUTO,Class 10,A,16,ADM2026-0266,2026-04-05,,Manoj Reddy,manoj.reddy.266.parent@gmail.com,9877705266,AUTO,Y,N,87 Rajendra Colony,O+
+CURRENT,UPSERT,Prisha,Reddy,female,2018-10-02,,AUTO,AUTO,Class 10,A,17,ADM2026-0267,2026-04-05,,Anil Reddy,anil.reddy.267.parent@gmail.com,9877705267,AUTO,Y,N,88 Lake View Road,AB+
+CURRENT,UPSERT,Myra,Reddy,male,2018-10-15,myra.reddy.268@student.shantiniketanpublicschool.in,AUTO,AUTO,Class 10,A,18,ADM2026-0268,2026-04-05,,Sanjay Reddy,sanjay.reddy.268.parent@gmail.com,9877705268,AUTO,Y,N,89 Park Street,A-
+CURRENT,UPSERT,Navya,Reddy,female,2018-10-28,,AUTO,AUTO,Class 10,A,19,ADM2026-0269,2026-04-05,,Deepak Reddy,deepak.reddy.269.parent@gmail.com,9877705269,AUTO,Y,N,90 Hill Crest,B-
+CURRENT,UPSERT,Avni,Reddy,male,2018-11-10,,AUTO,AUTO,Class 10,A,20,ADM2026-0270,2026-04-05,,Ashok Reddy,ashok.reddy.270.parent@gmail.com,9877705270,AUTO,Y,N,91 MG Road,O-
+CURRENT,UPSERT,Kiara,Reddy,female,2018-11-23,,AUTO,AUTO,Class 10,A,21,ADM2026-0271,2026-04-05,,Sunita Reddy,sunita.reddy.271.parent@gmail.com,9877705271,AUTO,Y,N,92 Civil Lines,AB-
+CURRENT,UPSERT,Riya,Reddy,male,2018-12-06,riya.reddy.272@student.shantiniketanpublicschool.in,AUTO,AUTO,Class 10,A,22,ADM2026-0272,2026-04-05,,Rekha Reddy,rekha.reddy.272.parent@gmail.com,9877705272,AUTO,Y,N,93 Model Town,A+
+CURRENT,UPSERT,Tanya,Reddy,female,2018-12-19,,AUTO,AUTO,Class 10,A,23,ADM2026-0273,2026-04-05,,Kavita Reddy,kavita.reddy.273.parent@gmail.com,9877705273,AUTO,Y,N,94 Nehru Nagar,B+
+CURRENT,UPSERT,Ishita,Reddy,male,2019-01-01,,AUTO,AUTO,Class 10,A,24,ADM2026-0274,2026-04-05,,Meena Reddy,meena.reddy.274.parent@gmail.com,9877705274,AUTO,Y,N,95 Shastri Nagar,O+
+CURRENT,UPSERT,Jiya,Reddy,female,2019-01-14,,AUTO,AUTO,Class 10,A,25,ADM2026-0275,2026-04-05,,Neeta Reddy,neeta.reddy.275.parent@gmail.com,9877705275,AUTO,Y,N,96 Green Park,AB+
+CURRENT,UPSERT,Anvi,Reddy,male,2019-01-27,anvi.reddy.276@student.shantiniketanpublicschool.in,AUTO,AUTO,Class 10,B,1,ADM2026-0276,2026-04-05,,Seema Reddy,seema.reddy.276.parent@gmail.com,9877705276,AUTO,Y,N,97 Rajendra Colony,A-
+CURRENT,UPSERT,Ira,Reddy,female,2019-02-09,,AUTO,AUTO,Class 10,B,2,ADM2026-0277,2026-04-05,,Rita Reddy,rita.reddy.277.parent@gmail.com,9877705277,AUTO,Y,N,98 Lake View Road,B-
+CURRENT,UPSERT,Pihu,Reddy,male,2019-02-22,,AUTO,AUTO,Class 10,B,3,ADM2026-0278,2026-04-05,,Geeta Reddy,geeta.reddy.278.parent@gmail.com,9877705278,AUTO,Y,N,99 Park Street,O-
+CURRENT,UPSERT,Aanya,Reddy,female,2019-03-07,,AUTO,AUTO,Class 10,B,4,ADM2026-0279,2026-04-05,,Anita Reddy,anita.reddy.279.parent@gmail.com,9877705279,AUTO,Y,N,100 Hill Crest,AB-
+CURRENT,UPSERT,Shanaya,Reddy,male,2019-03-20,shanaya.reddy.280@student.shantiniketanpublicschool.in,AUTO,AUTO,Class 10,B,5,ADM2026-0280,2026-04-05,,Priya Reddy,priya.reddy.280.parent@gmail.com,9877705280,AUTO,Y,N,101 MG Road,A+
+CURRENT,UPSERT,Aarav,Patel,female,2019-04-02,,AUTO,AUTO,Class 10,B,6,ADM2026-0281,2026-04-05,,Rajesh Patel,rajesh.patel.281.parent@gmail.com,9877705281,AUTO,Y,N,102 Civil Lines,B+
+CURRENT,UPSERT,Vivaan,Patel,male,2019-04-15,,AUTO,AUTO,Class 10,B,7,ADM2026-0282,2026-04-05,,Amit Patel,amit.patel.282.parent@gmail.com,9877705282,AUTO,Y,N,103 Model Town,O+
+CURRENT,UPSERT,Aditya,Patel,female,2019-04-28,,AUTO,AUTO,Class 10,B,8,ADM2026-0283,2026-04-05,,Suresh Patel,suresh.patel.283.parent@gmail.com,9877705283,AUTO,Y,N,104 Nehru Nagar,AB+
+CURRENT,UPSERT,Vihaan,Patel,male,2019-05-11,vihaan.patel.284@student.shantiniketanpublicschool.in,AUTO,AUTO,Class 10,B,9,ADM2026-0284,2026-04-05,,Prakash Patel,prakash.patel.284.parent@gmail.com,9877705284,AUTO,Y,N,105 Shastri Nagar,A-
+CURRENT,UPSERT,Arjun,Patel,female,2019-05-24,,AUTO,AUTO,Class 10,B,10,ADM2026-0285,2026-04-05,,Vijay Patel,vijay.patel.285.parent@gmail.com,9877705285,AUTO,Y,N,106 Green Park,B-
+CURRENT,UPSERT,Sai,Patel,male,2019-06-06,,AUTO,AUTO,Class 10,B,11,ADM2026-0286,2026-04-05,,Manoj Patel,manoj.patel.286.parent@gmail.com,9877705286,AUTO,Y,N,107 Rajendra Colony,O-
+CURRENT,UPSERT,Arnav,Patel,female,2019-06-19,,AUTO,AUTO,Class 10,B,12,ADM2026-0287,2026-04-05,,Anil Patel,anil.patel.287.parent@gmail.com,9877705287,AUTO,Y,N,108 Lake View Road,AB-
+CURRENT,UPSERT,Ayaan,Patel,male,2019-07-02,ayaan.patel.288@student.shantiniketanpublicschool.in,AUTO,AUTO,Class 10,B,13,ADM2026-0288,2026-04-05,,Sanjay Patel,sanjay.patel.288.parent@gmail.com,9877705288,AUTO,Y,N,109 Park Street,A+
+CURRENT,UPSERT,Krishna,Patel,female,2019-07-15,,AUTO,AUTO,Class 10,B,14,ADM2026-0289,2026-04-05,,Deepak Patel,deepak.patel.289.parent@gmail.com,9877705289,AUTO,Y,N,110 Hill Crest,B+
+CURRENT,UPSERT,Ishaan,Patel,male,2019-07-28,,AUTO,AUTO,Class 10,B,15,ADM2026-0290,2026-04-05,,Ashok Patel,ashok.patel.290.parent@gmail.com,9877705290,AUTO,Y,N,111 MG Road,O+
+CURRENT,UPSERT,Shaurya,Patel,female,2019-08-10,,AUTO,AUTO,Class 10,B,16,ADM2026-0291,2026-04-05,,Sunita Patel,sunita.patel.291.parent@gmail.com,9877705291,AUTO,Y,N,112 Civil Lines,AB+
+CURRENT,UPSERT,Atharv,Patel,male,2019-08-23,atharv.patel.292@student.shantiniketanpublicschool.in,AUTO,AUTO,Class 10,B,17,ADM2026-0292,2026-04-05,,Rekha Patel,rekha.patel.292.parent@gmail.com,9877705292,AUTO,Y,N,113 Model Town,A-
+CURRENT,UPSERT,Pranav,Patel,female,2019-09-05,,AUTO,AUTO,Class 10,B,18,ADM2026-0293,2026-04-05,,Kavita Patel,kavita.patel.293.parent@gmail.com,9877705293,AUTO,Y,N,114 Nehru Nagar,B-
+CURRENT,UPSERT,Kabir,Patel,male,2019-09-18,,AUTO,AUTO,Class 10,B,19,ADM2026-0294,2026-04-05,,Meena Patel,meena.patel.294.parent@gmail.com,9877705294,AUTO,Y,N,115 Shastri Nagar,O-
+CURRENT,UPSERT,Reyansh,Patel,female,2019-10-01,,AUTO,AUTO,Class 10,B,20,ADM2026-0295,2026-04-05,,Neeta Patel,neeta.patel.295.parent@gmail.com,9877705295,AUTO,Y,N,116 Green Park,AB-
+CURRENT,UPSERT,Rohan,Patel,male,2019-10-14,rohan.patel.296@student.shantiniketanpublicschool.in,AUTO,AUTO,Class 10,B,21,ADM2026-0296,2026-04-05,,Seema Patel,seema.patel.296.parent@gmail.com,9877705296,AUTO,Y,N,117 Rajendra Colony,A+
+CURRENT,UPSERT,Veer,Patel,female,2019-10-27,,AUTO,AUTO,Class 10,B,22,ADM2026-0297,2026-04-05,,Rita Patel,rita.patel.297.parent@gmail.com,9877705297,AUTO,Y,N,118 Lake View Road,B+
+CURRENT,UPSERT,Yash,Patel,male,2019-11-09,,AUTO,AUTO,Class 10,B,23,ADM2026-0298,2026-04-05,,Geeta Patel,geeta.patel.298.parent@gmail.com,9877705298,AUTO,Y,N,119 Park Street,O+
+CURRENT,UPSERT,Aarush,Patel,female,2019-11-22,,AUTO,AUTO,Class 10,B,24,ADM2026-0299,2026-04-05,,Anita Patel,anita.patel.299.parent@gmail.com,9877705299,AUTO,Y,N,120 Hill Crest,AB+
+CURRENT,UPSERT,Dev,Patel,male,2019-12-05,dev.patel.300@student.shantiniketanpublicschool.in,AUTO,AUTO,Class 10,B,25,ADM2026-0300,2026-04-05,,Priya Patel,priya.patel.300.parent@gmail.com,9877705300,AUTO,Y,N,121 MG Road,A-
+CURRENT,UPSERT,Aadhya,Patel,female,2019-12-18,,AUTO,AUTO,Class 11,A,1,ADM2026-0301,2026-04-05,,Rajesh Patel,rajesh.patel.301.parent@gmail.com,9877705301,AUTO,Y,N,122 Civil Lines,B-
+CURRENT,UPSERT,Ananya,Patel,male,2019-12-31,,AUTO,AUTO,Class 11,A,2,ADM2026-0302,2026-04-05,,Amit Patel,amit.patel.302.parent@gmail.com,9877705302,AUTO,Y,N,123 Model Town,O-
+CURRENT,UPSERT,Diya,Patel,female,2020-01-13,,AUTO,AUTO,Class 11,A,3,ADM2026-0303,2026-04-05,,Suresh Patel,suresh.patel.303.parent@gmail.com,9877705303,AUTO,Y,N,124 Nehru Nagar,AB-
+CURRENT,UPSERT,Pari,Patel,male,2020-01-26,pari.patel.304@student.shantiniketanpublicschool.in,AUTO,AUTO,Class 11,A,4,ADM2026-0304,2026-04-05,,Prakash Patel,prakash.patel.304.parent@gmail.com,9877705304,AUTO,Y,N,125 Shastri Nagar,A+
+CURRENT,UPSERT,Saanvi,Patel,female,2020-02-08,,AUTO,AUTO,Class 11,A,5,ADM2026-0305,2026-04-05,,Vijay Patel,vijay.patel.305.parent@gmail.com,9877705305,AUTO,Y,N,126 Green Park,B+
+CURRENT,UPSERT,Sara,Patel,male,2020-02-21,,AUTO,AUTO,Class 11,A,6,ADM2026-0306,2026-04-05,,Manoj Patel,manoj.patel.306.parent@gmail.com,9877705306,AUTO,Y,N,127 Rajendra Colony,O+
+CURRENT,UPSERT,Prisha,Patel,female,2020-03-05,,AUTO,AUTO,Class 11,A,7,ADM2026-0307,2026-04-05,,Anil Patel,anil.patel.307.parent@gmail.com,9877705307,AUTO,Y,N,128 Lake View Road,AB+
+CURRENT,UPSERT,Myra,Patel,male,2020-03-18,myra.patel.308@student.shantiniketanpublicschool.in,AUTO,AUTO,Class 11,A,8,ADM2026-0308,2026-04-05,,Sanjay Patel,sanjay.patel.308.parent@gmail.com,9877705308,AUTO,Y,N,129 Park Street,A-
+CURRENT,UPSERT,Navya,Patel,female,2020-03-31,,AUTO,AUTO,Class 11,A,9,ADM2026-0309,2026-04-05,,Deepak Patel,deepak.patel.309.parent@gmail.com,9877705309,AUTO,Y,N,130 Hill Crest,B-
+CURRENT,UPSERT,Avni,Patel,male,2020-04-13,,AUTO,AUTO,Class 11,A,10,ADM2026-0310,2026-04-05,,Ashok Patel,ashok.patel.310.parent@gmail.com,9877705310,AUTO,Y,N,131 MG Road,O-
+CURRENT,UPSERT,Kiara,Patel,female,2020-04-26,,AUTO,AUTO,Class 11,A,11,ADM2026-0311,2026-04-05,,Sunita Patel,sunita.patel.311.parent@gmail.com,9877705311,AUTO,Y,N,132 Civil Lines,AB-
+CURRENT,UPSERT,Riya,Patel,male,2020-05-09,riya.patel.312@student.shantiniketanpublicschool.in,AUTO,AUTO,Class 11,A,12,ADM2026-0312,2026-04-05,,Rekha Patel,rekha.patel.312.parent@gmail.com,9877705312,AUTO,Y,N,133 Model Town,A+
+CURRENT,UPSERT,Tanya,Patel,female,2020-05-22,,AUTO,AUTO,Class 11,A,13,ADM2026-0313,2026-04-05,,Kavita Patel,kavita.patel.313.parent@gmail.com,9877705313,AUTO,Y,N,134 Nehru Nagar,B+
+CURRENT,UPSERT,Ishita,Patel,male,2020-06-04,,AUTO,AUTO,Class 11,A,14,ADM2026-0314,2026-04-05,,Meena Patel,meena.patel.314.parent@gmail.com,9877705314,AUTO,Y,N,135 Shastri Nagar,O+
+CURRENT,UPSERT,Jiya,Patel,female,2020-06-17,,AUTO,AUTO,Class 11,A,15,ADM2026-0315,2026-04-05,,Neeta Patel,neeta.patel.315.parent@gmail.com,9877705315,AUTO,Y,N,136 Green Park,AB+
+CURRENT,UPSERT,Anvi,Patel,male,2020-06-30,anvi.patel.316@student.shantiniketanpublicschool.in,AUTO,AUTO,Class 11,A,16,ADM2026-0316,2026-04-05,,Seema Patel,seema.patel.316.parent@gmail.com,9877705316,AUTO,Y,N,137 Rajendra Colony,A-
+CURRENT,UPSERT,Ira,Patel,female,2020-07-13,,AUTO,AUTO,Class 11,A,17,ADM2026-0317,2026-04-05,,Rita Patel,rita.patel.317.parent@gmail.com,9877705317,AUTO,Y,N,138 Lake View Road,B-
+CURRENT,UPSERT,Pihu,Patel,male,2020-07-26,,AUTO,AUTO,Class 11,A,18,ADM2026-0318,2026-04-05,,Geeta Patel,geeta.patel.318.parent@gmail.com,9877705318,AUTO,Y,N,139 Park Street,O-
+CURRENT,UPSERT,Aanya,Patel,female,2020-08-08,,AUTO,AUTO,Class 11,A,19,ADM2026-0319,2026-04-05,,Anita Patel,anita.patel.319.parent@gmail.com,9877705319,AUTO,Y,N,140 Hill Crest,AB-
+CURRENT,UPSERT,Shanaya,Patel,male,2020-08-21,shanaya.patel.320@student.shantiniketanpublicschool.in,AUTO,AUTO,Class 11,A,20,ADM2026-0320,2026-04-05,,Priya Patel,priya.patel.320.parent@gmail.com,9877705320,AUTO,Y,N,141 MG Road,A+
+CURRENT,UPSERT,Aarav,Mehta,female,2020-09-03,,AUTO,AUTO,Class 11,A,21,ADM2026-0321,2026-04-05,,Rajesh Mehta,rajesh.mehta.321.parent@gmail.com,9877705321,AUTO,Y,N,142 Civil Lines,B+
+CURRENT,UPSERT,Vivaan,Mehta,male,2020-09-16,,AUTO,AUTO,Class 11,A,22,ADM2026-0322,2026-04-05,,Amit Mehta,amit.mehta.322.parent@gmail.com,9877705322,AUTO,Y,N,143 Model Town,O+
+CURRENT,UPSERT,Aditya,Mehta,female,2020-09-29,,AUTO,AUTO,Class 11,A,23,ADM2026-0323,2026-04-05,,Suresh Mehta,suresh.mehta.323.parent@gmail.com,9877705323,AUTO,Y,N,144 Nehru Nagar,AB+
+CURRENT,UPSERT,Vihaan,Mehta,male,2020-10-12,vihaan.mehta.324@student.shantiniketanpublicschool.in,AUTO,AUTO,Class 11,A,24,ADM2026-0324,2026-04-05,,Prakash Mehta,prakash.mehta.324.parent@gmail.com,9877705324,AUTO,Y,N,145 Shastri Nagar,A-
+CURRENT,UPSERT,Arjun,Mehta,female,2020-10-25,,AUTO,AUTO,Class 11,A,25,ADM2026-0325,2026-04-05,,Vijay Mehta,vijay.mehta.325.parent@gmail.com,9877705325,AUTO,Y,N,146 Green Park,B-
+CURRENT,UPSERT,Sai,Mehta,male,2020-11-07,,AUTO,AUTO,Class 11,B,1,ADM2026-0326,2026-04-05,,Manoj Mehta,manoj.mehta.326.parent@gmail.com,9877705326,AUTO,Y,N,147 Rajendra Colony,O-
+CURRENT,UPSERT,Arnav,Mehta,female,2020-11-20,,AUTO,AUTO,Class 11,B,2,ADM2026-0327,2026-04-05,,Anil Mehta,anil.mehta.327.parent@gmail.com,9877705327,AUTO,Y,N,148 Lake View Road,AB-
+CURRENT,UPSERT,Ayaan,Mehta,male,2020-12-03,ayaan.mehta.328@student.shantiniketanpublicschool.in,AUTO,AUTO,Class 11,B,3,ADM2026-0328,2026-04-05,,Sanjay Mehta,sanjay.mehta.328.parent@gmail.com,9877705328,AUTO,Y,N,149 Park Street,A+
+CURRENT,UPSERT,Krishna,Mehta,female,2020-12-16,,AUTO,AUTO,Class 11,B,4,ADM2026-0329,2026-04-05,,Deepak Mehta,deepak.mehta.329.parent@gmail.com,9877705329,AUTO,Y,N,150 Hill Crest,B+
+CURRENT,UPSERT,Ishaan,Mehta,male,2020-12-29,,AUTO,AUTO,Class 11,B,5,ADM2026-0330,2026-04-05,,Ashok Mehta,ashok.mehta.330.parent@gmail.com,9877705330,AUTO,Y,N,151 MG Road,O+
+CURRENT,UPSERT,Shaurya,Mehta,female,2021-01-11,,AUTO,AUTO,Class 11,B,6,ADM2026-0331,2026-04-05,,Sunita Mehta,sunita.mehta.331.parent@gmail.com,9877705331,AUTO,Y,N,152 Civil Lines,AB+
+CURRENT,UPSERT,Atharv,Mehta,male,2021-01-24,atharv.mehta.332@student.shantiniketanpublicschool.in,AUTO,AUTO,Class 11,B,7,ADM2026-0332,2026-04-05,,Rekha Mehta,rekha.mehta.332.parent@gmail.com,9877705332,AUTO,Y,N,153 Model Town,A-
+CURRENT,UPSERT,Pranav,Mehta,female,2021-02-06,,AUTO,AUTO,Class 11,B,8,ADM2026-0333,2026-04-05,,Kavita Mehta,kavita.mehta.333.parent@gmail.com,9877705333,AUTO,Y,N,154 Nehru Nagar,B-
+CURRENT,UPSERT,Kabir,Mehta,male,2021-02-19,,AUTO,AUTO,Class 11,B,9,ADM2026-0334,2026-04-05,,Meena Mehta,meena.mehta.334.parent@gmail.com,9877705334,AUTO,Y,N,155 Shastri Nagar,O-
+CURRENT,UPSERT,Reyansh,Mehta,female,2021-03-04,,AUTO,AUTO,Class 11,B,10,ADM2026-0335,2026-04-05,,Neeta Mehta,neeta.mehta.335.parent@gmail.com,9877705335,AUTO,Y,N,156 Green Park,AB-
+CURRENT,UPSERT,Rohan,Mehta,male,2021-03-17,rohan.mehta.336@student.shantiniketanpublicschool.in,AUTO,AUTO,Class 11,B,11,ADM2026-0336,2026-04-05,,Seema Mehta,seema.mehta.336.parent@gmail.com,9877705336,AUTO,Y,N,157 Rajendra Colony,A+
+CURRENT,UPSERT,Veer,Mehta,female,2021-03-30,,AUTO,AUTO,Class 11,B,12,ADM2026-0337,2026-04-05,,Rita Mehta,rita.mehta.337.parent@gmail.com,9877705337,AUTO,Y,N,158 Lake View Road,B+
+CURRENT,UPSERT,Yash,Mehta,male,2021-04-12,,AUTO,AUTO,Class 11,B,13,ADM2026-0338,2026-04-05,,Geeta Mehta,geeta.mehta.338.parent@gmail.com,9877705338,AUTO,Y,N,159 Park Street,O+
+CURRENT,UPSERT,Aarush,Mehta,female,2021-04-25,,AUTO,AUTO,Class 11,B,14,ADM2026-0339,2026-04-05,,Anita Mehta,anita.mehta.339.parent@gmail.com,9877705339,AUTO,Y,N,160 Hill Crest,AB+
+CURRENT,UPSERT,Dev,Mehta,male,2021-05-08,dev.mehta.340@student.shantiniketanpublicschool.in,AUTO,AUTO,Class 11,B,15,ADM2026-0340,2026-04-05,,Priya Mehta,priya.mehta.340.parent@gmail.com,9877705340,AUTO,Y,N,161 MG Road,A-
+CURRENT,UPSERT,Aadhya,Mehta,female,2021-05-21,,AUTO,AUTO,Class 11,B,16,ADM2026-0341,2026-04-05,,Rajesh Mehta,rajesh.mehta.341.parent@gmail.com,9877705341,AUTO,Y,N,162 Civil Lines,B-
+CURRENT,UPSERT,Ananya,Mehta,male,2021-06-03,,AUTO,AUTO,Class 11,B,17,ADM2026-0342,2026-04-05,,Amit Mehta,amit.mehta.342.parent@gmail.com,9877705342,AUTO,Y,N,163 Model Town,O-
+CURRENT,UPSERT,Diya,Mehta,female,2021-06-16,,AUTO,AUTO,Class 11,B,18,ADM2026-0343,2026-04-05,,Suresh Mehta,suresh.mehta.343.parent@gmail.com,9877705343,AUTO,Y,N,164 Nehru Nagar,AB-
+CURRENT,UPSERT,Pari,Mehta,male,2021-06-29,pari.mehta.344@student.shantiniketanpublicschool.in,AUTO,AUTO,Class 11,B,19,ADM2026-0344,2026-04-05,,Prakash Mehta,prakash.mehta.344.parent@gmail.com,9877705344,AUTO,Y,N,165 Shastri Nagar,A+
+CURRENT,UPSERT,Saanvi,Mehta,female,2021-07-12,,AUTO,AUTO,Class 11,B,20,ADM2026-0345,2026-04-05,,Vijay Mehta,vijay.mehta.345.parent@gmail.com,9877705345,AUTO,Y,N,166 Green Park,B+
+CURRENT,UPSERT,Sara,Mehta,male,2021-07-25,,AUTO,AUTO,Class 11,B,21,ADM2026-0346,2026-04-05,,Manoj Mehta,manoj.mehta.346.parent@gmail.com,9877705346,AUTO,Y,N,167 Rajendra Colony,O+
+CURRENT,UPSERT,Prisha,Mehta,female,2021-08-07,,AUTO,AUTO,Class 11,B,22,ADM2026-0347,2026-04-05,,Anil Mehta,anil.mehta.347.parent@gmail.com,9877705347,AUTO,Y,N,168 Lake View Road,AB+
+CURRENT,UPSERT,Myra,Mehta,male,2021-08-20,myra.mehta.348@student.shantiniketanpublicschool.in,AUTO,AUTO,Class 11,B,23,ADM2026-0348,2026-04-05,,Sanjay Mehta,sanjay.mehta.348.parent@gmail.com,9877705348,AUTO,Y,N,169 Park Street,A-
+CURRENT,UPSERT,Navya,Mehta,female,2021-09-02,,AUTO,AUTO,Class 11,B,24,ADM2026-0349,2026-04-05,,Deepak Mehta,deepak.mehta.349.parent@gmail.com,9877705349,AUTO,Y,N,170 Hill Crest,B-
+CURRENT,UPSERT,Avni,Mehta,male,2021-09-15,,AUTO,AUTO,Class 11,B,25,ADM2026-0350,2026-04-05,,Ashok Mehta,ashok.mehta.350.parent@gmail.com,9877705350,AUTO,Y,N,171 MG Road,O-
+CURRENT,UPSERT,Kiara,Mehta,female,2021-09-28,,AUTO,AUTO,Class 12,A,1,ADM2026-0351,2026-04-05,,Sunita Mehta,sunita.mehta.351.parent@gmail.com,9877705351,AUTO,Y,N,172 Civil Lines,AB-
+CURRENT,UPSERT,Riya,Mehta,male,2021-10-11,riya.mehta.352@student.shantiniketanpublicschool.in,AUTO,AUTO,Class 12,A,2,ADM2026-0352,2026-04-05,,Rekha Mehta,rekha.mehta.352.parent@gmail.com,9877705352,AUTO,Y,N,173 Model Town,A+
+CURRENT,UPSERT,Tanya,Mehta,female,2021-10-24,,AUTO,AUTO,Class 12,A,3,ADM2026-0353,2026-04-05,,Kavita Mehta,kavita.mehta.353.parent@gmail.com,9877705353,AUTO,Y,N,174 Nehru Nagar,B+
+CURRENT,UPSERT,Ishita,Mehta,male,2021-11-06,,AUTO,AUTO,Class 12,A,4,ADM2026-0354,2026-04-05,,Meena Mehta,meena.mehta.354.parent@gmail.com,9877705354,AUTO,Y,N,175 Shastri Nagar,O+
+CURRENT,UPSERT,Jiya,Mehta,female,2021-11-19,,AUTO,AUTO,Class 12,A,5,ADM2026-0355,2026-04-05,,Neeta Mehta,neeta.mehta.355.parent@gmail.com,9877705355,AUTO,Y,N,176 Green Park,AB+
+CURRENT,UPSERT,Anvi,Mehta,male,2021-12-02,anvi.mehta.356@student.shantiniketanpublicschool.in,AUTO,AUTO,Class 12,A,6,ADM2026-0356,2026-04-05,,Seema Mehta,seema.mehta.356.parent@gmail.com,9877705356,AUTO,Y,N,177 Rajendra Colony,A-
+CURRENT,UPSERT,Ira,Mehta,female,2021-12-15,,AUTO,AUTO,Class 12,A,7,ADM2026-0357,2026-04-05,,Rita Mehta,rita.mehta.357.parent@gmail.com,9877705357,AUTO,Y,N,178 Lake View Road,B-
+CURRENT,UPSERT,Pihu,Mehta,male,2021-12-28,,AUTO,AUTO,Class 12,A,8,ADM2026-0358,2026-04-05,,Geeta Mehta,geeta.mehta.358.parent@gmail.com,9877705358,AUTO,Y,N,179 Park Street,O-
+CURRENT,UPSERT,Aanya,Mehta,female,2022-01-10,,AUTO,AUTO,Class 12,A,9,ADM2026-0359,2026-04-05,,Anita Mehta,anita.mehta.359.parent@gmail.com,9877705359,AUTO,Y,N,180 Hill Crest,AB-
+CURRENT,UPSERT,Shanaya,Mehta,male,2022-01-23,shanaya.mehta.360@student.shantiniketanpublicschool.in,AUTO,AUTO,Class 12,A,10,ADM2026-0360,2026-04-05,,Priya Mehta,priya.mehta.360.parent@gmail.com,9877705360,AUTO,Y,N,1 MG Road,A+
+CURRENT,UPSERT,Aarav,Joshi,female,2022-02-05,,AUTO,AUTO,Class 12,A,11,ADM2026-0361,2026-04-05,,Rajesh Joshi,rajesh.joshi.361.parent@gmail.com,9877705361,AUTO,Y,N,2 Civil Lines,B+
+CURRENT,UPSERT,Vivaan,Joshi,male,2022-02-18,,AUTO,AUTO,Class 12,A,12,ADM2026-0362,2026-04-05,,Amit Joshi,amit.joshi.362.parent@gmail.com,9877705362,AUTO,Y,N,3 Model Town,O+
+CURRENT,UPSERT,Aditya,Joshi,female,2022-03-03,,AUTO,AUTO,Class 12,A,13,ADM2026-0363,2026-04-05,,Suresh Joshi,suresh.joshi.363.parent@gmail.com,9877705363,AUTO,Y,N,4 Nehru Nagar,AB+
+CURRENT,UPSERT,Vihaan,Joshi,male,2022-03-16,vihaan.joshi.364@student.shantiniketanpublicschool.in,AUTO,AUTO,Class 12,A,14,ADM2026-0364,2026-04-05,,Prakash Joshi,prakash.joshi.364.parent@gmail.com,9877705364,AUTO,Y,N,5 Shastri Nagar,A-
+CURRENT,UPSERT,Arjun,Joshi,female,2022-03-29,,AUTO,AUTO,Class 12,A,15,ADM2026-0365,2026-04-05,,Vijay Joshi,vijay.joshi.365.parent@gmail.com,9877705365,AUTO,Y,N,6 Green Park,B-
+CURRENT,UPSERT,Sai,Joshi,male,2022-04-11,,AUTO,AUTO,Class 12,A,16,ADM2026-0366,2026-04-05,,Manoj Joshi,manoj.joshi.366.parent@gmail.com,9877705366,AUTO,Y,N,7 Rajendra Colony,O-
+CURRENT,UPSERT,Arnav,Joshi,female,2022-04-24,,AUTO,AUTO,Class 12,A,17,ADM2026-0367,2026-04-05,,Anil Joshi,anil.joshi.367.parent@gmail.com,9877705367,AUTO,Y,N,8 Lake View Road,AB-
+CURRENT,UPSERT,Ayaan,Joshi,male,2022-05-07,ayaan.joshi.368@student.shantiniketanpublicschool.in,AUTO,AUTO,Class 12,A,18,ADM2026-0368,2026-04-05,,Sanjay Joshi,sanjay.joshi.368.parent@gmail.com,9877705368,AUTO,Y,N,9 Park Street,A+
+CURRENT,UPSERT,Krishna,Joshi,female,2022-05-20,,AUTO,AUTO,Class 12,A,19,ADM2026-0369,2026-04-05,,Deepak Joshi,deepak.joshi.369.parent@gmail.com,9877705369,AUTO,Y,N,10 Hill Crest,B+
+CURRENT,UPSERT,Ishaan,Joshi,male,2022-06-02,,AUTO,AUTO,Class 12,A,20,ADM2026-0370,2026-04-05,,Ashok Joshi,ashok.joshi.370.parent@gmail.com,9877705370,AUTO,Y,N,11 MG Road,O+
+CURRENT,UPSERT,Shaurya,Joshi,female,2022-06-15,,AUTO,AUTO,Class 12,A,21,ADM2026-0371,2026-04-05,,Sunita Joshi,sunita.joshi.371.parent@gmail.com,9877705371,AUTO,Y,N,12 Civil Lines,AB+
+CURRENT,UPSERT,Atharv,Joshi,male,2022-06-28,atharv.joshi.372@student.shantiniketanpublicschool.in,AUTO,AUTO,Class 12,A,22,ADM2026-0372,2026-04-05,,Rekha Joshi,rekha.joshi.372.parent@gmail.com,9877705372,AUTO,Y,N,13 Model Town,A-
+CURRENT,UPSERT,Pranav,Joshi,female,2022-07-11,,AUTO,AUTO,Class 12,A,23,ADM2026-0373,2026-04-05,,Kavita Joshi,kavita.joshi.373.parent@gmail.com,9877705373,AUTO,Y,N,14 Nehru Nagar,B-
+CURRENT,UPSERT,Kabir,Joshi,male,2022-07-24,,AUTO,AUTO,Class 12,A,24,ADM2026-0374,2026-04-05,,Meena Joshi,meena.joshi.374.parent@gmail.com,9877705374,AUTO,Y,N,15 Shastri Nagar,O-
+CURRENT,UPSERT,Reyansh,Joshi,female,2022-08-06,,AUTO,AUTO,Class 12,A,25,ADM2026-0375,2026-04-05,,Neeta Joshi,neeta.joshi.375.parent@gmail.com,9877705375,AUTO,Y,N,16 Green Park,AB-
+CURRENT,UPSERT,Rohan,Joshi,male,2022-08-19,rohan.joshi.376@student.shantiniketanpublicschool.in,AUTO,AUTO,Class 12,B,1,ADM2026-0376,2026-04-05,,Seema Joshi,seema.joshi.376.parent@gmail.com,9877705376,AUTO,Y,N,17 Rajendra Colony,A+
+CURRENT,UPSERT,Veer,Joshi,female,2022-09-01,,AUTO,AUTO,Class 12,B,2,ADM2026-0377,2026-04-05,,Rita Joshi,rita.joshi.377.parent@gmail.com,9877705377,AUTO,Y,N,18 Lake View Road,B+
+CURRENT,UPSERT,Yash,Joshi,male,2022-09-14,,AUTO,AUTO,Class 12,B,3,ADM2026-0378,2026-04-05,,Geeta Joshi,geeta.joshi.378.parent@gmail.com,9877705378,AUTO,Y,N,19 Park Street,O+
+CURRENT,UPSERT,Aarush,Joshi,female,2022-09-27,,AUTO,AUTO,Class 12,B,4,ADM2026-0379,2026-04-05,,Anita Joshi,anita.joshi.379.parent@gmail.com,9877705379,AUTO,Y,N,20 Hill Crest,AB+
+CURRENT,UPSERT,Dev,Joshi,male,2022-10-10,dev.joshi.380@student.shantiniketanpublicschool.in,AUTO,AUTO,Class 12,B,5,ADM2026-0380,2026-04-05,,Priya Joshi,priya.joshi.380.parent@gmail.com,9877705380,AUTO,Y,N,21 MG Road,A-
+CURRENT,UPSERT,Aadhya,Joshi,female,2022-10-23,,AUTO,AUTO,Class 12,B,6,ADM2026-0381,2026-04-05,,Rajesh Joshi,rajesh.joshi.381.parent@gmail.com,9877705381,AUTO,Y,N,22 Civil Lines,B-
+CURRENT,UPSERT,Ananya,Joshi,male,2022-11-05,,AUTO,AUTO,Class 12,B,7,ADM2026-0382,2026-04-05,,Amit Joshi,amit.joshi.382.parent@gmail.com,9877705382,AUTO,Y,N,23 Model Town,O-
+CURRENT,UPSERT,Diya,Joshi,female,2022-11-18,,AUTO,AUTO,Class 12,B,8,ADM2026-0383,2026-04-05,,Suresh Joshi,suresh.joshi.383.parent@gmail.com,9877705383,AUTO,Y,N,24 Nehru Nagar,AB-
+CURRENT,UPSERT,Pari,Joshi,male,2022-12-01,pari.joshi.384@student.shantiniketanpublicschool.in,AUTO,AUTO,Class 12,B,9,ADM2026-0384,2026-04-05,,Prakash Joshi,prakash.joshi.384.parent@gmail.com,9877705384,AUTO,Y,N,25 Shastri Nagar,A+
+CURRENT,UPSERT,Saanvi,Joshi,female,2022-12-14,,AUTO,AUTO,Class 12,B,10,ADM2026-0385,2026-04-05,,Vijay Joshi,vijay.joshi.385.parent@gmail.com,9877705385,AUTO,Y,N,26 Green Park,B+
+CURRENT,UPSERT,Sara,Joshi,male,2022-12-27,,AUTO,AUTO,Class 12,B,11,ADM2026-0386,2026-04-05,,Manoj Joshi,manoj.joshi.386.parent@gmail.com,9877705386,AUTO,Y,N,27 Rajendra Colony,O+
+CURRENT,UPSERT,Prisha,Joshi,female,2023-01-09,,AUTO,AUTO,Class 12,B,12,ADM2026-0387,2026-04-05,,Anil Joshi,anil.joshi.387.parent@gmail.com,9877705387,AUTO,Y,N,28 Lake View Road,AB+
+CURRENT,UPSERT,Myra,Joshi,male,2023-01-22,myra.joshi.388@student.shantiniketanpublicschool.in,AUTO,AUTO,Class 12,B,13,ADM2026-0388,2026-04-05,,Sanjay Joshi,sanjay.joshi.388.parent@gmail.com,9877705388,AUTO,Y,N,29 Park Street,A-
+CURRENT,UPSERT,Navya,Joshi,female,2023-02-04,,AUTO,AUTO,Class 12,B,14,ADM2026-0389,2026-04-05,,Deepak Joshi,deepak.joshi.389.parent@gmail.com,9877705389,AUTO,Y,N,30 Hill Crest,B-
+CURRENT,UPSERT,Avni,Joshi,male,2023-02-17,,AUTO,AUTO,Class 12,B,15,ADM2026-0390,2026-04-05,,Ashok Joshi,ashok.joshi.390.parent@gmail.com,9877705390,AUTO,Y,N,31 MG Road,O-
+CURRENT,UPSERT,Kiara,Joshi,female,2023-03-02,,AUTO,AUTO,Class 12,B,16,ADM2026-0391,2026-04-05,,Sunita Joshi,sunita.joshi.391.parent@gmail.com,9877705391,AUTO,Y,N,32 Civil Lines,AB-
+CURRENT,UPSERT,Riya,Joshi,male,2023-03-15,riya.joshi.392@student.shantiniketanpublicschool.in,AUTO,AUTO,Class 12,B,17,ADM2026-0392,2026-04-05,,Rekha Joshi,rekha.joshi.392.parent@gmail.com,9877705392,AUTO,Y,N,33 Model Town,A+
+CURRENT,UPSERT,Tanya,Joshi,female,2023-03-28,,AUTO,AUTO,Class 12,B,18,ADM2026-0393,2026-04-05,,Kavita Joshi,kavita.joshi.393.parent@gmail.com,9877705393,AUTO,Y,N,34 Nehru Nagar,B+
+CURRENT,UPSERT,Ishita,Joshi,male,2023-04-10,,AUTO,AUTO,Class 12,B,19,ADM2026-0394,2026-04-05,,Meena Joshi,meena.joshi.394.parent@gmail.com,9877705394,AUTO,Y,N,35 Shastri Nagar,O+
+CURRENT,UPSERT,Jiya,Joshi,female,2023-04-23,,AUTO,AUTO,Class 12,B,20,ADM2026-0395,2026-04-05,,Neeta Joshi,neeta.joshi.395.parent@gmail.com,9877705395,AUTO,Y,N,36 Green Park,AB+
+CURRENT,UPSERT,Anvi,Joshi,male,2023-05-06,anvi.joshi.396@student.shantiniketanpublicschool.in,AUTO,AUTO,Class 12,B,21,ADM2026-0396,2026-04-05,,Seema Joshi,seema.joshi.396.parent@gmail.com,9877705396,AUTO,Y,N,37 Rajendra Colony,A-
+CURRENT,UPSERT,Ira,Joshi,female,2023-05-19,,AUTO,AUTO,Class 12,B,22,ADM2026-0397,2026-04-05,,Rita Joshi,rita.joshi.397.parent@gmail.com,9877705397,AUTO,Y,N,38 Lake View Road,B-
+CURRENT,UPSERT,Pihu,Joshi,male,2023-06-01,,AUTO,AUTO,Class 12,B,23,ADM2026-0398,2026-04-05,,Geeta Joshi,geeta.joshi.398.parent@gmail.com,9877705398,AUTO,Y,N,39 Park Street,O-
+CURRENT,UPSERT,Aanya,Joshi,female,2023-06-14,,AUTO,AUTO,Class 12,B,24,ADM2026-0399,2026-04-05,,Anita Joshi,anita.joshi.399.parent@gmail.com,9877705399,AUTO,Y,N,40 Hill Crest,AB-
+CURRENT,UPSERT,Shanaya,Joshi,male,2023-06-27,shanaya.joshi.400@student.shantiniketanpublicschool.in,AUTO,AUTO,Class 12,B,25,ADM2026-0400,2026-04-05,,Priya Joshi,priya.joshi.400.parent@gmail.com,9877705400,AUTO,Y,N,41 MG Road,A+

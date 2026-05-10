@@ -1,0 +1,9 @@
+name (R),class_id (O),class_name (R),academic_year_id (R),component_spec (R),import_mode (O)
+Class 5 Annual Fee,,Class 5,CURRENT,Tuition:18500:TUITION|Lab:2200:LAB|Sports:1600:SPORTS|Annual:1100:MISC,UPSERT
+Class 6 Annual Fee,,Class 6,CURRENT,Tuition:20700:TUITION|Lab:2550:LAB|Sports:1720:SPORTS|Annual:1200:MISC,UPSERT
+Class 7 Annual Fee,,Class 7,CURRENT,Tuition:22900:TUITION|Lab:2900:LAB|Sports:1840:SPORTS|Annual:1300:MISC,UPSERT
+Class 8 Annual Fee,,Class 8,CURRENT,Tuition:25100:TUITION|Lab:3250:LAB|Sports:1960:SPORTS|Annual:1400:MISC,UPSERT
+Class 9 Annual Fee,,Class 9,CURRENT,Tuition:27300:TUITION|Lab:3600:LAB|Sports:2080:SPORTS|Annual:1500:MISC,UPSERT
+Class 10 Annual Fee,,Class 10,CURRENT,Tuition:29500:TUITION|Lab:3950:LAB|Sports:2200:SPORTS|Annual:1600:MISC,UPSERT
+Class 11 Annual Fee,,Class 11,CURRENT,Tuition:31700:TUITION|Lab:4300:LAB|Sports:2320:SPORTS|Annual:1700:MISC,UPSERT
+Class 12 Annual Fee,,Class 12,CURRENT,Tuition:33900:TUITION|Lab:4650:LAB|Sports:2440:SPORTS|Annual:1800:MISC,UPSERT

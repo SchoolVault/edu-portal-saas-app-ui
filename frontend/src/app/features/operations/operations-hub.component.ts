@@ -7,9 +7,13 @@ import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { OperationsService } from '../../core/services/operations.service';
 import { AcademicService } from '../../core/services/academic.service';
 import { TeacherService } from '../../core/services/teacher.service';
+import { TimetableService } from '../../core/services/timetable.service';
 import { FeeService } from '../../core/services/fee.service';
 import { FeePayment, SchoolClass, Teacher } from '../../core/models/models';
 import {
+  AttendanceCoverAuditRow,
+  AttendanceCoverConflictPayload,
+  AttendanceCoverRow,
   FeeReminderRow,
   GatePassRow,
   InventoryRow,
@@ -21,11 +25,17 @@ import {
 import { ErpPaginationComponent } from '../../shared/erp-pagination/erp-pagination.component';
 import { ConfirmDialogService } from '../../shared/confirm-dialog/confirm-dialog.service';
 import { filter } from 'rxjs/operators';
+import { SchedulingConflictError } from '../../core/errors/scheduling-conflict.error';
 import { sliceToPage } from '../../core/utils/paginate';
 import { DEFAULT_ERP_PAGE_SIZE } from '../../core/constants/pagination.constants';
 import { ErpI18nPhDirective, ErpI18nTextDirective } from '../../shared/erp-i18n/erp-i18n-host.directives';
 import { runtimeConfig } from '../../core/config/runtime-config';
 import { SettingsService } from '../../core/services/settings.service';
+import { AuthService } from '../../core/services/auth.service';
+import { formatSchoolClassDisplayName } from '../../core/i18n/school-class-display';
+import { isValidIndiaMobileTen } from '../../core/validation/phone.validation';
+import { formatDateDdMmYyyy } from '../../core/utils/date-format';
+import { UiAccessService } from '../../core/services/ui-access.service';
 
 @Component({
   selector: 'app-operations-hub',
@@ -52,12 +62,18 @@ import { SettingsService } from '../../core/services/settings.service';
         <h4 class="erp-card-title mb-3">{{ 'operations.staff.title' | translate }}</h4>
         <p class="text-muted small mb-2">{{ 'operations.staff.hint' | translate }}</p>
         <div *ngIf="staffTabError" class="alert alert-danger py-2 px-3 small mb-2" style="border-radius: var(--radius-md);">{{ staffTabError }}</div>
-        <div class="row g-2 mb-3">
+        <div class="row g-2 mb-2">
           <div class="col-md-3"><select class="erp-select" [(ngModel)]="staffForm.staffRole"><option *ngFor="let r of staffRoles" [value]="r">{{ staffRoleLabel(r) }}</option></select></div>
           <div class="col-md-3"><input class="erp-input" [(ngModel)]="staffForm.fullName" erpI18nPh="operations.staff.phFullName" /></div>
-          <div class="col-md-2"><input class="erp-input" [(ngModel)]="staffForm.phone" erpI18nPh="operations.staff.phPhone" /></div>
+          <div class="col-md-2"><input class="erp-input" [(ngModel)]="staffForm.phone" erpI18nPh="operations.staff.phPhone" inputmode="numeric" maxlength="10" pattern="[0-9]{10}" /></div>
           <div class="col-md-2"><input class="erp-input" [(ngModel)]="staffForm.employeeCode" erpI18nPh="operations.staff.phCode" /></div>
-          <div class="col-md-2"><button type="button" class="btn-primary-erp w-100" (click)="addStaff()">{{ 'operations.staff.add' | translate }}</button></div>
+          <div class="col-md-2"><button type="button" class="btn-primary-erp w-100" [disabled]="!canManageOperationsLifecycle" (click)="addStaff()">{{ 'operations.staff.add' | translate }}</button></div>
+          <div class="col-12">
+            <label class="d-inline-flex align-items-center gap-2 small text-muted mb-0">
+              <input type="checkbox" [(ngModel)]="staffForm.createPortal" />
+              <span [erpI18nText]="'operations.staff.createPortalCheckbox'"></span>
+            </label>
+          </div>
         </div>
         <table class="erp-table mb-0">
           <thead><tr><th>{{ 'operations.staff.thRole' | translate }}</th><th>{{ 'operations.staff.thName' | translate }}</th><th>{{ 'operations.staff.thPhone' | translate }}</th><th>{{ 'operations.staff.thCode' | translate }}</th><th></th></tr></thead>
@@ -68,7 +84,7 @@ import { SettingsService } from '../../core/services/settings.service';
               <td>{{ s.phone }}</td>
               <td>{{ s.employeeCode }}</td>
               <td>
-                <button type="button" class="btn-outline-erp btn-xs" (click)="removeStaff(s)">{{ 'operations.staff.remove' | translate }}</button>
+                <button type="button" class="btn-outline-erp btn-xs" [disabled]="!canManageOperationsLifecycle" (click)="removeStaff(s)">{{ 'operations.staff.remove' | translate }}</button>
               </td>
             </tr>
           </tbody>
@@ -86,9 +102,10 @@ import { SettingsService } from '../../core/services/settings.service';
 
       <div class="erp-card mb-4" *ngIf="tab === 'visitors'">
         <h4 class="erp-card-title mb-3">{{ 'operations.visitors.title' | translate }}</h4>
+        <div *ngIf="visitorsTabError" class="alert alert-danger py-2 px-3 small mb-2" style="border-radius: var(--radius-md);">{{ visitorsTabError }}</div>
         <div class="row g-2 mb-3">
           <div class="col-md-3"><input class="erp-input" [(ngModel)]="visitorForm.visitorName" erpI18nPh="operations.visitors.phVisitorName" /></div>
-          <div class="col-md-2"><input class="erp-input" [(ngModel)]="visitorForm.phone" erpI18nPh="operations.visitors.phPhone" /></div>
+          <div class="col-md-2"><input class="erp-input" [(ngModel)]="visitorForm.phone" erpI18nPh="operations.visitors.phPhone" inputmode="numeric" maxlength="10" pattern="[0-9]{10}" /></div>
           <div class="col-md-3"><input class="erp-input" [(ngModel)]="visitorForm.hostName" erpI18nPh="operations.visitors.phHost" /></div>
           <div class="col-md-3"><input class="erp-input" [(ngModel)]="visitorForm.purpose" erpI18nPh="operations.visitors.phPurpose" /></div>
           <div class="col-md-1"><button class="btn-primary-erp w-100" (click)="checkIn()">{{ 'operations.visitors.checkIn' | translate }}</button></div>
@@ -115,6 +132,7 @@ import { SettingsService } from '../../core/services/settings.service';
 
       <div class="erp-card mb-4" *ngIf="tab === 'gate'">
         <h4 class="erp-card-title mb-3">{{ 'operations.gate.title' | translate }}</h4>
+        <div *ngIf="gateTabError" class="alert alert-danger py-2 px-3 small mb-2" style="border-radius: var(--radius-md);">{{ gateTabError }}</div>
         <div class="row g-2 mb-3">
           <div class="col-md-3"><input class="erp-input" [(ngModel)]="gateForm.issuedToName" erpI18nPh="operations.gate.phIssuedTo" /></div>
           <div class="col-md-2"><input type="date" class="erp-input" [(ngModel)]="gateForm.validFrom" /></div>
@@ -206,17 +224,157 @@ import { SettingsService } from '../../core/services/settings.service';
         />
       </div>
 
+      <div class="erp-card mb-4" *ngIf="tab === 'covers'">
+        <h4 class="erp-card-title mb-3">{{ 'operations.covers.title' | translate }}</h4>
+        <p class="text-muted small mb-3">{{ 'operations.covers.opsLead' | translate }}</p>
+        <div *ngIf="coversTabError" class="alert alert-danger py-2 px-3 small mb-3" style="border-radius: var(--radius-md);">{{ coversTabError }}</div>
+        <div class="row g-2 mb-3 align-items-end">
+          <div class="col-md-2">
+            <label class="erp-label">{{ 'operations.covers.labelDate' | translate }}</label>
+            <input type="date" class="erp-input" [(ngModel)]="coverDate" (change)="onCoverDateChange()" [attr.min]="todayIso" />
+          </div>
+          <div class="col-md-2">
+            <label class="erp-label">{{ 'operations.covers.labelClass' | translate }}</label>
+            <select class="erp-select" [(ngModel)]="coverForm.classId" (change)="onCoverClassChanged()">
+              <option [ngValue]="null">{{ 'operations.covers.select' | translate }}</option>
+              <option *ngFor="let c of classes" [ngValue]="c.id">{{ c.name }}</option>
+            </select>
+          </div>
+          <div class="col-md-2">
+            <label class="erp-label">{{ 'operations.covers.labelSection' | translate }}</label>
+            <select
+              class="erp-select"
+              [(ngModel)]="coverForm.sectionId"
+              [compareWith]="compareCoverSectionIds"
+              (ngModelChange)="refreshCoverRegularTeacher()"
+            >
+              <option *ngIf="coverSections.length > 0" [ngValue]="null">{{ 'operations.covers.select' | translate }}</option>
+              <option *ngIf="coverSections.length === 0" [ngValue]="null">{{ 'timetable.sectionWholeClass' | translate }}</option>
+              <option *ngFor="let s of coverSections" [ngValue]="s.id">{{ s.name }}</option>
+            </select>
+          </div>
+          <div class="col-md-2">
+            <label class="erp-label">{{ 'operations.covers.labelPeriod' | translate }}</label>
+            <select class="erp-select" [(ngModel)]="coverForm.periodNumber" (ngModelChange)="refreshCoverRegularTeacher()">
+              <option [ngValue]="null">{{ 'operations.covers.select' | translate }}</option>
+              <option *ngFor="let p of coverPeriodOptions" [ngValue]="p">{{ p }}</option>
+            </select>
+          </div>
+          <div class="col-md-2">
+            <label class="erp-label">{{ 'operations.covers.labelRegularTeacher' | translate }}</label>
+            <input class="erp-input" [value]="coverSlotRegularTeacherName" readonly />
+          </div>
+          <div class="col-md-2">
+            <label class="erp-label">{{ 'operations.covers.labelSubstituteTeacher' | translate }}</label>
+            <select class="erp-select" [(ngModel)]="coverForm.coveringTeacherId">
+              <option [ngValue]="null">{{ 'operations.covers.select' | translate }}</option>
+              <option *ngFor="let te of coverTeachersForDropdown" [ngValue]="te.id">{{ te.firstName }} {{ te.lastName }}</option>
+            </select>
+          </div>
+        </div>
+        <div class="row g-2 mb-3 align-items-end">
+          <div class="col-md-8">
+            <label class="erp-label">{{ 'operations.covers.labelReason' | translate }}</label>
+            <input type="text" class="erp-input" [(ngModel)]="coverForm.reason" erpI18nPh="operations.covers.phReason" />
+          </div>
+          <div class="col-md-4 d-flex gap-2">
+            <button type="button" class="btn-primary-erp w-100" (click)="submitCover()">{{ 'operations.covers.addCover' | translate }}</button>
+            <button type="button" class="btn-outline-erp w-100" (click)="loadCoversPage()">{{ 'operations.covers.refreshList' | translate }}</button>
+          </div>
+        </div>
+        <div class="erp-table-scroll mb-3">
+          <table class="erp-table mb-0">
+            <thead>
+              <tr>
+                <th>{{ 'operations.covers.thDate' | translate }}</th>
+                <th>{{ 'operations.covers.thClass' | translate }}</th>
+                <th>{{ 'operations.covers.thSection' | translate }}</th>
+                <th>{{ 'operations.covers.thPeriod' | translate }}</th>
+                <th>{{ 'operations.covers.labelRegularTeacher' | translate }}</th>
+                <th>{{ 'operations.covers.thCovering' | translate }}</th>
+                <th>{{ 'operations.covers.thStatus' | translate }}</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let c of coversAdmin">
+                <td>{{ formatCoverTableDate(c.coverDate) }}</td>
+                <td>{{ coverRowClassDisplay(c) }}</td>
+                <td>{{ coverRowSectionDisplay(c) }}</td>
+                <td>{{ c.periodNumber ?? ('transport.dash' | translate) }}</td>
+                <td>{{ coverRowRegularTeacherDisplay(c) }}</td>
+                <td>{{ coverRowTeacherDisplay(c) }}</td>
+                <td>{{ c.status }}</td>
+                <td>
+                  <button *ngIf="c.status === 'ACTIVE'" type="button" class="btn-outline-erp btn-xs" (click)="cancelCoverAdmin(c)">
+                    {{ 'operations.covers.cancel' | translate }}
+                  </button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <app-erp-pagination
+          *ngIf="coversTotal > coversPageSize"
+          class="d-block mb-3"
+          [totalElements]="coversTotal"
+          [pageIndex]="coversPageIndex"
+          [pageSize]="coversPageSize"
+          (pageIndexChange)="onCoversPageIndex($event)"
+          (pageSizeChange)="onCoversPageSize($event)"
+        />
+        <h5 class="erp-card-title mb-2" style="font-size: 14px;">{{ 'operations.covers.auditTitle' | translate }}</h5>
+        <div class="erp-table-scroll">
+          <table class="erp-table mb-0">
+            <thead>
+              <tr>
+                <th>{{ 'operations.covers.auditThWhen' | translate }}</th>
+                <th>{{ 'operations.covers.auditThAction' | translate }}</th>
+                <th>{{ 'operations.covers.auditThActor' | translate }}</th>
+                <th>{{ 'operations.covers.thClass' | translate }}</th>
+                <th>{{ 'operations.covers.thSection' | translate }}</th>
+                <th>{{ 'operations.covers.thPeriod' | translate }}</th>
+                <th>{{ 'operations.covers.thCovering' | translate }}</th>
+                <th>{{ 'operations.covers.auditThChange' | translate }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let a of coverAuditRows">
+                <td>{{ a.at | date:'short' }}</td>
+                <td>{{ coverAuditActionLabel(a.action) }}</td>
+                <td>{{ a.actorName || ('transport.dash' | translate) }}</td>
+                <td>{{ auditClassDisplay(a) }}</td>
+                <td>{{ auditSectionDisplay(a) }}</td>
+                <td>{{ a.periodNumber ?? ('transport.dash' | translate) }}</td>
+                <td>{{ auditTeacherDisplay(a) }}</td>
+                <td>{{ auditChangeSummary(a) }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <app-erp-pagination
+          *ngIf="coverAuditTotal > coverAuditPageSize"
+          class="d-block mt-2"
+          [totalElements]="coverAuditTotal"
+          [pageIndex]="coverAuditPageIndex"
+          [pageSize]="coverAuditPageSize"
+          (pageIndexChange)="onCoverAuditPageIndex($event)"
+          (pageSizeChange)="onCoverAuditPageSize($event)"
+        />
+      </div>
+
       <div class="erp-card mb-4" *ngIf="tab === 'reminders'">
-        <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
+        <div class="erp-filter-toolbar mb-3">
           <div>
             <h4 class="erp-card-title mb-1">{{ 'operations.reminders.title' | translate }}</h4>
             <p class="text-muted small mb-0" style="max-width: 640px;">{{ 'operations.reminders.lead' | translate }}</p>
           </div>
-          <button type="button" class="btn-outline-erp btn-sm" (click)="reloadReminders()"><i class="bi bi-arrow-clockwise"></i> {{ 'operations.reminders.refresh' | translate }}</button>
+          <button type="button" class="btn-outline-erp btn-sm erp-filter-toolbar__action" (click)="reloadReminders()"><i class="bi bi-arrow-clockwise"></i> {{ 'operations.reminders.refresh' | translate }}</button>
         </div>
+        <div *ngIf="remindersTabError" class="alert alert-danger py-2 px-3 small mb-2" style="border-radius: var(--radius-md);">{{ remindersTabError }}</div>
         <h5 class="erp-card-title mb-2" style="font-size: 14px;">{{ 'operations.reminders.outstandingTitle' | translate }}</h5>
-        <div class="row g-2 align-items-end mb-2" *ngIf="pendingFees.length">
-          <div class="col-md-6">
+        <div class="erp-filter-toolbar mb-2" *ngIf="pendingFees.length">
+          <div class="erp-filter-toolbar__search">
             <label class="erp-label small mb-1" erpI18nText="operations.reminders.searchOutstanding"></label>
             <input type="search" class="erp-input" erpI18nPh="operations.reminders.searchOutstandingPh" [(ngModel)]="pendingFeesSearch" (ngModelChange)="onPendingFeesSearchChange()" />
           </div>
@@ -259,8 +417,8 @@ import { SettingsService } from '../../core/services/settings.service';
         />
         <p *ngIf="!pendingFees.length" class="text-muted small mb-4">{{ 'operations.reminders.emptyPending' | translate }}</p>
         <h5 class="erp-card-title mb-2" style="font-size: 14px;">{{ 'operations.reminders.queueTitle' | translate }}</h5>
-        <div class="row g-2 align-items-end mb-2" *ngIf="reminders.length && remindersQueueClientFilter">
-          <div class="col-md-6">
+        <div class="erp-filter-toolbar mb-2" *ngIf="reminders.length && remindersQueueClientFilter">
+          <div class="erp-filter-toolbar__search">
             <label class="erp-label small mb-1" erpI18nText="operations.reminders.searchQueue"></label>
             <input type="search" class="erp-input" erpI18nPh="operations.reminders.searchQueuePh" [(ngModel)]="remindersSearch" (ngModelChange)="onRemindersSearchChange()" />
           </div>
@@ -348,9 +506,27 @@ export class OperationsHubComponent implements OnInit {
   pagedReminders: FeeReminderRow[] = [];
   remindersFilteredTotal = 0;
   payroll: PayrollAccrualSummary | null = null;
+  coverDate = new Date().toISOString().split('T')[0];
+  coverForm = {
+    classId: null as number | null,
+    sectionId: null as number | null,
+    coveringTeacherId: null as number | null,
+    reason: '',
+    periodNumber: null as number | null,
+  };
+  coversAdmin: AttendanceCoverRow[] = [];
+  coversTotal = 0;
+  coversPageIndex = 0;
+  coversPageSize = DEFAULT_ERP_PAGE_SIZE;
+  coverAuditRows: AttendanceCoverAuditRow[] = [];
+  coverAuditTotal = 0;
+  coverAuditPageIndex = 0;
+  coverAuditPageSize = DEFAULT_ERP_PAGE_SIZE;
+  coverSlotRegularTeacherId: number | null = null;
+  coverPeriodOptions: number[] = [];
 
   staffRoles = ['DRIVER', 'SECURITY', 'OFFICE', 'NURSE', 'MAINTENANCE', 'LAB_ASSISTANT', 'OTHER'];
-  staffForm = { staffRole: 'DRIVER', fullName: '', phone: '', employeeCode: '' };
+  staffForm = { staffRole: 'DRIVER', fullName: '', phone: '', employeeCode: '', createPortal: true as boolean };
   visitorForm = { visitorName: '', phone: '', hostName: '', purpose: '' };
   gateForm = {
     issuedToName: '',
@@ -361,18 +537,68 @@ export class OperationsHubComponent implements OnInit {
   invForm = { sku: '', name: '', category: '', quantityOnHand: 0, reorderLevel: 0, location: '' };
   invEditingId: string | null = null;
   staffTabError = '';
+  visitorsTabError = '';
+  gateTabError = '';
+  remindersTabError = '';
   inventoryTabError = '';
+  coversTabError = '';
   private readonly destroyRef = inject(DestroyRef);
+  canManageOperationsLifecycle = false;
+  get coverSections(): { id: number; name: string }[] {
+    const cls = this.classes.find(c => c.id === this.coverForm.classId);
+    return cls?.sections?.map(s => ({ id: s.id, name: s.name })) ?? [];
+  }
+
+  get coverTeachersForDropdown(): Teacher[] {
+    const skip = this.coverSlotRegularTeacherId;
+    if (skip == null) {
+      return this.teachers;
+    }
+    return this.teachers.filter(t => Number(t.id) !== Number(skip));
+  }
+
+  get coverSlotRegularTeacherName(): string {
+    if (this.coverSlotRegularTeacherId == null) {
+      return this.translate.instant('operations.covers.notAvailable');
+    }
+    const t = this.teachers.find(x => Number(x.id) === Number(this.coverSlotRegularTeacherId));
+    return t ? `${t.firstName} ${t.lastName}`.trim() : this.translate.instant('operations.covers.notAvailable');
+  }
+
+  formatCoverTableDate(raw: string | null | undefined): string {
+    return formatDateDdMmYyyy(raw) || '—';
+  }
+
+  onCoverClassChanged(): void {
+    const cls = this.classes.find(c => c.id === this.coverForm.classId);
+    const secs = cls?.sections ?? [];
+    if (secs.length === 1) {
+      this.coverForm.sectionId = secs[0].id;
+    } else {
+      this.coverForm.sectionId = null;
+    }
+    this.refreshCoverRegularTeacher();
+  }
+
+  compareCoverSectionIds(a: number | null | undefined, b: number | null | undefined): boolean {
+    if (a == null && b == null) return true;
+    if (a == null || b == null) return false;
+    return Number(a) === Number(b);
+  }
+
 
   constructor(
     private operations: OperationsService,
     private academic: AcademicService,
     private teacherService: TeacherService,
+    private timetableService: TimetableService,
     private feeService: FeeService,
     private confirmDialog: ConfirmDialogService,
     private translate: TranslateService,
     private cdr: ChangeDetectorRef,
     private settings: SettingsService,
+    private auth: AuthService,
+    private uiAccess: UiAccessService,
     private route: ActivatedRoute,
     private router: Router
   ) {}
@@ -384,11 +610,9 @@ export class OperationsHubComponent implements OnInit {
   }
 
   ngOnInit(): void {
+    this.canManageOperationsLifecycle = this.uiAccess.hasOperationsDeskWriteAccess();
     this.translate.onLangChange.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => this.cdr.markForCheck());
     const tabSnap = this.route.snapshot.queryParamMap.get('tab');
-    if (tabSnap === 'covers') {
-      void this.router.navigate(['/app/timetable'], { queryParams: { section: 'covers' }, replaceUrl: true });
-    }
     this.academic.getClasses().subscribe(c => (this.classes = c));
     this.teacherService.getTeachers().subscribe(t => (this.teachers = t));
     this.settings.getFeatures().subscribe(() => {
@@ -404,6 +628,13 @@ export class OperationsHubComponent implements OnInit {
       if (allowed.has(raw as OperationsTab)) {
         this.selectTab(raw as OperationsTab);
       }
+    });
+    this.operations.attendanceCoverMutations$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(mutation => {
+      if (this.tab !== 'covers' || mutation.coverDate !== this.coverDate) {
+        return;
+      }
+      this.loadCoversPage();
+      this.loadCoverAuditPage();
     });
   }
 
@@ -426,6 +657,13 @@ export class OperationsHubComponent implements OnInit {
       this.inventoryTabError = '';
       this.invPageIndex = 0;
       this.loadInventoryPage();
+    }
+    if (t === 'covers') {
+      this.coversTabError = '';
+      this.coversPageIndex = 0;
+      this.coverAuditPageIndex = 0;
+      this.loadCoversPage();
+      this.loadCoverAuditPage();
     }
     if (t === 'reminders') this.reloadReminders();
     if (t === 'payroll') this.loadPayroll();
@@ -516,7 +754,344 @@ export class OperationsHubComponent implements OnInit {
     });
   }
 
+  private buildCoverConflictLocationLine(c: AttendanceCoverConflictPayload): string {
+    const classId = c.classId ?? this.coverForm.classId;
+    const className = classId == null
+      ? '—'
+      : formatSchoolClassDisplayName(classId, this.classes.find(x => x.id === classId)?.name, this.translate);
+    const sectionText =
+      c.sectionId == null
+        ? this.translate.instant('operations.covers.allSections')
+        : this.classes
+            .find(x => x.id === (c.classId ?? this.coverForm.classId))
+            ?.sections.find(s => s.id === c.sectionId)?.name ?? String(c.sectionId);
+    const periodText =
+      c.periodNumber != null ? this.translate.instant('timetable.gridPeriod', { n: c.periodNumber }) : this.translate.instant('transport.dash');
+    return this.translate.instant('operations.covers.conflictDetailScope', {
+      location: `${className} · ${sectionText} · ${periodText}`,
+    });
+  }
+
+  loadCoversPage(): void {
+    this.refreshCoverRegularTeacher();
+    this.operations.listAttendanceCoversAdmin(this.coverDate).subscribe({
+      next: rows => {
+        const page = sliceToPage(rows || [], this.coversPageIndex, this.coversPageSize);
+        this.coversAdmin = page.content;
+        this.coversPageIndex = page.page;
+        this.coversTotal = page.totalElements;
+      },
+      error: (e: Error) => {
+        this.coversTabError = e?.message || this.translate.instant('attendance.errors.saveFailed');
+      },
+    });
+  }
+
+  onCoversPageIndex(i: number): void {
+    this.coversPageIndex = i;
+    this.loadCoversPage();
+  }
+
+  onCoversPageSize(s: number): void {
+    this.coversPageSize = s;
+    this.coversPageIndex = 0;
+    this.loadCoversPage();
+  }
+
+  loadCoverAuditPage(): void {
+    this.operations.listAttendanceCoverAuditPage(this.coverDate, this.coverAuditPageIndex, this.coverAuditPageSize).subscribe({
+      next: p => {
+        this.coverAuditRows = p.content || [];
+        this.coverAuditPageIndex = p.page;
+        this.coverAuditTotal = p.totalElements;
+      },
+      error: () => {
+        this.coverAuditRows = [];
+        this.coverAuditTotal = 0;
+      },
+    });
+  }
+
+  onCoverAuditPageIndex(i: number): void {
+    this.coverAuditPageIndex = i;
+    this.loadCoverAuditPage();
+  }
+
+  onCoverAuditPageSize(s: number): void {
+    this.coverAuditPageSize = s;
+    this.coverAuditPageIndex = 0;
+    this.loadCoverAuditPage();
+  }
+
+  onCoverDateChange(): void {
+    this.coversPageIndex = 0;
+    this.coverAuditPageIndex = 0;
+    this.loadCoversPage();
+    this.loadCoverAuditPage();
+  }
+
+  refreshCoverRegularTeacher(): void {
+    this.coverSlotRegularTeacherId = null;
+    this.coverPeriodOptions = [];
+    const cid = this.coverForm.classId;
+    if (cid == null) {
+      this.clearCoverTeacherIfInvalid();
+      return;
+    }
+    const cls = this.classes.find(c => c.id === cid);
+    const hasSecs = (cls?.sections?.length ?? 0) > 0;
+    if (hasSecs && this.coverForm.sectionId == null) {
+      this.clearCoverTeacherIfInvalid();
+      return;
+    }
+    const secParam = hasSecs ? this.coverForm.sectionId! : undefined;
+    this.timetableService.getByClassAndSection(cid, secParam).subscribe({
+      next: entries => {
+        this.coverPeriodOptions = this.timetableService.listPeriodsForCoverDate(entries, this.coverDate);
+        const currentPeriod = this.coverForm.periodNumber != null ? Number(this.coverForm.periodNumber) : null;
+        if (currentPeriod == null || !this.coverPeriodOptions.includes(currentPeriod)) {
+          this.coverForm.periodNumber = this.coverPeriodOptions.length === 1 ? this.coverPeriodOptions[0] : null;
+        }
+        const period = Number(this.coverForm.periodNumber);
+        const tid = Number.isFinite(period) && period > 0
+          ? this.timetableService.findRegularTeacherIdForCoverSlot(entries, this.coverDate, period)
+          : null;
+        this.coverSlotRegularTeacherId = tid;
+        if (tid != null && Number(this.coverForm.coveringTeacherId) === Number(tid)) {
+          this.coverForm.coveringTeacherId = null;
+        }
+        this.clearCoverTeacherIfInvalid();
+        this.cdr.markForCheck();
+      },
+      error: () => {
+        this.coverSlotRegularTeacherId = null;
+        this.coverPeriodOptions = [];
+        this.coverForm.periodNumber = null;
+        this.clearCoverTeacherIfInvalid();
+        this.cdr.markForCheck();
+      },
+    });
+  }
+
+  private clearCoverTeacherIfInvalid(): void {
+    const allowed = new Set(this.coverTeachersForDropdown.map(t => Number(t.id)));
+    const cur = this.coverForm.coveringTeacherId;
+    if (cur != null && !allowed.has(Number(cur))) {
+      this.coverForm.coveringTeacherId = null;
+    }
+  }
+
+  /** Local calendar “today” for min-date validation (cover assignments are forward-looking). */
+  get todayIso(): string {
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  }
+
+  submitCover(): void {
+    this.coversTabError = '';
+    if (this.coverDate && this.coverDate < this.todayIso) {
+      this.coversTabError = this.translate.instant('operations.covers.pastDateNotAllowed');
+      return;
+    }
+    if (this.coverForm.classId == null || this.coverForm.coveringTeacherId == null) {
+      this.coversTabError = this.translate.instant('operations.covers.errRequired');
+      return;
+    }
+    const cls = this.classes.find(c => c.id === this.coverForm.classId);
+    const secId = this.coverForm.sectionId;
+    const sectionChosen = secId != null && Number(secId) > 0;
+    if ((cls?.sections?.length ?? 0) > 0 && !sectionChosen) {
+      this.coversTabError = this.translate.instant('operations.covers.sectionRequired');
+      return;
+    }
+    if (this.coverForm.periodNumber == null) {
+      this.coversTabError = this.translate.instant('operations.covers.periodRequired');
+      return;
+    }
+    if (
+      this.coverSlotRegularTeacherId != null &&
+      Number(this.coverForm.coveringTeacherId) === Number(this.coverSlotRegularTeacherId)
+    ) {
+      this.coversTabError = this.translate.instant('operations.covers.sameAsAbsentTeacher');
+      return;
+    }
+    if (!this.coverPeriodOptions.includes(Number(this.coverForm.periodNumber))) {
+      this.coversTabError = this.translate.instant('operations.covers.periodUnavailable');
+      return;
+    }
+    this.createCoverWithOptionalReplace(undefined);
+  }
+
+  private createCoverWithOptionalReplace(replaceCoverAssignmentId: number | undefined): void {
+    const period =
+      this.coverForm.periodNumber != null && this.coverForm.periodNumber > 0 ? this.coverForm.periodNumber : undefined;
+    this.operations
+      .createAttendanceCover({
+        coverDate: this.coverDate,
+        classId: this.coverForm.classId!,
+        sectionId: this.coverForm.sectionId ?? undefined,
+        regularTeacherId: this.coverSlotRegularTeacherId ?? undefined,
+        coveringTeacherId: this.coverForm.coveringTeacherId!,
+        reason: this.coverForm.reason,
+        periodNumber: period,
+        replaceCoverAssignmentId,
+      }, {
+        actorUserId: this.auth.getCurrentUser()?.id ?? null,
+        actorName: this.auth.getCurrentUser()?.name ?? undefined,
+      })
+      .subscribe({
+        next: () => {
+          this.coverForm.reason = '';
+          this.coversPageIndex = 0;
+          this.coverAuditPageIndex = 0;
+          this.loadCoversPage();
+          this.loadCoverAuditPage();
+        },
+        error: (e: unknown) => {
+          if (e instanceof SchedulingConflictError) {
+            const c = e.conflict;
+            const otherName = c.existingCoveringTeacherName?.trim() || `Teacher #${c.existingCoveringTeacherId}`;
+            this.confirmDialog
+              .confirm({
+                title: this.translate.instant('operations.covers.conflictTitle'),
+                message: this.translate.instant('operations.covers.conflictMessage', { name: otherName }),
+                details: [
+                  this.translate.instant('operations.covers.conflictDetailDate', { date: this.coverDate }),
+                  this.buildCoverConflictLocationLine(c),
+                ],
+                variant: 'warning',
+                confirmLabel: this.translate.instant('operations.covers.conflictConfirmReplace'),
+                cancelLabel: this.translate.instant('operations.covers.conflictKeep'),
+              })
+              .pipe(filter(Boolean))
+              .subscribe(() => this.createCoverWithOptionalReplace(c.existingCoverAssignmentId));
+            return;
+          }
+          this.coversTabError = e instanceof Error ? e.message : this.translate.instant('attendance.errors.saveFailed');
+        },
+      });
+  }
+
+  cancelCoverAdmin(c: AttendanceCoverRow): void {
+    this.confirmDialog
+      .confirm({
+        title: this.translate.instant('operations.covers.cancelConfirmTitle'),
+        message: this.translate.instant('operations.covers.cancelConfirmMessage'),
+        variant: 'danger',
+        confirmLabel: this.translate.instant('operations.covers.cancelConfirm'),
+      })
+      .pipe(filter(Boolean))
+      .subscribe(() =>
+        this.operations
+          .cancelAttendanceCover(c.id, {
+            coverDate: c.coverDate,
+            classId: c.classId,
+            sectionId: c.sectionId ?? null,
+          }, {
+            actorUserId: this.auth.getCurrentUser()?.id ?? null,
+            actorName: this.auth.getCurrentUser()?.name ?? undefined,
+          })
+          .subscribe({
+            next: () => {
+              this.loadCoversPage();
+              this.loadCoverAuditPage();
+            },
+            error: (e: Error) => {
+              this.coversTabError = e?.message || this.translate.instant('attendance.errors.saveFailed');
+            },
+          })
+      );
+  }
+
+  coverRowClassDisplay(row: AttendanceCoverRow): string {
+    return formatSchoolClassDisplayName(row.classId, this.classes.find(x => x.id === row.classId)?.name, this.translate);
+  }
+
+  coverRowSectionDisplay(row: AttendanceCoverRow): string {
+    const cls = this.classes.find(x => x.id === row.classId);
+    if (!cls?.sections?.length) {
+      return this.translate.instant('timetable.sectionWholeClass');
+    }
+    if (row.sectionId == null) {
+      return this.translate.instant('operations.covers.allSections');
+    }
+    return cls.sections.find(s => s.id === row.sectionId)?.name ?? String(row.sectionId);
+  }
+
+  coverRowTeacherDisplay(row: AttendanceCoverRow): string {
+    const t = this.teachers.find(x => x.id === row.coveringTeacherId);
+    return t ? `${t.firstName} ${t.lastName}`.trim() : String(row.coveringTeacherId);
+  }
+
+  coverRowRegularTeacherDisplay(row: AttendanceCoverRow): string {
+    if (row.regularTeacherId == null) {
+      return this.translate.instant('operations.covers.notAvailable');
+    }
+    const t = this.teachers.find(x => x.id === row.regularTeacherId);
+    return t ? `${t.firstName} ${t.lastName}`.trim() : String(row.regularTeacherId);
+  }
+
+  coverAuditActionLabel(action: AttendanceCoverAuditRow['action']): string {
+    const key = `operations.covers.auditAction.${action}`;
+    const tr = this.translate.instant(key);
+    return tr !== key ? tr : action;
+  }
+
+  auditClassDisplay(a: AttendanceCoverAuditRow): string {
+    return formatSchoolClassDisplayName(a.classId, this.classes.find(c => c.id === a.classId)?.name, this.translate);
+  }
+
+  auditSectionDisplay(a: AttendanceCoverAuditRow): string {
+    const cls = this.classes.find(c => c.id === a.classId);
+    if (!cls?.sections?.length) {
+      return this.translate.instant('timetable.sectionWholeClass');
+    }
+    if (a.sectionId == null) {
+      return this.translate.instant('operations.covers.allSections');
+    }
+    return cls.sections.find(s => s.id === a.sectionId)?.name ?? String(a.sectionId);
+  }
+
+  auditTeacherDisplay(a: AttendanceCoverAuditRow): string {
+    if (!a.coveringTeacherId) {
+      return this.translate.instant('transport.dash');
+    }
+    const t = this.teachers.find(x => x.id === a.coveringTeacherId);
+    return t ? `${t.firstName} ${t.lastName}`.trim() : String(a.coveringTeacherId);
+  }
+
+  auditChangeSummary(a: AttendanceCoverAuditRow): string {
+    const beforeTeacher = a.before?.coveringTeacherId ?? null;
+    const afterTeacher = a.after?.coveringTeacherId ?? a.coveringTeacherId ?? null;
+    const beforeReason = (a.before?.reason ?? '').trim();
+    const afterReason = (a.after?.reason ?? a.reason ?? '').trim();
+    const beforeTeacherName = beforeTeacher != null ? this.auditTeacherDisplay({ ...a, coveringTeacherId: beforeTeacher }) : '';
+    const afterTeacherName = afterTeacher != null ? this.auditTeacherDisplay({ ...a, coveringTeacherId: afterTeacher }) : '';
+    if (a.action === 'CREATED') {
+      return this.translate.instant('operations.covers.auditSummaryCreated', {
+        teacher: afterTeacherName || this.translate.instant('transport.dash'),
+        reason: afterReason || this.translate.instant('transport.dash'),
+      });
+    }
+    if (a.action === 'CANCELLED') {
+      return this.translate.instant('operations.covers.auditSummaryCancelled', {
+        teacher: beforeTeacherName || this.translate.instant('transport.dash'),
+        reason: beforeReason || this.translate.instant('transport.dash'),
+      });
+    }
+    return this.translate.instant('operations.covers.auditSummaryReplaced', {
+      beforeTeacher: beforeTeacherName || this.translate.instant('transport.dash'),
+      afterTeacher: afterTeacherName || this.translate.instant('transport.dash'),
+      beforeReason: beforeReason || this.translate.instant('transport.dash'),
+      afterReason: afterReason || this.translate.instant('transport.dash'),
+    });
+  }
+
   addStaff(): void {
+    if (!this.canManageOperationsLifecycle) return;
     this.staffTabError = '';
     const fullName = this.staffForm.fullName?.trim();
     if (!fullName) {
@@ -527,16 +1102,26 @@ export class OperationsHubComponent implements OnInit {
       this.staffTabError = this.translate.instant('operations.staff.errRole');
       return;
     }
+    this.staffForm.phone = this.normalizeTenDigitPhone(this.staffForm.phone);
+    if (this.staffForm.phone && !this.isValidTenDigitPhone(this.staffForm.phone)) {
+      this.staffTabError = this.translate.instant('operations.staff.errPhoneInvalidTenDigits');
+      return;
+    }
+    if (this.staffForm.createPortal && !this.staffForm.phone?.trim()) {
+      this.staffTabError = this.translate.instant('staff.profile.errPortalPhoneRequired');
+      return;
+    }
     this.operations
       .createStaff({
         staffRole: this.staffForm.staffRole.trim(),
         fullName,
         phone: this.staffForm.phone?.trim() || undefined,
         employeeCode: this.staffForm.employeeCode?.trim() || undefined,
+        createPortal: this.staffForm.createPortal,
       })
       .subscribe({
         next: () => {
-          this.staffForm = { staffRole: this.staffForm.staffRole, fullName: '', phone: '', employeeCode: '' };
+          this.staffForm = { staffRole: this.staffForm.staffRole, fullName: '', phone: '', employeeCode: '', createPortal: this.staffForm.createPortal };
           this.staffPageIndex = 0;
           this.loadStaffPage();
         },
@@ -547,6 +1132,7 @@ export class OperationsHubComponent implements OnInit {
   }
 
   removeStaff(s: OperationalStaffRow): void {
+    if (!this.canManageOperationsLifecycle) return;
     const canHard = !s.userId && !s.transportRouteId;
     const detail = this.translate.instant(canHard ? 'operations.staff.detailCanHard' : 'operations.staff.detailCannotHard');
     const details: string[] = [
@@ -569,7 +1155,26 @@ export class OperationsHubComponent implements OnInit {
   }
 
   checkIn(): void {
-    this.operations.checkInVisitor(this.visitorForm).subscribe(() => this.loadVisitorsPage());
+    this.visitorsTabError = '';
+    const visitorName = this.visitorForm.visitorName?.trim();
+    if (!visitorName) {
+      this.visitorsTabError = this.translate.instant('operations.visitors.errVisitorNameRequired');
+      return;
+    }
+    this.visitorForm.phone = this.normalizeTenDigitPhone(this.visitorForm.phone);
+    if (this.visitorForm.phone && !this.isValidTenDigitPhone(this.visitorForm.phone)) {
+      this.visitorsTabError = this.translate.instant('operations.visitors.errPhoneInvalidTenDigits');
+      return;
+    }
+    this.operations.checkInVisitor({ ...this.visitorForm, visitorName }).subscribe({
+      next: () => {
+        this.visitorForm = { visitorName: '', phone: '', hostName: '', purpose: '' };
+        this.loadVisitorsPage();
+      },
+      error: (e: Error) => {
+        this.visitorsTabError = e?.message || this.translate.instant('operations.visitors.errCheckInFailed');
+      },
+    });
   }
 
   checkOut(v: VisitorLogRow): void {
@@ -577,10 +1182,30 @@ export class OperationsHubComponent implements OnInit {
   }
 
   addGate(): void {
-    if (!this.gateForm.issuedToName || !this.gateForm.validFrom || !this.gateForm.validTo) return;
-    this.operations.createGatePass(this.gateForm as any).subscribe(() => {
-      this.gatePageIndex = 0;
-      this.loadGatePage();
+    this.gateTabError = '';
+    const issuedToName = this.gateForm.issuedToName?.trim();
+    if (!issuedToName || !this.gateForm.validFrom || !this.gateForm.validTo) {
+      this.gateTabError = this.translate.instant('operations.gate.errIssuedToAndDatesRequired');
+      return;
+    }
+    if (this.gateForm.validTo < this.gateForm.validFrom) {
+      this.gateTabError = this.translate.instant('operations.gate.errValidToBeforeValidFrom');
+      return;
+    }
+    this.operations.createGatePass({ ...this.gateForm, issuedToName } as any).subscribe({
+      next: () => {
+        this.gateForm = {
+          issuedToName: '',
+          validFrom: this.gateForm.validFrom,
+          validTo: this.gateForm.validTo,
+          purpose: '',
+        };
+        this.gatePageIndex = 0;
+        this.loadGatePage();
+      },
+      error: (e: Error) => {
+        this.gateTabError = e?.message || this.translate.instant('operations.gate.errIssueFailed');
+      },
     });
   }
 
@@ -594,6 +1219,10 @@ export class OperationsHubComponent implements OnInit {
     const name = this.invForm.name?.trim();
     if (!sku || !name) {
       this.inventoryTabError = this.translate.instant('operations.inventory.errSkuName');
+      return;
+    }
+    if ((this.invForm.quantityOnHand ?? 0) < 0 || (this.invForm.reorderLevel ?? 0) < 0) {
+      this.inventoryTabError = this.translate.instant('operations.inventory.errNegativeQtyOrReorder');
       return;
     }
     this.operations
@@ -776,6 +1405,18 @@ export class OperationsHubComponent implements OnInit {
   }
 
   enqueueReminderForPayment(p: FeePayment, channel: string): void {
+    this.remindersTabError = '';
+    const duplicatePending = this.reminders.some(
+      r =>
+        r.status === 'PENDING' &&
+        r.studentId === p.studentId &&
+        (r.feePaymentId ?? null) === (p.id ?? null) &&
+        (r.channel || '').toUpperCase() === channel.toUpperCase()
+    );
+    if (duplicatePending) {
+      this.remindersTabError = this.translate.instant('operations.reminders.errDuplicatePendingReminder');
+      return;
+    }
     this.operations
       .enqueueFeeReminder({
         studentId: p.studentId,
@@ -783,10 +1424,23 @@ export class OperationsHubComponent implements OnInit {
         dueDate: p.dueDate,
         channel,
       })
-      .subscribe(() => this.reloadReminders());
+      .subscribe({
+        next: () => this.reloadReminders(),
+        error: (e: Error) => {
+          this.remindersTabError = e?.message || this.translate.instant('operations.reminders.errEnqueueFailed');
+        },
+      });
   }
 
   loadPayroll(): void {
     this.operations.payrollAccrualSummary().subscribe(p => (this.payroll = p));
+  }
+
+  private normalizeTenDigitPhone(value: string | null | undefined): string {
+    return (value ?? '').replace(/\D/g, '').slice(0, 10);
+  }
+
+  private isValidTenDigitPhone(value: string | null | undefined): boolean {
+    return isValidIndiaMobileTen(value);
   }
 }

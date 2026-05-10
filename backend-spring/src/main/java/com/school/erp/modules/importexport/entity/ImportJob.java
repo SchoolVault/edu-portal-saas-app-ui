@@ -41,6 +41,22 @@ public class ImportJob extends BaseEntity {
     @Column(name = "summary_message", length = 4000)
     private String summaryMessage;
 
+    /** SHA-256 hex of raw uploaded file bytes (idempotent submit). */
+    @Column(name = "payload_hash", length = 64)
+    private String payloadHash;
+
+    /** SHA-256 hex of normalized column mapping JSON; empty mapping uses hash of empty string. */
+    @Column(name = "column_mapping_hash", nullable = false, length = 64)
+    private String columnMappingHash = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
+
+    /** {@link com.school.erp.modules.importexport.ImportExecutionMode} name. */
+    @Column(name = "execution_mode", nullable = false, length = 32)
+    private String executionMode = "BEST_EFFORT";
+
+    /** True when submit explicitly requested same-file reprocess (idempotent replay bypass). */
+    @Column(name = "reprocess_requested", nullable = false)
+    private Boolean reprocessRequested = false;
+
     public Long getCreatedByUserId() {
         return createdByUserId;
     }
@@ -119,5 +135,37 @@ public class ImportJob extends BaseEntity {
 
     public void setSummaryMessage(String summaryMessage) {
         this.summaryMessage = summaryMessage;
+    }
+
+    public String getPayloadHash() {
+        return payloadHash;
+    }
+
+    public void setPayloadHash(String payloadHash) {
+        this.payloadHash = payloadHash;
+    }
+
+    public String getColumnMappingHash() {
+        return columnMappingHash;
+    }
+
+    public void setColumnMappingHash(String columnMappingHash) {
+        this.columnMappingHash = columnMappingHash;
+    }
+
+    public String getExecutionMode() {
+        return executionMode;
+    }
+
+    public void setExecutionMode(String executionMode) {
+        this.executionMode = executionMode;
+    }
+
+    public Boolean getReprocessRequested() {
+        return reprocessRequested;
+    }
+
+    public void setReprocessRequested(Boolean reprocessRequested) {
+        this.reprocessRequested = reprocessRequested;
     }
 }

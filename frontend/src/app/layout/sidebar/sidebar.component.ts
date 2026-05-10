@@ -4,7 +4,15 @@ import { RouterModule } from '@angular/router';
 import { TranslateModule } from '@ngx-translate/core';
 import { AuthService } from '../../core/services/auth.service';
 import { TenantModuleGateService } from '../../core/services/tenant-module-gate.service';
+import { UiAccessService } from '../../core/services/ui-access.service';
 import { NAV_ITEMS, NavItem } from '../../core/config/app-constants';
+import { BRAND_LOGO_SRC } from '../../core/config/brand-assets';
+
+/**
+ * Standalone roster for non-teaching staff was folded into Directory → Staff (`/app/directory?tab=staff`).
+ * Profile/create routes remain `/app/staff/...`; this legacy list shell must never appear as its own sidebar row.
+ */
+const SIDEBAR_EXCLUDED_NAV_ROUTES = new Set<string>(['/app/staff']);
 
 @Component({
   selector: 'app-sidebar',
@@ -13,7 +21,7 @@ import { NAV_ITEMS, NavItem } from '../../core/config/app-constants';
   template: `
     <aside class="sidebar" [class.collapsed]="collapsed" [class.mobile-open]="mobileOpen" data-testid="sidebar-nav">
       <div class="sidebar-brand">
-        <img src="https://static.prod-images.emergentagent.com/jobs/9a0eef39-d991-4ee9-b692-a0f34292613c/images/327dafae8a43bdee0145f51e32a05747aa82374ad2bb3b35ccfdb8cc1130bd22.png" alt="Logo">
+        <img [src]="brandLogoSrc" alt="School Vault" width="36" height="36" />
         <h2>SchoolVault</h2>
       </div>
       <nav class="sidebar-nav">
@@ -40,6 +48,8 @@ import { NAV_ITEMS, NavItem } from '../../core/config/app-constants';
   `
 })
 export class SidebarComponent implements OnInit {
+  readonly brandLogoSrc = BRAND_LOGO_SRC;
+
   @Input() collapsed = false;
   /** When true, drawer is visible on small screens (controlled by layout). */
   @Input() mobileOpen = false;
@@ -51,7 +61,8 @@ export class SidebarComponent implements OnInit {
 
   constructor(
     private authService: AuthService,
-    private moduleGate: TenantModuleGateService
+    private moduleGate: TenantModuleGateService,
+    private uiAccess: UiAccessService
   ) {}
 
   ngOnInit(): void {
@@ -59,12 +70,11 @@ export class SidebarComponent implements OnInit {
   }
 
   private rebuildNav(): void {
-    const role = this.authService.getNormalizedRole();
     this.filteredItems = NAV_ITEMS.filter(
       item =>
-        role &&
-        item.roles.includes(role) &&
-        (!item.moduleGate || this.moduleGate.isModuleEnabled(item.moduleGate))
+        item.labelKey !== 'nav.staff' &&
+        !SIDEBAR_EXCLUDED_NAV_ROUTES.has(item.route.trim()) &&
+        this.uiAccess.isNavItemVisible(item)
     );
     const sectionSet = new Set(this.filteredItems.map(i => i.sectionKey));
     this.sectionKeys = Array.from(sectionSet);

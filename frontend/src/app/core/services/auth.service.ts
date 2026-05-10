@@ -12,15 +12,18 @@ import {
   ProfileSummary,
   SendOtpRequest,
   SendOtpResponse,
+  IdentityUpdateResponse,
   TokenResponse,
   UpdateAccountProfileRequest,
+  PersonalProfileDetails,
   VerifyOtpRequest,
   VerifyOtpResponse,
 } from '../models/models';
 import { ApiService } from './api.service';
+import { AppPermission, MOCK_SCHOOL_ADMIN_PERMISSIONS } from '../auth/app-permission.constants';
 import { runtimeConfig } from '../config/runtime-config';
 import { environment } from '../../../environments/environment';
-import { isAccessExpiredByClock, isLikelyJwt } from '../auth/access-token';
+import { decodeJwtPermissions, decodeJwtUserId, isAccessExpiredByClock, isLikelyJwt } from '../auth/access-token';
 import { MOCK_LOGIN_USERS, buildMockProfileSummary, findMockLoginUser, phonesMatch } from '../mocks/auth.mock-data';
 import { ERP_ACCESS_TOKEN_KEY, ERP_REFRESH_TOKEN_KEY, ERP_USER_KEY } from '../auth/client-session-keys';
 import { UserLocaleService, type UiLanguage } from '../i18n/user-locale.service';
@@ -59,7 +62,10 @@ export class AuthService {
     const userStr = localStorage.getItem(ERP_USER_KEY);
     if (token && refreshToken && userStr) {
       try {
-        const user = JSON.parse(userStr);
+        const user = JSON.parse(userStr) as User;
+        if (isLikelyJwt(token) && (!user.permissions || user.permissions.length === 0)) {
+          user.permissions = decodeJwtPermissions(token);
+        }
         this.ensureMockSessionMetadata(token);
         this.tokenSubject.next(token);
         this.refreshTokenSubject.next(refreshToken);
@@ -146,7 +152,12 @@ export class AuthService {
     localStorage.setItem(AuthService.STORAGE_REFRESH_EXPIRES_AT, String(Date.now() + this.getMockRefreshTtlMs()));
   }
 
-  /** Apply new access + refresh pair after login or refresh (keeps user row unchanged). */
+  /**
+   * Apply new access + refresh pair after login or refresh.
+   * When {@code app.jwt.slim-permissions} is on, the access JWT often has an empty {@code permissions} claim;
+   * do not overwrite a populated session profile with that — keep server profile / prior list until
+   * {@link #syncProfileFromServer} runs.
+   */
   applyTokenPair(token: string, refreshToken: string): void {
     localStorage.setItem(ERP_ACCESS_TOKEN_KEY, token);
     localStorage.setItem(ERP_REFRESH_TOKEN_KEY, refreshToken);
@@ -154,6 +165,17 @@ export class AuthService {
     this.refreshTokenSubject.next(refreshToken);
     if (isLikelyJwt(token)) {
       this.stripMockExpiryKeys();
+      const current = this.currentUserSubject.value;
+      const tokenUid = decodeJwtUserId(token);
+      if (current && tokenUid != null && current.id === tokenUid) {
+        const fromJwt = decodeJwtPermissions(token);
+        if (fromJwt.length === 0) {
+          return;
+        }
+        const next = { ...current, permissions: fromJwt };
+        localStorage.setItem(ERP_USER_KEY, JSON.stringify(next));
+        this.currentUserSubject.next(next);
+      }
     }
   }
 
@@ -197,6 +219,11 @@ export class AuthService {
 
     return this.api.post<TokenResponse>('/auth/refresh-token', { refreshToken: refresh }).pipe(
       tap(res => this.applyTokenPair(res.token, res.refreshToken)),
+      switchMap(() =>
+        this.syncProfileFromServer().pipe(
+          catchError(() => of(null))
+        )
+      ),
       map(() => true),
       catchError(() => {
         this.clearLocalAuthState();
@@ -278,6 +305,7 @@ export class AuthService {
           tenantId: 'tenant_' + request.schoolCode.toLowerCase(),
           phone: request.phone,
           interfaceLocale: iface,
+          permissions: [...MOCK_SCHOOL_ADMIN_PERMISSIONS],
         }
       };
       return of(response).pipe(
@@ -333,6 +361,35 @@ export class AuthService {
       return '';
     }
     return raw.startsWith('role_') ? raw.slice(5) : raw;
+  }
+
+  /**
+   * Fine-grained authorities from the access JWT `permissions` claim (e.g. LIBRARY_MANAGE).
+   * Empty for mock tokens — features that need this should fall back to profile/API hints.
+   */
+  getJwtPermissionAuthorities(): Set<string> {
+    return new Set(this.getEffectivePermissionCodes());
+  }
+
+  /**
+   * Effective permission codes from server-resolved authority sets.
+   * Prefers {@code user.permissions} from login/profile; falls back to JWT {@code permissions}.
+   */
+  getEffectivePermissionCodes(): string[] {
+    const u = this.getCurrentUser();
+    if (u?.permissions && u.permissions.length > 0) {
+      return [...new Set(u.permissions)];
+    }
+    const t = this.getToken();
+    if (t && isLikelyJwt(t)) {
+      return [...new Set(decodeJwtPermissions(t))];
+    }
+    return [];
+  }
+
+  /** True if the session carries the given {@code AppPermission} code (or mock data includes it). */
+  hasAppPermission(code: string): boolean {
+    return this.getEffectivePermissionCodes().includes(code);
   }
 
   getTenantId(): string | null {
@@ -449,12 +506,33 @@ export class AuthService {
     }
     return this.api.get<any>('/auth/profile-summary').pipe(
       tap(summary => {
+        const normalizedRole = this.normalizeApiRole(summary.role);
         const normalized: ProfileSummary = {
           ...summary,
           id: Number(summary.id),
-          role: summary.role,
-          platformWorkspaceCount: summary.platformWorkspaceCount ?? undefined,
-          classTeacherOf: summary.classTeacherOf ?? undefined,
+          role: normalizedRole,
+          platformWorkspaceCount:
+            summary.platformWorkspaceCount != null ? Number(summary.platformWorkspaceCount) : undefined,
+          childCount: summary.childCount != null ? Number(summary.childCount) : undefined,
+          managedStudentCount: summary.managedStudentCount != null ? Number(summary.managedStudentCount) : undefined,
+          managedTeacherCount: summary.managedTeacherCount != null ? Number(summary.managedTeacherCount) : undefined,
+          managedStaffCount: summary.managedStaffCount != null ? Number(summary.managedStaffCount) : undefined,
+          primaryTeachingSubject:
+            summary.primaryTeachingSubject != null && String(summary.primaryTeachingSubject).trim() !== ''
+              ? String(summary.primaryTeachingSubject).trim()
+              : undefined,
+          classTeacherOf: Array.isArray(summary.classTeacherOf)
+            ? summary.classTeacherOf.map((r: Record<string, unknown>) => ({
+                classId: Number(r['classId']),
+                className: r['className'] != null ? String(r['className']) : undefined,
+                sectionId: r['sectionId'] != null ? Number(r['sectionId']) : undefined,
+                sectionName: r['sectionName'] != null ? String(r['sectionName']) : undefined,
+                totalStudents: r['totalStudents'] != null ? Number(r['totalStudents']) : undefined,
+              }))
+            : undefined,
+          assignedClassCount: summary.assignedClassCount != null ? Number(summary.assignedClassCount) : undefined,
+          assignedStudentCount: summary.assignedStudentCount != null ? Number(summary.assignedStudentCount) : undefined,
+          subjectCount: summary.subjectCount != null ? Number(summary.subjectCount) : undefined,
         };
         this.profileSummarySubject.next(normalized);
         if (summary.interfaceLocale) {
@@ -464,6 +542,23 @@ export class AuthService {
         }
       })
     );
+  }
+
+  private normalizeApiRole(rawRole: unknown): User['role'] {
+    const raw = String(rawRole ?? '').trim().toLowerCase();
+    const withoutSpringPrefix = raw.startsWith('role_') ? raw.slice(5) : raw;
+    switch (withoutSpringPrefix) {
+      case 'super_admin':
+      case 'admin':
+      case 'teacher':
+      case 'parent':
+      case 'student':
+      case 'library_staff':
+      case 'school_staff':
+        return withoutSpringPrefix;
+      default:
+        return (this.getCurrentUser()?.role ?? 'parent') as User['role'];
+    }
   }
 
   /**
@@ -517,6 +612,13 @@ export class AuthService {
     const iface = p['interfaceLocale'];
     const interfaceLocale: User['interfaceLocale'] =
       iface === 'hi' ? 'hi' : iface === 'en' ? 'en' : previous?.interfaceLocale;
+    const rawPerms = p['permissions'];
+    let permissions: string[] | undefined;
+    if (Array.isArray(rawPerms)) {
+      permissions = rawPerms.map(x => String(x).trim()).filter(s => s.length > 0);
+    } else if (previous?.permissions?.length) {
+      permissions = previous.permissions;
+    }
     return {
       id: Number.isFinite(id) ? id : (previous?.id ?? 0),
       name: String(p['name'] ?? previous?.name ?? ''),
@@ -526,6 +628,7 @@ export class AuthService {
       tenantId: String(p['tenantId'] ?? previous?.tenantId ?? ''),
       avatar: p['avatar'] != null && String(p['avatar']).length > 0 ? String(p['avatar']) : undefined,
       interfaceLocale,
+      permissions,
     };
   }
 
@@ -549,6 +652,8 @@ export class AuthService {
           ...nextRow,
           avatar: hasLocalPhoto ? cur.avatar : nextRow.avatar,
           interfaceLocale: cur.interfaceLocale ?? nextRow.interfaceLocale,
+          permissions:
+            nextRow.permissions && nextRow.permissions.length > 0 ? nextRow.permissions : cur.permissions,
         };
         localStorage.setItem(ERP_USER_KEY, JSON.stringify(merged));
         this.currentUserSubject.next(merged);
@@ -587,11 +692,119 @@ export class AuthService {
           ...nextRow,
           avatar: hasLocalPhoto ? u.avatar : nextRow.avatar,
           interfaceLocale: u.interfaceLocale ?? nextRow.interfaceLocale,
+          permissions:
+            nextRow.permissions && nextRow.permissions.length > 0 ? nextRow.permissions : u.permissions,
         };
         localStorage.setItem(ERP_USER_KEY, JSON.stringify(merged));
         this.currentUserSubject.next(merged);
       }),
       map(() => this.getCurrentUser() as User)
+    );
+  }
+
+  fetchMyProfileDetails(): Observable<PersonalProfileDetails> {
+    if (runtimeConfig.useMocks) {
+      const u = this.getCurrentUser();
+      if (!u) {
+        return throwError(() => new Error('Not signed in'));
+      }
+      return of({
+        id: u.id,
+        name: u.name,
+        email: u.email,
+        phone: u.phone,
+        role: u.role,
+        tenantId: u.tenantId,
+        avatar: u.avatar,
+        interfaceLocale: u.interfaceLocale,
+        editableScopes: u.role === 'teacher' ? ['name', 'phone', 'avatar', 'qualification', 'specialization', 'bank'] : ['name', 'phone', 'avatar'],
+      }).pipe(delay(120));
+    }
+    return this.api.get<PersonalProfileDetails>('/auth/profile-details');
+  }
+
+  updateMyProfileDetails(body: UpdateAccountProfileRequest): Observable<PersonalProfileDetails> {
+    if (runtimeConfig.useMocks) {
+      const u = this.getCurrentUser();
+      if (!u) {
+        return throwError(() => new Error('Not signed in'));
+      }
+      const next: User = {
+        ...u,
+        name: body.name != null ? (body.name || '').trim() : u.name,
+        phone: body.phone != null ? (body.phone || '').trim() || undefined : u.phone,
+      };
+      localStorage.setItem(ERP_USER_KEY, JSON.stringify(next));
+      this.currentUserSubject.next(next);
+      return this.fetchMyProfileDetails();
+    }
+    return this.api.put<PersonalProfileDetails>('/auth/profile-details', body).pipe(
+      tap(p => {
+        const u = this.getCurrentUser();
+        if (!u || u.id !== p.id) {
+          return;
+        }
+        const merged: User = {
+          ...u,
+          name: p.name ?? u.name,
+          phone: p.phone ?? undefined,
+          avatar: p.avatar ?? u.avatar,
+        };
+        localStorage.setItem(ERP_USER_KEY, JSON.stringify(merged));
+        this.currentUserSubject.next(merged);
+      })
+    );
+  }
+
+  setPasswordAfterVerification(newPassword: string): Observable<User> {
+    if (runtimeConfig.useMocks) {
+      const u = this.getCurrentUser();
+      if (!u) return throwError(() => new Error('Not signed in'));
+      return of(u).pipe(delay(180));
+    }
+    return this.api.post<User>('/auth/set-password', { newPassword }).pipe(
+      tap(u => {
+        localStorage.setItem(ERP_USER_KEY, JSON.stringify(u));
+        this.currentUserSubject.next(u);
+      })
+    );
+  }
+
+  updateLoginEmail(email: string): Observable<IdentityUpdateResponse> {
+    if (runtimeConfig.useMocks) {
+      const u = this.getCurrentUser();
+      if (!u) return throwError(() => new Error('Not signed in'));
+      const next: User = { ...u, email, emailVerified: false };
+      localStorage.setItem(ERP_USER_KEY, JSON.stringify(next));
+      this.currentUserSubject.next(next);
+      return of({ user: next, message: 'Email updated. Please verify email.', devVerificationToken: 'MOCK-EMAIL-VERIFY' }).pipe(delay(250));
+    }
+    return this.api.put<IdentityUpdateResponse>('/auth/profile/email', { email }).pipe(
+      tap(res => {
+        if (res?.user) {
+          localStorage.setItem(ERP_USER_KEY, JSON.stringify(res.user));
+          this.currentUserSubject.next(res.user);
+        }
+      })
+    );
+  }
+
+  updateLoginPhone(phone: string): Observable<IdentityUpdateResponse> {
+    if (runtimeConfig.useMocks) {
+      const u = this.getCurrentUser();
+      if (!u) return throwError(() => new Error('Not signed in'));
+      const next: User = { ...u, phone, phoneVerified: false };
+      localStorage.setItem(ERP_USER_KEY, JSON.stringify(next));
+      this.currentUserSubject.next(next);
+      return of({ user: next, message: 'Phone updated. Verify by OTP on next login.' }).pipe(delay(250));
+    }
+    return this.api.put<IdentityUpdateResponse>('/auth/profile/phone', { phone }).pipe(
+      tap(res => {
+        if (res?.user) {
+          localStorage.setItem(ERP_USER_KEY, JSON.stringify(res.user));
+          this.currentUserSubject.next(res.user);
+        }
+      })
     );
   }
 
@@ -738,5 +951,33 @@ export class AuthService {
       return of({ success: true, message: 'Password reset successfully' }).pipe(delay(700));
     }
     return this.api.post<PasswordResetResponse>('/auth/phone/reset-password', request);
+  }
+
+  /** Prepares one-time email verification (dev may return a plain token when server is configured). */
+  requestEmailVerification(): Observable<{ message: string; devOneTimeToken?: string | null }> {
+    if (runtimeConfig.useMocks) {
+      return of({ message: 'Mock: use token MOCK-EMAIL-VERIFY', devOneTimeToken: 'MOCK-EMAIL-VERIFY' }).pipe(delay(300));
+    }
+    return this.api.post<{ message: string; devOneTimeToken?: string | null }>('/auth/email-verification/request', {});
+  }
+
+  /** Confirms email with the token (works with or without an active session). */
+  confirmEmailVerification(token: string): Observable<User> {
+    if (runtimeConfig.useMocks) {
+      const u = this.getCurrentUser();
+      if (!u || (token || '').trim() !== 'MOCK-EMAIL-VERIFY') {
+        return throwError(() => new Error('Invalid token')).pipe(delay(200));
+      }
+      const next: User = { ...u, emailVerified: true };
+      localStorage.setItem(ERP_USER_KEY, JSON.stringify(next));
+      this.currentUserSubject.next(next);
+      return of(next).pipe(delay(300));
+    }
+    return this.api.post<User>('/auth/email-verification/confirm', { token: token.trim() }).pipe(
+      tap(u => {
+        localStorage.setItem(ERP_USER_KEY, JSON.stringify(u));
+        this.currentUserSubject.next(u);
+      })
+    );
   }
 }

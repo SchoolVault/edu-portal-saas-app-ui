@@ -17,6 +17,14 @@ public class InboxTimelineDTOs {
         private String createdAt;
         /** Announcement: {@link com.school.erp.common.enums.Enums.TargetAudience} name (e.g. ALL). */
         private String audienceKey;
+        /** Announcement scope reference for UI labels (CLASS/SECTION). */
+        private Long targetClassId;
+        /** Announcement scope reference for UI labels (SECTION only). */
+        private Long targetSectionId;
+        /** Announcement class display label when scope is class/section. */
+        private String targetClassName;
+        /** Announcement section display label when scope is section. */
+        private String targetSectionName;
         private String authorLine;
         /** Notification: INFO, WARNING, … */
         private String notificationType;
@@ -76,6 +84,38 @@ public class InboxTimelineDTOs {
 
         public void setAuthorLine(final String authorLine) {
             this.authorLine = authorLine;
+        }
+
+        public Long getTargetClassId() {
+            return targetClassId;
+        }
+
+        public void setTargetClassId(final Long targetClassId) {
+            this.targetClassId = targetClassId;
+        }
+
+        public Long getTargetSectionId() {
+            return targetSectionId;
+        }
+
+        public void setTargetSectionId(final Long targetSectionId) {
+            this.targetSectionId = targetSectionId;
+        }
+
+        public String getTargetClassName() {
+            return targetClassName;
+        }
+
+        public void setTargetClassName(final String targetClassName) {
+            this.targetClassName = targetClassName;
+        }
+
+        public String getTargetSectionName() {
+            return targetSectionName;
+        }
+
+        public void setTargetSectionName(final String targetSectionName) {
+            this.targetSectionName = targetSectionName;
         }
 
         public String getNotificationType() {

@@ -1,3 +1,5 @@
+/* Table scroll + min widths: global `.erp-table-scroll` in styles.css */
+
 /* Book catalog: category + status columns — stable pill layout, truncation, theme-aligned chips */
 .library-books-table th.library-category-cell,
 .library-books-table td.library-category-cell {

@@ -7,6 +7,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { ChatService } from '../../core/services/chat.service';
 import { AuthService } from '../../core/services/auth.service';
+import { UiAccessService } from '../../core/services/ui-access.service';
 import { DirectoryEntry, DirectoryService } from '../../core/services/directory.service';
 import { PlatformService } from '../../core/services/platform.service';
 import {
@@ -54,6 +55,7 @@ import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directiv
         display: flex;
         flex-direction: column;
         min-height: 0;
+        min-width: 0;
         max-height: 100%;
         overflow: hidden;
         background: var(--clr-surface);
@@ -162,6 +164,7 @@ import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directiv
       }
       .chat-thread-header {
         flex-shrink: 0;
+        min-width: 0;
         padding: 14px 16px;
         background: linear-gradient(
           180deg,
@@ -176,6 +179,29 @@ import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directiv
         font-size: 16px;
         letter-spacing: -0.02em;
         color: var(--clr-text);
+        line-height: 1.35;
+        min-width: 0;
+        overflow: hidden;
+        display: -webkit-box;
+        -webkit-box-orient: vertical;
+        -webkit-line-clamp: 2;
+        word-break: break-word;
+        overflow-wrap: anywhere;
+      }
+      .chat-thread-meta {
+        font-size: 12px;
+        line-height: 1.45;
+        color: var(--clr-text-muted);
+        margin-top: 4px;
+        min-width: 0;
+        overflow: hidden;
+        white-space: nowrap;
+        text-overflow: ellipsis;
+      }
+      .chat-thread-titles-wrap {
+        min-width: 0;
+        flex: 1 1 auto;
+        overflow: hidden;
       }
       .chat-thread-placeholder-title {
         font-weight: 800;
@@ -253,6 +279,7 @@ import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directiv
         border-bottom: 1px solid var(--clr-border-light);
         cursor: pointer;
         transition: background 0.15s ease, box-shadow 0.15s ease;
+        min-width: 0;
       }
       .chat-row:hover {
         background: color-mix(in srgb, var(--clr-primary) 6%, var(--clr-surface));
@@ -261,20 +288,46 @@ import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directiv
         background: color-mix(in srgb, var(--clr-primary) 11%, var(--clr-surface));
         box-shadow: inset 3px 0 0 var(--clr-accent);
       }
+      .chat-inbox-text {
+        flex: 1 1 0;
+        min-width: 0;
+        overflow: hidden;
+      }
       .chat-inbox-name {
         font-weight: 800;
         font-size: 14px;
         letter-spacing: -0.01em;
-        white-space: nowrap;
+        color: var(--clr-text);
+        line-height: 1.35;
+        min-width: 0;
         overflow: hidden;
-        text-overflow: ellipsis;
+        display: -webkit-box;
+        -webkit-box-orient: vertical;
+        -webkit-line-clamp: 2;
+        word-break: break-word;
+        overflow-wrap: anywhere;
+      }
+      .chat-inbox-hint {
+        font-size: 11px;
+        color: var(--clr-text-muted);
+        line-height: 1.35;
+        margin-top: 2px;
+        min-width: 0;
+        overflow: hidden;
+        display: -webkit-box;
+        -webkit-box-orient: vertical;
+        -webkit-line-clamp: 1;
+        word-break: break-word;
+        overflow-wrap: anywhere;
       }
       .chat-inbox-preview {
         font-size: 13px;
         line-height: 1.35;
         color: var(--clr-text-secondary);
-        white-space: nowrap;
+        margin-top: 4px;
+        min-width: 0;
         overflow: hidden;
+        white-space: nowrap;
         text-overflow: ellipsis;
       }
       .chat-inbox-time {
@@ -448,6 +501,66 @@ import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directiv
         max-width: 320px;
         margin: 0 auto;
         line-height: 1.5;
+      }
+      [data-theme='dark'] .chat-shell {
+        border-color: color-mix(in srgb, var(--clr-primary) 20%, var(--clr-border));
+      }
+      [data-theme='dark'] .chat-sidebar-toolbar,
+      [data-theme='dark'] .chat-thread-header,
+      [data-theme='dark'] .chat-compose {
+        background: color-mix(in srgb, var(--clr-surface-alt) 72%, var(--clr-surface));
+      }
+      [data-theme='dark'] .chat-messages {
+        background-color: color-mix(in srgb, var(--clr-surface-muted) 86%, var(--clr-bg));
+        background-image: radial-gradient(
+            circle at 12% 18%,
+            color-mix(in srgb, var(--clr-primary) 12%, transparent) 0%,
+            transparent 45%
+          ),
+          radial-gradient(
+            circle at 88% 72%,
+            color-mix(in srgb, var(--clr-accent) 10%, transparent) 0%,
+            transparent 48%
+          ),
+          repeating-linear-gradient(
+            -12deg,
+            transparent,
+            transparent 11px,
+            color-mix(in srgb, var(--clr-primary) 5%, transparent) 11px,
+            color-mix(in srgb, var(--clr-primary) 5%, transparent) 12px
+          );
+      }
+      [data-theme='dark'] .bubble {
+        background: color-mix(in srgb, var(--clr-surface) 90%, var(--clr-surface-alt));
+        border-color: color-mix(in srgb, var(--clr-primary) 14%, var(--clr-border));
+      }
+      [data-theme='dark'] .bubble--mine {
+        background: linear-gradient(
+          145deg,
+          color-mix(in srgb, var(--clr-primary) 28%, var(--clr-surface)) 0%,
+          color-mix(in srgb, var(--clr-primary) 18%, var(--clr-surface-alt)) 100%
+        );
+      }
+      @media (max-width: 767.98px) {
+        .chat-layout-row {
+          display: flex;
+          flex-direction: column;
+          min-height: calc(100vh - 210px);
+        }
+        .chat-sidebar {
+          max-height: 42vh;
+          border-right: 0;
+          border-bottom: 1px solid var(--clr-border);
+        }
+        .chat-thread-column {
+          min-height: 52vh;
+        }
+        .chat-messages {
+          padding: 12px 12px 16px;
+        }
+        .bubble {
+          max-width: min(92%, 520px);
+        }
       }
     `
   ],
@@ -643,7 +756,7 @@ import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directiv
               </div>
 
               <!-- Admin: direct pick (MVP) -->
-              <div *ngIf="role === 'admin'">
+              <div *ngIf="canUseSchoolDirectoryForChat">
                 <label class="erp-label">{{ 'chat.labelTeachers' | translate }}</label>
                 <select class="erp-select" [(ngModel)]="selectedAdminTeacher" (ngModelChange)="selectedAdminParent = null">
                   <option [ngValue]="null">{{ 'chat.selectTeacher' | translate }}</option>
@@ -669,22 +782,23 @@ import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directiv
                    (click)="selectConversation(conv)"
                    class="chat-row"
                    [class.active]="selectedConversation?.conversationId === conv.conversationId">
-                <div class="d-flex align-items-start gap-3">
+                <div class="d-flex align-items-start gap-3 min-w-0">
                   <div class="chat-avatar" [style.background]="avatarColor(conversationTitle(conv))">
                     {{ initials(conversationTitle(conv)) }}
                   </div>
                   <div class="d-flex justify-content-between align-items-start gap-2 flex-grow-1 min-w-0">
-                    <div class="min-w-0">
-                      <div class="chat-inbox-name">{{ conversationTitle(conv) }}</div>
+                    <div class="chat-inbox-text min-w-0">
+                      <div class="chat-inbox-name" [attr.title]="conversationTitle(conv)">{{ conversationTitle(conv) }}</div>
                       <div
                         *ngIf="conversationIdentityHint(conv) as hint"
-                        class="text-muted"
-                        style="font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
+                        class="chat-inbox-hint"
                         [attr.title]="hint"
                       >
                         {{ hint }}
                       </div>
-                      <div class="chat-inbox-preview">{{ conv.lastMessagePreview || ('chat.noMessagesPreview' | translate) }}</div>
+                      <div class="chat-inbox-preview" [attr.title]="conv.lastMessagePreview || ''">
+                        {{ conv.lastMessagePreview || ('chat.noMessagesPreview' | translate) }}
+                      </div>
                     </div>
                     <div class="text-end flex-shrink-0">
                       <div class="chat-inbox-time">{{ asTime(conv.lastMessageAt) }}</div>
@@ -703,14 +817,16 @@ import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directiv
 
           <div class="col-lg-8 chat-thread-column">
             <div class="chat-thread-header">
-              <div *ngIf="selectedConversation; else noSelection" class="d-flex align-items-start justify-content-between gap-3">
-                <div class="d-flex align-items-start gap-3 min-w-0">
+              <div *ngIf="selectedConversation; else noSelection" class="d-flex align-items-start justify-content-between gap-3 min-w-0">
+                <div class="d-flex align-items-start gap-3 min-w-0 flex-grow-1">
                   <div class="chat-avatar d-none d-sm-flex" [style.background]="avatarColor(conversationTitle(selectedConversation))">
                     {{ initials(conversationTitle(selectedConversation)) }}
                   </div>
-                  <div class="min-w-0">
-                    <div class="chat-thread-title">{{ conversationTitle(selectedConversation) }}</div>
-                    <div class="text-muted chat-thread-meta" style="font-size: 12px; line-height: 1.45;">
+                  <div class="chat-thread-titles-wrap min-w-0">
+                    <div class="chat-thread-title" [attr.title]="conversationTitle(selectedConversation)">
+                      {{ conversationTitle(selectedConversation) }}
+                    </div>
+                    <div class="chat-thread-meta" [attr.title]="threadSubtitle(selectedConversation)">
                       {{ threadSubtitle(selectedConversation) }}
                     </div>
                   </div>
@@ -824,9 +940,14 @@ export class ChatComponent implements OnInit, OnDestroy {
 
   @ViewChild('threadScroll') private threadScroll?: ElementRef<HTMLElement>;
 
+  get canUseSchoolDirectoryForChat(): boolean {
+    return this.uiAccess.hasAcademicDeskAdminAccess();
+  }
+
   constructor(
     private chat: ChatService,
     private auth: AuthService,
+    private uiAccess: UiAccessService,
     private directoryService: DirectoryService,
     private platform: PlatformService,
     private router: Router,
@@ -838,7 +959,7 @@ export class ChatComponent implements OnInit, OnDestroy {
   ngOnInit(): void {
     this.translate.onLangChange.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => this.cdr.markForCheck());
     this.myUserId = this.auth.getCurrentUser()?.id ?? null;
-    this.role = this.auth.getRole() || 'admin';
+    this.role = this.auth.getNormalizedRole() || this.auth.getRole() || 'admin';
     this.chat.connectRealtime();
     this.rtSub = this.chat.realtimeConnected$.subscribe(v => (this.realtimeConnected = v));
     this.chat.inbox$.subscribe(items => (this.inbox = items));
@@ -871,7 +992,7 @@ export class ChatComponent implements OnInit, OnDestroy {
     if (this.role === 'parent') {
       return;
     }
-    if (!['admin', 'teacher', 'super_admin'].includes(this.role)) {
+    if (!(this.role === 'super_admin' || this.uiAccess.hasAcademicDeskAdminAccess())) {
       return;
     }
     this.toolbarSearchTimer = setTimeout(() => this.runToolbarSuggest(), 280);
@@ -885,7 +1006,7 @@ export class ChatComponent implements OnInit, OnDestroy {
     if (this.role === 'parent') {
       return false;
     }
-    if (!['admin', 'teacher', 'super_admin'].includes(this.role)) {
+    if (!(this.role === 'super_admin' || this.uiAccess.hasAcademicDeskAdminAccess())) {
       return false;
     }
     return this.toolbarSearchLoading || this.toolbarDirHits.length > 0 || this.toolbarPlatHits.length > 0 || this.toolbarSuggestScanned;
@@ -940,7 +1061,7 @@ export class ChatComponent implements OnInit, OnDestroy {
       });
       return;
     }
-    if (this.role !== 'admin' && this.role !== 'teacher') {
+    if (!this.uiAccess.hasAcademicDeskAdminAccess()) {
       this.clearToolbarSuggest();
       return;
     }
@@ -1028,7 +1149,11 @@ export class ChatComponent implements OnInit, OnDestroy {
     const all = this.directory.myClassRosters.flatMap(r => r.students || []);
     const student = all.find(s => s.studentId === this.selectedStudentForChat);
     if (!student?.parent) return;
-    this.startDirectChat(student.parent.userId, 'PARENT', this.translate.instant('chat.parentOf', { name: student.studentName }), {
+    const parentName = (student.parent.name || '').trim();
+    const peerLabel = parentName.length
+      ? this.translate.instant('chat.threadParentWithChild', { parent: parentName, child: student.studentName })
+      : this.translate.instant('chat.parentOf', { name: student.studentName });
+    this.startDirectChat(student.parent.userId, 'PARENT', peerLabel, {
       contextType: 'student',
       contextId: String(student.studentId),
     });
@@ -1298,6 +1423,7 @@ export class ChatComponent implements OnInit, OnDestroy {
       ADMIN: 'chat.counterpartRoleAdmin',
       SUPER_ADMIN: 'chat.counterpartRoleSuperAdmin',
       LIBRARY_STAFF: 'chat.counterpartRoleLibraryStaff',
+      SCHOOL_STAFF: 'chat.counterpartRoleSchoolStaff',
       STUDENT: 'chat.counterpartRoleStudent',
     };
     const key = map[c] ?? 'chat.counterpartRoleGeneric';

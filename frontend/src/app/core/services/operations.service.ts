@@ -1,19 +1,22 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { Observable, of, throwError, timer } from 'rxjs';
-import { catchError, delay, map, switchMap } from 'rxjs/operators';
+import { Observable, Subject, of, throwError, timer } from 'rxjs';
+import { catchError, delay, map, switchMap, tap } from 'rxjs/operators';
 import { MOCK_OPERATIONS_INVENTORY_SEED, MOCK_OPERATIONS_STAFF_SEED, mockPayrollAccrualSummary } from '../mocks/operations.mock-data';
 import { ApiResp, ApiService, PageResp } from './api.service';
 import { DEFAULT_ERP_PAGE_SIZE } from '../constants/pagination.constants';
 import { sliceToPage } from '../utils/paginate';
 import { runtimeConfig } from '../config/runtime-config';
 import {
+  AttendanceCoverAuditRow,
   AttendanceCoverConflictPayload,
   AttendanceCoverRow,
+  AttendanceProxyAuditRow,
   CreateAttendanceCoverRequest,
   FeeReminderRow,
   GatePassRow,
   InventoryRow,
+  OperationalStaffPortalWrite,
   OperationalStaffRow,
   PayrollAccrualSummary,
   VisitorLogRow,
@@ -23,18 +26,36 @@ import { UserFacingHttpError } from '../http/user-facing-http-error';
 
 @Injectable({ providedIn: 'root' })
 export class OperationsService {
+  private static readonly UNKNOWN_ACTOR = 'Unknown user';
   private mockStaff: OperationalStaffRow[] = MOCK_OPERATIONS_STAFF_SEED.map(s => ({ ...s }));
   private mockVisitors: VisitorLogRow[] = [];
   private mockGate: GatePassRow[] = [];
   private mockInv: InventoryRow[] = MOCK_OPERATIONS_INVENTORY_SEED.map(r => ({ ...r }));
   private mockRem: FeeReminderRow[] = [];
   private mockCovers: AttendanceCoverRow[] = [];
+  private mockCoverAudit: AttendanceCoverAuditRow[] = [];
+  private mockAttendanceProxyAudit: AttendanceProxyAuditRow[] = [];
+  private readonly attendanceCoverMutationsSubject = new Subject<{
+    coverDate: string;
+    classId: number;
+    sectionId: number | null;
+    type: 'CREATED' | 'CANCELLED';
+  }>();
   private nextId = 100;
 
   constructor(
     private api: ApiService,
     private http: HttpClient
   ) {}
+
+  get attendanceCoverMutations$(): Observable<{
+    coverDate: string;
+    classId: number;
+    sectionId: number | null;
+    type: 'CREATED' | 'CANCELLED';
+  }> {
+    return this.attendanceCoverMutationsSubject.asObservable();
+  }
 
   /** Align API numeric ids with UI string ids (strict templates). */
   private normalizeStaffRow(raw: OperationalStaffRow): OperationalStaffRow {
@@ -71,6 +92,78 @@ export class OperationsService {
     return this.listStaff().pipe(map(all => sliceToPage(all, page, size)));
   }
 
+  listStaffPageWithFilters(
+    page = 0,
+    size = DEFAULT_ERP_PAGE_SIZE,
+    search?: string,
+    status?: 'active' | 'inactive' | ''
+  ): Observable<PageResp<OperationalStaffRow>> {
+    if (!runtimeConfig.useMocks) {
+      return this.api
+        .getPageParams<OperationalStaffRow>('/operations/staff/paged', {
+          page,
+          size,
+          search: search?.trim() || undefined,
+          status: status?.trim() || undefined,
+        })
+        .pipe(map(p => ({ ...p, content: p.content.map(r => this.normalizeStaffRow(r)) })));
+    }
+    return this.listStaffPage(page, size);
+  }
+
+  getStaffById(id: string): Observable<OperationalStaffRow> {
+    if (runtimeConfig.useMocks) {
+      const row = this.mockStaff.find(s => s.id === id);
+      if (!row) return throwError(() => new Error('Staff record not found.'));
+      return of({ ...row }).pipe(delay(120));
+    }
+    return this.api.get<OperationalStaffRow>(`/operations/staff/${encodeURIComponent(id)}`).pipe(map(r => this.normalizeStaffRow(r)));
+  }
+
+  updateStaff(id: string, body: Partial<OperationalStaffRow> & OperationalStaffPortalWrite): Observable<OperationalStaffRow> {
+    if (runtimeConfig.useMocks) {
+      const idx = this.mockStaff.findIndex(s => s.id === id);
+      if (idx < 0) return throwError(() => new Error('Staff record not found.'));
+      let next = { ...this.mockStaff[idx], ...body };
+      if (body.createPortal === true) {
+        if (!next.phone?.trim()) {
+          return throwError(() => new Error('Phone is required when creating a staff portal login.'));
+        }
+        const pwd = body.portalPassword?.trim();
+        if (pwd && pwd.length < 8) {
+          return throwError(() => new Error('Portal password must be at least 8 characters when provided.'));
+        }
+        if (!next.userId) {
+          const numId = Number(next.id);
+          next = { ...next, userId: String(Number.isFinite(numId) ? 770000 + numId : 770000 + idx) };
+        }
+      }
+      this.mockStaff = [...this.mockStaff.slice(0, idx), next, ...this.mockStaff.slice(idx + 1)];
+      return of(next).pipe(delay(160));
+    }
+    return this.api
+      .put<OperationalStaffRow>(`/operations/staff/${encodeURIComponent(id)}`, {
+        staffRole: body.staffRole,
+        fullName: body.fullName,
+        phone: body.phone,
+        email: body.email,
+        employeeCode: body.employeeCode,
+        notes: body.notes,
+        createPortal: body.createPortal,
+        portalPassword: body.portalPassword?.trim() ? body.portalPassword.trim() : undefined,
+      })
+      .pipe(map(r => this.normalizeStaffRow(r)));
+  }
+
+  updateStaffStatus(id: string, active: boolean): Observable<OperationalStaffRow> {
+    if (runtimeConfig.useMocks) {
+      return this.updateStaff(id, { isActive: active });
+    }
+    return this.api
+      .patch<OperationalStaffRow>(`/operations/staff/${encodeURIComponent(id)}/status?active=${active ? 'true' : 'false'}`, {})
+      .pipe(map(r => this.normalizeStaffRow(r)));
+  }
+
   deleteStaff(id: string, permanent = false): Observable<void> {
     if (runtimeConfig.useMocks) {
       const row = this.mockStaff.find(s => s.id === id);
@@ -86,23 +179,35 @@ export class OperationsService {
     return this.api.delete<void>(`/operations/staff/${id}?permanent=${permanent ? 'true' : 'false'}`);
   }
 
-  createStaff(body: Partial<OperationalStaffRow>): Observable<OperationalStaffRow> {
+  createStaff(body: Partial<OperationalStaffRow> & OperationalStaffPortalWrite): Observable<OperationalStaffRow> {
     if (runtimeConfig.useMocks) {
+      if (body.createPortal === true && !body.phone?.trim()) {
+        return throwError(() => new Error('Phone is required when creating a staff portal login.'));
+      }
+      const pwd = body.portalPassword?.trim();
+      if (body.createPortal === true && pwd && pwd.length < 8) {
+        return throwError(() => new Error('Portal password must be at least 8 characters when provided.'));
+      }
+      const nid = String(this.nextId++);
       const row: OperationalStaffRow = {
-        id: String(this.nextId++),
+        id: nid,
         staffRole: body.staffRole || 'OTHER',
         fullName: body.fullName || '',
         phone: body.phone,
         email: body.email,
         employeeCode: body.employeeCode,
-        userId: body.userId,
+        userId: body.createPortal === true && body.phone ? String(880000 + Number(nid) || 0) : undefined,
         transportRouteId: body.transportRouteId,
         notes: body.notes,
       };
       this.mockStaff = [...this.mockStaff, row];
       return of(row).pipe(delay(200));
     }
-    return this.api.post<OperationalStaffRow>('/operations/staff', body).pipe(map(r => this.normalizeStaffRow(r)));
+    const payload = {
+      ...body,
+      portalPassword: body.portalPassword?.trim() ? body.portalPassword.trim() : undefined,
+    };
+    return this.api.post<OperationalStaffRow>('/operations/staff', payload).pipe(map(r => this.normalizeStaffRow(r)));
   }
 
   listVisitors(): Observable<VisitorLogRow[]> {
@@ -119,9 +224,22 @@ export class OperationsService {
 
   checkInVisitor(body: { visitorName: string; phone?: string; purpose?: string; hostName?: string }): Observable<VisitorLogRow> {
     if (runtimeConfig.useMocks) {
+      const name = body.visitorName?.trim();
+      if (!name) {
+        return throwError(() => new Error('Visitor name is required.'));
+      }
+      const duplicateActive = this.mockVisitors.some(
+        v =>
+          v.status === 'ON_PREMISES' &&
+          v.visitorName.trim().toLowerCase() === name.toLowerCase() &&
+          (!!body.phone ? (v.phone || '').trim() === body.phone.trim() : true)
+      );
+      if (duplicateActive) {
+        return throwError(() => new Error('Visitor is already checked in.'));
+      }
       const row: VisitorLogRow = {
         id: String(this.nextId++),
-        visitorName: body.visitorName,
+        visitorName: name,
         phone: body.phone,
         purpose: body.purpose,
         hostName: body.hostName,
@@ -160,10 +278,27 @@ export class OperationsService {
 
   createGatePass(body: Partial<GatePassRow> & { validFrom: string; validTo: string; issuedToName: string }): Observable<GatePassRow> {
     if (runtimeConfig.useMocks) {
+      const issuedToName = body.issuedToName?.trim();
+      if (!issuedToName || !body.validFrom || !body.validTo) {
+        return throwError(() => new Error('Issued to name and validity dates are required.'));
+      }
+      if (body.validTo < body.validFrom) {
+        return throwError(() => new Error('Valid to date must be on/after valid from date.'));
+      }
+      const duplicateActive = this.mockGate.some(
+        g =>
+          g.status === 'ACTIVE' &&
+          g.issuedToName.trim().toLowerCase() === issuedToName.toLowerCase() &&
+          g.validFrom === body.validFrom &&
+          g.validTo === body.validTo
+      );
+      if (duplicateActive) {
+        return throwError(() => new Error('A similar active gate pass already exists.'));
+      }
       const row: GatePassRow = {
         id: String(this.nextId++),
         studentId: body.studentId,
-        issuedToName: body.issuedToName,
+        issuedToName,
         validFrom: body.validFrom,
         validTo: body.validTo,
         purpose: body.purpose,
@@ -201,14 +336,24 @@ export class OperationsService {
 
   upsertInventory(body: Partial<InventoryRow> & { sku: string; name: string }): Observable<InventoryRow> {
     if (runtimeConfig.useMocks) {
+      const sku = body.sku?.trim();
+      const name = body.name?.trim();
+      if (!sku || !name) {
+        return throwError(() => new Error('SKU and name are required.'));
+      }
+      const qty = Number(body.quantityOnHand ?? 0);
+      const reorder = Number(body.reorderLevel ?? 0);
+      if (!Number.isFinite(qty) || qty < 0 || !Number.isFinite(reorder) || reorder < 0) {
+        return throwError(() => new Error('Inventory quantities cannot be negative.'));
+      }
       const i = this.mockInv.findIndex(x => x.sku === body.sku);
       const row: InventoryRow = {
         id: i >= 0 ? this.mockInv[i].id : String(this.nextId++),
-        sku: body.sku,
-        name: body.name,
+        sku,
+        name,
         category: body.category,
-        quantityOnHand: body.quantityOnHand ?? 0,
-        reorderLevel: body.reorderLevel ?? 0,
+        quantityOnHand: qty,
+        reorderLevel: reorder,
         location: body.location,
       };
       if (i >= 0) this.mockInv = [...this.mockInv.slice(0, i), row, ...this.mockInv.slice(i + 1)];
@@ -249,12 +394,23 @@ export class OperationsService {
 
   enqueueFeeReminder(body: { studentId: number; feePaymentId?: number; dueDate?: string; channel?: string }): Observable<FeeReminderRow> {
     if (runtimeConfig.useMocks) {
+      const channel = (body.channel || 'EMAIL').toUpperCase();
+      const duplicatePending = this.mockRem.some(
+        r =>
+          r.status === 'PENDING' &&
+          r.studentId === body.studentId &&
+          (r.feePaymentId ?? null) === (body.feePaymentId ?? null) &&
+          (r.channel || '').toUpperCase() === channel
+      );
+      if (duplicatePending) {
+        return throwError(() => new Error('A pending reminder already exists for this channel.'));
+      }
       const row: FeeReminderRow = {
         id: String(this.nextId++),
         studentId: body.studentId,
         feePaymentId: body.feePaymentId,
         dueDate: body.dueDate,
-        channel: body.channel || 'EMAIL',
+        channel,
         status: 'PENDING',
         scheduledAt: new Date(Date.now() + 3600_000).toISOString(),
       };
@@ -327,7 +483,33 @@ export class OperationsService {
     return this.api.get<AttendanceCoverRow[]>(`/attendance/covers/all-active?date=${encodeURIComponent(date)}`);
   }
 
-  createAttendanceCover(body: CreateAttendanceCoverRequest): Observable<AttendanceCoverRow> {
+  listAttendanceCoverAuditPage(
+    coverDate: string,
+    page = 0,
+    size = DEFAULT_ERP_PAGE_SIZE
+  ): Observable<PageResp<AttendanceCoverAuditRow>> {
+    if (runtimeConfig.useMocks) {
+      const scoped = this.mockCoverAudit.filter(r => r.coverDate === coverDate);
+      return of(sliceToPage(scoped, page, size)).pipe(delay(100));
+    }
+    return this.api.getPageParams<AttendanceCoverAuditRow>('/attendance/covers/audit/paged', { coverDate, page, size });
+  }
+
+  private appendCoverAudit(row: Omit<AttendanceCoverAuditRow, 'id' | 'at'>): void {
+    this.mockCoverAudit = [
+      {
+        ...row,
+        id: `cov-audit-${++this.nextId}`,
+        at: new Date().toISOString(),
+      },
+      ...this.mockCoverAudit,
+    ].slice(0, 500);
+  }
+
+  createAttendanceCover(
+    body: CreateAttendanceCoverRequest,
+    auditMeta?: { actorUserId?: number | null; actorName?: string }
+  ): Observable<AttendanceCoverRow> {
     if (runtimeConfig.useMocks) {
       return timer(200).pipe(
         switchMap(() => {
@@ -364,6 +546,28 @@ export class OperationsService {
               return throwError(() => new Error('Replace id does not match the active conflicting cover.'));
             }
             this.mockCovers = this.mockCovers.map(c => (c.id === blocking.id ? { ...c, status: 'CANCELLED' } : c));
+            this.appendCoverAudit({
+              action: 'REPLACED',
+              actorUserId: auditMeta?.actorUserId ?? null,
+              actorName: auditMeta?.actorName || OperationsService.UNKNOWN_ACTOR,
+              coverDate: body.coverDate,
+              classId: body.classId,
+              sectionId: body.sectionId ?? null,
+              periodNumber: body.periodNumber ?? null,
+              coveringTeacherId: body.coveringTeacherId,
+              replacedCoverAssignmentId: blocking.id,
+              reason: body.reason,
+              before: {
+                coverAssignmentId: blocking.id,
+                coveringTeacherId: blocking.coveringTeacherId,
+                reason: blocking.reason ?? null,
+              },
+              after: {
+                coverAssignmentId: null,
+                coveringTeacherId: body.coveringTeacherId,
+                reason: body.reason ?? null,
+              },
+            });
           } else if (body.replaceCoverAssignmentId != null) {
             return throwError(() => new Error('No active conflicting cover to replace.'));
           }
@@ -379,6 +583,28 @@ export class OperationsService {
             status: 'ACTIVE',
           };
           this.mockCovers = [...this.mockCovers, row];
+          this.appendCoverAudit({
+            action: 'CREATED',
+            actorUserId: auditMeta?.actorUserId ?? null,
+            actorName: auditMeta?.actorName || OperationsService.UNKNOWN_ACTOR,
+            coverDate: row.coverDate,
+            classId: row.classId,
+            sectionId: row.sectionId ?? null,
+            periodNumber: row.periodNumber ?? null,
+            coveringTeacherId: row.coveringTeacherId,
+            reason: row.reason,
+            after: {
+              coverAssignmentId: row.id,
+              coveringTeacherId: row.coveringTeacherId,
+              reason: row.reason ?? null,
+            },
+          });
+          this.attendanceCoverMutationsSubject.next({
+            coverDate: row.coverDate,
+            classId: row.classId,
+            sectionId: row.sectionId ?? null,
+            type: 'CREATED',
+          });
           return of(row);
         })
       );
@@ -399,6 +625,14 @@ export class OperationsService {
           return res.data;
         }
         throw new Error(res.message || 'Request failed');
+      }),
+      tap(row => {
+        this.attendanceCoverMutationsSubject.next({
+          coverDate: row.coverDate,
+          classId: row.classId,
+          sectionId: row.sectionId ?? null,
+          type: 'CREATED',
+        });
       }),
       catchError((err: unknown) => {
         if (
@@ -452,11 +686,68 @@ export class OperationsService {
     return existing === requested;
   }
 
-  cancelAttendanceCover(id: number): Observable<void> {
+  cancelAttendanceCover(
+    id: number,
+    context?: { coverDate: string; classId: number; sectionId: number | null },
+    auditMeta?: { actorUserId?: number | null; actorName?: string }
+  ): Observable<void> {
     if (runtimeConfig.useMocks) {
+      const existing = this.mockCovers.find(c => c.id === id);
       this.mockCovers = this.mockCovers.map(c => (c.id === id ? { ...c, status: 'CANCELLED' } : c));
+      if (existing) {
+        this.appendCoverAudit({
+          action: 'CANCELLED',
+          actorUserId: auditMeta?.actorUserId ?? null,
+          actorName: auditMeta?.actorName || OperationsService.UNKNOWN_ACTOR,
+          coverDate: existing.coverDate,
+          classId: existing.classId,
+          sectionId: existing.sectionId ?? null,
+          periodNumber: existing.periodNumber ?? null,
+          coveringTeacherId: existing.coveringTeacherId,
+          cancelledCoverAssignmentId: existing.id,
+          reason: existing.reason,
+          before: {
+            coverAssignmentId: existing.id,
+            coveringTeacherId: existing.coveringTeacherId,
+            reason: existing.reason ?? null,
+          },
+        });
+        this.attendanceCoverMutationsSubject.next({
+          coverDate: existing.coverDate,
+          classId: existing.classId,
+          sectionId: existing.sectionId ?? null,
+          type: 'CANCELLED',
+        });
+      }
       return of(undefined).pipe(delay(120));
     }
-    return this.api.post<void>(`/attendance/covers/${id}/cancel`, {});
+    return this.api.post<void>(`/attendance/covers/${id}/cancel`, {}).pipe(
+      tap(() => {
+        if (context) {
+          this.attendanceCoverMutationsSubject.next({
+            coverDate: context.coverDate,
+            classId: context.classId,
+            sectionId: context.sectionId ?? null,
+            type: 'CANCELLED',
+          });
+        }
+      })
+    );
+  }
+
+  /**
+   * Records a proxy/substitute attendance submission for admin audit (mock store or POST /operations/audit/attendance-proxy).
+   */
+  recordAttendanceProxyAudit(row: Omit<AttendanceProxyAuditRow, 'id' | 'at'>): Observable<void> {
+    const entry: AttendanceProxyAuditRow = {
+      ...row,
+      id: `aa-${++this.nextId}`,
+      at: new Date().toISOString(),
+    };
+    if (runtimeConfig.useMocks) {
+      this.mockAttendanceProxyAudit = [entry, ...this.mockAttendanceProxyAudit].slice(0, 200);
+      return of(undefined).pipe(delay(60));
+    }
+    return this.api.post<void>('/operations/audit/attendance-proxy', entry);
   }
 }

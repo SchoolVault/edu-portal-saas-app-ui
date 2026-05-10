@@ -28,7 +28,7 @@ See [Render: Redirects and rewrites](https://render.com/docs/redirects-rewrites)
 
 ### Tab icon (favicon)
 
-Brand asset: `public/schoolvault-icon.png` (School Vault shield logo). `index.html` links to it as `rel="icon"`. If you still see an old Angular icon after deploy, the browser cached `/favicon.ico` — try a hard refresh, clear site data for the origin, or an incognito window.
+Brand asset: `public/schoolvault-logo.png` (School Vault logo). `index.html` and `src/app/core/config/brand-assets.ts` reference it for the tab icon and all in-app logos. If the tab icon looks stale after deploy, hard-refresh or clear site data (browsers cache favicons aggressively).
 
 ## Running unit tests
 

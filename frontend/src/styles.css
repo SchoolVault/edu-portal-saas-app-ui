@@ -35,6 +35,8 @@
   --shadow-md: 0 8px 32px rgba(27, 58, 48, 0.09), 0 4px 12px rgba(192, 92, 61, 0.05);
   --shadow-lg: 0 20px 48px rgba(27, 58, 48, 0.11), 0 8px 20px rgba(192, 92, 61, 0.06);
   --surface-ring: color-mix(in srgb, var(--clr-primary) 14%, var(--clr-border));
+  /** Subject / catalog chips: brand green in light theme */
+  --clr-subject-accent: var(--clr-primary);
   --font-heading: 'Avenir Next', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
   --font-body: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
 }
@@ -47,17 +49,17 @@
   --clr-accent: #ff9a6b;
   --clr-accent-light: #ffb08a;
   --clr-accent-dark: #d8784d;
-  --clr-bg: #111827;
-  --clr-surface: #18212f;
-  --clr-surface-alt: #1e293b;
-  --clr-surface-muted: #243048;
+  --clr-bg: #101826;
+  --clr-surface: #1a2434;
+  --clr-surface-alt: #202d42;
+  --clr-surface-muted: #27364f;
   --clr-text: #f3f4f6;
   --clr-text-primary: #f3f4f6;
-  --clr-text-secondary: #d1d5db;
-  --clr-text-muted: #94a3b8;
-  --clr-border: #334155;
-  --clr-border-light: #243041;
-  --clr-hover: #223044;
+  --clr-text-secondary: #e2e8f0;
+  --clr-text-muted: #b6c3d6;
+  --clr-border: #42546f;
+  --clr-border-light: #34445d;
+  --clr-hover: #2a3a53;
   --clr-success: #34d399;
   --clr-warning: #f59e0b;
   --clr-danger: #f87171;
@@ -66,6 +68,8 @@
   --shadow-md: 0 10px 36px rgba(0,0,0,0.32), 0 2px 10px rgba(0,0,0,0.2);
   --shadow-lg: 0 18px 48px rgba(0,0,0,0.42), 0 4px 16px rgba(0,0,0,0.25);
   --surface-ring: color-mix(in srgb, var(--clr-primary) 22%, var(--clr-border));
+  /** Dark: mint primary on charcoal reads muddy in dense tables — match success / Active badge green */
+  --clr-subject-accent: var(--clr-success);
 }
 
 [data-theme='dark'] html,
@@ -77,6 +81,15 @@
 }
 
 * { box-sizing: border-box; }
+
+/* Universal media safety: prevents overflow on narrow devices across all modules/roles. */
+img,
+svg,
+canvas,
+video,
+iframe {
+  max-width: 100%;
+}
 
 html, body {
   height: 100%;
@@ -94,6 +107,48 @@ html, body {
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+/*
+ * Desktop density tuning:
+ * Users reported current layout feels oversized at 100% browser zoom and looks optimal around 80%.
+ * This compact profile reduces base typography/spacing on laptop+ while keeping mobile untouched.
+ */
+@media (min-width: 1024px) {
+  html {
+    font-size: 93.75%; /* 16px -> 15px base */
+  }
+  body {
+    font-size: 13px;
+  }
+  .main-content {
+    padding: 20px;
+  }
+  .erp-card,
+  .stat-card {
+    padding: 20px;
+  }
+  .erp-card-header {
+    margin-bottom: 16px;
+  }
+  .erp-card-title {
+    font-size: 15px;
+  }
+  .page-title {
+    font-size: 17px;
+  }
+  .btn-primary-erp,
+  .btn-secondary-erp,
+  .btn-outline-erp {
+    padding: 9px 20px;
+    font-size: 13px;
+  }
+  .erp-input,
+  .erp-select {
+    font-size: 13px;
+    padding-top: 9px;
+    padding-bottom: 9px;
+  }
 }
 
 h1, h2, h3, h4, h5, h6 {
@@ -156,7 +211,13 @@ a:hover {
   flex-shrink: 0;
 }
 
-.sidebar-brand img { width: 36px; height: 36px; border-radius: var(--radius-lg); }
+.sidebar-brand img {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-lg);
+  object-fit: contain;
+  background: color-mix(in srgb, var(--clr-surface) 92%, var(--clr-primary) 8%);
+}
 .sidebar-brand h2 { font-size: 16px; font-weight: 700; white-space: nowrap; overflow: hidden; margin: 0; }
 
 .sidebar-nav {
@@ -233,6 +294,8 @@ a:hover {
   display: flex;
   flex-direction: column;
   min-height: 100vh;
+  /* Prevents wide child pages (e.g. wide tables) from stretching the shell and misaligning the header. */
+  min-width: 0;
 }
 
 .main-wrapper.collapsed { margin-left: var(--sidebar-w-collapsed); }
@@ -252,6 +315,9 @@ a:hover {
   position: sticky;
   top: 0;
   z-index: 100;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 .header-left { display: flex; align-items: center; gap: 16px; flex-shrink: 0; }
@@ -374,7 +440,12 @@ a:hover {
 .profile-name { font-size: 13px; font-weight: 600; color: var(--clr-text); }
 .profile-role { font-size: 11px; color: var(--clr-text-muted); text-transform: capitalize; }
 
-.main-content { flex: 1; padding: 24px; }
+.main-content {
+  flex: 1;
+  padding: 24px;
+  min-width: 0;
+  overflow-x: hidden;
+}
 
 .profile-summary-card {
   padding: 12px 14px;
@@ -382,6 +453,7 @@ a:hover {
   border-radius: var(--radius-lg);
   background: linear-gradient(135deg, color-mix(in srgb, var(--clr-primary) 18%, var(--clr-surface)), color-mix(in srgb, var(--clr-accent) 10%, var(--clr-surface)));
   border: 1px solid color-mix(in srgb, var(--clr-border) 60%, transparent);
+  cursor: default;
 }
 
 .profile-summary-school {
@@ -624,6 +696,16 @@ a:hover {
   align-items: center;
   gap: 0.65rem;
 }
+@media (max-width: 640px) {
+  .erp-page-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .erp-page-header__actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+}
 
 /* Stat Cards */
 .stat-card {
@@ -713,6 +795,59 @@ a:hover {
 .erp-table tbody tr:hover { background: var(--clr-hover); }
 .erp-table tbody tr:last-child td { border-bottom: none; }
 
+/* Inline code: neutral (overrides Bootstrap pink on `code` in tables/cards) */
+.erp-table code,
+code.erp-code {
+  font-family: ui-monospace, 'SFMono-Regular', Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--clr-text-secondary);
+  background: color-mix(in srgb, var(--clr-surface-muted) 90%, var(--clr-border));
+  padding: 0.15em 0.45em;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--clr-border);
+}
+
+/* Alias for tertiary actions (same as outline; was referenced only in Settings → RBAC) */
+.btn-ghost-erp,
+.btn-ghost-erp.btn-sm,
+.btn-ghost-erp.btn-xs {
+  background: transparent;
+  color: var(--clr-text-secondary);
+  border: 1.5px solid var(--surface-ring);
+  padding: 10px 24px;
+  border-radius: var(--radius-lg);
+  font-family: var(--font-body);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.btn-ghost-erp.btn-sm { padding: 6px 16px; font-size: 13px; }
+.btn-ghost-erp.btn-xs { padding: 4px 12px; font-size: 12px; }
+.btn-ghost-erp:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-ghost-erp:hover:not(:disabled),
+.btn-ghost-erp:focus-visible {
+  color: var(--clr-text-primary);
+  border-color: color-mix(in srgb, var(--clr-primary) 32%, var(--surface-ring));
+  background: color-mix(in srgb, var(--clr-primary) 6%, var(--clr-surface));
+}
+[data-theme='dark'] .btn-ghost-erp:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--clr-primary) 10%, var(--clr-surface));
+}
+.btn-ghost-erp.text-danger { color: var(--clr-danger); }
+.btn-ghost-erp.text-danger:hover:not(:disabled) {
+  color: var(--clr-danger);
+  background: color-mix(in srgb, var(--clr-danger) 10%, var(--clr-surface));
+  border-color: color-mix(in srgb, var(--clr-danger) 35%, var(--clr-border));
+}
+
 .table-avatar {
   width: 36px;
   height: 36px;
@@ -774,6 +909,43 @@ img.table-avatar {
 .erp-input:focus {
   border-color: color-mix(in srgb, var(--clr-primary) 45%, var(--clr-border));
   box-shadow: 0 0 0 4px color-mix(in srgb, var(--clr-primary) 14%, transparent);
+}
+
+/* Read-only fields: hide caret + default arrow (not I-beam) so they are not mistaken for editable inputs. */
+.erp-input[readonly],
+.erp-input:read-only,
+.erp-textarea[readonly],
+.erp-textarea:read-only,
+input.erp-input[disabled],
+textarea.erp-input[disabled],
+select.erp-select:disabled {
+  caret-color: transparent;
+  cursor: default;
+}
+
+/**
+ * Display-only profile / identity blocks (name, DOB, etc. as plain text).
+ * Browsers use text cursor over selectable copy by default; force arrow for clearer “read-only” affordance.
+ * Real controls inside keep pointer / text cursors as appropriate.
+ */
+.erp-readonly-profile {
+  cursor: default;
+}
+.erp-readonly-profile a[href],
+.erp-readonly-profile button:not(:disabled),
+.erp-readonly-profile summary,
+.erp-readonly-profile .btn-icon,
+.erp-readonly-profile .btn-primary-erp,
+.erp-readonly-profile .btn-outline-erp,
+.erp-readonly-profile .btn-danger-erp,
+.erp-readonly-profile .btn-link,
+.erp-readonly-profile .erp-tab {
+  cursor: pointer;
+}
+.erp-readonly-profile input:not([disabled]):not([readonly]):not(:read-only),
+.erp-readonly-profile textarea:not([disabled]):not([readonly]):not(:read-only),
+.erp-readonly-profile select:not([disabled]) {
+  cursor: text;
 }
 .erp-input::placeholder { color: var(--clr-text-muted); }
 .erp-input.ng-invalid.ng-touched { border-color: var(--clr-danger); box-shadow: 0 0 0 4px rgba(220,38,38,0.08); }
@@ -1053,6 +1225,7 @@ img.table-avatar {
 .text-muted {
   color: var(--clr-text-secondary) !important;
 }
+
 .btn-danger-erp {
   background: var(--clr-danger);
   color: #fff;
@@ -1077,6 +1250,46 @@ img.table-avatar {
   color: #fff;
 }
 .btn-danger-erp:hover { background: #B91C1C; }
+
+/* Reusable list/filter toolbar alignment across modules. */
+.erp-filter-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 10px;
+}
+.erp-filter-toolbar__search {
+  flex: 1 1 280px;
+  min-width: 200px;
+  max-width: 360px;
+}
+.erp-filter-toolbar__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: flex-end;
+  gap: 10px;
+}
+.erp-filter-toolbar__action {
+  margin-left: auto;
+}
+@media (max-width: 768px) {
+  .erp-filter-toolbar__search {
+    flex: 0 0 auto;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+  }
+  .erp-filter-toolbar__actions {
+    width: 100%;
+    justify-content: stretch;
+  }
+  .erp-filter-toolbar__action {
+    width: 100%;
+    margin-left: 0;
+  }
+}
 
 /* === BADGES === */
 .badge-erp {
@@ -1115,15 +1328,38 @@ img.table-avatar {
   color: var(--clr-text-secondary);
   border: 1px solid var(--clr-border-light);
 }
-/* Subject / catalog labels — aligns with --clr-primary chips (teachers, academic). */
-.badge-subject-pill {
-  background: color-mix(in srgb, var(--clr-primary) 10%, var(--clr-surface));
-  color: var(--clr-primary);
-  border: 1px solid color-mix(in srgb, var(--clr-primary) 24%, var(--clr-border));
+
+/* === ALERT PANELS === */
+.erp-alert-panel {
+  border: 1px solid var(--clr-border-light);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--clr-surface) 90%, var(--clr-surface-alt) 10%);
 }
-[data-theme='dark'] .badge-subject-pill {
-  background: color-mix(in srgb, var(--clr-primary) 14%, var(--clr-surface));
-  border-color: color-mix(in srgb, var(--clr-primary) 30%, var(--clr-border));
+.erp-alert-panel--warning {
+  border-color: color-mix(in srgb, var(--clr-warning) 28%, var(--clr-border));
+  background: color-mix(in srgb, var(--clr-warning) 12%, var(--clr-surface));
+}
+.erp-alert-panel--danger {
+  border-color: color-mix(in srgb, var(--clr-danger) 30%, var(--clr-border));
+  background: color-mix(in srgb, var(--clr-danger) 12%, var(--clr-surface));
+}
+[data-theme='dark'] .erp-alert-panel--warning {
+  background: color-mix(in srgb, var(--clr-warning) 16%, var(--clr-surface));
+}
+[data-theme='dark'] .erp-alert-panel--danger {
+  background: color-mix(in srgb, var(--clr-danger) 16%, var(--clr-surface));
+}
+/* Subject / catalog labels — `--clr-subject-accent` (primary in light, success green in dark). */
+.badge-subject-pill {
+  background: color-mix(in srgb, var(--clr-subject-accent) 10%, var(--clr-surface));
+  color: var(--clr-subject-accent);
+  border: 1px solid color-mix(in srgb, var(--clr-subject-accent) 26%, var(--clr-border));
+  font-weight: 600;
+}
+
+/* Timetable: class line under subject used primary mint; align with subject accent in dark for consistency */
+[data-theme='dark'] .timetable-slot-class {
+  color: var(--clr-subject-accent);
 }
 
 /* === LOGIN PAGE === */
@@ -1141,17 +1377,67 @@ img.table-avatar {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 40px;
+  padding: clamp(28px, 4vw, 44px);
 }
 
 /* Same width on login + signup so the shared marketing band lays out identically. */
-.login-form-wrapper { width: 100%; max-width: min(100%, 520px); }
+.login-form-wrapper {
+  width: 100%;
+  max-width: min(100%, 560px);
+  background: linear-gradient(
+    170deg,
+    color-mix(in srgb, var(--clr-surface) 96%, var(--clr-primary) 4%) 0%,
+    var(--clr-surface) 46%,
+    color-mix(in srgb, var(--clr-surface) 97%, var(--clr-accent) 3%) 100%
+  );
+  border: 1px solid color-mix(in srgb, var(--clr-border) 84%, var(--clr-primary) 16%);
+  border-radius: 24px;
+  padding: clamp(18px, 2.4vw, 30px);
+  box-shadow: 0 12px 34px rgba(15, 23, 42, 0.08), 0 2px 8px rgba(15, 23, 42, 0.05);
+}
 
-.login-logo { display: flex; align-items: center; gap: 12px; margin-bottom: 40px; }
-.login-logo img { width: 44px; height: 44px; border-radius: var(--radius-md); }
-.login-logo h1 { font-size: 22px; font-weight: 800; }
-.login-title { font-size: 28px; font-weight: 800; margin-bottom: 8px; }
-.login-subtitle { color: var(--clr-text-muted); margin-bottom: 32px; font-size: 15px; }
+.login-logo { display: flex; align-items: center; gap: 12px; margin-bottom: 28px; }
+.login-logo img {
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-md);
+  box-shadow: 0 4px 10px rgba(15, 23, 42, 0.14);
+  object-fit: contain;
+  background: color-mix(in srgb, var(--clr-surface) 94%, var(--clr-primary) 6%);
+}
+.login-logo h1 { font-size: 30px; font-weight: 900; letter-spacing: -0.02em; }
+.login-title { font-size: clamp(2rem, 3.3vw, 3.05rem); font-weight: 900; margin-bottom: 8px; letter-spacing: -0.03em; line-height: 1.1; }
+.login-subtitle { color: var(--clr-text-muted); margin-bottom: 26px; font-size: 15px; font-weight: 500; }
+
+/* Auth mode tabs: one pattern for all themes (same as light: primary = selected, surface-muted = rest).
+   Token-driven so dark mode only swaps palette — behaviour and structure stay identical. */
+.login-mode-btn {
+  flex: 1;
+  padding: 10px 12px;
+  font-weight: 600;
+  font-size: 13px;
+  border: none;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+  -webkit-tap-highlight-color: transparent;
+  background: var(--clr-surface-muted);
+  color: var(--clr-text-muted);
+}
+.login-mode-btn:not(.login-mode-btn--active):hover {
+  background: color-mix(in srgb, var(--clr-primary) 8%, var(--clr-surface-muted));
+  color: var(--clr-text);
+}
+.login-mode-btn--active,
+.login-mode-btn--active:hover,
+.login-mode-btn--active:focus-visible {
+  background: var(--clr-primary);
+  color: #fff;
+  box-shadow: none;
+}
+.login-mode-btn:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--clr-primary) 40%, transparent);
+  outline-offset: 2px;
+}
 
 .login-right { flex: 1; display: none; position: relative; overflow: hidden; }
 .login-right img { width: 100%; height: 100%; object-fit: cover; }
@@ -1166,6 +1452,58 @@ img.table-avatar {
   padding: clamp(28px, 4vw, 48px);
   box-sizing: border-box;
 }
+
+/* Dark auth surfaces: align with dashboard palette and reduce visual glare. */
+[data-theme='dark'] .login-container {
+  background:
+    radial-gradient(ellipse 95% 70% at 8% 0%, rgba(52, 211, 153, 0.12) 0%, transparent 60%),
+    radial-gradient(ellipse 70% 55% at 92% 100%, rgba(56, 189, 248, 0.12) 0%, transparent 55%),
+    linear-gradient(145deg, #0b1220 0%, #0f172a 45%, #111b2f 100%);
+}
+[data-theme='dark'] .login-left {
+  background: linear-gradient(165deg, rgba(11, 18, 32, 0.88) 0%, rgba(15, 23, 42, 0.78) 100%);
+}
+[data-theme='dark'] .login-form-wrapper {
+  background: linear-gradient(
+    165deg,
+    color-mix(in srgb, var(--clr-surface) 94%, #0b1220) 0%,
+    color-mix(in srgb, var(--clr-surface-alt) 96%, #0b1220) 100%
+  );
+  border: 1px solid color-mix(in srgb, var(--clr-primary) 18%, var(--clr-border));
+  border-radius: 24px;
+  padding: clamp(18px, 2.8vw, 28px);
+  box-shadow:
+    0 18px 36px rgba(2, 6, 23, 0.5),
+    0 0 0 1px rgba(148, 163, 184, 0.08);
+}
+[data-theme='dark'] .login-title {
+  color: #f8fafc;
+  text-shadow: 0 1px 0 rgba(15, 23, 42, 0.4);
+}
+[data-theme='dark'] .login-subtitle {
+  color: #c7d2e4;
+}
+[data-theme='dark'] .login-lang-row {
+  border-top-color: color-mix(in srgb, var(--clr-primary) 20%, var(--clr-border));
+}
+[data-theme='dark'] .login-error {
+  background: rgba(239, 68, 68, 0.14);
+  border: 1px solid rgba(248, 113, 113, 0.34);
+  color: #fecaca;
+}
+[data-theme='dark'] .auth-marketing-band {
+  border-top-color: color-mix(in srgb, var(--clr-primary) 24%, var(--clr-border));
+}
+[data-theme='dark'] .auth-quote,
+[data-theme='dark'] .auth-contact-card {
+  border-color: color-mix(in srgb, var(--clr-primary) 22%, var(--clr-border));
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--clr-primary) 12%, var(--clr-surface)) 0%,
+    color-mix(in srgb, var(--clr-surface) 96%, #0b1220) 100%
+  );
+}
+/* Hero: no [data-theme='dark'] overrides — same image + overlay as light (brand tint + copy contrast). */
 
 /* Hero copy stays English (brand); isolate bidi so UI language does not mirror this block. */
 .login-right-text {
@@ -1192,61 +1530,45 @@ img.table-avatar {
   gap: 8px;
 }
 
-.demo-credentials {
-  margin-top: 24px;
-  padding: 16px;
-  background: rgba(5,150,105,0.04);
-  border: 1px solid rgba(5,150,105,0.15);
-  border-radius: var(--radius-lg);
-}
-
-.demo-credentials h4 {
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--clr-success);
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  margin-bottom: 8px;
-}
-
-.demo-credentials p { font-size: 12px; color: var(--clr-text-secondary); line-height: 1.8; margin: 0; }
-
-/* === AUTH MARKETING (login + signup): testimonials + contact — shared layout === */
+/* === AUTH MARKETING (login + signup): row of quotes, then full-width contact band === */
 .auth-marketing-band {
-  margin-top: 28px;
-  padding-top: 22px;
-  border-top: 1px solid color-mix(in srgb, var(--clr-border) 85%, var(--clr-primary) 15%);
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 20px;
-  align-items: start;
+  margin-top: 32px;
+  padding-top: 26px;
+  border-top: 1px solid color-mix(in srgb, var(--clr-border) 82%, var(--clr-primary) 18%);
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 22px;
 }
-@media (min-width: 640px) {
-  .auth-marketing-band {
-    grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
-    gap: 22px;
-    column-gap: 24px;
-  }
-}
-.auth-marketing-band > .auth-testimonials,
+.auth-marketing-band > .auth-quotes-row,
 .auth-marketing-band > .auth-contact-card {
   min-width: 0;
 }
-.auth-testimonials {
-  margin: 0;
-  padding: 0;
-}
 .auth-marketing-kicker {
+  font-family: var(--font-heading);
   font-size: 11px;
   text-transform: uppercase;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.12em;
   font-weight: 700;
   color: var(--clr-text-muted);
-  margin: 0 0 14px;
+  margin: 0;
+}
+.auth-quotes-row {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+  align-items: stretch;
+}
+@media (min-width: 640px) {
+  .auth-quotes-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 20px;
+  }
 }
 /* Pairs visually with left-column kicker; slightly stronger for CTA scan. */
 .auth-marketing-card-title {
-  margin: 0 0 10px;
+  margin: 0 0 12px;
+  font-family: var(--font-heading);
   font-size: 12px;
   font-weight: 800;
   text-transform: uppercase;
@@ -1255,59 +1577,73 @@ img.table-avatar {
 }
 .auth-quote {
   position: relative;
-  margin-bottom: 12px;
-  padding: 14px 14px 14px 16px;
+  margin: 0;
+  padding: 20px 22px 20px 24px;
   border-radius: var(--radius-xl);
   background: linear-gradient(
-    135deg,
-    color-mix(in srgb, var(--clr-surface-muted) 100%, transparent) 0%,
-    color-mix(in srgb, var(--clr-primary) 4%, var(--clr-surface)) 100%
+    145deg,
+    color-mix(in srgb, var(--clr-surface) 88%, var(--clr-surface-muted)) 0%,
+    color-mix(in srgb, var(--clr-primary) 6%, var(--clr-surface)) 100%
   );
-  border: 1px solid var(--clr-border-light);
+  border: 1px solid var(--surface-ring);
   box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
 }
-.auth-quote-compact { margin-bottom: 0; }
 .auth-quote-mark {
   position: absolute;
-  left: 12px;
-  top: 10px;
-  font-size: 1.35rem;
+  left: 18px;
+  top: 16px;
+  font-size: 1.5rem;
   line-height: 1;
   font-family: Georgia, 'Times New Roman', serif;
-  color: color-mix(in srgb, var(--clr-primary) 40%, var(--clr-border-light));
-  opacity: 0.85;
+  color: color-mix(in srgb, var(--clr-primary) 38%, var(--clr-accent) 12%);
+  opacity: 0.88;
   pointer-events: none;
 }
 .auth-quote p {
   margin: 0;
-  padding-left: 22px;
-  font-size: 13px;
-  line-height: 1.55;
+  padding-left: 26px;
+  font-size: 14px;
+  line-height: 1.65;
   color: var(--clr-text-secondary);
   font-weight: 500;
+  flex: 1 1 auto;
 }
 .auth-quote-meta {
-  margin-top: 10px;
-  padding-left: 22px;
-  font-size: 11px;
+  margin-top: auto;
+  padding-top: 14px;
+  padding-left: 26px;
+  font-size: 12px;
   font-weight: 700;
   color: var(--clr-text-muted);
   letter-spacing: 0.02em;
+  line-height: 1.45;
 }
 .auth-contact-card {
   position: relative;
-  margin-top: 0;
-  padding: 18px 18px 18px 20px;
+  margin-top: 4px;
+  padding: 22px 22px 22px 26px;
   border-radius: var(--radius-xl);
-  border: 1px solid var(--clr-border-light);
+  border: 1px solid var(--surface-ring);
   background: linear-gradient(
-    135deg,
-    color-mix(in srgb, var(--clr-surface-muted) 100%, transparent) 0%,
-    color-mix(in srgb, var(--clr-primary) 4%, var(--clr-surface)) 100%
+    145deg,
+    color-mix(in srgb, var(--clr-surface) 88%, var(--clr-surface-muted)) 0%,
+    color-mix(in srgb, var(--clr-primary) 6%, var(--clr-surface)) 100%
   );
   box-shadow: var(--shadow-sm);
   overflow: hidden;
-  align-self: start;
+}
+.auth-contact-card--landscape {
+  width: 100%;
+}
+.auth-contact-card__shell {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  position: relative;
+  z-index: 1;
 }
 .auth-contact-accent {
   position: absolute;
@@ -1321,22 +1657,63 @@ img.table-avatar {
     color-mix(in srgb, var(--clr-accent) 85%, var(--clr-primary)) 100%
   );
 }
+@media (min-width: 768px) {
+  .auth-contact-card--landscape {
+    padding: 30px 28px 24px 28px;
+  }
+  .auth-contact-card--landscape .auth-contact-accent {
+    left: 0;
+    right: 0;
+    top: 0;
+    bottom: auto;
+    width: 100%;
+    height: 4px;
+  }
+  .auth-contact-card__shell {
+    flex-direction: row;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 28px 36px;
+  }
+  .auth-contact-card__intro {
+    flex: 1 1 0;
+    min-width: min(100%, 15rem);
+    max-width: 28rem;
+  }
+  .auth-contact-card__channels {
+    flex: 1 1 auto;
+    justify-content: flex-end;
+  }
+}
+.auth-contact-card__intro .auth-marketing-card-title {
+  margin: 0 0 10px;
+}
 .auth-contact-lead {
-  margin: 0 0 14px;
-  font-size: 12px;
-  line-height: 1.5;
-  color: var(--clr-text-muted);
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--clr-text-secondary);
   font-weight: 500;
 }
-.auth-contact-lead + .auth-contact-row {
-  margin-top: 0;
+.auth-contact-card__channels {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+@media (min-width: 768px) {
+  .auth-contact-card__channels {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px 28px;
+  }
 }
 .auth-contact-row {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   font-size: 13px;
-  margin-top: 10px;
+  margin: 0;
   color: var(--clr-text-secondary);
 }
 .auth-contact-row > a,
@@ -1481,6 +1858,25 @@ img.table-avatar {
   background: color-mix(in srgb, var(--clr-accent) 14%, var(--clr-surface));
 }
 
+/* Narrow phones / small tablets: many module tab bars — horizontal scroll instead of cramped wrap */
+@media (max-width: 640px) {
+  .erp-tabs {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overflow-y: hidden;
+    gap: 4px;
+    margin-bottom: 18px;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+    overscroll-behavior-x: contain;
+  }
+  .erp-tab {
+    flex: 0 0 auto;
+    padding: 8px 12px;
+    font-size: 13px;
+  }
+}
+
 /* === ANIMATIONS === */
 @keyframes fadeInUp {
   from { opacity: 0; transform: translateY(12px); }
@@ -1488,6 +1884,14 @@ img.table-avatar {
 }
 
 .animate-in { animation: fadeInUp 0.4s ease-out forwards; }
+
+/**
+ * Opacity-only page section entrance — avoids `transform` on the ancestor so
+ * `position: fixed` overlays (RBAC modals, etc.) stay viewport-anchored.
+ */
+.animate-in-fade {
+  animation: fadeIn 0.4s ease-out forwards;
+}
 .animate-in-delay-1 { animation-delay: 0.05s; opacity: 0; }
 .animate-in-delay-2 { animation-delay: 0.1s; opacity: 0; }
 .animate-in-delay-3 { animation-delay: 0.15s; opacity: 0; }
@@ -1710,7 +2114,47 @@ img.table-avatar {
 .modal-header-erp { padding: 20px 24px; border-bottom: 1px solid var(--clr-border); display: flex; align-items: center; justify-content: space-between; }
 .modal-header-erp h3 { font-size: 18px; font-weight: 700; }
 .modal-body-erp { padding: 24px; }
-.modal-footer-erp { padding: 16px 24px; border-top: 1px solid var(--clr-border); display: flex; align-items: center; justify-content: flex-end; gap: 12px; }
+.modal-footer-erp { padding: 16px 24px; border-top: 1px solid var(--clr-border); display: flex; align-items: center; justify-content: flex-end; gap: 12px; flex-wrap: wrap; }
+
+/* Small screens: bottom-sheet style modals, full-width tap targets */
+@media (max-width: 576px) {
+  .modal-overlay {
+    align-items: flex-end;
+    padding: 0;
+  }
+  .modal-content-erp {
+    width: 100%;
+    max-width: 100%;
+    border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+    max-height: min(92vh, 100dvh);
+    margin-block: 0;
+  }
+  .modal-footer-erp {
+    justify-content: stretch;
+  }
+  .modal-footer-erp .btn-primary-erp,
+  .modal-footer-erp .btn-outline-erp {
+    flex: 1;
+    min-width: 0;
+  }
+}
+
+/** Horizontal scroll for wide data tables (wrap `.erp-table` for small viewports). */
+.erp-table-scroll {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.erp-table-scroll .erp-table {
+  min-width: 720px;
+}
+@media (max-width: 576px) {
+  .erp-table-scroll .erp-table {
+    min-width: 640px;
+  }
+}
 
 /* === CHART === */
 .chart-container { position: relative; height: 280px; width: 100%; }
@@ -1796,6 +2240,36 @@ img.table-avatar {
 }
 
 @media (max-width: 768px) {
+  .app-header {
+    padding: 0 12px;
+  }
+  .header-left {
+    gap: 8px;
+    min-width: 0;
+  }
+  .header-right {
+    gap: 6px;
+  }
+  .page-title {
+    font-size: 16px;
+    max-width: 42vw;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .profile-btn {
+    padding: 6px 8px;
+  }
+  .profile-info {
+    display: none;
+  }
+  .notification-dropdown {
+    width: min(300px, calc(100vw - 20px));
+    right: -4px;
+  }
+  .profile-dropdown {
+    right: -4px;
+  }
   .sidebar {
     transform: translateX(-100%);
     width: min(88vw, 300px);
@@ -1815,14 +2289,49 @@ img.table-avatar {
   }
   .main-wrapper { margin-left: 0 !important; }
   .login-left { padding: 24px; }
+  .login-logo h1 { font-size: 26px; }
+  .login-title { font-size: clamp(1.6rem, 7.5vw, 2.25rem); }
+  .login-subtitle { font-size: 14px; margin-bottom: 20px; }
+  [data-theme='dark'] .login-form-wrapper {
+    border-radius: 18px;
+    padding: 16px;
+  }
   .main-content { padding: 16px; }
   .stat-value { font-size: 22px; }
-  .notification-dropdown { width: 300px; }
+
+  /* Cross-module safety: card headers/actions wrap instead of clipping on phones/tablets. */
+  .erp-card-header {
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: flex-start;
+  }
+  .erp-card-header > * {
+    min-width: 0;
+  }
+
+  /* Better tap ergonomics on mobile-heavy usage. */
+  .btn-primary-erp,
+  .btn-secondary-erp,
+  .btn-outline-erp,
+  .erp-input,
+  .erp-select {
+    min-height: 40px;
+  }
+
+  /* Wide tables should scroll, not break layout. */
+  .erp-table-scroll {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .erp-table {
+    min-width: 620px;
+  }
 }
 
 @media (max-width: 576px) {
   .erp-card { padding: 16px; }
   .stat-card { padding: 16px; }
+  .main-content { padding: 12px; }
 }
 
 /* === ERP DATE / MONTH PICKER (Flatpickr) — SchoolVault tokens, light + dark === */
@@ -1954,6 +2463,43 @@ span.flatpickr-weekday {
 }
 .flatpickr-calendar.arrowBottom:after {
   border-top-color: var(--clr-surface);
+}
+
+/* Datetime picker time panel: enforce theme tokens (fixes white strip in dark mode). */
+.flatpickr-calendar.hasTime .flatpickr-time {
+  border-top: 1px solid var(--clr-border);
+  background: var(--clr-surface-muted);
+  color: var(--clr-text);
+}
+.flatpickr-time .numInputWrapper {
+  background: transparent;
+  border-inline: 1px solid color-mix(in srgb, var(--clr-border) 70%, transparent);
+}
+.flatpickr-time .flatpickr-time-separator,
+.flatpickr-time .flatpickr-am-pm {
+  color: var(--clr-text-secondary);
+  background: transparent;
+}
+.flatpickr-time input,
+.flatpickr-time .numInput,
+.flatpickr-time input.flatpickr-hour,
+.flatpickr-time input.flatpickr-minute {
+  color: var(--clr-text) !important;
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}
+.flatpickr-time input:hover,
+.flatpickr-time .numInput:hover,
+.flatpickr-time input:focus,
+.flatpickr-time .numInput:focus {
+  background: color-mix(in srgb, var(--clr-hover) 65%, transparent) !important;
+}
+.flatpickr-time .numInputWrapper span.arrowUp:after {
+  border-bottom-color: var(--clr-text-muted);
+}
+.flatpickr-time .numInputWrapper span.arrowDown:after {
+  border-top-color: var(--clr-text-muted);
 }
 
 /* Flatpickr monthSelect plugin — match ERP calendar tokens */
@@ -2111,7 +2657,7 @@ span.flatpickr-weekday {
   border-top: 5px solid var(--clr-text-muted);
   border-bottom: 0;
 }
-/* Parent portal: year changes via ‹ › only (see ErpMonthPickerComponent yearNavMode). */
+/* yearNavMode chevrons: hide inner steppers; use custom ‹ › in component (rare). */
 .flatpickr-calendar.erp-flatpickr-month--year-chevrons .flatpickr-current-month .numInputWrapper .arrowUp,
 .flatpickr-calendar.erp-flatpickr-month--year-chevrons .flatpickr-current-month .numInputWrapper .arrowDown {
   display: none !important;

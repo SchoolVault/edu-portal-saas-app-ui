@@ -6,7 +6,7 @@ import {
   ONBOARD_SCHOOL_CODE_MIN,
 } from './auth-forms.constants';
 import { isValidEmail } from './email.validation';
-import { isValidCanonicalIntlPhone } from './phone.validation';
+import { isValidIndiaMobileTen } from './phone.validation';
 
 export type OnboardSchoolField = keyof OnboardSchoolRequest;
 
@@ -43,7 +43,7 @@ export function validateOnboardSchoolForm(form: OnboardSchoolRequest): FieldErro
   const phone = (form.phone ?? '').trim();
   if (!phone) {
     errors.phone = 'signup.validation.phoneRequired';
-  } else if (!isValidCanonicalIntlPhone(phone)) {
+  } else if (!isValidIndiaMobileTen(phone)) {
     errors.phone = 'signup.validation.phoneInvalid';
   }
 

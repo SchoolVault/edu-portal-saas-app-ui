@@ -1,0 +1,673 @@
+academic_year_id (R),import_mode (O),teacher_ref_type (R),teacher_ref (R),class_ref (R),section_ref (O),subject_code (R),day_of_week (R),period_no (R),start_time (R),end_time (R),room_code (O)
+CURRENT,UPSERT,EMAIL,amit.sharma@shantiniketanpublicschool.in,Class 5,A,Mathematics,MONDAY,1,08:00,08:40,R-511
+CURRENT,UPSERT,EMAIL,rohan.iyer@shantiniketanpublicschool.in,Class 5,B,Science,MONDAY,1,08:00,08:40,R-521
+CURRENT,UPSERT,EMAIL,karan.das@shantiniketanpublicschool.in,Class 6,A,English,MONDAY,1,08:00,08:40,R-611
+CURRENT,UPSERT,EMAIL,vivek.singh@shantiniketanpublicschool.in,Class 6,B,Hindi,MONDAY,1,08:00,08:40,R-621
+CURRENT,UPSERT,EMAIL,rahul.gupta@shantiniketanpublicschool.in,Class 7,A,Social Studies,MONDAY,1,08:00,08:40,R-711
+CURRENT,UPSERT,EMAIL,arjun.rao@shantiniketanpublicschool.in,Class 7,B,Computer Science,MONDAY,1,08:00,08:40,LAB-CS
+CURRENT,UPSERT,EMAIL,manish.saxena@shantiniketanpublicschool.in,Class 8,A,General Knowledge,MONDAY,1,08:00,08:40,R-811
+CURRENT,UPSERT,EMAIL,saurabh.malhotra@shantiniketanpublicschool.in,Class 8,B,Sanskrit,MONDAY,1,08:00,08:40,R-821
+CURRENT,UPSERT,EMAIL,dev.khan@shantiniketanpublicschool.in,Class 9,A,Art,MONDAY,1,08:00,08:40,ART-1
+CURRENT,UPSERT,EMAIL,nikhil.joshi@shantiniketanpublicschool.in,Class 9,B,Physical Education,MONDAY,1,08:00,08:40,GROUND
+CURRENT,UPSERT,EMAIL,neha.verma@shantiniketanpublicschool.in,Class 10,A,Mathematics,MONDAY,1,08:00,08:40,R-1011
+CURRENT,UPSERT,EMAIL,pooja.kapoor@shantiniketanpublicschool.in,Class 10,B,Science,MONDAY,1,08:00,08:40,R-1021
+CURRENT,UPSERT,EMAIL,sanya.nair@shantiniketanpublicschool.in,Class 11,A,English,MONDAY,1,08:00,08:40,R-1111
+CURRENT,UPSERT,EMAIL,anjali.patel@shantiniketanpublicschool.in,Class 11,B,Hindi,MONDAY,1,08:00,08:40,R-1121
+CURRENT,UPSERT,EMAIL,meera.mehta@shantiniketanpublicschool.in,Class 12,A,Social Studies,MONDAY,1,08:00,08:40,R-1211
+CURRENT,UPSERT,EMAIL,priya.chopra@shantiniketanpublicschool.in,Class 12,B,Computer Science,MONDAY,1,08:00,08:40,LAB-CS
+CURRENT,UPSERT,EMAIL,sanya.nair@shantiniketanpublicschool.in,Class 5,A,English,MONDAY,2,08:45,09:25,R-512
+CURRENT,UPSERT,EMAIL,anjali.patel@shantiniketanpublicschool.in,Class 5,B,Hindi,MONDAY,2,08:45,09:25,R-522
+CURRENT,UPSERT,EMAIL,meera.mehta@shantiniketanpublicschool.in,Class 6,A,Social Studies,MONDAY,2,08:45,09:25,R-612
+CURRENT,UPSERT,EMAIL,priya.chopra@shantiniketanpublicschool.in,Class 6,B,Computer Science,MONDAY,2,08:45,09:25,LAB-CS
+CURRENT,UPSERT,EMAIL,divya.jain@shantiniketanpublicschool.in,Class 7,A,General Knowledge,MONDAY,2,08:45,09:25,R-712
+CURRENT,UPSERT,EMAIL,ritika.roy@shantiniketanpublicschool.in,Class 7,B,Sanskrit,MONDAY,2,08:45,09:25,R-722
+CURRENT,UPSERT,EMAIL,ishita.sen@shantiniketanpublicschool.in,Class 8,A,Art,MONDAY,2,08:45,09:25,ART-1
+CURRENT,UPSERT,EMAIL,kavya.bose@shantiniketanpublicschool.in,Class 8,B,Physical Education,MONDAY,2,08:45,09:25,GROUND
+CURRENT,UPSERT,EMAIL,neha.verma@shantiniketanpublicschool.in,Class 9,A,Mathematics,MONDAY,2,08:45,09:25,R-912
+CURRENT,UPSERT,EMAIL,pooja.kapoor@shantiniketanpublicschool.in,Class 9,B,Science,MONDAY,2,08:45,09:25,R-922
+CURRENT,UPSERT,EMAIL,karan.das@shantiniketanpublicschool.in,Class 10,A,English,MONDAY,2,08:45,09:25,R-1012
+CURRENT,UPSERT,EMAIL,vivek.singh@shantiniketanpublicschool.in,Class 10,B,Hindi,MONDAY,2,08:45,09:25,R-1022
+CURRENT,UPSERT,EMAIL,rahul.gupta@shantiniketanpublicschool.in,Class 11,A,Social Studies,MONDAY,2,08:45,09:25,R-1112
+CURRENT,UPSERT,EMAIL,arjun.rao@shantiniketanpublicschool.in,Class 11,B,Computer Science,MONDAY,2,08:45,09:25,LAB-CS
+CURRENT,UPSERT,EMAIL,manish.saxena@shantiniketanpublicschool.in,Class 12,A,General Knowledge,MONDAY,2,08:45,09:25,R-1212
+CURRENT,UPSERT,EMAIL,saurabh.malhotra@shantiniketanpublicschool.in,Class 12,B,Sanskrit,MONDAY,2,08:45,09:25,R-1222
+CURRENT,UPSERT,EMAIL,rahul.gupta@shantiniketanpublicschool.in,Class 5,A,Social Studies,MONDAY,3,09:30,10:10,R-513
+CURRENT,UPSERT,EMAIL,arjun.rao@shantiniketanpublicschool.in,Class 5,B,Computer Science,MONDAY,3,09:30,10:10,LAB-CS
+CURRENT,UPSERT,EMAIL,manish.saxena@shantiniketanpublicschool.in,Class 6,A,General Knowledge,MONDAY,3,09:30,10:10,R-613
+CURRENT,UPSERT,EMAIL,saurabh.malhotra@shantiniketanpublicschool.in,Class 6,B,Sanskrit,MONDAY,3,09:30,10:10,R-623
+CURRENT,UPSERT,EMAIL,dev.khan@shantiniketanpublicschool.in,Class 7,A,Art,MONDAY,3,09:30,10:10,ART-1
+CURRENT,UPSERT,EMAIL,nikhil.joshi@shantiniketanpublicschool.in,Class 7,B,Physical Education,MONDAY,3,09:30,10:10,GROUND
+CURRENT,UPSERT,EMAIL,amit.sharma@shantiniketanpublicschool.in,Class 8,A,Mathematics,MONDAY,3,09:30,10:10,R-813
+CURRENT,UPSERT,EMAIL,rohan.iyer@shantiniketanpublicschool.in,Class 8,B,Science,MONDAY,3,09:30,10:10,R-823
+CURRENT,UPSERT,EMAIL,karan.das@shantiniketanpublicschool.in,Class 9,A,English,MONDAY,3,09:30,10:10,R-913
+CURRENT,UPSERT,EMAIL,vivek.singh@shantiniketanpublicschool.in,Class 9,B,Hindi,MONDAY,3,09:30,10:10,R-923
+CURRENT,UPSERT,EMAIL,meera.mehta@shantiniketanpublicschool.in,Class 10,A,Social Studies,MONDAY,3,09:30,10:10,R-1013
+CURRENT,UPSERT,EMAIL,priya.chopra@shantiniketanpublicschool.in,Class 10,B,Computer Science,MONDAY,3,09:30,10:10,LAB-CS
+CURRENT,UPSERT,EMAIL,divya.jain@shantiniketanpublicschool.in,Class 11,A,General Knowledge,MONDAY,3,09:30,10:10,R-1113
+CURRENT,UPSERT,EMAIL,ritika.roy@shantiniketanpublicschool.in,Class 11,B,Sanskrit,MONDAY,3,09:30,10:10,R-1123
+CURRENT,UPSERT,EMAIL,ishita.sen@shantiniketanpublicschool.in,Class 12,A,Art,MONDAY,3,09:30,10:10,ART-1
+CURRENT,UPSERT,EMAIL,kavya.bose@shantiniketanpublicschool.in,Class 12,B,Physical Education,MONDAY,3,09:30,10:10,GROUND
+CURRENT,UPSERT,EMAIL,divya.jain@shantiniketanpublicschool.in,Class 5,A,General Knowledge,MONDAY,4,10:25,11:05,R-514
+CURRENT,UPSERT,EMAIL,ritika.roy@shantiniketanpublicschool.in,Class 5,B,Sanskrit,MONDAY,4,10:25,11:05,R-524
+CURRENT,UPSERT,EMAIL,ishita.sen@shantiniketanpublicschool.in,Class 6,A,Art,MONDAY,4,10:25,11:05,ART-1
+CURRENT,UPSERT,EMAIL,kavya.bose@shantiniketanpublicschool.in,Class 6,B,Physical Education,MONDAY,4,10:25,11:05,GROUND
+CURRENT,UPSERT,EMAIL,neha.verma@shantiniketanpublicschool.in,Class 7,A,Mathematics,MONDAY,4,10:25,11:05,R-714
+CURRENT,UPSERT,EMAIL,pooja.kapoor@shantiniketanpublicschool.in,Class 7,B,Science,MONDAY,4,10:25,11:05,R-724
+CURRENT,UPSERT,EMAIL,sanya.nair@shantiniketanpublicschool.in,Class 8,A,English,MONDAY,4,10:25,11:05,R-814
+CURRENT,UPSERT,EMAIL,anjali.patel@shantiniketanpublicschool.in,Class 8,B,Hindi,MONDAY,4,10:25,11:05,R-824
+CURRENT,UPSERT,EMAIL,meera.mehta@shantiniketanpublicschool.in,Class 9,A,Social Studies,MONDAY,4,10:25,11:05,R-914
+CURRENT,UPSERT,EMAIL,priya.chopra@shantiniketanpublicschool.in,Class 9,B,Computer Science,MONDAY,4,10:25,11:05,LAB-CS
+CURRENT,UPSERT,EMAIL,manish.saxena@shantiniketanpublicschool.in,Class 10,A,General Knowledge,MONDAY,4,10:25,11:05,R-1014
+CURRENT,UPSERT,EMAIL,saurabh.malhotra@shantiniketanpublicschool.in,Class 10,B,Sanskrit,MONDAY,4,10:25,11:05,R-1024
+CURRENT,UPSERT,EMAIL,dev.khan@shantiniketanpublicschool.in,Class 11,A,Art,MONDAY,4,10:25,11:05,ART-1
+CURRENT,UPSERT,EMAIL,nikhil.joshi@shantiniketanpublicschool.in,Class 11,B,Physical Education,MONDAY,4,10:25,11:05,GROUND
+CURRENT,UPSERT,EMAIL,amit.sharma@shantiniketanpublicschool.in,Class 12,A,Mathematics,MONDAY,4,10:25,11:05,R-1214
+CURRENT,UPSERT,EMAIL,rohan.iyer@shantiniketanpublicschool.in,Class 12,B,Science,MONDAY,4,10:25,11:05,R-1224
+CURRENT,UPSERT,EMAIL,dev.khan@shantiniketanpublicschool.in,Class 5,A,Art,MONDAY,5,11:10,11:50,ART-1
+CURRENT,UPSERT,EMAIL,nikhil.joshi@shantiniketanpublicschool.in,Class 5,B,Physical Education,MONDAY,5,11:10,11:50,GROUND
+CURRENT,UPSERT,EMAIL,amit.sharma@shantiniketanpublicschool.in,Class 6,A,Mathematics,MONDAY,5,11:10,11:50,R-615
+CURRENT,UPSERT,EMAIL,rohan.iyer@shantiniketanpublicschool.in,Class 6,B,Science,MONDAY,5,11:10,11:50,R-625
+CURRENT,UPSERT,EMAIL,karan.das@shantiniketanpublicschool.in,Class 7,A,English,MONDAY,5,11:10,11:50,R-715
+CURRENT,UPSERT,EMAIL,vivek.singh@shantiniketanpublicschool.in,Class 7,B,Hindi,MONDAY,5,11:10,11:50,R-725
+CURRENT,UPSERT,EMAIL,rahul.gupta@shantiniketanpublicschool.in,Class 8,A,Social Studies,MONDAY,5,11:10,11:50,R-815
+CURRENT,UPSERT,EMAIL,arjun.rao@shantiniketanpublicschool.in,Class 8,B,Computer Science,MONDAY,5,11:10,11:50,LAB-CS
+CURRENT,UPSERT,EMAIL,manish.saxena@shantiniketanpublicschool.in,Class 9,A,General Knowledge,MONDAY,5,11:10,11:50,R-915
+CURRENT,UPSERT,EMAIL,saurabh.malhotra@shantiniketanpublicschool.in,Class 9,B,Sanskrit,MONDAY,5,11:10,11:50,R-925
+CURRENT,UPSERT,EMAIL,ishita.sen@shantiniketanpublicschool.in,Class 10,A,Art,MONDAY,5,11:10,11:50,ART-1
+CURRENT,UPSERT,EMAIL,kavya.bose@shantiniketanpublicschool.in,Class 10,B,Physical Education,MONDAY,5,11:10,11:50,GROUND
+CURRENT,UPSERT,EMAIL,neha.verma@shantiniketanpublicschool.in,Class 11,A,Mathematics,MONDAY,5,11:10,11:50,R-1115
+CURRENT,UPSERT,EMAIL,pooja.kapoor@shantiniketanpublicschool.in,Class 11,B,Science,MONDAY,5,11:10,11:50,R-1125
+CURRENT,UPSERT,EMAIL,sanya.nair@shantiniketanpublicschool.in,Class 12,A,English,MONDAY,5,11:10,11:50,R-1215
+CURRENT,UPSERT,EMAIL,anjali.patel@shantiniketanpublicschool.in,Class 12,B,Hindi,MONDAY,5,11:10,11:50,R-1225
+CURRENT,UPSERT,EMAIL,neha.verma@shantiniketanpublicschool.in,Class 5,A,Mathematics,MONDAY,6,12:20,13:00,R-516
+CURRENT,UPSERT,EMAIL,pooja.kapoor@shantiniketanpublicschool.in,Class 5,B,Science,MONDAY,6,12:20,13:00,R-526
+CURRENT,UPSERT,EMAIL,sanya.nair@shantiniketanpublicschool.in,Class 6,A,English,MONDAY,6,12:20,13:00,R-616
+CURRENT,UPSERT,EMAIL,anjali.patel@shantiniketanpublicschool.in,Class 6,B,Hindi,MONDAY,6,12:20,13:00,R-626
+CURRENT,UPSERT,EMAIL,meera.mehta@shantiniketanpublicschool.in,Class 7,A,Social Studies,MONDAY,6,12:20,13:00,R-716
+CURRENT,UPSERT,EMAIL,priya.chopra@shantiniketanpublicschool.in,Class 7,B,Computer Science,MONDAY,6,12:20,13:00,LAB-CS
+CURRENT,UPSERT,EMAIL,divya.jain@shantiniketanpublicschool.in,Class 8,A,General Knowledge,MONDAY,6,12:20,13:00,R-816
+CURRENT,UPSERT,EMAIL,ritika.roy@shantiniketanpublicschool.in,Class 8,B,Sanskrit,MONDAY,6,12:20,13:00,R-826
+CURRENT,UPSERT,EMAIL,ishita.sen@shantiniketanpublicschool.in,Class 9,A,Art,MONDAY,6,12:20,13:00,ART-1
+CURRENT,UPSERT,EMAIL,kavya.bose@shantiniketanpublicschool.in,Class 9,B,Physical Education,MONDAY,6,12:20,13:00,GROUND
+CURRENT,UPSERT,EMAIL,amit.sharma@shantiniketanpublicschool.in,Class 10,A,Mathematics,MONDAY,6,12:20,13:00,R-1016
+CURRENT,UPSERT,EMAIL,rohan.iyer@shantiniketanpublicschool.in,Class 10,B,Science,MONDAY,6,12:20,13:00,R-1026
+CURRENT,UPSERT,EMAIL,karan.das@shantiniketanpublicschool.in,Class 11,A,English,MONDAY,6,12:20,13:00,R-1116
+CURRENT,UPSERT,EMAIL,vivek.singh@shantiniketanpublicschool.in,Class 11,B,Hindi,MONDAY,6,12:20,13:00,R-1126
+CURRENT,UPSERT,EMAIL,rahul.gupta@shantiniketanpublicschool.in,Class 12,A,Social Studies,MONDAY,6,12:20,13:00,R-1216
+CURRENT,UPSERT,EMAIL,arjun.rao@shantiniketanpublicschool.in,Class 12,B,Computer Science,MONDAY,6,12:20,13:00,LAB-CS
+CURRENT,UPSERT,EMAIL,karan.das@shantiniketanpublicschool.in,Class 5,A,English,MONDAY,7,13:05,13:45,R-517
+CURRENT,UPSERT,EMAIL,vivek.singh@shantiniketanpublicschool.in,Class 5,B,Hindi,MONDAY,7,13:05,13:45,R-527
+CURRENT,UPSERT,EMAIL,rahul.gupta@shantiniketanpublicschool.in,Class 6,A,Social Studies,MONDAY,7,13:05,13:45,R-617
+CURRENT,UPSERT,EMAIL,arjun.rao@shantiniketanpublicschool.in,Class 6,B,Computer Science,MONDAY,7,13:05,13:45,LAB-CS
+CURRENT,UPSERT,EMAIL,manish.saxena@shantiniketanpublicschool.in,Class 7,A,General Knowledge,MONDAY,7,13:05,13:45,R-717
+CURRENT,UPSERT,EMAIL,saurabh.malhotra@shantiniketanpublicschool.in,Class 7,B,Sanskrit,MONDAY,7,13:05,13:45,R-727
+CURRENT,UPSERT,EMAIL,dev.khan@shantiniketanpublicschool.in,Class 8,A,Art,MONDAY,7,13:05,13:45,ART-1
+CURRENT,UPSERT,EMAIL,nikhil.joshi@shantiniketanpublicschool.in,Class 8,B,Physical Education,MONDAY,7,13:05,13:45,GROUND
+CURRENT,UPSERT,EMAIL,amit.sharma@shantiniketanpublicschool.in,Class 9,A,Mathematics,MONDAY,7,13:05,13:45,R-917
+CURRENT,UPSERT,EMAIL,rohan.iyer@shantiniketanpublicschool.in,Class 9,B,Science,MONDAY,7,13:05,13:45,R-927
+CURRENT,UPSERT,EMAIL,sanya.nair@shantiniketanpublicschool.in,Class 10,A,English,MONDAY,7,13:05,13:45,R-1017
+CURRENT,UPSERT,EMAIL,anjali.patel@shantiniketanpublicschool.in,Class 10,B,Hindi,MONDAY,7,13:05,13:45,R-1027
+CURRENT,UPSERT,EMAIL,meera.mehta@shantiniketanpublicschool.in,Class 11,A,Social Studies,MONDAY,7,13:05,13:45,R-1117
+CURRENT,UPSERT,EMAIL,priya.chopra@shantiniketanpublicschool.in,Class 11,B,Computer Science,MONDAY,7,13:05,13:45,LAB-CS
+CURRENT,UPSERT,EMAIL,divya.jain@shantiniketanpublicschool.in,Class 12,A,General Knowledge,MONDAY,7,13:05,13:45,R-1217
+CURRENT,UPSERT,EMAIL,ritika.roy@shantiniketanpublicschool.in,Class 12,B,Sanskrit,MONDAY,7,13:05,13:45,R-1227
+CURRENT,UPSERT,EMAIL,anjali.patel@shantiniketanpublicschool.in,Class 5,A,Hindi,TUESDAY,1,08:00,08:40,R-511
+CURRENT,UPSERT,EMAIL,meera.mehta@shantiniketanpublicschool.in,Class 5,B,Social Studies,TUESDAY,1,08:00,08:40,R-521
+CURRENT,UPSERT,EMAIL,priya.chopra@shantiniketanpublicschool.in,Class 6,A,Computer Science,TUESDAY,1,08:00,08:40,LAB-CS
+CURRENT,UPSERT,EMAIL,divya.jain@shantiniketanpublicschool.in,Class 6,B,General Knowledge,TUESDAY,1,08:00,08:40,R-621
+CURRENT,UPSERT,EMAIL,ritika.roy@shantiniketanpublicschool.in,Class 7,A,Sanskrit,TUESDAY,1,08:00,08:40,R-711
+CURRENT,UPSERT,EMAIL,ishita.sen@shantiniketanpublicschool.in,Class 7,B,Art,TUESDAY,1,08:00,08:40,ART-1
+CURRENT,UPSERT,EMAIL,kavya.bose@shantiniketanpublicschool.in,Class 8,A,Physical Education,TUESDAY,1,08:00,08:40,GROUND
+CURRENT,UPSERT,EMAIL,neha.verma@shantiniketanpublicschool.in,Class 8,B,Mathematics,TUESDAY,1,08:00,08:40,R-821
+CURRENT,UPSERT,EMAIL,pooja.kapoor@shantiniketanpublicschool.in,Class 9,A,Science,TUESDAY,1,08:00,08:40,R-911
+CURRENT,UPSERT,EMAIL,sanya.nair@shantiniketanpublicschool.in,Class 9,B,English,TUESDAY,1,08:00,08:40,R-921
+CURRENT,UPSERT,EMAIL,vivek.singh@shantiniketanpublicschool.in,Class 10,A,Hindi,TUESDAY,1,08:00,08:40,R-1011
+CURRENT,UPSERT,EMAIL,rahul.gupta@shantiniketanpublicschool.in,Class 10,B,Social Studies,TUESDAY,1,08:00,08:40,R-1021
+CURRENT,UPSERT,EMAIL,arjun.rao@shantiniketanpublicschool.in,Class 11,A,Computer Science,TUESDAY,1,08:00,08:40,LAB-CS
+CURRENT,UPSERT,EMAIL,manish.saxena@shantiniketanpublicschool.in,Class 11,B,General Knowledge,TUESDAY,1,08:00,08:40,R-1121
+CURRENT,UPSERT,EMAIL,saurabh.malhotra@shantiniketanpublicschool.in,Class 12,A,Sanskrit,TUESDAY,1,08:00,08:40,R-1211
+CURRENT,UPSERT,EMAIL,dev.khan@shantiniketanpublicschool.in,Class 12,B,Art,TUESDAY,1,08:00,08:40,ART-1
+CURRENT,UPSERT,EMAIL,arjun.rao@shantiniketanpublicschool.in,Class 5,A,Computer Science,TUESDAY,2,08:45,09:25,LAB-CS
+CURRENT,UPSERT,EMAIL,manish.saxena@shantiniketanpublicschool.in,Class 5,B,General Knowledge,TUESDAY,2,08:45,09:25,R-522
+CURRENT,UPSERT,EMAIL,saurabh.malhotra@shantiniketanpublicschool.in,Class 6,A,Sanskrit,TUESDAY,2,08:45,09:25,R-612
+CURRENT,UPSERT,EMAIL,dev.khan@shantiniketanpublicschool.in,Class 6,B,Art,TUESDAY,2,08:45,09:25,ART-1
+CURRENT,UPSERT,EMAIL,nikhil.joshi@shantiniketanpublicschool.in,Class 7,A,Physical Education,TUESDAY,2,08:45,09:25,GROUND
+CURRENT,UPSERT,EMAIL,amit.sharma@shantiniketanpublicschool.in,Class 7,B,Mathematics,TUESDAY,2,08:45,09:25,R-722
+CURRENT,UPSERT,EMAIL,rohan.iyer@shantiniketanpublicschool.in,Class 8,A,Science,TUESDAY,2,08:45,09:25,R-812
+CURRENT,UPSERT,EMAIL,karan.das@shantiniketanpublicschool.in,Class 8,B,English,TUESDAY,2,08:45,09:25,R-822
+CURRENT,UPSERT,EMAIL,vivek.singh@shantiniketanpublicschool.in,Class 9,A,Hindi,TUESDAY,2,08:45,09:25,R-912
+CURRENT,UPSERT,EMAIL,rahul.gupta@shantiniketanpublicschool.in,Class 9,B,Social Studies,TUESDAY,2,08:45,09:25,R-922
+CURRENT,UPSERT,EMAIL,priya.chopra@shantiniketanpublicschool.in,Class 10,A,Computer Science,TUESDAY,2,08:45,09:25,LAB-CS
+CURRENT,UPSERT,EMAIL,divya.jain@shantiniketanpublicschool.in,Class 10,B,General Knowledge,TUESDAY,2,08:45,09:25,R-1022
+CURRENT,UPSERT,EMAIL,ritika.roy@shantiniketanpublicschool.in,Class 11,A,Sanskrit,TUESDAY,2,08:45,09:25,R-1112
+CURRENT,UPSERT,EMAIL,ishita.sen@shantiniketanpublicschool.in,Class 11,B,Art,TUESDAY,2,08:45,09:25,ART-1
+CURRENT,UPSERT,EMAIL,kavya.bose@shantiniketanpublicschool.in,Class 12,A,Physical Education,TUESDAY,2,08:45,09:25,GROUND
+CURRENT,UPSERT,EMAIL,neha.verma@shantiniketanpublicschool.in,Class 12,B,Mathematics,TUESDAY,2,08:45,09:25,R-1222
+CURRENT,UPSERT,EMAIL,ritika.roy@shantiniketanpublicschool.in,Class 5,A,Sanskrit,TUESDAY,3,09:30,10:10,R-513
+CURRENT,UPSERT,EMAIL,ishita.sen@shantiniketanpublicschool.in,Class 5,B,Art,TUESDAY,3,09:30,10:10,ART-1
+CURRENT,UPSERT,EMAIL,kavya.bose@shantiniketanpublicschool.in,Class 6,A,Physical Education,TUESDAY,3,09:30,10:10,GROUND
+CURRENT,UPSERT,EMAIL,neha.verma@shantiniketanpublicschool.in,Class 6,B,Mathematics,TUESDAY,3,09:30,10:10,R-623
+CURRENT,UPSERT,EMAIL,pooja.kapoor@shantiniketanpublicschool.in,Class 7,A,Science,TUESDAY,3,09:30,10:10,R-713
+CURRENT,UPSERT,EMAIL,sanya.nair@shantiniketanpublicschool.in,Class 7,B,English,TUESDAY,3,09:30,10:10,R-723
+CURRENT,UPSERT,EMAIL,anjali.patel@shantiniketanpublicschool.in,Class 8,A,Hindi,TUESDAY,3,09:30,10:10,R-813
+CURRENT,UPSERT,EMAIL,meera.mehta@shantiniketanpublicschool.in,Class 8,B,Social Studies,TUESDAY,3,09:30,10:10,R-823
+CURRENT,UPSERT,EMAIL,priya.chopra@shantiniketanpublicschool.in,Class 9,A,Computer Science,TUESDAY,3,09:30,10:10,LAB-CS
+CURRENT,UPSERT,EMAIL,divya.jain@shantiniketanpublicschool.in,Class 9,B,General Knowledge,TUESDAY,3,09:30,10:10,R-923
+CURRENT,UPSERT,EMAIL,saurabh.malhotra@shantiniketanpublicschool.in,Class 10,A,Sanskrit,TUESDAY,3,09:30,10:10,R-1013
+CURRENT,UPSERT,EMAIL,dev.khan@shantiniketanpublicschool.in,Class 10,B,Art,TUESDAY,3,09:30,10:10,ART-1
+CURRENT,UPSERT,EMAIL,nikhil.joshi@shantiniketanpublicschool.in,Class 11,A,Physical Education,TUESDAY,3,09:30,10:10,GROUND
+CURRENT,UPSERT,EMAIL,amit.sharma@shantiniketanpublicschool.in,Class 11,B,Mathematics,TUESDAY,3,09:30,10:10,R-1123
+CURRENT,UPSERT,EMAIL,rohan.iyer@shantiniketanpublicschool.in,Class 12,A,Science,TUESDAY,3,09:30,10:10,R-1213
+CURRENT,UPSERT,EMAIL,karan.das@shantiniketanpublicschool.in,Class 12,B,English,TUESDAY,3,09:30,10:10,R-1223
+CURRENT,UPSERT,EMAIL,nikhil.joshi@shantiniketanpublicschool.in,Class 5,A,Physical Education,TUESDAY,4,10:25,11:05,GROUND
+CURRENT,UPSERT,EMAIL,amit.sharma@shantiniketanpublicschool.in,Class 5,B,Mathematics,TUESDAY,4,10:25,11:05,R-524
+CURRENT,UPSERT,EMAIL,rohan.iyer@shantiniketanpublicschool.in,Class 6,A,Science,TUESDAY,4,10:25,11:05,R-614
+CURRENT,UPSERT,EMAIL,karan.das@shantiniketanpublicschool.in,Class 6,B,English,TUESDAY,4,10:25,11:05,R-624
+CURRENT,UPSERT,EMAIL,vivek.singh@shantiniketanpublicschool.in,Class 7,A,Hindi,TUESDAY,4,10:25,11:05,R-714
+CURRENT,UPSERT,EMAIL,rahul.gupta@shantiniketanpublicschool.in,Class 7,B,Social Studies,TUESDAY,4,10:25,11:05,R-724
+CURRENT,UPSERT,EMAIL,arjun.rao@shantiniketanpublicschool.in,Class 8,A,Computer Science,TUESDAY,4,10:25,11:05,LAB-CS
+CURRENT,UPSERT,EMAIL,manish.saxena@shantiniketanpublicschool.in,Class 8,B,General Knowledge,TUESDAY,4,10:25,11:05,R-824
+CURRENT,UPSERT,EMAIL,saurabh.malhotra@shantiniketanpublicschool.in,Class 9,A,Sanskrit,TUESDAY,4,10:25,11:05,R-914
+CURRENT,UPSERT,EMAIL,dev.khan@shantiniketanpublicschool.in,Class 9,B,Art,TUESDAY,4,10:25,11:05,ART-1
+CURRENT,UPSERT,EMAIL,kavya.bose@shantiniketanpublicschool.in,Class 10,A,Physical Education,TUESDAY,4,10:25,11:05,GROUND
+CURRENT,UPSERT,EMAIL,neha.verma@shantiniketanpublicschool.in,Class 10,B,Mathematics,TUESDAY,4,10:25,11:05,R-1024
+CURRENT,UPSERT,EMAIL,pooja.kapoor@shantiniketanpublicschool.in,Class 11,A,Science,TUESDAY,4,10:25,11:05,R-1114
+CURRENT,UPSERT,EMAIL,sanya.nair@shantiniketanpublicschool.in,Class 11,B,English,TUESDAY,4,10:25,11:05,R-1124
+CURRENT,UPSERT,EMAIL,anjali.patel@shantiniketanpublicschool.in,Class 12,A,Hindi,TUESDAY,4,10:25,11:05,R-1214
+CURRENT,UPSERT,EMAIL,meera.mehta@shantiniketanpublicschool.in,Class 12,B,Social Studies,TUESDAY,4,10:25,11:05,R-1224
+CURRENT,UPSERT,EMAIL,pooja.kapoor@shantiniketanpublicschool.in,Class 5,A,Science,TUESDAY,5,11:10,11:50,R-515
+CURRENT,UPSERT,EMAIL,sanya.nair@shantiniketanpublicschool.in,Class 5,B,English,TUESDAY,5,11:10,11:50,R-525
+CURRENT,UPSERT,EMAIL,anjali.patel@shantiniketanpublicschool.in,Class 6,A,Hindi,TUESDAY,5,11:10,11:50,R-615
+CURRENT,UPSERT,EMAIL,meera.mehta@shantiniketanpublicschool.in,Class 6,B,Social Studies,TUESDAY,5,11:10,11:50,R-625
+CURRENT,UPSERT,EMAIL,priya.chopra@shantiniketanpublicschool.in,Class 7,A,Computer Science,TUESDAY,5,11:10,11:50,LAB-CS
+CURRENT,UPSERT,EMAIL,divya.jain@shantiniketanpublicschool.in,Class 7,B,General Knowledge,TUESDAY,5,11:10,11:50,R-725
+CURRENT,UPSERT,EMAIL,ritika.roy@shantiniketanpublicschool.in,Class 8,A,Sanskrit,TUESDAY,5,11:10,11:50,R-815
+CURRENT,UPSERT,EMAIL,ishita.sen@shantiniketanpublicschool.in,Class 8,B,Art,TUESDAY,5,11:10,11:50,ART-1
+CURRENT,UPSERT,EMAIL,kavya.bose@shantiniketanpublicschool.in,Class 9,A,Physical Education,TUESDAY,5,11:10,11:50,GROUND
+CURRENT,UPSERT,EMAIL,neha.verma@shantiniketanpublicschool.in,Class 9,B,Mathematics,TUESDAY,5,11:10,11:50,R-925
+CURRENT,UPSERT,EMAIL,rohan.iyer@shantiniketanpublicschool.in,Class 10,A,Science,TUESDAY,5,11:10,11:50,R-1015
+CURRENT,UPSERT,EMAIL,karan.das@shantiniketanpublicschool.in,Class 10,B,English,TUESDAY,5,11:10,11:50,R-1025
+CURRENT,UPSERT,EMAIL,vivek.singh@shantiniketanpublicschool.in,Class 11,A,Hindi,TUESDAY,5,11:10,11:50,R-1115
+CURRENT,UPSERT,EMAIL,rahul.gupta@shantiniketanpublicschool.in,Class 11,B,Social Studies,TUESDAY,5,11:10,11:50,R-1125
+CURRENT,UPSERT,EMAIL,arjun.rao@shantiniketanpublicschool.in,Class 12,A,Computer Science,TUESDAY,5,11:10,11:50,LAB-CS
+CURRENT,UPSERT,EMAIL,manish.saxena@shantiniketanpublicschool.in,Class 12,B,General Knowledge,TUESDAY,5,11:10,11:50,R-1225
+CURRENT,UPSERT,EMAIL,vivek.singh@shantiniketanpublicschool.in,Class 5,A,Hindi,TUESDAY,6,12:20,13:00,R-516
+CURRENT,UPSERT,EMAIL,rahul.gupta@shantiniketanpublicschool.in,Class 5,B,Social Studies,TUESDAY,6,12:20,13:00,R-526
+CURRENT,UPSERT,EMAIL,arjun.rao@shantiniketanpublicschool.in,Class 6,A,Computer Science,TUESDAY,6,12:20,13:00,LAB-CS
+CURRENT,UPSERT,EMAIL,manish.saxena@shantiniketanpublicschool.in,Class 6,B,General Knowledge,TUESDAY,6,12:20,13:00,R-626
+CURRENT,UPSERT,EMAIL,saurabh.malhotra@shantiniketanpublicschool.in,Class 7,A,Sanskrit,TUESDAY,6,12:20,13:00,R-716
+CURRENT,UPSERT,EMAIL,dev.khan@shantiniketanpublicschool.in,Class 7,B,Art,TUESDAY,6,12:20,13:00,ART-1
+CURRENT,UPSERT,EMAIL,nikhil.joshi@shantiniketanpublicschool.in,Class 8,A,Physical Education,TUESDAY,6,12:20,13:00,GROUND
+CURRENT,UPSERT,EMAIL,amit.sharma@shantiniketanpublicschool.in,Class 8,B,Mathematics,TUESDAY,6,12:20,13:00,R-826
+CURRENT,UPSERT,EMAIL,rohan.iyer@shantiniketanpublicschool.in,Class 9,A,Science,TUESDAY,6,12:20,13:00,R-916
+CURRENT,UPSERT,EMAIL,karan.das@shantiniketanpublicschool.in,Class 9,B,English,TUESDAY,6,12:20,13:00,R-926
+CURRENT,UPSERT,EMAIL,anjali.patel@shantiniketanpublicschool.in,Class 10,A,Hindi,TUESDAY,6,12:20,13:00,R-1016
+CURRENT,UPSERT,EMAIL,meera.mehta@shantiniketanpublicschool.in,Class 10,B,Social Studies,TUESDAY,6,12:20,13:00,R-1026
+CURRENT,UPSERT,EMAIL,priya.chopra@shantiniketanpublicschool.in,Class 11,A,Computer Science,TUESDAY,6,12:20,13:00,LAB-CS
+CURRENT,UPSERT,EMAIL,divya.jain@shantiniketanpublicschool.in,Class 11,B,General Knowledge,TUESDAY,6,12:20,13:00,R-1126
+CURRENT,UPSERT,EMAIL,ritika.roy@shantiniketanpublicschool.in,Class 12,A,Sanskrit,TUESDAY,6,12:20,13:00,R-1216
+CURRENT,UPSERT,EMAIL,ishita.sen@shantiniketanpublicschool.in,Class 12,B,Art,TUESDAY,6,12:20,13:00,ART-1
+CURRENT,UPSERT,EMAIL,priya.chopra@shantiniketanpublicschool.in,Class 5,A,Computer Science,TUESDAY,7,13:05,13:45,LAB-CS
+CURRENT,UPSERT,EMAIL,divya.jain@shantiniketanpublicschool.in,Class 5,B,General Knowledge,TUESDAY,7,13:05,13:45,R-527
+CURRENT,UPSERT,EMAIL,ritika.roy@shantiniketanpublicschool.in,Class 6,A,Sanskrit,TUESDAY,7,13:05,13:45,R-617
+CURRENT,UPSERT,EMAIL,ishita.sen@shantiniketanpublicschool.in,Class 6,B,Art,TUESDAY,7,13:05,13:45,ART-1
+CURRENT,UPSERT,EMAIL,kavya.bose@shantiniketanpublicschool.in,Class 7,A,Physical Education,TUESDAY,7,13:05,13:45,GROUND
+CURRENT,UPSERT,EMAIL,neha.verma@shantiniketanpublicschool.in,Class 7,B,Mathematics,TUESDAY,7,13:05,13:45,R-727
+CURRENT,UPSERT,EMAIL,pooja.kapoor@shantiniketanpublicschool.in,Class 8,A,Science,TUESDAY,7,13:05,13:45,R-817
+CURRENT,UPSERT,EMAIL,sanya.nair@shantiniketanpublicschool.in,Class 8,B,English,TUESDAY,7,13:05,13:45,R-827
+CURRENT,UPSERT,EMAIL,anjali.patel@shantiniketanpublicschool.in,Class 9,A,Hindi,TUESDAY,7,13:05,13:45,R-917
+CURRENT,UPSERT,EMAIL,meera.mehta@shantiniketanpublicschool.in,Class 9,B,Social Studies,TUESDAY,7,13:05,13:45,R-927
+CURRENT,UPSERT,EMAIL,arjun.rao@shantiniketanpublicschool.in,Class 10,A,Computer Science,TUESDAY,7,13:05,13:45,LAB-CS
+CURRENT,UPSERT,EMAIL,manish.saxena@shantiniketanpublicschool.in,Class 10,B,General Knowledge,TUESDAY,7,13:05,13:45,R-1027
+CURRENT,UPSERT,EMAIL,saurabh.malhotra@shantiniketanpublicschool.in,Class 11,A,Sanskrit,TUESDAY,7,13:05,13:45,R-1117
+CURRENT,UPSERT,EMAIL,dev.khan@shantiniketanpublicschool.in,Class 11,B,Art,TUESDAY,7,13:05,13:45,ART-1
+CURRENT,UPSERT,EMAIL,nikhil.joshi@shantiniketanpublicschool.in,Class 12,A,Physical Education,TUESDAY,7,13:05,13:45,GROUND
+CURRENT,UPSERT,EMAIL,amit.sharma@shantiniketanpublicschool.in,Class 12,B,Mathematics,TUESDAY,7,13:05,13:45,R-1227
+CURRENT,UPSERT,EMAIL,manish.saxena@shantiniketanpublicschool.in,Class 5,A,General Knowledge,WEDNESDAY,1,08:00,08:40,R-511
+CURRENT,UPSERT,EMAIL,saurabh.malhotra@shantiniketanpublicschool.in,Class 5,B,Sanskrit,WEDNESDAY,1,08:00,08:40,R-521
+CURRENT,UPSERT,EMAIL,dev.khan@shantiniketanpublicschool.in,Class 6,A,Art,WEDNESDAY,1,08:00,08:40,ART-1
+CURRENT,UPSERT,EMAIL,nikhil.joshi@shantiniketanpublicschool.in,Class 6,B,Physical Education,WEDNESDAY,1,08:00,08:40,GROUND
+CURRENT,UPSERT,EMAIL,amit.sharma@shantiniketanpublicschool.in,Class 7,A,Mathematics,WEDNESDAY,1,08:00,08:40,R-711
+CURRENT,UPSERT,EMAIL,rohan.iyer@shantiniketanpublicschool.in,Class 7,B,Science,WEDNESDAY,1,08:00,08:40,R-721
+CURRENT,UPSERT,EMAIL,karan.das@shantiniketanpublicschool.in,Class 8,A,English,WEDNESDAY,1,08:00,08:40,R-811
+CURRENT,UPSERT,EMAIL,vivek.singh@shantiniketanpublicschool.in,Class 8,B,Hindi,WEDNESDAY,1,08:00,08:40,R-821
+CURRENT,UPSERT,EMAIL,rahul.gupta@shantiniketanpublicschool.in,Class 9,A,Social Studies,WEDNESDAY,1,08:00,08:40,R-911
+CURRENT,UPSERT,EMAIL,arjun.rao@shantiniketanpublicschool.in,Class 9,B,Computer Science,WEDNESDAY,1,08:00,08:40,LAB-CS
+CURRENT,UPSERT,EMAIL,divya.jain@shantiniketanpublicschool.in,Class 10,A,General Knowledge,WEDNESDAY,1,08:00,08:40,R-1011
+CURRENT,UPSERT,EMAIL,ritika.roy@shantiniketanpublicschool.in,Class 10,B,Sanskrit,WEDNESDAY,1,08:00,08:40,R-1021
+CURRENT,UPSERT,EMAIL,ishita.sen@shantiniketanpublicschool.in,Class 11,A,Art,WEDNESDAY,1,08:00,08:40,ART-1
+CURRENT,UPSERT,EMAIL,kavya.bose@shantiniketanpublicschool.in,Class 11,B,Physical Education,WEDNESDAY,1,08:00,08:40,GROUND
+CURRENT,UPSERT,EMAIL,neha.verma@shantiniketanpublicschool.in,Class 12,A,Mathematics,WEDNESDAY,1,08:00,08:40,R-1211
+CURRENT,UPSERT,EMAIL,pooja.kapoor@shantiniketanpublicschool.in,Class 12,B,Science,WEDNESDAY,1,08:00,08:40,R-1221
+CURRENT,UPSERT,EMAIL,ishita.sen@shantiniketanpublicschool.in,Class 5,A,Art,WEDNESDAY,2,08:45,09:25,ART-1
+CURRENT,UPSERT,EMAIL,kavya.bose@shantiniketanpublicschool.in,Class 5,B,Physical Education,WEDNESDAY,2,08:45,09:25,GROUND
+CURRENT,UPSERT,EMAIL,neha.verma@shantiniketanpublicschool.in,Class 6,A,Mathematics,WEDNESDAY,2,08:45,09:25,R-612
+CURRENT,UPSERT,EMAIL,pooja.kapoor@shantiniketanpublicschool.in,Class 6,B,Science,WEDNESDAY,2,08:45,09:25,R-622
+CURRENT,UPSERT,EMAIL,sanya.nair@shantiniketanpublicschool.in,Class 7,A,English,WEDNESDAY,2,08:45,09:25,R-712
+CURRENT,UPSERT,EMAIL,anjali.patel@shantiniketanpublicschool.in,Class 7,B,Hindi,WEDNESDAY,2,08:45,09:25,R-722
+CURRENT,UPSERT,EMAIL,meera.mehta@shantiniketanpublicschool.in,Class 8,A,Social Studies,WEDNESDAY,2,08:45,09:25,R-812
+CURRENT,UPSERT,EMAIL,priya.chopra@shantiniketanpublicschool.in,Class 8,B,Computer Science,WEDNESDAY,2,08:45,09:25,LAB-CS
+CURRENT,UPSERT,EMAIL,divya.jain@shantiniketanpublicschool.in,Class 9,A,General Knowledge,WEDNESDAY,2,08:45,09:25,R-912
+CURRENT,UPSERT,EMAIL,ritika.roy@shantiniketanpublicschool.in,Class 9,B,Sanskrit,WEDNESDAY,2,08:45,09:25,R-922
+CURRENT,UPSERT,EMAIL,dev.khan@shantiniketanpublicschool.in,Class 10,A,Art,WEDNESDAY,2,08:45,09:25,ART-1
+CURRENT,UPSERT,EMAIL,nikhil.joshi@shantiniketanpublicschool.in,Class 10,B,Physical Education,WEDNESDAY,2,08:45,09:25,GROUND
+CURRENT,UPSERT,EMAIL,amit.sharma@shantiniketanpublicschool.in,Class 11,A,Mathematics,WEDNESDAY,2,08:45,09:25,R-1112
+CURRENT,UPSERT,EMAIL,rohan.iyer@shantiniketanpublicschool.in,Class 11,B,Science,WEDNESDAY,2,08:45,09:25,R-1122
+CURRENT,UPSERT,EMAIL,karan.das@shantiniketanpublicschool.in,Class 12,A,English,WEDNESDAY,2,08:45,09:25,R-1212
+CURRENT,UPSERT,EMAIL,vivek.singh@shantiniketanpublicschool.in,Class 12,B,Hindi,WEDNESDAY,2,08:45,09:25,R-1222
+CURRENT,UPSERT,EMAIL,amit.sharma@shantiniketanpublicschool.in,Class 5,A,Mathematics,WEDNESDAY,3,09:30,10:10,R-513
+CURRENT,UPSERT,EMAIL,rohan.iyer@shantiniketanpublicschool.in,Class 5,B,Science,WEDNESDAY,3,09:30,10:10,R-523
+CURRENT,UPSERT,EMAIL,karan.das@shantiniketanpublicschool.in,Class 6,A,English,WEDNESDAY,3,09:30,10:10,R-613
+CURRENT,UPSERT,EMAIL,vivek.singh@shantiniketanpublicschool.in,Class 6,B,Hindi,WEDNESDAY,3,09:30,10:10,R-623
+CURRENT,UPSERT,EMAIL,rahul.gupta@shantiniketanpublicschool.in,Class 7,A,Social Studies,WEDNESDAY,3,09:30,10:10,R-713
+CURRENT,UPSERT,EMAIL,arjun.rao@shantiniketanpublicschool.in,Class 7,B,Computer Science,WEDNESDAY,3,09:30,10:10,LAB-CS
+CURRENT,UPSERT,EMAIL,manish.saxena@shantiniketanpublicschool.in,Class 8,A,General Knowledge,WEDNESDAY,3,09:30,10:10,R-813
+CURRENT,UPSERT,EMAIL,saurabh.malhotra@shantiniketanpublicschool.in,Class 8,B,Sanskrit,WEDNESDAY,3,09:30,10:10,R-823
+CURRENT,UPSERT,EMAIL,dev.khan@shantiniketanpublicschool.in,Class 9,A,Art,WEDNESDAY,3,09:30,10:10,ART-1
+CURRENT,UPSERT,EMAIL,nikhil.joshi@shantiniketanpublicschool.in,Class 9,B,Physical Education,WEDNESDAY,3,09:30,10:10,GROUND
+CURRENT,UPSERT,EMAIL,neha.verma@shantiniketanpublicschool.in,Class 10,A,Mathematics,WEDNESDAY,3,09:30,10:10,R-1013
+CURRENT,UPSERT,EMAIL,pooja.kapoor@shantiniketanpublicschool.in,Class 10,B,Science,WEDNESDAY,3,09:30,10:10,R-1023
+CURRENT,UPSERT,EMAIL,sanya.nair@shantiniketanpublicschool.in,Class 11,A,English,WEDNESDAY,3,09:30,10:10,R-1113
+CURRENT,UPSERT,EMAIL,anjali.patel@shantiniketanpublicschool.in,Class 11,B,Hindi,WEDNESDAY,3,09:30,10:10,R-1123
+CURRENT,UPSERT,EMAIL,meera.mehta@shantiniketanpublicschool.in,Class 12,A,Social Studies,WEDNESDAY,3,09:30,10:10,R-1213
+CURRENT,UPSERT,EMAIL,priya.chopra@shantiniketanpublicschool.in,Class 12,B,Computer Science,WEDNESDAY,3,09:30,10:10,LAB-CS
+CURRENT,UPSERT,EMAIL,sanya.nair@shantiniketanpublicschool.in,Class 5,A,English,WEDNESDAY,4,10:25,11:05,R-514
+CURRENT,UPSERT,EMAIL,anjali.patel@shantiniketanpublicschool.in,Class 5,B,Hindi,WEDNESDAY,4,10:25,11:05,R-524
+CURRENT,UPSERT,EMAIL,meera.mehta@shantiniketanpublicschool.in,Class 6,A,Social Studies,WEDNESDAY,4,10:25,11:05,R-614
+CURRENT,UPSERT,EMAIL,priya.chopra@shantiniketanpublicschool.in,Class 6,B,Computer Science,WEDNESDAY,4,10:25,11:05,LAB-CS
+CURRENT,UPSERT,EMAIL,divya.jain@shantiniketanpublicschool.in,Class 7,A,General Knowledge,WEDNESDAY,4,10:25,11:05,R-714
+CURRENT,UPSERT,EMAIL,ritika.roy@shantiniketanpublicschool.in,Class 7,B,Sanskrit,WEDNESDAY,4,10:25,11:05,R-724
+CURRENT,UPSERT,EMAIL,ishita.sen@shantiniketanpublicschool.in,Class 8,A,Art,WEDNESDAY,4,10:25,11:05,ART-1
+CURRENT,UPSERT,EMAIL,kavya.bose@shantiniketanpublicschool.in,Class 8,B,Physical Education,WEDNESDAY,4,10:25,11:05,GROUND
+CURRENT,UPSERT,EMAIL,neha.verma@shantiniketanpublicschool.in,Class 9,A,Mathematics,WEDNESDAY,4,10:25,11:05,R-914
+CURRENT,UPSERT,EMAIL,pooja.kapoor@shantiniketanpublicschool.in,Class 9,B,Science,WEDNESDAY,4,10:25,11:05,R-924
+CURRENT,UPSERT,EMAIL,karan.das@shantiniketanpublicschool.in,Class 10,A,English,WEDNESDAY,4,10:25,11:05,R-1014
+CURRENT,UPSERT,EMAIL,vivek.singh@shantiniketanpublicschool.in,Class 10,B,Hindi,WEDNESDAY,4,10:25,11:05,R-1024
+CURRENT,UPSERT,EMAIL,rahul.gupta@shantiniketanpublicschool.in,Class 11,A,Social Studies,WEDNESDAY,4,10:25,11:05,R-1114
+CURRENT,UPSERT,EMAIL,arjun.rao@shantiniketanpublicschool.in,Class 11,B,Computer Science,WEDNESDAY,4,10:25,11:05,LAB-CS
+CURRENT,UPSERT,EMAIL,manish.saxena@shantiniketanpublicschool.in,Class 12,A,General Knowledge,WEDNESDAY,4,10:25,11:05,R-1214
+CURRENT,UPSERT,EMAIL,saurabh.malhotra@shantiniketanpublicschool.in,Class 12,B,Sanskrit,WEDNESDAY,4,10:25,11:05,R-1224
+CURRENT,UPSERT,EMAIL,rahul.gupta@shantiniketanpublicschool.in,Class 5,A,Social Studies,WEDNESDAY,5,11:10,11:50,R-515
+CURRENT,UPSERT,EMAIL,arjun.rao@shantiniketanpublicschool.in,Class 5,B,Computer Science,WEDNESDAY,5,11:10,11:50,LAB-CS
+CURRENT,UPSERT,EMAIL,manish.saxena@shantiniketanpublicschool.in,Class 6,A,General Knowledge,WEDNESDAY,5,11:10,11:50,R-615
+CURRENT,UPSERT,EMAIL,saurabh.malhotra@shantiniketanpublicschool.in,Class 6,B,Sanskrit,WEDNESDAY,5,11:10,11:50,R-625
+CURRENT,UPSERT,EMAIL,dev.khan@shantiniketanpublicschool.in,Class 7,A,Art,WEDNESDAY,5,11:10,11:50,ART-1
+CURRENT,UPSERT,EMAIL,nikhil.joshi@shantiniketanpublicschool.in,Class 7,B,Physical Education,WEDNESDAY,5,11:10,11:50,GROUND
+CURRENT,UPSERT,EMAIL,amit.sharma@shantiniketanpublicschool.in,Class 8,A,Mathematics,WEDNESDAY,5,11:10,11:50,R-815
+CURRENT,UPSERT,EMAIL,rohan.iyer@shantiniketanpublicschool.in,Class 8,B,Science,WEDNESDAY,5,11:10,11:50,R-825
+CURRENT,UPSERT,EMAIL,karan.das@shantiniketanpublicschool.in,Class 9,A,English,WEDNESDAY,5,11:10,11:50,R-915
+CURRENT,UPSERT,EMAIL,vivek.singh@shantiniketanpublicschool.in,Class 9,B,Hindi,WEDNESDAY,5,11:10,11:50,R-925
+CURRENT,UPSERT,EMAIL,meera.mehta@shantiniketanpublicschool.in,Class 10,A,Social Studies,WEDNESDAY,5,11:10,11:50,R-1015
+CURRENT,UPSERT,EMAIL,priya.chopra@shantiniketanpublicschool.in,Class 10,B,Computer Science,WEDNESDAY,5,11:10,11:50,LAB-CS
+CURRENT,UPSERT,EMAIL,divya.jain@shantiniketanpublicschool.in,Class 11,A,General Knowledge,WEDNESDAY,5,11:10,11:50,R-1115
+CURRENT,UPSERT,EMAIL,ritika.roy@shantiniketanpublicschool.in,Class 11,B,Sanskrit,WEDNESDAY,5,11:10,11:50,R-1125
+CURRENT,UPSERT,EMAIL,ishita.sen@shantiniketanpublicschool.in,Class 12,A,Art,WEDNESDAY,5,11:10,11:50,ART-1
+CURRENT,UPSERT,EMAIL,kavya.bose@shantiniketanpublicschool.in,Class 12,B,Physical Education,WEDNESDAY,5,11:10,11:50,GROUND
+CURRENT,UPSERT,EMAIL,divya.jain@shantiniketanpublicschool.in,Class 5,A,General Knowledge,WEDNESDAY,6,12:20,13:00,R-516
+CURRENT,UPSERT,EMAIL,ritika.roy@shantiniketanpublicschool.in,Class 5,B,Sanskrit,WEDNESDAY,6,12:20,13:00,R-526
+CURRENT,UPSERT,EMAIL,ishita.sen@shantiniketanpublicschool.in,Class 6,A,Art,WEDNESDAY,6,12:20,13:00,ART-1
+CURRENT,UPSERT,EMAIL,kavya.bose@shantiniketanpublicschool.in,Class 6,B,Physical Education,WEDNESDAY,6,12:20,13:00,GROUND
+CURRENT,UPSERT,EMAIL,neha.verma@shantiniketanpublicschool.in,Class 7,A,Mathematics,WEDNESDAY,6,12:20,13:00,R-716
+CURRENT,UPSERT,EMAIL,pooja.kapoor@shantiniketanpublicschool.in,Class 7,B,Science,WEDNESDAY,6,12:20,13:00,R-726
+CURRENT,UPSERT,EMAIL,sanya.nair@shantiniketanpublicschool.in,Class 8,A,English,WEDNESDAY,6,12:20,13:00,R-816
+CURRENT,UPSERT,EMAIL,anjali.patel@shantiniketanpublicschool.in,Class 8,B,Hindi,WEDNESDAY,6,12:20,13:00,R-826
+CURRENT,UPSERT,EMAIL,meera.mehta@shantiniketanpublicschool.in,Class 9,A,Social Studies,WEDNESDAY,6,12:20,13:00,R-916
+CURRENT,UPSERT,EMAIL,priya.chopra@shantiniketanpublicschool.in,Class 9,B,Computer Science,WEDNESDAY,6,12:20,13:00,LAB-CS
+CURRENT,UPSERT,EMAIL,manish.saxena@shantiniketanpublicschool.in,Class 10,A,General Knowledge,WEDNESDAY,6,12:20,13:00,R-1016
+CURRENT,UPSERT,EMAIL,saurabh.malhotra@shantiniketanpublicschool.in,Class 10,B,Sanskrit,WEDNESDAY,6,12:20,13:00,R-1026
+CURRENT,UPSERT,EMAIL,dev.khan@shantiniketanpublicschool.in,Class 11,A,Art,WEDNESDAY,6,12:20,13:00,ART-1
+CURRENT,UPSERT,EMAIL,nikhil.joshi@shantiniketanpublicschool.in,Class 11,B,Physical Education,WEDNESDAY,6,12:20,13:00,GROUND
+CURRENT,UPSERT,EMAIL,amit.sharma@shantiniketanpublicschool.in,Class 12,A,Mathematics,WEDNESDAY,6,12:20,13:00,R-1216
+CURRENT,UPSERT,EMAIL,rohan.iyer@shantiniketanpublicschool.in,Class 12,B,Science,WEDNESDAY,6,12:20,13:00,R-1226
+CURRENT,UPSERT,EMAIL,dev.khan@shantiniketanpublicschool.in,Class 5,A,Art,WEDNESDAY,7,13:05,13:45,ART-1
+CURRENT,UPSERT,EMAIL,nikhil.joshi@shantiniketanpublicschool.in,Class 5,B,Physical Education,WEDNESDAY,7,13:05,13:45,GROUND
+CURRENT,UPSERT,EMAIL,amit.sharma@shantiniketanpublicschool.in,Class 6,A,Mathematics,WEDNESDAY,7,13:05,13:45,R-617
+CURRENT,UPSERT,EMAIL,rohan.iyer@shantiniketanpublicschool.in,Class 6,B,Science,WEDNESDAY,7,13:05,13:45,R-627
+CURRENT,UPSERT,EMAIL,karan.das@shantiniketanpublicschool.in,Class 7,A,English,WEDNESDAY,7,13:05,13:45,R-717
+CURRENT,UPSERT,EMAIL,vivek.singh@shantiniketanpublicschool.in,Class 7,B,Hindi,WEDNESDAY,7,13:05,13:45,R-727
+CURRENT,UPSERT,EMAIL,rahul.gupta@shantiniketanpublicschool.in,Class 8,A,Social Studies,WEDNESDAY,7,13:05,13:45,R-817
+CURRENT,UPSERT,EMAIL,arjun.rao@shantiniketanpublicschool.in,Class 8,B,Computer Science,WEDNESDAY,7,13:05,13:45,LAB-CS
+CURRENT,UPSERT,EMAIL,manish.saxena@shantiniketanpublicschool.in,Class 9,A,General Knowledge,WEDNESDAY,7,13:05,13:45,R-917
+CURRENT,UPSERT,EMAIL,saurabh.malhotra@shantiniketanpublicschool.in,Class 9,B,Sanskrit,WEDNESDAY,7,13:05,13:45,R-927
+CURRENT,UPSERT,EMAIL,ishita.sen@shantiniketanpublicschool.in,Class 10,A,Art,WEDNESDAY,7,13:05,13:45,ART-1
+CURRENT,UPSERT,EMAIL,kavya.bose@shantiniketanpublicschool.in,Class 10,B,Physical Education,WEDNESDAY,7,13:05,13:45,GROUND
+CURRENT,UPSERT,EMAIL,neha.verma@shantiniketanpublicschool.in,Class 11,A,Mathematics,WEDNESDAY,7,13:05,13:45,R-1117
+CURRENT,UPSERT,EMAIL,pooja.kapoor@shantiniketanpublicschool.in,Class 11,B,Science,WEDNESDAY,7,13:05,13:45,R-1127
+CURRENT,UPSERT,EMAIL,sanya.nair@shantiniketanpublicschool.in,Class 12,A,English,WEDNESDAY,7,13:05,13:45,R-1217
+CURRENT,UPSERT,EMAIL,anjali.patel@shantiniketanpublicschool.in,Class 12,B,Hindi,WEDNESDAY,7,13:05,13:45,R-1227
+CURRENT,UPSERT,EMAIL,kavya.bose@shantiniketanpublicschool.in,Class 5,A,Physical Education,THURSDAY,1,08:00,08:40,GROUND
+CURRENT,UPSERT,EMAIL,neha.verma@shantiniketanpublicschool.in,Class 5,B,Mathematics,THURSDAY,1,08:00,08:40,R-521
+CURRENT,UPSERT,EMAIL,pooja.kapoor@shantiniketanpublicschool.in,Class 6,A,Science,THURSDAY,1,08:00,08:40,R-611
+CURRENT,UPSERT,EMAIL,sanya.nair@shantiniketanpublicschool.in,Class 6,B,English,THURSDAY,1,08:00,08:40,R-621
+CURRENT,UPSERT,EMAIL,anjali.patel@shantiniketanpublicschool.in,Class 7,A,Hindi,THURSDAY,1,08:00,08:40,R-711
+CURRENT,UPSERT,EMAIL,meera.mehta@shantiniketanpublicschool.in,Class 7,B,Social Studies,THURSDAY,1,08:00,08:40,R-721
+CURRENT,UPSERT,EMAIL,priya.chopra@shantiniketanpublicschool.in,Class 8,A,Computer Science,THURSDAY,1,08:00,08:40,LAB-CS
+CURRENT,UPSERT,EMAIL,divya.jain@shantiniketanpublicschool.in,Class 8,B,General Knowledge,THURSDAY,1,08:00,08:40,R-821
+CURRENT,UPSERT,EMAIL,ritika.roy@shantiniketanpublicschool.in,Class 9,A,Sanskrit,THURSDAY,1,08:00,08:40,R-911
+CURRENT,UPSERT,EMAIL,ishita.sen@shantiniketanpublicschool.in,Class 9,B,Art,THURSDAY,1,08:00,08:40,ART-1
+CURRENT,UPSERT,EMAIL,nikhil.joshi@shantiniketanpublicschool.in,Class 10,A,Physical Education,THURSDAY,1,08:00,08:40,GROUND
+CURRENT,UPSERT,EMAIL,amit.sharma@shantiniketanpublicschool.in,Class 10,B,Mathematics,THURSDAY,1,08:00,08:40,R-1021
+CURRENT,UPSERT,EMAIL,rohan.iyer@shantiniketanpublicschool.in,Class 11,A,Science,THURSDAY,1,08:00,08:40,R-1111
+CURRENT,UPSERT,EMAIL,karan.das@shantiniketanpublicschool.in,Class 11,B,English,THURSDAY,1,08:00,08:40,R-1121
+CURRENT,UPSERT,EMAIL,vivek.singh@shantiniketanpublicschool.in,Class 12,A,Hindi,THURSDAY,1,08:00,08:40,R-1211
+CURRENT,UPSERT,EMAIL,rahul.gupta@shantiniketanpublicschool.in,Class 12,B,Social Studies,THURSDAY,1,08:00,08:40,R-1221
+CURRENT,UPSERT,EMAIL,rohan.iyer@shantiniketanpublicschool.in,Class 5,A,Science,THURSDAY,2,08:45,09:25,R-512
+CURRENT,UPSERT,EMAIL,karan.das@shantiniketanpublicschool.in,Class 5,B,English,THURSDAY,2,08:45,09:25,R-522
+CURRENT,UPSERT,EMAIL,vivek.singh@shantiniketanpublicschool.in,Class 6,A,Hindi,THURSDAY,2,08:45,09:25,R-612
+CURRENT,UPSERT,EMAIL,rahul.gupta@shantiniketanpublicschool.in,Class 6,B,Social Studies,THURSDAY,2,08:45,09:25,R-622
+CURRENT,UPSERT,EMAIL,arjun.rao@shantiniketanpublicschool.in,Class 7,A,Computer Science,THURSDAY,2,08:45,09:25,LAB-CS
+CURRENT,UPSERT,EMAIL,manish.saxena@shantiniketanpublicschool.in,Class 7,B,General Knowledge,THURSDAY,2,08:45,09:25,R-722
+CURRENT,UPSERT,EMAIL,saurabh.malhotra@shantiniketanpublicschool.in,Class 8,A,Sanskrit,THURSDAY,2,08:45,09:25,R-812
+CURRENT,UPSERT,EMAIL,dev.khan@shantiniketanpublicschool.in,Class 8,B,Art,THURSDAY,2,08:45,09:25,ART-1
+CURRENT,UPSERT,EMAIL,nikhil.joshi@shantiniketanpublicschool.in,Class 9,A,Physical Education,THURSDAY,2,08:45,09:25,GROUND
+CURRENT,UPSERT,EMAIL,amit.sharma@shantiniketanpublicschool.in,Class 9,B,Mathematics,THURSDAY,2,08:45,09:25,R-922
+CURRENT,UPSERT,EMAIL,pooja.kapoor@shantiniketanpublicschool.in,Class 10,A,Science,THURSDAY,2,08:45,09:25,R-1012
+CURRENT,UPSERT,EMAIL,sanya.nair@shantiniketanpublicschool.in,Class 10,B,English,THURSDAY,2,08:45,09:25,R-1022
+CURRENT,UPSERT,EMAIL,anjali.patel@shantiniketanpublicschool.in,Class 11,A,Hindi,THURSDAY,2,08:45,09:25,R-1112
+CURRENT,UPSERT,EMAIL,meera.mehta@shantiniketanpublicschool.in,Class 11,B,Social Studies,THURSDAY,2,08:45,09:25,R-1122
+CURRENT,UPSERT,EMAIL,priya.chopra@shantiniketanpublicschool.in,Class 12,A,Computer Science,THURSDAY,2,08:45,09:25,LAB-CS
+CURRENT,UPSERT,EMAIL,divya.jain@shantiniketanpublicschool.in,Class 12,B,General Knowledge,THURSDAY,2,08:45,09:25,R-1222
+CURRENT,UPSERT,EMAIL,anjali.patel@shantiniketanpublicschool.in,Class 5,A,Hindi,THURSDAY,3,09:30,10:10,R-513
+CURRENT,UPSERT,EMAIL,meera.mehta@shantiniketanpublicschool.in,Class 5,B,Social Studies,THURSDAY,3,09:30,10:10,R-523
+CURRENT,UPSERT,EMAIL,priya.chopra@shantiniketanpublicschool.in,Class 6,A,Computer Science,THURSDAY,3,09:30,10:10,LAB-CS
+CURRENT,UPSERT,EMAIL,divya.jain@shantiniketanpublicschool.in,Class 6,B,General Knowledge,THURSDAY,3,09:30,10:10,R-623
+CURRENT,UPSERT,EMAIL,ritika.roy@shantiniketanpublicschool.in,Class 7,A,Sanskrit,THURSDAY,3,09:30,10:10,R-713
+CURRENT,UPSERT,EMAIL,ishita.sen@shantiniketanpublicschool.in,Class 7,B,Art,THURSDAY,3,09:30,10:10,ART-1
+CURRENT,UPSERT,EMAIL,kavya.bose@shantiniketanpublicschool.in,Class 8,A,Physical Education,THURSDAY,3,09:30,10:10,GROUND
+CURRENT,UPSERT,EMAIL,neha.verma@shantiniketanpublicschool.in,Class 8,B,Mathematics,THURSDAY,3,09:30,10:10,R-823
+CURRENT,UPSERT,EMAIL,pooja.kapoor@shantiniketanpublicschool.in,Class 9,A,Science,THURSDAY,3,09:30,10:10,R-913
+CURRENT,UPSERT,EMAIL,sanya.nair@shantiniketanpublicschool.in,Class 9,B,English,THURSDAY,3,09:30,10:10,R-923
+CURRENT,UPSERT,EMAIL,vivek.singh@shantiniketanpublicschool.in,Class 10,A,Hindi,THURSDAY,3,09:30,10:10,R-1013
+CURRENT,UPSERT,EMAIL,rahul.gupta@shantiniketanpublicschool.in,Class 10,B,Social Studies,THURSDAY,3,09:30,10:10,R-1023
+CURRENT,UPSERT,EMAIL,arjun.rao@shantiniketanpublicschool.in,Class 11,A,Computer Science,THURSDAY,3,09:30,10:10,LAB-CS
+CURRENT,UPSERT,EMAIL,manish.saxena@shantiniketanpublicschool.in,Class 11,B,General Knowledge,THURSDAY,3,09:30,10:10,R-1123
+CURRENT,UPSERT,EMAIL,saurabh.malhotra@shantiniketanpublicschool.in,Class 12,A,Sanskrit,THURSDAY,3,09:30,10:10,R-1213
+CURRENT,UPSERT,EMAIL,dev.khan@shantiniketanpublicschool.in,Class 12,B,Art,THURSDAY,3,09:30,10:10,ART-1
+CURRENT,UPSERT,EMAIL,arjun.rao@shantiniketanpublicschool.in,Class 5,A,Computer Science,THURSDAY,4,10:25,11:05,LAB-CS
+CURRENT,UPSERT,EMAIL,manish.saxena@shantiniketanpublicschool.in,Class 5,B,General Knowledge,THURSDAY,4,10:25,11:05,R-524
+CURRENT,UPSERT,EMAIL,saurabh.malhotra@shantiniketanpublicschool.in,Class 6,A,Sanskrit,THURSDAY,4,10:25,11:05,R-614
+CURRENT,UPSERT,EMAIL,dev.khan@shantiniketanpublicschool.in,Class 6,B,Art,THURSDAY,4,10:25,11:05,ART-1
+CURRENT,UPSERT,EMAIL,nikhil.joshi@shantiniketanpublicschool.in,Class 7,A,Physical Education,THURSDAY,4,10:25,11:05,GROUND
+CURRENT,UPSERT,EMAIL,amit.sharma@shantiniketanpublicschool.in,Class 7,B,Mathematics,THURSDAY,4,10:25,11:05,R-724
+CURRENT,UPSERT,EMAIL,rohan.iyer@shantiniketanpublicschool.in,Class 8,A,Science,THURSDAY,4,10:25,11:05,R-814
+CURRENT,UPSERT,EMAIL,karan.das@shantiniketanpublicschool.in,Class 8,B,English,THURSDAY,4,10:25,11:05,R-824
+CURRENT,UPSERT,EMAIL,vivek.singh@shantiniketanpublicschool.in,Class 9,A,Hindi,THURSDAY,4,10:25,11:05,R-914
+CURRENT,UPSERT,EMAIL,rahul.gupta@shantiniketanpublicschool.in,Class 9,B,Social Studies,THURSDAY,4,10:25,11:05,R-924
+CURRENT,UPSERT,EMAIL,priya.chopra@shantiniketanpublicschool.in,Class 10,A,Computer Science,THURSDAY,4,10:25,11:05,LAB-CS
+CURRENT,UPSERT,EMAIL,divya.jain@shantiniketanpublicschool.in,Class 10,B,General Knowledge,THURSDAY,4,10:25,11:05,R-1024
+CURRENT,UPSERT,EMAIL,ritika.roy@shantiniketanpublicschool.in,Class 11,A,Sanskrit,THURSDAY,4,10:25,11:05,R-1114
+CURRENT,UPSERT,EMAIL,ishita.sen@shantiniketanpublicschool.in,Class 11,B,Art,THURSDAY,4,10:25,11:05,ART-1
+CURRENT,UPSERT,EMAIL,kavya.bose@shantiniketanpublicschool.in,Class 12,A,Physical Education,THURSDAY,4,10:25,11:05,GROUND
+CURRENT,UPSERT,EMAIL,neha.verma@shantiniketanpublicschool.in,Class 12,B,Mathematics,THURSDAY,4,10:25,11:05,R-1224
+CURRENT,UPSERT,EMAIL,ritika.roy@shantiniketanpublicschool.in,Class 5,A,Sanskrit,THURSDAY,5,11:10,11:50,R-515
+CURRENT,UPSERT,EMAIL,ishita.sen@shantiniketanpublicschool.in,Class 5,B,Art,THURSDAY,5,11:10,11:50,ART-1
+CURRENT,UPSERT,EMAIL,kavya.bose@shantiniketanpublicschool.in,Class 6,A,Physical Education,THURSDAY,5,11:10,11:50,GROUND
+CURRENT,UPSERT,EMAIL,neha.verma@shantiniketanpublicschool.in,Class 6,B,Mathematics,THURSDAY,5,11:10,11:50,R-625
+CURRENT,UPSERT,EMAIL,pooja.kapoor@shantiniketanpublicschool.in,Class 7,A,Science,THURSDAY,5,11:10,11:50,R-715
+CURRENT,UPSERT,EMAIL,sanya.nair@shantiniketanpublicschool.in,Class 7,B,English,THURSDAY,5,11:10,11:50,R-725
+CURRENT,UPSERT,EMAIL,anjali.patel@shantiniketanpublicschool.in,Class 8,A,Hindi,THURSDAY,5,11:10,11:50,R-815
+CURRENT,UPSERT,EMAIL,meera.mehta@shantiniketanpublicschool.in,Class 8,B,Social Studies,THURSDAY,5,11:10,11:50,R-825
+CURRENT,UPSERT,EMAIL,priya.chopra@shantiniketanpublicschool.in,Class 9,A,Computer Science,THURSDAY,5,11:10,11:50,LAB-CS
+CURRENT,UPSERT,EMAIL,divya.jain@shantiniketanpublicschool.in,Class 9,B,General Knowledge,THURSDAY,5,11:10,11:50,R-925
+CURRENT,UPSERT,EMAIL,saurabh.malhotra@shantiniketanpublicschool.in,Class 10,A,Sanskrit,THURSDAY,5,11:10,11:50,R-1015
+CURRENT,UPSERT,EMAIL,dev.khan@shantiniketanpublicschool.in,Class 10,B,Art,THURSDAY,5,11:10,11:50,ART-1
+CURRENT,UPSERT,EMAIL,nikhil.joshi@shantiniketanpublicschool.in,Class 11,A,Physical Education,THURSDAY,5,11:10,11:50,GROUND
+CURRENT,UPSERT,EMAIL,amit.sharma@shantiniketanpublicschool.in,Class 11,B,Mathematics,THURSDAY,5,11:10,11:50,R-1125
+CURRENT,UPSERT,EMAIL,rohan.iyer@shantiniketanpublicschool.in,Class 12,A,Science,THURSDAY,5,11:10,11:50,R-1215
+CURRENT,UPSERT,EMAIL,karan.das@shantiniketanpublicschool.in,Class 12,B,English,THURSDAY,5,11:10,11:50,R-1225
+CURRENT,UPSERT,EMAIL,nikhil.joshi@shantiniketanpublicschool.in,Class 5,A,Physical Education,THURSDAY,6,12:20,13:00,GROUND
+CURRENT,UPSERT,EMAIL,amit.sharma@shantiniketanpublicschool.in,Class 5,B,Mathematics,THURSDAY,6,12:20,13:00,R-526
+CURRENT,UPSERT,EMAIL,rohan.iyer@shantiniketanpublicschool.in,Class 6,A,Science,THURSDAY,6,12:20,13:00,R-616
+CURRENT,UPSERT,EMAIL,karan.das@shantiniketanpublicschool.in,Class 6,B,English,THURSDAY,6,12:20,13:00,R-626
+CURRENT,UPSERT,EMAIL,vivek.singh@shantiniketanpublicschool.in,Class 7,A,Hindi,THURSDAY,6,12:20,13:00,R-716
+CURRENT,UPSERT,EMAIL,rahul.gupta@shantiniketanpublicschool.in,Class 7,B,Social Studies,THURSDAY,6,12:20,13:00,R-726
+CURRENT,UPSERT,EMAIL,arjun.rao@shantiniketanpublicschool.in,Class 8,A,Computer Science,THURSDAY,6,12:20,13:00,LAB-CS
+CURRENT,UPSERT,EMAIL,manish.saxena@shantiniketanpublicschool.in,Class 8,B,General Knowledge,THURSDAY,6,12:20,13:00,R-826
+CURRENT,UPSERT,EMAIL,saurabh.malhotra@shantiniketanpublicschool.in,Class 9,A,Sanskrit,THURSDAY,6,12:20,13:00,R-916
+CURRENT,UPSERT,EMAIL,dev.khan@shantiniketanpublicschool.in,Class 9,B,Art,THURSDAY,6,12:20,13:00,ART-1
+CURRENT,UPSERT,EMAIL,kavya.bose@shantiniketanpublicschool.in,Class 10,A,Physical Education,THURSDAY,6,12:20,13:00,GROUND
+CURRENT,UPSERT,EMAIL,neha.verma@shantiniketanpublicschool.in,Class 10,B,Mathematics,THURSDAY,6,12:20,13:00,R-1026
+CURRENT,UPSERT,EMAIL,pooja.kapoor@shantiniketanpublicschool.in,Class 11,A,Science,THURSDAY,6,12:20,13:00,R-1116
+CURRENT,UPSERT,EMAIL,sanya.nair@shantiniketanpublicschool.in,Class 11,B,English,THURSDAY,6,12:20,13:00,R-1126
+CURRENT,UPSERT,EMAIL,anjali.patel@shantiniketanpublicschool.in,Class 12,A,Hindi,THURSDAY,6,12:20,13:00,R-1216
+CURRENT,UPSERT,EMAIL,meera.mehta@shantiniketanpublicschool.in,Class 12,B,Social Studies,THURSDAY,6,12:20,13:00,R-1226
+CURRENT,UPSERT,EMAIL,pooja.kapoor@shantiniketanpublicschool.in,Class 5,A,Science,THURSDAY,7,13:05,13:45,R-517
+CURRENT,UPSERT,EMAIL,sanya.nair@shantiniketanpublicschool.in,Class 5,B,English,THURSDAY,7,13:05,13:45,R-527
+CURRENT,UPSERT,EMAIL,anjali.patel@shantiniketanpublicschool.in,Class 6,A,Hindi,THURSDAY,7,13:05,13:45,R-617
+CURRENT,UPSERT,EMAIL,meera.mehta@shantiniketanpublicschool.in,Class 6,B,Social Studies,THURSDAY,7,13:05,13:45,R-627
+CURRENT,UPSERT,EMAIL,priya.chopra@shantiniketanpublicschool.in,Class 7,A,Computer Science,THURSDAY,7,13:05,13:45,LAB-CS
+CURRENT,UPSERT,EMAIL,divya.jain@shantiniketanpublicschool.in,Class 7,B,General Knowledge,THURSDAY,7,13:05,13:45,R-727
+CURRENT,UPSERT,EMAIL,ritika.roy@shantiniketanpublicschool.in,Class 8,A,Sanskrit,THURSDAY,7,13:05,13:45,R-817
+CURRENT,UPSERT,EMAIL,ishita.sen@shantiniketanpublicschool.in,Class 8,B,Art,THURSDAY,7,13:05,13:45,ART-1
+CURRENT,UPSERT,EMAIL,kavya.bose@shantiniketanpublicschool.in,Class 9,A,Physical Education,THURSDAY,7,13:05,13:45,GROUND
+CURRENT,UPSERT,EMAIL,neha.verma@shantiniketanpublicschool.in,Class 9,B,Mathematics,THURSDAY,7,13:05,13:45,R-927
+CURRENT,UPSERT,EMAIL,rohan.iyer@shantiniketanpublicschool.in,Class 10,A,Science,THURSDAY,7,13:05,13:45,R-1017
+CURRENT,UPSERT,EMAIL,karan.das@shantiniketanpublicschool.in,Class 10,B,English,THURSDAY,7,13:05,13:45,R-1027
+CURRENT,UPSERT,EMAIL,vivek.singh@shantiniketanpublicschool.in,Class 11,A,Hindi,THURSDAY,7,13:05,13:45,R-1117
+CURRENT,UPSERT,EMAIL,rahul.gupta@shantiniketanpublicschool.in,Class 11,B,Social Studies,THURSDAY,7,13:05,13:45,R-1127
+CURRENT,UPSERT,EMAIL,arjun.rao@shantiniketanpublicschool.in,Class 12,A,Computer Science,THURSDAY,7,13:05,13:45,LAB-CS
+CURRENT,UPSERT,EMAIL,manish.saxena@shantiniketanpublicschool.in,Class 12,B,General Knowledge,THURSDAY,7,13:05,13:45,R-1227
+CURRENT,UPSERT,EMAIL,karan.das@shantiniketanpublicschool.in,Class 5,A,English,FRIDAY,1,08:00,08:40,R-511
+CURRENT,UPSERT,EMAIL,vivek.singh@shantiniketanpublicschool.in,Class 5,B,Hindi,FRIDAY,1,08:00,08:40,R-521
+CURRENT,UPSERT,EMAIL,rahul.gupta@shantiniketanpublicschool.in,Class 6,A,Social Studies,FRIDAY,1,08:00,08:40,R-611
+CURRENT,UPSERT,EMAIL,arjun.rao@shantiniketanpublicschool.in,Class 6,B,Computer Science,FRIDAY,1,08:00,08:40,LAB-CS
+CURRENT,UPSERT,EMAIL,manish.saxena@shantiniketanpublicschool.in,Class 7,A,General Knowledge,FRIDAY,1,08:00,08:40,R-711
+CURRENT,UPSERT,EMAIL,saurabh.malhotra@shantiniketanpublicschool.in,Class 7,B,Sanskrit,FRIDAY,1,08:00,08:40,R-721
+CURRENT,UPSERT,EMAIL,dev.khan@shantiniketanpublicschool.in,Class 8,A,Art,FRIDAY,1,08:00,08:40,ART-1
+CURRENT,UPSERT,EMAIL,nikhil.joshi@shantiniketanpublicschool.in,Class 8,B,Physical Education,FRIDAY,1,08:00,08:40,GROUND
+CURRENT,UPSERT,EMAIL,amit.sharma@shantiniketanpublicschool.in,Class 9,A,Mathematics,FRIDAY,1,08:00,08:40,R-911
+CURRENT,UPSERT,EMAIL,rohan.iyer@shantiniketanpublicschool.in,Class 9,B,Science,FRIDAY,1,08:00,08:40,R-921
+CURRENT,UPSERT,EMAIL,sanya.nair@shantiniketanpublicschool.in,Class 10,A,English,FRIDAY,1,08:00,08:40,R-1011
+CURRENT,UPSERT,EMAIL,anjali.patel@shantiniketanpublicschool.in,Class 10,B,Hindi,FRIDAY,1,08:00,08:40,R-1021
+CURRENT,UPSERT,EMAIL,meera.mehta@shantiniketanpublicschool.in,Class 11,A,Social Studies,FRIDAY,1,08:00,08:40,R-1111
+CURRENT,UPSERT,EMAIL,priya.chopra@shantiniketanpublicschool.in,Class 11,B,Computer Science,FRIDAY,1,08:00,08:40,LAB-CS
+CURRENT,UPSERT,EMAIL,divya.jain@shantiniketanpublicschool.in,Class 12,A,General Knowledge,FRIDAY,1,08:00,08:40,R-1211
+CURRENT,UPSERT,EMAIL,ritika.roy@shantiniketanpublicschool.in,Class 12,B,Sanskrit,FRIDAY,1,08:00,08:40,R-1221
+CURRENT,UPSERT,EMAIL,meera.mehta@shantiniketanpublicschool.in,Class 5,A,Social Studies,FRIDAY,2,08:45,09:25,R-512
+CURRENT,UPSERT,EMAIL,priya.chopra@shantiniketanpublicschool.in,Class 5,B,Computer Science,FRIDAY,2,08:45,09:25,LAB-CS
+CURRENT,UPSERT,EMAIL,divya.jain@shantiniketanpublicschool.in,Class 6,A,General Knowledge,FRIDAY,2,08:45,09:25,R-612
+CURRENT,UPSERT,EMAIL,ritika.roy@shantiniketanpublicschool.in,Class 6,B,Sanskrit,FRIDAY,2,08:45,09:25,R-622
+CURRENT,UPSERT,EMAIL,ishita.sen@shantiniketanpublicschool.in,Class 7,A,Art,FRIDAY,2,08:45,09:25,ART-1
+CURRENT,UPSERT,EMAIL,kavya.bose@shantiniketanpublicschool.in,Class 7,B,Physical Education,FRIDAY,2,08:45,09:25,GROUND
+CURRENT,UPSERT,EMAIL,neha.verma@shantiniketanpublicschool.in,Class 8,A,Mathematics,FRIDAY,2,08:45,09:25,R-812
+CURRENT,UPSERT,EMAIL,pooja.kapoor@shantiniketanpublicschool.in,Class 8,B,Science,FRIDAY,2,08:45,09:25,R-822
+CURRENT,UPSERT,EMAIL,sanya.nair@shantiniketanpublicschool.in,Class 9,A,English,FRIDAY,2,08:45,09:25,R-912
+CURRENT,UPSERT,EMAIL,anjali.patel@shantiniketanpublicschool.in,Class 9,B,Hindi,FRIDAY,2,08:45,09:25,R-922
+CURRENT,UPSERT,EMAIL,rahul.gupta@shantiniketanpublicschool.in,Class 10,A,Social Studies,FRIDAY,2,08:45,09:25,R-1012
+CURRENT,UPSERT,EMAIL,arjun.rao@shantiniketanpublicschool.in,Class 10,B,Computer Science,FRIDAY,2,08:45,09:25,LAB-CS
+CURRENT,UPSERT,EMAIL,manish.saxena@shantiniketanpublicschool.in,Class 11,A,General Knowledge,FRIDAY,2,08:45,09:25,R-1112
+CURRENT,UPSERT,EMAIL,saurabh.malhotra@shantiniketanpublicschool.in,Class 11,B,Sanskrit,FRIDAY,2,08:45,09:25,R-1122
+CURRENT,UPSERT,EMAIL,dev.khan@shantiniketanpublicschool.in,Class 12,A,Art,FRIDAY,2,08:45,09:25,ART-1
+CURRENT,UPSERT,EMAIL,nikhil.joshi@shantiniketanpublicschool.in,Class 12,B,Physical Education,FRIDAY,2,08:45,09:25,GROUND
+CURRENT,UPSERT,EMAIL,manish.saxena@shantiniketanpublicschool.in,Class 5,A,General Knowledge,FRIDAY,3,09:30,10:10,R-513
+CURRENT,UPSERT,EMAIL,saurabh.malhotra@shantiniketanpublicschool.in,Class 5,B,Sanskrit,FRIDAY,3,09:30,10:10,R-523
+CURRENT,UPSERT,EMAIL,dev.khan@shantiniketanpublicschool.in,Class 6,A,Art,FRIDAY,3,09:30,10:10,ART-1
+CURRENT,UPSERT,EMAIL,nikhil.joshi@shantiniketanpublicschool.in,Class 6,B,Physical Education,FRIDAY,3,09:30,10:10,GROUND
+CURRENT,UPSERT,EMAIL,amit.sharma@shantiniketanpublicschool.in,Class 7,A,Mathematics,FRIDAY,3,09:30,10:10,R-713
+CURRENT,UPSERT,EMAIL,rohan.iyer@shantiniketanpublicschool.in,Class 7,B,Science,FRIDAY,3,09:30,10:10,R-723
+CURRENT,UPSERT,EMAIL,karan.das@shantiniketanpublicschool.in,Class 8,A,English,FRIDAY,3,09:30,10:10,R-813
+CURRENT,UPSERT,EMAIL,vivek.singh@shantiniketanpublicschool.in,Class 8,B,Hindi,FRIDAY,3,09:30,10:10,R-823
+CURRENT,UPSERT,EMAIL,rahul.gupta@shantiniketanpublicschool.in,Class 9,A,Social Studies,FRIDAY,3,09:30,10:10,R-913
+CURRENT,UPSERT,EMAIL,arjun.rao@shantiniketanpublicschool.in,Class 9,B,Computer Science,FRIDAY,3,09:30,10:10,LAB-CS
+CURRENT,UPSERT,EMAIL,divya.jain@shantiniketanpublicschool.in,Class 10,A,General Knowledge,FRIDAY,3,09:30,10:10,R-1013
+CURRENT,UPSERT,EMAIL,ritika.roy@shantiniketanpublicschool.in,Class 10,B,Sanskrit,FRIDAY,3,09:30,10:10,R-1023
+CURRENT,UPSERT,EMAIL,ishita.sen@shantiniketanpublicschool.in,Class 11,A,Art,FRIDAY,3,09:30,10:10,ART-1
+CURRENT,UPSERT,EMAIL,kavya.bose@shantiniketanpublicschool.in,Class 11,B,Physical Education,FRIDAY,3,09:30,10:10,GROUND
+CURRENT,UPSERT,EMAIL,neha.verma@shantiniketanpublicschool.in,Class 12,A,Mathematics,FRIDAY,3,09:30,10:10,R-1213
+CURRENT,UPSERT,EMAIL,pooja.kapoor@shantiniketanpublicschool.in,Class 12,B,Science,FRIDAY,3,09:30,10:10,R-1223
+CURRENT,UPSERT,EMAIL,ishita.sen@shantiniketanpublicschool.in,Class 5,A,Art,FRIDAY,4,10:25,11:05,ART-1
+CURRENT,UPSERT,EMAIL,kavya.bose@shantiniketanpublicschool.in,Class 5,B,Physical Education,FRIDAY,4,10:25,11:05,GROUND
+CURRENT,UPSERT,EMAIL,neha.verma@shantiniketanpublicschool.in,Class 6,A,Mathematics,FRIDAY,4,10:25,11:05,R-614
+CURRENT,UPSERT,EMAIL,pooja.kapoor@shantiniketanpublicschool.in,Class 6,B,Science,FRIDAY,4,10:25,11:05,R-624
+CURRENT,UPSERT,EMAIL,sanya.nair@shantiniketanpublicschool.in,Class 7,A,English,FRIDAY,4,10:25,11:05,R-714
+CURRENT,UPSERT,EMAIL,anjali.patel@shantiniketanpublicschool.in,Class 7,B,Hindi,FRIDAY,4,10:25,11:05,R-724
+CURRENT,UPSERT,EMAIL,meera.mehta@shantiniketanpublicschool.in,Class 8,A,Social Studies,FRIDAY,4,10:25,11:05,R-814
+CURRENT,UPSERT,EMAIL,priya.chopra@shantiniketanpublicschool.in,Class 8,B,Computer Science,FRIDAY,4,10:25,11:05,LAB-CS
+CURRENT,UPSERT,EMAIL,divya.jain@shantiniketanpublicschool.in,Class 9,A,General Knowledge,FRIDAY,4,10:25,11:05,R-914
+CURRENT,UPSERT,EMAIL,ritika.roy@shantiniketanpublicschool.in,Class 9,B,Sanskrit,FRIDAY,4,10:25,11:05,R-924
+CURRENT,UPSERT,EMAIL,dev.khan@shantiniketanpublicschool.in,Class 10,A,Art,FRIDAY,4,10:25,11:05,ART-1
+CURRENT,UPSERT,EMAIL,nikhil.joshi@shantiniketanpublicschool.in,Class 10,B,Physical Education,FRIDAY,4,10:25,11:05,GROUND
+CURRENT,UPSERT,EMAIL,amit.sharma@shantiniketanpublicschool.in,Class 11,A,Mathematics,FRIDAY,4,10:25,11:05,R-1114
+CURRENT,UPSERT,EMAIL,rohan.iyer@shantiniketanpublicschool.in,Class 11,B,Science,FRIDAY,4,10:25,11:05,R-1124
+CURRENT,UPSERT,EMAIL,karan.das@shantiniketanpublicschool.in,Class 12,A,English,FRIDAY,4,10:25,11:05,R-1214
+CURRENT,UPSERT,EMAIL,vivek.singh@shantiniketanpublicschool.in,Class 12,B,Hindi,FRIDAY,4,10:25,11:05,R-1224
+CURRENT,UPSERT,EMAIL,amit.sharma@shantiniketanpublicschool.in,Class 5,A,Mathematics,FRIDAY,5,11:10,11:50,R-515
+CURRENT,UPSERT,EMAIL,rohan.iyer@shantiniketanpublicschool.in,Class 5,B,Science,FRIDAY,5,11:10,11:50,R-525
+CURRENT,UPSERT,EMAIL,karan.das@shantiniketanpublicschool.in,Class 6,A,English,FRIDAY,5,11:10,11:50,R-615
+CURRENT,UPSERT,EMAIL,vivek.singh@shantiniketanpublicschool.in,Class 6,B,Hindi,FRIDAY,5,11:10,11:50,R-625
+CURRENT,UPSERT,EMAIL,rahul.gupta@shantiniketanpublicschool.in,Class 7,A,Social Studies,FRIDAY,5,11:10,11:50,R-715
+CURRENT,UPSERT,EMAIL,arjun.rao@shantiniketanpublicschool.in,Class 7,B,Computer Science,FRIDAY,5,11:10,11:50,LAB-CS
+CURRENT,UPSERT,EMAIL,manish.saxena@shantiniketanpublicschool.in,Class 8,A,General Knowledge,FRIDAY,5,11:10,11:50,R-815
+CURRENT,UPSERT,EMAIL,saurabh.malhotra@shantiniketanpublicschool.in,Class 8,B,Sanskrit,FRIDAY,5,11:10,11:50,R-825
+CURRENT,UPSERT,EMAIL,dev.khan@shantiniketanpublicschool.in,Class 9,A,Art,FRIDAY,5,11:10,11:50,ART-1
+CURRENT,UPSERT,EMAIL,nikhil.joshi@shantiniketanpublicschool.in,Class 9,B,Physical Education,FRIDAY,5,11:10,11:50,GROUND
+CURRENT,UPSERT,EMAIL,neha.verma@shantiniketanpublicschool.in,Class 10,A,Mathematics,FRIDAY,5,11:10,11:50,R-1015
+CURRENT,UPSERT,EMAIL,pooja.kapoor@shantiniketanpublicschool.in,Class 10,B,Science,FRIDAY,5,11:10,11:50,R-1025
+CURRENT,UPSERT,EMAIL,sanya.nair@shantiniketanpublicschool.in,Class 11,A,English,FRIDAY,5,11:10,11:50,R-1115
+CURRENT,UPSERT,EMAIL,anjali.patel@shantiniketanpublicschool.in,Class 11,B,Hindi,FRIDAY,5,11:10,11:50,R-1125
+CURRENT,UPSERT,EMAIL,meera.mehta@shantiniketanpublicschool.in,Class 12,A,Social Studies,FRIDAY,5,11:10,11:50,R-1215
+CURRENT,UPSERT,EMAIL,priya.chopra@shantiniketanpublicschool.in,Class 12,B,Computer Science,FRIDAY,5,11:10,11:50,LAB-CS
+CURRENT,UPSERT,EMAIL,sanya.nair@shantiniketanpublicschool.in,Class 5,A,English,FRIDAY,6,12:20,13:00,R-516
+CURRENT,UPSERT,EMAIL,anjali.patel@shantiniketanpublicschool.in,Class 5,B,Hindi,FRIDAY,6,12:20,13:00,R-526
+CURRENT,UPSERT,EMAIL,meera.mehta@shantiniketanpublicschool.in,Class 6,A,Social Studies,FRIDAY,6,12:20,13:00,R-616
+CURRENT,UPSERT,EMAIL,priya.chopra@shantiniketanpublicschool.in,Class 6,B,Computer Science,FRIDAY,6,12:20,13:00,LAB-CS
+CURRENT,UPSERT,EMAIL,divya.jain@shantiniketanpublicschool.in,Class 7,A,General Knowledge,FRIDAY,6,12:20,13:00,R-716
+CURRENT,UPSERT,EMAIL,ritika.roy@shantiniketanpublicschool.in,Class 7,B,Sanskrit,FRIDAY,6,12:20,13:00,R-726
+CURRENT,UPSERT,EMAIL,ishita.sen@shantiniketanpublicschool.in,Class 8,A,Art,FRIDAY,6,12:20,13:00,ART-1
+CURRENT,UPSERT,EMAIL,kavya.bose@shantiniketanpublicschool.in,Class 8,B,Physical Education,FRIDAY,6,12:20,13:00,GROUND
+CURRENT,UPSERT,EMAIL,neha.verma@shantiniketanpublicschool.in,Class 9,A,Mathematics,FRIDAY,6,12:20,13:00,R-916
+CURRENT,UPSERT,EMAIL,pooja.kapoor@shantiniketanpublicschool.in,Class 9,B,Science,FRIDAY,6,12:20,13:00,R-926
+CURRENT,UPSERT,EMAIL,karan.das@shantiniketanpublicschool.in,Class 10,A,English,FRIDAY,6,12:20,13:00,R-1016
+CURRENT,UPSERT,EMAIL,vivek.singh@shantiniketanpublicschool.in,Class 10,B,Hindi,FRIDAY,6,12:20,13:00,R-1026
+CURRENT,UPSERT,EMAIL,rahul.gupta@shantiniketanpublicschool.in,Class 11,A,Social Studies,FRIDAY,6,12:20,13:00,R-1116
+CURRENT,UPSERT,EMAIL,arjun.rao@shantiniketanpublicschool.in,Class 11,B,Computer Science,FRIDAY,6,12:20,13:00,LAB-CS
+CURRENT,UPSERT,EMAIL,manish.saxena@shantiniketanpublicschool.in,Class 12,A,General Knowledge,FRIDAY,6,12:20,13:00,R-1216
+CURRENT,UPSERT,EMAIL,saurabh.malhotra@shantiniketanpublicschool.in,Class 12,B,Sanskrit,FRIDAY,6,12:20,13:00,R-1226
+CURRENT,UPSERT,EMAIL,rahul.gupta@shantiniketanpublicschool.in,Class 5,A,Social Studies,FRIDAY,7,13:05,13:45,R-517
+CURRENT,UPSERT,EMAIL,arjun.rao@shantiniketanpublicschool.in,Class 5,B,Computer Science,FRIDAY,7,13:05,13:45,LAB-CS
+CURRENT,UPSERT,EMAIL,manish.saxena@shantiniketanpublicschool.in,Class 6,A,General Knowledge,FRIDAY,7,13:05,13:45,R-617
+CURRENT,UPSERT,EMAIL,saurabh.malhotra@shantiniketanpublicschool.in,Class 6,B,Sanskrit,FRIDAY,7,13:05,13:45,R-627
+CURRENT,UPSERT,EMAIL,dev.khan@shantiniketanpublicschool.in,Class 7,A,Art,FRIDAY,7,13:05,13:45,ART-1
+CURRENT,UPSERT,EMAIL,nikhil.joshi@shantiniketanpublicschool.in,Class 7,B,Physical Education,FRIDAY,7,13:05,13:45,GROUND
+CURRENT,UPSERT,EMAIL,amit.sharma@shantiniketanpublicschool.in,Class 8,A,Mathematics,FRIDAY,7,13:05,13:45,R-817
+CURRENT,UPSERT,EMAIL,rohan.iyer@shantiniketanpublicschool.in,Class 8,B,Science,FRIDAY,7,13:05,13:45,R-827
+CURRENT,UPSERT,EMAIL,karan.das@shantiniketanpublicschool.in,Class 9,A,English,FRIDAY,7,13:05,13:45,R-917
+CURRENT,UPSERT,EMAIL,vivek.singh@shantiniketanpublicschool.in,Class 9,B,Hindi,FRIDAY,7,13:05,13:45,R-927
+CURRENT,UPSERT,EMAIL,meera.mehta@shantiniketanpublicschool.in,Class 10,A,Social Studies,FRIDAY,7,13:05,13:45,R-1017
+CURRENT,UPSERT,EMAIL,priya.chopra@shantiniketanpublicschool.in,Class 10,B,Computer Science,FRIDAY,7,13:05,13:45,LAB-CS
+CURRENT,UPSERT,EMAIL,divya.jain@shantiniketanpublicschool.in,Class 11,A,General Knowledge,FRIDAY,7,13:05,13:45,R-1117
+CURRENT,UPSERT,EMAIL,ritika.roy@shantiniketanpublicschool.in,Class 11,B,Sanskrit,FRIDAY,7,13:05,13:45,R-1127
+CURRENT,UPSERT,EMAIL,ishita.sen@shantiniketanpublicschool.in,Class 12,A,Art,FRIDAY,7,13:05,13:45,ART-1
+CURRENT,UPSERT,EMAIL,kavya.bose@shantiniketanpublicschool.in,Class 12,B,Physical Education,FRIDAY,7,13:05,13:45,GROUND
+CURRENT,UPSERT,EMAIL,priya.chopra@shantiniketanpublicschool.in,Class 5,A,Computer Science,SATURDAY,1,08:00,08:40,LAB-CS
+CURRENT,UPSERT,EMAIL,divya.jain@shantiniketanpublicschool.in,Class 5,B,General Knowledge,SATURDAY,1,08:00,08:40,R-521
+CURRENT,UPSERT,EMAIL,ritika.roy@shantiniketanpublicschool.in,Class 6,A,Sanskrit,SATURDAY,1,08:00,08:40,R-611
+CURRENT,UPSERT,EMAIL,ishita.sen@shantiniketanpublicschool.in,Class 6,B,Art,SATURDAY,1,08:00,08:40,ART-1
+CURRENT,UPSERT,EMAIL,kavya.bose@shantiniketanpublicschool.in,Class 7,A,Physical Education,SATURDAY,1,08:00,08:40,GROUND
+CURRENT,UPSERT,EMAIL,neha.verma@shantiniketanpublicschool.in,Class 7,B,Mathematics,SATURDAY,1,08:00,08:40,R-721
+CURRENT,UPSERT,EMAIL,pooja.kapoor@shantiniketanpublicschool.in,Class 8,A,Science,SATURDAY,1,08:00,08:40,R-811
+CURRENT,UPSERT,EMAIL,sanya.nair@shantiniketanpublicschool.in,Class 8,B,English,SATURDAY,1,08:00,08:40,R-821
+CURRENT,UPSERT,EMAIL,anjali.patel@shantiniketanpublicschool.in,Class 9,A,Hindi,SATURDAY,1,08:00,08:40,R-911
+CURRENT,UPSERT,EMAIL,meera.mehta@shantiniketanpublicschool.in,Class 9,B,Social Studies,SATURDAY,1,08:00,08:40,R-921
+CURRENT,UPSERT,EMAIL,arjun.rao@shantiniketanpublicschool.in,Class 10,A,Computer Science,SATURDAY,1,08:00,08:40,LAB-CS
+CURRENT,UPSERT,EMAIL,manish.saxena@shantiniketanpublicschool.in,Class 10,B,General Knowledge,SATURDAY,1,08:00,08:40,R-1021
+CURRENT,UPSERT,EMAIL,saurabh.malhotra@shantiniketanpublicschool.in,Class 11,A,Sanskrit,SATURDAY,1,08:00,08:40,R-1111
+CURRENT,UPSERT,EMAIL,dev.khan@shantiniketanpublicschool.in,Class 11,B,Art,SATURDAY,1,08:00,08:40,ART-1
+CURRENT,UPSERT,EMAIL,nikhil.joshi@shantiniketanpublicschool.in,Class 12,A,Physical Education,SATURDAY,1,08:00,08:40,GROUND
+CURRENT,UPSERT,EMAIL,amit.sharma@shantiniketanpublicschool.in,Class 12,B,Mathematics,SATURDAY,1,08:00,08:40,R-1221
+CURRENT,UPSERT,EMAIL,saurabh.malhotra@shantiniketanpublicschool.in,Class 5,A,Sanskrit,SATURDAY,2,08:45,09:25,R-512
+CURRENT,UPSERT,EMAIL,dev.khan@shantiniketanpublicschool.in,Class 5,B,Art,SATURDAY,2,08:45,09:25,ART-1
+CURRENT,UPSERT,EMAIL,nikhil.joshi@shantiniketanpublicschool.in,Class 6,A,Physical Education,SATURDAY,2,08:45,09:25,GROUND
+CURRENT,UPSERT,EMAIL,amit.sharma@shantiniketanpublicschool.in,Class 6,B,Mathematics,SATURDAY,2,08:45,09:25,R-622
+CURRENT,UPSERT,EMAIL,rohan.iyer@shantiniketanpublicschool.in,Class 7,A,Science,SATURDAY,2,08:45,09:25,R-712
+CURRENT,UPSERT,EMAIL,karan.das@shantiniketanpublicschool.in,Class 7,B,English,SATURDAY,2,08:45,09:25,R-722
+CURRENT,UPSERT,EMAIL,vivek.singh@shantiniketanpublicschool.in,Class 8,A,Hindi,SATURDAY,2,08:45,09:25,R-812
+CURRENT,UPSERT,EMAIL,rahul.gupta@shantiniketanpublicschool.in,Class 8,B,Social Studies,SATURDAY,2,08:45,09:25,R-822
+CURRENT,UPSERT,EMAIL,arjun.rao@shantiniketanpublicschool.in,Class 9,A,Computer Science,SATURDAY,2,08:45,09:25,LAB-CS
+CURRENT,UPSERT,EMAIL,manish.saxena@shantiniketanpublicschool.in,Class 9,B,General Knowledge,SATURDAY,2,08:45,09:25,R-922
+CURRENT,UPSERT,EMAIL,ritika.roy@shantiniketanpublicschool.in,Class 10,A,Sanskrit,SATURDAY,2,08:45,09:25,R-1012
+CURRENT,UPSERT,EMAIL,ishita.sen@shantiniketanpublicschool.in,Class 10,B,Art,SATURDAY,2,08:45,09:25,ART-1
+CURRENT,UPSERT,EMAIL,kavya.bose@shantiniketanpublicschool.in,Class 11,A,Physical Education,SATURDAY,2,08:45,09:25,GROUND
+CURRENT,UPSERT,EMAIL,neha.verma@shantiniketanpublicschool.in,Class 11,B,Mathematics,SATURDAY,2,08:45,09:25,R-1122
+CURRENT,UPSERT,EMAIL,pooja.kapoor@shantiniketanpublicschool.in,Class 12,A,Science,SATURDAY,2,08:45,09:25,R-1212
+CURRENT,UPSERT,EMAIL,sanya.nair@shantiniketanpublicschool.in,Class 12,B,English,SATURDAY,2,08:45,09:25,R-1222
+CURRENT,UPSERT,EMAIL,kavya.bose@shantiniketanpublicschool.in,Class 5,A,Physical Education,SATURDAY,3,09:30,10:10,GROUND
+CURRENT,UPSERT,EMAIL,neha.verma@shantiniketanpublicschool.in,Class 5,B,Mathematics,SATURDAY,3,09:30,10:10,R-523
+CURRENT,UPSERT,EMAIL,pooja.kapoor@shantiniketanpublicschool.in,Class 6,A,Science,SATURDAY,3,09:30,10:10,R-613
+CURRENT,UPSERT,EMAIL,sanya.nair@shantiniketanpublicschool.in,Class 6,B,English,SATURDAY,3,09:30,10:10,R-623
+CURRENT,UPSERT,EMAIL,anjali.patel@shantiniketanpublicschool.in,Class 7,A,Hindi,SATURDAY,3,09:30,10:10,R-713
+CURRENT,UPSERT,EMAIL,meera.mehta@shantiniketanpublicschool.in,Class 7,B,Social Studies,SATURDAY,3,09:30,10:10,R-723
+CURRENT,UPSERT,EMAIL,priya.chopra@shantiniketanpublicschool.in,Class 8,A,Computer Science,SATURDAY,3,09:30,10:10,LAB-CS
+CURRENT,UPSERT,EMAIL,divya.jain@shantiniketanpublicschool.in,Class 8,B,General Knowledge,SATURDAY,3,09:30,10:10,R-823
+CURRENT,UPSERT,EMAIL,ritika.roy@shantiniketanpublicschool.in,Class 9,A,Sanskrit,SATURDAY,3,09:30,10:10,R-913
+CURRENT,UPSERT,EMAIL,ishita.sen@shantiniketanpublicschool.in,Class 9,B,Art,SATURDAY,3,09:30,10:10,ART-1
+CURRENT,UPSERT,EMAIL,nikhil.joshi@shantiniketanpublicschool.in,Class 10,A,Physical Education,SATURDAY,3,09:30,10:10,GROUND
+CURRENT,UPSERT,EMAIL,amit.sharma@shantiniketanpublicschool.in,Class 10,B,Mathematics,SATURDAY,3,09:30,10:10,R-1023
+CURRENT,UPSERT,EMAIL,rohan.iyer@shantiniketanpublicschool.in,Class 11,A,Science,SATURDAY,3,09:30,10:10,R-1113
+CURRENT,UPSERT,EMAIL,karan.das@shantiniketanpublicschool.in,Class 11,B,English,SATURDAY,3,09:30,10:10,R-1123
+CURRENT,UPSERT,EMAIL,vivek.singh@shantiniketanpublicschool.in,Class 12,A,Hindi,SATURDAY,3,09:30,10:10,R-1213
+CURRENT,UPSERT,EMAIL,rahul.gupta@shantiniketanpublicschool.in,Class 12,B,Social Studies,SATURDAY,3,09:30,10:10,R-1223
+CURRENT,UPSERT,EMAIL,rohan.iyer@shantiniketanpublicschool.in,Class 5,A,Science,SATURDAY,4,10:25,11:05,R-514
+CURRENT,UPSERT,EMAIL,karan.das@shantiniketanpublicschool.in,Class 5,B,English,SATURDAY,4,10:25,11:05,R-524
+CURRENT,UPSERT,EMAIL,vivek.singh@shantiniketanpublicschool.in,Class 6,A,Hindi,SATURDAY,4,10:25,11:05,R-614
+CURRENT,UPSERT,EMAIL,rahul.gupta@shantiniketanpublicschool.in,Class 6,B,Social Studies,SATURDAY,4,10:25,11:05,R-624
+CURRENT,UPSERT,EMAIL,arjun.rao@shantiniketanpublicschool.in,Class 7,A,Computer Science,SATURDAY,4,10:25,11:05,LAB-CS
+CURRENT,UPSERT,EMAIL,manish.saxena@shantiniketanpublicschool.in,Class 7,B,General Knowledge,SATURDAY,4,10:25,11:05,R-724
+CURRENT,UPSERT,EMAIL,saurabh.malhotra@shantiniketanpublicschool.in,Class 8,A,Sanskrit,SATURDAY,4,10:25,11:05,R-814
+CURRENT,UPSERT,EMAIL,dev.khan@shantiniketanpublicschool.in,Class 8,B,Art,SATURDAY,4,10:25,11:05,ART-1
+CURRENT,UPSERT,EMAIL,nikhil.joshi@shantiniketanpublicschool.in,Class 9,A,Physical Education,SATURDAY,4,10:25,11:05,GROUND
+CURRENT,UPSERT,EMAIL,amit.sharma@shantiniketanpublicschool.in,Class 9,B,Mathematics,SATURDAY,4,10:25,11:05,R-924
+CURRENT,UPSERT,EMAIL,pooja.kapoor@shantiniketanpublicschool.in,Class 10,A,Science,SATURDAY,4,10:25,11:05,R-1014
+CURRENT,UPSERT,EMAIL,sanya.nair@shantiniketanpublicschool.in,Class 10,B,English,SATURDAY,4,10:25,11:05,R-1024
+CURRENT,UPSERT,EMAIL,anjali.patel@shantiniketanpublicschool.in,Class 11,A,Hindi,SATURDAY,4,10:25,11:05,R-1114
+CURRENT,UPSERT,EMAIL,meera.mehta@shantiniketanpublicschool.in,Class 11,B,Social Studies,SATURDAY,4,10:25,11:05,R-1124
+CURRENT,UPSERT,EMAIL,priya.chopra@shantiniketanpublicschool.in,Class 12,A,Computer Science,SATURDAY,4,10:25,11:05,LAB-CS
+CURRENT,UPSERT,EMAIL,divya.jain@shantiniketanpublicschool.in,Class 12,B,General Knowledge,SATURDAY,4,10:25,11:05,R-1224
+CURRENT,UPSERT,EMAIL,anjali.patel@shantiniketanpublicschool.in,Class 5,A,Hindi,SATURDAY,5,11:10,11:50,R-515
+CURRENT,UPSERT,EMAIL,meera.mehta@shantiniketanpublicschool.in,Class 5,B,Social Studies,SATURDAY,5,11:10,11:50,R-525
+CURRENT,UPSERT,EMAIL,priya.chopra@shantiniketanpublicschool.in,Class 6,A,Computer Science,SATURDAY,5,11:10,11:50,LAB-CS
+CURRENT,UPSERT,EMAIL,divya.jain@shantiniketanpublicschool.in,Class 6,B,General Knowledge,SATURDAY,5,11:10,11:50,R-625
+CURRENT,UPSERT,EMAIL,ritika.roy@shantiniketanpublicschool.in,Class 7,A,Sanskrit,SATURDAY,5,11:10,11:50,R-715
+CURRENT,UPSERT,EMAIL,ishita.sen@shantiniketanpublicschool.in,Class 7,B,Art,SATURDAY,5,11:10,11:50,ART-1
+CURRENT,UPSERT,EMAIL,kavya.bose@shantiniketanpublicschool.in,Class 8,A,Physical Education,SATURDAY,5,11:10,11:50,GROUND
+CURRENT,UPSERT,EMAIL,neha.verma@shantiniketanpublicschool.in,Class 8,B,Mathematics,SATURDAY,5,11:10,11:50,R-825
+CURRENT,UPSERT,EMAIL,pooja.kapoor@shantiniketanpublicschool.in,Class 9,A,Science,SATURDAY,5,11:10,11:50,R-915
+CURRENT,UPSERT,EMAIL,sanya.nair@shantiniketanpublicschool.in,Class 9,B,English,SATURDAY,5,11:10,11:50,R-925
+CURRENT,UPSERT,EMAIL,vivek.singh@shantiniketanpublicschool.in,Class 10,A,Hindi,SATURDAY,5,11:10,11:50,R-1015
+CURRENT,UPSERT,EMAIL,rahul.gupta@shantiniketanpublicschool.in,Class 10,B,Social Studies,SATURDAY,5,11:10,11:50,R-1025
+CURRENT,UPSERT,EMAIL,arjun.rao@shantiniketanpublicschool.in,Class 11,A,Computer Science,SATURDAY,5,11:10,11:50,LAB-CS
+CURRENT,UPSERT,EMAIL,manish.saxena@shantiniketanpublicschool.in,Class 11,B,General Knowledge,SATURDAY,5,11:10,11:50,R-1125
+CURRENT,UPSERT,EMAIL,saurabh.malhotra@shantiniketanpublicschool.in,Class 12,A,Sanskrit,SATURDAY,5,11:10,11:50,R-1215
+CURRENT,UPSERT,EMAIL,dev.khan@shantiniketanpublicschool.in,Class 12,B,Art,SATURDAY,5,11:10,11:50,ART-1
+CURRENT,UPSERT,EMAIL,arjun.rao@shantiniketanpublicschool.in,Class 5,A,Computer Science,SATURDAY,6,12:20,13:00,LAB-CS
+CURRENT,UPSERT,EMAIL,manish.saxena@shantiniketanpublicschool.in,Class 5,B,General Knowledge,SATURDAY,6,12:20,13:00,R-526
+CURRENT,UPSERT,EMAIL,saurabh.malhotra@shantiniketanpublicschool.in,Class 6,A,Sanskrit,SATURDAY,6,12:20,13:00,R-616
+CURRENT,UPSERT,EMAIL,dev.khan@shantiniketanpublicschool.in,Class 6,B,Art,SATURDAY,6,12:20,13:00,ART-1
+CURRENT,UPSERT,EMAIL,nikhil.joshi@shantiniketanpublicschool.in,Class 7,A,Physical Education,SATURDAY,6,12:20,13:00,GROUND
+CURRENT,UPSERT,EMAIL,amit.sharma@shantiniketanpublicschool.in,Class 7,B,Mathematics,SATURDAY,6,12:20,13:00,R-726
+CURRENT,UPSERT,EMAIL,rohan.iyer@shantiniketanpublicschool.in,Class 8,A,Science,SATURDAY,6,12:20,13:00,R-816
+CURRENT,UPSERT,EMAIL,karan.das@shantiniketanpublicschool.in,Class 8,B,English,SATURDAY,6,12:20,13:00,R-826
+CURRENT,UPSERT,EMAIL,vivek.singh@shantiniketanpublicschool.in,Class 9,A,Hindi,SATURDAY,6,12:20,13:00,R-916
+CURRENT,UPSERT,EMAIL,rahul.gupta@shantiniketanpublicschool.in,Class 9,B,Social Studies,SATURDAY,6,12:20,13:00,R-926
+CURRENT,UPSERT,EMAIL,priya.chopra@shantiniketanpublicschool.in,Class 10,A,Computer Science,SATURDAY,6,12:20,13:00,LAB-CS
+CURRENT,UPSERT,EMAIL,divya.jain@shantiniketanpublicschool.in,Class 10,B,General Knowledge,SATURDAY,6,12:20,13:00,R-1026
+CURRENT,UPSERT,EMAIL,ritika.roy@shantiniketanpublicschool.in,Class 11,A,Sanskrit,SATURDAY,6,12:20,13:00,R-1116
+CURRENT,UPSERT,EMAIL,ishita.sen@shantiniketanpublicschool.in,Class 11,B,Art,SATURDAY,6,12:20,13:00,ART-1
+CURRENT,UPSERT,EMAIL,kavya.bose@shantiniketanpublicschool.in,Class 12,A,Physical Education,SATURDAY,6,12:20,13:00,GROUND
+CURRENT,UPSERT,EMAIL,neha.verma@shantiniketanpublicschool.in,Class 12,B,Mathematics,SATURDAY,6,12:20,13:00,R-1226
+CURRENT,UPSERT,EMAIL,ritika.roy@shantiniketanpublicschool.in,Class 5,A,Sanskrit,SATURDAY,7,13:05,13:45,R-517
+CURRENT,UPSERT,EMAIL,ishita.sen@shantiniketanpublicschool.in,Class 5,B,Art,SATURDAY,7,13:05,13:45,ART-1
+CURRENT,UPSERT,EMAIL,kavya.bose@shantiniketanpublicschool.in,Class 6,A,Physical Education,SATURDAY,7,13:05,13:45,GROUND
+CURRENT,UPSERT,EMAIL,neha.verma@shantiniketanpublicschool.in,Class 6,B,Mathematics,SATURDAY,7,13:05,13:45,R-627
+CURRENT,UPSERT,EMAIL,pooja.kapoor@shantiniketanpublicschool.in,Class 7,A,Science,SATURDAY,7,13:05,13:45,R-717
+CURRENT,UPSERT,EMAIL,sanya.nair@shantiniketanpublicschool.in,Class 7,B,English,SATURDAY,7,13:05,13:45,R-727
+CURRENT,UPSERT,EMAIL,anjali.patel@shantiniketanpublicschool.in,Class 8,A,Hindi,SATURDAY,7,13:05,13:45,R-817
+CURRENT,UPSERT,EMAIL,meera.mehta@shantiniketanpublicschool.in,Class 8,B,Social Studies,SATURDAY,7,13:05,13:45,R-827
+CURRENT,UPSERT,EMAIL,priya.chopra@shantiniketanpublicschool.in,Class 9,A,Computer Science,SATURDAY,7,13:05,13:45,LAB-CS
+CURRENT,UPSERT,EMAIL,divya.jain@shantiniketanpublicschool.in,Class 9,B,General Knowledge,SATURDAY,7,13:05,13:45,R-927
+CURRENT,UPSERT,EMAIL,saurabh.malhotra@shantiniketanpublicschool.in,Class 10,A,Sanskrit,SATURDAY,7,13:05,13:45,R-1017
+CURRENT,UPSERT,EMAIL,dev.khan@shantiniketanpublicschool.in,Class 10,B,Art,SATURDAY,7,13:05,13:45,ART-1
+CURRENT,UPSERT,EMAIL,nikhil.joshi@shantiniketanpublicschool.in,Class 11,A,Physical Education,SATURDAY,7,13:05,13:45,GROUND
+CURRENT,UPSERT,EMAIL,amit.sharma@shantiniketanpublicschool.in,Class 11,B,Mathematics,SATURDAY,7,13:05,13:45,R-1127
+CURRENT,UPSERT,EMAIL,rohan.iyer@shantiniketanpublicschool.in,Class 12,A,Science,SATURDAY,7,13:05,13:45,R-1217
+CURRENT,UPSERT,EMAIL,karan.das@shantiniketanpublicschool.in,Class 12,B,English,SATURDAY,7,13:05,13:45,R-1227

@@ -1,0 +1,8 @@
+academic_year (O),class_code (O),class_name (R),grade (R),section_code (O),section_name (O),class_capacity (O),section_capacity (O),import_mode (O)
+CURRENT,,Class 6,6,,A|B|C,,36,UPSERT
+CURRENT,,Class 7,7,,A|B|C,,36,UPSERT
+CURRENT,,Class 8,8,,A|B|C,,36,UPSERT
+CURRENT,,Class 9,9,,A|B|C,,36,UPSERT
+CURRENT,,Class 10,10,,A|B|C,,36,UPSERT
+CURRENT,,Class 11,11,,A|B|C,,36,UPSERT
+CURRENT,,Class 12,12,,A|B|C,,36,UPSERT

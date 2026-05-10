@@ -3,10 +3,14 @@ package com.school.erp.modules.attendance.service;
 import com.school.erp.common.dto.PageResponse;
 import com.school.erp.common.enums.Enums;
 import com.school.erp.common.exception.BusinessException;
-import com.school.erp.common.exception.UnauthorizedException;
+import com.school.erp.common.exception.ForbiddenException;
 import com.school.erp.modules.attendance.dto.AttendanceDTOs;
 import com.school.erp.modules.attendance.entity.AttendanceRecord;
 import com.school.erp.modules.attendance.port.AttendancePersistencePort;
+import com.school.erp.modules.academic.repository.SchoolClassRepository;
+import com.school.erp.modules.academic.repository.SectionRepository;
+import com.school.erp.modules.reports.service.DashboardSnapshotInvalidationService;
+import com.school.erp.platform.port.AuditTrailPort;
 import com.school.erp.modules.student.service.TeacherRosterScopeService;
 import com.school.erp.tenant.TenantContext;
 import org.springframework.stereotype.Service;
@@ -16,7 +20,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Service
@@ -24,10 +28,14 @@ public class AttendanceService {
     private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(AttendanceService.class);
     private final AttendancePersistencePort attendancePersistence;
     private final TeacherRosterScopeService teacherRosterScopeService;
+    private final AuditTrailPort auditTrailPort;
+    private final SchoolClassRepository schoolClassRepository;
+    private final SectionRepository sectionRepository;
+    private final DashboardSnapshotInvalidationService dashboardSnapshotInvalidationService;
 
     private void assertTeacherAttendanceScope(Long classId, Long sectionId, LocalDate date) {
         if (!teacherRosterScopeService.teacherMayMarkAttendance(classId, sectionId, date)) {
-            throw new UnauthorizedException("Not allowed to access or mark attendance for this class/section");
+            throw new ForbiddenException("Not allowed to access or mark attendance for this class/section");
         }
     }
 
@@ -84,7 +92,26 @@ public class AttendanceService {
             }
         }).collect(Collectors.toList());
         attendancePersistence.saveAll(records);
+        boolean teacherMarking = role != null && "TEACHER".equalsIgnoreCase(role);
+        boolean homeroom = !teacherMarking || teacherRosterScopeService.isCurrentTeacherHomeroomFor(
+                request.getClassId(), request.getSectionId());
+        String actor = resolveActorLabel();
+        String attendanceScope = "for " + buildAudienceFriendlyScope(request.getClassId(), request.getSectionId(), date);
+        String description = teacherMarking
+                ? (homeroom
+                ? actor + " recorded attendance " + attendanceScope + "."
+                : actor + " recorded attendance " + attendanceScope + " on behalf of the class teacher.")
+                : actor + " updated attendance " + attendanceScope + ".";
+        auditTrailPort.logAction(
+                Enums.AuditAction.UPDATE,
+                "Attendance",
+                description,
+                request.getClassId(),
+                "AttendanceRecord",
+                null,
+                "students=" + records.size());
         log.info("Attendance marked for class={} section={} date={} students={}", request.getClassId(), request.getSectionId(), date, records.size());
+        dashboardSnapshotInvalidationService.invalidateCurrentTenant("attendance_marked");
         return records.stream().map(this::toResponse).collect(Collectors.toList());
     }
 
@@ -142,8 +169,54 @@ public class AttendanceService {
         return AttendanceDTOs.AttendanceResponse.builder().id(r.getId()).studentId(r.getStudentId()).studentName(r.getStudentName()).classId(r.getClassId()).sectionId(r.getSectionId()).date(r.getDate().toString()).status(r.getStatus().name().toLowerCase()).markedBy(r.getMarkedBy()).remarks(r.getRemarks()).build();
     }
 
-    public AttendanceService(final AttendancePersistencePort attendancePersistence, final TeacherRosterScopeService teacherRosterScopeService) {
+    private String resolveActorLabel() {
+        String display = TenantContext.getUserDisplayName();
+        if (display != null && !display.isBlank()) {
+            return display.trim();
+        }
+        String principal = TenantContext.getUserPrincipal();
+        if (principal != null && !principal.isBlank()) {
+            return principal.trim();
+        }
+        Long userId = TenantContext.getUserId();
+        return userId != null ? ("User " + userId) : "System";
+    }
+
+    private String buildAudienceFriendlyScope(Long classId, Long sectionId, LocalDate date) {
+        StringBuilder scope = new StringBuilder(resolveClassSectionLabel(classId, sectionId));
+        scope.append(" on ").append(date);
+        return scope.toString();
+    }
+
+    private String resolveClassSectionLabel(Long classId, Long sectionId) {
+        String tenantId = TenantContext.getTenantId();
+        String classLabel = schoolClassRepository.findByIdAndTenantIdAndIsDeletedFalse(classId, tenantId)
+                .map(schoolClass -> Optional.ofNullable(schoolClass.getName()).orElse("").trim())
+                .filter(name -> !name.isBlank())
+                .orElse(classId != null ? ("Class " + classId) : "the class");
+
+        if (sectionId == null) {
+            return classLabel;
+        }
+
+        String sectionLabel = sectionRepository.findByIdAndTenantIdAndIsDeletedFalse(sectionId, tenantId)
+                .map(section -> Optional.ofNullable(section.getName()).orElse("").trim())
+                .filter(name -> !name.isBlank())
+                .orElse("Section " + sectionId);
+        return classLabel + " - Section " + sectionLabel;
+    }
+
+    public AttendanceService(final AttendancePersistencePort attendancePersistence,
+                             final TeacherRosterScopeService teacherRosterScopeService,
+                             final AuditTrailPort auditTrailPort,
+                             final SchoolClassRepository schoolClassRepository,
+                             final SectionRepository sectionRepository,
+                             final DashboardSnapshotInvalidationService dashboardSnapshotInvalidationService) {
         this.attendancePersistence = attendancePersistence;
         this.teacherRosterScopeService = teacherRosterScopeService;
+        this.auditTrailPort = auditTrailPort;
+        this.schoolClassRepository = schoolClassRepository;
+        this.sectionRepository = sectionRepository;
+        this.dashboardSnapshotInvalidationService = dashboardSnapshotInvalidationService;
     }
 }

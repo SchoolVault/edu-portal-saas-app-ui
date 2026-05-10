@@ -5,6 +5,7 @@ import com.school.erp.security.RequireTenantFeature;
 import com.school.erp.common.dto.PageResponse;
 import com.school.erp.modules.documents.entity.Document;
 import com.school.erp.modules.documents.service.DocumentService;
+import com.school.erp.security.rbac.RbacSpel;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.HttpStatus;
@@ -42,21 +43,21 @@ public class DocumentController {
     }
 
     @PostMapping
-    @PreAuthorize("hasAnyRole(\'ADMIN\',\'TEACHER\')")
+    @PreAuthorize(RbacSpel.ACADEMIC_ROSTER_READ)
     @Operation(summary = "Upload document metadata")
     public ResponseEntity<ApiResponse<Document>> upload(@RequestBody Document doc) {
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.created(service.upload(doc)));
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasAnyRole(\'ADMIN\',\'TEACHER\')")
+    @PreAuthorize(RbacSpel.ACADEMIC_ROSTER_READ)
     @Operation(summary = "Update document metadata")
     public ResponseEntity<ApiResponse<Document>> update(@PathVariable Long id, @RequestBody Document doc) {
         return ResponseEntity.ok(ApiResponse.ok(service.update(id, doc)));
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasAnyRole(\'ADMIN\',\'TEACHER\')")
+    @PreAuthorize(RbacSpel.ACADEMIC_ROSTER_READ)
     @Operation(summary = "Delete document", description = "Admin or the user who uploaded the document may delete")
     public ResponseEntity<ApiResponse<Void>> delete(@PathVariable Long id) {
         service.delete(id);

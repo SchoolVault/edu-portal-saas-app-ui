@@ -15,11 +15,16 @@ public class TeacherDTOs {
         @NotBlank
         private String email;
         private String phone;
+        private String employeeCode;
         private String qualification;
         private String specialization;
         private LocalDate joinDate;
         private BigDecimal salary;
         private List<String> subjects;
+        private String bankAccountHolder;
+        private String bankName;
+        private String bankAccountNumber;
+        private String bankIfsc;
 
 
         public static class CreateRequestBuilder {
@@ -142,6 +147,10 @@ public class TeacherDTOs {
             return this.qualification;
         }
 
+        public String getEmployeeCode() {
+            return employeeCode;
+        }
+
         public String getSpecialization() {
             return this.specialization;
         }
@@ -156,6 +165,22 @@ public class TeacherDTOs {
 
         public List<String> getSubjects() {
             return this.subjects;
+        }
+
+        public String getBankAccountHolder() {
+            return bankAccountHolder;
+        }
+
+        public String getBankName() {
+            return bankName;
+        }
+
+        public String getBankAccountNumber() {
+            return bankAccountNumber;
+        }
+
+        public String getBankIfsc() {
+            return bankIfsc;
         }
 
         public void setFirstName(final String firstName) {
@@ -178,6 +203,10 @@ public class TeacherDTOs {
             this.qualification = qualification;
         }
 
+        public void setEmployeeCode(final String employeeCode) {
+            this.employeeCode = employeeCode;
+        }
+
         public void setSpecialization(final String specialization) {
             this.specialization = specialization;
         }
@@ -192,6 +221,22 @@ public class TeacherDTOs {
 
         public void setSubjects(final List<String> subjects) {
             this.subjects = subjects;
+        }
+
+        public void setBankAccountHolder(final String bankAccountHolder) {
+            this.bankAccountHolder = bankAccountHolder;
+        }
+
+        public void setBankName(final String bankName) {
+            this.bankName = bankName;
+        }
+
+        public void setBankAccountNumber(final String bankAccountNumber) {
+            this.bankAccountNumber = bankAccountNumber;
+        }
+
+        public void setBankIfsc(final String bankIfsc) {
+            this.bankIfsc = bankIfsc;
         }
 
         @Override
@@ -288,9 +333,14 @@ public class TeacherDTOs {
         private String phone;
         private String qualification;
         private String specialization;
+        private LocalDate joinDate;
         private BigDecimal salary;
         private List<String> subjects;
         private String status;
+        private String bankAccountHolder;
+        private String bankName;
+        private String bankAccountNumber;
+        private String bankIfsc;
 
 
         public static class UpdateRequestBuilder {
@@ -417,6 +467,10 @@ public class TeacherDTOs {
             return this.specialization;
         }
 
+        public LocalDate getJoinDate() {
+            return this.joinDate;
+        }
+
         public BigDecimal getSalary() {
             return this.salary;
         }
@@ -427,6 +481,22 @@ public class TeacherDTOs {
 
         public String getStatus() {
             return this.status;
+        }
+
+        public String getBankAccountHolder() {
+            return bankAccountHolder;
+        }
+
+        public String getBankName() {
+            return bankName;
+        }
+
+        public String getBankAccountNumber() {
+            return bankAccountNumber;
+        }
+
+        public String getBankIfsc() {
+            return bankIfsc;
         }
 
         public void setFirstName(final String firstName) {
@@ -453,6 +523,10 @@ public class TeacherDTOs {
             this.specialization = specialization;
         }
 
+        public void setJoinDate(final LocalDate joinDate) {
+            this.joinDate = joinDate;
+        }
+
         public void setSalary(final BigDecimal salary) {
             this.salary = salary;
         }
@@ -463,6 +537,22 @@ public class TeacherDTOs {
 
         public void setStatus(final String status) {
             this.status = status;
+        }
+
+        public void setBankAccountHolder(final String bankAccountHolder) {
+            this.bankAccountHolder = bankAccountHolder;
+        }
+
+        public void setBankName(final String bankName) {
+            this.bankName = bankName;
+        }
+
+        public void setBankAccountNumber(final String bankAccountNumber) {
+            this.bankAccountNumber = bankAccountNumber;
+        }
+
+        public void setBankIfsc(final String bankIfsc) {
+            this.bankIfsc = bankIfsc;
         }
 
         @Override
@@ -568,6 +658,10 @@ public class TeacherDTOs {
         private String tenantId;
         private Long userId;
         private String libraryStaffRole;
+        private String bankAccountHolder;
+        private String bankName;
+        private String bankAccountNumber;
+        private String bankIfsc;
         /** School class names where this teacher is homeroom / class teacher ({@code school_classes.class_teacher_id}). */
         private java.util.List<String> homeroomClassNames;
 
@@ -826,6 +920,38 @@ public class TeacherDTOs {
 
         public void setLibraryStaffRole(final String libraryStaffRole) {
             this.libraryStaffRole = libraryStaffRole;
+        }
+
+        public String getBankAccountHolder() {
+            return bankAccountHolder;
+        }
+
+        public void setBankAccountHolder(final String bankAccountHolder) {
+            this.bankAccountHolder = bankAccountHolder;
+        }
+
+        public String getBankName() {
+            return bankName;
+        }
+
+        public void setBankName(final String bankName) {
+            this.bankName = bankName;
+        }
+
+        public String getBankAccountNumber() {
+            return bankAccountNumber;
+        }
+
+        public void setBankAccountNumber(final String bankAccountNumber) {
+            this.bankAccountNumber = bankAccountNumber;
+        }
+
+        public String getBankIfsc() {
+            return bankIfsc;
+        }
+
+        public void setBankIfsc(final String bankIfsc) {
+            this.bankIfsc = bankIfsc;
         }
 
         public java.util.List<String> getHomeroomClassNames() {

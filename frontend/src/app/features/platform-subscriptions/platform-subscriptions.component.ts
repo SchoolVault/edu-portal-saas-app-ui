@@ -2,17 +2,18 @@ import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
+import { TranslateModule } from '@ngx-translate/core';
 import { PlatformService } from '../../core/services/platform.service';
 import { PlatformSubscriptionPlan } from '../../core/models/models';
 
 @Component({
   selector: 'app-platform-subscriptions',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink],
+  imports: [CommonModule, FormsModule, RouterLink, TranslateModule],
   template: `
     <div class="platform-subs-root" data-testid="platform-subscriptions-page">
       <div class="platform-subs-inner animate-in">
-        <div class="d-flex justify-content-between align-items-end mb-4 flex-wrap gap-3">
+        <div class="erp-filter-toolbar mb-4">
           <div>
             <div class="badge-erp badge-info mb-2">Platform</div>
             <h2 class="platform-subs-title">Subscription plans</h2>
@@ -20,7 +21,12 @@ import { PlatformSubscriptionPlan } from '../../core/models/models';
               Commercial packaging for school workspaces: capacity, modules, and support. Provisioning and billing integrations plug into the same catalog the UI loads today.
             </p>
           </div>
-          <a routerLink="/app/super-admin" class="btn-outline-erp btn-sm"><i class="bi bi-arrow-left me-1"></i>Platform overview</a>
+          <div class="erp-filter-toolbar__actions">
+            <button type="button" class="btn-outline-erp btn-sm erp-filter-toolbar__action" (click)="refreshPageData()" [disabled]="loadingPlans || saving">
+              <i class="bi bi-arrow-clockwise me-1"></i>{{ loadingPlans ? 'Refreshing...' : 'Refresh' }}
+            </button>
+            <a routerLink="/app/super-admin" class="btn-outline-erp btn-sm erp-filter-toolbar__action"><i class="bi bi-arrow-left me-1"></i>Platform overview</a>
+          </div>
         </div>
 
         <div *ngIf="pageError" class="alert alert-danger py-2 mb-4">{{ pageError }}</div>
@@ -92,7 +98,7 @@ import { PlatformSubscriptionPlan } from '../../core/models/models';
         <div class="modal-content-erp platform-plan-modal" (click)="$event.stopPropagation()">
           <div class="modal-header-erp">
             <h3>{{ detailPlan.name }}</h3>
-            <button type="button" class="btn-icon" (click)="closeDetail()" aria-label="Close"><i class="bi bi-x-lg"></i></button>
+            <button type="button" class="btn-icon" (click)="closeDetail()" [attr.aria-label]="'platformUi.closeAlert' | translate"><i class="bi bi-x-lg"></i></button>
           </div>
           <div class="modal-body-erp">
             <p class="text-muted small mb-3">{{ detailPlan.code }} · Catalog row for provisioning &amp; billing adapters</p>
@@ -158,7 +164,7 @@ import { PlatformSubscriptionPlan } from '../../core/models/models';
         <div class="modal-content-erp platform-plan-modal" style="max-width: 720px;" (click)="$event.stopPropagation()">
           <div class="modal-header-erp">
             <h3>Edit {{ editDraft.code }}</h3>
-            <button type="button" class="btn-icon" (click)="closeEdit()" [disabled]="saving" aria-label="Close"><i class="bi bi-x-lg"></i></button>
+            <button type="button" class="btn-icon" (click)="closeEdit()" [disabled]="saving" [attr.aria-label]="'platformUi.closeAlert' | translate"><i class="bi bi-x-lg"></i></button>
           </div>
           <div class="modal-body-erp">
             <div *ngIf="editError" class="alert alert-danger py-2 small">{{ editError }}</div>
@@ -298,6 +304,7 @@ import { PlatformSubscriptionPlan } from '../../core/models/models';
 export class PlatformSubscriptionsComponent implements OnInit {
   plans: PlatformSubscriptionPlan[] = [];
   pageError = '';
+  loadingPlans = false;
   saveBanner = '';
   detailPlan: PlatformSubscriptionPlan | null = null;
   editDraft: PlatformSubscriptionPlan | null = null;
@@ -309,11 +316,16 @@ export class PlatformSubscriptionsComponent implements OnInit {
   constructor(private platform: PlatformService) {}
 
   ngOnInit(): void {
+    this.refreshPageData();
+  }
+
+  refreshPageData(): void {
     this.loadPlans();
   }
 
   private loadPlans(): void {
     this.pageError = '';
+    this.loadingPlans = true;
     this.platform.listSubscriptionPlans().subscribe({
       next: p => {
         this.plans = p.map(row => ({
@@ -321,8 +333,12 @@ export class PlatformSubscriptionsComponent implements OnInit {
           highlights: [...(row.highlights || [])],
           modules: [...(row.modules || [])]
         }));
+        this.loadingPlans = false;
       },
-      error: e => { this.pageError = e?.message || 'Could not load plans.'; }
+      error: e => {
+        this.pageError = e?.message || 'Could not load plans.';
+        this.loadingPlans = false;
+      }
     });
   }
 

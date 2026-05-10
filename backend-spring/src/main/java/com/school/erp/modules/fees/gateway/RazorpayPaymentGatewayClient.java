@@ -21,10 +21,17 @@ import java.math.RoundingMode;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import com.school.erp.modules.finance.domain.FeeSettlementMode;
+import com.school.erp.modules.finance.entity.TenantFinanceProfile;
+import com.school.erp.modules.finance.repository.TenantFinanceProfileRepository;
+import java.util.ArrayList;
 import java.util.Base64;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 /**
  * Razorpay-like adapter:
@@ -36,10 +43,17 @@ import java.util.UUID;
  */
 @Component
 public class RazorpayPaymentGatewayClient {
+
+    private final TenantFinanceProfileRepository tenantFinanceProfileRepository;
+
+    public RazorpayPaymentGatewayClient(TenantFinanceProfileRepository tenantFinanceProfileRepository) {
+        this.tenantFinanceProfileRepository = tenantFinanceProfileRepository;
+    }
     /** Razorpay Orders API: {@code receipt} max length 40. */
     private static final int RAZORPAY_RECEIPT_MAX_LEN = 40;
     private static final Logger log = LoggerFactory.getLogger(RazorpayPaymentGatewayClient.class);
     private final RestTemplate restTemplate = new RestTemplate();
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Value("${app.payments.razorpay.api-base:https://api.razorpay.com}")
     private String apiBase;
@@ -56,7 +70,13 @@ public class RazorpayPaymentGatewayClient {
 
     @CircuitBreaker(name = "paymentGateway")
     @Retry(name = "paymentGateway")
-    public PaymentGatewayClient.GatewayCheckoutSession create(String tenantId, Long paymentId, BigDecimal amount, String currency, String returnUrl) {
+    public PaymentGatewayClient.GatewayCheckoutSession create(FeeGatewayOrderContext ctx) {
+        String tenantId = ctx.tenantId();
+        Long paymentId = ctx.feePaymentId();
+        BigDecimal amount = ctx.amount();
+        String currency = ctx.currency();
+        String returnUrl = ctx.returnUrl();
+
         String normalizedCurrency = (currency == null || currency.isBlank()) ? "INR" : currency.trim().toUpperCase(Locale.ROOT);
         if (!"INR".equals(normalizedCurrency)) {
             throw new BusinessException("Razorpay adapter supports INR only");
@@ -65,25 +85,57 @@ public class RazorpayPaymentGatewayClient {
         boolean credsOk = key != null && !key.isBlank() && secret != null && !secret.isBlank();
         if (!credsOk) {
             if (fallbackWithoutCredentials) {
-                return syntheticSession(paymentId, amount, returnUrl, "no_api_credentials");
+                return syntheticSession(ctx, "no_api_credentials");
             }
             throw new BusinessException(
                     "Razorpay is not configured: set RAZORPAY_KEY and RAZORPAY_SECRET on the server (same mode: test vs live as your publishable key).");
         }
 
-        // Razorpay expects amount in smallest currency unit (paise); round HALF_UP to 2 decimal places first.
         long amountPaise = amount.setScale(2, RoundingMode.HALF_UP).multiply(BigDecimal.valueOf(100)).longValueExact();
         String receipt = buildRazorpayReceipt(tenantId, paymentId);
-        log.info("Razorpay order create paymentId={} receiptLen={} (max {})", paymentId, receipt.length(), RAZORPAY_RECEIPT_MAX_LEN);
+        log.info("Razorpay order create tenant={} paymentId={} attemptId={} receiptLen={} (max {})",
+                tenantId, paymentId, ctx.feePaymentAttemptId(), receipt.length(), RAZORPAY_RECEIPT_MAX_LEN);
+
+        Map<String, Object> notes = new LinkedHashMap<>();
+        notes.put("tenant_id", tenantId);
+        notes.put("fee_payment_id", String.valueOf(paymentId));
+        notes.put("fee_payment_attempt_id", String.valueOf(ctx.feePaymentAttemptId()));
+
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("amount", amountPaise);
+        body.put("currency", normalizedCurrency);
+        body.put("receipt", receipt);
+        body.put("payment_capture", 1);
+        body.put("notes", notes);
+
+        TenantFinanceProfile profile = tenantFinanceProfileRepository.findByTenantIdAndIsDeletedFalse(tenantId).orElse(null);
+        if (profile != null && FeeSettlementMode.ROUTE_LINKED_ACCOUNT.name().equals(profile.getFeeSettlementMode())) {
+            String linked = profile.getRazorpayRouteLinkedAccountId();
+            if (linked == null || linked.isBlank()) {
+                throw new BusinessException("Route settlement is enabled but razorpayRouteLinkedAccountId is missing for this tenant");
+            }
+            int bps = Math.max(0, Math.min(10_000, profile.getPlatformCommissionBps()));
+            if (bps >= 10_000) {
+                throw new BusinessException("platformCommissionBps cannot be 10000 with Route transfers (no amount would reach the school account)");
+            }
+            long toSchoolPaise = amountPaise * (10_000L - bps) / 10_000L;
+            if (toSchoolPaise <= 0) {
+                throw new BusinessException("Computed Route transfer amount is zero; check order amount and commission bps");
+            }
+            if (bps > 0) {
+                log.info("Razorpay Route order: tenant={} linkedAccount={} commissionBps={} schoolSharePaise={} of {}",
+                        tenantId, linked, bps, toSchoolPaise, amountPaise);
+            }
+            Map<String, Object> transfer = new LinkedHashMap<>();
+            transfer.put("account", linked.trim());
+            transfer.put("amount", toSchoolPaise);
+            transfer.put("currency", normalizedCurrency);
+            List<Map<String, Object>> transfers = new ArrayList<>();
+            transfers.add(transfer);
+            body.put("transfers", transfers);
+        }
 
         String url = apiBase.replaceAll("/+$", "") + "/v1/orders";
-        Map<String, Object> body = Map.of(
-                "amount", amountPaise,
-                "currency", normalizedCurrency,
-                "receipt", receipt,
-                "payment_capture", 1
-        );
-
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
 
@@ -100,7 +152,7 @@ public class RazorpayPaymentGatewayClient {
             }
             log.error("Razorpay POST /v1/orders failed status={} body={}", ex.getStatusCode(), bodySnippet);
             throw new BusinessException("Razorpay rejected order creation (" + ex.getStatusCode().value()
-                    + "). Check key/secret pair, test vs live mode, and that the key matches Checkout. Details: " + bodySnippet);
+                    + "). Check key/secret pair, test vs live mode, Route linked account, and that the key matches Checkout. Details: " + bodySnippet);
         } catch (RestClientException ex) {
             log.error("Razorpay order request failed: {}", ex.getMessage());
             throw new BusinessException("Could not reach Razorpay API to create order: " + ex.getMessage());
@@ -115,7 +167,6 @@ public class RazorpayPaymentGatewayClient {
         }
         String token = "razorpay-token-" + UUID.randomUUID().toString().replace("-", "");
         String payload = String.valueOf(res);
-        // In real UI you would open Razorpay Checkout with orderId + key; checkoutUrl is a UI concern.
         String checkoutUrl = (returnUrl != null && !returnUrl.isBlank()) ? returnUrl : null;
         return new PaymentGatewayClient.GatewayCheckoutSession("razorpay", orderId, token, checkoutUrl, payload);
     }
@@ -147,12 +198,13 @@ public class RazorpayPaymentGatewayClient {
         }
     }
 
-    private PaymentGatewayClient.GatewayCheckoutSession syntheticSession(Long paymentId, BigDecimal amount, String returnUrl, String reason) {
+    private PaymentGatewayClient.GatewayCheckoutSession syntheticSession(FeeGatewayOrderContext ctx, String reason) {
         String orderId = "RAZORPAY-ORDER-" + UUID.randomUUID().toString().substring(0, 10);
         String token = "razorpay-token-" + UUID.randomUUID().toString().replace("-", "");
-        String payload = "{\"provider\":\"razorpay\",\"mode\":\"synthetic\",\"reason\":\"" + reason + "\",\"paymentId\":" + paymentId + ",\"amount\":\"" + amount + "\"}";
+        String payload = "{\"provider\":\"razorpay\",\"mode\":\"synthetic\",\"reason\":\"" + reason + "\",\"paymentId\":" + ctx.feePaymentId()
+                + ",\"attemptId\":" + ctx.feePaymentAttemptId() + ",\"amount\":\"" + ctx.amount() + "\"}";
         log.warn("Razorpay synthetic checkout session ({}). Do not open real Checkout.js — set credentials or disable this path.", reason);
-        return new PaymentGatewayClient.GatewayCheckoutSession("razorpay", orderId, token, returnUrl, payload);
+        return new PaymentGatewayClient.GatewayCheckoutSession("razorpay", orderId, token, ctx.returnUrl(), payload);
     }
 
     @CircuitBreaker(name = "paymentGateway")
@@ -162,7 +214,10 @@ public class RazorpayPaymentGatewayClient {
             throw new BusinessException("providerPaymentId is required for Razorpay confirmation");
         }
 
-        if (providerSignature != null && !providerSignature.isBlank() && secret != null && !secret.isBlank()) {
+        if (secret != null && !secret.isBlank()) {
+            if (providerSignature == null || providerSignature.isBlank()) {
+                throw new BusinessException("Razorpay signature is required");
+            }
             String data = providerOrderId + "|" + providerPaymentId;
             String expected = hmacSha256Hex(secret, data);
             if (!expected.equals(providerSignature)) {
@@ -172,6 +227,38 @@ public class RazorpayPaymentGatewayClient {
 
         String payload = "{\"provider\":\"razorpay\",\"checkoutToken\":\"" + checkoutToken + "\",\"providerOrderId\":\"" + providerOrderId + "\",\"providerPaymentId\":\"" + providerPaymentId + "\"}";
         return new PaymentGatewayClient.GatewayPaymentConfirmation(providerPaymentId, "SUCCESS", payload);
+    }
+
+    @CircuitBreaker(name = "paymentGateway")
+    @Retry(name = "paymentGateway")
+    public PaymentGatewayClient.GatewayPaymentStatus fetchPaymentStatus(String providerOrderId, String providerPaymentId) {
+        if (providerPaymentId == null || providerPaymentId.isBlank()) {
+            return new PaymentGatewayClient.GatewayPaymentStatus(null, "PENDING", "{\"reason\":\"missing_provider_payment_id\"}");
+        }
+        boolean credsOk = key != null && !key.isBlank() && secret != null && !secret.isBlank();
+        if (!credsOk) {
+            return new PaymentGatewayClient.GatewayPaymentStatus(providerPaymentId, "PENDING", "{\"reason\":\"missing_credentials\"}");
+        }
+        String url = apiBase.replaceAll("/+$", "") + "/v1/payments/" + providerPaymentId.trim();
+        HttpHeaders headers = new HttpHeaders();
+        String basic = Base64.getEncoder().encodeToString((key.trim() + ":" + secret.trim()).getBytes(StandardCharsets.UTF_8));
+        headers.set(HttpHeaders.AUTHORIZATION, "Basic " + basic);
+        try {
+            String raw = restTemplate.postForObject(url, new HttpEntity<>(null, headers), String.class);
+            String status = "PENDING";
+            try {
+                String parsed = objectMapper.readTree(raw).path("status").asText("");
+                status = mapRazorpayStatus(parsed);
+            } catch (Exception ignored) {
+                // Keep fallback value.
+            }
+            return new PaymentGatewayClient.GatewayPaymentStatus(providerPaymentId, status, raw);
+        } catch (HttpStatusCodeException ex) {
+            String bodySnippet = ex.getResponseBodyAsString();
+            return new PaymentGatewayClient.GatewayPaymentStatus(providerPaymentId, "PENDING", bodySnippet);
+        } catch (RestClientException ex) {
+            return new PaymentGatewayClient.GatewayPaymentStatus(providerPaymentId, "PENDING", "{\"error\":\"" + ex.getMessage() + "\"}");
+        }
     }
 
     private String hmacSha256Hex(String secret, String data) {
@@ -185,6 +272,13 @@ public class RazorpayPaymentGatewayClient {
         } catch (Exception e) {
             throw new BusinessException("Failed to verify gateway signature");
         }
+    }
+
+    private static String mapRazorpayStatus(String raw) {
+        String normalized = raw == null ? "" : raw.trim().toLowerCase(Locale.ROOT);
+        if ("captured".equals(normalized)) return "CAPTURED";
+        if ("failed".equals(normalized)) return "FAILED";
+        return "PENDING";
     }
 }
 

@@ -32,6 +32,9 @@ public class SalaryDisbursementAttempt extends BaseEntity {
     @Column(name = "reference_id", nullable = false, length = 80)
     private String referenceId;
 
+    @Column(name = "operation_key", length = 120)
+    private String operationKey;
+
     @Column(nullable = false, length = 20)
     private String status = "SUBMITTED";
 
@@ -79,6 +82,14 @@ public class SalaryDisbursementAttempt extends BaseEntity {
 
     public void setReferenceId(String referenceId) {
         this.referenceId = referenceId;
+    }
+
+    public String getOperationKey() {
+        return operationKey;
+    }
+
+    public void setOperationKey(String operationKey) {
+        this.operationKey = operationKey;
     }
 
     public String getStatus() {

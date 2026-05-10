@@ -18,4 +18,8 @@ public interface FeePaymentAttemptRepository extends JpaRepository<FeePaymentAtt
 
     Optional<FeePaymentAttempt> findByTenantIdAndProviderAndProviderPaymentIdAndIsDeletedFalse(
             String tenantId, String provider, String providerPaymentId);
+
+    Optional<FeePaymentAttempt> findByTenantIdAndOperationKeyAndIsDeletedFalse(String tenantId, String operationKey);
+
+    List<FeePaymentAttempt> findByStatusInAndIsDeletedFalseOrderByInitiatedAtAsc(List<String> statuses);
 }

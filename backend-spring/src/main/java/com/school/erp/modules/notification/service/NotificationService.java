@@ -5,6 +5,7 @@ import com.school.erp.common.enums.Enums;
 import com.school.erp.config.RabbitMQConfig;
 import com.school.erp.common.exception.ResourceNotFoundException;
 import com.school.erp.modules.notification.entity.Notification;
+import com.school.erp.modules.notification.mq.NotificationTask;
 import com.school.erp.modules.notification.repository.NotificationRepository;
 import com.school.erp.tenant.TenantContext;
 import com.school.erp.tenant.TenantQueryPolicy;
@@ -22,7 +23,6 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
@@ -183,7 +183,15 @@ public class NotificationService {
         repo.save(n);
         if (rabbitTemplate != null) {
             try {
-                rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE, "event.notification.created", Map.of("tenantId", tenantId, "userId", userId, "title", title, "message", message));
+                NotificationTask task = NotificationTask.builder()
+                        .tenantId(tenantId)
+                        .userIds(List.of(userId))
+                        .title(title)
+                        .message(message)
+                        .type(type)
+                        .link(link)
+                        .build();
+                rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE, "event.notification.created", task);
             } catch (Exception e) {
                 log.warn("Failed to publish notification event: {}", e.getMessage());
             }

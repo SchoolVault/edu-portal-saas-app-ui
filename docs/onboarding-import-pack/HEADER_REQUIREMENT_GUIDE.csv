@@ -1,0 +1,34 @@
+job_type,field_key,requirement,description,sample_value
+TEACHERS/STAFF,academic_year_id,R,Target academic year id or CURRENT,CURRENT
+TEACHERS/STAFF,import_mode,O,UPSERT / CREATE_ONLY / SKIP_IF_EXISTS,UPSERT
+TEACHERS/STAFF,employee_code,R,Unique employee code in school,T001
+TEACHERS/STAFF,first_name,R,First name,Amit
+TEACHERS/STAFF,last_name,R,Last name,Sharma
+TEACHERS/STAFF,phone,R,Mobile number for OTP/contact,9876000001
+TEACHERS/STAFF,email,O,Email for login if used,amit@school.in
+CLASSES,academicyearid,R,Target academic year id or CURRENT,CURRENT
+CLASSES,classname,R,Class display name,Class 6
+CLASSES,grade,R,Numeric grade,6
+CLASSES,sectionname,O,Section name when class is sectioned,A
+TIMETABLE,academic_year_id,R,Target academic year id or CURRENT,CURRENT
+TIMETABLE,import_mode,O,UPSERT / CREATE_ONLY / SKIP_IF_EXISTS,UPSERT
+TIMETABLE,teacher_ref_type,R,ID / PHONE / EMAIL,EMAIL
+TIMETABLE,teacher_ref,R,Teacher reference value,ananya@school.in
+TIMETABLE,class_ref,R,Class id/code/name reference,Class 6
+TIMETABLE,section_ref,O,Section id/name (required when class has sections),A
+TIMETABLE,subject_code,R,Subject name/code,Mathematics
+TIMETABLE,day_of_week,R,MONDAY..SATURDAY,MONDAY
+TIMETABLE,period_no,R,Period number (1-12),1
+TIMETABLE,start_time,R,Start time HH:mm,08:00
+TIMETABLE,end_time,R,End time HH:mm,08:40
+TIMETABLE,room_code,O,Room label/code,R-6A-01
+STUDENTS,academic_year_id,R,Target academic year id or CURRENT,CURRENT
+STUDENTS,import_mode,O,UPSERT / CREATE_ONLY / SKIP_IF_EXISTS,UPSERT
+STUDENTS,first_name,R,Student first name,Riya
+STUDENTS,last_name,R,Student last name,Sharma
+STUDENTS,classname,R,Class name reference,Class 6
+STUDENTS,admission_number,R,Admission number,ADM2027-0001
+STUDENTS,primary_guardian_name,R,Primary guardian name,Pooja Sharma
+STUDENTS,primary_guardian_phone,R,Primary guardian mobile (portal anchor),9817000001
+STUDENTS,primary_guardian_email,O,Primary guardian email,pooja@example.com
+STUDENTS,primary_guardian_relation,O,MOTHER / FATHER / GUARDIAN / OTHER,MOTHER

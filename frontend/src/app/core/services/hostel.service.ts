@@ -2,7 +2,18 @@ import { Injectable } from '@angular/core';
 import { Observable, of } from 'rxjs';
 import { delay, map } from 'rxjs/operators';
 import { MOCK_HOSTEL_BUILDINGS_SEED, MOCK_HOSTEL_ROOMS_SEED } from '../mocks/hostel.mock-data';
-import { HostelBuilding, HostelResident, HostelRoom } from '../models/models';
+import {
+  HostelBillingProfile,
+  HostelBillingRunResult,
+  HostelBuilding,
+  HostelGatePass,
+  HostelIncident,
+  HostelBookingRequest,
+  HostelPortalProfile,
+  HostelResident,
+  HostelRoom,
+  HostelVisitorEntry
+} from '../models/models';
 import { ApiService, PageResp } from './api.service';
 import { runtimeConfig } from '../config/runtime-config';
 import { DEFAULT_ERP_PAGE_SIZE } from '../constants/pagination.constants';
@@ -248,6 +259,47 @@ export class HostelService {
     return this.api.put<void>(`/hostel/vacate/${allocationId}`, {});
   }
 
+  transfer(allocationId: string, body: { targetRoomId: string; effectiveDate?: string; reason?: string }): Observable<void> {
+    if (runtimeConfig.useMocks) {
+      let moved: HostelResident | null = null;
+      for (const room of MOCK_ROOMS) {
+        const residents = room.residents || [];
+        const idx = residents.findIndex(r => r.allocationId === allocationId);
+        if (idx >= 0) {
+          moved = { ...residents[idx] };
+          residents.splice(idx, 1);
+          room.residents = residents;
+          room.occupancy = residents.length;
+          break;
+        }
+      }
+      if (!moved) {
+        return of(undefined);
+      }
+      const target = MOCK_ROOMS.find(r => r.id === body.targetRoomId);
+      if (!target || target.occupancy >= target.capacity) {
+        return of(undefined);
+      }
+      const nextAllocationId = 'ha' + Date.now();
+      target.residents = [
+        ...(target.residents || []),
+        {
+          ...moved,
+          allocationId: nextAllocationId,
+          fromDate: body.effectiveDate || moved.fromDate,
+        },
+      ];
+      target.occupancy = target.residents.length;
+      syncBuildingCounts();
+      return of(undefined);
+    }
+    return this.api.put<void>(`/hostel/transfer/${allocationId}`, {
+      targetRoomId: Number(body.targetRoomId),
+      effectiveDate: body.effectiveDate || null,
+      reason: body.reason || null,
+    });
+  }
+
   private normalizeRoom(r: any): HostelRoom {
     const residents = (r.residents ?? []).map((a: any) => ({
       allocationId: String(a.id ?? a.allocationId),
@@ -268,6 +320,357 @@ export class HostelService {
       hostelName: r.hostelName ?? undefined,
       residents,
       tenantId: r.tenantId ?? ''
+    };
+  }
+
+  listBillingProfiles(): Observable<HostelBillingProfile[]> {
+    if (runtimeConfig.useMocks) return of([]);
+    return this.api.get<any[]>('/hostel/billing/profiles').pipe(
+      map(rows => (rows || []).map(r => this.normalizeBillingProfile(r)))
+    );
+  }
+
+  upsertBillingProfile(body: HostelBillingProfile): Observable<HostelBillingProfile> {
+    if (runtimeConfig.useMocks) return of({ ...body });
+    return this.api.put<any>('/hostel/billing/profiles', body).pipe(map(r => this.normalizeBillingProfile(r)));
+  }
+
+  triggerBillingRun(body?: { dueDate?: string; includeDisabled?: boolean; note?: string }): Observable<HostelBillingRunResult> {
+    if (runtimeConfig.useMocks) {
+      return of({
+        runRef: 'hostel-billing-mock-' + Date.now(),
+        queuedProfiles: 0,
+        dueDate: body?.dueDate || new Date().toISOString().slice(0, 10),
+        note: body?.note,
+      });
+    }
+    return this.api.post<any>('/hostel/billing/runs', body || {}).pipe(
+      map(r => ({
+        runRef: String(r.runRef ?? ''),
+        queuedProfiles: Number(r.queuedProfiles ?? 0),
+        dueDate: String(r.dueDate ?? ''),
+        note: r.note ?? undefined,
+      }))
+    );
+  }
+
+  listGatePasses(status?: string): Observable<HostelGatePass[]> {
+    const qp = status ? `?status=${encodeURIComponent(status)}` : '';
+    if (runtimeConfig.useMocks) return of([]);
+    return this.api.get<any[]>(`/hostel/gate-passes${qp}`).pipe(map(rows => (rows || []).map(r => this.normalizeGatePass(r))));
+  }
+
+  createGatePass(body: {
+    studentId: number;
+    studentName?: string;
+    requestType?: string;
+    reason?: string;
+    outAt?: string;
+    expectedInAt?: string;
+  }): Observable<HostelGatePass> {
+    if (runtimeConfig.useMocks) {
+      return of({
+        id: String(Date.now()),
+        studentId: body.studentId,
+        studentName: body.studentName,
+        requestType: body.requestType || 'LEAVE_OUT',
+        status: 'PENDING',
+        reason: body.reason,
+        outAt: body.outAt,
+        expectedInAt: body.expectedInAt,
+      });
+    }
+    return this.api.post<any>('/hostel/gate-passes', body).pipe(map(r => this.normalizeGatePass(r)));
+  }
+
+  approveGatePass(id: string, note?: string): Observable<HostelGatePass> {
+    if (runtimeConfig.useMocks) return of({ id, studentId: 0, requestType: 'LEAVE_OUT', status: 'APPROVED' });
+    return this.api.put<any>(`/hostel/gate-passes/${id}/approve`, { note: note || null }).pipe(map(r => this.normalizeGatePass(r)));
+  }
+
+  rejectGatePass(id: string, note?: string): Observable<HostelGatePass> {
+    if (runtimeConfig.useMocks) return of({ id, studentId: 0, requestType: 'LEAVE_OUT', status: 'REJECTED' });
+    return this.api.put<any>(`/hostel/gate-passes/${id}/reject`, { note: note || null }).pipe(map(r => this.normalizeGatePass(r)));
+  }
+
+  returnGatePass(id: string): Observable<HostelGatePass> {
+    if (runtimeConfig.useMocks) return of({ id, studentId: 0, requestType: 'LEAVE_OUT', status: 'RETURNED' });
+    return this.api.put<any>(`/hostel/gate-passes/${id}/return`, {}).pipe(map(r => this.normalizeGatePass(r)));
+  }
+
+  listVisitors(status?: string): Observable<HostelVisitorEntry[]> {
+    const qp = status ? `?status=${encodeURIComponent(status)}` : '';
+    if (runtimeConfig.useMocks) return of([]);
+    return this.api.get<any[]>(`/hostel/visitors${qp}`).pipe(map(rows => (rows || []).map(r => this.normalizeVisitor(r))));
+  }
+
+  createVisitor(body: {
+    studentId: number;
+    studentName?: string;
+    visitorName?: string;
+    relationLabel?: string;
+    visitorPhone?: string;
+    purpose?: string;
+    checkInAt?: string;
+  }): Observable<HostelVisitorEntry> {
+    if (runtimeConfig.useMocks) return of({ id: String(Date.now()), studentId: body.studentId, status: 'PENDING', studentName: body.studentName });
+    return this.api.post<any>('/hostel/visitors', body).pipe(map(r => this.normalizeVisitor(r)));
+  }
+
+  approveVisitor(id: string, note?: string): Observable<HostelVisitorEntry> {
+    if (runtimeConfig.useMocks) return of({ id, studentId: 0, status: 'APPROVED' });
+    return this.api.put<any>(`/hostel/visitors/${id}/approve`, { note: note || null }).pipe(map(r => this.normalizeVisitor(r)));
+  }
+
+  rejectVisitor(id: string, note?: string): Observable<HostelVisitorEntry> {
+    if (runtimeConfig.useMocks) return of({ id, studentId: 0, status: 'REJECTED' });
+    return this.api.put<any>(`/hostel/visitors/${id}/reject`, { note: note || null }).pipe(map(r => this.normalizeVisitor(r)));
+  }
+
+  checkoutVisitor(id: string): Observable<HostelVisitorEntry> {
+    if (runtimeConfig.useMocks) return of({ id, studentId: 0, status: 'CHECKED_OUT' });
+    return this.api.put<any>(`/hostel/visitors/${id}/checkout`, {}).pipe(map(r => this.normalizeVisitor(r)));
+  }
+
+  listIncidents(studentId?: number): Observable<HostelIncident[]> {
+    const qp = studentId != null ? `?studentId=${encodeURIComponent(String(studentId))}` : '';
+    if (runtimeConfig.useMocks) return of([]);
+    return this.api.get<any[]>(`/hostel/incidents${qp}`).pipe(map(rows => (rows || []).map(r => this.normalizeIncident(r))));
+  }
+
+  createIncident(body: {
+    studentId?: number;
+    studentName?: string;
+    incidentType?: string;
+    severity?: string;
+    summary?: string;
+    occurredAt?: string;
+  }): Observable<HostelIncident> {
+    if (runtimeConfig.useMocks) {
+      return of({
+        id: String(Date.now()),
+        studentId: body.studentId,
+        studentName: body.studentName,
+        incidentType: body.incidentType || 'GENERAL',
+        severity: body.severity || 'MEDIUM',
+        status: 'OPEN',
+        summary: body.summary,
+        occurredAt: body.occurredAt || new Date().toISOString(),
+      });
+    }
+    return this.api.post<any>('/hostel/incidents', body).pipe(map(r => this.normalizeIncident(r)));
+  }
+
+  escalateIncident(id: string, body?: { escalationLevel?: string; note?: string }): Observable<HostelIncident> {
+    if (runtimeConfig.useMocks) return of({ id, status: 'ESCALATED' });
+    return this.api.put<any>(`/hostel/incidents/${id}/escalate`, body || {}).pipe(map(r => this.normalizeIncident(r)));
+  }
+
+  resolveIncident(id: string, body?: { note?: string; resolutionReason?: string }): Observable<HostelIncident> {
+    if (runtimeConfig.useMocks) return of({ id, status: 'RESOLVED', resolutionNote: body?.note, resolutionReason: body?.resolutionReason });
+    return this.api.put<any>(`/hostel/incidents/${id}/resolve`, body || {}).pipe(map(r => this.normalizeIncident(r)));
+  }
+
+  listIncidentResolutionReasons(): Observable<string[]> {
+    if (runtimeConfig.useMocks) {
+      return of([
+        'MEDICAL_HANDLED',
+        'DISCIPLINE_COUNSELLED',
+        'FALSE_ALARM',
+        'PARENT_INFORMED',
+        'FACILITY_FIXED',
+        'EXTERNAL_SUPPORT_CLOSED',
+        'OTHER',
+      ]);
+    }
+    return this.api.get<string[]>('/hostel/incidents/resolution-reasons');
+  }
+
+  getParentPortalProfile(studentId: number): Observable<HostelPortalProfile> {
+    if (runtimeConfig.useMocks) {
+      return of({
+        studentId,
+        studentName: 'Student',
+        hostelName: 'Hostel',
+        roomNumber: '101',
+      });
+    }
+    return this.api.get<any>(`/hostel/portal/children/${studentId}/profile`).pipe(map(r => this.normalizePortalProfile(r)));
+  }
+
+  getStudentPortalProfile(): Observable<HostelPortalProfile> {
+    if (runtimeConfig.useMocks) {
+      return of({
+        studentId: 0,
+        studentName: 'Student',
+      });
+    }
+    return this.api.get<any>('/hostel/portal/me/profile').pipe(map(r => this.normalizePortalProfile(r)));
+  }
+
+  createBookingRequest(body: {
+    studentId: number;
+    preferredHostelId?: number;
+    preferredRoomType?: string;
+    requestNote?: string;
+  }): Observable<HostelBookingRequest> {
+    if (runtimeConfig.useMocks) {
+      return of({
+        id: String(Date.now()),
+        studentId: body.studentId,
+        preferredHostelId: body.preferredHostelId,
+        preferredRoomType: body.preferredRoomType,
+        requestNote: body.requestNote,
+        status: 'PENDING',
+      });
+    }
+    return this.api.post<any>('/hostel/portal/bookings', body).pipe(map(r => this.normalizeBooking(r)));
+  }
+
+  listMyBookings(): Observable<HostelBookingRequest[]> {
+    if (runtimeConfig.useMocks) return of([]);
+    return this.api.get<any[]>('/hostel/portal/bookings').pipe(map(rows => (rows || []).map(r => this.normalizeBooking(r))));
+  }
+
+  listBookingsPaged(opts: {
+    status?: string;
+    studentId?: number;
+    query?: string;
+    page?: number;
+    size?: number;
+  }): Observable<PageResp<HostelBookingRequest>> {
+    const page = opts.page ?? 0;
+    const size = opts.size ?? DEFAULT_ERP_PAGE_SIZE;
+    if (runtimeConfig.useMocks) {
+      return this.listMyBookings().pipe(map(rows => sliceToPage(rows ?? [], page, size)));
+    }
+    return this.api.getPageParams<any>('/hostel/bookings/paged', {
+      status: opts.status,
+      studentId: opts.studentId,
+      query: opts.query,
+      page,
+      size,
+    }).pipe(map(p => ({ ...p, content: (p.content || []).map((r: any) => this.normalizeBooking(r)) })));
+  }
+
+  approveBooking(id: string, body: { roomId: string; decisionNote?: string }): Observable<HostelBookingRequest> {
+    if (runtimeConfig.useMocks) {
+      return of({
+        id,
+        studentId: 0,
+        status: 'APPROVED',
+        decisionNote: body.decisionNote,
+      });
+    }
+    return this.api.put<any>(`/hostel/bookings/${id}/approve`, {
+      roomId: Number(body.roomId),
+      decisionNote: body.decisionNote || null,
+    }).pipe(map(r => this.normalizeBooking(r)));
+  }
+
+  rejectBooking(id: string, body?: { note?: string }): Observable<HostelBookingRequest> {
+    if (runtimeConfig.useMocks) {
+      return of({
+        id,
+        studentId: 0,
+        status: 'REJECTED',
+        decisionNote: body?.note,
+      });
+    }
+    return this.api.put<any>(`/hostel/bookings/${id}/reject`, body || {}).pipe(map(r => this.normalizeBooking(r)));
+  }
+
+  private normalizeBillingProfile(r: any): HostelBillingProfile {
+    return {
+      id: r.id != null ? String(r.id) : undefined,
+      studentId: Number(r.studentId),
+      studentName: r.studentName ?? '',
+      feeStructureId: Number(r.feeStructureId ?? 0),
+      billingCadence: String(r.billingCadence ?? 'MONTHLY'),
+      depositAmount: r.depositAmount != null ? Number(r.depositAmount) : null,
+      messChargeAmount: r.messChargeAmount != null ? Number(r.messChargeAmount) : null,
+      autoInvoiceEnabled: !!r.autoInvoiceEnabled,
+      lastInvoiceDate: r.lastInvoiceDate ?? null,
+      nextDueDate: r.nextDueDate ?? null,
+    };
+  }
+
+  private normalizeGatePass(r: any): HostelGatePass {
+    return {
+      id: String(r.id),
+      studentId: Number(r.studentId ?? 0),
+      studentName: r.studentName ?? '',
+      requestType: String(r.requestType ?? 'LEAVE_OUT'),
+      status: String(r.status ?? 'PENDING'),
+      reason: r.reason ?? undefined,
+      outAt: r.outAt ?? undefined,
+      expectedInAt: r.expectedInAt ?? undefined,
+      actualInAt: r.actualInAt ?? undefined,
+      approvalNote: r.approvalNote ?? undefined,
+    };
+  }
+
+  private normalizeVisitor(r: any): HostelVisitorEntry {
+    return {
+      id: String(r.id),
+      studentId: Number(r.studentId ?? 0),
+      studentName: r.studentName ?? '',
+      visitorName: r.visitorName ?? undefined,
+      relationLabel: r.relationLabel ?? undefined,
+      visitorPhone: r.visitorPhone ?? undefined,
+      purpose: r.purpose ?? undefined,
+      status: String(r.status ?? 'PENDING'),
+      checkInAt: r.checkInAt ?? undefined,
+      checkOutAt: r.checkOutAt ?? undefined,
+      approvalNote: r.approvalNote ?? undefined,
+    };
+  }
+
+  private normalizeIncident(r: any): HostelIncident {
+    return {
+      id: String(r.id),
+      studentId: r.studentId != null ? Number(r.studentId) : undefined,
+      studentName: r.studentName ?? undefined,
+      incidentType: r.incidentType ?? undefined,
+      severity: r.severity ?? undefined,
+      status: r.status ?? undefined,
+      summary: r.summary ?? undefined,
+      occurredAt: r.occurredAt ?? undefined,
+      escalatedAt: r.escalatedAt ?? undefined,
+      escalationLevel: r.escalationLevel ?? undefined,
+      resolutionNote: r.resolutionNote ?? undefined,
+      resolutionReason: r.resolutionReason ?? undefined,
+      slaDueAt: r.slaDueAt ?? undefined,
+    };
+  }
+
+  private normalizePortalProfile(r: any): HostelPortalProfile {
+    return {
+      studentId: Number(r.studentId ?? 0),
+      studentName: String(r.studentName ?? ''),
+      hostelName: r.hostelName ?? undefined,
+      roomNumber: r.roomNumber ?? undefined,
+      roomType: r.roomType ?? undefined,
+      occupancyLabel: r.occupancyLabel ?? undefined,
+      billingCadence: r.billingCadence ?? undefined,
+      nextDueDate: r.nextDueDate ?? undefined,
+      activeGatePassStatus: r.activeGatePassStatus ?? undefined,
+    };
+  }
+
+  private normalizeBooking(r: any): HostelBookingRequest {
+    return {
+      id: String(r.id),
+      studentId: Number(r.studentId ?? 0),
+      studentName: r.studentName ?? undefined,
+      parentUserId: r.parentUserId != null ? Number(r.parentUserId) : undefined,
+      preferredHostelId: r.preferredHostelId != null ? Number(r.preferredHostelId) : undefined,
+      preferredRoomType: r.preferredRoomType ?? undefined,
+      status: r.status ?? undefined,
+      requestNote: r.requestNote ?? undefined,
+      decisionNote: r.decisionNote ?? undefined,
+      approvedAllocationId: r.approvedAllocationId != null ? Number(r.approvedAllocationId) : undefined,
+      createdAt: r.createdAt ?? undefined,
     };
   }
 }

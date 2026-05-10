@@ -22,6 +22,24 @@ const MICHAEL_LINKED = MOCK_PARENT_CHILDREN.map(s => ({
 export const MOCK_CHAT_DIRECTORY_TEACHER: ChatDirectoryResponse = {
   myClassRosters: [
     {
+      classId: 7,
+      className: 'Class 7',
+      sectionId: 703,
+      sectionName: 'C',
+      students: [
+        {
+          studentId: 95,
+          studentName: 'Ashwin Singh',
+          parent: { userId: 230, name: 'Harpreet Kaur', role: 'PARENT' },
+        },
+        {
+          studentId: 32,
+          studentName: 'Mei Ling',
+          parent: { userId: 231, name: 'Wei Ling', role: 'PARENT' },
+        },
+      ],
+    },
+    {
       classId: 8,
       className: 'Class 8',
       sectionId: 801,

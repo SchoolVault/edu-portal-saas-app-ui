@@ -16,17 +16,17 @@ import { ConfirmDialogOptions, ConfirmDialogService } from './confirm-dialog.ser
       [attr.aria-labelledby]="'confirm-dialog-title'"
       [attr.aria-describedby]="'confirm-dialog-desc'">
       <div class="confirm-dialog-backdrop" (click)="onCancel()"></div>
-      <div class="confirm-dialog-panel erp-card animate-in">
+      <div class="confirm-dialog-panel erp-card animate-in" [class.confirm-dialog-panel--wide]="d.wide">
         <div class="confirm-dialog-icon" [ngClass]="'confirm-dialog-icon--' + (d.variant || 'danger')">
           <i class="bi" [ngClass]="iconClass(d)"></i>
         </div>
         <h2 id="confirm-dialog-title" class="confirm-dialog-title">{{ d.title }}</h2>
         <p id="confirm-dialog-desc" class="confirm-dialog-message">{{ d.message }}</p>
-        <ul *ngIf="d.details?.length" class="confirm-dialog-details">
+        <ul *ngIf="d.details?.length" class="confirm-dialog-details" [class.confirm-dialog-details--scroll]="d.wide">
           <li *ngFor="let line of d.details">{{ line }}</li>
         </ul>
         <div class="confirm-dialog-actions">
-          <button type="button" class="btn-outline-erp" (click)="onCancel()">{{ d.cancelLabel }}</button>
+          <button *ngIf="showCancel(d)" type="button" class="btn-outline-erp" (click)="onCancel()">{{ d.cancelLabel }}</button>
           <button
             type="button"
             class="btn-primary-erp"
@@ -69,6 +69,21 @@ import { ConfirmDialogOptions, ConfirmDialogService } from './confirm-dialog.ser
         box-shadow: var(--shadow-lg);
         border: 1px solid var(--clr-border);
         animation: confirm-pop-in 0.22s cubic-bezier(0.34, 1.2, 0.64, 1);
+      }
+      .confirm-dialog-panel--wide {
+        max-width: min(720px, calc(100vw - 32px));
+        text-align: left;
+      }
+      .confirm-dialog-panel--wide .confirm-dialog-title,
+      .confirm-dialog-panel--wide .confirm-dialog-message {
+        text-align: center;
+      }
+      .confirm-dialog-panel--wide .confirm-dialog-icon {
+        margin-left: auto;
+        margin-right: auto;
+      }
+      .confirm-dialog-panel--wide .confirm-dialog-actions {
+        justify-content: flex-end;
       }
       .confirm-dialog-icon {
         width: 56px;
@@ -116,11 +131,20 @@ import { ConfirmDialogOptions, ConfirmDialogService } from './confirm-dialog.ser
         color: var(--clr-text-secondary);
         line-height: 1.5;
       }
+      .confirm-dialog-details--scroll {
+        max-height: min(340px, 45vh);
+        overflow-y: auto;
+        padding-right: 10px;
+      }
       .confirm-dialog-details li {
-        margin-bottom: 6px;
+        margin-bottom: 10px;
+        padding-bottom: 8px;
+        border-bottom: 1px solid color-mix(in srgb, var(--clr-border) 55%, transparent);
       }
       .confirm-dialog-details li:last-child {
         margin-bottom: 0;
+        padding-bottom: 0;
+        border-bottom: none;
       }
       .confirm-dialog-actions {
         display: flex;
@@ -198,6 +222,10 @@ export class ConfirmDialogHostComponent implements OnDestroy {
 
   onCancel(): void {
     this.confirmDialog.respond(false);
+  }
+
+  showCancel(d: ConfirmDialogOptions): boolean {
+    return !!(d.cancelLabel && d.cancelLabel.trim().length > 0);
   }
 
   @HostListener('document:keydown.escape')

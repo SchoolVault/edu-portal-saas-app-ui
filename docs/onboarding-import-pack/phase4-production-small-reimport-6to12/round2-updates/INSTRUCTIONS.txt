@@ -1,0 +1,10 @@
+Round 2 update pack for re-import validation (same headers as baseline).
+
+Use this after baseline import or after downloading normalized CSV and aligning rows.
+
+Key changes included:
+1) Teacher phone/email updates (should UPSERT, no duplicates).
+2) Staff role/contact updates.
+3) Student guardian phone/email/address updates + a few section switches.
+4) Timetable teacher swaps and room/period edits.
+5) Fee component revisions for senior classes.

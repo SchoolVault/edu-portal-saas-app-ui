@@ -1,0 +1,9 @@
+firstname,lastname,email,phone,qualification,specialization,joindate,salary,subjects,createportal,portalpassword,portalrole,libraryrole,schoolrolecodes,importmode,bankaccountholder,bankname,bankaccountnumber,bankifsc,notifycredentials,classteacherfor,classteacherclassid,classteachersectionid,classteacherclassname,classteachersectionname,classteacheracademicyearid
+Ramesh,Sharma,ramesh.sharma@bvpsnoida62.edu.in,9800000001,M.Ed,Mathematics,2024-04-01,45000,Mathematics|Physics,Y,,TEACHER,,ACADEMIC_STAFF,UPSERT,,,,,N,Class 6-A,,,,
+Sunita,Nair,sunita.nair@bvpsnoida62.edu.in,9800000002,B.Ed,English,2024-04-01,42000,English|Hindi,Y,,TEACHER,,ACADEMIC_STAFF,UPSERT,,,,,N,6B,,,,
+Vikram,Singh,vikram.singh@bvpsnoida62.edu.in,9800000003,B.Sc,Science,2024-04-01,40000,Science,Y,,T,,ACADEMIC_STAFF,UPSERT,,,,,N,Class 10,,,,
+Asha,Devi,asha.devi@bvpsnoida62.edu.in,9800000004,M.A,Tamil,2024-04-01,38000,Tamil,,,TEACHER,,ACADEMIC_STAFF,UPSERT,,,,,N,,,,,
+Kiran,Patel,kiran.patel@bvpsnoida62.edu.in,9800000005,MCA,Computer,2024-04-01,50000,Computer Science,Y,Welcome@123,TEACHER,,ACADEMIC_STAFF,CREATE_ONLY,,,,,Y,Class 8-B,,,,
+Lakshmi,Narayanan,e2e.teacher.academic-only@bvpsnoida62.edu.in,9800003011,M.Ed,Mathematics,2024-04-01,44000,Mathematics,Y,E2EStaff@2025,TEACHER,,ACADEMIC_STAFF,UPSERT,,,,,N,,,,,,
+Harish,Malhotra,e2e.teacher.with-fee-desk@bvpsnoida62.edu.in,9800003012,M.Com,Accounts,2024-04-01,46000,Mathematics|Commerce,Y,E2EStaff@2025,TEACHER,,FEE_OFFICE,UPSERT,,,,,N,,,,,,
+Komal,Agarwal,e2e.teacher.dual-school-roles@bvpsnoida62.edu.in,9800003013,B.Ed,General,2024-04-01,42000,English,Y,E2EStaff@2025,TEACHER,,"ACADEMIC_STAFF,FEE_OFFICE",UPSERT,,,,,N,,,,,,

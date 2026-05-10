@@ -1,31 +1,27 @@
 package com.school.erp.modules.notification.service;
 
-import com.school.erp.common.enums.Enums;
 import com.school.erp.modules.communication.entity.Announcement;
 import com.school.erp.platform.port.NotificationDispatchPort;
+import com.school.erp.platform.port.NotificationDispatchAttributes;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
-
 /**
- * After an announcement is persisted: per-user in-app notifications + outbox rows for SMS/WhatsApp (mock send).
+ * After an announcement is persisted: enqueue outbox rows for SMS/WhatsApp (mock send).
+ * In-app inbox duplication is avoided; announcement feed is the single source for announcements.
  */
 @Service
 public class AnnouncementNotificationFanoutService {
     private static final Logger log = LoggerFactory.getLogger(AnnouncementNotificationFanoutService.class);
     private final AnnouncementAudienceResolver audienceResolver;
-    private final NotificationService notificationService;
     private final NotificationDispatchPort notificationDispatchPort;
 
     public AnnouncementNotificationFanoutService(
             AnnouncementAudienceResolver audienceResolver,
-            NotificationService notificationService,
             NotificationDispatchPort notificationDispatchPort) {
         this.audienceResolver = audienceResolver;
-        this.notificationService = notificationService;
         this.notificationDispatchPort = notificationDispatchPort;
     }
 
@@ -35,18 +31,11 @@ public class AnnouncementNotificationFanoutService {
         String title = ann.getTitle() != null ? ann.getTitle() : "Announcement";
         String snippet = truncate(ann.getContent(), 280);
         String link = ann.getId() != null ? "/app/announcement/" + ann.getId() : "/app/inbox";
-        LocalDateTime stamp = ann.getCreatedAt() != null ? ann.getCreatedAt() : LocalDateTime.now();
         var members = audienceResolver.resolve(ann);
         log.info("Announcement fan-out audienceSize={} announcementId={} tenant={}", members.size(), ann.getId(), tenantId);
         for (AnnouncementAudienceResolver.AudienceMember m : members) {
-            notificationService.createNotification(
-                    tenantId,
-                    m.userId(),
-                    title,
-                    snippet,
-                    Enums.NotificationType.INFO,
-                    link,
-                    stamp);
+            NotificationDispatchAttributes scope =
+                    NotificationDispatchAttributes.preferExplicitOrThread(ann.getAcademicYearId());
             String dedupeSms = "ANN:" + ann.getId() + ":SMS:" + m.userId();
             notificationDispatchPort.enqueue(
                     tenantId,
@@ -57,7 +46,8 @@ public class AnnouncementNotificationFanoutService {
                     title,
                     snippet,
                     dedupeSms,
-                    "ann-" + ann.getId());
+                    "ann-" + ann.getId(),
+                    scope);
             String dedupeWa = "ANN:" + ann.getId() + ":WA:" + m.userId();
             notificationDispatchPort.enqueue(
                     tenantId,
@@ -68,7 +58,8 @@ public class AnnouncementNotificationFanoutService {
                     title,
                     snippet,
                     dedupeWa,
-                    "ann-" + ann.getId());
+                    "ann-" + ann.getId(),
+                    scope);
         }
     }
 

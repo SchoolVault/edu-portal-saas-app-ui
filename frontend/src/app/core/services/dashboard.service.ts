@@ -1,10 +1,11 @@
 import { Injectable } from '@angular/core';
 import { forkJoin, Observable, of } from 'rxjs';
 import { catchError, delay, map, switchMap } from 'rxjs/operators';
-import { AdminDashboardData, MarkRecord, ParentDashboardData, TeacherDashboardData } from '../models/models';
+import { AdminDashboardData, MarkRecord, ParentDashboardData, Student, TeacherDashboardData } from '../models/models';
 import {
   buildMockParentActivities,
   buildMockParentDashboardData,
+  buildMockTeacherHomeroom,
   MOCK_ADMIN_DASHBOARD,
   MOCK_TEACHER_DASHBOARD,
 } from '../mocks/dashboard.mock-data';
@@ -21,42 +22,134 @@ import {
 export class DashboardService {
   constructor(private api: ApiService, private parentService: ParentService) {}
 
-  getAdminDashboard(): Observable<AdminDashboardData> {
+  getAdminDashboard(attendanceOverviewScope?: string | null, attendanceOverviewMonth?: string | null): Observable<AdminDashboardData> {
     if (runtimeConfig.useMocks) {
-      return of({ ...MOCK_ADMIN_DASHBOARD }).pipe();
+      return of({
+        ...MOCK_ADMIN_DASHBOARD,
+        dataComputedAt: new Date().toISOString(),
+        attendanceOverviewScope: attendanceOverviewScope ?? 'MONTH_TO_DATE',
+        attendanceOverviewMonth: attendanceOverviewMonth ?? new Date().toISOString().slice(0, 7),
+      }).pipe();
     }
-    return this.api.get<AdminDashboardData>('/reports/dashboard/admin');
+    return this.api.getParams<AdminDashboardData>('/reports/dashboard/admin', {
+      attendanceOverviewScope: attendanceOverviewScope?.trim() || undefined,
+      attendanceOverviewMonth: attendanceOverviewMonth?.trim() || undefined,
+    });
   }
 
-  getTeacherDashboard(): Observable<TeacherDashboardData> {
+  getAdminRecentActivitiesPaged(query: {
+    page?: number;
+    size?: number;
+    q?: string;
+    eventType?: string;
+    fromDate?: string;
+    toDate?: string;
+  }) {
+    return this.api.getPageParams<AdminDashboardData['recentActivities'][number]>(
+      '/reports/dashboard/admin/recent-activities',
+      query
+    );
+  }
+
+  getAdminUpcomingEventsPaged(query: {
+    page?: number;
+    size?: number;
+    q?: string;
+    eventType?: string;
+    fromDate?: string;
+    toDate?: string;
+  }) {
+    return this.api.getPageParams<AdminDashboardData['upcomingEvents'][number]>(
+      '/reports/dashboard/admin/upcoming-events',
+      query
+    );
+  }
+
+  getTeacherDashboard(monthYm?: string | null): Observable<TeacherDashboardData> {
+    const ym = (monthYm ?? new Date().toISOString().slice(0, 7)).slice(0, 7);
     if (runtimeConfig.useMocks) {
       return of({
         ...MOCK_TEACHER_DASHBOARD,
+        dataComputedAt: new Date().toISOString(),
         classTeacherOf: (MOCK_TEACHER_DASHBOARD.classTeacherOf ?? []).map(r => ({ ...r })),
         messageQueue: (MOCK_TEACHER_DASHBOARD.messageQueue ?? []).map(m => ({ ...m })),
         quickActions: (MOCK_TEACHER_DASHBOARD.quickActions ?? []).map(a => ({ ...a })),
         todaySchedule: (MOCK_TEACHER_DASHBOARD.todaySchedule ?? []).map(s => ({ ...s })),
         pendingTasks: (MOCK_TEACHER_DASHBOARD.pendingTasks ?? []).map(t => ({ ...t })),
+        recentActivities: (MOCK_TEACHER_DASHBOARD.recentActivities ?? []).map(a => ({ ...a })),
+        attendanceTrend: (MOCK_TEACHER_DASHBOARD.attendanceTrend ?? []).map(p => ({ ...p })),
+        homeroomAttendance: buildMockTeacherHomeroom(ym),
+        homeroomTodayAttendanceComplete: MOCK_TEACHER_DASHBOARD.homeroomTodayAttendanceComplete ?? false,
       }).pipe(delay(200));
     }
-    return this.api.get<any>('/reports/dashboard/teacher').pipe(
-      map(dashboard => ({
-        ...dashboard,
-        classTeacherOf: (dashboard.classTeacherOf ?? []).map((row: any) => ({
-          ...row,
-          classId: row.classId != null ? String(row.classId) : ''
-        })),
-        messageQueue: (dashboard.messageQueue ?? []).map((m: any) => ({
-          ...m,
-          conversationId: String(m.conversationId ?? '')
-        })),
-        quickActions: dashboard.quickActions ?? [],
-        todaySchedule: (dashboard.todaySchedule ?? []).map((item: any) => ({
-          ...item,
-          classId: item.classId != null ? String(item.classId) : '',
-          sectionId: item.sectionId != null ? String(item.sectionId) : ''
-        }))
-      }))
+    return this.api.getParams<any>('/reports/dashboard/teacher', { month: ym }).pipe(
+      map(dashboard => {
+        const pending =
+          dashboard.pendingAttendanceSessions != null
+            ? Number(dashboard.pendingAttendanceSessions)
+            : dashboard.unreadNotifications != null
+              ? Number(dashboard.unreadNotifications)
+              : 0;
+        const homeroom = dashboard.homeroomAttendance;
+        return {
+          ...dashboard,
+          dataComputedAt: dashboard.dataComputedAt ?? new Date().toISOString(),
+          pendingAttendanceSessions: pending,
+          homeroomTodayAttendanceComplete: Boolean(dashboard.homeroomTodayAttendanceComplete),
+          classTeacherOf: (dashboard.classTeacherOf ?? []).map((row: any) => ({
+            ...row,
+            classId: row.classId != null ? Number(row.classId) : 0,
+            sectionId: row.sectionId != null ? Number(row.sectionId) : undefined,
+            totalStudents: row.totalStudents != null ? Number(row.totalStudents) : 0,
+          })),
+          messageQueue: (dashboard.messageQueue ?? []).map((m: any) => ({
+            ...m,
+            conversationId: String(m.conversationId ?? ''),
+          })),
+          quickActions: dashboard.quickActions ?? [],
+          todaySchedule: (dashboard.todaySchedule ?? []).map((item: any) => ({
+            ...item,
+            classId: item.classId != null ? Number(item.classId) : 0,
+            sectionId: item.sectionId != null ? Number(item.sectionId) : 0,
+          })),
+          recentActivities: (dashboard.recentActivities ?? []).map((a: any) => ({
+            code: a.code,
+            type: a.type ?? 'info',
+            timestamp: String(a.timestamp ?? ''),
+            params: a.params ?? {},
+            linkRoute: String(a.linkRoute ?? '/app/dashboard'),
+            linkQueryParams: a.linkQueryParams ?? undefined,
+          })),
+          pendingTasks: dashboard.pendingTasks ?? [],
+          attendanceTrend: (dashboard.attendanceTrend ?? []).map((p: any) => ({
+            month: String(p.month ?? ''),
+            presentPercent: Number(p.presentPercent ?? 0),
+          })),
+          homeroomAttendance: homeroom
+            ? {
+                month: String(homeroom.month ?? ym),
+                classLabel: homeroom.classLabel ?? undefined,
+                daily: (homeroom.daily ?? []).map((d: any) => ({
+                  date: String(d.date ?? ''),
+                  presentPercent: Number(d.presentPercent ?? 0),
+                  absentPercent: d.absentPercent != null ? Number(d.absentPercent) : undefined,
+                  latePercent: d.latePercent != null ? Number(d.latePercent) : undefined,
+                  excusedPercent: d.excusedPercent != null ? Number(d.excusedPercent) : undefined,
+                  presentCount: d.presentCount != null ? Number(d.presentCount) : undefined,
+                  absentCount: d.absentCount != null ? Number(d.absentCount) : undefined,
+                  lateCount: d.lateCount != null ? Number(d.lateCount) : undefined,
+                  excusedCount: d.excusedCount != null ? Number(d.excusedCount) : undefined,
+                })),
+                breakdown: {
+                  present: Number(homeroom.breakdown?.present ?? 0),
+                  absent: Number(homeroom.breakdown?.absent ?? 0),
+                  late: Number(homeroom.breakdown?.late ?? 0),
+                  excused: Number(homeroom.breakdown?.excused ?? 0),
+                },
+              }
+            : null,
+        } as TeacherDashboardData;
+      })
     );
   }
 
@@ -65,7 +158,10 @@ export class DashboardService {
    */
   getParentDashboard(from: string, to: string, preferredChildId?: number | null): Observable<ParentDashboardData> {
     if (runtimeConfig.useMocks) {
-      return of(buildMockParentDashboardData(from, to, preferredChildId ?? undefined)).pipe(delay(200));
+      return of({
+        ...buildMockParentDashboardData(from, to, preferredChildId ?? undefined),
+        dataComputedAt: new Date().toISOString(),
+      }).pipe(delay(200));
     }
     const q = new URLSearchParams({ from, to });
     if (preferredChildId != null) {
@@ -73,6 +169,12 @@ export class DashboardService {
     }
     return this.api.get<any>(`/reports/dashboard/parent?${q.toString()}`).pipe(
       map(raw => this.normalizeParentDashboardApi(raw)),
+      switchMap(dashboard =>
+        this.parentService.getChildren().pipe(
+          map(children => this.reconcileParentChildren(dashboard, children)),
+          catchError(() => of(dashboard))
+        )
+      ),
       catchError(() =>
         this.parentService.getChildren().pipe(
           switchMap(children => {
@@ -90,6 +192,30 @@ export class DashboardService {
         )
       )
     );
+  }
+
+  /**
+   * Reports API may lag behind child roster updates; prefer parent children endpoint for class/section labels.
+   * Keeps dashboard child picker and selected child card consistent with Parent portal.
+   */
+  private reconcileParentChildren(
+    dashboard: ParentDashboardData,
+    parentChildren: Student[]
+  ): ParentDashboardData {
+    if (!parentChildren?.length) {
+      return dashboard;
+    }
+    const byId = new Map(parentChildren.map(child => [child.id, child]));
+    const mergedChildren = (dashboard.children ?? []).map(child => byId.get(child.id) ?? child);
+    const selectedChildId = dashboard.selectedChildId ?? dashboard.selectedChild?.id;
+    const selectedChild = selectedChildId != null ? byId.get(selectedChildId) ?? dashboard.selectedChild : dashboard.selectedChild;
+    return {
+      ...dashboard,
+      children: mergedChildren.length ? mergedChildren : parentChildren,
+      selectedChild,
+      selectedChildId: selectedChild?.id ?? dashboard.selectedChildId,
+      childCount: Math.max(dashboard.childCount ?? 0, parentChildren.length),
+    };
   }
 
   private emptyParentDashboard(): ParentDashboardData {
@@ -113,9 +239,15 @@ export class DashboardService {
     const marks = (raw.childPerformance ?? raw.marks ?? []) as MarkRecord[];
     const feeStatus = (raw.feeStatus ?? []) as ParentDashboardData['feeStatus'];
     const overallGrade = String(raw.overallGrade ?? '-');
+    const children = Array.isArray(raw.children) ? raw.children : [];
+    const parsedChildCount = Number(raw.childCount);
+    const childCountFromPayload = Number.isFinite(parsedChildCount) ? parsedChildCount : 0;
+    // Keep shell KPIs consistent when backend omits/under-reports childCount but includes linked children list.
+    const resolvedChildCount = Math.max(childCountFromPayload, children.length);
     return {
-      childCount: Number(raw.childCount ?? 0),
-      children: raw.children ?? [],
+      dataComputedAt: raw.dataComputedAt ?? new Date().toISOString(),
+      childCount: resolvedChildCount,
+      children,
       selectedChild: raw.selectedChild,
       selectedChildId: raw.selectedChildId != null ? Number(raw.selectedChildId) : undefined,
       attendancePercentage: attendancePct,
@@ -212,6 +344,7 @@ export class DashboardService {
     const overallGrade = this.getOverallGrade(marks);
     const classLabel = `${selectedChild.className || ''}${selectedChild.sectionName ? ' · ' + selectedChild.sectionName : ''}`.trim();
     return {
+      dataComputedAt: new Date().toISOString(),
       childCount: children?.length ?? 0,
       children,
       selectedChild,

@@ -4,6 +4,7 @@ import { of } from 'rxjs';
 import { map, switchMap, take } from 'rxjs/operators';
 import { AuthService } from '../services/auth.service';
 import { SettingsService } from '../services/settings.service';
+import { UiAccessService } from '../services/ui-access.service';
 
 /**
  * Route {@link import('@angular/router').Route} data for {@link featureModuleGuard}.
@@ -13,6 +14,8 @@ export interface FeatureModuleRouteData {
   requireFeatures?: string[];
   /** User must have one of these normalized roles (lowercase). Omit to skip role gate. */
   requireAnyRole?: string[];
+  /** User must have one of these {@code AppPermission} codes (union with {@link requireAnyRole} when both set). */
+  requireAnyPermission?: string[];
 }
 
 /**
@@ -24,6 +27,7 @@ export const featureModuleGuard: CanActivateFn = route => {
   const auth = inject(AuthService);
   const router = inject(Router);
   const settings = inject(SettingsService);
+  const uiAccess = inject(UiAccessService);
   const data = route.data as FeatureModuleRouteData;
 
   return auth.ensureValidSession().pipe(
@@ -37,8 +41,8 @@ export const featureModuleGuard: CanActivateFn = route => {
         return of(true);
       }
 
-      const requireAnyRole = (data?.requireAnyRole ?? []).map(r => r.toLowerCase().trim()).filter(Boolean);
-      if (requireAnyRole.length && !requireAnyRole.includes(role)) {
+      const accessOk = uiAccess.routeAccessUnion(data?.requireAnyRole, data?.requireAnyPermission);
+      if (!accessOk) {
         return of(router.createUrlTree(['/app/dashboard']));
       }
 

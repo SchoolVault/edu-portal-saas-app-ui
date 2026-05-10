@@ -1,41 +1,92 @@
-import { Component, OnInit } from '@angular/core';
+import { ChangeDetectorRef, Component, OnDestroy, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { StudentService } from '../../core/services/student.service';
 import { AuthService } from '../../core/services/auth.service';
-import { ExamService } from '../../core/services/exam.service';
-import { FeeService } from '../../core/services/fee.service';
+import { UiAccessService } from '../../core/services/ui-access.service';
 import { AttendanceService } from '../../core/services/attendance.service';
 import { filter } from 'rxjs/operators';
-import { Student, MarkRecord, FeePayment, AttendanceStats } from '../../core/models/models';
+import { Subscription } from 'rxjs';
+import { Student, StudentGuardianMapping, AttendanceStats } from '../../core/models/models';
+import { StudentGuardianPanelComponent } from './student-guardian-panel/student-guardian-panel.component';
 import { ConfirmDialogService } from '../../shared/confirm-dialog/confirm-dialog.service';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
+import { SchoolClassNamePipe } from '../../core/i18n/school-class-name.pipe';
+import { formatSchoolClassName } from '../../core/i18n/school-class-display';
+import { formatDateDdMmYyyy } from '../../core/utils/date-format';
 
 @Component({
   selector: 'app-student-profile',
   standalone: true,
-  imports: [CommonModule, RouterModule, TranslateModule],
+  imports: [CommonModule, RouterModule, TranslateModule, StudentGuardianPanelComponent, SchoolClassNamePipe],
+  styles: [
+    `
+      .student-profile-page {
+        color: var(--clr-text);
+      }
+      .student-profile-page .erp-card {
+        border: 1px solid color-mix(in srgb, var(--clr-border) 82%, var(--clr-primary) 18%);
+        border-radius: 14px;
+        box-shadow: 0 8px 22px color-mix(in srgb, var(--clr-primary) 8%, transparent);
+        background: linear-gradient(
+          180deg,
+          color-mix(in srgb, var(--clr-surface) 97%, var(--clr-primary) 3%) 0%,
+          var(--clr-surface) 100%
+        );
+      }
+      .student-profile-title {
+        font-size: 24px;
+        font-weight: 800;
+        letter-spacing: -0.02em;
+        color: color-mix(in srgb, var(--clr-text) 92%, var(--clr-primary));
+      }
+      .student-profile-card--identity {
+        padding: 28px;
+      }
+      .student-profile-section-title {
+        font-size: 16px;
+        font-weight: 800;
+        letter-spacing: -0.01em;
+        color: color-mix(in srgb, var(--clr-text) 88%, var(--clr-primary) 12%);
+      }
+      .student-kpi-strip {
+        padding: 16px;
+        background: color-mix(in srgb, var(--clr-surface) 94%, var(--clr-primary) 6%);
+        border-radius: var(--radius-lg);
+        border: 1px solid color-mix(in srgb, var(--clr-border) 72%, var(--clr-primary) 28%);
+        margin-bottom: 16px;
+      }
+      @media (max-width: 576px) {
+        .student-profile-card--identity {
+          padding: 20px;
+        }
+        .student-profile-title {
+          font-size: 21px;
+        }
+      }
+    `,
+  ],
   template: `
-    <div data-testid="student-profile-page" class="animate-in" *ngIf="student">
-      <div class="d-flex align-items-center gap-3 mb-4">
+    <div class="student-profile-page erp-readonly-profile animate-in" data-testid="student-profile-page" *ngIf="student">
+      <div class="d-flex align-items-center gap-3 mb-4 flex-wrap">
         <button class="btn-icon" (click)="router.navigate(['/app/students'])" data-testid="back-btn"><i class="bi bi-arrow-left" style="font-size: 20px;"></i></button>
         <div class="flex-grow-1">
-          <h2 style="font-size: 24px; font-weight: 800;">{{ 'students.profile.title' | translate }}</h2>
+          <h2 class="student-profile-title">{{ 'students.profile.title' | translate }}</h2>
         </div>
         <div class="d-flex gap-2 flex-wrap">
           <button type="button" class="btn-outline-erp btn-sm" (click)="reloadAll()" data-testid="profile-refresh-btn">
             <i class="bi bi-arrow-clockwise"></i> {{ 'students.profile.refresh' | translate }}
           </button>
-          <a *ngIf="isAdmin" [routerLink]="['/app/students', student.id, 'edit']" class="btn-primary-erp btn-sm" data-testid="edit-profile-btn">
+          <a *ngIf="isSchoolAdmin" [routerLink]="['/app/students', student.id, 'edit']" class="btn-primary-erp btn-sm" data-testid="edit-profile-btn">
             <i class="bi bi-pencil"></i> {{ 'students.profile.edit' | translate }}
           </a>
-          <button *ngIf="isAdmin && student.status === 'active'" type="button" class="btn-outline-erp btn-sm" [disabled]="lifecycleBusy" (click)="markInactive()" data-testid="mark-inactive-btn">
+          <button *ngIf="isSchoolAdmin && student.status === 'active'" type="button" class="btn-outline-erp btn-sm" [disabled]="lifecycleBusy" (click)="markInactive()" data-testid="mark-inactive-btn">
             {{ 'students.profile.markInactive' | translate }}
           </button>
-          <button *ngIf="isAdmin && student.status === 'inactive'" type="button" class="btn-outline-erp btn-sm" [disabled]="lifecycleBusy" (click)="reactivate()" data-testid="reactivate-student-btn">
+          <button *ngIf="isSchoolAdmin && student.status === 'inactive'" type="button" class="btn-outline-erp btn-sm" [disabled]="lifecycleBusy" (click)="reactivate()" data-testid="reactivate-student-btn">
             {{ 'students.profile.reactivate' | translate }}
           </button>
-          <button *ngIf="isAdmin" type="button" class="btn-outline-erp btn-sm" style="border-color: var(--clr-danger); color: var(--clr-danger);" [disabled]="lifecycleBusy" (click)="softDeleteFromSchool()" data-testid="remove-directory-btn">
+          <button *ngIf="isSchoolAdmin" type="button" class="btn-outline-erp btn-sm" style="border-color: var(--clr-danger); color: var(--clr-danger);" [disabled]="lifecycleBusy" (click)="softDeleteFromSchool()" data-testid="remove-directory-btn">
             {{ 'students.profile.removeDirectory' | translate }}
           </button>
         </div>
@@ -43,7 +94,7 @@ import { TranslateModule, TranslateService } from '@ngx-translate/core';
 
       <div class="row g-4">
         <div class="col-lg-4">
-          <div class="erp-card text-center" style="padding: 32px;">
+          <div class="erp-card student-profile-card--identity text-center">
             <img *ngIf="studentPortraitUrl" [src]="studentPortraitUrl" alt="" class="mx-auto mb-3 d-block rounded-circle" style="width: 80px; height: 80px; object-fit: cover; border: 2px solid var(--clr-border);" />
             <div *ngIf="!studentPortraitUrl" class="profile-avatar mx-auto mb-3" style="width: 80px; height: 80px; font-size: 28px;"
                  [style.background]="student.gender === 'female' ? '#C05C3D' : '#1B3A30'">
@@ -54,129 +105,80 @@ import { TranslateModule, TranslateService } from '@ngx-translate/core';
             <span class="badge-erp badge-success">{{ statusLabel(student.status) }}</span>
             <hr style="border-color: var(--clr-border); margin: 20px 0;">
             <div style="text-align: left;">
-              <div class="mb-3"><span style="font-size: 12px; color: var(--clr-text-muted); display: block;">{{ 'students.profile.email' | translate }}</span><strong>{{ student.email }}</strong></div>
-              <div class="mb-3"><span style="font-size: 12px; color: var(--clr-text-muted); display: block;">{{ 'students.profile.phone' | translate }}</span><strong>{{ student.phone }}</strong></div>
-              <div class="mb-3"><span style="font-size: 12px; color: var(--clr-text-muted); display: block;">{{ 'students.profile.dob' | translate }}</span><strong>{{ student.dateOfBirth }}</strong></div>
-              <div class="mb-3"><span style="font-size: 12px; color: var(--clr-text-muted); display: block;">{{ 'students.form.bloodGroup' | translate }}</span><strong>{{ student.bloodGroup }}</strong></div>
-              <div class="mb-3"><span style="font-size: 12px; color: var(--clr-text-muted); display: block;">{{ 'students.profile.gender' | translate }}</span><strong>{{ genderLabel(student.gender) }}</strong></div>
-              <div><span style="font-size: 12px; color: var(--clr-text-muted); display: block;">{{ 'students.profile.address' | translate }}</span><strong>{{ student.address }}</strong></div>
+              <div class="mb-3" *ngIf="profileFieldVisibility.email"><span style="font-size: 12px; color: var(--clr-text-muted); display: block;">{{ 'students.profile.email' | translate }}</span><strong>{{ student.email }}</strong></div>
+              <div class="mb-3" *ngIf="profileFieldVisibility.phone"><span style="font-size: 12px; color: var(--clr-text-muted); display: block;">{{ 'students.profile.phone' | translate }}</span><strong>{{ student.phone }}</strong></div>
+              <div class="mb-3" *ngIf="profileFieldVisibility.dob"><span style="font-size: 12px; color: var(--clr-text-muted); display: block;">{{ 'students.profile.dob' | translate }}</span><strong>{{ formatDate(student.dateOfBirth) }}</strong></div>
+              <div class="mb-3" *ngIf="profileFieldVisibility.bloodGroup"><span style="font-size: 12px; color: var(--clr-text-muted); display: block;">{{ 'students.form.bloodGroup' | translate }}</span><strong>{{ student.bloodGroup }}</strong></div>
+              <div class="mb-3" *ngIf="profileFieldVisibility.gender"><span style="font-size: 12px; color: var(--clr-text-muted); display: block;">{{ 'students.profile.gender' | translate }}</span><strong>{{ genderLabel(student.gender) }}</strong></div>
+              <div *ngIf="profileFieldVisibility.address"><span style="font-size: 12px; color: var(--clr-text-muted); display: block;">{{ 'students.profile.address' | translate }}</span><strong>{{ student.address }}</strong></div>
             </div>
           </div>
         </div>
         <div class="col-lg-8">
           <div class="erp-card mb-4">
-            <h4 class="erp-card-title mb-3">{{ 'students.profile.academicInfo' | translate }}</h4>
+            <h4 class="student-profile-section-title mb-3">{{ 'students.profile.academicInfo' | translate }}</h4>
             <div class="row g-3">
-              <div class="col-md-4"><span style="font-size: 12px; color: var(--clr-text-muted); display: block;">{{ 'students.profile.class' | translate }}</span><strong>{{ student.className }}</strong></div>
-              <div class="col-md-4"><span style="font-size: 12px; color: var(--clr-text-muted); display: block;">{{ 'students.profile.section' | translate }}</span><strong>{{ student.sectionName }}</strong></div>
-              <div class="col-md-4"><span style="font-size: 12px; color: var(--clr-text-muted); display: block;">{{ 'students.profile.rollNumber' | translate }}</span><strong>{{ student.rollNumber }}</strong></div>
-              <div class="col-md-4"><span style="font-size: 12px; color: var(--clr-text-muted); display: block;">{{ 'students.profile.admissionDate' | translate }}</span><strong>{{ student.admissionDate }}</strong></div>
-              <div class="col-md-4"><span style="font-size: 12px; color: var(--clr-text-muted); display: block;">{{ 'students.profile.parentGuardian' | translate }}</span><strong>{{ student.parentName }}</strong></div>
+              <div class="col-md-3"><span style="font-size: 12px; color: var(--clr-text-muted); display: block;">{{ 'students.profile.class' | translate }}</span><strong>{{ student.className | schoolClassName }}</strong></div>
+              <div class="col-md-3"><span style="font-size: 12px; color: var(--clr-text-muted); display: block;">{{ 'students.profile.section' | translate }}</span><strong>{{ student.sectionName }}</strong></div>
+              <div class="col-md-3"><span style="font-size: 12px; color: var(--clr-text-muted); display: block;">{{ 'students.profile.rollNumber' | translate }}</span><strong>{{ student.rollNumber }}</strong></div>
+              <div class="col-md-3"><span style="font-size: 12px; color: var(--clr-text-muted); display: block;">{{ 'students.profile.admissionDate' | translate }}</span><strong>{{ formatDate(student.admissionDate) }}</strong></div>
             </div>
+            <hr style="border-color: var(--clr-border); margin: 20px 0;" />
+            <app-student-guardian-panel
+              [guardians]="guardianMappings"
+              [loading]="guardiansLoading"
+              [fallbackParentName]="student.parentName || null"
+            />
           </div>
           <div class="erp-card">
-            <div class="erp-tabs">
-              <button class="erp-tab" [class.active]="activeTab === 'marks'" (click)="activeTab = 'marks'" data-testid="tab-marks">{{ 'students.profile.tabMarks' | translate }}</button>
-              <button class="erp-tab" [class.active]="activeTab === 'fees'" (click)="activeTab = 'fees'" data-testid="tab-fees">{{ 'students.profile.tabFees' | translate }}</button>
-              <button class="erp-tab" [class.active]="activeTab === 'attendance'" (click)="activeTab = 'attendance'" data-testid="tab-attendance">{{ 'students.profile.tabAttendance' | translate }}</button>
-            </div>
-
-            <div *ngIf="activeTab === 'marks'">
-              <div *ngIf="marks.length > 0">
-                <table class="erp-table" data-testid="student-marks-table">
-                  <thead><tr><th>{{ 'students.profile.thExam' | translate }}</th><th>{{ 'students.profile.thSubject' | translate }}</th><th>{{ 'students.profile.thMarks' | translate }}</th><th>{{ 'students.profile.thMax' | translate }}</th><th>{{ 'students.profile.thPct' | translate }}</th><th>{{ 'students.profile.thGrade' | translate }}</th></tr></thead>
-                  <tbody>
-                    <tr *ngFor="let m of marks">
-                      <td>{{ getExamName(m.examId) }}</td>
-                      <td><strong>{{ m.subjectName }}</strong></td>
-                      <td>{{ m.marksObtained }}</td>
-                      <td>{{ m.maxMarks }}</td>
-                      <td>{{ ((m.marksObtained / m.maxMarks) * 100).toFixed(1) }}%</td>
-                      <td><span class="badge-erp" [ngClass]="m.grade.startsWith('A') ? 'badge-success' : m.grade.startsWith('B') ? 'badge-info' : 'badge-warning'">{{ m.grade }}</span></td>
-                    </tr>
-                  </tbody>
-                </table>
-                <div style="padding: 16px; background: var(--clr-bg); border-radius: var(--radius-lg); margin-top: 12px;">
-                  <div class="row">
-                    <div class="col-md-3"><span style="font-size: 12px; color: var(--clr-text-muted);">{{ 'students.profile.summaryTotalMarks' | translate }}</span><br><strong>{{ totalMarks }}/{{ totalMax }}</strong></div>
-                    <div class="col-md-3"><span style="font-size: 12px; color: var(--clr-text-muted);">{{ 'students.profile.summaryOverallPct' | translate }}</span><br><strong>{{ overallPercentage }}%</strong></div>
-                    <div class="col-md-3"><span style="font-size: 12px; color: var(--clr-text-muted);">{{ 'students.profile.summarySubjects' | translate }}</span><br><strong>{{ marks.length }}</strong></div>
-                    <div class="col-md-3"><span style="font-size: 12px; color: var(--clr-text-muted);">{{ 'students.profile.summaryOverallGrade' | translate }}</span><br><strong style="color: var(--clr-success);">{{ overallGrade }}</strong></div>
-                  </div>
-                </div>
+            <h4 class="student-profile-section-title mb-2">{{ 'students.profile.attendanceOverviewTitle' | translate }}</h4>
+            <p class="text-muted small mb-3" style="line-height: 1.5;">{{ 'students.profile.directoryScopeNote' | translate }}</p>
+            <div class="student-kpi-strip">
+              <div class="row text-center">
+                <div class="col-md-3"><div style="font-size: 28px; font-weight: 800; color: var(--clr-success);">{{ attendanceStats.present }}</div><div style="font-size: 12px; color: var(--clr-text-muted);">{{ 'students.profile.attPresent' | translate }}</div></div>
+                <div class="col-md-3"><div style="font-size: 28px; font-weight: 800; color: var(--clr-danger);">{{ attendanceStats.absent }}</div><div style="font-size: 12px; color: var(--clr-text-muted);">{{ 'students.profile.attAbsent' | translate }}</div></div>
+                <div class="col-md-3"><div style="font-size: 28px; font-weight: 800; color: var(--clr-warning);">{{ attendanceStats.late }}</div><div style="font-size: 12px; color: var(--clr-text-muted);">{{ 'students.profile.attLate' | translate }}</div></div>
+                <div class="col-md-3"><div style="font-size: 28px; font-weight: 800; color: var(--clr-primary);">{{ attendanceStats.attendancePercentage }}%</div><div style="font-size: 12px; color: var(--clr-text-muted);">{{ 'students.profile.attRate' | translate }}</div></div>
               </div>
-              <div *ngIf="marks.length === 0" class="empty-state"><i class="bi bi-journal-text"></i><h3>{{ 'students.profile.emptyMarksTitle' | translate }}</h3><p>{{ 'students.profile.emptyMarksLead' | translate }}</p></div>
             </div>
-
-            <div *ngIf="activeTab === 'fees'">
-              <div *ngIf="fees.length > 0">
-                <table class="erp-table" data-testid="student-fees-table">
-                  <thead><tr><th>{{ 'students.profile.feeDescription' | translate }}</th><th>{{ 'students.profile.thAmount' | translate }}</th><th>{{ 'students.profile.thPaid' | translate }}</th><th>{{ 'students.profile.thPending' | translate }}</th><th>{{ 'students.profile.thDueDate' | translate }}</th><th>{{ 'students.profile.thStatus' | translate }}</th><th>{{ 'students.profile.thReceipt' | translate }}</th></tr></thead>
-                  <tbody>
-                    <tr *ngFor="let f of fees">
-                      <td><strong>{{ 'students.profile.feeDescription' | translate }}</strong></td>
-                      <td>&#36;{{ f.amount | number }}</td>
-                      <td style="color: var(--clr-success);">&#36;{{ f.paidAmount | number }}</td>
-                      <td [style.color]="f.dueAmount > 0 ? 'var(--clr-danger)' : 'var(--clr-success)'">&#36;{{ f.dueAmount | number }}</td>
-                      <td>{{ f.dueDate }}</td>
-                      <td><span class="badge-erp" [ngClass]="{'badge-success': f.status === 'paid', 'badge-warning': f.status === 'partial', 'badge-danger': f.status === 'overdue', 'badge-neutral': f.status === 'unpaid'}">{{ feeStatusLabel(f.status) }}</span></td>
-                      <td>{{ f.receiptNumber || '-' }}</td>
-                    </tr>
-                  </tbody>
-                </table>
-                <div style="padding: 16px; background: var(--clr-bg); border-radius: var(--radius-lg); margin-top: 12px;">
-                  <div class="row">
-                    <div class="col-md-4"><span style="font-size: 12px; color: var(--clr-text-muted);">{{ 'students.profile.summaryTotalFee' | translate }}</span><br><strong>&#36;{{ totalFee | number }}</strong></div>
-                    <div class="col-md-4"><span style="font-size: 12px; color: var(--clr-text-muted);">{{ 'students.profile.summaryTotalPaid' | translate }}</span><br><strong style="color: var(--clr-success);">&#36;{{ totalPaid | number }}</strong></div>
-                    <div class="col-md-4"><span style="font-size: 12px; color: var(--clr-text-muted);">{{ 'students.profile.summaryTotalPending' | translate }}</span><br><strong style="color: var(--clr-danger);">&#36;{{ totalPending | number }}</strong></div>
-                  </div>
-                </div>
-              </div>
-              <div *ngIf="fees.length === 0" class="empty-state"><i class="bi bi-credit-card"></i><h3>{{ 'students.profile.emptyFeesTitle' | translate }}</h3><p>{{ 'students.profile.emptyFeesLead' | translate }}</p></div>
-            </div>
-
-            <div *ngIf="activeTab === 'attendance'">
-              <div style="padding: 16px; background: var(--clr-bg); border-radius: var(--radius-lg); margin-bottom: 16px;">
-                <div class="row text-center">
-                  <div class="col-md-3"><div style="font-size: 28px; font-weight: 800; color: var(--clr-success);">{{ attendanceStats.present }}</div><div style="font-size: 12px; color: var(--clr-text-muted);">{{ 'students.profile.attPresent' | translate }}</div></div>
-                  <div class="col-md-3"><div style="font-size: 28px; font-weight: 800; color: var(--clr-danger);">{{ attendanceStats.absent }}</div><div style="font-size: 12px; color: var(--clr-text-muted);">{{ 'students.profile.attAbsent' | translate }}</div></div>
-                  <div class="col-md-3"><div style="font-size: 28px; font-weight: 800; color: var(--clr-warning);">{{ attendanceStats.late }}</div><div style="font-size: 12px; color: var(--clr-text-muted);">{{ 'students.profile.attLate' | translate }}</div></div>
-                  <div class="col-md-3"><div style="font-size: 28px; font-weight: 800; color: var(--clr-primary);">{{ attendanceStats.attendancePercentage }}%</div><div style="font-size: 12px; color: var(--clr-text-muted);">{{ 'students.profile.attRate' | translate }}</div></div>
-                </div>
-              </div>
-              <p style="font-size: 13px; color: var(--clr-text-muted);">{{ 'students.profile.attNote' | translate }}</p>
-            </div>
+            <p style="font-size: 13px; color: var(--clr-text-muted);">{{ 'students.profile.attNote' | translate }}</p>
           </div>
         </div>
       </div>
     </div>
   `
 })
-export class StudentProfileComponent implements OnInit {
+export class StudentProfileComponent implements OnInit, OnDestroy {
+  /**
+   * Central toggle map for identity-card fields.
+   * Keep keys stable so future tenant/policy-driven visibility can plug in here.
+   */
+  readonly profileFieldVisibility = {
+    email: false,
+    phone: false,
+    dob: true,
+    bloodGroup: true,
+    gender: true,
+    address: true,
+  } as const;
+
   student: Student | null = null;
   lifecycleBusy = false;
-  activeTab = 'marks';
-  marks: MarkRecord[] = [];
-  fees: FeePayment[] = [];
-  totalMarks = 0;
-  totalMax = 0;
-  overallPercentage = '0';
-  overallGrade = '-';
-  totalFee = 0;
-  totalPaid = 0;
-  totalPending = 0;
+  guardianMappings: StudentGuardianMapping[] = [];
+  guardiansLoading = false;
   attendanceStats = { totalDays: 0, present: 0, absent: 0, late: 0, excused: 0, attendancePercentage: 0 } as AttendanceStats;
+  private langSub?: Subscription;
 
   constructor(
     private studentService: StudentService,
-    private examService: ExamService,
-    private feeService: FeeService,
     private attendanceService: AttendanceService,
     private auth: AuthService,
+    private uiAccess: UiAccessService,
     private route: ActivatedRoute,
     public router: Router,
     private confirmDialog: ConfirmDialogService,
-    private translate: TranslateService
+    private translate: TranslateService,
+    private cdr: ChangeDetectorRef
   ) {}
 
   statusLabel(status: string): string {
@@ -192,15 +194,13 @@ export class StudentProfileComponent implements OnInit {
     return t !== key ? t : g;
   }
 
-  feeStatusLabel(s: string): string {
-    const key = 'students.enums.feeStatus.' + s;
-    const t = this.translate.instant(key);
-    return t !== key ? t : s;
+  formatDate(raw: string | null | undefined): string {
+    return formatDateDdMmYyyy(raw);
   }
 
-  get isAdmin(): boolean {
-    const r = (this.auth.getRole() || '').toLowerCase();
-    return r === 'admin' || r === 'super_admin';
+  /** Student master writes — {@code STUDENT_MASTER_WRITE} / delegated registrar. */
+  get isSchoolAdmin(): boolean {
+    return this.uiAccess.hasStudentMasterWriteAccess();
   }
 
   get studentPortraitUrl(): string | null {
@@ -209,15 +209,16 @@ export class StudentProfileComponent implements OnInit {
   }
 
   ngOnInit(): void {
+    this.langSub = this.translate.onLangChange.subscribe(() => this.cdr.markForCheck());
+    this.langSub.add(this.translate.onTranslationChange.subscribe(() => this.cdr.markForCheck()));
     const raw = this.route.snapshot.paramMap.get('id');
     const id = raw != null ? Number(raw) : NaN;
     if (Number.isFinite(id)) {
       this.studentService.getStudentById(id).subscribe(s => {
         if (s) {
           this.student = s;
-          this.loadMarks(id);
-          this.loadFees(id);
           this.loadAttendance(id);
+          this.loadGuardians(id);
         }
       });
     }
@@ -233,30 +234,23 @@ export class StudentProfileComponent implements OnInit {
     this.studentService.getStudentById(id).subscribe(s => {
       if (s) {
         this.student = s;
-        this.loadMarks(id);
-        this.loadFees(id);
         this.loadAttendance(id);
+        this.loadGuardians(id);
       }
     });
   }
 
-  private loadMarks(studentId: number): void {
-    this.examService.getMarksByStudent(studentId).subscribe(marks => {
-      this.marks = marks;
-      this.totalMarks = marks.reduce((sum, m) => sum + m.marksObtained, 0);
-      this.totalMax = marks.reduce((sum, m) => sum + m.maxMarks, 0);
-      this.overallPercentage = this.totalMax > 0 ? ((this.totalMarks / this.totalMax) * 100).toFixed(1) : '0';
-      const pct = parseFloat(this.overallPercentage);
-      this.overallGrade = pct >= 90 ? 'A+' : pct >= 80 ? 'A' : pct >= 70 ? 'B+' : pct >= 60 ? 'B' : pct >= 50 ? 'C' : 'D';
-    });
-  }
-
-  private loadFees(studentId: number): void {
-    this.feeService.getStudentPayments(studentId).subscribe(payments => {
-      this.fees = payments;
-      this.totalFee = this.fees.reduce((sum, f) => sum + f.amount, 0);
-      this.totalPaid = this.fees.reduce((sum, f) => sum + f.paidAmount, 0);
-      this.totalPending = this.fees.reduce((sum, f) => sum + f.dueAmount, 0);
+  private loadGuardians(studentId: number): void {
+    this.guardiansLoading = true;
+    this.studentService.getGuardianMappings(studentId).subscribe({
+      next: rows => {
+        this.guardianMappings = rows;
+        this.guardiansLoading = false;
+      },
+      error: () => {
+        this.guardianMappings = [];
+        this.guardiansLoading = false;
+      },
     });
   }
 
@@ -267,15 +261,6 @@ export class StudentProfileComponent implements OnInit {
     this.attendanceService.getStudentAttendanceStats(studentId, from, to).subscribe(stats => {
       this.attendanceStats = stats;
     });
-  }
-
-  getExamName(examId: number): string {
-    const key = 'students.profile.exam' + examId;
-    const t = this.translate.instant(key);
-    if (t !== key) {
-      return t;
-    }
-    return this.translate.instant('students.profile.examFallback', { id: examId });
   }
 
   markInactive(): void {
@@ -292,7 +277,7 @@ export class StudentProfileComponent implements OnInit {
         details: [
           this.translate.instant('students.profile.confirmInactive.detailAdmission', { no: s.admissionNumber }),
           this.translate.instant('students.profile.confirmInactive.detailClass', {
-            class: `${s.className} ${s.sectionName || ''}`.trim(),
+            class: `${formatSchoolClassName(s.className, this.translate) || s.className} ${s.sectionName || ''}`.trim(),
           }),
         ],
         variant: 'warning',
@@ -360,5 +345,9 @@ export class StudentProfileComponent implements OnInit {
           },
         });
       });
+  }
+
+  ngOnDestroy(): void {
+    this.langSub?.unsubscribe();
   }
 }

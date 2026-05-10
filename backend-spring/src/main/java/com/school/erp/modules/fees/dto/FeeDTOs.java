@@ -1433,6 +1433,11 @@ public class FeeDTOs {
         private List<ParentFeeLineItem> lineItems;
         /** Days from today until due date; negative when overdue. Null when paid or no due date. */
         private Integer daysUntilDue;
+        /**
+         * Same value on every row for a student: copied from {@code tenant_finance_profiles.parent_online_fee_checkout_enabled}.
+         * Parent UI uses this to swap Pay Now vs pay-at-school without a second round-trip.
+         */
+        private boolean parentOnlineFeeCheckoutEnabled = true;
 
         public Long getPaymentId() { return paymentId; }
         public void setPaymentId(Long paymentId) { this.paymentId = paymentId; }
@@ -1468,6 +1473,10 @@ public class FeeDTOs {
         public void setLineItems(List<ParentFeeLineItem> lineItems) { this.lineItems = lineItems; }
         public Integer getDaysUntilDue() { return daysUntilDue; }
         public void setDaysUntilDue(Integer daysUntilDue) { this.daysUntilDue = daysUntilDue; }
+        public boolean isParentOnlineFeeCheckoutEnabled() { return parentOnlineFeeCheckoutEnabled; }
+        public void setParentOnlineFeeCheckoutEnabled(boolean parentOnlineFeeCheckoutEnabled) {
+            this.parentOnlineFeeCheckoutEnabled = parentOnlineFeeCheckoutEnabled;
+        }
     }
 
     public static class CreateCheckoutSessionRequest {
@@ -1540,7 +1549,37 @@ public class FeeDTOs {
     }
 
     public static class PaymentReceiptResponse {
+        public static class PaymentReceiptEntry {
+            private String eventType;
+            private String label;
+            private String occurredAt;
+            private BigDecimal amount;
+            private BigDecimal runningPaidAmount;
+            private BigDecimal runningDueAmount;
+            private String note;
+
+            public String getEventType() { return eventType; }
+            public void setEventType(String eventType) { this.eventType = eventType; }
+            public String getLabel() { return label; }
+            public void setLabel(String label) { this.label = label; }
+            public String getOccurredAt() { return occurredAt; }
+            public void setOccurredAt(String occurredAt) { this.occurredAt = occurredAt; }
+            public BigDecimal getAmount() { return amount; }
+            public void setAmount(BigDecimal amount) { this.amount = amount; }
+            public BigDecimal getRunningPaidAmount() { return runningPaidAmount; }
+            public void setRunningPaidAmount(BigDecimal runningPaidAmount) { this.runningPaidAmount = runningPaidAmount; }
+            public BigDecimal getRunningDueAmount() { return runningDueAmount; }
+            public void setRunningDueAmount(BigDecimal runningDueAmount) { this.runningDueAmount = runningDueAmount; }
+            public String getNote() { return note; }
+            public void setNote(String note) { this.note = note; }
+        }
+
         private String receiptNumber;
+        private String schoolName;
+        private String schoolCode;
+        private String schoolAddress;
+        private String schoolPhone;
+        private String schoolEmail;
         private Long paymentId;
         private Long studentId;
         private String studentName;
@@ -1559,9 +1598,20 @@ public class FeeDTOs {
         private BigDecimal discount;
         private BigDecimal lateFee;
         private List<ParentFeeLineItem> lineItems;
+        private List<PaymentReceiptEntry> entries;
 
         public String getReceiptNumber() { return receiptNumber; }
         public void setReceiptNumber(String receiptNumber) { this.receiptNumber = receiptNumber; }
+        public String getSchoolName() { return schoolName; }
+        public void setSchoolName(String schoolName) { this.schoolName = schoolName; }
+        public String getSchoolCode() { return schoolCode; }
+        public void setSchoolCode(String schoolCode) { this.schoolCode = schoolCode; }
+        public String getSchoolAddress() { return schoolAddress; }
+        public void setSchoolAddress(String schoolAddress) { this.schoolAddress = schoolAddress; }
+        public String getSchoolPhone() { return schoolPhone; }
+        public void setSchoolPhone(String schoolPhone) { this.schoolPhone = schoolPhone; }
+        public String getSchoolEmail() { return schoolEmail; }
+        public void setSchoolEmail(String schoolEmail) { this.schoolEmail = schoolEmail; }
         public Long getPaymentId() { return paymentId; }
         public void setPaymentId(Long paymentId) { this.paymentId = paymentId; }
         public Long getStudentId() { return studentId; }
@@ -1598,6 +1648,8 @@ public class FeeDTOs {
         public void setLateFee(BigDecimal lateFee) { this.lateFee = lateFee; }
         public List<ParentFeeLineItem> getLineItems() { return lineItems; }
         public void setLineItems(List<ParentFeeLineItem> lineItems) { this.lineItems = lineItems; }
+        public List<PaymentReceiptEntry> getEntries() { return entries; }
+        public void setEntries(List<PaymentReceiptEntry> entries) { this.entries = entries; }
     }
 
     /** Assign one fee structure to all active students in a class (optional section). */
@@ -1611,7 +1663,7 @@ public class FeeDTOs {
         @NotNull
         private LocalDate dueDate;
         private BigDecimal discount;
-        /** When true (default), students who already have this structure + due date are skipped. */
+        /** When true (default), students who already have any fee obligation in same class + due month are skipped. */
         private Boolean skipIfDuplicate = Boolean.TRUE;
         /** Optional client correlation for logs and future idempotency. */
         private String correlationId;
@@ -1742,5 +1794,85 @@ public class FeeDTOs {
         public void setCreatedSample(List<FeePaymentResponse> createdSample) {
             this.createdSample = createdSample;
         }
+    }
+
+    public static class FeeTransactionResponse {
+        private Long id;
+        private Long feePaymentId;
+        private Long attemptId;
+        private String eventType;
+        private String eventStatus;
+        private BigDecimal amount;
+        private String currency;
+        private String provider;
+        private String providerPaymentId;
+        private String referenceId;
+        private String operationKey;
+        private String note;
+        private String occurredAt;
+
+        public Long getId() { return id; }
+        public void setId(Long id) { this.id = id; }
+        public Long getFeePaymentId() { return feePaymentId; }
+        public void setFeePaymentId(Long feePaymentId) { this.feePaymentId = feePaymentId; }
+        public Long getAttemptId() { return attemptId; }
+        public void setAttemptId(Long attemptId) { this.attemptId = attemptId; }
+        public String getEventType() { return eventType; }
+        public void setEventType(String eventType) { this.eventType = eventType; }
+        public String getEventStatus() { return eventStatus; }
+        public void setEventStatus(String eventStatus) { this.eventStatus = eventStatus; }
+        public BigDecimal getAmount() { return amount; }
+        public void setAmount(BigDecimal amount) { this.amount = amount; }
+        public String getCurrency() { return currency; }
+        public void setCurrency(String currency) { this.currency = currency; }
+        public String getProvider() { return provider; }
+        public void setProvider(String provider) { this.provider = provider; }
+        public String getProviderPaymentId() { return providerPaymentId; }
+        public void setProviderPaymentId(String providerPaymentId) { this.providerPaymentId = providerPaymentId; }
+        public String getReferenceId() { return referenceId; }
+        public void setReferenceId(String referenceId) { this.referenceId = referenceId; }
+        public String getOperationKey() { return operationKey; }
+        public void setOperationKey(String operationKey) { this.operationKey = operationKey; }
+        public String getNote() { return note; }
+        public void setNote(String note) { this.note = note; }
+        public String getOccurredAt() { return occurredAt; }
+        public void setOccurredAt(String occurredAt) { this.occurredAt = occurredAt; }
+    }
+
+    public static class FeeRefundRequest {
+        @NotNull
+        private BigDecimal amount;
+        private String reason;
+        private String operationKey;
+
+        public BigDecimal getAmount() { return amount; }
+        public void setAmount(BigDecimal amount) { this.amount = amount; }
+        public String getReason() { return reason; }
+        public void setReason(String reason) { this.reason = reason; }
+        public String getOperationKey() { return operationKey; }
+        public void setOperationKey(String operationKey) { this.operationKey = operationKey; }
+    }
+
+    public static class FeeRefundDecisionRequest {
+        private String note;
+        private String operationKey;
+
+        public String getNote() { return note; }
+        public void setNote(String note) { this.note = note; }
+        public String getOperationKey() { return operationKey; }
+        public void setOperationKey(String operationKey) { this.operationKey = operationKey; }
+    }
+
+    public static class FeeRefundExecuteRequest {
+        private String providerRefundId;
+        private String note;
+        private String operationKey;
+
+        public String getProviderRefundId() { return providerRefundId; }
+        public void setProviderRefundId(String providerRefundId) { this.providerRefundId = providerRefundId; }
+        public String getNote() { return note; }
+        public void setNote(String note) { this.note = note; }
+        public String getOperationKey() { return operationKey; }
+        public void setOperationKey(String operationKey) { this.operationKey = operationKey; }
     }
 }

@@ -21,23 +21,39 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, Long> {
             SELECT a FROM AuditLog a WHERE a.tenantId = :t AND (a.isDeleted = false OR a.isDeleted IS NULL)
               AND (:action IS NULL OR a.action = :action)
               AND (:module IS NULL OR :module = '' OR a.module = :module)
+              AND (:from IS NULL OR a.createdAt >= :from)
+              AND (:toExclusive IS NULL OR a.createdAt < :toExclusive)
               AND (:q = '' OR LOWER(a.description) LIKE LOWER(CONCAT('%', :q, '%'))
                    OR LOWER(COALESCE(a.userName, '')) LIKE LOWER(CONCAT('%', :q, '%'))
-                   OR LOWER(a.module) LIKE LOWER(CONCAT('%', :q, '%')))
+                   OR LOWER(a.module) LIKE LOWER(CONCAT('%', :q, '%'))
+                   OR LOWER(COALESCE(a.oldValue, '')) LIKE LOWER(CONCAT('%', :q, '%'))
+                   OR LOWER(COALESCE(a.newValue, '')) LIKE LOWER(CONCAT('%', :q, '%')))
             ORDER BY a.createdAt DESC
             """,
             countQuery = """
             SELECT count(a) FROM AuditLog a WHERE a.tenantId = :t AND (a.isDeleted = false OR a.isDeleted IS NULL)
               AND (:action IS NULL OR a.action = :action)
               AND (:module IS NULL OR :module = '' OR a.module = :module)
+              AND (:from IS NULL OR a.createdAt >= :from)
+              AND (:toExclusive IS NULL OR a.createdAt < :toExclusive)
               AND (:q = '' OR LOWER(a.description) LIKE LOWER(CONCAT('%', :q, '%'))
                    OR LOWER(COALESCE(a.userName, '')) LIKE LOWER(CONCAT('%', :q, '%'))
-                   OR LOWER(a.module) LIKE LOWER(CONCAT('%', :q, '%')))
+                   OR LOWER(a.module) LIKE LOWER(CONCAT('%', :q, '%'))
+                   OR LOWER(COALESCE(a.oldValue, '')) LIKE LOWER(CONCAT('%', :q, '%'))
+                   OR LOWER(COALESCE(a.newValue, '')) LIKE LOWER(CONCAT('%', :q, '%')))
             """)
     Page<AuditLog> searchPage(@Param("t") String t, @Param("action") Enums.AuditAction action,
-                             @Param("module") String module, @Param("q") String q, Pageable pageable);
+                             @Param("module") String module, @Param("q") String q,
+                             @Param("from") LocalDateTime from, @Param("toExclusive") LocalDateTime toExclusive,
+                             Pageable pageable);
 
     @Modifying
     @Query("DELETE FROM AuditLog a WHERE a.tenantId = :tenantId AND a.isDeleted = true AND a.deletedAt IS NOT NULL AND a.deletedAt < :cutoff")
     int deleteSoftDeletedBeforeForTenant(@Param("tenantId") String tenantId, @Param("cutoff") LocalDateTime cutoff);
+
+    long countByCreatedAtBefore(LocalDateTime cutoff);
+
+    @Modifying
+    @Query("DELETE FROM AuditLog a WHERE a.createdAt < :cutoff")
+    int deleteByCreatedAtBefore(@Param("cutoff") LocalDateTime cutoff);
 }

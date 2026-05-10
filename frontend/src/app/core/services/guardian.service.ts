@@ -8,6 +8,8 @@ export interface CreateGuardianPayload {
   fullName: string;
   occupation?: string;
   primaryPhone?: string;
+  emailsJson?: string;
+  phonesJson?: string;
 }
 
 export interface CreateMappingPayload {
@@ -15,6 +17,26 @@ export interface CreateMappingPayload {
   relationType: 'FATHER' | 'MOTHER' | 'GUARDIAN' | 'OTHER';
   isPrimary?: boolean;
   isEmergencyContact?: boolean;
+}
+
+export interface UpdateGuardianPayload {
+  fullName?: string;
+  occupation?: string;
+  primaryPhone?: string;
+  emailsJson?: string;
+  phonesJson?: string;
+}
+
+export interface UpdateMappingPayload {
+  relationType?: 'FATHER' | 'MOTHER' | 'GUARDIAN' | 'OTHER';
+  isPrimary?: boolean;
+  isEmergencyContact?: boolean;
+}
+
+export interface GuardianLookup {
+  id: string;
+  fullName: string;
+  primaryPhone?: string;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -38,5 +60,39 @@ export class GuardianService {
       isPrimary: body.isPrimary ?? false,
       isEmergencyContact: body.isEmergencyContact ?? false
     });
+  }
+
+  updateGuardian(guardianId: number, body: UpdateGuardianPayload): Observable<void> {
+    if (runtimeConfig.useMocks) {
+      return throwError(() => new Error('Guardian API disabled in mock mode'));
+    }
+    return this.api.put<void>(`/guardians/${guardianId}`, body);
+  }
+
+  updateStudentMapping(studentId: number, mappingId: number, body: UpdateMappingPayload): Observable<void> {
+    if (runtimeConfig.useMocks) {
+      return throwError(() => new Error('Guardian API disabled in mock mode'));
+    }
+    return this.api.put<void>(`/students/${studentId}/guardian-mappings/${mappingId}`, body);
+  }
+
+  removeStudentMapping(studentId: number, mappingId: number): Observable<void> {
+    if (runtimeConfig.useMocks) {
+      return throwError(() => new Error('Guardian API disabled in mock mode'));
+    }
+    return this.api.delete<void>(`/students/${studentId}/guardian-mappings/${mappingId}`);
+  }
+
+  searchByPhone(phone: string): Observable<GuardianLookup[]> {
+    if (runtimeConfig.useMocks) {
+      return throwError(() => new Error('Guardian API disabled in mock mode'));
+    }
+    return this.api
+      .getParams<any[]>('/guardians/search', { phone })
+      .pipe(
+        map((rows: any[]) =>
+          rows.map((r: any) => ({ id: String(r.id), fullName: r.fullName ?? '', primaryPhone: r.primaryPhone ?? '' }))
+        )
+      );
   }
 }

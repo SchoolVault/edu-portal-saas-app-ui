@@ -59,6 +59,12 @@ public class PaymentWebhookIngestService {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("bad_signature");
         }
         String hash = sha256Hex(rawBody);
+        String externalEventId = parseExternalEventId(rawBody);
+        if (externalEventId != null && !externalEventId.isBlank()
+                && webhookEventRepository.findByProviderAndExternalEventId(PROVIDER, externalEventId).isPresent()) {
+            log.debug("Duplicate Razorpay webhook external_event_id={}", externalEventId);
+            return ResponseEntity.ok("duplicate");
+        }
         Optional<PaymentWebhookEvent> dup = webhookEventRepository.findByProviderAndPayloadSha256(PROVIDER, hash);
         if (dup.isPresent()) {
             log.debug("Duplicate Razorpay webhook payload hash={}", hash);
@@ -93,6 +99,15 @@ public class PaymentWebhookIngestService {
             case NO_MATCH -> "no_match";
             default -> "ok";
         });
+    }
+
+    private String parseExternalEventId(byte[] rawBody) {
+        try {
+            JsonNode root = objectMapper.readTree(rawBody);
+            return root.hasNonNull("id") ? root.get("id").asText() : null;
+        } catch (Exception ignored) {
+            return null;
+        }
     }
 
     private void parseMetadata(byte[] rawBody, PaymentWebhookEvent row) {

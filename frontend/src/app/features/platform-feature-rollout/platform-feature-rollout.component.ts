@@ -5,12 +5,13 @@ import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { Subject } from 'rxjs';
-import { debounceTime, distinctUntilChanged } from 'rxjs/operators';
-import { PLATFORM_TENANT_FEATURE_KEYS } from '../../core/constants/platform-tenant-features';
+import { debounceTime, distinctUntilChanged, take } from 'rxjs/operators';
+import { DEFAULT_PLATFORM_TENANT_FEATURES, PLATFORM_TENANT_FEATURE_KEYS } from '../../core/constants/platform-tenant-features';
 import { DEFAULT_ERP_PAGE_SIZE } from '../../core/constants/pagination.constants';
 import { PlatformSchoolSummary } from '../../core/models/models';
 import { PlatformService } from '../../core/services/platform.service';
 import { ErpPaginationComponent } from '../../shared/erp-pagination/erp-pagination.component';
+import { ConfirmDialogService } from '../../shared/confirm-dialog/confirm-dialog.service';
 
 @Component({
   selector: 'app-platform-feature-rollout',
@@ -53,6 +54,78 @@ import { ErpPaginationComponent } from '../../shared/erp-pagination/erp-paginati
       .fr-feature-row:last-of-type {
         border-bottom: none;
       }
+      .fr-effective-card {
+        border: 1px solid var(--clr-border-light, #e8eef0);
+        border-radius: 12px;
+        background: color-mix(in srgb, var(--clr-primary, #1b3a30) 4%, var(--clr-surface, #fff));
+        padding: 0.75rem;
+        margin-bottom: 0.9rem;
+      }
+      .fr-effective-title {
+        font-size: 0.9rem;
+        font-weight: 700;
+        margin-bottom: 0.25rem;
+        color: var(--clr-text-primary, #0f172a);
+      }
+      .fr-effective-lead {
+        font-size: 12px;
+        color: var(--clr-text-muted, #64748b);
+        margin-bottom: 0.55rem;
+      }
+      .fr-chip-group {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.4rem;
+      }
+      .fr-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        font-size: 11px;
+        font-weight: 700;
+        border-radius: 999px;
+        padding: 0.22rem 0.55rem;
+        border: 1px solid transparent;
+      }
+      .fr-chip--enabled {
+        background: color-mix(in srgb, var(--clr-success, #059669) 14%, var(--clr-surface, #fff));
+        color: color-mix(in srgb, var(--clr-success, #059669) 80%, #0f172a 20%);
+        border-color: color-mix(in srgb, var(--clr-success, #059669) 42%, transparent);
+      }
+      .fr-chip--disabled {
+        background: color-mix(in srgb, var(--clr-warning, #d97706) 14%, var(--clr-surface, #fff));
+        color: color-mix(in srgb, var(--clr-warning, #d97706) 78%, #0f172a 22%);
+        border-color: color-mix(in srgb, var(--clr-warning, #d97706) 44%, transparent);
+      }
+      .fr-chip-count {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 18px;
+        height: 18px;
+        border-radius: 999px;
+        font-size: 10px;
+        font-weight: 800;
+        background: color-mix(in srgb, var(--clr-surface, #fff) 86%, var(--clr-text-muted, #64748b) 14%);
+        color: var(--clr-text-muted, #64748b);
+      }
+      .fr-section-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.4rem;
+        margin: 0.55rem 0 0.35rem;
+      }
+      .fr-section-head:first-of-type {
+        margin-top: 0;
+      }
+      .fr-section-label {
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.02em;
+        text-transform: uppercase;
+        color: var(--clr-text-muted, #64748b);
+      }
       .fr-toggle {
         position: relative;
         width: 44px;
@@ -77,7 +150,7 @@ import { ErpPaginationComponent } from '../../shared/erp-pagination/erp-paginati
         left: 3px;
         width: 18px;
         height: 18px;
-        background: #fff;
+        background: var(--clr-surface);
         border-radius: 50%;
         transition: transform 0.2s;
         box-shadow: 0 1px 2px rgba(15, 23, 42, 0.12);
@@ -88,19 +161,66 @@ import { ErpPaginationComponent } from '../../shared/erp-pagination/erp-paginati
       .fr-toggle input:checked + .fr-toggle__ui .fr-toggle__knob {
         transform: translateX(20px);
       }
+      .fr-table-wrap {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        border-radius: 12px;
+      }
+      .fr-school-table {
+        min-width: 560px;
+      }
+      @media (max-width: 767.98px) {
+        .fr-feature-row {
+          align-items: flex-start;
+        }
+      }
+      @media (max-width: 575.98px) {
+        .fr-school-table thead {
+          display: none;
+        }
+        .fr-school-table {
+          min-width: 0;
+        }
+        .fr-school-table tbody tr {
+          display: block;
+          border: 1px solid var(--clr-border-light, #e8eef0);
+          border-radius: 12px;
+          padding: 0.65rem;
+          margin: 0 0 0.6rem;
+          background: var(--clr-surface, #fff);
+        }
+        .fr-school-table tbody td {
+          display: flex;
+          justify-content: space-between;
+          gap: 0.75rem;
+          border: 0;
+          padding: 0.3rem 0;
+          text-align: right;
+        }
+        .fr-school-table tbody td::before {
+          content: attr(data-label);
+          color: var(--clr-text-muted);
+          font-weight: 600;
+          text-align: left;
+        }
+        .fr-feature-row {
+          flex-direction: column;
+          gap: 0.45rem;
+        }
+      }
     `,
   ],
   template: `
     <div data-testid="platform-feature-rollout">
-      <div class="d-flex justify-content-between align-items-end mb-4 flex-wrap gap-2">
+      <div class="erp-filter-toolbar mb-4">
         <div>
           <div class="badge-erp badge-info mb-2">{{ 'featureRollout.badge' | translate }}</div>
           <h2 style="font-size: 26px; font-weight: 800;">{{ 'featureRollout.title' | translate }}</h2>
           <p class="text-muted mb-0" style="font-size: 13px;">{{ 'featureRollout.lead' | translate }}</p>
         </div>
-        <div class="d-flex gap-2 flex-wrap">
-          <a routerLink="/app/super-admin" class="btn-outline-erp btn-sm">{{ 'featureRollout.backPlatform' | translate }}</a>
-          <button type="button" class="btn-outline-erp btn-sm" (click)="reloadSchools()" [disabled]="loading">
+        <div class="erp-filter-toolbar__actions">
+          <a routerLink="/app/super-admin" class="btn-outline-erp btn-sm erp-filter-toolbar__action">{{ 'featureRollout.backPlatform' | translate }}</a>
+          <button type="button" class="btn-outline-erp btn-sm erp-filter-toolbar__action" (click)="reloadSchools()" [disabled]="loading">
             <i class="bi bi-arrow-clockwise"></i>
             {{ loading ? ('featureRollout.refreshing' | translate) : ('featureRollout.refresh' | translate) }}
           </button>
@@ -117,16 +237,23 @@ import { ErpPaginationComponent } from '../../shared/erp-pagination/erp-paginati
               </div>
             </div>
             <div class="px-3 pt-3 pb-0">
-              <label class="erp-label small mb-1">{{ 'superAdmin.portfolio.search' | translate }}</label>
-              <input
-                type="search"
-                class="erp-input"
-                [(ngModel)]="schoolSearchInput"
-                (ngModelChange)="schoolSearch$.next($event)"
-                [placeholder]="'superAdmin.portfolio.searchPh' | translate"
-              />
+              <div class="erp-filter-toolbar">
+                <div class="erp-filter-toolbar__search">
+                  <div>
+                    <label class="erp-label small mb-1">{{ 'superAdmin.portfolio.search' | translate }}</label>
+                    <input
+                      type="search"
+                      class="erp-input"
+                      [(ngModel)]="schoolSearchInput"
+                      (ngModelChange)="schoolSearch$.next($event)"
+                      [placeholder]="'superAdmin.portfolio.searchPh' | translate"
+                    />
+                  </div>
+                </div>
+              </div>
             </div>
-            <table class="erp-table">
+            <div class="fr-table-wrap">
+            <table class="erp-table fr-school-table">
               <thead>
                 <tr>
                   <th>{{ 'superAdmin.portfolio.thSchool' | translate }}</th>
@@ -143,13 +270,13 @@ import { ErpPaginationComponent } from '../../shared/erp-pagination/erp-paginati
                   style="cursor: pointer;"
                   [style.background]="selectedSchool?.tenantId === school.tenantId ? 'var(--clr-surface-alt)' : ''"
                 >
-                  <td>
+                  <td [attr.data-label]="'superAdmin.portfolio.thSchool' | translate">
                     <div style="font-weight: 700;">{{ school.schoolName }}</div>
                     <div style="font-size: 12px; color: var(--clr-text-muted);">
                       {{ school.schoolCode }} · {{ school.tenantId }}
                     </div>
                   </td>
-                  <td>
+                  <td [attr.data-label]="'superAdmin.portfolio.thStatus' | translate">
                     <span class="badge-erp" [ngClass]="school.active ? 'badge-success' : 'badge-warning'">
                       {{ school.active ? ('superAdmin.status.active' | translate) : ('superAdmin.status.attention' | translate) }}
                     </span>
@@ -157,6 +284,7 @@ import { ErpPaginationComponent } from '../../shared/erp-pagination/erp-paginati
                 </tr>
               </tbody>
             </table>
+            </div>
             <app-erp-pagination
               *ngIf="schoolsTotal > 0"
               [totalElements]="schoolsTotal"
@@ -189,6 +317,35 @@ import { ErpPaginationComponent } from '../../shared/erp-pagination/erp-paginati
                     <span class="d-block mt-1"><i class="bi bi-hdd-network me-1"></i>{{ sch.tenantId }}</span>
                   </div>
                 </div>
+                <div class="fr-effective-card">
+                  <div class="fr-effective-title">{{ 'featureRollout.effectiveTitle' | translate }}</div>
+                  <div class="fr-effective-lead">{{ 'featureRollout.effectiveLead' | translate }}</div>
+
+                  <div class="fr-section-head">
+                    <span class="fr-section-label">{{ 'featureRollout.enabledModules' | translate }}</span>
+                    <span class="fr-chip-count">{{ enabledModuleKeys.length }}</span>
+                  </div>
+                  <div class="fr-chip-group">
+                    <span class="fr-chip fr-chip--enabled" *ngFor="let key of enabledModuleKeys">
+                      <i class="bi bi-check-circle-fill"></i>
+                      {{ ('superAdmin.features.modules.' + key + '.name') | translate }}
+                    </span>
+                  </div>
+
+                  <div class="fr-section-head mt-2">
+                    <span class="fr-section-label">{{ 'featureRollout.disabledModules' | translate }}</span>
+                    <span class="fr-chip-count">{{ disabledModuleKeys.length }}</span>
+                  </div>
+                  <div class="fr-chip-group">
+                    <span class="fr-chip fr-chip--disabled" *ngFor="let key of disabledModuleKeys">
+                      <i class="bi bi-pause-circle-fill"></i>
+                      {{ ('superAdmin.features.modules.' + key + '.name') | translate }}
+                    </span>
+                    <span *ngIf="!disabledModuleKeys.length" class="text-muted small">
+                      {{ 'featureRollout.noneDisabled' | translate }}
+                    </span>
+                  </div>
+                </div>
                 <div class="fr-feature-rows">
                   <div *ngFor="let key of pagedModuleKeys" class="fr-feature-row">
                     <div>
@@ -213,9 +370,14 @@ import { ErpPaginationComponent } from '../../shared/erp-pagination/erp-paginati
                   (pageIndexChange)="onFeaturesPageIndexChange($event)"
                 />
                 <div class="d-flex flex-wrap gap-2 align-items-center mt-3 pt-2" style="border-top: 1px solid var(--clr-border-light);">
-                  <button type="button" class="btn-primary-erp" (click)="saveSchoolFeatures()" [disabled]="schoolFeatureSaving">
+                  <button
+                    type="button"
+                    class="btn-primary-erp"
+                    (click)="saveSchoolFeatures()"
+                    [disabled]="schoolFeatureSaving || !hasUnsavedFeatureChanges">
                     {{ schoolFeatureSaving ? ('superAdmin.features.saving' | translate) : ('superAdmin.features.save' | translate) }}
                   </button>
+                  <span *ngIf="hasUnsavedFeatureChanges" class="badge-erp badge-warning">{{ 'featureRollout.unsavedChanges' | translate }}</span>
                   <span *ngIf="schoolFeatureMsg" class="text-success small">{{ schoolFeatureMsg }}</span>
                   <span *ngIf="schoolFeatureErr" class="text-danger small">{{ schoolFeatureErr }}</span>
                 </div>
@@ -241,6 +403,7 @@ export class PlatformFeatureRolloutComponent implements OnInit {
   readonly featuresPageSize = 6;
   featuresPageIndex = 0;
   schoolFeatureDraft: Record<string, boolean> = {};
+  loadedSchoolFeatures: Record<string, boolean> = {};
   schoolFeatureSaving = false;
   schoolFeatureMsg = '';
   schoolFeatureErr = '';
@@ -259,6 +422,23 @@ export class PlatformFeatureRolloutComponent implements OnInit {
     return this.platformModuleKeys.slice(start, start + this.featuresPageSize);
   }
 
+  get enabledModuleKeys(): string[] {
+    return this.platformModuleKeys.filter(k => this.schoolFeatureDraft[k] !== false);
+  }
+
+  get disabledModuleKeys(): string[] {
+    return this.platformModuleKeys.filter(k => this.schoolFeatureDraft[k] === false);
+  }
+
+  get hasUnsavedFeatureChanges(): boolean {
+    for (const k of this.platformModuleKeys) {
+      if (!!this.schoolFeatureDraft[k] !== !!this.loadedSchoolFeatures[k]) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   onFeaturesPageIndexChange(idx: number): void {
     this.featuresPageIndex = Math.max(0, idx);
     this.cdr.markForCheck();
@@ -269,7 +449,8 @@ export class PlatformFeatureRolloutComponent implements OnInit {
     private translate: TranslateService,
     private cdr: ChangeDetectorRef,
     private route: ActivatedRoute,
-    private router: Router
+    private router: Router,
+    private confirmDialog: ConfirmDialogService
   ) {}
 
   ngOnInit(): void {
@@ -367,11 +548,13 @@ export class PlatformFeatureRolloutComponent implements OnInit {
 
   setSchoolFeature(key: string, enabled: boolean): void {
     this.schoolFeatureDraft = { ...this.schoolFeatureDraft, [key]: enabled };
+    this.schoolFeatureMsg = '';
   }
 
   private loadSchoolFeatures(): void {
     if (!this.selectedSchool) {
       this.schoolFeatureDraft = {};
+      this.loadedSchoolFeatures = {};
       return;
     }
     this.platformService.getSchoolTenantFeatures(this.selectedSchool.tenantId).subscribe({
@@ -379,10 +562,11 @@ export class PlatformFeatureRolloutComponent implements OnInit {
         const next: Record<string, boolean> = { ...(f || {}) };
         for (const k of this.platformModuleKeys) {
           if (next[k] === undefined) {
-            next[k] = true;
+            next[k] = DEFAULT_PLATFORM_TENANT_FEATURES[k as keyof typeof DEFAULT_PLATFORM_TENANT_FEATURES];
           }
         }
         this.schoolFeatureDraft = next;
+        this.loadedSchoolFeatures = { ...next };
         this.cdr.markForCheck();
       },
       error: () => {
@@ -393,6 +577,48 @@ export class PlatformFeatureRolloutComponent implements OnInit {
   }
 
   saveSchoolFeatures(): void {
+    if (!this.selectedSchool || !this.hasUnsavedFeatureChanges) {
+      return;
+    }
+    const details = this.buildFeatureSaveConfirmDetails();
+    this.confirmDialog
+      .confirm({
+        title: this.translate.instant('featureRollout.saveConfirmTitle'),
+        message: this.translate.instant('featureRollout.saveConfirmMessage'),
+        details,
+        confirmLabel: this.translate.instant('featureRollout.saveConfirmSave'),
+        cancelLabel: this.translate.instant('featureRollout.saveConfirmCancel'),
+        variant: 'primary',
+      })
+      .pipe(take(1))
+      .subscribe(confirmed => {
+        if (confirmed) {
+          this.executeSaveSchoolFeatures();
+        }
+      });
+  }
+
+  private buildFeatureSaveConfirmDetails(): string[] {
+    const school = this.selectedSchool!;
+    const schoolLine = this.translate.instant('featureRollout.saveConfirmSchool', {
+      name: school.schoolName,
+      code: school.schoolCode,
+    });
+    const lines: string[] = [schoolLine];
+    for (const k of this.platformModuleKeys) {
+      const before = !!this.loadedSchoolFeatures[k];
+      const after = !!this.schoolFeatureDraft[k];
+      if (before !== after) {
+        const modName = this.translate.instant('superAdmin.features.modules.' + k + '.name');
+        const from = before ? this.translate.instant('featureRollout.stateOn') : this.translate.instant('featureRollout.stateOff');
+        const to = after ? this.translate.instant('featureRollout.stateOn') : this.translate.instant('featureRollout.stateOff');
+        lines.push(this.translate.instant('featureRollout.saveConfirmLine', { module: modName, from, to }));
+      }
+    }
+    return lines;
+  }
+
+  private executeSaveSchoolFeatures(): void {
     if (!this.selectedSchool) {
       return;
     }
@@ -406,6 +632,7 @@ export class PlatformFeatureRolloutComponent implements OnInit {
     this.platformService.patchSchoolTenantFeatures(this.selectedSchool.tenantId, patch).subscribe({
       next: () => {
         this.schoolFeatureSaving = false;
+        this.loadedSchoolFeatures = { ...this.schoolFeatureDraft };
         this.schoolFeatureMsg = this.translate.instant('superAdmin.features.saved');
         this.cdr.markForCheck();
       },

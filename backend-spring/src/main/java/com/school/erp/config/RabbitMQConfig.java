@@ -1,5 +1,6 @@
 package com.school.erp.config;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.amqp.core.*;
 import org.springframework.amqp.rabbit.annotation.EnableRabbit;
 import org.springframework.amqp.rabbit.connection.ConnectionFactory;
@@ -52,12 +53,14 @@ public class RabbitMQConfig {
     public Binding outboundJobsBinding() { return BindingBuilder.bind(outboundJobsQueue()).to(exchange()).with("event.outbound.#"); }
 
     @Bean
-    public Jackson2JsonMessageConverter messageConverter() { return new Jackson2JsonMessageConverter(); }
+    public Jackson2JsonMessageConverter rabbitMessageConverter(ObjectMapper objectMapper) {
+        return new Jackson2JsonMessageConverter(objectMapper);
+    }
 
     @Bean
-    public RabbitTemplate rabbitTemplate(ConnectionFactory factory) {
+    public RabbitTemplate rabbitTemplate(ConnectionFactory factory, Jackson2JsonMessageConverter rabbitMessageConverter) {
         RabbitTemplate template = new RabbitTemplate(factory);
-        template.setMessageConverter(messageConverter());
+        template.setMessageConverter(rabbitMessageConverter);
         return template;
     }
 }

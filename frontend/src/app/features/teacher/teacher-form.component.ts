@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, ActivatedRoute } from '@angular/router';
 import { Subscription } from 'rxjs';
+import { switchMap } from 'rxjs/operators';
 import { TeacherService } from '../../core/services/teacher.service';
 import { AcademicService } from '../../core/services/academic.service';
 import { AuthService } from '../../core/services/auth.service';
@@ -13,6 +14,9 @@ import { ErpDatePickerComponent } from '../../shared/erp-date-picker/erp-date-pi
 import { SubjectCatalogChipsComponent } from '../../shared/subject-catalog-chips/subject-catalog-chips.component';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directives';
+import { ConfirmDialogService } from '../../shared/confirm-dialog/confirm-dialog.service';
+import { normalizeIndianMobileTenDigits } from '../../core/utils/indian-mobile';
+import { isValidIndiaMobileTen } from '../../core/validation/phone.validation';
 @Component({
   selector: 'app-teacher-form',
   standalone: true,
@@ -50,6 +54,19 @@ import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directiv
         padding-bottom: 8px;
         border-bottom: 1px solid var(--clr-border-light);
       }
+      .teacher-promote-catalog {
+        display: flex;
+        gap: 12px;
+        align-items: flex-start;
+        padding: 12px 14px;
+        border-radius: var(--radius-lg);
+        border: 1px solid var(--clr-border-light);
+        background: color-mix(in srgb, var(--clr-primary) 7%, var(--clr-surface));
+      }
+      .teacher-promote-catalog .form-check-input {
+        flex-shrink: 0;
+        margin-top: 0.35rem;
+      }
     `,
   ],
   template: `
@@ -64,7 +81,7 @@ import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directiv
             <div class="col-md-4"><div class="erp-form-group"><label class="erp-label">{{ 'teachers.form.firstName' | translate }}</label><input type="text" class="erp-input" [(ngModel)]="teacher.firstName" name="firstName" required></div></div>
             <div class="col-md-4"><div class="erp-form-group"><label class="erp-label">{{ 'teachers.form.lastName' | translate }}</label><input type="text" class="erp-input" [(ngModel)]="teacher.lastName" name="lastName" required></div></div>
             <div class="col-md-4"><div class="erp-form-group"><label class="erp-label">{{ 'teachers.form.email' | translate }}</label><input type="email" class="erp-input" [(ngModel)]="teacher.email" name="email" required></div></div>
-            <div class="col-md-4"><div class="erp-form-group"><label class="erp-label">{{ 'teachers.form.phone' | translate }}</label><input type="text" class="erp-input" [(ngModel)]="teacher.phone" name="phone"></div></div>
+            <div class="col-md-4"><div class="erp-form-group"><label class="erp-label">{{ 'teachers.form.phone' | translate }}</label><input type="text" class="erp-input" [(ngModel)]="teacher.phone" name="phone" required inputmode="numeric" maxlength="10" pattern="[0-9]{10}"></div></div>
             <div class="col-md-4"><div class="erp-form-group"><label class="erp-label">{{ 'teachers.form.qualification' | translate }}</label><input type="text" class="erp-input" [(ngModel)]="teacher.qualification" name="qualification"></div></div>
             <div class="col-md-4"><div class="erp-form-group"><label class="erp-label">{{ 'teachers.form.specialization' | translate }}</label><input type="text" class="erp-input" [(ngModel)]="teacher.specialization" name="specialization"></div></div>
             <div class="col-md-4"><div class="erp-form-group"><label class="erp-label">{{ 'teachers.form.joinDate' | translate }}</label><app-erp-date-picker [(ngModel)]="teacher.joinDate" name="joinDate" placeholderI18nKey="teachers.form.joinDatePh" /></div></div>
@@ -90,7 +107,22 @@ import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directiv
               <div class="erp-form-group">
                 <label class="erp-label">{{ 'teachers.form.additionalSubjects' | translate }}</label>
                 <input type="text" class="erp-input" [(ngModel)]="additionalSubjectsRaw" name="additionalSubjects" erpI18nPh="teachers.form.additionalSubjectsPh">
-                <div class="small text-muted mt-1">{{ 'teachers.form.additionalSubjectsHelp' | translate }}</div>
+                <div *ngIf="(additionalSubjectsRaw || '').trim()" class="teacher-promote-catalog mt-2">
+                  <input
+                    type="checkbox"
+                    class="form-check-input"
+                    id="promoteCatalog"
+                    [(ngModel)]="promoteAdditionalToCatalog"
+                    name="promoteCatalog"
+                  />
+                  <div>
+                    <label class="form-check-label fw-semibold d-flex align-items-center gap-2 mb-1" for="promoteCatalog">
+                      <i class="bi bi-journal-check text-success" aria-hidden="true"></i>
+                      <span>{{ 'teachers.form.promoteToCatalog' | translate }}</span>
+                    </label>
+                    <div class="small text-muted">{{ 'teachers.form.promoteToCatalogHint' | translate }}</div>
+                  </div>
+                </div>
               </div>
             </div>
             <div class="col-12" *ngIf="canSetTeacherDirectoryPhoto()">
@@ -114,6 +146,7 @@ import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directiv
               {{ saving ? ('teachers.form.saving' | translate) : (isEdit ? ('teachers.form.saveUpdate' | translate) : ('teachers.form.saveAdd' | translate)) }}
             </button>
           </div>
+          <p class="small text-danger mt-2 mb-0" *ngIf="saveError">{{ saveError }}</p>
         </form>
       </div>
     </div>
@@ -126,9 +159,14 @@ export class TeacherFormComponent implements OnInit, OnDestroy {
   subjectGroupEntries: [string, SubjectCatalogItem[]][] = [];
   catalogLoading = true;
   additionalSubjectsRaw = '';
+  /** When set, comma-separated additional subjects are persisted to the school catalog before save. */
+  promoteAdditionalToCatalog = false;
   isEdit = false;
   saving = false;
+  saveError = '';
   teacherDirectoryPreview: string | null = null;
+  private initialTeacherEmail = '';
+  private initialTeacherPhone = '';
   private readonly categoryOrder = ['STEM', 'Languages', 'Social', 'Arts', 'Other'];
   private langSub?: Subscription;
 
@@ -139,7 +177,8 @@ export class TeacherFormComponent implements OnInit, OnDestroy {
     private router: Router,
     private route: ActivatedRoute,
     private translate: TranslateService,
-    private cdr: ChangeDetectorRef
+    private cdr: ChangeDetectorRef,
+    private confirmDialog: ConfirmDialogService
   ) {}
 
   ngOnInit(): void {
@@ -254,36 +293,102 @@ export class TeacherFormComponent implements OnInit, OnDestroy {
   private applyTeacherFromApi(t: Teacher): void {
     const catNames = new Set(this.subjectCatalog.map(s => s.name));
     const all = [...(t.subjects ?? [])];
-    this.teacher = { ...t, subjects: [...all.filter(s => catNames.has(s))] };
+    const digitsPhone = this.normalizeTenDigitPhone(t.phone);
+    this.teacher = { ...t, subjects: [...all.filter(s => catNames.has(s))], phone: digitsPhone };
     this.additionalSubjectsRaw = all.filter(s => !catNames.has(s)).join(', ');
+    this.initialTeacherEmail = (t.email ?? '').trim().toLowerCase();
+    this.initialTeacherPhone = digitsPhone;
     this.refreshTeacherDirectoryPreview();
   }
 
-  private mergeSubjectsForSave(): string[] {
-    const extra = this.additionalSubjectsRaw
+  private parseAdditionalSubjects(): string[] {
+    return this.additionalSubjectsRaw
       .split(',')
       .map(s => s.trim())
       .filter(Boolean);
+  }
+
+  private mergeSubjectsForSave(): string[] {
+    const extra = this.parseAdditionalSubjects();
     const fromCatalog = [...(this.teacher.subjects ?? [])];
     return [...new Set([...fromCatalog, ...extra])];
   }
 
   onSubmit(): void {
-    if (!this.teacher.firstName || !this.teacher.lastName || !this.teacher.email) return;
-    this.saving = true;
-    const payload = { ...this.teacher, subjects: this.mergeSubjectsForSave() };
-    if (this.isEdit && payload.id) {
-      this.teacherService.updateTeacher(payload.id, payload).subscribe({
-        next: () => { this.saving = false; this.router.navigate(['/app/teachers']); },
-        error: () => { this.saving = false; }
-      });
-    } else {
-      this.teacherService.addTeacher(payload as Omit<Teacher, 'id'>).subscribe({
-        next: () => { this.saving = false; this.router.navigate(['/app/teachers']); },
-        error: () => { this.saving = false; }
-      });
+    this.teacher.phone = this.normalizeTenDigitPhone(this.teacher.phone ?? '');
+    if (!this.teacher.firstName || !this.teacher.lastName || !this.teacher.email || !this.teacher.phone?.trim()) return;
+    if (!this.isValidTenDigitPhone(this.teacher.phone)) {
+      this.saveError = this.translate.instant('teachers.form.phoneInvalidTenDigits');
+      return;
     }
+    this.saving = true;
+    this.saveError = '';
+    const payload = { ...this.teacher, subjects: this.mergeSubjectsForSave() };
+    const extras = this.parseAdditionalSubjects();
+    const save$ =
+      this.isEdit && payload.id
+        ? this.teacherService.updateTeacher(payload.id, payload)
+        : this.teacherService.addTeacher(payload as Omit<Teacher, 'id'>);
+    const pipeline$ =
+      this.promoteAdditionalToCatalog && extras.length
+        ? this.academicService.registerSubjectCatalogNames(extras).pipe(switchMap(() => save$))
+        : save$;
+
+    pipeline$.subscribe({
+      next: () => {
+        this.saving = false;
+        const cu = this.auth.getCurrentUser();
+        if (cu?.role === 'teacher' && this.isEdit && payload.id) {
+          const em = (cu.email ?? '').trim().toLowerCase();
+          const pm = (cu.phone ?? '').trim();
+          const samePortalAccount =
+            (!!em && em === (payload.email ?? '').trim().toLowerCase()) ||
+            (!!pm && pm === (payload.phone ?? '').trim());
+          if (samePortalAccount) {
+            this.auth.fetchProfileSummary().subscribe({ error: () => void 0 });
+          }
+        }
+        if (this.isEdit && payload.id) {
+          const emailChanged = (payload.email ?? '').trim().toLowerCase() !== this.initialTeacherEmail;
+          const phoneChanged = (payload.phone ?? '').trim() !== this.initialTeacherPhone;
+          if (emailChanged || phoneChanged) {
+            this.showNextLoginCredentialDialog(payload.email ?? '', payload.phone ?? '');
+          }
+        }
+        this.router.navigate(['/app/teachers']);
+      },
+      error: (err) => {
+        this.saving = false;
+        this.saveError = err?.message || this.translate.instant('teachers.form.saveError');
+      },
+    });
+  }
+
+  private showNextLoginCredentialDialog(email: string, phone: string): void {
+    const details: string[] = [];
+    if (email.trim()) {
+      details.push(`${this.translate.instant('settings.labelEmail')}: ${email}`);
+    }
+    if (phone.trim()) {
+      details.push(`${this.translate.instant('settings.profileContactPhoneLabel')}: ${phone}`);
+    }
+    this.confirmDialog.confirm({
+      title: this.translate.instant('settings.credentialsUpdatedDialogTitle'),
+      message: this.translate.instant('settings.credentialsUpdatedDialogBody'),
+      details,
+      variant: 'warning',
+      confirmLabel: this.translate.instant('settings.dialogOk'),
+      cancelLabel: this.translate.instant('settings.dialogClose'),
+    }).subscribe();
   }
 
   goBack(): void { this.router.navigate(['/app/teachers']); }
+
+  private normalizeTenDigitPhone(value: string | null | undefined): string {
+    return normalizeIndianMobileTenDigits(value);
+  }
+
+  private isValidTenDigitPhone(value: string | null | undefined): boolean {
+    return isValidIndiaMobileTen(value);
+  }
 }

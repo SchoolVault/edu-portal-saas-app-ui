@@ -8,7 +8,9 @@ import com.school.erp.modules.attendance.entity.AttendanceRecord;
 import com.school.erp.modules.attendance.repository.AttendanceRepository;
 import com.school.erp.modules.guardian.service.GuardianService;
 import com.school.erp.modules.academic.entity.SchoolClass;
+import com.school.erp.modules.academic.entity.Section;
 import com.school.erp.modules.academic.repository.SchoolClassRepository;
+import com.school.erp.modules.academic.repository.SectionRepository;
 import com.school.erp.modules.auth.repository.UserRepository;
 import com.school.erp.common.enums.Enums;
 import com.school.erp.modules.student.entity.Student;
@@ -26,12 +28,17 @@ import com.school.erp.modules.fees.entity.FeePayment;
 import com.school.erp.modules.fees.dto.FeeDTOs;
 import com.school.erp.modules.fees.service.FeeService;
 import com.school.erp.modules.parent.service.ParentPortalReadFacade;
+import com.school.erp.modules.settings.repository.TenantConfigRepository;
 import com.school.erp.tenant.TenantContext;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.util.HashMap;
 import java.util.List;
@@ -50,11 +57,13 @@ public class ParentController {
     private final AttendanceRepository attendanceRepo;
     private final FeeService feeService;
     private final SchoolClassRepository schoolClassRepository;
+    private final SectionRepository sectionRepository;
     private final TeacherRepository teacherRepository;
     private final UserRepository userRepository;
     private final TimetableService timetableService;
     private final ParentPortalReadFacade parentPortalReadFacade;
     private final StudentEnrolmentDisplayService studentEnrolmentDisplayService;
+    private final TenantConfigRepository tenantConfigRepository;
 
     @GetMapping("/exams")
     @Operation(summary = "Exams for your children only",
@@ -85,6 +94,7 @@ public class ParentController {
                 .collect(Collectors.toList());
         studentEnrolmentDisplayService.enrichClassSectionDisplay(tenantId, children);
         enrichHomeroomFromSchoolClass(tenantId, children);
+        enrichSchoolEmailForParentPortal(tenantId, children);
         return ResponseEntity.ok(ApiResponse.ok(children));
     }
 
@@ -141,21 +151,39 @@ public class ParentController {
 
     @PostMapping("/payments/checkout-session")
     @Operation(summary = "Create a parent checkout session")
-    public ResponseEntity<ApiResponse<FeeDTOs.CheckoutSessionResponse>> createCheckoutSession(@RequestBody FeeDTOs.CreateCheckoutSessionRequest request) {
-        return ResponseEntity.ok(ApiResponse.ok(feeService.createCheckoutSession(request)));
+    public ResponseEntity<ApiResponse<FeeDTOs.CheckoutSessionResponse>> createCheckoutSession(
+            @RequestBody FeeDTOs.CreateCheckoutSessionRequest request,
+            @RequestHeader(value = "X-Operation-Key", required = false) String operationKey,
+            @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey) {
+        return ResponseEntity.ok(ApiResponse.ok(feeService.createCheckoutSession(request, operationKey, idempotencyKey)));
     }
 
     @PostMapping("/payments/checkout-session/{attemptId}/confirm")
     @Operation(summary = "Confirm a parent checkout session")
     public ResponseEntity<ApiResponse<FeeDTOs.PaymentReceiptResponse>> confirmCheckout(@PathVariable Long attemptId,
-                                                                                       @RequestBody FeeDTOs.ConfirmCheckoutRequest request) {
-        return ResponseEntity.ok(ApiResponse.ok(feeService.confirmCheckout(attemptId, request), "Payment confirmed"));
+                                                                                       @RequestBody FeeDTOs.ConfirmCheckoutRequest request,
+                                                                                       @RequestHeader(value = "X-Operation-Key", required = false) String operationKey,
+                                                                                       @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey) {
+        return ResponseEntity.ok(ApiResponse.ok(feeService.confirmCheckout(attemptId, request, operationKey, idempotencyKey), "Payment confirmed"));
     }
 
     @GetMapping("/payments/receipts/{receiptNumber}")
     @Operation(summary = "Get receipt by receipt number")
     public ResponseEntity<ApiResponse<FeeDTOs.PaymentReceiptResponse>> getReceipt(@PathVariable String receiptNumber) {
         return ResponseEntity.ok(ApiResponse.ok(feeService.getReceipt(receiptNumber)));
+    }
+
+    @GetMapping(value = "/payments/receipts/{receiptNumber}/pdf", produces = MediaType.APPLICATION_PDF_VALUE)
+    @Operation(summary = "Download fee receipt as PDF")
+    public ResponseEntity<byte[]> downloadFeeReceiptPdf(@PathVariable String receiptNumber) {
+        byte[] data = feeService.getParentFeeReceiptPdf(receiptNumber);
+        String safeName = receiptNumber.replaceAll("[^a-zA-Z0-9._-]", "_");
+        ContentDisposition disposition = ContentDisposition.attachment()
+                .filename("fee-receipt-" + safeName + ".pdf", StandardCharsets.UTF_8)
+                .build();
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, disposition.toString())
+                .body(data);
     }
 
     @GetMapping("/children/{studentId}/receipts")
@@ -235,6 +263,49 @@ public class ParentController {
     /**
      * Fills {@code homeroomTeacherUserId} / {@code homeroomTeacherName} from the student's class row so the JSON matches parent-portal mocks.
      */
+    /**
+     * Populates {@code schoolEmail} for parent settings: uses stored student email when set; otherwise derives
+     * {@code {admission}@{domain}} from the tenant’s configured school contact email domain.
+     */
+    private void enrichSchoolEmailForParentPortal(String tenantId, List<Student> children) {
+        if (children == null || children.isEmpty()) {
+            return;
+        }
+        String domain = tenantConfigRepository.findByTenantId(tenantId)
+                .map(c -> extractEmailDomain(c.getEmail()))
+                .orElse(null);
+        for (Student s : children) {
+            String stored = s.getEmail() != null ? s.getEmail().trim() : "";
+            if (!stored.isEmpty()) {
+                s.setSchoolEmail(stored);
+            } else if (domain != null && !domain.isBlank() && s.getAdmissionNumber() != null) {
+                String local = admissionToEmailLocalPart(s.getAdmissionNumber());
+                if (!local.isEmpty()) {
+                    s.setSchoolEmail(local + "@" + domain.toLowerCase());
+                }
+            }
+        }
+    }
+
+    private static String extractEmailDomain(String email) {
+        if (email == null) {
+            return null;
+        }
+        String t = email.trim();
+        int at = t.lastIndexOf('@');
+        if (at <= 0 || at >= t.length() - 1) {
+            return null;
+        }
+        return t.substring(at + 1).trim();
+    }
+
+    private static String admissionToEmailLocalPart(String admissionNumber) {
+        if (admissionNumber == null) {
+            return "";
+        }
+        return admissionNumber.trim().toLowerCase().replaceAll("[^a-z0-9._-]+", "");
+    }
+
     private void enrichHomeroomFromSchoolClass(String tenantId, List<Student> children) {
         if (children == null || children.isEmpty()) {
             return;
@@ -248,15 +319,34 @@ public class ParentController {
             SchoolClass sc = byClassId.computeIfAbsent(
                     classId,
                     id -> schoolClassRepository.findByIdAndTenantIdAndIsDeletedFalse(id, tenantId).orElse(null));
-            if (sc != null && sc.getClassTeacherId() != null) {
-                teacherRepository.findByIdAndTenantIdAndIsDeletedFalse(sc.getClassTeacherId(), tenantId).ifPresent(t -> {
+            if (sc == null) {
+                continue;
+            }
+            Long homeroomTeacherPk = sc.getClassTeacherId();
+            if (s.getSectionId() != null) {
+                Section sec = sectionRepository.findByIdAndTenantIdAndIsDeletedFalse(s.getSectionId(), tenantId).orElse(null);
+                if (sec != null && sec.getClassTeacherId() != null) {
+                    homeroomTeacherPk = sec.getClassTeacherId();
+                }
+            }
+            if (homeroomTeacherPk != null) {
+                teacherRepository.findByIdAndTenantIdAndIsDeletedFalse(homeroomTeacherPk, tenantId).ifPresent(t -> {
                     s.setHomeroomTeacherUserId(t.getUserId());
                     if (t.getUserId() != null) {
                         userRepository.findByIdAndTenantIdAndIsDeletedFalse(t.getUserId(), tenantId)
                                 .ifPresent(u -> s.setHomeroomTeacherName(u.getName()));
                     }
                     if (s.getHomeroomTeacherName() == null || s.getHomeroomTeacherName().isBlank()) {
-                        s.setHomeroomTeacherName(sc.getClassTeacherName());
+                        if (s.getSectionId() != null) {
+                            sectionRepository.findByIdAndTenantIdAndIsDeletedFalse(s.getSectionId(), tenantId).ifPresent(sec -> {
+                                if (sec.getClassTeacherName() != null && !sec.getClassTeacherName().isBlank()) {
+                                    s.setHomeroomTeacherName(sec.getClassTeacherName());
+                                }
+                            });
+                        }
+                        if (s.getHomeroomTeacherName() == null || s.getHomeroomTeacherName().isBlank()) {
+                            s.setHomeroomTeacherName(sc.getClassTeacherName());
+                        }
                     }
                 });
             }
@@ -283,11 +373,13 @@ public class ParentController {
             final AttendanceRepository attendanceRepo,
             final FeeService feeService,
             final SchoolClassRepository schoolClassRepository,
+            final SectionRepository sectionRepository,
             final TeacherRepository teacherRepository,
             final UserRepository userRepository,
             final TimetableService timetableService,
             final ParentPortalReadFacade parentPortalReadFacade,
-            final StudentEnrolmentDisplayService studentEnrolmentDisplayService) {
+            final StudentEnrolmentDisplayService studentEnrolmentDisplayService,
+            final TenantConfigRepository tenantConfigRepository) {
         this.studentRepo = studentRepo;
         this.guardianService = guardianService;
         this.examService = examService;
@@ -295,10 +387,12 @@ public class ParentController {
         this.attendanceRepo = attendanceRepo;
         this.feeService = feeService;
         this.schoolClassRepository = schoolClassRepository;
+        this.sectionRepository = sectionRepository;
         this.teacherRepository = teacherRepository;
         this.userRepository = userRepository;
         this.timetableService = timetableService;
         this.parentPortalReadFacade = parentPortalReadFacade;
         this.studentEnrolmentDisplayService = studentEnrolmentDisplayService;
+        this.tenantConfigRepository = tenantConfigRepository;
     }
 }

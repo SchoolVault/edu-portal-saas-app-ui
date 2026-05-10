@@ -13,6 +13,7 @@ import com.school.erp.modules.student.entity.Student;
 import com.school.erp.modules.student.repository.StudentRepository;
 import com.school.erp.modules.teacher.entity.Teacher;
 import com.school.erp.modules.teacher.repository.TeacherRepository;
+import com.school.erp.modules.reports.service.DashboardSnapshotInvalidationService;
 import com.school.erp.cache.CacheService;
 import com.school.erp.cache.CacheService.CacheRegion;
 import com.school.erp.config.CacheConfig;
@@ -26,7 +27,10 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -54,7 +58,9 @@ public class AcademicService {
     private final TeacherAssignmentService teacherAssignmentService;
     private final AcademicSubjectRepository academicSubjectRepo;
     private final TeacherRepository teacherRepository;
+    private final CurrentAcademicYearResolver currentAcademicYearResolver;
     private final ObjectProvider<CacheService> cacheService;
+    private final DashboardSnapshotInvalidationService dashboardSnapshotInvalidationService;
 
     // ========== SUBJECT CATALOG ==========
     @Cacheable(cacheNames = CacheConfig.ACADEMIC_CATALOG, keyGenerator = "tenantMethodNameKeyGenerator", unless = "#result == null")
@@ -73,6 +79,296 @@ public class AcademicService {
         return rows.stream()
                 .map(s -> new AcademicDTOs.SubjectCatalogItem(s.getId(), s.getCode(), s.getName(), s.getCategory()))
                 .collect(Collectors.toList());
+    }
+
+    /**
+     * Persists new subject names into the tenant catalog (idempotent per name, case-insensitive).
+     * If the tenant has no catalog rows yet, platform default subjects are materialized first so the school
+     * does not “lose” the standard list when adding the first custom entry.
+     */
+    @Transactional
+    public AcademicDTOs.SubjectCatalogRegisterResult registerSubjectCatalogNames(List<String> rawNames) {
+        String tenantId = TenantContext.getTenantId();
+        if (rawNames == null || rawNames.isEmpty()) {
+            return new AcademicDTOs.SubjectCatalogRegisterResult(0, 0);
+        }
+        LinkedHashSet<String> distinct = new LinkedHashSet<>();
+        for (String raw : rawNames) {
+            if (raw == null) {
+                continue;
+            }
+            String t = raw.trim();
+            if (t.isEmpty()) {
+                continue;
+            }
+            if (t.length() > 120) {
+                throw new BusinessException("Subject name too long (max 120 characters).");
+            }
+            distinct.add(t);
+        }
+        if (distinct.isEmpty()) {
+            return new AcademicDTOs.SubjectCatalogRegisterResult(0, 0);
+        }
+        if (distinct.size() > 40) {
+            throw new BusinessException("At most 40 subject names per request.");
+        }
+        if (academicSubjectRepo.countByTenantIdAndIsDeletedFalse(tenantId) == 0) {
+            materializeDefaultSubjectCatalogRows(tenantId);
+        }
+        int added = 0;
+        int skipped = 0;
+        int maxSort = academicSubjectRepo.findByTenantIdAndIsDeletedFalseOrderBySortOrderAscNameAsc(tenantId).stream()
+                .mapToInt(AcademicSubject::getSortOrder)
+                .max()
+                .orElse(0);
+        for (String name : distinct) {
+            if (academicSubjectRepo.existsByTenantIdAndNameIgnoreCaseAndIsDeletedFalse(tenantId, name)) {
+                skipped++;
+                continue;
+            }
+            AcademicSubject row = new AcademicSubject();
+            row.setTenantId(tenantId);
+            row.setName(name);
+            row.setCode(deriveSubjectCode(name, tenantId));
+            row.setCategory("Other");
+            maxSort += 10;
+            row.setSortOrder(maxSort);
+            row.setIsDeleted(false);
+            academicSubjectRepo.save(row);
+            added++;
+        }
+        evictSubjectCatalogCache();
+        log.info("Subject catalog register tenant={} added={} skippedDuplicates={}", tenantId, added, skipped);
+        return new AcademicDTOs.SubjectCatalogRegisterResult(added, skipped);
+    }
+
+    /**
+     * Ensures the tenant {@code academic_subjects} catalog contains the subject referenced by a timetable import row.
+     * Returns the canonical display name to persist on {@code TimetableEntry.subjectName} so UI and catalog stay aligned.
+     * <p>
+     * Behaviour is similar to school ERP “subject master” auto-provisioning: code (when present) acts as the stable
+     * business key; display name is validated against the catalog when both are supplied.
+     */
+    @Transactional
+    public String ensureSubjectCatalogFromTimetableImport(String displayNameNullable, String importCodeNullable) {
+        final String tenantId = TenantContext.getTenantId();
+        String nameIn = displayNameNullable != null ? displayNameNullable.trim() : null;
+        String codeIn = importCodeNullable != null ? importCodeNullable.trim().toUpperCase(Locale.ROOT) : null;
+        if (nameIn != null && nameIn.isEmpty()) {
+            nameIn = null;
+        }
+        if (codeIn != null && codeIn.isEmpty()) {
+            codeIn = null;
+        }
+        if (nameIn != null && nameIn.length() > 120) {
+            throw new BusinessException("subject name too long (max 120 characters).");
+        }
+        if (codeIn != null && codeIn.length() > 40) {
+            throw new BusinessException("subject_code too long (max 40 characters).");
+        }
+        if (nameIn == null && codeIn == null) {
+            throw new BusinessException("Provide subject_name/subjectname or subject_code.");
+        }
+        if (academicSubjectRepo.countByTenantIdAndIsDeletedFalse(tenantId) == 0) {
+            materializeDefaultSubjectCatalogRows(tenantId);
+        }
+        if (codeIn != null) {
+            Optional<AcademicSubject> byCode = academicSubjectRepo.findFirstByTenantIdAndCodeIgnoreCaseAndIsDeletedFalse(tenantId, codeIn);
+            if (byCode.isPresent()) {
+                AcademicSubject s = byCode.get();
+                if (nameIn != null && !s.getName().equalsIgnoreCase(nameIn)) {
+                    throw new BusinessException(
+                            "subject_code \"" + codeIn + "\" is already mapped to \"" + s.getName()
+                                    + "\"; subject_name does not match.");
+                }
+                return s.getName();
+            }
+        }
+        String resolvedDisplay = nameIn;
+        if (resolvedDisplay == null) {
+            resolvedDisplay = defaultSubjectNameFromPlatformCode(codeIn);
+        }
+        if (resolvedDisplay == null) {
+            resolvedDisplay = codeIn;
+        }
+        Optional<AcademicSubject> existing = academicSubjectRepo.findFirstByTenantIdAndNameIgnoreCaseAndIsDeletedFalse(
+                tenantId, resolvedDisplay);
+        if (existing.isPresent()) {
+            AcademicSubject s = existing.get();
+            if (codeIn != null) {
+                boolean codeEchoesSubjectNameOnly = codesImportColumnDuplicatedDisplayLabel(nameIn, importCodeNullable);
+                if (!codeEchoesSubjectNameOnly) {
+                    Optional<AcademicSubject> codeOccupant =
+                            academicSubjectRepo.findFirstByTenantIdAndCodeIgnoreCaseAndIsDeletedFalse(tenantId, codeIn);
+                    if (codeOccupant.isPresent() && !codeOccupant.get().getId().equals(s.getId())) {
+                        throw new BusinessException(
+                                "subject_code \"" + codeIn + "\" already belongs to subject \""
+                                        + codeOccupant.get().getName() + "\" (this row is \"" + s.getName() + "\").");
+                    }
+                    String existingCode = s.getCode();
+                    if (existingCode == null || existingCode.isBlank()) {
+                        s.setCode(allocateUniqueExplicitImportedCode(tenantId, codeIn));
+                        academicSubjectRepo.save(s);
+                        evictSubjectCatalogCache();
+                    } else if (!existingCode.equalsIgnoreCase(codeIn)) {
+                        String adopted = allocateUniqueExplicitImportedCode(tenantId, codeIn);
+                        s.setCode(adopted);
+                        academicSubjectRepo.save(s);
+                        evictSubjectCatalogCache();
+                        log.info(
+                                "Timetable import adopted catalog code tenant={} subject=\"{}\" {} -> {}",
+                                tenantId,
+                                s.getName(),
+                                existingCode,
+                                adopted);
+                    }
+                }
+            }
+            return s.getName();
+        }
+        String resolvedCode;
+        if (codeIn != null && !codesImportColumnDuplicatedDisplayLabel(resolvedDisplay, importCodeNullable)) {
+            resolvedCode = allocateUniqueExplicitImportedCode(tenantId, codeIn);
+        } else {
+            resolvedCode = deriveSubjectCode(resolvedDisplay, tenantId);
+        }
+        AcademicSubject row = new AcademicSubject();
+        row.setTenantId(tenantId);
+        row.setName(resolvedDisplay);
+        row.setCode(resolvedCode);
+        row.setCategory(inferCatalogCategoryFromSubjectName(resolvedDisplay));
+        row.setSortOrder(nextSubjectCatalogSortOrder(tenantId));
+        row.setIsDeleted(false);
+        academicSubjectRepo.save(row);
+        evictSubjectCatalogCache();
+        log.info("Timetable import auto-provisioned catalog subject tenant={} name=\"{}\" code={}", tenantId, resolvedDisplay, resolvedCode);
+        return resolvedDisplay;
+    }
+
+    /** Many CSV packs repeat the visible subject title in {@code subject_code}; uppercasing it is not an alternate ERP code. */
+    private static boolean codesImportColumnDuplicatedDisplayLabel(String nameIn, String importCodeRawNullable) {
+        if (nameIn == null || importCodeRawNullable == null) {
+            return false;
+        }
+        return nameIn.trim().equalsIgnoreCase(importCodeRawNullable.trim());
+    }
+
+    /**
+     * Inverse of platform default codes (used when a row supplies only {@code subject_code} before DB materialization).
+     */
+    private static String defaultSubjectNameFromPlatformCode(String codeUpper) {
+        if (codeUpper == null) {
+            return null;
+        }
+        for (AcademicDTOs.SubjectCatalogItem d : DEFAULT_SUBJECT_CATALOG) {
+            if (codeUpper.equalsIgnoreCase(d.getCode())) {
+                return d.getName();
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Allocates {@code requestedUpper} when free (case-insensitive); otherwise appends numeric suffixes until unique.
+     */
+    private String allocateUniqueExplicitImportedCode(String tenantId, String requestedUpper) {
+        String base = requestedUpper.length() > 40 ? requestedUpper.substring(0, 40) : requestedUpper;
+        String candidate = base;
+        int i = 0;
+        while (true) {
+            Optional<AcademicSubject> clash = academicSubjectRepo.findFirstByTenantIdAndCodeIgnoreCaseAndIsDeletedFalse(tenantId, candidate);
+            if (clash.isEmpty()) {
+                return candidate;
+            }
+            i++;
+            String suffix = String.valueOf(i);
+            int maxBase = Math.max(1, 40 - suffix.length());
+            String trimmedBase = base.length() > maxBase ? base.substring(0, maxBase) : base;
+            candidate = trimmedBase + suffix;
+        }
+    }
+
+    private static String inferCatalogCategoryFromSubjectName(String name) {
+        String n = name.toLowerCase(Locale.ROOT);
+        if (n.contains("math") || n.contains("physics") || n.contains("chemistry") || n.contains("biology")
+                || n.contains("science") || n.contains("computer") || n.contains("evs") || n.contains("stem")) {
+            return "STEM";
+        }
+        if (n.contains("english") || n.contains("hindi") || n.contains("sanskrit") || n.contains("language")
+                || n.contains("french") || n.contains("literature")) {
+            return "Languages";
+        }
+        if (n.contains("social") || n.contains("history") || n.contains("civics") || n.contains("geography")
+                || n.contains("economics") || n.contains("political")) {
+            return "Social Studies";
+        }
+        if (n.contains("art") || n.contains("music") || n.contains("dance") || n.contains("physical")
+                || n.contains("yoga") || n.contains("sport") || n.contains("moral")) {
+            return "Arts";
+        }
+        return "General";
+    }
+
+    private int nextSubjectCatalogSortOrder(String tenantId) {
+        return academicSubjectRepo.findByTenantIdAndIsDeletedFalseOrderBySortOrderAscNameAsc(tenantId).stream()
+                .mapToInt(AcademicSubject::getSortOrder)
+                .max()
+                .orElse(0) + 10;
+    }
+
+    private void materializeDefaultSubjectCatalogRows(String tenantId) {
+        int idx = 0;
+        for (AcademicDTOs.SubjectCatalogItem d : DEFAULT_SUBJECT_CATALOG) {
+            idx++;
+            if (academicSubjectRepo.existsByTenantIdAndNameIgnoreCaseAndIsDeletedFalse(tenantId, d.getName())) {
+                continue;
+            }
+            AcademicSubject a = new AcademicSubject();
+            a.setTenantId(tenantId);
+            a.setCode(d.getCode());
+            a.setName(d.getName());
+            a.setCategory(d.getCategory());
+            a.setSortOrder(idx * 10);
+            a.setIsDeleted(false);
+            academicSubjectRepo.save(a);
+        }
+    }
+
+    private String deriveSubjectCode(String displayName, String tenantId) {
+        StringBuilder sb = new StringBuilder();
+        for (char c : displayName.toCharArray()) {
+            if (sb.length() >= 8) {
+                break;
+            }
+            if (Character.isLetterOrDigit(c)) {
+                sb.append(Character.toUpperCase(c));
+            }
+        }
+        String base = sb.length() >= 2 ? sb.toString() : "SUBJ";
+        if (base.length() > 8) {
+            base = base.substring(0, 8);
+        }
+        String candidate = base;
+        int i = 0;
+        while (academicSubjectRepo.existsByTenantIdAndCodeAndIsDeletedFalse(tenantId, candidate)) {
+            i++;
+            String suffix = String.valueOf(i);
+            candidate = base.length() + suffix.length() > 8 ? base.substring(0, Math.max(1, 8 - suffix.length())) + suffix : base + suffix;
+            if (candidate.length() > 40) {
+                candidate = candidate.substring(0, 40);
+            }
+        }
+        return candidate.length() > 40 ? candidate.substring(0, 40) : candidate;
+    }
+
+    private void evictSubjectCatalogCache() {
+        cacheService.ifAvailable(cs -> {
+            String tid = TenantContext.getTenantId();
+            if (tid == null || tid.isBlank()) {
+                tid = "_no_tenant_";
+            }
+            cs.evict(CacheRegion.ACADEMIC_CATALOG, tid + ":getSubjectCatalog");
+        });
     }
 
     // ========== ACADEMIC YEARS ==========
@@ -98,6 +394,7 @@ public class AcademicService {
             });
         }
         AcademicYear saved = yearRepo.save(year);
+        currentAcademicYearResolver.evictTenant(TenantContext.getTenantId());
         log.info("Academic year created id={}", saved.getId());
         return saved;
     }
@@ -120,16 +417,22 @@ public class AcademicService {
             yearRepo.save(y);
         });
         year.setIsCurrent(true);
-        return yearRepo.save(year);
+        AcademicYear saved = yearRepo.save(year);
+        currentAcademicYearResolver.evictTenant(tenantForYears);
+        return saved;
     }
 
     // ========== CLASSES ==========
     @Cacheable(cacheNames = CacheConfig.ACADEMIC_CATALOG, keyGenerator = "tenantMethodNameKeyGenerator", unless = "#result == null")
     @Transactional(readOnly = true)
-    public List<AcademicDTOs.ClassWithSectionsResponse> getClassesWithSections() {
+    public List<AcademicDTOs.ClassWithSectionsResponse> getClassesWithSections(String lifecycle) {
         String t = TenantContext.getTenantId();
+        Boolean activeFilter = resolveActiveFilterForRole(lifecycle);
         log.debug("Listing classes with sections tenantId={}", t);
-        List<AcademicDTOs.ClassWithSectionsResponse> list = classRepo.findByTenantIdAndIsDeletedFalseOrderByGrade(t).stream()
+        List<SchoolClass> classes = activeFilter == null
+                ? classRepo.findByTenantIdAndIsDeletedFalseOrderByGrade(t)
+                : classRepo.findByTenantIdAndIsDeletedFalseAndIsActiveOrderByGrade(t, activeFilter);
+        List<AcademicDTOs.ClassWithSectionsResponse> list = classes.stream()
                 .map(this::toClassWithSectionsResponse)
                 .collect(Collectors.toList());
         log.info("Loaded {} class(es) with sections tenantId={}", list.size(), t);
@@ -152,12 +455,19 @@ public class AcademicService {
 
     private AcademicDTOs.ClassWithSectionsResponse toClassWithSectionsResponse(SchoolClass cls) {
         String t = TenantContext.getTenantId();
-        List<Section> sections = sectionRepo.findByTenantIdAndClassIdAndIsDeletedFalse(t, cls.getId());
-        int totalStudents = sections.stream().mapToInt(s -> s.getStudentCount() != null ? s.getStudentCount() : 0).sum();
+        List<Section> sections = rolePrefersActiveOnly()
+                ? sectionRepo.findByTenantIdAndClassIdAndIsDeletedFalseAndIsActive(t, cls.getId(), true)
+                : sectionRepo.findByTenantIdAndClassIdAndIsDeletedFalse(t, cls.getId());
+        java.util.Map<Long, Integer> sectionStudentCounts = resolveActiveSectionStudentCounts(t, cls.getId(), sections);
+        int totalStudents = sections.isEmpty()
+                ? (int) studentRepo.countByTenantIdAndClassIdAndIsDeletedFalseAndStatus(
+                        t, cls.getId(), Enums.StudentStatus.ACTIVE)
+                : sectionStudentCounts.values().stream().mapToInt(Integer::intValue).sum();
         return AcademicDTOs.ClassWithSectionsResponse.builder()
                 .id(cls.getId())
                 .name(cls.getName())
                 .grade(cls.getGrade())
+                .isActive(Boolean.TRUE.equals(cls.getIsActive()))
                 .classTeacherId(cls.getClassTeacherId())
                 .classTeacherName(cls.getClassTeacherName())
                 .academicYearId(cls.getAcademicYearId())
@@ -167,35 +477,80 @@ public class AcademicService {
                                 .id(s.getId())
                                 .name(s.getName())
                                 .classId(s.getClassId())
+                                .isActive(Boolean.TRUE.equals(s.getIsActive()))
                                 .capacity(s.getCapacity())
-                                .studentCount(s.getStudentCount())
+                                .studentCount(sectionStudentCounts.getOrDefault(s.getId(), 0))
+                                .classTeacherId(s.getClassTeacherId())
+                                .classTeacherName(s.getClassTeacherName())
                                 .build())
                         .collect(Collectors.toList()))
                 .build();
     }
 
+    private java.util.Map<Long, Integer> resolveActiveSectionStudentCounts(String tenantId, Long classId, List<Section> sections) {
+        java.util.Map<Long, Integer> counts = new java.util.HashMap<>();
+        if (sections.isEmpty()) {
+            return counts;
+        }
+        List<Long> sectionIds = sections.stream().map(Section::getId).collect(Collectors.toList());
+        for (Object[] row : studentRepo.countActiveBySectionIds(tenantId, classId, sectionIds, Enums.StudentStatus.ACTIVE)) {
+            if (row == null || row.length < 2 || row[0] == null) {
+                continue;
+            }
+            Long sectionId = (Long) row[0];
+            Number total = (Number) row[1];
+            counts.put(sectionId, total != null ? total.intValue() : 0);
+        }
+        for (Section section : sections) {
+            counts.putIfAbsent(section.getId(), 0);
+        }
+        return counts;
+    }
+
     @Transactional
     public SchoolClass createClass(AcademicDTOs.CreateClassRequest req) {
         String t = TenantContext.getTenantId();
-        SchoolClass cls = SchoolClass.builder().name(req.getName()).grade(req.getGrade()).classTeacherId(req.getClassTeacherId()).classTeacherName(req.getClassTeacherName()).academicYearId(req.getAcademicYearId()).build();
+        String normalizedName = normalizeAndValidateClassName(req.getName());
+        ensureClassNameUniqueForAcademicYear(t, req.getAcademicYearId(), normalizedName, null);
+        Integer resolvedGrade = resolveGrade(req.getGrade(), req.getName());
+        List<String> names = req.getSectionNames() != null
+                ? req.getSectionNames().stream().map(String::trim).filter(s -> !s.isEmpty()).collect(Collectors.toList())
+                : List.of();
+        ensureDistinctSectionNames(names);
+        int normalizedCapacity = normalizeAndValidateSectionCapacity(req.getSectionCapacity());
+        boolean hasSections = !names.isEmpty();
+        boolean multiSection = names.size() > 1;
+        Long initialClassTeacher = (!hasSections) ? req.getClassTeacherId() : null;
+        String initialClassTeacherName = (!hasSections) ? req.getClassTeacherName() : null;
+
+        SchoolClass cls = SchoolClass.builder()
+                .name(normalizedName)
+                .grade(resolvedGrade)
+                .classTeacherId(initialClassTeacher)
+                .classTeacherName(initialClassTeacherName)
+                .academicYearId(req.getAcademicYearId())
+                .build();
         cls.setTenantId(t);
         classRepo.save(cls);
-        // Create sections
-        if (req.getSectionNames() != null) {
-            req.getSectionNames().forEach(secName -> {
-                Section sec = Section.builder().name(secName).classId(cls.getId()).capacity(req.getSectionCapacity() != null ? req.getSectionCapacity() : 40).studentCount(0).build();
-                sec.setTenantId(t);
-                sectionRepo.save(sec);
-            });
+        for (String secName : names) {
+            Section sec = Section.builder()
+                    .name(secName)
+                    .classId(cls.getId())
+                    .capacity(normalizedCapacity)
+                    .studentCount(0)
+                    .build();
+            sec.setTenantId(t);
+            sectionRepo.save(sec);
         }
-        log.info("Class created: {} with {} sections", cls.getName(), req.getSectionNames() != null ? req.getSectionNames().size() : 0);
-        if (req.getClassTeacherId() != null) {
+        log.info("Class created: {} with {} sections", cls.getName(), names.size());
+
+        if (!hasSections && req.getClassTeacherId() != null) {
             Teacher teach = teacherRepository.findByIdAndTenantIdAndIsDeletedFalse(req.getClassTeacherId(), t)
                     .orElseThrow(() -> new ResourceNotFoundException("Teacher", req.getClassTeacherId()));
             if (teach.getStatus() != null && teach.getStatus() != Enums.TeacherStatus.ACTIVE) {
                 throw new BusinessException("Only active teachers can be assigned as class teacher.");
             }
-            clearClassTeacherFromOtherClasses(req.getClassTeacherId(), cls.getId(), t);
+            releaseHomeroomTeacherEverywhereExcept(req.getClassTeacherId(), cls.getId(), null, t);
             String resolved = req.getClassTeacherName() != null && !req.getClassTeacherName().isBlank()
                     ? req.getClassTeacherName().trim()
                     : (teach.getFirstName() + " " + teach.getLastName()).trim();
@@ -203,73 +558,172 @@ public class AcademicService {
             classRepo.save(cls);
             teacherAssignmentService.recordClassTeacherAssignment(
                     cls.getId(), null, req.getClassTeacherId(), cls.getAcademicYearId(), LocalDate.now());
+        } else if (hasSections && names.size() == 1 && req.getClassTeacherId() != null) {
+            Teacher teach = teacherRepository.findByIdAndTenantIdAndIsDeletedFalse(req.getClassTeacherId(), t)
+                    .orElseThrow(() -> new ResourceNotFoundException("Teacher", req.getClassTeacherId()));
+            if (teach.getStatus() != null && teach.getStatus() != Enums.TeacherStatus.ACTIVE) {
+                throw new BusinessException("Only active teachers can be assigned as class teacher.");
+            }
+            Section sec = sectionRepo.findByTenantIdAndClassIdAndIsDeletedFalse(t, cls.getId()).stream()
+                    .findFirst()
+                    .orElseThrow(() -> new BusinessException("Could not load section row after class create."));
+            releaseHomeroomTeacherEverywhereExcept(req.getClassTeacherId(), cls.getId(), sec.getId(), t);
+            String resolved = req.getClassTeacherName() != null && !req.getClassTeacherName().isBlank()
+                    ? req.getClassTeacherName().trim()
+                    : (teach.getFirstName() + " " + teach.getLastName()).trim();
+            sec.setClassTeacherId(req.getClassTeacherId());
+            sec.setClassTeacherName(resolved);
+            sectionRepo.save(sec);
+            cls.setClassTeacherId(null);
+            cls.setClassTeacherName(null);
+            classRepo.save(cls);
+            teacherAssignmentService.recordClassTeacherAssignment(
+                    cls.getId(), sec.getId(), req.getClassTeacherId(), cls.getAcademicYearId(), LocalDate.now());
+        } else if (multiSection && req.getClassTeacherId() != null) {
+            log.info("Ignoring optional class teacher on create for multi-section class id={}; assign per section in Academic UI.", cls.getId());
         }
         evictAcademicClassCaches(cls.getId(), true);
         return cls;
     }
 
-    private void clearClassTeacherFromOtherClasses(Long teacherId, Long keepClassId, String tenantId) {
-        for (SchoolClass other : classRepo.findByTenantIdAndIsDeletedFalseOrderByGrade(tenantId)) {
-            if (!other.getId().equals(keepClassId) && teacherId.equals(other.getClassTeacherId())) {
-                other.setClassTeacherId(null);
-                other.setClassTeacherName(null);
-                classRepo.save(other);
-                log.info("Cleared homeroom teacher from classId={} (single-class rule; keepClassId={})", other.getId(), keepClassId);
-                evictAcademicClassCaches(other.getId(), false);
+    /**
+     * Clears this teacher from every homeroom slot except the kept class/section (one homeroom per teacher).
+     * Whole-class keep uses {@code keepSectionId == null}; section keep uses both ids.
+     */
+    private void releaseHomeroomTeacherEverywhereExcept(Long teacherId, Long keepClassId, Long keepSectionId, String tenantId) {
+        LocalDate end = LocalDate.now().minusDays(1);
+        for (SchoolClass other : classRepo.findByTenantIdAndClassTeacherIdAndIsDeletedFalse(tenantId, teacherId)) {
+            boolean keep = keepSectionId == null && keepClassId != null && keepClassId.equals(other.getId());
+            if (keep) {
+                continue;
             }
+            other.setClassTeacherId(null);
+            other.setClassTeacherName(null);
+            classRepo.save(other);
+            teacherAssignmentService.closeActiveHomeroomSlotAssignments(tenantId, other.getId(), null, end);
+            log.info("Cleared whole-class homeroom teacher from classId={}", other.getId());
+            evictAcademicClassCaches(other.getId(), false);
+        }
+        for (Section sec : sectionRepo.findByTenantIdAndClassTeacherIdAndIsDeletedFalse(tenantId, teacherId)) {
+            boolean keep = keepClassId != null
+                    && keepClassId.equals(sec.getClassId())
+                    && keepSectionId != null
+                    && keepSectionId.equals(sec.getId());
+            if (keep) {
+                continue;
+            }
+            sec.setClassTeacherId(null);
+            sec.setClassTeacherName(null);
+            sectionRepo.save(sec);
+            teacherAssignmentService.closeActiveHomeroomSlotAssignments(tenantId, sec.getClassId(), sec.getId(), end);
+            log.info("Cleared section homeroom teacher from sectionId={} classId={}", sec.getId(), sec.getClassId());
+            evictAcademicClassCaches(sec.getClassId(), false);
         }
     }
 
     @Transactional
     public Section addSection(Long classId, String sectionName, Integer capacity) {
         String t = TenantContext.getTenantId();
-        log.info("Adding section name={} to classId={}", sectionName, classId);
-        classRepo.findByIdAndTenantIdAndIsDeletedFalse(classId, t).orElseThrow(() -> new ResourceNotFoundException("Class", classId));
-        Section sec = Section.builder().name(sectionName).classId(classId).capacity(capacity != null ? capacity : 40).studentCount(0).build();
+        String normalizedName = normalizeAndValidateSectionName(sectionName);
+        int normalizedCapacity = normalizeAndValidateSectionCapacity(capacity);
+        log.info("Adding section name={} to classId={}", normalizedName, classId);
+        SchoolClass cls = classRepo.findByIdAndTenantIdAndIsDeletedFalse(classId, t).orElseThrow(() -> new ResourceNotFoundException("Class", classId));
+        List<Section> existing = sectionRepo.findByTenantIdAndClassIdAndIsDeletedFalse(t, classId);
+        ensureSectionNameUniqueWithinClass(existing, normalizedName, null);
+        Section sec = Section.builder().name(normalizedName).classId(classId).capacity(normalizedCapacity).studentCount(0).build();
         sec.setTenantId(t);
-        Section saved = sectionRepo.save(sec);
-        log.info("Section created id={} classId={}", saved.getId(), classId);
+        if (existing.isEmpty() && cls.getClassTeacherId() != null) {
+            sec.setClassTeacherId(cls.getClassTeacherId());
+            sec.setClassTeacherName(cls.getClassTeacherName());
+            cls.setClassTeacherId(null);
+            cls.setClassTeacherName(null);
+            classRepo.save(cls);
+            teacherAssignmentService.closeActiveHomeroomSlotAssignments(t, classId, null, LocalDate.now().minusDays(1));
+            sectionRepo.save(sec);
+            teacherAssignmentService.recordClassTeacherAssignment(
+                    classId, sec.getId(), sec.getClassTeacherId(), cls.getAcademicYearId(), LocalDate.now());
+            log.info("Moved whole-class homeroom to first section id={} classId={}", sec.getId(), classId);
+        } else {
+            sectionRepo.save(sec);
+        }
+        log.info("Section created id={} classId={}", sec.getId(), classId);
         evictAcademicClassCaches(classId, true);
-        return saved;
+        return sec;
     }
 
     @Transactional
-    public AcademicDTOs.ClassWithSectionsResponse assignClassTeacher(Long classId, Long teacherId, String teacherName) {
+    public AcademicDTOs.ClassWithSectionsResponse assignClassTeacher(Long classId, Long sectionId, Long teacherId, String teacherName) {
         String tenantId = TenantContext.getTenantId();
-        log.info("Assigning class teacher classId={} teacherId={}", classId, teacherId);
+        log.info("Assigning homeroom classId={} sectionId={} teacherId={}", classId, sectionId, teacherId);
         SchoolClass cls = classRepo.findByIdAndTenantIdAndIsDeletedFalse(classId, tenantId).orElseThrow(() -> new ResourceNotFoundException("Class", classId));
-        if (teacherId != null) {
+        List<Section> sections = sectionRepo.findByTenantIdAndClassIdAndIsDeletedFalse(tenantId, classId);
+        if (sections.isEmpty()) {
+            if (sectionId != null) {
+                throw new BusinessException("This class has no sections; do not send sectionId when assigning whole-class homeroom teacher.");
+            }
+        } else {
+            if (sectionId == null) {
+                throw new BusinessException("This class is divided into sections; choose a section for each homeroom teacher assignment.");
+            }
+            sectionRepo.findByIdAndTenantIdAndIsDeletedFalse(sectionId, tenantId)
+                    .filter(s -> classId.equals(s.getClassId()))
+                    .orElseThrow(() -> new ResourceNotFoundException("Section", sectionId));
+        }
+
+        if (teacherId == null) {
+            teacherAssignmentService.closeActiveHomeroomSlotAssignments(
+                    tenantId, classId, sections.isEmpty() ? null : sectionId, LocalDate.now().minusDays(1));
+            cls.setClassTeacherId(null);
+            cls.setClassTeacherName(null);
+            classRepo.save(cls);
+            if (!sections.isEmpty()) {
+                Section sec = sectionRepo.findByIdAndTenantIdAndIsDeletedFalse(sectionId, tenantId).orElseThrow();
+                sec.setClassTeacherId(null);
+                sec.setClassTeacherName(null);
+                sectionRepo.save(sec);
+            }
+        } else {
             Teacher teach = teacherRepository.findByIdAndTenantIdAndIsDeletedFalse(teacherId, tenantId)
                     .orElseThrow(() -> new ResourceNotFoundException("Teacher", teacherId));
             if (teach.getStatus() != null && teach.getStatus() != Enums.TeacherStatus.ACTIVE) {
                 throw new BusinessException("Only active teachers can be assigned as class teacher.");
             }
-            clearClassTeacherFromOtherClasses(teacherId, classId, tenantId);
+            releaseHomeroomTeacherEverywhereExcept(teacherId, classId, sections.isEmpty() ? null : sectionId, tenantId);
             String resolved = teacherName != null && !teacherName.isBlank()
                     ? teacherName.trim()
                     : (teach.getFirstName() + " " + teach.getLastName()).trim();
-            cls.setClassTeacherId(teacherId);
-            cls.setClassTeacherName(resolved);
-        } else {
             cls.setClassTeacherId(null);
             cls.setClassTeacherName(null);
-        }
-        classRepo.save(cls);
-        if (teacherId != null) {
+            classRepo.save(cls);
+            if (sections.isEmpty()) {
+                cls.setClassTeacherId(teacherId);
+                cls.setClassTeacherName(resolved);
+                classRepo.save(cls);
+            } else {
+                Section sec = sectionRepo.findByIdAndTenantIdAndIsDeletedFalse(sectionId, tenantId).orElseThrow();
+                sec.setClassTeacherId(teacherId);
+                sec.setClassTeacherName(resolved);
+                sectionRepo.save(sec);
+            }
             teacherAssignmentService.recordClassTeacherAssignment(
-                    classId, null, teacherId, cls.getAcademicYearId(), LocalDate.now());
+                    classId, sections.isEmpty() ? null : sectionId, teacherId, cls.getAcademicYearId(), LocalDate.now());
         }
-        log.info("Class teacher assigned classId={}", classId);
+        log.info("Homeroom updated classId={}", classId);
         evictAcademicClassCaches(classId, true);
+        evictTeacherDirectoryCacheAfterHomeroomChange();
+        dashboardSnapshotInvalidationService.invalidateCurrentTenant("homeroom_assignment_changed");
         return getClassWithSectionsById(classId);
     }
 
     @Cacheable(cacheNames = CacheConfig.ACADEMIC_CATALOG, keyGenerator = "tenantMethodFirstParamKeyGenerator", unless = "#result == null")
     @Transactional(readOnly = true)
-    public List<Section> getSectionsByClass(Long classId) {
+    public List<Section> getSectionsByClass(Long classId, String lifecycle) {
         String t = TenantContext.getTenantId();
+        Boolean activeFilter = resolveActiveFilterForRole(lifecycle);
         log.debug("Listing sections for classId={}", classId);
-        List<Section> list = sectionRepo.findByTenantIdAndClassIdAndIsDeletedFalse(t, classId);
+        List<Section> list = activeFilter == null
+                ? sectionRepo.findByTenantIdAndClassIdAndIsDeletedFalse(t, classId)
+                : sectionRepo.findByTenantIdAndClassIdAndIsDeletedFalseAndIsActive(t, classId, activeFilter);
         log.info("Found {} section(s) for classId={}", list.size(), classId);
         return list;
     }
@@ -278,39 +732,233 @@ public class AcademicService {
     public AcademicDTOs.ClassWithSectionsResponse updateClass(Long classId, AcademicMutationRequests.UpdateSchoolClassRequest req) {
         String t = TenantContext.getTenantId();
         SchoolClass cls = classRepo.findByIdAndTenantIdAndIsDeletedFalse(classId, t).orElseThrow(() -> new ResourceNotFoundException("Class", classId));
-        cls.setName(req.getName());
-        cls.setGrade(req.getGrade());
+        String normalizedName = normalizeAndValidateClassName(req.getName());
+        ensureClassNameUniqueForAcademicYear(t, cls.getAcademicYearId(), normalizedName, classId);
+        cls.setName(normalizedName);
+        cls.setGrade(resolveGrade(req.getGrade(), normalizedName));
         classRepo.save(cls);
-        log.info("Class updated id={} name={}", classId, req.getName());
+        log.info("Class updated id={} name={}", classId, normalizedName);
         evictAcademicClassCaches(classId, true);
         return getClassWithSectionsById(classId);
+    }
+
+    private Integer resolveGrade(Integer suppliedGrade, String className) {
+        if (suppliedGrade != null) {
+            return suppliedGrade;
+        }
+        if (className == null) {
+            throw new BusinessException("Class name is required.");
+        }
+        java.util.regex.Matcher matcher = java.util.regex.Pattern.compile("(\\d{1,2})").matcher(className);
+        if (!matcher.find()) {
+            throw new BusinessException("Could not infer grade from class name. Include a numeric grade in class name (e.g., Class 6).");
+        }
+        int inferred = Integer.parseInt(matcher.group(1));
+        if (inferred < 1 || inferred > 12) {
+            throw new BusinessException("Inferred grade from class name must be between 1 and 12.");
+        }
+        return inferred;
     }
 
     @Transactional
     public Section updateSection(Long sectionId, AcademicMutationRequests.UpdateSectionRequest req) {
         String t = TenantContext.getTenantId();
         Section sec = sectionRepo.findByIdAndTenantIdAndIsDeletedFalse(sectionId, t).orElseThrow(() -> new ResourceNotFoundException("Section", sectionId));
-        sec.setName(req.getName());
-        sec.setCapacity(req.getCapacity());
+        String normalizedName = normalizeAndValidateSectionName(req.getName());
+        int normalizedCapacity = normalizeAndValidateSectionCapacity(req.getCapacity());
+        List<Section> existing = sectionRepo.findByTenantIdAndClassIdAndIsDeletedFalse(t, sec.getClassId());
+        ensureSectionNameUniqueWithinClass(existing, normalizedName, sectionId);
+        sec.setName(normalizedName);
+        sec.setCapacity(normalizedCapacity);
         Section saved = sectionRepo.save(sec);
         log.info("Section updated id={}", sectionId);
         evictAcademicClassCaches(saved.getClassId(), true);
         return saved;
     }
 
+    private String normalizeAndValidateClassName(String className) {
+        String normalized = className != null ? className.trim() : "";
+        if (normalized.isEmpty()) {
+            throw new BusinessException("Class name is required.");
+        }
+        return normalized;
+    }
+
+    private String normalizeAndValidateSectionName(String sectionName) {
+        String normalized = sectionName != null ? sectionName.trim() : "";
+        if (normalized.isEmpty()) {
+            throw new BusinessException("Section name is required.");
+        }
+        return normalized;
+    }
+
+    private int normalizeAndValidateSectionCapacity(Integer capacity) {
+        int normalized = capacity != null ? capacity : 40;
+        if (normalized < 1 || normalized > 200) {
+            throw new BusinessException("Section capacity must be between 1 and 200.");
+        }
+        return normalized;
+    }
+
+    private void ensureDistinctSectionNames(List<String> sectionNames) {
+        Set<String> seen = new HashSet<>();
+        for (String name : sectionNames) {
+            String normalized = name.trim().toLowerCase();
+            if (!seen.add(normalized)) {
+                throw new BusinessException("Section names must be unique within a class.");
+            }
+        }
+    }
+
+    private void ensureClassNameUniqueForAcademicYear(String tenantId, Long academicYearId, String className, Long ignoreClassId) {
+        String normalized = className.trim().toLowerCase();
+        boolean duplicate = classRepo.findByTenantIdAndIsDeletedFalseOrderByGrade(tenantId).stream()
+                .anyMatch(c -> c.getAcademicYearId() != null
+                        && c.getAcademicYearId().equals(academicYearId)
+                        && (ignoreClassId == null || !c.getId().equals(ignoreClassId))
+                        && c.getName() != null
+                        && c.getName().trim().toLowerCase().equals(normalized));
+        if (duplicate) {
+            throw new BusinessException("Class name must be unique within the selected academic year.");
+        }
+    }
+
+    private void ensureSectionNameUniqueWithinClass(List<Section> existing, String sectionName, Long ignoreSectionId) {
+        String normalized = sectionName.trim().toLowerCase();
+        boolean duplicate = existing.stream().anyMatch(s -> (ignoreSectionId == null || !s.getId().equals(ignoreSectionId))
+                && s.getName() != null
+                && s.getName().trim().toLowerCase().equals(normalized));
+        if (duplicate) {
+            throw new BusinessException("Section name must be unique within this class.");
+        }
+    }
+
     @Transactional
     public void deleteSection(Long sectionId) {
         String t = TenantContext.getTenantId();
         Section sec = sectionRepo.findByIdAndTenantIdAndIsDeletedFalse(sectionId, t).orElseThrow(() -> new ResourceNotFoundException("Section", sectionId));
-        int enrolled = sec.getStudentCount() != null ? sec.getStudentCount() : 0;
+        int enrolled = (int) studentRepo.countByTenantIdAndClassIdAndSectionIdAndIsDeletedFalseAndStatus(
+                t, sec.getClassId(), sec.getId(), Enums.StudentStatus.ACTIVE);
         if (enrolled > 0) {
             throw new BusinessException("Cannot delete a section that still has students. Reassign students first.");
         }
         Long classId = sec.getClassId();
-        sec.setIsDeleted(true);
+        teacherAssignmentService.closeActiveHomeroomSlotAssignments(t, classId, sectionId, LocalDate.now().minusDays(1));
+        sec.markSoftDeleted();
         sectionRepo.save(sec);
         log.info("Section soft-deleted id={}", sectionId);
         evictAcademicClassCaches(classId, true);
+    }
+
+    @Transactional
+    public Section setSectionActiveState(Long sectionId, boolean active) {
+        String tenantId = TenantContext.getTenantId();
+        Section sec = sectionRepo.findByIdAndTenantIdAndIsDeletedFalse(sectionId, tenantId)
+                .orElseThrow(() -> new ResourceNotFoundException("Section", sectionId));
+        if (Boolean.TRUE.equals(sec.getIsActive()) == active) {
+            return sec;
+        }
+        if (!active) {
+            int enrolled = (int) studentRepo.countByTenantIdAndClassIdAndSectionIdAndIsDeletedFalseAndStatus(
+                    tenantId, sec.getClassId(), sec.getId(), Enums.StudentStatus.ACTIVE);
+            if (enrolled > 0) {
+                throw new BusinessException("Cannot deactivate a section with active students. Move or inactivate students first.");
+            }
+            teacherAssignmentService.closeActiveHomeroomSlotAssignments(
+                    tenantId, sec.getClassId(), sec.getId(), LocalDate.now().minusDays(1));
+            sec.setClassTeacherId(null);
+            sec.setClassTeacherName(null);
+        } else {
+            SchoolClass cls = classRepo.findByIdAndTenantIdAndIsDeletedFalse(sec.getClassId(), tenantId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Class", sec.getClassId()));
+            if (!Boolean.TRUE.equals(cls.getIsActive())) {
+                throw new BusinessException("Cannot activate section while parent class is inactive.");
+            }
+        }
+        sec.setIsActive(active);
+        sectionRepo.save(sec);
+        evictAcademicClassCaches(sec.getClassId(), true);
+        return sec;
+    }
+
+    @Transactional
+    public void deleteClass(Long classId) {
+        String tenantId = TenantContext.getTenantId();
+        SchoolClass cls = classRepo.findByIdAndTenantIdAndIsDeletedFalse(classId, tenantId)
+                .orElseThrow(() -> new ResourceNotFoundException("Class", classId));
+        List<Section> activeSections = sectionRepo.findByTenantIdAndClassIdAndIsDeletedFalse(tenantId, classId);
+        if (!activeSections.isEmpty()) {
+            throw new BusinessException("Cannot delete class while active sections exist. Delete or inactivate all sections first.");
+        }
+        int enrolled = (int) studentRepo.countByTenantIdAndClassIdAndIsDeletedFalseAndStatus(
+                tenantId, classId, Enums.StudentStatus.ACTIVE);
+        if (enrolled > 0) {
+            throw new BusinessException("Cannot delete class that still has active students. Move or inactivate students first.");
+        }
+        teacherAssignmentService.closeActiveHomeroomSlotAssignments(
+                tenantId, classId, null, LocalDate.now().minusDays(1));
+        cls.setClassTeacherId(null);
+        cls.setClassTeacherName(null);
+        cls.markSoftDeleted();
+        classRepo.save(cls);
+        log.info("Class soft-deleted id={}", classId);
+        evictAcademicClassCaches(classId, true);
+        evictTeacherDirectoryCacheAfterHomeroomChange();
+    }
+
+    @Transactional
+    public AcademicDTOs.ClassWithSectionsResponse setClassActiveState(Long classId, boolean active) {
+        String tenantId = TenantContext.getTenantId();
+        SchoolClass cls = classRepo.findByIdAndTenantIdAndIsDeletedFalse(classId, tenantId)
+                .orElseThrow(() -> new ResourceNotFoundException("Class", classId));
+        if (Boolean.TRUE.equals(cls.getIsActive()) == active) {
+            return getClassWithSectionsById(classId);
+        }
+        if (!active) {
+            long activeSections = sectionRepo.countByTenantIdAndClassIdAndIsDeletedFalseAndIsActive(tenantId, classId, true);
+            if (activeSections > 0) {
+                throw new BusinessException("Cannot deactivate class while active sections exist. Deactivate sections first.");
+            }
+            int activeStudents = (int) studentRepo.countByTenantIdAndClassIdAndIsDeletedFalseAndStatus(
+                    tenantId, classId, Enums.StudentStatus.ACTIVE);
+            if (activeStudents > 0) {
+                throw new BusinessException("Cannot deactivate class with active students. Move or inactivate students first.");
+            }
+            teacherAssignmentService.closeActiveHomeroomSlotAssignments(
+                    tenantId, classId, null, LocalDate.now().minusDays(1));
+            cls.setClassTeacherId(null);
+            cls.setClassTeacherName(null);
+        }
+        cls.setIsActive(active);
+        classRepo.save(cls);
+        evictAcademicClassCaches(classId, true);
+        evictTeacherDirectoryCacheAfterHomeroomChange();
+        return getClassWithSectionsById(classId);
+    }
+
+    private Boolean resolveActiveFilterForRole(String lifecycle) {
+        String lc = lifecycle != null ? lifecycle.trim().toLowerCase() : "";
+        if (lc.isEmpty()) {
+            return rolePrefersActiveOnly() ? Boolean.TRUE : null;
+        }
+        if ("all".equals(lc)) {
+            return rolePrefersActiveOnly() ? Boolean.TRUE : null;
+        }
+        if ("active".equals(lc)) {
+            return Boolean.TRUE;
+        }
+        if ("inactive".equals(lc)) {
+            if (rolePrefersActiveOnly()) {
+                throw new BusinessException("Inactive roster rows are not visible for this role.");
+            }
+            return Boolean.FALSE;
+        }
+        throw new BusinessException("Invalid lifecycle filter. Use active, inactive, or all.");
+    }
+
+    private boolean rolePrefersActiveOnly() {
+        String role = String.valueOf(TenantContext.getUserRole()).trim().toUpperCase();
+        return !"ADMIN".equals(role) && !"SUPER_ADMIN".equals(role);
     }
 
     @Transactional(readOnly = true)
@@ -475,7 +1123,8 @@ public class AcademicService {
                 sectionRepo.findByTenantIdAndClassIdAndIsDeletedFalse(tenantId, cls.getId()).stream()
                         .filter(section -> sectionIds.contains(section.getId()))
                         .forEach(section -> {
-                            int count = studentRepo.findByTenantIdAndClassIdAndSectionIdAndIsDeletedFalse(tenantId, cls.getId(), section.getId()).size();
+                            int count = (int) studentRepo.countByTenantIdAndClassIdAndSectionIdAndIsDeletedFalseAndStatus(
+                                    tenantId, cls.getId(), section.getId(), Enums.StudentStatus.ACTIVE);
                             section.setStudentCount(count);
                             sectionRepo.save(section);
                         }));
@@ -501,6 +1150,11 @@ public class AcademicService {
         });
     }
 
+    /** Homeroom labels on teacher list/detail come from cached {@code TeacherService#getTeachers}; invalidate after CT changes. */
+    private void evictTeacherDirectoryCacheAfterHomeroomChange() {
+        cacheService.ifAvailable(cs -> cs.clearRegion(CacheRegion.TEACHER_DIRECTORY));
+    }
+
     public AcademicService(
             final AcademicYearRepository yearRepo,
             final SchoolClassRepository classRepo,
@@ -510,7 +1164,9 @@ public class AcademicService {
             final TeacherAssignmentService teacherAssignmentService,
             final AcademicSubjectRepository academicSubjectRepo,
             final TeacherRepository teacherRepository,
-            ObjectProvider<CacheService> cacheService) {
+            final CurrentAcademicYearResolver currentAcademicYearResolver,
+            ObjectProvider<CacheService> cacheService,
+            final DashboardSnapshotInvalidationService dashboardSnapshotInvalidationService) {
         this.yearRepo = yearRepo;
         this.classRepo = classRepo;
         this.sectionRepo = sectionRepo;
@@ -519,6 +1175,8 @@ public class AcademicService {
         this.teacherAssignmentService = teacherAssignmentService;
         this.academicSubjectRepo = academicSubjectRepo;
         this.teacherRepository = teacherRepository;
+        this.currentAcademicYearResolver = currentAcademicYearResolver;
         this.cacheService = cacheService;
+        this.dashboardSnapshotInvalidationService = dashboardSnapshotInvalidationService;
     }
 }

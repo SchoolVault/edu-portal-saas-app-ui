@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { Router, RouterModule } from '@angular/router';
 import { TranslateModule } from '@ngx-translate/core';
 import { AuthService } from '../../../core/services/auth.service';
+import { PostLoginRouteService } from '../../../core/services/post-login-route.service';
 import { UserLocaleService } from '../../../core/i18n/user-locale.service';
 import type { OnboardSchoolRequest } from '../../../core/models/models';
 import {
@@ -20,21 +21,18 @@ import {
 } from '../../../core/validation/onboard-school-form.validation';
 import { AuthMarketingBandComponent } from '../auth-marketing/auth-marketing-band.component';
 import { ErpI18nPhDirective } from '../../../shared/erp-i18n/erp-i18n-host.directives';
-import { ErpIntlPhoneRowComponent } from '../../../shared/erp-phone-intl/erp-intl-phone-row.component';
-
-const HERO_IMG =
-  'https://static.prod-images.emergentagent.com/jobs/9a0eef39-d991-4ee9-b692-a0f34292613c/images/39ade40298c502bd4785354a93143be5e368f4457b5f0aee6cbf5d84e82fe503.png';
+import { AUTH_LOGIN_FORM_LOGO_SRC, AUTH_LOGIN_HERO_IMAGE_SRC } from '../../../core/config/brand-assets';
 
 @Component({
   selector: 'app-signup',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterModule, TranslateModule, AuthMarketingBandComponent, ErpI18nPhDirective, ErpIntlPhoneRowComponent],
+  imports: [CommonModule, FormsModule, RouterModule, TranslateModule, AuthMarketingBandComponent, ErpI18nPhDirective],
   template: `
     <div class="login-container" data-testid="signup-page">
       <div class="login-left">
         <div class="login-form-wrapper animate-in">
           <div class="login-logo">
-            <img src="https://static.prod-images.emergentagent.com/jobs/9a0eef39-d991-4ee9-b692-a0f34292613c/images/327dafae8a43bdee0145f51e32a05747aa82374ad2bb3b35ccfdb8cc1130bd22.png" alt="SchoolVault">
+            <img [src]="loginFormLogoSrc" alt="" width="44" height="44" />
             <h1>SchoolVault</h1>
           </div>
           <h2 class="login-title">{{ 'signup.title' | translate }}</h2>
@@ -104,13 +102,22 @@ const HERO_IMG =
               </div>
             </div>
             <div class="erp-form-group">
-              <label class="erp-label">{{ 'signup.phone' | translate }}</label>
-              <erp-intl-phone-row
-                idPrefix="su-phone"
-                namePrefix="signupPhone"
-                testIdPrefix="signup-phone"
-                [canonicalPhone]="form.phone"
-                (canonicalPhoneChange)="onSignupCanonicalPhone($event)"
+              <label class="erp-label" for="su-phone-national">{{ 'signup.phone' | translate }}</label>
+              <input
+                id="su-phone-national"
+                type="text"
+                class="erp-input"
+                [class.erp-input--error]="!!fieldErrors.phone"
+                inputmode="numeric"
+                autocomplete="tel-national"
+                maxlength="10"
+                name="signupPhoneNational"
+                [ngModel]="phoneNationalDigits"
+                (ngModelChange)="onSignupNationalPhoneChange($event)"
+                erpI18nPh="login.phoneNationalPlaceholder"
+                data-testid="signup-phone-national"
+                [attr.aria-invalid]="!!fieldErrors.phone"
+                [attr.aria-describedby]="fieldErrors.phone ? 'su-err-phone' : null"
               />
               <div id="su-err-phone" class="field-error" *ngIf="fieldErrors.phone" role="alert">
                 {{ fieldErrors.phone | translate: interp('phone') }}
@@ -193,7 +200,7 @@ const HERO_IMG =
         </div>
       </div>
       <div class="login-right">
-        <img [src]="HERO_IMG" alt="">
+        <img [src]="loginHeroImageSrc" alt="" />
         <div class="login-right-overlay">
           <div class="login-right-text" lang="en" dir="ltr">
             <h2>{{ heroEn.title }}</h2>
@@ -215,13 +222,15 @@ const HERO_IMG =
   ]
 })
 export class SignupComponent {
+  readonly loginFormLogoSrc = AUTH_LOGIN_FORM_LOGO_SRC;
+  readonly loginHeroImageSrc = AUTH_LOGIN_HERO_IMAGE_SRC;
+
   readonly heroEn = {
     title: 'Trusted operations layer',
     subtitle:
       'Admissions, fees, transport, hostel, payroll, and parent engagement — modular services with a single sign-on and tenant-aware APIs.',
   } as const;
 
-  readonly HERO_IMG = HERO_IMG;
   readonly schoolCodeMin = ONBOARD_SCHOOL_CODE_MIN;
   readonly schoolCodeMax = ONBOARD_SCHOOL_CODE_MAX;
   readonly pwdMax = ONBOARD_ADMIN_PASSWORD_MAX;
@@ -238,6 +247,8 @@ export class SignupComponent {
     address: ''
   };
 
+  phoneNationalDigits = '';
+
   fieldErrors: FieldErrors<OnboardSchoolField> = {};
   /** Interpolation params for `signup.validation.*` messages that use {{min}}/{{max}}. */
   private fieldInterp: Partial<Record<OnboardSchoolField, Record<string, number>>> = {};
@@ -249,6 +260,7 @@ export class SignupComponent {
   constructor(
     private authService: AuthService,
     private router: Router,
+    private postLoginRoute: PostLoginRouteService,
     readonly userLocale: UserLocaleService
   ) {}
 
@@ -257,8 +269,10 @@ export class SignupComponent {
     return this.fieldInterp[field] ?? {};
   }
 
-  onSignupCanonicalPhone(value: string): void {
-    this.form.phone = value;
+  onSignupNationalPhoneChange(raw: string): void {
+    const d = String(raw ?? '').replace(/\D/g, '').slice(0, 10);
+    this.phoneNationalDigits = d;
+    this.form.phone = d.length === 10 ? d : '';
     this.clearField('phone');
   }
 
@@ -303,7 +317,7 @@ export class SignupComponent {
     this.authService.onboardSchool(payload).subscribe({
       next: () => {
         this.loading = false;
-        this.router.navigate(['/app/dashboard']);
+        this.router.navigate([this.postLoginRoute.defaultAppPath()]);
       },
       error: () => {
         this.loading = false;

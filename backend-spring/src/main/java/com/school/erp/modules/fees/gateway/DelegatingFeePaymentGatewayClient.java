@@ -39,18 +39,12 @@ public class DelegatingFeePaymentGatewayClient implements PaymentGatewayClient {
     }
 
     @Override
-    public GatewayCheckoutSession createSession(
-            String provider,
-            String tenantId,
-            Long paymentId,
-            BigDecimal amount,
-            String currency,
-            String returnUrl) {
+    public GatewayCheckoutSession createSession(String provider, FeeGatewayOrderContext orderContext) {
         String p = normalize(provider);
         if (p.isEmpty()) {
             throw new BusinessException("Payment provider is required");
         }
-        return resolve(p).createSession(p, tenantId, paymentId, amount, currency, returnUrl);
+        return resolve(p).createSession(p, orderContext);
     }
 
     @Override
@@ -62,5 +56,11 @@ public class DelegatingFeePaymentGatewayClient implements PaymentGatewayClient {
             String providerSignature) {
         String p = normalize(provider);
         return resolve(p).confirmPayment(p, checkoutToken, providerOrderId, providerPaymentId, providerSignature);
+    }
+
+    @Override
+    public GatewayPaymentStatus fetchPaymentStatus(String provider, String providerOrderId, String providerPaymentId) {
+        String p = normalize(provider);
+        return resolve(p).fetchPaymentStatus(p, providerOrderId, providerPaymentId);
     }
 }

@@ -1,7 +1,12 @@
 import { Injectable } from '@angular/core';
 import { BehaviorSubject, Observable, forkJoin, of, throwError } from 'rxjs';
 import { delay, map, tap } from 'rxjs/operators';
-import { MOCK_PLATFORM_OPERATOR_NOTIFICATIONS_SEED, MOCK_SCHOOL_NOTIFICATIONS_SEED } from '../mocks/notification.mock-data';
+import {
+  MOCK_PARENT_NOTIFICATIONS_SEED,
+  MOCK_PLATFORM_OPERATOR_NOTIFICATIONS_SEED,
+  MOCK_SCHOOL_NOTIFICATIONS_SEED,
+  MOCK_TEACHER_NOTIFICATIONS_SEED,
+} from '../mocks/notification.mock-data';
 import { AppNotification } from '../models/models';
 import { ApiService, PageResp } from './api.service';
 import { DEFAULT_ERP_PAGE_SIZE, NOTIFICATION_HEADER_PREVIEW_SIZE } from '../constants/pagination.constants';
@@ -11,7 +16,7 @@ import { runtimeConfig } from '../config/runtime-config';
 
 @Injectable({ providedIn: 'root' })
 export class NotificationService {
-  /** Typical school admin / staff inbox (admissions, fees, class ops). */
+  /** Typical school admin / staff inbox (admissions, fees, class ops); parent/teacher mocks applied on refresh. */
   private schoolNotifications: AppNotification[] = MOCK_SCHOOL_NOTIFICATIONS_SEED.map(n => ({ ...n }));
 
   /** Platform operator — no class-level or enrollment noise. */
@@ -42,10 +47,22 @@ export class NotificationService {
   }
 
   useSchoolNotificationFeed(): void {
-    this.notifications = this.schoolNotifications.map(n => ({ ...n }));
+    this.notifications = this.pickMockSchoolInboxForRole().map(n => ({ ...n }));
     this.sortNotificationsNewestFirst();
     this.notificationsSubject.next([...this.notifications]);
     this.syncUnreadFromLoadedNotifications();
+  }
+
+  /** Role-scoped mock inbox aligned with backend audience rules (swap for live API via {@code useMocks}). */
+  private pickMockSchoolInboxForRole(): AppNotification[] {
+    const r = (this.auth.getCurrentUser()?.role || '').toLowerCase().replace(/^role_/, '');
+    if (r === 'parent') {
+      return MOCK_PARENT_NOTIFICATIONS_SEED;
+    }
+    if (r === 'teacher') {
+      return MOCK_TEACHER_NOTIFICATIONS_SEED;
+    }
+    return MOCK_SCHOOL_NOTIFICATIONS_SEED;
   }
 
   private syncUnreadFromLoadedNotifications(): void {

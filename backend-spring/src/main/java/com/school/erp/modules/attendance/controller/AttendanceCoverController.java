@@ -3,6 +3,7 @@ package com.school.erp.modules.attendance.controller;
 import com.school.erp.common.dto.ApiResponse;
 import com.school.erp.modules.attendance.dto.AttendanceCoverDTOs;
 import com.school.erp.modules.attendance.service.AttendanceCoverService;
+import com.school.erp.security.rbac.RbacSpel;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -26,7 +27,7 @@ public class AttendanceCoverController {
     }
 
     @GetMapping
-    @PreAuthorize("hasAnyRole('ADMIN','TEACHER')")
+    @PreAuthorize(RbacSpel.ACADEMIC_ROSTER_READ)
     @Operation(summary = "List cover assignments for a date (teacher: own covers; admin: all)")
     public ResponseEntity<ApiResponse<List<AttendanceCoverDTOs.Response>>> list(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
@@ -34,7 +35,7 @@ public class AttendanceCoverController {
     }
 
     @GetMapping("/all-active")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize(RbacSpel.ACADEMIC_DESK_ADMIN)
     @Operation(summary = "Admin: all active covers on a date")
     public ResponseEntity<ApiResponse<List<AttendanceCoverDTOs.Response>>> listAllActive(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
@@ -42,14 +43,14 @@ public class AttendanceCoverController {
     }
 
     @PostMapping
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize(RbacSpel.ACADEMIC_DESK_ADMIN)
     @Operation(summary = "Create cover assignment")
     public ResponseEntity<ApiResponse<AttendanceCoverDTOs.Response>> create(@Valid @RequestBody AttendanceCoverDTOs.CreateRequest req) {
         return ResponseEntity.ok(ApiResponse.ok(coverService.create(req)));
     }
 
     @PostMapping("/{id}/cancel")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize(RbacSpel.ACADEMIC_DESK_ADMIN)
     @Operation(summary = "Cancel cover assignment")
     public ResponseEntity<ApiResponse<Void>> cancel(@PathVariable Long id) {
         coverService.cancel(id);

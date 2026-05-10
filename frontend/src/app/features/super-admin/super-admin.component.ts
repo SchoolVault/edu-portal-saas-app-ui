@@ -12,7 +12,6 @@ import {
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { RouterLink } from '@angular/router';
 import { Chart, registerables } from 'chart.js';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { forkJoin, Subject } from 'rxjs';
@@ -22,13 +21,25 @@ import { PlatformService } from '../../core/services/platform.service';
 import { ErpPaginationComponent } from '../../shared/erp-pagination/erp-pagination.component';
 import { DEFAULT_ERP_PAGE_SIZE } from '../../core/constants/pagination.constants';
 import { ConfirmDialogService } from '../../shared/confirm-dialog/confirm-dialog.service';
+import { ThemeService } from '../../core/services/theme.service';
 
 Chart.register(...registerables);
+
+interface SuperAdminChartPalette {
+  text: string;
+  muted: string;
+  grid: string;
+  tooltipBg: string;
+  tooltipText: string;
+  growthLine: string;
+  growthFill: string;
+  revenueBar: string;
+}
 
 @Component({
   selector: 'app-super-admin',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink, ErpPaginationComponent, TranslateModule],
+  imports: [CommonModule, FormsModule, ErpPaginationComponent, TranslateModule],
   styles: [
     `
       .sa-detail-shell {
@@ -113,25 +124,90 @@ Chart.register(...registerables);
         margin: 0;
         word-break: break-word;
       }
+      .sa-table-wrap {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        border-radius: 12px;
+      }
+      .sa-portfolio-table {
+        min-width: 760px;
+      }
+      .sa-portfolio-school {
+        min-width: 240px;
+      }
+      .sa-portfolio-school__name {
+        font-weight: 700;
+      }
+      .sa-portfolio-school__meta {
+        font-size: 12px;
+        color: var(--clr-text-muted);
+      }
+      @media (max-width: 767.98px) {
+        .sa-stat-grid {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+        .sa-admin-card {
+          flex-direction: column;
+        }
+        .sa-admin-card .btn-outline-erp {
+          width: 100%;
+        }
+      }
+      @media (max-width: 575.98px) {
+        .sa-table-wrap {
+          overflow: visible;
+        }
+        .sa-portfolio-table {
+          min-width: 0;
+        }
+        .sa-portfolio-table thead {
+          display: none;
+        }
+        .sa-portfolio-table tbody tr {
+          display: block;
+          border: 1px solid var(--clr-border-light, #e8eef0);
+          border-radius: 12px;
+          padding: 0.65rem;
+          margin: 0 0 0.65rem;
+          background: var(--clr-surface, #fff);
+        }
+        .sa-portfolio-table tbody td {
+          display: flex;
+          justify-content: space-between;
+          gap: 0.75rem;
+          border: 0;
+          padding: 0.35rem 0;
+          text-align: right;
+        }
+        .sa-portfolio-table tbody td::before {
+          content: attr(data-label);
+          color: var(--clr-text-muted);
+          font-weight: 600;
+          text-align: left;
+        }
+        .sa-portfolio-table .sa-portfolio-school {
+          display: block;
+          text-align: left;
+        }
+        .sa-portfolio-table .sa-portfolio-school::before {
+          display: none;
+        }
+        .sa-portfolio-school__meta {
+          margin-top: 0.15rem;
+        }
+      }
     `,
   ],
   template: `
     <div data-testid="super-admin-page">
-      <div class="d-flex justify-content-between align-items-end mb-4 animate-in flex-wrap gap-2">
+      <div class="erp-filter-toolbar mb-4 animate-in">
         <div>
           <div class="badge-erp badge-info mb-2">{{ 'superAdmin.badge' | translate }}</div>
           <h2 style="font-size: 28px; font-weight: 800;">{{ 'superAdmin.title' | translate }}</h2>
           <p class="text-muted mb-0" style="font-size: 13px;">{{ 'superAdmin.lead' | translate }}</p>
         </div>
-        <div class="d-flex gap-2 align-self-center flex-wrap">
-          <a routerLink="/app/platform-schools" class="btn-outline-erp btn-sm">{{ 'superAdmin.schoolDirectory' | translate }}</a>
-          <a
-            routerLink="/app/platform-feature-rollout"
-            [queryParams]="selectedSchool ? { tenantId: selectedSchool.tenantId } : {}"
-            class="btn-outline-erp btn-sm">
-            {{ 'nav.featureRollout' | translate }}
-          </a>
-          <button type="button" class="btn-outline-erp btn-sm" (click)="refreshPlatform()" [disabled]="refreshing">
+        <div class="erp-filter-toolbar__actions">
+          <button type="button" class="btn-outline-erp btn-sm erp-filter-toolbar__action" (click)="refreshPlatform()" [disabled]="refreshing">
             <i class="bi bi-arrow-clockwise"></i>
             {{ refreshing ? ('superAdmin.refreshing' | translate) : ('superAdmin.refresh' | translate) }}
           </button>
@@ -174,16 +250,23 @@ Chart.register(...registerables);
               </div>
             </div>
             <div class="px-3 pt-3 pb-0">
-              <label class="erp-label small mb-1">{{ 'superAdmin.portfolio.search' | translate }}</label>
-              <input
-                type="search"
-                class="erp-input"
-                [(ngModel)]="schoolSearchInput"
-                (ngModelChange)="schoolSearch$.next($event)"
-                [placeholder]="'superAdmin.portfolio.searchPh' | translate"
-              />
+              <div class="erp-filter-toolbar">
+                <div class="erp-filter-toolbar__search">
+                  <div>
+                    <label class="erp-label small mb-1">{{ 'superAdmin.portfolio.search' | translate }}</label>
+                    <input
+                      type="search"
+                      class="erp-input"
+                      [(ngModel)]="schoolSearchInput"
+                      (ngModelChange)="schoolSearch$.next($event)"
+                      [placeholder]="'superAdmin.portfolio.searchPh' | translate"
+                    />
+                  </div>
+                </div>
+              </div>
             </div>
-            <table class="erp-table">
+            <div class="sa-table-wrap">
+            <table class="erp-table sa-portfolio-table">
               <thead>
                 <tr>
                   <th>{{ 'superAdmin.portfolio.thSchool' | translate }}</th>
@@ -200,16 +283,16 @@ Chart.register(...registerables);
                   style="cursor: pointer;"
                   [style.background]="selectedSchool?.tenantId === school.tenantId ? 'var(--clr-surface-alt)' : ''"
                 >
-                  <td>
-                    <div style="font-weight: 700;">{{ school.schoolName }}</div>
-                    <div style="font-size: 12px; color: var(--clr-text-muted);">
+                  <td class="sa-portfolio-school" [attr.data-label]="'superAdmin.portfolio.thSchool' | translate">
+                    <div class="sa-portfolio-school__name">{{ school.schoolName }}</div>
+                    <div class="sa-portfolio-school__meta">
                       {{ school.schoolCode }} · {{ school.address || ('superAdmin.noAddress' | translate) }}
                     </div>
                   </td>
-                  <td>{{ school.studentCount }}</td>
-                  <td>{{ school.teacherCount }}</td>
-                  <td>{{ school.adminCount }}</td>
-                  <td>
+                  <td [attr.data-label]="'superAdmin.portfolio.thStudents' | translate">{{ school.studentCount }}</td>
+                  <td [attr.data-label]="'superAdmin.portfolio.thTeachers' | translate">{{ school.teacherCount }}</td>
+                  <td [attr.data-label]="'superAdmin.portfolio.thAdmins' | translate">{{ school.adminCount }}</td>
+                  <td [attr.data-label]="'superAdmin.portfolio.thStatus' | translate">
                     <span class="badge-erp" [ngClass]="school.active ? 'badge-success' : 'badge-warning'">
                       {{ school.active ? ('superAdmin.status.active' | translate) : ('superAdmin.status.attention' | translate) }}
                     </span>
@@ -217,6 +300,7 @@ Chart.register(...registerables);
                 </tr>
               </tbody>
             </table>
+            </div>
             <app-erp-pagination
               *ngIf="schoolsTotal > 0"
               [totalElements]="schoolsTotal"
@@ -312,6 +396,7 @@ Chart.register(...registerables);
           <div style="font-size: 12px; color: var(--clr-text-muted); white-space: nowrap;">{{ item.timestamp }}</div>
         </div>
       </div>
+
     </div>
   `,
 })
@@ -339,6 +424,16 @@ export class SuperAdminComponent implements OnInit, AfterViewInit, OnDestroy {
     color: string;
   }> = [];
   refreshing = false;
+  chartPalette: SuperAdminChartPalette = {
+    text: '#1F2937',
+    muted: '#4B5563',
+    grid: 'rgba(148, 163, 184, 0.25)',
+    tooltipBg: '#111827',
+    tooltipText: '#F9FAFB',
+    growthLine: '#1B3A30',
+    growthFill: 'rgba(27, 58, 48, 0.15)',
+    revenueBar: 'rgba(2, 132, 199, 0.85)',
+  };
   private growthChart?: Chart;
   private revenueChart?: Chart;
 
@@ -348,11 +443,18 @@ export class SuperAdminComponent implements OnInit, AfterViewInit, OnDestroy {
     private platformService: PlatformService,
     private translate: TranslateService,
     private confirmDialog: ConfirmDialogService,
+    private themeService: ThemeService,
     private cdr: ChangeDetectorRef
   ) {}
 
   ngOnInit(): void {
+    this.chartPalette = this.resolveChartPalette();
     this.translate.onLangChange.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
+      this.cdr.markForCheck();
+      setTimeout(() => this.initCharts(), 0);
+    });
+    this.themeService.theme$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
+      this.chartPalette = this.resolveChartPalette();
       this.cdr.markForCheck();
       setTimeout(() => this.initCharts(), 0);
     });
@@ -533,6 +635,7 @@ export class SuperAdminComponent implements OnInit, AfterViewInit, OnDestroy {
 
     const newSchoolsLabel = this.translate.instant('superAdmin.charts.datasetNewSchools');
     const mrrLabel = this.translate.instant('superAdmin.charts.datasetMrr');
+    const p = this.chartPalette;
 
     this.growthChart = new Chart(this.growthChartRef.nativeElement, {
       type: 'line',
@@ -542,19 +645,26 @@ export class SuperAdminComponent implements OnInit, AfterViewInit, OnDestroy {
           {
             label: newSchoolsLabel,
             data: this.dashboard.schoolGrowth.map(point => point.value),
-            borderColor: '#0F172A',
-            backgroundColor: 'rgba(15,23,42,0.10)',
+            borderColor: p.growthLine,
+            backgroundColor: p.growthFill,
             fill: true,
             tension: 0.3,
             pointRadius: 4,
+            pointBackgroundColor: p.growthLine,
           },
         ],
       },
       options: {
         responsive: true,
         maintainAspectRatio: false,
-        plugins: { legend: { display: false } },
-        scales: { x: { grid: { display: false } }, y: { beginAtZero: true, ticks: { precision: 0 } } },
+        plugins: {
+          legend: { display: false },
+          tooltip: { backgroundColor: p.tooltipBg, titleColor: p.tooltipText, bodyColor: p.tooltipText },
+        },
+        scales: {
+          x: { grid: { color: p.grid }, ticks: { color: p.muted } },
+          y: { beginAtZero: true, ticks: { precision: 0, color: p.muted }, grid: { color: p.grid } },
+        },
       },
     });
 
@@ -566,7 +676,7 @@ export class SuperAdminComponent implements OnInit, AfterViewInit, OnDestroy {
           {
             label: mrrLabel,
             data: this.dashboard.revenueTrend.map(point => point.value),
-            backgroundColor: 'rgba(14,165,233,0.85)',
+            backgroundColor: p.revenueBar,
             borderRadius: 8,
           },
         ],
@@ -574,9 +684,41 @@ export class SuperAdminComponent implements OnInit, AfterViewInit, OnDestroy {
       options: {
         responsive: true,
         maintainAspectRatio: false,
-        plugins: { legend: { display: false } },
-        scales: { x: { grid: { display: false } }, y: { beginAtZero: true } },
+        plugins: {
+          legend: { display: false },
+          tooltip: { backgroundColor: p.tooltipBg, titleColor: p.tooltipText, bodyColor: p.tooltipText },
+        },
+        scales: {
+          x: { grid: { color: p.grid }, ticks: { color: p.muted } },
+          y: { beginAtZero: true, grid: { color: p.grid }, ticks: { color: p.muted } },
+        },
       },
     });
+  }
+
+  private resolveChartPalette(): SuperAdminChartPalette {
+    const isDark = this.themeService.getTheme() === 'dark';
+    if (isDark) {
+      return {
+        text: '#E5E7EB',
+        muted: '#C3CDD9',
+        grid: 'rgba(148, 163, 184, 0.24)',
+        tooltipBg: '#0B1220',
+        tooltipText: '#F8FAFC',
+        growthLine: '#34D399',
+        growthFill: 'rgba(52, 211, 153, 0.20)',
+        revenueBar: 'rgba(56, 189, 248, 0.90)',
+      };
+    }
+    return {
+      text: '#1F2937',
+      muted: '#4B5563',
+      grid: 'rgba(148, 163, 184, 0.25)',
+      tooltipBg: '#111827',
+      tooltipText: '#F9FAFB',
+      growthLine: '#1B3A30',
+      growthFill: 'rgba(27, 58, 48, 0.15)',
+      revenueBar: 'rgba(2, 132, 199, 0.85)',
+    };
   }
 }

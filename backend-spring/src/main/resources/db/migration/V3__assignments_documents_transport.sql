@@ -135,11 +135,9 @@ ALTER TABLE exams
     ADD COLUMN grading_config_json JSON NULL AFTER results_published;
 
 ALTER TABLE timetable_entries
-    ADD COLUMN academic_year_id BIGINT NULL AFTER tenant_id,
     ADD COLUMN timetable_version INT NOT NULL DEFAULT 1 AFTER academic_year_id,
     ADD COLUMN has_conflict BOOLEAN NOT NULL DEFAULT FALSE AFTER room;
 
-CREATE INDEX idx_tt_year ON timetable_entries (tenant_id, academic_year_id);
 
 ALTER TABLE payslips
     ADD COLUMN payroll_month VARCHAR(7) NULL COMMENT 'YYYY-MM' AFTER teacher_name,

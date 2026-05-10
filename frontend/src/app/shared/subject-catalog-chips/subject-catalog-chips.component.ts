@@ -67,8 +67,8 @@ import { SubjectCatalogItem } from '../../core/models/models';
         appearance: none;
       }
       .subj-chips__btn:hover {
-        border-color: color-mix(in srgb, var(--clr-primary) 38%, var(--clr-border));
-        box-shadow: 0 2px 8px rgba(27, 58, 48, 0.07);
+        border-color: color-mix(in srgb, var(--clr-subject-accent) 38%, var(--clr-border));
+        box-shadow: 0 2px 8px color-mix(in srgb, var(--clr-subject-accent) 10%, transparent);
       }
       .subj-chips__btn:focus-visible {
         outline: none;
@@ -76,14 +76,14 @@ import { SubjectCatalogItem } from '../../core/models/models';
         box-shadow: 0 0 0 3px color-mix(in srgb, var(--clr-accent) 28%, transparent);
       }
       .subj-chips__btn--on {
-        border-color: var(--clr-primary);
-        background: color-mix(in srgb, var(--clr-primary) 12%, var(--clr-surface));
-        box-shadow: 0 0 0 1px color-mix(in srgb, var(--clr-primary) 22%, transparent);
+        border-color: var(--clr-subject-accent);
+        background: color-mix(in srgb, var(--clr-subject-accent) 12%, var(--clr-surface));
+        box-shadow: 0 0 0 1px color-mix(in srgb, var(--clr-subject-accent) 22%, transparent);
         font-weight: 600;
       }
       .subj-chips__btn--on .subj-chips__code {
-        color: var(--clr-primary);
-        background: color-mix(in srgb, var(--clr-primary) 14%, var(--clr-surface));
+        color: var(--clr-subject-accent);
+        background: color-mix(in srgb, var(--clr-subject-accent) 14%, var(--clr-surface));
       }
       .subj-chips__check {
         display: inline-flex;
@@ -97,7 +97,7 @@ import { SubjectCatalogItem } from '../../core/models/models';
         color: var(--clr-text-muted);
       }
       .subj-chips__btn--on .subj-chips__check {
-        color: var(--clr-primary);
+        color: var(--clr-subject-accent);
       }
       .subj-chips__code {
         font-size: 11px;

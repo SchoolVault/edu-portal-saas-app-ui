@@ -10,7 +10,12 @@ import { NotificationService } from '../../core/services/notification.service';
 import { CommunicationService } from '../../core/services/communication.service';
 import { PlatformHealthService } from '../../core/services/platform-health.service';
 import { AppNotification, AnnouncementPreview, ProfileSummary } from '../../core/models/models';
+import {
+  formatHomeroomClassSectionLabel,
+  pickPrimaryHomeroomAssignment,
+} from '../../core/profile/teacher-header-homeroom.util';
 import { ThemeService } from '../../core/services/theme.service';
+import { TenantModuleGateService } from '../../core/services/tenant-module-gate.service';
 import { runtimeConfig } from '../../core/config/runtime-config';
 import { notificationListRowNavigation } from '../../core/utils/notification-link.util';
 
@@ -85,6 +90,9 @@ import { notificationListRowNavigation } from '../../core/utils/notification-lin
                   <i class="bi bi-megaphone-fill" style="margin-right: 6px; color: var(--clr-primary);"></i>
                   {{ ann.title }}
                 </h5>
+                <p class="small text-muted mb-1" *ngIf="announcementScopeSubtitle(ann) as scope">
+                  {{ scope }}
+                </p>
                 <p>{{ ann.preview }}</p>
                 <div class="time">{{ timeAgo(ann.createdAt || '') }}</div>
               </div>
@@ -142,7 +150,7 @@ import { notificationListRowNavigation } from '../../core/utils/notification-lin
                 <span class="profile-summary-email">{{ profileSummary.email }}</span>
               </div>
               <div class="profile-summary-stats">
-                <span *ngFor="let chip of profileStatChips">
+                <span *ngFor="let chip of profileStatChipRows">
                   {{ chip.translateKey | translate: chip.params }}
                 </span>
               </div>
@@ -204,6 +212,7 @@ export class HeaderComponent implements OnInit, OnDestroy {
   isSuperAdmin = false;
   platformHealthItems: { name: string; status: string; detail?: string }[] = [];
   profileSummary: ProfileSummary | null = null;
+  profileStatChipRows: Array<{ translateKey: string; params: Record<string, string | number> }> = [];
   currentTheme: 'light' | 'dark' = 'light';
 
   avatarUrl: string | null = null;
@@ -227,6 +236,7 @@ export class HeaderComponent implements OnInit, OnDestroy {
       parent: 'header.role.parent',
       student: 'header.role.student',
       library_staff: 'header.role.libraryStaff',
+      school_staff: 'header.role.schoolStaff',
     };
     return map[r] || 'header.role.user';
   }
@@ -239,7 +249,7 @@ export class HeaderComponent implements OnInit, OnDestroy {
   }
 
   /** Role-aware KPI chips for the profile card (parents never see student/teacher/subject admin stats). */
-  get profileStatChips(): Array<{ translateKey: string; params: Record<string, number> }> {
+  private buildProfileStatChips(): Array<{ translateKey: string; params: Record<string, string | number> }> {
     const s = this.profileSummary;
     if (!s || this.isSuperAdmin) {
       return [];
@@ -252,25 +262,51 @@ export class HeaderComponent implements OnInit, OnDestroy {
       return [{ translateKey: 'header.stats.children', params: { count: Number(s.childCount) } }];
     }
     if (role === 'admin') {
-      const out: Array<{ translateKey: string; params: Record<string, number> }> = [];
+      const out: Array<{ translateKey: string; params: Record<string, string | number> }> = [];
       if (s.managedStudentCount != null) {
         out.push({ translateKey: 'header.stats.students', params: { count: Number(s.managedStudentCount) } });
       }
       if (s.managedTeacherCount != null) {
         out.push({ translateKey: 'header.stats.teachers', params: { count: Number(s.managedTeacherCount) } });
       }
+      if (s.managedStaffCount != null && Number(s.managedStaffCount) > 0) {
+        out.push({ translateKey: 'header.stats.staff', params: { count: Number(s.managedStaffCount) } });
+      }
       return out;
     }
     if (role === 'teacher') {
-      if (s.subjectCount == null) {
-        return [];
+      const homeroom = pickPrimaryHomeroomAssignment(s.classTeacherOf);
+      const out: Array<{ translateKey: string; params: Record<string, string | number> }> = [];
+      if (homeroom && homeroom.totalStudents != null) {
+        out.push({
+          translateKey: 'header.stats.homeroomStudentCount',
+          params: { count: Number(homeroom.totalStudents) },
+        });
       }
-      return [{ translateKey: 'header.stats.subjects', params: { count: Number(s.subjectCount) } }];
+      const classSectionLabel = homeroom ? formatHomeroomClassSectionLabel(homeroom) : '';
+      if (classSectionLabel) {
+        out.push({
+          translateKey: 'header.stats.classTeacherHomeroom',
+          params: { label: classSectionLabel },
+        });
+      }
+      const primarySubject = (s.primaryTeachingSubject ?? '').trim();
+      if (primarySubject) {
+        out.push({
+          translateKey: 'header.stats.primaryTeachingSubjectChip',
+          params: { subject: primarySubject },
+        });
+      }
+      return out;
     }
     if (s.childCount != null) {
       return [{ translateKey: 'header.stats.children', params: { count: Number(s.childCount) } }];
     }
     return [];
+  }
+
+  private rebuildProfileStatChips(): void {
+    this.profileStatChipRows = this.buildProfileStatChips();
   }
 
   constructor(
@@ -281,6 +317,7 @@ export class HeaderComponent implements OnInit, OnDestroy {
     private platformHealthService: PlatformHealthService,
     private router: Router,
     private themeService: ThemeService,
+    private moduleGate: TenantModuleGateService,
     private translate: TranslateService,
     private cdr: ChangeDetectorRef
   ) {}
@@ -307,7 +344,7 @@ export class HeaderComponent implements OnInit, OnDestroy {
       this.recomputeUnreadBadge();
     });
     this.bellReadState.changed$.pipe(takeUntil(this.destroy$)).subscribe(() => this.recomputeUnreadBadge());
-    if (!runtimeConfig.useMocks) {
+    if (!this.isSuperAdmin) {
       this.notificationService.refreshFromServer().subscribe({ error: () => { /* not logged in or API down */ } });
     }
     const syncHeaderIdentity = (): void => {
@@ -324,6 +361,7 @@ export class HeaderComponent implements OnInit, OnDestroy {
         .toUpperCase()
         .substring(0, 2);
       this.avatarUrl = this.authService.resolveCurrentUserAvatarUrl(s?.avatar ?? null);
+      this.rebuildProfileStatChips();
     };
 
     this.authService.profileSummary$.pipe(takeUntil(this.destroy$)).subscribe(s => {
@@ -361,7 +399,11 @@ export class HeaderComponent implements OnInit, OnDestroy {
       merge(of(null), this.router.events.pipe(filter(e => e instanceof NavigationEnd)))
         .pipe(
           debounceTime(450),
-          switchMap(() => this.communicationService.getAnnouncementPreviews()),
+          switchMap(() =>
+            this.moduleGate.isModuleEnabled('communication')
+              ? this.communicationService.getAnnouncementPreviews()
+              : of([] as AnnouncementPreview[])
+          ),
           takeUntil(this.destroy$)
         )
         .subscribe({
@@ -401,6 +443,15 @@ export class HeaderComponent implements OnInit, OnDestroy {
   }
 
   private getTitleKeyFromUrl(url: string): string {
+    const pathOnly = url.split(/[?#]/)[0];
+    const tree = this.router.parseUrl(url);
+    const settingsTab = String(tree.queryParams['settingsTab'] || '')
+      .trim()
+      .toLowerCase();
+    const onboardFlow = String(tree.queryParams['onboard'] || '')
+      .trim()
+      .toLowerCase();
+
     const map: Record<string, string> = {
       dashboard: 'header.title.dashboard',
       students: 'header.title.students',
@@ -416,6 +467,7 @@ export class HeaderComponent implements OnInit, OnDestroy {
       leave: 'header.title.leave',
       reports: 'header.title.reports',
       directory: 'header.title.directory',
+      staff: 'header.title.staff',
       operations: 'header.title.operationsHub',
       transport: 'header.title.transport',
       library: 'header.title.library',
@@ -433,18 +485,26 @@ export class HeaderComponent implements OnInit, OnDestroy {
       'platform-broadcasts': 'header.title.adminBroadcasts',
       'platform-settings': 'header.title.platformSettings',
       'import-export': 'header.title.importExport',
+      'school-onboarding': 'header.title.schoolOnboarding',
     };
-    const parts = url.split('/').filter(Boolean);
+    const parts = pathOnly.split('/').filter(Boolean);
     const appIdx = parts.indexOf('app');
-    const first = appIdx >= 0 ? parts[appIdx + 1] : parts[0];
+    const rawFirst = appIdx >= 0 ? parts[appIdx + 1] : parts[0];
+    const first = (rawFirst || '').split('?')[0];
     if (first === 'announcement') return 'header.title.notice';
     if (first === 'notification' || first === 'notifications') return 'header.title.notificationDetail';
     const seg = first || 'dashboard';
+    if (seg === 'platform-schools' && (onboardFlow === '1' || onboardFlow === 'true' || onboardFlow === 'yes')) {
+      return 'header.title.schoolOnboarding';
+    }
     if (seg === 'settings') {
-      if (url.includes('settingsTab=preferences')) {
+      if (settingsTab === 'finance') {
+        return 'header.title.settingsFinance';
+      }
+      if (settingsTab === 'preferences') {
         return 'header.title.preferences';
       }
-      if (url.includes('settingsTab=profile')) {
+      if (settingsTab === 'profile') {
         return 'header.title.myAccountProfile';
       }
     }
@@ -471,7 +531,7 @@ export class HeaderComponent implements OnInit, OnDestroy {
   toggleNotifications(): void {
     this.showNotifications = !this.showNotifications;
     this.showProfile = false;
-    if (this.showNotifications && !runtimeConfig.useMocks) {
+    if (this.showNotifications && !this.isSuperAdmin) {
       this.notificationService.refreshFromServer().subscribe({ error: () => {} });
     }
   }
@@ -543,20 +603,9 @@ export class HeaderComponent implements OnInit, OnDestroy {
     this.router.navigate(['/app/settings'], { queryParams: { settingsTab: 'preferences' } });
   }
 
-  /** Parents only see ALL-audience notices in the “School notices” strip; targeted items stay in notifications. */
+  /** Show the same announcement previews in bell across roles; role visibility is enforced by backend API. */
   private applySchoolNoticePreviewsForRole(rows: AnnouncementPreview[]): void {
-    const role = (
-      (this.profileSummary?.role as string | undefined) ||
-      this.userRole ||
-      ''
-    )
-      .toLowerCase()
-      .replace(/^role_/, '');
-    if (role === 'parent') {
-      this.schoolNoticePreviews = rows.filter(r => (r.targetAudience || 'all').toLowerCase() === 'all');
-    } else {
-      this.schoolNoticePreviews = rows;
-    }
+    this.schoolNoticePreviews = rows;
   }
 
   openAnnouncementFromBell(ann: AnnouncementPreview, event: MouseEvent): void {
@@ -576,6 +625,23 @@ export class HeaderComponent implements OnInit, OnDestroy {
       return;
     }
     void this.router.navigate(['/app/notifications', target.id]);
+  }
+
+  announcementScopeSubtitle(ann: AnnouncementPreview): string {
+    const aud = String(ann.targetAudience || '').toLowerCase();
+    if (aud !== 'class' && aud !== 'section') {
+      return '';
+    }
+    const classNameRaw = String(ann.targetClassName || '').trim();
+    const className = classNameRaw.replace(/^class\s+/i, '').trim();
+    if (!className) {
+      return '';
+    }
+    const sectionName = String(ann.targetSectionName || '').trim();
+    if (aud === 'section' && sectionName) {
+      return this.translate.instant('header.bell.scopeClassSection', { className, sectionName });
+    }
+    return this.translate.instant('header.bell.scopeClassOnly', { className });
   }
 
   getNotifIcon(type: string): string {

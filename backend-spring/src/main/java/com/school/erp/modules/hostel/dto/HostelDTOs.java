@@ -2,6 +2,7 @@ package com.school.erp.modules.hostel.dto;
 
 import jakarta.validation.constraints.NotNull;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 
 public class HostelDTOs {
@@ -643,6 +644,37 @@ public class HostelDTOs {
         }
     }
 
+    public static class TransferRequest {
+        @NotNull
+        private Long targetRoomId;
+        private LocalDate effectiveDate;
+        private String reason;
+
+        public Long getTargetRoomId() {
+            return targetRoomId;
+        }
+
+        public void setTargetRoomId(Long targetRoomId) {
+            this.targetRoomId = targetRoomId;
+        }
+
+        public LocalDate getEffectiveDate() {
+            return effectiveDate;
+        }
+
+        public void setEffectiveDate(LocalDate effectiveDate) {
+            this.effectiveDate = effectiveDate;
+        }
+
+        public String getReason() {
+            return reason;
+        }
+
+        public void setReason(String reason) {
+            this.reason = reason;
+        }
+    }
+
 
     public static class HostelStats {
         private int totalRooms;
@@ -858,5 +890,443 @@ public class HostelDTOs {
         public void setAvailableBeds(int availableBeds) {
             this.availableBeds = availableBeds;
         }
+    }
+
+    public static class BillingProfileRequest {
+        @NotNull
+        private Long studentId;
+        private String studentName;
+        @NotNull
+        private Long feeStructureId;
+        private String billingCadence;
+        private java.math.BigDecimal depositAmount;
+        private java.math.BigDecimal messChargeAmount;
+        private Boolean autoInvoiceEnabled;
+        private LocalDate nextDueDate;
+
+        public Long getStudentId() { return studentId; }
+        public void setStudentId(Long studentId) { this.studentId = studentId; }
+        public String getStudentName() { return studentName; }
+        public void setStudentName(String studentName) { this.studentName = studentName; }
+        public Long getFeeStructureId() { return feeStructureId; }
+        public void setFeeStructureId(Long feeStructureId) { this.feeStructureId = feeStructureId; }
+        public String getBillingCadence() { return billingCadence; }
+        public void setBillingCadence(String billingCadence) { this.billingCadence = billingCadence; }
+        public java.math.BigDecimal getDepositAmount() { return depositAmount; }
+        public void setDepositAmount(java.math.BigDecimal depositAmount) { this.depositAmount = depositAmount; }
+        public java.math.BigDecimal getMessChargeAmount() { return messChargeAmount; }
+        public void setMessChargeAmount(java.math.BigDecimal messChargeAmount) { this.messChargeAmount = messChargeAmount; }
+        public Boolean getAutoInvoiceEnabled() { return autoInvoiceEnabled; }
+        public void setAutoInvoiceEnabled(Boolean autoInvoiceEnabled) { this.autoInvoiceEnabled = autoInvoiceEnabled; }
+        public LocalDate getNextDueDate() { return nextDueDate; }
+        public void setNextDueDate(LocalDate nextDueDate) { this.nextDueDate = nextDueDate; }
+    }
+
+    public static class BillingProfileResponse {
+        private Long id;
+        private Long studentId;
+        private String studentName;
+        private Long feeStructureId;
+        private String billingCadence;
+        private java.math.BigDecimal depositAmount;
+        private java.math.BigDecimal messChargeAmount;
+        private Boolean autoInvoiceEnabled;
+        private String lastInvoiceDate;
+        private String nextDueDate;
+
+        public Long getId() { return id; }
+        public void setId(Long id) { this.id = id; }
+        public Long getStudentId() { return studentId; }
+        public void setStudentId(Long studentId) { this.studentId = studentId; }
+        public String getStudentName() { return studentName; }
+        public void setStudentName(String studentName) { this.studentName = studentName; }
+        public Long getFeeStructureId() { return feeStructureId; }
+        public void setFeeStructureId(Long feeStructureId) { this.feeStructureId = feeStructureId; }
+        public String getBillingCadence() { return billingCadence; }
+        public void setBillingCadence(String billingCadence) { this.billingCadence = billingCadence; }
+        public java.math.BigDecimal getDepositAmount() { return depositAmount; }
+        public void setDepositAmount(java.math.BigDecimal depositAmount) { this.depositAmount = depositAmount; }
+        public java.math.BigDecimal getMessChargeAmount() { return messChargeAmount; }
+        public void setMessChargeAmount(java.math.BigDecimal messChargeAmount) { this.messChargeAmount = messChargeAmount; }
+        public Boolean getAutoInvoiceEnabled() { return autoInvoiceEnabled; }
+        public void setAutoInvoiceEnabled(Boolean autoInvoiceEnabled) { this.autoInvoiceEnabled = autoInvoiceEnabled; }
+        public String getLastInvoiceDate() { return lastInvoiceDate; }
+        public void setLastInvoiceDate(String lastInvoiceDate) { this.lastInvoiceDate = lastInvoiceDate; }
+        public String getNextDueDate() { return nextDueDate; }
+        public void setNextDueDate(String nextDueDate) { this.nextDueDate = nextDueDate; }
+    }
+
+    public static class BillingRunRequest {
+        private LocalDate dueDate;
+        private Boolean includeDisabled;
+        private String note;
+        private String idempotencyKey;
+
+        public LocalDate getDueDate() { return dueDate; }
+        public void setDueDate(LocalDate dueDate) { this.dueDate = dueDate; }
+        public Boolean getIncludeDisabled() { return includeDisabled; }
+        public void setIncludeDisabled(Boolean includeDisabled) { this.includeDisabled = includeDisabled; }
+        public String getNote() { return note; }
+        public void setNote(String note) { this.note = note; }
+        public String getIdempotencyKey() { return idempotencyKey; }
+        public void setIdempotencyKey(String idempotencyKey) { this.idempotencyKey = idempotencyKey; }
+    }
+
+    public static class BillingRunResponse {
+        private String runRef;
+        private int queuedProfiles;
+        private String dueDate;
+        private String note;
+
+        public String getRunRef() { return runRef; }
+        public void setRunRef(String runRef) { this.runRef = runRef; }
+        public int getQueuedProfiles() { return queuedProfiles; }
+        public void setQueuedProfiles(int queuedProfiles) { this.queuedProfiles = queuedProfiles; }
+        public String getDueDate() { return dueDate; }
+        public void setDueDate(String dueDate) { this.dueDate = dueDate; }
+        public String getNote() { return note; }
+        public void setNote(String note) { this.note = note; }
+    }
+
+    public static class GatePassRequest {
+        @NotNull
+        private Long studentId;
+        private String studentName;
+        private String requestType;
+        private String reason;
+        private LocalDateTime outAt;
+        private LocalDateTime expectedInAt;
+
+        public Long getStudentId() { return studentId; }
+        public void setStudentId(Long studentId) { this.studentId = studentId; }
+        public String getStudentName() { return studentName; }
+        public void setStudentName(String studentName) { this.studentName = studentName; }
+        public String getRequestType() { return requestType; }
+        public void setRequestType(String requestType) { this.requestType = requestType; }
+        public String getReason() { return reason; }
+        public void setReason(String reason) { this.reason = reason; }
+        public LocalDateTime getOutAt() { return outAt; }
+        public void setOutAt(LocalDateTime outAt) { this.outAt = outAt; }
+        public LocalDateTime getExpectedInAt() { return expectedInAt; }
+        public void setExpectedInAt(LocalDateTime expectedInAt) { this.expectedInAt = expectedInAt; }
+    }
+
+    public static class ApprovalActionRequest {
+        private String note;
+
+        public String getNote() { return note; }
+        public void setNote(String note) { this.note = note; }
+    }
+
+    public static class GatePassResponse {
+        private Long id;
+        private Long studentId;
+        private String studentName;
+        private String requestType;
+        private String status;
+        private String reason;
+        private String outAt;
+        private String expectedInAt;
+        private String actualInAt;
+        private String approvalNote;
+
+        public Long getId() { return id; }
+        public void setId(Long id) { this.id = id; }
+        public Long getStudentId() { return studentId; }
+        public void setStudentId(Long studentId) { this.studentId = studentId; }
+        public String getStudentName() { return studentName; }
+        public void setStudentName(String studentName) { this.studentName = studentName; }
+        public String getRequestType() { return requestType; }
+        public void setRequestType(String requestType) { this.requestType = requestType; }
+        public String getStatus() { return status; }
+        public void setStatus(String status) { this.status = status; }
+        public String getReason() { return reason; }
+        public void setReason(String reason) { this.reason = reason; }
+        public String getOutAt() { return outAt; }
+        public void setOutAt(String outAt) { this.outAt = outAt; }
+        public String getExpectedInAt() { return expectedInAt; }
+        public void setExpectedInAt(String expectedInAt) { this.expectedInAt = expectedInAt; }
+        public String getActualInAt() { return actualInAt; }
+        public void setActualInAt(String actualInAt) { this.actualInAt = actualInAt; }
+        public String getApprovalNote() { return approvalNote; }
+        public void setApprovalNote(String approvalNote) { this.approvalNote = approvalNote; }
+    }
+
+    public static class VisitorEntryRequest {
+        @NotNull
+        private Long studentId;
+        private String studentName;
+        private String visitorName;
+        private String relationLabel;
+        private String visitorPhone;
+        private String purpose;
+        private LocalDateTime checkInAt;
+
+        public Long getStudentId() { return studentId; }
+        public void setStudentId(Long studentId) { this.studentId = studentId; }
+        public String getStudentName() { return studentName; }
+        public void setStudentName(String studentName) { this.studentName = studentName; }
+        public String getVisitorName() { return visitorName; }
+        public void setVisitorName(String visitorName) { this.visitorName = visitorName; }
+        public String getRelationLabel() { return relationLabel; }
+        public void setRelationLabel(String relationLabel) { this.relationLabel = relationLabel; }
+        public String getVisitorPhone() { return visitorPhone; }
+        public void setVisitorPhone(String visitorPhone) { this.visitorPhone = visitorPhone; }
+        public String getPurpose() { return purpose; }
+        public void setPurpose(String purpose) { this.purpose = purpose; }
+        public LocalDateTime getCheckInAt() { return checkInAt; }
+        public void setCheckInAt(LocalDateTime checkInAt) { this.checkInAt = checkInAt; }
+    }
+
+    public static class VisitorEntryResponse {
+        private Long id;
+        private Long studentId;
+        private String studentName;
+        private String visitorName;
+        private String relationLabel;
+        private String visitorPhone;
+        private String purpose;
+        private String status;
+        private String checkInAt;
+        private String checkOutAt;
+        private String approvalNote;
+
+        public Long getId() { return id; }
+        public void setId(Long id) { this.id = id; }
+        public Long getStudentId() { return studentId; }
+        public void setStudentId(Long studentId) { this.studentId = studentId; }
+        public String getStudentName() { return studentName; }
+        public void setStudentName(String studentName) { this.studentName = studentName; }
+        public String getVisitorName() { return visitorName; }
+        public void setVisitorName(String visitorName) { this.visitorName = visitorName; }
+        public String getRelationLabel() { return relationLabel; }
+        public void setRelationLabel(String relationLabel) { this.relationLabel = relationLabel; }
+        public String getVisitorPhone() { return visitorPhone; }
+        public void setVisitorPhone(String visitorPhone) { this.visitorPhone = visitorPhone; }
+        public String getPurpose() { return purpose; }
+        public void setPurpose(String purpose) { this.purpose = purpose; }
+        public String getStatus() { return status; }
+        public void setStatus(String status) { this.status = status; }
+        public String getCheckInAt() { return checkInAt; }
+        public void setCheckInAt(String checkInAt) { this.checkInAt = checkInAt; }
+        public String getCheckOutAt() { return checkOutAt; }
+        public void setCheckOutAt(String checkOutAt) { this.checkOutAt = checkOutAt; }
+        public String getApprovalNote() { return approvalNote; }
+        public void setApprovalNote(String approvalNote) { this.approvalNote = approvalNote; }
+    }
+
+    public static class IncidentRequest {
+        private Long studentId;
+        private String studentName;
+        private String incidentType;
+        private String severity;
+        private String summary;
+        private LocalDateTime occurredAt;
+        private Integer slaMinutes;
+
+        public Long getStudentId() { return studentId; }
+        public void setStudentId(Long studentId) { this.studentId = studentId; }
+        public String getStudentName() { return studentName; }
+        public void setStudentName(String studentName) { this.studentName = studentName; }
+        public String getIncidentType() { return incidentType; }
+        public void setIncidentType(String incidentType) { this.incidentType = incidentType; }
+        public String getSeverity() { return severity; }
+        public void setSeverity(String severity) { this.severity = severity; }
+        public String getSummary() { return summary; }
+        public void setSummary(String summary) { this.summary = summary; }
+        public LocalDateTime getOccurredAt() { return occurredAt; }
+        public void setOccurredAt(LocalDateTime occurredAt) { this.occurredAt = occurredAt; }
+        public Integer getSlaMinutes() { return slaMinutes; }
+        public void setSlaMinutes(Integer slaMinutes) { this.slaMinutes = slaMinutes; }
+    }
+
+    public static class IncidentEscalationRequest {
+        private String escalationLevel;
+        private String note;
+
+        public String getEscalationLevel() { return escalationLevel; }
+        public void setEscalationLevel(String escalationLevel) { this.escalationLevel = escalationLevel; }
+        public String getNote() { return note; }
+        public void setNote(String note) { this.note = note; }
+    }
+
+    public static class IncidentResolveRequest {
+        private String note;
+        private String resolutionReason;
+
+        public String getNote() { return note; }
+        public void setNote(String note) { this.note = note; }
+        public String getResolutionReason() { return resolutionReason; }
+        public void setResolutionReason(String resolutionReason) { this.resolutionReason = resolutionReason; }
+    }
+
+    public static class IncidentResponse {
+        private Long id;
+        private Long studentId;
+        private String studentName;
+        private String incidentType;
+        private String severity;
+        private String status;
+        private String summary;
+        private String occurredAt;
+        private String escalatedAt;
+        private String escalationLevel;
+        private String resolutionNote;
+        private String resolutionReason;
+        private String slaDueAt;
+
+        public Long getId() { return id; }
+        public void setId(Long id) { this.id = id; }
+        public Long getStudentId() { return studentId; }
+        public void setStudentId(Long studentId) { this.studentId = studentId; }
+        public String getStudentName() { return studentName; }
+        public void setStudentName(String studentName) { this.studentName = studentName; }
+        public String getIncidentType() { return incidentType; }
+        public void setIncidentType(String incidentType) { this.incidentType = incidentType; }
+        public String getSeverity() { return severity; }
+        public void setSeverity(String severity) { this.severity = severity; }
+        public String getStatus() { return status; }
+        public void setStatus(String status) { this.status = status; }
+        public String getSummary() { return summary; }
+        public void setSummary(String summary) { this.summary = summary; }
+        public String getOccurredAt() { return occurredAt; }
+        public void setOccurredAt(String occurredAt) { this.occurredAt = occurredAt; }
+        public String getEscalatedAt() { return escalatedAt; }
+        public void setEscalatedAt(String escalatedAt) { this.escalatedAt = escalatedAt; }
+        public String getEscalationLevel() { return escalationLevel; }
+        public void setEscalationLevel(String escalationLevel) { this.escalationLevel = escalationLevel; }
+        public String getResolutionNote() { return resolutionNote; }
+        public void setResolutionNote(String resolutionNote) { this.resolutionNote = resolutionNote; }
+        public String getResolutionReason() { return resolutionReason; }
+        public void setResolutionReason(String resolutionReason) { this.resolutionReason = resolutionReason; }
+        public String getSlaDueAt() { return slaDueAt; }
+        public void setSlaDueAt(String slaDueAt) { this.slaDueAt = slaDueAt; }
+    }
+
+    public static class HostelPortalProfileResponse {
+        private Long studentId;
+        private String studentName;
+        private String hostelName;
+        private String roomNumber;
+        private String roomType;
+        private String occupancyLabel;
+        private String billingCadence;
+        private String nextDueDate;
+        private String activeGatePassStatus;
+
+        public Long getStudentId() { return studentId; }
+        public void setStudentId(Long studentId) { this.studentId = studentId; }
+        public String getStudentName() { return studentName; }
+        public void setStudentName(String studentName) { this.studentName = studentName; }
+        public String getHostelName() { return hostelName; }
+        public void setHostelName(String hostelName) { this.hostelName = hostelName; }
+        public String getRoomNumber() { return roomNumber; }
+        public void setRoomNumber(String roomNumber) { this.roomNumber = roomNumber; }
+        public String getRoomType() { return roomType; }
+        public void setRoomType(String roomType) { this.roomType = roomType; }
+        public String getOccupancyLabel() { return occupancyLabel; }
+        public void setOccupancyLabel(String occupancyLabel) { this.occupancyLabel = occupancyLabel; }
+        public String getBillingCadence() { return billingCadence; }
+        public void setBillingCadence(String billingCadence) { this.billingCadence = billingCadence; }
+        public String getNextDueDate() { return nextDueDate; }
+        public void setNextDueDate(String nextDueDate) { this.nextDueDate = nextDueDate; }
+        public String getActiveGatePassStatus() { return activeGatePassStatus; }
+        public void setActiveGatePassStatus(String activeGatePassStatus) { this.activeGatePassStatus = activeGatePassStatus; }
+    }
+
+    public static class BookingRequestCreate {
+        @NotNull
+        private Long studentId;
+        private Long preferredHostelId;
+        private String preferredRoomType;
+        private String requestNote;
+
+        public Long getStudentId() { return studentId; }
+        public void setStudentId(Long studentId) { this.studentId = studentId; }
+        public Long getPreferredHostelId() { return preferredHostelId; }
+        public void setPreferredHostelId(Long preferredHostelId) { this.preferredHostelId = preferredHostelId; }
+        public String getPreferredRoomType() { return preferredRoomType; }
+        public void setPreferredRoomType(String preferredRoomType) { this.preferredRoomType = preferredRoomType; }
+        public String getRequestNote() { return requestNote; }
+        public void setRequestNote(String requestNote) { this.requestNote = requestNote; }
+    }
+
+    public static class BookingDecisionRequest {
+        @NotNull
+        private Long roomId;
+        private String decisionNote;
+
+        public Long getRoomId() { return roomId; }
+        public void setRoomId(Long roomId) { this.roomId = roomId; }
+        public String getDecisionNote() { return decisionNote; }
+        public void setDecisionNote(String decisionNote) { this.decisionNote = decisionNote; }
+    }
+
+    public static class BookingResponse {
+        private Long id;
+        private Long studentId;
+        private String studentName;
+        private Long parentUserId;
+        private Long preferredHostelId;
+        private String preferredRoomType;
+        private String status;
+        private String requestNote;
+        private String decisionNote;
+        private Long approvedAllocationId;
+        private String createdAt;
+
+        public Long getId() { return id; }
+        public void setId(Long id) { this.id = id; }
+        public Long getStudentId() { return studentId; }
+        public void setStudentId(Long studentId) { this.studentId = studentId; }
+        public String getStudentName() { return studentName; }
+        public void setStudentName(String studentName) { this.studentName = studentName; }
+        public Long getParentUserId() { return parentUserId; }
+        public void setParentUserId(Long parentUserId) { this.parentUserId = parentUserId; }
+        public Long getPreferredHostelId() { return preferredHostelId; }
+        public void setPreferredHostelId(Long preferredHostelId) { this.preferredHostelId = preferredHostelId; }
+        public String getPreferredRoomType() { return preferredRoomType; }
+        public void setPreferredRoomType(String preferredRoomType) { this.preferredRoomType = preferredRoomType; }
+        public String getStatus() { return status; }
+        public void setStatus(String status) { this.status = status; }
+        public String getRequestNote() { return requestNote; }
+        public void setRequestNote(String requestNote) { this.requestNote = requestNote; }
+        public String getDecisionNote() { return decisionNote; }
+        public void setDecisionNote(String decisionNote) { this.decisionNote = decisionNote; }
+        public Long getApprovedAllocationId() { return approvedAllocationId; }
+        public void setApprovedAllocationId(Long approvedAllocationId) { this.approvedAllocationId = approvedAllocationId; }
+        public String getCreatedAt() { return createdAt; }
+        public void setCreatedAt(String createdAt) { this.createdAt = createdAt; }
+    }
+
+    public static class AuditLogResponse {
+        private Long id;
+        private String actionCode;
+        private String entityType;
+        private Long entityId;
+        private Long actorUserId;
+        private String actorRole;
+        private String actorName;
+        private String changeSummary;
+        private String createdAt;
+
+        public Long getId() { return id; }
+        public void setId(Long id) { this.id = id; }
+        public String getActionCode() { return actionCode; }
+        public void setActionCode(String actionCode) { this.actionCode = actionCode; }
+        public String getEntityType() { return entityType; }
+        public void setEntityType(String entityType) { this.entityType = entityType; }
+        public Long getEntityId() { return entityId; }
+        public void setEntityId(Long entityId) { this.entityId = entityId; }
+        public Long getActorUserId() { return actorUserId; }
+        public void setActorUserId(Long actorUserId) { this.actorUserId = actorUserId; }
+        public String getActorRole() { return actorRole; }
+        public void setActorRole(String actorRole) { this.actorRole = actorRole; }
+        public String getActorName() { return actorName; }
+        public void setActorName(String actorName) { this.actorName = actorName; }
+        public String getChangeSummary() { return changeSummary; }
+        public void setChangeSummary(String changeSummary) { this.changeSummary = changeSummary; }
+        public String getCreatedAt() { return createdAt; }
+        public void setCreatedAt(String createdAt) { this.createdAt = createdAt; }
     }
 }

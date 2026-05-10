@@ -16,25 +16,27 @@ import { TransportService } from '../../core/services/transport.service';
 import { StudentService } from '../../core/services/student.service';
 import { Student } from '../../core/models/models';
 import { AuthService } from '../../core/services/auth.service';
+import { UiAccessService } from '../../core/services/ui-access.service';
+import { isValidIndiaMobileTen } from '../../core/validation/phone.validation';
 
 @Component({
   selector: 'app-transport',
   standalone: true,
   imports: [CommonModule, FormsModule, TranslateModule, ErpI18nPhDirective, ErpPaginationComponent],
   template: `
-    <div data-testid="transport-page">
-      <div class="d-flex justify-content-between align-items-end mb-4 animate-in flex-wrap gap-3">
-        <div>
-          <h2 style="font-size: 24px; font-weight: 800;">{{ 'transport.pageTitle' | translate }}</h2>
-          <p class="text-muted mb-0" style="font-size: 13px;">{{ 'transport.lead' | translate }}</p>
+    <div class="transport-page" data-testid="transport-page">
+      <div class="erp-filter-toolbar transport-page__toolbar transport-page__toolbar--transport mb-4 animate-in">
+        <div class="transport-page__headline">
+          <h2 class="transport-page__title">{{ 'transport.pageTitle' | translate }}</h2>
+          <p class="transport-page__lead text-muted mb-0">{{ 'transport.lead' | translate }}</p>
         </div>
-        <div *ngIf="routesUseServerPaging" class="flex-grow-1" style="min-width: 200px; max-width: 320px;">
+        <div *ngIf="routesUseServerPaging" class="erp-filter-toolbar__search transport-page__search">
           <label class="erp-label small mb-1">{{ 'transport.listSearch' | translate }}</label>
           <input type="search" class="erp-input" [(ngModel)]="routeSearchInput" (ngModelChange)="routeSearch$.next($event)" [placeholder]="'transport.listSearchPh' | translate" />
         </div>
-        <div class="d-flex gap-2 flex-wrap align-items-end">
-          <button type="button" class="btn-outline-erp btn-sm" (click)="reload()"><i class="bi bi-arrow-clockwise"></i> {{ 'transport.refresh' | translate }}</button>
-          <button *ngIf="canManageRoutes" class="btn-primary-erp btn-sm" data-testid="add-route-btn" (click)="openRouteWizard()"><i class="bi bi-plus-lg"></i> {{ 'transport.addRoute' | translate }}</button>
+        <div class="erp-filter-toolbar__actions transport-page__toolbar-actions">
+          <button type="button" class="btn-outline-erp btn-sm erp-filter-toolbar__action" (click)="reload()"><i class="bi bi-arrow-clockwise"></i> {{ 'transport.refresh' | translate }}</button>
+          <button *ngIf="canManageRoutes" class="btn-primary-erp btn-sm erp-filter-toolbar__action" data-testid="add-route-btn" (click)="openRouteWizard()"><i class="bi bi-plus-lg"></i> {{ 'transport.addRoute' | translate }}</button>
         </div>
       </div>
 
@@ -43,12 +45,12 @@ import { AuthService } from '../../core/services/auth.service';
           <h4 class="erp-card-title mb-0">{{ 'transport.liveVehicles' | translate }}</h4>
           <span class="text-muted small">{{ 'transport.liveHint' | translate }}</span>
         </div>
-        <div class="row g-3">
-          <div class="col-md-6" *ngFor="let route of routesWithLive">
-            <div class="transport-live-card p-3 rounded-3" style="border: 1px solid var(--clr-border);">
-              <div class="d-flex justify-content-between align-items-start mb-2">
-                <strong>{{ route.name }}</strong>
-                <button type="button" class="btn-outline-erp btn-xs" (click)="mapPanelRoute = route">{{ 'transport.expandMap' | translate }}</button>
+        <div class="transport-page__card-grid transport-page__card-grid--live">
+          <div class="transport-page__card-grid-cell" *ngFor="let route of routesWithLive">
+            <div class="transport-live-card transport-live-card--panel">
+              <div class="transport-live-card__head">
+                <strong class="transport-live-card__title text-truncate">{{ route.name }}</strong>
+                <button type="button" class="btn-outline-erp btn-xs flex-shrink-0" (click)="mapPanelRoute = route">{{ 'transport.expandMap' | translate }}</button>
               </div>
               <iframe
                 class="w-100 rounded-2"
@@ -62,49 +64,81 @@ import { AuthService } from '../../core/services/auth.service';
         </div>
       </div>
 
-      <div class="row g-4 animate-in animate-in-delay-1">
-        <div class="col-md-6 col-lg-4" *ngFor="let route of routes; trackBy: trackRouteId">
-          <div class="erp-card h-100" [attr.data-testid]="'route-card-' + route.id">
-            <div class="d-flex justify-content-between align-items-start mb-3 gap-2 flex-wrap">
-              <h4 style="font-size: 16px; font-weight: 700;">{{ route.name }}</h4>
-              <div class="d-flex gap-1 align-items-center flex-wrap">
+      <div class="transport-page__card-grid animate-in animate-in-delay-1" *ngIf="routes.length > 0; else transportEmpty">
+        <div class="transport-page__card-grid-cell" *ngFor="let route of routes; trackBy: trackRouteId">
+          <article class="erp-card transport-route-card" [attr.data-testid]="'route-card-' + route.id">
+            <header class="transport-route-card__header">
+              <h3 class="transport-route-card__title text-truncate" [title]="route.name">{{ route.name }}</h3>
+              <div class="transport-route-card__header-actions">
                 <button type="button" class="btn-outline-erp btn-xs" (click)="mapPanelRoute = route">{{ 'transport.routeMap' | translate }}</button>
-                <span class="badge-erp badge-info">{{ 'transport.studentsCount' | translate: { n: route.assignedStudents } }}</span>
+                <span class="badge-erp badge-info transport-route-card__count-badge">{{ 'transport.studentsCount' | translate: { n: route.assignedStudents } }}</span>
               </div>
-            </div>
-            <div style="font-size: 13px; color: var(--clr-text-secondary); margin-bottom: 12px;">
-              <div class="mb-1"><i class="bi bi-truck me-2"></i>{{ route.vehicleNumber || ('transport.dash' | translate) }} <span *ngIf="route.vehicleType" class="badge-erp badge-neutral ms-1">{{ route.vehicleType }}</span></div>
-              <div class="mb-1"><i class="bi bi-person me-2"></i>{{ route.driverName || ('transport.dash' | translate) }}</div>
-              <div><i class="bi bi-telephone me-2"></i>{{ route.driverPhone || ('transport.dash' | translate) }}</div>
-            </div>
-            <div *ngIf="canManageRoutes" class="d-flex flex-wrap gap-1 mb-2">
+            </header>
+            <dl class="transport-route-card__meta">
+              <div class="transport-route-card__meta-row">
+                <dt class="transport-route-card__meta-icon"><i class="bi bi-truck transport-route-card__accent-icon" aria-hidden="true"></i></dt>
+                <dd class="transport-route-card__meta-value text-truncate" [title]="route.vehicleNumber || ''">
+                  {{ route.vehicleNumber || ('transport.dash' | translate) }}
+                  <span *ngIf="route.vehicleType" class="badge-erp badge-neutral ms-1">{{ route.vehicleType }}</span>
+                </dd>
+              </div>
+              <div class="transport-route-card__meta-row">
+                <dt class="transport-route-card__meta-icon"><i class="bi bi-person" aria-hidden="true"></i></dt>
+                <dd class="transport-route-card__meta-value text-truncate" [title]="route.driverName || ''">{{ route.driverName || ('transport.dash' | translate) }}</dd>
+              </div>
+              <div class="transport-route-card__meta-row">
+                <dt class="transport-route-card__meta-icon"><i class="bi bi-telephone" aria-hidden="true"></i></dt>
+                <dd class="transport-route-card__meta-value text-truncate" [title]="route.driverPhone || ''">{{ route.driverPhone || ('transport.dash' | translate) }}</dd>
+              </div>
+            </dl>
+            <div *ngIf="canManageRoutes" class="transport-route-card__actions" role="toolbar" [attr.aria-label]="'transport.routeActionsAria' | translate">
               <button type="button" class="btn-outline-erp btn-xs" (click)="openEditWizard(route)">{{ 'transport.edit' | translate }}</button>
               <button type="button" class="btn-outline-erp btn-xs" (click)="openStopModal(route)">{{ 'transport.addStop' | translate }}</button>
               <button type="button" class="btn-outline-erp btn-xs" (click)="openAssignModal(route)">{{ 'transport.assignStudent' | translate }}</button>
               <button *ngIf="route.vehicleId" type="button" class="btn-outline-erp btn-xs" (click)="simulateGps(route)">{{ 'transport.simulateGps' | translate }}</button>
-              <button type="button" class="btn-outline-erp btn-xs" style="color: var(--clr-danger);" (click)="deleteRoute(route)">{{ 'transport.delete' | translate }}</button>
+              <button type="button" class="btn-outline-erp btn-xs btn-outline-erp--danger" (click)="deleteRoute(route)">{{ 'transport.delete' | translate }}</button>
             </div>
-            <div style="font-size: 12px; font-weight: 600; color: var(--clr-text-muted); margin-bottom: 8px;">{{ 'transport.stopsHeading' | translate: { n: route.stops.length } }}</div>
-            <div *ngFor="let stop of route.stops" class="d-flex align-items-center gap-2 mb-1" style="font-size: 12px;">
-              <i class="bi bi-geo-alt-fill" style="color: var(--clr-accent);"></i>
-              <span>{{ stop.name }}</span>
-              <span class="ms-auto" style="color: var(--clr-text-muted);">{{ stop.time || ('transport.dash' | translate) }}</span>
-              <button *ngIf="canManageRoutes && stop.id" type="button" class="btn-icon btn-xs" (click)="openEditStop(route, stop)" [title]="'transport.editStopTitle' | translate"><i class="bi bi-pencil"></i></button>
-              <button *ngIf="canManageRoutes && stop.id" type="button" class="btn-icon btn-xs" (click)="removeStop(route, stop.id!)" [title]="'transport.removeStopTitle' | translate"><i class="bi bi-x-lg"></i></button>
-            </div>
-            <div *ngIf="route.students?.length" class="mt-3 pt-2" style="border-top: 1px solid var(--clr-border-light);">
-              <div style="font-size: 11px; font-weight: 600; color: var(--clr-text-muted);">{{ 'transport.assignedHeading' | translate }}</div>
-              <div *ngFor="let m of route.students" class="d-flex justify-content-between align-items-center" style="font-size: 12px;">
-                <span>{{ m.studentName }}</span>
-                <button *ngIf="canManageRoutes" type="button" class="btn-icon btn-xs" (click)="unassign(m.id)"><i class="bi bi-person-dash"></i></button>
+            <h4 class="transport-route-card__section-label">{{ 'transport.stopsHeading' | translate: { n: route.stops.length } }}</h4>
+            <div class="transport-route-card__stops">
+              <div
+                *ngFor="let stop of route.stops"
+                class="transport-route-card__stop-row"
+                [class.transport-route-card__stop-row--readonly]="!canManageRoutes || !stop.id"
+              >
+                <span class="transport-route-card__stop-icon" aria-hidden="true"><i class="bi bi-geo-alt-fill"></i></span>
+                <span class="transport-route-card__stop-name text-truncate" [title]="stop.name">{{ stop.name }}</span>
+                <span class="transport-route-card__stop-time">{{ stop.time || ('transport.dash' | translate) }}</span>
+                <span class="transport-route-card__stop-actions" *ngIf="canManageRoutes && stop.id">
+                  <button type="button" class="btn-icon btn-xs" (click)="openEditStop(route, stop)" [title]="'transport.editStopTitle' | translate"><i class="bi bi-pencil"></i></button>
+                  <button type="button" class="btn-icon btn-xs" (click)="removeStop(route, stop.id!)" [title]="'transport.removeStopTitle' | translate"><i class="bi bi-x-lg"></i></button>
+                </span>
               </div>
             </div>
-          </div>
-        </div>
-        <div *ngIf="routes.length === 0" class="col-12">
-          <div class="erp-card text-muted text-center py-5">{{ 'transport.emptyRoutes' | translate }}</div>
+            <section *ngIf="route.students?.length" class="transport-route-card__assigned" [attr.aria-labelledby]="'assign-' + route.id">
+              <h4 class="transport-route-card__section-label" [id]="'assign-' + route.id">{{ 'transport.assignedHeading' | translate }}</h4>
+              <div
+                class="transport-route-card__assigned-scroll"
+                role="region"
+                [attr.aria-label]="'transport.assignedScrollRegion' | translate"
+              >
+                <div
+                  *ngFor="let m of route.students"
+                  class="transport-route-card__assign-row"
+                  [class.transport-route-card__assign-row--readonly]="!canManageRoutes"
+                >
+                  <span class="transport-route-card__assign-name text-truncate" [title]="m.studentName">{{ m.studentName }}</span>
+                  <button *ngIf="canManageRoutes" type="button" class="btn-icon btn-xs" (click)="unassign(m.id)" [title]="'transport.unassignStudentTitle' | translate"><i class="bi bi-person-dash"></i></button>
+                </div>
+              </div>
+            </section>
+          </article>
         </div>
       </div>
+      <ng-template #transportEmpty>
+        <div class="transport-page__empty animate-in animate-in-delay-1">
+          <div class="erp-card text-muted text-center py-5">{{ 'transport.emptyRoutes' | translate }}</div>
+        </div>
+      </ng-template>
       <app-erp-pagination
         *ngIf="routesUseServerPaging && routesTotal > 0"
         class="d-block mt-3"
@@ -193,9 +227,10 @@ import { AuthService } from '../../core/services/auth.service';
             <p class="small text-muted">{{ 'transport.addDriverLead' | translate }}</p>
             <div class="row g-2 mb-2">
               <div class="col-md-5"><input class="erp-input" [(ngModel)]="newDriver.fullName" erpI18nPh="transport.phFullName"></div>
-              <div class="col-md-4"><input class="erp-input" [(ngModel)]="newDriver.phone" erpI18nPh="transport.phPhone"></div>
+              <div class="col-md-4"><input class="erp-input" [(ngModel)]="newDriver.phone" erpI18nPh="transport.phPhone" inputmode="numeric" maxlength="10" pattern="[0-9]{10}"></div>
               <div class="col-md-3"><input class="erp-input" [(ngModel)]="newDriver.licenseNumber" erpI18nPh="transport.phLicense"></div>
             </div>
+            <p class="small text-danger mb-2" *ngIf="routeWizardError">{{ routeWizardError | translate }}</p>
             <button type="button" class="btn-outline-erp btn-sm" (click)="saveNewDriver()">{{ 'transport.addDriverSelect' | translate }}</button>
           </ng-container>
         </div>
@@ -305,8 +340,311 @@ import { AuthService } from '../../core/services/auth.service';
   `,
   styles: [
     `
-      .modal-wide-map { max-width: 920px; width: 100%; }
-      .transport-live-card { background: var(--clr-surface-muted); }
+      :host {
+        --tp-space-1: 0.25rem;
+        --tp-space-2: 0.5rem;
+        --tp-space-3: 0.75rem;
+        --tp-space-4: 1rem;
+        --tp-space-5: 1.25rem;
+        --tp-space-6: 1.5rem;
+        --tp-radius: var(--radius-lg, 10px);
+        --tp-stop-band: 5.5rem;
+        --tp-assign-band: 10.5rem;
+      }
+
+      .transport-page {
+        max-width: 100%;
+      }
+
+      /* Toolbar: align with global filter bar but fix per-action margin and width balance */
+      .transport-page__toolbar--transport.erp-filter-toolbar .erp-filter-toolbar__action {
+        margin-left: 0;
+      }
+      .transport-page__toolbar {
+        flex-wrap: wrap;
+        align-items: flex-end;
+        gap: var(--tp-space-4);
+      }
+      .transport-page__headline {
+        flex: 1 1 14rem;
+        min-width: 0;
+      }
+      .transport-page__title {
+        font-size: clamp(1.15rem, 2.2vw, 1.5rem);
+        font-weight: 800;
+        margin: 0;
+        color: var(--clr-text-primary);
+        font-family: var(--font-heading);
+        letter-spacing: -0.02em;
+        line-height: 1.25;
+      }
+      .transport-page__lead {
+        font-size: 0.8125rem;
+        margin-top: var(--tp-space-2) !important;
+        line-height: 1.5;
+      }
+      @media (max-width: 991.98px) {
+        .transport-page__toolbar {
+          flex-direction: column;
+          align-items: stretch;
+        }
+        .transport-page__search,
+        .transport-page__toolbar-actions {
+          width: 100%;
+          max-width: none;
+        }
+        .transport-page__toolbar-actions {
+          display: flex;
+          flex-wrap: wrap;
+          gap: var(--tp-space-2);
+        }
+      }
+
+      /* Responsive card grid — equal track widths, scales like ERP module tiles */
+      .transport-page__card-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(min(100%, 20rem), 1fr));
+        gap: var(--tp-space-4);
+        align-items: start;
+      }
+      .transport-page__card-grid--live {
+        grid-template-columns: repeat(auto-fill, minmax(min(100%, 22rem), 1fr));
+        gap: var(--tp-space-4);
+        align-items: start;
+      }
+      .transport-page__card-grid-cell {
+        display: flex;
+        min-width: 0;
+      }
+      .transport-page__empty {
+        margin-top: var(--tp-space-2);
+      }
+
+      .transport-route-card {
+        width: 100%;
+        display: flex;
+        flex-direction: column;
+        padding: var(--tp-space-4) !important;
+        min-width: 0;
+        min-height: 0;
+      }
+
+      .transport-route-card__header {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: var(--tp-space-3);
+        align-items: center;
+        margin-bottom: var(--tp-space-3);
+        min-height: 2.25rem;
+        flex-shrink: 0;
+      }
+      .transport-route-card__title {
+        margin: 0;
+        font-size: 1.0625rem;
+        font-weight: 700;
+        font-family: var(--font-heading);
+        color: var(--clr-text-primary);
+        line-height: 1.3;
+      }
+      .transport-route-card__header-actions {
+        display: inline-flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: var(--tp-space-2);
+        justify-content: flex-end;
+      }
+      .transport-route-card__count-badge {
+        white-space: nowrap;
+        min-width: 4.5rem;
+        justify-content: center;
+      }
+
+      .transport-route-card__meta {
+        margin: 0 0 var(--tp-space-3);
+        padding: 0;
+        flex-shrink: 0;
+      }
+      .transport-route-card__meta-row {
+        display: grid;
+        grid-template-columns: 1.375rem minmax(0, 1fr);
+        gap: var(--tp-space-2) var(--tp-space-3);
+        align-items: center;
+        margin: 0 0 var(--tp-space-2);
+        font-size: 0.8125rem;
+        line-height: 1.45;
+        color: var(--clr-text-secondary);
+      }
+      .transport-route-card__meta-row:last-child {
+        margin-bottom: 0;
+      }
+      .transport-route-card__meta-icon {
+        margin: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: var(--clr-text-muted);
+      }
+      .transport-route-card__meta-value {
+        margin: 0;
+        min-width: 0;
+      }
+      .transport-route-card__accent-icon {
+        color: var(--clr-accent);
+      }
+
+      .transport-route-card__actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--tp-space-2);
+        margin-bottom: var(--tp-space-3);
+        flex-shrink: 0;
+      }
+      .transport-route-card__actions .btn-xs {
+        min-height: 1.875rem;
+        padding-inline: var(--tp-space-3);
+      }
+      .btn-outline-erp--danger {
+        color: var(--clr-danger) !important;
+        border-color: color-mix(in srgb, var(--clr-danger) 45%, var(--clr-border)) !important;
+      }
+      .btn-outline-erp--danger:hover {
+        background: color-mix(in srgb, var(--clr-danger) 10%, transparent);
+      }
+
+      .transport-route-card__section-label {
+        margin: 0 0 var(--tp-space-2);
+        font-size: 0.6875rem;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        color: var(--clr-text-muted);
+        flex-shrink: 0;
+      }
+
+      .transport-route-card__stops {
+        flex: 0 1 auto;
+        min-height: var(--tp-stop-band);
+        max-height: 11rem;
+        overflow-y: auto;
+        overflow-x: hidden;
+        margin-bottom: var(--tp-space-3);
+        padding: var(--tp-space-2) var(--tp-space-2) var(--tp-space-2) var(--tp-space-2);
+        border-radius: var(--tp-radius);
+        background: color-mix(in srgb, var(--clr-surface-muted) 85%, transparent);
+        border: 1px solid var(--clr-border-light);
+        scrollbar-gutter: stable;
+      }
+
+      .transport-route-card__stop-row {
+        display: grid;
+        align-items: center;
+        column-gap: var(--tp-space-3);
+        row-gap: var(--tp-space-1);
+        min-height: 2.25rem;
+        padding: var(--tp-space-2) var(--tp-space-3);
+        font-size: 0.8125rem;
+        line-height: 1.35;
+        border-bottom: 1px solid color-mix(in srgb, var(--clr-border) 55%, transparent);
+        grid-template-columns: 1.125rem minmax(0, 1fr) 3.375rem auto;
+      }
+      .transport-route-card__stop-row--readonly {
+        grid-template-columns: 1.125rem minmax(0, 1fr) 3.375rem;
+      }
+      .transport-route-card__stop-row:last-child {
+        border-bottom: none;
+      }
+      .transport-route-card__stop-icon {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: var(--clr-accent);
+        font-size: 0.875rem;
+      }
+      .transport-route-card__stop-name {
+        min-width: 0;
+        color: var(--clr-text-primary);
+      }
+      .transport-route-card__stop-time {
+        font-variant-numeric: tabular-nums;
+        text-align: right;
+        color: var(--clr-text-muted);
+        font-size: 0.8125rem;
+      }
+      .transport-route-card__stop-actions {
+        display: inline-flex;
+        align-items: center;
+        gap: 0;
+        justify-content: flex-end;
+      }
+
+      .transport-route-card__assigned {
+        margin-top: auto;
+        padding-top: var(--tp-space-3);
+        border-top: 1px solid var(--clr-border-light);
+        flex-shrink: 0;
+        min-height: 0;
+      }
+      .transport-route-card__assigned .transport-route-card__section-label {
+        margin-bottom: var(--tp-space-2);
+      }
+      .transport-route-card__assigned-scroll {
+        max-height: var(--tp-assign-band);
+        overflow-y: auto;
+        overflow-x: hidden;
+        padding: var(--tp-space-2);
+        border-radius: var(--tp-radius);
+        background: color-mix(in srgb, var(--clr-surface-muted) 85%, transparent);
+        border: 1px solid var(--clr-border-light);
+        scrollbar-gutter: stable;
+      }
+      .transport-route-card__assign-row {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: var(--tp-space-2);
+        align-items: center;
+        min-height: 1.875rem;
+        padding: var(--tp-space-2) var(--tp-space-1);
+        font-size: 0.8125rem;
+        line-height: 1.4;
+        border-bottom: 1px solid color-mix(in srgb, var(--clr-border) 40%, transparent);
+      }
+      .transport-route-card__assigned-scroll .transport-route-card__assign-row:last-child {
+        border-bottom: none;
+      }
+      .transport-route-card__assign-row--readonly {
+        grid-template-columns: minmax(0, 1fr);
+      }
+      .transport-route-card__assign-name {
+        min-width: 0;
+        color: var(--clr-text-primary);
+      }
+
+      .transport-live-card--panel {
+        height: 100%;
+        min-width: 0;
+        padding: var(--tp-space-4);
+        border-radius: var(--radius-xl);
+        border: 1px solid var(--clr-border);
+        background: var(--clr-surface-muted);
+      }
+      .transport-live-card__head {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: var(--tp-space-3);
+        align-items: center;
+        margin-bottom: var(--tp-space-3);
+      }
+      .transport-live-card__title {
+        font-size: 0.9375rem;
+        font-weight: 700;
+        margin: 0;
+        min-width: 0;
+      }
+
+      .modal-wide-map {
+        max-width: 920px;
+        width: 100%;
+      }
     `
   ]
 })
@@ -345,6 +683,7 @@ export class TransportComponent implements OnInit {
   mapPanelRoute: TransportRoute | null = null;
   editStopCtx: { route: TransportRoute; stop: { id?: number; name: string; time: string; order: number } } | null = null;
   editStopForm = { name: '', stopOrder: 1, stopTime: '' };
+  routeWizardError = '';
 
   private readonly destroyRef = inject(DestroyRef);
 
@@ -352,6 +691,7 @@ export class TransportComponent implements OnInit {
     private transportService: TransportService,
     private studentService: StudentService,
     private authService: AuthService,
+    private uiAccess: UiAccessService,
     private sanitizer: DomSanitizer,
     private confirmDialog: ConfirmDialogService,
     private translate: TranslateService,
@@ -360,9 +700,7 @@ export class TransportComponent implements OnInit {
 
   ngOnInit(): void {
     this.translate.onLangChange.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => this.cdr.markForCheck());
-    const u = this.authService.getCurrentUser();
-    const role = (u?.role ?? '').toLowerCase();
-    this.canManageRoutes = role === 'admin' || role === 'super_admin';
+    this.canManageRoutes = this.uiAccess.hasTransportDeskWriteAccess();
     this.routeSearch$
       .pipe(debounceTime(300), distinctUntilChanged(), takeUntilDestroyed(this.destroyRef))
       .subscribe(q => {
@@ -456,6 +794,7 @@ export class TransportComponent implements OnInit {
     this.newVehicle = { registrationNumber: '', vehicleType: 'BUS', capacity: 40, model: '' };
     this.newDriver = { fullName: '', phone: '', licenseNumber: '' };
     this.routeWizard = true;
+    this.routeWizardError = '';
     this.transportService.listVehicles().subscribe(v => (this.vehicles = v));
     this.transportService.listDrivers().subscribe(d => (this.drivers = d));
   }
@@ -466,6 +805,7 @@ export class TransportComponent implements OnInit {
     this.routeForm = { name: r.name, vehicleId: r.vehicleId ?? '', driverId: r.driverId ?? '' };
     this.wizardStops = [];
     this.routeWizard = true;
+    this.routeWizardError = '';
     this.transportService.listVehicles().subscribe(v => (this.vehicles = v));
     this.transportService.listDrivers().subscribe(d => (this.drivers = d));
   }
@@ -492,6 +832,12 @@ export class TransportComponent implements OnInit {
 
   saveNewDriver(): void {
     if (!this.newDriver.fullName.trim()) return;
+    this.newDriver.phone = this.normalizeTenDigitPhone(this.newDriver.phone);
+    if (this.newDriver.phone && !this.isValidTenDigitPhone(this.newDriver.phone)) {
+      this.routeWizardError = 'transport.errPhoneInvalidTenDigits';
+      return;
+    }
+    this.routeWizardError = '';
     this.transportService
       .createDriver({
         fullName: this.newDriver.fullName.trim(),
@@ -688,5 +1034,13 @@ export class TransportComponent implements OnInit {
     const lat = (route.liveLatitude ?? 28.6) + (Math.random() - 0.5) * 0.02;
     const lng = (route.liveLongitude ?? 77.2) + (Math.random() - 0.5) * 0.02;
     this.transportService.reportVehicleLocation(route.vehicleId, lat, lng, route.id).subscribe(() => this.reload());
+  }
+
+  private normalizeTenDigitPhone(value: string | null | undefined): string {
+    return (value ?? '').replace(/\D/g, '').slice(0, 10);
+  }
+
+  private isValidTenDigitPhone(value: string | null | undefined): boolean {
+    return isValidIndiaMobileTen(value);
   }
 }

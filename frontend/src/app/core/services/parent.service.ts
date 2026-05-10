@@ -127,6 +127,7 @@ export class ParentService {
       rollNumber: child.rollNumber ?? '',
       admissionNumber: child.admissionNumber ?? '',
       admissionDate: child.admissionDate ?? '',
+      schoolEmail: child.schoolEmail ?? undefined,
       parentName: child.parentName ?? '',
       address: child.address ?? '',
       bloodGroup: child.bloodGroup ?? '',
@@ -376,6 +377,27 @@ export class ParentService {
     return this.api.get<any>(`/parent/payments/receipts/${receiptNumber}`).pipe(map(item => this.normalizeReceipt(item)));
   }
 
+  /**
+   * Official fee receipt PDF for download (server-rendered; mock returns a tiny valid PDF).
+   */
+  getFeeReceiptPdf(receiptNumber: string): Observable<Blob> {
+    if (runtimeConfig.useMocks) {
+      return of(ParentService.mockFeeReceiptPdfBlob()).pipe(delay(120));
+    }
+    return this.api.getBlob(`/parent/payments/receipts/${encodeURIComponent(receiptNumber)}/pdf`);
+  }
+
+  private static mockFeeReceiptPdfBlob(): Blob {
+    const b64 =
+      'JVBERi0xLjEKMSAwIG9iago8PCAvVHlwZSAvQ2F0YWxvZyAvUGFnZXMgMiAwIFIgPj4KZW5kb2JqCjIgMCBvYmoKPDwgL1R5cGUgL1BhZ2VzIC9LaWRzIFszIDAgUl0gL0NvdW50IDEgPj4KZW5kb2JqCjMgMCBvYmoKPDwgL1R5cGUgL1BhZ2UgL1BhcmVudCAyIDAgUiAvTWVkaWFCb3ggWzAgMCA2MTIgNzkyXSA+PgplbmRvYmoKeHJlZgowIDQKMDAwMDAwMDAwMCA2NTUzNSBmIAowMDAwMDAwMDA5IDAwMDAwIG4gCjAwMDAwMDAwNTggMDAwMDAgbiAKMDAwMDAwMDExNSAwMDAwMCBuIAp0cmFpbGVyCjw8IC9TaXplIDQgL1Jvb3QgMSAwIFIgPj4Kc3RhcnR4cmVmCjE4NgolJUVPRgo=';
+    const bin = atob(b64);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) {
+      bytes[i] = bin.charCodeAt(i);
+    }
+    return new Blob([bytes], { type: 'application/pdf' });
+  }
+
   listChildReceipts(studentId: number, from: string, to: string): Observable<PaymentReceipt[]> {
     if (runtimeConfig.useMocks) {
       this.bootstrapMockReceiptLedger();
@@ -425,13 +447,20 @@ export class ParentService {
         name: line.name,
         amount: Number(line.amount ?? 0),
         type: (line.type ?? 'misc').toString().toLowerCase()
-      }))
+      })),
+      parentOnlineFeeCheckoutEnabled:
+        item.parentOnlineFeeCheckoutEnabled !== undefined ? !!item.parentOnlineFeeCheckoutEnabled : true,
     };
   }
 
   private normalizeReceipt(item: any): PaymentReceipt {
     return {
       receiptNumber: item.receiptNumber,
+      schoolName: item.schoolName,
+      schoolCode: item.schoolCode,
+      schoolAddress: item.schoolAddress,
+      schoolPhone: item.schoolPhone,
+      schoolEmail: item.schoolEmail,
       paymentId: Number(item.paymentId),
       studentId: Number(item.studentId),
       studentName: item.studentName,

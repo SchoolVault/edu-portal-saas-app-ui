@@ -48,6 +48,21 @@ export class ApiService {
     );
   }
 
+  /** GET with query string (same unwrap as {@link #get}). */
+  getParams<T>(path: string, query: Record<string, string | number | boolean | undefined | null>): Observable<T> {
+    let params = new HttpParams();
+    for (const [key, value] of Object.entries(query)) {
+      if (value === undefined || value === null || value === '') continue;
+      params = params.set(key, String(value));
+    }
+    return this.http.get<ApiResp<T>>(`${this.baseUrl}${path}`, { params }).pipe(
+      map(res => {
+        if (!res.success) throw new Error(res.message);
+        return res.data as T;
+      })
+    );
+  }
+
   getPage<T>(path: string): Observable<PageResp<T>> {
     return this.http.get<ApiResp<PageResp<T>>>(`${this.baseUrl}${path}`).pipe(
       map(res => {
@@ -99,6 +114,15 @@ export class ApiService {
     );
   }
 
+  patch<T>(path: string, body: any): Observable<T> {
+    return this.http.patch<ApiResp<T>>(`${this.baseUrl}${path}`, body).pipe(
+      map(res => {
+        if (!res.success) throw new Error(res.message);
+        return res.data as T;
+      })
+    );
+  }
+
   delete<T>(path: string): Observable<T> {
     return this.http.delete<ApiResp<T>>(`${this.baseUrl}${path}`).pipe(
       map(res => {
@@ -111,5 +135,15 @@ export class ApiService {
   /** Raw binary (e.g. PDF) — not wrapped in {@link ApiResp}. */
   getBlob(path: string): Observable<Blob> {
     return this.http.get(`${this.baseUrl}${path}`, { responseType: 'blob' });
+  }
+
+  /** Raw binary GET with query params (e.g. filtered CSV/PDF export). */
+  getBlobParams(path: string, query: Record<string, string | number | boolean | undefined | null>): Observable<Blob> {
+    let params = new HttpParams();
+    for (const [key, value] of Object.entries(query)) {
+      if (value === undefined || value === null || value === '') continue;
+      params = params.set(key, String(value));
+    }
+    return this.http.get(`${this.baseUrl}${path}`, { params, responseType: 'blob' });
   }
 }

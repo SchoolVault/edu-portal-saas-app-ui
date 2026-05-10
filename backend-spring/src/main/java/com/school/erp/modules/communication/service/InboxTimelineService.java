@@ -3,6 +3,8 @@ package com.school.erp.modules.communication.service;
 import com.school.erp.common.dto.PageResponse;
 import com.school.erp.modules.communication.dto.InboxTimelineDTOs;
 import com.school.erp.modules.communication.entity.Announcement;
+import com.school.erp.modules.academic.repository.SchoolClassRepository;
+import com.school.erp.modules.academic.repository.SectionRepository;
 import com.school.erp.modules.communication.policy.InboxAudienceTokenPolicy;
 import com.school.erp.modules.notification.entity.Notification;
 import com.school.erp.modules.notification.service.NotificationService;
@@ -24,7 +26,7 @@ import java.util.stream.Collectors;
 
 /**
  * Merges tenant-scoped announcements with the current user's notifications for a single inbox timeline.
- * Supports text search, feed kind, audience (announcements + optional ALERT token),
+ * Supports text search, feed kind, audience (announcement scope tokens only),
  * and calendar month ({@code yearMonth} as {@code yyyy-MM}). Request {@code audiences} are sanitized per
  * {@link com.school.erp.modules.communication.policy.InboxAudienceTokenPolicy} after {@link CommunicationService} visibility.
  */
@@ -32,12 +34,18 @@ import java.util.stream.Collectors;
 public class InboxTimelineService {
     private final CommunicationService communicationService;
     private final NotificationService notificationService;
+    private final SchoolClassRepository schoolClassRepository;
+    private final SectionRepository sectionRepository;
 
     public InboxTimelineService(
             final CommunicationService communicationService,
-            final NotificationService notificationService) {
+            final NotificationService notificationService,
+            final SchoolClassRepository schoolClassRepository,
+            final SectionRepository sectionRepository) {
         this.communicationService = communicationService;
         this.notificationService = notificationService;
+        this.schoolClassRepository = schoolClassRepository;
+        this.sectionRepository = sectionRepository;
     }
 
     @Transactional(readOnly = true)
@@ -65,6 +73,9 @@ public class InboxTimelineService {
         }
         if (!InboxTimelineDTOs.KIND_ANNOUNCEMENT.equals(fk)) {
             for (Notification n : notificationService.getUserNotifications()) {
+                if (isAnnouncementMirrorNotification(n)) {
+                    continue;
+                }
                 InboxTimelineDTOs.InboxItemResponse row = mapNotification(n);
                 if (matches(row, qq) && passesAudienceFilter(row, audienceTokens) && passesYearMonth(row, ym)) {
                     rows.add(row);
@@ -105,11 +116,7 @@ public class InboxTimelineService {
         }
     }
 
-    /**
-     * Empty {@code audienceTokens}: no audience-based filter.
-     * Otherwise: notifications require {@value InboxAudienceTokenPolicy#TOKEN_ALERT}; announcements require a matching audience token
-     * (after removing {@value InboxAudienceTokenPolicy#TOKEN_ALERT} from the selection).
-     */
+    /** Empty {@code audienceTokens}: no audience-based filter. When set, only announcement scope rows are matched. */
     private static boolean passesAudienceFilter(
             final InboxTimelineDTOs.InboxItemResponse row,
             final Set<String> audienceTokens) {
@@ -117,15 +124,9 @@ public class InboxTimelineService {
             return true;
         }
         if (InboxTimelineDTOs.KIND_NOTIFICATION.equals(row.getKind())) {
-            return audienceTokens.contains(InboxAudienceTokenPolicy.TOKEN_ALERT);
-        }
-        boolean onlyAlert =
-                audienceTokens.size() == 1 && audienceTokens.contains(InboxAudienceTokenPolicy.TOKEN_ALERT);
-        if (onlyAlert) {
             return false;
         }
         Set<String> annTok = new LinkedHashSet<>(audienceTokens);
-        annTok.remove(InboxAudienceTokenPolicy.TOKEN_ALERT);
         if (annTok.isEmpty()) {
             return false;
         }
@@ -171,7 +172,7 @@ public class InboxTimelineService {
         return s != null && s.toLowerCase(Locale.ROOT).contains(qq);
     }
 
-    private static InboxTimelineDTOs.InboxItemResponse mapAnnouncement(final Announcement a) {
+    private InboxTimelineDTOs.InboxItemResponse mapAnnouncement(final Announcement a) {
         InboxTimelineDTOs.InboxItemResponse r = new InboxTimelineDTOs.InboxItemResponse();
         r.setKind(InboxTimelineDTOs.KIND_ANNOUNCEMENT);
         r.setId(String.valueOf(a.getId()));
@@ -180,6 +181,18 @@ public class InboxTimelineService {
         r.setCreatedAt(a.getCreatedAt() != null ? a.getCreatedAt().toString() : null);
         if (a.getTargetAudience() != null) {
             r.setAudienceKey(a.getTargetAudience().name());
+        }
+        r.setTargetClassId(a.getTargetClassId());
+        r.setTargetSectionId(a.getTargetSectionId());
+        if (a.getTargetClassId() != null) {
+            schoolClassRepository
+                    .findByIdAndTenantIdAndIsDeletedFalse(a.getTargetClassId(), a.getTenantId())
+                    .ifPresent(c -> r.setTargetClassName(c.getName()));
+        }
+        if (a.getTargetSectionId() != null) {
+            sectionRepository
+                    .findByIdAndTenantIdAndIsDeletedFalse(a.getTargetSectionId(), a.getTenantId())
+                    .ifPresent(s -> r.setTargetSectionName(s.getName()));
         }
         String author = a.getAuthor() != null ? a.getAuthor() : "";
         String role = a.getAuthorRole() != null ? a.getAuthorRole() : "";
@@ -206,6 +219,15 @@ public class InboxTimelineService {
         }
         r.setRead(Boolean.TRUE.equals(n.getIsRead()));
         return r;
+    }
+
+    private static boolean isAnnouncementMirrorNotification(final Notification n) {
+        String link = n.getLink();
+        if (link == null) {
+            return false;
+        }
+        String t = link.trim().toLowerCase(Locale.ROOT);
+        return t.startsWith("/app/announcement/");
     }
 
     private static String previewText(final String content) {

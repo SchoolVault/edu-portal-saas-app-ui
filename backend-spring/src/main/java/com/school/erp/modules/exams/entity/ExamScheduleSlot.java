@@ -23,6 +23,10 @@ public class ExamScheduleSlot extends BaseEntity {
 
     @Column(name = "subject_name", nullable = false, length = 200)
     private String subjectName;
+    @Column(name = "paper_type", length = 80)
+    private String paperType;
+    @Column(name = "invigilator_name", length = 160)
+    private String invigilatorName;
 
     @Column(name = "exam_date", nullable = false)
     private LocalDate examDate;
@@ -69,6 +73,22 @@ public class ExamScheduleSlot extends BaseEntity {
 
     public void setSubjectName(String subjectName) {
         this.subjectName = subjectName;
+    }
+
+    public String getPaperType() {
+        return paperType;
+    }
+
+    public void setPaperType(String paperType) {
+        this.paperType = paperType;
+    }
+
+    public String getInvigilatorName() {
+        return invigilatorName;
+    }
+
+    public void setInvigilatorName(String invigilatorName) {
+        this.invigilatorName = invigilatorName;
     }
 
     public LocalDate getExamDate() {

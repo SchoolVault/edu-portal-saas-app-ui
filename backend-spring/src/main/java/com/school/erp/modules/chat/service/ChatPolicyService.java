@@ -22,11 +22,18 @@ public class ChatPolicyService {
             return true;
         }
 
+        // Library / generic school staff: coordinate with admins and teachers only.
+        if (Enums.Role.LIBRARY_STAFF.name().equals(a) || Enums.Role.SCHOOL_STAFF.name().equals(a)) {
+            return Enums.Role.ADMIN.name().equals(b) || Enums.Role.TEACHER.name().equals(b);
+        }
+
         // Teachers can talk to parents/students/admins
         if (Enums.Role.TEACHER.name().equals(a)) {
             return Enums.Role.PARENT.name().equals(b)
                     || Enums.Role.STUDENT.name().equals(b)
-                    || Enums.Role.ADMIN.name().equals(b);
+                    || Enums.Role.ADMIN.name().equals(b)
+                    || Enums.Role.LIBRARY_STAFF.name().equals(b)
+                    || Enums.Role.SCHOOL_STAFF.name().equals(b);
         }
 
         // Parents may start chats only with teachers (homeroom/subject linkage enforced in ChatService).

@@ -2,6 +2,8 @@ package com.school.erp.modules.transport.service;
 
 import com.school.erp.common.dto.PageResponse;
 import com.school.erp.common.exception.ResourceNotFoundException;
+import com.school.erp.common.exception.BusinessException;
+import com.school.erp.common.util.InternationalPhone;
 import com.school.erp.modules.transport.dto.TransportDTOs;
 import com.school.erp.modules.transport.entity.*;
 import com.school.erp.modules.transport.repository.*;
@@ -101,6 +103,7 @@ public class TransportService {
     public TransportRoute createRoute(TransportRoute route) {
         log.info("Creating transport route name={}", route.getName());
         route.setTenantId(TenantContext.getTenantId());
+        route.setDriverPhone(canonicalPhoneOptional(route.getDriverPhone()));
         TransportRoute saved = routeRepo.save(route);
         log.info("Transport route created id={}", saved.getId());
         return saved;
@@ -115,7 +118,7 @@ public class TransportService {
         if (update.getName() != null) route.setName(update.getName());
         if (update.getVehicleNumber() != null) route.setVehicleNumber(update.getVehicleNumber());
         if (update.getDriverName() != null) route.setDriverName(update.getDriverName());
-        if (update.getDriverPhone() != null) route.setDriverPhone(update.getDriverPhone());
+        if (update.getDriverPhone() != null) route.setDriverPhone(canonicalPhoneOptional(update.getDriverPhone()));
         if (update.getVehicleId() != null) route.setVehicleId(update.getVehicleId());
         if (update.getDriverId() != null) route.setDriverId(update.getDriverId());
         TransportRoute saved = routeRepo.save(route);
@@ -236,6 +239,7 @@ public class TransportService {
     @Transactional
     public TransportDriver createDriver(TransportDriver d) {
         d.setTenantId(TenantContext.getTenantId());
+        d.setPhone(canonicalPhoneOptional(d.getPhone()));
         TransportDriver saved = driverRepo.save(d);
         log.info("Driver created id={}", saved.getId());
         return saved;
@@ -272,5 +276,16 @@ public class TransportService {
         this.vehicleRepo = vehicleRepo;
         this.driverRepo = driverRepo;
         this.liveRepo = liveRepo;
+    }
+
+    private String canonicalPhoneOptional(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return null;
+        }
+        String national = InternationalPhone.nationalIndiaMobile10(raw.trim());
+        if (national == null) {
+            throw new BusinessException(InternationalPhone.importPhoneInvalidMessage());
+        }
+        return national;
     }
 }

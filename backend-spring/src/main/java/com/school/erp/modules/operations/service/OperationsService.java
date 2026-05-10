@@ -1,8 +1,12 @@
 package com.school.erp.modules.operations.service;
 
 import com.school.erp.common.dto.PageResponse;
+import com.school.erp.common.enums.Enums;
+import com.school.erp.common.exception.ApiErrorCode;
 import com.school.erp.common.exception.BusinessException;
 import com.school.erp.common.exception.ResourceNotFoundException;
+import com.school.erp.common.util.InternationalPhone;
+import com.school.erp.modules.auth.service.PortalUserProvisioningService;
 import com.school.erp.modules.operations.dto.OperationsDTOs;
 import com.school.erp.modules.operations.entity.*;
 import com.school.erp.modules.operations.repository.*;
@@ -15,7 +19,9 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeParseException;
 import java.time.format.DateTimeFormatter;
+import java.util.Locale;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -29,18 +35,21 @@ public class OperationsService {
     private final GatePassRepository gatePassRepo;
     private final InventoryItemRepository inventoryRepo;
     private final FeeReminderQueueRepository feeReminderRepo;
+    private final PortalUserProvisioningService portalUserProvisioningService;
 
     public OperationsService(
             OperationalStaffRepository staffRepo,
             VisitorLogRepository visitorRepo,
             GatePassRepository gatePassRepo,
             InventoryItemRepository inventoryRepo,
-            FeeReminderQueueRepository feeReminderRepo) {
+            FeeReminderQueueRepository feeReminderRepo,
+            PortalUserProvisioningService portalUserProvisioningService) {
         this.staffRepo = staffRepo;
         this.visitorRepo = visitorRepo;
         this.gatePassRepo = gatePassRepo;
         this.inventoryRepo = inventoryRepo;
         this.feeReminderRepo = feeReminderRepo;
+        this.portalUserProvisioningService = portalUserProvisioningService;
     }
 
     // --- operational staff ---
@@ -60,20 +69,36 @@ public class OperationsService {
         e.setTenantId(TenantContext.getTenantId());
         e.setStaffRole(req.getStaffRole().trim().toUpperCase());
         e.setFullName(req.getFullName().trim());
-        e.setPhone(req.getPhone());
-        e.setEmail(req.getEmail());
+        e.setPhone(canonicalPhoneOptional(req.getPhone()));
+        e.setEmail(blankToNull(req.getEmail()));
         e.setEmployeeCode(req.getEmployeeCode());
-        e.setUserId(req.getUserId());
         e.setTransportRouteId(req.getTransportRouteId());
         e.setNotes(req.getNotes());
         e.setCreatedBy(TenantContext.getUserId() != null ? TenantContext.getUserId().toString() : null);
+
+        Long linkedUserId = req.getUserId();
+        if (Boolean.TRUE.equals(req.getCreatePortal())) {
+            linkedUserId = provisionOperationalStaffPortalRow(
+                    TenantContext.getTenantId(),
+                    e.getFullName(),
+                    e.getStaffRole(),
+                    e.getPhone(),
+                    e.getEmail(),
+                    req.getPortalPassword());
+        }
+        e.setUserId(linkedUserId);
         staffRepo.save(e);
         return toStaffResponse(e);
     }
 
     /**
-     * Remove operational staff. Default is soft-delete (audit-friendly).
-     * Permanent delete is allowed only when the row has no linked ERP user and no transport route (e.g. ad-hoc driver record).
+     * Remove operational staff.
+     * <ul>
+     *   <li>{@code permanent=false} — ERP-style <strong>soft delete</strong>: row is archived ({@code is_deleted}),
+     *       hidden from active and inactive lists; use only after the record is inactive or when purging from ops hub.</li>
+     *   <li>{@code permanent=true} — physical row removal allowed only when no linked ERP user and no transport route
+     *       (legacy orphan cleanup).</li>
+     * </ul>
      */
     @Transactional
     public void deleteStaff(Long id, boolean permanent) {
@@ -87,7 +112,7 @@ public class OperationsService {
             staffRepo.delete(e);
             return;
         }
-        e.setIsDeleted(true);
+        e.markSoftDeleted();
         e.setUpdatedBy(TenantContext.getUserId() != null ? TenantContext.getUserId().toString() : null);
         staffRepo.save(e);
     }
@@ -108,7 +133,7 @@ public class OperationsService {
         VisitorLog v = new VisitorLog();
         v.setTenantId(TenantContext.getTenantId());
         v.setVisitorName(req.getVisitorName().trim());
-        v.setPhone(req.getPhone());
+        v.setPhone(canonicalPhoneOptional(req.getPhone()));
         v.setPurpose(req.getPurpose());
         v.setHostName(req.getHostName());
         v.setBadgeNo("V-" + System.currentTimeMillis());
@@ -227,6 +252,64 @@ public class OperationsService {
     }
 
     @Transactional(readOnly = true)
+    public PageResponse<OperationsDTOs.OperationalStaffResponse> listStaffPaged(int page, int size, String search, String status) {
+        Pageable p = PageRequest.of(page, size);
+        Boolean isActive = null;
+        if (status != null && !status.isBlank()) {
+            String s = status.trim().toLowerCase();
+            if ("active".equals(s)) isActive = true;
+            else if ("inactive".equals(s)) isActive = false;
+        }
+        String q = (search == null || search.isBlank()) ? null : search.trim();
+        return PageResponse.fromSpringPage(
+                staffRepo.searchStaff(TenantContext.getTenantId(), q, isActive, p).map(this::toStaffResponse));
+    }
+
+    @Transactional(readOnly = true)
+    public OperationsDTOs.OperationalStaffResponse getStaff(Long id) {
+        OperationalStaff e = staffRepo.findByIdAndTenantIdAndIsDeletedFalse(id, TenantContext.getTenantId())
+                .orElseThrow(() -> new ResourceNotFoundException("Operational staff not found"));
+        return toStaffResponse(e);
+    }
+
+    @Transactional
+    public OperationsDTOs.OperationalStaffResponse updateStaff(Long id, OperationsDTOs.OperationalStaffUpdateRequest req) {
+        OperationalStaff e = staffRepo.findByIdAndTenantIdAndIsDeletedFalse(id, TenantContext.getTenantId())
+                .orElseThrow(() -> new ResourceNotFoundException("Operational staff not found"));
+        if (req.getStaffRole() != null && !req.getStaffRole().isBlank()) e.setStaffRole(req.getStaffRole().trim().toUpperCase());
+        if (req.getFullName() != null && !req.getFullName().isBlank()) e.setFullName(req.getFullName().trim());
+        if (req.getPhone() != null) e.setPhone(canonicalPhoneOptional(req.getPhone()));
+        if (req.getEmail() != null) e.setEmail(blankToNull(req.getEmail()));
+        if (req.getEmployeeCode() != null) e.setEmployeeCode(req.getEmployeeCode().trim());
+        if (req.getNotes() != null) e.setNotes(req.getNotes().trim());
+
+        if (Boolean.TRUE.equals(req.getCreatePortal()) && e.getUserId() == null) {
+            Long uid = provisionOperationalStaffPortalRow(
+                    TenantContext.getTenantId(),
+                    e.getFullName(),
+                    e.getStaffRole(),
+                    e.getPhone(),
+                    e.getEmail(),
+                    req.getPortalPassword());
+            e.setUserId(uid);
+        }
+
+        e.setUpdatedBy(TenantContext.getUserId() != null ? TenantContext.getUserId().toString() : null);
+        staffRepo.save(e);
+        return toStaffResponse(e);
+    }
+
+    @Transactional
+    public OperationsDTOs.OperationalStaffResponse updateStaffStatus(Long id, boolean active) {
+        OperationalStaff e = staffRepo.findByIdAndTenantIdAndIsDeletedFalse(id, TenantContext.getTenantId())
+                .orElseThrow(() -> new ResourceNotFoundException("Operational staff not found"));
+        e.setIsActive(active);
+        e.setUpdatedBy(TenantContext.getUserId() != null ? TenantContext.getUserId().toString() : null);
+        staffRepo.save(e);
+        return toStaffResponse(e);
+    }
+
+    @Transactional(readOnly = true)
     public PageResponse<OperationsDTOs.VisitorLogResponse> listVisitorsPaged(int page, int size) {
         Pageable p = PageRequest.of(page, size);
         return PageResponse.fromSpringPage(
@@ -269,12 +352,20 @@ public class OperationsService {
         if (req.getStudentId() == null) {
             throw new BusinessException("studentId is required");
         }
+        LocalDate parsedDueDate = null;
+        if (req.getDueDate() != null && !req.getDueDate().trim().isEmpty()) {
+            try {
+                parsedDueDate = LocalDate.parse(req.getDueDate().trim());
+            } catch (DateTimeParseException ex) {
+                throw new BusinessException("Invalid due date format. Please refresh and try again.");
+            }
+        }
         FeeReminderQueue q = new FeeReminderQueue();
         q.setTenantId(TenantContext.getTenantId());
         q.setStudentId(req.getStudentId());
         q.setFeePaymentId(req.getFeePaymentId());
-        q.setDueDate(req.getDueDate() != null ? LocalDate.parse(req.getDueDate()) : null);
-        q.setChannel(req.getChannel() != null ? req.getChannel().toUpperCase() : "EMAIL");
+        q.setDueDate(parsedDueDate);
+        q.setChannel(req.getChannel() != null && !req.getChannel().trim().isEmpty() ? req.getChannel().trim().toUpperCase() : "EMAIL");
         q.setStatus("PENDING");
         q.setScheduledAt(LocalDateTime.now().plusHours(1));
         q.setCreatedBy(TenantContext.getUserId() != null ? TenantContext.getUserId().toString() : null);
@@ -300,6 +391,7 @@ public class OperationsService {
     private OperationsDTOs.OperationalStaffResponse toStaffResponse(OperationalStaff e) {
         OperationsDTOs.OperationalStaffResponse r = new OperationsDTOs.OperationalStaffResponse();
         r.setId(e.getId());
+        r.setIsActive(Boolean.TRUE.equals(e.getIsActive()));
         r.setStaffRole(e.getStaffRole());
         r.setFullName(e.getFullName());
         r.setPhone(e.getPhone());
@@ -362,5 +454,93 @@ public class OperationsService {
         r.setSentAt(q.getSentAt() != null ? ISO_DT.format(q.getSentAt()) : null);
         r.setLastError(q.getLastError());
         return r;
+    }
+
+    private String canonicalPhoneOptional(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return null;
+        }
+        String national = InternationalPhone.nationalIndiaMobile10(raw.trim());
+        if (national == null) {
+            throw new BusinessException(InternationalPhone.importPhoneInvalidMessage());
+        }
+        return national;
+    }
+
+    /**
+     * Mirrors import pipeline {@link com.school.erp.modules.auth.service.PortalUserProvisioningService#ensureStaffUserForImport}:
+     * creates or links a {@link com.school.erp.modules.auth.entity.User} and returns its id for {@code operational_staff.user_id}.
+     */
+    private Long provisionOperationalStaffPortalRow(
+            String tenantId,
+            String fullName,
+            String staffRoleCode,
+            String nationalPhoneStored,
+            String emailRaw,
+            String portalPasswordRaw) {
+        if (nationalPhoneStored == null || nationalPhoneStored.isBlank()) {
+            throw new BusinessException(
+                    "Phone is required to create a staff portal login.",
+                    ApiErrorCode.STAFF_PORTAL_PHONE_REQUIRED);
+        }
+        validateOptionalPortalPassword(portalPasswordRaw);
+        String normalizedEmail = normalizeEmailForPortal(emailRaw);
+        Enums.Role portalRole = portalRoleFromOperationalStaffRoleCode(staffRoleCode);
+        return portalUserProvisioningService
+                .ensureStaffUserForImport(
+                        tenantId,
+                        normalizedEmail,
+                        fullName,
+                        nationalPhoneStored,
+                        portalRole,
+                        blankToNull(portalPasswordRaw))
+                .userId();
+    }
+
+    private static String blankToNull(String s) {
+        if (s == null) {
+            return null;
+        }
+        String t = s.trim();
+        return t.isEmpty() ? null : t;
+    }
+
+    private static String normalizeEmailForPortal(String emailRaw) {
+        String t = blankToNull(emailRaw);
+        if (t == null) {
+            return null;
+        }
+        return t.toLowerCase(Locale.ROOT);
+    }
+
+    private static void validateOptionalPortalPassword(String portalPasswordRaw) {
+        if (portalPasswordRaw == null || portalPasswordRaw.isBlank()) {
+            return;
+        }
+        String pwd = portalPasswordRaw.trim();
+        if (pwd.length() < 8) {
+            throw new BusinessException(
+                    "Portal password must be at least 8 characters when provided.",
+                    ApiErrorCode.STAFF_PORTAL_PASSWORD_TOO_SHORT);
+        }
+    }
+
+    /**
+     * Map free-text ops role codes (often aligned with CSV {@code portal_role}) to portal JWT role.
+     */
+    private static Enums.Role portalRoleFromOperationalStaffRoleCode(String staffRole) {
+        if (staffRole == null || staffRole.isBlank()) {
+            return Enums.Role.SCHOOL_STAFF;
+        }
+        String n = staffRole.trim().toUpperCase(Locale.ROOT);
+        return switch (n) {
+            case "LIBRARY", "LIBRARY_STAFF", "LIB", "LIBRARIAN" -> Enums.Role.LIBRARY_STAFF;
+            default -> {
+                if (n.startsWith("LIBRARY")) {
+                    yield Enums.Role.LIBRARY_STAFF;
+                }
+                yield Enums.Role.SCHOOL_STAFF;
+            }
+        };
     }
 }

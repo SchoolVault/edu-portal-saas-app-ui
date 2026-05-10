@@ -1,6 +1,7 @@
 # Production. Demo org bootstrap (one-time): profile group prod-with-demo-seed or SPRING_PROFILES_ACTIVE=prod,demo-seed
 # with demo-seed last, then redeploy with prod only. See docs/DEMO_SHOWCASE_TENANT.md.
 # Staging-style profiles with the same file shape: ml (dev test), rel (QA sign-off) — see application-ml.yml / application-rel.yml.
+# Set AUTH_EMAIL_VER_PUBLIC_SPA_BASE_URL (or APP_PUBLIC_SPA_BASE_URL) to your static site origin for email verify links.
 app:
   demo-seed:
     enabled: false
@@ -22,6 +23,8 @@ spring:
     show-sql: false
 
   cache:
+    # Explicit for Aiven/managed Redis: do not rely on env alone (empty CACHE_TYPE disables CacheConfig and breaks CacheService).
+    type: redis
     redis:
       key-prefix: ${CACHE_REDIS_KEY_PREFIX:sv::}
 

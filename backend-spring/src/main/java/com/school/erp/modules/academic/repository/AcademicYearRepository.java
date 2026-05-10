@@ -7,6 +7,9 @@ import java.util.Optional;
 
 public interface AcademicYearRepository extends JpaRepository<AcademicYear, Long> {
     List<AcademicYear> findByTenantIdAndIsDeletedFalse(String tenantId);
+    List<AcademicYear> findByTenantIdAndIsDeletedFalseOrderByEndDateAsc(String tenantId);
 
     Optional<AcademicYear> findByIdAndTenantIdAndIsDeletedFalse(Long id, String tenantId);
+
+    Optional<AcademicYear> findFirstByTenantIdAndIsCurrentTrueAndIsDeletedFalse(String tenantId);
 }

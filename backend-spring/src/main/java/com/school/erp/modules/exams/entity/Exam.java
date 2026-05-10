@@ -1,17 +1,24 @@
 package com.school.erp.modules.exams.entity;
 
 import com.school.erp.common.entity.BaseEntity;
+import com.school.erp.common.entity.AcademicYearScopedEntity;
+import com.school.erp.common.entity.AcademicYearScopeGuardListener;
 import com.school.erp.common.enums.Enums;
 import jakarta.persistence.*;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.annotations.Filter;
 import org.hibernate.type.SqlTypes;
+import com.school.erp.tenant.hibernate.AcademicYearScopedFilter;
 import java.util.ArrayList;
 import java.util.List;
 
 @Entity
+@EntityListeners(AcademicYearScopeGuardListener.class)
+@Filter(name = AcademicYearScopedFilter.NAME, condition = "academic_year_id = :academicYearId")
 @Table(name = "exams", indexes = {@Index(name = "idx_exam_tenant", columnList = "tenant_id")})
-public class Exam extends BaseEntity {
+public class Exam extends BaseEntity implements AcademicYearScopedEntity {
     @Column(nullable = false, length = 100)
     private String name;
     @Column(name = "academic_year_id")
@@ -32,6 +39,14 @@ public class Exam extends BaseEntity {
     private Boolean resultsPublished = false;
     @Column(name = "grading_config_json", columnDefinition = "json")
     private String gradingConfigJson;
+    @Column(name = "workflow_state", length = 40)
+    private String workflowState;
+    @Column(name = "workflow_note", length = 500)
+    private String workflowNote;
+    @Column(name = "published_at")
+    private LocalDateTime publishedAt;
+    @Column(name = "frozen_at")
+    private LocalDateTime frozenAt;
 
 
     public static class ExamBuilder {
@@ -142,6 +157,38 @@ public class Exam extends BaseEntity {
 
     public void setGradingConfigJson(String gradingConfigJson) {
         this.gradingConfigJson = gradingConfigJson;
+    }
+
+    public String getWorkflowState() {
+        return workflowState;
+    }
+
+    public void setWorkflowState(String workflowState) {
+        this.workflowState = workflowState;
+    }
+
+    public String getWorkflowNote() {
+        return workflowNote;
+    }
+
+    public void setWorkflowNote(String workflowNote) {
+        this.workflowNote = workflowNote;
+    }
+
+    public LocalDateTime getPublishedAt() {
+        return publishedAt;
+    }
+
+    public void setPublishedAt(LocalDateTime publishedAt) {
+        this.publishedAt = publishedAt;
+    }
+
+    public LocalDateTime getFrozenAt() {
+        return frozenAt;
+    }
+
+    public void setFrozenAt(LocalDateTime frozenAt) {
+        this.frozenAt = frozenAt;
     }
 
     public void setName(final String name) {

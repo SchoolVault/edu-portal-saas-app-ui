@@ -2,6 +2,7 @@ package com.school.erp.modules.fees.repository;
 
 import com.school.erp.common.enums.Enums;
 import com.school.erp.modules.fees.entity.FeePayment;
+import com.school.erp.modules.student.entity.Student;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -19,12 +20,54 @@ public interface FeePaymentRepository extends JpaRepository<FeePayment, Long> {
 
     List<FeePayment> findByTenantIdAndStudentIdAndIsDeletedFalse(String tenantId, Long studentId);
 
+    @Query("""
+            select f
+            from FeePayment f, FeeStructure fs
+            where f.tenantId = :tenantId
+              and f.isDeleted = false
+              and fs.tenantId = :tenantId
+              and fs.isDeleted = false
+              and fs.id = f.feeStructureId
+              and (:status is null or f.status = :status)
+              and (:classId is null or fs.classId = :classId)
+              and (
+                :sectionId is null
+                or exists (
+                  select 1
+                  from Student s
+                  where s.tenantId = :tenantId
+                    and s.isDeleted = false
+                    and s.id = f.studentId
+                    and s.sectionId = :sectionId
+                )
+              )
+              and (
+                :monthStart is null
+                or (
+                  coalesce(f.paymentDate, function('date', f.createdAt), f.dueDate) is not null
+                  and coalesce(f.paymentDate, function('date', f.createdAt), f.dueDate) >= :monthStart
+                  and coalesce(f.paymentDate, function('date', f.createdAt), f.dueDate) <= :monthEnd
+                )
+              )
+              and (
+                :q is null
+                or :q = ''
+                or lower(coalesce(f.studentName, '')) like lower(concat('%', :q, '%'))
+              )
+            order by f.id desc
+            """)
+    List<FeePayment> findFilteredForDashboard(
+            @Param("tenantId") String tenantId,
+            @Param("status") Enums.FeeStatus status,
+            @Param("q") String q,
+            @Param("classId") Long classId,
+            @Param("sectionId") Long sectionId,
+            @Param("monthStart") LocalDate monthStart,
+            @Param("monthEnd") LocalDate monthEnd);
+
     Optional<FeePayment> findByIdAndTenantIdAndIsDeletedFalse(Long id, String tenantId);
 
     Optional<FeePayment> findByReceiptNumberAndTenantIdAndIsDeletedFalse(String receiptNumber, String tenantId);
-
-    @Query("select distinct f.tenantId from FeePayment f where f.isDeleted = false")
-    List<String> findDistinctTenantIds();
 
     @Query("""
             select f from FeePayment f
@@ -54,4 +97,47 @@ public interface FeePaymentRepository extends JpaRepository<FeePayment, Long> {
             @Param("feeStructureId") Long feeStructureId,
             @Param("dueDate") LocalDate dueDate,
             @Param("studentIds") Collection<Long> studentIds);
+
+    @Query("""
+            select distinct p.studentId
+            from FeePayment p, FeeStructure fs
+            where p.tenantId = :tenantId
+              and p.isDeleted = false
+              and fs.tenantId = :tenantId
+              and fs.isDeleted = false
+              and p.feeStructureId = fs.id
+              and fs.classId = :classId
+              and p.dueDate between :monthStart and :monthEnd
+              and p.studentId in :studentIds
+            """)
+    Set<Long> findStudentIdsWithObligationInClassForMonth(
+            @Param("tenantId") String tenantId,
+            @Param("classId") Long classId,
+            @Param("monthStart") LocalDate monthStart,
+            @Param("monthEnd") LocalDate monthEnd,
+            @Param("studentIds") Collection<Long> studentIds);
+
+    /**
+     * Class-level fee aggregates used by reports.
+     * Keep JPQL free of SQL-style inline comments because Hibernate 6 query validation
+     * parses annotation text strictly and can fail during application startup.
+     */
+    @Query("""
+            SELECT s.classId,
+                   COALESCE(SUM(f.paidAmount), 0),
+                   COALESCE(SUM(f.amount), 0),
+                   SUM(CASE WHEN f.status = :overdueStatus THEN 1 ELSE 0 END)
+            FROM FeePayment f, Student s
+            WHERE f.tenantId = :tenantId
+              AND s.tenantId = :tenantId
+              AND f.isDeleted = false
+              AND s.isDeleted = false
+              AND f.studentId = s.id
+              AND s.classId IN :classIds
+            GROUP BY s.classId
+            """)
+    List<Object[]> getClassFeeSummaryByClassIds(
+            @Param("tenantId") String tenantId,
+            @Param("classIds") Collection<Long> classIds,
+            @Param("overdueStatus") Enums.FeeStatus overdueStatus);
 }

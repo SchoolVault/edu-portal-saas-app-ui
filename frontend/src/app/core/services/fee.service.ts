@@ -3,8 +3,20 @@ import { Observable, of, throwError } from 'rxjs';
 import { delay, map } from 'rxjs/operators';
 import { MOCK_FEE_PAYMENTS_SEED, MOCK_FEE_STRUCTURES_SEED } from '../mocks/fee.mock-data';
 import { MOCK_STUDENTS } from '../mocks/students.mock-data';
-import { BulkAssignFeesRequest, BulkAssignFeesResponse, FeeStructure, FeePayment } from '../models/models';
+import {
+  BulkAssignFeesRequest,
+  BulkAssignFeesResponse,
+  FeeCollectionSummary,
+  FeePayment,
+  FeeRefundDecisionRequest,
+  FeeRefundExecuteRequest,
+  FeeRefundRequest,
+  FeeStructure,
+  FeeTransaction,
+} from '../models/models';
 import { ApiService, PageResp } from './api.service';
+import { AuthService } from './auth.service';
+import { UiAccessService } from './ui-access.service';
 import { runtimeConfig } from '../config/runtime-config';
 import { DEFAULT_ERP_PAGE_SIZE } from '../constants/pagination.constants';
 import { sliceToPage } from '../utils/paginate';
@@ -22,7 +34,11 @@ function sumComponents(components: { amount: number }[]): number {
 export class FeeService {
   private payments: FeePayment[] = MOCK_FEE_PAYMENTS_SEED.map(p => ({ ...p }));
 
-  constructor(private api: ApiService) {}
+  constructor(
+    private api: ApiService,
+    private auth: AuthService,
+    private uiAccess: UiAccessService
+  ) {}
 
   getFeeStructures(): Observable<FeeStructure[]> {
     if (!runtimeConfig.useMocks) {
@@ -41,11 +57,21 @@ export class FeeService {
   /**
    * Paged payments for admin UI. Mock path mirrors backend {@code GET /fees/payments/paged} (PageResponse shape).
    */
-  getPaymentsPage(opts: { page?: number; size?: number; status?: string; q?: string }): Observable<PageResp<FeePayment>> {
+  getPaymentsPage(opts: {
+    page?: number;
+    size?: number;
+    status?: string;
+    q?: string;
+    classId?: number;
+    sectionId?: number;
+    month?: string;
+  }): Observable<PageResp<FeePayment>> {
     const page = opts.page ?? 0;
     const size = opts.size ?? DEFAULT_ERP_PAGE_SIZE;
     const q = opts.q?.trim().toLowerCase() || '';
     const status = opts.status?.trim() || '';
+    const classId = opts.classId;
+    const sectionId = opts.sectionId;
 
     if (!runtimeConfig.useMocks) {
       const statusParam = status ? status.toUpperCase() : undefined;
@@ -55,10 +81,12 @@ export class FeeService {
           size,
           status: statusParam,
           q: opts.q?.trim() || undefined,
+          classId: classId ?? undefined,
+          sectionId: sectionId ?? undefined,
+          month: opts.month?.trim() || undefined,
         })
         .pipe(map(pr => ({ ...pr, content: pr.content.map(item => this.normalizePayment(item as any)) })));
     }
-
     let rows = [...this.payments];
     if (status) {
       rows = rows.filter(p => p.status === status);
@@ -66,15 +94,95 @@ export class FeeService {
     if (q) {
       rows = rows.filter(p => (p.studentName || '').toLowerCase().includes(q));
     }
+    if (classId != null) {
+      rows = rows.filter(p => {
+        const student = MOCK_STUDENTS.find(s => s.id === p.studentId);
+        return student?.classId === classId;
+      });
+    }
+    if (sectionId != null) {
+      rows = rows.filter(p => {
+        const student = MOCK_STUDENTS.find(s => s.id === p.studentId);
+        return student?.sectionId === sectionId;
+      });
+    }
+    if (opts.month && /^\d{4}-\d{2}$/.test(opts.month)) {
+      const [year, month] = opts.month.split('-').map(Number);
+      rows = rows.filter(p => {
+        const referenceDate = p.paymentDate || p.dueDate;
+        if (!referenceDate) {
+          return false;
+        }
+        const dt = new Date(`${referenceDate}T00:00:00`);
+        return dt.getFullYear() === year && dt.getMonth() + 1 === month;
+      });
+    }
     rows.sort((a, b) => b.id - a.id);
     return of(sliceToPage(rows, page, size)).pipe(delay(250));
   }
 
   getStudentPayments(studentId: number): Observable<FeePayment[]> {
+    if (!this.uiAccess.hasSchoolFeeOfficeDesk()) {
+      return of([]).pipe(delay(0));
+    }
     if (!runtimeConfig.useMocks) {
       return this.api.get<any[]>(`/fees/payments/student/${studentId}`).pipe(map(payments => payments.map(item => this.normalizePayment(item))));
     }
     return of(this.payments.filter(p => p.studentId === studentId)).pipe(delay(300));
+  }
+
+  getCollectionSummary(opts?: { classId?: number; sectionId?: number; month?: string }): Observable<FeeCollectionSummary> {
+    if (!runtimeConfig.useMocks) {
+      return this.api.getParams<FeeCollectionSummary>('/fees/collection-summary', {
+        classId: opts?.classId ?? undefined,
+        sectionId: opts?.sectionId ?? undefined,
+        month: opts?.month?.trim() || undefined,
+      }).pipe(
+        map((s: any) => ({
+          totalCollected: Number(s.totalCollected ?? 0),
+          totalPending: Number(s.totalPending ?? 0),
+          totalStudents: Number(s.totalStudents ?? 0),
+          overdueCount: Number(s.overdueCount ?? 0),
+          collectionRate: Number(s.collectionRate ?? 0),
+        }))
+      );
+    }
+    let rows = [...this.payments];
+    if (opts?.month && /^\d{4}-\d{2}$/.test(opts.month)) {
+      const [year, month] = opts.month.split('-').map(Number);
+      rows = rows.filter(p => {
+        const referenceDate = p.paymentDate || p.dueDate;
+        if (!referenceDate) {
+          return false;
+        }
+        const dt = new Date(`${referenceDate}T00:00:00`);
+        return dt.getFullYear() === year && dt.getMonth() + 1 === month;
+      });
+    }
+    if (opts?.classId != null) {
+      rows = rows.filter(p => {
+        const student = MOCK_STUDENTS.find(s => s.id === p.studentId);
+        return student?.classId === opts.classId;
+      });
+    }
+    if (opts?.sectionId != null) {
+      rows = rows.filter(p => {
+        const student = MOCK_STUDENTS.find(s => s.id === p.studentId);
+        return student?.sectionId === opts.sectionId;
+      });
+    }
+    const totalCollected = rows.reduce((sum, p) => sum + (Number(p.paidAmount) || 0), 0);
+    const totalPending = rows.reduce((sum, p) => sum + (Number(p.dueAmount) || 0), 0);
+    const overdueCount = rows.filter(p => p.status === 'overdue').length;
+    const uniqueStudents = new Set(rows.map(p => p.studentId)).size;
+    const billed = rows.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+    return of({
+      totalCollected,
+      totalPending,
+      totalStudents: uniqueStudents,
+      overdueCount,
+      collectionRate: billed > 0 ? totalCollected / billed : 0,
+    }).pipe(delay(220));
   }
 
   bulkAssignFees(req: BulkAssignFeesRequest): Observable<BulkAssignFeesResponse> {
@@ -194,6 +302,100 @@ export class FeeService {
     return of(payment).pipe(delay(500));
   }
 
+  enqueueFeeReminder(req: { studentId: number; feePaymentId: number; dueDate?: string; channel?: 'SMS' | 'IN_APP' }): Observable<void> {
+    if (runtimeConfig.useMocks) {
+      return of(undefined).pipe(delay(180));
+    }
+    return this.api.post<void>('/fees/payments/reminders', {
+      studentId: req.studentId,
+      feePaymentId: req.feePaymentId,
+      dueDate: req.dueDate ?? null,
+      channel: req.channel ?? 'SMS',
+    });
+  }
+
+  getSchoolReceiptPdf(receiptNumber: string): Observable<Blob> {
+    if (runtimeConfig.useMocks) {
+      return of(this.mockFeeReceiptPdfBlob()).pipe(delay(100));
+    }
+    return this.api.getBlob(`/fees/payments/receipts/${encodeURIComponent(receiptNumber)}/pdf`);
+  }
+
+  private mockFeeReceiptPdfBlob(): Blob {
+    const b64 =
+      'JVBERi0xLjEKMSAwIG9iago8PCAvVHlwZSAvQ2F0YWxvZyAvUGFnZXMgMiAwIFIgPj4KZW5kb2JqCjIgMCBvYmoKPDwgL1R5cGUgL1BhZ2VzIC9LaWRzIFszIDAgUl0gL0NvdW50IDEgPj4KZW5kb2JqCjMgMCBvYmoKPDwgL1R5cGUgL1BhZ2UgL1BhcmVudCAyIDAgUiAvTWVkaWFCb3ggWzAgMCA2MTIgNzkyXSA+PgplbmRvYmoKeHJlZgowIDQKMDAwMDAwMDAwMCA2NTUzNSBmIAowMDAwMDAwMDA5IDAwMDAwIG4gCjAwMDAwMDAwNTggMDAwMDAgbiAKMDAwMDAwMDExNSAwMDAwMCBuIAp0cmFpbGVyCjw8IC9TaXplIDQgL1Jvb3QgMSAwIFIgPj4Kc3RhcnR4cmVmCjE4NgolJUVPRgo=';
+    const bin = atob(b64);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) {
+      bytes[i] = bin.charCodeAt(i);
+    }
+    return new Blob([bytes], { type: 'application/pdf' });
+  }
+
+  getPaymentTransactions(paymentId: number): Observable<FeeTransaction[]> {
+    if (!runtimeConfig.useMocks) {
+      return this.api.get<any[]>(`/fees/payments/${paymentId}/transactions`).pipe(
+        map(rows => (rows ?? []).map(item => this.normalizeTransaction(item)))
+      );
+    }
+    return of([]).pipe(delay(180));
+  }
+
+  requestRefund(paymentId: number, req: FeeRefundRequest): Observable<FeeTransaction> {
+    if (!runtimeConfig.useMocks) {
+      return this.api.post<any>(`/fees/payments/${paymentId}/refunds/request`, req).pipe(
+        map(item => this.normalizeTransaction(item))
+      );
+    }
+    return of({
+      id: Date.now(),
+      feePaymentId: paymentId,
+      eventType: 'REFUND_REQUESTED',
+      eventStatus: 'REQUESTED',
+      amount: Number(req.amount ?? 0),
+      currency: 'INR',
+      note: req.reason ?? '',
+      occurredAt: new Date().toISOString(),
+    }).pipe(delay(250));
+  }
+
+  approveRefund(transactionId: number, req: FeeRefundDecisionRequest): Observable<FeeTransaction> {
+    if (!runtimeConfig.useMocks) {
+      return this.api.post<any>(`/fees/payments/refunds/${transactionId}/approve`, req).pipe(
+        map(item => this.normalizeTransaction(item))
+      );
+    }
+    return of({
+      id: Date.now(),
+      feePaymentId: 0,
+      eventType: 'REFUND_APPROVED',
+      eventStatus: 'APPROVED',
+      amount: 0,
+      currency: 'INR',
+      note: req.note ?? '',
+      occurredAt: new Date().toISOString(),
+    }).pipe(delay(250));
+  }
+
+  executeRefund(transactionId: number, req: FeeRefundExecuteRequest): Observable<FeeTransaction> {
+    if (!runtimeConfig.useMocks) {
+      return this.api.post<any>(`/fees/payments/refunds/${transactionId}/execute`, req).pipe(
+        map(item => this.normalizeTransaction(item))
+      );
+    }
+    return of({
+      id: Date.now(),
+      feePaymentId: 0,
+      eventType: 'REFUND_EXECUTED',
+      eventStatus: 'RECONCILED',
+      amount: 0,
+      currency: 'INR',
+      providerPaymentId: req.providerRefundId ?? '',
+      note: req.note ?? '',
+      occurredAt: new Date().toISOString(),
+    }).pipe(delay(250));
+  }
+
   addFeeStructure(fs: Omit<FeeStructure, 'id' | 'totalAmount' | 'tenantId'> & { id?: number }): Observable<FeeStructure> {
     const total = sumComponents(fs.components);
     if (!runtimeConfig.useMocks) {
@@ -299,16 +501,24 @@ export class FeeService {
 
   private normalizePayment(payment: any): FeePayment {
     const lineItems = payment.lineItems ?? payment.line_items;
+    const payDateRaw = payment.paymentDate ?? payment.payment_date;
+    const paymentDate =
+      payDateRaw != null && String(payDateRaw).trim() !== ''
+        ? String(payDateRaw).slice(0, 10)
+        : undefined;
     return {
       ...payment,
       id: Number(payment.id),
       studentId: Number(payment.studentId),
+      classId: payment.classId != null ? Number(payment.classId) : undefined,
+      sectionId: payment.sectionId != null ? Number(payment.sectionId) : undefined,
       feeStructureId: payment.feeStructureId != null ? Number(payment.feeStructureId) : 0,
       amount: Number(payment.amount ?? 0),
       paidAmount: Number(payment.paidAmount ?? 0),
       dueAmount: Number(payment.dueAmount ?? 0),
       discount: Number(payment.discount ?? 0),
       lateFee: Number(payment.lateFee ?? 0),
+      paymentDate,
       tenantId: payment.tenantId ?? '',
       status: payment.status,
       lineItems: Array.isArray(lineItems)
@@ -318,6 +528,24 @@ export class FeeService {
             type: (line.type ?? 'misc').toString().toLowerCase()
           }))
         : undefined
+    };
+  }
+
+  private normalizeTransaction(row: any): FeeTransaction {
+    return {
+      id: Number(row.id),
+      feePaymentId: Number(row.feePaymentId),
+      attemptId: row.attemptId != null ? Number(row.attemptId) : undefined,
+      eventType: String(row.eventType ?? ''),
+      eventStatus: row.eventStatus != null ? String(row.eventStatus) : undefined,
+      amount: Number(row.amount ?? 0),
+      currency: row.currency != null ? String(row.currency) : undefined,
+      provider: row.provider != null ? String(row.provider) : undefined,
+      providerPaymentId: row.providerPaymentId != null ? String(row.providerPaymentId) : undefined,
+      referenceId: row.referenceId != null ? String(row.referenceId) : undefined,
+      operationKey: row.operationKey != null ? String(row.operationKey) : undefined,
+      note: row.note != null ? String(row.note) : undefined,
+      occurredAt: row.occurredAt != null ? String(row.occurredAt) : undefined,
     };
   }
 }

@@ -2,6 +2,7 @@ package com.school.erp.modules.payroll.entity;
 
 import com.school.erp.common.entity.BaseEntity;
 import com.school.erp.common.enums.Enums;
+import com.school.erp.modules.payroll.domain.SalarySettlementMode;
 import jakarta.persistence.*;
 import java.math.BigDecimal;
 import org.hibernate.annotations.JdbcTypeCode;
@@ -39,6 +40,18 @@ public class Payslip extends BaseEntity {
     @Column(name = "payment_date")
     private LocalDate paymentDate;
 
+    @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.VARCHAR)
+    @Column(name = "salary_settlement_mode", length = 32)
+    private SalarySettlementMode salarySettlementMode;
+
+    public SalarySettlementMode getSalarySettlementMode() {
+        return salarySettlementMode;
+    }
+
+    public void setSalarySettlementMode(SalarySettlementMode salarySettlementMode) {
+        this.salarySettlementMode = salarySettlementMode;
+    }
 
     public static class PayslipBuilder {
         private Long teacherId;

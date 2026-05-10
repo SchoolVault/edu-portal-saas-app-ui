@@ -7,6 +7,7 @@ import com.school.erp.common.enums.Enums;
 import com.school.erp.modules.library.dto.LibraryDTOs;
 import com.school.erp.modules.library.entity.Book;
 import com.school.erp.modules.library.service.LibraryService;
+import com.school.erp.security.rbac.RbacSpel;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -24,6 +25,7 @@ public class LibraryController {
     private final LibraryService service;
 
     @GetMapping("/books")
+    @PreAuthorize(RbacSpel.LIBRARY_MEMBER_READ)
     @Operation(summary = "List/search books", description = "By default only catalog-active titles; pass includeInactive=true to list withdrawn titles")
     public ResponseEntity<ApiResponse<List<Book>>> listBooks(
             @RequestParam(required = false) String search,
@@ -32,7 +34,7 @@ public class LibraryController {
     }
 
     @PutMapping("/books/{id}/catalog")
-    @PreAuthorize("hasRole(\'ADMIN\') or hasAuthority(\'LIBRARY_MANAGE\')")
+    @PreAuthorize(RbacSpel.LIBRARY_CATALOG_WRITE)
     @Operation(summary = "Activate or deactivate catalog title", description = "Inactive titles cannot be issued; copies on loan are unchanged")
     public ResponseEntity<ApiResponse<Book>> setCatalogActive(@PathVariable Long id, @RequestBody LibraryDTOs.CatalogActiveRequest body) {
         boolean active = body != null && Boolean.TRUE.equals(body.getActive());
@@ -40,19 +42,21 @@ public class LibraryController {
     }
 
     @PostMapping("/books")
-    @PreAuthorize("hasRole(\'ADMIN\') or hasAuthority(\'LIBRARY_MANAGE\')")
+    @PreAuthorize(RbacSpel.LIBRARY_CATALOG_WRITE)
     @Operation(summary = "Add book to catalog", description = "Admin or teacher (e.g. librarian role) may add titles")
     public ResponseEntity<ApiResponse<Book>> addBook(@RequestBody Book book) {
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.created(service.addBook(book)));
     }
 
     @GetMapping("/issues")
+    @PreAuthorize(RbacSpel.LIBRARY_DESK_READ)
     @Operation(summary = "List book issues", description = "Filter by status: ISSUED, RETURNED, OVERDUE")
     public ResponseEntity<ApiResponse<List<LibraryDTOs.BookIssueResponse>>> listIssues(@RequestParam(required = false) Enums.BookIssueStatus status) {
         return ResponseEntity.ok(ApiResponse.ok(service.getIssues(status)));
     }
 
     @GetMapping("/books/paged")
+    @PreAuthorize(RbacSpel.LIBRARY_MEMBER_READ)
     @Operation(summary = "List/search books (paged)", description = "catalogScope: ACTIVE (default), INACTIVE, or ALL")
     public ResponseEntity<ApiResponse<PageResponse<Book>>> listBooksPaged(
             @RequestParam(defaultValue = "0") int page,
@@ -64,6 +68,7 @@ public class LibraryController {
     }
 
     @GetMapping("/issues/paged")
+    @PreAuthorize(RbacSpel.LIBRARY_DESK_READ)
     @Operation(summary = "List book issues (paged)", description = "Filter by status: ISSUED, RETURNED, OVERDUE")
     public ResponseEntity<ApiResponse<PageResponse<LibraryDTOs.BookIssueResponse>>> listIssuesPaged(
             @RequestParam(defaultValue = "0") int page,
@@ -72,15 +77,41 @@ public class LibraryController {
         return ResponseEntity.ok(ApiResponse.ok(service.getIssuesPaged(page, size, status)));
     }
 
+    @GetMapping("/issues/me")
+    @PreAuthorize(RbacSpel.LIBRARY_MEMBER_READ)
+    @Operation(summary = "List own/linked borrow history", description = "Member lane: students see own issues; parents see linked ward issues")
+    public ResponseEntity<ApiResponse<List<LibraryDTOs.BookIssueResponse>>> listMyIssues(
+            @RequestParam(required = false) Enums.BookIssueStatus status) {
+        return ResponseEntity.ok(ApiResponse.ok(service.getMemberIssues(status)));
+    }
+
+    @GetMapping("/issues/me/paged")
+    @PreAuthorize(RbacSpel.LIBRARY_MEMBER_READ)
+    @Operation(summary = "List own/linked borrow history (paged)", description = "Member lane paged issues for student self-service or parent-linked wards")
+    public ResponseEntity<ApiResponse<PageResponse<LibraryDTOs.BookIssueResponse>>> listMyIssuesPaged(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(required = false) Enums.BookIssueStatus status) {
+        return ResponseEntity.ok(ApiResponse.ok(service.getMemberIssuesPaged(page, size, status)));
+    }
+
     @PostMapping("/issues")
-    @PreAuthorize("hasRole(\'ADMIN\') or hasAnyAuthority(\'LIBRARY_MANAGE\',\'LIBRARY_CIRCULATION\')")
+    @PreAuthorize(RbacSpel.LIBRARY_CIRCULATION_ACCESS)
     @Operation(summary = "Issue book to student", description = "Decreases available copies. Default due: 14 days.")
     public ResponseEntity<ApiResponse<LibraryDTOs.BookIssueResponse>> issueBook(@Valid @RequestBody LibraryDTOs.IssueBookRequest req) {
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.created(service.issueBook(req)));
     }
 
+    @PostMapping("/issues/borrower")
+    @PreAuthorize(RbacSpel.LIBRARY_CIRCULATION_ACCESS)
+    @Operation(summary = "Issue book to generic borrower", description = "ERP-grade borrower API using borrowerType + borrowerRefId (+ optional borrowerUserId)")
+    public ResponseEntity<ApiResponse<LibraryDTOs.BorrowerIssueResponse>> issueBookToBorrower(
+            @Valid @RequestBody LibraryDTOs.IssueBorrowerRequest req) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.created(service.issueBookForBorrower(req)));
+    }
+
     @PutMapping("/issues/{id}/return")
-    @PreAuthorize("hasRole(\'ADMIN\') or hasAnyAuthority(\'LIBRARY_MANAGE\',\'LIBRARY_CIRCULATION\')")
+    @PreAuthorize(RbacSpel.LIBRARY_CIRCULATION_ACCESS)
     @Operation(summary = "Return book", description = "Return date & optional fine/day override; otherwise tenant library_fine_per_day applies.")
     public ResponseEntity<ApiResponse<LibraryDTOs.BookIssueResponse>> returnBook(@PathVariable Long id, @RequestBody(required = false) LibraryDTOs.ReturnBookRequest req) {
         return ResponseEntity.ok(ApiResponse.ok(service.returnBook(id, req), "Book returned"));

@@ -8,6 +8,7 @@ import { ExamService } from '../../core/services/exam.service';
 import { ParentService } from '../../core/services/parent.service';
 import { StudentService } from '../../core/services/student.service';
 import { AuthService } from '../../core/services/auth.service';
+import { UiAccessService } from '../../core/services/ui-access.service';
 import { runtimeConfig } from '../../core/config/runtime-config';
 import { examAppliesToStudent } from '../../core/utils/exam-scope';
 import { forkJoin } from 'rxjs';
@@ -23,7 +24,8 @@ import {
   MarkRecord,
   MarksEntryScopeRow,
   SchoolClass,
-  Student
+  Student,
+  ExamTemplate
 } from '../../core/models/models';
 import { ErpDatePickerComponent } from '../../shared/erp-date-picker/erp-date-picker.component';
 import { ErpPaginationComponent } from '../../shared/erp-pagination/erp-pagination.component';
@@ -69,7 +71,7 @@ function compareExamsForGrid(a: Exam, b: Exam): number {
   ],
   template: `
     <div data-testid="exams-page">
-      <div class="d-flex justify-content-between align-items-center mb-4 animate-in flex-wrap gap-2">
+      <div class="erp-filter-toolbar mb-4 animate-in">
         <div>
           <h2 style="font-size: 24px; font-weight: 800;">{{ 'exams.pageTitle' | translate }}</h2>
           <p class="text-muted mb-0" style="font-size: 13px;" *ngIf="role !== 'parent'">
@@ -87,11 +89,11 @@ function compareExamsForGrid(a: Exam, b: Exam): number {
             >{{ 'exams.leadParentTail' | translate }}
           </p>
         </div>
-        <div class="d-flex gap-2 flex-wrap">
-          <button type="button" class="btn-outline-erp btn-sm" (click)="refreshExams()">
+        <div class="erp-filter-toolbar__actions">
+          <button type="button" class="btn-outline-erp btn-sm erp-filter-toolbar__action" (click)="refreshExams()">
             <i class="bi bi-arrow-clockwise"></i> {{ 'exams.refresh' | translate }}
           </button>
-          <button *ngIf="canCreateExam" type="button" class="btn-primary-erp btn-sm" (click)="openCreateModal()">
+          <button *ngIf="canCreateExam" type="button" class="btn-primary-erp btn-sm erp-filter-toolbar__action" (click)="openCreateModal()">
             <i class="bi bi-plus-lg"></i> {{ 'exams.createExam' | translate }}
           </button>
         </div>
@@ -119,16 +121,18 @@ function compareExamsForGrid(a: Exam, b: Exam): number {
       </div>
 
       <div class="erp-card mb-3 animate-in animate-in-delay-1" *ngIf="role !== 'parent' && staffUsesServerPaging">
-        <div class="row g-2 align-items-end">
-          <div class="col-md-5 col-lg-4">
-            <label class="erp-label">{{ 'exams.listSearch' | translate }}</label>
-            <input
-              type="search"
-              class="erp-input"
-              [(ngModel)]="staffExamSearch"
-              (ngModelChange)="onStaffExamSearchChange()"
-              [attr.placeholder]="'exams.listSearchPh' | translate"
-            />
+        <div class="erp-filter-toolbar">
+          <div class="erp-filter-toolbar__search">
+            <div>
+              <label class="erp-label">{{ 'exams.listSearch' | translate }}</label>
+              <input
+                type="search"
+                class="erp-input"
+                [(ngModel)]="staffExamSearch"
+                (ngModelChange)="onStaffExamSearchChange()"
+                [attr.placeholder]="'exams.listSearchPh' | translate"
+              />
+            </div>
           </div>
         </div>
       </div>
@@ -143,7 +147,10 @@ function compareExamsForGrid(a: Exam, b: Exam): number {
           >
             <div class="d-flex justify-content-between align-items-start mb-2">
               <h4 style="font-size: 15px; font-weight: 700;">{{ exam.name }}</h4>
-              <span class="badge-erp" [ngClass]="getExamBadge(exam.status)">{{ examStatusLabel(exam.status) }}</span>
+              <div class="d-flex flex-column gap-1 align-items-end">
+                <span class="badge-erp" [ngClass]="getExamBadge(exam.status)">{{ examStatusLabel(exam.status) }}</span>
+                <span class="badge-erp badge-neutral">{{ examWorkflowLabel(exam.workflowState) }}</span>
+              </div>
             </div>
             <div style="font-size: 12px; color: var(--clr-text-muted);">
               <div><i class="bi bi-calendar3 me-1"></i>{{ exam.startDate }} → {{ exam.endDate }}</div>
@@ -196,6 +203,25 @@ function compareExamsForGrid(a: Exam, b: Exam): number {
             <button type="button" class="erp-tab" [class.active]="detailTab === 'timetable'" (click)="onTimetableTab()">{{ 'exams.tabTimetable' | translate }}</button>
           </div>
         </div>
+        <div class="d-flex flex-wrap gap-2 align-items-center mb-3" *ngIf="selectedExam && role !== 'parent'">
+          <span class="badge-erp badge-neutral">{{ examWorkflowLabel(selectedExam.workflowState) }}</span>
+          <button *ngIf="canSubmitForApproval(selectedExam)" type="button" class="btn-outline-erp btn-sm" (click)="submitSelectedExamForApproval()">
+            {{ 'exams.submitApproval' | translate }}
+          </button>
+          <button *ngIf="canApproveWorkflow(selectedExam)" type="button" class="btn-primary-erp btn-sm" (click)="approveSelectedExam(false)">
+            {{ 'exams.approve' | translate }}
+          </button>
+          <button *ngIf="canApproveWorkflow(selectedExam)" type="button" class="btn-outline-erp btn-sm" (click)="approveSelectedExam(true)">
+            {{ 'exams.approvePublish' | translate }}
+          </button>
+          <button *ngIf="canApproveWorkflow(selectedExam)" type="button" class="btn-outline-erp btn-sm text-danger" (click)="rejectSelectedExam()">
+            {{ 'exams.reject' | translate }}
+          </button>
+          <button *ngIf="canFreezeWorkflow(selectedExam)" type="button" class="btn-outline-erp btn-sm" (click)="freezeSelectedExam()">
+            {{ 'exams.freeze' | translate }}
+          </button>
+          <span class="small text-muted" *ngIf="selectedExam.workflowNote">{{ selectedExam.workflowNote }}</span>
+        </div>
 
         <ng-container *ngIf="role === 'parent' && selectedExam && parentDetailTab === 'results'">
           <p *ngIf="!selectedExam.resultsPublished" class="text-muted small">{{ 'exams.resultsNotPublished' | translate }}</p>
@@ -207,7 +233,8 @@ function compareExamsForGrid(a: Exam, b: Exam): number {
               </div>
             </div>
             <p *ngIf="!parentResultsFilteredTotal" class="text-muted small mb-2">{{ 'exams.noMatches' | translate }}</p>
-            <table class="erp-table" *ngIf="parentResultsFilteredTotal">
+            <div class="erp-table-scroll" *ngIf="parentResultsFilteredTotal">
+            <table class="erp-table">
               <thead
                 ><tr
                   ><th>{{ 'exams.thSubject' | translate }}</th
@@ -227,6 +254,7 @@ function compareExamsForGrid(a: Exam, b: Exam): number {
                 </tr>
               </tbody>
             </table>
+            </div>
             <app-erp-pagination
               *ngIf="parentResultsFilteredTotal > parentResultsPageSize"
               class="d-block mt-2"
@@ -263,7 +291,7 @@ function compareExamsForGrid(a: Exam, b: Exam): number {
                 <option *ngFor="let s of subjectSelectOptions" [ngValue]="s">{{ s }}</option>
               </select>
               <input
-                *ngIf="!teacherMarksScopeActive || !subjectSelectOptions.length"
+                *ngIf="!teacherMarksScopeActive"
                 class="erp-input"
                 erpI18nPh="exams.subjectPlaceholder"
                 [(ngModel)]="marksSubject"
@@ -293,7 +321,8 @@ function compareExamsForGrid(a: Exam, b: Exam): number {
               </div>
             </div>
             <p *ngIf="!entryFilteredTotal" class="text-muted small mb-2">{{ 'exams.noMatches' | translate }}</p>
-            <table class="erp-table" *ngIf="entryFilteredTotal">
+            <div class="erp-table-scroll" *ngIf="entryFilteredTotal">
+            <table class="erp-table">
               <thead
                 ><tr
                   ><th>{{ 'exams.thStudent' | translate }}</th
@@ -311,6 +340,7 @@ function compareExamsForGrid(a: Exam, b: Exam): number {
                 </tr>
               </tbody>
             </table>
+            </div>
             <app-erp-pagination
               *ngIf="entryFilteredTotal > entryPageSize"
               class="d-block mt-2"
@@ -336,7 +366,8 @@ function compareExamsForGrid(a: Exam, b: Exam): number {
               </div>
             </div>
             <p *ngIf="!recordedFilteredTotal" class="text-muted small mb-2">{{ 'exams.noMatches' | translate }}</p>
-            <table class="erp-table" *ngIf="recordedFilteredTotal">
+            <div class="erp-table-scroll" *ngIf="recordedFilteredTotal">
+            <table class="erp-table">
               <thead
                 ><tr
                   ><th>{{ 'exams.thStudent' | translate }}</th
@@ -358,6 +389,7 @@ function compareExamsForGrid(a: Exam, b: Exam): number {
                 </tr>
               </tbody>
             </table>
+            </div>
             <app-erp-pagination
               *ngIf="recordedFilteredTotal > recordedPageSize"
               class="d-block mt-2"
@@ -372,7 +404,7 @@ function compareExamsForGrid(a: Exam, b: Exam): number {
 
         <ng-container *ngIf="role === 'parent' && parentDetailTab === 'timetable'">
           <p class="text-muted small mb-3">{{ 'exams.parentTimetableLead' | translate }}</p>
-          <div class="table-responsive mb-3" *ngIf="scheduleDraft.length">
+          <div class="erp-table-scroll mb-3" *ngIf="scheduleDraft.length">
             <table class="erp-table">
               <thead>
                 <tr>
@@ -380,8 +412,10 @@ function compareExamsForGrid(a: Exam, b: Exam): number {
                   ><th>{{ 'exams.thStart' | translate }}</th
                   ><th>{{ 'exams.thEnd' | translate }}</th
                   ><th>{{ 'exams.thSubject' | translate }}</th
+                  ><th>{{ 'exams.thPaperType' | translate }}</th
                   ><th>{{ 'exams.thClass' | translate }}</th
                   ><th>{{ 'exams.thSection' | translate }}</th
+                  ><th>{{ 'exams.thInvigilator' | translate }}</th
                   ><th>{{ 'exams.thRoom' | translate }}</th
                   ><th>{{ 'exams.thNotes' | translate }}</th>
                 </tr>
@@ -392,8 +426,10 @@ function compareExamsForGrid(a: Exam, b: Exam): number {
                   <td>{{ formatSlotTime(row.startTime) }}</td>
                   <td>{{ formatSlotTime(row.endTime) }}</td>
                   <td><strong>{{ row.subjectName }}</strong></td>
+                  <td>{{ row.paperType?.trim() ? row.paperType : ('exams.dash' | translate) }}</td>
                   <td>{{ className(row.classId) }}</td>
                   <td>{{ row.sectionId != null ? sectionName(row.classId, row.sectionId) : ('exams.sectionAll' | translate) }}</td>
+                  <td>{{ row.invigilatorName?.trim() ? row.invigilatorName : ('exams.dash' | translate) }}</td>
                   <td>{{ row.room?.trim() ? row.room : ('exams.dash' | translate) }}</td>
                   <td>{{ row.notes?.trim() ? row.notes : ('exams.dash' | translate) }}</td>
                 </tr>
@@ -415,7 +451,7 @@ function compareExamsForGrid(a: Exam, b: Exam): number {
 
         <ng-container *ngIf="role !== 'parent' && detailTab === 'timetable'">
           <p class="text-muted small mb-3">{{ 'exams.staffTimetableLead' | translate }}</p>
-          <div class="table-responsive mb-3" *ngIf="scheduleDraft.length || canEditSchedule">
+          <div class="erp-table-scroll mb-3" *ngIf="scheduleDraft.length || canEditSchedule">
             <table class="erp-table">
               <thead>
                 <tr>
@@ -423,8 +459,10 @@ function compareExamsForGrid(a: Exam, b: Exam): number {
                   ><th>{{ 'exams.thStart' | translate }}</th
                   ><th>{{ 'exams.thEnd' | translate }}</th
                   ><th>{{ 'exams.thSubject' | translate }}</th
+                  ><th>{{ 'exams.thPaperType' | translate }}</th
                   ><th>{{ 'exams.thClass' | translate }}</th
                   ><th>{{ 'exams.thSection' | translate }}</th
+                  ><th>{{ 'exams.thInvigilator' | translate }}</th
                   ><th>{{ 'exams.thRoom' | translate }}</th
                   ><th>{{ 'exams.thNotes' | translate }}</th>
                   <th *ngIf="canEditSchedule"></th>
@@ -442,6 +480,7 @@ function compareExamsForGrid(a: Exam, b: Exam): number {
                   <td><input type="time" class="erp-input" [(ngModel)]="row.startTime" [disabled]="!canEditSchedule" /></td>
                   <td><input type="time" class="erp-input" [(ngModel)]="row.endTime" [disabled]="!canEditSchedule" /></td>
                   <td><input class="erp-input" [(ngModel)]="row.subjectName" [disabled]="!canEditSchedule" /></td>
+                  <td><input class="erp-input" [(ngModel)]="row.paperType" [disabled]="!canEditSchedule" /></td>
                   <td>
                     <select class="erp-select" [(ngModel)]="row.classId" (change)="onScheduleRowClass(row)" [disabled]="!canEditSchedule">
                       <option *ngFor="let c of classes" [ngValue]="c.id">{{ c.name | schoolClassName }}</option>
@@ -453,6 +492,7 @@ function compareExamsForGrid(a: Exam, b: Exam): number {
                       <option *ngFor="let s of sectionsForClass(row.classId)" [ngValue]="s.id">{{ s.name }}</option>
                     </select>
                   </td>
+                  <td><input class="erp-input" [(ngModel)]="row.invigilatorName" [disabled]="!canEditSchedule" /></td>
                   <td><input class="erp-input" [(ngModel)]="row.room" [disabled]="!canEditSchedule" /></td>
                   <td><input class="erp-input" [(ngModel)]="row.notes" [disabled]="!canEditSchedule" /></td>
                   <td *ngIf="canEditSchedule">
@@ -490,6 +530,56 @@ function compareExamsForGrid(a: Exam, b: Exam): number {
         <div class="modal-body-erp">
           <div class="erp-form-group">
             <label class="erp-label">{{ 'exams.labelExamName' | translate }}</label><input type="text" class="erp-input" [(ngModel)]="newExam.name" />
+          </div>
+          <div class="row g-3">
+            <div class="col-md-6">
+              <div class="erp-form-group">
+                <label class="erp-label">{{ 'exams.labelTemplate' | translate }}</label>
+                <select class="erp-select" [(ngModel)]="selectedTemplateId" (change)="onTemplateChange()">
+                  <option [ngValue]="null">{{ 'exams.selectTemplate' | translate }}</option>
+                  <option *ngFor="let tpl of examTemplates" [ngValue]="tpl.id">{{ tpl.name }} ({{ tpl.boardType }})</option>
+                </select>
+              </div>
+            </div>
+            <div class="col-md-6">
+              <div class="erp-form-group">
+                <label class="erp-label">{{ 'exams.labelExamType' | translate }}</label>
+                <input type="text" class="erp-input" [attr.placeholder]="'exams.examTypePh' | translate" [(ngModel)]="newExam.examType" />
+              </div>
+            </div>
+            <div class="col-md-6">
+              <div class="erp-form-group">
+                <label class="erp-label">{{ 'exams.labelMarkingScheme' | translate }}</label>
+                <select class="erp-select" [(ngModel)]="newExam.markingScheme">
+                  <option value="marks">{{ 'exams.markingScheme.marks' | translate }}</option>
+                  <option value="grades">{{ 'exams.markingScheme.grades' | translate }}</option>
+                  <option value="hybrid">{{ 'exams.markingScheme.hybrid' | translate }}</option>
+                  <option value="weightage">{{ 'exams.markingScheme.weightage' | translate }}</option>
+                  <option value="rubric">{{ 'exams.markingScheme.rubric' | translate }}</option>
+                </select>
+              </div>
+            </div>
+          </div>
+          <div class="erp-form-group">
+            <label class="erp-label">{{ 'exams.labelAdvancedRules' | translate }}</label>
+            <div class="row g-3">
+              <div class="col-md-4">
+                <label class="erp-label small">{{ 'exams.labelMaxPapersPerDay' | translate }}</label>
+                <input type="number" min="0" class="erp-input" [(ngModel)]="newExam.maxPapersPerDayPerClass" />
+              </div>
+              <div class="col-md-4 d-flex align-items-center">
+                <label class="d-flex align-items-center gap-2 mt-4">
+                  <input type="checkbox" [(ngModel)]="newExam.requireRoom" />
+                  <span>{{ 'exams.labelRequireRoom' | translate }}</span>
+                </label>
+              </div>
+              <div class="col-md-4 d-flex align-items-center">
+                <label class="d-flex align-items-center gap-2 mt-4">
+                  <input type="checkbox" [(ngModel)]="newExam.requireInvigilator" />
+                  <span>{{ 'exams.labelRequireInvigilator' | translate }}</span>
+                </label>
+              </div>
+            </div>
           </div>
           <div class="erp-form-group">
             <label class="erp-label">{{ 'exams.labelAcademicYear' | translate }}</label>
@@ -542,6 +632,9 @@ function compareExamsForGrid(a: Exam, b: Exam): number {
       .exam-card-pick { transition: border-color 0.15s ease, box-shadow 0.15s ease; cursor: pointer; }
       .exam-card-pick--disabled { cursor: not-allowed; opacity: 0.62; pointer-events: none; }
       .exam-card-active { border-color: var(--clr-accent) !important; box-shadow: 0 0 0 1px color-mix(in srgb, var(--clr-accent) 35%, transparent); }
+      @media (max-width: 768px) {
+        .modal-content-erp.modal-lg { width: min(96vw, 960px); margin: 12px auto; max-height: 92vh; overflow: auto; }
+      }
     `
   ]
 })
@@ -566,6 +659,11 @@ export class ExamsComponent implements OnInit {
   marksByStudent: Record<number, number | null> = {};
   newExam = {
     name: '',
+    examType: '',
+    markingScheme: 'marks',
+    maxPapersPerDayPerClass: 0,
+    requireRoom: false,
+    requireInvigilator: false,
     academicYearId: null as number | null,
     startDate: '',
     endDate: '',
@@ -576,6 +674,8 @@ export class ExamsComponent implements OnInit {
   marksScopeRows: MarksEntryScopeRow[] = [];
   marksScopeError = '';
   parentChildren: Student[] = [];
+  examTemplates: ExamTemplate[] = [];
+  selectedTemplateId: number | null = null;
   selectedParentChildId: number | null = null;
   parentDetailTab: 'timetable' | 'results' = 'timetable';
 
@@ -617,6 +717,7 @@ export class ExamsComponent implements OnInit {
     private studentService: StudentService,
     private parentService: ParentService,
     private auth: AuthService,
+    private uiAccess: UiAccessService,
     private translate: TranslateService,
     private cdr: ChangeDetectorRef,
     private route: ActivatedRoute
@@ -631,15 +732,17 @@ export class ExamsComponent implements OnInit {
   }
 
   get canCreateExam(): boolean {
-    return this.role === 'admin' || this.role === 'super_admin';
+    return this.uiAccess.hasSchoolExamsOfficeWriteAccess();
   }
 
   get canEnterMarks(): boolean {
-    return this.role === 'admin' || this.role === 'teacher' || this.role === 'super_admin';
+    return this.uiAccess.hasExamMarksAndScheduleWriteAccess();
   }
 
   get canEditSchedule(): boolean {
-    return this.role === 'admin' || this.role === 'teacher' || this.role === 'super_admin';
+    if (!this.uiAccess.hasExamMarksAndScheduleWriteAccess()) return false;
+    const state = (this.selectedExam?.workflowState || '').toUpperCase();
+    return !state || (state !== 'FROZEN' && state !== 'PUBLISHED');
   }
 
   /** Teacher with at least one scoped class/subject from API */
@@ -807,7 +910,7 @@ export class ExamsComponent implements OnInit {
     for (const ch of children) {
       const cid = ch.classId;
       if (!byClass.has(cid)) {
-        byClass.set(cid, { name: ch.className?.trim() || `Class ${cid}`, sections: new Map() });
+        byClass.set(cid, { name: formatSchoolClassDisplayName(cid, ch.className?.trim(), this.translate), sections: new Map() });
       }
       if (ch.sectionId > 0) {
         byClass.get(cid)!.sections.set(ch.sectionId, {
@@ -892,7 +995,19 @@ export class ExamsComponent implements OnInit {
   }
 
   openCreateModal(): void {
-    this.newExam = { name: '', academicYearId: null, startDate: '', endDate: '', classIds: [] };
+    this.newExam = {
+      name: '',
+      examType: '',
+      markingScheme: 'marks',
+      maxPapersPerDayPerClass: 0,
+      requireRoom: false,
+      requireInvigilator: false,
+      academicYearId: null,
+      startDate: '',
+      endDate: '',
+      classIds: []
+    };
+    this.selectedTemplateId = null;
     this.sectionChoiceByClass = {};
     this.showCreateModal = true;
   }
@@ -1110,6 +1225,8 @@ export class ExamsComponent implements OnInit {
       classId: cid,
       sectionId: null,
       subjectName: '',
+      paperType: '',
+      invigilatorName: '',
       examDate: defaultDate,
       startTime: '09:00',
       endTime: '12:00',
@@ -1156,13 +1273,60 @@ export class ExamsComponent implements OnInit {
           this.scheduleUiError = true;
           return;
         }
+        if (r.startTime >= r.endTime) {
+          this.scheduleUiMessage = this.translate.instant('exams.validation.rowTimeOrder', { n });
+          this.scheduleUiError = true;
+          return;
+        }
+        if (this.examRuleRequireRoom() && !r.room?.trim()) {
+          this.scheduleUiMessage = this.translate.instant('exams.validation.rowRoomRequired', { n });
+          this.scheduleUiError = true;
+          return;
+        }
+        if (this.examRuleRequireInvigilator() && !r.invigilatorName?.trim()) {
+          this.scheduleUiMessage = this.translate.instant('exams.validation.rowInvigilatorRequired', { n });
+          this.scheduleUiError = true;
+          return;
+        }
+      }
+      const seen = new Set<string>();
+      const dailyCountByClassSection = new Map<string, number>();
+      for (let i = 0; i < this.scheduleDraft.length; i++) {
+        const a = this.scheduleDraft[i];
+        const key = `${a.examDate}|${a.classId}|${a.sectionId ?? 'ALL'}`;
+        dailyCountByClassSection.set(key, (dailyCountByClassSection.get(key) ?? 0) + 1);
+        for (let j = i + 1; j < this.scheduleDraft.length; j++) {
+          const b = this.scheduleDraft[j];
+          const bKey = `${b.examDate}|${b.classId}|${b.sectionId ?? 'ALL'}`;
+          if (key !== bKey) continue;
+          if (a.startTime < b.endTime && b.startTime < a.endTime) {
+            this.scheduleUiMessage = this.translate.instant('exams.validation.rowConflict', { a: i + 1, b: j + 1 });
+            this.scheduleUiError = true;
+            return;
+          }
+        }
+        const subjectKey = `${key}|${(a.subjectName || '').trim().toLowerCase()}`;
+        if (seen.has(subjectKey)) {
+          this.scheduleUiMessage = this.translate.instant('exams.validation.rowDuplicateSubject', { n: i + 1 });
+          this.scheduleUiError = true;
+          return;
+        }
+        seen.add(subjectKey);
+      }
+      const maxPapers = this.examRuleMaxPapersPerDay();
+      if (maxPapers > 0 && [...dailyCountByClassSection.values()].some(c => c > maxPapers)) {
+        this.scheduleUiMessage = this.translate.instant('exams.validation.rowMaxPapersPerDay', { max: maxPapers });
+        this.scheduleUiError = true;
+        return;
       }
     }
     this.scheduleSaving = true;
-    const payload = this.scheduleDraft.map(({ classId, sectionId, subjectName, examDate, startTime, endTime, room, notes }) => ({
+    const payload = this.scheduleDraft.map(({ classId, sectionId, subjectName, paperType, invigilatorName, examDate, startTime, endTime, room, notes }) => ({
       classId: classId as number,
       sectionId: sectionId ?? null,
       subjectName,
+      paperType: paperType?.trim() || undefined,
+      invigilatorName: invigilatorName?.trim() || undefined,
       examDate,
       startTime,
       endTime,
@@ -1213,12 +1377,23 @@ export class ExamsComponent implements OnInit {
     const exam: Exam = {
       id: 0,
       name: this.newExam.name.trim(),
+      examType: this.newExam.examType?.trim() || 'custom',
+      markingScheme: this.newExam.markingScheme || 'marks',
+      gradingConfig: {
+        scheme: this.newExam.markingScheme || 'marks',
+        examOperations: {
+          maxPapersPerDayPerClass: Number(this.newExam.maxPapersPerDayPerClass || 0),
+          requireRoom: !!this.newExam.requireRoom,
+          requireInvigilator: !!this.newExam.requireInvigilator
+        }
+      },
       academicYearId: this.newExam.academicYearId,
       startDate: this.newExam.startDate,
       endDate: this.newExam.endDate,
       classIds: [...this.newExam.classIds],
       classScopes,
       status: 'upcoming',
+      workflowState: this.role === 'teacher' ? 'PENDING_APPROVAL' : 'APPROVED',
       tenantId: ''
     };
     this.examService.addExam(exam, classScopes).subscribe(createdExam => {
@@ -1253,11 +1428,27 @@ export class ExamsComponent implements OnInit {
 
   saveMarks(): void {
     if (!this.selectedExam || this.selectedClassId == null || !this.marksSubject) return;
+    const wf = (this.selectedExam.workflowState || '').toUpperCase();
+    if (wf === 'DRAFT' || wf === 'PENDING_APPROVAL' || wf === 'REJECTED' || wf === 'FROZEN') {
+      return;
+    }
+    if (this.role === 'teacher') {
+      const allow = new Set(this.subjectSelectOptions.map(s => s.trim().toLowerCase()));
+      if (!allow.size || !allow.has(this.marksSubject.trim().toLowerCase())) {
+        return;
+      }
+    }
+    if (Number(this.maxMarks) <= 0) {
+      return;
+    }
     const classId = this.selectedClassId;
     const payload = this.marksEntryStudents
       .filter(student => this.marksByStudent[student.id] !== null && this.marksByStudent[student.id] !== undefined)
       .map(student => {
         const obtained = Number(this.marksByStudent[student.id]);
+        if (!Number.isFinite(obtained) || obtained < 0 || obtained > Number(this.maxMarks)) {
+          return null;
+        }
         return {
           id: 0,
           examId: this.selectedExam!.id,
@@ -1270,7 +1461,8 @@ export class ExamsComponent implements OnInit {
           classId,
           tenantId: ''
         } as MarkRecord;
-      });
+      })
+      .filter((m): m is MarkRecord => !!m);
     if (!payload.length) return;
     this.marksSaving = true;
     this.examService.saveMarks(this.selectedExam.id, payload).subscribe({
@@ -1419,6 +1611,83 @@ export class ExamsComponent implements OnInit {
     return 'badge-info';
   }
 
+  examWorkflowLabel(state: string | undefined): string {
+    const key = (state || 'APPROVED').toUpperCase();
+    const tKey = `exams.workflow.${key}`;
+    const t = this.translate.instant(tKey);
+    return t === tKey ? key : t;
+  }
+
+  canSubmitForApproval(exam: Exam): boolean {
+    if (!this.uiAccess.hasExamStaffReadAccess()) return false;
+    const s = (exam.workflowState || '').toUpperCase();
+    return s === 'DRAFT' || s === 'REJECTED' || s === '';
+  }
+
+  canApproveWorkflow(exam: Exam): boolean {
+    if (!this.uiAccess.hasSchoolExamsOfficeWriteAccess()) return false;
+    return (exam.workflowState || '').toUpperCase() === 'PENDING_APPROVAL';
+  }
+
+  canFreezeWorkflow(exam: Exam): boolean {
+    if (!this.uiAccess.hasSchoolExamsOfficeWriteAccess()) return false;
+    const s = (exam.workflowState || '').toUpperCase();
+    return s === 'APPROVED' || s === 'PUBLISHED';
+  }
+
+  submitSelectedExamForApproval(): void {
+    if (!this.selectedExam) return;
+    this.examService.submitForApproval(this.selectedExam.id).subscribe(ex => this.patchSelectedExam(ex));
+  }
+
+  approveSelectedExam(publishNow: boolean): void {
+    if (!this.selectedExam) return;
+    this.examService.approveExam(this.selectedExam.id, publishNow).subscribe(ex => this.patchSelectedExam(ex));
+  }
+
+  rejectSelectedExam(): void {
+    if (!this.selectedExam) return;
+    this.examService.rejectExam(this.selectedExam.id).subscribe(ex => this.patchSelectedExam(ex));
+  }
+
+  freezeSelectedExam(): void {
+    if (!this.selectedExam) return;
+    this.examService.freezeExam(this.selectedExam.id).subscribe(ex => this.patchSelectedExam(ex));
+  }
+
+  private patchSelectedExam(next: Exam): void {
+    this.exams = this.exams.map(e => (e.id === next.id ? next : e));
+    this.selectedExam = next;
+  }
+
+  onTemplateChange(): void {
+    if (this.selectedTemplateId == null) return;
+    const tpl = this.examTemplates.find(t => t.id === this.selectedTemplateId);
+    if (!tpl) return;
+    this.newExam.examType = tpl.boardType?.toLowerCase() || this.newExam.examType;
+    this.newExam.markingScheme = tpl.defaultMarkingScheme || this.newExam.markingScheme;
+    const ops = (tpl.rules as any)?.examOperations;
+    if (ops) {
+      this.newExam.maxPapersPerDayPerClass = Number(ops.maxPapersPerDayPerClass ?? this.newExam.maxPapersPerDayPerClass);
+      this.newExam.requireRoom = !!ops.requireRoom;
+      this.newExam.requireInvigilator = !!ops.requireInvigilator;
+    }
+  }
+
+  private examRuleRequireRoom(): boolean {
+    return !!((this.selectedExam?.gradingConfig as any)?.examOperations?.requireRoom);
+  }
+
+  private examRuleRequireInvigilator(): boolean {
+    return !!((this.selectedExam?.gradingConfig as any)?.examOperations?.requireInvigilator);
+  }
+
+  private examRuleMaxPapersPerDay(): number {
+    const raw = (this.selectedExam?.gradingConfig as any)?.examOperations?.maxPapersPerDayPerClass;
+    const val = Number(raw ?? 0);
+    return Number.isFinite(val) && val > 0 ? Math.floor(val) : 0;
+  }
+
   getGradeBadge(grade: string): string {
     if (!grade?.trim()) return 'badge-neutral';
     if (grade.startsWith('A')) return 'badge-success';
@@ -1542,6 +1811,7 @@ export class ExamsComponent implements OnInit {
   private loadReferenceData(): void {
     this.academicService.getAcademicYears().subscribe(years => (this.academicYears = years));
     this.academicService.getClasses().subscribe(classes => (this.classes = classes));
+    this.examService.getTemplates().subscribe(rows => (this.examTemplates = rows ?? []));
   }
 
   private loadExams(): void {

@@ -11,5 +11,8 @@ public interface ImportJobLineRepository extends JpaRepository<ImportJobLine, Lo
 
     Page<ImportJobLine> findByJobIdAndTenantIdAndIsDeletedFalseOrderByLineIndexAsc(Long jobId, String tenantId, Pageable pageable);
 
+    Page<ImportJobLine> findByJobIdAndTenantIdAndStatusAndIsDeletedFalseOrderByLineIndexAsc(
+            Long jobId, String tenantId, String status, Pageable pageable);
+
     long countByJobIdAndTenantIdAndStatusAndIsDeletedFalse(Long jobId, String tenantId, String status);
 }

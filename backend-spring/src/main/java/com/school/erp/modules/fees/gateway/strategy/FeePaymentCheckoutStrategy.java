@@ -1,5 +1,6 @@
 package com.school.erp.modules.fees.gateway.strategy;
 
+import com.school.erp.modules.fees.gateway.FeeGatewayOrderContext;
 import com.school.erp.modules.fees.gateway.PaymentGatewayClient;
 
 /**
@@ -14,13 +15,7 @@ public interface FeePaymentCheckoutStrategy {
      */
     boolean supports(String providerId);
 
-    PaymentGatewayClient.GatewayCheckoutSession createSession(
-            String providerId,
-            String tenantId,
-            Long paymentId,
-            java.math.BigDecimal amount,
-            String currency,
-            String returnUrl);
+    PaymentGatewayClient.GatewayCheckoutSession createSession(String providerId, FeeGatewayOrderContext orderContext);
 
     PaymentGatewayClient.GatewayPaymentConfirmation confirmPayment(
             String providerId,
@@ -28,4 +23,9 @@ public interface FeePaymentCheckoutStrategy {
             String providerOrderId,
             String providerPaymentId,
             String providerSignature);
+
+    PaymentGatewayClient.GatewayPaymentStatus fetchPaymentStatus(
+            String providerId,
+            String providerOrderId,
+            String providerPaymentId);
 }

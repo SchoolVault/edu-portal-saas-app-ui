@@ -5,10 +5,18 @@ import com.school.erp.security.RequireTenantFeature;
 import com.school.erp.common.dto.PageResponse;
 import com.school.erp.common.enums.Enums;
 import com.school.erp.modules.audit.entity.AuditLog;
+import com.school.erp.modules.audit.service.AuditExportService;
 import com.school.erp.modules.audit.service.AuditService;
+import com.school.erp.security.rbac.RbacSpel;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import java.nio.charset.StandardCharsets;
+import java.time.LocalDate;
 import org.springframework.data.domain.Page;
+import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
@@ -19,21 +27,44 @@ import org.springframework.web.bind.annotation.*;
 @RequireTenantFeature("audit")
 public class AuditController {
     private final AuditService service;
+    private final AuditExportService auditExportService;
 
     @GetMapping
-    @PreAuthorize("hasRole(\'ADMIN\')")
+    @PreAuthorize(RbacSpel.AUDIT_LOG_READ)
     @Operation(summary = "Get audit logs", description = "Paginated audit logs with optional action and module filters")
     public ResponseEntity<ApiResponse<PageResponse<AuditLog>>> list(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "50") int size,
             @RequestParam(required = false) Enums.AuditAction action,
             @RequestParam(required = false) String module,
-            @RequestParam(required = false) String q) {
-        Page<AuditLog> result = service.getAuditLogs(page, size, action, module, q);
+            @RequestParam(required = false) String q,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
+        Page<AuditLog> result = service.getAuditLogs(page, size, action, module, q, from, to);
         return ResponseEntity.ok(ApiResponse.ok(PageResponse.of(result.getContent(), page, size, result.getTotalElements())));
     }
 
-    public AuditController(final AuditService service) {
+    @GetMapping("/export")
+    @PreAuthorize(RbacSpel.AUDIT_LOG_READ)
+    @Operation(summary = "Export audit trail", description = "CSV or PDF for the selected calendar period and filters (max 10k rows).")
+    public ResponseEntity<byte[]> export(
+            @RequestParam String format,
+            @RequestParam(required = false) Enums.AuditAction action,
+            @RequestParam(required = false) String module,
+            @RequestParam(required = false) String q,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
+        AuditExportService.RenderedExport out = auditExportService.export(action, module, q, from, to, format);
+        ContentDisposition disposition =
+                ContentDisposition.attachment().filename(out.fileName(), StandardCharsets.UTF_8).build();
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType(out.contentType()))
+                .header(HttpHeaders.CONTENT_DISPOSITION, disposition.toString())
+                .body(out.body());
+    }
+
+    public AuditController(final AuditService service, final AuditExportService auditExportService) {
         this.service = service;
+        this.auditExportService = auditExportService;
     }
 }

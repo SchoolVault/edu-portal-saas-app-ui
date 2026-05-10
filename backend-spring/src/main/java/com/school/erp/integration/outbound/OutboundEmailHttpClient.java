@@ -29,6 +29,11 @@ public class OutboundEmailHttpClient {
     @Value("${app.integration.email.trigger-url:}")
     private String triggerUrl;
 
+    /** True when {@link #postTriggerPayload} will perform an HTTP POST (worker / SendGrid bridge). */
+    public boolean isTriggerConfigured() {
+        return StringUtils.hasText(triggerUrl);
+    }
+
     @CircuitBreaker(name = "emailProvider")
     @Retry(name = "emailProvider")
     public void postTriggerPayload(String eventType, String tenantId, Map<String, Object> attributes) {

@@ -2,11 +2,13 @@ import { Component, OnInit, ChangeDetectorRef, DestroyRef, inject } from '@angul
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { ActivatedRoute } from '@angular/router';
 import { AttendanceService } from '../../core/services/attendance.service';
 import { StudentService } from '../../core/services/student.service';
 import { AcademicService } from '../../core/services/academic.service';
 import { TeacherService } from '../../core/services/teacher.service';
 import { AuthService } from '../../core/services/auth.service';
+import { UiAccessService } from '../../core/services/ui-access.service';
 import { filter } from 'rxjs/operators';
 import { OperationsService } from '../../core/services/operations.service';
 import { ConfirmDialogService } from '../../shared/confirm-dialog/confirm-dialog.service';
@@ -19,10 +21,24 @@ import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { sliceToPage } from '../../core/utils/paginate';
 import { DEFAULT_ERP_PAGE_SIZE } from '../../core/constants/pagination.constants';
 import { mergeClassesForAttendanceCatalog } from '../../core/utils/parent-dashboard-metrics';
+import { localIsoDateString } from '../../core/utils/local-date';
 
 @Component({
   selector: 'app-attendance',
   standalone: true,
+  styles: [
+    `
+      @media (max-width: 768px) {
+        .attendance-actions-col {
+          width: 100%;
+        }
+      }
+      .attendance-actions-col .btn-outline-erp,
+      .attendance-actions-col .btn-primary-erp {
+        width: 100%;
+      }
+    `,
+  ],
   imports: [
     CommonModule,
     FormsModule,
@@ -34,28 +50,24 @@ import { mergeClassesForAttendanceCatalog } from '../../core/utils/parent-dashbo
   ],
   template: `
     <div data-testid="attendance-page">
-      <div class="d-flex justify-content-between align-items-center mb-4 animate-in flex-wrap gap-2">
+      <div class="erp-filter-toolbar mb-4 animate-in">
         <div>
           <h2 style="font-size: 24px; font-weight: 800;">{{ 'attendance.pageTitle' | translate }}</h2>
           <p class="text-muted mb-0" style="font-size: 13px;">{{ 'attendance.pageLead' | translate }}</p>
         </div>
-        <button type="button" class="btn-outline-erp btn-sm" (click)="refreshAttendance()">
-          <i class="bi bi-arrow-clockwise"></i> {{ 'attendance.refresh' | translate }}
-        </button>
+        <div class="erp-filter-toolbar__actions">
+          <button type="button" class="btn-outline-erp btn-sm erp-filter-toolbar__action" (click)="refreshAttendance()">
+            <i class="bi bi-arrow-clockwise"></i> {{ 'attendance.refresh' | translate }}
+          </button>
+        </div>
       </div>
 
-      <div class="erp-card mb-3 animate-in" *ngIf="isTeacher && myCovers.length > 0">
-        <h4 class="erp-card-title mb-2" style="font-size: 15px;">
-          {{ 'attendance.coverAssignmentsTitle' | translate: { date: selectedDate } }}
-        </h4>
-        <p class="text-muted small mb-2">{{ 'attendance.coverAssignmentsLead' | translate }}</p>
-        <ul class="mb-0 ps-3 small">
-          <li *ngFor="let c of myCovers">
-            {{ 'attendance.coverClassId' | translate: { classId: c.classId } }}
-            <span *ngIf="c.sectionId"> — {{ 'attendance.coverSection' | translate: { sectionId: c.sectionId } }}</span>
-            <span *ngIf="c.reason">({{ c.reason }})</span>
-          </li>
-        </ul>
+      <div class="erp-card mb-3 animate-in attendance-teacher-scope" *ngIf="isTeacher && teacherHomeroomHint">
+        <div class="d-flex flex-wrap align-items-center gap-2">
+          <span class="badge-erp badge-info text-uppercase" style="font-size: 10px;">{{ 'attendance.scopeBadge' | translate }}</span>
+          <span class="small mb-0" style="font-weight: 600; color: var(--clr-text);">{{ teacherHomeroomHint }}</span>
+        </div>
+        <p class="text-muted small mb-0 mt-1">{{ 'attendance.scopeLead' | translate }}</p>
       </div>
 
       <div class="erp-card mb-4 animate-in animate-in-delay-1">
@@ -91,12 +103,11 @@ import { mergeClassesForAttendanceCatalog } from '../../core/utils/parent-dashbo
               placeholderI18nKey="attendance.datePlaceholder"
             />
           </div>
-          <div class="col-md-3 d-flex flex-column gap-2">
+          <div class="col-md-3 d-flex flex-column gap-2 attendance-actions-col">
             <button
               *ngIf="adminPastAuditView && !adminPastEditing"
               type="button"
               class="btn-outline-erp"
-              style="width: 100%;"
               [disabled]="!records.length"
               (click)="adminPastEditing = true"
               data-testid="edit-past-attendance-btn"
@@ -105,15 +116,13 @@ import { mergeClassesForAttendanceCatalog } from '../../core/utils/parent-dashbo
             </button>
             <button
               class="btn-primary-erp"
-              style="width: 100%;"
               (click)="saveAttendance()"
               [disabled]="!records.length || saving || saveDisabled"
               data-testid="save-attendance-btn"
             >
               <span class="spinner" *ngIf="saving"></span>
               <ng-container *ngIf="saving">{{ 'attendance.saveSaving' | translate }}</ng-container>
-              <ng-container *ngIf="!saving && saveDisabled">{{ 'attendance.saveViewOnly' | translate }}</ng-container>
-              <ng-container *ngIf="!saving && !saveDisabled">{{ 'attendance.saveCta' | translate }}</ng-container>
+              <ng-container *ngIf="!saving">{{ attendanceSaveLabelKey | translate }}</ng-container>
             </button>
           </div>
         </div>
@@ -126,11 +135,8 @@ import { mergeClassesForAttendanceCatalog } from '../../core/utils/parent-dashbo
           {{ 'attendance.alertAdminPastBefore' | translate }}<strong>{{ 'attendance.editPast' | translate }}</strong
           >{{ 'attendance.alertAdminPastAfter' | translate }}
         </div>
+        <div *ngIf="saveSuccessFlash" class="alert alert-success py-2 small mb-0 mt-2" role="status">{{ saveSuccessFlash }}</div>
         <div *ngIf="saveError" class="alert alert-danger py-2 small mb-0 mt-2">{{ saveError }}</div>
-        <p *ngIf="isAdmin && !adminPastAuditView" class="text-muted small mb-0 mt-3" style="line-height: 1.5;">
-          <i class="bi bi-shield-check me-1"></i>
-          {{ 'attendance.hintAdminConfirm' | translate }}
-        </p>
       </div>
 
       <div class="erp-card animate-in animate-in-delay-2" *ngIf="records.length > 0">
@@ -148,20 +154,23 @@ import { mergeClassesForAttendanceCatalog } from '../../core/utils/parent-dashbo
             >
           </div>
         </div>
-        <div class="row g-2 align-items-end mb-3">
-          <div class="col-md-6 col-lg-4">
-            <label class="erp-label small mb-1" erpI18nText="attendance.searchStudent"></label>
-            <input
-              type="search"
-              class="erp-input"
-              erpI18nPh="attendance.searchStudentPh"
-              [(ngModel)]="attStudentSearch"
-              (ngModelChange)="onAttSearchChange()"
-            />
+        <div class="erp-filter-toolbar mb-3">
+          <div class="erp-filter-toolbar__search">
+            <div>
+              <label class="erp-label small mb-1" erpI18nText="attendance.searchStudent"></label>
+              <input
+                type="search"
+                class="erp-input"
+                erpI18nPh="attendance.searchStudentPh"
+                [(ngModel)]="attStudentSearch"
+                (ngModelChange)="onAttSearchChange()"
+              />
+            </div>
           </div>
         </div>
         <p *ngIf="records.length && !attFilteredTotal" class="text-muted small mb-2">{{ 'attendance.noSearchMatches' | translate }}</p>
-        <table class="erp-table" *ngIf="attFilteredTotal > 0">
+        <div class="erp-table-scroll" *ngIf="attFilteredTotal > 0">
+        <table class="erp-table">
           <thead>
             <tr>
               <th>{{ 'attendance.thNum' | translate }}</th>
@@ -189,6 +198,7 @@ import { mergeClassesForAttendanceCatalog } from '../../core/utils/parent-dashbo
             </tr>
           </tbody>
         </table>
+        </div>
         <app-erp-pagination
           *ngIf="attFilteredTotal > attPageSize"
           [totalElements]="attFilteredTotal"
@@ -211,12 +221,13 @@ import { mergeClassesForAttendanceCatalog } from '../../core/utils/parent-dashbo
 })
 export class AttendanceComponent implements OnInit {
   private readonly destroyRef = inject(DestroyRef);
+  private readonly uiAccess = inject(UiAccessService);
 
   classes: SchoolClass[] = [];
   sections: { id: number; name: string }[] = [];
   selectedClassId: number | null = null;
   selectedSectionId: number | null = null;
-  selectedDate = new Date().toISOString().split('T')[0];
+  selectedDate = localIsoDateString();
   records: AttendanceRecord[] = [];
   attStudentSearch = '';
   attPageIndex = 0;
@@ -225,11 +236,21 @@ export class AttendanceComponent implements OnInit {
   attFilteredTotal = 0;
   saving = false;
   saveError = '';
+  /** Transient success copy after save (cleared after a few seconds). */
+  saveSuccessFlash = '';
+  private saveSuccessClearTimer: ReturnType<typeof setTimeout> | null = null;
+  /** Active covers for the selected date (not listed in UI; used for substitute save confirmation). */
   myCovers: AttendanceCoverRow[] = [];
+  /** True when API returned a mark for every student in the selected roster (session considered final for teachers). */
+  attendanceSessionComplete = false;
+  /** Avoid re-applying homeroom defaults on every refresh. */
+  private homeroomScopeApplied = false;
+  /** Fixed homeroom badge snapshot; must not change when user browses other classes/sections. */
+  private homeroomClassId: number | null = null;
+  private homeroomSectionId: number | null = null;
 
   get isAdmin(): boolean {
-    const r = this.auth.getNormalizedRole();
-    return r === 'admin' || r === 'super_admin';
+    return this.uiAccess.hasAcademicDeskAdminAccess();
   }
 
   get isTeacher(): boolean {
@@ -245,8 +266,46 @@ export class AttendanceComponent implements OnInit {
     private operationsService: OperationsService,
     private confirmDialog: ConfirmDialogService,
     private translate: TranslateService,
-    private cdr: ChangeDetectorRef
+    private cdr: ChangeDetectorRef,
+    private route: ActivatedRoute
   ) {}
+
+  private showAttendanceValidation(message: string): void {
+    this.confirmDialog
+      .confirm({
+        title: this.translate.instant('attendance.pageTitle'),
+        message,
+        variant: 'warning',
+        confirmLabel: this.translate.instant('attendance.confirm.cancel'),
+        cancelLabel: '',
+      })
+      .subscribe();
+  }
+
+  private validateAttendanceRecordConsistency(): string | null {
+    if (!this.records.length) {
+      return this.translate.instant('attendance.emptyLead');
+    }
+    const first = this.records[0];
+    const classId = Number(first.classId);
+    const sectionId = Number(first.sectionId);
+    const date = String(first.date || '');
+    if (!classId || !date) {
+      return this.translate.instant('attendance.errors.saveFailed');
+    }
+    const seenStudentIds = new Set<number>();
+    for (const row of this.records) {
+      const studentId = Number(row.studentId);
+      if (!studentId || seenStudentIds.has(studentId)) {
+        return this.translate.instant('attendance.errors.saveFailed');
+      }
+      seenStudentIds.add(studentId);
+      if (Number(row.classId) !== classId || Number(row.sectionId) !== sectionId || String(row.date || '') !== date) {
+        return this.translate.instant('attendance.errors.saveFailed');
+      }
+    }
+    return null;
+  }
 
   private linkedTeacherId: number | null = null;
   teacherRosterResolved = false;
@@ -254,6 +313,18 @@ export class AttendanceComponent implements OnInit {
 
   ngOnInit(): void {
     this.translate.onLangChange.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => this.cdr.markForCheck());
+
+    this.route.queryParamMap.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
+      const qd = this.route.snapshot.queryParamMap.get('date');
+      if (qd && /^\d{4}-\d{2}-\d{2}$/.test(qd)) {
+        this.selectedDate = qd;
+      }
+      if (this.isTeacher) {
+        this.homeroomScopeApplied = false;
+        this.maybeApplyTeacherHomeroomScope();
+      }
+      this.cdr.markForCheck();
+    });
 
     this.loadClassesMerged();
     if (this.isTeacher || this.isAdmin) {
@@ -263,9 +334,11 @@ export class AttendanceComponent implements OnInit {
           const row = (list || []).find(t => t.userId === me?.id);
           this.linkedTeacherId = row?.id ?? null;
           this.teacherRosterResolved = true;
+          this.maybeApplyTeacherHomeroomScope();
         },
         error: () => {
           this.teacherRosterResolved = true;
+          this.maybeApplyTeacherHomeroomScope();
         },
       });
     } else {
@@ -274,6 +347,139 @@ export class AttendanceComponent implements OnInit {
     if (this.isTeacher) {
       this.loadMyCovers();
     }
+    this.operationsService.attendanceCoverMutations$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(mutation => {
+      if (!this.selectedDate || mutation.coverDate !== this.selectedDate) {
+        return;
+      }
+      if (this.isTeacher) {
+        this.loadMyCovers();
+      }
+      if (this.selectedClassId != null) {
+        this.loadAttendance();
+      }
+    });
+  }
+
+  /** Short label for homeroom scope banner (e.g. "Class 8 · Section A"). */
+  get teacherHomeroomHint(): string {
+    if (!this.isTeacher || this.linkedTeacherId == null || this.homeroomClassId == null) {
+      return '';
+    }
+    const cls = this.classes.find(c => c.id === this.homeroomClassId);
+    if (!cls) {
+      return '';
+    }
+    if (!cls.sections?.length) {
+      return this.translate.instant('attendance.scopeHomeroomClassOnly', { class: cls.name });
+    }
+    const sec = this.homeroomSectionId != null ? cls.sections.find(s => s.id === this.homeroomSectionId) : undefined;
+    const sn = sec?.name?.trim() || '—';
+    return this.translate.instant('attendance.scopeHomeroomLine', { class: cls.name, section: sn });
+  }
+
+  /** i18n key for primary save button label (non-saving state). */
+  get attendanceSaveLabelKey(): string {
+    if (this.teacherPastLocked) {
+      return 'attendance.saveViewOnly';
+    }
+    if (this.attendanceSessionComplete && this.records.length > 0) {
+      return 'attendance.saveUpdateCta';
+    }
+    if (this.adminPastAuditView && !this.adminPastEditing) {
+      return 'attendance.saveViewOnly';
+    }
+    if (this.saveDisabled && this.records.length > 0) {
+      return 'attendance.saveViewOnly';
+    }
+    return 'attendance.saveCta';
+  }
+
+  /**
+   * Preselect class/section for class teachers (or from ?classId=&sectionId=) so they land on their roster.
+   */
+  private maybeApplyTeacherHomeroomScope(): void {
+    if (!this.isTeacher || !this.teacherRosterResolved || this.homeroomScopeApplied || !this.classes.length) {
+      return;
+    }
+    const q = this.route.snapshot.queryParamMap;
+    const qc = q.get('classId');
+    const qs = q.get('sectionId');
+    if (qc && /^\d+$/.test(qc)) {
+      const cid = Number(qc);
+      const cls = this.classes.find(c => c.id === cid);
+      if (cls) {
+        this.selectedClassId = cid;
+        if (cls.sections.length === 0) {
+          this.sections = [{ id: 0, name: 'Whole class' }];
+          this.selectedSectionId = 0;
+        } else {
+          this.sections = cls.sections.map(s => ({ id: s.id, name: s.name }));
+          if (qs && /^\d+$/.test(qs)) {
+            const sid = Number(qs);
+            this.selectedSectionId = cls.sections.some(s => s.id === sid) ? sid : cls.sections[0].id;
+          } else {
+            this.selectedSectionId = cls.sections[0].id;
+          }
+        }
+        this.homeroomScopeApplied = true;
+        this.loadAttendance();
+        return;
+      }
+    }
+    if (this.linkedTeacherId == null) {
+      this.homeroomScopeApplied = true;
+      return;
+    }
+    const fromCatalog = this.findHomeroomClassSectionForTeacher(this.linkedTeacherId);
+    const fromProfile = this.auth.getProfileSummarySnapshot()?.classTeacherOf?.[0];
+    const hm =
+      fromCatalog ??
+      (fromProfile?.classId != null
+        ? {
+            classId: fromProfile.classId,
+            sectionId: fromProfile.sectionId != null ? fromProfile.sectionId : null,
+          }
+        : null);
+    if (!hm) {
+      this.homeroomScopeApplied = true;
+      return;
+    }
+    this.homeroomClassId = hm.classId;
+    this.homeroomSectionId = hm.sectionId != null ? hm.sectionId : null;
+    const cls = this.classes.find(c => c.id === hm.classId);
+    if (!cls) {
+      this.homeroomScopeApplied = true;
+      return;
+    }
+    this.selectedClassId = cls.id;
+    if (cls.sections.length === 0) {
+      this.sections = [{ id: 0, name: 'Whole class' }];
+      this.selectedSectionId = 0;
+    } else {
+      this.sections = cls.sections.map(s => ({ id: s.id, name: s.name }));
+      const want = hm.sectionId != null ? cls.sections.find(s => s.id === hm.sectionId) : undefined;
+      this.selectedSectionId = want?.id ?? cls.sections[0].id;
+    }
+    this.homeroomScopeApplied = true;
+    this.loadAttendance();
+  }
+
+  /** Resolves homeroom from section-level (or whole-class) class teacher — not {@link SchoolClass.classTeacherId} alone. */
+  private findHomeroomClassSectionForTeacher(teacherRecordId: number): { classId: number; sectionId: number | null } | null {
+    for (const c of this.classes) {
+      if (!c.sections?.length) {
+        if (c.classTeacherId === teacherRecordId) {
+          return { classId: c.id, sectionId: null };
+        }
+      } else {
+        for (const s of c.sections) {
+          if (s.classTeacherId === teacherRecordId) {
+            return { classId: c.id, sectionId: s.id };
+          }
+        }
+      }
+    }
+    return null;
   }
 
   onDateChange(): void {
@@ -309,10 +515,12 @@ export class AttendanceComponent implements OnInit {
           next: students => {
             this.classes = mergeClassesForAttendanceCatalog(c, students || []);
             this.cdr.markForCheck();
+            this.maybeApplyTeacherHomeroomScope();
           },
           error: () => {
             this.classes = c;
             this.cdr.markForCheck();
+            this.maybeApplyTeacherHomeroomScope();
           },
         });
       } else {
@@ -336,11 +544,15 @@ export class AttendanceComponent implements OnInit {
   get cellsLocked(): boolean {
     if (this.teacherPastLocked) return true;
     if (this.adminPastAuditView && !this.adminPastEditing) return true;
+    if (this.isTeacher && this.attendanceSessionComplete) return true;
     return false;
   }
 
   get saveDisabled(): boolean {
-    return this.teacherPastLocked || (this.adminPastAuditView && !this.adminPastEditing);
+    if (this.teacherPastLocked) return true;
+    if (this.adminPastAuditView && !this.adminPastEditing) return true;
+    if (this.isTeacher && this.attendanceSessionComplete) return true;
+    return false;
   }
 
   get sectionSelectDisabled(): boolean {
@@ -415,21 +627,33 @@ export class AttendanceComponent implements OnInit {
   }
 
   loadAttendance(): void {
-    if (this.selectedClassId == null) return;
+    if (this.selectedClassId == null) {
+      this.attendanceSessionComplete = false;
+      return;
+    }
     const cls = this.classes.find(c => c.id === this.selectedClassId);
-    if (!cls) return;
+    if (!cls) {
+      this.attendanceSessionComplete = false;
+      return;
+    }
     const sectionId =
       cls.sections.length === 0
         ? 0
         : this.selectedSectionId != null && this.selectedSectionId !== 0
           ? this.selectedSectionId
           : null;
-    if (sectionId == null) return;
+    if (sectionId == null) {
+      this.attendanceSessionComplete = false;
+      return;
+    }
     const classId = this.selectedClassId;
     this.studentService.getStudentsByClassAndSection(classId, sectionId).subscribe(sectionStudents => {
       this.attendanceService.getAttendanceByClassAndDate(classId, sectionId, this.selectedDate).subscribe(existing => {
         const me = this.auth.getCurrentUser();
         const markedBy = me?.id ?? 0;
+        const rosterIds = new Set(sectionStudents.map(s => s.id));
+        const covered = (existing || []).filter(e => rosterIds.has(e.studentId)).length;
+        this.attendanceSessionComplete = sectionStudents.length > 0 && covered === sectionStudents.length;
         this.records = sectionStudents.map(s => {
           const ex = existing.find(e => e.studentId === s.id);
           return (
@@ -454,10 +678,21 @@ export class AttendanceComponent implements OnInit {
 
   private isClassTeacherForCurrentClass(): boolean {
     const cls = this.classes.find(c => c.id === this.selectedClassId);
-    if (cls?.classTeacherId == null || this.linkedTeacherId == null) {
+    if (cls == null || this.linkedTeacherId == null) {
       return false;
     }
-    return cls.classTeacherId === this.linkedTeacherId;
+    const secId =
+      this.selectedSectionId != null && this.selectedSectionId !== 0 ? this.selectedSectionId : null;
+    if (secId != null) {
+      const sec = cls.sections?.find(s => s.id === secId);
+      if (sec?.classTeacherId != null) {
+        return sec.classTeacherId === this.linkedTeacherId;
+      }
+    }
+    if (!cls.sections?.length) {
+      return cls.classTeacherId === this.linkedTeacherId;
+    }
+    return false;
   }
 
   private hasActiveCoverForSelection(): boolean {
@@ -490,21 +725,73 @@ export class AttendanceComponent implements OnInit {
     return this.selectedSectionId != null && this.selectedSectionId !== 0 ? this.selectedSectionId : null;
   }
 
-  private confirmDetailLines(cls: SchoolClass | undefined, useSectionWord: boolean): string[] {
-    const sid = this.effectiveSectionIdForCover();
-    return [
+  /** Human-readable section label (e.g. "A") for confirmations — never raw database ids. */
+  private selectedSectionDisplayName(cls: SchoolClass | undefined): string {
+    if (!cls?.sections?.length) {
+      return this.translate.instant('attendance.wholeClass');
+    }
+    const sid = this.selectedSectionId != null && this.selectedSectionId !== 0 ? this.selectedSectionId : null;
+    if (sid == null) {
+      return '';
+    }
+    return cls.sections.find(s => s.id === sid)?.name?.trim() || '';
+  }
+
+  /** Homeroom teacher name for the current class/section (for admin copy). */
+  private homeroomTeacherDisplayName(cls: SchoolClass | undefined): string {
+    if (!cls) {
+      return this.translate.instant('attendance.confirm.notAssigned');
+    }
+    const sid = this.selectedSectionId != null && this.selectedSectionId !== 0 ? this.selectedSectionId : null;
+    if (sid != null) {
+      const sec = cls.sections?.find(s => s.id === sid);
+      const n = sec?.classTeacherName?.trim();
+      if (n) {
+        return n;
+      }
+    }
+    return cls.classTeacherName?.trim() || this.translate.instant('attendance.confirm.notAssigned');
+  }
+
+  private buildAttendanceConfirmDetails(cls: SchoolClass | undefined): string[] {
+    const lines: string[] = [
       this.translate.instant('attendance.confirmDetail.date', { date: this.selectedDate }),
       cls ? this.translate.instant('attendance.confirmDetail.class', { name: cls.name }) : '',
-      sid != null
-        ? this.translate.instant(useSectionWord ? 'attendance.confirmDetail.section' : 'attendance.confirmDetail.sectionId', {
-            id: sid,
-          })
-        : '',
-    ].filter((x): x is string => !!x);
+    ];
+    const secName = this.selectedSectionDisplayName(cls);
+    if (secName) {
+      lines.push(this.translate.instant('attendance.confirmDetail.sectionNamed', { name: secName }));
+    }
+    lines.push(
+      this.translate.instant(
+        this.attendanceSessionComplete
+          ? 'attendance.confirmDetail.statusComplete'
+          : 'attendance.confirmDetail.statusIncomplete'
+      )
+    );
+    return lines.filter((x): x is string => !!x);
   }
 
   saveAttendance(): void {
     if (this.saveDisabled || this.saving) return;
+    if (this.selectedClassId == null) {
+      this.showAttendanceValidation(this.translate.instant('attendance.selectClass'));
+      return;
+    }
+    if (this.sectionSelectDisabled ? false : this.selectedSectionId == null) {
+      this.showAttendanceValidation(this.translate.instant('attendance.selectSection'));
+      return;
+    }
+    const invalidStatus = this.records.some(r => !['present', 'absent', 'late'].includes(String(r.status)));
+    if (invalidStatus) {
+      this.showAttendanceValidation(this.translate.instant('attendance.errors.saveFailed'));
+      return;
+    }
+    const consistencyError = this.validateAttendanceRecordConsistency();
+    if (consistencyError) {
+      this.showAttendanceValidation(consistencyError);
+      return;
+    }
     const role = this.auth.getNormalizedRole();
     if (!this.isTeacher && !this.isAdmin) {
       this.saveError = this.translate.instant('attendance.errors.roleDenied');
@@ -528,13 +815,13 @@ export class AttendanceComponent implements OnInit {
               : this.linkedTeacherId
                 ? this.translate.instant('attendance.confirm.notHomeroomMessageLinked')
                 : this.translate.instant('attendance.confirm.notHomeroomMessageUnlinked'),
-            details: this.confirmDetailLines(cls, false),
+            details: this.buildAttendanceConfirmDetails(cls),
             variant: 'warning',
             confirmLabel: this.translate.instant('attendance.confirm.confirmSubmit'),
             cancelLabel: this.translate.instant('attendance.confirm.goBack'),
           })
           .pipe(filter(Boolean))
-          .subscribe(() => this.finishSaveAfterGuards());
+          .subscribe(() => this.maybeConfirmAlreadyMarkedThenFinish());
         return;
       }
     }
@@ -545,7 +832,7 @@ export class AttendanceComponent implements OnInit {
       }
       this.saveError = '';
       const cls = this.classes.find(c => c.id === this.selectedClassId);
-      const homeroom = cls?.classTeacherName?.trim() || this.translate.instant('attendance.confirm.notAssigned');
+      const homeroom = this.homeroomTeacherDisplayName(cls);
       const asHomeroom = this.isClassTeacherForCurrentClass();
       this.confirmDialog
         .confirm({
@@ -553,16 +840,38 @@ export class AttendanceComponent implements OnInit {
           message: asHomeroom
             ? this.translate.instant('attendance.confirm.adminMessageHomeroom', { name: homeroom })
             : this.translate.instant('attendance.confirm.adminMessageNotHomeroom', { name: homeroom }),
-          details: this.confirmDetailLines(cls, false),
+          details: this.buildAttendanceConfirmDetails(cls),
           variant: 'warning',
           confirmLabel: this.translate.instant('attendance.confirm.confirmSubmit'),
           cancelLabel: this.translate.instant('attendance.confirm.goBack'),
         })
         .pipe(filter(Boolean))
-        .subscribe(() => this.finishSaveAfterGuards());
+        .subscribe(() => this.maybeConfirmAlreadyMarkedThenFinish());
       return;
     }
     this.finishSaveAfterGuards();
+  }
+
+  /**
+   * When every student already has a saved row for this date, ask once more before overwriting (admins / delegated teachers).
+   */
+  private maybeConfirmAlreadyMarkedThenFinish(): void {
+    if (!this.attendanceSessionComplete || !this.records.length) {
+      this.finishSaveAfterGuards();
+      return;
+    }
+    const cls = this.classes.find(c => c.id === this.selectedClassId);
+    this.confirmDialog
+      .confirm({
+        title: this.translate.instant('attendance.confirm.alreadyMarkedTitle'),
+        message: this.translate.instant('attendance.confirm.alreadyMarkedMessage'),
+        details: this.buildAttendanceConfirmDetails(cls),
+        variant: 'warning',
+        confirmLabel: this.translate.instant('attendance.confirm.alreadyMarkedConfirm'),
+        cancelLabel: this.translate.instant('attendance.confirm.goBack'),
+      })
+      .pipe(filter(Boolean))
+      .subscribe(() => this.finishSaveAfterGuards());
   }
 
   private finishSaveAfterGuards(): void {
@@ -573,7 +882,7 @@ export class AttendanceComponent implements OnInit {
           title: this.translate.instant('attendance.confirm.pastTitle'),
           message: this.translate.instant('attendance.confirm.pastMessage'),
           details: [
-            ...this.confirmDetailLines(cls, true),
+            ...this.buildAttendanceConfirmDetails(cls),
             this.translate.instant('attendance.confirmDetail.rows', { count: this.records.length }),
           ],
           variant: 'warning',
@@ -589,10 +898,38 @@ export class AttendanceComponent implements OnInit {
 
   private persistAttendance(): void {
     this.saveError = '';
+    this.saveSuccessFlash = '';
+    if (this.saveSuccessClearTimer) {
+      clearTimeout(this.saveSuccessClearTimer);
+      this.saveSuccessClearTimer = null;
+    }
     this.saving = true;
     this.attendanceService.saveAttendance(this.records).subscribe({
       next: () => {
         this.saving = false;
+        this.saveSuccessFlash = this.translate.instant('attendance.saveSuccessMessage');
+        this.saveSuccessClearTimer = setTimeout(() => {
+          this.saveSuccessFlash = '';
+          this.saveSuccessClearTimer = null;
+          this.cdr.markForCheck();
+        }, 5000);
+        this.loadAttendance();
+        this.auth.fetchProfileSummary().subscribe({ error: () => void 0 });
+        if (this.isTeacher && !this.isClassTeacherForCurrentClass() && this.records.length && this.selectedClassId != null) {
+          const me = this.auth.getCurrentUser();
+          const sec = this.records[0]?.sectionId ?? 0;
+          this.operationsService
+            .recordAttendanceProxyAudit({
+              actorUserId: me?.id ?? 0,
+              actorName: me?.name,
+              classId: this.selectedClassId,
+              sectionId: sec,
+              sessionDate: this.selectedDate,
+              studentCount: this.records.length,
+              context: this.hasActiveCoverForSelection() ? 'SUBSTITUTE_COVER' : 'PROXY_MARK',
+            })
+            .subscribe({ error: () => void 0 });
+        }
       },
       error: (e: Error) => {
         this.saving = false;

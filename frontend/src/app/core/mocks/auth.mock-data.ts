@@ -1,7 +1,17 @@
 import type { LoginRequest } from '../models/models';
 import type { ProfileSummary } from '../models/models';
 import type { User } from '../models/models';
-import { mockHomeroomRowsForTeacherRecordId } from './mock-aggregates';
+import {
+  mockHomeroomRowsForTeacherRecordId,
+  mockTeacherAssignedSlots,
+  mockTeacherAssignedStudentCountFromTimetable,
+} from './mock-aggregates';
+import {
+  MOCK_SCHOOL_ADMIN_PERMISSIONS,
+  MOCK_SUPER_ADMIN_PERMISSIONS,
+  MOCK_TEACHER_BASE_PERMISSIONS,
+  AppPermission,
+} from '../auth/app-permission.constants';
 
 /** Demo accounts — same shape as future `POST /auth/login` users; delete this file when mocks are off. */
 export interface MockLoginRecord {
@@ -16,19 +26,43 @@ export const MOCK_LOGIN_USERS: readonly MockLoginRecord[] = [
     email: 'admin@school.com',
     password: 'admin123',
     schoolCode: 'SCH001',
-    user: { id: 1, email: 'admin@school.com', name: 'John Anderson', role: 'admin', tenantId: 't1', phone: '+1-555-0101' },
+    user: {
+      id: 1,
+      email: 'admin@school.com',
+      name: 'John Anderson',
+      role: 'admin',
+      tenantId: 't1',
+      phone: '9876500101',
+      permissions: [...MOCK_SCHOOL_ADMIN_PERMISSIONS],
+    },
   },
   {
     email: 'teacher@school.com',
     password: 'teacher123',
     schoolCode: 'SCH001',
-    user: { id: 2, email: 'teacher@school.com', name: 'Sarah Mitchell', role: 'teacher', tenantId: 't1', phone: '+1-555-0102' },
+    user: {
+      id: 2,
+      email: 'teacher@school.com',
+      name: 'Sarah Mitchell',
+      role: 'teacher',
+      tenantId: 't1',
+      phone: '9876500102',
+      permissions: [...MOCK_TEACHER_BASE_PERMISSIONS],
+    },
   },
   {
     email: 'parent@school.com',
     password: 'parent123',
     schoolCode: 'SCH001',
-    user: { id: 3, email: 'parent@school.com', name: 'Michael Chen', role: 'parent', tenantId: 't1', phone: '+1-555-0103' },
+    user: {
+      id: 3,
+      email: 'parent@school.com',
+      name: 'Michael Chen',
+      role: 'parent',
+      tenantId: 't1',
+      phone: '9876500103',
+      permissions: [AppPermission.PORTAL_PARENT],
+    },
   },
   {
     email: 'superadmin@schoolvault.com',
@@ -40,7 +74,8 @@ export const MOCK_LOGIN_USERS: readonly MockLoginRecord[] = [
       name: 'Priya Narang',
       role: 'super_admin',
       tenantId: 'platform',
-      phone: '+1-555-0199',
+      phone: '9876500199',
+      permissions: [...MOCK_SUPER_ADMIN_PERMISSIONS],
     },
   },
 ];
@@ -95,10 +130,12 @@ export function buildMockProfileSummary(user: User | null): ProfileSummary {
       schoolAddress: '245 Learning Avenue, Austin, TX',
       primaryColor: '#1B3A30',
       secondaryColor: '#C05C3D',
-      userTitle: 'Senior Mathematics Teacher',
       qualification: 'M.Sc Mathematics',
       specialization: 'Mathematics',
+      primaryTeachingSubject: 'Mathematics',
       subjectCount: 3,
+      assignedClassCount: mockTeacherAssignedSlots(1).length,
+      assignedStudentCount: mockTeacherAssignedStudentCountFromTimetable(1),
       classTeacherOf: mockHomeroomRowsForTeacherRecordId(1),
     };
   }
@@ -165,5 +202,6 @@ export function buildMockProfileSummary(user: User | null): ProfileSummary {
     userTitle: 'School Administrator',
     managedStudentCount: 2847,
     managedTeacherCount: 124,
+    managedStaffCount: 21,
   };
 }

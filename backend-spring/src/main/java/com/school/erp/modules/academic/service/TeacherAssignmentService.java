@@ -16,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 @Service
@@ -36,12 +37,43 @@ public class TeacherAssignmentService {
         this.teacherRepository = teacherRepository;
     }
 
+    /** Ends active homeroom assignment rows for the exact class / whole-class vs section slot. */
+    @Transactional
+    public void closeActiveHomeroomSlotAssignments(String tenantId, Long classId, Long sectionId, LocalDate effectiveEnd) {
+        LocalDate d = LocalDate.now();
+        LocalDate requestedEnd = effectiveEnd != null ? effectiveEnd : d;
+        for (ClassTeacherAssignment a : classTeacherRepo.findActiveHomeroomSlot(tenantId, classId, sectionId, d)) {
+            LocalDate safeEnd = normalizeEffectiveEnd(a, requestedEnd);
+            if (Objects.equals(a.getEffectiveTo(), safeEnd)) {
+                continue;
+            }
+            a.setEffectiveTo(safeEnd);
+            classTeacherRepo.save(a);
+        }
+    }
+
+    /**
+     * Keeps assignment date ranges valid when lifecycle actions close a slot on the same day
+     * it was opened (or when callers pass a past date).
+     */
+    private LocalDate normalizeEffectiveEnd(ClassTeacherAssignment assignment, LocalDate requestedEnd) {
+        LocalDate start = assignment.getEffectiveFrom();
+        if (start == null || !requestedEnd.isBefore(start)) {
+            return requestedEnd;
+        }
+        log.debug(
+                "Adjusting assignment close date to avoid invalid range assignmentId={} requestedEnd={} effectiveFrom={}",
+                assignment.getId(), requestedEnd, start);
+        return start;
+    }
+
     /** Persists a class-teacher assignment row (used when admin assigns class teacher). */
     @Transactional
     public void recordClassTeacherAssignment(
             Long classId, Long sectionId, Long teacherId, Long academicYearId, LocalDate effectiveFrom) {
         String t = TenantContext.getTenantId();
-        log.debug("Recording class-teacher assignment classId={} teacherId={} academicYearId={}", classId, teacherId, academicYearId);
+        closeActiveHomeroomSlotAssignments(t, classId, sectionId, LocalDate.now().minusDays(1));
+        log.debug("Recording class-teacher assignment classId={} sectionId={} teacherId={} academicYearId={}", classId, sectionId, teacherId, academicYearId);
         ClassTeacherAssignment a = new ClassTeacherAssignment();
         a.setTenantId(t);
         a.setAcademicYearId(academicYearId);

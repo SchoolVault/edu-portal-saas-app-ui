@@ -3,7 +3,18 @@ package com.school.erp.common.enums;
 public class Enums {
 
     public enum Role {
-        SUPER_ADMIN, ADMIN, TEACHER, PARENT, STUDENT, LIBRARY_STAFF
+        SUPER_ADMIN,
+        ADMIN,
+        TEACHER,
+        PARENT,
+        STUDENT,
+        /** Dedicated library desk login (catalog + circulation bundle by default). */
+        LIBRARY_STAFF,
+        /**
+         * Generic school employee portal: baseline {@code PORTAL_SCHOOL_STAFF} + stacked
+         * {@code rbac_user_school_role} duties (library, fee office, etc.).
+         */
+        SCHOOL_STAFF
     }
 
     /** Registered fleet types for transport (extensible). */
@@ -53,6 +64,17 @@ public class Enums {
         ISSUED, RETURNED, OVERDUE
     }
 
+    /**
+     * Canonical borrower identity for library circulation.
+     * <p>
+     * Use together with borrowerRefId/userId in {@code book_issues} to support student, staff,
+     * and future borrower personas without schema churn.
+     * </p>
+     */
+    public enum LibraryBorrowerType {
+        STUDENT, STAFF, GUARDIAN, OTHER
+    }
+
     public enum HostelRoomType {
         SINGLE, DOUBLE, TRIPLE, DORMITORY
     }
@@ -66,7 +88,7 @@ public class Enums {
     }
 
     public enum AuditAction {
-        CREATE, UPDATE, DELETE, LOGIN, LOGOUT
+        CREATE, UPDATE, DELETE, LOGIN, LOGOUT, CACHE_CLEARED
     }
 
     public enum NotificationType {

@@ -16,6 +16,7 @@ import java.time.LocalDateTime;
  * except for platform {@code SUPER_ADMIN}. Explicit repository tenant predicates remain the primary contract.
  */
 @FilterDef(name = TenantScopedFilter.NAME, parameters = @ParamDef(name = "tenantId", type = String.class))
+@FilterDef(name = com.school.erp.tenant.hibernate.AcademicYearScopedFilter.NAME, parameters = @ParamDef(name = "academicYearId", type = Long.class))
 @Filter(name = TenantScopedFilter.NAME, condition = "tenant_id = :tenantId")
 @MappedSuperclass
 @EntityListeners(AuditingEntityListener.class)
@@ -104,6 +105,7 @@ public abstract class BaseEntity {
      */
     public void markSoftDeleted() {
         this.isDeleted = true;
+        this.isActive = false;
         if (this.deletedAt == null) {
             this.deletedAt = LocalDateTime.now();
         }

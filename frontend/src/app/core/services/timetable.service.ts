@@ -1,15 +1,43 @@
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
-import { Observable, of, throwError, timer } from 'rxjs';
-import { catchError, delay, map, switchMap } from 'rxjs/operators';
-import { TimetableConflictPayload, TimetableEntry, TimetableGrid, TimetableGridSlot } from '../models/models';
+import { Observable, from, of, throwError, timer } from 'rxjs';
+import { catchError, concatMap, delay, map, reduce, switchMap } from 'rxjs/operators';
+import {
+  ApplyTeacherScheduleOnboardingRequest,
+  ApplyTeacherScheduleOnboardingResponse,
+  ValidateTeacherScheduleOnboardingResponse,
+  TimetableConflictPayload,
+  TimetableEntry,
+  TimetableGrid,
+  TimetableGridSlot,
+} from '../models/models';
 import { AttendanceCoverRow } from '../models/operations.models';
 import { ApiResp, ApiService } from './api.service';
+import { AcademicService } from './academic.service';
 import { OperationsService } from './operations.service';
 import { runtimeConfig } from '../config/runtime-config';
 import { MOCK_TIMETABLE_ENTRIES } from '../mocks/timetable.mock-data';
 import { TimetableConflictError } from '../errors/timetable-conflict.error';
 import { UserFacingHttpError } from '../http/user-facing-http-error';
+
+/** Result of best-effort sequential deletes (bulk period row cleanup, onboarding, future flows). */
+export interface TimetableBulkDeleteResult {
+  deletedCount: number;
+  /** Count of 404s treated as already removed (duplicate ids in UI list or prior delete). */
+  notFoundCount: number;
+  /** First non-404 failure message, if any; some rows may still have been deleted before the failure. */
+  firstErrorMessage?: string;
+}
+
+/** Mon–Sat working week (typical Indian school). Sunday is not a teaching day in this product model. */
+export const INDIAN_SCHOOL_WEEK_DAYS: readonly string[] = [
+  'Monday',
+  'Tuesday',
+  'Wednesday',
+  'Thursday',
+  'Friday',
+  'Saturday',
+];
 
 @Injectable({ providedIn: 'root' })
 export class TimetableService {
@@ -50,18 +78,142 @@ export class TimetableService {
     );
   }
 
-  private buildGridFromEntries(classId: number, sectionId: number | undefined, entries: TimetableEntry[]): TimetableGrid {
-    const dayOrder = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  /** Title-case English weekday for stable grid keys (API may send MONDAY / Monday). */
+  normalizeWeekdayTitle(day: string): string {
+    const t = (day ?? '').trim();
+    if (!t) {
+      return '';
+    }
+    return t.charAt(0).toUpperCase() + t.slice(1).toLowerCase();
+  }
+
+  /** True when {@code day} is Mon–Sat (Indian school week); excludes Sunday. */
+  isIndianSchoolTeachingDayName(day: string): boolean {
+    const d = this.normalizeWeekdayTitle(day);
+    return INDIAN_SCHOOL_WEEK_DAYS.includes(d);
+  }
+
+  /**
+   * Who is scheduled on the recurring (non-cover) timetable for this class section, calendar day, and period.
+   * Used by attendance-cover UI to hide the absent teacher from the substitute dropdown.
+   * Skips {@code scheduleSource === 'COVER'} rows so the first matching entry is not a prior substitute.
+   */
+  findRegularTeacherIdForCoverSlot(
+    entries: TimetableEntry[],
+    coverDateIso: string,
+    period: number | string | null | undefined
+  ): number | null {
+    const p = Number(period);
+    if (!Number.isFinite(p) || p < 1) {
+      return null;
+    }
+    const trimmed = (coverDateIso ?? '').trim();
+    if (!trimmed) {
+      return null;
+    }
+    const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const dayTitle = days[new Date(trimmed + 'T12:00:00').getDay()];
+    const dayNorm = this.normalizeWeekdayTitle(dayTitle);
+    const pool = entries.filter(e => e.scheduleSource !== 'COVER');
+    const hit = pool.find(
+      e => this.normalizeWeekdayTitle(e.day) === dayNorm && Number(e.period) === p
+    );
+    const tid = hit?.teacherId;
+    return tid != null && Number(tid) > 0 ? Number(tid) : null;
+  }
+
+  /** Distinct period numbers that have a recurring slot on the selected cover date (Mon-Sat). */
+  listPeriodsForCoverDate(entries: TimetableEntry[], coverDateIso: string): number[] {
+    const trimmed = (coverDateIso ?? '').trim();
+    if (!trimmed) {
+      return [];
+    }
+    const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const dayTitle = days[new Date(trimmed + 'T12:00:00').getDay()];
+    const dayNorm = this.normalizeWeekdayTitle(dayTitle);
+    if (!this.isIndianSchoolTeachingDayName(dayNorm)) {
+      return [];
+    }
+    return [...new Set(
+      entries
+        .filter(e => e.scheduleSource !== 'COVER' && this.normalizeWeekdayTitle(e.day) === dayNorm)
+        .map(e => Number(e.period))
+        .filter(p => Number.isFinite(p) && p > 0)
+    )].sort((a, b) => a - b);
+  }
+
+  /**
+   * Teacher “week matrix”: columns are always Monday → Saturday in order, even if the first populated
+   * slot is mid-week (fixes Tuesday-first columns when Monday has no row for that teacher).
+   *
+   * Period rows are **only those that still have slots** — not a dense 1..N range — so admins do not see
+   * “ghost” period rows after removing every slot for a period (class + teacher views stay CRUD-aligned).
+   */
+  toSchoolWeekMatrixGrid(entries: TimetableEntry[]): TimetableGrid {
+    const monSatOnly = entries.filter(e => this.isIndianSchoolTeachingDayName(e.day));
+    const classId = monSatOnly[0]?.classId ?? entries[0]?.classId ?? 0;
+    const sectionId = monSatOnly[0]?.sectionId ?? entries[0]?.sectionId ?? 0;
+    const usePeriods = [
+      ...new Set(
+        monSatOnly
+          .map(e => Number(e.period))
+          .filter(p => Number.isFinite(p) && p > 0)
+      ),
+    ].sort((a, b) => a - b);
+    const useDays = [...INDIAN_SCHOOL_WEEK_DAYS];
+    const grid: Record<string, Record<number, TimetableGridSlot>> = {};
+    for (const d of useDays) {
+      grid[d] = {};
+      for (const p of usePeriods) {
+        const en = monSatOnly.find(
+          x => this.normalizeWeekdayTitle(x.day) === d && x.period === p
+        );
+        if (en) {
+          grid[d][p] = {
+            subject: en.subjectName,
+            teacher: en.teacherName,
+            room: en.room,
+            startTime: en.startTime,
+            endTime: en.endTime
+          };
+        }
+      }
+    }
+    return { classId, sectionId: sectionId ?? 0, days: useDays, periods: usePeriods, grid };
+  }
+
+  private buildGridFromEntries(
+    classId: number,
+    sectionId: number | undefined,
+    entries: TimetableEntry[],
+    opts?: { restrictToWeekdays?: string[] }
+  ): TimetableGrid {
+    const dayOrder = [...INDIAN_SCHOOL_WEEK_DAYS];
     const defaultPeriods = [1, 2, 3, 4, 5, 6, 7, 8];
-    const days = [...new Set(entries.map(e => e.day))].sort((a, b) => dayOrder.indexOf(a) - dayOrder.indexOf(b));
-    const periods = [...new Set(entries.map(e => e.period))].sort((a, b) => a - b);
-    const useDays = days.length ? days : dayOrder;
+    const restrict = (opts?.restrictToWeekdays ?? [])
+      .map(d => this.normalizeWeekdayTitle(d))
+      .filter(d => d.length > 0);
+    const entryDays = [...new Set(entries.map(e => this.normalizeWeekdayTitle(e.day)))].sort(
+      (a, b) => dayOrder.indexOf(a) - dayOrder.indexOf(b)
+    );
+    let days = entryDays;
+    if (restrict.length) {
+      const allow = new Set(restrict);
+      days = days.filter(d => allow.has(d));
+      if (!days.length) {
+        days = restrict.filter(d => dayOrder.includes(d)).sort((a, b) => dayOrder.indexOf(a) - dayOrder.indexOf(b));
+      }
+    }
+    const periods = [...new Set(entries.map(e => e.period).filter(p => p > 0))].sort((a, b) => a - b);
+    const useDays = days.length ? days : restrict.length ? restrict : dayOrder;
     const usePeriods = periods.length ? periods : defaultPeriods;
     const grid: Record<string, Record<number, TimetableGridSlot>> = {};
     for (const d of useDays) {
       grid[d] = {};
       for (const p of usePeriods) {
-        const en = entries.find(x => x.day === d && x.period === p);
+        const en = entries.find(
+          x => this.normalizeWeekdayTitle(x.day) === this.normalizeWeekdayTitle(d) && x.period === p
+        );
         if (en) {
           grid[d][p] = {
             subject: en.subjectName,
@@ -168,10 +320,14 @@ export class TimetableService {
   }
 
   /** Build a day×period grid from an arbitrary entry list (e.g. teacher schedule). */
-  toGridFromEntries(entries: TimetableEntry[]): TimetableGrid {
+  /**
+   * @param opts.restrictToWeekdays When set (e.g. teacher “classic” view for one calendar day), the grid shows only
+   *   those weekdays even if there are zero entries — avoids rendering Mon–Sat empty rows for “today”.
+   */
+  toGridFromEntries(entries: TimetableEntry[], opts?: { restrictToWeekdays?: string[] }): TimetableGrid {
     const classId = entries[0]?.classId ?? 0;
     const sectionId = entries[0]?.sectionId ?? 0;
-    return this.buildGridFromEntries(classId, sectionId, entries);
+    return this.buildGridFromEntries(classId, sectionId, entries, opts);
   }
 
   getAll(): Observable<TimetableEntry[]> {
@@ -293,6 +449,9 @@ export class TimetableService {
     if (kind === 'CLASS_PERIOD_OCCUPIED') {
       return 'This class already has a subject scheduled for that weekday and period.';
     }
+    if (kind === 'ROOM_DOUBLE_BOOKED') {
+      return 'This room is already occupied for that weekday and period.';
+    }
     return 'This teacher is already scheduled in another class for that weekday and period.';
   }
 
@@ -318,6 +477,20 @@ export class TimetableService {
       );
       if (tHit) {
         return this.toConflictPayload('TEACHER_DOUBLE_BOOKED', tHit);
+      }
+    }
+    const room = (candidate.room ?? '').trim().toLowerCase();
+    if (room) {
+      const roomHit = this.entries.find(
+        e =>
+          !this.isSyntheticCoverRow(e) &&
+          (e.room ?? '').trim().toLowerCase() === room &&
+          e.day === candidate.day &&
+          e.period === candidate.period &&
+          e.id !== excludeId
+      );
+      if (roomHit) {
+        return this.toConflictPayload('ROOM_DOUBLE_BOOKED', roomHit);
       }
     }
     return null;
@@ -348,16 +521,269 @@ export class TimetableService {
 
   deleteEntry(id: number): Observable<void> {
     if (!runtimeConfig.useMocks) {
-      return this.api.delete<void>(`/timetable/${id}`);
+      return this.api.delete<void>(`/timetable/${encodeURIComponent(String(id))}`);
     }
     this.entries = this.entries.filter(entry => entry.id !== id);
     return of(void 0).pipe(delay(200));
   }
 
+  /**
+   * Deletes many timetable rows in order — avoids {@link forkJoin} failing the whole batch on one duplicate/404,
+   * and keeps UI/data consistent after imports or retries.
+   */
+  deleteTimetableEntriesByIds(ids: readonly number[]): Observable<TimetableBulkDeleteResult> {
+    const unique = [...new Set(ids.map(id => Number(id)).filter(id => Number.isFinite(id) && id > 0))];
+    if (!unique.length) {
+      return of({ deletedCount: 0, notFoundCount: 0 });
+    }
+    return from(unique).pipe(
+      concatMap(id =>
+        this.deleteEntry(id).pipe(
+          map(() => ({ deletedCount: 1, notFoundCount: 0, firstErrorMessage: undefined as string | undefined })),
+          catchError((e: unknown) => {
+            if (e instanceof UserFacingHttpError && e.httpStatus === 404) {
+              return of({ deletedCount: 0, notFoundCount: 1, firstErrorMessage: undefined });
+            }
+            const msg = e instanceof Error ? e.message : 'Failed to delete timetable slot';
+            return of({ deletedCount: 0, notFoundCount: 0, firstErrorMessage: msg });
+          })
+        )
+      ),
+      reduce(
+        (acc, chunk) => ({
+          deletedCount: acc.deletedCount + chunk.deletedCount,
+          notFoundCount: acc.notFoundCount + chunk.notFoundCount,
+          firstErrorMessage: acc.firstErrorMessage ?? chunk.firstErrorMessage,
+        }),
+        { deletedCount: 0, notFoundCount: 0, firstErrorMessage: undefined as string | undefined }
+      ),
+      map(r => ({
+        deletedCount: r.deletedCount,
+        notFoundCount: r.notFoundCount,
+        firstErrorMessage: r.firstErrorMessage,
+      }))
+    );
+  }
+
+  /**
+   * Admin onboarding: homeroom + weekly recurring slots in one API (or mock transaction).
+   * Aligns with {@code POST /api/v1/timetable/onboarding/apply}.
+   */
+  applyTeacherScheduleOnboarding(
+    body: ApplyTeacherScheduleOnboardingRequest
+  ): Observable<ApplyTeacherScheduleOnboardingResponse> {
+    if (!runtimeConfig.useMocks) {
+      return this.pipeTimetableConflict(
+        this.http
+          .post<ApiResp<ApplyTeacherScheduleOnboardingResponse>>(
+            `${this.api.getBaseUrl()}/timetable/onboarding/apply`,
+            body
+          )
+          .pipe(
+            map(res => {
+              if (!res.success || res.data == null) {
+                throw new Error(res.message || 'Schedule onboarding failed');
+              }
+              return res.data;
+            })
+          )
+      );
+    }
+    return this.mockApplyTeacherScheduleOnboarding(body);
+  }
+
+  validateTeacherScheduleOnboarding(
+    body: ApplyTeacherScheduleOnboardingRequest
+  ): Observable<ValidateTeacherScheduleOnboardingResponse> {
+    if (!runtimeConfig.useMocks) {
+      return this.http
+        .post<ApiResp<ValidateTeacherScheduleOnboardingResponse>>(
+          `${this.api.getBaseUrl()}/timetable/onboarding/validate`,
+          body
+        )
+        .pipe(
+          map(res => {
+            if (!res.success || res.data == null) {
+              throw new Error(res.message || 'Schedule onboarding validation failed');
+            }
+            return res.data;
+          })
+        );
+    }
+    return of({
+      valid: true,
+      teacherId: body.teacherId,
+      teacherName: this.mockResolveTeacherName(body.teacherId),
+      slotsToCreate: (body.slots ?? []).filter(s => s.existingEntryId == null).length,
+      slotsToUpdate: (body.slots ?? []).filter(s => s.existingEntryId != null).length,
+      slotsToDelete: [...new Set(body.removeEntryIds ?? [])].length,
+      issues: [],
+    }).pipe(delay(250));
+  }
+
+  private mockApplyTeacherScheduleOnboarding(
+    req: ApplyTeacherScheduleOnboardingRequest
+  ): Observable<ApplyTeacherScheduleOnboardingResponse> {
+    const teacherName = this.mockResolveTeacherName(req.teacherId);
+    const homeroom$: Observable<void> = req.homeroom
+      ? this.academic
+          .assignClassTeacher(
+            req.homeroom.classId,
+            req.teacherId,
+            teacherName,
+            req.homeroom.sectionId ?? undefined
+          )
+          .pipe(map(() => undefined))
+      : of(undefined);
+    return homeroom$.pipe(
+      switchMap(() => {
+        for (const id of req.removeEntryIds ?? []) {
+          this.entries = this.entries.filter(e => e.id !== id);
+        }
+        const created: number[] = [];
+        const updated: number[] = [];
+        for (const slot of req.slots ?? []) {
+          const win = this.mockPeriodWindow(slot.period);
+          const dayTitle = this.toTitleDay(slot.day);
+          if (slot.existingEntryId != null) {
+            const idx = this.entries.findIndex(e => e.id === slot.existingEntryId);
+            if (idx >= 0) {
+              this.entries[idx] = {
+                ...this.entries[idx],
+                classId: slot.classId,
+                sectionId: slot.sectionId ?? 0,
+                day: dayTitle,
+                period: slot.period,
+                subjectName: slot.subjectName,
+                teacherId: req.teacherId,
+                teacherName,
+                room: (slot.room ?? this.entries[idx].room) || '',
+                startTime: win.start,
+                endTime: win.end,
+              };
+              updated.push(slot.existingEntryId);
+            }
+          } else {
+            const candidate: TimetableEntry = {
+              id: 0,
+              classId: slot.classId,
+              sectionId: slot.sectionId ?? 0,
+              day: dayTitle,
+              period: slot.period,
+              startTime: win.start,
+              endTime: win.end,
+              subjectName: slot.subjectName,
+              teacherId: req.teacherId,
+              teacherName,
+              room: slot.room?.trim() || `Room ${100 + slot.classId + slot.period}`,
+              tenantId: 't1',
+            };
+            const ins = this.mockInsertOnboardingSlot(candidate, slot.replaceTimetableEntryId ?? undefined);
+            if (ins instanceof TimetableConflictError) {
+              return throwError(() => ins);
+            }
+            created.push(ins.id);
+          }
+        }
+        let anchoredEntryId: number | undefined;
+        const opt = req.options ?? {};
+        if (opt.anchorMondayFirstPeriod !== false && req.homeroom) {
+          const sid = req.homeroom.sectionId ?? 0;
+          const hit = this.entries.find(
+            e =>
+              e.classId === req.homeroom!.classId &&
+              (e.sectionId ?? 0) === sid &&
+              e.day === 'Monday' &&
+              e.period === 1
+          );
+          if (hit) {
+            const idx = this.entries.findIndex(e => e.id === hit.id);
+            if (idx >= 0) {
+              this.entries[idx] = {
+                ...this.entries[idx],
+                teacherId: req.teacherId,
+                teacherName,
+                subjectName: this.mockPrimarySubjectForTeacher(req.teacherId),
+              };
+              anchoredEntryId = hit.id;
+            }
+          }
+        }
+        const out: ApplyTeacherScheduleOnboardingResponse = {
+          teacherId: req.teacherId,
+          teacherName,
+          createdEntryIds: created,
+          updatedEntryIds: updated,
+          removedEntryIds: [...(req.removeEntryIds ?? [])],
+          anchoredEntryId: anchoredEntryId ?? null,
+        };
+        return of(out).pipe(delay(450));
+      })
+    );
+  }
+
+  /**
+   * Mock-only insert with the same conflict rules as {@link #mockMutateSlot} (class slot + teacher double-book).
+   */
+  private mockInsertOnboardingSlot(
+    candidate: TimetableEntry,
+    replaceTimetableEntryId?: number
+  ): TimetableEntry | TimetableConflictError {
+    let block = this.mockFindBlocking(candidate, null);
+    if (replaceTimetableEntryId != null) {
+      if (block && block.existingEntryId === replaceTimetableEntryId) {
+        this.entries = this.entries.filter(e => e.id !== replaceTimetableEntryId);
+        block = this.mockFindBlocking(candidate, null);
+      } else if (block) {
+        return new TimetableConflictError(this.mockHumanMessage(String(block.conflictType)), block);
+      }
+    } else if (block) {
+      return new TimetableConflictError(this.mockHumanMessage(String(block.conflictType)), block);
+    }
+    const nextId = Math.max(0, ...this.entries.map(e => e.id)) + 1;
+    const row: TimetableEntry = { ...candidate, id: nextId };
+    this.entries = [...this.entries, row];
+    return row;
+  }
+
+  private mockResolveTeacherName(teacherId: number): string {
+    const hit = this.entries.find(e => e.teacherId === teacherId);
+    return hit?.teacherName?.trim() || 'Teacher';
+  }
+
+  private mockPrimarySubjectForTeacher(teacherId: number): string {
+    if (teacherId === 1) {
+      return 'Mathematics';
+    }
+    return 'Value Education';
+  }
+
+  private mockPeriodWindow(period: number): { start: string; end: string } {
+    const p = Math.max(1, period);
+    const startMin = (p - 1) * 45;
+    const h = Math.floor(8 + startMin / 60);
+    const m = startMin % 60;
+    const start = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+    const endMin = startMin + 45;
+    const eh = Math.floor(8 + endMin / 60);
+    const em = endMin % 60;
+    const end = `${String(eh).padStart(2, '0')}:${String(em).padStart(2, '0')}`;
+    return { start, end };
+  }
+
+  private toTitleDay(day: string): string {
+    const u = (day || '').trim();
+    if (!u) {
+      return 'Monday';
+    }
+    return u.charAt(0) + u.slice(1).toLowerCase();
+  }
+
   constructor(
     private api: ApiService,
     private http: HttpClient,
-    private operations: OperationsService
+    private operations: OperationsService,
+    private academic: AcademicService
   ) {}
 
   private normalizeEntry(entry: any): TimetableEntry {

@@ -12,9 +12,14 @@ import java.time.LocalDateTime;
         name = "notification_outbox",
         indexes = {
                 @Index(name = "idx_no_tenant_status_created", columnList = "tenant_id, status, created_at"),
-                @Index(name = "idx_no_tenant_event", columnList = "tenant_id, event_type")
+                @Index(name = "idx_no_tenant_event", columnList = "tenant_id, event_type"),
+                @Index(name = "idx_no_tenant_corr", columnList = "tenant_id, correlation_id"),
+                @Index(name = "idx_no_tenant_ay_status_created", columnList = "tenant_id, academic_year_id, status, created_at")
         })
 public class NotificationOutbox extends BaseEntity {
+
+    @Column(name = "academic_year_id")
+    private Long academicYearId;
 
     @Column(name = "event_type", nullable = false, length = 64)
     private String eventType;
@@ -28,11 +33,17 @@ public class NotificationOutbox extends BaseEntity {
     @Column(name = "recipient_phone_e164", length = 24)
     private String recipientPhoneE164;
 
+    @Column(name = "recipient_email", length = 150)
+    private String recipientEmail;
+
     @Column(length = 200)
     private String subject;
 
     @Column(name = "body_text", nullable = false, columnDefinition = "TEXT")
     private String bodyText;
+
+    @Column(name = "body_html", columnDefinition = "LONGTEXT")
+    private String bodyHtml;
 
     @Column(name = "dedupe_key", length = 200)
     private String dedupeKey;
@@ -51,6 +62,32 @@ public class NotificationOutbox extends BaseEntity {
 
     @Column(name = "processed_at")
     private LocalDateTime processedAt;
+
+    @Column(name = "next_retry_at")
+    private LocalDateTime nextRetryAt;
+
+    @Column(name = "provider_message_id", length = 120)
+    private String providerMessageId;
+
+    @Column(name = "provider_status", length = 40)
+    private String providerStatus;
+
+    @Column(name = "provider_error_code", length = 80)
+    private String providerErrorCode;
+
+    @Column(name = "dead_lettered_at")
+    private LocalDateTime deadLetteredAt;
+
+    @Column(name = "channel_cost_minor")
+    private Integer channelCostMinor;
+
+    public Long getAcademicYearId() {
+        return academicYearId;
+    }
+
+    public void setAcademicYearId(Long academicYearId) {
+        this.academicYearId = academicYearId;
+    }
 
     public String getEventType() {
         return eventType;
@@ -92,12 +129,28 @@ public class NotificationOutbox extends BaseEntity {
         this.subject = subject;
     }
 
+    public String getRecipientEmail() {
+        return recipientEmail;
+    }
+
+    public void setRecipientEmail(String recipientEmail) {
+        this.recipientEmail = recipientEmail;
+    }
+
     public String getBodyText() {
         return bodyText;
     }
 
     public void setBodyText(String bodyText) {
         this.bodyText = bodyText;
+    }
+
+    public String getBodyHtml() {
+        return bodyHtml;
+    }
+
+    public void setBodyHtml(String bodyHtml) {
+        this.bodyHtml = bodyHtml;
     }
 
     public String getDedupeKey() {
@@ -146,5 +199,53 @@ public class NotificationOutbox extends BaseEntity {
 
     public void setProcessedAt(LocalDateTime processedAt) {
         this.processedAt = processedAt;
+    }
+
+    public LocalDateTime getNextRetryAt() {
+        return nextRetryAt;
+    }
+
+    public void setNextRetryAt(LocalDateTime nextRetryAt) {
+        this.nextRetryAt = nextRetryAt;
+    }
+
+    public String getProviderMessageId() {
+        return providerMessageId;
+    }
+
+    public void setProviderMessageId(String providerMessageId) {
+        this.providerMessageId = providerMessageId;
+    }
+
+    public String getProviderStatus() {
+        return providerStatus;
+    }
+
+    public void setProviderStatus(String providerStatus) {
+        this.providerStatus = providerStatus;
+    }
+
+    public String getProviderErrorCode() {
+        return providerErrorCode;
+    }
+
+    public void setProviderErrorCode(String providerErrorCode) {
+        this.providerErrorCode = providerErrorCode;
+    }
+
+    public LocalDateTime getDeadLetteredAt() {
+        return deadLetteredAt;
+    }
+
+    public void setDeadLetteredAt(LocalDateTime deadLetteredAt) {
+        this.deadLetteredAt = deadLetteredAt;
+    }
+
+    public Integer getChannelCostMinor() {
+        return channelCostMinor;
+    }
+
+    public void setChannelCostMinor(Integer channelCostMinor) {
+        this.channelCostMinor = channelCostMinor;
     }
 }

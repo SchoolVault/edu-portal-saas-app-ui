@@ -1,11 +1,18 @@
 package com.school.erp.bootstrap.demo;
 
+import com.school.erp.common.enums.Enums;
 import com.school.erp.modules.academic.entity.SchoolClass;
+import com.school.erp.modules.academic.entity.Section;
 import com.school.erp.modules.academic.repository.SchoolClassRepository;
+import com.school.erp.modules.academic.repository.SectionRepository;
 import com.school.erp.modules.attendance.entity.AttendanceCoverAssignment;
 import com.school.erp.modules.attendance.repository.AttendanceCoverAssignmentRepository;
 import com.school.erp.modules.auth.entity.User;
 import com.school.erp.modules.auth.repository.UserRepository;
+import com.school.erp.modules.communication.domain.CommunicationEventStatus;
+import com.school.erp.modules.communication.domain.CommunicationEventType;
+import com.school.erp.modules.communication.entity.CommunicationEvent;
+import com.school.erp.modules.communication.repository.CommunicationEventRepository;
 import com.school.erp.modules.fees.entity.FeePayment;
 import com.school.erp.modules.fees.repository.FeePaymentRepository;
 import com.school.erp.modules.operations.entity.FeeReminderQueue;
@@ -18,6 +25,8 @@ import com.school.erp.modules.operations.repository.GatePassRepository;
 import com.school.erp.modules.operations.repository.InventoryItemRepository;
 import com.school.erp.modules.operations.repository.OperationalStaffRepository;
 import com.school.erp.modules.operations.repository.VisitorLogRepository;
+import com.school.erp.modules.settings.entity.TenantConfig;
+import com.school.erp.modules.settings.repository.TenantConfigRepository;
 import com.school.erp.modules.student.entity.Student;
 import com.school.erp.modules.student.repository.StudentRepository;
 import com.school.erp.modules.teacher.entity.Teacher;
@@ -26,17 +35,22 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 
 /**
  * Optional demo rows for modules not covered in the core {@code DemoDataSeedService} baseline.
  * Idempotent per tenant via a dedicated inventory SKU marker row.
+ *
+ * <p>Resolves school admin and email domains from the seeded tenant (DPS-DLH, KV-MUM, etc.) — not hardcoded
+ * showcase schools.</p>
  */
 @Service
 @Profile({"dev", "showcase-seed", "demo-seed"})
@@ -54,7 +68,10 @@ public class DemoExtendedTablesSeed {
     private final StudentRepository studentRepository;
     private final TeacherRepository teacherRepository;
     private final SchoolClassRepository schoolClassRepository;
+    private final SectionRepository sectionRepository;
+    private final TenantConfigRepository tenantConfigRepository;
     private final FeePaymentRepository feePaymentRepository;
+    private final CommunicationEventRepository communicationEventRepository;
 
     public DemoExtendedTablesSeed(
             InventoryItemRepository inventoryItemRepository,
@@ -67,7 +84,10 @@ public class DemoExtendedTablesSeed {
             StudentRepository studentRepository,
             TeacherRepository teacherRepository,
             SchoolClassRepository schoolClassRepository,
-            FeePaymentRepository feePaymentRepository) {
+            SectionRepository sectionRepository,
+            TenantConfigRepository tenantConfigRepository,
+            FeePaymentRepository feePaymentRepository,
+            CommunicationEventRepository communicationEventRepository) {
         this.inventoryItemRepository = inventoryItemRepository;
         this.operationalStaffRepository = operationalStaffRepository;
         this.gatePassRepository = gatePassRepository;
@@ -78,23 +98,38 @@ public class DemoExtendedTablesSeed {
         this.studentRepository = studentRepository;
         this.teacherRepository = teacherRepository;
         this.schoolClassRepository = schoolClassRepository;
+        this.sectionRepository = sectionRepository;
+        this.tenantConfigRepository = tenantConfigRepository;
         this.feePaymentRepository = feePaymentRepository;
+        this.communicationEventRepository = communicationEventRepository;
     }
 
     private static String markerSku(String schoolCode) {
         return "DEMO-EXT-MARKER-" + schoolCode.replace('-', '_');
     }
 
-    @Transactional
+    private Optional<User> resolveSchoolAdmin(String tenantId) {
+        List<User> admins = userRepository.findByTenantIdAndRoleAndIsDeletedFalse(tenantId, Enums.Role.ADMIN);
+        return admins.stream().findFirst();
+    }
+
+    /** Domain for operational @school emails (from tenant office email). */
+    private String emailDomainForTenant(String tenantId) {
+        return tenantConfigRepository.findByTenantId(tenantId)
+                .map(TenantConfig::getEmail)
+                .filter(e -> e != null && e.contains("@"))
+                .map(e -> e.substring(e.indexOf('@') + 1).trim())
+                .orElse("school.local");
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void seedExtendedModuleRows(String tenantId, String schoolCode) {
         String sku = markerSku(schoolCode);
         if (inventoryItemRepository.findByTenantIdAndSkuAndIsDeletedFalse(tenantId, sku).isPresent()) {
             return;
         }
 
-        User admin = userRepository.findByEmailAndSchoolCodeAndIsDeletedFalse(
-                "STXHER-KOL".equals(schoolCode) ? "principal@stxheritage.edu" : "principal@meridianridge.edu",
-                schoolCode).orElse(null);
+        Optional<User> adminOpt = resolveSchoolAdmin(tenantId);
         List<Student> students = studentRepository.findByTenantIdAndIsDeletedFalse(tenantId);
         List<Teacher> teachers = teacherRepository.findByTenantIdAndIsDeletedFalse(tenantId);
         List<SchoolClass> classes = schoolClassRepository.findByTenantIdAndIsDeletedFalseOrderByGrade(tenantId);
@@ -103,10 +138,21 @@ public class DemoExtendedTablesSeed {
             return;
         }
 
-        Student s0 = students.get(0);
-        SchoolClass c0 = classes.get(0);
-        Teacher tRegular = teachers.get(0);
-        Teacher tCover = teachers.get(teachers.size() > 1 ? 1 : 0);
+        String mailDomain = emailDomainForTenant(tenantId);
+
+        // Prefer mid/high grade class with sections for realistic cover + gate pass labelling
+        SchoolClass c0 = classes.stream()
+                .filter(c -> c.getGrade() != null && c.getGrade() >= 6)
+                .min(Comparator.comparingInt(SchoolClass::getGrade))
+                .orElse(classes.get(0));
+
+        List<Section> secs = sectionRepository.findByTenantIdAndClassIdAndIsDeletedFalse(tenantId, c0.getId());
+        Long sectionIdForCover = secs.isEmpty() ? null : secs.get(0).getId();
+
+        Student s0 = students.stream()
+                .filter(s -> c0.getId().equals(s.getClassId()))
+                .findFirst()
+                .orElse(students.get(0));
 
         InventoryItem marker = new InventoryItem();
         marker.setTenantId(tenantId);
@@ -118,7 +164,7 @@ public class DemoExtendedTablesSeed {
         marker.setLocation("N/A");
         inventoryItemRepository.save(marker);
 
-        inv(tenantId, "CHALK-WB-01", "White chalk — box", "Consumables", 120, 24, "Store A");
+        inv(tenantId, "CHALK-WB-01", "White chalk — box", "Consumables", 120, 24, "Store A — " + schoolCode);
         inv(tenantId, "LAB-ETOH-500", "Ethanol 500ml", "Science lab", 18, 6, "Lab store");
         inv(tenantId, "SPT-CONES-50", "Sports cones set", "PE", 8, 2, "Equipment room");
 
@@ -127,8 +173,8 @@ public class DemoExtendedTablesSeed {
         sec.setStaffRole("SECURITY");
         sec.setFullName("Bimal Chakraborty");
         sec.setPhone("+91-98310-22001");
-        sec.setEmail("security.desk@" + ("STXHER-KOL".equals(schoolCode) ? "stxheritage.edu" : "meridianridge.edu"));
-        sec.setEmployeeCode("OPS-SEC-01");
+        sec.setEmail("security.desk@" + mailDomain);
+        sec.setEmployeeCode("OPS-SEC-01-" + schoolCode.replace('-', '_'));
         operationalStaffRepository.save(sec);
 
         OperationalStaff nurse = new OperationalStaff();
@@ -136,17 +182,19 @@ public class DemoExtendedTablesSeed {
         nurse.setStaffRole("NURSE");
         nurse.setFullName("Anjali Menon");
         nurse.setPhone("+91-98400-33002");
-        nurse.setEmployeeCode("OPS-HLTH-01");
+        nurse.setEmail("health.office@" + mailDomain);
+        nurse.setEmployeeCode("OPS-HLTH-01-" + schoolCode.replace('-', '_'));
         operationalStaffRepository.save(nurse);
 
-        if (admin != null) {
+        if (adminOpt.isPresent()) {
+            User admin = adminOpt.get();
             GatePass gp = new GatePass();
             gp.setTenantId(tenantId);
             gp.setStudentId(s0.getId());
             gp.setIssuedToName(s0.getFirstName() + " " + s0.getLastName());
             gp.setValidFrom(LocalDate.now().minusDays(1));
             gp.setValidTo(LocalDate.now().plusDays(6));
-            gp.setPurpose("Inter-school debate — late exit authorized");
+            gp.setPurpose("Inter-school debate — late exit authorized (demo)");
             gp.setIssuedByUserId(admin.getId());
             gp.setStatus("ACTIVE");
             gatePassRepository.save(gp);
@@ -156,9 +204,9 @@ public class DemoExtendedTablesSeed {
         vl.setTenantId(tenantId);
         vl.setVisitorName("Vendor — smartboard maintenance");
         vl.setPhone("+91-90000-44033");
-        vl.setPurpose("Calibrate projectors — Block B");
-        vl.setHostName(admin != null ? admin.getName() : "Front office");
-        vl.setBadgeNo("V-" + schoolCode.substring(0, 3) + "-901");
+        vl.setPurpose("Calibrate projectors — Block B (demo)");
+        vl.setHostName(adminOpt.map(User::getName).orElse("Front office"));
+        vl.setBadgeNo("V-" + schoolCode.replace("-", "").substring(0, Math.min(5, schoolCode.length())) + "-901");
         vl.setCheckInAt(LocalDateTime.now().minusHours(3));
         vl.setCheckOutAt(LocalDateTime.now().minusHours(1));
         vl.setStatus("CHECKED_OUT");
@@ -179,19 +227,84 @@ public class DemoExtendedTablesSeed {
             feeReminderQueueRepository.save(q);
         }
 
-        AttendanceCoverAssignment ac = new AttendanceCoverAssignment();
-        ac.setTenantId(tenantId);
-        ac.setCoverDate(LocalDate.now().plusDays(1));
-        ac.setPeriodNumber(1);
-        ac.setClassId(c0.getId());
-        ac.setSectionId(null);
-        ac.setRegularTeacherId(tRegular.getId());
-        ac.setCoveringTeacherId(tCover.getId());
-        ac.setReason("Demo: planned leave — cover period");
-        ac.setStatus("ACTIVE");
-        attendanceCoverAssignmentRepository.save(ac);
+        // Last five calendar days (including today): one active cover per day so teacher timetable + ops demos show history.
+        LocalDate today = LocalDate.now();
+        for (int i = 0; i < 5; i++) {
+            LocalDate coverDay = today.minusDays(i);
+            Teacher regular = teachers.get(i % teachers.size());
+            Teacher cover = teachers.stream()
+                    .filter(t -> !t.getId().equals(regular.getId()))
+                    .findFirst()
+                    .orElse(teachers.get((i + 1) % teachers.size()));
+            AttendanceCoverAssignment ac = new AttendanceCoverAssignment();
+            ac.setTenantId(tenantId);
+            ac.setCoverDate(coverDay);
+            ac.setPeriodNumber(1 + (i % 6));
+            ac.setClassId(c0.getId());
+            ac.setSectionId(sectionIdForCover);
+            ac.setRegularTeacherId(regular.getId());
+            ac.setCoveringTeacherId(cover.getId());
+            ac.setReason("Demo: attendance cover " + (i + 1) + "/5 — " + schoolCode + " (" + coverDay + ")");
+            ac.setStatus("ACTIVE");
+            attendanceCoverAssignmentRepository.save(ac);
+        }
+        seedCommunicationEvents(tenantId, c0, secs);
 
         log.info("Extended demo module rows applied for tenant {} (school_code={})", tenantId, schoolCode);
+    }
+
+    private void seedCommunicationEvents(String tenantId, SchoolClass focusClass, List<Section> focusSections) {
+        LocalDateTime now = LocalDateTime.now();
+
+        CommunicationEvent scheduled = new CommunicationEvent();
+        scheduled.setTenantId(tenantId);
+        scheduled.setTitle("PTM slots open next week");
+        scheduled.setDescription("Parents can pre-book PTM slots from the portal.");
+        scheduled.setEventType(CommunicationEventType.PTM);
+        scheduled.setAudienceScope(Enums.TargetAudience.PARENTS);
+        scheduled.setPublishAt(now.plusHours(2));
+        scheduled.setEventStartAt(now.plusDays(4).withHour(10).withMinute(0));
+        scheduled.setEventEndAt(now.plusDays(4).withHour(13).withMinute(0));
+        scheduled.setTimezone("Asia/Kolkata");
+        scheduled.setLocation("Main auditorium");
+        scheduled.setLocaleCode("en");
+        scheduled.setStatus(CommunicationEventStatus.SCHEDULED);
+        communicationEventRepository.save(scheduled);
+
+        CommunicationEvent publishedUpcoming = new CommunicationEvent();
+        publishedUpcoming.setTenantId(tenantId);
+        publishedUpcoming.setTitle("Inter-house sports meet");
+        publishedUpcoming.setDescription("Track and field rounds begin this Friday.");
+        publishedUpcoming.setEventType(CommunicationEventType.SPORTS);
+        publishedUpcoming.setAudienceScope(Enums.TargetAudience.ALL);
+        publishedUpcoming.setPublishedAt(now.minusHours(3));
+        publishedUpcoming.setEventStartAt(now.plusDays(2).withHour(8).withMinute(30));
+        publishedUpcoming.setEventEndAt(now.plusDays(2).withHour(12).withMinute(30));
+        publishedUpcoming.setTimezone("Asia/Kolkata");
+        publishedUpcoming.setLocation("Sports ground");
+        publishedUpcoming.setLocaleCode("en");
+        publishedUpcoming.setStatus(CommunicationEventStatus.PUBLISHED);
+        communicationEventRepository.save(publishedUpcoming);
+
+        CommunicationEvent completedPast = new CommunicationEvent();
+        completedPast.setTenantId(tenantId);
+        completedPast.setTitle("Science expo (completed)");
+        completedPast.setDescription("Event completed successfully; winner list posted.");
+        completedPast.setEventType(CommunicationEventType.FESTIVAL);
+        completedPast.setAudienceScope(Enums.TargetAudience.CLASS);
+        completedPast.setTargetClassId(focusClass.getId());
+        if (!focusSections.isEmpty()) {
+            completedPast.setTargetSectionId(focusSections.get(0).getId());
+        }
+        completedPast.setPublishedAt(now.minusDays(3));
+        completedPast.setEventStartAt(now.minusDays(2).withHour(9).withMinute(0));
+        completedPast.setEventEndAt(now.minusDays(2).withHour(12).withMinute(0));
+        completedPast.setCompletedAt(now.minusDays(2).withHour(12).withMinute(15));
+        completedPast.setTimezone("Asia/Kolkata");
+        completedPast.setLocation("Science lab block");
+        completedPast.setLocaleCode("en");
+        completedPast.setStatus(CommunicationEventStatus.COMPLETED);
+        communicationEventRepository.save(completedPast);
     }
 
     private void inv(String tenantId, String sku, String name, String cat, int qty, int reorder, String loc) {

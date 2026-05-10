@@ -2,6 +2,7 @@ package com.school.erp.modules.chat.controller;
 
 import com.school.erp.common.dto.ApiResponse;
 import com.school.erp.security.RequireTenantFeature;
+import com.school.erp.security.rbac.RbacSpel;
 import com.school.erp.modules.chat.dto.ChatDTOs;
 import com.school.erp.modules.chat.service.ChatService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -18,24 +19,26 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/v1/chat")
 @Tag(name = "Chat", description = "Conversation-centric chat (inbox, conversations, messages) with realtime delivery")
-@PreAuthorize("hasAnyRole('ADMIN','TEACHER','PARENT','STUDENT','SUPER_ADMIN')")
 @RequireTenantFeature("chat")
 public class ChatController {
     private final ChatService chatService;
 
     @GetMapping("/inbox")
+    @PreAuthorize(RbacSpel.CHAT_TENANT_PARTICIPANT)
     @Operation(summary = "Get my inbox (conversation list)")
     public ResponseEntity<ApiResponse<List<ChatDTOs.InboxConversationResponse>>> inbox() {
         return ResponseEntity.ok(ApiResponse.ok(chatService.inbox()));
     }
 
     @PostMapping("/conversations")
+    @PreAuthorize(RbacSpel.CHAT_TENANT_PARTICIPANT_WRITE)
     @Operation(summary = "Create a conversation")
     public ResponseEntity<ApiResponse<ChatDTOs.InboxConversationResponse>> createConversation(@Valid @RequestBody ChatDTOs.CreateConversationRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.created(chatService.createConversation(request)));
     }
 
     @GetMapping("/conversations/{conversationId}/messages")
+    @PreAuthorize(RbacSpel.CHAT_TENANT_PARTICIPANT)
     @Operation(summary = "List messages in a conversation (paged)")
     public ResponseEntity<ApiResponse<Page<ChatDTOs.MessageResponse>>> messages(@PathVariable Long conversationId,
                                                                                @RequestParam(defaultValue = "0") int page,
@@ -44,12 +47,14 @@ public class ChatController {
     }
 
     @PostMapping("/messages")
+    @PreAuthorize(RbacSpel.CHAT_TENANT_PARTICIPANT_WRITE)
     @Operation(summary = "Send a message")
     public ResponseEntity<ApiResponse<ChatDTOs.MessageResponse>> send(@Valid @RequestBody ChatDTOs.SendMessageRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.created(chatService.sendMessage(request)));
     }
 
     @PutMapping("/conversations/read")
+    @PreAuthorize(RbacSpel.CHAT_TENANT_PARTICIPANT_WRITE)
     @Operation(summary = "Mark conversation read up to a message id")
     public ResponseEntity<ApiResponse<Void>> markRead(@Valid @RequestBody ChatDTOs.MarkReadRequest request) {
         chatService.markRead(request);

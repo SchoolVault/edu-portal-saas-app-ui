@@ -1,12 +1,52 @@
 import type { ParentFeeDtos } from './parent-fee.dto';
 
-export type AppRole = 'super_admin' | 'admin' | 'teacher' | 'parent' | 'student' | 'library_staff';
+export type AppRole =
+  | 'super_admin'
+  | 'admin'
+  | 'teacher'
+  | 'parent'
+  | 'student'
+  | 'library_staff'
+  | 'school_staff';
 
 /** Body for {@code PUT /api/v1/auth/profile} — mirrors Spring {@code AuthDTOs.UpdateProfileRequest}. */
 export interface UpdateAccountProfileRequest {
   name?: string;
+  email?: string | null;
   phone?: string | null;
   avatar?: string | null;
+  qualification?: string | null;
+  specialization?: string | null;
+  bankAccountHolder?: string | null;
+  bankName?: string | null;
+  bankAccountNumber?: string | null;
+  bankIfsc?: string | null;
+}
+
+export interface PersonalProfileDetails {
+  id: number;
+  name: string;
+  email?: string;
+  phone?: string;
+  role: AppRole | string;
+  tenantId: string;
+  avatar?: string;
+  interfaceLocale?: string;
+  qualification?: string;
+  specialization?: string;
+  bankAccountHolder?: string;
+  bankName?: string;
+  bankAccountNumber?: string;
+  bankIfsc?: string;
+  emailVerified?: boolean;
+  phoneVerified?: boolean;
+  editableScopes?: string[];
+}
+
+export interface IdentityUpdateResponse {
+  user: User;
+  message?: string;
+  devVerificationToken?: string | null;
 }
 
 export interface User {
@@ -21,6 +61,10 @@ export interface User {
   phone?: string;
   /** Mirrors backend `UserProfile.interfaceLocale` (en | hi, …). */
   interfaceLocale?: string;
+  emailVerified?: boolean;
+  phoneVerified?: boolean;
+  /** Server-issued {@code AppPermission} names (see JWT `permissions` claim; sorted on API). */
+  permissions?: string[];
 }
 
 export interface LoginRequest {
@@ -66,6 +110,18 @@ export interface OnboardSchoolRequest {
   address?: string;
   /** Optional UI locale for first admin; mirrors backend when enabled. */
   interfaceLocale?: string;
+  academicYearName?: string;
+  academicYearStartDate?: string;
+  academicYearEndDate?: string;
+}
+
+export interface PlatformOnboardSchoolResponse {
+  tenantId: string;
+  schoolCode: string;
+  adminUserId: number;
+  adminEmail?: string;
+  adminPhone?: string;
+  academicYearId?: number;
 }
 
 export interface ProfileSummary {
@@ -88,13 +144,24 @@ export interface ProfileSummary {
   specialization?: string;
   childCount?: number;
   assignedClassCount?: number;
+  /** TEACHER: roster headcount across assigned classes (GET /auth/profile-summary). */
+  assignedStudentCount?: number;
+  /** TEACHER: primary subject for shell (first listed subject, else specialization). */
+  primaryTeachingSubject?: string;
   subjectCount?: number;
   managedStudentCount?: number;
   managedTeacherCount?: number;
+  managedStaffCount?: number;
   /** SUPER_ADMIN: count of active school workspaces (non-deleted tenants). */
   platformWorkspaceCount?: number;
   /** TEACHER: classes where this user is the assigned class teacher (photo / roster policy). */
-  classTeacherOf?: { classId: number; className?: string; sectionName?: string; totalStudents?: number }[];
+  classTeacherOf?: {
+    classId: number;
+    className?: string;
+    sectionId?: number;
+    sectionName?: string;
+    totalStudents?: number;
+  }[];
   /** SUPER_ADMIN: console operator metadata (API or mock). */
   platformOperatorSince?: string;
   platformLastLoginDisplay?: string;
@@ -110,6 +177,8 @@ export interface Student {
   firstName: string;
   lastName: string;
   email: string;
+  /** School-issued mailbox shown to parents (portal); may be derived server-side. */
+  schoolEmail?: string;
   phone: string;
   dateOfBirth: string;
   gender: string;
@@ -124,6 +193,9 @@ export interface Student {
   /** Linked parent ERP user id for chat/directory (when parent has a login). */
   parentUserId?: number;
   parentName: string;
+  parentPhone?: string;
+  parentEmail?: string;
+  createParentPortal?: boolean;
   address: string;
   bloodGroup: string;
   avatar?: string;
@@ -132,6 +204,28 @@ export interface Student {
   homeroomTeacherUserId?: number;
   status: 'active' | 'inactive' | 'graduated' | 'transferred' | 'alumni';
   tenantId: string;
+}
+
+/** Row from {@code GET /students/{id}/guardian-mappings} — mirrors Spring {@code GuardianDTOs.MappingResponse}. */
+export interface StudentGuardianMapping {
+  id: number;
+  studentId: number;
+  guardianId: number;
+  guardianName: string;
+  relationType: string | null;
+  isPrimary: boolean | null;
+  isEmergencyContact: boolean | null;
+  custodyType: string | null;
+  effectiveFrom: string | null;
+  effectiveTo: string | null;
+  primaryPhone?: string | null;
+  occupation?: string | null;
+  /** From guardian emails_json (first email). */
+  email?: string | null;
+  /** Extra numbers from guardian phones_json (not the primary column). */
+  additionalPhones?: string[] | null;
+  /** Guardian linked to a parent portal login. */
+  parentPortalLinked?: boolean | null;
 }
 
 export interface AttendanceStats {
@@ -170,6 +264,11 @@ export interface Teacher {
   /** Class display names where this teacher is homeroom/class teacher (from {@code school_classes.class_teacher_id}). */
   homeroomClassNames?: string[];
   salary: number;
+  /** Admin-visible payroll metadata. Hidden for colleague peer view. */
+  bankAccountHolder?: string;
+  bankName?: string;
+  bankAccountNumber?: string;
+  bankIfsc?: string;
   status: 'active' | 'inactive';
   avatar?: string;
   /** Links to User.id when staff logs in with a teacher account. */
@@ -192,6 +291,7 @@ export interface SchoolClass {
   id: number;
   name: string;
   grade: number;
+  isActive?: boolean;
   sections: Section[];
   classTeacherId?: number;
   classTeacherName?: string;
@@ -205,8 +305,12 @@ export interface Section {
   id: number;
   name: string;
   classId: number;
+  isActive?: boolean;
   capacity: number;
   studentCount: number;
+  /** Homeroom when the class is split into sections (Indian school model). */
+  classTeacherId?: number;
+  classTeacherName?: string;
 }
 
 export interface AttendanceRecord {
@@ -232,6 +336,9 @@ export interface TimetableEntry {
   subjectName: string;
   teacherId: number;
   teacherName: string;
+  /** Optional denormalized labels when API sends them; UI can also resolve from {@link SchoolClass} catalog. */
+  className?: string;
+  sectionName?: string;
   room: string;
   tenantId: string;
   /** {@code RECURRING} weekly slot vs one-day {@code COVER} from attendance cover assignments */
@@ -240,7 +347,7 @@ export interface TimetableEntry {
   coverForDate?: string;
 }
 
-export type TimetableConflictKind = 'CLASS_PERIOD_OCCUPIED' | 'TEACHER_DOUBLE_BOOKED';
+export type TimetableConflictKind = 'CLASS_PERIOD_OCCUPIED' | 'TEACHER_DOUBLE_BOOKED' | 'ROOM_DOUBLE_BOOKED';
 
 /** Mirrors {@code TimetableDTOs.TimetableConflictPayload} for HTTP 409 responses. */
 export interface TimetableConflictPayload {
@@ -250,10 +357,77 @@ export interface TimetableConflictPayload {
   period: number;
   subjectName?: string;
   teacherName?: string;
+  room?: string;
   classId?: number;
   sectionId?: number | null;
   conflictingClassId?: number;
   conflictingSectionId?: number | null;
+}
+
+/** Mirrors {@code TeacherScheduleOnboardingDTOs} — admin onboarding (homeroom + weekly slots). */
+export interface TeacherScheduleHomeroomPayload {
+  classId: number;
+  sectionId?: number | null;
+}
+
+export interface TeacherScheduleOnboardingSlot {
+  existingEntryId?: number | null;
+  /** Backend expects {@code MONDAY} … {@code SATURDAY}. */
+  day: string;
+  period: number;
+  /** Optional custom slot window (HH:mm). When omitted, server derives from period. */
+  startTime?: string | null;
+  /** Optional custom slot window (HH:mm). When omitted, server derives from period. */
+  endTime?: string | null;
+  classId: number;
+  sectionId?: number | null;
+  subjectName: string;
+  room?: string | null;
+  replaceTimetableEntryId?: number | null;
+}
+
+export interface TeacherScheduleOnboardingOptions {
+  /** Default true — align Mon P1 for homeroom class/section with this teacher. */
+  anchorMondayFirstPeriod?: boolean;
+}
+
+export interface ApplyTeacherScheduleOnboardingRequest {
+  teacherId: number;
+  homeroom?: TeacherScheduleHomeroomPayload | null;
+  removeEntryIds?: number[];
+  slots: TeacherScheduleOnboardingSlot[];
+  options?: TeacherScheduleOnboardingOptions;
+}
+
+export interface ApplyTeacherScheduleOnboardingResponse {
+  teacherId: number;
+  teacherName: string;
+  createdEntryIds: number[];
+  updatedEntryIds: number[];
+  removedEntryIds: number[];
+  anchoredEntryId?: number | null;
+}
+
+export interface TeacherScheduleValidationIssue {
+  code: string;
+  message: string;
+  conflictType?: string;
+  existingEntryId?: number;
+  day?: string;
+  period?: number;
+  classId?: number;
+  sectionId?: number | null;
+  room?: string;
+}
+
+export interface ValidateTeacherScheduleOnboardingResponse {
+  valid: boolean;
+  teacherId: number;
+  teacherName: string;
+  slotsToCreate: number;
+  slotsToUpdate: number;
+  slotsToDelete: number;
+  issues: TeacherScheduleValidationIssue[];
 }
 
 export interface TimetableGridSlot {
@@ -301,6 +475,8 @@ export interface ExamScheduleSlot {
   className?: string;
   sectionName?: string;
   subjectName: string;
+  paperType?: string;
+  invigilatorName?: string;
   examDate: string;
   startTime: string;
   endTime: string;
@@ -311,9 +487,15 @@ export interface ExamScheduleSlot {
 export interface Exam {
   id: number;
   name: string;
+  /** School-defined type slug/name (unit_test, practical, viva, etc). */
+  examType?: string;
   academicYearId: number;
   startDate: string;
   endDate: string;
+  /** marks | grades | hybrid | weightage | rubric */
+  markingScheme?: string;
+  /** Future-safe rules blob mirrored by backend gradingConfigJson. */
+  gradingConfig?: Record<string, unknown>;
   classIds: number[];
   /** When set, preferred over classIds for scoped exams (API + UI). */
   classScopes?: ExamClassScope[];
@@ -321,7 +503,64 @@ export interface Exam {
   status: 'upcoming' | 'ongoing' | 'completed' | 'cancelled';
   /** When false, parents do not see marks until school publishes. */
   resultsPublished?: boolean;
+  /** DRAFT | PENDING_APPROVAL | APPROVED | PUBLISHED | FROZEN | REJECTED */
+  workflowState?: string;
+  workflowNote?: string;
   tenantId: string;
+}
+
+export interface ExamTemplateComponent {
+  id?: number;
+  componentCode: string;
+  componentLabel: string;
+  maxMarks: number;
+  weightagePct: number;
+  optional?: boolean;
+  rule?: Record<string, unknown>;
+}
+
+export interface ExamTemplate {
+  id?: number;
+  name: string;
+  boardType: string;
+  classBand?: string;
+  defaultMarkingScheme?: string;
+  rules?: Record<string, unknown>;
+  components: ExamTemplateComponent[];
+}
+
+export interface ExamEventLog {
+  id: number;
+  eventType: string;
+  actorUserId?: number;
+  actorRole?: string;
+  payloadJson?: string;
+  createdAt?: string;
+}
+
+export interface ExamNotificationJob {
+  id: number;
+  examId: number;
+  eventType: string;
+  targetRole: string;
+  localeCode: string;
+  status: string;
+  attempts: number;
+  maxAttempts: number;
+  nextRetryAt?: string;
+  lastError?: string;
+  payloadJson?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface ExamBulkOperationLog {
+  id: number;
+  operationType: string;
+  requestId: string;
+  examId?: number;
+  status: string;
+  createdAt?: string;
 }
 
 export interface PromotionStudentPreview {
@@ -386,6 +625,7 @@ export interface DashboardActivityItem {
   description: string;
   type: string;
   timestamp: string;
+  campaignId?: string;
 }
 
 export interface DashboardUpcomingEvent {
@@ -393,6 +633,7 @@ export interface DashboardUpcomingEvent {
   title: string;
   date: string;
   description: string;
+  campaignId?: string;
 }
 
 export interface DashboardAttendanceOverview {
@@ -410,13 +651,31 @@ export interface ClassHomeroomGap {
 }
 
 export interface AdminDashboardData {
+  dataComputedAt?: string;
   totalStudents: number;
   totalTeachers: number;
+  /** Backend echo: TODAY | WEEK_TO_DATE | MONTH_TO_DATE */
+  attendanceOverviewScope?: string;
+  /** Backend echo: selected admin attendance month filter (YYYY-MM). */
+  attendanceOverviewMonth?: string;
+  /** Running cumulative collection (all-time in current dataset). */
   feesCollected: number;
+  /** Running cumulative pending amount. */
   feesPending: number;
+  /** Cumulative collection rate. */
   collectionRate: number;
+  /** Current calendar-month collection (primary admin KPI). */
+  feesCollectedMonthly?: number;
+  feesPendingMonthly?: number;
+  collectionRateMonthly?: number;
+  /** Current calendar-year collection (secondary/YTD context). */
+  feesCollectedYearly?: number;
+  feesPendingYearly?: number;
+  collectionRateYearly?: number;
   monthlyAdmissions: DashboardMetricPoint[];
   monthlyCollections: DashboardMetricPoint[];
+  /** Calendar-day roll-up for admin KPI (resets daily); optional for older cached payloads. */
+  attendanceToday?: DashboardAttendanceOverview;
   attendanceOverview: DashboardAttendanceOverview;
   recentActivities: DashboardActivityItem[];
   upcomingEvents: DashboardUpcomingEvent[];
@@ -492,13 +751,44 @@ export interface PlatformSchoolDetail {
   subscriptionStatus: string;
 }
 
+/** Super-admin PATCH payload — optional fields; blank strings omitted client-side. */
+export interface UpdateSchoolWorkspaceRequest {
+  schoolName?: string;
+  schoolCode?: string;
+  email?: string;
+  phone?: string;
+  address?: string;
+  primaryColor?: string;
+  secondaryColor?: string;
+}
+
+export interface UpdateSchoolAdminRequest {
+  name?: string;
+  email?: string;
+  phone?: string;
+}
+
 export interface PlatformPurgeJob {
   id: string;
   tenantId: string;
   schoolCode: string;
+  schoolName?: string | null;
   status: string;
   errorMessage?: string | null;
   rowsDeletedEstimate?: number | null;
+  executionDurationMs?: number | null;
+  requestedByUserId?: number | null;
+  requestedByRole?: string | null;
+  requestedByPrincipal?: string | null;
+  requestedByDisplayName?: string | null;
+  executedByUserId?: number | null;
+  executedByRole?: string | null;
+  executedByPrincipal?: string | null;
+  executedByDisplayName?: string | null;
+  affectedStudents?: number | null;
+  affectedTeachers?: number | null;
+  affectedAdmins?: number | null;
+  affectedParentAccounts?: number | null;
   createdAt?: string | null;
   startedAt?: string | null;
   completedAt?: string | null;
@@ -525,6 +815,38 @@ export interface PlatformSubscriptionPlan {
   integrationPriceKey?: string;
 }
 
+export interface CacheClearRequest {
+  tenantId?: string | null;
+  regions?: string[] | null;
+}
+
+export interface CacheStatistics {
+  regionsCleared: number;
+  clearedRegions: string[];
+  failedRegions?: string[];
+  clearedAt: string;
+  clearedBy: string;
+  targetTenantId?: string | null;
+  targetSchoolName?: string | null;
+  /** Tenant-scoped clears only — approximate Redis keys removed */
+  keysEvicted?: number | null;
+  /** When dashboardSnapshots was cleared: rows marked refresh_required in DB */
+  dashboardSnapshotRowsMarked?: number | null;
+}
+
+export interface CacheClearResponse {
+  success: boolean;
+  message: string;
+  statistics: CacheStatistics | null;
+}
+
+export interface CacheRegionOption {
+  name: string;
+  label: string;
+  description: string;
+  category: 'core' | 'academic' | 'operations' | 'reports';
+}
+
 export interface TeacherScheduleItem {
   classId: number;
   sectionId: number;
@@ -537,16 +859,84 @@ export interface TeacherScheduleItem {
   endTime: string;
 }
 
+/** Coded feed row for teacher home — UI maps {@link code} to i18n (language switch safe). */
+export type TeacherDashboardActivityCode =
+  | 'EXAM_SCHEDULED'
+  | 'ADMIN_ANNOUNCEMENT'
+  | 'TIMETABLE_UPDATED'
+  | 'ATTENDANCE_PENDING'
+  | 'STUDENT_ROSTER_CHANGE';
+
+export interface TeacherDashboardActivityItem {
+  code: TeacherDashboardActivityCode;
+  type: 'info' | 'success' | 'warning';
+  timestamp: string;
+  params?: Record<string, string | number>;
+  linkRoute: string;
+  linkQueryParams?: Record<string, string>;
+}
+
+/** Month key {@code YYYY-MM}; presentPercent is 0–100 for the teacher’s scoped classes. */
+export interface TeacherAttendanceTrendPoint {
+  month: string;
+  presentPercent: number;
+}
+
+/** Homeroom / class-teacher section — daily points + ring breakdown (GET /reports/dashboard/teacher?month=). */
+export interface TeacherHomeroomDailyPoint {
+  date: string;
+  /** Share of that day’s attendance marks (0–100); retained for other widgets / compatibility. */
+  presentPercent: number;
+  absentPercent?: number;
+  latePercent?: number;
+  excusedPercent?: number;
+  /** Per-day headcounts (primary for day-by-day stacked bar). */
+  presentCount?: number;
+  absentCount?: number;
+  lateCount?: number;
+  excusedCount?: number;
+}
+
+export interface TeacherHomeroomAttendanceDetail {
+  month: string;
+  classLabel?: string;
+  daily: TeacherHomeroomDailyPoint[];
+  breakdown: { present: number; absent: number; late: number; excused: number };
+}
+
 export interface TeacherDashboardData {
+  dataComputedAt?: string;
   assignedClasses: number;
   studentsAssigned: number;
   upcomingExams: number;
-  unreadNotifications: number;
+  /** Sessions/classes where attendance is still to be marked for the current window (actionable KPI). */
+  pendingAttendanceSessions: number;
+  /**
+   * @deprecated Prefer {@link pendingAttendanceSessions}. Kept for older mock/API payloads.
+   */
+  unreadNotifications?: number;
   todaySchedule: TeacherScheduleItem[];
   pendingTasks: DashboardActivityItem[];
-  classTeacherOf?: { classId: number; className: string; sectionName?: string; totalStudents: number }[];
+  /** Optional legacy widgets — hidden in UI when empty / phased out. */
+  classTeacherOf?: {
+    classId: number;
+    className: string;
+    sectionName?: string;
+    /** When set, deep-links to attendance / roster filters. */
+    sectionId?: number;
+    totalStudents: number;
+  }[];
   messageQueue?: { conversationId: string; fromName: string; studentName?: string; preview: string; timestamp: string; priority: 'low' | 'normal' | 'high' }[];
   quickActions?: { label: string; route: string; icon: string }[];
+  recentActivities?: TeacherDashboardActivityItem[];
+  /** Rolling attendance trend for charts (mock + future GET /reports/dashboard/teacher). */
+  attendanceTrend?: TeacherAttendanceTrendPoint[];
+  /** Class-teacher homeroom: day-wise % for {@code month} + doughnut breakdown (same API as monthly query). */
+  homeroomAttendance?: TeacherHomeroomAttendanceDetail | null;
+  /**
+   * When true, homeroom attendance rows exist for local today (server); drives teacher dashboard “attendance marked” tile.
+   */
+  homeroomTodayAttendanceComplete?: boolean;
 }
 
 /** Mirrors backend policy field {@code schoolThresholdPercent} when wired. */
@@ -589,6 +979,7 @@ export interface ParentDashboardActivityItem {
 }
 
 export interface ParentDashboardData {
+  dataComputedAt?: string;
   childCount: number;
   children?: Student[];
   selectedChild?: Student;
@@ -655,7 +1046,7 @@ export interface ClassSummaryRow {
   attendancePercentage: number;
   performancePercentage: number;
   feeCollectionPercentage: number;
-  classTeacherName: string;
+  overdueAccounts: number;
 }
 
 export interface SectionSummaryRow {
@@ -664,6 +1055,7 @@ export interface SectionSummaryRow {
   classId: number;
   className: string;
   studentCount: number;
+  classTeacherName: string;
 }
 
 export interface TeacherWorkloadRow {
@@ -671,6 +1063,9 @@ export interface TeacherWorkloadRow {
   teacherName: string;
   specialization: string;
   subjects: string[];
+  homeroomClasses: string;
+  assignedClasses: number;
+  weeklyPeriods: number;
   status: string;
 }
 
@@ -682,6 +1077,89 @@ export interface ReportCard {
   totalMaxMarks: number;
   overallPercentage: number;
   overallGrade: string;
+}
+
+export interface ReportTemplateDefinition {
+  id?: number;
+  templateCode: string;
+  name: string;
+  reportType: string;
+  defaultFormat: 'PDF' | 'CSV' | string;
+  packCode?: string;
+  layoutConfig?: Record<string, unknown>;
+  filterSchema?: Record<string, unknown>;
+  boardSections?: Array<Record<string, unknown>>;
+  remarksConfig?: Record<string, unknown>;
+  promotionConfig?: Record<string, unknown>;
+}
+
+export interface ReportGenerationJob {
+  id: number;
+  requestId: string;
+  reportType: string;
+  format: string;
+  status: string;
+  fileName?: string;
+  contentType?: string;
+  contentSizeBytes?: number;
+  generatedAt?: string;
+  createdAt?: string;
+  scheduleAt?: string;
+  nextRetryAt?: string;
+  attempts?: number;
+  maxAttempts?: number;
+  workflowState?: string;
+  workflowNote?: string;
+  approvedAt?: string;
+  publishedAt?: string;
+  updatedAt?: string;
+}
+
+export interface ReportPublicationSnapshot {
+  id: number;
+  versionNo: number;
+  snapshotType: string;
+  note?: string;
+  publishedAt?: string;
+}
+
+export interface ReportAnalyticsPack {
+  packCode: string;
+  trendBands: Array<Record<string, unknown>>;
+  laggingStudents: Array<Record<string, unknown>>;
+  promotionEligibility: Array<Record<string, unknown>>;
+  guardrails?: Record<string, unknown>;
+}
+
+export interface ReportAnalyticsPackConfig {
+  id?: number;
+  packCode: string;
+  config: Record<string, unknown>;
+  formulas: Record<string, unknown>;
+}
+
+export interface ReportWorkflowEventLog {
+  id: number;
+  eventCode: string;
+  fromState?: string;
+  toState?: string;
+  actorUserId?: number;
+  actorRole?: string;
+  note?: string;
+  occurredAt?: string;
+}
+
+export interface ReportShareDispatch {
+  id: number;
+  channel: string;
+  targetRole: string;
+  localeCode: string;
+  status: string;
+  attempts?: number;
+  deliveredCount?: number;
+  nextRetryAt?: string;
+  lastError?: string;
+  createdAt?: string;
 }
 
 export interface MarkRecord {
@@ -726,6 +1204,10 @@ export interface FeePayment {
   id: number;
   studentId: number;
   studentName: string;
+  /** Optional denormalized scope for server-side filtering in payments grid. */
+  classId?: number;
+  /** Optional denormalized scope for server-side filtering in payments grid. */
+  sectionId?: number;
   feeStructureId: number;
   amount: number;
   paidAmount: number;
@@ -736,7 +1218,17 @@ export interface FeePayment {
   discount: number;
   lateFee: number;
   receiptNumber?: string;
+  paymentMethod?: string;
+  lineItems?: FeeComponent[];
   tenantId: string;
+}
+
+export interface FeeCollectionSummary {
+  totalCollected: number;
+  totalPending: number;
+  totalStudents: number;
+  overdueCount: number;
+  collectionRate: number;
 }
 
 /** Mirrors {@code FeeDTOs.BulkAssignFeesRequest}. */
@@ -764,6 +1256,39 @@ export interface BulkAssignFeesResponse {
   skippedCount: number;
   skipped: BulkAssignFeesSkipEntry[];
   createdSample: FeePayment[];
+}
+
+export interface FeeTransaction {
+  id: number;
+  feePaymentId: number;
+  attemptId?: number;
+  eventType: string;
+  eventStatus?: string;
+  amount: number;
+  currency?: string;
+  provider?: string;
+  providerPaymentId?: string;
+  referenceId?: string;
+  operationKey?: string;
+  note?: string;
+  occurredAt?: string;
+}
+
+export interface FeeRefundRequest {
+  amount: number;
+  reason?: string;
+  operationKey?: string;
+}
+
+export interface FeeRefundDecisionRequest {
+  note?: string;
+  operationKey?: string;
+}
+
+export interface FeeRefundExecuteRequest {
+  providerRefundId?: string;
+  note?: string;
+  operationKey?: string;
 }
 
 /** @see ParentFeeDtos — mirrors {@code FeeDTOs.ParentFeeLineItem}. */
@@ -889,6 +1414,8 @@ export interface Announcement {
   author: string;
   authorRole: string;
   targetAudience: string;
+  targetClassId?: number;
+  targetSectionId?: number;
   createdAt: string;
   tenantId: string;
 }
@@ -900,6 +1427,10 @@ export interface AnnouncementPreview {
   createdAt: string;
   /** Backend / mock: {@code ALL}, {@code PARENTS}, {@code TEACHERS}, … — drives shell audience split. */
   targetAudience?: string;
+  targetClassId?: number;
+  targetSectionId?: number;
+  targetClassName?: string;
+  targetSectionName?: string;
 }
 
 export interface AppNotification {
@@ -924,6 +1455,12 @@ export interface InboxUnifiedItem {
   createdAt: string;
   /** Announcement audience enum name from API (e.g. ALL). */
   audienceKey?: string;
+  /** Announcement class scope id (for CLASS/SECTION tags). */
+  targetClassId?: number;
+  /** Announcement section scope id (for SECTION tags). */
+  targetSectionId?: number;
+  targetClassName?: string;
+  targetSectionName?: string;
   authorLine?: string;
   notificationType?: AppNotification['type'];
   read?: boolean;
@@ -982,8 +1519,12 @@ export interface BookIssue {
   id: string;
   bookId: number;
   bookTitle: string;
-  studentId: number;
-  studentName: string;
+  studentId?: number;
+  studentName?: string;
+  borrowerType?: 'student' | 'staff' | 'guardian' | 'other';
+  borrowerRefId?: number;
+  borrowerUserId?: number;
+  borrowerDisplayName?: string;
   issueDate: string;
   dueDate: string;
   returnDate?: string;
@@ -1024,6 +1565,95 @@ export interface HostelRoom {
   tenantId: string;
 }
 
+export interface HostelBillingProfile {
+  id?: string;
+  studentId: number;
+  studentName?: string;
+  feeStructureId: number;
+  billingCadence?: 'MONTHLY' | 'TERM' | 'ANNUAL' | string;
+  depositAmount?: number | null;
+  messChargeAmount?: number | null;
+  autoInvoiceEnabled?: boolean;
+  lastInvoiceDate?: string | null;
+  nextDueDate?: string | null;
+}
+
+export interface HostelBillingRunResult {
+  runRef: string;
+  queuedProfiles: number;
+  dueDate: string;
+  note?: string;
+}
+
+export interface HostelGatePass {
+  id: string;
+  studentId: number;
+  studentName?: string;
+  requestType: 'LEAVE_OUT' | 'GATE_PASS' | string;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'RETURNED' | string;
+  reason?: string;
+  outAt?: string;
+  expectedInAt?: string;
+  actualInAt?: string;
+  approvalNote?: string;
+}
+
+export interface HostelVisitorEntry {
+  id: string;
+  studentId: number;
+  studentName?: string;
+  visitorName?: string;
+  relationLabel?: string;
+  visitorPhone?: string;
+  purpose?: string;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'CHECKED_OUT' | string;
+  checkInAt?: string;
+  checkOutAt?: string;
+  approvalNote?: string;
+}
+
+export interface HostelIncident {
+  id: string;
+  studentId?: number;
+  studentName?: string;
+  incidentType?: string;
+  severity?: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL' | string;
+  status?: 'OPEN' | 'ESCALATED' | 'RESOLVED' | string;
+  summary?: string;
+  occurredAt?: string;
+  escalatedAt?: string;
+  escalationLevel?: string;
+  resolutionNote?: string;
+  resolutionReason?: string;
+  slaDueAt?: string;
+}
+
+export interface HostelPortalProfile {
+  studentId: number;
+  studentName: string;
+  hostelName?: string;
+  roomNumber?: string;
+  roomType?: string;
+  occupancyLabel?: string;
+  billingCadence?: string;
+  nextDueDate?: string;
+  activeGatePassStatus?: string;
+}
+
+export interface HostelBookingRequest {
+  id: string;
+  studentId: number;
+  studentName?: string;
+  parentUserId?: number;
+  preferredHostelId?: number;
+  preferredRoomType?: string;
+  status?: string;
+  requestNote?: string;
+  decisionNote?: string;
+  approvedAllocationId?: number;
+  createdAt?: string;
+}
+
 export interface SalaryStructure {
   id: number;
   teacherId: number;
@@ -1048,6 +1678,10 @@ export interface Payslip {
   status: 'generated' | 'paid';
   /** When salary was marked paid / disbursed (UI + PDF). */
   paymentDate?: string;
+  /**
+   * Backend: OFFLINE_RECORDED (mark paid) vs DIGITAL_PAYOUT (payout API). Omitted/legacy for older rows.
+   */
+  salarySettlementMode?: 'OFFLINE_RECORDED' | 'DIGITAL_PAYOUT' | string;
   tenantId: string;
 }
 
@@ -1060,6 +1694,31 @@ export interface TeacherPaymentDetails {
   bankAccountMasked?: string;
   bankIfsc?: string;
   bankDetailsComplete?: boolean;
+}
+
+export interface PayrollDisbursementAttempt {
+  id: number;
+  payslipId: number;
+  teacherId: number;
+  teacherName?: string;
+  periodLabel?: string;
+  amount: number;
+  paymentMethod: string;
+  referenceId: string;
+  status: 'SUBMITTED' | 'COMPLETED' | 'FAILED';
+  createdAt?: string;
+  completedAt?: string;
+  lastMessage?: string;
+}
+
+export interface PayrollDisbursementSummary {
+  totalAttempts: number;
+  submittedCount: number;
+  completedCount: number;
+  failedCount: number;
+  submittedAmount: number;
+  completedAmount: number;
+  failedAmount: number;
 }
 
 export interface DocumentRecord {
@@ -1085,6 +1744,12 @@ export interface AuditLog {
   timestamp: string;
   ipAddress: string;
   tenantId: string;
+  /** Optional target record id from the server audit row. */
+  entityId?: string;
+  entityType?: string;
+  /** Technical before/after snapshot when the backend recorded a change. */
+  oldValue?: string;
+  newValue?: string;
 }
 
 /** Super-admin platform health API (/api/v1/platform/health). */
@@ -1093,6 +1758,59 @@ export interface PlatformHealthSnapshot {
   jvm: { heapUsedBytes: number; heapMaxBytes: number; heapUsagePercent: number };
   disk: { path: string; totalBytes: number; usableBytes: number; usagePercent: number };
   components: { name: string; status: string; detail?: string }[];
+  sloSignals?: {
+    key: string;
+    label: string;
+    unit?: string;
+    value: number;
+    warnThreshold: number;
+    criticalThreshold: number;
+    status: 'OK' | 'WARN' | 'CRITICAL' | string;
+  }[];
+  alerts?: {
+    severity: 'warning' | 'critical' | string;
+    code: string;
+    title: string;
+    detail?: string;
+    suggestedAction?: string;
+  }[];
+}
+
+export interface PlatformLifecycleSummary {
+  archivedRecordCount: number;
+  latestArchivedAt?: string | null;
+  reportStorageTrackedRows: number;
+  reportStorageMissingFiles: number;
+}
+
+export interface PlatformStorageReconciliation {
+  dryRun: boolean;
+  scannedFiles: number;
+  referencedFiles: number;
+  missingFiles: number;
+  orphanFiles: number;
+  deletedOrphanFiles: number;
+  sampleMissingFiles: string[];
+  sampleOrphanFiles: string[];
+}
+
+export interface PlatformLifecycleSourceStat {
+  sourceTable: string;
+  recordCount: number;
+  latestArchivedAt?: string | null;
+}
+
+export interface PlatformLifecycleDailyPoint {
+  day: string;
+  archivedCount: number;
+}
+
+export interface PlatformLifecycleObservability {
+  totalArchivedRecords: number;
+  latestArchivedAt?: string | null;
+  archiveLagDays: number;
+  sourceStats: PlatformLifecycleSourceStat[];
+  dailyTrend: PlatformLifecycleDailyPoint[];
 }
 
 export interface TenantConfig {
@@ -1106,6 +1824,9 @@ export interface TenantConfig {
   primaryColor: string;
   secondaryColor: string;
   features: Record<string, boolean>;
+  leaveSmsApplyTemplate?: string;
+  leaveSmsDecisionTemplate?: string;
+  libraryBorrowerPolicyJson?: string;
   tenantId: string;
 }
 

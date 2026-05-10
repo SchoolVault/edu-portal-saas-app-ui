@@ -3,7 +3,7 @@ package com.school.erp.modules.communication.job;
 import com.school.erp.common.logging.MdcKeys;
 import com.school.erp.modules.communication.service.CommunicationRetentionService;
 import com.school.erp.modules.settings.repository.TenantConfigRepository;
-import com.school.erp.tenant.TenantContext;
+import com.school.erp.tenant.TenantScopedExecution;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
@@ -39,7 +39,7 @@ public class CommunicationInboxRetentionJob {
     @Value("${app.communication.retention.dry-run:true}")
     private boolean dryRun;
 
-    @Value("${app.communication.retention.months:8}")
+    @Value("${app.communication.retention.months:6}")
     private int retentionMonths;
 
     @Value("${app.communication.retention.tenant-ids:}")
@@ -73,30 +73,35 @@ public class CommunicationInboxRetentionJob {
         }
         int totalA = 0;
         int totalN = 0;
+        int totalE = 0;
         for (String tenantId : tenantIds) {
             if (tenantId == null || tenantId.isBlank()) {
                 continue;
             }
             try {
-                TenantContext.setTenantId(tenantId);
-                MDC.put(MdcKeys.TENANT_ID, tenantId);
-                CommunicationRetentionService.RetentionSweepResult r =
-                        retentionService.softDeleteOlderThanForTenant(tenantId, cutoff);
+                CommunicationRetentionService.RetentionSweepResult r = TenantScopedExecution.execute(
+                        tenantId,
+                        null,
+                        "SYSTEM",
+                        () -> {
+                            MDC.put(MdcKeys.TENANT_ID, tenantId);
+                            return retentionService.softDeleteOlderThanForTenant(tenantId, cutoff);
+                        });
                 totalA += r.announcementsSoftDeleted();
                 totalN += r.notificationsSoftDeleted();
-                if (r.announcementsSoftDeleted() > 0 || r.notificationsSoftDeleted() > 0) {
-                    log.info("communication_retention tenant={} announcements_soft_deleted={} notifications_soft_deleted={} cutoff={}",
-                            tenantId, r.announcementsSoftDeleted(), r.notificationsSoftDeleted(), cutoff);
+                totalE += r.eventsSoftDeleted();
+                if (r.announcementsSoftDeleted() > 0 || r.notificationsSoftDeleted() > 0 || r.eventsSoftDeleted() > 0) {
+                    log.info("communication_retention tenant={} announcements_soft_deleted={} notifications_soft_deleted={} events_soft_deleted={} cutoff={}",
+                            tenantId, r.announcementsSoftDeleted(), r.notificationsSoftDeleted(), r.eventsSoftDeleted(), cutoff);
                 }
             } catch (Exception ex) {
                 log.error("communication_retention failed tenant={}", tenantId, ex);
             } finally {
-                TenantContext.clear();
                 MdcKeys.clearTenantUser();
             }
         }
-        log.info("communication_retention complete tenants={} total_announcements={} total_notifications={} cutoff={}",
-                tenantIds.size(), totalA, totalN, cutoff);
+        log.info("communication_retention complete tenants={} total_announcements={} total_notifications={} total_events={} cutoff={}",
+                tenantIds.size(), totalA, totalN, totalE, cutoff);
     }
 
     private List<String> resolveTargetTenantIds() {

@@ -1,7 +1,7 @@
 import { Injectable } from '@angular/core';
 import { BehaviorSubject, EMPTY, Observable, of } from 'rxjs';
 import { delay, expand, map, reduce } from 'rxjs/operators';
-import { PromotionResult, Student } from '../models/models';
+import { PromotionResult, Student, StudentGuardianMapping } from '../models/models';
 import { MOCK_STUDENTS } from '../mocks/students.mock-data';
 import { ApiService, PageResp } from './api.service';
 import { runtimeConfig } from '../config/runtime-config';
@@ -24,6 +24,8 @@ export class StudentService {
     page?: number;
     size?: number;
     classId?: number;
+    /** When set with {@link classId}, restricts roster to that section (homeroom deep links). */
+    sectionId?: number;
     status?: string;
     search?: string;
     sortBy?: string;
@@ -37,6 +39,7 @@ export class StudentService {
           page,
           size,
           classId: opts.classId,
+          sectionId: opts.sectionId,
           status: opts.status?.trim() ? opts.status.trim().toUpperCase() : undefined,
           search: opts.search?.trim() || undefined,
           sortBy: opts.sortBy ?? 'firstName',
@@ -67,7 +70,7 @@ export class StudentService {
   }
 
   private mockStudentsPage(
-    opts: { classId?: number; status?: string; search?: string; sortBy?: string; direction?: string },
+    opts: { classId?: number; sectionId?: number; status?: string; search?: string; sortBy?: string; direction?: string },
     page: number,
     size: number
   ): Observable<PageResp<Student>> {
@@ -83,6 +86,9 @@ export class StudentService {
     }
     if (opts.classId != null && opts.classId > 0) {
       rows = rows.filter(s => s.classId === opts.classId);
+    }
+    if (opts.sectionId != null && opts.sectionId > 0) {
+      rows = rows.filter(s => (s.sectionId ?? 0) === opts.sectionId);
     }
     if (opts.status?.trim()) {
       const st = opts.status.trim().toLowerCase();
@@ -105,6 +111,58 @@ export class StudentService {
       return this.api.get<any>('/students/' + id).pipe(map(student => this.normalizeStudent(student)));
     }
     return of(this.students.find(s => s.id === id)).pipe(delay(300));
+  }
+
+  /**
+   * Guardian links for a student (relation, primary/emergency flags, contact from guardian record when available).
+   */
+  getGuardianMappings(studentId: number): Observable<StudentGuardianMapping[]> {
+    if (!runtimeConfig.useMocks) {
+      return this.api.get<any[]>(`/students/${studentId}/guardian-mappings`).pipe(map(rows => rows.map(r => this.normalizeGuardianMapping(r))));
+    }
+    const s = this.students.find(st => st.id === studentId);
+    if (!s) {
+      return of([]).pipe(delay(200));
+    }
+    const cleanName = (name: string) => name.replace(/\s*\([^)]*\)\s*/g, '').trim();
+    const base: StudentGuardianMapping = {
+      id: studentId * 100 + 1,
+      studentId,
+      guardianId: s.parentId,
+      guardianName: cleanName(s.parentName) || s.parentName,
+      relationType: 'FATHER',
+      isPrimary: true,
+      isEmergencyContact: true,
+      custodyType: null,
+      effectiveFrom: s.admissionDate || null,
+      effectiveTo: null,
+      primaryPhone: `+1-555-${String(2000 + (s.id % 1000)).padStart(4, '0')}`,
+      occupation: 'Business',
+      email: `parent${s.id}.demo@schoolmail.example`,
+      additionalPhones: [`+1-555-${String(2100 + (s.id % 1000)).padStart(4, '0')}`],
+      parentPortalLinked: true,
+    };
+    const rows: StudentGuardianMapping[] = [base];
+    if (studentId % 3 === 0) {
+      rows.push({
+        id: studentId * 100 + 2,
+        studentId,
+        guardianId: s.parentId + 900000,
+        guardianName: 'Priya Sharma',
+        relationType: 'MOTHER',
+        isPrimary: false,
+        isEmergencyContact: true,
+        custodyType: null,
+        effectiveFrom: s.admissionDate || null,
+        effectiveTo: null,
+        primaryPhone: '+1-555-0188',
+        occupation: 'Healthcare',
+        email: `mother${s.id}.demo@schoolmail.example`,
+        additionalPhones: ['+1-555-0199'],
+        parentPortalLinked: true,
+      });
+    }
+    return of(rows).pipe(delay(250));
   }
 
   addStudent(student: Omit<Student, 'id'>): Observable<Student> {
@@ -199,6 +257,41 @@ export class StudentService {
     }).pipe(delay(400));
   }
 
+  private normalizeGuardianMapping(r: any): StudentGuardianMapping {
+    const additionalPhones = r.additionalPhones;
+    return {
+      id: Number(r.id),
+      studentId: Number(r.studentId),
+      guardianId: Number(r.guardianId),
+      guardianName: r.guardianName ?? '',
+      relationType: r.relationType ?? null,
+      isPrimary: r.isPrimary ?? null,
+      isEmergencyContact: r.isEmergencyContact ?? null,
+      custodyType: r.custodyType ?? null,
+      effectiveFrom: this.normalizeMappingDate(r.effectiveFrom),
+      effectiveTo: this.normalizeMappingDate(r.effectiveTo),
+      primaryPhone: r.primaryPhone ?? null,
+      occupation: r.occupation ?? null,
+      email: r.email ?? null,
+      additionalPhones: Array.isArray(additionalPhones) ? additionalPhones.map(String) : null,
+      parentPortalLinked: typeof r.parentPortalLinked === 'boolean' ? r.parentPortalLinked : null,
+    };
+  }
+
+  private normalizeMappingDate(v: unknown): string | null {
+    if (v == null) {
+      return null;
+    }
+    if (typeof v === 'string') {
+      return v;
+    }
+    if (Array.isArray(v) && v.length >= 3) {
+      const [y, m, d] = v as number[];
+      return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    }
+    return String(v);
+  }
+
   private normalizeStudent(student: any): Student {
     return {
       ...student,
@@ -239,6 +332,9 @@ export class StudentService {
       admissionDate: student.admissionDate || null,
       parentId: student.parentId ?? null,
       parentName: student.parentName || null,
+      parentPhone: student.parentPhone || null,
+      parentEmail: student.parentEmail || null,
+      createParentPortal: student.createParentPortal ?? null,
       address: student.address || null,
       bloodGroup: student.bloodGroup || null
     };
@@ -257,6 +353,9 @@ export class StudentService {
       rollNumber: student.rollNumber,
       parentId: student.parentId ?? null,
       parentName: student.parentName,
+      parentPhone: student.parentPhone ?? null,
+      parentEmail: student.parentEmail ?? null,
+      createParentPortal: student.createParentPortal ?? null,
       address: student.address,
       bloodGroup: student.bloodGroup,
       status: student.status ? student.status.toUpperCase() : null

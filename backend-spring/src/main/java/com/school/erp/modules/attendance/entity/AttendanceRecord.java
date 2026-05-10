@@ -1,17 +1,35 @@
 package com.school.erp.modules.attendance.entity;
 
 import com.school.erp.common.entity.BaseEntity;
+import com.school.erp.common.entity.AcademicYearScopedEntity;
+import com.school.erp.common.entity.AcademicYearScopeGuardListener;
 import com.school.erp.common.enums.Enums;
 import jakarta.persistence.*;
+import org.hibernate.annotations.Filter;
 import java.time.LocalDate;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
+import com.school.erp.tenant.hibernate.AcademicYearScopedFilter;
 
 @Entity
+@EntityListeners(AcademicYearScopeGuardListener.class)
+@Filter(name = AcademicYearScopedFilter.NAME, condition = "academic_year_id = :academicYearId")
 @Table(name = "attendance_records", indexes = {@Index(name = "idx_att_tenant_class_date", columnList = "tenant_id, class_id, date"), @Index(name = "idx_att_student_date", columnList = "tenant_id, student_id, date")})
-public class AttendanceRecord extends BaseEntity {
+public class AttendanceRecord extends BaseEntity implements AcademicYearScopedEntity {
+    @Column(name = "academic_year_id")
+    private Long academicYearId;
     @Column(name = "student_id", nullable = false)
     private Long studentId;
+    @Override
+    public Long getAcademicYearId() {
+        return academicYearId;
+    }
+
+    @Override
+    public void setAcademicYearId(Long academicYearId) {
+        this.academicYearId = academicYearId;
+    }
+
     @Column(name = "student_name", length = 200)
     private String studentName;
     @Column(name = "class_id", nullable = false)

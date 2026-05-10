@@ -1,15 +1,22 @@
 package com.school.erp.modules.fees.entity;
 
 import com.school.erp.common.entity.BaseEntity;
+import com.school.erp.common.entity.AcademicYearScopedEntity;
+import com.school.erp.common.entity.AcademicYearScopeGuardListener;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EntityListeners;
 import jakarta.persistence.Index;
 import jakarta.persistence.Table;
+import org.hibernate.annotations.Filter;
+import com.school.erp.tenant.hibernate.AcademicYearScopedFilter;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Entity
+@EntityListeners(AcademicYearScopeGuardListener.class)
+@Filter(name = AcademicYearScopedFilter.NAME, condition = "academic_year_id = :academicYearId")
 @Table(
         name = "fee_payment_attempts",
         indexes = {
@@ -18,7 +25,9 @@ import java.time.LocalDateTime;
                 @Index(name = "idx_fpa_status", columnList = "tenant_id, status")
         }
 )
-public class FeePaymentAttempt extends BaseEntity {
+public class FeePaymentAttempt extends BaseEntity implements AcademicYearScopedEntity {
+    @Column(name = "academic_year_id", nullable = false)
+    private Long academicYearId;
     @Column(name = "fee_payment_id", nullable = false)
     private Long feePaymentId;
     @Column(name = "student_id", nullable = false)
@@ -31,6 +40,8 @@ public class FeePaymentAttempt extends BaseEntity {
     private String providerOrderId;
     @Column(name = "provider_payment_id", length = 100)
     private String providerPaymentId;
+    @Column(name = "operation_key", length = 120)
+    private String operationKey;
     @Column(name = "checkout_token", nullable = false, length = 120)
     private String checkoutToken;
     @Column(name = "currency", nullable = false, length = 10)
@@ -48,6 +59,11 @@ public class FeePaymentAttempt extends BaseEntity {
     @Column(name = "completed_at")
     private LocalDateTime completedAt;
 
+    @Override
+    public Long getAcademicYearId() { return academicYearId; }
+    @Override
+    public void setAcademicYearId(Long academicYearId) { this.academicYearId = academicYearId; }
+
     public Long getFeePaymentId() { return feePaymentId; }
     public void setFeePaymentId(Long feePaymentId) { this.feePaymentId = feePaymentId; }
     public Long getStudentId() { return studentId; }
@@ -60,6 +76,8 @@ public class FeePaymentAttempt extends BaseEntity {
     public void setProviderOrderId(String providerOrderId) { this.providerOrderId = providerOrderId; }
     public String getProviderPaymentId() { return providerPaymentId; }
     public void setProviderPaymentId(String providerPaymentId) { this.providerPaymentId = providerPaymentId; }
+    public String getOperationKey() { return operationKey; }
+    public void setOperationKey(String operationKey) { this.operationKey = operationKey; }
     public String getCheckoutToken() { return checkoutToken; }
     public void setCheckoutToken(String checkoutToken) { this.checkoutToken = checkoutToken; }
     public String getCurrency() { return currency; }

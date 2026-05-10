@@ -32,6 +32,7 @@ import java.util.List;
 @EnableConfigurationProperties(AppSecurityProperties.class)
 public class SecurityConfig {
     private final JwtAuthenticationFilter jwtFilter;
+    private final AcademicYearContextFilter academicYearContextFilter;
     private final AppSecurityProperties appSecurityProperties;
     private final ObjectProvider<IdempotencyFilter> idempotencyFilter;
 
@@ -54,7 +55,10 @@ public class SecurityConfig {
                     auth.requestMatchers(HttpMethod.POST, "/api/v1/auth/onboard-tenant").permitAll();
                     auth.requestMatchers(HttpMethod.POST, "/api/v1/auth/refresh-token").permitAll();
                     auth.requestMatchers(HttpMethod.POST, "/api/v1/auth/logout").permitAll();
+                    auth.requestMatchers(HttpMethod.POST, "/api/v1/auth/email-verification/confirm").permitAll();
                     auth.requestMatchers("/api/v1/fees/webhooks/**").permitAll();
+                    auth.requestMatchers("/api/v1/payroll/webhooks/**").permitAll();
+                    auth.requestMatchers("/api/v1/notifications/webhooks/**").permitAll();
                     if (appSecurityProperties.isPermitSwaggerAnonymous()) {
                         auth.requestMatchers("/swagger-ui/**", "/swagger-ui.html", "/api-docs/**", "/v3/api-docs/**").permitAll();
                     } else {
@@ -73,7 +77,8 @@ public class SecurityConfig {
                     auth.requestMatchers(HttpMethod.OPTIONS, "/**").permitAll();
                     auth.anyRequest().authenticated();
                 })
-                .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
+                .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class)
+                .addFilterAfter(academicYearContextFilter, JwtAuthenticationFilter.class);
         idempotencyFilter.ifAvailable(f -> http.addFilterAfter(f, JwtAuthenticationFilter.class));
         return http.build();
     }
@@ -108,9 +113,11 @@ public class SecurityConfig {
 
     public SecurityConfig(
             final JwtAuthenticationFilter jwtFilter,
+            final AcademicYearContextFilter academicYearContextFilter,
             final AppSecurityProperties appSecurityProperties,
             ObjectProvider<IdempotencyFilter> idempotencyFilter) {
         this.jwtFilter = jwtFilter;
+        this.academicYearContextFilter = academicYearContextFilter;
         this.appSecurityProperties = appSecurityProperties;
         this.idempotencyFilter = idempotencyFilter;
     }

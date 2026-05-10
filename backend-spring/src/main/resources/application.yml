@@ -31,11 +31,15 @@ spring:
     password: ${DEV_DB_PASSWORD:Arif@#123}
     driver-class-name: ${DB_DRIVER:com.mysql.cj.jdbc.Driver}
     hikari:
+      pool-name: ${DB_POOL_NAME:school-erp-hikari}
       maximum-pool-size: ${DB_POOL_MAX:20}
       minimum-idle: ${DB_POOL_MIN_IDLE:5}
       idle-timeout: ${DB_POOL_IDLE_TIMEOUT_MS:300000}
       max-lifetime: ${DB_POOL_MAX_LIFETIME_MS:600000}
       connection-timeout: ${DB_POOL_CONNECTION_TIMEOUT_MS:20000}
+      validation-timeout: ${DB_POOL_VALIDATION_TIMEOUT_MS:5000}
+      keepalive-time: ${DB_POOL_KEEPALIVE_MS:120000}
+      leak-detection-threshold: ${DB_POOL_LEAK_DETECTION_MS:0}
 
   jpa:
     hibernate:
@@ -85,6 +89,7 @@ spring:
 
 
   rabbitmq:
+    # Defaults suit local Docker / compose. Override with RABBITMQ_* or SPRING_RABBITMQ_URI for managed brokers.
     host: ${RABBITMQ_HOST:localhost}
     port: ${RABBITMQ_PORT:5672}
     username: ${RABBITMQ_USERNAME:guest}
@@ -110,6 +115,8 @@ resilience4j:
         baseConfig: default
       emailProvider:
         baseConfig: default
+      smsProvider:
+        baseConfig: default
       partnerWebhook:
         baseConfig: default
   retry:
@@ -122,19 +129,130 @@ resilience4j:
         baseConfig: default
       emailProvider:
         baseConfig: default
+      smsProvider:
+        baseConfig: default
       partnerWebhook:
         baseConfig: default
 
 app:
+  # Bulk import (ZIP / CSV / XLSX). Tune per deployment for 10k+ row schools.
+  import:
+    max-rows-per-file: ${APP_IMPORT_MAX_ROWS:50000}
+    orchestrator-page-size: ${APP_IMPORT_ORCH_PAGE_SIZE:500}
+    yield-sleep-millis-between-pages: ${APP_IMPORT_YIELD_MS:0}
+    persist-job-lines-batch-size: ${APP_IMPORT_PERSIST_LINES_BATCH:500}
+    dry-run-max-sample-errors: ${APP_IMPORT_DRY_RUN_MAX_ERRORS:200}
+    max-concurrent-import-jobs-per-jvm: ${APP_IMPORT_MAX_CONCURRENT_JOBS_JVM:8}
+    cluster-submit-lock-enabled: ${APP_IMPORT_CLUSTER_SUBMIT_LOCK:true}
+    cluster-submit-lock-ttl-seconds: ${APP_IMPORT_CLUSTER_LOCK_TTL:180}
+    cluster-submit-lock-acquire-attempts: ${APP_IMPORT_CLUSTER_LOCK_ATTEMPTS:25}
+    executor-core-pool-size: ${APP_IMPORT_EXEC_CORE:2}
+    executor-max-pool-size: ${APP_IMPORT_EXEC_MAX:8}
+    executor-queue-capacity: ${APP_IMPORT_EXEC_QUEUE:200}
+    completed-job-idempotency-enabled: ${APP_IMPORT_COMPLETED_IDEM_ENABLED:true}
+    allow-reprocess-override: ${APP_IMPORT_ALLOW_REPROCESS_OVERRIDE:true}
+    max-all-or-nothing-rows: ${APP_IMPORT_MAX_AON_ROWS:3000}
+    stuck-running-threshold-minutes: ${APP_IMPORT_STUCK_MIN:120}
+    stuck-job-poll-interval-ms: ${APP_IMPORT_STUCK_POLL_MS:300000}
+    create-only-duplicate-block-enabled: ${APP_IMPORT_CO_DUP_BLOCK:true}
+    create-only-duplicate-max-ratio: ${APP_IMPORT_CO_DUP_MAX_RATIO:0.40}
+
+  auth:
+    email-verification:
+      token-ttl-hours: ${AUTH_EMAIL_VER_TTL:48}
+      # Default false; profile dev/local override to true so local verification works without APP_INTEGRATION_EMAIL_TRIGGER_URL.
+      expose-plain-token-in-api-response: ${AUTH_EMAIL_EXPOSE_TOKEN:false}
+      request-cooldown-seconds: ${AUTH_EMAIL_VER_COOLDOWN_SECONDS:60}
+      # Public HTTPS (or http://localhost:4200) origin of the Angular SPA, no trailing slash. Used to build
+      # /verify-email?token=… for email triggers. Primary: AUTH_EMAIL_VER_*; alias: APP_PUBLIC_SPA_BASE_URL.
+      # Profile dev/local default to http://localhost:4200; prod-like profiles must set one of the env vars.
+      public-spa-base-url: ${AUTH_EMAIL_VER_PUBLIC_SPA_BASE_URL:${APP_PUBLIC_SPA_BASE_URL:}}
+
+  fees:
+    reconciliation:
+      enabled: ${APP_FEES_RECON_ENABLED:true}
+      poll-interval-ms: ${APP_FEES_RECON_POLL_MS:300000}
+      stale-timeout-minutes: ${APP_FEES_STALE_TIMEOUT_MIN:15}
+
+  payroll:
+    payout:
+      provider: ${APP_PAYROLL_PAYOUT_PROVIDER:mock}
+      razorpayx:
+        key-id: ${APP_PAYROLL_RAZORPAYX_KEY_ID:}
+        key-secret: ${APP_PAYROLL_RAZORPAYX_KEY_SECRET:}
+        webhook-secret: ${APP_PAYROLL_RAZORPAYX_WEBHOOK_SECRET:}
+        account-number: ${APP_PAYROLL_RAZORPAYX_ACCOUNT_NUMBER:}
+        contact-prefix: ${APP_PAYROLL_RAZORPAYX_CONTACT_PREFIX:teacher-}
+        dry-run: ${APP_PAYROLL_RAZORPAYX_DRY_RUN:true}
+    reconciliation:
+      enabled: ${APP_PAYROLL_RECON_ENABLED:true}
+      poll-interval-ms: ${APP_PAYROLL_RECON_POLL_MS:300000}
+      max-batch-size-per-tenant: ${APP_PAYROLL_RECON_BATCH:50}
+      stale-submitted-threshold-minutes: ${APP_PAYROLL_RECON_STALE_SUBMITTED_MIN:30}
+
+  finance:
+    webhook-retention:
+      enabled: ${APP_FINANCE_WEBHOOK_RETENTION_ENABLED:true}
+      days: ${APP_FINANCE_WEBHOOK_RETENTION_DAYS:180}
+      cron: ${APP_FINANCE_WEBHOOK_RETENTION_CRON:0 20 2 * * *}
+
   integration:
     # Optional HTTP hooks for domain-event side effects (empty = no outbound calls).
     email:
+      # auto | sendgrid | brevo | ses | http | none
+      # AUTO order: SendGrid → Brevo → Amazon SES → HTTP trigger.
+      dispatch:
+        provider: ${APP_INTEGRATION_EMAIL_PROVIDER:auto}
+      # Legacy / partner: POST JSON to your worker. Used when provider=http or as AUTO fallback.
       trigger-url: ${APP_INTEGRATION_EMAIL_TRIGGER_URL:}
+      # Direct transactional (server-to-server). Set secrets per chosen provider; verify sender in provider UI.
+      sendgrid:
+        api-key: ${SENDGRID_API_KEY:}
+        from-email: ${EMAIL_VERIFICATION_FROM_EMAIL:}
+        from-name: ${EMAIL_VERIFICATION_FROM_NAME:School Vault}
+        subject: ${EMAIL_VERIFICATION_SUBJECT:Verify your email}
+      brevo:
+        api-key: ${BREVO_API_KEY:}
+        from-email: ${BREVO_FROM_EMAIL:${EMAIL_VERIFICATION_FROM_EMAIL:}}
+        from-name: ${BREVO_FROM_NAME:${EMAIL_VERIFICATION_FROM_NAME:School Vault}}
+        subject: ${BREVO_SUBJECT:${EMAIL_VERIFICATION_SUBJECT:Verify your email}}
+      # Amazon SES (use IAM in AWS; in sandbox verify sender + destination or production access).
+      ses:
+        region: ${AWS_SES_REGION:us-east-1}
+        from-email: ${AWS_SES_FROM_EMAIL:${EMAIL_VERIFICATION_FROM_EMAIL:}}
+        from-name: ${AWS_SES_FROM_NAME:${EMAIL_VERIFICATION_FROM_NAME:School Vault}}
+        subject: ${AWS_SES_SUBJECT:${EMAIL_VERIFICATION_SUBJECT:Verify your email}}
+        use-default-credential-chain: ${AWS_SES_USE_DEFAULT_CREDS:true}
+        access-key: ${AWS_SES_ACCESS_KEY:}
+        secret-key: ${AWS_SES_SECRET_KEY:}
     webhook:
       url: ${APP_INTEGRATION_WEBHOOK_URL:}
 
+  communication:
+    events:
+      scheduler:
+        enabled: ${APP_COMM_EVENTS_SCHEDULER_ENABLED:true}
+        poll-ms: ${APP_COMM_EVENTS_SCHEDULER_POLL_MS:60000}
+        tenant-limit: ${APP_COMM_EVENTS_SCHEDULER_TENANT_LIMIT:100}
+        batch-size: ${APP_COMM_EVENTS_SCHEDULER_BATCH_SIZE:100}
+    retention:
+      # Soft-delete announcements + notifications + stale communication events older than N months.
+      enabled: ${APP_COMM_RETENTION_ENABLED:false}
+      dry-run: ${APP_COMM_RETENTION_DRY_RUN:true}
+      months: ${APP_COMM_RETENTION_MONTHS:6}
+      cron: ${APP_COMM_RETENTION_CRON:0 20 3 * * SUN}
+      tenant-ids: ${APP_COMM_RETENTION_TENANT_IDS:}
+      allow-all-tenants: ${APP_COMM_RETENTION_ALLOW_ALL_TENANTS:false}
+
   demo-seed:
     enabled: ${DEMO_SEED_ENABLED:false}
+    step-pause-ms: ${DEMO_SEED_STEP_PAUSE_MS:800}
+    batch-size: ${DEMO_SEED_BATCH_SIZE:20}
+    teacher-count: ${DEMO_SEED_TEACHER_COUNT:36}
+    students-per-section: ${DEMO_SEED_STUDENTS_PER_SECTION:15}
+    warehouse:
+      enabled: ${DEMO_SEED_WAREHOUSE_ENABLED:false}
+      include-snapshot-seed: ${DEMO_SEED_INCLUDE_SNAPSHOT_SEED:true}
 
   # Read replica JDBC URL — leave empty to disable routing (single primary only).
   datasource:
@@ -142,6 +260,10 @@ app:
       # Dev/staging: log SQL slower than threshold. Prod: enable only when diagnosing (adds proxy overhead).
       enabled: ${APP_DATASOURCE_SLOW_QUERY_ENABLED:false}
       threshold-ms: ${APP_DATASOURCE_SLOW_QUERY_THRESHOLD_MS:1000}
+    hikari-preset:
+      # Optional preset for fast sizing by environment: none|small|medium|large.
+      # Use with care when explicit spring.datasource.hikari values are already tuned.
+      profile: ${APP_DATASOURCE_HIKARI_PRESET:none}
     read:
       url: ${READ_DATASOURCE_URL:}
       username: ${READ_DB_USERNAME:}
@@ -186,19 +308,59 @@ app:
       library-issues: ${CACHE_TTL_LIBRARY_ISSUES:4m}
       fees-catalog: ${CACHE_TTL_FEES_CATALOG:45m}
       timetable-grid: ${CACHE_TTL_TIMETABLE_GRID:20m}
+    # Cache observability: INFO logs CACHE source=loader (miss → DB/compute); DEBUG logs source=redis (hit).
+    # Set LOG_LEVEL_CACHE_ACCESS=DEBUG to include hits in prod; default INFO shows misses only.
+    access-log:
+      enabled: ${APP_CACHE_ACCESS_LOG_ENABLED:true}
+      log-hits: ${APP_CACHE_ACCESS_LOG_HITS:true}
+      log-miss-loads: ${APP_CACHE_ACCESS_LOG_MISS_LOADS:true}
+      key-privacy: ${APP_CACHE_ACCESS_LOG_KEY_PRIVACY:HASH}
+      truncate-length: ${APP_CACHE_ACCESS_LOG_TRUNCATE_LEN:48}
   jwt:
     secret: ${JWT_SECRET:c2Nob29sLWVycC1zZWNyZXQta2V5LWZvci1qd3QtdG9rZW4tZ2VuZXJhdGlvbi0yMDI2}
     expiration-ms: ${JWT_EXPIRATION_MS:86400000}
     refresh-expiration-ms: ${JWT_REFRESH_EXPIRATION_MS:604800000}
+    # When true, omit long permissions CSV in JWT; authorities resolved from DB per request (cached; evicted on RBAC writes).
+    slim-permissions: ${JWT_SLIM_PERMISSIONS:false}
 
   dev:
     mode: ${APP_DEV_MODE:false}
 
   sms:
     provider: ${APP_SMS_PROVIDER:MOCK}
+    routing:
+      enabled: ${APP_SMS_ROUTING_ENABLED:false}
+      # First healthy provider wins. Add or reorder for failover (e.g. SPRING_EDGE,MSG91).
+      priority: ${APP_SMS_ROUTING_PRIORITY:MSG91,TWILIO,AWS_SNS,SPRING_EDGE,MOCK}
+      skip-unhealthy: ${APP_SMS_ROUTING_SKIP_UNHEALTHY:true}
+    providers:
+      mock:
+        enabled: ${APP_SMS_PROVIDER_MOCK_ENABLED:false}
+      msg91:
+        enabled: ${APP_SMS_PROVIDER_MSG91_ENABLED:false}
+      twilio:
+        enabled: ${APP_SMS_PROVIDER_TWILIO_ENABLED:false}
+      aws-sns:
+        enabled: ${APP_SMS_PROVIDER_AWS_SNS_ENABLED:false}
+      springedge:
+        enabled: ${APP_SMS_PROVIDER_SPRINGEDGE_ENABLED:false}
     msg91:
       auth-key: ${APP_SMS_MSG91_AUTH_KEY:}
       sender-id: ${APP_SMS_MSG91_SENDER_ID:}
+      base-url: ${APP_SMS_MSG91_BASE_URL:https://control.msg91.com}
+      route: ${APP_SMS_MSG91_ROUTE:4}
+      country: ${APP_SMS_MSG91_COUNTRY:91}
+      healthcheck-enabled: ${APP_SMS_MSG91_HEALTHCHECK_ENABLED:false}
+      healthcheck-path: ${APP_SMS_MSG91_HEALTHCHECK_PATH:/api/v5/checkBalance}
+    springedge:
+      api-key: ${APP_SMS_SPRINGEDGE_API_KEY:}
+      sender-id: ${APP_SMS_SPRINGEDGE_SENDER_ID:}
+      # POST {base}/v1/sms/send (Bearer API key). Path suffix configurable for API version changes.
+      base-url: ${APP_SMS_SPRINGEDGE_BASE_URL:https://api.springedge.com}
+      path: ${APP_SMS_SPRINGEDGE_PATH:/v1/sms/send}
+      # transactional = DLT-style India delivery; promotional has time window restrictions.
+      message-type: ${APP_SMS_SPRINGEDGE_MESSAGE_TYPE:transactional}
+      healthcheck-enabled: ${APP_SMS_SPRINGEDGE_HEALTHCHECK_ENABLED:false}
 
   otp:
     length: ${APP_OTP_LENGTH:6}
@@ -221,6 +383,29 @@ app:
       cron: ${APP_OTP_CLEANUP_CRON:0 10 */6 * * *}
       terminal-retention-hours: ${APP_OTP_CLEANUP_TERMINAL_RETENTION_HOURS:24}
 
+  notification:
+    outbox:
+      enabled: ${APP_NOTIFICATION_OUTBOX_ENABLED:true}
+      batch-size: ${APP_NOTIFICATION_OUTBOX_BATCH_SIZE:100}
+      poll-ms: ${APP_NOTIFICATION_OUTBOX_POLL_MS:15000}
+      max-rounds-per-tick: ${APP_NOTIFICATION_OUTBOX_MAX_ROUNDS_PER_TICK:5}
+    delivery:
+      sms-max-attempts: ${APP_NOTIFICATION_DELIVERY_SMS_MAX_ATTEMPTS:4}
+      whatsapp-max-attempts: ${APP_NOTIFICATION_DELIVERY_WHATSAPP_MAX_ATTEMPTS:4}
+      email-max-attempts: ${APP_NOTIFICATION_DELIVERY_EMAIL_MAX_ATTEMPTS:5}
+      in-app-max-attempts: ${APP_NOTIFICATION_DELIVERY_IN_APP_MAX_ATTEMPTS:3}
+      per-user-per-hour-limit: ${APP_NOTIFICATION_DELIVERY_PER_USER_HOURLY_LIMIT:40}
+      tenant-daily-budget-minor: ${APP_NOTIFICATION_DELIVERY_TENANT_DAILY_BUDGET_MINOR:200000}
+      sms-estimated-cost-minor: ${APP_NOTIFICATION_DELIVERY_SMS_ESTIMATED_COST_MINOR:25}
+      whatsapp-estimated-cost-minor: ${APP_NOTIFICATION_DELIVERY_WHATSAPP_ESTIMATED_COST_MINOR:35}
+      email-estimated-cost-minor: ${APP_NOTIFICATION_DELIVERY_EMAIL_ESTIMATED_COST_MINOR:5}
+      webhook-secret: ${APP_NOTIFICATION_DELIVERY_WEBHOOK_SECRET:}
+      quiet-hours-start: ${APP_NOTIFICATION_DELIVERY_QUIET_HOURS_START:22:00}
+      quiet-hours-end: ${APP_NOTIFICATION_DELIVERY_QUIET_HOURS_END:07:00}
+      quiet-hours-timezone: ${APP_NOTIFICATION_DELIVERY_QUIET_HOURS_TIMEZONE:Asia/Kolkata}
+      # we need to keep this value as true when integrating the sms servvie :APP_NOTIFICATION_DELIVERY_ENFORCE_DLT_TEMPLATE_FOR_SMS : true
+      enforce-dlt-template-for-sms: ${APP_NOTIFICATION_DELIVERY_ENFORCE_DLT_TEMPLATE_FOR_SMS:true}
+
   cors:
     allowed-origins: ${CORS_ORIGINS:http://localhost:3000,http://localhost:4200}
     allowed-methods: ${CORS_ALLOWED_METHODS:GET,POST,PUT,DELETE,PATCH,OPTIONS}
@@ -235,15 +420,24 @@ app:
       enabled: ${APP_JOBS_REMINDERS_ENABLED:true}
       external-scheduler-only: ${APP_JOBS_REMINDERS_EXTERNAL_ONLY:false}
 
-  communication:
+  hostel:
+    billing:
+      nightly-cron: ${APP_HOSTEL_BILLING_NIGHTLY_CRON:0 10 1 * * *}
+    incident:
+      sla-cron: ${APP_HOSTEL_INCIDENT_SLA_CRON:0 */20 * * * *}
+      low-severity-sla-minutes: ${APP_HOSTEL_INCIDENT_SLA_LOW_MIN:480}
+      medium-severity-sla-minutes: ${APP_HOSTEL_INCIDENT_SLA_MEDIUM_MIN:240}
+      high-severity-sla-minutes: ${APP_HOSTEL_INCIDENT_SLA_HIGH_MIN:120}
+      critical-severity-sla-minutes: ${APP_HOSTEL_INCIDENT_SLA_CRITICAL_MIN:60}
+
+  audit:
     retention:
-      # Soft-delete announcements + tenant notifications older than N months (per-tenant). Safe defaults: off + dry-run.
-      enabled: ${APP_COMM_RETENTION_ENABLED:false}
-      dry-run: ${APP_COMM_RETENTION_DRY_RUN:true}
-      months: ${APP_COMM_RETENTION_MONTHS:8}
-      cron: ${APP_COMM_RETENTION_CRON:0 20 3 * * SUN}
-      tenant-ids: ${APP_COMM_RETENTION_TENANT_IDS:}
-      allow-all-tenants: ${APP_COMM_RETENTION_ALLOW_ALL_TENANTS:false}
+      # Evict audit rows older than N months. Default keeps two months.
+      enabled: ${APP_AUDIT_RETENTION_ENABLED:true}
+      dry-run: ${APP_AUDIT_RETENTION_DRY_RUN:false}
+      months: ${APP_AUDIT_RETENTION_MONTHS:2}
+      # Every two months on day 1 at 02:05.
+      cron: ${APP_AUDIT_RETENTION_CRON:0 5 2 1 */2 *}
 
   internal-jobs:
     # Set APP_INTERNAL_JOB_KEY for POST /api/v1/internal/jobs/reminders/run (Render Cron). Empty = endpoint hidden (404).
@@ -259,6 +453,17 @@ app:
   reports:
     # oltp = JPA (default). warehouse = WarehouseReportQueryAdapter (delegates to OLTP until analytics JDBC is implemented).
     backend: ${APP_REPORTS_BACKEND:oltp}
+    dashboard:
+      # Windowed list cards for lightweight UX: upcoming = next N days, recent = last N days.
+      upcoming-window-days: ${APP_REPORTS_DASHBOARD_UPCOMING_WINDOW_DAYS:7}
+      recent-window-days: ${APP_REPORTS_DASHBOARD_RECENT_WINDOW_DAYS:7}
+    snapshots:
+      # strict_realtime = always recompute realtime snapshot types; realtime_with_microcache = allow tiny cache (10-20s) for them.
+      freshness-mode: ${APP_REPORTS_SNAPSHOT_FRESHNESS_MODE:strict_realtime}
+      # Used only in realtime_with_microcache mode; hard-capped in code for safety.
+      microcache-ttl-seconds: ${APP_REPORTS_MICROCACHE_TTL_SECONDS:15}
+      # Real-time guard for dashboard APIs. Use exact names or wildcard prefixes (e.g., DASHBOARD_*).
+      realtime-snapshot-types: ${APP_REPORTS_REALTIME_SNAPSHOT_TYPES:DASHBOARD_*}
 
   lifecycle:
     purge:
@@ -274,6 +479,39 @@ app:
       enabled: ${APP_LIFECYCLE_ARCHIVE_ENABLED:false}
       dry-run: ${APP_LIFECYCLE_ARCHIVE_DRY_RUN:true}
       cron: ${APP_LIFECYCLE_ARCHIVE_CRON:0 30 2 * * SAT}
+      lag-warn-days: ${APP_LIFECYCLE_ARCHIVE_LAG_WARN_DAYS:2}
+      lag-critical-days: ${APP_LIFECYCLE_ARCHIVE_LAG_CRITICAL_DAYS:5}
+    academic-year-archive:
+      enabled: ${APP_LIFECYCLE_ACADEMIC_YEAR_ARCHIVE_ENABLED:false}
+      dry-run: ${APP_LIFECYCLE_ACADEMIC_YEAR_ARCHIVE_DRY_RUN:true}
+      cron: ${APP_LIFECYCLE_ACADEMIC_YEAR_ARCHIVE_CRON:0 40 2 * * SUN}
+      batch-size: ${APP_LIFECYCLE_ACADEMIC_YEAR_ARCHIVE_BATCH_SIZE:5000}
+      grace-days-after-end: ${APP_LIFECYCLE_ACADEMIC_YEAR_ARCHIVE_GRACE_DAYS:30}
+    storage:
+      missing-files-warn: ${APP_LIFECYCLE_STORAGE_MISSING_WARN:10}
+      missing-files-critical: ${APP_LIFECYCLE_STORAGE_MISSING_CRITICAL:30}
+      reconcile-max-sample: ${APP_LIFECYCLE_STORAGE_RECONCILE_MAX_SAMPLE:20}
+  data-lifecycle:
+    # HOT/WARM/COLD policy by academic year recency per tenant.
+    hot-window-years: ${APP_DATA_LIFECYCLE_HOT_WINDOW_YEARS:1}
+    warm-window-years: ${APP_DATA_LIFECYCLE_WARM_WINDOW_YEARS:3}
+    archive-after-years: ${APP_DATA_LIFECYCLE_ARCHIVE_AFTER_YEARS:5}
+    cold-reads-read-only: ${APP_DATA_LIFECYCLE_COLD_READS_READ_ONLY:true}
+
+  observability:
+    api-timing:
+      enabled: ${APP_OBSERVABILITY_API_TIMING_ENABLED:true}
+    slo:
+      report-read-p95-warn-ms: ${APP_OBS_SLO_REPORT_P95_WARN_MS:800}
+      report-read-p95-critical-ms: ${APP_OBS_SLO_REPORT_P95_CRITICAL_MS:1500}
+      snapshot-hit-rate-warn-pct: ${APP_OBS_SLO_SNAPSHOT_HIT_WARN_PCT:70}
+      snapshot-hit-rate-critical-pct: ${APP_OBS_SLO_SNAPSHOT_HIT_CRITICAL_PCT:50}
+      snapshot-refresh-backlog-warn: ${APP_OBS_SLO_SNAPSHOT_BACKLOG_WARN:50}
+      snapshot-refresh-backlog-critical: ${APP_OBS_SLO_SNAPSHOT_BACKLOG_CRITICAL:120}
+      db-pool-pending-warn: ${APP_OBS_SLO_DB_PENDING_WARN:5}
+      db-pool-pending-critical: ${APP_OBS_SLO_DB_PENDING_CRITICAL:12}
+      jvm-heap-warn-pct: ${APP_OBS_SLO_JVM_HEAP_WARN_PCT:85}
+      jvm-heap-critical-pct: ${APP_OBS_SLO_JVM_HEAP_CRITICAL_PCT:93}
 
   analytics:
     datasource:
@@ -316,17 +554,30 @@ management:
   endpoints:
     web:
       exposure:
-        include: ${MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE:health,info,metrics}
+        include: ${MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE:health,info,metrics,prometheus}
   endpoint:
     health:
       show-details: ${MANAGEMENT_HEALTH_SHOW_DETAILS:when-authorized}
+  metrics:
+    tags:
+      application: ${SPRING_APPLICATION_NAME:school-erp}
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
+        erp.api.latency: true
+        erp.db.query.latency: true
+      slo:
+        http.server.requests: 100ms,250ms,500ms,1s,2s,5s
+        erp.api.latency: 100ms,250ms,500ms,1s,2s,5s
+        erp.db.query.latency: 50ms,100ms,250ms,500ms,1s,2s
 
 logging:
   # Render-friendly single line: correlation + tenant/user from MDC (see CorrelationMdcFilter, JwtAuthenticationFilter).
   pattern:
-    console: "%d{yyyy-MM-dd'T'HH:mm:ss.SSSXXX} %-5level [${spring.application.name}] [%thread] [corr:%X{correlationId:-}] [trace:%X{traceId:-}] [tenant:%X{tenantId:-}] [user:%X{userId:-}] [role:%X{userRole:-}] %logger{40} : %msg%n%wEx"
+    console: "%d{yyyy-MM-dd'T'HH:mm:ss.SSSXXX} %-5level [${spring.application.name}] [%thread] [corr:%X{correlationId:-}] [trace:%X{traceId:-}] [tenant:%X{tenantId:-}] [user:%X{userId:-}] [role:%X{userRole:-}] [importJob:%X{importJobId:-}] %logger{40} : %msg%n%wEx"
   level:
     com.school.erp: ${LOG_LEVEL_APP:INFO}
+    com.school.erp.cache.access: ${LOG_LEVEL_CACHE_ACCESS:INFO}
     com.school.erp.common.logging: ${LOG_LEVEL_APP_HTTP:INFO}
     org.hibernate.SQL: ${LOG_LEVEL_HIBERNATE_SQL:WARN}
     org.hibernate.orm.jdbc.bind: ${LOG_LEVEL_HIBERNATE_BIND:WARN}

@@ -71,6 +71,8 @@ export class ErpDatePickerComponent
   @Input() placeholderI18nKey = '';
   @Input() minDate: string | Date | undefined;
   @Input() maxDate: string | Date | undefined;
+  /** date = YYYY-MM-DD, datetime = YYYY-MM-DDTHH:mm */
+  @Input() mode: 'date' | 'datetime' = 'date';
 
   @ViewChild('host', { static: true }) hostRef!: ElementRef<HTMLInputElement>;
 
@@ -100,14 +102,19 @@ export class ErpDatePickerComponent
 
   ngAfterViewInit(): void {
     const el = this.hostRef.nativeElement;
+    const isDateTime = this.mode === 'datetime';
     const opts: Partial<FlatpickrOptions> = {
-      dateFormat: 'Y-m-d',
+      dateFormat: isDateTime ? 'Y-m-d\\TH:i' : 'Y-m-d',
       altInput: true,
-      altFormat: 'd/m/Y',
+      altFormat: isDateTime ? 'd-m-Y H:i' : 'd-m-Y',
+      enableTime: isDateTime,
+      time_24hr: true,
       altInputClass: 'erp-input erp-date-picker__visible',
       allowInput: false,
       clickOpens: !this.isDisabled,
       disableMobile: true,
+      /** Keep calendar aligned to its own field (left edge) across forms/modals. */
+      position: 'auto left',
       monthSelectorType: 'static',
       defaultDate: this.value || undefined,
       minDate: this.minDate,
@@ -117,7 +124,9 @@ export class ErpDatePickerComponent
         this.onChange(dateStr);
       },
       onOpen: () => this.onTouched(),
-      onReady: (_d, _s, inst) => this.attachFooter(inst),
+      onReady: (_d, _s, inst) => {
+        this.attachFooter(inst);
+      },
     };
     this.fp = flatpickr(el, opts);
     this.syncFlatpickrPlaceholders();
@@ -183,11 +192,15 @@ export class ErpDatePickerComponent
   private attachFooter(inst: FlatpickrInstance): void {
     const cal = inst.calendarContainer;
     if (!cal || cal.querySelector('.erp-fp-footer')) return;
+    const clearLabel = this.resolveLabel('common.clear', 'Clear');
+    const todayLabel = this.resolveLabel('common.today', 'Today');
+    const applyLabel = this.resolveLabel('common.apply', 'Apply');
     const foot = document.createElement('div');
     foot.className = 'erp-fp-footer';
     foot.innerHTML =
-      '<button type="button" class="erp-fp-footer__btn" data-act="clear">Clear</button>' +
-      '<button type="button" class="erp-fp-footer__btn erp-fp-footer__btn--primary" data-act="today">Today</button>';
+      `<button type="button" class="erp-fp-footer__btn" data-act="clear">${clearLabel}</button>` +
+      `<button type="button" class="erp-fp-footer__btn" data-act="today">${todayLabel}</button>` +
+      `<button type="button" class="erp-fp-footer__btn erp-fp-footer__btn--primary" data-act="apply">${applyLabel}</button>`;
     foot.addEventListener('click', ev => {
       const t = ev.target as HTMLElement;
       const act = t.closest('[data-act]')?.getAttribute('data-act');
@@ -199,9 +212,17 @@ export class ErpDatePickerComponent
       }
       if (act === 'today') {
         inst.setDate(new Date(), true);
+      }
+      if (act === 'apply') {
         inst.close();
       }
     });
     cal.appendChild(foot);
   }
+
+  private resolveLabel(key: string, fallback: string): string {
+    const value = this.translate.instant(key);
+    return value && value !== key ? value : fallback;
+  }
+
 }

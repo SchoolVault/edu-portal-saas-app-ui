@@ -1,15 +1,34 @@
 package com.school.erp.modules.leave.entity;
 
 import com.school.erp.common.entity.BaseEntity;
+import com.school.erp.common.entity.AcademicYearScopedEntity;
+import com.school.erp.common.entity.AcademicYearScopeGuardListener;
 import com.school.erp.common.enums.Enums;
 import jakarta.persistence.*;
 import java.time.LocalDate;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
+import org.hibernate.annotations.Filter;
+import com.school.erp.tenant.hibernate.AcademicYearScopedFilter;
 
 @Entity
+@EntityListeners(AcademicYearScopeGuardListener.class)
+@Filter(name = AcademicYearScopedFilter.NAME, condition = "academic_year_id = :academicYearId")
 @Table(name = "leave_requests", indexes = {@Index(name = "idx_leave_tenant_status", columnList = "tenant_id, status"), @Index(name = "idx_leave_applicant", columnList = "tenant_id, applicant_user_id")})
-public class LeaveRequest extends BaseEntity {
+public class LeaveRequest extends BaseEntity implements AcademicYearScopedEntity {
+
+    @Column(name = "academic_year_id")
+    private Long academicYearId;
+    @Override
+    public Long getAcademicYearId() {
+        return academicYearId;
+    }
+
+    @Override
+    public void setAcademicYearId(Long academicYearId) {
+        this.academicYearId = academicYearId;
+    }
+
 
     @Column(name = "applicant_user_id", nullable = false)
     private Long applicantUserId;
