@@ -27,6 +27,15 @@ export interface HostelStats {
   blocks: number;
 }
 
+export interface HostelAnalyticsSnapshot {
+  occupancyPct: number;
+  overcrowdedRooms: number;
+  nearCapacityRooms: number;
+  openIncidents: number;
+  escalatedIncidents: number;
+  avgIncidentSlaMinutes: number;
+}
+
 let MOCK_BUILDINGS: HostelBuilding[] = MOCK_HOSTEL_BUILDINGS_SEED.map(b => ({ ...b }));
 
 let MOCK_ROOMS: HostelRoom[] = MOCK_HOSTEL_ROOMS_SEED.map(r => ({
@@ -124,6 +133,99 @@ export class HostelService {
       map(rows => sliceToPage(rows ?? [], page, size)),
       delay(200)
     );
+  }
+
+  getAnalyticsSnapshot(): Observable<HostelAnalyticsSnapshot> {
+    if (runtimeConfig.useMocks) {
+      return of({
+        occupancyPct: 72,
+        overcrowdedRooms: 1,
+        nearCapacityRooms: 3,
+        openIncidents: 2,
+        escalatedIncidents: 1,
+        avgIncidentSlaMinutes: 118,
+      });
+    }
+    return this.api.get<any>('/hostel/analytics/snapshot').pipe(
+      map(r => ({
+        occupancyPct: Number(r.occupancyPct ?? 0),
+        overcrowdedRooms: Number(r.overcrowdedRooms ?? 0),
+        nearCapacityRooms: Number(r.nearCapacityRooms ?? 0),
+        openIncidents: Number(r.openIncidents ?? 0),
+        escalatedIncidents: Number(r.escalatedIncidents ?? 0),
+        avgIncidentSlaMinutes: Number(r.avgIncidentSlaMinutes ?? 0),
+      }))
+    );
+  }
+
+  listOccupancyRecommendations(): Observable<Array<{
+    fromRoomId: string;
+    fromRoomNumber: string;
+    toRoomId: string;
+    toRoomNumber: string;
+    occupancyPressureDiff: number;
+    rationale: string;
+  }>> {
+    if (runtimeConfig.useMocks) {
+      return of([]);
+    }
+    return this.api.get<any[]>('/hostel/occupancy/recommendations').pipe(
+      map(rows => (rows || []).map(r => ({
+        fromRoomId: String(r.fromRoomId),
+        fromRoomNumber: r.fromRoomNumber ?? '',
+        toRoomId: String(r.toRoomId),
+        toRoomNumber: r.toRoomNumber ?? '',
+        occupancyPressureDiff: Number(r.occupancyPressureDiff ?? 0),
+        rationale: r.rationale ?? '',
+      })))
+    );
+  }
+
+  exportAnalyticsCsv(): Observable<Blob> {
+    if (runtimeConfig.useMocks) {
+      return of(new Blob(['metric,value\noccupancy_pct,0\n'], { type: 'text/csv;charset=UTF-8' }));
+    }
+    return this.api.getBlob('/hostel/analytics/export.csv');
+  }
+
+  exportAnalyticsPdf(): Observable<Blob> {
+    if (runtimeConfig.useMocks) {
+      return of(new Blob(['Hostel analytics export'], { type: 'application/pdf' }));
+    }
+    return this.api.getBlob('/hostel/analytics/export.pdf');
+  }
+
+  listIncidentPolicies(): Observable<Array<{
+    id?: string;
+    incidentType: string;
+    severity: string;
+    slaMinutes: number;
+    escalationAfterMinutes: number;
+  }>> {
+    if (runtimeConfig.useMocks) {
+      return of([]);
+    }
+    return this.api.get<any[]>('/hostel/incidents/policies').pipe(
+      map(rows => (rows || []).map(r => ({
+        id: r.id != null ? String(r.id) : undefined,
+        incidentType: r.incidentType ?? '',
+        severity: r.severity ?? 'MEDIUM',
+        slaMinutes: Number(r.slaMinutes ?? 0),
+        escalationAfterMinutes: Number(r.escalationAfterMinutes ?? 0),
+      })))
+    );
+  }
+
+  upsertIncidentPolicy(body: {
+    incidentType: string;
+    severity: string;
+    slaMinutes: number;
+    escalationAfterMinutes: number;
+  }): Observable<void> {
+    if (runtimeConfig.useMocks) {
+      return of(undefined);
+    }
+    return this.api.put<unknown>('/hostel/incidents/policies', body).pipe(map(() => undefined));
   }
 
   stats(): Observable<HostelStats> {

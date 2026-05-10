@@ -65,6 +65,13 @@ const AP_DIRECTORY_DESK: readonly string[] = [
   AppPermission.PLATFORM_ADMIN,
 ];
 
+const AP_DOCUMENTS: readonly string[] = [
+  AppPermission.SCHOOL_DOCUMENTS_READ,
+  AppPermission.SCHOOL_DOCUMENTS_WRITE,
+  AppPermission.TENANT_ADMIN,
+  AppPermission.PLATFORM_ADMIN,
+];
+
 /** Mirrors {@code RbacSpel#TRANSPORT_DESK_WRITE} authority arm (not operations hub alone). */
 const AP_TRANSPORT_DESK: readonly string[] = [
   AppPermission.SCHOOL_TRANSPORT_READ,
@@ -144,6 +151,11 @@ const AP_LIBRARY: readonly string[] = [
   AppPermission.SCHOOL_LIBRARY_MEMBER_READ,
   AppPermission.SCHOOL_LIBRARY_READ,
   AppPermission.SCHOOL_LIBRARY_WRITE,
+  AppPermission.SCHOOL_LIBRARY_ANALYTICS_READ,
+  AppPermission.SCHOOL_LIBRARY_POLICY_WRITE,
+  AppPermission.SCHOOL_LIBRARY_RESERVATION_WRITE,
+  AppPermission.SCHOOL_LIBRARY_INVENTORY_WRITE,
+  AppPermission.SCHOOL_LIBRARY_REMINDER_READ,
   AppPermission.TENANT_ADMIN,
   AppPermission.PLATFORM_ADMIN,
 ];
@@ -357,7 +369,7 @@ export const NAV_ITEMS: NavItem[] = [
     icon: 'bi-folder2-open',
     route: '/app/documents',
     roles: ['admin', 'teacher'],
-    permissionsAny: [...AP_ROSTER_READ],
+    permissionsAny: [...AP_DOCUMENTS],
     sectionKey: 'nav.section.system',
     moduleGate: 'documents',
   },

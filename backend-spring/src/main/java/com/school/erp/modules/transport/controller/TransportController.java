@@ -4,7 +4,9 @@ import com.school.erp.common.dto.ApiResponse;
 import com.school.erp.security.RequireTenantFeature;
 import com.school.erp.common.dto.PageResponse;
 import com.school.erp.modules.transport.dto.TransportDTOs;
+import com.school.erp.modules.transport.dto.TransportOpsDTOs;
 import com.school.erp.modules.transport.entity.*;
+import com.school.erp.modules.transport.service.TransportOperationsService;
 import com.school.erp.modules.transport.service.TransportService;
 import com.school.erp.security.rbac.RbacSpel;
 import io.swagger.v3.oas.annotations.Operation;
@@ -24,6 +26,7 @@ import java.util.List;
 @RequireTenantFeature("transport")
 public class TransportController {
     private final TransportService service;
+    private final TransportOperationsService transportOpsService;
 
     @GetMapping("/routes")
     @PreAuthorize(RbacSpel.TRANSPORT_DESK_READ)
@@ -140,7 +143,80 @@ public class TransportController {
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.created(service.reportLiveLocation(vehicleId, routeId, lat, lng)));
     }
 
-    public TransportController(final TransportService service) {
+    @PostMapping("/ingestion/events")
+    @PreAuthorize(RbacSpel.TRANSPORT_DESK_WRITE)
+    @Operation(summary = "Ingest GPS/RFID transport device event with idempotency")
+    public ResponseEntity<ApiResponse<TransportOpsDTOs.DeviceEventIngestResponse>> ingestDeviceEvent(
+            @Valid @RequestBody TransportOpsDTOs.DeviceEventIngestRequest req) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.created(transportOpsService.ingestDeviceEvent(req)));
+    }
+
+    @PostMapping("/ingestion/events/{id}/retry")
+    @PreAuthorize(RbacSpel.TRANSPORT_DESK_WRITE)
+    @Operation(summary = "Retry one dead-letter transport ingest event")
+    public ResponseEntity<ApiResponse<TransportOpsDTOs.DeviceEventIngestResponse>> retryDeviceEvent(@PathVariable Long id) {
+        return ResponseEntity.ok(ApiResponse.ok(transportOpsService.retryIngestEvent(id)));
+    }
+
+    @PostMapping("/exceptions")
+    @PreAuthorize(RbacSpel.TRANSPORT_DESK_WRITE)
+    @Operation(summary = "Create transport operational exception item")
+    public ResponseEntity<ApiResponse<TransportOpsDTOs.OpsExceptionView>> createException(
+            @Valid @RequestBody TransportOpsDTOs.OpsExceptionCreateRequest req) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.created(transportOpsService.createOpsException(req)));
+    }
+
+    @GetMapping("/exceptions")
+    @PreAuthorize(RbacSpel.TRANSPORT_DESK_READ)
+    @Operation(summary = "List transport operational exceptions (paged)")
+    public ResponseEntity<ApiResponse<PageResponse<TransportOpsDTOs.OpsExceptionView>>> listExceptions(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(required = false) String status) {
+        return ResponseEntity.ok(ApiResponse.ok(transportOpsService.listOpsExceptions(page, size, status)));
+    }
+
+    @PostMapping("/exceptions/{id}/resolve")
+    @PreAuthorize(RbacSpel.TRANSPORT_DESK_WRITE)
+    @Operation(summary = "Resolve transport operational exception")
+    public ResponseEntity<ApiResponse<TransportOpsDTOs.OpsExceptionView>> resolveException(
+            @PathVariable Long id,
+            @Valid @RequestBody TransportOpsDTOs.OpsExceptionResolveRequest req) {
+        return ResponseEntity.ok(ApiResponse.ok(transportOpsService.resolveOpsException(id, req)));
+    }
+
+    @PostMapping("/routes/optimize")
+    @PreAuthorize(RbacSpel.TRANSPORT_DESK_READ)
+    @Operation(summary = "Get route optimization recommendation")
+    public ResponseEntity<ApiResponse<TransportOpsDTOs.RouteOptimizationResponse>> optimizeRoute(
+            @Valid @RequestBody TransportOpsDTOs.RouteOptimizationRequest req) {
+        return ResponseEntity.ok(ApiResponse.ok(transportOpsService.optimizeRoute(req)));
+    }
+
+    @GetMapping("/ops/snapshot")
+    @PreAuthorize(RbacSpel.TRANSPORT_DESK_READ)
+    @Operation(summary = "Transport operations snapshot for dashboard")
+    public ResponseEntity<ApiResponse<TransportOpsDTOs.TransportOpsSnapshot>> opsSnapshot() {
+        return ResponseEntity.ok(ApiResponse.ok(transportOpsService.snapshot()));
+    }
+
+    @GetMapping("/ops/policies")
+    @PreAuthorize(RbacSpel.TRANSPORT_DESK_READ)
+    @Operation(summary = "List tenant transport SLA/escalation policies")
+    public ResponseEntity<ApiResponse<List<TransportOpsDTOs.OpsPolicyView>>> listOpsPolicies() {
+        return ResponseEntity.ok(ApiResponse.ok(transportOpsService.listPolicies()));
+    }
+
+    @PutMapping("/ops/policies")
+    @PreAuthorize(RbacSpel.TRANSPORT_DESK_WRITE)
+    @Operation(summary = "Upsert tenant transport SLA/escalation policy")
+    public ResponseEntity<ApiResponse<TransportOpsDTOs.OpsPolicyView>> upsertOpsPolicy(
+            @Valid @RequestBody TransportOpsDTOs.OpsPolicyUpsertRequest req) {
+        return ResponseEntity.ok(ApiResponse.ok(transportOpsService.upsertPolicy(req)));
+    }
+
+    public TransportController(final TransportService service, final TransportOperationsService transportOpsService) {
         this.service = service;
+        this.transportOpsService = transportOpsService;
     }
 }

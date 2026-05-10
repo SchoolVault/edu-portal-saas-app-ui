@@ -365,7 +365,7 @@ export const routes: Routes = [
         data: {
           requireFeatures: ['documents'],
           requireAnyRole: ['admin', 'teacher', 'super_admin'],
-          requireAnyPermission: ['ACADEMIC_TEACHER', 'SCHOOL_ACADEMIC_READ', 'SCHOOL_ACADEMIC_WRITE', 'TENANT_ADMIN', 'PLATFORM_ADMIN'],
+          requireAnyPermission: ['SCHOOL_DOCUMENTS_READ', 'SCHOOL_DOCUMENTS_WRITE', 'TENANT_ADMIN', 'PLATFORM_ADMIN'],
         },
       },
       {

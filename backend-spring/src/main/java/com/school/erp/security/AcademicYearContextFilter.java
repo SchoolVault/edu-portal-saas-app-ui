@@ -1,6 +1,7 @@
 package com.school.erp.security;
 
 import com.school.erp.modules.academic.service.CurrentAcademicYearResolver;
+import com.school.erp.modules.academic.repository.AcademicYearRepository;
 import com.school.erp.tenant.AcademicYearContext;
 import com.school.erp.tenant.TenantContext;
 import jakarta.servlet.FilterChain;
@@ -19,9 +20,12 @@ import java.io.IOException;
 public class AcademicYearContextFilter extends OncePerRequestFilter {
 
     private final CurrentAcademicYearResolver currentAcademicYearResolver;
+    private final AcademicYearRepository academicYearRepository;
 
-    public AcademicYearContextFilter(CurrentAcademicYearResolver currentAcademicYearResolver) {
+    public AcademicYearContextFilter(CurrentAcademicYearResolver currentAcademicYearResolver,
+                                     AcademicYearRepository academicYearRepository) {
         this.currentAcademicYearResolver = currentAcademicYearResolver;
+        this.academicYearRepository = academicYearRepository;
     }
 
     @Override
@@ -29,9 +33,9 @@ public class AcademicYearContextFilter extends OncePerRequestFilter {
         try {
             String tenantId = TenantContext.getTenantId();
             if (tenantId != null && !tenantId.isBlank()) {
-                Long academicYearId = currentAcademicYearResolver.resolveCurrentAcademicYearId(tenantId);
+                Long academicYearId = resolveRequestedAcademicYear(request, tenantId);
                 if (academicYearId == null) {
-                    if (!isPlatformSuperAdminRequest()) {
+                    if (!isPlatformSuperAdminRequest() && !isAdminRequestWithAllYearsScope(request)) {
                         response.sendError(HttpServletResponse.SC_BAD_REQUEST, "Academic year is not configured for this tenant");
                         return;
                     }
@@ -48,5 +52,41 @@ public class AcademicYearContextFilter extends OncePerRequestFilter {
     private static boolean isPlatformSuperAdminRequest() {
         String role = TenantContext.getUserRole();
         return role != null && role.equalsIgnoreCase("SUPER_ADMIN");
+    }
+
+    private static boolean isAdminRequestWithAllYearsScope(HttpServletRequest request) {
+        String scope = request.getParameter("academicYearScope");
+        if (!"all".equalsIgnoreCase(scope)) {
+            return false;
+        }
+        String role = TenantContext.getUserRole();
+        return role != null && (role.equalsIgnoreCase("ADMIN") || role.equalsIgnoreCase("SUPER_ADMIN"));
+    }
+
+    private Long resolveRequestedAcademicYear(HttpServletRequest request, String tenantId) {
+        String scope = request.getParameter("academicYearScope");
+        if ("all".equalsIgnoreCase(scope)) {
+            String role = TenantContext.getUserRole();
+            if (role != null && (role.equalsIgnoreCase("ADMIN") || role.equalsIgnoreCase("SUPER_ADMIN"))) {
+                return null;
+            }
+        }
+        String requestedAcademicYearId = request.getParameter("academicYearId");
+        if (requestedAcademicYearId == null || requestedAcademicYearId.isBlank()) {
+            return currentAcademicYearResolver.resolveCurrentAcademicYearId(tenantId);
+        }
+        Long parsedAcademicYearId;
+        try {
+            parsedAcademicYearId = Long.parseLong(requestedAcademicYearId.trim());
+        } catch (NumberFormatException ex) {
+            return null;
+        }
+        boolean valid = academicYearRepository
+                .findByIdAndTenantIdAndIsDeletedFalse(parsedAcademicYearId, tenantId)
+                .isPresent();
+        if (!valid) {
+            return null;
+        }
+        return parsedAcademicYearId;
     }
 }

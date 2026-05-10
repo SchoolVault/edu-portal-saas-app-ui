@@ -8,6 +8,7 @@ import com.school.erp.modules.fees.dto.FeeDTOs;
 import com.school.erp.modules.fees.service.FeeService;
 import com.school.erp.modules.operations.dto.OperationsDTOs;
 import com.school.erp.modules.operations.service.OperationsService;
+import com.school.erp.modules.reminder.service.FeeReminderAutomationService;
 import com.school.erp.security.rbac.RbacSpel;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -27,6 +28,7 @@ import java.util.List;
 public class FeeController {
     private final FeeService service;
     private final OperationsService operationsService;
+    private final FeeReminderAutomationService feeReminderAutomationService;
 
     @GetMapping("/structures")
     @PreAuthorize(RbacSpel.FEE_STRUCTURES_READ)
@@ -74,8 +76,10 @@ public class FeeController {
             @RequestParam(required = false) String q,
             @RequestParam(required = false) Long classId,
             @RequestParam(required = false) Long sectionId,
+            @RequestParam(required = false) Long academicYearId,
             @RequestParam(required = false) String month) {
-        return ResponseEntity.ok(ApiResponse.ok(service.getPaymentsPaged(page, size, status, q, classId, sectionId, month)));
+        return ResponseEntity.ok(ApiResponse.ok(service.getPaymentsPaged(
+                page, size, status, q, classId, sectionId, academicYearId, month)));
     }
 
     @GetMapping(value = "/payments/receipts/{receiptNumber}/pdf", produces = MediaType.APPLICATION_PDF_VALUE)
@@ -94,6 +98,57 @@ public class FeeController {
     @Operation(summary = "Get payment history for a student")
     public ResponseEntity<ApiResponse<List<FeeDTOs.FeePaymentResponse>>> getStudentPayments(@PathVariable Long studentId) {
         return ResponseEntity.ok(ApiResponse.ok(service.getStudentPayments(studentId)));
+    }
+
+    @GetMapping("/payments/student/{studentId}/paged")
+    @PreAuthorize(RbacSpel.SCHOOL_FEES_READ)
+    @Operation(summary = "Get payment history for a student (paged)")
+    public ResponseEntity<ApiResponse<PageResponse<FeeDTOs.FeePaymentResponse>>> getStudentPaymentsPaged(
+            @PathVariable Long studentId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "8") int size,
+            @RequestParam(required = false) Long academicYearId) {
+        return ResponseEntity.ok(ApiResponse.ok(service.getStudentPaymentsPaged(studentId, page, size, academicYearId)));
+    }
+
+    @GetMapping("/defaulters/paged")
+    @PreAuthorize(RbacSpel.SCHOOL_FEES_READ)
+    @Operation(summary = "Defaulters watchlist (paged)", description = "Overdue/upcoming dues with escalation bands.")
+    public ResponseEntity<ApiResponse<PageResponse<FeeDTOs.FeeDefaulterRow>>> getDefaultersPaged(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "16") int size,
+            @RequestParam(required = false, defaultValue = "all") String window,
+            @RequestParam(required = false, defaultValue = "all") String band,
+            @RequestParam(required = false) Long classId,
+            @RequestParam(required = false) Long sectionId,
+            @RequestParam(required = false) Long academicYearId) {
+        return ResponseEntity.ok(ApiResponse.ok(
+                service.getDefaultersPaged(page, size, window, band, classId, sectionId, academicYearId)));
+    }
+
+    @GetMapping(value = "/payments/export.csv", produces = "text/csv")
+    @PreAuthorize(RbacSpel.SCHOOL_FEES_READ)
+    @Operation(summary = "Export fee payments CSV", description = "Tenant/year/class filtered export with row guardrail.")
+    public ResponseEntity<byte[]> exportPaymentsCsv(
+            @RequestParam(required = false) Long classId,
+            @RequestParam(required = false) Long sectionId,
+            @RequestParam(required = false) Long academicYearId,
+            @RequestParam(required = false) String q,
+            @RequestParam(required = false) Enums.FeeStatus status) {
+        byte[] body = service.exportPaymentsCsv(classId, sectionId, academicYearId, q, status);
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=fees-payments-export.csv")
+                .contentType(MediaType.parseMediaType("text/csv;charset=UTF-8"))
+                .body(body);
+    }
+
+    @GetMapping("/reminders/ops-snapshot")
+    @PreAuthorize(RbacSpel.SCHOOL_FEES_READ)
+    @Operation(summary = "Fee reminder ops snapshot", description = "Scheduler tuning hook for dashboard surfaces.")
+    public ResponseEntity<ApiResponse<FeeDTOs.FeeReminderOpsSnapshot>> reminderOpsSnapshot(
+            @RequestParam(required = false, defaultValue = "fee_desk") String roleView) {
+        return ResponseEntity.ok(ApiResponse.ok(feeReminderAutomationService.getOpsSnapshot(
+                com.school.erp.tenant.TenantContext.getTenantId(), roleView)));
     }
 
     @PostMapping("/payments")
@@ -162,8 +217,9 @@ public class FeeController {
         return ResponseEntity.ok(ApiResponse.ok(service.executeRefund(transactionId, request)));
     }
 
-    public FeeController(final FeeService service, final OperationsService operationsService) {
+    public FeeController(final FeeService service, final OperationsService operationsService, final FeeReminderAutomationService feeReminderAutomationService) {
         this.service = service;
         this.operationsService = operationsService;
+        this.feeReminderAutomationService = feeReminderAutomationService;
     }
 }

@@ -50,4 +50,21 @@ public interface LeaveEntitlementLedgerRepository extends JpaRepository<LeaveEnt
             String entryType,
             String referenceType,
             Long referenceId);
+
+    Optional<LeaveEntitlementLedgerEntry> findFirstByTenantIdAndUserIdAndLeaveTypeAndEntryTypeAndReferenceTypeAndReferenceIdAndIsDeletedFalse(
+            String tenantId,
+            Long userId,
+            String leaveType,
+            String entryType,
+            String referenceType,
+            Long referenceId);
+
+    boolean existsByTenantIdAndUserIdAndLeaveTypeAndPolicyYearLabelAndEntryTypeAndReferenceTypeAndReferenceIdAndIsDeletedFalse(
+            String tenantId,
+            Long userId,
+            String leaveType,
+            String policyYearLabel,
+            String entryType,
+            String referenceType,
+            Long referenceId);
 }

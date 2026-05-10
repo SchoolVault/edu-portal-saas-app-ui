@@ -64,10 +64,18 @@ public enum AppPermission {
     SCHOOL_COMMUNICATION_READ,
     /** Communication module write surface: publish announcements/events, queue campaigns, and replay notification dead-letters. */
     SCHOOL_COMMUNICATION_WRITE,
+    /** Communication publish lane: announcements/events/campaign/template/dead-letter replay operations. */
+    SCHOOL_COMMUNICATION_PUBLISH,
+    /** Communication messaging lane: direct teacher-parent/staff message send operations. */
+    SCHOOL_COMMUNICATION_MESSAGE_SEND,
     /** Directory module read surface: staff/student/teacher search and tenant-scoped contact discovery. */
     SCHOOL_DIRECTORY_READ,
     /** Directory module write surface: reserved for future directory administration mutations. */
     SCHOOL_DIRECTORY_WRITE,
+    /** Documents module read surface: metadata listing and secure downloads. */
+    SCHOOL_DOCUMENTS_READ,
+    /** Documents module write surface: upload, metadata updates, and lifecycle operations. */
+    SCHOOL_DOCUMENTS_WRITE,
     /** Operations hub read surface: visitor/gate/inventory/reminder dashboards and queues. */
     SCHOOL_OPERATIONS_READ,
     /** Operations hub write surface: staff/visitor/gate/inventory/reminder workflow actions. */
@@ -118,6 +126,22 @@ public enum AppPermission {
      */
     FEE_STRUCTURES_READ,
 
+    /**
+     * Fees v2 read lane: ledgers, demands, maps, reports, audit, assignment preview, reconciliation.
+     * Narrower than {@link #SCHOOL_FEES_READ} for auditor-style roles.
+     */
+    FEE_FINANCE_READ,
+    /** Fees v2 configuration lane: components, structures, rules, late-fee policies, manual map snapshot. */
+    FEE_CONFIG_WRITE,
+    /** Fees v2 billing lane: discounts, demand runs, payment recording, rule assignment execute, late-fee runs. */
+    FEE_BILLING_WRITE,
+    /** Submit refund requests (may enter approval workflow). */
+    FEE_REFUND_REQUEST,
+    /** Approve pending refunds before ledger posting. */
+    FEE_REFUND_APPROVE,
+    /** Create Razorpay (or future) checkout sessions against v2 demands. */
+    FEE_ONLINE_CHECKOUT,
+
     // --- Academic staff (teacher baseline) ----------------------------------
     /** Roster, attendance, mark entry, timetable within assigned scope (policy layer applies). */
     ACADEMIC_TEACHER,
@@ -129,6 +153,16 @@ public enum AppPermission {
     SCHOOL_LIBRARY_WRITE,
     /** Library member self-service read surface: catalog and own borrow status/history only. */
     SCHOOL_LIBRARY_MEMBER_READ,
+    /** Library analytics read surface: KPIs, due reminder previews, and exports. */
+    SCHOOL_LIBRARY_ANALYTICS_READ,
+    /** Library policy write surface: fine policy and borrower policy governance. */
+    SCHOOL_LIBRARY_POLICY_WRITE,
+    /** Library reservation write surface: hold queue create/cancel/fulfill actions. */
+    SCHOOL_LIBRARY_RESERVATION_WRITE,
+    /** Library inventory write surface: accession, loss, write-off, and stock adjustments. */
+    SCHOOL_LIBRARY_INVENTORY_WRITE,
+    /** Library reminder read surface: due reminder preview and monitoring views. */
+    SCHOOL_LIBRARY_REMINDER_READ,
 
     // --- Portals (reserved for future JWT claims; may stay empty in phase 1) -
     /**

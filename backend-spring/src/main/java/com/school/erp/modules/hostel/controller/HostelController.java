@@ -12,6 +12,8 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
@@ -97,6 +99,57 @@ public class HostelController {
     @Operation(summary = "Hostel statistics", description = "Total rooms, capacity, occupancy, available beds")
     public ResponseEntity<ApiResponse<HostelDTOs.HostelStats>> stats() {
         return ResponseEntity.ok(ApiResponse.ok(service.getStats()));
+    }
+
+    @GetMapping("/analytics/snapshot")
+    @PreAuthorize(RbacSpel.HOSTEL_DESK_READ)
+    @Operation(summary = "Hostel analytics snapshot", description = "Occupancy efficiency and incident risk metrics")
+    public ResponseEntity<ApiResponse<HostelDTOs.HostelAnalyticsSnapshot>> analyticsSnapshot() {
+        return ResponseEntity.ok(ApiResponse.ok(service.getAnalyticsSnapshot()));
+    }
+
+    @GetMapping(value = "/analytics/export.csv", produces = "text/csv")
+    @PreAuthorize(RbacSpel.HOSTEL_DESK_READ)
+    @Operation(summary = "Export hostel analytics CSV")
+    public ResponseEntity<byte[]> exportAnalyticsCsv() {
+        byte[] body = service.exportAnalyticsCsv();
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=hostel-analytics-export.csv")
+                .contentType(MediaType.parseMediaType("text/csv;charset=UTF-8"))
+                .body(body);
+    }
+
+    @GetMapping(value = "/analytics/export.pdf", produces = "application/pdf")
+    @PreAuthorize(RbacSpel.HOSTEL_DESK_READ)
+    @Operation(summary = "Export hostel analytics PDF")
+    public ResponseEntity<byte[]> exportAnalyticsPdf() {
+        byte[] body = service.exportAnalyticsPdf();
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=hostel-analytics-export.pdf")
+                .contentType(MediaType.APPLICATION_PDF)
+                .body(body);
+    }
+
+    @GetMapping("/occupancy/recommendations")
+    @PreAuthorize(RbacSpel.HOSTEL_DESK_READ)
+    @Operation(summary = "Occupancy rebalance recommendations")
+    public ResponseEntity<ApiResponse<List<HostelDTOs.OccupancyRecommendation>>> occupancyRecommendations() {
+        return ResponseEntity.ok(ApiResponse.ok(service.recommendOccupancyRebalance()));
+    }
+
+    @GetMapping("/incidents/policies")
+    @PreAuthorize(RbacSpel.HOSTEL_DESK_READ)
+    @Operation(summary = "List hostel incident SLA policies")
+    public ResponseEntity<ApiResponse<List<HostelDTOs.IncidentPolicyResponse>>> listIncidentPolicies() {
+        return ResponseEntity.ok(ApiResponse.ok(service.listIncidentPolicies()));
+    }
+
+    @PutMapping("/incidents/policies")
+    @PreAuthorize(RbacSpel.HOSTEL_APPROVAL_WRITE)
+    @Operation(summary = "Upsert hostel incident SLA policy")
+    public ResponseEntity<ApiResponse<HostelDTOs.IncidentPolicyResponse>> upsertIncidentPolicy(
+            @Valid @RequestBody HostelDTOs.IncidentPolicyRequest req) {
+        return ResponseEntity.ok(ApiResponse.ok(service.upsertIncidentPolicy(req)));
     }
 
     @GetMapping("/billing/profiles")

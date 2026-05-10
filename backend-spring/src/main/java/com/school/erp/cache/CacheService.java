@@ -33,7 +33,9 @@ public class CacheService {
         LIBRARY_CATALOG(CacheConfig.LIBRARY_CATALOG),
         LIBRARY_ISSUES(CacheConfig.LIBRARY_ISSUES),
         FEES_CATALOG(CacheConfig.FEES_CATALOG),
-        TIMETABLE_GRID(CacheConfig.TIMETABLE_GRID);
+        TIMETABLE_GRID(CacheConfig.TIMETABLE_GRID),
+        LEAVE_POLICY(CacheConfig.LEAVE_POLICY),
+        LEAVE_BALANCE(CacheConfig.LEAVE_BALANCE);
 
         private final String cacheName;
 

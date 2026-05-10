@@ -17,6 +17,7 @@ public class ReportPerformanceMetricsService {
     private static final int LATENCY_WINDOW_SIZE = 400;
     private final ConcurrentHashMap<String, OperationMetrics> operationMetrics = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, SnapshotMetrics> snapshotMetrics = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, LongAdder> jobEventCounters = new ConcurrentHashMap<>();
 
     public void recordReportRead(String operation, long elapsedMs, int rows) {
         OperationMetrics metrics = operationMetrics.computeIfAbsent(operation, key -> new OperationMetrics());
@@ -37,9 +38,19 @@ public class ReportPerformanceMetricsService {
         operationMetrics.forEach((key, value) -> operationMap.put(key, value.snapshot()));
         Map<String, Object> snapshotMap = new LinkedHashMap<>();
         snapshotMetrics.forEach((key, value) -> snapshotMap.put(key, value.snapshot()));
+        Map<String, Object> jobEvents = new LinkedHashMap<>();
+        jobEventCounters.forEach((key, value) -> jobEvents.put(key, value.sum()));
         out.put("operations", operationMap);
         out.put("snapshots", snapshotMap);
+        out.put("jobEvents", jobEvents);
         return out;
+    }
+
+    public void recordJobEvent(String eventCode) {
+        if (eventCode == null || eventCode.isBlank()) {
+            return;
+        }
+        jobEventCounters.computeIfAbsent(eventCode.trim().toUpperCase(), key -> new LongAdder()).increment();
     }
 
     private static final class OperationMetrics {

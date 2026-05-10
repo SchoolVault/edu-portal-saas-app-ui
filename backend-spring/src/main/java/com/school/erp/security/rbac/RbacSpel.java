@@ -14,7 +14,7 @@ public final class RbacSpel {
 
     /** School-wide communication admin: announcements, campaigns, templates, events. */
     public static final String COMMUNICATION_SCHOOL_ADMIN =
-            "hasAnyAuthority('SCHOOL_COMMUNICATION_WRITE','TENANT_ADMIN','PLATFORM_ADMIN')";
+            "hasAnyAuthority('SCHOOL_COMMUNICATION_PUBLISH','SCHOOL_COMMUNICATION_WRITE','TENANT_ADMIN','PLATFORM_ADMIN')";
 
     /** Inbox and communication feed read surface for school personas and comm desks. */
     public static final String COMMUNICATION_INBOX_READ =
@@ -40,6 +40,28 @@ public final class RbacSpel {
 
     public static final String SCHOOL_FEES_WRITE =
             "hasAnyAuthority('SCHOOL_FEES_WRITE','TENANT_ADMIN','PLATFORM_ADMIN')";
+
+    /** Canonical finance read surface (auditor / finance read-only + legacy coarse read). */
+    public static final String FEE_FINANCE_READ =
+            "hasAnyAuthority('FEE_FINANCE_READ','SCHOOL_FEES_READ','SCHOOL_FEES_WRITE','TENANT_ADMIN','PLATFORM_ADMIN')";
+
+    /** Structures, rules, components, late-fee policy configuration. */
+    public static final String FEE_CONFIG_WRITE =
+            "hasAnyAuthority('FEE_CONFIG_WRITE','SCHOOL_FEES_WRITE','TENANT_ADMIN','PLATFORM_ADMIN')";
+
+    /** Operational billing: collections, demand runs, discounts, assignment automation execute. */
+    public static final String FEE_BILLING_WRITE =
+            "hasAnyAuthority('FEE_BILLING_WRITE','SCHOOL_FEES_WRITE','TENANT_ADMIN','PLATFORM_ADMIN')";
+
+    public static final String FEE_REFUND_REQUEST =
+            "hasAnyAuthority('FEE_REFUND_REQUEST','SCHOOL_FEES_WRITE','TENANT_ADMIN','PLATFORM_ADMIN')";
+
+    public static final String FEE_REFUND_APPROVE =
+            "hasAnyAuthority('FEE_REFUND_APPROVE','SCHOOL_FEES_WRITE','TENANT_ADMIN','PLATFORM_ADMIN')";
+
+    /** Cashier / admin-initiated Razorpay order for fees v2 (parents use {@code POST /parent/.../fees-v2/razorpay-order}). */
+    public static final String FEE_ONLINE_CHECKOUT =
+            "hasAnyAuthority('FEE_ONLINE_CHECKOUT','SCHOOL_FEES_WRITE','TENANT_ADMIN','PLATFORM_ADMIN')";
 
     public static final String FEE_STRUCTURES_READ =
             "hasAnyAuthority('FEE_STRUCTURES_READ','SCHOOL_FEES_READ','SCHOOL_FEES_WRITE','TENANT_ADMIN','PLATFORM_ADMIN')";
@@ -69,16 +91,28 @@ public final class RbacSpel {
             "hasAnyAuthority('SCHOOL_IMPORT_EXPORT_WRITE','TENANT_ADMIN','PLATFORM_ADMIN')";
 
     public static final String SCHOOL_COMMUNICATION_READ =
-            "hasAnyAuthority('SCHOOL_COMMUNICATION_READ','SCHOOL_COMMUNICATION_WRITE','TENANT_ADMIN','PLATFORM_ADMIN')";
+            "hasAnyAuthority('SCHOOL_COMMUNICATION_READ','SCHOOL_COMMUNICATION_WRITE','SCHOOL_COMMUNICATION_PUBLISH','TENANT_ADMIN','PLATFORM_ADMIN')";
 
     public static final String SCHOOL_COMMUNICATION_WRITE =
             "hasAnyAuthority('SCHOOL_COMMUNICATION_WRITE','TENANT_ADMIN','PLATFORM_ADMIN')";
+
+    public static final String SCHOOL_COMMUNICATION_PUBLISH =
+            "hasAnyAuthority('SCHOOL_COMMUNICATION_PUBLISH','SCHOOL_COMMUNICATION_WRITE','TENANT_ADMIN','PLATFORM_ADMIN')";
+
+    public static final String SCHOOL_COMMUNICATION_MESSAGE_SEND =
+            "hasAnyAuthority('SCHOOL_COMMUNICATION_MESSAGE_SEND','SCHOOL_COMMUNICATION_WRITE','SCHOOL_COMMUNICATION_PUBLISH','TENANT_ADMIN','PLATFORM_ADMIN')";
 
     public static final String SCHOOL_DIRECTORY_READ =
             "hasAnyAuthority('SCHOOL_DIRECTORY_READ','SCHOOL_DIRECTORY_WRITE','TENANT_ADMIN','PLATFORM_ADMIN')";
 
     public static final String SCHOOL_DIRECTORY_WRITE =
             "hasAnyAuthority('SCHOOL_DIRECTORY_WRITE','TENANT_ADMIN','PLATFORM_ADMIN')";
+
+    public static final String SCHOOL_DOCUMENTS_READ =
+            "hasAnyAuthority('SCHOOL_DOCUMENTS_READ','SCHOOL_DOCUMENTS_WRITE','TENANT_ADMIN','PLATFORM_ADMIN')";
+
+    public static final String SCHOOL_DOCUMENTS_WRITE =
+            "hasAnyAuthority('SCHOOL_DOCUMENTS_WRITE','TENANT_ADMIN','PLATFORM_ADMIN')";
 
     public static final String SCHOOL_OPERATIONS_READ =
             "hasAnyAuthority('SCHOOL_OPERATIONS_READ','SCHOOL_OPERATIONS_WRITE','TENANT_ADMIN','PLATFORM_ADMIN','ADMIN','SUPER_ADMIN')";
@@ -238,7 +272,7 @@ public final class RbacSpel {
     // --- Library --------------------------------------------------------------
 
     public static final String LIBRARY_DESK_READ =
-            "hasAnyAuthority('SCHOOL_LIBRARY_READ','SCHOOL_LIBRARY_WRITE','TENANT_ADMIN','PLATFORM_ADMIN')";
+            "hasAnyAuthority('SCHOOL_LIBRARY_READ','SCHOOL_LIBRARY_WRITE','SCHOOL_LIBRARY_ANALYTICS_READ','SCHOOL_LIBRARY_REMINDER_READ','TENANT_ADMIN','PLATFORM_ADMIN')";
 
     public static final String LIBRARY_MEMBER_READ =
             "hasAnyAuthority('SCHOOL_LIBRARY_MEMBER_READ','SCHOOL_LIBRARY_READ','SCHOOL_LIBRARY_WRITE','TENANT_ADMIN','PLATFORM_ADMIN')";
@@ -247,7 +281,19 @@ public final class RbacSpel {
             "hasAnyAuthority('SCHOOL_LIBRARY_WRITE','TENANT_ADMIN','PLATFORM_ADMIN')";
 
     public static final String LIBRARY_CIRCULATION_ACCESS =
-            "hasAnyAuthority('SCHOOL_LIBRARY_WRITE','TENANT_ADMIN','PLATFORM_ADMIN')";
+            "hasAnyAuthority('SCHOOL_LIBRARY_WRITE','SCHOOL_LIBRARY_RESERVATION_WRITE','TENANT_ADMIN','PLATFORM_ADMIN')";
+
+    public static final String LIBRARY_POLICY_WRITE =
+            "hasAnyAuthority('SCHOOL_LIBRARY_POLICY_WRITE','SCHOOL_LIBRARY_WRITE','TENANT_ADMIN','PLATFORM_ADMIN')";
+
+    public static final String LIBRARY_INVENTORY_WRITE =
+            "hasAnyAuthority('SCHOOL_LIBRARY_INVENTORY_WRITE','SCHOOL_LIBRARY_WRITE','TENANT_ADMIN','PLATFORM_ADMIN')";
+
+    public static final String LIBRARY_ANALYTICS_READ =
+            "hasAnyAuthority('SCHOOL_LIBRARY_ANALYTICS_READ','SCHOOL_LIBRARY_READ','SCHOOL_LIBRARY_WRITE','TENANT_ADMIN','PLATFORM_ADMIN')";
+
+    public static final String LIBRARY_REMINDER_READ =
+            "hasAnyAuthority('SCHOOL_LIBRARY_REMINDER_READ','SCHOOL_LIBRARY_ANALYTICS_READ','SCHOOL_LIBRARY_READ','SCHOOL_LIBRARY_WRITE','TENANT_ADMIN','PLATFORM_ADMIN')";
 
     // --- Audit / directory ----------------------------------------------------
 

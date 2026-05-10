@@ -324,6 +324,77 @@ export class TransportService {
     return this.api.post<unknown>(`/transport/vehicles/${vehicleId}/location?${q}`, {}).pipe(map(() => undefined));
   }
 
+  getOpsSnapshot(): Observable<{ openExceptions: number; criticalExceptions: number; deadLetterEvents: number; delayedRoutes: number }> {
+    if (runtimeConfig.useMocks) {
+      return of({ openExceptions: 2, criticalExceptions: 1, deadLetterEvents: 0, delayedRoutes: 1 });
+    }
+    return this.api.get<any>('/transport/ops/snapshot').pipe(
+      map(r => ({
+        openExceptions: Number(r?.openExceptions ?? 0),
+        criticalExceptions: Number(r?.criticalExceptions ?? 0),
+        deadLetterEvents: Number(r?.deadLetterEvents ?? 0),
+        delayedRoutes: Number(r?.delayedRoutes ?? 0),
+      }))
+    );
+  }
+
+  optimizeRoute(routeId: string): Observable<{ estimatedTotalTravelMinutes: number; stops: Array<{ stopName: string; suggestedOrder: number }> }> {
+    if (runtimeConfig.useMocks) {
+      return of({ estimatedTotalTravelMinutes: 48, stops: [] });
+    }
+    return this.api.post<any>('/transport/routes/optimize', { routeId: Number(routeId) }).pipe(
+      map(r => ({
+        estimatedTotalTravelMinutes: Number(r?.estimatedTotalTravelMinutes ?? 0),
+        stops: (r?.stops ?? []).map((x: any) => ({
+          stopName: x.stopName ?? '',
+          suggestedOrder: Number(x.suggestedOrder ?? 0),
+        })),
+      }))
+    );
+  }
+
+  listOpsExceptions(
+    page = 0,
+    size = 10,
+    status?: string
+  ): Observable<PageResp<{ id: number; exceptionCode: string; severity: string; status: string; routeId?: number }>> {
+    if (runtimeConfig.useMocks) {
+      return of(
+        sliceToPage(
+          [
+            { id: 1, exceptionCode: 'LATE_BUS', severity: 'HIGH', status: 'OPEN', routeId: 1 },
+            { id: 2, exceptionCode: 'DEVICE_OFFLINE', severity: 'CRITICAL', status: 'OPEN', routeId: 2 },
+          ],
+          page,
+          size
+        )
+      );
+    }
+    return this.api.getPageParams<any>('/transport/exceptions', {
+      page,
+      size,
+      status: status?.trim() || undefined,
+    }).pipe(
+      map(p => ({
+        ...p,
+        content: (p.content ?? []).map((x: any) => ({
+          id: Number(x.id),
+          exceptionCode: x.exceptionCode ?? '',
+          severity: x.severity ?? '',
+          status: x.status ?? '',
+          routeId: x.routeId != null ? Number(x.routeId) : undefined,
+        })),
+      }))
+    );
+  }
+
+  resolveOpsException(id: number, resolutionNotes: string): Observable<void> {
+    if (runtimeConfig.useMocks) {
+      return of(undefined);
+    }
+    return this.api.post<unknown>(`/transport/exceptions/${id}/resolve`, { resolutionNotes }).pipe(map(() => undefined));
+  }
+
   private normalizeRoute(r: any): TransportRoute {
     const stops = (r.stops ?? []).map((s: any) => ({
       id: s.id != null ? Number(s.id) : undefined,

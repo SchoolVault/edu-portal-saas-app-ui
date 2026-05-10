@@ -21,7 +21,13 @@ import com.school.erp.platform.port.NotificationDispatchPort;
 import com.school.erp.platform.port.NotificationDispatchAttributes;
 import com.school.erp.security.rbac.AppPermission;
 import com.school.erp.security.rbac.EffectivePermissionService;
+import com.school.erp.tenant.AcademicYearContext;
 import com.school.erp.tenant.TenantContext;
+import com.school.erp.config.CacheConfig;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.Caching;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
@@ -30,6 +36,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -63,6 +70,9 @@ public class LeaveService {
     private final NotificationDispatchPort notificationDispatchPort;
     private final EffectivePermissionService effectivePermissionService;
     private final TenantConfigRepository tenantConfigRepository;
+    private final int approvalSlaHours;
+    private final int multiStepThresholdDays;
+    private final int maxEscalationCount;
 
     public LeaveService(
             LeaveRequestRepository repo,
@@ -72,7 +82,10 @@ public class LeaveService {
             NotificationService notificationService,
             NotificationDispatchPort notificationDispatchPort,
             EffectivePermissionService effectivePermissionService,
-            TenantConfigRepository tenantConfigRepository) {
+            TenantConfigRepository tenantConfigRepository,
+            @Value("${app.leave.workflow.sla-hours:24}") int approvalSlaHours,
+            @Value("${app.leave.workflow.multi-step-threshold-days:3}") int multiStepThresholdDays,
+            @Value("${app.leave.workflow.max-escalation-count:5}") int maxEscalationCount) {
         this.repo = repo;
         this.ledgerRepository = ledgerRepository;
         this.policyRepo = policyRepo;
@@ -81,9 +94,15 @@ public class LeaveService {
         this.notificationDispatchPort = notificationDispatchPort;
         this.effectivePermissionService = effectivePermissionService;
         this.tenantConfigRepository = tenantConfigRepository;
+        this.approvalSlaHours = Math.max(1, approvalSlaHours);
+        this.multiStepThresholdDays = Math.max(1, multiStepThresholdDays);
+        this.maxEscalationCount = Math.max(1, maxEscalationCount);
     }
 
     @Transactional
+    @Caching(evict = {
+            @CacheEvict(cacheNames = CacheConfig.LEAVE_BALANCE, keyGenerator = "tenantUserRoleKeyGenerator")
+    })
     public LeaveDTOs.LeaveResponse submit(LeaveDTOs.CreateLeaveRequest req) {
         log.info("Submitting leave request type={} start={} end={}", req.getLeaveType(), req.getStartDate(), req.getEndDate());
         LeaveRequest e = new LeaveRequest();
@@ -95,12 +114,20 @@ public class LeaveService {
         e.setLeaveType(typeCode);
         e.setStartDate(req.getStartDate());
         e.setEndDate(req.getEndDate());
+        if (req.getStartDate() != null && req.getEndDate() != null && req.getEndDate().isBefore(req.getStartDate())) {
+            throw new BusinessException("End date cannot be before start date.");
+        }
         e.setReason(req.getReason());
         e.setStudentId(req.getStudentId());
         e.setTeacherId(req.getTeacherId());
         e.setBalanceSnapshotJson(req.getBalanceSnapshotJson());
         e.setDayUnit(req.getDayUnit() != null ? req.getDayUnit() : Enums.LeaveDayUnit.FULL_DAY);
         e.setStatus(Enums.LeaveStatus.PENDING);
+        int totalSteps = computeTotalApprovalSteps(e.getStartDate(), e.getEndDate());
+        e.setApprovalStep(1);
+        e.setApprovalStepTotal(totalSteps);
+        e.setApprovalEscalationCount(0);
+        e.setApprovalSlaDueAt(nextSlaDueAt());
         LeaveRequest saved = repo.save(e);
         log.info("Leave request submitted id={} status=PENDING", saved.getId());
         notifyApproversOnLeaveApplied(saved);
@@ -152,6 +179,7 @@ public class LeaveService {
     }
 
     @Transactional(readOnly = true)
+    @Cacheable(cacheNames = CacheConfig.LEAVE_BALANCE, keyGenerator = "tenantUserRoleKeyGenerator", unless = "#result == null")
     public LeaveDTOs.LeaveBalanceSummary balanceForCurrentUser() {
         String t = TenantContext.getTenantId();
         Long uid = TenantContext.getUserId();
@@ -178,11 +206,16 @@ public class LeaveService {
     }
 
     @Transactional(readOnly = true)
+    @Cacheable(cacheNames = CacheConfig.LEAVE_POLICY, keyGenerator = "tenantKeyGenerator", unless = "#result == null")
     public LeaveDTOs.LeaveEntitlementPolicy getLeavePolicy() {
         return toPolicyDto(resolvePolicyEntityOrNull(TenantContext.getTenantId()));
     }
 
     @Transactional
+    @Caching(evict = {
+            @CacheEvict(cacheNames = CacheConfig.LEAVE_POLICY, keyGenerator = "tenantKeyGenerator"),
+            @CacheEvict(cacheNames = CacheConfig.LEAVE_BALANCE, allEntries = true)
+    })
     public LeaveDTOs.LeaveEntitlementPolicy updateLeavePolicy(LeaveDTOs.LeaveEntitlementPolicy req) {
         String t = TenantContext.getTenantId();
         LeaveEntitlementPolicy e = policyRepo.findByTenantIdAndIsDeletedFalse(t).orElseGet(() -> {
@@ -203,6 +236,9 @@ public class LeaveService {
     }
 
     @Transactional
+    @Caching(evict = {
+            @CacheEvict(cacheNames = CacheConfig.LEAVE_BALANCE, allEntries = true)
+    })
     public LeaveDTOs.BulkEntitlementAllocationResponse bulkAllocateEntitlements(LeaveDTOs.BulkEntitlementAllocationRequest req) {
         String tenantId = TenantContext.getTenantId();
         LeaveDTOs.LeaveEntitlementPolicy pol = toPolicyDto(resolvePolicyEntityOrNull(tenantId));
@@ -299,19 +335,92 @@ public class LeaveService {
     }
 
     @Transactional
+    @Caching(evict = {
+            @CacheEvict(cacheNames = CacheConfig.LEAVE_BALANCE, allEntries = true)
+    })
     public LeaveDTOs.LeaveResponse decide(Long id, LeaveDTOs.ApproveLeaveRequest req) {
         String t = TenantContext.getTenantId();
         log.info("Deciding leave request id={} approve={}", id, req.isApprove());
-        LeaveRequest e = repo.findById(id).filter(x -> t.equals(x.getTenantId()) && !Boolean.TRUE.equals(x.getIsDeleted())).orElseThrow(() -> new ResourceNotFoundException("LeaveRequest", id));
+        LeaveRequest e = repo.findByIdAndTenantIdAndIsDeletedFalse(id, t)
+                .orElseThrow(() -> new ResourceNotFoundException("LeaveRequest", id));
         Enums.LeaveStatus previousStatus = e.getStatus();
-        e.setStatus(req.isApprove() ? Enums.LeaveStatus.APPROVED : Enums.LeaveStatus.REJECTED);
+        if (previousStatus != Enums.LeaveStatus.PENDING) {
+            throw new BusinessException("Only pending leave requests can be decided.");
+        }
+        Enums.LeaveStatus nextStatus = req.isApprove() ? Enums.LeaveStatus.APPROVED : Enums.LeaveStatus.REJECTED;
+        if (previousStatus == nextStatus) {
+            return toResponse(e);
+        }
+        boolean isApproveStep = req.isApprove();
+        boolean hasMoreSteps = isApproveStep
+                && e.getApprovalStep() != null
+                && e.getApprovalStepTotal() != null
+                && e.getApprovalStep() < e.getApprovalStepTotal();
+        if (hasMoreSteps) {
+            e.setStatus(Enums.LeaveStatus.PENDING);
+            e.setApprovalStep(Math.min(e.getApprovalStepTotal(), e.getApprovalStep() + 1));
+            e.setApprovalSlaDueAt(nextSlaDueAt());
+        } else {
+            e.setStatus(nextStatus);
+            e.setApprovalSlaDueAt(null);
+        }
         e.setApproverUserId(TenantContext.getUserId());
         e.setApproverRemarks(req.getApproverRemarks());
         LeaveRequest saved = repo.save(e);
+        if (saved.getStatus() == Enums.LeaveStatus.PENDING) {
+            log.info("Leave request id={} moved to approval step={}/{}", id, saved.getApprovalStep(), saved.getApprovalStepTotal());
+            notifyApplicantOnStepAdvanced(saved);
+            return toResponse(saved);
+        }
         reconcileApprovalLedger(saved, previousStatus);
         log.info("Leave request id={} finalStatus={}", id, saved.getStatus());
         notifyApplicantOnDecision(saved);
         return toResponse(saved);
+    }
+
+    @Transactional
+    @Caching(evict = {
+            @CacheEvict(cacheNames = CacheConfig.LEAVE_BALANCE, keyGenerator = "tenantUserRoleKeyGenerator")
+    })
+    public LeaveDTOs.LeaveResponse cancelMine(Long id, String reason) {
+        String t = TenantContext.getTenantId();
+        Long uid = TenantContext.getUserId();
+        LeaveRequest e = repo.findByIdAndTenantIdAndIsDeletedFalse(id, t)
+                .orElseThrow(() -> new ResourceNotFoundException("LeaveRequest", id));
+        if (!Objects.equals(e.getApplicantUserId(), uid)) {
+            throw new BusinessException("You can cancel only your own leave request.");
+        }
+        if (e.getStatus() != Enums.LeaveStatus.PENDING) {
+            throw new BusinessException("Only pending requests can be cancelled.");
+        }
+        e.setStatus(Enums.LeaveStatus.CANCELLED);
+        e.setApprovalSlaDueAt(null);
+        if (reason != null && !reason.isBlank()) {
+            e.setApproverRemarks(reason.trim());
+        }
+        LeaveRequest saved = repo.save(e);
+        return toResponse(saved);
+    }
+
+    @Transactional
+    @CacheEvict(cacheNames = CacheConfig.LEAVE_BALANCE, allEntries = true)
+    public int escalateOverduePendingRequests() {
+        List<LeaveRequest> overdue = repo.findTop200ByStatusAndApprovalSlaDueAtBeforeAndIsDeletedFalseOrderByApprovalSlaDueAtAsc(
+                Enums.LeaveStatus.PENDING,
+                LocalDateTime.now());
+        int escalated = 0;
+        for (LeaveRequest leave : overdue) {
+            int current = leave.getApprovalEscalationCount() != null ? leave.getApprovalEscalationCount() : 0;
+            if (current >= maxEscalationCount) {
+                continue;
+            }
+            leave.setApprovalEscalationCount(current + 1);
+            leave.setApprovalSlaDueAt(nextSlaDueAt());
+            repo.save(leave);
+            notifyApproversOnSlaBreach(leave);
+            escalated++;
+        }
+        return escalated;
     }
 
     private void notifyApproversOnLeaveApplied(LeaveRequest leave) {
@@ -408,8 +517,48 @@ public class LeaveService {
         }
     }
 
+    private void notifyApplicantOnStepAdvanced(LeaveRequest leave) {
+        String tenantId = TenantContext.getTenantId();
+        Long applicantUserId = leave.getApplicantUserId();
+        if (applicantUserId == null) {
+            return;
+        }
+        String subject = "Leave request progressed";
+        String body = "Your leave request moved to approval step "
+                + leave.getApprovalStep() + " of " + leave.getApprovalStepTotal() + ".";
+        notificationService.createNotification(
+                tenantId,
+                applicantUserId,
+                subject,
+                body,
+                Enums.NotificationType.INFO,
+                "/app/leave");
+    }
+
+    private void notifyApproversOnSlaBreach(LeaveRequest leave) {
+        String tenantId = leave.getTenantId();
+        String subject = "Leave approval SLA reminder";
+        String body = "Pending leave request #" + leave.getId()
+                + " is waiting at step " + leave.getApprovalStep()
+                + " of " + leave.getApprovalStepTotal() + ".";
+        for (User approver : resolveLeaveApprovers(tenantId)) {
+            if (approver.getId() == null || approver.getId().equals(leave.getApplicantUserId())) {
+                continue;
+            }
+            notificationService.createNotification(
+                    tenantId,
+                    approver.getId(),
+                    subject,
+                    body,
+                    Enums.NotificationType.WARNING,
+                    "/app/leave");
+        }
+    }
+
     private List<User> resolveLeaveApprovers(String tenantId) {
-        List<User> activeUsers = userRepository.findByTenantIdAndIsDeletedFalseOrderByNameAsc(tenantId);
+        List<User> activeUsers = userRepository.findByTenantIdAndRoleInAndIsDeletedFalseOrderByNameAsc(
+                tenantId,
+                List.of(Enums.Role.ADMIN, Enums.Role.SCHOOL_STAFF, Enums.Role.LIBRARY_STAFF, Enums.Role.TEACHER));
         Set<Long> dedupedApproverIds = new LinkedHashSet<>();
         for (User user : activeUsers) {
             if (user == null || user.getId() == null || !Boolean.TRUE.equals(user.getIsActive())) {
@@ -522,6 +671,11 @@ public class LeaveService {
         if (signedUnits == 0) {
             return;
         }
+        if (referenceType != null && referenceId != null && entryType != null
+                && ledgerRepository.findFirstByTenantIdAndUserIdAndLeaveTypeAndEntryTypeAndReferenceTypeAndReferenceIdAndIsDeletedFalse(
+                        tenantId, userId, leaveType, entryType, referenceType, referenceId).isPresent()) {
+            return;
+        }
         LeaveEntitlementLedgerEntry row = new LeaveEntitlementLedgerEntry();
         row.setTenantId(tenantId);
         row.setIsActive(true);
@@ -534,6 +688,7 @@ public class LeaveService {
         row.setNotes(notes);
         row.setReferenceType(referenceType);
         row.setReferenceId(referenceId);
+        row.setAcademicYearId(AcademicYearContext.getAcademicYearId());
         row.setEffectiveDate(effectiveDate);
         ledgerRepository.save(row);
     }
@@ -568,6 +723,18 @@ public class LeaveService {
         return value == null ? 0 : value;
     }
 
+    private int computeTotalApprovalSteps(java.time.LocalDate startDate, java.time.LocalDate endDate) {
+        if (startDate == null || endDate == null) {
+            return 1;
+        }
+        int spanDays = (int) ChronoUnit.DAYS.between(startDate, endDate) + 1;
+        return spanDays > multiStepThresholdDays ? 2 : 1;
+    }
+
+    private LocalDateTime nextSlaDueAt() {
+        return LocalDateTime.now().plusHours(approvalSlaHours);
+    }
+
     private LeaveDTOs.EntitlementLedgerEntryResponse toLedgerResponse(LeaveEntitlementLedgerEntry e) {
         LeaveDTOs.EntitlementLedgerEntryResponse d = new LeaveDTOs.EntitlementLedgerEntryResponse();
         d.setId(e.getId());
@@ -598,6 +765,10 @@ public class LeaveService {
         r.setStatus(e.getStatus());
         r.setApproverUserId(e.getApproverUserId());
         r.setApproverRemarks(e.getApproverRemarks());
+        r.setApprovalStep(e.getApprovalStep());
+        r.setApprovalStepTotal(e.getApprovalStepTotal());
+        r.setApprovalSlaDueAt(e.getApprovalSlaDueAt());
+        r.setApprovalEscalationCount(e.getApprovalEscalationCount());
         r.setDayUnit(e.getDayUnit());
         if (e.getApplicantUserId() != null) {
             userRepository

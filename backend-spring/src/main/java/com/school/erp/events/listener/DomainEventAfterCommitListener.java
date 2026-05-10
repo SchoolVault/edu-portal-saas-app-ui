@@ -3,6 +3,7 @@ package com.school.erp.events.listener;
 import com.school.erp.events.domain.FeePaymentRecordedEvent;
 import com.school.erp.events.domain.StudentAdmittedEvent;
 import com.school.erp.events.domain.StudentEnrollmentChangedEvent;
+import com.school.erp.events.domain.TenantDomainEvent;
 import com.school.erp.integration.outbound.OutboundEmailHttpClient;
 import com.school.erp.integration.outbound.OutboundWebhookHttpClient;
 import com.school.erp.common.logging.MdcKeys;
@@ -105,6 +106,28 @@ public class DomainEventAfterCommitListener {
             analyticsEventPort.publish("student_admitted", attrs);
             outboundWebhookHttpClient.postEventPayload("student_admitted", event.tenantId(), attrs);
             outboundEmailHttpClient.postTriggerPayload("student_admitted", event.tenantId(), attrs);
+        });
+    }
+
+    @Async
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    public void onTenantDomainEvent(TenantDomainEvent event) {
+        withTenantContext(event.tenantId(), () -> {
+            Map<String, Object> attrs = new LinkedHashMap<>();
+            if (event.attributes() != null) {
+                attrs.putAll(event.attributes());
+            }
+            attrs.put("entityType", event.entityType());
+            attrs.put("entityId", event.entityId());
+            attrs.put("actor", event.actor());
+            attrs.put("academicYearId", event.academicYearId());
+            attrs.put("occurredAt", event.occurredAt() != null ? event.occurredAt().toString() : null);
+
+            String eventType = event.eventType() == null ? "tenant_domain_event" : event.eventType().trim().toLowerCase();
+            analyticsEventPort.publish(eventType, attrs);
+            outboundWebhookHttpClient.postEventPayload(eventType, event.tenantId(), attrs);
+            outboundEmailHttpClient.postTriggerPayload(eventType, event.tenantId(), attrs);
+            log.info("domain_event tenant={} type={} entity={}#{}", event.tenantId(), eventType, event.entityType(), event.entityId());
         });
     }
 }

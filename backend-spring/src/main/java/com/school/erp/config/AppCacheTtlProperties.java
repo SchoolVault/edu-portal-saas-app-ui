@@ -36,6 +36,10 @@ public class AppCacheTtlProperties {
     private Duration feesCatalog = Duration.ofMinutes(45);
     /** Class/section weekly timetable rows. */
     private Duration timetableGrid = Duration.ofMinutes(20);
+    /** Leave policy card and admin entitlement settings. */
+    private Duration leavePolicy = Duration.ofMinutes(20);
+    /** Leave balance summary for current user. */
+    private Duration leaveBalance = Duration.ofMinutes(3);
     private Duration reportResults = Duration.ofMinutes(30);
 
     public Duration getDefaultTtl() {
@@ -172,5 +176,21 @@ public class AppCacheTtlProperties {
 
     public void setTimetableGrid(Duration timetableGrid) {
         this.timetableGrid = timetableGrid;
+    }
+
+    public Duration getLeavePolicy() {
+        return leavePolicy;
+    }
+
+    public void setLeavePolicy(Duration leavePolicy) {
+        this.leavePolicy = leavePolicy;
+    }
+
+    public Duration getLeaveBalance() {
+        return leaveBalance;
+    }
+
+    public void setLeaveBalance(Duration leaveBalance) {
+        this.leaveBalance = leaveBalance;
     }
 }

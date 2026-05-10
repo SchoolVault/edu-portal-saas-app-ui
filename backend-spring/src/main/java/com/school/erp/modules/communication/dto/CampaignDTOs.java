@@ -7,6 +7,7 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 public class CampaignDTOs {
 
@@ -203,5 +204,14 @@ public class CampaignDTOs {
         public void setStatus(String status) { this.status = status; }
         public String getUpdatedAt() { return updatedAt; }
         public void setUpdatedAt(String updatedAt) { this.updatedAt = updatedAt; }
+    }
+
+    public static class CampaignAnalyticsBatchRequest {
+        @NotEmpty
+        @Size(max = 200)
+        private Set<String> campaignIds;
+
+        public Set<String> getCampaignIds() { return campaignIds; }
+        public void setCampaignIds(Set<String> campaignIds) { this.campaignIds = campaignIds; }
     }
 }

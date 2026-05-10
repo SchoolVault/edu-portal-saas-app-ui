@@ -148,30 +148,30 @@ const INDIA_TIMEZONE = 'Asia/Kolkata';
 
         <div *ngIf="canViewOpsDashboard" class="erp-card mt-3">
           <div class="d-flex justify-content-between align-items-center mb-2">
-            <h3 style="font-size: 16px; margin: 0;">Notification Delivery Dashboard</h3>
-            <button type="button" class="btn-outline-erp btn-sm" (click)="refreshOpsDashboard()">Refresh</button>
+            <h3 style="font-size: 16px; margin: 0;">{{ 'inbox.opsDashboardTitle' | translate }}</h3>
+            <button type="button" class="btn-outline-erp btn-sm" (click)="refreshOpsDashboard()">{{ 'inbox.refresh' | translate }}</button>
           </div>
           <div class="mb-2 small" *ngIf="providerHealth?.providers">
-            <strong>Provider status:</strong>
+            <strong>{{ 'inbox.providerStatus' | translate }}</strong>
             <span class="ms-2" *ngFor="let p of providerHealthEntries()">
-              <span [class.text-success]="p[1]" [class.text-danger]="!p[1]">{{ p[0] }}: {{ p[1] ? 'UP' : 'DOWN' }}</span>
+              <span [class.text-success]="p[1]" [class.text-danger]="!p[1]">{{ p[0] }}: {{ p[1] ? ('inbox.providerUp' | translate) : ('inbox.providerDown' | translate) }}</span>
             </span>
           </div>
-          <div *ngIf="campaignHistoryLoading" class="text-muted small">Loading campaign history...</div>
-          <div *ngIf="!campaignHistoryLoading && !campaignHistory.length" class="text-muted small">No notification campaigns yet.</div>
+          <div *ngIf="campaignHistoryLoading" class="text-muted small">{{ 'inbox.campaignHistoryLoading' | translate }}</div>
+          <div *ngIf="!campaignHistoryLoading && !campaignHistory.length" class="text-muted small">{{ 'inbox.campaignHistoryEmpty' | translate }}</div>
           <div *ngFor="let c of campaignHistory" class="border rounded p-2 mb-2">
             <div class="d-flex justify-content-between align-items-center">
               <div>
                 <div><strong>{{ c.title }}</strong> <span class="text-muted small">({{ c.eventType }})</span></div>
-                <div class="small text-muted">Audience {{ c.targetAudience }} | Recipients {{ c.recipientCount }} | Queued {{ c.queuedCount }}</div>
+                <div class="small text-muted">{{ 'inbox.campaignSummaryLine' | translate:{ audience: c.targetAudience, recipients: c.recipientCount, queued: c.queuedCount } }}</div>
               </div>
               <span class="badge-erp badge-info text-uppercase">{{ c.status }}</span>
             </div>
             <div class="small mt-1" *ngIf="campaignAnalytics[c.campaignId] as a">
-              Delivered {{ a.sent }} | Retrying {{ a.retry }} | Failed {{ a.deadLetter }} | Total {{ a.total }}
+              {{ 'inbox.campaignAnalyticsLine' | translate:{ sent: a.sent, retry: a.retry, dead: a.deadLetter, total: a.total } }}
             </div>
             <div class="mt-1" *ngIf="(campaignAnalytics[c.campaignId]?.deadLetter || 0) > 0">
-              <button *ngIf="canPublish" type="button" class="btn-outline-erp btn-sm" (click)="replayCampaignDlq(c.campaignId)">Retry failed deliveries</button>
+              <button *ngIf="canPublish" type="button" class="btn-outline-erp btn-sm" (click)="replayCampaignDlq(c.campaignId)">{{ 'inbox.retryFailedDeliveries' | translate }}</button>
             </div>
           </div>
           <app-erp-pagination
@@ -185,13 +185,13 @@ const INDIA_TIMEZONE = 'Asia/Kolkata';
           />
 
           <div class="mt-3">
-            <h4 style="font-size: 14px;">Failed Deliveries</h4>
-            <div *ngIf="deadLetterLoading" class="text-muted small">Loading failed deliveries...</div>
-            <div *ngIf="!deadLetterLoading && !deadLetters.length" class="text-muted small">No failed deliveries.</div>
+            <h4 style="font-size: 14px;">{{ 'inbox.failedDeliveriesTitle' | translate }}</h4>
+            <div *ngIf="deadLetterLoading" class="text-muted small">{{ 'inbox.failedDeliveriesLoading' | translate }}</div>
+            <div *ngIf="!deadLetterLoading && !deadLetters.length" class="text-muted small">{{ 'inbox.failedDeliveriesEmpty' | translate }}</div>
             <div *ngFor="let dlq of deadLetters" class="border rounded p-2 mb-2">
-              <div class="small"><strong>{{ dlq.eventType }}</strong> · {{ dlq.channel }} · attempts {{ dlq.attempts }}</div>
+              <div class="small"><strong>{{ dlq.eventType }}</strong> · {{ dlq.channel }} · {{ 'inbox.attempts' | translate:{ count: dlq.attempts } }}</div>
               <div class="small text-muted">{{ dlq.lastError }}</div>
-              <button *ngIf="canPublish" type="button" class="btn-outline-erp btn-sm mt-1" (click)="replayDeadLetter(dlq.id)">Retry delivery</button>
+              <button *ngIf="canPublish" type="button" class="btn-outline-erp btn-sm mt-1" (click)="replayDeadLetter(dlq.id)">{{ 'inbox.retryDelivery' | translate }}</button>
             </div>
             <app-erp-pagination
               *ngIf="deadLetterTotal > 0"
@@ -214,10 +214,10 @@ const INDIA_TIMEZONE = 'Asia/Kolkata';
           </div>
           <div class="modal-body-erp">
             <div class="erp-form-group">
-              <label class="erp-label">Type</label>
+              <label class="erp-label">{{ 'inbox.typeLabel' | translate }}</label>
               <select class="erp-select" [(ngModel)]="announcementMode">
-                <option value="NOTICE">Notice</option>
-                <option value="EVENT">Scheduled Event</option>
+                <option value="NOTICE">{{ 'inbox.notice' | translate }}</option>
+                <option value="EVENT">{{ 'inbox.scheduledEvent' | translate }}</option>
               </select>
             </div>
             <div class="erp-form-group">
@@ -225,19 +225,19 @@ const INDIA_TIMEZONE = 'Asia/Kolkata';
               <input type="text" class="erp-input" [(ngModel)]="annForm.title" />
             </div>
             <div class="erp-form-group">
-              <label class="erp-label">{{ announcementMode === 'EVENT' ? 'Description' : ('inbox.labelMessage' | translate) }}</label>
+              <label class="erp-label">{{ announcementMode === 'EVENT' ? ('inbox.description' | translate) : ('inbox.labelMessage' | translate) }}</label>
               <textarea class="erp-input erp-textarea" rows="5" [(ngModel)]="annForm.content"></textarea>
             </div>
             <div *ngIf="announcementMode === 'EVENT'" class="erp-form-group">
-              <label class="erp-label">Event type</label>
+              <label class="erp-label">{{ 'inbox.eventType' | translate }}</label>
               <select class="erp-select" [(ngModel)]="eventType">
-                <option value="PTM">PTM</option>
-                <option value="SPORTS">Sports</option>
-                <option value="FESTIVAL">Festival</option>
-                <option value="STAFF_MEETING">Staff Meeting</option>
-                <option value="EXAM">Exam</option>
-                <option value="FEES">Fees</option>
-                <option value="OTHER">Other</option>
+                <option value="PTM">{{ 'inbox.eventTypePTM' | translate }}</option>
+                <option value="SPORTS">{{ 'inbox.eventTypeSPORTS' | translate }}</option>
+                <option value="FESTIVAL">{{ 'inbox.eventTypeFESTIVAL' | translate }}</option>
+                <option value="STAFF_MEETING">{{ 'inbox.eventTypeSTAFF_MEETING' | translate }}</option>
+                <option value="EXAM">{{ 'inbox.eventTypeEXAM' | translate }}</option>
+                <option value="FEES">{{ 'inbox.eventTypeFEES' | translate }}</option>
+                <option value="OTHER">{{ 'inbox.eventTypeOTHER' | translate }}</option>
               </select>
             </div>
             <div class="erp-form-group">
@@ -252,7 +252,7 @@ const INDIA_TIMEZONE = 'Asia/Kolkata';
               <small class="text-muted d-block mt-1">{{ 'inbox.audienceScopeHint' | translate }}</small>
             </div>
             <div class="erp-form-group">
-              <label class="erp-label">Channels</label>
+              <label class="erp-label">{{ 'inbox.channels' | translate }}</label>
               <div class="d-flex flex-wrap gap-3">
                 <label class="form-check-label"><input type="checkbox" class="form-check-input me-1" [checked]="channelChecked('SMS')" (change)="toggleChannel('SMS', $event)" />SMS</label>
                 <label class="form-check-label"><input type="checkbox" class="form-check-input me-1" [checked]="channelChecked('WHATSAPP')" (change)="toggleChannel('WHATSAPP', $event)" />WhatsApp</label>
@@ -260,7 +260,7 @@ const INDIA_TIMEZONE = 'Asia/Kolkata';
               </div>
             </div>
             <div *ngIf="announcementMode === 'EVENT'" class="erp-form-group">
-              <label class="erp-label">Event start</label>
+              <label class="erp-label">{{ 'inbox.eventStart' | translate }}</label>
               <app-erp-date-picker
                 [(ngModel)]="eventStartAt"
                 mode="datetime"
@@ -268,7 +268,7 @@ const INDIA_TIMEZONE = 'Asia/Kolkata';
               />
             </div>
             <div *ngIf="announcementMode === 'EVENT'" class="erp-form-group">
-              <label class="erp-label">Event end (optional)</label>
+              <label class="erp-label">{{ 'inbox.eventEndOptional' | translate }}</label>
               <app-erp-date-picker
                 [(ngModel)]="eventEndAt"
                 mode="datetime"
@@ -276,7 +276,7 @@ const INDIA_TIMEZONE = 'Asia/Kolkata';
               />
             </div>
             <div *ngIf="announcementMode === 'EVENT'" class="erp-form-group">
-              <label class="erp-label">Publish at (optional schedule)</label>
+              <label class="erp-label">{{ 'inbox.publishAtOptional' | translate }}</label>
               <app-erp-date-picker
                 [(ngModel)]="publishAt"
                 mode="datetime"
@@ -284,7 +284,7 @@ const INDIA_TIMEZONE = 'Asia/Kolkata';
               />
             </div>
             <div *ngIf="announcementMode === 'EVENT'" class="erp-form-group">
-              <label class="erp-label">Location</label>
+              <label class="erp-label">{{ 'inbox.location' | translate }}</label>
               <input type="text" class="erp-input" [(ngModel)]="eventLocation" />
             </div>
             <div class="erp-form-group" *ngIf="annForm.targetAudience === 'CLASS' || annForm.targetAudience === 'SECTION'">
@@ -302,9 +302,9 @@ const INDIA_TIMEZONE = 'Asia/Kolkata';
               </select>
             </div>
             <div *ngIf="campaignPreview" class="p-2 rounded border bg-light mb-2">
-              <div class="small"><strong>Recipients:</strong> {{ campaignPreview.estimatedRecipients }}</div>
-              <div class="small"><strong>Estimated cost (minor):</strong> {{ campaignPreview.estimatedCostMinor }}</div>
-              <div class="small" *ngIf="campaignPreview.warnings.length"><strong>Warnings:</strong> {{ campaignPreview.warnings.join(' | ') }}</div>
+              <div class="small"><strong>{{ 'inbox.recipients' | translate }}</strong> {{ campaignPreview.estimatedRecipients }}</div>
+              <div class="small"><strong>{{ 'inbox.estimatedCostMinor' | translate }}</strong> {{ campaignPreview.estimatedCostMinor }}</div>
+              <div class="small" *ngIf="campaignPreview.warnings.length"><strong>{{ 'inbox.warnings' | translate }}</strong> {{ campaignPreview.warnings.join(' | ') }}</div>
             </div>
             <p *ngIf="announcementPublishError" class="text-danger small mb-0">{{ announcementPublishError }}</p>
             <p *ngIf="announcementPublishInfo" class="text-muted small mb-0">{{ announcementPublishInfo }}</p>
@@ -316,14 +316,14 @@ const INDIA_TIMEZONE = 'Asia/Kolkata';
               class="btn-outline-erp"
               (click)="previewCampaign()"
               [disabled]="isPublishingAnnouncement || !annForm.title.trim() || !annForm.content.trim() || selectedChannels.length === 0">
-              Preview
+              {{ 'inbox.preview' | translate }}
             </button>
             <button
               type="button"
               class="btn-primary-erp"
               (click)="publishAnnouncement()"
               [disabled]="isPublishingAnnouncement || !annForm.title.trim() || !annForm.content.trim() || selectedChannels.length === 0 || (announcementMode === 'EVENT' && !eventStartAt)">
-              <span *ngIf="!isPublishingAnnouncement">{{ announcementMode === 'EVENT' ? 'Create event' : ('inbox.publish' | translate) }}</span>
+              <span *ngIf="!isPublishingAnnouncement">{{ announcementMode === 'EVENT' ? ('inbox.createEvent' | translate) : ('inbox.publish' | translate) }}</span>
               <span *ngIf="isPublishingAnnouncement">
                 <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
                 {{ 'inbox.publishInProgress' | translate }}
@@ -508,7 +508,12 @@ export class CommunicationComponent implements OnInit {
       if (campaignId && this.canPublish) {
         this.comm.getCampaignAnalytics(campaignId).subscribe({
           next: analytics => {
-            this.announcementPublishInfo = `Campaign ${campaignId}: Delivered ${analytics.sent}, Retrying ${analytics.retry}, Failed ${analytics.deadLetter}`;
+            this.announcementPublishInfo = this.translate.instant('inbox.campaignAnalyticsToast', {
+              campaignId,
+              sent: analytics.sent,
+              retry: analytics.retry,
+              dead: analytics.deadLetter,
+            });
           },
         });
       }
@@ -664,7 +669,7 @@ export class CommunicationComponent implements OnInit {
       return;
     }
     if (!this.selectedChannels.length) {
-      this.announcementPublishError = 'Select at least one channel.';
+      this.announcementPublishError = this.translate.instant('inbox.selectAtLeastOneChannel');
       return;
     }
     let targetClassId: number | undefined;
@@ -684,7 +689,7 @@ export class CommunicationComponent implements OnInit {
       }
     }
     if (this.announcementMode === 'EVENT' && !this.eventStartAt) {
-      this.announcementPublishError = 'Event start date/time is required.';
+      this.announcementPublishError = this.translate.instant('inbox.eventStartRequired');
       return;
     }
     this.announcementPublishError = '';
@@ -784,11 +789,13 @@ export class CommunicationComponent implements OnInit {
     this.comm.previewCampaign(payload).subscribe({
       next: preview => {
         this.campaignPreview = preview;
-        this.announcementPublishInfo = `Estimated recipients: ${preview.estimatedRecipients}`;
+        this.announcementPublishInfo = this.translate.instant('inbox.estimatedRecipientsInfo', {
+          count: preview.estimatedRecipients,
+        });
       },
       error: () => {
         this.campaignPreview = null;
-        this.announcementPublishError = 'Preview failed';
+        this.announcementPublishError = this.translate.instant('inbox.previewFailed');
       },
     });
   }
@@ -819,13 +826,12 @@ export class CommunicationComponent implements OnInit {
         this.campaignHistoryTotal = page.totalElements || 0;
         this.campaignHistoryLoading = false;
         this.campaignAnalytics = {};
-        for (const row of this.campaignHistory) {
-          this.comm.getCampaignAnalytics(row.campaignId).subscribe({
-            next: a => {
-              this.campaignAnalytics[row.campaignId] = a;
-            },
-          });
-        }
+        const ids = this.campaignHistory.map(r => r.campaignId).filter(Boolean);
+        this.comm.getCampaignAnalyticsBatch(ids).subscribe({
+          next: m => {
+            this.campaignAnalytics = m || {};
+          },
+        });
       },
       error: () => {
         this.campaignHistoryLoading = false;

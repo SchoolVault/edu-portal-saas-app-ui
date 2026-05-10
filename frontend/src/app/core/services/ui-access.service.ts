@@ -159,10 +159,74 @@ export class UiAccessService {
     );
   }
 
-  /** Fees desk visibility: read/write atoms + tenant/platform operators. */
+  /** Fees desk visibility: coarse atoms, granular v2 lanes, tenant/platform operators (not parents). */
   hasSchoolFeeOfficeDesk(): boolean {
     return this.hasAnyPermission(
       AppPermission.SCHOOL_FEES_READ,
+      AppPermission.SCHOOL_FEES_WRITE,
+      AppPermission.FEE_FINANCE_READ,
+      AppPermission.FEE_CONFIG_WRITE,
+      AppPermission.FEE_BILLING_WRITE,
+      AppPermission.FEE_REFUND_REQUEST,
+      AppPermission.FEE_REFUND_APPROVE,
+      AppPermission.FEE_ONLINE_CHECKOUT,
+      AppPermission.TENANT_ADMIN,
+      AppPermission.PLATFORM_ADMIN
+    );
+  }
+
+  /** Mirrors {@code RbacSpel#FEE_FINANCE_READ}. */
+  hasFeeFinanceRead(): boolean {
+    return this.hasAnyPermission(
+      AppPermission.FEE_FINANCE_READ,
+      AppPermission.SCHOOL_FEES_READ,
+      AppPermission.SCHOOL_FEES_WRITE,
+      AppPermission.TENANT_ADMIN,
+      AppPermission.PLATFORM_ADMIN
+    );
+  }
+
+  /** Mirrors {@code RbacSpel#FEE_CONFIG_WRITE}. */
+  hasFeeConfigWrite(): boolean {
+    return this.hasAnyPermission(
+      AppPermission.FEE_CONFIG_WRITE,
+      AppPermission.SCHOOL_FEES_WRITE,
+      AppPermission.TENANT_ADMIN,
+      AppPermission.PLATFORM_ADMIN
+    );
+  }
+
+  /** Mirrors {@code RbacSpel#FEE_BILLING_WRITE}. */
+  hasFeeBillingWrite(): boolean {
+    return this.hasAnyPermission(
+      AppPermission.FEE_BILLING_WRITE,
+      AppPermission.SCHOOL_FEES_WRITE,
+      AppPermission.TENANT_ADMIN,
+      AppPermission.PLATFORM_ADMIN
+    );
+  }
+
+  hasFeeRefundRequest(): boolean {
+    return this.hasAnyPermission(
+      AppPermission.FEE_REFUND_REQUEST,
+      AppPermission.SCHOOL_FEES_WRITE,
+      AppPermission.TENANT_ADMIN,
+      AppPermission.PLATFORM_ADMIN
+    );
+  }
+
+  hasFeeRefundApprove(): boolean {
+    return this.hasAnyPermission(
+      AppPermission.FEE_REFUND_APPROVE,
+      AppPermission.SCHOOL_FEES_WRITE,
+      AppPermission.TENANT_ADMIN,
+      AppPermission.PLATFORM_ADMIN
+    );
+  }
+
+  hasFeeOnlineCheckout(): boolean {
+    return this.hasAnyPermission(
+      AppPermission.FEE_ONLINE_CHECKOUT,
       AppPermission.SCHOOL_FEES_WRITE,
       AppPermission.TENANT_ADMIN,
       AppPermission.PLATFORM_ADMIN
@@ -290,6 +354,7 @@ export class UiAccessService {
   hasLibraryCirculationDeskAccess(): boolean {
     return this.hasAnyPermission(
       AppPermission.SCHOOL_LIBRARY_WRITE,
+      AppPermission.SCHOOL_LIBRARY_RESERVATION_WRITE,
       AppPermission.TENANT_ADMIN,
       AppPermission.PLATFORM_ADMIN
     );
@@ -311,6 +376,26 @@ export class UiAccessService {
     return this.hasAnyPermission(
       AppPermission.SCHOOL_LIBRARY_READ,
       AppPermission.SCHOOL_LIBRARY_WRITE,
+      AppPermission.SCHOOL_LIBRARY_ANALYTICS_READ,
+      AppPermission.SCHOOL_LIBRARY_REMINDER_READ,
+      AppPermission.TENANT_ADMIN,
+      AppPermission.PLATFORM_ADMIN
+    );
+  }
+
+  hasLibraryPolicyWriteAccess(): boolean {
+    return this.hasAnyPermission(
+      AppPermission.SCHOOL_LIBRARY_POLICY_WRITE,
+      AppPermission.SCHOOL_LIBRARY_WRITE,
+      AppPermission.TENANT_ADMIN,
+      AppPermission.PLATFORM_ADMIN
+    );
+  }
+
+  hasLibraryInventoryWriteAccess(): boolean {
+    return this.hasAnyPermission(
+      AppPermission.SCHOOL_LIBRARY_INVENTORY_WRITE,
+      AppPermission.SCHOOL_LIBRARY_WRITE,
       AppPermission.TENANT_ADMIN,
       AppPermission.PLATFORM_ADMIN
     );
@@ -325,15 +410,33 @@ export class UiAccessService {
     return this.hasAnyPermission(
       AppPermission.SCHOOL_COMMUNICATION_READ,
       AppPermission.SCHOOL_COMMUNICATION_WRITE,
+      AppPermission.SCHOOL_COMMUNICATION_PUBLISH,
       AppPermission.TENANT_ADMIN,
       AppPermission.PLATFORM_ADMIN
     );
   }
 
   /** {@code RbacSpel#COMMUNICATION_SCHOOL_ADMIN} — comms admin / campaigns. */
-  hasCommunicationSchoolAdminDesk(): boolean {
+  hasCommunicationPublishAccess(): boolean {
     return this.hasAnyPermission(
+      AppPermission.SCHOOL_COMMUNICATION_PUBLISH,
       AppPermission.SCHOOL_COMMUNICATION_WRITE,
+      AppPermission.TENANT_ADMIN,
+      AppPermission.PLATFORM_ADMIN
+    );
+  }
+
+  /** Backward-compatible alias for existing communication component calls. */
+  hasCommunicationSchoolAdminDesk(): boolean {
+    return this.hasCommunicationPublishAccess();
+  }
+
+  /** Direct message send lane for teacher-parent/staff communication actions. */
+  hasCommunicationMessageSendAccess(): boolean {
+    return this.hasAnyPermission(
+      AppPermission.SCHOOL_COMMUNICATION_MESSAGE_SEND,
+      AppPermission.SCHOOL_COMMUNICATION_WRITE,
+      AppPermission.SCHOOL_COMMUNICATION_PUBLISH,
       AppPermission.TENANT_ADMIN,
       AppPermission.PLATFORM_ADMIN
     );
@@ -407,6 +510,23 @@ export class UiAccessService {
     );
   }
 
+  hasDocumentsReadAccess(): boolean {
+    return this.hasAnyPermission(
+      AppPermission.SCHOOL_DOCUMENTS_READ,
+      AppPermission.SCHOOL_DOCUMENTS_WRITE,
+      AppPermission.TENANT_ADMIN,
+      AppPermission.PLATFORM_ADMIN
+    );
+  }
+
+  hasDocumentsWriteAccess(): boolean {
+    return this.hasAnyPermission(
+      AppPermission.SCHOOL_DOCUMENTS_WRITE,
+      AppPermission.TENANT_ADMIN,
+      AppPermission.PLATFORM_ADMIN
+    );
+  }
+
   hasBaselineSchoolStaffPortal(): boolean {
     return this.auth.hasAppPermission(AppPermission.PORTAL_SCHOOL_STAFF);
   }
@@ -455,6 +575,11 @@ export class UiAccessService {
       AppPermission.ACADEMIC_TEACHER,
       AppPermission.SCHOOL_LIBRARY_READ,
       AppPermission.SCHOOL_LIBRARY_WRITE,
+      AppPermission.SCHOOL_LIBRARY_ANALYTICS_READ,
+      AppPermission.SCHOOL_LIBRARY_POLICY_WRITE,
+      AppPermission.SCHOOL_LIBRARY_RESERVATION_WRITE,
+      AppPermission.SCHOOL_LIBRARY_INVENTORY_WRITE,
+      AppPermission.SCHOOL_LIBRARY_REMINDER_READ,
     ];
     return desk.some(p => this.auth.hasAppPermission(p));
   }

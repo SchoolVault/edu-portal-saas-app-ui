@@ -12,6 +12,8 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
@@ -115,6 +117,105 @@ public class LibraryController {
     @Operation(summary = "Return book", description = "Return date & optional fine/day override; otherwise tenant library_fine_per_day applies.")
     public ResponseEntity<ApiResponse<LibraryDTOs.BookIssueResponse>> returnBook(@PathVariable Long id, @RequestBody(required = false) LibraryDTOs.ReturnBookRequest req) {
         return ResponseEntity.ok(ApiResponse.ok(service.returnBook(id, req), "Book returned"));
+    }
+
+    @GetMapping("/policies/fine")
+    @PreAuthorize(RbacSpel.LIBRARY_DESK_READ)
+    @Operation(summary = "List library fine policies")
+    public ResponseEntity<ApiResponse<List<LibraryDTOs.LibraryFinePolicyResponse>>> listFinePolicies() {
+        return ResponseEntity.ok(ApiResponse.ok(service.listFinePolicies()));
+    }
+
+    @PutMapping("/policies/fine")
+    @PreAuthorize(RbacSpel.LIBRARY_POLICY_WRITE)
+    @Operation(summary = "Create/update library fine policy")
+    public ResponseEntity<ApiResponse<LibraryDTOs.LibraryFinePolicyResponse>> upsertFinePolicy(
+            @Valid @RequestBody LibraryDTOs.LibraryFinePolicyRequest req) {
+        return ResponseEntity.ok(ApiResponse.ok(service.upsertFinePolicy(req)));
+    }
+
+    @GetMapping("/reservations")
+    @PreAuthorize(RbacSpel.LIBRARY_DESK_READ)
+    @Operation(summary = "List reservations")
+    public ResponseEntity<ApiResponse<List<LibraryDTOs.LibraryReservationResponse>>> listReservations(
+            @RequestParam(required = false) String status) {
+        return ResponseEntity.ok(ApiResponse.ok(service.listReservations(status)));
+    }
+
+    @PostMapping("/reservations")
+    @PreAuthorize(RbacSpel.LIBRARY_CIRCULATION_ACCESS)
+    @Operation(summary = "Reserve a book copy")
+    public ResponseEntity<ApiResponse<LibraryDTOs.LibraryReservationResponse>> createReservation(
+            @Valid @RequestBody LibraryDTOs.LibraryReservationRequest req) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.created(service.createReservation(req)));
+    }
+
+    @PutMapping("/reservations/{id}/cancel")
+    @PreAuthorize(RbacSpel.LIBRARY_CIRCULATION_ACCESS)
+    @Operation(summary = "Cancel reservation")
+    public ResponseEntity<ApiResponse<LibraryDTOs.LibraryReservationResponse>> cancelReservation(@PathVariable Long id) {
+        return ResponseEntity.ok(ApiResponse.ok(service.cancelReservation(id)));
+    }
+
+    @PutMapping("/reservations/{id}/fulfill")
+    @PreAuthorize(RbacSpel.LIBRARY_CIRCULATION_ACCESS)
+    @Operation(summary = "Fulfill reservation by issuing copy")
+    public ResponseEntity<ApiResponse<LibraryDTOs.LibraryReservationResponse>> fulfillReservation(
+            @PathVariable Long id,
+            @RequestParam(required = false) Integer dueDays) {
+        return ResponseEntity.ok(ApiResponse.ok(service.fulfillReservation(id, dueDays)));
+    }
+
+    @PostMapping("/inventory/adjust")
+    @PreAuthorize(RbacSpel.LIBRARY_INVENTORY_WRITE)
+    @Operation(summary = "Inventory accession/loss/write-off adjustment")
+    public ResponseEntity<ApiResponse<LibraryDTOs.LibraryInventoryLedgerResponse>> adjustInventory(
+            @Valid @RequestBody LibraryDTOs.LibraryInventoryAdjustRequest req) {
+        return ResponseEntity.ok(ApiResponse.ok(service.adjustInventory(req)));
+    }
+
+    @GetMapping("/inventory/ledger")
+    @PreAuthorize(RbacSpel.LIBRARY_DESK_READ)
+    @Operation(summary = "Inventory adjustment ledger")
+    public ResponseEntity<ApiResponse<List<LibraryDTOs.LibraryInventoryLedgerResponse>>> listInventoryLedger() {
+        return ResponseEntity.ok(ApiResponse.ok(service.listInventoryLedger()));
+    }
+
+    @GetMapping("/analytics/snapshot")
+    @PreAuthorize(RbacSpel.LIBRARY_ANALYTICS_READ)
+    @Operation(summary = "Library analytics snapshot")
+    public ResponseEntity<ApiResponse<LibraryDTOs.LibraryAnalyticsSnapshot>> analyticsSnapshot() {
+        return ResponseEntity.ok(ApiResponse.ok(service.getAnalyticsSnapshot()));
+    }
+
+    @GetMapping("/reminders/due")
+    @PreAuthorize(RbacSpel.LIBRARY_REMINDER_READ)
+    @Operation(summary = "Borrower reminders preview")
+    public ResponseEntity<ApiResponse<List<LibraryDTOs.BookIssueResponse>>> dueReminders(
+            @RequestParam(defaultValue = "7") int dueInDays) {
+        return ResponseEntity.ok(ApiResponse.ok(service.listDueReminders(dueInDays)));
+    }
+
+    @GetMapping(value = "/analytics/export.csv", produces = "text/csv")
+    @PreAuthorize(RbacSpel.LIBRARY_ANALYTICS_READ)
+    @Operation(summary = "Export library analytics CSV")
+    public ResponseEntity<byte[]> exportAnalyticsCsv() {
+        byte[] body = service.exportAnalyticsCsv();
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=library-analytics-export.csv")
+                .contentType(MediaType.parseMediaType("text/csv;charset=UTF-8"))
+                .body(body);
+    }
+
+    @GetMapping(value = "/analytics/export.pdf", produces = "application/pdf")
+    @PreAuthorize(RbacSpel.LIBRARY_ANALYTICS_READ)
+    @Operation(summary = "Export library analytics PDF")
+    public ResponseEntity<byte[]> exportAnalyticsPdf() {
+        byte[] body = service.exportAnalyticsPdf();
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=library-analytics-export.pdf")
+                .contentType(MediaType.APPLICATION_PDF)
+                .body(body);
     }
 
     public LibraryController(final LibraryService service) {

@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { DocumentRecord } from '../../core/models/models';
 import { DocumentsService } from '../../core/services/documents.service';
+import { AcademicService } from '../../core/services/academic.service';
 import { AuthService } from '../../core/services/auth.service';
 import { UiAccessService } from '../../core/services/ui-access.service';
 import { debounceTime, filter } from 'rxjs/operators';
@@ -39,9 +40,12 @@ import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directiv
               <input type="text" class="erp-input" erpI18nPh="documents.searchPlaceholder" [(ngModel)]="search" (input)="onSearchInput()">
             </div>
           </div>
+          <div class="erp-filter-toolbar__actions">
+            <span class="badge-erp badge-neutral">{{ 'documents.currentYearLabel' | translate:{ year: (currentAcademicYearName || currentAcademicYearId || ('documents.currentYearUnknown' | translate)) } }}</span>
+          </div>
         </div>
         <table class="erp-table" data-testid="documents-table">
-          <thead><tr><th>{{ 'documents.thName' | translate }}</th><th>{{ 'documents.thType' | translate }}</th><th>{{ 'documents.thCategory' | translate }}</th><th>{{ 'documents.thUploadedBy' | translate }}</th><th>{{ 'documents.thDate' | translate }}</th><th>{{ 'documents.thSize' | translate }}</th><th>{{ 'documents.thActions' | translate }}</th></tr></thead>
+          <thead><tr><th>{{ 'documents.thName' | translate }}</th><th>{{ 'documents.thType' | translate }}</th><th>{{ 'documents.thCategory' | translate }}</th><th>{{ 'documents.thAcademicYear' | translate }}</th><th>{{ 'documents.thUploadedBy' | translate }}</th><th>{{ 'documents.thDate' | translate }}</th><th>{{ 'documents.thSize' | translate }}</th><th>{{ 'documents.thActions' | translate }}</th></tr></thead>
           <tbody>
             <tr *ngFor="let doc of pagedDocs">
               <td>
@@ -52,6 +56,7 @@ import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directiv
               </td>
               <td><span class="badge-erp badge-neutral">{{ doc.type }}</span></td>
               <td style="text-transform: capitalize;">{{ doc.category }}</td>
+              <td>{{ doc.academicYearId || ('transport.dash' | translate) }}</td>
               <td>{{ doc.uploadedBy }}</td>
               <td>{{ doc.uploadDate }}</td>
               <td>{{ doc.size }}</td>
@@ -80,8 +85,6 @@ import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directiv
           <p class="small text-muted mb-2">{{ 'documents.modalLead' | translate }}</p>
           <label class="erp-label">{{ 'documents.labelName' | translate }}</label>
           <input class="erp-input mb-2" [(ngModel)]="uploadForm.name">
-          <label class="erp-label">{{ 'documents.labelFileType' | translate }}</label>
-          <input class="erp-input mb-2" [(ngModel)]="uploadForm.fileType" erpI18nPh="documents.phFileType">
           <label class="erp-label">{{ 'documents.labelCategory' | translate }}</label>
           <select class="erp-select mb-2" [(ngModel)]="uploadForm.category">
             <option value="GENERAL">{{ 'documents.catGeneral' | translate }}</option>
@@ -89,10 +92,10 @@ import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directiv
             <option value="TEACHER">{{ 'documents.catTeacher' | translate }}</option>
             <option value="ADMIN">{{ 'documents.catAdmin' | translate }}</option>
           </select>
-          <label class="erp-label">{{ 'documents.labelSize' | translate }}</label>
-          <input class="erp-input mb-2" [(ngModel)]="uploadForm.fileSize" erpI18nPh="documents.phFileSize">
-          <label class="erp-label">{{ 'documents.labelFileUrl' | translate }}</label>
-          <input class="erp-input" [(ngModel)]="uploadForm.fileUrl" erpI18nPh="documents.phFileUrl">
+          <label class="erp-label">{{ 'documents.modalAcademicYear' | translate }}</label>
+          <input class="erp-input mb-2" [value]="currentAcademicYearName || currentAcademicYearId || ('documents.currentYearUnknown' | translate)" readonly>
+          <label class="erp-label">{{ 'documents.labelFileBinary' | translate }}</label>
+          <input class="erp-input" type="file" (change)="onSelectFile($event)">
         </div>
         <div class="modal-footer-erp">
           <button class="btn-outline-erp" (click)="uploadOpen = false">{{ 'documents.cancel' | translate }}</button>
@@ -116,13 +119,17 @@ export class DocumentsComponent implements OnInit, OnDestroy {
   private readonly subs = new Subscription();
   private listSeq = 0;
   canUpload = false;
+  currentAcademicYearId: number | null = null;
+  currentAcademicYearName = '';
   currentUserId = '';
   isAdmin = false;
   uploadOpen = false;
-  uploadForm = { name: '', fileType: 'PDF', category: 'GENERAL', fileSize: '', fileUrl: '' };
+  selectedFile: File | null = null;
+  uploadForm = { name: '', category: 'GENERAL' };
 
   constructor(
     private documentsService: DocumentsService,
+    private academicService: AcademicService,
     private authService: AuthService,
     private uiAccess: UiAccessService,
     private confirmDialog: ConfirmDialogService,
@@ -146,10 +153,22 @@ export class DocumentsComponent implements OnInit, OnDestroy {
       })
     );
     const u = this.authService.getCurrentUser();
-    this.isAdmin = this.uiAccess.hasAcademicDeskAdminAccess();
-    this.canUpload = this.uiAccess.hasAcademicRosterReadAccess();
+    this.isAdmin = this.uiAccess.hasDocumentsWriteAccess();
+    this.canUpload = this.uiAccess.hasDocumentsWriteAccess();
     this.currentUserId = u?.id != null ? String(u.id) : '';
-    this.reload();
+    this.initializeCurrentAcademicYear();
+  }
+
+  private initializeCurrentAcademicYear(): void {
+    this.academicService.getAcademicYears().subscribe({
+      next: years => {
+        const current = years.find(y => y.isCurrent) ?? years[0];
+        this.currentAcademicYearId = current?.id ?? null;
+        this.currentAcademicYearName = current?.name ?? '';
+        this.reload();
+      },
+      error: () => this.reload(),
+    });
   }
 
   onSearchInput(): void {
@@ -166,7 +185,7 @@ export class DocumentsComponent implements OnInit, OnDestroy {
       this.fetchDocsPage();
       return;
     }
-    this.documentsService.list().subscribe(d => {
+    this.documentsService.list(undefined, this.currentAcademicYearId ?? undefined).subscribe(d => {
       this.documents = d;
       this.filterDocs();
     });
@@ -175,7 +194,12 @@ export class DocumentsComponent implements OnInit, OnDestroy {
   private fetchDocsPage(): void {
     const seq = ++this.listSeq;
     this.documentsService
-      .listPaged({ page: this.pageIndex, size: this.pageSize, q: this.search.trim() || undefined })
+      .listPaged({
+        page: this.pageIndex,
+        size: this.pageSize,
+        q: this.search.trim() || undefined,
+        academicYearId: this.currentAcademicYearId ?? undefined,
+      })
       .subscribe(p => {
         if (seq !== this.listSeq) return;
         this.pagedDocs = p.content;
@@ -212,13 +236,14 @@ export class DocumentsComponent implements OnInit, OnDestroy {
   }
 
   canDelete(doc: DocumentRecord): boolean {
-    if (this.uiAccess.hasAcademicDeskAdminAccess()) return true;
+    if (this.uiAccess.hasDocumentsWriteAccess()) return true;
     if (runtimeConfig.useMocks) return true;
     return !!this.currentUserId && doc.uploadedBy === this.currentUserId;
   }
 
   download(doc: DocumentRecord): void {
-    if (doc.fileUrl) window.open(doc.fileUrl, '_blank', 'noopener');
+    const url = this.documentsService.downloadUrl(doc);
+    window.open(url, '_blank', 'noopener');
   }
 
   remove(doc: DocumentRecord): void {
@@ -240,18 +265,25 @@ export class DocumentsComponent implements OnInit, OnDestroy {
   }
 
   openUpload(): void {
-    this.uploadForm = { name: '', fileType: 'PDF', category: 'GENERAL', fileSize: '', fileUrl: '' };
+    this.selectedFile = null;
+    this.uploadForm = { name: '', category: 'GENERAL' };
     this.uploadOpen = true;
   }
 
+  onSelectFile(event: Event): void {
+    const el = event.target as HTMLInputElement;
+    this.selectedFile = el.files && el.files.length ? el.files[0] : null;
+  }
+
   saveUpload(): void {
-    if (!this.uploadForm.name.trim()) return;
-    this.documentsService.uploadMeta({
-      name: this.uploadForm.name,
-      fileType: this.uploadForm.fileType,
+    if (!this.selectedFile) return;
+    const resolvedName = this.uploadForm.name.trim() || this.selectedFile.name;
+    this.documentsService.upload({
+      file: this.selectedFile,
+      name: resolvedName,
       category: this.uploadForm.category,
-      fileSize: this.uploadForm.fileSize,
-      fileUrl: this.uploadForm.fileUrl || undefined
+      academicYearId: this.currentAcademicYearId ?? undefined,
+      visibilityScope: 'PRIVATE',
     }).subscribe(() => {
       this.uploadOpen = false;
       this.reload();

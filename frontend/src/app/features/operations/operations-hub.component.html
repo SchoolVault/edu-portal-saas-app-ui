@@ -1,0 +1,475 @@
+    <div data-testid="operations-hub-page">
+      <div class="mb-4 animate-in">
+        <h2 style="font-size: 24px; font-weight: 800;">{{ 'operations.pageTitle' | translate }}</h2>
+        <p class="text-muted mb-0" style="font-size: 13px;">{{ 'operations.lead' | translate }}</p>
+      </div>
+      <div class="erp-tabs mb-4">
+        <button type="button" class="erp-tab" *ngFor="let t of tabs" [class.active]="tab === t.id" (click)="selectTab(t.id)">{{ ('operations.tab.' + t.id) | translate }}</button>
+      </div>
+
+      <div class="erp-card mb-4" *ngIf="tab === 'search'">
+        <h4 class="erp-card-title mb-2">{{ 'operations.search.title' | translate }}</h4>
+        <p class="text-muted small mb-3">{{ 'operations.search.lead' | translate }}</p>
+        <div class="row g-2 mb-3 align-items-end">
+          <div class="col-lg-5 col-md-12">
+            <label class="erp-label">{{ 'operations.search.queryLabel' | translate }}</label>
+            <input class="erp-input" [(ngModel)]="globalSearchQuery" erpI18nPh="operations.search.queryPlaceholder" (keyup.enter)="runGlobalSearch()" />
+          </div>
+          <div class="col-lg-5 col-md-12">
+            <label class="erp-label">{{ 'operations.search.scopeLabel' | translate }}</label>
+            <div class="d-flex flex-wrap gap-2">
+              <button type="button" class="btn-outline-erp btn-xs" *ngFor="let s of globalSearchScopesAll" [class.btn-primary-erp]="isGlobalScopeActive(s)" (click)="toggleGlobalScope(s)">
+                {{ ('operations.search.scope.' + s) | translate }}
+              </button>
+            </div>
+          </div>
+          <div class="col-lg-2 col-md-12">
+            <button type="button" class="btn-primary-erp w-100" [disabled]="globalSearchBusy" (click)="runGlobalSearch()">{{ 'operations.search.run' | translate }}</button>
+          </div>
+        </div>
+        <div *ngIf="globalSearchError" class="alert alert-danger py-2 px-3 small mb-2" style="border-radius: var(--radius-md);">{{ globalSearchError }}</div>
+        <div *ngIf="globalSearchBusy" class="small text-muted mb-2">{{ 'operations.search.loading' | translate }}</div>
+        <div class="d-flex flex-wrap gap-2 mb-3">
+          <button type="button" class="btn-outline-erp btn-xs" (click)="saveSearchScopes()">{{ 'operations.search.saveScopes' | translate }}</button>
+          <button type="button" class="btn-outline-erp btn-xs" (click)="restoreSearchScopes()">{{ 'operations.search.restoreScopes' | translate }}</button>
+          <button type="button" class="btn-outline-erp btn-xs" (click)="selectAllSearchScopes()">{{ 'operations.search.selectAllScopes' | translate }}</button>
+        </div>
+        <div class="row g-2 mb-2">
+          <div class="col-lg-3 col-md-6">
+            <label class="erp-label">{{ 'operations.search.statusFilterLabel' | translate }}</label>
+            <select class="erp-select" [(ngModel)]="globalSearchStatusFilter" (change)="applyGlobalSearchFilters()">
+              <option value="ALL">{{ 'operations.search.statusFilterAll' | translate }}</option>
+              <option value="ACTIVE">ACTIVE</option>
+              <option value="INACTIVE">INACTIVE</option>
+              <option value="LOW_STOCK">LOW_STOCK</option>
+              <option value="PENDING">PENDING</option>
+              <option value="REVOKED">REVOKED</option>
+            </select>
+          </div>
+        </div>
+        <div class="d-flex align-items-center justify-content-between mb-2">
+          <p class="small text-muted mb-0">{{ 'operations.search.resultCount' | translate:{ count: globalSearchRowsFiltered.length } }}</p>
+        </div>
+        <table class="erp-table mb-0" *ngIf="globalSearchRowsFiltered.length">
+          <thead>
+            <tr>
+              <th>{{ 'operations.search.thScope' | translate }}</th>
+              <th>{{ 'operations.search.thTitle' | translate }}</th>
+              <th>{{ 'operations.search.thSubtitle' | translate }}</th>
+              <th>{{ 'operations.search.thStatus' | translate }}</th>
+              <th>{{ 'operations.search.thAction' | translate }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let row of globalSearchRowsFiltered">
+              <td>{{ ('operations.search.scope.' + row.scope) | translate }}</td>
+              <td>{{ row.title }}</td>
+              <td>{{ row.subtitle || ('transport.dash' | translate) }}</td>
+              <td>{{ row.status || ('transport.dash' | translate) }}</td>
+              <td><button type="button" class="btn-outline-erp btn-xs" (click)="openSearchResult(row)">{{ 'operations.search.open' | translate }}</button></td>
+            </tr>
+          </tbody>
+        </table>
+        <p class="small text-muted mb-0" *ngIf="!globalSearchRowsFiltered.length">{{ 'operations.search.empty' | translate }}</p>
+      </div>
+
+      <div class="erp-card mb-4" *ngIf="tab === 'staff'">
+        <h4 class="erp-card-title mb-3">{{ 'operations.staff.title' | translate }}</h4>
+        <p class="text-muted small mb-2">{{ 'operations.staff.hint' | translate }}</p>
+        <div *ngIf="staffTabError" class="alert alert-danger py-2 px-3 small mb-2" style="border-radius: var(--radius-md);">{{ staffTabError }}</div>
+        <div class="row g-2 mb-2">
+          <div class="col-md-3"><select class="erp-select" [(ngModel)]="staffForm.staffRole"><option *ngFor="let r of staffRoles" [value]="r">{{ staffRoleLabel(r) }}</option></select></div>
+          <div class="col-md-3"><input class="erp-input" [(ngModel)]="staffForm.fullName" erpI18nPh="operations.staff.phFullName" /></div>
+          <div class="col-md-2"><input class="erp-input" [(ngModel)]="staffForm.phone" erpI18nPh="operations.staff.phPhone" inputmode="numeric" maxlength="10" pattern="[0-9]{10}" /></div>
+          <div class="col-md-2"><input class="erp-input" [(ngModel)]="staffForm.employeeCode" erpI18nPh="operations.staff.phCode" /></div>
+          <div class="col-md-2"><button type="button" class="btn-primary-erp w-100" [disabled]="!canManageOperationsLifecycle" (click)="addStaff()">{{ 'operations.staff.add' | translate }}</button></div>
+          <div class="col-12">
+            <label class="d-inline-flex align-items-center gap-2 small text-muted mb-0">
+              <input type="checkbox" [(ngModel)]="staffForm.createPortal" />
+              <span [erpI18nText]="'operations.staff.createPortalCheckbox'"></span>
+            </label>
+          </div>
+        </div>
+        <table class="erp-table mb-0">
+          <thead><tr><th>{{ 'operations.staff.thRole' | translate }}</th><th>{{ 'operations.staff.thName' | translate }}</th><th>{{ 'operations.staff.thPhone' | translate }}</th><th>{{ 'operations.staff.thCode' | translate }}</th><th></th></tr></thead>
+          <tbody>
+            <tr *ngFor="let s of staff">
+              <td>{{ staffRoleLabel(s.staffRole) }}</td>
+              <td>{{ s.fullName }}</td>
+              <td>{{ s.phone }}</td>
+              <td>{{ s.employeeCode }}</td>
+              <td>
+                <button type="button" class="btn-outline-erp btn-xs" [disabled]="!canManageOperationsLifecycle" (click)="removeStaff(s)">{{ 'operations.staff.remove' | translate }}</button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+        <app-erp-pagination
+          *ngIf="staffTotal > 0"
+          class="d-block mt-2"
+          [totalElements]="staffTotal"
+          [pageIndex]="staffPageIndex"
+          [pageSize]="staffPageSize"
+          (pageIndexChange)="onStaffPageIndex($event)"
+          (pageSizeChange)="onStaffPageSize($event)"
+        />
+      </div>
+
+      <div class="erp-card mb-4" *ngIf="tab === 'visitors'">
+        <h4 class="erp-card-title mb-3">{{ 'operations.visitors.title' | translate }}</h4>
+        <div *ngIf="visitorsTabError" class="alert alert-danger py-2 px-3 small mb-2" style="border-radius: var(--radius-md);">{{ visitorsTabError }}</div>
+        <div class="row g-2 mb-3">
+          <div class="col-md-3"><input class="erp-input" [(ngModel)]="visitorForm.visitorName" erpI18nPh="operations.visitors.phVisitorName" /></div>
+          <div class="col-md-2"><input class="erp-input" [(ngModel)]="visitorForm.phone" erpI18nPh="operations.visitors.phPhone" inputmode="numeric" maxlength="10" pattern="[0-9]{10}" /></div>
+          <div class="col-md-3"><input class="erp-input" [(ngModel)]="visitorForm.hostName" erpI18nPh="operations.visitors.phHost" /></div>
+          <div class="col-md-3"><input class="erp-input" [(ngModel)]="visitorForm.purpose" erpI18nPh="operations.visitors.phPurpose" /></div>
+          <div class="col-md-1"><button class="btn-primary-erp w-100" (click)="checkIn()">{{ 'operations.visitors.checkIn' | translate }}</button></div>
+        </div>
+        <table class="erp-table mb-0">
+          <thead><tr><th>{{ 'operations.visitors.thName' | translate }}</th><th>{{ 'operations.visitors.thBadge' | translate }}</th><th>{{ 'operations.visitors.thIn' | translate }}</th><th>{{ 'operations.visitors.thOut' | translate }}</th><th></th></tr></thead>
+          <tbody>
+            <tr *ngFor="let v of visitors">
+              <td>{{ v.visitorName }}</td><td>{{ v.badgeNo }}</td><td>{{ v.checkInAt | date:'short' }}</td><td>{{ v.checkOutAt ? (v.checkOutAt | date:'short') : ('transport.dash' | translate) }}</td>
+              <td><button *ngIf="v.status === 'ON_PREMISES'" class="btn-outline-erp btn-xs" (click)="checkOut(v)">{{ 'operations.visitors.checkOut' | translate }}</button></td>
+            </tr>
+          </tbody>
+        </table>
+        <app-erp-pagination
+          *ngIf="visitorsTotal > 0"
+          class="d-block mt-2"
+          [totalElements]="visitorsTotal"
+          [pageIndex]="visitorPageIndex"
+          [pageSize]="visitorPageSize"
+          (pageIndexChange)="onVisitorPageIndex($event)"
+          (pageSizeChange)="onVisitorPageSize($event)"
+        />
+      </div>
+
+      <div class="erp-card mb-4" *ngIf="tab === 'gate'">
+        <h4 class="erp-card-title mb-3">{{ 'operations.gate.title' | translate }}</h4>
+        <div *ngIf="gateTabError" class="alert alert-danger py-2 px-3 small mb-2" style="border-radius: var(--radius-md);">{{ gateTabError }}</div>
+        <div class="row g-2 mb-3">
+          <div class="col-md-3"><input class="erp-input" [(ngModel)]="gateForm.issuedToName" erpI18nPh="operations.gate.phIssuedTo" /></div>
+          <div class="col-md-2"><input type="date" class="erp-input" [(ngModel)]="gateForm.validFrom" /></div>
+          <div class="col-md-2"><input type="date" class="erp-input" [(ngModel)]="gateForm.validTo" /></div>
+          <div class="col-md-3"><input class="erp-input" [(ngModel)]="gateForm.purpose" erpI18nPh="operations.gate.phPurpose" /></div>
+          <div class="col-md-2"><button class="btn-primary-erp w-100" (click)="addGate()">{{ 'operations.gate.issue' | translate }}</button></div>
+        </div>
+        <table class="erp-table mb-0">
+          <thead><tr><th>{{ 'operations.gate.thTo' | translate }}</th><th>{{ 'operations.gate.thValid' | translate }}</th><th>{{ 'operations.gate.thStatus' | translate }}</th><th></th></tr></thead>
+          <tbody>
+            <tr *ngFor="let g of gatePasses">
+              <td>{{ g.issuedToName }}</td><td>{{ g.validFrom }} → {{ g.validTo }}</td><td>{{ g.status }}</td>
+              <td><button *ngIf="g.status === 'ACTIVE'" class="btn-outline-erp btn-xs" (click)="revokeGate(g)">{{ 'operations.gate.revoke' | translate }}</button></td>
+            </tr>
+          </tbody>
+        </table>
+        <app-erp-pagination
+          *ngIf="gateTotal > 0"
+          class="d-block mt-2"
+          [totalElements]="gateTotal"
+          [pageIndex]="gatePageIndex"
+          [pageSize]="gatePageSize"
+          (pageIndexChange)="onGatePageIndex($event)"
+          (pageSizeChange)="onGatePageSize($event)"
+        />
+      </div>
+
+      <div class="erp-card mb-4" *ngIf="tab === 'inventory'">
+        <h4 class="erp-card-title mb-3">{{ 'operations.inventory.title' | translate }}</h4>
+        <p class="text-muted small mb-2">{{ 'operations.inventory.hint' | translate }}</p>
+        <div *ngIf="inventoryTabError" class="alert alert-danger py-2 px-3 small mb-2" style="border-radius: var(--radius-md);">{{ inventoryTabError }}</div>
+        <div class="row g-2 mb-3 align-items-end">
+          <div class="col-lg-2 col-md-4">
+            <label class="erp-label">{{ 'operations.inventory.labelSku' | translate }}</label>
+            <input class="erp-input" [(ngModel)]="invForm.sku" erpI18nPh="operations.inventory.phSku" [readOnly]="!!invEditingId" [title]="invEditingId ? ('operations.inventory.skuLockedTitle' | translate) : ''" />
+          </div>
+          <div class="col-lg-2 col-md-4">
+            <label class="erp-label">{{ 'operations.inventory.labelName' | translate }}</label>
+            <input class="erp-input" [(ngModel)]="invForm.name" erpI18nPh="operations.inventory.phName" />
+          </div>
+          <div class="col-lg-2 col-md-4">
+            <label class="erp-label">{{ 'operations.inventory.labelCategory' | translate }}</label>
+            <input class="erp-input" [(ngModel)]="invForm.category" erpI18nPh="operations.inventory.phCategory" />
+          </div>
+          <div class="col-lg-1 col-md-3">
+            <label class="erp-label">{{ 'operations.inventory.labelQty' | translate }}</label>
+            <input type="number" class="erp-input" [(ngModel)]="invForm.quantityOnHand" erpI18nPh="operations.inventory.phQty" />
+          </div>
+          <div class="col-lg-1 col-md-3">
+            <label class="erp-label">{{ 'operations.inventory.labelReorder' | translate }}</label>
+            <input type="number" class="erp-input" [(ngModel)]="invForm.reorderLevel" erpI18nPh="operations.inventory.phReorder" />
+          </div>
+          <div class="col-lg-2 col-md-4">
+            <label class="erp-label">{{ 'operations.inventory.labelLocation' | translate }}</label>
+            <input class="erp-input" [(ngModel)]="invForm.location" erpI18nPh="operations.inventory.phLocation" />
+          </div>
+          <div class="col-lg-1 col-md-3">
+            <button type="button" class="btn-primary-erp w-100" (click)="saveInv()">{{ invEditingId ? ('operations.inventory.update' | translate) : ('operations.inventory.save' | translate) }}</button>
+          </div>
+          <div class="col-lg-1 col-md-3" *ngIf="invEditingId">
+            <button type="button" class="btn-outline-erp w-100" (click)="clearInventoryForm()">{{ 'operations.inventory.clear' | translate }}</button>
+          </div>
+        </div>
+        <table class="erp-table mb-0">
+          <thead><tr><th>{{ 'operations.inventory.thSku' | translate }}</th><th>{{ 'operations.inventory.thName' | translate }}</th><th>{{ 'operations.inventory.thCategory' | translate }}</th><th>{{ 'operations.inventory.thQty' | translate }}</th><th>{{ 'operations.inventory.thReorder' | translate }}</th><th>{{ 'operations.inventory.thLocation' | translate }}</th><th></th></tr></thead>
+          <tbody>
+            <tr *ngFor="let i of inventory">
+              <td>{{ i.sku }}</td>
+              <td>{{ i.name }}</td>
+              <td>{{ i.category || ('transport.dash' | translate) }}</td>
+              <td>{{ i.quantityOnHand }}</td>
+              <td>{{ i.reorderLevel }}</td>
+              <td>{{ i.location || ('transport.dash' | translate) }}</td>
+              <td class="text-nowrap">
+                <button type="button" class="btn-outline-erp btn-xs me-1" (click)="editInventoryRow(i)">{{ 'operations.inventory.edit' | translate }}</button>
+                <button type="button" class="btn-outline-erp btn-xs" (click)="removeInventoryRow(i)">{{ 'operations.inventory.remove' | translate }}</button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+        <app-erp-pagination
+          *ngIf="invTotal > 0"
+          class="d-block mt-2"
+          [totalElements]="invTotal"
+          [pageIndex]="invPageIndex"
+          [pageSize]="invPageSize"
+          (pageIndexChange)="onInvPageIndex($event)"
+          (pageSizeChange)="onInvPageSize($event)"
+        />
+      </div>
+
+      <div class="erp-card mb-4" *ngIf="tab === 'covers'">
+        <h4 class="erp-card-title mb-3">{{ 'operations.covers.title' | translate }}</h4>
+        <p class="text-muted small mb-3">{{ 'operations.covers.opsLead' | translate }}</p>
+        <div *ngIf="coversTabError" class="alert alert-danger py-2 px-3 small mb-3" style="border-radius: var(--radius-md);">{{ coversTabError }}</div>
+        <div class="row g-2 mb-3 align-items-end">
+          <div class="col-md-2">
+            <label class="erp-label">{{ 'operations.covers.labelDate' | translate }}</label>
+            <input type="date" class="erp-input" [(ngModel)]="coverDate" (change)="onCoverDateChange()" [attr.min]="todayIso" />
+          </div>
+          <div class="col-md-2">
+            <label class="erp-label">{{ 'operations.covers.labelClass' | translate }}</label>
+            <select class="erp-select" [(ngModel)]="coverForm.classId" (change)="onCoverClassChanged()">
+              <option [ngValue]="null">{{ 'operations.covers.select' | translate }}</option>
+              <option *ngFor="let c of classes" [ngValue]="c.id">{{ c.name }}</option>
+            </select>
+          </div>
+          <div class="col-md-2">
+            <label class="erp-label">{{ 'operations.covers.labelSection' | translate }}</label>
+            <select
+              class="erp-select"
+              [(ngModel)]="coverForm.sectionId"
+              [compareWith]="compareCoverSectionIds"
+              (ngModelChange)="refreshCoverRegularTeacher()"
+            >
+              <option *ngIf="coverSections.length > 0" [ngValue]="null">{{ 'operations.covers.select' | translate }}</option>
+              <option *ngIf="coverSections.length === 0" [ngValue]="null">{{ 'timetable.sectionWholeClass' | translate }}</option>
+              <option *ngFor="let s of coverSections" [ngValue]="s.id">{{ s.name }}</option>
+            </select>
+          </div>
+          <div class="col-md-2">
+            <label class="erp-label">{{ 'operations.covers.labelPeriod' | translate }}</label>
+            <select class="erp-select" [(ngModel)]="coverForm.periodNumber" (ngModelChange)="refreshCoverRegularTeacher()">
+              <option [ngValue]="null">{{ 'operations.covers.select' | translate }}</option>
+              <option *ngFor="let p of coverPeriodOptions" [ngValue]="p">{{ p }}</option>
+            </select>
+          </div>
+          <div class="col-md-2">
+            <label class="erp-label">{{ 'operations.covers.labelRegularTeacher' | translate }}</label>
+            <input class="erp-input" [value]="coverSlotRegularTeacherName" readonly />
+          </div>
+          <div class="col-md-2">
+            <label class="erp-label">{{ 'operations.covers.labelSubstituteTeacher' | translate }}</label>
+            <select class="erp-select" [(ngModel)]="coverForm.coveringTeacherId">
+              <option [ngValue]="null">{{ 'operations.covers.select' | translate }}</option>
+              <option *ngFor="let te of coverTeachersForDropdown" [ngValue]="te.id">{{ te.firstName }} {{ te.lastName }}</option>
+            </select>
+          </div>
+        </div>
+        <div class="row g-2 mb-3 align-items-end">
+          <div class="col-md-8">
+            <label class="erp-label">{{ 'operations.covers.labelReason' | translate }}</label>
+            <input type="text" class="erp-input" [(ngModel)]="coverForm.reason" erpI18nPh="operations.covers.phReason" />
+          </div>
+          <div class="col-md-4 d-flex gap-2">
+            <button type="button" class="btn-primary-erp w-100" (click)="submitCover()">{{ 'operations.covers.addCover' | translate }}</button>
+            <button type="button" class="btn-outline-erp w-100" (click)="loadCoversPage()">{{ 'operations.covers.refreshList' | translate }}</button>
+          </div>
+        </div>
+        <div class="erp-table-scroll mb-3">
+          <table class="erp-table mb-0">
+            <thead>
+              <tr>
+                <th>{{ 'operations.covers.thDate' | translate }}</th>
+                <th>{{ 'operations.covers.thClass' | translate }}</th>
+                <th>{{ 'operations.covers.thSection' | translate }}</th>
+                <th>{{ 'operations.covers.thPeriod' | translate }}</th>
+                <th>{{ 'operations.covers.labelRegularTeacher' | translate }}</th>
+                <th>{{ 'operations.covers.thCovering' | translate }}</th>
+                <th>{{ 'operations.covers.thStatus' | translate }}</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let c of coversAdmin">
+                <td>{{ formatCoverTableDate(c.coverDate) }}</td>
+                <td>{{ coverRowClassDisplay(c) }}</td>
+                <td>{{ coverRowSectionDisplay(c) }}</td>
+                <td>{{ c.periodNumber ?? ('transport.dash' | translate) }}</td>
+                <td>{{ coverRowRegularTeacherDisplay(c) }}</td>
+                <td>{{ coverRowTeacherDisplay(c) }}</td>
+                <td>{{ c.status }}</td>
+                <td>
+                  <button *ngIf="c.status === 'ACTIVE'" type="button" class="btn-outline-erp btn-xs" (click)="cancelCoverAdmin(c)">
+                    {{ 'operations.covers.cancel' | translate }}
+                  </button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <app-erp-pagination
+          *ngIf="coversTotal > coversPageSize"
+          class="d-block mb-3"
+          [totalElements]="coversTotal"
+          [pageIndex]="coversPageIndex"
+          [pageSize]="coversPageSize"
+          (pageIndexChange)="onCoversPageIndex($event)"
+          (pageSizeChange)="onCoversPageSize($event)"
+        />
+        <h5 class="erp-card-title mb-2" style="font-size: 14px;">{{ 'operations.covers.auditTitle' | translate }}</h5>
+        <div class="erp-table-scroll">
+          <table class="erp-table mb-0">
+            <thead>
+              <tr>
+                <th>{{ 'operations.covers.auditThWhen' | translate }}</th>
+                <th>{{ 'operations.covers.auditThAction' | translate }}</th>
+                <th>{{ 'operations.covers.auditThActor' | translate }}</th>
+                <th>{{ 'operations.covers.thClass' | translate }}</th>
+                <th>{{ 'operations.covers.thSection' | translate }}</th>
+                <th>{{ 'operations.covers.thPeriod' | translate }}</th>
+                <th>{{ 'operations.covers.thCovering' | translate }}</th>
+                <th>{{ 'operations.covers.auditThChange' | translate }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let a of coverAuditRows">
+                <td>{{ a.at | date:'short' }}</td>
+                <td>{{ coverAuditActionLabel(a.action) }}</td>
+                <td>{{ a.actorName || ('transport.dash' | translate) }}</td>
+                <td>{{ auditClassDisplay(a) }}</td>
+                <td>{{ auditSectionDisplay(a) }}</td>
+                <td>{{ a.periodNumber ?? ('transport.dash' | translate) }}</td>
+                <td>{{ auditTeacherDisplay(a) }}</td>
+                <td>{{ auditChangeSummary(a) }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <app-erp-pagination
+          *ngIf="coverAuditTotal > coverAuditPageSize"
+          class="d-block mt-2"
+          [totalElements]="coverAuditTotal"
+          [pageIndex]="coverAuditPageIndex"
+          [pageSize]="coverAuditPageSize"
+          (pageIndexChange)="onCoverAuditPageIndex($event)"
+          (pageSizeChange)="onCoverAuditPageSize($event)"
+        />
+      </div>
+
+      <div class="erp-card mb-4" *ngIf="tab === 'reminders'">
+        <div class="erp-filter-toolbar mb-3">
+          <div>
+            <h4 class="erp-card-title mb-1">{{ 'operations.reminders.title' | translate }}</h4>
+            <p class="text-muted small mb-0" style="max-width: 640px;">{{ 'operations.reminders.lead' | translate }}</p>
+          </div>
+          <button type="button" class="btn-outline-erp btn-sm erp-filter-toolbar__action" (click)="reloadReminders()"><i class="bi bi-arrow-clockwise"></i> {{ 'operations.reminders.refresh' | translate }}</button>
+        </div>
+        <div *ngIf="remindersTabError" class="alert alert-danger py-2 px-3 small mb-2" style="border-radius: var(--radius-md);">{{ remindersTabError }}</div>
+        <h5 class="erp-card-title mb-2" style="font-size: 14px;">{{ 'operations.reminders.outstandingTitle' | translate }}</h5>
+        <div class="erp-filter-toolbar mb-2" *ngIf="pendingFees.length">
+          <div class="erp-filter-toolbar__search">
+            <label class="erp-label small mb-1" erpI18nText="operations.reminders.searchOutstanding"></label>
+            <input type="search" class="erp-input" erpI18nPh="operations.reminders.searchOutstandingPh" [(ngModel)]="pendingFeesSearch" (ngModelChange)="onPendingFeesSearchChange()" />
+          </div>
+        </div>
+        <p *ngIf="pendingFees.length && !pendingFeesFilteredTotal" class="text-muted small mb-2">{{ 'operations.reminders.noOutstandingMatches' | translate }}</p>
+        <table class="erp-table mb-2" *ngIf="pendingFeesFilteredTotal">
+          <thead>
+            <tr>
+              <th>{{ 'operations.reminders.thStudent' | translate }}</th>
+              <th>{{ 'operations.reminders.thDueDate' | translate }}</th>
+              <th>{{ 'operations.reminders.thDueAmount' | translate }}</th>
+              <th>{{ 'operations.reminders.thStatus' | translate }}</th>
+              <th>{{ 'operations.reminders.thNotify' | translate }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let p of pagedPendingFees">
+              <td><strong>{{ p.studentName }}</strong><span class="d-block small text-muted">#{{ p.studentId }}</span></td>
+              <td>{{ p.dueDate || ('transport.dash' | translate) }}</td>
+              <td>{{ p.dueAmount | number:'1.0-0' }}</td>
+              <td>{{ p.status }}</td>
+              <td>
+                <div class="d-flex flex-wrap gap-1">
+                  <button type="button" class="btn-outline-erp btn-xs" (click)="enqueueReminderForPayment(p, 'SMS')">{{ 'operations.reminders.channelSms' | translate }}</button>
+                  <button type="button" class="btn-outline-erp btn-xs" (click)="enqueueReminderForPayment(p, 'WHATSAPP')">{{ 'operations.reminders.channelWhatsapp' | translate }}</button>
+                  <button type="button" class="btn-outline-erp btn-xs" (click)="enqueueReminderForPayment(p, 'EMAIL')">{{ 'operations.reminders.channelEmail' | translate }}</button>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+        <app-erp-pagination
+          *ngIf="pendingFeesFilteredTotal > pendingFeesPageSize"
+          class="d-block mb-4"
+          [totalElements]="pendingFeesFilteredTotal"
+          [pageIndex]="pendingFeesPageIndex"
+          [pageSize]="pendingFeesPageSize"
+          (pageIndexChange)="onPendingFeesPageIndex($event)"
+          (pageSizeChange)="onPendingFeesPageSize($event)"
+        />
+        <p *ngIf="!pendingFees.length" class="text-muted small mb-4">{{ 'operations.reminders.emptyPending' | translate }}</p>
+        <h5 class="erp-card-title mb-2" style="font-size: 14px;">{{ 'operations.reminders.queueTitle' | translate }}</h5>
+        <div class="erp-filter-toolbar mb-2" *ngIf="reminders.length && remindersQueueClientFilter">
+          <div class="erp-filter-toolbar__search">
+            <label class="erp-label small mb-1" erpI18nText="operations.reminders.searchQueue"></label>
+            <input type="search" class="erp-input" erpI18nPh="operations.reminders.searchQueuePh" [(ngModel)]="remindersSearch" (ngModelChange)="onRemindersSearchChange()" />
+          </div>
+        </div>
+        <p *ngIf="reminders.length && !remindersFilteredTotal" class="text-muted small mb-2">{{ 'operations.reminders.noQueueMatches' | translate }}</p>
+        <table class="erp-table mb-0" *ngIf="remindersFilteredTotal">
+          <thead><tr><th>{{ 'operations.reminders.thStudent' | translate }}</th><th>{{ 'operations.reminders.thDue' | translate }}</th><th>{{ 'operations.reminders.thChannel' | translate }}</th><th>{{ 'operations.reminders.thStatus' | translate }}</th><th>{{ 'operations.reminders.thScheduled' | translate }}</th></tr></thead>
+          <tbody>
+            <tr *ngFor="let r of pagedReminders">
+              <td><strong>{{ reminderStudentLabel(r) }}</strong><span class="d-block small text-muted">#{{ r.studentId }}</span></td>
+              <td>{{ r.dueDate || ('transport.dash' | translate) }}</td>
+              <td>{{ r.channel }}</td>
+              <td>{{ r.status }}</td>
+              <td>{{ r.scheduledAt ? (r.scheduledAt | date:'short') : ('transport.dash' | translate) }}</td>
+            </tr>
+          </tbody>
+        </table>
+        <app-erp-pagination
+          *ngIf="remindersFilteredTotal > remindersPageSize"
+          class="d-block mt-2"
+          [totalElements]="remindersFilteredTotal"
+          [pageIndex]="remindersPageIndex"
+          [pageSize]="remindersPageSize"
+          (pageIndexChange)="onRemindersPageIndex($event)"
+          (pageSizeChange)="onRemindersPageSize($event)"
+        />
+        <p *ngIf="!reminders.length" class="text-muted small mb-0">{{ 'operations.reminders.emptyQueue' | translate }}</p>
+      </div>
+
+      <div class="erp-card mb-4" *ngIf="tab === 'payroll'">
+        <h4 class="erp-card-title mb-3">{{ 'operations.payroll.title' | translate }}</h4>
+        <button type="button" class="btn-outline-erp btn-sm mb-3" (click)="loadPayroll()">{{ 'operations.payroll.refreshSummary' | translate }}</button>
+        <div *ngIf="payroll as p">
+          <p class="mb-1"><strong>{{ 'operations.payroll.period' | translate }}</strong> {{ p.periodLabel }}</p>
+          <p class="mb-1 small">{{ 'operations.payroll.summaryLine' | translate: { gross: p.grossAccrued, ded: p.deductionsAccrued, net: p.netAccrued, count: p.employeeCount } }}</p>
+          <ul class="small text-muted mb-0"><li *ngFor="let n of (p.notes || [])">{{ n }}</li></ul>
+        </div>
+      </div>
+    </div>

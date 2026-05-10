@@ -43,6 +43,9 @@ public class LeaveEntitlementLedgerEntry extends BaseEntity {
     @Column(name = "reference_id")
     private Long referenceId;
 
+    @Column(name = "academic_year_id")
+    private Long academicYearId;
+
     @Column(name = "effective_date")
     private LocalDate effectiveDate;
 
@@ -116,5 +119,13 @@ public class LeaveEntitlementLedgerEntry extends BaseEntity {
 
     public void setEffectiveDate(LocalDate effectiveDate) {
         this.effectiveDate = effectiveDate;
+    }
+
+    public Long getAcademicYearId() {
+        return academicYearId;
+    }
+
+    public void setAcademicYearId(Long academicYearId) {
+        this.academicYearId = academicYearId;
     }
 }

@@ -40,6 +40,56 @@ import { isValidIndiaMobileTen } from '../../core/validation/phone.validation';
         </div>
       </div>
 
+      <div class="transport-page__ops-grid mb-4 animate-in animate-in-delay-1">
+        <div class="erp-card p-3">
+          <div class="small text-muted mb-1">Open issues</div>
+          <div class="h4 mb-0">{{ opsSnapshot.openExceptions }}</div>
+        </div>
+        <div class="erp-card p-3">
+          <div class="small text-muted mb-1">Critical issues</div>
+          <div class="h4 mb-0 text-danger">{{ opsSnapshot.criticalExceptions }}</div>
+        </div>
+        <div class="erp-card p-3">
+          <div class="small text-muted mb-1">Dead Letter Events</div>
+          <div class="h4 mb-0">{{ opsSnapshot.deadLetterEvents }}</div>
+        </div>
+        <div class="erp-card p-3">
+          <div class="small text-muted mb-1">Delayed Routes</div>
+          <div class="h4 mb-0">{{ opsSnapshot.delayedRoutes }}</div>
+        </div>
+      </div>
+
+      <div class="erp-card mb-4 animate-in animate-in-delay-1" *ngIf="opsExceptions.length">
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
+          <h4 class="erp-card-title mb-0">Issue list</h4>
+          <button type="button" class="btn-outline-erp btn-sm" (click)="refreshOpsPanels()"><i class="bi bi-arrow-clockwise"></i> Refresh Queue</button>
+        </div>
+        <div class="table-responsive">
+          <table class="erp-table table table-sm align-middle mb-0">
+            <thead>
+              <tr>
+                <th>Type</th>
+                <th>Severity</th>
+                <th>Status</th>
+                <th>Route</th>
+                <th class="text-end">Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let ex of opsExceptions">
+                <td>{{ ex.exceptionCode }}</td>
+                <td><span class="badge-erp" [class.badge-danger]="ex.severity === 'CRITICAL'" [class.badge-warning]="ex.severity !== 'CRITICAL'">{{ ex.severity }}</span></td>
+                <td>{{ ex.status }}</td>
+                <td>{{ ex.routeId ?? '-' }}</td>
+                <td class="text-end">
+                  <button type="button" class="btn-outline-erp btn-xs" [disabled]="ex.status === 'RESOLVED'" (click)="resolveException(ex.id)">Resolve</button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
       <div class="erp-card mb-4 animate-in animate-in-delay-1" *ngIf="liveRoutes.length && anyLiveLocation">
         <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
           <h4 class="erp-card-title mb-0">{{ 'transport.liveVehicles' | translate }}</h4>
@@ -95,8 +145,12 @@ import { isValidIndiaMobileTen } from '../../core/validation/phone.validation';
               <button type="button" class="btn-outline-erp btn-xs" (click)="openEditWizard(route)">{{ 'transport.edit' | translate }}</button>
               <button type="button" class="btn-outline-erp btn-xs" (click)="openStopModal(route)">{{ 'transport.addStop' | translate }}</button>
               <button type="button" class="btn-outline-erp btn-xs" (click)="openAssignModal(route)">{{ 'transport.assignStudent' | translate }}</button>
+              <button type="button" class="btn-outline-erp btn-xs" (click)="previewOptimization(route)">Optimize</button>
               <button *ngIf="route.vehicleId" type="button" class="btn-outline-erp btn-xs" (click)="simulateGps(route)">{{ 'transport.simulateGps' | translate }}</button>
               <button type="button" class="btn-outline-erp btn-xs btn-outline-erp--danger" (click)="deleteRoute(route)">{{ 'transport.delete' | translate }}</button>
+            </div>
+            <div *ngIf="optimizationPreview[route.id]" class="small text-muted mb-2">
+              Estimated route time after optimize: {{ optimizationPreview[route.id] }} min
             </div>
             <h4 class="transport-route-card__section-label">{{ 'transport.stopsHeading' | translate: { n: route.stops.length } }}</h4>
             <div class="transport-route-card__stops">
@@ -354,6 +408,11 @@ import { isValidIndiaMobileTen } from '../../core/validation/phone.validation';
 
       .transport-page {
         max-width: 100%;
+      }
+      .transport-page__ops-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: var(--tp-space-3);
       }
 
       /* Toolbar: align with global filter bar but fix per-action margin and width balance */
@@ -684,6 +743,9 @@ export class TransportComponent implements OnInit {
   editStopCtx: { route: TransportRoute; stop: { id?: number; name: string; time: string; order: number } } | null = null;
   editStopForm = { name: '', stopOrder: 1, stopTime: '' };
   routeWizardError = '';
+  opsSnapshot = { openExceptions: 0, criticalExceptions: 0, deadLetterEvents: 0, delayedRoutes: 0 };
+  opsExceptions: Array<{ id: number; exceptionCode: string; severity: string; status: string; routeId?: number }> = [];
+  optimizationPreview: Record<string, number> = {};
 
   private readonly destroyRef = inject(DestroyRef);
 
@@ -714,6 +776,7 @@ export class TransportComponent implements OnInit {
     this.studentService.getStudents().subscribe(s => (this.students = s));
     this.transportService.listVehicles().subscribe(v => (this.vehicles = v));
     this.transportService.listDrivers().subscribe(d => (this.drivers = d));
+    this.refreshOpsPanels();
   }
 
   get routesWithLive(): TransportRoute[] {
@@ -747,9 +810,11 @@ export class TransportComponent implements OnInit {
         this.routes = r;
         this.liveRoutes = r;
       });
+      this.refreshOpsPanels();
       return;
     }
     this.loadRoutesPaged();
+    this.refreshOpsPanels();
   }
 
   private loadRoutesPaged(): void {
@@ -1034,6 +1099,21 @@ export class TransportComponent implements OnInit {
     const lat = (route.liveLatitude ?? 28.6) + (Math.random() - 0.5) * 0.02;
     const lng = (route.liveLongitude ?? 77.2) + (Math.random() - 0.5) * 0.02;
     this.transportService.reportVehicleLocation(route.vehicleId, lat, lng, route.id).subscribe(() => this.reload());
+  }
+
+  previewOptimization(route: TransportRoute): void {
+    this.transportService.optimizeRoute(route.id).subscribe(res => {
+      this.optimizationPreview = { ...this.optimizationPreview, [route.id]: res.estimatedTotalTravelMinutes };
+    });
+  }
+
+  resolveException(id: number): void {
+    this.transportService.resolveOpsException(id, 'Resolved from transport desk').subscribe(() => this.refreshOpsPanels());
+  }
+
+  refreshOpsPanels(): void {
+    this.transportService.getOpsSnapshot().subscribe(s => (this.opsSnapshot = s));
+    this.transportService.listOpsExceptions(0, 8, 'OPEN').subscribe(p => (this.opsExceptions = p.content || []));
   }
 
   private normalizeTenDigitPhone(value: string | null | undefined): string {

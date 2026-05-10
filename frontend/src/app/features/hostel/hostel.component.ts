@@ -3,13 +3,14 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { HostelBillingProfile, HostelBookingRequest, HostelGatePass, HostelBuilding, HostelIncident, HostelPortalProfile, HostelRoom, HostelVisitorEntry, Student } from '../../core/models/models';
-import { HostelService, HostelStats } from '../../core/services/hostel.service';
+import { HostelService, HostelStats, HostelAnalyticsSnapshot } from '../../core/services/hostel.service';
 import { StudentService } from '../../core/services/student.service';
 import { UiAccessService } from '../../core/services/ui-access.service';
 import { AuthService } from '../../core/services/auth.service';
 import { ParentService } from '../../core/services/parent.service';
 import { ErpPaginationComponent } from '../../shared/erp-pagination/erp-pagination.component';
 import { ErpI18nPhDirective } from '../../shared/erp-i18n/erp-i18n-host.directives';
+import { ErpDatePickerComponent } from '../../shared/erp-date-picker/erp-date-picker.component';
 import { DEFAULT_ERP_PAGE_SIZE } from '../../core/constants/pagination.constants';
 import { sliceToPage } from '../../core/utils/paginate';
 import { runtimeConfig } from '../../core/config/runtime-config';
@@ -17,7 +18,7 @@ import { runtimeConfig } from '../../core/config/runtime-config';
 @Component({
   selector: 'app-hostel',
   standalone: true,
-  imports: [CommonModule, FormsModule, TranslateModule, ErpPaginationComponent, ErpI18nPhDirective],
+  imports: [CommonModule, FormsModule, TranslateModule, ErpPaginationComponent, ErpI18nPhDirective, ErpDatePickerComponent],
   styles: [`
     .triage-status-chip {
       display: inline-flex;
@@ -121,6 +122,37 @@ import { runtimeConfig } from '../../core/config/runtime-config';
           <div class="stat-card"><div class="stat-icon" style="background: rgba(2,132,199,0.1); color: #0284C7;"><i class="bi bi-building"></i></div><div class="stat-value">{{ stats.blocks }}</div><div class="stat-label">{{ 'hostel.statBlocks' | translate }}</div></div>
         </div>
       </div>
+      <div class="erp-card mb-4 animate-in animate-in-delay-1" *ngIf="isAdmin || canHostelApprovalWrite">
+        <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
+          <h4 class="erp-card-title mb-0">Hostel Analytics</h4>
+          <div class="d-flex gap-2 flex-wrap">
+            <button type="button" class="btn-outline-erp btn-sm" (click)="reloadHostelAnalytics()">Refresh</button>
+            <button type="button" class="btn-outline-erp btn-sm" (click)="downloadHostelAnalytics('csv')">Export CSV</button>
+            <button type="button" class="btn-outline-erp btn-sm" (click)="downloadHostelAnalytics('pdf')">Export PDF</button>
+          </div>
+        </div>
+        <div class="row g-3 mb-3">
+          <div class="col-md-2"><div class="small text-muted">Occupancy %</div><div class="h5 mb-0">{{ hostelAnalytics.occupancyPct }}</div></div>
+          <div class="col-md-2"><div class="small text-muted">Full rooms</div><div class="h5 mb-0">{{ hostelAnalytics.overcrowdedRooms }}</div></div>
+          <div class="col-md-2"><div class="small text-muted">Almost full</div><div class="h5 mb-0">{{ hostelAnalytics.nearCapacityRooms }}</div></div>
+          <div class="col-md-2"><div class="small text-muted">Open issues</div><div class="h5 mb-0">{{ hostelAnalytics.openIncidents }}</div></div>
+          <div class="col-md-2"><div class="small text-muted">Escalated issues</div><div class="h5 mb-0">{{ hostelAnalytics.escalatedIncidents }}</div></div>
+          <div class="col-md-2"><div class="small text-muted">Avg response time (min)</div><div class="h5 mb-0">{{ hostelAnalytics.avgIncidentSlaMinutes }}</div></div>
+        </div>
+        <h5 class="mb-2">Room move suggestions</h5>
+        <table class="erp-table mb-0">
+          <thead><tr><th>From room</th><th>To room</th><th>Load gap</th><th>Why this helps</th></tr></thead>
+          <tbody>
+            <tr *ngFor="let rec of occupancyRecommendations">
+              <td>{{ rec.fromRoomNumber }}</td>
+              <td>{{ rec.toRoomNumber }}</td>
+              <td>{{ rec.occupancyPressureDiff }}</td>
+              <td>{{ rec.rationale }}</td>
+            </tr>
+            <tr *ngIf="!occupancyRecommendations.length"><td colspan="4" class="text-muted">No room move suggestions right now.</td></tr>
+          </tbody>
+        </table>
+      </div>
       <div class="erp-card animate-in animate-in-delay-2">
         <table class="erp-table" data-testid="hostel-rooms-table">
           <thead><tr><th>{{ 'hostel.thHostel' | translate }}</th><th>{{ 'hostel.thRoom' | translate }}</th><th>{{ 'hostel.thBlock' | translate }}</th><th>{{ 'hostel.thFloor' | translate }}</th><th>{{ 'hostel.thTypeCap' | translate }}</th><th>{{ 'hostel.thOccupancy' | translate }}</th><th>{{ 'hostel.thResidents' | translate }}</th><th *ngIf="isAdmin">{{ 'hostel.thActions' | translate }}</th></tr></thead>
@@ -143,7 +175,7 @@ import { runtimeConfig } from '../../core/config/runtime-config';
                     [ngModel]="roomActionSelection[room.id] || ''"
                     (ngModelChange)="roomActionSelection[room.id] = $event"
                   >
-                    <option value="">Select action</option>
+                    <option value="">Choose action</option>
                     <option value="edit">{{ 'hostel.edit' | translate }}</option>
                     <option value="allocate" [disabled]="room.occupancy >= room.capacity">{{ 'hostel.bookAllocate' | translate }}</option>
                     <option value="transfer" [disabled]="!room.residents?.length">{{ 'hostel.transfer' | translate }}</option>
@@ -155,7 +187,7 @@ import { runtimeConfig } from '../../core/config/runtime-config';
                     [disabled]="!roomActionSelection[room.id]"
                     (click)="applyRoomAction(room)"
                   >
-                    Apply
+                    Go
                   </button>
                 </div>
               </td>
@@ -174,10 +206,10 @@ import { runtimeConfig } from '../../core/config/runtime-config';
 
       <div class="erp-card mt-4 animate-in" *ngIf="canHostelBillingRead">
         <div class="d-flex justify-content-between align-items-center mb-2">
-          <h4 class="erp-card-title mb-0">Hostel Billing Linkage</h4>
+          <h4 class="erp-card-title mb-0">Hostel Billing</h4>
           <button class="btn-outline-erp btn-sm" type="button" (click)="reloadBilling()">Refresh</button>
         </div>
-        <p class="text-muted small mb-3">Map boarding students to fee structures and trigger invoice hooks.</p>
+        <p class="text-muted small mb-3">Link students with fee plans and run billing when needed.</p>
         <div class="row g-2 mb-3" *ngIf="canHostelBillingWrite">
           <div class="col-md-3">
             <select class="erp-select" [(ngModel)]="billingForm.studentId" (ngModelChange)="syncBillingStudentName()">
@@ -185,7 +217,7 @@ import { runtimeConfig } from '../../core/config/runtime-config';
               <option *ngFor="let s of students" [ngValue]="s.id">{{ s.firstName }} {{ s.lastName }}</option>
             </select>
           </div>
-          <div class="col-md-2"><input class="erp-input" type="number" [(ngModel)]="billingForm.feeStructureId" placeholder="Fee structure id" /></div>
+          <div class="col-md-2"><input class="erp-input" type="number" [(ngModel)]="billingForm.feeStructureId" placeholder="Fee plan ID" /></div>
           <div class="col-md-2">
             <select class="erp-select" [(ngModel)]="billingForm.billingCadence">
               <option value="MONTHLY">Monthly</option>
@@ -193,10 +225,12 @@ import { runtimeConfig } from '../../core/config/runtime-config';
               <option value="ANNUAL">Annual</option>
             </select>
           </div>
-          <div class="col-md-2"><input class="erp-input" type="date" [(ngModel)]="billingForm.nextDueDate" /></div>
+          <div class="col-md-2">
+            <app-erp-date-picker [(ngModel)]="billingForm.nextDueDate" placeholder="Next due date" />
+          </div>
           <div class="col-md-3 d-flex gap-2">
             <button class="btn-primary-erp btn-sm" type="button" (click)="saveBillingProfile()">Save mapping</button>
-            <button class="btn-outline-erp btn-sm" type="button" (click)="runBillingHook()">Trigger invoice hook</button>
+            <button class="btn-outline-erp btn-sm" type="button" (click)="runBillingHook()">Run billing now</button>
           </div>
         </div>
         <div class="small text-muted mb-2" *ngIf="billingRunInfo">{{ billingRunInfo }}</div>
@@ -210,14 +244,14 @@ import { runtimeConfig } from '../../core/config/runtime-config';
               <td>{{ p.nextDueDate || '-' }}</td>
               <td>{{ p.autoInvoiceEnabled ? 'Yes' : 'No' }}</td>
             </tr>
-            <tr *ngIf="!billingProfiles.length"><td colspan="5" class="text-muted">No billing profiles mapped yet.</td></tr>
+            <tr *ngIf="!billingProfiles.length"><td colspan="5" class="text-muted">No billing setup yet.</td></tr>
           </tbody>
         </table>
       </div>
 
       <div class="erp-card mt-4 animate-in" *ngIf="canHostelDailyOps">
-        <h4 class="erp-card-title mb-2">Daily Ops: Gate Pass & Visitors</h4>
-        <p class="text-muted small mb-3">Leave-out approvals and visitor control for warden/admin desks.</p>
+        <h4 class="erp-card-title mb-2">Daily Desk: Gate Pass and Visitors</h4>
+        <p class="text-muted small mb-3">Create and approve student gate pass and visitor entry requests.</p>
         <div class="row g-2 mb-3" *ngIf="isAdmin">
           <div class="col-md-3">
             <select class="erp-select" [(ngModel)]="gatePassForm.studentId" (ngModelChange)="syncGatePassStudentName()">
@@ -227,12 +261,18 @@ import { runtimeConfig } from '../../core/config/runtime-config';
           </div>
           <div class="col-md-2">
             <select class="erp-select" [(ngModel)]="gatePassForm.requestType">
-              <option value="LEAVE_OUT">Leave-out</option>
+              <option value="LEAVE_OUT">Leave out</option>
               <option value="GATE_PASS">Gate pass</option>
             </select>
           </div>
           <div class="col-md-3"><input class="erp-input" [(ngModel)]="gatePassForm.reason" placeholder="Reason" /></div>
-          <div class="col-md-2"><input class="erp-input" type="datetime-local" [(ngModel)]="gatePassForm.outAt" /></div>
+          <div class="col-md-2">
+            <app-erp-date-picker
+              [(ngModel)]="gatePassForm.outAt"
+              mode="datetime"
+              placeholder="Out date and time"
+            />
+          </div>
           <div class="col-md-2"><button class="btn-primary-erp btn-sm" type="button" (click)="createGatePass()">Create request</button></div>
         </div>
         <table class="erp-table mb-3">
@@ -276,7 +316,7 @@ import { runtimeConfig } from '../../core/config/runtime-config';
               <td *ngIf="canHostelApprovalWrite || canHostelVisitorWrite">
                 <button class="btn-outline-erp btn-xs" *ngIf="canHostelApprovalWrite && v.status === 'PENDING'" (click)="approveVisitor(v.id)">Approve</button>
                 <button class="btn-outline-erp btn-xs ms-1" *ngIf="canHostelApprovalWrite && v.status === 'PENDING'" (click)="rejectVisitor(v.id)">Reject</button>
-                <button class="btn-outline-erp btn-xs ms-1" *ngIf="canHostelVisitorWrite && v.status === 'APPROVED'" (click)="checkoutVisitor(v.id)">Check-out</button>
+                <button class="btn-outline-erp btn-xs ms-1" *ngIf="canHostelVisitorWrite && v.status === 'APPROVED'" (click)="checkoutVisitor(v.id)">Check out</button>
               </td>
             </tr>
             <tr *ngIf="!visitorEntries.length"><td colspan="5" class="text-muted">No visitor entries.</td></tr>
@@ -286,7 +326,7 @@ import { runtimeConfig } from '../../core/config/runtime-config';
 
       <div class="erp-card mt-4 animate-in" *ngIf="canHostelApprovalWrite">
         <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
-          <h4 class="erp-card-title mb-0">Booking Triage Board</h4>
+        <h4 class="erp-card-title mb-0">Room Request Review</h4>
           <button class="btn-outline-erp btn-sm" type="button" (click)="reloadBookingTriage()">Refresh</button>
         </div>
         <div class="row g-2 mb-3 triage-toolbar">
@@ -315,7 +355,7 @@ import { runtimeConfig } from '../../core/config/runtime-config';
             <input class="erp-input" style="max-width: 240px;" [(ngModel)]="bookingPresetName" placeholder="Preset name (for your account)" />
             <button class="btn-outline-erp btn-sm" type="button" (click)="saveBookingPreset()">Save preset</button>
             <select class="erp-select" style="max-width: 240px;" [(ngModel)]="bookingSelectedPresetKey" (ngModelChange)="loadBookingPreset($event)">
-              <option value="">Load saved preset</option>
+              <option value="">Load saved filter</option>
               <option *ngFor="let p of bookingFilterPresets" [value]="p.key">{{ p.name }}</option>
             </select>
             <button class="btn-outline-erp btn-sm" type="button" [disabled]="!bookingSelectedPresetKey" (click)="deleteBookingPreset()">Delete</button>
@@ -351,7 +391,7 @@ import { runtimeConfig } from '../../core/config/runtime-config';
                 >
                   Reject
                 </button>
-                <span *ngIf="(b.status || '').toUpperCase() !== 'PENDING'" class="text-muted small">Finalized</span>
+                <span *ngIf="(b.status || '').toUpperCase() !== 'PENDING'" class="text-muted small">Done</span>
               </td>
             </tr>
             <tr *ngIf="!bookingRequests.length"><td colspan="6" class="text-muted">No booking requests found.</td></tr>
@@ -368,7 +408,7 @@ import { runtimeConfig } from '../../core/config/runtime-config';
       </div>
 
       <div class="erp-card mt-4 animate-in" *ngIf="canHostelIncidentWrite">
-        <h4 class="erp-card-title mb-2">Safety Incident Log</h4>
+        <h4 class="erp-card-title mb-2">Student Safety Log</h4>
         <div class="row g-2 mb-3">
           <div class="col-md-3">
             <select class="erp-select" [(ngModel)]="incidentForm.studentId" (ngModelChange)="syncIncidentStudentName()">
@@ -386,7 +426,7 @@ import { runtimeConfig } from '../../core/config/runtime-config';
           </div>
           <div class="col-md-2"><input class="erp-input" [(ngModel)]="incidentForm.incidentType" placeholder="Type" /></div>
           <div class="col-md-3"><input class="erp-input" [(ngModel)]="incidentForm.summary" placeholder="Summary" /></div>
-          <div class="col-md-2"><button class="btn-primary-erp btn-sm" (click)="createIncident()">Log incident</button></div>
+          <div class="col-md-2"><button class="btn-primary-erp btn-sm" (click)="createIncident()">Save issue</button></div>
         </div>
         <div class="row g-2 mb-3">
           <div class="col-md-3">
@@ -415,6 +455,35 @@ import { runtimeConfig } from '../../core/config/runtime-config';
             <tr *ngIf="!incidents.length"><td colspan="6" class="text-muted">No incident logs.</td></tr>
           </tbody>
         </table>
+        <div class="mt-3" *ngIf="canHostelApprovalWrite">
+          <h5 class="mb-2">Issue response policy</h5>
+          <div class="row g-2 mb-2">
+            <div class="col-md-3"><input class="erp-input" [(ngModel)]="incidentPolicyForm.incidentType" placeholder="Issue type e.g. MEDICAL" /></div>
+            <div class="col-md-2">
+              <select class="erp-select" [(ngModel)]="incidentPolicyForm.severity">
+                <option value="LOW">Low</option>
+                <option value="MEDIUM">Medium</option>
+                <option value="HIGH">High</option>
+                <option value="CRITICAL">Critical</option>
+              </select>
+            </div>
+            <div class="col-md-2"><input class="erp-input" type="number" [(ngModel)]="incidentPolicyForm.slaMinutes" placeholder="Response mins" /></div>
+            <div class="col-md-3"><input class="erp-input" type="number" [(ngModel)]="incidentPolicyForm.escalationAfterMinutes" placeholder="Escalate after mins" /></div>
+            <div class="col-md-2"><button class="btn-primary-erp btn-sm w-100" (click)="saveIncidentPolicy()">Save policy</button></div>
+          </div>
+          <table class="erp-table">
+            <thead><tr><th>Issue Type</th><th>Severity</th><th>Response Mins</th><th>Escalate After Mins</th></tr></thead>
+            <tbody>
+              <tr *ngFor="let p of incidentPolicies">
+                <td>{{ p.incidentType }}</td>
+                <td>{{ p.severity }}</td>
+                <td>{{ p.slaMinutes }}</td>
+                <td>{{ p.escalationAfterMinutes }}</td>
+              </tr>
+              <tr *ngIf="!incidentPolicies.length"><td colspan="4" class="text-muted">No custom policy yet. Default timing is active.</td></tr>
+            </tbody>
+          </table>
+        </div>
       </div>
 
       <div class="erp-card mt-4 animate-in" *ngIf="portalReadOnlyVisible">
@@ -693,6 +762,17 @@ export class HostelComponent implements OnInit {
   portalChildren: Student[] = [];
   portalSelectedChildId: number | null = null;
   portalProfile: HostelPortalProfile | null = null;
+  hostelAnalytics: HostelAnalyticsSnapshot = {
+    occupancyPct: 0,
+    overcrowdedRooms: 0,
+    nearCapacityRooms: 0,
+    openIncidents: 0,
+    escalatedIncidents: 0,
+    avgIncidentSlaMinutes: 0,
+  };
+  occupancyRecommendations: Array<{ fromRoomNumber: string; toRoomNumber: string; occupancyPressureDiff: number; rationale: string }> = [];
+  incidentPolicies: Array<{ incidentType: string; severity: string; slaMinutes: number; escalationAfterMinutes: number }> = [];
+  incidentPolicyForm = { incidentType: '', severity: 'MEDIUM', slaMinutes: 120, escalationAfterMinutes: 30 };
 
   private roomsReqSeq = 0;
 
@@ -741,6 +821,7 @@ export class HostelComponent implements OnInit {
         }
       });
     }
+    this.reloadHostelAnalytics();
     if (this.isAdmin || this.canHostelBillingWrite || this.canHostelVisitorWrite || this.canHostelIncidentWrite) {
       this.studentService.getStudents().subscribe(s => (this.students = s));
     }
@@ -787,7 +868,39 @@ export class HostelComponent implements OnInit {
     }
     if (this.canHostelIncidentWrite) {
       this.hostelService.listIncidents().subscribe(rows => (this.incidents = rows || []));
+      if (this.canHostelApprovalWrite) {
+        this.hostelService.listIncidentPolicies().subscribe(rows => (this.incidentPolicies = rows || []));
+      }
     }
+  }
+
+  reloadHostelAnalytics(): void {
+    if (!(this.isAdmin || this.canHostelApprovalWrite)) return;
+    this.hostelService.getAnalyticsSnapshot().subscribe(x => (this.hostelAnalytics = x));
+    this.hostelService.listOccupancyRecommendations().subscribe(x => (this.occupancyRecommendations = x || []));
+  }
+
+  downloadHostelAnalytics(format: 'csv' | 'pdf'): void {
+    const req = format === 'csv'
+      ? this.hostelService.exportAnalyticsCsv()
+      : this.hostelService.exportAnalyticsPdf();
+    req.subscribe(blob => {
+      const file = format === 'csv'
+        ? `hostel-analytics-${new Date().toISOString().slice(0, 10)}.csv`
+        : `hostel-analytics-${new Date().toISOString().slice(0, 10)}.pdf`;
+      this.saveBlob(blob, file);
+    });
+  }
+
+  private saveBlob(blob: Blob, filename: string): void {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   }
 
   reloadBookingTriage(): void {
@@ -1254,6 +1367,20 @@ export class HostelComponent implements OnInit {
       note: this.incidentResolveNote || undefined,
     }).subscribe(() => {
       this.incidentResolveNote = '';
+      this.reloadDailyOps();
+      this.reloadHostelAnalytics();
+    });
+  }
+
+  saveIncidentPolicy(): void {
+    if (!this.canHostelApprovalWrite || !this.incidentPolicyForm.incidentType.trim()) return;
+    this.hostelService.upsertIncidentPolicy({
+      incidentType: this.incidentPolicyForm.incidentType.trim().toUpperCase(),
+      severity: this.incidentPolicyForm.severity,
+      slaMinutes: Number(this.incidentPolicyForm.slaMinutes),
+      escalationAfterMinutes: Number(this.incidentPolicyForm.escalationAfterMinutes),
+    }).subscribe(() => {
+      this.incidentPolicyForm.incidentType = '';
       this.reloadDailyOps();
     });
   }

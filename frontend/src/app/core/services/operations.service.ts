@@ -18,6 +18,8 @@ import {
   InventoryRow,
   OperationalStaffPortalWrite,
   OperationalStaffRow,
+  OperationsGlobalSearchResponse,
+  OperationsSearchActivityRow,
   PayrollAccrualSummary,
   VisitorLogRow,
 } from '../models/operations.models';
@@ -55,6 +57,71 @@ export class OperationsService {
     type: 'CREATED' | 'CANCELLED';
   }> {
     return this.attendanceCoverMutationsSubject.asObservable();
+  }
+
+  globalSearch(
+    q: string,
+    scopes: string[] = ['staff', 'visitors', 'gate', 'inventory', 'reminders'],
+    limitPerScope = 5
+  ): Observable<OperationsGlobalSearchResponse> {
+    const query = (q || '').trim();
+    if (query.length < 2) {
+      return of({ query, scopes, total: 0, totalsByScope: {}, rows: [] });
+    }
+    if (runtimeConfig.useMocks) {
+      const lowered = query.toLowerCase();
+      const rows: OperationsGlobalSearchResponse['rows'] = [];
+      if (scopes.includes('staff')) {
+        this.mockStaff
+          .filter(s => [s.fullName, s.phone, s.employeeCode, s.staffRole].filter(Boolean).join(' ').toLowerCase().includes(lowered))
+          .slice(0, limitPerScope)
+          .forEach(s => rows.push({ scope: 'staff', recordId: s.id, title: s.fullName, subtitle: `${s.staffRole || ''} ${s.employeeCode || ''}`.trim(), status: s.isActive ? 'ACTIVE' : 'INACTIVE', routeHint: `/app/staff/${encodeURIComponent(s.id)}` }));
+      }
+      if (scopes.includes('visitors')) {
+        this.mockVisitors
+          .filter(v => [v.visitorName, v.phone, v.hostName, v.purpose, v.status].filter(Boolean).join(' ').toLowerCase().includes(lowered))
+          .slice(0, limitPerScope)
+          .forEach(v => rows.push({ scope: 'visitors', recordId: v.id, title: v.visitorName, subtitle: `${v.hostName || ''} ${v.purpose || ''}`.trim(), status: v.status, routeHint: '/app/operations?tab=visitors' }));
+      }
+      if (scopes.includes('gate')) {
+        this.mockGate
+          .filter(g => [g.issuedToName, g.purpose, g.status].filter(Boolean).join(' ').toLowerCase().includes(lowered))
+          .slice(0, limitPerScope)
+          .forEach(g => rows.push({ scope: 'gate', recordId: g.id, title: g.issuedToName, subtitle: `${g.validFrom} → ${g.validTo}`, status: g.status, routeHint: '/app/operations?tab=gate' }));
+      }
+      if (scopes.includes('inventory')) {
+        this.mockInv
+          .filter(i => [i.sku, i.name, i.category, i.location].filter(Boolean).join(' ').toLowerCase().includes(lowered))
+          .slice(0, limitPerScope)
+          .forEach(i => rows.push({ scope: 'inventory', recordId: i.id, title: i.name, subtitle: `${i.sku}${i.category ? ' • ' + i.category : ''}`, status: (i.quantityOnHand <= i.reorderLevel) ? 'LOW_STOCK' : 'OK', routeHint: '/app/operations?tab=inventory' }));
+      }
+      if (scopes.includes('reminders')) {
+        this.mockRem
+          .filter(r => [String(r.studentId), r.channel, r.status, r.dueDate].filter(Boolean).join(' ').toLowerCase().includes(lowered))
+          .slice(0, limitPerScope)
+          .forEach(r => rows.push({ scope: 'reminders', recordId: r.id, title: `Student #${r.studentId}`, subtitle: `${r.channel}${r.dueDate ? ' • Due ' + r.dueDate : ''}`, status: r.status, routeHint: '/app/operations?tab=reminders' }));
+      }
+      return of({
+        query,
+        scopes,
+        total: rows.length,
+        totalsByScope: rows.reduce<Record<string, number>>((acc, row) => {
+          acc[row.scope] = (acc[row.scope] || 0) + 1;
+          return acc;
+        }, {}),
+        rows,
+      }).pipe(delay(120));
+    }
+    return this.api.get<OperationsGlobalSearchResponse>(
+      `/operations/global-search?q=${encodeURIComponent(query)}&scopes=${encodeURIComponent(scopes.join(','))}&limitPerScope=${Math.max(1, Math.min(limitPerScope, 25))}`
+    );
+  }
+
+  globalSearchActivity(page = 0, size = DEFAULT_ERP_PAGE_SIZE): Observable<PageResp<OperationsSearchActivityRow>> {
+    if (runtimeConfig.useMocks) {
+      return of(sliceToPage<OperationsSearchActivityRow>([], page, size)).pipe(delay(80));
+    }
+    return this.api.getPageParams<OperationsSearchActivityRow>('/operations/global-search/activity', { page, size });
   }
 
   /** Align API numeric ids with UI string ids (strict templates). */

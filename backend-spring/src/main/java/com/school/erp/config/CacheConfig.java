@@ -87,6 +87,8 @@ public class CacheConfig {
     public static final String LIBRARY_ISSUES = "libraryIssues";
     public static final String FEES_CATALOG = "feesCatalog";
     public static final String TIMETABLE_GRID = "timetableGrid";
+    public static final String LEAVE_POLICY = "leavePolicy";
+    public static final String LEAVE_BALANCE = "leaveBalance";
 
     @Bean
     public CacheManager cacheManager(
@@ -129,6 +131,8 @@ public class CacheConfig {
         perCache.put(LIBRARY_ISSUES, base.entryTtl(ttlProps.getLibraryIssues()));
         perCache.put(FEES_CATALOG, base.entryTtl(ttlProps.getFeesCatalog()));
         perCache.put(TIMETABLE_GRID, base.entryTtl(ttlProps.getTimetableGrid()));
+        perCache.put(LEAVE_POLICY, base.entryTtl(ttlProps.getLeavePolicy()));
+        perCache.put(LEAVE_BALANCE, base.entryTtl(ttlProps.getLeaveBalance()));
 
         RedisCacheManager redis = RedisCacheManager.builder(connectionFactory)
                 .cacheDefaults(base.entryTtl(ttlProps.getDefaultTtl()))

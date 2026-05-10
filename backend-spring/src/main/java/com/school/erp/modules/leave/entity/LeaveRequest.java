@@ -6,6 +6,7 @@ import com.school.erp.common.entity.AcademicYearScopeGuardListener;
 import com.school.erp.common.enums.Enums;
 import jakarta.persistence.*;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 import org.hibernate.annotations.Filter;
@@ -69,6 +70,18 @@ public class LeaveRequest extends BaseEntity implements AcademicYearScopedEntity
 
     @Column(name = "approver_remarks", length = 500)
     private String approverRemarks;
+
+    @Column(name = "approval_step", nullable = false)
+    private Integer approvalStep = 1;
+
+    @Column(name = "approval_step_total", nullable = false)
+    private Integer approvalStepTotal = 1;
+
+    @Column(name = "approval_sla_due_at")
+    private LocalDateTime approvalSlaDueAt;
+
+    @Column(name = "approval_escalation_count", nullable = false)
+    private Integer approvalEscalationCount = 0;
 
     @Column(name = "balance_snapshot_json", columnDefinition = "json")
     private String balanceSnapshotJson;
@@ -175,5 +188,37 @@ public class LeaveRequest extends BaseEntity implements AcademicYearScopedEntity
 
     public void setBalanceSnapshotJson(String balanceSnapshotJson) {
         this.balanceSnapshotJson = balanceSnapshotJson;
+    }
+
+    public Integer getApprovalStep() {
+        return approvalStep;
+    }
+
+    public void setApprovalStep(Integer approvalStep) {
+        this.approvalStep = approvalStep;
+    }
+
+    public Integer getApprovalStepTotal() {
+        return approvalStepTotal;
+    }
+
+    public void setApprovalStepTotal(Integer approvalStepTotal) {
+        this.approvalStepTotal = approvalStepTotal;
+    }
+
+    public LocalDateTime getApprovalSlaDueAt() {
+        return approvalSlaDueAt;
+    }
+
+    public void setApprovalSlaDueAt(LocalDateTime approvalSlaDueAt) {
+        this.approvalSlaDueAt = approvalSlaDueAt;
+    }
+
+    public Integer getApprovalEscalationCount() {
+        return approvalEscalationCount;
+    }
+
+    public void setApprovalEscalationCount(Integer approvalEscalationCount) {
+        this.approvalEscalationCount = approvalEscalationCount;
     }
 }
