@@ -2,6 +2,7 @@ package com.school.erp.security;
 
 import com.school.erp.common.idempotency.IdempotencyFilter;
 import com.school.erp.config.AppSecurityProperties;
+import jakarta.servlet.DispatcherType;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -49,6 +50,9 @@ public class SecurityConfig {
                 .cors(cors -> cors.configurationSource(corsConfigSource()))
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> {
+                    // For async streaming (SSE) and framework error dispatches, do not re-authorize the resumed dispatch.
+                    // Initial REQUEST dispatch remains fully protected by route rules + JWT filter.
+                    auth.dispatcherTypeMatchers(DispatcherType.ASYNC, DispatcherType.ERROR).permitAll();
                     // Public auth surface only — profile, preferences, register (admin), etc. require JWT.
                     auth.requestMatchers(HttpMethod.POST, "/api/v1/auth/login").permitAll();
                     auth.requestMatchers(HttpMethod.POST, "/api/v1/auth/phone/**").permitAll();
@@ -74,6 +78,7 @@ public class SecurityConfig {
                     }
                     auth.requestMatchers("/ws", "/ws/**").permitAll();
                     auth.requestMatchers(HttpMethod.POST, "/api/v1/internal/jobs/**").permitAll();
+                    auth.requestMatchers("/error").permitAll();
                     auth.requestMatchers(HttpMethod.OPTIONS, "/**").permitAll();
                     auth.anyRequest().authenticated();
                 })

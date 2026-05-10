@@ -88,6 +88,15 @@ export const routes: Routes = [
       { path: 'students/:id', loadComponent: () => import('./features/student/student-profile.component').then(m => m.StudentProfileComponent), canActivate: [schoolStaffGuard] },
       { path: 'students/:id/edit', loadComponent: () => import('./features/student/student-form.component').then(m => m.StudentFormComponent), canActivate: [studentMasterWriteGuard] },
       {
+        path: 'ai-assistant',
+        loadComponent: () => import('./features/ai/ai-workspace.component').then(m => m.AiWorkspaceComponent),
+        canActivate: [authGuard, featureModuleGuard],
+        data: {
+          requireFeatures: ['aiAssistant'],
+          requireAnyRole: ['admin', 'teacher', 'school_staff', 'library_staff'],
+        },
+      },
+      {
         path: 'directory',
         loadComponent: () => import('./features/directory/directory.component').then(m => m.DirectoryComponent),
         canActivate: [adminOnlyGuard, featureModuleGuard],

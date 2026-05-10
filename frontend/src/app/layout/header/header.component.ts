@@ -485,6 +485,7 @@ export class HeaderComponent implements OnInit, OnDestroy {
       'platform-broadcasts': 'header.title.adminBroadcasts',
       'platform-settings': 'header.title.platformSettings',
       'import-export': 'header.title.importExport',
+      'ai-assistant': 'header.title.aiAssistant',
       'school-onboarding': 'header.title.schoolOnboarding',
     };
     const parts = pathOnly.split('/').filter(Boolean);

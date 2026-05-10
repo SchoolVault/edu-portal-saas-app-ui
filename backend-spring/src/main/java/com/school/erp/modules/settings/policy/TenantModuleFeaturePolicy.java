@@ -8,6 +8,7 @@ import java.util.Set;
  * School admins may view flags but must not mutate these keys via {@code PUT /settings/features}.
  */
 public final class TenantModuleFeaturePolicy {
+    public static final String AI_ASSISTANT = "aiAssistant";
     public static final String CHAT = "chat";
     public static final String TRANSPORT = "transport";
     public static final String HOSTEL = "hostel";
@@ -21,7 +22,7 @@ public final class TenantModuleFeaturePolicy {
     public static final String LEAVE = "leave";
 
     private static final Set<String> PLATFORM_MANAGED = Set.of(
-            CHAT, TRANSPORT, HOSTEL, LIBRARY, AUDIT, OPERATIONS_HUB, IMPORT_EXPORT, DIRECTORY, DOCUMENTS, EXAMS, LEAVE
+            AI_ASSISTANT, CHAT, TRANSPORT, HOSTEL, LIBRARY, AUDIT, OPERATIONS_HUB, IMPORT_EXPORT, DIRECTORY, DOCUMENTS, EXAMS, LEAVE
     );
 
     private TenantModuleFeaturePolicy() {

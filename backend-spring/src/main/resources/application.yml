@@ -135,6 +135,39 @@ resilience4j:
         baseConfig: default
 
 app:
+  ai:
+    enabled: ${APP_AI_ENABLED:true}
+    provider: ${APP_AI_PROVIDER:mock}
+    default-model: ${APP_AI_DEFAULT_MODEL:gpt-4o-mini}
+    request-timeout-ms: ${APP_AI_REQUEST_TIMEOUT_MS:30000}
+    max-input-tokens: ${APP_AI_MAX_INPUT_TOKENS:6000}
+    max-output-tokens: ${APP_AI_MAX_OUTPUT_TOKENS:1200}
+    stream-timeout-ms: ${APP_AI_STREAM_TIMEOUT_MS:120000}
+    prompt-injection-guard-enabled: ${APP_AI_PROMPT_GUARD_ENABLED:true}
+    memory-summary-threshold-messages: ${APP_AI_MEMORY_SUMMARY_THRESHOLD:25}
+    rag-enabled: ${APP_AI_RAG_ENABLED:false}
+    providers:
+      openai:
+        api-key: ${OPENAI_API_KEY:}
+        base-url: ${OPENAI_BASE_URL:https://api.openai.com/v1}
+      claude:
+        api-key: ${CLAUDE_API_KEY:}
+      gemini:
+        api-key: ${GEMINI_API_KEY:}
+      ollama:
+        base-url: ${OLLAMA_BASE_URL:http://localhost:11434}
+    executor:
+      core-pool-size: ${APP_AI_EXEC_CORE_POOL_SIZE:4}
+      max-pool-size: ${APP_AI_EXEC_MAX_POOL_SIZE:12}
+      queue-capacity: ${APP_AI_EXEC_QUEUE_CAPACITY:300}
+      thread-name-prefix: ${APP_AI_EXEC_THREAD_PREFIX:sv-ai-agent-}
+      allow-core-thread-timeout: ${APP_AI_EXEC_ALLOW_CORE_THREAD_TIMEOUT:true}
+      keep-alive-seconds: ${APP_AI_EXEC_KEEP_ALIVE_SECONDS:60}
+    retention:
+      enabled: ${APP_AI_RETENTION_ENABLED:true}
+      days: ${APP_AI_RETENTION_DAYS:45}
+      cron: ${APP_AI_RETENTION_CRON:0 40 3 * * *}
+
   # Bulk import (ZIP / CSV / XLSX). Tune per deployment for 10k+ row schools.
   import:
     max-rows-per-file: ${APP_IMPORT_MAX_ROWS:50000}

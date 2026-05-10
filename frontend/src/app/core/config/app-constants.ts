@@ -265,6 +265,14 @@ export const NAV_ITEMS: NavItem[] = [
     moduleGate: 'communication',
   },
   {
+    labelKey: 'nav.aiAssistant',
+    icon: 'bi-stars',
+    route: '/app/ai-assistant',
+    roles: ['admin', 'teacher', 'school_staff', 'library_staff'],
+    sectionKey: 'nav.section.connect',
+    moduleGate: 'aiAssistant',
+  },
+  {
     labelKey: 'nav.chat',
     icon: 'bi-chat-dots-fill',
     route: '/app/chat',
@@ -402,6 +410,7 @@ export const API_ENDPOINTS = {
 };
 
 export const DEFAULT_FEATURES: Record<string, boolean> = {
+  aiAssistant: false,
   transport: false,
   library: false,
   hostel: false,

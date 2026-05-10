@@ -5,14 +5,17 @@ import { Subscription } from 'rxjs';
 import { filter } from 'rxjs/operators';
 import { SidebarComponent } from './sidebar/sidebar.component';
 import { HeaderComponent } from './header/header.component';
+import { AiAssistantComponent } from '../features/ai/ai-assistant.component';
 import { AuthService } from '../core/services/auth.service';
 import { TenantModuleGateService } from '../core/services/tenant-module-gate.service';
 import { runtimeConfig } from '../core/config/runtime-config';
+import { UiAccessService } from '../core/services/ui-access.service';
+import { NAV_ITEMS } from '../core/config/app-constants';
 
 @Component({
   selector: 'app-layout',
   standalone: true,
-  imports: [CommonModule, RouterOutlet, SidebarComponent, HeaderComponent],
+  imports: [CommonModule, RouterOutlet, SidebarComponent, HeaderComponent, AiAssistantComponent],
   template: `
     <div class="app-layout">
       <div
@@ -36,6 +39,7 @@ import { runtimeConfig } from '../core/config/runtime-config';
         <main class="main-content">
           <router-outlet></router-outlet>
         </main>
+        <app-ai-assistant *ngIf="showAiAssistant"></app-ai-assistant>
       </div>
     </div>
   `,
@@ -51,19 +55,25 @@ export class LayoutComponent implements OnInit, OnDestroy {
   sidebarCollapsed = false;
   mobileNavOpen = false;
   isMobileViewport = false;
+  showAiAssistant = false;
   private navSub?: Subscription;
 
   constructor(
     private router: Router,
     private auth: AuthService,
-    private moduleGate: TenantModuleGateService
+    private moduleGate: TenantModuleGateService,
+    private uiAccess: UiAccessService
   ) {}
 
   ngOnInit(): void {
     this.refreshViewport();
+    this.refreshAiAssistantVisibility();
     if (!runtimeConfig.useMocks && this.auth.isAuthenticated()) {
       this.auth.syncProfileFromServer().subscribe({ error: () => void 0 });
-      this.moduleGate.refresh().subscribe({ error: () => void 0 });
+      this.moduleGate.refresh().subscribe({
+        next: () => this.refreshAiAssistantVisibility(),
+        error: () => this.refreshAiAssistantVisibility(),
+      });
     }
     this.navSub = this.router.events.pipe(filter(e => e instanceof NavigationEnd)).subscribe(() => {
       if (this.isMobileViewport) {
@@ -99,5 +109,10 @@ export class LayoutComponent implements OnInit, OnDestroy {
 
   closeMobileNav(): void {
     this.mobileNavOpen = false;
+  }
+
+  private refreshAiAssistantVisibility(): void {
+    const aiNavItem = NAV_ITEMS.find(i => i.route === '/app/ai-assistant');
+    this.showAiAssistant = !!aiNavItem && this.uiAccess.isNavItemVisible(aiNavItem);
   }
 }

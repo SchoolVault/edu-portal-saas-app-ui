@@ -3,6 +3,7 @@
  * Keep in sync with backend {@code @RequireTenantFeature}, sidebar {@code moduleGate}, and {@link TenantModuleGateService}.
  */
 export const PLATFORM_TENANT_FEATURE_KEYS = [
+  'aiAssistant',
   'chat',
   'transport',
   'hostel',
@@ -29,6 +30,7 @@ export type PlatformTenantFeatureKey = (typeof PLATFORM_TENANT_FEATURE_KEYS)[num
  * core academics/finance/communication on, optional modules off until super-admin enables them.
  */
 export const DEFAULT_PLATFORM_TENANT_FEATURES: Record<PlatformTenantFeatureKey, boolean> = {
+  aiAssistant: false,
   chat: false,
   transport: false,
   hostel: false,

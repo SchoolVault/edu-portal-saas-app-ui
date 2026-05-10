@@ -422,6 +422,10 @@
           "name": "Chat",
           "description": "Real-time messaging"
         },
+        "aiAssistant": {
+          "name": "School Copilot",
+          "description": "Natural-language assistant for school operations and analytics"
+        },
         "transport": {
           "name": "Transport",
           "description": "Fleet & route tracking"
@@ -561,6 +565,7 @@
     "fees": "Fees",
     "payroll": "Payroll",
     "inbox": "Inbox",
+    "aiAssistant": "School Copilot",
     "chat": "Chat",
     "leave": "Leave",
     "reports": "Reports",
@@ -610,6 +615,7 @@
       "adminBroadcasts": "Admin broadcasts",
       "platformSettings": "Platform settings",
       "importExport": "Import / export",
+      "aiAssistant": "School Copilot",
       "schoolOnboarding": "School onboarding",
       "notice": "Notice",
       "notificationDetail": "Notification",
