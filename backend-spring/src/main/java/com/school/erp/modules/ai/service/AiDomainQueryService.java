@@ -717,7 +717,7 @@ public class AiDomainQueryService {
 
     private String sectionNameById(Long sectionId) {
         if (sectionId == null) return "";
-        return sectionRepository.findByIdAndTenantIdAndIsDeletedFalse(sectionId, com.school.erp.tenant.TenantContext.getTenantId())
+        return  sectionRepository.findByIdAndTenantIdAndIsDeletedFalse(sectionId, com.school.erp.tenant.TenantContext.getTenantId())
                 .map(s -> s.getName())
                 .orElse("");
     }
