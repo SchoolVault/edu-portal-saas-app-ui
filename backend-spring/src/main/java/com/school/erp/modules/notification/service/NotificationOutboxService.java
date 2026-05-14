@@ -2,6 +2,8 @@ package com.school.erp.modules.notification.service;
 
 import com.school.erp.common.enums.Enums;
 import com.school.erp.common.util.InternationalPhone;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.school.erp.integration.email.TransactionalEmailDispatcher;
 import com.school.erp.modules.auth.repository.UserRepository;
 import com.school.erp.modules.notification.config.NotificationDeliveryProperties;
@@ -13,6 +15,7 @@ import com.school.erp.modules.notification.repository.NotificationRepository;
 import com.school.erp.modules.notification.sms.SmsRequest;
 import com.school.erp.modules.notification.sms.SmsResponse;
 import com.school.erp.modules.notification.sms.SmsService;
+import com.school.erp.modules.notification.sms.SmsTemplate;
 import com.school.erp.platform.port.NotificationDispatchPort;
 import com.school.erp.platform.port.NotificationDispatchAttributes;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -21,6 +24,7 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -51,6 +55,7 @@ public class NotificationOutboxService implements NotificationDispatchPort {
     private final NotificationDeliveryProperties deliveryProperties;
     private final ObjectProvider<MeterRegistry> meterRegistryProvider;
     private final CurrentAcademicYearResolver currentAcademicYearResolver;
+    private final ObjectMapper objectMapper;
 
     public NotificationOutboxService(
             NotificationOutboxRepository repo,
@@ -60,7 +65,8 @@ public class NotificationOutboxService implements NotificationDispatchPort {
             TransactionalEmailDispatcher transactionalEmailDispatcher,
             NotificationDeliveryProperties deliveryProperties,
             ObjectProvider<MeterRegistry> meterRegistryProvider,
-            CurrentAcademicYearResolver currentAcademicYearResolver) {
+            CurrentAcademicYearResolver currentAcademicYearResolver,
+            ObjectMapper objectMapper) {
         this.repo = repo;
         this.userRepository = userRepository;
         this.notificationRepository = notificationRepository;
@@ -69,6 +75,7 @@ public class NotificationOutboxService implements NotificationDispatchPort {
         this.deliveryProperties = deliveryProperties;
         this.meterRegistryProvider = meterRegistryProvider;
         this.currentAcademicYearResolver = currentAcademicYearResolver;
+        this.objectMapper = objectMapper;
     }
 
     @Override
@@ -150,6 +157,8 @@ public class NotificationOutboxService implements NotificationDispatchPort {
         row.setRecipientEmail(email != null && !email.isBlank() ? email.trim() : null);
         row.setSubject(subject);
         row.setBodyText(body);
+        row.setSmsTemplateId(trimToLen(attrs.smsTemplateId(), 64));
+        row.setSmsTemplateVariablesJson(trimToLen(attrs.smsTemplateVariablesJson(), 4000));
         row.setDedupeKey(dedupeKey);
         row.setStatus("PENDING");
         row.setProviderStatus("QUEUED");
@@ -483,7 +492,15 @@ public class NotificationOutboxService implements NotificationDispatchPort {
                     .message(row.getBodyText())
                     .tenantId(row.getTenantId())
                     .correlationId(row.getCorrelationId())
+                    .template(resolveSmsTemplate(row))
                     .build();
+            log.info(
+                    "Outbox SMS dispatch correlationId={} tenantId={} to={} templateId={} provider={}",
+                    row.getCorrelationId(),
+                    row.getTenantId(),
+                    smsTo,
+                    row.getSmsTemplateId(),
+                    smsService.getProviderName());
             SmsResponse smsResponse = smsService.sendSms(smsRequest);
             row.setProviderMessageId(trimToLen(smsResponse.getMessageId(), 120));
             row.setProviderStatus(trimToLen(smsResponse.getProviderStatus(), 40));
@@ -515,6 +532,26 @@ public class NotificationOutboxService implements NotificationDispatchPort {
             return;
         }
         throw new IllegalStateException("Unsupported notification channel for outbox delivery: " + channel);
+    }
+
+    private SmsTemplate resolveSmsTemplate(NotificationOutbox row) {
+        if (!StringUtils.hasText(row.getSmsTemplateId())) {
+            return null;
+        }
+        Map<String, String> vars = null;
+        String raw = row.getSmsTemplateVariablesJson();
+        if (StringUtils.hasText(raw)) {
+            try {
+                vars = objectMapper.readValue(raw, new TypeReference<Map<String, String>>() {});
+            } catch (Exception ex) {
+                log.warn("Invalid sms template payload on outbox id={} correlationId={}: {}", row.getId(), row.getCorrelationId(), ex.getMessage());
+                vars = null;
+            }
+        }
+        return SmsTemplate.builder()
+                .templateId(row.getSmsTemplateId())
+                .variables(vars)
+                .build();
     }
 
     private String normalizeChannel(String channel) {

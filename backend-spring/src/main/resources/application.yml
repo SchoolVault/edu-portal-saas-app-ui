@@ -350,6 +350,18 @@ app:
       base-url: ${APP_SMS_MSG91_BASE_URL:https://control.msg91.com}
       route: ${APP_SMS_MSG91_ROUTE:4}
       country: ${APP_SMS_MSG91_COUNTRY:91}
+      flow-path: ${APP_SMS_MSG91_FLOW_PATH:/api/v5/flow}
+      pe-id: ${APP_SMS_MSG91_PE_ID:}
+      connect-timeout-ms: ${APP_SMS_MSG91_CONNECT_TIMEOUT_MS:5000}
+      read-timeout-ms: ${APP_SMS_MSG91_READ_TIMEOUT_MS:10000}
+      otp-template-id: ${APP_SMS_MSG91_OTP_TEMPLATE_ID:}
+      templates:
+        login: ${APP_SMS_MSG91_TEMPLATE_LOGIN:${APP_SMS_MSG91_OTP_TEMPLATE_ID:}}
+        password-reset: ${APP_SMS_MSG91_TEMPLATE_PASSWORD_RESET:${APP_SMS_MSG91_OTP_TEMPLATE_ID:}}
+        signup: ${APP_SMS_MSG91_TEMPLATE_SIGNUP:${APP_SMS_MSG91_OTP_TEMPLATE_ID:}}
+        phone-verify: ${APP_SMS_MSG91_TEMPLATE_PHONE_VERIFY:${APP_SMS_MSG91_OTP_TEMPLATE_ID:}}
+        email-verify: ${APP_SMS_MSG91_TEMPLATE_EMAIL_VERIFY:${APP_SMS_MSG91_OTP_TEMPLATE_ID:}}
+        transaction: ${APP_SMS_MSG91_TEMPLATE_TRANSACTION:${APP_SMS_MSG91_OTP_TEMPLATE_ID:}}
       healthcheck-enabled: ${APP_SMS_MSG91_HEALTHCHECK_ENABLED:false}
       healthcheck-path: ${APP_SMS_MSG91_HEALTHCHECK_PATH:/api/v5/checkBalance}
     springedge:

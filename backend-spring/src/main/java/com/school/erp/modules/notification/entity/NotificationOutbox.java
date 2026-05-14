@@ -45,6 +45,12 @@ public class NotificationOutbox extends BaseEntity {
     @Column(name = "body_html", columnDefinition = "LONGTEXT")
     private String bodyHtml;
 
+    @Column(name = "sms_template_id", length = 64)
+    private String smsTemplateId;
+
+    @Column(name = "sms_template_variables_json", columnDefinition = "TEXT")
+    private String smsTemplateVariablesJson;
+
     @Column(name = "dedupe_key", length = 200)
     private String dedupeKey;
 
@@ -159,6 +165,22 @@ public class NotificationOutbox extends BaseEntity {
 
     public void setDedupeKey(String dedupeKey) {
         this.dedupeKey = dedupeKey;
+    }
+
+    public String getSmsTemplateId() {
+        return smsTemplateId;
+    }
+
+    public void setSmsTemplateId(String smsTemplateId) {
+        this.smsTemplateId = smsTemplateId;
+    }
+
+    public String getSmsTemplateVariablesJson() {
+        return smsTemplateVariablesJson;
+    }
+
+    public void setSmsTemplateVariablesJson(String smsTemplateVariablesJson) {
+        this.smsTemplateVariablesJson = smsTemplateVariablesJson;
     }
 
     public String getStatus() {

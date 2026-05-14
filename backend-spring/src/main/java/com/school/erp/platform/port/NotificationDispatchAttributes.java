@@ -11,9 +11,9 @@ import com.school.erp.tenant.AcademicYearContext;
  * delivery time for academic-year-scoped side effects (e.g. in-app {@code Notification} rows). When
  * null, delivery may resolve the tenant's current academic year as a backward-compatible fallback.
  */
-public record NotificationDispatchAttributes(Long academicYearId) {
+public record NotificationDispatchAttributes(Long academicYearId, String smsTemplateId, String smsTemplateVariablesJson) {
 
-    public static final NotificationDispatchAttributes EMPTY = new NotificationDispatchAttributes(null);
+    public static final NotificationDispatchAttributes EMPTY = new NotificationDispatchAttributes(null, null, null);
 
     public static NotificationDispatchAttributes empty() {
         return EMPTY;
@@ -21,7 +21,7 @@ public record NotificationDispatchAttributes(Long academicYearId) {
 
     /** @param academicYearId nullable — treated as {@link #empty()} when null */
     public static NotificationDispatchAttributes academicYearOrEmpty(Long academicYearId) {
-        return academicYearId == null ? EMPTY : new NotificationDispatchAttributes(academicYearId);
+        return academicYearId == null ? EMPTY : new NotificationDispatchAttributes(academicYearId, null, null);
     }
 
     /**
@@ -40,5 +40,16 @@ public record NotificationDispatchAttributes(Long academicYearId) {
         Long thread = AcademicYearContext.getAcademicYearId();
         Long chosen = explicitAcademicYearId != null ? explicitAcademicYearId : thread;
         return academicYearOrEmpty(chosen);
+    }
+
+    public static NotificationDispatchAttributes smsTemplate(String smsTemplateId, String smsTemplateVariablesJson) {
+        if (smsTemplateId == null || smsTemplateId.isBlank()) {
+            return EMPTY;
+        }
+        return new NotificationDispatchAttributes(null, smsTemplateId.trim(), smsTemplateVariablesJson);
+    }
+
+    public NotificationDispatchAttributes withAcademicYear(Long yearId) {
+        return new NotificationDispatchAttributes(yearId, smsTemplateId, smsTemplateVariablesJson);
     }
 }
